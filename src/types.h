@@ -83,13 +83,13 @@ typedef struct {
 typedef struct {
   bool     initialized; ///< offset=0x00
   bool     active;      ///< offset=0x01
-  bool     unk_2;       ///< offset=0x02
+  bool     paused;      ///< offset=0x02
   char     unk_3[9];    ///< offset=0x03
-  uint32_t local_time;  ///< offset=0x0c
+  uint32_t time;        ///< offset=0x0c
   uint16_t elapsed;     ///< offset=0x10
   char     unk_18[6];   ///< offset=0x12
   float    speed;       ///< offset=0x18
-  uint32_t unk_28;      ///< offset=0x1c
+  float    leftover_dt; ///< offset=0x1c
 } game_time_globals_t;
 
 /// size=0x98
