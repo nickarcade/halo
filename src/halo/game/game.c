@@ -90,67 +90,59 @@ void game_precache_new_map(char *map_name, bool a2)
 {
   __int16 map_status;
 
-  if (cache_files_precache_map_loaded(map_name))
-  {
+  if (cache_files_precache_map_loaded(map_name)) {
   LABEL_22:
-    if (a2)
-    {
+    if (a2) {
       assert_halt(cache_files_precache_map_loaded(map_name));
       main_save_current_solo_map(map_name);
       main_queue_map_name(NULL);
-      
+
       if (cache_files_precache_in_progress())
         cache_files_precache_map_end();
 
       if (player_spawn_count == 1)
-       player_ui_remember_player1_profile(true);
+        player_ui_remember_player1_profile(true);
     }
     return;
   }
 
-  if (cache_files_precache_in_progress() && !cache_files_precache_is_copying_map(map_name))
-  {
-    if (a2)
-    {
+  if (cache_files_precache_in_progress() &&
+      !cache_files_precache_is_copying_map(map_name)) {
+    if (a2) {
       cache_files_precache_map_end();
-    }
-    else
-    {
+    } else {
       cache_files_precache_map_queue_end();
       main_queue_map_name(map_name);
     }
   }
 
-  if (!cache_files_precache_in_progress() && !cache_files_precache_map_begin(map_name, a2))
-  {
+  if (!cache_files_precache_in_progress() &&
+      !cache_files_precache_map_begin(map_name, a2)) {
     error(2, "shouldn't be here... map '%s' doesn't exist", map_name);
-    if (a2)
-    {
-      display_assert(
-        "read the last error message for which map failed to load",
-        __FILE__, __LINE__, true);
+    if (a2) {
+      display_assert("read the last error message for which map failed to load",
+                     __FILE__, __LINE__, true);
       system_exit(-1);
     }
   }
 
   cache_files_precache_set_priority(a2);
 
-  if (a2)
-  {
+  if (a2) {
     game_globals->map_loading = true;
     game_globals->map_load_progress = 0.0f;
-    assert_halt(cache_files_precache_in_progress() && cache_files_precache_is_copying_map(map_name));
+    assert_halt(cache_files_precache_in_progress() &&
+                cache_files_precache_is_copying_map(map_name));
     ui_widget_load_progress_widget();
     progress_bar_begin(global_scenario_index != -1);
 
-    do
-    {
-      map_status = cache_files_precache_map_status(&game_globals->map_load_progress);
+    do {
+      map_status =
+        cache_files_precache_map_status(&game_globals->map_load_progress);
       main_pregame_render();
       main_rasterizer_throttle();
       main_present_frame();
-    }
-    while (!map_status);
+    } while (!map_status);
 
     progress_bar_end();
     ui_widgets_close_all();
@@ -180,27 +172,24 @@ void game_unload(void)
 {
   __int16 map_status;
 
-  if (cache_files_precache_in_progress())
-  {
+  if (cache_files_precache_in_progress()) {
     game_globals->map_loading = true;
     ui_widget_load_progress_widget();
 
-    do
-    {
-      map_status = cache_files_precache_map_status(&game_globals->map_load_progress);
+    do {
+      map_status =
+        cache_files_precache_map_status(&game_globals->map_load_progress);
       main_pregame_render();
       main_rasterizer_throttle();
       main_present_frame();
-    }
-    while (!map_status);
+    } while (!map_status);
 
     ui_widgets_close_all();
     if (map_status == 2)
       display_error_damaged_media();
     cache_files_precache_map_end();
   }
-  if (game_globals->map_loaded)
-  {
+  if (game_globals->map_loaded) {
     scenario_unload();
     random_seed_debug_log(0);
     game_globals->map_loaded = false;
@@ -303,7 +292,7 @@ void game_tick(void)
   players_update_after_game();
   hud_update();
   player_effect_update();
-  if ( profile_global_enable && byte_2EF808 )
+  if (profile_global_enable && byte_2EF808)
     profile_exit_private(&off_2EF800);
   collision_log_end_period();
   profile_tick_end();
@@ -372,7 +361,8 @@ void game_set_game_variant(game_variant_t *variant)
 
 void game_set_game_engine_index(void)
 {
-  display_assert("this is broken and should get updated for the variants, ask michael",
+  display_assert(
+    "this is broken and should get updated for the variants, ask michael",
     __FILE__, __LINE__, true);
   system_exit(-1);
 }
@@ -380,10 +370,8 @@ void game_set_game_engine_index(void)
 bool game_all_quiet(void)
 {
   return !dangerous_projectiles_near_player() &&
-  !dangerous_items_near_player() &&
-  !dangerous_effects_near_player() &&
-  !any_unit_is_dangerous() &&
-  !ai_enemies_can_see_player();
+         !dangerous_items_near_player() && !dangerous_effects_near_player() &&
+         !any_unit_is_dangerous() && !ai_enemies_can_see_player();
 }
 
 bool game_safe_to_save(void)
@@ -540,17 +528,16 @@ void game_initialize_for_new_map(void)
   ui_widgets_safe_to_load(1);
 }
 
-void game_set_game_variant_from_name(const char* name)
+void game_set_game_variant_from_name(const char *name)
 {
   game_variant_t variant;
   game_variant_t variant_copy;
 
-  qmemcpy(&variant_copy, game_engine_get_variant_by_name(&variant, name), sizeof(game_variant_t));
-  if (!&variant_copy)
-  {
-    csmemset(&game_variant_global, (char)&variant_copy, sizeof(game_variant_t));
-    return;
-  }
-
-  qmemcpy(&game_variant_global, (const void*)&variant_copy, sizeof(game_variant_t));
+  // The original at 0xa78e0 has a dead `if (!&variant_copy)` branch from a
+  // LEA+TEST+JNZ pattern on a stack address — unreachable in practice, and
+  // inexpressible in C. We preserve the two-step copy via variant_copy but
+  // skip the dead zero-out branch.
+  qmemcpy(&variant_copy, game_engine_get_variant_by_name(&variant, name),
+          sizeof(game_variant_t));
+  qmemcpy(&game_variant_global, &variant_copy, sizeof(game_variant_t));
 }
