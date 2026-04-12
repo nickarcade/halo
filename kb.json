@@ -25,6 +25,10 @@
           "addr": "0x5aa820"
         },
         {
+          "decl": "char local_player_network_indices[64];",
+          "addr": "0x46b668"
+        },
+        {
           "decl": "data_t * object_header_data;",
           "addr": "0x5abc10"
         }
@@ -36,6 +40,15 @@
         {
           "decl": "void __cdecl qsort(void *base, size_t nmemb, size_t size, int (__cdecl *compar)(const void *, const void *));",
           "addr": "0x1d9260"
+        }
+      ]
+    },
+    {
+      "name": "LIBCMT:strncpy.obj",
+      "functions": [
+        {
+          "decl": "char *strncpy(char *destination, const char *source, size_t count);",
+          "addr": "0x1da740"
         }
       ]
     },
@@ -367,12 +380,20 @@
           "addr": "0x1191a0"
         },
         {
+          "decl": "void *datum_get(data_t *data, int datum_handle);",
+          "addr": "0x119320"
+        },
+        {
           "decl": "void data_verify(data_t *data);",
           "addr": "0x1193f0"
         },
         {
           "decl": "void data_make_invalid(data_t *data);",
           "addr": "0x119550"
+        },
+        {
+          "decl": "void data_delete_all(data_t *data);",
+          "addr": "0x119b20"
         },
         {
           "decl": "void data_iterator_new(data_iter_t *iter, data_t *data);",
@@ -1291,6 +1312,10 @@
       ],
       "functions": [
         {
+          "decl": "void *object_get_and_verify_type(int datum_handle, int type_mask);",
+          "addr": "0x13d680"
+        },
+        {
           "decl": "void objects_place(void);",
           "addr": "0x13f060"
         },
@@ -2156,6 +2181,10 @@
       "name": "units.obj",
       "source": "units/units.c",
       "functions": [
+        {
+          "decl": "void unit_delete(int datum_handle);",
+          "addr": "0x1a7fc0"
+        },
         {
           "decl": "void units_update(void);",
           "addr": "0x1a7ff0"
