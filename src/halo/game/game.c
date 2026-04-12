@@ -255,7 +255,34 @@ void game_frame(float elapsed)
   collision_log_end_period();
 }
 
-// TODO: void remove_quitting_players_from_game(void);
+void remove_quitting_players_from_game(void)
+{
+  data_iter_t iter;
+  char *player;
+  int quit_tick;
+  int quit_at;
+
+  if (!game_engine_running())
+    return;
+
+  quit_tick = game_time_get();
+  data_iterator_new(&iter, player_data);
+  while ((player = (char *)data_iterator_next(&iter)) != NULL) {
+    quit_at = *(int *)(player + 0xCC);
+    if (quit_at != -1 && *(char *)(player + 0xD1) == 0) {
+      if (quit_tick == quit_at) {
+        *(char *)(player + 0xD1) = 1;
+        if (*(int *)(player + 0x34) != -1) {
+          object_get_and_verify_type(*(int *)(player + 0x34), 3);
+          unit_delete(*(int *)(player + 0x34));
+        }
+      } else if (quit_at < quit_tick) {
+        error(2, "player %x failed to quit, wanted %d is %d", iter.datum_handle,
+              quit_at, quit_tick);
+      }
+    }
+  }
+}
 
 void game_tick(void)
 {

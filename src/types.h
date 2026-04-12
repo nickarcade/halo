@@ -743,9 +743,12 @@ typedef struct
 /// size=0x1C
 typedef struct
 {
-  char unk_0[10];      ///< offset=0x00
+  char unk_0[8];       ///< offset=0x00
+  bool unk_8;          ///< offset=0x08
+  bool in_progress;    ///< offset=0x09
   bool can_be_skipped; ///< offset=0x0A
-  char unk_11[17];     ///< offset=0x0B
+  char unk_11;         ///< offset=0x0B
+  char unk_12[16];     ///< offset=0x0C — initialized to 0xFF (datum handles)
 } cinematic_globals_t;
 
 #define GAME_STATE_BASE_ADDRESS 0x80061000
