@@ -31,3 +31,43 @@ void game_allegiance_initialize_for_new_map(void)
 void game_allegiance_dispose_from_old_map(void)
 {
 }
+
+void game_allegiance_update(void)
+{
+  int16_t i;
+  int16_t *entry;
+
+  i = 0;
+  entry = (int16_t *)(game_allegiance_globals + 2);
+  if (*(int16_t *)game_allegiance_globals > 0) {
+    do {
+      if (entry[8] > 0) {
+        entry[8] = entry[8] - 1;
+        if (entry[8] == 0) {
+          if (entry[7] < 1) {
+            display_assert("allegiance->current_incidents > 0",
+                           "c:\\halo\\SOURCE\\game\\game_allegiance.c", 0x79,
+                           1);
+            system_exit(-1);
+          }
+          entry[7] = entry[7] - 1;
+          if (entry[7] == 0) {
+            /* allegiance_set(entry, friendship=0, force=0)
+             * uses EAX=entry, BL=friendship, stack=force */
+            __asm__ volatile("pushl $0\n\t"
+                             "xorl %%ebx, %%ebx\n\t"
+                             "call *%0\n\t"
+                             "addl $4, %%esp"
+                             :
+                             : "r"((void *)0xa7c90), "a"((int)entry)
+                             : "ebx", "ecx", "edx", "memory");
+          } else {
+            entry[8] = entry[3];
+          }
+        }
+      }
+      i++;
+      entry += 9;
+    } while (i < *(int16_t *)game_allegiance_globals);
+  }
+}
