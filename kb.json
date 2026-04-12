@@ -29,6 +29,14 @@
           "addr": "0x46b668"
         },
         {
+          "decl": "char input_frame_tick;",
+          "addr": "0x46bb2d"
+        },
+        {
+          "decl": "char player_ui_globals[0x230];",
+          "addr": "0x46bee0"
+        },
+        {
           "decl": "data_t * object_header_data;",
           "addr": "0x5abc10"
         }
@@ -1056,6 +1064,10 @@
         {
           "decl": "bool input_key_is_down(uint16_t);",
           "addr": "0xcf560"
+        },
+        {
+          "decl": "void input_get_device_states(void);",
+          "addr": "0xcf830"
         },
         {
           "decl": "void input_update(void);",

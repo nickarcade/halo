@@ -7,3 +7,14 @@ void input_flush(void)
   word_46BC0A = 0;
   csmemset(dword_46BC0C, 0, 0x100u);
 }
+
+void input_frame_begin(void)
+{
+  input_get_device_states();
+  input_frame_tick = 1;
+}
+
+void input_frame_end(void)
+{
+  input_frame_tick = 0;
+}
