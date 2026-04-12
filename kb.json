@@ -502,6 +502,14 @@
           "addr": "0x1191a0"
         },
         {
+          "decl": "data_t *data_new(char *name, int16_t maximum_count, int16_t size);",
+          "addr": "0x1194d0"
+        },
+        {
+          "decl": "int datum_absolute_index_to_index(data_t *data, int absolute_index);",
+          "addr": "0x119270"
+        },
+        {
           "decl": "void *datum_get(data_t *data, int datum_handle);",
           "addr": "0x119320"
         },
@@ -510,8 +518,24 @@
           "addr": "0x1193f0"
         },
         {
+          "decl": "void data_dispose(data_t *data);",
+          "addr": "0x119520"
+        },
+        {
           "decl": "void data_make_invalid(data_t *data);",
           "addr": "0x119550"
+        },
+        {
+          "decl": "void data_new_datum(data_t *data, int handle);",
+          "addr": "0x119570"
+        },
+        {
+          "decl": "int data_new_at_index(data_t *data, int index);",
+          "addr": "0x119610"
+        },
+        {
+          "decl": "void datum_delete(data_t *data, int datum_handle);",
+          "addr": "0x1196d0"
         },
         {
           "decl": "void data_make_valid(data_t *data);",
@@ -524,6 +548,10 @@
         {
           "decl": "void data_iterator_new(data_iter_t *iter, data_t *data);",
           "addr": "0x1197b0"
+        },
+        {
+          "decl": "int data_next_index(data_t *data, int prev_index);",
+          "addr": "0x1198f0"
         },
         {
           "decl": "void *data_iterator_next(data_iter_t *iterator);",
@@ -1201,6 +1229,18 @@
           "addr": "0xcf560"
         },
         {
+          "decl": "bool input_has_gamepad(int16_t gamepad_index);",
+          "addr": "0xcf6c0"
+        },
+        {
+          "decl": "void *input_get_gamepad_state(int gamepad_index);",
+          "addr": "0xcf710"
+        },
+        {
+          "decl": "void input_set_rumble(int16_t gamepad_index, uint16_t left, uint16_t right);",
+          "addr": "0xcf780"
+        },
+        {
           "decl": "void input_get_device_states(void);",
           "addr": "0xcf830"
         },
@@ -1587,6 +1627,14 @@
       "source": "game/player_control.c",
       "functions": [
         {
+          "decl": "void player_control_dispose(void);",
+          "addr": "0xb63f0"
+        },
+        {
+          "decl": "void player_control_new_unit(uint16_t local_player_index, int player_index);",
+          "addr": "0xb6fc0"
+        },
+        {
           "decl": "void player_control_initialize_for_new_map(void);",
           "addr": "0xb85c0"
         },
@@ -1713,6 +1761,30 @@
           "addr": "0xba240"
         },
         {
+          "decl": "void *machine_get_player_list(int16_t);",
+          "addr": "0xba270"
+        },
+        {
+          "decl": "bool local_player_exists(int16_t);",
+          "addr": "0xba2e0"
+        },
+        {
+          "decl": "int find_unused_local_player_index(void);",
+          "addr": "0xba340"
+        },
+        {
+          "decl": "void player_delete(int);",
+          "addr": "0xba390"
+        },
+        {
+          "decl": "int16_t players_get_respawn_failure(void);",
+          "addr": "0xba3b0"
+        },
+        {
+          "decl": "int local_player_get_player_index(int16_t local_player_index);",
+          "addr": "0xba3c0"
+        },
+        {
           "decl": "int local_player_set_player_index(unsigned __int16 a1, int a2);",
           "addr": "0xba410"
         },
@@ -1725,12 +1797,52 @@
           "addr": "0xba4c0"
         },
         {
+          "decl": "int player_index_from_unit_index(int);",
+          "addr": "0xba500"
+        },
+        {
+          "decl": "void player_died(int);",
+          "addr": "0xba550"
+        },
+        {
+          "decl": "bool players_are_all_dead(void);",
+          "addr": "0xba5e0"
+        },
+        {
+          "decl": "void *players_get_combined_pvs_local(void);",
+          "addr": "0xba6b0"
+        },
+        {
+          "decl": "void *players_get_combined_pvs(void);",
+          "addr": "0xba6c0"
+        },
+        {
+          "decl": "void player_input_enable(bool);",
+          "addr": "0xba6d0"
+        },
+        {
+          "decl": "bool player_input_enabled(void);",
+          "addr": "0xba6f0"
+        },
+        {
           "decl": "bool any_player_is_in_the_air(void);",
           "addr": "0xba710"
         },
         {
           "decl": "bool any_player_is_dead(void);",
           "addr": "0xba800"
+        },
+        {
+          "decl": "int players_compute_local_player_count(void);",
+          "addr": "0xbadf0"
+        },
+        {
+          "decl": "void player_examine_nearby_unit(void);",
+          "addr": "0xbae10"
+        },
+        {
+          "decl": "void player_reset_action_result(void);",
+          "addr": "0xbaeb0"
         },
         {
           "decl": "int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4);",
@@ -2149,6 +2261,16 @@
       ]
     },
     {
+      "name": "scenario.obj",
+      "source": "scenario/scenario.c",
+      "functions": [
+        {
+          "decl": "void *scenario_get(void);",
+          "addr": "0x18e3c0"
+        }
+      ]
+    },
+    {
       "name": "sound_classes.obj",
       "source": "sound/sound_classes.c",
       "functions": [
@@ -2195,6 +2317,15 @@
         {
           "decl": "char stack_walk(__int16 a1);",
           "addr": "0x92d60"
+        }
+      ]
+    },
+    {
+      "name": "tags.obj",
+      "functions": [
+        {
+          "decl": "void *tag_get(int group_tag, int tag_index);",
+          "addr": "0x1ba140"
         }
       ]
     },
