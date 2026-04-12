@@ -61,6 +61,10 @@
           "addr": "0x5ab100"
         },
         {
+          "decl": "void *global_structure_bsp;",
+          "addr": "0x5064e0"
+        },
+        {
           "decl": "player_control_globals_t *player_control_globals;",
           "addr": "0x5aa6c8"
         },
@@ -157,6 +161,15 @@
         {
           "decl": "char *strncpy(char *destination, const char *source, size_t count);",
           "addr": "0x1da740"
+        }
+      ]
+    },
+    {
+      "name": "LIBCMT:_control87.obj",
+      "functions": [
+        {
+          "decl": "unsigned int __control87(unsigned int new_value, unsigned int mask);",
+          "addr": "0x1db67f"
         }
       ]
     },
@@ -2226,6 +2239,10 @@
         {
           "decl": "scenario_t *global_scenario_get(void);",
           "addr": "0x18e380"
+        },
+        {
+          "decl": "void *scenario_get(void);",
+          "addr": "0x18e3c0"
         },
         {
           "decl": "void scenario_switch_structure_bsp(__int16 a1);",
