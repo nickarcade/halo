@@ -1024,6 +1024,30 @@
     "0x7c8f0": {
       "status": "ported",
       "kind": "function"
+    },
+    "0x119100": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x12b640": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x18e310": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x1999f0": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x98750": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0xa2570": {
+      "status": "ported",
+      "kind": "function"
     }
   }
 }
