@@ -107,7 +107,7 @@ class KnowledgeBase:
 		new_func_decl = f'{rtype} (*{fname}__xbe)(/* {args[0].type.spelling} {args[0].spelling}@<{reg}>'
 		if len(args) > 1:
 			new_func_decl += ', */ '
-			new_func_decl += ', '.join('%s %s' % (a.type.spelling, a.spelling) for a in args)
+			new_func_decl += ', '.join('%s %s' % (a.type.spelling, a.spelling) for a in args[1:])
 		else:
 			new_func_decl += ' */ void'
 		new_func_decl += ')'

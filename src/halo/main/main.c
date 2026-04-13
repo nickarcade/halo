@@ -5,6 +5,25 @@ short game_connection(void)
 
 static const short _game_connection_local = 0;
 
+int __cdecl sort_desired_local_player_controllers(const void *a1,
+                                                  const void *a2)
+{
+  short v1;
+  short v2;
+
+  v1 = *(short *)a1;
+  v2 = *(short *)a2;
+  if (v1 == -1) {
+    if (v2 != -1)
+      return 1;
+  } else if (v2 == -1) {
+    return -1;
+  }
+  if (v2 < v1)
+    return 1;
+  return (v2 <= v1) - 1;
+}
+
 void create_local_players(void)
 {
   int i;
@@ -61,6 +80,17 @@ void create_local_players(void)
     assert_halt((gamepad_index >= 0) && (gamepad_index < MAXIMUM_GAMEPADS));
     player = player_new(0, -1, gamepad_index, 0);
     local_player_set_player_index(gamepad_index, player);
+  }
+}
+
+void main_queue_map_name(char *map_name)
+{
+  if (map_name != 0) {
+    csstrncpy(&byte_46DC55, map_name, 0xff);
+    byte_46DA50 = 1;
+  } else {
+    byte_46DC55 = 0;
+    byte_46DA50 = 0;
   }
 }
 
@@ -320,7 +350,8 @@ void main_loop(void)
         main_won_map_private();
       }
       if (byte_46DA3C) {
-        if (!(unsigned __int8)game_time_get_paused() && !cinematic_in_progress()) {
+        if (!(unsigned __int8)game_time_get_paused() &&
+            !cinematic_in_progress()) {
           v0 = word_46DA4E++ <= 90;
           if (!v0) {
             if (players_respawn_coop()) {

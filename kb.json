@@ -21,12 +21,128 @@
           "addr": "0x5aa6d4"
         },
         {
+          "decl": "int16_t game_engine_variant_index;",
+          "addr": "0x5aa730"
+        },
+        {
           "decl": "game_variant_t game_variant_global;",
           "addr": "0x5aa820"
         },
         {
+          "decl": "void *current_game_engine;",
+          "addr": "0x456b60"
+        },
+        {
+          "decl": "char local_player_network_indices[64];",
+          "addr": "0x46b668"
+        },
+        {
+          "decl": "char input_frame_tick;",
+          "addr": "0x46bb2d"
+        },
+        {
+          "decl": "char player_ui_globals[0x230];",
+          "addr": "0x46bee0"
+        },
+        {
+          "decl": "data_t * cached_object_render_states;",
+          "addr": "0x50652c"
+        },
+        {
           "decl": "data_t * object_header_data;",
           "addr": "0x5abc10"
+        },
+        {
+          "decl": "game_state_globals_t game_state_globals;",
+          "addr": "0x4ea990"
+        },
+        {
+          "decl": "char error_string_buffer[256];",
+          "addr": "0x5ab100"
+        },
+        {
+          "decl": "void *global_structure_bsp;",
+          "addr": "0x5064e0"
+        },
+        {
+          "decl": "data_t *hs_syntax_data;",
+          "addr": "0x5aa6c8"
+        },
+        {
+          "decl": "char *breakable_surface_globals;",
+          "addr": "0x46f08c"
+        },
+        {
+          "decl": "data_t *global_decal_data;",
+          "addr": "0x5aa8b8"
+        },
+        {
+          "decl": "char *decal_globals;",
+          "addr": "0x44dfd0"
+        },
+        {
+          "decl": "int16_t decal_counts_0;",
+          "addr": "0x453fd8"
+        },
+        {
+          "decl": "int16_t decal_counts_1;",
+          "addr": "0x4547da"
+        },
+        {
+          "decl": "char event_manager_globals[0x108];",
+          "addr": "0x46bd40"
+        },
+        {
+          "decl": "data_t *particle_data;",
+          "addr": "0x5aa8a0"
+        },
+        {
+          "decl": "data_t *effect_data;",
+          "addr": "0x5aa8b0"
+        },
+        {
+          "decl": "data_t *effect_location_data;",
+          "addr": "0x5aa8ac"
+        },
+        {
+          "decl": "data_t *contrail_data;",
+          "addr": "0x5aa8c0"
+        },
+        {
+          "decl": "data_t *contrail_point_data;",
+          "addr": "0x5aa8bc"
+        },
+        {
+          "decl": "char *player_effect_globals;",
+          "addr": "0x4557ec"
+        },
+        {
+          "decl": "char cheats_globals[0xc80];",
+          "addr": "0x455a68"
+        },
+        {
+          "decl": "char *rumble_globals;",
+          "addr": "0x46b664"
+        },
+        {
+          "decl": "char *game_allegiance_globals;",
+          "addr": "0x4566f0"
+        },
+        {
+          "decl": "data_t *particle_system_data;",
+          "addr": "0x5aa8a4"
+        },
+        {
+          "decl": "data_t *weather_particle_system_data;",
+          "addr": "0x5aa89c"
+        },
+        {
+          "decl": "int16_t weather_particle_system_count;",
+          "addr": "0x4557f0"
+        },
+        {
+          "decl": "data_t *particle_system_header_data;",
+          "addr": "0x5aa8a8"
         }
       ]
     },
@@ -36,6 +152,42 @@
         {
           "decl": "void __cdecl qsort(void *base, size_t nmemb, size_t size, int (__cdecl *compar)(const void *, const void *));",
           "addr": "0x1d9260"
+        }
+      ]
+    },
+    {
+      "name": "LIBCMT:strncpy.obj",
+      "functions": [
+        {
+          "decl": "char *strncpy(char *destination, const char *source, size_t count);",
+          "addr": "0x1da740"
+        }
+      ]
+    },
+    {
+      "name": "LIBCMT:wcsncpy.obj",
+      "functions": [
+        {
+          "decl": "wchar_t *_wcsncpy(wchar_t *dest, const wchar_t *src, size_t count);",
+          "addr": "0x1dc061"
+        }
+      ]
+    },
+    {
+      "name": "LIBCMT:_control87.obj",
+      "functions": [
+        {
+          "decl": "unsigned int __control87(unsigned int new_value, unsigned int mask);",
+          "addr": "0x1db67f"
+        }
+      ]
+    },
+    {
+      "name": "LIBCMT:vsprintf.obj",
+      "functions": [
+        {
+          "decl": "int vsprintf(char *buffer, const char *format, char *arglist);",
+          "addr": "0x1da209"
         }
       ]
     },
@@ -296,8 +448,32 @@
           "addr": "0x978d0"
         },
         {
+          "decl": "void contrail_delete(int datum_handle);",
+          "addr": "0x978f0"
+        },
+        {
+          "decl": "int contrail_compute(int datum_handle@<eax>, float delta_time, int count);",
+          "addr": "0x97a50"
+        },
+        {
+          "decl": "void contrail_validate(int datum_handle@<eax>);",
+          "addr": "0x97ae0"
+        },
+        {
           "decl": "void contrails_initialize(void);",
           "addr": "0x97d40"
+        },
+        {
+          "decl": "void contrail_add_point(char *datum_ptr@<esi>);",
+          "addr": "0x97db0"
+        },
+        {
+          "decl": "void contrail_set_state(int datum_handle@<eax>, int a1, int a2);",
+          "addr": "0x97e40"
+        },
+        {
+          "decl": "void contrail_render_update(int datum_handle, float delta_time);",
+          "addr": "0x98200"
         },
         {
           "decl": "void contrails_update(float);",
@@ -306,28 +482,52 @@
       ]
     },
     {
+      "name": "debug_memory.obj",
+      "source": "cseries/debug_memory.c",
+      "functions": [
+        {
+          "decl": "void *debug_malloc(uint32_t size, bool zero, const char *file, int line);",
+          "addr": "0x8ee60"
+        },
+        {
+          "decl": "void debug_free(void *ptr, const char *file, int line);",
+          "addr": "0x8ef70"
+        }
+      ]
+    },
+    {
       "name": "cseries.obj",
       "source": "cseries/cseries.c",
       "functions": [
         {
+          "decl": "char *csprintf(char *buffer, const char *format, ...);",
+          "addr": "0x8d9d0",
+          "ported": true
+        },
+        {
           "decl": "void display_assert(const char *reason, const char *filepath, int lineno, bool halt);",
-          "addr": "0x8d9f0"
+          "addr": "0x8d9f0",
+          "ported": true
         },
         {
           "decl": "void *csmemset(void *buffer, int c, size_t size);",
-          "addr": "0x8db80"
+          "addr": "0x8db80",
+          "ported": true
         },
         {
           "decl": "void *csstrncpy(char *destination, const char *source, size_t size);",
-          "addr": "0x8de70"
+          "addr": "0x8de70",
+          "ported": true
         },
         {
           "decl": "int csstrlen(const char *s1);",
-          "addr": "0x8df60"
+          "addr": "0x8df60",
+          "ported": true
         },
         {
           "decl": "void *csmemcpy(void *destination, void *source, size_t size);",
-          "addr": "0x8e0b0"
+          "addr": "0x8e0b0",
+          "ported": true
         }
       ]
     },
@@ -342,6 +542,16 @@
         {
           "decl": "unsigned int system_milliseconds(void);",
           "addr": "0x8e370"
+        }
+      ]
+    },
+    {
+      "name": "crc.obj",
+      "source": "memory/crc.c",
+      "functions": [
+        {
+          "decl": "void crc_checksum_buffer(uint32_t *checksum, void *data, int size);",
+          "addr": "0x119100"
         }
       ]
     },
@@ -367,16 +577,56 @@
           "addr": "0x1191a0"
         },
         {
+          "decl": "data_t *data_new(char *name, int16_t maximum_count, int16_t size);",
+          "addr": "0x1194d0"
+        },
+        {
+          "decl": "int datum_absolute_index_to_index(data_t *data, int absolute_index);",
+          "addr": "0x119270"
+        },
+        {
+          "decl": "void *datum_get(data_t *data, int datum_handle);",
+          "addr": "0x119320"
+        },
+        {
           "decl": "void data_verify(data_t *data);",
           "addr": "0x1193f0"
+        },
+        {
+          "decl": "void data_dispose(data_t *data);",
+          "addr": "0x119520"
         },
         {
           "decl": "void data_make_invalid(data_t *data);",
           "addr": "0x119550"
         },
         {
+          "decl": "int data_new_datum(data_t *data, int handle);",
+          "addr": "0x119570"
+        },
+        {
+          "decl": "int data_new_at_index(data_t *data, int index);",
+          "addr": "0x119610"
+        },
+        {
+          "decl": "void datum_delete(data_t *data, int datum_handle);",
+          "addr": "0x1196d0"
+        },
+        {
+          "decl": "void data_make_valid(data_t *data);",
+          "addr": "0x119720"
+        },
+        {
+          "decl": "void data_delete_all(data_t *data);",
+          "addr": "0x119b20"
+        },
+        {
           "decl": "void data_iterator_new(data_iter_t *iter, data_t *data);",
           "addr": "0x1197b0"
+        },
+        {
+          "decl": "int data_next_index(data_t *data, int prev_index);",
+          "addr": "0x1198f0"
         },
         {
           "decl": "void *data_iterator_next(data_iter_t *iterator);",
@@ -481,7 +731,8 @@
           "decl": "void editor_dispose_from_old_map(void);",
           "addr": "0x97860"
         }
-      ]
+      ],
+      "source": "game/editor_stubs.c"
     },
     {
       "name": "effects.obj",
@@ -502,6 +753,10 @@
         {
           "decl": "void effects_dispose(void);",
           "addr": "0x9c6e0"
+        },
+        {
+          "decl": "void effect_update(int effect_index, float elapsed);",
+          "addr": "0x9e610"
         },
         {
           "decl": "bool dangerous_effects_near_player(void);",
@@ -536,6 +791,10 @@
           "addr": "0xdc200"
         },
         {
+          "decl": "void event_manager_dispatch(int16_t *event, int16_t player_index);",
+          "addr": "0xdc320"
+        },
+        {
           "decl": "void event_manager_update(void);",
           "addr": "0xdc620"
         }
@@ -546,7 +805,7 @@
       "source": "tag_files/files.c",
       "functions": [
         {
-          "decl": "void file_reference_create_from_path(file_ref_t *info, const char *directory, bool a4);",
+          "decl": "file_ref_t *file_reference_create_from_path(file_ref_t *info, const char *directory, bool a4);",
           "addr": "0x1999f0"
         }
       ]
@@ -720,6 +979,10 @@
           "addr": "0xa81c0"
         },
         {
+          "decl": "void game_engine_evaluate_game_complexity(void);",
+          "addr": "0xa8220"
+        },
+        {
           "decl": "void game_engine_dispose_from_old_map(void);",
           "addr": "0xa8340"
         },
@@ -830,7 +1093,21 @@
       ]
     },
     {
+      "name": "game_state_xbox.obj",
+      "functions": [
+        {
+          "decl": "void xbox_game_state_dispose_buffer(void);",
+          "addr": "0x1c0220"
+        },
+        {
+          "decl": "void xbox_game_state_close_file(void);",
+          "addr": "0x1c0330"
+        }
+      ]
+    },
+    {
       "name": "game_statistics.obj",
+      "source": "game/game_statistics.c",
       "functions": [
         {
           "decl": "void game_statistics_start(void);",
@@ -1037,6 +1314,22 @@
           "addr": "0xcf560"
         },
         {
+          "decl": "bool input_has_gamepad(int16_t gamepad_index);",
+          "addr": "0xcf6c0"
+        },
+        {
+          "decl": "void *input_get_gamepad_state(int gamepad_index);",
+          "addr": "0xcf710"
+        },
+        {
+          "decl": "void input_set_rumble(int16_t gamepad_index, uint16_t left, uint16_t right);",
+          "addr": "0xcf780"
+        },
+        {
+          "decl": "void input_get_device_states(void);",
+          "addr": "0xcf830"
+        },
+        {
           "decl": "void input_update(void);",
           "addr": "0xd0120"
         },
@@ -1101,7 +1394,7 @@
         {
           "decl": "bool debug_game_save;",
           "addr": "0x46e002"
-        },        
+        },
         {
           "decl": "__int16 global_screenshot_count;",
           "addr": "0x46e008"
@@ -1291,6 +1584,10 @@
       ],
       "functions": [
         {
+          "decl": "void *object_get_and_verify_type(int datum_handle, int type_mask);",
+          "addr": "0x13d680"
+        },
+        {
           "decl": "void objects_place(void);",
           "addr": "0x13f060"
         },
@@ -1355,6 +1652,10 @@
           "addr": "0x9f6c0"
         },
         {
+          "decl": "void particle_system_delete(int particle_system_handle);",
+          "addr": "0x9f710"
+        },
+        {
           "decl": "void particle_systems_dispose(void);",
           "addr": "0x9f7c0"
         },
@@ -1389,6 +1690,18 @@
           "addr": "0xa14d0"
         },
         {
+          "decl": "void particle_delete(int datum_handle@<ebx>);",
+          "addr": "0xa18c0"
+        },
+        {
+          "decl": "bool particle_step(int datum_handle@<edi>, float delta_time);",
+          "addr": "0xa1b60"
+        },
+        {
+          "decl": "bool particle_move(int datum_handle, float delta_time);",
+          "addr": "0xa1c30"
+        },
+        {
           "decl": "void particles_update(float);",
           "addr": "0xa2570"
         }
@@ -1415,8 +1728,20 @@
       "source": "game/player_control.c",
       "functions": [
         {
+          "decl": "void player_control_dispose(void);",
+          "addr": "0xb63f0"
+        },
+        {
+          "decl": "void player_control_new_unit(uint16_t local_player_index, int player_index);",
+          "addr": "0xb6fc0"
+        },
+        {
           "decl": "void player_control_initialize_for_new_map(void);",
           "addr": "0xb85c0"
+        },
+        {
+          "decl": "void player_control_get_facing(int16_t local_player_index@<edi>, float delta_time);",
+          "addr": "0xb8650"
         },
         {
           "decl": "void player_control_update(float);",
@@ -1428,6 +1753,10 @@
       "name": "player_effects.obj",
       "source": "effects/player_effects.c",
       "functions": [
+        {
+          "decl": "char *player_effect_get(int16_t local_player_index);",
+          "addr": "0xa2690"
+        },
         {
           "decl": "void player_effect_initialize(void);",
           "addr": "0xa2700"
@@ -1459,6 +1788,10 @@
           "addr": "0xb8e40"
         },
         {
+          "addr": "0xb8f90",
+          "decl": "int update_get_maximum_actions(void);"
+        },
+        {
           "decl": "void update_server_new(void);",
           "addr": "0xb90d0"
         },
@@ -1469,6 +1802,14 @@
         {
           "decl": "void update_server_start(void);",
           "addr": "0xb91b0"
+        },
+        {
+          "addr": "0xb9610",
+          "decl": "int update_get_game_time(void);"
+        },
+        {
+          "addr": "0xb9a70",
+          "decl": "void update_client_apply_actions(int16_t ticks);"
         }
       ]
     },
@@ -1489,8 +1830,16 @@
           "addr": "0xb9b60"
         },
         {
+          "decl": "void rumble_clear_for_local_player(int16_t local_player_index);",
+          "addr": "0xb9d30"
+        },
+        {
           "decl": "void rumble_dispose_from_old_map(void);",
           "addr": "0xb9dd0"
+        },
+        {
+          "decl": "uint32_t rumble_calculate(char *slot@<eax>);",
+          "addr": "0xb9e30"
         },
         {
           "decl": "void rumble_update(void);",
@@ -1541,6 +1890,30 @@
           "addr": "0xba240"
         },
         {
+          "decl": "void *machine_get_player_list(int16_t);",
+          "addr": "0xba270"
+        },
+        {
+          "decl": "bool local_player_exists(int16_t);",
+          "addr": "0xba2e0"
+        },
+        {
+          "decl": "int find_unused_local_player_index(void);",
+          "addr": "0xba340"
+        },
+        {
+          "decl": "void player_delete(int);",
+          "addr": "0xba390"
+        },
+        {
+          "decl": "int16_t players_get_respawn_failure(void);",
+          "addr": "0xba3b0"
+        },
+        {
+          "decl": "int local_player_get_player_index(int16_t local_player_index);",
+          "addr": "0xba3c0"
+        },
+        {
           "decl": "int local_player_set_player_index(unsigned __int16 a1, int a2);",
           "addr": "0xba410"
         },
@@ -1553,12 +1926,52 @@
           "addr": "0xba4c0"
         },
         {
+          "decl": "int player_index_from_unit_index(int);",
+          "addr": "0xba500"
+        },
+        {
+          "decl": "void player_died(int);",
+          "addr": "0xba550"
+        },
+        {
+          "decl": "bool players_are_all_dead(void);",
+          "addr": "0xba5e0"
+        },
+        {
+          "decl": "void *players_get_combined_pvs_local(void);",
+          "addr": "0xba6b0"
+        },
+        {
+          "decl": "void *players_get_combined_pvs(void);",
+          "addr": "0xba6c0"
+        },
+        {
+          "decl": "void player_input_enable(bool);",
+          "addr": "0xba6d0"
+        },
+        {
+          "decl": "bool player_input_enabled(void);",
+          "addr": "0xba6f0"
+        },
+        {
           "decl": "bool any_player_is_in_the_air(void);",
           "addr": "0xba710"
         },
         {
           "decl": "bool any_player_is_dead(void);",
           "addr": "0xba800"
+        },
+        {
+          "decl": "int players_compute_local_player_count(void);",
+          "addr": "0xbadf0"
+        },
+        {
+          "decl": "void player_examine_nearby_unit(void);",
+          "addr": "0xbae10"
+        },
+        {
+          "decl": "void player_reset_action_result(void);",
+          "addr": "0xbaeb0"
         },
         {
           "decl": "int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4);",
@@ -1764,6 +2177,27 @@
       ]
     },
     {
+      "name": "rasterizer_decals.obj",
+      "functions": [
+        {
+          "decl": "void rasterizer_decals_initialize_for_new_map(void);",
+          "addr": "0x15b190"
+        },
+        {
+          "decl": "void rasterizer_decals_dispose_from_old_map(void);",
+          "addr": "0x15b1a0"
+        },
+        {
+          "decl": "void rasterizer_decals_initialize(void);",
+          "addr": "0x15b6d0"
+        },
+        {
+          "decl": "void rasterizer_decals_dispose(void);",
+          "addr": "0x15b7e0"
+        }
+      ]
+    },
+    {
       "name": "rasterizer_xbox.obj",
       "source": "rasterizer/xbox/rasterizer_xbox.c",
       "functions": [
@@ -1830,8 +2264,16 @@
           "addr": "0x184cd0"
         },
         {
+          "decl": "void render_window_pregame(int16_t *win);",
+          "addr": "0x184bc0"
+        },
+        {
           "decl": "void render_frame_present(_WORD *a1, void *a2);",
           "addr": "0x184dc0"
+        },
+        {
+          "decl": "void render_window(int16_t *win@<esi>, void *offset_or_null);",
+          "addr": "0x185290"
         },
         {
           "decl": "void render_frame(void *a2, __int16 a3, _WORD *a4, _WORD *a5, void *a6, float a7);",
@@ -1902,6 +2344,14 @@
           "addr": "0x18e380"
         },
         {
+          "decl": "void *scenario_get(void);",
+          "addr": "0x18e3c0"
+        },
+        {
+          "decl": "void *game_globals_get(void);",
+          "addr": "0x18e450"
+        },
+        {
           "decl": "void scenario_switch_structure_bsp(__int16 a1);",
           "addr": "0x18eb40"
         },
@@ -1956,6 +2406,16 @@
       ]
     },
     {
+      "name": "scenario.obj",
+      "source": "scenario/scenario.c",
+      "functions": [
+        {
+          "decl": "void *scenario_get(void);",
+          "addr": "0x18e3c0"
+        }
+      ]
+    },
+    {
       "name": "sound_classes.obj",
       "source": "sound/sound_classes.c",
       "functions": [
@@ -2002,6 +2462,24 @@
         {
           "decl": "char stack_walk(__int16 a1);",
           "addr": "0x92d60"
+        }
+      ]
+    },
+    {
+      "name": "tag_groups.obj",
+      "functions": [
+        {
+          "decl": "void *tag_block_get_element(void *block, int index, int element_size);",
+          "addr": "0x19b210"
+        }
+      ]
+    },
+    {
+      "name": "tags.obj",
+      "functions": [
+        {
+          "decl": "void *tag_get(int group_tag, int tag_index);",
+          "addr": "0x1ba140"
         }
       ]
     },
@@ -2156,6 +2634,10 @@
       "name": "units.obj",
       "source": "units/units.c",
       "functions": [
+        {
+          "decl": "void unit_delete(int datum_handle);",
+          "addr": "0x1a7fc0"
+        },
         {
           "decl": "void units_update(void);",
           "addr": "0x1a7ff0"

@@ -81,6 +81,25 @@ typedef struct {
   char unk_0[104];
 } game_variant_t;
 
+#define GAME_STATE_CPU_SIZE 0x305000
+
+/// size=0x20
+typedef struct {
+  void     *log_file;            ///< offset=0x00
+  char     *base_address;        ///< offset=0x04
+  int       cpu_allocation_size; ///< offset=0x08
+  uint32_t  unk_0c;              ///< offset=0x0c
+  uint32_t  checksum;            ///< offset=0x10
+  bool      locked;              ///< offset=0x14
+  bool      saved;               ///< offset=0x15
+  char      unk_16[2];           ///< offset=0x16
+  int32_t   unk_18;              ///< offset=0x18
+  char     *header;              ///< offset=0x1c
+} game_state_globals_t;
+cs(game_state_globals_t, 0x20);
+co(game_state_globals_t, locked, 0x14);
+co(game_state_globals_t, header, 0x1c);
+
 /// size=0x20
 typedef struct {
   bool     initialized; ///< offset=0x00
@@ -743,9 +762,12 @@ typedef struct
 /// size=0x1C
 typedef struct
 {
-  char unk_0[10];      ///< offset=0x00
+  char unk_0[8];       ///< offset=0x00
+  bool unk_8;          ///< offset=0x08
+  bool in_progress;    ///< offset=0x09
   bool can_be_skipped; ///< offset=0x0A
-  char unk_11[17];     ///< offset=0x0B
+  char unk_11;         ///< offset=0x0B
+  char unk_12[16];     ///< offset=0x0C — initialized to 0xFF (datum handles)
 } cinematic_globals_t;
 
 #define GAME_STATE_BASE_ADDRESS 0x80061000

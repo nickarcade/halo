@@ -1,20 +1,49 @@
-target_sources(halo PRIVATE
+	target_sources(halo PRIVATE
 	entrypoint.c
 	inlines.c
 	halo/cseries/cseries.c
+	halo/cseries/cseries_windows.c
+	halo/memory/crc.c
+	halo/cutscene/cinematics.c
+	halo/effects/contrails.c
+	halo/effects/decals.c
+	halo/effects/effects.c
+	halo/effects/particle_systems.c
+	halo/effects/particles.c
+	halo/effects/player_effects.c
+	halo/effects/weather_particle_systems.c
+	halo/game/cheats.c
+	halo/game/editor_stubs.c
 	halo/game/game.c
+	halo/game/game_allegiance.c
 	halo/game/game_engine.c
 	halo/game/game_time.c
+	halo/game/player_control.c
+	halo/game/player_rumble.c
 	halo/game/players.c
+	halo/input/input_abstraction.c
 	halo/input/input_xbox.c
+	halo/interface/event_manager.c
 	halo/interface/hud.c
 	halo/interface/player_ui.c
 	halo/interface/ui_widget.c
 	halo/interface/ui_widget_game_data_input_functions.c
+	halo/networking/network_messages.c
 	halo/main/main.c
 	halo/memory/data.c
+	halo/physics/breakable_surfaces.c
+	halo/physics/collision_usage.c
+	halo/physics/point_physics.c
+	halo/math/random_math.c
+	halo/math/real_math.c
+	halo/rasterizer/rasterizer.c
 	halo/render/render.c
 	halo/saved_games/game_state.c
+	halo/scenario/scenario.c
+	halo/shaders/shaders.c
+	halo/sound/sound_classes.c
+	halo/text/unicode.c
+	halo/tag_files/files.c
 	halo/shell_xbox.c
 	halo/cache/physical_memory_map.c
 	)

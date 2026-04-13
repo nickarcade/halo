@@ -91,3 +91,8 @@ The process of adding re-implemented functions is mostly automated and relativel
 * Naturally, your new code will call some function in the original binary that has not yet been re-implemented. These functions will also be automatically linked correctly, provided the definitions of data and called functions are in `kb.json`.
 
 See the [Progress Report](https://blam.info/progress/) to interactively explore the call graph, familiarize yourself with the code base, and examine the project frontier.
+
+Low-risk reverse engineering workflow metadata can be stored in `kb_meta.json`.
+Unlike `kb.json`, it does not affect code generation or linking. Use
+`tools/kb_meta.py` to validate and update metadata, and `tools/frontier.py` to
+rank `.obj` clusters referenced by current ported code.
