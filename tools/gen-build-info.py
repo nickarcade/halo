@@ -1,5 +1,5 @@
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 
 def main():
 	git_rev = "UNKNOWN"
@@ -10,8 +10,8 @@ def main():
 	except:
 		pass
 	print(f'''
-#define BUILD_REV "{ git_rev }"
-#define BUILD_DATE "{ datetime.utcnow().isoformat() }"
+#define BUILD_REV "{git_rev}"
+#define BUILD_DATE "{datetime.now(timezone.utc).isoformat()}"
 const char *build_rev = BUILD_REV;
 const char *build_date = BUILD_DATE;
 const char *build_ui_widget_text = "HDP " BUILD_REV;
