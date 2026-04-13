@@ -9,6 +9,7 @@ target_sources(halo PRIVATE
 	halo/effects/particle_systems.c
 	halo/effects/particles.c
 	halo/effects/player_effects.c
+	halo/effects/weather_particle_systems.c
 	halo/game/cheats.c
 	halo/game/game.c
 	halo/game/game_allegiance.c
@@ -17,6 +18,7 @@ target_sources(halo PRIVATE
 	halo/game/player_control.c
 	halo/game/player_rumble.c
 	halo/game/players.c
+	halo/input/input_abstraction.c
 	halo/input/input_xbox.c
 	halo/interface/event_manager.c
 	halo/interface/hud.c
