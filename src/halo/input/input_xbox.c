@@ -71,7 +71,7 @@ void input_update(void)
 {
   *(char *)0x46ba38 = 0;
   if (!*(char *)0x46ba39) {
-    ((void (__stdcall *)(int))0x1cfaec)(*(int *)0x46bb24);
+    ((void(__stdcall *)(int))0x1cfaec)(*(int *)0x46bb24);
     *(char *)0x46ba39 = 1;
   }
   ((void (*)(void))0xcfdb0)();
