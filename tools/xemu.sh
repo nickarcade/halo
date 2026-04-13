@@ -15,7 +15,8 @@
 #   tools/xemu.sh path/to/other.iso       # boot a specific ISO
 #   tools/xemu.sh -T                      # enable CPU trace to stderr
 #   tools/xemu.sh -g                      # enable gdb stub on :1234
-#   tools/xemu.sh -m                      # enable QEMU monitor on :4444
+#   tools/xemu.sh -m                      # enable human monitor on :4445
+#   tools/xemu.sh -q                      # enable QMP on :4444 (for xemu MCP)
 #   tools/xemu.sh -T -l /tmp/xemu.log     # trace, tee combined output to file
 #
 # Flags may be combined. Unknown positional arg is treated as the ISO path
@@ -26,12 +27,16 @@
 # and `-serial stdio`, so the trace output appears in your terminal, but the
 # xemu window still shows up. The log file (`-l`) captures both.
 #
-# QEMU monitor (-m): once running, talk to it with `nc localhost 4444`
-# (or from Windows side: `telnet localhost 4444`). Useful commands:
+# Human monitor (-m): once running, talk to it with `nc localhost 4445`
+# (or from Windows side: `telnet localhost 4445`). Useful commands:
 #   info registers      # dump CPU state
 #   x /64wx 0xADDR      # hex-dump 64 words at ADDR
 #   info mem            # memory mappings
 #   q                   # quit xemu
+#
+# QMP (-q): JSON Machine Protocol on :4444 — used by the xemu MCP server.
+# Use `xemu_connect` in Claude after starting with -q to attach the MCP.
+# -m and -q can be combined (they use different ports).
 
 set -euo pipefail
 
@@ -54,6 +59,7 @@ source "$ENV_FILE"
 trace=0
 gdb=0
 monitor=0
+qmp=0
 iso=""
 log_file=""
 
@@ -62,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     -T|--trace)    trace=1; shift ;;
     -g|--gdb)      gdb=1; shift ;;
     -m|--monitor)  monitor=1; shift ;;
+    -q|--qmp)      qmp=1; shift ;;
     -l|--log)      log_file="$2"; shift 2 ;;
     -h|--help)
       sed -n '3,/^$/p' "$0" | sed 's/^# \?//'
@@ -120,12 +127,15 @@ if [[ $gdb -eq 1 ]]; then
   args+=(-s)
 fi
 if [[ $monitor -eq 1 ]]; then
-  args+=(-monitor "tcp:127.0.0.1:4444,server,nowait")
+  args+=(-monitor "tcp:127.0.0.1:4445,server,nowait")
+fi
+if [[ $qmp -eq 1 ]]; then
+  args+=(-qmp "tcp:127.0.0.1:4444,server=on,wait=off")
 fi
 
 echo "xemu: $XEMU_BIN" >&2
 echo "iso:  $win_iso" >&2
-echo "mode: trace=$trace gdb=$gdb monitor=$monitor" >&2
+echo "mode: trace=$trace gdb=$gdb monitor=$monitor qmp=$qmp" >&2
 
 if [[ -n "$log_file" ]]; then
   "$XEMU_BIN" "${args[@]}" 2>&1 | tee "$log_file"
