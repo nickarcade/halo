@@ -2,6 +2,7 @@
 	entrypoint.c
 	inlines.c
 	halo/bitmaps/bitmaps.c
+	halo/bink/bink_playback.c
 	halo/cseries/cseries.c
 	halo/cache/cache_files_windows.c
 	halo/cseries/errors.c
@@ -11,6 +12,7 @@
 	halo/cseries/stack_walk_windows.c
 	halo/memory/crc.c
 	halo/cutscene/cinematics.c
+	halo/cutscene/recorded_animations.c
 	halo/effects/contrails.c
 	halo/effects/decals.c
 	halo/effects/effects.c
