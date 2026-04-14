@@ -234,7 +234,8 @@ void game_time_update(float param_1)
   bool bVar3;
   int conn;
   int server;
-  int server_min_time;
+  int16_t server_state;
+  uint32_t server_min_time;
   int cur_time;
   int update_time;
   int extra_ticks;
@@ -263,9 +264,25 @@ void game_time_update(float param_1)
     break;
   case 2:
     server = ((int (*)(void))0x12a1d0)();
-    server_min_time = (int)((unsigned int (*)(int))0x12d5b0)(server);
+    server_state = *(int16_t *)(server + 4);
+    server_min_time = ((unsigned int (*)(int))0x12d5b0)(server);
     cur_time = game_time_get();
-    assert_halt((unsigned int)(cur_time - server_min_time) <= 0x80);
+    // During system-link host bootstrap the server is still in pregame state
+    // 0 and its client sync times start at 0/0xffffffff until the loopback
+    // client finishes validation. Stock does not hit the in-game drift assert
+    // in that window, so keep pregame hosts on the normal tick budget until a
+    // real synchronized client time exists.
+    if (server_min_time == 0xffffffff ||
+        (server_state == 0 && server_min_time == 0)) {
+      max_ticks = 0x1e;
+      ((void (*)(int, bool))0x12e1d0)(server, false);
+      bVar3 = true;
+      break;
+    }
+    if ((unsigned int)(cur_time - server_min_time) > 0x80) {
+      assert_halt(0 && "update server is too far ahead of a client for the "
+                       "client to ever catch up!");
+    }
     if (cur_time == 0) {
       max_ticks = 1;
     } else {
