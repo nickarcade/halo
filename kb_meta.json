@@ -1308,6 +1308,46 @@
     "0x1c6870": {
       "status": "ported",
       "kind": "function"
+    },
+    "0x1c7030": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x1c7060": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x1c7080": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x1c7e40": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0xc3c30": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0xc3c50": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0xc4d90": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0xc4dd0": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0xc5050": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0xca800": {
+      "status": "ported",
+      "kind": "function"
     }
   }
 }
