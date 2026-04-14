@@ -18,135 +18,12 @@ void contrails_dispose(void)
     contrail_data = 0;
 }
 
-/* Delete a contrail and all its points across all 4 instance lists. */
-void contrail_delete(int datum_handle)
-{
-  char *contrail;
-  int *list;
-  int i;
-
-  contrail = (char *)datum_get(contrail_data, datum_handle);
-  list = (int *)(contrail + 0x34);
-
-  for (i = 0; i < 4; i++) {
-    int point = list[i];
-    while (point != -1) {
-      char *pt = (char *)datum_get(contrail_point_data, point);
-      int next = *(int *)(pt + 0x34);
-      datum_delete(contrail_point_data, point);
-      point = next;
-    }
-  }
-  datum_delete(contrail_data, datum_handle);
-}
-
-/* Compute how many new points to add this tick based on the contrail's
- * point interval and remaining time accumulator. Returns point count.
- * datum_handle arrives via EAX. */
-int contrail_compute(int datum_handle, float delta_time, int count)
-{
-  char *contrail;
-  char *tag;
-  float interval;
-  float period;
-  int16_t result = 0;
-
-  contrail = (char *)datum_get(contrail_data, datum_handle);
-  tag = (char *)tag_get(0x636f6e74, *(int *)(contrail + 4));
-  interval = *(float *)(tag + 4);
-
-  /* scale interval by contrail's speed if flag set */
-  if (*(uint8_t *)(tag + 2) & 1)
-    interval *= *(float *)(contrail + 0x10);
-
-  period = *(float *)0x2533c8 / interval;
-
-  /* skip if delta_time is zero/sentinel */
-  if (delta_time == *(float *)0x2533c0)
-    goto done;
-
-  /* consume time in period-sized steps */
-  while (delta_time >= *(float *)(contrail + 0x20)) {
-    float step = *(float *)(contrail + 0x20);
-    delta_time -= step;
-    *(float *)(contrail + 0x20) = period;
-    result++;
-    if (delta_time <= *(float *)0x2533c0)
-      goto done;
-  }
-  *(float *)(contrail + 0x20) -= delta_time;
-
-done:
-  return (int)result;
-}
-
-/* Debug validation: check attachment consistency and point list counts.
- * datum_handle arrives via EAX. */
-void contrail_validate(int datum_handle)
-{
-  char *contrail;
-  int i;
-
-  contrail = (char *)datum_get(contrail_data, datum_handle);
-  tag_get(0x636f6e74, *(int *)(contrail + 4));
-
-  /* validate object attachment if present */
-  if (*(int *)(contrail + 8) != -1) {
-    char *obj = (char *)object_get_and_verify_type(*(int *)(contrail + 8), -1);
-    int16_t attach_idx = *(int16_t *)(contrail + 0xc);
-
-    if (attach_idx < 0 ||
-        (int)attach_idx >=
-          *(int *)((char *)tag_get(0x6f626a65, *(int *)obj) + 0x140)) {
-      char *name = ((char *(*)(int, ...))0x1ba1f0)(
-        *(int *)(contrail + 4), (int)attach_idx,
-        "c:\\halo\\SOURCE\\effects\\contrails.c", 0x28e, 1);
-      char *msg = csprintf(
-        (char *)0x5ab100,
-        "contrail %s attachment index %d is outside the valid range.", name);
-      display_assert(msg, "c:\\halo\\SOURCE\\effects\\contrails.c", 0x28e, 1);
-      system_exit(-1);
-    }
-
-    /* verify the object's attachment slot points back to us */
-    if (*(int *)(obj + (int)*(int16_t *)(contrail + 0xc) * 4 + 0xfc) !=
-        datum_handle) {
-      char *name = ((char *(*)(int, ...))0x1ba1f0)(*(int *)(contrail + 4));
-      char *msg = csprintf(
-        (char *)0x5ab100,
-        "contrail %s (%ld) has an object that thinks it's attached to %ld",
-        name, datum_handle,
-        *(int *)(obj + (int)*(int16_t *)(contrail + 0xc) * 4 + 0xfc));
-      display_assert(msg, "c:\\halo\\SOURCE\\effects\\contrails.c", 0x28f, 1);
-      system_exit(-1);
-    }
-  }
-
-  /* verify point counts match actual linked list lengths */
-  {
-    int16_t *counts = (int16_t *)(contrail + 0x2c);
-    int *heads = (int *)(contrail + 0x34);
-    for (i = 0; i < 4; i++) {
-      int16_t actual = 0;
-      int pt = heads[i];
-      while (pt != -1) {
-        pt = *(int *)((char *)datum_get(contrail_point_data, pt) + 0x34);
-        actual++;
-      }
-      if (actual != counts[i]) {
-        char *name = ((char *(*)(int, ...))0x1ba1f0)(
-          *(int *)(contrail + 4), (int)counts[i], (int)actual,
-          "c:\\halo\\SOURCE\\effects\\contrails.c", 0x2a5, 1);
-        char *msg = csprintf(
-          (char *)0x5ab100,
-          "contrail %s thinks it has %d points but really it has %d", name);
-        display_assert(msg, "c:\\halo\\SOURCE\\effects\\contrails.c", 0x2a5,
-                       1);
-        system_exit(-1);
-      }
-    }
-  }
-}
+/* contrail_delete, contrail_compute, contrail_validate, contrail_add_point,
+ * contrail_set_state, and contrail_render_update all use register params
+ * (@<eax>, @<esi>) and are called from original binary code that we haven't
+ * ported. The current thunk system only bridges our code → original, not
+ * original → our code. So these must remain in the original binary until
+ * the entire TU is ported together. See feedback_register_args.md. */
 
 void contrails_initialize(void)
 {
@@ -164,42 +41,6 @@ void contrails_initialize(void)
     }
   }
   error(0, "couldn't allocate contrail globals");
-}
-
-/* Advance the sprite animation for a contrail point. Picks a new random
- * bitmap sprite when the current one expires. datum_ptr arrives via ESI. */
-void contrail_add_point(char *datum_ptr)
-{
-  char *tag;
-  char *bitmaps;
-  int16_t sprite_idx;
-
-  tag = (char *)tag_get(0x636f6e74, *(int *)(datum_ptr + 4));
-  bitmaps = (char *)tag_get(0x6269746d, *(int *)(tag + 0x3c));
-  sprite_idx = *(int16_t *)(datum_ptr + 0x14);
-
-  *(int16_t *)(datum_ptr + 0x16) += 1;
-  *(int *)(datum_ptr + 0x24) = 0;
-
-  if (sprite_idx >= 0) {
-    if ((int)sprite_idx < *(int *)(bitmaps + 0x54) &&
-        *(int16_t *)(datum_ptr + 0x16) >= 0) {
-      char *seq = (char *)((int (*)(void *, int, int))0x19b210)(
-        bitmaps + 0x54, (int)sprite_idx, 0x40);
-      if (*(int16_t *)(datum_ptr + 0x16) < *(int16_t *)(seq + 0x22))
-        return;
-    }
-  }
-
-  /* pick a new random sprite */
-  {
-    int16_t first = *(int16_t *)(tag + 0x40);
-    int16_t count = *(int16_t *)(tag + 0x42) + first;
-    int rng = ((int (*)(int16_t, int16_t))0x10b120)(first, count);
-    int16_t new_idx = (int16_t)((int (*)(int))0x10b2d0)(rng);
-    *(int16_t *)(datum_ptr + 0x14) = new_idx;
-    *(int16_t *)(datum_ptr + 0x16) = 0;
-  }
 }
 
 void contrails_update(float delta_time)
@@ -221,7 +62,15 @@ void contrails_update(float delta_time)
     datum = (char *)datum_get(contrail_data, datum_handle);
     tag = (char *)tag_get(0x636f6e74, *(int *)(datum + 4));
     elapsed = delta_time - *(float *)(datum + 0x28);
-    contrail_validate(datum_handle);
+    /* contrail_validate: EAX = datum_handle */
+    {
+      int _eax = datum_handle;
+      asm volatile("movl $0x97ae0, %%edx\n\t"
+                   "call *%%edx"
+                   : "+a"(_eax)
+                   :
+                   : "ecx", "edx", "esi", "edi", "memory", "cc");
+    }
     *(int *)(datum + 0x28) = 0;
     if (*(int *)(datum + 8) != -1) {
       attached = ((uint8_t(*)(int, int, void *))0x1403a0)(
@@ -230,15 +79,50 @@ void contrails_update(float delta_time)
       if (attached != (*(uint8_t *)(datum + 2) & 1)) {
         saved_point = *(int *)(datum + 0x10);
         *(int *)(datum + 0x10) = 0;
-        contrail_set_state(datum_handle, 1, 1);
+        /* contrail_set_state: EAX = datum_handle, stack = (1, 1) */
+        {
+          int _eax = datum_handle;
+          asm volatile("pushl $1\n\t"
+                       "pushl $1\n\t"
+                       "movl $0x97e40, %%edx\n\t"
+                       "call *%%edx\n\t"
+                       "addl $8, %%esp"
+                       : "+a"(_eax)
+                       :
+                       : "ecx", "edx", "esi", "edi", "memory", "cc");
+        }
         *(int *)(datum + 0x10) = saved_point;
       }
       if (attached == 0) {
         *(uint8_t *)(datum + 2) &= 0xfe;
       } else {
         *(uint8_t *)(datum + 2) |= 1;
-        result = contrail_compute(datum_handle, delta_time, 1);
-        contrail_set_state(datum_handle, result, 1);
+        /* contrail_compute: EAX = datum_handle, stack = (delta_time, 1) */
+        {
+          int _eax = datum_handle;
+          int _dt = *(int *)&delta_time;
+          asm volatile("pushl $1\n\t"
+                       "pushl %[dt]\n\t"
+                       "movl $0x97a50, %%edx\n\t"
+                       "call *%%edx\n\t"
+                       "addl $8, %%esp"
+                       : "+a"(_eax)
+                       : [dt] "r"(_dt)
+                       : "ecx", "edx", "esi", "edi", "memory", "cc");
+          result = _eax;
+        }
+        /* contrail_set_state: EAX = datum_handle, stack = (result, 1) */
+        {
+          int _eax = datum_handle;
+          asm volatile("pushl $1\n\t"
+                       "pushl %[r]\n\t"
+                       "movl $0x97e40, %%edx\n\t"
+                       "call *%%edx\n\t"
+                       "addl $8, %%esp"
+                       : "+a"(_eax)
+                       : [r] "r"(result)
+                       : "ecx", "edx", "esi", "edi", "memory", "cc");
+        }
       }
     }
     render_freq = *(float *)(tag + 0x2c);
@@ -249,11 +133,20 @@ void contrails_update(float delta_time)
     if (remaining > *(float *)0x2533c0) {
       do {
         step = render_freq - *(float *)(datum + 0x24);
-        if (step <= remaining) {
-          *(float *)(datum + 0x24) = remaining + *(float *)(datum + 0x24);
+        if (step > remaining) {
+          *(float *)(datum + 0x24) += remaining;
           break;
         }
-        contrail_add_point(datum);
+        /* contrail_add_point takes ESI as a register param in the original
+         * binary. Call the original directly to avoid thunk mismatch. */
+        {
+          char *_esi = datum;
+          asm volatile("movl $0x97db0, %%eax\n\t"
+                       "call *%%eax"
+                       : "+S"(_esi)
+                       :
+                       : "eax", "ecx", "edx", "edi", "memory", "cc");
+        }
         remaining -= step;
       } while (remaining > *(float *)0x2533c0);
     }
@@ -269,7 +162,8 @@ void contrails_update(float delta_time)
         grow_rate *= *(float *)(datum + 0x10);
       *(float *)(datum + 0x1c) += grow_rate * elapsed;
     }
-    contrail_render_update(datum_handle, delta_time);
+    /* contrail_render_update: normal cdecl(datum_handle, delta_time) */
+    ((void (*)(int, float))0x98200)(datum_handle, delta_time);
     i = 0;
     do {
       if (((0 < *(int16_t *)(datum + 0x2c + (int)i * 2)) !=
@@ -281,9 +175,17 @@ void contrails_update(float delta_time)
         system_exit(-1);
       }
     } while (*(int *)(datum + 0x34 + (int)i * 4) == -1 && (i++, i < 4));
-    contrail_validate(datum_handle);
+    /* contrail_validate: EAX = datum_handle */
+    {
+      int _eax = datum_handle;
+      asm volatile("movl $0x97ae0, %%edx\n\t"
+                   "call *%%edx"
+                   : "+a"(_eax)
+                   :
+                   : "ecx", "edx", "esi", "edi", "memory", "cc");
+    }
     if (i == 4 && *(int *)(datum + 8) == -1)
-      contrail_delete(datum_handle);
+      ((void (*)(int))0x978f0)(datum_handle);
     datum_handle = data_next_index(contrail_data, datum_handle);
   }
 }
