@@ -20,6 +20,8 @@
 	halo/effects/particles.c
 	halo/effects/player_effects.c
 	halo/effects/weather_particle_systems.c
+	halo/hs/hs.c
+	halo/hs/hs_runtime.c
 	halo/game/cheats.c
 	halo/game/editor_stubs.c
 	halo/game/game.c
@@ -59,6 +61,7 @@
 	halo/structures/structures.c
 	halo/interface/interface.c
 	halo/shaders/shaders.c
+	halo/sound/game_sound.c
 	halo/sound/sound_classes.c
 	halo/text/unicode.c
 	halo/tag_files/files.c
