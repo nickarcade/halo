@@ -21,6 +21,14 @@ void particles_dispose(void)
     particle_data = 0;
 }
 
+/* TODO: particle_delete also reverted — see git 08bf664 for implementation */
+
+/* TODO: particle_step and particle_move temporarily reverted to original
+ * binary due to a stale datum handle crash during gameplay. These need
+ * debugging — the implementations are preserved in git history (commit
+ * 08bf664). The issue manifests as "particle index #X is unused or changed"
+ * in datum_get after loading a campaign level. */
+
 void particles_update(float delta_time)
 {
   int datum_handle;
@@ -42,10 +50,31 @@ void particles_update(float delta_time)
       *(float *)(datum + 0x14) = new_lifetime;
       if (new_lifetime < *(float *)(datum + 0x18) || just_created ||
           *(int16_t *)(tag + 0x9e) != 0) {
-        if (particle_step(datum_handle, delta_time))
-          particle_move(datum_handle, delta_time);
+        {
+          /* particle_step at 0xa1b60: EDI=datum_handle, stack=delta_time */
+          int _edi = datum_handle;
+          int _dt = *(int *)&delta_time;
+          int _result;
+          asm volatile("pushl %[dt]\n\t"
+                       "movl $0xa1b60, %%eax\n\t"
+                       "call *%%eax\n\t"
+                       "addl $4, %%esp"
+                       : "+D"(_edi), "=a"(_result)
+                       : [dt] "r"(_dt)
+                       : "ecx", "edx", "memory", "cc");
+          if ((char)_result)
+            ((bool (*)(int, float))0xa1c30)(datum_handle, delta_time);
+        }
       } else {
-        particle_delete(datum_handle);
+        {
+          /* particle_delete at 0xa18c0: EBX=datum_handle */
+          int _ebx = datum_handle;
+          asm volatile("movl $0xa18c0, %%eax\n\t"
+                       "call *%%eax"
+                       : "+b"(_ebx)
+                       :
+                       : "eax", "ecx", "edx", "esi", "edi", "memory", "cc");
+        }
       }
     } else {
       datum_delete(particle_data, datum_handle);

@@ -448,32 +448,8 @@
           "addr": "0x978d0"
         },
         {
-          "decl": "void contrail_delete(int datum_handle);",
-          "addr": "0x978f0"
-        },
-        {
-          "decl": "int contrail_compute(int datum_handle@<eax>, float delta_time, int count);",
-          "addr": "0x97a50"
-        },
-        {
-          "decl": "void contrail_validate(int datum_handle@<eax>);",
-          "addr": "0x97ae0"
-        },
-        {
           "decl": "void contrails_initialize(void);",
           "addr": "0x97d40"
-        },
-        {
-          "decl": "void contrail_add_point(char *datum_ptr@<esi>);",
-          "addr": "0x97db0"
-        },
-        {
-          "decl": "void contrail_set_state(int datum_handle@<eax>, int a1, int a2);",
-          "addr": "0x97e40"
-        },
-        {
-          "decl": "void contrail_render_update(int datum_handle, float delta_time);",
-          "addr": "0x98200"
         },
         {
           "decl": "void contrails_update(float);",
@@ -678,6 +654,26 @@
       "name": "director.obj",
       "source": "camera/director.c",
       "functions": [
+        {
+          "decl": "void director_init_player_cameras(int16_t local_player_index@<ax>);",
+          "addr": "0x86600"
+        },
+        {
+          "decl": "void director_set_player_camera_normal(int16_t local_player_index@<ax>, char reset_flag, char mode_flags);",
+          "addr": "0x86de0"
+        },
+        {
+          "decl": "void director_set_player_camera_scripted(int16_t local_player_index@<si>, char reset_flag);",
+          "addr": "0x86fa0"
+        },
+        {
+          "decl": "void director_apply_replay_mode_for_player(char reset_flag@<al>, int16_t local_player_index@<si>, char mode_flags);",
+          "addr": "0x87050"
+        },
+        {
+          "decl": "bool director_compute_camera_input(short *out_buf@<eax>, int local_player_index);",
+          "addr": "0x87110"
+        },
         {
           "decl": "void director_initialize(void);",
           "addr": "0x861a0"
@@ -1059,12 +1055,20 @@
           "addr": "0x1bf7b0"
         },
         {
-          "decl": "void game_state_initialize_for_new_map(void);",
-          "addr": "0x1bf7c0"
-        },
-        {
           "decl": "void game_state_dispose_from_old_map(void);",
           "addr": "0x1bf870"
+        },
+        {
+          "decl": "void *game_state_malloc(const char *name, const char *a2, int size);",
+          "addr": "0x1bfbf0"
+        },
+        {
+          "decl": "data_t *game_state_data_new(char *name, __int16 maximum_count, __int16 size);",
+          "addr": "0x1bfe10"
+        },
+        {
+          "decl": "void game_state_initialize_for_new_map(void);",
+          "addr": "0x1bf7c0"
         },
         {
           "decl": "void game_state_save(void);",
@@ -1077,14 +1081,6 @@
         {
           "decl": "void game_state_save_core(const char *);",
           "addr": "0x1bf990"
-        },
-        {
-          "decl": "void *game_state_malloc(const char *name, const char *a2, int size);",
-          "addr": "0x1bfbf0"
-        },
-        {
-          "decl": "data_t *game_state_data_new(char *name, __int16 maximum_count, __int16 size);",
-          "addr": "0x1bfe10"
         },
         {
           "decl": "void game_state_load_core(const char *);",
@@ -1690,18 +1686,6 @@
           "addr": "0xa14d0"
         },
         {
-          "decl": "void particle_delete(int datum_handle@<ebx>);",
-          "addr": "0xa18c0"
-        },
-        {
-          "decl": "bool particle_step(int datum_handle@<edi>, float delta_time);",
-          "addr": "0xa1b60"
-        },
-        {
-          "decl": "bool particle_move(int datum_handle, float delta_time);",
-          "addr": "0xa1c30"
-        },
-        {
           "decl": "void particles_update(float);",
           "addr": "0xa2570"
         }
@@ -2264,7 +2248,7 @@
           "addr": "0x184cd0"
         },
         {
-          "decl": "void render_window_pregame(int16_t *win);",
+          "decl": "void render_window_pregame(int window_type@<ebx>, int16_t *win);",
           "addr": "0x184bc0"
         },
         {
@@ -2352,7 +2336,7 @@
           "addr": "0x18e450"
         },
         {
-          "decl": "void scenario_switch_structure_bsp(__int16 a1);",
+          "decl": "bool scenario_switch_structure_bsp(__int16 a1);",
           "addr": "0x18eb40"
         },
         {
@@ -2476,6 +2460,7 @@
     },
     {
       "name": "tags.obj",
+      "source": "cache/tags.c",
       "functions": [
         {
           "decl": "void *tag_get(int group_tag, int tag_index);",

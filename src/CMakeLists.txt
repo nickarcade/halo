@@ -1,10 +1,21 @@
 	target_sources(halo PRIVATE
 	entrypoint.c
 	inlines.c
+	halo/bitmaps/bitmaps.c
+	halo/bungie_net/network/transport_endpoint_set_winsock.c
+	halo/bink/bink_playback.c
+	halo/camera/director.c
+	halo/camera/observer.c
 	halo/cseries/cseries.c
+	halo/cache/cache_files_windows.c
+	halo/cseries/errors.c
+	halo/cseries/profile.c
+	halo/cseries/debug_memory.c
 	halo/cseries/cseries_windows.c
+	halo/cseries/stack_walk_windows.c
 	halo/memory/crc.c
 	halo/cutscene/cinematics.c
+	halo/cutscene/recorded_animations.c
 	halo/effects/contrails.c
 	halo/effects/decals.c
 	halo/effects/effects.c
@@ -12,11 +23,14 @@
 	halo/effects/particles.c
 	halo/effects/player_effects.c
 	halo/effects/weather_particle_systems.c
+	halo/hs/hs.c
+	halo/hs/hs_runtime.c
 	halo/game/cheats.c
 	halo/game/editor_stubs.c
 	halo/game/game.c
 	halo/game/game_allegiance.c
 	halo/game/game_engine.c
+	halo/game/game_statistics.c
 	halo/game/game_time.c
 	halo/game/player_control.c
 	halo/game/player_rumble.c
@@ -24,11 +38,17 @@
 	halo/input/input_abstraction.c
 	halo/input/input_xbox.c
 	halo/interface/event_manager.c
+	halo/interface/first_person_weapons.c
 	halo/interface/hud.c
+	halo/interface/marketing_and_strategic_business_development.c
 	halo/interface/player_ui.c
+	halo/interface/terminal.c
 	halo/interface/ui_widget.c
 	halo/interface/ui_widget_game_data_input_functions.c
+	halo/items/items.c
+	halo/items/projectiles.c
 	halo/networking/network_messages.c
+	halo/main/debug_keys.c
 	halo/main/main.c
 	halo/memory/data.c
 	halo/physics/breakable_surfaces.c
@@ -37,11 +57,20 @@
 	halo/math/random_math.c
 	halo/math/real_math.c
 	halo/rasterizer/rasterizer.c
+	halo/rasterizer/common/rasterizer_common.c
 	halo/render/render.c
+	halo/render/render_cameras.c
+	"halo/saved games/saved_game_files.c"
+	halo/interface/hud_messaging.c
 	halo/saved_games/game_state.c
 	halo/scenario/scenario.c
+	halo/structures/structures.c
+	halo/interface/interface.c
 	halo/shaders/shaders.c
+	halo/sound/game_sound.c
 	halo/sound/sound_classes.c
+	halo/sound/sound_manager.c
+	halo/objects/widgets/widgets.c
 	halo/text/unicode.c
 	halo/tag_files/files.c
 	halo/shell_xbox.c
