@@ -1276,6 +1276,38 @@
     "0x155090": {
       "status": "ported",
       "kind": "function"
+    },
+    "0x94bb0": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x94c30": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x94c60": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x95280": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x1c61a0": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x1c6310": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x1c63e0": {
+      "status": "ported",
+      "kind": "function"
+    },
+    "0x1c6870": {
+      "status": "ported",
+      "kind": "function"
     }
   }
 }
