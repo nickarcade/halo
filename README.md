@@ -61,9 +61,6 @@ cmake -Bbuild -S. -DCMAKE_TOOLCHAIN_FILE=toolchains/llvm.cmake
 cmake --build build
 ```
 
-Experimental debug toggle:
-* Add `-DHALO_SKIP_XNETSTARTUP=ON` when configuring to patch `default.xbe` with a forced-success skip over the original cachebeta transport XNet/XnInit call. This is intended for telnet/debug investigation and may affect in-game networking behavior.
-
 Build on macOS (works on both Intel and Apple Silicon macs) with CMake and Clang:
 ```bash
 brew install llvm cmake
