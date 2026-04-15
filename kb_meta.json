@@ -1495,17 +1495,17 @@
     "0xbd100": {
       "kind": "function",
       "name": "players_update_before_game",
-      "status": "typed",
+      "status": "ported",
       "comments": {
-        "summary": "Reverted in ea68d9e after 4e21549 port shipped ABI bugs (startup csmemset(0xFFFFFFFF) crash, broken split-screen). Re-port requirements: player_build_action_update arg3 is float* to &action->desired_facing_yaw; player_try_to_enter_vehicle and player_try_to_spawn_in_vehicle take player_handle via EAX; unit_control_t requires 2-byte pad between zoom_level (+0x08) and throttle_x (+0x0c). See memory project_pubg_reverted.md."
+        "summary": "Pre-tick player update. Originally reverted in ea68d9e due to ABI bugs; re-ported cleanly in 85d2748 after full disassembly-level audit. Split-screen multiplayer (spawn/move/look/shoot) verified in xemu."
       }
     },
     "0xbdbf0": {
       "kind": "function",
       "name": "players_update_after_game",
-      "status": "typed",
+      "status": "ported",
       "comments": {
-        "summary": "Reverted in ea68d9e alongside players_update_before_game. Original behavior: ticks double-speed countdown, handles telefrag effect/kill per player, scans BSP-switch trigger volumes, advances BSP nibble counter, handles all-dead restart flag. Not independently confirmed buggy; bundled with the revert of the players.c batch commit."
+        "summary": "Post-tick player update: ticks double-speed countdown, handles telefrag effect/kill, scans BSP-switch trigger volumes, advances BSP nibble counter, SP all-dead restart. Re-ported after pre-audit verified all 9 direct-address cast calls (0xa2ed0, 0xa2930, 0x1a7f80, 0xbc4b0 EBX-reg, 0x13d7f0, 0x18ef00, 0x100500, 0xbdb00 EBX-reg, 0x100380). Split-screen telefrag verified in xemu."
       }
     }
   }
