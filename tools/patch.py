@@ -180,11 +180,36 @@ def write_to_vaddr(xbe: Xbe, vaddr: int, data: bytes):
     section.data = bytes(new_data)
 
 
+def apply_experimental_patches(xbe: Xbe, skip_xnetstartup: bool):
+    if not skip_xnetstartup:
+        return
+
+    # cachebeta does not import a named XNetStartup symbol here; instead,
+    # transport startup funnels through FUN_002230e5 -> FUN_00223676. Replacing
+    # that call with `xor eax, eax` preserves the surrounding singleton setup
+    # while forcing the deeper XNet/XnInit path to report success.
+    patch_addr = 0x223185
+    patch_bytes = b'\x33\xc0\x90\x90\x90'
+    log.info(
+        'Experimental patch: skipping transport XNet/XnInit call at %x',
+        patch_addr,
+    )
+    write_to_vaddr(xbe, patch_addr, patch_bytes)
+
+
 def main():
     ap = argparse.ArgumentParser(description='Patches re-implementation EXE into original Halo XBE')
     ap.add_argument('input_xbe', help='Original input XBE path')
     ap.add_argument('input_exe', help='Re-implementation EXE path')
     ap.add_argument('output_xbe', help='Output XBE path')
+    ap.add_argument(
+        '--skip-xnetstartup',
+        action='store_true',
+        help=(
+            'Experimental: bypass the cachebeta transport XNet/XnInit call '
+            'and force success for debugging'
+        ),
+    )
     args = ap.parse_args()
 
     if not os.path.isfile(args.input_xbe):
@@ -346,6 +371,8 @@ def main():
     log.info('Patching XBE with EXE entry point of %x', entry_addr)
     xbe.header.entry_addr = entry_addr ^ (Xbe.ENTRY_DEBUG if xbe.is_debug else Xbe.ENTRY_RETAIL)
     special_exports['_start'] = entry_addr
+
+    apply_experimental_patches(xbe, args.skip_xnetstartup)
 
     # Hook all functions in the XBE that have been re-implemented
     patch_functions = [n for n in export_name_to_addr if n not in special_exports]
