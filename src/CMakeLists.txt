@@ -63,6 +63,7 @@
 	"halo/saved games/saved_game_files.c"
 	halo/interface/hud_messaging.c
 	halo/saved_games/game_state.c
+	halo/saved_games/game_state_xbox.c
 	halo/scenario/scenario.c
 	halo/structures/structures.c
 	halo/interface/interface.c

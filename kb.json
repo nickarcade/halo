@@ -1090,6 +1090,7 @@
     },
     {
       "name": "game_state_xbox.obj",
+      "source": "saved_games/game_state_xbox.c",
       "functions": [
         {
           "decl": "void xbox_game_state_dispose_buffer(void);",
