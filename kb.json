@@ -1978,7 +1978,7 @@
           "addr": "0xbaed0"
         },
         {
-          "decl": "void player_build_action_update(int player_index, void *control_out, int datum_handle);",
+          "decl": "void player_build_action_update(int player_index, void *control_out, float *desired_facing_yaw);",
           "addr": "0xbb560"
         },
         {
