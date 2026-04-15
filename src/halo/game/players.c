@@ -874,3 +874,217 @@ void players_update_before_game(void)
     profile_exit_private((void *)0x2f0890);
 }
 
+/* Post-game-tick player update.
+ *
+ * Called once per tick after game logic has run.  Responsibilities:
+ *   1. Tick down the double-speed-movement countdown stored at
+ *      players_globals+0x26; when it reaches zero, clear the flag.
+ *   2. For each player datum:
+ *        a. If the telefrag-pending flag (player+0xd0) is clear, decay the
+ *           effect timer (player+0xc8) toward zero.
+ *        b. If the flag IS set and timer < 0x5a, trigger a player effect
+ *           fade via FUN_a2ed0(datum_handle, (float)timer * CONST_26f2e0).
+ *           If timer >= 0x5a and the unit exists and is not already flagged
+ *           for deletion (bit 0x20 at unit+0xb6), print the "telefragged"
+ *           HUD message, stop the effect (FUN_a2930), and mark the unit for
+ *           deletion (FUN_1a7f80 sets bit 0x20 at unit+0xb6).
+ *        c. Clear the telefrag-pending flag.
+ *        d. Advance the weapon/vehicle seat timers via FUN_bc4b0 (EBX =
+ *           datum_handle register arg).
+ *        e. If the unit exists and its object-type flags don't include
+ *           0x200000, scan scenario trigger volumes (tag block at
+ *           scenario+0x39c) for BSP-switch triggers that contain the
+ *           player's unit, and fire the BSP switch if found.
+ *        f. Reset the player's pending-action fields and call the
+ *           per-player post-update helper FUN_bdb00 (EBX = datum_handle).
+ *   3. Advance the BSP-transition nibble counter packed into
+ *      players_globals+0x2f (high nibble = counter, low nibble = bsp index).
+ *   4. Handle the "all players dead" restart flag (players_globals+0x28):
+ *      if clear, reset DAT_0046b6a8; if set and game engine is not running,
+ *      trigger the SP-restart sequence (FUN_100380) and set the flag byte. */
+void players_update_after_game(void)
+{
+  data_iter_t iter; /* [EBP-0x14] */
+  int datum_handle; /* [EBP-0xc]  */
+  int timer_val; /* [EBP-0x4]  */
+  char *player;
+  int16_t bsp_counter;
+  int16_t i;
+  void *block;
+  void *entry;
+  int16_t entry_bsp;
+  char triggers_player;
+  char cur_bsp_nibble;
+  int unit_obj;
+  int unit_handle;
+  int scenario_bsp_count;
+  unsigned char packed;
+
+  /* Profile enter. */
+  if (*(char *)0x449ef1 != 0 && *(char *)0x2f0e90 != 0)
+    profile_enter_private((void *)0x2f0e88);
+
+  /* Tick down the double-speed movement countdown. */
+  if (*(int16_t *)((char *)players_globals + 0x26) > 0) {
+    *(int16_t *)((char *)players_globals + 0x26) -= 1;
+    if (*(int16_t *)((char *)players_globals + 0x26) == 0)
+      game_set_players_are_double_speed(0);
+  }
+
+  /* Iterate all player datums. */
+  data_iterator_new(&iter, player_data);
+  player = (char *)data_iterator_next(&iter);
+  while (player != NULL) {
+    datum_handle = (int)iter.datum_handle;
+    timer_val = *(int *)(player + 0xc8);
+
+    if (*(char *)(player + 0xd0) == 0) {
+      /* Telefrag-pending flag is clear: decay the effect timer. */
+      if (timer_val > 0)
+        *(int *)(player + 0xc8) = timer_val - 1;
+    } else if (timer_val < 0x5a) {
+      /* Flag set, early in window: trigger player effect fade.
+       * Disasm: FILD [timer_val]; FMUL float ptr [0x26f2e0]; push as float;
+       *         PUSH datum_handle; CALL FUN_a2ed0 */
+      ((void (*)(int, float))0xa2ed0)(datum_handle,
+                                      (float)timer_val * (*(float *)0x26f2e0));
+    } else {
+      /* Flag set, timer >= 0x5a: telefrag kill path. */
+      unit_handle = *(int *)(player + 0x34);
+      if (unit_handle != -1) {
+        /* Check unit's delete-pending bit (bit 5 at unit+0xb6). */
+        unit_obj = (int)object_get_and_verify_type(unit_handle, 3);
+        if ((*(unsigned char *)(unit_obj + 0xb6) & 0x20) == 0) {
+          /* Print "telefragged" to player's HUD (wchar_t literal). */
+          if (*(int16_t *)(player + 2) != -1)
+            hud_print_message(*(int16_t *)(player + 2),
+                              L"You were telefragged");
+          /* Stop player effect. */
+          ((void (*)(int))0xa2930)(datum_handle);
+          /* Mark unit for deletion: sets bit 0x20 at unit+0xb6. */
+          ((void (*)(int))0x1a7f80)(*(int *)(player + 0x34));
+        }
+      }
+    }
+
+    /* Clear the telefrag-pending flag. */
+    *(char *)(player + 0xd0) = 0;
+
+    /* Advance weapon/vehicle seat timers for this player.
+     * Original CALL to FUN_bc4b0 with EBX = datum_handle (register arg). */
+    if (*(int *)(player + 0x34) != -1) {
+      int _dh = datum_handle;
+      __asm__ volatile("movl %0, %%ebx" : : "r"(_dh) : "ebx");
+      ((void (*)(void))0xbc4b0)();
+    }
+
+    /* BSP-switch trigger volume scan. */
+    if (*(int *)(player + 0x34) != -1) {
+      /* Walk up to the root object to read its type flags.
+       * FUN_13d7f0: follows parent chain, returns root object handle. */
+      int root_handle = ((int (*)(int))0x13d7f0)(*(int *)(player + 0x34));
+      unit_obj = (int)object_get_and_verify_type(root_handle, -1);
+      /* Skip if object has type flag 0x200000 set (object+0x4). */
+      if ((*(unsigned int *)(unit_obj + 4) & 0x200000) == 0) {
+        /* scenario+0x39c = tag block for structure BSP trigger volumes.
+         * Each element is 8 bytes: [0]=int16 handle, [2]=int16 bsp_index,
+         * [4]=int16 destination_bsp. */
+        scenario_t *scen = global_scenario_get();
+        block = (void *)((char *)scen + 0x39c);
+        scenario_bsp_count = *(int *)block;
+        bsp_counter = 0;
+        i = 0;
+        while ((int)i < scenario_bsp_count) {
+          entry = tag_block_get_element(block, (int)i, 8);
+          /* [+2] = bsp index this trigger belongs to; DAT_326a0c = current
+           * bsp index. */
+          entry_bsp = *(int16_t *)((char *)entry + 2);
+          if (entry_bsp == *(int16_t *)0x326a0c) {
+            /* FUN_18ef00(trigger_handle, player_unit_handle):
+             * returns non-zero if unit is inside the trigger volume. */
+            triggers_player = (char)((char (*)(int16_t, int))0x18ef00)(
+              *(int16_t *)entry, *(int *)(player + 0x34));
+            if (triggers_player) {
+              /* Extract the current BSP nibble from players_globals+0x2f.
+               * Low nibble = current bsp index (sign-extended to byte). */
+              cur_bsp_nibble =
+                (char)(*(char *)((char *)players_globals + 0x2f) << 4) >> 4;
+              if (cur_bsp_nibble != (char)0xff &&
+                  (int16_t)cur_bsp_nibble != *(int16_t *)(player + 2)) {
+                error(2, "!!!WARNING!!! teleported player triggering a "
+                         "bsp switch!!!");
+              }
+              /* Pack local_player_index into low nibble. */
+              *(unsigned char *)((char *)players_globals + 0x2f) &= 0xf;
+              *(unsigned char *)((char *)players_globals + 0x2f) ^=
+                (*(unsigned char *)(player + 2) ^
+                 *(unsigned char *)((char *)players_globals + 0x2f)) &
+                0xf;
+              /* Record the trigger index and fire the BSP switch.
+               * FUN_100500(int16 bsp_index): entry[4] = destination bsp. */
+              *(int16_t *)((char *)players_globals + 0x2a) = bsp_counter;
+              ((void (*)(int16_t))0x100500)(*(int16_t *)((char *)entry + 4));
+            }
+          }
+          bsp_counter++;
+          i++;
+        }
+      }
+    }
+
+    /* Reset pending-action state and run the per-player post helper.
+     * datum_get returns the live datum pointer (may differ from 'player'
+     * if the block was reallocated during iteration). */
+    {
+      char *pdatum = (char *)datum_get(player_data, datum_handle);
+      *(int16_t *)(pdatum + 0x28) = 0;
+      *(int *)(pdatum + 0x24) = -1;
+    }
+    /* FUN_bdb00: EBX = datum_handle (register arg). */
+    {
+      int _dh = datum_handle;
+      __asm__ volatile("movl %0, %%ebx" : : "r"(_dh) : "ebx");
+      ((void (*)(void))0xbdb00)();
+    }
+
+    player = (char *)data_iterator_next(&iter);
+  }
+
+  /* Advance the BSP-transition nibble counter at players_globals+0x2f.
+   * High nibble is the per-tick counter (incremented by 0x10), low nibble
+   * is the BSP destination index.  When the high nibble exceeds 0xc0
+   * (i.e., more than 12 ticks elapsed), clamp it to 0xf0 and then clear
+   * the low nibble to 0 (invalidate the pending switch). */
+  packed = *(unsigned char *)((char *)players_globals + 0x2f);
+  if ((packed & 0xf) != 0xf) {
+    unsigned char hi = (unsigned char)(packed & 0xf0) + 0x10;
+    unsigned char lo = packed & 0xf;
+    packed = hi ^ lo;
+    *(unsigned char *)((char *)players_globals + 0x2f) = packed;
+    packed = *(unsigned char *)((char *)players_globals + 0x2f);
+    if ((packed & 0xf0) > 0xc0) {
+      packed |= 0xf;
+      *(unsigned char *)((char *)players_globals + 0x2f) = packed;
+      *(unsigned char *)((char *)players_globals + 0x2f) &= 0xf;
+    }
+  }
+
+  /* Handle the "all players dead" restart flag at players_globals+0x28.
+   * DAT_46b6a8 tracks whether the SP restart has already been kicked off
+   * this death sequence. */
+  if (*(char *)((char *)players_globals + 0x28) == 0) {
+    /* No restart pending: clear the "already triggered" latch. */
+    if (*(char *)0x46b6a8 != 0)
+      *(char *)0x46b6a8 = 0;
+  } else {
+    /* Restart pending and engine is not running: kick off restart once. */
+    if (!game_engine_running() && *(char *)0x46b6a8 == 0) {
+      ((void (*)(void))0x100380)();
+      *(char *)0x46b6a8 = 1;
+    }
+  }
+
+  /* Profile exit. */
+  if (*(char *)0x449ef1 != 0 && *(char *)0x2f0e90 != 0)
+    profile_exit_private((void *)0x2f0e88);
+}
