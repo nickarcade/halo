@@ -1974,11 +1974,11 @@
           "addr": "0xbac80"
         },
         {
-          "decl": "int player_try_to_enter_vehicle(void);",
+          "decl": "bool player_try_to_enter_vehicle(int player_handle@<eax>);",
           "addr": "0xbaed0"
         },
         {
-          "decl": "void player_build_action_update(int player_handle, void *control_out, void *action);",
+          "decl": "void player_build_action_update(int player_index, void *control_out, int datum_handle);",
           "addr": "0xbb560"
         },
         {
@@ -1986,7 +1986,7 @@
           "addr": "0xbbcb0"
         },
         {
-          "decl": "bool player_try_to_spawn_in_vehicle(int player_handle);",
+          "decl": "bool player_try_to_spawn_in_vehicle(int player_handle@<eax>);",
           "addr": "0xbc0d0"
         },
         {
@@ -2673,7 +2673,7 @@
           "addr": "0x1adeb0"
         },
         {
-          "decl": "bool unit_set_in_vehicle(int unit_handle, int weapon_index);",
+          "decl": "bool unit_set_in_vehicle(int unit_handle, bool flag);",
           "addr": "0x1ae600"
         },
         {
