@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.16)
 
 find_package(Python3 COMPONENTS Interpreter)
 
+option(HALO_SKIP_XNETSTARTUP "Experimental: bypass cachebeta transport XNet/XnInit during XBE patching" OFF)
+
 set(gen_dir "${PROJECT_BINARY_DIR}/generated")
 add_custom_target(create_gen_dir ALL
 	COMMAND ${CMAKE_COMMAND} -E make_directory ${gen_dir})
@@ -97,6 +99,7 @@ add_custom_target(
 	BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/halo-patched/default.xbe
 	COMMAND
 		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/patch.py"
+			$<$<BOOL:${HALO_SKIP_XNETSTARTUP}>:--skip-xnetstartup>
 			"${CMAKE_CURRENT_LIST_DIR}/halo-patched/cachebeta.xbe"
 			"$<TARGET_FILE:halo>"
 			"${CMAKE_CURRENT_LIST_DIR}/halo-patched/default.xbe"
