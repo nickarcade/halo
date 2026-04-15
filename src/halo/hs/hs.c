@@ -11,12 +11,12 @@ void hs_dispose(void)
 void hs_update(void)
 {
   if (*(uint8_t *)0x449ef1 != 0 && *(uint8_t *)0x2f1c18 != 0)
-    profile_enter_private(*(void **)0x2f1c10);
+    profile_enter_private((void *)0x2f1c10);
 
   ((void (*)(void))0xcde00)();
 
   if (*(uint8_t *)0x449ef1 != 0 && *(uint8_t *)0x2f1c18 != 0)
-    profile_exit_private(*(void **)0x2f1c10);
+    profile_exit_private((void *)0x2f1c10);
 }
 
 /* Initialize hs for a new map: set up the script environment from the
@@ -62,9 +62,8 @@ void hs_initialize(void)
   char *scenario_tag;
 
   if (*(void **)0x2f1568 == 0) {
-    display_assert(
-      "you can't add an hs type without defining its name.",
-      "c:\\halo\\SOURCE\\hs\\hs.c", 0xf5, 1);
+    display_assert("you can't add an hs type without defining its name.",
+                   "c:\\halo\\SOURCE\\hs\\hs.c", 0xf5, 1);
     system_exit(-1);
   }
 
