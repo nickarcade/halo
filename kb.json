@@ -144,6 +144,76 @@
           "decl": "data_t *particle_system_header_data;",
           "addr": "0x5aa8a8"
         }
+      ],
+      "functions": [
+        {
+          "decl": "void FUN_0003aa50(void);",
+          "addr": "0x3aa50"
+        },
+        {
+          "decl": "void FUN_0003aa90(void);",
+          "addr": "0x3aa90"
+        },
+        {
+          "decl": "void FUN_00042b80(void);",
+          "addr": "0x42b80"
+        },
+        {
+          "decl": "void FUN_00042ca0(void);",
+          "addr": "0x42ca0"
+        },
+        {
+          "decl": "void FUN_00048f50(void);",
+          "addr": "0x48f50"
+        },
+        {
+          "decl": "void FUN_00048fa0(void);",
+          "addr": "0x48fa0"
+        },
+        {
+          "decl": "void FUN_00053640(void);",
+          "addr": "0x53640"
+        },
+        {
+          "decl": "void FUN_00053670(void);",
+          "addr": "0x53670"
+        },
+        {
+          "decl": "void FUN_000540c0(void);",
+          "addr": "0x540c0"
+        },
+        {
+          "decl": "void FUN_000540e0(void);",
+          "addr": "0x540e0"
+        },
+        {
+          "decl": "void FUN_00058fa0(void);",
+          "addr": "0x58fa0"
+        },
+        {
+          "decl": "void FUN_00058fb0(void);",
+          "addr": "0x58fb0"
+        },
+        {
+          "decl": "void FUN_0005ddc0(void);",
+          "addr": "0x5ddc0"
+        },
+        {
+          "decl": "void FUN_0005df90(void);",
+          "addr": "0x5df90"
+        },
+        {
+          "decl": "void FUN_0005dfb0(void);",
+          "addr": "0x5dfb0"
+        },
+        {
+          "decl": "void FUN_00064140(void);",
+          "addr": "0x64140"
+        },
+        {
+          "decl": "void FUN_00064160(void);",
+          "addr": "0x64160"
+        }
       ]
     },
     {
@@ -220,8 +290,16 @@
           "addr": "0x41180"
         },
         {
+          "decl": "bool FUN_00042390(char param_1);",
+          "addr": "0x42390"
+        },
+        {
           "decl": "bool ai_enemies_can_see_player(void);",
           "addr": "0x425a0"
+        },
+        {
+          "decl": "void FUN_000425b0(void);",
+          "addr": "0x425b0"
         }
       ]
     },
