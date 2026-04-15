@@ -488,3 +488,389 @@ typedef struct {
   char pad[2];
 } player_action_t;
 
+/* Update all player actions before game logic runs for this tick.
+ *
+ * For each player:
+ *   1. Validate the action data received from player_control.
+ *   2. If the player has no unit, try to spawn them (in a vehicle or
+ *      normally), or defer to the game engine's respawn logic.
+ *   3. If the player has a live unit and input is not inhibited, build
+ *      a unit_control_t from the action and apply it to the unit via
+ *      unit_set_control.  If input IS inhibited but the unit has no
+ *      vehicle seat, derive a neutral control from the unit's current
+ *      facing/aiming/looking vectors and apply that instead.
+ * After iterating all players, update both local and full PVS, then
+ * recount local players into players_globals+0x24. */
+void players_update_before_game(void)
+{
+  player_action_t action_buf[16]; /* [EBP-0x2a8]: 16*0x20 = 0x200 bytes */
+  data_iter_t iter; /* [EBP-0x14]                          */
+  int datum_handle; /* [EBP-0xc] = iter.datum_handle       */
+  char *player; /* [EBP-0x4] = current player datum ptr */
+  unit_control_t ctl; /* [EBP-0x68]: control for enabled-input path */
+  unit_control_t ctl2; /* [EBP-0xac]: control for disabled-input path */
+  int action_index;
+  player_action_t *action;
+  char *unit_data;
+  int unit_handle;
+  unit_control_t *ctl_ptr;
+  char *def_fwd; /* ptr to default forward vector (*(char**)0x31fc38) */
+
+  /* Profile enter. */
+  if (*(char *)0x449ef1 != 0 && *(char *)0x2f0898 != 0)
+    profile_enter_private((void *)0x2f0890);
+
+  /* Collect current player actions from the controller subsystem.
+   * action_buf receives up to 16 entries (one per network player slot),
+   * each 0x20 bytes. Returns false if the action queue is not ready. */
+  if (!player_control_get_current_actions(action_buf)) {
+    display_assert(NULL, "c:\\halo\\SOURCE\\game\\players.c", 0x30a, 1);
+    system_exit(-1);
+  }
+
+  /* Iterate all player datums. */
+  data_iterator_new(&iter, player_data);
+  player = (char *)data_iterator_next(&iter);
+  while (player != NULL) {
+    datum_handle = (int)iter.datum_handle;
+
+    /* action_index = low 16 bits of datum handle (slot index in action_buf).
+     * Each entry is 0x20 bytes wide. */
+    action_index = (int)(int16_t)(datum_handle & 0xffff);
+
+    if (action_index < 0 || action_index >= 16) {
+      display_assert(
+        "action_index>=0 && action_index<NETWORK_GAME_MAXIMUM_PLAYER_COUNT",
+        "c:\\halo\\SOURCE\\game\\players.c", 0x255, 1);
+      system_exit(-1);
+    }
+    action = &action_buf[action_index];
+
+    /* --- Validate action fields: NaN/inf checks on floats --- */
+
+    /* desired_facing.pitch */
+    if (((*(uint32_t *)&action->desired_facing_pitch) & 0x7f800000u) ==
+        0x7f800000u) {
+      csprintf((char *)0x5ab100, "%s: assert_valid_real(0x%08X %f)",
+               "action->desired_facing.pitch",
+               *(uint32_t *)&action->desired_facing_pitch,
+               (double)action->desired_facing_pitch,
+               "c:\\halo\\SOURCE\\game\\players.c", 0x25a, 1);
+      display_assert(NULL, "c:\\halo\\SOURCE\\game\\players.c", 0x25a, 1);
+      system_exit(-1);
+    }
+
+    /* desired_facing.yaw */
+    if (((*(uint32_t *)&action->desired_facing_yaw) & 0x7f800000u) ==
+        0x7f800000u) {
+      csprintf((char *)0x5ab100, "%s: assert_valid_real(0x%08X %f)",
+               "action->desired_facing.yaw",
+               *(uint32_t *)&action->desired_facing_yaw,
+               (double)action->desired_facing_yaw,
+               "c:\\halo\\SOURCE\\game\\players.c", 0x25b, 1);
+      display_assert(NULL, "c:\\halo\\SOURCE\\game\\players.c", 0x25b, 1);
+      system_exit(-1);
+    }
+
+    /* throttle (2D vector) */
+    if (((*(uint32_t *)&action->throttle_x) & 0x7f800000u) == 0x7f800000u ||
+        ((*(uint32_t *)&action->throttle_y) & 0x7f800000u) == 0x7f800000u) {
+      csprintf((char *)0x5ab100, "%s: assert_valid_real_vector2d(%f, %f)",
+               "&action->throttle", (double)action->throttle_x,
+               (double)action->throttle_y, "c:\\halo\\SOURCE\\game\\players.c",
+               0x25c, 1);
+      display_assert(NULL, "c:\\halo\\SOURCE\\game\\players.c", 0x25c, 1);
+      system_exit(-1);
+    }
+
+    /* primary_trigger */
+    if (((*(uint32_t *)&action->primary_trigger) & 0x7f800000u) ==
+        0x7f800000u) {
+      csprintf((char *)0x5ab100, "%s: assert_valid_real(0x%08X %f)",
+               "action->primary_trigger", *(uint32_t *)&action->primary_trigger,
+               (double)action->primary_trigger,
+               "c:\\halo\\SOURCE\\game\\players.c", 0x25d, 1);
+      display_assert(NULL, "c:\\halo\\SOURCE\\game\\players.c", 0x25d, 1);
+      system_exit(-1);
+    }
+
+    /* desired_weapon_index: NONE or [0..MAXIMUM_WEAPONS_PER_UNIT=4] */
+    if (action->desired_weapon_index != -1 &&
+        (action->desired_weapon_index < 0 ||
+         action->desired_weapon_index > 4)) {
+      display_assert(
+        "(NONE == action->desired_weapon_index) || ((action->desired_weapon_"
+        "index >= 0) && (action->desired_weapon_index <= "
+        "MAXIMUM_WEAPONS_PER_UNIT))",
+        "c:\\halo\\SOURCE\\game\\players.c", 0x25f, 1);
+      system_exit(-1);
+    }
+
+    /* desired_grenade_index: NONE or [0..NUMBER_OF_UNIT_GRENADE_TYPES=2] */
+    if (action->desired_grenade_index != -1 &&
+        (action->desired_grenade_index < 0 ||
+         action->desired_grenade_index > 2)) {
+      display_assert(
+        "(NONE == action->desired_grenade_index) || ((action->desired_grenade"
+        "_index >= 0) && (action->desired_grenade_index <= "
+        "NUMBER_OF_UNIT_GRENADE_TYPES))",
+        "c:\\halo\\SOURCE\\game\\players.c", 0x260, 1);
+      system_exit(-1);
+    }
+
+    /* desired_zoom_level: NONE or >= 0 */
+    if (action->desired_zoom_level != -1 && action->desired_zoom_level < 0) {
+      display_assert(
+        "(NONE == action->desired_zoom_level) || ((action->desired_zoom_level"
+        " >= 0))",
+        "c:\\halo\\SOURCE\\game\\players.c", 0x261, 1);
+      system_exit(-1);
+    }
+
+    /* --- Spawn logic: player currently has no unit --- */
+    if (*(int *)(player + 0x34) == -1 && !game_in_editor()) {
+      if (game_engine_running()) {
+        /* Multiplayer / game-engine managed respawn.
+         * FUN_a8c80: check if player is allowed to respawn (timer, etc).
+         * FUN_a8df0: clear the respawn window state.
+         * FUN_ad3e0: post-spawn game-engine notification. */
+        if (((bool (*)(int))0xa8c80)(datum_handle)) {
+          ((void (*)(int))0xa8df0)(datum_handle);
+          player_spawn(datum_handle);
+          if (*(int *)(player + 0x34) == -1) {
+            /* Spawn failed — mark respawn deferred at player+0x2c. */
+            *(int *)(player + 0x2c) = 1;
+          } else {
+            ((void (*)(int))0xad3e0)(datum_handle);
+          }
+        }
+      } else {
+        /* Single-player / co-op spawn path.
+         * FUN_e43e0: check if some cutscene/mode blocks spawning. */
+        if (!((bool (*)(void))0xe43e0)()) {
+          if (*(int16_t *)(player + 0xaa) == 0) {
+            /* Normal: spawn the player. */
+            player_spawn(datum_handle);
+          } else if (*((char *)players_globals + 0x28) == 0) {
+            /* All-dead flag is clear: call the deferred-respawn helper with
+             * players_globals+0x2e byte (respawn context). */
+            ((void (*)(int))0x100390)(
+              (int)(unsigned char)*((char *)players_globals + 0x2e));
+          }
+        }
+      }
+    }
+
+    /* --- Control logic: player has a unit --- */
+    unit_handle = *(int *)(player + 0x34);
+    if (unit_handle == -1 || !unit_is_alive(unit_handle))
+      goto next_player;
+
+    /* Resolve unit data pointer (type 3 = biped/unit). */
+    unit_data = (char *)object_get_and_verify_type(unit_handle, 3);
+
+    if (*((char *)players_globals + 0x29) == 0) {
+      /* Input is ENABLED. */
+
+      /* Binoculars request (action bit 6): if the unit has no active
+       * weapon-seat tag (unit+0xcc == -1) and the game is not in a
+       * "no-binoculars" state, set binoculars-pending flag (bit 10). */
+      if ((action->buttons & 0x40u) != 0 && *(int *)(unit_data + 0xcc) == -1 &&
+          !player_try_to_spawn_in_vehicle(datum_handle)) {
+        action->buttons |= 0x400u;
+      }
+
+      /* Zoom tracking: player+0x3e caches the zoom-change result.
+       * Clear it unless the zoom-hold flag (bit 14) is set and the
+       * unit has no active weapon-seat tag. */
+      if ((action->buttons & 0x4000u) == 0 ||
+          *(int *)(unit_data + 0xcc) != -1) {
+        *(char *)(player + 0x3e) = 0;
+      } else if (*(char *)(player + 0x3e) == 0) {
+        *(char *)(player + 0x3e) = (char)player_try_to_enter_vehicle(datum_handle);
+      }
+
+      /* Alt-attack / throw-weapon (sign bit of action->buttons byte 0):
+       * if set and unit has a weapon in the special slot (unit+0x2c8 != -1),
+       * invoke the vehicle-action result handler and clear the seat tag. */
+      if ((*(char *)&action->buttons & 0x80) != 0 &&
+          *(int *)(unit_data + 0x2c8) != -1) {
+        player_set_action_result_for_vehicle(datum_handle,
+                                             *(int *)(unit_data + 0x2c8));
+        unit_clear_seat_tag(*(int *)(player + 0x34));
+      }
+
+      /* Determine active weapon handle and handle zoom-change request.
+       *
+       * Re-fetches unit data (compiler re-fetched the pointer after the
+       * intervening writes above), reads the currently-selected weapon slot
+       * index from unit+0x2a2 (sign-extended), then calls unit_get_weapon to
+       * get the weapon's datum handle.  If valid and the weapon can zoom,
+       * propagate scope change (bits 0x1800) to the unit, then sync the
+       * active weapon index into the action's desired_weapon_index. */
+      {
+        char *udata2;
+        int16_t active_wi;
+        int wep_handle;
+
+        udata2 = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+        active_wi = *(int16_t *)(udata2 + 0x2a2);
+        wep_handle = unit_get_weapon(*(int *)(player + 0x34), active_wi);
+
+        if (wep_handle != -1 && ((bool (*)(int))0xfb090)(wep_handle)) {
+          /* Weapon can zoom. If scope-change bits set, call FUN_1ae600. */
+          if (action->buttons & 0x1800u) {
+            unit_set_in_vehicle(*(int *)(player + 0x34), 1);
+          }
+          /* Sync active weapon index into the action record. */
+          action->desired_weapon_index = *(int16_t *)(unit_data + 0x2a2);
+        }
+      }
+
+      /* Build the unit_control_t from the player action.
+       * player_build_action_update writes three floats via
+       * internal helper 0x10cc40 at offsets +0/+4/+8 relative to
+       * arg2, so arg2 must point at the aiming vector slot
+       * (ctl+0x28 = &ctl.aiming_x), NOT at the ctl header.
+       * Original 0xbd563 does LEA ECX,[EBP-0x40] = &ctl.aiming_x.
+       * Arg1 is the full 32-bit datum_handle (salt|index), forwarded
+       * to data_get helper 0x119320. Arg3 is &action->desired_facing_yaw
+       * (yaw/pitch float pair). */
+      csmemset(&ctl, 0, sizeof(ctl));
+      ctl.control_flags = (int16_t)action->buttons;
+      player_build_action_update(datum_handle, &ctl.aiming_x,
+                                 &action->desired_facing_yaw);
+
+      /* Original 0xbd57a-0xbd58f copies aiming into both facing
+       * (ctl+0x1c) and looking (ctl+0x34). player_build_action_update
+       * only writes aiming; the caller is responsible for mirroring
+       * it into the other two vectors so unit_set_control's unit-vector
+       * validation doesn't see zero-length facing/looking. */
+      ctl.facing_x = ctl.aiming_x;
+      ctl.facing_y = ctl.aiming_y;
+      ctl.facing_z = ctl.aiming_z;
+      ctl.looking_x = ctl.aiming_x;
+      ctl.looking_y = ctl.aiming_y;
+      ctl.looking_z = ctl.aiming_z;
+
+      /* Copy action scalars into control (player_build_action_update fills
+       * facing/aiming/looking vectors but leaves these untouched). */
+      ctl.throttle_x = action->throttle_x;
+      ctl.weapon_index = action->desired_weapon_index;
+      ctl.throttle_y = action->throttle_y;
+      ctl.grenade_index = action->desired_grenade_index;
+      ctl.primary_trigger = action->primary_trigger;
+      ctl.zoom_level = action->desired_zoom_level;
+      ctl.animation_state = 3;
+      ctl.aiming_speed = 0;
+
+      /* Validate assembled control data (mirrors unit_set_control
+       * internal checks). */
+      if (ctl.weapon_index != -1 &&
+          (ctl.weapon_index < 0 || ctl.weapon_index > 4)) {
+        display_assert(
+          "(NONE == control_data.weapon_index) || ((control_data.weapon_"
+          "index >= 0) && (control_data.weapon_index <= "
+          "MAXIMUM_WEAPONS_PER_UNIT))",
+          "c:\\halo\\SOURCE\\game\\players.c", 0x2e2, 1);
+        system_exit(-1);
+      }
+      if (ctl.grenade_index != -1 &&
+          (ctl.grenade_index < 0 || ctl.grenade_index > 2)) {
+        display_assert(
+          "(NONE == control_data.grenade_index) || ((control_data.grenade_"
+          "index >= 0) && (control_data.grenade_index <= "
+          "NUMBER_OF_UNIT_GRENADE_TYPES))",
+          "c:\\halo\\SOURCE\\game\\players.c", 0x2e3, 1);
+        system_exit(-1);
+      }
+      if (ctl.zoom_level != -1 && ctl.zoom_level < 0) {
+        display_assert(
+          "(NONE == control_data.zoom_level) || ((control_data.zoom_level"
+          " >= 0))",
+          "c:\\halo\\SOURCE\\game\\players.c", 0x2e4, 1);
+        system_exit(-1);
+      }
+      ctl_ptr = &ctl;
+
+    } else {
+      /* Input is DISABLED (players_globals+0x29 != 0). */
+
+      /* If the unit is currently seated in a vehicle (1a4/1a8 != -1),
+       * skip the control update entirely. */
+      if (*(int *)(unit_data + 0x1a8) != -1 ||
+          *(int *)(unit_data + 0x1a4) != -1)
+        goto next_player;
+
+      /* Build a null-ish control derived from the unit's stored orientation
+       * vectors. This keeps the unit from jittering when input is locked. */
+      csmemset(&ctl2, 0, sizeof(ctl2));
+      ctl2.weapon_index = -1;
+      ctl2.grenade_index = -1;
+      ctl2.zoom_level = -1;
+      ctl2.animation_state = 3;
+      ctl2.aiming_speed = 0;
+      ctl2.control_flags = 0;
+
+      /* Default forward vector: *(char**)0x31fc38 → vec3 at [+0..+8] */
+      def_fwd = *(char **)0x31fc38;
+      ctl2.facing_x = *(float *)(def_fwd + 0);
+      ctl2.facing_y = *(float *)(def_fwd + 4);
+      ctl2.facing_z = *(float *)(def_fwd + 8);
+
+      /* Copy aiming vector from unit data (offset 0x1d4..0x1dc). */
+      ctl2.aiming_x = *(float *)(unit_data + 0x1d4);
+      ctl2.aiming_y = *(float *)(unit_data + 0x1d8);
+      ctl2.aiming_z = *(float *)(unit_data + 0x1dc);
+
+      /* Secondary aiming copy at unit+0x1e0..0x1e8 (maps to throttle in
+       * the neutral control — matches the decompiler's local_90..local_78). */
+      ctl2.throttle_x = *(float *)(unit_data + 0x1e0);
+      ctl2.throttle_y = *(float *)(unit_data + 0x1e4);
+      ctl2.throttle_z = *(float *)(unit_data + 0x1e8);
+
+      /* Looking vector from unit+0x204..0x20c. */
+      ctl2.looking_x = *(float *)(unit_data + 0x204);
+      ctl2.looking_y = *(float *)(unit_data + 0x208);
+      ctl2.looking_z = *(float *)(unit_data + 0x20c);
+
+      ctl_ptr = &ctl2;
+    }
+
+    /* Apply the computed control to the unit. */
+    unit_set_control(unit_handle, ctl_ptr);
+
+  next_player:
+    player = (char *)data_iterator_next(&iter);
+  }
+
+  /* Update potential visibility sets:
+   * local players first (pass 1), then all players (pass 0).
+   * players_update_pvs takes combined_pvs via EDI; original 0xbd100
+   * reloads players_globals and offsets by 0x70 then 0x30 before
+   * each call. */
+  players_update_pvs(players_get_combined_pvs_local(), 1);
+  players_update_pvs(players_get_combined_pvs(), 0);
+
+  /* Recount local players: walk the 4 player-handle slots at
+   * players_globals+0x4..0x10 and count non-NONE entries.
+   * Result is stored at players_globals+0x24 (local_player_count field). */
+  {
+    int16_t count;
+    int *slot;
+    int i;
+
+    count = 0;
+    slot = (int *)((char *)players_globals + 4);
+    for (i = 0; i < 4; i++, slot++) {
+      if (*slot != -1)
+        count++;
+    }
+    *(int16_t *)((char *)players_globals + 0x24) = count;
+  }
+
+  /* Profile exit. */
+  if (*(char *)0x449ef1 != 0 && *(char *)0x2f0898 != 0)
+    profile_exit_private((void *)0x2f0890);
+}
+
