@@ -1446,6 +1446,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c0220": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c0330": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c2840": {
       "kind": "function",
       "status": "ported"

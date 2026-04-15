@@ -1,5 +1,3 @@
-#include "xbox.h"
-
 void game_state_dispose(void)
 {
   xbox_game_state_dispose_buffer();
@@ -142,16 +140,3 @@ fail:
   ((void (*)(int, const char *, ...))0xff4d0)(0, "couldn't open '%s'", name);
 }
 
-void xbox_game_state_dispose_buffer(void)
-{
-  assert_halt(*(char *)0x4ea9b0);
-  MmFreeContiguousMemory(*(void **)0x4ea9b4);
-  *(char *)0x4ea9b0 = 0;
-}
-
-void xbox_game_state_close_file(void)
-{
-  assert_halt(*(char *)0x4ea9bc);
-  ((bool (*)(int))0x1cf900)(*(int *)0x4ea9c0);
-  *(char *)0x4ea9bc = 0;
-}
