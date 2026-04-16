@@ -61,6 +61,7 @@
 	halo/math/real_math.c
 	halo/rasterizer/rasterizer.c
 	halo/rasterizer/common/rasterizer_common.c
+	halo/rasterizer/xbox/rasterizer_xbox.c
 	halo/render/render.c
 	halo/render/render_cameras.c
 	"halo/saved games/saved_game_files.c"
