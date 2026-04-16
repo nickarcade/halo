@@ -458,6 +458,188 @@ void main_won_map_private(void)
 }
 
 /*
+ * main_frame_rate_debug - 0x101130
+ *
+ * Confirmed:
+ *  - No arguments; void return. cdecl frame, saves EBX/ESI/EDI.
+ *  - Enable flag at 0x46e003 (bool, unnamed): when zero the function is a
+ *    no-op (returns immediately). Not in kb.json.
+ *  - State initialized/reset via flag at 0x46e391 (bool active). On first
+ *    call with active==0 and enable==0, exits early. On first call with
+ *    active==1 but enable==0, clears the entire state block and exits.
+ *  - Frame-time history ring-buffer: float[8] at 0x46e36c (32 bytes).
+ *    Current slot index at 0x46e38e (byte, wraps mod 8). Slow-frame bitmask
+ *    at 0x46e38c (uint16_t, one bit per slot). Initialized with csmemset.
+ *  - Slow-frame threshold: flt_46DA08 (current frame seconds) compared
+ *    against double constant 0.036 at 0x28b430 (= ~1/27.78s ≈ 27.8 fps
+ *    threshold) via FCOMP double ptr — decompiler shows float cast but
+ *    disasm confirms double operand.
+ *  - Mask bit set when frame is SLOW (> threshold), cleared when fast.
+ *  - Trigger condition: all 8 slots slow (bitmask == 0xff), has-triggered
+ *    flag (0x46e38f) == 0. Writes a save-core file and an init .txt log.
+ *  - After trigger, sets 0x46e38f=1. Cleared back to 0 once 60 consecutive
+ *    fast-frame passes accumulate (counter at 0x46e390, threshold 0x3c=60).
+ *  - File helpers called directly by address; not in kb.json:
+ *      0x1ba1f0: returns scenario/map name pointer (field+0x10 of globals)
+ *      0x19b0d0: strips path prefix (strrchr basename)
+ *      0x1d051d: fills TIME_FIELDS-like struct (KeQuerySystemTime +
+ *                RtlTimeToTimeFields)
+ *      0x1d90f0: internal sprintf variant (not csprintf)
+ *      0x1d9e59: __fsopen wrapper (fopen with share mode 0x40)
+ *      0x1d98ad: _fwprintf
+ *      0x1d9bd2: _fflush
+ *      0x1d9dac: _fclose
+ *  - String "d:\%s_init.txt" and file modes "r"/"wt"/"a+t" confirm
+ *    log-file append behavior.
+ *
+ * Inferred:
+ *  - 0x46e003 = "debug_frame_rate_enable" or similar console/debug flag.
+ *  - The 8-slot bitmask going all-1s (0xff) triggers "we're running slow"
+ *    recording; 60 consecutive fast frames clears the trigger latch.
+ *  - game_state_save_core writes a binary game-state snapshot whose name
+ *    encodes the timestamp.
+ *
+ * Uncertain:
+ *  - Exact semantic name of 0x46e003. Could be "profile_frame_rate" or a
+ *    different per-build debug flag.
+ *  - TIME_FIELDS field ordering relied on (Year/Month/Day/Hour/Min/Sec/Ms).
+ *    The sprintf arg order in disasm: Month, Hour, Year, Minute, Second, Ms.
+ */
+void main_frame_rate_debug(void)
+{
+  /* frame-time history and state live at fixed addresses, not in kb.json */
+  float *frame_times = (float *)0x46e36c; /* float[8] ring buffer */
+  uint16_t *slow_mask = (uint16_t *)0x46e38c; /* bitmask: 1=slow slot */
+  uint8_t *slot_idx = (uint8_t *)0x46e38e; /* current ring slot 0-7 */
+  uint8_t *triggered = (uint8_t *)0x46e38f; /* has-triggered latch */
+  uint8_t *fast_count = (uint8_t *)0x46e390; /* consecutive fast frames */
+  uint8_t *active = (uint8_t *)0x46e391; /* state initialized flag */
+  bool *enable = (bool *)0x46e003; /* debug enable flag */
+
+  /* slow-frame threshold: ~27.8 fps (double, NOT float — disasm confirms) */
+  static const double slow_threshold = 0.036; /* 0x28b430 */
+
+  /* sizeof TIME_FIELDS fields (8x int16_t) */
+  int16_t tf[8]; /* [0]=Year [1]=Month [2]=Day [3]=Hour [4]=Min [5]=Sec
+                    [6]=Ms [7]=Weekday — layout per RtlTimeToTimeFields */
+
+  char core_name[256]; /* [EBP-0x214..-0x115] */
+  char init_path[256]; /* [EBP-0x114..-0x15] */
+
+  uint32_t idx;
+  uint32_t bit;
+  char *map_name;
+  void *fp;
+
+  typedef char *(__cdecl * fn_get_scenario_name_t)(int scenario_idx);
+  typedef char *(__cdecl * fn_basename_t)(char *path);
+  typedef void(__cdecl * fn_get_time_t)(int16_t * tf_out);
+  typedef int(__cdecl * fn_sprintf_t)(char *buf, const char *fmt, ...);
+  typedef void *(__cdecl * fn_fopen_t)(const char *path, const char *mode);
+  typedef int(__cdecl * fn_fwprintf_t)(void *fp, const wchar_t *fmt, ...);
+  typedef int(__cdecl * fn_fflush_t)(void *fp);
+  typedef int(__cdecl * fn_fclose_t)(void *fp);
+
+  if (*active != 0) {
+    if (*enable != 0)
+      goto do_update;
+    /* active but no longer enabled — reset state */
+    *active = 0;
+    csmemset(frame_times, 0, 0x20);
+    *slow_mask = 0;
+    *slot_idx = 0;
+    *triggered = 0;
+    *fast_count = 0;
+    *active = 0;
+  }
+
+  if (*enable == 0)
+    return;
+
+do_update:
+  /* store current frame time in ring slot */
+  frame_times[*slot_idx] = flt_46DA08;
+
+  /* update slow-frame bitmask for this slot */
+  bit = (uint32_t)(1 << (*slot_idx & 0x1f));
+  if (flt_46DA08 <= (float)slow_threshold) {
+    *slow_mask = (uint16_t)(*slow_mask & ~(uint16_t)bit);
+  } else {
+    *slow_mask = (uint16_t)(*slow_mask | (uint16_t)bit);
+  }
+
+  /* advance ring index mod 8 */
+  idx = (uint32_t)(int8_t)(*slot_idx + 1) & 0x80000007u;
+  if ((int32_t)idx < 0)
+    idx = (idx - 1 | 0xfffffff8u) + 1;
+  *slot_idx = (uint8_t)idx;
+
+  *active = 1;
+
+  if (*triggered == 0) {
+    /* first trigger: all 8 slots must be slow (bitmask 0xff) */
+    if (*slow_mask == 0xff) {
+      /* get scenario/map name, strip path prefix */
+      map_name = ((fn_basename_t)0x19b0d0)(
+        ((fn_get_scenario_name_t)0x1ba1f0)(global_scenario_index));
+
+      /* get current time fields */
+      ((fn_get_time_t)0x1d051d)(tf);
+
+      /* build core snapshot filename:
+       * <map>_slow_<mo>_<hr>_<yr>_<min>_<sec>_<ms>.bin */
+      ((fn_sprintf_t)0x1d90f0)(core_name, "%s_slow_%d_%d_%d_%d_%d_%d.bin",
+                               map_name, (int)(uint16_t)tf[1], /* Month */
+                               (int)(uint16_t)tf[3], /* Hour */
+                               (int)(uint16_t)tf[0], /* Year */
+                               (int)(uint16_t)tf[4], /* Minute */
+                               (int)(uint16_t)tf[5], /* Second */
+                               (int)(uint16_t)tf[6]); /* Milliseconds */
+
+      /* save binary game-state core */
+      game_state_save_core(core_name);
+
+      /* build init.txt path: d:\<map>_init.txt */
+      ((fn_sprintf_t)0x1d90f0)(init_path, "d:\\%s_init.txt", map_name);
+
+      /* open file: try "r" first to detect if it exists */
+      fp = ((fn_fopen_t)0x1d9e59)(init_path, "r");
+      if (fp == (void *)0) {
+        /* new file: create with "wt" and write map_name line */
+        fp = ((fn_fopen_t)0x1d9e59)(init_path, "wt");
+        ((fn_fwprintf_t)0x1d98ad)(fp, L"map_name %s\n", map_name);
+      } else {
+        /* existing file: close "r" handle, reopen in append mode */
+        ((fn_fclose_t)0x1d9dac)(fp);
+        fp = ((fn_fopen_t)0x1d9e59)(init_path, "a+t");
+      }
+
+      /* append core snapshot filename */
+      ((fn_fwprintf_t)0x1d98ad)(fp, L";core_load_name_at_startup %s\n",
+                                core_name);
+      ((fn_fflush_t)0x1d9bd2)(fp);
+      ((fn_fclose_t)0x1d9dac)(fp);
+
+      *triggered = 1;
+    }
+  } else if (*slot_idx == 0) {
+    /* latch active: check if ring just completed a full pass */
+    if (*slow_mask != 0) {
+      /* still slow frames in window — reset fast counter */
+      *fast_count = 0;
+      return;
+    }
+    /* all frames fast this pass */
+    *fast_count = *fast_count + 1;
+    if (';' < *fast_count) { /* 0x3b=59 threshold: >59 = 60th pass */
+      *fast_count = 0;
+      *triggered = 0;
+      return;
+    }
+  }
+}
+
+/*
  * main_rasterizer_throttle - 0x101970
  *
  * Confirmed:

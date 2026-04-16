@@ -1079,6 +1079,12 @@
       "name": "main_won_map_private",
       "name_confidence": "high"
     },
+    "0x101130": {
+      "kind": "function",
+      "status": "ported",
+      "name": "main_frame_rate_debug",
+      "name_confidence": "high"
+    },
     "0x101970": {
       "kind": "function",
       "status": "ported",
