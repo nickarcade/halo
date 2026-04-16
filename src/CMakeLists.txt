@@ -1,6 +1,7 @@
 	target_sources(halo PRIVATE
 	entrypoint.c
 	inlines.c
+	halo/ai/ai.c
 	halo/bitmaps/bitmaps.c
 	halo/bungie_net/network/transport_endpoint_set_winsock.c
 	halo/bink/bink_playback.c
@@ -47,9 +48,11 @@
 	halo/interface/ui_widget_game_data_input_functions.c
 	halo/items/items.c
 	halo/items/projectiles.c
+	halo/units/vehicles.c
 	halo/networking/network_messages.c
 	halo/main/debug_keys.c
 	halo/main/main.c
+	halo/main/telnet_console.c
 	halo/memory/data.c
 	halo/physics/breakable_surfaces.c
 	halo/physics/collision_usage.c
@@ -58,11 +61,13 @@
 	halo/math/real_math.c
 	halo/rasterizer/rasterizer.c
 	halo/rasterizer/common/rasterizer_common.c
+	halo/rasterizer/xbox/rasterizer_xbox.c
 	halo/render/render.c
 	halo/render/render_cameras.c
 	"halo/saved games/saved_game_files.c"
 	halo/interface/hud_messaging.c
 	halo/saved_games/game_state.c
+	halo/saved_games/game_state_xbox.c
 	halo/scenario/scenario.c
 	halo/structures/structures.c
 	halo/interface/interface.c
@@ -70,9 +75,12 @@
 	halo/sound/game_sound.c
 	halo/sound/sound_classes.c
 	halo/sound/sound_manager.c
+	halo/objects/objects.c
 	halo/objects/widgets/widgets.c
 	halo/text/unicode.c
 	halo/tag_files/files.c
+	halo/tag_files/tag_groups.c
+	halo/shell.c
 	halo/shell_xbox.c
 	halo/cache/physical_memory_map.c
 	halo/cache/tags.c
