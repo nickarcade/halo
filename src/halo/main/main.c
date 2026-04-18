@@ -1,3 +1,37 @@
+/* Close all UI widgets and display the "damaged media" fatal error screen.
+ *
+ * Loads the "error_abort_to_dashboard_you_have_no_choice" widget by name,
+ * asserts that it is a text box widget (type 1), sets its string_list_index
+ * and the global error_string_index to 0x23, marks the widget as needing
+ * a text update, then flushes input and enters the halt loop forever.
+ * If the widget fails to load, logs an error and enters the halt loop
+ * anyway. This function never returns. */
+void display_error_damaged_media(void)
+{
+  void *widget;
+
+  ui_widgets_close_all();
+  widget = ui_widget_load_by_name_or_tag(
+    "ui\\shell\\error\\error_abort_to_dashboard_you_have_no_choice", -1, 0, -1,
+    -1, -1, -1);
+  if (widget != NULL) {
+    if (*(int16_t *)((char *)widget + 0xe) != 1) {
+      display_assert("expected a text box widget",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x90f, 1);
+      system_exit(-1);
+    }
+    *(int16_t *)((char *)widget + 0x40) = 0x23;
+    *(uint8_t *)((char *)widget + 0x15) = 1;
+    *(int16_t *)0x31e054 = 0x23;
+    input_frame_end();
+    main_halt_entry();
+  }
+  error(2, "failed to load '%s' widget",
+        "ui\\shell\\error\\error_abort_to_dashboard_you_have_no_choice");
+  input_frame_end();
+  main_halt_entry();
+}
+
 short game_connection(void)
 {
   return word_46DA0C;
@@ -104,6 +138,168 @@ void main_menu_precache_resources(void)
 }
 
 /*
+ * main_reset_player_actions - 0x1006b0
+ *
+ * Resets the player action queue state by deleting all pending updates,
+ * re-initializing the queue, and restarting the server update pipeline.
+ * Called when closing a UI widget (ui_widget_close) and at the end of
+ * each network client frame (network_game_client_end_frame).
+ */
+void main_reset_player_actions(void)
+{
+  update_server_delete();
+  update_server_new();
+  update_server_start();
+}
+
+/*
+ * main_change_map_name - 0x100c10
+ *
+ * Called from the main game loop when main_change_map_name_pending (0x46da25)
+ * is set. Fades out the main menu music and UI over 1000 ms, then starts a
+ * new game with the map name queued in the global map_name[255] buffer
+ * (0x46da55).
+ *
+ * Confirmed:
+ *  - Pending guard: main_globals.main_menu_scenario_loaded (0x46da42) == 1.
+ *    If not pending, the function clears the timer deadline (0x46da34) and
+ *    falls through to the timer-expired path.
+ *  - Timer deadline stored as raw uint32 milliseconds at 0x46da34 (not in
+ *    kb.json; used only by this function). Compared against
+ *    unk_time_globals.unk_0 (uint32 ms ticker at 0x46d9e0).
+ *  - Timer not-yet-started path (deadline == 0):
+ *      - FUN_e46a0 returns DAT_0046cc86 (main-menu music-active flag).
+ *      - If music is playing (== 1):
+ *          deadline = current_ms + 1000
+ *          FUN_e5a40(1000) — begin music fade-out over 1000 ms
+ *          FUN_e3e10(1)    — enable UI widget
+ *          FUN_e3c90(0.0f) — set rasterizer fade to 0 (transparent)
+ *        MSVC interleaves: PUSH 0x3e8 (e5a40 arg), then PUSH 0x1 (e3e10 arg),
+ *        then PUSH 0x0 (e3c90 arg), cleaned with a single ADD ESP,0xc.
+ *      - Early-return if deadline not yet reached (current_ms < deadline).
+ *  - Timer-running path (deadline != 0, deadline not yet reached):
+ *      delta = deadline - current_ms (int32; add 4294967296.0f if negative to
+ *      handle uint32 wrap).
+ *      fade = 1.0f - (delta * 0.001f) [constants at 0x2533c8 and 0x255ef8].
+ *      FUN_e3c90(fade) — update rasterizer blend.
+ *  - Timer-expired (or not-pending) path:
+ *      FUN_e3c90(-1.0f)     — set fade to -1.0f (0xbf800000)
+ *      FUN_e4640()          — stop main-menu music
+ *      FUN_e43d0(0)         — clear UI widget flag2
+ *      main_globals.main_menu_scenario_loaded = 0  [cleared mid push-sequence]
+ *      FUN_e3e10(0)         — disable UI widget
+ *        MSVC interleaves: PUSH 0xbf800000 (e3c90), PUSH 0x0 (e43d0), PUSH 0x0
+ *        (e3e10), cleaned with ADD ESP,0xc.
+ *      If game_in_progress() and word_46DA0C == 0:
+ *        - build game_options_t on the stack (0x10c bytes at [EBP-0x110]):
+ *            game_options_new(&game_options)
+ *            csstrncpy(game_options.map_name, map_name, 0xff)
+ *            game_options.map_name[255] = 0   (explicit null-term)
+ *            game_options.difficulty = global_difficulty_level
+ *        - game_dispose_from_old_map()
+ *        - game_precache_new_map(game_options.map_name, 1)
+ *        - game_unload()
+ *        - main_new_map(&game_options)
+ *        - loop i=0 .. player_spawn_count-1: FUN_1c1c00(i) (save player
+ * profile) Loop counter compared as signed int16 against player_spawn_count.
+ *  - Deadline cleared to 0 unconditionally at function exit (0x46da34 = 0).
+ *  - Float constants:
+ *      0x4f800000 = 4294967296.0f (2^32, uint32 wrap correction)
+ *      0x3a83126f = ~0.001f       (1/1000 ms-to-fraction scale, at 0x255ef8)
+ *      0x3f800000 = 1.0f          (at 0x2533c8)
+ *      0xbf800000 = -1.0f
+ *
+ * Inferred:
+ *  - FUN_e46a0 = "main menu music is playing" — reads DAT_0046cc86.
+ *  - FUN_e5a40 = begin UI fade / music fade-out (takes fade duration ms).
+ *  - FUN_e3c90 = rasterizer_set_fade (takes float; stores raw bits to
+ * DAT_0046cc4c).
+ *  - FUN_e3e10 = ui_widget_set_flag (bool enable).
+ *  - FUN_e4640 = stop_main_menu_music.
+ *  - FUN_e43d0 = ui_widget_set_flag2 (bool).
+ *  - FUN_1c1c00 = player_profile_save_level (local_player_index).
+ *
+ * Uncertain:
+ *  - Exact semantics of FUN_e5a40, e3c90, e3e10, e43d0 — names are inferred
+ *    from callee bodies and context; not confirmed by source strings.
+ *  - Whether the note "// FIXME: Merge adjacent globals" on main_globals_t
+ *    means 0x46da42 has dual use here vs. in main_menu_load.
+ */
+void main_change_map_name(void)
+{
+  game_options_t game_options;
+  int delta;
+  int i;
+
+  typedef bool(__cdecl * fn_music_playing_t)(void);
+  typedef void(__cdecl * fn_ui_fade_start_t)(int duration_ms);
+  typedef void(__cdecl * fn_set_fade_t)(float fade);
+  typedef void(__cdecl * fn_stop_music_t)(void);
+  typedef void(__cdecl * fn_set_widget_flag2_t)(bool enable);
+  typedef void(__cdecl * fn_save_player_level_t)(int local_player_index);
+
+  if (main_globals.main_menu_scenario_loaded) {
+    if (*(int *)0x46da34 == 0) {
+      /* music not yet fading: check if music is still playing */
+      if (((fn_music_playing_t)0xe46a0)()) {
+        /* set deadline and kick off the 1000 ms fade sequence */
+        *(uint32_t *)0x46da34 = (uint32_t)unk_time_globals.unk_0 + 1000;
+        /* MSVC interleaved pre-push: PUSH 0x3e8, PUSH 0x1, PUSH 0x0 */
+        ((fn_ui_fade_start_t)0xe5a40)(1000);
+        ui_widget_set_events_suppressed(1);
+        ((fn_set_fade_t)0xe3c90)(0.0f);
+      }
+    } else {
+      /* compute remaining time and update the rasterizer blend */
+      delta = (int)(*(uint32_t *)0x46da34 - (uint32_t)unk_time_globals.unk_0);
+      {
+        float flt_delta = (float)delta;
+        if (delta < 0) {
+          flt_delta = flt_delta + 4294967296.0f; /* uint32 wrap correction */
+        }
+        /* fade = 1.0f - remaining_ms * (1/1000) */
+        ((fn_set_fade_t)0xe3c90)(1.0f - flt_delta * *(float *)0x255ef8);
+      }
+    }
+    /* bail out if deadline has not been reached */
+    if ((uint32_t)unk_time_globals.unk_0 < *(uint32_t *)0x46da34) {
+      return;
+    }
+  } else {
+    /* not pending: clear deadline and fall through to clean-up path */
+    *(int *)0x46da34 = 0;
+  }
+
+  /* timer expired (or was never pending): finalize fade and start new map */
+  /* MSVC interleaved pre-push: PUSH 0xbf800000, PUSH 0x0, PUSH 0x0 */
+  ((fn_set_fade_t)0xe3c90)(-1.0f); /* 0xbf800000 */
+  ((fn_stop_music_t)0xe4640)();
+  ((fn_set_widget_flag2_t)0xe43d0)(0);
+  main_globals.main_menu_scenario_loaded = 0;
+  ui_widget_set_events_suppressed(0);
+
+  if (game_in_progress() && word_46DA0C == 0) {
+    /* initialize game_options from queued map name and difficulty */
+    game_options_new(&game_options);
+    csstrncpy(game_options.map_name, map_name, 0xff);
+    game_options.map_name[255] = 0; /* explicit null-terminator */
+    game_options.difficulty = global_difficulty_level;
+
+    game_dispose_from_old_map();
+    game_precache_new_map(game_options.map_name, 1);
+    game_unload();
+    main_new_map(&game_options);
+
+    /* save level progress for each local player (signed int16 compare) */
+    for (i = 0; (int16_t)i < player_spawn_count; i++) {
+      ((fn_save_player_level_t)0x1c1c00)(i);
+    }
+  }
+
+  *(int *)0x46da34 = 0;
+}
+
+/*
  * main_skip_private - 0x100de0
  *
  * Confirmed:
@@ -145,6 +341,629 @@ void main_skip_private(void)
   error(2, "manual skipping doesn't work outside of cinemtatic start/stop...");
   *skip_count = 0;
   main_skip_private_pending = 0;
+}
+
+/*
+ * main_save_map_private - 0x100eb0
+ *
+ * Confirmed:
+ *  - Returns immediately if game_time_get_paused() (CALL 0xb5c30; JNZ out).
+ *  - 0x46da29 (byte): save-in-progress flag. When zero the game is NOT
+ *    actively trying to save; when non-zero a save attempt is underway.
+ *  - 0x46da2a (byte): secondary flag checked only when the retry counter
+ *    (0x46da30) has exceeded 0xef ticks.
+ *  - 0x46da2c (dword): cooldown counter. Decremented each tick; save is only
+ *    attempted when it falls to <= 0. Reset to 10 after each attempt.
+ *  - 0x46da30 (dword): total-ticks counter. Incremented on every call while
+ *    the save-pending flag (0x46da29) is set. Used to detect a hung save.
+ *  - 0x46da38 (int16_t): consecutive-success counter for game_safe_to_save().
+ *    Cleared to 0 on failure, incremented on success. When the original value
+ *    reaches >= 3 (i.e. three or more consecutive successes), the save is
+ *    triggered (BL set; hud_autosave + game_state_save_pending armed).
+ *  - 0x46da28 (byte): cleared to 0 whenever the save attempt is resolved
+ *    (success, abort, or overflow). Already in kb.json as byte_46DA28.
+ *  - 0x46da2b = game_state_save_pending: set to 1 to arm the save, then the
+ *    main loop (0x100eb0 caller) handles the actual game_state_save call.
+ *  - CALL 0xd0db0 = hud_autosave(int16_t): notifies HUD; arg is 1.
+ *  - CALL 0xff4d0 = local logging helper (int, const char *, ...): same cast
+ *    pattern used in game_state.c and cheats.c.
+ *  - debug_game_save (0x46e002): when set, enables the "unsafe save" path
+ *    (triggers autosave even when 0x46da29==0) and logs the "gave up" message
+ *    on overflow instead of silently aborting.
+ *  - Overflow path (0x46da30 >= 0xf0 AND 0x46da2a != 0): clears byte_46DA28
+ *    and returns without triggering a save regardless of debug_game_save.
+ *    With debug_game_save set, logs "gave up trying to save" first.
+ *
+ * Inferred:
+ *  - 0x46da29 is probably "main_save_map_private_pending" or similar — the
+ *    name is not confirmed from strings.
+ *  - 0x46da2a is probably a secondary "abort on overflow" sub-flag.
+ *  - 0x46da2c is a retry-cooldown tick counter; 10-tick interval inferred.
+ *  - 0x46da30 is a total-attempt tick counter; 0xf0 = 240 ticks ceiling.
+ *  - 0x46da38 is a run-of-good-frames counter gating the actual save trigger.
+ *
+ * Uncertain:
+ *  - Exact semantic names for 0x46da29, 0x46da2a, 0x46da2c, 0x46da30,
+ *    0x46da38 — all accessed as hardcoded addresses since not in kb.json.
+ */
+void main_save_map_private(void)
+{
+  int orig_ticks;
+  int orig_cooldown;
+  int16_t orig_safe_count;
+  bool trigger;
+
+  if (game_time_get_paused()) {
+    return;
+  }
+
+  trigger = false;
+
+  if (*(uint8_t *)0x46da29 == 0) {
+    /* Not in a pending-save state: only fire if debug_game_save forces it. */
+    if (debug_game_save) {
+      ((void (*)(int, const char *, ...))0xff4d0)(0, "unsafe save");
+    }
+    /* Fall through to shared trigger tail. */
+  } else {
+    /* Increment total-ticks counter and check for overflow. */
+    orig_ticks = *(int *)0x46da30;
+    *(int *)0x46da30 = orig_ticks + 1;
+
+    if (orig_ticks >= 0xf0 && *(uint8_t *)0x46da2a != 0) {
+      /* Hung for too long — abort the save. */
+      if (debug_game_save) {
+        ((void (*)(int, const char *, ...))0xff4d0)(0,
+                                                    "gave up trying to save");
+      }
+      byte_46DA28 = 0;
+      return;
+    }
+
+    /* Decrement cooldown counter; only attempt save when it reaches <= 0. */
+    orig_cooldown = *(int *)0x46da2c;
+    *(int *)0x46da2c = orig_cooldown - 1;
+    if (orig_cooldown > 0) {
+      return;
+    }
+
+    /* Poll game_safe_to_save(); track consecutive successes. */
+    if (game_safe_to_save()) {
+      orig_safe_count = *(int16_t *)0x46da38;
+      *(int16_t *)0x46da38 = orig_safe_count + 1;
+      if (orig_safe_count >= 3) {
+        trigger = true;
+      }
+    } else {
+      *(int16_t *)0x46da38 = 0;
+    }
+
+    /* Reset cooldown regardless of whether the save fires. */
+    *(int *)0x46da2c = 10;
+
+    if (!trigger) {
+      return;
+    }
+  }
+
+  /* Shared trigger tail: arm save and clear pending flag. */
+  hud_autosave(1);
+  game_state_save_pending = 1;
+  byte_46DA28 = 0;
+}
+
+/*
+ * main_won_map_private - 0x101040
+ *
+ * Confirmed:
+ *  - Sets main_menu_load_pending (0x46da43) = 1.
+ *  - Clears main_won_map_private_pending (0x46da3a) = 0.
+ *  - Calls 0x1006f0(&map_name) → returns a short level index (0-8) for
+ *    recognized map names, or -1 for unrecognized. Source path visible in
+ *    the callee: "c:\\halo\\SOURCE\\saved games\\player_profile.c". The
+ *    callee strips the path prefix (FUN_8de70 = csstrncpy-like), lowercases
+ *    (FUN_8d9a0), then does up to 10 strstr comparisons for the 10 SP
+ *    level names. Returns 0-8 for a known level; the 10th path returns 9
+ *    but the expression `(-(uint)(pcVar1 != 0) & 10) - 1` maps it to 9.
+ *  - Zero-extends the 16-bit result (XOR EDI,EDI; MOV DI,AX), then
+ *    increments: level_index = (uint16_t)(result) + 1. If (short)level_index
+ *    >= 10, level_index is set to -1 (OR EDI,0xffffffff).
+ *  - Loops i = 0 .. player_spawn_count-1, calling 0x1c1cc0(i) each
+ *    iteration. Callee source: "player_profile.c" — saves level completion
+ *    for each local player's profile.
+ *  - Calls 0xe4420(level_index) to trigger the inter-level transition:
+ *    level_index == -1 → main menu; -1 < level_index < 10 → load next
+ *    level; else → "unknown level" error + FUN_100620 (main_menu fallback).
+ *  - Loop counter compared as signed 16-bit (CMP SI, word[0x31fa94]).
+ */
+void main_won_map_private(void)
+{
+  uint16_t map_level;
+  int level_index;
+  int i;
+
+  typedef uint16_t(__cdecl * fn_map_to_level_t)(char *map_name);
+  typedef void(__cdecl * fn_save_player_level_t)(int local_player_index);
+  typedef void(__cdecl * fn_level_transition_t)(int level_index);
+
+  main_menu_load_pending = 1;
+  main_won_map_private_pending = 0;
+
+  /* map the current map name to a 0-based level index; unrecognized = -1 */
+  map_level = ((fn_map_to_level_t)0x1006f0)(map_name);
+  level_index = (int)(map_level + 1);
+  if ((int16_t)level_index >= 10) {
+    level_index = -1;
+  }
+
+  /* record level completion in each local player's saved profile */
+  for (i = 0; (int16_t)i < player_spawn_count; i++) {
+    ((fn_save_player_level_t)0x1c1cc0)(i);
+  }
+
+  /* trigger level transition or return to main menu */
+  ((fn_level_transition_t)0xe4420)(level_index);
+}
+
+/*
+ * main_frame_rate_debug - 0x101130
+ *
+ * Confirmed:
+ *  - No arguments; void return. cdecl frame, saves EBX/ESI/EDI.
+ *  - Enable flag at 0x46e003 (bool, unnamed): when zero the function is a
+ *    no-op (returns immediately). Not in kb.json.
+ *  - State initialized/reset via flag at 0x46e391 (bool active). On first
+ *    call with active==0 and enable==0, exits early. On first call with
+ *    active==1 but enable==0, clears the entire state block and exits.
+ *  - Frame-time history ring-buffer: float[8] at 0x46e36c (32 bytes).
+ *    Current slot index at 0x46e38e (byte, wraps mod 8). Slow-frame bitmask
+ *    at 0x46e38c (uint16_t, one bit per slot). Initialized with csmemset.
+ *  - Slow-frame threshold: flt_46DA08 (current frame seconds) compared
+ *    against double constant 0.036 at 0x28b430 (= ~1/27.78s ≈ 27.8 fps
+ *    threshold) via FCOMP double ptr — decompiler shows float cast but
+ *    disasm confirms double operand.
+ *  - Mask bit set when frame is SLOW (> threshold), cleared when fast.
+ *  - Trigger condition: all 8 slots slow (bitmask == 0xff), has-triggered
+ *    flag (0x46e38f) == 0. Writes a save-core file and an init .txt log.
+ *  - After trigger, sets 0x46e38f=1. Cleared back to 0 once 60 consecutive
+ *    fast-frame passes accumulate (counter at 0x46e390, threshold 0x3c=60).
+ *  - File helpers called directly by address; not in kb.json:
+ *      0x1ba1f0: returns scenario/map name pointer (field+0x10 of globals)
+ *      0x19b0d0: strips path prefix (strrchr basename)
+ *      0x1d051d: fills TIME_FIELDS-like struct (KeQuerySystemTime +
+ *                RtlTimeToTimeFields)
+ *      0x1d90f0: internal sprintf variant (not csprintf)
+ *      0x1d9e59: __fsopen wrapper (fopen with share mode 0x40)
+ *      0x1d98ad: _fwprintf
+ *      0x1d9bd2: _fflush
+ *      0x1d9dac: _fclose
+ *  - String "d:\%s_init.txt" and file modes "r"/"wt"/"a+t" confirm
+ *    log-file append behavior.
+ *
+ * Inferred:
+ *  - 0x46e003 = "debug_frame_rate_enable" or similar console/debug flag.
+ *  - The 8-slot bitmask going all-1s (0xff) triggers "we're running slow"
+ *    recording; 60 consecutive fast frames clears the trigger latch.
+ *  - game_state_save_core writes a binary game-state snapshot whose name
+ *    encodes the timestamp.
+ *
+ * Uncertain:
+ *  - Exact semantic name of 0x46e003. Could be "profile_frame_rate" or a
+ *    different per-build debug flag.
+ *  - TIME_FIELDS field ordering relied on (Year/Month/Day/Hour/Min/Sec/Ms).
+ *    The sprintf arg order in disasm: Month, Hour, Year, Minute, Second, Ms.
+ */
+void main_frame_rate_debug(void)
+{
+  /* frame-time history and state live at fixed addresses, not in kb.json */
+  float *frame_times = (float *)0x46e36c; /* float[8] ring buffer */
+  uint16_t *slow_mask = (uint16_t *)0x46e38c; /* bitmask: 1=slow slot */
+  uint8_t *slot_idx = (uint8_t *)0x46e38e; /* current ring slot 0-7 */
+  uint8_t *triggered = (uint8_t *)0x46e38f; /* has-triggered latch */
+  uint8_t *fast_count = (uint8_t *)0x46e390; /* consecutive fast frames */
+  uint8_t *active = (uint8_t *)0x46e391; /* state initialized flag */
+  bool *enable = (bool *)0x46e003; /* debug enable flag */
+
+  /* slow-frame threshold: ~27.8 fps (double, NOT float — disasm confirms) */
+  static const double slow_threshold = 0.036; /* 0x28b430 */
+
+  /* sizeof TIME_FIELDS fields (8x int16_t) */
+  int16_t tf[8]; /* [0]=Year [1]=Month [2]=Day [3]=Hour [4]=Min [5]=Sec
+                    [6]=Ms [7]=Weekday — layout per RtlTimeToTimeFields */
+
+  char core_name[256]; /* [EBP-0x214..-0x115] */
+  char init_path[256]; /* [EBP-0x114..-0x15] */
+
+  uint32_t idx;
+  uint32_t bit;
+  char *map_name;
+  void *fp;
+
+  typedef char *(__cdecl * fn_get_scenario_name_t)(int scenario_idx);
+  typedef char *(__cdecl * fn_basename_t)(char *path);
+  typedef void(__cdecl * fn_get_time_t)(int16_t * tf_out);
+  typedef int(__cdecl * fn_sprintf_t)(char *buf, const char *fmt, ...);
+  typedef void *(__cdecl * fn_fopen_t)(const char *path, const char *mode);
+  typedef int(__cdecl * fn_fwprintf_t)(void *fp, const wchar_t *fmt, ...);
+  typedef int(__cdecl * fn_fflush_t)(void *fp);
+  typedef int(__cdecl * fn_fclose_t)(void *fp);
+
+  if (*active != 0) {
+    if (*enable != 0)
+      goto do_update;
+    /* active but no longer enabled — reset state */
+    *active = 0;
+    csmemset(frame_times, 0, 0x20);
+    *slow_mask = 0;
+    *slot_idx = 0;
+    *triggered = 0;
+    *fast_count = 0;
+    *active = 0;
+  }
+
+  if (*enable == 0)
+    return;
+
+do_update:
+  /* store current frame time in ring slot */
+  frame_times[*slot_idx] = flt_46DA08;
+
+  /* update slow-frame bitmask for this slot */
+  bit = (uint32_t)(1 << (*slot_idx & 0x1f));
+  if (flt_46DA08 <= (float)slow_threshold) {
+    *slow_mask = (uint16_t)(*slow_mask & ~(uint16_t)bit);
+  } else {
+    *slow_mask = (uint16_t)(*slow_mask | (uint16_t)bit);
+  }
+
+  /* advance ring index mod 8 */
+  idx = (uint32_t)(int8_t)(*slot_idx + 1) & 0x80000007u;
+  if ((int32_t)idx < 0)
+    idx = (idx - 1 | 0xfffffff8u) + 1;
+  *slot_idx = (uint8_t)idx;
+
+  *active = 1;
+
+  if (*triggered == 0) {
+    /* first trigger: all 8 slots must be slow (bitmask 0xff) */
+    if (*slow_mask == 0xff) {
+      /* get scenario/map name, strip path prefix */
+      map_name = ((fn_basename_t)0x19b0d0)(
+        ((fn_get_scenario_name_t)0x1ba1f0)(global_scenario_index));
+
+      /* get current time fields */
+      ((fn_get_time_t)0x1d051d)(tf);
+
+      /* build core snapshot filename:
+       * <map>_slow_<mo>_<hr>_<yr>_<min>_<sec>_<ms>.bin */
+      ((fn_sprintf_t)0x1d90f0)(core_name, "%s_slow_%d_%d_%d_%d_%d_%d.bin",
+                               map_name, (int)(uint16_t)tf[1], /* Month */
+                               (int)(uint16_t)tf[3], /* Hour */
+                               (int)(uint16_t)tf[0], /* Year */
+                               (int)(uint16_t)tf[4], /* Minute */
+                               (int)(uint16_t)tf[5], /* Second */
+                               (int)(uint16_t)tf[6]); /* Milliseconds */
+
+      /* save binary game-state core */
+      game_state_save_core(core_name);
+
+      /* build init.txt path: d:\<map>_init.txt */
+      ((fn_sprintf_t)0x1d90f0)(init_path, "d:\\%s_init.txt", map_name);
+
+      /* open file: try "r" first to detect if it exists */
+      fp = ((fn_fopen_t)0x1d9e59)(init_path, "r");
+      if (fp == (void *)0) {
+        /* new file: create with "wt" and write map_name line */
+        fp = ((fn_fopen_t)0x1d9e59)(init_path, "wt");
+        ((fn_fwprintf_t)0x1d98ad)(fp, L"map_name %s\n", map_name);
+      } else {
+        /* existing file: close "r" handle, reopen in append mode */
+        ((fn_fclose_t)0x1d9dac)(fp);
+        fp = ((fn_fopen_t)0x1d9e59)(init_path, "a+t");
+      }
+
+      /* append core snapshot filename */
+      ((fn_fwprintf_t)0x1d98ad)(fp, L";core_load_name_at_startup %s\n",
+                                core_name);
+      ((fn_fflush_t)0x1d9bd2)(fp);
+      ((fn_fclose_t)0x1d9dac)(fp);
+
+      *triggered = 1;
+    }
+  } else if (*slot_idx == 0) {
+    /* latch active: check if ring just completed a full pass */
+    if (*slow_mask != 0) {
+      /* still slow frames in window — reset fast counter */
+      *fast_count = 0;
+      return;
+    }
+    /* all frames fast this pass */
+    *fast_count = *fast_count + 1;
+    if (';' < *fast_count) { /* 0x3b=59 threshold: >59 = 60th pass */
+      *fast_count = 0;
+      *triggered = 0;
+      return;
+    }
+  }
+}
+
+/*
+ * main_update_time - 0x1013d0
+ *
+ * Confirmed:
+ *  - Reads system_milliseconds() at entry and exit, and tracks both the raw
+ *    millisecond delta (unk_time_globals.unk_0) and the hardware flip count
+ *    timeline (unk_time_globals.unk_8 / unk_16 / unk_24 / unk_32).
+ *  - Selects the larger of the previous target time (unk_8) and the most
+ *    recent presented time (unk_32) before adjusting the next frame target.
+ *  - When 0x32568d is clear, uses a 33 ms software frame cap:
+ *      - clears 0x46dd9a
+ *      - if ms_delta < 33, brackets an optional Sleep(33 - ms_delta) with
+ *        0x91b70 / 0x91ba0 markers
+ *      - else reports the overshoot to 0x8f8c0(ms_delta - 33)
+ *  - When 0x32568d is set, optional pacing debug/control is driven by:
+ *      - 0x325690 (requested rate; zero treated as 30)
+ *      - 0x46dd96 (current divisor), 0x46dd98 (requested divisor)
+ *      - failure counters at 0x46dd9e..0x46dda6 (5 x int16)
+ *      - target-history slots at 0x46ddb0..0x46ddd0 (5 x int64)
+ *      - debug buffer at 0x46ddfc
+ *    The control loop evaluates divisors 5..1 (12/15/20/30/60 fps), updates
+ *    the failure history, may keep/restore/fail-down the divisor, then adds
+ *    the chosen divisor to the selected target time.
+ *  - Frame seconds written to flt_46DA08 come from:
+ *      - ms delta * 0.001f when 0x32568d is clear (with uint32 wrap fix), or
+ *      - (target - previous_target) * (1/60) when 0x32568d is set.
+ *  - If main_globals_movie is non-NULL (overlaps smaller timing globals at
+ *    0x46da10 / 0x46da20), the computed frame step is overridden by the float
+ *    at 0x46da20.
+ *  - Non-movie frame seconds are clamped to [0, 1]. In local games
+ *    (word_46DA0C == 0), extra caps apply:
+ *      - normal path: max 1/15 sec (0x3d888889)
+ *      - debug_game_save path: max 1/30 sec (0x3d088889)
+ *  - Exit writes:
+ *      unk_time_globals.unk_0  = end_ms
+ *      unk_time_globals.unk_8  = chosen_target
+ *      flt_46DA08              = frame_seconds
+ *      0x8f870(frame_seconds)
+ *      unk_time_globals.unk_16 = qword_325678
+ *
+ * Inferred:
+ *  - 0x32568d is the per-frame pacing/throttle enable.
+ *  - 0x32568e gates the adaptive divisor debugging/control path.
+ *  - 0x325690 is a requested presentation rate value that maps to divisors
+ *    1..5 via 60 / requested_rate (with 0 meaning 30 fps -> divisor 2).
+ *  - The pooled strings "wt" and "dn" used in the debug trace likely mean
+ *    "wait" and "down", but the exact abbreviations are left as raw string
+ *    references rather than renamed semantics.
+ *
+ * Uncertain:
+ *  - Exact symbolic names for 0x32568d/0x32568e/0x325690, 0x46dd96/0x46dd98,
+ *    0x46dd9e..0x46ddd0, and 0x46dd9a.
+ *  - Exact semantics of 0x8f870 and 0x8f8c0 beyond the observed global writes.
+ *  - No register-argument (`@<reg>`) ABI edges were found in this function or
+ *    its caller path; the reverse-thunk audit for this lift found only cdecl /
+ *    stdcall calls.
+ */
+void main_update_time(void)
+{
+  int end_ms;
+  int ms_delta;
+  int buffer_length;
+  int16_t requested_rate;
+  int16_t desired_divisor;
+  int16_t chosen_divisor;
+  int16_t elapsed_game_ticks;
+  int slot;
+  int64_t chosen_target;
+  int64_t short_target;
+  int64_t present_target;
+  int64_t previous_target;
+  float frame_seconds;
+  char *debug_buffer;
+  int16_t *failure_counts;
+  int64_t *target_history;
+
+  typedef char *(__cdecl * fn_csstrcpy_t)(char *destination,
+                                          const char *source);
+  typedef void(__cdecl * fn_store_frame_seconds_t)(float frame_seconds);
+  typedef void(__cdecl * fn_store_frame_overshoot_t)(int overshoot_ms);
+  typedef void(__cdecl * fn_rdtsc_marker_t)(void);
+  typedef void(__stdcall * fn_sleep_t)(int milliseconds);
+
+  end_ms = system_milliseconds();
+  previous_target = unk_time_globals.unk_8;
+  present_target = unk_time_globals.unk_32;
+  chosen_target = present_target;
+  if (present_target < previous_target) {
+    chosen_target = previous_target;
+  }
+
+  if (*(char *)0x32568d == '\0') {
+    ms_delta = end_ms - (int)unk_time_globals.unk_0;
+    *(char *)0x46dd9a = 0;
+    if (ms_delta < 0x21) {
+      ((fn_rdtsc_marker_t)0x91b70)();
+      if (*(char *)0x31fa96 != '\0') {
+        ((fn_sleep_t)0x1d0362)(0x21 - ms_delta);
+      }
+      ((fn_rdtsc_marker_t)0x91ba0)();
+    } else {
+      ((fn_store_frame_overshoot_t)0x8f8c0)(ms_delta - 0x21);
+    }
+  } else {
+    debug_buffer = (char *)0x46ddfc;
+    failure_counts = (int16_t *)0x46dd9e;
+    target_history = (int64_t *)0x46ddb0;
+
+    ((fn_csstrcpy_t)0x8dff0)(debug_buffer, "");
+    if (*(char *)0x31fa96 != '\0' && *(int16_t *)0x325690 >= 0) {
+      requested_rate = *(int16_t *)0x325690;
+      if (requested_rate == 0) {
+        requested_rate = 0x1e;
+      }
+
+      desired_divisor = (int16_t)(0x3c / requested_rate);
+      chosen_divisor = desired_divisor;
+      *(int16_t *)0x46dd98 = desired_divisor;
+
+      if (*(char *)0x32568e != '\0') {
+        int16_t best_divisor;
+        int16_t current_divisor;
+
+        elapsed_game_ticks = game_time_get_elapsed();
+        current_divisor = *(int16_t *)0x46dd96;
+        short_target = (int64_t)(int16_t)(uint16_t)chosen_target;
+        best_divisor = 5;
+
+        snprintf(debug_buffer, 0x200,
+                 "last%6I64d init%6I64d achv%6I64d pres%6I64d g%d cur%d... ",
+                 unk_time_globals.unk_8, unk_time_globals.unk_16,
+                 unk_time_globals.unk_24, unk_time_globals.unk_32,
+                 (int)elapsed_game_ticks, (int)current_divisor);
+
+        for (slot = 5; slot > 0; slot--) {
+          int index;
+          int16_t failure_count;
+          int16_t clamped_failure_count;
+          int16_t target_age;
+          int16_t slot_bucket;
+          bool ignore_failure;
+          const char *label;
+          int64_t target_age_raw;
+
+          index = slot - 1;
+          failure_count = failure_counts[index];
+          clamped_failure_count = failure_count;
+          if (clamped_failure_count > 99) {
+            clamped_failure_count = 99;
+          }
+
+          target_age_raw = short_target - target_history[index];
+          if (target_age_raw > 99) {
+            target_age = 99;
+          } else {
+            target_age = (int16_t)target_age_raw;
+          }
+
+          slot_bucket = (int16_t)((slot + 1) / 2);
+          ignore_failure = false;
+          if ((int16_t)((current_divisor + 1) / 2) > slot_bucket &&
+              slot_bucket >= (int16_t)(current_divisor / 2) &&
+              elapsed_game_ticks > slot_bucket) {
+            ignore_failure = true;
+          }
+
+          if (unk_time_globals.unk_24 >= unk_time_globals.unk_16 + slot) {
+            if (chosen_target >= target_history[index] + 0xf) {
+              label = (const char *)0x28b48c;
+              if (failure_counts[index] < 4) {
+                label = (const char *)0x28b3fc;
+              }
+
+              buffer_length = csstrlen(debug_buffer);
+              snprintf(debug_buffer + buffer_length, 0x200 - buffer_length,
+                       "(%s%2d/%2d) ", label, (int)clamped_failure_count,
+                       (int)target_age);
+            } else {
+              failure_counts[index] = 0;
+
+              buffer_length = csstrlen(debug_buffer);
+              snprintf(debug_buffer + buffer_length, 0x200 - buffer_length,
+                       "(ok   %2d) ", (int)target_age);
+            }
+          } else {
+            if (ignore_failure) {
+              label = "ignor";
+            } else {
+              failure_counts[index] = failure_count + 1;
+              target_history[index] = chosen_target;
+              label = "fail ";
+            }
+
+            buffer_length = csstrlen(debug_buffer);
+            snprintf(debug_buffer + buffer_length, 0x200 - buffer_length,
+                     "(%s%2d) ", label, (int)clamped_failure_count);
+          }
+
+          if (desired_divisor <= slot && failure_counts[index] < 4) {
+            best_divisor = (int16_t)slot;
+          }
+        }
+
+        if (best_divisor == 0) {
+          requested_rate = 999;
+        } else {
+          requested_rate = (int16_t)(0x3c / best_divisor);
+        }
+
+        if (*(int16_t *)0x46dd96 < best_divisor) {
+          buffer_length = csstrlen(debug_buffer);
+          snprintf(debug_buffer + buffer_length, 0x200 - buffer_length,
+                   " FAILDOWN %d", (int)requested_rate);
+        } else if (best_divisor < *(int16_t *)0x46dd96) {
+          buffer_length = csstrlen(debug_buffer);
+          snprintf(debug_buffer + buffer_length, 0x200 - buffer_length,
+                   " RESTORE  %d", (int)requested_rate);
+        } else {
+          buffer_length = csstrlen(debug_buffer);
+          snprintf(debug_buffer + buffer_length, 0x200 - buffer_length,
+                   " MAINTAIN %d", (int)requested_rate);
+        }
+
+        buffer_length = csstrlen(debug_buffer);
+        snprintf(debug_buffer + buffer_length, 0x200 - buffer_length,
+                 " des %d targ%6I64d", (int)requested_rate,
+                 chosen_target + best_divisor);
+
+        chosen_divisor = best_divisor;
+      }
+
+      chosen_target += chosen_divisor;
+      *(int16_t *)0x46dd96 = chosen_divisor;
+    }
+  }
+
+  end_ms = system_milliseconds();
+  if (chosen_target < qword_325678) {
+    chosen_target = qword_325678;
+  }
+
+  if (*(char *)0x32568d == '\0') {
+    frame_seconds = (float)(end_ms - (int)unk_time_globals.unk_0);
+    if (end_ms - (int)unk_time_globals.unk_0 < 0) {
+      frame_seconds = frame_seconds + 4294967296.0f;
+    }
+    frame_seconds = frame_seconds * 0.001000000047497451f;
+  } else {
+    frame_seconds =
+      (float)(chosen_target - unk_time_globals.unk_8) * 0.01666666753590107f;
+  }
+
+  if (main_globals_movie == NULL) {
+    if (frame_seconds < 0.0f) {
+      frame_seconds = 0.0f;
+    } else if (frame_seconds > 1.0f) {
+      frame_seconds = 1.0f;
+    }
+
+    if (word_46DA0C == 0) {
+      if (!debug_game_save) {
+        if (frame_seconds > 0.06666667014360428f) {
+          frame_seconds = 0.06666667014360428f;
+        }
+      } else if (frame_seconds > 0.03333333507180214f) {
+        frame_seconds = 0.03333333507180214f;
+      }
+    }
+  } else {
+    frame_seconds = *(float *)0x46da20;
+  }
+
+  unk_time_globals.unk_0 = end_ms;
+  unk_time_globals.unk_8 = chosen_target;
+  flt_46DA08 = frame_seconds;
+  ((fn_store_frame_seconds_t)0x8f870)(frame_seconds);
+  unk_time_globals.unk_16 = qword_325678;
 }
 
 /*
@@ -344,6 +1163,235 @@ void main_rasterizer_throttle(void)
   ((fn_profile_store_t)0x8f880)(frames_delta, synced, (const char *)0x46ddfc);
 }
 
+/*
+ * main_save_current_solo_map - 0x101d90
+ *
+ * Writes the current solo-map name to "z:\\last_solo.txt" so it can be
+ * reloaded later by main_load_last_solo_map. Called from 0xa6dc0 (the
+ * "queue_map" helper) on a successful solo campaign map change.
+ *
+ * Confirmed:
+ *  - Guard: 0x1006f0 maps the map-name string to a campaign level index
+ *    (0..9) or 0xffff when the name is not a known solo level. When the
+ *    guard returns 0xffff the function returns without opening the file.
+ *    Same helper used by main_won_map_private and main_load_last_solo_map.
+ *  - File I/O helpers (addresses reused from main_load_last_solo_map /
+ *    main_frame_rate_debug; not in kb.json):
+ *      fopen  = 0x1d9e59 with mode "w" (DAT_00265938)
+ *      fwrite = 0x1db2b3 (signature fwrite(buf, size, count, fp) — the
+ *               Ghidra symbol "FID_conflict:_fread" at 0x1db2b3 is
+ *               actually fwrite; its body calls the write-buffer helper
+ *               at 0x1db19c which performs MOVSD/MOVSB REP from the
+ *               caller buffer into the FILE's buffer).
+ *      fclose = 0x1d9dac
+ *  - File contents: fwrite(map_name, 1, csstrlen(map_name) + 1, fp) —
+ *    includes the terminating NUL so the reader can read the full path
+ *    as a NUL-terminated C string.
+ *  - On fopen failure: error(2, "Couldn't create a file to write the "
+ *    "current solo map to") — no ABORT, no fallback. The solo progress
+ *    simply isn't persisted.
+ *  - The fopen PUSH ESI just before reserves the fclose fp arg slot,
+ *    and ADD ESP,0x14 at the tail cleans fwrite's 4 args + fclose's
+ *    1 arg together (MSVC pre-push interleaving).
+ *
+ * Uncertain:
+ *  - csstrlen is the size-1 strlen at 0x8df60 (confirmed in kb.json).
+ *    Ghidra's "FUN_0008df60" stub in the decomp was the same helper.
+ */
+void main_save_current_solo_map(char *map_name)
+{
+  uint16_t level_index;
+  void *fp;
+
+  typedef uint16_t(__cdecl * fn_map_to_level_t)(char *map_name);
+  typedef void *(__cdecl * fn_fopen_t)(const char *path, const char *mode);
+  typedef size_t(__cdecl * fn_fwrite_t)(const void *buf, size_t size,
+                                        size_t count, void *fp);
+  typedef int(__cdecl * fn_fclose_t)(void *fp);
+
+  level_index = ((fn_map_to_level_t)0x1006f0)(map_name);
+  if (level_index == 0xffff) {
+    return;
+  }
+
+  fp = ((fn_fopen_t)0x1d9e59)("z:\\last_solo.txt", "w");
+  if (fp == NULL) {
+    error(2, "Couldn't create a file to write the current solo map to");
+    return;
+  }
+
+  ((fn_fwrite_t)0x1db2b3)(map_name, 1, csstrlen(map_name) + 1, fp);
+  ((fn_fclose_t)0x1d9dac)(fp);
+}
+
+/*
+ * main_load_last_solo_map - 0x101e00
+ *
+ * Called from the main loop when main_load_last_solo_map_pending (0x46da48)
+ * is set. Reads the last-solo-map name from "z:\\last_solo.txt" and queues
+ * that map (or the default "levels\\a10\\a10") for the next change-map pass.
+ *
+ * Confirmed:
+ *  - Pending guard: main_load_last_solo_map_pending must be non-zero.
+ *    A second guard at 0x1c5940 returns non-zero while a saved-film / demo
+ *    playback is active (it reads DAT_0046cc86-adjacent globals 0x4ead58 /
+ *    0x4ead60); when that guard fires, the function bails out without
+ *    clearing either pending flag.
+ *  - File I/O (addresses match the LIBCMT thunks already used by
+ *    main_frame_rate_debug):
+ *      fopen  = 0x1d9e59 with mode "r" (DAT_002658a4)
+ *      fread  = 0x1db3f7 (size_t fread(buf, 1, 0xff, fp))
+ *      fclose = 0x1d9dac
+ *  - 256-byte stack buffer (local_104 at [EBP-0x100]). fread is clamped to
+ *    0xff via a signed compare (JLE) and buf[n] is explicitly nulled.
+ *  - 0x1006f0 maps a map-name string to a level index (0-9) or -1 (0xffff).
+ *    Same helper already used by main_won_map_private. A 0xffff return means
+ *    the loaded path is not a known level; fall back to the default.
+ *  - Default map pointer lives at *(char **)0x31fa9c (points at the string
+ *    "levels\\a10\\a10" — not in kb.json, accessed by hardcoded address).
+ *  - 0xfffa0 is the shared "queue change-map-name" helper: copies the
+ *    argument into map_name[] (0x46da55), clears main_menu_load_pending
+ *    (0x46da43), sets byte_46DA54, and — if the game is in progress with
+ *    word_46DA0C == 0 — arms main_change_map_name_pending.
+ *  - On exit: clears main_change_map_name_pending (0x46da25) and
+ *    main_load_last_solo_map_pending (0x46da48). The 0xfffa0 helper had
+ *    just armed main_change_map_name_pending; this trailing clear undoes
+ *    that, which is intentional — the original binary forgoes the
+ *    change-map path when loading the last-solo map directly.
+ *
+ * Inferred:
+ *  - 0x1c5940 is a "saved-film / demo is being played back" predicate. Its
+ *    body reads DAT_0046ead58 (byte) and DAT_0046ead60 (dword); returns 1
+ *    only when both are set. Exact name not confirmed from strings.
+ *
+ * Uncertain:
+ *  - The paired globals gating 0x1c5940 have no strong semantic label yet.
+ */
+void main_load_last_solo_map(void)
+{
+  char buf[256];
+  void *fp;
+  int n;
+  char *map_path;
+  uint16_t level_index;
+
+  typedef bool(__cdecl * fn_film_active_t)(void);
+  typedef void *(__cdecl * fn_fopen_t)(const char *path, const char *mode);
+  typedef size_t(__cdecl * fn_fread_t)(void *buf, size_t size, size_t count,
+                                       void *fp);
+  typedef int(__cdecl * fn_fclose_t)(void *fp);
+  typedef uint16_t(__cdecl * fn_map_to_level_t)(char *map_name);
+  typedef void(__cdecl * fn_queue_map_t)(char *map_path);
+
+  if (!main_load_last_solo_map_pending) {
+    return;
+  }
+  if (((fn_film_active_t)0x1c5940)()) {
+    return;
+  }
+
+  /* default: *(char **)0x31fa9c → "levels\\a10\\a10" */
+  map_path = *(char **)0x31fa9c;
+
+  fp = ((fn_fopen_t)0x1d9e59)("z:\\last_solo.txt", "r");
+  if (fp != NULL) {
+    n = (int)((fn_fread_t)0x1db3f7)(buf, 1, 0xff, fp);
+    ((fn_fclose_t)0x1d9dac)(fp);
+    if (n > 0xff) {
+      n = 0xff;
+    }
+    buf[n] = 0;
+    level_index = ((fn_map_to_level_t)0x1006f0)(buf);
+    if (level_index != 0xffff) {
+      map_path = buf;
+    }
+  }
+
+  ((fn_queue_map_t)0xfffa0)(map_path);
+  main_change_map_name_pending = 0;
+  main_load_last_solo_map_pending = 0;
+}
+
+/*
+ * main_load_ui_scenario - 0x101f00
+ *
+ * Loads the main-menu UI scenario "levels\\ui\\ui" and initializes the
+ * game-engine / director state for the menu. Called from main_menu_load
+ * (0x101fe0) when main_globals.main_menu_scenario_loaded is clear, and from
+ * the game-startup path with param_1 = 1 to also precache menu resources.
+ *
+ * Confirmed:
+ *  - Precaches the UI level twice. The first call is with the string
+ *    literal "levels\\ui\\ui"; the second call passes the same string
+ *    after it has been copied into the local game_options.map_name[].
+ *    The original binary emits both calls and we preserve that.
+ *  - Asserts !main_globals.main_menu_scenario_loaded (the function may
+ *    not be re-entered while the menu scenario is already resident).
+ *    Original message / path / line are preserved verbatim.
+ *  - game_options_t is built entirely on the stack (0x10c bytes at
+ *    [EBP-0x10c]); csstrncpy(map_name, "levels\\ui\\ui", 0xff) with an
+ *    explicit map_name[255] = 0 terminator. This matches the layout in
+ *    types.h (map_name at offset 0xC).
+ *  - Tear-down / setup order is: game_dispose_from_old_map, game_unload,
+ *    game_engine_dispose, game_set_game_variant(0),
+ *    main_menu_scenario_loaded = 1, main_new_map(&game_options).
+ *  - Post main_new_map the function calls three director/UI helpers
+ *    (0x86cb0, 0x85180, 0xe43d0) and arms main_load_last_solo_map_pending.
+ *    The trailing `if (a1)` branch calls main_menu_precache_resources.
+ *
+ * Inferred:
+ *  - 0x86cb0 lives in camera/director.c (its asserts reference that file)
+ *    and appears to reset/enable directors for each local player;
+ *    called here with 1.
+ *  - 0x85180 appears to be a cinematic/cutscene state initializer;
+ *    called here with (0, 0, -1).
+ *  - 0xe43d0 is the UI widget-flag-2 setter already used by
+ *    main_change_map_name; called here with 1.
+ *
+ * Uncertain:
+ *  - Exact semantics of 0x86cb0 / 0x85180 arguments beyond the observed
+ *    constant values. Names are withheld pending stronger evidence.
+ */
+void main_load_ui_scenario(bool a1)
+{
+  game_options_t game_options;
+
+  typedef void(__cdecl * fn_director_init_t)(int arg);
+  typedef void(__cdecl * fn_cinematic_reset_t)(int16_t a, int16_t b, int c);
+  typedef void(__cdecl * fn_set_widget_flag2_t)(bool enable);
+
+  game_precache_new_map("levels\\ui\\ui", 1);
+
+  if (main_globals.main_menu_scenario_loaded) {
+    display_assert("!main_globals.main_menu_scenario_loaded",
+                   "c:\\halo\\SOURCE\\main\\main.c", 0x444, 1);
+    system_exit(-1);
+  }
+
+  game_options_new(&game_options);
+  csstrncpy(game_options.map_name, "levels\\ui\\ui", 0xff);
+  game_options.map_name[255] = 0;
+
+  game_precache_new_map(game_options.map_name, 1);
+  game_dispose_from_old_map();
+  game_unload();
+  game_engine_dispose();
+  game_set_game_variant(0);
+
+  main_globals.main_menu_scenario_loaded = 1;
+  main_new_map(&game_options);
+
+  ((fn_director_init_t)0x86cb0)(1);
+  ((fn_cinematic_reset_t)0x85180)(0, 0, -1);
+  ((fn_set_widget_flag2_t)0xe43d0)(1);
+
+  main_load_last_solo_map_pending = 1;
+
+  if (a1) {
+    main_menu_precache_resources();
+  }
+}
+
 void main_menu_load(void)
 {
   if (!main_globals.main_menu_scenario_loaded) {
@@ -458,6 +1506,29 @@ void main_initialize_time(void)
   word_46DDDC = 0;
   csmemset(word_46DDDE, 0, 0x1Eu);
   flip_count_ptr = d3d_find_flipcount();
+}
+
+/*
+ * main_halt_entry — infinite render loop entered after a fatal halt.
+ * Continuously processes input, shell idle, event manager, telnet console,
+ * UI widgets, pregame rendering, rasterizer throttle, and frame presentation.
+ * This keeps the screen alive (e.g. showing an error overlay) even though the
+ * game simulation has stopped.  Never returns.
+ */
+void __noreturn main_halt_entry(void)
+{
+  for (;;) {
+    input_frame_begin();
+    input_update();
+    shell_idle();
+    event_manager_update();
+    telnet_console_process();
+    process_ui_widgets();
+    main_pregame_render();
+    main_rasterizer_throttle();
+    main_present_frame();
+    input_frame_end();
+  }
 }
 
 void main_game_render(double a2)

@@ -235,7 +235,16 @@ class KnowledgeBase:
 			for s in sorted(self.symbols, key=lambda s: (isinstance(s, Function), s.name)):
 				if s.requires_reg_thunk:
 					continue
-				f.write('\t' + s.name)
+				export_name = s.name
+				if isinstance(s, Function) and '__stdcall' in s.decl:
+					# stdcall functions need _name@N decoration in the .def
+					# so the linker can match the compiler-generated _name@N
+					args = list(s.cursor.get_arguments())
+					param_bytes = sum(
+						max(a.type.get_size(), 4) for a in args
+					)
+					export_name = f'_{s.name}@{param_bytes}'
+				f.write('\t' + export_name)
 				if isinstance(s, Data):
 					f.write(' DATA\n')
 				else:
@@ -309,6 +318,21 @@ class KnowledgeBase:
 		log.info('%d symbols were identified with objects, %d were not', num_symbols_with_truth, num_symbols_without_truth)
 		num_objs_with_source = len([s for o, s in kb.object_to_source.items() if o in kb.object_to_symbols])
 		log.info('%d of %d object files have known source mapping', num_objs_with_source, len(kb.object_to_symbols))
+
+		# Check for duplicate function names across different addresses.
+		# Duplicate names cause the linker to silently merge them, redirecting
+		# one function's callers to a completely different implementation.
+		func_names = {}
+		for s in kb.symbols:
+			if not isinstance(s, Function) or not s.addr:
+				continue
+			name = s.name
+			if name in func_names and func_names[name] != s.addr:
+				raise ValueError(
+					f'Duplicate function name "{name}" at {hex(s.addr)} '
+					f'and {hex(func_names[name])} — this will cause the '
+					f'linker to silently merge them. Rename one.')
+			func_names[name] = s.addr
 
 		return kb
 

@@ -22,7 +22,11 @@ the top candidate.
 Steps:
 1. Resolve the target in kb.json: address, name, object, source_path.
 2. Analyze via Ghidra MCP — decompile + disassemble + cross-check operand
-   sizes, CALL targets, and register args per the CLAUDE.md procedure.
+   sizes, CALL targets, and register args per the CLAUDE.md procedure. For any
+   `@<reg>` function that original code can still call after the port, audit the
+   reverse-thunk ABI too: lifted C may legitimately clobber caller-saved
+   registers (`EAX`, `ECX`, `EDX`), so return addresses and other critical
+   state must stay on the stack or be preserved explicitly.
 3. Produce a structurally faithful C implementation following CLAUDE.md rules.
 4. Write the implementation directly to the source file at the correct
    address-ordered position.
@@ -45,7 +49,7 @@ After Phase 1 completes:
 1. Use the function name from `RESOLVED_TARGET:` above.
 2. Run:
    ```
-   python3 tools/lift_pipeline.py --target <name> --no-metadata-update
+   python3 tools/lift_pipeline.py --target <name> --no-metadata-update --verify-policy auto
    ```
 3. Report:
    - Target: name / address / object / source path
@@ -55,5 +59,7 @@ After Phase 1 completes:
 
 Notes:
 - If the build fails, fix the error before re-running — do not repeat Phase 1.
-- Use `/lift-verify` for structural verification with `--verify-auto`.
+- Use `/lift-verify` for explicit verify payload runs when you already have the
+  lifted function address and extraction outputs. `lift_pipeline.py` now runs a
+  `verify_policy` stage by default (`--verify-policy auto`).
 - Use `/maintain` for a standalone sort + format pass.

@@ -90,6 +90,33 @@ bool local_player_exists(int16_t local_player_index)
   return false;
 }
 
+/* Find the first unused local player index (0..3).
+ *
+ * First pass: prefer a slot whose gamepad is plugged in (input_has_gamepad)
+ * AND which has no existing player (local_player_exists returns false).
+ * Second pass (fallback): just find any slot with no existing player.
+ * Returns NONE (-1) if all 4 slots are occupied. */
+int find_unused_local_player_index(void)
+{
+  int result;
+  int i;
+
+  result = -1;
+  for (i = 0; i < 4; i++) {
+    if (!input_has_gamepad(i) || local_player_exists(i))
+      continue;
+    result = i;
+    if (i != -1)
+      return i;
+  }
+  /* fallback: any slot without a player */
+  for (i = 0; i < 4; i++) {
+    if (!local_player_exists(i))
+      return i;
+  }
+  return result;
+}
+
 void player_delete(int player_index)
 {
   datum_delete(player_data, player_index);
@@ -211,6 +238,75 @@ bool player_input_enabled(void)
   return *((char *)players_globals + 0x29) == 0;
 }
 
+/* Check whether any active player's unit is currently airborne.
+ *
+ * Iterates every player datum. For each player with a valid unit handle:
+ *   1. If the root object has flag 0x200000 set (+0x4), return true
+ * immediately.
+ *   2. If the unit is NOT in a vehicle (unit+0xCC == NONE):
+ *      - If unit+0x64 (animation state) == 0: call the biped airborne check
+ *        (0x1a0db0); return true if it reports airborne.
+ *      - If unit+0x64 == 1: fall through to the altitude check.
+ *   3. If the unit IS in a vehicle (unit+0xCC != NONE):
+ *      - Look up the vehicle object via object_try_and_get_type (type 2).
+ *      - Look up the vehicle tag ('vehi') and check if bit 0x40 is set at
+ *        tag+0x17C. If so, fall through to the altitude check.
+ *   4. Altitude check: if byte at object+0x428 > 2, return true.
+ *
+ * Returns false if no player meets any airborne criterion. */
+bool any_player_is_in_the_air(void)
+{
+  data_iter_t iter;
+  char *player;
+  char *unit_obj;
+  int unit_handle;
+  char *root_obj;
+  int root_handle;
+  char *vehicle_obj;
+  char *vehi_tag;
+
+  data_iterator_new(&iter, player_data);
+  while ((player = (char *)data_iterator_next(&iter)) != NULL) {
+    unit_handle = *(int *)(player + 0x34);
+    if (unit_handle == NONE)
+      continue;
+
+    unit_obj = (char *)object_get_and_verify_type(unit_handle, 3);
+    root_handle = ((int (*)(int))0x13d7f0)(unit_handle);
+    root_obj = (char *)object_get_and_verify_type(root_handle, NONE);
+
+    if ((*(unsigned int *)(root_obj + 0x4) & 0x200000) != 0)
+      return true;
+
+    if (*(int *)(unit_obj + 0xCC) != NONE) {
+      /* Unit is in a vehicle -- ESI becomes the vehicle object */
+      vehicle_obj =
+        (char *)((void *(*)(int, int))0x13d640)(*(int *)(unit_obj + 0xCC), 2);
+      if (vehicle_obj == NULL)
+        continue;
+      vehi_tag = (char *)tag_get(0x76656869, *(int *)vehicle_obj);
+      if ((*(unsigned char *)(vehi_tag + 0x17C) & 0x40) == 0)
+        continue;
+      /* altitude check uses vehicle object (ESI was reassigned) */
+      if (*(unsigned char *)(vehicle_obj + 0x428) > 2)
+        return true;
+    } else {
+      /* Unit is on foot */
+      if (*(short *)(unit_obj + 0x64) == 0) {
+        if (((bool (*)(int))0x1a0db0)(unit_handle))
+          return true;
+        continue;
+      } else if (*(short *)(unit_obj + 0x64) != 1) {
+        continue;
+      }
+      /* animation state 1: altitude check uses unit object */
+      if (*(unsigned char *)(unit_obj + 0x428) > 2)
+        return true;
+    }
+  }
+  return false;
+}
+
 bool any_player_is_dead(void)
 {
   data_iter_t iter;
@@ -220,6 +316,236 @@ bool any_player_is_dead(void)
   while ((player = (char *)data_iterator_next(&iter)) != NULL) {
     if (*(int *)(player + 0x34) == -1)
       return true;
+  }
+  return false;
+}
+
+/* Update a combined PVS (potentially-visible-set) bit vector from the current
+ * player set (or, in editor mode, from the debug observer camera).
+ *
+ * combined_pvs       (EDI) -- 0x40-byte bit vector buffer, one bit per cluster
+ *                             in the current structure_bsp. Zeroed at entry
+ *                             then OR-combined with each contributor's PVS.
+ * local_player_only        -- if true, only players with a valid
+ *                             local_player_index (player+0x2 != -1) contribute.
+ *
+ * Caller passes combined_pvs in EDI; see callers at 0xbbacc (player_teleport)
+ * and 0xbd753/0xbd763 (players_update_before_game) which take addresses inside
+ * players_globals (offsets 0x30 and 0x70 -- combined_pvs and
+ * combined_pvs_local respectively).
+ *
+ * Editor branch (game_in_editor() true):
+ *   - Look up the leaf index under the debug camera via the bsp3d, mask off
+ *     the sign bit, fetch the leaf record from scenario+0xE0 (size 0x10),
+ *     read its cluster index at +0x8, and OR that single cluster's
+ *     visibility row into combined_pvs.
+ *
+ * Game branch:
+ *   - For each player datum:
+ *       - if local_player_only and player has no local_player_index, skip
+ *       - if player has a unit, walk to root object and copy its
+ *         object.cluster_index (offset 0x4C) into player+0x3C
+ *       - if player+0x3C is valid, OR that cluster's visibility row into
+ *         combined_pvs.
+ *   - Then OR in the cluster returned by 0x13DCC0 (the "currently focused
+ *     parent object" cluster -- see objects.c FUN_0013DCC0) when valid. */
+void players_update_pvs(void *combined_pvs /* @<edi> */, bool local_player_only)
+{
+  void *structure_bsp;
+  data_iter_t iter;
+  char *player;
+  int16_t saved_cluster;
+  int unit_handle;
+  int root_handle;
+  char *root_object;
+  int16_t root_cluster;
+  int16_t player_cluster;
+  unsigned char *cluster_data;
+  unsigned int cluster_count;
+
+  structure_bsp = ((void *(*)(void))0x18e3c0)(); /* scenario_get */
+  csmemset(combined_pvs, 0, 0x40);
+
+  if (game_in_editor()) {
+    /* Editor: use the leaf under the observer camera. */
+    int leaf_handle;
+    int leaf_index;
+    void *scenario;
+    void *block;
+    char *leaf;
+    int16_t leaf_cluster;
+
+    leaf_handle =
+      ((int (*)(void *))0x18e720)(observer_get_camera(0)); /* bsp3d query */
+    if (leaf_handle == -1)
+      return;
+
+    leaf_index =
+      ((int (*)(void *))0x18e720)(observer_get_camera(0)) & 0x7fffffff;
+    scenario = ((void *(*)(void))0x18e3c0)();
+    block = (char *)scenario + 0xe0;
+    leaf = (char *)tag_block_get_element(block, leaf_index, 0x10);
+    leaf_cluster = *(int16_t *)(leaf + 8);
+    if (leaf_cluster == -1)
+      return;
+
+    cluster_data = (unsigned char *)((void *(*)(void *, int16_t))0x193550)(
+      structure_bsp, leaf_cluster);
+    cluster_count = (unsigned int)*(int *)((char *)structure_bsp + 0x134);
+    ((void (*)(int16_t, void *, void *, void *))0x108f00)(
+      (int16_t)cluster_count, combined_pvs, cluster_data, combined_pvs);
+    return;
+  }
+
+  /* Game: combine PVS from each player + the parent-object cluster. */
+  saved_cluster =
+    (int16_t)((unsigned short (*)(void))0x13dcc0)(); /* parent obj cluster */
+
+  data_iterator_new(&iter, player_data);
+  while ((player = (char *)data_iterator_next(&iter)) != NULL) {
+    if (local_player_only && *(int16_t *)(player + 2) == -1)
+      continue;
+
+    unit_handle = *(int *)(player + 0x34);
+    if (unit_handle != -1) {
+      root_handle = ((int (*)(int))0x13d7f0)(unit_handle); /* object root */
+      root_object = (char *)object_get_and_verify_type(root_handle, -1);
+      root_cluster = *(int16_t *)(root_object + 0x4c);
+      if (root_cluster != -1)
+        *(int16_t *)(player + 0x3c) = root_cluster;
+    }
+
+    player_cluster = *(int16_t *)(player + 0x3c);
+    if (player_cluster != -1) {
+      cluster_data = (unsigned char *)((void *(*)(void *, int16_t))0x193550)(
+        structure_bsp, player_cluster);
+      cluster_count = (unsigned int)*(int *)((char *)structure_bsp + 0x134);
+      ((void (*)(int16_t, void *, void *, void *))0x108f00)(
+        (int16_t)cluster_count, combined_pvs, cluster_data, combined_pvs);
+    }
+  }
+
+  if (saved_cluster != -1) {
+    cluster_data = (unsigned char *)((void *(*)(void *, int16_t))0x193550)(
+      structure_bsp, saved_cluster);
+    cluster_count = (unsigned int)*(int *)((char *)structure_bsp + 0x134);
+    ((void (*)(int16_t, void *, void *, void *))0x108f00)(
+      (int16_t)cluster_count, combined_pvs, cluster_data, combined_pvs);
+  }
+}
+
+/* Count how many of the 4 local player slots have a valid (non-NONE) player
+ * index assigned in players_globals.
+ * Reads players_globals+0x4 through +0x10 (4 dwords). */
+int players_compute_local_player_count(void)
+{
+  int count;
+  int *slot;
+  int i;
+
+  count = 0;
+  slot = (int *)((char *)players_globals + 0x4);
+  for (i = 4; i != 0; i--) {
+    if (*slot != -1)
+      count++;
+    slot++;
+  }
+  return count;
+}
+
+/* Check whether the player's unit should interact with a nearby unit
+ * (e.g. swap weapons on approach).
+ *
+ * player_unit_handle  -- the player's unit datum handle
+ * nearby_unit_handle  -- the unit near the player to examine
+ *
+ * Returns true if the player should pick up / interact with the nearby unit.
+ * The decision involves:
+ *   1. Looking up the nearby unit's weapon tag (weap at +0x308 flags)
+ *   2. Checking unit weapon counts (0x1aad90, 0x1aae00)
+ *   3. Checking game engine running state
+ *   4. Checking unit_can_pick_up_weapon (0xaba00) as fallback */
+bool player_examine_nearby_unit(int player_unit_handle, int nearby_unit_handle)
+{
+  int *nearby_obj;
+  char *weap_tag;
+  short weapon_count;
+  bool can_swap;
+
+  nearby_obj = (int *)object_try_and_get_and_verify_type(nearby_unit_handle, 4);
+  weap_tag = (char *)tag_get(0x77656170, *nearby_obj);
+  weapon_count = unit_count_weapons(player_unit_handle);
+  can_swap = unit_weapon_is_new(player_unit_handle, nearby_unit_handle);
+  if ((can_swap && (*(unsigned char *)(weap_tag + 0x308) & 0x10) != 0) ||
+      weapon_count == 0) {
+    return true;
+  }
+  if (!game_engine_running()) {
+    if (unit_weapon_is_new(player_unit_handle, nearby_unit_handle) &&
+        weapon_count < 2) {
+      return true;
+    }
+  }
+  if (game_engine_can_pick_up_weapon(player_unit_handle, nearby_unit_handle)) {
+    return true;
+  }
+  return false;
+}
+
+/* Clear the action-result fields on a player datum.
+ *
+ * player_handle is passed in EAX (register argument).
+ * Writes 0 to player+0x28 (action result type, word) and
+ * NONE (-1) to player+0x24 (action result object, dword). */
+void player_reset_action_result(int player_handle /* @<eax> */)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  *(unsigned short *)(player + 0x28) = 0;
+  *(int *)(player + 0x24) = -1;
+}
+
+/* Attempt to enter a vehicle or interact with a seat object based on the
+ * player's current action result.
+ *
+ * player_handle is passed in EAX (register argument).
+ *
+ * Action result type (player+0x28):
+ *   6 = enter vehicle seat: call unit_set_in_vehicle, then unit_enter_seat.
+ *       If both succeed, notify the HUD and clear aim assist. Returns true.
+ *   7 = interact with seat object: call unit_enter_seat only.
+ *       If it succeeds, notify the HUD. Returns false.
+ *   other: returns false immediately.
+ *
+ * The action result object (player+0x24) is the vehicle or seat object
+ * the player is interacting with. */
+bool player_try_to_enter_vehicle(int player_handle /* @<eax> */)
+{
+  char *player;
+  int *vehicle_obj;
+
+  player = (char *)datum_get(player_data, player_handle);
+  object_get_and_verify_type(*(int *)(player + 0x34), 3);
+
+  if (*(short *)(player + 0x28) == 6) {
+    /* Enter vehicle seat */
+    if (!unit_set_in_vehicle(*(int *)(player + 0x34), 1))
+      return true;
+    if (unit_enter_seat(*(int *)(player + 0x34), *(int *)(player + 0x24), 1)) {
+      vehicle_obj =
+        (int *)object_get_and_verify_type(*(int *)(player + 0x24), 4);
+      hud_player_set_vehicle(*(unsigned short *)(player + 0x2), *vehicle_obj);
+      player_clear_aim_assist(*(int *)(player + 0x34));
+    }
+    return true;
+  } else if (*(short *)(player + 0x28) == 7) {
+    /* Interact with seat object */
+    if (unit_enter_seat(*(int *)(player + 0x34), *(int *)(player + 0x24), 1)) {
+      vehicle_obj =
+        (int *)object_get_and_verify_type(*(int *)(player + 0x24), 4);
+      hud_player_set_vehicle(*(unsigned short *)(player + 0x2), *vehicle_obj);
+    }
   }
   return false;
 }
@@ -296,6 +622,359 @@ int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4)
   /* Register the player handle in the machine-local slot table. */
   player_register_machine(a1, player_handle);
   return player_handle;
+}
+
+/* Build the aiming/facing update for a player's unit when riding in a
+ * vehicle.
+ *
+ * If the player's unit is seated in a vehicle and the seat does NOT have
+ * the 0x10 flag set (steering seat), transform the player's aiming
+ * vector from world-space into the vehicle's local coordinate frame.
+ *
+ * The transformation uses the vehicle's forward vector (object+0x30)
+ * to build a rotation matrix, then multiplies aiming_out by that matrix.
+ *
+ * datum_handle   -- player datum handle
+ * aiming_out     -- [in/out] 3-float aiming direction (yaw/pitch converted)
+ * desired_facing -- 2-float desired facing angles (yaw, pitch) */
+void player_build_action_update(int datum_handle, float *aiming_out,
+                                float *desired_facing)
+{
+  char *player;
+  char *unit;
+  char *vehicle;
+  char *vehi_tag;
+  unsigned char *seat_data;
+  float forward[3];
+  float matrix[13]; /* 3x3 matrix + scale, 52 bytes at [EBP-0x34] */
+
+  player = (char *)datum_get(player_data, datum_handle);
+  angles_to_vector(aiming_out, desired_facing);
+
+  if (*(int *)(player + 0x34) == -1)
+    return;
+
+  unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+  if (*(int *)(unit + 0xCC) == -1)
+    return;
+
+  vehicle =
+    (char *)object_try_and_get_and_verify_type(*(int *)(unit + 0xCC), 2);
+  if (vehicle == NULL)
+    return;
+
+  vehi_tag = (char *)tag_get(0x76656869, *(int *)vehicle);
+  seat_data = (unsigned char *)tag_block_get_element(
+    vehi_tag + 0x2E4, (int)*(short *)(unit + 0x2A0), 0x11C);
+  if ((*seat_data & 0x10) != 0)
+    return;
+
+  /* Build a rotation matrix from the vehicle's up vector (forward in
+   * object space at +0x30). Cross product with global -Y to get the
+   * right vector; if degenerate, fall back to -Z. */
+  cross_product3d((float *)(vehicle + 0x30), *(float **)0x31fc4c, forward);
+  if (normalize3d(forward) == 0.0f) {
+    cross_product3d((float *)(vehicle + 0x30), *(float **)0x31fc50, forward);
+    normalize3d(forward);
+  }
+  matrix_from_forward_and_up(matrix, forward, (float *)(vehicle + 0x30));
+  matrix_transform_vector(matrix, aiming_out, aiming_out);
+}
+
+/* Spawn (or respawn) a player.
+ *
+ * Two paths:
+ *   A. Campaign/singleplayer path (game engine NOT running): if the player
+ *      already has a "saved unit" parked in players_globals+0x14+idx*4, try
+ *      to reuse it.  Otherwise fabricate a new unit from the current spawn
+ *      point.
+ *   B. Multiplayer / game-engine path: always allocate a fresh unit via
+ *      object_placement_data_new + object_new_from_placement_data.
+ *
+ * Structurally faithful lift of the original FUN_bbcb0.  Helper addresses
+ * (0xbbbe0, 0xbaae0, 0xbaba0, 0xba5f0, 0x10cc70, 0x13fc20, 0x13fb30,
+ * 0x13ffc0, 0x140cc0, 0x143c80, 0x1adeb0, 0x1adf10, 0xbb410, 0xa99a0,
+ * 0x8aa30) are not yet in kb.json; invoked by address to keep the lift
+ * narrowly scoped.
+ *
+ * Uncertain: exact semantics of players_globals+0x14 (cached-unit table
+ * per local player), scenario+0x348 (starting-equipment count / flags),
+ * globals+0x170 tag block (default unit biped tag), globals+0x164
+ * (MP-specific unit tag), and DAT_5ac9f4 (campaign encounter selector).
+ * Field names for these are deliberately kept as raw offsets. */
+void player_spawn(int player_handle)
+{
+  char *player; /* [EBP-0x4] player datum ptr (EDI)          */
+  int saved_unit; /* ESI: handle of a cached unit to reuse   */
+  int16_t local_player_index;
+  char *unit_data;
+  int prev_weapon;
+  int16_t spawn_slot;
+  char *globals_ptr; /* [EBP-0x8] game_globals_get() result  */
+  char *default_unit_block;
+  void *position; /* vec3 from FUN_baae0                    */
+  int tag_handle; /* biped tag handle fed to placement data */
+  char placement[0x88]; /* [EBP-0xa8] object_placement_data  */
+  float orient_tmp[3]; /* [EBP-0x20] local_24: out-param for FUN_a99a0 */
+  float orient[3]; /* [EBP-0x14] local_18: copied, passed to FUN_baba0 */
+  int new_unit;
+  char *unit_obj;
+  char *player2; /* re-fetched player ptr after object_new  */
+  int scen_starting_count;
+  void *mp_unit_block;
+
+  player = (char *)datum_get(player_data, player_handle);
+  saved_unit = NONE;
+  /* Record the original player pointer for the common tail. */
+
+  /* --- Path A/B selector: campaign code first tries to reuse a cached
+   *     unit stored at players_globals+0x14+lpi*4. ---- */
+  if (!game_engine_running()) {
+    local_player_index = *(int16_t *)(player + 2);
+    if (local_player_index != NONE) {
+      saved_unit =
+        *(int *)&players_globals->unk_0[0x14 + local_player_index * 4];
+      *(int *)&players_globals->unk_0[0x14 + local_player_index * 4] = NONE;
+      if (saved_unit != NONE) {
+        unit_data = (char *)object_get_and_verify_type(saved_unit, 3);
+        if ((unit_data[0xb6] & 4) != 0) {
+          /* Cached unit was deleted/marked-deleted: drop it and fall
+           * through to the fresh-spawn path. */
+          object_delete(saved_unit);
+          saved_unit = NONE;
+        }
+      }
+    }
+  }
+
+  if (!game_engine_running() && saved_unit != NONE) {
+    /* --- Reuse cached unit path. --- */
+    unit_data = (char *)object_get_and_verify_type(saved_unit, 3);
+    prev_weapon = unit_get_weapon(saved_unit, *(int16_t *)(unit_data + 0x2a2));
+    if (*(int16_t *)(player + 2) == NONE) {
+      display_assert("player->local_player_index!=NONE",
+                     "c:\\halo\\SOURCE\\game\\players.c", 0x736, 1);
+      system_exit(-1);
+    }
+    ((void (*)(int))0x13fb30)(saved_unit);
+    object_set_garbage(saved_unit, 1);
+    ((void (*)(uint16_t, int))0xba5f0)((uint16_t) * (int16_t *)(player + 2),
+                                       saved_unit);
+    if (prev_weapon != NONE) {
+      object_set_garbage(prev_weapon, 1);
+    }
+  } else {
+    /* --- Fresh-spawn path. --- */
+    globals_ptr = (char *)global_scenario_get();
+    if (*(int *)0x5ac9f4 != NONE) {
+      /* Touch the campaign-encounter selector entry (side effect unused
+       * here; the original preserves the call). */
+      tag_block_get_element(globals_ptr + 0x42c, *(int *)0x5ac9f4 & 0xffff,
+                            0xb0);
+    }
+    spawn_slot = (int16_t)((int (*)(int))0xbbbe0)(player_handle);
+    if (spawn_slot == NONE) {
+      goto common_tail;
+    }
+    globals_ptr = (char *)game_globals_get();
+    default_unit_block = (char *)tag_block_get_element(
+      (char *)game_globals_get() + 0x170, 0, 0xf4);
+    if (*(int *)(default_unit_block + 0xc) == NONE) {
+      goto common_tail;
+    }
+    position = ((void *(*)(int16_t))0xbaae0)(spawn_slot);
+    if (game_engine_running()) {
+      mp_unit_block = tag_block_get_element(globals_ptr + 0x164, 0, 0xa0);
+      tag_handle = *(int *)((char *)mp_unit_block + 0x1c);
+    } else {
+      tag_handle = *(int *)(default_unit_block + 0xc);
+    }
+    ((void (*)(char *, int, int))0x13fc20)(placement, tag_handle, -1);
+    /* Copy position vec3 from FUN_baae0 into placement+0x18..+0x20. */
+    *(int *)(placement + 0x18) = *(int *)((char *)position + 0x00);
+    *(int *)(placement + 0x1c) = *(int *)((char *)position + 0x04);
+    *(int *)(placement + 0x20) = *(int *)((char *)position + 0x08);
+    /* placement+0x34 = forward vec3 from yaw (position+0xc). */
+    ((void (*)(float *, float))0x10cc70)((float *)(placement + 0x34),
+                                         *(float *)((char *)position + 0xc));
+    /* placement+0x40 = up vec3 copied from global at *(void**)0x31fc44. */
+    *(int *)(placement + 0x40) = *(int *)(*(int *)0x31fc44 + 0);
+    *(int *)(placement + 0x44) = *(int *)(*(int *)0x31fc44 + 4);
+    *(int *)(placement + 0x48) = *(int *)(*(int *)0x31fc44 + 8);
+    /* Compute starting team/color vec3.  The original fetches into
+     * local_24, then copies the three dwords into local_18 before calling
+     * FUN_baba0 — preserve both buffers. */
+    {
+      float *ret =
+        ((float *(*)(float *, int))0xa99a0)(orient_tmp, player_handle);
+      orient[0] = ret[0];
+      orient[1] = ret[1];
+      orient[2] = ret[2];
+    }
+    ((void (*)(char *, float *))0xbaba0)(placement, orient);
+    new_unit = ((int (*)(char *))0x143c80)(placement);
+    if (new_unit == NONE) {
+      goto common_tail;
+    }
+    unit_obj = (char *)((void *(*)(int, int))0x13d640)(new_unit, 3);
+    if (unit_obj == NULL) {
+      goto common_tail;
+    }
+    player2 = (char *)datum_get(player_data, player_handle);
+    *(int *)(unit_obj + 0x70) = player_handle;
+    *(int16_t *)(unit_obj + 0x68) = *(int16_t *)(player2 + 0x20);
+    *(int *)(unit_obj + 0x1c8) = player_handle;
+    *(int *)(player2 + 0x34) = new_unit;
+    ((void (*)(int, char))0x1adf10)(new_unit, 1);
+    if (*(int16_t *)(player2 + 2) != NONE) {
+      player_control_new_unit((uint16_t) * (int16_t *)(player2 + 2), new_unit);
+    }
+    if (!game_engine_running()) {
+      scen_starting_count = *(int *)((char *)global_scenario_get() + 0x348);
+      if (scen_starting_count > 1 && *(int16_t *)(player2 + 0xaa) > 0) {
+        ((void (*)(int, char, char))0xbb410)(*(int *)(player2 + 0x34), 1, 1);
+      } else if (scen_starting_count != 0) {
+        ((void (*)(int, char, char))0xbb410)(*(int *)(player2 + 0x34), 0, 1);
+      }
+    }
+    /* Restore EDI (original player ptr) for the common tail. */
+  }
+
+common_tail:
+  csmemset(player + 0x68, 0, 4);
+  player2 = (char *)datum_get(player_data, player_handle);
+  *(int16_t *)(player2 + 0x28) = 0;
+  *(int *)(player2 + 0x24) = NONE;
+  if (*(int16_t *)(player + 2) != NONE) {
+    ((void (*)(int16_t))0x8aa30)(*(int16_t *)(player + 2));
+  }
+}
+
+/* Attempt to spawn the player into a vehicle or interact with a world
+ * object, based on the player's action result type (player+0x28).
+ *
+ * player_handle is passed in EAX (register argument).
+ *
+ * Action result types handled:
+ *   5  = pickup equipment: clear seat equipment, then try unit_pickup_equipment
+ *   8,9 = find nearby seat: try unit_find_nearby_seat + unit_board_vehicle
+ *   10 = device group interaction: set device group position
+ *   11 = vehicle approach: store approach info on unit, compute approach
+ *        direction (front/behind/above/below)
+ *   6,7 = default: return false
+ *
+ * Returns true on success, false otherwise. */
+bool player_try_to_spawn_in_vehicle(int player_handle /* @<eax> */)
+{
+  char *player;
+  char *unit;
+  char *item_obj;
+  int *vehicle_obj;
+  int nearby_unit;
+  char *nearby_unit_data;
+  char *world_matrix_a;
+  char *world_matrix_b;
+  float delta[3];
+  float dot;
+  char action_type;
+  char out_a[52];
+  char out_b[52];
+
+  player = (char *)datum_get(player_data, player_handle);
+  object_get_and_verify_type(*(int *)(player + 0x34), 3);
+
+  switch (*(short *)(player + 0x28)) {
+  case 5:
+    /* Equipment pickup */
+    unit_clear_seat_equipment(*(int *)(player + 0x34));
+    if (unit_pickup_equipment(*(int *)(player + 0x34), *(int *)(player + 0x24),
+                              0)) {
+      vehicle_obj =
+        (int *)object_get_and_verify_type(*(int *)(player + 0x24), 8);
+      hud_player_set_vehicle_seat(*(unsigned short *)(player + 0x2),
+                                  *vehicle_obj);
+      return true;
+    }
+    break;
+
+  case 8:
+  case 9: {
+    /* Find nearby seat and board vehicle */
+    nearby_unit = -1;
+    if (unit_find_nearby_seat(*(int *)(player + 0x34), *(int *)(player + 0x24),
+                              *(short *)(player + 0x2a), &nearby_unit)) {
+      unit_board_vehicle(*(int *)(player + 0x34), *(int *)(player + 0x24),
+                         *(short *)(player + 0x2a));
+      return false;
+    }
+    if (nearby_unit == -1)
+      return false;
+    nearby_unit_data = (char *)object_get_and_verify_type(nearby_unit, 3);
+    if (*(int *)(nearby_unit_data + 0x1a4) == -1)
+      return false;
+    ai_handle_unit_approach(*(int *)(nearby_unit_data + 0x1a4),
+                            *(int *)(player + 0x34), 1);
+    return false;
+  }
+
+  case 10:
+    /* Device group interaction */
+    device_group_set_real(*(int *)(player + 0x24), *(int *)(player + 0x34));
+    return true;
+
+  case 11: {
+    /* Vehicle approach: compute approach direction */
+    unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+    item_obj = (char *)object_get_and_verify_type(*(int *)(player + 0x24), 2);
+    *(int *)(unit + 0x2dc) = *(int *)(player + 0x24);
+    *(int *)(unit + 0x2e0) = game_time_get();
+
+    {
+      float fwd_z = *(float *)(item_obj + 0x2c);
+      float abs_fwd_z = fwd_z < 0.0f ? -fwd_z : fwd_z;
+
+      if (abs_fwd_z <= *(double *)0x26ee88) {
+        /* Nearly horizontal: compute direction from dot product */
+        world_matrix_a =
+          (char *)object_get_world_matrix(*(int *)(player + 0x24), out_b);
+        world_matrix_b =
+          (char *)object_get_world_matrix(*(int *)(player + 0x34), out_a);
+        delta[0] =
+          *(float *)(world_matrix_a + 0x28) - *(float *)(world_matrix_b + 0x28);
+        delta[1] =
+          *(float *)(world_matrix_a + 0x2c) - *(float *)(world_matrix_b + 0x2c);
+        delta[2] =
+          *(float *)(world_matrix_a + 0x30) - *(float *)(world_matrix_b + 0x30);
+        cross_product3d(*(float **)0x31fc44, delta, delta);
+        dot = delta[2] * *(float *)(item_obj + 0x2c) +
+              delta[1] * *(float *)(item_obj + 0x28) +
+              delta[0] * *(float *)(item_obj + 0x24);
+        action_type = (dot > 0.0f ? 1 : 0) + 1;
+      } else if (*(float *)(item_obj + 0x2c) >= *(float *)0x2533c0) {
+        action_type = 4;
+      } else {
+        action_type = 3;
+      }
+    }
+
+    *(unsigned char *)(item_obj + 0x424) |= 0x10;
+    *(char *)(item_obj + 0x429) = action_type;
+    *(char *)(item_obj + 0x42a) = 0;
+    break;
+  }
+
+  default:
+    return false;
+  }
+  return true;
+}
+
+__attribute__((noinline)) static bool
+players_respawn_coop_teleport(int player_handle, int anchor_unit_handle,
+                              void *anchor_position)
+{
+  return ((bool (*)(int, int, void *))0xbbb80)(
+    player_handle, anchor_unit_handle, anchor_position);
 }
 
 /* Attempt to respawn all dead players in co-op by teleporting them to a
@@ -411,8 +1090,8 @@ bool players_respawn_coop(void)
         } else {
           /* Teleport to anchor unit's position (+0x50). */
           live_obj = object_get_and_verify_type(iVar7, 0xffffffff);
-          bVar2 = ((bool (*)(int, int, void *))0xbbb80)(
-            iter.datum_handle, iVar7, (char *)live_obj + 0x50);
+          bVar2 = players_respawn_coop_teleport(iter.datum_handle, iVar7,
+                                                (char *)live_obj + 0x50);
         }
       }
     }
@@ -488,6 +1167,99 @@ typedef struct {
   char pad[2];
 } player_action_t;
 
+/* Handle the result of a player interacting with an equipment (powerup) object.
+ *
+ * Reads the equipment's tag definition to determine the powerup type
+ * (offset 0x308 in the 'eqip' tag) and the duration (offset 0x30c,
+ * multiplied by 30 ticks/second).  Dispatches by powerup type:
+ *   1 = double speed  — adds ticks to players_globals+0x26, enables flag
+ *   2 = overshield    — checks unit body vitality, triggers shield effect
+ *   5 = health        — checks unit shield vitality, triggers health effect
+ *   3 = active camo   — powerup index 0, calls player_try_to_apply_powerup
+ *   4 = full-spectrum — powerup index 1, calls player_try_to_apply_powerup
+ * On success, notifies the scoring system, plays the equipment pickup
+ * sound, and deactivates the equipment object. */
+void player_set_action_result_for_equipment(int player_handle,
+                                            int equipment_handle)
+{
+  char *player;
+  char *eqip_obj;
+  char *tag;
+  int16_t powerup_type;
+  int16_t ticks;
+  int powerup_index;
+
+  player = (char *)datum_get(player_data, player_handle);
+  eqip_obj = (char *)object_get_and_verify_type(equipment_handle, 8);
+  tag = (char *)tag_get(0x65716970, *(int *)eqip_obj);
+
+  /* Duration in ticks: tag float * 30.0f, truncated to int16_t. */
+  ticks = (int16_t)(*(float *)(tag + 0x30c) * 30.0f);
+  if (ticks <= 0)
+    return;
+
+  powerup_type = *(int16_t *)(tag + 0x308);
+
+  if (powerup_type == 1) {
+    /* Double speed: accumulate ticks and set flag. */
+    *(int16_t *)((char *)players_globals + 0x26) += ticks;
+    game_set_players_are_double_speed(true);
+  } else if (powerup_type == 2) {
+    /* Overshield: check if unit can receive it. */
+    if (!((bool (*)(int))0x1367e0)(*(int *)(player + 0x34)))
+      return;
+    /* Trigger overshield pickup effect (ESI = player_handle). */
+    {
+      int _ph = player_handle;
+      __asm__ volatile("movl %0, %%esi" : : "r"(_ph) : "esi");
+      ((void (*)(void))0xbaf90)();
+    }
+  } else if (powerup_type == 5) {
+    /* Health: check if unit can receive it. */
+    if (!((bool (*)(int))0x136790)(*(int *)(player + 0x34)))
+      return;
+    /* Trigger health pickup effect (ESI = player_handle). */
+    {
+      int _ph = player_handle;
+      __asm__ volatile("movl %0, %%esi" : : "r"(_ph) : "esi");
+      ((void (*)(void))0xbb0f0)();
+    }
+  } else {
+    /* Active camo (3) or full-spectrum vision (4). */
+    if (powerup_type == 3) {
+      powerup_index = 0;
+    } else if (powerup_type == 4) {
+      powerup_index = 1;
+    } else {
+      display_assert(0, "c:\\halo\\SOURCE\\game\\players.c", 0xac7, 1);
+      system_exit(-1);
+    }
+    /* Try to apply the powerup. */
+    if (!((bool (*)(int, int, int16_t))0xbc320)(player_handle, powerup_index,
+                                                ticks))
+      return;
+    /* Active camo (index 0) triggers a location notification. */
+    if ((int16_t)powerup_index == 0) {
+      int _ph = player_handle;
+      __asm__ volatile("movl %0, %%esi" : : "r"(_ph) : "esi");
+      ((void (*)(void))0xbb040)();
+    }
+  }
+
+  /* Common exit: notify scoring, play pickup sound, deactivate equipment. */
+  eqip_obj = (char *)object_get_and_verify_type(equipment_handle, 8);
+  {
+    int16_t local_player_idx =
+      *(int16_t *)(player + 2); /* player+0x2: local_player_index */
+    ((void (*)(int, int))0xd0c60)((unsigned short)local_player_idx,
+                                  *(int *)eqip_obj);
+  }
+  if (*(int16_t *)(player + 2) != -1) {
+    item_activate_equipment_effect(equipment_handle);
+  }
+  object_delete(equipment_handle);
+}
+
 /* Update all player actions before game logic runs for this tick.
  *
  * For each player:
@@ -514,7 +1286,7 @@ void players_update_before_game(void)
   char *unit_data;
   int unit_handle;
   unit_control_t *ctl_ptr;
-  char *def_fwd; /* ptr to default forward vector (*(char**)0x31fc38) */
+  char *def_zero; /* ptr to default zero vector (*(char**)0x31fc38) */
 
   /* Profile enter. */
   if (*(char *)0x449ef1 != 0 && *(char *)0x2f0898 != 0)
@@ -696,8 +1468,8 @@ void players_update_before_game(void)
        * invoke the vehicle-action result handler and clear the seat tag. */
       if ((*(char *)&action->buttons & 0x80) != 0 &&
           *(int *)(unit_data + 0x2c8) != -1) {
-        player_set_action_result_for_vehicle(datum_handle,
-                                             *(int *)(unit_data + 0x2c8));
+        player_set_action_result_for_equipment(datum_handle,
+                                               *(int *)(unit_data + 0x2c8));
         unit_clear_seat_tag(*(int *)(player + 0x34));
       }
 
@@ -803,8 +1575,13 @@ void players_update_before_game(void)
           *(int *)(unit_data + 0x1a4) != -1)
         goto next_player;
 
-      /* Build a null-ish control derived from the unit's stored orientation
-       * vectors. This keeps the unit from jittering when input is locked. */
+      /* Build a neutral control using the unit's own stored orientation
+       * vectors, so unit_set_control's normalization asserts pass.
+       * Original 0xbd6b3-0xbd722 writes:
+       *   ctl2.throttle ← *(char**)0x31fc38 (zero vector)
+       *   ctl2.facing   ← unit[0x1d4..0x1dc] (unit's current facing)
+       *   ctl2.aiming   ← unit[0x1e0..0x1e8] (unit's current aiming)
+       *   ctl2.looking  ← unit[0x204..0x20c] (unit's current looking) */
       csmemset(&ctl2, 0, sizeof(ctl2));
       ctl2.weapon_index = -1;
       ctl2.grenade_index = -1;
@@ -813,24 +1590,23 @@ void players_update_before_game(void)
       ctl2.aiming_speed = 0;
       ctl2.control_flags = 0;
 
-      /* Default forward vector: *(char**)0x31fc38 → vec3 at [+0..+8] */
-      def_fwd = *(char **)0x31fc38;
-      ctl2.facing_x = *(float *)(def_fwd + 0);
-      ctl2.facing_y = *(float *)(def_fwd + 4);
-      ctl2.facing_z = *(float *)(def_fwd + 8);
+      /* throttle = zero vector (*(char**)0x31fc38 → vec3 at [+0..+8]) */
+      def_zero = *(char **)0x31fc38;
+      ctl2.throttle_x = *(float *)(def_zero + 0);
+      ctl2.throttle_y = *(float *)(def_zero + 4);
+      ctl2.throttle_z = *(float *)(def_zero + 8);
 
-      /* Copy aiming vector from unit data (offset 0x1d4..0x1dc). */
-      ctl2.aiming_x = *(float *)(unit_data + 0x1d4);
-      ctl2.aiming_y = *(float *)(unit_data + 0x1d8);
-      ctl2.aiming_z = *(float *)(unit_data + 0x1dc);
+      /* facing = unit's current facing vector (unit+0x1d4..0x1dc) */
+      ctl2.facing_x = *(float *)(unit_data + 0x1d4);
+      ctl2.facing_y = *(float *)(unit_data + 0x1d8);
+      ctl2.facing_z = *(float *)(unit_data + 0x1dc);
 
-      /* Secondary aiming copy at unit+0x1e0..0x1e8 (maps to throttle in
-       * the neutral control — matches the decompiler's local_90..local_78). */
-      ctl2.throttle_x = *(float *)(unit_data + 0x1e0);
-      ctl2.throttle_y = *(float *)(unit_data + 0x1e4);
-      ctl2.throttle_z = *(float *)(unit_data + 0x1e8);
+      /* aiming = unit's current aiming vector (unit+0x1e0..0x1e8) */
+      ctl2.aiming_x = *(float *)(unit_data + 0x1e0);
+      ctl2.aiming_y = *(float *)(unit_data + 0x1e4);
+      ctl2.aiming_z = *(float *)(unit_data + 0x1e8);
 
-      /* Looking vector from unit+0x204..0x20c. */
+      /* looking = unit's current looking vector (unit+0x204..0x20c) */
       ctl2.looking_x = *(float *)(unit_data + 0x204);
       ctl2.looking_y = *(float *)(unit_data + 0x208);
       ctl2.looking_z = *(float *)(unit_data + 0x20c);

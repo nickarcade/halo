@@ -68,7 +68,7 @@ else()
 		# FIXME: We can support other toolchains, but currently do not
 		message(FATAL_ERROR "You are attempting to compile with ${CMAKE_CXX_COMPILER_ID}. Please use LLVM toolchain (clang, lld). Specify -DCMAKE_TOOLCHAIN_FILE=toolchains/llvm.cmake during configuration.")
 	endif()
-	set(CMAKE_C_FLAGS "-Wall -Werror -target i386-pc-win32 -march=pentium3 -nostdlib -ffreestanding -fno-builtin -fno-exceptions -I${CMAKE_SOURCE_DIR}/src -I${CMAKE_SOURCE_DIR}/third_party/xbox -include ${CMAKE_SOURCE_DIR}/src/common.h")
+	set(CMAKE_C_FLAGS "-Wall -Werror -target i386-pc-win32 -march=pentium3 -mno-sse -nostdlib -ffreestanding -fno-builtin -fno-exceptions -I${CMAKE_SOURCE_DIR}/src -I${CMAKE_SOURCE_DIR}/third_party/xbox -include ${CMAKE_SOURCE_DIR}/src/common.h")
 	set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld-link -Xlinker -entry:_start")
 
 	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -95,6 +95,10 @@ add_custom_target(
 	patched_xbe ALL
 	DEPENDS "$<TARGET_FILE:halo>" "${CMAKE_CURRENT_LIST_DIR}/tools/patch.py"
 	BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/halo-patched/default.xbe
+	COMMAND
+		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/check_raw_casts.py"
+	COMMAND
+		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/patch.py" --test-thunks
 	COMMAND
 		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/patch.py"
 			"${CMAKE_CURRENT_LIST_DIR}/halo-patched/cachebeta.xbe"

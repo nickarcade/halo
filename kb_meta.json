@@ -1,6 +1,36 @@
 {
   "md5": "c7869590a1c64ad034e49a5ee0c02465",
   "symbols": {
+    "0x13010": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The double constant at 0x2533d0 (~0.0001) serves as a minimum magnitude threshold for normalization; vectors shorter than this are treated as zero-length.",
+        "Object name vector_math.obj is provisional; the true .obj name is unknown since the function has no string references or assert paths."
+      ]
+    },
+    "0x3aa50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3aa90": {
+      "kind": "function",
+      "status": "ported",
+      "name": "actors_dispose_from_old_map",
+      "name_confidence": "high",
+      "inferred": [
+        "FUN_0x3aa50 is actors_dispose, the single-function mirror of the dispose-pair convention seen elsewhere in this subsystem.",
+        "FUN_0x3aa50 is actors_dispose, the single-function mirror of the dispose-pair convention seen elsewhere in this subsystem."
+      ],
+      "uncertain": [
+        "Whether actors.obj contains additional unported functions such as actors_initialize_for_new_map at 0x3a990 has not been confirmed.",
+        "Whether actors.obj contains additional unported functions such as actors_initialize_for_new_map at 0x3a990 has not been confirmed."
+      ]
+    },
+    "0x3f670": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x3f6f0": {
       "kind": "function",
       "status": "ported",
@@ -25,9 +55,32 @@
       "name": "ai_enemies_can_see_player",
       "name_confidence": "high"
     },
+    "0x7c840": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x7c8f0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x81720": {
+      "kind": "function",
+      "status": "named"
+    },
+    "0x81770": {
+      "kind": "function",
+      "status": "named"
+    },
+    "0x82130": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "XNet startup params struct at EBP-0xC is 11 bytes matching XNET_STARTUP_PARAMS: cfgSizeOfStruct=0xB, cfgFlags, cfgSockMaxDgramSockets=24, cfgSockMaxStreamSockets=8, cfgSockDefaultRecvBufsizeInK=4, cfgSockDefaultSendBufsizeInK=8, cfgKeyRegMax=128."
+      ],
+      "uncertain": [
+        "The function at 0x222ecf (stdcall 1 arg) is likely XNetGetEthernetLinkStatus or a wrapper polling network readiness; exact XNet API name unconfirmed.",
+        "The function at 0x222e0e (stdcall 2 args, passes a buffer and size 8) is likely setsockopt or XNetSetSystemLinkPort; exact identity unconfirmed."
+      ]
     },
     "0x822d0": {
       "kind": "function",
@@ -271,23 +324,7 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x978f0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x97a50": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x97ae0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x97d40": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x97db0": {
       "kind": "function",
       "status": "ported"
     },
@@ -376,18 +413,6 @@
       "status": "ported"
     },
     "0xa14d0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa18c0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa1b60": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa1c30": {
       "kind": "function",
       "status": "ported"
     },
@@ -683,9 +708,24 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb6380": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb63f0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0xb6460": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb6a20": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Offset 0x24 in the player control slot is a weapon interaction index, reset to NONE when aim assist is cleared."
+      ]
     },
     "0xb6fc0": {
       "kind": "function",
@@ -702,6 +742,99 @@
     "0xb8c70": {
       "kind": "function",
       "status": "ported"
+    },
+    "0xb8d70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb8e40": {
+      "kind": "function",
+      "status": "ported",
+      "name": "update_client_start",
+      "name_confidence": "high",
+      "comments": {
+        "summary": "Resets client action-queue data and reserves one queue slot per active player handle. Asserts update_client_globals.initialized and queue_index!=NONE."
+      },
+      "inferred": [
+        "update_client_globals struct begins at 0x45b1d0: byte initialized at +0x00, data_t* queue at +0x90 (0x45b260). Struct size ~0x10494 per FUN_000b8d70 csmemset arg."
+      ],
+      "uncertain": [
+        "Globals 0x45b1d0 (initialized byte) and 0x45b260 (queue data_t*) are not yet declared in kb.json; function uses hardcoded addresses. If/when player_queues_new has more functions ported, consider formalising update_client_globals in types.h."
+      ]
+    },
+    "0xb8f90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb90d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb9150": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb91b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb9270": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Retrieve next server update snapshot for a machine; copies 0x204 bytes from server buffer"
+      },
+      "inferred": [
+        "The call to system_milliseconds at function entry is a timing checkpoint with discarded return value."
+      ]
+    },
+    "0xb9340": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Queue datum layout: +0x04=new_action_flags, +0x08=prev_action_flags (persistent mask), +0x0c..+0x24=action fields (facing, throttle, trigger, weapon/grenade/zoom).",
+        "The 0x4D0 mask (bits 4,6,7,10) applied to prev_action_flags likely represents sticky/persistent button flags (e.g. binoculars, zoom, alt_attack)."
+      ],
+      "uncertain": [
+        "The re-read of action_count from memory inside loop 1 (rather than using the local) may be an artifact of the original compiler or may be intentional for volatile-like behavior."
+      ]
+    },
+    "0xb9610": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The action buffer at 0x45b264 is organized as 128 circular slots of 0x208 bytes each, with a uint16_t action count at slot offset +4.",
+        "The valid action count range [1, 16] likely corresponds to the maximum number of players (16 slots allocated in update_client_new)."
+      ]
+    },
+    "0xb9660": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Apply player actions from network machine into server queue; validates facing floats"
+      },
+      "inferred": [
+        "The REP MOVSD copies exactly 8 dwords (0x20 bytes) matching the player action structure size."
+      ]
+    },
+    "0xb9990": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Create server-side update snapshot from current queue state; pushes to client buffer"
+      },
+      "inferred": [
+        "The internal helpers at 0xb9040 and 0xb97b0 likely belong to player_queues_new.obj but are not yet in kb.json."
+      ]
+    },
+    "0xb9a70": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The first assert checks game_connection()==0 which corresponds to _game_connection_local enum value.",
+        "The second assert string references both action_collection and update_client_globals.initialized but only the initialized flag at 0x45b1d0 is actually tested.",
+        "The ticks parameter is passed by address to update_server_get_update as update_number, which may modify it during the loop."
+      ]
     },
     "0xb9b30": {
       "kind": "function",
@@ -751,7 +884,16 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xba290": {
+      "kind": "function",
+      "status": "ported",
+      "name": "player_register_machine"
+    },
     "0xba2e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xba340": {
       "kind": "function",
       "status": "ported"
     },
@@ -809,23 +951,81 @@
     },
     "0xba710": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "name": "any_player_is_in_the_air",
+      "inferred": [
+        "Unit offset 0x64 is likely an animation or movement state enum (0=ground, 1=airborne/jumping).",
+        "Vehicle tag offset 0x17C bit 0x40 likely indicates the vehicle type supports airborne detection (e.g. flying vehicles)."
+      ],
+      "uncertain": [
+        "Object+0x428 byte meaning is unclear; compared > 2 as altitude or airtime threshold."
+      ]
     },
     "0xba800": {
       "kind": "function",
       "status": "ported"
     },
+    "0xbac80": {
+      "kind": "function",
+      "status": "ported",
+      "name": "players_update_pvs",
+      "name_confidence": "high",
+      "comments": {
+        "summary": "Clears a combined PVS bitvector, OR-folds in per-player/root-cluster visibility rows, and merges the current parent-object cluster. Live GDB during the co-op respawn regression showed the C body returning cleanly; the crash was in the reverse-thunk handoff, not this function logic."
+      }
+    },
     "0xbadf0": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "name": "players_compute_local_player_count"
     },
     "0xbae20": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "name": "player_examine_nearby_unit"
     },
     "0xbaeb0": {
       "kind": "function",
+      "status": "ported",
+      "name": "player_reset_action_result"
+    },
+    "0xbaed0": {
+      "kind": "function",
       "status": "ported"
+    },
+    "0xbb2f0": {
+      "kind": "function",
+      "status": "ported",
+      "name": "player_new"
+    },
+    "0xbb560": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbbcb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbc0d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbc750": {
+      "kind": "function",
+      "status": "ported",
+      "name": "players_respawn_coop"
+    },
+    "0xbcfb0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The equipment_handle parameter (kb.json says vehicle_handle) actually refers to an equipment/powerup object, not a vehicle, based on type mask 8 and eqip tag group.",
+        "Tag offset 0x308 is the powerup type enum: 1=double_speed, 2=overshield, 3=active_camo, 4=full_spectrum_vision, 5=health.",
+        "Tag offset 0x30c is the duration in seconds as a float, multiplied by 30 to get game ticks."
+      ],
+      "uncertain": [
+        "Functions 0xbaf90, 0xbb040, 0xbb0f0 are player notification helpers taking ESI as player_handle; their exact purpose (sound, visual effect, HUD message) is not confirmed."
+      ]
     },
     "0xbd100": {
       "kind": "function",
@@ -867,7 +1067,21 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xcdb30": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "caa80 (hs_get_thread_script_name) takes ESI=thread_index as register arg, returns script name string.",
+        "cd840 (hs_execute_thread) takes EAX=thread_index as register arg.",
+        "cc1d0 (hs_default_value) takes EAX=thread_index as register arg plus two stack args (type, dest).",
+        "cb230 (hs_global_value_store) takes EDI=loop_var as register arg, only active when bit 15 set."
+      ]
+    },
     "0xce690": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xce6b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -923,6 +1137,17 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xd0c40": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Both hud_player_set_vehicle and hud_player_set_vehicle_seat have identical implementations that delegate to 0xd5240 with zeroed extra params."
+      ]
+    },
+    "0xd0c60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xd0d50": {
       "kind": "function",
       "status": "ported"
@@ -939,6 +1164,35 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xd5240": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Named hud_messaging_set_vehicle_notification based on callers hud_player_set_vehicle and hud_player_set_vehicle_seat; address falls within hud_messaging.obj range.",
+        "param_3 is a seat-related counter that accumulates into +0x88 of the message slot structure.",
+        "param_4 low byte stored at +0x8a is likely a notification type or seat index."
+      ],
+      "uncertain": [
+        "The internal helper 0xd5070 uses ESI as a register arg for vehicle tag matching; not yet in kb.json to avoid thunk recursion."
+      ]
+    },
+    "0xdc070": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Name ui_widget_is_main_menu_loaded for callee at 0xe43f0 inferred from behavior: checks if widget named the_main_menu is loaded.",
+        "Name ui_widget_get_attract_mode_flag for callee at 0xe46a0 inferred from behavior: returns a single byte flag at 0x46cc86.",
+        "Name ui_widget_stop_attract_mode for callee at 0xe4640 inferred from behavior: stops attract music via dsound tag lookup and clears the attract flag."
+      ]
+    },
+    "0xdc130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdc140": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xdc1d0": {
       "kind": "function",
       "status": "ported"
@@ -946,6 +1200,25 @@
     "0xdc200": {
       "kind": "function",
       "status": "ported"
+    },
+    "0xdc220": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdc240": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdc250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdc310": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Name event_manager_get_last_event_time inferred from behavior: returns dword at 0x46bd44 which is written by event_manager_dispatch on non-empty events."
+      ]
     },
     "0xdc320": {
       "kind": "function",
@@ -970,6 +1243,29 @@
     "0xdec80": {
       "kind": "function",
       "status": "ported"
+    },
+    "0xdeca0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The interface globals block element at offset 0x140 contains 16 tag_reference entries (0x10 bytes each); the tag_index is at offset 0xc within each reference.",
+        "NUMBER_OF_INTERFACE_TAGS is 16, matching the CMP SI,0x10 in the assert guard."
+      ]
+    },
+    "0xded20": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The color_table tag group is 'colo' (0x636f6c6f) with 0x30-byte elements; ARGB float color is at offset 0x20 within each element."
+      ]
+    },
+    "0xdeda0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Parameter 5 (color_tag_index) is an interface tag index for color lookup, not alpha; parameter 6 (color_index) is a short color table index, not tab_stop_count.",
+        "The 16-byte local buffer is a 4-float ARGB color filled by interface_get_color and passed to draw_string_set_font."
+      ]
     },
     "0xdfea0": {
       "kind": "function",
@@ -999,11 +1295,144 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe3be0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe3c80": {
       "kind": "function",
       "status": "ported"
     },
+    "0xe3d20": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "stack_memory_pool_realloc at 0x11fbe0 is the name inferred from the stack_memory_pool.c source path in its assert strings and its role as the realloc counterpart to stack_memory_pool_deallocate.",
+        "stack_memory_pool_realloc at 0x11fbe0 is the name inferred from the stack_memory_pool.c source path in its assert strings and its role as the realloc counterpart to stack_memory_pool_deallocate."
+      ]
+    },
+    "0xe3e10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe4470": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe44d0": {
+      "kind": "function",
+      "status": "ported",
+      "name": "display_error_when_main_menu_loaded",
+      "name_confidence": "high",
+      "comments": {
+        "summary": "Checks whether a deferred UI error should be shown once the main menu is ready, then routes through the existing error display path."
+      }
+    },
+    "0xe45d0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The function at 0x1006c0 checks whether a game map is loaded by testing global 0x46da34 != 0.",
+        "The function at 0x1c8510 is sound_looping_start in game_sound.c; its third arg is a float (1.0f) passed as dword 0x3f800000 on the stack."
+      ]
+    },
     "0xe46b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe4890": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The widget struct field at offset +0x28 is named 'previous' (prev_sibling) based on the assert string 'child->previous == NULL'."
+      ]
+    },
+    "0xe5620": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "ui_widget_close_children at 0xe4890 takes widget ptr in EAX and recursively closes all first_child chain nodes.",
+        "Widget struct offsets: +0x00 tag_index, +0x08 local_player_index (word), +0x0e widget_type (word), +0x13 pauses_game (byte), +0x14 being_deleted (byte), +0x28 prev_sibling, +0x2c next_sibling, +0x30 parent, +0x34 first_child, +0x3c text_data, +0x40 list_items, +0x48 list_header_widget, +0x4c list_skin_data."
+      ]
+    },
+    "0xe58c0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The 4-element arrays at 0x46cc20 and 0x46cc30 represent widget stack roots and widget list heads respectively, indexed by stack number (0-3).",
+        "Widget nodes are linked through offset +0xc, which appears to be a next-sibling or next-in-list pointer within each widget structure."
+      ],
+      "uncertain": [
+        "The relationship between the root widget at 0x46cc20[i] and the list at 0x46cc30[i] is unclear; the root is closed via ui_widget_close while the list nodes are only deallocated from the pool without closure."
+      ]
+    },
+    "0xe6980": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "thread_new at 0x81630 prototype inferred from push count and CreateThread wrapper pattern in thread_win32.obj.",
+        "0x46cc80 is a 16-bit field (word ptr in disasm) not 32-bit as Ghidra decompiler suggests.",
+        "0xe5590 is a stdcall thread proc (RET 4) used as filesystem check callback."
+      ]
+    },
+    "0xe6a60": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The pointer at 0x31e04c points to a widget system state structure; field at +4 is a debug_malloc'd memory pool (0x4000 bytes), field at +8 is the pool size.",
+        "The 0x68-byte block at 0x46cc20 is static UI widget state cleared on both init and dispose."
+      ]
+    },
+    "0xe78e0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The global at 0x5aa45c stores the current rendering player index as uint16_t, clamped so -1 maps to 0.",
+        "The 0xe73c0 callee is a recursive widget renderer taking (widget, bounds, offset_pair, int, int) with 5 stack args."
+      ],
+      "uncertain": [
+        "The float constants at 0x2533c0 (0.0), 0x2533c8 (1.0), 0x255ed4 (0.95), and 0x2602c8 (255.0) are read-only data section floats whose symbolic names are unknown.",
+        "The 0x1b9930 callee is a tag lookup function (tag_group, name, ...) but its full prototype beyond 2 args is not confirmed."
+      ]
+    },
+    "0xe7d00": {
+      "kind": "function",
+      "status": "named"
+    },
+    "0xe8700": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The __stricmp call at 0x1dd801 is an MSVC CRT function; accessed via hardcoded address since no CRT object is tracked.",
+        "The virtual keyboard init at 0xf53a0 likely belongs to a virtual_keyboard.obj but no such object is yet in kb.json.",
+        "ui_widget_display_error at 0xe8910 prototype: int16_t error_handle, int local_player_index, char is_modal, char pause_game; inferred from disassembly push pattern and switch table."
+      ]
+    },
+    "0xe8c90": {
+      "kind": "function",
+      "status": "named"
+    },
+    "0xe8d20": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "ui_widget_load_by_name_or_tag at 0xe84e0 takes 7 cdecl args; return value is a widget pointer.",
+        "main_halt_entry at 0x102c40 is __noreturn infinite loop calling subsystem ticks (input, rendering, presentation)."
+      ]
+    },
+    "0xe9080": {
+      "kind": "function",
+      "status": "named"
+    },
+    "0xe9450": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "0xf5640 and 0xf6740 appear to be bink-video screen update functions but their exact .obj is uncertain.",
+        "The pending_load struct fields at offsets +8 and +10 are read as dword by MSVC but typed as int16_t; the upper bytes are garbage but ignored by callees."
+      ]
+    },
+    "0xe98b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -1015,7 +1444,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf67b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf6970": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf69c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -1055,10 +1492,38 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1006b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x100c10": {
+      "kind": "function",
+      "status": "ported",
+      "name": "main_change_map_name",
+      "name_confidence": "high"
+    },
     "0x100de0": {
       "kind": "function",
       "status": "ported",
       "name": "main_skip_private",
+      "name_confidence": "high"
+    },
+    "0x100eb0": {
+      "kind": "function",
+      "status": "ported",
+      "name": "main_save_map_private",
+      "name_confidence": "high"
+    },
+    "0x101040": {
+      "kind": "function",
+      "status": "ported",
+      "name": "main_won_map_private",
+      "name_confidence": "high"
+    },
+    "0x101130": {
+      "kind": "function",
+      "status": "ported",
+      "name": "main_frame_rate_debug",
       "name_confidence": "high"
     },
     "0x101970": {
@@ -1066,6 +1531,36 @@
       "status": "ported",
       "name": "main_rasterizer_throttle",
       "name_confidence": "high"
+    },
+    "0x101d90": {
+      "kind": "function",
+      "status": "ported",
+      "name": "main_save_current_solo_map",
+      "name_confidence": "high",
+      "inferred": [
+        "0x1db2b3 is fwrite, despite Ghidra labelling it FID_conflict:_fread; call context (write mode open, file pointer, fixed-size struct) confirms write semantics."
+      ]
+    },
+    "0x101e00": {
+      "kind": "function",
+      "status": "ported",
+      "name": "main_load_last_solo_map",
+      "name_confidence": "high"
+    },
+    "0x101f00": {
+      "kind": "function",
+      "status": "ported",
+      "name": "main_load_ui_scenario",
+      "name_confidence": "high",
+      "inferred": [
+        "0x86cb0 is a camera or director subsystem helper, inferred from the constant argument it receives and its position relative to cinematic calls.",
+        "0x85180 is a cinematic-state initializer, inferred from call order and constant zero argument.",
+        "0xe43d0 is the UI widget flag-2 setter, inferred from its single boolean-like argument and call site immediately after widget lookup."
+      ],
+      "uncertain": [
+        "Exact semantics of 0x86cb0 beyond its observed constant argument are unknown; it may reset or prime a camera track rather than simply disposing state.",
+        "Exact semantics of 0x85180 beyond its observed constant argument are unknown; could be cinematic-state reset or first-frame init."
+      ]
     },
     "0x101fe0": {
       "kind": "function",
@@ -1087,6 +1582,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x102c40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x102c80": {
       "kind": "function",
       "status": "ported"
@@ -1094,6 +1593,20 @@
     "0x102e40": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x109680": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Matrix layout: 4-byte scale at offset 0, followed by 3x3 float rotation at offsets 0x04-0x24."
+      ]
+    },
+    "0x109e10": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Matrix rows: scale, forward, left (forward x up cross product), up, zero translation."
+      ]
     },
     "0x10b090": {
       "kind": "function",
@@ -1107,13 +1620,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x10b120": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Name random_math_get_local_seed_address inferred: returns pointer to static seed at 0x46e3f8, used with random_range."
+      ]
+    },
     "0x10b130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10b2d0": {
       "kind": "function",
       "status": "ported"
     },
     "0x10b5e0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x10cc40": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "angles[0]=yaw, angles[1]=pitch; standard spherical-to-cartesian conversion."
+      ]
     },
     "0x119100": {
       "kind": "function",
@@ -1203,11 +1734,26 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x13d640": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "datum_absolute_index_to_index at 0x119270 is functionally a datum_try_and_get; returns datum pointer as int, or 0 on failure."
+      ]
+    },
     "0x13d680": {
       "kind": "function",
       "status": "ported",
       "name": "object_get_and_verify_type",
       "name_confidence": "high"
+    },
+    "0x13d920": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Bit 0x10000 in object flags is _object_garbage_bit; bit 0x20000 is likely _object_being_deleted_bit based on the 0x30000 mask guard.",
+        "object_data_t+0xC0 (unk_192) is the garbage linked list next-pointer field."
+      ]
     },
     "0x13f060": {
       "kind": "function",
@@ -1238,6 +1784,49 @@
       "status": "ported",
       "name": "objects_dispose",
       "name_confidence": "high"
+    },
+    "0x13fd00": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "cluster_partition_remove_object at 0x1919a0 takes (partition_ptr, object_handle, first_cluster_ref_ptr) based on push order and usage pattern in callers.",
+        "0x13e510 is an object-child-list unlink helper taking EAX=ptr-to-first-child-ref and EBX=object_handle as register args with zero stack args."
+      ],
+      "uncertain": [
+        "The re-fetch of header at 0x13fdc8 after the partition-remove call may be needed because the partition-remove could invalidate the cached header pointer, but this is not confirmed."
+      ]
+    },
+    "0x13ffc0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "flag=0 marks the object as garbage (sets obj->flags bit 0, clears datum.unk_2 bit 1); flag!=0 unmarks it. Child propagation via FUN_0013ee60 (0x13ee60) is gated on the tag having a children block (tag+0x34 != -1) and bit 0 of obj->flags being in the wrong state for the requested transition."
+      ]
+    },
+    "0x140bc0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "FUN_0013ee60 propagates deletion state to child objects attached via the tag children block at tag+0x34.",
+        "FUN_0013eff0 removes the object from an indexed name list using object+0x6A as the slot index and the array at 0x46f07c."
+      ],
+      "uncertain": [
+        "The weapon_is_flag check may also apply to oddball or skull objects, not just CTF flags."
+      ]
+    },
+    "0x140cc0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Thin wrapper calling FUN_00140bc0 (0x140bc0) with param_2=0; param_2=1 would also delete sibling objects recursively. FUN_00140bc0 is the real implementation: sets datum.unk_2 bit 3 (0x08, pending removal), clears the active bit in obj->flags, and calls FUN_0013eff0 (0x13eff0, EDI=object_handle) to clear the object's name-list entry."
+      ]
+    },
+    "0x141480": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "FUN_0010a110 builds a 4x3 matrix from forward, up, position; FUN_00140eb0 is object_get_node_matrix; FUN_00109850 is 4x3 matrix multiply."
+      ]
     },
     "0x145170": {
       "kind": "function",
@@ -1365,6 +1954,17 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x187250": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "0x31fc1c is a pointer to a global forward/identity vector used for plane distance computation in frustum building.",
+        "The frustum output is a packed float array with a well-defined layout: [0..3] bounds, [4..0x10] world_to_view, [0x11..0x1d] view_to_world, [0x1e..0x35] 6 planes, [0x36..0x37] z values, [0x38..0x49] corners/positions, [0x4a..0x4f] AABB, [0x50..0x62] projection."
+      ],
+      "uncertain": [
+        "The FPTAN instruction behavior and FPU stack management in the inv_tan_x/inv_tan_y computation may not be perfectly reproduced by the C version since the compiler may use different FPU instruction sequences."
+      ]
+    },
     "0x18e280": {
       "kind": "function",
       "status": "ported"
@@ -1397,6 +1997,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x18e4d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x18eb40": {
       "kind": "function",
       "status": "ported"
@@ -1418,6 +2022,10 @@
       "status": "ported"
     },
     "0x191170": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x191240": {
       "kind": "function",
       "status": "ported"
     },
@@ -1462,6 +2070,113 @@
       "status": "ported"
     },
     "0x19f450": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7fc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7ff0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Global at 0x4e4cf8 is a pointer to a 5-byte struct {int16_t, int16_t, uint8_t} used for units per-tick update state tracking."
+      ]
+    },
+    "0x1a8ce0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The unk_456 field (offset 0x1C8) in unit_data_t guards the allegiance check, likely representing a rider or owner handle.",
+        "The return semantics are inverted: returns true when NO matching seat occupant or friendly child was found, meaning the seat is available."
+      ]
+    },
+    "0x1a9a30": {
+      "kind": "function",
+      "status": "ported",
+      "name": "unit_is_alive",
+      "name_confidence": "high",
+      "comments": {
+        "summary": "Resolves a unit handle via object_get_and_verify_type(mask 3) and returns bit 6 of unit_data_t.unk_436 as the alive flag."
+      }
+    },
+    "0x1aa3c0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The byte at offset 0x253 (unk_595) likely represents an AI/unit behavior state enum; values 0x21, 0x19, 0x18 correspond to combat-active states.",
+        "The byte at offset 0x23D (unk_573) value 3 likely represents a passive/non-threatening sub-state that suppresses the dangerous classification.",
+        "Bit 2 of offset 0x248 (unk_584) acts as a suppression flag that prevents units in state 0x18/0x19 from being considered dangerous."
+      ]
+    },
+    "0x1aab20": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Names object_disconnect_from_map (0x13fd00), object_set_garbage (0x13ffc0), object_delete (0x140cc0), item_activate_equipment_effect (0xf67b0), and item_attach_to_unit (0xf69c0) are inferred from context and decompilation, not from assert strings."
+      ]
+    },
+    "0x1aac40": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Callee 0x140cc0 is object_delete (wrapper calling 0x140bc0 with param_2=0, i.e. no sibling recursion)."
+      ]
+    },
+    "0x1aad90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1aae00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1adeb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ae330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ae490": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "0x1ae290 is a register-arg (EAX) function that retrieves a unit animation tag pointer, used for weapon compatibility checks.",
+        "0x1acd70 is a register-arg (EAX) function with 3 stack args that checks whether a unit can use a given weapon based on animation and weapon tag data."
+      ],
+      "uncertain": [
+        "The unk_696 array at offset 0x2B8 appears to hold weapon priority/ordering values used to select the best weapon when direction==0, but the exact semantics are unconfirmed."
+      ]
+    },
+    "0x1ae600": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "FUN_001ae490 computes next weapon index; FUN_000fd360 attempts weapon placement; FUN_000de360 fires a unit event; FUN_001ab990 is a weapon-stow notification; FUN_000faf50 checks if weapon should be kept alive."
+      ]
+    },
+    "0x1af6b0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The function at 0x1af620 is unit_verify_vectors, taking unit_handle in EAX and returning bool; it validates 6 direction vectors via assert_valid_real_normal3d.",
+        "The function at 0x49ac0 builds a textual location string for a unit given actor_index, unit_handle, a bool flag, buffer, and size (5 cdecl args)."
+      ],
+      "uncertain": [
+        "The exact prototype of 0x49ac0 is uncertain; arg3 appears to be a bool (PUSH 1) but could be an int flag."
+      ]
+    },
+    "0x1af990": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "FUN_0x21fb0 is assert_valid_real_normal3d (validates unit vector). FUN_0x1af6b0 is a profiling/trace function accepting a string label."
+      ]
+    },
+    "0x1b1db0": {
       "kind": "function",
       "status": "ported"
     },
@@ -1566,17 +2281,77 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c5900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c5940": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Checks both bink handle (0x4ead60) and initialized flag (0x4ead58) to determine if bink playback is active."
+      ]
+    },
+    "0x1c5980": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Only checks bink handle (0x4ead60) for non-zero; does not require subsystem initialized."
+      ]
+    },
+    "0x1c5a80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c5d70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c6100": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c61a0": {
       "kind": "function",
       "status": "ported"
     },
+    "0x1c61d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c6230": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c62a0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "0xdc240 is a simple byte setter at 0x46bd41 (event suppression toggle). 0x231220 is BinkClose. 0x1c61d0 releases texture cache memory for bink."
+      ]
+    },
     "0x1c6310": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c6340": {
       "kind": "function",
       "status": "ported"
     },
     "0x1c63e0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1c6440": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The function at 0x1c5990 (bink memory pool allocator) uses two register args: @eax for alignment and @ecx for size, called via inline asm.",
+        "The D3D texture setup at 0x4ead40-0x4ead78 configures an NV2A linear X8R8G8B8 texture resource for the bink frame buffer."
+      ],
+      "uncertain": [
+        "The bitmap header at 0x4ead10 uses format 10 (a8r8g8b8) but this format index mapping is inferred from the bits-per-pixel call and may not match the engine's enum exactly."
+      ]
     },
     "0x1c6870": {
       "kind": "function",
@@ -1593,6 +2368,14 @@
     "0x1c7080": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1c7480": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The 64-byte local buffer at EBP-0x40 is a sound source descriptor struct with fields: offset 0x00 int16_t spatialization_mode, offset 0x04 float scale, offset 0x08 float gain.",
+        "sound_start at 0x1ce180 belongs to sound_manager.obj based on assertion path string c:\\halo\\SOURCE\\sound\\sound_manager.c."
+      ]
     },
     "0x1c7e40": {
       "kind": "function",
@@ -1622,13 +2405,34 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1cb8a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ce180": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Register-arg callees at 0x1cba20, 0x1cbb00, 0x1ccca0, 0x1cd5a0 are called via inline asm because they take arguments in EAX or EDI.",
+        "The constant at 0x2c1288 (8.9647f) is a time-to-distance conversion factor used to compute delayed sound start timing."
+      ],
+      "uncertain": [
+        "The source struct layout is accessed by offsets (0x0=spatialization_mode, 0x4=scale, 0x18=forward vector) but the full struct type is unknown."
+      ]
+    },
     "0x1cf640": {
       "kind": "function",
       "status": "ported"
     },
     "0x1cf730": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "name": "sound_render",
+      "inferred": [
+        "The constant at 0x25bc08 is 0.03f, used to convert millisecond deltas to sound-system time units.",
+        "The call to 0x1d9068 is MSVC __ftol2 (float-to-long truncation via ST0); replaced with a C cast in the lift.",
+        "Vtable calls at offsets +0x10 and +0x14 through the sound driver pointer at 0x4eaf48 are likely lock/unlock or begin-frame/end-frame pairs."
+      ]
     }
   }
 }

@@ -1,6 +1,7 @@
 	target_sources(halo PRIVATE
 	entrypoint.c
 	inlines.c
+	halo/ai/actors.c
 	halo/ai/ai.c
 	halo/bitmaps/bitmaps.c
 	halo/bungie_net/network/transport_endpoint_set_winsock.c
@@ -35,6 +36,7 @@
 	halo/game/game_time.c
 	halo/game/player_control.c
 	halo/game/player_rumble.c
+	halo/game/player_queues_new.c
 	halo/game/players.c
 	halo/input/input_abstraction.c
 	halo/input/input_xbox.c
@@ -48,6 +50,7 @@
 	halo/interface/ui_widget_game_data_input_functions.c
 	halo/items/items.c
 	halo/items/projectiles.c
+	halo/units/units.c
 	halo/units/vehicles.c
 	halo/networking/network_messages.c
 	halo/main/debug_keys.c
@@ -59,6 +62,7 @@
 	halo/physics/point_physics.c
 	halo/math/random_math.c
 	halo/math/real_math.c
+	halo/math/vector_math.c
 	halo/rasterizer/rasterizer.c
 	halo/rasterizer/common/rasterizer_common.c
 	halo/rasterizer/xbox/rasterizer_xbox.c

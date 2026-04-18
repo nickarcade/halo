@@ -147,12 +147,24 @@
       ],
       "functions": [
         {
-          "decl": "void FUN_0003aa50(void);",
-          "addr": "0x3aa50"
+          "decl": "void cross_product3d(float *a, float *b, float *out);",
+          "addr": "0x178d0"
         },
         {
-          "decl": "void FUN_0003aa90(void);",
-          "addr": "0x3aa90"
+          "decl": "int valid_real_normal3d(float *v);",
+          "addr": "0x21fb0"
+        },
+        {
+          "decl": "void FUN_0002b5d0(void);",
+          "addr": "0x2b5d0"
+        },
+        {
+          "decl": "void FUN_0003a990(void);",
+          "addr": "0x3a990"
+        },
+        {
+          "decl": "void FUN_00042a30(void);",
+          "addr": "0x42a30"
         },
         {
           "decl": "void FUN_00042b80(void);",
@@ -163,12 +175,20 @@
           "addr": "0x42ca0"
         },
         {
+          "decl": "void FUN_00048e90(void);",
+          "addr": "0x48e90"
+        },
+        {
           "decl": "void FUN_00048f50(void);",
           "addr": "0x48f50"
         },
         {
           "decl": "void FUN_00048fa0(void);",
           "addr": "0x48fa0"
+        },
+        {
+          "decl": "void FUN_00053620(void);",
+          "addr": "0x53620"
         },
         {
           "decl": "void FUN_00053640(void);",
@@ -179,12 +199,20 @@
           "addr": "0x53670"
         },
         {
+          "decl": "void FUN_000540b0(void);",
+          "addr": "0x540b0"
+        },
+        {
           "decl": "void FUN_000540c0(void);",
           "addr": "0x540c0"
         },
         {
           "decl": "void FUN_000540e0(void);",
           "addr": "0x540e0"
+        },
+        {
+          "decl": "void FUN_00058eb0(void);",
+          "addr": "0x58eb0"
         },
         {
           "decl": "void FUN_00058fa0(void);",
@@ -199,6 +227,10 @@
           "addr": "0x5ddc0"
         },
         {
+          "decl": "void FUN_0005df80(void);",
+          "addr": "0x5df80"
+        },
+        {
           "decl": "void FUN_0005df90(void);",
           "addr": "0x5df90"
         },
@@ -207,12 +239,48 @@
           "addr": "0x5dfb0"
         },
         {
+          "decl": "void FUN_00064100(void);",
+          "addr": "0x64100"
+        },
+        {
           "decl": "void FUN_00064140(void);",
           "addr": "0x64140"
         },
         {
           "decl": "void FUN_00064160(void);",
           "addr": "0x64160"
+        },
+        {
+          "decl": "void device_group_set_real(int device_group_handle, int unit_handle);",
+          "addr": "0x966d0"
+        },
+        {
+          "decl": "float random_math_real(unsigned int *seed);",
+          "addr": "0x10b240"
+        },
+        {
+          "decl": "void cluster_partition_remove_object(void *partition, int object_handle, void *first_cluster_ref);",
+          "addr": "0x1919a0"
+        },
+        {
+          "decl": "int sound_cache_request_sound(void *permutation, int a2, int a3, int a4);",
+          "addr": "0x1be550"
+        },
+        {
+          "decl": "float sound_get_default_priority(int sound_tag_index);",
+          "addr": "0x1c8d10"
+        },
+        {
+          "decl": "short sound_select_pitch_range(void *sound_tag, float random_scale, int hint_index);",
+          "addr": "0x1c8de0"
+        },
+        {
+          "decl": "short sound_select_permutation(void *sound_tag, short pitch_range_index, short hint_permutation_index);",
+          "addr": "0x1c8f80"
+        },
+        {
+          "decl": "float sound_compute_random_scale(int random_min, int random_max, float bend_min, float bend_max, float source_scale);",
+          "addr": "0x1cc8c0"
         }
       ]
     },
@@ -262,6 +330,43 @@
       ]
     },
     {
+      "name": "LIBCMT:sprintf.obj",
+      "functions": [
+        {
+          "decl": "int crt_sprintf(char *buffer, const char *format, ...);",
+          "addr": "0x1d90f0"
+        }
+      ]
+    },
+    {
+      "name": "actors.obj",
+      "source": "ai/actors.c",
+      "data": [
+        {
+          "decl": "data_t *swarm_component_data;",
+          "addr": "0x63259c"
+        },
+        {
+          "decl": "data_t *swarm_data;",
+          "addr": "0x6325a0"
+        },
+        {
+          "decl": "data_t *actor_data;",
+          "addr": "0x6325a4"
+        }
+      ],
+      "functions": [
+        {
+          "decl": "void actors_dispose(void);",
+          "addr": "0x3aa50"
+        },
+        {
+          "decl": "void actors_dispose_from_old_map(void);",
+          "addr": "0x3aa90"
+        }
+      ]
+    },
+    {
       "name": "ai.obj",
       "source": "ai/ai.c",
       "functions": [
@@ -300,6 +405,10 @@
         {
           "decl": "void FUN_000425b0(void);",
           "addr": "0x425b0"
+        },
+        {
+          "decl": "bool ai_handle_unit_approach(int ai_handle, int unit_handle, bool flag);",
+          "addr": "0x3fdc0"
         }
       ]
     },
@@ -320,8 +429,52 @@
           "addr": "0x1c63e0"
         },
         {
+          "decl": "bool bink_playback_active(void);",
+          "addr": "0x1c5940"
+        },
+        {
+          "decl": "bool bink_playback_has_video(void);",
+          "addr": "0x1c5980"
+        },
+        {
+          "decl": "void bink_playback_stop(void);",
+          "addr": "0x1c62a0"
+        },
+        {
+          "decl": "void bink_playback_start(const char *filename, unsigned int flags);",
+          "addr": "0x1c6440"
+        },
+        {
           "decl": "void bink_playback_update(void);",
           "addr": "0x1c6870"
+        },
+        {
+          "decl": "void bink_playback_trace(const char *msg);",
+          "addr": "0x1c5900"
+        },
+        {
+          "decl": "bool bink_memory_pool_is_empty(void);",
+          "addr": "0x1c5a80"
+        },
+        {
+          "decl": "bool bink_playback_check_any_button(void);",
+          "addr": "0x1c6100"
+        },
+        {
+          "decl": "void bink_playback_release_texture_cache(void);",
+          "addr": "0x1c61d0"
+        },
+        {
+          "decl": "void bink_playback_decode_frame(void);",
+          "addr": "0x1c6230"
+        },
+        {
+          "decl": "void bink_playback_render_frame(void);",
+          "addr": "0x1c5d70"
+        },
+        {
+          "decl": "void bink_playback_check_stop(void);",
+          "addr": "0x1c6340"
         }
       ]
     },
@@ -332,6 +485,10 @@
         {
           "decl": "void bitmap_delete(void *);",
           "addr": "0x7c8f0"
+        },
+        {
+          "decl": "short bitmap_format_bits_per_pixel(short format);",
+          "addr": "0x7c840"
         }
       ]
     },
@@ -610,6 +767,23 @@
       ]
     },
     {
+      "name": "stack_memory_pool.obj",
+      "functions": [
+        {
+          "decl": "void stack_memory_pool_initialize(void *pool);",
+          "addr": "0x11e9c0"
+        },
+        {
+          "decl": "void stack_memory_pool_deallocate(void *pool, void *block);",
+          "addr": "0x11f620"
+        },
+        {
+          "decl": "void *stack_memory_pool_realloc(void *pool, int block, unsigned short new_size, const char *file, unsigned int line);",
+          "addr": "0x11fbe0"
+        }
+      ]
+    },
+    {
       "name": "d3d_intimacy.obj",
       "functions": [
         {
@@ -857,6 +1031,18 @@
       "source": "interface/event_manager.c",
       "functions": [
         {
+          "decl": "bool event_manager_tab_check(void);",
+          "addr": "0xdc070"
+        },
+        {
+          "decl": "void event_manager_mark_time(void);",
+          "addr": "0xdc130"
+        },
+        {
+          "decl": "void event_manager_tab_process(void);",
+          "addr": "0xdc140"
+        },
+        {
           "decl": "void event_manager_initialize(void);",
           "addr": "0xdc1d0"
         },
@@ -865,12 +1051,28 @@
           "addr": "0xdc200"
         },
         {
+          "decl": "void event_manager_flush(void);",
+          "addr": "0xdc220"
+        },
+        {
+          "decl": "bool event_manager_get_next_event(void *event_data, int16_t player_index);",
+          "addr": "0xdc250"
+        },
+        {
           "decl": "void event_manager_dispatch(int16_t *event, int16_t player_index);",
           "addr": "0xdc320"
         },
         {
           "decl": "void event_manager_update(void);",
           "addr": "0xdc620"
+        },
+        {
+          "decl": "void event_manager_suppress(int suppress);",
+          "addr": "0xdc240"
+        },
+        {
+          "decl": "unsigned int event_manager_get_last_event_time(void);",
+          "addr": "0xdc310"
         }
       ]
     },
@@ -1039,6 +1241,10 @@
           "addr": "0xa7a20"
         },
         {
+          "decl": "bool game_allegiance_get_team_is_friendly(int16_t team_a, int16_t team_b);",
+          "addr": "0xa7a30"
+        },
+        {
           "decl": "void game_allegiance_update(void);",
           "addr": "0xa7e30"
         }
@@ -1095,6 +1301,14 @@
         {
           "decl": "void game_engine_update(void);",
           "addr": "0xaf370"
+        },
+        {
+          "decl": "bool game_engine_can_pick_up_weapon(int player_unit_handle, int weapon_unit_handle);",
+          "addr": "0xaba00"
+        },
+        {
+          "decl": "bool game_engine_unit_can_enter_seat(int unit_handle, int seat_object_handle);",
+          "addr": "0xa90b0"
         }
       ]
     },
@@ -1113,6 +1327,10 @@
         {
           "decl": "void game_sound_initialize_for_new_map(void);",
           "addr": "0x1c7080"
+        },
+        {
+          "decl": "void sound_impulse_start(int sound_tag_index, float scale);",
+          "addr": "0x1c7480"
         },
         {
           "decl": "void game_sound_dispose_from_old_map(void);",
@@ -1341,6 +1559,14 @@
         {
           "decl": "void hud_autosave(int16_t);",
           "addr": "0xd0db0"
+        },
+        {
+          "decl": "void hud_player_set_vehicle(unsigned __int16 local_player_index, int vehicle_tag_handle);",
+          "addr": "0xd0c40"
+        },
+        {
+          "decl": "void hud_player_set_vehicle_seat(unsigned __int16 local_player_index, int vehicle_tag_handle);",
+          "addr": "0xd0c60"
         }
       ]
     },
@@ -1355,6 +1581,10 @@
         {
           "decl": "void hud_print_message(__int16 player, wchar_t *message);",
           "addr": "0xd51c0"
+        },
+        {
+          "decl": "void hud_messaging_set_vehicle_notification(int16_t local_player_index, int vehicle_tag_handle, int16_t param_3, int param_4);",
+          "addr": "0xd5240"
         }
       ]
     },
@@ -1365,6 +1595,10 @@
         {
           "decl": "void input_abstraction_dispose(void);",
           "addr": "0xce690"
+        },
+        {
+          "decl": "void input_abstraction_mark_time(void);",
+          "addr": "0xce6b0"
         },
         {
           "decl": "void input_abstraction_initialize(void);",
@@ -1435,6 +1669,18 @@
           "addr": "0xdec80"
         },
         {
+          "decl": "int interface_get_tag_index(int interface_tag_index);",
+          "addr": "0xdeca0"
+        },
+        {
+          "decl": "void *interface_get_color(int interface_tag_index, short color_index, void *out_color);",
+          "addr": "0xded20"
+        },
+        {
+          "decl": "void interface_draw_text(int font_index, int style, int justify, int flags, int color_tag_index, short color_index);",
+          "addr": "0xdeda0"
+        },
+        {
           "decl": "void interface_initialize_for_new_map(void);",
           "addr": "0xdfea0"
         }
@@ -1447,6 +1693,14 @@
         {
           "decl": "bool dangerous_items_near_player(void);",
           "addr": "0xf6970"
+        },
+        {
+          "decl": "void item_activate_equipment_effect(int equipment_handle);",
+          "addr": "0xf67b0"
+        },
+        {
+          "decl": "void item_attach_to_unit(int item_handle, int unit_handle);",
+          "addr": "0xf69c0"
         }
       ]
     },
@@ -1499,6 +1753,10 @@
         {
           "decl": "void main_menu_precache_resources(void);",
           "addr": "0x100640"
+        },
+        {
+          "decl": "void main_reset_player_actions(void);",
+          "addr": "0x1006b0"
         },
         {
           "decl": "void compute_window_bounds(int player_index, int num_players, viewport_bounds_t *a3, viewport_bounds_t *a4);",
@@ -1581,6 +1839,10 @@
           "addr": "0x102510"
         },
         {
+          "decl": "void __noreturn main_halt_entry(void);",
+          "addr": "0x102c40"
+        },
+        {
           "decl": "void main_game_render(double a2);",
           "addr": "0x102c80"
         },
@@ -1604,6 +1866,10 @@
       "name": "network_game_globals.obj",
       "source": "networking/network_game_globals.c",
       "functions": [
+        {
+          "decl": "bool network_game_in_progress(void);",
+          "addr": "0x12a000"
+        },
         {
           "decl": "void dispose_global_network_game_client(void);",
           "addr": "0x12a1e0"
@@ -1659,8 +1925,16 @@
       ],
       "functions": [
         {
+          "decl": "void *object_try_and_get_and_verify_type(int datum_handle, int type_mask);",
+          "addr": "0x13d640"
+        },
+        {
           "decl": "void *object_get_and_verify_type(int datum_handle, int type_mask);",
           "addr": "0x13d680"
+        },
+        {
+          "decl": "void object_set_garbage_flag(int object_handle, int is_garbage);",
+          "addr": "0x13d920"
         },
         {
           "decl": "void objects_place(void);",
@@ -1681,6 +1955,26 @@
         {
           "decl": "void objects_dispose(void);",
           "addr": "0x13fac0"
+        },
+        {
+          "decl": "void object_disconnect_from_map(int object_handle);",
+          "addr": "0x13fd00"
+        },
+        {
+          "decl": "void object_set_garbage(int object_handle, int flag);",
+          "addr": "0x13ffc0"
+        },
+        {
+          "decl": "void object_delete_internal(int object_handle, int delete_sibling);",
+          "addr": "0x140bc0"
+        },
+        {
+          "decl": "void object_delete(int object_handle);",
+          "addr": "0x140cc0"
+        },
+        {
+          "decl": "void *object_get_world_matrix(int object_handle, void *out_matrix);",
+          "addr": "0x141480"
         },
         {
           "decl": "void objects_update(void);",
@@ -1791,8 +2085,16 @@
       "source": "game/player_control.c",
       "functions": [
         {
+          "decl": "void *player_control_get_data(int16_t local_player_index);",
+          "addr": "0xb6380"
+        },
+        {
           "decl": "void player_control_dispose(void);",
           "addr": "0xb63f0"
+        },
+        {
+          "decl": "void player_control_set_action_flags(int16_t local_player_index, uint16_t flags, bool persistent);",
+          "addr": "0xb6460"
         },
         {
           "decl": "void player_control_new_unit(uint16_t local_player_index, int player_index);",
@@ -1809,6 +2111,14 @@
         {
           "decl": "void player_control_update(float);",
           "addr": "0xb8c70"
+        },
+        {
+          "decl": "void player_clear_aim_assist(int unit_handle);",
+          "addr": "0xb6a20"
+        },
+        {
+          "decl": "void player_control_set_unit_seat(int unit_handle, int seat_index);",
+          "addr": "0xb7f40"
         }
       ]
     },
@@ -1847,6 +2157,10 @@
       "source": "game/player_queues_new.c",
       "functions": [
         {
+          "decl": "bool update_client_new(void);",
+          "addr": "0xb8d70"
+        },
+        {
           "decl": "void update_client_start(void);",
           "addr": "0xb8e40"
         },
@@ -1855,7 +2169,7 @@
           "decl": "int update_get_maximum_actions(void);"
         },
         {
-          "decl": "void update_server_new(void);",
+          "decl": "bool update_server_new(void);",
           "addr": "0xb90d0"
         },
         {
@@ -1871,8 +2185,20 @@
           "decl": "int update_get_game_time(void);"
         },
         {
+          "addr": "0xb9270",
+          "decl": "void update_server_get_update(int machine_index, void *update_buf, int *update_number);"
+        },
+        {
           "addr": "0xb9340",
           "decl": "bool player_control_get_current_actions(void *action_buf);"
+        },
+        {
+          "addr": "0xb9660",
+          "decl": "void update_server_apply_actions(int16_t machine_index, void *actions);"
+        },
+        {
+          "addr": "0xb9990",
+          "decl": "void update_server_create_snapshot(void);"
         },
         {
           "addr": "0xb9a70",
@@ -2069,7 +2395,7 @@
           "addr": "0xbc0d0"
         },
         {
-          "decl": "void player_set_action_result_for_vehicle(int player_handle, int vehicle_handle);",
+          "decl": "void player_set_action_result_for_equipment(int player_handle, int equipment_handle);",
           "addr": "0xbcfb0"
         },
         {
@@ -2192,6 +2518,10 @@
           "addr": "0xe1cc0"
         },
         {
+          "decl": "bool ui_automation_is_active(void);",
+          "addr": "0xe1ce0"
+        },
+        {
           "decl": "void progress_bar_display(float progress);",
           "addr": "0xe3300"
         }
@@ -2214,8 +2544,16 @@
           "addr": "0x10b0d0"
         },
         {
+          "decl": "unsigned int *random_math_get_local_seed_address(void);",
+          "addr": "0x10b120"
+        },
+        {
           "decl": "void random_seed_debug_log(bool a1);",
           "addr": "0x10b130"
+        },
+        {
+          "decl": "int16_t random_range(unsigned int *seed, int16_t min, int16_t max);",
+          "addr": "0x10b2d0"
         }
       ]
     },
@@ -2303,12 +2641,34 @@
       ]
     },
     {
+      "name": "vector_math.obj",
+      "source": "math/vector_math.c",
+      "functions": [
+        {
+          "decl": "float normalize3d(float *v);",
+          "addr": "0x13010"
+        }
+      ]
+    },
+    {
       "name": "real_math.obj",
       "source": "math/real_math.c",
       "functions": [
         {
           "decl": "void real_math_reset_precision(void);",
           "addr": "0x10b5e0"
+        },
+        {
+          "decl": "void angles_to_vector(float *out, float *angles);",
+          "addr": "0x10cc40"
+        },
+        {
+          "decl": "void matrix_from_forward_and_up(float *out, float *forward, float *up);",
+          "addr": "0x109e10"
+        },
+        {
+          "decl": "void matrix_transform_vector(float *matrix, float *in, float *out);",
+          "addr": "0x109680"
         }
       ]
     },
@@ -2385,7 +2745,7 @@
           "addr": "0x186460"
         },
         {
-          "decl": "void render_camera_build_frustum(camera_t *camera, _DWORD *a2, float *frustum, bool a4);",
+          "decl": "void render_camera_build_frustum(camera_t *camera, float *bounds, float *frustum, bool do_projection);",
           "addr": "0x187250"
         }
       ]
@@ -2447,6 +2807,10 @@
           "addr": "0x18e450"
         },
         {
+          "decl": "void scenario_location_reset(int *location);",
+          "addr": "0x18e4d0"
+        },
+        {
           "decl": "bool scenario_switch_structure_bsp(__int16 a1);",
           "addr": "0x18eb40"
         },
@@ -2481,6 +2845,10 @@
         {
           "decl": "bool shell_application_is_paused(void);",
           "addr": "0x191170"
+        },
+        {
+          "decl": "char *shell_get_command_line(void);",
+          "addr": "0x191240"
         }
       ]
     },
@@ -2541,6 +2909,14 @@
         {
           "decl": "void sound_initialize_for_new_map(void);",
           "addr": "0x1cb810"
+        },
+        {
+          "decl": "void sound_set_music_enabled(int enabled);",
+          "addr": "0x1cb8a0"
+        },
+        {
+          "decl": "int sound_start(int sound_tag_index, void *source, int object_handle, int track_data, void *track_data_ptr, int track_data_size);",
+          "addr": "0x1ce180"
         },
         {
           "decl": "void sound_dispose_from_old_map(void);",
@@ -2643,6 +3019,23 @@
       ]
     },
     {
+      "name": "thread_win32.obj",
+      "functions": [
+        {
+          "decl": "bool thread_new(int priority_flags, void *function, int param, void **thread_reference);",
+          "addr": "0x81630"
+        },
+        {
+          "decl": "bool thread_is_done(void *thread_reference);",
+          "addr": "0x81720"
+        },
+        {
+          "decl": "void thread_close(void *thread_reference);",
+          "addr": "0x81770"
+        }
+      ]
+    },
+    {
       "name": "transport_endpoint_set_winsock.obj",
       "source": "bungie_net/network/transport_endpoint_set_winsock.c",
       "functions": [
@@ -2673,36 +3066,110 @@
           "addr": "0xe3d20"
         },
         {
+          "decl": "void ui_widget_set_events_suppressed(bool suppress);",
+          "addr": "0xe3e10"
+        },
+        {
           "decl": "void ui_widget_load_progress_widget(void);",
           "addr": "0xe4470"
+        },
+        {
+          "decl": "bool ui_widget_is_main_menu_loaded(void);",
+          "addr": "0xe43f0"
+        },
+        {
+          "decl": "bool ui_widget_initialization_in_progress(void);",
+          "addr": "0xe4480"
         },
         {
           "decl": "void display_error_when_main_menu_loaded(int16_t);",
           "addr": "0xe44d0"
         },
         {
+          "decl": "void ui_widget_start_title_music(void);",
+          "addr": "0xe45d0"
+        },
+        {
+          "decl": "void ui_widget_stop_attract_mode(void);",
+          "addr": "0xe4640"
+        },
+        {
+          "decl": "bool ui_widget_get_attract_mode_flag(void);",
+          "addr": "0xe46a0"
+        },
+        {
           "decl": "void ui_widgets_disable_pause_game(int);",
           "addr": "0xe46b0"
+        },
+        {
+          "decl": "void ui_widget_close_children(void *widget@<eax>);",
+          "addr": "0xe4890"
+        },
+        {
+          "decl": "void ui_widget_close(void *widget);",
+          "addr": "0xe5620"
         },
         {
           "decl": "void ui_widgets_close_all(void);",
           "addr": "0xe58c0"
         },
         {
+          "decl": "void ui_widget_begin_filesystem_checks(void);",
+          "addr": "0xe6980"
+        },
+        {
           "decl": "void ui_widgets_dispose(void);",
           "addr": "0xe6a60"
+        },
+        {
+          "decl": "void ui_widget_process_event(void *widget, void *widget_tag, void *event_data, void *handled);",
+          "addr": "0xe7d00"
         },
         {
           "decl": "void render_ui_widgets(__int16 a1, viewport_bounds_t *window_bounds);",
           "addr": "0xe78e0"
         },
         {
+          "decl": "void *ui_widget_load_by_name_or_tag(const char *name, int tag_index, int is_child, int widget_stack, int parent_tag_index, int a6, int a7);",
+          "addr": "0xe84e0"
+        },
+        {
           "decl": "void main_screen_shell_load(void);",
           "addr": "0xe8700"
         },
         {
+          "decl": "void ui_widget_display_error(int16_t error_handle, int local_player_index, char is_modal, char pause_game);",
+          "addr": "0xe8910"
+        },
+        {
+          "decl": "void ui_widget_load_error_screen(int16_t error_handle, int allow_abort);",
+          "addr": "0xe8c90"
+        },
+        {
+          "decl": "bool ui_widgets_process_pause(void);",
+          "addr": "0xe9080"
+        },
+        {
+          "decl": "void *ui_widget_spawn_from_event_handler(void *widget, int tag_index);",
+          "addr": "0xe9320"
+        },
+        {
           "decl": "void process_ui_widgets(void);",
           "addr": "0xe9450"
+        },
+        {
+          "decl": "void ui_widget_clear_last_error_index(void);",
+          "addr": "0xe98b0"
+        }
+      ]
+    },
+    {
+      "name": "ui_widget_event_handler_functions.obj",
+      "source": "interface/ui_widget_event_handler_functions.c",
+      "functions": [
+        {
+          "decl": "bool ui_widget_event_handler_dispatch(void *widget, int unknown, uint16_t handler_func_index, bool *widget_deleted);",
+          "addr": "0xe9810"
         }
       ]
     },
@@ -2755,8 +3222,16 @@
           "addr": "0x1adeb0"
         },
         {
+          "decl": "int16_t unit_next_weapon_index(int unit_handle@<ebx>, int16_t weapon_index, int16_t direction);",
+          "addr": "0x1ae490"
+        },
+        {
           "decl": "bool unit_set_in_vehicle(int unit_handle, bool flag);",
           "addr": "0x1ae600"
+        },
+        {
+          "decl": "void unit_control_trace(int unit_handle@<edi>, const char *label);",
+          "addr": "0x1af6b0"
         },
         {
           "decl": "void unit_set_control(int unit_handle, void *unit_control);",
@@ -2765,6 +3240,42 @@
         {
           "decl": "bool any_unit_is_dangerous(void);",
           "addr": "0x1aa3c0"
+        },
+        {
+          "decl": "int16_t unit_count_weapons(int unit_handle);",
+          "addr": "0x1aad90"
+        },
+        {
+          "decl": "bool unit_weapon_is_new(int unit_handle, int weapon_unit_handle);",
+          "addr": "0x1aae00"
+        },
+        {
+          "decl": "bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag);",
+          "addr": "0x1b1db0"
+        },
+        {
+          "decl": "void unit_clear_seat_equipment(int unit_handle);",
+          "addr": "0x1ae330"
+        },
+        {
+          "decl": "bool unit_pickup_equipment(int unit_handle, int equipment_handle, short flag);",
+          "addr": "0x1aab20"
+        },
+        {
+          "decl": "bool unit_find_nearby_seat(int unit_handle, int target_unit_handle, int16_t seat_index, int *out_unit_handle);",
+          "addr": "0x1a8ce0"
+        },
+        {
+          "decl": "bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index);",
+          "addr": "0x1b2b80"
+        },
+        {
+          "decl": "bool unit_can_enter_seat(int unit_handle, int seat_object_handle);",
+          "addr": "0x1ae370"
+        },
+        {
+          "decl": "void unit_clear_weapons(int unit_handle);",
+          "addr": "0x1aac80"
         }
       ]
     },
@@ -2876,6 +3387,10 @@
         {
           "decl": "int dword_46CC44;",
           "addr": "0x46cc44"
+        },
+        {
+          "decl": "__int16 word_46CC48;",
+          "addr": "0x46cc48"
         },
         {
           "decl": "wchar_t ui_widget_game_data_build_version_wide_str[128];",
@@ -3044,16 +3559,161 @@
           "addr": "0xf0ea0"
         },
         {
+          "decl": "bool weapon_is_flag(int object_index);",
+          "addr": "0xfb0c0"
+        },
+        {
           "decl": "void j__render_dispose_from_old_map(void);",
           "addr": "0x184ba0"
+        },
+        {
+          "decl": "void __stdcall xbox_query_global_memory_status(void *status);",
+          "addr": "0x1d0da1"
+        },
+        {
+          "decl": "void *XPhysicalAlloc(size_t size, unsigned int addr, unsigned int alignment, unsigned int protect);",
+          "addr": "0x1d36d4"
+        },
+        {
+          "decl": "void __stdcall physical_memory_protect(void *addr, unsigned int size, unsigned int protect);",
+          "addr": "0x1d371d"
         },
         {
           "decl": "int snprintf(char *str, size_t size, const char *format, ...);",
           "addr": "0x1d9179"
         },
         {
-          "decl": "void *XPhysicalAlloc(size_t size, unsigned int addr, unsigned int alignment, unsigned int protect);",
-          "addr": "0x1d36d4"
+          "decl": "int rand(void);",
+          "addr": "0x1d9d06"
+        }
+      ]
+    },
+    {
+      "name": "bink.obj",
+      "functions": [
+        {
+          "decl": "int __stdcall BinkSoundUseDirectSound(void *dsound_proc, void *dsound_handle);",
+          "addr": "0x22df80"
+        },
+        {
+          "decl": "void __stdcall BinkSetMemory(unsigned int size);",
+          "addr": "0x22e320"
+        },
+        {
+          "decl": "void *__stdcall BinkOpen(const char *filename, unsigned int flags);",
+          "addr": "0x230390"
+        },
+        {
+          "decl": "void __stdcall BinkClose(void *bink_handle);",
+          "addr": "0x231220"
+        },
+        {
+          "decl": "int __stdcall BinkCopyToBuffer(void *bink_handle, void *dest, int pitch, int height, int x, int y, unsigned int flags);",
+          "addr": "0x22e530"
+        },
+        {
+          "decl": "int __stdcall BinkDoFrame(void *bink_handle);",
+          "addr": "0x22eb40"
+        },
+        {
+          "decl": "int __stdcall BinkWait(void *bink_handle);",
+          "addr": "0x22f1e0"
+        },
+        {
+          "decl": "void __stdcall BinkGetSummary(void *bink_handle, void *summary);",
+          "addr": "0x22f480"
+        },
+        {
+          "decl": "void __stdcall BinkGetFrameBuffersInfo(void *bink_handle, void *frame_info, unsigned int frame_count);",
+          "addr": "0x22f650"
+        },
+        {
+          "decl": "int __stdcall BinkNextFrame(void *bink_handle);",
+          "addr": "0x230ff0"
+        },
+        {
+          "decl": "void __stdcall BinkSetSoundSystem(void *open_proc, void *close_proc);",
+          "addr": "0x231490"
+        }
+      ]
+    },
+    {
+      "name": "xbox_texture_cache.obj",
+      "source": "cache/xbox_texture_cache.c",
+      "functions": [
+        {
+          "decl": "void *xbox_texture_cache_steal_memory(unsigned int size);",
+          "addr": "0x1bea30"
+        },
+        {
+          "decl": "void xbox_texture_cache_return_memory(void);",
+          "addr": "0x1beb10"
+        }
+      ]
+    },
+    {
+      "name": "d3d_resource.obj",
+      "functions": [
+        {
+          "decl": "void __stdcall D3DResource_Register(void *resource, void *data);",
+          "addr": "0x1eda30"
+        },
+        {
+          "decl": "void __stdcall D3DTexture_LockRect(void *texture, unsigned int level, void *locked_rect, void *rect, unsigned int flags);",
+          "addr": "0x1edc70"
+        }
+      ]
+    },
+    {
+      "name": "rasterizer_text.obj",
+      "functions": [
+        {
+          "decl": "void rasterizer_text_draw(void *screen_pos, void *bounds, int offset, void *tab_bounds, const char *text);",
+          "addr": "0x183e60"
+        }
+      ]
+    },
+    {
+      "name": "draw_string.obj",
+      "functions": [
+        {
+          "decl": "void draw_string_set_tab_stops(void *stops, short count);",
+          "addr": "0x19b560"
+        },
+        {
+          "decl": "void draw_string_set_color(const void *color);",
+          "addr": "0x19b640"
+        },
+        {
+          "decl": "void draw_string_set_font(int tag_index, int style, int justify, int flags, const void *color);",
+          "addr": "0x19b8b0"
+        }
+      ]
+    },
+    {
+      "name": "rasterizer_sprites.obj",
+      "functions": [
+        {
+          "decl": "void rasterizer_sprites_render(void *render_data, void *vertices);",
+          "addr": "0x17cfa0"
+        }
+      ]
+    },
+    {
+      "name": "rectangles.obj",
+      "functions": [
+        {
+          "decl": "void rect2d_offset(void *rect, short dx, short dy);",
+          "addr": "0x108a70"
+        }
+      ]
+    },
+    {
+      "name": "bink_sound.obj",
+      "functions": [
+        {
+          "decl": "int bink_get_dsound_handle(void);",
+          "addr": "0x1c94b0"
         }
       ]
     }

@@ -3,12 +3,19 @@
  * XBE source: c:\halo\SOURCE\objects\objects.c
  *
  * Re-implemented functions (by XBE address, ascending):
+ *   0x13d640  object_try_and_get_and_verify_type
  *   0x13d680  object_get_and_verify_type
+ *   0x13d920  object_set_garbage_flag
  *   0x13f060  objects_place
  *   0x13f810  objects_initialize
  *   0x13f950  objects_initialize_for_new_map
  *   0x13f9f0  objects_dispose_from_old_map
  *   0x13fac0  objects_dispose
+ *   0x13fd00  object_disconnect_from_map
+ *   0x13ffc0  object_set_garbage
+ *   0x140bc0  object_delete_internal
+ *   0x140cc0  object_delete
+ *   0x141480  object_get_world_matrix
  *   0x145170  objects_update
  */
 
@@ -19,6 +26,30 @@
  * with stubs that would silently override thunks. */
 typedef void (*pfn_void_t)(void);
 typedef void (*pfn_int_t)(int);
+
+/*
+ * object_try_and_get_and_verify_type — resolve a datum handle to its
+ * object_data_t*, returning NULL if the handle is invalid or the object's
+ * type is not among the bits in type_mask.
+ *
+ * Uses datum_absolute_index_to_index (0x119270, a "try-and-get" that returns
+ * 0/NULL on failure) instead of datum_get (which asserts).
+ * Reads the compact type byte at header+0x03, not the int16 at object+0x64.
+ *
+ * Confirmed: CALL 0x119270 with 2 args (ADD ESP,0x8).
+ * Confirmed: byte ptr [EDX+0x3] — reads header->type as uint8_t.
+ * Confirmed: MOV EAX, [EDX+0x8] — returns header->object.
+ * Confirmed: XOR EAX,EAX before both exit paths — returns NULL on failure.
+ */
+void *object_try_and_get_and_verify_type(int datum_handle, int type_mask)
+{
+  object_header_data_t *header =
+    (object_header_data_t *)(int)datum_absolute_index_to_index(
+      *(data_t **)0x5a8d50, datum_handle);
+  if (header != NULL && (type_mask & (1 << (header->type & 0x1f))) != 0)
+    return header->object;
+  return NULL;
+}
 
 /*
  * object_get_and_verify_type — resolve a datum handle to its object_data_t*
@@ -57,6 +88,141 @@ void *object_get_and_verify_type(int datum_handle, int type_mask)
     system_exit(-1);
   }
   return obj;
+}
+
+/*
+ * object_set_garbage_flag — add or remove an object from the garbage
+ * collection linked list.
+ *
+ * The garbage list is a singly-linked list threaded through
+ * object_data_t+0xC0 (unk_192), with the head stored at
+ * object_globals+0x08 (unk_8).
+ *
+ * When is_garbage is nonzero (add to garbage list):
+ *   - Bails out if bit 0x10000 (garbage) or 0x20000 is already set.
+ *   - Prepends the object to the garbage list head.
+ *   - Sets bit 0x10000 in object flags.
+ *
+ * When is_garbage is zero (remove from garbage list):
+ *   - Bails out if bit 0x10000 is NOT set.
+ *   - Walks the list to find and unlink the object.
+ *   - Clears bit 0x10000 in object flags.
+ *   - Sets unk_192 to NONE (-1).
+ *
+ * Two debug validation loops walk the entire garbage list before and
+ * after the mutation, asserting that every entry has a valid type and
+ * the garbage bit set. These correspond to lines 0x7a0 and 0x7d6 in
+ * the original objects.c.
+ *
+ * Confirmed: 2 cdecl args — PUSH [EBP+8], PUSH -1 before CALL 0x13d680.
+ * Confirmed: MOV AL, byte ptr [EBP+0xC] — second arg is char-sized.
+ * Confirmed: TEST EAX,0x30000 guards the add path; TEST EAX,0x10000
+ *            guards the remove path.
+ * Confirmed: garbage list next at object+0xC0, head at og+0x08.
+ * Confirmed: assert strings at 0x29b9c4 and line numbers 0x7a0, 0x7d6.
+ */
+void object_set_garbage_flag(int object_handle, int is_garbage)
+{
+  object_data_t *obj =
+    (object_data_t *)object_get_and_verify_type(object_handle, -1);
+  object_globals_t *og = object_globals;
+
+  /* Pre-validation: walk the garbage list and assert integrity */
+  {
+    int handle = og->unk_8.value;
+    while (handle != -1) {
+      object_header_data_t *hdr =
+        (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle);
+      object_data_t *gobj = hdr->object;
+      int16_t type = gobj->type;
+      if ((1 << (type & 0x1f)) == 0) {
+        char *msg = csprintf(
+          (char *)0x5ab100,
+          "got an object type we didn't expect (expected one of 0x%08x but "
+          "got #%d).",
+          -1, (int)type);
+        display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+        system_exit(-1);
+      }
+      if ((gobj->flags & 0x10000) == 0) {
+        display_assert(
+          "TEST_FLAG(garbage_object->object.flags, _object_garbage_bit)",
+          "c:\\halo\\SOURCE\\objects\\objects.c", 0x7a0, 1);
+        system_exit(-1);
+      }
+      handle = gobj->unk_192;
+    }
+    og = object_globals;
+  }
+
+  if ((char)is_garbage != 0) {
+    /* Add to garbage list */
+    if ((obj->flags & 0x30000) != 0)
+      goto done;
+
+    obj->unk_192 = og->unk_8.value;
+    og->unk_8.value = object_handle;
+    obj->flags |= 0x10000;
+  } else {
+    /* Remove from garbage list */
+    if ((obj->flags & 0x10000) == 0)
+      goto done;
+
+    /* Walk the list to find the previous pointer */
+    uint32_t *prev_ptr = (uint32_t *)&og->unk_8.value;
+    int cur = og->unk_8.value;
+
+    while (cur != object_handle) {
+      object_header_data_t *hdr =
+        (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, *prev_ptr);
+      object_data_t *gobj = hdr->object;
+      int16_t type = gobj->type;
+      if ((1 << (type & 0x1f)) == 0) {
+        char *msg = csprintf(
+          (char *)0x5ab100,
+          "got an object type we didn't expect (expected one of 0x%08x but "
+          "got #%d).",
+          -1, (int)type);
+        display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+        system_exit(-1);
+      }
+      prev_ptr = &gobj->unk_192;
+      cur = gobj->unk_192;
+    }
+
+    /* Unlink: *prev_ptr = obj->next; obj->next = NONE */
+    *prev_ptr = obj->unk_192;
+    obj->unk_192 = 0xffffffff;
+    obj->flags &= ~(uint32_t)0x10000;
+  }
+
+done:
+  /* Post-validation: walk the garbage list again */
+  {
+    int handle = og->unk_8.value;
+    while (handle != -1) {
+      object_header_data_t *hdr =
+        (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle);
+      object_data_t *gobj = hdr->object;
+      int16_t type = gobj->type;
+      if ((1 << (type & 0x1f)) == 0) {
+        char *msg = csprintf(
+          (char *)0x5ab100,
+          "got an object type we didn't expect (expected one of 0x%08x but "
+          "got #%d).",
+          -1, (int)type);
+        display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+        system_exit(-1);
+      }
+      if ((gobj->flags & 0x10000) == 0) {
+        display_assert(
+          "TEST_FLAG(garbage_object->object.flags, _object_garbage_bit)",
+          "c:\\halo\\SOURCE\\objects\\objects.c", 0x7d6, 1);
+        system_exit(-1);
+      }
+      handle = gobj->unk_192;
+    }
+  }
 }
 
 /*
@@ -358,6 +524,366 @@ void objects_dispose(void)
 }
 
 /*
+ * object_disconnect_from_map — remove an object from the BSP cluster
+ * partition and its parent's child chain, then clear the
+ * _object_connected_to_map_bit (0x800) flag.
+ *
+ * If the object has a parent (parent_object_index != NONE), it unlinks
+ * itself from the parent's child-object linked list starting at
+ * parent_obj+0xC8 (via the list-remove helper at 0x13e510, which walks
+ * next_object_index links at obj+0xC4).
+ *
+ * If the object has no parent, it removes itself from the appropriate
+ * cluster partition (0x5a8d40 for objects with flag 0x2000000 set,
+ * 0x5a8d30 otherwise) via the partition-remove call at 0x1919a0. It
+ * then optionally clears the "outdoor" bit (header byte+2, bit 0x1)
+ * if the header's bit 0x40 flag is set.
+ *
+ * Confirmed: single cdecl arg (object_handle).
+ * Confirmed: assert strings reference objects.c lines 0x3bd and 0x3be.
+ * Confirmed: 0x13e510 reads EAX (ptr to first_child_ref) and EBX
+ *   (object_handle) as register args with 0 stack args.
+ * Confirmed: 0x1919a0 is cdecl with 3 stack args (partition, handle, ptr).
+ */
+void object_disconnect_from_map(int object_handle)
+{
+  object_header_data_t *header;
+  object_data_t *obj;
+
+  header =
+    (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+  obj = header->object;
+
+  /* assert: identifier portion of handle must be nonzero */
+  assert_halt(object_handle & 0xffff0000);
+
+  /* assert: object must be connected to map */
+  assert_halt(obj->flags & 0x800);
+
+  if (obj->parent_object_index.value != NONE) {
+    /* Object has a parent: unlink from parent's child chain.
+     * Get the parent's object data, then call the list-remove helper
+     * at 0x13e510 with EAX = &parent_obj->unk_200 (child list head)
+     * and EBX = object_handle to unlink. */
+    object_data_t *parent_obj = (object_data_t *)object_get_and_verify_type(
+      obj->parent_object_index.value, -1);
+    {
+      int _eax = (int)((char *)parent_obj + 0xc8);
+      int _ebx = object_handle;
+      __asm__ __volatile__("call *%[fn]"
+                           : "+a"(_eax), "+b"(_ebx)
+                           : [fn] "r"((void *)0x13e510)
+                           : "ecx", "edx", "esi", "edi", "memory", "cc");
+    }
+  } else {
+    /* No parent: remove from cluster partition. */
+    object_data_t *self_obj =
+      (object_data_t *)object_get_and_verify_type(object_handle, -1);
+    void *partition;
+    if (self_obj->flags & 0x2000000)
+      partition = (void *)0x5a8d40;
+    else
+      partition = (void *)0x5a8d30;
+
+    cluster_partition_remove_object(partition, object_handle,
+                                    (void *)((char *)obj + 0xbc));
+
+    /* If header bit 0x40 is set, re-fetch header and clear bit 0x1 */
+    if (header->unk_2 & 0x40) {
+      object_header_data_t *header2 =
+        (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+      object_get_and_verify_type(object_handle, -1);
+      if (header2->unk_2 & 0x1) {
+        header2->unk_2 &= ~0x1;
+      }
+    }
+  }
+
+  /* Clear _object_connected_to_map_bit (0x800) in object flags */
+  obj->flags &= ~(uint32_t)0x800;
+
+  /* Clear bit 0x20 in header flags byte */
+  header->unk_2 &= ~0x20;
+}
+
+/*
+ * object_set_garbage — set or clear the "garbage" activation state for
+ * an object and its attached children.
+ *
+ * param flag: 0 = mark object as garbage (deactivate); non-zero = unmark.
+ *
+ * Reads the object's tag definition via tag_get to check whether the tag
+ * has a children block (tag[0x34] != -1). If it does, and the object's
+ * bit 0 of obj->flags (active/inactive state) is out of sync with the
+ * requested flag, calls FUN_0013ee60 (via EAX register arg) to propagate
+ * the state change to child objects before committing the datum update.
+ *
+ * FUN_0013ee60 (0x13ee60) takes (int object_handle @EAX, char param_1,
+ *   char param_2) — 2 stack args, object_handle in EAX register. Uses
+ *   args-array inline asm pattern to avoid EAX aliasing.
+ *
+ * Final datum update:
+ *   flag==0: set obj->flags bit 0; clear datum byte[2] bit 1 (0x02).
+ *   flag!=0: clear obj->flags bit 0; set datum byte[2] bit 1 (0x02).
+ *
+ * Confirmed: MOV EAX,EDI before CALL 0x13ee60 — EAX = object_handle.
+ * Confirmed: ADD ESP,0x8 after CALL 0x13ee60 — 2 stack args.
+ * Confirmed: ADD ESP,0x10 after tag_get (cleans 4 args: 2 for tag_get +
+ *   2 pre-pushed for object_get_and_verify_type).
+ * Confirmed: OR dword [ESI+4],1 — obj->flags |= 1 for flag==0 path.
+ * Confirmed: AND byte [EAX+2],0xfd — hdr->unk_2 &= ~2 for flag==0 path.
+ * Confirmed: AND dword [ESI+4],~1 — obj->flags &= ~1 for flag!=0 path.
+ * Confirmed: OR byte [EAX+2],2 — hdr->unk_2 |= 2 for flag!=0 path.
+ * Confirmed: DAT_005a8d50 as datum_get first arg.
+ * Confirmed: CMP dword ptr [EBX+0x34],-1 — children block presence check.
+ */
+void object_set_garbage(int object_handle, int flag)
+{
+  /* ESI = object_data_t*, EDI = object_handle (saved for register-arg calls)
+   */
+  object_data_t *obj =
+    (object_data_t *)object_get_and_verify_type(object_handle, -1);
+
+  /* Get object tag definition; check if it has an attachments/children block
+   * (non-null block at tag+0x34 == not -1). */
+  void *tag_def = tag_get(0x6f626a65, (int)obj->tag_index);
+  int has_children = (*(int *)((char *)tag_def + 0x34) != -1);
+  int bit0 = (int)(obj->flags & 1);
+
+  if (has_children) {
+    if (bit0 != 0) {
+      /* bit0 is set */
+      if ((char)flag != 0) {
+        /* Already inactive but being asked to unmark: propagate to children
+         * with (param_1=0, param_2=1). */
+        {
+          int args[2];
+          args[0] = 0; /* param_1=0 */
+          args[1] = 1; /* param_2=1 */
+          __asm__ __volatile__("pushl 4(%[a])\n\t"
+                               "pushl 0(%[a])\n\t"
+                               "call *%[fn]\n\t"
+                               "addl $8, %%esp"
+                               :
+                               : [a] "r"(args), [fn] "r"((void *)0x13ee60),
+                                 "a"(object_handle)
+                               : "ecx", "edx", "memory", "cc");
+        }
+        goto lab_0014000a;
+      }
+      /* bit0 set, flag==0: no child propagation needed */
+      goto lab_0014000a;
+    } else {
+      /* bit0 is clear */
+      if ((char)flag == 0) {
+        /* Becoming inactive: propagate to children with (param_1=1,
+         * param_2=0). */
+        {
+          int args[2];
+          args[0] = 1; /* param_1=1 */
+          args[1] = 0; /* param_2=0 */
+          __asm__ __volatile__("pushl 4(%[a])\n\t"
+                               "pushl 0(%[a])\n\t"
+                               "call *%[fn]\n\t"
+                               "addl $8, %%esp"
+                               :
+                               : [a] "r"(args), [fn] "r"((void *)0x13ee60),
+                                 "a"(object_handle)
+                               : "ecx", "edx", "memory", "cc");
+        }
+        goto lab_00140017;
+      } else {
+        /* bit0 clear, flag!=0: re-check children block presence */
+        if (!has_children)
+          return;
+        goto lab_00140017;
+      }
+    }
+  }
+
+lab_0014000a:
+  if ((char)flag == 0)
+    goto lab_00140017;
+  /* flag != 0 and came from "has_children + bit0 set" path: skip datum
+   * update if children block is absent. */
+  if (!has_children)
+    return;
+
+lab_00140017: {
+  /* Commit the datum-level flags. */
+  object_header_data_t *hdr =
+    (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+  if ((char)flag == 0) {
+    /* Mark as garbage: set bit 0 of obj->flags, clear hdr->unk_2 bit 1. */
+    obj->flags |= 1;
+    hdr->unk_2 &= (uint8_t)~0x02;
+  } else {
+    /* Unmark garbage: clear bit 0 of obj->flags, set hdr->unk_2 bit 1. */
+    obj->flags &= ~(uint32_t)1;
+    hdr->unk_2 |= 0x02;
+  }
+}
+}
+
+/*
+ * object_delete_internal — recursive object deletion implementation.
+ *
+ * Recursively deletes an object's child chain (obj+0xC8), and optionally
+ * its sibling chain (obj+0xC4) when delete_sibling is nonzero. For each
+ * object:
+ *   1. If the game engine is running and the object is a weapon (type==2),
+ *      asserts that it is not a flag (CTF flag weapon).
+ *   2. Recursively deletes children and optionally siblings.
+ *   3. Sets datum header bit 0x08 (pending deletion).
+ *   4. If the object's tag definition has a children block (tag+0x34 != -1)
+ *      and obj->flags bit 0 is clear, propagates deletion to attached
+ *      children via FUN_0013ee60 (EAX=handle, args 1,0).
+ *   5. Sets obj->flags bit 0 (deleted/inactive).
+ *   6. Clears datum header bit 0x02 (active).
+ *   7. Removes the object from the name list via FUN_0013eff0 (EDI=handle).
+ *
+ * Confirmed: cdecl, 2 stack args (PUSH+PUSH, ADD ESP,0x8 at recursive sites).
+ * Confirmed: CALL 0x0013d680 — object_get_and_verify_type(handle, -1).
+ * Confirmed: CALL 0x000a8e30 — game_engine_running(), no args, returns bool.
+ * Confirmed: CMP word ptr [ESI+0x64],0x2 — checks object type == weapon.
+ * Confirmed: CALL 0x000fb0c0 — weapon_is_flag(handle), 1 cdecl arg.
+ * Confirmed: CALL 0x0008d9f0 — display_assert with line 0x33d (829).
+ * Confirmed: CALL 0x0008e2f0 — system_exit(-1), NOT thunk_FUN_001029a0.
+ * Confirmed: [ESI+0xC8] — child object handle for recursive delete.
+ * Confirmed: [ESI+0xC4] — sibling object handle (conditional on
+ * delete_sibling). Confirmed: OR AL,0x8 / MOV [EBX+0x2],AL — sets datum header
+ * bit 0x08. Confirmed: MOV EAX,EDI before CALL 0x0013ee60 — EAX register arg =
+ * handle. Confirmed: PUSH 0x0 / PUSH 0x1 — FUN_0013ee60 stack args (1, 0).
+ * Confirmed: TEST byte ptr [ESI+0x4],0x1 — checks obj->flags bit 0.
+ * Confirmed: OR dword ptr [ESI+0x4],0x1 — sets obj->flags bit 0.
+ * Confirmed: AND CL,0xfd / MOV [EAX+0x2],CL — clears datum header bit 0x02.
+ * Confirmed: CALL 0x0013eff0 — no stack args, EDI register arg = handle.
+ */
+void object_delete_internal(int object_handle, int delete_sibling)
+{
+  object_header_data_t *hdr =
+    (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+  object_data_t *obj =
+    (object_data_t *)object_get_and_verify_type(object_handle, -1);
+
+  /* If the game engine is running and this is a weapon, assert it's not a
+   * flag (CTF flags should not be deleted this way). */
+  if (game_engine_running() && obj->type == 2) {
+    if (weapon_is_flag(object_handle)) {
+      display_assert("!(weapon_is_flag(object_index))",
+                     "c:\\halo\\SOURCE\\objects\\objects.c", 0x33d, 1);
+      system_exit(-1);
+    }
+  }
+
+  /* Recursively delete child objects (obj+0xC8). */
+  if (obj->unk_200.value != -1) {
+    object_delete_internal(obj->unk_200.value, 1);
+  }
+
+  /* Optionally recursively delete sibling objects (obj+0xC4). */
+  if ((char)delete_sibling != 0 && obj->next_object_index.value != -1) {
+    object_delete_internal(obj->next_object_index.value, 1);
+  }
+
+  /* Mark datum header with pending-deletion bit (0x08). */
+  hdr->unk_2 |= 0x08;
+
+  /* Re-fetch object pointer (may have been invalidated by recursive calls). */
+  obj = (object_data_t *)object_get_and_verify_type(object_handle, -1);
+
+  /* Check if the object's tag definition has a children block. */
+  void *tag_def = tag_get(0x6f626a65, (int)obj->tag_index);
+  if (*(int *)((char *)tag_def + 0x34) != -1 && (obj->flags & 1) == 0) {
+    /* Propagate deletion to attached children via FUN_0013ee60.
+     * EAX = object_handle (register arg), stack args = (1, 0). */
+    {
+      int args[2];
+      args[0] = 1;
+      args[1] = 0;
+      __asm__ __volatile__("pushl 4(%[a])\n\t"
+                           "pushl 0(%[a])\n\t"
+                           "call *%[fn]\n\t"
+                           "addl $8, %%esp"
+                           :
+                           : [a] "r"(args), [fn] "r"((void *)0x13ee60),
+                             "a"(object_handle)
+                           : "ecx", "edx", "memory", "cc");
+    }
+  }
+
+  /* Re-fetch datum header (recursive calls may have moved pool memory). */
+  hdr = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+
+  /* Set obj->flags bit 0 (deleted/inactive). */
+  obj->flags |= 1;
+
+  /* Clear datum header bit 0x02 (active). */
+  hdr->unk_2 &= (uint8_t)~0x02;
+
+  /* Remove the object from the name list via FUN_0013eff0.
+   * EDI = object_handle (register arg), no stack args. */
+  __asm__ __volatile__("call *%[fn]"
+                       :
+                       : "D"(object_handle), [fn] "r"((void *)0x13eff0)
+                       : "eax", "ecx", "edx", "memory", "cc");
+}
+
+/*
+ * object_delete — delete an object from the world.
+ *
+ * Thin wrapper around object_delete_internal with delete_sibling=0,
+ * meaning only the target object and its children are deleted, not
+ * its siblings in the object list.
+ *
+ * Confirmed: PUSH 0x0 / PUSH EAX / CALL 0x140bc0 / ADD ESP,0x8 — 2 cdecl args.
+ */
+void object_delete(int object_handle)
+{
+  object_delete_internal(object_handle, 0);
+}
+
+/*
+ * object_get_world_matrix — build a 4x3 world-space matrix for an object.
+ *
+ * Constructs the matrix from the object's position (obj+0xc), forward
+ * vector (obj+0x24), and up vector (obj+0x30) via FUN_0010a110 (which
+ * calls matrix_from_forward_and_up then copies position to offset 0x28).
+ *
+ * If the object has a parent (parent_object_index at obj+0xcc != -1),
+ * retrieves the parent's node matrix via FUN_00140eb0 (using the node
+ * index byte at obj+0xd0) and multiplies it with the local matrix via
+ * FUN_00109850 (matrix_multiply), storing the result in-place.
+ *
+ * Confirmed: PUSH -1, PUSH EAX — object_get_and_verify_type(handle, -1).
+ * Confirmed: ADD ESP,0x18 cleans 6 args (2 + 4 from two cdecl calls).
+ * Confirmed: MOVSX CX, byte ptr [ESI+0xd0] — sign-extends node index.
+ * Confirmed: ADD ESP,0x14 cleans 5 args (2 + 3 from two cdecl calls).
+ * Confirmed: MOV EAX, EDI — returns out_matrix pointer.
+ */
+void *object_get_world_matrix(int object_handle, void *out_matrix)
+{
+  object_data_t *obj =
+    (object_data_t *)object_get_and_verify_type(object_handle, -1);
+
+  /* Build local matrix from position, forward, up */
+  ((void (*)(void *, float *, float *, float *))0x10a110)(
+    out_matrix, (float *)((char *)obj + 0xc), (float *)((char *)obj + 0x24),
+    (float *)((char *)obj + 0x30));
+
+  /* If parented, multiply by parent's node matrix */
+  if (obj->parent_object_index.value != NONE) {
+    void *node_mat = ((void *(*)(int, int16_t))0x140eb0)(
+      obj->parent_object_index.value,
+      (int16_t) * (int8_t *)((char *)obj + 0xd0));
+    ((void (*)(void *, void *, void *))0x109850)(node_mat, out_matrix,
+                                                 out_matrix);
+  }
+
+  return out_matrix;
+}
+
+/*
  * objects_update — per-tick update for all active objects.
  *
  * Called once per game tick. Three passes over the object header array, plus
@@ -526,8 +1052,8 @@ void objects_update(void)
            * Confirmed: MOV EAX,[ESI+8]; TEST dword [EAX+4],0x80000. */
           uint32_t *obj_dat = *(uint32_t **)(hdr + 0x8);
           if ((obj_dat[1] & 0x80000) != 0) {
-            /* Has "always update" flag: force-delete via FUN_140bc0. */
-            ((void (*)(int, int))0x140bc0)((int)i, 0);
+            /* Has "always update" flag: force-delete. */
+            object_delete_internal((int)i, 0);
           } else {
             /* Normal deactivate via FUN_13fb80. */
             ((void (*)(int))0x13fb80)((int)i);

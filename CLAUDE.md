@@ -180,6 +180,31 @@ and constant references and are not linked into any produced binary.
 - For hard functions, prefer a literal translation over a polished rewrite.
 - Keep decompiler artifacts (`v4`, `pregame_info2`, `// [esp+Ch] [ebp-260h]`) if cleaning them up risks behavior drift. Clean-up is welcome only when it is clearly safe.
 
+## Inline assembly safety
+
+When calling original binary functions via inline asm (`__asm__ __volatile__("call ...")`), **never** use the `"=a"(result)` output-only constraint with a separate `"r"(input)` for another operand. The compiler may assign EAX to both, and writing EAX in the asm body clobbers the input before it is read.
+
+**Dangerous pattern — do not use:**
+```c
+int ok;
+__asm__ __volatile__("movl %1, %%eax\n\tcall *%2"
+                     : "=a"(ok)               // output-only EAX
+                     : "r"(handle), "r"(fn)    // compiler may pick EAX for either
+                     : "ecx", "edx", "memory", "cc");
+```
+
+**Safe pattern — always use this instead:**
+```c
+int _eax = handle;  // pre-load the value into an EAX-tied variable
+__asm__ __volatile__("call *%[fn]"
+                     : "+a"(_eax)              // EAX is both input AND output
+                     : [fn] "r"((void *)0xADDRESS)
+                     : "ecx", "edx", "memory", "cc");
+int result = (bool)_eax;
+```
+
+The `"+a"` constraint ties the variable to EAX for both input and output, so the compiler cannot assign EAX to any other operand. The function pointer gets a different register (typically EDI or ESI).
+
 ## Rules for types and structs
 
 - Reuse existing types from `src/types.h` and Xbox/XDK headers whenever possible.
@@ -231,6 +256,7 @@ behavior, or runtime declarations.
 - Verify return type: `void` vs non-void matters — callers may check EAX.
 - Variadic functions (`...`) can be thunked but need extra care.
 - Register-argument functions (`@<reg>`) on the forward-thunk path (calls into unported originals) only support the register arg as the **first** parameter. The reverse-thunk path in `tools/patch.py` (used when the function is ported in C) handles single-register and two-register cases via caller-saved scratch slots; EBX/EDI source registers are not yet supported there.
+- Reverse-thunk ABI rule: treat lifted C as free to clobber all caller-saved registers (`EAX`, `ECX`, `EDX`). Never park an original return address or other critical state in a caller-saved register across the call into ported C; keep it on the stack or preserve it explicitly.
 
 **Testing discipline:**
 - Build and test the ISO in xemu after **every** `kb.json` change, not in batches. A single bad declaration can crash the game with no obvious connection to the change.
@@ -241,6 +267,11 @@ behavior, or runtime declarations.
 - Prefer `tools/xemu_qmp.py` over xemu MCP tools for routine xemu control
   (status, ISO load/eject, reset, stop/continue, HMP passthrough). Use xemu
   MCP only as a fallback when the script cannot perform the needed action.
+- When the XBE misbehaves but the cause isn't obvious, run `tools/asserts.gdb`
+  against the live xemu GDB stub before guessing — it breaks on every
+  `severity != 0` call to the beta's `display_assert` and prints the
+  original's assertion message/file/line. Much faster than chasing a
+  downstream `stack_walk` page fault. See `docs/assertion_tripwire.md`.
 - If you add or rename a symbol, edit `kb.json` first and re-run `tools/maintain.py` so file placement and ordering settle automatically.
 - Use `kb.json` only for declarations, addresses, object membership, and source mapping that the build requires.
 - Use `kb_meta.json` for tentative reverse engineering metadata such as `ported` status, confidence, provenance, and short summaries.

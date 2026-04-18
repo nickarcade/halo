@@ -1,5 +1,55 @@
+/* Return a pointer to the player control data slot for a local player.
+ * Each slot is 0x40 bytes, starting at offset 0x10 in the globals struct. */
+void *player_control_get_data(int16_t local_player_index)
+{
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  return (char *)player_control_globals + local_player_index * 0x40 + 0x10;
+}
+
 void player_control_dispose(void)
 {
+}
+
+/* Set action flags on a local player's control slot.
+ * ORs the given flags into the player's action_flags field, and
+ * optionally into the persistent_action_flags field as well. */
+void player_control_set_action_flags(int16_t local_player_index, uint16_t flags,
+                                     bool persistent)
+{
+  uint16_t *slot;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  slot = (uint16_t *)((char *)player_control_globals +
+                      local_player_index * 0x40 + 0x10);
+  *(uint16_t *)((char *)slot + 8) |= flags;
+  if (persistent)
+    *(uint16_t *)((char *)slot + 0xa) |= flags;
+}
+
+/* Clear the aim-assist weapon interaction slot for a unit's controlling player.
+ * Looks up the player datum via the unit's player handle (unit+0x1c8), then
+ * finds the local player index (player+0x2), retrieves the player control slot,
+ * and resets the weapon interaction field (slot+0x24) to NONE. */
+void player_clear_aim_assist(int unit_handle)
+{
+  char *unit_obj;
+  int player_handle;
+  char *player;
+  int16_t local_player_index;
+  char *slot;
+
+  unit_obj = (char *)object_get_and_verify_type(unit_handle, 3);
+  player_handle = *(int *)(unit_obj + 0x1c8);
+  if (player_handle != NONE) {
+    player = (char *)datum_get(player_data, player_handle);
+    local_player_index = *(int16_t *)(player + 0x2);
+    if (local_player_index != NONE) {
+      slot = (char *)player_control_get_data((int16_t)local_player_index);
+      *(int16_t *)(slot + 0x24) = NONE;
+    }
+  }
 }
 
 void player_control_new_unit(uint16_t local_player_index, int player_index)
