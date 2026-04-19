@@ -236,6 +236,38 @@ void unit_clear_seat_tag(int unit_handle)
   }
 }
 
+/* unit_clear_weapons (0x1aac80)
+ *
+ * Deletes all weapons from a unit's weapon slots EXCEPT the one at the
+ * current weapon index (unk_674, offset 0x2A2). For each of the 4 weapon
+ * slots: if the slot is occupied (handle != NONE) and the slot index does
+ * not match the current weapon index, deletes the weapon object and clears
+ * the slot handle to NONE. Also resets the next-weapon index (unk_676,
+ * offset 0x2A4) or current-weapon index (unk_674) to NONE if they matched
+ * the cleared slot. Called by unit_enter_seat when flag==2 to strip all
+ * secondary weapons before seating.
+ */
+void unit_clear_weapons(int unit_handle)
+{
+  unit_data_t *unit;
+  int16_t i;
+
+  unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+
+  for (i = 0; i < MAXIMUM_WEAPONS_PER_UNIT; i++) {
+    if (unit->unk_680[i].value != -1 && i != (int16_t)unit->unk_674) {
+      object_delete(unit->unk_680[i].value);
+      unit->unk_680[i].value = -1;
+      if (i == (int16_t)unit->unk_676) {
+        unit->unk_676 = (uint16_t)-1;
+      }
+      if (i == (int16_t)unit->unk_674) {
+        unit->unk_674 = (uint16_t)-1;
+      }
+    }
+  }
+}
+
 /* unit_count_weapons (0x1aad90)
  *
  * Counts the number of "countable" weapons held by a unit. Iterates all 4
@@ -306,6 +338,51 @@ bool unit_weapon_is_new(int unit_handle, int weapon_unit_handle)
   return is_new;
 }
 
+/* unit_set_animation (0x1ab7c0)
+ *
+ * Sets the current animation on a unit object. Writes the animation graph
+ * tag index to offset 0x7c, the animation index (int16_t) to offset 0x80,
+ * and zeroes the animation frame counter at offset 0x82. When the debug
+ * flag at 0x5054fc is set, logs the unit name and animation name to the
+ * console via console_printf, optionally filtered by the debug unit handle
+ * at 0x5ac9f8.
+ */
+void unit_set_animation(int unit_handle, int anim_graph_tag_index,
+                        int16_t animation_index)
+{
+  int *unit;
+  const char *anim_name;
+  int debug_filter;
+  void *tag_data;
+
+  unit = (int *)object_get_and_verify_type(unit_handle, 3);
+
+  /* Set animation graph tag index, animation index, and zero frame counter */
+  *(int *)((char *)unit + 0x7c) = anim_graph_tag_index;
+  *(int16_t *)((char *)unit + 0x80) = animation_index;
+  *(int16_t *)((char *)unit + 0x82) = 0;
+
+  /* Debug logging path */
+  if (*(char *)0x5054fc != 0) {
+    anim_name = "<none>";
+    if (anim_graph_tag_index != -1) {
+      tag_data = tag_get(0x616e7472, anim_graph_tag_index);
+      if (animation_index != -1) {
+        anim_name = (const char *)tag_block_get_element(
+          (char *)tag_data + 0x74, (int)animation_index, 0xb4);
+      }
+    }
+
+    debug_filter = *(int *)0x5ac9f8;
+    if (debug_filter == -1 || *(int *)((char *)unit + 0x1a4) == debug_filter ||
+        *(int *)((char *)unit + 0x1a8) == debug_filter) {
+      console_printf(0, "%s: animation %s",
+                     tag_name_strip_path(tag_get_name(*(int *)unit)),
+                     anim_name);
+    }
+  }
+}
+
 /* unit_get_weapon (0x1adeb0)
  *
  * Returns the weapon datum handle stored in the unit's weapon slot array
@@ -358,6 +435,67 @@ void unit_clear_seat_equipment(int unit_handle)
     }
     unit->unk_712.value = -1;
   }
+}
+
+/* unit_can_enter_seat (0x1ae370)
+ *
+ * Checks whether a unit can enter a given seat object. Verifies both object
+ * types (unit=3, seat=4), retrieves the unit's seat label string via 0x1ae290
+ * and the seat object's weapon label string via 0xfae80, then calls 0x1acd70
+ * to attempt seat matching. If the match succeeds, dispatches through the game
+ * engine vtable (current_game_engine->vtable[0x58]) for engine-specific
+ * validation.
+ *
+ * Returns: true if the seat can be entered, false otherwise.
+ */
+bool unit_can_enter_seat(int unit_handle, int seat_object_handle)
+{
+  int seat_label;
+  int weapon_label;
+  char can_enter;
+  int _eax;
+
+  object_get_and_verify_type(unit_handle, 3);
+  object_get_and_verify_type(seat_object_handle, 4);
+
+  /* 0x1ae290: get unit seat label string, EAX=unit_handle */
+  {
+    _eax = unit_handle;
+    asm volatile("call *%[fn]"
+                 : "+a"(_eax)
+                 : [fn] "r"((void *)0x1ae290)
+                 : "ecx", "edx", "memory", "cc");
+    seat_label = _eax;
+  }
+
+  /* 0xfae80: get weapon/item label string */
+  weapon_label = (int)weapon_get_label(seat_object_handle);
+
+  /* 0x1acd70: check unit can use seat, EAX=unit_handle, 3 stack args */
+  {
+    _eax = unit_handle;
+    int args[3];
+    args[0] = seat_label;
+    args[1] = weapon_label;
+    args[2] = 0;
+    asm volatile("pushl %[a2]\n\t"
+                 "pushl %[a1]\n\t"
+                 "pushl %[a0]\n\t"
+                 "call *%[fn]\n\t"
+                 "addl $12, %%esp"
+                 : "+a"(_eax)
+                 : [fn] "r"((void *)0x1acd70), [a0] "r"(args[0]),
+                   [a1] "r"(args[1]), [a2] "r"(args[2])
+                 : "ecx", "edx", "memory", "cc");
+    can_enter = (char)_eax;
+  }
+
+  if (can_enter != 0) {
+    /* 0xa8b30: game engine vtable dispatch */
+    can_enter =
+      (char)game_engine_allow_weapon_pick_up(unit_handle, seat_object_handle);
+  }
+  return can_enter != 0;
 }
 
 /* unit_next_weapon_index (0x1ae490)
@@ -424,8 +562,8 @@ int16_t unit_next_weapon_index(int unit_handle, int16_t weapon_index,
         anim_tag = _eax;
       }
 
-      /* 0xfae80: get weapon tag info pointer, 1 cdecl arg */
-      weapon_tag = ((int (*)(int))0xfae80)(weapon_handle);
+      /* 0xfae80: get weapon tag info pointer */
+      weapon_tag = (int)weapon_get_label(weapon_handle);
 
       /* 0x1acd70: check unit can use weapon, EAX=unit_handle, 3 stack args */
       {
@@ -447,8 +585,9 @@ int16_t unit_next_weapon_index(int unit_handle, int16_t weapon_index,
       }
 
       if (can_use != 0) {
-        /* 0xa8b30: weapon usability callback, 2 cdecl args */
-        usable = (char)((int (*)(int, int))0xa8b30)(unit_handle, weapon_handle);
+        /* 0xa8b30: weapon usability callback */
+        usable =
+          (char)game_engine_allow_weapon_pick_up(unit_handle, weapon_handle);
         if (usable != 0) {
           /* direction != 0: pick first valid; direction == 0: pick lowest
            * priority */
@@ -886,6 +1025,49 @@ void unit_set_control(int unit_handle, void *unit_control)
   unit_control_trace(unit_handle, "unit-control");
 }
 
+/* unit_reset_weapon_state (0x1b1290)
+ *
+ * Resets the unit's weapon zoom/ready state. If the unit has an associated
+ * player and that player is valid, and the unit's zoom_level is not 0xFF,
+ * retrieves the unit's current weapon and plays its zoom-deactivation sound
+ * (weapon tag +0x4bc) at scale 1.0. Then clears zoom_level and unk_721 to
+ * 0xFF and zeroes unk_760. Finally calls player_clear_aim_assist.
+ */
+void unit_reset_weapon_state(int unit_handle)
+{
+  unit_data_t *unit;
+  int player_index;
+  char *player;
+  int weapon_handle;
+  weapon_data_t *weapon;
+  void *weapon_tag;
+  int sound_tag_index;
+
+  unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+  player_index = player_index_from_unit_index(unit_handle);
+  if (player_index != -1) {
+    player =
+      (char *)datum_get(player_data, player_index_from_unit_index(unit_handle));
+    if (*(short *)(player + 2) != -1 && unit->zoom_level != 0xFF) {
+      unit_data_t *unit2 =
+        (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+      weapon_handle = unit_get_weapon(unit_handle, unit2->unk_674);
+      if (weapon_handle != -1) {
+        weapon = (weapon_data_t *)object_get_and_verify_type(weapon_handle, 4);
+        weapon_tag = tag_get(0x77656170, weapon->item.object.tag_index);
+        sound_tag_index = *(int *)((char *)weapon_tag + 0x4bc);
+        if (sound_tag_index != -1) {
+          sound_impulse_start(sound_tag_index, 1.0f);
+        }
+      }
+    }
+  }
+  unit->zoom_level = 0xFF;
+  unit->unk_721 = 0xFF;
+  unit->unk_760 = 0;
+  player_clear_aim_assist(unit_handle);
+}
+
 /* unit_enter_seat (0x1b1db0)
  *
  * Attempts to place a unit into a weapon/item seat. Validates that the seat
@@ -964,4 +1146,181 @@ bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag)
   default:
     return true;
   }
+}
+
+/* unit_board_vehicle (0x1b2b80)
+ *
+ * Handles a unit boarding a vehicle at a specific seat. Validates the seat via
+ * unit_find_nearby_seat, attaches the unit to the vehicle at the seat's marker,
+ * sets up weapon state and animations for the boarding sequence. Asserts that
+ * the unit is not already parented. If the unit's tag has a boarding animation
+ * (animation graph entry index > 7 and valid boarding animation), plays it.
+ * Returns true if the boarding succeeds, false if the seat check fails.
+ */
+bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
+{
+  unit_data_t *unit;
+  unit_data_t *vehicle_unit;
+  void *unit_tag;
+  void *seat_def;
+  void *marker_name;
+  vector3_t unit_pos;
+  char markers[0x90]; /* marker output buffer */
+  vector3_t delta;
+  int weapon_handle;
+  char *weapon_label;
+  void *anim_tag;
+  void *anim_entry;
+  int16_t boarding_anim_index;
+  int _eax;
+  int anim_result;
+
+  if (!unit_find_nearby_seat(unit_handle, vehicle_handle, seat_index, 0))
+    return false;
+
+  unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+  vehicle_unit = (unit_data_t *)object_get_and_verify_type(vehicle_handle, 3);
+
+  unit_tag = tag_get(0x756e6974, vehicle_unit->object.tag_index);
+  seat_def =
+    tag_block_get_element((char *)unit_tag + 0x2e4, (int)seat_index, 0x11c);
+
+  if (unit->object.parent_object_index.value != -1) {
+    display_assert("unit->object.parent_object_index==NONE",
+                   "c:\\halo\\SOURCE\\units\\units.c", 0x1095, 1);
+    system_exit(-1);
+  }
+
+  /* Get unit world position */
+  object_get_world_position(unit_handle, &unit_pos);
+
+  /* Find the seat marker on the vehicle */
+  marker_name = (char *)seat_def + 0x24;
+  object_get_markers_by_string_id(vehicle_handle, marker_name, markers, 1);
+
+  /* Compute position delta: unit_pos - marker_pos */
+  /* Marker position is at offset 0x60 in the marker output buffer */
+  delta.x = unit_pos.x - *(float *)(markers + 0x60);
+  delta.y = unit_pos.y - *(float *)(markers + 0x64);
+  delta.z = unit_pos.z - *(float *)(markers + 0x68);
+
+  /* Transform delta through marker's rotation matrix (at offset 0x38) */
+  real_matrix3x3_transform_vector(markers + 0x38, &delta, &delta);
+
+  /* Attach unit to vehicle at seat marker */
+  object_attach_to_marker(vehicle_handle, marker_name, unit_handle,
+                          (void *)0x25386f);
+
+  /* Set seat index and parent */
+  unit->unk_672 = seat_index;
+  unit->object.parent_object_index.value = vehicle_handle;
+
+  /* 0x1aa890: update unit seat occupancy tracking.
+   * EAX = vehicle_handle (register arg). */
+  _eax = vehicle_handle;
+  __asm__ __volatile__("call *%[fn]"
+                       : "+a"(_eax)
+                       : [fn] "r"((void *)0x1aa890)
+                       : "ecx", "edx", "memory", "cc");
+
+  /* Re-fetch unit data after potential reallocation */
+  unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+
+  /* Set next weapon index */
+  unit->unk_676 = unit_next_weapon_index(unit_handle, unit->unk_674, 0);
+
+  /* 0x1b1ee0: update unit weapon readiness/state.
+   * ESI = unit_handle (register arg), 1 stack arg. */
+  __asm__ __volatile__("movl %[handle], %%esi\n\t"
+                       "pushl $1\n\t"
+                       "call *%[fn]\n\t"
+                       "addl $4, %%esp"
+                       :
+                       : [handle] "r"(unit_handle), [fn] "r"((void *)0x1b1ee0)
+                       : "eax", "ecx", "edx", "esi", "memory", "cc");
+
+  /* Get current weapon */
+  unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+  weapon_handle = unit_get_weapon(unit_handle, (int16_t)unit->unk_674);
+
+  if (weapon_handle == -1)
+    weapon_label = "unarmed";
+  else
+    weapon_label = weapon_get_label(weapon_handle);
+
+  /* 0x1acd70: set unit animation state.
+   * EAX = unit_handle (register arg), 3 stack args:
+   *   arg0 = seat_def + 4 (seat label string),
+   *   arg1 = weapon_label,
+   *   arg2 = 1 */
+  {
+    int args[3];
+    args[0] = (int)((char *)seat_def + 4);
+    args[1] = (int)weapon_label;
+    args[2] = 1;
+    _eax = unit_handle;
+    __asm__ __volatile__("pushl %[a2]\n\t"
+                         "pushl %[a1]\n\t"
+                         "pushl %[a0]\n\t"
+                         "call *%[fn]\n\t"
+                         "addl $12, %%esp"
+                         : "+a"(_eax)
+                         : [fn] "r"((void *)0x1acd70), [a0] "r"(args[0]),
+                           [a1] "r"(args[1]), [a2] "r"(args[2])
+                         : "ecx", "edx", "memory", "cc");
+    if (!(char)_eax) {
+      /* Retry with NULL weapon label */
+      args[1] = 0;
+      _eax = unit_handle;
+      __asm__ __volatile__("pushl %[a2]\n\t"
+                           "pushl %[a1]\n\t"
+                           "pushl %[a0]\n\t"
+                           "call *%[fn]\n\t"
+                           "addl $12, %%esp"
+                           : "+a"(_eax)
+                           : [fn] "r"((void *)0x1acd70), [a0] "r"(args[0]),
+                             [a1] "r"(args[1]), [a2] "r"(args[2])
+                           : "ecx", "edx", "memory", "cc");
+    }
+  }
+
+  /* Check for boarding animation in the unit's animation graph */
+  unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+  unit_tag = tag_get(0x756e6974, unit->object.tag_index);
+  anim_tag = tag_get(0x616e7472, *(uint32_t *)((char *)unit_tag + 0x44));
+  anim_entry = tag_block_get_element((char *)anim_tag + 0xc,
+                                     (int)(int8_t)unit->unk_592, 100);
+
+  if (*(int *)((char *)anim_entry + 0x40) > 7) {
+    boarding_anim_index =
+      *(int16_t *)(*(int *)((char *)anim_entry + 0x44) + 0xe);
+    if (boarding_anim_index != -1) {
+      int anim_graph_tag_index;
+
+      /* Set interpolation */
+      object_set_region_count(unit_handle, 6);
+
+      /* Choose random boarding animation */
+      anim_graph_tag_index = *(uint32_t *)((char *)unit_tag + 0x44);
+      anim_result = model_animation_choose_random(1, anim_graph_tag_index,
+                                                  boarding_anim_index);
+
+      /* Set unit animation graph, index, and reset frame counter */
+      unit_set_animation(unit_handle, anim_graph_tag_index,
+                         (int16_t)anim_result);
+
+      /* Set animation state byte */
+      *((uint8_t *)unit + 0x253) = 0x1a;
+
+      /* Adjust interpolation position with the delta */
+      object_adjust_interpolation_position(unit_handle, &delta);
+
+      /* Recursively update child object positions */
+      object_update_children_recursive(unit_handle);
+    }
+  }
+
+  unit_vehicle_board_notify(unit_handle, vehicle_handle);
+  unit_reset_weapon_state(unit_handle);
+  return true;
 }

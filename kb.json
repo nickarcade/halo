@@ -163,6 +163,10 @@
           "addr": "0x3a990"
         },
         {
+          "decl": "void unit_vehicle_board_notify(int unit_handle, int vehicle_handle);",
+          "addr": "0x409a0"
+        },
+        {
           "decl": "void FUN_00042a30(void);",
           "addr": "0x42a30"
         },
@@ -259,6 +263,14 @@
           "addr": "0x10b240"
         },
         {
+          "decl": "int model_animation_choose_random(int update_kind, int animation_graph_tag_index, int16_t animation_index);",
+          "addr": "0x120f20"
+        },
+        {
+          "decl": "void cluster_partition_add_object(void *partition, int object_handle, void *first_cluster_ref, void *position, uint32_t radius_fp, void *location);",
+          "addr": "0x1917a0"
+        },
+        {
           "decl": "void cluster_partition_remove_object(void *partition, int object_handle, void *first_cluster_ref);",
           "addr": "0x1919a0"
         },
@@ -299,6 +311,15 @@
         {
           "decl": "char *strncpy(char *destination, const char *source, size_t count);",
           "addr": "0x1da740"
+        }
+      ]
+    },
+    {
+      "name": "LIBCMT:strrchr.obj",
+      "functions": [
+        {
+          "decl": "char *strrchr(const char *str, int c);",
+          "addr": "0x1d9710"
         }
       ]
     },
@@ -409,6 +430,10 @@
         {
           "decl": "bool ai_handle_unit_approach(int ai_handle, int unit_handle, bool flag);",
           "addr": "0x3fdc0"
+        },
+        {
+          "decl": "void game_allegiance_apply_change(int16_t team_a, int16_t team_b, char friendship, char force);",
+          "addr": "0x40010"
         }
       ]
     },
@@ -647,6 +672,10 @@
         {
           "decl": "void console_initialize_for_new_map(void);",
           "addr": "0xff460"
+        },
+        {
+          "decl": "void console_printf(int channel, const char *format, ...);",
+          "addr": "0xff4d0"
         },
         {
           "decl": "void console_warning(const char* format, ...);",
@@ -1245,8 +1274,24 @@
           "addr": "0xa7a30"
         },
         {
+          "decl": "void game_allegiance_set(int16_t *entry, char friendship, char force);",
+          "addr": "0xa7c90"
+        },
+        {
           "decl": "void game_allegiance_update(void);",
           "addr": "0xa7e30"
+        },
+        {
+          "decl": "void game_allegiance_create(int16_t team_a, char is_player, int16_t team_b, char is_timer, int16_t threshold, int16_t timer, char is_ally);",
+          "addr": "0xa7eb0"
+        },
+        {
+          "decl": "bool game_allegiance_remove(int16_t team_a, int16_t team_b);",
+          "addr": "0xa7f90"
+        },
+        {
+          "decl": "bool game_allegiance_bump(int16_t team_a, int16_t team_b, int16_t action, bool *out_changed);",
+          "addr": "0xa8040"
         }
       ]
     },
@@ -1269,6 +1314,10 @@
         {
           "decl": "int game_engine_game_starting(void);",
           "addr": "0xa8380"
+        },
+        {
+          "decl": "bool game_engine_allow_weapon_pick_up(int unit_handle, int weapon_handle);",
+          "addr": "0xa8b30"
         },
         {
           "decl": "bool game_engine_running(void);",
@@ -1937,6 +1986,10 @@
           "addr": "0x13d920"
         },
         {
+          "decl": "void *object_header_block_reference_get(int object_handle, void *reference);",
+          "addr": "0x13dfc0"
+        },
+        {
           "decl": "void objects_place(void);",
           "addr": "0x13f060"
         },
@@ -1957,12 +2010,28 @@
           "addr": "0x13fac0"
         },
         {
+          "decl": "void object_activate(int object_handle);",
+          "addr": "0x13fb30"
+        },
+        {
           "decl": "void object_disconnect_from_map(int object_handle);",
           "addr": "0x13fd00"
         },
         {
+          "decl": "bool object_has_node(int object_handle, int16_t node_index);",
+          "addr": "0x13fef0"
+        },
+        {
           "decl": "void object_set_garbage(int object_handle, int flag);",
           "addr": "0x13ffc0"
+        },
+        {
+          "decl": "void object_set_region_count(int object_handle, int16_t region_count);",
+          "addr": "0x140160"
+        },
+        {
+          "decl": "void object_adjust_interpolation_position(int object_handle, vector3_t *delta);",
+          "addr": "0x140230"
         },
         {
           "decl": "void object_delete_internal(int object_handle, int delete_sibling);",
@@ -1973,8 +2042,45 @@
           "addr": "0x140cc0"
         },
         {
+          "decl": "void object_connect_to_map(int object_handle, void *location);",
+          "addr": "0x140ce0"
+        },
+        {
+          "decl": "void *object_get_node_matrix(int object_handle, int16_t node_index);",
+          "addr": "0x140eb0"
+        },
+        {
+          "decl": "int16_t object_get_markers_by_string_id(int object_handle, void *marker_name, void *out_markers, int max_count);",
+          "addr": "0x140f10"
+        },
+        {
+          "decl": "void object_compute_child_marker_position(void *object, void *child_marker, void *dest_matrix);",
+          "addr": "0x141020",
+          "ported": true
+        },
+        {
+          "decl": "vector3_t *object_get_world_position(int object_handle, vector3_t *out_position);",
+          "addr": "0x1412f0"
+        },
+        {
           "decl": "void *object_get_world_matrix(int object_handle, void *out_matrix);",
           "addr": "0x141480"
+        },
+        {
+          "decl": "void object_compute_node_matrices(int object_handle);",
+          "addr": "0x141b70"
+        },
+        {
+          "decl": "void object_attach_to_parent(int parent_handle, int child_handle, int parent_node_index);",
+          "addr": "0x144240"
+        },
+        {
+          "decl": "void object_update_children_recursive(int object_handle);",
+          "addr": "0x1446a0"
+        },
+        {
+          "decl": "void object_attach_to_marker(int parent_handle, void *marker_name, int child_handle, void *child_marker_name);",
+          "addr": "0x144860"
         },
         {
           "decl": "void objects_update(void);",
@@ -2655,20 +2761,36 @@
       "source": "math/real_math.c",
       "functions": [
         {
-          "decl": "void real_math_reset_precision(void);",
-          "addr": "0x10b5e0"
+          "decl": "void matrix_inverse(float *src, float *dst);",
+          "addr": "0x109150"
         },
         {
-          "decl": "void angles_to_vector(float *out, float *angles);",
-          "addr": "0x10cc40"
+          "decl": "void matrix_transform_point(float *matrix, float *in, float *out);",
+          "addr": "0x109590"
+        },
+        {
+          "decl": "void matrix_transform_vector(float *matrix, float *in, float *out);",
+          "addr": "0x109680"
+        },
+        {
+          "decl": "void real_matrix3x3_transform_vector(void *matrix, vector3_t *vec, vector3_t *out);",
+          "addr": "0x109780"
+        },
+        {
+          "decl": "void matrix4x3_multiply(float *a, float *b, float *out);",
+          "addr": "0x109850"
         },
         {
           "decl": "void matrix_from_forward_and_up(float *out, float *forward, float *up);",
           "addr": "0x109e10"
         },
         {
-          "decl": "void matrix_transform_vector(float *matrix, float *in, float *out);",
-          "addr": "0x109680"
+          "decl": "void real_math_reset_precision(void);",
+          "addr": "0x10b5e0"
+        },
+        {
+          "decl": "void angles_to_vector(float *out, float *angles);",
+          "addr": "0x10cc40"
         }
       ]
     },
@@ -2817,6 +2939,10 @@
         {
           "decl": "bool scenario_load(const char *map_name);",
           "addr": "0x18f090"
+        },
+        {
+          "decl": "void scenario_location_from_point(void *location_out, void *point);",
+          "addr": "0x18f180"
         }
       ]
     },
@@ -2943,6 +3069,10 @@
       "source": "tag_files/tag_groups.c",
       "functions": [
         {
+          "decl": "const char *tag_name_strip_path(const char *tag_name);",
+          "addr": "0x19b0d0"
+        },
+        {
           "decl": "void *tag_block_get_element(void *block, int index, int element_size);",
           "addr": "0x19b210"
         }
@@ -2955,6 +3085,10 @@
         {
           "decl": "void *tag_get(int group_tag, int tag_index);",
           "addr": "0x1ba140"
+        },
+        {
+          "decl": "const char *tag_get_name(int tag_index);",
+          "addr": "0x1ba1f0"
         }
       ]
     },
@@ -3020,6 +3154,7 @@
     },
     {
       "name": "thread_win32.obj",
+      "source": "bungie_net/thread_win32.c",
       "functions": [
         {
           "decl": "bool thread_new(int priority_flags, void *function, int param, void **thread_reference);",
@@ -3210,16 +3345,52 @@
           "addr": "0x1a7ff0"
         },
         {
+          "decl": "bool unit_find_nearby_seat(int unit_handle, int target_unit_handle, int16_t seat_index, int *out_unit_handle);",
+          "addr": "0x1a8ce0"
+        },
+        {
           "decl": "bool unit_is_alive(int unit_handle);",
           "addr": "0x1a9a30"
+        },
+        {
+          "decl": "bool any_unit_is_dangerous(void);",
+          "addr": "0x1aa3c0"
+        },
+        {
+          "decl": "bool unit_pickup_equipment(int unit_handle, int equipment_handle, short flag);",
+          "addr": "0x1aab20"
         },
         {
           "decl": "void unit_clear_seat_tag(int unit_handle);",
           "addr": "0x1aac40"
         },
         {
+          "decl": "void unit_clear_weapons(int unit_handle);",
+          "addr": "0x1aac80"
+        },
+        {
+          "decl": "int16_t unit_count_weapons(int unit_handle);",
+          "addr": "0x1aad90"
+        },
+        {
+          "decl": "bool unit_weapon_is_new(int unit_handle, int weapon_unit_handle);",
+          "addr": "0x1aae00"
+        },
+        {
+          "decl": "void unit_set_animation(int unit_handle@<eax>, int anim_graph_tag_index@<edi>, int16_t animation_index@<bx>);",
+          "addr": "0x1ab7c0"
+        },
+        {
           "decl": "int unit_get_weapon(int unit_handle, int16_t weapon_index);",
           "addr": "0x1adeb0"
+        },
+        {
+          "decl": "void unit_clear_seat_equipment(int unit_handle);",
+          "addr": "0x1ae330"
+        },
+        {
+          "decl": "bool unit_can_enter_seat(int unit_handle, int seat_object_handle);",
+          "addr": "0x1ae370"
         },
         {
           "decl": "int16_t unit_next_weapon_index(int unit_handle@<ebx>, int16_t weapon_index, int16_t direction);",
@@ -3238,44 +3409,16 @@
           "addr": "0x1af990"
         },
         {
-          "decl": "bool any_unit_is_dangerous(void);",
-          "addr": "0x1aa3c0"
-        },
-        {
-          "decl": "int16_t unit_count_weapons(int unit_handle);",
-          "addr": "0x1aad90"
-        },
-        {
-          "decl": "bool unit_weapon_is_new(int unit_handle, int weapon_unit_handle);",
-          "addr": "0x1aae00"
+          "decl": "void unit_reset_weapon_state(int unit_handle);",
+          "addr": "0x1b1290"
         },
         {
           "decl": "bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag);",
           "addr": "0x1b1db0"
         },
         {
-          "decl": "void unit_clear_seat_equipment(int unit_handle);",
-          "addr": "0x1ae330"
-        },
-        {
-          "decl": "bool unit_pickup_equipment(int unit_handle, int equipment_handle, short flag);",
-          "addr": "0x1aab20"
-        },
-        {
-          "decl": "bool unit_find_nearby_seat(int unit_handle, int target_unit_handle, int16_t seat_index, int *out_unit_handle);",
-          "addr": "0x1a8ce0"
-        },
-        {
           "decl": "bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index);",
           "addr": "0x1b2b80"
-        },
-        {
-          "decl": "bool unit_can_enter_seat(int unit_handle, int seat_object_handle);",
-          "addr": "0x1ae370"
-        },
-        {
-          "decl": "void unit_clear_weapons(int unit_handle);",
-          "addr": "0x1aac80"
         }
       ]
     },
@@ -3557,6 +3700,10 @@
         {
           "decl": "void ui_widget_game_data_build_version(int a2);",
           "addr": "0xf0ea0"
+        },
+        {
+          "decl": "char *weapon_get_label(int weapon_handle);",
+          "addr": "0xfae80"
         },
         {
           "decl": "bool weapon_is_flag(int object_index);",

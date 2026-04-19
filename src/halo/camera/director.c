@@ -11,10 +11,12 @@
  *   0x3352ae  uint8  first-update flag (cleared after first camera dispatch)
  *
  * Camera mode functions (pointers stored at player_struct+4):
- *   0x853c0  debug camera (only active for one gamepad player at a time)
- *   0x89270  first-person camera
+ *   0x853c0  debug/free camera (only active for one gamepad player at a time)
+ *   0x89270  first-person gameplay camera
  *   0x87f20  scripted/editor camera
- *   0x89cd0  dead camera (?)
+ *   0x89cd0  transition camera used when returning from a third-person style
+ *            view back to gameplay; binary comparison suggests this is the
+ *            vehicle-exit blend path, not a pure dead camera
  *
  * Register-arg callees are reached through shims in camera_internal.h. */
 #include "camera_internal.h"
@@ -92,12 +94,18 @@ void director_dispose_from_old_map(void)
  *      AND player_data[+0xaa] (signed short) > 0. Then optionally cycle
  *      camera mode (mode_flags), then if no scripted camera state is active,
  *      re-evaluate the active camera and either:
- *        - is_dead && current != debug: install dead/replay state via
- *          0x85b60 + set debug camera (0x85c80) with timer reset.
- *        - !is_dead && current == debug: pick first-person (0x89270) or
- *          dead camera (0x89cd0) based on 0x864b0's verdict and install via
- *          0x865a0 with no top-timer reset, then store the verdict word at
- *          base+0x50.
+ *        - is_dead && current != vehicle/death-follow camera: install
+ *          third-person follow state via 0x85b60 + set camera 0x85c80 with
+ *          timer reset.
+ *        - !is_dead && current == 0x85c80: call 0x864b0 to classify whether
+ *          gameplay should resume directly in first person (0x89270) or
+ *          through the transition camera (0x89cd0). The helper also writes a
+ *          small state word stored at base+0x50.
+ *
+ * Ghidra comparison against the original Xbox binary suggests our earlier
+ * comments were too death-camera-centric here: 0x864b0 is vehicle/seat-state
+ * sensitive, and 0x89cd0 appears to drive the smooth third-person-to-first-
+ * person blend seen when exiting a vehicle.
  *
  * Original receives player index in AX, plus two byte stack args —
  * reverse-thunked to plain cdecl by tools/patch.py. */
@@ -155,7 +163,7 @@ void director_set_player_camera_normal(int16_t local_player_index,
 
   if (is_dead != 0) {
     if (current_camera == (void *)0x85c80)
-      return; /* already debug — done */
+      return; /* already in the third-person follow camera */
 
     /* 0x85b60: cdecl(camera_data_ptr, player_index, init_flag=-1). */
     ((void (*)(void *, int16_t, int))0x85b60)((void *)(base + 8),
@@ -164,7 +172,8 @@ void director_set_player_camera_normal(int16_t local_player_index,
     return;
   }
 
-  /* is_dead == 0: only switch back to gameplay camera if currently debug. */
+  /* is_dead == 0: only switch back to gameplay camera if we're still in the
+   * third-person follow camera. */
   if (current_camera != (void *)0x85c80)
     return;
 
@@ -174,8 +183,11 @@ void director_set_player_camera_normal(int16_t local_player_index,
   /* 0xb6870: lookup player's unit handle. */
   unit_handle = ((int (*)(int16_t))0xb6870)(local_player_index);
 
-  /* 0x864b0: classify camera transition; returns 1 for dead-cam, 0/2/3
-   * otherwise; writes a result word to local_word. */
+  /* 0x864b0: classify how gameplay should resume from 0x85c80. Binary
+   * evidence says this is not just a dead-camera test: it is sensitive to
+   * unit/seat state and selects whether we go through 0x89cd0 (transition
+   * camera) or straight to 0x89270. It also writes a small state word that we
+   * preserve at base+0x50 for the camera pipeline. */
   result = ((int16_t(*)(int, int16_t *))0x864b0)(unit_handle, &local_word);
 
   if (result == 1) {
@@ -465,14 +477,20 @@ void director_initialize_for_new_map(void)
 
 /* Update all active local players' cameras for this tick.
  * Stores delta_time, polls input via 0x87110, dispatches per-mode camera
- * update, runs the camera function, then commits the result to the observer. */
+ * update, runs the active camera function, then commits the result to the
+ * observer.
+ *
+ * The active camera function is where the transition-camera path starts, but
+ * not where it finishes: the camera output block copied to ps+0x54 is later
+ * consumed by observer-side code which seeds and integrates several per-axis
+ * blend timers. That observer stage is what makes the vehicle-exit return to
+ * first person feel smooth in the original binary. */
 void director_update(float delta_time)
 {
   int i;
   uint8_t mode_flags;
   uint8_t local_98[36]; /* camera input buffer (written by 0x87110) */
   uint8_t local_74[0x68]; /* camera output buffer (written by camera_fn) */
-  float local_2c; /* max-timer accumulator (uninit in original) */
   char *ps; /* per-player struct base (0xf8-byte stride) */
 
   *(float *)0x3352a8 = delta_time;
@@ -532,13 +550,23 @@ void director_update(float delta_time)
         if (*timer != 0.0f) {
           if (*(float *)0x2549d4 <= *timer ||
               *(void **)(ps + 4) != (void *)0x89270) {
-            /* track max timer seen (local_2c accumulates the peak) */
-            if (local_2c <= *timer)
-              local_2c = *timer;
+            /* track max timer in local_74[0x48] — this lives inside the
+             * camera output buffer so it's passed to the observer via
+             * the qmemcpy into ps+0x54. The observer uses it to drive
+             * the smooth camera blend. */
+            if (*(float *)(local_74 + 0x48) <= *timer)
+              *(float *)(local_74 + 0x48) = *timer;
           } else {
-            /* reset camera when timer underflows threshold with fp camera */
-            /* original also wrote dead local fields here (local_20/28/18/26) */
+            /* reset camera when timer underflows threshold with fp camera.
+             * The writes below seed transition flags and timers in the camera
+             * output buffer (local_74) at offsets 0x4c/0x4e (flag bytes = 3)
+             * and 0x54/0x5c (timer floats = 0). The observer consumes these
+             * to drive the smooth third-person-to-first-person blend. */
             *timer = 0.0f;
+            *(uint32_t *)(local_74 + 0x54) = 0;
+            *(uint8_t *)(local_74 + 0x4c) = 3;
+            *(uint32_t *)(local_74 + 0x5c) = 0;
+            *(uint8_t *)(local_74 + 0x4e) = 3;
           }
           /* count down timer, clamped to zero */
           {

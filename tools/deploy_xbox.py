@@ -13,15 +13,23 @@ Examples:
     python tools/deploy_xbox.py -x 192.168.1.42 --full # full halo-patched dir
     python tools/deploy_xbox.py --dry-run              # show what would be copied
 
+The deployed XBE is automatically launched on the Xbox after deployment.
+
 Requires: XDK installed at "C:\\Program Files (x86)\\RXDK\\xbox\\bin\\xbcp.exe"
           or XBCP_PATH env var pointing to xbcp.exe.
 """
 
 import argparse
+import fnmatch
 import os
 import subprocess
 import sys
 import time
+
+from local_env import build_windows_python_command, is_wsl, load_repo_env
+
+
+load_repo_env("xbox.env")
 
 ROOT_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
@@ -32,6 +40,18 @@ DEFAULT_XBCP = os.path.join(
 )
 DEFAULT_XBOX_HOST = os.environ.get("XBOX_HOST", "")
 DEFAULT_XBOX_DEST = os.environ.get("XBOX_DEST", "xE:\\GAMES\\halo-patched")
+
+EXCLUDE_PATTERNS = [
+    "*.id0",
+    "*.id1",
+    "*.id2",
+    "*.nam",
+    "*.til",
+]
+
+
+def is_excluded(filename: str) -> bool:
+    return any(fnmatch.fnmatch(filename, pat) for pat in EXCLUDE_PATTERNS)
 
 
 def to_windows_path(path: str) -> str:
@@ -75,6 +95,8 @@ def get_modified_files(directory: str, since: float) -> list[str]:
     modified = []
     for root, _dirs, files in os.walk(directory):
         for fname in files:
+            if is_excluded(fname):
+                continue
             fpath = os.path.join(root, fname)
             try:
                 mtime = os.path.getmtime(fpath)
@@ -84,6 +106,38 @@ def get_modified_files(directory: str, since: float) -> list[str]:
                 rel = os.path.relpath(fpath, directory)
                 modified.append(rel)
     return sorted(modified)
+
+
+def get_source_dirs() -> list[str]:
+    """Return list of directories containing build sources."""
+    source_dirs = [
+        os.path.join(ROOT_DIR, "src"),
+        os.path.join(ROOT_DIR, "include"),
+    ]
+    build_cache = os.path.join(ROOT_DIR, "build", ".cmake_cache")
+    if os.path.isfile(build_cache):
+        source_dirs.append(build_cache)
+    return [d for d in source_dirs if os.path.isdir(d)]
+
+
+def is_build_current(xbe_path: str) -> bool:
+    """Return True if xbe_path exists and is newer than all source files."""
+    if not os.path.isfile(xbe_path):
+        return False
+    try:
+        xbe_mtime = os.path.getmtime(xbe_path)
+    except OSError:
+        return False
+    for src_dir in get_source_dirs():
+        for root, _dirs, files in os.walk(src_dir):
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                try:
+                    if os.path.getmtime(fpath) > xbe_mtime:
+                        return False
+                except OSError:
+                    continue
+    return True
 
 
 def run_xbcp(
@@ -100,25 +154,30 @@ def run_xbcp(
     force_readonly: bool = True,
     dry_run: bool = False,
 ) -> int:
-    args = [xbcp_exe]
+    xbcp_args = []
     if host:
-        args += ["-x", host]
+        xbcp_args += ["-x", host]
     if recursive:
-        args.append("/r")
+        xbcp_args.append("/r")
     if newer_only:
-        args.append("/d")
+        xbcp_args.append("/d")
     if overwrite:
-        args.append("/y")
+        xbcp_args.append("/y")
     if create_dirs:
-        args.append("/t")
+        xbcp_args.append("/t")
     if quiet:
-        args.append("/q")
+        xbcp_args.append("/q")
     if force_readonly:
-        args.append("/f")
-    args += [src, dest]
+        xbcp_args.append("/f")
+    xbcp_args += [src, dest]
+
+    if is_wsl():
+        args = ["cmd.exe", "/c", to_windows_path(xbcp_exe)] + xbcp_args
+    else:
+        args = [xbcp_exe] + xbcp_args
 
     if dry_run:
-        display_args = [xbcp_display] + args[1:]
+        display_args = [xbcp_display] + xbcp_args
         print(f"  [DRY-RUN] {' '.join(display_args)}")
         return 0
 
@@ -148,13 +207,18 @@ def launch_xbe(xbox_dest: str, host: str, dry_run: bool) -> int:
     """Launch the deployed XBE on the Xbox via xbdm_rdcp.py magicboot."""
     xbe_xbox_path = xbox_dest.lstrip("x") + "\\default.xbe"
     rdcp_script = os.path.join(ROOT_DIR, "tools", "xbdm_rdcp.py")
-    cmd = [
-        sys.executable,
+    cmd = build_windows_python_command(
         rdcp_script,
-        f"magicboot title={xbe_xbox_path} debug",
-    ]
+        [f"magicboot title={xbe_xbox_path} debug"],
+    )
+    if cmd is None:
+        cmd = [
+            sys.executable,
+            rdcp_script,
+            f"magicboot title={xbe_xbox_path} debug",
+        ]
     if host:
-        cmd += ["-x", host]
+        cmd += ["--host", host]
     if dry_run:
         print(f"  [DRY-RUN] {' '.join(cmd)}")
         return 0
@@ -204,14 +268,14 @@ def main() -> int:
         help="Only deploy default.xbe (fastest)",
     )
     parser.add_argument(
-        "--launch",
-        action="store_true",
-        help="Launch the XBE on the Xbox after deploying (via xbdm_rdcp magicboot)",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show commands without executing",
+    )
+    parser.add_argument(
+        "--skip-build",
+        action="store_true",
+        help="Skip build step and only deploy existing halo-patched files",
     )
     parser.add_argument(
         "--since",
@@ -232,23 +296,39 @@ def main() -> int:
         )
         return 1
 
-    # Always rebuild the patched XBE before deploying to avoid shipping a
-    # stale default.xbe.  The cmake step is a fast no-op when nothing changed.
     build_dir = os.path.join(ROOT_DIR, "build")
-    if os.path.isdir(build_dir):
-        print("building patched XBE...")
-        rc = subprocess.call(
-            ["cmake", "--build", build_dir, "--target", "patched_xbe"],
-            cwd=ROOT_DIR,
-        )
-        if rc != 0:
-            print("error: build failed", file=sys.stderr)
-            return rc
-
     xbe_path = os.path.join(HALO_PATCHED_DIR, "default.xbe")
+    if not args.skip_build and os.path.isdir(build_dir):
+        if is_build_current(xbe_path):
+            print("build unchanged, skipping rebuild...")
+        else:
+            print("building patched XBE...")
+            rc = subprocess.call(
+                ["cmake", "--build", build_dir, "--target", "patched_xbe"],
+                cwd=ROOT_DIR,
+            )
+            if rc != 0:
+                print("error: build failed", file=sys.stderr)
+                return rc
+
     if not os.path.isfile(xbe_path):
         print("error: default.xbe not found in halo-patched/", file=sys.stderr)
         return 1
+
+    # Always eject xemu disc first so the XBE isn't locked
+    qmp_script = os.path.join(ROOT_DIR, "tools", "xemu_qmp.py")
+    if os.path.isfile(qmp_script):
+        print("ejecting xemu disc...")
+        eject_rc = subprocess.run(
+            [sys.executable, qmp_script, "eject"],
+            cwd=ROOT_DIR, capture_output=True, text=True,
+        )
+        if eject_rc.returncode == 0:
+            if eject_rc.stdout:
+                for line in eject_rc.stdout.strip().splitlines():
+                    print(f"  | {line}")
+        else:
+            print("  (no xemu instance found, skipping eject)")
 
     dest = args.dest
     host = args.xbox
@@ -269,7 +349,7 @@ def main() -> int:
     print(f"deploying to {dest}" + (f" on {host}" if host else ""))
 
     if args.xbe_only:
-        all_xbes = [f for f in os.listdir(HALO_PATCHED_DIR) if f.endswith('.xbe')]
+        all_xbes = [f for f in os.listdir(HALO_PATCHED_DIR) if f.endswith('.xbe') and not is_excluded(f)]
         for xbe_name in sorted(all_xbes):
             xbe_file = os.path.join(HALO_PATCHED_DIR, xbe_name)
             print(f"  {xbe_name} ({os.path.getsize(xbe_file):,} bytes)")
@@ -280,10 +360,9 @@ def main() -> int:
                 print(f"  xbcp failed with exit code {rc}", file=sys.stderr)
                 return rc
         print("done.")
-        if args.launch:
-            rc = launch_xbe(args.dest, host, args.dry_run)
-            if rc != 0:
-                return rc
+        rc = launch_xbe(args.dest, host, args.dry_run)
+        if rc != 0:
+            return rc
         return 0
 
     since = args.since
@@ -306,10 +385,9 @@ def main() -> int:
         if any_failed:
             return 1
         print("done.")
-        if args.launch:
-            rc = launch_xbe(args.dest, host, args.dry_run)
-            if rc != 0:
-                return rc
+        rc = launch_xbe(args.dest, host, args.dry_run)
+        if rc != 0:
+            return rc
         return 0
 
     # Default: deploy XBE + anything that looks like it changed (maps, etc.)
@@ -346,46 +424,9 @@ def main() -> int:
             return rc
 
     print("done.")
-    if args.launch:
-        rc = launch_xbe(args.dest, host, args.dry_run)
-        if rc != 0:
-            return rc
-    return 0
-
-    # Default: deploy XBE + anything that looks like it changed (maps, etc.)
-    # First always push the XBE
-    print(f"  default.xbe ({os.path.getsize(xbe_path):,} bytes)")
-    rc = run_xbcp(src=xbe_src, dest=xbe_dest, **common_kwargs)
+    rc = launch_xbe(args.dest, host, args.dry_run)
     if rc != 0:
-        print(f"  xbcp failed with exit code {rc}", file=sys.stderr)
         return rc
-
-    # Then push maps/ and bink/ if --full, or just maps/ by default
-    dirs_to_deploy = []
-    maps_dir = os.path.join(HALO_PATCHED_DIR, "maps")
-    if os.path.isdir(maps_dir):
-        dirs_to_deploy.append(("maps", maps_dir))
-
-    if args.full:
-        bink_dir = os.path.join(HALO_PATCHED_DIR, "bink")
-        if os.path.isdir(bink_dir):
-            dirs_to_deploy.append(("bink", bink_dir))
-
-    for label, local_dir in dirs_to_deploy:
-        print(f"  {label}/ (newer files only)")
-        src = to_windows_path(local_dir)
-        d = f"{dest}\\{label}"
-        rc = run_xbcp(
-            src=src + "\\*", 
-            dest=d,
-            recursive=True,
-            **common_kwargs,
-        )
-        if rc != 0:
-            print(f"    xbcp failed with exit code {rc}", file=sys.stderr)
-            return rc
-
-    print("done.")
     return 0
 
 
