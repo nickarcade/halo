@@ -44,6 +44,48 @@ void *csmemset(void *buffer, int c, size_t size)
   return buffer;
 }
 
+/* csstrcmp — string comparison with NULL-pointer assertion.
+ * Uses an unrolled-by-2 byte comparison loop matching the original MSVC
+ * codegen. Returns -1 if s1 < s2, 0 if equal, 1 if s1 > s2. */
+int csstrcmp(const char *s1, const char *s2)
+{
+  unsigned char c1, c2;
+
+  assert_halt(s1 && s2);
+
+  for (;;) {
+    c1 = *(unsigned char *)s1;
+    c2 = *(unsigned char *)s2;
+    if (c1 != c2)
+      break;
+    if (c1 == 0)
+      return 0;
+
+    c1 = ((unsigned char *)s1)[1];
+    c2 = ((unsigned char *)s2)[1];
+    if (c1 != c2)
+      break;
+    s1 += 2;
+    s2 += 2;
+    if (c1 == 0)
+      return 0;
+  }
+
+  if (c1 < c2)
+    return -1;
+  return 1;
+}
+
+/* csstrcat — bounded string concatenation with assertions. */
+char *csstrcat(char *destination, const char *source, size_t max_size)
+{
+  assert_halt(destination && source);
+  assert_halt(max_size < MAXIMUM_STRING_SIZE);
+
+  crt_strncat(destination, source, max_size);
+  return destination;
+}
+
 #ifdef strncpy
 #undef strncpy
 #endif
@@ -56,6 +98,14 @@ void *csstrncpy(char *destination, const char *source, size_t size)
   strncpy(destination, source, size);
 
   return destination;
+}
+
+/* csstrtok — tokenize a string with an assertion on delimiters. */
+char *csstrtok(char *string, const char *delimiters)
+{
+  assert_halt(delimiters);
+
+  return crt_strtok(string, delimiters);
 }
 
 #ifdef strlen
@@ -71,6 +121,39 @@ int csstrlen(const char *s1)
   assert_halt(size >= 0 && size < MAXIMUM_STRING_SIZE);
 
   return size;
+}
+
+/* csstrcpy — inline string copy with size and overlap assertions.
+ * Measures source length, asserts it's within bounds and non-overlapping,
+ * then copies byte-by-byte. */
+char *csstrcpy(char *destination, const char *source)
+{
+  const char *s;
+  int source_size;
+  char c;
+
+  s = source;
+  do {
+    c = *s;
+    s++;
+  } while (c != 0);
+  source_size = (int)(s - (source + 1));
+
+  assert_halt(source_size >= 0 && source_size < MAXIMUM_STRING_SIZE);
+  assert_halt(source + source_size < destination ||
+              destination + source_size < source);
+
+  {
+    int offset = (int)destination - (int)source;
+    const char *p = source;
+    do {
+      c = *p;
+      *(char *)((int)p + offset) = c;
+      p++;
+    } while (c != 0);
+  }
+
+  return destination;
 }
 
 void *csmemcpy(void *destination, void *source, size_t size)

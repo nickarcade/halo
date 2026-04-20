@@ -35,6 +35,7 @@ typedef int(__stdcall *xinput_get_changes_fn)(void *, uint32_t *, uint32_t *);
 typedef int(__stdcall *xinput_open_fn)(void *, int, int, int);
 typedef int(__stdcall *xinput_get_state_fn)(int, void *);
 typedef void(__stdcall *xinput_close_fn)(int);
+typedef int(__stdcall *xset_event_fn)(int);
 
 typedef struct xinput_gamepad {
   uint16_t wButtons;
@@ -153,6 +154,16 @@ static input_rumble_state *input_rumble_states(void)
 static int *input_update_callback_arg(void)
 {
   return (int *)0x46bb24;
+}
+
+static int *input_update_event_handle(void)
+{
+  return (int *)0x46bb28;
+}
+
+static uint8_t *input_update_event_pending(void)
+{
+  return (uint8_t *)0x46bb2c;
 }
 
 static uint8_t *input_digital_button_states(void)
@@ -350,6 +361,30 @@ bool input_key_is_down(uint16_t key_code)
   }
 }
 
+/* Dequeue the next keystroke from the ring buffer.
+ *
+ * The buffer holds up to 64 entries (MAXIMUM_BUFFERED_KEYSTROKES = 0x40).
+ * word_46BC08 = read index, word_46BC0A = write index.
+ * Returns true and copies one dword-sized keystroke into *out_keystroke if a
+ * key is available; returns false immediately if the buffer is empty.
+ *
+ * Note: does NOT check input_suppressed — buffered keys always drain even
+ * when input is globally suppressed. */
+bool input_get_buffered_key(void *out_keystroke)
+{
+  int16_t read_idx;
+
+  if (word_46BC08 >= word_46BC0A)
+    return false;
+
+  assert_halt(word_46BC08 >= 0 && word_46BC08 < 0x40);
+
+  read_idx = word_46BC08;
+  *(int *)out_keystroke = dword_46BC0C[read_idx];
+  word_46BC08 = word_46BC08 + 1;
+  return true;
+}
+
 bool input_has_gamepad(int16_t gamepad_index)
 {
   assert_halt(gamepad_index >= 0 && gamepad_index < MAXIMUM_GAMEPADS);
@@ -377,6 +412,19 @@ void input_set_rumble(int16_t gamepad_index, uint16_t left, uint16_t right)
     input_rumble_states()[gamepad_index].left = left;
     input_rumble_states()[gamepad_index].right = right;
   }
+}
+
+void input_tick(void)
+{
+  bool pending_cleared;
+
+  pending_cleared = *input_update_event_pending() == 0;
+  if (!pending_cleared) {
+    ((xset_event_fn)0x1cfeaa)(*input_update_event_handle());
+    pending_cleared = *input_update_event_pending() == 0;
+  }
+
+  *input_update_event_pending() = pending_cleared;
 }
 
 void input_get_device_states(void)

@@ -96,7 +96,13 @@ add_custom_target(
 	DEPENDS "$<TARGET_FILE:halo>" "${CMAKE_CURRENT_LIST_DIR}/tools/patch.py"
 	BYPRODUCTS ${CMAKE_CURRENT_LIST_DIR}/halo-patched/default.xbe
 	COMMAND
+		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/check_asm_thunk_conflicts.py"
+	COMMAND
 		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/check_raw_casts.py"
+	COMMAND
+		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/maintain.py" --check
+	COMMAND
+		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/kb_meta.py" validate
 	COMMAND
 		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/patch.py" --test-thunks
 	COMMAND

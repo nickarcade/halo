@@ -156,3 +156,44 @@ void cache_files_precache_map_end(void)
   *(int16_t *)0x4e9222 = -1;
 }
 #endif
+
+/* Load cached game state if the cached map metadata matches the currently
+ * loaded scenario, map type, checksum, and difficulty. */
+void cache_files_precache(void)
+{
+  char header[0x14c];
+  int scratch;
+
+  if (!FUN_001c0910(header, &scratch, sizeof(header), (void *)0x345000, 0)) {
+    return;
+  }
+
+  if (csstrcmp(header + 0x104, "01.10.12.2276") != 0) {
+    return;
+  }
+
+  {
+    const char *scenario_name = tag_get_name(*(int *)0x326a08);
+    if (csstrcmp(header + 0x4, scenario_name) != 0) {
+      return;
+    }
+  }
+
+  if (*(int *)header != *(int *)0x4ea9a0)
+    return;
+  if (*(int16_t *)(header + 0x124) != *(int16_t *)0x31fa94)
+    return;
+  if (*(int *)(header + 0x128) != FUN_001b9920())
+    return;
+  if (*(int16_t *)(header + 0x126) != FUN_00100080())
+    return;
+
+  ((void (*)(void))game_state_callback_32eaa4)();
+  FUN_001c0c20(*(void **)0x4ea994, (void *)0x345000);
+  game_difficulty_level_set(FUN_00100080());
+  FUN_001bf790();
+  ((void (*)(void))game_state_callback_32eaa0)();
+  FUN_00101c90();
+  *(uint8_t *)0x4ea9a5 = FUN_001c0370() != 0;
+  FUN_00101ca0();
+}

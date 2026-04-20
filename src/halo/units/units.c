@@ -5,6 +5,24 @@
 
 #include "../../common.h"
 
+/* unit_set_actively_controlled_flag (0x1a7f80)
+ *
+ * Sets bit 5 (0x20) of the byte at object_data_t+0xb6 (offset 182,
+ * the byte just before unk_183) on the resolved unit object.
+ * Distinct from unit_delete (0x1a7fc0) which sets the same bit at
+ * offset 0xb7 (unk_183).
+ *
+ * Confirmed: CALL 0x13d680 with type_mask=3 (biped|vehicle).
+ * Confirmed: OR byte ptr [EAX+0xb6],0x20.
+ */
+void unit_set_actively_controlled_flag(int unit_handle)
+{
+  object_data_t *obj;
+
+  obj = (object_data_t *)object_get_and_verify_type(unit_handle, 3);
+  *(uint8_t *)((char *)obj + 0xb6) |= 0x20;
+}
+
 /* unit_delete (0x1a7fc0)
  *
  * Marks a unit object for deletion by setting bit 5 (0x20) of the
@@ -139,8 +157,8 @@ bool any_unit_is_dangerous(void)
   unit_data_t *unit;
   uint8_t state;
 
-  ((void (*)(void *, int, uint8_t))0x13d6f0)(iter_buf, 3, 1);
-  unit = (unit_data_t *)((void *(*)(void *))0x13d730)(iter_buf);
+  object_iterator_new(iter_buf, 3, 1);
+  unit = (unit_data_t *)object_iterator_next(iter_buf);
 
   while (unit != NULL) {
     state = unit->unk_595;
@@ -148,7 +166,7 @@ bool any_unit_is_dangerous(void)
       return true;
     if ((state == 0x19 || state == 0x18) && (unit->unk_584 & 4) == 0)
       return true;
-    unit = (unit_data_t *)((void *(*)(void *))0x13d730)(iter_buf);
+    unit = (unit_data_t *)object_iterator_next(iter_buf);
   }
 
   return false;
@@ -383,6 +401,40 @@ void unit_set_animation(int unit_handle, int anim_graph_tag_index,
   }
 }
 
+/* unit_has_weapon_with_flag (0x1ac3f0)
+ *
+ * Returns true if any of the unit's equipped weapons has the given flag
+ * bit set in its flags field (weapon_data+0x1dc).
+ *
+ * Walks the 4-slot weapon handle array at unit+0x2a8; for each slot that
+ * is not NONE (-1), resolves the weapon object with type_mask=4 and tests
+ * bit (1 << flag_index) against the 32-bit flags at weapon_data+0x1dc.
+ *
+ * Confirmed: LEA ESI,[EAX+0x2a8] — weapon slot array at unit+0x2a8.
+ * Confirmed: PUSH 0x4 for weapon type_mask in inner object_get_and_verify_type.
+ * Confirmed: MOV ECX,BX; SHL EDX,CL — flag_index used as shift count (byte).
+ * Confirmed: CMP EAX,-0x1 / JZ skip — slot NONE guard.
+ * Confirmed: TEST EDX,ECX at [EAX+0x1dc] — flags field at +0x1dc.
+ */
+bool unit_has_weapon_with_flag(int unit_handle, int flag_index)
+{
+  int *unit;
+  int *weapon_slots;
+  int i;
+
+  unit = (int *)object_get_and_verify_type(unit_handle, 3);
+  weapon_slots = (int *)((char *)unit + 0x2a8);
+
+  for (i = 0; i < 4; i++) {
+    if (weapon_slots[i] != NONE) {
+      int *weapon = (int *)object_get_and_verify_type(weapon_slots[i], 4);
+      if ((1 << (flag_index & 0x1f)) & *(uint32_t *)((char *)weapon + 0x1dc))
+        return 1;
+    }
+  }
+  return 0;
+}
+
 /* unit_get_weapon (0x1adeb0)
  *
  * Returns the weapon datum handle stored in the unit's weapon slot array
@@ -424,15 +476,7 @@ void unit_clear_seat_equipment(int unit_handle)
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
   equipment_handle = unit->unk_712.value;
   if (equipment_handle != -1) {
-    /* 0x1ab990: dual-register call, EDI=unit_handle, ESI=equipment_handle */
-    {
-      int _edi = unit_handle;
-      int _esi = equipment_handle;
-      __asm__ __volatile__("call *%[fn]"
-                           : "+D"(_edi), "+S"(_esi)
-                           : [fn] "r"((void *)0x1ab990)
-                           : "eax", "ecx", "edx", "ebx", "memory", "cc");
-    }
+    unit_detach_weapon(unit_handle, equipment_handle);
     unit->unk_712.value = -1;
   }
 }
@@ -453,42 +497,14 @@ bool unit_can_enter_seat(int unit_handle, int seat_object_handle)
   int seat_label;
   int weapon_label;
   char can_enter;
-  int _eax;
 
   object_get_and_verify_type(unit_handle, 3);
   object_get_and_verify_type(seat_object_handle, 4);
 
-  /* 0x1ae290: get unit seat label string, EAX=unit_handle */
-  {
-    _eax = unit_handle;
-    asm volatile("call *%[fn]"
-                 : "+a"(_eax)
-                 : [fn] "r"((void *)0x1ae290)
-                 : "ecx", "edx", "memory", "cc");
-    seat_label = _eax;
-  }
-
-  /* 0xfae80: get weapon/item label string */
+  seat_label = unit_get_seat_label(unit_handle);
   weapon_label = (int)weapon_get_label(seat_object_handle);
-
-  /* 0x1acd70: check unit can use seat, EAX=unit_handle, 3 stack args */
-  {
-    _eax = unit_handle;
-    int args[3];
-    args[0] = seat_label;
-    args[1] = weapon_label;
-    args[2] = 0;
-    asm volatile("pushl %[a2]\n\t"
-                 "pushl %[a1]\n\t"
-                 "pushl %[a0]\n\t"
-                 "call *%[fn]\n\t"
-                 "addl $12, %%esp"
-                 : "+a"(_eax)
-                 : [fn] "r"((void *)0x1acd70), [a0] "r"(args[0]),
-                   [a1] "r"(args[1]), [a2] "r"(args[2])
-                 : "ecx", "edx", "memory", "cc");
-    can_enter = (char)_eax;
-  }
+  can_enter =
+    (char)unit_try_animation_state(unit_handle, seat_label, weapon_label, 0);
 
   if (can_enter != 0) {
     /* 0xa8b30: game engine vtable dispatch */
@@ -552,37 +568,10 @@ int16_t unit_next_weapon_index(int unit_handle, int16_t weapon_index,
       object_get_and_verify_type(unit_handle, 3);
       object_get_and_verify_type(weapon_handle, 4);
 
-      /* 0x1ae290: get unit animation tag pointer, EAX=unit_handle */
-      {
-        int _eax = unit_handle;
-        asm volatile("call *%[fn]"
-                     : "+a"(_eax)
-                     : [fn] "r"((void *)0x1ae290)
-                     : "ecx", "edx", "memory", "cc");
-        anim_tag = _eax;
-      }
-
-      /* 0xfae80: get weapon tag info pointer */
+      anim_tag = unit_get_seat_label(unit_handle);
       weapon_tag = (int)weapon_get_label(weapon_handle);
-
-      /* 0x1acd70: check unit can use weapon, EAX=unit_handle, 3 stack args */
-      {
-        int _eax = unit_handle;
-        int args[3];
-        args[0] = anim_tag;
-        args[1] = weapon_tag;
-        args[2] = 0;
-        asm volatile("pushl %[a2]\n\t"
-                     "pushl %[a1]\n\t"
-                     "pushl %[a0]\n\t"
-                     "call *%[fn]\n\t"
-                     "addl $12, %%esp"
-                     : "+a"(_eax)
-                     : [fn] "r"((void *)0x1acd70), [a0] "r"(args[0]),
-                       [a1] "r"(args[1]), [a2] "r"(args[2])
-                     : "ecx", "edx", "memory", "cc");
-        can_use = (char)_eax;
-      }
+      can_use =
+        (char)unit_try_animation_state(unit_handle, anim_tag, weapon_tag, 0);
 
       if (can_use != 0) {
         /* 0xa8b30: weapon usability callback */
@@ -675,16 +664,7 @@ bool unit_set_in_vehicle(int unit_handle, bool flag)
 
   ((void (*)(int, int))0xde360)(unit_handle, 0xd);
 
-  /* 0x1ab990 takes EDI=unit_handle, ESI=weapon_handle as register args
-   * (two register args, can't use kb.json single-reg thunk) */
-  {
-    int _edi = unit_handle;
-    int _esi = weapon_handle;
-    asm volatile("call *%[fn]"
-                 : "+D"(_edi), "+S"(_esi)
-                 : [fn] "r"((void *)0x1ab990)
-                 : "eax", "ecx", "edx", "ebx", "memory", "cc");
-  }
+  unit_detach_weapon(unit_handle, weapon_handle);
 
   cur_index = (int16_t)unit->unk_674;
   unit->unk_680[cur_index].value = -1;
@@ -722,17 +702,9 @@ void unit_control_trace(int unit_handle, const char *label)
   int32_t actor;
   char location_buf[512];
 
-  /* 0x1af6b9: MOV EAX, EDI; CALL 0x1af620 — verify vectors with
-   * unit_handle in EAX. Returns true if all vectors are valid normals. */
-  {
-    int _eax = unit_handle;
-    __asm__ __volatile__("call *%[fn]"
-                         : "+a"(_eax)
-                         : [fn] "r"((void *)0x1af620)
-                         : "ecx", "edx", "memory", "cc");
-    if ((bool)_eax)
-      return;
-  }
+  /* Verify vectors — returns true if all vectors are valid normals. */
+  if (unit_verify_vectors(unit_handle))
+    return;
 
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
 
@@ -810,15 +782,8 @@ void unit_control_trace(int unit_handle, const char *label)
         *(uint32_t *)&unit->unk_540.y, *(uint32_t *)&unit->unk_540.z);
 
   /* retry verification */
-  {
-    int _eax = unit_handle;
-    __asm__ __volatile__("call *%[fn]"
-                         : "+a"(_eax)
-                         : [fn] "r"((void *)0x1af620)
-                         : "ecx", "edx", "memory", "cc");
-    if ((bool)_eax)
-      return;
-  }
+  if (unit_verify_vectors(unit_handle))
+    return;
 
   /* fatal assert if vectors are still broken */
   display_assert("unit_verify_vectors FAILURE, see above for details",
@@ -1096,7 +1061,6 @@ bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag)
   object_data_t *seat_obj;
   unit_data_t *unit;
   int16_t seat_index;
-  int _eax;
 
   seat_obj = (object_data_t *)object_get_and_verify_type(seat_object_handle, 4);
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
@@ -1113,14 +1077,7 @@ bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag)
   if (flag == 2)
     unit_clear_weapons(unit_handle);
 
-  /* FUN_001aad60: finds first empty weapon slot. EAX = unit_handle (reg arg),
-   * returns int16_t seat index in AX, or -1 if no slot available. */
-  _eax = unit_handle;
-  __asm__ __volatile__("call *%[fn]"
-                       : "+a"(_eax)
-                       : [fn] "r"((void *)0x1aad60)
-                       : "ecx", "edx", "memory", "cc");
-  seat_index = (int16_t)_eax;
+  seat_index = unit_find_empty_weapon_slot(unit_handle);
 
   if (seat_index == -1)
     return false;
@@ -1172,7 +1129,6 @@ bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
   void *anim_tag;
   void *anim_entry;
   int16_t boarding_anim_index;
-  int _eax;
   int anim_result;
 
   if (!unit_find_nearby_seat(unit_handle, vehicle_handle, seat_index, 0))
@@ -1215,13 +1171,8 @@ bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
   unit->unk_672 = seat_index;
   unit->object.parent_object_index.value = vehicle_handle;
 
-  /* 0x1aa890: update unit seat occupancy tracking.
-   * EAX = vehicle_handle (register arg). */
-  _eax = vehicle_handle;
-  __asm__ __volatile__("call *%[fn]"
-                       : "+a"(_eax)
-                       : [fn] "r"((void *)0x1aa890)
-                       : "ecx", "edx", "memory", "cc");
+  /* Update unit seat occupancy tracking. */
+  unit_update_seat_occupancy(vehicle_handle);
 
   /* Re-fetch unit data after potential reallocation */
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
@@ -1229,15 +1180,7 @@ bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
   /* Set next weapon index */
   unit->unk_676 = unit_next_weapon_index(unit_handle, unit->unk_674, 0);
 
-  /* 0x1b1ee0: update unit weapon readiness/state.
-   * ESI = unit_handle (register arg), 1 stack arg. */
-  __asm__ __volatile__("movl %[handle], %%esi\n\t"
-                       "pushl $1\n\t"
-                       "call *%[fn]\n\t"
-                       "addl $4, %%esp"
-                       :
-                       : [handle] "r"(unit_handle), [fn] "r"((void *)0x1b1ee0)
-                       : "eax", "ecx", "edx", "esi", "memory", "cc");
+  unit_update_weapon_readiness(unit_handle, 1);
 
   /* Get current weapon */
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
@@ -1248,40 +1191,10 @@ bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
   else
     weapon_label = weapon_get_label(weapon_handle);
 
-  /* 0x1acd70: set unit animation state.
-   * EAX = unit_handle (register arg), 3 stack args:
-   *   arg0 = seat_def + 4 (seat label string),
-   *   arg1 = weapon_label,
-   *   arg2 = 1 */
-  {
-    int args[3];
-    args[0] = (int)((char *)seat_def + 4);
-    args[1] = (int)weapon_label;
-    args[2] = 1;
-    _eax = unit_handle;
-    __asm__ __volatile__("pushl %[a2]\n\t"
-                         "pushl %[a1]\n\t"
-                         "pushl %[a0]\n\t"
-                         "call *%[fn]\n\t"
-                         "addl $12, %%esp"
-                         : "+a"(_eax)
-                         : [fn] "r"((void *)0x1acd70), [a0] "r"(args[0]),
-                           [a1] "r"(args[1]), [a2] "r"(args[2])
-                         : "ecx", "edx", "memory", "cc");
-    if (!(char)_eax) {
-      /* Retry with NULL weapon label */
-      args[1] = 0;
-      _eax = unit_handle;
-      __asm__ __volatile__("pushl %[a2]\n\t"
-                           "pushl %[a1]\n\t"
-                           "pushl %[a0]\n\t"
-                           "call *%[fn]\n\t"
-                           "addl $12, %%esp"
-                           : "+a"(_eax)
-                           : [fn] "r"((void *)0x1acd70), [a0] "r"(args[0]),
-                             [a1] "r"(args[1]), [a2] "r"(args[2])
-                           : "ecx", "edx", "memory", "cc");
-    }
+  if (!unit_try_animation_state(unit_handle, (int)((char *)seat_def + 4),
+                                (int)weapon_label, 1)) {
+    /* Retry with NULL weapon label */
+    unit_try_animation_state(unit_handle, (int)((char *)seat_def + 4), 0, 1);
   }
 
   /* Check for boarding animation in the unit's animation graph */

@@ -43,6 +43,29 @@ void sound_impulse_start(int sound_tag_index, float scale)
   sound_start(sound_tag_index, source, NONE, 0, 0, 0);
 }
 
+bool sound_cluster_is_audible(void *location)
+{
+  int16_t cluster_index;
+
+  cluster_index = *(int16_t *)((char *)location + 4);
+  if (cluster_index >= -1) {
+    if ((int)cluster_index < *(int *)((char *)scenario_get() + 0x134)) {
+      if (cluster_index != -1 &&
+          ((((uint32_t *)0x5054a0)[(int)cluster_index >> 5] &
+            (1u << ((uint8_t)cluster_index & 0x1f))) != 0)) {
+        return true;
+      }
+      return false;
+    }
+  }
+
+  display_assert(
+    "location->cluster_index>=NONE && "
+    "location->cluster_index<global_structure_bsp_get()->clusters.count",
+    "c:\\halo\\SOURCE\\sound\\game_sound.c", 0x364, 1);
+  system_exit(-1);
+}
+
 void game_sound_dispose_from_old_map(void)
 {
   if (*(void **)0x5054e4 != 0 && *(uint8_t *)(*(char **)0x5054e4 + 0x24) != 0) {
@@ -51,12 +74,45 @@ void game_sound_dispose_from_old_map(void)
   }
 }
 
+/* sound_looping_stop (0x1c80e0)
+ *
+ * If sound_tag_index is valid, resolves the
+ * `lsnd` tag and checks the
+ * runtime looping-sound handle at tag+0x1c. When
+ * present, clears bit 0x10
+ * and sets bit 0x02 in the looping-sound entry
+ * flags, then clears tag+0x1c
+ * back to NONE (-1). */
+void sound_looping_stop(int sound_tag_index)
+{
+  void *tag;
+  int looping_sounds_handle;
+  void *entry;
+
+  if (sound_tag_index == -1)
+    return;
+
+  tag = tag_get(0x6c736e64, sound_tag_index);
+  looping_sounds_handle = *(int *)((char *)tag + 0x1c);
+
+  if (looping_sounds_handle != -1) {
+    entry = datum_get(*(data_t **)0x5054e4, looping_sounds_handle);
+    *(uint32_t *)((char *)entry + 4) &= 0xffffffef;
+
+    entry = datum_get(*(data_t **)0x5054e4, *(int *)((char *)tag + 0x1c));
+    *(uint32_t *)((char *)entry + 4) |= 2;
+
+    *(int *)((char *)tag + 0x1c) = -1;
+  }
+}
+
 /* Update the game sound subsystem for one tick.
  *
- * - Determines the current sound environment (BSP cluster) via
- *   FUN_0018f600, updates DirectSound EAX/environment state via
- *   FUN_001cb9b0, then recalculates per-cluster audibility via
- *   FUN_001c7b40.
+ * - Determines the current
+ * sound environment (BSP cluster) via
+ *   FUN_0018f600, updates DirectSound
+ * EAX/environment state via FUN_001cb9b0, then recalculates per-cluster
+ * audibility via FUN_001c7b40.
  * - Manages the music looping sound slot (globals[1]): starts, stops,
  *   or replaces it when the ambient sound environment changes.
  * - Iterates every active entry in the object-looping-sounds table and
@@ -160,14 +216,7 @@ void game_sound_update(float dt)
         int is_audible;
         ((void (*)(int, int *))0x140130)(*(int *)((char *)entry + 0x10),
                                          location);
-        /* 0x1c7c30 takes its argument in ESI (LEA ESI,[location] in the
-         * original). Pin ESI via the "S" input constraint and route the
-         * call through ECX to keep ESI intact across the call. */
-        asm volatile("movl $0x1c7c30, %%ecx\n\t"
-                     "call *%%ecx"
-                     : "=a"(is_audible)
-                     : "S"((char *)location)
-                     : "ecx", "edx", "memory", "cc");
+        is_audible = sound_cluster_is_audible((void *)location);
         if ((uint8_t)is_audible != 0) {
           ((void (*)(int, int *))0x1c77a0)(looping_sounds_handle, location);
         }
@@ -188,4 +237,99 @@ void game_sound_update(float dt)
 
   /* Increment global tick counter. */
   *(int *)(*(int *)0x5054e0) += 1;
+}
+
+/* sound_looping_start (0x1c8510)
+ *
+ * Starts a looping-sound definition
+ * (`lsnd`) for an optional object.
+ * - Resolves the tag definition and first
+ * calls sound_looping_stop to end
+ *   any prior runtime instance for this
+ * definition.
+ * - Asserts that definition+0x1c (runtime_scripting_sound_index)
+ * is NONE.
+ * - If definition flags has bit 0x04 set, calls 0x1c7d70 before
+ * start.
+ * - Calls 0x1c7710(sound_tag_index, object_index, scale), stores
+ * returned
+ *   looping-sound handle into definition+0x1c, and when valid sets
+ * bit 0x10
+ *   in the looping-sound entry flags at entry+0x04.
+ */
+void sound_looping_start(int sound_tag_index, int object_index, float scale)
+{
+  void *definition;
+  int looping_sound_handle;
+  void *entry;
+
+  if (sound_tag_index == -1)
+    return;
+
+  definition = tag_get(0x6c736e64, sound_tag_index);
+  sound_looping_stop(sound_tag_index);
+
+  assert_halt_msg(*(int *)((char *)definition + 0x1c) == -1,
+                  "definition->runtime_scripting_sound_index==NONE");
+
+  if ((*(uint8_t *)definition & 4) != 0)
+    ((void (*)(void))0x1c7d70)();
+
+  looping_sound_handle =
+    ((int (*)(int, int, float))0x1c7710)(sound_tag_index, object_index, scale);
+  *(int *)((char *)definition + 0x1c) = looping_sound_handle;
+
+  if (looping_sound_handle != -1) {
+    entry = datum_get(*(data_t **)0x5054e4, looping_sound_handle);
+    *(uint32_t *)((char *)entry + 4) |= 0x10;
+  }
+}
+
+/* game_sound_set_music_volume (0x1c8c80)
+ *
+ * For each of the 0x33 sound
+ * classes whose name string contains
+ * sound_name as a substring, calls
+ * sound_class_get(i) (0x1c89d0, register-arg SI) and writes the clamped volume
+ * and transition_ticks into the returned record: float  at [record+0x00] =
+ * clamp(volume, 0.0f, 1.0f) int16_t at [record+0x08] = max(transition_ticks, 0)
+ *
+ * sound_class_get (0x1c89d0) expects its index in SI and returns a
+ * pointer to the 0xc-byte class record in EAX.  Called via inline asm
+ * because knowledge.py does not support @si register-arg functions.
+ *
+ * The class name string pointers live in a table at 0x32f5d0
+ * (0x33 pointers, one per sound class).
+ */
+void game_sound_set_music_volume(const char *sound_name, float volume,
+                                 int16_t transition_ticks)
+{
+  int i;
+  const char **table = (const char **)0x32f5d0;
+  float clamped;
+  float *record;
+
+  for (i = 0; i < 0x33; i++) {
+    /* Skip empty class name slots. */
+    if (table[i][0] == '\0')
+      continue;
+    /* Check whether this class name contains sound_name. */
+    if (crt_strstr(table[i], sound_name) == NULL)
+      continue;
+
+    record = (float *)sound_class_get((int16_t)i);
+
+    /* Clamp volume to [0.0f, 1.0f]. */
+    clamped = volume;
+    if (clamped < *(float *)0x2533c0)
+      clamped = *(float *)0x2533c0;
+    else if (clamped > *(float *)0x2533c8)
+      clamped = *(float *)0x2533c8;
+
+    *record = clamped;
+
+    /* transition_ticks clamped to >= 0. */
+    *(int16_t *)((char *)record + 0x8) =
+      (transition_ticks < 0) ? 0 : transition_ticks;
+  }
 }

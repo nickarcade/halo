@@ -108,6 +108,99 @@ void *object_get_and_verify_type(int datum_handle, int type_mask)
 }
 
 /*
+ * object_iterator_new (0x13d6f0) — initialise an object_iter_t for a walk.
+ *
+ * Calls data_verify on the object data table (sanity check), then writes
+ * the caller-supplied type_mask and flags into the iterator block and
+ * resets its scan state.
+ *
+ * Layout of object_iter_t (confirmed from disassembly):
+ *   +0x00 int32_t  type_mask     — accepted object types (1<<type bit-mask)
+ *   +0x04 uint8_t  flags         — required header flag byte (AND+CMP filter)
+ *   +0x06 int16_t  current_index — next header-table slot to probe
+ *   +0x08 int32_t  last_handle   — handle from last call (NONE = -1 on init)
+ *   +0x0c uint32_t cookie        — 0x86868686 (marks as initialized)
+ *
+ * Confirmed: ADD ESP,0x4 after data_verify (1 arg).
+ * Confirmed: byte ptr [EAX+0x4] = DL (flags, byte-sized arg).
+ * Confirmed: word ptr [EAX+0x6] = 0x0000; dword ptr [EAX+0x8] = -1.
+ * Confirmed: dword ptr [EAX+0xc] = 0x86868686 (cookie, written last).
+ */
+void object_iterator_new(void *iter, int type_mask, int flags)
+{
+  object_iter_t *it = (object_iter_t *)iter;
+  data_verify(*(data_t **)0x5a8d50);
+  it->cookie = 0x86868686;
+  it->type_mask = type_mask;
+  it->flags = (uint8_t)flags;
+  it->current_index = 0;
+  it->last_handle = NONE;
+}
+
+/*
+ * object_iterator_next (0x13d730) — advance iterator, return next match.
+ *
+ * Walks the object header table starting at iter->current_index, scanning
+ * for a non-empty slot (salt != 0) whose header flags satisfy the required
+ * flag mask (entry_flags & iter->flags == iter->flags) and whose type bit
+ * is set in iter->type_mask.  On a match:
+ *   - Stores the composite handle (salt<<16 | index) in iter->last_handle.
+ *   - Advances iter->current_index past the matched slot.
+ *   - Returns the object_data_t* from entry->object (header+0x8).
+ *
+ * Returns NULL when the table is exhausted.
+ *
+ * The header table is an array of 0xc-byte object_header_data_t entries;
+ * pointers start at data_t->data (offset +0x34 from the data_t header).
+ * The live slot count is at data_t->current_count (offset +0x2e, int16_t).
+ *
+ * Confirmed: cookie guard == 0x86868686 (assert "uninitialized iterator").
+ * Confirmed: MOVSX EAX, word ptr [EAX+0x2e] — current_count as signed 16-bit.
+ * Confirmed: MOVSX from DX (current_index) into ECX for OR with shifted salt.
+ * Confirmed: entry stride = 0xc (LEA ESI,[ESI+ECX*4] with ECX=index*3).
+ * Confirmed: return entry->object at entry+0x8.
+ */
+void *object_iterator_next(void *iter)
+{
+  object_iter_t *it = (object_iter_t *)iter;
+  data_t *data;
+  object_header_data_t *entry;
+  int16_t count;
+  int16_t idx;
+
+  if (it->cookie != 0x86868686) {
+    display_assert("uninitialized iterator passed to object_iterator_next()",
+                   "c:\\halo\\SOURCE\\objects\\objects.c", 0x6b8, 1);
+    system_exit(-1);
+  }
+
+  data_verify(*(data_t **)0x5a8d50);
+  data = *(data_t **)0x5a8d50;
+
+  idx = it->current_index;
+  count = data->current_count;
+  entry = (object_header_data_t *)((char *)data->data + (int)idx * 0xc);
+
+  while (idx < count) {
+    int handle = ((int)(uint16_t)entry->unk_0 << 16) | (int)(uint16_t)idx;
+    idx++;
+    if (entry->unk_0 != 0 && (entry->unk_2 & it->flags) == it->flags &&
+        (it->type_mask & (1 << (entry->type & 0x1f))) != 0) {
+      it->last_handle = handle;
+      it->current_index = idx;
+      return entry->object;
+    }
+    entry = (object_header_data_t *)((char *)entry + 0xc);
+    if (idx >= count) {
+      it->current_index = idx;
+      return NULL;
+    }
+  }
+  it->current_index = idx;
+  return NULL;
+}
+
+/*
  * object_set_garbage_flag — add or remove an object from the garbage
  * collection linked list.
  *
@@ -591,10 +684,10 @@ void objects_dispose(void)
  * the activation conditions: not already active (bit 0x01), not flagged
  * 0x100000, and has no parent.
  *
- * Confirmed: CALL 0x119320 (datum_get) + CALL 0x13d680 (object_get_and_verify_type).
- * Confirmed: tests header->unk_2 bit 0x01, obj->flags bit 0x100000,
- *            obj->parent_object_index == -1.
- * Confirmed: sets header->unk_2 |= 0x01 on success.
+ * Confirmed: CALL 0x119320 (datum_get) + CALL 0x13d680
+ * (object_get_and_verify_type). Confirmed: tests header->unk_2 bit 0x01,
+ * obj->flags bit 0x100000, obj->parent_object_index == -1. Confirmed: sets
+ * header->unk_2 |= 0x01 on success.
  */
 void object_activate(int object_handle)
 {
@@ -652,14 +745,8 @@ void object_disconnect_from_map(int object_handle)
      * and EBX = object_handle to unlink. */
     object_data_t *parent_obj = (object_data_t *)object_get_and_verify_type(
       obj->parent_object_index.value, -1);
-    {
-      int _eax = (int)((char *)parent_obj + 0xc8);
-      int _ebx = object_handle;
-      __asm__ __volatile__("call *%[fn]"
-                           : "+a"(_eax), "+b"(_ebx)
-                           : [fn] "r"((void *)0x13e510)
-                           : "ecx", "edx", "esi", "edi", "memory", "cc");
-    }
+    object_child_list_remove((void *)((char *)parent_obj + 0xc8),
+                             object_handle);
   } else {
     /* No parent: remove from cluster partition. */
     object_data_t *self_obj =
@@ -778,19 +865,7 @@ void object_set_garbage(int object_handle, int flag)
       if ((char)flag != 0) {
         /* Already inactive but being asked to unmark: propagate to children
          * with (param_1=0, param_2=1). */
-        {
-          int args[2];
-          args[0] = 0; /* param_1=0 */
-          args[1] = 1; /* param_2=1 */
-          __asm__ __volatile__("pushl 4(%[a])\n\t"
-                               "pushl 0(%[a])\n\t"
-                               "call *%[fn]\n\t"
-                               "addl $8, %%esp"
-                               :
-                               : [a] "r"(args), [fn] "r"((void *)0x13ee60),
-                                 "a"(object_handle)
-                               : "ecx", "edx", "memory", "cc");
-        }
+        object_propagate_flag_to_children(object_handle, 0, 1);
         goto lab_0014000a;
       }
       /* bit0 set, flag==0: no child propagation needed */
@@ -800,19 +875,7 @@ void object_set_garbage(int object_handle, int flag)
       if ((char)flag == 0) {
         /* Becoming inactive: propagate to children with (param_1=1,
          * param_2=0). */
-        {
-          int args[2];
-          args[0] = 1; /* param_1=1 */
-          args[1] = 0; /* param_2=0 */
-          __asm__ __volatile__("pushl 4(%[a])\n\t"
-                               "pushl 0(%[a])\n\t"
-                               "call *%[fn]\n\t"
-                               "addl $8, %%esp"
-                               :
-                               : [a] "r"(args), [fn] "r"((void *)0x13ee60),
-                                 "a"(object_handle)
-                               : "ecx", "edx", "memory", "cc");
-        }
+        object_propagate_flag_to_children(object_handle, 1, 0);
         goto lab_00140017;
       } else {
         /* bit0 clear, flag!=0: re-check children block presence */
@@ -1025,21 +1088,8 @@ void object_delete_internal(int object_handle, int delete_sibling)
   /* Check if the object's tag definition has a children block. */
   void *tag_def = tag_get(0x6f626a65, (int)obj->tag_index);
   if (*(int *)((char *)tag_def + 0x34) != -1 && (obj->flags & 1) == 0) {
-    /* Propagate deletion to attached children via FUN_0013ee60.
-     * EAX = object_handle (register arg), stack args = (1, 0). */
-    {
-      int args[2];
-      args[0] = 1;
-      args[1] = 0;
-      __asm__ __volatile__("pushl 4(%[a])\n\t"
-                           "pushl 0(%[a])\n\t"
-                           "call *%[fn]\n\t"
-                           "addl $8, %%esp"
-                           :
-                           : [a] "r"(args), [fn] "r"((void *)0x13ee60),
-                             "a"(object_handle)
-                           : "ecx", "edx", "memory", "cc");
-    }
+    /* Propagate deletion to attached children. */
+    object_propagate_flag_to_children(object_handle, 1, 0);
   }
 
   /* Re-fetch datum header (recursive calls may have moved pool memory). */
@@ -1051,12 +1101,8 @@ void object_delete_internal(int object_handle, int delete_sibling)
   /* Clear datum header bit 0x02 (active). */
   hdr->unk_2 &= (uint8_t)~0x02;
 
-  /* Remove the object from the name list via FUN_0013eff0.
-   * EDI = object_handle (register arg), no stack args. */
-  __asm__ __volatile__("call *%[fn]"
-                       :
-                       : "D"(object_handle), [fn] "r"((void *)0x13eff0)
-                       : "eax", "ecx", "edx", "memory", "cc");
+  /* Remove the object from the name list. */
+  object_remove_from_name_list(object_handle);
 }
 
 /*

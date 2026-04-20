@@ -4,6 +4,7 @@
 	halo/ai/actors.c
 	halo/ai/ai.c
 	halo/bitmaps/bitmaps.c
+	halo/bitmaps/tiff_file.c
 	halo/bungie_net/network/transport_endpoint_set_winsock.c
 	halo/bungie_net/thread_win32.c
 	halo/bink/bink_playback.c
@@ -46,18 +47,22 @@
 	halo/interface/hud.c
 	halo/interface/marketing_and_strategic_business_development.c
 	halo/interface/player_ui.c
+	halo/interface/progress_bar.c
 	halo/interface/terminal.c
 	halo/interface/ui_widget.c
+	halo/interface/ui_widget_event_handler_functions.c
 	halo/interface/ui_widget_game_data_input_functions.c
 	halo/items/items.c
 	halo/items/projectiles.c
 	halo/units/units.c
 	halo/units/vehicles.c
 	halo/networking/network_messages.c
+	halo/main/console.c
 	halo/main/debug_keys.c
 	halo/main/main.c
 	halo/main/telnet_console.c
 	halo/memory/data.c
+	halo/memory/stack_memory_pool.c
 	halo/physics/breakable_surfaces.c
 	halo/physics/collision_usage.c
 	halo/physics/point_physics.c
@@ -67,6 +72,7 @@
 	halo/rasterizer/rasterizer.c
 	halo/rasterizer/common/rasterizer_common.c
 	halo/rasterizer/xbox/rasterizer_xbox.c
+	halo/rasterizer/xbox/rasterizer_xbox_decals.c
 	halo/render/render.c
 	halo/render/render_cameras.c
 	"halo/saved games/saved_game_files.c"
@@ -82,6 +88,7 @@
 	halo/sound/sound_manager.c
 	halo/objects/objects.c
 	halo/objects/widgets/widgets.c
+	halo/text/draw_string.c
 	halo/text/unicode.c
 	halo/tag_files/files.c
 	halo/tag_files/tag_groups.c
