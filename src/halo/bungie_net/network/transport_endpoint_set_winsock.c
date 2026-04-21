@@ -124,6 +124,23 @@ void transport_dispose(void)
   }
 }
 
+/* Clean up the endpoint pool. Iterates 64 entries (8 bytes each) at
+ * 0x3350a0. For each entry with a non-zero thread handle and cleanup
+ * flag set, closes the thread and clears the entry. */
+void endpoint_pool_cleanup(void)
+{
+  int *entry = (int *)0x3350a0;
+
+  do {
+    if (entry[0] != 0 && *(char *)(entry + 1) != 0) {
+      thread_close((void *)entry[0]);
+      entry[0] = 0;
+      *(char *)(entry + 1) = 0;
+    }
+    entry += 2;
+  } while ((int)entry < 0x3352a0);
+}
+
 /* Send data over a transport endpoint.
  *
  * Calls xnet_send (0x225c20) with the socket handle stored at ep[0].
@@ -178,6 +195,41 @@ int send_endpoint(int *ep, const char *buf, int len)
     *(int16_t *)((char *)ep + 6) = -2;
     return -2;
   }
+}
+
+/* Close a transport endpoint's socket and clear its connected flag.
+ *
+ * If the endpoint's socket handle is not INVALID_SOCKET (-1), calls
+ * xnet_closesocket to close it. On failure, reports the Winsock error
+ * via winsock_error_report. Then sets the socket handle to -1.
+ * Always clears bit 0 (connected) of the flags byte at ep+4.
+ *
+ * ep struct layout (from disassembly):
+ *   [ep+0]  int      socket fd (-1 = invalid)
+ *   [ep+4]  uint8_t  flags (bit 0 = connected)
+ *
+ * Confirmed: xnet_closesocket (0x225cc6, __stdcall 1 arg, RET 4);
+ * xapi_GetLastError (0x2235c4 thunk -> 0x1d2240);
+ * winsock_error_report (0x83310, cdecl 1 arg);
+ * assert strings at 0x266658, 0x265fe4; source lines 0x221/0x222.
+ */
+void close_endpoint(int *ep)
+{
+  int result;
+  int err;
+
+  assert_halt(ep != NULL);
+  assert_halt(*(uint8_t *)0x335090);
+
+  if (*ep != -1) {
+    result = xnet_closesocket(*ep);
+    if (result != 0) {
+      err = xapi_GetLastError();
+      winsock_error_report(err);
+    }
+    *ep = -1;
+  }
+  *(uint8_t *)((char *)ep + 4) &= 0xfe;
 }
 
 /* Destroy a transport endpoint: close its socket, free memory, cleanup pool.

@@ -4,8 +4,8 @@ if __name__ == "__main__":
     check_requirements()
 
 import itertools
+import json
 import struct
-import subprocess
 import os
 import logging
 import hashlib
@@ -16,11 +16,12 @@ import pefile
 from xbe import Xbe, XbeSection, XbeSectionHeader, XbeKernelImage
 
 import color
-from knowledge import KnowledgeBase
+from knowledge import Function, KnowledgeBase
 
 
 log = logging.getLogger(__name__)
 root_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+KB_REG_BASELINE_PATH = os.path.join(root_dir, 'tools', 'kb_reg_baseline.json')
 
 
 EXCEPTION_BUILD_AT_STRING_ADDR = 0x28b6f8
@@ -28,6 +29,138 @@ EXCEPTION_BUILD_AT_DATE_OFFSET = 38
 EXCEPTION_BUILD_STRING_ADDR = 0x28b5d4
 EXCEPTION_BUILD_STRING_DATE_OFFSET = 28
 EXCEPTION_BUILD_TIMESTAMP_LENGTH = 20
+
+
+def normalize_hex_addr(addr):
+    if isinstance(addr, str):
+        return hex(int(addr, 0))
+    return hex(addr)
+
+
+def format_register_args(reg_args):
+    if not reg_args:
+        return 'none'
+    return ', '.join(f'arg{index}@<{reg}>' for index, reg in reg_args)
+
+
+def format_register_arg_delta_lines(expected_reg_args, actual_reg_args):
+    expected = {f'arg{index}@<{reg}>' for index, reg in expected_reg_args}
+    actual = {f'arg{index}@<{reg}>' for index, reg in actual_reg_args}
+
+    removed = sorted(expected - actual)
+    added = sorted(actual - expected)
+    if not removed and not added:
+        return ['(no change)']
+
+    lines = [f'- {entry}' for entry in removed]
+    if added:
+        lines.extend(f'+ {entry}' for entry in added)
+    else:
+        lines.append('+ none')
+    return lines
+
+
+def load_reg_annotation_baseline(baseline_path=KB_REG_BASELINE_PATH):
+    with open(baseline_path) as f:
+        baseline_raw = json.load(f)
+
+    baseline_funcs = baseline_raw.get('functions')
+    if not isinstance(baseline_funcs, dict):
+        raise ValueError(f'{baseline_path} is missing a top-level "functions" object')
+
+    for addr, baseline_decl in baseline_funcs.items():
+        if not isinstance(baseline_decl, str):
+            raise ValueError(f'{baseline_path} entry {addr} must map to a declaration string')
+        baseline_func = Function(baseline_decl, addr=normalize_hex_addr(addr))
+        if not baseline_func.register_args:
+            raise ValueError(f'{baseline_path} entry {addr} has no @<reg> annotation: {baseline_decl}')
+
+    return baseline_funcs
+
+
+def find_reg_annotation_mismatches(kb, baseline_path=KB_REG_BASELINE_PATH, baseline_funcs=None):
+    if baseline_funcs is None:
+        baseline_funcs = load_reg_annotation_baseline(baseline_path)
+
+    current_symbols = {
+        normalize_hex_addr(symbol.addr): symbol
+        for symbol in kb.symbols
+        if getattr(symbol, 'addr', None) is not None
+    }
+
+    mismatches = []
+    for addr, baseline_decl in sorted(baseline_funcs.items(), key=lambda item: int(item[0], 16)):
+        normalized_addr = normalize_hex_addr(addr)
+        baseline_func = Function(baseline_decl, addr=normalized_addr)
+        expected_reg_args = baseline_func.register_args
+
+        current_symbol = current_symbols.get(normalized_addr)
+        current_decl = current_symbol.decl if current_symbol is not None else None
+        actual_reg_args = current_symbol.register_args if isinstance(current_symbol, Function) else []
+
+        if current_decl is None or not isinstance(current_symbol, Function) or actual_reg_args != expected_reg_args:
+            mismatches.append({
+                'addr': normalized_addr,
+                'name': baseline_func.name,
+                'baseline_decl': baseline_decl,
+                'expected_reg_args': expected_reg_args,
+                'current_decl': current_decl,
+                'actual_reg_args': actual_reg_args,
+            })
+
+    return mismatches
+
+
+def validate_reg_annotation_baseline_completeness(kb, baseline_funcs, baseline_path=KB_REG_BASELINE_PATH):
+    missing = []
+    for symbol in kb.symbols:
+        if not isinstance(symbol, Function) or symbol.addr is None or not symbol.register_args:
+            continue
+        normalized_addr = normalize_hex_addr(symbol.addr)
+        if normalized_addr not in baseline_funcs:
+            missing.append((normalized_addr, symbol.decl))
+
+    if missing:
+        detail = ', '.join(f'{addr} ({decl})' for addr, decl in missing)
+        raise ValueError(
+            f'{baseline_path} is missing {len(missing)} current @<reg> function(s): {detail}')
+
+
+def validate_reg_arg_annotations(kb, baseline_path=KB_REG_BASELINE_PATH):
+    try:
+        baseline_funcs = load_reg_annotation_baseline(baseline_path)
+        validate_reg_annotation_baseline_completeness(kb, baseline_funcs, baseline_path)
+        mismatches = find_reg_annotation_mismatches(kb, baseline_path, baseline_funcs)
+    except FileNotFoundError:
+        log.error('Missing register-arg baseline: %s', baseline_path)
+        exit(1)
+    except json.JSONDecodeError as e:
+        log.error('Invalid register-arg baseline %s: %s', baseline_path, e)
+        exit(1)
+    except ValueError as e:
+        log.error('Register-arg baseline validation setup failed: %s', e)
+        exit(1)
+
+    if not mismatches:
+        return
+
+    log.error('Register-arg baseline mismatch detected — %d protected function(s):',
+              len(mismatches))
+    for mismatch in mismatches:
+        log.error('  "%s" @ %s', mismatch['name'], mismatch['addr'])
+        log.error('    EXPECTED: %s', format_register_args(mismatch['expected_reg_args']))
+        log.error('    BASELINE: %s', mismatch['baseline_decl'])
+        if mismatch['current_decl'] is None:
+            log.error('    CURRENT: missing from kb.json')
+        else:
+            log.error('    CURRENT: %s', mismatch['current_decl'])
+            log.error('    ACTUAL: %s', format_register_args(mismatch['actual_reg_args']))
+        log.error('    DELTA:')
+        for line in format_register_arg_delta_lines(
+                mismatch['expected_reg_args'], mismatch['actual_reg_args']):
+            log.error('      %s', line)
+        log.error('    FIX: Restore the original @<reg> annotation layout from tools/kb_reg_baseline.json in kb.json.')
+    exit(1)
 
 
 def format_exception_build_timestamp(now: datetime) -> str:
@@ -126,9 +259,19 @@ def encode_mov_mesp_r32(disp, src32):
     return bytes([0x89, modrm, 0x24]) + struct.pack('<I', disp)
 
 
-def encode_add_esp_imm8(imm):
-    assert -128 <= imm <= 127
-    return bytes([0x83, 0xC4, imm & 0xFF])
+def encode_push_mesp(disp):
+    if disp == 0:
+        return bytes([0xFF, 0x34, 0x24])
+    if 0 <= disp <= 0x7F:
+        return bytes([0xFF, 0x74, 0x24, disp])
+    return bytes([0xFF, 0xB4, 0x24]) + struct.pack('<I', disp)
+
+
+def encode_add_esp(imm):
+    assert imm >= 0
+    if imm <= 0x7F:
+        return bytes([0x83, 0xC4, imm])
+    return bytes([0x81, 0xC4]) + struct.pack('<I', imm)
 
 
 def encode_call_rel32(src_addr_of_call, target_addr):
@@ -141,39 +284,27 @@ def encode_call_rel32(src_addr_of_call, target_addr):
 def generate_reverse_thunk(sym, impl_addr, rvthunk_addr):
     """Emit a naked register-to-cdecl trampoline for an implemented @<reg> function.
 
-    Strategy: route every register arg through caller-saved scratch registers
-    (EAX, ECX) so callee-saved regs (ESI/EDI/EBX/EBP) are never modified —
-    cdecl requires we preserve them across the call. The original return
-    address must stay on the stack throughout the call; keeping it in a
-    caller-saved register like EDX is unsafe because the callee may clobber it.
-    That clobber is normal lifted-C behavior: once we call a ported C body, the
-    compiler is free to reuse EAX/ECX/EDX across its own subcalls and temporaries.
+    Strategy: stage every register arg through caller-saved scratch registers
+    (EAX, ECX, EDX) so callee-saved regs (ESI/EDI/EBX/EBP) are never modified.
+    Then rebuild a full cdecl argument list on top of the current stack by
+    pushing parameters right-to-left. Register params are pushed from staged
+    scratch slots; stack params are copied from their original incoming stack
+    locations. This supports any register-param indices, including non-leading
+    ones such as `f(a, b@<esi>, c@<ebx>, d)`.
 
     Layout:
-      1. Rotate the original return address underneath the existing stack args.
-      2. Move/widen each register arg into its assigned scratch slot (EAX
-         for arg 0, ECX for arg 1).
-      3. Push scratch slots in reverse param order (so arg 0 ends up on top,
-         which is where cdecl's first arg lives).
-      4. Call impl (rel32).
-      5. Clean up the N injected dwords with add esp.
-      6. Rotate the original return address back to the top and ret."""
+      1. Move/widen each register arg into its assigned scratch slot.
+      2. Push full argument list in reverse declaration order.
+      3. Call impl (rel32).
+      4. Clean up the injected cdecl args.
+      5. Ret to the original caller using the untouched return address."""
     reg_args = sym.register_args
     assert reg_args, "generate_reverse_thunk called on non-register-arg function"
 
-    # Up to 3 register args supported.  EDX is the third scratch slot but is
-    # also used for return-address rotation when stack_arg_count > 0, so 3 reg
-    # args are only legal when every parameter is register-passed (no stack
-    # args).  The assertion below enforces this after param_count is known.
+    # Up to 3 register args supported via EAX/ECX/EDX scratch staging.
     SCRATCH_FOR_ARG = ['eax', 'ecx', 'edx']
     assert len(reg_args) <= len(SCRATCH_FOR_ARG), \
         f'rvthunk supports at most {len(SCRATCH_FOR_ARG)} register args'
-
-    # Verify reg args occupy contiguous param indices starting at 0 — required
-    # so injected args land in the right cdecl slots.
-    for i, (param_idx, _) in enumerate(reg_args):
-        assert param_idx == i, \
-            'register args must be the first parameters in declaration order'
 
     open_paren = sym.decl.find('(')
     close_paren = sym.decl.rfind(')')
@@ -204,28 +335,9 @@ def generate_reverse_thunk(sym, impl_addr, rvthunk_addr):
     stack_arg_count = param_count - len(reg_args)
     assert stack_arg_count >= 0
 
-    # EDX is used for return-address rotation when stack args exist. If we
-    # also need EDX as a third scratch for register args, there's a conflict.
-    if len(reg_args) >= 3:
-        assert stack_arg_count == 0, \
-            '3 register args require 0 stack args (EDX conflict with rotation)'
-
     code = bytearray()
 
-    # 1. Rotate the original ret address below the existing stack args.
-    # Keep it on the stack instead of a caller-saved register so the ported C
-    # body can freely use EAX/ECX/EDX without corrupting the eventual RET.
-    # Use a scratch register that doesn't collide with any register arg source.
-    reg_arg_sources = {REG_PARENT[r] for _, r in reg_args}
-    fwd_scratch = 'ecx' if 'eax' in reg_arg_sources else 'eax'
-    if stack_arg_count > 0:
-        code += encode_mov_r32_mesp('edx', 0)
-        for i in range(stack_arg_count):
-            code += encode_mov_r32_mesp(fwd_scratch, 4 * (i + 1))
-            code += encode_mov_mesp_r32(4 * i, fwd_scratch)
-        code += encode_mov_mesp_r32(4 * stack_arg_count, 'edx')
-
-    # 2. Stage each register arg into its scratch slot, widening as needed.
+    # 1. Stage each register arg into its scratch slot, widening as needed.
     for i, (_, src_reg) in enumerate(reg_args):
         dst32 = SCRATCH_FOR_ARG[i]
         if src_reg in REG32_BITS:
@@ -238,25 +350,34 @@ def generate_reverse_thunk(sym, impl_addr, rvthunk_addr):
         else:
             raise ValueError(f'Unsupported register {src_reg!r}')
 
-    # 3. Push scratch slots in reverse so the lowest-index arg is on top.
-    for i in reversed(range(len(reg_args))):
-        code += encode_push_r32(SCRATCH_FOR_ARG[i])
+    # 2. Push full arg list in reverse declaration order.
+    reg_param_to_scratch = {param_idx: SCRATCH_FOR_ARG[i] for i, (param_idx, _) in enumerate(reg_args)}
+    stack_param_to_incoming_slot = {}
+    incoming_slot = 0
+    for param_idx in range(param_count):
+        if param_idx not in reg_param_to_scratch:
+            stack_param_to_incoming_slot[param_idx] = incoming_slot
+            incoming_slot += 1
 
-    # 4. Call impl. rel32 computed from address of the call instruction itself.
+    pushed_count = 0
+    for param_idx in reversed(range(param_count)):
+        if param_idx in reg_param_to_scratch:
+            code += encode_push_r32(reg_param_to_scratch[param_idx])
+        else:
+            src_slot = stack_param_to_incoming_slot[param_idx]
+            # +1 skips return address from original caller.
+            disp = 4 * (1 + src_slot + pushed_count)
+            code += encode_push_mesp(disp)
+        pushed_count += 1
+
+    # 3. Call impl. rel32 computed from address of the call instruction itself.
     call_site = rvthunk_addr + len(code)
     code += encode_call_rel32(call_site, impl_addr)
 
-    # 5. Clean up our injected args.
-    code += encode_add_esp_imm8(4 * len(reg_args))
+    # 4. Clean up injected args, preserving EAX return value.
+    code += encode_add_esp(4 * param_count)
 
-    # 6. Rotate the original ret address back to the top and return.
-    # Use ECX as scratch (not EAX) — EAX holds the callee's return value.
-    if stack_arg_count > 0:
-        code += encode_mov_r32_mesp('edx', 4 * stack_arg_count)
-        for i in reversed(range(stack_arg_count)):
-            code += encode_mov_r32_mesp('ecx', 4 * i)
-            code += encode_mov_mesp_r32(4 * (i + 1), 'ecx')
-        code += encode_mov_mesp_r32(0, 'edx')
+    # 5. Return to original caller.
     code += b'\xc3'  # ret
 
     return bytes(code)
@@ -301,6 +422,8 @@ def _test_reverse_thunks():
          "@<eax> with 1 stack arg — forward rotation must not use EAX"),
         ("void unit_set_animation(int unit_handle@<eax>, int anim_graph_tag_index@<edi>, int16_t animation_index@<bx>);",
          "@<eax>,@<edi>,@<bx> with 0 stack args — 3 reg args, EDX as third scratch"),
+        ("void hs_report_compile_error(void *error_info, char *error_text@<esi>, char *script_element@<ebx>, void *source_start@<edi>);",
+         "non-leading register args with one stack arg"),
     ]
 
     for decl, desc in cases:
@@ -406,12 +529,12 @@ def main():
     if not args.input_xbe or not args.input_exe or not args.output_xbe:
         ap.error('input_xbe, input_exe, and output_xbe are required')
 
+    kb = KnowledgeBase.deserialize()
+
     if not os.path.isfile(args.input_xbe):
         log.error('Could not find input XBE %s', args.input_xbe)
         exit(1)
     log.info('Original XBE: %s', args.input_xbe)
-
-    kb = KnowledgeBase.deserialize()
 
     # Load xbe
     log.info('Verifying original XBE MD5')
@@ -433,6 +556,18 @@ def main():
 
     # Determine new base address for EXE
     base_addr = round_up(max(s.header.virtual_addr + s.header.virtual_size for s in xbe.sections.values()), 0x1000)
+
+    # Gather EXE exports before mutating the XBE so ABI proofs run against the
+    # original binary only.
+    log.debug('All EXE exports:')
+    export_name_to_addr = {}
+    for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
+        name = exp.name.decode('ascii')
+        addr = base_addr + exp.address
+        log.debug('- %s @ %x', name, addr)
+        export_name_to_addr[name] = addr
+
+    validate_reg_arg_annotations(kb)
 
     pe_original_base = pe.OPTIONAL_HEADER.ImageBase
     if pe_original_base != base_addr:
@@ -543,15 +678,6 @@ def main():
                 addr_of_original_function_in_xbe = kb.name_to_addr[lookup_name]
                 log.info('Patching EXE import of XBE symbol "%s" at %x with %x', name, i.address, addr_of_original_function_in_xbe)
                 write_to_vaddr(xbe, i.address, struct.pack('<I', addr_of_original_function_in_xbe))
-
-    # Gather EXE exports
-    log.debug('All EXE exports:')
-    export_name_to_addr = {}
-    for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
-        name = exp.name.decode('ascii')
-        addr = base_addr + exp.address
-        log.debug('- %s @ %x', name, addr)
-        export_name_to_addr[name] = addr
 
     # Patch special exports
     special_exports = {

@@ -1,6 +1,6 @@
 ---
-description: Two-phase lift — RE analysis by deep agent, then build + verify pipeline
-agent: xbox-halo-re-analyst
+description: High-reasoning lift — deep agent RE analysis + build + verify pipeline
+agent: deep
 subtask: true
 ---
 
@@ -28,8 +28,9 @@ Scope/read-budget guardrails:
 
 ## Phase 1 — Analysis + Implementation
 
-Using the xbox-halo-re-analyst persona (bounded RE worker following
-`halo-xbox-re` doctrine), perform a complete lift for the target:
+Adopt the persona of the `xbox-halo-re-analyst` (bounded RE worker for Halo CE
+Xbox, cachebeta.xbe, v01.10.12.2276). Follow the `halo-xbox-re` skill for
+methodology, evidence rules, prototype inference, kb policy, and output format.
 
 **If $ARGUMENTS is provided:** use it as the target (name or 0x... address).
 **If $ARGUMENTS is empty:** run `python3 tools/frontier.py --limit 5` and pick

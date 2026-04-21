@@ -102,6 +102,137 @@ int game_engine_game_starting(void)
   return 0;
 }
 
+/* Remove dropped weapons older than 900 ticks (30 seconds) and
+ * equipment items whose idle timer exceeds 900 ticks.
+ * Weapons that are CTF flags or attached to vehicles are preserved. */
+void game_engine_remove_dropped_weapons(void)
+{
+  int game_time;
+  int iter_buf[4];
+  int handle;
+  char *obj;
+
+  game_time = game_time_get();
+
+  object_iterator_new(iter_buf, 0x1c, 0);
+  while (object_iterator_next(iter_buf) != NULL) {
+    handle = iter_buf[2];
+    obj = (char *)object_get_and_verify_type(handle, 0x1c);
+    if (*(int *)(obj + 0x1b4) < game_time - 900 &&
+        (*(uint8_t *)(obj + 0x1a4) & 1) == 0) {
+      if (object_try_and_get_and_verify_type(handle, 4) == NULL ||
+          !weapon_is_flag(handle)) {
+        object_delete(handle);
+      }
+    }
+  }
+
+  object_iterator_new(iter_buf, 1, 0);
+  while (object_iterator_next(iter_buf) != NULL) {
+    handle = iter_buf[2];
+    obj = (char *)object_get_and_verify_type(handle, -1);
+    if (*(int16_t *)(obj + 0x6c) > (int16_t)900 &&
+        (*(uint8_t *)(obj + 0xb6) & 4) != 0) {
+      object_delete(handle);
+    }
+  }
+}
+
+/* If the flag weapon is loose (no parent vehicle, no carried bit) and has
+ * bit 0x20 at offset 0x1dc set, clear that bit and notify the game engine
+ * via vtable slot 16. weapon_index passed in ESI (register arg). */
+void game_engine_update_flag_state(int weapon_index /* @<esi> */)
+{
+  char *obj;
+
+  if (weapon_index == -1) {
+    display_assert("weapon_index != NONE",
+                   "c:\\halo\\SOURCE\\game\\game_engine.c", 0x78c, 1);
+    system_exit(-1);
+  }
+  if (!weapon_is_flag(weapon_index)) {
+    display_assert("weapon_is_flag(weapon_index)",
+                   "c:\\halo\\SOURCE\\game\\game_engine.c", 0x78d, 1);
+    system_exit(-1);
+  }
+
+  obj = (char *)object_get_and_verify_type(weapon_index, 4);
+  if (*(int *)(obj + 0xcc) == -1 && (*(uint8_t *)(obj + 0x1a4) & 1) == 0 &&
+      (*(uint32_t *)(obj + 0x1dc) & 0x20) != 0) {
+    *(uint32_t *)(obj + 0x1dc) &= ~0x20u;
+    {
+      void (*fn)(int) = ((void (**)(int))current_game_engine)[0x40 / 4];
+      if (fn)
+        fn(weapon_index);
+    }
+  }
+}
+
+/* Iterate all weapon objects and set their scale from the item tag definition.
+ * Uses tag field 0x184 as scale (defaults to 0.7f if zero).
+ * For flag weapons with vehicle attachments, notifies the game engine. */
+void game_engine_spawn_equipment(void)
+{
+  int iter_buf[4];
+  int handle;
+  char *obj;
+  char *tag_data;
+  float scale;
+
+  if (current_game_engine == 0) {
+    display_assert("NULL != game_engine",
+                   "c:\\halo\\SOURCE\\game\\game_engine.c", 0x7aa, 1);
+    system_exit(-1);
+  }
+
+  object_iterator_new(iter_buf, 0x1c, 0);
+  while (object_iterator_next(iter_buf) != NULL) {
+    handle = iter_buf[2];
+    obj = (char *)object_get_and_verify_type(handle, 0x1c);
+
+    if ((*(uint8_t *)(obj + 0x1a4) & 1) == 0) {
+      tag_data = (char *)tag_get(0x6974656d, *(int *)obj);
+      scale = *(float *)(tag_data + 0x184);
+      if (scale == 0.0f)
+        scale = *(float *)0x2533c8;
+      *(float *)(obj + 0x60) = scale;
+      if (scale < *(float *)0x253398 || scale > *(float *)0x254644) {
+        display_assert(
+          "(item->object.scale >= 0.5f) && (item->object.scale <= 3.f)",
+          "c:\\halo\\SOURCE\\game\\game_engine.c", 0x7c0, 1);
+        system_exit(-1);
+      }
+    } else {
+      *(float *)(obj + 0x60) = 1.0f;
+    }
+
+    {
+      void (*spawn_fn)(int, void *) =
+        ((void (**)(int, void *))current_game_engine)[0x38 / 4];
+      if (spawn_fn != NULL) {
+        void *vehicle = object_try_and_get_and_verify_type(handle, 4);
+        if (vehicle != NULL && weapon_is_flag(handle)) {
+          game_engine_update_flag_state(handle);
+          spawn_fn(handle, vehicle);
+        }
+      }
+    }
+  }
+}
+
+/* Trigger a game restart. Sets a 7-second countdown timer, posts a
+ * restart event, and closes all UI widgets. Only fires once (guards
+ * against repeated calls via the flag at 0x5aa730). */
+void game_engine_start_over(void)
+{
+  if (*(int *)0x5aa730 == 0) {
+    *(int *)0x5aa730 = 1;
+    *(float *)0x5aa728 = 7.0f;
+    game_engine_post_event(1);
+    ui_widgets_close_all();
+  }
+}
+
 /* game_engine_allow_weapon_pick_up (0xa8b30)
  *
  * Dispatches to vtable slot 0x58/4 = slot 22 of current_game_engine.
@@ -201,6 +332,387 @@ bool game_engine_unit_can_enter_seat(int unit_handle, int seat_object_handle)
   return result;
 }
 
+/* game_engine_slayer_default (0xaa190)
+ *
+ * Initialise a game_variant_t with default Slayer settings.
+ * Engine type 2 (slayer), score limit 300, 15 lives, 2 weapon sets,
+ * 1.0 speed. */
+game_variant_t *game_engine_slayer_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 2;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x34) = 0x12c;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 0xf;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_elimination_default (0xaa2b0)
+ *
+ * Default Elimination variant. Engine type 2, score limit 300,
+ * 1 round, 25 lives, 2 weapon sets, 1.0 speed. */
+game_variant_t *game_engine_elimination_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 2;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x34) = 0x12c;
+  *(int32_t *)((char *)variant + 0x38) = 1;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 0x19;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_team_slayer_default (0xaa580)
+ *
+ * Default Team Slayer variant. Engine type 2, team play enabled,
+ * score/time limits 300, 50 lives, 2 weapon sets, 1.0 speed. */
+game_variant_t *game_engine_team_slayer_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 2;
+  *(uint8_t *)((char *)variant + 0x1c) = 1;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x30) = 0x12c;
+  *(int32_t *)((char *)variant + 0x34) = 0x12c;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 0x32;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_oddball_default (0xaa610)
+ *
+ * Default Oddball variant. Engine type 3, score/time 150 each,
+ * 2 lives, 1 weapon set, ball indicator on, 1.0 speed. */
+game_variant_t *game_engine_oddball_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 3;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x30) = 0x96;
+  *(int32_t *)((char *)variant + 0x34) = 0x96;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 2;
+  *(int32_t *)((char *)variant + 0x48) = 1;
+  *(uint8_t *)((char *)variant + 0x4d) = 1;
+  *(int32_t *)((char *)variant + 0x60) = 1;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_team_oddball_default (0xaa6a0)
+ *
+ * Default Team Oddball variant. Engine type 3, team play,
+ * bitmask 0x23, score limit 300, time limit 150, 2 lives,
+ * 1 weapon set, ball indicator on, 1.0 speed. */
+game_variant_t *game_engine_team_oddball_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 3;
+  *(uint8_t *)((char *)variant + 0x1c) = 1;
+  *(int32_t *)((char *)variant + 0x20) = 0x23;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x30) = 0x12c;
+  *(int32_t *)((char *)variant + 0x34) = 0x96;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 2;
+  *(int32_t *)((char *)variant + 0x48) = 1;
+  *(int32_t *)((char *)variant + 0x60) = 1;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_accumulation_default (0xaa7c0)
+ *
+ * Default Accumulation variant. Engine type 3, bitmask 2,
+ * score/time 150 each, 5 lives, modifier 2, HUD flags 0x10,
+ * 1 score unit, 1.0 speed. */
+game_variant_t *game_engine_accumulation_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 3;
+  *(int32_t *)((char *)variant + 0x20) = 2;
+  *(int32_t *)((char *)variant + 0x24) = 2;
+  *(int32_t *)((char *)variant + 0x30) = 0x96;
+  *(int32_t *)((char *)variant + 0x34) = 0x96;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 5;
+  *(int32_t *)((char *)variant + 0x48) = 1;
+  *(int32_t *)((char *)variant + 0x5c) = 1;
+  *(int32_t *)((char *)variant + 0x60) = 0x10;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_stalker_default (0xaa900)
+ *
+ * Default Stalker variant. Engine type 3, bitmask 2,
+ * score/time 150 each, 10 lives, multiple weapon/scoring
+ * fields, 1.0 speed. */
+game_variant_t *game_engine_stalker_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 3;
+  *(int32_t *)((char *)variant + 0x20) = 2;
+  *(int32_t *)((char *)variant + 0x30) = 0x96;
+  *(int32_t *)((char *)variant + 0x34) = 0x96;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 0xa;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int32_t *)((char *)variant + 0x50) = 2;
+  *(int32_t *)((char *)variant + 0x54) = 1;
+  *(int32_t *)((char *)variant + 0x58) = 3;
+  *(int32_t *)((char *)variant + 0x5c) = 2;
+  *(int32_t *)((char *)variant + 0x60) = 1;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_king_default (0xaa9a0)
+ *
+ * Default King of the Hill variant. Engine type 4,
+ * score/time 150 each, 2 lives, modifier 1, 1.0 speed. */
+game_variant_t *game_engine_king_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 4;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x30) = 0x96;
+  *(int32_t *)((char *)variant + 0x34) = 0x96;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 2;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_team_king_default (0xaab30)
+ *
+ * Default Team King variant. Engine type 4, team play,
+ * score limit 300, time limit 150, 2 lives, modifier 1,
+ * hill indicator on, 1.0 speed. */
+game_variant_t *game_engine_team_king_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 4;
+  *(uint8_t *)((char *)variant + 0x1c) = 1;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x30) = 0x12c;
+  *(int32_t *)((char *)variant + 0x34) = 0x96;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 2;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(uint8_t *)((char *)variant + 0x4c) = 1;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_ctf_default (0xaabc0)
+ *
+ * Default Capture The Flag variant. Engine type 1, team play,
+ * score limit 300, time limit 150, 3 lives, modifier 1,
+ * 2 weapon sets, 1.0 speed. */
+game_variant_t *game_engine_ctf_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 1;
+  *(uint8_t *)((char *)variant + 0x1c) = 1;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x30) = 0x12c;
+  *(int32_t *)((char *)variant + 0x34) = 0x96;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 3;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_ironctf_default (0xaad70)
+ *
+ * Default Iron CTF variant. Engine type 1, team play,
+ * score limit 450, time limit 150, 3 lives, modifier 1,
+ * 4 weapon sets, flag indicator on, 2.0 speed. */
+game_variant_t *game_engine_ironctf_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 1;
+  *(uint8_t *)((char *)variant + 0x1c) = 1;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x30) = 0x1c2;
+  *(int32_t *)((char *)variant + 0x34) = 0x96;
+  *(int32_t *)((char *)variant + 0x3c) = 0x40000000;
+  *(int32_t *)((char *)variant + 0x40) = 3;
+  *(int32_t *)((char *)variant + 0x48) = 4;
+  *(uint8_t *)((char *)variant + 0x4e) = 1;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_race_default (0xaae00)
+ *
+ * Default Race variant. Engine type 5, modifier 1,
+ * time limit 300, 3 lives, 2 weapon sets, 1.0 speed. */
+game_variant_t *game_engine_race_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 5;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x34) = 0x12c;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 3;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_rally_default (0xaae90)
+ *
+ * Default Rally variant. Engine type 5, modifier 1,
+ * time limit 300, 15 lives, 2 weapon sets + mode 2,
+ * 1.0 speed. */
+game_variant_t *game_engine_rally_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 5;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x34) = 0x12c;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 0xf;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int32_t *)((char *)variant + 0x4c) = 2;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* game_engine_team_race_default (0xaaf20)
+ *
+ * Default Team Race variant. Engine type 5, team play,
+ * modifier 1, time limit 300, 3 lives, 2 weapon sets,
+ * 1.0 speed. */
+game_variant_t *game_engine_team_race_default(game_variant_t *variant)
+{
+  csmemset(variant, 0, 0x68);
+  *(int32_t *)((char *)variant + 0x18) = 5;
+  *(uint8_t *)((char *)variant + 0x1c) = 1;
+  *(int32_t *)((char *)variant + 0x20) = 3;
+  *(int32_t *)((char *)variant + 0x24) = 1;
+  *(int32_t *)((char *)variant + 0x34) = 0x12c;
+  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)variant + 0x40) = 3;
+  *(int32_t *)((char *)variant + 0x48) = 2;
+  *(int16_t *)((char *)variant + 0x64) = 1;
+  return variant;
+}
+
+/* Check if any of the 4 gamepads has the specified button pressed.
+ * button_index passed in EDI (register arg). Returns true on first hit. */
+bool game_engine_check_input_button(int button_index /* @<edi> */)
+{
+  int i;
+
+  for (i = 0; i < 4; i++) {
+    void *state = input_get_gamepad_state(i);
+    if (state != NULL && *((char *)state + 0x10 + button_index) != 0)
+      return true;
+  }
+  return false;
+}
+
+/* Validate and clamp all fields of a game variant struct to legal ranges.
+ * Normalizes booleans, clamps integers, and clamps the speed float to
+ * [0.5f, 2.0f]. Logs an error if any field was changed. */
+void game_engine_variant_cleanup(game_variant_t *variant)
+{
+  char saved[0x68];
+  int *v = (int *)variant;
+  int game_type;
+
+  csmemcpy(saved, variant, 0x68);
+
+  *(int16_t *)((char *)v + 0x16) = 0;
+
+  game_type = v[6];
+  if (game_type < 1)
+    game_type = 1;
+  else if (game_type > 5)
+    game_type = 5;
+  v[6] = game_type;
+
+  *(uint8_t *)((char *)v + 0x1c) = (*(uint8_t *)((char *)v + 0x1c) != 0);
+  *(uint8_t *)((char *)v + 0x28) = (*(uint8_t *)((char *)v + 0x28) != 0);
+
+  if (v[0xb] <= 0)
+    v[0xb] = 0;
+  if (v[0xc] <= 0)
+    v[0xc] = 0;
+  if (v[0xd] <= 0)
+    v[0xd] = 0;
+  if (v[0xe] <= 0)
+    v[0xe] = 0;
+
+  {
+    float scale = *(float *)((char *)v + 0x3c);
+    if (scale < *(float *)0x25337c)
+      scale = *(float *)0x25337c;
+    else if (scale > *(float *)0x2533d8)
+      scale = *(float *)0x2533d8;
+    *(float *)((char *)v + 0x3c) = scale;
+  }
+
+  if (v[0x11] < 0)
+    v[0x11] = 0;
+  else if (v[0x11] > 10)
+    v[0x11] = 10;
+
+  if (v[0x12] < 0)
+    v[0x12] = 0;
+  else if (v[0x12] > 4)
+    v[0x12] = 4;
+
+  if (game_type == 1) {
+    *(uint8_t *)((char *)v + 0x4c) = (*(uint8_t *)((char *)v + 0x4c) != 0);
+    *(uint8_t *)((char *)v + 0x4d) = (*(uint8_t *)((char *)v + 0x4d) != 0);
+    *(uint8_t *)((char *)v + 0x4e) = (*(uint8_t *)((char *)v + 0x4e) != 0);
+    *(uint8_t *)((char *)v + 0x1c) = 1;
+    *(uint8_t *)((char *)v + 0x4f) = (*(uint8_t *)((char *)v + 0x4f) != 0);
+    if (v[0x14] < 0)
+      v[0x14] = 0;
+  } else if (game_type == 2) {
+    *(uint8_t *)((char *)v + 0x4c) = (*(uint8_t *)((char *)v + 0x4c) != 0);
+    *(uint8_t *)((char *)v + 0x4d) = (*(uint8_t *)((char *)v + 0x4d) != 0);
+    *(uint8_t *)((char *)v + 0x4e) = (*(uint8_t *)((char *)v + 0x4e) != 0);
+  }
+
+  if (csmemcmp(saved, variant, 0x68) != 0) {
+    char before[0x68];
+    csmemcpy(before, saved, 0x68);
+    csmemcpy(before, variant, 0x68);
+    error(
+      2,
+      "NETGAME CODE FAILURE: game_engine_variant_cleanup changed the variant");
+  }
+}
+
+/* Returns true if the game has not entered a restart/game-over state. */
+bool FUN_000ab720(void)
+{
+  return *(int *)0x5aa730 == 0;
+}
+
 /* game_engine_can_pick_up_weapon (0xaba00)
  *
  * In Juggernaut (game type index 1) with an active engine, returns true
@@ -249,6 +761,17 @@ void game_engine_initialize(game_variant_t *variant)
     current_game_engine =
       (void *)(*(int32_t *)((char *)0x2eff98 + engine_type * 4));
   }
+}
+
+/* Returns true if the game is over: the engine exists but all remaining
+ * players/teams are on the same side (no competition left). */
+bool game_engine_game_over(void)
+{
+  if (current_game_engine) {
+    if (!game_engine_teams_still_playing())
+      return true;
+  }
+  return false;
 }
 
 /* game_engine_update_non_deterministic (0xacdd0)
@@ -637,4 +1160,118 @@ void game_engine_update(void)
                    0x985, true);
     system_exit(-1);
   }
+}
+
+/* Play the score sound for the given event index. Looks up the sound
+ * tag from game_globals multiplayer_information sounds block.
+ * event_index passed in ESI (register arg). */
+void game_engine_play_score_sound(int event_index /* @<esi> */)
+{
+  void *globals;
+  void *mp_info;
+  void *entry;
+  int tag_index;
+
+  global_scenario_get();
+  globals = game_globals_get();
+  mp_info = tag_block_get_element((char *)globals + 0x164, 0, 0xa0);
+  if (mp_info != NULL && event_index < *(int *)((char *)mp_info + 0x5c)) {
+    entry = tag_block_get_element((char *)mp_info + 0x5c, event_index, 0x10);
+    if (entry != NULL) {
+      tag_index = *(int *)((char *)entry + 0xc);
+      if (tag_index != -1)
+        sound_impulse_start(tag_index, 1.0f);
+    }
+  }
+}
+
+/* Advance the score event queue. When the current entry's delay expires,
+ * shift the queue and play the next sound. */
+void game_engine_score_tick(void)
+{
+  int count = *(int *)0x456dd8;
+
+  if (count == 0)
+    return;
+
+  *(int *)0x456de0 = *(int *)0x456de0 - 1;
+  if (*(int *)0x456de0 != 0)
+    return;
+
+  if (count > 1) {
+    int dwords = ((count - 1) & 0x1fffffff) << 1;
+    int *dst = (int *)0x456ddc;
+    int *src = (int *)0x456de4;
+    int i;
+    for (i = 0; i < dwords; i++)
+      dst[i] = src[i];
+  }
+
+  count--;
+  *(int *)0x456dd8 = count;
+  if (count != 0)
+    game_engine_play_score_sound(*(int *)0x456ddc);
+}
+
+/* Return the duration in ticks of the score sound at event_index.
+ * event_index passed in ESI (register arg). */
+int game_engine_get_score_sound_duration(int event_index /* @<esi> */)
+{
+  void *globals;
+  void *mp_info;
+  void *entry;
+  int tag_index;
+  void *tag_data;
+
+  global_scenario_get();
+  globals = game_globals_get();
+  mp_info = tag_block_get_element((char *)globals + 0x164, 0, 0xa0);
+  if (mp_info != NULL && event_index < *(int *)((char *)mp_info + 0x5c)) {
+    entry = tag_block_get_element((char *)mp_info + 0x5c, event_index, 0x10);
+    if (entry != NULL) {
+      tag_index = *(int *)((char *)entry + 0xc);
+      if (tag_index != -1) {
+        tag_data = tag_get(0x736e6421, tag_index);
+        return (*(int *)((char *)tag_data + 0x84) * 30) / 1000;
+      }
+    }
+  }
+  return 0;
+}
+
+/* Queue a score event. If the event has a sound, enqueue it with a delay
+ * equal to the sound duration + 5 ticks. Plays immediately if it's the
+ * first/only entry. Events not in the lookup table play directly. */
+void game_engine_post_event(int event_type)
+{
+  int count;
+
+  if (*(uint8_t *)(event_type + 0x2effb8) == 0) {
+    game_engine_play_score_sound(event_type);
+    return;
+  }
+
+  {
+    int duration = game_engine_get_score_sound_duration(event_type);
+    count = *(int *)0x456dd8;
+    if (count < 5) {
+      *(int *)(0x456ddc + count * 8) = event_type;
+      *(int *)(0x456de0 + count * 8) = duration + 5;
+      count++;
+      *(int *)0x456dd8 = count;
+    }
+    if (count == 1)
+      game_engine_play_score_sound(event_type);
+  }
+}
+
+/* Reset the score event queue. Clears the 5-entry buffer at 0x456ddc,
+ * sets count to 1, and initializes the first entry with type -1 and
+ * 60-tick delay. */
+void game_engine_score_reset(void)
+{
+  csmemset((void *)0x456ddc, 0, 0x28);
+  *(int *)0x456dd8 = 1;
+  *(int *)0x456ddc = -1;
+  *(int *)0x456de0 = 0x3c;
 }

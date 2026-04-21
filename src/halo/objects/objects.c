@@ -1,36 +1,240 @@
 /*
+ * object_wake — disconnect a point light from the cluster partition.
+ * (from c:\halo\SOURCE\objects\object_lights.c, line 0x4d0)
+ *
+ * Looks up the light datum in the point-light data table at 0x5a90bc.
+ * If the light is active (flags bit 1) and connected to the map (flags bit 2),
+ * removes it from the cluster partition at 0x5a90b0, then clears the
+ * connected_to_map flag.
+ *
+ * Confirmed: datum_get(*(data_t**)0x5a90bc, object_handle) — 2 cdecl args.
+ * Confirmed: TEST AL,0x2 for active flag, TEST AL,0x4 for connected_to_map.
+ * Confirmed: cluster_partition_remove_object(0x5a90b0, handle, light+0x10).
+ * Confirmed: AND byte ptr [ESI+0x2],0xfb clears bit 2.
+ */
+void object_wake(int object_handle)
+{
+  char *light;
+  uint16_t flags;
+
+  light = (char *)datum_get(*(data_t **)0x5a90bc, object_handle);
+  flags = *(uint16_t *)(light + 0x2);
+
+  if ((flags & 0x2) == 0)
+    return;
+
+  if ((flags & 0x4) == 0) {
+    display_assert("TEST_FLAG(light->flags, _point_light_connected_to_map_bit)",
+                   "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x4d0, 1);
+    system_exit(-1);
+  }
+
+  cluster_partition_remove_object((void *)0x5a90b0, object_handle,
+                                  (void *)(light + 0x10));
+  *(uint8_t *)(light + 0x2) &= ~0x4;
+}
+
+/*
+ * object_move_to_limbo — compute a point light's world-space position,
+ * direction, and range from its parent object, then add it to the cluster
+ * partition so it becomes visible.
+ * (from c:\halo\SOURCE\objects\object_lights.c, line ~0x4f9)
+ *
+ * Two paths for computing position/orientation:
+ *   1. No parent (parent_handle == -1): use marker definition from the object
+ *      tag to fill position/forward/up on the light.
+ *   2. Has parent: transform the light's offset point and direction through
+ *      the parent's node matrix.
+ *
+ * Then computes the effective light range from the tag's radius, color
+ * modifier, and optional gel modifier. The range determines a position offset
+ * based on the falloff angle:
+ *   - angle >= pi/2: position unchanged, range = computed range
+ *   - pi/4 <= angle < pi/2: position offset by range * forward_modifier along
+ *     forward, range scaled by tertiary modifier
+ *   - angle < pi/4: position offset by range / forward_modifier along forward
+ *
+ * Finally adds the light to the cluster partition and sets the connected flag.
+ *
+ * Confirmed: SUB ESP,0x84 — 132 bytes of locals.
+ * Confirmed: tag_get(0x6c696768, ...) for 'ligh' tag.
+ * Confirmed: cluster_partition_add_object(0x5a90b0, ...) with 6 args.
+ * Confirmed: OR word ptr [ESI+0x2], BX sets connected_to_map (bit 2).
+ */
+void object_move_to_limbo(int object_handle)
+{
+  char *light;
+  char *parent_obj;
+  char *marker_def;
+  void *node_matrix;
+  char marker_buf[0x6c]; /* output from object_get_markers_by_string_id */
+  char location[8]; /* scenario location (cluster_index etc.) */
+  float local_pos[3]; /* computed light position */
+  float local_range; /* computed effective range */
+  uint8_t tag_flags;
+  float falloff_angle;
+  float offset;
+  int16_t marker_index;
+
+  light = (char *)datum_get(*(data_t **)0x5a90bc, object_handle);
+  tag_get(0x6c696768, *(int *)(light + 0x4));
+
+  if (*(int *)(light + 0x58) == -1) {
+    /* No parent object index: compute from marker definition in tag. */
+    marker_index = *(int16_t *)(light + 0x5c);
+    marker_def = (char *)object_get_child_marker_definition(
+      *(int *)(light + 0x2c), marker_index);
+    object_get_markers_by_string_id(*(int *)(light + 0x2c), marker_def,
+                                    marker_buf, 1);
+
+    /* Copy position from marker buffer offset 0x60 → light+0x30 */
+    *(float *)(light + 0x30) = *(float *)(marker_buf + 0x60);
+    *(float *)(light + 0x34) = *(float *)(marker_buf + 0x64);
+    *(float *)(light + 0x38) = *(float *)(marker_buf + 0x68);
+    /* Copy forward from marker buffer offset 0x3c → light+0x3c */
+    *(float *)(light + 0x3c) = *(float *)(marker_buf + 0x3c);
+    *(float *)(light + 0x40) = *(float *)(marker_buf + 0x40);
+    *(float *)(light + 0x44) = *(float *)(marker_buf + 0x44);
+    /* Copy up from marker buffer offset 0x54 → light+0x48 */
+    *(float *)(light + 0x48) = *(float *)(marker_buf + 0x54);
+    *(float *)(light + 0x4c) = *(float *)(marker_buf + 0x58);
+    *(float *)(light + 0x50) = *(float *)(marker_buf + 0x5c);
+  } else {
+    /* Has parent: transform offset through parent's node matrix. */
+    parent_obj =
+      (char *)object_try_and_get_and_verify_type(*(int *)(light + 0x2c), -1);
+    if (parent_obj != 0) {
+      marker_index = *(int16_t *)(light + 0x5c);
+      node_matrix =
+        object_get_node_matrix(*(int *)(light + 0x2c), marker_index);
+      matrix_transform_point((float *)node_matrix, (float *)(light + 0x60),
+                             (float *)(light + 0x30));
+      matrix_transform_vector((float *)node_matrix, (float *)(light + 0x6c),
+                              (float *)(light + 0x3c));
+      perpendicular3d((float *)(light + 0x3c), (float *)(light + 0x48));
+      normalize3d((float *)(light + 0x48));
+    }
+  }
+
+  if ((*(uint16_t *)(light + 0x2) & 0x2) == 0)
+    return;
+
+  /* Re-fetch light data (original code re-calls datum_get here). */
+  {
+    char *light2 = (char *)datum_get(*(data_t **)0x5a90bc, object_handle);
+    char *ligh_tag = (char *)tag_get(0x6c696768, *(int *)(light2 + 0x4));
+
+    tag_flags = *(uint8_t *)ligh_tag;
+    local_range = *(float *)(ligh_tag + 0xc) * *(float *)(ligh_tag + 0x4);
+
+    if ((tag_flags & 0x2) == 0)
+      local_range *= *(float *)(ligh_tag + 0x24);
+
+    if (local_range < *(float *)(ligh_tag + 0x18)) {
+      /* Range below cutoff: use position directly, clamp to cutoff. */
+      local_pos[0] = *(float *)(light2 + 0x30);
+      local_pos[1] = *(float *)(light2 + 0x34);
+      local_pos[2] = *(float *)(light2 + 0x38);
+      local_range = *(float *)(ligh_tag + 0x18);
+    } else {
+      falloff_angle = *(float *)(ligh_tag + 0x14);
+      if (falloff_angle >= *(float *)0x2568bc) {
+        /* angle >= pi/2: use position as-is. */
+        local_pos[0] = *(float *)(light2 + 0x30);
+        local_pos[1] = *(float *)(light2 + 0x34);
+        local_pos[2] = *(float *)(light2 + 0x38);
+      } else if (falloff_angle >= *(float *)0x254a58) {
+        /* pi/4 <= angle < pi/2: offset along forward, scale range. */
+        offset = local_range * *(float *)(ligh_tag + 0x20);
+        local_pos[0] =
+          offset * *(float *)(light2 + 0x3c) + *(float *)(light2 + 0x30);
+        local_pos[1] =
+          offset * *(float *)(light2 + 0x40) + *(float *)(light2 + 0x34);
+        local_pos[2] =
+          offset * *(float *)(light2 + 0x44) + *(float *)(light2 + 0x38);
+        local_range = local_range * *(float *)(ligh_tag + 0x28);
+      } else {
+        /* angle < pi/4: offset = range / forward_modifier. */
+        local_range = local_range / *(float *)(ligh_tag + 0x20);
+        local_pos[0] =
+          local_range * *(float *)(light2 + 0x3c) + *(float *)(light2 + 0x30);
+        local_pos[1] =
+          local_range * *(float *)(light2 + 0x40) + *(float *)(light2 + 0x34);
+        local_pos[2] =
+          local_range * *(float *)(light2 + 0x44) + *(float *)(light2 + 0x38);
+      }
+    }
+
+    /* Assert: light must NOT already be connected to map. */
+    if ((*(uint8_t *)(light + 0x2) & 0x4) != 0) {
+      display_assert(
+        "!TEST_FLAG(light->flags, _point_light_connected_to_map_bit)",
+        "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x4f9, 1);
+      system_exit(-1);
+    }
+
+    /* Determine cluster location for the light. */
+    if (*(int *)(light + 0x2c) == -1 ||
+        object_try_and_get_and_verify_type(*(int *)(light + 0x2c), -1) == 0) {
+      scenario_location_from_point((void *)location, (void *)local_pos);
+    } else {
+      object_get_location(*(int *)(light + 0x2c), (void *)location);
+    }
+
+    /* Add light to cluster partition. Range is passed as raw float bits
+     * reinterpreted as uint32_t (radius_fp convention). */
+    {
+      union {
+        float f;
+        uint32_t u;
+      } range_bits;
+      range_bits.f = local_range;
+      cluster_partition_add_object((void *)0x5a90b0, object_handle,
+                                   (void *)(light + 0x10), (void *)local_pos,
+                                   range_bits.u, (void *)location);
+    }
+
+    *(uint16_t *)(light + 0x2) |= 0x4;
+  }
+}
+
+/*
  * objects/objects.c — object system lifecycle and placement
  * XBE source: c:\halo\SOURCE\objects\objects.c
+ *            + c:\halo\SOURCE\objects\object_lights.c (same .obj)
  *
  * Re-implemented functions (by XBE address, ascending):
+ *   0x1396e0  object_wake (object_lights.c)
+ *   0x13aed0  object_move_to_limbo (object_lights.c)
  *   0x13d640  object_try_and_get_and_verify_type
- *   0x13d680
- * object_get_and_verify_type
+ *   0x13d680  object_get_and_verify_type
  *   0x13d920  object_set_garbage_flag
- * 0x13dfc0
- * object_header_block_reference_get
+ *   0x13dfc0  object_header_block_reference_get
+ *   0x13e510  object_child_list_remove
+ *   0x13eb70  object_reset_markers
+ *   0x13ee60  object_propagate_flag_to_children
+ *   0x13eff0  object_remove_from_name_list
  *   0x13f060  objects_place
- *   0x13f810
- * objects_initialize
+ *   0x13f810  objects_initialize
  *   0x13f950  objects_initialize_for_new_map
- * 0x13f9f0
- * objects_dispose_from_old_map
+ *   0x13f9f0  objects_dispose_from_old_map
  *   0x13fac0  objects_dispose
- *   0x13fd00
- * object_disconnect_from_map
+ *   0x13fd00  object_disconnect_from_map
  *   0x13fef0  object_has_node
- *   0x13ffc0
- * object_set_garbage
+ *   0x13ffc0  object_set_garbage
  *   0x140160  object_set_region_count
- *   0x140230
- * object_adjust_interpolation_position
+ *   0x140230  object_adjust_interpolation_position
+ *   0x140420  object_find_in_cluster
  *   0x140bc0  object_delete_internal
- *
- * 0x140cc0  object_delete 0x140ce0  object_connect_to_map 0x140eb0
- * object_get_node_matrix 0x140f10 object_get_markers_by_string_id 0x141020
- * object_compute_child_marker_position 0x1412f0  object_get_world_position
+ *   0x140cc0  object_delete
+ *   0x140ce0  object_connect_to_map
+ *   0x140eb0  object_get_node_matrix
+ *   0x140f10  object_get_markers_by_string_id
+ *   0x141020  object_compute_child_marker_position
+ *   0x1412f0  object_get_world_position
  *   0x141480  object_get_world_matrix
  *   0x141b70  object_compute_node_matrices
+ *   0x144240  object_attach_to_parent
  *   0x1446a0  object_update_children_recursive
  *   0x144860  object_attach_to_marker
  *   0x145170  objects_update
@@ -230,7 +434,39 @@ void *object_iterator_next(void *iter)
  *            guards the remove path.
  * Confirmed: garbage list next at object+0xC0, head at og+0x08.
  * Confirmed: assert strings at 0x29b9c4 and line numbers 0x7a0, 0x7d6.
+ * Confirmed: object_get_and_verify_type(handle, -1) to resolve.
  */
+
+/*
+ * object_get_root_parent — walk the parent chain to the root object.
+ *
+ * Starting from object_handle, loops through parent_object_index (obj+0xCC)
+ * until it reaches -1.  Each iteration validates the object type against the
+ * full-type mask (0xFFFFFFFF).  Returns the topmost non-null handle, or -1
+ * if the input was already -1.
+ *
+ * Confirmed: datum_get(DAT_005a8d50, handle) -> header at +0x08 -> type at
+ *            +0x64 (int16_t).  Bit-shift check (1 << (type & 0x1f)) against
+ *            0 — in practice always passes since mask is -1.
+ * Confirmed: Loop terminates when obj->parent_object_index == -1.
+ */
+int object_get_root_parent(int object_handle)
+{
+  if (object_handle == -1)
+    return -1;
+
+  int current = object_handle;
+  int result = -1;
+  while (current != -1) {
+    object_header_data_t *header =
+      (object_header_data_t *)datum_get(*(void **)0x5a8d50, current);
+    object_data_t *obj = header->object;
+    result = current;
+    current = obj->parent_object_index.value;
+  }
+  return result;
+}
+
 void object_set_garbage_flag(int object_handle, int is_garbage)
 {
   object_data_t *obj =
@@ -378,6 +614,134 @@ void *object_header_block_reference_get(int object_handle, void *reference)
   }
 
   return object + ref_offset;
+}
+
+/* Remove object_handle from a sibling linked list rooted at list_head.
+ * Walks the chain at offset 0xc4 (next_sibling) until it finds the entry
+ * matching object_handle, then unlinks it.
+ * list_head in EAX, object_handle in EBX (register args). */
+void object_child_list_remove(void *list_head /* @<eax> */,
+                              int object_handle /* @<ebx> */)
+{
+  int *head = (int *)list_head;
+  int *obj_data;
+
+  if (*head == -1)
+    return;
+
+  while (1) {
+    obj_data = (int *)datum_get(*(void **)0x5a8d50, *head);
+    obj_data = (int *)*(int *)((char *)obj_data + 8);
+
+    {
+      int type = (int)*(int16_t *)((char *)obj_data + 0x64);
+      if ((1 << (type & 0x1f)) == 0) {
+        char *msg =
+          csprintf((char *)0x5ab100,
+                   "got an object type we didn't expect (expected one of "
+                   "0x%08x but got #%d).",
+                   -1, type);
+        display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+        system_exit(-1);
+      }
+    }
+
+    if (*head == object_handle) {
+      *head = *(int *)((char *)obj_data + 0xc4);
+      *(int *)((char *)obj_data + 0xc4) = -1;
+      return;
+    }
+
+    head = (int *)((char *)obj_data + 0xc4);
+    if (*head == -1) {
+      display_assert("*first_object_reference!=NONE",
+                     "c:\\halo\\SOURCE\\objects\\objects.c", 0xc6b, 1);
+      system_exit(-1);
+      if (*head == -1)
+        return;
+    }
+  }
+}
+
+/*
+ * object_reset_markers — begin a marker sweep pass.
+ *
+ * Asserts that no marker pass is in progress, increments the global marker
+ * generation counter (0x5a8d28), and sets
+ * object_globals->object_marker_initialized to true.
+ *
+ * Confirmed: void, no params (no stack args referenced).
+ * Confirmed: TEST byte ptr [EAX+1] — checks object_marker_initialized.
+ * Confirmed: INC dword ptr [0x5a8d28] — increments generation counter.
+ * Confirmed: MOV byte ptr [EAX+1], 1 — sets marker_initialized = true.
+ */
+void object_reset_markers(void)
+{
+  if (object_globals->object_marker_initialized) {
+    display_assert("!object_globals->object_marker_initialized",
+                   "c:\\halo\\SOURCE\\objects\\objects.c", 0xdaf, 1);
+    system_exit(-1);
+  }
+  *(uint32_t *)0x5a8d28 += 1;
+  object_globals->object_marker_initialized = 1;
+}
+
+/* Propagate flags to all children of an object. For each child slot where
+ * the "created" flag at obj+0xf4+i is clear and the child handle is valid,
+ * optionally calls FUN_001396e0 (param_1) and/or FUN_0013aed0 (param_2).
+ * object_handle in EAX (register arg). */
+void object_propagate_flag_to_children(int object_handle /* @<eax> */,
+                                       int param_1, int param_2)
+{
+  int *obj;
+  void *tag_data;
+  int16_t i;
+  int count;
+
+  obj = (int *)object_get_and_verify_type(object_handle, -1);
+  if ((obj[1] & 0x100) == 0)
+    return;
+
+  tag_data = tag_get(0x6f626a65, obj[0]);
+  count = *(int *)((char *)tag_data + 0x140);
+  i = 0;
+  while ((int)i < count) {
+    if (*((char *)obj + 0xf4 + (int)i) == 0 && obj[(int)i + 0x3f] != -1) {
+      if (param_1 != 0)
+        object_wake(obj[(int)i + 0x3f]);
+      if (param_2 != 0)
+        object_move_to_limbo(obj[(int)i + 0x3f]);
+    }
+    i++;
+  }
+}
+
+/* Remove an object from the scenario object-name lookup table.
+ * Clears the name_index field (obj+0x6a) and removes all references
+ * to object_handle from the name table at 0x46f07c.
+ * object_handle in EDI (register arg). */
+void object_remove_from_name_list(int object_handle /* @<edi> */)
+{
+  char *obj;
+  void *scenario;
+  int count;
+  int *name_table;
+  int16_t i;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  if (*(int16_t *)(obj + 0x6a) == -1)
+    return;
+
+  scenario = global_scenario_get();
+  *(int16_t *)(obj + 0x6a) = -1;
+  count = *(int *)((char *)scenario + 0x204);
+  name_table = *(int **)0x46f07c;
+  i = 0;
+  while ((int)i < count) {
+    if (name_table[(int)i] == object_handle)
+      name_table[(int)i] = -1;
+    i++;
+  }
 }
 
 /*
@@ -779,6 +1143,35 @@ void object_disconnect_from_map(int object_handle)
 }
 
 /*
+ * object_get_child_marker_definition — get a marker definition from the
+ * object's child model tag.
+ *
+ * Resolves the object's tag data via tag_get('obje', obj->tag_index),
+ * then checks if marker_index is in range [0, block_count at tag+0x140).
+ * If valid, returns tag_block_get_element(tag+0x140, marker_index, 0x48) +
+ * 0x10. Returns NULL if index is out of range or negative.
+ *
+ * Confirmed: CALL 0x13d680 (object_get_and_verify_type), with -1 mask.
+ * Confirmed: CALL 0x1ba140 (tag_get) with 'obje' (0x6f626a65) group tag.
+ * Confirmed: CALL 0x19b210 (tag_block_get_element) with block at tag+0x140,
+ *            element size 0x48, returns pointer + 0x10.
+ * Confirmed: CMP CX,0 / CMP ECX,EDX — signed short check against block count.
+ */
+void *object_get_child_marker_definition(int object_handle,
+                                         int16_t marker_index)
+{
+  uint32_t *obj = (uint32_t *)object_get_and_verify_type(object_handle, -1);
+  int tag = (int)tag_get(0x6f626a65, (int)*obj);
+
+  if (marker_index >= 0 && marker_index < *(int *)(tag + 0x140)) {
+    return (char *)tag_block_get_element((void *)(tag + 0x140), marker_index,
+                                         0x48) +
+           0x10;
+  }
+  return NULL;
+}
+
+/*
  * object_has_node — check whether a given node index is valid for an object.
  *
  * Returns true if the object's model tag ('mode') has a nodes block and
@@ -911,6 +1304,29 @@ lab_00140017: {
 }
 
 /*
+ * object_get_location — returns the root object's 8-byte location pair.
+ *
+ * Resolves the topmost parent handle via FUN_0013d7f0(handle), verifies that
+ * object with object_get_and_verify_type(root_handle, -1), then copies dwords
+ * at offsets +0x48 and +0x4c into location_out.
+ *
+ * Confirmed: CALL 0x13d7f0 with object_handle, then CALL 0x13d680 with
+ *            returned handle and mask -1.
+ * Confirmed: MOV [obj+0x48] -> [location_out+0], MOV [obj+0x4c] ->
+ *            [location_out+4].
+ */
+void object_get_location(int object_handle, void *location_out)
+{
+  int root_handle = object_get_root_parent(object_handle);
+  object_data_t *obj =
+    (object_data_t *)object_get_and_verify_type(root_handle, -1);
+  uint32_t *out = (uint32_t *)location_out;
+
+  out[0] = obj->unk_72;
+  out[1] = (uint32_t)obj->unk_76.value;
+}
+
+/*
  * object_set_region_count — update an object's interpolation region count.
  *
  * Copies the object's region node data from the "new" interpolation buffer
@@ -1016,6 +1432,157 @@ void object_adjust_interpolation_position(int object_handle, vector3_t *delta)
     block[5] += delta->y;
     block[6] += delta->z;
   }
+}
+
+/*
+ * object_find_in_cluster — find objects in clusters matching type criteria.
+ *
+ * Begins a marker pass (object_reset_markers), then iterates over
+ * cluster indices.  For each cluster, walks the collideable partition
+ * (flags & 1 => 0x5a8d40) and/or noncollideable partition (flags & 2 =>
+ * 0x5a8d30) using cluster_partition_iter_first/next (0x191a50/0x191660).
+ *
+ * Each found object is verified as having a valid type bit.  If the object's
+ * marker_generation differs from the current global generation, it's stamped
+ * with the new generation and added to the output array.  Objects whose
+ * marker_generation already matches are skipped (already collected this pass).
+ *
+ * Returns when max_count objects are collected or all clusters are exhausted.
+ * Ends the marker pass by clearing object_globals->marker_initialized.
+ *
+ * Parameters (cdecl, 5 args):
+ *   flags            — bit 0: collideable, bit 1: noncollideable; 0=>all (-1)
+ *   cluster_count    — number of cluster indices
+ *   cluster_indices  — int16_t array of cluster indices
+ *   max_count        — capacity of out_handles array (int16_t)
+ *   out_handles      — output array for found object handles (int*)
+ *
+ * Confirmed: 5 cdecl params at [EBP+0x8..0x18].
+ * Confirmed: CALL 0x13eb70 (object_reset_markers) with 0 pushed args.
+ * Confirmed: flags==0 => overwritten with 0xffffffff.
+ * Confirmed: cluster_partition_iter_first at 0x191a50 (3 cdecl args:
+ *            partition, state, cluster_idx).
+ * Confirmed: cluster_partition_iter_next at 0x191660 (2 cdecl args:
+ *            partition, state).
+ * Confirmed: Both iter functions return handle (int) or -1.
+ * Confirmed: datum_get at 0x119320: result+8 = object_data_t*.
+ * Confirmed: obj+0x64 is type (int16_t), obj+0x08 is marker_generation
+ * (uint32_t). Confirmed: 0x5a8d28 is the global marker generation counter.
+ * Confirmed: End-of-pass clears object_globals+0x01 (marker_initialized).
+ * Confirmed: Returns uint16 count in AX.
+ */
+int16_t object_find_in_cluster(int flags, int16_t cluster_count,
+                               int16_t *cluster_indices, int16_t max_count,
+                               int *out_handles)
+{
+  int16_t found = 0;
+  int i;
+
+  if (flags == 0)
+    flags = 0xFFFFFFFF;
+
+  object_reset_markers();
+
+  for (i = 0; i < cluster_count; i++) {
+    int16_t cluster_idx = cluster_indices[i];
+    int handle;
+    int iter_state[2];
+
+    /* Collideable partition (flags & 1) */
+    if (flags & 1) {
+      handle =
+        cluster_partition_iter_first((void *)0x5a8d40, iter_state, cluster_idx);
+      while (handle != -1) {
+        object_header_data_t *header =
+          (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle);
+        object_data_t *obj = header->object;
+
+        if (1 << ((uint8_t)obj->type & 0x1f) == 0) {
+          char *msg =
+            csprintf((char *)0x5ab100,
+                     "got an object type we didn\\'t expect (expected one of "
+                     "0x%08x but got #%d).",
+                     -1, (int)obj->type);
+          display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+          system_exit(-1);
+        }
+
+        if (!object_globals->object_marker_initialized) {
+          display_assert("object_globals->object_marker_initialized",
+                         "c:\\halo\\SOURCE\\objects\\objects.c", 0xdd7, 1);
+          system_exit(-1);
+        }
+
+        if (obj->marker_generation != *(uint32_t *)0x5a8d28) {
+          obj->marker_generation = *(uint32_t *)0x5a8d28;
+          if (found >= max_count) {
+            if (!object_globals->object_marker_initialized) {
+              display_assert("object_globals->object_marker_initialized",
+                             "c:\\halo\\SOURCE\\objects\\objects.c", 0xdba, 1);
+              system_exit(-1);
+            }
+            object_globals->object_marker_initialized = 0;
+            return found;
+          }
+          out_handles[found] = handle;
+          found++;
+        }
+        handle = cluster_partition_iter_next((void *)0x5a8d40, iter_state);
+      }
+    }
+
+    /* Noncollideable partition (flags & 2) */
+    if (flags & 2) {
+      int iter_state2[2];
+      handle = cluster_partition_iter_first((void *)0x5a8d30, iter_state2,
+                                            cluster_idx);
+      while (handle != -1) {
+        object_header_data_t *header =
+          (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle);
+        object_data_t *obj = header->object;
+
+        if (1 << ((uint8_t)obj->type & 0x1f) == 0) {
+          char *msg =
+            csprintf((char *)0x5ab100,
+                     "got an object type we didn\\'t expect (expected one of "
+                     "0x%08x but got #%d).",
+                     -1, (int)obj->type);
+          display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+          system_exit(-1);
+        }
+
+        if (!object_globals->object_marker_initialized) {
+          display_assert("object_globals->object_marker_initialized",
+                         "c:\\halo\\SOURCE\\objects\\objects.c", 0xdd7, 1);
+          system_exit(-1);
+        }
+
+        if (obj->marker_generation != *(uint32_t *)0x5a8d28) {
+          obj->marker_generation = *(uint32_t *)0x5a8d28;
+          if (found >= max_count) {
+            if (!object_globals->object_marker_initialized) {
+              display_assert("object_globals->object_marker_initialized",
+                             "c:\\halo\\SOURCE\\objects\\objects.c", 0xdba, 1);
+              system_exit(-1);
+            }
+            object_globals->object_marker_initialized = 0;
+            return found;
+          }
+          out_handles[found] = handle;
+          found++;
+        }
+        handle = cluster_partition_iter_next((void *)0x5a8d30, iter_state2);
+      }
+    }
+  }
+
+  if (!object_globals->object_marker_initialized) {
+    display_assert("object_globals->object_marker_initialized",
+                   "c:\\halo\\SOURCE\\objects\\objects.c", 0xdba, 1);
+    system_exit(-1);
+  }
+  object_globals->object_marker_initialized = 0;
+  return found;
 }
 
 /*
@@ -1440,6 +2007,73 @@ void object_compute_child_marker_position(void *object, void *child_marker,
 }
 
 /*
+ * object_detach_from_parent — detach an object from its parent in the
+ * object hierarchy.
+ *
+ * Retrieves both the child and parent object data, disconnects the child
+ * from the map, then re-computes its orientation in world space using the
+ * parent's node matrix.  After updating position/orientation/up vectors from
+ * the parent, clears the node index (0xFF) and parent handle (-1), then
+ * reconnects to the map.
+ *
+ * Finally, sets the "connected to cluster" flag (bit 0 of header+0x02) if
+ * the object is not already connected, doesn't have the 0x100000 flag, and
+ * has no parent.
+ *
+ * Confirmed: object_get_and_verify_type(handle, -1) for both child and parent.
+ * Confirmed: object_disconnect_from_map(handle), then recompute world matrix
+ *            via object_get_node_matrix(parent_handle, node_index).
+ * Confirmed: matrix4x3_identity_with_position, matrix_from_forward_and_up,
+ *            matrix4x3_multiply used to transform orientation.
+ * Confirmed: Copies 3 floats at +0x18, +0x1C, +0x20 and +0x3C, +0x40, +0x44
+ *            from parent to child.
+ * Confirmed: Sets node_index (byte at +0xD0) = 0xFF, parent (int at +0xCC) =
+ * -1. Confirmed: datum_get + flag check on header+0x02 bit 0, object+0x04 &
+ * 0x100000, object+0xCC == -1 to set connected flag.
+ */
+void object_detach_from_parent(int object_handle)
+{
+  object_data_t *child =
+    (object_data_t *)object_get_and_verify_type(object_handle, -1);
+  object_data_t *parent = (object_data_t *)object_get_and_verify_type(
+    child->parent_object_index.value, -1);
+
+  object_disconnect_from_map(object_handle);
+
+  void *node_matrix =
+    object_get_node_matrix(child->parent_object_index.value,
+                           (int16_t) * (int8_t *)((char *)child + 0xd0));
+
+  float child_position[13];
+  float child_orientation[13];
+  float result[13];
+
+  matrix4x3_identity_with_position(child_position, (float *)&child->unk_12);
+  matrix_from_forward_and_up(child_orientation, (float *)&child->unk_36,
+                             (float *)&child->unk_48);
+  matrix4x3_multiply((float *)node_matrix, child_position, result);
+  matrix4x3_multiply(result, child_orientation, result);
+  matrix4x3_decompose(result, (float *)&child->unk_12, (float *)&child->unk_36,
+                      (float *)&child->unk_48);
+
+  child->unk_24 = parent->unk_24;
+  child->unk_60 = parent->unk_60;
+
+  *(int8_t *)((char *)child + 0xd0) = -1;
+  child->parent_object_index.value = NONE;
+
+  object_connect_to_map(object_handle, NULL);
+
+  object_header_data_t *header =
+    (object_header_data_t *)datum_get(*(void **)0x5a8d50, object_handle);
+  child = (object_data_t *)object_get_and_verify_type(object_handle, -1);
+  if (!(header->unk_2 & 1) && !(child->flags & 0x100000) &&
+      child->parent_object_index.value == NONE) {
+    header->unk_2 |= 1;
+  }
+}
+
+/*
  * object_get_world_position — retrieve the world-space position of an object.
  *
  * If the object has no parent (parent_object_index == -1), copies the local
@@ -1512,6 +2146,93 @@ void *object_get_world_matrix(int object_handle, void *out_matrix)
   }
 
   return out_matrix;
+}
+
+/*
+ * object_find_in_radius — find objects of a given type within a spherical area.
+ *
+ * Uses the structure system to identify candidate clusters, then iterates
+ * through objects in those clusters, filtering by type_mask and distance.
+ * Objects within (obj_effective_radius + search_radius) of the search position
+ * are collected into out_handles.  Returns the count of found objects.
+ *
+ * Parameters (cdecl, 7 args):
+ *   flags            — passed to object_find_in_cluster
+ *   type_mask        — bit mask of object types to include (0 → all types)
+ *   cluster_info     — pointer to a cluster location struct; word at +4 is
+ *                       the cluster count passed to structure_find_in_cluster
+ *   position         — float[3] search center (must be non-NULL)
+ *   radius           — search radius, added to each object's effective radius
+ *   out_handles      — output array for found object handles (must be non-NULL)
+ *   max_count        — maximum number of handles to collect
+ *
+ * Confirmed: 7 cdecl params at [EBP+0x8..0x20].
+ * Confirmed: param_3 (EBX) is a struct pointer, word at +4 = cluster count.
+ * Confirmed: param_4 (ESI) is the float* position, used in distance math.
+ * Confirmed: CALL 0x199230 with 5 args: (cluster_count_word, position, radius,
+ *            0x200, cluster_indices_ptr).
+ * Confirmed: CALL 0x140420 with 5 args: (flags, cluster_count, cluster_indices,
+ *            0x800, object_indices_ptr). Max counts are hardcoded 512 and 2048.
+ * Confirmed: Distance check uses obj+0x50/0x54/0x58 vs position, and
+ *            obj+0x5C as effective object radius.
+ * Confirmed: Returns short (count of found objects).
+ */
+int16_t object_find_in_radius(int flags, unsigned int type_mask,
+                              void *cluster_info, float *position, float radius,
+                              int *out_handles, int16_t max_count)
+{
+  int16_t cluster_count;
+  int16_t found_count = 0;
+  int16_t iter_count;
+  int i;
+
+  static int16_t cluster_indices[512];
+  static int object_indices[2048];
+
+  if (cluster_info == NULL)
+    assert_halt(cluster_info != NULL);
+  if (position == NULL)
+    assert_halt(position != NULL);
+  if (out_handles == NULL)
+    assert_halt(out_handles != NULL);
+
+  if (type_mask == 0)
+    type_mask = 0xFFFFFFFF;
+
+  if (flags == 0)
+    flags = 0xFFFFFFFF;
+
+  cluster_count =
+    structure_find_in_cluster(*(uint16_t *)((char *)cluster_info + 4), position,
+                              radius, 512, cluster_indices);
+
+  iter_count = object_find_in_cluster(flags, cluster_count, cluster_indices,
+                                      2048, object_indices);
+
+  for (i = 0; i < iter_count && found_count < max_count; i++) {
+    int handle = object_indices[i];
+    object_header_data_t *header =
+      (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle);
+    object_data_t *obj = header->object;
+
+    if (1 << ((uint8_t)obj->type & 0x1f) == 0) {
+      assert_halt_msg(0, "got an object type we didn\\'t expect");
+    }
+
+    if ((type_mask & (1 << (obj->type & 0x1f))) != 0) {
+      float dx = obj->unk_80 - position[0];
+      float dy = obj->unk_84 - position[1];
+      float dz = obj->unk_88 - position[2];
+      float effective_radius = obj->unk_92 + radius;
+
+      if (dx * dx + dy * dy + dz * dz <= effective_radius * effective_radius) {
+        out_handles[found_count] = handle;
+        found_count++;
+      }
+    }
+  }
+
+  return found_count;
 }
 
 /*
