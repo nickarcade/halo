@@ -1,12 +1,57 @@
 {
   "md5": "c7869590a1c64ad034e49a5ee0c02465",
   "symbols": {
+    "0x12170": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Squared 3D vector-length helper: computes v[0]^2 + v[1]^2 + v[2]^2 from one float[3] pointer."
+      },
+      "inferred": [
+        "Parameter kept as float * to match existing kb.json declaration; access pattern is read-only and could also be represented as const float *."
+      ]
+    },
+    "0x121a0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Squared 3D distance helper: computes sum of squared component deltas between two float[3] vectors."
+      },
+      "inferred": [
+        "Parameter typing narrowed to const float * from direct [arg+0/4/8] float loads and ai_clump callsite passing actor/record position vectors at +0xbc."
+      ]
+    },
+    "0x123470": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Seat-enter matrix bridge: decodes one animation node into an 0x800-byte stack buffer via FUN_00121d60, then converts the decoded basis+position slice into an output matrix via FUN_001094d0."
+      }
+    },
     "0x13010": {
       "kind": "function",
       "status": "ported",
       "inferred": [
         "The double constant at 0x2533d0 (~0.0001) serves as a minimum magnitude threshold for normalization; vectors shorter than this are treated as zero-length.",
         "Object name vector_math.obj is provisional; the true .obj name is unknown since the function has no string references or assert paths."
+      ]
+    },
+    "0x178d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x21fb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2b5d0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Initializes two AI trigonometric lookup table regions (7-float records) from static angle/scale constant tables."
+      },
+      "inferred": [
+        "Table element semantics are inferred from math pattern and write layout; symbolic names for backing globals/constants remain unknown."
       ]
     },
     "0x3aa50": {
@@ -110,13 +155,17 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x81630": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x81720": {
       "kind": "function",
-      "status": "named"
+      "status": "ported"
     },
     "0x81770": {
       "kind": "function",
-      "status": "named"
+      "status": "ported"
     },
     "0x82130": {
       "kind": "function",
@@ -234,9 +283,20 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x8da40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x8db80": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x8dc30": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Asserting strcat helper: validates destination/source pointers, scans to destination NUL, then appends source including terminator using dword-copy plus tail-byte loops."
+      }
     },
     "0x8dcb0": {
       "kind": "function",
@@ -460,6 +520,20 @@
         "Error-once flags at 0x4557de (locked) and 0x4557df (permanent) are function-static-style globals not in kb.json; accessed via hardcoded addresses."
       ]
     },
+    "0x99fd0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Clears permanent decal state for a cluster across 5 decal layers: walks per-layer linked lists, validates cluster ownership, unsets permanent flag, decrements permanent_count, and releases matching decals."
+      }
+    },
+    "0x9c4b0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Decal placement gate wrapper: optionally seeds local random from origin, pushes collision-user depth, traces with FUN_0014df70, conditionally emits decal via FUN_0009ac90, then restores collision depth and local seed."
+      }
+    },
     "0x9c650": {
       "kind": "function",
       "status": "ported"
@@ -553,6 +627,10 @@
       "status": "ported"
     },
     "0xa2ca0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa2e80": {
       "kind": "function",
       "status": "ported"
     },
@@ -1581,6 +1659,20 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xd0bf0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "If local_player_index is valid, forwards to hud_messaging_set_vehicle_notification with param_3=1 and param_4=-1. Called when player picks up equipment."
+      }
+    },
+    "0xd0c10": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "If local_player_index is valid, forwards to hud_messaging_set_vehicle_notification with seat_index and param_4=1. Called when player enters a vehicle seat."
+      }
+    },
     "0xd0c40": {
       "kind": "function",
       "status": "ported",
@@ -1597,6 +1689,10 @@
       "status": "ported"
     },
     "0xd0db0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd5070": {
       "kind": "function",
       "status": "ported"
     },
@@ -1809,6 +1905,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe4310": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe43f0": {
       "kind": "function",
       "status": "ported"
@@ -1854,12 +1954,49 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe4770": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe4890": {
       "kind": "function",
       "status": "ported",
       "inferred": [
         "The widget struct field at offset +0x28 is named 'previous' (prev_sibling) based on the assert string 'child->previous == NULL'."
       ]
+    },
+    "0xe4910": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Depth-first search over a widget subtree for the first node whose tag handle (+0x0) equals tag_handle. Checks current node, then recurses into each child (+0x34) following next_sibling (+0x2c)."
+      }
+    },
+    "0xe4f20": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Applies widget focus by retargeting to a focusable candidate when needed, then rewriting parent focused-descendant links."
+      },
+      "inferred": [
+        "Widget +0x38 behaves as the focused-descendant link, and +0x12 gates whether the requested widget is focusable."
+      ]
+    },
+    "0xe5090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe5380": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe53e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe5440": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xe5620": {
       "kind": "function",
@@ -1880,6 +2017,17 @@
         "The relationship between the root widget at 0x46cc20[i] and the list at 0x46cc30[i] is unclear; the root is closed via ui_widget_close while the list nodes are only deallocated from the pool without closure."
       ]
     },
+    "0xe6890": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Walks up the parent chain (+0x30) from widget to root, then searches the widget tree for tag_handle. If found, tail-calls ui_widget_apply_focus; otherwise logs an error."
+      }
+    },
+    "0xe68e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe6980": {
       "kind": "function",
       "status": "ported",
@@ -1896,6 +2044,18 @@
         "The pointer at 0x31e04c points to a widget system state structure; field at +4 is a debug_malloc'd memory pool (0x4000 bytes), field at +8 is the pool size.",
         "The 0x68-byte block at 0x46cc20 is static UI widget state cleared on both init and dispose."
       ]
+    },
+    "0xe6ab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe6cb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe6ed0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xe78e0": {
       "kind": "function",
@@ -1960,6 +2120,10 @@
         "FUN_00124c40 and FUN_001257a0 (network_client_manager.c asserts) are called for side-effect parity; their higher-level intent in pause flow is still uncertain."
       ]
     },
+    "0xe9320": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe9450": {
       "kind": "function",
       "status": "ported",
@@ -1997,6 +2161,14 @@
       "status": "ported"
     },
     "0xf7dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfae80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfb0c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -2207,6 +2379,21 @@
         "Rotation inverse assumes orthogonal matrix (transpose equals inverse); this is standard for rigid-body transforms in game engines."
       ]
     },
+    "0x109280": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1094d0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Builds a 4x3 matrix from basis_data via FUN_001093b0, then overwrites translation with the provided position vector."
+      }
+    },
+    "0x109540": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x109590": {
       "kind": "function",
       "status": "ported",
@@ -2287,6 +2474,10 @@
         "angles[0]=yaw, angles[1]=pitch; standard spherical-to-cartesian conversion."
       ]
     },
+    "0x1190c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x119100": {
       "kind": "function",
       "status": "ported"
@@ -2355,12 +2546,30 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x11a930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11b540": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x11e9c0": {
       "kind": "function",
       "status": "ported",
       "inferred": [
         "Pool header layout inferred from field accesses: +0x00 tag/name_ptr, +0x04 base_address, +0x08 pool_size, +0x0c slot_count; slot table at +0x34 (slot_count * 4 bytes).",
         "table[0] is seeded with a self-pointer via csmemcpy to initialize the free-slot list."
+      ]
+    },
+    "0x11ea90": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Returns block size flags masked to low 31 bits after asserting non-null block header."
+      },
+      "inferred": [
+        "The high bit of block_hdr[0] is treated as an in-use flag and cleared by masking with 0x7fffffff."
       ]
     },
     "0x11ecf0": {
@@ -2481,6 +2690,10 @@
         "Returns object_data_t* from entry->object (header+0x8); constructs datum handle as (entry->unk_0 salt << 16) | slot_index and stores in iter->last_handle."
       ]
     },
+    "0x13d7f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13d920": {
       "kind": "function",
       "status": "ported",
@@ -2494,6 +2707,10 @@
       "status": "ported"
     },
     "0x13e510": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13eb70": {
       "kind": "function",
       "status": "ported"
     },
@@ -2550,6 +2767,10 @@
         "The re-fetch of header at 0x13fdc8 after the partition-remove call may be needed because the partition-remove could invalidate the cached header pointer, but this is not confirmed."
       ]
     },
+    "0x13fea0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13fef0": {
       "kind": "function",
       "status": "ported",
@@ -2565,6 +2786,10 @@
         "flag=0 marks the object as garbage (sets obj->flags bit 0, clears datum.unk_2 bit 1); flag!=0 unmarks it. Child propagation via FUN_0013ee60 (0x13ee60) is gated on the tag having a children block (tag+0x34 != -1) and bit 0 of obj->flags being in the wrong state for the requested transition."
       ]
     },
+    "0x140130": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x140160": {
       "kind": "function",
       "status": "ported",
@@ -2574,6 +2799,10 @@
       ]
     },
     "0x140230": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x140420": {
       "kind": "function",
       "status": "ported"
     },
@@ -2625,6 +2854,10 @@
         "The cross-product re-orthogonalization computes left=cross(forward,up) then up_new=cross(left,forward) to ensure orthogonality."
       ]
     },
+    "0x1411c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1412f0": {
       "kind": "function",
       "status": "ported",
@@ -2638,6 +2871,10 @@
       "inferred": [
         "FUN_0010a110 builds a 4x3 matrix from forward, up, position; FUN_00140eb0 is object_get_node_matrix; FUN_00109850 is 4x3 matrix multiply."
       ]
+    },
+    "0x1415f0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x141b70": {
       "kind": "function",
@@ -2702,6 +2939,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x14d080": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x14d100": {
       "kind": "function",
       "status": "ported"
@@ -2749,6 +2990,13 @@
         "decals_update_for_new_map (0x98e70) name is inferred from its behavior: it iterates all decal data, clears locked/permanent flags, and resets the global lock/permanent counts."
       ]
     },
+    "0x15b530": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Validates decal cache index and local_vertex_cache handle, then removes the corresponding LRUV block via FUN_0011d8f0."
+      }
+    },
     "0x15b6d0": {
       "kind": "function",
       "status": "ported",
@@ -2794,6 +3042,13 @@
     "0x17c950": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x17cb10": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Thin cdecl trampoline for decal teardown: forwards decal_index directly to 0x15b530."
+      }
     },
     "0x184b80": {
       "kind": "function",
@@ -2922,6 +3177,83 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x193910": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Scales byte-space detail-object coordinates into world units: (param_2 * *(float*)0x261518 + param_1) * *(float*)0x253f78."
+      }
+    },
+    "0x193970": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Allocates 0xa430 bytes via game_state_malloc for structure detail objects, stores pointer at 0x4d8ea0, and inits 4 fields at +0xa420..+0xa42c."
+      }
+    },
+    "0x1939f0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Stores param_1 to 0x4d8eac, sets flag byte 0x4d8ea4, and accumulates delta into 0x4d8ea8 as (param_1 - old_value)."
+      }
+    },
+    "0x193b80": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "4-component dot product helper: returns sum(param_1[i] * param_2[i]) for i=0..3."
+      }
+    },
+    "0x193bb0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Asserts 0x4d8ea0 is non-null, zeroes the 0xa430-byte detail object block, and clears byte at +0x520e."
+      }
+    },
+    "0x196290": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Allocates structure runtime decals globals via game_state_malloc with group size 4, stores pointer at 0x4d8ec8. Asserts on failure."
+      }
+    },
+    "0x1962d0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Asserts 0x4d8ec8 is non-null, then zeroes the first byte of the decals globals block."
+      }
+    },
+    "0x1963a0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Empty function (RET only). No-op dispose for structure detail objects."
+      }
+    },
+    "0x1963b0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Empty function (RET only). No-op dispose for structure runtime decals."
+      }
+    },
+    "0x1963c0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Updates structure runtime decals per cluster visibility transition: deletes decals for clusters leaving visibility, emits decals for eligible clusters entering/currently visible, then clears the runtime decals update flag byte at 0x4d8ec8[0]."
+      }
+    },
+    "0x1965d0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Sets both visibility toggle bytes at 0x505702 and 0x505701 to param_1."
+      }
+    },
     "0x1983c0": {
       "kind": "function",
       "status": "ported"
@@ -2937,6 +3269,41 @@
     "0x1983f0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x198400": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Cluster marker begin: asserts marker is not already set, increments ref counter, and sets initialized flag."
+      }
+    },
+    "0x198440": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Cluster marker query helper: validates marker state and cluster index bounds, then returns whether cluster_marker[cluster_index] differs from current marker id 0x4d92e4."
+      }
+    },
+    "0x1984c0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Cluster marker set helper: validates marker state and bounds, writes current marker id into cluster_marker[cluster_index] when not already marked, and returns whether a new mark occurred."
+      }
+    },
+    "0x198800": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Portal/sphere visibility gate: performs signed-plane distance and portal-center radius tests, projects hit/portal vertices into portal plane space, then runs a 2D inclusion check with sqrt(radius^2 - plane_distance^2)."
+      }
+    },
+    "0x1989b0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Recursive cluster flood helper for structure_find_in_cluster: records current cluster when space remains, marks it visited, walks connected portals, and recurses into unvisited adjacent clusters whose portal sphere test passes."
+      }
     },
     "0x1994a0": {
       "kind": "function",
@@ -3084,6 +3451,13 @@
         "Global at 0x4e4cf8 is a pointer to a 5-byte struct {int16_t, int16_t, uint8_t} used for units per-tick update state tracking."
       ]
     },
+    "0x1a8200": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Resolves seat animation mode for target seat label, computes enter-position matrix and marker positions via animation/marker helpers, and writes up to three output vectors (out_pos_a/out_pos_b/out_pos_c). Returns 1 on success, 0 when no valid mode/path is found."
+      }
+    },
     "0x1a8ce0": {
       "kind": "function",
       "status": "ported",
@@ -3116,6 +3490,20 @@
       "inferred": [
         "Seat flag bit 2 (0x4) designates driver/rider occupant slot at unk_724, bit 3 (0x8) designates gunner occupant slot at unk_728."
       ]
+    },
+    "0x1aa970": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Returns the equipment datum handle stored in the unit's equipment slot (offset 0x2C8)."
+      }
+    },
+    "0x1aa990": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Attempts to add a grenade (powerup_type 6) to the unit's inventory. Increments grenade count at unit+0x2CE, plays effect for local players, and deletes the equipment object."
+      }
     },
     "0x1aab20": {
       "kind": "function",
@@ -3189,9 +3577,23 @@
         "The multi-weapon flag logic checks key_data pointers at mode+0x44 offsets +4, +6, +8 for non-NONE int16_t values; exact semantics of these weapon animation channels are unconfirmed."
       ]
     },
+    "0x1ad800": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Finds the best seat for a unit to enter another unit. Iterates seats, checks distances and animation compatibility. Returns seat state (0=none, 1=approach, 2=enter) and writes seat index."
+      }
+    },
     "0x1adeb0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1ae1a0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Checks if the unit's current weapon is in state 2 or 3 (offset 0x211). Returns true if busy, false if no weapon or in another state."
+      }
     },
     "0x1ae290": {
       "kind": "function",
@@ -3212,6 +3614,13 @@
         "The function at 0xa8b30 dispatches through current_game_engine vtable offset 0x58 and is used for both weapon pickup and seat entry validation.",
         "The function at 0xfae80 returns a char* label from the weapon tag definition at offset 0x30c, returning a default string at 0x25386f when the handle is NONE."
       ]
+    },
+    "0x1ae3c0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Determines whether the unit should swap a weapon. Returns true if the new weapon type is not held, or if held in current seat with equal/more ammo and current ammo above threshold."
+      }
     },
     "0x1ae490": {
       "kind": "function",
@@ -3561,6 +3970,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c89d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c8b70": {
       "kind": "function",
       "status": "ported"
@@ -3638,95 +4051,11 @@
         "Vtable calls at offsets +0x10 and +0x14 through the sound driver pointer at 0x4eaf48 are likely lock/unlock or begin-frame/end-frame pairs."
       ]
     },
-    "0x326a08": {
-      "kind": "data",
-      "status": "ported"
-    },
-    "0x8da40": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x178d0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1190c0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xd5070": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa2e80": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x14d080": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c89d0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xfae80": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xfb0c0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x13d7f0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x13eb70": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x13fea0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x140130": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x140420": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1411c0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1415f0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x46f07c": {
-      "kind": "data",
-      "status": "ported"
-    },
-    "0x46f080": {
-      "kind": "data",
-      "status": "ported"
-    },
-    "0x46f084": {
-      "kind": "data",
-      "status": "ported"
-    },
-    "0x109280": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x109540": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x31e500": {
+      "kind": "data",
+      "status": "ported"
+    },
+    "0x326a08": {
       "kind": "data",
       "status": "ported"
     },
@@ -3830,60 +4159,24 @@
       "kind": "data",
       "status": "ported"
     },
+    "0x46f07c": {
+      "kind": "data",
+      "status": "ported"
+    },
+    "0x46f080": {
+      "kind": "data",
+      "status": "ported"
+    },
+    "0x46f084": {
+      "kind": "data",
+      "status": "ported"
+    },
     "0x506550": {
       "kind": "data",
       "status": "ported"
     },
     "0x5065a4": {
       "kind": "data",
-      "status": "ported"
-    },
-    "0x21fb0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe4310": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe4770": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe5090": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe5380": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe53e0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe5440": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe68e0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe6ab0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe6cb0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe6ed0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xe9320": {
-      "kind": "function",
       "status": "ported"
     }
   }

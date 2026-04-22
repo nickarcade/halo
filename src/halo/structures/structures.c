@@ -1,23 +1,281 @@
 /* Structure BSP rendering subsystem init/dispose. */
 
+int cluster_partition_iter_next(void *partition, int *state)
+{
+  if (*state != -1) {
+    char *cluster_reference =
+      datum_get(*(void **)((char *)partition + 4), *state);
+    *state = *(int *)(cluster_reference + 8);
+    return *(int *)(cluster_reference + 4);
+  }
+
+  return -1;
+}
+
+int cluster_partition_iter_first(void *partition, int *state,
+                                 int16_t cluster_idx)
+{
+  if (cluster_idx < 0 ||
+      cluster_idx >= *(int *)((char *)scenario_get() + 0x134)) {
+    display_assert("cluster_index>=0 && "
+                   "cluster_index<global_structure_bsp_get()->clusters.count",
+                   "c:\\halo\\SOURCE\\structures\\cluster_partitions.c", 0xd5,
+                   true);
+    system_exit(-1);
+  }
+
+  *state = *(int *)(*(int *)partition + cluster_idx * 4);
+  if (*state != -1) {
+    char *cluster_reference =
+      datum_get(*(void **)((char *)partition + 4), *state);
+    *state = *(int *)(cluster_reference + 8);
+    return *(int *)(cluster_reference + 4);
+  }
+
+  return -1;
+}
+
 void structures_initialize(void)
 {
-  ((void (*)(void))0x193970)();
-  ((void (*)(void))0x196290)();
+  structure_detail_objects_initialize();
+  structure_runtime_decals_initialize();
 }
 
 void structures_initialize_for_new_map(void)
 {
-  ((void (*)(void))0x193bb0)();
-  ((void (*)(void))0x1962d0)();
+  structure_detail_objects_initialize_for_new_map();
+  structure_runtime_decals_initialize_for_new_map();
 }
 
 void structures_dispose_from_old_map(void)
 {
-  ((void (*)(void))0x1963a0)();
 }
 
 void structures_dispose(void)
 {
-  ((void (*)(void))0x1963b0)();
+}
+
+/* structures_cluster_marker_begin (0x198400)
+ *
+ * Asserts that the cluster marker is not already initialized,
+ * increments the cluster-marker reference counter, and sets the
+ * initialized flag.
+ *
+ * Confirmed: TEST AL,AL on byte ptr [0x4d92e1].
+ * Confirmed: INC dword ptr [0x4d92e4].
+ * Confirmed: MOV byte ptr [0x4d92e1], 1.
+ */
+void structures_cluster_marker_begin(void)
+{
+  if (*(uint8_t *)0x4d92e1 != 0) {
+    display_assert("!structure_globals.cluster_marker_initialized",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x103, true);
+    system_exit(-1);
+  }
+  *(uint32_t *)0x4d92e4 += 1;
+  *(uint8_t *)0x4d92e1 = 1;
+}
+
+bool FUN_00198440(int16_t cluster_index)
+{
+  if (*(uint8_t *)0x4d92e1 == 0) {
+    display_assert("structure_globals.cluster_marker_initialized",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x10e, true);
+    system_exit(-1);
+  }
+
+  if (cluster_index < 0 || cluster_index > 0x1ff) {
+    display_assert("cluster_index>=0 && "
+                   "cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x10f, true);
+    system_exit(-1);
+  }
+
+  return ((int *)0x4d92e8)[cluster_index] != *(int *)0x4d92e4;
+}
+
+int FUN_001984c0(int16_t cluster_index)
+{
+  if (*(uint8_t *)0x4d92e1 == 0) {
+    display_assert("structure_globals.cluster_marker_initialized",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x11e, true);
+    system_exit(-1);
+  }
+
+  if (cluster_index < 0 || cluster_index > 0x1ff) {
+    display_assert("cluster_index>=0 && "
+                   "cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x11f, true);
+    system_exit(-1);
+  }
+
+  if (((int *)0x4d92e8)[cluster_index] != *(int *)0x4d92e4) {
+    ((int *)0x4d92e8)[cluster_index] = *(int *)0x4d92e4;
+    return 1;
+  }
+
+  return 0;
+}
+
+bool FUN_00198800(void *scenario, int16_t portal_index, float *position,
+                  float radius)
+{
+  uint8_t projected_vertices[1024];
+  uint8_t projected_center[8];
+  float projected_hit[3];
+  char *portal =
+    tag_block_get_element((char *)scenario + 0x154, (int)portal_index, 0x40);
+  char *structure_bsp = tag_block_get_element((char *)scenario + 0xb0, 0, 0x60);
+  float *portal_plane = tag_block_get_element((int *)(structure_bsp + 0xc),
+                                              *(int *)(portal + 4), 0x10);
+  float plane_distance = position[0] * portal_plane[0] +
+                         position[1] * portal_plane[1] +
+                         position[2] * portal_plane[2] - portal_plane[3];
+
+  if (fabsf(plane_distance) < radius) {
+    float dx = *(float *)(portal + 8) - position[0];
+    float dy = *(float *)(portal + 0xc) - position[1];
+    float dz = *(float *)(portal + 0x10) - position[2];
+    float expanded_radius = radius + *(float *)(portal + 0x14);
+
+    if (dx * dx + dy * dy + dz * dz < expanded_radius * expanded_radius) {
+      int portal_plane_index = *(int *)(portal + 4);
+      char *portal_plane_owner = FUN_0018e420(portal_plane_index, 0x10);
+      uint32_t plane_basis;
+      uint8_t plane_axis;
+      int *portal_vertices = (int *)(portal + 0x34);
+      int16_t vertex = 0;
+
+      portal_plane = tag_block_get_element((int *)(portal_plane_owner + 0xc),
+                                           portal_plane_index, 0x10);
+      plane_basis = FUN_00099220(portal_plane);
+      plane_axis = FUN_00099270(portal_plane, plane_basis);
+
+      projected_hit[0] = -plane_distance * portal_plane[0] + position[0];
+      projected_hit[1] = -plane_distance * portal_plane[1] + position[1];
+      projected_hit[2] = -plane_distance * portal_plane[2] + position[2];
+      FUN_00061df0(projected_hit, plane_basis, plane_axis, projected_center);
+
+      if (*portal_vertices > 0) {
+        do {
+          FUN_00061df0(tag_block_get_element(portal_vertices, (int)vertex, 0xc),
+                       plane_basis, plane_axis,
+                       projected_vertices + (int)vertex * 8);
+          vertex += 1;
+        } while ((int)vertex < *portal_vertices);
+      }
+
+      if (FUN_00106130(
+            (uint16_t)*portal_vertices, projected_vertices, projected_center,
+            sqrtf(radius * radius - plane_distance * plane_distance))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+int16_t FUN_001989b0(uint16_t cluster_count, float *position, float radius,
+                     int max_count, int16_t *out_indices)
+{
+  void *scenario = scenario_get();
+  int16_t current_cluster = (int16_t)cluster_count;
+  char *cluster =
+    tag_block_get_element((char *)scenario + 0x134, (int)current_cluster, 0x68);
+  int remaining_count = max_count - 1;
+  int visited_count = 1;
+
+  if ((int16_t)max_count > 0) {
+    *out_indices = current_cluster;
+    out_indices += 1;
+  }
+
+  FUN_001984c0(cluster_count);
+
+  if (*(int *)(cluster + 0x5c) > 0) {
+    int16_t portal_iter = 0;
+
+    do {
+      int16_t *portal_index_ptr =
+        tag_block_get_element((int *)(cluster + 0x5c), portal_iter, 2);
+      int16_t portal_index = *portal_index_ptr;
+      int16_t *portal = tag_block_get_element((char *)scenario + 0x154,
+                                              (int)portal_index, 0x40);
+      int16_t adjacent_cluster = portal[0];
+
+      if (adjacent_cluster == current_cluster) {
+        adjacent_cluster = portal[1];
+      }
+
+      if (FUN_00198440(adjacent_cluster) &&
+          FUN_00198800(scenario, portal_index, position, radius)) {
+        int recurse_count = FUN_001989b0((uint16_t)adjacent_cluster, position,
+                                         radius, remaining_count, out_indices);
+        visited_count += recurse_count;
+        remaining_count -= recurse_count;
+        out_indices += (int16_t)recurse_count;
+      }
+
+      portal_iter += 1;
+    } while ((int)portal_iter < *(int *)(cluster + 0x5c));
+  }
+
+  return (int16_t)visited_count;
+}
+
+int16_t structure_find_in_cluster(uint16_t cluster_count, float *position,
+                                  float radius, int max_count,
+                                  int16_t *intersected_indices)
+{
+  if (position == NULL) {
+    display_assert("position", "c:\\halo\\SOURCE\\structures\\structures.c",
+                   0x86, true);
+    system_exit(-1);
+  }
+
+  if (radius < 0.f) {
+    display_assert("radius>=0.f", "c:\\halo\\SOURCE\\structures\\structures.c",
+                   0x87, true);
+    system_exit(-1);
+  }
+
+  if ((int16_t)max_count <= 0) {
+    display_assert("maximum_count>0",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x88, true);
+    system_exit(-1);
+  }
+
+  if (intersected_indices == NULL) {
+    display_assert("intersected_indices",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x89, true);
+    system_exit(-1);
+  }
+
+  if ((int16_t)cluster_count != -1) {
+    if (radius > 0.f) {
+      int16_t cluster_count_out;
+
+      structures_cluster_marker_begin();
+      cluster_count_out = FUN_001989b0(cluster_count, position, radius,
+                                       max_count, intersected_indices);
+
+      if (*(uint8_t *)0x4d92e1 == 0) {
+        display_assert("structure_globals.cluster_marker_initialized",
+                       "c:\\halo\\SOURCE\\structures\\structures.c", 0x130,
+                       true);
+        system_exit(-1);
+      }
+
+      *(uint8_t *)0x4d92e1 = 0;
+      return cluster_count_out;
+    }
+
+    if ((int16_t)max_count > 0) {
+      *intersected_indices = (int16_t)cluster_count;
+      return 1;
+    }
+  }
+
+  return 0;
 }

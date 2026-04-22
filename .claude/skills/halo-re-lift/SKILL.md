@@ -34,6 +34,16 @@ cachebeta.xbe or default.xbe. Doctrine and evidence rules live in
 7. Update kb.json conservatively (see
    `docs/references/kb-update-policy.md`).
 8. Run `python3 tools/maintain.py <source_file>`.
+9. **Generate the commit message with `tools/generate_lift_commit.py`**.
+   This is mandatory. Do not write freeform commit messages.
+   - Stage all changes (`git add -A`).
+   - Run `python3 tools/generate_lift_commit.py --batch-name "<short description>" > /tmp/commit_msg.txt`.
+   - Review the generated message. It must include:
+     - Function inventory (name, address, object)
+     - kb_meta.json update count
+     - Coverage metric
+   - Commit with `git commit -F /tmp/commit_msg.txt`.
+   - If the script fails or produces empty output, fix the issue before committing.
 
 ## Ghidra MCP availability (required)
 
@@ -69,7 +79,10 @@ Key reminders (full rules in `docs/references/abi-and-calling-conventions.md`):
 - For `@<reg>` or reverse-thunked paths, audit which registers the original
   caller expects preserved.
 - Lifted C may legitimately clobber caller-saved EAX, ECX, EDX.
-- Do not add `kb.json` `@<reg>` entries unless the implementation exists.
+- `@<reg>` annotations are immutable. Never remove or change slot assignments.
+- When calling an original XBE function that takes register args, add it to
+  kb.json with `@<reg>` and call by name. Do not use raw casts or inline asm.
+  New `@<reg>` entries must also be added to `tools/kb_reg_baseline.json`.
 - Do not reorder or repack structs without binary evidence and matching asserts.
 
 ## Output expectations

@@ -1,6 +1,3 @@
-int ui_widget_load_widget_children(void *definition, void *widget);
-void ui_widget_link_child(void *parent, void *child);
-
 /* ui_widgets_initialize — sets up the UI widget subsystem. Allocates a
  * 0x4000-byte block via debug_malloc for the stack memory pool at
  * [0x31e04c], initializes the pool, zeroes the 0x68-byte static widget
@@ -215,6 +212,129 @@ void ui_widget_close_children(void *widget)
   } while (child != NULL);
 }
 
+int ui_widget_load_widget_children(void *definition, void *widget);
+void ui_widget_link_child(void *parent, void *child);
+
+/* ui_widget_find_by_tag — depth-first search over a widget subtree for the
+ * first node whose tag handle (offset +0x0) equals tag_handle.  Checks the
+ * current node first, then recurses into each child from first_child (+0x34)
+ * following next_sibling (+0x2c). Returns NULL when no match exists. */
+int *ui_widget_find_by_tag(int *widget, int tag_handle)
+{
+  int *result;
+  int *child;
+
+  if (*widget == tag_handle)
+    return widget;
+
+  result = NULL;
+  child = *(int **)((char *)widget + 0x34);
+  while (child != NULL && result == NULL) {
+    if (*child == tag_handle) {
+      result = child;
+    } else {
+      result = ui_widget_find_by_tag(child, tag_handle);
+    }
+    child = *(int **)((char *)child + 0x2c);
+  }
+
+  return result;
+}
+
+/* ui_widget_apply_focus — applies focus to target_widget within the root's
+ * focus chain. Walks to the top-most parent (+0x30), snapshots the current
+ * focused-descendant chain head (+0x38), optionally retargets when the input
+ * widget is disabled (+0x12==1) by scanning sibling/parent lists for a
+ * focusable widget (DeLa handlers>0 or type 2/3), then rewrites ancestor
+ * focused-descendant links (+0x38). If the previous and new focus share the
+ * same direct parent, updates only that parent and exits early. */
+void ui_widget_apply_focus(void *root_widget, void *target_widget)
+{
+  int root;
+  int focused;
+  int parent;
+  int *target;
+  int *candidate;
+  int tag_data;
+
+  root = (int)root_widget;
+  target = (int *)target_widget;
+
+  while (*(int *)(root + 0x30) != 0) {
+    root = *(int *)(root + 0x30);
+  }
+
+  focused = *(int *)(root + 0x38);
+
+  if (*(uint8_t *)((char *)target + 0x12) == 1) {
+    candidate = (int *)target[0xb];
+    while (candidate != NULL) {
+      tag_data = (int)tag_get(0x44654c61, candidate[0]);
+      if (*(uint8_t *)((char *)candidate + 0x12) == 0 &&
+          (*(int *)(tag_data + 0x54) > 0 ||
+           *(int16_t *)((char *)candidate + 0xe) == 2 ||
+           *(int16_t *)((char *)candidate + 0xe) == 3)) {
+        goto set_candidate;
+      }
+      candidate = (int *)candidate[0xb];
+    }
+
+    parent = target[0xc];
+    if (parent != 0) {
+      candidate = *(int **)(parent + 0x34);
+      while (candidate != NULL) {
+        tag_data = (int)tag_get(0x44654c61, candidate[0]);
+        if (*(uint8_t *)((char *)candidate + 0x12) == 0 &&
+            (*(int *)(tag_data + 0x54) > 0 ||
+             *(int16_t *)((char *)candidate + 0xe) == 2 ||
+             *(int16_t *)((char *)candidate + 0xe) == 3)) {
+          break;
+        }
+        candidate = (int *)candidate[0xb];
+      }
+
+      if (candidate == *(int **)(parent + 0x38)) {
+        candidate = (int *)target[0xa];
+        while (candidate != NULL) {
+          tag_data = (int)tag_get(0x44654c61, candidate[0]);
+          if (*(uint8_t *)((char *)candidate + 0x12) == 0 &&
+              (*(int *)(tag_data + 0x54) > 0 ||
+               *(int16_t *)((char *)candidate + 0xe) == 2 ||
+               *(int16_t *)((char *)candidate + 0xe) == 3)) {
+            break;
+          }
+          candidate = (int *)candidate[0xa];
+        }
+      }
+    }
+
+    if (candidate != NULL) {
+    set_candidate:
+      target = candidate;
+    }
+  }
+
+  if (focused != 0) {
+    if (target != NULL && *(int *)(focused + 0x30) == target[0xc] &&
+        *(int *)(focused + 0x30) != 0) {
+      *(int *)(target[0xc] + 0x38) = (int)target;
+      return;
+    }
+
+    do {
+      *(int *)(*(int *)(focused + 0x30) + 0x38) = 0;
+      focused = *(int *)(focused + 0x38);
+    } while (focused != 0);
+  }
+
+  parent = target[0xc];
+  while (parent != 0) {
+    *(int *)(parent + 0x38) = (int)target;
+    target = (int *)target[0xc];
+    parent = target[0xc];
+  }
+}
+
 void ui_widget_pending_load_apply(int pending_a6, int widget, int16_t a7);
 
 void ui_widget_update_list_selection(void *widget, void *definition);
@@ -414,7 +534,29 @@ void ui_widgets_close_all(void)
   } while ((int)list_heads < 0x46cc40);
 }
 
-void ui_widget_set_focus(void *widget, int tag_handle, int16_t player_index);
+/* ui_widget_set_focus — walks up the parent chain (field_0x30) from the given
+ * widget to the root, then searches the widget tree for one matching
+ * tag_handle.  If found, calls ui_widget_apply_focus; otherwise logs an error.
+ */
+void ui_widget_set_focus(void *widget, int tag_handle, int16_t player_index)
+{
+  void *root = widget;
+  void *found;
+
+  (void)player_index;
+
+  while (*(void **)((char *)root + 0x30) != NULL)
+    root = *(void **)((char *)root + 0x30);
+
+  found = ui_widget_find_by_tag(root, tag_handle);
+  if (found != NULL) {
+    ui_widget_apply_focus(root, found);
+    return;
+  }
+
+  error(2, "failed to find event focus target widget");
+}
+
 void ui_widget_close_and_reload(void *widget);
 
 /* ui_widget_begin_filesystem_checks — spawns a background thread to perform

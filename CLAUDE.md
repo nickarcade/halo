@@ -60,6 +60,10 @@ If an edit fails, re-read only affected ranges before retrying.
 - Reuse existing types and declarations before creating new ones.
 - Do not reorder/repad structs without matching `cs`/`co` checks.
 - Do not hand-edit generated files in `build/generated/`.
+- Do not use inline assembly in lifted C code. The build system generates
+  forward thunks (C → original XBE) and reverse thunks (original XBE → C)
+  automatically via kb.json `@<reg>` entries. If you think you need inline
+  asm, you are missing a kb.json entry.
 - Keep behavior changes separate from cleanup/formatting whenever possible.
 
 ## kb.json discipline
@@ -71,10 +75,13 @@ Treat `kb.json` as link/runtime-critical.
 - Prefer hardcoded addresses over speculative global entries when uncertain.
 - Use `jq` for all inspections and filtering.
 - Build and verify after each meaningful `kb.json` change.
-- Protected `@<reg>` ABI entries are pinned by `tools/kb_reg_baseline.json`:
-  - Any mismatch against the baseline is a hard build failure.
-  - Do not remove or move `@<reg>` slots in routine lift work.
-  - Baseline edits are explicit policy changes and must be justified separately.
+- `@<reg>` annotations are **immutable** — they describe the original XBE ABI,
+  not the C implementation. See `docs/references/abi-and-calling-conventions.md`.
+  - Never remove or change `@<reg>` slot assignments. Renaming and retyping are fine.
+  - `tools/kb_reg_baseline.json` enforces this: any mismatch is a hard build failure.
+  - When you encounter a register-arg callee, add it to kb.json with `@<reg>` and
+    call it by name. Do not use raw function pointer casts or inline assembly.
+  - New `@<reg>` entries must also be added to the baseline.
 
 ## Build and verification
 

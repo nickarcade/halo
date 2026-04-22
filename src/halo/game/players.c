@@ -550,6 +550,131 @@ bool player_try_to_enter_vehicle(int player_handle /* @<eax> */)
   return false;
 }
 
+/* Apply the overshield powerup effect to the player.
+ * Builds a player-effect descriptor struct with the overshield parameters
+ * and submits it via player_effect_apply. ESI = player_handle. */
+void player_apply_overshield_effect(int player_handle)
+{
+  char *player;
+  struct {
+    int16_t type;
+    int16_t unk_02;
+    int32_t pad[3];
+    float field_10;
+    int16_t field_14;
+    int16_t pad_16;
+    int32_t pad_18[2];
+    float field_20;
+    int32_t field_24;
+    float field_28;
+    float field_2c;
+    float field_30;
+    float field_34;
+  } effect;
+
+  if (player_handle == -1)
+    return;
+  player = (char *)datum_get(player_data, player_handle);
+  if (*(int16_t *)(player + 2) == -1)
+    return;
+
+  csmemset(&effect, 0, sizeof(effect));
+  effect.type = *(int16_t *)0x2f1480;
+  effect.unk_02 = 2;
+  effect.field_10 = *(float *)0x2f1490;
+  effect.field_14 = *(int16_t *)0x46b6ac;
+  effect.field_20 = *(float *)0x2f1484;
+  effect.field_24 = 0;
+  effect.field_28 = *(float *)0x46b6b0;
+  effect.field_2c = *(float *)0x2f1488;
+  effect.field_30 = *(float *)0x46b6b4;
+  effect.field_34 = *(float *)0x2f148c;
+  player_effect_apply(player_handle, &effect, 1.0f);
+}
+
+/* Notify the game that active camo was activated (triggers a location-based
+ * player effect notification). ESI = player_handle. */
+void player_apply_camo_notification(int player_handle)
+{
+  char *player;
+  struct {
+    int16_t type;
+    int16_t unk_02;
+    int32_t pad[3];
+    float field_10;
+    int16_t field_14;
+    int16_t pad_16;
+    int32_t pad_18[2];
+    float field_20;
+    int32_t field_24;
+    float field_28;
+    float field_2c;
+    float field_30;
+    float field_34;
+  } effect;
+
+  if (player_handle == -1)
+    return;
+  player = (char *)datum_get(player_data, player_handle);
+  if (*(int16_t *)(player + 2) == -1)
+    return;
+
+  csmemset(&effect, 0, sizeof(effect));
+  effect.type = *(int16_t *)0x2f1494;
+  effect.unk_02 = 2;
+  effect.field_10 = *(float *)0x2f14a4;
+  effect.field_14 = *(int16_t *)0x46b6b8;
+  effect.field_20 = *(float *)0x2f1498;
+  effect.field_24 = 0;
+  effect.field_28 = *(float *)0x46b6bc;
+  effect.field_2c = *(float *)0x2f149c;
+  effect.field_30 = *(float *)0x2f14a0;
+  effect.field_34 = *(float *)0x46b6c0;
+  player_effect_apply(player_handle, &effect, 1.0f);
+}
+
+/* Apply the health powerup effect to the player.
+ * Unlike overshield/camo, this uses entirely inline constants
+ * rather than loading from global addresses. ESI = player_handle. */
+void player_apply_health_effect(int player_handle)
+{
+  char *player;
+  struct {
+    int16_t type;
+    int16_t unk_02;
+    int32_t pad[3];
+    float field_10;
+    int16_t field_14;
+    int16_t pad_16;
+    int32_t pad_18[2];
+    float field_20;
+    int32_t field_24;
+    float field_28;
+    float field_2c;
+    float field_30;
+    float field_34;
+  } effect;
+
+  if (player_handle == -1)
+    return;
+  player = (char *)datum_get(player_data, player_handle);
+  if (*(int16_t *)(player + 2) == -1)
+    return;
+
+  csmemset(&effect, 0, sizeof(effect));
+  effect.type = 6;
+  effect.unk_02 = 2;
+  effect.field_10 = 2.0f;
+  effect.field_14 = 1;
+  effect.field_20 = 0.5f;
+  effect.field_24 = 0;
+  effect.field_28 = 1.0f;
+  effect.field_2c = 0.917647f;
+  effect.field_30 = 0.917647f;
+  effect.field_34 = 0.917647f;
+  player_effect_apply(player_handle, &effect, 1.0f);
+}
+
 /* Allocate and initialise a new player datum.
  *
  * local_player_index  (a1) -- which local player slot to assign; NONE (-1) is
@@ -1070,6 +1195,35 @@ void player_set_respawn_timer(int player_handle, int16_t respawn_type,
   }
 }
 
+/* Decrement the player's short weapon/vehicle timers (at player+0x68,
+ * 2 x int16_t).  When a timer reaches zero the corresponding flag bit
+ * is cleared on the unit object (bit 0x10 at unit+0x1b4).
+ * EBX = datum_handle (register arg). */
+void player_update_weapon_timers(int datum_handle)
+{
+  char *player;
+  char *unit;
+  int16_t *timer;
+  int i;
+  int16_t val;
+
+  player = (char *)datum_get(player_data, datum_handle);
+  timer = (int16_t *)(player + 0x68);
+  for (i = 0; i < 2; i++) {
+    val = timer[i];
+    if (val > 0) {
+      val--;
+      timer[i] = val;
+      if (val == 0) {
+        player = (char *)datum_get(player_data, datum_handle);
+        unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+        if (i == 0)
+          *(unsigned int *)(unit + 0x1b4) &= ~0x10u;
+      }
+    }
+  }
+}
+
 __attribute__((noinline)) static bool
 players_respawn_coop_teleport(int player_handle, int anchor_unit_handle,
                               void *anchor_position)
@@ -1211,129 +1365,149 @@ bool players_respawn_coop(void)
   return bVar2;
 }
 
-/* Apply the overshield powerup effect to the player.
- * Builds a player-effect descriptor struct with the overshield parameters
- * and submits it via player_effect_apply. ESI = player_handle. */
-void player_apply_overshield_effect(int player_handle)
+/* Priority-filtered pending action-result update (matches 0xbbfe0). */
+static void player_set_spawn_action_result(int player_handle,
+                                           int16_t action_result_type,
+                                           int object_handle,
+                                           int16_t seat_index)
 {
   char *player;
-  struct {
-    int16_t type;
-    int16_t unk_02;
-    int32_t pad[3];
-    float field_10;
-    int16_t field_14;
-    int16_t pad_16;
-    int32_t pad_18[2];
-    float field_20;
-    int32_t field_24;
-    float field_28;
-    float field_2c;
-    float field_30;
-    float field_34;
-  } effect;
 
-  if (player_handle == -1)
-    return;
   player = (char *)datum_get(player_data, player_handle);
-  if (*(int16_t *)(player + 2) == -1)
-    return;
+  if (action_result_type != 11) {
+    int16_t current_type = *(int16_t *)(player + 0x28);
+    if (action_result_type == current_type) {
+      char *unit_obj;
+      char *cur_obj;
+      char *new_obj;
+      float cur_dx;
+      float cur_dy;
+      float cur_dz;
+      float new_dx;
+      float new_dy;
+      float new_dz;
+      float cur_dist;
+      float new_dist;
 
-  csmemset(&effect, 0, sizeof(effect));
-  effect.type = *(int16_t *)0x2f1480;
-  effect.unk_02 = 2;
-  effect.field_10 = *(float *)0x2f1490;
-  effect.field_14 = *(int16_t *)0x46b6ac;
-  effect.field_20 = *(float *)0x2f1484;
-  effect.field_24 = 0;
-  effect.field_28 = *(float *)0x46b6b0;
-  effect.field_2c = *(float *)0x2f1488;
-  effect.field_30 = *(float *)0x46b6b4;
-  effect.field_34 = *(float *)0x2f148c;
-  player_effect_apply(player_handle, &effect, 1.0f);
+      unit_obj =
+        (char *)object_get_and_verify_type(*(int *)(player + 0x34), -1);
+      cur_obj = (char *)object_get_and_verify_type(*(int *)(player + 0x24), -1);
+      new_obj = (char *)object_get_and_verify_type(object_handle, -1);
+
+      cur_dx = *(float *)(cur_obj + 0xc) - *(float *)(unit_obj + 0xc);
+      cur_dy = *(float *)(cur_obj + 0x10) - *(float *)(unit_obj + 0x10);
+      cur_dz = *(float *)(cur_obj + 0x14) - *(float *)(unit_obj + 0x14);
+
+      new_dx = *(float *)(new_obj + 0xc) - *(float *)(unit_obj + 0xc);
+      new_dy = *(float *)(new_obj + 0x10) - *(float *)(unit_obj + 0x10);
+      new_dz = *(float *)(new_obj + 0x14) - *(float *)(unit_obj + 0x14);
+
+      cur_dist =
+        __builtin_sqrtf(cur_dx * cur_dx + cur_dy * cur_dy + cur_dz * cur_dz);
+      new_dist =
+        __builtin_sqrtf(new_dx * new_dx + new_dy * new_dy + new_dz * new_dz);
+      if (cur_dist <= new_dist)
+        return;
+    } else if (action_result_type <= current_type) {
+      return;
+    }
+  }
+
+  *(int16_t *)(player + 0x28) = action_result_type;
+  *(int *)(player + 0x24) = object_handle;
+  *(int16_t *)(player + 0x2a) = seat_index;
 }
 
-/* Notify the game that active camo was activated (triggers a location-based
- * player effect notification). ESI = player_handle. */
-void player_apply_camo_notification(int player_handle)
+void player_update_nearby_biped(int datum_handle, int object_handle)
 {
   char *player;
-  struct {
-    int16_t type;
-    int16_t unk_02;
-    int32_t pad[3];
-    float field_10;
-    int16_t field_14;
-    int16_t pad_16;
-    int32_t pad_18[2];
-    float field_20;
-    int32_t field_24;
-    float field_28;
-    float field_2c;
-    float field_30;
-    float field_34;
-  } effect;
+  char *nearby_biped;
+  char *unit;
+  void *game_globals;
+  char *difficulty_entry;
+  float angle_delta;
+  int16_t seat_index;
+  int16_t seat_state;
 
-  if (player_handle == -1)
-    return;
-  player = (char *)datum_get(player_data, player_handle);
-  if (*(int16_t *)(player + 2) == -1)
+  player = (char *)datum_get(player_data, datum_handle);
+  nearby_biped = (char *)object_get_and_verify_type(object_handle, 2);
+  if ((*(unsigned char *)(nearby_biped + 0xb6) & 4) != 0)
     return;
 
-  csmemset(&effect, 0, sizeof(effect));
-  effect.type = *(int16_t *)0x2f1494;
-  effect.unk_02 = 2;
-  effect.field_10 = *(float *)0x2f14a4;
-  effect.field_14 = *(int16_t *)0x46b6b8;
-  effect.field_20 = *(float *)0x2f1498;
-  effect.field_24 = 0;
-  effect.field_28 = *(float *)0x46b6bc;
-  effect.field_2c = *(float *)0x2f149c;
-  effect.field_30 = *(float *)0x2f14a0;
-  effect.field_34 = *(float *)0x46b6c0;
-  player_effect_apply(player_handle, &effect, 1.0f);
+  game_globals = game_globals_get();
+  difficulty_entry =
+    (char *)tag_block_get_element((char *)game_globals + 0x110, 0, 0x80);
+  angle_delta = *(float *)0x2568bc - *(float *)(difficulty_entry + 0x70);
+
+  nearby_biped = (char *)object_get_and_verify_type(object_handle, 2);
+  if (*(float *)(nearby_biped + 0x38) <= __builtin_cosf(angle_delta)) {
+    if ((*(unsigned char *)(nearby_biped + 0x424) & 0x10) == 0 &&
+        *(int *)(nearby_biped + 0x2d4) == -1) {
+      player_set_spawn_action_result(datum_handle, 11, object_handle, -1);
+    }
+  } else {
+    if (unit_current_weapon_is_busy(*(int *)(player + 0x34)))
+      return;
+
+    unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+    if (*(float *)(unit + 0x20) * *(float *)(unit + 0x20) +
+          *(float *)(unit + 0x1c) * *(float *)(unit + 0x1c) +
+          *(float *)(unit + 0x18) * *(float *)(unit + 0x18) >=
+        *(float *)0x25bb10)
+      return;
+
+    nearby_biped = (char *)object_get_and_verify_type(object_handle, 2);
+    if (FUN_00012170((float *)(nearby_biped + 0x3c)) >= *(float *)0x25bb10)
+      return;
+
+    seat_index = -1;
+    seat_state = unit_find_best_enter_seat(*(int *)(player + 0x34),
+                                           object_handle, &seat_index);
+
+    if (seat_state == 2) {
+      if (seat_index == -1) {
+        display_assert("seat_index != NONE",
+                       "c:\\halo\\SOURCE\\game\\players.c", 0x838, 1);
+        system_exit(-1);
+      }
+      player_set_spawn_action_result(datum_handle, 8, object_handle,
+                                     seat_index);
+      return;
+    }
+    if (seat_state == 1) {
+      if (seat_index == -1) {
+        display_assert("seat_index != NONE",
+                       "c:\\halo\\SOURCE\\game\\players.c", 0x83d, 1);
+        system_exit(-1);
+      }
+      player_set_spawn_action_result(datum_handle, 9, object_handle,
+                                     seat_index);
+      return;
+    }
+  }
 }
 
-/* Apply the health powerup effect to the player.
- * Unlike overshield/camo, this uses entirely inline constants
- * rather than loading from global addresses. ESI = player_handle. */
-void player_apply_health_effect(int player_handle)
+void player_update_nearby_weapon(int datum_handle, int object_handle)
 {
   char *player;
-  struct {
-    int16_t type;
-    int16_t unk_02;
-    int32_t pad[3];
-    float field_10;
-    int16_t field_14;
-    int16_t pad_16;
-    int32_t pad_18[2];
-    float field_20;
-    int32_t field_24;
-    float field_28;
-    float field_2c;
-    float field_30;
-    float field_34;
-  } effect;
+  char *unit;
+  char *weapon;
+  float local_position[3];
 
-  if (player_handle == -1)
+  player = (char *)datum_get(player_data, datum_handle);
+  unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+  weapon = (char *)object_get_and_verify_type(object_handle, 0x380);
+
+  unit_set_seat_state(*(int *)(player + 0x34), local_position);
+  if (!FUN_0010bc70(local_position, (float *)(unit + 0x1ec),
+                    (float *)(weapon + 0x50), *(float *)(weapon + 0x5c)))
     return;
-  player = (char *)datum_get(player_data, player_handle);
-  if (*(int16_t *)(player + 2) == -1)
+  if (!FUN_000971a0(object_handle, local_position, (float *)(unit + 0x1ec)))
+    return;
+  if (!FUN_00096720(object_handle))
     return;
 
-  csmemset(&effect, 0, sizeof(effect));
-  effect.type = 6;
-  effect.unk_02 = 2;
-  effect.field_10 = 2.0f;
-  effect.field_14 = 1;
-  effect.field_20 = 0.5f;
-  effect.field_24 = 0;
-  effect.field_28 = 1.0f;
-  effect.field_2c = 0.917647f;
-  effect.field_30 = 0.917647f;
-  effect.field_34 = 0.917647f;
-  player_effect_apply(player_handle, &effect, 1.0f);
+  player_set_spawn_action_result(datum_handle, 10, object_handle, -1);
 }
 
 /* Handle the result of a player interacting with an equipment (powerup) object.
@@ -1415,80 +1589,6 @@ void player_set_action_result_for_equipment(int player_handle,
     item_activate_equipment_effect(equipment_handle);
   }
   object_delete(equipment_handle);
-}
-
-/* Decrement the player's short weapon/vehicle timers (at player+0x68,
- * 2 x int16_t).  When a timer reaches zero the corresponding flag bit
- * is cleared on the unit object (bit 0x10 at unit+0x1b4).
- * EBX = datum_handle (register arg). */
-void player_update_weapon_timers(int datum_handle)
-{
-  char *player;
-  char *unit;
-  int16_t *timer;
-  int i;
-  int16_t val;
-
-  player = (char *)datum_get(player_data, datum_handle);
-  timer = (int16_t *)(player + 0x68);
-  for (i = 0; i < 2; i++) {
-    val = timer[i];
-    if (val > 0) {
-      val--;
-      timer[i] = val;
-      if (val == 0) {
-        player = (char *)datum_get(player_data, datum_handle);
-        unit = (char *)object_get_and_verify_type(
-            *(int *)(player + 0x34), 3);
-        if (i == 0)
-          *(unsigned int *)(unit + 0x1b4) &= ~0x10u;
-      }
-    }
-  }
-}
-
-/* Check nearby objects via spatial query and dispatch spawn-state events.
- * For each object found within the unit's bounding sphere, switch on the
- * object type to call the appropriate handler.
- * EBX = datum_handle (register arg). */
-void player_update_spawn_state(int datum_handle)
-{
-  char *player;
-  char *unit;
-  uint16_t count;
-  int handles[16];
-  int i;
-  char *obj;
-  int16_t obj_type;
-
-  player = (char *)datum_get(player_data, datum_handle);
-  if (*(int *)(player + 0x34) == -1)
-    return;
-  unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
-  if (*(int *)(unit + 0xcc) != -1)
-    return;
-
-  count = (uint16_t)object_find_in_radius(0, 0x11f, (float *)(unit + 0x48),
-      (float *)(unit + 0x50), *(float *)(unit + 0x5c), handles, 0x10);
-  if ((int16_t)count <= 0)
-    return;
-
-  for (i = 0; i < (int16_t)count; i++) {
-    obj = (char *)object_get_and_verify_type(handles[i], -1);
-    obj_type = *(int16_t *)(obj + 0x64);
-    switch (obj_type) {
-    case 1:
-      player_update_nearby_biped(datum_handle, handles[i]);
-      break;
-    case 2:
-    case 3:
-      player_update_nearby_vehicle(datum_handle, handles[i]);
-      break;
-    case 8:
-      player_update_nearby_weapon(datum_handle, handles[i]);
-      break;
-    }
-  }
 }
 
 /* Update all player actions before game logic runs for this tick.
@@ -1880,6 +1980,167 @@ void players_update_before_game(void)
   /* Profile exit. */
   if (*(char *)0x449ef1 != 0 && *(char *)0x2f0898 != 0)
     profile_exit_private((void *)0x2f0890);
+}
+
+void player_update_nearby_vehicle(int datum_handle, int object_handle)
+{
+  char *player;
+  char *unit;
+  char *nearby;
+  int16_t local_player_index;
+  int16_t i;
+  int16_t seat_index;
+  int nearby_weapon_count;
+  int current_weapon_handle;
+  int *equipment_obj;
+  int *nearby_weapon_obj;
+  int *current_weapon_obj;
+  char *equipment_tag;
+  char *nearby_weapon_tag;
+  char *current_weapon_tag;
+  bool in_vehicle_scope_state;
+  bool current_is_special;
+  int seat_occupant;
+
+  player = (char *)datum_get(player_data, datum_handle);
+  unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+  nearby = (char *)object_get_and_verify_type(object_handle, 0x1c);
+
+  if (*(int *)(nearby + 0xcc) != -1 ||
+      *(int *)(nearby + 0x1b0) == *(int *)(player + 0x34))
+    return;
+
+  local_player_index = *(int16_t *)(player + 2);
+
+  for (i = 0; i < 4; i++) {
+    seat_occupant = *(int *)(unit + 0x2a8 + (int)i * 4);
+    if (seat_occupant != -1 &&
+        FUN_000fc290(seat_occupant, object_handle, (uint16_t)local_player_index,
+                     &seat_index)) {
+      if (seat_index > 0) {
+        equipment_obj = (int *)object_get_and_verify_type(seat_occupant, 4);
+        hud_player_enter_vehicle((uint16_t)local_player_index, *equipment_obj,
+                                 seat_index);
+      }
+      break;
+    }
+  }
+
+  equipment_obj = (int *)object_try_and_get_and_verify_type(object_handle, 8);
+  if (equipment_obj != NULL) {
+    equipment_tag = (char *)tag_get(0x65716970, *equipment_obj);
+    if (*(int16_t *)(equipment_tag + 0x308) == 6) {
+      if (unit_try_add_grenade(*(int *)(player + 0x34), object_handle)) {
+        hud_player_set_equipment((uint16_t)local_player_index, *equipment_obj);
+      }
+    } else if (*(int16_t *)(equipment_tag + 0x308) != 0) {
+      seat_occupant = unit_get_equipment(*(int *)(player + 0x34));
+      if (seat_occupant == -1) {
+        player_set_action_result_for_equipment(datum_handle, object_handle);
+      } else {
+        object_get_and_verify_type(seat_occupant, 8);
+        current_weapon_tag = (char *)tag_get(0x65716970, *equipment_obj);
+        if (*(int16_t *)(equipment_tag + 0x308) !=
+            *(int16_t *)(current_weapon_tag + 0x308)) {
+          player_set_spawn_action_result(datum_handle, 5, object_handle, -1);
+        }
+      }
+    }
+  }
+
+  nearby_weapon_obj =
+    (int *)object_try_and_get_and_verify_type(object_handle, 4);
+  if (nearby_weapon_obj == NULL ||
+      !unit_can_enter_seat(*(int *)(player + 0x34), object_handle))
+    return;
+
+  nearby_weapon_tag = (char *)tag_get(0x77656170, *nearby_weapon_obj);
+  in_vehicle_scope_state = (*(unsigned int *)(unit + 0x1b8) & 0x1800) != 0;
+  unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+  current_weapon_handle =
+    unit_get_weapon(*(int *)(player + 0x34), *(int16_t *)(unit + 0x2a2));
+  nearby_weapon_count = unit_count_weapons(*(int *)(player + 0x34));
+
+  current_is_special = false;
+  if (nearby_weapon_count > 1 && current_weapon_handle != -1 &&
+      (*(unsigned char *)(nearby_weapon_tag + 0x308) & 0x10) == 0) {
+    current_weapon_obj =
+      (int *)object_get_and_verify_type(current_weapon_handle, 4);
+    current_weapon_tag = (char *)tag_get(0x77656170, *current_weapon_obj);
+    if ((*(unsigned char *)(current_weapon_tag + 0x308) & 0x10) != 0) {
+      current_is_special = true;
+    }
+  }
+
+  if (in_vehicle_scope_state &&
+      (*(unsigned char *)(nearby_weapon_tag + 0x308) & 8) != 0)
+    return;
+
+  if (player_examine_nearby_unit(*(int *)(player + 0x34), object_handle)) {
+    if (unit_enter_seat(*(int *)(player + 0x34), object_handle, 1)) {
+      nearby_weapon_obj = (int *)object_get_and_verify_type(object_handle, 4);
+      hud_player_set_vehicle((uint16_t)local_player_index, *nearby_weapon_obj);
+      player_clear_aim_assist(*(int *)(player + 0x34));
+      return;
+    }
+  } else {
+    if (!current_is_special &&
+        unit_should_swap_weapon(*(int *)(player + 0x34), object_handle)) {
+      current_weapon_obj =
+        (int *)object_try_and_get_and_verify_type(current_weapon_handle, 4);
+      if (nearby_weapon_count == 1 && current_weapon_obj != NULL &&
+          *current_weapon_obj != *nearby_weapon_obj) {
+        player_set_spawn_action_result(datum_handle, 7, object_handle, -1);
+        return;
+      }
+      player_set_spawn_action_result(datum_handle, 6, object_handle, -1);
+    }
+  }
+}
+
+/* Check nearby objects via spatial query and dispatch spawn-state events.
+ * For each object found within the unit's bounding sphere, switch on the
+ * object type to call the appropriate handler.
+ * EBX = datum_handle (register arg). */
+void player_update_spawn_state(int datum_handle)
+{
+  char *player;
+  char *unit;
+  uint16_t count;
+  int handles[16];
+  int i;
+  char *obj;
+  int16_t obj_type;
+
+  player = (char *)datum_get(player_data, datum_handle);
+  if (*(int *)(player + 0x34) == -1)
+    return;
+  unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+  if (*(int *)(unit + 0xcc) != -1)
+    return;
+
+  count = (uint16_t)object_find_in_radius(
+    0, 0x11f, (float *)(unit + 0x48), (float *)(unit + 0x50),
+    *(float *)(unit + 0x5c), handles, 0x10);
+  if ((int16_t)count <= 0)
+    return;
+
+  for (i = 0; i < (int16_t)count; i++) {
+    obj = (char *)object_get_and_verify_type(handles[i], -1);
+    obj_type = *(int16_t *)(obj + 0x64);
+    switch (obj_type) {
+    case 1:
+      player_update_nearby_biped(datum_handle, handles[i]);
+      break;
+    case 2:
+    case 3:
+      player_update_nearby_vehicle(datum_handle, handles[i]);
+      break;
+    case 8:
+      player_update_nearby_weapon(datum_handle, handles[i]);
+      break;
+    }
+  }
 }
 
 /* Post-game-tick player update.
