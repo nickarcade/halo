@@ -550,6 +550,22 @@
         {
           "decl": "float FUN_000121a0(const float *a, const float *b);",
           "addr": "0x121a0"
+        },
+        {
+          "decl": "void SwitchToThread(void);",
+          "addr": "0x1cfb98"
+        },
+        {
+          "decl": "void FUN_001a0890(int unit_handle, float *out_pos, float *out_dist_b, float *out_dist_a);",
+          "addr": "0x1a0890"
+        },
+        {
+          "decl": "bool FUN_0014ec30(int flags, float *pos, float search_radius, float dist_b, float dist_a, int param6, void *scratch);",
+          "addr": "0x14ec30"
+        },
+        {
+          "decl": "bool FUN_0014bc10(void *los_data, float *pos, void *out_hit);",
+          "addr": "0x14bc10"
         }
       ]
     },
@@ -797,7 +813,8 @@
       "functions": [
         {
           "decl": "float *FUN_0007c270(float *out_color, uint32_t flags, float *rgb_lower_bound, float *rgb_upper_bound, float blend);",
-          "addr": "0x7c270"
+          "addr": "0x7c270",
+          "ported": true
         },
         {
           "decl": "void bitmap_delete(void *);",
@@ -870,6 +887,10 @@
         {
           "decl": "void cache_files_precache(void);",
           "addr": "0x1bfee0"
+        },
+        {
+          "decl": "void cache_files_io_request_enable(int16_t request_index);",
+          "addr": "0x1bcb30"
         }
       ]
     },
@@ -1346,7 +1367,7 @@
           "ported": true
         },
         {
-          "decl": "int FUN_000998b0(int16_t cluster_index, int16_t layer, int old_index, bool randomize);",
+          "decl": "int FUN_000998b0(int new_index_hint@<eax>, int16_t cluster_index, int16_t layer, int old_index, bool randomize);",
           "addr": "0x998b0",
           "ported": true
         },
@@ -2003,12 +2024,11 @@
           "addr": "0xacdd0"
         },
         {
-          "decl": "void game_engine_hud_update_player(int player_handle);",
-          "addr": "0xacef0",
-          "args": "@ecx,@eax"
+          "decl": "void game_engine_hud_update_player(int player_handle@<ecx>, int hud_player@<eax>, int param3@<ebx>);",
+          "addr": "0xacef0"
         },
         {
-          "decl": "void game_engine_score_update_player(int player_handle);",
+          "decl": "void game_engine_player_update_netgame_flag(int player_handle);",
           "addr": "0xad600"
         },
         {
@@ -2050,6 +2070,18 @@
         {
           "decl": "void game_engine_score_reset(void);",
           "addr": "0xb2660"
+        },
+        {
+          "decl": "bool FUN_000acb10(int player_index, int type, void *entry);",
+          "addr": "0xacb10"
+        },
+        {
+          "decl": "int FUN_000ad160(float *position, float radius, float height, int16_t type, int16_t index, int flags, int *out_index);",
+          "addr": "0xad160"
+        },
+        {
+          "decl": "int FUN_000ad270(float *position, float radius, float height, int16_t type, int16_t index);",
+          "addr": "0xad270"
         }
       ]
     },
@@ -2096,6 +2128,10 @@
         {
           "decl": "void game_sound_set_music_volume(const char *sound_name, float volume, int16_t transition_ticks);",
           "addr": "0x1c8c80"
+        },
+        {
+          "decl": "void sound_compute_source_obstruction(int channel_index, void *source, float sqrt_dist);",
+          "addr": "0x1c8310"
         }
       ]
     },
@@ -2103,10 +2139,6 @@
       "name": "game_state.obj",
       "source": "saved_games/game_state.c",
       "functions": [
-        {
-          "decl": "int FUN_001bf570(int hardware_format, int block, bool load);",
-          "addr": "0x1bf570"
-        },
         {
           "decl": "void game_state_dispose(void);",
           "addr": "0x1bf7b0"
@@ -3021,6 +3053,18 @@
         {
           "decl": "void objects_update(void);",
           "addr": "0x145170"
+        },
+        {
+          "decl": "void FUN_0013fc20(void *placement, int tag_index, int parent_handle);",
+          "addr": "0x13fc20"
+        },
+        {
+          "decl": "int FUN_00143c80(void *placement);",
+          "addr": "0x143c80"
+        },
+        {
+          "decl": "void FUN_00143ae0(int object_handle, float *facing, float *target, int flags);",
+          "addr": "0x143ae0"
         }
       ]
     },
@@ -3161,6 +3205,14 @@
         {
           "decl": "void player_control_set_unit_seat(int unit_handle, int seat_index);",
           "addr": "0xb7f40"
+        },
+        {
+          "decl": "int FUN_000b6990(int unit_handle);",
+          "addr": "0xb6990"
+        },
+        {
+          "decl": "void FUN_000b6ea0(uint16_t local_player_index, float *direction);",
+          "addr": "0xb6ea0"
         }
       ]
     },
@@ -3749,6 +3801,10 @@
         {
           "decl": "void rasterizer_preinitialize(void);",
           "addr": "0x1553f0"
+        },
+        {
+          "decl": "void *FUN_00155580(void *hardware_format);",
+          "addr": "0x155580"
         }
       ]
     },
@@ -4100,6 +4156,24 @@
         {
           "decl": "void sound_render(void);",
           "addr": "0x1cf730"
+        },
+        {
+          "decl": "unsigned int FUN_001cb8e0(void);",
+          "addr": "0x1cb8e0"
+        },
+        {
+          "decl": "void FUN_001cf2f0(void);",
+          "addr": "0x1cf2f0"
+        },
+        {
+          "decl": "float FUN_001ccbe0(int channel_index@<eax>, void *source@<edi>);",
+          "addr": "0x1ccbe0",
+          "comment": "Compute listener distance squared for a channel/source pair."
+        },
+        {
+          "decl": "float FUN_001ccca0(int channel_index@<eax>, void *source@<edi>);",
+          "addr": "0x1ccca0",
+          "comment": "Compute distance for random scale checks."
         }
       ]
     },
@@ -4158,6 +4232,20 @@
         {
           "decl": "const char *tag_get_name(int tag_index);",
           "addr": "0x1ba1f0"
+        }
+      ]
+    },
+    {
+      "name": "structure_bsp_definitions.obj",
+      "source": "structures/structure_bsp_definitions.c",
+      "functions": [
+        {
+          "decl": "uint32_t *structure_bsp_get_cluster_sound_data(void *bsp, int16_t cluster_index);",
+          "addr": "0x193550"
+        },
+        {
+          "decl": "uint8_t structure_bsp_cluster_sound_encoding(void *bsp, int16_t from_cluster, int16_t to_cluster);",
+          "addr": "0x193870"
         }
       ]
     },
@@ -5209,6 +5297,18 @@
         {
           "decl": "void xbox_texture_cache_return_memory(void);",
           "addr": "0x1beb10"
+        },
+        {
+          "decl": "void *xbox_texture_cache_get_hardware_format(void *hardware_format, bool block, bool load);",
+          "addr": "0x1bf570"
+        },
+        {
+          "decl": "void xbox_texture_cache_setup_d3d_texture(void *bitmap@<esi>, void *texture@<edi>);",
+          "addr": "0x1bee30"
+        },
+        {
+          "decl": "bool xbox_texture_cache_request(void *hardware_format@<eax>, bool block);",
+          "addr": "0x1bf180"
         }
       ]
     },
@@ -5233,7 +5333,7 @@
       "name": "rasterizer_text.obj",
       "functions": [
         {
-          "decl": "void rasterizer_text_draw(void *screen_pos, void *bounds, int offset, void *tab_bounds, const char *text);",
+          "decl": "void rasterizer_text_draw(void *screen_pos, short *bounds, void *out_cursor, int flags, const char *text);",
           "addr": "0x183e60"
         }
       ]
@@ -5408,6 +5508,32 @@
         {
           "decl": "void *lruv_cache_new(const char *name, int capacity, int max_locked, int entry_size, void (*delete_cb)(int), int (*query_cb)(int));",
           "addr": "0x1bfe90"
+        },
+        {
+          "decl": "void FUN_0011d9d0(void *cache, int datum_handle);",
+          "addr": "0x11d9d0"
+        },
+        {
+          "decl": "void FUN_0011db90(const char *path, const char *tag_name, int a3, void *cache, void *fn1, void *fn2);",
+          "addr": "0x11db90"
+        }
+      ]
+    },
+    {
+      "name": "bitmap_utilities.obj",
+      "source": "bitmaps/bitmap_utilities.c",
+      "functions": [
+        {
+          "decl": "float *FUN_0007ab50(float *rgb, float *hsv_out);",
+          "addr": "0x7ab50"
+        },
+        {
+          "decl": "float *FUN_0007ace0(float *hsv, float *rgb_out);",
+          "addr": "0x7ace0"
+        },
+        {
+          "decl": "bool FUN_0007b020(float *rgb);",
+          "addr": "0x7b020"
         }
       ]
     }

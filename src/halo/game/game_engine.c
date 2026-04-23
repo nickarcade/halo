@@ -713,6 +713,102 @@ bool FUN_000ab720(void)
   return *(int *)0x5aa730 == 0;
 }
 
+/* game_engine_load_sounds (0xab730)
+ *
+ * Preloads game-engine related sound tags from game globals.
+ * Selection depends on game_engine_variant_index (0x456b40) and game type
+ * (0x456b10). The final 10 entries are mapped through FUN_000a9770 before
+ * loading.
+ */
+void game_engine_load_sounds(void)
+{
+  char *globals;
+  char *engine_globals;
+  char *entry;
+  int sound_tags[10];
+  int i;
+  void (*load_sound)(int) = (void (*)(int))0x13dda0;
+  int (*map_sound_tag)(int) = (int (*)(int))0x0a9770;
+
+  globals = (char *)game_globals_get();
+  engine_globals = (char *)tag_block_get_element(globals + 0x164, 0, 0xa0);
+
+  if (*(int *)0x456b40 == 2) {
+    entry = (char *)tag_block_get_element(engine_globals + 0x20, 0, 0x10);
+    load_sound(*(int *)(entry + 0xc));
+  } else if (*(int *)0x456b40 == 3) {
+    entry = (char *)tag_block_get_element(engine_globals + 0x20, 1, 0x10);
+    load_sound(*(int *)(entry + 0xc));
+  } else if (*(int *)0x456b40 == 4) {
+    entry = (char *)tag_block_get_element(engine_globals + 0x20, 2, 0x10);
+    load_sound(*(int *)(entry + 0xc));
+  } else {
+    entry = (char *)tag_block_get_element(engine_globals + 0x20, 0, 0x10);
+    load_sound(*(int *)(entry + 0xc));
+    entry = (char *)tag_block_get_element(engine_globals + 0x20, 1, 0x10);
+    load_sound(*(int *)(entry + 0xc));
+    entry = (char *)tag_block_get_element(engine_globals + 0x20, 2, 0x10);
+    load_sound(*(int *)(entry + 0xc));
+  }
+
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 0xc, 0x10);
+  load_sound(*(int *)(entry + 0xc));
+
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 0xd, 0x10);
+  load_sound(*(int *)(entry + 0xc));
+
+  if (*(int *)0x456b10 == 3) {
+    globals = (char *)game_globals_get();
+    entry = (char *)tag_block_get_element(globals + 0x14c, 10, 0x10);
+    load_sound(*(int *)(entry + 0xc));
+  }
+
+  if (*(int *)0x456b10 == 1) {
+    globals = (char *)game_globals_get();
+    entry = (char *)tag_block_get_element(globals + 0x14c, 0xb, 0x10);
+    load_sound(*(int *)(entry + 0xc));
+  }
+
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 0, 0x10);
+  sound_tags[0] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 1, 0x10);
+  sound_tags[1] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 2, 0x10);
+  sound_tags[2] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 3, 0x10);
+  sound_tags[3] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 4, 0x10);
+  sound_tags[4] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 5, 0x10);
+  sound_tags[5] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 6, 0x10);
+  sound_tags[6] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 7, 0x10);
+  sound_tags[7] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 8, 0x10);
+  sound_tags[8] = *(int *)(entry + 0xc);
+  globals = (char *)game_globals_get();
+  entry = (char *)tag_block_get_element(globals + 0x14c, 9, 0x10);
+  sound_tags[9] = *(int *)(entry + 0xc);
+
+  i = 0;
+  while (i < 10) {
+    load_sound(map_sound_tag(sound_tags[i]));
+    i++;
+  }
+}
+
 /* game_engine_can_pick_up_weapon (0xaba00)
  *
  * In Juggernaut (game type index 1) with an active engine, returns true
@@ -772,6 +868,76 @@ bool game_engine_game_over(void)
       return true;
   }
   return false;
+}
+
+/* game_engine_periodic_equipment_spawn (0xacbb0)
+ *
+ * Iterates scenario multiplayer equipment entries (+0x384, element size 0x90),
+ * filters by game-mode rules, and periodically spawns equipment placements.
+ */
+void game_engine_periodic_equipment_spawn(void)
+{
+  int *equip_block;
+  int16_t entry_index;
+  unsigned char placement[0x88];
+  int spawn_period;
+  unsigned char *entry;
+  int player_index;
+
+  equip_block = (int *)((char *)global_scenario_get() + 0x384);
+  entry_index = 0;
+
+  while ((int)entry_index < *equip_block) {
+    entry =
+      (unsigned char *)tag_block_get_element(equip_block, entry_index, 0x90);
+
+    player_index = -1;
+    if (*(int *)0x456b60 != 0) {
+      player_index = *(int *)(*(int *)0x456b60 + 4);
+    }
+
+    if (FUN_000acb10(player_index, 4, entry + 4)) {
+      int16_t period_seconds = *(int16_t *)(entry + 0xe);
+      spawn_period = 900;
+
+      if (period_seconds == 0) {
+        int collection_tag = *(int *)(entry + 0x5c);
+        if (collection_tag != -1) {
+          char *collection_data = (char *)tag_get(0x69746d63, collection_tag);
+          period_seconds = *(int16_t *)(collection_data + 0xc);
+          if (period_seconds != 0) {
+            spawn_period = (int)period_seconds * 30;
+          }
+        }
+      } else {
+        spawn_period = (int)period_seconds * 30;
+      }
+
+      if ((game_time_get() % spawn_period) == 0) {
+        int tag_index = ((int(__attribute__((regparm(1))) *)(int))0xaca70)(
+          *(int *)(entry + 0x5c));
+        FUN_0013fc20(placement, tag_index, -1);
+        *(int *)(placement + 0x18) = *(int *)(entry + 0x40);
+        *(int *)(placement + 0x1c) = *(int *)(entry + 0x44);
+        *(int *)(placement + 0x20) = *(int *)(entry + 0x48);
+
+        {
+          int object_handle = FUN_00143c80(placement);
+          if (object_handle != -1) {
+            int object_data =
+              (int)object_get_and_verify_type(object_handle, 0x1c);
+            object_set_garbage_flag(object_handle, 0);
+            if ((*entry & 1) != 0) {
+              *(unsigned int *)(object_data + 4) |= 0x20;
+            }
+            *(int *)(object_data + 0x1b4) += spawn_period - 900;
+          }
+        }
+      }
+    }
+
+    entry_index++;
+  }
 }
 
 /* game_engine_update_non_deterministic (0xacdd0)
@@ -847,6 +1013,166 @@ void game_engine_update_non_deterministic(float dt)
   }
 }
 
+/* game_engine_player_update_netgame_flag (0xad600)
+ *
+ * Per-player netgame flag proximity check.  Finds the nearest type-6
+ * flag (teleporter sender / hill), looks up the paired type-7 flag
+ * (teleporter exit / scoring target), runs a LOS check to the
+ * destination, and either scores a point or teleports the player.
+ */
+void game_engine_player_update_netgame_flag(int player_handle)
+{
+  unsigned char *player;
+  unsigned char *scenario;
+  unsigned char *unit;
+  unsigned char *goal_entry;
+  unsigned char *next_goal_entry;
+  int selected_goal_index;
+  int next_goal_index;
+  float unit_pos[3];
+  float search_pos[3];
+  float distance_a;
+  float distance_b;
+  static unsigned char los_scratch[0xac6c];
+  unsigned char hit_info[0x2c];
+
+  scenario = (unsigned char *)global_scenario_get();
+  player = (unsigned char *)datum_get(*(void **)0x5aa6d4, player_handle);
+
+  if (*(int *)(player + 0x34) == -1) {
+    return;
+  }
+
+  unit =
+    (unsigned char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+
+  if (*(int *)(player + 0x70) != -1) {
+    float *goal_pos = (float *)tag_block_get_element(
+      (char *)scenario + 0x378, *(int *)(player + 0x70), 0x94);
+    float dx = *(float *)(unit + 0xc) - goal_pos[0];
+    float dy = *(float *)(unit + 0x10) - goal_pos[1];
+    float dz = *(float *)(unit + 0x14) - goal_pos[2];
+    if (dx * dx + dy * dy + dz * dz > *(float *)0x2533c8) {
+      *(int *)(player + 0x70) = -1;
+    }
+  }
+
+  selected_goal_index = -1;
+  /* netgame_flag_find_nearest: search for type-6 flag near unit */
+  FUN_000ad160(
+    (float *)(unit + 0xc), 0.5f, 0.0f, 6, -1, 1, &selected_goal_index);
+
+  if (selected_goal_index == -1 ||
+      selected_goal_index == *(int *)(player + 0x70)) {
+    return;
+  }
+
+  goal_entry = (unsigned char *)tag_block_get_element(
+    (char *)scenario + 0x378, selected_goal_index, 0x94);
+
+  next_goal_index = -1;
+  /* netgame_flag_find_nearest: find paired type-7 flag by team index */
+  FUN_000ad160(
+    0, 0.0f, 0.0f, 7, *(short *)(goal_entry + 0x12), 1, &next_goal_index);
+
+  if (next_goal_index == -1) {
+    console_printf(0, (const char *)0x26c66c,
+                   (int)*(short *)(goal_entry + 0x12));
+    return;
+  }
+
+  next_goal_entry = (unsigned char *)tag_block_get_element(
+    (char *)scenario + 0x378, next_goal_index, 0x94);
+
+  unit =
+    (unsigned char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+  unit_pos[0] = *(float *)(unit + 0x24);
+  unit_pos[1] = *(float *)(unit + 0x28);
+  unit_pos[2] = *(float *)(unit + 0x2c);
+
+  player = (unsigned char *)datum_get(*(void **)0x5aa6d4, player_handle);
+  FUN_001a0890(*(int *)(player + 0x34), &search_pos[0], &distance_b, &distance_a);
+
+  {
+    float candidate_pos[3];
+    candidate_pos[0] = *(float *)(next_goal_entry + 0x0);
+    candidate_pos[1] = *(float *)(next_goal_entry + 0x4);
+    candidate_pos[2] = *(float *)(next_goal_entry + 0x8);
+
+    if (FUN_0014ec30(0x200380, candidate_pos, distance_a * 2.0f + distance_b,
+                       distance_b, distance_a, -1, los_scratch) &&
+        FUN_0014bc10(los_scratch, candidate_pos, hit_info)) {
+      int hit_object = *(int *)(hit_info + 0x20);
+      if (hit_object != -1) {
+        unsigned char *hit_any =
+          (unsigned char *)object_get_and_verify_type(hit_object, -1);
+        if (((1 << (*(unsigned char *)(hit_any + 0x64) & 0x1f)) & 3) != 0) {
+          unsigned char *hit_unit =
+            (unsigned char *)object_get_and_verify_type(hit_object, 3);
+          if (*(int *)(hit_unit + 0x1c8) != -1) {
+            unsigned char *carrier_player = (unsigned char *)datum_get(
+              *(void **)0x5aa6d4, *(int *)(hit_unit + 0x1c8));
+            *(int *)(carrier_player + 0xc8) =
+              *(int *)(carrier_player + 0xc8) + 1;
+            *(unsigned char *)(carrier_player + 0xd0) = 1;
+          }
+        }
+      }
+
+      if (*(int *)0x456b64 > 0) {
+        *(int *)0x456b64 = *(int *)0x456b64 - 1;
+        return;
+      }
+
+      *(int *)0x456b64 = 0x78;
+      hud_print_message(
+        (int)(short)FUN_000b6990(*(int *)(player + 0x34)),
+        (wchar_t *)0x26c684);
+      return;
+    }
+  }
+
+  if (*(short *)(player + 2) != -1) {
+    game_engine_post_event(0x1b);
+    if (*(short *)(player + 2) != -1) {
+      unsigned char effect_desc[0x64];
+
+      csmemset(effect_desc + 2, 0, 0x36);
+      *(short *)(effect_desc + 0x00) = *(short *)0x2efe68;
+      *(short *)(effect_desc + 0x02) = 2;
+      *(int *)(effect_desc + 0x10) = *(int *)0x2efe80;
+      *(short *)(effect_desc + 0x14) = *(short *)0x456b68;
+      *(int *)(effect_desc + 0x20) = *(int *)0x2efe6c;
+      *(int *)(effect_desc + 0x24) = 0;
+      *(int *)(effect_desc + 0x28) = *(int *)0x2efe70;
+      *(int *)(effect_desc + 0x2c) = *(int *)0x2efe74;
+      *(int *)(effect_desc + 0x30) = *(int *)0x2efe78;
+      *(int *)(effect_desc + 0x34) = *(int *)0x2efe7c;
+
+      player_effect_apply(player_handle, effect_desc, 1.0f);
+    }
+  }
+
+  {
+    float angle = (float)atan2(unit_pos[1], unit_pos[0]);
+    float adjusted =
+      angle + *(float *)(next_goal_entry + 0x0c) - *(float *)(goal_entry + 0x0c);
+    unit_pos[0] = cosf(adjusted);
+    unit_pos[1] = sinf(adjusted);
+    normalize3d(unit_pos);
+  }
+
+  /* object_place_at_position: teleport player to destination flag */
+  FUN_00143ae0(*(int *)(player + 0x34), (float *)next_goal_entry, unit_pos, 0);
+
+  if (*(short *)(player + 2) != -1) {
+    FUN_000b6ea0((unsigned short)*(short *)(player + 2), unit_pos);
+  }
+
+  *(int *)(player + 0x70) =
+    FUN_000ad270((float *)(unit + 0x0c), 1.0f, 0.0f, 6, -1);
+}
+
 /* game_engine_get_variant_by_name (0xadd50)
  *
  * Looks up a default game_variant_t by string name and copies it into
@@ -906,6 +1232,124 @@ game_variant_t *game_engine_get_variant_by_name(game_variant_t *out_variant,
   /* Copy tmp into *out_variant regardless (matches original rep movsd) */
   qmemcpy(out_variant, &tmp, sizeof(tmp));
   return out_variant;
+}
+
+/* game_engine_validate_map_netgame_flags (0xae4d0)
+ *
+ * Validates required netgame flags/spawns/equipment and emits warnings when
+ * map metadata is missing or insufficient for multiplayer modes.
+ */
+void game_engine_validate_map_netgame_flags(void)
+{
+  int found_index;
+  int (*find_flag_indices)(float *, float, float, short, short, int, int *) =
+    (int (*)(float *, float, float, short, short, int, int *))0xad160;
+  void (*validate_duplicate_flags)(short, const char *) =
+    (void (*)(short, const char *))0xaa010;
+  void (*validate_flag_out_of_range)(short, short, const char *) =
+    (void (*)(short, short, const char *))0xaa0b0;
+  void (*validate_spawn_points)(short, int, short, const char *) =
+    (void (*)(short, int, short, const char *))0xae400;
+  int (*matches_game_type)(int, int, void *) = (int (*)(int, int, void *))0xacb10;
+  int game_types[5] = {1, 2, 3, 4, 5};
+  const char *equipment_msgs[5] = {
+    "NETGAME MAP FAILURE: failed to find any equipment for ctf",
+    "NETGAME MAP FAILURE: failed to find any equipment for slayer",
+    "NETGAME MAP FAILURE: failed to find any equipment for oddball",
+    "NETGAME MAP FAILURE: failed to find any equipment for king",
+    "NETGAME MAP FAILURE: failed to find any equipment for race",
+  };
+  int i;
+
+  found_index = -1;
+  find_flag_indices(0, 0.0f, 0.0f, 0, 0, 1, &found_index);
+  if (found_index == -1) {
+    error(2, "NETGAME MAP FAILURE: missing ctf flag [team %d]", 0);
+  }
+
+  found_index = -1;
+  find_flag_indices(0, 0.0f, 0.0f, 0, 1, 1, &found_index);
+  if (found_index == -1) {
+    error(2, "NETGAME MAP FAILURE: missing ctf flag [team %d]", 1);
+  }
+
+  validate_duplicate_flags(0, "NETGAME MAP FAILURE: duplicate ctf flag [team %d]");
+  validate_flag_out_of_range(
+    0, 1, "NETGAME MAP FAILURE: ctf flag out of range [team %d]");
+
+  found_index = -1;
+  find_flag_indices(0, 0.0f, 0.0f, 8, 0, 1, &found_index);
+  if (found_index == -1) {
+    error(2, "NETGAME MAP FAILURE: missing hill flag [team %d]", 0);
+  }
+
+  found_index = -1;
+  find_flag_indices(0, 0.0f, 0.0f, 8, 1, 1, &found_index);
+  if (found_index == -1) {
+    error(2, "NETGAME MAP FAILURE: missing hill flag [team %d]", 1);
+  }
+
+  found_index = -1;
+  find_flag_indices(0, 0.0f, 0.0f, 2, 0, 1, &found_index);
+  if (found_index == -1) {
+    error(2, "NETGAME MAP FAILURE: missing oddball flag [team %d]", 0);
+  }
+
+  found_index = -1;
+  find_flag_indices(0, 0.0f, 0.0f, 2, 1, 1, &found_index);
+  if (found_index == -1) {
+    error(2, "NETGAME MAP FAILURE: missing oddball flag [team %d]", 1);
+  }
+
+  found_index = -1;
+  find_flag_indices(0, 0.0f, 0.0f, 3, 0, 1, &found_index);
+  if (found_index == -1) {
+    error(2, "NETGAME MAP FAILURE: missing race flag [team %d]", 0);
+  }
+
+  found_index = -1;
+  find_flag_indices(0, 0.0f, 0.0f, 3, 1, 1, &found_index);
+  if (found_index == -1) {
+    error(2, "NETGAME MAP FAILURE: missing race flag [team %d]", 1);
+  }
+
+  validate_duplicate_flags(3,
+                           "NETGAME MAP FAILURE: duplicate race track flag [team %d]");
+
+  validate_spawn_points(
+    1, 0, 4,
+    "NETGAME MAP FAILURE: failed to find enough spawn points for ctf team 0 (%d/%d)");
+  validate_spawn_points(
+    1, 0, 4,
+    "NETGAME MAP FAILURE: failed to find enough spawn points for ctf team 1 (%d/%d)");
+  validate_spawn_points(
+    2, 0, 4, "NETGAME MAP FAILURE: failed to find enough spawn points for slayer %d/%d");
+  validate_spawn_points(
+    3, 0, 4,
+    "NETGAME MAP FAILURE: failed to find enough spawn points for oddball %d/%d");
+  validate_spawn_points(
+    4, 0, 4, "NETGAME MAP FAILURE: failed to find enough spawn points for king %d/%d");
+  validate_spawn_points(
+    5, 0, 4, "NETGAME MAP FAILURE: failed to find enough spawn points for race %d/%d");
+
+  for (i = 0; i < 5; i++) {
+    int count = 0;
+    int game_type = game_types[i];
+    int *equipment_block = (int *)((char *)global_scenario_get() + 0x384);
+    int j;
+
+    for (j = 0; j < *equipment_block; j++) {
+      unsigned char *entry =
+        (unsigned char *)tag_block_get_element(equipment_block, j, 0x90);
+      if (matches_game_type(game_type, 4, entry + 4)) {
+        count++;
+      }
+    }
+
+    if (count == 0) {
+      error(2, equipment_msgs[i]);
+    }
+  }
 }
 
 /* game_engine_initialize_for_new_map (0xae760)
@@ -1017,25 +1461,10 @@ void game_engine_player_added(int player_data_handle)
     data_iter_t iter;
     data_iterator_new(&iter, player_data);
     while (data_iterator_next(&iter) != NULL) {
-      int ph = iter.datum_handle;
-      __asm__ __volatile__(
-        "movl %[ph], %%ecx\n\t"
-        "movl $-1, %%eax\n\t"
-        "xorl %%ebx, %%ebx\n\t"
-        "call *%[fn]"
-        :
-        : [ph] "m"(ph), [fn] "r"(game_engine_hud_update_player)
-        : "eax", "ecx", "edx", "ebx", "esi", "edi", "memory", "cc");
+      game_engine_hud_update_player(iter.datum_handle, -1, 0);
     }
   } else {
-    __asm__ __volatile__(
-      "movl %[ph], %%ecx\n\t"
-      "movl $-1, %%eax\n\t"
-      "xorl %%ebx, %%ebx\n\t"
-      "call *%[fn]"
-      :
-      : [ph] "m"(player_data_handle), [fn] "r"(game_engine_hud_update_player)
-      : "eax", "ecx", "edx", "ebx", "esi", "edi", "memory", "cc");
+    game_engine_hud_update_player(player_data_handle, -1, 0);
   }
 
   /* Dispatch vtable slot +0x14 (player_added callback) */
@@ -1096,7 +1525,7 @@ void game_engine_update(void)
       }
     }
 
-    game_engine_score_update_player(player_handle);
+    game_engine_player_update_netgame_flag(player_handle);
 
     vtable = (void (**)(void))current_game_engine;
     if (vtable[13])

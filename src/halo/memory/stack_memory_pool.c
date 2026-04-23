@@ -60,6 +60,35 @@ void stack_memory_pool_initialize(void *pool)
   csmemcpy(table, &table_ptr, 4);
 }
 
+/* FUN_0011ea50 — initialize a freshly allocated block header.
+ *
+ * Register convention (kb.json):
+ *   - slot_index on stack (cdecl first arg)
+ *   - block_hdr in ESI (@<esi>)
+ *   - block_size in EDI (@<edi>)
+ *
+ * Writes header fields:
+ *   +0x00 size_flags = block_size
+ *   +0x04 slot_index
+ *   +0x18 "fryd" sentinel (0x66727964)
+ *   +block_size-4 "chkn" sentinel (0x63686b6e)
+ */
+void FUN_0011ea50(int slot_index, void *block_hdr, int block_size)
+{
+  int *blk = (int *)block_hdr;
+
+  if (blk == 0) {
+    display_assert("block", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c",
+                   0x21f, 1);
+    system_exit(-1);
+  }
+
+  blk[0] = block_size;
+  blk[1] = slot_index;
+  blk[6] = 0x66727964;
+  *(int *)((char *)blk + block_size - 4) = 0x63686b6e;
+}
+
 /* FUN_0011ea90 — return block usable size from header.
  *
  * Register convention: block_hdr in ESI (kb.json @<esi>).
@@ -76,6 +105,177 @@ unsigned int FUN_0011ea90(void *block_hdr)
   }
 
   return blk[0] & 0x7fffffff;
+}
+
+/* FUN_0011eb40 — compute largest free tail space in pool.
+ *
+ * Register convention: pool in ESI (kb.json @<esi>).
+ *
+ * If pool has no blocks, returns pool_size.
+ * Otherwise returns bytes from end of last block to pool end.
+ */
+unsigned int FUN_0011eb40(void *pool)
+{
+  char *pool_p = (char *)pool;
+  unsigned int *last_block;
+
+  if (pool == 0 || *(unsigned int *)(pool_p + 4) == 0) {
+    display_assert("pool && pool->base_address",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x2fc, 1);
+    system_exit(-1);
+  }
+
+  if (*(unsigned int *)(pool_p + 0x2c) == 0) {
+    return *(unsigned int *)(pool_p + 8);
+  }
+
+  last_block = *(unsigned int **)(pool_p + 0x30);
+  if (last_block == 0) {
+    display_assert("block", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c",
+                   0x22f, 1);
+    system_exit(-1);
+  }
+
+  return *(unsigned int *)(pool_p + 8) - (last_block[0] & 0x7fffffff) +
+         *(unsigned int *)(pool_p + 4) - (unsigned int)last_block;
+}
+
+/* FUN_0011ebc0 — find first free slot index in pool slot table.
+ *
+ * Register convention: pool in EAX (kb.json @<eax>).
+ * Returns slot index, or -1 if table is full.
+ */
+int FUN_0011ebc0(void *pool)
+{
+  char *pool_p = (char *)pool;
+  unsigned int slot_count;
+  unsigned int slot_index;
+  unsigned int *slot_entry;
+
+  if (pool == 0) {
+    display_assert("pool", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c",
+                   0x310, 1);
+    system_exit(-1);
+  }
+
+  slot_count = *(unsigned int *)(pool_p + 0xc);
+  if (slot_count == 0) {
+    return -1;
+  }
+
+  slot_index = 0;
+  slot_entry = (unsigned int *)(pool_p + 0x34);
+  while (*slot_entry != 0) {
+    slot_index++;
+    slot_entry++;
+    if (slot_index >= slot_count) {
+      return -1;
+    }
+  }
+
+  return (int)slot_index;
+}
+
+/* FUN_0011ec10 — refresh pool->next_block_index from current table state.
+ *
+ * Register convention: pool in ESI (kb.json @<esi>).
+ *
+ * If next_block_index is set, scans forward for the next empty slot and stores
+ * it; stores -1 when no empty slot remains.
+ */
+void FUN_0011ec10(void *pool)
+{
+  char *pool_p = (char *)pool;
+  int slot_index;
+  unsigned int slot_count;
+  int *slot_entry;
+
+  if (pool == 0) {
+    display_assert("pool", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c",
+                   0x321, 1);
+    system_exit(-1);
+  }
+
+  slot_index = *(int *)(pool_p + 0x10);
+  if (slot_index == -1) {
+    return;
+  }
+
+  slot_count = *(unsigned int *)(pool_p + 0xc);
+  slot_index++;
+  *(int *)(pool_p + 0x10) = -1;
+
+  if ((unsigned int)slot_index >= slot_count) {
+    return;
+  }
+
+  slot_entry = (int *)(pool_p + 0x34 + slot_index * 4);
+  while (*slot_entry != 0) {
+    slot_index++;
+    slot_entry++;
+    if ((unsigned int)slot_index >= slot_count) {
+      return;
+    }
+  }
+
+  *(int *)(pool_p + 0x10) = slot_index;
+}
+
+/* FUN_0011ec70 — find a free gap large enough for alloc_size.
+ *
+ * Register convention (kb.json):
+ *   - pool in EAX (@<eax>)
+ *   - alloc_size in EBX (@<ebx>)
+ *   - free_space_in_pool_previous on stack
+ *
+ * Returns start address of a suitable free span, or NULL.
+ * If the free span is between two blocks, writes the previous block header to
+ * *free_space_in_pool_previous.
+ */
+void *FUN_0011ec70(void *pool, int alloc_size,
+                   void **free_space_in_pool_previous)
+{
+  char *pool_p = (char *)pool;
+  unsigned int *block;
+  unsigned int *next;
+
+  block = *(unsigned int **)(pool_p + 0x2c);
+  if (block == 0) {
+    return 0;
+  }
+
+  if ((unsigned int)alloc_size <=
+      (unsigned int)((char *)block - *(char **)(pool_p + 4))) {
+    return *(void **)(pool_p + 4);
+  }
+
+  next = *(unsigned int **)((char *)block + 0xc);
+  if (next == 0) {
+    return 0;
+  }
+
+  while (1) {
+    if (block == 0) {
+      display_assert("block", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c",
+                     0x22f, 1);
+      system_exit(-1);
+    }
+
+    if ((unsigned int)alloc_size <=
+        (unsigned int)((char *)next -
+                       ((char *)block + (block[0] & 0x7fffffff)))) {
+      break;
+    }
+
+    block = next;
+    next = *(unsigned int **)((char *)next + 0xc);
+    if (next == 0) {
+      return 0;
+    }
+  }
+
+  *free_space_in_pool_previous = block;
+  return (char *)block + (block[0] & 0x7fffffff);
 }
 
 /* memory_block_valid — validate a block header's integrity.
@@ -124,6 +324,62 @@ int memory_block_valid(void *block_hdr)
   }
 
   return 1;
+}
+
+/* FUN_0011ee80 — compact unlocked blocks toward pool base.
+ *
+ * Register convention: pool in EAX (kb.json @<eax>).
+ *
+ * Walks blocks in address order and moves unlocked blocks down to remove gaps.
+ */
+void FUN_0011ee80(void *pool)
+{
+  char *pool_p = (char *)pool;
+  unsigned int *block;
+  char *previous_block;
+  unsigned int previous_size;
+
+  if (pool == 0 || *(unsigned int *)(pool_p + 4) == 0 || (pool_p + 0x34) == 0) {
+    display_assert("pool && pool->base_address && pool->blocks",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x3ad, 1);
+    system_exit(-1);
+  }
+
+  block = *(unsigned int **)(pool_p + 0x2c);
+  if (block == 0 || *(unsigned char *)(pool_p + 0x28) != 0) {
+    return;
+  }
+
+  previous_block = *(char **)(pool_p + 4);
+  previous_size = 0;
+
+  do {
+    if (!(memory_block_valid(block) & 0xff)) {
+      display_assert("memory_block_valid(block)",
+                     "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x215, 1);
+      system_exit(-1);
+    }
+
+    if ((int)block[0] >= 0) {
+      int gap = (int)((char *)block - previous_size - previous_block);
+
+      if (gap > 0) {
+        unsigned int size = block[0] & 0x7fffffff;
+        unsigned int *moved = (unsigned int *)(previous_block + previous_size);
+
+        qmemcpy(moved, block, size);
+        block = moved;
+
+        if (block[2] != 0) {
+          *(unsigned int **)(block[2] + 0xc) = block;
+        }
+      }
+    }
+
+    previous_size = block[0] & 0x7fffffff;
+    previous_block = (char *)block;
+    block = *(unsigned int **)((char *)block + 0xc);
+  } while (block != 0);
 }
 
 /* stack_memory_pool_valid_block — verify a block belongs to a pool.
@@ -548,6 +804,69 @@ void stack_memory_pool_deallocate(void *pool, void *block)
 
   *(unsigned int *)(pool_p + 0x14) -= usable_size;
   *(int *)(pool_p + 0x1c) -= 1;
+}
+
+/* stack_memory_pool_alloc_or_resize — allocate new or grow existing block.
+ *
+ * Register convention (kb.json):
+ *   - new_size in EAX (@<eax>)
+ *   - pool in ECX (@<ecx>)
+ *   - block_hdr/file/line on stack
+ *
+ * Returns block header pointer (not user pointer), or NULL on failure.
+ */
+void *stack_memory_pool_alloc_or_resize(int new_size, void *pool,
+                                        void *block_hdr, const char *file,
+                                        unsigned int line)
+{
+  char *old_hdr = (char *)block_hdr;
+  char *new_hdr;
+  unsigned int old_payload_size;
+  int valid;
+
+  if (new_size == 0) {
+    return 0;
+  }
+
+  if (old_hdr == 0) {
+    return stack_memory_pool_alloc_internal(new_size, pool, file, line);
+  }
+
+  valid = stack_memory_pool_valid_block(old_hdr, pool) & 0xff;
+  if (!valid) {
+    display_assert("stack_memory_pool_valid_block(pool, reference)",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x2b4, 1);
+    system_exit(-1);
+  }
+
+  old_payload_size = FUN_0011ea90(old_hdr) - 0x20;
+  if ((unsigned int)new_size <= old_payload_size) {
+    return old_hdr;
+  }
+
+  new_hdr =
+    (char *)stack_memory_pool_alloc_internal(new_size, pool, file, line);
+  if (new_hdr == 0) {
+    return 0;
+  }
+
+  valid = memory_block_valid(old_hdr) & 0xff;
+  if (!valid) {
+    display_assert("memory_block_valid(block)",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x23f, 1);
+    system_exit(-1);
+  }
+
+  valid = memory_block_valid(new_hdr) & 0xff;
+  if (!valid) {
+    display_assert("memory_block_valid(block)",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x23f, 1);
+    system_exit(-1);
+  }
+
+  csmemcpy(new_hdr + 0x1c, old_hdr + 0x1c, old_payload_size);
+  stack_memory_pool_unlink_block(old_hdr, pool);
+  return new_hdr;
 }
 
 /* stack_memory_pool_allocate — allocate a new block from the pool.

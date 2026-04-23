@@ -6,6 +6,22 @@
 typedef int(__stdcall *find_first_file_fn)(const char *path, void *find_data);
 typedef bool(__stdcall *find_next_file_fn)(int handle, void *find_data);
 typedef bool(__stdcall *close_handle_fn)(int handle);
+typedef int(__stdcall *create_file_fn)(const char *path, uint32_t desired_access,
+                                        uint32_t share_mode,
+                                        void *security_attributes,
+                                        uint32_t creation_disposition,
+                                        uint32_t flags_and_attributes,
+                                        int template_file);
+typedef int(__stdcall *set_file_pointer_fn)(int handle, int distance_to_move,
+                                             int *distance_high,
+                                             uint32_t move_method);
+typedef int(__stdcall *get_file_size_fn)(int handle, int *size_high);
+typedef bool(__stdcall *read_file_fn)(int handle, void *buffer,
+                                       uint32_t number_of_bytes_to_read,
+                                       int *number_of_bytes_read,
+                                       void *overlapped);
+typedef uint16_t (*intl_string_prev_char_fn)(const char *str, int16_t *index);
+typedef int (*is_alpha_fn)(int c);
 typedef void (*debug_log_fn)(int level, const char *format, ...);
 typedef uint32_t(__stdcall *xget_last_error_fn)(void);
 typedef void(__stdcall *xset_last_error_fn)(uint32_t error);
@@ -13,6 +29,12 @@ typedef void(__stdcall *xset_last_error_fn)(uint32_t error);
 #define XFindFirstFile ((find_first_file_fn)0x1d3576)
 #define XFindNextFile ((find_next_file_fn)0x1d3683)
 #define XCloseHandle ((close_handle_fn)0x1cf900)
+#define XCreateFile ((create_file_fn)0x1d1d85)
+#define XSetFilePointer ((set_file_pointer_fn)0x1d1610)
+#define XGetFileSize ((get_file_size_fn)0x1d1d4a)
+#define XReadFile ((read_file_fn)0x1d13c9)
+#define IntlStringPrevChar ((intl_string_prev_char_fn)0x19d240)
+#define XIsAlpha ((is_alpha_fn)0x1daaaa)
 #define DEBUG_LOG ((debug_log_fn)0x8f390)
 #define XGetLastError ((xget_last_error_fn)0x1d2240)
 #define XSetLastError ((xset_last_error_fn)0x1d2268)
@@ -398,31 +420,31 @@ void path_split(const char *path, char **directory, char **parent_directory,
                 char **filename, char **extension, int flags)
 {
   char *mutable_path = (char *)path;
-  int path_length = csstrlen(path);
+  int16_t path_length = (int16_t)csstrlen(path);
   char *end = mutable_path + path_length;
-  int i;
+  uint16_t ch;
 
   *directory = end;
   *parent_directory = end;
   *filename = end;
   *extension = end;
 
-  for (i = path_length - 1; i >= 0; i--) {
-    char c = mutable_path[i];
+  while (path_length != 0) {
+    ch = IntlStringPrevChar(mutable_path, &path_length);
 
-    if (c == '.') {
+    if (ch == '.') {
       if (flags != 0 && **filename == '\0' && **extension == '\0') {
-        mutable_path[i] = '\0';
-        *extension = mutable_path + i + 1;
+        mutable_path[path_length] = '\0';
+        *extension = mutable_path + path_length + 1;
       }
-    } else if (c == '\\') {
+    } else if (ch == '\\') {
       if (flags == 0 || **filename != '\0') {
         if (**parent_directory == '\0') {
-          *parent_directory = mutable_path + i + 1;
+          *parent_directory = mutable_path + path_length + 1;
         }
       } else {
-        mutable_path[i] = '\0';
-        *filename = mutable_path + i + 1;
+        mutable_path[path_length] = '\0';
+        *filename = mutable_path + path_length + 1;
       }
     }
   }
@@ -450,9 +472,8 @@ void path_from_file_reference(int16_t location, const char *path, char *out)
   *out = '\0';
 
   if (!(path[0] != '\0' && path[1] != '\0' && path[2] != '\0' &&
-        ((path[0] >= 'A' && path[0] <= 'Z') ||
-         (path[0] >= 'a' && path[0] <= 'z')) &&
-        path[1] == ':' && path[2] == '\\')) {
+        XIsAlpha((unsigned char)path[0]) != 0 && path[1] == ':' &&
+        path[2] == '\\')) {
     csstrcpy(out, "d:\\");
   }
 
@@ -468,6 +489,118 @@ void file_error(file_ref_t *info, const char *function_name)
   error = XGetLastError();
   DEBUG_LOG(2, "%s('%s') error 0x%08x", function_name, ref->unk_8, error);
   XSetLastError(0);
+}
+
+bool file_open(file_ref_t *info, int flags)
+{
+  file_ref_t *ref;
+  char path[256];
+  uint32_t access;
+  int handle;
+
+  ref = file_reference_verify(info);
+
+  csmemset(path, 0, sizeof(path));
+
+  if ((flags & ~7) != 0) {
+    display_assert("VALID_FLAGS(flags, NUMBER_OF_PERMISSION_FLAGS)",
+                   "c:\\halo\\SOURCE\\tag_files\\files_windows.c", 0x134,
+                   true);
+    system_exit(-1);
+  }
+  if ((flags & 3) == 0) {
+    display_assert("flags & (FLAG(_permission_read_bit)|FLAG(_permission_write_bit))",
+                   "c:\\halo\\SOURCE\\tag_files\\files_windows.c", 0x135,
+                   true);
+    system_exit(-1);
+  }
+  if (((flags & 2) == 0) && ((flags & 4) != 0)) {
+    display_assert("TEST_FLAG(flags, _permission_write_bit) || !TEST_FLAG(flags, "
+                   "_permission_append_bit)",
+                   "c:\\halo\\SOURCE\\tag_files\\files_windows.c", 0x136,
+                   true);
+    system_exit(-1);
+  }
+
+  path_from_file_reference(ref->unk_6, ref->unk_8, path);
+
+  access = 0;
+  if ((flags & 1) != 0) {
+    access = 0x80000000;
+  }
+  if ((flags & 2) != 0) {
+    access |= 0x40000000;
+  }
+
+  handle = XCreateFile(path, access, 0, NULL, 3, 0x80, 0);
+  if (handle != -1) {
+    *(int *)&ref->unk_8[256] = handle;
+    if ((flags & 4) == 0) {
+      return true;
+    }
+
+    if (XSetFilePointer(handle, 0, NULL, 2) != -1) {
+      return true;
+    }
+
+    XCloseHandle(*(int *)&ref->unk_8[256]);
+    *(int *)&ref->unk_8[256] = 0;
+  }
+
+  file_error(info, "file_open");
+  return false;
+}
+
+bool file_close(file_ref_t *info)
+{
+  file_ref_t *ref;
+
+  ref = file_reference_verify(info);
+  if (XCloseHandle(*(int *)&ref->unk_8[256])) {
+    *(int *)&ref->unk_8[256] = 0;
+    return true;
+  }
+
+  file_error(info, "file_close");
+  return false;
+}
+
+int file_get_eof(file_ref_t *info)
+{
+  file_ref_t *ref;
+  int eof;
+
+  ref = file_reference_verify(info);
+  eof = XGetFileSize(*(int *)&ref->unk_8[256], NULL);
+  if (eof == -1) {
+    file_error(info, "file_get_eof");
+  }
+
+  return eof;
+}
+
+bool file_read(file_ref_t *info, int size, void *buffer)
+{
+  file_ref_t *ref;
+  int bytes_read;
+
+  ref = file_reference_verify(info);
+  if (buffer == NULL) {
+    display_assert("buffer", "c:\\halo\\SOURCE\\tag_files\\files_windows.c",
+                   0x1a7, true);
+    system_exit(-1);
+  }
+
+  if (XReadFile(*(int *)&ref->unk_8[256], buffer, (uint32_t)size, &bytes_read,
+                NULL)) {
+    if (bytes_read == size) {
+      return true;
+    }
+    XSetLastError(0x26);
+  }
+
+  file_error(info, "file_read");
+  return false;
 }
 
 /**
