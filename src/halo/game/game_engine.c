@@ -859,6 +859,104 @@ void game_engine_initialize(game_variant_t *variant)
   }
 }
 
+/* game_engine_player_count (0xa83a0)
+ *
+ * Count the number of player datums in the player table.
+ */
+int game_engine_player_count(void)
+{
+  data_iter_t iter;
+  int count;
+
+  count = 0;
+  data_iterator_new(&iter, player_data);
+  while (data_iterator_next(&iter) != NULL)
+    count++;
+  return count;
+}
+
+/* game_engine_is_player_leading (0xa8ba0)
+ *
+ * Returns true if the given player has the highest kill count among all
+ * non-eliminated players.  Ties are broken by datum handle index (lower
+ * index wins).  Only checked when the player has no object and
+ * elimination mode is active (0x456b20 != 0).
+ *
+ * Register arg: player_handle in EDI.
+ */
+bool game_engine_is_player_leading(int player_handle)
+{
+  char *self;
+  char *other;
+  data_iter_t iter;
+  bool leading;
+
+  self = (char *)datum_get(player_data, player_handle);
+  if (*(char *)0x456b20 == 0 || *(int *)(self + 0x34) != NONE)
+    return false;
+
+  leading = true;
+  data_iterator_new(&iter, player_data);
+  while ((other = (char *)data_iterator_next(&iter)) != NULL) {
+    if (*(int *)(other + 0x34) != NONE)
+      continue;
+    if (other == self)
+      continue;
+    if (*(int *)(other + 0x84) > *(int *)(self + 0x84) ||
+        (*(int *)(other + 0x84) == *(int *)(self + 0x84) &&
+         (player_handle & 0xffff) > (iter.datum_handle & 0xffff)))
+      leading = false;
+  }
+  return leading;
+}
+
+/* game_engine_teams_still_playing (0xaba90)
+ *
+ * Returns true if at least two different teams are represented among
+ * active players (i.e. competition is still alive).  Returns true
+ * trivially if there are fewer than 2 players.  Skips players whose
+ * quit flag (byte +0xd1) is set, and in lives-limited games also skips
+ * eliminated players who are leading (they have no object and their
+ * respawn count has reached the lives limit).
+ */
+bool game_engine_teams_still_playing(void)
+{
+  data_iter_t iter;
+  char *player;
+  int first_team;
+  bool result;
+
+  if (game_engine_player_count() < 2)
+    return true;
+
+  result = false;
+  first_team = NONE;
+  data_iterator_new(&iter, player_data);
+  while ((player = (char *)data_iterator_next(&iter)) != NULL) {
+    if (*(char *)(player + 0xd1) != 0)
+      continue;
+
+    if (*(int *)(player + 0x34) == NONE) {
+      if (game_engine_is_player_leading(iter.datum_handle))
+        continue;
+      if (*(int32_t *)0x456b30 >= 1) {
+        char *p = (char *)datum_get(player_data, iter.datum_handle);
+        if (*(int *)(p + 0x34) == NONE &&
+            (int)*(int16_t *)(p + 0xaa) >= *(int32_t *)0x456b30)
+          continue;
+      }
+    }
+
+    assert_halt(*(int *)(player + 0x20) != NONE);
+    if (*(int *)(player + 0x20) != first_team) {
+      if (first_team != NONE)
+        return true;
+      first_team = *(int *)(player + 0x20);
+    }
+  }
+  return result;
+}
+
 /* Returns true if the game is over: the engine exists but all remaining
  * players/teams are on the same side (no competition left). */
 bool game_engine_game_over(void)
@@ -868,6 +966,51 @@ bool game_engine_game_over(void)
       return true;
   }
   return false;
+}
+
+/* FUN_000acb10 (0xacb10)
+ *
+ * Checks whether a set of game-type entries (an array of int16_t values)
+ * permits the current engine type. Used to filter scenario multiplayer
+ * equipment, starting locations, and netgame flags by game mode.
+ *
+ * If no engine is active (current_game_engine == NULL), returns true only
+ * when all entries are 0 (none/unset).
+ *
+ * If an engine is active, returns true if ANY entry matches:
+ *   - entry == engine_type  (direct match)
+ *   - entry == 0xC          (matches all engine types)
+ *   - entry == 0xD          (matches all except engine type 1)
+ *   - entry == 0xE          (matches all except engine types 1 and 5)
+ */
+/* 0xacb10 */
+bool FUN_000acb10(int player_index, int count, int16_t *entries)
+{
+  int i;
+  bool result;
+
+  if (current_game_engine == NULL) {
+    /* No engine: true only if every entry is 0 */
+    result = true;
+    for (i = 0; i < count; i++) {
+      result = result & (entries[i] == 0);
+    }
+  } else {
+    /* Engine active: true if any entry matches the engine type */
+    result = false;
+    for (i = 0; i < count; i++) {
+      int16_t entry = entries[i];
+      result = result | (entry == player_index);
+      if (entry == 0xC) {
+        result = result | true;
+      } else if (entry == 0xD) {
+        result = result | (player_index != 1);
+      } else if (entry == 0xE) {
+        result = result | (player_index != 1 && player_index != 5);
+      }
+    }
+  }
+  return result;
 }
 
 /* game_engine_periodic_equipment_spawn (0xacbb0)
@@ -896,7 +1039,7 @@ void game_engine_periodic_equipment_spawn(void)
       player_index = *(int *)(*(int *)0x456b60 + 4);
     }
 
-    if (FUN_000acb10(player_index, 4, entry + 4)) {
+    if (FUN_000acb10(player_index, 4, (int16_t *)(entry + 4))) {
       int16_t period_seconds = *(int16_t *)(entry + 0xe);
       spawn_period = 900;
 
@@ -1011,6 +1154,326 @@ void game_engine_update_non_deterministic(float dt)
     }
     network_game_abort();
   }
+}
+
+/* game_engine_get_score_hud_text (0xac4e0)
+ *
+ * Format a default HUD message for a scoring/death/status event.
+ * param_2 selects the message type.  When the engine vtable has a
+ * slot-0x7c callback that returns true, param_2 values 7-12 are
+ * remapped to their "personal" equivalents (14-19) and the engine's
+ * slot-0x48 callback is called to get a score value for the (%d) suffix.
+ *
+ * Register args: buffer in EDI, buffer_capacity in ESI.
+ */
+bool game_engine_get_score_hud_text(int player_handle, int param_2,
+                                     int hud_player, wchar_t *buffer,
+                                     int buffer_capacity)
+{
+  char *player_datum;
+  char *other;
+  int score;
+  bool result;
+
+  result = true;
+  player_datum = (char *)datum_get(player_data, player_handle);
+  score = 0;
+
+  if (current_game_engine) {
+    bool (*has_score)(int) =
+      ((bool (**)(int))current_game_engine)[0x7c / 4];
+    if (has_score && has_score(1)) {
+      switch (param_2) {
+        case 7:  param_2 = 0x10; break;
+        case 8:  param_2 = 0x13; break;
+        case 9:  param_2 = 0xf;  break;
+        case 10: param_2 = 0xe;  break;
+        case 11: param_2 = 0x12; break;
+        case 12: param_2 = 0x11; break;
+        default:
+          if (param_2 < 0xe || param_2 > 0x13)
+            goto main_switch;
+          break;
+      }
+      int (*get_score)(int, int) =
+        ((int (**)(int, int))current_game_engine)[0x48 / 4];
+      score = get_score(player_handle, 1);
+    }
+  }
+
+main_switch:
+  switch (param_2) {
+    case 0:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c63c, player_datum + 4);
+      break;
+    case 1:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c62c, player_datum + 4);
+      break;
+    case 2:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c5ec, player_datum + 4);
+      break;
+    case 3:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c5b4, player_datum + 4);
+      break;
+    case 4:
+      other = (char *)datum_get(player_data, hud_player);
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c58c, player_datum + 4, other + 4);
+      break;
+    case 5:
+      other = (char *)datum_get(player_data, hud_player);
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c560, player_datum + 4, other + 4);
+      break;
+    case 6:
+      datum_get(player_data, hud_player);
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c524, player_datum + 4);
+      break;
+    case 7:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c4b0);
+      game_engine_post_event(0xe);
+      break;
+    case 8:
+      other = (char *)datum_get(player_data, hud_player);
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c440, other + 4);
+      break;
+    case 9:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c4cc);
+      game_engine_post_event(0xf);
+      break;
+    case 10:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c4e8);
+      game_engine_post_event(0x10);
+      break;
+    case 11:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c45c);
+      game_engine_post_event(0x12);
+      break;
+    case 12:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c494);
+      game_engine_post_event(0x11);
+      break;
+    case 13:
+      other = (char *)datum_get(player_data, hud_player);
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c504, other + 4);
+      break;
+    case 14:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c41c, score);
+      game_engine_post_event(0x10);
+      break;
+    case 15:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c3f8, score);
+      game_engine_post_event(0xf);
+      break;
+    case 16:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c3d4, score);
+      game_engine_post_event(0xe);
+      break;
+    case 17:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c3ac, score);
+      game_engine_post_event(0x11);
+      break;
+    case 18:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c368, score);
+      game_engine_post_event(0x12);
+      break;
+    case 19:
+      other = (char *)datum_get(player_data, hud_player);
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c33c, other + 4, score);
+      break;
+    case 23:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c30c);
+      break;
+    case 24:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c2e0);
+      break;
+    case 25:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c2c4, hud_player);
+      break;
+    case 26:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c28c);
+      break;
+    case 27:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c258);
+      break;
+    case 28:
+      other = (char *)datum_get(player_data, hud_player);
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c550, other + 4);
+      break;
+    case 29:
+      unicode_sprintf(buffer, buffer_capacity,
+        (const wchar_t *)0x26c230);
+      break;
+    default:
+      result = false;
+      break;
+  }
+  buffer[buffer_capacity - 1] = 0;
+  return result;
+}
+
+/* game_engine_hud_update_player (0xacef0)
+ *
+ * Per-player HUD score/message update.  Called when a player is added
+ * or when a scoring event occurs to refresh the HUD text for a given
+ * player.
+ *
+ * First tries the current game engine's vtable slot 0x64 callback to
+ * produce a wchar_t message.  If that callback is null or returns false,
+ * falls back to game_engine_get_score_hud_text (0xac4e0) which formats
+ * a default message via a large switch on the event type (hud_player).
+ *
+ * If either path succeeds, null-terminates the buffer and prints it
+ * via hud_print_message.
+ *
+ * Register args:
+ *   ECX = player_handle (datum handle into player_data)
+ *   EAX = hud_player (event type / -1 for init)
+ *   EBX = param3 (extra context, often 0)
+ */
+/* 0xacef0 */
+void game_engine_hud_update_player(int player_handle, int hud_player, int param3)
+{
+  wchar_t buffer[0x400];
+  char *datum;
+  bool got_text;
+
+  datum = (char *)datum_get(player_data, player_handle);
+  if (*(short *)(datum + 2) == -1)
+    return;
+
+  /* Try vtable slot 0x64 first: engine-specific HUD message callback */
+  got_text = false;
+  {
+    bool (*vtable_fn)(int, int, int, wchar_t *, int) =
+      ((bool (**)(int, int, int, wchar_t *, int))current_game_engine)[0x64 / 4];
+    if (vtable_fn != NULL) {
+      got_text = vtable_fn(player_handle, param3, hud_player, buffer, 0x400);
+    }
+  }
+
+  /* Fall back to default score text formatter */
+  if (!got_text) {
+    got_text = game_engine_get_score_hud_text(player_handle, param3, hud_player,
+                                               buffer, 0x400);
+    if (!got_text)
+      return;
+  }
+
+  /* Null-terminate the buffer at the last position and print */
+  buffer[0x400 - 1] = 0;
+  hud_print_message(*(unsigned short *)(datum + 2), buffer);
+}
+
+/* FUN_000ad160 (0xad160)
+ *
+ * Search scenario netgame flags (tag block at scenario+0x378, element
+ * size 0x94) for entries matching the given type and team index filters.
+ * Optionally filters by radius and height around a world position.
+ *
+ * type/index of -1 act as wildcards (match any).  If position is NULL,
+ * all spatial filtering is skipped.  If radius < 0.0f the distance check
+ * is skipped; if height <= 0.0f the height check is skipped.
+ *
+ * Matching flag indices are written into out_indices (up to max_count).
+ * Returns the number of matches found.
+ */
+/* 0xad160 */
+int FUN_000ad160(float *position, float radius, float height,
+                 int16_t type, int16_t index, int max_count, int *out_indices)
+{
+  int result;
+  int i;
+  int16_t si;
+  float *entry;
+  int *flag_block;
+  float radius_sq;
+
+  radius_sq = radius * radius;
+  result = 0;
+
+  flag_block = (int *)((char *)global_scenario_get() + 0x378);
+
+  si = 0;
+  if (*flag_block < 1)
+    return 0;
+
+  i = 0;
+  do {
+    entry = (float *)tag_block_get_element(flag_block, i, 0x94);
+
+    if ((type == -1 || type == *(int16_t *)((char *)entry + 0x10)) &&
+        (index == -1 || index == *(int16_t *)((char *)entry + 0x12))) {
+      /* Spatial filtering (only when position is non-NULL) */
+      if (position != NULL) {
+        /* Radius check: skip if radius < 0.0f */
+        if (!(radius < 0.0f)) {
+          float dx = position[0] - entry[0];
+          float dy = position[1] - entry[1];
+          float dz = position[2] - entry[2];
+          if (dx * dx + dy * dy + dz * dz > radius_sq)
+            goto next;
+        }
+        /* Height check: skip if height <= 0.0f */
+        if (!(height <= 0.0f)) {
+          float abs_dz = entry[2] - position[2];
+          if (abs_dz < 0.0f)
+            abs_dz = -abs_dz;
+          if (abs_dz > height)
+            goto next;
+        }
+      }
+
+      /* Store match if there's room */
+      if (result < max_count) {
+        out_indices[result] = i;
+        result++;
+      }
+    }
+  next:
+    si++;
+    i = (int)si;
+  } while (i < *flag_block);
+
+  return result;
+}
+
+/* FUN_000ad270 (0xad270)
+ *
+ * Convenience wrapper around FUN_000ad160 that finds at most one matching
+ * netgame flag.  Returns the index of the first match, or -1 if none.
+ */
+/* 0xad270 */
+int FUN_000ad270(float *position, float radius, float height,
+                 int16_t type, int16_t index)
+{
+  int result = -1;
+  FUN_000ad160(position, radius, height, type, index, 1, &result);
+  return result;
 }
 
 /* game_engine_player_update_netgame_flag (0xad600)
@@ -1242,8 +1705,6 @@ game_variant_t *game_engine_get_variant_by_name(game_variant_t *out_variant,
 void game_engine_validate_map_netgame_flags(void)
 {
   int found_index;
-  int (*find_flag_indices)(float *, float, float, short, short, int, int *) =
-    (int (*)(float *, float, float, short, short, int, int *))0xad160;
   void (*validate_duplicate_flags)(short, const char *) =
     (void (*)(short, const char *))0xaa010;
   void (*validate_flag_out_of_range)(short, short, const char *) =
@@ -1262,13 +1723,13 @@ void game_engine_validate_map_netgame_flags(void)
   int i;
 
   found_index = -1;
-  find_flag_indices(0, 0.0f, 0.0f, 0, 0, 1, &found_index);
+  FUN_000ad160(0, 0.0f, 0.0f, 0, 0, 1, &found_index);
   if (found_index == -1) {
     error(2, "NETGAME MAP FAILURE: missing ctf flag [team %d]", 0);
   }
 
   found_index = -1;
-  find_flag_indices(0, 0.0f, 0.0f, 0, 1, 1, &found_index);
+  FUN_000ad160(0, 0.0f, 0.0f, 0, 1, 1, &found_index);
   if (found_index == -1) {
     error(2, "NETGAME MAP FAILURE: missing ctf flag [team %d]", 1);
   }
@@ -1278,37 +1739,37 @@ void game_engine_validate_map_netgame_flags(void)
     0, 1, "NETGAME MAP FAILURE: ctf flag out of range [team %d]");
 
   found_index = -1;
-  find_flag_indices(0, 0.0f, 0.0f, 8, 0, 1, &found_index);
+  FUN_000ad160(0, 0.0f, 0.0f, 8, 0, 1, &found_index);
   if (found_index == -1) {
     error(2, "NETGAME MAP FAILURE: missing hill flag [team %d]", 0);
   }
 
   found_index = -1;
-  find_flag_indices(0, 0.0f, 0.0f, 8, 1, 1, &found_index);
+  FUN_000ad160(0, 0.0f, 0.0f, 8, 1, 1, &found_index);
   if (found_index == -1) {
     error(2, "NETGAME MAP FAILURE: missing hill flag [team %d]", 1);
   }
 
   found_index = -1;
-  find_flag_indices(0, 0.0f, 0.0f, 2, 0, 1, &found_index);
+  FUN_000ad160(0, 0.0f, 0.0f, 2, 0, 1, &found_index);
   if (found_index == -1) {
     error(2, "NETGAME MAP FAILURE: missing oddball flag [team %d]", 0);
   }
 
   found_index = -1;
-  find_flag_indices(0, 0.0f, 0.0f, 2, 1, 1, &found_index);
+  FUN_000ad160(0, 0.0f, 0.0f, 2, 1, 1, &found_index);
   if (found_index == -1) {
     error(2, "NETGAME MAP FAILURE: missing oddball flag [team %d]", 1);
   }
 
   found_index = -1;
-  find_flag_indices(0, 0.0f, 0.0f, 3, 0, 1, &found_index);
+  FUN_000ad160(0, 0.0f, 0.0f, 3, 0, 1, &found_index);
   if (found_index == -1) {
     error(2, "NETGAME MAP FAILURE: missing race flag [team %d]", 0);
   }
 
   found_index = -1;
-  find_flag_indices(0, 0.0f, 0.0f, 3, 1, 1, &found_index);
+  FUN_000ad160(0, 0.0f, 0.0f, 3, 1, 1, &found_index);
   if (found_index == -1) {
     error(2, "NETGAME MAP FAILURE: missing race flag [team %d]", 1);
   }

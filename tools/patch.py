@@ -281,6 +281,102 @@ def encode_call_rel32(src_addr_of_call, target_addr):
     return b'\xe8' + struct.pack('<i', rel32)
 
 
+def _verify_staging_correctness(sym, reg_args, thunk_code):
+    """Simulate the staging portion of a reverse thunk on a virtual register
+    file and verify that each scratch register ends up holding the value that
+    was originally in the corresponding source register.
+
+    This catches any register clobbering bug regardless of the specific
+    register combination — cycles, sub-register widening, arbitrary orderings.
+    Runs at build time for every generated reverse thunk."""
+    SCRATCH = ['eax', 'ecx', 'edx']
+    ALL_REGS = {'eax': 0, 'ecx': 1, 'edx': 2, 'ebx': 3,
+                'esp': 4, 'ebp': 5, 'esi': 6, 'edi': 7}
+    PARENT = {'ax': 'eax', 'al': 'eax', 'ah': 'eax',
+              'bx': 'ebx', 'bl': 'ebx', 'bh': 'ebx',
+              'cx': 'ecx', 'cl': 'ecx', 'ch': 'ecx',
+              'dx': 'edx', 'dl': 'edx', 'dh': 'edx',
+              'si': 'esi', 'di': 'edi', 'bp': 'ebp'}
+
+    # Initialize virtual registers with unique sentinel values.
+    regs = {}
+    for name in ALL_REGS:
+        regs[name] = f'orig_{name}'
+
+    # Walk thunk bytes, simulating MOV r32,r32 / MOVZX r32,r16 / XCHG r32,r32.
+    # Stop at the first PUSH (start of arg-pushing phase).
+    r32_by_code = {v: k for k, v in ALL_REGS.items()}
+    i = 0
+    while i < len(thunk_code):
+        b = thunk_code[i]
+        if b == 0x50 | 0 or (0x50 <= b <= 0x57):
+            break  # PUSH — staging is done
+        if b == 0xFF:
+            break  # PUSH [esp+disp] — also end of staging
+
+        if b == 0x89 and i + 1 < len(thunk_code):
+            # MOV r/m32, r32 — we only handle MOV r32,r32 (mod=11)
+            modrm = thunk_code[i + 1]
+            if (modrm >> 6) == 3:
+                dst = r32_by_code[modrm & 7]
+                src = r32_by_code[(modrm >> 3) & 7]
+                regs[dst] = regs[src]
+                i += 2; continue
+
+        if b == 0x8B and i + 1 < len(thunk_code):
+            # MOV r32, r/m32 — handle MOV r32,r32 (mod=11)
+            modrm = thunk_code[i + 1]
+            if (modrm >> 6) == 3:
+                dst = r32_by_code[(modrm >> 3) & 7]
+                src = r32_by_code[modrm & 7]
+                regs[dst] = regs[src]
+                i += 2; continue
+
+        if b == 0x87 and i + 1 < len(thunk_code):
+            # XCHG r/m32, r32 — handle r32,r32 (mod=11)
+            modrm = thunk_code[i + 1]
+            if (modrm >> 6) == 3:
+                r1 = r32_by_code[modrm & 7]
+                r2 = r32_by_code[(modrm >> 3) & 7]
+                regs[r1], regs[r2] = regs[r2], regs[r1]
+                i += 2; continue
+
+        if b == 0x0F and i + 1 < len(thunk_code):
+            b2 = thunk_code[i + 1]
+            if b2 == 0xB7 and i + 2 < len(thunk_code):
+                # MOVZX r32, r/m16 — handle r32,r16 (mod=11)
+                modrm = thunk_code[i + 2]
+                if (modrm >> 6) == 3:
+                    dst = r32_by_code[(modrm >> 3) & 7]
+                    src = r32_by_code[modrm & 7]
+                    regs[dst] = regs[src]  # value transfer (widening)
+                    i += 3; continue
+            if b2 == 0xB6 and i + 2 < len(thunk_code):
+                # MOVZX r32, r/m8 — handle r32,r8 (mod=11)
+                modrm = thunk_code[i + 2]
+                if (modrm >> 6) == 3:
+                    dst = r32_by_code[(modrm >> 3) & 7]
+                    src = r32_by_code[modrm & 7]
+                    regs[dst] = regs[src]
+                    i += 3; continue
+
+        i += 1
+
+    # Verify postcondition: each scratch register holds the original value
+    # of its corresponding source register.
+    for idx, (param_idx, src_reg) in enumerate(reg_args):
+        scratch = SCRATCH[idx]
+        src32 = PARENT.get(src_reg, src_reg)
+        expected = f'orig_{src32}'
+        actual = regs[scratch]
+        if actual != expected:
+            raise ValueError(
+                f'Reverse thunk staging verification FAILED for "{sym.decl}":\n'
+                f'  Scratch {scratch} should hold {expected} but holds {actual}.\n'
+                f'  This means register {src_reg} was clobbered before staging.'
+            )
+
+
 def generate_reverse_thunk(sym, impl_addr, rvthunk_addr):
     """Emit a naked register-to-cdecl trampoline for an implemented @<reg> function.
 
@@ -338,17 +434,105 @@ def generate_reverse_thunk(sym, impl_addr, rvthunk_addr):
     code = bytearray()
 
     # 1. Stage each register arg into its scratch slot, widening as needed.
+    #    Must handle conflicts where a source register is clobbered by an
+    #    earlier staging move (e.g. ECX→EAX then EAX→ECX would lose EAX).
+    #    Strategy: topological sort the moves, breaking cycles with XCHG.
+
+    def _canon32(reg):
+        """Return the 32-bit parent of a register name."""
+        _parent = {'ax': 'eax', 'al': 'eax', 'ah': 'eax',
+                    'bx': 'ebx', 'bl': 'ebx', 'bh': 'ebx',
+                    'cx': 'ecx', 'cl': 'ecx', 'ch': 'ecx',
+                    'dx': 'edx', 'dl': 'edx', 'dh': 'edx',
+                    'si': 'esi', 'di': 'edi', 'bp': 'ebp'}
+        return _parent.get(reg, reg)
+
+    moves = []  # (dst32, src_reg, src_reg_canonical32, needs_widen)
     for i, (_, src_reg) in enumerate(reg_args):
         dst32 = SCRATCH_FOR_ARG[i]
-        if src_reg in REG32_BITS:
-            if src_reg != dst32:
-                code += encode_mov_r32_r32(dst32, src_reg)
-        elif src_reg in REG16_BITS:
-            code += encode_movzx_r32_r16(dst32, src_reg)
-        elif src_reg in REG8_BITS:
-            code += encode_movzx_r32_r8(dst32, src_reg)
+        src32 = _canon32(src_reg)
+        needs_widen = src_reg not in REG32_BITS
+        moves.append((dst32, src_reg, src32, needs_widen))
+
+    # Build a dependency graph: move i depends on move j if move j's dst
+    # clobbers move i's source.
+    n = len(moves)
+    emitted = [False] * n
+    def _emit_move(idx):
+        dst32, src_reg, src32, needs_widen = moves[idx]
+        if needs_widen:
+            if src_reg in REG16_BITS:
+                code.extend(encode_movzx_r32_r16(dst32, src_reg))
+            elif src_reg in REG8_BITS:
+                code.extend(encode_movzx_r32_r8(dst32, src_reg))
+            else:
+                raise ValueError(f'Unsupported register {src_reg!r}')
         else:
-            raise ValueError(f'Unsupported register {src_reg!r}')
+            if src_reg != dst32:
+                code.extend(encode_mov_r32_r32(dst32, src_reg))
+        emitted[idx] = True
+
+    changed = True
+    while changed:
+        changed = False
+        for i in range(n):
+            if emitted[i]:
+                continue
+            dst_i, _, src32_i, _ = moves[i]
+            if dst_i == src32_i:
+                _emit_move(i)
+                changed = True
+                continue
+            blocked = False
+            for j in range(n):
+                if i == j or emitted[j]:
+                    continue
+                _, _, src32_j, _ = moves[j]
+                if dst_i == src32_j:
+                    blocked = True
+                    break
+            if not blocked:
+                _emit_move(i)
+                changed = True
+
+    # Break remaining cycles with XCHG.
+    # For a cycle of length N, N-1 XCHGs rotate all values into place.
+    # Walk the cycle starting from any un-emitted move, chaining XCHGs
+    # between the cycle head and each successive member.
+    for i in range(n):
+        if emitted[i]:
+            continue
+        # Trace the cycle: follow dst→src links among un-emitted moves.
+        cycle = [i]
+        cur = i
+        while True:
+            dst_cur = moves[cur][0]
+            nxt = None
+            for k in range(n):
+                if not emitted[k] and k != cur and _canon32(moves[k][1]) == dst_cur:
+                    nxt = k
+                    break
+            if nxt is None or nxt == i:
+                break
+            cycle.append(nxt)
+            cur = nxt
+
+        if len(cycle) == 1:
+            _emit_move(i)
+            continue
+
+        for member in cycle:
+            if moves[member][3]:
+                raise ValueError(f'Cannot XCHG with sub-register {moves[member][1]!r} in cycle')
+
+        # XCHG cycle[0] with each subsequent member.
+        head_reg = moves[cycle[0]][0]
+        for j in range(1, len(cycle)):
+            other_reg = moves[cycle[j]][0]
+            code.extend(b'\x87' + bytes([0xc0 | (REG32_BITS[head_reg] << 3) | REG32_BITS[other_reg]]))
+
+        for member in cycle:
+            emitted[member] = True
 
     # 2. Push full arg list in reverse declaration order.
     reg_param_to_scratch = {param_idx: SCRATCH_FOR_ARG[i] for i, (param_idx, _) in enumerate(reg_args)}
@@ -380,108 +564,162 @@ def generate_reverse_thunk(sym, impl_addr, rvthunk_addr):
     # 5. Return to original caller.
     code += b'\xc3'  # ret
 
+    # 6. Verify: simulate the staging code to prove register postconditions.
+    _verify_staging_correctness(sym, reg_args, code)
+
     return bytes(code)
 
 
 def _test_reverse_thunks():
-    """Self-test: verify generated thunks don't clobber EAX return values
-    or register arg sources. Run via `python tools/patch.py --test-thunks`."""
+    """Self-test reverse thunk byte shape and register-staging properties.
+
+    This runs in the CMake patched_xbe path, so regressions in the thunk
+    generator fail at build time rather than at runtime in the XBE.
+    """
     from knowledge import Function
 
-    # Decode all MOV r32,[esp+disp] and MOV [esp+disp],r32 instructions in
-    # the thunk bytes to extract which registers are used as scratch.
-    def extract_mov_esp_regs(code_bytes):
-        r32_names = {v: k for k, v in REG32_BITS.items()}
-        regs_used = set()
-        i = 0
-        while i < len(code_bytes):
-            if code_bytes[i] in (0x89, 0x8B) and i + 2 < len(code_bytes):
-                modrm = code_bytes[i + 1]
-                mod = (modrm >> 6) & 3
-                rm = modrm & 7
-                reg = (modrm >> 3) & 7
-                if rm == 4 and mod in (0, 1, 2):
-                    sib = code_bytes[i + 2] if i + 2 < len(code_bytes) else 0
-                    if sib == 0x24:
-                        if code_bytes[i] == 0x8B:
-                            regs_used.add(r32_names[reg])
-                        else:
-                            regs_used.add(r32_names[reg])
-            i += 1
-        return regs_used
+    def _rel32(call_site, target):
+        return struct.pack('<i', target - (call_site + 5))
 
-    cases = [
-        # (decl, description, check)
-        ("int16_t unit_next_weapon_index(int unit_handle@<ebx>, int16_t weapon_index, int16_t direction);",
-         "@<ebx> with 2 stack args — backward rotation must not use EAX"),
-        ("void director_compute_camera_input(int handle@<eax>, int output);",
-         "@<eax> with 1 stack arg — forward rotation must not use EAX"),
-        ("int rumble_calculate(int handle@<eax>);",
-         "@<eax> with 0 stack args — no rotation needed"),
-        ("int player_register_machine(int handle@<eax>, int machine);",
-         "@<eax> with 1 stack arg — forward rotation must not use EAX"),
-        ("void unit_set_animation(int unit_handle@<eax>, int anim_graph_tag_index@<edi>, int16_t animation_index@<bx>);",
-         "@<eax>,@<edi>,@<bx> with 0 stack args — 3 reg args, EDX as third scratch"),
-        ("void hs_report_compile_error(void *error_info, char *error_text@<esi>, char *script_element@<ebx>, void *source_start@<edi>);",
-         "non-leading register args with one stack arg"),
-    ]
-
-    for decl, desc in cases:
-        sym = Function(decl, addr=0x100000)
-        code = generate_reverse_thunk(sym, 0x200000, 0x300000)
-
-        # Find the CALL instruction (E8 xx xx xx xx) — everything after it is
-        # the backward rotation + ret. The backward rotation must not use EAX.
-        call_offset = None
+    def _call_offset(code):
         for i in range(len(code)):
             if code[i] == 0xE8 and i + 5 <= len(code):
-                call_offset = i
-                break
-        assert call_offset is not None, f"No CALL found in thunk for: {desc}"
+                return i
+        return None
 
-        # After CALL: add esp, N (3 bytes) then the backward rotation
+    def _decl_param_count(decl):
+        open_paren = decl.find('(')
+        close_paren = decl.rfind(')')
+        assert open_paren >= 0 and close_paren >= 0
+        params_src = decl[open_paren + 1:close_paren].strip()
+        if not params_src or params_src == 'void':
+            return 0
+        depth = 0
+        count = 1
+        for ch in params_src:
+            if ch == '(' or ch == '<':
+                depth += 1
+            elif ch == ')' or ch == '>':
+                depth -= 1
+            elif ch == ',' and depth == 0:
+                count += 1
+        return count
+
+    exact_cases = [
+        (
+            "void player_reset_action_result(int player_handle@<eax>);",
+            0x401000,
+            0x650000,
+            (
+                b'\x50'
+                b'\xe8' + _rel32(0x650000 + 1, 0x401000) +
+                b'\x83\xc4\x04'
+                b'\xc3'
+            ),
+            "single @<eax> arg minimal thunk",
+        ),
+        (
+            "void players_update_pvs(void *combined_pvs@<edi>, bool local_player_only);",
+            0x4086c0,
+            0x65f120,
+            (
+                b'\x89\xf8'
+                b'\xff\x74\x24\x04'
+                b'\x50'
+                b'\xe8' + _rel32(0x65f120 + 7, 0x4086c0) +
+                b'\x83\xc4\x08'
+                b'\xc3'
+            ),
+            "single non-scratch register arg plus stack arg",
+        ),
+        (
+            "void director_apply_replay_mode_for_player(char reset_flag@<al>, "
+            "int16_t local_player_index@<si>, char mode_flags);",
+            0x402000,
+            0x651000,
+            (
+                b'\x0f\xb6\xc0'
+                b'\x0f\xb7\xce'
+                b'\xff\x74\x24\x04'
+                b'\x51'
+                b'\x50'
+                b'\xe8' + _rel32(0x651000 + 12, 0x402000) +
+                b'\x83\xc4\x0c'
+                b'\xc3'
+            ),
+            "sub-register widening plus stack arg",
+        ),
+        (
+            "void game_engine_hud_update_player(int player_handle@<ecx>, "
+            "int hud_player@<eax>, int param3@<ebx>);",
+            0x200000,
+            0x300000,
+            (
+                b'\x89\xda'
+                b'\x87\xc1'
+                b'\x52'
+                b'\x51'
+                b'\x50'
+                b'\xe8' + _rel32(0x300000 + 7, 0x200000) +
+                b'\x83\xc4\x0c'
+                b'\xc3'
+            ),
+            "regression: ECX/EAX cycle must preserve original EAX",
+        ),
+    ]
+
+    for decl, impl_addr, rvthunk_addr, expected, desc in exact_cases:
+        sym = Function(decl, addr=0x100000)
+        actual = generate_reverse_thunk(sym, impl_addr, rvthunk_addr)
+        assert actual == expected, (
+            f"FAIL: unexpected reverse thunk bytes for {desc}\n"
+            f"  expected: {expected.hex(' ')}\n"
+            f"  actual:   {actual.hex(' ')}"
+        )
+        log.info("PASS: exact bytes: %s", desc)
+
+    property_cases = [
+        ("int16_t unit_next_weapon_index(int unit_handle@<ebx>, int16_t weapon_index, int16_t direction);",
+         "@<ebx> with 2 stack args"),
+        ("void director_compute_camera_input(int handle@<eax>, int output);",
+         "@<eax> with 1 stack arg"),
+        ("int rumble_calculate(int handle@<eax>);",
+         "@<eax> with 0 stack args"),
+        ("int player_register_machine(int handle@<eax>, int machine);",
+         "@<eax> with 1 stack arg"),
+        ("void unit_set_animation(int unit_handle@<eax>, int anim_graph_tag_index@<edi>, int16_t animation_index@<bx>);",
+         "@<eax>,@<edi>,@<bx> with 0 stack args"),
+        ("void hs_report_compile_error(void *error_info, char *error_text@<esi>, char *script_element@<ebx>, void *source_start@<edi>);",
+         "non-leading register args with one stack arg"),
+        ("void game_engine_hud_update_player(int player_handle@<ecx>, int hud_player@<eax>, int param3@<ebx>);",
+         "@<ecx>,@<eax>,@<ebx> cycle"),
+        ("void test_two_swap(int a@<eax>, int b@<ecx>);",
+         "minimal 2-element swap cycle"),
+        ("void test_three_cycle(int a@<ecx>, int b@<edx>, int c@<eax>);",
+         "3-element rotation cycle"),
+    ]
+
+    for decl, desc in property_cases:
+        sym = Function(decl, addr=0x100000)
+        code = generate_reverse_thunk(sym, 0x200000, 0x300000)
+        call_offset = _call_offset(code)
+        assert call_offset is not None, f"FAIL: no CALL found in thunk for {desc}"
         post_call = code[call_offset + 5:]
+        assert post_call[-1:] == b'\xc3', f"FAIL: thunk does not end in RET for {desc}"
+        assert post_call[:-1] == encode_add_esp(4 * _decl_param_count(sym.decl)), (
+            f"FAIL: post-CALL code should only clean cdecl args for {desc}"
+        )
+        log.info("PASS: properties: %s", desc)
 
-        # The backward rotation section starts after the `add esp, imm8`
-        if len(post_call) > 3 and post_call[0] == 0x83 and post_call[1] == 0xC4:
-            rotate_back = post_call[3:]
-        else:
-            rotate_back = post_call
+    kb = KnowledgeBase.deserialize()
+    checked = 0
+    for sym in kb.symbols:
+        if not isinstance(sym, Function) or not sym.register_args:
+            continue
+        generate_reverse_thunk(sym, 0x200000, 0x300000)
+        checked += 1
 
-        # Check: EAX must not appear as a scratch in the backward rotation.
-        # Scan for MOV r32,[esp+disp] where r32 is EAX (opcode 8B with reg=0).
-        for i in range(len(rotate_back)):
-            if rotate_back[i] == 0x8B and i + 2 < len(rotate_back):
-                modrm = rotate_back[i + 1]
-                reg = (modrm >> 3) & 7
-                rm = modrm & 7
-                if reg == REG32_BITS['eax'] and rm == 4:
-                    assert False, (
-                        f"FAIL: backward rotation uses EAX as scratch — "
-                        f"this would destroy the return value. Case: {desc}"
-                    )
-
-        # Check: if the function has @<eax>, the forward rotation (before CALL)
-        # must not use EAX as scratch either.
-        reg_arg_sources = {REG_PARENT[r] for _, r in sym.register_args}
-        if 'eax' in reg_arg_sources:
-            pre_call = code[:call_offset]
-            for i in range(len(pre_call)):
-                if pre_call[i] == 0x8B and i + 2 < len(pre_call):
-                    modrm = pre_call[i + 1]
-                    reg = (modrm >> 3) & 7
-                    rm = modrm & 7
-                    mod = (modrm >> 6) & 3
-                    if reg == REG32_BITS['eax'] and rm == 4 and mod in (0, 1, 2):
-                        sib = pre_call[i + 2] if i + 2 < len(pre_call) else 0
-                        if sib == 0x24:
-                            assert False, (
-                                f"FAIL: forward rotation uses EAX as scratch "
-                                f"for @<eax> function. Case: {desc}"
-                            )
-
-        log.info("PASS: %s", desc)
-
+    log.info("PASS: generated and verified %d current kb.json @<reg> thunk(s)", checked)
     log.info("All reverse thunk self-tests passed.")
 
 
