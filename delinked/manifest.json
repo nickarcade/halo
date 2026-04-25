@@ -1,0 +1,8 @@
+{
+  "sound_manager.obj": {
+    "obj_path": "/mnt/g/dev/halo/delinked/sound_manager.obj",
+    "source": "sound/sound_manager.c",
+    "addr_range": "0x001097f0-0x001cf930",
+    "func_count": 37
+  }
+}
