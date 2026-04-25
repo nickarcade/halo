@@ -1,6 +1,7 @@
 	target_sources(halo PRIVATE
 	entrypoint.c
 	inlines.c
+	halo/ai/actor_perception.c
 	halo/ai/actors.c
 	halo/ai/ai.c
 	halo/bitmaps/bitmaps.c
@@ -19,6 +20,7 @@
 	halo/cseries/cseries_windows.c
 	halo/cseries/stack_walk_windows.c
 	halo/memory/crc.c
+	halo/dialogs/edit_text.c
 	halo/cutscene/cinematics.c
 	halo/cutscene/recorded_animations.c
 	halo/effects/contrails.c
@@ -55,6 +57,7 @@
 	halo/interface/ui_widget_game_data_input_functions.c
 	halo/items/items.c
 	halo/items/projectiles.c
+	halo/items/weapons.c
 	halo/units/units.c
 	halo/units/vehicles.c
 	halo/networking/network_messages.c
@@ -74,6 +77,7 @@
 	halo/rasterizer/rasterizer.c
 	halo/rasterizer/common/rasterizer_common.c
 	halo/rasterizer/xbox/rasterizer_xbox.c
+	halo/rasterizer/xbox/d3d_resource.c
 	halo/rasterizer/xbox/rasterizer_xbox_decals.c
 	halo/render/render.c
 	halo/render/render_cameras.c
@@ -90,6 +94,7 @@
 	halo/shaders/shaders.c
 	halo/sound/game_sound.c
 	halo/sound/sound_classes.c
+	halo/sound/sound_dsound_xbox.c
 	halo/sound/sound_manager.c
 	halo/objects/objects.c
 	halo/objects/widgets/widgets.c

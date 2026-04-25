@@ -69,13 +69,14 @@ void cross_product3d(float *a, float *b, float *out)
  * unit normal (length within epsilon of 1.0).
  *
  * Computes squared_length = dot(v, v) and returns true if
- * |squared_length - 1.0f| < 0.0009765625 (1/1024).
+ * |squared_length - 1.0f| < 0.001f.
  *
  * Also rejects NaN/infinity by testing the exponent bits.
  *
  * Confirmed: FLD / FMUL / FADDP computes dot(v, v) on x87 stack.
  * Confirmed: FSUB [0x2533c8] subtracts 1.0f.
- * Confirmed: FABS / FCOMP [0x2549d8] compares against epsilon double.
+ * Confirmed: FABS / FCOMP double ptr [0x2549d8] compares against
+ * (double)0.001f.
  */
 int valid_real_normal3d(float *v)
 {
@@ -87,7 +88,7 @@ int valid_real_normal3d(float *v)
     return 0;
   }
 
-  return fabsf(diff) < 0.0009765625f;
+  return fabsf(diff) < 0.001f;
 }
 
 /* 0x2b5d0 — FUN_0002b5d0: initialize trigonometric lookup tables.
@@ -157,6 +158,41 @@ void FUN_0002b5d0(void)
       table_b[index][6] = sin_outer * basis[index][2];
     }
   }
+}
+
+/* 0x84a70 — valid_real_normal3d_perpendicular: check whether two 3D vectors
+ * are each valid unit normals AND are perpendicular to each other.
+ *
+ * First validates each vector individually via valid_real_normal3d (checks
+ * that squared length is within 0.001 of 1.0 and not NaN/infinity).
+ * Then computes dot(a, b) and returns true only if the dot product is
+ * a valid finite float with fabsf(dot) < 0.001f (i.e., nearly perpendicular).
+ *
+ * Confirmed: CALL 0x21fb0 twice (valid_real_normal3d) for each input vector.
+ * Confirmed: FLD/FMUL/FADDP computes dot(a, b) = a[0]*b[0]+a[1]*b[1]+a[2]*b[2].
+ * Confirmed: FSTS [EBP-4] stores dot without popping; integer NaN/inf check
+ *   on exponent bits (AND 0x7f800000, CMP 0x7f800000) before the FABS compare.
+ * Confirmed: FABS / FCOMPL double ptr [0x2549d8] compares against
+ * (double)0.001f. Confirmed: FNSTSW AX / TEST AH,5 / JP pattern — returns true
+ * when fabsf(dot) < 0.001f.
+ */
+int valid_real_normal3d_perpendicular(float *a, float *b)
+{
+  if (!valid_real_normal3d(a)) {
+    return 0;
+  }
+  if (!valid_real_normal3d(b)) {
+    return 0;
+  }
+
+  float dot = a[2] * b[2] + a[1] * b[1] + a[0] * b[0];
+
+  /* Reject NaN / infinity: exponent bits must not be all 1s */
+  if ((*(unsigned int *)&dot & 0x7f800000) == 0x7f800000) {
+    return 0;
+  }
+
+  return fabsf(dot) < 0.001f;
 }
 
 char *weapon_get_label(int weapon_handle)

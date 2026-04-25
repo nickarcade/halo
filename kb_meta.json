@@ -47,9 +47,58 @@
         "Table element semantics are inferred from math pattern and write layout; symbolic names for backing globals/constants remain unknown."
       ]
     },
+    "0x2fc20": {
+      "kind": "function",
+      "status": "ported",
+      "name": "FUN_0002fc20",
+      "inferred": [
+        "0x5ab23c is the prop/clump data table (used as data_t* for datum_get).",
+        "Assertion in neighboring FUN_0002fd10 confirms source file is c:\\halo\\SOURCE\\ai\\actor_perception.c."
+      ]
+    },
+    "0x2fd10": {
+      "kind": "function",
+      "status": "ported",
+      "name": "FUN_0002fd10",
+      "name_confidence": "confirmed",
+      "inferred": [
+        "FUN_0003b320 checks whether the actor has a weapon equipped (returns bool via AL).",
+        "FUN_000210f0 retrieves the weapon tag data for the actors current weapon (returns char* or NULL).",
+        "FUN_000211f0 retrieves an actv (actor variant) tag for the actors weapon, falling back to the actors own actv tag.",
+        "The score formula is: (sum_of_levels * 10.0) + (5.0 / (distance * 0.1 + 1.0)) + bonus, where levels are vision_level + awareness + bonus_flag + extra_flag."
+      ],
+      "uncertain": [
+        "The exact semantic meaning of vision_level values 0-5 and awareness values 1-6 is not known from this function alone.",
+        "The prop field at +0x118 compared against actor field +0x15d may be a team or faction index."
+      ]
+    },
+    "0x36e30": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Function is inferred to belong to actor_perception.obj based on address proximity (0x36e30 is between confirmed actor_perception.c assertions at 0x36316 and actor_stimulus.c assertions at 0x37299).",
+        "The byte at actor+0x2ed is inferred to be an approach-active flag based on the calling context in ai_handle_unit_approach."
+      ]
+    },
+    "0x3a990": {
+      "kind": "function",
+      "status": "ported",
+      "name": "FUN_0003a990",
+      "inferred": [
+        "actors_initialize \u2014 allocates actor_data, swarm_data, swarm_component_data. Assertion strings confirm actors.c source."
+      ]
+    },
     "0x3aa50": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x3aa60": {
+      "kind": "function",
+      "status": "ported",
+      "name": "FUN_0003aa60",
+      "inferred": [
+        "Likely actors_initialize_for_new_map \u2014 calls data_delete_all on all three actor data tables."
+      ]
     },
     "0x3aa90": {
       "kind": "function",
@@ -161,6 +210,10 @@
       "status": "ported"
     },
     "0x7c8f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x7d440": {
       "kind": "function",
       "status": "ported"
     },
@@ -561,9 +614,30 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x992d0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Originally inlined from real_math.h around line 0x36f; unprojects 2D point to 3D via plane equation."
+      ]
+    },
+    "0x99400": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Computes a normalized 2D line equation from two points; returns NULL on degenerate input."
+      ]
+    },
     "0x99530": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x99640": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "BSP plane extraction with sign-flip via bit 31 of plane_reference; each plane is 0x10 bytes (i,j,k,d)."
+      ]
     },
     "0x998b0": {
       "kind": "function",
@@ -2437,6 +2511,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf6d60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf7dd0": {
       "kind": "function",
       "status": "ported"
@@ -2740,9 +2818,18 @@
         "Matrix layout: 4-byte scale at offset 0, followed by 3x3 float rotation at offsets 0x04-0x24."
       ]
     },
+    "0x1096e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x109780": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1097f0": {
+      "kind": "function",
+      "status": "ported",
+      "name": "real_matrix4x3_transform_point"
     },
     "0x109850": {
       "kind": "function",
@@ -2784,9 +2871,37 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x10b240": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10b270": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x10b2d0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x10b300": {
+      "kind": "function",
+      "status": "named",
+      "inferred": [
+        "Register-arg function: copies a 3-float vector from the sphere direction table at global 0x46e3e8 indexed by ESI, into the buffer at EBX.",
+        "Assert strings confirm names: random_math_globals.random_direction_table and random_math_globals.random_direction_table_size at lines 250-251."
+      ]
+    },
+    "0x10b4c0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The second LCG step and float conversion are an inline expansion of random_real_range(seed, zero, angle).",
+        "The first LCG step and index computation are an inline expansion of random_range(seed, 0, table_size).",
+        "Global 0x46e3e8 is random_math_globals.random_direction_table pointer and 0x46e3ec is random_math_globals.random_direction_table_size as int16_t."
+      ],
+      "uncertain": [
+        "The function returns the result pointer in EAX but is declared void since no known callers use the return value."
+      ]
     },
     "0x10b5e0": {
       "kind": "function",
@@ -2797,6 +2912,13 @@
       "status": "ported",
       "inferred": [
         "The function finds the component with the smallest absolute value and produces a perpendicular vector by zeroing that component and swapping the other two with one negated."
+      ]
+    },
+    "0x10b6e0": {
+      "kind": "function",
+      "status": "named",
+      "inferred": [
+        "Rodrigues rotation formula: rotates vector[0..2] around axis[0..2] by angle specified via sin_angle and cos_angle arguments."
       ]
     },
     "0x10c600": {
@@ -3422,6 +3544,10 @@
         "The byte at object_data_t offset 0xD0 stores the parent_node_index as a uint8_t, overlapping with the first byte of the unk_208 float array."
       ]
     },
+    "0x1443f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1446a0": {
       "kind": "function",
       "status": "ported",
@@ -3948,6 +4074,22 @@
         "The file_error function at 0x19a450 takes file_ref in EAX as a register arg; if a future port adds it to kb.json with @eax, the inline asm call should be replaced."
       ]
     },
+    "0x19a7a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19a930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19aa70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19ab50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x19aed0": {
       "kind": "function",
       "status": "ported"
@@ -3996,6 +4138,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x19e9f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x19f450": {
       "kind": "function",
       "status": "ported"
@@ -4032,6 +4178,10 @@
         "The unk_456 field (offset 0x1C8) in unit_data_t guards the allegiance check, likely representing a rider or owner handle.",
         "The return semantics are inverted: returns true when NO matching seat occupant or friendly child was found, meaning the seat is available."
       ]
+    },
+    "0x1a9240": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1a9a30": {
       "kind": "function",
@@ -4129,6 +4279,10 @@
       "uncertain": [
         "The exact name of 0x1a9240 (unit_set_seat_state) is uncertain; it receives the unit handle and the root position vector."
       ]
+    },
+    "0x1ac2f0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1ac3f0": {
       "kind": "function",
@@ -4343,6 +4497,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1be090": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1bea30": {
       "kind": "function",
       "status": "ported"
@@ -4545,6 +4703,10 @@
         "sound_start at 0x1ce180 belongs to sound_manager.obj based on assertion path string c:\\halo\\SOURCE\\sound\\sound_manager.c."
       ]
     },
+    "0x1c7b00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c7c30": {
       "kind": "function",
       "status": "ported"
@@ -4569,6 +4731,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c88c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c8990": {
       "kind": "function",
       "status": "ported"
@@ -4589,6 +4755,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c8c60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c8c80": {
       "kind": "function",
       "status": "ported",
@@ -4598,6 +4768,82 @@
       "uncertain": [
         "The float store offset is [record+0x0] and int16 store is [record+0x8], confirmed from disassembly; the record is 0xc bytes per class entry."
       ]
+    },
+    "0x1c8d50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c8f20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c90e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c9130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c91c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c9290": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c92f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c94d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c9600": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c98f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c99a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c9b40": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Function names vchannel_get (0x1c92f0), channel_get (0x1c9290), and try_resolve (0x1c99a0) are derived from assertion string text in the binary.",
+        "Global array at 0x32fcf8 is sound_channel_type_flags (short[]), indexed by vchannel type_index, from assertion string.",
+        "Virtual channel struct layout: offset 0 = short channel_index, offset 2 = short type_index (from assertion text and field access patterns).",
+        "Actual channel struct layout: offset 0x02 = short virtual_channel_index, offset 0x38 = short type_flags (from assertion text and field access patterns). Each element is 0x74 bytes."
+      ]
+    },
+    "0x1ca5e0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Properties float array layout: [0]=min_distance, [1]=max_distance, [2]=pitch, [3]=gain, [4]=inner_cone_angle_radians, [5]=outer_cone_angle_radians, [6]=cone_outside_gain, [7]=field_1c_3d_scalar.",
+        "Global 0x505488 is dsound_globals.pause_gain (float), used to scale volume.",
+        "Global 0x4fdbc0 is a byte flag; when 0, all properties are pushed unconditionally (bypasses epsilon checks).",
+        "Constant at 0x2b073c is 57.2958f (180/pi, radians to degrees converter for cone angles)."
+      ],
+      "uncertain": [
+        "Channel struct field at offset 0x38 contains type_flags; bit 0 is the 3D flag and bits [2] encode codec index. Full layout is not yet recovered.",
+        "The update_only parameter name is inferred; when nonzero it skips pitch and 3D updates (volume-only mode). The original source name could differ."
+      ]
+    },
+    "0x1caa80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cb790": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1cb810": {
       "kind": "function",
@@ -4619,6 +4865,20 @@
         "Byte at offset 0x28 in the class definition struct is a suppress flag that prevents playback when set."
       ]
     },
+    "0x1cba80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cbac0": {
+      "kind": "function",
+      "status": "ported",
+      "comments": {
+        "summary": "Returns a pointer to a sound listener entry from the listeners table at 0x4eaf58, indexed by local player index with stride 0x44."
+      },
+      "inferred": [
+        "The assert string 'index>=0 && index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS' confirms the original parameter was named 'index' and the table is sized for 4 local players."
+      ]
+    },
     "0x1cbb00": {
       "kind": "function",
       "status": "ported",
@@ -4629,6 +4889,69 @@
         "The MOVSX SI,SI and IMUL pattern suggests promotion_count is sign-extended from short to int before the multiplication with interval."
       ]
     },
+    "0x1cbd30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cbf30": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The vtable+0x18 call is the sound driver start function, taking (channel_index, permutation) based on the PUSH EDI, PUSH EBX sequence before CALL [EAX+0x18].",
+        "Channel struct offsets +0x10 and +0x14 appear to be current and next permutation pointers respectively, based on the queue-or-replace logic."
+      ]
+    },
+    "0x1cbfb0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The properties struct field at offset +0x08 is named pitch per the assertion string, and is stored into the channel table at offset +0x0c (time rate field).",
+        "The update_only flag (EBX/BL) controls whether only the driver vtable call is made (non-zero) or whether the pitch is also written to the channel table first (zero)."
+      ]
+    },
+    "0x1cc050": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cc140": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Channel struct offsets +0x10 and +0x14 hold permutation pointers that are released via sound_cache_sound_finished when the channel is stopped.",
+        "Sound driver vtable+0x20 is the stop-channel entry point, taking channel_index as a single int argument (cdecl)."
+      ]
+    },
+    "0x1cc310": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The 0.4 exponent (1.0/2.5) controls the shape of the power curve for non-linear attenuation transitions.",
+        "Fields at +0x9c and +0xa0 are current and target attenuation respectively, +0xa4 and +0xa8 are transition start and end ticks, and +0x92 is the envelope type selector (0=linear, 1=power)."
+      ],
+      "uncertain": [
+        "The direction check (target > current vs target <= current) selects ease-in vs ease-out curve, but the exact perceptual intent is not confirmed by the binary alone."
+      ]
+    },
+    "0x1cc490": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cc8c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cc8f0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Sound entry field at +0x92 is the fade mode (short), +0x9c is current fade volume (float), +0xa0 is target fade volume (float), +0xa4 is fade start tick (int), +0xa8 is fade end tick (int).",
+        "The fade-in path checks if start_tick==end_tick before deciding initial volume; when they match the sound is not currently fading so current volume is set to 0.0 (start from silence). Otherwise it queries the in-progress attenuation."
+      ]
+    },
+    "0x1cca60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ccbe0": {
       "kind": "function",
       "status": "ported"
@@ -4636,6 +4959,26 @@
     "0x1ccca0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1ccd70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ccf80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cd2c0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The field at sound_entry+0x88 is interpreted as a float random_scale based on the callee prototype of sound_select_pitch_range.",
+        "The field at sound_entry+0x98 serves dual purpose: it is the looping_sound_tag_index used by tag_get and is then saved to sound_entry+0x8 before being cleared.",
+        "Callee sound_collect_like_sounds (0x1cbd30) takes its output buffer via ESI register, named from the assert strings containing summary->like_definition_count etc."
+      ],
+      "uncertain": [
+        "The name sound_find_oldest_channel for 0x1ccd70 is inferred from behavior; the function compares tick counts and distances to find the best eviction candidate."
+      ]
     },
     "0x1cd5a0": {
       "kind": "function",
@@ -4649,6 +4992,19 @@
         "The assert for index bounds at line 0x430 appears unreachable given the loop bounds, suggesting it may be an inlined bounds-check macro."
       ]
     },
+    "0x1cda50": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The function pointer 0x1cc1c0 stored at entry+0x10 is an update callback that copies 64 bytes from the looping sound source (offset +0xc) into the output buffer.",
+        "Fields at tag+0x14 and tag+0x18 are the random pitch gain bounds (min/max) used by random_real_range to compute the random_scale stored at entry+0x88.",
+        "Fields at tag+0x44 and tag+0x5c are pitch bounds (min/max pitch) used in the pitch range selection formula: ((max-min)*source_gain + min) * random_gain."
+      ]
+    },
+    "0x1cdc30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ce180": {
       "kind": "function",
       "status": "ported",
@@ -4658,6 +5014,19 @@
       ],
       "uncertain": [
         "The source struct layout is accessed by offsets (0x0=spatialization_mode, 0x4=scale, 0x18=forward vector) but the full struct type is unknown."
+      ]
+    },
+    "0x1ceda0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "FUN_001cc310 takes sound_handle in EAX (register-arg): caller sets MOV EAX,[EDI] before CALL, callee uses PUSH EAX as datum_get arg1 position (handle).",
+        "FUN_001cca60 takes sound_handle in EBX (register-arg): PUSH EBX before PUSH EAX as datum_get args, and no POP EBX in epilog (ESP restored via MOV ESP,EBP).",
+        "FUN_001cbac0 reads listener index from SI directly; no frame prolog, returns 0x4eaf58 + index*0x44 from EAX."
+      ],
+      "uncertain": [
+        "Semantic naming of sound_class_get_min_distance (0x1c8d50) vs sound_get_default_priority (0x1c8d10) is provisional; both return float from tag+0x8/tag+0xc with class_def fallback \u2014 confirmed ABI only.",
+        "Channel struct stride 0x18 confirmed by LEA EDI,[EDI*0x8 + 0x4fc3a0] after EDI=EAX*3; field semantics at +0x04 (flags bit 0), +0x08 (float phase), +0x10 (pitch param) inferred from usage."
       ]
     },
     "0x1cf2f0": {
@@ -4677,6 +5046,22 @@
         "The call to 0x1d9068 is MSVC __ftol2 (float-to-long truncation via ST0); replaced with a C cast in the lift.",
         "Vtable calls at offsets +0x10 and +0x14 through the sound driver pointer at 0x4eaf48 are likely lock/unlock or begin-frame/end-frame pairs."
       ]
+    },
+    "0x1ed930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1eda30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1edc10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1edc70": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1ff03f": {
       "kind": "function",

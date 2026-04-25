@@ -105,6 +105,148 @@ short bitmap_format_bits_per_pixel(short format)
   return (short)bitmap_format_bits_per_pixel_table[format];
 }
 
+/* Release a bitmap's D3D texture resource and free its memory if it
+ * was dynamically allocated (flag bit 0x40 at byte offset 0xe). */
+void bitmap_delete(void *bitmap)
+{
+  if (bitmap == NULL)
+    return;
+
+  /* release D3D texture */
+  ((void (*)(void *))0x168ae0)(bitmap);
+
+  if ((*(uint8_t *)((char *)bitmap + 0xe) & 0x40) != 0) {
+    /* free associated pixel data if present */
+    if (*(void **)((char *)bitmap + 0x2c) != NULL)
+      debug_free(*(void **)((char *)bitmap + 0x2c),
+                 "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x18b);
+    /* free the bitmap struct itself */
+    debug_free(bitmap, "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x18e);
+  }
+}
+
+/* FUN_0007c940 -- bitmap pixel address
+ *
+ * Computes a pointer to the pixel at (x, y) within a given mipmap level
+ * of a 2D bitmap. Accumulates pixel counts for all mipmap levels below
+ * the requested one, then adds x + width_at_mipmap * y and converts from
+ * pixel offset to byte offset using bits-per-pixel.
+ *
+ * Confirmed: cdecl, 4 stack args (bitmap, x, y, mipmap_index), returns void*.
+ * Confirmed: assert strings at lines 0x1a1-0x1a8 from bitmaps.c.
+ * Confirmed: calls bitmap_format_bits_per_pixel at 0x7c840.
+ * Confirmed: min_dimension = compressed ? 4 : 1 (same pattern as
+ * bitmap_mipmap_width). Confirmed: mipmap loop halves width/height each level,
+ * clamping to min_dimension. Confirmed: final offset = (x + accumulated +
+ * width_at_mip * y) * bpp / 8 + base_address.
+ */
+void *FUN_0007c940(void *bitmap, short x, short y, short mipmap_index)
+{
+  char *b = (char *)bitmap;
+  int pixel_count;
+  int min_dim;
+  short bpp;
+  short width;
+  short height;
+  int bit_offset;
+
+  pixel_count = 0;
+
+  if (bitmap == NULL) {
+    display_assert("bitmap", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a1, 1);
+    system_exit(-1);
+  }
+
+  if (*(int *)(b + 0x2c) == 0) {
+    display_assert("bitmap->base_address",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a2, 1);
+    system_exit(-1);
+  }
+
+  if (*(short *)(b + 0xa) != 0) {
+    display_assert("bitmap->type==_bitmap_type_2d",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a3, 1);
+    system_exit(-1);
+  }
+
+  if (x < 0 || x >= *(short *)(b + 0x4)) {
+    display_assert("x>=0 && x<bitmap->width",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a4, 1);
+    system_exit(-1);
+  }
+
+  if (y < 0 || y >= *(short *)(b + 0x6)) {
+    display_assert("y>=0 && y<bitmap->height",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a5, 1);
+    system_exit(-1);
+  }
+
+  if (mipmap_index < 0 || mipmap_index > *(short *)(b + 0x14)) {
+    display_assert("mipmap_index>=0 && mipmap_index<=bitmap->mipmap_count",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a6, 1);
+    system_exit(-1);
+  }
+
+  if ((*(uint8_t *)(b + 0xe) & 2) != 0 && (x != 0 || y != 0)) {
+    display_assert(
+      "!TEST_FLAG(bitmap->flags, _bitmap_compressed_bit) || (x==0 && y==0)",
+      "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a7, 1);
+    system_exit(-1);
+  }
+
+  if ((*(uint8_t *)(b + 0xe) & 8) != 0 && (x != 0 || y != 0)) {
+    display_assert(
+      "!TEST_FLAG(bitmap->flags, _bitmap_swizzled_bit) || (x==0 && y==0)",
+      "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a8, 1);
+    system_exit(-1);
+  }
+
+  width = *(short *)(b + 0x4);
+  height = *(short *)(b + 0x6);
+  min_dim = ((*(uint8_t *)(b + 0xe) & 2) != 0) ? 4 : 1;
+  bpp = bitmap_format_bits_per_pixel(*(short *)(b + 0xc));
+
+  if (mipmap_index > 0) {
+    short mip_count = mipmap_index;
+    do {
+      short w = width;
+      short h = height;
+      pixel_count = pixel_count + (int)w * (int)h;
+      width =
+        ((short)min_dim <= (short)(w >> 1)) ? (short)(w >> 1) : (short)min_dim;
+      height =
+        ((short)min_dim <= (short)(h >> 1)) ? (short)(h >> 1) : (short)min_dim;
+      mip_count--;
+    } while (mip_count != 0);
+  }
+
+  bit_offset = ((int)x + pixel_count + (int)width * (int)y) * (int)bpp;
+  return (void *)(bit_offset / 8 + *(int *)(b + 0x2c));
+}
+
+/* bitmap_validate_depth (0x7d440)
+ *
+ * Validate the depth field of a bitmap against its type.
+ * - depth must be in the signed 16-bit range (0, 256].
+ * - A depth of 1 is always valid.
+ * - A depth > 1 is only valid when the bitmap type is 1 (3D texture).
+ *
+ * depth is passed in EAX (register arg); format is received on the stack
+ * but is never read by the original implementation.
+ */
+bool bitmap_validate_depth(int depth /* @<eax> */, int format, int type)
+{
+  int16_t d = (int16_t)depth;
+  int16_t t = (int16_t)type;
+
+  (void)format; /* unused by original; stack slot present for ABI parity. */
+
+  if (d > 0 && d <= 0x100 && (d == 1 || t == 1)) {
+    return true;
+  }
+  return false;
+}
+
 /* bitmap_verify (0x7d470)
  *
  * Validate a bitmap_data structure for internal consistency: magic tag,
@@ -159,8 +301,8 @@ bool bitmap_verify(void *bitmap, int check_hardware)
     goto invalid;
 
   if (check_hardware) {
-    if (format == 0xb && *(int *)(b + 0x2c) != 0 &&
-        mipmap_count == 0 && (*(uint8_t *)(b + 0xe) & 0xe) == 0)
+    if (format == 0xb && *(int *)(b + 0x2c) != 0 && mipmap_count == 0 &&
+        (*(uint8_t *)(b + 0xe) & 0xe) == 0)
       return true;
     error(2, "### ERROR bitmap @%p (#%dx#%d) appears to be invalid for import",
           bitmap, (int)width, (int)height);
@@ -170,8 +312,8 @@ bool bitmap_verify(void *bitmap, int check_hardware)
   return true;
 
 invalid:
-  error(2, "### ERROR bitmap @%p (#%dx#%d) appears to be invalid",
-        bitmap, (int)*(int16_t *)(b + 0x4), (int)*(int16_t *)(b + 0x6));
+  error(2, "### ERROR bitmap @%p (#%dx#%d) appears to be invalid", bitmap,
+        (int)*(int16_t *)(b + 0x4), (int)*(int16_t *)(b + 0x6));
   return false;
 }
 
@@ -208,8 +350,8 @@ short bitmap_mipmap_width(void *bitmap, int mipmap_index)
  *
  * Confirmed: bitmap_verify(bitmap, FALSE) at 0x7d9fb.
  * Confirmed: mipmap_index range check against bitmap+0x14 (mipmap_count).
- * Confirmed: flags byte at +0xe checked for compressed (bit 1) and swizzled (bit 3).
- * Confirmed: bitmap_mipmap_width * bitmap_format_bits_per_pixel / 8.
+ * Confirmed: flags byte at +0xe checked for compressed (bit 1) and swizzled
+ * (bit 3). Confirmed: bitmap_mipmap_width * bitmap_format_bits_per_pixel / 8.
  */
 int FUN_0007d9f0(void *bitmap, int mipmap_index)
 {
@@ -225,9 +367,8 @@ int FUN_0007d9f0(void *bitmap, int mipmap_index)
 
   if ((short)mipmap_index < 0 ||
       (short)mipmap_index > *(short *)((char *)bitmap + 0x14)) {
-    display_assert(
-        "mipmap_index>=0 && mipmap_index<=bitmap->mipmap_count",
-        "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3f6, 1);
+    display_assert("mipmap_index>=0 && mipmap_index<=bitmap->mipmap_count",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3f6, 1);
     system_exit(-1);
   }
 
@@ -247,24 +388,4 @@ int FUN_0007d9f0(void *bitmap, int mipmap_index)
   bpp = bitmap_format_bits_per_pixel(*(short *)((char *)bitmap + 0xc));
   total_bits = (int)bpp * (int)width;
   return total_bits / 8;
-}
-
-/* Release a bitmap's D3D texture resource and free its memory if it
- * was dynamically allocated (flag bit 0x40 at byte offset 0xe). */
-void bitmap_delete(void *bitmap)
-{
-  if (bitmap == NULL)
-    return;
-
-  /* release D3D texture */
-  ((void (*)(void *))0x168ae0)(bitmap);
-
-  if ((*(uint8_t *)((char *)bitmap + 0xe) & 0x40) != 0) {
-    /* free associated pixel data if present */
-    if (*(void **)((char *)bitmap + 0x2c) != NULL)
-      debug_free(*(void **)((char *)bitmap + 0x2c),
-                 "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x18b);
-    /* free the bitmap struct itself */
-    debug_free(bitmap, "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x18e);
-  }
 }
