@@ -1,3 +1,25 @@
+/* Check if the object's "front" marker faces away from the aim direction (0x971a0).
+ * Returns false if the marker forward dot aim > 0 (facing towards aim),
+ * true otherwise (facing away, or if the object/marker can't be resolved). */
+bool FUN_000971a0(int object_handle, float *position, float *aim_position)
+{
+  char *obj = (char *)object_try_and_get_and_verify_type(object_handle, 0x100);
+  if (obj && (*(uint8_t *)(obj + 0x1c4) & 1) == 0) {
+    char marker_buf[0x6c];
+    int16_t count = object_get_markers_by_string_id(
+        object_handle, "front", marker_buf, 1);
+    if (count == 1) {
+      float *fwd = (float *)(marker_buf + 0x3c);
+      float dot = fwd[0] * aim_position[0] + fwd[1] * aim_position[1] +
+                  fwd[2] * aim_position[2];
+      if (dot > 0.0f) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 /* Moves the text cursor to the end of the edit text buffer and
  * clears any active selection. Asserts that the edit_text struct
  * is valid (non-null, has buffer, max_length > 0, strlen <= max). */
@@ -18,6 +40,77 @@ void edit_text_set_cursor_to_end(void *edit_text)
   int16_t len = (int16_t)csstrlen((const char *)et[0]);
   *(int16_t *)((int)et + 6) = len;
   *(int16_t *)((int)et + 8) = -1;
+}
+
+/* Clamp cursor and selection to valid range [0, strlen] (0x972b0).
+ * If cursor == selection after clamping, cancels the selection.
+ * Snaps both to valid character boundaries via unicode_snap_cursor. */
+void edit_text_clamp_cursor(void *edit_text)
+{
+  int *et = (int *)edit_text;
+  int16_t len = (int16_t)csstrlen((const char *)et[0]);
+
+  int16_t cursor = *(int16_t *)((int)et + 6);
+  int16_t clamped_cursor;
+  if (cursor < 0) {
+    clamped_cursor = 0;
+  } else if (cursor > len) {
+    clamped_cursor = len;
+  } else {
+    clamped_cursor = cursor;
+  }
+
+  int16_t sel = *(int16_t *)((int)et + 8);
+  *(int16_t *)((int)et + 6) = clamped_cursor;
+  int16_t clamped_sel;
+  if (sel < -1) {
+    clamped_sel = -1;
+  } else if (sel > len) {
+    clamped_sel = len;
+  } else {
+    clamped_sel = sel;
+  }
+
+  *(int16_t *)((int)et + 8) = clamped_sel;
+  if (clamped_cursor == clamped_sel) {
+    *(int16_t *)((int)et + 8) = -1;
+  }
+
+  unicode_snap_cursor((const char *)et[0], (int16_t *)((int)et + 6));
+  if (*(int16_t *)((int)et + 8) != -1) {
+    unicode_snap_cursor((const char *)et[0], (int16_t *)((int)et + 8));
+  }
+}
+
+/* Get the selection range as ordered (min, max) of cursor and anchor (0x973a0).
+ * Returns false if no selection is active (selection_start == -1). */
+bool edit_text_get_selection_range(void *edit_text, int16_t *out_start,
+                                   int16_t *out_end)
+{
+  int *et = (int *)edit_text;
+
+  if (et == NULL || et[0] == 0 || *(int16_t *)((int)et + 4) <= 0 ||
+      (unsigned int)csstrlen((const char *)et[0]) >
+          (unsigned int)(int)*(int16_t *)((int)et + 4)) {
+    display_assert("valid_edit_text(edit)",
+                   "c:\\halo\\SOURCE\\dialogs\\edit_text.c", 0xae, 1);
+    system_exit(-1);
+  }
+
+  edit_text_clamp_cursor(edit_text);
+
+  int16_t sel = *(int16_t *)((int)et + 8);
+  if (sel == -1)
+    return false;
+
+  int16_t cursor = *(int16_t *)((int)et + 6);
+  *out_start = (sel > cursor) ? cursor : sel;
+
+  sel = *(int16_t *)((int)et + 8);
+  cursor = *(int16_t *)((int)et + 6);
+  *out_end = (sel > cursor) ? sel : cursor;
+
+  return true;
 }
 
 /* Validates the edit_text struct and initializes cursor state by

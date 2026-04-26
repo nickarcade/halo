@@ -29,6 +29,19 @@ float FUN_000121a0(const float *a, const float *b)
   return dx * dx + dy * dy + dz * dz;
 }
 
+float FUN_000121e0(float min, float max)
+{
+  int *seed = get_global_random_seed_address();
+  return random_real_range(seed, min, max);
+}
+
+void vector3d_scale_add(float *base, float *direction, float scale, float *out)
+{
+  out[0] = scale * direction[0] + base[0];
+  out[1] = scale * direction[1] + base[1];
+  out[2] = scale * direction[2] + base[2];
+}
+
 /* Compute the cross product of two 3D vectors.
  *
  * out = a × b
@@ -50,21 +63,38 @@ void cross_product3d(float *a, float *b, float *out)
   out[2] = a0 * b1 - a1 * b0;
 }
 
-/* 0xfae80 — weapon_get_label: resolve a weapon handle to its label string.
- *
- * If the handle is NONE (-1), returns a pointer to an empty string
- * (global at 0x25386f, which starts with a null byte).
- * Otherwise resolves the object via object_get_and_verify_type with
- * type mask 4 (weapon), reads the tag index from the object header,
- * looks up the 'weap' tag, and returns a pointer to offset 0x30c
- * within the tag definition (the weapon label field).
- *
- * Confirmed: CMP ECX,-1 / MOV EAX,0x25386f / JZ return.
- * Confirmed: PUSH 0x4 / PUSH ECX / CALL object_get_and_verify_type.
- * Confirmed: MOV EAX,[EAX] — reads tag_index from object header.
- * Confirmed: PUSH EAX / PUSH 0x77656170 / CALL tag_get.
- * Confirmed: ADD EAX,0x30c — label field offset.
- */
+char *FUN_000210f0(int actor_handle)
+{
+  int weapon_handle = FUN_0003b270(actor_handle);
+  if (weapon_handle != -1) {
+    int *obj = (int *)object_get_and_verify_type(weapon_handle, 4);
+    return (char *)tag_get(0x77656170, *obj);
+  }
+  return 0;
+}
+
+char *FUN_000211f0(int actor_handle)
+{
+  char *actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  char *actv = (char *)tag_get(0x61637476, *(int *)(actor + 0x5c));
+  int weapon_handle = FUN_0003b270(actor_handle);
+  if (weapon_handle != -1) {
+    int *obj = (int *)object_get_and_verify_type(weapon_handle, 4);
+    char *weap = (char *)tag_get(0x77656170, *obj);
+    if (weap != 0 && *(int *)(weap + 0x3c8) != -1) {
+      actv = (char *)tag_get(0x61637476, *(int *)(weap + 0x3c8));
+    }
+  }
+  return actv;
+}
+
+void vector3d_add(float *a, float *b, float *out)
+{
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+  out[2] = a[2] + b[2];
+}
+
 /* 0x21fb0 — valid_real_normal3d: check whether a 3D vector is a valid
  * unit normal (length within epsilon of 1.0).
  *
@@ -160,6 +190,83 @@ void FUN_0002b5d0(void)
   }
 }
 
+void *FUN_0003a600(short actor_type /* @<ax> */)
+{
+  void **actor_type_definitions = (void **)0x2c86a8;
+
+  if (actor_type < 0 || actor_type > 0xf) {
+    display_assert("actor_type>=0 && actor_type<NUMBER_OF_ACTOR_TYPES",
+                   "c:\\halo\\source\\ai\\actor_type_definitions.h", 0x2e, 1);
+    system_exit(-1);
+  }
+  if (actor_type_definitions[actor_type] == 0) {
+    display_assert("actor_type_definitions[actor_type]",
+                   "c:\\halo\\source\\ai\\actor_type_definitions.h", 0x2f, 1);
+    system_exit(-1);
+  }
+  char *def = (char *)actor_type_definitions[actor_type];
+  if (*(int *)(def + 0) == 0) {
+    display_assert("actor_type_definitions[actor_type]->name",
+                   "c:\\halo\\source\\ai\\actor_type_definitions.h", 0x32, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(def + 0x14) == 0) {
+    display_assert("actor_type_definitions[actor_type]->decide_action",
+                   "c:\\halo\\source\\ai\\actor_type_definitions.h", 0x33, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(def + 6) > 2) {
+    display_assert("actor_type_definitions[actor_type]->when_to_search_at_"
+                   "target < NUMBER_OF_ACTOR_PURSUIT_SETTINGS",
+                   "c:\\halo\\source\\ai\\actor_type_definitions.h", 0x35, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(def + 8) > 2) {
+    display_assert("actor_type_definitions[actor_type]->when_to_pursue < "
+                   "NUMBER_OF_ACTOR_PURSUIT_SETTINGS",
+                   "c:\\halo\\source\\ai\\actor_type_definitions.h", 0x35, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(def + 10) > 2) {
+    display_assert("actor_type_definitions[actor_type]->when_to_search_pursuit "
+                   "< NUMBER_OF_ACTOR_PURSUIT_SETTINGS",
+                   "c:\\halo\\source\\ai\\actor_type_definitions.h", 0x37, 1);
+    system_exit(-1);
+  }
+  return actor_type_definitions[actor_type];
+}
+
+void FUN_0003a740(void)
+{
+  short i;
+  for (i = 0; i < 0x10; i++) {
+    FUN_0003a600(i);
+  }
+}
+
+bool FUN_0003b320(int actor_handle)
+{
+  char *actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  int weapon_handle = FUN_0003b270(actor_handle);
+  bool has_weapon = (weapon_handle != -1);
+  if (has_weapon && *(int *)(actor + 0x18) != -1) {
+    char *unit = (char *)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+    if (*(unsigned char *)(unit + 0xb7) & 1) {
+      return false;
+    }
+  }
+  return has_weapon;
+}
+
+void FUN_0003b900(void)
+{
+  char iter[0x1c];
+  FUN_00059b10(iter, 1);
+  while (FUN_00059b50(iter)) {
+    FUN_0003b860(*(int *)(iter + 0x14));
+  }
+}
+
 /* 0x84a70 — valid_real_normal3d_perpendicular: check whether two 3D vectors
  * are each valid unit normals AND are perpendicular to each other.
  *
@@ -193,31 +300,4 @@ int valid_real_normal3d_perpendicular(float *a, float *b)
   }
 
   return fabsf(dot) < 0.001f;
-}
-
-char *weapon_get_label(int weapon_handle)
-{
-  if (weapon_handle == -1) {
-    return (char *)0x25386f;
-  }
-  int *obj = (int *)object_get_and_verify_type(weapon_handle, 4);
-  return (char *)tag_get(0x77656170, *obj) + 0x30c;
-}
-
-/* 0xfb0c0 — weapon_is_flag: test whether a weapon object is a flag.
- *
- * Resolves the object via object_get_and_verify_type with type mask 4,
- * reads the tag index, looks up the 'weap' tag, and tests bit 3 of
- * the dword at offset 0x308 in the tag definition.
- *
- * Confirmed: PUSH 0x4 / PUSH EAX / CALL object_get_and_verify_type.
- * Confirmed: MOV ECX,[EAX] — reads tag_index.
- * Confirmed: PUSH ECX / PUSH 0x77656170 / CALL tag_get.
- * Confirmed: MOV EAX,[EAX+0x308] / SHR EAX,0x3 / AND EAX,0x1.
- */
-bool weapon_is_flag(int object_index)
-{
-  int *obj = (int *)object_get_and_verify_type(object_index, 4);
-  uint32_t *tag = (uint32_t *)tag_get(0x77656170, *obj);
-  return (tag[0x308 / 4] >> 3) & 1;
 }
