@@ -4,26 +4,80 @@ void observer_initialize(void)
 {
 }
 
-/* Initialize observers for all 4 players. Calls 0x8a350 with ESI
- * pointing to each player's observer data (base 0x33571c, stride 0x29c). */
-int observer_initialize_for_new_map(void)
+/* Initialize an observer result struct with default camera orientation,
+ * zero velocities, and signature markers (0x8a350). Sets the camera up/forward
+ * vectors from globals, zeros the integration working area, then copies the
+ * template vectors into the active camera state. */
+void observer_result_initialize(void *observer)
+{
+  char *obs = (char *)observer;
+  float *up = *(float **)0x31fc3c;
+  float *fwd = *(float **)0x31fc44;
+  float *pos;
+
+  *(float *)(obs + 0xd0) = up[0];
+  *(float *)(obs + 0xd4) = up[1];
+  *(float *)(obs + 0xd8) = up[2];
+  *(float *)(obs + 0xdc) = fwd[0];
+  *(float *)(obs + 0xe0) = fwd[1];
+  *(float *)(obs + 0xe4) = fwd[2];
+  *(int *)(obs + 0xcc) = 0x3f5f66f3;
+
+  pos = *(float **)0x31fc1c;
+  *(float *)(obs + 0x74) = pos[0];
+  *(float *)(obs + 0x78) = pos[1];
+  *(float *)(obs + 0x7c) = pos[2];
+
+  *(int16_t *)(obs + 0x84) = -1;
+  *(int *)(obs + 0x80) = -1;
+
+  {
+    float *zero = *(float **)0x31fc38;
+    *(float *)(obs + 0x88) = zero[0];
+    *(float *)(obs + 0x8c) = zero[1];
+    *(float *)(obs + 0x90) = zero[2];
+  }
+
+  up = *(float **)0x31fc3c;
+  *(float *)(obs + 0x94) = up[0];
+  *(float *)(obs + 0x98) = up[1];
+  *(float *)(obs + 0x9c) = up[2];
+
+  fwd = *(float **)0x31fc44;
+  *(float *)(obs + 0xa0) = fwd[0];
+  *(float *)(obs + 0xa4) = fwd[1];
+  *(float *)(obs + 0xa8) = fwd[2];
+  *(int *)(obs + 0xac) = 0x3f5f66f3;
+
+  csmemset(obs + 0x8, 0, 0x68);
+
+  *(float *)(obs + 0x2c) = *(float *)(obs + 0xd0);
+  *(float *)(obs + 0x30) = *(float *)(obs + 0xd4);
+  *(float *)(obs + 0x34) = *(float *)(obs + 0xd8);
+  *(float *)(obs + 0x38) = *(float *)(obs + 0xdc);
+  *(float *)(obs + 0x3c) = *(float *)(obs + 0xe0);
+  *(float *)(obs + 0x40) = *(float *)(obs + 0xe4);
+  *(int *)(obs + 0x28) = *(int *)(obs + 0xcc);
+
+  *(int *)(obs + 0x298) = 0x72616421;
+  *(int *)(obs + 0x0) = 0x72616421;
+  *(uint8_t *)(obs + 0x70) = 1;
+  *(uint8_t *)(obs + 0x71) = 0;
+}
+
+/* Initialize observers for all 4 players. Calls observer_result_initialize
+ * with ESI pointing to each player's observer data (base 0x33571c,
+ * stride 0x29c). */
+void observer_initialize_for_new_map(void)
 {
   int16_t i;
   char *entry = (char *)0x33571c;
 
   for (i = 0; i < 4; i++) {
     assert_halt(i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
-    {
-      char *_esi = entry;
-      asm volatile("movl $0x8a350, %%eax\n\t"
-                   "call *%%eax"
-                   : "+S"(_esi)
-                   :
-                   : "eax", "ecx", "edx", "edi", "memory", "cc");
-    }
+    observer_result_initialize(entry);
     entry += 0x29c;
   }
-  return 0;
 }
 
 void observer_dispose_from_old_map(void)
@@ -47,7 +101,7 @@ void *observer_get_camera(unsigned __int16 local_player_index)
 
   if (*(int16_t *)(entry + 0x84) < -1 ||
       (int)*(int16_t *)(entry + 0x84) >=
-        *(int *)((char *)((void *(*)(void))0x18e3c0)() + 0x134)) {
+        *(int *)((char *)scenario_get() + 0x134)) {
     display_assert("observer->result.location.cluster_index>=NONE && "
                    "observer->result.location.cluster_index<"
                    "global_structure_bsp_get()->clusters.count",
@@ -58,30 +112,357 @@ void *observer_get_camera(unsigned __int16 local_player_index)
   return (void *)(entry + 0x74);
 }
 
+/* Apply spring acceleration to observer state (0x8a660).
+ * For each of 5 observer components, evaluates a cubic polynomial
+ * (2*vel + t*accel*K1 + t^2*jerk*K2 + t^3*snap*K3) using the component's
+ * timer. If any element exceeds its threshold, resets the timer (and any
+ * other timers sharing the same value) to zero. */
+void observer_apply_acceleration(int16_t local_player_index)
+{
+  char *observer;
+  float *snap_ptr, *jerk_ptr, *accel_ptr, *vel_ptr, *output;
+  float *timers, *timers_base;
+  int16_t *sizes;
+  float *thresholds;
+  int16_t comp;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+  snap_ptr = (float *)(observer + 0x158);
+  jerk_ptr = (float *)(observer + 0x184);
+  accel_ptr = (float *)(observer + 0x1b0);
+  vel_ptr = (float *)(observer + 0x1dc);
+  output = (float *)(observer + 0x120);
+  timers_base = (float *)(observer + 0x5c);
+  timers = timers_base;
+  sizes = (int16_t *)0x2ee6b8;
+  thresholds = (float *)0x26738c;
+
+  for (comp = 0; comp < 5; comp++) {
+    float t = *timers - *(float *)0x335718;
+    int16_t size = *sizes;
+
+    if (t <= 0.0f) {
+      csmemset(output, 0, (int)size << 2);
+    } else {
+      float t_sq = t * t;
+      float t_cu = t_sq * t;
+      int16_t j;
+
+      for (j = 0; j < size; j++) {
+        float result = t_cu * snap_ptr[j] * *(float *)0x254cd0 +
+                       t_sq * jerk_ptr[j] * *(float *)0x254cc8 +
+                       t * accel_ptr[j] * *(float *)0x254640 + vel_ptr[j] +
+                       vel_ptr[j];
+        output[j] = result;
+
+        if (result > *thresholds || result < -*thresholds) {
+          int16_t k;
+          float *tp = timers_base;
+          for (k = 0; k < 5; k++) {
+            if (k != comp && *tp == *timers)
+              *tp = 0.0f;
+            tp++;
+          }
+          *timers = 0.0f;
+        }
+      }
+    }
+
+    snap_ptr += size;
+    jerk_ptr += size;
+    output += size;
+    accel_ptr += size;
+    vel_ptr += size;
+    timers++;
+    thresholds++;
+    sizes++;
+  }
+}
+
+/* Integrate observer spring state (0x8a830). For each of 5 components,
+ * evaluates a quartic polynomial (pos + 2*t*vel + t^2*accel*K1 + t^3*jerk*K2
+ * + t^4*snap*K3) when the timer is active. When expired, either zeros the
+ * output or applies a negated ratio correction from the result buffer. */
+void observer_integrate(int16_t local_player_index)
+{
+  char *observer;
+  float *result_ptr, *snap_ptr, *jerk_ptr, *accel_ptr, *vel_ptr, *pos_ptr;
+  float *output, *timers;
+  uint8_t *byte_flags;
+  int16_t *sizes;
+  float ratio;
+  int count;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  ratio = (float)(*(double *)0x2573d8 / *(float *)0x335718);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+  result_ptr = (float *)(observer + 0x260);
+  snap_ptr = (float *)(observer + 0x158);
+  jerk_ptr = (float *)(observer + 0x184);
+  accel_ptr = (float *)(observer + 0x1b0);
+  vel_ptr = (float *)(observer + 0x1dc);
+  pos_ptr = (float *)(observer + 0x208);
+  timers = (float *)(observer + 0x5c);
+  byte_flags = (uint8_t *)(observer + 0x54);
+  output = (float *)(observer + 0xe8);
+  sizes = (int16_t *)0x2ee6b8;
+
+  for (count = 5; count != 0; count--) {
+    float t = *timers - *(float *)0x335718;
+    int16_t size = *sizes;
+
+    if (t <= 0.0f) {
+      uint32_t mode = *(uint32_t *)(observer + 0x8);
+      if ((mode & 1) && ((*byte_flags & 2) || (mode & 8))) {
+        csmemset(output, 0, (int)size << 2);
+      } else if ((mode & 1) && size > 0) {
+        int16_t i;
+        for (i = 0; i < size; i++)
+          output[i] = -(ratio * result_ptr[i]);
+      }
+    } else {
+      float t_sq = t * t;
+      float t_cu = t_sq * t;
+      float t_q4 = t_cu * t;
+      int16_t i;
+
+      for (i = 0; i < size; i++) {
+        float v = t * vel_ptr[i];
+        output[i] = v + v + t_sq * accel_ptr[i] * *(float *)0x254644 +
+                    t_cu * jerk_ptr[i] * *(float *)0x2533d8 +
+                    t_q4 * snap_ptr[i] * *(float *)0x254cc4 + pos_ptr[i];
+      }
+    }
+
+    result_ptr += size;
+    snap_ptr += size;
+    jerk_ptr += size;
+    accel_ptr += size;
+    vel_ptr += size;
+    output += size;
+    pos_ptr += size;
+    timers++;
+    byte_flags++;
+    sizes++;
+  }
+}
+
+/* Compute quintic Hermite acceleration coefficients for observer interpolation
+ * (0x8b470). Validates the observer command state (forward/up perpendicular,
+ * position/orientation in range, velocity valid, distance/FOV/timer bounded).
+ * When mode bit 0 is set and timer > delta_time, computes snap/jerk/accel/vel/
+ * pos/extra polynomial coefficients for each of 5 observer components.
+ * Component 0 receives additional velocity-dependent correction terms. */
+void observer_compute_accelerations(int16_t local_player_index)
+{
+  char *observer;
+  char *mode_ptr;
+  float *snap_ptr, *jerk_ptr, *accel_ptr, *vel_ptr, *pos_ptr, *extra_ptr;
+  float *accel_out_ptr, *vel_out_ptr, *result_ptr;
+  float *timers;
+  int16_t comp;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+
+  snap_ptr = (float *)(observer + 0x158);
+  accel_ptr = (float *)(observer + 0x1b0);
+  pos_ptr = (float *)(observer + 0x208);
+  jerk_ptr = (float *)(observer + 0x184);
+  timers = (float *)(observer + 0x5c);
+  vel_ptr = (float *)(observer + 0x1dc);
+  extra_ptr = (float *)(observer + 0x234);
+  vel_out_ptr = (float *)(observer + 0xe8);
+  accel_out_ptr = (float *)(observer + 0x120);
+  result_ptr = (float *)(observer + 0x260);
+
+  mode_ptr = observer + 0x8;
+
+  /* Validate observer command state when mode bit 0 is set */
+  if (mode_ptr == NULL ||
+      ((*(uint8_t *)mode_ptr & 1) &&
+       (!valid_real_normal3d_perpendicular((float *)(observer + 0x2c),
+                                           (float *)(observer + 0x38)) ||
+        (*(uint32_t *)(observer + 0xc) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0xc) < *(float *)0x266e98 ||
+        *(float *)(observer + 0xc) > *(float *)0x266e94 ||
+        (*(uint32_t *)(observer + 0x10) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0x10) < *(float *)0x266e98 ||
+        *(float *)(observer + 0x10) > *(float *)0x266e94 ||
+        (*(uint32_t *)(observer + 0x14) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0x14) < *(float *)0x266e98 ||
+        *(float *)(observer + 0x14) > *(float *)0x266e94 ||
+        (*(uint32_t *)(observer + 0x18) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0x18) < *(float *)0x266e98 ||
+        *(float *)(observer + 0x18) > *(float *)0x266e94 ||
+        (*(uint32_t *)(observer + 0x1c) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0x1c) < *(float *)0x266e98 ||
+        *(float *)(observer + 0x1c) > *(float *)0x266e94 ||
+        (*(uint32_t *)(observer + 0x20) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0x20) < *(float *)0x266e98 ||
+        *(float *)(observer + 0x20) > *(float *)0x266e94 ||
+        !real_vector3d_valid((float *)(observer + 0x44)) ||
+        (*(uint32_t *)(observer + 0x24) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0x24) < *(float *)0x2533c0 ||
+        *(float *)(observer + 0x24) > *(float *)0x266e94 ||
+        (*(uint32_t *)(observer + 0x28) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0x28) < *(float *)0x255ef8 ||
+        *(float *)(observer + 0x28) > *(float *)0x2568bc ||
+        (*(uint32_t *)(observer + 0x50) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(observer + 0x50) < *(float *)0x2533c0 ||
+        *(float *)(observer + 0x50) > *(float *)0x266e90))) {
+    char *msg = csprintf(
+      (char *)0x5ab100,
+      "Invalid camera command.\n"
+      "F: (%f, %f, %f) U: (%f, %f, %f)\n"
+      "P: (%f, %f, %f) O: (%f, %f, %f)\n"
+      "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
+      (double)*(float *)(observer + 0x2c), (double)*(float *)(observer + 0x30),
+      (double)*(float *)(observer + 0x34), (double)*(float *)(observer + 0x38),
+      (double)*(float *)(observer + 0x3c), (double)*(float *)(observer + 0x40),
+      (double)*(float *)(observer + 0x0c), (double)*(float *)(observer + 0x10),
+      (double)*(float *)(observer + 0x14), (double)*(float *)(observer + 0x18),
+      (double)*(float *)(observer + 0x1c), (double)*(float *)(observer + 0x20),
+      (double)*(float *)(observer + 0x24), (double)*(float *)(observer + 0x44),
+      (double)*(float *)(observer + 0x48), (double)*(float *)(observer + 0x4c),
+      (double)*(float *)(observer + 0x28), (double)*(float *)(observer + 0x50),
+      *(uint32_t *)(observer + 0x8));
+    display_assert(msg, "c:\\halo\\SOURCE\\camera\\observer.c", 0x1f6, 1);
+    system_exit(-1);
+  }
+
+  /* Compute polynomial coefficients for each of 5 components */
+  for (comp = 0; comp < 5; comp++) {
+    if ((*(uint8_t *)(observer + 0x8) & 1) && *(float *)0x335718 < *timers) {
+      float f = 1.0f / *timers;
+      float f2 = f * f;
+      float f3 = f2 * f;
+      float f4 = f3 * f;
+      int16_t size = ((int16_t *)0x2ee6b8)[comp];
+      int16_t j;
+
+      for (j = 0; j < size; j++) {
+        int idx = (int)j;
+        int off = idx * 4;
+
+        *(float *)((char *)snap_ptr + off) =
+          f3 * *(float *)((char *)accel_out_ptr + off) * *(float *)0x253398 -
+          (f4 * *(float *)((char *)vel_out_ptr + off) * *(float *)0x254644 +
+           f4 * f * *(float *)((char *)result_ptr + off) * *(float *)0x254640);
+
+        *(float *)((char *)jerk_ptr + off) =
+          f3 * *(float *)((char *)vel_out_ptr + off) * *(float *)0x2548f4 +
+          f4 * *(float *)((char *)result_ptr + off) * *(float *)0x254cc0 -
+          f2 * *(float *)((char *)accel_out_ptr + off);
+
+        *(float *)((char *)accel_ptr + off) =
+          f * *(float *)((char *)accel_out_ptr + off) * *(float *)0x253398 -
+          (f2 * *(float *)((char *)vel_out_ptr + off) * *(float *)0x2533d8 +
+           f3 * *(float *)((char *)result_ptr + off) * *(float *)0x253f34);
+
+        *(int *)((char *)vel_ptr + off) = 0;
+        *(int *)((char *)pos_ptr + off) = 0;
+        *(int *)((char *)extra_ptr + off) = *(int *)((char *)result_ptr + off);
+
+        if (comp == 0) {
+          float fv = *(float *)(observer + 0x44 + off) * *(float *)0x253394;
+          *(float *)((char *)snap_ptr + off) -= f4 * fv * *(float *)0x254644;
+          *(float *)((char *)jerk_ptr + off) += f3 * fv * *(float *)0x253f78;
+          *(float *)((char *)accel_ptr + off) -= f2 * fv * *(float *)0x254640;
+          *(float *)((char *)pos_ptr + off) += fv;
+        }
+      }
+    }
+
+    {
+      int size = (int)((int16_t *)0x2ee6b8)[comp] * 4;
+      snap_ptr = (float *)((char *)snap_ptr + size);
+      jerk_ptr = (float *)((char *)jerk_ptr + size);
+      accel_ptr = (float *)((char *)accel_ptr + size);
+      vel_ptr = (float *)((char *)vel_ptr + size);
+      pos_ptr = (float *)((char *)pos_ptr + size);
+      extra_ptr = (float *)((char *)extra_ptr + size);
+      vel_out_ptr = (float *)((char *)vel_out_ptr + size);
+      accel_out_ptr = (float *)((char *)accel_out_ptr + size);
+      result_ptr = (float *)((char *)result_ptr + size);
+      timers++;
+    }
+  }
+}
+
+/* Compute observer velocities from current and target state (0x8ccf0).
+ * Dispatches to FUN_0008c440 with pointers into the observer struct:
+ * velocities at +0xc, result at +0x260, and integration state at +0xb0. */
+void observer_compute_velocities(int16_t local_player_index)
+{
+  char *observer;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+  FUN_0008c440(observer + 0xc, observer + 0x260, observer + 0xb0);
+}
+
+/* Update observer position timers and integration (0x8cd40).
+ * Validates the player index, checks if the observer is paused (bit 0x20
+ * of the byte pointed to by observer+0x4), then dispatches five internal
+ * sub-update functions and clamps 5 timer floats at observer+0x5c. */
+void observer_update_positions(int16_t local_player_index)
+{
+  int i;
+  char *observer;
+  float *timers;
+  float val;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)(int16_t)local_player_index * 0x29c;
+  timers = (float *)(observer + 0x5c);
+
+  if ((*(unsigned char *)(*(int *)(observer + 0x4)) & 0x20) == 0) {
+    observer_compute_velocities(local_player_index);
+    observer_compute_accelerations(local_player_index);
+    observer_apply_acceleration(local_player_index);
+    observer_integrate(local_player_index);
+    observer_compute_update(local_player_index);
+
+    for (i = 5; i != 0; i--) {
+      val = *timers - *(float *)0x335718;
+      if (val <= *(float *)0x2533c0) {
+        val = *(float *)0x2533c0;
+      }
+      *timers = val;
+      timers++;
+    }
+  }
+}
+
 /* Per-tick observer update for all local players (0x8cde0).
  * Saves the frame's delta-time into the global at 0x335718, then walks
  * each of MAXIMUM_NUMBER_OF_LOCAL_PLAYERS observers (stride 0x29c from
  * 0x33571c), verifies the header/trailer OBSERVER_SIGNATURE ('!dar' =
  * 0x72616421) and that updated_for_frame is clear, marks it set, and
- * dispatches the three unported observer sub-updates:
- *   - 0x8b060: copies/stages the latest camera block from the director into
- *              observer state, including the transition parameters emitted by
- *              camera 0x89cd0 during vehicle-exit blends (EAX=index)
- *   - 0x8cd40: time-dependent integration; original disassembly shows it
- *              ticking down five transition floats at observer+0x5c..0x6c,
- *              which makes it a strong candidate for the actual smoothing
- *              behavior (skipped when dt matches the previous frame time
- *              stored at 0x2533c0) (EAX=index)
- *   - 0x8c4b0: derives the final observer camera result from that staged and
- *              integrated state (EAX=index)
- * The three callees take the local player index in EAX (register arg),
- * so we dispatch them with inline asm — see cache_files_precache_map_loaded
- * for the established pattern. */
+ * dispatches three observer sub-updates:
+ *   - observer_update_command (0x8b060): copies/stages camera block from
+ *     director into observer state
+ *   - observer_update_positions (0x8cd40): time-dependent integration,
+ *     skipped when delta_time matches the cached value at 0x2533c0
+ *   - observer_update_result (0x8c4b0): derives the final observer camera
+ *     result from staged and integrated state */
 void observer_update(float delta_time)
 {
   int16_t i;
   char *observer = (char *)0x33571c;
-  int _eax;
 
   *(float *)0x335718 = delta_time;
 
@@ -112,32 +493,13 @@ void observer_update(float delta_time)
 
     *(char *)(observer + 0x70) = 1;
 
-    /* observer input/control sub-update — EAX = local_player_index. */
-    _eax = i;
-    asm volatile("movl $0x8b060, %%ecx\n\t"
-                 "call *%%ecx"
-                 : "+a"(_eax)
-                 :
-                 : "ecx", "edx", "esi", "edi", "memory", "cc");
+    observer_update_command(i);
 
-    /* Time-dependent integration sub-update, skipped when delta_time
-     * equals the cached previous delta at 0x2533c0 — EAX = index. */
     if (*(float *)0x335718 != *(float *)0x2533c0) {
-      _eax = i;
-      asm volatile("movl $0x8cd40, %%ecx\n\t"
-                   "call *%%ecx"
-                   : "+a"(_eax)
-                   :
-                   : "ecx", "edx", "esi", "edi", "memory", "cc");
+      observer_update_positions(i);
     }
 
-    /* Post-update derivation sub-update — EAX = index. */
-    _eax = i;
-    asm volatile("movl $0x8c4b0, %%ecx\n\t"
-                 "call *%%ecx"
-                 : "+a"(_eax)
-                 :
-                 : "ecx", "edx", "esi", "edi", "memory", "cc");
+    observer_update_result(i);
 
     if (*(int *)(observer + 0x0) != 0x72616421 ||
         *(int *)(observer + 0x298) != 0x72616421) {

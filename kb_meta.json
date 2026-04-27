@@ -382,6 +382,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x8a350": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x8a480": {
       "kind": "function",
       "status": "ported"
@@ -391,6 +395,33 @@
       "status": "ported"
     },
     "0x8a4e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8a660": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8a830": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8b060": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8b470": {
+      "status": "ported"
+    },
+    "0x8c4b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8ccf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8cd40": {
       "kind": "function",
       "status": "ported"
     },
@@ -579,6 +610,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x971a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x972b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x97330": {
       "kind": "function",
       "status": "ported"
@@ -749,7 +788,47 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x9c750": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9ca70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9caf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9cb90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9cca0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9cdd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x9d000": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9d1f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9d590": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9dcf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9e310": {
       "kind": "function",
       "status": "ported"
     },
@@ -786,6 +865,10 @@
       "status": "ported"
     },
     "0xa10f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa1210": {
       "kind": "function",
       "status": "ported"
     },
@@ -2123,6 +2206,34 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xdc9d0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "FUN_000dc8c0 is a state-to-animation-index lookup table function in first_person_weapons.obj, taking int16_t in AX and returning int16_t in EAX.",
+        "Weapon tag offset 0x478 holds the model_animations (antr) tag index for the weapon's animation graph.",
+        "The antr tag block at +0x48 (element size 0x1c) contains an int16_t lookup array at element offset +0x14, indexed by animation index, mapping to entries in the block at +0x74 (element size 0xb4).",
+        "The antr tag block at +0x54 (element size 0x14) holds sound references; field at element offset +0xc is a tag_index for the sound effect."
+      ],
+      "uncertain": [
+        "ECX survives through FUN_000dc800 and FUN_000dc8c0 because both are pure switch-table functions that only modify EAX; this is not guaranteed by calling convention but is relied upon by the binary."
+      ]
+    },
+    "0xdcd60": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Offset 0x2a2 on a unit object is the current weapon slot index (int16_t), and offset 0x2a8 is the start of a weapon handle array indexed by that slot."
+      ]
+    },
+    "0xde140": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xde3b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xdeb60": {
       "kind": "function",
       "status": "ported"
@@ -2575,6 +2686,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf67f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf6970": {
       "kind": "function",
       "status": "ported"
@@ -2611,6 +2726,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfb370": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfb3c0": {
       "kind": "function",
       "status": "ported"
@@ -2620,6 +2739,18 @@
       "status": "ported"
     },
     "0xfba20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfc290": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfc990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfcaf0": {
       "kind": "function",
       "status": "ported"
     },
@@ -2918,6 +3049,10 @@
       "inferred": [
         "Scale field at offset 0x00 is compared as integer 0x3f800000 (1.0f) rather than as float, matching the original binary's integer CMP instruction."
       ]
+    },
+    "0x109610": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x109680": {
       "kind": "function",
@@ -3339,6 +3474,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x136750": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x138e30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1396e0": {
       "kind": "function",
       "status": "ported",
@@ -3358,6 +3501,10 @@
         "The marker buffer size is inferred as 0x6c bytes from the highest offset read (0x68); the actual struct layout is unknown.",
         "Tag offsets 0x14 (falloff_angle), 0x18 (cutoff), 0x20 (forward_modifier), 0x24 (gel_modifier), 0x28 (tertiary_modifier) are named by function, not confirmed by tag definitions."
       ]
+    },
+    "0x13b290": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x13c100": {
       "kind": "function",
@@ -3855,6 +4002,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x184ba0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x184bb0": {
       "kind": "function",
       "status": "ported"
@@ -3876,6 +4027,10 @@
       "status": "ported"
     },
     "0x185680": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x185770": {
       "kind": "function",
       "status": "ported"
     },
@@ -3975,6 +4130,10 @@
       "status": "ported"
     },
     "0x191330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1913c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -4827,6 +4986,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c73d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c7480": {
       "kind": "function",
       "status": "ported",
@@ -4834,6 +4997,10 @@
         "The 64-byte local buffer at EBP-0x40 is a sound source descriptor struct with fields: offset 0x00 int16_t spatialization_mode, offset 0x04 float scale, offset 0x08 float gain.",
         "sound_start at 0x1ce180 belongs to sound_manager.obj based on assertion path string c:\\halo\\SOURCE\\sound\\sound_manager.c."
       ]
+    },
+    "0x1c7a10": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1c7b00": {
       "kind": "function",
@@ -4844,6 +5011,10 @@
       "status": "ported"
     },
     "0x1c7e40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c7e70": {
       "kind": "function",
       "status": "ported"
     },
