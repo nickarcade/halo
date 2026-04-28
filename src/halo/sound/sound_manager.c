@@ -1430,6 +1430,29 @@ void sound_start_next_looping_permutation(int sound_handle /* @<eax> */)
   }
 }
 
+/* Start an impulse sound with a 0.3-second fade (0x1cd450).
+ * Validates the sound_index in the sound data table, asserts the sound
+ * type is _sound_impulse (0), then calls sound_start_fade with mode 0,
+ * 0.3 seconds, no fade-in (-1), and the given sound as fade-out. */
+void FUN_001cd450(int sound_index)
+{
+  void *sound;
+
+  if (!datum_absolute_index_to_index(*(data_t **)0x4fdba4, sound_index))
+    return;
+
+  sound = datum_get(*(data_t **)0x4fdba4, sound_index);
+  if (*(short *)((char *)sound + 2) != 0) {
+    display_assert("sound_get(sound_index)->type==_sound_impulse",
+                   "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x2c1, 1);
+    system_exit(-1);
+  }
+
+  sound = datum_get(*(data_t **)0x4fdba4, sound_index);
+  if (*(short *)((char *)sound + 2) == 0)
+    sound_start_fade(0, 0.3f, -1, sound_index);
+}
+
 /* Allocate a sound channel for a source based on its spatialization mode.
  *
  * source is passed in EAX (register argument); priority is on the stack.
@@ -2277,7 +2300,8 @@ void sound_update_music(void)
         real_matrix4x3_transform_point(listener + 4, sound_entry + 0x2c,
                                        location.forward);
         real_matrix3x3_transform_vector(
-          listener + 4, (void *)(sound_entry + 0x38), (void *)location.up);
+          listener + 4, (vector3_t *)(sound_entry + 0x38),
+          (vector3_t *)location.up);
 
         /* Scale up-vector by 30.0 and subtract listener velocity
          * (listener+0x38..0x40). */
@@ -2333,9 +2357,8 @@ void sound_update_music(void)
           float sq = location.position[0] * location.position[0] +
                      location.position[1] * location.position[1] +
                      location.position[2] * location.position[2];
-          float falloff =
-            *(float *)0x2533c8 -
-            (xbox_sqrtf(sq) - min_dist) / (max_dist - min_dist);
+          float falloff = *(float *)0x2533c8 -
+                          (xbox_sqrtf(sq) - min_dist) / (max_dist - min_dist);
           if (falloff < *(float *)0x2533c0)
             falloff = *(float *)0x2533c0;
           else if (falloff > *(float *)0x2533c8)

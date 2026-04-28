@@ -243,6 +243,51 @@ bool unit_find_nearby_seat(int unit_handle, int target_unit_handle,
   return not_found;
 }
 
+/* FUN_001a8e10 (0x1a8e10)
+ *
+ * Dispatches a unit animation state transition based on an incoming state code.
+ * Maps input state values 1-8 to either FUN_001a8b20 (which sets a unit
+ * animation transition state with a remapped index) or FUN_001a8990 (which
+ * initiates a seat-based animation sequence). The state remapping is:
+ *   state 1 -> FUN_001a8b20 with index 1
+ *   state 2 -> FUN_001a8b20 with index 2
+ *   state 3 -> FUN_001a8b20 with index 5
+ *   state 4 -> FUN_001a8b20 with index 6
+ *   state 5 -> FUN_001a8990 with index 5
+ *   state 6 -> FUN_001a8990 with index 6
+ *   state 7 -> FUN_001a8b20 with index 3
+ *   state 8 -> FUN_001a8b20 with index 4
+ */
+void FUN_001a8e10(int object_handle, int16_t state)
+{
+  switch (state) {
+  case 1:
+    FUN_001a8b20(object_handle, 1);
+    return;
+  case 2:
+    FUN_001a8b20(object_handle, 2);
+    return;
+  case 3:
+    FUN_001a8b20(object_handle, 5);
+    return;
+  case 4:
+    FUN_001a8b20(object_handle, 6);
+    return;
+  case 5:
+    FUN_001a8990(object_handle, 5);
+    return;
+  case 6:
+    FUN_001a8990(object_handle, 6);
+    return;
+  case 7:
+    FUN_001a8b20(object_handle, 3);
+    return;
+  case 8:
+    FUN_001a8b20(object_handle, 4);
+    return;
+  }
+}
+
 /* unit_set_seat_state (0x1a9240)
  *
  * Computes a 3D position representing the unit's current seat state and writes
@@ -354,6 +399,51 @@ void unit_set_seat_state(int unit_handle, float *position)
   position[0] = *(float *)(marker_buf + 0x60);
   position[1] = *(float *)(marker_buf + 0x64);
   position[2] = *(float *)(marker_buf + 0x68);
+}
+
+/* FUN_001a9900 (0x1a9900)
+ *
+ * Copies the unit's aiming vector (unk_492, offset 0x1EC) into the output
+ * buffer. Resolves the unit via object_get_and_verify_type with type mask
+ * 0x3 (biped | vehicle).
+ */
+void FUN_001a9900(int unit_handle, void *out_aiming)
+{
+  char *unit;
+  float *out = (float *)out_aiming;
+
+  unit = object_get_and_verify_type(unit_handle, 3);
+  out[0] = *(float *)(unit + 0x1ec);
+  out[1] = *(float *)(unit + 0x1f0);
+  out[2] = *(float *)(unit + 0x1f4);
+}
+
+/* FUN_001a9930 (0x1a9930)
+ *
+ * Copies the unit's looking vector (unk_528, offset 0x210) into the output
+ * buffer. Resolves the unit via object_get_and_verify_type with type mask
+ * 0x3 (biped | vehicle).
+ */
+void FUN_001a9930(int unit_handle, void *out_looking)
+{
+  char *unit;
+  float *out = (float *)out_looking;
+
+  unit = object_get_and_verify_type(unit_handle, 3);
+  out[0] = *(float *)(unit + 0x210);
+  out[1] = *(float *)(unit + 0x214);
+  out[2] = *(float *)(unit + 0x218);
+}
+
+/* FUN_001a9960 (0x1a9960)
+ *
+ * Gets the unit's facing vector by delegating to FUN_00141360 (an object-level
+ * orientation getter in objects.c). Passes NULL for the up-vector output,
+ * requesting only the forward direction.
+ */
+void FUN_001a9960(int unit_handle, void *out_facing)
+{
+  FUN_00141360(unit_handle, (float *)out_facing, 0);
 }
 
 /* unit_is_alive (0x1a9a30)
@@ -1257,6 +1347,60 @@ int unit_get_weapon(int unit_handle, int16_t weapon_index)
     result = unit->unk_680[weapon_index].value;
   }
   return result;
+}
+
+/* FUN_001adf10 (0x1adf10)
+ *
+ * Reattaches all weapons in the unit's weapon slots (unk_680, offset 0x2A8,
+ * 4 entries) and updates the unit's alive/active flags (unk_436, offset 0x1B4).
+ *
+ * If the unit has an actor (offset 0x1A4), swarm actor (0x1A8), or unk_456
+ * (0x1C8), param_2 is forced to 1 (the unit is always considered active).
+ *
+ * When the unit is active and object flag bit 2 at offset 0xB6 is clear:
+ *   - Sets bit 0 (alive) and bit 6 in unk_436
+ * Otherwise:
+ *   - Clears bit 0 and bit 6 in unk_436
+ *
+ * Then iterates all 4 weapon slots and calls item_attach_to_unit for each
+ * valid weapon handle, and finally tail-calls unit_update_seat_occupancy.
+ */
+void FUN_001adf10(int unit_handle, char param_2)
+{
+  char *unit;
+  uint32_t flags;
+  int *weapon_slots;
+  int i;
+
+  unit = object_get_and_verify_type(unit_handle, 3);
+
+  /* Force active if the unit has an actor, swarm actor, or unk_456 */
+  if (*(int *)(unit + 0x1a4) != -1 || *(int *)(unit + 0x1a8) != -1 ||
+      *(int *)(unit + 0x1c8) != -1) {
+    param_2 = 1;
+  }
+
+  if ((*(uint8_t *)(unit + 0xb6) & 4) == 0 && param_2 != 0) {
+    flags = *(uint32_t *)(unit + 0x1b4);
+    *(uint32_t *)(unit + 0x1b4) = flags | 1;
+    flags = flags | 0x41;
+  } else {
+    flags = *(uint32_t *)(unit + 0x1b4);
+    *(uint32_t *)(unit + 0x1b4) = flags & 0xfffffffe;
+    flags = flags & 0xffffffbe;
+  }
+  *(uint32_t *)(unit + 0x1b4) = flags;
+
+  /* Reattach all weapons in the unit's weapon slots */
+  weapon_slots = (int *)(unit + 0x2a8);
+  for (i = 4; i != 0; i--) {
+    if (*weapon_slots != -1) {
+      item_attach_to_unit(*weapon_slots, unit_handle);
+    }
+    weapon_slots++;
+  }
+
+  unit_update_seat_occupancy(unit_handle);
 }
 
 /* unit_current_weapon_is_busy (0x1ae1a0)

@@ -253,6 +253,116 @@ void observer_integrate(int16_t local_player_index)
   }
 }
 
+/* Copy/stage camera command block from director into observer state (0x8b060).
+ * Validates the command struct (pointed to by observer+0x4): checks forward/up
+ * perpendicular, position/orientation in range, velocity valid, distance/FOV/
+ * timer bounded. Then adjusts 5 component timers in the command based on the
+ * observer's current timers and mode bytes, and finally copies the command
+ * struct (0x68 bytes) into the observer at offset +0x8. */
+void observer_update_command(int16_t local_player_index)
+{
+  char *observer;
+  char *command;
+  float *timer_out;
+  uint8_t *mode_bytes;
+  float *obs_timers;
+  int i;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+  command = *(char **)(observer + 0x4);
+  timer_out = (float *)(command + 0x54);
+  mode_bytes = (uint8_t *)(command + 0x4c);
+  obs_timers = (float *)(observer + 0x5c);
+
+  if (command == NULL ||
+      ((*(uint8_t *)command & 1) &&
+       (!valid_real_normal3d_perpendicular((float *)(command + 0x24),
+                                           (float *)(command + 0x30)) ||
+        (*(uint32_t *)(command + 0x4) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0x4) < *(float *)0x266e98 ||
+        *(float *)(command + 0x4) > *(float *)0x266e94 ||
+        (*(uint32_t *)(command + 0x8) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0x8) < *(float *)0x266e98 ||
+        *(float *)(command + 0x8) > *(float *)0x266e94 ||
+        (*(uint32_t *)(command + 0xc) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0xc) < *(float *)0x266e98 ||
+        *(float *)(command + 0xc) > *(float *)0x266e94 ||
+        (*(uint32_t *)(command + 0x10) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0x10) < *(float *)0x266e98 ||
+        *(float *)(command + 0x10) > *(float *)0x266e94 ||
+        (*(uint32_t *)(command + 0x14) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0x14) < *(float *)0x266e98 ||
+        *(float *)(command + 0x14) > *(float *)0x266e94 ||
+        (*(uint32_t *)(command + 0x18) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0x18) < *(float *)0x266e98 ||
+        *(float *)(command + 0x18) > *(float *)0x266e94 ||
+        !real_vector3d_valid((float *)(command + 0x3c)) ||
+        (*(uint32_t *)(command + 0x1c) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0x1c) < *(float *)0x2533c0 ||
+        *(float *)(command + 0x1c) > *(float *)0x266e94 ||
+        (*(uint32_t *)(command + 0x20) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0x20) < *(float *)0x255ef8 ||
+        *(float *)(command + 0x20) > *(float *)0x2568bc ||
+        (*(uint32_t *)(command + 0x48) & 0x7f800000) == 0x7f800000 ||
+        *(float *)(command + 0x48) < *(float *)0x2533c0 ||
+        *(float *)(command + 0x48) > *(float *)0x266e90))) {
+    char *msg = csprintf(
+      (char *)0x5ab100,
+      "Invalid camera command.\n"
+      "F: (%f, %f, %f) U: (%f, %f, %f)\n"
+      "P: (%f, %f, %f) O: (%f, %f, %f)\n"
+      "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
+      (double)*(float *)(command + 0x24), (double)*(float *)(command + 0x28),
+      (double)*(float *)(command + 0x2c), (double)*(float *)(command + 0x30),
+      (double)*(float *)(command + 0x34), (double)*(float *)(command + 0x38),
+      (double)*(float *)(command + 0x04), (double)*(float *)(command + 0x08),
+      (double)*(float *)(command + 0x0c), (double)*(float *)(command + 0x10),
+      (double)*(float *)(command + 0x14), (double)*(float *)(command + 0x18),
+      (double)*(float *)(command + 0x1c), (double)*(float *)(command + 0x3c),
+      (double)*(float *)(command + 0x40), (double)*(float *)(command + 0x44),
+      (double)*(float *)(command + 0x20), (double)*(float *)(command + 0x48),
+      *(uint32_t *)command);
+    display_assert(msg, "c:\\halo\\SOURCE\\camera\\observer.c", 0x172, 1);
+    system_exit(-1);
+  }
+
+  if (*(uint8_t *)(*(char **)(observer + 0x4)) & 1) {
+    for (i = 5; i != 0; i--) {
+      if ((*mode_bytes & 1) == 0) {
+        command = *(char **)(observer + 0x4);
+        if (*(float *)(command + 0x48) < *obs_timers &&
+            (*(uint8_t *)command & 8) == 0) {
+          if (*obs_timers <= *(float *)0x253f40)
+            *timer_out = *obs_timers;
+          else
+            *timer_out = *(float *)0x253f40;
+        } else {
+          *timer_out = *(float *)(command + 0x48);
+        }
+      } else if ((*mode_bytes & 2) == 0 && *timer_out < *obs_timers) {
+        if (*obs_timers <= *(float *)0x253f40)
+          *timer_out = *obs_timers;
+        else
+          *timer_out = *(float *)0x253f40;
+      }
+
+      timer_out++;
+      obs_timers++;
+      mode_bytes++;
+    }
+
+    {
+      uint32_t *src = (uint32_t *)*(char **)(observer + 0x4);
+      uint32_t *dst = (uint32_t *)(observer + 0x8);
+      for (i = 0x1a; i != 0; i--)
+        *dst++ = *src++;
+    }
+  }
+}
+
 /* Compute quintic Hermite acceleration coefficients for observer interpolation
  * (0x8b470). Validates the observer command state (forward/up perpendicular,
  * position/orientation in range, velocity valid, distance/FOV/timer bounded).
@@ -396,6 +506,684 @@ void observer_compute_accelerations(int16_t local_player_index)
       timers++;
     }
   }
+}
+
+/* Apply observer polynomial update and orthogonalize result vectors (0x8ba10).
+ * For each of 5 observer components, validates velocities (assert_valid_real),
+ * then either copies defaults (when timer expired and mode active), evaluates
+ * a quintic polynomial (when timer active), or negates velocity*delta_time
+ * (when timer expired but mode not active). For the last component (index 4,
+ * forward/up vectors), applies axis-angle rotation via
+ * rotate_vector3d_by_sincos instead of simple addition. After the loop,
+ * orthogonalizes the forward/up vectors via Gram-Schmidt if they are no longer
+ * orthonormal. */
+void observer_compute_update(int16_t local_player_index)
+{
+  char *observer;
+  char *result_ptr;
+  char *default_ptr;
+  char *snap_ptr;
+  char *jerk_ptr;
+  char *accel_ptr;
+  char *vel_ptr;
+  float *velocities;
+  char *pos_ptr;
+  char *extra_ptr;
+  float *timers;
+  float scratch[14];
+  float *scratch_ptr;
+  int16_t comp;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+
+  result_ptr = observer + 0xb0;
+  default_ptr = observer + 0x0c;
+  snap_ptr = observer + 0x158;
+  jerk_ptr = observer + 0x184;
+  accel_ptr = observer + 0x1b0;
+  vel_ptr = observer + 0x1dc;
+  velocities = (float *)(observer + 0xe8);
+  pos_ptr = observer + 0x208;
+  extra_ptr = observer + 0x234;
+  timers = (float *)(observer + 0x5c);
+  scratch_ptr = scratch;
+
+  /* Validate all 11 velocity floats */
+  {
+    float *vp = velocities;
+    int count = 0xb;
+    do {
+      if ((*(uint32_t *)vp & 0x7f800000u) == 0x7f800000u) {
+        char *msg =
+          csprintf((char *)0x5ab100, "%s: assert_valid_real(0x%08X %f)",
+                   "observer->velocities.n[parameter_index]", *(uint32_t *)vp,
+                   (double)*vp);
+        display_assert(msg, "c:\\halo\\SOURCE\\camera\\observer.c", 0x2f4, 1);
+        system_exit(-1);
+      }
+      vp++;
+      count--;
+    } while (count != 0);
+  }
+
+  for (comp = 0; comp < 5; comp++) {
+    float elapsed = *timers - *(float *)0x335718;
+
+    if (elapsed <= *(float *)0x2533c0 && (*(uint8_t *)(observer + 0x8) & 1)) {
+      /* Timer expired and mode active: copy defaults */
+      int16_t j = 0;
+      if (j < ((int16_t *)0x2ee6ac)[comp]) {
+        do {
+          *(uint32_t *)(result_ptr + j * 4) =
+            *(uint32_t *)(default_ptr + j * 4);
+          j++;
+        } while (j < ((int16_t *)0x2ee6ac)[comp]);
+      }
+    } else {
+      /* Compute update values */
+      if (elapsed <= *(float *)0x2533c0) {
+        /* Timer expired, mode not active: negate velocity*delta_time */
+        int16_t j = 0;
+        if (j < ((int16_t *)0x2ee6b8)[comp]) {
+          do {
+            scratch_ptr[j] = -(*(float *)0x335718 * velocities[j]);
+            j++;
+          } while (j < ((int16_t *)0x2ee6b8)[comp]);
+        }
+      } else {
+        /* Timer active: evaluate quintic polynomial */
+        float t2 = elapsed * elapsed;
+        float t3 = t2 * elapsed;
+        float t4 = t3 * elapsed;
+        float t5 = t4 * elapsed;
+        int16_t j = 0;
+
+        if (j < ((int16_t *)0x2ee6b8)[comp]) {
+          do {
+            int idx = (int)j;
+            int off = idx * 4;
+            j++;
+            scratch_ptr[idx] = t5 * *(float *)(snap_ptr + off) +
+                               t4 * *(float *)(jerk_ptr + off) +
+                               t3 * *(float *)(accel_ptr + off) +
+                               t2 * *(float *)(vel_ptr + off) +
+                               elapsed * *(float *)(pos_ptr + off) +
+                               *(float *)(extra_ptr + off);
+          } while (j < ((int16_t *)0x2ee6b8)[comp]);
+        }
+      }
+
+      if (comp < 4) {
+        /* Components 0-3: add scratch to result */
+        int16_t j = 0;
+        if (j < ((int16_t *)0x2ee6b8)[comp]) {
+          do {
+            int idx = (int)j;
+            int off = idx * 4;
+            j++;
+            *(float *)(result_ptr + off) =
+              scratch_ptr[idx] + *(float *)(result_ptr + off);
+          } while (j < ((int16_t *)0x2ee6b8)[comp]);
+        }
+      } else {
+        /* Component 4 (forward/up vectors): axis-angle rotation */
+        float axis[3];
+        float mag;
+
+        axis[0] = scratch_ptr[0];
+        axis[1] = scratch_ptr[1];
+        axis[2] = scratch_ptr[2];
+        mag = sqrtf(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+
+        if (fabsf(mag) >= (float)*(double *)0x2533d0) {
+          float inv_mag = *(float *)0x2533c8 / mag;
+          axis[0] = axis[0] * inv_mag;
+          axis[1] = axis[1] * inv_mag;
+          axis[2] = axis[2] * inv_mag;
+
+          if (mag != *(float *)0x2533c0) {
+            float sin_val = sinf(mag);
+            float cos_val = cosf(mag);
+            rotate_vector3d_by_sincos((float *)result_ptr, axis, sin_val,
+                                      cos_val);
+            rotate_vector3d_by_sincos((float *)(result_ptr + 0xc), axis,
+                                      sin_val, cos_val);
+          }
+        }
+      }
+    }
+
+    {
+      int result_advance = (int)((int16_t *)0x2ee6ac)[comp] * 4;
+      int vel_advance = (int)((int16_t *)0x2ee6b8)[comp] * 4;
+      default_ptr += result_advance;
+      result_ptr += result_advance;
+      velocities += (int)((int16_t *)0x2ee6b8)[comp];
+      snap_ptr += vel_advance;
+      jerk_ptr += vel_advance;
+      accel_ptr += vel_advance;
+      vel_ptr += vel_advance;
+      scratch_ptr += (int)((int16_t *)0x2ee6b8)[comp];
+      pos_ptr += vel_advance;
+      extra_ptr += vel_advance;
+      timers++;
+    }
+  }
+
+  /* Orthogonalize forward/up vectors if needed */
+  {
+    float *up = (float *)(observer + 0xd0);
+    float *fwd = (float *)(observer + 0xdc);
+    float check;
+
+    /* Check if up is unit length */
+    check =
+      (up[0] * up[0] + up[1] * up[1] + up[2] * up[2]) - *(float *)0x2533c8;
+    if ((*(uint32_t *)&check & 0x7f800000u) == 0x7f800000u ||
+        fabsf(check) >= (float)*(double *)0x2549d8) {
+      goto orthogonalize;
+    }
+
+    /* Check if forward is unit length */
+    check = (fwd[0] * fwd[0] + fwd[1] * fwd[1] + fwd[2] * fwd[2]) -
+            *(float *)0x2533c8;
+    if ((*(uint32_t *)&check & 0x7f800000u) == 0x7f800000u ||
+        fabsf(check) >= (float)*(double *)0x2549d8) {
+      goto orthogonalize;
+    }
+
+    /* Check if up and forward are perpendicular */
+    check = up[2] * fwd[2] + up[0] * fwd[0] + fwd[1] * up[1];
+    if ((*(uint32_t *)&check & 0x7f800000u) == 0x7f800000u ||
+        fabsf(check) >= (float)*(double *)0x2549d8) {
+      goto orthogonalize;
+    }
+
+    return;
+
+  orthogonalize: {
+    float right[3];
+    float mag;
+
+    /* right = cross(fwd, up) */
+    right[0] = up[2] * fwd[1] - fwd[2] * up[1];
+    right[1] = up[0] * fwd[2] - up[2] * fwd[0];
+    right[2] = up[1] * fwd[0] - up[0] * fwd[1];
+
+    /* fwd = cross(up, right) */
+    fwd[0] = right[2] * up[1] - right[1] * up[2];
+    fwd[1] = right[0] * up[2] - right[2] * up[0];
+    fwd[2] = right[1] * up[0] - right[0] * up[1];
+
+    /* Normalize up */
+    mag = sqrtf(up[0] * up[0] + up[1] * up[1] + up[2] * up[2]);
+    if (fabsf(mag) >= (float)*(double *)0x2533d0) {
+      float inv = *(float *)0x2533c8 / mag;
+      up[0] = inv * up[0];
+      up[1] = inv * up[1];
+      up[2] = inv * up[2];
+    }
+
+    /* Normalize forward */
+    mag = sqrtf(fwd[0] * fwd[0] + fwd[1] * fwd[1] + fwd[2] * fwd[2]);
+    if (fabsf(mag) >= (float)*(double *)0x2533d0) {
+      float inv = *(float *)0x2533c8 / mag;
+      fwd[0] = inv * fwd[0];
+      fwd[1] = inv * fwd[1];
+      fwd[2] = inv * fwd[2];
+    }
+  }
+  }
+}
+
+/* Near-plane collision fix for the camera focus distance (0x8c150).
+ * Casts collision rays from the focus position along the up and right (cross
+ * product of up and forward) directions, scaled by a near-plane factor
+ * proportional to focus_distance. Finds the closest obstruction among 4
+ * directions (+/- up_scaled, +/- right_scaled), then runs a binary-search
+ * refinement loop (10 iterations) to converge on the exact obstruction
+ * boundary. Adjusts *focus_distance by blending the initial collision
+ * fraction with the refined fraction. If no obstruction is found,
+ * *focus_distance is simply scaled by the initial collision fraction. */
+void FUN_0008c150(float *up, float *focus_distance, float near_plane_dist,
+                  float *forward, float *position)
+{
+  char location[8];
+  bool indoor_fog;
+  float initial_fraction;
+  float best_t;
+  float test_fraction;
+  float best_sign;
+  float *best_plane;
+  float adjusted_pos[3];
+  float test_point[3];
+  float up_scaled[3];
+  float right_scaled[3];
+  float fVar1;
+  float dist;
+  int16_t i;
+  int counter;
+
+  initial_fraction = 1.0f;
+
+  /* Determine location and indoor fog status at the focus position */
+  scenario_location_from_point(location, position);
+  indoor_fog = FUN_0018f3e0(location, position, 0);
+
+  /* Compute adjusted position: position - (near_plane_dist + *focus_distance) *
+   * forward */
+  dist = near_plane_dist + *focus_distance;
+  adjusted_pos[0] = -(dist * forward[0]) + position[0];
+  adjusted_pos[1] = -(dist * forward[1]) + position[1];
+  adjusted_pos[2] = -(dist * forward[2]) + position[2];
+
+  /* Cast initial ray from position to adjusted_pos */
+  FUN_0008ab90(&initial_fraction, indoor_fog, position, adjusted_pos);
+
+  /* Scale factor for the near-plane probe vectors */
+  fVar1 = *(float *)0x2673a4 * *focus_distance;
+
+  /* Compute scaled up vector */
+  up_scaled[0] = up[0] * fVar1;
+  up_scaled[1] = up[1] * fVar1;
+  up_scaled[2] = up[2] * fVar1;
+
+  /* Compute scaled right vector = cross(up, forward) * fVar1 */
+  right_scaled[0] = (up[1] * forward[2] - up[2] * forward[1]) * fVar1;
+  right_scaled[1] = (up[2] * forward[0] - up[0] * forward[2]) * fVar1;
+  right_scaled[2] = (up[0] * forward[1] - up[1] * forward[0]) * fVar1;
+
+  best_t = initial_fraction;
+  best_plane = (float *)0;
+  counter = 0;
+
+  /* Sweep 4 directions: -up, -right, +up, +right */
+  i = 0;
+  do {
+    float sign;
+    int plane_idx;
+    float *plane;
+
+    /* sign: -1 for i=0,1; +1 for i=2,3 */
+    sign = (float)(int)(((i & 2) ? 2 : 0) - 1);
+
+    /* plane: up_scaled for even counter, right_scaled for odd */
+    plane_idx = counter & 1;
+    plane = (plane_idx == 0) ? up_scaled : right_scaled;
+
+    test_point[0] = sign * plane[0] + adjusted_pos[0];
+    test_point[1] = sign * plane[1] + adjusted_pos[1];
+    test_point[2] = sign * plane[2] + adjusted_pos[2];
+
+    if (FUN_0008ab90(&test_fraction, indoor_fog, position, test_point)) {
+      if (test_fraction < best_t) {
+        best_t = test_fraction;
+        best_plane = plane;
+        best_sign = sign;
+      }
+    }
+
+    i = (int16_t)(i + 1);
+    counter = counter + 1;
+  } while (i < 4);
+
+  if (best_plane != (float *)0) {
+    /* Refinement loop: binary search along the best plane direction */
+    float refinement_scale;
+    float offset;
+    float best_frac;
+    float fraction;
+    int iterations;
+    float final_scale;
+    float value;
+
+    refinement_scale = best_sign;
+    offset = 0.0f;
+    fraction = initial_fraction;
+    best_frac = best_t;
+    iterations = 10;
+
+    do {
+      float step;
+      bool hit;
+
+      step = (refinement_scale + offset) * *(float *)0x253398;
+
+      test_point[0] = step * best_plane[0] + adjusted_pos[0];
+      test_point[1] = step * best_plane[1] + adjusted_pos[1];
+      test_point[2] = step * best_plane[2] + adjusted_pos[2];
+
+      hit = FUN_0008ab90(&test_fraction, indoor_fog, position, test_point);
+
+      if (hit &&
+          (float)*(double *)0x2674e8 > fabsf(test_fraction - best_frac)) {
+        /* Converged: update the refinement boundary */
+        best_frac = test_fraction;
+        refinement_scale = step;
+      } else {
+        /* Did not converge: record the step as offset */
+        offset = step;
+        if (!hit) {
+          fraction = *(float *)0x2533c8;
+        } else {
+          fraction = test_fraction;
+        }
+      }
+
+      iterations = iterations - 1;
+    } while (iterations != 0);
+
+    /* Determine final_scale from refinement results */
+    if (fraction > best_frac) {
+      value = offset;
+    } else {
+      value = (float)(int)(refinement_scale >= *(float *)0x2533c0);
+    }
+
+    if (value == *(float *)0x2533c0) {
+      /* Negate path */
+      if (fraction < best_frac) {
+        final_scale = -offset;
+      } else {
+        final_scale = -refinement_scale;
+      }
+    } else {
+      if (fraction < best_frac) {
+        final_scale = offset;
+      } else {
+        final_scale = refinement_scale;
+      }
+    }
+
+    *focus_distance = (final_scale * initial_fraction +
+                       (*(float *)0x2533c8 - final_scale) * best_t) *
+                      *focus_distance;
+    return;
+  }
+
+  /* No obstruction found: scale focus_distance by initial fraction */
+  *focus_distance = initial_fraction * *focus_distance;
+}
+
+/* Derive the final observer camera result from staged and integrated state
+ * (0x8c4b0). Reads the observer's computed focus position, focus offset,
+ * focus distance, forward/up vectors, and field of view. Applies focus offset
+ * rotation using the XY-normalized forward vector, optionally runs near-plane
+ * collision fix, computes camera position = focus - distance*forward, queries
+ * the BSP for cluster location, adjusts Z for ground penetration, validates
+ * all results, clamps to world bounds, and copies the final camera state
+ * (position, forward, up, velocity, FOV) into the observer result area. */
+void observer_update_result(int16_t local_player_index)
+{
+  char *observer;
+  float *forward;
+  float *up;
+  float focus_position[3];
+  float focus_distance;
+  float fov;
+  float mag_xy, inv_mag;
+  float fwd_n_x, fwd_n_y;
+  float height_diff;
+  int location[2]; /* {leaf_index, cluster_index(int16 at +4)} */
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+
+  /* Read focus position from observer+0xb0 */
+  focus_position[0] = *(float *)(observer + 0xb0);
+  focus_position[1] = *(float *)(observer + 0xb4);
+  focus_position[2] = *(float *)(observer + 0xb8);
+
+  /* Clamp focus distance to [0, max_distance], or FLT_MAX if over */
+  {
+    float fd = *(float *)(observer + 0xc8);
+    if (fd < *(float *)0x2533c0) {
+      focus_distance = 0.0f;
+    } else if (fd > *(float *)0x2548fc) {
+      focus_distance = 3.4028235e+38f;
+    } else {
+      focus_distance = fd;
+    }
+  }
+
+  /* assert: valid_world_real_point3d(&focus_position) */
+  if ((*(uint32_t *)&focus_position[0] & 0x7f800000u) == 0x7f800000u ||
+      focus_position[0] < *(float *)0x266e98 ||
+      focus_position[0] > *(float *)0x266e94 ||
+      (*(uint32_t *)&focus_position[1] & 0x7f800000u) == 0x7f800000u ||
+      focus_position[1] < *(float *)0x266e98 ||
+      focus_position[1] > *(float *)0x266e94 ||
+      (*(uint32_t *)&focus_position[2] & 0x7f800000u) == 0x7f800000u ||
+      focus_position[2] < *(float *)0x266e98 ||
+      focus_position[2] > *(float *)0x266e94) {
+    display_assert("valid_world_real_point3d(&focus_position)",
+                   "c:\\halo\\SOURCE\\camera\\observer.c", 0x3af, 1);
+    system_exit(-1);
+  }
+
+  /* Validate forward/up axes */
+  forward = (float *)(observer + 0xd0);
+  up = (float *)(observer + 0xdc);
+  if (!valid_real_normal3d_perpendicular(forward, up)) {
+    csprintf(
+      (char *)0x5ab100,
+      "%s, %s: assert_valid_real_vector3d_axes2(%f, %f, %f / %f, %f, %f)",
+      "&observer->forward", "&observer->up", (double)forward[0],
+      (double)forward[1], (double)forward[2], (double)up[0], (double)up[1],
+      (double)up[2]);
+    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\camera\\observer.c",
+                   0x3b0, 1);
+    system_exit(-1);
+  }
+
+  /* assert: valid_world_real_point3d(&observer->focus_offset) */
+  if ((*(uint32_t *)(observer + 0xbc) & 0x7f800000u) == 0x7f800000u ||
+      *(float *)(observer + 0xbc) < *(float *)0x266e98 ||
+      *(float *)(observer + 0xbc) > *(float *)0x266e94 ||
+      (*(uint32_t *)(observer + 0xc0) & 0x7f800000u) == 0x7f800000u ||
+      *(float *)(observer + 0xc0) < *(float *)0x266e98 ||
+      *(float *)(observer + 0xc0) > *(float *)0x266e94 ||
+      (*(uint32_t *)(observer + 0xc4) & 0x7f800000u) == 0x7f800000u ||
+      *(float *)(observer + 0xc4) < *(float *)0x266e98 ||
+      *(float *)(observer + 0xc4) > *(float *)0x266e94) {
+    display_assert(
+      "valid_world_real_point3d((real_point3d *) &observer->focus_offset)",
+      "c:\\halo\\SOURCE\\camera\\observer.c", 0x3b1, 1);
+    system_exit(-1);
+  }
+
+  /* assert: valid_focus_distance(focus_distance) */
+  if ((*(uint32_t *)&focus_distance & 0x7f800000u) == 0x7f800000u ||
+      focus_distance < *(float *)0x2533c0 ||
+      focus_distance > *(float *)0x266e94) {
+    display_assert("valid_focus_distance(focus_distance)",
+                   "c:\\halo\\SOURCE\\camera\\observer.c", 0x3b2, 1);
+    system_exit(-1);
+  }
+
+  /* Clamp field_of_view to [fov_min, fov_max] */
+  {
+    float f = *(float *)(observer + 0xcc);
+    if (f < *(float *)0x255ef8) {
+      fov = *(float *)0x255ef8;
+    } else if (f > *(float *)0x2568bc) {
+      fov = *(float *)0x2568bc;
+    } else {
+      fov = f;
+    }
+    *(float *)(observer + 0xcc) = fov;
+  }
+
+  /* Clamp focus_position components to [-5000, 5000] */
+  if (focus_position[0] < *(float *)0x266e98) {
+    focus_position[0] = -5000.0f;
+  } else if (focus_position[0] > *(float *)0x266e94) {
+    focus_position[0] = 5000.0f;
+  }
+
+  if (focus_position[1] < *(float *)0x266e98) {
+    focus_position[1] = -5000.0f;
+  } else if (focus_position[1] > *(float *)0x266e94) {
+    focus_position[1] = 5000.0f;
+  }
+
+  if (focus_position[2] < *(float *)0x266e98) {
+    focus_position[2] = -5000.0f;
+  } else if (focus_position[2] > *(float *)0x266e94) {
+    focus_position[2] = 5000.0f;
+  }
+
+  /* Clamp focus_distance to [0, 5000] */
+  if (focus_distance < *(float *)0x2533c0) {
+    focus_distance = 0.0f;
+  } else if (focus_distance > *(float *)0x266e94) {
+    focus_distance = 5000.0f;
+  }
+
+  /* Normalize forward vector in XY plane */
+  fwd_n_x = forward[0];
+  fwd_n_y = forward[1];
+  mag_xy = sqrtf(fwd_n_x * fwd_n_x + fwd_n_y * fwd_n_y);
+  if (fabsf(mag_xy) >= (float)*(double *)0x2533d0) {
+    inv_mag = *(float *)0x2533c8 / mag_xy;
+    fwd_n_x = inv_mag * fwd_n_x;
+    fwd_n_y = inv_mag * fwd_n_y;
+  }
+
+  /* Apply rotated focus_offset to focus_position using normalized forward */
+  focus_position[0] = fwd_n_x * *(float *)(observer + 0xbc) +
+                      fwd_n_y * *(float *)(observer + 0xc0) + focus_position[0];
+  focus_position[1] = (fwd_n_y * *(float *)(observer + 0xbc) -
+                       fwd_n_x * *(float *)(observer + 0xc0)) +
+                      focus_position[1];
+  focus_position[2] = focus_position[2] + *(float *)(observer + 0xc4);
+
+  /* Near-plane collision fix (skip if mode bit 0x10 set or focus_distance == 0)
+   */
+  if ((*(uint8_t *)(observer + 0x8) & 0x10) == 0 &&
+      focus_distance != *(float *)0x2533c0) {
+    FUN_0008c150(up, &focus_distance, 0.02f, forward, focus_position);
+  }
+
+  /* Compute result.position = focus_position - focus_distance * forward */
+  *(float *)(observer + 0x74) = focus_position[0] - focus_distance * forward[0];
+  *(float *)(observer + 0x78) = focus_position[1] - focus_distance * forward[1];
+  *(float *)(observer + 0x7c) = focus_position[2] - focus_distance * forward[2];
+
+  /* Determine BSP cluster location for the camera position */
+  scenario_location_from_point(&location, observer + 0x74);
+
+  /* If cluster changed, precache resources for the new cluster */
+  {
+    int16_t cluster = *(int16_t *)((char *)&location + 4);
+    if (cluster != -1) {
+      if (cluster != *(int16_t *)(observer + 0x84)) {
+        void *element = tag_block_get_element((char *)scenario_get() + 0x134,
+                                              (int)cluster, 0x68);
+        predicted_resources_precache((int *)((char *)element + 0x28));
+      }
+      *(int *)(observer + 0x80) = location[0];
+      *(int *)(observer + 0x84) = *(int *)((char *)&location + 4);
+    }
+  }
+
+  /* Ground height adjustment */
+  {
+    float h = FUN_0018f510(observer + 0x80, observer + 0x74);
+    height_diff = h;
+    if (fabsf(height_diff) < (float)*(double *)0x25f0c8) {
+      if (height_diff <= *(float *)0x2533c0) {
+        *(float *)(observer + 0x7c) =
+          height_diff + *(float *)(observer + 0x7c) + *(float *)0x2533e8;
+      } else {
+        *(float *)(observer + 0x7c) =
+          *(float *)(observer + 0x7c) - (*(float *)0x2533e8 - height_diff);
+      }
+    }
+  }
+
+  /* assert: valid_world_real_point3d(&observer->result.position) */
+  if ((*(uint32_t *)(observer + 0x74) & 0x7f800000u) == 0x7f800000u ||
+      *(float *)(observer + 0x74) < *(float *)0x266e98 ||
+      *(float *)(observer + 0x74) > *(float *)0x266e94 ||
+      (*(uint32_t *)(observer + 0x78) & 0x7f800000u) == 0x7f800000u ||
+      *(float *)(observer + 0x78) < *(float *)0x266e98 ||
+      *(float *)(observer + 0x78) > *(float *)0x266e94 ||
+      (*(uint32_t *)(observer + 0x7c) & 0x7f800000u) == 0x7f800000u ||
+      *(float *)(observer + 0x7c) < *(float *)0x266e98 ||
+      *(float *)(observer + 0x7c) > *(float *)0x266e94) {
+    display_assert("valid_world_real_point3d(&observer->result.position)",
+                   "c:\\halo\\SOURCE\\camera\\observer.c", 0x41f, 1);
+    system_exit(-1);
+  }
+
+  /* Validate forward/up axes again */
+  if (!valid_real_normal3d_perpendicular(forward, up)) {
+    csprintf(
+      (char *)0x5ab100,
+      "%s, %s: assert_valid_real_vector3d_axes2(%f, %f, %f / %f, %f, %f)",
+      "&observer->forward", "&observer->up", (double)forward[0],
+      (double)forward[1], (double)forward[2], (double)up[0], (double)up[1],
+      (double)up[2]);
+    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\camera\\observer.c",
+                   0x420, 1);
+    system_exit(-1);
+  }
+
+  /* assert: valid_field_of_view(observer->field_of_view) */
+  if ((*(uint32_t *)(observer + 0xcc) & 0x7f800000u) == 0x7f800000u ||
+      *(float *)(observer + 0xcc) < *(float *)0x255ef8 ||
+      *(float *)(observer + 0xcc) > *(float *)0x2568bc) {
+    display_assert("valid_field_of_view(observer->field_of_view)",
+                   "c:\\halo\\SOURCE\\camera\\observer.c", 0x421, 1);
+    system_exit(-1);
+  }
+
+  /* Clamp result.position to world bounds */
+  {
+    float v;
+    v = *(float *)(observer + 0x74);
+    if (v < *(float *)0x266e98) {
+      v = *(float *)0x266e98;
+    } else if (v > *(float *)0x266e94) {
+      v = *(float *)0x266e94;
+    }
+    *(float *)(observer + 0x74) = v;
+
+    v = *(float *)(observer + 0x78);
+    if (v < *(float *)0x266e98) {
+      v = *(float *)0x266e98;
+    } else if (v > *(float *)0x266e94) {
+      v = *(float *)0x266e94;
+    }
+    *(float *)(observer + 0x78) = v;
+
+    v = *(float *)(observer + 0x7c);
+    if (v < *(float *)0x266e98) {
+      v = *(float *)0x266e98;
+    } else if (v > *(float *)0x266e94) {
+      v = *(float *)0x266e94;
+    }
+    *(float *)(observer + 0x7c) = v;
+  }
+
+  /* Copy forward -> result.forward, negate velocities -> result.velocity,
+   * copy up -> result.up, copy field_of_view -> result.field_of_view */
+  *(float *)(observer + 0x94) = forward[0];
+  *(float *)(observer + 0x88) = -*(float *)(observer + 0xe8);
+  *(float *)(observer + 0x98) = forward[1];
+  *(float *)(observer + 0x9c) = forward[2];
+  *(float *)(observer + 0x8c) = -*(float *)(observer + 0xec);
+  *(float *)(observer + 0x90) = -*(float *)(observer + 0xf0);
+  *(float *)(observer + 0xa0) = up[0];
+  *(float *)(observer + 0xa4) = up[1];
+  *(float *)(observer + 0xac) = *(float *)(observer + 0xcc);
+  *(float *)(observer + 0xa8) = up[2];
 }
 
 /* Compute observer velocities from current and target state (0x8ccf0).

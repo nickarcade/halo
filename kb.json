@@ -219,52 +219,6 @@
           "addr": "0x36e30"
         },
         {
-          "decl": "void *FUN_0003a600(int16_t actor_type@<ax>);",
-          "addr": "0x3a600",
-          "ported": true
-        },
-        {
-          "decl": "void FUN_0003a740(void);",
-          "addr": "0x3a740",
-          "ported": true
-        },
-        {
-          "decl": "int FUN_0003b270(int actor_handle);",
-          "addr": "0x3b270",
-          "ported": false
-        },
-        {
-          "decl": "bool FUN_0003b320(int actor_handle);",
-          "addr": "0x3b320",
-          "ported": true
-        },
-        {
-          "decl": "void FUN_0003b860(int actor_handle);",
-          "addr": "0x3b860",
-          "ported": false
-        },
-        {
-          "decl": "void FUN_0003b900(void);",
-          "addr": "0x3b900",
-          "ported": true
-        },
-        {
-          "decl": "void FUN_0003ba00(void);",
-          "addr": "0x3ba00"
-        },
-        {
-          "decl": "void FUN_0003f5f0(void);",
-          "addr": "0x3f5f0"
-        },
-        {
-          "decl": "void FUN_00040570(void);",
-          "addr": "0x40570"
-        },
-        {
-          "decl": "void unit_vehicle_board_notify(int unit_handle, int vehicle_handle);",
-          "addr": "0x409a0"
-        },
-        {
           "decl": "void FUN_00042a30(void);",
           "addr": "0x42a30"
         },
@@ -283,6 +237,10 @@
         {
           "decl": "void FUN_00046cb0(void);",
           "addr": "0x46cb0"
+        },
+        {
+          "decl": "void FUN_00046f10(int type, int unit_handle, int param3, int param4, int param5, int param6, int param7);",
+          "addr": "0x46f10"
         },
         {
           "decl": "void FUN_00048e90(void);",
@@ -519,7 +477,11 @@
           "addr": "0x12ab80"
         },
         {
-          "decl": "void network_game_log(const char *msg);",
+          "decl": "bool FUN_0012b500(int game, int machine);",
+          "addr": "0x12b500"
+        },
+        {
+          "decl": "void network_game_log(const char *fmt, ...);",
           "addr": "0x12b650"
         },
         {
@@ -543,22 +505,6 @@
           "addr": "0x14ec30"
         },
         {
-          "decl": "int FUN_0018e3f0(void);",
-          "addr": "0x18e3f0"
-        },
-        {
-          "decl": "void FUN_001a0890(int unit_handle, float *out_pos, float *out_dist_b, float *out_dist_a);",
-          "addr": "0x1a0890"
-        },
-        {
-          "decl": "void FUN_001a1140(int unit_handle, int16_t param2, void *param3, void *param4, void *param5, float *position);",
-          "addr": "0x1a1140"
-        },
-        {
-          "decl": "void FUN_001a8e10(int object_handle, int16_t state);",
-          "addr": "0x1a8e10"
-        },
-        {
           "decl": "int FUN_001b9920(void);",
           "addr": "0x1b9920"
         },
@@ -573,18 +519,6 @@
         {
           "decl": "void FUN_001bf790(void);",
           "addr": "0x1bf790"
-        },
-        {
-          "decl": "char FUN_001c0370(void);",
-          "addr": "0x1c0370"
-        },
-        {
-          "decl": "char FUN_001c0910(void *header, void *scratch, int header_size, void *buffer, int flags);",
-          "addr": "0x1c0910"
-        },
-        {
-          "decl": "void FUN_001c0c20(void *dst, void *src);",
-          "addr": "0x1c0c20"
         },
         {
           "decl": "void *FUN_001c8d90(int permutation_block_ptr, int tick_index);",
@@ -757,22 +691,6 @@
           "comment": "Validate and resolve a tag index to its tag_instance record pointer. Asserts if tags not loaded or index out of range. Source: cache/cache_files.c"
         },
         {
-          "decl": "bool FUN_0018f3e0(void *volumes, void *position, int flags);",
-          "addr": "0x18f3e0"
-        },
-        {
-          "decl": "void *FUN_000dd410(int marker_index, int node_index);",
-          "addr": "0xdd410"
-        },
-        {
-          "decl": "void FUN_000a1fd0(void *spawn_params);",
-          "addr": "0xa1fd0"
-        },
-        {
-          "decl": "char FUN_000a0fd0(int particle_handle);",
-          "addr": "0xa0fd0"
-        },
-        {
           "decl": "void FUN_00139480(void *position, void *tint_color, void *out_color, char use_lightmap);",
           "addr": "0x139480"
         },
@@ -781,16 +699,8 @@
           "addr": "0x138900"
         },
         {
-          "decl": "int16_t FUN_001415f0(int type_mask, uint32_t flags, void *position, void *direction, float radius, void *results, int16_t max_results);",
-          "addr": "0x1415f0"
-        },
-        {
           "decl": "void FUN_00146be0(void *damage_params);",
           "addr": "0x146be0"
-        },
-        {
-          "decl": "int FUN_000b5aa0(void);",
-          "addr": "0xb5aa0"
         },
         {
           "decl": "void FUN_0008c440(void *velocities, void *result @<eax>, void *state @<ecx>);",
@@ -801,12 +711,112 @@
           "addr": "0xdc800"
         },
         {
-          "decl": "void FUN_000ddbd0(int local_player_index, int state, int param_3);",
-          "addr": "0xddbd0"
+          "decl": "void FUN_001a8990(int object_handle, int16_t state);",
+          "addr": "0x1a8990"
         },
         {
-          "decl": "void FUN_000dde80(int local_player_index);",
-          "addr": "0xdde80"
+          "decl": "void FUN_001a8b20(int object_handle @<eax>, int16_t state);",
+          "addr": "0x1a8b20"
+        },
+        {
+          "decl": "uint16_t FUN_0008e7c0(void);",
+          "addr": "0x8e7c0"
+        },
+        {
+          "decl": "float FUN_000849f0(float min, float max);",
+          "addr": "0x849f0"
+        },
+        {
+          "decl": "float FUN_001548a0(int tag_data, float scale);",
+          "addr": "0x1548a0"
+        },
+        {
+          "decl": "int16_t FUN_00097c80(int min, uint16_t max);",
+          "addr": "0x97c80"
+        },
+        {
+          "decl": "void FUN_0003d950(int actor_handle, char flag);",
+          "addr": "0x3d950"
+        },
+        {
+          "decl": "void FUN_0003ec80(int actor_handle@<esi>);",
+          "addr": "0x3ec80"
+        },
+        {
+          "decl": "int FUN_0003f030(int actv_tag_index, int encounter_index, int squad_index, void *starting_location, char use_major_variant, int16_t team);",
+          "addr": "0x3f030"
+        },
+        {
+          "decl": "float FUN_00099500(float *plane, float *point);",
+          "addr": "0x99500"
+        },
+        {
+          "decl": "void FUN_000a1510(int local_player_index);",
+          "addr": "0xa1510"
+        },
+        {
+          "decl": "const char *FUN_00081b90(void *addr);",
+          "addr": "0x81b90"
+        },
+        {
+          "decl": "bool FUN_0012ac80(void *client);",
+          "addr": "0x12ac80"
+        },
+        {
+          "decl": "void FUN_0012abc0(void *settings, int flag);",
+          "addr": "0x12abc0"
+        },
+        {
+          "decl": "void FUN_001283c0(int connection, void *buf, int flag);",
+          "addr": "0x1283c0"
+        },
+        {
+          "decl": "bool FUN_00128660(int connection);",
+          "addr": "0x128660"
+        },
+        {
+          "decl": "void FUN_00128d30(int connection);",
+          "addr": "0x128d30"
+        },
+        {
+          "decl": "bool FUN_00128e00(void *connection, void *message, unsigned short size, int dest_address, int reliable);",
+          "addr": "0x128e00"
+        },
+        {
+          "decl": "void FUN_0012acb0(void *game_connection, int machine_index);",
+          "addr": "0x12acb0"
+        },
+        {
+          "decl": "bool FUN_001285c0(int connection, int new_connection);",
+          "addr": "0x1285c0"
+        },
+        {
+          "decl": "bool FUN_000a8aa0(void *game_variant_dst, void *game_variant_src);",
+          "addr": "0xa8aa0"
+        },
+        {
+          "decl": "void FUN_0012aaf0(void *name_buffer);",
+          "addr": "0x12aaf0"
+        },
+        {
+          "decl": "bool FUN_00130270(void *server, void *buffer, int size, void *addr);",
+          "addr": "0x130270"
+        },
+        {
+          "decl": "bool FUN_00128360(int connection);",
+          "addr": "0x128360"
+        },
+        {
+          "decl": "bool FUN_00130580(void *server, void *machine, void *buffer, int size);",
+          "addr": "0x130580"
+        },
+        {
+          "decl": "int FUN_0012bdb0(void *countdown);",
+          "addr": "0x12bdb0"
+        },
+        {
+          "decl": "void FUN_001282f0(int connection, bool open);",
+          "addr": "0x1282f0"
         }
       ]
     },
@@ -946,6 +956,16 @@
       ],
       "functions": [
         {
+          "decl": "void *FUN_0003a600(int16_t actor_type@<ax>);",
+          "addr": "0x3a600",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0003a740(void);",
+          "addr": "0x3a740",
+          "ported": true
+        },
+        {
           "decl": "void FUN_0003a990(void);",
           "addr": "0x3a990",
           "ported": true
@@ -964,6 +984,41 @@
           "decl": "void actors_dispose_from_old_map(void);",
           "addr": "0x3aa90",
           "ported": true
+        },
+        {
+          "decl": "int FUN_0003b270(int actor_handle);",
+          "addr": "0x3b270",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0003b320(int actor_handle);",
+          "addr": "0x3b320",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0003b7e0(int actor_handle, int unit_handle@<esi>);",
+          "addr": "0x3b7e0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0003b860(int actor_handle);",
+          "addr": "0x3b860",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0003b900(void);",
+          "addr": "0x3b900",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0003b940(int actor_handle, int unit_object_index@<esi>);",
+          "addr": "0x3b940",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0003ba00(void);",
+          "addr": "0x3ba00",
+          "ported": true
         }
       ]
     },
@@ -971,6 +1026,11 @@
       "name": "ai.obj",
       "source": "ai/ai.c",
       "functions": [
+        {
+          "decl": "void FUN_0003f5f0(void);",
+          "addr": "0x3f5f0",
+          "ported": true
+        },
         {
           "decl": "void ai_initialize(void);",
           "addr": "0x3f670",
@@ -989,6 +1049,26 @@
         {
           "decl": "void ai_place(void);",
           "addr": "0x3f760",
+          "ported": true
+        },
+        {
+          "decl": "bool ai_handle_unit_approach(int ai_handle, int unit_handle, bool flag);",
+          "addr": "0x3fdc0",
+          "ported": true
+        },
+        {
+          "decl": "void game_allegiance_apply_change(int16_t team_a, int16_t team_b, char friendship, char force);",
+          "addr": "0x40010",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_00040570(void);",
+          "addr": "0x40570",
+          "ported": true
+        },
+        {
+          "decl": "void unit_vehicle_board_notify(int unit_handle, int vehicle_handle);",
+          "addr": "0x409a0",
           "ported": true
         },
         {
@@ -1014,16 +1094,6 @@
         {
           "decl": "void FUN_000425b0(void);",
           "addr": "0x425b0",
-          "ported": true
-        },
-        {
-          "decl": "bool ai_handle_unit_approach(int ai_handle, int unit_handle, bool flag);",
-          "addr": "0x3fdc0",
-          "ported": true
-        },
-        {
-          "decl": "void game_allegiance_apply_change(int16_t team_a, int16_t team_b, char friendship, char force);",
-          "addr": "0x40010",
           "ported": true
         }
       ]
@@ -2002,38 +2072,28 @@
           "ported": true
         },
         {
-          "decl": "void FUN_0009cb90(int effect_handle@<eax>, int event_index@<di>);",
-          "addr": "0x9cb90",
-          "ported": true
+          "decl": "void FUN_0009c810(int local_player_index);",
+          "addr": "0x9c810"
         },
         {
-          "decl": "bool dangerous_effects_near_player(void);",
-          "addr": "0x9d000",
-          "ported": true
-        },
-        {
-          "decl": "void FUN_0009d590(void *effect@<edi>);",
-          "addr": "0x9d590",
-          "ported": true
-        },
-        {
-          "decl": "void FUN_0009e310(void *effect@<ebx>);",
-          "addr": "0x9e310",
-          "ported": true
-        },
-        {
-          "decl": "void effect_update(int effect_index, float elapsed);",
-          "addr": "0x9e610",
-          "ported": true
-        },
-        {
-          "decl": "bool effects_update(float);",
-          "addr": "0x9f320",
+          "decl": "void FUN_0009ca70(unsigned int *seed, float *velocity_out, uint32_t min_val, uint32_t max_val, uint32_t flags);",
+          "addr": "0x9ca70",
+          "note": "hidden reg deps (EDI=flags_hi, EBX=effect_ptr) — inlined into FUN_0009e310, cannot be thunked separately",
           "ported": true
         },
         {
           "decl": "bool FUN_0009caf0(int16_t part_type@<ax>, void *position@<ecx>, void *effect_volumes@<edx>);",
           "addr": "0x9caf0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0009cb90(int effect_handle@<eax>, int event_index@<di>);",
+          "addr": "0x9cb90",
+          "ported": true
+        },
+        {
+          "decl": "int FUN_0009cc20(int marker_data@<eax>, int effect_datum, int event_index, int is_particle);",
+          "addr": "0x9cc20",
           "ported": true
         },
         {
@@ -2047,20 +2107,63 @@
           "ported": true
         },
         {
+          "decl": "bool dangerous_effects_near_player(void);",
+          "addr": "0x9d000",
+          "ported": true
+        },
+        {
           "decl": "void FUN_0009d1f0(void *effect@<eax>, unsigned int *seed, float *direction_in, float *direction_out, float *velocity_out, float min_speed, float max_speed, float cone_angle, int flags_lo, int flags_hi);",
           "addr": "0x9d1f0",
           "ported": true
         },
         {
-          "decl": "void FUN_0009ca70(unsigned int *seed, float *velocity_out, uint32_t min_val, uint32_t max_val, uint32_t flags);",
-          "addr": "0x9ca70",
-          "note": "hidden reg deps (EDI=flags_hi, EBX=effect_ptr) \u2014 inlined into FUN_0009e310, cannot be thunked separately",
+          "decl": "int FUN_0009d2d0(int tag_index@<ebx>, int object_index, int unknown3);",
+          "addr": "0x9d2d0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0009d430(int datum@<ecx>, int unknown1@<eax>, int unknown2@<ebx>, float scale_a, float scale_b);",
+          "addr": "0x9d430",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0009d4e0(int datum@<ebx>, void *callback);",
+          "addr": "0x9d4e0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0009d590(void *effect@<edi>);",
+          "addr": "0x9d590",
           "ported": true
         },
         {
           "decl": "void FUN_0009dcf0(float *position, void *effect, void *location, void *part, float *forward, float *up, float scale);",
           "addr": "0x9dcf0",
-          "note": "4 reg args (EAX,EDX,ECX,ESI) \u2014 inlined into FUN_0009e310, cannot be thunked separately",
+          "note": "4 reg args (EAX,EDX,ECX,ESI) — inlined into FUN_0009e310, cannot be thunked separately",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0009e0d0(int local_player_index, int weapon_handle);",
+          "addr": "0x9e0d0"
+        },
+        {
+          "decl": "void FUN_0009e310(void *effect@<ebx>);",
+          "addr": "0x9e310",
+          "ported": true
+        },
+        {
+          "decl": "void effect_update(int effect_index, float elapsed);",
+          "addr": "0x9e610",
+          "ported": true
+        },
+        {
+          "decl": "int FUN_0009f0e0(int effect_tag_index, int object_index, float *translational_velocity, short marker_count, void *effect_definition, float *marker_points, float *marker_forwards, float scale_a, float scale_b, float unknown1, float unknown2, float unknown3);",
+          "addr": "0x9f0e0",
+          "ported": true
+        },
+        {
+          "decl": "bool effects_update(float);",
+          "addr": "0x9f320",
           "ported": true
         }
       ]
@@ -2269,18 +2372,53 @@
       "source": "interface/first_person_weapons.c",
       "functions": [
         {
-          "decl": "void FUN_000dc9d0(int param_2@<eax>, int object_handle@<ebx>);",
-          "addr": "0xdc9d0",
-          "ported": true
-        },
-        {
           "decl": "int16_t FUN_000dc8c0(int16_t state@<eax>);",
           "addr": "0xdc8c0",
           "ported": true
         },
         {
+          "decl": "void FUN_000dc9d0(int param_2@<eax>, int object_handle@<ebx>);",
+          "addr": "0xdc9d0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000dcb30(int16_t local_player_index@<di>, uint8_t activate@<bl>);",
+          "addr": "0xdcb30",
+          "ported": true
+        },
+        {
+          "decl": "uint8_t FUN_000dcc80(int mode_tag_index@<eax>, int antr_tag_index, int16_t *output);",
+          "addr": "0xdcc80",
+          "ported": true
+        },
+        {
           "decl": "int16_t FUN_000dcd60(int object_handle@<edi>);",
           "addr": "0xdcd60",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000dce00(int16_t local_player_index@<ax>);",
+          "addr": "0xdce00",
+          "ported": true
+        },
+        {
+          "decl": "void *FUN_000dd410(int marker_index, int node_index);",
+          "addr": "0xdd410",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000dd4d0(int16_t local_player_index@<ax>, int16_t blend_ticks@<di>);",
+          "addr": "0xdd4d0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000ddbd0(int local_player_index, int state, int param_3);",
+          "addr": "0xddbd0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000dde80(int local_player_index);",
+          "addr": "0xdde80",
           "ported": true
         },
         {
@@ -2928,6 +3066,20 @@
           "decl": "void xbox_game_state_close_file(void);",
           "addr": "0x1c0330",
           "ported": true
+        },
+        {
+          "decl": "char FUN_001c0370(void);",
+          "addr": "0x1c0370",
+          "ported": true
+        },
+        {
+          "decl": "char FUN_001c0910(void *header, uint32_t *scratch, int header_size, int buffer_size, char *flags);",
+          "addr": "0x1c0910",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_001c0c20(void *dst, void *src);",
+          "addr": "0x1c0c20"
         }
       ]
     },
@@ -2980,6 +3132,10 @@
           "decl": "int game_time_get(void);",
           "addr": "0xb5aa0",
           "ported": true
+        },
+        {
+          "decl": "int FUN_000b5aa0(void);",
+          "addr": "0xb5aa0"
         },
         {
           "decl": "int16_t game_time_get_elapsed(void);",
@@ -3496,6 +3652,11 @@
           "ported": true
         },
         {
+          "decl": "char *main_get_multiplayer_map_name(void);",
+          "addr": "0x100050",
+          "ported": true
+        },
+        {
           "decl": "int __cdecl sort_desired_local_player_controllers(const void *a1, const void *a2);",
           "addr": "0x100090",
           "ported": true
@@ -3663,9 +3824,29 @@
       "source": "networking/network_game_globals.c",
       "functions": [
         {
+          "decl": "bool FUN_00129130(int conn1, int conn2);",
+          "addr": "0x129130"
+        },
+        {
+          "decl": "bool FUN_001298f0(int connection, void *buffer, int *size, void *addr);",
+          "addr": "0x1298f0"
+        },
+        {
+          "decl": "bool FUN_00129cf0(int connection, int flag, int *output);",
+          "addr": "0x129cf0"
+        },
+        {
           "decl": "bool network_game_in_progress(void);",
           "addr": "0x12a000",
           "ported": true
+        },
+        {
+          "decl": "bool FUN_0012a160(void);",
+          "addr": "0x12a160"
+        },
+        {
+          "decl": "bool FUN_0012a170(void);",
+          "addr": "0x12a170"
         },
         {
           "decl": "void *network_game_server_get(void);",
@@ -3678,13 +3859,13 @@
           "ported": true
         },
         {
-          "decl": "void *network_game_client_get(void);",
-          "addr": "0x12a240",
+          "decl": "bool network_game_server_start_frame(void);",
+          "addr": "0x12a210",
           "ported": true
         },
         {
-          "decl": "bool network_game_server_start_frame(void);",
-          "addr": "0x12a210",
+          "decl": "void *network_game_client_get(void);",
+          "addr": "0x12a240",
           "ported": true
         },
         {
@@ -3757,8 +3938,74 @@
       "source": "networking/network_server_manager.c",
       "functions": [
         {
+          "decl": "void FUN_0012c060(void *server);",
+          "addr": "0x12c060",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0012c0b0(void *server);",
+          "addr": "0x12c0b0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012c100(void *server);",
+          "addr": "0x12c100",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012c160(void *server);",
+          "addr": "0x12c160",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0012c1c0(int server, int client);",
+          "addr": "0x12c1c0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012c290(void *server);",
+          "addr": "0x12c290",
+          "ported": true
+        },
+        {
           "decl": "void network_server_manager_game_over(void *server);",
-          "addr": "0x12c370"
+          "addr": "0x12c370",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012c500(int server, int machine);",
+          "addr": "0x12c500",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0012caa0(void *server);",
+          "addr": "0x12caa0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012d040(void *server);",
+          "addr": "0x12d040",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012d0c0(void *server);",
+          "addr": "0x12d0c0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012d150(void *server);",
+          "addr": "0x12d150",
+          "ported": true
+        },
+        {
+          "decl": "int FUN_0012d3b0(void *machine);",
+          "addr": "0x12d3b0",
+          "ported": true
+        },
+        {
+          "decl": "int FUN_0012d450(int server, int machine_index);",
+          "addr": "0x12d450",
+          "ported": true
         },
         {
           "decl": "int FUN_0012d570(void *server);",
@@ -3767,16 +4014,84 @@
           "ported": true
         },
         {
+          "decl": "bool FUN_0012d880(int server@<eax>, int new_connection);",
+          "addr": "0x12d880",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012d9f0(int server@<esi>);",
+          "addr": "0x12d9f0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012db60(int server@<esi>);",
+          "addr": "0x12db60",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012dbb0(int server@<eax>);",
+          "addr": "0x12dbb0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012dc20(int server@<ebx>);",
+          "addr": "0x12dc20",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0012dd20(void *game_data, const char *prefix@<esi>);",
+          "addr": "0x12dd20",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0012de20(void *server);",
+          "addr": "0x12de20",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012df50(void *server, void *machine);",
+          "addr": "0x12df50",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012e090(void *server, void *player_data);",
+          "addr": "0x12e090",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012e580(int server@<ebx>);",
+          "addr": "0x12e580",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012e750(int server@<esi>);",
+          "addr": "0x12e750",
+          "ported": true
+        },
+        {
           "decl": "void network_game_client_dispose(void *server);",
-          "addr": "0x12ea00"
+          "addr": "0x12ea00",
+          "ported": true
         },
         {
           "decl": "bool network_game_server_start(void *server);",
-          "addr": "0x12eb20"
+          "addr": "0x12eb20",
+          "ported": true
         },
         {
           "decl": "bool network_server_manager_pregame_start(void *server);",
-          "addr": "0x12eca0"
+          "addr": "0x12eca0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012f430(void *server, void *message);",
+          "addr": "0x12f430",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0012f5d0(void *server);",
+          "addr": "0x12f5d0",
+          "ported": true
         }
       ]
     },
@@ -4045,6 +4360,11 @@
           "ported": true
         },
         {
+          "decl": "bool FUN_001403a0(int object_handle, short function_index, void *out_value);",
+          "addr": "0x1403a0",
+          "ported": true
+        },
+        {
           "decl": "int16_t object_find_in_cluster(int flags, int16_t cluster_count, int16_t *cluster_indices, int16_t max_count, int *out_handles);",
           "addr": "0x140420",
           "ported": true
@@ -4092,6 +4412,11 @@
         {
           "decl": "vector3_t *object_get_world_position(int object_handle, vector3_t *out_position);",
           "addr": "0x1412f0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_00141360(int object_handle, float *out_forward, float *out_up);",
+          "addr": "0x141360",
           "ported": true
         },
         {
@@ -4183,7 +4508,7 @@
         {
           "decl": "void observer_apply_acceleration(int16_t local_player_index @<eax>);",
           "addr": "0x8a660",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void observer_integrate(int16_t local_player_index @<eax>);",
@@ -4191,9 +4516,13 @@
           "ported": true
         },
         {
+          "decl": "bool FUN_0008ab90(float *out_fraction, bool indoor @<al>, float *ray_origin @<esi>, float *ray_endpoint @<edi>);",
+          "addr": "0x8ab90"
+        },
+        {
           "decl": "void observer_update_command(int16_t local_player_index @<eax>);",
           "addr": "0x8b060",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void observer_compute_accelerations(int16_t local_player_index @<eax>);",
@@ -4203,12 +4532,17 @@
         {
           "decl": "void observer_compute_update(int16_t local_player_index @<eax>);",
           "addr": "0x8ba10",
-          "ported": false
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0008c150(float *up, float *focus_distance, float near_plane_dist, float *forward @<eax>, float *position @<ecx>);",
+          "addr": "0x8c150",
+          "ported": true
         },
         {
           "decl": "void observer_update_result(int16_t local_player_index @<eax>);",
           "addr": "0x8c4b0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void observer_compute_velocities(int16_t local_player_index @<esi>);",
@@ -4252,8 +4586,34 @@
           "ported": true
         },
         {
+          "decl": "void FUN_0009f920(void *type_state@<eax>, void *sys_def@<ecx>, void *ps_datum);",
+          "addr": "0x9f920"
+        },
+        {
+          "decl": "void FUN_0009f9d0(void *particle@<eax>, void *sys_def@<ecx>);",
+          "addr": "0x9f9d0"
+        },
+        {
           "decl": "void particle_systems_dispose_from_old_map(void);",
           "addr": "0x9fcd0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0009fd30(void *ps@<ebx>, int type_index, float dt);",
+          "addr": "0x9fd30"
+        },
+        {
+          "decl": "void FUN_000a0080(void *sys_def@<ecx>, short state_index@<eax>, void *output@<edi>);",
+          "addr": "0xa0080"
+        },
+        {
+          "decl": "void FUN_000a0180(float dt, int particle_system_handle);",
+          "addr": "0xa0180",
+          "ported": true
+        },
+        {
+          "decl": "char FUN_000a0fd0(int particle_handle);",
+          "addr": "0xa0fd0",
           "ported": true
         },
         {
@@ -4299,8 +4659,38 @@
           "ported": true
         },
         {
+          "decl": "void FUN_000a1fd0(void *spawn_params);",
+          "addr": "0xa1fd0",
+          "ported": true
+        },
+        {
           "decl": "void particles_update(float);",
           "addr": "0xa2570",
+          "ported": true
+        },
+        {
+          "decl": "float FUN_000a1670(int datum_handle);",
+          "addr": "0xa1670",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_000a1710(float *color);",
+          "addr": "0xa1710",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_000a1910(int datum_handle);",
+          "addr": "0xa1910",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000a1770(int particle@<eax>, int tag_group@<ecx>, int physics_tag@<esi>, int param);",
+          "addr": "0xa1770",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000a18c0(int datum_handle@<ebx>);",
+          "addr": "0xa18c0",
           "ported": true
         }
       ]
@@ -5445,6 +5835,10 @@
           "ported": true
         },
         {
+          "decl": "int FUN_0018e3f0(void);",
+          "addr": "0x18e3f0"
+        },
+        {
           "decl": "void *game_globals_get(void);",
           "addr": "0x18e450",
           "ported": true
@@ -5452,6 +5846,15 @@
         {
           "decl": "void scenario_location_reset(int *location);",
           "addr": "0x18e4d0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0018e910(void *location);",
+          "addr": "0x18e910"
+        },
+        {
+          "decl": "int FUN_0018eab0(int16_t bsp3d_node_index);",
+          "addr": "0x18eab0",
           "ported": true
         },
         {
@@ -5467,6 +5870,16 @@
         {
           "decl": "void scenario_location_from_point(void *location_out, void *point);",
           "addr": "0x18f180",
+          "ported": true
+        },
+        {
+          "decl": "int16_t FUN_0018f2d0(void *location, void *position);",
+          "addr": "0x18f2d0",
+          "ported": true
+        },
+        {
+          "decl": "float FUN_0018f510(void *location, void *position);",
+          "addr": "0x18f510",
           "ported": true
         }
       ]
@@ -5536,6 +5949,11 @@
         {
           "decl": "void *scenario_get(void);",
           "addr": "0x18e3c0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_0018f3e0(void *location, void *position, int16_t *out_sky_index);",
+          "addr": "0x18f3e0",
           "ported": true
         }
       ]
@@ -5843,6 +6261,11 @@
           "decl": "void sound_start_next_looping_permutation(int sound_handle@<eax>);",
           "addr": "0x1cd2c0",
           "comment": "Transition a looping sound to its next iteration tag and permutation.",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_001cd450(int sound_index);",
+          "addr": "0x1cd450",
           "ported": true
         },
         {
@@ -6277,6 +6700,14 @@
           "ported": true
         },
         {
+          "decl": "bool FUN_00082300(void);",
+          "addr": "0x82300"
+        },
+        {
+          "decl": "void FUN_00082b30(void);",
+          "addr": "0x82b30"
+        },
+        {
           "decl": "void endpoint_pool_cleanup(void);",
           "addr": "0x82d30",
           "ported": true
@@ -6287,8 +6718,9 @@
           "ported": true
         },
         {
-          "decl": "void winsock_error_report(int error_code);",
-          "addr": "0x83310"
+          "decl": "const char *winsock_error_report(int error_code);",
+          "addr": "0x83310",
+          "ported": true
         },
         {
           "decl": "void close_endpoint(int *ep);",
@@ -6540,7 +6972,8 @@
         },
         {
           "decl": "void ui_widget_game_data_build_version(int a2);",
-          "addr": "0xf0ea0"
+          "addr": "0xf0ea0",
+          "ported": true
         }
       ]
     },
@@ -6554,14 +6987,26 @@
           "ported": true
         },
         {
+          "decl": "void unicode_sprintf(wchar_t *buffer, int buffer_size, const wchar_t *format, ...);",
+          "addr": "0x19e9f0",
+          "ported": true
+        },
+        {
+          "decl": "int FUN_0019f3a0(void *player_data, void *name_buf, int size);",
+          "addr": "0x19f3a0"
+        },
+        {
           "decl": "wchar_t *ascii_to_wide(const char *ascii, wchar_t *unicode, size_t length);",
           "addr": "0x19f450",
           "ported": true
         },
         {
-          "decl": "void unicode_sprintf(wchar_t *buffer, int buffer_size, const wchar_t *format, ...);",
-          "addr": "0x19e9f0",
-          "ported": true
+          "decl": "void FUN_001a0890(int unit_handle, float *out_pos, float *out_dist_b, float *out_dist_a);",
+          "addr": "0x1a0890"
+        },
+        {
+          "decl": "void FUN_001a1140(int unit_handle, int16_t param2, void *param3, void *param4, void *param5, float *position);",
+          "addr": "0x1a1140"
         }
       ]
     },
@@ -6605,9 +7050,29 @@
           "ported": true
         },
         {
+          "decl": "void FUN_001a8e10(int object_handle, int16_t state);",
+          "addr": "0x1a8e10",
+          "ported": true
+        },
+        {
           "decl": "void unit_set_seat_state(int unit_handle, float *position);",
           "addr": "0x1a9240",
-          "status": "ported"
+          "ported": true
+        },
+        {
+          "decl": "void FUN_001a9900(int unit_handle, void *out_aiming);",
+          "addr": "0x1a9900",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_001a9930(int unit_handle, void *out_looking);",
+          "addr": "0x1a9930",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_001a9960(int unit_handle, void *out_facing);",
+          "addr": "0x1a9960",
+          "ported": true
         },
         {
           "decl": "bool unit_is_alive(int unit_handle);",
@@ -6692,6 +7157,11 @@
         {
           "decl": "int unit_get_weapon(int unit_handle, int16_t weapon_index);",
           "addr": "0x1adeb0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_001adf10(int unit_handle, char param_2);",
+          "addr": "0x1adf10",
           "ported": true
         },
         {
