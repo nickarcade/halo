@@ -52,7 +52,7 @@ void transport_initialize(void)
   xnet_params[10] = 0x20; /* cfgQosProbeMaxWait */
 
   /* Query ethernet link status and log it. */
-  link_status = ((uint32_t(*)(void))0x1d8b76)();
+  link_status = XNetGetEthernetLinkStatus();
 
   halfduplex_str = (link_status & 0x10) ? " in half-duplex mode" : "";
   fullduplex_str = (link_status & 0x08) ? " in full-duplex mode" : "";
@@ -122,6 +122,53 @@ void transport_dispose(void)
     ((void (*)(void))0x2232ed)();
     *(uint8_t *)0x335090 = 0;
   }
+}
+
+/* Check whether the Xbox ethernet link is currently connected.
+ *
+ * Calls XNetGetEthernetLinkStatus (0x1d8b76) and returns bit 0,
+ * which is the "connected" flag.
+ *
+ * Confirmed: 3-instruction function — CALL, AND AL,1, RET.
+ * Callers include network session management functions.
+ */
+bool FUN_00082300(void)
+{
+  return XNetGetEthernetLinkStatus() & 1;
+}
+
+/* Release the global XNet key and clear associated state.
+ *
+ * If the "key owned" flag (0x335091) is set, decrements global_key_depth
+ * (0x335094) and, if it reaches zero, calls FUN_00222df7 to release the
+ * key object at 0x5ab220.  Clears the owned flag.  Then always performs a
+ * second decrement-and-release of global_key_depth.  Finally clears the
+ * byte at 0x5ab204 via csmemset.
+ *
+ * Confirmed: display_assert (0x8d9f0); system_exit (0x8e2f0);
+ * FUN_00222df7 (0x222df7, __stdcall 1 arg, RET 4);
+ * csmemset (0x8db80, cdecl 3 args);
+ * assert string "global_key_depth > 0" at 0x2664a8;
+ * __FILE__ string at 0x266458; source line 0x66 = 102.
+ */
+void FUN_00082b30(void)
+{
+  if (*(uint8_t *)0x335091 != 0) {
+    assert_halt(*(int *)0x335094 > 0);
+    *(int *)0x335094 -= 1;
+    if (*(int *)0x335094 == 0) {
+      FUN_00222df7((void *)0x5ab220);
+    }
+    *(uint8_t *)0x335091 = 0;
+  }
+
+  assert_halt(*(int *)0x335094 > 0);
+  *(int *)0x335094 -= 1;
+  if (*(int *)0x335094 == 0) {
+    FUN_00222df7((void *)0x5ab220);
+  }
+
+  csmemset((void *)0x5ab204, 0, 1);
 }
 
 /* Clean up the endpoint pool. Iterates 64 entries (8 bytes each) at

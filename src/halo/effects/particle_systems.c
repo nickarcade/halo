@@ -38,6 +38,356 @@ void particle_systems_dispose(void)
 {
 }
 
+/* Advance particle type state to next state index (0x9f920).
+ * Computes next_state = current_state + delta, where delta is +1 or -1
+ * based on the direction flag at type_state+0x38. If next_state is valid
+ * (0 <= next_state < particle_states.count), just stores it. Otherwise:
+ * - If type can loop (flag bit 0) and has an object and states exist:
+ *   - If ping-pong mode (flag bit 1): bounce off ends, flip direction
+ *   - Else: wrap to state 0
+ * - Otherwise: terminate by setting both current_state and next_state to -1 */
+void FUN_0009f920(void *type_state_arg, void *type_def_arg, void *ps_datum)
+{
+  char *type_state = (char *)type_state_arg;
+  char *type_def = (char *)type_def_arg;
+  char direction;
+  short delta;
+  short current_state;
+  short next_state;
+  int state_count;
+  unsigned int flags;
+
+  direction = *(char *)(type_state + 0x38);
+  delta = (direction != 0) ? 1 : -1;
+  current_state = *(short *)type_state;
+  next_state = current_state + delta;
+  *(short *)(type_state + 0x2) = next_state;
+
+  if (next_state >= 0 && (int)next_state < *(int *)(type_def + 0x68)) {
+    /* Valid next state */
+    return;
+  }
+
+  /* Out of bounds - check if we can loop */
+  flags = *(unsigned int *)(type_def + 0x20);
+  if ((flags & 1) == 0) {
+    goto terminate;
+  }
+  if (*(int *)((char *)ps_datum + 0xc) == -1) {
+    goto terminate;
+  }
+  state_count = *(int *)(type_def + 0x68);
+  if (state_count <= 0) {
+    goto terminate;
+  }
+
+  /* Can loop */
+  if ((flags & 2) != 0) {
+    /* Ping-pong mode: bounce off ends and flip direction */
+    int bounced = (int)current_state - (int)delta;
+    if (bounced < 0) {
+      *(short *)(type_state + 0x2) = 0;
+      *(char *)(type_state + 0x38) = (direction == 0) ? 1 : 0;
+      return;
+    }
+    if (bounced > state_count - 1) {
+      bounced = state_count - 1;
+    }
+    *(short *)(type_state + 0x2) = (short)bounced;
+    *(char *)(type_state + 0x38) = (direction == 0) ? 1 : 0;
+    return;
+  }
+
+  /* Wrap mode: restart at state 0 */
+  *(short *)(type_state + 0x2) = 0;
+  return;
+
+terminate:
+  *(short *)type_state = -1;
+  *(short *)(type_state + 0x2) = -1;
+}
+
+/* Advance particle state to next state index (0x9f9d0).
+ * Similar to FUN_0009f920 but operates on individual particle state rather
+ * than type state. Computes next_state = current_state + delta, where delta
+ * is +1 or -1 based on the direction flag at particle+0x2. If next_state is
+ * valid (0 <= next_state < particle_states.count at sys_def+0x74), stores it.
+ * Otherwise:
+ * - If type can loop (flag bit 2) and states exist:
+ *   - If ping-pong mode (flag bit 3): bounce off ends, flip direction
+ *   - Else: wrap to state 0
+ * - Otherwise: terminate by setting both current/next_state to -1 */
+void FUN_0009f9d0(void *particle_arg, void *sys_def_arg)
+{
+  char *particle = (char *)particle_arg;
+  char *sys_def = (char *)sys_def_arg;
+  char direction;
+  short delta;
+  short current_state;
+  short next_state;
+  int state_count;
+  unsigned int flags;
+
+  direction = *(char *)(particle + 0x2);
+  delta = (direction != 0) ? 1 : -1;
+  current_state = *(short *)(particle + 0x8);
+  next_state = current_state + delta;
+  *(short *)(particle + 0xa) = next_state;
+
+  if (next_state >= 0 && (int)next_state < *(int *)(sys_def + 0x74)) {
+    /* Valid next state */
+    return;
+  }
+
+  /* Out of bounds - check if we can loop */
+  flags = *(unsigned int *)(sys_def + 0x20);
+  if ((flags & 4) == 0) {
+    goto terminate;
+  }
+  state_count = *(int *)(sys_def + 0x74);
+  if (state_count <= 0) {
+    goto terminate;
+  }
+
+  /* Can loop */
+  if ((flags & 8) != 0) {
+    /* Ping-pong mode: bounce off ends and flip direction */
+    int bounced = (int)current_state - (int)delta;
+    if (bounced < 0) {
+      *(short *)(particle + 0xa) = 0;
+      *(char *)(particle + 0x2) = (direction == 0) ? 1 : 0;
+      return;
+    }
+    if (bounced > state_count - 1) {
+      bounced = state_count - 1;
+    }
+    *(short *)(particle + 0xa) = (short)bounced;
+    *(char *)(particle + 0x2) = (direction == 0) ? 1 : 0;
+    return;
+  }
+
+  /* Wrap mode: restart at state 0 */
+  *(short *)(particle + 0xa) = 0;
+  return;
+
+terminate:
+  *(short *)(particle + 0x8) = -1;
+  *(short *)(particle + 0xa) = -1;
+}
+
+/* Emit particles for a particle type (0x9fd30).
+ * Calculates how many particles to emit based on dt and the type's emission
+ * rate, then allocates and initializes each particle. Uses either time-based
+ * accumulation or fixed/random count depending on the location-resolved flag.
+ * Each particle has its creation physics applied via an indirect call. If the
+ * particle fails to resolve a valid location, it's deleted; otherwise it's
+ * linked into the type's particle list. */
+void FUN_0009fd30(void *ps_arg, int type_index, float dt)
+{
+  char *ps = (char *)ps_arg;
+  char *tag_def;
+  char *type_def;
+  char *type_state;
+  char *state_def;
+  char *particle;
+  char marker_buf[8 * 0x6c]; /* 8 entries at 0x6c bytes each; original SUB ESP,0x380 */
+  float local_position[3];
+  float local_up[3];
+  int particle_handle;
+  int loop_count;
+  unsigned int target_count;
+  short creation_func_idx;
+  int emit_count_int;
+  float emit_frac;
+  char is_location_resolved;
+  short location_valid;
+
+  tag_def = (char *)tag_get(0x7063746c, *(int *)(ps + 8));
+  type_state = ps + 0x58 + type_index * 0x40;
+  type_def =
+    (char *)tag_block_get_element((void *)(tag_def + 0x5c), type_index, 0x80);
+  is_location_resolved = (*(unsigned int *)(ps + 4) >> 1) & 1;
+
+  if (is_location_resolved == 0) {
+    /* Time-based emission with fractional accumulator */
+    state_def = (char *)tag_block_get_element((void *)(type_def + 0x68),
+                                              (int)*(short *)type_state, 0xc0);
+    emit_frac = dt * *(float *)(type_state + 0x30);
+    emit_count_int = (int)emit_frac;
+    target_count = (unsigned int)(unsigned short)(*(short *)(type_state + 0x3a) +
+                                                  (short)emit_count_int);
+    emit_frac = emit_frac - (float)emit_count_int + *(float *)(type_state + 0x34);
+    *(float *)(type_state + 0x34) = emit_frac;
+    if (emit_frac > 1.0f) {
+      target_count = target_count + 1;
+      *(float *)(type_state + 0x34) = emit_frac - 1.0f;
+    }
+  } else {
+    /* Fixed or random emission count */
+    state_def = (char *)0;
+    if ((*(unsigned int *)(type_def + 0x20) & 0x400) == 0) {
+      target_count = (unsigned int)(unsigned short)*(short *)(type_def + 0x24);
+    } else {
+      emit_count_int = (int)*(short *)(type_def + 0x24);
+      emit_frac = (float)emit_count_int * *(float *)(ps + 0x14) + 0.5f;
+      target_count = (unsigned int)(int)emit_frac;
+    }
+  }
+
+  if (*(short *)(type_state + 0x3a) >= (short)target_count) {
+    goto check_emission_multiplier;
+  }
+
+  /* Set up position and orientation for new particles */
+  if (*(int *)(ps + 0xc) == -1) {
+    /* No object attachment: use system position and gravity */
+    local_position[0] = *(float *)(ps + 0x20);
+    local_position[1] = *(float *)(ps + 0x24);
+    local_position[2] = *(float *)(ps + 0x28);
+    local_up[0] = *(float *)(*(int *)0x31fc38 + 0);
+    local_up[1] = *(float *)(*(int *)0x31fc38 + 4);
+    local_up[2] = *(float *)(*(int *)0x31fc38 + 8);
+    location_valid = 1;
+  } else {
+    /* Get marker from attached object */
+    char *obj = (char *)object_get_and_verify_type(*(int *)(ps + 0xc), -1);
+    char *obj_tag = (char *)tag_get(0x6f626a65, *(int *)obj);
+    char *marker_elem =
+      (char *)tag_block_get_element((void *)(obj_tag + 0x140),
+                                    (int)*(short *)(ps + 0x10), 0x6c);
+    location_valid =
+      object_get_markers_by_string_id(*(int *)(ps + 0xc),
+                                      (void *)(marker_elem + 0x10),
+                                      marker_buf, 8);
+    object_get_location(*(int *)(ps + 0xc), ps + 0x18);
+  }
+
+  if (*(short *)(ps + 0x1c) == -1) {
+    goto check_emission_multiplier;
+  }
+
+  loop_count = 0;
+  while (*(short *)(type_state + 0x3a) < (short)target_count) {
+    if (location_valid == 0)
+      break;
+    if (loop_count >= 0x80)
+      break;
+
+    particle_handle = data_new_at_index(particle_system_data);
+    if (particle_handle == -1)
+      break;
+
+    particle = (char *)datum_get(particle_system_data, particle_handle);
+    if (is_location_resolved == 0) {
+      creation_func_idx = *(short *)(state_def + 0xb0);
+    } else {
+      creation_func_idx = *(short *)(type_def + 0x54);
+    }
+
+    if (particle == (char *)0) {
+      display_assert("particle", "c:\\halo\\SOURCE\\effects\\particle_systems.c",
+                     0x1dc, 1);
+      system_exit(-1);
+    }
+
+    /* Initialize particle */
+    *(char *)(particle + 3) = 1;
+    *(short *)(particle + 8) = -1;
+    *(short *)(particle + 0xa) = -1;
+    *(char *)(particle + 2) = 1;
+    *(float *)(particle + 0x44) = -1.0f;
+    *(float *)(particle + 0x40) =
+      random_real_range((int *)random_math_get_local_seed_address(), 0.0f,
+                        3.14159265f * 2.0f);
+
+    if (creation_func_idx < 0 || creation_func_idx >= 3) {
+      display_assert("creation_function_index>=0 && "
+                     "creation_function_index<NUMBER_OF_PARTICLE_SYSTEM_TYPE_"
+                     "CREATION_PHYSICS",
+                     "c:\\halo\\SOURCE\\effects\\particle_systems.c", 0x1e8, 1);
+      system_exit(-1);
+    }
+
+    /* Call creation physics via function table */
+    {
+      random_real_range((int *)random_math_get_local_seed_address(), 0.0f,
+                        (float)location_valid);
+      typedef void (*creation_physics_fn)(char *ps, short type_idx, char *particle,
+                                          char *marker_buf);
+      ((creation_physics_fn *)(0x26ab10))[creation_func_idx](
+        ps, (short)type_index, particle, marker_buf);
+    }
+
+    /* Resolve particle location from its position */
+    scenario_location_from_point(particle + 0x14, particle + 0x1c);
+
+    if (*(short *)(particle + 0x18) == -1) {
+      /* Invalid location: delete particle */
+      datum_delete(particle_system_data, particle_handle);
+    } else {
+      /* Link particle into type's list */
+      *(short *)(type_state + 0x3a) = *(short *)(type_state + 0x3a) + 1;
+      *(int *)(particle + 4) = *(int *)(type_state + 0x3c);
+      *(int *)(type_state + 0x3c) = particle_handle;
+    }
+
+    loop_count = loop_count + 1;
+  }
+
+check_emission_multiplier:
+  /* If particle count < threshold, scale down emission timer */
+  if ((float)(int)*(short *)(type_state + 0x3a) < *(float *)(type_state + 0x2c)) {
+    *(float *)(type_state + 0x4) = *(float *)(type_state + 0x4) * 0.5f;
+  }
+}
+
+/* Populate particle output from state definition (0xa0080).
+ * Reads particle state definition properties and fills in 7 floats in the
+ * output array. First generates a random interpolation factor t, then:
+ * - output[0] = random_range(state_def+0x48, state_def+0x4c)
+ * - output[1] = random_range(state_def+0x50, state_def+0x54)
+ * - output[2] = random_range(state_def+0x58, state_def+0x5c)
+ * - output[3] = random_range(state_def+0x60, state_def+0x70)
+ * - output[4] = lerp(state_def+0x64, state_def+0x74, t)
+ * - output[5] = lerp(state_def+0x68, state_def+0x78, t)
+ * - output[6] = lerp(state_def+0x6c, state_def+0x7c, t) */
+void FUN_000a0080(void *sys_def_arg, short state_index, void *output_arg)
+{
+  char *sys_def = (char *)sys_def_arg;
+  float *output = (float *)output_arg;
+  char *state_def;
+  float t;
+
+  state_def =
+    (char *)tag_block_get_element((void *)(sys_def + 0x74), (int)state_index,
+                                  0x178);
+
+  /* Generate random interpolation factor */
+  t = random_real_range((int *)random_math_get_local_seed_address(), 0.0f, 1.0f);
+
+  /* Fill output with random ranges */
+  output[1] = random_real_range((int *)random_math_get_local_seed_address(),
+                                *(float *)(state_def + 0x50),
+                                *(float *)(state_def + 0x54));
+  output[2] = random_real_range((int *)random_math_get_local_seed_address(),
+                                *(float *)(state_def + 0x58),
+                                *(float *)(state_def + 0x5c));
+  output[0] = random_real_range((int *)random_math_get_local_seed_address(),
+                                *(float *)(state_def + 0x48),
+                                *(float *)(state_def + 0x4c));
+  output[3] = random_real_range((int *)random_math_get_local_seed_address(),
+                                *(float *)(state_def + 0x60),
+                                *(float *)(state_def + 0x70));
+
+  /* Fill output with linear interpolations */
+  output[4] = (*(float *)(state_def + 0x74) - *(float *)(state_def + 0x64)) * t +
+              *(float *)(state_def + 0x64);
+  output[5] = (*(float *)(state_def + 0x78) - *(float *)(state_def + 0x68)) * t +
+              *(float *)(state_def + 0x68);
+  output[6] = (*(float *)(state_def + 0x7c) - *(float *)(state_def + 0x6c)) * t +
+              *(float *)(state_def + 0x6c);
+}
+
 void particle_systems_dispose_from_old_map(void)
 {
   int particle_system_index;

@@ -142,11 +142,27 @@
         "Whether actors.obj contains additional unported functions such as actors_initialize_for_new_map at 0x3a990 has not been confirmed."
       ]
     },
+    "0x3ad80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3ae60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3b030": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x3b270": {
       "kind": "function",
       "status": "ported"
     },
     "0x3b320": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3b410": {
       "kind": "function",
       "status": "ported"
     },
@@ -167,6 +183,22 @@
       "status": "ported"
     },
     "0x3ba00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3cbc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3cc10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3cff0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3d950": {
       "kind": "function",
       "status": "ported"
     },
@@ -332,6 +364,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x82300": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x82b30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x82d30": {
       "kind": "function",
       "status": "ported"
@@ -375,6 +415,10 @@
       "status": "ported"
     },
     "0x861c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x86220": {
       "kind": "function",
       "status": "ported"
     },
@@ -837,15 +881,26 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x9ca70": {
+    "0x9c810": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x9ca70": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Inlined into FUN_0009e310; velocity generation helper with hidden reg deps (EDI=flags_hi from loc_entry+0x64)."
+      ]
     },
     "0x9caf0": {
       "kind": "function",
       "status": "ported"
     },
     "0x9cb90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9cc20": {
       "kind": "function",
       "status": "ported"
     },
@@ -883,7 +938,18 @@
     },
     "0x9dcf0": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "inferred": [
+        "Inlined into FUN_0009e310; part-type dispatcher with 4 reg args (EAX=position, EDX=effect, ECX=location, ESI=loc_entry)."
+      ]
+    },
+    "0x9e0d0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "tag_get call at +0x3c has its return value discarded (EAX overwritten at +0x41); included for binary fidelity as possible validation side-effect.",
+        "FUN_000dd190 is the particle marker callback passed to FUN_0009d4e0; not in kb.json because it is only used as a data pointer (pushed as immediate), not called directly from this function."
+      ]
     },
     "0x9e310": {
       "kind": "function",
@@ -921,7 +987,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x9f920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9f9d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x9fcd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9fd30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa0080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa0180": {
       "kind": "function",
       "status": "ported"
     },
@@ -1042,6 +1128,10 @@
       "status": "ported"
     },
     "0xa6620": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa66d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -2118,6 +2208,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xce4b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xce5c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xce690": {
       "kind": "function",
       "status": "ported"
@@ -2166,6 +2264,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xcfd00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcfdb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xd0120": {
       "kind": "function",
       "status": "ported"
@@ -2175,6 +2281,14 @@
       "status": "ported"
     },
     "0xd0190": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd01a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd01c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -2863,6 +2977,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfbbd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfc290": {
       "kind": "function",
       "status": "ported"
@@ -2876,6 +2994,10 @@
       "status": "ported"
     },
     "0xfcf20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfd180": {
       "kind": "function",
       "status": "ported"
     },
@@ -3527,7 +3649,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x129130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1298f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x129cf0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12a000": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12a160": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12a170": {
       "kind": "function",
       "status": "ported"
     },
@@ -3658,6 +3800,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1362d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x136520": {
       "kind": "function",
       "status": "ported"
@@ -3671,6 +3817,10 @@
       "status": "ported"
     },
     "0x138e30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x138eb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3840,6 +3990,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x13fb80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13fc20": {
       "kind": "function",
       "status": "ported"
@@ -3867,6 +4021,10 @@
         "Object tag definition field at offset 0x34 is the model tag index; value -1 means no model."
       ]
     },
+    "0x13ff50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13ffc0": {
       "kind": "function",
       "status": "ported",
@@ -3891,6 +4049,10 @@
       ]
     },
     "0x140230": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1403a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3987,6 +4149,10 @@
         "The 0xfe0 type mask (bits 5-11) is labeled _object_mask_cannot_interpolate based on the assertion string; exact bit-to-type mapping not fully verified."
       ]
     },
+    "0x143a00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x143ae0": {
       "kind": "function",
       "status": "ported"
@@ -4028,6 +4194,14 @@
         "In the else branch, the destination matrix for object_compute_child_marker_position aliases parent_markers+0x38.",
         "In the else branch, the destination matrix for object_compute_child_marker_position aliases parent_markers+0x38."
       ]
+    },
+    "0x1449b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x144b30": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x145170": {
       "kind": "function",
@@ -4273,6 +4447,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x18e3f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x18e420": {
       "kind": "function",
       "status": "ported"
@@ -4282,6 +4460,10 @@
       "status": "ported"
     },
     "0x18e4d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x18e910": {
       "kind": "function",
       "status": "ported"
     },
@@ -4641,7 +4823,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x19f3a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x19f450": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a0890": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a1140": {
       "kind": "function",
       "status": "ported"
     },
@@ -4662,6 +4856,10 @@
       "inferred": [
         "Global at 0x4e4cf8 is a pointer to a 5-byte struct {int16_t, int16_t, uint8_t} used for units per-tick update state tracking."
       ]
+    },
+    "0x1a8190": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1a8200": {
       "kind": "function",
@@ -5122,6 +5320,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c0c20": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c2840": {
       "kind": "function",
       "status": "ported"
@@ -5534,6 +5736,10 @@
       "uncertain": [
         "The name sound_find_oldest_channel for 0x1ccd70 is inferred from behavior; the function compares tick counts and distances to find the best eviction candidate."
       ]
+    },
+    "0x1cd450": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1cd5a0": {
       "kind": "function",

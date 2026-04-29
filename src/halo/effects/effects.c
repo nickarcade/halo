@@ -55,6 +55,45 @@ void FUN_0009c750(int effect_handle)
   datum_delete(*(data_t **)0x5aa8b0, effect_handle);
 }
 
+/* Detach all effects owned by a local player (0x9c810).
+ * Iterates the effect pool and for each effect whose player index (offset 0x4c)
+ * matches the given local_player_index, walks the per-event location linked
+ * lists. Locations with a negative (but not -1) field at offset +2 are deleted
+ * and unlinked; others are skipped. After processing, the effect's player index
+ * is reset to NONE (-1). Called when deactivating first-person weapon effects.
+ */
+void FUN_0009c810(int local_player_index)
+{
+  int effect_index;
+  for (effect_index = data_next_index(effect_data, NONE); effect_index != NONE;
+       effect_index = data_next_index(effect_data, effect_index)) {
+    char *effect = (char *)datum_get(effect_data, effect_index);
+    char *tag_data = (char *)tag_get(0x65666665, *(int *)(effect + 4));
+
+    if (*(int16_t *)(effect + 0x4c) != (int16_t)local_player_index)
+      continue;
+
+    int event_count = *(int *)(tag_data + 0x28);
+    int16_t i = 0;
+    while ((int)i < event_count) {
+      int *cursor_ptr = (int *)(effect + 0x5c + (int)i * 4);
+      while (*cursor_ptr != NONE) {
+        char *location = (char *)datum_get(effect_location_data, *cursor_ptr);
+        if (*(int16_t *)(location + 2) == (int16_t)NONE ||
+            *(int16_t *)(location + 2) >= 0) {
+          cursor_ptr = (int *)(location + 4);
+        } else {
+          datum_delete(effect_location_data, *cursor_ptr);
+          *cursor_ptr = *(int *)(location + 4);
+        }
+      }
+      i++;
+    }
+
+    *(int16_t *)(effect + 0x4c) = (int16_t)NONE;
+  }
+}
+
 /* Effect part volume filter (0x9caf0). Tests whether an effect part should
  * spawn based on its creation type and the effect's trigger/kill volume.
  * type 0=always, 1=outside volume, 2=inside volume, 3=never. */
@@ -875,6 +914,33 @@ void FUN_0009d590(void *effect)
   } while ((int)part_index < *parts_block);
 
   *(float *)(ef + 0x58) = t;
+}
+
+/* Assign a local player index to all effects attached to a given weapon
+ * (0x9e0d0). Iterates the effect pool and for each effect whose object handle
+ * (offset 0x3c) matches the given weapon_handle, asserts that
+ * local_player_index is currently NONE, then sets it and re-processes the
+ * effect's event/marker callbacks via FUN_0009d4e0 with the particle marker
+ * callback (FUN_000dd190). */
+void FUN_0009e0d0(int local_player_index, int weapon_handle)
+{
+  int effect_index;
+  for (effect_index = data_next_index(effect_data, NONE); effect_index != NONE;
+       effect_index = data_next_index(effect_data, effect_index)) {
+    char *effect = (char *)datum_get(effect_data, effect_index);
+    tag_get(0x65666665, *(int *)(effect + 4));
+    if (*(int *)(effect + 0x3c) != weapon_handle)
+      continue;
+
+    if (*(int16_t *)(effect + 0x4c) != (int16_t)NONE) {
+      display_assert("effect->local_player_index==NONE",
+                     "c:\\halo\\SOURCE\\effects\\effects.c", 0x249, 1);
+      system_exit(-1);
+    }
+
+    *(int16_t *)(effect + 0x4c) = (int16_t)local_player_index;
+    FUN_0009d4e0((int)effect, (void *)0xdd190);
+  }
 }
 
 void FUN_0009e310(void *effect)

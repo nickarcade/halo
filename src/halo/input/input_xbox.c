@@ -36,6 +36,8 @@ typedef int(__stdcall *xinput_open_fn)(void *, int, int, int);
 typedef int(__stdcall *xinput_get_state_fn)(int, void *);
 typedef void(__stdcall *xinput_close_fn)(int);
 typedef int(__stdcall *xset_event_fn)(int);
+typedef int(__stdcall *xinput_get_keystroke_fn)(void *);
+typedef int(__stdcall *xinput_debug_init_keyboard_fn)(void *);
 
 typedef struct xinput_gamepad {
   uint16_t wButtons;
@@ -79,6 +81,19 @@ typedef struct input_change_flag_mapping {
   uint32_t change_flag;
 } input_change_flag_mapping;
 
+#pragma pack(push, 1)
+typedef struct xinput_feedback {
+  uint32_t status;
+  uint8_t header[0x3e];
+  uint16_t left_motor;
+  uint16_t right_motor;
+} xinput_feedback;
+#pragma pack(pop)
+
+cs(xinput_feedback, 0x46);
+co(xinput_feedback, status, 0x0);
+co(xinput_feedback, left_motor, 0x42);
+co(xinput_feedback, right_motor, 0x44);
 cs(input_gamepad_state, 0x28);
 cs(input_raw_stick_state, 0x8);
 cs(input_rumble_state, 0x4);
@@ -138,7 +153,7 @@ static input_gamepad_state *input_gamepad_states(void)
 
 static input_raw_stick_state *input_raw_stick_states(void)
 {
-  return (input_raw_stick_state *)0x46ba1a;
+  return (input_raw_stick_state *)0x46ba18;
 }
 
 static void *suppressed_gamepad_state(void)
@@ -164,6 +179,26 @@ static int *input_update_event_handle(void)
 static uint8_t *input_update_event_pending(void)
 {
   return (uint8_t *)0x46bb2c;
+}
+
+static int *input_keyboard_handle(void)
+{
+  return (int *)0x46bb34;
+}
+
+static int *input_state_file_handle(void)
+{
+  return (int *)0x46b814;
+}
+
+static int *input_state_mode(void)
+{
+  return (int *)0x46b818;
+}
+
+static xinput_feedback *input_feedback_states(void)
+{
+  return (xinput_feedback *)0x46b900;
 }
 
 static uint8_t *input_digital_button_states(void)
@@ -227,6 +262,21 @@ static const uint8_t *input_analog_button_index_map(void)
 static const uint8_t *input_digital_button_bitmask_map(void)
 {
   return (const uint8_t *)0x281158;
+}
+
+static int16_t *input_vkey_to_keycode_table(void)
+{
+  return (int16_t *)0x281160;
+}
+
+static int16_t *input_ascii_remap_table(void)
+{
+  return (int16_t *)0x281360;
+}
+
+static uint32_t *input_buffered_key_ring(void)
+{
+  return (uint32_t *)0x46bc0c;
 }
 
 static uint8_t input_saturating_increment(uint8_t value)
@@ -316,6 +366,46 @@ static int16_t input_normalize_stick(int16_t value)
   }
 
   return 0;
+}
+
+/* input_check_state_mode (0xce4b0)
+ * Probe for sentinel files on the D: drive to select input state recording
+ * or playback mode.  Sets the global input_state_mode:
+ *   d:\write.xts exists  ->  mode 3 (write/record)
+ *   d:\read.xts  exists  ->  mode 4 (read/playback)
+ *   d:\loop.xts  exists  ->  mode 5 (loop playback)
+ * First match wins; if none exist the mode is left unchanged. */
+void input_check_state_mode(void)
+{
+  if (file_get_full_attributes("d:\\write.xts") != -1) {
+    *input_state_mode() = 3;
+    return;
+  }
+  if (file_get_full_attributes("d:\\read.xts") != -1) {
+    *input_state_mode() = 4;
+    return;
+  }
+  if (file_get_full_attributes("d:\\loop.xts") != -1) {
+    *input_state_mode() = 5;
+  }
+}
+
+/* input_open_state_file (0xce5c0)
+ * Check for sentinel files to select input state recording/playback mode,
+ * then open d:\state.data with the appropriate access flags. */
+void input_open_state_file(void)
+{
+  input_check_state_mode();
+
+  if (*input_state_mode() == 3) {
+    *input_state_file_handle() =
+      CreateFileA("d:\\state.data", 0x40000000, 0, 0, 2, 0x8000000, 0);
+    return;
+  }
+  if (*input_state_mode() == 4 || *input_state_mode() == 5) {
+    *input_state_file_handle() =
+      CreateFileA("d:\\state.data", 0x80000000, 0, 0, 3, 0x8000000, 0);
+  }
 }
 
 void input_flush(void)
@@ -549,6 +639,171 @@ void input_get_device_states(void)
   }
 }
 
+#define ERROR_IO_PENDING 0x3e5
+
+/* input_flush_rumble (0xcfd00)
+ * Send rumble motor commands to all connected gamepads. Called from
+ * input_keyboard_thread. Motors are silenced when input is suppressed or
+ * game state does not warrant rumble. */
+void input_flush_rumble(void)
+{
+  bool suppress;
+  int handle;
+  int i;
+  xinput_feedback *feedback;
+
+  if (!*input_suppressed() && !console_is_active() && !game_time_get_paused() &&
+      game_in_progress()) {
+    suppress = false;
+  } else {
+    suppress = true;
+  }
+
+  feedback = input_feedback_states();
+  for (i = 0; i < MAXIMUM_GAMEPADS; i++) {
+    handle = input_gamepad_handles()[i];
+    if (handle != 0) {
+      if (feedback->status == 0) {
+        feedback->left_motor = suppress ? 0 : input_rumble_states()[i].left;
+        feedback->right_motor = suppress ? 0 : input_rumble_states()[i].right;
+        XInputSetState(handle, feedback);
+      } else if (feedback->status != ERROR_IO_PENDING) {
+        feedback->status = 0;
+      }
+    }
+    feedback++;
+  }
+}
+
+/* input_update_keyboard_devices (0xcfdb0)
+ *
+ * Hot-plug XDEVICE_TYPE_DEBUG_KEYBOARD handles, age held-key frame counters,
+ * and drain the XInput keystroke ring into the digital/analog key state arrays
+ * and the 64-entry buffered-key ring at 0x46bc0c.
+ *
+ * Keystroke packed event layout (dword stored in ring):
+ *   bits 31-16: key_code (0x0000-0x0067)
+ *   bits 15-8:  remapped ASCII (0xff if not in remap table)
+ *   bits  7-0:  modifier flags (bits 0/1 are flags bits 1/0 swapped; bit 2
+ *               is flags bit 2) */
+void input_update_keyboard_devices(void)
+{
+  uint32_t insertions, removals;
+  uint32_t mask;
+  int keyboard_handle;
+  int err;
+  int i;
+  uint8_t *digital;
+  uint8_t *analog;
+  uint32_t keystroke;
+  uint8_t ascii_byte;
+  uint8_t flags_byte;
+  uint8_t modifier;
+  uint8_t ascii_remap;
+  int16_t key_code;
+  uint32_t event_packed;
+  uint32_t hold;
+
+  if (((xinput_get_changes_fn)0x24c954)((void *)0x24b2a8, &insertions,
+                                        &removals)) {
+    keyboard_handle = *input_keyboard_handle();
+    for (i = 0; i < 32; i++) {
+      mask = 1u << i;
+      if (removals & mask) {
+        if (keyboard_handle == 0) {
+          display_assert("input_globals.keyboard_handle",
+                         "c:\\halo\\SOURCE\\input\\input_xbox.c", 0x2d5, 1);
+          system_exit(-1);
+          keyboard_handle = *input_keyboard_handle();
+        }
+        ((xinput_close_fn)0x24c1b8)(keyboard_handle);
+        keyboard_handle = 0;
+        *input_keyboard_handle() = 0;
+      }
+      if (insertions & mask) {
+        if (keyboard_handle != 0) {
+          display_assert("input_globals.keyboard_handle==NULL",
+                         "c:\\halo\\SOURCE\\input\\input_xbox.c", 0x2dc, 1);
+          system_exit(-1);
+        }
+        *input_keyboard_handle() =
+          ((xinput_open_fn)0x24c143)((void *)0x24b2a8, i, 0, 0);
+        keyboard_handle = *input_keyboard_handle();
+        if (*input_keyboard_handle() == 0) {
+          err = ((int(__stdcall *)(void))0x1d2240)();
+          error(2, "XInputOpen (keyboard) failed (#%d) during input_update()",
+                err);
+          keyboard_handle = *input_keyboard_handle();
+        }
+      }
+    }
+  }
+
+  /* aging pass: saturating-increment held-key counters, zero released keys */
+  digital = input_digital_button_states();
+  analog = input_analog_button_states();
+  for (i = 0; i < INPUT_KEY_COUNT; i++) {
+    hold = analog[i] ? (uint32_t)digital[i] + 1 : 0;
+    digital[i] = (uint8_t)(hold > 0xff ? 0xff : hold);
+  }
+
+  /* reset buffered-key ring before draining new keystrokes */
+  *(uint16_t *)0x46bc08 = 0;
+  *(uint16_t *)0x46bc0a = 0;
+
+  while (((xinput_get_keystroke_fn)0x252ad9)(&keystroke) == 0) {
+    ascii_byte = (uint8_t)(keystroke >> 8);
+    flags_byte = (uint8_t)(keystroke >> 16);
+    modifier = (uint8_t)(((flags_byte >> 1) & 1) | ((flags_byte & 1) << 1) |
+                         (flags_byte & 4));
+
+    if (ascii_byte >= 0x80) {
+      display_assert(
+        "keystroke.Ascii>=0 && keystroke.Ascii<NUMBER_OF_ASCII_CODES",
+        "c:\\halo\\SOURCE\\input\\input_xbox.c", 0x305, 1);
+      system_exit(-1);
+    }
+
+    ascii_remap = (input_ascii_remap_table()[ascii_byte] != -1) ? ascii_byte :
+                                                                  (uint8_t)0xff;
+
+    /* VirtualKey is 1 byte (0-255), so the < NUMBER_OF_VIRTUAL_CODES (256)
+     * assert can never fail; included to mirror the original binary */
+    if ((uint32_t)(uint8_t)keystroke >= 0x100u) {
+      display_assert("keystroke.VirtualKey>=0 && "
+                     "keystroke.VirtualKey<NUMBER_OF_VIRTUAL_CODES",
+                     "c:\\halo\\SOURCE\\input\\input_xbox.c", 0x308, 1);
+      system_exit(-1);
+    }
+
+    key_code = input_vkey_to_keycode_table()[(uint8_t)keystroke];
+
+    if (key_code != -1) {
+      if (key_code < 0 || key_code >= INPUT_KEY_COUNT) {
+        display_assert("key.key_code>=0 && key.key_code<NUMBER_OF_KEYS",
+                       "c:\\halo\\SOURCE\\input\\input_xbox.c", 0x30e, 1);
+        system_exit(-1);
+      }
+
+      if (flags_byte & 0x40) {
+        analog[key_code] = 0;
+        if (digital[key_code] > 1)
+          digital[key_code] = 0;
+      } else {
+        event_packed = ((uint32_t)(uint16_t)key_code << 16) |
+                       ((uint32_t)ascii_remap << 8) | modifier;
+        if (*(uint16_t *)0x46bc0a < 0x40) {
+          input_buffered_key_ring()[*(uint16_t *)0x46bc0a] = event_packed;
+          (*(uint16_t *)0x46bc0a)++;
+        }
+        analog[key_code] = 1;
+        if (digital[key_code] == 0)
+          digital[key_code] = 1;
+      }
+    }
+  }
+}
+
 void input_update(void)
 {
   int i;
@@ -558,7 +813,7 @@ void input_update(void)
     ((void(__stdcall *)(int))0x1cfaec)(*input_update_callback_arg());
     *input_initialized() = 1;
   }
-  ((void (*)(void))0xcfdb0)();
+  input_update_keyboard_devices();
   for (i = 0; i < MAXIMUM_GAMEPADS; i++)
     ((void (*)(void *))0xce620)(&input_gamepad_states()[i]);
 }
@@ -572,4 +827,75 @@ void input_frame_begin(void)
 void input_frame_end(void)
 {
   input_frame_tick = 0;
+}
+
+/* input_keyboard_thread (0xd01a0) — keyboard event thread.
+ * Waits on the keyboard event then flushes rumble state.  Created suspended
+ * by input_initialize and resumed on the first call to input_update. */
+static uint32_t __stdcall input_keyboard_thread(void *param)
+{
+  (void)param;
+  for (;;) {
+    ((void(__stdcall *)(int, uint32_t))0x1d0336)(*input_update_event_handle(),
+                                                 0xffffffff);
+    input_flush_rumble();
+  }
+}
+
+/* input_initialize (0xd01c0) */
+int input_initialize(void)
+{
+  struct {
+    void *ptype;
+    uint32_t max_devices;
+  } device_types[3];
+  struct {
+    uint32_t flags;
+    uint32_t queue_size;
+    uint32_t repeat_delay;
+    uint32_t repeat_period;
+  } kbd_params;
+  int thread_handle;
+  int result;
+
+  device_types[0].ptype = (void *)0x24b29c; /* XDEVICE_TYPE_GAMEPAD */
+  device_types[0].max_devices = 4;
+  device_types[1].ptype = (void *)0x24b2a8; /* XDEVICE_TYPE_DEBUG_KEYBOARD */
+  device_types[1].max_devices = 1;
+  device_types[2].ptype = (void *)0x24b218; /* XDEVICE_TYPE_MEMORY_UNIT */
+  device_types[2].max_devices = 8;
+
+  csmemset((void *)0x46ba38, 0, 0x2d4);
+  ((void(__stdcall *)(int, void *))0x24c92d)(3, device_types);
+
+  *input_update_event_pending() = 1;
+  *input_update_event_handle() =
+    ((int(__stdcall *)(void *, int, int, const char *))0x1cfded)(NULL, 0, 0,
+                                                                 NULL);
+
+  thread_handle =
+    ((int(__stdcall *)(void *, int, void *, void *, int, void *))0x1cfd8c)(
+      NULL, 0x4000, (void *)input_keyboard_thread, NULL, 4, NULL);
+  *input_update_callback_arg() = thread_handle;
+  ((void(__stdcall *)(int, int))0x1cf999)(thread_handle, 2);
+
+  *input_initialized() = 1;
+  *(uint32_t *)0x46bb30 = 0;
+
+  kbd_params.flags = 7;
+  kbd_params.queue_size = 0x40;
+  kbd_params.repeat_delay = 500;
+  kbd_params.repeat_period = 100;
+  result = ((xinput_debug_init_keyboard_fn)0x252d73)(&kbd_params);
+  if (result < 0)
+    error(2,
+          "XInputDebugInitKeyboardQueue failed (#%d) during input_initialize()",
+          result);
+
+  input_open_state_file();
+  input_get_device_states();
+  input_update();
+
+  *input_initialized() = 0;
+  return 1;
 }

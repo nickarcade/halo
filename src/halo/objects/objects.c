@@ -47,9 +47,12 @@ int FUN_0009ec30(int effect_index, int object_handle, int parent_handle,
  *   0x13f950  objects_initialize_for_new_map
  *   0x13f9f0  objects_dispose_from_old_map
  *   0x13fac0  objects_dispose
+ *   0x13fb30  object_activate
+ *   0x13fb80  FUN_0013fb80 (object deactivate)
  *   0x13fc20  FUN_0013fc20 (object placement data init)
  *   0x13fd00  object_disconnect_from_map
  *   0x13fef0  object_has_node
+ *   0x13ff50  FUN_0013ff50 (object set/clear hidden)
  *   0x13ffc0  object_set_garbage
  *   0x140160  object_set_region_count
  *   0x140230  object_adjust_interpolation_position
@@ -71,6 +74,7 @@ int FUN_0009ec30(int effect_index, int object_handle, int parent_handle,
  *   0x144240  object_attach_to_parent
  *   0x1446a0  object_update_children_recursive
  *   0x144860  object_attach_to_marker
+ *   0x144b30  FUN_00144b30 (delete and immediately deactivate)
  *   0x145170  objects_update
  */
 
@@ -216,6 +220,73 @@ void FUN_00136150(int object_handle)
   }
 }
 
+/* FUN_001362d0 — delete all widgets from an object's widget list.
+ * Walks the linked list of widgets at obj+0x11c, calling each widget type's
+ * delete_proc (at widget_types[type]+0x1c) if the widget has a valid
+ * definition handle, then deletes the widget datum from the pool.
+ *
+ * Widget structure (0xc bytes):
+ *   +0x02: type (int16_t) - index into widget_types table
+ *   +0x04: definition_handle (int) - handle returned by new_proc, or -1
+ *   +0x08: next_widget_handle (int) - linked list next pointer
+ *
+ * Widget types table at 0x323528 (5 entries, 0x28 bytes each):
+ *   +0x00: group_tag
+ *   +0x18: new_proc
+ *   +0x1c: delete_proc
+ *
+ * Source: c:\halo\SOURCE\objects\widgets\widgets.c (line 0xbe)
+ * Assert: c:\halo\source\objects\widgets\widget_types.h (line 0x96)
+ */
+void FUN_001362d0(int object_handle)
+{
+  int *obj;
+  int widget_handle;
+  char *widget;
+  int next_handle;
+  int16_t type;
+
+  obj = (int *)object_get_and_verify_type(object_handle, -1);
+
+  widget_handle = *(int *)((char *)obj + 0x11c);
+  if (widget_handle == -1) {
+    *(int *)((char *)obj + 0x11c) = -1;
+    return;
+  }
+
+  do {
+    widget = (char *)datum_get(*(data_t **)0x5a90c4, widget_handle);
+    type = *(int16_t *)(widget + 0x2);
+
+    /* Assert: type is in valid range [0, NUMBER_OF_WIDGET_TYPES). */
+    if (type < 0 || type >= 5) {
+      display_assert("type>=0 && type<NUMBER_OF_WIDGET_TYPES",
+                     "c:\\halo\\source\\objects\\widgets\\widget_types.h", 0x96,
+                     1);
+      system_exit(-1);
+    }
+
+    next_handle = *(int *)(widget + 0x8);
+
+    /* If this widget has a valid definition handle, call delete_proc. */
+    if (*(int *)(widget + 0x4) != -1) {
+      if (*(int (**)(int))(0x323528 + (int)type * 0x28 + 0x1c) == 0) {
+        display_assert("type_definition->delete_proc",
+                       "c:\\halo\\SOURCE\\objects\\widgets\\widgets.c", 0xbe,
+                       1);
+        system_exit(-1);
+      }
+      (*(void (**)(int))(0x323528 + (int)type * 0x28 + 0x1c))(
+        *(int *)(widget + 0x4));
+    }
+
+    datum_delete(*(data_t **)0x5a90c4, widget_handle);
+    widget_handle = next_handle;
+  } while (next_handle != -1);
+
+  *(int *)((char *)obj + 0x11c) = -1;
+}
+
 void FUN_001365d0(int object_handle, int arg1, int arg2);
 
 /* Initialize a damage_params struct with a damage effect tag index (0x136750).
@@ -255,6 +326,30 @@ void FUN_00138e30(void *damage_params, int target_index)
       FUN_00138900(damage_params, results[i], 0);
   }
   FUN_00146be0(damage_params);
+}
+
+/* FUN_00138eb0 — dispatch object deletion callbacks.
+ * Iterates through a table of 3 function pointers at 0x3235f0 and calls
+ * each with the object handle. These callbacks clean up references to the
+ * object in various subsystems (actors, players, AI, etc.) before deletion.
+ *
+ * Table at 0x3235f0:
+ *   [0] = 0x13d8b0 — clears object references in other objects
+ *   [1] = 0x40700  — actor cleanup and player notifications
+ *   [2] = 0xbb220  — player object reference cleanup
+ */
+void FUN_00138eb0(int object_handle)
+{
+  void (**table)(int);
+  int i;
+
+  table = (void (**)(int))0x3235f0;
+  i = 3;
+  do {
+    (*table)(object_handle);
+    table++;
+    i--;
+  } while (i != 0);
 }
 
 /*
@@ -560,7 +655,8 @@ void *object_try_and_get_and_verify_type(int datum_handle, int type_mask)
 void *object_get_and_verify_type(int datum_handle, int type_mask)
 {
   /* datum_get: first arg = data table ptr (value at 0x5a8d50) */
-  object_header_data_t *header = datum_get(*(data_t **)0x5a8d50, datum_handle);
+  object_header_data_t *header =
+    (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, datum_handle);
   object_data_t *obj = header->object;
   int16_t type = obj->type;
 
@@ -728,7 +824,7 @@ int object_get_root_parent(int object_handle)
   int result = -1;
   while (current != -1) {
     object_header_data_t *header =
-      (object_header_data_t *)datum_get(*(void **)0x5a8d50, current);
+      (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, current);
     object_data_t *obj = header->object;
     result = current;
     current = obj->parent_object_index.value;
@@ -944,7 +1040,7 @@ void object_child_list_remove(void *list_head /* @<eax> */,
     return;
 
   while (1) {
-    obj_data = (int *)datum_get(*(void **)0x5a8d50, *head);
+    obj_data = (int *)datum_get(*(data_t **)0x5a8d50, *head);
     obj_data = (int *)*(int *)((char *)obj_data + 8);
 
     {
@@ -1382,6 +1478,29 @@ void object_activate(int object_handle)
 }
 
 /*
+ * FUN_0013fb80 — clear the "active" flag (bit 0x01) from an object's
+ * header unk_2 byte, if currently set.
+ *
+ * Inverse of object_activate: deactivates the object by clearing bit 0x01.
+ *
+ * Confirmed: CALL 0x119320 (datum_get), CALL 0x13d680
+ *   (object_get_and_verify_type) with type_mask=-1.
+ * Confirmed: TEST AL,0x1; JZ skip; AND AL,0xFE; MOV [ESI+2],AL.
+ * Confirmed: ADD ESP,0x10 cleans datum_get + object_get_and_verify_type.
+ */
+void FUN_0013fb80(int object_handle)
+{
+  object_header_data_t *hdr =
+    (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+  object_data_t *obj =
+    (object_data_t *)object_get_and_verify_type(object_handle, -1);
+  (void)obj; /* return value unused but call required for verification */
+  if ((hdr->unk_2 & 0x01) != 0) {
+    hdr->unk_2 &= ~0x01;
+  }
+}
+
+/*
  * FUN_0013fc20 — initialise an object placement data struct.
  *
  * Zeroes the 0x88-byte placement buffer, stores the tag index at +0x00,
@@ -1600,6 +1719,48 @@ bool object_has_node(int object_handle, int16_t node_index)
   }
 
   return false;
+}
+
+/*
+ * FUN_0013ff50 — set or clear the "hidden" flag (bit 0x40) on an object's
+ * header unk_2 byte, and optionally activate or deactivate the object.
+ *
+ * When param_2 != 0 (hide):
+ *   Sets bit 0x40 on hdr->unk_2. If the object has no parent
+ *   (parent_object_index == -1) AND unk_76.index == -1, calls
+ *   FUN_0013fb80 to deactivate (clear bit 0x01).
+ *
+ * When param_2 == 0 (unhide):
+ *   Clears bit 0x40 from hdr->unk_2. If bit 0x01 is not set (i.e. the
+ *   object is not currently active), calls object_activate.
+ *
+ * Confirmed: CALL 0x119320 (datum_get), CALL 0x13d680
+ *   (object_get_and_verify_type) with type_mask=-1.
+ * Confirmed: OR byte [ESI+2],0x40 in true branch; AND AL,0xBF in false.
+ * Confirmed: CMP dword [EAX+0xCC],-1 (parent_object_index.value).
+ * Confirmed: CMP word [EAX+0x4C],-1 (unk_76.index, 16-bit compare).
+ * Confirmed: CALL 0x13fb80 (deactivate) and CALL 0x13fb30 (activate).
+ * Confirmed: ADD ESP,0x10 cleans datum_get + object_get_and_verify_type.
+ */
+void FUN_0013ff50(int object_handle, char param_2)
+{
+  object_header_data_t *hdr =
+    (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+  object_data_t *obj =
+    (object_data_t *)object_get_and_verify_type(object_handle, -1);
+
+  if (param_2 != 0) {
+    hdr->unk_2 |= 0x40;
+    if (obj->parent_object_index.value == -1 && obj->unk_76.index == -1) {
+      FUN_0013fb80(object_handle);
+    }
+  } else {
+    uint8_t val = hdr->unk_2 & ~0x40;
+    hdr->unk_2 = val;
+    if ((val & 0x01) == 0) {
+      object_activate(object_handle);
+    }
+  }
 }
 
 /*
@@ -2524,7 +2685,7 @@ void object_detach_from_parent(int object_handle)
   object_connect_to_map(object_handle, NULL);
 
   object_header_data_t *header =
-    (object_header_data_t *)datum_get(*(void **)0x5a8d50, object_handle);
+    (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
   child = (object_data_t *)object_get_and_verify_type(object_handle, -1);
   if (!(header->unk_2 & 1) && !(child->flags & 0x100000) &&
       child->parent_object_index.value == NONE) {
@@ -2672,7 +2833,8 @@ void *object_get_world_matrix(int object_handle, void *out_matrix)
     void *node_mat =
       object_get_node_matrix(obj->parent_object_index.value,
                              (int16_t) * (int8_t *)((char *)obj + 0xd0));
-    matrix4x3_multiply(node_mat, out_matrix, out_matrix); /* dup-args-ok */
+    matrix4x3_multiply((float *)node_mat, (float *)out_matrix,
+                       (float *)out_matrix); /* dup-args-ok */
   }
 
   return out_matrix;
@@ -3715,6 +3877,65 @@ void object_compute_node_matrices(int object_handle)
   }
 }
 
+/* FUN_00143a00 — delete object attachments (effects, sounds, lights, etc.).
+ *
+ * Iterates through the object's attachment slots (up to tag+0x140 count)
+ * and dispatches cleanup calls based on attachment type:
+ *   Type 0: FUN_00139310 (effect cleanup)
+ *   Type 1: FUN_001c7330 (sound cleanup)
+ *   Type 2: FUN_0009c750 (decal cleanup)
+ *   Type 3: FUN_00141b70 + FUN_000986d0 (light cleanup)
+ *   Type 4: FUN_0009f6e0 (contrail cleanup)
+ *
+ * Object attachment structure:
+ *   obj+0xf4 to obj+0xf4+count: attachment type bytes (-1 = empty)
+ *   obj+0xfc + index*4: attachment handle (int)
+ *
+ * Confirmed: CALL 0x13d680 (object_get_and_verify_type) with (handle, -1).
+ * Confirmed: CALL 0x1ba140 (tag_get) with ('obje', obj[0]).
+ * Confirmed: switch jump table at 0x143ac0 for 5 cases.
+ */
+void FUN_00143a00(int object_handle)
+{
+  int *obj;
+  char *tag;
+  int16_t i;
+  char type;
+  int attachment_handle;
+
+  obj = (int *)object_get_and_verify_type(object_handle, -1);
+  tag = (char *)tag_get(0x6f626a65, obj[0]);
+
+  for (i = 0; i < *(int *)(tag + 0x140); i++) {
+    type = *((char *)obj + 0xf4 + (int)i);
+    if (type == -1)
+      continue;
+
+    attachment_handle = *(int *)((char *)obj + 0xfc + (int)i * 4);
+    if (attachment_handle == -1)
+      continue;
+
+    switch (type) {
+    case 0:
+      FUN_00139310(attachment_handle);
+      break;
+    case 1:
+      FUN_001c7330(attachment_handle);
+      break;
+    case 2:
+      FUN_0009c750(attachment_handle);
+      break;
+    case 3:
+      object_compute_node_matrices(object_handle);
+      FUN_000986d0(attachment_handle, 1, 0);
+      break;
+    case 4:
+      FUN_0009f6e0(attachment_handle);
+      break;
+    }
+  }
+}
+
 /* FUN_00143ae0 — reposition an object's position and facing.
  *
  * Disconnects the object from the map, optionally updates its position
@@ -4441,6 +4662,133 @@ void object_attach_to_marker(int parent_handle, void *marker_name,
 }
 
 /*
+ * FUN_001449b0 — object deactivation and deallocation.
+ *
+ * Recursively tears down an object and its children/siblings, then deallocates
+ * the object from the object pool. Called either from FUN_00144b30 (immediate
+ * delete) or from the garbage collection pass in objects_update.
+ *
+ * Steps:
+ *   1. If object has flag 0x10000, clear garbage flag via
+ * object_set_garbage_flag.
+ *   2. Call deletion callbacks via FUN_00138eb0 (dispatch through function
+ * table).
+ *   3. Recursively deactivate child object (obj+0xC8).
+ *   4. If delete_sibling is nonzero, recursively deactivate sibling (obj+0xC4).
+ *   5. Clear collideable bit (datum header bit 0) if set.
+ *   6. Call type table cleanup via FUN_0013c100.
+ *   7. Call object cleanup via FUN_001362d0.
+ *   8. Call widget detach via FUN_00143a00.
+ *   9. If object has flag 0x800, disconnect from map via
+ * object_disconnect_from_map.
+ *  10. Call FUN_0013c560 (final cleanup).
+ *  11. Free memory pool block if allocated (via memory_pool_block_free).
+ *  12. Delete datum from object pool via datum_delete.
+ *  13. Clear field_8 and unk_2 in header.
+ *
+ * Confirmed: cdecl, 2 stack args (object_handle, delete_sibling).
+ * Confirmed: delete_sibling is read as byte (MOVZX AL) but compared as bool.
+ * Confirmed: Recursive calls at 0x1449ff and 0x144a1c with (child/sibling, 1).
+ * Confirmed: Multiple object_get_and_verify_type calls to re-fetch after
+ * recursion. Confirmed: EDI preserved across recursive calls (initial object
+ * ptr). Confirmed: obj+0xC8 is child handle, obj+0xC4 is sibling handle.
+ * Confirmed: 0x10000 flag triggers garbage flag clear.
+ * Confirmed: 0x800 flag triggers map disconnect.
+ */
+/* 0x1449b0 */
+void FUN_001449b0(int object_handle, int delete_sibling)
+{
+  object_data_t *obj;
+  object_header_data_t *hdr;
+  int16_t obj_type;
+  void *field_8_ptr;
+
+  obj = (object_data_t *)object_get_and_verify_type(object_handle, -1);
+  tag_get(0x6f626a65, (int)obj->tag_index);
+
+  /* If object has flag 0x10000, clear the garbage flag. */
+  if (obj->flags & 0x10000) {
+    object_set_garbage_flag(object_handle, 0);
+  }
+
+  /* Dispatch deletion callbacks. */
+  FUN_00138eb0(object_handle);
+
+  /* Recursively deactivate child object. */
+  if (obj->unk_200.value != -1) {
+    FUN_001449b0(obj->unk_200.value, 1);
+  }
+
+  /* Optionally deactivate sibling object. */
+  if ((char)delete_sibling != 0 && obj->next_object_index.value != -1) {
+    FUN_001449b0(obj->next_object_index.value, 1);
+  }
+
+  /* Get datum header and clear collideable bit if set. */
+  hdr = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+  object_get_and_verify_type(object_handle, -1);
+  if (hdr->unk_2 & 0x01) {
+    hdr->unk_2 &= (uint8_t)~0x01;
+  }
+
+  /* Re-fetch object pointer after recursive calls. */
+  obj = (object_data_t *)object_get_and_verify_type(object_handle, -1);
+  tag_get(0x6f626a65, (int)obj->tag_index);
+
+  /* Call type table cleanup. */
+  obj_type = obj->type;
+  FUN_0013c100(obj_type);
+
+  /* Object cleanup and widget detach. */
+  FUN_001362d0(object_handle);
+  FUN_00143a00(object_handle);
+
+  /* If flag 0x800 is set, disconnect from map. */
+  if (obj->flags & 0x800) {
+    object_disconnect_from_map(object_handle);
+  }
+
+  /* Final cleanup. */
+  FUN_0013c560(object_handle);
+
+  /* Free memory pool block if allocated. */
+  hdr = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+  field_8_ptr = (void *)&hdr->object;
+  if (hdr->object != 0) {
+    memory_pool_block_free(*(void **)0x46f080, (void **)field_8_ptr);
+  }
+
+  /* Delete datum from pool. */
+  datum_delete(*(data_t **)0x5a8d50, object_handle);
+
+  /* Clear remaining fields. */
+  *(object_data_t **)field_8_ptr = 0;
+  hdr->unk_2 = 0;
+}
+
+/*
+ * FUN_00144b30 — delete and immediately deactivate an object.
+ *
+ * Marks the object (and its children) for deletion via object_delete_internal,
+ * then immediately tears down / deallocates the object via FUN_001449b0.
+ * Used by actor_erase_units as the "soft" deletion path (flag!=0) as an
+ * alternative to object_delete, which only marks for deletion and defers
+ * actual teardown to the objects_update garbage-collection pass.
+ *
+ * Confirmed: cdecl, one stack arg (object_handle).
+ * Confirmed: PUSH 0x0 / PUSH ESI / CALL 0x140bc0 (object_delete_internal).
+ * Confirmed: PUSH 0x0 / PUSH ESI / CALL 0x1449b0 (FUN_001449b0).
+ * Confirmed: ADD ESP,0x10 — combined cleanup for both 2-arg calls.
+ * Confirmed: ESI saved/restored (callee-saved register for param_1).
+ */
+/* 0x144b30 */
+void FUN_00144b30(int object_handle)
+{
+  object_delete_internal(object_handle, 0);
+  FUN_001449b0(object_handle, 0);
+}
+
+/*
  * objects_update — per-tick update for all active objects.
  *
  * Called once per game tick. Three passes over the object header array, plus
@@ -4612,8 +4960,8 @@ void objects_update(void)
             /* Has "always update" flag: force-delete. */
             object_delete_internal((int)i, 0);
           } else {
-            /* Normal deactivate via FUN_13fb80. */
-            ((void (*)(int))0x13fb80)((int)i);
+            /* Normal deactivate via FUN_0013fb80. */
+            FUN_0013fb80((int)i);
           }
         }
       } else {
@@ -4631,7 +4979,7 @@ void objects_update(void)
          * Confirmed: TEST [EDI+EAX*4],EDX; JZ skip. */
         if ((*(uint32_t *)(curr_pvs + ((cluster_idx >> 5) * 4)) &
              (1u << (cluster_idx & 0x1f))) != 0) {
-          ((void (*)(int))0x13fb30)((int)i);
+          object_activate((int)i);
         }
       }
     }
@@ -4757,7 +5105,7 @@ void objects_update(void)
       if ((*(uint8_t *)(hdr + 0x2) & 0x8) != 0) {
         int16_t salt = *(int16_t *)hdr;
         int handle = ((int)(int16_t)salt << 16) | (int)(int16_t)i;
-        ((void (*)(int, int))0x1449b0)(handle, 0);
+        FUN_001449b0(handle, 0);
       }
     }
   }
