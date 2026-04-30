@@ -186,10 +186,6 @@
           "addr": "0x178d0"
         },
         {
-          "decl": "void FUN_0001c450(int actor_handle, int old_prop, int new_prop);",
-          "addr": "0x1c450"
-        },
-        {
           "decl": "char *FUN_000210f0(int actor_handle);",
           "addr": "0x210f0",
           "ported": true
@@ -913,6 +909,10 @@
         {
           "decl": "int __stdcall FUN_00222df7(void *key);",
           "addr": "0x222df7"
+        },
+        {
+          "decl": "void FUN_0015f8e0(void *parameters, void *vertices);",
+          "addr": "0x15f8e0"
         }
       ]
     },
@@ -1030,6 +1030,23 @@
         {
           "decl": "void *memmove(void *dest, const void *src, size_t size);",
           "addr": "0x1da290"
+        }
+      ]
+    },
+    {
+      "name": "actions.obj",
+      "functions": [
+        {
+          "decl": "void FUN_0001c450(int actor_handle, int old_prop, int new_prop);",
+          "addr": "0x1c450",
+          "ported": true
+        }
+      ],
+      "data": [
+        {
+          "decl": "char actor_action_definitions[14][0x38];",
+          "addr": "0x253fcc",
+          "note": "action definition table, stride 0x38, func ptr at offset 0"
         }
       ]
     },
@@ -1768,12 +1785,24 @@
       "source": "memory/memory_pool.c",
       "functions": [
         {
+          "decl": "void FUN_0011e430(void *pool @<edi>);",
+          "addr": "0x11e430",
+          "ported": true
+        },
+        {
+          "decl": "void *FUN_0011e5a0(void *pool @<eax>, void **block_reference @<esi>);",
+          "addr": "0x11e5a0",
+          "ported": true
+        },
+        {
           "decl": "bool memory_pool_block_new(void *pool, void **block_reference, int size);",
-          "addr": "0x11e6c0"
+          "addr": "0x11e6c0",
+          "ported": true
         },
         {
           "decl": "void memory_pool_block_free(void *pool, void **block_reference);",
-          "addr": "0x11e7a0"
+          "addr": "0x11e7a0",
+          "ported": true
         }
       ]
     },
@@ -1870,10 +1899,12 @@
     },
     {
       "name": "d3d_intimacy.obj",
+      "source": "main/d3d_intimacy.c",
       "functions": [
         {
           "decl": "int *d3d_find_flipcount(void);",
-          "addr": "0x1cf880"
+          "addr": "0x1cf880",
+          "ported": true
         }
       ]
     },
@@ -3287,10 +3318,6 @@
           "ported": true
         },
         {
-          "decl": "int FUN_000b5aa0(void);",
-          "addr": "0xb5aa0"
-        },
-        {
           "decl": "int16_t game_time_get_elapsed(void);",
           "addr": "0xb5ae0",
           "ported": true
@@ -3435,19 +3462,98 @@
           "decl": "void hs_syntax_reset(int a1);",
           "addr": "0xc5680",
           "ported": true
+        },
+        {
+          "decl": "void *hs_function_table_get(int16_t function_index);",
+          "addr": "0xc3d00",
+          "ported": true
+        },
+        {
+          "decl": "void *hs_external_global_get(int16_t global_index);",
+          "addr": "0xc3e10",
+          "ported": true
+        },
+        {
+          "addr": "0xc3e60",
+          "decl": "int16_t hs_global_get_type(uint16_t script_ref);",
+          "ported": true
+        },
+        {
+          "addr": "0xc3fc0",
+          "decl": "int16_t hs_find_function_by_name(const char *name);",
+          "ported": true
+        },
+        {
+          "addr": "0xc57a0",
+          "decl": "bool hs_source_offset_valid(int offset);",
+          "ported": true
         }
       ]
     },
     {
       "name": "hs_compile.obj",
+      "source": "hs/hs_compile.c",
       "functions": [
         {
-          "decl": "bool hs_type_check(int datum_index, int check_type);",
-          "addr": "0xc7d80"
+          "decl": "bool FUN_000c73a0(int datum_index @<edi>);",
+          "addr": "0xc73a0",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_000c74c0(int datum_index @<ebx>);",
+          "addr": "0xc74c0",
+          "ported": true
+        },
+        {
+          "decl": "bool hs_type_check(int datum_index, int16_t check_type);",
+          "addr": "0xc7d80",
+          "ported": true
         },
         {
           "decl": "void hs_compile_recompile_scripts(void);",
-          "addr": "0xc93f0"
+          "addr": "0xc93f0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000c7b10(int datum_index);",
+          "addr": "0xc7b10",
+          "ported": true
+        },
+        {
+          "decl": "int FUN_000c6a70(char *str @<eax>);",
+          "addr": "0xc6a70"
+        },
+        {
+          "decl": "int FUN_000c57d0(void);",
+          "addr": "0xc57d0"
+        },
+        {
+          "decl": "bool FUN_000c5840(int datum_index @<eax>);",
+          "addr": "0xc5840"
+        },
+        {
+          "decl": "void FUN_000c5960(int datum_index @<eax>);",
+          "addr": "0xc5960"
+        },
+        {
+          "decl": "bool FUN_000c6b00(int datum_index);",
+          "addr": "0xc6b00"
+        },
+        {
+          "decl": "bool FUN_000c6d90(int datum_index);",
+          "addr": "0xc6d90"
+        },
+        {
+          "addr": "0xc5730",
+          "decl": "char *FUN_000c5730(int source_file_size@<edi>, void *source_ptr);"
+        },
+        {
+          "addr": "0xc72b0",
+          "decl": "void FUN_000c72b0(char **cursor@<esi>);"
+        },
+        {
+          "addr": "0xc7be0",
+          "decl": "int FUN_000c7be0(char **cursor@<eax>);"
         }
       ]
     },
@@ -3499,8 +3605,83 @@
           "decl": "void hs_runtime_dispose(void);",
           "addr": "0xce1e0",
           "ported": true
+        },
+        {
+          "decl": "bool hs_types_compatible(int16_t actual_type, int16_t desired_type);",
+          "addr": "0xcb070",
+          "ported": true
+        },
+        {
+          "addr": "0xcb170",
+          "decl": "int hs_can_cast(int thread_handle, int16_t actual_type, int16_t desired_type, int value);",
+          "ported": true
+        },
+        {
+          "addr": "0xcaff0",
+          "decl": "bool hs_object_types_compatible(int16_t actual_offset@<ax>, int16_t desired_offset@<si>);",
+          "ported": true
+        },
+        {
+          "addr": "0xca940",
+          "decl": "int hs_thread_new(int script_index@<ebx>, int type);",
+          "ported": true
+        },
+        {
+          "addr": "0xcaa30",
+          "decl": "void FUN_000caa30(int thread_handle@<esi>);",
+          "ported": true
+        },
+        {
+          "addr": "0xcaa80",
+          "decl": "char *hs_get_thread_script_name(int thread_index@<esi>);",
+          "ported": true
+        },
+        {
+          "addr": "0xcaba0",
+          "decl": "void *hs_thread_stack_alloc(int thread_handle@<eax>, int size);",
+          "ported": true
+        },
+        {
+          "addr": "0xcab00",
+          "decl": "void hs_thread_push_frame(int thread_handle@<eax>);",
+          "ported": true
+        },
+        {
+          "addr": "0xcb230",
+          "decl": "void FUN_000cb230(int loop_var@<edi>);",
+          "ported": true
+        },
+        {
+          "addr": "0xcb7b0",
+          "decl": "void FUN_000cb7b0(int loop_var@<ebx>);",
+          "ported": true
+        },
+        {
+          "addr": "0xcbf80",
+          "decl": "void FUN_000cbf80(int thread_handle, int value);",
+          "ported": true
+        },
+        {
+          "addr": "0xcc0a0",
+          "decl": "int FUN_000cc0a0(int16_t global_ref@<ax>);"
+        },
+        {
+          "addr": "0xcc1d0",
+          "decl": "void FUN_000cc1d0(int thread_handle@<eax>, int expression_index, void *dest_ptr);",
+          "ported": true
+        },
+        {
+          "addr": "0xcd840",
+          "decl": "void FUN_000cd840(int thread_handle@<eax>);",
+          "ported": true
+        },
+        {
+          "addr": "0xce350",
+          "decl": "void FUN_000ce350(int expression_datum);",
+          "ported": true
         }
-      ]
+      ],
+      "source_path": "src/halo/hs/hs_runtime.c"
     },
     {
       "name": "hud.obj",
@@ -4696,6 +4877,11 @@
           "decl": "void objects_update(void);",
           "addr": "0x145170",
           "ported": true
+        },
+        {
+          "addr": "0x140720",
+          "decl": "int object_name_list_get_handle(int16_t index);",
+          "ported": true
         }
       ]
     },
@@ -4740,7 +4926,8 @@
         },
         {
           "decl": "bool FUN_0008ab90(float *out_fraction, bool indoor @<al>, float *ray_origin @<esi>, float *ray_endpoint @<edi>);",
-          "addr": "0x8ab90"
+          "addr": "0x8ab90",
+          "ported": true
         },
         {
           "decl": "void observer_update_command(int16_t local_player_index @<eax>);",
@@ -5438,10 +5625,17 @@
     },
     {
       "name": "predicted_resources.obj",
+      "source": "cache/predicted_resources.c",
       "functions": [
         {
-          "decl": "void predicted_resources_precache(int *a1);",
-          "addr": "0x1bde10"
+          "decl": "void FUN_001bdd80(int tag_index @<eax>);",
+          "addr": "0x1bdd80",
+          "ported": true
+        },
+        {
+          "decl": "void predicted_resources_precache(void *tag_block);",
+          "addr": "0x1bde10",
+          "ported": true
         }
       ]
     },
@@ -6620,11 +6814,18 @@
       "functions": [
         {
           "decl": "uint32_t *structure_bsp_get_cluster_sound_data(void *bsp, int16_t cluster_index);",
-          "addr": "0x193550"
+          "addr": "0x193550",
+          "ported": true
+        },
+        {
+          "decl": "uint8_t *FUN_001937d0(void *bsp, int16_t from_cluster, int16_t to_cluster);",
+          "addr": "0x1937d0",
+          "ported": true
         },
         {
           "decl": "uint8_t structure_bsp_cluster_sound_encoding(void *bsp, int16_t from_cluster, int16_t to_cluster);",
-          "addr": "0x193870"
+          "addr": "0x193870",
+          "ported": true
         }
       ]
     },
@@ -7925,32 +8126,39 @@
     },
     {
       "name": "rasterizer_sprites.obj",
+      "source": "rasterizer/rasterizer_sprites.c",
       "functions": [
         {
           "decl": "void rasterizer_sprites_render(void *render_data, void *vertices);",
-          "addr": "0x17cfa0"
+          "addr": "0x17cfa0",
+          "ported": true
         }
       ]
     },
     {
       "name": "rectangles.obj",
+      "source": "math/rectangles.c",
       "functions": [
         {
-          "decl": "void rect2d_offset(void *rect, short dx, short dy);",
-          "addr": "0x108a70"
+          "decl": "void rect2d_offset(int16_t *rect, int16_t dx, int16_t dy);",
+          "addr": "0x108a70",
+          "ported": true
         },
         {
-          "decl": "int16_t FUN_00108db0(int value);",
-          "addr": "0x108db0"
+          "decl": "int16_t FUN_00108db0(unsigned int value);",
+          "addr": "0x108db0",
+          "ported": true
         }
       ]
     },
     {
       "name": "bink_sound.obj",
+      "source": "bink/bink_sound.c",
       "functions": [
         {
           "decl": "int bink_get_dsound_handle(void);",
-          "addr": "0x1c94b0"
+          "addr": "0x1c94b0",
+          "ported": true
         }
       ]
     },

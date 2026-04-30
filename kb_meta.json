@@ -41,6 +41,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c450": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "The table at 0x253fcc is an array of 14 structs (0x38 bytes each) representing action definitions, with the function pointer for prop replacement at offset 0 of each entry.",
+        "The function name likely relates to actor action prop replacement dispatch based on context from the caller FUN_0003b410 in actors.obj."
+      ]
+    },
     "0x210f0": {
       "kind": "function",
       "status": "ported"
@@ -2070,6 +2078,18 @@
         "Datum offset +6 bit 0x8 marks a syntax node as persistent (not deleted during dispose)."
       ]
     },
+    "0xc3d00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc3e10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc3e60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc3ee0": {
       "kind": "function",
       "status": "ported",
@@ -2078,6 +2098,10 @@
         "0x27d504 is hs_external_global_count as int16_t (observed value 0x1BB = 443 in the static image).",
         "Scenario globals are at scenario_tag+0x4a8 as a tag_block with element size 0x5c, where offset 0 of each element is the name string."
       ]
+    },
+    "0xc3fc0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xc4660": {
       "kind": "function",
@@ -2144,6 +2168,10 @@
         "The globals at 0x46b6e0-0x46b805 form the hs_compile_globals structure used by the script compiler."
       ]
     },
+    "0xc57a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc7840": {
       "kind": "function",
       "status": "ported",
@@ -2154,6 +2182,10 @@
       "uncertain": [
         "When node[2] < 0 on a script-reference node, script_element is read uninitialized from the stack local at EBP-8; this appears to be original behavior."
       ]
+    },
+    "0xc7d80": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xc9050": {
       "kind": "function",
@@ -2169,11 +2201,56 @@
         "The hs_compile_source_setup function at 0xc5730 takes @EDI as source_file_size and one stack arg; the decompiler shows unaff_EDI confirming the register arg pattern."
       ]
     },
+    "0xc93f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc94f0": {
       "kind": "function",
       "status": "ported"
     },
     "0xca800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaa80": {
+      "kind": "function",
+      "status": "ported",
+      "name": "hs_get_thread_script_name",
+      "name_confidence": "high"
+    },
+    "0xcab00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaba0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaff0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcb070": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcb170": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Function name hs_can_cast confirmed from assert expression string at 0x2808d8: 'hs_can_cast(actual_type, desired_type)' at source line 0x5d8.",
+        "Parameter 2 (actual_type) maps to EBX=[EBP+0xc] and parameter 3 (desired_type) maps to EDI=[EBP+0x10], confirmed by CMP BX/DI at 0xcb1cc and hs_types_compatible call order at 0xcb17b-0xcb17d."
+      ],
+      "uncertain": [
+        "FUN_00140720 at 0x140720 (objects.obj) converts a 16-bit index into a 32-bit datum reference via table at 0x46f07c; true name and purpose are unconfirmed but context is object handle to object reference conversion."
+      ]
+    },
+    "0xcb230": {
       "kind": "function",
       "status": "ported"
     },
@@ -3261,6 +3338,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x108a70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x109150": {
       "kind": "function",
       "status": "ported",
@@ -3535,6 +3616,14 @@
       "status": "ported"
     },
     "0x11ddc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11e6c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11e7a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -4060,6 +4149,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x140720": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x140ad0": {
       "kind": "function",
       "status": "ported"
@@ -4364,6 +4457,10 @@
         "summary": "Thin cdecl trampoline for decal teardown: forwards decal_index directly to 0x15b530."
       }
     },
+    "0x17cfa0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x184b80": {
       "kind": "function",
       "status": "ported"
@@ -4544,6 +4641,14 @@
       "status": "ported"
     },
     "0x191a50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x193550": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x193870": {
       "kind": "function",
       "status": "ported"
     },
@@ -5218,6 +5323,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1bde10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1be090": {
       "kind": "function",
       "status": "ported"
@@ -5554,6 +5663,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c94b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c94d0": {
       "kind": "function",
       "status": "ported"
@@ -5807,6 +5920,10 @@
         "The call to 0x1d9068 is MSVC __ftol2 (float-to-long truncation via ST0); replaced with a C cast in the lift.",
         "Vtable calls at offsets +0x10 and +0x14 through the sound driver pointer at 0x4eaf48 are likely lock/unlock or begin-frame/end-frame pairs."
       ]
+    },
+    "0x1cf880": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1ed930": {
       "kind": "function",

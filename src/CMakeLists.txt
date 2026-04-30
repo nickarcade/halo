@@ -1,6 +1,7 @@
 	target_sources(halo PRIVATE
 	entrypoint.c
 	inlines.c
+	halo/ai/actions.c
 	halo/ai/actor_perception.c
 	halo/ai/actors.c
 	halo/ai/ai.c
@@ -9,6 +10,7 @@
 	halo/bungie_net/network/transport_endpoint_set_winsock.c
 	halo/bungie_net/thread_win32.c
 	halo/bink/bink_playback.c
+	halo/bink/bink_sound.c
 	halo/camera/director.c
 	halo/camera/observer.c
 	halo/common.c
@@ -31,6 +33,7 @@
 	halo/effects/player_effects.c
 	halo/effects/weather_particle_systems.c
 	halo/hs/hs.c
+	halo/hs/hs_compile.c
 	halo/hs/hs_runtime.c
 	halo/game/cheats.c
 	halo/game/editor_stubs.c
@@ -63,19 +66,23 @@
 	halo/networking/network_messages.c
 	halo/networking/network_server_manager.c
 	halo/main/console.c
+	halo/main/d3d_intimacy.c
 	halo/main/debug_keys.c
 	halo/main/main.c
 	halo/main/telnet_console.c
 	halo/memory/data.c
 	halo/memory/lruv_cache.c
+	halo/memory/memory_pool.c
 	halo/memory/stack_memory_pool.c
 	halo/physics/breakable_surfaces.c
 	halo/physics/collision_usage.c
 	halo/physics/point_physics.c
 	halo/math/random_math.c
 	halo/math/real_math.c
+	halo/math/rectangles.c
 	halo/math/vector_math.c
 	halo/rasterizer/rasterizer.c
+	halo/rasterizer/rasterizer_sprites.c
 	halo/rasterizer/common/rasterizer_common.c
 	halo/rasterizer/xbox/rasterizer_xbox.c
 	halo/rasterizer/xbox/d3d_resource.c
@@ -87,6 +94,7 @@
 	halo/saved_games/game_state.c
 	halo/saved_games/game_state_xbox.c
 	halo/scenario/scenario.c
+	halo/structures/structure_bsp_definitions.c
 	halo/structures/structure_detail_objects.c
 	halo/structures/structure_runtime_decals.c
 	halo/structures/structure_visibility.c
@@ -106,5 +114,6 @@
 	halo/shell.c
 	halo/shell_xbox.c
 	halo/cache/physical_memory_map.c
+	halo/cache/predicted_resources.c
 	halo/cache/tags.c
 	)
