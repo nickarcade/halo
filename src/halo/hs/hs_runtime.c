@@ -722,6 +722,44 @@ static void *hs_thread_stack_alloc(int thread_handle, int size)
   return (void *)(frame + (int)old_size + 0xe);
 }
 
+/* 0xcada0 — Search hs_thread_data for a thread whose field at offset +4
+ * equals script_index. Returns the datum index of the matching thread, or
+ * -1 if none found. Iterates all live entries via data_next_index / datum_get.
+ *
+ * The field at thread+4 is the script index associated with that thread
+ * (confirmed by caller 0xcc0e0: MOV DI,[ESI+0x10]; and caller 0xcd0e0:
+ * XOR EDI,EDI; MOV DI,[ECX] — both load a script_index into DI before CALL).
+ *
+ * ABI: script_index@<edi> (int16_t, sign-extended to 32-bit at entry via
+ *      MOVSX EDI,DI); returns int datum index in EAX.
+ *
+ * Globals:
+ *   0x5aa6c4 = hs_thread_data (data_t*)
+ */
+static int FUN_000cada0(int16_t script_index)
+{
+  int index;
+  int script_index32;
+  char *thread;
+
+  /* Sign-extend the 16-bit register arg to 32 bits for comparison.
+   * The binary does MOVSX EDI,DI at 0xcadb8 before entering the loop. */
+  script_index32 = (int)script_index;
+
+  index = data_next_index(*(data_t **)0x5aa6c4, -1);
+  if (index == -1)
+    return -1;
+
+  do {
+    thread = (char *)datum_get(*(data_t **)0x5aa6c4, index);
+    if (*(int *)(thread + 0x4) == script_index32)
+      return index;
+    index = data_next_index(*(data_t **)0x5aa6c4, index);
+  } while (index != -1);
+
+  return -1;
+}
+
 /* 0xcaff0 */
 static bool hs_object_types_compatible(int16_t actual_offset,
                                        int16_t desired_offset)
@@ -1308,6 +1346,26 @@ static void FUN_000cbf80(int thread_handle, int value)
   *(char **)(thread + 0x10) = *(char **)cur_sp;
 }
 
+/* 0xcc0a0 — Resolve an HS global reference to its current value. Syncs
+ * external globals via FUN_000cb230, then indexes into hs_globals_data.
+ * External globals (bit 0x8000 set) index directly; scenario globals
+ * add hs_globals_start_index (0x27d504) as a base offset.
+ */
+int FUN_000cc0a0(int16_t global_ref)
+{
+  int index;
+  char *datum_ptr;
+
+  FUN_000cb230((int)global_ref);
+  if (global_ref & 0x8000) {
+    index = global_ref & 0x7fff;
+  } else {
+    index = (global_ref & 0x7fff) + (int)*(int16_t *)0x27d504;
+  }
+  datum_ptr = (char *)datum_get(*(data_t **)0x5aa6c0, index);
+  return *(int *)(datum_ptr + 4);
+}
+
 /* 0xcc1d0 — Evaluate an HS expression and store the result at dest_ptr.
  * If the expression is a constant, evaluates immediately via hs_can_cast.
  * If the expression is a global reference (reparse bit), resolves the global
@@ -1386,6 +1444,1128 @@ static void FUN_000cc1d0(int thread_handle, int expression_index,
   hs_thread_push_frame(thread_handle);
   *(uint8_t *)(thread + 0x3) |= 1;
   *(int *)(*(char **)(thread + 0x10) + 0x4) = expression_index;
+}
+
+/* 0xcc340 — Evaluate a script-reference call. Gets the script element from
+ * the scenario scripts block (scenario+0x49c), allocates 4 bytes on the
+ * thread stack, then either evaluates the script's expression tree (init)
+ * or pops the frame with the stored result. */
+void FUN_000cc340(int16_t script_index, int thread_handle, char init)
+{
+  char *script;
+  void *result;
+
+  script = (char *)tag_block_get_element((char *)global_scenario_get() + 0x49c,
+                                         (int)script_index, 0x5c);
+  datum_get(*(data_t **)0x5aa6c4, thread_handle);
+  result = hs_thread_stack_alloc(thread_handle, 4);
+
+  if (init) {
+    FUN_000cc1d0(thread_handle, *(int *)(script + 0x24), result);
+  } else {
+    FUN_000cbf80(thread_handle, *(int *)result);
+  }
+}
+
+/* 0xcc3a0 — Evaluate function arguments. Allocates a values array on the
+ * thread stack, then evaluates each argument expression one-per-call into
+ * the array, type-checking against the formal parameter list. Returns the
+ * values array pointer when all arguments are evaluated, or 0 if still
+ * processing. */
+int FUN_000cc3a0(int thread_datum, int16_t param_count, int formal_params,
+                 char init)
+{
+  char *thread;
+  int *values;
+  int16_t *arg_index;
+  int *expr_ptr;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  values = (int *)hs_thread_stack_alloc(thread_datum, (int)param_count * 4);
+  arg_index = (int16_t *)hs_thread_stack_alloc(thread_datum, 2);
+  expr_ptr = (int *)hs_thread_stack_alloc(thread_datum, 4);
+
+  if (init) {
+    *arg_index = 0;
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    *expr_ptr = *(int *)(child + 0x8);
+  }
+
+  if (*arg_index >= param_count) {
+    if (*expr_ptr != -1) {
+      char *name = hs_get_thread_script_name(thread_datum);
+      char *msg =
+        csprintf((char *)0x5ab100,
+                 "a problem occurred while executing the script %s: %s (%s)",
+                 name, "corrupted syntax tree.", "*expression_index==NONE");
+      display_assert(msg, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x3d1, 1);
+      system_exit(-1);
+    }
+    return (int)values;
+  }
+
+  if (*expr_ptr == -1) {
+    char *name = hs_get_thread_script_name(thread_datum);
+    char *msg =
+      csprintf((char *)0x5ab100,
+               "a problem occurred while executing the script %s: %s (%s)",
+               name, "corrupted syntax tree.", "*expression_index!=NONE");
+    display_assert(msg, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x3c4, 1);
+    system_exit(-1);
+  }
+
+  {
+    char *expr = (char *)datum_get(*(data_t **)0x5aa6c8, *expr_ptr);
+    if (*(int16_t *)(expr + 0x4) !=
+        *(int16_t *)(formal_params + (int)*arg_index * 2)) {
+      datum_get(*(data_t **)0x5aa6c4, thread_datum);
+      char *name = hs_get_thread_script_name(thread_datum);
+      error(2, "script %s needs to be recompiled. (%s: %s)", name,
+            "unexpected actual parameters.",
+            "hs_syntax_get(*expression_index)->type=="
+            "formal_parameters[*argument_index]");
+      return (int)values;
+    }
+  }
+
+  FUN_000cc1d0(thread_datum, *expr_ptr, &values[(int)*arg_index]);
+  {
+    char *expr = (char *)datum_get(*(data_t **)0x5aa6c8, *expr_ptr);
+    *expr_ptr = *(int *)(expr + 0x8);
+  }
+  (*arg_index)++;
+  return 0;
+}
+
+/* 0xcc560 — Evaluate an HS built-in function call by dispatching to
+ * FUN_000cc3a0 with the function's formal parameter count and types
+ * from the function descriptor table. */
+void FUN_000cc560(int16_t function_index, int thread_datum, char init)
+{
+  char *desc = (char *)hs_function_table_get(function_index);
+  FUN_000cc3a0(thread_datum, *(int16_t *)(desc + 0x18), (int)(desc + 0x1a),
+               init);
+}
+
+/* 0xcc590 — HS 'begin' evaluator. Evaluates a sequence of expressions in
+ * order, returning the value of the last one. On init, sets up the expression
+ * list pointer (skipping the function-name child). Each call evaluates one
+ * expression and advances to the next sibling. */
+void FUN_000cc590(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  int *expr_ptr;
+  int *result_ptr;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  expr_ptr = (int *)hs_thread_stack_alloc(thread_datum, 4);
+  result_ptr = (int *)hs_thread_stack_alloc(thread_datum, 4);
+
+  if (function_index != 0) {
+    display_assert("function_index==_hs_function_begin",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x15,
+                   1);
+    system_exit(-1);
+  }
+
+  if (init) {
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    *expr_ptr = *(int *)(child + 0x8);
+    *result_ptr = 0;
+  }
+
+  if (*expr_ptr != -1) {
+    FUN_000cc1d0(thread_datum, *expr_ptr, result_ptr);
+    char *expr = (char *)datum_get(*(data_t **)0x5aa6c8, *expr_ptr);
+    *expr_ptr = *(int *)(expr + 0x8);
+    return;
+  }
+
+  FUN_000cbf80(thread_datum, *result_ptr);
+}
+
+/* 0xcc660 — HS 'begin_random' evaluator.
+ * Implements (begin_random <arg0> <arg1> ... <argN-1>): on each call selects
+ * one not-yet-evaluated argument at random and evaluates it.  When all
+ * arguments have been evaluated it pops the frame with the last result.
+ *
+ * Multi-phase protocol:
+ *   init==true  : count the argument list, memset the used-bit array.
+ *   init==false : pick the next unused slot and evaluate it; when all slots
+ *                 are used call FUN_000cbf80 to commit the result.
+ *
+ * Stack allocations (via hs_thread_stack_alloc):
+ *   2 bytes  — int16_t argument_count
+ *   4 bytes  — uint32_t used_bits[]  (one bit per argument, up to 32)
+ *   4 bytes  — int       result_value
+ *
+ * Random selection: random_range(get_global_random_seed_address(), 0,
+ *   argument_count) gives a starting offset sVar2; then we try
+ *   (i + sVar2) % argument_count for i = 0, 1, ... until we find an
+ *   unset bit.
+ *
+ * Assert: function_index must equal 1 (_hs_function_begin_random).
+ * Assert: argument_count must be < 32 (LONG_BITS).
+ *
+ * Globals:
+ *   0x5aa6c4 = hs_thread_data  (data_t*)
+ *   0x5aa6c8 = hs_syntax_data  (data_t*)
+ */
+void FUN_000cc660(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  int16_t *argument_count;
+  int *used_bits;
+  int *result_value;
+  int16_t sVar2;
+  int16_t sVar10;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  argument_count = (int16_t *)hs_thread_stack_alloc(thread_datum, 2);
+  used_bits = (int *)hs_thread_stack_alloc(thread_datum, 4);
+  result_value = (int *)hs_thread_stack_alloc(thread_datum, 4);
+
+  if (function_index != 1) {
+    display_assert("function_index==_hs_function_begin_random",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x45,
+                   1);
+    system_exit(-1);
+  }
+
+  if (init) {
+    /* Walk the argument list to count arguments. */
+    char *frame = *(char **)(thread + 0x10);
+    char *fn_node =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(frame + 0x4));
+    char *first_child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(fn_node + 0x10));
+    int arg_datum = *(int *)(first_child + 0x8);
+
+    *argument_count = 0;
+    if (arg_datum != -1) {
+      do {
+        char *arg = (char *)datum_get(*(data_t **)0x5aa6c8, arg_datum);
+        arg_datum = *(int *)(arg + 0x8);
+        *argument_count = *argument_count + 1;
+      } while (arg_datum != -1);
+
+      if (*argument_count >= 0x20) {
+        display_assert("*argument_count<LONG_BITS",
+                       "c:\\halo\\source\\hs\\hs_library_internal_runtime.h",
+                       0x50, 1);
+        system_exit(-1);
+      }
+    }
+
+    csmemset(used_bits, 0, (int)((*argument_count + 0x1f) >> 5) << 2);
+  }
+
+  /* Pick a random starting offset in [0, argument_count). */
+  sVar2 = random_range((unsigned int *)get_global_random_seed_address(), 0,
+                       *argument_count);
+
+  sVar10 = 0;
+  if (sVar10 < *argument_count) {
+    do {
+      /* Compute candidate slot: (sVar10 + sVar2) % argument_count. */
+      int16_t sVar11 =
+        (int16_t)(((int)sVar10 + (int)sVar2) % (int)*argument_count);
+
+      if ((used_bits[(int)sVar11 >> 5] & (1 << ((int)sVar11 & 0x1f))) == 0) {
+        /* Slot not yet used: walk to the sVar11-th argument. */
+        char *frame2 = *(char **)(thread + 0x10);
+        char *fn_node2 =
+          (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(frame2 + 0x4));
+        char *first_child2 =
+          (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(fn_node2 + 0x10));
+        int cur_datum = *(int *)(first_child2 + 0x8);
+
+        if (sVar11 > 0) {
+          int walk = (int)(uint16_t)sVar11;
+          do {
+            char *node = (char *)datum_get(*(data_t **)0x5aa6c8, cur_datum);
+            cur_datum = *(int *)(node + 0x8);
+            walk--;
+          } while (walk != 0);
+        }
+
+        /* Evaluate the chosen argument. */
+        FUN_000cc1d0(thread_datum, cur_datum, result_value);
+
+        /* Mark the slot as used. */
+        used_bits[(int)sVar11 >> 5] |= 1 << ((int)sVar11 & 0x1f);
+        break;
+      }
+
+      sVar10++;
+    } while (sVar10 < *argument_count);
+  }
+
+  /* If all slots have been tried (counter wrapped to argument_count), pop
+   * the frame and commit the result. */
+  if (sVar10 == *argument_count) {
+    FUN_000cbf80(thread_datum, *result_value);
+  }
+}
+
+/* 0xcc870 — HS 'if' evaluator. Three-phase: init evaluates the condition,
+ * second call selects then/else branch, third call pops frame with result.
+ * (if <condition> <then> [else]) */
+void FUN_000cc870(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  char *cond_result;
+  int *branch_ptr;
+  int *value_ptr;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  cond_result = (char *)hs_thread_stack_alloc(thread_datum, 4);
+  branch_ptr = (int *)hs_thread_stack_alloc(thread_datum, 4);
+  value_ptr = (int *)hs_thread_stack_alloc(thread_datum, 4);
+
+  if (function_index != 2) {
+    display_assert("function_index==_hs_function_if",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x77,
+                   1);
+    system_exit(-1);
+  }
+
+  if (init) {
+    *(int *)cond_result = 0;
+    *branch_ptr = -1;
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    FUN_000cc1d0(thread_datum, *(int *)(child + 0x8), cond_result);
+    return;
+  }
+
+  if (*branch_ptr != -1) {
+    FUN_000cbf80(thread_datum, *value_ptr);
+    return;
+  }
+
+  {
+    int frame_expr = *(int *)(*(char **)(thread + 0x10) + 0x4);
+    char *fn_name = (char *)datum_get(
+      *(data_t **)0x5aa6c8,
+      *(int *)((char *)datum_get(*(data_t **)0x5aa6c8, frame_expr) + 0x10));
+
+    if (*cond_result) {
+      char *cond =
+        (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(fn_name + 0x8));
+      *branch_ptr = *(int *)(cond + 0x8);
+    } else {
+      char *cond =
+        (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(fn_name + 0x8));
+      char *then_node =
+        (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(cond + 0x8));
+      *branch_ptr = *(int *)(then_node + 0x8);
+      if (*branch_ptr == -1) {
+        FUN_000cbf80(thread_datum, 0);
+        return;
+      }
+    }
+
+    FUN_000cc1d0(thread_datum, *branch_ptr, value_ptr);
+  }
+}
+
+/* 0xcca00 — HS 'set' evaluator. Assigns a value to a global variable.
+ * Init: evaluates the value expression, storing result at the global's address.
+ * Not init: syncs globals, optionally handles object-list type (0x17), pops
+ * frame with the global's current value. */
+void FUN_000cca00(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  char *var_node;
+  int var_node_idx;
+  int16_t global_type;
+  int global_index;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  {
+    char *frame_expr = (char *)datum_get(
+      *(data_t **)0x5aa6c8, *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *fn_child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(frame_expr + 0x10));
+    var_node_idx = *(int *)(fn_child + 0x8);
+  }
+  var_node = (char *)datum_get(*(data_t **)0x5aa6c8, var_node_idx);
+  hs_thread_stack_alloc(thread_datum, 4);
+  global_type = hs_global_get_type((uint16_t) * (int16_t *)(var_node + 0x10));
+
+  if (init) {
+    if (global_type == 0x17)
+      FUN_000ce370(FUN_000cc0a0(*(int16_t *)(var_node + 0x10)));
+
+    global_index = (int)*(int16_t *)(var_node + 0x10) & 0x7fff;
+    if (!((uint8_t)(*((uint8_t *)(var_node + 0x10) + 1)) & 0x80))
+      global_index += (int)*(int16_t *)0x27d504;
+
+    {
+      char *global_datum =
+        (char *)datum_get(*(data_t **)0x5aa6c0, global_index);
+      char *value_expr = (char *)datum_get(*(data_t **)0x5aa6c8, var_node_idx);
+      FUN_000cc1d0(thread_datum, *(int *)(value_expr + 0x8), global_datum + 4);
+    }
+    return;
+  }
+
+  FUN_000cb7b0(*(int16_t *)(var_node + 0x10));
+  if (global_type == 0x17)
+    FUN_000ce350(FUN_000cc0a0(*(int16_t *)(var_node + 0x10)));
+
+  FUN_000cb230(*(int16_t *)(var_node + 0x10));
+  {
+    int ref = (int)*(int16_t *)(var_node + 0x10);
+    if (ref & 0x8000)
+      global_index = ref & 0x7fff;
+    else
+      global_index = (ref & 0x7fff) + (int)*(int16_t *)0x27d504;
+  }
+
+  {
+    char *global_datum = (char *)datum_get(*(data_t **)0x5aa6c0, global_index);
+    FUN_000cbf80(thread_datum, *(int *)(global_datum + 4));
+  }
+}
+
+/* 0xccb40 — HS 'and'/'or' evaluator. Short-circuits: AND stops on first
+ * false, OR stops on first true. function_index 5 = and, 6 = or. */
+void FUN_000ccb40(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  int *expr_ptr;
+  char *result_ptr;
+  char *running;
+  char is_and;
+  char new_val;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  expr_ptr = (int *)hs_thread_stack_alloc(thread_datum, 4);
+  result_ptr = (char *)hs_thread_stack_alloc(thread_datum, 4);
+  running = (char *)hs_thread_stack_alloc(thread_datum, 1);
+
+  is_and = (char)(function_index == 5);
+
+  if (function_index != 5 && function_index != 6) {
+    display_assert(
+      "function_index==_hs_function_and || function_index==_hs_function_or",
+      "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0xcf, 1);
+    system_exit(-1);
+  }
+
+  if (init) {
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    *expr_ptr = *(int *)(child + 0x8);
+    *running = is_and;
+  } else {
+    if (is_and)
+      new_val = (*running && *result_ptr) ? 1 : 0;
+    else
+      new_val = (*running || *result_ptr) ? 1 : 0;
+    *running = new_val;
+  }
+
+  if (*expr_ptr != -1 && *running == is_and) {
+    FUN_000cc1d0(thread_datum, *expr_ptr, result_ptr);
+    {
+      char *expr = (char *)datum_get(*(data_t **)0x5aa6c8, *expr_ptr);
+      *expr_ptr = *(int *)(expr + 0x8);
+    }
+    return;
+  }
+
+  FUN_000cbf80(thread_datum, (int)(uint8_t)*running);
+}
+
+/* 0xccc70 — HS arithmetic evaluator (+, -, *, /, min, max). Accumulates
+ * results across multiple operand expressions. Function indices 7-12. */
+void FUN_000ccc70(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  int16_t *counter;
+  int *expr_ptr;
+  float *operand;
+  float *accum;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  counter = (int16_t *)hs_thread_stack_alloc(thread_datum, 2);
+  expr_ptr = (int *)hs_thread_stack_alloc(thread_datum, 4);
+  operand = (float *)hs_thread_stack_alloc(thread_datum, 4);
+  accum = (float *)hs_thread_stack_alloc(thread_datum, 4);
+
+  if (init) {
+    *counter = 0;
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    *expr_ptr = *(int *)(child + 0x8);
+  } else {
+    if (*counter == 0) {
+      *accum = *operand;
+    } else {
+      switch (function_index) {
+      case 7:
+        *accum = *operand + *accum;
+        break;
+      case 8:
+        *accum = *accum - *operand;
+        break;
+      case 9:
+        *accum = *operand * *accum;
+        break;
+      case 10:
+        *accum = *accum / *operand;
+        break;
+      case 0xb:
+        if (*operand < *accum)
+          *accum = *operand;
+        break;
+      case 0xc:
+        if (*operand > *accum)
+          *accum = *operand;
+        break;
+      default:
+        display_assert(0, "c:\\halo\\source\\hs\\hs_library_internal_runtime.h",
+                       0x111, 1);
+        system_exit(-1);
+        break;
+      }
+    }
+    (*counter)++;
+  }
+
+  if (*expr_ptr != -1) {
+    FUN_000cc1d0(thread_datum, *expr_ptr, operand);
+    {
+      char *expr = (char *)datum_get(*(data_t **)0x5aa6c8, *expr_ptr);
+      *expr_ptr = *(int *)(expr + 0x8);
+    }
+    return;
+  }
+
+  FUN_000cbf80(thread_datum, *(int *)accum);
+}
+
+/* 0xccdf0 — HS equal/not-equal evaluator. Evaluates two arguments of the
+ * same type via FUN_000cc3a0, then compares with csmemcmp using the type's
+ * size from the table at 0x26f350. function_index 0xd = equal, 0xe = not_equal.
+ */
+void FUN_000ccdf0(int16_t function_index, int thread_datum, char init)
+{
+  int16_t type;
+  int16_t param_types[2];
+  int *values;
+
+  if (function_index != 0xd && function_index != 0xe) {
+    display_assert("function_index==_hs_function_equal || "
+                   "function_index==_hs_function_not_equal",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x131,
+                   1);
+    system_exit(-1);
+  }
+
+  {
+    char *thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    char *arg1 = (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(child + 0x8));
+    type = *(int16_t *)(arg1 + 0x4);
+  }
+
+  param_types[0] = type;
+  param_types[1] = type;
+  values = (int *)FUN_000cc3a0(thread_datum, 2, (int)param_types, init);
+  if (values != 0) {
+    int size = (int)*(int16_t *)(0x26f350 + (int)type * 2);
+    char result = (csmemcmp(values, values + 1, size) == 0) ? 1 : 0;
+    if (function_index == 0xe)
+      result = (result == 0) ? 1 : 0;
+    FUN_000cbf80(thread_datum, (int)(uint8_t)result);
+  }
+}
+
+/* 0xcced0 — HS comparison evaluator (gt/lt/ge/lte). Evaluates two arguments
+ * of matching numeric type via FUN_000cc3a0 using the static param_types pair
+ * at 0x46b80c/0x46b80e, then performs FPU comparison. Handles three type
+ * classes: real (type==6, FLD float), long_integer (type==8, FILD dword),
+ * and short_integer/enum (type==7 or 0x20..0x24, MOVSX word then FILD).
+ * function_index 0xf=gt, 0x10=lt, 0x11=ge, 0x12=lte.
+ *
+ * The formal_params passed to FUN_000cc3a0 is a static int16_t[2] at
+ * 0x0046b80c; both slots are filled with the argument's inferred type.
+ * Result is committed via FUN_000cbf80(thread_datum, (int)(uint8_t)result).
+ */
+void FUN_000cced0(int16_t function_index, int thread_datum, char init)
+{
+  int16_t type;
+  /* static param_types pair: [0x0046b80c] = type, [0x0046b80e] = type */
+  int16_t *param_types = (int16_t *)0x0046b80c;
+  int *values;
+  char result;
+
+  if (function_index < 0xf || function_index > 0x12) {
+    display_assert(
+      "function_index>=_hs_function_gt && function_index<=_hs_function_lte",
+      "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x15d, 1);
+    system_exit(-1);
+  }
+
+  {
+    char *thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    char *arg1 = (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(child + 0x8));
+    type = *(int16_t *)(arg1 + 0x4);
+  }
+
+  param_types[0] = type;
+  param_types[1] = type;
+  values = (int *)FUN_000cc3a0(thread_datum, 2, (int)param_types, init);
+  if (values == NULL)
+    return;
+
+  if (type == 6) {
+    /* real: load as float directly */
+    float a = *(float *)values;
+    float b = ((float *)values)[1];
+    switch (function_index) {
+    case 0xf:
+      result = (a > b) ? 1 : 0;
+      break; /* gt */
+    case 0x10:
+      result = (a < b) ? 1 : 0;
+      break; /* lt */
+    case 0x11:
+      result = (a >= b) ? 1 : 0;
+      break; /* ge */
+    case 0x12:
+      result = (a <= b) ? 1 : 0;
+      break; /* lte */
+    default:
+      display_assert(0, "c:\\halo\\source\\hs\\hs_library_internal_runtime.h",
+                     0x16b, 1);
+      system_exit(-1);
+      result = 0;
+      break;
+    }
+  } else if (type == 8) {
+    /* long_integer: load as int32 → float for comparison */
+    float a = (float)*(int32_t *)values;
+    float b = (float)*((int32_t *)values + 1);
+    switch (function_index) {
+    case 0xf:
+      result = (a > b) ? 1 : 0;
+      break; /* gt */
+    case 0x10:
+      result = (a < b) ? 1 : 0;
+      break; /* lt */
+    case 0x11:
+      result = (a >= b) ? 1 : 0;
+      break; /* ge */
+    case 0x12:
+      result = (a <= b) ? 1 : 0;
+      break; /* lte */
+    default:
+      display_assert(0, "c:\\halo\\source\\hs\\hs_library_internal_runtime.h",
+                     0x16e, 1);
+      system_exit(-1);
+      result = 0;
+      break;
+    }
+  } else {
+    /* short_integer or enum (type==7 or 0x20..0x24): load as int16 → float */
+    if (type != 7 && (type < 0x20 || type > 0x24)) {
+      display_assert("parameter_types[0]==_hs_type_short_integer || "
+                     "HS_TYPE_IS_ENUM(parameter_types[0])",
+                     "c:\\halo\\source\\hs\\hs_library_internal_runtime.h",
+                     0x171, 1);
+      system_exit(-1);
+    }
+    float a = (float)(int)*(int16_t *)values;
+    float b = (float)(int)*((int16_t *)values + 1);
+    switch (function_index) {
+    case 0xf:
+      result = (a > b) ? 1 : 0;
+      break; /* gt */
+    case 0x10:
+      result = (a < b) ? 1 : 0;
+      break; /* lt */
+    case 0x11:
+      result = (a >= b) ? 1 : 0;
+      break; /* ge */
+    case 0x12:
+      result = (a <= b) ? 1 : 0;
+      break; /* lte */
+    default:
+      display_assert(0, "c:\\halo\\source\\hs\\hs_library_internal_runtime.h",
+                     0x172, 1);
+      system_exit(-1);
+      result = 0;
+      break;
+    }
+  }
+
+  FUN_000cbf80(thread_datum, (int)(uint8_t)result);
+}
+
+/* 0xcd0e0 — HS 'sleep' evaluator. Implements the (sleep <ticks>) built-in.
+ *
+ * Three stack allocations from the current thread frame:
+ *   sched_time_ptr  (4 bytes, int16_t*): stores the sleep duration in ticks
+ *   wake_datum_ptr  (4 bytes, int32_t*): stores the datum handle to wake at
+ *   step_ptr        (2 bytes, int16_t*): step counter (0=first, 1=subsequent)
+ *
+ * Execution phases (controlled by step_ptr):
+ *   init=1: evaluate the ticks argument expression via FUN_000cc1d0, storing
+ *            the result at sched_time_ptr; set step=0 and return.
+ *   init=0, step=0 (first tick):
+ *     - Read the sleep duration from the syntax node directly.
+ *     - Increment step to 1.
+ *     - If ticks != -1: kick off deferred evaluation of ticks arg
+ * (FUN_000cc1d0) and return (deferred). Otherwise: set wake_datum_ptr = -1 and
+ * fall through to the step!=0 block. init=0, step!=0 (subsequent ticks):
+ *     - Read sched_time (evaluated ticks) from sched_time_ptr.
+ *     - If sched_time == 0: complete immediately via FUN_000cbf80(thread_datum,
+ * 0).
+ *     - If wake_datum_ptr != -1: find the target thread via FUN_000cada0
+ *       (@EDI = (int16_t)*wake_datum_ptr), look it up, then:
+ *         * If sched_time < 0: set EBX = -2 (relative-forever sentinel).
+ *         * If sched_time >= 0: compute wake_at = game_time_get() + sched_time.
+ *       - If target thread has an active wakeup (thread+0x8 != -1):
+ *         * If target != current thread and bit 0x2 not yet set:
+ *           save old wakeup tick to thread+0xc and set flag bit 0x2.
+ *         * Re-derive thread ptr and write wake_at to thread+0x8.
+ *     - Call FUN_000cbf80(thread_datum, 0) to complete the expression.
+ *
+ * Note: [EBP+0xc] (param_2 slot) is overwritten with wake_datum_ptr after
+ * the three hs_thread_stack_alloc calls. The param_3 (init) slot at [EBP+0x10]
+ * is overwritten with the computed wake_at value on the game_time_get path.
+ *
+ * function_index 0x13 = _hs_function_sleep.
+ *
+ * Globals:
+ *   0x5aa6c4 = hs_thread_data  (data_t*)
+ *   0x5aa6c8 = hs_syntax_data  (data_t*)
+ */
+void FUN_000cd0e0(int16_t function_index, int thread_datum, char init)
+{
+  /* Three stack allocations from the thread frame. */
+  int16_t *sched_time_ptr; /* 4-byte alloc: sleep duration in ticks */
+  int32_t *wake_datum_ptr; /* 4-byte alloc: wake datum handle (int32 write,
+                              int16 read) */
+  int16_t *step_ptr; /* 2-byte alloc: step counter */
+
+  /* Allocate all three slots before any branching. */
+  sched_time_ptr = (int16_t *)hs_thread_stack_alloc(thread_datum, 4);
+  wake_datum_ptr = (int32_t *)hs_thread_stack_alloc(thread_datum, 4);
+  step_ptr = (int16_t *)hs_thread_stack_alloc(thread_datum, 2);
+
+  /* Derive thread pointer for expression traversal. */
+  char *thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+
+  if (function_index != 0x13) {
+    display_assert("function_index==_hs_function_sleep",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x189,
+                   1);
+    system_exit(-1);
+  }
+
+  if (init) {
+    /* Phase: init. Evaluate the ticks argument and store at sched_time_ptr. */
+    char *call_node = (char *)datum_get(
+      *(data_t **)0x5aa6c8, *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(call_node + 0x10));
+    FUN_000cc1d0(thread_datum, *(int *)(child + 0x8), (void *)sched_time_ptr);
+    *step_ptr = 0;
+    return;
+  }
+
+  if (*step_ptr == 0) {
+    /* Phase: step 0, first tick — read sleep_ticks from syntax node. */
+    char *call_node = (char *)datum_get(
+      *(data_t **)0x5aa6c8, *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(call_node + 0x10));
+    char *first_arg =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(child + 0x8));
+    int sleep_ticks = *(int *)(first_arg + 0x8);
+
+    (*step_ptr)++; /* advance to step 1 */
+
+    if (sleep_ticks != -1) {
+      /* Kick off deferred evaluation of ticks argument. */
+      FUN_000cc1d0(thread_datum, sleep_ticks, (void *)wake_datum_ptr);
+      return;
+    }
+    /* sleep_ticks == -1: set wake_datum to -1 (32-bit write). */
+    *wake_datum_ptr = -1;
+
+    /* step is now 1; fall through to step != 0 block. */
+    if (*step_ptr == 0)
+      return;
+  }
+
+  /* Phase: step != 0, subsequent ticks. */
+  {
+    int16_t sched_time = *sched_time_ptr;
+    if (sched_time != 0) {
+      /* Find target thread to schedule the wakeup. */
+      int local_thread = thread_datum;
+      int16_t wake_val = (int16_t)*wake_datum_ptr;
+      if (wake_val != (int16_t)-1) {
+        local_thread = FUN_000cada0((int)(uint16_t)wake_val);
+      }
+      if (local_thread != -1) {
+        char *tgt_thread =
+          (char *)datum_get(*(data_t **)0x5aa6c4, local_thread);
+        int wake_at;
+        if (sched_time < 0) {
+          wake_at = -2;
+        } else {
+          wake_at = game_time_get() + (int)sched_time;
+        }
+        if (*(int *)(tgt_thread + 0x8) != -1) {
+          if (local_thread != thread_datum &&
+              (*(uint8_t *)(tgt_thread + 0x3) & 0x2) == 0) {
+            *(uint8_t *)(tgt_thread + 0x3) |= 0x2;
+            *(int *)(tgt_thread + 0xc) = *(int *)(tgt_thread + 0x8);
+          }
+          /* Re-derive thread pointer and write wake time. */
+          tgt_thread = (char *)datum_get(*(data_t **)0x5aa6c4, local_thread);
+          *(int *)(tgt_thread + 0x8) = wake_at;
+        }
+      }
+    }
+  }
+
+  FUN_000cbf80(thread_datum, 0);
+}
+
+/* 0xcd2a0 — HS sleep_until evaluator. Suspends the current thread until a
+ * condition expression becomes true, with an optional timeout.
+ *
+ * Stack frame allocations (in order, from hs_thread_stack_alloc):
+ *   done_flag_ptr  (4-byte slot, byte access): set to 0 on init; set to 1
+ *                  by the callee (FUN_000cc1d0) when the condition is true.
+ *   ticks_ptr      (4-byte slot, int16 access): default sleep interval in
+ *                  ticks (0x1e = 30); may be overwritten by condition eval.
+ *   timeout_ptr    (4-byte slot, int32 access): deadline in ticks (-1 = none).
+ *                  Populated on step==0 if a timeout expression exists.
+ *   start_time_ptr (4-byte slot, int32 access): game_time_get() captured on
+ *                  init; used with timeout_ptr to bound the wait.
+ *   step_ptr       (2-byte slot, int16 access): phase counter.
+ *                  0 = first tick (set up timeout), 1 = subsequent ticks.
+ *
+ * Syntax tree traversal at the top:
+ *   thread_ptr = datum_get(hs_thread_data, thread_datum)
+ *   call_node  = datum_get(hs_syntax_data, *(frame + 0x4))
+ *   child_node = datum_get(hs_syntax_data, *(call_node + 0x10))
+ *   grandchild = datum_get(hs_syntax_data, *(child_node + 0x8))
+ *   sleep_until_target = *(int *)(grandchild + 0x8)
+ *   (The sleep_until_target is -1 if the condition sub-expression is absent.)
+ *
+ * Execution phases:
+ *   init != 0: set done_flag=0, start_time=game_time_get(), step=0,
+ *              ticks=0x1e, timeout=-1. If sleep_until_target != -1, kick off
+ *              FUN_000cc1d0(thread_datum, sleep_until_target, ticks_ptr) and
+ *              return (deferred). Otherwise return immediately.
+ *   init==0, step==0 (first tick):
+ *     Set step=1. If sleep_until_target != -1:
+ *       look up child = datum_get(hs_syntax_data, sleep_until_target).
+ *       If *(child + 0x8) != -1, kick FUN_000cc1d0(thread_datum, that,
+ *       timeout_ptr) and return.
+ *   init==0, step==1 (subsequent ticks):
+ *     If done_flag==0 and (timeout_ptr==-1 or game_time_get() <
+ * timeout+start_time): Re-evaluate condition: traverse syntax tree again and
+ * call FUN_000cc1d0(thread_datum, new_target, done_flag_ptr). Then compute next
+ * wake tick: max(1, *ticks_ptr). Write wake = game_time_get() + tick to
+ * thread+0x8. If timeout != -1, clamp wake to min(wake, timeout+start). Else:
+ * FUN_000cbf80(thread_datum, 0) to complete.
+ *
+ * function_index 0x14 = _hs_function_sleep_until.
+ *
+ * Globals:
+ *   0x5aa6c4 = hs_thread_data  (data_t*)
+ *   0x5aa6c8 = hs_syntax_data  (data_t*)
+ */
+void FUN_000cd2a0(int16_t function_index, int thread_datum, char init)
+{
+  /* Stack frame allocations — all before any branching. */
+  char *done_flag_ptr; /* 4-byte slot; byte access: 0=pending, 1=done */
+  int16_t *ticks_ptr; /* 4-byte slot; int16 access: re-check interval */
+  int32_t *timeout_ptr; /* 4-byte slot; int32 access: absolute deadline  */
+  int32_t *start_time_ptr; /* 4-byte slot; int32 access: game_time at init  */
+  int16_t *step_ptr; /* 2-byte slot; int16 access: phase counter      */
+
+  done_flag_ptr = (char *)hs_thread_stack_alloc(thread_datum, 4);
+  ticks_ptr = (int16_t *)hs_thread_stack_alloc(thread_datum, 4);
+  timeout_ptr = (int32_t *)hs_thread_stack_alloc(thread_datum, 4);
+  start_time_ptr = (int32_t *)hs_thread_stack_alloc(thread_datum, 4);
+  step_ptr = (int16_t *)hs_thread_stack_alloc(thread_datum, 2);
+
+  /* Traverse the syntax tree to locate the sleep_until condition target. */
+  char *thread_ptr = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  char *call_node = (char *)datum_get(
+    *(data_t **)0x5aa6c8, *(int *)(*(char **)(thread_ptr + 0x10) + 0x4));
+  char *child_node =
+    (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(call_node + 0x10));
+  char *grandchild =
+    (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(child_node + 0x8));
+  int sleep_until_target = *(int *)(grandchild + 0x8);
+
+  if (function_index != 0x14) {
+    display_assert("function_index==_hs_function_sleep_until",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x1e5,
+                   1);
+    system_exit(-1);
+  }
+
+  if (init) {
+    /* Phase: init. Capture start time, set defaults, optionally kick
+     * evaluation of the condition expression. Stores are in the order
+     * the original MSVC code emits them (field rotation preserved). */
+    *done_flag_ptr = 0;
+    *start_time_ptr = game_time_get();
+    *step_ptr = 0;
+    *ticks_ptr = 0x1e; /* 30 ticks default re-check interval */
+    *timeout_ptr = -1;
+    if (sleep_until_target != -1) {
+      FUN_000cc1d0(thread_datum, sleep_until_target, (void *)ticks_ptr);
+      return;
+    }
+    return;
+  }
+
+  if (*step_ptr == 0) {
+    /* Phase: step 0 (first tick). Advance step, then optionally kick
+     * evaluation of the timeout expression into timeout_ptr. */
+    *step_ptr = 1;
+    if (sleep_until_target != -1) {
+      char *cond_child =
+        (char *)datum_get(*(data_t **)0x5aa6c8, sleep_until_target);
+      int timeout_expr = *(int *)(cond_child + 0x8);
+      if (timeout_expr != -1) {
+        FUN_000cc1d0(thread_datum, timeout_expr, (void *)timeout_ptr);
+        return;
+      }
+    }
+    /* fall through to step 1 logic */
+  } else if (*step_ptr != 1) {
+    return;
+  }
+
+  /* Phase: step 1 (subsequent ticks) — also reachable by fall-through from
+   * step 0 when no timeout expression exists. Check whether we should keep
+   * waiting or complete. */
+  if (*done_flag_ptr == 0 &&
+      (*timeout_ptr == -1 ||
+       game_time_get() < *timeout_ptr + *start_time_ptr)) {
+    /* Condition not yet met and not timed out: re-evaluate condition.
+     * The original re-derives thread_ptr via datum_get here (EDI was
+     * clobbered by the datum_get calls in the step-0 path above). */
+    char *thread2 = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+    char *frame2 = *(char **)(thread2 + 0x10);
+    char *call2 =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(frame2 + 0x4));
+    char *child2 =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(call2 + 0x10));
+    FUN_000cc1d0(thread_datum, *(int *)(child2 + 0x8), (void *)done_flag_ptr);
+
+    /* Compute next re-check tick: max(1, *ticks_ptr). */
+    int tick = (int)*ticks_ptr;
+    if (tick < 1)
+      tick = 1;
+    int wake = game_time_get() + tick;
+    *(int *)(thread2 + 0x8) = wake;
+
+    /* Clamp to timeout deadline if set. */
+    if (*timeout_ptr != -1) {
+      int deadline = *timeout_ptr + *start_time_ptr;
+      if (deadline <= wake) {
+        *(int *)(thread2 + 0x8) = deadline;
+      }
+      return;
+    }
+  } else {
+    /* Condition met or timed out: complete the expression. */
+    FUN_000cbf80(thread_datum, 0);
+  }
+}
+
+/* 0xcd5a0 — HS object-to-unit type converter. Evaluates one argument,
+ * checks if the object's type matches the target conversion mask from
+ * the table at 0x26f320. Returns the object if compatible, NONE if not.
+ * function_index 0x17 = object_to_unit. */
+void FUN_000cd5a0(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  int *result_ptr;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  result_ptr = (int *)hs_thread_stack_alloc(thread_datum, 4);
+
+  if (function_index < 0x17 || function_index > 0x17) {
+    display_assert("function_index>=_hs_function_object_to_unit && "
+                   "function_index<=_hs_function_object_to_unit",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x2dc,
+                   1);
+    system_exit(-1);
+  }
+
+  if (init) {
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    FUN_000cc1d0(thread_datum, *(int *)(child + 0x8), result_ptr);
+    return;
+  }
+
+  if (*result_ptr == -1) {
+    FUN_000cbf80(thread_datum, -1);
+    return;
+  }
+
+  {
+    char *obj = (char *)object_get_and_verify_type(*result_ptr, -1);
+    int type_idx = (int)(int16_t)(function_index - 0x16);
+    int type_bit = 1 << (*(uint8_t *)(obj + 0x64) & 0x1f);
+    int type_mask = (int)*(int16_t *)(0x26f320 + type_idx * 2);
+
+    if (type_mask & type_bit) {
+      FUN_000cbf80(thread_datum, *result_ptr);
+      return;
+    }
+
+    const char *tag_name = tag_get_name(*(int *)obj);
+    error(2, "attempt to convert object %s to type %s", tag_name,
+          *(const char **)(0x2f153c + type_idx * 4));
+    FUN_000cbf80(thread_datum, -1);
+  }
+}
+
+/* 0xcd6c0 — HS debug_string evaluator. Collects arguments into a 32-slot
+ * int32 array and then dispatches to one of three console print functions
+ * based on function_index (0x18=print, 0x19=inspect, 0x1a=debug_string).
+ *
+ * On init: walks two levels of syntax child links to find the first argument
+ * expression handle, stores it in the expr_index slot, zeroes the count slot,
+ * and clears the 0x80-byte values buffer.
+ *
+ * On subsequent calls (init==0 and not yet done):
+ *   - evaluates the next argument expression via FUN_000cc1d0 into the values
+ *     buffer at the current count offset, then advances expr_index to the
+ *     next sibling via node+0x8 and increments count.
+ *
+ * When expr_index == -1 (no more args) or count == 0x20 (buffer full):
+ *   - dispatches (*fn)(count, values_buf) for the appropriate print function.
+ *   - calls FUN_000cbf80(thread_datum, -1) to commit done.
+ *
+ * Stack frame allocations (all before any branching):
+ *   expr_index_ptr (4-byte slot, int32): current expression datum handle
+ *   count_ptr      (4-byte slot, int32): number of collected values
+ *   values_buf     (0x80-byte slot): collected int32 argument values
+ *
+ * Globals:
+ *   0x5aa6c4 = hs_thread_data (data_t*)
+ *   0x5aa6c8 = hs_syntax_data (data_t*)
+ *
+ * Callees:
+ *   0xcaba0 = hs_thread_stack_alloc (@EAX=thread_datum, size) -> void*
+ *   0xcc1d0 = FUN_000cc1d0 (@EAX=thread_datum, expression_index, dest_ptr)
+ *   0xcbf80 = FUN_000cbf80 (thread_datum, value)
+ *   0x4a650 = FUN_0004a650 (count, values_buf) [function_index 0x18]
+ *   0x4a680 = FUN_0004a680 (count, values_buf) [function_index 0x19]
+ *   0x4a6b0 = FUN_0004a6b0 (count, values_buf) [function_index 0x1a]
+ */
+void FUN_000cd6c0(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  int32_t *expr_index_ptr;
+  int32_t *count_ptr;
+  int32_t *values_buf;
+  void (*fn)(int32_t count, int32_t *values);
+
+  /* Allocate thread-local slots before any conditional branching. */
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  expr_index_ptr = (int32_t *)hs_thread_stack_alloc(thread_datum, 4);
+  count_ptr = (int32_t *)hs_thread_stack_alloc(thread_datum, 4);
+  values_buf = (int32_t *)hs_thread_stack_alloc(thread_datum, 0x80);
+
+  /* Assert function_index is in the debug_string range [0x18..0x1a]. */
+  if (function_index < 0x18 || function_index > 0x1a) {
+    display_assert("(function_index>=_hs_function_debug_string__first) && "
+                   "(function_index<=_hs_function_debug_string__last)",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x304,
+                   1);
+    system_exit(-1);
+  }
+
+  /* init pass: walk child links to first argument, zero the collection state.
+   */
+  if (init) {
+    /* thread->stack->expression_index -> first child of function node */
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                                   *(int *)(*(char **)(thread + 0x10) + 0x4));
+    char *child =
+      (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+    *expr_index_ptr = *(int *)(child + 0x8);
+    *count_ptr = 0;
+    csmemset(values_buf, 0, 0x80);
+    return;
+  }
+
+  /* Argument collection: evaluate one argument per call until done. */
+  if (*expr_index_ptr != -1 && *count_ptr < 0x20) {
+    FUN_000cc1d0(thread_datum, *expr_index_ptr, &init);
+    char *node = (char *)datum_get(*(data_t **)0x5aa6c8, *expr_index_ptr);
+    *expr_index_ptr = *(int *)(node + 0x8);
+    values_buf[*count_ptr] = (int32_t)init;
+    *count_ptr = *count_ptr + 1;
+    return;
+  }
+
+  /* Dispatch to print function based on function_index.
+   * These three addresses are loaded into EAX and called indirectly
+   * (MOV EAX, imm; CALL EAX) — not resolved by name in the binary. */
+  if (function_index == 0x18) {
+    fn = (void (*)(int32_t, int32_t *))0x4a650;
+  } else if (function_index == 0x19) {
+    fn = (void (*)(int32_t, int32_t *))0x4a680;
+  } else {
+    if (function_index != 0x1a) {
+      display_assert(0, "c:\\halo\\source\\hs\\hs_library_internal_runtime.h",
+                     0x330, 1);
+      system_exit(-1);
+      FUN_000cbf80(thread_datum, -1);
+      return;
+    }
+    fn = (void (*)(int32_t, int32_t *))0x4a6b0;
+  }
+
+  if (fn != NULL) {
+    fn(*count_ptr, values_buf);
+  }
+  FUN_000cbf80(thread_datum, -1);
 }
 
 /* 0xcd840 — Main HS thread execution tick. Runs the thread's expression
@@ -1814,5 +2994,20 @@ void FUN_000ce350(int expression_datum)
   if (expression_datum != -1) {
     char *node = (char *)datum_get(*(data_t **)0x5aa698, expression_datum);
     *(int16_t *)(node + 0x4) += 1;
+  }
+}
+
+/* 0xce370 - decrement hs object list reference count; asserts count > 0 before
+ * decrement */
+void FUN_000ce370(int expression_datum)
+{
+  if (expression_datum != -1) {
+    char *node = (char *)datum_get(*(data_t **)0x5aa698, expression_datum);
+    if (*(int16_t *)(node + 0x4) < 1) {
+      display_assert("list->reference_count>0",
+                     "c:\\halo\\SOURCE\\hs\\object_lists.c", 0xa5, 1);
+      system_exit(-1);
+    }
+    *(int16_t *)(node + 0x4) -= 1;
   }
 }
