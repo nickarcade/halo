@@ -52,6 +52,46 @@ void FUN_0003a740(void)
   }
 }
 
+/* FUN_0003a8a0 (0x3a8a0) — actor_swarm_control_dispatch
+ *
+ * Dispatch the actor-type-specific swarm control function for a given actor.
+ * Retrieves the actor datum, reads its actor_type (int16_t at offset 4),
+ * looks up the actor type definition, asserts the definition describes a
+ * swarm actor (byte at +0xd) and that the swarm_control function pointer
+ * (at +0x18) is non-null, then calls it with actor_handle.
+ *
+ * Assert strings confirm source: c:\halo\SOURCE\ai\actor_types.c, lines
+ * 0x8d–0x8e.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3a8af.
+ * Confirmed: MOV AX,[EAX+4] loads actor_type for @<ax> register call at
+ * 0x3a8b4. Confirmed: FUN_0003a600(@<ax>) returns type_def pointer in EAX ->
+ * ESI at 0x3a8bb. Confirmed: type_def->swarm (byte at +0xd) tested at
+ * 0x3a8c2-0x3a8c7. Confirmed: type_def->swarm_control (int * at +0x18) tested
+ * at 0x3a8e9-0x3a8ee. Confirmed: CALL dword ptr [ESI+0x18] dispatches
+ * swarm_control(actor_handle) at 0x3a911. */
+void FUN_0003a8a0(int actor_handle)
+{
+  char *actor;
+  void *type_def;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  type_def = FUN_0003a600(*(short *)(actor + 4));
+
+  if (*(char *)((char *)type_def + 0xd) == 0) {
+    display_assert("actor_type_definition->swarm",
+                   "c:\\halo\\SOURCE\\ai\\actor_types.c", 0x8d, 1);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)type_def + 0x18) == 0) {
+    display_assert("actor_type_definition->swarm_control",
+                   "c:\\halo\\SOURCE\\ai\\actor_types.c", 0x8e, 1);
+    system_exit(-1);
+  }
+
+  (*(void (*)(int)) * (int *)((char *)type_def + 0x18))(actor_handle);
+}
+
 /* actors.c — AI actor/swarm data lifecycle.
  *
  * Corresponds to actors.obj (XBE address range ~0x3a990–0x3aab7).
@@ -699,6 +739,258 @@ void FUN_0003ba00(void)
   }
 }
 
+/* FUN_0003bb50 (0x3bb50) — actor_update_cognition_score
+ *
+ * Updates a per-actor cognition score (field +0x4a) and compares it against
+ * thresholds stored in the AI globals struct at 0x632574. If the threshold is
+ * exceeded, resets the score to zero and sets alarm flags; otherwise tracks
+ * the running maximum.
+ *
+ * Algorithm:
+ *   increment = 1 if actor->field_0x6c != 10 or field_0xa0 not in {2,3,4,5}
+ *               3 if actor->field_0x6c == 10 AND field_0xa0 in {2,3,4,5}
+ *   actor->field_0x4a += increment
+ *   score = actor->field_0x4a
+ *   if (ai_globals[3] == 0 && score > ai_globals[+4] && score > 15):
+ *       actor->field_0x4a = 0
+ *       ai_globals[+3] = 1
+ *       actor->field_0x4c = 1     (alarm triggered)
+ *       return
+ *   if (score > ai_globals[+6]):
+ *       ai_globals[+6] = score    (update running max)
+ *   actor->field_0x4c = 0         (no alarm)
+ *
+ * actor->field_0x6c: int16 — actor mode/state (10 = some firing mode)
+ * actor->field_0xa0: int16 — some sub-state (2–5 = active sub-states)
+ * actor->field_0x4a: int16 — cognition score accumulator
+ * actor->field_0x4c: byte  — alarm flag
+ * ai_globals+3:      byte  — global alarm triggered flag
+ * ai_globals+4:      int16 — score threshold
+ * ai_globals+6:      int16 — running max score
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3bb59.
+ * Confirmed: CMP [ECX+0x6c], 0xa; then MOV SI,[ECX+0xa0]; CMP SI,{2,3,4,5} at
+ *   0x3bb67–0x3bb8d.
+ * Confirmed: LEA EBX,[EBX+EBX*1+1] computes increment (1 or 3) at 0x3bb97.
+ * Confirmed: ADD [ECX+0x4a], BX at 0x3bb9b.
+ * Confirmed: MOV ESI,[0x632574] loads AI globals ptr at 0x3bb9f.
+ * Confirmed: BL = ai_globals[+3] at 0x3bba5; TEST BL,BL / JNZ at
+ * 0x3bbac–0x3bbaf. Confirmed: CMP DX,[ESI+4] / CMP DX,0xf at 0x3bbb1–0x3bbb7.
+ * Confirmed: reset path: [ECX+0x4a]=0; [EDX+3]=1; [ECX+0x4c]=1 at
+ * 0x3bbbd–0x3bbce. Confirmed: max-tracking: CMP DX,[ESI+6] / MOV [ESI+6],DX at
+ * 0x3bbd3–0x3bbd9. Confirmed: [ECX+0x4c]=0 (AL=0 from XOR AL,AL at 0x3bb63, not
+ * reassigned) at 0x3bbdd. */
+void FUN_0003bb50(int actor_handle /* @<eax> */)
+{
+  char *actor;
+  char *ai_globals;
+  short score;
+  int increment;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  ai_globals = *(char **)0x632574;
+
+  increment = 1;
+  if (*(short *)(actor + 0x6c) == 10) {
+    short sub = *(short *)(actor + 0xa0);
+    if (sub == 2 || sub == 3 || sub == 4 || sub == 5) {
+      increment = 3;
+    }
+  }
+
+  *(short *)(actor + 0x4a) += (short)increment;
+  score = *(short *)(actor + 0x4a);
+
+  if (*(char *)(ai_globals + 3) == 0 && score > *(short *)(ai_globals + 4) &&
+      score > 0xf) {
+    *(short *)(actor + 0x4a) = 0;
+    *(char *)(*(char **)0x632574 + 3) = 1;
+    *(char *)(actor + 0x4c) = 1;
+    return;
+  }
+
+  if (score > *(short *)(ai_globals + 6)) {
+    *(short *)(ai_globals + 6) = score;
+  }
+  *(char *)(actor + 0x4c) = 0;
+}
+
+/* FUN_0003bbf0 (0x3bbf0)
+ *
+ * Initializes actor perception/tracking fields on re-activation. Copies
+ * three vector3_t values from actor+0x174..0x18c into actor+0x6fc..0x714,
+ * zeroes actor+0x6d0 and actor+0x720, copies the global zero vector
+ * (*(float**)0x31fc38) into actor+0x6e0, and sets actor+0x6ec = 0xffff.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3bbf9 (EAX=handle,
+ * ECX=actor_data). Confirmed: three 12-byte copies actor+0x174→+0x6fc,
+ * +0x180→+0x708, +0x18c→+0x714 at 0x3bbfe–0x3bc4f. Confirmed: actor+0x6d0
+ * zeroed at 0x3bc54, actor+0x720 zeroed at 0x3bc5a. Confirmed: global zero
+ * vector *(float**)0x31fc38 copied 12 bytes → actor+0x6e0 at 0x3bc60–0x3bc7c.
+ * Confirmed: actor+0x6ec = 0xffff at 0x3bc7f.
+ * Confirmed: called with MOV EAX,ESI / CALL 0x3bbf0 from FUN_0003ec80 at
+ * 0x3ed62–0x3ed64. */
+void FUN_0003bbf0(int actor_handle /* @<eax> */)
+{
+  char *actor;
+  float *zero_vec;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+
+  /* copy three facing/aiming/look vectors into tracking slots */
+  *(vector3_t *)(actor + 0x6fc) = *(vector3_t *)(actor + 0x174);
+  *(vector3_t *)(actor + 0x708) = *(vector3_t *)(actor + 0x180);
+  *(vector3_t *)(actor + 0x714) = *(vector3_t *)(actor + 0x18c);
+
+  *(int *)(actor + 0x6d0) = 0;
+  *(int *)(actor + 0x720) = 0;
+
+  zero_vec = *(float **)0x31fc38;
+  *(float *)(actor + 0x6e0) = zero_vec[0];
+  *(float *)(actor + 0x6e4) = zero_vec[1];
+  *(float *)(actor + 0x6e8) = zero_vec[2];
+
+  *(short *)(actor + 0x6ec) = (short)0xffff;
+}
+
+/* FUN_0003be90 (0x3be90) — actor run internal logic / infinite-loop watchdog
+ *
+ * Runs the actor's decision loop up to 10 times, recording the last 5 action
+ * indices in a ring buffer. Each iteration: stores actor->state.action in the
+ * ring, increments a counter, advances the ring index mod 5, clears the
+ * action-changed flag (actor+0x70), dispatches the actor-type decide_action
+ * callback (FUN_0003a840), then clears perception state (FUN_00036860).
+ *
+ * Loop exit paths:
+ *   (a) Normal: BL (previous action-executed result) != 0 AND actor+0x70 == 0
+ *       → action completed without requesting a new action.
+ *   (b) Hard limit: counter >= 10 → break (error reported below).
+ *   (c) Normal: FUN_0001c300 returns 0 AND actor+0x70 == 0 → clean return.
+ *
+ * After loop: if counter < 10, logs "actor-type %s internal logic error (%s)"
+ *   with the current action name and encounter/squad path.
+ * If counter >= 10, logs each of the last 5 ring-buffer actions plus an
+ *   "infinite decision loop" message.
+ * Both paths call display_assert at line 0xd6c, then error() at priority 2,
+ * then FUN_0001d030(actor_handle, 0, 0) to force-set action 0 (recover).
+ *
+ * Confirmed: SUB ESP,0x510 → 1296-byte frame; local_514[1024] at EBP-0x510,
+ *   local_114[256] at EBP-0x110, short local_14[5] at EBP-0x10, int local_8
+ *   (counter) at EBP-0x4.
+ * Confirmed: csmemset(local_14, 0xff, 10) at 0x3bebd (pre-fills ring with -1).
+ * Confirmed: ESI = datum_get result (actor record ptr); EDI = ring index (mod
+ * 5). Confirmed: BL = result of FUN_0001c300; XOR BL,BL at 0x3beb8 → BL starts
+ * 0. Confirmed: loop stored at EBP-0x4 (local_8), incremented at 0x3bedc.
+ * Confirmed: MOV EDI,EDX at 0x3beef sets new ring index from IDIV remainder.
+ * Confirmed: break-on-BL-nonzero test at 0x3bf06–0x3bf0f.
+ * Confirmed: break-on-count>=10 test at 0x3bf11–0x3bf15.
+ * Confirmed: FUN_0001c300 called at 0x3bf1b; result into BL at 0x3bf20.
+ * Confirmed: early-return (BL==0 && actor[0x70]==0) at 0x3bf25–0x3bf36.
+ * Confirmed: global_scenario_get() takes 0 args; PUSH 0xb0, PUSH encounter_idx
+ *   at 0x3bf5a–0x3bf5f remain on stack for tag_block_get_element call at
+ * 0x3bf6b. Confirmed: ADD ESP,0x28 at 0x3bf9b cleans 10 dwords from
+ * encounter-path calls. Confirmed: infinite-loop ring-dump loop: ESI=EDI (start
+ * index), advances mod 5, terminates when ESI wraps back to EDI. Confirmed:
+ * FUN_0001d030(actor_handle, 0, 0) at 0x3c0a5 with PUSH 0,0,EAX. Confirmed: ADD
+ * ESP,0x24 at 0x3c0aa cleans display_assert(4) + error(2) + action_set(3).
+ * Inferred: actor+0x6c = state.action (short); actor+0x70 = action-changed flag
+ * (byte). Inferred: actor+0x34 = encounter handle (int); actor+0x3a = squad
+ * index (short). Inferred: actor+0x4 = actor type index (short). Inferred:
+ * FUN_0001c300 = actor_execute_current_action (dispatches via action table).
+ * Inferred: FUN_0003a840 = actor_type_decide_action (calls type->decide_action
+ * fn ptr). Inferred: FUN_00036860 = actor_clear_perception_state (csmemset
+ * actor+0x2ec, 0, 100). Inferred: FUN_0001d030 = actor_set_action (sets action
+ * to param_2, clears changed flag). Inferred: FUN_0003a760 =
+ * actor_type_get_name (returns actor type name string). Inferred: FUN_0001d5c0
+ * = actor_action_get_name (returns action name string). */
+void FUN_0003be90(int actor_handle)
+{
+  char *actor;
+  short local_14[5]; /* ring buffer of last 5 action indices */
+  int local_8; /* loop counter */
+  char local_114[256]; /* encounter name buffer */
+  char local_514[1024]; /* error message buffer */
+  int edi; /* ring buffer index (mod 5) */
+  char bl; /* result of FUN_0001c300 */
+  int encounter_idx;
+  void *encounter_elem;
+  void *squad_elem;
+  const char *actor_type_name;
+  const char *action_name;
+  int i;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  edi = 0;
+  bl = 0;
+  local_8 = 0;
+  csmemset(local_14, 0xff, 10);
+
+  /* Decision loop: run until action settles or limit hit */
+  for (;;) {
+    local_14[edi] = *(short *)(actor + 0x6c);
+    local_8++;
+    edi = (edi + 1) % 5;
+    *(char *)(actor + 0x70) = 0;
+    FUN_0003a840(actor_handle);
+    FUN_00036860(actor_handle);
+
+    /* (a) Previous action completed without requesting change */
+    if (bl != 0 && *(char *)(actor + 0x70) == 0) {
+      break;
+    }
+    /* (b) Hard iteration limit */
+    if (local_8 >= 10) {
+      break;
+    }
+    /* Execute current action; check if it changed state */
+    bl = (char)FUN_0001c300(actor_handle);
+    /* (c) No action ran and no change requested → clean return */
+    if (bl == 0 && *(char *)(actor + 0x70) == 0) {
+      return;
+    }
+  }
+
+  /* --- Error reporting: build encounter/squad path string --- */
+  if (*(int *)(actor + 0x34) == -1) {
+    csstrcpy(local_114, "<no encounter>");
+  } else {
+    encounter_idx = (int)(*(unsigned int *)(actor + 0x34) & 0xffff);
+    encounter_elem = tag_block_get_element(
+      (char *)global_scenario_get() + 0x42c, encounter_idx, 0xb0);
+    squad_elem = tag_block_get_element((char *)encounter_elem + 0x80,
+                                       (int)*(short *)(actor + 0x3a), 0xe8);
+    crt_sprintf(local_114, "%s/%s", encounter_elem, squad_elem);
+  }
+
+  if (local_8 < 10) {
+    /* Logic error: action did not converge */
+    action_name = (const char *)FUN_0001d5c0(*(short *)(actor + 0x6c));
+    actor_type_name = (const char *)FUN_0003a760(*(short *)(actor + 0x4));
+    crt_sprintf(local_514, "actor-type %s %s internal logic error (%s)",
+                actor_type_name, action_name, local_114);
+  } else {
+    /* Infinite decision loop: dump ring buffer */
+    actor_type_name = (const char *)FUN_0003a760(*(short *)(actor + 0x4));
+    crt_sprintf(local_514, "actor-type %s ", actor_type_name);
+    i = edi;
+    do {
+      if (local_14[i] != (short)-1) {
+        action_name = (const char *)FUN_0001d5c0(local_14[i]);
+        FUN_0008dc30(local_514, action_name);
+        FUN_0008dc30(local_514, (const char *)0x256ec8);
+      }
+      i = (i + 1) % 5;
+    } while (i != edi);
+    crt_sprintf((char *)0x5ab100, " infinite decision loop (%s)", local_114);
+    FUN_0008dc30(local_514, (const char *)0x5ab100);
+  }
+
+  display_assert(local_514, "c:\\halo\\SOURCE\\ai\\actors.c", 0xd6c, 0);
+  error(2, "AI error condition detected, attempting to recover (please tell "
+           "butcher)...");
+  FUN_0001d030(actor_handle, 0, 0);
+}
+
 /* FUN_0003cbc0 (0x3cbc0) — actor_clean_props
  *
  * Clean up all props associated with an actor. Iterates actor+0x50 linked list,
@@ -1001,4 +1293,1064 @@ void FUN_0003d950(int actor_handle, char flag)
   } else {
     object_delete(unit_handle);
   }
+}
+
+/* FUN_0003d9f0 (0x3d9f0) — actor_pre_activate_check
+ *
+ * Validates an actor before activation and updates per-tick AI counters.
+ * Returns 1 if the actor may proceed to full activation, 0 if it was erased.
+ *
+ * Per-tick counter updates (always, before any early-outs):
+ *   - word[0x5abc44]++ : total actor count increment
+ *   - if actor+0x13 == 0: word[0x5abccc]++  (non-dormant actor count)
+ *   - if actor+6 == 0: word[0x5abddc]++ (non-swarm count), else add
+ *     short[actor+0x1e] (swarm_unit_count) to word[0x5abddc]
+ *   - same conditional logic for word[0x5abe64] gated on actor+0x13==0
+ *
+ * Error path (swarm actor without swarm cache at actor+0x28 == -1):
+ *   - Fires csprintf assert at actors.c line 0xaad (2733).
+ *   - Calls FUN_0003d950(actor_handle, 0) to erase units.
+ *   - Returns 0.
+ *
+ * Counter reset block (executed before dormancy/activation checks):
+ *   - byte[actor+0x4a4] = 0
+ *   - if int[actor+0x78] > 0: decrement; if reaches 0, clear word[actor+0x74]
+ *   - if short[actor+0x92] > 0: decrement
+ *
+ * Activation readiness checks (return 1 to allow activation):
+ *   - If actor+0x12 == 0 (no player-presence?) OR combined flags != 0:
+ *       call FUN_0003ca40(actor_handle, 0); return 1.
+ *   - If actor+0x13 != 0 (dormant): return 1 (dormant actors always pass).
+ *   - If FUN_0001d6d0(actor_handle) returns 2 (action already in flight):
+ * return 1.
+ *   - Encounter validity check: if actor+0x270 != -1:
+ *       datum_get(DAT_005ab23c, actor+0x270); check +0x12e, +0x60, +0x127;
+ *       if valid encounter and action type in [2,3] → return 1;
+ *       if action type in [4,5] and FUN_0001d6d0 returned 3 → return 1.
+ *   - FUN_0002a3d0(actor_handle) checks byte at actor+0x4a8 (non-zero =
+ * vehicle?): if mode==3 and actor+0x6c==6 and biped+0x62==1 → return 1. if
+ * mode==5 and encounter+0x12e!=0 → return 1.
+ *   - Increment word[actor+0x14] (idle ticks); if > 0x3b (59): deactivate and
+ * return 1.
+ *
+ * Classification evidence: references actors.c string at 0x3da76 (line 0xaad).
+ *   Called by FUN_0003ec80 (actor_activate) at 0x3ecc3; result tested with
+ *   TEST AL,AL; JZ 0x3edae.
+ *
+ * Confirmed: cdecl, single stack arg actor_handle. Return via AL.
+ * Confirmed: [EBP-1] initialised to 1 at 0x3da16; set to 0 at 0x3daa3 only.
+ *   All exits load AL from [EBP-1], so default return is 1.
+ * Confirmed: ESI = datum_get result (actor record pointer) throughout.
+ * Confirmed: EDI = actor_handle (from [EBP+0x8]) at 0x3d9fb; preserved until
+ *   overwritten by FUN_0001d6d0 return at 0x3db2a, then restored at 0x3db92.
+ * Confirmed: encounter data table at DAT_005ab23c (0x5ab23c).
+ * Confirmed: FUN_0003ca40(actor_handle, flag) cdecl 2 args — ADD ESP,0x8.
+ * Confirmed: FUN_0001d6d0(actor_handle) cdecl 1 arg → short action type in AX.
+ *   Return stored in DI; compared as 16-bit (CMP DI,0x2 / CMP DI,0x3).
+ * Confirmed: FUN_0002a3d0(actor_handle) cdecl 1 arg → byte at actor+0x4a8.
+ * Confirmed: mode==3 path: CMP word[ESI+0x6c],6; CMP word[EBX+0x62],1 (biped
+ * rec). EBX = DAT_005ab270 datum_get result (biped record), set at 0x3daf7.
+ * Confirmed: mode==5 path: datum_get(DAT_005ab23c, actor+0x470) → check +0x12e.
+ * Confirmed: ADD ESP,0x18 at 0x3da9c cleans csprintf(3)+display_assert(1)+
+ *   FUN_0003d950(2) = 6 dwords after partial ADD ESP,0xc at 0x3da8b.
+ * Inferred: actor+0x13 = dormant flag (byte); actor+6 = swarm flag (byte).
+ * Inferred: actor+0x28 = swarm cache handle (int); -1 = no cache.
+ * Inferred: actor+0x1e = swarm unit count (short).
+ * Inferred: actor+0x78 = timer/countdown int; actor+0x74 = associated mode
+ * word. Inferred: actor+0x92 = secondary tick countdown (short). Inferred:
+ * actor+0x34 = biped handle (int); DAT_005ab270 = biped data table. Inferred:
+ * actor+0xa = actor flags byte; biped+0xc = biped flags byte. Inferred:
+ * actor+0x12 = player-proximity or targeting flag (byte). Inferred: actor+0x14
+ * = idle tick counter (short); threshold 0x3b (59 ticks). Inferred: actor+0x270
+ * = encounter handle (int). Inferred: encounter+0x12e = scripted flag (char);
+ * encounter+0x60 = active (char); encounter+0x127 = some exclusion flag (char);
+ * encounter+0x24 = type/state short. Inferred: actor+0x4a8 = in-vehicle or
+ * mounted flag (byte, read by FUN_0002a3d0). Inferred: actor+0x46c = activation
+ * mode (short); 3=biped-ride, 5=encounter-board. Inferred: actor+0x470 =
+ * secondary encounter handle (int) used with mode==5. */
+char FUN_0003d9f0(int actor_handle)
+{
+  char *actor;
+  char *biped;
+  char *encounter;
+  char flags;
+  short action_type;
+  char in_vehicle;
+  char ret;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+
+  ret = 1;
+
+  /* Per-tick counter updates */
+  (*(short *)0x5abc44)++;
+  if (*(char *)(actor + 0x13) == 0) {
+    (*(short *)0x5abccc)++;
+  }
+  if (*(char *)(actor + 0x6) == 0) {
+    (*(short *)0x5abddc)++;
+    if (*(char *)(actor + 0x13) == 0) {
+      (*(short *)0x5abe64)++;
+    }
+  } else {
+    *(short *)0x5abddc += *(short *)(actor + 0x1e);
+    if (*(char *)(actor + 0x13) == 0) {
+      *(short *)0x5abe64 += *(short *)(actor + 0x1e);
+    }
+  }
+
+  /* Swarm actor without a swarm cache: error, erase and bail.
+   * NOTE: The binary shares filepath/lineno/halt args across csprintf and
+   * display_assert via a partial-cleanup trick (ADD ESP,0xc after csprintf
+   * leaves 3 args on stack; PUSH EAX adds reason; CALL display_assert sees 4).
+   * In C we write both calls explicitly; the compiler may or may not fold them.
+   */
+  if (*(char *)(actor + 0x6) != 0 && *(int *)(actor + 0x28) == -1) {
+    csprintf(
+      (char *)0x5ab100,
+      "tried to update a swarm actor without a swarm cache, erasing %d units",
+      (int)*(short *)(actor + 0x1e));
+    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\ai\\actors.c", 0xaad,
+                   0);
+    FUN_0003d950(actor_handle, 0);
+    ret = 0;
+    return ret;
+  }
+
+  /* Reset per-tick counters on actor */
+  *(char *)(actor + 0x4a4) = 0;
+  if (*(int *)(actor + 0x78) > 0) {
+    *(int *)(actor + 0x78) -= 1;
+    if (*(int *)(actor + 0x78) == 0) {
+      *(short *)(actor + 0x74) = 0;
+    }
+  }
+  if (*(short *)(actor + 0x92) > 0) {
+    *(short *)(actor + 0x92) -= 1;
+  }
+
+  /* Resolve biped record if actor has a biped handle */
+  biped = 0;
+  if (*(int *)(actor + 0x34) != -1) {
+    biped = (char *)datum_get(*(data_t **)0x5ab270, *(int *)(actor + 0x34));
+  }
+
+  /* Combined flags: actor own flags OR biped flags */
+  flags = *(char *)(actor + 0xa);
+  if (biped != 0) {
+    flags |= *(char *)(biped + 0xc);
+  }
+
+  /* Deactivate if no player present or combined flags set */
+  if (*(char *)(actor + 0x12) == 0 || flags != 0) {
+    FUN_0003ca40(actor_handle, 0);
+    return ret;
+  }
+
+  /* Dormant actors pass immediately */
+  if (*(char *)(actor + 0x13) != 0) {
+    return ret;
+  }
+
+  /* Check current action type */
+  action_type = (short)FUN_0001d6d0(actor_handle);
+  if (action_type == 2) {
+    return ret;
+  }
+
+  /* Encounter validity check */
+  if (*(int *)(actor + 0x270) != -1) {
+    encounter =
+      (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x270));
+    if (*(char *)(encounter + 0x12e) != 0 && *(char *)(encounter + 0x60) != 0 &&
+        *(char *)(encounter + 0x127) == 0) {
+      short enc_state = *(short *)(encounter + 0x24);
+      if (enc_state >= 2 && enc_state <= 3) {
+        return ret;
+      }
+      if (enc_state >= 4 && enc_state <= 5 && action_type == 3) {
+        return ret;
+      }
+    }
+  }
+
+  /* Check in-vehicle / mounted flag */
+  in_vehicle = FUN_0002a3d0(actor_handle);
+  if (in_vehicle != 0) {
+    if (*(short *)(actor + 0x46c) == 3) {
+      /* Biped-ride mode: check biped action state */
+      if (*(short *)(actor + 0x6c) == 6 && *(short *)(biped + 0x62) == 1) {
+        return ret;
+      }
+    } else if (*(short *)(actor + 0x46c) == 5) {
+      /* Encounter-board mode: check encounter scripted flag */
+      encounter =
+        (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x470));
+      if (*(char *)(encounter + 0x12e) != 0) {
+        return ret;
+      }
+    }
+  }
+
+  /* Idle tick counter: if exceeded threshold, force deactivation */
+  *(short *)(actor + 0x14) += 1;
+  if (*(short *)(actor + 0x14) > 0x3b) {
+    FUN_0003ca40(actor_handle, 1);
+    return ret;
+  }
+
+  return ret;
+}
+
+/* FUN_0003dc20 (0x3dc20) — actor_input_update
+ *
+ * Populates the actor's "input" block (actor+0x120..0x1c4) which describes
+ * the actor's perceived threat, orientation vectors, and motion state.
+ * This is the per-activation update of the actor's sensory/targeting input.
+ *
+ * Two major code paths depending on actor+0x6 (swarm flag):
+ *
+ * SWARM PATH (actor+0x6 != 0):
+ *   Computes the centroid of all swarm component positions by:
+ *   1. Initing a running sum at swarm+0xc from the PTR_DAT_0031fc1c constant.
+ *   2. Iterating over swarm components: for each, datum_get from
+ *      swarm_component_data, get the component object, copy its
+ *      position relative info, accumulate position into the centroid.
+ *   3. Divide by component count to get the average.
+ *   4. memset actor+0x120 (0xa8 bytes) to zero.
+ *   5. Write sentinel -1 to actor+0x158 and actor+0x164.
+ *   6. If actor+0x24 != -1, call FUN_0003bde0 to fill input block.
+ *
+ * NORMAL PATH (actor+0x6 == 0):
+ *   1. object_get_and_verify_type(actor+0x18, 3) to get the biped object.
+ *   2. Check biped+0xcc for parent object handle.
+ *   3. FUN_0003bde0 to populate actor+0x120 block.
+ *   4. FUN_001a9520 to get biped world position into local_pos[3].
+ *   5. FUN_0018f3e0 to resolve BSP location; result → actor+0x15d.
+ *   6. Extract player-proximity flag from tag: (tag[0] >> 0x15) & 1 →
+ * actor+0x99.
+ *   7. If parent object is a vehicle (type==1, biped+0x64==1):
+ *      - tag_get('vehi', vehicle[0]) → vehicle tag
+ *      - set actor+0x158 = parent_handle, actor+0x161=0, actor+0x162=0,
+ * +0x15e=0
+ *      - if vehicle+0x2d4 == actor+0x18 (driver seat): set +0x15e=1, check
+ *        tag flags at +0x2f0 for vehicle type (banshee/warthog bits)
+ *      - if vehicle+0x2d8 == actor+0x18 (passenger): set +0x161=1, check speed
+ *        via FUN_000211f0
+ *      - compute actor+0x160 = (actor+0x15e < 2)
+ *      - if vehicle+0x2e4 (preferred_seat_index) != -1: check encounter seat
+ *        matching, potentially call FUN_0003baa0
+ *   8. If no vehicle: clear actor+0x158=-1, +0x15e=0, +0x160=0, +0x161=0
+ *      and call FUN_0003baa0 if sticky_burst active (actor+0x40).
+ *   9. Player proximity counter (actor+0x99, scenario player record +0x657a).
+ *  10. Walk object child chain (biped+0xc8) to fill actor+0x1b4 (has_weapon)
+ *      and actor+0x1b0 (active_grenade_handle).
+ *  11. Resolve actor+0x164 (preferred_weapon) from biped if no vehicle.
+ *  12. FUN_001a9960 to fill actor+0x174 (facing_vector 3D).
+ *  13. If not in vehicle: clamp facing_vector to 0 if zero-length; set
+ * +0x17c=0.
+ *  14. Compute aiming_vector from object+0x1ec..0x1f4 (or vehicle aiming pos).
+ *  15. Compute looking_vector from object+0x210..0x218.
+ *  16. Compute up_vector = cross-like product of looking and world_up constant.
+ *  17. Compute right_vector = cross product of looking and up.
+ *  18. Assert validity of facing, aiming, looking vectors.
+ *  19. Copy actor+0x1b8..0x1c4 from biped object offsets 0x90/0x94/0xa8/0xa4.
+ *
+ * Confirmed: stdcall-like — single param pushed; all callees show stack
+ * cleanup. Confirmed: actor_data at [0x6325a4]; swarm_data at [0x6325a0];
+ *   swarm_component_data at [0x63259c].
+ * Confirmed: tag_get('actr', actor+0x58) at 0x3dc43.
+ * Confirmed: tag_get('vehi', vehicle[0]) at 0x3de45–0x3de50.
+ * Confirmed: encounter data (player table) at *(data_t**)0x5ab270.
+ * Confirmed: scenario player table base via *(int*)0x331f58 * 0x657c stride.
+ * Confirmed: global_scenario_get at 0x3e057; tag_block_get_element at 0x3e062.
+ * Confirmed: FUN_001ba1f0 = tag_get_for_object (two calls at 0x3e0b2/0x3e0cf).
+ * Confirmed: FUN_0008f390 = error_display_string (two calls at
+ * 0x3e0c2/0x3e0e0). Confirmed: FUN_0001c270 = encounter_get_squad at
+ * 0x3df6d/0x3df83. Confirmed: FUN_000211f0 = actor_get_unit_speed_record at
+ * 0x3ded2. Confirmed: FUN_00021fb0 = assert_valid_real_normal3d (3 calls at
+ * 0x3e380..0x3e447). Confirmed: FUN_00028610 = assert_valid_real_normal2d at
+ * 0x3e4ac. Confirmed: FUN_000a7a30 = object_is_in_team at 0x3e145. Confirmed:
+ * FUN_00012f10 = real_vector3d_length at 0x3e22e. Confirmed: FUN_00013010 =
+ * real_vector3d_normalize (in-place) at 0x3e33a. Confirmed: world_up constant
+ * pointer at *(float**)0x31fc44 (x,y,z). Confirmed: zero-vector pointer at
+ * *(float**)0x31fc1c. Confirmed: forward-vector pointer at *(float**)0x31fc3c.
+ * Confirmed: float 1.0 at [0x2533c8] (averaging divisor).
+ * Confirmed: float 0.0 at [0x2533c0] (length threshold).
+ * Confirmed: facing.k assert epsilon at [0x2533d0] (absolute value threshold).
+ * Inferred: actor+0x120 block is the actor_input_t (size 0xa8).
+ * Inferred: actor+0x158 = vehicle_handle (or -1).
+ * Inferred: actor+0x15d = BSP cluster index (byte).
+ * Inferred: actor+0x15e = seat_type (short:
+ * 0=none,1=driver,2=gunner,4=passenger). Inferred: actor+0x15c = has_flashlight
+ * flag. Inferred: actor+0x160 = is_in_open_seat (not shooting seat). Inferred:
+ * actor+0x161 = is_passenger flag. Inferred: actor+0x162 = vehicle_moving fast
+ * flag. Inferred: actor+0x164 = preferred_weapon_handle (or -1). Inferred:
+ * actor+0x174 = facing_vector (real_vector3d). Inferred: actor+0x180 =
+ * aiming_vector (real_vector3d). Inferred: actor+0x18c = looking_vector
+ * (real_vector3d). Inferred: actor+0x198 = up_vector (real_vector3d). Inferred:
+ * actor+0x1a4 = right_vector (real_vector3d). Inferred: actor+0x1b0 =
+ * active_grenade_handle (or -1). Inferred: actor+0x1b4 = has_weapon_in_team
+ * flag. Inferred: actor+0x1b5 = crouching flag from biped+0x23b. Inferred:
+ * actor+0x1b8..0x1c4 = speed/velocity/motion fields from biped. Uncertain:
+ * exact semantics of FUN_0008f390 args (priority/event type). Uncertain: player
+ * record stride 0x657c and field +0x657a (proximity counter). */
+void FUN_0003dc20(int actor_handle)
+{
+  char *actor;
+  char *actr_tag;
+  char *swarm;
+  char *swarm_comp;
+  char *biped;
+  char *parent_obj;
+  char *obj;
+  char *encounter;
+  char *squad;
+  char *squad2;
+  float *centroid;
+  float *world_up;
+  float *zero_vec;
+  float *fwd_vec;
+  float lx, ly, lz;
+  float ux, uy, uz;
+  float ax, ay, az;
+  int parent_handle;
+  char *vehi_tag_data;
+  int player_base;
+  int tag_flags;
+  short prox_ctr;
+  short comp_count;
+  int i;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actr_tag = (char *)tag_get(0x61637472, *(int *)(actor + 0x58));
+
+  if (*(char *)(actor + 0x6) != 0) {
+    /* SWARM PATH: compute centroid of all swarm components.
+     * Confirmed: swarm record from swarm_data at [0x6325a0].
+     * Confirmed: centroid at swarm+0xc (3 floats, init from zero-vector ptr).
+     * Confirmed: component count at swarm+2 (short).
+     * Confirmed: comp handle array at swarm+0x58 (4 bytes each).
+     * Confirmed: component object handle array at swarm+0x18 (4 bytes each).
+     * Confirmed: datum_get(swarm_component_data, comp_handle) called TWICE per
+     *   iteration (faithful transcription of binary; first result = swarm_comp
+     *   for centroid accumulation, second = dat for FUN_001412f0 / weapon
+     * handle). Confirmed: FUN_001412f0(obj_h, dat+4) at 0x3dd01. Confirmed:
+     * dat+0x10 = no_return (preferred weapon handle or -1). Confirmed: centroid
+     * += swarm_comp+4/+8/+0xc (FPU loads from ECX). Confirmed: averaging: 1.0f
+     * / count at [0x2533c8] / FILD count. Confirmed: csmemset(actor+0x120, 0,
+     * 0xa8) at 0x3dd74–0x3dd82. Confirmed: actor+0x158 = actor+0x164 = -1 at
+     * 0x3dd87–0x3dd90. Confirmed: early return if actor+0x24 == -1 at 0x3dd9e.
+     * Confirmed: FUN_0003bde0(actor_handle, actor+0x24, actor+0x120) at
+     * 0x3dda7. */
+    swarm = (char *)datum_get(swarm_data, *(int *)(actor + 0x28));
+    zero_vec = *(float **)0x31fc1c;
+    centroid = (float *)(swarm + 0xc);
+    centroid[0] = zero_vec[0];
+    centroid[1] = zero_vec[1];
+    centroid[2] = zero_vec[2];
+
+    comp_count = *(short *)(swarm + 2);
+    if (comp_count > 0) {
+      for (i = 0; (short)i < comp_count; i++) {
+        int comp_handle = *(int *)(swarm + 0x58 + (short)i * 4);
+        int obj_h = *(int *)(swarm + 0x18 + (short)i * 4);
+        /* First datum_get: for centroid accumulation */
+        swarm_comp = (char *)datum_get(swarm_component_data, comp_handle);
+        biped = (char *)object_get_and_verify_type(obj_h, 3);
+        /* Second datum_get on same handle (faithful; see binary
+         * 0x3dcd0–0x3dce7) */
+        char *dat = (char *)datum_get(swarm_component_data, comp_handle);
+        int no_return = -1;
+        if (*(short *)(biped + 0x64) == 0) {
+          no_return = *(int *)(biped + 0x430);
+        }
+        object_get_world_position(obj_h, (vector3_t *)(dat + 4));
+        *(int *)(dat + 0x10) = no_return;
+        /* Accumulate component position (swarm_comp+4/+8/+0xc) into centroid */
+        centroid[0] += *(float *)(swarm_comp + 4);
+        centroid[1] += *(float *)(swarm_comp + 8);
+        centroid[2] += *(float *)(swarm_comp + 0xc);
+      }
+    }
+
+    comp_count = *(short *)(swarm + 2);
+    if (comp_count > 0) {
+      float inv = *(float *)0x2533c8 / (float)(int)(short)comp_count;
+      centroid[0] *= inv;
+      centroid[1] *= inv;
+      centroid[2] *= inv;
+    }
+
+    csmemset(actor + 0x120, 0, 0xa8);
+    *(int *)(actor + 0x158) = -1;
+    *(int *)(actor + 0x164) = -1;
+    if (*(int *)(actor + 0x24) == -1) {
+      return;
+    }
+    FUN_0003bde0(actor_handle, *(int *)(actor + 0x24), actor + 0x120);
+    return;
+  }
+
+  /* NORMAL PATH */
+  biped = (char *)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+  parent_handle = *(int *)(biped + 0xcc);
+  if (parent_handle == -1) {
+    parent_obj = (char *)0;
+  } else {
+    parent_obj = (char *)object_get_and_verify_type(parent_handle, -1);
+  }
+
+  FUN_0003bde0(actor_handle, *(int *)(actor + 0x18), actor + 0x120);
+
+  /* Get world position of the biped into local stack buffer (12 bytes).
+   * FUN_001a9520(unit_handle, out_pos[3]) writes 3 floats to local_pos.
+   * FUN_0018f3e0(actor+0x144, local_pos, NULL) = scenario_location_from_point:
+   *   returns byte outdoor flag; cluster stored at actor+0x15d. */
+  {
+    float local_pos[3];
+    FUN_001a9520(*(int *)(actor + 0x18), local_pos);
+    *(char *)(actor + 0x15d) =
+      FUN_0018f3e0(actor + 0x144, (void *)local_pos, (int16_t *)0);
+  }
+
+  /* Extract player-proximity tag bit: (actr_tag[0] >> 0x15) & 1 → actor+0x99 */
+  *(char *)(actor + 0x99) = (char)((*(unsigned int *)actr_tag >> 0x15) & 1);
+
+  if (parent_obj == (char *)0 || *(short *)(parent_obj + 0x64) != 1) {
+    /* No parent vehicle */
+    *(int *)(actor + 0x158) = -1;
+    *(short *)(actor + 0x15e) = 0;
+    *(char *)(actor + 0x160) = 0;
+    *(char *)(actor + 0x161) = 0;
+    if (*(char *)(actor + 0x40) != 0) {
+      FUN_0003baa0(actor_handle, *(int *)(actor + 0x44),
+                   *(short *)(actor + 0x48));
+      *(char *)(actor + 0x40) = 0;
+    }
+  } else {
+    /* Parent is a vehicle (parent_obj+0x64 == 1) */
+    vehi_tag_data = (char *)tag_get(0x76656869, *(int *)parent_obj);
+    *(int *)(actor + 0x158) = parent_handle;
+    *(char *)(actor + 0x161) = 0;
+    *(char *)(actor + 0x162) = 0;
+    *(short *)(actor + 0x15e) = 0;
+
+    /* Check if actor's biped is in the driver seat (vehicle+0x2d4) */
+    if (*(int *)(parent_obj + 0x2d4) == *(int *)(actor + 0x18)) {
+      *(short *)(actor + 0x15e) = 1;
+      tag_flags = *(unsigned int *)(vehi_tag_data + 0x2f0);
+      if ((tag_flags & 0x800) != 0) {
+        if ((tag_flags & 0x1000) != 0) {
+          *(short *)(actor + 0x15e) = 4;
+          *(char *)(actor + 0x99) = 1;
+        } else if ((tag_flags & 0x2000) != 0) {
+          *(short *)(actor + 0x15e) = (short)((~(tag_flags >> 0xe) & 1) | 2);
+        }
+      }
+    }
+
+    /* Check if actor's biped is in the passenger seat (vehicle+0x2d8) */
+    if (*(int *)(parent_obj + 0x2d8) == *(int *)(actor + 0x18)) {
+      *(char *)(actor + 0x161) = 1;
+      char *speed_rec = (char *)FUN_000211f0(actor_handle);
+      *(char *)(actor + 0x162) =
+        (*(float *)(speed_rec + 0x14c) > *(float *)0x2533c0) ? 1 : 0;
+    }
+
+    *(char *)(actor + 0x160) = (*(short *)(actor + 0x15e) < 2) ? 1 : 0;
+
+    /* Seat preference matching: check encounter vehicle+seat vs. preferred */
+    if (*(short *)(parent_obj + 0x2e4) != (short)-1) {
+      if ((*(unsigned int *)(actor + 0x34) & 0xffff) ==
+          (unsigned int)(int)(short)*(short *)(parent_obj + 0x2e4)) {
+        if (*(short *)(parent_obj + 0x2e6) == (short)-1 ||
+            *(short *)(actor + 0x3a) == *(short *)(parent_obj + 0x2e6)) {
+          goto LAB_3e02c;
+        }
+        encounter = (char *)datum_get(*(data_t **)0x5ab270,
+                                      *(unsigned int *)(actor + 0x34));
+        if (*(short *)(encounter + 0x62) > 0) {
+          squad = (char *)FUN_0001c270(encounter, *(short *)(actor + 0x3a));
+          squad2 = (char *)FUN_0001c270(
+            encounter, (int)(short)*(short *)(parent_obj + 0x2e6));
+          if (*(char *)(squad + 0x10) != 0 && *(char *)(squad2 + 0x10) != 0) {
+            goto LAB_3e02c;
+          }
+        }
+      }
+
+      if (*(char *)(actor + 0x40) == 0) {
+        int unit_h = *(int *)(actor + 0x34);
+        *(int *)(actor + 0x44) = unit_h;
+        *(short *)(actor + 0x48) = *(short *)(actor + 0x3a);
+        *(char *)(actor + 0x40) = 1;
+        if (unit_h != -1) {
+          char *enc2 = (char *)datum_get(*(data_t **)0x5ab270, unit_h);
+          *(char *)(enc2 + 0x1e) = 1;
+        }
+      }
+      FUN_0003baa0(actor_handle, (int)(short)*(short *)(parent_obj + 0x2e4),
+                   (short)*(short *)(parent_obj + 0x2e6));
+    }
+  }
+
+LAB_3e02c:
+  /* Player proximity counter update.
+   * Confirmed: player_base = (actor_handle & 0xffff) * 0x657c +
+   * *(int*)0x331f58. Confirmed: global_scenario_get() takes 0 args (0x3e057);
+   * encounter_idx and 0xb0 remain on stack as args to tag_block_get_element
+   * (0x3e062). Confirmed: proximity counter at player_base + 0x657a (short).
+   * Confirmed: FUN_001ba1f0(actor+0x58, scenario_elem) at 0x3e0b2 / 0x3e0cf.
+   *   ADD ESP,4 after call cleans 1 arg; scenario_elem stays on stack for
+   *   FUN_0008f390(2, string, tag, scenario_elem) ADD ESP,0x10 cleanup.
+   * Confirmed: 0x3e074 JZ: vehicle case (0x99!=0) increments when bit 5 clear;
+   *   on-foot case (0x99==0) increments when bit 5 set. */
+  if (*(unsigned int *)(actor + 0x34) != 0xffffffff) {
+    int encounter_idx = (int)(*(unsigned int *)(actor + 0x34) & 0xffff);
+    player_base = (actor_handle & 0xffff) * 0x657c + *(int *)0x331f58;
+    char *scenario_base = (char *)global_scenario_get();
+    char *scenario_elem =
+      (char *)tag_block_get_element(scenario_base + 0x42c, encounter_idx, 0xb0);
+    int in_vehicle = *(char *)(actor + 0x99);
+    int bit5 = (*(unsigned char *)(scenario_elem + 0x20) & 0x20) != 0;
+    /* Increment when vehicle && bit clear, or on-foot && bit set */
+    if (in_vehicle ? !bit5 : bit5) {
+      prox_ctr = *(short *)(player_base + 0x657a);
+      if (prox_ctr < 0x96) {
+        prox_ctr++;
+        *(short *)(player_base + 0x657a) = prox_ctr;
+        if (prox_ctr == 0x96) {
+          /* Proximity threshold reached — fire notification */
+          /* tag_get_name(actor_tag_handle) — 1 arg; scenario_elem is stack
+           * residue from earlier push, acts as extra variadic arg to error().
+           */
+          const char *tag_name = tag_get_name(*(int *)(actor + 0x58));
+          if (in_vehicle) {
+            error(2, (const char *)0x257300, tag_name, scenario_elem);
+          } else {
+            error(2, (const char *)0x2572b0, tag_name, scenario_elem);
+          }
+        }
+      }
+    } else {
+      *(short *)(player_base + 0x657a) = 0;
+    }
+  }
+
+  /* Crouching/grenade flags from biped */
+  *(char *)(actor + 0x1b5) = (*(unsigned char *)(biped + 0x23b) > 0) ? 1 : 0;
+  *(char *)(actor + 0x1b4) = 0;
+  *(int *)(actor + 0x1b0) = -1;
+
+  /* Walk child object chain to find equipped weapon and grenade.
+   * Confirmed: chain starts at biped+0xc8; next ptr at obj+0xc4.
+   * Confirmed: obj+0x64 == 0 → weapon; obj+0x64 == 5 → equipment/grenade.
+   * Confirmed: FUN_000a7a30(actor+0x3e, obj+0x68) for team membership check.
+   * Confirmed: grenade condition: obj+0x1dc < 0 OR (actor+0x280==2 AND
+   *   child == actor+0x28c). */
+  {
+    int child = *(int *)(biped + 0xc8);
+    while (child != -1) {
+      obj = (char *)object_get_and_verify_type(child, -1);
+      if (*(short *)(obj + 0x64) == 0) {
+        if (game_allegiance_get_team_is_friendly(*(short *)(actor + 0x3e),
+                                                 *(short *)(obj + 0x68))) {
+          *(char *)(actor + 0x1b4) = 1;
+        }
+      } else if (*(short *)(obj + 0x64) == 5) {
+        if (*(char *)(obj + 0x1dc) < 0 || (*(short *)(actor + 0x280) == 2 &&
+                                           child == *(int *)(actor + 0x28c))) {
+          *(int *)(actor + 0x1b0) = child;
+        }
+      }
+      child = *(int *)(obj + 0xc4);
+    }
+    /* After loop, biped ptr (pfVar2/EBX=[EBP-8]) used for biped+0x64 test below
+     */
+  }
+
+  /* Preferred weapon / flashlight from biped unit record (if on foot, no
+   * vehicle). Confirmed: object_get_and_verify_type(actor+0x18, 1) at 0x3e1b6.
+   * Confirmed: unit+0x459 > 5 → flashlight on (actor+0x15c = 1).
+   * Confirmed: actor+0x164..+0x170 from unit+0x434..+0x440. */
+  *(char *)(actor + 0x15c) = 0;
+  *(int *)(actor + 0x164) = -1;
+  if (*(short *)(biped + 0x64) == 0 && *(int *)(actor + 0x158) == -1) {
+    char *unit_obj =
+      (char *)object_get_and_verify_type(*(int *)(actor + 0x18), 1);
+    if ((unsigned char)*(char *)(unit_obj + 0x459) > 5) {
+      *(char *)(actor + 0x15c) = 1;
+    }
+    *(int *)(actor + 0x164) = *(int *)(unit_obj + 0x434);
+    *(int *)(actor + 0x168) = *(int *)(unit_obj + 0x438);
+    *(int *)(actor + 0x16c) = *(int *)(unit_obj + 0x43c);
+    *(int *)(actor + 0x170) = *(int *)(unit_obj + 0x440);
+  }
+
+  /* Facing vector: from vehicle if riding, otherwise from own biped.
+   * Confirmed: CMP word[ESI+0x15e],0 at 0x3e1f7; if >= 1 use actor+0x158,
+   *   else use actor+0x18. FUN_001a9960(handle, actor+0x174) at 0x3e215. */
+  {
+    int facing_src;
+    if (*(short *)(actor + 0x15e) >= 1) {
+      facing_src = *(int *)(actor + 0x158);
+    } else {
+      facing_src = *(int *)(actor + 0x18);
+    }
+    FUN_001a9960(facing_src, actor + 0x174);
+  }
+
+  /* On foot: if facing vector is zero-length, use default forward vector.
+   * Otherwise clear facing_vector.z (force 2D). Vehicle: skip.
+   * Confirmed: FUN_00012f10(actor+0x174) length check at 0x3e22e.
+   * Confirmed: FCOMP [0x2533c0] (0.0f) at 0x3e233; if length <= 0 copy fwd_vec.
+   * Confirmed: else case: MOV dword[ESI+0x17c],0 at 0x3e243 (clears .z). */
+  if (*(char *)(actor + 0x99) == 0) {
+    if (magnitude3d((float *)(actor + 0x174)) <= *(float *)0x2533c0) {
+      fwd_vec = *(float **)0x31fc3c;
+      *(float *)(actor + 0x174) = fwd_vec[0];
+      *(float *)(actor + 0x178) = fwd_vec[1];
+      *(float *)(actor + 0x17c) = fwd_vec[2];
+    } else {
+      *(float *)(actor + 0x17c) = 0.0f;
+    }
+  }
+
+  /* Aiming vector.
+   * Passenger (actor+0x161 != 0): get from vehicle or own position.
+   * Otherwise: copy from biped+0x1ec..0x1f4.
+   * Confirmed: object_get_and_verify_type(actor+0x158, 2) at 0x3e277.
+   * Confirmed: tag_get('vehi', vehicle[0]) for flag check at 0x3e280/0x3e286.
+   * Confirmed: flag bit 0x100 at tag+0x2f0 → if set, use FUN_001a9960 for
+   *   aiming from own position; else copy vehicle+0x1ec..0x1f4.
+   * Confirmed: biped+0x1ec..0x1f4 for on-foot path (0x3e2ae/0x3e2c6).
+   * Confirmed: biped+500 (0x1f4) used as int (500 == 0x1f4). */
+  if (*(char *)(actor + 0x161) == 0) {
+    /* On foot or driver: use biped aiming vector */
+    *(int *)(actor + 0x180) = *(int *)(biped + 0x1ec);
+    *(int *)(actor + 0x184) = *(int *)(biped + 0x1f0);
+    *(int *)(actor + 0x188) = *(int *)(biped + 0x1f4);
+  } else {
+    /* Passenger: use vehicle aiming vector (or self position if flag set) */
+    char *vehi_obj =
+      (char *)object_get_and_verify_type(*(int *)(actor + 0x158), 2);
+    char *vehi_tag2 = (char *)tag_get(0x76656869, *(int *)vehi_obj);
+    if ((*(unsigned int *)(vehi_tag2 + 0x2f0) & 0x100) == 0) {
+      *(int *)(actor + 0x180) = *(int *)(vehi_obj + 0x1ec);
+      *(int *)(actor + 0x184) = *(int *)(vehi_obj + 0x1f0);
+      *(int *)(actor + 0x188) = *(int *)(vehi_obj + 0x1f4);
+    } else {
+      FUN_001a9960(*(int *)(actor + 0x18), actor + 0x180);
+    }
+  }
+
+  /* Looking vector from biped+0x210..0x218 */
+  *(int *)(actor + 0x18c) = *(int *)(biped + 0x210);
+  *(int *)(actor + 0x190) = *(int *)(biped + 0x214);
+  *(int *)(actor + 0x194) = *(int *)(biped + 0x218);
+
+  /* Compute up-vector = cross-like product of looking x world_up
+   * (directly transcribed FPU sequence; see disassembly 0x3e300-0x3e337)
+   * world_up = *(float**)0x31fc44 (pointer to {wx,wy,wz} constant)
+   * looking  = actor+0x18c {lx,ly,lz}
+   *
+   * up.x = ly*wx - wy*lx
+   * up.y = wz*lx - lz*wx
+   * up.z = lz*wy - wz*ly
+   */
+  {
+    world_up = *(float **)0x31fc44;
+    lx = *(float *)(actor + 0x18c);
+    ly = *(float *)(actor + 0x190);
+    lz = *(float *)(actor + 0x194);
+    ux = ly * world_up[0] - world_up[1] * lx;
+    uy = world_up[2] * lx - lz * world_up[0];
+    uz = lz * world_up[1] - world_up[2] * ly;
+    *(float *)(actor + 0x198) = ux;
+    *(float *)(actor + 0x19c) = uy;
+    *(float *)(actor + 0x1a0) = uz;
+    normalize3d((float *)(actor + 0x198));
+  }
+
+  /* Compute right-vector = cross(looking, up)
+   * (directly transcribed FPU sequence; see disassembly 0x3e341-0x3e37a)
+   * right.x = lx*uy - ly*ux
+   * right.y = ux*lz - lx*uz
+   * right.z = ly*uz - lz*uy
+   * (stored after normalize call on up, using post-normalize ux/uy/uz)
+   */
+  {
+    ux = *(float *)(actor + 0x198);
+    uy = *(float *)(actor + 0x19c);
+    uz = *(float *)(actor + 0x1a0);
+    ax = lx * uy - ly * ux;
+    ay = ux * lz - lx * uz;
+    az = ly * uz - lz * uy;
+    *(float *)(actor + 0x1a4) = ax;
+    *(float *)(actor + 0x1a8) = ay;
+    *(float *)(actor + 0x1ac) = az;
+  }
+
+  /* Assert vector validity.
+   * Pattern: csprintf fills error_string_buffer with the formatted message,
+   * then display_assert(buffer, file, line, halt) is called as FUN_0008d9f0.
+   * The file/line/halt args are pre-pushed before csprintf; csprintf result
+   * (pointer to buffer) is then pushed as arg1. See disasm 0x3e38c–0x3e3d8.
+   * Confirmed: FUN_00021fb0 = assert_valid_real_normal3d (3-component).
+   * Confirmed: FUN_00028610 = assert_valid_real_normal2d (2-component). */
+  if (!valid_real_normal3d((float *)(actor + 0x174))) {
+    csprintf(error_string_buffer, "%s: assert_valid_real_normal3d(%f, %f, %f)",
+             "&actor->input.facing_vector", (double)*(float *)(actor + 0x174),
+             (double)*(float *)(actor + 0x178),
+             (double)*(float *)(actor + 0x17c));
+    display_assert(error_string_buffer, "c:\\halo\\SOURCE\\ai\\actors.c", 0xcf1,
+                   1);
+    system_exit(-1);
+  }
+  if (!valid_real_normal3d((float *)(actor + 0x180))) {
+    csprintf(error_string_buffer, "%s: assert_valid_real_normal3d(%f, %f, %f)",
+             "&actor->input.aiming_vector", (double)*(float *)(actor + 0x180),
+             (double)*(float *)(actor + 0x184),
+             (double)*(float *)(actor + 0x188));
+    display_assert(error_string_buffer, "c:\\halo\\SOURCE\\ai\\actors.c", 0xcf2,
+                   1);
+    system_exit(-1);
+  }
+  if (!valid_real_normal3d((float *)(actor + 0x18c))) {
+    csprintf(error_string_buffer, "%s: assert_valid_real_normal3d(%f, %f, %f)",
+             "&actor->input.looking_vector", (double)*(float *)(actor + 0x18c),
+             (double)*(float *)(actor + 0x190),
+             (double)*(float *)(actor + 0x194));
+    display_assert(error_string_buffer, "c:\\halo\\SOURCE\\ai\\actors.c", 0xcf3,
+                   1);
+    system_exit(-1);
+  }
+
+  /* Additional on-foot facing vector assertions.
+   * Confirmed: valid_real_normal2d checks xy-plane normal validity.
+   * Confirmed: FABS + FCOMP double[0x2533d0] at 0x3e503/0x3e505; uses double.
+   */
+  if (*(char *)(actor + 0x99) == 0) {
+    if (!valid_real_normal2d((float *)(actor + 0x174))) {
+      csprintf(error_string_buffer, "%s: assert_valid_real_normal2d(%f, %f)",
+               "(real_vector2d *) &actor->input.facing_vector",
+               (double)*(float *)(actor + 0x174),
+               (double)*(float *)(actor + 0x178));
+      display_assert(error_string_buffer, "c:\\halo\\SOURCE\\ai\\actors.c",
+                     0xcf6, 1);
+      system_exit(-1);
+    }
+    if (fabsf(*(float *)(actor + 0x17c)) >= (float)*(double *)0x2533d0) {
+      display_assert("realcmp(actor->input.facing_vector.k, 0.0f)",
+                     "c:\\halo\\SOURCE\\ai\\actors.c", 0xcf7, 1);
+      system_exit(-1);
+    }
+  }
+
+  /* Copy motion/velocity fields from biped */
+  *(int *)(actor + 0x1b8) = *(int *)(biped + 0x90);
+  *(int *)(actor + 0x1bc) = *(int *)(biped + 0x94);
+  *(int *)(actor + 0x1c0) = *(int *)(biped + 0xa8);
+  *(int *)(actor + 0x1c4) = *(int *)(biped + 0xa4);
+}
+
+/* FUN_0003e7a0 (0x3e7a0) — actor_apply_control_data
+ *
+ * Applies a pre-computed AI control snapshot (actor+0x6d0..0x720 range) to the
+ * unit owned by the actor, performing vector validity assertions first. Called
+ * as the final step of actor_activate (FUN_0003ec80) after all AI subsystems
+ * have been initialized.
+ *
+ * Confirmed: actor_handle passed in EAX (@<eax>, regparm). MOV EAX,ESI at
+ *   caller 0x3ed9c before CALL 0x3e7a0 — ESI = actor_handle throughout caller.
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3e7b1; result → ESI.
+ * Confirmed: object_get_and_verify_type(actor+0x18, 3) at 0x3e7be; result → EBX
+ *   (unit type tag record, used for actor_type->0x1c8 check).
+ * Confirmed: animation_state byte = byte[actor+0x6dc*2 + 0x256c94] at 0x3e7c5.
+ *   MOVSX EAX,word[ESI+0x6dc]; MOV CL,byte[EAX*2+0x256c94].
+ * Confirmed: control_flags word at actor+0x6d0 → struct+0x02 at 0x3e7d6.
+ * Confirmed: primary_trigger dword at actor+0x720 → struct+0x18 at 0x3e7e1.
+ * Confirmed: throttle xyz from actor+0x6e0..0x6e8 → struct+0x0c..0x14 via LEA
+ *   ECX,[ESI+0x6e0] at 0x3e7ea; stores to [EBP-0x34/0x30/0x2c] (= +0x0c/10/14).
+ * Confirmed: aiming_speed byte at actor+0x6f8 → struct+0x01 at 0x3e801.
+ * Confirmed: facing_vector from actor+0x6fc..0x704 → struct+0x1c..0x24 at
+ *   0x3e80a (LEA EAX,[ESI+0x6fc]).
+ * Confirmed: aiming_vector from actor+0x708..0x710 → struct+0x28..0x30 at
+ *   0x3e821 (LEA ECX,[ESI+0x708]).
+ * Confirmed: looking_vector from actor+0x714..0x71c → struct+0x34..0x3c at
+ *   0x3e838 (LEA EDX,[ESI+0x714]).
+ * Confirmed: weapon/grenade/zoom_level set to 0xffff via OR EDI,0xffffffff at
+ *   0x3e846; three word stores [EBP-0x3c/0x3a/0x38] (= struct+0x04/06/08).
+ * Confirmed: actor+0x99 byte check (0 = on-foot) gates valid_real_normal2d
+ *   check at 0x3e85e/0x3e867/0x3e869.
+ * Confirmed: valid_real_normal2d(&facing) at 0x3e86f; string
+ *   "(real_vector2d *) &control_data.facing_vector", line 0xf06.
+ * Confirmed: valid_real_normal3d(&facing) at 0x3e8c1; string
+ *   "&control_data.facing_vector", line 0xf08.
+ * Confirmed: valid_real_normal3d(&aiming) at 0x3e91a; string
+ *   "&control_data.aiming_vector", line 0xf09.
+ * Confirmed: valid_real_normal3d(&looking) at 0x3e973; string
+ *   "&control_data.looking_vector", line 0xf0a.
+ * Confirmed: throttle FABS+FCOMP against double[0x2573d8]=1.0 at
+ *   0x3e9c8..0x3e9fc; JP branches: outer condition fires if ANY |throttle|
+ * > 1.0. Assert string: "(fabs...)...", line 0xf0b; display_assert without
+ * csprintf. Confirmed: [EBX+0x1c8] != -1 test at 0x3ea1d; if non-(-1), call
+ *   player_input_enabled(); return early if returns non-zero at 0x3ea2a.
+ * Confirmed: actor+7 != 0 → FUN_001adf10(actor+0x18, 1) + clear actor+7 at
+ *   0x3ea2e..0x3ea43.
+ * Confirmed: unit_set_control(actor+0x18, &control) at 0x3ea4f.
+ * Confirmed: actor+0x6ec != -1 → FUN_001b1a20(actor+0x18,
+ * (int)(uint16)(actor+0x6ec), actor+0x6f0) at 0x3ea65; XOR EAX,EAX; MOV
+ * AX,word[ESI+0x6ec] = zero-extend. Confirmed: actor+0x6d4 > 0 →
+ * FUN_001a8190(actor+0x18, MOVSX(actor+0x6d4), actor+0x6d8) at 0x3ea85; MOVSX
+ * EDX,AX sign-extends the short. Inferred: actor+0x6dc = animation_state_index
+ * (maps through 0x256c94 table). Inferred: actor+0x6f0 = pointer/data block
+ * passed as 3rd arg to FUN_001b1a20. Inferred: actor+0x6d4 =
+ * animation_tick_count (short); actor+0x6d8 = animation control flags dword for
+ * FUN_001a8190. Uncertain: exact semantics of FUN_001b1a20's 2nd arg
+ * (zero-extended index).
+ */
+void FUN_0003e7a0(int actor_handle /* @<eax> */)
+{
+  char *actor;
+  char *unit;
+  char control[0x40];
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  unit = (char *)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+
+  /* Build the unit control struct from actor's control data fields */
+  *(uint8_t *)(control + 0x00) =
+    ((uint8_t *)0x256c94)[*(int16_t *)(actor + 0x6dc) * 2];
+  *(uint8_t *)(control + 0x01) = *(uint8_t *)(actor + 0x6f8);
+  *(uint16_t *)(control + 0x02) = *(uint16_t *)(actor + 0x6d0);
+  *(uint16_t *)(control + 0x04) = (uint16_t)0xffff;
+  *(uint16_t *)(control + 0x06) = (uint16_t)0xffff;
+  *(uint16_t *)(control + 0x08) = (uint16_t)0xffff;
+  *(float *)(control + 0x0c) = *(float *)(actor + 0x6e0);
+  *(float *)(control + 0x10) = *(float *)(actor + 0x6e4);
+  *(float *)(control + 0x14) = *(float *)(actor + 0x6e8);
+  *(uint32_t *)(control + 0x18) = *(uint32_t *)(actor + 0x720);
+  *(float *)(control + 0x1c) = *(float *)(actor + 0x6fc);
+  *(float *)(control + 0x20) = *(float *)(actor + 0x700);
+  *(float *)(control + 0x24) = *(float *)(actor + 0x704);
+  *(float *)(control + 0x28) = *(float *)(actor + 0x708);
+  *(float *)(control + 0x2c) = *(float *)(actor + 0x70c);
+  *(float *)(control + 0x30) = *(float *)(actor + 0x710);
+  *(float *)(control + 0x34) = *(float *)(actor + 0x714);
+  *(float *)(control + 0x38) = *(float *)(actor + 0x718);
+  *(float *)(control + 0x3c) = *(float *)(actor + 0x71c);
+
+  /* Validate facing vector: 2D check only when on-foot (actor+0x99 == 0) */
+  if (*(char *)(actor + 0x99) == 0) {
+    if (!valid_real_normal2d((float *)(control + 0x1c))) {
+      csprintf(error_string_buffer, "%s: assert_valid_real_normal2d(%f, %f)",
+               "(real_vector2d *) &control_data.facing_vector",
+               (double)*(float *)(control + 0x1c),
+               (double)*(float *)(control + 0x20));
+      display_assert(error_string_buffer, "c:\\halo\\SOURCE\\ai\\actors.c",
+                     0xf06, 1);
+      system_exit(-1);
+    }
+  }
+
+  /* Validate facing, aiming, looking vectors as 3D normals */
+  if (!valid_real_normal3d((float *)(control + 0x1c))) {
+    csprintf(error_string_buffer, "%s: assert_valid_real_normal3d(%f, %f, %f)",
+             "&control_data.facing_vector", (double)*(float *)(control + 0x1c),
+             (double)*(float *)(control + 0x20),
+             (double)*(float *)(control + 0x24));
+    display_assert(error_string_buffer, "c:\\halo\\SOURCE\\ai\\actors.c", 0xf08,
+                   1);
+    system_exit(-1);
+  }
+  if (!valid_real_normal3d((float *)(control + 0x28))) {
+    csprintf(error_string_buffer, "%s: assert_valid_real_normal3d(%f, %f, %f)",
+             "&control_data.aiming_vector", (double)*(float *)(control + 0x28),
+             (double)*(float *)(control + 0x2c),
+             (double)*(float *)(control + 0x30));
+    display_assert(error_string_buffer, "c:\\halo\\SOURCE\\ai\\actors.c", 0xf09,
+                   1);
+    system_exit(-1);
+  }
+  if (!valid_real_normal3d((float *)(control + 0x34))) {
+    csprintf(error_string_buffer, "%s: assert_valid_real_normal3d(%f, %f, %f)",
+             "&control_data.looking_vector", (double)*(float *)(control + 0x34),
+             (double)*(float *)(control + 0x38),
+             (double)*(float *)(control + 0x3c));
+    display_assert(error_string_buffer, "c:\\halo\\SOURCE\\ai\\actors.c", 0xf0a,
+                   1);
+    system_exit(-1);
+  }
+
+  /* Validate throttle components are all <= 1.0 */
+  if (fabsf(*(float *)(control + 0x0c)) > (float)*(double *)0x2573d8 ||
+      fabsf(*(float *)(control + 0x10)) > (float)*(double *)0x2573d8 ||
+      fabsf(*(float *)(control + 0x14)) > (float)*(double *)0x2573d8) {
+    display_assert("(fabs(control_data.throttle.i) <= 1.0f) && "
+                   "(fabs(control_data.throttle.j) <= 1.0f) && "
+                   "(fabs(control_data.throttle.k) <= 1.0f)",
+                   "c:\\halo\\SOURCE\\ai\\actors.c", 0xf0b, 1);
+    system_exit(-1);
+  }
+
+  /* If unit has a controlling player (actor_type at unit+0x1c8 != -1) and
+   * player input is enabled, skip applying AI control */
+  if (*(int *)(unit + 0x1c8) != -1 && player_input_enabled()) {
+    return;
+  }
+
+  /* If actor was flagged for control reset (actor+7 != 0), apply reset
+   * input to unit and clear the flag */
+  if (*(char *)(actor + 7) != 0) {
+    FUN_001adf10(*(int *)(actor + 0x18), 1);
+    *(char *)(actor + 7) = 0;
+  }
+
+  /* Apply the control snapshot to the unit */
+  unit_set_control(*(int *)(actor + 0x18), control);
+
+  /* If an animation is pending (actor+0x6ec != -1), apply it */
+  if ((uint16_t) * (uint16_t *)(actor + 0x6ec) != 0xffff) {
+    unit_apply_animation_impulse(*(int *)(actor + 0x18),
+                                 (int)(uint16_t) * (uint16_t *)(actor + 0x6ec),
+                                 actor + 0x6f0);
+  }
+
+  /* If animation ticks are pending (actor+0x6d4 > 0), advance animation */
+  if ((int16_t) * (int16_t *)(actor + 0x6d4) > 0) {
+    FUN_001a8190(*(int *)(actor + 0x18),
+                 (int)(int16_t) * (int16_t *)(actor + 0x6d4),
+                 *(int *)(actor + 0x6d8));
+  }
+}
+
+/* FUN_0003ec80 (0x3ec80) — actor_activate (full AI init sequence for one actor)
+ *
+ * Called from FUN_0003f5f0 (ai.obj) when actor+0x6a > 0 (activation counter
+ * exhausted) and the actor has not yet been activated. Runs all per-actor
+ * AI subsystem initialization in sequence.
+ *
+ * Classification evidence: caller FUN_0003f5f0 is in ai.obj; all callees
+ * (FUN_0003d9f0, FUN_0003dc20, FUN_0003bb50, FUN_0003bbf0, FUN_0003be90,
+ * FUN_0003e7a0) live in the actors.obj address range (~0x3b000-0x3e9aa) and
+ * operate exclusively on actor_data. Function is placed at the end of
+ * actors.obj (follows FUN_0003d950 at 0x3d950).
+ *
+ * Confirmed: actor_handle passed in ESI (register arg @<esi>).
+ *   MOV ESI,[EBP-8]; CALL 0x3ec80 at caller 0x3f652/0x3f655.
+ * Confirmed: first datum_get(actor_data, actor_handle) at 0x3ec8b.
+ *   Result stored in [EBP-4] for use as iVar2/actor record.
+ * Confirmed: DAT_002c8728 = actor_handle at 0x3ecaa (before any branch).
+ * Confirmed: debug block byte[0x5ac9c0] cleared if actor_handle == [0x5ac9f8]
+ *   at 0x3ecb2/0x3ecba.
+ * Confirmed: FUN_0003d9f0(actor_handle) cdecl at 0x3ecc3; returns bool/char.
+ *   ADD ESP,4 at 0x3ecc8. Return tested; JZ 0x3edae → early out.
+ * Confirmed: FUN_0003bb50(actor_handle@<eax>) at 0x3ecd6 (MOV EAX,ESI).
+ * Confirmed: FUN_0003dc20(actor_handle) cdecl at 0x3ecdc.
+ * Confirmed: FUN_0003355f0(actor_handle) cdecl at 0x3ece2.
+ * Confirmed: FUN_000303f0(actor_handle) cdecl at 0x3ece8.
+ * Confirmed: FUN_00032cb0(actor_handle) cdecl at 0x3ecee.
+ * Confirmed: second datum_get(actor_data, actor_handle) at 0x3ecfb; result
+ *   in EDI, used as iVar3/actor record for memset+field init.
+ * Confirmed: csmemset(actor+0x3e8, 0, 0x84) at 0x3ed10.
+ * Confirmed: word[actor+0x418]=0xffff, [0x42c]=0xffff, [0x42e]=0xffff at
+ *   0x3ed19/0x3ed20/0x3ed27. EBX = 0xffffffff set by OR EBX,0xffffffff.
+ * Confirmed: FUN_0003be90(actor_handle) cdecl at 0x3ed2e (PUSH ESI at 0x3ed18).
+ * Confirmed: FUN_0001c370(actor_handle) cdecl at 0x3ed34.
+ * Confirmed: ADD ESP,0x2c at 0x3ed3f cleans 11 cdecl args.
+ * Confirmed: iVar2/actor+0x13 checked at 0x3ed3c; JNZ → skip subsystem init.
+ * Confirmed: iVar2/actor+6 checked at 0x3ed47; JNZ (swarm actor) → call
+ *   FUN_0003a8a0(actor_handle) then return.
+ * Confirmed: FUN_0003bbf0(actor_handle@<eax>) at 0x3ed64 (MOV EAX,ESI).
+ * Confirmed: 8 cdecl calls follow (0x1c3e0, 0x43db0, 0x14540, 0x2d350,
+ *   0x2a2b0, 0x2e560, 0x29040, 0x22dc0); ADD ESP,0x20 at 0x3ed99.
+ * Confirmed: FUN_0003e7a0(actor_handle@<eax>) at 0x3ed9e (MOV EAX,ESI).
+ * Confirmed: DAT_002c8728 = EBX (0xffffffff) at 0x3eda3 (normal exit).
+ * Confirmed: DAT_002c8728 = 0xffffffff at 0x3edae (early-out path, literal).
+ * Inferred: DAT_002c8728 holds the "currently activating actor" handle;
+ *   reset to -1 on all exit paths including early bail-out.
+ * Inferred: byte[0x5ac9c0] is an AI debug focused-actor flag (see ai_debug.c).
+ *   Cleared here to prevent stale display after actor is re-activated.
+ * Inferred: actor+0x13 is a "don't initialize" or dormant flag;
+ *   non-zero skips all subsystem init and just resets DAT_002c8728.
+ * Inferred: actor+6 distinguishes swarm vs. normal actor type; swarm actors
+ *   take a shortened init path via FUN_0003a8a0. */
+void FUN_0003ec80(int actor_handle /* @<esi> */)
+{
+  char *actor;
+  char *actor2;
+  char ok;
+
+  /* Record first datum_get result (iVar2) for field checks below */
+  actor = (char *)datum_get(actor_data, actor_handle);
+  /* Unused second call result discarded by compiler — both use same handle */
+  datum_get(actor_data, actor_handle);
+
+  /* Track which actor is being activated */
+  *(int *)0x2c8728 = actor_handle;
+
+  /* Clear AI debug focus flag if it points at this actor */
+  if (*(char *)0x5ac9c0 != 0 && *(int *)0x5ac9f8 == actor_handle) {
+    *(char *)0x5ac9c0 = 0;
+  }
+
+  /* Run actor validation/pre-init; bail if not ready */
+  ok = FUN_0003d9f0(actor_handle);
+  if (ok == 0) {
+    *(int *)0x2c8728 = -1;
+    return;
+  }
+
+  /* --- actor is ready for activation --- */
+
+  /* Subsystem pre-init */
+  FUN_0003bb50(actor_handle);
+  FUN_0003dc20(actor_handle);
+  FUN_000355f0(actor_handle);
+  FUN_000303f0(actor_handle);
+  FUN_00032cb0(actor_handle);
+
+  /* Reload actor record (EDI path for memset+field writes) */
+  actor2 = (char *)datum_get(actor_data, actor_handle);
+
+  /* Zero 0x84 bytes of actor state starting at offset 0x3e8 */
+  csmemset(actor2 + 0x3e8, 0, 0x84);
+
+  /* Initialize handle sentinel fields to 0xffff */
+  *(short *)(actor2 + 0x418) = (short)0xffff;
+  *(short *)(actor2 + 0x42c) = (short)0xffff;
+  *(short *)(actor2 + 0x42e) = (short)0xffff;
+
+  /* More subsystem init */
+  FUN_0003be90(actor_handle);
+  FUN_0001c370(actor_handle);
+
+  /* Check dormant/don't-activate flag at actor+0x13 */
+  if (*(char *)(actor + 0x13) != 0) {
+    *(int *)0x2c8728 = -1;
+    return;
+  }
+
+  /* Swarm actor: shortened init path */
+  if (*(char *)(actor + 0x6) != 0) {
+    FUN_0003a8a0(actor_handle);
+    *(int *)0x2c8728 = -1;
+    return;
+  }
+
+  /* Normal actor: full subsystem init sequence */
+  FUN_0003bbf0(actor_handle);
+  FUN_0001c3e0(actor_handle);
+  FUN_00043db0(actor_handle);
+  FUN_00014540(actor_handle);
+  FUN_0002d350(actor_handle);
+  FUN_0002a2b0(actor_handle);
+  FUN_0002e560(actor_handle);
+  FUN_00029040(actor_handle);
+  FUN_00022dc0(actor_handle);
+  FUN_0003e7a0(actor_handle);
+
+  *(int *)0x2c8728 = -1;
 }

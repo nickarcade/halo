@@ -2411,7 +2411,7 @@ void object_connect_to_map(int object_handle, void *location)
       if (hdr->unk_4 != 0xffff) {
         int16_t cluster = (int16_t)hdr->unk_4;
         int *pvs = (int *)players_get_combined_pvs();
-        if ((pvs[cluster >> 5] & (1 << (cluster & 0x1f))) != 0) {
+        if ((pvs[cluster >> 5] & (1u << (cluster & 0x1f))) != 0) {
           object_activate(object_handle);
           goto done;
         }
@@ -4516,15 +4516,15 @@ bool object_try_place(int object_handle, float *position)
   result = false;
 
   /* Push collision user stack entry (user = 0x13). */
-  if (*(int16_t *)0x4761d8 >= 0x20) {
+  if (*(volatile int16_t *)0x4761d8 >= 0x20) {
     display_assert("global_current_collision_user_depth < "
                    "MAXIMUM_COLLISION_USER_STACK_DEPTH",
                    "c:\\halo\\SOURCE\\objects\\objects.c", 0x93d, true);
     system_exit(-1);
   }
   {
-    int depth = (int)*(int16_t *)0x4761d8;
-    *(int16_t *)0x4761d8 += 1;
+    int depth = (int)*(volatile int16_t *)0x4761d8;
+    *(volatile int16_t *)0x4761d8 += 1;
     *(int16_t *)(0x5a8c80 + depth * 2) = 0x13;
   }
 
@@ -4550,12 +4550,12 @@ bool object_try_place(int object_handle, float *position)
 
 done:
   /* Pop collision user stack entry. */
-  if (*(int16_t *)0x4761d8 <= 1) {
+  if (*(volatile int16_t *)0x4761d8 <= 1) {
     display_assert("global_current_collision_user_depth > 1",
                    "c:\\halo\\SOURCE\\objects\\objects.c", 0x953, true);
     system_exit(-1);
   }
-  *(int16_t *)0x4761d8 -= 1;
+  *(volatile int16_t *)0x4761d8 -= 1;
 
   return result;
 }
@@ -4884,8 +4884,9 @@ void FUN_00144b30(int object_handle)
 void objects_update(void)
 {
   /* --- profiling entry (gated on two flags) --- */
-  if ((*(uint8_t *)0x449ef1 != 0) && (*(uint8_t *)0x324640 != 0)) {
-    profile_enter_private(*(void **)0x324638);
+  if ((*(volatile uint8_t *)0x449ef1 != 0) &&
+      (*(volatile uint8_t *)0x324640 != 0)) {
+    profile_enter_private(*(void *volatile *)0x324638);
   }
 
   /* --- double-speed player flag --- */
@@ -5042,7 +5043,7 @@ void objects_update(void)
        * Confirmed: MOVSX ESI,CX (salt); MOVSX ECX,DX (index); SHL ESI,0x10;
        *            OR EBX,0xffffffff; OR ESI,ECX. */
       int16_t salt = *(int16_t *)hdr;
-      int handle = ((int)(int16_t)salt << 16) | (int)(int16_t)i;
+      int handle = (int)(((uint32_t)(uint16_t)salt << 16) | (uint16_t)i);
 
       /* Assert: object must be a root (parent == -1) */
       {
@@ -5118,7 +5119,7 @@ void objects_update(void)
         flags &= (uint8_t)0xfb;
         *(uint8_t *)(hdr + 0x2) = flags;
         int16_t salt = *(int16_t *)hdr;
-        int handle = ((int)(int16_t)salt << 16) | (int)(int16_t)i;
+        int handle = (int)(((uint32_t)(uint16_t)salt << 16) | (uint16_t)i);
         ((int (*)(int))0x1444f0)(handle);
       }
 
@@ -5126,7 +5127,7 @@ void objects_update(void)
        * Confirmed: TEST byte [ESI+2],0x8; JZ ...; ... CALL 0x1449b0. */
       if ((*(uint8_t *)(hdr + 0x2) & 0x8) != 0) {
         int16_t salt = *(int16_t *)hdr;
-        int handle = ((int)(int16_t)salt << 16) | (int)(int16_t)i;
+        int handle = (int)(((uint32_t)(uint16_t)salt << 16) | (uint16_t)i);
         FUN_001449b0(handle, 0);
       }
     }
@@ -5138,7 +5139,20 @@ void objects_update(void)
   ((void (*)(void))0x144b50)();
 
   /* --- profiling exit --- */
-  if ((*(uint8_t *)0x449ef1 != 0) && (*(uint8_t *)0x324640 != 0)) {
-    profile_exit_private(*(void **)0x324638);
+  if ((*(volatile uint8_t *)0x449ef1 != 0) &&
+      (*(volatile uint8_t *)0x324640 != 0)) {
+    profile_exit_private(*(void *volatile *)0x324638);
   }
+}
+
+/* 0x1a9520 — get world-space position of the "body" marker on an object.
+ * Thin wrapper: calls object_get_markers_by_string_id for marker "body",
+ * then extracts XYZ from offset 0x60 in the marker output record. */
+void FUN_001a9520(int object_handle, float *out_position)
+{
+  char marker_buf[0x6c];
+  object_get_markers_by_string_id(object_handle, "body", marker_buf, 1);
+  out_position[0] = *(float *)(marker_buf + 0x60);
+  out_position[1] = *(float *)(marker_buf + 0x64);
+  out_position[2] = *(float *)(marker_buf + 0x68);
 }
