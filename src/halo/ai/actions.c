@@ -6,6 +6,37 @@
 
 #include "../../common.h"
 
+/* FUN_0001c300 (0x1c300) — actor_execute_current_action
+ *
+ * Dispatches the current action's execute handler via the action_definitions
+ * table. Returns the handler's result, or 0 if no handler is set.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x1c310.
+ * Confirmed: actor+0x6c = action index (short), asserted in [0,14).
+ * Confirmed: table at 0x253fb8, stride 0x38 (execute handler at +0x14 in
+ * entry). Confirmed: handler called with (actor_handle), returns int32_t.
+ * Confirmed: returns 0 when handler is NULL (XOR BL,BL; MOV AL,BL at 0x1c369).
+ */
+int32_t FUN_0001c300(int actor_handle)
+{
+  typedef int32_t (*action_execute_fn_t)(int);
+
+  char *actor;
+  short action;
+  action_execute_fn_t handler;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  action = *(short *)(actor + 0x6c);
+
+  assert_halt(action >= 0 && action < 14);
+
+  handler = *(action_execute_fn_t *)(0x253fb8 + action * 0x38);
+  if (handler != NULL) {
+    return handler(actor_handle);
+  }
+  return 0;
+}
+
 /* FUN_0001c450 (0x1c450)
  * Dispatch action-specific prop replacement for an actor.
  *
@@ -37,4 +68,117 @@ void FUN_0001c450(int actor_handle, int old_prop, int new_prop)
   if (handler != NULL) {
     handler(actor_handle, old_prop, new_prop);
   }
+}
+
+/* FUN_0001d030 (0x1d030) — actor_set_action
+ *
+ * Transitions an actor to a new action type: calls the old action's exit
+ * handler, adjusts the actor's priority level, copies action-specific state
+ * data, sets the new action index, and calls the new action's begin handler.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x1d040.
+ * Confirmed: INC word [0x5ac87c] (global action-change counter) at 0x1d04b.
+ * Confirmed: assert new_action_type in [0,14) at line 0xb83.
+ * Confirmed: assert table[new_action].action == new_action_type at line 0xb84.
+ * Confirmed: assert actor+0x6c (old action) in [0,14) at line 0xb87.
+ * Confirmed: exit handler at table+0x24 (0x253fc4) called with actor_handle.
+ * Confirmed: priority adjust using table+0x10 (0x253fb0) short field.
+ * Confirmed: FUN_00024b80(actor_handle, 0) at 0x1d122.
+ * Confirmed: csmemcpy(actor+0x9c, param_3, data_size) when data_size > 0.
+ * Confirmed: actor+0x6c = (short)param_2, actor+0x70 = 1 at 0x1d153/0x1d157.
+ * Confirmed: begin handler at table+0x14 (0x253fb4) called with actor_handle.
+ */
+void FUN_0001d030(int actor_handle, int new_action_type, int param_3)
+{
+  typedef void (*action_handler_fn_t)(int);
+
+  char *actor;
+  int table_offset;
+  action_handler_fn_t handler;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+
+  (*(uint16_t *)0x5ac87c)++;
+
+  assert_halt(new_action_type >= 0 && new_action_type < 14);
+
+  table_offset = new_action_type * 0x38;
+
+  assert_halt(*(int *)(0x253fa0 + table_offset) == new_action_type);
+
+  assert_halt(*(short *)(actor + 0x6c) >= 0 && *(short *)(actor + 0x6c) < 14);
+
+  handler =
+    *(action_handler_fn_t *)(0x253fc4 + *(short *)(actor + 0x6c) * 0x38);
+  if (handler != NULL) {
+    handler(actor_handle);
+  }
+
+  if (*(short *)(0x253fb0 + table_offset) == 0) {
+    if (*(short *)(actor + 0x6a) > 2) {
+      *(short *)(actor + 0x6a) = 2;
+    }
+  } else {
+    if (*(short *)(actor + 0x6a) < 3) {
+      *(short *)(actor + 0x6a) = 3;
+    }
+  }
+
+  FUN_00024b80(actor_handle, 0);
+
+  if (*(unsigned int *)(0x253fac + table_offset) != 0 && param_3 != 0) {
+    csmemcpy(actor + 0x9c, (void *)param_3, *(int *)(0x253fac + table_offset));
+  }
+
+  *(short *)(actor + 0x6c) = (short)new_action_type;
+  *(char *)(actor + 0x70) = 1;
+
+  handler = *(action_handler_fn_t *)(0x253fb4 + (short)new_action_type * 0x38);
+  if (handler != NULL) {
+    handler(actor_handle);
+  }
+}
+
+/* FUN_0001d5c0 (0x1d5c0) — action_type_get_name
+ *
+ * Returns the name string for a given action type index from the
+ * action_definitions table. Returns "unknown" if out of range.
+ *
+ * Confirmed: range check [0, 14) at 0x1d5c7/0x1d5d1.
+ * Confirmed: IMUL EAX,EAX,0x38 (stride 56) at 0x1d5da.
+ * Confirmed: name ptr at [EAX + 0x253fa4] (table base+0x04).
+ * Confirmed: default "unknown" string at 0x254608. */
+const char *FUN_0001d5c0(int16_t action_type)
+{
+  const char *name = (const char *)0x254608;
+  if (action_type >= 0 && action_type < 0xe) {
+    name = *(const char **)(0x253fa4 + action_type * 0x38);
+  }
+  return name;
+}
+
+/* FUN_0001d6d0 (0x1d6d0) — actor_get_action_priority_flag
+ *
+ * Returns the priority flag (short) for the actor's current action from the
+ * action_definitions table. A non-zero value indicates the action raises the
+ * actor's priority to the high-priority tier (>= 3); zero means normal (< 3).
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x1d6df.
+ * Confirmed: actor+0x6c = action index (short), asserted in [0, 14).
+ * Confirmed: IMUL EDX,EDX,0x38 at 0x1d71c; MOV AX,[EDX+0x253fb0] at 0x1d71f.
+ * Confirmed: table field 0x253fb0 = priority_flag (short at +0x10 from entry
+ *   base 0x253fa0, same field used in actor_set_action at 0x1d030+0x79).
+ * Confirmed: assert line 0xe98, __FILE__ "c:\halo\SOURCE\ai\actions.c".
+ */
+int16_t FUN_0001d6d0(int actor_handle)
+{
+  char *actor;
+  int16_t action;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  action = *(int16_t *)(actor + 0x6c);
+
+  assert_halt(action >= 0 && action < 14);
+
+  return *(int16_t *)(0x253fb0 + action * 0x38);
 }

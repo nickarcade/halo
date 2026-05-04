@@ -1,3 +1,25 @@
+/* Clear 100 bytes of actor state at offset 0x2ec (action decision state). */
+void FUN_00036860(int actor_handle)
+{
+  char *actor = (char *)datum_get(actor_data, actor_handle);
+  csmemset(actor + 0x2ec, 0, 0x64);
+}
+
+/* FUN_00036e30 (0x36e30)
+ * Mark an actor as having an active approach. Looks up the actor
+ * record in actor_data and sets the byte flag at offset +0x2ed to 1.
+ * Called from ai_handle_unit_approach when a non-friendly unit is
+ * within approach range and the caller's flag parameter is set.
+ * Confirmed: 1 cdecl arg (ADD ESP,4 at call site), void return,
+ * single datum_get call followed by byte store. */
+void FUN_00036e30(int ai_handle)
+{
+  char *actor;
+
+  actor = (char *)datum_get(actor_data, ai_handle);
+  *(char *)(actor + 0x2ed) = 1;
+}
+
 void *FUN_0003a600(short actor_type /* @<ax> */)
 {
   void **actor_type_definitions = (void **)0x2c86a8;
@@ -50,6 +72,29 @@ void FUN_0003a740(void)
   for (i = 0; i < 0x10; i++) {
     FUN_0003a600(i);
   }
+}
+
+/* Return the name string for an actor type definition. */
+const char *FUN_0003a760(int16_t actor_type)
+{
+  return *(const char **)FUN_0003a600(actor_type);
+}
+
+/* Dispatch the actor-type-specific decide_action function for a given actor. */
+void FUN_0003a840(int actor_handle)
+{
+  char *actor;
+  void *type_def;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  type_def = FUN_0003a600(*(short *)(actor + 4));
+
+  if (*(int *)((char *)type_def + 0x14) == 0) {
+    display_assert("actor_type_definition->decide_action",
+                   "c:\\halo\\SOURCE\\ai\\actor_types.c", 0x81, 1);
+    system_exit(-1);
+  }
+  (*(void (**)(int))((char *)type_def + 0x14))(actor_handle);
 }
 
 /* FUN_0003a8a0 (0x3a8a0) — actor_swarm_control_dispatch
@@ -739,6 +784,27 @@ void FUN_0003ba00(void)
   }
 }
 
+/* Reassign an actor to a new encounter/squad, detaching from the old one. */
+void FUN_0003baa0(int actor_handle, int encounter_handle, int16_t squad_index)
+{
+  char *actor = (char *)datum_get(actor_data, actor_handle);
+  FUN_0003b5e0(actor_handle);
+
+  if (*(char *)(actor + 9) != 0) {
+    FUN_000597f0(actor_handle);
+  } else {
+    if (*(int *)(actor + 0x34) != -1) {
+      FUN_00059480(actor_handle, 0);
+    }
+  }
+
+  if (encounter_handle == -1) {
+    FUN_00059740(actor_handle);
+    return;
+  }
+  FUN_0005d200(actor_handle, encounter_handle, squad_index, 1);
+}
+
 /* FUN_0003bb50 (0x3bb50) — actor_update_cognition_score
  *
  * Updates a per-actor cognition score (field +0x4a) and compares it against
@@ -851,6 +917,45 @@ void FUN_0003bbf0(int actor_handle /* @<eax> */)
   *(float *)(actor + 0x6e8) = zero_vec[2];
 
   *(short *)(actor + 0x6ec) = (short)0xffff;
+}
+
+/* FUN_0003bde0 (0x3bde0) — actor_fill_unit_input_block
+ *
+ * Populates an input block structure with the unit's world position,
+ * velocity vector from object+0x24, physics position via FUN_001a9200,
+ * root location, and root parent's object+0x48/0x4c fields.
+ *
+ * Confirmed: object_get_and_verify_type(unit_handle, 3) at 0x3bdec.
+ * Confirmed: object_get_world_position(unit_handle, input_block+0xc) at
+ * 0x3bdfb. Confirmed: 12-byte copy from obj+0x24 to input_block+0x18 at
+ * 0x3be03. Confirmed: FUN_001a9200(unit_handle, input_block) at 0x3be18.
+ * Confirmed: object_get_root_location(unit_handle, input_block+0x2c, 0) at
+ * 0x3be24. Confirmed: object_get_root_parent(unit_handle) at 0x3be2a.
+ * Confirmed: object_get_and_verify_type(root, -1) at 0x3be32.
+ * Confirmed: root_obj+0x48/0x4c copied to input_block+0x24/0x28. */
+void FUN_0003bde0(int actor_handle, int unit_handle, char *input_block)
+{
+  char *unit_obj;
+  char *root_obj;
+  int root_handle;
+
+  unit_obj = (char *)object_get_and_verify_type(unit_handle, 3);
+
+  object_get_world_position(unit_handle, (vector3_t *)(input_block + 0xc));
+
+  *(int *)(input_block + 0x18) = *(int *)(unit_obj + 0x24);
+  *(int *)(input_block + 0x1c) = *(int *)(unit_obj + 0x28);
+  *(int *)(input_block + 0x20) = *(int *)(unit_obj + 0x2c);
+
+  FUN_001a9200(unit_handle, (float *)input_block);
+
+  object_get_root_location(unit_handle, (float *)(input_block + 0x2c), 0);
+
+  root_handle = object_get_root_parent(unit_handle);
+  root_obj = (char *)object_get_and_verify_type(root_handle, -1);
+
+  *(int *)(input_block + 0x24) = *(int *)(root_obj + 0x48);
+  *(int *)(input_block + 0x28) = *(int *)(root_obj + 0x4c);
 }
 
 /* FUN_0003be90 (0x3be90) — actor run internal logic / infinite-loop watchdog
@@ -989,6 +1094,76 @@ void FUN_0003be90(int actor_handle)
   error(2, "AI error condition detected, attempting to recover (please tell "
            "butcher)...");
   FUN_0001d030(actor_handle, 0, 0);
+}
+
+/* FUN_0003ca40 (0x3ca40) — actor_set_object_activation
+ *
+ * Sets activation state on the actor's associated objects. Depending on
+ * actor type (single-object vs swarm leader), activates/deactivates one
+ * object, a linked list of objects, or all swarm member objects.
+ * Always calls FUN_0003aca0 at the end regardless of path taken.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3ca50.
+ * Confirmed: actor+0x8 != 0 guard at 0x3ca5d.
+ * Confirmed: actor+0x13 != flag guard at 0x3ca6b.
+ * Confirmed: actor+0x6 branches single vs multi at 0x3ca72.
+ * Confirmed: actor+0x18 = unit handle (single path) at 0x3cb23.
+ * Confirmed: actor+0x24 = object list head, linked via obj+0x1ac.
+ * Confirmed: actor+0x28 = swarm handle; datum_get(swarm_data, ...) at 0x3ca8b.
+ * Confirmed: swarm+0x2 = count (int16); swarm+0x18[i*4] = handles.
+ * Confirmed: object_activate (0x13fb30) when flag==0; FUN_0013fb80 when
+ * flag!=0. Confirmed: actor+0x13 = flag written at 0x3cad0. Confirmed:
+ * actor+0x14 = 0 (int16) when flag==0 at 0x3cad5. Confirmed:
+ * FUN_0003aca0(actor_handle) always called at 0x3cae0. */
+void FUN_0003ca40(int actor_handle, char flag)
+{
+  char *actor;
+  char *swarm;
+  char *obj;
+  int obj_handle;
+  int16_t i;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+
+  if (*(char *)(actor + 0x8) != 0 && *(char *)(actor + 0x13) != flag) {
+    if (*(char *)(actor + 0x6) == 0) {
+      if (*(int *)(actor + 0x18) != -1) {
+        if (flag == 0) {
+          object_activate(*(int *)(actor + 0x18));
+        } else {
+          FUN_0013fb80(*(int *)(actor + 0x18));
+        }
+      }
+    } else if (*(int *)(actor + 0x28) == -1) {
+      obj_handle = *(int *)(actor + 0x24);
+      while (obj_handle != -1) {
+        obj = (char *)object_get_and_verify_type(obj_handle, 3);
+        if (flag == 0) {
+          object_activate(obj_handle);
+        } else {
+          FUN_0013fb80(obj_handle);
+        }
+        obj_handle = *(int *)(obj + 0x1ac);
+      }
+    } else {
+      swarm = (char *)datum_get(swarm_data, *(int *)(actor + 0x28));
+      i = 0;
+      while (i < *(int16_t *)(swarm + 0x2)) {
+        if (flag == 0) {
+          object_activate(*(int *)(swarm + 0x18 + (int)i * 4));
+        } else {
+          FUN_0013fb80(*(int *)(swarm + 0x18 + (int)i * 4));
+        }
+        i++;
+      }
+    }
+    *(char *)(actor + 0x13) = flag;
+    if (flag == 0) {
+      *(int16_t *)(actor + 0x14) = 0;
+    }
+  }
+
+  FUN_0003aca0(actor_handle);
 }
 
 /* FUN_0003cbc0 (0x3cbc0) — actor_clean_props

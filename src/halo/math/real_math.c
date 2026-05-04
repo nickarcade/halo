@@ -456,6 +456,80 @@ void matrix_from_forward_and_up(float *out, float *forward, float *up)
   *(float *)((char *)out + 0x30) = 0.0f;
 }
 
+/* Convert a 4x3 matrix rotation part to a unit quaternion (Shepperd's method).
+ * Output quaternion layout: [x, y, z, w]. */
+void FUN_00109fc0(float *matrix4x3, float *out_quat4)
+{
+  static const int16_t nxt[3] = { 1, 2, 0 };
+  float *m = (float *)((char *)matrix4x3 + 4);
+  float trace = m[0] + m[4] + m[8];
+  float s;
+  int i, j, k;
+  float q[3];
+
+  if (trace > 0.0f) {
+    s = sqrtf(trace + 1.0f);
+    out_quat4[3] = 0.5f * s;
+    s = 0.5f / s;
+    out_quat4[0] = (m[7] - m[5]) * s;
+    out_quat4[1] = (m[2] - m[6]) * s;
+    out_quat4[2] = (m[3] - m[1]) * s;
+    return;
+  }
+
+  i = 0;
+  if (m[4] > m[0])
+    i = 1;
+  if (m[8] > m[i * 4])
+    i = 2;
+
+  j = nxt[i];
+  k = nxt[j];
+
+  s = sqrtf(m[i * 3 + i] - (m[k * 3 + k] + m[j * 3 + j]) + 1.0f);
+  q[i] = 0.5f * s;
+  if (s != 0.0f) {
+    s = 0.5f / s;
+  }
+  q[j] = (m[i * 3 + j] + m[j * 3 + i]) * s;
+  q[k] = (m[i * 3 + k] + m[k * 3 + i]) * s;
+
+  out_quat4[0] = q[0];
+  out_quat4[1] = q[1];
+  out_quat4[2] = q[2];
+  out_quat4[3] = (m[k * 3 + j] - m[j * 3 + k]) * s;
+}
+
+/* Build a 4x3 matrix from forward, up direction vectors and a position.
+ * Fills the rotation via matrix_from_forward_and_up, then sets translation. */
+void matrix4x3_from_forward_up_position(void *out, float *position,
+                                        float *forward, float *up)
+{
+  matrix_from_forward_and_up((float *)out, forward, up);
+  *(float *)((char *)out + 0x28) = position[0];
+  *(float *)((char *)out + 0x2c) = position[1];
+  *(float *)((char *)out + 0x30) = position[2];
+}
+
+/* Compute the rotation difference between two 4x3 matrices as an axis-angle
+ * vector.  Inverts mat1, multiplies by mat0, extracts the rotation quaternion,
+ * converts to axis-angle, then writes (axis * angle) into out_vec3. */
+void FUN_0010a150(float *mat0, float *mat1, float *out_vec3)
+{
+  float local_inv[13];
+  float local_product[13];
+  float local_quat[4];
+  float local_angle;
+
+  matrix_inverse(mat1, local_inv);
+  matrix4x3_multiply(mat0, local_inv, local_product);
+  FUN_00109fc0(local_product, local_quat);
+  FUN_0010caf0(local_quat, &local_angle, out_vec3);
+  out_vec3[0] = local_angle * out_vec3[0];
+  out_vec3[1] = local_angle * out_vec3[1];
+  out_vec3[2] = local_angle * out_vec3[2];
+}
+
 void real_math_reset_precision(void)
 {
   __control87(0x9001f, 0xfffff);
@@ -509,6 +583,48 @@ void rotate_vector3d_by_sincos(float *vector, float *axis, float sin_angle,
   vector[0] = k * a0 + cos_angle * v0 - cx * sin_angle;
   vector[1] = k * a1 + cos_angle * v1 - cy * sin_angle;
   vector[2] = k * a2 + cos_angle * v2 - cz * sin_angle;
+}
+
+/* Test whether a line segment intersects a sphere. Returns true if
+   the segment origin is inside the sphere or if the segment crosses
+   the sphere boundary within t in [0,1]. */
+bool FUN_0010bc70(float *line_start, float *line_end, float *sphere_center,
+                  float sphere_radius)
+{
+  float dx, dy, dz, c;
+  float dir_x, dir_y, dir_z, b;
+  float a, disc, t_check;
+
+  dx = line_start[0] - sphere_center[0];
+  dy = line_start[1] - sphere_center[1];
+  dz = line_start[2] - sphere_center[2];
+  c = dx * dx + dy * dy + dz * dz - sphere_radius * sphere_radius;
+
+  if (c < 0.0f)
+    return true;
+
+  dir_x = line_end[0];
+  dir_y = line_end[1];
+  dir_z = line_end[2];
+  b = dir_x * dx + dir_y * dy + dir_z * dz;
+
+  if (b >= 0.0f)
+    return false;
+
+  a = dir_x * dir_x + dir_y * dir_y + dir_z * dir_z;
+  disc = b * b - a * c;
+
+  if (disc <= 0.0f)
+    return false;
+
+  t_check = -a - b;
+  if (t_check < 0.0f)
+    return true;
+
+  if (t_check * t_check < disc)
+    return true;
+
+  return false;
 }
 
 float FUN_0010c600(float *a, float *b)

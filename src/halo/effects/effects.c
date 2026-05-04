@@ -1,4 +1,3 @@
-
 void effects_initialize(void)
 {
   effect_data = game_state_data_new("effect", 0x100, 0xfc);
@@ -34,15 +33,20 @@ void effects_dispose(void)
  */
 void FUN_0009c750(int effect_handle)
 {
-  char *effect = (char *)(int)datum_absolute_index_to_index(
+  char *effect;
+  char *tag_data;
+  int count;
+  int16_t i;
+
+  effect = (char *)(int)datum_absolute_index_to_index(
     *(data_t **)0x5aa8b0, effect_handle);
   if (!effect)
     return;
 
-  char *tag_data = (char *)tag_get(0x65666665, *(int *)(effect + 4));
-  int count = *(int *)(tag_data + 0x28);
+  tag_data = (char *)tag_get(0x65666665, *(int *)(effect + 4));
+  count = *(int *)(tag_data + 0x28);
 
-  int16_t i = 0;
+  i = 0;
   while ((int)i < count) {
     int cursor = *(int *)(effect + 0x5c + (int)i * 4);
     while (cursor != -1) {
@@ -68,14 +72,19 @@ void FUN_0009c810(int local_player_index)
   int effect_index;
   for (effect_index = data_next_index(effect_data, NONE); effect_index != NONE;
        effect_index = data_next_index(effect_data, effect_index)) {
-    char *effect = (char *)datum_get(effect_data, effect_index);
-    char *tag_data = (char *)tag_get(0x65666665, *(int *)(effect + 4));
+    char *effect;
+    char *tag_data;
+    int event_count;
+    int16_t i;
+
+    effect = (char *)datum_get(effect_data, effect_index);
+    tag_data = (char *)tag_get(0x65666665, *(int *)(effect + 4));
 
     if (*(int16_t *)(effect + 0x4c) != (int16_t)local_player_index)
       continue;
 
-    int event_count = *(int *)(tag_data + 0x28);
-    int16_t i = 0;
+    event_count = *(int *)(tag_data + 0x28);
+    i = 0;
     while ((int)i < event_count) {
       int *cursor_ptr = (int *)(effect + 0x5c + (int)i * 4);
       while (*cursor_ptr != NONE) {
@@ -125,25 +134,30 @@ bool FUN_0009caf0(int16_t part_type, void *position, void *effect_volumes)
  * effect tag's "non-deterministic" flag (bit 1). */
 void FUN_0009cb90(int effect_handle, int event_index)
 {
-  char *effect = (char *)(int)datum_absolute_index_to_index(
+  char *effect;
+  char *tag_data;
+  char *event;
+  char *tag_flags;
+  int *seed;
+
+  effect = (char *)(int)datum_absolute_index_to_index(
     *(data_t **)0x5aa8b0, effect_handle);
   if (!effect)
     return;
 
-  char *tag_data = (char *)tag_get(0x65666665, *(int *)(effect + 4));
+  tag_data = (char *)tag_get(0x65666665, *(int *)(effect + 4));
   if (event_index < 0)
     return;
   if (event_index >= *(int *)(tag_data + 0x34))
     return;
 
-  char *event =
+  event =
     (char *)tag_block_get_element(tag_data + 0x34, event_index, 0x44);
   *(uint8_t *)(effect + 2) &= ~1;
   *(int16_t *)(effect + 0x4e) = (int16_t)event_index;
   *(int *)(effect + 0x50) = 0;
 
-  char *tag_flags = (char *)tag_get(0x65666665, *(int *)(effect + 4));
-  int *seed;
+  tag_flags = (char *)tag_get(0x65666665, *(int *)(effect + 4));
   if (*(uint8_t *)tag_flags & 2)
     seed = get_global_random_seed_address();
   else
@@ -160,12 +174,17 @@ void FUN_0009cb90(int effect_handle, int event_index)
 int FUN_0009cc20(int marker_data, int effect_datum, int event_index,
                  int is_particle)
 {
-  int new_index = data_new_at_index(effect_location_data);
+  int new_index;
+  char *loc;
+  uint16_t node_index;
+  int *head;
+
+  new_index = data_new_at_index(effect_location_data);
   if (new_index == -1)
     return new_index;
 
-  char *loc = (char *)datum_get(effect_location_data, new_index);
-  uint16_t node_index = *(uint16_t *)marker_data;
+  loc = (char *)datum_get(effect_location_data, new_index);
+  node_index = *(uint16_t *)marker_data;
 
   if (node_index == 0xFFFF) {
     node_index = 0xFFFF;
@@ -178,7 +197,7 @@ int FUN_0009cc20(int marker_data, int effect_datum, int event_index,
   *(uint16_t *)(loc + 2) = node_index;
   memcpy(loc + 8, (char *)marker_data + 4, 52);
 
-  int *head = (int *)(effect_datum + 0x5c + (int16_t)event_index * 4);
+  head = (int *)(effect_datum + 0x5c + (int16_t)event_index * 4);
   *(int *)(loc + 4) = *head;
   *head = new_index;
 
@@ -355,27 +374,32 @@ void FUN_0009d1f0(void *effect, unsigned int *seed, float *direction_in,
 {
   float scale_a = *(float *)((char *)effect + 0x44);
   float scale_b = *(float *)((char *)effect + 0x48);
+  float base;
+  float range;
+  float speed;
+  float cone;
+  float angle;
 
   /* compute speed: inline effect_compute_scale with bit_index=0 */
-  float base = min_speed;
+  base = min_speed;
   if (flags_lo & 1)
     base *= scale_a;
   if (flags_hi & 1)
     base *= scale_b;
-  float range = max_speed - min_speed;
+  range = max_speed - min_speed;
   if (flags_lo & 2)
     range *= scale_a;
   if (flags_hi & 2)
     range *= scale_b;
-  float speed = random_real_range((int *)seed, 0.0f, range) + base;
+  speed = random_real_range((int *)seed, 0.0f, range) + base;
 
   /* compute cone spread angle */
-  float cone = cone_angle;
+  cone = cone_angle;
   if (flags_lo & 4)
     cone *= scale_a;
   if (flags_hi & 4)
     cone *= scale_b;
-  float angle = random_math_real(seed) * cone;
+  angle = random_math_real(seed) * cone;
 
   /* copy direction_in to direction_out */
   direction_out[0] = direction_in[0];
@@ -385,12 +409,12 @@ void FUN_0009d1f0(void *effect, unsigned int *seed, float *direction_in,
   /* rotate by cone angle if nonzero */
   if (angle != 0.0f) {
     float cos_a, sin_a;
+    float axis[3];
 #ifdef XDK_BUILD
     __asm fld angle __asm fsincos __asm fstp cos_a __asm fstp sin_a
 #else
     __asm__ volatile("fsincos" : "=t"(cos_a), "=u"(sin_a) : "0"(angle));
 #endif
-      float axis[3];
     random_seed_get_direction3d(seed, axis);
     rotate_vector3d_by_sincos(direction_out, axis, sin_a, cos_a);
   }
@@ -944,11 +968,11 @@ void FUN_0009e0d0(int local_player_index, int weapon_handle)
   }
 }
 
-/* Fill a single effect marker entry from the creation info marker list (0x9e180).
- * Validates the forward vector, optionally transforms through the node matrix,
- * then builds a 4x3 orientation matrix at output+4 with position embedded. */
-void FUN_0009e180(void *output,
-                  int16_t marker_index /* @<ax> */,
+/* Fill a single effect marker entry from the creation info marker list
+ * (0x9e180). Validates the forward vector, optionally transforms through the
+ * node matrix, then builds a 4x3 orientation matrix at output+4 with position
+ * embedded. */
+void FUN_0009e180(void *output, int16_t marker_index /* @<ax> */,
                   void *creation_info /* @<ebx> */)
 {
   int16_t count = *(int16_t *)((char *)creation_info + 0x8);
@@ -971,13 +995,12 @@ void FUN_0009e180(void *output,
   forwards_ptr = (float *)(*(int *)((char *)creation_info + 0x14) + offset);
 
   if (!valid_real_normal3d(forwards_ptr)) {
-    csprintf((char *)0x5ab100,
-             "%s: assert_valid_real_normal3d(%f, %f, %f)",
+    csprintf((char *)0x5ab100, "%s: assert_valid_real_normal3d(%f, %f, %f)",
              "&marker_list->forwards[effect_marker_index]",
              (double)forwards_ptr[0], (double)forwards_ptr[1],
              (double)forwards_ptr[2]);
-    display_assert((char *)0x5ab100,
-                   "c:\\halo\\SOURCE\\effects\\effects.c", 0x461, 1);
+    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\effects\\effects.c",
+                   0x461, 1);
     system_exit(-1);
   }
 
@@ -1000,57 +1023,18 @@ void FUN_0009e180(void *output,
   }
 
   if (!valid_real_normal3d(local_forward)) {
-    csprintf((char *)0x5ab100,
-             "%s: assert_valid_real_normal3d(%f, %f, %f)",
-             "&forward",
-             (double)local_forward[0], (double)local_forward[1],
+    csprintf((char *)0x5ab100, "%s: assert_valid_real_normal3d(%f, %f, %f)",
+             "&forward", (double)local_forward[0], (double)local_forward[1],
              (double)local_forward[2]);
-    display_assert((char *)0x5ab100,
-                   "c:\\halo\\SOURCE\\effects\\effects.c", 0x470, 1);
+    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\effects\\effects.c",
+                   0x470, 1);
     system_exit(-1);
   }
 
   perpendicular3d(local_forward, local_up);
   normalize3d(local_up);
-  matrix4x3_from_forward_up_position(
-    (char *)output + 4, local_position, local_forward, local_up);
-}
-
-/* Resolve effect markers from creation info node list (0x9e560).
- * For each node in creation_info, checks if it matches the event element's
- * definition. Non-matching nodes produce a marker via FUN_0009e180.
- * If no markers are produced, fills marker 0 as a default. */
-short FUN_0009e560(int object_handle, void *event_elem, void *marker_buf,
-                   int16_t max_markers)
-{
-  char *creation_info = *(char **)0x4557e4;
-  int16_t marker_count = 0;
-  int16_t i;
-
-  if (*(int *)(creation_info + 0xc) == 0)
-    goto fallback;
-
-  if (!csstrlen((const char *)event_elem))
-    goto fallback;
-
-  for (i = 0; i < max_markers; i++) {
-    if (i >= *(int16_t *)(creation_info + 0x8))
-      break;
-
-    if (!csstrcmp((const char *)event_elem,
-                  *(char **)(*(int *)(creation_info + 0xc) + (int)i * 4))) {
-      FUN_0009e180((char *)marker_buf + (int)marker_count * 0x6c,
-                   i, creation_info);
-      marker_count++;
-    }
-  }
-
-  if (marker_count != 0)
-    return marker_count;
-
-fallback:
-  FUN_0009e180(marker_buf, 0, creation_info);
-  return 1;
+  matrix4x3_from_forward_up_position((char *)output + 4, local_position,
+                                     local_forward, local_up);
 }
 
 void FUN_0009e310(void *effect)
@@ -1378,6 +1362,43 @@ void FUN_0009e310(void *effect)
 
     loc_counter++;
   } while ((int)(int16_t)loc_counter < *locations_block);
+}
+
+/* Resolve effect markers from creation info node list (0x9e560).
+ * For each node in creation_info, checks if it matches the event element's
+ * definition. Non-matching nodes produce a marker via FUN_0009e180.
+ * If no markers are produced, fills marker 0 as a default. */
+short FUN_0009e560(int object_handle, void *event_elem, void *marker_buf,
+                   int16_t max_markers)
+{
+  char *creation_info = *(char **)0x4557e4;
+  int16_t marker_count = 0;
+  int16_t i;
+
+  if (*(int *)(creation_info + 0xc) == 0)
+    goto fallback;
+
+  if (!csstrlen((const char *)event_elem))
+    goto fallback;
+
+  for (i = 0; i < max_markers; i++) {
+    if (i >= *(int16_t *)(creation_info + 0x8))
+      break;
+
+    if (!csstrcmp((const char *)event_elem,
+                  *(char **)(*(int *)(creation_info + 0xc) + (int)i * 4))) {
+      FUN_0009e180((char *)marker_buf + (int)marker_count * 0x6c, i,
+                   creation_info);
+      marker_count++;
+    }
+  }
+
+  if (marker_count != 0)
+    return marker_count;
+
+fallback:
+  FUN_0009e180(marker_buf, 0, creation_info);
+  return 1;
 }
 
 /* Per-frame update for a single effect instance. Handles: attached object

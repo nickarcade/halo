@@ -25,6 +25,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12f10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12f80": {
       "kind": "function",
       "status": "ported"
@@ -49,6 +53,13 @@
         "The function name likely relates to actor action prop replacement dispatch based on context from the caller FUN_0003b410 in actors.obj."
       ]
     },
+    "0x1d6d0": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Returns the priority_flag short from the action_definitions table entry for the actor's current action; non-zero means high-priority tier."
+      ]
+    },
     "0x210f0": {
       "kind": "function",
       "status": "ported"
@@ -62,6 +73,10 @@
       "status": "ported"
     },
     "0x21fb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x28610": {
       "kind": "function",
       "status": "ported"
     },
@@ -455,6 +470,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x84a70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x861a0": {
       "kind": "function",
       "status": "ported"
@@ -547,6 +566,16 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x8c440": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The 8-float linear subtraction covers position(3)+unknown(5) floats before the forward/up orientation pair at offset +8 floats within each state sub-block."
+      ],
+      "uncertain": [
+        "FUN_0010a150 (called by the static helper FUN_0008c030) is not yet ported; its semantic role (rotation-matrix delta to angular velocity) is inferred from matrix_inverse+matrix4x3_multiply+axis-angle extraction call chain."
+      ]
+    },
     "0x8c4b0": {
       "kind": "function",
       "status": "ported"
@@ -565,6 +594,10 @@
       "comments": {
         "summary": "Per-tick update for all local-player observers: records delta_time, validates header/trailer signatures and updated_for_frame, then dispatches three unported sub-updates (0x8b060 input, 0x8cd40 integration when dt changed, 0x8c4b0 post) via inline asm passing index in EAX."
       }
+    },
+    "0x8d9a0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x8d9d0": {
       "kind": "function",
@@ -638,6 +671,10 @@
       "status": "ported"
     },
     "0x8ef70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8f040": {
       "kind": "function",
       "status": "ported"
     },
@@ -808,7 +845,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x97c80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x97d40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x986d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3327,6 +3372,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfff70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfff80": {
       "kind": "function",
       "status": "ported"
@@ -3608,6 +3657,20 @@
         "Matrix rows: scale, forward, left (forward x up cross product), up, zero translation."
       ]
     },
+    "0x10a110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10a150": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Computes rotation difference between two 4x3 matrices as axis-angle: inverts mat1, multiplies by mat0, extracts quaternion via FUN_00109fc0, converts to axis-angle via FUN_0010caf0, then scales output axis by the angle."
+      ],
+      "uncertain": [
+        "Semantic name is uncertain: could be matrix4x3_angular_delta, matrix_rotation_difference_as_axis_angle, or similar; the name was inferred from the observer caller context."
+      ]
+    },
     "0x10b090": {
       "kind": "function",
       "status": "ported"
@@ -3636,6 +3699,10 @@
       "status": "ported"
     },
     "0x10b270": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10b2b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3992,6 +4059,10 @@
       "status": "ported"
     },
     "0x12b640": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12b700": {
       "kind": "function",
       "status": "ported"
     },
@@ -5185,6 +5256,17 @@
         "tag_get return value is discarded; the call is used solely for its assertion/crash side-effect on invalid tag indices \u2014 confirmed by absence of any use of EAX after the call at 0x19b8bd."
       ]
     },
+    "0x19d080": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Encoding case 1 (*(int16_t*)0x4d9be0 == 1) matches Shift-JIS lead/trail byte ranges: lead 0x81..0x9f or 0xe0..0xfe, trail 0x40..0xfc excluding 0x7f.",
+        "The '|' prefix escape-sequence check (b0==0x7c, b1 in 'ibukprlctn') precedes the switch and is encoding-independent; string literal at 0x2b44d4."
+      ],
+      "uncertain": [
+        "Global 0x4d9be0 (int16_t encoding selector) has no named declaration in kb.json; accessed as *(int16_t *)0x4d9be0. Encoding names (Shift-JIS, Big5, GBK, etc.) are inferred from byte ranges only."
+      ]
+    },
     "0x19d1b0": {
       "kind": "function",
       "status": "ported"
@@ -5249,6 +5331,13 @@
       "comments": {
         "summary": "Resolves seat animation mode for target seat label, computes enter-position matrix and marker positions via animation/marker helpers, and writes up to three output vectors (out_pos_a/out_pos_b/out_pos_c). Returns 1 on success, 0 when no valid mode/path is found."
       }
+    },
+    "0x1a8b20": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "console_warning receives 3 actual format args: tag_name_strip_path result, animation state name from FUN_001205f0 table at 0x322148, and type_block pointer (printed as string, likely a tag name embedded at block+0); the remaining iVar5/iVar6 stack slots are format string overflow that never get consumed."
+      ]
     },
     "0x1a8ce0": {
       "kind": "function",
@@ -5855,6 +5944,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c7330": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c73d0": {
       "kind": "function",
       "status": "ported"
@@ -6265,6 +6358,10 @@
       "inferred": [
         "vec4-by-mat4x4 multiply: float *mat4x4_transform_vec4(float *out, float *in, float *matrix) \u2014 cdecl, 3 stack args, returns out in EAX."
       ]
+    },
+    "0x20f069": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x31e500": {
       "kind": "data",

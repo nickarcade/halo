@@ -64,6 +64,23 @@ void particles_dispose(void)
     particle_data = 0;
 }
 
+/* Delete all particles owned by a local player that have an attached
+   object (flag 0x40 set and object handle != -1). */
+void FUN_000a1510(int local_player_index)
+{
+  int handle;
+  char *datum;
+
+  for (handle = data_next_index(particle_data, -1); handle != -1;
+       handle = data_next_index(particle_data, handle)) {
+    datum = (char *)datum_get(particle_data, handle);
+    if (*(uint8_t *)(datum + 0xf) == (uint8_t)local_player_index &&
+        (*(uint8_t *)(datum + 2) & 0x40) != 0 && *(int *)(datum + 8) != -1) {
+      datum_delete(particle_data, handle);
+    }
+  }
+}
+
 /* Compute the particle's current visual size (0xa1670).
  * Interpolates between the tag's min/max size based on the ratio of
  * elapsed time to total lifetime, then scales by the particle's
