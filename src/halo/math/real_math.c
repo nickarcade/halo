@@ -326,12 +326,6 @@ void real_matrix4x3_transform_point(void *matrix, void *point, void *out)
          z * *(float *)((char *)matrix + 0x24);
 }
 
-static float matrix4x3_round_to_float(float value)
-{
-  volatile float rounded = value;
-  return rounded;
-}
-
 /* Multiply two 4x3 matrices: out = b * a.
  * Matrix layout (13 floats each):
  *   [0]       scale
@@ -343,11 +337,22 @@ static float matrix4x3_round_to_float(float value)
  *   out_translation = (b_translation * a_rotation) * a_scale + a_translation
  *   out_scale       = a_scale * b_scale
  *
- * The original uses SSE (MULPS/ADDPS/SHUFPS) for the 3x3 and translation
+ * The original uses SSE1 (MULPS/ADDPS/SHUFPS) for the 3x3 and translation
  * parts, then x87 FLD/FMUL/FSTP for the scale multiply.
  * round_to_float forces intermediate results to 32-bit precision to match
  * the original SSE arithmetic (Clang keeps intermediates in x87 80-bit
  * registers under -mno-sse). */
+static float matrix4x3_round_to_float(float value)
+{
+  volatile float rounded = value;
+  return rounded;
+}
+
+#ifndef _MSC_VER
+__attribute__((noinline))
+#else
+__declspec(noinline)
+#endif
 void matrix4x3_multiply(float *a, float *b, float *out)
 {
   float a1 = a[1], a2 = a[2], a3 = a[3];
@@ -464,7 +469,8 @@ void FUN_00109fc0(float *matrix4x3, float *out_quat4)
   float *m = (float *)((char *)matrix4x3 + 4);
   float trace = m[0] + m[4] + m[8];
   float s;
-  int i, j, k;
+  short i;
+  int j, k;
   float q[3];
 
   if (trace > 0.0f) {
@@ -650,6 +656,31 @@ float FUN_0010c600(float *a, float *b)
 
   sine_term = sqrtf((1.0f - dot) * (1.0f + dot));
   return (float)atan2((double)sine_term, (double)dot);
+}
+
+/* Convert a unit quaternion [x,y,z,w] to axis-angle representation.
+ * Extracts the rotation axis (normalized) and the angle in radians.
+ * If the angle exceeds pi, flips to the shorter equivalent rotation. */
+void FUN_0010caf0(float *in_quat4, float *out_angle, float *out_axis3)
+{
+  float w = in_quat4[3];
+  float magnitude;
+  float angle;
+
+  out_axis3[0] = in_quat4[0];
+  out_axis3[1] = in_quat4[1];
+  out_axis3[2] = in_quat4[2];
+
+  magnitude = normalize3d(out_axis3);
+  angle = (float)(2.0 * atan2((double)magnitude, (double)w));
+  *out_angle = angle;
+
+  if (angle > 3.1415927f) {
+    out_axis3[0] = -out_axis3[0];
+    out_axis3[1] = -out_axis3[1];
+    out_axis3[2] = -out_axis3[2];
+    *out_angle = 6.2831855f - angle;
+  }
 }
 
 /* Convert yaw/pitch angles to a unit direction vector.
