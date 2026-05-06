@@ -158,6 +158,13 @@ def parse_boot_hash_sha(text: str) -> Optional[str]:
   return m.group(1).lower() if m else None
 
 
+def parse_match_percent(text: str) -> Optional[float]:
+  m = re.search(r'(\d+\.\d+)% match', text)
+  if not m:
+    m = re.search(r'match:\s*(\d+\.\d+)%', text)
+  return float(m.group(1)) if m else None
+
+
 def render_template(value: str, *, target: Target, artifact_dir: Path) -> str:
   out = value
   replacements = {
@@ -396,6 +403,11 @@ def can_auto_generate_verify_payload(args: argparse.Namespace, artifact_dir: Pat
 
 
 def run_pipeline(args: argparse.Namespace) -> int:
+  if not (0.0 <= args.low_match_reject_below <= args.low_match_behavior_both_below <= args.low_match_threshold <= 100.0):
+    raise RuntimeError(
+      "invalid low-match thresholds (expected 0 <= reject <= behavior_both <= threshold <= 100)"
+    )
+
   timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
   run_id = args.run_id or timestamp
   artifact_dir = ARTIFACT_ROOT / run_id
@@ -629,6 +641,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
     stages.append(StageResult("verify_lift", ran=False, ok=True,
                               details="skipped (no verify payload)"))
 
+  objdiff_match_pct: Optional[float] = None
+
   if args.objdiff_reference and args.objdiff_candidate:
     cmd = [
       "python3",
@@ -639,64 +653,87 @@ def run_pipeline(args: argparse.Namespace) -> int:
       args.objdiff_reference,
       "--candidate",
       args.objdiff_candidate,
+      "--symbol",
+      target.name,
     ]
     if args.objdiff_tool:
       cmd.extend(["--tool", args.objdiff_tool])
     proc = run_command(cmd, cwd=ROOT, log_path=artifact_dir / "objdiff.log")
+    objdiff_output = (proc.stdout or "") + (proc.stderr or "")
+    objdiff_match_pct = parse_match_percent(objdiff_output)
     ok = proc.returncode == 0
     structural_ok = structural_ok and ok
-    stages.append(StageResult("objdiff", ran=True, ok=ok,
-                              details=f"{args.objdiff_reference} vs {args.objdiff_candidate}"))
+    detail = f"{args.objdiff_reference} vs {args.objdiff_candidate}"
+    if objdiff_match_pct is not None:
+      detail += f" ({objdiff_match_pct:.1f}%)"
+    stages.append(StageResult("objdiff", ran=True, ok=ok, details=detail))
   else:
     stages.append(StageResult("objdiff", ran=False, ok=True,
                               details="skipped (no --objdiff-reference/--objdiff-candidate)"))
 
-  if not args.skip_xdk_verify and build_ok:
-    xdk_source = Path(target.source_path) if target.source_path else None
-    xdk_ref = None
-    if xdk_source:
+  vc71_verify_ran = False
+  vc71_verify_ok = False
+  vc71_match_pct: Optional[float] = None
+  vc71_has_fpu_warn = False
+
+  if not args.skip_vc71_verify and build_ok:
+    vc71_source = Path(target.source_path) if target.source_path else None
+    vc71_ref = None
+    if vc71_source:
       try:
         with open(ROOT / "objdiff.json") as f:
           objdiff_cfg = json.load(f)
         for u in objdiff_cfg.get("units", []):
           src = u.get("metadata", {}).get("source_path", "")
-          if src and str(xdk_source).endswith(src):
+          if src and str(vc71_source).endswith(src):
             ref_path = ROOT / u.get("base_path", "")
             if ref_path.exists():
-              xdk_ref = ref_path
+              vc71_ref = ref_path
             break
       except (FileNotFoundError, json.JSONDecodeError):
         pass
 
-    if xdk_source and xdk_ref and (ROOT / xdk_source).exists():
+    if vc71_source and vc71_ref and (ROOT / vc71_source).exists():
+      vc71_verify_ran = True
       cmd = [
-        "python3", "tools/verify/xdk_verify.py",
-        str(xdk_source), "--function", target.name,
+        "python3", "tools/verify/vc71_verify.py",
+        str(vc71_source), "--function", target.name,
         "--show-diffs", "--threshold", "0",
       ]
-      proc = run_command(cmd, cwd=ROOT, log_path=artifact_dir / "xdk_verify.log")
+      proc = run_command(cmd, cwd=ROOT, log_path=artifact_dir / "vc71_verify.log")
       output = (proc.stdout or "") + (proc.stderr or "")
-      has_fpu_warn = "FPU-WARN" in output
-      match_pct = None
-      m = re.search(r'(\d+\.\d+)% match', output)
-      if m:
-        match_pct = float(m.group(1))
+      vc71_has_fpu_warn = "FPU-WARN" in output
+      vc71_match_pct = parse_match_percent(output)
+      vc71_verify_ok = proc.returncode == 0
       if proc.returncode == 0:
-        details = f"{match_pct:.1f}% match" if match_pct is not None else "PASS"
-      elif has_fpu_warn:
-        details = f"{match_pct:.1f}% match, FPU operand-order warnings" if match_pct else "FPU warnings"
+        details = f"{vc71_match_pct:.1f}% match" if vc71_match_pct is not None else "PASS"
+      elif vc71_has_fpu_warn:
+        details = f"{vc71_match_pct:.1f}% match, FPU operand-order warnings" if vc71_match_pct else "FPU warnings"
       else:
-        details = "xdk compilation or comparison failed"
-      ok = proc.returncode == 0
-      stages.append(StageResult("xdk_verify", ran=True, ok=ok,
-                                details=details + (" [REVIEW FPU-WARN]" if has_fpu_warn else "")))
+        details = "VC71 compilation or comparison failed"
+      stages.append(StageResult("vc71_verify", ran=True, ok=vc71_verify_ok,
+                                details=details + (" [REVIEW FPU-WARN]" if vc71_has_fpu_warn else "")))
     else:
-      reason = "no delinked reference" if xdk_source else "no source_path"
-      stages.append(StageResult("xdk_verify", ran=False, ok=True,
+      reason = "no delinked reference" if vc71_source else "no source_path"
+      stages.append(StageResult("vc71_verify", ran=False, ok=True,
                                 details=f"skipped ({reason})"))
   else:
-    stages.append(StageResult("xdk_verify", ran=False, ok=True,
-                              details="skipped" + (" (--skip-xdk-verify)" if args.skip_xdk_verify else "")))
+    stages.append(StageResult("vc71_verify", ran=False, ok=True,
+                              details="skipped" + (" (--skip-vc71-verify)" if args.skip_vc71_verify else "")))
+
+  behavior_check_ok = False
+  if args.behavior_check_cmd:
+    behavior_cmd = render_template(args.behavior_check_cmd, target=target, artifact_dir=artifact_dir)
+    proc = run_command(
+      ["bash", "-lc", behavior_cmd],
+      cwd=ROOT,
+      log_path=artifact_dir / "behavior_check.log",
+    )
+    behavior_check_ok = proc.returncode == 0
+    stages.append(StageResult("behavior_check", ran=True, ok=behavior_check_ok, details=behavior_cmd))
+  else:
+    stages.append(StageResult("behavior_check", ran=False, ok=True,
+                              details="skipped (no --behavior-check-cmd)"))
 
   runtime_enabled = args.with_runtime
   runtime_ok = True
@@ -738,6 +775,73 @@ def run_pipeline(args: argparse.Namespace) -> int:
   else:
     stages.append(StageResult("runtime_check", ran=False, ok=True,
                               details="skipped (--with-runtime not set)"))
+
+  if args.low_match_policy == "off":
+    stages.append(StageResult("low_match_policy", ran=False, ok=True,
+                              details="skipped (--low-match-policy=off)"))
+  else:
+    # Use the best available structural match for policy decisions.
+    best_match_pct = vc71_match_pct
+    if objdiff_match_pct is not None:
+      if best_match_pct is None or objdiff_match_pct > best_match_pct:
+        best_match_pct = objdiff_match_pct
+    elif (not vc71_verify_ran) and (vc71_match_pct is None):
+      if args.low_match_policy == "strict":
+        stages.append(StageResult("low_match_policy", ran=True, ok=False,
+                                  details="strict mode requires structural verify data (all skipped)"))
+        return finalize(summary, stages, artifact_dir, ok=False)
+      stages.append(StageResult("low_match_policy", ran=False, ok=True,
+                                details="skipped (no verify data)"))
+      return finalize(summary, stages, artifact_dir, ok=structural_ok)
+
+    if (vc71_verify_ran and not vc71_verify_ok) and (objdiff_match_pct is None) and (vc71_match_pct is None):
+      stages.append(StageResult("low_match_policy", ran=True, ok=False,
+                                details="vc71_verify failed; low-match policy cannot evaluate"))
+      return finalize(summary, stages, artifact_dir, ok=False)
+    elif best_match_pct is None:
+      stages.append(StageResult("low_match_policy", ran=True, ok=False,
+                                details="verify output missing match percentage"))
+      return finalize(summary, stages, artifact_dir, ok=False)
+    else:
+      behavior_any_ok = behavior_check_ok or (runtime_enabled and runtime_ok)
+      behavior_both_ok = behavior_check_ok and runtime_enabled and runtime_ok
+
+      match_source = "objdiff" if (objdiff_match_pct is not None and (vc71_match_pct is None or objdiff_match_pct >= vc71_match_pct)) else "vc71"
+      details = [
+        f"policy={args.low_match_policy}",
+        f"match={best_match_pct:.1f}%",
+        f"source={match_source}",
+        f"threshold={args.low_match_threshold:.1f}%",
+        f"behavior_both_below={args.low_match_behavior_both_below:.1f}%",
+        f"reject_below={args.low_match_reject_below:.1f}%",
+        f"fpu_warn={'yes' if vc71_has_fpu_warn else 'no'}",
+        f"behavior_check={'pass' if behavior_check_ok else ('n/a' if not args.behavior_check_cmd else 'fail')}",
+        f"runtime_check={'pass' if (runtime_enabled and runtime_ok) else ('n/a' if not runtime_enabled else 'fail')}",
+      ]
+
+      policy_ok = True
+      reason = "accepted"
+
+      if vc71_has_fpu_warn and (match_source == "vc71" or objdiff_match_pct is None):
+        policy_ok = False
+        reason = "FPU operand-order warnings present"
+      elif best_match_pct < args.low_match_reject_below:
+        policy_ok = False
+        reason = f"match below hard floor ({args.low_match_reject_below:.1f}%)"
+      elif best_match_pct < args.low_match_behavior_both_below:
+        if not behavior_both_ok:
+          policy_ok = False
+          reason = "strict low-match range requires both behavior_check and runtime_check PASS"
+      elif best_match_pct < args.low_match_threshold:
+        if not behavior_any_ok:
+          policy_ok = False
+          reason = "low match requires at least one behavior signal (behavior_check or runtime_check)"
+
+      details.append(f"verdict={'PASS' if policy_ok else 'FAIL'}")
+      details.append(f"reason={reason}")
+      stages.append(StageResult("low_match_policy", ran=True, ok=policy_ok, details=" ".join(details)))
+      if not policy_ok:
+        return finalize(summary, stages, artifact_dir, ok=False)
 
   if args.no_metadata_update:
     stages.append(StageResult("metadata_update", ran=False, ok=True,
@@ -864,8 +968,18 @@ def build_parser() -> argparse.ArgumentParser:
   ap.add_argument("--objdiff-tool", default="",
                   help="Optional objdiff executable path/name.")
 
-  ap.add_argument("--skip-xdk-verify", action="store_true",
-                  help="Skip XDK MSVC compilation and FPU operand comparison.")
+  ap.add_argument("--skip-vc71-verify", action="store_true",
+                  help="Skip VC++ 7.1 compilation and FPU operand comparison.")
+  ap.add_argument("--behavior-check-cmd", default="",
+                  help="Optional non-interactive behavior/reference check command (exit 0 = PASS).")
+  ap.add_argument("--low-match-policy", choices=["off", "auto", "strict"], default="strict",
+                  help="Enforce low-match acceptance: off=disabled, auto=enforce when VC71 data exists, strict=fail if VC71 data is missing (default).")
+  ap.add_argument("--low-match-threshold", type=float, default=50.0,
+                  help="Low-match threshold percentage (default: 50.0).")
+  ap.add_argument("--low-match-behavior-both-below", type=float, default=40.0,
+                  help="Below this match percentage, require both behavior_check and runtime_check to pass (default: 40.0).")
+  ap.add_argument("--low-match-reject-below", type=float, default=25.0,
+                  help="Hard reject below this match percentage (default: 25.0).")
 
   ap.add_argument("--with-runtime", action="store_true",
                   help="Enable runtime hash comparison via tools/xbox/boot_hash.sh.")

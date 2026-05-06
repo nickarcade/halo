@@ -566,3 +566,120 @@ void game_set_game_variant_from_name(const char *name)
           sizeof(game_variant_t));
   qmemcpy(&game_variant_global, &variant_copy, sizeof(game_variant_t));
 }
+
+/* 0xb54e0 — game_globals_difficulty_scale
+ *
+ * Looks up a difficulty scaling factor from the game globals matg tag's
+ * difficulty block.  The block stores an array of floats arranged as
+ * value_type rows of 4 difficulty columns (Easy/Normal/Heroic/Legendary).
+ *
+ * Register args: @BX = value_type (0..0x22), @DI = difficulty (-1 = raw
+ * per-value_type default, 0..3 = clamped to [0, 3]).
+ *
+ * If difficulty < 0 the function indexes the table as value_type*16 bytes
+ * from the element base (i.e. column 0, raw float[value_type][0]).
+ * If difficulty >= 0 it clamps to min(difficulty, 3) and indexes as
+ * (difficulty + value_type*4)*4 bytes, i.e. float[value_type][difficulty].
+ *
+ * Falls back to 1.0f if game_globals_get() returns NULL, the difficulty
+ * block count is zero, or tag_block_get_element returns NULL.
+ *
+ * Confirmed: CALL 0x18e450 (game_globals_get) at 0xb54ec.
+ * Confirmed: TEST BX,BX / CMP BX,0x23 range assert at 0xb54f1/0xb54f8.
+ * Confirmed: MOV ECX,[ESI+0x11c] / LEA EAX,[ESI+0x11c] at 0xb5522/0xb552a.
+ * Confirmed: PUSH 0x284 / PUSH 0x0 / PUSH EAX to tag_block_get_element at
+ *   0xb5532. Confirmed: TEST DI,DI / JGE 0xb555e selects raw vs clamped path.
+ * Confirmed: XOR ECX,ECX / MOVSX EDX,BX / MOVSX ECX,CX / LEA EDX,[ECX+EDX*4]
+ *   then FLD [EAX+EDX*4] for the raw (DI<0) path at 0xb554b.
+ * Confirmed: CMP DI,3 / MOV ECX,3 / JG / MOV ECX,EDI clamping at 0xb555e.
+ */
+float game_globals_difficulty_scale(int16_t value_type, int16_t difficulty)
+{
+  float default_val = 1.0f;
+  void *globals = game_globals_get();
+
+  assert_halt(value_type >= 0 && value_type < 0x23);
+
+  if (!globals)
+    return default_val;
+
+  if (*(int *)((char *)globals + 0x11c) == 0)
+    return default_val;
+
+  void *element = tag_block_get_element((char *)globals + 0x11c, 0, 0x284);
+  if (!element)
+    return default_val;
+
+  if (difficulty < 0) {
+    /* Raw per-value_type offset: column index 0, stride 16 bytes */
+    int idx = (int)value_type * 4;
+    return *(float *)((char *)element + idx * 4);
+  }
+
+  int16_t clamped = difficulty > 3 ? 3 : difficulty;
+  int idx = (int)clamped + (int)value_type * 4;
+  return *(float *)((char *)element + idx * 4);
+}
+
+/* 0xb5590 — FUN_000b5590
+ *
+ * Convenience wrapper: fetches the current game difficulty level and
+ * returns game_globals_difficulty_scale(value_type, difficulty).
+ *
+ * Confirmed: CALL 0xa7460 (game_difficulty_level_get) at 0xb5595.
+ * Confirmed: MOV EBX,[EBP+0x8] (value_type cdecl arg) at 0xb559a.
+ * Confirmed: MOV EDI,EAX (difficulty ← return AX of game_difficulty_level_get)
+ *   at 0xb559d. Confirmed: CALL 0xb54e0 (game_globals_difficulty_scale,
+ *   @bx=value_type, @di=difficulty) at 0xb559f.
+ */
+float FUN_000b5590(int16_t value_type)
+{
+  int16_t difficulty = game_difficulty_level_get();
+  return game_globals_difficulty_scale(value_type, difficulty);
+}
+
+/* FUN_000b55b0 (0xb55b0) — game_globals_difficulty_scale_get
+ *
+ * Returns the difficulty scaling factor for a given game-globals value type
+ * and team. The lookup strategy depends on game mode:
+ *   - If the game engine is running (multiplayer/co-op): force difficulty=1
+ *     (Normal) regardless of the current level setting.
+ *   - Else if team is friendly (allegiance_get_team_is_friendly(1, team)):
+ *     use the actual difficulty level from game_difficulty_level_get.
+ *   - Else: look up value_type in an override table at 0x26ddc8
+ *     (int16_t[0x23]). If the override is NONE (-1, meaning no override),
+ *     force difficulty=1. Otherwise substitute the override value_type and
+ *     use the actual difficulty level.
+ *
+ * The underlying scale is fetched by FUN_000b54e0 (@BX=value_type,
+ * @DI=difficulty) from the game globals tag (matg) difficulty block.
+ *
+ * Confirmed: CALL 0xa7460 (game_difficulty_level_get) → EDI at 0xb55ba.
+ * Confirmed: CALL 0xa8e30 (game_engine_running) → AL at 0xb55bc.
+ * Confirmed: MOV EDI,1 when running at 0xb55c5 (force Normal).
+ * Confirmed: CALL 0xa7a30 (game_allegiance_get_team_is_friendly(1, team)) at
+ * 0xb55dc. Confirmed: assert value_type in [0, 0x22] at line 0x3bd (957),
+ *   __FILE__ "c:\halo\SOURCE\game\game_globals.c".
+ * Confirmed: override table word lookup at [ECX*2 + 0x26ddc8] at 0xb5619.
+ * Confirmed: CMP AX,0xffff selects between override=NONE (EDI=1) and
+ *   override != NONE (EBX=override, EDI=actual difficulty) at 0xb5621.
+ * Confirmed: CALL 0xb54e0 with BX=value_type and DI=difficulty in all paths.
+ */
+float FUN_000b55b0(short value_type, int team)
+{
+  int16_t difficulty = game_difficulty_level_get();
+  if (game_engine_running()) {
+    return game_globals_difficulty_scale(value_type, 1);
+  }
+  if (game_allegiance_get_team_is_friendly(1, team)) {
+    return game_globals_difficulty_scale(value_type, difficulty);
+  }
+  assert_halt(value_type >= 0 && value_type < 0x23);
+  {
+    int16_t override = *(int16_t *)(0x26ddc8 + (int)value_type * 2);
+    if (override == (int16_t)0xffff) {
+      return game_globals_difficulty_scale(value_type, 1);
+    }
+    return game_globals_difficulty_scale(override, difficulty);
+  }
+}

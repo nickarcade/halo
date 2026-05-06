@@ -1,5 +1,12 @@
 {
   "functions": {
+    "0x20f80": "int actor_combat_check_mode(int actor_handle @<eax>, short mode);",
+    "0x21130": "void actor_combat_get_weapon_vector(int actor_handle @<eax>, float *weapon_vector @<ebx>);",
+    "0x21270": "void actor_combat_get_burst_parameters(int actor_handle @<eax>, void *actv @<ecx>, void **burst_ref, void **firing_ref);",
+    "0x22010": "int actor_combat_check_fire_target(int actor_handle @<edi>, short mode);",
+    "0x21590": "void actor_combat_set_fire_timer(int actor_handle @<esi>);",
+    "0x21640": "bool actor_combat_evaluate_firing(int actor_handle @<eax>, void *timing_data @<edi>);",
+    "0x28660": "char FUN_00028660(int actor_handle, short *look_spec @<ebx>, float *direction @<edi>);",
     "0xc5960": "void FUN_000c5960(int datum_index @<eax>);",
     "0xc6a70": "int FUN_000c6a70(char *str @<eax>);",
     "0x102510": "void screenshot_render(void *a1@<edi>);",
@@ -42,6 +49,7 @@
     "0x13eff0": "void object_remove_from_name_list(int object_handle@<edi>);",
     "0x140ad0": "void FUN_00140ad0(int object_handle@<edi>);",
     "0x14d080": "void collision_log_period_helper(int time_period@<esi>, int begin_flag);",
+    "0x14d840": "short FUN_0014d840(short collision_function @<edi>);",
     "0x184bc0": "void render_window_pregame(int window_type@<ebx>, int16_t *win);",
     "0x185290": "void render_window(int16_t *win@<esi>, void *offset_or_null);",
     "0x185770": "void render_camera_check_warning_condition(int16_t id@<ax>, float value);",
@@ -94,6 +102,7 @@
     "0x1e9380": "void D3DDevice_SetRenderState_Deferred(uint32_t reg_index@<ecx>, uint32_t value@<edx>);",
     "0x1e9410": "void __stdcall D3DDevice_SetTextureStageState(uint32_t stage@<ecx>, uint32_t state@<edx>, uint32_t value);",
     "0x3a600": "void *FUN_0003a600(int16_t actor_type@<ax>);",
+    "0x3ac20": "void FUN_0003ac20(int actor_handle, const char *reason, int obj_handle @<eax>);",
     "0x3b7e0": "void FUN_0003b7e0(int actor_handle, int unit_handle@<esi>);",
     "0x3b940": "void FUN_0003b940(int actor_handle, int unit_object_index@<esi>);",
     "0x3ec80": "void FUN_0003ec80(int actor_handle@<esi>);",
@@ -214,7 +223,10 @@
     "0x3e7a0": "void FUN_0003e7a0(int actor_handle@<eax>);",
     "0xcada0": "int FUN_000cada0(int16_t script_index@<edi>);",
     "0x97a50": "int16_t FUN_00097a50(int contrail_handle @<eax>, float delta_time);",
-    "0x97e40": "void FUN_00097e40(int contrail_handle @<eax>, int count, int flag);"
+    "0x97e40": "void FUN_00097e40(int contrail_handle @<eax>, int count, int flag);",
+    "0xb54e0": "float game_globals_difficulty_scale(int16_t value_type@<bx>, int16_t difficulty@<di>);",
+    "0x413c0": "void FUN_000413c0(ai_firing_pos_entry_t *entry@<esi>, int unit_handle@<edi>, int actor_handle);",
+    "0x64400": "void FUN_00064400(int actor_handle@<eax>, int prop_handle@<edi>);"
   },
   "version": 1,
   "0xcada0": {
