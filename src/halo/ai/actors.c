@@ -92,6 +92,37 @@ const char *FUN_0003a760(int16_t actor_type)
   return *(const char **)FUN_0003a600(actor_type);
 }
 
+/* FUN_0003a800 (0x3a800) — actor_type_is_swarm
+ * Returns the swarm flag byte (offset 0xd) from the actor type definition
+ * for the given actor_type. Used to test whether an actor type uses swarm
+ * control before dispatching swarm callbacks. */
+int FUN_0003a800(int16_t actor_type)
+{
+  char *type_def;
+  type_def = (char *)FUN_0003a600(actor_type);
+  return (int)(unsigned char)type_def[0xd];
+}
+
+/* FUN_0003a810 (0x3a810) — actor_type_init_dispatch
+ * Looks up the actor datum by handle, reads the actor_type field (int16_t at
+ * offset 4), retrieves the actor type definition, and calls the type-specific
+ * init callback (function pointer at type_def+0x10) if it is non-null.
+ * Called at the end of actor_new (FUN_0003c410) to perform per-type
+ * initialization of a newly allocated actor. */
+void FUN_0003a810(int actor_handle)
+{
+  char *actor;
+  char *type_def;
+  void (*init_cb)(int);
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  type_def = (char *)FUN_0003a600(*(short *)(actor + 0x4));
+  init_cb = *(void (**)(int))(type_def + 0x10);
+  if (init_cb != NULL) {
+    init_cb(actor_handle);
+  }
+}
+
 /* Dispatch the actor-type-specific decide_action function for a given actor. */
 void FUN_0003a840(int actor_handle)
 {
@@ -530,6 +561,42 @@ void FUN_0003b030(int actor_handle)
   /* Delete the swarm itself */
   datum_delete(swarm_data, *(int *)(actor + 0x28));
   *(int *)(actor + 0x28) = -1;
+}
+
+/* FUN_0003b0b0 (0x3b0b0) — swarm_component_update_position
+ *
+ * Update one swarm component's cached position and target state from its
+ * corresponding unit object. Fetches the unit pointer via
+ * object_get_and_verify_type (type_mask 3 = biped/vehicle) and the swarm
+ * component record from swarm_component_data. Writes the unit's world position
+ * into swarm_component+4 (vector3_t). Stores unit+0x430 (target handle) into
+ * swarm_component+0x10 if unit+0x64 (short state flag) is zero, otherwise
+ * stores -1.
+ *
+ * Confirmed: object_get_and_verify_type(unit_handle, 3) at 0x3b0bc.
+ * Confirmed: datum_get(swarm_component_data, swarm_component_handle) at
+ * 0x3b0ce. Confirmed: ADD ESP,0x10 at 0x3b0d3 cleans both call frames (4 pushes
+ * total). Confirmed: OR EDI,0xffffffff at 0x3b0d6 (default EDI = -1 before
+ * CMP). Confirmed: CMP word ptr [ESI+0x64],0 at 0x3b0d9 (ESI = unit ptr).
+ * Confirmed: MOV EDI,[ESI+0x430] at 0x3b0e2 (conditional on ZF).
+ * Confirmed: object_get_world_position(unit_handle, swarm_component+4) at
+ * 0x3b0f0. Confirmed: MOV [EBX+0x10],EDI at 0x3b0f8 (EBX = swarm_component
+ * ptr). */
+void FUN_0003b0b0(int unit_handle, int swarm_component_handle)
+{
+  char *unit;
+  char *swarm_component;
+  int target_handle;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  swarm_component =
+    (char *)datum_get(swarm_component_data, swarm_component_handle);
+  target_handle = -1;
+  if (*(short *)(unit + 0x64) == 0) {
+    target_handle = *(int *)(unit + 0x430);
+  }
+  object_get_world_position(unit_handle, (vector3_t *)(swarm_component + 4));
+  *(int *)(swarm_component + 0x10) = target_handle;
 }
 
 /* FUN_0003b270 (0x3b270)
@@ -1294,6 +1361,328 @@ void FUN_0003c370(int actor_handle)
   *(uint32_t *)(actor + 0x6d0) |= 0x2000;
 }
 
+/* FUN_0003c410 (0x3c410) — actor_new
+ * Allocate and minimally initialize a new actor datum from the actor_data pool.
+ * Looks up the actv (actor variant) tag by actv_tag_index, then the actr
+ * (actor) tag it references at offset +0x10. Calls data_new_at_index to
+ * reserve a slot, then datum_get to get the record pointer. Writes the actv
+ * and actr tag indices into the record (offsets +0x5c, +0x58), copies the
+ * actor's type tag word and a swarm flag bit, and zeroes/sentinels every
+ * other field (handles to -1, counts to 0, flag bytes to 0 or 1). Zeroes
+ * three struct sub-ranges with csmemset. Initializes the actor's per-slot
+ * AI state array entry (at DAT_00331f58 + slot*0x657c) with csmemset and
+ * sentinel -1 handles. Copies the default facing vector (from
+ * *PTR_DAT_0031fc3c) into actor fields +0x5a4, +0x5b0, +0x5bc. If actr[0x90]
+ * (never_dormant_chance) exceeds *(float*)0x2533c0, rolls a random float and
+ * sets actor+0x376 to 1 if the roll is less than the chance threshold. Calls
+ * FUN_0003a810 to dispatch the actor-type init callback. Returns the new actor
+ * handle, or -1 on failure (invalid actv, invalid actr tag, or allocation
+ * failure).
+ *
+ * Confirmed: PUSH EAX(param_1)/PUSH 0x61637476 → tag_get at 0x3c42c.
+ * Confirmed: actr_tag_index from *(int*)(actv+0x10) at 0x3c431.
+ * Confirmed: data_new_at_index(actor_data) at 0x3c453; ADD ESP,0xc cleans
+ *   both tag_get calls and data_new_at_index in one batch (0x3c458).
+ * Confirmed: datum_get(actor_data, handle) at 0x3c46f; ADD ESP,0x14 at
+ *   0x3c56b cleans datum_get(2) + csmemset(0x350)(3) in one batch.
+ * Confirmed: actr_tag stored at actor+0x5c at 0x3c484; actr_idx at +0x58.
+ * Confirmed: swarm bit = (actr[0] >> 0x1a) & 1 stored at actor+0x6.
+ * Confirmed: type word = *(short*)(actr+0x14) stored at actor+0x4.
+ * Confirmed: csmemset(actor+0x350, 0, 0x68) at 0x3c566.
+ * Confirmed: csmemset(actor+0x4a8, 0, 0x5c) at 0x3c63a.
+ * Confirmed: csmemset(actor+0x5c8, -1, 0x10) at 0x3c692.
+ * Confirmed: FPU compare at 0x3c5cf: actr[0x90] vs *(float*)0x2533c0.
+ * Confirmed: random_math_real result compared with actr[0x90] at 0x3c5f0.
+ * Confirmed: state slot = (handle & 0xffff) * 0x657c + *(char**)0x331f58.
+ * Confirmed: csmemset(state, 0, 0x657c) at 0x3c75c.
+ * Confirmed: FUN_0003a810(handle) at 0x3c79c; ADD ESP,0x30 cleans 12 pushes.
+ * Confirmed: return value = ESI = handle (MOV EAX,ESI at 0x3c7a4).
+ * Inferred: *(float**)0x31fc3c points to a {1,0,0} default facing vec3.
+ * Inferred: 0x2533c0 is a float threshold (0.0f at load, runtime-set later). */
+int FUN_0003c410(int actv_tag_index)
+{
+  char *actv_data;
+  char *actr_data;
+  int new_handle;
+  char *actor;
+  int actr_tag_index;
+  float *default_facing;
+  char *state;
+  unsigned int actr_flags;
+  float rand_val;
+  int *seed;
+
+  if (actv_tag_index == -1) {
+    return -1;
+  }
+
+  actv_data = (char *)tag_get(0x61637476, actv_tag_index);
+  actr_tag_index = *(int *)(actv_data + 0x10);
+  if (actr_tag_index == -1) {
+    return -1;
+  }
+
+  actr_data = (char *)tag_get(0x61637472, actr_tag_index);
+
+  new_handle = data_new_at_index(actor_data);
+  if (new_handle == -1) {
+    return -1;
+  }
+
+  actor = (char *)datum_get(actor_data, new_handle);
+
+  /* Copy actv/actr tag indices and actor-type fields into the actor record. */
+  actr_flags = *(unsigned int *)actr_data;
+  *(int *)(actor + 0x5c) = actv_tag_index;
+  *(char *)(actor + 0x6) = (char)((actr_flags >> 0x1a) & 1);
+  *(int *)(actor + 0x58) = actr_tag_index;
+  *(short *)(actor + 0x4) = *(short *)(actr_data + 0x14);
+
+  /* Initialize handle/index sentinels and zero-fields. */
+  *(int *)(actor + 0x18) = -1;
+  *(char *)(actor + 0x1c) = 0;
+  *(int *)(actor + 0x34) = -1;
+  *(short *)(actor + 0x3a) = (short)-1;
+  *(short *)(actor + 0x3c) = (short)-1;
+  *(char *)(actor + 0x9) = 0;
+  *(int *)(actor + 0x30) = -1;
+  *(short *)(actor + 0x38) = (short)-1;
+  *(short *)(actor + 0x1e) = 0;
+  *(short *)(actor + 0x20) = 0;
+  *(int *)(actor + 0x24) = -1;
+  *(int *)(actor + 0x28) = -1;
+  *(char *)(actor + 0x7) = 1;
+  *(char *)(actor + 0x8) = 0;
+  *(int *)(actor + 0xc) = -1;
+  *(char *)(actor + 0x13) = 1;
+  *(char *)(actor + 0x12) = 1;
+  *(short *)(actor + 0x4a) = 0;
+  *(int *)(actor + 0x50) = -1;
+  *(int *)(actor + 0x54) = -1;
+  *(short *)(actor + 0x3b8) = (short)-1;
+  *(short *)(actor + 0x60) = (short)-1;
+  *(short *)(actor + 0x62) = (short)-1;
+  *(int *)(actor + 0x64) = -1;
+  *(char *)(actor + 0x8e) = 0;
+  *(short *)(actor + 0x90) = (short)-1;
+  *(int *)(actor + 0x94) = -1;
+  *(short *)(actor + 0x6c) = 0;
+  *(short *)(actor + 0x6a) = 2;
+  *(short *)(actor + 0x6e) = 0;
+  *(short *)(actor + 0x72) = 0;
+  *(short *)(actor + 0x74) = 0;
+  *(int *)(actor + 0x88) = -1;
+  *(char *)(actor + 0x98) = 0;
+
+  /* Swarm-component flag: bit 0x15 of actr_flags (re-read after possible
+   * aliasing). */
+  *(char *)(actor + 0x99) = (char)((*(unsigned int *)actr_data >> 0x15) & 1);
+
+  *(int *)(actor + 0x164) = -1;
+  *(int *)(actor + 0x158) = -1;
+  *(char *)(actor + 0x1c9) = 0;
+  *(char *)(actor + 0x1cc) = 0;
+  *(int *)(actor + 0x1d0) = -1;
+  *(short *)(actor + 0x1d4) = 0;
+  *(int *)(actor + 0x1dc) = -1;
+
+  /* Zero sub-range 0x350..0x3b7 (0x68 bytes). */
+  csmemset(actor + 0x350, 0, 0x68);
+
+  /* Initialize fields in 0x350..0x3ff range (after csmemset). */
+  *(int *)(actor + 0x370) = -1;
+  *(int *)(actor + 0x37c) = -1;
+  *(int *)(actor + 0x380) = -1;
+  *(int *)(actor + 0x36c) = -1;
+  *(int *)(actor + 0x384) = -1;
+  *(int *)(actor + 0x388) = -1;
+  *(int *)(actor + 0x398) = -1;
+  *(int *)(actor + 0x3a0) = -1;
+  *(int *)(actor + 0x3a4) = -1;
+  *(int *)(actor + 0x3ac) = -1;
+  *(int *)(actor + 0x3b0) = -1;
+  *(float *)(actor + 0x3b4) = 1.0f;
+  *(int *)(actor + 0x390) = -1;
+  *(int *)(actor + 0x394) = -1;
+  *(int *)(actor + 0x39c) = -1;
+
+  /* Roll a random dormancy check if actr never_dormant_chance > threshold. */
+  if (*(float *)0x2533c0 < *(float *)(actr_data + 0x90)) {
+    seed = get_global_random_seed_address();
+    rand_val = random_math_real((unsigned int *)seed);
+    *(char *)(actor + 0x376) = (char)(rand_val < *(float *)(actr_data + 0x90));
+  }
+
+  /* Zero actor sub-ranges 0x3e8..0x503 (0x5c bytes) and misc field inits. */
+  *(short *)(actor + 0x3e8) = 0;
+  *(short *)(actor + 0x400) = 0;
+  *(short *)(actor + 0x46c) = 0;
+  *(int *)(actor + 0x480) = -1;
+  *(int *)(actor + 0x494) = -1;
+  csmemset(actor + 0x4a8, 0, 0x5c);
+
+  /* Zero then sentinel-fill 0x5c8..0x5d7 (0x10 bytes with 0xff). */
+  *(char *)(actor + 0x504) = 0;
+  *(char *)(actor + 0x505) = 0;
+  *(short *)(actor + 0x5f2) = 1;
+  *(short *)(actor + 0x5f4) = 0;
+  *(short *)(actor + 0x5f6) = 0;
+  *(short *)(actor + 0x5f8) = 0;
+  *(short *)(actor + 0x5fa) = 0;
+  *(int *)(actor + 0x61c) = 0;
+  *(int *)(actor + 0x610) = -1;
+  *(int *)(actor + 0x6a4) = -1;
+  *(int *)(actor + 0x6b4) = -1;
+  csmemset(actor + 0x5c8, -1, 0x10);
+
+  /* Copy default facing vector {1,0,0} to three actor orientation fields. */
+  default_facing = *(float **)0x31fc3c;
+  *(float *)(actor + 0x5b0) = default_facing[0];
+  *(float *)(actor + 0x5b4) = default_facing[1];
+  *(float *)(actor + 0x5b8) = default_facing[2];
+  *(float *)(actor + 0x5a4) = default_facing[0];
+  *(float *)(actor + 0x5a8) = default_facing[1];
+  *(float *)(actor + 0x5ac) = default_facing[2];
+  *(float *)(actor + 0x5bc) = default_facing[0];
+  *(float *)(actor + 0x5c0) = default_facing[1];
+  *(float *)(actor + 0x5c4) = default_facing[2];
+
+  *(short *)(actor + 0x5d8) = (short)-1;
+  *(short *)(actor + 0x5f0) = (short)-1;
+  *(short *)(actor + 0x544) = 0;
+  *(short *)(actor + 0x548) = 0;
+
+  *(char *)(actor + 0x6cc) = 0;
+  *(short *)(actor + 0x6ce) = 0x1e;
+  *(short *)(actor + 0x268) = 0;
+  *(int *)(actor + 0x270) = -1;
+  *(int *)(actor + 0x26c) = -1;
+  *(int *)(actor + 0x278) = -1;
+
+  FUN_00024b80(new_handle, 0);
+
+  *(int *)(actor + 0x3c0) = -1;
+
+  /* Initialize the per-slot AI state array entry for this actor. */
+  state = *(char **)0x331f58 + (new_handle & 0xffff) * 0x657c;
+  csmemset(state, 0, 0x657c);
+  *(int *)(state + 0x4) = -1;
+  *(int *)(state + 0x5c) = -1;
+  *(int *)(state + 0xc4) = -1;
+  *(int *)(state + 0x104) = -1;
+  *(int *)(state + 0x150) = -1;
+  *(int *)(state + 0x168) = -1;
+  *(int *)(state + 0x18c) = -1;
+  *(int *)(state + 0x19c) = -1;
+  *(int *)(state + 0x656c) = -1;
+  *(short *)(state + 0x6578) = (short)-1;
+
+  /* Dispatch actor-type init callback. */
+  FUN_0003a810(new_handle);
+
+  return new_handle;
+}
+
+/* FUN_0003c7c0 (0x3c7c0) — actor_variant_setup_unit
+ * Initializes a newly created unit from its actor variant (actv) tag data.
+ * Sets perception ranges, grenade type, change colors, initial weapon,
+ * grenade count, initial equipment, and deaf/blind flags. */
+void FUN_0003c7c0(int actv_tag_index, int unit_index)
+{
+  char *actv_data;
+  char *actr_data;
+  char *unit_data;
+  char *element;
+  char *eqip_data;
+  char placement[136];
+  int object_handle;
+  int i;
+  int count;
+  int *seed;
+  float blend;
+  float *out_color;
+  float *copy_dest;
+
+  actv_data = (char *)tag_get(0x61637476, actv_tag_index);
+  actr_data = (char *)tag_get(0x61637472, *(int *)(actv_data + 0x10));
+  unit_data = (char *)object_get_and_verify_type(unit_index, 3);
+
+  if (*(float *)(actv_data + 0x200) > 0.0f ||
+      *(float *)(actv_data + 0x204) > 0.0f) {
+    FUN_001365d0(unit_index, (int)(actv_data + 0x200),
+                 (int)(actv_data + 0x204));
+  }
+
+  if (*(short *)(actv_data + 0x20c) != 0) {
+    *(short *)(unit_data + 0x126) = *(short *)(actv_data + 0x20c);
+  }
+
+  count = 0;
+  for (i = 0; (short)i < *(int *)(actv_data + 0x22c); i = (int)(short)(count)) {
+    element = (char *)tag_block_get_element(actv_data + 0x22c, i, 0x20);
+    if ((short)count < 4) {
+      out_color = (float *)(unit_data + (i * 3 + 0x4e) * 4);
+      seed = get_global_random_seed_address();
+      blend = random_math_real((unsigned int *)seed);
+      FUN_0007c270(out_color, 1, (float *)element, (float *)(element + 0xc),
+                   blend);
+      copy_dest = (float *)(unit_data + (i * 3 + 0x5a) * 4);
+      copy_dest[0] = out_color[0];
+      copy_dest[1] = out_color[1];
+      copy_dest[2] = out_color[2];
+    }
+    count = count + 1;
+  }
+
+  if (*(int *)(actv_data + 0x70) != -1) {
+    FUN_0013fc20(placement, *(int *)(actv_data + 0x70), unit_index);
+    object_handle = FUN_00143c80(placement);
+    if (object_handle != -1) {
+      if (!unit_enter_seat(unit_index, object_handle, 2)) {
+        object_delete(object_handle);
+      }
+    }
+  }
+
+  if (*(short *)(actv_data + 0x180) != -1) {
+    seed = get_global_random_seed_address();
+    unit_set_grenade_count(unit_index, *(short *)(actv_data + 0x180),
+                           random_range((unsigned int *)seed,
+                                        *(short *)(actv_data + 0x1d0),
+                                        *(short *)(actv_data + 0x1d2) + 1));
+  }
+
+  if (*(int *)(actv_data + 0x1cc) != -1) {
+    eqip_data = (char *)tag_get(0x65716970, *(int *)(actv_data + 0x1cc));
+    if (*(short *)(eqip_data + 0x308) == 0 ||
+        *(short *)(eqip_data + 0x308) == 6) {
+      error(2, "cannot add grenades or non-powerups to an actor's inventory "
+               "as equipment... try using the 'grenade' fields maybe?");
+    } else {
+      FUN_0013fc20(placement, *(int *)(actv_data + 0x1cc), unit_index);
+      object_handle = FUN_00143c80(placement);
+      if (object_handle != -1) {
+        if (!unit_pickup_equipment(unit_index, object_handle, 1)) {
+          object_delete(object_handle);
+        }
+      }
+    }
+  }
+
+  if ((*(unsigned char *)actv_data & 0x30) != 0) {
+    if ((*(unsigned char *)actv_data & 0x20) != 0) {
+      *(unsigned int *)(unit_data + 0x1b4) |= 0x20;
+    }
+    *(unsigned int *)(unit_data + 0x1b4) |= 0x10;
+    *(float *)(unit_data + 0x32c) = 1.0f;
+    if ((*(unsigned char *)actr_data & 0x20) != 0) {
+      *(float *)(unit_data + 0x330) = 1.0f;
+      return;
+    }
+    *(float *)(unit_data + 0x330) = 0.0f;
+  }
+}
+
 /* FUN_0003ca40 (0x3ca40) — actor_set_object_activation
  *
  * Sets activation state on the actor's associated objects. Depending on
@@ -1614,6 +2003,165 @@ void FUN_0003cff0(int actor_handle)
   if (encounter_handle != -1) {
     FUN_0005d420(encounter_handle);
   }
+}
+
+/* FUN_0003d6c0 (0x3d6c0) — actor_link_swarm_unit
+ *
+ * Link a unit into an actor's swarm unit list. If the unit is already linked
+ * to this actor as its swarm actor, returns true immediately (no-op).
+ * Otherwise, detaches any existing swarm/actor linkage on the unit, validates
+ * preconditions, inserts the unit at the head of the actor's swarm-unit linked
+ * list, allocates a swarm component if the actor belongs to an encounter swarm,
+ * updates encounter bookkeeping, assigns team affiliation, and activates the
+ * unit object.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3d6d4.
+ * Confirmed: object_get_and_verify_type(unit_index, 3) at 0x3d6e1.
+ * Confirmed: early-out if unit->swarm_actor_index == actor_handle at
+ * 0x3d6f1-0x3d6fe. Confirmed: data_new_at_index(swarm_component_data) if
+ * actor->swarm_index != -1 at 0x3d719. Confirmed: error(2, "unable to create
+ * any more swarm components...", 0x100) at 0x3d73d. Confirmed:
+ * FUN_0003ae60(unit->swarm_actor_index, unit_index) to detach old swarm at
+ * 0x3d75c. Confirmed: FUN_0003cc10(unit->actor_index, 0) to detach old actor at
+ * 0x3d772. Confirmed: FUN_0003ad80(actor_handle) to detach actor's existing
+ * unit at 0x3d784. Confirmed: assert checks (actor->meta.swarm byte at +6, unit
+ * counts) at 0x3d78c-0x3d84f. Confirmed: unit->swarm_actor_index = actor_handle
+ * at 0x3d855. Confirmed: unit->swarm_next_unit = actor->first_unit at 0x3d85e
+ * (unit+0x1ac = actor+0x24). Confirmed: unit->swarm_prev_unit = -1 at 0x3d864
+ * (unit+0x1b0). Confirmed: first_unit->swarm_prev_unit = unit_index if
+ * first_unit != -1 at 0x3d879-0x3d8b1. Confirmed: actor->first_unit =
+ * unit_index at 0x3d8bf (ESI+0x24 = EBX). Confirmed:
+ * FUN_0003cb50(actor->swarm_index@eax, new_sc@edi, unit_index@ebx) at 0x3d8c7.
+ * Confirmed: actor->swarm_unit_count (short at +0x1e) incremented at 0x3d8d2.
+ * Confirmed: short at actor+0x20 incremented at 0x3d8d9.
+ * Confirmed: encounter FUN_00059630(actor->encounter_index, unit_index) at
+ * 0x3d8f9. Confirmed: unit->team (word at unit+0x68) set from encounter biped
+ * data+2 at 0x3d8fe/0x3d908. Confirmed: actor->team (word at actor+0x3e) =
+ * unit->team at 0x3d913. Confirmed: FUN_0013ff50(unit_index, 0) at 0x3d917.
+ * Confirmed: object_activate(unit_index) or FUN_0013fb80(unit_index) at
+ * 0x3d92e/0x3d927. Confirmed: FUN_001adf10(unit_index, 1) at 0x3d939.
+ */
+int FUN_0003d6c0(int actor_handle, int unit_index)
+{
+  char *actor;
+  char *unit;
+  int swarm_component_handle;
+  char *first_unit;
+  char *biped;
+  char result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  unit = (char *)object_get_and_verify_type(unit_index, 3);
+
+  /* Early-out: unit is already linked to this actor as swarm actor. */
+  if (*(int *)(unit + 0x1a8) == actor_handle) {
+    return 1;
+  }
+
+  swarm_component_handle = -1;
+
+  /* Allocate swarm component if actor belongs to an encounter swarm. */
+  if (*(int *)(actor + 0x28) != -1) {
+    swarm_component_handle = data_new_at_index(*(data_t **)0x63259c);
+    result = (swarm_component_handle != -1);
+    if (!result) {
+      error(2, "unable to create any more swarm components (max %d)", 0x100);
+      return result;
+    }
+  }
+
+  /* Detach unit from its old swarm actor if it had one. */
+  if (*(int *)(unit + 0x1a8) != -1) {
+    FUN_0003ae60(*(int *)(unit + 0x1a8), unit_index);
+  }
+
+  /* Detach unit from its old actor if it had one. */
+  if (*(int *)(unit + 0x1a4) != -1) {
+    FUN_0003cc10(*(int *)(unit + 0x1a4), 0);
+  }
+
+  /* Detach actor's current unit if it had one. */
+  if (*(int *)(actor + 0x18) != -1) {
+    FUN_0003ad80(actor_handle);
+  }
+
+  /* Precondition assertions (source line 0x513-0x519). */
+  if (*(char *)(actor + 6) == 0) {
+    display_assert("actor->meta.swarm", "c:\\halo\\SOURCE\\ai\\actors.c", 0x513,
+                   1);
+    system_exit(-1);
+  }
+  if (*(int *)(actor + 0x18) != -1) {
+    display_assert("actor->meta.unit_index == NONE",
+                   "c:\\halo\\SOURCE\\ai\\actors.c", 0x514, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(unit + 0x1a4) != -1) {
+    display_assert("unit->unit.actor_index == NONE",
+                   "c:\\halo\\SOURCE\\ai\\actors.c", 0x515, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(unit + 0x1a8) != -1) {
+    display_assert("unit->unit.swarm_actor_index == NONE",
+                   "c:\\halo\\SOURCE\\ai\\actors.c", 0x516, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(actor + 0x1e) >= 0x10) {
+    display_assert(
+      "actor->meta.swarm_unit_count < MAXIMUM_NUMBER_OF_UNITS_PER_SWARM",
+      "c:\\halo\\SOURCE\\ai\\actors.c", 0x519, 1);
+    system_exit(-1);
+  }
+
+  /* Link unit into actor's swarm list at the head. */
+  *(int *)(unit + 0x1a8) = actor_handle;
+  *(int *)(unit + 0x1ac) =
+    *(int *)(actor + 0x24); /* unit->swarm_next = old first */
+  *(int *)(unit + 0x1b0) = -1; /* unit->swarm_prev = NONE */
+
+  /* If there was a previous first unit, point its prev back to this unit. */
+  if (*(int *)(actor + 0x24) != -1) {
+    first_unit = (char *)object_get_and_verify_type(*(int *)(actor + 0x24), 3);
+    if (*(int *)(first_unit + 0x1b0) != -1) {
+      display_assert("swarm_first_unit->unit.swarm_prev_unit_index == NONE",
+                     "c:\\halo\\SOURCE\\ai\\actors.c", 0x524, 1);
+      system_exit(-1);
+    }
+    *(int *)(first_unit + 0x1b0) = unit_index;
+  }
+
+  /* Update actor's first unit pointer. */
+  *(int *)(actor + 0x24) = unit_index;
+
+  /* Register swarm component if allocated. */
+  if (*(int *)(actor + 0x28) != -1) {
+    FUN_0003cb50(*(int *)(actor + 0x28), swarm_component_handle, unit_index);
+  }
+
+  /* Increment swarm unit counts. */
+  *(short *)(actor + 0x1e) += 1;
+  *(short *)(actor + 0x20) += 1;
+
+  /* Sync encounter data and set team affiliation. */
+  if (*(int *)(actor + 0x34) != -1) {
+    biped = (char *)datum_get(*(data_t **)0x5ab270, *(int *)(actor + 0x34));
+    FUN_00059630(*(int *)(actor + 0x34), unit_index);
+    *(short *)(unit + 0x68) = *(short *)(biped + 2);
+  }
+  *(short *)(actor + 0x3e) = *(short *)(unit + 0x68);
+
+  FUN_0013ff50(unit_index, 0);
+
+  /* Activate unit: if actor is in "active" mode, use deferred activation. */
+  if (*(char *)(actor + 0x13) != 0) {
+    FUN_0013fb80(unit_index);
+  } else {
+    object_activate(unit_index);
+  }
+
+  FUN_001adf10(unit_index, 1);
+
+  return 1;
 }
 
 /* FUN_0003d950 (0x3d950) — actor_erase_units
@@ -2610,6 +3158,136 @@ void FUN_0003e7a0(int actor_handle /* @<eax> */)
   }
 }
 
+/* FUN_0003eab0 (0x3eab0) — link an individual (non-swarm) unit to an actor.
+ *
+ * Detaches any prior actor-unit associations (both directions) before
+ * establishing the new link.  If the actor already holds a unit, that unit is
+ * detached via FUN_0003ad80.  If the unit already belongs to a different actor,
+ * that actor is notified via FUN_0003ae60 (swarm path) and FUN_0003cc10.
+ * After checks the function writes:
+ *   actor+0x18 = unit_index  (actor->meta.unit_index)
+ *   unit+0x1a4  = actor_handle (unit->unit.actor_index)
+ * If actor is part of an encounter (actor+0x34 != -1) it syncs the encounter
+ * biped data via FUN_00059630 and copies the team word (encounter_datum+2) into
+ * unit+0x68.  actor+0x3e is then set to unit+0x68 (actor->team = unit->team).
+ * If unit health (unit+0x6e) >= 100 the actor "fully_alive" byte (actor+0x1c)
+ * is set to 1, and if an encounter exists its alive-unit counter (short at
+ * encounter+0x1c) is incremented.
+ * Runs actor input update (FUN_0003dc20), FUN_0013ff50, and activates the unit
+ * (object_activate or FUN_0013fb80 depending on actor+0x13 dormant flag).
+ * Calls FUN_001adf10(unit_index, 1).  Always ends with
+ * FUN_0003aca0(actor_handle).
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3eac1.
+ * Confirmed: object_get_and_verify_type(unit_index, 3) at 0x3eace.
+ * Confirmed: early-out if unit->actor_index == actor_handle at 0x3ead5-0x3eae3.
+ * Confirmed: FUN_0003ae60(unit->swarm_actor_index, unit_index) at 0x3eaf6.
+ * Confirmed: FUN_0003cc10(unit->actor_index, 0) at 0x3eb0c.
+ * Confirmed: FUN_0003ad80(actor_handle) if actor->unit_index != -1 at 0x3eb1e.
+ * Confirmed: 4× display_assert + system_exit guard block at 0x3eb2b-0x3ebc4.
+ * Confirmed: actor+0x18 = unit_index (EBX) at 0x3ebc8.
+ * Confirmed: unit+0x1a4 = actor_handle at 0x3ebcb.
+ * Confirmed: datum_get(encounter_data, actor->encounter_handle) + FUN_00059630
+ *   at 0x3ebe1/0x3ebf0; unit+0x68 = encounter_datum+2 at 0x3ebff.
+ * Confirmed: actor+0x3e = unit+0x68 at 0x3ec07.
+ * Confirmed: unit+0x6e >= 100 → actor+0x1c = 1 at 0x3ec18 (scheduler hoisted).
+ * Confirmed: encounter+0x1c incremented when encounter != -1 at 0x3ec2e.
+ * Confirmed: FUN_0003dc20(actor_handle) at 0x3ec36.
+ * Confirmed: FUN_0013ff50(unit_index, 0) at 0x3ec3e.
+ * Confirmed: actor+0x13 selects FUN_0013fb80 vs object_activate at
+ * 0x3ec4e/0x3ec55. Confirmed: FUN_001adf10(unit_index, 1) at 0x3ec60.
+ * Confirmed: FUN_0003aca0(actor_handle) always called at 0x3ec6c. */
+void FUN_0003eab0(int actor_handle, int unit_index)
+{
+  char *actor;
+  char *unit;
+  char *encounter_datum;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  unit = (char *)object_get_and_verify_type(unit_index, 3);
+
+  /* Early-out: unit already linked to this actor. */
+  if (*(int *)(unit + 0x1a4) == actor_handle) {
+    FUN_0003aca0(actor_handle);
+    return;
+  }
+
+  /* Detach unit from its current swarm actor (if any). */
+  if (*(int *)(unit + 0x1a8) != -1) {
+    FUN_0003ae60(*(int *)(unit + 0x1a8), unit_index);
+  }
+
+  /* Detach unit from its current individual actor (if any). */
+  if (*(int *)(unit + 0x1a4) != -1) {
+    FUN_0003cc10(*(int *)(unit + 0x1a4), 0);
+  }
+
+  /* Detach actor's existing unit (if any). */
+  if (*(int *)(actor + 0x18) != -1) {
+    FUN_0003ad80(actor_handle);
+  }
+
+  /* Consistency checks: actor must not be a swarm, and both sides must now be
+   * unlinked before we form the new association. */
+  if (*(char *)(actor + 0x6) != '\0') {
+    display_assert("!actor->meta.swarm", "c:\\halo\\SOURCE\\ai\\actors.c",
+                   0x364, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(actor + 0x18) != -1) {
+    display_assert("actor->meta.unit_index == NONE",
+                   "c:\\halo\\SOURCE\\ai\\actors.c", 0x365, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(unit + 0x1a4) != -1) {
+    display_assert("unit->unit.actor_index == NONE",
+                   "c:\\halo\\SOURCE\\ai\\actors.c", 0x366, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(unit + 0x1a8) != -1) {
+    display_assert("unit->unit.swarm_actor_index == NONE",
+                   "c:\\halo\\SOURCE\\ai\\actors.c", 0x367, 1);
+    system_exit(-1);
+  }
+
+  /* Establish the actor <-> unit link. */
+  *(int *)(actor + 0x18) = unit_index;
+  *(int *)(unit + 0x1a4) = actor_handle;
+
+  /* Sync encounter biped data and team affiliation. */
+  if (*(int *)(actor + 0x34) != -1) {
+    encounter_datum =
+      (char *)datum_get(*(data_t **)0x5ab270, *(int *)(actor + 0x34));
+    FUN_00059630(*(int *)(actor + 0x34), unit_index);
+    *(short *)(unit + 0x68) = *(short *)(encounter_datum + 2);
+  }
+  *(short *)(actor + 0x3e) = *(short *)(unit + 0x68);
+
+  /* If unit is at full health, mark actor fully alive and bump encounter
+   * counter (MSVC hoisted the actor+0x1c store before the encounter_handle
+   * branch). */
+  if (*(short *)(unit + 0x6e) >= 100) {
+    *(char *)(actor + 0x1c) = 1;
+    if (*(int *)(actor + 0x34) != -1) {
+      encounter_datum =
+        (char *)datum_get(*(data_t **)0x5ab270, *(int *)(actor + 0x34));
+      *(short *)(encounter_datum + 0x1c) += 1;
+    }
+  }
+
+  /* Update actor input state, finalize unit flags, and activate unit. */
+  FUN_0003dc20(actor_handle);
+  FUN_0013ff50(unit_index, 0);
+  if (*(char *)(actor + 0x13) != '\0') {
+    FUN_0013fb80(unit_index);
+  } else {
+    object_activate(unit_index);
+  }
+  FUN_001adf10(unit_index, 1);
+
+  FUN_0003aca0(actor_handle);
+}
+
 /* FUN_0003ec80 (0x3ec80) — actor_activate (full AI init sequence for one actor)
  *
  * Called from FUN_0003f5f0 (ai.obj) when actor+0x6a > 0 (activation counter
@@ -2737,6 +3415,168 @@ void FUN_0003ec80(int actor_handle /* @<esi> */)
   FUN_0003e7a0(actor_handle);
 
   *(int *)0x2c8728 = -1;
+}
+
+/* FUN_0003edc0 (0x3edc0) — allocate and initialize an actor record, then link
+ * it to its unit.
+ *
+ * For individual (non-swarm) actors (flags==0): verifies the unit can accept an
+ * actor (object_try_and_get_and_verify_type succeeds and bit 2 at +0xb6 is
+ * clear). For swarm actors (flags!=0): iterates the encounter's actor list
+ * looking for an existing swarm actor that has the same actv_tag, is not at the
+ * exclude handle, has fewer than 16 swarm units, and (if param6==0) matches the
+ * squad index.
+ *
+ * Then creates a fresh actor datum via FUN_0003c410 (which allocates from
+ * actor_data and initializes all fields). Sets encounter/squad assignment via
+ * FUN_00059740 (no encounter) or FUN_0005d200 (with encounter). Sets the
+ * encounter_flag, squad starting location index, squad position index,
+ * swarm-flag, and marker byte on the actor record.
+ *
+ * Validates that the actor variant's swarm flag matches the actor type's swarm
+ * flag (from the actor_type field at actor+4 via FUN_0003a800). On mismatch,
+ * prints a warning and destroys the allocated actor.
+ *
+ * Finally links the unit to the actor: FUN_0003eab0 for individual,
+ * FUN_0003d6c0 for swarm. On swarm link failure, destroys the actor if it has
+ * no swarm units.
+ *
+ * Returns actor handle, or -1 on failure.
+ *
+ * Confirmed: 12 cdecl args (ADD ESP,0x30 at 0x3f2a1 in FUN_0003f030).
+ * Confirmed: iter[3] at [EBP-0xc]: FUN_00059a00 writes iter[0..2], FUN_00059a50
+ *   returns datum_get(actor_data,iter[1]) and advances iter[2] to next handle.
+ * Confirmed: actor_data (DAT_006325a4) at 0x3ee88, encounter_data (0x5ab270) at
+ *   0x3eeaa. Confirmed: handle-tag construction (MOVSX+SHL+OR) at
+ * 0x3eec2-0x3eece. Confirmed: FUN_0003a800 takes int16_t actor_type, returns
+ * char swarm flag. Confirmed: strings "swarm" at 0x256cd4, "individual" at
+ * 0x256d2c, format string at 0x257468. */
+int FUN_0003edc0(char flags, int unit_index, int actv_tag_index,
+                 int encounter_index, int squad_index, char param6,
+                 int exclude_actor_handle, char encounter_flag,
+                 short starting_location_index, short squad_position_index,
+                 unsigned short param11, char param12)
+{
+  char *actor;
+  char actor_is_swarm;
+  char type_is_swarm;
+  char *encounter_ptr;
+  int actor_handle;
+  int iter[3];
+  int current_actor;
+  short default_pos;
+  const char *type_str;
+  const char *variant_name;
+
+  if (unit_index == -1 || actv_tag_index == -1) {
+    return -1;
+  }
+
+  if (flags == 0) {
+    /* Individual actor: check the unit is valid and can accept an actor. */
+    actor = (char *)object_try_and_get_and_verify_type(unit_index, 1);
+    if (actor == NULL || (*(unsigned char *)(actor + 0xb6) & 4) != 0) {
+      return -1;
+    }
+  } else {
+    /* Swarm actor: search existing encounter actors for a matching swarm actor
+     * to attach to. */
+    FUN_00059a00(iter, encounter_index);
+    actor = (char *)FUN_00059a50(iter);
+    current_actor = iter[1];
+    while (actor != 0) {
+      if (*(char *)(actor + 0x6) != 0 &&
+          current_actor != exclude_actor_handle &&
+          *(short *)(actor + 0x1e) < 0x10 &&
+          *(int *)(actor + 0x5c) == actv_tag_index &&
+          (param6 != 0 || *(short *)(actor + 0x3a) == (short)squad_index)) {
+        if (current_actor != -1) {
+          actor_handle = current_actor;
+          goto actor_found;
+        }
+        break;
+      }
+      actor = (char *)FUN_00059a50(iter);
+      current_actor = iter[1];
+    }
+  }
+
+  /* Allocate a new actor datum from actor_data. */
+  actor_handle = FUN_0003c410(actv_tag_index);
+  if (actor_handle == -1) {
+    return -1;
+  }
+  actor = (char *)datum_get(actor_data, actor_handle);
+
+  /* Assign encounter/squad. */
+  if (encounter_index == -1) {
+    FUN_00059740(actor_handle);
+  } else {
+    encounter_ptr = (char *)datum_get(*(data_t **)0x5ab270, encounter_index);
+    if ((encounter_index & 0xffff0000) == 0) {
+      encounter_index =
+        (encounter_index & 0xffff) | ((int)*(short *)encounter_ptr << 0x10);
+    }
+    FUN_0005d200(actor_handle, encounter_index, squad_index, 0);
+  }
+
+  /* Set encounter membership flag and handle special init for encounter actors.
+   */
+  if (encounter_flag != 0) {
+    *(short *)(actor + 0x6a) = 0;
+    if (*(char *)(actor + 8) != 0) {
+      FUN_0003ca40(actor_handle, 0);
+    }
+  } else {
+    *(short *)(actor + 0x6a) = 2;
+  }
+
+  /* Set squad starting location and position indices. */
+  *(short *)(actor + 0x60) = starting_location_index;
+  *(short *)(actor + 0x62) = squad_position_index;
+  if (squad_position_index == -1 || squad_position_index == 0) {
+    default_pos = (short)FUN_0001d730(starting_location_index);
+    *(short *)(actor + 0x62) = default_pos;
+  }
+
+  /* Store remaining actor fields. */
+  actor_is_swarm = *(char *)(actor + 0x6);
+  *(char *)(actor + 0x8e) = 0;
+  *(short *)(actor + 0x92) = 2;
+  *(short *)(actor + 0x90) = (short)param11;
+  *(char *)(actor + 0x68) = param12;
+
+  /* Validate swarm flag matches actor type. */
+  type_is_swarm = FUN_0003a800((int16_t) * (short *)(actor + 0x4));
+  if (actor_is_swarm != type_is_swarm) {
+    type_str = "swarm";
+    if (actor_is_swarm == 0) {
+      type_str = "individual";
+    }
+    variant_name = tag_name_strip_path(tag_get_name(actv_tag_index));
+    error(2,
+          "%s actor variant %s cannot have type %s (swarm flag does not match)",
+          type_str, variant_name);
+    FUN_0003cc10(actor_handle, 0);
+    return -1;
+  }
+
+actor_found:
+  /* Link unit to actor. */
+  if (flags == 0) {
+    FUN_0003eab0(actor_handle, unit_index);
+  } else {
+    if (FUN_0003d6c0(actor_handle, unit_index) == 0) {
+      actor = (char *)datum_get(actor_data, actor_handle);
+      if (*(short *)(actor + 0x1e) == 0) {
+        FUN_0003cc10(actor_handle, 0);
+      }
+      FUN_0003aca0(-1);
+      return -1;
+    }
+  }
+  FUN_0003aca0(actor_handle);
+  return actor_handle;
 }
 
 /* FUN_0003f030 (0x3f030) — create an AI actor with its associated unit object.
