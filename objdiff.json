@@ -40,6 +40,22 @@
       }
     },
     {
+      "name": "halo/encounters",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/ai/encounters.c.obj",
+      "base_path": "delinked/encounters.obj",
+      "metadata": {
+        "source_path": "src/halo/ai/encounters.c"
+      }
+    },
+    {
+      "name": "halo/actor_moving",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/ai/actor_moving.c.obj",
+      "base_path": "delinked/actor_moving.obj",
+      "metadata": {
+        "source_path": "src/halo/ai/actor_moving.c"
+      }
+    },
+    {
       "name": "halo/breakable_surfaces",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/physics/breakable_surfaces.c.obj",
       "base_path": "delinked/breakable_surfaces.obj",
@@ -1005,6 +1021,22 @@
       "base_path": "delinked/real_math_FUN_0010e040.obj",
       "metadata": {
         "source_path": "src/halo/math/real_math.c"
+      }
+    },
+    {
+      "name": "halo/damage",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/objects/damage.c.obj",
+      "base_path": "delinked/damage.obj",
+      "metadata": {
+        "source_path": "src/halo/objects/damage.c"
+      }
+    },
+    {
+      "name": "halo/model_animations",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/models/model_animations.c.obj",
+      "base_path": "delinked/model_animations.obj",
+      "metadata": {
+        "source_path": "src/halo/models/model_animations.c"
       }
     }
   ]

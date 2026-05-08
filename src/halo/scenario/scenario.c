@@ -78,6 +78,58 @@ void scenario_location_reset(int *location)
   *(int16_t *)((char *)location + 6) = NONE;
 }
 
+/* FUN_0018e500 (0x18e500) — look up a material type entry from game globals.
+ *
+ * Given a material_type index (int16_t), validate it and return a pointer to
+ * the corresponding element from the game_globals material_types tag block at
+ * offset 0x194. Each element is 0x374 bytes.
+ *
+ * If game_globals is not loaded, asserts. If material_type is out of range
+ * (not NONE and not in [0, NUMBER_OF_MATERIAL_TYPES-1] where
+ * NUMBER_OF_MATERIAL_TYPES==33), asserts. If material_type is NONE (-1) or the
+ * index is >= the block count, returns a pointer to a static fallback buffer at
+ * 0x4d8700, initialising it with a -1 sentinel on the first call.
+ *
+ * Confirmed: assert "global_game_globals" at line 0xdd (221).
+ * Confirmed: assert string "material_type==NONE || ..." at line 0x11e (286).
+ * Confirmed: block at game_globals+0x194, element size 0x374.
+ * Confirmed: fallback initialises dword at 0x4d8a70 to -1, byte 0x4d8a74 to 1.
+ * Confirmed: returns &DAT_004d8700 when index is NONE or out of range.
+ */
+void *FUN_0018e500(int16_t material_type)
+{
+  char *game_globals;
+  int index;
+
+  if (!*(void **)0x5064d4) {
+    display_assert("global_game_globals",
+                   "c:\\halo\\SOURCE\\scenario\\scenario.c", 0xdd, 1);
+    system_exit(-1);
+  }
+  game_globals = *(char **)0x5064d4;
+
+  if (material_type != (int16_t)NONE &&
+      (material_type < 0 || material_type >= 33)) {
+    display_assert("material_type==NONE || (material_type>=0 && "
+                   "material_type<NUMBER_OF_MATERIAL_TYPES)",
+                   "c:\\halo\\SOURCE\\scenario\\scenario.c", 0x11e, 1);
+    system_exit(-1);
+  }
+
+  if (material_type >= 0) {
+    index = (int)material_type;
+    if (index < *(int *)(game_globals + 0x194)) {
+      return tag_block_get_element(game_globals + 0x194, index, 0x374);
+    }
+  }
+
+  if (!*(uint8_t *)0x4d8a74) {
+    *(int *)0x4d8a70 = NONE;
+    *(uint8_t *)0x4d8a74 = 1;
+  }
+  return (void *)0x4d8700;
+}
+
 /* FUN_0018e720 (0x18e720) — bsp3d_find_leaf_point
  *
  * Looks up the BSP3D leaf containing a given 3D point by traversing the
@@ -257,6 +309,7 @@ bool scenario_switch_structure_bsp(__int16 bsp_index)
 bool scenario_load(const char *map_name)
 {
   int tag_index;
+  int matg_index;
   char *scenario_tag;
   bool result = 0;
 
@@ -291,10 +344,8 @@ bool scenario_load(const char *map_name)
   }
 
   /* load game globals tag ("matg") */
-  {
-    int matg_index = tag_loaded(0x6d617467, "globals\\globals");
-    *(char **)0x5064d4 = (char *)tag_get(0x6d617467, matg_index);
-  }
+  matg_index = tag_loaded(0x6d617467, "globals\\globals");
+  *(char **)0x5064d4 = (char *)tag_get(0x6d617467, matg_index);
 
   if (scenario_switch_structure_bsp(0))
     return 1;
@@ -319,6 +370,7 @@ bool scenario_load(const char *map_name)
 void scenario_location_from_point(void *location_out, void *point)
 {
   uint32_t *loc = (uint32_t *)location_out;
+  char *element;
   uint32_t leaf;
 
   if (*(void **)0x5064d8 == 0) {
@@ -341,8 +393,8 @@ void scenario_location_from_point(void *location_out, void *point)
     system_exit(-1);
   }
 
-  char *element = (char *)tag_block_get_element(
-    (char *)*(void **)0x5064e0 + 0xe0, leaf & 0x7fffffff, 0x10);
+  element = (char *)tag_block_get_element((char *)*(void **)0x5064e0 + 0xe0,
+                                          leaf & 0x7fffffff, 0x10);
   *(int16_t *)&loc[1] = *(int16_t *)(element + 8);
 }
 
@@ -450,6 +502,7 @@ bool FUN_0018f3e0(void *location, void *position, int16_t *out_sky_index)
   char *bsp;
   int16_t node_index;
   char *node_element;
+  char *cluster_element;
   int fog_index;
   char *fog_tag;
   bool is_indoor;
@@ -488,7 +541,7 @@ bool FUN_0018f3e0(void *location, void *position, int16_t *out_sky_index)
 
   /* fallback: read sky index from the cluster */
   if (*(int16_t *)((char *)location + 4) != NONE) {
-    char *cluster_element = (char *)tag_block_get_element(
+    cluster_element = (char *)tag_block_get_element(
       bsp + 0x134, (int)*(int16_t *)((char *)location + 4), 0x68);
     sky_index = *(int16_t *)(cluster_element + 0x8);
   }
@@ -535,6 +588,7 @@ float FUN_0018f510(void *location, void *position)
   float *plane;
   int tag_index;
   char *fog_tag;
+  float d;
 
   if (*(int16_t *)((char *)location + 4) == NONE)
     return -3.4028235e+38f;
@@ -572,7 +626,7 @@ float FUN_0018f510(void *location, void *position)
     return -3.4028235e+38f;
 
   if (plane != NULL) {
-    float d = FUN_00099500(plane, position);
+    d = FUN_00099500(plane, position);
     return -(d + *(float *)(fog_tag + 0x74));
   }
 

@@ -16,6 +16,38 @@ void FUN_00036860(int actor_handle)
   csmemset(actor + 0x2ec, 0, 0x64);
 }
 
+/* FUN_00036dc0 (0x36dc0)
+ * Notify an actor's unit of a combat stimulus and optionally clamp
+ * the actor's "recently perceived threat" counter.
+ *
+ * If the actor has an associated unit (actor+0x18 != -1) this calls
+ * FUN_00046f10 (ai_communication) with type 0x16 when flags_bit1 is
+ * set, or type 0x17 when flags_bit1 is clear. The remaining six args
+ * are (unit_handle, -1, -1, -1, -1, 0).
+ *
+ * If flags_bit0 is set and actor->field_0x308 (int16) is less than 6,
+ * the field is clamped to 6 and actor->field_0x30c is set to -1.
+ *
+ * Confirmed: 3 cdecl args, void return, ADD ESP,0xc at all three call
+ * sites (0x560af, 0x56499, 0x5dd9b). */
+void FUN_00036dc0(int actor_handle, char flags_bit1, char flags_bit0)
+{
+  char *actor;
+  int unit_handle;
+  int type;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  unit_handle = *(int *)(actor + 0x18);
+  if (unit_handle != -1) {
+    type = flags_bit1 ? 0x16 : 0x17;
+    FUN_00046f10(type, unit_handle, -1, -1, -1, -1, 0);
+  }
+  if (flags_bit0 && *(short *)(actor + 0x308) < 6) {
+    *(short *)(actor + 0x308) = 6;
+    *(int *)(actor + 0x30c) = -1;
+  }
+}
+
 /* FUN_00036e30 (0x36e30)
  * Mark an actor as having an active approach. Looks up the actor
  * record in actor_data and sets the byte flag at offset +0x2ed to 1.
@@ -231,6 +263,72 @@ void actors_dispose_from_old_map(void)
   data_make_invalid(actor_data);
   data_make_invalid(swarm_data);
   data_make_invalid(swarm_component_data);
+}
+
+/* FUN_0003aac0 (0x3aac0) — set team index on all units belonging to an actor.
+ *
+ * Resolves the actor record via actor_data and writes param team_index to the
+ * team field (offset +0x68) of every unit object associated with the actor.
+ * Three cases are handled based on the swarm flag (actor+0x6) and the swarm
+ * handle (actor+0x28):
+ *
+ *   1. Non-swarm actor (actor[6] == 0):
+ *      If actor->unit_handle (actor+0x18) != -1, write team_index to
+ *      unit[0x68] via object_get_and_verify_type.
+ *
+ *   2. Swarm actor with swarm handle (actor[0x28] != -1):
+ *      Resolve the swarm record via swarm_data. Iterate all member handles
+ *      stored at swarm[0x18 + i*4] (count = swarm[2], short) and write
+ *      team_index to each unit[0x68].
+ *
+ *   3. Swarm actor without swarm handle (actor[0x28] == -1):
+ *      Walk the linked list starting at actor[0x24], following unit[0x1ac]
+ *      until -1, writing team_index to each unit[0x68].
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3aad0.
+ * Confirmed: actor[6] swarm-flag test at 0x3aadb-0x3aadd.
+ * Confirmed: non-swarm path — actor[0x18] guard + object_get_and_verify_type
+ *   at 0x3ab52-0x3ab62; write DX=[EBP+0xc] to [EAX+0x68] at 0x3ab66-0x3ab69.
+ * Confirmed: swarm-handle path — datum_get(swarm_data, actor[0x28]) at
+ *   0x3aaef; loop over swarm[2] entries at 0x3ab01-0x3ab27; BX=[EBP+0xc]
+ *   stored to [EAX+0x68] at 0x3ab19.
+ * Confirmed: linked-list path — actor[0x24] at 0x3ab28; loop via unit[0x1ac]
+ *   at 0x3ab34-0x3ab4c; SI=[EBP+0xc] stored to [EAX+0x68] at 0x3ab3c. */
+void FUN_0003aac0(int actor_handle, int16_t team_index)
+{
+  char *actor;
+  char *swarm;
+  char *unit;
+  int unit_handle;
+  short i;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(char *)(actor + 6) == 0) {
+    /* Non-swarm actor: set team on the single associated unit */
+    unit_handle = *(int *)(actor + 0x18);
+    if (unit_handle != -1) {
+      unit = (char *)object_get_and_verify_type(unit_handle, 3);
+      *(int16_t *)(unit + 0x68) = team_index;
+    }
+  } else if (*(int *)(actor + 0x28) == -1) {
+    /* Swarm actor with no swarm handle: walk the unit linked list */
+    unit_handle = *(int *)(actor + 0x24);
+    while (unit_handle != -1) {
+      unit = (char *)object_get_and_verify_type(unit_handle, 3);
+      *(int16_t *)(unit + 0x68) = team_index;
+      unit_handle = *(int *)(unit + 0x1ac);
+    }
+  } else {
+    /* Swarm actor with swarm handle: iterate swarm member array */
+    swarm = (char *)datum_get(swarm_data, *(int *)(actor + 0x28));
+    i = 0;
+    while (i < *(short *)(swarm + 2)) {
+      unit = (char *)object_get_and_verify_type(
+        *(int *)(swarm + 0x18 + (int)i * 4), 3);
+      i++;
+      *(int16_t *)(unit + 0x68) = team_index;
+    }
+  }
 }
 
 /* FUN_0003ac20 (0x3ac20) — actor_check_unit_activation_logic
@@ -1151,6 +1249,65 @@ void FUN_0003bbf0(int actor_handle /* @<eax> */)
   *(float *)(actor + 0x6e8) = zero_vec[2];
 
   *(short *)(actor + 0x6ec) = (short)0xffff;
+}
+
+/* FUN_0003bc90 (0x3bc90) — Try to acquire a navigation path for the actor.
+ *
+ * If the actor already has a path slot (actor[0x164] != -1), returns
+ * immediately. Otherwise copies actor[0x12c..0x134] (3 floats, actor position)
+ * to actor[0x168..0x170] as the starting position. If the actor is not paused
+ * for path (actor[0x99] == 0):
+ *   - If not in a vehicle (actor[0x158] == -1): calls
+ *     object_try_and_get_and_verify_type(actor[0x18], 1) to verify the unit
+ *     exists; if so calls FUN_001a1bc0(actor[0x18], actor+0x168) and stores
+ *     the resulting path slot in actor[0x164].
+ *   - If in a vehicle and vehicle_count (int16_t actor[0x15e]) is 2 or 3:
+ *     calls vehicle_get_estimated_position(actor[0x158], actor+0x168) and
+ *     stores the result in actor[0x164], then returns immediately.
+ *
+ * Confirmed: datum_get(actors_globals, actor_handle) at 0x3bc9f.
+ * Confirmed: tag_get('actr', actor[0x58]) result discarded at 0x3bcaf.
+ * Confirmed: actor[0x164] != -1 guard at 0x3bcbd.
+ * Confirmed: 3-dword copy [0x12c..0x134] → [0x168..0x170] at 0x3bcc9-0x3bcde.
+ * Confirmed: actor[0x99] test at 0x3bce1.
+ * Confirmed: CMP vehicle_count,2; JL skip; CMP,3; JG skip at 0x3bcfd-0x3bd05.
+ */
+void FUN_0003bc90(int actor_handle)
+{
+  char *actor;
+  int *src;
+  vector3_t *pos;
+  int vehicle;
+  int vehicle_count;
+
+  actor = (char *)datum_get(*(void **)0x6325a4, actor_handle);
+  tag_get(0x61637472, *(int *)(actor + 0x58));
+  if (*(int *)(actor + 0x164) != -1)
+    goto done;
+
+  src = (int *)(actor + 0x12c);
+  pos = (vector3_t *)(actor + 0x168);
+  ((int *)pos)[0] = src[0];
+  ((int *)pos)[1] = src[1];
+  ((int *)pos)[2] = src[2];
+
+  if (*(char *)(actor + 0x99) != 0)
+    goto done;
+
+  vehicle = *(int *)(actor + 0x158);
+  if (vehicle != -1) {
+    vehicle_count = *(int16_t *)(actor + 0x15e);
+    if (vehicle_count > 1 && vehicle_count < 4) {
+      *(int *)(actor + 0x164) = vehicle_get_estimated_position(vehicle, pos);
+      return;
+    }
+    goto done;
+  }
+
+  if (object_try_and_get_and_verify_type(*(int *)(actor + 0x18), 1) != 0)
+    *(int *)(actor + 0x164) = FUN_001a1bc0(*(int *)(actor + 0x18), pos);
+
+done:;
 }
 
 /* FUN_0003bde0 (0x3bde0) — actor_fill_unit_input_block
