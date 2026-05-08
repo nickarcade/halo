@@ -1,9 +1,9 @@
 {
-  "recorded_animations.obj": {
-    "obj_path": "/mnt/g/dev/halo/delinked/recorded_animations.obj",
-    "source": "cutscene/recorded_animations.c",
-    "addr_range": "0x00094bb0-0x00095480",
-    "func_count": 5,
-    "error": "RPC error INTERNAL_ERROR: java.io.FileNotFoundException: \\mnt\\g\\dev\\halo\\delinked\\recorded_animations.obj (The system cannot find the path specified)"
+  "scenario.obj": {
+    "obj_path": "/mnt/g/dev/halo/delinked/scenario.obj",
+    "source": "scenario/scenario.c",
+    "addr_range": "0x0018e3c0-0x0018f5e0",
+    "func_count": 2,
+    "error": "RPC error INTERNAL_ERROR: java.io.FileNotFoundException: \\mnt\\g\\dev\\halo\\delinked\\scenario.obj (The system cannot find the path specified)"
   }
 }
