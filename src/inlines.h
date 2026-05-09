@@ -53,6 +53,7 @@ size_t strlen(const char *s);
 #ifdef _XBOX_PRAGMA_INTRINSICS
 #pragma intrinsic(memcpy)
 #pragma intrinsic(strlen)
+#pragma intrinsic(sqrt)
 #undef _XBOX_PRAGMA_INTRINSICS
 #endif
 
@@ -90,7 +91,7 @@ size_t strlen(const char *s)
 
 #define xbox_sinf   sinf
 #define xbox_cosf   cosf
-#define xbox_sqrtf  sqrtf
+#define xbox_sqrtf(x)  ((float)sqrt((double)(x)))
 #define xbox_fabsf  fabsf
 #define xbox_acosf  acosf
 #define xbox_atan2  atan2_
@@ -185,6 +186,9 @@ static inline double xbox_log10(double x)
 static inline double xbox_pow(double base, double exponent)
 {
   double result;
+  /* fyl2x requires base > 0; log2(0) = -inf produces NaN via -inf - -inf */
+  if (base <= 0.0)
+    return 0.0;
   asm volatile (
     "fyl2x\n\t"
     "fld %%st(0)\n\t"
@@ -240,5 +244,8 @@ static inline size_t xbox_strlen(const char *s)
   #define pow     xbox_pow
   #define memcpy  xbox_memcpy
   #define strlen  xbox_strlen
+#endif
+#ifdef XBOX_COMPILER_MSVC_X86
+  #define sqrtf   xbox_sqrtf
 #endif
 #endif

@@ -8,6 +8,7 @@
 	halo/ai/actors.c
 	halo/ai/ai.c
 	halo/ai/encounters.c
+	halo/ai/path.c
 	halo/ai/props.c
 	halo/bitmaps/bitmaps.c
 	halo/bitmaps/tiff_file.c
@@ -74,6 +75,7 @@
 	halo/main/debug_keys.c
 	halo/main/main.c
 	halo/main/telnet_console.c
+	halo/memory/circular_queue.c
 	halo/memory/data.c
 	halo/memory/lruv_cache.c
 	halo/memory/memory_pool.c
@@ -110,6 +112,7 @@
 	halo/sound/sound_classes.c
 	halo/sound/sound_dsound_xbox.c
 	halo/sound/sound_manager.c
+	halo/objects/damage.c
 	halo/objects/objects.c
 	halo/objects/widgets/widgets.c
 	halo/text/draw_string.c

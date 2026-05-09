@@ -648,6 +648,99 @@ void FUN_0013c560(int object_handle);
 void FUN_0013c620(int object_handle);
 
 /*
+ * FUN_0013c6e0 — dispatch a region-destroyed callback through the object
+ * type definition's extension table.
+ *
+ * Resolves the object's type, looks up its type definition via FUN_0013c100,
+ * then walks the pointer array at type_def+0x5c. For each non-NULL entry,
+ * reads a function pointer at entry+0x3c and calls it with the original
+ * three arguments (object_handle, param_2, param_3).
+ *
+ * Called from damage.c (FUN_00137690) when a region is destroyed, passing
+ * (object_handle, region_index, region_flags).
+ *
+ * Confirmed: cdecl, 3 args (ADD ESP,0xc at caller and inside loop).
+ * Confirmed: MOVSX word [EAX+0x64] — reads object type as int16_t.
+ * Confirmed: PUSH -1, PUSH EBX -> object_get_and_verify_type(handle, -1).
+ * Confirmed: loop counter is int16_t (MOVSX EAX,SI at 0x13c728).
+ * Confirmed: vtable offset 0x3c (MOV EAX,[EAX+0x3c] at 0x13c712).
+ * Confirmed: indirect call passes all 3 params (PUSH ECX/EDX/EBX at 0x13c71f-0x13c721).
+ */
+/* 0x13c6e0 */
+void FUN_0013c6e0(int object_handle, int region_index, unsigned int flags)
+{
+  typedef void (*type_callback_t)(int, int, unsigned int);
+  char *obj;
+  char *type_def;
+  char *entry;
+  type_callback_t fn;
+  int16_t i;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  type_def = (char *)FUN_0013c100(*(int16_t *)(obj + 0x64));
+
+  i = 0;
+  entry = *(char **)(type_def + 0x5c);
+  while (entry != NULL) {
+    fn = *(type_callback_t *)(entry + 0x3c);
+    if (fn != NULL) {
+      fn(object_handle, region_index, flags);
+    }
+    i = i + 1;
+    entry = *(char **)(type_def + 0x5c + (int)(int16_t)i * 4);
+  }
+}
+
+/*
+ * FUN_0013c740 — walk the object type definition extension table and check
+ * whether any extension's callback at offset +0x40 returns true.
+ *
+ * Resolves the object's type via object_get_and_verify_type(-1), looks up
+ * the type definition via FUN_0013c100, then walks the NULL-terminated
+ * pointer array at type_def+0x5c. For each non-NULL entry, reads a function
+ * pointer at entry+0x40 and calls it with the object handle. If any callback
+ * returns non-zero, the function returns 1 (sticky OR).
+ *
+ * Called from FUN_00136840, which recursively walks child objects. If this
+ * function returns 0, the caller recurses into the child.
+ *
+ * Confirmed: cdecl, 1 arg (ADD ESP,0x4 after indirect CALL).
+ * Confirmed: returns char/bool in AL (MOV AL,BL at 0x13c79a).
+ * Confirmed: MOVSX EAX,SI — loop counter is int16_t.
+ * Confirmed: vtable offset +0x40 (MOV EAX,[EAX+0x40] at 0x13c772).
+ * Confirmed: XOR BL,BL — result initialized to 0, set to 1 on any true return.
+ */
+/* 0x13c740 */
+char FUN_0013c740(int object_handle)
+{
+  typedef char (*type_check_callback_t)(int);
+  char *obj;
+  char *type_def;
+  char *entry;
+  type_check_callback_t fn;
+  char result;
+  int16_t i;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  type_def = (char *)FUN_0013c100(*(int16_t *)(obj + 0x64));
+
+  result = 0;
+  i = 0;
+  entry = *(char **)(type_def + 0x5c);
+  while (entry != NULL) {
+    fn = *(type_check_callback_t *)(entry + 0x40);
+    if (fn != NULL) {
+      if (fn(object_handle) != 0) {
+        result = 1;
+      }
+    }
+    i = i + 1;
+    entry = *(char **)(type_def + 0x5c + (int)(int16_t)i * 4);
+  }
+  return result;
+}
+
+/*
  * object_try_and_get_and_verify_type — resolve a datum handle to its
  * object_data_t*, returning NULL if the handle is invalid or the object's
  * type is not among the bits in type_mask.
@@ -1097,6 +1190,84 @@ void *object_header_block_reference_get(int object_handle, void *reference)
 }
 
 int FUN_0013e050(int object_handle, int offset, int size);
+/*
+ * FUN_0013c800 — dispatch an animation-block initializer callback through the
+ * object type definition's extension table.
+ *
+ * Resolves the object's type, looks up its type definition via FUN_0013c100,
+ * then walks the NULL-terminated pointer array at type_def+0x5c. For each
+ * non-NULL entry, reads a function pointer at entry+0x48 and calls it with
+ * (object_handle, block_data).
+ *
+ * Called from FUN_0013e1a0 after resolving the animation block reference,
+ * passing the object handle and the resolved block data pointer.
+ *
+ * Confirmed: cdecl, 2 args (ADD ESP,0x8 after indirect CALL).
+ * Confirmed: MOVSX word [EAX+0x64] — reads object type as int16_t.
+ * Confirmed: PUSH -1, PUSH EBX -> object_get_and_verify_type(handle, -1).
+ * Confirmed: loop counter is int16_t (MOVSX EDX,SI at 0x13c844).
+ * Confirmed: vtable offset 0x48 (MOV EAX,[EAX+0x48] at 0x13c832).
+ * Confirmed: indirect call passes 2 params (PUSH ECX, PUSH EBX at 0x13c83c-0x13c83d).
+ */
+/* 0x13c800 */
+void FUN_0013c800(int object_handle, void *block_data)
+{
+  typedef void (*type_anim_callback_t)(int, void *);
+  char *obj;
+  char *type_def;
+  char *entry;
+  type_anim_callback_t fn;
+  int16_t i;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  type_def = (char *)FUN_0013c100(*(int16_t *)(obj + 0x64));
+
+  i = 0;
+  entry = *(char **)(type_def + 0x5c);
+  while (entry != NULL) {
+    fn = *(type_anim_callback_t *)(entry + 0x48);
+    if (fn != NULL) {
+      fn(object_handle, block_data);
+    }
+    i = i + 1;
+    entry = *(char **)(type_def + 0x5c + (int)(int16_t)i * 4);
+  }
+}
+
+/*
+ * FUN_0013e1a0 — run animation-block initializer callbacks for an object.
+ *
+ * Resolves the object's tag definition and checks whether both a model
+ * (tag+0x34) and an animation graph (tag+0x44) are present. If so,
+ * resolves the object's animation block reference at object_data+0x1a0
+ * via object_header_block_reference_get, then dispatches through type
+ * callbacks via FUN_0013c800.
+ *
+ * Confirmed: single register arg object_handle in EDI.
+ * Confirmed: PUSH -1, PUSH EDI -> object_get_and_verify_type(handle, -1).
+ * Confirmed: PUSH EAX, PUSH 0x6f626a65 -> tag_get('obje', obj[0]).
+ * Confirmed: ADD ESP,0x10 cleans both calls (4 pushes).
+ * Confirmed: CMP [EAX+0x34],-1 checks model tag index.
+ * Confirmed: CMP [EAX+0x44],-1 checks animation graph tag index.
+ * Confirmed: ADD ESI,0x1a0 -> object_data+0x1a0 is the animation block ref.
+ * Confirmed: PUSH ESI, PUSH EDI -> object_header_block_reference_get(handle, obj+0x1a0).
+ * Confirmed: PUSH EAX (return value), PUSH EDI -> FUN_0013c800(handle, block).
+ * Confirmed: ADD ESP,0x10 cleans both calls (4 pushes).
+ */
+/* 0x13e1a0 */
+void FUN_0013e1a0(int object_handle /* @<edi> */)
+{
+  char *obj;
+  char *tag_data;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  tag_data = (char *)tag_get(0x6f626a65, *(int *)obj);
+
+  if (*(int *)(tag_data + 0x34) != -1 && *(int *)(tag_data + 0x44) != -1) {
+    void *block = object_header_block_reference_get(object_handle, obj + 0x1a0);
+    FUN_0013c800(object_handle, block);
+  }
+}
 
 /* Remove object_handle from a sibling linked list rooted at list_head.
  * Walks the chain at offset 0xc4 (next_sibling) until it finds the entry
@@ -2168,6 +2339,67 @@ void object_adjust_interpolation_position(int object_handle, vector3_t *delta)
     block[5] += delta->y;
     block[6] += delta->z;
   }
+}
+
+/* Set region permutation by marker name (0x1402c0).
+ * Searches model regions for a permutation whose name matches marker_name
+ * (case-insensitive). If found, sets the object's region permutation index
+ * at obj+0x130+region. If region_index is -1, searches all regions;
+ * otherwise only the specified region. If param_4 is 0, forces the
+ * permutation index to 0 regardless of the match position. */
+void FUN_001402c0(int object_handle, const char *marker_name,
+                  short region_index, char param_4)
+{
+  char *obj;
+  char *obje_tag;
+  int model_tag_index;
+  char *mode_tag;
+  int *regions_block;
+  short region_iter;
+  int region_i;
+  char *region_element;
+  int *permutations_block;
+  short perm_iter;
+  int perm_i;
+  char *perm_element;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  obje_tag = (char *)tag_get(0x6f626a65, *(int *)obj);
+  model_tag_index = *(int *)(obje_tag + 0x34);
+  if (model_tag_index == -1)
+    return;
+
+  mode_tag = (char *)tag_get(0x6d6f6465, model_tag_index);
+  regions_block = (int *)(mode_tag + 0xc4);
+  region_i = 0;
+  if (*regions_block <= 0)
+    return;
+
+  region_iter = 0;
+  do {
+    if (region_index == -1 || region_index == region_iter) {
+      region_element =
+        (char *)tag_block_get_element(regions_block, region_i, 0x4c);
+      permutations_block = (int *)(region_element + 0x40);
+      perm_iter = 0;
+      if (*permutations_block > 0) {
+        perm_i = 0;
+        do {
+          perm_element =
+            (char *)tag_block_get_element(permutations_block, perm_i, 0x58);
+          if (crt_stricmp(perm_element, marker_name) == 0) {
+            *(char *)(obj + 0x130 + region_i) =
+              param_4 ? (char)perm_iter : (char)0;
+            break;
+          }
+          perm_iter = perm_iter + 1;
+          perm_i = (int)perm_iter;
+        } while (perm_i < *permutations_block);
+      }
+    }
+    region_iter = region_iter + 1;
+    region_i = (int)region_iter;
+  } while (region_i < *regions_block);
 }
 
 /* Query an outgoing object function value (0x1403a0).

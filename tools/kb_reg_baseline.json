@@ -13,6 +13,7 @@
     "0xf90d0": "void FUN_000f90d0(int projectile_handle, float *hit_pos, float param_3, float *velocity@<eax>, int16_t *col_result@<esi>);",
     "0x102510": "void screenshot_render(void *a1@<edi>);",
     "0x10b300": "float *random_direction_table_get_element(int16_t index@<si>, float *result@<ebx>);",
+    "0x118d70": "void FUN_00118d70(int queue@<eax>);",
     "0x1190c0": "void crc_table_init(uint32_t *table@<edx>);",
     "0x11e430": "void FUN_0011e430(void *pool@<edi>);",
     "0x11e5a0": "void *FUN_0011e5a0(void *pool@<eax>, void **block_reference@<esi>);",
@@ -41,6 +42,11 @@
     "0x12dd20": "void FUN_0012dd20(void *game_data, const char *prefix@<esi>);",
     "0x12e580": "bool FUN_0012e580(int server@<ebx>);",
     "0x12e750": "bool FUN_0012e750(int server@<esi>);",
+    "0x136890": "int FUN_00136890(int object_index @<eax>);",
+    "0x1369e0": "void FUN_001369e0(int object_handle @<eax>, int effect_tag_index);",
+    "0x136a00": "void FUN_00136a00(int object_handle @<eax>, char param_1);",
+    "0x137170": "void FUN_00137170(float *incident_direction @<eax>, float *surface_normal @<ecx>, int object_handle @<esi>, int effect_tag_index, short marker_index, float *position);",
+    "0x137690": "void FUN_00137690(int object_handle @<edi>, short region_index);",
     "0x13ded0": "int FUN_0013ded0(data_t *data, int16_t datum_size, int type_hint@<eax>);",
     "0x13e1a0": "void FUN_0013e1a0(int object_handle@<edi>);",
     "0x13e1f0": "void FUN_0013e1f0(int object_handle@<eax>, void *color_data);",
@@ -246,7 +252,8 @@
     "0x5acf0": "void FUN_0005acf0(int encounter_handle @<eax>);",
     "0x5c3a0": "bool FUN_0005c3a0(int platoon_index, int delay, int flag, int encounter_handle @<ebx>);",
     "0x5a4e0": "char FUN_0005a4e0(int encounter_index @<eax>);",
-    "0x2bd80": "void FUN_0002bd80(int actor_handle @<ecx>, float *facing, float *vel_out, float *speed_out);"
+    "0x2bd80": "void FUN_0002bd80(int actor_handle @<ecx>, float *facing, float *vel_out, float *speed_out);",
+    "0x136f40": "void FUN_00136f40(int object_handle @<ebx>, void *damage_data @<esi>, unsigned int flags, float body_vitality, float shield_vitality, int param_4, int param_5);"
   },
   "version": 1,
   "0xcada0": {

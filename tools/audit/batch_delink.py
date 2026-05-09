@@ -99,6 +99,53 @@ def compute_range(obj: dict) -> tuple[int, int] | None:
     return min(addrs), max(addrs) + RANGE_END_PAD
 
 
+def compute_truncated_range(obj: dict) -> tuple[int, int] | None:
+    """Return range excluding the last function (workaround for BFT COFF
+    relocation bug where the last function's relocations reference data
+    past the exported buffer boundary)."""
+    funcs = obj.get("functions") or []
+    addrs = sorted(set(
+        int(f["addr"], 16) for f in funcs
+        if "addr" in f
+    ))
+    if len(addrs) < 2:
+        return None
+    return addrs[0], addrs[-1]
+
+
+def find_max_exportable_range_rpc(
+    export_path: str,
+    obj: dict,
+) -> tuple[int, int] | None:
+    """Binary-search for the largest contiguous range that exports
+    successfully.  Falls back to single-function export if needed."""
+    funcs = obj.get("functions") or []
+    addrs = sorted(set(
+        int(f["addr"], 16) for f in funcs if "addr" in f
+    ))
+    if not addrs:
+        return None
+
+    lo = addrs[0]
+
+    # Try progressively smaller ranges by removing functions from the end
+    for end_idx in range(len(addrs) - 1, 0, -1):
+        hi = addrs[end_idx]
+        try:
+            export_via_rpc(export_path, range_str(lo, hi))
+            return lo, hi
+        except Exception:
+            continue
+
+    # Last resort: try just the first function
+    hi = addrs[0] + RANGE_END_PAD
+    try:
+        export_via_rpc(export_path, range_str(lo, hi))
+        return lo, hi
+    except Exception:
+        return None
+
+
 def range_str(lo: int, hi: int) -> str:
     """Format an address range for Ghidra: 'xxxxxxxx-yyyyyyyy' (no 0x prefix)."""
     return f"{lo:08x}-{hi:08x}"
@@ -149,11 +196,22 @@ def is_ghidra_live_available() -> bool:
         return False
 
 
+def _wsl_to_windows_path(path: str) -> str:
+    """Convert WSL /mnt/<drive>/... to Windows <DRIVE>:\\... for Ghidra."""
+    import re
+    m = re.match(r"^/mnt/([a-zA-Z])/(.*)", path)
+    if m:
+        drive, rest = m.group(1).upper(), m.group(2)
+        return f"{drive}:\\{rest.replace('/', '\\')}"
+    return path
+
+
 def export_via_rpc(export_path: str, addr_range: str) -> None:
+    win_path = _wsl_to_windows_path(export_path)
     _rpc_call(
         "export_delinked_object",
         {
-            "export_path": export_path,
+            "export_path": win_path,
             "exporter_name": "COFF relocatable object",
             "selection_mode": "range",
             "range": addr_range,
@@ -349,6 +407,34 @@ def main() -> int:
             print(f"  ok  {name}  -> {export_path.name}")
             success += 1
         except Exception as exc:
+            trunc = compute_truncated_range(obj)
+            if trunc and backend == "rpc":
+                tlo, thi = trunc
+                trunc_range = range_str(tlo, thi)
+                print(f"  retry {name}  truncated range={trunc_range}")
+                try:
+                    export_via_rpc(str(export_path), trunc_range)
+                    func_count = len(obj.get("functions") or [])
+                    print(f"  ok  {name}  -> {export_path.name}  (truncated: last func excluded, {func_count - 1}/{func_count})")
+                    manifest[name]["addr_range"] = f"0x{tlo:08x}-0x{thi:08x}"
+                    manifest[name]["truncated"] = True
+                    success += 1
+                    continue
+                except Exception as retry_exc:
+                    print(f"  retry also failed: {retry_exc}", file=sys.stderr)
+                    # Progressive split: find the largest exportable subset
+                    print(f"  split {name}  searching for max exportable range...")
+                    result = find_max_exportable_range_rpc(str(export_path), obj)
+                    if result:
+                        slo, shi = result
+                        func_count = len(obj.get("functions") or [])
+                        covered = sum(1 for a in [int(f["addr"], 16) for f in (obj.get("functions") or [])] if slo <= a < shi)
+                        print(f"  ok  {name}  -> {export_path.name}  (split: {covered}/{func_count} functions)")
+                        manifest[name]["addr_range"] = f"0x{slo:08x}-0x{shi:08x}"
+                        manifest[name]["truncated"] = True
+                        manifest[name]["split"] = True
+                        success += 1
+                        continue
             print(f"  FAIL  {name}: {exc}", file=sys.stderr)
             manifest[name]["error"] = str(exc)
             failed += 1

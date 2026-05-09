@@ -185,6 +185,38 @@
         {
           "decl": "void FUN_00144b50(void);",
           "addr": "0x144b50"
+        },
+        {
+          "decl": "char FUN_000a8e40(void);",
+          "addr": "0xa8e40"
+        },
+        {
+          "decl": "void FUN_000af660(int param_1, int param_2, int param_3, int param_4);",
+          "addr": "0xaf660"
+        },
+        {
+          "decl": "void FUN_000b56e0(int handle, float vitality, int param_3, int param_4, int param_5);",
+          "addr": "0xb56e0"
+        },
+        {
+          "decl": "void FUN_000b56f0(int handle, int param_2, int param_3, int param_4);",
+          "addr": "0xb56f0"
+        },
+        {
+          "decl": "void FUN_001a4a70(int handle, float *velocity);",
+          "addr": "0x1a4a70"
+        },
+        {
+          "decl": "void FUN_001b4dc0(int handle, void *damage_data, unsigned int flags, float body_vitality, float shield_vitality, int param_6, int param_7);",
+          "addr": "0x1b4dc0"
+        },
+        {
+          "decl": "void FUN_001b5c90(int handle, float *velocity);",
+          "addr": "0x1b5c90"
+        },
+        {
+          "decl": "float FUN_000993b0(float *param_1, float *param_2, float *param_3);",
+          "addr": "0x993b0"
         }
       ]
     },
@@ -363,8 +395,9 @@
           "ported": true
         },
         {
-          "decl": "int FUN_0001d730(short starting_location_index);",
-          "addr": "0x1d730"
+          "decl": "short FUN_0001d730(short param_1);",
+          "addr": "0x1d730",
+          "ported": true
         },
         {
           "decl": "char *FUN_000210f0(int actor_handle);",
@@ -998,7 +1031,9 @@
         },
         {
           "decl": "void FUN_00145ad0(unsigned short surface_id, void *damage_params, int unknown);",
-          "addr": "0x145ad0"
+          "addr": "0x145ad0",
+          "ported": true,
+          "comment": "Breakable surface destruction effect spawner. BFS traversal of connected surfaces, grid-based particle spawning with physics impulse."
         },
         {
           "decl": "void FUN_00146a90(int surface_id, void *damage_params, int unknown);",
@@ -1183,7 +1218,8 @@
         },
         {
           "decl": "bool FUN_0014ec30(int flags, float *pos, float search_radius, float dist_b, float dist_a, int param6, void *scratch);",
-          "addr": "0x14ec30"
+          "addr": "0x14ec30",
+          "ported": true
         },
         {
           "decl": "short FUN_0014d840(short collision_function @<edi>);",
@@ -3549,6 +3585,16 @@
           "addr": "0xce370",
           "decl": "void FUN_000ce370(int expression_datum);",
           "ported": true
+        },
+        {
+          "addr": "0xce320",
+          "decl": "int FUN_000ce320(int parent_handle, int *iter_state);",
+          "ported": true
+        },
+        {
+          "addr": "0xce450",
+          "decl": "int FUN_000ce450(int parent_handle, int *iter_state);",
+          "ported": true
         }
       ],
       "source_path": "src/halo/hs/hs_runtime.c"
@@ -4538,6 +4584,16 @@
           "ported": true
         },
         {
+          "decl": "void FUN_0013c6e0(int object_handle, int region_index, unsigned int flags);",
+          "addr": "0x13c6e0",
+          "ported": true
+        },
+        {
+          "decl": "char FUN_0013c740(int object_handle);",
+          "addr": "0x13c740",
+          "ported": true
+        },
+        {
           "decl": "void *object_try_and_get_and_verify_type(int datum_handle, int type_mask);",
           "addr": "0x13d640",
           "ported": true
@@ -4590,7 +4646,7 @@
         {
           "decl": "void FUN_0013e1a0(int object_handle@<edi>);",
           "addr": "0x13e1a0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void FUN_0013e1f0(int object_handle@<eax>, void *color_data);",
@@ -4716,6 +4772,11 @@
         {
           "decl": "void object_adjust_interpolation_position(int object_handle, vector3_t *delta);",
           "addr": "0x140230",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_001402c0(int object_handle, const char *marker_name, short region_index, char param_4);",
+          "addr": "0x1402c0",
           "ported": true
         },
         {
@@ -4883,6 +4944,11 @@
         {
           "decl": "int object_mark(int object_handle);",
           "addr": "0x13ec50",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0013c800(int object_handle, void *block_data);",
+          "addr": "0x13c800",
           "ported": true
         }
       ]
@@ -5707,6 +5773,14 @@
           "ported": true
         },
         {
+          "decl": "void FUN_000916e0(void);",
+          "addr": "0x916e0"
+        },
+        {
+          "decl": "void FUN_00091710(void);",
+          "addr": "0x91710"
+        },
+        {
           "decl": "void profile_frame_start(void);",
           "addr": "0x91780",
           "ported": true
@@ -6352,6 +6426,11 @@
         {
           "addr": "0x10e040",
           "decl": "bool FUN_0010e040(float *line_a_start, float *line_a_dir, float *line_b_start, float *line_b_dir, float radius);",
+          "ported": true
+        },
+        {
+          "addr": "0x10a1c0",
+          "decl": "void FUN_0010a1c0(float *matrix, float *in_plane, float *out_plane);",
           "ported": true
         }
       ]
@@ -7188,6 +7267,11 @@
         {
           "decl": "bool FUN_00106130(uint16_t point_count, void *points, void *query_point, float radius);",
           "addr": "0x106130",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_00106200(int16_t count, void *points, float *query_point, float epsilon);",
+          "addr": "0x106200",
           "ported": true
         },
         {
@@ -9633,12 +9717,18 @@
       "data": [],
       "functions": [
         {
-          "decl": "unsigned int FUN_00118e90(int queue);",
-          "addr": "0x118e90"
+          "decl": "void FUN_00118d70(int queue@<eax>);",
+          "addr": "0x118d70"
         },
         {
-          "decl": "bool FUN_00118ec0(int queue, void *data, int size);",
-          "addr": "0x118ec0"
+          "decl": "unsigned int FUN_00118e90(int queue);",
+          "addr": "0x118e90",
+          "ported": true
+        },
+        {
+          "decl": "bool FUN_00118ec0(int queue, void *data, int data_size);",
+          "addr": "0x118ec0",
+          "ported": true
         }
       ]
     },
@@ -9775,16 +9865,23 @@
           "ported": true
         },
         {
+          "decl": "void FUN_0014adb0(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7, int param_8, void *features);",
+          "addr": "0x14adb0"
+        },
+        {
           "decl": "void FUN_0014b3d0(int param_1, int object_handle, int param_3, int param_4, int param_5, int param_6, void *features);",
-          "addr": "0x14b3d0"
+          "addr": "0x14b3d0",
+          "ported": true
         },
         {
           "decl": "void FUN_0014b470(int param_1, int object_handle, int param_3, int param_4, int param_5, int param_6, void *features);",
-          "addr": "0x14b470"
+          "addr": "0x14b470",
+          "ported": true
         },
         {
           "decl": "void FUN_0014b620(int param_1, int object_handle, int param_3, int param_4, int param_5, int param_6, void *features);",
-          "addr": "0x14b620"
+          "addr": "0x14b620",
+          "ported": true
         },
         {
           "decl": "void collision_features_add(int param_1, int *collision_results, int param_3, int param_4, int param_5, int param_6, void *features);",
@@ -9793,15 +9890,26 @@
         },
         {
           "decl": "char FUN_0014b890(void *feature, void *los_data, float *t_hit, float *normal);",
-          "addr": "0x14b890"
+          "addr": "0x14b890",
+          "ported": true
         },
         {
           "decl": "char FUN_0014b960(void *feature, void *los_data, float *t_hit, float *normal);",
-          "addr": "0x14b960"
+          "addr": "0x14b960",
+          "ported": true
         },
         {
           "decl": "char FUN_0014bae0(void *feature, void *los_data, float *t_hit, float *normal);",
           "addr": "0x14bae0"
+        },
+        {
+          "addr": "0x14b220",
+          "decl": "void FUN_0014b220(int point_count, void *points, float *plane, float param_4, int param_5, int param_6, int param_7, int param_8, int param_9, int param_10, void *features);",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0014aee0(float *param_1, float *param_2, float param_3, int param_4, int param_5, int param_6, int param_7, int param_8, int param_9, void *features);",
+          "addr": "0x14aee0"
         }
       ]
     },
@@ -9881,28 +9989,34 @@
           "ported": true
         },
         {
-          "decl": "unsigned int FUN_00136790(int object_handle);",
-          "addr": "0x136790"
+          "decl": "char FUN_00136790(int object_handle);",
+          "addr": "0x136790",
+          "ported": true
         },
         {
-          "decl": "unsigned int FUN_001367e0(int object_handle);",
-          "addr": "0x1367e0"
+          "decl": "char FUN_001367e0(int object_handle);",
+          "addr": "0x1367e0",
+          "ported": true
         },
         {
           "decl": "void FUN_00136840(int object_handle);",
-          "addr": "0x136840"
+          "addr": "0x136840",
+          "ported": true
         },
         {
-          "decl": "int FUN_00136890(void);",
-          "addr": "0x136890"
+          "decl": "int FUN_00136890(int object_index@<eax>);",
+          "addr": "0x136890",
+          "ported": true
         },
         {
           "decl": "void FUN_001368e0(int player_handle);",
-          "addr": "0x1368e0"
+          "addr": "0x1368e0",
+          "ported": true
         },
         {
           "decl": "void FUN_00136930(int player_handle);",
-          "addr": "0x136930"
+          "addr": "0x136930",
+          "ported": true
         },
         {
           "decl": "void FUN_00136980(int object_handle, char flag);",
@@ -9915,52 +10029,63 @@
           "ported": true
         },
         {
-          "decl": "void FUN_001369e0(int effect_tag_index);",
-          "addr": "0x1369e0"
+          "decl": "void FUN_001369e0(int object_handle @<eax>, int effect_tag_index);",
+          "addr": "0x1369e0",
+          "ported": true
         },
         {
-          "decl": "void FUN_00136a00(char param_1);",
-          "addr": "0x136a00"
+          "decl": "void FUN_00136a00(int object_handle @<eax>, char param_1);",
+          "addr": "0x136a00",
+          "ported": true
         },
         {
           "decl": "float FUN_00136a80(int object_handle, char param_2);",
-          "addr": "0x136a80"
+          "addr": "0x136a80",
+          "ported": true
         },
         {
           "decl": "float FUN_00136ae0(int object_handle, char param_2);",
-          "addr": "0x136ae0"
+          "addr": "0x136ae0",
+          "ported": true
         },
         {
           "decl": "void FUN_00136b40(int object_handle);",
-          "addr": "0x136b40"
+          "addr": "0x136b40",
+          "ported": true
         },
         {
           "decl": "void FUN_00136bc0(void *collision_model, int material, void *damage_effect, void *damage_params, unsigned int *flags, float *shield_damage, float *body_damage);",
           "addr": "0x136bc0"
         },
         {
-          "decl": "void FUN_00136f40(unsigned int flags);",
-          "addr": "0x136f40"
+          "decl": "void FUN_00136f40(int object_handle @<ebx>, void *damage_data @<esi>, unsigned int flags, float body_vitality, float shield_vitality, int param_4, int param_5);",
+          "addr": "0x136f40",
+          "ported": true
         },
         {
-          "decl": "void FUN_00137170(float *direction, int param_2, short node_index, float *position);",
-          "addr": "0x137170"
+          "decl": "void FUN_00137170(float *incident_direction @<eax>, float *surface_normal @<ecx>, int object_handle @<esi>, int effect_tag_index, short marker_index, float *position);",
+          "addr": "0x137170",
+          "ported": true
         },
         {
           "decl": "void FUN_00137370(void);",
-          "addr": "0x137370"
+          "addr": "0x137370",
+          "ported": true
         },
         {
           "decl": "void FUN_00137540(int object_handle);",
-          "addr": "0x137540"
+          "addr": "0x137540",
+          "ported": true
         },
         {
           "decl": "void FUN_00137620(int object_handle);",
-          "addr": "0x137620"
+          "addr": "0x137620",
+          "ported": true
         },
         {
-          "decl": "void FUN_00137690(short region_index);",
-          "addr": "0x137690"
+          "decl": "void FUN_00137690(int object_handle @<edi>, short region_index);",
+          "addr": "0x137690",
+          "ported": true
         },
         {
           "decl": "void FUN_001377d0(int object_handle, int region_index, int node_index, unsigned int param_4, void *collision_model, int material, void *damage_effect, void *damage_params, unsigned int *flags, float *body_damage, void **param_11, float scale);",
@@ -9989,8 +10114,9 @@
           "ported": true
         },
         {
-          "decl": "int FUN_00138ee0(int object_handle);",
-          "addr": "0x138ee0"
+          "decl": "int FUN_00138ee0(int hardware_format);",
+          "addr": "0x138ee0",
+          "ported": true
         }
       ]
     },
@@ -10242,6 +10368,10 @@
         {
           "decl": "void FUN_0014ea10(unsigned int type_mask, int first_handle, float *origin, float radius, float param_5, float param_6, int exclude_handle, int param_8);",
           "addr": "0x14ea10"
+        },
+        {
+          "addr": "0x147410",
+          "decl": "int FUN_00147410(int param_1, int param_2, void *out_points);"
         }
       ]
     },
@@ -10252,31 +10382,47 @@
       "functions": [
         {
           "addr": "0x5dfc0",
-          "decl": "void FUN_0005dfc0(void *nav_state_out, int speed, char flag, int unit_handle);"
+          "decl": "void FUN_0005dfc0(void *param_1, unsigned int param_2, unsigned char param_3, int param_4);",
+          "ported": true
         },
         {
           "addr": "0x5dff0",
-          "decl": "void FUN_0005dff0(int nav_state, unsigned int ignore_object);"
+          "decl": "void FUN_0005dff0(void *param_1, int param_2);",
+          "ported": true
         },
         {
           "addr": "0x5e000",
-          "decl": "void FUN_0005e000(void *nav_state_out, void *waypoints, int waypoint_count);"
+          "decl": "void FUN_0005e000(void *param_1, float *param_2, int param_3);",
+          "ported": true
         },
         {
           "addr": "0x5e030",
-          "decl": "void FUN_0005e030(int nav_state, unsigned int *hint_pos, unsigned int hint_handle, unsigned int orders_handle, unsigned int radius_bits);"
+          "decl": "void FUN_0005e030(void *param_1, float *param_2, float param_3, unsigned int param_4, float param_5);",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0005e070(void *param_1, int param_2);",
+          "addr": "0x5e070",
+          "ported": true
         },
         {
           "addr": "0x5e090",
-          "decl": "void FUN_0005e090(unsigned int *nav_state_src, unsigned int *path_buf, unsigned int path_slot);"
+          "decl": "void FUN_0005e090(void *param_1, void *param_2, void *param_3);",
+          "ported": true
         },
         {
           "addr": "0x5e0d0",
-          "decl": "void FUN_0005e0d0(int path_buf, unsigned int *dest_pos, unsigned int dest_handle, unsigned int speed_bits);"
+          "decl": "void FUN_0005e0d0(void *param_1, float *param_2, int param_3, int param_4);",
+          "ported": true
+        },
+        {
+          "addr": "0x5e830",
+          "decl": "char FUN_0005e830(int param_1, int *param_2, int param_3, int *param_4, unsigned char *param_5, float *param_6);"
         },
         {
           "addr": "0x5e920",
-          "decl": "char FUN_0005e920(int scenario, int *actor_pos, int zero, int *dest_pos, char *nav_state_out);"
+          "decl": "char FUN_0005e920(int param_1, int *param_2, int param_3, int *param_4, char *param_5);",
+          "ported": true
         },
         {
           "addr": "0x5eae0",
