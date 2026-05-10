@@ -1,3 +1,50 @@
+/* FUN_00120500 (0x120500) — Get a pointer to a specific animation frame's data.
+ *
+ * Given an animation structure and a frame index, returns a pointer to the
+ * frame data for that frame. If compression is active (flag bit 0 at
+ * animation+0x3a set, and DAT_00322600 is nonzero), returns a pointer
+ * offset by the compressed data offset (animation+0x88). Otherwise,
+ * returns a pointer offset by frame_size * frame_index.
+ *
+ * The frame data itself lives in tag_data at animation+0xa0, resolved
+ * via tag_data_get_pointer.
+ *
+ * Confirmed: cdecl, 2 args (animation ptr, frame_index short).
+ * Confirmed: CALL tag_data_get_pointer(animation+0xa0, 0, 0) at 0x12052b.
+ * Confirmed: Assert "frame_index>=0 && frame_index<animation->frame_count" at 0x120555.
+ * Confirmed: CALL display_assert at 0x120555, system_exit(-1) at 0x12055c.
+ * Confirmed: Compressed path returns ESI + [EDI+0x88] at 0x12056b.
+ * Confirmed: Uncompressed path returns ESI + MOVSX([EDI+0x24]) * MOVSX(BX) at 0x120578-0x120582.
+ */
+void *FUN_00120500(void *animation, short frame_index)
+{
+  int compressed;
+  char *data;
+  char *anim;
+
+  anim = (char *)animation;
+
+  if (((*(unsigned char *)(anim + 0x3a) & 1) != 0) && DAT_00322600 != '\0') {
+    compressed = 1;
+  } else {
+    compressed = 0;
+  }
+
+  data = (char *)tag_data_get_pointer(anim + 0xa0, 0, 0);
+
+  if (frame_index < 0 || frame_index >= *(short *)(anim + 0x22)) {
+    display_assert("frame_index>=0 && frame_index<animation->frame_count",
+                   "c:\\halo\\SOURCE\\models\\model_animation_definitions.c",
+                   0x47a, 1);
+    system_exit(-1);
+  }
+
+  if (compressed) {
+    return (void *)(data + *(int *)(anim + 0x88));
+  }
+  return (void *)(data + (int)*(short *)(anim + 0x24) * (int)frame_index);
+}
+
 /* model_animation_choose_random (0x120f20) — Choose a weighted random
  * animation.
  *
@@ -44,4 +91,291 @@ int model_animation_choose_random(int update_kind,
     animation_index = *(int16_t *)(element + 0x38);
   }
   return (int)animation_index;
+}
+
+/* quaternion_decompress_8byte (0x120810) — Convert 4 packed int16 values to normalized floats.
+ *
+ * Reads 4 consecutive short values from src and writes 4 floats to dest,
+ * each multiplied by (1.0f / 32767.0f) to normalize from [-32767,32767]
+ * to approximately [-1.0, 1.0]. Used to decompress quaternion rotation
+ * components stored as 16-bit integers in animation frame data.
+ *
+ * Confirmed: cdecl, 2 args (src shorts ptr, dest floats ptr).
+ * Confirmed: Leaf function, no callees.
+ * Confirmed: Multiplies by float constant at 0x290dd8 = 1.0f/32767.0f.
+ * Confirmed: 4 iterations via MOVSX+FILD+FMUL+FSTP pattern in disassembly.
+ */
+void quaternion_decompress_8byte(short *src, float *dest)
+{
+    dest[0] = (float)(int)src[0] * (1.0f / 32767.0f);
+    dest[1] = (float)(int)src[1] * (1.0f / 32767.0f);
+    dest[2] = (float)(int)src[2] * (1.0f / 32767.0f);
+    dest[3] = (float)(int)src[3] * (1.0f / 32767.0f);
+}
+
+/* FUN_00120870 (0x120870) — Decompress 3 packed uint16s into 4 normalized floats.
+ *
+ * Extracts 4 values from 3 consecutive unsigned shorts (48 bits total) by
+ * interleaved bit manipulation, sign-extends each to int, converts to float,
+ * and multiplies by (1.0f / 32767.0f). Used to decompress compressed
+ * quaternion rotation data in animation frames (compressed path in
+ * FUN_00121d60).
+ *
+ * Confirmed: cdecl, 2 args (compressed_data ushort ptr, dest floats ptr).
+ * Confirmed: Leaf function, no callees.
+ * Confirmed: Multiplies by float constant at 0x290dd8 = 1.0f/32767.0f.
+ * Confirmed: 4 outputs via interleaved bit extraction + MOVSX + FILD + FMUL + FSTP.
+ * Confirmed: Bit operations verified against disassembly at 0x120870-0x12092a.
+ */
+void FUN_00120870(void *compressed_data, float *dest)
+{
+    unsigned short *src;
+    unsigned short w0, w1, w2;
+    short s0, s1, s2, s3;
+
+    src = (unsigned short *)compressed_data;
+    w0 = src[0];
+    w1 = src[1];
+    w2 = src[2];
+
+    s0 = (short)((w0 >> 12) | (w0 & 0xFFF0));
+    s1 = (short)(((w1 >> 4) & 0xFF0) | (w0 & 0xF) | (w0 << 12));
+    s2 = (short)((((w2 >> 4) & 0xF00) | (w1 & 0xF0)) >> 4 | (w1 << 8));
+    s3 = (short)(((w2 >> 8) & 0xF) | (w2 << 4));
+
+    dest[0] = (float)(int)s0 * (1.0f / 32767.0f);
+    dest[1] = (float)(int)s1 * (1.0f / 32767.0f);
+    dest[2] = (float)(int)s2 * (1.0f / 32767.0f);
+    dest[3] = (float)(int)s3 * (1.0f / 32767.0f);
+}
+
+/* FUN_00121d60 (0x121d60) — Decode a single animation frame into per-node
+ * rotation/translation/scale data.
+ *
+ * For each node in the animation (animation+0x2c count), decodes rotation
+ * (quaternion), translation (vec3), and scale (float) from either:
+ *   - Compressed keyframed data (when flag bit 0 is set and compression is
+ *     active), using FUN_00121330/animation_get_node_orientations/overlay_animation_apply_continuous_scaled interpolators.
+ *   - Uncompressed frame data via quaternion_decompress_8byte/FUN_00120870 or raw memcpy
+ *     from default data (animation+0x98).
+ *
+ * Three bitmask arrays at animation offsets 0x5c, 0x6c, 0x7c (4 DWORDs each
+ * for up to 128 nodes) indicate which nodes have animated rotation,
+ * translation, and scale respectively. Bit=1 means animated (read from
+ * frame data), bit=0 means static (read from default data).
+ *
+ * If the animation type (animation+0x20) is nonzero, or the mode_tag check
+ * fails, falls back to FUN_00123aa0 which fills default node transforms.
+ *
+ * After the loop, two assertions verify that exactly the right amount of
+ * frame data and default data was consumed.
+ *
+ * Confirmed: cdecl, 4 args, void return.
+ * Confirmed: CALL FUN_00120500 at 0x121dca and 0x121fd5 (2 args: animation, frame_index).
+ * Confirmed: CALL quaternion_decompress_8byte at 0x121e63 and 0x121e9d (2 args: src_shorts, dest_floats).
+ * Confirmed: CALL FUN_00120870 at 0x121e89 (2 args: compressed_data, dest_floats).
+ * Confirmed: CALL sphere_intersects_rectangle3d at 0x121e8f (1 arg: quaternion).
+ * Confirmed: CALL FUN_00121330 at 0x121e51 (5 args: animation, frame_float, count, node, out).
+ * Confirmed: CALL animation_get_node_orientations at 0x121edc (5 args: animation, frame_float, count, node, out).
+ * Confirmed: CALL overlay_animation_apply_continuous_scaled at 0x121f78 (5 args: animation, frame_float, count, node, out).
+ * Confirmed: CALL FUN_00123aa0 at 0x12204a (2 args: mode_tag, out_node_data).
+ */
+void FUN_00121d60(void *mode_tag, void *animation, int animation_index,
+                  void *out_node_data)
+{
+  int param_1;
+  int param_2;
+  int param_4;
+  unsigned int uVar6;
+  int iVar7;
+  short sVar5;
+  int iVar3;
+  unsigned int local_1c;
+  unsigned int local_20;
+  unsigned int local_14;
+  int local_10;
+  int local_18;
+  int local_24;
+  int *local_c;
+  int *local_8;
+  int bVar2;
+  int *puVar4;
+
+  param_1 = (int)mode_tag;
+  param_2 = (int)animation;
+  param_4 = (int)out_node_data;
+  uVar6 = 0;
+
+  if (*(short *)(param_2 + 0x20) == 0 &&
+      (param_1 == 0 ||
+       (((*(int *)(param_2 + 0x28) == 0 ||
+          *(int *)(param_2 + 0x28) == *(int *)(param_1 + 4) ||
+          *(int *)(param_1 + 4) == 0) &&
+         *(int *)(param_1 + 0xb8) == (int)*(short *)(param_2 + 0x2c))))) {
+
+    if (((*(unsigned char *)(param_2 + 0x3a) & 1) == 0) ||
+        (DAT_00322600 == '\0' && *(int *)(param_2 + 0x88) != 0)) {
+      bVar2 = 0;
+    } else {
+      bVar2 = 1;
+    }
+
+    local_8 = (int *)FUN_00120500(animation, (short)animation_index);
+    local_c = *(int **)(param_2 + 0x98);
+    local_10 = 0;
+    local_18 = 0;
+    local_24 = 0;
+    if (0 < *(short *)(param_2 + 0x2c)) {
+      do {
+        sVar5 = (short)uVar6;
+        iVar7 = sVar5 * 0x20 + param_4;
+        if ((uVar6 & 0x1f) == 0) {
+          iVar3 = (int)(sVar5 >> 5);
+          local_1c = *(unsigned int *)(param_2 + 0x5c + iVar3 * 4);
+          local_14 = *(unsigned int *)(param_2 + 0x6c + iVar3 * 4);
+          local_20 = *(unsigned int *)(param_2 + 0x7c + iVar3 * 4);
+        }
+        if ((local_14 & 1) == 0) {
+          if (bVar2) {
+            FUN_00120870(
+              (void *)(local_8[1] + sVar5 * 6 + (int)local_8),
+              (float *)iVar7);
+            sphere_intersects_rectangle3d((float *)iVar7);
+          } else {
+            quaternion_decompress_8byte((short *)local_c, (float *)iVar7);
+            local_c = (int *)((char *)local_c + 8);
+          }
+        } else if (bVar2) {
+          FUN_00121330(animation, (float)(int)(short)animation_index,
+                       (unsigned short)local_10, sVar5, (void *)iVar7);
+          local_10 = local_10 + 1;
+        } else {
+          quaternion_decompress_8byte((short *)local_8, (float *)iVar7);
+          local_8 = (int *)((char *)local_8 + 8);
+        }
+        local_14 = local_14 >> 1;
+
+        if ((local_1c & 1) == 0) {
+          if (bVar2) {
+            puVar4 = (int *)(local_8[5] + sVar5 * 0xc + (int)local_8);
+            *(int *)(iVar7 + 0x10) = puVar4[0];
+            *(int *)(iVar7 + 0x14) = puVar4[1];
+            *(int *)(iVar7 + 0x18) = puVar4[2];
+          } else {
+            *(int *)(iVar7 + 0x10) = local_c[0];
+            *(int *)(iVar7 + 0x14) = local_c[1];
+            *(int *)(iVar7 + 0x18) = local_c[2];
+            local_c = (int *)((char *)local_c + 0xc);
+          }
+        } else if (bVar2) {
+          animation_get_node_orientations(animation, (float)(int)(short)animation_index,
+                       (unsigned short)local_18, sVar5,
+                       (void *)(iVar7 + 0x10));
+          local_18 = local_18 + 1;
+        } else {
+          *(int *)(iVar7 + 0x10) = local_8[0];
+          *(int *)(iVar7 + 0x14) = local_8[1];
+          *(int *)(iVar7 + 0x18) = local_8[2];
+          local_8 = (int *)((char *)local_8 + 0xc);
+        }
+        local_1c = local_1c >> 1;
+
+        if ((local_20 & 1) == 0) {
+          if (bVar2) {
+            *(int *)(iVar7 + 0x1c) = 0x3f800000;
+          } else {
+            *(int *)(iVar7 + 0x1c) = *local_c;
+            local_c = (int *)((char *)local_c + 4);
+          }
+        } else if (bVar2) {
+          overlay_animation_apply_continuous_scaled(animation, (float)(int)(short)animation_index,
+                       (unsigned short)local_24, sVar5,
+                       (void *)(iVar7 + 0x1c));
+          local_24 = local_24 + 1;
+        } else {
+          *(int *)(iVar7 + 0x1c) = *local_8;
+          local_8 = (int *)((char *)local_8 + 4);
+        }
+        local_20 = local_20 >> 1;
+
+        uVar6 = uVar6 + 1;
+      } while ((short)uVar6 < *(short *)(param_2 + 0x2c));
+    }
+    if (!bVar2) {
+      iVar7 = (int)FUN_00120500(animation, (short)animation_index);
+      if ((int)local_8 - iVar7 != (int)*(short *)(param_2 + 0x24)) {
+        display_assert(
+          "compressed || (byte *)data-(byte *)animation_get_frame_data(animation, frame_index)==animation->frame_size",
+          "c:\\halo\\SOURCE\\models\\model_animations.c", 0x141, 1);
+        system_exit(-1);
+      }
+      if ((int)local_c - *(int *)(param_2 + 0x98) !=
+          *(int *)(param_2 + 0x8c)) {
+        display_assert(
+          "compressed || (byte *)default_data-(byte *)animation_get_default_data(animation)==animation->default_data.size",
+          "c:\\halo\\SOURCE\\models\\model_animations.c", 0x142, 1);
+        system_exit(-1);
+      }
+    }
+  } else {
+    FUN_00123aa0(mode_tag, out_node_data);
+  }
+}
+
+/* FUN_00123aa0 (0x123aa0) — Fill default node transforms from mode tag.
+ *
+ * Iterates over the nodes in a model mode tag (tag block at mode_tag+0xb8,
+ * element size 0x9c). For each node, copies the default rotation quaternion
+ * from element+0x34 (4 floats) and default translation from element+0x28
+ * (3 floats) into the output node_data array (stride 0x20 per node).
+ * Sets scale to 1.0f for each node.
+ *
+ * This is the fallback path used by FUN_00121d60 when the animation type is
+ * nonzero or the mode_tag node count doesn't match the animation.
+ *
+ * Confirmed: cdecl, 2 args (mode_tag ptr, out_node_data ptr).
+ * Confirmed: CALL tag_block_get_element(mode_tag+0xb8, index, 0x9c) at 0x123ac7.
+ * Confirmed: Copies element+0x34..0x43 (rotation) to out+0x00..0x0F.
+ * Confirmed: Copies element+0x28..0x33 (translation) to out+0x10..0x1B.
+ * Confirmed: Sets out+0x1c = 0x3f800000 (1.0f scale).
+ * Confirmed: Loop counter is short via MOVSX at 0x123b0c; compared to [EDI] at 0x123b19.
+ */
+void FUN_00123aa0(void *mode_tag, void *out_node_data)
+{
+    int param_1;
+    int param_2;
+    short sVar1;
+    int iVar4;
+    char *element;
+    int *out;
+
+    param_1 = (int)mode_tag;
+    param_2 = (int)out_node_data;
+    iVar4 = 0;
+    sVar1 = 0;
+
+    if (0 < *(int *)(param_1 + 0xb8)) {
+        do {
+            element = (char *)tag_block_get_element(
+                (void *)(param_1 + 0xb8), iVar4, 0x9c);
+            out = (int *)(param_2 + iVar4 * 0x20);
+
+            /* rotation quaternion from element+0x34 */
+            out[0] = *(int *)(element + 0x34);
+            out[1] = *(int *)(element + 0x38);
+            out[2] = *(int *)(element + 0x3c);
+            out[3] = *(int *)(element + 0x40);
+
+            /* translation from element+0x28 */
+            out[4] = *(int *)(element + 0x28);
+            out[5] = *(int *)(element + 0x2c);
+            out[6] = *(int *)(element + 0x30);
+
+            /* scale = 1.0f */
+            out[7] = 0x3f800000;
+
+            sVar1 = sVar1 + 1;
+            iVar4 = (int)sVar1;
+        } while (iVar4 < *(int *)(param_1 + 0xb8));
+    }
 }

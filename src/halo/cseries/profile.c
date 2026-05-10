@@ -2,14 +2,33 @@
  * converts to milliseconds using the stored CPU frequency at 0x3361a0.
  * All timing data is accumulated into global profiling structures. */
 
-/* Read the x86 timestamp counter (RDTSC) into a low/high dword pair. */
+/* Read the x86 timestamp counter (RDTSC) into a low/high dword pair.
+   Use GCC-style asm for clang (even targeting MSVC) because MSVC-style
+   __asm doesn't properly communicate register clobbers to the optimizer. */
+#if defined(_MSC_VER) && !defined(__clang__)
 #define RDTSC(lo, hi)                             \
   do {                                            \
     uint32_t _lo, _hi;                            \
-    asm volatile("rdtsc" : "=a"(_lo), "=d"(_hi)); \
+    __asm { rdtsc }                               \
+    __asm { mov _lo, eax }                        \
+    __asm { mov _hi, edx }                        \
     (lo) = _lo;                                   \
     (hi) = _hi;                                   \
   } while (0)
+#else
+#define RDTSC(lo, hi)                                     \
+  do {                                                    \
+    uint32_t _lo, _hi;                                    \
+    asm volatile("rdtsc\n\t"                              \
+                 "movl %%eax, %0\n\t"                     \
+                 "movl %%edx, %1"                         \
+                 : "=rm"(_lo), "=rm"(_hi)                 \
+                 :                                        \
+                 : "eax", "edx");                         \
+    (lo) = _lo;                                           \
+    (hi) = _hi;                                           \
+  } while (0)
+#endif
 
 /* Compute elapsed milliseconds from a 64-bit cycle difference.
  * Formula: (float)(int64_t)cycles * scale / (float)cpu_freq */
@@ -228,6 +247,36 @@ void profile_render_window_end(void)
 
   *(float *)(0x449c00 + idx * 0x18) += elapsed;
   *(float *)(0x449c04 + idx * 0x18) += elapsed;
+}
+
+/* Snapshot the current TSC into a dedicated low/high global pair at
+ * 0x449c98/0x449c9c (used to mark a reference timestamp). */
+void profile_texture_start(void)
+{
+  uint32_t lo, hi;
+  RDTSC(lo, hi);
+  *(uint32_t *)0x449c98 = lo;
+  *(uint32_t *)0x449c9c = hi;
+}
+
+/* End a custom profiling section. Computes elapsed msec since the
+ * reference timestamp at 0x449c98/0x449c9c (set by profile_texture_start)
+ * and accumulates into the two custom accumulators at 0x449ca8/0x449cac. */
+void profile_texture_end(void)
+{
+  uint32_t lo, hi, diff_lo, diff_hi;
+  float elapsed;
+
+  RDTSC(lo, hi);
+  *(uint32_t *)0x449ca0 = lo;
+  *(uint32_t *)0x449ca4 = hi;
+
+  diff_lo = lo - *(uint32_t *)0x449c98;
+  diff_hi = hi - *(uint32_t *)0x449c9c - (lo < *(uint32_t *)0x449c98);
+  elapsed = cycles_to_msec(diff_lo, diff_hi);
+
+  *(float *)0x449ca8 += elapsed;
+  *(float *)0x449cac += elapsed;
 }
 
 /* Start a new profiling frame. Clears the current frame data, records

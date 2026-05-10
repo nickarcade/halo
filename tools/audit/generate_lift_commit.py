@@ -302,6 +302,25 @@ def main():
         else:
             print(f"ABI audit: {passes} function(s) passed", file=sys.stderr)
 
+    # Drift gate: kb.json @<reg> annotations vs tools/kb_reg_baseline.json.
+    # Hard-fails if the parser detects drift, missing entries, or stale ones.
+    # Use --skip-abi-audit to bypass in emergencies.
+    if not args.skip_abi_audit:
+        drift_proc = subprocess.run(
+            [sys.executable, str(TOOLS / "audit" / "extract_reg_args.py"), "--check"],
+            capture_output=True, text=True, cwd=str(REPO_ROOT),
+        )
+        if drift_proc.returncode != 0:
+            print(drift_proc.stdout, file=sys.stderr)
+            print(
+                "\nkb_reg_baseline drift detected. "
+                "Run `tools/audit/extract_reg_args.py --check` for the full "
+                "list, or `--apply` to merge missing entries. "
+                "Pass --skip-abi-audit to bypass.",
+                file=sys.stderr,
+            )
+            return 1
+
     # Run sync-ported to catch any drift before committing
     sync_proc = subprocess.run(
         [sys.executable, str(TOOLS / "analysis" / "kb_meta.py"), "sync-ported", "--dry-run"],

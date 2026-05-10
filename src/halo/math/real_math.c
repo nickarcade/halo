@@ -150,7 +150,7 @@ void FUN_001092d0(float *out_matrix, float *axis, float sine, float cosine)
   out_matrix[12] = 0.0f;
 }
 
-void FUN_001094d0(float *out_matrix, float *position, float *basis_data)
+void component_vectors_from_normal3d(float *out_matrix, float *position, float *basis_data)
 {
   typedef void (*quat_to_matrix_fn)(float *out, float *basis);
 
@@ -575,7 +575,7 @@ void matrix4x3_from_forward_up_position(void *out, float *position,
 /* Compute the rotation difference between two 4x3 matrices as an axis-angle
  * vector.  Inverts mat1, multiplies by mat0, extracts the rotation quaternion,
  * converts to axis-angle, then writes (axis * angle) into out_vec3. */
-void FUN_0010a150(float *mat0, float *mat1, float *out_vec3)
+void quaternion_to_angle_and_vector(float *mat0, float *mat1, float *out_vec3)
 {
   float local_inv[13];
   float local_product[13];
@@ -731,6 +731,34 @@ float FUN_0010c600(float *a, float *b)
 
   sine_term = sqrtf((1.0f - dot) * (1.0f + dot));
   return (float)atan2((double)sine_term, (double)dot);
+}
+
+/* Normalize a quaternion [x,y,z,w] in place.
+ * If the squared magnitude is > 0, divides each component by the magnitude.
+ * Otherwise, resets to the identity quaternion (0,0,0,1). */
+void sphere_intersects_rectangle3d(float *quaternion)
+{
+  float mag_sq;
+
+  mag_sq = quaternion[3] * quaternion[3] +
+           quaternion[2] * quaternion[2] +
+           quaternion[1] * quaternion[1] +
+           quaternion[0] * quaternion[0];
+
+  if (mag_sq > 0.0f) {
+    float scale;
+
+    scale = 1.0f / sqrtf(mag_sq);
+    quaternion[0] = scale * quaternion[0];
+    quaternion[1] = scale * quaternion[1];
+    quaternion[2] = scale * quaternion[2];
+    quaternion[3] = scale * quaternion[3];
+  } else {
+    quaternion[0] = 0.0f;
+    quaternion[1] = 0.0f;
+    quaternion[2] = 0.0f;
+    quaternion[3] = 1.0f;
+  }
 }
 
 /* Convert a unit quaternion [x,y,z,w] to axis-angle representation.

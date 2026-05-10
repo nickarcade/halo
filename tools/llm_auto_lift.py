@@ -133,6 +133,105 @@ def _has_delinked_ref(source_path: str, units: dict[str, dict]) -> bool:
     return (ROOT / base).exists() if base else False
 
 
+_PDB_PROPOSALS_CACHE: Optional[set[str]] = None
+_PURE_LEAF_CACHE: Optional[set[str]] = None
+
+
+def _load_pdb_proposal_addrs() -> set[str]:
+    """Return the set of addresses (lowercase hex with 0x prefix) that have
+    a real-name proposal from the punpckhdq PDB import. Empty if the importer
+    has not been run.
+    """
+    global _PDB_PROPOSALS_CACHE
+    if _PDB_PROPOSALS_CACHE is not None:
+        return _PDB_PROPOSALS_CACHE
+    proposals_path = ROOT / "artifacts" / "punpckhdq_import" / "name_proposals.json"
+    addrs: set[str] = set()
+    if proposals_path.exists():
+        try:
+            data = json.loads(proposals_path.read_text(encoding="utf-8"))
+            for p in data:
+                if (p.get("real_name")
+                        and p.get("confidence") in ("high", "medium")
+                        and p.get("our_addr")):
+                    addrs.add(p["our_addr"].lower())
+        except (json.JSONDecodeError, OSError):
+            pass
+    _PDB_PROPOSALS_CACHE = addrs
+    return addrs
+
+
+def _load_pure_leaf_addrs() -> set[str]:
+    """Return the set of addresses verified as pure leaves by unicorn_diff.
+
+    Populated as a side-effect of real `tools/equivalence/unicorn_diff.py`
+    runs (see `_record_leaf_classification` there). Empty until at least
+    one Unicorn diff has executed; cheap to load (single small JSON read).
+    """
+    global _PURE_LEAF_CACHE
+    if _PURE_LEAF_CACHE is not None:
+        return _PURE_LEAF_CACHE
+    cache_path = ROOT / "tools" / "equivalence" / "leaf_cache.json"
+    addrs: set[str] = set()
+    if cache_path.exists():
+        try:
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            for k, v in data.items():
+                if v == "leaf":
+                    addrs.add(k.lower())
+        except (json.JSONDecodeError, OSError):
+            pass
+    _PURE_LEAF_CACHE = addrs
+    return addrs
+
+
+# ---------------------------------------------------------------------------
+# Semantic retrieval helpers (Mizuchi-style neighbor injection)
+# ---------------------------------------------------------------------------
+
+def _check_retrieval_index() -> bool:
+    """Return True if the retrieval index exists and has embeddings."""
+    idx = ROOT / "tools" / "retrieval" / "index.duckdb"
+    if not idx.exists():
+        return False
+    try:
+        import duckdb
+        con = duckdb.connect(str(idx), read_only=True)
+        row = con.execute(
+            "SELECT COUNT(*) FROM functions WHERE emb_c IS NOT NULL"
+        ).fetchone()
+        con.close()
+        return row is not None and row[0] > 0
+    except Exception:
+        return False
+
+
+def _query_retrieval_neighbors(pseudocode: str, top_k: int = 3) -> list[dict]:
+    """Query the retrieval index for the top-K most-similar ported functions.
+
+    Returns a list of dicts suitable for direct JSON serialization into
+    the cached context pack. Returns [] on any error so cache-context
+    never fails due to retrieval issues.
+    """
+    try:
+        from tools.retrieval.query import query_neighbors
+        neighbors = query_neighbors(pseudocode, top_k=top_k, min_similarity=0.35)
+        return [
+            {
+                "addr": n.addr,
+                "name": n.name,
+                "obj_name": n.obj_name,
+                "decl": n.decl,
+                "similarity": round(n.similarity, 4),
+                "c_source": n.c_source,
+            }
+            for n in neighbors
+        ]
+    except Exception as exc:
+        log.debug("retrieval query failed: %s", exc)
+        return []
+
+
 # ---------------------------------------------------------------------------
 # Parsing helpers
 # ---------------------------------------------------------------------------
@@ -278,6 +377,22 @@ class LiftabilityScorer:
                     score += 12
                     details["completes_tu"] = 12
 
+                # PDB-derived real name proposal exists for this address —
+                # the punpckhdq corpus gives us a strong naming hint for the
+                # lift agent and reduces guesswork.
+                pdb_addrs = _load_pdb_proposal_addrs()
+                if addr.lower() in pdb_addrs:
+                    score += 10
+                    details["pdb_named"] = 10
+
+                # Verified pure leaf — unicorn_diff already proved this
+                # function has no external relocations. The behavioral
+                # differential lane (`/verify equivalence`) is available as
+                # a strong post-lift gate.
+                if addr.lower() in _load_pure_leaf_addrs():
+                    score += 5
+                    details["eq_pure_leaf"] = 5
+
                 # Cached Ghidra context available
                 cache_file = CONTEXT_CACHE / f"{name}.json"
                 if cache_file.exists():
@@ -414,6 +529,15 @@ def _select_targets(
                 if lane == "auto-lift":
                     lane = "manual-lift"
                 reasons.append(f"struct_hard=-20({','.join(prescreen.risk_factors)})")
+            elif prescreen.difficulty == "easy":
+                if prescreen.difficulty_score == 0:
+                    bonus = 15
+                elif prescreen.difficulty_score <= 5:
+                    bonus = 8
+                else:
+                    bonus = 5
+                total_score += bonus
+                reasons.append(f"struct_easy=+{bonus}(score={prescreen.difficulty_score})")
 
         selected.append(SelectedTarget(
             target=target,
@@ -1026,22 +1150,35 @@ def cmd_cache_context(args: argparse.Namespace):
     proc = subprocess.run(check_cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         print("ERROR: Ghidra MCP not available.")
-        print("You might have forgotten to start tools/mcp-servers.sh or ghidra may not be running?")
+        print("You might have forgotten to start tools/shell/mcp-servers.sh or ghidra may not be running?")
         sys.exit(1)
 
     builder = ContextPackBuilder(ghidra_live=True)
     CONTEXT_CACHE.mkdir(parents=True, exist_ok=True)
+
+    retrieval_available = _check_retrieval_index()
 
     for t in targets:
         print(f"Caching context for {t.name} ({t.addr})...")
         pack = builder.build(t)
         cache_file = CONTEXT_CACHE / f"{t.name}.json"
         ghidra_ctx = pack.ghidra
-        cache_file.write_text(json.dumps(ghidra_ctx, indent=2), encoding="utf-8")
         has_decomp = bool(ghidra_ctx.get("decompile_c"))
         has_disasm = bool(ghidra_ctx.get("disassembly"))
         print(f"  decompile={'yes' if has_decomp else 'NO'}  disasm={'yes' if has_disasm else 'NO'}  "
               f"callers={len(ghidra_ctx.get('callers', []))}  callees={len(ghidra_ctx.get('callees', []))}")
+
+        if retrieval_available and has_decomp:
+            neighbors = _query_retrieval_neighbors(ghidra_ctx["decompile_c"])
+            if neighbors:
+                ghidra_ctx["similar_neighbors"] = neighbors
+                print(f"  retrieval: {len(neighbors)} similar ported function(s) injected")
+            else:
+                print(f"  retrieval: no similar neighbors above threshold")
+        elif not retrieval_available:
+            pass  # silently skip — index not built yet
+
+        cache_file.write_text(json.dumps(ghidra_ctx, indent=2), encoding="utf-8")
 
     print(f"\nCached {len(targets)} context packs to {CONTEXT_CACHE}")
 

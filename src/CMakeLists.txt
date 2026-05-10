@@ -26,6 +26,7 @@
 	halo/cseries/debug_memory.c
 	halo/cseries/cseries_windows.c
 	halo/cseries/stack_walk_windows.c
+	halo/cseries/xbox_crt.c
 	halo/memory/crc.c
 	halo/dialogs/edit_text.c
 	halo/cutscene/cinematics.c
@@ -88,6 +89,7 @@
 	halo/math/real_math.c
 	halo/math/rectangles.c
 	halo/math/vector_math.c
+	halo/models/model_animations.c
 	halo/rasterizer/rasterizer.c
 	halo/rasterizer/rasterizer_sprites.c
 	halo/rasterizer/common/rasterizer_common.c

@@ -4,6 +4,8 @@
 /dist
 build_output.log
 artifacts
+# Vendored third-party clones (decomp-permuter, etc.)
+/third_party/
 
 #Debug / XBDM output
 /xbdm
@@ -85,3 +87,10 @@ opencode.json
 
 # Ephemeral analyst session state (cross-run context, not source of truth)
 .claude/analyst_session.md
+
+# Per-session token-discipline metrics state (written by tools/audit/token_discipline_hook.py)
+.claude/agent-memory/token_discipline/
+
+# Semantic-retrieval index (rebuildable from kb.json + sources)
+tools/retrieval/index.duckdb
+tools/retrieval/index.duckdb.wal
