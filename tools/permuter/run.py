@@ -2,7 +2,7 @@
 """run.py — Adapter driver: run decomp-permuter against a VC71/MSVC target function.
 
 Assembles the permuter input directory for a given function, then invokes
-permuter.py with our compile.sh adapter and ELF-converted reference object.
+permuter.py with our compile.sh adapter and COFF reference object.
 
 Usage:
     python3 tools/permuter/run.py --function FUN_0014b220 --source src/halo/physics/collision_features.c
@@ -11,7 +11,7 @@ Usage:
 
 Steps performed:
     1. Extract and preprocess the target function into base.c (with pycparser-compat typedefs)
-    2. Convert delinked reference COFF → ELF (target.o)
+    2. Copy delinked reference COFF to target.o
     3. Write compile.sh symlink + settings.toml into a temp work dir
     4. Run permuter.py -j<threads> --best-only <workdir>
 
@@ -82,14 +82,12 @@ def find_delinked_reference(source: Path) -> Path | None:
     return None
 
 
-def coff_to_elf(coff: Path, elf: Path) -> bool:
-    """Convert a COFF i386 object to ELF i386 using objcopy."""
-    result = subprocess.run(
-        ["objcopy", "-I", "pe-i386", "-O", "elf32-i386", str(coff), str(elf)],
-        capture_output=True,
-    )
-    if result.returncode != 0:
-        print(f"[run.py] objcopy failed: {result.stderr.decode()}", file=sys.stderr)
+def copy_reference_coff(coff: Path, target: Path) -> bool:
+    """Copy the delinked COFF i386 object into the permuter work dir."""
+    try:
+        shutil.copy2(coff, target)
+    except OSError as e:
+        print(f"[run.py] reference copy failed: {e}", file=sys.stderr)
         return False
     return True
 
@@ -108,7 +106,9 @@ def extract_function_body(source: Path, func_name: str) -> tuple[str, str] | Non
             f"-I{REPO_ROOT / 'src'}",
             f"-I{REPO_ROOT / 'build' / 'generated'}",
             "-DMSVC", "-DXDK_BUILD",
+            "-D_M_IX86=1", "-D_MSC_VER=1310",
             "-D__attribute__(x)=",
+            "-D__declspec(x)=",
             str(source),
         ],
         capture_output=True, text=True,
@@ -148,41 +148,106 @@ def extract_function_body(source: Path, func_name: str) -> tuple[str, str] | Non
 
     func_body = src[start:i + 1]
 
-    # Extract file-scope static definitions that appear before the function.
-    # Walk line by line, collecting top-level 'static ...' declarations
-    # (which may span multiple lines due to array initializers).
+    # Extract file-scope declarations that the target function actually uses.
+    # 1. Collect all identifiers referenced in the function body.
+    # 2. Walk the preamble for typedef/struct/static/extern blocks.
+    # 3. Keep only blocks whose defined name appears in the function's identifiers.
     preamble = src[:start]
-    static_defs = []
+    _C_KEYWORDS = {
+        'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do',
+        'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if',
+        'int', 'long', 'register', 'return', 'short', 'signed', 'sizeof',
+        'static', 'struct', 'switch', 'typedef', 'union', 'unsigned', 'void',
+        'volatile', 'while', 'bool', 'true', 'false', 'NULL',
+    }
+    func_no_strings = re.sub(r'"[^"]*"', '""', func_body)
+    func_ids = set(re.findall(r'\b[A-Za-z_]\w*\b', func_no_strings)) - _C_KEYWORDS
+
+    all_blocks = []  # list of (block_text, defined_names)
     lines = preamble.split('\n')
     i = 0
     while i < len(lines):
         line = lines[i]
-        if re.match(r'^static\b', line):
-            # Collect lines until we see the closing ';' at top level
+        if re.match(r'^(typedef|struct|union|enum|static|extern|__declspec)\b', line):
             block = [line]
             depth = line.count('{') - line.count('}')
+            entered_body = depth > 0
             j = i + 1
-            while j < len(lines) and (depth > 0 or not block[-1].rstrip().endswith(';')):
+            while j < len(lines):
+                if entered_body and depth == 0:
+                    break
+                if not entered_body and block[-1].rstrip().endswith(';'):
+                    break
                 next_line = lines[j]
                 block.append(next_line)
                 depth += next_line.count('{') - next_line.count('}')
+                if depth > 0:
+                    entered_body = True
                 j += 1
-            static_defs.append('\n'.join(block))
+            block_text = '\n'.join(block)
+            block_ids = set(re.findall(r'\b[A-Za-z_]\w*\b', block_text)) - _C_KEYWORDS
+            all_blocks.append((block_text, block_ids))
             i = j
         else:
             i += 1
 
-    return "\n\n".join(static_defs), func_body
+    # Keep blocks that define names used by the function.  Then iteratively
+    # resolve transitive dependencies (a kept typedef may reference another).
+    kept = []
+    resolved = set(func_ids)
+    changed = True
+    while changed:
+        changed = False
+        remaining = []
+        for block_text, block_ids in all_blocks:
+            if block_ids & resolved:
+                kept.append(block_text)
+                resolved |= block_ids
+                changed = True
+            else:
+                remaining.append((block_text, block_ids))
+        all_blocks = remaining
+
+    return "\n\n".join(kept), func_body
+
+
+def _generate_implicit_decls(func_body: str, file_statics: str) -> str:
+    """Generate implicit int f() declarations for called-but-undeclared identifiers.
+
+    pycparser needs every called identifier to have a visible declaration.
+    VC71 gets declarations via /FI, but the base.c extracted from cpp may lack
+    them when the source file has no #include directives.
+    """
+    _C_KEYWORDS = {
+        'auto', 'break', 'case', 'char', 'const', 'continue', 'default', 'do',
+        'double', 'else', 'enum', 'extern', 'float', 'for', 'goto', 'if',
+        'int', 'long', 'register', 'return', 'short', 'signed', 'sizeof',
+        'static', 'struct', 'switch', 'typedef', 'union', 'unsigned', 'void',
+        'volatile', 'while', 'bool', 'true', 'false', 'NULL',
+    }
+    call_pattern = re.compile(r'\b([A-Za-z_]\w*)\s*\(')
+    called = set(call_pattern.findall(func_body)) - _C_KEYWORDS
+    combined = file_statics + "\n" + func_body
+    sig_pattern = re.compile(r'\b(?:void|int|char|float|short|unsigned|long)\s+\**\s*([A-Za-z_]\w*)\s*\(')
+    declared = set(sig_pattern.findall(combined))
+    undeclared = called - declared
+    if not undeclared:
+        return ""
+    lines = []
+    for name in sorted(undeclared):
+        lines.append(f"int {name}();")
+    return "\n".join(lines)
 
 
 def build_base_c(func_name: str, func_body: str, file_statics: str = "") -> str:
     """Construct a minimal base.c suitable for pycparser + VC71 compilation."""
+    statics = re.sub(r'__declspec\s*\([^)]*\)\s*', '', file_statics)
     return f"""\
 /* permuter base.c for {func_name} — auto-generated by tools/permuter/run.py */
 
 {PYCPARSER_TYPEDEFS}
 
-{file_statics}
+{statics}
 
 {func_body}
 """
@@ -209,18 +274,43 @@ def compile_base(work_dir: Path) -> bool:
     return True
 
 
-def get_lcs_score(func_name: str, compiled_elf: Path, ref_elf: Path) -> float | None:
-    """Get LCS match % for a function between compiled and reference ELF objects."""
+def _resolve_ref_name(func_name: str) -> str | None:
+    """Map a lifted function name to its FUN_<addr> delinked symbol via kb.json."""
+    kb_path = REPO_ROOT / "kb.json"
+    if not kb_path.exists():
+        return None
+    try:
+        kb = json.loads(kb_path.read_text())
+        for obj in kb.get("objects", []):
+            for fn in obj.get("functions", []):
+                decl = fn.get("decl", "")
+                addr = fn.get("addr", "")
+                if func_name in decl and addr:
+                    raw = int(addr, 16)
+                    return f"FUN_{raw:08x}"
+    except Exception:
+        pass
+    return None
+
+
+def get_lcs_score(func_name: str, compiled_obj: Path, ref_obj: Path) -> float | None:
+    """Get LCS match % for a function between compiled and reference objects."""
     spec = importlib.util.spec_from_file_location("compare_obj", str(COMPARE_OBJ))
     co = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(co)
 
-    cand_funcs = co.disassemble(str(compiled_elf))
-    ref_funcs = co.disassemble(str(ref_elf))
+    cand_funcs = co.disassemble(str(compiled_obj))
+    ref_funcs = co.disassemble(str(ref_obj))
 
     fn = func_name.lstrip("_")
-    if fn in cand_funcs and fn in ref_funcs:
-        pct, _, _ = co.compare_functions(cand_funcs[fn], ref_funcs[fn])
+    cand_fn = fn if fn in cand_funcs else None
+    ref_fn = fn if fn in ref_funcs else None
+    if ref_fn is None:
+        delinked_name = _resolve_ref_name(fn)
+        if delinked_name and delinked_name in ref_funcs:
+            ref_fn = delinked_name
+    if cand_fn and ref_fn:
+        pct, _, _ = co.compare_functions(cand_funcs[cand_fn], ref_funcs[ref_fn])
         return pct
     return None
 
@@ -228,6 +318,14 @@ def get_lcs_score(func_name: str, compiled_elf: Path, ref_elf: Path) -> float | 
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
+
+_quiet = False  # set after arg parse; used by _log
+
+
+def _log(*a, **kw):
+    if not _quiet:
+        print(*a, **kw)
+
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
@@ -246,7 +344,12 @@ def main():
                     help="Keep the work directory after the run")
     ap.add_argument("--output-dir", default=None,
                     help="Save work dir to this path after run")
+    ap.add_argument("--quiet", "-q", action="store_true",
+                    help="Suppress diagnostic noise; only print final summary and errors")
     args = ap.parse_args()
+
+    global _quiet
+    _quiet = args.quiet
 
     source = Path(args.source)
     if not source.is_absolute():
@@ -256,8 +359,8 @@ def main():
         sys.exit(1)
 
     func_name = args.function.lstrip("_")
-    print(f"[run.py] Target function : {func_name}")
-    print(f"[run.py] Source file     : {source}")
+    _log(f"[run.py] Target function : {func_name}")
+    _log(f"[run.py] Source file     : {source}")
 
     # ------------------------------------------------------------------
     # VC71 requires temp files on Windows-accessible drive paths.
@@ -275,7 +378,7 @@ def main():
         print("[run.py] ERROR: No delinked reference found. "
               "Run batch_delink.py to export the reference object.", file=sys.stderr)
         sys.exit(1)
-    print(f"[run.py] Reference COFF  : {ref_coff}")
+    _log(f"[run.py] Reference COFF  : {ref_coff}")
 
     # ------------------------------------------------------------------
     # Set up work directory (must be on Windows-accessible path)
@@ -287,12 +390,13 @@ def main():
     else:
         work_dir = Path(tempfile.mkdtemp(prefix="permuter_", dir=WIN_TMPDIR))
         cleanup = not args.keep
-    print(f"[run.py] Work dir        : {work_dir}")
+    _log(f"[run.py] Work dir        : {work_dir}")
 
     try:
-        # Convert reference COFF → ELF
+        # Copy reference COFF into the work dir. The permuter scorer now uses
+        # llvm-objdump on COFF directly, matching compare_obj.py's pipeline.
         target_o = work_dir / "target.o"
-        if not coff_to_elf(ref_coff, target_o):
+        if not copy_reference_coff(ref_coff, target_o):
             sys.exit(1)
 
         # Extract and preprocess the target function
@@ -311,7 +415,7 @@ def main():
 
         base_c = work_dir / "base.c"
         base_c.write_text(base_c_content)
-        print(f"[run.py] base.c          : {len(base_c_content)} chars, {func_name}")
+        _log(f"[run.py] base.c          : {len(base_c_content)} chars, {func_name}")
 
         # Write compile.sh symlink
         compile_sh_link = work_dir / "compile.sh"
@@ -324,7 +428,7 @@ def main():
         settings_f.write_text(
             f'func_name = "{func_name}"\n'
             f'compiler_type = "base"\n'
-            f'objdump_command = "objdump -d --no-show-raw-insn"\n'
+            f'objdump_command = "llvm-objdump -d --no-show-raw-insn --no-leading-addr"\n'
         )
 
         # Pre-compile sanity check
@@ -334,13 +438,13 @@ def main():
             sys.exit(1)
 
         # Get initial score via vc71_verify
-        base_o_elf = work_dir / "base.o"
-        init_pct = get_lcs_score(func_name, base_o_elf, target_o)
+        base_o = work_dir / "base.o"
+        init_pct = get_lcs_score(func_name, base_o, target_o)
         if init_pct is not None:
             init_score = round((100.0 - init_pct) * 10)
-            print(f"[run.py] Initial match   : {init_pct:.1f}% (permuter score≈{init_score*15})")
+            _log(f"[run.py] Initial LCS     : {init_pct:.1f}% (LCS loss={init_score})")
         else:
-            print("[run.py] Initial match   : (could not compute)")
+            _log("[run.py] Initial LCS     : (could not compute)")
 
         # ------------------------------------------------------------------
         # Run permuter
@@ -351,44 +455,93 @@ def main():
             cmd += [f"-j{args.threads}"]
         cmd += ["--best-only", str(work_dir)]
 
-        print(f"\n[run.py] Running permuter for {args.time}s, {args.threads} thread(s)...")
-        print(f"[run.py] Command: {' '.join(cmd)}\n")
-        print("-" * 60)
+        _log(f"\n[run.py] Running permuter for {args.time}s, {args.threads} thread(s)...")
+        _log(f"[run.py] Command: {' '.join(cmd)}\n")
+        _log("-" * 60)
 
         try:
             result = subprocess.run(cmd, timeout=args.time,
-                                    env={**os.environ, "TMPDIR": str(WIN_TMPDIR)})
+                                    env={**os.environ, "TMPDIR": str(WIN_TMPDIR)},
+                                    capture_output=_quiet)
         except subprocess.TimeoutExpired:
-            print(f"\n[run.py] Permuter stopped after {args.time}s timeout.")
+            _log(f"\n[run.py] Permuter stopped after {args.time}s timeout.")
         except KeyboardInterrupt:
-            print("\n[run.py] Interrupted.")
+            _log("\n[run.py] Interrupted.")
 
-        # Check for output directories (improvements found)
+        # ------------------------------------------------------------------
+        # LCS-gated candidate selection
+        # ------------------------------------------------------------------
+        # The permuter's penalty score can diverge from the repo's LCS
+        # instruction-match metric.  We compile every output candidate,
+        # compute the repo LCS for each, and select by:
+        #   1. Highest LCS first (must exceed baseline)
+        #   2. Lowest permuter penalty as tie-breaker
+        #   3. Equal-LCS candidates labelled as manual-inspection only
+        # ------------------------------------------------------------------
         outputs = sorted(work_dir.glob("output-*"))
-        if outputs:
-            best_dir = min(outputs, key=lambda p: int(p.name.split("-")[1]))
-            best_score = int(best_dir.name.split("-")[1])
-            print(f"\n[run.py] Best permuter score: {best_score}")
-            print(f"[run.py] Best output dir: {best_dir}")
+        if not outputs:
+            print("\n[run.py] No improvements found in this run.")
+        else:
+            _log(f"\n[run.py] Scoring {len(outputs)} candidate(s) by LCS...")
 
-            # Compile best candidate and report LCS score
-            best_src = best_dir / "source.c"
-            best_elf = work_dir / "best_candidate.o"
-            if best_src.exists():
+            candidates = []
+            for out_dir in outputs:
+                perm_penalty = int(out_dir.name.split("-")[1])
+                src = out_dir / "source.c"
+                if not src.exists():
+                    continue
+                obj_file = work_dir / f"candidate_{perm_penalty}.o"
                 r = subprocess.run(
-                    [str(COMPILE_SH), str(best_src), "-o", str(best_elf)],
+                    [str(COMPILE_SH), str(src), "-o", str(obj_file)],
                     env={**os.environ, "TMPDIR": str(WIN_TMPDIR)},
                     capture_output=True,
                 )
-                if r.returncode == 0 and best_elf.exists():
-                    best_pct = get_lcs_score(func_name, best_elf, target_o)
-                    if best_pct is not None:
-                        print(f"[run.py] Best candidate LCS: {best_pct:.1f}%")
-                        if init_pct is not None:
-                            print(f"[run.py] Improvement: {init_pct:.1f}% → {best_pct:.1f}% "
-                                  f"(+{best_pct - init_pct:.1f}pp)")
-        else:
-            print("\n[run.py] No improvements found in this run.")
+                if r.returncode != 0 or not obj_file.exists():
+                    _log(f"  penalty={perm_penalty}: compile failed, skipping")
+                    continue
+                lcs = get_lcs_score(func_name, obj_file, target_o)
+                if lcs is None:
+                    _log(f"  penalty={perm_penalty}: LCS lookup failed, skipping")
+                    continue
+                candidates.append((lcs, perm_penalty, out_dir, obj_file))
+                is_best = init_pct is None or lcs > init_pct
+                label = "NEW BEST" if is_best else ""
+                # In quiet mode only log candidates that beat the baseline
+                if not _quiet or is_best:
+                    print(f"  penalty={perm_penalty:>6d}  LCS={lcs:5.1f}%  {label}")
+
+            if not candidates:
+                print("[run.py] No candidates compiled successfully.")
+            else:
+                candidates.sort(key=lambda c: (-c[0], c[1]))
+                best_lcs, best_penalty, best_dir, best_obj = candidates[0]
+
+                print(f"\n[run.py] Best permuter penalty: {best_penalty}")
+                print(f"[run.py] Best LCS            : {best_lcs:.1f}%")
+                _log(f"[run.py] Best output dir     : {best_dir}")
+
+                if init_pct is not None:
+                    delta = best_lcs - init_pct
+                    print(f"[run.py] Baseline            : {init_pct:.1f}%")
+                    if delta > 0:
+                        print(f"[run.py] Result: IMPROVED by {delta:.1f}pp")
+                    elif delta == 0:
+                        print("[run.py] Result: EQUAL to baseline — manual inspection only")
+                    else:
+                        print(f"[run.py] Result: REGRESSED by {abs(delta):.1f}pp — do not apply")
+
+                # Write a summary file for downstream tooling
+                summary = work_dir / "lcs_results.txt"
+                with open(summary, "w") as sf:
+                    sf.write(f"baseline_lcs={init_pct}\n")
+                    for rank, (lcs, penalty, d, _) in enumerate(candidates, 1):
+                        delta_str = f"{lcs - init_pct:+.1f}" if init_pct else "n/a"
+                        verdict = "IMPROVED" if init_pct and lcs > init_pct else (
+                            "EQUAL" if init_pct and lcs == init_pct else (
+                            "REGRESSED" if init_pct and lcs < init_pct else "UNKNOWN"))
+                        sf.write(f"rank={rank} lcs={lcs:.1f} penalty={penalty} "
+                                 f"delta={delta_str} verdict={verdict} dir={d.name}\n")
+                _log(f"[run.py] Summary written to: {summary}")
 
         # ------------------------------------------------------------------
         # Save or clean up

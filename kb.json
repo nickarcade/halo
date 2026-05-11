@@ -217,6 +217,10 @@
         {
           "decl": "float FUN_000993b0(float *param_1, float *param_2, float *param_3);",
           "addr": "0x993b0"
+        },
+        {
+          "decl": "void FUN_000d7cd0(int player_index, float amount);",
+          "addr": "0xd7cd0"
         }
       ]
     },
@@ -658,13 +662,19 @@
           "ported": true
         },
         {
+          "decl": "void FUN_0003cd30(int actor_handle);",
+          "addr": "0x3cd30",
+          "ported": true
+        },
+        {
           "decl": "void FUN_0003cff0(int actor_handle);",
           "addr": "0x3cff0",
           "ported": true
         },
         {
           "decl": "char actor_set_active(int actor_handle, char active_flag);",
-          "addr": "0x3d5f0"
+          "addr": "0x3d5f0",
+          "ported": true
         },
         {
           "decl": "int actor_swarm_attach_unit(int actor_handle, int unit_index);",
@@ -717,8 +727,19 @@
           "ported": true,
           "status": "ported",
           "src": "src/halo/ai/actors.c"
+        },
+        {
+          "decl": "char FUN_0003b120(int actor_handle);",
+          "addr": "0x3b120",
+          "ported": true
+        },
+        {
+          "decl": "char FUN_0003b150(int actor_handle);",
+          "addr": "0x3b150",
+          "ported": true
         }
-      ]
+      ],
+      "src": "src/halo/ai/actors.c"
     },
     {
       "name": "actor_looking.obj",
@@ -860,6 +881,10 @@
           "addr": "0x41420",
           "decl": "int16_t FUN_00041420(int actor_handle, int16_t max_count, ai_firing_pos_entry_t *buf);",
           "ported": true
+        },
+        {
+          "decl": "void FUN_0003f900(int player_index, void *damage_params, float *scale);",
+          "addr": "0x3f900"
         }
       ]
     },
@@ -2531,6 +2556,10 @@
           "decl": "float FUN_000b5590(int16_t value_type);",
           "addr": "0xb5590",
           "ported": true
+        },
+        {
+          "decl": "const char *FUN_000b5490(short material_type);",
+          "addr": "0xb5490"
         }
       ]
     },
@@ -2873,6 +2902,10 @@
           "decl": "bool game_engine_get_current_stage(void *game_variant_dst, void *game_variant_src);",
           "addr": "0xa8aa0",
           "ported": true
+        },
+        {
+          "decl": "float FUN_000ad530(int player_a, int player_b);",
+          "addr": "0xad530"
         }
       ]
     },
@@ -5327,6 +5360,10 @@
           "decl": "void player_effect_apply(int player_handle, void *effect_descriptor, float intensity);",
           "addr": "0xa2e80",
           "ported": true
+        },
+        {
+          "decl": "void FUN_000a3b80(int player_index, void *damage_params, void *position, float damage_amount, float scale);",
+          "addr": "0xa3b80"
         }
       ]
     },
@@ -5895,7 +5932,8 @@
         },
         {
           "decl": "char projectile_aim_ballistic(float speed, float gravity, float *origin, float *target, int param_5, float *param_6, float *param_7, char param_8, float *aim_vector, float *param_10, float *param_11, float *param_12, float *param_13, float *param_14);",
-          "addr": "0xf80a0"
+          "addr": "0xf80a0",
+          "ported": true
         },
         {
           "decl": "int projectile_aim_linear(float speed, float *origin, float *target, float *aim_vector, float *out_speed, float *out_t, float *out_dist);",
@@ -5951,7 +5989,8 @@
           "addr": "0xfac20",
           "ported": true
         }
-      ]
+      ],
+      "src": "src/halo/items/projectiles.c"
     },
     {
       "name": "progress_bar.obj",
@@ -6463,6 +6502,15 @@
           "addr": "0x10a1c0",
           "decl": "void FUN_0010a1c0(float *matrix, float *in_plane, float *out_plane);",
           "ported": true
+        },
+        {
+          "addr": "0x10b600",
+          "decl": "void FUN_0010b600(float *in, float *out);",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0010b7d0(float *a, float *b, float blend, float *out);",
+          "addr": "0x10b7d0"
         }
       ]
     },
@@ -7519,6 +7567,16 @@
           "decl": "void thread_close(void *thread_reference);",
           "addr": "0x81770",
           "ported": true
+        },
+        {
+          "decl": "bool FUN_00081870(int *mutex_reference, int timeout_ms);",
+          "addr": "0x81870",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_000818d0(int *mutex_reference);",
+          "addr": "0x818d0",
+          "ported": true
         }
       ]
     },
@@ -7599,7 +7657,7 @@
         {
           "decl": "void FUN_00084300(int *connect_handle);",
           "addr": "0x84300",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "int FUN_00084520(int *ep, void *buffer, int length, void *addr);",
@@ -8190,6 +8248,10 @@
           "decl": "int16_t unit_get_grenade_count(int unit_handle, int16_t grenade_type);",
           "addr": "0x1aae70",
           "ported": true
+        },
+        {
+          "decl": "char FUN_001b1d00(int object_handle, void *position);",
+          "addr": "0x1b1d00"
         }
       ]
     },
@@ -9497,6 +9559,10 @@
           "ported": true
         },
         {
+          "decl": "void FUN_00059bf0(int encounter_handle /* @<eax> */);",
+          "addr": "0x59bf0"
+        },
+        {
           "decl": "void FUN_0005a120(short *squad_counter /* @<eax> */, void *encounter_def, short *platoon_counter);",
           "addr": "0x5a120",
           "ported": true
@@ -9563,7 +9629,8 @@
         },
         {
           "decl": "void encounter_update_status(int encounter_handle);",
-          "addr": "0x5d420"
+          "addr": "0x5d420",
+          "ported": true
         },
         {
           "decl": "void encounters_update_dirty_status(void);",
@@ -9636,8 +9703,18 @@
           "addr": "0x5a050",
           "decl": "void FUN_0005a050(int squad_index /* @<eax> */, int encounter_handle /* @<ecx> */);",
           "ported": true
+        },
+        {
+          "decl": "void FUN_0005aab0(int encounter_handle);",
+          "addr": "0x5aab0",
+          "ported": true
+        },
+        {
+          "decl": "void FUN_0005bbe0(int encounter_handle);",
+          "addr": "0x5bbe0"
         }
-      ]
+      ],
+      "src": "src/halo/ai/encounters.c"
     },
     {
       "name": "props.obj",
@@ -9808,6 +9885,10 @@
           "ported": true
         },
         {
+          "decl": "short FUN_00120d10(unsigned short *keyframe_frame_indices, short target_frame_index, short keyframe_count@<edi>);",
+          "addr": "0x120d10"
+        },
+        {
           "decl": "int model_animation_choose_random(int update_kind, int animation_graph_tag_index, int16_t animation_index);",
           "addr": "0x120f20",
           "ported": true
@@ -9818,7 +9899,8 @@
         },
         {
           "decl": "void animation_get_node_orientations(void *animation, float frame, unsigned short translation_count, short node_index, void *out_translation);",
-          "addr": "0x121640"
+          "addr": "0x121640",
+          "ported": true
         },
         {
           "decl": "void overlay_animation_apply_continuous_scaled(void *animation, float frame, unsigned short scale_count, short node_index, void *out_scale);",
@@ -9989,7 +10071,8 @@
         },
         {
           "decl": "char collision_prism_test_point(void *feature, void *los_data, float *t_hit, float *normal);",
-          "addr": "0x14bae0"
+          "addr": "0x14bae0",
+          "ported": true
         },
         {
           "addr": "0x14b220",
@@ -9997,8 +10080,9 @@
           "ported": true
         },
         {
-          "decl": "void collision_features_from_line(float *param_1, float *param_2, float param_3, int param_4, int param_5, int param_6, int param_7, int param_8, int param_9, void *features);",
-          "addr": "0x14aee0"
+          "decl": "void collision_features_from_line(float *param_1, float *param_2, float param_3, int param_4, int param_5, int param_6, unsigned char param_7, unsigned char param_8, unsigned short param_9, void *features);",
+          "addr": "0x14aee0",
+          "ported": true
         }
       ]
     },
@@ -10186,11 +10270,13 @@
         },
         {
           "decl": "void object_cause_damage(void *damage_params, int object_handle, short node_index, short region_index, short permutation_index, unsigned int flags);",
-          "addr": "0x137d20"
+          "addr": "0x137d20",
+          "ported": true
         },
         {
           "decl": "void object_damage_update(int object_handle);",
-          "addr": "0x1384e0"
+          "addr": "0x1384e0",
+          "ported": true
         },
         {
           "decl": "void FUN_00138900(void *damage_params, int object_handle, char recursive);",
@@ -10211,7 +10297,8 @@
           "addr": "0x138ee0",
           "ported": true
         }
-      ]
+      ],
+      "src": "src/halo/objects/damage.c"
     },
     {
       "name": "object_lights.obj",
