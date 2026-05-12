@@ -65,6 +65,17 @@ FAKE_RET_ADDR  = 0xDEADC0DE   # fake return address pushed on stack
 MAX_INSN       = 100_000      # hard limit on emulated instructions
 TIMEOUT_MS     = 5_000        # 5 second timeout
 
+# Frequently used scalar globals that appear as hardcoded absolute addresses in
+# lifted C. Preload them so Unicorn sees the same canonical values as the XBE
+# instead of faulting or reading synthetic zero pages.
+_KNOWN_GLOBAL_BYTES = {
+    0x253394: struct.pack("<f", 30.0),
+    0x253398: struct.pack("<f", 0.5),
+    0x2533C0: struct.pack("<f", 0.0),
+    0x2533C8: struct.pack("<f", 1.0),
+    0x254CB8: struct.pack("<f", 1000.0),
+}
+
 
 # ---------------------------------------------------------------------------
 # kb.json helpers
@@ -85,7 +96,8 @@ def _find_kb_entry(kb: dict, func_name: str) -> Optional[dict]:
             m = re.search(r'\b(\w+)\s*\(', decl)
             fn_name = m.group(1) if m else ""
             if fn_name == func_name or fn.get("addr", "") == addr_query:
-                return dict(fn, _obj_name=obj.get("name", ""))
+                return dict(fn, _obj_name=obj.get("name", ""),
+                            _obj_source=obj.get("source", ""))
     return None
 
 
@@ -95,7 +107,8 @@ def _find_kb_entry_by_addr(kb: dict, addr: str) -> Optional[dict]:
         for fn in obj.get("functions", []):
             a = fn.get("addr", "").lower().lstrip("0x")
             if a == addr_norm:
-                return dict(fn, _obj_name=obj.get("name", ""))
+                return dict(fn, _obj_name=obj.get("name", ""),
+                            _obj_source=obj.get("source", ""))
     return None
 
 
@@ -124,10 +137,13 @@ def _find_obj_paths(kb_entry: dict) -> tuple[Optional[Path], Optional[Path]]:
     delinked_path = None
     build_path = None
 
+    import re as _re
+    # Match bare name at a word boundary to prevent "ai" matching "actors_ai..."
+    _bare_pat = _re.compile(r'(?<![A-Za-z0-9_])' + _re.escape(bare) + r'\.obj')
     for unit in units:
         base = unit.get("base_path", "")
         target = unit.get("target_path", "")
-        if bare and (bare in base or bare in target):
+        if bare and (_bare_pat.search(base) or _bare_pat.search(target)):
             dp = _REPO_ROOT / base
             tp = _REPO_ROOT / target
             if dp.exists():
@@ -155,7 +171,110 @@ def _find_build_obj_for_source(source_path: str) -> Optional[Path]:
             tp = _REPO_ROOT / unit.get("target_path", "")
             if tp.exists():
                 return tp
+
+    cmake_obj = BUILD_DIR / "CMakeFiles" / "halo.dir" / "src" / "halo" / f"{source_path}.obj"
+    if cmake_obj.exists():
+        return cmake_obj
+
     return None
+
+
+def _function_aliases(func_name: str) -> set[str]:
+    aliases = {func_name.lstrip("_")}
+    entry = _find_kb_entry(_load_kb(), func_name)
+    if not entry:
+        return aliases
+
+    decl = entry.get("decl", "")
+    addr = entry.get("addr", "")
+    m = re.search(r"\b(\w+)\s*\(", decl)
+    if m:
+        aliases.add(m.group(1))
+    if addr:
+        aliases.add(f"FUN_{int(addr, 16):08x}")
+    return aliases
+
+
+def _per_function_ref(func_name: str) -> Optional[Path]:
+    for alias in _function_aliases(func_name):
+        m = re.match(r"FUN_([0-9a-f]{8})$", alias, re.IGNORECASE)
+        if not m:
+            continue
+        candidate = DELINKED_DIR / "functions" / f"{m.group(1).lower()}.obj"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _compile_build_obj_for_source(source_path: str) -> tuple[Optional[Path], Optional[str]]:
+    """Compile a standalone candidate .obj for a source file.
+
+    This is used when a TU is not part of HALO_SOURCES yet, but we still want
+    Unicorn/Z3 iteration against the current lifted C.
+    """
+    src_path = _REPO_ROOT / "src" / "halo" / source_path
+    if not src_path.exists():
+        return None, f"source file does not exist: {src_path}"
+
+    gen_dir = BUILD_DIR / "generated"
+    if not gen_dir.exists():
+        return None, f"generated headers missing: {gen_dir}"
+
+    out_dir = BUILD_DIR / "equivalence"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_obj = out_dir / (Path(source_path).name + ".obj")
+
+    cmd = [
+        "clang",
+        "-Wall", "-Werror",
+        "-target", "i386-pc-win32",
+        "-march=pentium3",
+        "-mno-sse",
+        "-nostdlib",
+        "-ffreestanding",
+        "-fno-builtin",
+        "-fno-exceptions",
+        "-mstack-probe-size=65536",
+        f"-I{_REPO_ROOT / 'src'}",
+        f"-I{_REPO_ROOT / 'third_party' / 'xbox'}",
+        f"-I{gen_dir}",
+        "-include", str(_REPO_ROOT / "src" / "common.h"),
+        "-c", str(src_path),
+        "-o", str(out_obj),
+    ]
+
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        detail = proc.stderr.strip() or proc.stdout.strip() or "clang compile failed"
+        return None, detail
+    return out_obj, None
+
+
+def _seed_known_globals(uc, base: int, size: int):
+    end = base + size
+    for addr, data in _KNOWN_GLOBAL_BYTES.items():
+        if base <= addr and addr + len(data) <= end:
+            uc.mem_write(addr, data)
+
+
+def _build_globals_seeds(*slot_maps: dict) -> dict:
+    """Build {slot_address: bytes} from DIR32 slot mappings + _KNOWN_GLOBAL_BYTES.
+
+    Each slot_map has symbol_name -> slot_address.  Symbol names like
+    DAT_002533c8 encode the original XBE address.  If that address is in
+    _KNOWN_GLOBAL_BYTES, the slot gets seeded with the correct value.
+    """
+    import re
+    seeds = {}
+    for smap in slot_maps:
+        for sym_name, slot_addr in smap.items():
+            m = re.match(r'DAT_([0-9a-fA-F]{4,})', sym_name)
+            if not m:
+                continue
+            orig_addr = int(m.group(1), 16)
+            if orig_addr in _KNOWN_GLOBAL_BYTES:
+                seeds[slot_addr] = _KNOWN_GLOBAL_BYTES[orig_addr]
+    return seeds
 
 
 # ---------------------------------------------------------------------------
@@ -163,16 +282,22 @@ def _find_build_obj_for_source(source_path: str) -> Optional[Path]:
 # ---------------------------------------------------------------------------
 
 def _run_function(code: bytes, abi: dict, arg_values: list,
-                  verbose: bool = False) -> "state.CPUState":
+                  verbose: bool = False, map_globals: bool = False,
+                  stub_manager=None, globals_seeds: dict = None) -> "state.CPUState":
     """Run a function in a fresh Unicorn instance.
 
     Returns a CPUState with captured registers and scratch memory.
     If emulation fails, returns a CPUState with .error set.
+
+    map_globals: if True, maps a zeroed globals region at 0x500000
+    stub_manager: if set, installs a fetch-unmapped hook to intercept calls
+    globals_seeds: dict of {address: bytes} to write into the globals region
+                   after zero-initialization (seeds known global values).
     """
     import unicorn
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32
-    from unicorn import UC_HOOK_CODE
-    from unicorn.x86_const import UC_X86_REG_ESP, UC_X86_REG_EBP
+    from unicorn import UC_HOOK_CODE, UC_HOOK_MEM_FETCH_UNMAPPED, UC_HOOK_MEM_INVALID
+    from unicorn.x86_const import UC_X86_REG_ESP, UC_X86_REG_EBP, UC_X86_REG_EIP
 
     import sys
     sys.path.insert(0, str(_SCRIPT_DIR))
@@ -180,14 +305,41 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
     import state as state_mod
 
     uc = Uc(UC_ARCH_X86, UC_MODE_32)
+    last_map_error = [""]
+    last_unmapped_access = [""]
+    stub_addrs = stub_manager.get_stub_addresses() if stub_manager else set()
+    if verbose and stub_addrs:
+        stub_pairs = []
+        for addr in sorted(stub_addrs):
+            name = ""
+            if stub_manager is not None:
+                name = stub_manager._stub_names.get(addr, "")
+            stub_pairs.append(f"{addr:#x}:{name}")
+        print("    [stub-map] " + ", ".join(stub_pairs))
 
     # Map memory regions
     uc.mem_map(CODE_BASE, CODE_SIZE)
     uc.mem_map(STACK_BASE, STACK_SIZE)
     uc.mem_map(SCRATCH_BASE, SCRATCH_SIZE)
 
+    if map_globals:
+        from stubs import GLOBALS_BASE, GLOBALS_SIZE
+        uc.mem_map(GLOBALS_BASE, GLOBALS_SIZE)
+        uc.mem_write(GLOBALS_BASE, b'\x00' * GLOBALS_SIZE)
+        if globals_seeds:
+            for addr, data in globals_seeds.items():
+                uc.mem_write(addr, data)
+
     # Write function code at CODE_BASE
     uc.mem_write(CODE_BASE, code)
+
+    if stub_addrs:
+        stub_page_base = min(stub_addrs) & ~0xFFFF
+        stub_page_end = (max(stub_addrs) & ~0xFFFF) + 0x10000
+        uc.mem_map(stub_page_base, stub_page_end - stub_page_base)
+        uc.mem_write(stub_page_base, b"\xCC" * (stub_page_end - stub_page_base))
+        for stub_addr in stub_addrs:
+            uc.mem_write(stub_addr, stub_manager.get_stub_code(stub_addr))
 
     # Set up stack: ESP points just below STACK_TOP
     esp = STACK_TOP - 4
@@ -213,11 +365,110 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
 
     # Track instruction count
     insn_count = [0]
+    stub_trace_count = [0]
 
     def hook_code(uc, address, size, user_data):
         insn_count[0] += 1
+        if verbose and address in stub_addrs and stub_trace_count[0] < 64:
+            symbol_name = ""
+            if stub_manager is not None:
+                symbol_name = stub_manager._stub_names.get(address, "")
+            print(f"    [stub] {symbol_name or hex(address)} @ {address:#x}")
+            stub_trace_count[0] += 1
+        if address in stub_addrs and stub_manager is not None and stub_manager.should_intercept(address):
+            if stub_manager.execute_stub(uc, address):
+                cur_esp = uc.reg_read(UC_X86_REG_ESP)
+                ret_addr_bytes = uc.mem_read(cur_esp, 4)
+                ret_addr = struct.unpack('<I', bytes(ret_addr_bytes))[0]
+                uc.reg_write(UC_X86_REG_ESP, cur_esp + 4)
+                uc.reg_write(UC_X86_REG_EIP, ret_addr)
 
     uc.hook_add(UC_HOOK_CODE, hook_code)
+
+    from unicorn import UC_HOOK_MEM_READ_UNMAPPED, UC_HOOK_MEM_WRITE_UNMAPPED
+
+    known_pages = {addr & ~0xFFFF for addr in _KNOWN_GLOBAL_BYTES}
+
+    def hook_mem_invalid(uc, access, address, size, value, user_data):
+        if address in stub_addrs:
+            stub_manager.execute_stub(uc, address)
+            cur_esp = uc.reg_read(UC_X86_REG_ESP)
+            ret_addr_bytes = uc.mem_read(cur_esp, 4)
+            ret_addr = struct.unpack('<I', bytes(ret_addr_bytes))[0]
+            uc.reg_write(UC_X86_REG_ESP, cur_esp + 4)
+            uc.reg_write(UC_X86_REG_EIP, ret_addr)
+            return True
+        last_unmapped_access[0] = (
+            f"invalid addr={address:#x} size={size} access={access} value={value:#x}"
+        )
+        return False
+
+    uc.hook_add(UC_HOOK_MEM_INVALID, hook_mem_invalid)
+
+    # Non-leaf support: handle unmapped memory access
+    if map_globals:
+        _mapped_regions = set()
+
+        def hook_mem_unmapped(uc, access, address, size, value, user_data):
+            # Auto-map a 64KB page for any unmapped read/write
+            page_base = address & ~0xFFFF
+            last_unmapped_access[0] = (
+                f"page={page_base:#x} addr={address:#x} size={size} access={access}"
+            )
+            if page_base not in _mapped_regions:
+                try:
+                    uc.mem_map(page_base, 0x10000)
+                    uc.mem_write(page_base, b'\x00' * 0x10000)
+                    _seed_known_globals(uc, page_base, 0x10000)
+                    _mapped_regions.add(page_base)
+                    return True
+                except Exception as exc:
+                    last_map_error[0] = (
+                        f"page={page_base:#x} addr={address:#x} size={size} access={access}: {exc}"
+                    )
+                    return False
+            return False
+
+        uc.hook_add(UC_HOOK_MEM_READ_UNMAPPED, hook_mem_unmapped)
+        uc.hook_add(UC_HOOK_MEM_WRITE_UNMAPPED, hook_mem_unmapped)
+    else:
+        def hook_known_globals(uc, access, address, size, value, user_data):
+            page_base = address & ~0xFFFF
+            last_unmapped_access[0] = (
+                f"known-page={page_base:#x} addr={address:#x} size={size} access={access}"
+            )
+            if page_base not in known_pages:
+                return False
+            try:
+                uc.mem_map(page_base, 0x10000)
+                uc.mem_write(page_base, b'\x00' * 0x10000)
+                _seed_known_globals(uc, page_base, 0x10000)
+                return True
+            except Exception as exc:
+                last_map_error[0] = (
+                    f"known-page={page_base:#x} addr={address:#x} size={size} access={access}: {exc}"
+                )
+                return False
+
+        uc.hook_add(UC_HOOK_MEM_READ_UNMAPPED, hook_known_globals)
+        uc.hook_add(UC_HOOK_MEM_WRITE_UNMAPPED, hook_known_globals)
+
+    # Stub interception: handle fetch from sentinel addresses
+    if stub_manager:
+        def hook_fetch_unmapped(uc, access, address, size, value, user_data):
+            if address in stub_addrs:
+                stub_manager.execute_stub(uc, address)
+                cur_esp = uc.reg_read(UC_X86_REG_ESP)
+                ret_addr_bytes = uc.mem_read(cur_esp, 4)
+                ret_addr = struct.unpack('<I', bytes(ret_addr_bytes))[0]
+                uc.reg_write(UC_X86_REG_ESP, cur_esp + 4)
+                uc.reg_write(UC_X86_REG_EIP, ret_addr)
+                return True
+            if address == FAKE_RET_ADDR:
+                return False
+            return False
+
+        uc.hook_add(UC_HOOK_MEM_FETCH_UNMAPPED, hook_fetch_unmapped)
 
     err_msg = None
     try:
@@ -225,11 +476,18 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
                      count=MAX_INSN)
     except unicorn.UcError as e:
         err_str = str(e)
+        cur_eip = uc.reg_read(UC_X86_REG_EIP)
         # UC_ERR_FETCH_UNMAPPED at FAKE_RET_ADDR means clean return
         if "fetch" in err_str.lower() or "Fetch" in err_str:
-            pass  # normal termination via fake return address
+            if cur_eip != FAKE_RET_ADDR:
+                err_msg = f"{err_str} [eip={cur_eip:#x}]"
         else:
-            err_msg = err_str
+            if last_map_error[0]:
+                err_msg = f"{err_str} [{last_map_error[0]}]"
+            elif last_unmapped_access[0]:
+                err_msg = f"{err_str} [{last_unmapped_access[0]}]"
+            else:
+                err_msg = err_str
 
     s = state_mod.capture(uc, SCRATCH_BASE, SCRATCH_SIZE, entry_esp + 4)
     s.error = err_msg
@@ -242,26 +500,25 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
 # ---------------------------------------------------------------------------
 
 def _check_relocations(func_slice, label: str) -> bool:
-    """Return True if the function has no external relocations.
+    """Return True if the function has no unresolvable external relocations.
 
-    External relocations point to symbols not defined in the same .obj
-    (section_num == 0 in COFF means undefined external).  We cannot handle
-    these without a full linker, so we reject functions with them.
+    Relocations that reference symbols defined in the same .obj are safe
+    (intra-object calls/data).  Only truly external symbols (not in
+    defined_symbols and not section-relative) are rejected.
     """
     if not func_slice.relocs:
         return True
 
-    # Classify: built-in symbols we can safely ignore (typically self-calls
-    # within the same section that got encoded as relative offsets)
+    defined = getattr(func_slice, 'defined_symbols', set())
     ok = True
     for r in func_slice.relocs:
         sym = r.symbol_name
-        # Relative self-calls within the object appear as relocations but
-        # resolve to the same .obj — these are fine.  External references
-        # to DAT_, FUN_, or library functions are not fine.
-        if not (sym.startswith(".text") or sym.startswith(".rdata")):
-            print(f"  [RELOC] {label}: '{sym}' at +0x{r.virtual_address:x} — external, cannot emulate")
-            ok = False
+        if sym.startswith(".text") or sym.startswith(".rdata"):
+            continue
+        if sym in defined:
+            continue
+        print(f"  [RELOC] {label}: '{sym}' at +0x{r.virtual_address:x} — external, cannot emulate")
+        ok = False
     return ok
 
 
@@ -273,12 +530,10 @@ _LEAF_CACHE_PATH = _REPO_ROOT / "tools" / "equivalence" / "leaf_cache.json"
 
 
 def _record_leaf_classification(addr: str, is_leaf: bool) -> None:
-    """Persist a `addr -> "leaf" | "non_leaf"` entry to leaf_cache.json.
+    """Persist a classification entry to leaf_cache.json.
 
-    Used by `llm_auto_lift.py select` to reward Unicorn-eligible candidates
-    without paying the cost of COFF parsing on the hot path. The cache is
-    populated as a side-effect of real `unicorn_diff` runs, so entries
-    represent verified evidence rather than heuristics.
+    Uses the extended schema: each entry is a dict with at least a "class" key.
+    Legacy string entries are upgraded on read.
     """
     if not addr:
         return
@@ -291,7 +546,13 @@ def _record_leaf_classification(addr: str, is_leaf: bool) -> None:
             data = {}
     except (OSError, json.JSONDecodeError):
         data = {}
-    data[norm] = "leaf" if is_leaf else "non_leaf"
+    cat = "leaf" if is_leaf else "non_leaf"
+    existing = data.get(norm)
+    if isinstance(existing, dict):
+        existing["class"] = cat
+        data[norm] = existing
+    else:
+        data[norm] = {"class": cat}
     try:
         _LEAF_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         _LEAF_CACHE_PATH.write_text(
@@ -326,7 +587,8 @@ def _run_self_test(verbose: bool = False) -> int:
 def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
              verbose: bool = False, save_log: bool = True,
              output_json: Optional[Path] = None,
-             record_leaf: bool = True) -> int:
+             record_leaf: bool = True, z3_equiv: bool = False,
+             allow_stubs: bool = False) -> int:
     """Run the differential test.  Returns 0 if all pass, 1 if any diverge."""
 
     sys.path.insert(0, str(_SCRIPT_DIR))
@@ -408,10 +670,11 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
     # --- Locate .obj files ---
     delinked_path, build_path = _find_obj_paths(entry)
+    build_compiled_on_demand = False
 
     # Try source path from kb.json entry
-    if not build_path and entry.get("source"):
-        build_path = _find_build_obj_for_source(entry["source"])
+    if not build_path and entry.get("_obj_source"):
+        build_path = _find_build_obj_for_source(entry["_obj_source"])
 
     if not delinked_path:
         # Try matching address to a FUN_XXXXXXXX name in delinked/
@@ -435,12 +698,22 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         return finish("not_applicable", False, "missing_delinked_reference", 2)
 
     if not build_path:
-        log(f"ERROR: cannot find build .obj for '{obj_name}'")
-        log(f"  Run: python3 tools/build/build.py -q --target halo")
-        return finish("not_applicable", False, "missing_build_object", 2)
+        compile_detail = None
+        if entry.get("_obj_source"):
+            build_path, compile_detail = _compile_build_obj_for_source(entry["_obj_source"])
+        if build_path:
+            build_compiled_on_demand = True
+            log(f"  build   : {build_path} (compiled on demand)")
+        else:
+            log(f"ERROR: cannot find build .obj for '{obj_name}'")
+            if compile_detail:
+                log(f"  on-demand compile failed: {compile_detail}")
+            log(f"  Run: python3 tools/build/build.py -q --target halo")
+            return finish("not_applicable", False, "missing_build_object", 2)
 
     log(f"  delinked: {delinked_path}")
-    log(f"  build   : {build_path}")
+    if not build_compiled_on_demand:
+        log(f"  build   : {build_path}")
 
     # --- Extract function slices ---
     # The delinked obj uses FUN_00XXXXXX naming; the build obj uses
@@ -455,9 +728,20 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         try:
             oracle_slice = extract_function(str(delinked_path), func_name)
         except CoffParseError as e2:
-            log(f"ERROR extracting oracle: {e}")
-            log(f"  (also tried '{func_name}': {e2})")
-            return finish("not_applicable", False, "oracle_extract_failed", 2)
+            per_func_ref = _per_function_ref(func_name)
+            if per_func_ref:
+                try:
+                    oracle_slice = extract_function(str(per_func_ref), delinked_sym)
+                    delinked_path = per_func_ref
+                except CoffParseError as e3:
+                    log(f"ERROR extracting oracle: {e}")
+                    log(f"  (also tried '{func_name}': {e2})")
+                    log(f"  (also tried split ref '{per_func_ref.name}': {e3})")
+                    return finish("not_applicable", False, "oracle_extract_failed", 2)
+            else:
+                log(f"ERROR extracting oracle: {e}")
+                log(f"  (also tried '{func_name}': {e2})")
+                return finish("not_applicable", False, "oracle_extract_failed", 2)
 
     try:
         lifted_slice = extract_function(str(build_path), func_name)
@@ -481,15 +765,124 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     is_leaf = oracle_ok and lifted_ok
     if record_leaf:
         _record_leaf_classification(addr, is_leaf)
-    if not is_leaf:
+
+    # Non-leaf: try stubs if allowed
+    use_stubs = False
+    stub_manager = None
+    oracle_code_patched = oracle_slice.code
+    lifted_code_patched = lifted_slice.code
+    if not is_leaf and allow_stubs:
+        from stubs import (classify_relocations, patch_dir32_relocs,
+                           patch_rel32_calls, StubManager, GLOBALS_BASE, GLOBALS_SIZE)
+        orc_cls = classify_relocations(oracle_slice.relocs,
+                                       getattr(oracle_slice, 'defined_symbols', set()))
+        lft_cls = classify_relocations(lifted_slice.relocs,
+                                       getattr(lifted_slice, 'defined_symbols', set()))
+        log(f"  oracle class: {orc_cls.category} ({orc_cls.reason})")
+        log(f"  lifted class: {lft_cls.category} ({lft_cls.reason})")
+
+        # Patch DIR32 relocations for both
+        orc_defined = getattr(oracle_slice, 'defined_symbols', set())
+        lft_defined = getattr(lifted_slice, 'defined_symbols', set())
+        oracle_code_patched, orc_data_slots = patch_dir32_relocs(
+            oracle_slice.code, oracle_slice.relocs, orc_defined, return_slots=True)
+        oracle_code_patched = bytes(oracle_code_patched)
+        lifted_code_patched, lft_data_slots = patch_dir32_relocs(
+            lifted_slice.code, lifted_slice.relocs, lft_defined, return_slots=True)
+        lifted_code_patched = bytes(lifted_code_patched)
+
+        globals_seeds = _build_globals_seeds(orc_data_slots, lft_data_slots)
+        shared_stub_sentinels = {}
+        orc_stub_map = {}
+        lft_stub_map = {}
+
+        # Patch REL32 calls for oracle
+        if orc_cls.call_count > 0:
+            oracle_code_patched, orc_stub_map = patch_rel32_calls(
+                bytes(oracle_code_patched), oracle_slice.relocs, orc_defined,
+                symbol_sentinels=shared_stub_sentinels)
+
+        # For lifted code, also patch REL32 if present
+        if lft_cls.call_count > 0:
+            lifted_code_patched, lft_stub_map = patch_rel32_calls(
+                bytes(lifted_code_patched), lifted_slice.relocs, lft_defined,
+                symbol_sentinels=shared_stub_sentinels)
+
+        combined_stub_map = dict(orc_stub_map)
+        combined_stub_map.update(lft_stub_map)
+        if combined_stub_map:
+            stub_mgr = StubManager(KB_JSON, DELINKED_DIR)
+            n_prepared = stub_mgr.prepare_stubs(combined_stub_map)
+            log(f"  stubs prepared: {n_prepared}/{len(combined_stub_map)}")
+            stub_manager = stub_mgr
+            use_stubs = True
+
+        if orc_cls.category in ("data_only", "leaf"):
+            use_stubs = True  # DIR32 patching alone is enough
+
+    if not is_leaf and not use_stubs:
         log("ERROR: function has external relocations — cannot emulate without full linker.")
         log("  (This function calls other functions or references globals.)")
-        log("  Solution: choose a pure leaf function, or implement callee stubs (Stage 2).")
+        log("  Solution: use --allow-stubs, or choose a pure leaf function.")
         return finish("not_applicable", False, "external_relocations", 2)
 
-    # --- Generate seeds ---
+    # --- Z3 formal equivalence proof (optional) ---
+    if z3_equiv and is_leaf:
+        try:
+            from z3_equiv import prove_equivalence
+            log("\n  Attempting Z3 formal equivalence proof...")
+            eq_result = prove_equivalence(oracle_slice.code, lifted_slice.code, abi)
+            if eq_result.proven:
+                log(f"  Z3 PROVEN EQUIVALENT")
+                # Update cache
+                if record_leaf:
+                    try:
+                        cache_data = json.loads(_LEAF_CACHE_PATH.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        cache_data = {}
+                    norm = addr.lower() if addr.startswith("0x") else hex(int(addr, 0)).lower()
+                    entry = cache_data.get(norm, {})
+                    if isinstance(entry, str):
+                        entry = {"class": entry}
+                    entry["z3_proven"] = True
+                    cache_data[norm] = entry
+                    _LEAF_CACHE_PATH.write_text(
+                        json.dumps(dict(sorted(cache_data.items())), indent=2) + "\n",
+                        encoding="utf-8")
+                return finish("pass", True, None, 0,
+                              passed=0, failed=0, errors=0, seeds=0,
+                              z3_proven=True)
+            elif eq_result.counterexample:
+                log(f"  Z3 found divergence: {eq_result.counterexample}")
+                log(f"  Falling through to Unicorn to confirm...")
+            elif eq_result.not_applicable:
+                log(f"  Z3 not applicable: {eq_result.reason}")
+            elif eq_result.timeout:
+                log(f"  Z3 timeout: {eq_result.reason}")
+        except ImportError:
+            pass
+        except Exception as e:
+            log(f"  Z3 equiv error: {e}")
+
+    # --- Generate seeds (Z3 branch-coverage + random/corner) ---
+    seed_safe_mode = not is_leaf
+    z3_extra = []
+    if seed_safe_mode:
+        log("  seed mode: non-leaf valid-path execution (z3 branch seeds disabled)")
+    else:
+        try:
+            from z3_seeds import extract_branch_seeds
+            z3_extra = extract_branch_seeds(oracle_slice.code, abi)
+            if z3_extra:
+                log(f"  z3 branch seeds: {len(z3_extra)}")
+        except ImportError:
+            pass
+        except Exception as e:
+            log(f"  z3 seed warning: {e}")
+
     params = abi['params']
-    seeds = generate_seeds(params, num_seeds=num_seeds, base_seed=base_seed)
+    seeds = generate_seeds(params, num_seeds=num_seeds, base_seed=base_seed,
+                           z3_seeds=z3_extra, safe_mode=seed_safe_mode)
     log(f"\n  Running {len(seeds)} seeds...")
     log("")
 
@@ -503,7 +896,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
         # Run oracle
         try:
-            oracle_state = _run_function(oracle_slice.code, abi, seed_vec, verbose=verbose)
+            oracle_state = _run_function(oracle_code_patched, abi, seed_vec,
+                                         verbose=verbose, map_globals=use_stubs,
+                                         stub_manager=stub_manager,
+                                         globals_seeds=globals_seeds)
         except Exception as exc:
             log(f"  {seed_label} ORACLE-ERROR: {exc}")
             errors += 1
@@ -511,7 +907,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
         # Run lifted
         try:
-            lifted_state = _run_function(lifted_slice.code, abi, seed_vec, verbose=verbose)
+            lifted_state = _run_function(lifted_code_patched, abi, seed_vec,
+                                         verbose=verbose, map_globals=use_stubs,
+                                         stub_manager=stub_manager,
+                                         globals_seeds=globals_seeds)
         except Exception as exc:
             log(f"  {seed_label} LIFTED-ERROR: {exc}")
             errors += 1
@@ -532,6 +931,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             oracle_state, lifted_state,
             check_scratch=True,
             ret_eax=ret_eax,
+            ret_eax_bits=abi.get('ret_bits', 32),
             ret_edx_eax=abi['ret_edx_eax'],
             ret_st0=abi['ret_st0'],
             check_st_count=1 if abi['ret_st0'] else 0,
@@ -545,6 +945,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                 log(f"  {seed_label} FAIL: {diff.summary()}")
                 log(state_mod.format_state_verbose(oracle_state, "oracle"))
                 log(state_mod.format_state_verbose(lifted_state, "lifted"))
+                if diff.scratch_differs:
+                    for line in _summarize_scratch_diff(params, oracle_state.scratch_data,
+                                                        lifted_state.scratch_data):
+                        log(line)
             else:
                 log(f"  {seed_label} FAIL: {diff.summary()}")
         else:
@@ -563,6 +967,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         log(f"  diff  : {diff.summary()}")
         log(state_mod.format_state_verbose(oracle_state, "oracle"))
         log(state_mod.format_state_verbose(lifted_state, "lifted"))
+        if diff.scratch_differs:
+            for line in _summarize_scratch_diff(params, oracle_state.scratch_data,
+                                                lifted_state.scratch_data):
+                log(line)
 
     if failed == 0 and errors == 0:
         return finish("pass", True, None, 0,
@@ -592,9 +1000,162 @@ def _format_inputs(params, seed_vec) -> str:
     return ", ".join(parts)
 
 
+def _summarize_scratch_diff(params, oracle_scratch: bytes, lifted_scratch: bytes) -> list[str]:
+    from abi import POINTER_SLOT
+
+    lines = []
+    slot_index = 0
+    for p in params:
+        if not p.is_pointer:
+            continue
+
+        start = slot_index * POINTER_SLOT
+        end = start + POINTER_SLOT
+        slot_index += 1
+
+        oracle_slot = oracle_scratch[start:end]
+        lifted_slot = lifted_scratch[start:end]
+        if oracle_slot == lifted_slot:
+            continue
+
+        diff_offsets = []
+        i = 0
+        limit = min(len(oracle_slot), len(lifted_slot))
+        while i < limit and len(diff_offsets) < 4:
+            if oracle_slot[i] != lifted_slot[i]:
+                diff_offsets.append(i)
+            i += 1
+
+        if not diff_offsets:
+            lines.append(f"    scratch {p.name}: size mismatch")
+            continue
+
+        parts = []
+        for off in diff_offsets:
+            o_word = oracle_slot[off:off + 4].hex()
+            l_word = lifted_slot[off:off + 4].hex()
+            parts.append(f"+0x{off:x} oracle={o_word} lifted={l_word}")
+        lines.append(f"    scratch {p.name}: " + ", ".join(parts))
+
+    return lines
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
+def _run_batch_classify() -> int:
+    """Classify all functions in delinked/ .obj files into leaf_cache.json.
+
+    Iterates every delinked .obj, extracts all function symbols, and
+    classifies each by its relocation profile.  No emulation is performed.
+    """
+    sys.path.insert(0, str(_SCRIPT_DIR))
+    from coff_loader import load_coff, CoffParseError, IMAGE_SYM_CLASS_EXTERNAL, _canonical
+    from stubs import classify_relocations, IMAGE_REL_I386_DIR32, IMAGE_REL_I386_REL32
+
+    kb = _load_kb()
+
+    addr_to_entry = {}
+    for obj in kb.get("objects", []):
+        for fn in obj.get("functions", []):
+            a = fn.get("addr", "")
+            if a:
+                addr_to_entry[a.lower()] = fn
+
+    cache = {}
+    obj_files = sorted(DELINKED_DIR.glob("*.obj"))
+    total_funcs = 0
+    counts = {"leaf": 0, "data_only": 0, "stubbable": 0, "non_leaf": 0}
+
+    for obj_path in obj_files:
+        try:
+            sections, symbols, _ = load_coff(str(obj_path))
+        except CoffParseError:
+            continue
+
+        defined = {s.name for s in symbols if s.section_num > 0}
+
+        with open(obj_path, "rb") as f:
+            raw_data = f.read()
+
+        for sym in symbols:
+            if (sym.section_num <= 0
+                    or sym.storage_class != IMAGE_SYM_CLASS_EXTERNAL
+                    or not (sym.sym_type & 0x20)):
+                continue
+
+            sec_idx = sym.section_num - 1
+            if sec_idx >= len(sections):
+                continue
+
+            section = sections[sec_idx]
+
+            next_offset = len(section.data)
+            for s2 in symbols:
+                if (s2.section_num == sym.section_num
+                        and s2.value > sym.value
+                        and s2.value < next_offset
+                        and s2.storage_class in (IMAGE_SYM_CLASS_EXTERNAL, 3)):
+                    next_offset = s2.value
+
+            from coff_loader import CoffReloc, RELOC_SIZE
+            relocs = []
+            off = section.reloc_offset
+            for _ in range(section.num_relocs):
+                if off + RELOC_SIZE > len(raw_data):
+                    break
+                va, si, rt = struct.unpack_from("<IIH", raw_data, off)
+                off += RELOC_SIZE
+                if sym.value <= va < next_offset:
+                    sn = symbols[si].name if si < len(symbols) else f"SYM_{si}"
+                    relocs.append(CoffReloc(va - sym.value, sn, rt))
+
+            cls = classify_relocations(relocs, defined)
+
+            canon = _canonical(sym.name)
+            addr_hex = None
+            m = re.match(r'FUN_([0-9a-fA-F]+)', canon)
+            if m:
+                addr_hex = "0x" + m.group(1).lower()
+
+            if addr_hex:
+                entry = {"class": cls.category}
+                if cls.dir32_count > 0:
+                    entry["dir32_count"] = cls.dir32_count
+                if cls.call_count > 0:
+                    entry["call_count"] = cls.call_count
+                if cls.category == "non_leaf":
+                    entry["reason"] = cls.reason
+                cache[addr_hex] = entry
+                counts[cls.category] = counts.get(cls.category, 0) + 1
+                total_funcs += 1
+
+    try:
+        if _LEAF_CACHE_PATH.exists():
+            existing = json.loads(_LEAF_CACHE_PATH.read_text(encoding="utf-8"))
+        else:
+            existing = {}
+    except (OSError, json.JSONDecodeError):
+        existing = {}
+
+    for addr, old_val in existing.items():
+        if isinstance(old_val, str):
+            existing[addr] = {"class": old_val}
+
+    existing.update(cache)
+
+    _LEAF_CACHE_PATH.write_text(
+        json.dumps(dict(sorted(existing.items())), indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    print(f"Classified {total_funcs} functions from {len(obj_files)} .obj files:")
+    for cat, cnt in sorted(counts.items()):
+        print(f"  {cat}: {cnt}")
+    print(f"Cache written to {_LEAF_CACHE_PATH} ({len(existing)} total entries)")
+    return 0
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -616,7 +1177,16 @@ def main():
                         help="Write structured result JSON to this path")
     parser.add_argument("--no-leaf-cache", action="store_true",
                         help="Do not update tools/equivalence/leaf_cache.json")
+    parser.add_argument("--batch-classify", action="store_true",
+                        help="Classify all functions in delinked/ .obj files and update leaf_cache.json")
+    parser.add_argument("--z3-equiv", action="store_true",
+                        help="Attempt Z3 formal equivalence proof before Unicorn testing")
+    parser.add_argument("--allow-stubs", action="store_true",
+                        help="Enable non-leaf emulation with callee stubbing and DIR32 patching")
     args = parser.parse_args()
+
+    if args.batch_classify:
+        sys.exit(_run_batch_classify())
 
     if args.list_funcs:
         sys.path.insert(0, str(_SCRIPT_DIR))
@@ -641,6 +1211,8 @@ def main():
         save_log=True,
         output_json=args.output_json,
         record_leaf=not args.no_leaf_cache,
+        z3_equiv=args.z3_equiv,
+        allow_stubs=args.allow_stubs,
     ))
 
 

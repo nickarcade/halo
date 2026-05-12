@@ -16,6 +16,120 @@ void FUN_00036860(int actor_handle)
   csmemset(actor + 0x2ec, 0, 0x64);
 }
 
+/* FUN_00036960 (0x36960) — post direction/position stimulus at a given
+ * priority.
+ *
+ * Resolves actor via datum_get(actor_data, actor_handle).
+ * actor+0x2ee (short) holds the current best priority; actor+0x2f4 (int)
+ * holds param3; actor+0x2f8 (byte) is a direction-valid flag;
+ * actor+0x2fc..0x304 (3 ints) holds the direction vector.
+ *
+ * Only updates when the incoming priority strictly exceeds the stored one
+ * (JLE skips the body). No equal-case handling.
+ *
+ * When direction is NULL the flag byte is cleared (CL=0, from ECX=0 after
+ * TEST ECX,ECX); when non-NULL the flag is set to 1 and three dwords are
+ * copied from the direction array.
+ *
+ * Confirmed: cdecl, ADD ESP,0x10 after call sites in FUN_000374f0.
+ * Confirmed: comparison is signed CMP CX,[EAX+0x2ee] / JLE skip.
+ * Confirmed: fields actor+0x2ee (short priority), +0x2f4 (int param3),
+ *   +0x2f8 (byte flag), +0x2fc/+0x300/+0x304 (direction[0..2]).
+ * Confirmed: NULL-direction path writes CL (=0) to flag byte via
+ *   MOV byte ptr [EAX+0x2f8],CL — not a literal 0 immediate. */
+void FUN_00036960(int actor_handle, short priority, int param3, int *direction)
+{
+  char *actor;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(short *)(actor + 0x2ee) < priority) {
+    *(short *)(actor + 0x2ee) = priority;
+    *(int *)(actor + 0x2f4) = param3;
+    if (direction == 0) {
+      *(char *)(actor + 0x2f8) = 0;
+      return;
+    }
+    *(char *)(actor + 0x2f8) = 1;
+    *(int *)(actor + 0x2fc) = direction[0];
+    *(int *)(actor + 0x300) = direction[1];
+    *(int *)(actor + 0x304) = direction[2];
+  }
+}
+
+/* FUN_000369c0 (0x369c0) — post scalar stimulus value at a given priority.
+ *
+ * Resolves actor via datum_get(actor_data, actor_handle).
+ * actor+0x34a (short) holds the current best priority; actor+0x34c (int)
+ * holds the associated value.
+ *
+ * If the incoming priority strictly exceeds the stored one, unconditionally
+ * replace both the priority and value.  If they are equal, keep the maximum
+ * of the stored and incoming values.  If the stored priority is higher, do
+ * nothing.
+ *
+ * Confirmed: cdecl, ADD ESP,0xc after FUN_000369c0 at call sites.
+ * Confirmed: comparison is signed CMP CX,DX / JGE; equal-path uses CMP/JG
+ *   then MOV ECX,EDX to take the max.
+ * Confirmed: fields at actor+0x34a (short priority) and actor+0x34c (int
+ *   value) directly from disassembly MOV/CMP at those offsets. */
+void FUN_000369c0(int actor_handle, short priority, int value)
+{
+  char *actor;
+  int stored_value;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(short *)(actor + 0x34a) < priority) {
+    *(short *)(actor + 0x34a) = priority;
+    *(int *)(actor + 0x34c) = value;
+    return;
+  }
+  if (*(short *)(actor + 0x34a) == priority) {
+    stored_value = *(int *)(actor + 0x34c);
+    if (stored_value <= value) {
+      stored_value = value;
+    }
+    *(int *)(actor + 0x34c) = stored_value;
+  }
+}
+
+/* FUN_00036c00 (0x36c00) — flee/scatter look reaction.
+ *
+ * Resolves the actor record via datum_get(actor_data, actor_handle).
+ * If actor+0x6a (short state) != 1, posts a position-look directive to the
+ * actor by building a 16-byte look buffer { type=3, pad, float pos[3] } from
+ * the caller's position vector and dispatching it through FUN_00027a60
+ * (actor_handle, 1, 1, look_buf).
+ *
+ * The object_handle and count parameters are present in the calling
+ * convention (see FUN_0003c0c0 dispatch) but unused by this variant — only
+ * the flee position is forwarded as a look target.
+ *
+ * Confirmed: 4 cdecl args (caller passes actor_handle, object_handle,
+ *   position, count); ADD ESP,0x8 after datum_get; ADD ESP,0x10 after
+ *   FUN_00027a60.
+ * Confirmed: state field check is CMP word ptr [EAX+0x6a],0x1 / JZ skip.
+ * Confirmed: look_buf layout — word 0x3 at +0x00, position[0..2] at +0x04.
+ * Confirmed: FUN_00027a60(actor_handle, 1, 1, look_buf) — look_type=1,
+ *   priority=1. */
+void FUN_00036c00(int actor_handle, int object_handle, float *position,
+                  short count)
+{
+  char *actor;
+  short look_buf[8]; /* 16 bytes: [0]=type word, [2..7]=position data */
+
+  (void)object_handle;
+  (void)count;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(short *)(actor + 0x6a) != 1) {
+    look_buf[0] = 3;
+    *(float *)&look_buf[2] = position[0];
+    *(float *)&look_buf[4] = position[1];
+    *(float *)&look_buf[6] = position[2];
+    FUN_00027a60(actor_handle, 1, 1, look_buf);
+  }
+}
+
 /* FUN_00036dc0 (0x36dc0)
  * Notify an actor's unit of a combat stimulus and optionally clamp
  * the actor's "recently perceived threat" counter.
@@ -61,6 +175,165 @@ void FUN_00036e30(int ai_handle)
 
   actor = (char *)datum_get(actor_data, ai_handle);
   *(char *)(actor + 0x2ed) = 1;
+}
+
+/* FUN_000373b0 (0x373b0) — charge effect dispatch (audible AI broadcast).
+ *
+ * Dispatched from FUN_0003c0c0 with effect_type=1 (charge) when an actor is
+ * audible to a broadcast source. Resolves the actor record via
+ * datum_get(actor_data, actor_handle) and the actor's type definition via
+ * tag_get('actr', actor->actv_index@0x58).
+ *
+ * Behavior split:
+ *   1) If the actor is already in a charge state with a matching target
+ *      object_handle (actor[0x280] > 0 && actor[0x28c] == object_handle &&
+ *      actor[0x284] > 0), forward the event as command type 10 via
+ *      ai_communication (FUN_00046f10) on the actor's unit (actor+0x18),
+ *      with five trailing -1 placeholders and a trailing 0 byte.
+ *
+ *   2) Otherwise, build delta = (broadcast_position - actor_position@0x120).
+ *      Run normalize3d (FUN_00013010); if the resulting length magnitude is
+ *      below the epsilon double at 0x002533d0 (~1e-4) — i.e. the actor is
+ *      essentially on top of the broadcast — the direction is replaced
+ *      with the actor's facing vector at actor+0x174..0x17c.
+ *
+ *      If the actor's state field (actor+0x6a) is below 3 AND the length is
+ *      below the actor-type charge range (actr_def+0x2b0), post a look at
+ *      direction via FUN_00036960 (look_type=2, priority -1).
+ *
+ *      Then unconditionally drive the charge command via FUN_00036890
+ *      (actor_handle@<eax>, NULL@<ecx>, 3@<edx> as a short, &direction@<ebx>,
+ *      followed by stack args -1, 0, 0x5a, -1, 0, 0).
+ *
+ * Finally, write a 16-byte look_buf { word 3, float pos[3] } from the raw
+ * broadcast position and dispatch it as a look directive via
+ * FUN_00027a60(actor_handle, 3, 1, look_buf) — look_type=3, priority=1.
+ *
+ * Confirmed: ADD ESP,0x10 cleans datum_get(2) + tag_get(2). Tag id 'actr'.
+ * Confirmed: 4-arg cdecl signature at caller (FUN_0003c0c0 dispatch).
+ * Confirmed: FUN_00036890 register-arg order EAX/ECX/EDX/EBX from
+ *   LEA EBX,[EBP-0xc]; XOR ECX,ECX; MOV EDX,0x3; MOV EAX,EDI.
+ * Confirmed: FUN_00036890 callee reads DI from DX (low 16 bits are the
+ *   priority short).
+ * Confirmed: small-delta override copies actor+0x174..0x17c (vec3) via three
+ *   MOV reg reg pairs into local_10 at the same offsets.
+ * Confirmed: FCOMP [0x2533d0] is double-precision epsilon (~1e-4) against
+ *   |normalize3d result|; FSTP ST0 fall-through cleans FPU when state>=3.
+ * Inferred: parameter names — count is unused here (per FUN_00036c00
+ *   sibling); object_handle gates the early-return communication branch.
+ */
+void FUN_000373b0(int actor_handle, int object_handle, float *position,
+                  short count)
+{
+  char *actor;
+  char *actr_def;
+  int unit_handle;
+  float length;
+  float direction[3]; /* EBP-0xc..EBP-0x4 */
+  short look_buf[8]; /* 16 bytes: EBP-0x10..EBP-0x1; word[0]=type, [2..7]=pos */
+
+  (void)count;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actr_def = (char *)tag_get(0x61637472 /* 'actr' */, *(int *)(actor + 0x58));
+  if (*(short *)(actor + 0x280) > 0 &&
+      *(int *)(actor + 0x28c) == object_handle &&
+      *(short *)(actor + 0x284) > 0) {
+    unit_handle = *(int *)(actor + 0x18);
+    FUN_00046f10(10, unit_handle, -1, -1, -1, -1, 0);
+  } else {
+    direction[0] = position[0] - *(float *)(actor + 0x120);
+    direction[1] = position[1] - *(float *)(actor + 0x124);
+    direction[2] = position[2] - *(float *)(actor + 0x128);
+    length = normalize3d(direction);
+    if (length < 0.0001f && length > -0.0001f) {
+      direction[0] = *(float *)(actor + 0x174);
+      direction[1] = *(float *)(actor + 0x178);
+      direction[2] = *(float *)(actor + 0x17c);
+    }
+    if (*(short *)(actor + 0x6a) < 3) {
+      if (length < *(float *)(actr_def + 0x2b0)) {
+        FUN_00036960(actor_handle, 2, -1, (int *)direction);
+      }
+    }
+    FUN_00036890(actor_handle, (int *)0, 3, (int *)direction, -1, 0, 0x5a, -1,
+                 0, 0);
+  }
+
+  look_buf[0] = 3;
+  *(float *)&look_buf[2] = position[0];
+  *(float *)&look_buf[4] = position[1];
+  *(float *)&look_buf[6] = position[2];
+  FUN_00027a60(actor_handle, 3, 1, look_buf);
+}
+
+/* FUN_000374f0 (0x374f0) — cover/take-cover look reaction.
+ *
+ * Resolves the actor record via datum_get(actor_data, actor_handle) and
+ * the actor type tag via tag_get('actr', actor+0x58). Computes the delta
+ * from the actor's world position (actor+0x120 vec3) to the input
+ * position; if the resulting magnitude is < (float)*(double *)0x2533d0
+ * (epsilon), substitutes the actor's facing vector (actor+0x174) for the
+ * delta. If the actor's state field (actor+0x6a) is < 3 AND the magnitude
+ * is < tag+0x2b0 (range float), posts a priority-4 stimulus via
+ * FUN_00036960(actor_handle, 4, -1, &delta). Then unconditionally posts
+ * a priority-3 alert stimulus via FUN_00036890 with NULL primary vector,
+ * the delta as the secondary vector, and stack args (-1, 0, 0x5a, -1, 0,
+ * 0 byte). If object_handle != -1, resolves the object's type via
+ * object_get_and_verify_type(object_handle, -1) and checks team
+ * friendliness via game_allegiance_get_team_is_friendly(actor+0x3e,
+ * obj+0x68); when friendly, posts FUN_000369c0(actor_handle, 2, 900).
+ * Finally posts a position-look at priority-1, look_type=6 with the
+ * original input position via FUN_00027a60.
+ *
+ * Confirmed: 4 cdecl args matching dispatch in FUN_0003c0c0; ESP cleanup
+ *   ADD ESP,0x14 after datum_get+tag_get; ADD ESP,0x10 after FUN_00036960;
+ *   ADD ESP,0x18 after FUN_00036890; ADD ESP,0x10 after FUN_000a7a30;
+ *   ADD ESP,0xc after FUN_000369c0; ADD ESP,0x10 after FUN_00027a60.
+ * Confirmed: FUN_00036890 reg ABI — @ecx=vec1, @eax=actor, @edx=priority,
+ *   @ebx=vec2; verified against sibling FUN_000373b0 call site at 0x374b4.
+ * Confirmed: epsilon constant at 0x2533d0 (double, ~0.0001).
+ * Confirmed: look_buf layout — short type at +0x00, then float pos[3] at
+ *   +0x04; matches FUN_00036c00 look_buf shape. */
+void FUN_000374f0(int actor_handle, int object_handle, float *position,
+                  short count)
+{
+  char *actor;
+  char *actor_tag;
+  char *object;
+  float delta[3];
+  float mag;
+  short look_buf[8]; /* 16 bytes: [0]=type word, [2..7]=position data */
+
+  (void)count;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_tag = (char *)tag_get(0x61637472, *(int *)(actor + 0x58));
+  delta[0] = position[0] - *(float *)(actor + 0x120);
+  delta[1] = position[1] - *(float *)(actor + 0x124);
+  delta[2] = position[2] - *(float *)(actor + 0x128);
+  mag = normalize3d(delta);
+  if (mag < (float)*(double *)0x2533d0) {
+    delta[0] = *(float *)(actor + 0x174);
+    delta[1] = *(float *)(actor + 0x178);
+    delta[2] = *(float *)(actor + 0x17c);
+  }
+  if (*(short *)(actor + 0x6a) < 3 && mag < *(float *)(actor_tag + 0x2b0)) {
+    FUN_00036960(actor_handle, 4, -1, (int *)delta);
+  }
+  FUN_00036890(actor_handle, (int *)0, 3, (int *)delta, -1, 0, 0x5a, -1, 0, 0);
+  if (object_handle != -1) {
+    object = (char *)object_get_and_verify_type(object_handle, -1);
+    if (game_allegiance_get_team_is_friendly(*(short *)(actor + 0x3e),
+                                             *(short *)(object + 0x68))) {
+      FUN_000369c0(actor_handle, 2, 900);
+    }
+  }
+  look_buf[0] = 3;
+  *(float *)&look_buf[2] = position[0];
+  *(float *)&look_buf[4] = position[1];
+  *(float *)&look_buf[6] = position[2];
+  FUN_00027a60(actor_handle, 6, 1, look_buf);
 }
 
 void *FUN_0003a600(short actor_type /* @<ax> */)
@@ -742,8 +1015,7 @@ char FUN_0003b150(int actor_handle)
 
   actor = (char *)datum_get(actor_data, actor_handle);
   result = (char)(*(short *)(actor + 0x6e) >= 7);
-  if (result && *(short *)(actor + 0x6c) == 4 &&
-      *(short *)(actor + 0xa8) > 0) {
+  if (result && *(short *)(actor + 0x6c) == 4 && *(short *)(actor + 0xa8) > 0) {
     result = 0;
   }
   return result;
@@ -1542,6 +1814,62 @@ void FUN_0003be90(int actor_handle)
   error(2, "AI error condition detected, attempting to recover (please tell "
            "butcher)...");
   FUN_0001d030(actor_handle, 0, 0);
+}
+
+/* FUN_0003c0c0 (0x3c0c0) — broadcast an AI effect to all audible actors.
+ * Iterates over every actor via the encounter iterator. For each actor whose
+ * type field (actor+0x6e) is < 7, resolves the nearest swarm unit position
+ * via FUN_00031a90 and tests sound audibility via FUN_00031850 (range
+ * factor 1.0f, flags 0). If the audibility result >= 2, dispatches one of
+ * three effect functions by effect_type:
+ *   0 -> FUN_00036c00 (flee/scatter)
+ *   1 -> FUN_000373b0 (charge)
+ *   2 -> FUN_000374f0 (cover)
+ * Asserts on unknown effect_type.
+ *
+ * Confirmed: [EBP+0x08]=object_handle (->EDI), [EBP+0x0C]=effect_type,
+ *   [EBP+0x10]=position (->ESI), [EBP+0x14]=volume, [EBP+0x18]=count (->EBX).
+ * Confirmed: location [EBP-0x08] 8 bytes; iter [EBP-0x24] 20 bytes;
+ *   actor_handle [EBP-0x10]; input_block [EBP-0x5C] 56 bytes.
+ * Confirmed: CMP word ptr [EAX+0x6e],0x7 / JGE skip at 0x3c105.
+ * Confirmed: ADD ESP,0x2c at 0x3c138 cleans FUN_00031a90(4)+FUN_00031850(7)=44.
+ * Confirmed: ADD ESP,0x10 at 0x3c197 cleans 4-arg effect dispatch.
+ * Confirmed: CMP AX,0x2 / JL skip at 0x3c13b checks audibility >= 2.
+ * Confirmed: assert filepath "c:\halo\SOURCE\ai\actors.c" line 0xdaa=3498.
+ */
+void FUN_0003c0c0(int object_handle, short effect_type, float *position,
+                  short volume, short count)
+{
+  char location[8];
+  char iter[20];
+  int actor_handle;
+  char input_block[56];
+  char *actor_record;
+  short audibility;
+
+  scenario_location_from_point(location, position);
+  encounter_iterator_next(iter, 1);
+  actor_record = (char *)FUN_00059b50(iter);
+  while (actor_record != NULL) {
+    if (*(short *)(actor_record + 0x6e) < 7) {
+      FUN_00031a90(&actor_handle, position, -1, input_block);
+      audibility = (short)FUN_00031850(actor_handle, input_block, position,
+                                       location, volume, 0x3f800000, 0);
+      if (audibility >= 2) {
+        if (effect_type == 0) {
+          FUN_00036c00(actor_handle, object_handle, position, count);
+        } else if (effect_type == 1) {
+          FUN_000373b0(actor_handle, object_handle, position, count);
+        } else if (effect_type == 2) {
+          FUN_000374f0(actor_handle, object_handle, position, count);
+        } else {
+          display_assert(0, "c:\\halo\\SOURCE\\ai\\actors.c", 0xdaa, 1);
+          system_exit(-1);
+        }
+      }
+    }
+    actor_record = (char *)FUN_00059b50(iter);
+  }
 }
 
 /* Set or clear bit 0x800 in actor flags at +0x6d0, and store target at +0x720.

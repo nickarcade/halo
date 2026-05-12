@@ -567,6 +567,33 @@ void game_set_game_variant_from_name(const char *name)
   qmemcpy(&game_variant_global, &variant_copy, sizeof(game_variant_t));
 }
 
+/* 0xb5490 — FUN_000b5490
+ *
+ * Returns the name string for a given material type index.
+ * If material_type == -1, returns "NONE" (at 0x253a04).
+ * Otherwise asserts material_type is in [0, NUMBER_OF_MATERIAL_TYPES) where
+ * NUMBER_OF_MATERIAL_TYPES == 0x21 (33), then indexes into the static pointer
+ * table at 0x2f0208 (const char *[33]).
+ *
+ * Confirmed: PUSH 0x1 / PUSH 0x389 / PUSH 0x26dfc4 / PUSH 0x26df88 /
+ *   CALL display_assert / PUSH -0x1 / CALL system_exit / ADD ESP,0x14 at
+ *   0xb54a9-0xb54c6 (lazy cdecl stack cleanup covers both calls).
+ * Confirmed: MOVSX EAX,SI / MOV EAX,[EAX*4+0x2f0208] table lookup at 0xb54c9.
+ * Confirmed: CMP SI,-0x1 / JZ → MOV EAX,0x253a04 / RET at 0xb54d6.
+ * Source file: c:\halo\SOURCE\game\game_globals.c, assert line 0x389 (905).
+ */
+const char *FUN_000b5490(short material_type)
+{
+  if (material_type == -1)
+    return (const char *)0x253a04;
+  if (material_type < 0 || material_type >= 0x21) {
+    display_assert("material_type>=0 && material_type<NUMBER_OF_MATERIAL_TYPES",
+                   "c:\\halo\\SOURCE\\game\\game_globals.c", 0x389, 1);
+    system_exit(-1);
+  }
+  return ((const char **)0x2f0208)[material_type];
+}
+
 /* 0xb54e0 — game_globals_difficulty_scale
  *
  * Looks up a difficulty scaling factor from the game globals matg tag's
@@ -596,28 +623,31 @@ void game_set_game_variant_from_name(const char *name)
 float game_globals_difficulty_scale(int16_t value_type, int16_t difficulty)
 {
   float default_val = 1.0f;
-  void *globals = game_globals_get();
+  void *globals;
+  void *element;
+  int16_t clamped;
+  int idx;
 
   assert_halt(value_type >= 0 && value_type < 0x23);
 
+  globals = game_globals_get();
   if (!globals)
     return default_val;
 
   if (*(int *)((char *)globals + 0x11c) == 0)
     return default_val;
 
-  void *element = tag_block_get_element((char *)globals + 0x11c, 0, 0x284);
+  element = tag_block_get_element((char *)globals + 0x11c, 0, 0x284);
   if (!element)
     return default_val;
 
   if (difficulty < 0) {
-    /* Raw per-value_type offset: column index 0, stride 16 bytes */
-    int idx = (int)value_type * 4;
+    idx = (int)value_type * 4;
     return *(float *)((char *)element + idx * 4);
   }
 
-  int16_t clamped = difficulty > 3 ? 3 : difficulty;
-  int idx = (int)clamped + (int)value_type * 4;
+  clamped = difficulty > 3 ? 3 : difficulty;
+  idx = (int)clamped + (int)value_type * 4;
   return *(float *)((char *)element + idx * 4);
 }
 
