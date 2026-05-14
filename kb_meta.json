@@ -1711,6 +1711,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa7470": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa7490": {
       "kind": "function",
       "status": "ported"
@@ -3413,6 +3417,10 @@
       "inferred": [
         "Age counter is at line+0x120 (int); lines are evicted after age exceeds 0x96 (150 ticks), confirmed from CMP ECX,0x96 / JLE in disasm."
       ]
+    },
+    "0xe3690": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xe3940": {
       "kind": "function",
@@ -6699,6 +6707,10 @@
         "Checks both bink handle (0x4ead60) and initialized flag (0x4ead58) to determine if bink playback is active."
       ]
     },
+    "0x1c5960": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c5980": {
       "kind": "function",
       "status": "ported",
@@ -6715,6 +6727,10 @@
       ]
     },
     "0x1c5a80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c5ca0": {
       "kind": "function",
       "status": "ported"
     },
@@ -7177,6 +7193,10 @@
       ]
     },
     "0x1cf880": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1d8368": {
       "kind": "function",
       "status": "ported"
     },

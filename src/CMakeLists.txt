@@ -3,6 +3,7 @@
 	inlines.c
 	halo/ai/actions.c
 	halo/ai/actor_combat.c
+	halo/ai/actor_moving.c
 	halo/ai/actor_perception.c
 	halo/ai/actor_looking.c
 	halo/ai/actors.c
@@ -28,6 +29,7 @@
 	halo/cseries/cseries_windows.c
 	halo/cseries/stack_walk_windows.c
 	halo/cseries/xbox_crt.c
+	halo/cseries/xcontent.c
 	halo/memory/crc.c
 	halo/dialogs/edit_text.c
 	halo/cutscene/cinematics.c
@@ -70,6 +72,7 @@
 	halo/items/weapons.c
 	halo/units/units.c
 	halo/units/vehicles.c
+	halo/networking/network_client_manager.c
 	halo/networking/network_messages.c
 	halo/networking/network_server_manager.c
 	halo/main/console.c

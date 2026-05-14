@@ -416,6 +416,32 @@ void FUN_000597f0(int actor_handle)
   *(char *)(actor + 0xa) = 0; /* Uncertain: sub-state byte */
 }
 
+/* 0x59930 — Find encounter index by name.
+ * Searches the scenario encounter block for the first entry whose name matches
+ * the given string (strncmp up to 0x20 bytes). Returns -1 if not found. */
+int FUN_00059930(char *name)
+{
+  int *encounters;
+  int i;
+  void *elem;
+
+  encounters = (int *)global_scenario_get();
+  if (encounters != 0) {
+    encounters = (int *)((char *)encounters + 0x42c);
+    i = 0;
+    if (*encounters > 0) {
+      do {
+        elem = tag_block_get_element(encounters, i, 0xb0);
+        if (FUN_0008ddd0((char *)elem, name, 0x20) == 0)
+          return i;
+        i++;
+      } while (i < *encounters);
+      return -1;
+    }
+  }
+  return -1;
+}
+
 /* 0x00059a00 — encounter_clump_iter_new.
  * Initialises a 3-slot int iterator for walking an encounter's clump member
  * list.  Guards on ai_active (ai_globals+1).
@@ -1731,6 +1757,79 @@ void FUN_0005b200(void)
         tag_block_get_element((void *)(scenario + 0x42c), (int)i, 0xb0);
       FUN_0005a120(&squad_counter /* @<eax> */, encounter_def,
                    &platoon_counter);
+    }
+  }
+}
+
+/* 0x0005b2a0 — encounter_increment_unit_tally (FUN_0005b2a0).
+ *
+ * For each active encounter whose team is friendly to the given unit's team,
+ * increments the encounter's live-unit tally counter (encounter+0x4c) if the
+ * encounter is in an eligible state.
+ *
+ * Algorithm:
+ *   1. object_get_and_verify_type(unit_handle, 3) → unit ptr (EDI).
+ *   2. Check unit+0x68 (int16_t team index) != -1; return immediately if so.
+ *   3. If ai_globals+1 (ai_active) is set: init encounter data iterator.
+ *   4. Outer loop: guard ai_active at each iteration.
+ *   5. Inner do-while: call data_iterator_next; skip if NULL or first pass
+ *      (flag==0); skip encounters where encounter+0xd (active flag) == 0.
+ *   6. Copy iter.datum_handle → encounter_handle (read but unused in this fn).
+ *   7. If encounter == NULL: return.
+ *   8. game_allegiance_get_team_is_friendly(encounter+0x2 team, unit+0x68 team)
+ *      AND encounter+0x43 != 0 (some condition met)
+ *      AND encounter+0x42 == 0 (not in reset state)
+ *      AND encounter+0x47 == 0 (no exclusion flag):
+ *        → increment encounter+0x4c (int16_t tally).
+ *
+ * Confirmed from disassembly (0x5b2a0–0x5b364):
+ *   - Unit ptr in EDI; ESI = encounter ptr from data_iterator_next.
+ *   - [EBP-0x18] = data_iter_t (0x10 bytes); [EBP-0x4] = first-pass flag.
+ *   - [EBP-0x10] = iter.datum_handle (EBP-0x18+0x8); copied to [EBP-0x8].
+ *   - PUSH ECX (unit team zero-extended) / PUSH EDX (encounter team
+ *     zero-extended) → game_allegiance_get_team_is_friendly(enc_team,
+ *     unit_team).
+ *   - INC word ptr [ESI+0x4c] at 0x5b359 = ++encounter->tally.
+ *   - encounter+0x42 = reset/active flag (set to 1 by encounter_clear_active_props).
+ *   - encounter+0x43 = condition-met flag.
+ *   - encounter+0x47 = exclusion flag.
+ *   - encounter+0x4c = uint16_t live-unit tally (cleared by encounter_clear_active_props).
+ *
+ * Caller: FUN_0003feb0 (ai.obj) — unit-update routine.
+ */
+void FUN_0005b2a0(int unit_handle)
+{
+  data_iter_t iter;
+  char *unit;
+  char *encounter;
+  char flag;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  if (*(short *)(unit + 0x68) == -1) {
+    return;
+  }
+  if (*(char *)(*(char **)0x632574 + 1) != '\0') {
+    data_iterator_new(&iter, *(data_t **)0x5ab270);
+    flag = '\x01';
+  }
+  for (;;) {
+    if (*(char *)(*(char **)0x632574 + 1) == '\0') {
+      return;
+    }
+    do {
+      encounter = (char *)data_iterator_next(&iter);
+      if (encounter == NULL || flag == '\0')
+        break;
+    } while (*(char *)(encounter + 0xd) == '\0');
+    if (encounter == NULL) {
+      return;
+    }
+    if (game_allegiance_get_team_is_friendly(*(short *)(encounter + 0x2),
+                                             *(short *)(unit + 0x68)) &&
+        *(char *)(encounter + 0x43) != '\0' &&
+        *(char *)(encounter + 0x42) == '\0' &&
+        *(char *)(encounter + 0x47) == '\0') {
+      (*(short *)(encounter + 0x4c))++;
     }
   }
 }

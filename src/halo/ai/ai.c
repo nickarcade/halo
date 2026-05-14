@@ -122,6 +122,146 @@ void ai_place(void)
   encounters_create_for_new_map();
 }
 
+/* 0x3f770 — Set the first byte of the AI globals block.
+ * Asserts ai_globals is non-null, then writes param_1 to the first byte. */
+void FUN_0003f770(char param_1)
+{
+  if (*(char **)0x632574 == NULL) {
+    display_assert("ai_globals", "c:\\halo\\SOURCE\\ai\\ai.c", 0x13a, 1);
+    system_exit(-1);
+  }
+  **(char **)0x632574 = param_1;
+}
+
+/* 0x3f7b0 — Set byte at ai_globals+0x10. */
+void FUN_0003f7b0(char param_1)
+{
+  if (*(char **)0x632574 == NULL) {
+    display_assert("ai_globals", "c:\\halo\\SOURCE\\ai\\ai.c", 0x143, 1);
+    system_exit(-1);
+  }
+  *(char *)(*(char **)0x632574 + 0x10) = param_1;
+}
+
+/* 0x3f800 — Set byte at ai_globals+0x3b4. */
+void FUN_0003f800(char param_1)
+{
+  if (*(char **)0x632574 == NULL) {
+    display_assert("ai_globals", "c:\\halo\\SOURCE\\ai\\ai.c", 0x14c, 1);
+    system_exit(-1);
+  }
+  *(char *)(*(char **)0x632574 + 0x3b4) = param_1;
+}
+
+/* 0x3f850 — Decode a force-type enum into force_major/is_random/random_chance.
+ *
+ * Translates an AI force-type code (param_1) into a trio of output values:
+ *   force_major   — non-zero when the force is a "major" (definitive) event
+ *   is_random     — non-zero when the force has a random-chance component
+ *   random_chance — the probability [0,1] fetched from game globals difficulty
+ *
+ * Force-type mapping (from assert string: "force_major && is_random && random_chance"):
+ *   1 (default): is_random=1, random_chance=FUN_000b5590(0x1c)  (normal random)
+ *   2:           is_random=1, random_chance=FUN_000b5590(0x1d)  (variant 1)
+ *   3:           is_random=1, random_chance=FUN_000b5590(0x1e)  (variant 2)
+ *   4:           is_random=0, force_major=0  (non-random, non-major)
+ *   5:           is_random=0, force_major=1  (non-random, major)
+ *
+ * Confirmed: 4 cdecl stack args; no register args; no return value.
+ * Confirmed: ADD ESP,0x14 after display_assert+system_exit pair at 0x3f888.
+ * Confirmed: MOVSX EAX, word [EBP+8]; DEC EAX; CMP EAX,3; JA default (jump table 1-4).
+ * Confirmed: ESI=[EBP+0x10]=is_random, EDI=[EBP+0xc]=force_major, EBX=[EBP+0x14]=random_chance.
+ * Confirmed: case 1 at 0x3f8b2: MOV [ESI],1; PUSH 0x1d; CALL FUN_000b5590; FSTP [EBX].
+ * Confirmed: case 2 at 0x3f8c6: MOV [ESI],1; PUSH 0x1e; CALL; FSTP [EBX].
+ * Confirmed: case 3 at 0x3f89c: MOV [ESI],0; MOV [EDI],0.
+ * Confirmed: case 4 at 0x3f8a7: MOV [ESI],0; MOV [EDI],1.
+ * Confirmed: default at 0x3f8da: MOV [ESI],1; PUSH 0x1c; CALL; FSTP [EBX].
+ */
+void FUN_0003f850(int16_t param_1, char *force_major, char *is_random, float *random_chance)
+{
+  if ((force_major == NULL) || (is_random == NULL) || (random_chance == NULL)) {
+    display_assert("force_major && is_random && random_chance",
+                   "c:\\halo\\SOURCE\\ai\\ai.c", 0x158, 1);
+    system_exit(-1);
+  }
+  switch (param_1) {
+  case 3:
+    *is_random = 0;
+    *force_major = 0;
+    return;
+  case 4:
+    *is_random = 0;
+    *force_major = 1;
+    return;
+  case 1:
+    *is_random = 1;
+    *random_chance = FUN_000b5590(0x1d);
+    return;
+  case 2:
+    *is_random = 1;
+    *random_chance = FUN_000b5590(0x1e);
+    return;
+  default:
+    *is_random = 1;
+    *random_chance = FUN_000b5590(0x1c);
+    return;
+  }
+}
+
+/* FUN_0003f970: erase AI actors matching an encounter/squad/squad-group filter.
+ * Guards on AI globals active flag (*(char*)(ai_globals+1) != 0).
+ * If param_1 == -1 (all encounters): iterates all actors via
+ *   encounter_iterator_next (flag=0) + FUN_00059b50; erases each via
+ *   actor_erase(iter+0x14 handle, param_4).
+ * Else: initialises a per-encounter actor iterator via
+ *   encounter_actor_iterator_new(&iter, param_1) + FUN_00059a50; for each
+ *   actor, skips if actor+0x3c != param_2 (unless param_2==-1) or
+ *   actor+0x3a != param_3 (unless param_3==-1); erases matching actors via
+ *   actor_erase(iter[1] handle, param_4).
+ *
+ * Stack layout (SUB ESP,0x28):
+ *   [EBP-0x28..EBP-0x15]: enc_iter[0x1c] (encounter iterator, all-branch)
+ *   [EBP-0x14]:           enc_iter+0x14 (actor handle field in iterator)
+ *   [EBP-0x0c..EBP-0x09]: actor_iter[2] (encounter-actor iterator, single-branch)
+ *   [EBP-0x08]:           actor_iter[1] (actor handle, 4 bytes into actor_iter)
+ *
+ * Confirmed: PUSH 0x0 at 0x3f992 → encounter_iterator_next flag=0.
+ * Confirmed: MOVSX+CMP for short fields at actor+0x3c (param_2) and
+ *            actor+0x3a (param_3).
+ * Confirmed: actor_erase args: PUSH param_4, PUSH actor_handle (cdecl). */
+void FUN_0003f970(int param_1, int param_2, int param_3, int param_4)
+{
+  char enc_iter[0x1c]; /* encounter iterator for the all-encounters branch */
+  int actor_iter[2];   /* encounter-actor iterator: [0]=state, [1]=handle */
+  int has_more;
+  int actor;
+
+  if (*(char *)(*(int *)0x632574 + 1) == 0) {
+    return;
+  }
+
+  if (param_1 == -1) {
+    /* iterate all actors across all encounters */
+    encounter_iterator_next(enc_iter, 0);
+    has_more = FUN_00059b50(enc_iter);
+    while (has_more != 0) {
+      actor_erase(*(int *)(enc_iter + 0x14), (char)param_4);
+      has_more = FUN_00059b50(enc_iter);
+    }
+  } else {
+    /* iterate actors within the specified encounter, applying filters */
+    encounter_actor_iterator_new(actor_iter, param_1);
+    actor = FUN_00059a50(actor_iter);
+    while (actor != 0) {
+      if ((param_2 == -1 || *(short *)(actor + 0x3c) == param_2) &&
+          (param_3 == -1 || *(short *)(actor + 0x3a) == param_3)) {
+        actor_erase(actor_iter[1], (char)param_4);
+      }
+      actor = FUN_00059a50(actor_iter);
+    }
+  }
+}
+
 /* ai_handle_unit_approach: test whether a unit is approaching a valid
  * target for an AI actor, and optionally record the approach.
  * Looks up the actor via actor_data, checks the unit against
@@ -270,6 +410,42 @@ void FUN_00040280(void)
   }
 }
 
+/* FUN_00040690: enqueue a vehicle unit handle into the AI mounted-weapon
+ * pending spawn list. Checks the AI-initialized guard at globals+0x1, then
+ * appends param_1 to the array at globals+0x8bc (capacity 8, count int16_t
+ * at globals+0x8b8) if there is room. If the list is full, logs a warning
+ * via error(). Called from FUN_001b2780 (one caller).
+ *
+ * Confirmed: one stack param [EBP+8], no return value.
+ * Confirmed: CMP AX,0x8; MOVSX EAX,AX before indexed store.
+ * Confirmed: object_get_and_verify_type(param_1, 3) → *(ptr) → tag_get_name →
+ *   tag_name_strip_path → error(2, warning_str, name) when list is full. */
+void FUN_00040690(int param_1)
+{
+  int g;
+  void *unit_obj;
+  int tag_index;
+  const char *tag_name;
+  const char *stripped;
+
+  g = *(volatile int *)0x632574;
+  if (*(char *)(g + 1) != '\0') {
+    if (*(int16_t *)(g + 0x8b8) < 8) {
+      *(int *)(g + 0x8bc + (int)(*(int16_t *)(g + 0x8b8)) * 4) = param_1;
+      g = *(volatile int *)0x632574;
+      *(int16_t *)(g + 0x8b8) += 1;
+      return;
+    }
+    unit_obj = object_get_and_verify_type(param_1, 3);
+    tag_index = *(int *)unit_obj;
+    tag_name = tag_get_name(tag_index);
+    stripped = tag_name_strip_path(tag_name);
+    error(2,
+      "WARNING: cannot create mounted weapons for %s, exceeded MAXIMUM_NUMBER_OF_MOUNTED_WEAPON_UNITS",
+      stripped);
+  }
+}
+
 /* FUN_00040570: spawn AI actors into vehicle seats from pending vehicle list.
  * Called each tick from ai_update. Iterates the vehicle spawn queue stored
  * in the AI globals block: a count at offset +0x8b8 (int16_t) and an array
@@ -348,6 +524,136 @@ void unit_vehicle_board_notify(int unit_handle, int vehicle_handle)
   if (*(int *)((char *)unit_obj + 0x1a4) != -1) {
     FUN_00046f10(0x24, unit_handle, -1, -1, -1, -1, 0);
   }
+}
+
+/* FUN_000409e0: notify the AI subsystem that a unit is exiting a vehicle.
+ * Looks up the unit object (type_mask=3), checks whether the unit has a
+ * valid AI actor handle at offset +0x1a4. If the actor exists, retrieves the
+ * actor record from actor_data and checks the byte flag at actor+0x38c. If
+ * the flag is clear, dispatches AI command 0x25 via FUN_00046f10 to notify
+ * the subsystem of the vehicle-exit event. The flag at actor+0x38c is then
+ * cleared unconditionally (whether or not the command was dispatched).
+ *
+ * Confirmed: 1 stack param [EBP+8] (unit handle). No return value.
+ * Confirmed: object_get_and_verify_type(param_1, 3); EAX+0x1a4 = actor handle.
+ * Confirmed: datum_get([0x6325a4], actor_handle); result in ESI.
+ * Confirmed: TEST AL,AL on [ESI+0x38c]; JNZ skips FUN_00046f10 call.
+ * Confirmed: FUN_00046f10(0x25, param_1, -1, -1, -1, -1, 0), 7 args cdecl
+ *   (ADD ESP,0x1c). MOV byte [ESI+0x38c],0 always executes. */
+void FUN_000409e0(int param_1)
+{
+  char *unit_obj;
+  int actor_handle;
+  char *actor;
+
+  unit_obj = (char *)object_get_and_verify_type(param_1, 3);
+  actor_handle = *(int *)(unit_obj + 0x1a4);
+  if (actor_handle != -1) {
+    actor = (char *)datum_get(actor_data, actor_handle);
+    if (*(char *)(actor + 0x38c) == '\0') {
+      FUN_00046f10(0x25, param_1, -1, -1, -1, -1, 0);
+    }
+    *(char *)(actor + 0x38c) = 0;
+  }
+}
+
+/* FUN_00040a40: clear the AI encounter/firing-position cache fields in the
+ * globals block. Zeroes the int16_t counts at globals+0x130 and globals+0x132,
+ * then csmemsets 0x280 bytes starting at globals+0x134 to zero.
+ *
+ * Confirmed: void(void) — no args, no return value.
+ * Confirmed: three stores then CALL csmemset(globals+0x134, 0, 0x280).
+ * Confirmed: ADD ESP,0xc (3 args); RET. */
+void FUN_00040a40(void)
+{
+  int g;
+
+  g = *(volatile int *)0x632574;
+  *(int16_t *)(g + 0x132) = 0;
+  *(int16_t *)(g + 0x130) = 0;
+  csmemset((void *)(g + 0x134), 0, 0x280);
+}
+
+/* FUN_00040f80: iterate all encounterless actors and re-attach any whose
+ * encounter's BSP index matches the current structure BSP.
+ *
+ * Walks the global encounterless-actor linked list (head at globals+0x8,
+ * next-handle at actor+0x2c). For each actor:
+ *   - Asserts actor[9] != 0 (encounterless flag must be set).
+ *   - Skips actors with no encounter reference (actor+0x30 == -1).
+ *   - Resolves the encounter element via global_scenario_get() +
+ *     tag_block_get_element(scenario+0x42c, encounter_index, 0xb0).
+ *   - If the element's BSP index (element+0x7e) matches the current BSP,
+ *     calls FUN_000597f0 (encounter_leave/detach) then encounter_attach_actor
+ *     to re-attach the actor to its encounter and squad.
+ *
+ * Confirmed: void(void) — no args, no return.
+ * Confirmed: PUSH 0xb0 + PUSH encounter_idx are pre-staged args for
+ *   tag_block_get_element; ADD ESP,0xc cleans all 3 args at once.
+ * Confirmed: XOR EAX,EAX; MOV AX,[ESI+0x38] = zero-extend squad index.
+ * Confirmed: MOV EBX,[ESI+0x2c] saved before body — next saved early. */
+void FUN_00040f80(void)
+{
+  short bsp_index;
+  int actor_handle;
+  int next_handle;
+  char *actor;
+  char *scenario;
+  char *encounter_element;
+  int encounter_ref;
+  int g;
+
+  bsp_index = global_structure_bsp_index_get();
+  g = *(int *)0x632574;
+  actor_handle = *(int *)(g + 0x8);
+  while (actor_handle != -1) {
+    actor = (char *)datum_get(*(void **)0x6325a4, actor_handle);
+    next_handle = *(int *)(actor + 0x2c);
+    if (*(char *)(actor + 0x9) == '\0') {
+      display_assert("actor->meta.encounterless", "c:\\halo\\SOURCE\\ai\\ai.c", 0x96f, 1);
+      FUN_001029a0();
+    }
+    encounter_ref = *(int *)(actor + 0x30);
+    if (encounter_ref != -1) {
+      scenario = (char *)global_scenario_get();
+      encounter_element = (char *)tag_block_get_element(
+          scenario + 0x42c, encounter_ref & 0xffff, 0xb0);
+      if (*(short *)(encounter_element + 0x7e) == bsp_index) {
+        FUN_000597f0(actor_handle);
+        encounter_attach_actor(actor_handle, *(int *)(actor + 0x30),
+            *(int16_t *)(actor + 0x38), 1);
+      }
+    }
+    actor_handle = next_handle;
+  }
+}
+
+/* FUN_00041040: map an actor/encounter type index to a flag/size value.
+ * Takes a short type code (1-5) and returns the corresponding constant:
+ *   1 -> 1, 2 -> 2, 3 -> 4, 4 -> 0x38, 5 -> 0x40, else 0.
+ * Confirmed from disasm at 0x41040: MOV CX,word ptr [EBP+0x8],
+ * cdecl short param, returns int via EAX. */
+int FUN_00041040(short param_1)
+{
+  int uVar1;
+
+  uVar1 = 0;
+  if (param_1 == 1) {
+    return 1;
+  }
+  if (param_1 == 2) {
+    return 2;
+  }
+  if (param_1 == 3) {
+    return 4;
+  }
+  if (param_1 == 4) {
+    return 0x38;
+  }
+  if (param_1 == 5) {
+    uVar1 = 0x40;
+  }
+  return uVar1;
 }
 
 /* ai_initialize_for_new_map: reset the AI globals block and initialise
@@ -1025,4 +1331,290 @@ void FUN_000425c0(int object_handle, float *position, short effect_type,
     FUN_0003c0c0(object_handle, *entry, (float *)((char *)entry + 0x4), volume,
                  entry[1]);
   }
+}
+
+/* FUN_0003fa40: count and erase swarm units, format a result description.
+ *
+ * Iterates all AI actors via encounter_iterator_next (flag=0) + FUN_00059b50.
+ * For each actor record where:
+ *   record[6] != 0  (actor is active/alive)
+ *   record[8] == 0  (not in some suppressed state)
+ *   *(int*)(record+0xc) != -1  (has a valid reference)
+ * accumulates *(short*)(record+0x1e) into swarm_count, then erases the actor
+ * via actor_erase(handle, 1).
+ *
+ * After iteration: formats "%d swarm units" into result_description via
+ * crt_sprintf, sets *more_to_release = 0, returns 1 if swarm_count > 0.
+ *
+ * Stack layout (SUB ESP,0x20):
+ *   [EBP-0x20..EBP-0xd]: iter[0x14] (encounter iterator, 20-byte body)
+ *   [EBP-0xc]:           iter+0x14  (actor handle stored by FUN_00059b50)
+ *   [EBP-0x4]:           local_8    (initialized to 0; base for swarm_count/SI)
+ *
+ * Confirmed: assert string "result_description && more_to_release", line 0x1f7=503.
+ * Confirmed: encounter_iterator_next flag=0 (PUSH 0x0 at 0x3fa81).
+ * Confirmed: MOV EDX,[EBP-0xc]; PUSH EDX as actor_erase first arg (handle at iter+0x14).
+ * Confirmed: ADD SI,word[EAX+0x1e] accumulates short field at record+0x1e.
+ * Confirmed: MOVSX ECX,SI; PUSH ECX; PUSH fmt; PUSH EDI → crt_sprintf(result_desc,...).
+ * Confirmed: XOR EAX,EAX; TEST SI,SI; SETG AL → returns 1 if swarm_count > 0.
+ * Confirmed: MOV byte[EBX],0x0 → *more_to_release = 0. */
+int FUN_0003fa40(int result_description, char *more_to_release)
+{
+  char iter[24]; /* encounter iterator; actor handle at iter+0x14 */
+  int record;
+  short swarm_count;
+
+  swarm_count = 0;
+
+  if ((result_description == 0) || (more_to_release == (char *)0x0)) {
+    display_assert("result_description && more_to_release",
+                   "c:\\halo\\SOURCE\\ai\\ai.c", 0x1f7, 1);
+    system_exit(-1);
+  }
+
+  encounter_iterator_next(iter, 0);
+  record = FUN_00059b50(iter);
+  while (record != 0) {
+    if ((*(char *)(record + 6) != '\0') &&
+        (*(char *)(record + 8) == '\0') &&
+        (*(int *)(record + 0xc) != -1)) {
+      swarm_count = (short)(swarm_count + *(short *)(record + 0x1e));
+      actor_erase(*(int *)(iter + 0x14), 1);
+    }
+    record = FUN_00059b50(iter);
+  }
+
+  crt_sprintf((char *)result_description, "%d swarm units", (int)swarm_count);
+  *more_to_release = 0;
+  return swarm_count > 0;
+}
+
+/* Compare two AI records for sorting. Primary key: int at offset 8 (ascending).
+   Secondary key: unsigned byte at offset 0 (ascending).
+   Returns 1 if param_1 < param_2, -1 if param_1 > param_2, 0 if equal. */
+int FUN_0003fb00(unsigned char *param_1, unsigned char *param_2)
+{
+  if (*(int *)(param_2 + 8) < *(int *)(param_1 + 8)) {
+    return 1;
+  }
+  if (*(int *)(param_2 + 8) > *(int *)(param_1 + 8)) {
+    return 0xffffffff;
+  }
+  if (*param_2 < *param_1) {
+    return 0xffffffff;
+  }
+  return (*param_1 < *param_2);
+}
+
+/* FUN_0003fe30: resolve a vehicle unit handle to an occupant handle.
+ *
+ * Given a vehicle unit handle, returns the handle of a key occupant:
+ *  - If prefer_passenger is nonzero and the vehicle has a passenger
+ *    (unit+0x2d8 != -1), resolve to the passenger handle.
+ *  - Otherwise, if the vehicle has a driver (unit+0x2d4 != -1), resolve
+ *    to the driver handle.
+ *  - If no resolution changed the handle (remains -1 or unchanged), returns
+ *    the resolved handle directly.
+ *
+ * Debug filter (applied only in non-multiplayer with debug flag set):
+ *  - If game_connection() != 0 (multiplayer): skip filter, return resolved.
+ *  - If byte[0x5ac9c6] == 0 (AI debug flag off): skip filter, return resolved.
+ *  - If the resolved unit has no rider (unit+0x1c8 == -1): skip filter,
+ *    return resolved.
+ *  - Otherwise (debug on, singleplayer, resolved unit has a rider): return -1.
+ *
+ * Confirmed: param_1=[EBP+8] (int), prefer_passenger=[EBP+C] (char).
+ * Returns int in EAX. */
+int FUN_0003fe30(int unit_handle, char prefer_passenger)
+{
+  void *obj;
+  int resolved;
+  int candidate;
+
+  if (unit_handle == -1) {
+    return -1;
+  }
+  obj = object_try_and_get_and_verify_type(unit_handle, 3);
+  if (obj == NULL) {
+    return -1;
+  }
+
+  resolved = unit_handle;
+  if (prefer_passenger != '\0') {
+    candidate = *(int *)((char *)obj + 0x2d8);
+    if (candidate != -1) {
+      resolved = candidate;
+      goto check_debug;
+    }
+  }
+  candidate = *(int *)((char *)obj + 0x2d4);
+  if (candidate != -1) {
+    resolved = candidate;
+  }
+
+check_debug:
+  if (resolved == -1) {
+    return resolved;
+  }
+  if (game_connection() != 0) {
+    return resolved;
+  }
+  if (*(char *)0x5ac9c6 == '\0') {
+    return resolved;
+  }
+  obj = object_get_and_verify_type(resolved, 3);
+  if (*(int *)((char *)obj + 0x1c8) == -1) {
+    return resolved;
+  }
+  return -1;
+}
+
+/* FUN_0003feb0: Notify AI systems when a unit exits a vehicle.
+ *
+ * param_1 (unit_handle): the unit that just exited.
+ * param_2: passed to FUN_0003fe30 as unit_handle for vehicle-occupant resolution.
+ * param_3: vehicle/context handle; used to control prefer_passenger (word !=9)
+ *          and forwarded as param5 of FUN_00046f10.
+ *
+ * Resolves the occupant from param_2 via FUN_0003fe30, determines a relationship
+ * code (0=same unit, 2=enemy, 3=friendly, or 0xffffffff if no valid occupant),
+ * then notifies the AI communication system (FUN_00046f10), clears encounter
+ * references (FUN_00044660), and updates encounter kill counts (FUN_0005b2a0).
+ *
+ * Confirmed: [EBP+8]=unit_handle (int), [EBP+C]=param_2 (int),
+ *            [EBP+10]=param_3 compared as word ptr. */
+void FUN_0003feb0(int unit_handle, int param_2, short param_3)
+{
+  int relation;
+  int resolved;
+  void *obj_unit;
+  void *obj_resolved;
+
+  resolved = FUN_0003fe30(param_2, (char)(param_3 != 9));
+  relation = 0;
+  if (unit_handle == resolved) {
+    relation = 1;
+  } else if (resolved != -1) {
+    obj_unit     = object_get_and_verify_type(unit_handle, 3);
+    obj_resolved = object_get_and_verify_type(resolved, 3);
+    relation = (game_allegiance_get_team_is_friendly(
+                  *(short *)((char *)obj_unit     + 0x68),
+                  *(short *)((char *)obj_resolved + 0x68)) != 0) + 2;
+  }
+  FUN_00046f10(0, unit_handle, resolved, relation, (int)param_3, -1, 0);
+  FUN_00044660(unit_handle, '\0');
+  FUN_0005b2a0(unit_handle);
+}
+
+/*
+ * FUN_0003ff40: AI killing spree threshold check and notification.
+ *
+ * Given a unit handle and a killing spree count, checks whether the count
+ * meets the threshold to trigger a killing-spree AI communication event.
+ * Threshold is 3 if the unit has no rider (unit+0x1c8 == 0xffffffff), or
+ * 5 if it does. When the debug flag at 0x5aca60 is set, logs the spree count
+ * to the console. If the threshold is met, fires FUN_00046f10 with type=1
+ * and returns 1; otherwise returns 0.
+ *
+ * Confirmed: [EBP+8]=unit_handle (int), [EBP+C]=killing_spree_count (short),
+ *            threshold = (uVar1 != 0xffffffff)*2 + 3 = 3 (no rider) or 5 (rider).
+ */
+char FUN_0003ff40(int unit_handle, short killing_spree_count)
+{
+    char buf[512];
+    void *obj;
+    unsigned int rider;
+    short threshold;
+
+    obj = object_get_and_verify_type(unit_handle, 3);
+    rider = *(unsigned int *)((char *)obj + 0x1c8);
+    threshold = (short)((rider != 0xffffffffu) * 2 + 3);
+
+    if (*(char *)0x5aca60 != '\0') {
+        if (rider == 0xffffffffu) {
+            FUN_00049ac0(*(int *)((char *)obj + 0x1a4), unit_handle, 1, buf, 0x200);
+        } else {
+            crt_sprintf(buf, "player%d", (unsigned int)(rider & 0xffff));
+        }
+        console_printf(0, "%s killing spree: %d", buf, (int)killing_spree_count);
+    }
+
+    if (killing_spree_count >= threshold) {
+        FUN_00046f10(1, unit_handle, -1, -1, -1, -1, 0);
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * FUN_00040360: Remove AI encounter relationships between two units.
+ *
+ * param_1: actor/unit handle (the acting unit; provides the encounter via +0x1a4).
+ * param_2: vehicle or unit handle to resolve; if the resolved unit has a driver
+ *          (unit+0x2d4 != -1), the driver handle replaces param_2.
+ *
+ * Conditions that skip the encounter removal:
+ *   - param_2 == -1 or try_and_get resolves NULL.
+ *   - The resolved handle is still -1 after driver promotion.
+ *   - game_connection() == 0 AND DAT_005ac9c6 != '\0' AND rider (unit+0x1c8) != -1.
+ *   - word at (resolved_unit + 0x64) != 0.
+ *
+ * When all conditions pass, calls FUN_00064b40 to look up the slot index,
+ * then FUN_0003d430(encounter_handle, slot_index, 0) on both directions
+ * (param_1's encounter vs param_2, and param_2's encounter vs param_1).
+ *
+ * Confirmed: [EBP+8]=param_1 (int), [EBP+C]=param_2 (int).
+ */
+void FUN_00040360(int param_1, int param_2)
+{
+    void *obj2;
+    void *obj1;
+    int slot;
+    int enc;
+
+    if (param_2 == -1) {
+        return;
+    }
+    obj2 = object_try_and_get_and_verify_type(param_2, 3);
+    if (obj2 == NULL) {
+        return;
+    }
+    /* promote param_2 to driver if present */
+    if (*(int *)((char *)obj2 + 0x2d4) != -1) {
+        param_2 = *(int *)((char *)obj2 + 0x2d4);
+    }
+    if (param_2 == -1) {
+        return;
+    }
+    /* network + rider guard: skip if standalone + rider occupied */
+    if (game_connection() == 0 && *(char *)0x5ac9c6 != '\0') {
+        obj2 = object_get_and_verify_type(param_2, 3);
+        if (*(int *)((char *)obj2 + 0x1c8) != -1) {
+            return;
+        }
+    }
+    /* skip if field_64 word is non-zero */
+    obj2 = object_get_and_verify_type(param_2, 3);
+    if (*(short *)((char *)obj2 + 0x64) != 0) {
+        return;
+    }
+
+    /* remove param_1's encounter entry for param_2 */
+    obj1 = object_get_and_verify_type(param_1, 3);
+    enc  = *(int *)((char *)obj1 + 0x1a4);
+    if (enc != -1) {
+        slot = FUN_00064b40(enc, param_2, 1, 0);
+        if (slot != -1) {
+            FUN_0003d430(*(int *)((char *)obj1 + 0x1a4), slot, 0);
+        }
+    }
+
+    /* remove param_2's encounter entry for param_1 */
+    enc = *(int *)((char *)obj2 + 0x1a4);
+    if (enc != -1) {
+        slot = FUN_00064b40(enc, param_1, 1, 0);
+        if (slot != -1) {
+            FUN_0003d430(*(int *)((char *)obj2 + 0x1a4), slot, 0);
+        }
+    }
 }

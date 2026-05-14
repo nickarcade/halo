@@ -115,18 +115,6 @@ def previous_kb_summary():
         return None, None, None
 
 
-def previous_kb_summary_from_git():
-    """Try to get summary from HEAD~1 via git show + python."""
-    try:
-        out = run(["git", "show", "HEAD~1:tools/analysis/kb_meta.py"])
-        if not out:
-            return None, None, None
-        # Fallback: just return None and let caller handle it
-        return None, None, None
-    except Exception:
-        return None, None, None
-
-
 def _load_kb_functions(ref=None):
     """Load all function declarations from kb.json at a given git ref (or working tree)."""
     if ref:
@@ -170,14 +158,19 @@ def staged_kb_json_changes():
     return compare_kb_json(old_ref="HEAD")
 
 
+_obj_cache = {}
+
 def object_for_addr(addr):
     """Look up object name from kb_meta.py list output."""
-    out = run([sys.executable, "tools/analysis/kb_meta.py", "list"])
-    for line in out.splitlines():
-        parts = line.split()
-        if len(parts) >= 5 and parts[0] == addr:
-            return parts[3]
-    return "<common>"
+    if not _obj_cache:
+        out = run([sys.executable, "tools/analysis/kb_meta.py", "list"])
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 5:
+                # Store both object (parts[3]) and source if we can find it
+                # For now just match the existing return behavior but cached
+                _obj_cache[parts[0]] = parts[3]
+    return _obj_cache.get(addr, "<common>")
 
 
 def kb_meta_change_count():
@@ -211,13 +204,19 @@ def _find_latest_vc71_match():
     return None
 
 
-def generate_message(batch_name=None, since_ref=None, vc71_match=None):
-    if since_ref:
+def generate_message(batch_name=None, since_ref=None, vc71_match=None,
+                     ports_renames=None):
+    if ports_renames is not None:
+        ports, renames = ports_renames
+    elif since_ref:
         ports, renames = compare_kb_json(old_ref=since_ref, new_ref="HEAD")
+    else:
+        ports, renames = staged_kb_json_changes()
+
+    if since_ref:
         meta_diff = run(["git", "diff", since_ref, "HEAD", "--", "kb_meta.json"])
         meta_changes = len(re.findall(r'^\+\s*"0x[0-9a-fA-F]+":\s*\{', meta_diff, re.MULTILINE))
     else:
-        ports, renames = staged_kb_json_changes()
         meta_changes = kb_meta_change_count()
     ported_after, total_after, pct_after = kb_summary()
     prev = previous_kb_summary()
@@ -226,11 +225,22 @@ def generate_message(batch_name=None, since_ref=None, vc71_match=None):
         vc71_match = _find_latest_vc71_match()
 
     match_tag = f" ({vc71_match}% VC71 match)" if vc71_match else ""
+
+    # Identify objects affected by ports/renames to include in subject
+    affected_addrs = [addr for addr, _ in ports] + [addr for addr, _, _ in renames]
+    objs = sorted(list(set(object_for_addr(addr) for addr in affected_addrs)))
+    obj_tag = ""
+    if objs:
+        if len(objs) == 1:
+            obj_tag = f" ({objs[0]})"
+        else:
+            obj_tag = f" ({len(objs)} objects)"
+
     lines = []
     if batch_name:
-        lines.append(f"Port {batch_name}{match_tag}")
+        lines.append(f"Port {batch_name}{obj_tag}{match_tag}")
     else:
-        lines.append(f"Port functions{match_tag}")
+        lines.append(f"Port functions{obj_tag}{match_tag}")
     lines.append("")
 
     if ports:
@@ -335,7 +345,8 @@ def main():
         )
 
     msg = generate_message(batch_name=args.batch_name, since_ref=args.since,
-                           vc71_match=args.vc71_match)
+                           vc71_match=args.vc71_match,
+                           ports_renames=(ports, renames))
     print(msg)
 
 

@@ -149,7 +149,7 @@ BUILD_DIR = _REPO_ROOT / "build"
 # Unicorn memory layout constants
 # ---------------------------------------------------------------------------
 CODE_BASE      = 0x00400000   # where we map the function code
-CODE_SIZE      = 0x00010000   # 64 KB — enough for any single function
+CODE_SIZE      = 0x00040000   # 256 KB — fits largest .text sections
 STACK_BASE     = 0x00100000   # bottom of stack region
 STACK_SIZE     = 0x00100000   # 1 MB stack
 STACK_TOP      = STACK_BASE + STACK_SIZE
@@ -393,7 +393,9 @@ def _build_globals_seeds(*slot_maps: dict) -> dict:
 
 def _run_function(code: bytes, abi: dict, arg_values: list,
                   verbose: bool = False, map_globals: bool = False,
-                  stub_manager=None, globals_seeds: dict = None) -> "state.CPUState":
+                  stub_manager=None, globals_seeds: dict = None,
+                  section_code: bytes = None,
+                  func_offset: int = 0) -> "state.CPUState":
     """Run a function in a fresh Unicorn instance.
 
     Returns a CPUState with captured registers and scratch memory.
@@ -403,6 +405,8 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
     stub_manager: if set, installs a fetch-unmapped hook to intercept calls
     globals_seeds: dict of {address: bytes} to write into the globals region
                    after zero-initialization (seeds known global values).
+    section_code: full .text section bytes (enables intra-object calls)
+    func_offset: offset of the target function within section_code
     """
     import unicorn
     from unicorn import Uc, UC_ARCH_X86, UC_MODE_32
@@ -441,7 +445,14 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
                 uc.mem_write(addr, data)
 
     # Write function code at CODE_BASE
-    uc.mem_write(CODE_BASE, code)
+    if section_code is not None and len(section_code) <= CODE_SIZE:
+        combined = bytearray(section_code)
+        combined[func_offset:func_offset + len(code)] = code
+        uc.mem_write(CODE_BASE, bytes(combined))
+        entry_point = CODE_BASE + func_offset
+    else:
+        uc.mem_write(CODE_BASE, code)
+        entry_point = CODE_BASE
 
     if stub_addrs:
         stub_page_base = min(stub_addrs) & ~0xFFFF
@@ -543,11 +554,13 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
         uc.hook_add(UC_HOOK_MEM_WRITE_UNMAPPED, hook_mem_unmapped)
     else:
         def hook_known_globals(uc, access, address, size, value, user_data):
+            from unicorn import UC_MEM_WRITE_UNMAPPED
             page_base = address & ~0xFFFF
             last_unmapped_access[0] = (
                 f"known-page={page_base:#x} addr={address:#x} size={size} access={access}"
             )
-            if page_base not in known_pages:
+            is_write = (access == UC_MEM_WRITE_UNMAPPED)
+            if page_base not in known_pages and not is_write:
                 return False
             try:
                 uc.mem_map(page_base, 0x10000)
@@ -582,7 +595,7 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
 
     err_msg = None
     try:
-        uc.emu_start(CODE_BASE, CODE_BASE + len(code), timeout=TIMEOUT_MS * 1000,
+        uc.emu_start(entry_point, entry_point + len(code), timeout=TIMEOUT_MS * 1000,
                      count=MAX_INSN)
     except unicorn.UcError as e:
         err_str = str(e)
@@ -609,7 +622,7 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
 # Relocation checker
 # ---------------------------------------------------------------------------
 
-def _check_relocations(func_slice, label: str) -> bool:
+def _check_relocations(func_slice, label: str, quiet: bool = False) -> bool:
     """Return True if the function has no unresolvable external relocations.
 
     Relocations that reference symbols defined in the same .obj are safe
@@ -627,7 +640,8 @@ def _check_relocations(func_slice, label: str) -> bool:
             continue
         if sym in defined:
             continue
-        print(f"  [RELOC] {label}: '{sym}' at +0x{r.virtual_address:x} — external, cannot emulate")
+        if not quiet:
+            print(f"  [RELOC] {label}: '{sym}' at +0x{r.virtual_address:x} — external, cannot emulate")
         ok = False
     return ok
 
@@ -700,7 +714,9 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
              record_leaf: bool = True, z3_equiv: bool = False,
              allow_stubs: bool = False,
              float_tolerance_ulp: int = 0,
-             float_tolerance_params: list = None) -> int:
+             float_tolerance_params: list = None,
+             skip_esp: bool = False,
+             quiet: bool = False) -> int:
     """Run the differential test.  Returns 0 if all pass, 1 if any diverge."""
 
     sys.path.insert(0, str(_SCRIPT_DIR))
@@ -714,6 +730,11 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     def log(msg: str = ""):
         print(msg)
         log_lines.append(msg)
+
+    def info(msg: str = ""):
+        log_lines.append(msg)
+        if not quiet:
+            print(msg)
 
     def finish(status: str, applicable: bool, reason: Optional[str],
                exit_code: int, **extra) -> int:
@@ -737,7 +758,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             with open(log_path, "w") as f:
                 f.write('\n'.join(log_lines) + '\n')
             payload["log_path"] = str(log_path)
-            print(f"\n  Log saved to: {log_path}")
+            if not quiet:
+                print(f"\n  Log saved to: {log_path}")
 
         if output_json:
             output_json.parent.mkdir(parents=True, exist_ok=True)
@@ -746,7 +768,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
         return exit_code
 
-    log(f"=== unicorn_diff: {func_name} ===")
+    info(f"=== unicorn_diff: {func_name} ===")
 
     if _UNICORN_IMPORT_ERROR:
         log("ERROR: unicorn not importable. Activate the project venv or install:")
@@ -766,9 +788,9 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     decl = entry.get("decl", "")
     addr = entry.get("addr", "")
     obj_name = entry.get("_obj_name", "")
-    log(f"  decl : {decl}")
-    log(f"  addr : {addr}")
-    log(f"  obj  : {obj_name}")
+    info(f"  decl : {decl}")
+    info(f"  addr : {addr}")
+    info(f"  obj  : {obj_name}")
 
     if not decl:
         log("ERROR: no 'decl' in kb.json entry")
@@ -776,9 +798,9 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
     # --- Parse ABI ---
     abi = parse_decl(decl)
-    log(f"  conv : {abi['conv']}")
-    log(f"  params: {[(p.name, p.c_type, p.reg) for p in abi['params']]}")
-    log(f"  return: {abi['return_type']} (st0={abi['ret_st0']}, edx_eax={abi['ret_edx_eax']})")
+    info(f"  conv : {abi['conv']}")
+    info(f"  params: {[(p.name, p.c_type, p.reg) for p in abi['params']]}")
+    info(f"  return: {abi['return_type']} (st0={abi['ret_st0']}, edx_eax={abi['ret_edx_eax']})")
 
     if float_tolerance_ulp > 0 and float_tolerance_params is None:
         float_tolerance_params = [
@@ -796,7 +818,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                     float_tolerance_slot_indices.append(ptr_idx)
                 ptr_idx += 1
         if float_tolerance_params:
-            log(f"  float-tolerance: {float_tolerance_ulp} ULP for {float_tolerance_params}")
+            info(f"  float-tolerance: {float_tolerance_ulp} ULP for {float_tolerance_params}")
 
     # --- Locate .obj files ---
     delinked_path, build_path = _find_obj_paths(entry)
@@ -833,7 +855,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             build_path, compile_detail = _compile_build_obj_for_source(entry["_obj_source"])
         if build_path:
             build_compiled_on_demand = True
-            log(f"  build   : {build_path} (compiled on demand)")
+            info(f"  build   : {build_path} (compiled on demand)")
         else:
             log(f"ERROR: cannot find build .obj for '{obj_name}'")
             if compile_detail:
@@ -841,9 +863,9 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             log(f"  Run: python3 tools/build/build.py -q --target halo")
             return finish("not_applicable", False, "missing_build_object", 2)
 
-    log(f"  delinked: {delinked_path}")
+    info(f"  delinked: {delinked_path}")
     if not build_compiled_on_demand:
-        log(f"  build   : {build_path}")
+        info(f"  build   : {build_path}")
 
     # --- Extract function slices ---
     # The delinked obj uses FUN_00XXXXXX naming; the build obj uses
@@ -879,8 +901,20 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         log(f"ERROR extracting lifted: {e}")
         return finish("not_applicable", False, "lifted_extract_failed", 2)
 
-    log(f"  oracle code: {len(oracle_slice.code)} bytes, {len(oracle_slice.relocs)} relocs")
-    log(f"  lifted code: {len(lifted_slice.code)} bytes, {len(lifted_slice.relocs)} relocs")
+    info(f"  oracle code: {len(oracle_slice.code)} bytes, {len(oracle_slice.relocs)} relocs")
+    info(f"  lifted code: {len(lifted_slice.code)} bytes, {len(lifted_slice.relocs)} relocs")
+
+    from coff_loader import load_text_section
+
+    def _has_raw_calls(code, relocs):
+        """Check if code has E8 CALL instructions without matching relocations."""
+        reloc_offsets = {r.virtual_address for r in relocs}
+        for i in range(len(code) - 4):
+            if code[i] == 0xE8 and (i + 1) not in reloc_offsets:
+                return True
+        return False
+
+    oracle_text = load_text_section(str(delinked_path)) if _has_raw_calls(oracle_slice.code, oracle_slice.relocs) else None
 
     if not oracle_slice.code:
         log("ERROR: oracle code is empty")
@@ -890,8 +924,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         return finish("error", True, "empty_lifted_code", 1)
 
     # --- Check for external relocations ---
-    oracle_ok = _check_relocations(oracle_slice, "oracle")
-    lifted_ok = _check_relocations(lifted_slice, "lifted")
+    oracle_ok = _check_relocations(oracle_slice, "oracle", quiet=quiet)
+    lifted_ok = _check_relocations(lifted_slice, "lifted", quiet=quiet)
     is_leaf = oracle_ok and lifted_ok
     if record_leaf:
         _record_leaf_classification(addr, is_leaf)
@@ -909,8 +943,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                        getattr(oracle_slice, 'defined_symbols', set()))
         lft_cls = classify_relocations(lifted_slice.relocs,
                                        getattr(lifted_slice, 'defined_symbols', set()))
-        log(f"  oracle class: {orc_cls.category} ({orc_cls.reason})")
-        log(f"  lifted class: {lft_cls.category} ({lft_cls.reason})")
+        info(f"  oracle class: {orc_cls.category} ({orc_cls.reason})")
+        info(f"  lifted class: {lft_cls.category} ({lft_cls.reason})")
 
         # Patch DIR32 relocations for both
         orc_defined = getattr(oracle_slice, 'defined_symbols', set())
@@ -944,7 +978,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         if combined_stub_map:
             stub_mgr = StubManager(KB_JSON, DELINKED_DIR)
             n_prepared = stub_mgr.prepare_stubs(combined_stub_map)
-            log(f"  stubs prepared: {n_prepared}/{len(combined_stub_map)}")
+            info(f"  stubs prepared: {n_prepared}/{len(combined_stub_map)}")
             stub_manager = stub_mgr
             use_stubs = True
 
@@ -961,7 +995,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     if z3_equiv and is_leaf:
         try:
             from z3_equiv import prove_equivalence
-            log("\n  Attempting Z3 formal equivalence proof...")
+            info("\n  Attempting Z3 formal equivalence proof...")
             eq_result = prove_equivalence(oracle_slice.code, lifted_slice.code, abi)
             if eq_result.proven:
                 log(f"  Z3 PROVEN EQUIVALENT")
@@ -999,13 +1033,13 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     seed_safe_mode = not is_leaf
     z3_extra = []
     if seed_safe_mode:
-        log("  seed mode: non-leaf valid-path execution (z3 branch seeds disabled)")
+        info("  seed mode: non-leaf valid-path execution (z3 branch seeds disabled)")
     else:
         try:
             from z3_seeds import extract_branch_seeds
             z3_extra = extract_branch_seeds(oracle_slice.code, abi)
             if z3_extra:
-                log(f"  z3 branch seeds: {len(z3_extra)}")
+                info(f"  z3 branch seeds: {len(z3_extra)}")
         except ImportError:
             pass
         except Exception as e:
@@ -1014,8 +1048,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     params = abi['params']
     seeds = generate_seeds(params, num_seeds=num_seeds, base_seed=base_seed,
                            z3_seeds=z3_extra, safe_mode=seed_safe_mode)
-    log(f"\n  Running {len(seeds)} seeds...")
-    log("")
+    info(f"\n  Running {len(seeds)} seeds...")
+    info("")
 
     passed = 0
     failed = 0
@@ -1030,7 +1064,9 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             oracle_state = _run_function(oracle_code_patched, abi, seed_vec,
                                          verbose=verbose, map_globals=use_stubs,
                                          stub_manager=stub_manager,
-                                         globals_seeds=globals_seeds)
+                                         globals_seeds=globals_seeds,
+                                         section_code=oracle_text,
+                                         func_offset=oracle_slice.section_offset)
         except Exception as exc:
             log(f"  {seed_label} ORACLE-ERROR: {exc}")
             errors += 1
@@ -1057,7 +1093,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             continue
 
         # Determine what to compare based on return type
-        ret_eax = not abi['ret_void'] and not abi['ret_st0']
+        ret_eax = not abi['ret_void'] and not abi['ret_st0'] and not abi.get('ret_is_ptr', False)
         diff = state_mod.compare(
             oracle_state, lifted_state,
             check_scratch=True,
@@ -1069,6 +1105,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             scratch_float_tolerance_ulp=float_tolerance_ulp,
             scratch_float_params=float_tolerance_slot_indices,
             st_tolerance_ulp=float_tolerance_ulp,
+            check_esp=is_leaf if not skip_esp else False,
         )
 
         if diff.has_differences():
@@ -1088,10 +1125,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         else:
             passed += 1
             if verbose and si < 3:
-                log(f"  {seed_label} PASS")
-                log(state_mod.format_state_verbose(oracle_state, "oracle"))
+                info(f"  {seed_label} PASS")
+                info(state_mod.format_state_verbose(oracle_state, "oracle"))
 
-    log("")
+    info("")
     log(f"=== RESULTS: {passed} passed, {failed} failed, {errors} errors / {len(seeds)} seeds ===")
 
     if first_diff and not verbose:
@@ -1321,6 +1358,10 @@ def main():
                         help="Allow N ULP difference for float pointer params in scratch comparison")
     parser.add_argument("--float-params", type=str, default=None, metavar="NAMES",
                         help="Comma-separated param names treated as float arrays (default: auto-detect)")
+    parser.add_argument("--skip-esp", action="store_true",
+                        help="Skip ESP delta comparison (expected to differ for non-leaf functions)")
+    parser.add_argument("-q", "--quiet", action="store_true",
+                        help="Suppress setup config and per-seed PASS lines; print only RESULTS and first failure")
     args = parser.parse_args()
 
     if args.batch_classify:
@@ -1353,6 +1394,8 @@ def main():
         allow_stubs=args.allow_stubs,
         float_tolerance_ulp=args.float_tolerance,
         float_tolerance_params=args.float_params.split(",") if args.float_params else None,
+        skip_esp=args.skip_esp,
+        quiet=args.quiet,
     ))
 
 

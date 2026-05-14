@@ -53,7 +53,63 @@ void FUN_0002a470(int actor_handle, char *nav_state_out)
   FUN_0003bc90(actor_handle);
   path_input_new(nav_state_out, local_8, *(unsigned char *)(actor + 0x376),
                  unit_handle);
-  path_input_set_start(nav_state_out, actor + 0x168, *(int *)(actor + 0x164));
+  path_input_set_start(nav_state_out, (float *)(actor + 0x168),
+                       *(int *)(actor + 0x164));
+}
+
+/* 0x2a7e0 — Set actor goal destination if not already occupied.
+ * Calls actor_set_dormant(actor, 0), then checks actor->goal_slot (+0x418)
+ * and vehicle-in-air state. On success writes param_2 to +0x418 and
+ * copies two ints from param_3 to +0x41c/+0x420. Returns 1 on success, 0 on
+ * failure. */
+int FUN_0002a7e0(int actor_handle, int16_t param_2, int *param_3)
+{
+  char *actor;
+  char *actor2;
+  char result;
+
+  result = 0;
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  actor_set_dormant(actor_handle, 0);
+  actor2 = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (*(int16_t *)(actor2 + 0x418) == -1) {
+    if (*(int *)(actor2 + 0x18) == -1 ||
+        !FUN_001a9ad0(*(int *)(actor2 + 0x18))) {
+      *(int16_t *)(actor + 0x418) = param_2;
+      *(int *)(actor + 0x41c) = *param_3;
+      *(int *)(actor + 0x420) = param_3[1];
+      result = 1;
+    }
+  }
+  return (int)result;
+}
+
+/* 0x2a860 — Clear actor destination and trigger flee movement.
+ * Returns 0 if actor has a goal slot, is in a flying vehicle, or FUN_0001ca90
+ * returns true. Otherwise zeroes the swarm flag, copies 12 bytes from the
+ * global pointer at 0x31fc38, calls FUN_0003c3e0, and returns 1. */
+int FUN_0002a860(int actor_handle)
+{
+  char *actor;
+  char *ptr;
+  char result;
+
+  result = 0;
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (*(int16_t *)(actor + 0x418) == -1) {
+    if (*(int *)(actor + 0x18) == -1 || !FUN_001a9ad0(*(int *)(actor + 0x18))) {
+      if (!FUN_0001ca90(actor_handle)) {
+        *(char *)(actor + 0x504) = 0;
+        ptr = (char *)*(int *)0x31fc38;
+        *(int *)(actor + 0x6e0) = *(int *)ptr;
+        *(int *)(actor + 0x6e4) = *(int *)(ptr + 4);
+        *(int *)(actor + 0x6e8) = *(int *)(ptr + 8);
+        FUN_0003c3e0(actor_handle);
+        result = 1;
+      }
+    }
+  }
+  return (int)result;
 }
 
 /* 0x2b5d0 — actor_move_get_avoidance_direction: initialize trigonometric lookup
@@ -240,7 +296,7 @@ char actor_path_refresh(int actor_handle, char store_distance,
   char *tag; /* [EBP-0xc]: actor tag pointer from tag_get */
   float dist; /* [EBP-0x8]: 3D distance actor→destination */
   char local_nav[44]; /* [EBP-0x60]: nav-state struct (waypoint init output) */
-  char
+  static char
     large_buf[0x1408c]; /* [EBP+0xfffebf14]: path-build scratch 82060 bytes */
   void *path_state; /* allocated path cache slot from FUN_00049120 */
   int scenario;
@@ -508,8 +564,8 @@ LAB_check_dest:
                      "c:\\halo\\SOURCE\\ai\\actor_moving.c", 0xbbc, 1);
       system_exit(-1);
     }
-    FUN_0005e0d0((int)override_path, (unsigned int *)(actor + 0x494),
-                 *(unsigned int *)(actor + 0x498), 0);
+    FUN_0005e0d0(override_path, (float *)(actor + 0x494),
+                 *(int *)(actor + 0x498), 0);
     path_found = path_state_build_path((unsigned int)override_path,
                                        (unsigned int *)(actor + 0x4a8));
   } else {
@@ -537,21 +593,19 @@ LAB_check_dest:
      */
     FUN_0002a470(actor_handle, local_nav);
     if (*(int *)(actor + 0x480) != -1) {
-      paths_dispose((int)local_nav, *(unsigned int *)(actor + 0x480));
+      paths_dispose(local_nav, *(int *)(actor + 0x480));
     }
     if ((*(short *)(actor + 0x280) > 0) && (*(char *)(actor + 0x28a) == '\0') &&
         ((*(unsigned char *)(tag + 4) & 0x10) == 0)) {
       path_input_set_attractor(
-        (int)local_nav, (unsigned int *)(actor + 0x2b0),
-        *(unsigned int *)(actor + 0x294), *(unsigned int *)(actor + 0x28c),
+        local_nav, (float *)(actor + 0x2b0), *(float *)(actor + 0x294),
+        *(unsigned int *)(actor + 0x28c),
         (unsigned int)0x41200000); /* 10.0f as bit pattern */
     }
     path_state = FUN_00049120(actor_handle);
-    path_state_new((unsigned int *)local_nav, (unsigned int *)large_buf,
-                   (unsigned int)path_state);
-    FUN_0005e0d0((int)large_buf, (unsigned int *)(actor + 0x488),
-                 *(unsigned int *)(actor + 0x494),
-                 *(unsigned int *)(actor + 0x498));
+    path_state_new(local_nav, large_buf, path_state);
+    FUN_0005e0d0(large_buf, (float *)(actor + 0x488), *(int *)(actor + 0x494),
+                 *(int *)(actor + 0x498));
     path_found = FUN_0005ff70((unsigned int *)large_buf);
     if (path_found != '\0') {
       path_found2 = path_state_build_path((unsigned int)large_buf,
@@ -879,7 +933,7 @@ void FUN_0002d350(int actor_handle)
       dx = *(float *)(actor + 0x518);
       dy = *(float *)(actor + 0x51c);
       dz = *(float *)(actor + 0x520);
-      dist = __builtin_sqrtf(dx * dx + dy * dy + dz * dz);
+      dist = sqrtf(dx * dx + dy * dy + dz * dz);
 
       /* Jump past error if distance is sane (< 1,000,000 units). */
       if (dist < 1000000.0f) {
@@ -944,4 +998,116 @@ void FUN_0002d350(int actor_handle)
     *(float *)(actor + 0x130) + *(float *)(actor + 0x51c);
   *(float *)(actor + 0x514) =
     *(float *)(actor + 0x134) + *(float *)(actor + 0x520);
+}
+
+/* 0x2d850 — Set actor movement to far-movement mode (move_type=4,
+ * dest=param_2).
+ *
+ * Clears the actor's 3b8 (movement dormant flag), calls actor_set_dormant to
+ * wake the actor, then checks if the actor is already in far-movement mode
+ * heading to param_2. If not, sets up the movement block at +0x400..+0x417,
+ * copies it to the active slot at +0x46c, and kicks off a path refresh
+ * (store_distance=1). If already at the target, checks if the actor is still
+ * active (+0x4c) and not sleeping (+0x4a4), and if so refreshes the path
+ * (store_distance=0). Returns the result of actor_path_refresh, or 1 if
+ * no refresh was needed.
+ *
+ * Confirmed: datum_get(0x6325a4, actor_handle) at 0x2d860.
+ * Confirmed: OR EDI,-1 / MOV DI,[ESI+0x3b8] = 0xffff at 0x2d869/0x2d86d.
+ * Confirmed: actor_set_dormant(actor_handle, 0) at 0x2d874.
+ * Confirmed: CMP [ESI+0x46c], 4 / CMP [ESI+0x470], CX at 0x2d886-0x2d893.
+ * Confirmed: MOV [ESI+0x404],CX; MOV [ESI+0x414],EDI=-1; MOV [ESI+0x402],0;
+ *            MOV [ESI+0x400],4 at 0x2d8be-0x2d8da.
+ * Confirmed: REP MOVSD ECX=6 from ESI=actor+0x400 to EDI=actor+0x46c at
+ * 0x2d8e5. Confirmed: actor_path_refresh(actor_handle,1,0) at 0x2d8e7.
+ * Confirmed: actor_path_refresh(actor_handle,0,0) at 0x2d8ab.
+ * Confirmed: return 1 via MOV AL,1 at 0x2d8f6.
+ */
+char FUN_0002d850(int actor_handle, int16_t param_2)
+{
+  char *iVar1;
+  int iVar3;
+  int *puVar4;
+  short *psVar5;
+
+  iVar1 = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  *(int16_t *)(iVar1 + 0x3b8) = -1;
+  actor_set_dormant(actor_handle, 0);
+  if ((*(int16_t *)(iVar1 + 0x46c) != 4) ||
+      (*(int16_t *)(iVar1 + 0x470) != param_2)) {
+    *(int16_t *)(iVar1 + 0x404) = param_2;
+    *(int *)(iVar1 + 0x414) = -1;
+    *(char *)(iVar1 + 0x402) = 0;
+    *(int16_t *)(iVar1 + 0x400) = 4;
+    puVar4 = (int *)(iVar1 + 0x400);
+    psVar5 = (short *)(iVar1 + 0x46c);
+    for (iVar3 = 6; iVar3 != 0; iVar3--) {
+      *(int *)psVar5 = *puVar4;
+      puVar4++;
+      psVar5 += 2;
+    }
+    return actor_path_refresh(actor_handle, 1, 0);
+  }
+  if ((*(char *)(iVar1 + 0x4c) != '\0') && (*(char *)(iVar1 + 0x4a4) == '\0')) {
+    return actor_path_refresh(actor_handle, 0, 0);
+  }
+  return 1;
+}
+
+/* 0x2d9b0 — Set actor movement to encounter-path mode (move_type=5,
+ * dest=encounter_handle, dist=distance).
+ *
+ * Clears actor+0x3b8, wakes the actor, then checks if it is already in mode 5
+ * with the same encounter handle and distance. If so, either refreshes the path
+ * (store_distance=0, if actor is active/not-sleeping) or returns 1. Otherwise
+ * sets up the movement block at +0x400: mode=5, encounter_handle at +0x404,
+ * distance at +0x408, path node from encounter+0x110 (fallback +0x18) at
+ * +0x414, copies the 24-byte block to the active slot at +0x46c, then calls
+ * actor_path_refresh(store_distance=1).
+ *
+ * Confirmed: datum_get(0x6325a4, actor_handle) at 0x2d9c0.
+ * Confirmed: actor_set_dormant(actor_handle, 0) at 0x2d9c7.
+ * Confirmed: CMP [EDI],5 / CMP [ESI+0x470],ECX / FCOMP [EBP+0x10] at
+ * 0x2d9e1-0x2d9f8. Confirmed: datum_get(0x5ab23c, encounter_handle) at 0x2da2c.
+ * Confirmed: encounter+0x110 fallback to encounter+0x18 at 0x2da5c-0x2da6d.
+ * Confirmed: REP MOVSD ECX=6 from actor+0x400 to actor+0x46c at 0x2da83.
+ * Confirmed: actor_path_refresh(actor_handle,1,0) at 0x2da85.
+ * Confirmed: actor_path_refresh(actor_handle,0,0) at 0x2da1c.
+ * Confirmed: return 1 via MOV AL,1 at 0x2da94.
+ */
+char FUN_0002d9b0(int actor_handle, int encounter_handle, float distance)
+{
+  char *actor;
+  char *encounter;
+  int node_handle;
+  int *active_state;
+  int *pending_state;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  *(int16_t *)(actor + 0x3b8) = -1;
+  actor_set_dormant(actor_handle, 0);
+  active_state = (int *)(actor + 0x46c);
+  if (*(int16_t *)active_state == 5 && *(int *)(actor + 0x470) == encounter_handle &&
+      *(float *)(actor + 0x474) == distance) {
+    if (*(char *)(actor + 0x4c) == 0) {
+      return 1;
+    }
+    if (*(char *)(actor + 0x4a4) != 0) {
+      return 1;
+    }
+    return actor_path_refresh(actor_handle, 0, 0);
+  }
+  encounter = (char *)datum_get(*(data_t **)0x5ab23c, encounter_handle);
+  *(int *)(actor + 0x404) = encounter_handle;
+  *(int16_t *)(actor + 0x400) = 5;
+  *(char *)(actor + 0x402) = 0;
+  *(float *)(actor + 0x408) = distance;
+  node_handle = *(int *)(encounter + 0x110) == -1 ? *(int *)(encounter + 0x18)
+                                                   : *(int *)(encounter + 0x110);
+  *(int *)(actor + 0x414) = node_handle;
+  pending_state = (int *)(actor + 0x400);
+  for (node_handle = 6; node_handle != 0; node_handle--) {
+    *active_state++ = *pending_state++;
+  }
+  return actor_path_refresh(actor_handle, 1, 0);
 }

@@ -117,11 +117,25 @@ int csstrcmp(const char *s1, const char *s2)
 /* csstrcat — bounded string concatenation with assertions. */
 char *csstrcat(char *destination, const char *source, size_t max_size)
 {
-  assert_halt(destination && source);
+  if (!destination || !source)
+    return NULL;
   assert_halt(max_size < MAXIMUM_STRING_SIZE);
 
   crt_strncat(destination, source, max_size);
   return destination;
+}
+
+/* Forward declaration for CRT strncmp (available in XDK/CRT but not pulled
+ * in by our Xbox target headers by default). */
+extern int strncmp(const char *s1, const char *s2, unsigned int n);
+
+/* 0x8ddd0 — Validated strncmp wrapper. Asserts both strings are non-null and
+ * size is within MAXIMUM_STRING_SIZE, then delegates to strncmp. */
+int FUN_0008ddd0(char *s1, char *s2, unsigned int size)
+{
+  assert_halt(s1 && s2);
+  assert_halt(size <= 0x1fff);
+  return strncmp(s1, s2, size);
 }
 
 #ifdef strncpy

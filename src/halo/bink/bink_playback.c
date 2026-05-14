@@ -21,6 +21,16 @@ bool bink_playback_active(void)
   return false;
 }
 
+/* Returns true if bink is initialized and was started with flag 0x8
+ * (suppress-UI mode). Callers use this to skip rendering UI widgets
+ * during attract-mode or other fullscreen bink playback. */
+bool bink_playback_suppress_ui(void)
+{
+  if (*(uint8_t *)0x4ead58 != 0 && (*(uint8_t *)0x4ead5c & 8) != 0)
+    return true;
+  return false;
+}
+
 /* Returns true if a bink video handle is open (regardless of whether
  * the subsystem is initialized). */
 bool bink_playback_has_video(void)
@@ -98,6 +108,49 @@ bool bink_memory_pool_is_empty(void)
     } while (idx < *(int *)0x4eae30);
   }
   return empty;
+}
+
+/* Release a bink memory pool allocation. Searches the allocation table at
+ * 0x4eacd0 (up to 0x4eae30 entries) for a pointer matching ptr, and zeroes
+ * that slot when found. If the pointer is not found (or the pool is empty),
+ * calls display_assert and exits — "bink just confused the hell out of me (2)".
+ * Bracketed by bink_playback_trace calls (memory checkpoint) before the
+ * search and after the successful free. Calling convention: __stdcall (RET 4).
+ */
+void __stdcall bink_memory_pool_free(int ptr)
+{
+  uint32_t mem_status[8];
+  int count;
+  int i;
+
+  csmemset(mem_status, 0, 0x20);
+  mem_status[0] = 0x20;
+  xbox_query_global_memory_status(mem_status);
+  *(uint32_t *)0x32eb9c = mem_status[3] >> 10;
+
+  count = *(int *)0x4eae30;
+  i = 0;
+  if (0 < count) {
+    do {
+      if (*(int *)(i * 4 + 0x4eacd0) == ptr) {
+        *(int *)(i * 4 + 0x4eacd0) = 0;
+        if (i < count) {
+          goto found;
+        }
+        break;
+      }
+      i = i + 1;
+    } while (i < count);
+  }
+  display_assert("### FATAL_ERROR bink just confused the hell out of me (2)",
+                 "c:\\halo\\SOURCE\\bink\\bink_playback.c", 0x339, 1);
+  system_exit(-1);
+
+found:
+  csmemset(mem_status, 0, 0x20);
+  mem_status[0] = 0x20;
+  xbox_query_global_memory_status(mem_status);
+  *(uint32_t *)0x32eb9c = mem_status[3] >> 10;
 }
 
 /* Render the bink frame quad on screen with optional debug overlay.
@@ -758,4 +811,43 @@ void bink_playback_update(void)
 {
   if (*(uint8_t *)0x31fa96 != 0)
     bink_playback_check_stop();
+}
+
+/* Bink texture lock adapter. Reorders arguments from the original
+ * __fastcall register layout (flags@EAX, rect@ECX, locked_rect@EDX,
+ * texture+level on stack) into the standard D3DTexture_LockRect
+ * cdecl call. Returns 0. Used as a Bink SDK callback. */
+int FUN_001c6170(unsigned int flags, void *rect, void *locked_rect,
+                 void *texture, unsigned int level)
+{
+  D3DTexture_LockRect(texture, level, locked_rect, rect, flags);
+  return 0;
+}
+
+/* Check if a file is an AIFF or AIFC audio container.
+ * Opens the file, reads the first 12-byte AIFF header chunk (FORM + size +
+ * type), byte-swaps it via the aiff_container_chunk definition, then checks
+ * that the chunk ID is 0x464f524d ('FORM') and the file type is either
+ * 0x41494646 ('AIFF') or 0x41494643 ('AIFC'). Closes the file before
+ * returning. Returns true if the file is a valid AIFF/AIFC container. */
+bool FUN_001c6880(file_ref_t *info)
+{
+  int header[3];
+  char result;
+  char ok;
+
+  result = 0;
+  ok = file_open(info, 1);
+  if (ok != '\0') {
+    ok = FUN_0019acb0(info, 0, 0xc, header);
+    if (ok != '\0') {
+      FUN_00118be0((void *)0x32ebbc, header, 1);
+      if ((header[0] == 0x464f524d) &&
+          ((header[2] == 0x41494646) || (header[2] == 0x41494643))) {
+        result = 1;
+      }
+    }
+    file_close(info);
+  }
+  return result;
 }
