@@ -317,6 +317,11 @@ bool game_engine_running(void)
   return current_game_engine != 0;
 }
 
+bool game_engine_can_score(void)
+{
+  return *(int *)0x456b60 == 0 || *(int *)0x5aa730 == 0;
+}
+
 bool game_engine_force_single_screen(void)
 {
   return current_game_engine && game_engine_variant_index > 1 &&
@@ -781,8 +786,8 @@ bool game_engine_allow_pause(void)
  *
  * Preloads game-engine related sound tags from game globals.
  * Selection depends on game_engine_variant_index (0x456b40) and game type
- * (0x456b10). The final 10 entries are mapped through FUN_000a9770 before
- * loading.
+ * (0x456b10). The final 10 entries are mapped through game_engine_remap_weapon
+ * before loading.
  */
 void game_engine_load_sounds(void)
 {
@@ -1484,21 +1489,21 @@ int find_netgame_flags(float *position, float radius, float height,
   return result;
 }
 
-/* FUN_000ad270 (0xad270)
+/* find_netgame_flag (0xad270)
  *
  * Convenience wrapper around find_netgame_flags that finds at most one matching
  * netgame flag.  Returns the index of the first match, or -1 if none.
  */
 /* 0xad270 */
-int FUN_000ad270(float *position, float radius, float height, int16_t type,
-                 int16_t index)
+int find_netgame_flag(float *position, float radius, float height, int16_t type,
+                      int16_t index)
 {
   int result = -1;
   find_netgame_flags(position, radius, height, type, index, 1, &result);
   return result;
 }
 
-/* FUN_000ad530 (0xad530)
+/* game_engine_get_damage_multiplier (0xad530)
  *
  * Computes a per-player damage modifier for the active game engine.
  * If a game engine is active, it normalises the engine's stored float
@@ -1512,7 +1517,7 @@ int FUN_000ad270(float *position, float radius, float height, int16_t type,
  * Returns 1.0f when no engine is active (no game-type modifier).
  */
 /* 0xad530 */
-float FUN_000ad530(int player_a, int player_b)
+float game_engine_get_damage_multiplier(int player_a, int player_b)
 {
   float local_8;
   char cVar1;
@@ -1670,8 +1675,9 @@ void game_engine_player_update_netgame_flag(int player_handle)
       }
 
       *(int *)0x456b64 = 0x78;
-      hud_print_message((int)(short)FUN_000b6990(*(int *)(player + 0x34)),
-                        (wchar_t *)0x26c684);
+      hud_print_message(
+        (int)(short)unit_get_local_player_index(*(int *)(player + 0x34)),
+        (wchar_t *)0x26c684);
       return;
     }
   }
@@ -1715,7 +1721,7 @@ void game_engine_player_update_netgame_flag(int player_handle)
   }
 
   *(int *)(player + 0x70) =
-    FUN_000ad270((float *)(unit + 0x0c), 1.0f, 0.0f, 6, -1);
+    find_netgame_flag((float *)(unit + 0x0c), 1.0f, 0.0f, 6, -1);
 }
 
 /* game_engine_get_variant_by_name (0xadd50)

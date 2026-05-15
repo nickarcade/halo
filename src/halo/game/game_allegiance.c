@@ -62,7 +62,7 @@ bool game_allegiance_get_team_is_friendly(int16_t team_a, int16_t team_b)
  *
  * Out-of-range team indices (negative or >= 10) return false.
  */
-bool FUN_000a7a90(int16_t team_a, int16_t team_b)
+bool game_team_is_ally(int16_t team_a, int16_t team_b)
 {
   int bit_index;
   bool result;
@@ -75,6 +75,100 @@ bool FUN_000a7a90(int16_t team_a, int16_t team_b)
        (1 << (bit_index & 0x1f))) != 0;
   }
   return result;
+}
+
+bool game_team_ally_status_changed(int16_t team_a, int16_t team_b)
+{
+  int16_t i;
+  int16_t *entry;
+
+  i = 0;
+  entry = (int16_t *)game_allegiance_globals + 1;
+  if (*(int16_t *)game_allegiance_globals > 0) {
+    while ((entry[0] != team_a || entry[1] != team_b) &&
+           (entry[1] != team_a || entry[0] != team_b)) {
+      i++;
+      entry += 9;
+      if (*(int16_t *)game_allegiance_globals <= i) {
+        return 0;
+      }
+    }
+    return *((char *)entry + 0xb);
+  }
+  return 0;
+}
+
+int16_t game_allegiance_get_incidents(int16_t team_a, int16_t team_b,
+                                      int16_t *out_threshold)
+{
+  int16_t i;
+  int16_t result;
+  int16_t threshold;
+  int16_t *entry;
+
+  i = 0;
+  entry = (int16_t *)game_allegiance_globals + 1;
+  result = 0;
+  threshold = -1;
+  if (*(int16_t *)game_allegiance_globals > 0) {
+    do {
+      if ((entry[0] == team_a && entry[1] == team_b) ||
+          (entry[1] == team_a && entry[0] == team_b)) {
+        result = entry[7];
+        threshold = entry[2];
+        break;
+      }
+      i++;
+      entry += 9;
+    } while (i < *(int16_t *)game_allegiance_globals);
+  }
+  if (out_threshold != NULL) {
+    *out_threshold = threshold;
+  }
+  return result;
+}
+
+void game_allegiance_provoke(int16_t team_a, int16_t team_b)
+{
+  int16_t i;
+  int16_t *entry;
+
+  i = 0;
+  entry = (int16_t *)game_allegiance_globals + 1;
+  if (*(int16_t *)game_allegiance_globals > 0) {
+    while (
+      (entry[0] != team_a || entry[1] != team_b || *((char *)entry + 9) == 0) &&
+      (entry[1] != team_a || entry[0] != team_b || *((char *)entry + 8) == 0)) {
+      i++;
+      entry += 9;
+      if (*(int16_t *)game_allegiance_globals <= i) {
+        return;
+      }
+    }
+    if (entry[7] > 0 && entry[3] != -1) {
+      entry[8] = entry[3];
+    }
+  }
+}
+
+void game_allegiance_notify_change(int16_t team_a, int16_t team_b)
+{
+  int16_t i;
+  int16_t *entry;
+
+  i = 0;
+  entry = (int16_t *)game_allegiance_globals + 1;
+  if (*(int16_t *)game_allegiance_globals > 0) {
+    while ((entry[0] != team_a || entry[1] != team_b) &&
+           (entry[1] != team_a || entry[0] != team_b)) {
+      i++;
+      entry += 9;
+      if (*(int16_t *)game_allegiance_globals <= i) {
+        return;
+      }
+    }
+    *((char *)entry + 0xb) = 0;
+  }
 }
 
 /**
@@ -337,4 +431,33 @@ bool game_allegiance_bump(int16_t team_a, int16_t team_b, int16_t action,
     entry += 9;
   }
   return false;
+}
+
+int FUN_000a8110(int param_1, int param_2)
+{
+  char *elem;
+
+  elem =
+    (char *)tag_block_get_element((void *)(param_1 + 0x14c), param_2, 0x10);
+  return *(int *)(elem + 0xc);
+}
+
+int FUN_000a8130(int param_1)
+{
+  int (*fn)(int, int);
+  char *item;
+  data_iter_t iter;
+
+  data_iterator_new(&iter, *(data_t **)0x5aa6d4);
+  item = (char *)data_iterator_next(&iter);
+  while (1) {
+    if (item == NULL) {
+      return 0;
+    }
+    if (*(int *)(item + 0x20) == param_1)
+      break;
+    item = (char *)data_iterator_next(&iter);
+  }
+  fn = *(int (**)(int, int))((char *)(*(void **)0x456b60) + 0x48);
+  return fn((int)iter.datum_handle, 1);
 }

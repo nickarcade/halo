@@ -27,6 +27,25 @@ def _float_ulp(a_bits: int, b_bits: int) -> int:
     return a_bits - b_bits
 
 
+def _st80_to_f32_bits(b):
+    """Convert 10-byte x87 extended to 32-bit float bit pattern."""
+    if len(b) < 10:
+        return 0
+    mantissa = int.from_bytes(b[:8], 'little')
+    exp_sign = int.from_bytes(b[8:10], 'little')
+    sign = exp_sign >> 15
+    exp = exp_sign & 0x7FFF
+    if exp == 0:
+        return sign << 31
+    fexp = exp - 16383 + 127
+    if fexp <= 0:
+        return sign << 31
+    if fexp >= 255:
+        return 0x7F800000 | (sign << 31)
+    fmant = (mantissa >> 40) & 0x7FFFFF
+    return (sign << 31) | (fexp << 23) | fmant
+
+
 def _st80_ulp_distance(a, b):
     """Return ULP distance between two 80-bit x87 extended precision values.
 
@@ -117,6 +136,14 @@ def _get_regs():
 
 
 @dataclass
+class MemoryWrite:
+    """A single memory write observed during emulation."""
+    address: int
+    size: int
+    value: int
+
+
+@dataclass
 class CPUState:
     """Captured register + memory state after emulation."""
     eax: int = 0
@@ -128,6 +155,10 @@ class CPUState:
     scratch_data: bytes = b''  # contents of scratch buffer after run
     error: Optional[str] = None
     insn_count: int = 0
+    visited_pcs: dict = field(default_factory=dict)
+    mem_writes: list = field(default_factory=list)
+    global_reads: dict = field(default_factory=dict)
+    auto_mapped_pages: set = field(default_factory=set)
 
 
 def capture(uc, scratch_base: int, scratch_size: int, entry_esp: int) -> CPUState:
@@ -238,6 +269,7 @@ def compare(oracle: CPUState, lifted: CPUState,
             scratch_float_tolerance_ulp: int = 0,
             scratch_float_params: list = None,
             st_tolerance_ulp: int = 0,
+            st_compare_as_f32: bool = False,
             check_esp: bool = True) -> StateDiff:
     """Compare two CPUState objects and return a StateDiff.
 
@@ -275,7 +307,12 @@ def compare(oracle: CPUState, lifted: CPUState,
     # unrelated prior operations that differ between oracle and lifted.
     for i in range(check_st_count):
         if oracle.st[i] != lifted.st[i]:
-            if st_tolerance_ulp > 0:
+            if st_compare_as_f32:
+                ob = _st80_to_f32_bits(oracle.st[i])
+                lb = _st80_to_f32_bits(lifted.st[i])
+                if ob == lb or (st_tolerance_ulp > 0 and _float_ulp(ob, lb) <= st_tolerance_ulp):
+                    continue
+            elif st_tolerance_ulp > 0:
                 dist = _st80_ulp_distance(oracle.st[i], lifted.st[i])
                 if 0 <= dist <= st_tolerance_ulp:
                     continue
@@ -296,6 +333,60 @@ def compare(oracle: CPUState, lifted: CPUState,
         diff.lifted_esp_delta = lifted.esp_delta
 
     return diff
+
+
+@dataclass
+class TraceDiff:
+    """Differences in memory-write traces between oracle and lifted."""
+    value_diffs: list = field(default_factory=list)
+    oracle_only: list = field(default_factory=list)
+    lifted_only: list = field(default_factory=list)
+
+    def has_differences(self) -> bool:
+        return bool(self.value_diffs or self.oracle_only or self.lifted_only)
+
+    def summary(self) -> str:
+        parts = []
+        if self.value_diffs:
+            parts.append(f"{len(self.value_diffs)} value diff(s)")
+        if self.oracle_only:
+            parts.append(f"{len(self.oracle_only)} oracle-only write(s)")
+        if self.lifted_only:
+            parts.append(f"{len(self.lifted_only)} lifted-only write(s)")
+        return "; ".join(parts) if parts else "traces match"
+
+
+def compare_mem_traces(oracle: CPUState, lifted: CPUState) -> TraceDiff:
+    """Compare memory write traces between oracle and lifted.
+
+    Builds final-value maps keyed by (address, size) and diffs them.
+    """
+    def _build_finals(writes):
+        finals = {}
+        for w in writes:
+            finals[(w.address, w.size)] = w.value
+        return finals
+
+    orc = _build_finals(oracle.mem_writes)
+    lft = _build_finals(lifted.mem_writes)
+    all_keys = set(orc) | set(lft)
+
+    value_diffs = []
+    oracle_only = []
+    lifted_only = []
+    for key in sorted(all_keys):
+        ov = orc.get(key)
+        lv = lft.get(key)
+        if ov is not None and lv is not None:
+            if ov != lv:
+                value_diffs.append((key[0], ov, lv))
+        elif ov is not None:
+            oracle_only.append(key[0])
+        else:
+            lifted_only.append(key[0])
+
+    return TraceDiff(value_diffs=value_diffs, oracle_only=oracle_only,
+                     lifted_only=lifted_only)
 
 
 def format_state_verbose(state: CPUState, label: str) -> str:

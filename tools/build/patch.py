@@ -20,6 +20,12 @@ from datetime import datetime
 import pefile
 from xbe import Xbe, XbeSection, XbeSectionHeader, XbeKernelImage
 
+# Configure logging BEFORE importing modules that use logging
+logging.basicConfig(
+    level=getattr(logging, os.environ.get('LOG_LEVEL', 'INFO').upper()),
+    format='%(levelname)s:%(name)s:%(message)s'
+)
+
 from internal import color
 from analysis.knowledge import Function, KnowledgeBase
 

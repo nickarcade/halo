@@ -4,11 +4,12 @@
  * against a parsed MSVC linker .map file, and dumps the stack trace
  * to a file or the error log.
  *
- * The map file path is hardcoded in FUN_00092d30() — change it there
+ * The map file path is hardcoded in stack_walk_initialize() — change it there
  * to control which .map file is loaded (e.g. when running off HDD). */
 
 /* Globals in the stack-walk/profiler data region */
-/* 0x2ee780: int32_t  g_sw_offset   — bias from map RVA to runtime VA; -1 = not loaded */
+/* 0x2ee780: int32_t  g_sw_offset   — bias from map RVA to runtime VA; -1 = not
+ * loaded */
 /* 0x2ee784: uint8_t  g_sw_failed   — 1 if map load failed */
 /* 0x2ee788: int32_t[3] g_sw_symtab — {count, name_pool_ptr, entries_ptr} */
 /* 0x449ef8: uint32_t * g_sw_frame  — current frame ptr during walk */
@@ -20,9 +21,12 @@
 /* Parse a hex digit; returns 0-15 or -1 on non-hex. */
 static int hex_digit(int c)
 {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  if (c >= '0' && c <= '9')
+    return c - '0';
+  if (c >= 'a' && c <= 'f')
+    return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F')
+    return c - 'A' + 10;
   return -1;
 }
 
@@ -68,9 +72,9 @@ void __fastcall FUN_00092370(int skip, int32_t *frames, uint32_t max,
 }
 
 /* -----------------------------------------------------------------------
- * FUN_00092440 (0x92440) — reset the symbol table to "not loaded" state.
+ * stack_walk_dispose (0x92440) — reset the symbol table to "not loaded" state.
  * ----------------------------------------------------------------------- */
-void FUN_00092440(void)
+void stack_walk_dispose(void)
 {
   *(int32_t *)0x2ee780 = -1;
   *(uint8_t *)0x2ee784 = 0;
@@ -80,13 +84,13 @@ void FUN_00092440(void)
 }
 
 /* -----------------------------------------------------------------------
- * FUN_00092460 (0x92460) — dump stack trace to the error log.
+ * stack_walk_with_context (0x92460) — dump stack trace to the error log.
  *
  * Collects up to 0x40 frames via FUN_00092370 (skipping `depth` frames),
  * resolves each return address via the profile.obj lookup helper, and
  * writes them to the error/debug output.
  * ----------------------------------------------------------------------- */
-char FUN_00092460(int a1, int16_t depth, int a3)
+char stack_walk_with_context(int a1, int16_t depth, int a3)
 {
   int32_t frames[0x40];
   uint32_t count;
@@ -117,7 +121,7 @@ char FUN_00092460(int a1, int16_t depth, int a3)
 }
 
 /* -----------------------------------------------------------------------
- * FUN_00092710 (0x92710) — parse an MSVC linker .map file.
+ * load_symbol_table (0x92710) — parse an MSVC linker .map file.
  *
  * Reads the map file, locates the "_load_symbol_table" reference symbol
  * to compute the RVA->VA bias, then builds a sorted in-memory symbol
@@ -126,7 +130,7 @@ char FUN_00092460(int a1, int16_t depth, int a3)
  * Returns 1 on success, 0 on failure. Static buffers are safe because
  * this function is called once at startup on single-threaded Xbox.
  * ----------------------------------------------------------------------- */
-int FUN_00092710(const char *map_path, int32_t *symtab_out)
+int load_symbol_table(const char *map_path, int32_t *symtab_out)
 {
   void *f;
   char line[0x100];
@@ -165,9 +169,8 @@ int FUN_00092710(const char *map_path, int32_t *symtab_out)
     char *p;
 
     len = csstrlen(line);
-    while (len > 0 &&
-           (line[len - 1] == '\r' || line[len - 1] == '\n' ||
-            line[len - 1] == ' '  || line[len - 1] == '\t')) {
+    while (len > 0 && (line[len - 1] == '\r' || line[len - 1] == '\n' ||
+                       line[len - 1] == ' ' || line[len - 1] == '\t')) {
       line[--len] = '\0';
     }
     p = line;
@@ -197,9 +200,9 @@ int FUN_00092710(const char *map_path, int32_t *symtab_out)
     *tok = '\0';
     off_tok = tok + 1;
 
-    rva_tok  = crt_strtok(NULL, " \t");
+    rva_tok = crt_strtok(NULL, " \t");
     name_tok = crt_strtok(NULL, " \t");
-    obj_tok  = crt_strtok(NULL, " \t");
+    obj_tok = crt_strtok(NULL, " \t");
 
     if (rva_tok == NULL || name_tok == NULL)
       continue;
@@ -223,11 +226,11 @@ int FUN_00092710(const char *map_path, int32_t *symtab_out)
       int base_idx;
 
       name_len = csstrlen(name_tok) + 1;
-      obj_len  = obj_tok != NULL ? csstrlen(obj_tok) + 1 : 1;
+      obj_len = obj_tok != NULL ? csstrlen(obj_tok) + 1 : 1;
 
       if (name_pool_pos + name_len > (int)sizeof(name_pool))
         continue;
-      if (obj_pool_pos  + obj_len  > (int)sizeof(obj_pool))
+      if (obj_pool_pos + obj_len > (int)sizeof(obj_pool))
         continue;
 
       base_idx = count * 4;
@@ -264,19 +267,19 @@ int FUN_00092710(const char *map_path, int32_t *symtab_out)
 }
 
 /* -----------------------------------------------------------------------
- * FUN_00092d30 (0x92d30) — initialize the stack walker.
+ * stack_walk_initialize (0x92d30) — initialize the stack walker.
  *
  * Resets state and loads the linker map from the hardcoded path.
  * Change "d:\\cachebeta.map" to load from HDD or a custom location.
  * ----------------------------------------------------------------------- */
-void FUN_00092d30(void)
+void stack_walk_initialize(void)
 {
   int32_t *symtab;
 
-  FUN_00092440();
+  stack_walk_dispose();
 
   symtab = (int32_t *)0x2ee788;
-  if (!FUN_00092710("d:\\cachebeta.map", symtab)) {
+  if (!load_symbol_table("d:\\cachebeta.map", symtab)) {
     *(uint8_t *)0x2ee784 = 1;
   }
 }
@@ -285,5 +288,5 @@ void FUN_00092d30(void)
  * by 1 to skip this wrapper's own frame. */
 char stack_walk(int16_t a1)
 {
-  return FUN_00092460(0, (int)a1 + 1, 0);
+  return stack_walk_with_context(0, (int)a1 + 1, 0);
 }

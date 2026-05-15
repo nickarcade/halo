@@ -192,7 +192,7 @@ void console_submit_command(void)
 
 /* Returns a pointer one past the last space, '(', or '"' in the console
  * input buffer. Used to find the start of the most recent token. */
-char *FUN_000ff640(void)
+char *console_get_text_to_autocomplete(void)
 {
   char *result;
   char *sp;
@@ -210,6 +210,102 @@ char *FUN_000ff640(void)
   if (result <= qp)
     result = qp;
   return result;
+}
+
+/*
+ * console_process_enter — tab-complete the current console token.
+ *
+ * Finds the start of the current token (text after last ' ', '(', or '"'),
+ * enumerates all matching HS tokens, prints them, then writes back the
+ * longest case-insensitive common prefix to the input buffer and updates
+ * the cursor position.
+ */
+void console_process_enter(void)
+{
+  char *token_array[256];
+  char accum[1024];
+  char *token_start;
+  char *sp;
+  char *lp;
+  char *qp;
+  int16_t token_count;
+  int16_t match_len;
+  int16_t cap;
+  int16_t i;
+  int16_t idx;
+  int32_t batch_mod;
+  int next_a;
+  int next_b;
+  int clen;
+  bool large_list;
+
+  token_start = console_input_buffer();
+  sp = strrchr(console_input_buffer(), 0x20);
+  lp = strrchr(console_input_buffer(), 0x28);
+  qp = strrchr(console_input_buffer(), 0x22);
+
+  if (token_start <= sp + 1)
+    token_start = sp + 1;
+  if (token_start <= lp + 1)
+    token_start = lp + 1;
+  if (token_start <= qp + 1)
+    token_start = qp + 1;
+
+  token_count =
+    hs_tokens_enumerate(token_start, 0xffffffff, token_array, 0x100);
+  if (token_count != 0) {
+    match_len = 0x7fff;
+    large_list = (int16_t)token_count > 0x10;
+    accum[0] = 0;
+    console_printf(0, (const char *)0x25386f);
+
+    for (idx = 0; idx < (int16_t)token_count; idx++) {
+      clen = csstrlen(token_array[idx]) - 1;
+      if ((uint32_t)clen < (uint32_t)(int32_t)match_len)
+        cap = (int16_t)clen;
+      else
+        cap = match_len;
+
+      i = 0;
+      if (crt_toupper((unsigned char)token_array[idx][0]) ==
+          crt_toupper((unsigned char)token_array[0][0])) {
+        do {
+          if ((int16_t)cap < i)
+            break;
+          i++;
+          next_a = crt_toupper((unsigned char)token_array[0][i]);
+          next_b = crt_toupper((unsigned char)token_array[idx][i]);
+        } while (next_b == next_a);
+      }
+      match_len = i - 1;
+
+      if (!large_list) {
+        console_printf(0, token_array[idx]);
+      } else {
+        FUN_0008dc30(accum, token_array[idx]);
+        FUN_0008dc30(accum, (char *)0x28094c);
+        batch_mod = (int32_t)idx & 0x80000003;
+        if (batch_mod < 0)
+          batch_mod = (batch_mod - 1 | 0xfffffffc) + 1;
+        if (batch_mod == 3) {
+          console_printf(0, accum);
+          accum[0] = 0;
+        }
+      }
+    }
+
+    if (large_list) {
+      batch_mod = (int32_t)(int16_t)token_count - 1 & 0x80000003;
+      if (batch_mod < 0)
+        batch_mod = (batch_mod - 1 | 0xfffffffc) + 1;
+      if (batch_mod != 3)
+        console_printf(0, accum);
+    }
+
+    csstrncpy(token_start, token_array[0], (size_t)(match_len + 1));
+    token_start[match_len + 1] = 0;
+    *(int16_t *)0x46d11e = (int16_t)(uintptr_t)token_start + 0x2fe9 + match_len;
+  }
 }
 
 /*
@@ -244,14 +340,16 @@ void console_startup(void)
     return;
 
   while (crt_fgets(buffer, 199, stream) != NULL) {
+    int16_t head;
+    int16_t count;
     csstrtok(buffer, "\r\n\t");
 
-    int16_t head = (*console_history_head() + 1) & 7;
+    head = (*console_history_head() + 1) & 7;
     *console_history_head() = head;
 
     csstrcpy(console_history_ring() + head * CONSOLE_HISTORY_SLOT_SIZE, buffer);
 
-    int16_t count = *console_history_count() + 1;
+    count = *console_history_count() + 1;
     if (count > CONSOLE_HISTORY_SLOTS)
       count = CONSOLE_HISTORY_SLOTS;
     *console_history_count() = count;
@@ -365,16 +463,19 @@ bool console_update(void)
         *console_history_browse_index() += 2;
         /* fall through */
       case 0x4e: {
-        int16_t browse = *console_history_browse_index() - 1;
+        int16_t browse;
+        int16_t max_idx;
+        int idx;
+        browse = *console_history_browse_index() - 1;
         if (browse < 1)
           browse = 0;
-        int16_t max_idx = *console_history_count() - 1;
+        max_idx = *console_history_count() - 1;
         if (browse > max_idx)
           browse = max_idx;
         *console_history_browse_index() = browse;
 
         if (browse != -1) {
-          int idx = ((int)*console_history_head() - (int)browse + 8) & 7;
+          idx = ((int)*console_history_head() - (int)browse + 8) & 7;
           csstrcpy(console_input_buffer(),
                    console_history_ring() + idx * CONSOLE_HISTORY_SLOT_SIZE);
           edit_text_set_cursor_to_end(console_edit_text());

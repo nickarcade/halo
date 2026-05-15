@@ -41,6 +41,86 @@ int FUN_000a1210(int tag_index, float *position, float *velocity,
   return handle;
 }
 
+/* Create a particle system header from an object attachment (0xa12e0).
+ * Looks up the object's particle system element at attach_index in the
+ * object tag's particle_systems block (obje+0x140), copies spawn data
+ * into the new datum, resolves the marker position, samples the object's
+ * root location, sets up velocity and function-value flag, then calls
+ * FUN_000a0fd0 to allocate the particle pool.
+ * Returns the datum handle, or -1 on failure. */
+int FUN_000a12e0(int particle_tag_index, int object_handle,
+                 int16_t attach_index)
+{
+  int datum_handle;
+  char *datum;
+  char *object_ptr;
+  char *obje_tag;
+  char *ps_elem;
+  char marker_buf[0x6c];
+
+  datum_handle = data_new_at_index(particle_system_header_data);
+  if (datum_handle != -1) {
+    datum = (char *)datum_get(particle_system_header_data, datum_handle);
+    object_ptr = (char *)object_get_and_verify_type(object_handle, -1);
+    obje_tag = (char *)tag_get(0x6f626a65, *(int *)object_ptr);
+    ps_elem =
+      (char *)tag_block_get_element(obje_tag + 0x140, (int)attach_index, 0x48);
+
+    *(int *)(datum + 0x8) = particle_tag_index;
+    *(int *)(datum + 0xc) = object_handle;
+    *(int16_t *)(datum + 0x10) = attach_index;
+    *(int16_t *)(datum + 0x12) = *(int16_t *)(ps_elem + 0x30) - 1;
+
+    if (*(int16_t *)(ps_elem + 0x34) != 0) {
+      int node_idx = ((int)(*(int16_t *)(ps_elem + 0x34)) + 0x1e) * 3;
+      char *node = object_ptr + node_idx * 4;
+      *(int *)(datum + 0x3c) = *(int *)node;
+      *(int *)(datum + 0x40) = *(int *)(node + 4);
+      *(int *)(datum + 0x44) = *(int *)(node + 8);
+      *(uint32_t *)(datum + 0x38) = 0x3f800000;
+    } else {
+      char *default_color = *(char **)0x2ee6c4;
+      *(int *)(datum + 0x38) = *(int *)default_color;
+      *(int *)(datum + 0x3c) = *(int *)(default_color + 4);
+      *(int *)(datum + 0x40) = *(int *)(default_color + 8);
+      *(int *)(datum + 0x44) = *(int *)(default_color + 12);
+    }
+
+    object_get_markers_by_string_id(object_handle, ps_elem + 0x10, marker_buf,
+                                    1);
+    *(int *)(datum + 0x20) = *(int *)(marker_buf + 0x60);
+    *(int *)(datum + 0x24) = *(int *)(marker_buf + 0x64);
+    *(int *)(datum + 0x28) = *(int *)(marker_buf + 0x68);
+
+    object_get_root_location(object_handle, (float *)(datum + 0x2c), NULL);
+    *(float *)(datum + 0x2c) *= *(float *)0x253394;
+    *(float *)(datum + 0x30) *= *(float *)0x253394;
+    *(float *)(datum + 0x34) *= *(float *)0x253394;
+
+    {
+      char *default_vel = *(char **)0x2ee708;
+      *(int *)(datum + 0x48) = *(int *)default_vel;
+      *(int *)(datum + 0x4c) = *(int *)(default_vel + 4);
+      *(int *)(datum + 0x50) = *(int *)(default_vel + 8);
+    }
+
+    {
+      bool has_value;
+      uint32_t f;
+      has_value = (bool)object_get_function_value(
+        object_handle, (int)(*(uint16_t *)(datum + 0x12)), datum + 0x14);
+      f = *(uint32_t *)(datum + 0x4);
+      *(uint32_t *)(datum + 0x4) = has_value ? (f | 0x1) : (f & ~0x1U);
+    }
+
+    if (!FUN_000a0fd0(datum_handle)) {
+      datum_delete(particle_system_header_data, datum_handle);
+      datum_handle = -1;
+    }
+  }
+  return datum_handle;
+}
+
 void particles_initialize(void)
 {
   particle_data = game_state_data_new("particle", 0x400, 0x70);
@@ -64,9 +144,15 @@ void particles_dispose(void)
     particle_data = 0;
 }
 
+/* Delete particle datum from the particle pool (0xa14f0). */
+void particle_delete(int datum_handle)
+{
+  datum_delete(particle_data, datum_handle);
+}
+
 /* Delete all particles owned by a local player that have an attached
    object (flag 0x40 set and object handle != -1). */
-void FUN_000a1510(int local_player_index)
+void FUN_000a1510(int16_t local_player_index)
 {
   int handle;
   char *datum;
@@ -133,7 +219,7 @@ bool valid_real_argb_color(float *color)
     return false;
 
   /* Validate RGB components */
-  if (!FUN_0007b020(color + 1))
+  if (!valid_real_rgb_color(color + 1))
     return false;
 
   return true;
@@ -312,6 +398,265 @@ skip_phase2:
   /* No valid frame — delete particle */
   FUN_000a18c0(datum_handle);
   return false;
+}
+
+/* Advance particle bitmap frame counter by one step (0xa1a90).
+ * Selects forward or backward animation based on datum flag bit 0x1.
+ * When the last/first frame is reached, calls FUN_000a1910 to pick the
+ * next sequence. Returns true while the animation is still alive. */
+bool FUN_000a1a90(int datum_handle)
+{
+  char *datum;
+  char *part_tag;
+  char *bitm_tag;
+  char *seq_elem;
+  int16_t frame_counter;
+  int frame_count;
+  bool result;
+
+  datum = (char *)datum_get(particle_data, datum_handle);
+  part_tag = (char *)tag_get(0x70617274, *(int *)(datum + 0x04));
+  bitm_tag = (char *)tag_get(0x6269746d, *(int *)(part_tag + 0x10));
+  *(uint32_t *)(datum + 0x1c) = 0;
+  if ((*(uint8_t *)(datum + 0x2) & 0x1) != 0) {
+    /* Backward: decrement toward zero */
+    frame_counter = *(int16_t *)(datum + 0x26);
+    if (frame_counter > 0) {
+      *(int16_t *)(datum + 0x26) = frame_counter - 1;
+      return 1;
+    }
+    result = FUN_000a1910(datum_handle);
+    if (result) {
+      seq_elem = (char *)tag_block_get_element(
+        bitm_tag + 0x54, (int)(*(int16_t *)(datum + 0x24)), 0x40);
+      *(int16_t *)(datum + 0x26) = *(int16_t *)(seq_elem + 0x34) - 1;
+    }
+    return result;
+  }
+  /* Forward: increment toward frame_count */
+  seq_elem = (char *)tag_block_get_element(
+    bitm_tag + 0x54, (int)(*(int16_t *)(datum + 0x24)), 0x40);
+  frame_count = *(int32_t *)(seq_elem + 0x34);
+  frame_counter = *(int16_t *)(datum + 0x26);
+  if ((int)(frame_counter + 1) < frame_count) {
+    *(int16_t *)(datum + 0x26) = frame_counter + 1;
+    return 1;
+  }
+  result = FUN_000a1910(datum_handle);
+  *(int16_t *)(datum + 0x26) = 0;
+  return result;
+}
+
+/* Advance particle frame timer by delta_time (0xa1b60).
+ * datum_handle via @edi. Handles three animation modes via tag flags:
+ *   bit 1+2: early-exit (both must be set),
+ *   bit 3: random-start (advance once if delta_time != 0),
+ *   default: accumulate time and advance frames in a loop.
+ * Returns true while the particle is still alive. */
+bool FUN_000a1b60(int datum_handle, float delta_time)
+{
+  char *datum;
+  uint32_t flags;
+  float frame_remainder;
+  bool result;
+
+  datum = (char *)datum_get(particle_data, datum_handle);
+  flags = *(uint32_t *)tag_get(0x70617274, *(int *)(datum + 0x04));
+  result = 1;
+  if ((flags & 0x2) != 0 && (*(uint8_t *)(datum + 0x2) & 0x2) != 0)
+    goto done;
+  if (flags & 0x8) {
+    if (delta_time != 0.0f)
+      return (bool)FUN_000a1a90(datum_handle);
+  } else {
+    if (*(uint32_t *)(datum + 0x1c) == 0xbf800000u) {
+      result = (bool)FUN_000a1a90(datum_handle);
+      *(uint32_t *)(datum + 0x1c) = 0;
+    }
+    if (delta_time > 0.0f && result) {
+      while (result) {
+        frame_remainder = *(float *)(datum + 0x20) - *(float *)(datum + 0x1c);
+        if (frame_remainder > delta_time) {
+          *(float *)(datum + 0x1c) += delta_time;
+          return result;
+        }
+        result = (bool)FUN_000a1a90(datum_handle);
+        delta_time -= frame_remainder;
+        if (delta_time <= 0.0f)
+          return result;
+      }
+    }
+  }
+done:
+  return result;
+}
+
+/* Step a single particle: physics, collision, effects, and aging (0xa1c30).
+ * Free-floating particles run point physics (FUN_00154a50) for gravity and
+ * collision; attached particles apply velocity damping. Returns false if the
+ * particle was deleted during this step. */
+bool FUN_000a1c30(int datum_handle, float delta_time)
+{
+  char *particle;
+  int *tag;
+  char *physics_tag;
+  char *velocity;
+  float collision_normal[3];
+  int surface_index;
+  int physics_result;
+  int hit_flags;
+  float speed_ratio;
+  float radius;
+  float drag;
+  float mass_val;
+  float damping;
+  float new_vel_x;
+  float new_vel_y;
+  char stopped;
+
+  particle = (char *)datum_get(particle_data, datum_handle);
+  tag = (int *)tag_get(0x70617274, *(int *)(particle + 4));
+
+  /* Settled/dying particle: verify parent object still exists */
+  if (*(uint8_t *)(particle + 2) & 2) {
+    if (*(int *)(particle + 8) == -1)
+      return 1;
+    if (object_try_and_get_and_verify_type(*(int *)(particle + 8), -1) != NULL)
+      return 1;
+    datum_delete(particle_data, datum_handle);
+    return 0;
+  }
+
+  stopped = 0;
+  physics_tag = (char *)tag_get(0x70706879, tag[8]);
+
+  if (*(int *)(particle + 8) == -1) {
+    /* Free-floating particle — run point physics */
+    velocity = particle + 0x48;
+    radius = particle_get_radius(datum_handle);
+
+    physics_result = FUN_00154a50(
+      0, (int)physics_tag, (int *)(particle + 0x28), -1,
+      (float *)(particle + 0x30), (float *)(particle + 0x48), NULL,
+      collision_normal, (int16_t *)&surface_index, radius, delta_time);
+
+    hit_flags = physics_result & 4;
+
+    if (hit_flags) {
+      if (tag[0x15] != -1 || tag[0xc] != 0) {
+        /* Compute speed ratio from velocity magnitude */
+        float vz = *(float *)(velocity + 8);
+        float vy = *(float *)(velocity + 4);
+        float vx = *(float *)velocity;
+        float mag;
+
+        mag = sqrtf(vx * vx + vy * vy + vz * vz);
+
+        speed_ratio = (mag - *(float *)0x26ad4c) /
+                      (*(float *)0x26ad48 - *(float *)0x26ad4c);
+        if (speed_ratio < 0.0f)
+          speed_ratio = 0.0f;
+        else if (speed_ratio > 1.0f)
+          speed_ratio = 1.0f;
+
+        if (tag[0x15] != -1) {
+          FUN_000a1770((int)particle, tag[0x12], tag[0x15],
+                       *(int *)&speed_ratio);
+        }
+        if (tag[0xc] != -1 && FUN_0009f3b0(particle + 0x30)) {
+          FUN_0009f430(tag[0xc], 8, surface_index, particle + 0x30,
+                       collision_normal, particle + 0x28, *(int *)&speed_ratio);
+        }
+      }
+
+      /* Die on contact */
+      if (*(uint8_t *)tag & 0x20) {
+        if (tag[0x15] == -1) {
+          FUN_000a18c0(datum_handle);
+          return 0;
+        }
+        particle_delete(datum_handle);
+        return 0;
+      }
+    }
+
+    /* Death on ground/water contact */
+    if ((physics_result & 1) && (*(uint32_t *)tag & 0x100))
+      goto delete_particle;
+    if ((physics_result & 2) && (*(int8_t *)tag < 0))
+      goto delete_particle;
+
+    /* Collision normal / ground check */
+    if (hit_flags || (physics_result & 8)) {
+      if (collision_normal[2] > *(float *)0x2533f0)
+        stopped = 1;
+      *(float *)(particle + 0x20) =
+        *(float *)(particle + 0x20) + *(float *)((char *)tag + 0x88);
+    }
+  } else {
+    /* Attached particle — velocity damping */
+    if (!(*(uint8_t *)(particle + 2) & 0x40) &&
+        object_try_and_get_and_verify_type(*(int *)(particle + 8), -1) ==
+          NULL) {
+      datum_delete(particle_data, datum_handle);
+      return 0;
+    }
+
+    velocity = particle + 0x48;
+    radius = particle_get_radius(datum_handle);
+    drag = radius * *(float *)(physics_tag + 0x24) * radius;
+    mass_val = point_physics_definition_get_mass((int)physics_tag, radius);
+
+    if (mass_val == 0.0f) {
+      if (drag != 0.0f)
+        damping = 1.0f;
+      else
+        damping = 0.0f;
+    } else {
+      damping = 1.0f - (drag / mass_val) * delta_time;
+      if (damping < 0.0f)
+        damping = 0.0f;
+      else if (damping > 1.0f)
+        damping = 1.0f;
+    }
+
+    new_vel_x = damping * *(float *)velocity;
+    stopped = 1;
+    *(float *)velocity = new_vel_x;
+    new_vel_y = damping * *(float *)(velocity + 4);
+    *(float *)(velocity + 4) = new_vel_y;
+    *(float *)(velocity + 8) = damping * *(float *)(velocity + 8);
+
+    *(float *)(particle + 0x30) += new_vel_x * delta_time;
+    *(float *)(particle + 0x34) += new_vel_y * delta_time;
+    *(float *)(particle + 0x38) += *(float *)(velocity + 8) * delta_time;
+  }
+
+  /* Velocity magnitude check — update heading or mark settled */
+  {
+    float vz = *(float *)(velocity + 8);
+    float vy = *(float *)(velocity + 4);
+    float vx = *(float *)velocity;
+    float mag_sq = vx * vx + vy * vy + vz * vz;
+
+    if (mag_sq >= *(float *)0x255d90) {
+      *(int *)(particle + 0x3c) = *(int *)velocity;
+      *(int *)(particle + 0x40) = *(int *)(velocity + 4);
+      *(int *)(particle + 0x44) = *(int *)(velocity + 8);
+    } else if (stopped) {
+      if (*(uint8_t *)tag & 0x10)
+        goto delete_particle;
+      *(uint8_t *)(particle + 2) |= 2;
+    }
+  }
+
+  /* Age update */
+  *(float *)(particle + 0x54) += delta_time * *(float *)(particle + 0x58);
+  return 1;
+
+delete_particle:
+  FUN_000a18c0(datum_handle);
+  return 0;
 }
 
 /* Create a single particle from spawn parameters (0xa1fd0).
@@ -507,7 +852,8 @@ void particle_new(void *spawn_params)
     float phys_scale = particle_get_radius(datum_handle);
     float *phys_tag =
       (float *)tag_get(0x70706879, *(int *)((char *)tag + 0x20));
-    float phys_vel = FUN_001548a0((int)phys_tag, phys_scale);
+    float phys_vel =
+      point_physics_definition_get_mass((int)phys_tag, phys_scale);
     *(float *)(datum + 0x48) += phys_vel * *(float *)(sp + 0x34);
     *(float *)(datum + 0x4c) += phys_vel * *(float *)(sp + 0x38);
     *(float *)(datum + 0x50) += phys_vel * *(float *)(sp + 0x3c);
@@ -520,7 +866,7 @@ void particle_new(void *spawn_params)
   if ((*tag & 0x200) == 0 || (*tag & 0x40) != 0) {
     FUN_00139480(local_position, light, diffuse, 0);
 
-    if (!FUN_0007b020(light)) {
+    if (!valid_real_rgb_color(light)) {
       csprintf((char *)0x5ab100, "%s: assert_valid_real_rgb_color(%f, %f, %f)",
                "&light", (double)light[0], (double)light[1], (double)light[2]);
       display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\effects\\particles.c",
@@ -528,7 +874,7 @@ void particle_new(void *spawn_params)
       system_exit(-1);
     }
 
-    if (!FUN_0007b020(diffuse)) {
+    if (!valid_real_rgb_color(diffuse)) {
       csprintf((char *)0x5ab100, "%s: assert_valid_real_rgb_color(%f, %f, %f)",
                "&diffuse", (double)diffuse[0], (double)diffuse[1],
                (double)diffuse[2]);
@@ -559,7 +905,8 @@ void particle_new(void *spawn_params)
 
     if (*tag & 0x4) {
       /* randomized animated sprite */
-      int16_t frame_count = FUN_00097c80(0, *(uint16_t *)(seq_element + 0x34));
+      int16_t frame_count =
+        local_random_range(0, *(uint16_t *)(seq_element + 0x34));
       int16_t direction = (*(uint8_t *)(datum + 0x02) & 1) ? 1 : -1;
       *(int16_t *)(datum + 0x26) = frame_count + direction;
       return;
@@ -595,31 +942,10 @@ void particles_update(float delta_time)
       *(float *)(datum + 0x14) = new_lifetime;
       if (new_lifetime < *(float *)(datum + 0x18) || just_created ||
           *(int16_t *)(tag + 0x9e) != 0) {
-        {
-          /* particle_step at 0xa1b60: EDI=datum_handle, stack=delta_time */
-          int _edi = datum_handle;
-          int _dt = *(int *)&delta_time;
-          int _result;
-          asm volatile("pushl %[dt]\n\t"
-                       "movl $0xa1b60, %%eax\n\t"
-                       "call *%%eax\n\t"
-                       "addl $4, %%esp"
-                       : "+D"(_edi), "=a"(_result)
-                       : [dt] "r"(_dt)
-                       : "ecx", "edx", "memory", "cc");
-          if ((char)_result)
-            ((bool (*)(int, float))0xa1c30)(datum_handle, delta_time);
-        }
+        if (FUN_000a1b60(datum_handle, delta_time))
+          FUN_000a1c30(datum_handle, delta_time);
       } else {
-        {
-          /* particle_delete at 0xa18c0: EBX=datum_handle */
-          int _ebx = datum_handle;
-          asm volatile("movl $0xa18c0, %%eax\n\t"
-                       "call *%%eax"
-                       : "+b"(_ebx)
-                       :
-                       : "eax", "ecx", "edx", "esi", "edi", "memory", "cc");
-        }
+        FUN_000a18c0(datum_handle);
       }
     } else {
       datum_delete(particle_data, datum_handle);

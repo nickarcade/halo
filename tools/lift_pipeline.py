@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -680,20 +682,36 @@ def run_pipeline(args: argparse.Namespace) -> int:
     vc71_source = Path(target.source_path) if target.source_path else None
     vc71_ref = None
     if vc71_source:
-      # First: try TU-level delinked ref via objdiff.json
+      # Try delinked ref via objdiff.json.
+      # Priority: (1) unit whose name ends with the function address, (2) first
+      # unit whose source_path matches and whose base_path file exists.
       try:
         with open(ROOT / "objdiff.json") as f:
           objdiff_cfg = json.load(f)
+        addr_suffix = None
+        if target.addr:
+          try:
+            addr_suffix = f"FUN_{int(target.addr, 16):08x}"
+          except (ValueError, TypeError):
+            pass
+        tu_fallback = None
         for u in objdiff_cfg.get("units", []):
-          src = u.get("metadata", {}).get("source_path", "")
-          if src and str(vc71_source).endswith(src):
-            ref_path = ROOT / u.get("base_path", "")
-            if ref_path.exists():
-              vc71_ref = ref_path
+          ref_path = ROOT / u.get("base_path", "")
+          unit_name = u.get("name", "").split("/")[-1]
+          # Exact per-function match wins immediately
+          if addr_suffix and addr_suffix in unit_name and ref_path.exists():
+            vc71_ref = ref_path
             break
+          # TU-level: first existing file whose source matches
+          if tu_fallback is None:
+            src = u.get("metadata", {}).get("source_path", "")
+            if src and str(vc71_source).endswith(src) and ref_path.exists():
+              tu_fallback = ref_path
+        if not vc71_ref:
+          vc71_ref = tu_fallback
       except (FileNotFoundError, json.JSONDecodeError):
         pass
-      # Fallback: per-function delinked ref for split TUs
+      # Fallback: per-function delinked ref in delinked/functions/
       if not vc71_ref and target.addr:
         try:
           addr_hex = f"{int(target.addr, 16):08x}"
@@ -769,6 +787,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
       "--no-leaf-cache",
       "--z3-equiv",
       "--allow-stubs",
+      "--mem-trace",
     ]
     proc = run_command(cmd, cwd=ROOT, log_path=artifact_dir / "equivalence.log")
     output = (proc.stdout or "") + (proc.stderr or "")
@@ -790,17 +809,28 @@ def run_pipeline(args: argparse.Namespace) -> int:
       failed = int(payload.get("failed", 0)) if payload else 0
       errors = int(payload.get("errors", 0)) if payload else 0
       seeds = int(payload.get("seeds", args.equivalence_seeds)) if payload else args.equivalence_seeds
+      confidence = str(payload.get("confidence", "")) if payload else ""
+      coverage = payload.get("coverage_pct", 0) if payload else 0
+      concolic = int(payload.get("concolic_seeds", 0)) if payload else 0
       if z3_proven:
         details = "Z3 PROVEN EQUIVALENT (formal proof, all inputs)"
       else:
         details = f"{passed} passed, {failed} diverged, {errors} errors / {seeds} seeds"
+        if confidence:
+          details += f" [{confidence}, {coverage}% coverage"
+          if concolic:
+            details += f", +{concolic} concolic"
+          details += "]"
       stages.append(StageResult("equivalence", ran=True, ok=True, details=details))
     elif status == "fail":
       passed = int(payload.get("passed", 0)) if payload else 0
       failed = int(payload.get("failed", 0)) if payload else 0
       errors = int(payload.get("errors", 0)) if payload else 0
       seeds = int(payload.get("seeds", args.equivalence_seeds)) if payload else args.equivalence_seeds
+      confidence = str(payload.get("confidence", "")) if payload else ""
       details = f"{passed} passed, {failed} diverged, {errors} errors / {seeds} seeds"
+      if confidence:
+        details += f" [{confidence}]"
       if reason:
         details += f" reason={reason}"
       stages.append(StageResult("equivalence", ran=True, ok=False, details=details))
@@ -1020,7 +1050,60 @@ def finalize(summary: dict[str, object], stages: list[StageResult], artifact_dir
     print(f"- {s.name:<16} [{run}] {state}: {det}")
   if not quiet:
     print(f"- artifacts: {summary_path}")
+
+  if ok:
+    _update_retrieval_index(quiet=quiet)
+
   return 0 if ok else 1
+
+
+def _update_retrieval_index(quiet: bool = False) -> None:
+  """Kick off a background retrieval index update after a successful lift.
+
+  The embedding server holds the DuckDB file lock, so we must stop it first.
+  extract+embed run as a background chain; the server restarts when done.
+  The pipeline does not block on any of this.
+  """
+  repo_root = Path(__file__).resolve().parent.parent
+  build_index = repo_root / "tools" / "retrieval" / "build_index.py"
+  server_py = repo_root / "tools" / "retrieval" / "server.py"
+  pid_path = Path("/tmp/retrieval_server.pid")
+  log_path = Path("/tmp/retrieval_update.log")
+
+  if not build_index.exists():
+    return
+
+  # Kill server and any running build_index processes to release DuckDB lock.
+  # DuckDB doesn't allow concurrent writers, so we must clear all holders first.
+  for pattern in ["tools/retrieval/build_index.py", "tools/retrieval/server.py"]:
+    subprocess.run(["pkill", "-f", pattern], capture_output=True)
+  # Also try the PID file for a cleaner kill
+  if pid_path.exists():
+    try:
+      os.kill(int(pid_path.read_text().strip()), signal.SIGTERM)
+    except (ValueError, ProcessLookupError, OSError):
+      pass
+  import time as _time
+  _time.sleep(1)  # Let processes exit and release file locks
+
+  venv_python = repo_root / ".venv" / "bin" / "python3"
+  py = str(venv_python) if venv_python.exists() else sys.executable
+
+  # extract + embed + server restart, fully in background.
+  # Use shell redirections (not Python file handles) to avoid fd-inheritance
+  # issues with start_new_session=True.
+  chain = (
+    f"{py} {build_index} extract >> {log_path} 2>&1 && "
+    f"{py} {build_index} embed >> {log_path} 2>&1 && "
+    f"{py} {server_py} >> {log_path} 2>&1"
+  )
+  subprocess.Popen(
+    chain, shell=True, cwd=str(repo_root),
+    start_new_session=True,
+  )
+
+  if not quiet:
+    print(f"- retrieval       [ran] PASS: index update started in background ({log_path})")
 
 
 def build_parser() -> argparse.ArgumentParser:

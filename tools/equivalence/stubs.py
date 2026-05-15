@@ -7,6 +7,7 @@ Provides:
   - StubManager: intercept calls via Unicorn hooks, run callees in sub-emulator
 """
 
+import math
 import struct
 import json
 import re
@@ -20,6 +21,36 @@ IMAGE_REL_I386_REL32 = 0x0014
 
 GLOBALS_BASE = 0x00500000
 GLOBALS_SIZE = 0x00100000  # 1 MB
+
+
+def _st80_to_double(b: bytes) -> float:
+    """Convert 10-byte x87 extended precision to Python float."""
+    mantissa = int.from_bytes(b[:8], 'little')
+    exp_sign = int.from_bytes(b[8:10], 'little')
+    sign = -1 if (exp_sign >> 15) else 1
+    exp = exp_sign & 0x7FFF
+    if exp == 0 and mantissa == 0:
+        return 0.0
+    if exp == 0x7FFF:
+        return float('inf') * sign if mantissa == (1 << 63) else float('nan')
+    power = exp - 16383 - 63
+    return sign * mantissa * (2.0 ** power)
+
+
+def _write_st0_double(uc, val: float):
+    """Write a Python float to Unicorn's ST0 as x87 80-bit extended."""
+    from unicorn.x86_const import UC_X86_REG_ST0
+    bits = struct.unpack('<Q', struct.pack('<d', val))[0]
+    sign = (bits >> 63) & 1
+    exp = (bits >> 52) & 0x7FF
+    frac = bits & ((1 << 52) - 1)
+    if exp == 0 and frac == 0:
+        ext = sign << 79
+    elif exp == 0x7FF:
+        ext = (sign << 79) | (0x7FFF << 64) | (1 << 63) | (frac << 11)
+    else:
+        ext = (sign << 79) | ((exp - 1023 + 16383) << 64) | (1 << 63) | (frac << 11)
+    uc.reg_write(UC_X86_REG_ST0, ext)
 
 
 @dataclass
@@ -81,12 +112,16 @@ def classify_relocations(relocs: list, defined_symbols: set) -> RelocClassificat
 
 def patch_dir32_relocs(code: bytes, relocs: list, defined_symbols: set,
                        globals_base: int = GLOBALS_BASE,
-                       return_slots: bool = False):
+                       return_slots: bool = False,
+                       rdata_map: dict = None):
     """Rewrite DIR32 relocations to point into the globals memory region.
 
     Each unique external DIR32 symbol gets a 256-byte slot in the globals
-    region (enough for most scalar/struct globals).  Intra-object and
-    section-relative relocations are left untouched.
+    region (enough for most scalar/struct globals).  Section-relative
+    relocations (.text, .rdata prefixed) are left untouched.
+
+    Symbols in rdata_map (intra-object cross-section references like .rdata
+    constants) also get globals slots, seeded with actual section data.
 
     Returns a mutable copy of the code with patched addresses.
     If return_slots is True, returns (patched, symbol_slots) where
@@ -95,7 +130,10 @@ def patch_dir32_relocs(code: bytes, relocs: list, defined_symbols: set,
     patched = bytearray(code)
     slot_size = 256
     symbol_slots = {}
+    rdata_seeds = {}
     next_slot = 0
+    if rdata_map is None:
+        rdata_map = {}
 
     for r in relocs:
         if r.reloc_type != IMAGE_REL_I386_DIR32:
@@ -103,12 +141,16 @@ def patch_dir32_relocs(code: bytes, relocs: list, defined_symbols: set,
         sym = r.symbol_name
         if sym.startswith(".text") or sym.startswith(".rdata"):
             continue
-        if sym in defined_symbols:
+
+        is_rdata_ref = sym in rdata_map
+        if sym in defined_symbols and not is_rdata_ref:
             continue
 
         if sym not in symbol_slots:
             symbol_slots[sym] = globals_base + next_slot * slot_size
             next_slot += 1
+            if is_rdata_ref:
+                rdata_seeds[symbol_slots[sym]] = rdata_map[sym][:slot_size]
 
         addr = symbol_slots[sym]
         off = r.virtual_address
@@ -116,7 +158,7 @@ def patch_dir32_relocs(code: bytes, relocs: list, defined_symbols: set,
             struct.pack_into('<I', patched, off, addr)
 
     if return_slots:
-        return patched, symbol_slots
+        return patched, symbol_slots, rdata_seeds
     return patched
 
 
@@ -191,6 +233,7 @@ class StubManager:
         self._kb = None
         self._stubs: dict[int, CalleeStub] = {}
         self._stub_names: dict[int, str] = {}
+        self._canonical_names: dict[int, str] = {}
         self._depth = 0
 
     def _load_kb(self):
@@ -259,6 +302,10 @@ class StubManager:
             if not decl:
                 continue
 
+            fn_m = re.search(r'\b(\w+)\s*\(', decl)
+            if fn_m:
+                self._canonical_names[sentinel_addr] = fn_m.group(1)
+
             code = self._load_callee_code(symbol_name, kb_entry)
             if not code:
                 continue
@@ -284,17 +331,41 @@ class StubManager:
     def get_stub_addresses(self) -> set:
         return set(self._stub_names.keys())
 
+    _INTERCEPT_NAMES = frozenset((
+        "csmemcpy", "memcpy", "csstrncpy", "csmemset", "memset",
+        "crt_sprintf", "debug_string_to_display",
+        "system_exit", "display_assert", "halt_and_catch_fire",
+        "ciacos", "ciasin", "ciatan2", "cisin", "cicos",
+        "cisqrt", "cilog", "cilog10", "cipow", "cifmod", "citan",
+    ))
+    _FTOL2_ADDRS = frozenset(("fun_001d9068", "_ftol2", "ftol2"))
+    # XBE address → _CI* intrinsic name for FUN_XXXXXXXX symbols
+    _CRT_MATH_ADDRS = {
+        "fun_001d94f0": "ciacos",
+    }
+
+    def _resolve_name(self, address: int) -> str:
+        """Resolve a stub address to its effective intercept name."""
+        raw = self._stub_names.get(address, "").lstrip("_").lower()
+        if raw in self._CRT_MATH_ADDRS:
+            return self._CRT_MATH_ADDRS[raw]
+        canonical = self._canonical_names.get(address, "").lower()
+        if canonical in self._CRT_MATH_ADDRS:
+            return self._CRT_MATH_ADDRS[canonical]
+        if canonical in self._INTERCEPT_NAMES:
+            return canonical
+        return raw
+
     def should_intercept(self, address: int) -> bool:
-        symbol_name = self._stub_names.get(address, "").lstrip("_").lower()
-        return symbol_name in ("csmemcpy", "memcpy", "csstrncpy", "csmemset", "memset", "crt_sprintf", "debug_string_to_display")
+        name = self._resolve_name(address)
+        return name in self._INTERCEPT_NAMES or name in self._FTOL2_ADDRS
 
     def get_stub_code(self, address: int) -> bytes:
         """Return machine code for a tiny trampoline stub at a sentinel address."""
         stub = self._stubs.get(address)
-        symbol_name = self._stub_names.get(address, "").lstrip("_").lower()
+        symbol_name = self._resolve_name(address)
 
         if symbol_name == "fabs":
-            # double fabs(double): load arg from [esp+4], apply x87 FABS, return in ST0
             return b"\xDD\x44\x24\x04\xD9\xE1\xC3"
 
         if stub is not None:
@@ -343,7 +414,7 @@ class StubManager:
 
             # Read caller's current state
             caller_esp = uc.reg_read(UC_X86_REG_ESP)
-            symbol_name = self._stub_names.get(address, "").lstrip("_").lower()
+            symbol_name = self._resolve_name(address)
 
             if symbol_name in ("csmemcpy", "memcpy"):
                 dst = int.from_bytes(bytes(uc.mem_read(caller_esp + 4, 4)), "little")
@@ -379,6 +450,68 @@ class StubManager:
 
             if symbol_name in ("crt_sprintf", "debug_string_to_display"):
                 uc.reg_write(UC_X86_REG_EAX, 0)
+                return True
+
+            if symbol_name in ("system_exit", "halt_and_catch_fire"):
+                uc.emu_stop()
+                return True
+
+            if symbol_name in self._FTOL2_ADDRS:
+                import struct as _st
+                st0_raw = uc.reg_read(UC_X86_REG_ST0)
+                st0_bytes = st0_raw.to_bytes(10, 'little')
+                mantissa = int.from_bytes(st0_bytes[:8], 'little')
+                exp_sign = int.from_bytes(st0_bytes[8:10], 'little')
+                sign = -1 if (exp_sign >> 15) else 1
+                exp = exp_sign & 0x7FFF
+                if exp == 0 and mantissa == 0:
+                    result = 0
+                elif exp == 0x7FFF:
+                    result = 0
+                else:
+                    power = exp - 16383 - 63
+                    val = sign * mantissa * (2.0 ** power)
+                    result = int(val)
+                uc.reg_write(UC_X86_REG_EAX, result & 0xFFFFFFFF)
+                return True
+
+            if symbol_name == "display_assert":
+                uc.reg_write(UC_X86_REG_EAX, 0)
+                return True
+
+            # _CI* CRT math intrinsics: arg(s) in ST0 (and ST1), result in ST0
+            _CI_ONE_ARG = {
+                "ciacos": math.acos, "ciasin": math.asin,
+                "cisin": math.sin, "cicos": math.cos, "citan": math.tan,
+                "cisqrt": math.sqrt, "cilog": math.log, "cilog10": math.log10,
+            }
+            _CI_TWO_ARG = {
+                "ciatan2": math.atan2, "cipow": math.pow, "cifmod": math.fmod,
+            }
+            if symbol_name in _CI_ONE_ARG:
+                import struct as _st
+                st0_raw = uc.reg_read(UC_X86_REG_ST0)
+                st0_bytes = st0_raw.to_bytes(10, 'little')
+                val = _st80_to_double(st0_bytes)
+                try:
+                    result = _CI_ONE_ARG[symbol_name](val)
+                except (ValueError, OverflowError):
+                    result = 0.0
+                _write_st0_double(uc, result)
+                return True
+
+            if symbol_name in _CI_TWO_ARG:
+                import struct as _st
+                from unicorn.x86_const import UC_X86_REG_ST1
+                st0_raw = uc.reg_read(UC_X86_REG_ST0)
+                st1_raw = uc.reg_read(UC_X86_REG_ST1)
+                st0_val = _st80_to_double(st0_raw.to_bytes(10, 'little'))
+                st1_val = _st80_to_double(st1_raw.to_bytes(10, 'little'))
+                try:
+                    result = _CI_TWO_ARG[symbol_name](st0_val, st1_val)
+                except (ValueError, OverflowError, ZeroDivisionError):
+                    result = 0.0
+                _write_st0_double(uc, result)
                 return True
 
             # For now, return 0 from all stubs.

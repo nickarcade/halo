@@ -397,6 +397,17 @@ bool bink_playback_check_any_button(void)
   return pressed;
 }
 
+/* Bink texture lock adapter. Reorders arguments from the original
+ * __fastcall register layout (flags@EAX, rect@ECX, locked_rect@EDX,
+ * texture+level on stack) into the standard D3DTexture_LockRect
+ * cdecl call. Returns 0. Used as a Bink SDK callback. */
+int FUN_001c6170(unsigned int flags, void *rect, void *locked_rect,
+                 void *texture, unsigned int level)
+{
+  D3DTexture_LockRect(texture, level, locked_rect, rect, flags);
+  return 0;
+}
+
 /* Initialize the bink playback globals and register callbacks. */
 void bink_playback_initialize(void)
 {
@@ -813,17 +824,6 @@ void bink_playback_update(void)
     bink_playback_check_stop();
 }
 
-/* Bink texture lock adapter. Reorders arguments from the original
- * __fastcall register layout (flags@EAX, rect@ECX, locked_rect@EDX,
- * texture+level on stack) into the standard D3DTexture_LockRect
- * cdecl call. Returns 0. Used as a Bink SDK callback. */
-int FUN_001c6170(unsigned int flags, void *rect, void *locked_rect,
-                 void *texture, unsigned int level)
-{
-  D3DTexture_LockRect(texture, level, locked_rect, rect, flags);
-  return 0;
-}
-
 /* Check if a file is an AIFF or AIFC audio container.
  * Opens the file, reads the first 12-byte AIFF header chunk (FORM + size +
  * type), byte-swaps it via the aiff_container_chunk definition, then checks
@@ -839,7 +839,7 @@ bool FUN_001c6880(file_ref_t *info)
   result = 0;
   ok = file_open(info, 1);
   if (ok != '\0') {
-    ok = FUN_0019acb0(info, 0, 0xc, header);
+    ok = file_read_from_position(info, 0, 0xc, header);
     if (ok != '\0') {
       FUN_00118be0((void *)0x32ebbc, header, 1);
       if ((header[0] == 0x464f524d) &&
