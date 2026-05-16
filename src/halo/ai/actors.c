@@ -1176,6 +1176,57 @@ void actor_switch_props(int unit_handle, int swarm_component_handle)
   *(int *)(swarm_component + 0x10) = target_handle;
 }
 
+/* 0x3a3b0
+ *
+ * actor_action_handle_status_change
+ *
+ * Processes an actor's action status: handles initial action, pending command
+ * lists, potential combat transitions, and status-dependent behavior based on
+ * the actor's current action type (field +0x6c).
+ */
+void FUN_0003a3b0(int actor_handle)
+{
+  char *actor;
+  char cVar1;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_action_handle_initial_action(actor_handle);
+  actor_action_handle_pending_command_list(actor_handle);
+  cVar1 = actor_action_deny_transition(actor_handle);
+  if (cVar1 == '\0') {
+    actor_action_handle_combat_transition(actor_handle);
+  }
+  switch (*(short *)(actor + 0x6c)) {
+  case 3:
+  case 4:
+  case 6:
+  case 10:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 == '\0') {
+      actor_action_handle_combat_failure(actor_handle);
+      return;
+    }
+    break;
+  case 5:
+  case 7:
+  case 8:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 == '\0') {
+      actor_action_handle_exit_pursuit(actor_handle);
+      return;
+    }
+    break;
+  case 11:
+    actor_action_handle_combat_status(
+      actor_handle,
+      (int)*(unsigned char *)(actor + 0x9e),
+      (int)*(unsigned char *)(actor + 0xa1));
+    break;
+  default:
+    break;
+  }
+}
+
 /* 0x3b100 — Return true if actor has fewer than 3 active slots (field +0x6a).
  */
 bool actor_is_noncombat(int actor_handle)
@@ -3055,6 +3106,76 @@ void actor_swarm_cache_new(int actor_handle)
         }
       }
     }
+  }
+}
+
+/* actor_kill (0x3cf10) — actor_set_unit_dead_flag
+ *
+ * Marks actor's unit(s) with a "dead" flag in the unit's flags byte at
+ * offset 0xb6, then triggers actor_delete and encounter status update.
+ * If param_2 is non-zero, sets bit 0x40 (killed by player?); otherwise
+ * sets bit 0x20 (killed by AI?). If param_3 is non-zero, only sets the
+ * flag without performing deletion/encounter update.
+ *
+ * For non-swarm actors (actor+0x6 == 0): operates on the single unit at
+ * actor+0x18, then calls actor_detach_from_unit.
+ * For swarm actors (actor+0x6 != 0): iterates the swarm unit chain
+ * starting at actor+0x24, following unit+0x1ac links, calling
+ * actor_swarm_detach_from_unit for each unless param_3 is set.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3cf20.
+ * Confirmed: actor+0x6 (swarm flag) tested at 0x3cf2e.
+ * Confirmed: actor+0x34 stored as encounter_handle at 0x3cf28/0x3cf30.
+ * Confirmed: actor+0x18 (unit_handle) for non-swarm path at 0x3cfae.
+ * Confirmed: actor+0x24 (first swarm unit) for swarm path at 0x3cf36.
+ * Confirmed: unit+0xb6 OR 0x20 or 0x40 at 0x3cf52/0x3cf5b/0x3cfc3/0x3cfcc.
+ * Confirmed: unit+0x1ac (next swarm unit link) at 0x3cf76.
+ * Confirmed: actor_swarm_detach_from_unit(actor_handle, unit_handle) at 0x3cf6e.
+ * Confirmed: actor_detach_from_unit(actor_handle) at 0x3cfdb.
+ * Confirmed: actor_delete(actor_handle, 1) at 0x3cf92.
+ * Confirmed: encounter_update_status(encounter_handle) at 0x3cfa0 if != -1. */
+void actor_kill(int actor_handle, char by_player, char no_delete)
+{
+  char *actor;
+  int encounter_handle;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  encounter_handle = *(int *)(actor + 0x34);
+
+  if (*(char *)(actor + 0x6) != 0) {
+    /* Swarm: iterate unit chain */
+    int unit_handle = *(int *)(actor + 0x24);
+    while (unit_handle != -1) {
+      char *unit = (char *)object_get_and_verify_type(unit_handle, 3);
+      if (by_player != 0) {
+        *(unsigned char *)(unit + 0xb6) |= (unsigned char)0x40;
+      } else {
+        *(unsigned char *)(unit + 0xb6) |= (unsigned char)0x20;
+      }
+      if (no_delete == 0) {
+        actor_swarm_detach_from_unit(actor_handle, unit_handle);
+      }
+      unit_handle = *(int *)(unit + 0x1ac);
+    }
+    if (no_delete != 0) {
+      return;
+    }
+  } else {
+    /* Non-swarm: single unit */
+    char *unit = (char *)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+    if (by_player != 0) {
+      *(unsigned char *)(unit + 0xb6) |= 0x40;
+    } else {
+      *(unsigned char *)(unit + 0xb6) |= 0x20;
+    }
+    if (no_delete != 0) {
+      return;
+    }
+    actor_detach_from_unit(actor_handle);
+  }
+  actor_delete(actor_handle, 1);
+  if (encounter_handle != -1) {
+    encounter_update_status(encounter_handle);
   }
 }
 
@@ -4981,7 +5102,7 @@ int FUN_0003f030(int actv_tag_index, int encounter_index, int squad_index,
     system_exit(-1);
   }
 
-  FUN_00144b50();
+  objects_garbage_collect_tick();
 
   actv_data = (char *)tag_get(0x61637476, actv_tag_index);
 

@@ -144,6 +144,570 @@ void FUN_000c5960(int datum_index)
   *(int16_t *)(node + 0x2) = *(int16_t *)(predicate + 0x2);
 }
 
+/* 0xc5a20 — Compile a boolean literal expression. Compares the source string
+ * against known true/false synonyms and stores 1 or 0 in the value field. */
+bool FUN_000c5a20(int datum_index)
+{
+  char *node;
+  char *str;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  str = (char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8);
+
+  if (*(int16_t *)(node + 0x4) != 5) {
+    display_assert("expression->type==_hs_type_boolean",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x5b3, 1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)(node + 0x2) != *(int16_t *)(node + 0x4)) {
+    display_assert("expression->constant_type==expression->type",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x5b4, 1);
+    system_exit(-1);
+  }
+
+  if (csstrcmp(str, "false") == 0 || csstrcmp(str, "off") == 0 ||
+      csstrcmp(str, "0") == 0) {
+    *(char *)(node + 0x10) = 0;
+    return true;
+  }
+
+  if (csstrcmp(str, "true") == 0 || csstrcmp(str, "on") == 0 ||
+      csstrcmp(str, "1") == 0) {
+    *(char *)(node + 0x10) = 1;
+    return true;
+  }
+
+  *(const char **)0x46b6fc = "i expected \"true\" or \"false\".";
+  *(int *)0x46b700 = *(int *)(node + 0xc);
+  return false;
+}
+
+/* 0xc5b50 — Validate and parse a real (float) literal from an HS expression.
+ * Checks each character is a digit or single decimal point, then calls atof
+ * to store the parsed value. Sets compile error on invalid input. */
+bool FUN_000c5b50(int datum_index)
+{
+  char c;
+  char seen_dot;
+  char *node;
+  char *str;
+  bool result;
+
+  result = true;
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  str = (char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8);
+  seen_dot = 0;
+
+  if (*(int16_t *)(node + 0x4) != 6) {
+    display_assert("expression->type==_hs_type_real",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x5d6, 1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)(node + 0x2) != *(int16_t *)(node + 0x4)) {
+    display_assert("expression->constant_type==expression->type",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x5d7, 1);
+    system_exit(-1);
+  }
+
+  if (*str == '-') {
+    str = str + 1;
+  }
+
+  c = *str;
+  if (c != '\0') {
+    do {
+      if (isdigit((int)c) == 0) {
+        if (seen_dot || *str != '.') {
+          *(const char **)0x46b6fc = "this is not a valid real number.";
+          *(int *)0x46b700 = *(int *)(node + 0xc);
+          result = false;
+          goto done;
+        }
+        seen_dot = 1;
+      }
+      c = str[1];
+      str = str + 1;
+    } while (c != '\0');
+  }
+
+done:
+  *(float *)(node + 0x10) =
+    (float)atof((const char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8));
+
+  return result;
+}
+
+/* 0xc5c40 — Validate and parse an integer literal (short or long) from an HS
+ * expression. Checks each character is a digit, then calls atol. For short
+ * integers (type 7) validates range [-32768, 32767]. */
+bool FUN_000c5c40(int datum_index)
+{
+  char c;
+  char *node;
+  char *str;
+  long val;
+  bool result;
+
+  result = true;
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  str = (char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8);
+
+  if (*(int16_t *)(node + 0x4) != 7 && *(int16_t *)(node + 0x4) != 8) {
+    display_assert("expression->type==_hs_type_short_integer || "
+                   "expression->type==_hs_type_long_integer",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x5f7, 1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)(node + 0x2) != *(int16_t *)(node + 0x4)) {
+    display_assert("expression->constant_type==expression->type",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x5f8, 1);
+    system_exit(-1);
+  }
+
+  if (*str == '-') {
+    str = str + 1;
+  }
+
+  c = *str;
+  while (c != '\0') {
+    if (isdigit((int)c) == 0) {
+      *(const char **)0x46b6fc = "this is not a valid integer.";
+      *(int *)0x46b700 = *(int *)(node + 0xc);
+      result = false;
+      break;
+    }
+    c = str[1];
+    str = str + 1;
+  }
+
+  val = atol((const char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8));
+
+  if (result) {
+    if (*(int16_t *)(node + 0x4) == 8)
+      goto store_long;
+    if (val > 0x7fff || val < (long)-0x8000) {
+      *(const char **)0x46b6fc = "shorts must be in the range [-32767, 32768].";
+      *(int *)0x46b700 = *(int *)(node + 0xc);
+      result = false;
+    }
+  }
+
+  if (*(int16_t *)(node + 0x4) != 8) {
+    *(int16_t *)(node + 0x10) = (int16_t)val;
+    return result;
+  }
+
+store_long:
+  *(long *)(node + 0x10) = val;
+  return result;
+}
+
+/* 0xc5d60 — Compile a string literal expression. Asserts type is _hs_type_string
+ * (9), stores the string pointer (source_offset + source_base) in the value
+ * field, and always returns true. */
+bool FUN_000c5d60(int datum_index)
+{
+  char *node;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+
+  if (*(int16_t *)(node + 0x4) != 9) {
+    display_assert("expression->type==_hs_type_string",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x61e, 1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)(node + 0x2) != *(int16_t *)(node + 0x4)) {
+    display_assert("expression->constant_type==expression->type",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x61f, 1);
+    system_exit(-1);
+  }
+
+  *(int *)(node + 0x10) = *(int *)(node + 0xc) + *(int *)0x46b6e8;
+  return true;
+}
+
+/* 0xc5de0 — Compile a script name reference. Asserts type is _hs_type_script
+ * (10), looks up the script by name, stores the index in the value field. */
+bool FUN_000c5de0(int datum_index)
+{
+  int16_t script_idx;
+  char *node;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+
+  if (*(int16_t *)(node + 0x4) != 10) {
+    display_assert("expression->type==_hs_type_script",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x62d, 1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)(node + 0x2) != *(int16_t *)(node + 0x4)) {
+    display_assert("expression->constant_type==expression->type",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x62e, 1);
+    system_exit(-1);
+  }
+
+  script_idx = hs_find_script_by_name(
+    (const char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8));
+  if (script_idx != -1) {
+    *(int16_t *)(node + 0x10) = script_idx;
+    return true;
+  }
+
+  *(const char **)0x46b6fc = "this is not a valid script name.";
+  *(int *)0x46b700 = *(int *)(node + 0xc);
+  return false;
+}
+
+/* 0xc5e90 — Compile a tag reference expression. Asserts type is a tag reference
+ * (0x18..0x1f), looks up the matching scenario source file by name and tag
+ * group, stores the tag datum index from element+0x24 into node+0x10.
+ * Always returns true regardless of whether a match is found. */
+bool FUN_000c5e90(int datum_index)
+{
+  char *node;
+  char *scenario;
+  int tag_group;
+  int i;
+  char *element;
+  int cmp;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  scenario = (char *)global_scenario_get();
+
+  if (*(int16_t *)(node + 0x4) < 0x18 || *(int16_t *)(node + 0x4) > 0x1f) {
+    display_assert("HS_TYPE_IS_TAG_REFERENCE(expression->type)",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x69e, 1);
+    system_exit(-1);
+  }
+
+  tag_group =
+    *(int *)(0x26f2cc + (int)*(int16_t *)(node + 0x4) * 4);
+
+  i = 0;
+  if (*(int *)(scenario + 0x4b4) > 0) {
+    do {
+      element = (char *)tag_block_get_element(
+        (void *)(scenario + 0x4b4), (int)(int16_t)i, 0x28);
+      cmp = csstrcmp(*(const char **)(element + 0x1c),
+                     (const char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8));
+      if (cmp == 0 && *(int *)(element + 0x18) == tag_group) {
+        *(int *)(node + 0x10) = *(int *)(element + 0x24);
+        break;
+      }
+      i++;
+    } while ((int)(int16_t)i < *(int *)(scenario + 0x4b4));
+  }
+
+  return true;
+}
+
+/* 0xc6130 — Generic tag-block name lookup for HS literal compilation.
+ * Iterates elements in tag_block (passed via EBX), comparing the string at
+ * element+offset against the node's source string using case-insensitive match.
+ * On match, stores the element index (as short) into node+0x10.
+ * On failure, formats "this is not a valid %s name" error. */
+bool FUN_000c6130(int datum_index, void *tag_block, int element_size, short offset)
+{
+  char *node;
+  int i;
+  char *element;
+  int cmp;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+
+  if (element_size > 0x7fff) {
+    display_assert("element_size<=SHORT_MAX",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x6f1, 1);
+    system_exit(-1);
+  }
+  if ((int)offset + 0x1f >= element_size) {
+    display_assert("offset+TAG_STRING_LENGTH<element_size",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x6f2, 1);
+    system_exit(-1);
+  }
+
+  i = 0;
+  if (*(int *)tag_block > 0) {
+    do {
+      element = (char *)tag_block_get_element(tag_block, i, element_size);
+      cmp = crt_stricmp(element + (int)offset,
+                        (const char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8));
+      if (cmp == 0) {
+        *(int *)(node + 0x10) = (int)(int16_t)i;
+        return true;
+      }
+      i++;
+    } while ((int)(int16_t)i < *(int *)tag_block);
+  }
+
+  crt_sprintf((char *)0x46b704, "this is not a valid %s name",
+              ((const char **)0x2f14a8)[(int)*(int16_t *)(node + 0x4)]);
+  *(const char **)0x46b6fc = (const char *)0x46b704;
+  *(int *)0x46b700 = *(int *)(node + 0xc);
+  return false;
+}
+
+/* 0xc6230 — Compile trigger_volume literal. Asserts type==0xb, then delegates
+ * to FUN_000c6130 searching scenario+0x360 (trigger volumes, elem size 0x60,
+ * name at offset 4). */
+bool FUN_000c6230(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0xb) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_trigger_volume",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x711, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x360), 0x60, 4);
+}
+
+/* 0xc62a0 — Compile cutscene_flag literal (type 0xc). */
+bool FUN_000c62a0(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0xc) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_cutscene_flag",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x719, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x4e4), 0x5c, 4);
+}
+
+/* 0xc6310 — Compile cutscene_camera_point literal (type 0xd). */
+bool FUN_000c6310(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0xd) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_cutscene_camera_point",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x721, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x4f0), 0x68, 4);
+}
+
+/* 0xc6380 — Compile cutscene_title literal (type 0xe). */
+bool FUN_000c6380(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0xe) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_cutscene_title",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x729, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x4fc), 0x60, 4);
+}
+
+/* 0xc63f0 — Compile cutscene_recording literal (type 0xf). */
+bool FUN_000c63f0(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0xf) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_cutscene_recording",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x731, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x36c), 0x40, 0);
+}
+
+/* 0xc6460 — Compile device_group literal (type 0x10). */
+bool FUN_000c6460(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0x10) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_device_group",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x739, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x288), 0x34, 0);
+}
+
+/* 0xc64d0 — Compile AI encounter/squad literal (type 0x11).
+ * Asserts type==_hs_type_ai and constant_type==type, then delegates to
+ * FUN_000540f0 to look up an AI encounter or squad by name from the scenario. */
+bool FUN_000c64d0(int datum_index)
+{
+  char *node;
+  bool result;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)((char *)datum_get(*(data_t **)0x5aa6c8, datum_index) + 0x4) !=
+      0x11) {
+    display_assert("hs_syntax_get(expression_index)->type==_hs_type_ai",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x744, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(node + 0x2) != *(short *)(node + 0x4)) {
+    display_assert("expression->constant_type==expression->type",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x745, 1);
+    system_exit(-1);
+  }
+  result = FUN_000540f0((void *)global_scenario_get(),
+                        (const char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8),
+                        (int *)(node + 0x10));
+  if (!result) {
+    *(const char **)0x46b6fc = "this is not a valid ai encounter or squad.";
+    *(int *)0x46b700 = *(int *)(node + 0xc);
+  }
+  return result;
+}
+
+/* 0xc6580 — Compile ai_command_list literal (type 0x12). */
+bool FUN_000c6580(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0x12) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_ai_command_list",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x755, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x438), 0x60, 0);
+}
+
+/* 0xc65f0 — Compile starting_profile literal (type 0x13). */
+bool FUN_000c65f0(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0x13) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_starting_profile",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x75d, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x348), 0x68, 0);
+}
+
+/* 0xc6660 — Compile conversation literal (type 0x14). */
+bool FUN_000c6660(int datum_index)
+{
+  char *node;
+  char *scenario;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0x14) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_conversation",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x765, 1);
+    system_exit(-1);
+  }
+  scenario = (char *)global_scenario_get();
+  return FUN_000c6130(datum_index, (void *)(scenario + 0x468), 0x74, 0);
+}
+
+/* 0xc68b0 — Compile navpoint literal (type 0x15).
+ * Looks up a waypoint by name from the HUD globals tag (hudg+0x160,
+ * element size 0x68). Returns false if no HUD globals tag is available. */
+bool FUN_000c68b0(int datum_index)
+{
+  char *node;
+  int tag_index;
+  char *hud_tag;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0x15) {
+    display_assert(
+      "hs_syntax_get(expression_index)->type==_hs_type_navpoint",
+      "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x7b1, 1);
+    system_exit(-1);
+  }
+  tag_index = interface_get_tag_index(6);
+  if (tag_index == -1) {
+    return false;
+  }
+  hud_tag = (char *)tag_get(0x68756467, interface_get_tag_index(6));
+  return FUN_000c6130(datum_index, (void *)(hud_tag + 0x160), 0x68, 0);
+}
+
+/* 0xc6810 — Compile object name literal (types 0x25-0x2a).
+ * "none" resolves to -1. Otherwise adds 6 to type (mapping object types to
+ * enum range 0x2b-0x30), delegates to FUN_000c66d0, then restores type. */
+bool FUN_000c6810(int datum_index)
+{
+  char *node;
+  bool result;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) < 0x25 || *(short *)(node + 0x4) > 0x2a) {
+    display_assert("HS_TYPE_IS_OBJECT(expression->type)",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x79a, 1);
+    system_exit(-1);
+  }
+  if (csstrcmp((const char *)(*(int *)(node + 0xc) + *(int *)0x46b6e8),
+               (const char *)0x254384) == 0) {
+    *(int *)(node + 0x10) = -1;
+    return true;
+  }
+  *(short *)(node + 0x4) += 6;
+  *(short *)(node + 0x2) = *(short *)(node + 0x4);
+  result = FUN_000c66d0(datum_index);
+  *(short *)(node + 0x4) -= 6;
+  return result;
+}
+
+/* 0xc69d0 — Compile object_list literal (type 0x17).
+ * Temporarily sets type/constant_type to 0x2b (enum range for FUN_000c66d0),
+ * delegates to FUN_000c66d0, then restores type to 0x17. */
+bool FUN_000c69d0(int datum_index)
+{
+  char *node;
+  bool result;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  if (*(short *)(node + 0x4) != 0x17) {
+    display_assert("expression->type==_hs_type_object_list",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x7cf, 1);
+    system_exit(-1);
+  }
+  *(short *)(node + 0x2) = 0x2b;
+  *(short *)(node + 0x4) = 0x2b;
+  result = FUN_000c66d0(datum_index);
+  *(short *)(node + 0x4) = 0x17;
+  return result;
+}
+
 /* Compile an HS function-call expression node (0xc73a0).
  *
  * Called from hs_type_check when a syntax node has flag bit 0 set (function
@@ -774,15 +1338,27 @@ bool FUN_000c73a0(int datum_index)
  */
 bool FUN_000c74c0(int datum_index)
 {
+  char *node;
+  char *node2;
+  int first_child;
+  char *child_node;
+  int16_t type;
+  char *child_node2;
+  int16_t fn_idx;
+  void *fn_desc;
+  int16_t fn_ret;
+  typedef bool (*hs_parse_fn_t)(int16_t function_index, int datum_index);
+  hs_parse_fn_t parse_fn;
+
   /* Three datum_get calls at entry (matching binary) to load expression node
    * and first-child node. */
-  char *node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
-  char *node2 = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
-  int first_child = *(int *)(node2 + 0x10);
-  char *child_node = (char *)datum_get(*(data_t **)0x5aa6c8, first_child);
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  node2 = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  first_child = *(int *)(node2 + 0x10);
+  child_node = (char *)datum_get(*(data_t **)0x5aa6c8, first_child);
 
   /* Validate expression type. */
-  int16_t type = *(int16_t *)(node + 0x4);
+  type = *(int16_t *)(node + 0x4);
   if (!((type >= 4 && type <= 0x30) || type == 1 || type == 0)) {
     display_assert(
       "hs_type_valid(expression->type) || expression->type==_hs_special_form"
@@ -792,17 +1368,19 @@ bool FUN_000c74c0(int datum_index)
   }
 
   /* Reload child node (fourth datum_get, matches binary). */
-  char *child_node2 = (char *)datum_get(*(data_t **)0x5aa6c8, first_child);
+  child_node2 = (char *)datum_get(*(data_t **)0x5aa6c8, first_child);
   if (!(*(uint8_t *)(child_node2 + 0x6) & 0x1)) {
-    /* Child is not compiled — emit error. */
-    const char *what = (*(int16_t *)(node + 0x4) == 1) ?
-                         "\"script\" or \"global\"" :
-                         "a function name";
-    crt_sprintf((char *)0x46b704, "i expected %s, but i got an expression.",
-                what);
-    *(const char **)0x46b6fc = (const char *)0x46b704;
-    *(int *)0x46b700 = *(int *)(child_node + 0xc);
-    return false;
+    {
+      /* Child is not compiled — emit error. */
+      const char *what = (*(int16_t *)(node + 0x4) == 1) ?
+                           "\"script\" or \"global\"" :
+                           "a function name";
+      crt_sprintf((char *)0x46b704, "i expected %s, but i got an expression.",
+                  what);
+      *(const char **)0x46b6fc = (const char *)0x46b704;
+      *(int *)0x46b700 = *(int *)(child_node + 0xc);
+      return false;
+    }
   }
 
   if (*(int16_t *)(node + 0x4) == 1) {
@@ -822,7 +1400,7 @@ bool FUN_000c74c0(int datum_index)
   /* Resolve expression name: function_index written into node+0x2. */
   FUN_000c5960(datum_index);
 
-  int16_t fn_idx = *(int16_t *)(node + 0x2);
+  fn_idx = *(int16_t *)(node + 0x2);
   if (fn_idx == -1) {
     *(const char **)0x46b6fc = "this is not a valid function or script name.";
     *(int *)0x46b700 = *(int *)(child_node + 0xc);
@@ -863,8 +1441,8 @@ bool FUN_000c74c0(int datum_index)
   }
 
   /* Function reference: get descriptor. */
-  void *fn_desc = hs_function_table_get((int16_t)fn_idx);
-  int16_t fn_ret = *(int16_t *)fn_desc;
+  fn_desc = hs_function_table_get((int16_t)fn_idx);
+  fn_ret = *(int16_t *)fn_desc;
 
   if (*(int16_t *)(node + 0x4) != 0) {
     /* Validate return type compatibility. */
@@ -909,8 +1487,7 @@ bool FUN_000c74c0(int datum_index)
                    0x58c, 1);
     system_exit(-1);
   }
-  typedef bool (*hs_parse_fn_t)(int16_t function_index, int datum_index);
-  hs_parse_fn_t parse_fn = *(hs_parse_fn_t *)(((char *)fn_desc) + 0x8);
+  parse_fn = *(hs_parse_fn_t *)(((char *)fn_desc) + 0x8);
   return parse_fn(*(int16_t *)(node + 0x2), datum_index);
 }
 
@@ -932,24 +1509,29 @@ bool FUN_000c74c0(int datum_index)
  */
 void FUN_000c7b10(int datum_index)
 {
-  char *node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  char *node;
+  char *node2;
+  int16_t type;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
   *(uint8_t *)(node + 0x6) |= 0x8;
 
   /* Re-read the node flags to test bit 0 (function vs expression). */
-  char *node2 = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
+  node2 = (char *)datum_get(*(data_t **)0x5aa6c8, datum_index);
   if (!(*(uint8_t *)(node2 + 0x6) & 0x1)) {
     /* Non-function node: recurse into children. */
     int child = *(int *)(node + 0x10);
     while (child != -1) {
+      char *child_node;
       FUN_000c7b10(child);
-      char *child_node = (char *)datum_get(*(data_t **)0x5aa6c8, child);
+      child_node = (char *)datum_get(*(data_t **)0x5aa6c8, child);
       child = *(int *)(child_node + 0x8);
     }
     return;
   }
 
   /* Function node: re-intern the string constant for recompilation. */
-  int16_t type = *(int16_t *)(node + 0x4);
+  type = *(int16_t *)(node + 0x4);
   if (type == 2) {
     int str_offset = *(int *)(node + 0xc);
     char *str_ptr;

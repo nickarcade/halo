@@ -221,40 +221,7 @@ class KnowledgeBase:
 		name_alternate = name + '__thunk'
 		mangled_name_alternate = mangled_name.replace(name, name_alternate)
 
-		if len(reg_args) == 1 and reg_args[0][0] == 0:
-			return self._gen_thunk_single_reg(s, reg_args, rtype, fname, args, name, mangled_name, mangled_name_alternate)
-		else:
-			return self._gen_thunk_multi_reg(s, reg_args, rtype, fname, args, name, mangled_name, mangled_name_alternate)
-
-	def _gen_thunk_single_reg(self, s, reg_args, rtype, fname, args, name, mangled_name, mangled_name_alternate):
-		"""Generate thunk for single first-arg register (original path)."""
-		reg = reg_args[0][1]
-		log.info('Generating %s arg-register thunk for %s', reg, fname)
-
-		new_func_decl = f'{rtype} (*{fname}__xbe)(/* {args[0].type.spelling} {args[0].spelling}@<{reg}>'
-		if len(args) > 1:
-			new_func_decl += ', */ '
-			new_func_decl += ', '.join('%s %s' % (a.type.spelling, a.spelling) for a in args[1:])
-		else:
-			new_func_decl += ' */ void'
-		new_func_decl += ')'
-
-		decl = filter_reg_assignments(s.decl)[:-1]
-
-		thunk_functions = f'''\
-#ifdef MSVC
-#pragma comment(linker, "/alternatename:{mangled_name}={mangled_name_alternate}")
-#endif
-
-{new_func_decl} = (void*){s.addr:#x};
-
-{ decl.replace(name, 'THUNK('+name+')') }
-{{
-  asm mov { reg }, { args[0].spelling };
-  { "return " if rtype != 'void' else ''}{fname}__xbe({', '.join(a.spelling for a in args[1:])});
-}}
-'''
-		return thunk_functions
+		return self._gen_thunk_multi_reg(s, reg_args, rtype, fname, args, name, mangled_name, mangled_name_alternate)
 
 	def _gen_thunk_multi_reg(self, s, reg_args, rtype, fname, args, name, mangled_name, mangled_name_alternate):
 		"""Generate naked asm thunk for multi-register-arg functions.

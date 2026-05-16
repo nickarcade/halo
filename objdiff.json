@@ -40,6 +40,14 @@
       }
     },
     {
+      "name": "halo/actors_FUN_0003cf10",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/ai/actors.c.obj",
+      "base_path": "delinked/actors_FUN_0003cf10.obj",
+      "metadata": {
+        "source_path": "src/halo/ai/actors.c"
+      }
+    },
+    {
       "name": "halo/actors",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/ai/actors.c.obj",
       "base_path": "delinked/actors.obj",
@@ -99,6 +107,14 @@
       "name": "halo/cache_files_windows",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/cache/cache_files_windows.c.obj",
       "base_path": "delinked/cache_files_windows.obj",
+      "metadata": {
+        "source_path": "src/halo/cache/cache_files_windows.c"
+      }
+    },
+    {
+      "name": "halo/cache_files_windows_FUN_001bcb80",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/cache/cache_files_windows.c.obj",
+      "base_path": "delinked/cache_files_windows_FUN_001bcb80.obj",
       "metadata": {
         "source_path": "src/halo/cache/cache_files_windows.c"
       }
@@ -488,6 +504,14 @@
       }
     },
     {
+      "name": "halo/particles_FUN_000a1590",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/effects/particles.c.obj",
+      "base_path": "delinked/particles_FUN_000a1590.obj",
+      "metadata": {
+        "source_path": "src/halo/effects/particles.c"
+      }
+    },
+    {
       "name": "halo/physical_memory_map",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/cache/physical_memory_map.c.obj",
       "base_path": "delinked/physical_memory_map.obj",
@@ -696,9 +720,9 @@
       }
     },
     {
-      "name": "halo/scenario",
+      "name": "halo/scenario_FUN_0018e3b0",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/scenario/scenario.c.obj",
-      "base_path": "delinked/scenario.obj",
+      "base_path": "delinked/scenario_FUN_0018e3b0.obj",
       "metadata": {
         "source_path": "src/halo/scenario/scenario.c"
       }
@@ -1072,6 +1096,14 @@
       }
     },
     {
+      "name": "halo/real_math_FUN_0010fb20",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/real_math.c.obj",
+      "base_path": "delinked/real_math_FUN_0010fb20.obj",
+      "metadata": {
+        "source_path": "src/halo/math/real_math.c"
+      }
+    },
+    {
       "name": "halo/real_math_FUN_0010a1c0",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/math/real_math.c.obj",
       "base_path": "delinked/real_math_FUN_0010a1c0.obj",
@@ -1139,6 +1171,94 @@
       "base_path": "delinked/XAPILIB/FUN_001d789a.obj",
       "metadata": {
         "source_path": "src/halo/cseries/xbox_crt.c"
+      }
+    },
+    {
+      "name": "halo/objects_FUN_00144b50",
+      "target_path": "build/vc71/objects.obj",
+      "base_path": "delinked/objects_FUN_00144b50.obj",
+      "metadata": {
+        "source_path": "src/halo/objects/objects.c"
+      }
+    },
+    {
+      "name": "halo/bitmap_utilities_FUN_00075380",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/bitmaps/bitmap_utilities.c.obj",
+      "base_path": "delinked/bitmap_utilities_FUN_00075380.obj",
+      "metadata": {
+        "source_path": "src/halo/bitmaps/bitmap_utilities.c"
+      }
+    },
+    {
+      "name": "halo/bitmap_utilities_FUN_00075630",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/bitmaps/bitmap_utilities.c.obj",
+      "base_path": "delinked/bitmap_utilities_FUN_00075630.obj",
+      "metadata": {
+        "source_path": "src/halo/bitmaps/bitmap_utilities.c"
+      }
+    },
+    {
+      "name": "halo/bitmap_utilities_FUN_00075800",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/bitmaps/bitmap_utilities.c.obj",
+      "base_path": "delinked/bitmap_utilities_FUN_00075800.obj",
+      "metadata": {
+        "source_path": "src/halo/bitmaps/bitmap_utilities.c"
+      }
+    },
+    {
+      "name": "halo/objects_FUN_1407e0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/objects/objects.c.obj",
+      "base_path": "delinked/objects_FUN_1407e0.obj",
+      "metadata": {
+        "source_path": "src/halo/objects/objects.c"
+      }
+    },
+    {
+      "name": "halo/random_math_FUN_10ad10",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10ad10.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
+      "name": "halo/random_math_FUN_10b160",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10b160.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
+      "name": "halo/data_FUN_1194a0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/memory/data.c.obj",
+      "base_path": "delinked/data_FUN_1194a0.obj",
+      "metadata": {
+        "source_path": "src/halo/memory/data.c"
+      }
+    },
+    {
+      "name": "halo/collision_usage_FUN_14da80",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/physics/collision_usage.c.obj",
+      "base_path": "delinked/collision_usage_FUN_14da80.obj",
+      "metadata": {
+        "source_path": "src/halo/physics/collision_usage.c"
+      }
+    },
+    {
+      "name": "halo/collision_usage_FUN_14da20",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/physics/collision_usage.c.obj",
+      "base_path": "delinked/collision_usage_FUN_14da20.obj",
+      "metadata": {
+        "source_path": "src/halo/physics/collision_usage.c"
+      }
+    },
+    {
+      "name": "halo/bored_camera",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/camera/bored_camera.c.obj",
+      "base_path": "delinked/bored_camera.obj",
+      "metadata": {
+        "source_path": "src/halo/camera/bored_camera.c"
       }
     }
   ]

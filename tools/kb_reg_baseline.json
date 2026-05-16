@@ -29,6 +29,12 @@
     "0x5c3a0": "bool encounter_get_actor_starting_location(int platoon_index, int delay, int flag, int encounter_handle /* @<ebx> */);",
     "0x5ef80": "char FUN_0005ef80(unsigned int *path_buf @<edi>);",
     "0x64400": "void FUN_00064400(int actor_handle@<eax>, int prop_handle@<edi>);",
+    "0x73fd0": "int FUN_00073fd0(void *bitmap /* @<eax> */);",
+    "0x75380": "short FUN_00075380(void *bitmap /* @<eax> */);",
+    "0x78b80": "void FUN_00078b80(int unused, int filter_coefficients, void *bitmap /* @<esi> */);",
+    "0x790b0": "void FUN_000790b0(int unused, int positive_table, int negative_table, void *bitmap /* @<esi> */);",
+    "0x79480": "void FUN_00079480(short passes, void *bitmap /* @<edi> */);",
+    "0x79590": "void FUN_00079590(short passes, void *bitmap /* @<esi> */);",
     "0x79630": "void FUN_00079630(float bump_height, void *bitmap /* @<esi> */);",
     "0x7b510": "void FUN_0007b510(float bump_height, void *bitmap /* @<esi> */);",
     "0x7b940": "void FUN_0007b940(float bump_height, void *bitmap /* @<ebx> */);",
@@ -111,6 +117,7 @@
     "0xc57d0": "int FUN_000c57d0(char *str@<ebx>);",
     "0xc5840": "bool FUN_000c5840(int datum_index @<eax>);",
     "0xc5960": "void FUN_000c5960(int datum_index @<eax>);",
+    "0xc6130": "bool FUN_000c6130(int datum_index @<eax>, void *tag_block @<ebx>, int element_size @<edi>, short offset);",
     "0xc6a70": "int FUN_000c6a70(char *str @<eax>);",
     "0xc71c0": "void FUN_000c71c0(int datum_index@<eax>, char **cursor@<esi>);",
     "0xc72b0": "void FUN_000c72b0(char **cursor@<esi>);",
@@ -167,9 +174,11 @@
     "0xfba20": "int weapon_set_animation_state(int weapon_handle, char param_2, int16_t state @<bx>);",
     "0xfc990": "void FUN_000fc990(int16_t magazine_index@<ax>, int weapon_handle, int param_2);",
     "0x102510": "void screenshot_render(void *a1@<edi>);",
+    "0x10a930": "void FUN_0010a930(int16_t type_index@<bx>, void *buffer);",
     "0x10b300": "float *random_direction_table_get_element(int16_t index@<si>, float *result@<ebx>);",
     "0x118d70": "void FUN_00118d70(int queue@<eax>);",
     "0x1190c0": "void crc_table_init(uint32_t *table@<edx>);",
+    "0x1194a0": "void datum_initialize(data_t *data@<esi>, void *datum@<edi>);",
     "0x11e430": "void FUN_0011e430(void *pool @<edi>);",
     "0x11e5a0": "void *FUN_0011e5a0(void *pool @<eax>, void **block_reference @<esi>);",
     "0x11ea50": "void FUN_0011ea50(int slot_index, void *block_hdr@<esi>, int block_size@<edi>);",
@@ -223,6 +232,7 @@
     "0x140ad0": "void object_choose_random_region_permutations(int object_handle@<edi>);",
     "0x14d080": "void collision_log_period_helper(int time_period@<esi>, int begin_flag);",
     "0x14d840": "short FUN_0014d840(short collision_function @<edi>);",
+    "0x1550c0": "void FUN_001550c0(unsigned int arg_eax@<eax>, unsigned int arg_ecx@<ecx>, unsigned int arg_edx@<edx>, unsigned int unused_stack0, unsigned int stack_arg1, unsigned int stack_arg2, unsigned int stack_arg3);",
     "0x155110": "void FUN_00155110(int stage@<eax>, int sub_index@<ecx>, unsigned int *result);",
     "0x184bc0": "void render_window_pregame(int window_type@<ebx>, int16_t *win);",
     "0x185290": "void render_window(int16_t *win@<esi>, void *offset_or_null);",
@@ -249,6 +259,7 @@
     "0x1bc7a0": "unsigned int FUN_001bc7a0(short map_file_index@<si>);",
     "0x1bc7e0": "int FUN_001bc7e0(short map_file_index@<si>);",
     "0x1bc830": "void FUN_001bc830(char *buffer@<ecx>, int index@<eax>);",
+    "0x1bcb80": "bool FUN_001bcb80(const char *map_name@<eax>, void *header_buf@<edi>);",
     "0x1bcea0": "void FUN_001bcea0(short map_file_index@<ax>);",
     "0x1bcfb0": "void FUN_001bcfb0(short map_file_index@<ax>);",
     "0x1bdd80": "void FUN_001bdd80(int tag_index @<eax>);",
@@ -285,8 +296,18 @@
     "0x1d8750": "unsigned int FUN_001d8750(unsigned int val@<ecx>);",
     "0x1e9350": "void D3DDevice_SetRenderState_Simple(uint32_t reg@<ecx>, uint32_t value@<edx>);",
     "0x1e9380": "void D3DDevice_SetRenderState_Deferred(uint32_t reg_index@<ecx>, uint32_t value@<edx>);",
-    "0x1e9410": "void __stdcall D3DDevice_SetTextureStageState(uint32_t stage@<ecx>, uint32_t state@<edx>, uint32_t value);"
+    "0x1e9410": "void __stdcall D3DDevice_SetTextureStageState(uint32_t stage@<ecx>, uint32_t state@<edx>, uint32_t value);",
+    "0x97db0": "void FUN_00097db0(char *datum @<esi>);"
   },
   "0xa1a90": "bool FUN_000a1a90(int datum_handle@<eax>);",
-  "0xa1b60": "bool FUN_000a1b60(int datum_handle@<edi>, float delta_time);"
+  "0xa1b60": "bool FUN_000a1b60(int datum_handle@<edi>, float delta_time);",
+  "FUN_000c6130": {
+    "addr": "0xc6130",
+    "args": {
+      "datum_index": "eax",
+      "tag_block": "ebx",
+      "element_size": "edi"
+    }
+  },
+  "0x1194a0": "void datum_initialize(data_t *data@<esi>, void *datum@<edi>);"
 }

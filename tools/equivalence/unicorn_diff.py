@@ -459,6 +459,7 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
                 try:
                     uc.mem_map(page, 0x10000)
                     uc.mem_write(page, b'\x00' * 0x10000)
+                    _seed_known_globals(uc, page, 0x10000)
                 except Exception:
                     pass
                 _override_mapped.add(page)
@@ -796,11 +797,14 @@ def _record_leaf_classification(addr: str, is_leaf: bool) -> None:
         pass
 
 
-def _record_confidence(addr: str, confidence: str, coverage_pct: float) -> None:
+def _record_confidence(addr, confidence: str, coverage_pct: float) -> None:
     """Persist confidence and coverage to leaf_cache.json."""
     if not addr:
         return
-    norm = addr if addr.startswith("0x") else hex(int(addr, 0))
+    if isinstance(addr, int):
+        norm = hex(addr)
+    else:
+        norm = addr if addr.startswith("0x") else hex(int(addr, 0))
     norm = norm.lower()
     try:
         if _LEAF_CACHE_PATH.exists():
@@ -972,15 +976,17 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
     if not delinked_path:
         # Try matching address to a FUN_XXXXXXXX name in delinked/
-        addr_sym = f"FUN_{int(addr, 16):08X}" if addr.startswith("0x") else None
-        if addr_sym:
+        addr_int_for_search = int(addr, 16) if addr.startswith("0x") else None
+        if addr_int_for_search is not None:
+            addr_sym_upper = f"FUN_{addr_int_for_search:08X}"
+            addr_sym_lower = f"FUN_{addr_int_for_search:08x}"
             for d in DELINKED_DIR.glob("*.obj"):
                 try:
                     result = subprocess.run(
                         ["llvm-objdump", "-t", str(d)],
                         capture_output=True, text=True
                     )
-                    if addr_sym in result.stdout:
+                    if addr_sym_upper in result.stdout or addr_sym_lower in result.stdout:
                         delinked_path = d
                         break
                 except Exception:
@@ -1033,9 +1039,32 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                     log(f"  (also tried split ref '{per_func_ref.name}': {e3})")
                     return finish("not_applicable", False, "oracle_extract_failed", 2)
             else:
-                log(f"ERROR extracting oracle: {e}")
-                log(f"  (also tried '{func_name}': {e2})")
-                return finish("not_applicable", False, "oracle_extract_failed", 2)
+                # Chunked-fallback: scan sibling chunked delinked refs in same dir
+                base_stem = delinked_path.stem  # e.g. "real_math"
+                chunked_match = None
+                for chunked in delinked_path.parent.glob(f"{base_stem}_*.obj"):
+                    try:
+                        result = subprocess.run(
+                            ["llvm-objdump", "-t", str(chunked)],
+                            capture_output=True, text=True
+                        )
+                        if delinked_sym in result.stdout or delinked_sym.upper() in result.stdout:
+                            chunked_match = chunked
+                            break
+                    except Exception:
+                        pass
+                if chunked_match:
+                    try:
+                        oracle_slice = extract_function(str(chunked_match), delinked_sym)
+                        delinked_path = chunked_match
+                    except CoffParseError as e3:
+                        log(f"ERROR extracting oracle: {e}")
+                        log(f"  (also tried chunked '{chunked_match.name}': {e3})")
+                        return finish("not_applicable", False, "oracle_extract_failed", 2)
+                else:
+                    log(f"ERROR extracting oracle: {e}")
+                    log(f"  (also tried '{func_name}': {e2})")
+                    return finish("not_applicable", False, "oracle_extract_failed", 2)
 
     try:
         lifted_slice = extract_function(str(build_path), func_name)
@@ -1187,11 +1216,15 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         info(f"  snapshot: {len(snapshot_overrides)} region(s) from {state_snapshot.name}")
 
     # --- Generate seeds (Z3 branch-coverage + random/corner) ---
-    seed_safe_mode = not is_leaf
+    # Stubbable non-leaf functions (all calls intercepted) are safe for Z3
+    # seeds and full corner-case values — the stub manager handles callees.
+    seed_safe_mode = not is_leaf and not use_stubs
     z3_extra = []
     if seed_safe_mode:
         info("  seed mode: non-leaf valid-path execution (z3 branch seeds disabled)")
-    else:
+    elif not is_leaf:
+        info("  seed mode: stubbable non-leaf (z3 branch seeds + full corners enabled)")
+    if not seed_safe_mode:
         try:
             from z3_seeds import extract_branch_seeds
             z3_extra = extract_branch_seeds(oracle_slice.code, abi)
@@ -1216,6 +1249,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     all_visited_pcs = {}
     oracle_returns = set()
     merged_global_reads = {}
+    merged_auto_mapped_pages = set()
     oracle_func_base = (CODE_BASE + oracle_slice.section_offset) if oracle_text else CODE_BASE
     oracle_func_end = oracle_func_base + len(oracle_code_patched)
     enable_trace = mem_trace or (use_stubs and not is_leaf)
@@ -1270,6 +1304,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         for addr, val in oracle_state.global_reads.items():
             if addr not in merged_global_reads:
                 merged_global_reads[addr] = val
+        merged_auto_mapped_pages.update(oracle_state.auto_mapped_pages)
 
         # Memory-trace comparison (side-effect writes)
         if enable_trace and oracle_state.mem_writes and lifted_state.mem_writes:
@@ -1491,6 +1526,19 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         trace_diffs=trace_diff_count,
         concolic_seeds=concolic_seeds_run,
     )
+    if merged_global_reads:
+        reads = []
+        for addr, (size, value) in sorted(merged_global_reads.items()):
+            reads.append({
+                "address": f"0x{addr:08x}",
+                "size": size,
+                "value": f"0x{value:0{max(2, size * 2)}x}",
+            })
+        extra["global_reads"] = reads
+    if merged_auto_mapped_pages:
+        extra["auto_mapped_pages"] = [
+            f"0x{addr:08x}" for addr in sorted(merged_auto_mapped_pages)
+        ]
     if concolic_seeds_run:
         extra["phase1_coverage_pct"] = round(phase1_coverage, 1)
 

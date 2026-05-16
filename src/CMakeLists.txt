@@ -18,6 +18,7 @@
 	halo/bungie_net/thread_win32.c
 	halo/bink/bink_playback.c
 	halo/bink/bink_sound.c
+	halo/camera/bored_camera.c
 	halo/camera/director.c
 	halo/camera/observer.c
 	halo/common.c
@@ -118,6 +119,7 @@
 	halo/shaders/shaders.c
 	halo/sound/game_sound.c
 	halo/sound/sound_classes.c
+	halo/sound/sound_definitions.c
 	halo/sound/sound_dsound_xbox.c
 	halo/sound/sound_manager.c
 	halo/objects/damage.c

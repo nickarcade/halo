@@ -18,6 +18,35 @@ void contrails_dispose(void)
     contrail_data = 0;
 }
 
+/* 0x978f0 — contrail_delete. Walks the 4 point chains attached to a contrail
+ * datum (starting at datum+0x34), deletes every point datum in each chain,
+ * then deletes the contrail datum itself. */
+void contrail_delete(int contrail_handle)
+{
+  char *datum;
+  int *chain_ptr;
+  int point_handle;
+  int next_handle;
+  char *point_datum;
+  int i;
+
+  datum = (char *)datum_get(contrail_data, contrail_handle);
+  chain_ptr = (int *)(datum + 0x34);
+
+  for (i = 4; i != 0; i--) {
+    point_handle = *chain_ptr;
+    while (point_handle != -1) {
+      point_datum = (char *)datum_get(contrail_point_data, point_handle);
+      next_handle = *(int *)(point_datum + 0x34);
+      datum_delete(contrail_point_data, point_handle);
+      point_handle = next_handle;
+    }
+    chain_ptr++;
+  }
+
+  datum_delete(contrail_data, contrail_handle);
+}
+
 /*
  * FUN_00097a50 (0x97a50): contrail tick counter — given a contrail handle and
  * delta_time, computes how many full emission periods fit in delta_time and
@@ -77,6 +106,15 @@ int16_t local_random_range(int16_t min, int16_t max)
   return random_range(random_math_get_local_seed_address(), min, max);
 }
 
+/* 0x97ca0 — Generate a random direction within a cone using the module-local
+ * seed. Wraps random_direction3d with the local random seed. */
+void local_random_vector_in_cone3d(float *forward, float zero, float angle,
+                                   float *result)
+{
+  random_direction3d((int *)random_math_get_local_seed_address(), forward, zero,
+                     angle, result);
+}
+
 /* 0x97cd0 — compute random value in a flag-adjusted range.
  * base = range_min (scaled by datum_scale if flag bit set).
  * range = (range_max - range_min) (scaled by datum_scale if next bit set).
@@ -115,6 +153,52 @@ void contrails_initialize(void)
     }
   }
   error(0, "couldn't allocate contrail globals");
+}
+
+/* 0x97db0 — contrail_advance_bitmap_frame. Advances the frame counter for
+ * the contrail's bitmap animation sequence. If the current sequence is
+ * complete or invalid, picks a new random sequence index from the bitmap tag
+ * and resets the frame counter. Also zeroes the render time accumulator
+ * (datum+0x24). ESI = contrail datum pointer. */
+void FUN_00097db0(char *datum /* @<esi> */)
+{
+  char *tag;
+  char *bitmap;
+  int16_t sequence_index;
+  int16_t frame_counter;
+  char *sequences_block;
+  char *seq_element;
+  int16_t seq_min;
+  int16_t seq_max;
+
+  tag = (char *)tag_get(0x636f6e74, *(int *)(datum + 4));
+  bitmap = (char *)tag_get(0x6269746d, *(int *)(tag + 0x3c));
+
+  sequence_index = *(int16_t *)(datum + 0x14);
+  *(int16_t *)(datum + 0x16) = *(int16_t *)(datum + 0x16) + 1;
+  frame_counter = *(int16_t *)(datum + 0x16);
+  *(float *)(datum + 0x24) = 0.0f;
+
+  if (sequence_index < 0)
+    goto pick_random;
+  sequences_block = bitmap + 0x54;
+  if ((int)sequence_index >= *(int *)sequences_block)
+    goto pick_random;
+  if (frame_counter < 0)
+    goto pick_random;
+
+  seq_element = (char *)tag_block_get_element(sequences_block,
+                                              (int)sequence_index, 0x40);
+  frame_counter = *(int16_t *)(datum + 0x16);
+  if (frame_counter < *(int16_t *)(seq_element + 0x22))
+    return;
+
+pick_random:
+  seq_min = *(int16_t *)(tag + 0x40);
+  seq_max = seq_min + *(int16_t *)(tag + 0x42);
+  *(int16_t *)(datum + 0x14) = random_range(
+      random_math_get_local_seed_address(), seq_min, seq_max);
+  *(int16_t *)(datum + 0x16) = 0;
 }
 
 /* 0x97e40 — contrail_add_point.  For each marker on the contrail's attached
@@ -400,16 +484,7 @@ void contrails_update(float delta_time)
           *(float *)(datum + 0x24) += remaining;
           break;
         }
-        /* contrail_add_point takes ESI as a register param in the original
-         * binary. Call the original directly to avoid thunk mismatch. */
-        {
-          char *_esi = datum;
-          asm volatile("movl $0x97db0, %%eax\n\t"
-                       "call *%%eax"
-                       : "+S"(_esi)
-                       :
-                       : "eax", "ecx", "edx", "edi", "memory", "cc");
-        }
+        FUN_00097db0(datum);
         remaining -= step;
       } while (remaining > *(float *)0x2533c0);
     }

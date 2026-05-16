@@ -476,6 +476,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x3cf10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x3cff0": {
       "kind": "function",
       "status": "ported"
@@ -923,6 +927,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x7a750": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x7ab50": {
       "kind": "function",
       "status": "ported"
@@ -931,7 +939,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x7ae70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x7aed0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x7af20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x7afb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x7b020": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x7b0e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x7b470": {
       "kind": "function",
       "status": "ported"
     },
@@ -1300,11 +1332,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x8e190": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x8e2f0": {
       "kind": "function",
       "status": "ported"
     },
     "0x8e370": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8e380": {
       "kind": "function",
       "status": "ported"
     },
@@ -1543,11 +1583,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x978f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x97a50": {
       "kind": "function",
       "status": "ported"
     },
     "0x97c80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x97ca0": {
       "kind": "function",
       "status": "ported"
     },
@@ -1616,6 +1664,10 @@
       "inferred": [
         "Originally inlined from real_math.h around line 0x36f; unprojects 2D point to 3D via plane equation."
       ]
+    },
+    "0x993b0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x99400": {
       "kind": "function",
@@ -4646,6 +4698,10 @@
         "Semantic name is uncertain: could be matrix4x3_angular_delta, matrix_rotation_difference_as_axis_angle, or similar; the name was inferred from the observer caller context."
       ]
     },
+    "0x10ad10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x10b090": {
       "kind": "function",
       "status": "ported"
@@ -4666,6 +4722,10 @@
       ]
     },
     "0x10b130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10b160": {
       "kind": "function",
       "status": "ported"
     },
@@ -4709,6 +4769,14 @@
         "The function returns the result pointer in EAX but is declared void since no known callers use the return value."
       ]
     },
+    "0x10b5c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10b5d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x10b5e0": {
       "kind": "function",
       "status": "ported"
@@ -4724,6 +4792,10 @@
         "The function finds the component with the smallest absolute value and produces a perpendicular vector by zeroing that component and swapping the other two with one negated."
       ]
     },
+    "0x10b6b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x10b6e0": {
       "kind": "function",
       "status": "ported",
@@ -4731,11 +4803,27 @@
         "Rodrigues rotation formula: rotates vector[0..2] around axis[0..2] by angle specified via sin_angle and cos_angle arguments."
       ]
     },
+    "0x10b780": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x10b7d0": {
       "kind": "function",
       "status": "ported"
     },
     "0x10b820": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10b840": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10bb20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10bbc0": {
       "kind": "function",
       "status": "ported"
     },
@@ -4755,6 +4843,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x10cb60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10cb90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x10cc00": {
       "kind": "function",
       "status": "ported"
@@ -4771,6 +4867,38 @@
       "status": "ported"
     },
     "0x10e040": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10eb10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10ed70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10eeb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10efd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10fb20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10fc60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10fd90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x10fed0": {
       "kind": "function",
       "status": "ported"
     },
@@ -4807,6 +4935,10 @@
       "status": "ported"
     },
     "0x1193f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1194a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5656,6 +5788,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1407e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x140ad0": {
       "kind": "function",
       "status": "ported"
@@ -5796,6 +5932,10 @@
       "status": "ported"
     },
     "0x144b30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x144b50": {
       "kind": "function",
       "status": "ported"
     },

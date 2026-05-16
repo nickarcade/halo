@@ -181,6 +181,19 @@ void decals_update_for_new_map(bool full_reset)
   decal_counts_1 = 0;
 }
 
+/* decal_cluster_get_first_index (0x98fe0)
+ *
+ * Returns the first decal datum index for the given cluster and layer.
+ * Validates that cluster_index is in [0, 512) and layer is in [0, 5).
+ * Indexes into the decal_globals array: [layer * 512 + cluster_index]. */
+int FUN_00098fe0(int16_t cluster_index, int16_t layer)
+{
+  assert_halt(cluster_index >= 0 && cluster_index < 0x200);
+  assert_halt(layer >= 0 && layer < 5);
+
+  return *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4);
+}
+
 /* Projection axis remapping table at 0x28cb10. */
 static const int16_t g_projection_axes[6][2] = {
   { 2, 1 }, { 1, 2 }, { 0, 2 }, { 2, 0 }, { 1, 0 }, { 0, 1 },
@@ -234,6 +247,24 @@ void project_point2d(float *point_2d, float *plane, int16_t projection,
   out_point[proj_i] = (plane[3] - plane[(int)axis_a] * point_2d[0] -
                        plane[(int)axis_b] * point_2d[1]) /
                       plane[proj_i];
+}
+
+/* triple_product3d (0x993b0)
+ *
+ * Computes the scalar triple product: dot(cross(p, q), r).
+ * Equivalent to the signed volume of the parallelepiped formed by vectors
+ * p, q, r. Returns a float. */
+float triple_product3d(float *p, float *q, float *r)
+{
+  float cross_x;
+  float cross_y;
+  float cross_z;
+
+  cross_x = p[1] * q[2] - p[2] * q[1];
+  cross_y = p[2] * q[0] - p[0] * q[2];
+  cross_z = p[0] * q[1] - q[0] * p[1];
+
+  return cross_x * r[0] + cross_y * r[1] + cross_z * r[2];
 }
 
 /* plane2d_from_points (0x99400)
@@ -1855,6 +1886,54 @@ void FUN_0009c4b0(int decal_tag_index, void *origin, void *direction,
   }
 }
 
+/* Tail-call thunk to rasterizer decal initialization (FUN_0015abe0). */
+void FUN_0017ca50(void)
+{
+  FUN_0015abe0();
+}
+
+/* Tail-call thunk to rasterizer decal initialization (FUN_0015acc0). */
+void FUN_0017ca60(void)
+{
+  FUN_0015acc0();
+}
+
+/* Tail-call thunk to rasterizer decal setup (FUN_0015a4e0). */
+void FUN_0017ca70(void)
+{
+  FUN_0015a4e0();
+}
+
+/* Tail-call thunk to rasterizer_decals_initialize (FUN_0015b6d0). */
+void FUN_0017ca80(void)
+{
+  rasterizer_decals_initialize();
+}
+
+/* Tail-call thunk to rasterizer_decals_initialize_for_new_map (FUN_0015b190). */
+void FUN_0017caa0(void)
+{
+  rasterizer_decals_initialize_for_new_map();
+}
+
+/* Tail-call thunk to rasterizer_decals_dispose_from_old_map (FUN_0015b1a0). */
+void FUN_0017cab0(void)
+{
+  rasterizer_decals_dispose_from_old_map();
+}
+
+/* Tail-call thunk to rasterizer decal (FUN_0015b1e0). */
+void FUN_0017cac0(void)
+{
+  FUN_0015b1e0();
+}
+
+/* Tail-call thunk to rasterizer_decals_dispose (FUN_0015b7e0). */
+void FUN_0017cad0(void)
+{
+  rasterizer_decals_dispose();
+}
+
 int FUN_0017cae0(uint32_t cache_size)
 {
   return FUN_0015b460(cache_size);
@@ -1873,4 +1952,120 @@ void thunk_FUN_0015b960(void)
 void FUN_0017cb10(int decal_index)
 {
   FUN_0015b530(decal_index);
+}
+
+/* Tail-call thunk to decal rendering pass setup (FUN_0015b970).
+ * pass_index selects the rendering pass type. */
+void FUN_0017cb20(short pass_index)
+{
+  FUN_0015b970(pass_index);
+}
+
+/* Tail-call thunk to per-cluster decal rendering (FUN_0015bc40).
+ * rendered_cluster_data is a pointer to the cluster render data. */
+void FUN_0017cb30(int rendered_cluster_data)
+{
+  FUN_0015bc40(rendered_cluster_data);
+}
+
+/* Tail-call thunk to rasterizer decal geometry (FUN_0015b5e0). */
+void FUN_0017cb40(void)
+{
+  FUN_0015b5e0();
+}
+
+/* Tail-call thunk to rasterizer decal geometry (FUN_0015c6f0). */
+void FUN_0017cb50(void)
+{
+  FUN_0015c6f0();
+}
+
+/* Tail-call thunk to rasterizer decal geometry initialization (FUN_0015c980). */
+void FUN_0017cb60(void)
+{
+  FUN_0015c980();
+}
+
+/* Tail-call thunk to rasterizer decal geometry disposal (FUN_0015cbb0). */
+void FUN_0017cb70(void)
+{
+  FUN_0015cbb0();
+}
+
+/* Tail-call thunk to rasterizer decal geometry (FUN_0015c5f0). */
+void FUN_0017cb80(void)
+{
+  FUN_0015c5f0();
+}
+
+/* Tail-call thunk to rasterizer decal rendering (FUN_00170c90). */
+void FUN_0017cb90(void)
+{
+  FUN_00170c90();
+}
+
+/* Tail-call thunk to dynamic vertex geometry decal flush (FUN_0016bed0). */
+void FUN_0017cbb0(void)
+{
+  FUN_0016bed0();
+}
+
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_0016c5a0). */
+void FUN_0017cbc0(void)
+{
+  FUN_0016c5a0();
+}
+
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_0016c090). */
+void FUN_0017cbd0(void)
+{
+  FUN_0016c090();
+}
+
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00160dc0). */
+void FUN_0017cc10(void)
+{
+  FUN_00160dc0();
+}
+
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00160f50). */
+void FUN_0017cc20(void)
+{
+  FUN_00160f50();
+}
+
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00162560). */
+void FUN_0017cc70(void)
+{
+  FUN_00162560();
+}
+
+/* Tail-call thunk to rasterizer decal rendering (FUN_00172a30). */
+void FUN_0017ccb0(void)
+{
+  FUN_00172a30();
+}
+
+/* Tail-call thunk to rasterizer decal rendering (FUN_00172590). */
+void FUN_0017ccc0(void)
+{
+  FUN_00172590();
+}
+
+/* Tail-call thunk to rasterizer decal rendering (FUN_00172de0). */
+void FUN_0017ccd0(void)
+{
+  FUN_00172de0();
+}
+
+/* Tail-call thunk to rasterizer decal rendering (FUN_00173090). */
+void FUN_0017ccf0(void)
+{
+  FUN_00173090();
+}
+
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00162920). */
+void FUN_0017cd30(void)
+{
+  FUN_00162920();
 }

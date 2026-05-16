@@ -92,6 +92,7 @@ int FUN_0009ec30(int effect_index, int object_handle, int parent_handle,
  *   0x140160  object_set_region_count
  *   0x140230  object_adjust_interpolation_position
  *   0x140420  object_find_in_cluster
+ *   0x1407e0  object_visible_to_any_player
  *   0x140bc0  object_delete_internal
  *   0x140cc0  object_delete
  *   0x140ce0  object_connect_to_map
@@ -2543,6 +2544,157 @@ int object_name_list_get_handle(int16_t index)
 }
 
 /*
+ * object_visible_to_any_player — check if an object is visible to any player.
+ *
+ * Returns true (1) if the object occupies a PVS-visible cluster AND is within
+ * at least one player's field of view (or within the object's bounding sphere
+ * distance from the player's head).
+ *
+ * The algorithm:
+ *   1. Validate the object header flag (bit 0 of unk_2) and object flags
+ *      (must have 0x800 set, must NOT have 0x200000 set).
+ *   2. Iterate the object's clusters; for each, test visibility against the
+ *      combined player PVS bitfield.
+ *   3. If a visible cluster is found, iterate all players:
+ *      a. Compute distance_squared from player head to object center.
+ *      b. If dist_sq < radius_sq (player inside bounding sphere), visible.
+ *      c. Otherwise, compute the half-angle subtended by the bounding sphere
+ *         plus a PI/4 margin, and check if the object direction lies within
+ *         the player's facing cone (dot product vs cos of half-angle).
+ *
+ * Confirmed: cdecl, 1 arg (object_handle at [EBP+8]).
+ * Confirmed: Returns byte in AL (0 or 1).
+ * Confirmed: CALL 0x119320 (datum_get) with object data table (0x5a8d50).
+ * Confirmed: CALL 0x13d680 (object_get_and_verify_type) with mask -1 and 3.
+ * Confirmed: CALL 0xba6c0 (players_get_combined_pvs) with no args.
+ * Confirmed: CALL 0x13fe10 (object_get_first_cluster) with 2 cdecl args.
+ * Confirmed: CALL 0x13d5f0 (object_get_next_cluster) with 2 cdecl args.
+ * Confirmed: CALL 0x1198f0 (data_next_index) with player_data, prev_index.
+ * Confirmed: CALL 0x1a9200 (unit_get_head_position) with unit_handle, &out.
+ * Confirmed: CALL 0x13010 (normalize3d) with delta vector pointer.
+ * Confirmed: PVS bit test pattern: (1 << (cluster & 0x1f)) & pvs[cluster >> 5].
+ * Confirmed: Float at 0x254a58 = PI/4 (0.7854f).
+ * Confirmed: Player unit handle at player_datum + 0x34.
+ * Confirmed: Unit forward vector at unit_obj + 0x1E0 (vector3_t unk_480).
+ * Confirmed: Object position at obj + 0x50 (unk_80/unk_84/unk_88).
+ * Confirmed: Object bounding radius at obj + 0x5C (unk_92).
+ */
+int object_visible_to_any_player(int object_handle)
+{
+  object_header_data_t *header;
+  object_data_t *obj;
+  int *pvs;
+  int16_t cluster_index;
+  char iter_state[16];
+  int player_index;
+  char *player;
+  float radius_sq;
+  float head_pos[3];
+  float dx, dy, dz;
+  float dist_sq;
+  float delta[3];
+  float magnitude;
+  float half_angle;
+  float dot;
+  char *unit_obj;
+  int unit_handle;
+  char result;
+
+  result = 0;
+
+  /* Validate object header and flags */
+  header = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+  obj = (object_data_t *)object_get_and_verify_type(object_handle, -1);
+
+  if (!(header->unk_2 & 1))
+    return result;
+  if (!(obj->flags & 0x800))
+    return result;
+  if (obj->flags & 0x200000)
+    return result;
+
+  /* Get combined PVS and iterate object clusters */
+  pvs = (int *)players_get_combined_pvs();
+  cluster_index = object_get_first_cluster(iter_state, object_handle);
+  if (cluster_index == (int16_t)0xFFFF)
+    return result;
+
+  /* Check each cluster against PVS */
+  for (;;) {
+    int edx = (int)cluster_index;
+    int bit_index = edx & 0x1f;
+    int dword_index = edx >> 5;
+    int bit_mask = 1 << bit_index;
+
+    if (pvs[dword_index] & bit_mask)
+      break;
+
+    cluster_index = object_get_next_cluster(iter_state, object_handle);
+    if (cluster_index == (int16_t)0xFFFF)
+      return result;
+  }
+
+  /* Object is in a visible cluster — check per-player visibility */
+  if (cluster_index == (int16_t)0xFFFF)
+    return result;
+
+  radius_sq = obj->unk_92 * obj->unk_92;
+
+  player_index = data_next_index(*(data_t **)0x5aa6d4, -1);
+  if (player_index == -1)
+    return result;
+
+  while (player_index != -1) {
+    player = (char *)datum_get(*(data_t **)0x5aa6d4, player_index);
+    unit_handle = *(int *)(player + 0x34);
+
+    if (unit_handle == -1)
+      goto next_player;
+
+    /* Get player head position */
+    unit_get_head_position(unit_handle, head_pos);
+
+    /* Distance check: is player head within bounding sphere? */
+    dx = obj->unk_80 - head_pos[0];
+    dy = obj->unk_84 - head_pos[1];
+    dz = obj->unk_88 - head_pos[2];
+    dist_sq = dz * dz + dy * dy + dx * dx;
+
+    if (dist_sq < radius_sq) {
+      result = 1;
+      return result;
+    }
+
+    /* FOV check: is object within player's viewing cone? */
+    unit_obj = (char *)object_get_and_verify_type(unit_handle, 3);
+
+    delta[0] = obj->unk_80 - head_pos[0];
+    delta[1] = obj->unk_84 - head_pos[1];
+    delta[2] = obj->unk_88 - head_pos[2];
+    magnitude = normalize3d(delta);
+
+    /* half_angle = atan2(radius, magnitude) + PI/4 */
+    half_angle = (float)(xbox_atan2((double)obj->unk_92, (double)magnitude)
+                         + (double)0.7853981852531433f);
+
+    /* dot product of normalized delta with unit forward vector */
+    dot = delta[2] * *(float *)(unit_obj + 0x1E8)
+        + delta[1] * *(float *)(unit_obj + 0x1E4)
+        + delta[0] * *(float *)(unit_obj + 0x1E0);
+
+    if (xbox_cosf(half_angle) < dot) {
+      result = 1;
+      return result;
+    }
+
+next_player:
+    player_index = data_next_index(*(data_t **)0x5aa6d4, player_index);
+  }
+
+  return result;
+}
+
+/*
  * object_delete_internal — recursive object deletion implementation.
  *
  * Recursively deletes an object's child chain (obj+0xC8), and optionally
@@ -3301,6 +3453,25 @@ int16_t object_find_in_radius(int flags, unsigned int type_mask,
   return found_count;
 }
 
+/* Type-cast helpers for object_compute_node_matrices — kept at file scope for C89 compliance */
+typedef void (*animation_set_default_fn)(void *model_tag, void *anim_data);
+typedef void (*animation_decode_fn)(void *model_tag, void *anim_entry,
+                                    int frame_index, void *anim_data);
+typedef void (*animation_overlay_keyframe_fn)(
+  void *anim_entry, float frame_value, void *anim_data);
+typedef void (*animation_overlay_interpolate_fn)(
+  void *anim_entry, int frame_index, void *anim_data, void *node_data);
+typedef void (*overlay_adjust_fn)(int object_handle, void *anim_data);
+typedef void (*anim_interpolate_fn)(uint16_t node_count, void *interp_data,
+                                    void *anim_data, int16_t frame_index,
+                                    int16_t frame_count);
+typedef int (*valid_real_vectors_fn)(float *fwd, float *left, float *up);
+typedef int (*valid_real_matrix4x3_fn)(float *m);
+typedef int (*valid_fwd_and_up_fn)(float *fwd, float *up);
+typedef void (*matrix_4x3_multiply_fn)(float *a, float *b, float *out);
+typedef void (*matrix_4x3_from_point_fn)(float *out, float *point);
+typedef void (*model_node_set_default_fn)(float *out, void *anim_data);
+
 /*
  * object_compute_node_matrices — compute the full node matrix hierarchy for an
  * object, transforming each node from local (animation) space into world space.
@@ -3345,39 +3516,25 @@ void object_compute_node_matrices(int object_handle)
   /* MSVC original: SUB ESP,0xa44. Pad to match so unported callees that
      read from overlapping MSVC stack offsets see valid memory. */
   volatile char _msvc_frame_pad[92];
+  object_data_t *obj;
+  void *object_tag;
+  float *node_matrices;
+  uint8_t obj_type_byte;
+  int cannot_interpolate;
+  void *anim_data;
+  char anim_data_stack[2048];
+
   (void)_msvc_frame_pad;
 
-  /* Type-cast helpers for unported callees */
-  typedef void (*animation_set_default_fn)(void *model_tag, void *anim_data);
-  typedef void (*animation_decode_fn)(void *model_tag, void *anim_entry,
-                                      int frame_index, void *anim_data);
-  typedef void (*animation_overlay_keyframe_fn)(
-    void *anim_entry, float frame_value, void *anim_data);
-  typedef void (*animation_overlay_interpolate_fn)(
-    void *anim_entry, int frame_index, void *anim_data, void *node_data);
-  typedef void (*overlay_adjust_fn)(int object_handle, void *anim_data);
-  typedef void (*anim_interpolate_fn)(uint16_t node_count, void *interp_data,
-                                      void *anim_data, int16_t frame_index,
-                                      int16_t frame_count);
-  typedef int (*valid_real_vectors_fn)(float *fwd, float *left, float *up);
-  typedef int (*valid_real_matrix4x3_fn)(float *m);
-  typedef int (*valid_fwd_and_up_fn)(float *fwd, float *up);
-  typedef void (*matrix_4x3_multiply_fn)(float *a, float *b, float *out);
-  typedef void (*matrix_4x3_from_point_fn)(float *out, float *point);
-  typedef void (*model_node_set_default_fn)(float *out, void *anim_data);
-
-  object_data_t *obj =
-    (object_data_t *)object_get_and_verify_type(object_handle, -1);
-  void *object_tag = tag_get(0x6f626a65, *(int *)obj);
-  float *node_matrices = (float *)object_header_block_reference_get(
+  obj = (object_data_t *)object_get_and_verify_type(object_handle, -1);
+  object_tag = tag_get(0x6f626a65, *(int *)obj);
+  node_matrices = (float *)object_header_block_reference_get(
     object_handle, (void *)((char *)obj + 0x1a0));
 
   /* Objects with type bits 5..11 set cannot interpolate and use a stack
    * buffer for animation data; others use the block reference at +0x19c. */
-  uint8_t obj_type_byte = *(uint8_t *)((char *)obj + 0x64);
-  int cannot_interpolate = ((1 << (obj_type_byte & 0x1f)) & 0xfe0u) != 0;
-  void *anim_data;
-  char anim_data_stack[2048];
+  obj_type_byte = *(uint8_t *)((char *)obj + 0x64);
+  cannot_interpolate = ((1 << (obj_type_byte & 0x1f)) & 0xfe0u) != 0;
 
   if (cannot_interpolate) {
     anim_data = anim_data_stack;
@@ -5192,6 +5349,292 @@ void objects_garbage_collection(int object_handle)
 {
   object_delete_internal(object_handle, 0);
   object_delete_recursive(object_handle, 0);
+}
+
+/*
+ * objects_garbage_collect_tick — per-tick garbage collection pass.
+ *
+ * Runs each game tick from objects_update. Determines memory pressure level,
+ * walks the garbage object list, deletes objects not visible to any player,
+ * compacts the memory pool, and runs AI release callbacks when critical.
+ *
+ * Three GC levels: 0=forced (external flag), 1=mild (headroom low),
+ * 2=critical (memory or slots exhausted). Callback table at 0x29b868 has
+ * two AI release entries (swarms and encounters) plus a NULL terminator.
+ *
+ * Confirmed: void(void) cdecl, _chkstk for 0x2814 bytes of stack.
+ * Confirmed: globals at 0x46f080 (pool), 0x46f084 (object_globals),
+ *   0x5a8d50 (object_header_data), 0x5a8d4c (debug flag).
+ * Confirmed: thresholds 0xcccc, 0x19999, 0x6666, 0x67, 0xCC, 0x32, 0x1E, 150.
+ * Confirmed: three deletion calls in sequence: set_garbage_flag, delete_internal,
+ *   delete_recursive — all with (handle, 0).
+ * Confirmed: callback table 2 entries: {NULL, 0x3fa40}, {0x3fb40, 0x3fc90}.
+ * Confirmed: FILD + FMUL 100.0f + FMUL (1/1048576.0f) for percentage calc.
+ */
+/* 0x144b50 */
+void objects_garbage_collect_tick(void)
+{
+  typedef struct {
+    void (*init)(void *working_mem, uint16_t mem_size);
+    int (*iterate)(char *result_desc, char *more_to_release, void *working_mem, uint16_t mem_size);
+  } gc_callback_entry_t;
+
+  int garbage_handles[2048];
+  char gc_working_mem[4096];
+  char result_buf[512];
+  char message_buf[512];
+  char critical_buf[512];
+  char status_buf[476];
+  int gc_level_wide;
+  int16_t garbage_object_count;
+  int16_t gc_level;
+  char did_callbacks;
+  char timed_out;
+  char init_called;
+  char more_to_release;
+  char should_delete;
+
+  void *pool;
+  object_globals_t *og;
+  data_t *data;
+  int contiguous_free;
+  int free_size;
+  int handle;
+  int slots_free;
+  object_header_data_t *hdr;
+  object_data_t *obj;
+  int16_t type;
+  gc_callback_entry_t *callbacks;
+  gc_callback_entry_t *entry;
+  int previously_critical;
+
+  pool = *(void **)0x46f080;
+  og = object_globals;
+  data = *(data_t **)0x5a8d50;
+  callbacks = (gc_callback_entry_t *)0x29b868;
+
+  /* Phase 1: determine GC level */
+  if (og->garbage_collect_now) {
+    gc_level = 0;
+  } else {
+    contiguous_free = memory_pool_get_contiguous_free_size(pool);
+    if (contiguous_free <= (int)0xcccc) {
+      memory_pool_compact(pool);
+      contiguous_free = memory_pool_get_contiguous_free_size(pool);
+      if (contiguous_free > (int)0x19999) {
+        og->garbage_collect_now = 0;
+        return;
+      }
+      gc_level = 2;
+    } else if ((int16_t)(0x800 - *(int16_t *)((char *)data + 0x30)) < 0x67) {
+      gc_level = 2;
+    } else {
+      if (og->unk_4 < 0x32)
+        return;
+      gc_level = 1;
+    }
+  }
+
+  /* Phase 2: debug output */
+  if (*(char *)0x5a8d4c) {
+    contiguous_free = memory_pool_get_contiguous_free_size(pool);
+    console_printf(0, "#%d objects using 0x%x bytes (0x%x contiguous free)",
+      (int)*(int16_t *)((char *)data + 0x2e),
+      (int)memory_pool_get_free_size(pool),
+      contiguous_free);
+  }
+
+  /* Phase 3: build garbage object list */
+  garbage_object_count = 0;
+  handle = og->unk_8.value;
+  while (handle != -1) {
+    hdr = (object_header_data_t *)datum_get(data, handle);
+    obj = hdr->object;
+    type = obj->type;
+    if ((1 << (type & 0x1f)) == 0) {
+      display_assert(
+        csprintf((char *)0x5ab100,
+          "got an object type we didn't expect (expected one of 0x%08x but got #%d).",
+          -1, (int)type),
+        "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+      system_exit(-1);
+    }
+    garbage_handles[garbage_object_count] = handle;
+    garbage_object_count++;
+    if (!(garbage_object_count < 2048)) {
+      display_assert("garbage_object_count<MAXIMUM_OBJECTS_PER_MAP",
+        "c:\\halo\\SOURCE\\objects\\objects.c", 0x10c1, 1);
+      system_exit(-1);
+    }
+    handle = (int)obj->unk_192;
+  }
+
+  /* Phase 4: decide whether to delete */
+  gc_level_wide = (int)gc_level;
+  should_delete = 0;
+  switch (gc_level_wide) {
+  case 0:
+    should_delete = 0;
+    break;
+  case 1:
+    should_delete = (og->unk_4 <= 30) ? 0 : 1;
+    break;
+  case 2:
+    free_size = memory_pool_get_free_size(pool);
+    if (free_size < (int)0x19999 ||
+        (int16_t)(0x800 - *(int16_t *)((char *)data + 0x2e)) < (int16_t)0xcc) {
+      should_delete = 0;
+    } else {
+      should_delete = 1;
+      goto compact_and_callbacks;
+    }
+    break;
+  default:
+    display_assert("unreachable",
+      "c:\\halo\\SOURCE\\objects\\objects.c", 0x10da, 1);
+    system_exit(-1);
+    break;
+  }
+
+  /* Phase 5: pop objects from list and attempt deletion */
+  while (should_delete == 0 && garbage_object_count > 0) {
+    garbage_object_count--;
+    handle = garbage_handles[garbage_object_count];
+    hdr = (object_header_data_t *)datum_get(data, handle);
+    obj = hdr->object;
+
+    if (gc_level == 1 && !(hdr->unk_2 & 1))
+      continue;
+
+    if (!object_visible_to_any_player(handle)) {
+      type = obj->type;
+      if ((1 << (type & 0x1f)) == 0) {
+        display_assert(
+          csprintf((char *)0x5ab100,
+            "got an object type we didn't expect (expected one of 0x%08x but got #%d).",
+            -1, (int)type),
+          "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+        system_exit(-1);
+      }
+      if ((type & 3) <= 1) {
+        if (obj->unk_182 & 4) {
+          ai_debug_describe_actor(-1, handle, 0, (char *)0x5ab100, 256);
+          error(2, "garbage collecting living unit: %s", (char *)0x5ab100);
+        }
+      }
+      if (hdr->unk_2 & 1)
+        og->unk_4--;
+      object_set_garbage_flag(handle, 0);
+      object_delete_internal(handle, 0);
+      object_delete_recursive(handle, 0);
+      should_delete = 1;
+    }
+  }
+
+compact_and_callbacks:
+  /* Phase 6: compact and run GC callbacks */
+  memory_pool_compact(pool);
+
+  if (*(char *)0x5a8d4c) {
+    contiguous_free = memory_pool_get_contiguous_free_size(pool);
+    console_printf(0, "compacted to #%d with 0x%x contiguous bytes free",
+      (int)*(int16_t *)((char *)data + 0x2e), contiguous_free);
+  }
+
+  if (should_delete) {
+    og->garbage_collect_now = 0;
+    return;
+  }
+
+  /* Determine timeout */
+  timed_out = 0;
+  if (og->last_garbage_collection_tick != (uint32_t)-1) {
+    if (game_time_get() > (int)(og->last_garbage_collection_tick + 150))
+      timed_out = 1;
+  } else {
+    timed_out = 1;
+  }
+
+  did_callbacks = 0;
+  previously_critical = 0;
+  entry = &callbacks[0];
+  init_called = 0;
+
+  /* Outer loop: check pressure and run callbacks */
+  for (;;) {
+    int is_critical;
+    contiguous_free = memory_pool_get_contiguous_free_size(pool);
+    slots_free = (int16_t)(0x800 - *(int16_t *)((char *)data + 0x2e));
+
+    is_critical = 0;
+    if (gc_level == 2) {
+      if (contiguous_free < (int)0x6666 || slots_free < 0x33) {
+        is_critical = 1;
+        crt_sprintf(status_buf, "%.2f%% memory free, %d object slots free",
+          (double)((float)contiguous_free * 100.0f * (1.0f / 1048576.0f)),
+          slots_free);
+      }
+    }
+
+    if (!is_critical && !previously_critical) {
+      if (did_callbacks)
+        goto finalize;
+      if (timed_out) {
+        if (contiguous_free < (int)0x6666 || slots_free < 0x33) {
+          crt_sprintf(status_buf, "%.2f%% memory free, %d object slots free",
+            (double)((float)contiguous_free * 100.0f * (1.0f / 1048576.0f)),
+            slots_free);
+          error(2, "garbage collection warning (%s)", status_buf);
+        }
+      }
+      og->garbage_collect_now = 0;
+      return;
+    }
+
+    /* Critical path */
+    if (is_critical) {
+      crt_sprintf(critical_buf, "garbage collection %scritical (%s)",
+        previously_critical ? "" : "now ", status_buf);
+    } else {
+      crt_sprintf(critical_buf, "garbage collection %scritical (%s)",
+        "no longer ", status_buf);
+    }
+    console_printf(0, "%s", critical_buf);
+    error(3, "%s", critical_buf);
+    did_callbacks = 1;
+
+    if (is_critical && entry->iterate != NULL) {
+      /* Inner loop: run callbacks */
+      for (;;) {
+        if (!init_called && entry->init != NULL) {
+          entry->init(gc_working_mem, 0x1000);
+          init_called = 1;
+        }
+        more_to_release = 0;
+        if (entry->iterate(result_buf, &more_to_release, gc_working_mem, 0x1000)) {
+          crt_sprintf(message_buf, "removing objects: %s", result_buf);
+          console_printf(0, "%s", message_buf);
+          error(3, "%s", message_buf);
+          break;
+        }
+        if (!more_to_release) {
+          entry++;
+          init_called = 0;
+          if (entry->iterate == NULL)
+            goto finalize;
+        }
+      }
+    } else {
+      goto finalize;
+    }
+
+    previously_critical = 1;
+    memory_pool_compact(pool);
+  }
+
+finalize:
+  og->last_garbage_collection_tick = (uint32_t)game_time_get();
+  og->garbage_collect_now = 0;
 }
 
 /*
