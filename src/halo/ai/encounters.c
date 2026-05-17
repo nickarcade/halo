@@ -78,6 +78,1244 @@ char *FUN_00054020(char *encounter, short platoon_index)
   return *(char **)0x5ab274 + (int)platoon_absolute_index * 0x10;
 }
 
+/*
+ * FUN_00056320 — migrate AI from one encounter to another (ai_migrate).
+ *
+ * If either debug trace flag (0x5aca57 = ai_trace_detail or 0x5aca59 =
+ * ai_trace) is set, logs the migration via:
+ *   "[thread]: ai_migrate [encounter1_name] [encounter2_name]"
+ * using FUN_00054220 to format each encounter handle into a name buffer via
+ * global_scenario_get(), then hs_runtime_get_executing_thread_name() for the
+ * thread prefix. The two buffers (local_404, local_204) are pre-pushed before
+ * hs_runtime_get_executing_thread_name to match MSVC's argument batching.
+ *
+ * Finally calls FUN_00055dd0(encounter_handle_1@<eax>, encounter_handle_2, 0,
+ * 0) to perform the actual migration.
+ *
+ * 0x56320 / encounters.obj
+ */
+void FUN_00056320(int encounter_handle_1, int encounter_handle_2)
+{
+  char local_404[512];
+  char local_204[512];
+  scenario_t *uVar1;
+
+  if (*(char *)0x5aca57 || *(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(encounter_handle_1, uVar1, local_404, 0x200);
+    uVar1 = global_scenario_get();
+    FUN_00054220(encounter_handle_2, uVar1, local_204, 0x200);
+    error(2, "%s: ai_migrate %s %s", hs_runtime_get_executing_thread_name(),
+          local_404, local_204);
+  }
+  FUN_00055dd0(encounter_handle_1, encounter_handle_2, 0, 0);
+}
+
+/*
+ * FUN_000563c0 — set squad/actor-variant for an actor given an encounter.
+ *
+ * Verifies the actor object (type mask 3), retrieves its primary actor handle
+ * from [+0x1a4] (fallback [+0x1a8]), then looks up the actor's squad and
+ * variant tags. Calls FUN_000559a0 to find the best matching squad index
+ * given the encounter_handle. If a valid squad is found and conditions allow,
+ * updates the actor's squad assignment via FUN_0003baa0, and if do_migrate is
+ * set, migrates the actor via FUN_00036dc0.
+ *
+ * actor_datum@<eax>: actor object datum handle.
+ *
+ * 0x563c0 / encounters.obj
+ */
+void FUN_000563c0(int actor_datum, unsigned int encounter_handle,
+                  char do_migrate, int param_3)
+{
+  char *obj;
+  int iVar4;
+  void *actr_tag;
+  void *actv_tag;
+  char *aptr;
+  char cVar5;
+  int16_t squad_result;
+
+  obj = (char *)object_get_and_verify_type(actor_datum, 3);
+  iVar4 = *(int *)(obj + 0x1a4);
+  if (iVar4 == -1)
+    iVar4 = *(int *)(obj + 0x1a8);
+  if (iVar4 == -1 || encounter_handle == 0xffffffff)
+    return;
+
+  aptr = (char *)datum_get(actor_data, iVar4);
+  actr_tag = tag_get(0x61637472, *(int *)(aptr + 0x58));
+  actv_tag = tag_get(0x61637476, *(int *)(aptr + 0x5c));
+  cVar5 =
+    (char)(((*(unsigned int *)(aptr + 0x34) ^ (encounter_handle & 0xffff)) &
+            0xffff) == 0 ?
+             1 :
+             0);
+
+  squad_result = FUN_000559a0(encounter_handle, *(int *)(aptr + 0x34),
+                              *(int16_t *)(aptr + 0x3a), actr_tag, actv_tag,
+                              cVar5, (const void *)0x25c8ec);
+  if (squad_result == (int16_t)-1)
+    return;
+
+  if (cVar5 == 0 || squad_result != *(int16_t *)(aptr + 0x3a)) {
+    FUN_0003baa0(iVar4, (int16_t)(encounter_handle & 0xffff), squad_result);
+    if (do_migrate != 0)
+      FUN_00036dc0(iVar4, param_3, 0);
+  }
+}
+
+/*
+ * FUN_00056790 — debug-logged wrapper for game_allegiance_remove.
+ *
+ * If AI trace flag (0x5aca59) is set, logs the removal using the MSVC
+ * pre-push optimization (team_a/team_b pushed before thread_name call).
+ * If both params are not -1, calls game_allegiance_remove.
+ *
+ * 0x56790 / encounters.obj
+ */
+void FUN_00056790(int16_t param_1, int16_t param_2)
+{
+  if (*(char *)0x5aca59) {
+    error(2, "%s: ai_allegiance_remove %d %d",
+          hs_runtime_get_executing_thread_name(), (int)param_1, (int)param_2);
+  }
+  if (param_1 != (int16_t)-1 && param_2 != (int16_t)-1)
+    game_allegiance_remove(param_1, param_2);
+}
+
+/*
+ * FUN_000567e0 — check that two teams are both allied and friendly.
+ * Returns true iff param_1 != -1 AND param_2 != -1 AND game_team_is_ally
+ * AND game_allegiance_get_team_is_friendly both return true.
+ * 0x567e0 / encounters.obj
+ */
+bool FUN_000567e0(int16_t param_1, int16_t param_2)
+{
+  if (param_1 != (int16_t)-1 && param_2 != (int16_t)-1 &&
+      game_team_is_ally(param_1, param_2) &&
+      game_allegiance_get_team_is_friendly(param_1, param_2))
+    return 1;
+  return 0;
+}
+
+/*
+ * FUN_00056880 — count actors in encounters with squad_type==9 and the
+ * given actor handle. Iterates all encounters with flag=1, checks each
+ * actor's field_0x6c (squad type) and field_0x9c (actor handle).
+ * Returns the count of matching actors.
+ *
+ * 0x56880 / encounters.obj
+ */
+short FUN_00056880(int param_1)
+{
+  char local_20[28];
+  int iVar1;
+  short sVar2;
+
+  sVar2 = 0;
+  encounter_iterator_next(local_20, 1);
+  iVar1 = FUN_00059b50(local_20);
+  while (iVar1 != 0) {
+    if (*(short *)((char *)iVar1 + 0x6c) == 9 &&
+        *(int *)((char *)iVar1 + 0x9c) == param_1)
+      sVar2 = (short)(sVar2 + 1);
+    iVar1 = FUN_00059b50(local_20);
+  }
+  return sVar2;
+}
+
+/*
+ * FUN_000568e0 — make all actors in an encounter exit their vehicles.
+ *
+ * If AI trace (0x5aca59) is set, logs via pre-push pattern:
+ *   "[thread]: ai_exit_vehicle [encounter_name]"
+ * Then iterates actors in the encounter via FUN_00054680/FUN_00054750.
+ * For each actor whose field_0x158 != -1 and unit handle (field_0x18) != -1,
+ * calls unit_try_and_exit_seat on the unit handle.
+ *
+ * 0x568e0 / encounters.obj
+ */
+void FUN_000568e0(int param_1)
+{
+  char local_11c[256];
+  char local_1c[24];
+  void *uVar1;
+  int iVar2;
+  int unit_handle;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_11c, 0x100);
+    error(2, "%s: ai_exit_vehicle %s", hs_runtime_get_executing_thread_name(),
+          local_11c);
+  }
+  FUN_00054680(param_1, local_1c);
+  iVar2 = FUN_00054750(local_1c);
+  while (iVar2 != 0) {
+    if (*(int *)((char *)iVar2 + 0x158) != -1) {
+      unit_handle = *(int *)((char *)iVar2 + 0x18);
+      if (unit_handle != -1)
+        unit_try_and_exit_seat(unit_handle);
+    }
+    iVar2 = FUN_00054750(local_1c);
+  }
+}
+
+/*
+ * FUN_00056980 — set braindead state for all actors in an encounter.
+ *
+ * If AI trace (0x5aca59) is set, logs via pre-push pattern:
+ *   "[thread]: ai_braindead [encounter_name] [true|false]"
+ * If param_1 != -1, iterates actors via FUN_00054680/FUN_00054750 and
+ * calls actor_braindead(actor_handle, param_2) for each actor. The actor
+ * handle is at local_1c+0x10 (offset 0x10 into the iterator state).
+ * param_2 = 0 means un-braindead; non-zero means braindead.
+ *
+ * 0x56980 / encounters.obj
+ */
+void FUN_00056980(int param_1, char param_2)
+{
+  char local_11c[256];
+  char local_1c[24];
+  void *uVar1;
+  int iVar3;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_11c, 0x100);
+    error(2, "%s: ai_braindead %s %s", hs_runtime_get_executing_thread_name(),
+          local_11c, param_2 ? (void *)0x25c530 : (void *)0x25c52c);
+  }
+  if (param_1 != -1) {
+    FUN_00054680(param_1, local_1c);
+    iVar3 = FUN_00054750(local_1c);
+    while (iVar3 != 0) {
+      actor_braindead(*(int *)(local_1c + 0x10), param_2);
+      iVar3 = FUN_00054750(local_1c);
+    }
+  }
+}
+
+/*
+ * FUN_00056a20 — ai_braindead_by_unit: set braindead on actors for units.
+ * Iterates units via FUN_000ce450/FUN_000ce320 (using local_8 as 4-byte state).
+ * For each biped/vehicle (type mask 3), sets braindead on the primary actor
+ * (field_0x1a4 or fallback 0x1a8). Then iterates child objects via sibling
+ * links (first child at object+0xc8, next sibling at object+0xc4), and for
+ * each biped/vehicle child also sets braindead.
+ * Logs "[thread]: ai_braindead_by_unit <some units> [true|false]" if trace on.
+ * 0x56a20 / encounters.obj
+ */
+void FUN_00056a20(int param_1, char param_2)
+{
+  int local_8;
+  int iVar1;
+  int iVar4;
+
+  iVar1 = FUN_000ce450(param_1, &local_8);
+  if (*(char *)0x5aca59) {
+    error(2, "%s: ai_braindead_by_unit <some units> %s",
+          hs_runtime_get_executing_thread_name(),
+          param_2 ? (const char *)0x25c530 : (const char *)0x25c52c);
+  }
+  while (iVar1 != -1) {
+    iVar1 = (int)object_try_and_get_and_verify_type(iVar1, 3);
+    if (iVar1 != 0) {
+      iVar4 = *(int *)((char *)iVar1 + 0x1a4);
+      if (iVar4 == -1)
+        iVar4 = *(int *)((char *)iVar1 + 0x1a8);
+      if (iVar4 != -1)
+        actor_braindead(iVar4, param_2);
+      for (iVar1 = *(int *)((char *)iVar1 + 0xc8); iVar1 != -1;
+           iVar1 = *(int *)((char *)iVar1 + 0xc4)) {
+        iVar1 = (int)object_get_and_verify_type(iVar1, -1);
+        if ((1 << (*(unsigned char *)((char *)iVar1 + 0x64) & 0x1f) & 3u) !=
+            0) {
+          iVar4 = *(int *)((char *)iVar1 + 0x1a4);
+          if (iVar4 == -1)
+            iVar4 = *(int *)((char *)iVar1 + 0x1a8);
+          if (iVar4 != -1)
+            actor_braindead(iVar4, param_2);
+        }
+      }
+    }
+    iVar1 = FUN_000ce320(param_1, &local_8);
+  }
+}
+
+/*
+ * FUN_00056b20 — set/clear the ai_disregard bit (0x400) on actors by unit.
+ * Iterates units in the encounter via FUN_000ce450/FUN_000ce320.
+ * For each biped/vehicle (type mask 3), sets or clears field_0x1b4 bit 0x400.
+ * param_2 != 0: set (disregard on); param_2 == 0: clear (disregard off).
+ * Logs "[thread]: ai_disregard <some guys> [true|false]" if trace is on.
+ * 0x56b20 / encounters.obj
+ */
+void FUN_00056b20(int param_1, char param_2)
+{
+  int local_8;
+  int iVar1;
+  const void *puVar2;
+
+  iVar1 = FUN_000ce450(param_1, &local_8);
+  if (*(char *)0x5aca59) {
+    puVar2 = param_2 ? (const void *)0x25c530 : (const void *)0x25c52c;
+    error(2, "%s: ai_disregard <some guys> %s",
+          hs_runtime_get_executing_thread_name(), puVar2);
+  }
+  while (iVar1 != -1) {
+    iVar1 = (int)object_try_and_get_and_verify_type(iVar1, 3);
+    if (iVar1 != 0) {
+      if (param_2 == '\0')
+        *(unsigned int *)((char *)iVar1 + 0x1b4) &= ~0x400u;
+      else
+        *(unsigned int *)((char *)iVar1 + 0x1b4) |= 0x400u;
+    }
+    iVar1 = FUN_000ce320(param_1, &local_8);
+  }
+}
+
+/*
+ * FUN_00056bc0 — set/clear the ai_prefer_target bit (0x800) on actors by unit.
+ * Identical to FUN_00056b20 but uses bit 0x800 instead of 0x400.
+ * Logs "[thread]: ai_prefer_target <some guys> [true|false]" if trace is on.
+ * 0x56bc0 / encounters.obj
+ */
+void FUN_00056bc0(int param_1, char param_2)
+{
+  int local_8;
+  int iVar1;
+  const void *puVar2;
+
+  iVar1 = FUN_000ce450(param_1, &local_8);
+  if (*(char *)0x5aca59) {
+    puVar2 = param_2 ? (const void *)0x25c530 : (const void *)0x25c52c;
+    error(2, "%s: ai_prefer_target <some guys> %s",
+          hs_runtime_get_executing_thread_name(), puVar2);
+  }
+  while (iVar1 != -1) {
+    iVar1 = (int)object_try_and_get_and_verify_type(iVar1, 3);
+    if (iVar1 != 0) {
+      if (param_2 == '\0')
+        *(unsigned int *)((char *)iVar1 + 0x1b4) &= ~0x800u;
+      else
+        *(unsigned int *)((char *)iVar1 + 0x1b4) |= 0x800u;
+    }
+    iVar1 = FUN_000ce320(param_1, &local_8);
+  }
+}
+
+/*
+ * FUN_00056c60 — teleport actors in an encounter to their starting locations.
+ *
+ * Iterates encounter actors. For each actor with a unit (field_0x18) and
+ * a valid encounter handle (field_0x34):
+ *   - If param_2 != 0 (if_unsupported mode): only teleport if the actor
+ *     is not in a vehicle (field_0x158 == -1) AND has no surface contact
+ *     (biped_approximate_surface_index returns -1).
+ *   - Looks up the actor's squad starting location via tag_block_get_element
+ *     chains, selects the first starting location via FUN_0005B790, then:
+ *     vector3d_from_angle → object_set_position → object_reset → FUN_0002f1a0.
+ *
+ * encounter_handle@<ecx>; local_28[16]=iterator, local_28+0x10=actor handle.
+ *
+ * 0x56c60 / encounters.obj
+ */
+void FUN_00056c60(int encounter_handle, char param_2)
+{
+  char local_28[16]; /* iterator state; local_28+0x10 = actor handle */
+  char local_10[12]; /* output buffer for vector3d_from_angle */
+  int iVar2;
+  int iVar3;
+  short sVar1;
+
+  FUN_00054680(encounter_handle, local_28);
+  iVar2 = FUN_00054750(local_28);
+  while (iVar2 != 0) {
+    if (*(int *)((char *)iVar2 + 0x18) != -1) {
+      if (param_2 != '\0') {
+        if (*(int *)((char *)iVar2 + 0x158) != -1 ||
+            biped_approximate_surface_index(*(int *)((char *)iVar2 + 0x18),
+                                            0) != -1)
+          goto next;
+      }
+      if (*(int *)((char *)iVar2 + 0x34) != -1) {
+        iVar3 = (int)global_scenario_get();
+        iVar3 = (int)tag_block_get_element(
+          (char *)iVar3 + 0x42c, *(int *)((char *)iVar2 + 0x34) & 0xffff, 0xb0);
+        iVar3 = (int)tag_block_get_element(
+          (char *)iVar3 + 0x80, (int)*(short *)((char *)iVar2 + 0x3a), 0xe8);
+        sVar1 = FUN_0005B790(*(int *)((char *)iVar2 + 0x34),
+                             (int)*(short *)((char *)iVar2 + 0x3a), 1);
+        if (sVar1 != (short)-1) {
+          iVar3 =
+            (int)tag_block_get_element((char *)iVar3 + 0xd0, (int)sVar1, 0x1c);
+          vector3d_from_angle((float *)local_10,
+                              *(float *)((char *)iVar3 + 0xc));
+          object_set_position(*(int *)((char *)iVar2 + 0x18), (float *)iVar3,
+                              (float *)local_10, 0);
+          object_reset(*(int *)((char *)iVar2 + 0x18));
+          FUN_0002f1a0(*(int *)(local_28 + 0x10));
+        }
+      }
+    }
+  next:
+    iVar2 = FUN_00054750(local_28);
+  }
+}
+
+/*
+ * FUN_00056d80 — teleport actors to starting location if unsupported.
+ * Logs "[thread]: ai_teleport_starting_location_if_unsupported [encounter]"
+ * then calls FUN_00056c60(param_1, 1) — which checks if_unsupported=true.
+ * 0x56d80 / encounters.obj
+ */
+void FUN_00056d80(int param_1)
+{
+  char local_104[256];
+  void *uVar1;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_104, 0x100);
+    error(2, "%s: ai_teleport_starting_location_if_unsupported %s",
+          hs_runtime_get_executing_thread_name(), local_104);
+  }
+  FUN_00056c60(param_1, 1);
+}
+
+/*
+ * FUN_00056de0 — unconditionally teleport actors to starting location.
+ * Logs "[thread]: ai_teleport_starting_location [encounter]"
+ * then calls FUN_00056c60(param_1, 0) — which teleports all=true.
+ * 0x56de0 / encounters.obj
+ */
+void FUN_00056de0(int param_1)
+{
+  char local_104[256];
+  void *uVar1;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_104, 0x100);
+    error(2, "%s: ai_teleport_starting_location %s",
+          hs_runtime_get_executing_thread_name(), local_104);
+  }
+  FUN_00056c60(param_1, 0);
+}
+
+/*
+ * FUN_00056e40 — clear the target-selection field (0x1d4) for all actors.
+ * Logs "[thread]: ai_try_to_fight_nothing [encounter]", then iterates
+ * encounter actors and clears field_0x1d4 (short) to 0.
+ * 0x56e40 / encounters.obj
+ */
+void FUN_00056e40(int param_1)
+{
+  char local_11c[256];
+  char local_1c[24];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_11c, 0x100);
+    error(2, "%s: ai_try_to_fight_nothing %s",
+          hs_runtime_get_executing_thread_name(), local_11c);
+  }
+  FUN_00054680(param_1, local_1c);
+  iVar2 = FUN_00054750(local_1c);
+  while (iVar2 != 0) {
+    *(short *)((char *)iVar2 + 0x1d4) = 0;
+    iVar2 = FUN_00054750(local_1c);
+  }
+}
+
+/*
+ * FUN_00056ed0 — set all actors to target a given encounter (ai_try_to_fight).
+ * Logs "[thread]: ai_try_to_fight [enc1] [enc2]", then iterates encounter
+ * actors in param_1 and sets field_0x1d4=1, field_0x1d8=param_2.
+ * 0x56ed0 / encounters.obj
+ */
+void FUN_00056ed0(int param_1, int param_2)
+{
+  char local_21c[256];
+  char local_11c[256];
+  char local_1c[24];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_21c, 0x100);
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_2, uVar1, local_11c, 0x100);
+    error(2, "%s: ai_try_to_fight %s %s",
+          hs_runtime_get_executing_thread_name(), local_21c, local_11c);
+  }
+  FUN_00054680(param_1, local_1c);
+  iVar2 = FUN_00054750(local_1c);
+  while (iVar2 != 0) {
+    *(short *)((char *)iVar2 + 0x1d4) = 1;
+    *(int *)((char *)iVar2 + 0x1d8) = param_2;
+    iVar2 = FUN_00054750(local_1c);
+  }
+}
+
+/*
+ * FUN_00056fa0 — set target-selection field to 2 (ai_try_to_fight_player).
+ * Logs "[thread]: ai_try_to_fight_player [encounter]", then iterates
+ * encounter actors and sets field_0x1d4 (short) to 2.
+ * 0x56fa0 / encounters.obj
+ */
+void FUN_00056fa0(int param_1)
+{
+  char local_11c[256];
+  char local_1c[24];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_11c, 0x100);
+    error(2, "%s: ai_try_to_fight_player %s",
+          hs_runtime_get_executing_thread_name(), local_11c);
+  }
+  FUN_00054680(param_1, local_1c);
+  iVar2 = FUN_00054750(local_1c);
+  while (iVar2 != 0) {
+    *(short *)((char *)iVar2 + 0x1d4) = 2;
+    iVar2 = FUN_00054750(local_1c);
+  }
+}
+
+/*
+ * FUN_00057030 — enable or disable charge for all actors in an encounter.
+ * Logs "[thread]: ai_allow_charge [encounter] [true|false]", then sets
+ * field_0x1cb (bool) in each actor to (param_2 == 0) — i.e., 1 when
+ * charge is being disallowed, 0 when it is being allowed.
+ * 0x57030 / encounters.obj
+ */
+void FUN_00057030(int param_1, char param_2)
+{
+  char local_11c[256];
+  char local_1c[24];
+  void *uVar1;
+  int iVar3;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_11c, 0x100);
+    error(2, "%s: ai_allow_charge %s %s",
+          hs_runtime_get_executing_thread_name(), local_11c,
+          param_2 ? (const char *)0x25c530 : (const char *)0x25c52c);
+  }
+  FUN_00054680(param_1, local_1c);
+  iVar3 = FUN_00054750(local_1c);
+  while (iVar3 != 0) {
+    *(unsigned char *)((char *)iVar3 + 0x1cb) = (param_2 == '\0') ? 1 : 0;
+    iVar3 = FUN_00054750(local_1c);
+  }
+}
+
+/*
+ * FUN_000570d0 — assign command list to all actors in an encounter
+ * (ai_command_list). Logs "[thread]: ai_command_list [enc] [index]", then
+ * iterates actors via FUN_00054680/FUN_00054750, calling
+ * FUN_00016e70(actor_handle, param_2, buf) and if it returns true,
+ * actor_action_change(actor_handle, 0xb, buf). Actor handle is at
+ * local_1c+0x10. 0x570d0 / encounters.obj
+ */
+void FUN_000570d0(int param_1, int16_t param_2)
+{
+  char local_11c[124];
+  char local_a0[132];
+  char local_1c[24];
+  void *uVar1;
+  int iVar3;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_11c, 0x100);
+    error(2, "%s: ai_command_list %s %d",
+          hs_runtime_get_executing_thread_name(), local_11c, (int)param_2);
+  }
+  FUN_00054680(param_1, local_1c);
+  iVar3 = FUN_00054750(local_1c);
+  while (iVar3 != 0) {
+    if (FUN_00016e70(*(int *)(local_1c + 0x10), param_2, local_a0))
+      actor_action_change(*(int *)(local_1c + 0x10), 0xb, (int)local_a0);
+    iVar3 = FUN_00054750(local_1c);
+  }
+}
+
+/*
+ * FUN_00057190 — assign command list to actor via unit
+ * (ai_command_list_by_unit). Logs "[thread]: ai_command_list_by_unit <unit>
+ * [index]". If param_1 != -1 and the unit has a biped/vehicle actor
+ * (field_0x1a4), calls FUN_00016e70 and actor_action_change if it succeeds.
+ * 0x57190 / encounters.obj
+ */
+void FUN_00057190(int param_1, int16_t param_2)
+{
+  char local_88[132];
+  int iVar3;
+
+  if (*(char *)0x5aca59) {
+    error(2, "%s: ai_command_list_by_unit <unit> %d",
+          hs_runtime_get_executing_thread_name(), (int)param_2);
+  }
+  if (param_1 != -1) {
+    iVar3 = (int)object_try_and_get_and_verify_type(param_1, 3);
+    if (iVar3 != 0 && *(int *)((char *)iVar3 + 0x1a4) != -1) {
+      datum_get(actor_data, *(int *)((char *)iVar3 + 0x1a4));
+      if (FUN_00016e70(*(int *)((char *)iVar3 + 0x1a4), param_2, local_88))
+        actor_action_change(*(int *)((char *)iVar3 + 0x1a4), 0xb,
+                            (int)local_88);
+    }
+  }
+}
+
+/*
+ * FUN_00057230 — advance command list for all actors in an encounter.
+ * Logs "[thread]: ai_command_list_advance [encounter]", then iterates
+ * encounter actors via FUN_00054680/FUN_00054750 and calls
+ * FUN_00017090(actor_handle) for each. Actor handle is at local_1c+0x10.
+ * 0x57230 / encounters.obj
+ */
+void FUN_00057230(int param_1)
+{
+  char local_11c[256];
+  char local_1c[24];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_11c, 0x100);
+    error(2, "%s: ai_command_list_advance %s",
+          hs_runtime_get_executing_thread_name(), local_11c);
+  }
+  FUN_00054680(param_1, local_1c);
+  iVar2 = FUN_00054750(local_1c);
+  while (iVar2 != 0) {
+    FUN_00017090(*(int *)(local_1c + 0x10));
+    iVar2 = FUN_00054750(local_1c);
+  }
+}
+
+/*
+ * FUN_000572c0 — advance command list for the actor attached to a unit.
+ * Logs "[thread]: ai_command_list_advance_by_unit <some unit>". If
+ * param_1 != -1 and the object has an actor at field_0x1a4 (or 0x1a8),
+ * calls FUN_00017090 on that actor handle.
+ * 0x572c0 / encounters.obj
+ */
+void FUN_000572c0(int param_1)
+{
+  int iVar2;
+
+  if (*(char *)0x5aca59)
+    error(2, "%s: ai_command_list_advance_by_unit <some unit>",
+          hs_runtime_get_executing_thread_name());
+
+  if (param_1 != -1) {
+    iVar2 = (int)object_try_and_get_and_verify_type(param_1, 3);
+    if (iVar2 != 0) {
+      if (*(int *)((char *)iVar2 + 0x1a4) != -1) {
+        FUN_00017090(*(int *)((char *)iVar2 + 0x1a4));
+        return;
+      }
+      if (*(int *)((char *)iVar2 + 0x1a8) != -1)
+        FUN_00017090(*(int *)((char *)iVar2 + 0x1a8));
+    }
+  }
+}
+
+/*
+ * FUN_000575d0 — free (detach) all actors from an encounter (ai_free).
+ * Logs "[thread]: ai_free [encounter]", then for each actor in the
+ * encounter asserts encounter_index != NONE, then calls
+ * actor_flush_position_indices, encounter_detach_actor(handle, 0), and
+ * encounterless_attach_actor. Finally calls encounters_update_dirty_status.
+ * Actor handle is at local_1c+0x10 (iterator offset).
+ * 0x575d0 / encounters.obj
+ */
+void FUN_000575d0(int param_1)
+{
+  char local_21c[512];
+  char local_1c[24];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_21c, 0x200);
+    error(2, "%s: ai_free %s", hs_runtime_get_executing_thread_name(),
+          local_21c);
+  }
+  if (param_1 != -1) {
+    FUN_00054680(param_1, local_1c);
+    iVar2 = FUN_00054750(local_1c);
+    while (iVar2 != 0) {
+      if (*(int *)((char *)iVar2 + 0x34) == -1) {
+        display_assert("actor->meta.encounter_index != NONE",
+                       "c:\\halo\\SOURCE\\ai\\ai_script.c", 0xad1, 1);
+        system_exit(-1);
+      }
+      actor_flush_position_indices(*(int *)(local_1c + 0x10));
+      encounter_detach_actor(*(int *)(local_1c + 0x10), 0);
+      encounterless_attach_actor(*(int *)(local_1c + 0x10));
+      iVar2 = FUN_00054750(local_1c);
+    }
+    encounters_update_dirty_status();
+  }
+}
+
+/*
+ * FUN_000576a0 — free actors from units in an encounter (ai_free_units).
+ * Iterates units via FUN_000ce450/FUN_000ce320. For each biped/vehicle
+ * (type mask 3) with an actor (field_0x1a4 != -1) whose encounter_index
+ * (field_0x34) != -1, frees the actor and increments a count. Calls
+ * encounters_update_dirty_status if any actors were freed.
+ * 0x576a0 / encounters.obj
+ */
+void FUN_000576a0(int param_1)
+{
+  int local_8;
+  int iVar1;
+  int iVar3;
+  short count;
+
+  iVar1 = FUN_000ce450(param_1, &local_8);
+  if (*(char *)0x5aca59)
+    error(2, "%s: ai_free_units <some units>",
+          hs_runtime_get_executing_thread_name());
+
+  if (iVar1 != -1) {
+    count = 0;
+    do {
+      iVar1 = (int)object_try_and_get_and_verify_type(iVar1, 3);
+      if (iVar1 != 0 && *(int *)((char *)iVar1 + 0x1a4) != -1) {
+        iVar3 = (int)datum_get(actor_data, *(int *)((char *)iVar1 + 0x1a4));
+        if (*(int *)((char *)iVar3 + 0x34) != -1) {
+          actor_flush_position_indices(*(int *)((char *)iVar1 + 0x1a4));
+          encounter_detach_actor(*(int *)((char *)iVar1 + 0x1a4), 0);
+          encounterless_attach_actor(*(int *)((char *)iVar1 + 0x1a4));
+          count = (short)(count + 1);
+        }
+      }
+      iVar1 = FUN_000ce320(param_1, &local_8);
+    } while (iVar1 != -1);
+    if (count > 0)
+      encounters_update_dirty_status();
+  }
+}
+
+/*
+ * FUN_00057770 — attach a free actor to a unit (ai_attach_free).
+ *
+ * If the AI trace flag (0x5aca59) is set, logs the unit index and actor
+ * variant tag name. Then validates that the AI subsystem is active, the
+ * unit and actv tag index are both valid, the actv tag's referenced actr
+ * tag does not have the swarm flag (bit 26) set, and finally calls
+ * actor_create_for_unit to attach a new actor.
+ *
+ * 0x57770 / encounters.obj
+ */
+void FUN_00057770(unsigned int param_1, int param_2)
+{
+  const char *name;
+  int actv_data;
+  int actr_tag_index;
+  unsigned int *actr_data;
+
+  if (*(char *)0x5aca59) {
+    if (param_2 == -1) {
+      name = "<error>";
+    } else {
+      name = tag_name_strip_path(tag_get_name(param_2));
+    }
+    error(2, "%s: ai_attach_free 0x%04X %s",
+          hs_runtime_get_executing_thread_name(), param_1 & 0xffff, name);
+  }
+  if (*(char *)(*(int *)0x632574 + 1) != '\0' && param_1 != 0xffffffff &&
+      param_2 != -1) {
+    actv_data = (int)tag_get(0x61637476, param_2);
+    actr_tag_index = *(int *)(actv_data + 0x10);
+    if (actr_tag_index != -1) {
+      actr_data = (unsigned int *)tag_get(0x61637472, actr_tag_index);
+      if ((*actr_data & 0x4000000) != 0) {
+        error(2, "%s: ai_attach_free %s cannot be used for swarm actors",
+              hs_runtime_get_executing_thread_name(),
+              tag_name_strip_path(tag_get_name(param_2)));
+        return;
+      }
+      actor_create_for_unit(0, param_1, param_2, -1, -1, 0, -1, 0, 2, 0, -1, 0);
+    }
+  }
+}
+
+/* 0x57850 — ai_force_active (FUN_00057850).
+ *
+ * HS command handler: forces an encounter's "active" flag on or off.
+ * If the AI trace flag (0x5aca59) is set, logs the encounter name and
+ * the boolean value via error(). Then, if ai_globals+1 is nonzero and
+ * the encounter handle is valid (within scenario encounter block bounds),
+ * sets field +0x0c of the encounter datum to param_2.
+ *
+ * 0x57850 / encounters.obj
+ */
+void FUN_00057850(unsigned int param_1, char param_2)
+{
+  char buffer[512];
+  void *scenario;
+  int encounter_index;
+  char *encounter;
+
+  if (*(char *)0x5aca59) {
+    scenario = global_scenario_get();
+    FUN_00054220(param_1, scenario, buffer, 0x200);
+    error(2, (const char *)0x25cc68, hs_runtime_get_executing_thread_name(),
+          buffer, param_2 ? (const char *)0x25cb44 : (const char *)0x25cb3c);
+  }
+
+  if (*(char *)(*(int *)0x632574 + 1) != '\0' && param_1 != 0xffffffff) {
+    encounter_index = (int)(param_1 & 0xffff);
+    scenario = global_scenario_get();
+    if (encounter_index >= 0 &&
+        encounter_index < *(int *)((char *)scenario + 0x42c)) {
+      encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_index);
+      *(char *)(encounter + 0xc) = param_2;
+    }
+  }
+}
+
+/*
+ * FUN_00057900 — ai_force_active_by_unit.
+ * Sets the "force active" flag on a unit's actor. If the actor belongs to an
+ * encounter (i.e. actor+9 is zero), logs an error telling the user to use
+ * ai_force_active on the encounter directly instead.
+ * If AI trace (0x5aca59) is set, logs the HS thread name and the boolean.
+ * 0x57900 / encounters.obj
+ */
+void FUN_00057900(int param_1, char param_2)
+{
+  char *actor;
+  char *encounter_def;
+  char *squad_def;
+  void *unit;
+
+  if (*(char *)0x5aca59) {
+    error(2, (const char *)0x25ccec, hs_runtime_get_executing_thread_name(),
+          param_2 ? (const char *)0x25cb44 : (const char *)0x25cb3c);
+  }
+  if (param_1 != -1) {
+    unit = object_get_and_verify_type(param_1, 3);
+    if (*(int *)((char *)unit + 0x1a4) != -1) {
+      actor =
+        (char *)datum_get(*(data_t **)0x6325a4, *(int *)((char *)unit + 0x1a4));
+      if (*(char *)(actor + 9) != '\0') {
+        *(char *)(actor + 0xa) = param_2;
+        return;
+      }
+      encounter_def = (char *)tag_block_get_element(
+        (char *)global_scenario_get() + 0x42c,
+        *(unsigned int *)(actor + 0x34) & 0xffff, 0xb0);
+      squad_def = (char *)tag_block_get_element(
+        encounter_def + 0x80, (int)*(short *)(actor + 0x3a), 0xe8);
+      error(2, (const char *)0x25cc88, encounter_def, squad_def);
+    }
+  }
+}
+
+/*
+ * FUN_000579d0 — ai_set_return_state.
+ *
+ * Sets the return state for all actors in an encounter. If the AI trace flag
+ * (0x5aca59) is set, logs the thread name, encounter name, and state value.
+ * Then iterates actors in the encounter via FUN_00054680/FUN_00054750.
+ * For each actor, writes the return_state into actor+0x62. If actor+0x6e == 0
+ * and the result of actor_action_try_to_panic is 0, 1, or 2, calls
+ * actor_action_set_default_state with -1.
+ * 0x579d0 / encounters.obj
+ */
+void FUN_000579d0(int encounter_handle, short return_state)
+{
+  int16_t action_state;
+  int actor;
+  char local_21c[512];
+  char local_1c[24];
+  scenario_t *scenario;
+
+  if (*(char *)0x5aca59 != '\0') {
+    scenario = global_scenario_get();
+    FUN_00054220(encounter_handle, scenario, local_21c, 0x200);
+    error(2, "%s: ai_set_return_state %s %d",
+          hs_runtime_get_executing_thread_name(), local_21c, (int)return_state);
+  }
+  if (return_state >= 0 && return_state < 0xc) {
+    FUN_00054680(encounter_handle, local_1c);
+    actor = FUN_00054750(local_1c);
+    while (actor != 0) {
+      action_state = actor_action_try_to_panic(*(int *)(local_1c + 0x10));
+      *(short *)((char *)actor + 0x62) = return_state;
+      if (*(short *)((char *)actor + 0x6e) == 0 &&
+          (action_state == 0 || action_state == 1 || action_state == 2)) {
+        actor_action_set_default_state(*(int *)(local_1c + 0x10), -1);
+      }
+      actor = FUN_00054750(local_1c);
+    }
+  }
+}
+
+/*
+ * FUN_00057aa0 — ai_set_current_state.
+ *
+ * Sets the current (default) state for all actors in an encounter. If the AI
+ * trace flag (0x5aca59) is set, logs the thread name, encounter name, and state
+ * value. Then iterates actors in the encounter via FUN_00054680/FUN_00054750.
+ * For each actor, calls actor_action_set_default_state with the given state.
+ * 0x57aa0 / encounters.obj
+ */
+void FUN_00057aa0(int encounter_handle, short state)
+{
+  char local_21c[512];
+  char local_1c[24];
+  scenario_t *scenario;
+
+  if (*(char *)0x5aca59) {
+    scenario = global_scenario_get();
+    FUN_00054220(encounter_handle, scenario, local_21c, 0x200);
+    error(2, "%s: ai_set_current_state %s %d",
+          hs_runtime_get_executing_thread_name(), local_21c, (int)state);
+  }
+  if (state >= 0 && state < 0xc) {
+    FUN_00054680(encounter_handle, local_1c);
+    while (FUN_00054750(local_1c) != 0) {
+      actor_action_set_default_state(*(int *)(local_1c + 0x10), state);
+    }
+  }
+}
+
+/* FUN_00057c60 — empty stub. 0x57c60 / encounters.obj */
+void FUN_00057c60(void)
+{
+}
+
+/*
+ * FUN_00057ef0 — find or create an enterable-vehicle entry for param_1.
+ * Searches DAT_00632574+0x3b8 array (stride 0x28, count at +0x3b6) for
+ * an entry matching param_1. If found, returns its pointer. If not found
+ * and count < 32, creates a new entry (zeroed, param_1 at +0, 0x41000000 at
+ * +4), increments count, and returns pointer. Returns NULL if param_1==-1 or
+ * overflow. 0x57ef0 / encounters.obj
+ */
+int *FUN_00057ef0(int param_1)
+{
+  int *piVar3;
+  short sVar1;
+  short sVar2;
+
+  piVar3 = (int *)0;
+  if (param_1 != -1) {
+    sVar1 = *(short *)((char *)*(int *)0x632574 + 0x3b6);
+    sVar2 = 0;
+    if (0 < sVar1) {
+      do {
+        if (*(int *)((char *)*(int *)0x632574 + 0x3b8 + (int)sVar2 * 0x28) ==
+            param_1)
+          break;
+        sVar2 = (short)(sVar2 + 1);
+      } while (sVar2 < sVar1);
+      if (0x1f < sVar2) {
+        error(2,
+              "ai_vehicle_enterable: too many enterable vehicles (max is %d)",
+              0x20);
+        return (int *)0;
+      }
+    }
+    piVar3 = (int *)((char *)*(int *)0x632574 + 0x3b8 + (int)sVar2 * 0x28);
+    if (sVar1 <= sVar2) {
+      csmemset(piVar3, 0, 0x28);
+      *piVar3 = param_1;
+      piVar3[1] = 0x41000000;
+      *(short *)((char *)*(int *)0x632574 + 0x3b6) =
+        (short)(*(short *)((char *)*(int *)0x632574 + 0x3b6) + 1);
+    }
+  }
+  return piVar3;
+}
+
+/*
+ * FUN_00057f90 — set the enterable-distance for a vehicle entry.
+ * Calls FUN_00057ef0(param_1) to get/create an entry and sets
+ * entry[+4] = param_2 (float distance).
+ * Logs "[thread]: ai_vehicle_enterable_distance <some vehicle>" if trace on.
+ * 0x57f90 / encounters.obj
+ */
+void FUN_00057f90(int param_1, float param_2)
+{
+  int *iVar2;
+
+  if (*(char *)0x5aca59)
+    error(2, "%s: ai_vehicle_enterable_distance <some vehicle>",
+          hs_runtime_get_executing_thread_name());
+
+  if (param_1 != -1) {
+    iVar2 = FUN_00057ef0(param_1);
+    if (iVar2 != 0)
+      *(float *)((char *)iVar2 + 4) = param_2;
+  }
+}
+
+/*
+ * FUN_00057fd0 — set a team bit in vehicle enterable entry.
+ * Sets bit (1<<param_2) in entry[+8] (team bitmask).
+ * 0x57fd0 / encounters.obj
+ */
+void FUN_00057fd0(int param_1, short param_2)
+{
+  int *iVar2;
+
+  if (*(char *)0x5aca59)
+    error(2, "%s: ai_vehicle_enterable_team <some vehicle> %d",
+          hs_runtime_get_executing_thread_name(), (int)param_2);
+  if (param_1 != -1) {
+    iVar2 = FUN_00057ef0(param_1);
+    if (iVar2 != 0)
+      *(unsigned short *)((char *)iVar2 + 8) |=
+        (unsigned short)(1u << ((unsigned char)param_2 & 0x1f));
+  }
+}
+
+/*
+ * FUN_00058020 — set an actor-type bit in vehicle enterable entry.
+ * Sets bit (1<<param_2) in entry[+10] (actor type bitmask).
+ * 0x58020 / encounters.obj
+ */
+void FUN_00058020(int param_1, short param_2)
+{
+  int *iVar2;
+
+  if (*(char *)0x5aca59)
+    error(2, "%s: ai_vehicle_enterable_actor_type <some vehicle> %d",
+          hs_runtime_get_executing_thread_name(), (int)param_2);
+  if (param_1 != -1) {
+    iVar2 = FUN_00057ef0(param_1);
+    if (iVar2 != 0)
+      *(unsigned short *)((char *)iVar2 + 10) |=
+        (unsigned short)(1u << ((unsigned char)param_2 & 0x1f));
+  }
+}
+
+/*
+ * FUN_00058070 — append an encounter to a vehicle's enterable-actors list.
+ * Gets/creates a vehicle entry via FUN_00057ef0(param_1). If the actor-group
+ * count (entry[+0xc] as short) < 6, appends param_2 (encounter handle) to the
+ * array at entry[+0x10] and increments the count.
+ * Logs "[thread]: ai_vehicle_enterable_actors <some vehicle> [enc]" if trace
+ * on. 0x58070 / encounters.obj
+ */
+void FUN_00058070(int param_1, int param_2)
+{
+  char local_204[512];
+  void *uVar1;
+  int *iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_2, uVar1, local_204, 0x200);
+    error(2, "%s: ai_vehicle_enterable_actors <some vehicle> %s",
+          hs_runtime_get_executing_thread_name(), local_204);
+  }
+  if (param_1 != -1 && param_2 != -1) {
+    iVar2 = FUN_00057ef0(param_1);
+    if (iVar2 != 0) {
+      if (*(short *)((char *)iVar2 + 0xc) < 6) {
+        *(int *)((char *)iVar2 + 0x10 +
+                 (int)*(short *)((char *)iVar2 + 0xc) * 4) = param_2;
+        *(short *)((char *)iVar2 + 0xc) =
+          (short)(*(short *)((char *)iVar2 + 0xc) + 1);
+        return;
+      }
+      error(
+        2, "ai_vehicle_enterable_actors: too many groups of actors (max is %d)",
+        6);
+    }
+  }
+}
+
+/*
+ * FUN_00058110 — remove a vehicle from the enterable-vehicle list.
+ * Searches for param_1 in the array. If found, decrements count and if the
+ * found entry is not the last, copies the last entry over it (swap-remove,
+ * 10-dword copy = 0x28 bytes).
+ * 0x58110 / encounters.obj
+ */
+void FUN_00058110(int param_1)
+{
+  char *base;
+  short sVar1;
+  int sVar2;
+  int *pdst;
+  int *psrc;
+  int i;
+
+  if (*(char *)0x5aca59)
+    error(2, "%s: ai_vehicle_enterable_disable <some vehicle>",
+          hs_runtime_get_executing_thread_name());
+
+  if (param_1 != -1) {
+    base = (char *)*(int *)0x632574;
+    sVar1 = *(short *)(base + 0x3b6);
+    sVar2 = 0;
+    if (0 < sVar1) {
+      do {
+        if (*(int *)(base + 0x3b8 + (short)sVar2 * 0x28) == param_1)
+          goto found;
+        sVar2++;
+      } while ((short)sVar2 < sVar1);
+      return;
+    found:
+      sVar1 = (short)(sVar1 - 1);
+      *(short *)(base + 0x3b6) = sVar1;
+      base = (char *)*(int *)0x632574;
+      sVar1 = *(short *)(base + 0x3b6);
+      if ((short)sVar2 < sVar1) {
+        psrc = (int *)(base + 0x3b8 + (int)sVar1 * 0x28);
+        pdst = (int *)(base + 0x3b8 + sVar2 * 0x28);
+        for (i = 10; i != 0; i--)
+          *pdst++ = *psrc++;
+      }
+    }
+  }
+}
+
+/*
+ * FUN_000581b0 — direct an actor to look at an object (ai_look_at_object).
+ * Gets actor from unit (field_0x1a4), builds a look_buf {6, object_handle},
+ * calls FUN_00027a60(actor, 0xd, 1, look_buf). Logs if trace on.
+ * 0x581b0 / encounters.obj
+ */
+void FUN_000581b0(int param_1, int param_2)
+{
+  int look_buf[2]; /* [0]low16=type, [1]=object handle */
+  int iVar2;
+
+  if (*(char *)0x5aca59)
+    error(2, "%s: ai_look_at_object <some unit> <some object>",
+          hs_runtime_get_executing_thread_name());
+
+  if (param_1 != -1 && param_2 != -1) {
+    iVar2 = (int)object_get_and_verify_type(param_1, 3);
+    if (*(int *)((char *)iVar2 + 0x1a4) != -1) {
+      *(short *)look_buf = 6;
+      look_buf[1] = param_2;
+      FUN_00027a60(*(int *)((char *)iVar2 + 0x1a4), 0xd, 1, (short *)look_buf);
+    }
+  }
+}
+
+/*
+ * FUN_00058220 — stop an actor from looking (ai_stop_looking).
+ * Gets actor from unit (field_0x1a4), calls FUN_00027870(actor).
+ * 0x58220 / encounters.obj
+ */
+void FUN_00058220(int param_1)
+{
+  int iVar2;
+
+  if (*(char *)0x5aca59)
+    error(2, "%s: ai_stop_looking <some unit>",
+          hs_runtime_get_executing_thread_name());
+
+  if (param_1 != -1) {
+    iVar2 = (int)object_get_and_verify_type(param_1, 3);
+    if (*(int *)((char *)iVar2 + 0x1a4) != -1)
+      FUN_00027870(*(int *)((char *)iVar2 + 0x1a4));
+  }
+}
+
+/*
+ * FUN_00058270 — set automatic migration target flag for an encounter's
+ * platoons. Iterates platoons via FUN_000544a0/FUN_000545a0 and sets field
+ * +0x10 = param_2. Logs "[thread]: ai_automatic_migration_target [enc]
+ * [true|false]" if trace on. 0x58270 / encounters.obj
+ */
+void FUN_00058270(int param_1, char param_2)
+{
+  char local_218[512];
+  char local_18[20];
+  void *uVar1;
+  int iVar3;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220(param_1, uVar1, local_218, 0x200);
+    error(2, "%s: ai_automatic_migration_target %s %s",
+          hs_runtime_get_executing_thread_name(), local_218,
+          param_2 ? (const char *)0x25c530 : (const char *)0x25c52c);
+  }
+  if (param_1 != -1) {
+    FUN_000544a0(param_1, local_18);
+    iVar3 = FUN_000545a0(local_18);
+    while (iVar3 != 0) {
+      *(char *)((char *)iVar3 + 0x10) = param_2;
+      iVar3 = FUN_000545a0(local_18);
+    }
+  }
+}
+
+/*
+ * FUN_00058310 — disable follow-target mode for an encounter.
+ * Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets field +0x62 =
+ * 0. Logs "[thread]: ai_follow_target_disable [enc]" if trace on. 0x58310 /
+ * encounters.obj
+ */
+void FUN_00058310(unsigned int param_1)
+{
+  char local_204[512];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220((int)param_1, uVar1, local_204, 0x200);
+    error(2, "%s: ai_follow_target_disable %s",
+          hs_runtime_get_executing_thread_name(), local_204);
+  }
+  if (param_1 != 0xffffffff) {
+    iVar2 = (int)datum_get(*(data_t **)0x5ab270, (int)(param_1 & 0xffff));
+    *(short *)((char *)iVar2 + 0x62) = 0;
+  }
+}
+
+/*
+ * FUN_00058390 — enable follow-target-players mode for an encounter.
+ * Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets field +0x62
+ * = 1. Logs "[thread]: ai_follow_target_players [enc]" if trace on. 0x58390 /
+ * encounters.obj
+ */
+void FUN_00058390(unsigned int param_1)
+{
+  char local_204[512];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220((int)param_1, uVar1, local_204, 0x200);
+    error(2, "%s: ai_follow_target_players %s",
+          hs_runtime_get_executing_thread_name(), local_204);
+  }
+  if (param_1 != 0xffffffff) {
+    iVar2 = (int)datum_get(*(data_t **)0x5ab270, (int)(param_1 & 0xffff));
+    *(short *)((char *)iVar2 + 0x62) = 1;
+  }
+}
+
 /* 0x00058a40 — ai_magically_see_players (FUN_00058a40).
  *
  * Forces all active players to be "magically seen" by the encounter
@@ -533,7 +1771,7 @@ int encounter_actor_iterator_next(int *iter)
  *   ESI+0x18 : -1    (next linked-list handle)
  *   ESI+0x14 : -1    (current handle)
  *   ESI+0x11 : DL    (param_2 = filter_flag) */
-void encounter_iterator_next(void *iter, char flag)
+__declspec(noinline) void encounter_iterator_next(void *iter, char flag)
 {
   char *p = (char *)iter;
 

@@ -42,6 +42,35 @@ void director_set_local_player_context(int16_t player_index)
   ((char *)0x335302)[(int)player_index * 0xf8] = 1;
 }
 
+/*
+ * FUN_000865a0 — set player director mode entry fields.
+ * Writes param_1 to [base+0x8], 1.0f to [base+0xc4], clears [base+0xc0],
+ * and if param_2 is true writes 1.0f to [base+0x4].
+ * Base = 0x3352b0 + local_player_index * 0xf8.
+ * local_player_index passed in SI.
+ *
+ * 0x865a0 / director.obj
+ */
+void FUN_000865a0(int16_t local_player_index, int param_1, bool param_2)
+{
+  char *base;
+
+  if (local_player_index < 0 ||
+      local_player_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS) {
+    display_assert("local_player_index>=0 && "
+                   "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                   "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, 1);
+    system_exit(-1);
+  }
+  base = (char *)0x3352b0 + (int)local_player_index * 0xf8;
+  *(int *)(base + 0x8) = param_1;
+  *(int *)(base + 0xc4) = 0x3f800000;
+  *(unsigned char *)(base + 0xc0) = 0;
+  if (param_2) {
+    *(int *)(base + 0x4) = 0x3f800000;
+  }
+}
+
 /* Per-player default-state init (0x86600). Fills four 12-byte slots at
  * struct offset 0x194/0x1a0/0x1ac/0x1b8 (relative to 0x3352b4 + player*0xf8).
  * Each slot's first dword is seeded from a const table at 0x2ee604 (0x1c
@@ -438,6 +467,41 @@ bool director_compute_camera_input(short *out_buf, int local_player_index)
     }
 
     return valid_unit;
+  }
+}
+
+/*
+ * FUN_000874d0 — dispatch per-player camera update based on director mode.
+ *
+ * Reads the global director mode from 0x3352ac (short) and calls the
+ * appropriate per-player camera function:
+ *   mode 0, 1 → director_set_player_camera_normal(local_player_index,
+ * reset_flag, mode_flags) mode 2    →
+ * director_set_player_camera_scripted(local_player_index, reset_flag) mode 4 →
+ * director_apply_replay_mode_for_player(reset_flag, local_player_index,
+ * mode_flags) other     → no-op
+ *
+ * local_player_index@<ecx>, reset_flag@<eax>, mode_flags@<edx>.
+ *
+ * 0x874d0 / director.obj
+ */
+void FUN_000874d0(int16_t local_player_index, char reset_flag, char mode_flags)
+{
+  switch (*(int16_t *)0x3352ac) {
+  case 0:
+  case 1:
+    director_set_player_camera_normal(local_player_index, reset_flag,
+                                      mode_flags);
+    return;
+  case 2:
+    director_set_player_camera_scripted(local_player_index, reset_flag);
+    return;
+  case 4:
+    director_apply_replay_mode_for_player(reset_flag, local_player_index,
+                                          mode_flags);
+    return;
+  default:
+    return;
   }
 }
 

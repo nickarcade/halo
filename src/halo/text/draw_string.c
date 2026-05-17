@@ -93,6 +93,100 @@ lost:
 }
 
 /*
+ * FUN_0019b3c0 — update text-bounds tracking globals.
+ *
+ * Records the min/max extents of a rendered text element for layout tracking.
+ * param_5/param_6 = left/top corner (shorts); param_9/param_10 = width/height.
+ * param_2 (int) is stored as an associated handle at 0x4d9b04.
+ *
+ * Globals (in a tightly packed block at 0x4d9af8):
+ *   0x4d9afc (short) min_y   0x4d9afe (short) min_x
+ *   0x4d9b00 (short) max_y   0x4d9b02 (short) max_x
+ *   0x4d9b04 (int)   tag/handle
+ *
+ * 0x19b3c0 / draw_string.obj
+ */
+void FUN_0019b3c0(int param_1, int param_2, int param_3, int param_4,
+                  short param_5, short param_6, int param_7, int param_8,
+                  short param_9, short param_10)
+{
+  if (param_5 < *(short *)0x4d9afe)
+    *(short *)0x4d9afe = param_5;
+  if (param_6 < *(short *)0x4d9afc)
+    *(short *)0x4d9afc = param_6;
+  if (*(short *)0x4d9b02 < (short)(param_5 + param_9))
+    *(short *)0x4d9b02 = (short)(param_5 + param_9);
+  if (*(short *)0x4d9b00 < (short)(param_10 + param_6)) {
+    *(short *)0x4d9b00 = (short)(param_10 + param_6);
+    *(int *)0x4d9b04 = param_2;
+    return;
+  }
+  *(int *)0x4d9b04 = param_2;
+}
+
+/*
+ * FUN_0019b430 — cursor hit-test callback for text layout.
+ *
+ * Computes the Chebyshev (L∞) distance from the reference point at globals
+ * 0x4d9af0 (ref_x, short) / 0x4d9af2 (ref_y, short) to the four edges of
+ * the text element bounding box [param_5..param_5+param_9] ×
+ * [param_6..param_6+param_10]. If this distance beats the current best
+ * (0x4d9af6), updates it and sets the cursor position markers at 0x4d9af4 and
+ * 0x4d9af8 based on which half of the element the reference point falls in.
+ * Always updates 0x4d9af8.
+ *
+ * param_1 = pointer to text element; *(short*)(param_1+0xc) = cursor position
+ * value.
+ *
+ * 0x19b430 / draw_string.obj
+ */
+void FUN_0019b430(int param_1, int param_2, int param_3, int param_4,
+                  short param_5, short param_6, int param_7, int param_8,
+                  short param_9, short param_10)
+{
+  short ref_x = *(short *)0x4d9af0;
+  short dx_left = (short)param_5 - ref_x;
+  short dx_right = (short)(param_5 + param_9) - ref_x;
+  short dy_top = (short)param_6 - *(short *)0x4d9af2;
+  short dy_bottom = (short)param_10 + dy_top;
+  short max_dist;
+  int edx;
+  int ecx;
+
+  if (dx_left < 0)
+    dx_left = -dx_left;
+  if (dx_right < 0)
+    dx_right = -dx_right;
+  if (dy_top < 0)
+    dy_top = -dy_top;
+  if (dy_bottom < 0)
+    dy_bottom = -dy_bottom;
+
+  max_dist = dx_left;
+  if (max_dist <= dx_right)
+    max_dist = dx_right;
+  if (max_dist <= dy_top)
+    max_dist = dy_top;
+  if (max_dist <= dy_bottom)
+    max_dist = dy_bottom;
+
+  if (max_dist < *(short *)0x4d9af6) {
+    *(short *)0x4d9af6 = max_dist;
+    edx = (int)ref_x - (int)(short)param_5;
+    ecx = ((int)(short)(param_5 + param_9) - (int)(short)param_5) >> 1;
+    if (edx < ecx) {
+      *(short *)0x4d9af4 = *(short *)0x4d9af8;
+      *(short *)0x4d9af8 = *(short *)(param_1 + 0xc);
+      return;
+    }
+    *(short *)0x4d9af4 = *(short *)(param_1 + 0xc);
+    *(short *)0x4d9af8 = *(short *)(param_1 + 0xc);
+    return;
+  }
+  *(short *)0x4d9af8 = *(short *)(param_1 + 0xc);
+}
+
+/*
  * draw_string_set_tab_stops — set the tab stop array for subsequent draws.
  *
  * Validates count is in [0, MAXIMUM_NUMBER_OF_TAB_STOPS).  Stores the
@@ -233,4 +327,95 @@ void draw_string_set_font(int tag_index, int style, int justify, int flags,
   *(int *)0x4d9b0c = tag_index;
   draw_string_set_color(color);
   draw_string_set_style_justify_flags((short)style, (short)justify, flags);
+}
+
+/*
+ * FUN_0019bcc0 — resolve the effective font tag for a given style.
+ *
+ * If style == -1 (plain): returns tag_get("font", font_index) directly.
+ * Otherwise asserts style in [0, 3], gets the font tag for font_index,
+ * looks up the per-style font override at [font_tag+0x48 + style*0x10],
+ * and falls back to font_index if the style entry is -1.
+ * Returns the final tag_get("font", resolved_index) pointer.
+ *
+ * Frameless function: style@<si>, font_index@<edi>.
+ *
+ * 0x19bcc0 / draw_string.obj
+ */
+void *FUN_0019bcc0(int16_t style, int font_index)
+{
+  int tag_handle;
+  void *font_tag;
+
+  if (style != (int16_t)-1) {
+    if (style < 0 || style >= 4) {
+      display_assert(
+        "style==_text_style_plain || (style>=0 && style<NUMBER_OF_TEXT_STYLES)",
+        "c:\\halo\\SOURCE\\text\\draw_string.c", 0x406, 1);
+      system_exit(-1);
+    }
+    font_tag = tag_get(0x666f6e74, font_index);
+    tag_handle = *(int *)((char *)font_tag + 0x48 + (int)style * 0x10);
+    if (tag_handle == -1)
+      tag_handle = font_index;
+  } else {
+    tag_handle = font_index;
+  }
+  return tag_get(0x666f6e74, tag_handle);
+}
+
+/*
+ * FUN_0019c0a0 — advance a wide-char string tokenizer by one character.
+ *
+ * Reads the next wide character (int16_t) from state->buffer[pos], stores it
+ * in state->current_char (+0x12), increments state->pos (+0xc), then
+ * classifies and stores the token type at state->token_type (+0x14):
+ *   '\0' (0)    → type 0 (end of string)
+ *   '\t' (9)    → type 3 (tab)
+ *   '\r' (13)   → type 1 (newline)
+ *   '|n' (7c 6e) → type 1, char = '\r' (escape sequence for newline)
+ *   other        → type 6 (printable/other)
+ * Returns the token type.
+ *
+ * state@<eax>: pointer to { ...; int *buffer (+8); short pos (+0xc);
+ *              short current_char (+0x12); short token_type (+0x14); ... }
+ *
+ * 0x19c0a0 / draw_string.obj
+ */
+int16_t FUN_0019c0a0(void *state)
+{
+  char *s = (char *)state;
+  short pos;
+  int16_t c;
+  int16_t c2;
+
+  pos = *(short *)(s + 0xc);
+  c = *(int16_t *)(*(int *)(s + 0x8) + (int)pos * 2);
+  *(int16_t *)(s + 0x12) = c;
+  *(short *)(s + 0xc) = (short)(pos + 1);
+
+  switch ((unsigned short)c) {
+  case 0:
+    *(int16_t *)(s + 0x14) = 0;
+    return *(int16_t *)(s + 0x14);
+  case 9:
+    *(int16_t *)(s + 0x14) = 3;
+    return *(int16_t *)(s + 0x14);
+  case 0xd:
+    *(int16_t *)(s + 0x14) = 1;
+    return *(int16_t *)(s + 0x14);
+  case 0x7c:
+    c2 = *(int16_t *)(*(int *)(s + 0x8) + (int)(short)(pos + 1) * 2);
+    *(short *)(s + 0xc) = (short)(pos + 2);
+    if (c2 == 0x6e) {
+      *(int16_t *)(s + 0x12) = 0xd;
+      *(int16_t *)(s + 0x14) = 1;
+      return *(int16_t *)(s + 0x14);
+    }
+    /* fall through */
+  default:
+    *(int16_t *)(s + 0x14) = 6;
+    break;
+  }
+  return *(int16_t *)(s + 0x14);
 }
