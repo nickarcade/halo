@@ -102,6 +102,18 @@ char game_state_write_to_file(void)
   return 0;
 }
 
+/* 0x1c0750
+ * Delete the local player's save game file. Gets the profile directory
+ * path and, if valid, deletes the file at that path. */
+void FUN_001c0750(void)
+{
+  char path_buffer[256];
+
+  if (xbox_saved_game_get_path(0, path_buffer)) {
+    XDeleteFile(path_buffer);
+  }
+}
+
 /* 0x1c0910
  * Read and verify a saved game from persistent storage. Reads header first,
  * then checksums the remaining data in 128KB chunks. Returns 1 on success.
@@ -239,4 +251,49 @@ void FUN_001c0c20(void *dst, int size)
   }
 
   XCloseHandle(file_handle);
+}
+
+/* 0x1c0cd0
+ * Close the file handle obtained from xbox_game_state_open_file for a given
+ * parameter. Opens the file, and if valid, closes the resulting handle.
+ */
+void FUN_001c0cd0(int param_1)
+{
+  int handle;
+
+  handle = xbox_game_state_open_file(param_1);
+  if (handle != -1) {
+    XCloseHandle(handle);
+  }
+}
+
+/* 0x1c0cf0
+ * Wait for any in-flight asynchronous player profile writes to complete, then
+ * clear the profile write state buffer at 0x4ea9c8 (0x6c bytes).
+ */
+void FUN_001c0cf0(void)
+{
+  if (*(int *)0x4eaa2c != 0) {
+    error(2, "waiting for asynchronous player profile writes to finish...");
+    do {
+      /* spin until the async write thread signals completion */
+    } while (!thread_is_done(*(void **)0x4eaa2c));
+    thread_close(*(void **)0x4eaa2c);
+    *(int *)0x4eaa2c = 0;
+  }
+  csmemset((void *)0x4ea9c8, 0, 0x6c);
+}
+
+/* 0x1c0d70
+ * Delete a player profile by index. Calls the saved-game file deletion
+ * routine and logs an error if it fails.
+ */
+void FUN_001c0d70(int param_1)
+{
+  if (param_1 != -1) {
+    if (!delete_enumerated_saved_game_file(param_1)) {
+      error(2, "player_profile_delete() failed (profile index= #0x%lX)",
+            param_1);
+    }
+  }
 }

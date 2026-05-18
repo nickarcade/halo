@@ -1014,35 +1014,35 @@ void FUN_00057c60(void)
  */
 int *FUN_00057ef0(int param_1)
 {
+  char *base;
   int *piVar3;
   short sVar1;
   short sVar2;
 
   piVar3 = (int *)0;
   if (param_1 != -1) {
-    sVar1 = *(short *)((char *)*(int *)0x632574 + 0x3b6);
+    base = *(char **)0x632574;
+    sVar1 = *(short *)(base + 0x3b6);
     sVar2 = 0;
     if (0 < sVar1) {
       do {
-        if (*(int *)((char *)*(int *)0x632574 + 0x3b8 + (int)sVar2 * 0x28) ==
-            param_1)
+        if (*(int *)(base + 0x3b8 + (int)sVar2 * 0x28) == param_1)
           break;
         sVar2 = (short)(sVar2 + 1);
       } while (sVar2 < sVar1);
-      if (0x1f < sVar2) {
+      if (sVar2 >= 0x20) {
         error(2,
               "ai_vehicle_enterable: too many enterable vehicles (max is %d)",
               0x20);
-        return (int *)0;
+        return piVar3;
       }
     }
-    piVar3 = (int *)((char *)*(int *)0x632574 + 0x3b8 + (int)sVar2 * 0x28);
+    piVar3 = (int *)(base + 0x3b8 + (int)sVar2 * 0x28);
     if (sVar1 <= sVar2) {
       csmemset(piVar3, 0, 0x28);
       *piVar3 = param_1;
       piVar3[1] = 0x41000000;
-      *(short *)((char *)*(int *)0x632574 + 0x3b6) =
-        (short)(*(short *)((char *)*(int *)0x632574 + 0x3b6) + 1);
+      { char *p = *(char **)0x632574; (*(short *)(p + 0x3b6))++; }
     }
   }
   return piVar3;
@@ -1313,6 +1313,348 @@ void FUN_00058390(unsigned int param_1)
   if (param_1 != 0xffffffff) {
     iVar2 = (int)datum_get(*(data_t **)0x5ab270, (int)(param_1 & 0xffff));
     *(short *)((char *)iVar2 + 0x62) = 1;
+  }
+}
+
+/*
+ * FUN_00058410 — set follow-target-unit mode for an encounter.
+ * Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets field +0x62
+ * = 2, field +0x64 = param_2 (unit datum index). If param_2 == -1, disables
+ * follow mode (sets +0x62 = 0). Logs "[thread]: ai_follow_target_unit [enc]
+ * <some unit>" if trace on. 0x58410 / encounters.obj
+ */
+void FUN_00058410(unsigned int param_1, int param_2)
+{
+  char local_204[512];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220((int)param_1, uVar1, local_204, 0x200);
+    error(2, "%s: ai_follow_target_unit %s <some unit>",
+          hs_runtime_get_executing_thread_name(), local_204);
+  }
+  if (param_1 != 0xffffffff) {
+    iVar2 = (int)datum_get(*(data_t **)0x5ab270, (int)(param_1 & 0xffff));
+    if (param_2 == -1) {
+      *(short *)((char *)iVar2 + 0x62) = 0;
+      return;
+    }
+    *(short *)((char *)iVar2 + 0x62) = 2;
+    *(int *)((char *)iVar2 + 0x64) = param_2;
+  }
+}
+
+/*
+ * FUN_000584a0 — set follow-target-AI mode for an encounter.
+ * Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets field +0x62
+ * = 3, field +0x64 = param_2 (AI datum index). If param_2 == -1, disables
+ * follow mode (sets +0x62 = 0). Logs "[thread]: ai_follow_target_ai [enc]
+ * [enc]" if trace on. 0x584a0 / encounters.obj
+ */
+void FUN_000584a0(unsigned int param_1, int param_2)
+{
+  char local_404[512];
+  char local_204[512];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    FUN_00054220((int)param_1, uVar1, local_404, 0x200);
+    uVar1 = global_scenario_get();
+    FUN_00054220((int)param_1, uVar1, local_204, 0x200);
+    error(2, "%s: ai_follow_target_ai %s %s",
+          hs_runtime_get_executing_thread_name(), local_404, local_204);
+  }
+  if (param_1 != 0xffffffff) {
+    iVar2 = (int)datum_get(*(data_t **)0x5ab270, (int)(param_1 & 0xffff));
+    if (param_2 == -1) {
+      *(short *)((char *)iVar2 + 0x62) = 0;
+      return;
+    }
+    *(short *)((char *)iVar2 + 0x62) = 3;
+    *(int *)((char *)iVar2 + 0x64) = param_2;
+  }
+}
+
+/* 0x00058550 — ai_follow_distance (FUN_00058550).
+ *
+ * Sets the follow distance for an encounter. If the AI trace flag at 0x5aca59
+ * is set, logs the encounter name and the new distance via error(). Then, if
+ * the encounter handle is valid (!= -1), stores the float distance at offset
+ * +0x68 in the encounter record.
+ *
+ * Confirmed:
+ *   - ESI = param_1 (encounter_handle, callee-saved).
+ *   - [ebp+0xc] = param_2 (follow_distance, float).
+ *   - Uses push-then-fstp for variadic double promotion of param_2.
+ *   - encounter_data at *(data_t**)0x5ab270.
+ *   - FUN_00054220 formats encounter handle into a name string.
+ *   - 0x5aca59 = AI trace flag.
+ *   - encounter+0x68 = follow_distance field.
+ *   - Format string: "%s: ai_follow_distance %s %.1f" at 0x25d034.
+ */
+void FUN_00058550(unsigned int param_1, float param_2)
+{
+  char buffer[512];
+  void *scenario;
+  char *encounter;
+
+  if (*(char *)0x5aca59) {
+    scenario = global_scenario_get();
+    FUN_00054220((int)param_1, scenario, buffer, 0x200);
+    error(2, "%s: ai_follow_distance %s %.1f",
+          hs_runtime_get_executing_thread_name(), buffer, param_2);
+  }
+  if (param_1 != 0xffffffff) {
+    encounter =
+      (char *)datum_get(*(data_t **)0x5ab270, (int)(param_1 & 0xffff));
+    *(float *)(encounter + 0x68) = param_2;
+  }
+}
+
+/* 0x000585d0 — FUN_000585d0 (ai_conversation script command).
+ *
+ * Script command handler for "ai_conversation". If the AI trace flag at
+ * 0x5aca59 is set, resolves the conversation name from the scenario tag's
+ * conversations block (offset +0x468, element size 0x74), defaults to
+ * "<error>" if the index is out of bounds, and logs via error().
+ * Then unconditionally calls FUN_00046b60(param_1, 1) to begin the
+ * conversation.
+ *
+ * Confirmed:
+ *   - ESI = param_1 (conversation index, loaded from [EBP+8]).
+ *   - tag_block at scenario+0x468 is conversations; element size 0x74.
+ *   - EDI = default "<error>" at 0x253b58; overwritten by
+ * tag_block_get_element.
+ *   - Pre-push pattern: PUSH EDI before hs_runtime_get_executing_thread_name()
+ *     call; EDI is 4th arg to error(), not arg to hs_runtime_get.
+ *   - error(2, "%s: ai_conversation %s", thread_name, conv_name).
+ *   - FUN_00046b60(param_1, 1) called unconditionally at end.
+ *   - ADD ESP,0x10 cleans error() args (4 dwords).
+ *   - ADD ESP,0x8 cleans FUN_00046b60 args (2 dwords).
+ */
+void FUN_000585d0(int param_1)
+{
+  scenario_t *scenario;
+  short index;
+  const char *conv_name;
+
+  if (*(char *)0x5aca59) {
+    scenario = global_scenario_get();
+    index = (short)param_1;
+    conv_name = "<error>";
+    if (index >= 0) {
+      if ((int)index < *(int *)((char *)scenario + 0x468)) {
+        conv_name = (const char *)tag_block_get_element(
+          (char *)scenario + 0x468, (int)index, 0x74);
+      }
+    }
+    error(2, "%s: ai_conversation %s", hs_runtime_get_executing_thread_name(),
+          conv_name);
+  }
+  FUN_00046b60(param_1, 1);
+}
+
+/* 0x00058640 — FUN_00058640 (ai_conversation_stop script command).
+ *
+ * Script command handler for "ai_conversation_stop". If the AI trace flag at
+ * 0x5aca59 is set, resolves the conversation name from the scenario tag's
+ * conversations block (offset +0x468, element size 0x74), defaults to
+ * "<error>" if the index is out of bounds, and logs via error().
+ * Then unconditionally calls ai_conversation_stop(param_1).
+ *
+ * Confirmed:
+ *   - ESI = param_1 (conversation index, loaded from [EBP+8]).
+ *   - tag_block at scenario+0x468 is conversations; element size 0x74.
+ *   - EDI = default "<error>" at 0x253b58; overwritten by
+ * tag_block_get_element.
+ *   - Pre-push pattern: PUSH EDI before hs_runtime_get_executing_thread_name()
+ *     call; EDI is 4th arg to error(), not arg to hs_runtime_get.
+ *   - error(2, "%s: ai_conversation_stop %s", thread_name, conv_name).
+ *   - ai_conversation_stop(param_1) called unconditionally at end.
+ *   - ADD ESP,0x10 cleans error() args (4 dwords).
+ *   - ADD ESP,0x04 cleans ai_conversation_stop arg (1 dword).
+ */
+void FUN_00058640(int param_1)
+{
+  scenario_t *scenario;
+  short index;
+  const char *conv_name;
+
+  if (*(char *)0x5aca59) {
+    scenario = global_scenario_get();
+    index = (short)param_1;
+    conv_name = "<error>";
+    if (index >= 0) {
+      if ((int)index < *(int *)((char *)scenario + 0x468)) {
+        conv_name = (const char *)tag_block_get_element(
+          (char *)scenario + 0x468, (int)index, 0x74);
+      }
+    }
+    error(2, "%s: ai_conversation_stop %s",
+          hs_runtime_get_executing_thread_name(), conv_name);
+  }
+  ai_conversation_stop(param_1);
+}
+
+/* 0x000586a0 — FUN_000586a0 (ai_conversation_advance script command wrapper).
+ *
+ * Logs the conversation advance via error() if debug tracing is enabled,
+ * then delegates to ai_conversation_advance to actually step the conversation.
+ * Identical pattern to FUN_00058640 (ai_conversation_stop wrapper).
+ *
+ * Confirmed:
+ *   - param_1 is a conversation index (cast to short for bounds check).
+ *   - Scenario conversations block at scenario+0x468, element size 0x74.
+ *   - DAT_005aca59 gates debug output.
+ *   - Unconditionally calls ai_conversation_advance(param_1).
+ */
+void FUN_000586a0(int param_1)
+{
+  scenario_t *scenario;
+  short index;
+  const char *conv_name;
+
+  if (*(char *)0x5aca59) {
+    scenario = global_scenario_get();
+    index = (short)param_1;
+    conv_name = "<error>";
+    if (index >= 0) {
+      if ((int)index < *(int *)((char *)scenario + 0x468)) {
+        conv_name = (const char *)tag_block_get_element(
+          (char *)scenario + 0x468, (int)index, 0x74);
+      }
+    }
+    error(2, "%s: ai_conversation_advance %s",
+          hs_runtime_get_executing_thread_name(), conv_name);
+  }
+  ai_conversation_advance(param_1);
+}
+
+/* 0x00058720 — FUN_00058720 (ai_link_activation script command).
+ *
+ * Links two encounter activation states together. If the AI trace flag
+ * (0x5aca59) is set, logs both encounter names via error(). Then, if
+ * neither handle is NONE (-1), calls encounter_link_activation to
+ * register the link. Logs an error if the maximum activation link
+ * indices per encounter (3) is exceeded.
+ *
+ * Confirmed:
+ *   - param_1 and param_2 are combined encounter handles.
+ *   - DAT_005aca59 gates debug output (same pattern as FUN_00056320).
+ *   - encounter_link_activation takes (short, int) and returns char (bool).
+ *   - MAXIMUM_ACTIVATION_LINK_INDICES_PER_ENCOUNTER is 3.
+ */
+void FUN_00058720(unsigned int param_1, int param_2)
+{
+  char local_404[512];
+  char local_204[512];
+  scenario_t *scenario;
+  char result;
+
+  if (*(char *)0x5aca59) {
+    scenario = global_scenario_get();
+    FUN_00054220(param_1, scenario, local_404, 0x200);
+    scenario = global_scenario_get();
+    FUN_00054220(param_2, scenario, local_204, 0x200);
+    error(2, "%s: ai_link_activation %s %s",
+          hs_runtime_get_executing_thread_name(), local_404, local_204);
+  }
+  if (param_1 != 0xffffffff && param_2 != (int)-1) {
+    result = encounter_link_activation((short)(param_1 & 0xffff), param_2);
+    if (result == '\0') {
+      error(2,
+            "ai_link_activation: cannot link to another encounter, "
+            "MAXIMUM_ACTIVATION_LINK_INDICES_PER_ENCOUNTER is %d",
+            3);
+    }
+  }
+}
+
+/* 0x000587d0 — FUN_000587d0 (ai_berserk script command).
+ *
+ * Makes all actors in an encounter go berserk. If the AI trace flag
+ * (0x5aca59) is set, logs the encounter name via error(). Then iterates
+ * actors in the encounter via FUN_00054680/FUN_00054750, calling
+ * actor_berserk(actor_handle, param_2) for each actor.
+ *
+ * Confirmed:
+ *   - param_1 = encounter handle (int).
+ *   - param_2 = berserk flag (int).
+ *   - DAT_005aca59 gates debug output.
+ *   - Actor handle at iterator offset 0x10 (local_1c + 0x10).
+ *   - actor_berserk takes (int actor_handle, int berserk_flag).
+ */
+void FUN_000587d0(int param_1, int param_2)
+{
+  char local_11c[256];
+  char local_1c[24];
+  void *scenario;
+  int iVar2;
+
+  if (*(char *)0x5aca59 != '\0') {
+    scenario = global_scenario_get();
+    FUN_00054220(param_1, scenario, local_11c, 0x100);
+    error(2, "%s: ai_berserk %s", hs_runtime_get_executing_thread_name(),
+          local_11c);
+  }
+  if (param_1 != -1) {
+    FUN_00054680(param_1, local_1c);
+    iVar2 = FUN_00054750(local_1c);
+    while (iVar2 != 0) {
+      actor_berserk(*(int *)(local_1c + 0x10), param_2);
+      iVar2 = FUN_00054750(local_1c);
+    }
+  }
+}
+
+/* 0x00058970 — ai_magically_see_encounter (FUN_00058970).
+ *
+ * Makes all actors in param_1 encounter "magically see" the units/vehicles
+ * belonging to actors in param_2 encounter.  For each actor in encounter
+ * param_2, grabs the actor's unit handle (offset 0x18); if that is NONE,
+ * falls back to the vehicle handle (offset 0x24).  Calls FUN_00055110 to
+ * register the sighting with encounter param_1.
+ *
+ * Confirmed:
+ *   - param_1, param_2 = encounter handles (int).
+ *   - DAT_005aca59 gates debug trace output.
+ *   - FUN_00054220(handle, scenario, buf, 0x100) formats encounter name.
+ *   - FUN_00054680/FUN_00054750 = encounter actor iterator init/next.
+ *   - Iterator return value is pointer to actor datum.
+ *   - actor+0x18 = unit_handle, actor+0x24 = vehicle unit list head handle.
+ *   - FUN_00055110(encounter_handle, unit_handle) registers the sighting.
+ */
+void FUN_00058970(int param_1, int param_2)
+{
+  char local_21c[256];
+  char local_11c[256];
+  char local_1c[24];
+  void *scenario;
+  int iVar2;
+  int iVar3;
+
+  if (*(char *)0x5aca59 != '\0') {
+    scenario = global_scenario_get();
+    FUN_00054220(param_1, scenario, local_21c, 0x100);
+    scenario = global_scenario_get();
+    FUN_00054220(param_2, scenario, local_11c, 0x100);
+    error(2, "%s: ai_magically_see_encounter %s %s",
+          hs_runtime_get_executing_thread_name(), local_21c, local_11c);
+  }
+  if (param_1 != -1 && param_2 != -1) {
+    FUN_00054680(param_2, local_1c);
+    iVar2 = FUN_00054750(local_1c);
+    while (iVar2 != 0) {
+      iVar3 = *(int *)(iVar2 + 0x18);
+      if (iVar3 != -1 || (iVar3 = *(int *)(iVar2 + 0x24), iVar3 != -1)) {
+        FUN_00055110(param_1, iVar3);
+      }
+      iVar2 = FUN_00054750(local_1c);
+    }
   }
 }
 
@@ -2150,6 +2492,30 @@ short FUN_0005a3b0(void *squad_def)
     }
   }
   return 0xe;
+}
+
+/* FUN_0005a430 (0x5a430) — actor_activate_encounterless.
+ * Asserts the actor is marked encounterless (actor+9 != 0), sets the actor's
+ * encounter timer (actor+0x10) to 90 ticks (0x5a), then activates the actor.
+ * Called when an encounterless actor is being brought into active duty.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x5a43a.
+ * Confirmed: assertion "actor->meta.encounterless" at line 0x720.
+ * Confirmed: *(int16_t*)(actor+0x10) = 0x5a at 0x5a46a.
+ * Confirmed: actor_set_active(actor_handle, 1) at 0x5a474.
+ */
+void FUN_0005a430(int actor_handle)
+{
+  char *actor_ptr;
+
+  actor_ptr = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (*(char *)(actor_ptr + 9) == '\0') {
+    display_assert("actor->meta.encounterless",
+                   "c:\\halo\\SOURCE\\ai\\encounters.c", 0x720, 1);
+    system_exit(-1);
+  }
+  *(int16_t *)(actor_ptr + 0x10) = 0x5a;
+  actor_set_active(actor_handle, 1);
 }
 
 /* 0x5a4e0 — encounter_activate.

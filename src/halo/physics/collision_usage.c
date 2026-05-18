@@ -1,9 +1,332 @@
+/* Cylinder BSP vector test: tests a ray against each cylinder collision element.
+ * 0x14cb00 / collision_usage.obj
+ */
+char FUN_0014cb00(int param_1, void *param_2, void *param_3, void *param_4,
+                  int16_t *param_5)
+{
+    short bVar1;
+    char cVar2;
+    int *piVar3;
+    int iVar4;
+    int iVar5;
+    int iVar6;
+    float local_5c[13];
+    float local_28[3];
+    float local_1c[3];
+    int local_10;
+    int local_c;
+    char local_5;
+
+    local_5 = 0;
+    collision_log_add_call(3);
+    collision_log_query_counter((void *)0x4761c8);
+    *(int *)(param_5 + 2) = 0x7f7fffff;
+    piVar3 = (int *)(*(int *)(param_1 + 4) + 0x28c);
+    iVar6 = 0;
+    local_c = 0;
+    if (0 < *(int *)(*(int *)(param_1 + 4) + 0x28c)) {
+        do {
+            local_10 = (int)tag_block_get_element(piVar3, iVar6, 0x40);
+            if (*(short *)(local_10 + 0x20) != -1) {
+                bVar1 = (short)(uint16_t)(*(uint8_t *)(*(int *)(param_1 + 8) +
+                                    (int)*(short *)(local_10 + 0x20)));
+                if (bVar1 != -1) {
+                    iVar4 = *(int *)(local_10 + 0x34);
+                    if (0 < iVar4) {
+                        iVar5 = (int)bVar1;
+                        iVar4 = iVar4 - 1;
+                        if (iVar4 < iVar5) {
+                            iVar5 = iVar4;
+                        }
+                        piVar3 = (int *)tag_block_get_element(
+                            (int *)(local_10 + 0x34), (int)(short)iVar5, 0x60);
+                        if (0 < *piVar3) {
+                            matrix_inverse(
+                                (float *)(iVar6 * 0x34 + *(int *)(param_1 + 0xc)),
+                                local_5c);
+                            matrix_transform_point(local_5c, (float *)param_3,
+                                                   local_28);
+                            matrix_scale_transform_vector(local_5c, (float *)param_4,
+                                                          local_1c);
+                            cVar2 = collision_bsp_test_vector(
+                                (int)param_2, (int)piVar3, 0, 0,
+                                (int)local_28, (int)local_1c,
+                                *(float *)(param_5 + 2),
+                                (float *)(param_5 + 2));
+                            if (cVar2 != '\0') {
+                                *param_5 = (int16_t)local_c;
+                                param_5[1] = *(int16_t *)(local_10 + 0x20);
+                                param_5[2] = (int16_t)iVar5;
+                                local_5 = 1;
+                            }
+                        }
+                    }
+                }
+            }
+            local_c = local_c + 1;
+            piVar3 = (int *)(*(int *)(param_1 + 4) + 0x28c);
+            iVar6 = (int)(short)local_c;
+        } while (iVar6 < *piVar3);
+    }
+    collision_log_add_time(3, *(unsigned int *)0x4761c8, *(int *)0x4761cc);
+    return local_5;
+}
+
+/* Build collision prism feature list from a collision prism descriptor.
+ * FPU-WARN reviewed: ECX/EDX register assignment for origin y-component;
+ * semantic value is correct (origin_y) in both paths — false positive.
+ * 0x14c6d0 / collision_usage.obj
+ */
+void FUN_0014c6d0(int param_1, void *param_2)
+{
+    float *pfVar1;
+    float fVar2;
+    short sVar5;
+    float local_64[24];
+    int i;
+    int n;
+
+    if (8 < *(int *)(param_1 + 0x24)) {
+        display_assert("prism->point_count<=MAXIMUM_POINTS_PER_COLLISION_PRISM",
+                       "c:\\halo\\SOURCE\\physics\\collision_features.c", 0x437, 1);
+        system_exit(-1);
+    }
+    sVar5 = 0;
+    if (0 < *(int *)(param_1 + 0x24)) {
+        i = 0;
+        do {
+            pfVar1 = local_64 + i * 3;
+            project_point2d((float *)(param_1 + 0x28 + i * 8),
+                            (float *)(param_1 + 0xc),
+                            *(int16_t *)(param_1 + 0x20),
+                            *(uint8_t *)(param_1 + 0x22),
+                            pfVar1);
+            fVar2 = *(float *)(param_1 + 0x1c);
+            n = *(int *)(param_1 + 0x24);
+            sVar5 = sVar5 + 1;
+            *pfVar1 = fVar2 * *(float *)(param_1 + 0xc) + *pfVar1;
+            local_64[i * 3 + 1] = fVar2 * *(float *)(param_1 + 0x10) + local_64[i * 3 + 1];
+            local_64[i * 3 + 2] = fVar2 * *(float *)(param_1 + 0x14) + local_64[i * 3 + 2];
+            i = (int)sVar5;
+        } while (sVar5 < n);
+    }
+    n = *(int *)(param_1 + 0x24);
+    sVar5 = 0;
+    if (0 < n) {
+        i = 0;
+        do {
+            FUN_00189270(1, local_64 + i * 3,
+                         local_64 + ((i + 1) % n) * 3,
+                         param_2);
+            n = *(int *)(param_1 + 0x24);
+            sVar5 = sVar5 + 1;
+            i = (int)sVar5;
+        } while (i < n);
+    }
+}
+
+/* Validate collision feature counts and dispatch feature computation
+ * for each prism, cylinder, and sphere in the feature buffer.
+ * 0x14c7b0 / collision_usage.obj
+ */
+void FUN_0014c7b0(int16_t *param_1)
+{
+    short sVar2;
+    int iVar1;
+
+    if (0x100 < *param_1) {
+        display_assert("features->count[_collision_feature_sphere]<=MAXIMUM_COLLISION_FEATURES_PER_TEST",
+                       "c:\\halo\\SOURCE\\physics\\collision_features.c", 0x454, 1);
+        system_exit(-1);
+    }
+    if (0x100 < param_1[1]) {
+        display_assert("features->count[_collision_feature_cylinder]<=MAXIMUM_COLLISION_FEATURES_PER_TEST",
+                       "c:\\halo\\SOURCE\\physics\\collision_features.c", 0x455, 1);
+        system_exit(-1);
+    }
+    if (0x100 < param_1[2]) {
+        display_assert("features->count[_collision_feature_prism]<=MAXIMUM_COLLISION_FEATURES_PER_TEST",
+                       "c:\\halo\\SOURCE\\physics\\collision_features.c", 0x456, 1);
+        system_exit(-1);
+    }
+    sVar2 = 0;
+    if (0 < param_1[2]) {
+        do {
+            FUN_0014c6d0((int)(param_1 + sVar2 * 0x34 + 0x2204),
+                         *(void **)0x2ee6d8);
+            sVar2 = sVar2 + 1;
+        } while (sVar2 < param_1[2]);
+    }
+    sVar2 = 0;
+    if (0 < param_1[1]) {
+        do {
+            iVar1 = (int)sVar2;
+            FUN_001896d0(1, param_1 + iVar1 * 0x14 + 0xe0a,
+                         param_1 + iVar1 * 0x14 + 0xe10,
+                         *(int *)(param_1 + iVar1 * 0x14 + 0xe16),
+                         *(void **)0x2ee6d4);
+            sVar2 = sVar2 + 1;
+        } while (sVar2 < param_1[1]);
+    }
+    sVar2 = 0;
+    if (0 < *param_1) {
+        do {
+            FUN_00189540(1, param_1 + sVar2 * 0xe + 10,
+                         *(int *)(param_1 + sVar2 * 0xe + 0x10),
+                         *(void **)0x2ee6d0);
+            sVar2 = sVar2 + 1;
+        } while (sVar2 < *param_1);
+    }
+}
+
+/* Cylinder collision test: for each cylinder, invert the cylinder local
+ * frame matrix and transform the test point into cylinder space.
+ * 0x14ca30 / collision_usage.obj
+ */
+unsigned int FUN_0014ca30(int param_1, void *param_2)
+{
+    uint8_t bVar1;
+    unsigned int uVar2;
+    int iVar3;
+    int iVar4;
+    int *piVar5;
+    int iVar6;
+    short sVar7;
+    int iVar8;
+    float local_44[13];
+    float local_10[3];
+
+    uVar2 = *(unsigned int *)(param_1 + 4) + 0x28c;
+    sVar7 = 0;
+    if (0 < *(int *)(*(int *)(param_1 + 4) + 0x28c)) {
+        iVar8 = 0;
+        do {
+            iVar3 = (int)tag_block_get_element((void *)uVar2, iVar8, 0x40);
+            if (*(short *)(iVar3 + 0x20) != -1) {
+                bVar1 = *(uint8_t *)(*(int *)(param_1 + 8) +
+                                    (int)*(short *)(iVar3 + 0x20));
+                if ((uint16_t)bVar1 != 0xffff) {
+                    iVar4 = *(int *)(iVar3 + 0x34);
+                    if (0 < iVar4) {
+                        iVar6 = (int)(short)(uint16_t)bVar1;
+                        iVar4 = iVar4 - 1;
+                        if (iVar6 <= iVar4) {
+                            iVar4 = iVar6;
+                        }
+                        piVar5 = (int *)tag_block_get_element(
+                            (int *)(iVar3 + 0x34), (int)(short)iVar4, 0x60);
+                        if (0 < *piVar5) {
+                            matrix_inverse(
+                                (float *)(iVar8 * 0x34 + *(int *)(param_1 + 0xc)),
+                                local_44);
+                            matrix_transform_point(local_44, (float *)param_2,
+                                                   local_10);
+                        }
+                    }
+                }
+            }
+            sVar7 = sVar7 + 1;
+            uVar2 = *(unsigned int *)(param_1 + 4) + 0x28c;
+            iVar8 = (int)sVar7;
+        } while (iVar8 < *(int *)(*(int *)(param_1 + 4) + 0x28c));
+    }
+    return uVar2 & 0xffffff00;
+}
+
+/* Collision sphere test: for each sphere in the collision bsp3d,
+ * transform the test point by the sphere's local frame and find
+ * the bsp3d leaf. Returns 1 if any leaf lookup failed, 0 otherwise.
+ * 0x14c950 / collision_usage.obj
+ */
+unsigned int FUN_0014c950(int param_1, void *param_2)
+{
+    uint8_t bVar1;
+    int *piVar2;
+    int iVar3;
+    int iVar4;
+    int iVar5;
+    int iVar6;
+    float local_14[3];
+    int local_8;
+
+    piVar2 = (int *)(*(int *)(param_1 + 4) + 0x28c);
+    iVar6 = 0;
+    local_8 = 0;
+    if (0 < *(int *)(*(int *)(param_1 + 4) + 0x28c)) {
+        do {
+            iVar3 = (int)tag_block_get_element(piVar2, iVar6, 0x40);
+            if (*(short *)(iVar3 + 0x20) != -1) {
+                bVar1 = *(uint8_t *)(*(int *)(param_1 + 8) +
+                                    (int)*(short *)(iVar3 + 0x20));
+                if ((uint16_t)bVar1 != 0xffff) {
+                    iVar4 = *(int *)(iVar3 + 0x34);
+                    if (0 < iVar4) {
+                        iVar5 = (int)(short)(uint16_t)bVar1;
+                        iVar4 = iVar4 - 1;
+                        if (iVar5 <= iVar4) {
+                            iVar4 = iVar5;
+                        }
+                        piVar2 = (int *)tag_block_get_element(
+                            (int *)(iVar3 + 0x34), (int)(short)iVar4, 0x60);
+                        if (0 < *piVar2) {
+                            real_matrix3x3_transform_point(
+                                (void *)(iVar6 * 0x34 + *(int *)(param_1 + 0xc)),
+                                (float *)param_2, local_14);
+                            iVar6 = (int)bsp3d_find_leaf(piVar2, 0,
+                                                          local_14);
+                            if (iVar6 == -1) {
+                                return 1;
+                            }
+                        }
+                    }
+                }
+            }
+            local_8 = local_8 + 1;
+            piVar2 = (int *)(*(int *)(param_1 + 4) + 0x28c);
+            iVar6 = (int)(short)local_8;
+        } while (iVar6 < *piVar2);
+    }
+    return 0;
+}
+
+/* Retrieve the collision model components for an object.
+ * Looks up the object's "obje" tag, checks if it has a "coll" subtag.
+ * If yes, fills out[0..3] with: handle, coll_tag, object_node_ptr, node_matrices.
+ * Returns 1 if the object has a collision model, 0 otherwise.
+ * 0x14c8e0 / collision_usage.obj
+ */
+int FUN_0014c8e0(int *out, int object_handle)
+{
+    int *obj;
+    int obje_tag;
+
+    obj = (int *)object_get_and_verify_type(object_handle, 0xffffffff);
+    obje_tag = (int)tag_get(0x6f626a65, *obj);
+    if (*(int *)(obje_tag + 0x7c) != -1) {
+        out[0] = object_handle;
+        out[1] = (int)tag_get(0x636f6c6c, *(int *)(obje_tag + 0x7c));
+        out[2] = (int)(obj + 0x4c);
+        out[3] = (int)object_get_node_matrices(object_handle);
+        return 1;
+    }
+    return 0;
+}
+
 void collision_log_initialize(void)
 {
   csmemset((void *)0x5a5e40, 0, 0x2298);
   assert_halt(*(int16_t *)0x4761d8 < 0x20);
   *(int16_t *)(0x5a8c80 + *(int16_t *)0x4761d8 * 2) = 0;
   *(int16_t *)0x4761d8 = *(int16_t *)0x4761d8 + 1;
+}
+
+/* Enable or disable collision logging globally.
+ * Sets the byte at 0x325054 to the enable flag.
+ * 0x14d070 / collision_usage.obj
+ */
+void collision_log_enable(char enable)
+{
+    *(char *)0x325054 = enable;
 }
 
 /* Helper shared by begin/continue_period. Asserts no period is active,

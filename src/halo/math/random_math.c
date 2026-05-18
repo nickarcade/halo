@@ -1,7 +1,7 @@
 /*
  * FUN_0010aa60 — fill a 0x400-byte periodic function lookup table for one of
- * 12 types: one(0), zero(1), cosine(2), cosine_variable(3), diagonal_saw(4),
- * saw_wave(5), triangle(6), soft_triangle(7), gaussian(8),
+ * 12 types: one(0), zero(1), cosine(2), cosine_variable(3), triangle(4),
+ * soft_triangle(5), diagonal_saw(6), saw_wave(7), gaussian(8),
  * stutter_4harmonic x2 (9,10), square_wave(11).
  *
  * gaussian_scratch is filled by FUN_0010a830 (takes buffer via EBX).
@@ -11,7 +11,7 @@
  *
  * 0x10aa60 / random_math.obj (periodic_functions.c)
  */
-void FUN_0010aa60(int type_index, void *buffer)
+void FUN_0010aa60(short type_index, void *buffer)
 {
   float gaussian_scratch[0x400];
   float sample_scratch[0x400];
@@ -44,18 +44,12 @@ void FUN_0010aa60(int type_index, void *buffer)
       sample = 0.0f;
       break;
     case 2:
-      sample = cosf(phase * *(float *)0x255a54);
+      sample = (float)cos((double)(phase * *(float *)0x255a54));
       break;
     case 3:
-      sample = cosf(phase_var * *(float *)0x255a54);
+      sample = (float)cos((double)(phase_var * *(float *)0x255a54));
       break;
     case 4:
-      sample = (float)fmod((double)phase, *(double *)0x2573d8);
-      break;
-    case 5:
-      sample = (float)fmod((double)phase_var, *(double *)0x2573d8);
-      break;
-    case 6:
       p = (float)fmod((double)phase, *(double *)0x2573d8);
       if (p < *(float *)0x253398)
         sample = p + p;
@@ -63,13 +57,19 @@ void FUN_0010aa60(int type_index, void *buffer)
         sample = *(float *)0x2533c8 -
                  ((p - *(float *)0x253398) + (p - *(float *)0x253398));
       break;
-    case 7:
+    case 5:
       p = (float)fmod((double)phase_var, *(double *)0x2573d8);
       if (p < *(float *)0x253398)
         sample = p + p;
       else
         sample = *(float *)0x2533c8 -
                  ((p - *(float *)0x253398) + (p - *(float *)0x253398));
+      break;
+    case 6:
+      sample = (float)fmod((double)phase, *(double *)0x2573d8);
+      break;
+    case 7:
+      sample = (float)fmod((double)phase_var, *(double *)0x2573d8);
       break;
     case 8:
       sample =
@@ -78,10 +78,10 @@ void FUN_0010aa60(int type_index, void *buffer)
     case 9:
     case 10:
       sample =
-        (cosf(phase * *(float *)0x28c8ec) * cosf(phase * *(float *)0x28c8e8) +
-         cosf(phase * *(float *)0x28c8e4) * sinf(phase * *(float *)0x2568bc)) *
+        ((float)cos((double)(phase * *(float *)0x28c8ec)) * (float)cos((double)(phase * *(float *)0x28c8e8)) +
+         (float)cos((double)(phase * *(float *)0x28c8e4)) * (float)sin((double)(phase * *(float *)0x2568bc))) *
           *(float *)0x253398 +
-        sinf(phase * *(float *)0x256980) * cosf(phase * *(float *)0x255a54);
+        (float)sin((double)(phase * *(float *)0x256980)) * (float)cos((double)(phase * *(float *)0x255a54));
       break;
     case 11:
       p = (float)fmod((double)phase_var, *(double *)0x2573d8);
@@ -283,7 +283,7 @@ void random_math_dispose(void)
  * Advances *seed with the Numerical Recipes LCG (a=0x19660d, c=0x3c6ef35f),
  * extracts the upper 16 bits (0..65535), and normalizes to approximately
  * [0.0, 1.0] by dividing by 65535. */
-float random_math_real(unsigned int *seed)
+__declspec(noinline) float random_math_real(unsigned int *seed)
 {
   unsigned int s;
 
@@ -453,6 +453,46 @@ void FUN_0010b910(float *v, float *n, float *proj_out, float *perp_out)
     perp_out[1] = v[1];
     perp_out[2] = v[2];
   }
+}
+
+/* Quaternion LERP: blend q1 toward q2 by t, writing result to out.
+ * fVar1 = 1.0f - t. If dot(q1,q2) < 0, t is negated (shortest arc).
+ * out[i] = t*q2[i] + (1-t)*q1[i] for i in {0,1,2,3}.
+ * FPU-WARN reviewed: ECX/EDX register assignment differs from reference,
+ * all flagged ops are commutative multiplications — no semantic difference.
+ * 0x10ba90 / random_math.obj
+ */
+void FUN_0010ba90(float *q1, float *q2, float t, float *out)
+{
+    float fVar1;
+
+    fVar1 = *(float *)0x2533c8 - t;
+    if (q2[3] * q1[3] + *q1 * *q2 + q2[1] * q1[1] + q2[2] * q1[2] < *(float *)0x2533c0) {
+        t = -t;
+    }
+    *out = t * *q2 + fVar1 * *q1;
+    out[1] = fVar1 * q1[1] + t * q2[1];
+    out[2] = fVar1 * q1[2] + t * q2[2];
+    out[3] = fVar1 * q1[3] + t * q2[3];
+}
+
+/* Normalize a 2D vector v in-place; returns the input pointer.
+ * If the vector is zero-length (|v|^2 == 0.0f), it is left unchanged.
+ * 0x10c290 / random_math.obj
+ */
+float *FUN_0010c290(float *v)
+{
+    float mag_sq;
+    float inv_mag;
+
+    mag_sq = v[1] * v[1] + v[0] * v[0];
+    if (mag_sq != *(float *)0x2533c0) {
+        inv_mag = *(float *)0x2533c8 / sqrtf(mag_sq);
+        v[0] = inv_mag * v[0];
+        v[1] = inv_mag * v[1];
+        return v;
+    }
+    return v;
 }
 
 /* Compute the angle (radians) between two 3D vectors v1 and v2.

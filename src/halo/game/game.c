@@ -567,6 +567,273 @@ void game_set_game_variant_from_name(const char *name)
   qmemcpy(&game_variant_global, &variant_copy, sizeof(game_variant_t));
 }
 
+/* FUN_000b4170 (0xb4170) — race/team score computation.
+ * Given a player handle and a mode flag, computes a score:
+ *   mode 1: returns a per-team value from the table at 0x456f98.
+ *   otherwise: counts set bits in the per-team bitmask at 0x456f54
+ *              (8 bits per loop iteration, 4 iterations for all 32 bits),
+ *              then returns player->c2 * 0x21 + bit_count. */
+int FUN_000b4170(int player_handle, int param_2)
+{
+  int iVar1;
+  unsigned int uVar2;
+  unsigned char bVar3;
+  int iVar5;
+  int iVar6;
+  char *player;
+  int team_index;
+
+  player = (char *)datum_get(player_data, player_handle);
+  team_index = *(int *)(player + 0x20);
+  if (param_2 == 1) {
+    return ((int *)0x456f98)[team_index];
+  }
+  uVar2 = ((unsigned int *)0x456f54)[team_index];
+  iVar6 = 0;
+  iVar5 = 2;
+  do {
+    bVar3 = (unsigned char)iVar5;
+    if ((uVar2 & (1 << (bVar3 - 2))) != 0)
+      iVar6 = iVar6 + 1;
+    if ((uVar2 & (1 << (bVar3 - 1))) != 0)
+      iVar6 = iVar6 + 1;
+    if ((uVar2 & (1 << bVar3)) != 0)
+      iVar6 = iVar6 + 1;
+    if ((uVar2 & (1 << (bVar3 + 1))) != 0)
+      iVar6 = iVar6 + 1;
+    if ((uVar2 & (1 << (bVar3 + 2))) != 0)
+      iVar6 = iVar6 + 1;
+    if ((uVar2 & (1 << (bVar3 + 3))) != 0)
+      iVar6 = iVar6 + 1;
+    if ((uVar2 & (1 << (bVar3 + 4))) != 0)
+      iVar6 = iVar6 + 1;
+    if ((uVar2 & (1 << (bVar3 + 5))) != 0)
+      iVar6 = iVar6 + 1;
+    iVar1 = iVar5 + 6;
+    iVar5 = iVar5 + 8;
+  } while (iVar1 < 0x20);
+  return (int)*(int16_t *)(player + 0xc2) * 0x21 + iVar6;
+}
+
+/* FUN_000b4250 (0xb4250) — race score string
+ *
+ * Formats the player's race score (lap/flag count) into a wide string buffer.
+ * Looks up the player datum by handle, reads the int16 score at offset 0xc2,
+ * and formats it via usprintf with the format string at 0x26c118 (likely
+ * L"%d"). */
+wchar_t *FUN_000b4250(wchar_t *dst, int player_handle)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  usprintf(dst, (const wchar_t *)0x26c118, (int)*(int16_t *)(player + 0xc2));
+  return dst;
+}
+
+/* FUN_000b4290 (0xb4290) — race score header string
+ *
+ * Returns the header label for the race score column.
+ * If the game variant modifier (offset 0x4c) is 2 (flags mode), returns
+ * L"Flags". Otherwise returns L"Laps". */
+wchar_t *FUN_000b4290(wchar_t *dst)
+{
+  void *variant;
+
+  variant = game_engine_get_variant();
+  if (*(int *)((char *)variant + 0x4c) == 2) {
+    usprintf(dst, L"Flags");
+    return dst;
+  }
+  usprintf(dst, L"Laps");
+  return dst;
+}
+
+/* FUN_000b45c0 (0xb45c0) — race engine: pick random flag.
+ *
+ * Counts the number of valid race flags from the bitmask at 0x456f10.
+ * If param_1 != -1, subtracts 1 (excluding the current flag).
+ * Then picks a random index from that count and iterates through the
+ * scenario netgame flags (type == 3, i.e. race) to find the nth matching
+ * flag whose team != param_1.
+ *
+ * Source: c:\halo\SOURCE\game\game_engine_race.c */
+int FUN_000b45c0(int param_1)
+{
+  short sVar1;
+  int iVar2;
+  int count;
+  int iVar4;
+  int iVar5;
+  int *piVar6;
+  int local_8;
+  int flag_element;
+
+  local_8 = -1;
+  iVar2 = (int)global_scenario_get();
+  count = 0;
+  iVar4 = 0;
+  do {
+    if ((*(int *)0x456f10 & (1 << ((unsigned char)iVar4 & 0x1f))) != 0) {
+      count = count + 1;
+    }
+    iVar4 = iVar4 + 1;
+  } while (iVar4 < 0x20);
+  if (param_1 != -1) {
+    count = count + -1;
+  }
+  if (count < 1) {
+    display_assert("count > 0",
+                   "c:\\halo\\SOURCE\\game\\game_engine_race.c", 0x2a7, 1);
+    system_exit(-1);
+  }
+  sVar1 = random_range(
+      (unsigned int *)get_global_random_seed_address(), 0, (short)count);
+  piVar6 = (int *)(iVar2 + 0x378);
+  iVar5 = (int)sVar1;
+  iVar4 = 0;
+  if (0 < *piVar6) {
+    do {
+      flag_element = (int)tag_block_get_element(piVar6, iVar4, 0x94);
+      if ((*(short *)(flag_element + 0x10) == 3) &&
+          (*(short *)(flag_element + 0x12) != param_1)) {
+        if (iVar5 == 0) {
+          local_8 = (int)*(short *)(flag_element + 0x12);
+          if (local_8 != -1) {
+            return local_8;
+          }
+          break;
+        }
+        iVar5 = iVar5 + -1;
+      }
+      iVar4 = iVar4 + 1;
+    } while (iVar4 < *piVar6);
+  }
+  display_assert("new_flag != NONE",
+                 "c:\\halo\\SOURCE\\game\\game_engine_race.c", 700, 1);
+  system_exit(-1);
+  return local_8;
+}
+
+/* FUN_000b4960 (0xb4960) — race engine: initialize for new map.
+ *
+ * Sets up race-mode state for a new map. Clears the race globals region
+ * (0x456f10..+0xd0), iterates scenario netgame flags of type 3 (race
+ * flags), sets valid-flag bits in DAT_00456f10, and calls
+ * game_engine_set_goal_position for each flag.
+ *
+ * Post-init depends on the game variant modifier (offset 0x4c):
+ *   mode 2 (flags): picks a random starting flag via FUN_000b45c0(-1).
+ *   mode 0 (normal): fills per-team flag indices with the minimum flag index.
+ *   other: fills per-team flag indices with -1, returns 0xffffff01.
+ *
+ * Source: c:\halo\SOURCE\game\game_engine_race.c */
+int FUN_000b4960(void)
+{
+  short sVar1;
+  int iVar2;
+  int iVar3;
+  int iVar4;
+  int *piVar5;
+
+  iVar4 = 0x20;
+  iVar2 = (int)global_scenario_get();
+  FUN_000b3860();
+  *(int *)0x456fdc = 0;
+  csmemset((void *)0x456f10, 0, 0xd0);
+  piVar5 = (int *)(iVar2 + 0x378);
+  *(int *)0x5aa744 = 0x1e;
+  iVar2 = 0;
+  if (0 < *piVar5) {
+    do {
+      iVar3 = (int)tag_block_get_element(piVar5, iVar2, 0x94);
+      if (*(short *)(iVar3 + 0x10) == 3) {
+        sVar1 = *(short *)(iVar3 + 0x12);
+        if (sVar1 < 0x20) {
+          if (sVar1 < iVar4) {
+            iVar4 = (int)sVar1;
+          }
+          *(int *)0x456f10 = *(int *)0x456f10 | (1 << ((unsigned char)sVar1 & 0x1f));
+          game_engine_set_goal_position(
+              (int)*(short *)(iVar3 + 0x12), (void *)iVar3, 0,
+              "flag_blue", -1, -1, -1);
+        } else {
+          error(2,
+                "one of the netgameflags that defines the track was out of "
+                "the legal range 0..%d",
+                0x20);
+        }
+      }
+      iVar2 = iVar2 + 1;
+    } while (iVar2 < *piVar5);
+  }
+  iVar2 = (int)game_engine_get_variant();
+  if (*(int *)(iVar2 + 0x4c) == 2) {
+    *(int *)0x456f94 = FUN_000b45c0(-1);
+    return 1;
+  }
+  iVar2 = (int)game_engine_get_variant();
+  piVar5 = (int *)0x456f14;
+  iVar3 = 0x10;
+  if (*(int *)(iVar2 + 0x4c) != 0) {
+    for (; iVar3 != 0; iVar3 = iVar3 + -1) {
+      *piVar5 = -1;
+      piVar5 = piVar5 + 1;
+    }
+    return (int)0xffffff01u;
+  }
+  for (; iVar3 != 0; iVar3 = iVar3 + -1) {
+    *piVar5 = iVar4;
+    piVar5 = piVar5 + 1;
+  }
+  return 1;
+}
+
+/* FUN_000b4d50 (0xb4d50) — race score lookup
+ *
+ * Looks up a player's race score value. If param_2 == 1, reads score from
+ * the 0x456fe0 table indexed by the player's int at offset 0x20. Otherwise
+ * reads from the 0x457020 table indexed by the player handle's low 16 bits. */
+int FUN_000b4d50(unsigned int player_handle, int param_2)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  if (param_2 == 1) {
+    return *(int *)(0x456fe0 + *(int *)(player + 0x20) * 4);
+  }
+  return *(int *)(0x457020 + (player_handle & 0xffff) * 4);
+}
+
+/* FUN_000b4da0 (0xb4da0) — race score format by handle
+ *
+ * Formats a race score string from the 0x457020 table, indexed by the
+ * low 16 bits of the player handle. Uses the format string at 0x26c118. */
+wchar_t *FUN_000b4da0(unsigned int player_handle, wchar_t *dst)
+{
+  usprintf(dst, *(const wchar_t **)0x26c118,
+           *(int *)(0x457020 + (player_handle & 0xffff) * 4));
+  return dst;
+}
+
+/* FUN_000b4dd0 (0xb4dd0) — race score header "Score"
+ *
+ * Formats the static header string L"Score" into the destination buffer. */
+wchar_t *FUN_000b4dd0(wchar_t *dst)
+{
+  usprintf(dst, L"Score");
+  return dst;
+}
+
+/* FUN_000b4df0 (0xb4df0) — race score format by index
+ *
+ * Formats a race score string from the 0x456fe0 table, indexed directly
+ * by param_1. Uses the format string at 0x26c118. */
+wchar_t *FUN_000b4df0(int index, wchar_t *dst)
+{
+  usprintf(dst, *(const wchar_t **)0x26c118, *(int *)(0x456fe0 + index * 4));
+  return dst;
+}
+
 /* 0xb5490 — FUN_000b5490
  *
  * Returns the name string for a given material type index.

@@ -118,6 +118,86 @@ int game_engine_player_count(void)
   return count;
 }
 
+/* sort_statistic_buffer (0xa8440)
+ *
+ * qsort-style comparator. Compares field at offset +4 of two entries.
+ * Returns -1 if param_2's field < param_1's field (descending sort),
+ * 1 if greater, 0 if equal. */
+int sort_statistic_buffer(int param_1, int param_2)
+{
+  int a;
+  int b;
+  int result;
+
+  a = *(int *)(param_1 + 4);
+  b = *(int *)(param_2 + 4);
+  result = 0;
+  if (b < a)
+    return -1;
+  if (b > a)
+    result = 1;
+  return result;
+}
+
+/* Initialize three 4-float color vectors (stored as integer hex)
+ * used by the post-game scoreboard highlight rendering.
+ * param_1 = primary highlight color (pinkish: 1.0, 0.459, 0.729, 1.0)
+ * param_2 = secondary highlight color (white: 1.0, 1.0, 1.0, 0.0)
+ * param_3 = tertiary highlight color (off-white: 1.0, 0.979, 0.961, 0.961) */
+void FUN_000a8580(unsigned int *param_1, unsigned int *param_2,
+                  unsigned int *param_3)
+{
+  param_1[1] = 0x3eeaeaeb;
+  param_1[2] = 0x3f3ababb;
+  param_1[3] = 0x3f800000;
+  *param_1 = 0x3f800000;
+  param_2[1] = 0x3f800000;
+  param_2[2] = 0x3f800000;
+  param_2[3] = 0;
+  *param_2 = 0x3f800000;
+  param_3[1] = 0x3f7ae148;
+  param_3[2] = 0x3f75c28f;
+  param_3[3] = 0x3f75c28f;
+  *param_3 = 0x3f800000;
+}
+
+/* Check whether an object is a live biped whose controlling player
+ * differs from the value pointed to by param_2. Returns 1 (true) if
+ * the object is alive, is a biped (type 0), does not have the
+ * equipment-despawn flag (0xb6 bit 2), and is controlled by a player
+ * other than *param_2. Used by game-engine iteration filters. */
+bool FUN_000a85d0(int param_1, int *param_2)
+{
+  int target;
+  bool result;
+  char *obj;
+
+  target = *param_2;
+  result = false;
+  obj = (char *)object_get_and_verify_type(param_1, -1);
+  if ((*(uint8_t *)(obj + 4) & 1) == 0 &&
+      (1 << (*(uint8_t *)(obj + 0x64) & 0x1f) & 1U) != 0 &&
+      (*(uint8_t *)(obj + 0xb6) & 4) == 0) {
+    if (player_index_from_unit_index(param_1) != target) {
+      result = true;
+    }
+  }
+  return result;
+}
+
+/* get_postgame_hilite_colors (0xa8630)
+ *
+ * Dispatch to vtable slot 12 (offset 0x30) of the current game engine.
+ * No frame pointer in the original binary. */
+void get_postgame_hilite_colors(void)
+{
+  if (current_game_engine) {
+    void (**vtable)(void) = (void (**)(void))current_game_engine;
+    if (vtable[12])
+      vtable[12]();
+  }
+}
+
 /* Remove dropped weapons older than 900 ticks (30 seconds) and
  * equipment items whose idle timer exceeds 900 ticks.
  * Weapons that are CTF flags or attached to vehicles are preserved. */
@@ -236,6 +316,37 @@ void game_engine_spawn_equipment(void)
   }
 }
 
+/* game_engine_load_stage (0xa8a20)
+ *
+ * Load a game stage. If param_1 is non-null and matches the current
+ * multiplayer map name, skip the map name update. Otherwise update
+ * the map name from the buffer at 0x5aa760, set the game variant
+ * from 0x5aa7a0, and reset the map if not in a network game. */
+void game_engine_load_stage(const char *param_1)
+{
+  if (param_1 == NULL || csstrcmp((const char *)0x5aa760, param_1) != 0) {
+    main_set_multiplayer_map_name((const char *)0x5aa760);
+  }
+  game_set_game_variant((game_variant_t *)0x5aa7a0);
+  if (!network_game_in_progress()) {
+    main_reset_map();
+  }
+}
+
+/* game_engine_playlist_begin (0xa8a70)
+ *
+ * Begin a playlist: set the multiplayer map name from 0x5aa760,
+ * set the game variant from 0x5aa7a0, and reset the map if not
+ * in a network game. No frame pointer in the original binary. */
+void game_engine_playlist_begin(void)
+{
+  main_set_multiplayer_map_name((const char *)0x5aa760);
+  game_set_game_variant((game_variant_t *)0x5aa7a0);
+  if (!network_game_in_progress()) {
+    main_reset_map();
+  }
+}
+
 /* Copy the current game variant and map name into the provided buffers. */
 bool game_engine_get_current_stage(void *game_variant_dst, void *map_name_dst)
 {
@@ -277,6 +388,23 @@ bool game_engine_allow_weapon_pick_up(int unit_handle, int weapon_handle)
   return true;
 }
 
+/* game_engine_player_damaged_player (0xa8b50)
+ *
+ * Asserts that dead_player_index is valid, then dispatches to vtable
+ * slot 0x5c/4 (slot 23) of current_game_engine with all three params.
+ */
+void game_engine_player_damaged_player(int param_1, int dead_player_index,
+                                       int param_3)
+{
+  assert_halt(dead_player_index != NONE);
+  if (current_game_engine) {
+    void (*fn)(int, int, int) =
+      ((void (**)(int, int, int))current_game_engine)[0x5c / 4];
+    if (fn)
+      fn(param_1, dead_player_index, param_3);
+  }
+}
+
 /* game_engine_is_player_leading (0xa8ba0)
  *
  * Returns true if the given player has the highest kill count among all
@@ -310,6 +438,70 @@ bool game_engine_is_player_leading(int player_handle)
       leading = false;
   }
   return leading;
+}
+
+/* game_engine_player_is_out_of_lives (0xa8c40)
+ *
+ * Returns true if the player has no vehicle (object +0x34 == NONE) and
+ * their death count (+0xaa) meets or exceeds the lives threshold at
+ * 0x456b30.  Returns false when the threshold is zero (unlimited lives).
+ */
+bool game_engine_player_is_out_of_lives(int player_handle)
+{
+  bool result;
+  char *player;
+
+  result = false;
+  if (*(int *)0x456b30 > 0) {
+    player = (char *)datum_get(*(void **)0x5aa6d4, player_handle);
+    if (*(int *)(player + 0x34) == NONE &&
+        (int)*(short *)(player + 0xaa) >= *(int *)0x456b30)
+      result = true;
+  }
+  return result;
+}
+
+/* game_engine_player_get_team_index (0xa8d80)
+ *
+ * Asserts that current_game_engine is non-NULL.  If the engine has a
+ * team-count override at vtable+0x74, returns 1.  Otherwise returns the
+ * player's team index (offset +2, a short) modulo 2.
+ */
+unsigned int game_engine_player_get_team_index(int player_handle)
+{
+  char *player;
+  unsigned int team;
+
+  assert_halt_msg(current_game_engine, "game_engine");
+  if (*(int *)((char *)current_game_engine + 0x74) == 0) {
+    player = (char *)datum_get(*(void **)0x5aa6d4, player_handle);
+    team = (int)*(short *)(player + 2) % 2;
+    return team;
+  }
+  return 1;
+}
+
+/* game_engine_prespawn_player_update (0xa8df0)
+ *
+ * If the engine has a vtable slot at +0x6c, tail-calls it with the
+ * player handle.  Otherwise computes team = team_index % 2 and writes
+ * it to the player datum at +0x20.
+ */
+void game_engine_prespawn_player_update(int player_handle)
+{
+  char *player;
+  unsigned int team;
+
+  if (current_game_engine) {
+    void (*fn)(int) = ((void (**)(int))current_game_engine)[0x6c / 4];
+    if (fn) {
+      fn(player_handle);
+      return;
+    }
+    player = (char *)datum_get(*(void **)0x5aa6d4, player_handle);
+    team = (int)*(short *)(player + 2) % 2;
+    *(unsigned int *)(player + 0x20) = team;
+  }
 }
 
 bool game_engine_running(void)
@@ -399,6 +591,82 @@ bool game_engine_unit_can_enter_seat(int unit_handle, int seat_object_handle)
   }
 
   return result;
+}
+
+/* get_flag_definition_index (0xa92b0)
+ *
+ * Returns the flag definition tag index from the first multiplayer
+ * information element (game_globals+0x164, element size 0xa0, offset 0xc).
+ */
+int get_flag_definition_index(void)
+{
+  void *block;
+  char *element;
+
+  global_scenario_get();
+  block = (char *)game_globals_get() + 0x164;
+  element = (char *)tag_block_get_element(block, 0, 0xa0);
+  return *(int *)(element + 0xc);
+}
+
+/* get_ball_definition_index (0xa92e0)
+ *
+ * Returns the ball definition tag index from the first multiplayer
+ * information element (game_globals+0x164, element size 0xa0, offset 0x58).
+ */
+int get_ball_definition_index(void)
+{
+  void *block;
+  char *element;
+
+  global_scenario_get();
+  block = (char *)game_globals_get() + 0x164;
+  element = (char *)tag_block_get_element(block, 0, 0xa0);
+  return *(int *)(element + 0x58);
+}
+
+/* Check scenario netgame flags (scenario+0x378, element size 0x94) for
+ * duplicate entries: two flags with the same type (param_1) AND same
+ * team (offset 0x12). For each duplicate pair found, calls error()
+ * with the supplied format string and the team index. Triangle-loop:
+ * outer i, inner j = i+1..count-1. */
+void FUN_000aa010(short param_1, const char *param_2)
+{
+  char *scenario_ptr;
+  int *flags_block;
+  int i;
+  int j;
+  short outer_next;
+  short inner_idx;
+  char *elem_i;
+  char *elem_j;
+
+  scenario_ptr = (char *)global_scenario_get();
+  flags_block = (int *)(scenario_ptr + 0x378);
+  if (0 < *flags_block) {
+    i = 0;
+    outer_next = 1;
+    do {
+      elem_i = (char *)tag_block_get_element(flags_block, i, 0x94);
+      if (param_1 == *(short *)(elem_i + 0x10)) {
+        j = (int)outer_next;
+        inner_idx = outer_next;
+        if (j < *flags_block) {
+          do {
+            elem_j = (char *)tag_block_get_element(flags_block, j, 0x94);
+            if (param_1 == *(short *)(elem_j + 0x10) &&
+                *(short *)(elem_j + 0x12) == *(short *)(elem_i + 0x12)) {
+              error(2, param_2, (int)*(short *)(elem_j + 0x12));
+            }
+            inner_idx = inner_idx + 1;
+            j = (int)inner_idx;
+          } while (j < *flags_block);
+        }
+      }
+      i = (int)outer_next;
+      outer_next = outer_next + 1;
+    } while (i < *flags_block);
+  }
 }
 
 /* game_engine_slayer_default (0xaa190)
@@ -2151,6 +2419,157 @@ void game_engine_update(void)
                    0x985, true);
     system_exit(-1);
   }
+}
+
+/* FUN_000af9a0 (0xaf9a0) — game_engine post-rasterize hook
+ *
+ * Called during post-rasterize. For game types 2 (post-game scoreboard)
+ * and 3 (post-game delay), renders post-game UI widgets across all four
+ * local player slots and clears rumble for each.
+ * Game types 0 and 1 are no-ops; any other value asserts unreachable. */
+void FUN_000af9a0(void)
+{
+  int i;
+  int16_t bounds[4];
+
+  i = 0;
+  if (*(int *)0x456b60 != 0) {
+    switch (*(int *)0x5aa730) {
+    case 0:
+    case 1:
+      break;
+    case 2:
+    case 3:
+      game_engine_post_rasterize_post_game();
+      bounds[0] = 0;
+      bounds[1] = 0;
+      bounds[2] = 0x1e0;
+      bounds[3] = 0x280;
+      do {
+        render_ui_widgets_postgame((int16_t)i, bounds);
+        rumble_clear_for_local_player((int16_t)i);
+        i = i + 1;
+      } while (i < 4);
+      return;
+    default:
+      display_assert("!\"unreachable\"",
+                     "c:\\halo\\SOURCE\\game\\game_engine.c", 0xdb5, true);
+      system_exit(-1);
+    }
+  }
+}
+
+/* FUN_000b04a0 (0xb04a0) — game_engine_ctf.c:0x3f5
+ *
+ * Assert that the given weapon index refers to a flag weapon.
+ * Source file is game_engine_ctf.c but the function is linked into
+ * game_engine.obj.
+ */
+void FUN_000b04a0(int weapon_index)
+{
+  if (!weapon_is_flag(weapon_index)) {
+    display_assert("weapon_is_flag(weapon_index)",
+                   "c:\\halo\\SOURCE\\game\\game_engine_ctf.c", 0x3f5, true);
+    system_exit(-1);
+  }
+}
+
+/* FUN_000b04e0 (0xb04e0) — CTF/game-engine score lookup
+ *
+ * Returns the player's individual score or team score depending on param_2.
+ * If param_2 == 0, returns the int16 score at player+0xc4.
+ * Otherwise, returns the team score from the 0x456b84 array indexed by
+ * the player's team field at player+0x20. */
+int FUN_000b04e0(int player_handle, int param_2)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  if (param_2 == 0) {
+    return (int)*(int16_t *)(player + 0xc4);
+  }
+  return ((int *)0x456b84)[*(int *)(player + 0x20)];
+}
+
+/* FUN_000b0530 (0xb0530) — CTF/game-engine score format by player
+ *
+ * Formats the player's score (int16 at player+0xc4) into a wide string
+ * buffer using the format string pointer at 0x26c118. */
+wchar_t *FUN_000b0530(int player_handle, wchar_t *dst)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  usprintf(dst, *(const wchar_t **)0x26c118, (int)*(int16_t *)(player + 0xc4));
+  return dst;
+}
+
+/* FUN_000b0570 (0xb0570) — CTF/game-engine score header "Score"
+ *
+ * Formats the static header string L"Score" into the destination buffer. */
+wchar_t *FUN_000b0570(wchar_t *dst)
+{
+  usprintf(dst, L"Score");
+  return dst;
+}
+
+/* FUN_000b0590 (0xb0590) — CTF/game-engine team score format
+ *
+ * Formats a team score from the 0x456b84 array, indexed by param_1,
+ * into a wide string buffer using the format string at 0x26c118. */
+wchar_t *FUN_000b0590(int param_1, wchar_t *dst)
+{
+  usprintf(dst, *(const wchar_t **)0x26c118, ((int *)0x456b84)[param_1]);
+  return dst;
+}
+
+/* FUN_000b1a60 (0xb1a60) — game-engine score lookup (time-based variant)
+ *
+ * Returns the player's individual tick-count score or team score depending
+ * on param_2. If param_2 == 0, returns the int16 tick count at player+0xc0.
+ * Otherwise, returns the team score from the 0x456ba8 array indexed by the
+ * player's team field at player+0x20. */
+int FUN_000b1a60(int player_handle, int param_2)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  if (param_2 == 0) {
+    return (int)*(int16_t *)(player + 0xc0);
+  }
+  return ((int *)0x456ba8)[*(int *)(player + 0x20)];
+}
+
+/* FUN_000b1de0 (0xb1de0) — CTF/game-engine time-based score format
+ *
+ * Reads the player's tick count at player+0xc0 and formats it as a
+ * unicode time string using ticks_to_unicode_time_string. */
+wchar_t *FUN_000b1de0(int player_handle, wchar_t *dst)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  ticks_to_unicode_time_string((int)*(int16_t *)(player + 0xc0), 0x100, dst);
+  return dst;
+}
+
+/* FUN_000b1e20 (0xb1e20) — game-engine score header "Time"
+ *
+ * Formats the static header string L"Time" into the destination buffer. */
+wchar_t *FUN_000b1e20(wchar_t *dst)
+{
+  usprintf(dst, L"Time");
+  return dst;
+}
+
+/* FUN_000b1e40 (0xb1e40) — game-engine team time score format
+ *
+ * Formats a team's time-based score from the 0x456ba8 array, indexed by
+ * team_index, into a wide string buffer using ticks_to_unicode_time_string. */
+wchar_t *FUN_000b1e40(int team_index, wchar_t *dst)
+{
+  ticks_to_unicode_time_string(((int *)0x456ba8)[team_index], 0x100, dst);
+  return dst;
 }
 
 /* Play the score sound for the given event index. Looks up the sound
