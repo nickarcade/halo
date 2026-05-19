@@ -625,6 +625,160 @@ int get_ball_definition_index(void)
   return *(int *)(element + 0x58);
 }
 
+/* game_engine_switch_to_postgame (0xa9310)
+ *
+ * If the postgame state (0x5aa730) is 0, attempts to get the network
+ * game server. If non-null, transitions to state 1 with a 7-second timer
+ * (0x40e00000 = 7.0f). Otherwise jumps directly to state 3. */
+void game_engine_switch_to_postgame(void)
+{
+  int iVar1;
+
+  if (*(int *)0x5aa730 == 0) {
+    iVar1 = (int)network_game_server_get();
+    if (iVar1 != 0) {
+      *(int *)0x5aa730 = 1;
+      *(int *)0x5aa728 = 0x40e00000;
+      return;
+    }
+    *(int *)0x5aa730 = 3;
+  }
+}
+
+/* game_engine_get_goal_in_use (0xa9360)
+ *
+ * Returns whether the goal at the given index is in use.
+ * Reads from global_goals array (stride 0x20, base 0x456704). */
+char game_engine_get_goal_in_use(short param_1)
+{
+  return *(char *)(0x456704 + (int)param_1 * 0x20);
+}
+
+/* game_engine_get_goal_position (0xa9380)
+ *
+ * Copies the position (3 floats) of the goal at index param_2 into param_1.
+ * Asserts the goal is in use. */
+void game_engine_get_goal_position(int *param_1, short param_2)
+{
+  int iVar1;
+  char *src;
+
+  iVar1 = (int)param_2;
+  if (*(char *)(0x456704 + iVar1 * 0x20) == '\0') {
+    display_assert("global_goal[index].in_use",
+                   "c:\\halo\\SOURCE\\game\\game_engine.c", 0xf5c, true);
+    system_exit(-1);
+  }
+  src = (char *)(0x4566f8 + iVar1 * 0x20);
+  *param_1 = *(int *)src;
+  param_1[1] = *(int *)(src + 4);
+  param_1[2] = *(int *)(src + 8);
+}
+
+/* game_engine_clear_goal_position (0xa9460)
+ *
+ * Clears the goal entry at the given index (0x20 bytes starting at
+ * 0x4566f8 + index * 0x20). */
+void game_engine_clear_goal_position(short param_1)
+{
+  csmemset((char *)(0x4566f8 + (int)param_1 * 0x20), 0, 0x20);
+}
+
+/* game_engine_has_shield (0xa95f0)
+ *
+ * Returns true (1) if the game engine is inactive or player_index is NONE.
+ * Otherwise returns bit 3 of the engine flags (0x456b18), inverted. */
+char game_engine_has_shield(int param_1)
+{
+  char result;
+
+  result = 1;
+  if (*(int *)0x456b60 != 0 && param_1 != -1) {
+    result = (~(*(int *)0x456b18 >> 3)) & 1;
+  }
+  return result;
+}
+
+/* list_index_to_weapon_definition_index (0xa9680)
+ *
+ * Returns the weapon definition tag index for a given list index by reading
+ * game_globals+0x14c element at param_1 (size 0x10, offset 0xc).
+ * Returns -1 if param_1 is -1. */
+int list_index_to_weapon_definition_index(int param_1)
+{
+  int result;
+  int iVar1;
+
+  result = -1;
+  if (param_1 != -1) {
+    iVar1 = (int)game_globals_get();
+    result = *(int *)((char *)tag_block_get_element(
+        (void *)(iVar1 + 0x14c), param_1, 0x10) + 0xc);
+  }
+  return result;
+}
+
+/* game_engine_man_out (0xa9900)
+ *
+ * Returns true if the player is "out" (eliminated). A player is out if:
+ *   - their quit flag (player+0xd1) is set, OR
+ *   - lives are limited (0x456b30 > 0), they have no biped (player+0x34 == -1),
+ *     AND their death count (player+0xaa) >= the lives limit, OR
+ *   - they are leading (game_engine_is_player_leading). */
+char game_engine_man_out(int param_1)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, param_1);
+  if (*(char *)(player + 0xd1) == '\0') {
+    if (*(int *)0x456b30 > 0) {
+      player = (char *)datum_get(player_data, param_1);
+      if (*(int *)(player + 0x34) == -1 &&
+          (int)*(short *)(player + 0xaa) >= *(int *)0x456b30) {
+        return 1;
+      }
+    }
+    if (game_engine_is_player_leading(param_1) == '\0') {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/* game_engine_state_message (0xa9970)
+ *
+ * Sets the player's state message fields (player+0x74 and player+0x78)
+ * from param_2 and param_3. */
+void game_engine_state_message(int param_1, int param_2, int param_3)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, param_1);
+  *(int *)(player + 0x74) = param_2;
+  *(int *)(player + 0x78) = param_3;
+}
+
+/* game_engine_player_depower_active_camo (0xa9aa0)
+ *
+ * If the player has a biped that is a unit (type mask 3) and has the
+ * active camo bit (byte 0x1b4, bit 4) set, sets the camo power field
+ * (offset 0x32c) to 0.5f (0x3f000000). */
+void game_engine_player_depower_active_camo(int param_1)
+{
+  char *player;
+  char *unit;
+
+  if (param_1 != -1) {
+    player = (char *)datum_get(player_data, param_1);
+    if (*(int *)(player + 0x34) != -1) {
+      unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+      if ((*(unsigned char *)(unit + 0x1b4) & 0x10) != 0) {
+        *(int *)(unit + 0x32c) = 0x3f000000;
+      }
+    }
+  }
+}
+
 /* Check scenario netgame flags (scenario+0x378, element size 0x94) for
  * duplicate entries: two flags with the same type (param_1) AND same
  * team (offset 0x12). For each duplicate pair found, calls error()

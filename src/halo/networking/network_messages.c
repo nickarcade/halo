@@ -81,6 +81,118 @@ void verify_packet_definition(packet_definition *def)
   }
 }
 
+/* Initialize a hashtable header.
+ * Source: c:\halo\SOURCE\memory\hashtable.c lines 0x29-0x2c (41-44).
+ * Asserts: table non-NULL, key_size>0, element_size>0, 0<load_factor<=1.
+ * Byte layout of *table (all offsets confirmed from disassembly):
+ *   +0x00 int16  key_size
+ *   +0x02 int16  element_size
+ *   +0x04 int16  count = 0
+ *   +0x06 int16  sentinel = -1 (0xffff)
+ *   +0x08 float  load_factor
+ *   +0x10 dword  param_5
+ *   +0x14 dword  param_6
+ *   +0x18 dword  0
+ *   +0x1c       array header (passed to array_new with key_size+element_size)
+ */
+void hashtable_new(void *table, short key_size, short element_size,
+                   float load_factor, int param_5, int param_6)
+{
+  char *t;
+
+  if (table == NULL) {
+    display_assert("table", "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x29, 1);
+    system_exit(-1);
+  }
+  if (key_size < 1) {
+    display_assert("key_size>0", "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x2a,
+                   1);
+    system_exit(-1);
+  }
+  if (element_size < 1) {
+    display_assert("element_size>0", "c:\\halo\\SOURCE\\memory\\hashtable.c",
+                   0x2b, 1);
+    system_exit(-1);
+  }
+  if (!(load_factor > 0.0f && load_factor <= 1.0f)) {
+    display_assert("load_factor>0 && load_factor<=1",
+                   "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x2c, 1);
+    system_exit(-1);
+  }
+  t = (char *)table;
+  *(float *)(t + 0x08) = load_factor;
+  *(int *)(t + 0x10) = param_5;
+  *(int *)(t + 0x14) = param_6;
+  *(short *)(t + 0x00) = key_size;
+  *(short *)(t + 0x02) = element_size;
+  *(short *)(t + 0x04) = 0;
+  *(short *)(t + 0x06) = (short)-1;
+  array_new((int *)(t + 0x1c), (int)key_size + (int)element_size);
+  *(int *)(t + 0x18) = 0;
+}
+
+/* hashtable_set_user_data — store a user-data/callback value at offset 0x0c
+ * of the hashtable header (0x11b950).
+ *
+ * Original source: c:\halo\SOURCE\memory\hashtable.c
+ * Offset 0x0c sits between the load_factor float (0x08) and the param_5 field
+ * (0x10) established by hashtable_new.  This is a simple field setter with no
+ * validation.
+ */
+void hashtable_set_user_data(void *table, int user_data)
+{
+  char *t = (char *)table;
+  *(int *)(t + 0x0c) = user_data;
+}
+
+/* hashtable_dispose — validate and dispose a hashtable (0x11b960).
+ *
+ * Original source: c:\halo\SOURCE\memory\hashtable.c lines 0x6e (110)–0x74
+ * (116).
+ *
+ * Validates the hashtable (null check, key_size>0, element_size>0,
+ * load_factor in (0,1], and — when a capacity slot index is set — that the
+ * slot count matches 2^slot_index).  On failure fires display_assert with the
+ * hashtable_valid predicate string and halts.
+ *
+ * On success: disposes the embedded array at t+0x1c via FUN_00117cf0, then
+ * frees the optional data block at t+0x18 via debug_free if non-NULL.
+ *
+ * Struct layout (from hashtable_new, offsets are byte offsets):
+ *   t+0x00  short   key_size
+ *   t+0x02  short   element_size
+ *   t+0x04  short   (zero-init)
+ *   t+0x06  short   slot_index (-1 when no capacity allocated)
+ *   t+0x08  float   load_factor
+ *   t+0x0c  int     user_data (set by hashtable_set_user_data)
+ *   t+0x10  int     param_5
+ *   t+0x14  int     param_6
+ *   t+0x18  int     optional data block pointer (freed here)
+ *   t+0x1c  []      embedded array header (disposed here)
+ *   t+0x20  int     capacity field inside array header (checked when
+ *                   slot_index != -1)
+ */
+void hashtable_dispose(short *table)
+{
+  char *t;
+
+  if (table == NULL || *table < 1 || table[1] < 1 ||
+      !(*(float *)((char *)table + 0x08) > 0.0f &&
+        *(float *)((char *)table + 0x08) <= 1.0f) ||
+      (table[3] != -1 &&
+       (1 << ((unsigned char)table[3] & 0x1f)) != *(int *)((char *)table + 0x20))) {
+    display_assert("hashtable_valid(table)",
+                   "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x6e, 1);
+    system_exit(-1);
+  }
+  t = (char *)table;
+  FUN_00117cf0((int *)(t + 0x1c));
+  if (*(int *)(t + 0x18) != 0) {
+    debug_free(*(void **)(t + 0x18), "c:\\halo\\SOURCE\\memory\\hashtable.c",
+               0x74);
+  }
+}
+
 void initialize_network_game_packets(void)
 {
   verify_packet_group_definitions(&s_network_game_messages_group);

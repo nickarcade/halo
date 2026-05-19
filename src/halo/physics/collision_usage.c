@@ -20,7 +20,7 @@ char FUN_0014cb00(int param_1, void *param_2, void *param_3, void *param_4,
     local_5 = 0;
     collision_log_add_call(3);
     collision_log_query_counter((void *)0x4761c8);
-    *(int *)(param_5 + 2) = 0x7f7fffff;
+    *(int *)(param_5 + 4) = 0x7f7fffff;
     piVar3 = (int *)(*(int *)(param_1 + 4) + 0x28c);
     iVar6 = 0;
     local_c = 0;
@@ -51,8 +51,8 @@ char FUN_0014cb00(int param_1, void *param_2, void *param_3, void *param_4,
                             cVar2 = collision_bsp_test_vector(
                                 (int)param_2, (int)piVar3, 0, 0,
                                 (int)local_28, (int)local_1c,
-                                *(float *)(param_5 + 2),
-                                (float *)(param_5 + 2));
+                                *(float *)(param_5 + 4),
+                                (float *)(param_5 + 4));
                             if (cVar2 != '\0') {
                                 *param_5 = (int16_t)local_c;
                                 param_5[1] = *(int16_t *)(local_10 + 0x20);
@@ -312,6 +312,59 @@ int FUN_0014c8e0(int *out, int object_handle)
     return 0;
 }
 
+/* Iterates collision elements; calls render_debug_collision_bsp for those with valid BSP data.
+ * 0x14cf20 / collision_usage.obj
+ */
+void FUN_0014cf20(int param_1)
+{
+    unsigned char bVar1;
+    int iVar2;
+    int iVar3;
+    int iVar4;
+    short sVar5;
+    int iVar6;
+
+    iVar2 = *(int *)(param_1 + 4);
+    sVar5 = 0;
+    if (0 < *(int *)(iVar2 + 0x28c)) {
+        iVar6 = 0;
+        do {
+            iVar2 = (int)tag_block_get_element((void *)(iVar2 + 0x28c), iVar6, 0x40);
+            if ((*(short *)(iVar2 + 0x20) != -1) &&
+                (bVar1 = *(unsigned char *)(*(int *)(param_1 + 8) + (int)*(short *)(iVar2 + 0x20)),
+                 bVar1 != 0xff)) {
+                iVar3 = *(int *)(iVar2 + 0x34);
+                if (0 < iVar3) {
+                    iVar4 = (int)(short)(unsigned short)bVar1;
+                    iVar3 = iVar3 - 1;
+                    if (iVar4 <= iVar3) {
+                        iVar3 = iVar4;
+                    }
+                    iVar2 = (int)tag_block_get_element((void *)(iVar2 + 0x34), (int)(short)iVar3, 0x60);
+                    if (((0 < *(int *)(iVar2 + 0x3c)) && (0 < *(int *)(iVar2 + 0x48))) &&
+                        (0 < *(int *)(iVar2 + 0x54))) {
+                        render_debug_collision_bsp(iVar2, iVar6 * 0x34 + *(int *)(param_1 + 0xc));
+                    }
+                }
+            }
+            iVar2 = *(int *)(param_1 + 4);
+            sVar5 = sVar5 + 1;
+            iVar6 = (int)sVar5;
+        } while (iVar6 < *(int *)(iVar2 + 0x28c));
+    }
+}
+
+/* Comparator: returns -1/0/1 based on *(int *)(a+8) vs *(int *)(b+8).
+ * 0x14cfe0 / collision_usage.obj
+ */
+int FUN_0014cfe0(int param_1, int param_2)
+{
+    if (*(int *)(param_2 + 8) < *(int *)(param_1 + 8)) {
+        return -1;
+    }
+    return *(int *)(param_1 + 8) < *(int *)(param_2 + 8);
+}
+
 void collision_log_initialize(void)
 {
   csmemset((void *)0x5a5e40, 0, 0x2298);
@@ -511,6 +564,77 @@ int FUN_0014da80(int tag_data, int16_t collision_fn_index)
   elem = tag_block_get_element((void *)(tag_data + 0x234),
                                (int)collision_fn_index, 0x48);
   return (int)*(int16_t *)((char *)elem + 0x24);
+}
+
+/* 0x14dab0 — Tests whether a point (param_1) passes a sphere–BSP collision check.
+ * Finds the BSP3D leaf for param_1 via FUN_0018e420; if found, tests the collision
+ * BSP sphere. Returns 1 if outside BSP or collision sphere intersects, 0 on pass.
+ * Confirmed: cdecl, 2 stack args. _chkstk(0x1010) for 4112-byte buf local. */
+char FUN_0014dab0(int param_1, int param_2)
+{
+  char buf[0x1010];
+  if ((int)bsp3d_find_leaf(FUN_0018e420(), 0, (void *)param_1) == -1)
+    goto fail;
+  if (!(char)collision_bsp_test_sphere(
+          (int)global_collision_bsp_get(), 0x100,
+          (int)breakable_surfaces_get_bsp_surface_data(),
+          param_1, param_2, (int *)buf))
+    return 0;
+fail:
+  return 1;
+}
+
+/* 0x14db10 — Walk a linked list of objects (via [obj+0xC4] sibling index),
+ * testing each against a sphere (radius at [obj+0x5C], position at [obj+0x50]).
+ * Dispatches to FUN_001509c0/FUN_00150ac0 (type-flag branch A) or
+ * FUN_0014c8e0/FUN_0014c950 (branch B). Recurses on child index [obj+0xC8].
+ * Returns 1 if any match found. */
+char FUN_0014db10(int param_1, int param_2, int param_3, int param_4)
+{
+  int *obj;
+  int type_short;
+  int cur;
+  int child;
+  float dx;
+  float dy;
+  float dz;
+  float r;
+  int local_a[19];
+  int local_b[4];
+
+  cur = param_1;
+  do {
+    obj = (int *)object_get_and_verify_type(cur, -1);
+    if (cur != param_4 && !(*(unsigned char *)((char *)obj + 4) & 1)) {
+      type_short = (int)*(short *)((char *)obj + 0x64);
+      if (param_2 & (1 << (type_short + 8))) {
+        r = *(float *)((char *)obj + 0x5c);
+        dx = *(float *)((char *)obj + 0x50) - ((float *)param_3)[0];
+        dy = *(float *)((char *)obj + 0x54) - ((float *)param_3)[1];
+        dz = *(float *)((char *)obj + 0x58) - ((float *)param_3)[2];
+        if (r * r >= dx * dx + dy * dy + dz * dz) {
+          if ((1 << type_short) & 2 && param_2 & 0x400000) {
+            if (FUN_001509c0(local_a, cur) &&
+                FUN_00150ac0(local_a, (int *)param_3)) {
+              return 1;
+            }
+          } else {
+            if (FUN_0014c8e0(local_b, cur) &&
+                FUN_0014c950((int)local_b, (void *)param_3)) {
+              return 1;
+            }
+          }
+          child = *(int *)((char *)obj + 0xc8);
+          if (child != -1 &&
+              FUN_0014db10(child, param_2, param_3, param_4)) {
+            return 1;
+          }
+        }
+      }
+    }
+    cur = *(int *)((char *)obj + 0xc4);
+  } while (cur != -1);
+  return 0;
 }
 
 /* 0x14ec30 — Collision test against BSP surfaces and nearby objects.
