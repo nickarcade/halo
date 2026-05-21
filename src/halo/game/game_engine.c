@@ -2645,6 +2645,12 @@ int FUN_000b04e0(int player_handle, int param_2)
   return ((int *)0x456b84)[*(int *)(player + 0x20)];
 }
 
+/* FUN_000b0520 (0xb0520) — check game state == 0 */
+bool FUN_000b0520(int param_1)
+{
+  return param_1 == 0;
+}
+
 /* FUN_000b0530 (0xb0530) — CTF/game-engine score format by player
  *
  * Formats the player's score (int16 at player+0xc4) into a wide string
@@ -2654,7 +2660,7 @@ wchar_t *FUN_000b0530(int player_handle, wchar_t *dst)
   char *player;
 
   player = (char *)datum_get(player_data, player_handle);
-  usprintf(dst, *(const wchar_t **)0x26c118, (int)*(int16_t *)(player + 0xc4));
+  usprintf(dst, (const wchar_t *)0x26c118, (int)*(int16_t *)(player + 0xc4));
   return dst;
 }
 
@@ -2673,7 +2679,7 @@ wchar_t *FUN_000b0570(wchar_t *dst)
  * into a wide string buffer using the format string at 0x26c118. */
 wchar_t *FUN_000b0590(int param_1, wchar_t *dst)
 {
-  usprintf(dst, *(const wchar_t **)0x26c118, ((int *)0x456b84)[param_1]);
+  usprintf(dst, (const wchar_t *)0x26c118, ((int *)0x456b84)[param_1]);
   return dst;
 }
 

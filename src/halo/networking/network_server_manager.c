@@ -24,6 +24,28 @@ bool FUN_0012bce0(int param_1, int param_2, short *param_3, short *param_4,
   return cVar1;
 }
 
+/* Update a countdown timer without reading its value.
+ * countdown[0] = time_remaining, countdown[1] = last_tick_time.
+ * 0x12bd80 / network_server_manager.obj */
+void countdown_timer_update(int *param_1)
+{
+  int now;
+  int old;
+  int elapsed;
+
+  now = system_milliseconds();
+  old = param_1[1];
+  param_1[1] = now;
+  if (now > old) {
+    elapsed = now - old;
+    if (elapsed < param_1[0]) {
+      param_1[0] -= elapsed;
+    } else {
+      param_1[0] = 0;
+    }
+  }
+}
+
 /* Tick a millisecond countdown timer. Subtracts elapsed time from
    time_remaining, clamps to zero, and returns the remaining value.
    countdown[0] = time_remaining, countdown[1] = last_tick_time. */
@@ -502,6 +524,48 @@ void network_game_server_all_machines_have_loaded(void *server)
   }
 }
 
+/* Mark machine as loading-complete and check if all machines are loaded.
+ * 0x12cb20 / network_server_manager.obj
+ */
+void network_game_server_client_machine_game_loading_completed(void *server,
+                                                               void *machine)
+{
+  short sVar1;
+  bool bVar2;
+  short *psVar4;
+  int iVar5;
+
+  bVar2 = 1;
+  if (!server) {
+    display_assert(0, 0, 0x4ed, 1);
+    system_exit(-1);
+  }
+  if (!machine) {
+    display_assert(0, 0, 0x4ee, 1);
+    system_exit(-1);
+  }
+  *(unsigned char *)((char *)machine + 0xe) |= 4;
+  psVar4 = (short *)((char *)server + 0x448);
+  iVar5 = 4;
+  do {
+    sVar1 = *psVar4;
+    if (sVar1 >= 0 && sVar1 < 4 &&
+        !(*(unsigned char *)((char *)psVar4 + 2) & 4)) {
+      network_game_log("still waiting on machine #%d to finish loading",
+                       (int)sVar1);
+      bVar2 = 0;
+    }
+    psVar4 = (short *)((char *)psVar4 + 0x10);
+    iVar5--;
+  } while (iVar5 != 0);
+  if (bVar2) {
+    network_game_server_all_machines_have_loaded(server);
+  }
+  if (*(int *)((char *)server + 0x484) == 0) {
+    *(unsigned int *)((char *)server + 0x484) = system_milliseconds();
+  }
+}
+
 /* network_game_server_client_machine_is_precached — 0x12cbe0 */
 void network_game_server_client_machine_is_precached(int param_1, int param_2,
                                                      int param_3)
@@ -559,7 +623,8 @@ void network_game_server_begin_game_start_countdown(int param_1, int param_2)
                    0x5ed, 1);
     system_exit(-1);
   }
-  if ((*(char *)(param_1 + 0x494) == '\0') && (*(char *)(param_1 + 0x495) == '\0')) {
+  if ((*(char *)(param_1 + 0x494) == '\0') &&
+      (*(char *)(param_1 + 0x495) == '\0')) {
     countdown_timer_set_time_remaining((int *)(param_1 + 0x488), param_2);
     *(unsigned char *)(param_1 + 0x496) = 0;
     *(unsigned char *)(param_1 + 0x494) = 1;
@@ -653,6 +718,32 @@ bool server_has_enough_machines(void *server)
   return count >= threshold;
 }
 
+/* Zero out a machine struct (0x44 bytes) and set byte at +0x40 to 0xff.
+ * 0x12d210 / network_server_manager.obj
+ */
+void network_game_server_invalidate_network_machine(void *machine)
+{
+  if (!machine) {
+    display_assert(0, 0, 0x6c9, 1);
+    system_exit(-1);
+  }
+  csmemset(machine, 0, 0x44);
+  *(char *)((char *)machine + 0x40) = (char)0xff;
+}
+
+
+/* Return the connection object from the server (server[0]).
+ * 0x12d380 / network_server_manager.obj
+ */
+int network_game_server_get_connection(void *server)
+{
+  if (!server) {
+    display_assert(0, 0, 0x712, 1);
+    system_exit(-1);
+  }
+  return *(int *)server;
+}
+
 /* Return the connection handle from a machine struct (0x12d3b0).
  * Returns the first dword at machine+0, or 0 if machine is NULL. */
 int network_game_server_adjust_machine_settings(void *machine)
@@ -689,6 +780,87 @@ int network_game_server_get_game(void *server)
   }
   return (int)((char *)server + 8);
 }
+
+/* Return the smallest last-update tick across all 4 machine slots that are
+ * joined and have a valid update tick. Returns 0xffffffff if none qualify.
+ * 0x12d5b0 / network_server_manager.obj */
+unsigned int FUN_0012d5b0(int param_1)
+{
+  unsigned int uVar1;
+
+  uVar1 = 0xffffffff;
+  if ((*(short *)(param_1 + 0x448) >= 0) && (*(short *)(param_1 + 0x448) < 4) &&
+      (*(unsigned int *)(param_1 + 0x440) != 0xffffffff)) {
+    uVar1 = *(unsigned int *)(param_1 + 0x440);
+  }
+  if ((*(short *)(param_1 + 0x458) >= 0) && (*(short *)(param_1 + 0x458) < 4) &&
+      (uVar1 > *(unsigned int *)(param_1 + 0x450))) {
+    uVar1 = *(unsigned int *)(param_1 + 0x450);
+  }
+  if ((*(short *)(param_1 + 0x468) >= 0) && (*(short *)(param_1 + 0x468) < 4) &&
+      (uVar1 > *(unsigned int *)(param_1 + 0x460))) {
+    uVar1 = *(unsigned int *)(param_1 + 0x460);
+  }
+  if ((*(short *)(param_1 + 0x478) >= 0) && (*(short *)(param_1 + 0x478) < 4) &&
+      (uVar1 > *(unsigned int *)(param_1 + 0x470))) {
+    uVar1 = *(unsigned int *)(param_1 + 0x470);
+  }
+  return uVar1;
+}
+
+/* Return true if the server can start counting down (state 0, machines joined).
+ * 0x12d640 / network_server_manager.obj
+ */
+int network_game_server_game_can_start(void *server)
+{
+  if (!server) {
+    display_assert(0, 0, 0x782, 1);
+    system_exit(-1);
+  }
+  if (*(short *)((char *)server + 4) == 0 &&
+      *(char *)((char *)server + 0x115) <= *(short *)((char *)server + 0x22c)) {
+    return 1;
+  }
+  return 0;
+}
+
+/* Set or clear the countdown pause flag; clear the countdown struct if pausing.
+ * 0x12d690 / network_server_manager.obj
+ */
+void network_game_server_pause_countdown(void *server, char flag)
+{
+  if (!server) {
+    display_assert(0, 0, 0x78c, 1);
+    system_exit(-1);
+  }
+  if (flag == '\x01') {
+    csmemset((char *)server + 0x488, 0, 0x10);
+  }
+  *(char *)((char *)server + 0x495) = flag;
+}
+
+/* Copy game variant data into server and broadcast it to clients.
+ * 0x12d7f0 / network_server_manager.obj
+ */
+void network_game_server_change_game_variant(void *server, void *variant)
+{
+  char cVar1;
+  if (!server || !variant) {
+    display_assert(0, 0, 0x7be, 1);
+    system_exit(-1);
+  }
+  if (*(short *)((char *)server + 4) != 0) {
+    display_assert(0, 0, 0x7bf, 1);
+    system_exit(-1);
+  }
+  csmemcpy((char *)server + 0xac, variant, 0x68);
+  cVar1 = (char)FUN_0012f5d0(server);
+  if (!cVar1) {
+    network_game_log("network_game_server_change_game_variant() failed to send "
+                     "updated game settings to clients");
+  }
+}
+
 
 /* Add a new client connection to the server (0x12d880).
  * Finds the first empty machine slot (short == -1 at +0x448 stride 0x10),
@@ -1106,6 +1278,213 @@ bool FUN_0012e090(void *server, void *player_data)
   }
 
   return result;
+}
+
+/* Manage stalled-client timeout detection and reset (0x12e1d0).
+ * If stalled==false, clears all 4 slot timestamps (reset mode).
+ * If stalled==true, finds the slot with the oldest (minimum) timestamp
+ * that is in an active state (short at +0x448/0x458/0x468/0x478 in [0,3]),
+ * then either stamps it on first entry or forcibly removes the client if
+ * it has been stalled >1999 ms. After handling, clears timestamps for all
+ * other slots. The 4 machine slots live at server+0x43c with stride 0x10;
+ * fields per slot: +0x0=machine handle, +0x4=?, +0x8=timestamp, +0xc=state. */
+void network_game_server_stalled_on_client(void *server, bool stalled)
+{
+  char local_24[32];
+  int s;
+  unsigned int uVar2;
+  int iVar3;
+  char *pcVar4;
+  unsigned int uVar5;
+  int iVar6;
+  unsigned int *puVar7;
+  int iVar8;
+
+  s = (int)server;
+
+  if (s == 0) {
+    display_assert("server",
+                   "c:\\halo\\SOURCE\\networking\\network_server_manager.c",
+                   0x59e, 1);
+    system_exit(-1);
+  }
+
+  if (stalled != '\0') {
+    uVar2 = 0xffffffff;
+    iVar8 = -1;
+
+    if ((*(short *)(s + 0x448) >= 0) && (*(short *)(s + 0x448) < 4) &&
+        (*(unsigned int *)(s + 0x440) != 0xffffffff)) {
+      iVar8 = 0;
+      uVar2 = *(unsigned int *)(s + 0x440);
+    }
+    if ((*(short *)(s + 0x458) >= 0) && (*(short *)(s + 0x458) < 4) &&
+        (*(unsigned int *)(s + 0x450) < uVar2)) {
+      iVar8 = 1;
+      uVar2 = *(unsigned int *)(s + 0x450);
+    }
+    if ((*(short *)(s + 0x468) >= 0) && (*(short *)(s + 0x468) < 4) &&
+        (*(unsigned int *)(s + 0x460) < uVar2)) {
+      iVar8 = 2;
+      uVar2 = *(unsigned int *)(s + 0x460);
+    }
+    if ((*(short *)(s + 0x478) >= 0) && (*(short *)(s + 0x478) < 4) &&
+        (*(unsigned int *)(s + 0x470) < uVar2)) {
+      iVar8 = 3;
+    }
+
+    if (iVar8 == -1) {
+      display_assert("culprit != NONE",
+                     "c:\\halo\\SOURCE\\networking\\network_server_manager.c",
+                     0x5b1, 1);
+      system_exit(-1);
+    }
+
+    iVar6 = iVar8 * 0x10 + s;
+    if (*(int *)(iVar6 + 0x444) == 0) {
+      uVar5 = system_milliseconds();
+      *(unsigned int *)(iVar6 + 0x444) = uVar5;
+    } else {
+      iVar3 = (int)system_milliseconds();
+      if ((unsigned int)(iVar3 - *(int *)(iVar6 + 0x444)) > 1999) {
+        iVar3 = (int)wide_to_ascii(
+          (const wchar_t *)(*(short *)(iVar6 + 0x448) * 0x44 + 0x11c + s),
+          local_24, 0x20);
+        pcVar4 = local_24;
+        if (iVar3 == 0) {
+          pcVar4 = "<unknown name>";
+        }
+        network_game_log(
+          "forcibly removing client system \'%s\' due to timeout in-game",
+          pcVar4);
+        if (FUN_0012df50((void *)s, (void *)(iVar6 + 0x43c)) == '\0') {
+          display_assert(
+            "removed", "c:\\halo\\SOURCE\\networking\\network_server_manager.c",
+            0x5c1, 1);
+          system_exit(-1);
+        }
+      }
+    }
+
+    iVar6 = 0;
+    puVar7 = (unsigned int *)(s + 0x444);
+    do {
+      if (iVar6 != iVar8) {
+        *puVar7 = 0;
+      }
+      iVar6 = iVar6 + 1;
+      puVar7 = puVar7 + 4;
+    } while (iVar6 < 4);
+    return;
+  }
+
+  puVar7 = (unsigned int *)(s + 0x444);
+  iVar8 = 4;
+  do {
+    *puVar7 = 0;
+    puVar7 = puVar7 + 4;
+    iVar8 = iVar8 + -1;
+  } while (iVar8 != 0);
+}
+
+/* Update the pre-game countdown state machine (0x12e3a0).
+ * Drives the server-side countdown timer based on param_2 (countdown event
+ * type: 0=increment, 1=clamp-and-latch, 2=cancel, 3=reset).
+ * If the server is already in the waiting-for-clients path (0x494==0),
+ * starts or validates a timer and transitions 0x494 to 1 when conditions are
+ * met.  If in the active countdown path (0x494==1), advances or cancels the
+ * timer based on the event type.  Returns early if the server is NULL or not
+ * in pregame state. */
+void network_game_server_update_countdown(void *server, short param_2)
+{
+  char cVar1;
+  unsigned int uVar2;
+  short *psVar3;
+  int iVar4;
+  short sVar5;
+  int *puVar6;
+  int param_1;
+
+  param_1 = (int)server;
+
+  if ((param_1 == 0) || (*(short *)(param_1 + 4) != 0)) {
+    display_assert(
+      "server && server->state == _network_game_server_state_pregame",
+      "c:\\halo\\SOURCE\\networking\\network_server_manager.c", 0x66e, 1);
+    halt_and_catch_fire();
+  }
+  if ((*(unsigned char *)(param_1 + 0x495) == '\0') &&
+      ((cVar1 = server_ok_to_countdown((void *)param_1),
+        cVar1 != '\0' || (param_2 == 2)))) {
+    if (*(unsigned char *)(param_1 + 0x494) == '\x01') {
+      if (*(unsigned char *)(param_1 + 0x496) == '\0') {
+        switch (param_2) {
+        case 0:
+          *(unsigned char *)(param_1 + 0x496) = 1;
+          countdown_timer_increment((int *)(param_1 + 0x488), 5000, 30999);
+          return;
+        case 1:
+          *(unsigned char *)(param_1 + 0x496) = 1;
+          puVar6 = (int *)(param_1 + 0x488);
+          iVar4 = countdown_timer_get_time_remaining((void *)puVar6);
+          if (iVar4 > 999) {
+            countdown_timer_decrement(puVar6, 5000);
+            iVar4 = countdown_timer_get_time_remaining((void *)puVar6);
+            if (iVar4 < 999) {
+              uVar2 = system_milliseconds();
+              *puVar6 = 999;
+              *(unsigned int *)(param_1 + 0x48c) = uVar2;
+              return;
+            }
+          }
+          break;
+        case 2:
+          *(unsigned char *)(param_1 + 0x494) = 0;
+          *(unsigned char *)(param_1 + 0x496) = 1;
+          return;
+        case 3:
+          *(unsigned char *)(param_1 + 0x496) = 1;
+          uVar2 = system_milliseconds();
+          *(int *)(param_1 + 0x488) = 0;
+          *(unsigned int *)(param_1 + 0x48c) = uVar2;
+          return;
+        }
+      }
+    } else {
+      system_milliseconds();
+      if (param_2 == 3) {
+        uVar2 = system_milliseconds();
+        *(int *)(param_1 + 0x488) = 0;
+        *(unsigned int *)(param_1 + 0x48c) = uVar2;
+        *(unsigned char *)(param_1 + 0x496) = 0;
+        *(unsigned char *)(param_1 + 0x494) = 1;
+        return;
+      }
+      cVar1 = network_game_accept_remote_connections();
+      if (cVar1 != '\0') {
+        sVar5 = 0;
+        psVar3 = (short *)(param_1 + 0x448);
+        iVar4 = 4;
+        do {
+          if ((*(int *)((char *)psVar3 - 12) != 0) && (*psVar3 != -1)) {
+            sVar5 = sVar5 + 1;
+          }
+          psVar3 = psVar3 + 8;
+          iVar4 = iVar4 + -1;
+        } while (iVar4 != 0);
+        if (sVar5 < 2) {
+          return;
+        }
+      }
+      cVar1 = network_game_is_splitscreen_local();
+      *(unsigned char *)(param_1 + 0x494) = 1;
+      countdown_timer_set_time_remaining((int *)(param_1 + 0x488),
+                                         (cVar1 != '\0') ? 10711 : 30999);
+      *(int *)(param_1 + 0x490) = 0;
+      *(unsigned char *)(param_1 + 0x496) = 0;
+    }
+  }
+  return;
 }
 
 /* Process all connected client machines (0x12e580).

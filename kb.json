@@ -459,7 +459,7 @@
           "addr": "0x1339a0"
         },
         {
-          "decl": "char FUN_00149c60(int *param_1, float *param_2, float *param_3, float param_4, float param_5, float *param_6);",
+          "decl": "char FUN_00149c60(int *block_ptr, void *transformed_2c, void *transformed_20, float scale, float best_dist, float *result);",
           "addr": "0x149c60"
         },
         {
@@ -4494,7 +4494,7 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000a6930(void);",
+          "decl": "void FUN_000a6930(int, unsigned short);",
           "addr": "0xa6930"
         }
       ]
@@ -4730,8 +4730,9 @@
           "ported": true
         },
         {
-          "decl": "void FUN_0014d1b0(void);",
-          "addr": "0x14d1b0"
+          "decl": "void collision_log_format_stat(char *buf @<edi>, void *stat @<esi>);",
+          "addr": "0x14d1b0",
+          "ported": true
         },
         {
           "decl": "void collision_log_render(void);",
@@ -4964,8 +4965,9 @@
           "addr": "0x98200"
         },
         {
-          "decl": "void contrail_new(void);",
-          "addr": "0x98580"
+          "decl": "int contrail_new(int definition_index, int object_index, short attachment_index);",
+          "addr": "0x98580",
+          "ported": true
         }
       ]
     },
@@ -5609,7 +5611,7 @@
           "ported": true
         },
         {
-          "decl": "int FUN_00119ef0(int *param_1, int param_2, short param_3, int param_4);",
+          "decl": "bool FUN_00119ef0(int *param_1, int param_2, short param_3, int param_4);",
           "addr": "0x119ef0",
           "ported": true
         },
@@ -6427,7 +6429,7 @@
         {
           "decl": "float real_local_random(void);",
           "addr": "0x9ce80",
-          "ported": null
+          "ported": true
         },
         {
           "decl": "void local_random_direction3d(float *out);",
@@ -6566,7 +6568,8 @@
         },
         {
           "decl": "void FUN_0008f630(void);",
-          "addr": "0x8f630"
+          "addr": "0x8f630",
+          "ported": true
         },
         {
           "decl": "void FUN_0008f6b0(void);",
@@ -7095,11 +7098,13 @@
         },
         {
           "decl": "void FUN_000a6b50(void);",
-          "addr": "0xa6b50"
+          "addr": "0xa6b50",
+          "ported": true
         },
         {
           "decl": "void FUN_000a6ba0(void);",
-          "addr": "0xa6ba0"
+          "addr": "0xa6ba0",
+          "ported": true
         },
         {
           "decl": "void game_initialize(void);",
@@ -7256,8 +7261,9 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000b42d0(void);",
-          "addr": "0xb42d0"
+          "decl": "wchar_t *FUN_000b42d0(int, wchar_t *);",
+          "addr": "0xb42d0",
+          "ported": true
         },
         {
           "decl": "void FUN_000b4300(void);",
@@ -7311,8 +7317,9 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000b4d90(void);",
-          "addr": "0xb4d90"
+          "decl": "bool FUN_000b4d90(int);",
+          "addr": "0xb4d90",
+          "ported": true
         },
         {
           "decl": "wchar_t *FUN_000b4da0(unsigned int player_handle, wchar_t *dst);",
@@ -8238,8 +8245,9 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000b0520(void);",
-          "addr": "0xb0520"
+          "decl": "bool FUN_000b0520(int);",
+          "addr": "0xb0520",
+          "ported": true
         },
         {
           "decl": "wchar_t *FUN_000b0530(int player_handle, wchar_t *dst);",
@@ -10923,12 +10931,16 @@
           "src": "src/halo/interface/hud.c"
         },
         {
-          "decl": "void scripted_show_hud(void);",
-          "addr": "0xd0400"
+          "decl": "char scripted_show_hud(char visible);",
+          "addr": "0xd0400",
+          "src": "src/halo/interface/hud.c",
+          "ported": true
         },
         {
-          "decl": "void scripted_show_hud_help_text(void);",
-          "addr": "0xd0420"
+          "decl": "char scripted_show_hud_help_text(char visible);",
+          "addr": "0xd0420",
+          "src": "src/halo/interface/hud.c",
+          "ported": true
         },
         {
           "decl": "void hud_update(void);",
@@ -11003,8 +11015,10 @@
           "addr": "0xd1540"
         },
         {
-          "decl": "void FUN_000d1550(void);",
-          "addr": "0xd1550"
+          "decl": "int FUN_000d1550(int param_1);",
+          "addr": "0xd1550",
+          "src": "src/halo/interface/hud.c",
+          "ported": true
         },
         {
           "decl": "void FUN_000d1580(void);",
@@ -11584,7 +11598,8 @@
         },
         {
           "decl": "void FUN_000ce530(void *state);",
-          "addr": "0xce530"
+          "addr": "0xce530",
+          "ported": true
         },
         {
           "decl": "void input_recording_write_packet(void *state);",
@@ -12506,16 +12521,20 @@
           "addr": "0x129980"
         },
         {
-          "decl": "void network_game_set_number_of_games_played(void);",
-          "addr": "0x12a020"
+          "decl": "void network_game_set_number_of_games_played(int games_played);",
+          "addr": "0x12a020",
+          "ported": true
         },
         {
-          "decl": "void network_game_set_random_seed(void);",
-          "addr": "0x12a060"
+          "decl": "void network_game_set_random_seed(int seed);",
+          "addr": "0x12a060",
+          "ported": true
         },
         {
-          "decl": "void network_game_get_game(void);",
-          "addr": "0x12a0a0"
+          "decl": "int FUN_0012a0a0(void);",
+          "addr": "0x12a0a0",
+          "src": "src/halo/networking/network_game_globals.c",
+          "ported": true
         },
         {
           "decl": "void network_game_player_is_local(void);",
@@ -12526,16 +12545,22 @@
           "addr": "0x12a150"
         },
         {
-          "decl": "void network_game_set_quickstart_local(void);",
-          "addr": "0x12a190"
+          "decl": "void FUN_0012a190(void);",
+          "addr": "0x12a190",
+          "src": "src/halo/networking/network_game_globals.c",
+          "ported": true
         },
         {
-          "decl": "void network_game_is_quickstart_local(void);",
-          "addr": "0x12a1a0"
+          "decl": "unsigned int FUN_0012a1a0(void);",
+          "addr": "0x12a1a0",
+          "src": "src/halo/networking/network_game_globals.c",
+          "ported": true
         },
         {
-          "decl": "void create_global_network_game_client(void);",
-          "addr": "0x12a250"
+          "decl": "bool FUN_0012a250(void);",
+          "addr": "0x12a250",
+          "src": "src/halo/networking/network_game_globals.c",
+          "ported": true
         },
         {
           "decl": "void network_game_client_get_local_machine_index(void);",
@@ -12551,15 +12576,19 @@
         },
         {
           "decl": "void FUN_0012a7a0(void);",
-          "addr": "0x12a7a0"
+          "addr": "0x12a7a0",
+          "src": "src/halo/networking/network_game_globals.c",
+          "ported": true
         },
         {
           "decl": "void network_game_get_number_of_games_played(void);",
           "addr": "0x12a830"
         },
         {
-          "decl": "void FUN_0012a890(void);",
-          "addr": "0x12a890"
+          "decl": "bool FUN_0012a890(void);",
+          "addr": "0x12a890",
+          "src": "src/halo/networking/network_game_globals.c",
+          "ported": true
         },
         {
           "name": "network_player_reset",
@@ -12754,7 +12783,7 @@
           "addr": "0x125a90"
         },
         {
-          "decl": "void network_game_client_request_start_time_change(void);",
+          "decl": "int FUN_00125b90(void *client, short request_type);",
           "addr": "0x125b90"
         },
         {
@@ -12798,7 +12827,7 @@
           "addr": "0x1267c0"
         },
         {
-          "decl": "void FUN_00126fe0(void);",
+          "decl": "void *FUN_00126fe0(void);",
           "addr": "0x126fe0"
         },
         {
@@ -13240,7 +13269,9 @@
         },
         {
           "decl": "void countdown_timer_update(int *param_1);",
-          "addr": "0x12bd80"
+          "addr": "0x12bd80",
+          "src": "src/halo/networking/network_server_manager.c",
+          "ported": true
         },
         {
           "decl": "void countdown_timer_increment(int *param_1, int param_2, int param_3);",
@@ -13309,8 +13340,9 @@
           "ported": true
         },
         {
-          "decl": "void network_game_server_client_machine_game_loading_complete(void);",
-          "addr": "0x12cb20"
+          "decl": "void network_game_server_client_machine_game_loading_completed(void *server, void *machine);",
+          "addr": "0x12cb20",
+          "ported": true
         },
         {
           "decl": "void network_game_server_client_machine_is_precached(int param_1, int param_2, int param_3);",
@@ -13341,12 +13373,13 @@
           "ported": true
         },
         {
-          "decl": "void server_ok_to_countdown(void);",
+          "decl": "bool server_ok_to_countdown(void *server);",
           "addr": "0x12d1c0"
         },
         {
-          "decl": "void network_game_server_invalidate_network_machine(void);",
-          "addr": "0x12d210"
+          "decl": "void network_game_server_invalidate_network_machine(void *machine);",
+          "addr": "0x12d210",
+          "ported": true
         },
         {
           "decl": "void network_game_generate_join_game_token(void);",
@@ -13357,8 +13390,9 @@
           "addr": "0x12d2f0"
         },
         {
-          "decl": "void network_game_server_get_connection(void);",
-          "addr": "0x12d380"
+          "decl": "int network_game_server_get_connection(void *server);",
+          "addr": "0x12d380",
+          "ported": true
         },
         {
           "decl": "void network_game_server_get_machine_connection(void);",
@@ -13369,24 +13403,29 @@
           "addr": "0x12d4a0"
         },
         {
-          "decl": "void network_game_server_get_oldest_client_update_received(void);",
-          "addr": "0x12d5b0"
+          "decl": "unsigned int FUN_0012d5b0(int param_1);",
+          "addr": "0x12d5b0",
+          "src": "src/halo/networking/network_server_manager.c",
+          "ported": true
         },
         {
-          "decl": "void network_game_server_game_can_start(void);",
-          "addr": "0x12d640"
+          "decl": "int network_game_server_game_can_start(void *server);",
+          "addr": "0x12d640",
+          "ported": true
         },
         {
-          "decl": "void network_game_server_pause_countdown(void);",
-          "addr": "0x12d690"
+          "decl": "void network_game_server_pause_countdown(void *server, char flag);",
+          "addr": "0x12d690",
+          "ported": true
         },
         {
           "decl": "void network_game_server_change_map_name(void);",
           "addr": "0x12d6f0"
         },
         {
-          "decl": "void network_game_server_change_game_variant(void);",
-          "addr": "0x12d7f0"
+          "decl": "void network_game_server_change_game_variant(void *server, void *variant);",
+          "addr": "0x12d7f0",
+          "ported": true
         },
         {
           "decl": "void FUN_0012da90(void);",
@@ -13397,15 +13436,20 @@
           "addr": "0x12db30"
         },
         {
-          "decl": "void network_game_server_stalled_on_client(void);",
-          "addr": "0x12e1d0"
+          "decl": "void network_game_server_stalled_on_client(void *server, bool stalled);",
+          "addr": "0x12e1d0",
+          "name": "network_game_server_stalled_on_client",
+          "src": "src/halo/networking/network_server_manager.c",
+          "ported": true
         },
         {
-          "decl": "void network_game_server_update_countdown(void);",
-          "addr": "0x12e3a0"
+          "decl": "void network_game_server_update_countdown(void *server, short param_2);",
+          "addr": "0x12e3a0",
+          "src": "src/halo/networking/network_server_manager.c",
+          "ported": true
         },
         {
-          "decl": "void FUN_0012eef0(void);",
+          "decl": "void *FUN_0012eef0(void);",
           "addr": "0x12eef0"
         },
         {
@@ -13811,8 +13855,9 @@
           "addr": "0x13b380"
         },
         {
-          "decl": "void FUN_0013bce0(void);",
-          "addr": "0x13bce0"
+          "decl": "void FUN_0013bce0(int object_handle, float *lighting);",
+          "addr": "0x13bce0",
+          "ported": true
         },
         {
           "decl": "void FUN_0013c030(void);",
@@ -15361,7 +15406,8 @@
         {
           "decl": "void update_client_queue(void *data);",
           "addr": "0xb8f40",
-          "ported": null
+          "ported": true,
+          "src": "src/halo/game/player_queues_new.c"
         },
         {
           "decl": "void update_client_queue_push(void);",
@@ -21875,7 +21921,7 @@
           "addr": "0x1913c0",
           "decl": "void reference_list_remove(data_t *data, int *head, int value);",
           "comment": "Walk a reference list and unlink the entry whose +4 field matches value.",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void FUN_00191440(void);",
@@ -21900,7 +21946,7 @@
         {
           "addr": "0x191660",
           "decl": "int cluster_partition_iter_next(void *partition, int *state);",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "int FUN_00191690(void *cluster_list, int *out_cluster, int cluster_handle);",
@@ -21922,18 +21968,18 @@
           "addr": "0x1917a0",
           "decl": "void cluster_partition_add_object(void *partition, int object_handle, void *first_cluster_ref, void *position, uint32_t radius_fp, void *location);",
           "comment": "Find clusters overlapping position+radius and add the object to both per-object and per-cluster reference lists.",
-          "ported": true
+          "ported": false
         },
         {
           "addr": "0x1919a0",
           "decl": "void cluster_partition_remove_object(void *partition, int object_handle, void *first_cluster_ref);",
           "comment": "Walk the object's cluster reference chain, removing each cluster-side reference and freeing both datums.",
-          "ported": true
+          "ported": false
         },
         {
           "addr": "0x191a50",
           "decl": "int cluster_partition_iter_first(void *partition, int *state, int16_t cluster_idx);",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void FUN_00191ad0(void);",
@@ -26985,12 +27031,14 @@
           "addr": "0x11c5f0"
         },
         {
-          "decl": "void FUN_0011c780(void);",
-          "addr": "0x11c780"
+          "decl": "void FUN_0011c780(short *param_1, short param_2);",
+          "addr": "0x11c780",
+          "ported": true
         },
         {
-          "decl": "void FUN_0011c790(void);",
-          "addr": "0x11c790"
+          "decl": "void FUN_0011c790(short *param_1);",
+          "addr": "0x11c790",
+          "ported": true
         },
         {
           "decl": "void lruv_allocation_size(void);",
@@ -27533,7 +27581,7 @@
           "addr": "0x1d158c"
         },
         {
-          "decl": "void FUN_001d1610(void);",
+          "decl": "unsigned int FUN_001d1610(int handle, unsigned int offset, unsigned int *high_ptr, int method);",
           "addr": "0x1d1610"
         },
         {
@@ -27707,7 +27755,7 @@
           "addr": "0x1d33e6"
         },
         {
-          "decl": "void FUN_001d33fb(void);",
+          "decl": "bool __stdcall QueryPerformanceFrequency(void *freq);",
           "addr": "0x1d33fb"
         },
         {
@@ -28037,7 +28085,7 @@
           "addr": "0x1d8750"
         },
         {
-          "decl": "void FUN_001d8766(void);",
+          "decl": "int __stdcall FUN_001d8766(int flags, const char *a, int a_len, const char *b, int b_len);",
           "addr": "0x1d8766"
         },
         {
@@ -31411,7 +31459,7 @@
           "ported": true
         },
         {
-          "decl": "void FUN_001155e0(void);",
+          "decl": "int FUN_001155e0(int z, int flush);",
           "addr": "0x1155e0"
         },
         {
@@ -31430,7 +31478,7 @@
           "ported": true
         },
         {
-          "decl": "int FUN_00115ba0(int *param_1, unsigned int param_2, unsigned int param_3, int param_4, int param_5, int *param_6, int param_7, unsigned int *param_8, unsigned int *param_9);",
+          "decl": "int FUN_00115ba0(unsigned int *bb@<eax>, int *param_1, unsigned int param_2, unsigned int param_3, int param_4, int param_5, int *param_6, int param_7, unsigned int *param_8, unsigned int *param_9);",
           "addr": "0x115ba0",
           "ported": null
         },
@@ -31683,8 +31731,9 @@
           "ported": true
         },
         {
-          "decl": "void FUN_00118fb0(void);",
-          "addr": "0x118fb0"
+          "decl": "bool circular_queue_try_read(int queue, void *data, int data_size, char advance);",
+          "addr": "0x118fb0",
+          "ported": true
         }
       ]
     },
@@ -33993,6 +34042,8 @@
     {
       "name": "XAPILIB:xbox_crt.obj",
       "source": "cseries/xbox_crt.c",
+      "src": "src/halo/cseries/xbox_crt.c",
+      "source_path": "src/halo/cseries/xbox_crt.c",
       "functions": [
         {
           "decl": "void FUN_001d63d5(void);",
@@ -34027,8 +34078,9 @@
           "addr": "0x1d77b3"
         },
         {
-          "decl": "void FUN_001d7817(void);",
-          "addr": "0x1d7817"
+          "decl": "int __stdcall FUN_001d7817(const char *a, const char *b);",
+          "addr": "0x1d7817",
+          "ported": true
         },
         {
           "decl": "char * __stdcall FUN_001d789a(char *dst, const char *src, int count);",

@@ -26,21 +26,26 @@ from pathlib import Path
 from typing import Optional
 
 
-def load_snapshot(path: str) -> dict:
+def load_snapshot(path: str) -> tuple[dict, dict]:
     """Load a snapshot JSON file.
 
-    Returns {int_address: bytes} suitable for passing as memory_overrides
-    to unicorn_diff._run_function().
+    Returns (memory_overrides, arg_overrides) where:
+      memory_overrides: {int_address: bytes} for unicorn memory setup
+      arg_overrides: {param_name: value_or_range} for seed constraining
+        - Fixed: {"eax": 0x500000} — every seed uses this value
+        - Range: {"param_1": [1, 10]} — seeder picks from [lo, hi]
     """
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     regions = data.get("regions", {})
-    result = {}
+    mem = {}
     for addr_hex, val_hex in regions.items():
         addr = int(addr_hex, 16)
-        result[addr] = bytes.fromhex(val_hex)
-    return result
+        mem[addr] = bytes.fromhex(val_hex)
+
+    arg_overrides = data.get("arg_overrides", {})
+    return mem, arg_overrides
 
 
 def save_snapshot(regions: dict, path: str, description: str = ""):
@@ -112,6 +117,55 @@ def capture_from_xemu(addresses: list,
                 os.unlink(tmp_path)
             except OSError:
                 pass
+
+    if output_path:
+        save_snapshot(regions, output_path, description=description)
+
+    return regions
+
+
+def capture_from_xbdm(addresses: list,
+                      output_path: Optional[str] = None,
+                      description: str = "",
+                      host: str = "localhost",
+                      port: int = 731,
+                      timeout: float = 5.0) -> dict:
+    """Capture memory from a running Xbox/xemu instance via XBDM getmem.
+
+    This is a transport fallback for environments where xemu is reachable via
+    XBDM but was not launched with QMP. Prefer capture_from_xemu for xemu
+    pmemsave captures when QMP is available.
+    """
+    _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+    tools_dir = _REPO_ROOT / "tools"
+
+    rdcp_script = tools_dir / "xbox" / "xbdm_rdcp.py"
+
+    regions = {}
+    for base_addr, size in addresses:
+        proc = subprocess.run(
+            [
+                "python3",
+                str(rdcp_script),
+                "--host",
+                host,
+                "--port",
+                str(port),
+                "--timeout",
+                str(timeout),
+                "--json",
+                f"getmem addr={base_addr:#x} length={size:#x}",
+            ],
+            cwd=str(_REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or proc.stdout.strip())
+        response = json.loads(proc.stdout)
+        data = bytes.fromhex("".join(response.get("lines", [])))
+        if len(data) >= size:
+            regions[base_addr] = data[:size]
 
     if output_path:
         save_snapshot(regions, output_path, description=description)

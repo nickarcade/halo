@@ -33,6 +33,23 @@ void hud_dispose_from_old_map(void)
   FUN_000d46d0();
 }
 
+/* HaloScript: set whether the HUD is shown. Writes param to HUD control
+ * block byte 0 and returns the updated value (double-reads the global
+ * pointer to match MSVC register allocation). */
+char scripted_show_hud(char visible)
+{
+  **(char **)0x0046bd10 = visible;
+  return **(char **)0x0046bd10;
+}
+
+/* HaloScript: set whether HUD help text is shown. Same pattern as
+ * scripted_show_hud but targets HUD control block byte 1. */
+char scripted_show_hud_help_text(char visible)
+{
+  (*(char **)0x0046bd10)[1] = visible;
+  return (*(char **)0x0046bd10)[1];
+}
+
 void hud_update(void)
 {
   int i;
@@ -151,6 +168,22 @@ void hud_autosave(int16_t param)
       }
     }
   }
+}
+
+/* Scan int array backwards from index 127, return first index where element
+ * is not the sentinel 0x62626262 ("bbbb"). Returns -1 if all are sentinel.
+ * Loop counter is short (16-bit); OR AX,0xffff sign-extends -1 to int. */
+int FUN_000d1550(int param_1)
+{
+  short iVar1;
+
+  iVar1 = 0x7f;
+  do {
+    if (*(int *)(param_1 + (int)iVar1 * 4) != 0x62626262)
+      return (int)iVar1;
+    iVar1--;
+  } while (iVar1 >= 0);
+  return iVar1;
 }
 
 float FUN_000d1690(void)

@@ -226,6 +226,60 @@ bool network_game_in_progress(void)
   return true;
 }
 
+/* Set the number of games played in both server and client game globals.
+ * 0x12a020 / network_game_globals.obj
+ */
+void network_game_set_number_of_games_played(int games_played)
+{
+    int game;
+    int server = *(int *)0x46e8bc;
+    if (server != 0) {
+        game = network_game_server_get_game((void *)server);
+        *(int *)(game + 0x42c) = games_played;
+    }
+    server = *(int *)0x46e8c0;
+    if (server != 0) {
+        game = (int)network_game_client_get_machine_index((void *)server);
+        *(int *)(game + 0x42c) = games_played;
+    }
+}
+
+/* Set the random seed in both server and client game globals.
+ * 0x12a060 / network_game_globals.obj
+ */
+void network_game_set_random_seed(int seed)
+{
+    int game;
+    int server = *(int *)0x46e8bc;
+    if (server != 0) {
+        game = network_game_server_get_game((void *)server);
+        *(int *)(game + 0x428) = seed;
+    }
+    server = *(int *)0x46e8c0;
+    if (server != 0) {
+        game = (int)network_game_client_get_machine_index((void *)server);
+        *(int *)(game + 0x428) = seed;
+    }
+}
+
+/* Return the active game object: server's game if server exists,
+ * else client's machine index, else NULL.
+ * 0x12a0a0 / network_game_globals.obj */
+int FUN_0012a0a0(void)
+{
+  int uVar1;
+
+  if (*(void **)0x0046e8bc != NULL) {
+    uVar1 = network_game_server_get_game(*(void **)0x0046e8bc);
+    return uVar1;
+  }
+  if (*(void **)0x0046e8c0 != NULL) {
+    uVar1 = (int)network_game_client_get_machine_index(*(void **)0x0046e8c0);
+    return uVar1;
+  }
+  return 0;
+}
+
 /* network_game_accept_remote_connections (0x12a160)
  *
  * Returns the network game globals byte at 0x46e8c4.
@@ -246,6 +300,25 @@ bool network_game_is_splitscreen_local(void)
     return true;
   }
   return false;
+}
+
+/* Set the quickstart-local flag (0x46e8c5) to 1.
+ * 0x12a190 / network_game_globals.obj */
+void FUN_0012a190(void)
+{
+  *(unsigned char *)0x0046e8c5 = 1;
+}
+
+/* Return true if this is a quickstart-local session:
+ * server exists AND not accepting remote connections AND quickstart flag set.
+ * 0x12a1a0 / network_game_globals.obj */
+unsigned int FUN_0012a1a0(void)
+{
+  if ((*(void **)0x0046e8bc == NULL) || (*(unsigned char *)0x0046e8c4 != '\0') ||
+      (*(unsigned char *)0x0046e8c5 != '\x01')) {
+    return 0;
+  }
+  return 1;
 }
 
 /* network_game_server_get (0x12a1d0)
@@ -291,6 +364,24 @@ bool network_game_server_start_frame(void)
 void *network_game_client_get(void)
 {
   return *(void **)0x46e8c0;
+}
+
+/* Create and initialize the global network game client.
+ * Asserts the client slot is empty, then allocates via FUN_00126fe0.
+ * 0x12a250 / network_game_globals.obj */
+bool FUN_0012a250(void)
+{
+  if (*(void **)0x0046e8c0 != NULL) {
+    display_assert("global_network_game_client==NULL",
+                   "c:\\halo\\SOURCE\\networking\\network_game_globals.c",
+                   0x10f, 1);
+    system_exit(-1);
+  }
+  *(void **)0x0046e8c0 = FUN_00126fe0();
+  if (*(void **)0x0046e8c0 != NULL) {
+    *(unsigned char *)0x0046e8c6 = 0;
+  }
+  return *(void **)0x0046e8c0 != NULL;
 }
 
 /* dispose_global_network_game_server (0x12a2a0)
@@ -462,6 +553,18 @@ bool network_game_client_end_frame(void)
   return result;
 }
 
+/* Request a game start from the network client (request_type=3).
+ * Logs a warning if the request fails.
+ * 0x12a7a0 / network_game_globals.obj */
+void FUN_0012a7a0(void)
+{
+  if (*(void **)0x0046e8c0 != NULL) {
+    if (!FUN_00125b90(*(void **)0x0046e8c0, 3)) {
+      error(2, "network_game_client_request_start() failed");
+    }
+  }
+}
+
 /* network_game_abort (0x12a780)
  *
  * Signals network-game abort by setting the global abort flag byte.
@@ -469,6 +572,38 @@ bool network_game_client_end_frame(void)
 void network_game_abort(void)
 {
   *(unsigned char *)0x46e8c6 = 1;
+}
+
+/* Create and initialize the global network game server.
+ * Asserts the server slot is empty, allocates via FUN_0012eef0,
+ * then seeds both server and client with a random step value.
+ * 0x12a890 / network_game_globals.obj */
+bool FUN_0012a890(void)
+{
+  unsigned int *seed_addr;
+  unsigned int seed_step;
+  int game;
+
+  if (*(void **)0x0046e8bc != NULL) {
+    display_assert("global_network_game_server==NULL",
+                   "c:\\halo\\SOURCE\\networking\\network_game_globals.c",
+                   0xd6, 1);
+    system_exit(-1);
+  }
+  *(void **)0x0046e8bc = FUN_0012eef0();
+  if (*(void **)0x0046e8bc != NULL) {
+    seed_addr = random_math_get_local_seed_address();
+    seed_step = (unsigned int)random_seed_step(seed_addr);
+    if (*(void **)0x0046e8bc != NULL) {
+      game = network_game_server_get_game(*(void **)0x0046e8bc);
+      *(unsigned int *)(game + 0x428) = seed_step;
+    }
+    if (*(void **)0x0046e8c0 != NULL) {
+      game = (int)network_game_client_get_machine_index(*(void **)0x0046e8c0);
+      *(unsigned int *)(game + 0x428) = seed_step;
+    }
+  }
+  return *(void **)0x0046e8bc != NULL;
 }
 
 /* network_player_reset (0x12a920)

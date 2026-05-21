@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture xemu memory snapshot regions inferred from unicorn_diff JSON output.
+"""Capture live memory regions inferred from unicorn_diff JSON output.
 
 Typical usage:
   rtk python3 tools/equivalence/capture_snapshot_from_diff.py \
@@ -15,7 +15,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from state_snapshot import capture_from_xemu
+from state_snapshot import capture_from_xbdm, capture_from_xemu
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -91,7 +91,7 @@ def default_output_path(diff_json: Path, target: str) -> Path:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Capture xemu snapshot regions inferred from unicorn_diff JSON"
+        description="Capture live memory regions inferred from unicorn_diff JSON"
     )
     parser.add_argument(
         "diff_json",
@@ -126,6 +126,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--description",
         default="",
         help="Optional description stored in snapshot metadata",
+    )
+    parser.add_argument(
+        "--backend",
+        choices=("qmp", "xbdm"),
+        default="qmp",
+        help="Capture backend: qmp uses xemu pmemsave, xbdm uses RDCP getmem",
+    )
+    parser.add_argument(
+        "--xbdm-host",
+        default="localhost",
+        help="XBDM host when --backend xbdm is used",
+    )
+    parser.add_argument(
+        "--xbdm-port",
+        type=int,
+        default=731,
+        help="XBDM port when --backend xbdm is used",
+    )
+    parser.add_argument(
+        "--xbdm-timeout",
+        type=float,
+        default=5.0,
+        help="XBDM socket timeout when --backend xbdm is used",
     )
     parser.add_argument(
         "--dry-run",
@@ -181,17 +204,28 @@ def main() -> int:
         args.description.strip(),
         f"source={args.diff_json.name}",
         f"target={target or 'unknown'}",
+        f"backend={args.backend}",
         f"regions={len(regions)}",
         f"auto_mapped_pages={auto_pages}",
         f"global_reads={global_reads}",
     ]
     description = "; ".join(part for part in desc_parts if part)
 
-    captured = capture_from_xemu(
-        regions,
-        output_path=str(output_path),
-        description=description,
-    )
+    if args.backend == "xbdm":
+        captured = capture_from_xbdm(
+            regions,
+            output_path=str(output_path),
+            description=description,
+            host=args.xbdm_host,
+            port=args.xbdm_port,
+            timeout=args.xbdm_timeout,
+        )
+    else:
+        captured = capture_from_xemu(
+            regions,
+            output_path=str(output_path),
+            description=description,
+        )
 
     missing = [addr for addr, _ in regions if addr not in captured]
     captured_bytes = sum(len(data) for data in captured.values())
