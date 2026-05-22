@@ -11,6 +11,41 @@ typedef struct debug_allocation_header {
   uint32_t checksum;
 } debug_allocation_header_t;
 
+/* debug_memory_initialize (0x8e650) — initialize the debug memory manager
+ * sentinel structure: writes SAFT guards at both ends and zeroes the
+ * counters/state fields between them. */
+void FUN_0008e650(void)
+{
+  *(uint32_t *)0x2ee74c = 0x53414654; /* begin SAFT guard */
+  *(uint32_t *)0x2ee750 = 0;
+  *(uint32_t *)0x2ee754 = 0;
+  *(uint32_t *)0x2ee758 = 0;
+  *(uint32_t *)0x2ee75c = 0;
+  *(uint32_t *)0x2ee760 = 0;
+  *(uint32_t *)0x2ee768 = 0x53414654; /* end SAFT guard */
+}
+
+/* debug_alloc_verify (0x8e6d0) — check end-of-buffer sentinel for a pointer.
+ * Called before free/realloc to verify no overrun occurred.
+ * @eax: ptr (void *) — user pointer (header+0x20) */
+void FUN_0008e6d0(void *ptr /* @<eax> */, const char *file, int line)
+{
+  uint32_t size;
+
+  size = *(uint32_t *)((char *)ptr - 0x14); /* header->size */
+  if (*(uint32_t *)((char *)ptr + size) != 0x3c2d2d2d) {
+    display_assert(
+      csprintf((char *)0x5ab100,
+               "Pointer allocated at %s, %d has overrun the end of its "
+               "buffer. (Size: %d) (%s:%d)",
+               *(const char **)((char *)ptr - 0x10), /* header->file */
+               *(int *)((char *)ptr - 0xc), /* header->line */
+               size, file, line),
+      "c:\\halo\\SOURCE\\cseries\\debug_memory.c", 0xc7, 1);
+    system_exit(-1);
+  }
+}
+
 /* memory_check (0x8e770) — track min/max physical free memory at a
  * checkpoint. Warns if the spread exceeds 0x4000 bytes, indicating
  * non-deterministic allocation between runs. */
@@ -51,6 +86,170 @@ uint16_t FUN_0008e7c0(void)
   return random_seed_step(random_math_get_local_seed_address());
 }
 
+/* debug_alloc_header_validate (0x8e7d0) — validate a debug allocation header.
+ * Called before any operation on a debug-tracked pointer.
+ * Checks: heap initialized, pointer in valid range, guard word valid, CRC
+ * matches.
+ * @esi: header  @ebx: caller file  @edi: caller line */
+void FUN_0008e7d0(void *header_v /* @<esi> */, const char *file /* @<ebx> */,
+                  int line /* @<edi> */)
+{
+  debug_allocation_header_t *header = (debug_allocation_header_t *)header_v;
+  uint32_t checksum;
+  const char *reason;
+
+  if (*(uint32_t *)0x2ee758 == 0) {
+    display_assert(
+      csprintf((char *)0x5ab100,
+               "Attempted an operation with pointer at 0x%x when no pointers "
+               "have been allocated. (%s:%d)",
+               (char *)header + 0x20, file, line),
+      "c:\\halo\\SOURCE\\cseries\\debug_memory.c", 0xa0, 1);
+    system_exit(-1);
+  }
+
+  if ((uint32_t)header < *(uint32_t *)0x2ee75c ||
+      (uint32_t)header > *(uint32_t *)0x2ee760) {
+    display_assert(
+      csprintf((char *)0x5ab100,
+               "Attempted an operation with pointer at 0x%x, outside of the "
+               "valid pointer range. (%s:%d)",
+               (char *)header + 0x20, file, line),
+      "c:\\halo\\SOURCE\\cseries\\debug_memory.c", 0xa5, 1);
+    system_exit(-1);
+  }
+
+  if (header->begin_guard == 0x3c424144) {
+    reason = (const char *)0x267e10; /* "Pointer has been disposed." */
+  } else if (header->begin_guard == 0x2d2d2d3e) {
+    /* active allocation — verify CRC over the first 0x1c bytes */
+    crc_new(&checksum);
+    crc_checksum_buffer(&checksum, header, 0x1c);
+    if (checksum == header->checksum) {
+      return;
+    }
+    reason = (const char *)0x267de0; /* "Checksum is incorrect." */
+  } else {
+    reason = (const char *)0x267df8; /* "Signature is incorrect." */
+  }
+
+  display_assert(
+    csprintf((char *)0x5ab100,
+             "Invalid pointer: header: 0x%x signature: 0x%x line: %d "
+             "file: 0x%x size: 0x%x reason: %s (%s:%d)",
+             header, header->begin_guard, header->line, header->file,
+             header->size, reason, file, line),
+    "c:\\halo\\SOURCE\\cseries\\debug_memory.c", 0xb7, 1);
+  system_exit(-1);
+}
+
+/* debug_alloc_fill (0x8e8e0) — fill a newly-allocated region with random bytes.
+ * Walks the region 2 bytes at a time using the local random seed; handles odd
+ * sizes with a final single-byte write.
+ * @ebx: ptr (void *) — start of region to fill */
+void FUN_0008e8e0(void *ptr /* @<ebx> */, uint32_t size)
+{
+  if (ptr == NULL) {
+    display_assert("pointer", "c:\\halo\\SOURCE\\cseries\\debug_memory.c",
+                   0x10d, 1);
+    system_exit(-1);
+  }
+  {
+    /* ESI=p, EDI=end — saved after the null check, restored before odd-byte */
+    uint16_t *p = (uint16_t *)ptr;
+    uint16_t *end = (uint16_t *)((uint8_t *)ptr + size - 1);
+    if (p < end) {
+      do {
+        *p = random_seed_step(random_math_get_local_seed_address());
+        p++;
+      } while (p < end);
+    }
+  }
+  if (size & 1) {
+    *(uint8_t *)((uint8_t *)ptr + size - 1) =
+      (uint8_t)random_seed_step(random_math_get_local_seed_address());
+  }
+}
+
+/* debug_alloc_list_link (0x8e950) — prepend a header to the global debug list.
+ * Updates the min/max pointer bounds, splices the node at the head, recomputes
+ * the displaced head's CRC, then sets the new node's CRC.
+ * @esi: header (debug_allocation_header_t *) */
+void FUN_0008e950(void *header_v /* @<esi> */)
+{
+  debug_allocation_header_t *header = (debug_allocation_header_t *)header_v;
+  debug_allocation_header_t *head;
+  uint32_t checksum;
+
+  head = *(debug_allocation_header_t **)0x2ee758;
+
+  if (head == NULL || (uint32_t)header < *(uint32_t *)0x2ee75c) {
+    *(uint32_t *)0x2ee75c = (uint32_t)header;
+  }
+  if (head == NULL || (uint32_t)header > *(uint32_t *)0x2ee760) {
+    *(uint32_t *)0x2ee760 = (uint32_t)header;
+  }
+
+  header->next = head;
+
+  if (head != NULL) {
+    head->previous = header;
+    /* recompute displaced head's checksum (prev pointer changed) */
+    crc_new(&checksum);
+    crc_checksum_buffer(&checksum, head, 0x1c);
+    head->checksum = checksum;
+  }
+
+  header->previous = NULL;
+  *(debug_allocation_header_t **)0x2ee758 = header;
+
+  crc_new(&checksum);
+  crc_checksum_buffer(&checksum, header, 0x1c);
+  header->checksum = checksum;
+}
+
+/* debug_alloc_list_unlink (0x8e9f0) — remove a header from the global debug
+ * list. Handles both head and non-head removal; recomputes CRCs of affected
+ * neighbours.
+ * @eax: header (debug_allocation_header_t *) */
+void FUN_0008e9f0(void *header_v /* @<eax> */, const char *file, int line)
+{
+  debug_allocation_header_t *header = (debug_allocation_header_t *)header_v;
+  debug_allocation_header_t *prev;
+  debug_allocation_header_t *next;
+  uint32_t checksum;
+
+  if (header == *(debug_allocation_header_t **)0x2ee758) {
+    /* removing the head node — cache next so MSVC can keep it in a register */
+    next = header->next;
+    *(debug_allocation_header_t **)0x2ee758 = next;
+    if (next != NULL) {
+      next->previous = NULL;
+      crc_new(&checksum);
+      crc_checksum_buffer(&checksum, next, 0x1c);
+      next->checksum = checksum;
+    }
+  } else {
+    prev = header->previous;
+    if (prev == NULL) {
+      display_assert("previous", "c:\\halo\\SOURCE\\cseries\\debug_memory.c",
+                     0x1be, 1);
+      system_exit(-1);
+    }
+    next = header->next;
+    prev->next = next;
+    crc_new(&checksum);
+    crc_checksum_buffer(&checksum, prev, 0x1c);
+    prev->checksum = checksum;
+    if (next != NULL) {
+      next->previous = prev;
+      crc_new(&checksum);
+      crc_checksum_buffer(&checksum, next, 0x1c);
+      next->checksum = checksum;
+    }
+  }
+}
+
 /* debug_malloc_check_all (0x8ead0) — walk every debug-tracked allocation,
  * validate each header, and check the end-of-buffer sentinel word. Reports
  * overruns via display_assert and exits. Also guards against an uninitialized
@@ -68,15 +267,7 @@ void debug_malloc_check_all(const char *file, int line)
 
   for (node = *(debug_allocation_header_t **)0x2ee758; node != NULL;
        node = node->next) {
-    {
-      int _esi = (int)node;
-      int _ebx = (int)file;
-      int _edi = line;
-      asm volatile("movl $0x8e7d0, %%eax\n\tcall *%%eax"
-                   : "+S"(_esi), "+b"(_ebx), "+D"(_edi)
-                   :
-                   : "eax", "ecx", "edx", "memory", "cc");
-    }
+    FUN_0008e7d0(node, file, line);
     if (*(uint32_t *)((char *)node + 0x20 + node->size) != 0x3c2d2d2d) {
       display_assert(
         csprintf((char *)0x5ab100,
@@ -125,47 +316,14 @@ void *debug_realloc(void *ptr, int new_size, const char *file, int line)
   if (ptr != NULL) {
     header = (debug_allocation_header_t *)((char *)ptr - 0x20);
 
-    /* validate header: ESI=header, EBX=file, EDI=line */
-    {
-      int _esi = (int)header;
-      int _ebx = (int)file;
-      int _edi = line;
-      asm volatile("movl $0x8e7d0, %%eax\n\t"
-                   "call *%%eax"
-                   : "+S"(_esi), "+b"(_ebx), "+D"(_edi)
-                   :
-                   : "eax", "ecx", "edx", "memory", "cc");
-    }
+    /* validate header */
+    FUN_0008e7d0(header, file, line);
 
-    /* verify allocation: EAX=ptr, stack: file, line */
-    {
-      int _eax = (int)ptr;
-      int _file = (int)file;
-      int _line = line;
-      asm volatile(
-        "pushl %[line]\n\t"
-        "pushl %[file]\n\t"
-        "call *%[fn]\n\t"
-        "addl $8, %%esp"
-        : "+a"(_eax)
-        : [fn] "r"((void *)0x8e6d0), [file] "r"(_file), [line] "r"(_line)
-        : "ecx", "edx", "memory", "cc");
-    }
+    /* verify allocation (end-of-buffer sentinel check) */
+    FUN_0008e6d0(ptr, file, line);
 
-    /* unlink from list: EAX=header, stack: file, line */
-    {
-      int _eax = (int)header;
-      int _file = (int)file;
-      int _line = line;
-      asm volatile(
-        "pushl %[line]\n\t"
-        "pushl %[file]\n\t"
-        "call *%[fn]\n\t"
-        "addl $8, %%esp"
-        : "+a"(_eax)
-        : [fn] "r"((void *)0x8e9f0), [file] "r"(_file), [line] "r"(_line)
-        : "ecx", "edx", "memory", "cc");
-    }
+    /* unlink header from debug allocation list */
+    FUN_0008e9f0(header, file, line);
 
     line = (int)header->line;
     old_size = header->size;
@@ -189,27 +347,15 @@ void *debug_realloc(void *ptr, int new_size, const char *file, int line)
     new_header->size = (uint32_t)new_size;
     *(uint32_t *)((char *)new_header + new_size + 0x20) = 0x3c2d2d2d;
 
-    /* link into list: ESI=new_header */
-    {
-      int _esi = (int)new_header;
-      asm volatile("call *%[fn]"
-                   : "+S"(_esi)
-                   : [fn] "r"((void *)0x8e950)
-                   : "eax", "ecx", "edx", "memory", "cc");
-    }
+    /* link new header into debug allocation list */
+    FUN_0008e950(new_header);
 
     result = (void *)((char *)new_header + 0x20);
 
     if ((uint32_t)new_size > old_size) {
-      /* fill new area: EBX=fill_start, stack=delta */
+      /* fill new bytes with random data */
       uint32_t delta = (uint32_t)new_size - old_size;
-      int _ebx = (int)((char *)result + old_size);
-      asm volatile("pushl %[delta]\n\t"
-                   "call *%[fn]\n\t"
-                   "addl $4, %%esp"
-                   : "+b"(_ebx)
-                   : [fn] "r"((void *)0x8e8e0), [delta] "r"(delta)
-                   : "eax", "ecx", "edx", "memory", "cc");
+      FUN_0008e8e0((char *)result + old_size, delta);
     }
 
     if (result != NULL)
@@ -225,6 +371,12 @@ update_stats:
     *(uint32_t *)0x2ee754 = *(uint32_t *)0x2ee750;
   }
   return result;
+}
+
+/* FUN_0008f1e0 (0x8f1e0) — dump all debug allocations to heap_dump.txt. */
+void FUN_0008f1e0(void)
+{
+  debug_dump_memory_for_file(NULL);
 }
 
 /*
@@ -444,4 +596,95 @@ void FUN_0008f630(void)
   *(int16_t *)0x3365c4 = 0;
   *(int32_t *)0x3365bc = 999;
   *(int32_t *)0x3365b4 = 0;
+}
+
+/* FUN_0008f6b0 (0x8f6b0) — advance the profiling frame counter and accumulate
+ * per-frame timing stats for all active entries.
+ * Returns 1 when a full second (120 frames) has elapsed, 0 otherwise. */
+int FUN_0008f6b0(void)
+{
+  int16_t i;
+  int32_t entry;
+  int32_t frame;
+  uint32_t old_frame_low;
+  uint32_t rolling_low;
+  uint32_t snap_low;
+  int32_t snap_high;
+  int32_t snap_int;
+  uint32_t *acc_low_ptr;
+  uint32_t acc_old;
+  int32_t new_frame;
+
+  if (*(uint8_t *)0x449ef1 != 0 && *(int16_t *)0x3361b0 > 0) {
+    i = 0;
+    do {
+      entry = ((int32_t *)0x3361b4)[i];
+      if (*(uint8_t *)(entry + 8) != 0) {
+        frame = *(int32_t *)0x3361ac;
+
+        /* subtract old per-frame snapshot from rolling totals */
+        old_frame_low = *(uint32_t *)(entry + 0x208 + frame * 8);
+        rolling_low = *(uint32_t *)(entry + 0x20);
+        *(uint32_t *)(entry + 0x20) = rolling_low - old_frame_low;
+        *(int32_t *)(entry + 0x24) =
+          (*(int32_t *)(entry + 0x24) -
+           *(int32_t *)(entry + 0x20c + frame * 8)) -
+          (int32_t)(rolling_low < old_frame_low ? 1U : 0U);
+        *(int32_t *)(entry + 0x18) -= *(int32_t *)(entry + 0x28 + frame * 4);
+
+        /* store new snapshot into per-frame history slot */
+        *(int32_t *)(entry + 0x208 + frame * 8) = *(int32_t *)(entry + 0x5d0);
+        *(int32_t *)(entry + 0x20c + frame * 8) = *(int32_t *)(entry + 0x5d4);
+        *(int32_t *)(entry + 0x28 + frame * 4) = *(int32_t *)(entry + 0x5cc);
+
+        /* add new snapshot to rolling totals */
+        rolling_low = *(uint32_t *)(entry + 0x20);
+        snap_low = *(uint32_t *)(entry + 0x5d0);
+        snap_high = *(int32_t *)(entry + 0x5d4);
+        *(uint32_t *)(entry + 0x20) = rolling_low + snap_low;
+        *(int32_t *)(entry + 0x24) +=
+          snap_high +
+          (int32_t)(*(uint32_t *)(entry + 0x20) < rolling_low ? 1U : 0U);
+        snap_int = *(int32_t *)(entry + 0x5cc);
+        *(int32_t *)(entry + 0x18) += snap_int;
+
+        /* update uint64 max */
+        if (*(int32_t *)(entry + 0x5f4) <= snap_high &&
+            (*(int32_t *)(entry + 0x5f4) < snap_high ||
+             *(uint32_t *)(entry + 0x5f0) < snap_low)) {
+          *(uint32_t *)(entry + 0x5f0) = snap_low;
+          *(int32_t *)(entry + 0x5f4) = snap_high;
+        }
+        /* update int max */
+        if (*(int32_t *)(entry + 0x5e8) < snap_int)
+          *(int32_t *)(entry + 0x5e8) = snap_int;
+
+        /* accumulate into all-time totals */
+        acc_low_ptr = (uint32_t *)(entry + 0x5e0);
+        acc_old = *acc_low_ptr;
+        *acc_low_ptr += snap_low;
+        *(int32_t *)(entry + 0x5d0) = 0;
+        *(uint32_t *)(entry + 0x5e4) +=
+          (uint32_t)snap_high + (*acc_low_ptr < acc_old ? 1U : 0U);
+        *(int32_t *)(entry + 0x5d8) += snap_int;
+        *(int32_t *)(entry + 0x5d4) = 0;
+        *(int32_t *)(entry + 0x5cc) = 0;
+        *(int32_t *)(entry + 0x5c8) += 1;
+      }
+      i++;
+    } while (i < *(int16_t *)0x3361b0);
+  }
+
+  new_frame = *(int32_t *)0x3361ac + 1;
+  *(uint8_t *)0x3361aa = 0;
+  *(int32_t *)0x3361ac = new_frame % 0x78;
+  return new_frame / 0x78;
+}
+
+/* FUN_0008f810 (0x8f810) — store two 32-bit performance counter values into
+ * globals at 0x449ed8 / 0x449edc. */
+void FUN_0008f810(int param_1, int param_2)
+{
+  *(int *)0x449ed8 = param_1;
+  *(int *)0x449edc = param_2;
 }

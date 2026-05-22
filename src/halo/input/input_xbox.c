@@ -390,6 +390,20 @@ void input_check_state_mode(void)
   }
 }
 
+/* FUN_000ce500 (0xce500)
+ * Reads 0x28 bytes from the state file into the buffer via ReadFile. */
+void FUN_000ce500(void *param_1)
+{
+  void *buf;
+  int handle;
+  uint32_t local_8;
+
+  buf = param_1;
+  handle = *(int *)0x46b814;
+  local_8 = 0;
+  ReadFile(handle, buf, 0x28, &local_8, 0);
+}
+
 /* FUN_000ce530 (0xce530) — read input state packet with seek-and-retry
  *
  * Reads 0x28 bytes from the state file into the provided buffer. If no
@@ -463,6 +477,70 @@ void input_state_process_packet(void *state)
   }
 }
 
+/* FUN_000cf3e0 (0xcf3e0)
+ * Remaps a short value from range [-param_2..param_2] to
+ * [-0x8000..0x7fff], returning the sign bit if in the dead zone. */
+int FUN_000cf3e0(short param_1, short param_2)
+{
+  if (param_1 > param_2) {
+    return (((int)param_1 - (int)param_2) * 0x7fff) / (0x7fff - (int)param_2);
+  }
+  if ((int)param_1 < -(int)param_2) {
+    return (((int)param_1 + (int)param_2) * -0x8000) / ((int)param_2 + -0x8000);
+  }
+  return (int)param_1 & ~0xFFFF;
+}
+
+/* FUN_000cf430 (0xcf430)
+ * Saturating byte counter update. If increment is zero, clears the
+ * counter. Otherwise increments it, clamping at 0xff.
+ *
+ * Reference layout (je/jle): increment path inline, saturation before
+ * shared store; set_to_0 is the je target. */
+void FUN_000cf430(uint8_t *counter, char increment)
+{
+  int new_val;
+
+  if (increment != '\0') {
+    new_val = (int)*counter + 1;
+    if (new_val <= 0xff) {
+      goto store;
+    }
+    new_val = 0xff;
+    *counter = (uint8_t)new_val;
+    return;
+  }
+  new_val = 0;
+store:
+  *counter = (uint8_t)new_val;
+}
+
+/* FUN_000cf490 (0xcf490) */
+void FUN_000cf490(void)
+{
+  int *piVar1;
+  int iVar2;
+  int handle;
+
+  FUN_000ce4a0();
+  if (*input_keyboard_handle() != 0) {
+    ((xinput_close_fn)0x24c1b8)(*input_keyboard_handle());
+    *input_keyboard_handle() = 0;
+  }
+  piVar1 = input_gamepad_handles();
+  iVar2 = 4;
+  do {
+    if (*piVar1 != 0) {
+      handle = *piVar1;
+      ((xinput_close_fn)0x24c1b8)(handle);
+      *piVar1 = 0;
+    }
+    piVar1 = piVar1 + 1;
+    iVar2 = iVar2 + -1;
+  } while (iVar2 != 0);
+  return;
+}
+
 void input_flush(void)
 {
   csmemset(input_gamepad_states(), 0,
@@ -528,6 +606,13 @@ bool input_get_buffered_key(void *out_keystroke)
   *(int *)out_keystroke = dword_46BC0C[read_idx];
   word_46BC08 = word_46BC08 + 1;
   return true;
+}
+
+/* FUN_000cf690 (0xcf690)
+ * Returns 0 (stub/always-false check). */
+int FUN_000cf690(void)
+{
+  return 0;
 }
 
 bool input_has_gamepad(int16_t gamepad_index)

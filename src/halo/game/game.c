@@ -1,3 +1,38 @@
+void FUN_000a6a80(void)
+{
+  char local_118[12];
+  int aiStack_10c[61];
+  char local_18[20];
+  int *piVar1;
+  int iVar2;
+  void *uVar3;
+  int iVar4;
+
+  piVar1 = (int *)((char *)game_globals_get() + 0x14c);
+  if (*piVar1 != 0) {
+    iVar2 = (int)tag_block_get_element(piVar1, 0, 0x10);
+    if (iVar2 != 0) {
+      if (*piVar1 == 0) {
+        FUN_000a6930(0, *(unsigned short *)piVar1);
+        return;
+      }
+      uVar3 = tag_block_get_element(piVar1, 0, 0x10);
+      FUN_000a6930((int)uVar3, *(unsigned short *)piVar1);
+      return;
+    }
+  }
+  iVar2 = 0;
+  FUN_001b9b60((int)local_18, 0x77656170);
+  iVar4 = FUN_001b9b80((int)local_18);
+  while (iVar4 != -1 && (unsigned short)iVar2 < 0x10) {
+    aiStack_10c[(short)(unsigned short)iVar2 * 4] = iVar4;
+    iVar2 = iVar2 + 1;
+    iVar4 = FUN_001b9b80((int)local_18);
+  }
+  FUN_000a6930((int)local_118, iVar2);
+  return;
+}
+
 void FUN_000a6b50(void)
 {
   int *block;
@@ -15,16 +50,13 @@ void FUN_000a6b50(void)
 void FUN_000a6ba0(void)
 {
   int *block;
-  void *elem0;
-  void *elem1;
   int index;
 
   block = (int *)((char *)game_globals_get() + 0x164);
   if (*block != 0) {
-    elem0 = tag_block_get_element(block, 0, 0xa0);
-    index = (int)*(short *)((char *)elem0 + 0x20);
-    elem1 = tag_block_get_element(block, 0, 0xa0);
-    FUN_000a6930(*(int *)((char *)elem1 + 0x24), (unsigned short)index);
+    index = (int)*(short *)((char *)tag_block_get_element(block, 0, 0xa0) + 0x20);
+    FUN_000a6930(*(int *)((char *)tag_block_get_element(block, 0, 0xa0) + 0x24),
+                 (unsigned short)index);
   }
 }
 
@@ -848,7 +880,12 @@ int FUN_000b4d50(unsigned int player_handle, int param_2)
 /* FUN_000b4d90 (0xb4d90) — check race state == 1 */
 bool FUN_000b4d90(int param_1)
 {
-  return param_1 == 1;
+  bool result;
+  result = 0;
+  if (--param_1 == 0) {
+    result = 1;
+  }
+  return result;
 }
 
 /* FUN_000b4da0 (0xb4da0) — race score format by handle

@@ -1545,6 +1545,38 @@
         "summary": "Per-tick update for all local-player observers: records delta_time, validates header/trailer signatures and updated_for_frame, then dispatches three unported sub-updates (0x8b060 input, 0x8cd40 integration when dt changed, 0x8c4b0 post) via inline asm passing index in EAX."
       }
     },
+    "0x8d830": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8d850": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8d860": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8d890": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8d8d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8d8f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8d930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8d970": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x8d9a0": {
       "kind": "function",
       "status": "ported"
@@ -4118,6 +4150,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xd0400": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd0420": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xd0440": {
       "kind": "function",
       "status": "ported"
@@ -6067,6 +6107,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12bd80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12bdb0": {
       "kind": "function",
       "status": "ported"
@@ -6174,6 +6218,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12d1c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12d210": {
       "kind": "function",
       "status": "ported"
@@ -6239,6 +6287,14 @@
       "status": "ported"
     },
     "0x12e090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12e1d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12e3a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -7527,6 +7583,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1997f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x199810": {
       "kind": "function",
       "status": "ported",
@@ -7534,6 +7594,10 @@
         "The 6th argument to path_split (flags & 1 from ref->unk_4[0]) controls whether paths are treated as having a trailing directory component.",
         "file_ref_t.unk_4 is a 16-bit flags field where bits 0-3 are name flags (directory, parent_directory, filename, extension)."
       ]
+    },
+    "0x1999a0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1999f0": {
       "kind": "function",
@@ -7567,12 +7631,20 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x19a560": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x19a640": {
       "kind": "function",
       "status": "ported",
       "uncertain": [
         "The file_error function at 0x19a450 takes file_ref in EAX as a register arg; if a future port adds it to kb.json with @eax, the inline asm call should be replaced."
       ]
+    },
+    "0x19a6d0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x19a7a0": {
       "kind": "function",
@@ -7582,11 +7654,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x19a9a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19aa00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x19aa70": {
       "kind": "function",
       "status": "ported"
     },
     "0x19ab50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19acb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -7600,6 +7684,10 @@
       "inferred": [
         "Assert string references tag_files.c not tag_groups.c, suggesting this function was originally defined in tag_files.c but compiled into tag_groups.obj."
       ]
+    },
+    "0x19b120": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x19b1a0": {
       "kind": "function",

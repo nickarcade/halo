@@ -171,6 +171,487 @@ void actor_action_flush_position_indices(int actor_handle)
   }
 }
 
+/* actor_action_flush_structure_indices (0x1c530) —
+ * actor_action_flush_structure_indices
+ *
+ * Dispatches the current action's handler at table slot +0x34 (0x253fd4,
+ * stride 0x38) for the given actor. Semantically "flush structure indices" —
+ * the table slot immediately after slot+0x30.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x1c53f.
+ * Confirmed: actor+0x6c = action index (short), asserted in [0, 14) at
+ *   line 0xdc (220).
+ * Confirmed: IMUL EAX,EAX,0x38; MOV ECX,[EAX+0x253fd4] at 0x1c573/0x1c57a.
+ * Confirmed: handler called with (actor_handle); TEST ECX,ECX guards call.
+ * Confirmed: __FILE__ "c:\halo\SOURCE\ai\actions.c".
+ */
+void actor_action_flush_structure_indices(int actor_handle)
+{
+  typedef void (*action_slot34_fn_t)(int);
+
+  char *actor;
+  short action;
+  action_slot34_fn_t handler;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  action = *(short *)(actor + 0x6c);
+
+  assert_halt(action >= 0 && action < 14);
+
+  handler = *(action_slot34_fn_t *)(0x253fd4 + action * 0x38);
+  if (handler != NULL) {
+    handler(actor_handle);
+  }
+}
+
+/* actor_action_handle_panic_from_surprise (0x1c5a0)
+ *
+ * Checks if an actor should enter a surprise-panic state. Sets the panic
+ * substate (actor+0x308) and prop index (actor+0x30c) when the actor's
+ * surprise-panic flag (actor+0x2f0) is set AND the actr tag allows it
+ * (flag 0x400). Clears the flag after handling.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x1c5af.
+ * Confirmed: tag_get(0x61637472, actor+0x58) loads actr tag.
+ * Confirmed: actor+0x2f0 = surprise-panic flag; actor+0x308 = panic substate
+ *   (short), clamped min to 7; actor+0x30c = prop index; actor+0x2f4 = default
+ *   prop index to use.
+ * Confirmed: assert at line 0x210 checks panic state consistency.
+ * Inferred: "surprise" type because flag at +0x2f0 and prop from +0x2f4.
+ */
+int actor_action_handle_panic_from_surprise(int actor_handle)
+{
+  char *actor;
+  int *actr_tag;
+  short panic_type;
+  int result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actr_tag = (int *)tag_get(0x61637472, *(int *)(actor + 0x58));
+  result = 0;
+  if ((*(char *)(actor + 0x2f0) != '\0') &&
+      ((*(unsigned int *)actr_tag & 0x400) != 0)) {
+    panic_type = *(short *)(actor + 0x308);
+    if ((panic_type == 0) || (*(int *)(actor + 0x30c) == -1)) {
+      *(int *)(actor + 0x30c) = *(int *)(actor + 0x2f4);
+    }
+    if (panic_type < 8) {
+      panic_type = 7;
+    }
+    *(short *)(actor + 0x308) = panic_type;
+    *(char *)(actor + 0x2f0) = 0;
+    result = 1;
+  }
+  assert_halt(*(short *)(actor + 0x308) == 0 || *(int *)(actor + 0x30c) != 0);
+  return result;
+}
+
+/* actor_action_handle_panic_from_damage (0x1c660)
+ *
+ * Checks if an actor should enter a damage-panic state. Sets panic substate
+ * (actor+0x308, clamped to min 1) and prop index (actor+0x30c) when the
+ * damage-panic flag (actor+0x2ec) is set, the actor is in a networked or
+ * client context, and the actor's current damage pain boost exceeds the tag
+ * threshold. Clears flag after handling.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x1c66f.
+ * Confirmed: tag_get(0x61637472, actor+0x58) loads actr tag.
+ * Confirmed: actor+0x2ec = damage-panic flag; actor+0x308 = panic substate
+ *   (short); actor+0x30c = prop index; actor+0x1c0 = pain boost (float);
+ *   actr_tag+0x2ac = pain threshold (float).
+ * Confirmed: game_connection() != 0 or !DAT_005ac9c8 enables the check.
+ * Confirmed: FUN_0002fa70(actor_handle, 1) = get best target prop.
+ * Confirmed: assert at line 0x228 checks panic state consistency.
+ */
+char actor_action_handle_panic_from_damage(int actor_handle)
+{
+  char *actor;
+  int actr_tag;
+  short panic_type;
+  int result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actr_tag = (int)tag_get(0x61637472, *(int *)(actor + 0x58));
+  result = 0;
+  if (*(char *)(actor + 0x2ec) != '\0') {
+    if ((game_connection() != 0) || (*(char *)0x5ac9c8 == '\0')) {
+      if (*(float *)(actor + 0x1c0) <= *(float *)(actr_tag + 0x2ac))
+        goto check_assert_damage;
+    }
+    panic_type = *(short *)(actor + 0x308);
+    if ((panic_type == 0) || (*(int *)(actor + 0x30c) == -1)) {
+      *(int *)(actor + 0x30c) = FUN_0002fa70(actor_handle, 1);
+    }
+    if (*(short *)(actor + 0x308) < 2) {
+      *(short *)(actor + 0x308) = 1;
+    }
+    *(char *)(actor + 0x2ec) = 0;
+    result = 1;
+  }
+check_assert_damage:
+  assert_halt(*(short *)(actor + 0x308) == 0 || *(int *)(actor + 0x30c) != 0);
+  return result;
+}
+
+/* actor_action_handle_panic_from_burning_to_death (0x1c750)
+ *
+ * Checks if an actor should panic because it is burning to death. Sets panic
+ * substate (actor+0x308, clamped to min 0xc) and prop index (actor+0x30c)
+ * when the burning-death flag (actor+0x1b5) is set. Looks up the responsible
+ * unit's vehicle/turret mount as the prop source.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle); actor+0x1b5 = on-fire flag.
+ * Confirmed: actor+0x18 = unit handle; object_get_and_verify_type(..., 3).
+ * Confirmed: ai_get_responsible_unit(unit+0x3c0, 1);
+ * prop_get_active_by_unit_index. Confirmed: actor+0x308 substate clamped min
+ * 0xc (12). Confirmed: actor+0x30c prop index set only if substate==0 or
+ * current==-1.
+ */
+int actor_action_handle_panic_from_burning_to_death(int actor_handle)
+{
+  char *actor;
+  int unit;
+  int responsible;
+  int prop_handle;
+  short panic_type;
+  int result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
+  if (*(char *)(actor + 0x1b5) != '\0') {
+    prop_handle = -1;
+    if (*(int *)(actor + 0x18) != -1) {
+      unit = (int)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+      responsible = ai_get_responsible_unit(*(int *)(unit + 0x3c0), 1);
+      if (responsible != -1) {
+        prop_handle = prop_get_active_by_unit_index(actor_handle, responsible);
+      }
+    }
+    panic_type = *(short *)(actor + 0x308);
+    if ((panic_type == 0) || (*(int *)(actor + 0x30c) == -1)) {
+      *(int *)(actor + 0x30c) = prop_handle;
+    }
+    if (panic_type < 0xd) {
+      panic_type = 0xc;
+    }
+    *(short *)(actor + 0x308) = panic_type;
+    result = 1;
+  }
+  return result;
+}
+
+/* actor_action_handle_panic_from_attached_projectiles (0x1c7f0)
+ *
+ * Checks if an actor should panic because it has projectiles attached to it.
+ * Sets panic substate (actor+0x308, clamped to min 0xa) and prop index
+ * (actor+0x30c) when the attached-projectile handle (actor+0x1b0) is valid.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle); actor+0x1b0 = projectile
+ * handle. Confirmed: object_try_and_get_and_verify_type(actor+0x1b0,
+ * 0xffffffff). Confirmed: ai_get_responsible_unit(obj+0x74, 1). Confirmed:
+ * prop_get_active_by_unit_index for prop lookup. Confirmed: actor+0x308
+ * substate clamped min 0xa (10).
+ */
+int actor_action_handle_panic_from_attached_projectiles(int actor_handle)
+{
+  char *actor;
+  int projectile;
+  int responsible;
+  int prop_handle;
+  short panic_type;
+  int result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
+  if (*(int *)(actor + 0x1b0) != -1) {
+    projectile = (int)object_try_and_get_and_verify_type(
+      *(int *)(actor + 0x1b0), 0xffffffff);
+    prop_handle = -1;
+    if (projectile != 0) {
+      responsible = ai_get_responsible_unit(*(int *)(projectile + 0x74), 1);
+      if (responsible != -1) {
+        prop_handle = prop_get_active_by_unit_index(actor_handle, responsible);
+      }
+    }
+    panic_type = *(short *)(actor + 0x308);
+    if ((panic_type == 0) || (*(int *)(actor + 0x30c) == -1)) {
+      *(int *)(actor + 0x30c) = prop_handle;
+    }
+    if (panic_type < 0xb) {
+      panic_type = 10;
+    }
+    *(short *)(actor + 0x308) = panic_type;
+    result = 1;
+  }
+  return result;
+}
+
+/* actor_action_handle_panic_from_attached_melee_attackers (0x1c880)
+ *
+ * Checks if an actor should panic due to attached melee attackers. Sets panic
+ * substate (actor+0x308, clamped to min 0xb) and clears prop index
+ * (actor+0x30c) when the attached-melee flag (actor+0x1b4) is set.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle); actor+0x1b4 = attached-melee
+ * flag. Confirmed: actor+0x308 substate clamped min 0xb (not to 0xc —
+ * max(current,0xb)). Confirmed: actor+0x30c set to 0xffffffff (-1 = NONE).
+ * Confirmed: returns 1 if triggered, 0 otherwise.
+ */
+char actor_action_handle_panic_from_attached_melee_attackers(int actor_handle)
+{
+  char *actor;
+  short panic_type;
+  char result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
+  if (*(char *)(actor + 0x1b4) != '\0') {
+    panic_type = *(short *)(actor + 0x308);
+    if ((int)panic_type < 0xc) {
+      panic_type = 0xb;
+    }
+    *(short *)(actor + 0x308) = panic_type;
+    *(int *)(actor + 0x30c) = -1;
+    result = 1;
+  }
+  return result;
+}
+
+/* actor_action_handle_berserking_from_attacking_mode (0x1c8d0)
+ *
+ * Checks if an actor should enter berserk mode due to being in high-aggression
+ * attacking mode. Sets berserk substate (actor+0x310, clamped to min 1) when
+ * the actor's aggression (actor+0x6e) > 4, berserk-from-attack flag
+ * (actor+0x1c9) is clear, and the actr tag allows berserk (flag 0x80000).
+ *
+ * Confirmed: datum_get(actor_data, actor_handle);
+ * tag_get(0x61637472,actor+0x58). Confirmed: *actr_tag & 0x80000 =
+ * allows_berserk flag. Confirmed: actor+0x1c9 = berserk-from-attack
+ * already-triggered flag. Confirmed: actor+0x6e = aggression level (short),
+ * must be > 4. Confirmed: actor+0x310 = berserk substate, clamped min 1.
+ * Confirmed: returns 1 if triggered, 0 otherwise.
+ */
+char actor_action_handle_berserking_from_attacking_mode(int actor_handle)
+{
+  char *actor;
+  int *actr_tag;
+  short berserk_state;
+  char result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actr_tag = (int *)tag_get(0x61637472, *(int *)(actor + 0x58));
+  result = 0;
+  if (((*(unsigned int *)actr_tag & 0x80000) != 0) &&
+      (*(char *)(actor + 0x1c9) == '\0') && (*(short *)(actor + 0x6e) >= 5)) {
+    berserk_state = *(short *)(actor + 0x310);
+    if (berserk_state < 2) {
+      berserk_state = 1;
+    }
+    *(short *)(actor + 0x310) = berserk_state;
+    result = 1;
+  }
+  return result;
+}
+
+/* actor_action_handle_berserking_from_proximity (0x1c940)
+ *
+ * Checks if an actor should enter berserk mode because its target is too
+ * close (within the tag's proximity berserk threshold). Sets berserk substate
+ * (actor+0x310, clamped to min 2) when aggression (actor+0x6e) > 4 and
+ * target-to-actor distance < actr_tag berserk_proximity_distance threshold.
+ *
+ * Confirmed: datum_get(actor_data); datum_get(props_data?, actor+0x270).
+ * Confirmed: actor+0x270 = target prop index; assert != NONE.
+ * Confirmed: prop+0x11c = prop distance (float); actr_tag+0x3a0 = threshold
+ * (float). Confirmed: actor+0x310 = berserk substate, clamped min 2. Confirmed:
+ * actor+0x6e = aggression level (short), must be > 4. Confirmed: returns 1 if
+ * triggered, 0 otherwise.
+ */
+char actor_action_handle_berserking_from_proximity(int actor_handle)
+{
+  char *actor;
+  char *actr_tag;
+  char *prop;
+  int prop_handle;
+  float dist;
+  float threshold;
+  short berserk_state;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actr_tag = (char *)tag_get(0x61637472, *(int *)(actor + 0x58));
+  if (4 < *(short *)(actor + 0x6e)) {
+    prop = (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x270));
+    prop_handle = *(int *)(actor + 0x270);
+    assert_halt(prop_handle != -1);
+    dist = *(float *)(prop + 0x11c);
+    threshold = *(float *)(actr_tag + 0x3a0);
+    if (dist < threshold) {
+      berserk_state = *(short *)(actor + 0x310);
+      if (berserk_state < 3) {
+        berserk_state = 2;
+      }
+      *(short *)(actor + 0x310) = berserk_state;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* actor_action_handle_berserking_from_damage (0x1ca00)
+ * Returns 1 if actor triggers berserk from damage: actor+0x2ec flag set,
+ * health (actor+0x1c0) > actr_tag+0x398, and speed (actor+0x1b8) <
+ * actr_tag+0x39c. Clamps berserk_state (actor+0x310) to min 3, clears the 0x2ec
+ * flag. */
+char actor_action_handle_berserking_from_damage(int actor_handle)
+{
+  char *actor;
+  int actr_tag;
+  short berserk_state;
+  char result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actr_tag = (int)tag_get(0x61637472, *(int *)(actor + 0x58));
+  result = 0;
+  if (*(char *)(actor + 0x2ec) != '\0') {
+    if (*(float *)(actor + 0x1c0) > *(float *)(actr_tag + 0x398)) {
+      if (*(float *)(actor + 0x1b8) < *(float *)(actr_tag + 0x39c)) {
+        berserk_state = *(short *)(actor + 0x310);
+        if (berserk_state < 4) {
+          berserk_state = 3;
+        }
+        *(short *)(actor + 0x310) = berserk_state;
+        *(char *)(actor + 0x2ec) = 0;
+        result = 1;
+      }
+    }
+  }
+  return result;
+}
+
+/* actor_action_deny_transition (0x1ca90)
+ * Returns 1 if the actor must deny an action transition: pending command list,
+ * squad timer active with low state, or berserking with specific flags clear.
+ */
+char actor_action_deny_transition(int actor_handle)
+{
+  char *actor;
+  char *squad;
+  char result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
+  if ((*(short *)(actor + 0x90) != -1) && (0 < *(short *)(actor + 0x92))) {
+    result = 1;
+  }
+  if (*(int *)(actor + 0x34) != -1) {
+    squad = encounter_get_squad(
+      datum_get(*(data_t **)0x5ab270, *(int *)(actor + 0x34)),
+      *(short *)(actor + 0x3a));
+    if (0 < *(short *)(squad + 0x12)) {
+      if (*(short *)(actor + 0x6e) >= 5) {
+        encounter_squad_timer_expire(*(int *)(actor + 0x34),
+                                     *(short *)(actor + 0x3a));
+      } else {
+        result = 1;
+      }
+    }
+  }
+  if (*(short *)(actor + 0x6c) == 0xb) {
+    if ((*(char *)(actor + 0x9e) == '\0') &&
+        (*(char *)(actor + 0xa1) == '\0')) {
+      return 1;
+    }
+  }
+  return result;
+}
+
+/* actor_action_handle_vehicle_exit (0x1cb70)
+ * Attempts to exit the actor's current vehicle seat. Returns 1 on success.
+ * Iterates nearby props to check for berserking attackers; tries
+ * unit_try_and_exit_seat on the actor's unit, storing the vehicle handle and a
+ * cooldown timer on success. */
+char actor_action_handle_vehicle_exit(int actor_handle)
+{
+  char *actor;
+  char berserk_nearby;
+  char local_5;
+  char iter_buf[12];
+  int prop;
+  char exit_ok;
+  int t;
+  char result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
+  if (*(int *)(actor + 0x158) == -1) {
+    goto done_clear;
+  }
+  berserk_nearby = 0;
+  local_5 = 0;
+  FUN_00064540((int *)iter_buf, actor_handle);
+  prop = FUN_00064570((int *)iter_buf);
+  while (prop != 0) {
+    if (((1 < *(short *)(prop + 0x24)) && (*(short *)(prop + 0x24) < 4)) &&
+        (*(char *)(prop + 0x12e) != '\0') && (*(char *)(prop + 0x60) != '\0') &&
+        (*(int *)(prop + 0x110) == *(int *)(actor + 0x158))) {
+      berserk_nearby = 1;
+      local_5 = 1;
+      break;
+    }
+    prop = FUN_00064570((int *)iter_buf);
+  }
+  if (*(char *)(actor + 0x2ed) != '\0') {
+    berserk_nearby = 1;
+  }
+  if ((*(char *)(actor + 0x160) == '\0') ||
+      ((*(int *)(actor + 0x1b0) == -1) &&
+       ((*(short *)(actor + 0x280) != 2 ||
+         (*(char *)(actor + 0x28a) == '\0'))))) {
+    if (!berserk_nearby) {
+      goto done_clear;
+    }
+  } else {
+    local_5 = 1;
+  }
+  *(char *)(actor + 0x38c) = local_5;
+  exit_ok = unit_try_and_exit_seat(*(int *)(actor + 0x18));
+  if (exit_ok != '\0') {
+    *(int *)(actor + 0x390) = *(int *)(actor + 0x158);
+    t = game_time_get();
+    *(int *)(actor + 0x394) = t + 0xb4;
+    *(char *)(actor + 0x38c) = 0;
+    *(char *)(actor + 0x2ed) = 0;
+    return 1;
+  }
+  *(char *)(actor + 0x38c) = 0;
+  *(char *)(actor + 0x2ed) = 0;
+  return result;
+done_clear:
+  *(char *)(actor + 0x2ed) = 0;
+  return result;
+}
+
+/* actor_action_can_stop_guarding (0x1cf10)
+ * Returns 1 if the actor can stop the guard action, based on state counters and
+ * flags. Asserts that the actor's current action is _actor_action_guard (6). */
+char actor_action_can_stop_guarding(int actor_handle, short min_state,
+                                    short max_state)
+{
+  char *actor;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  assert_halt(*(short *)(actor + 0x6c) == 6);
+  if (*(char *)(actor + 0xa4) != '\0') {
+    return max_state <= *(short *)(actor + 0x6e);
+  }
+  if (((0 < *(short *)(actor + 0x9c)) &&
+       (*(short *)(actor + 0x6e) < min_state)) &&
+      ((*(short *)(actor + 0x1e4) < 1 || (*(char *)(actor + 0xa1) != '\0')))) {
+    return 0;
+  }
+  return 1;
+}
+
 /* actor_action_change (0x1d030) — actor_set_action
  *
  * Transitions an actor to a new action type: calls the old action's exit
@@ -296,4 +777,67 @@ short actor_action_get_default_state(short param_1)
   if (param_1 < 0 || param_1 >= 12)
     return 0;
   return *(short *)(0x254300 + (int)param_1 * 2);
+}
+
+/* actor_action_handle_initial_action (0x1dab0)
+ * If the actor is in the idle action (0x6c == 0) and has a non-zero
+ * default-state index (0x6a), runs actor_action_set_default_state to
+ * initiate that default state. Returns 1 if the state was set, 0 otherwise.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle); actor+0x6c = short action;
+ * actor+0x6a = short default_state_index. */
+char actor_action_handle_initial_action(int actor_handle)
+{
+  char *actor;
+  char result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
+  if ((*(short *)(actor + 0x6c) == 0) && (*(short *)(actor + 0x6a) != 0)) {
+    result = actor_action_set_default_state(actor_handle, 0xffff);
+  }
+  return result;
+}
+
+/* actor_action_handle_pending_command_list (0x1daf0)
+ * Handles any pending command-list action stored in actor+0x90.
+ * Returns 0 if no pending command, if guarding with no default state, or
+ * if the current transition is denied. Otherwise starts the command-list
+ * action (type 0xb), clears the pending entry, and returns 1.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle); actor+0x90 = short
+ * pending_action; actor+0x8e = char flag; actor+0x6a = short state.
+ * actor_action_deny_transition at 0x1ca90; FUN_00016e70 at 0x16e70;
+ * actor_action_change(actor_handle, 0xb, buf); actor+0x8e cleared. */
+char actor_action_handle_pending_command_list(int actor_handle)
+{
+  char *actor;
+  char cVar1;
+  char result;
+  char action_buf[132];
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
+  if (*(short *)(actor + 0x90) == -1) {
+    return 0;
+  }
+  if (*(char *)(actor + 0x8e) != '\0') {
+    goto do_action;
+  }
+  if (*(short *)(actor + 0x6a) == 0) {
+    return 0;
+  }
+  cVar1 = actor_action_deny_transition(actor_handle);
+  if (cVar1 != '\0') {
+    return 0;
+  }
+do_action:
+  cVar1 = FUN_00016e70(actor_handle, *(short *)(actor + 0x90), action_buf);
+  if (cVar1 != '\0') {
+    actor_action_change(actor_handle, 0xb, (int)action_buf);
+    result = 1;
+  }
+  *(char *)(actor + 0x8e) = 0;
+  *(short *)(actor + 0x90) = -1;
+  return result;
 }

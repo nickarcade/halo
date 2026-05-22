@@ -60,6 +60,36 @@ const char *tag_name_strip_path(const char *tag_name)
   return tag_name;
 }
 
+/* 0x19b120 — verify that a tag_reference's cached datum index is consistent
+ * with what tag_loaded() returns for the same group_tag and name. Asserts
+ * and exits if the stored index mismatches. Returns the actual datum index.
+ *
+ * tag_ref layout:
+ *   [0] int  group_tag (e.g. 0x6669656c for 'fiel')
+ *   [1] char *name     (tag asset path)
+ *   [2] int  (unused here)
+ *   [3] int  expected datum index */
+int verify_tag_reference(int *tag_ref)
+{
+  int iVar1;
+
+  if (tag_ref == NULL) {
+    display_assert("reference",
+                   "c:\\halo\\SOURCE\\tag_files\\tag_groups.c", 0xbef, 1);
+    system_exit(-1);
+  }
+  iVar1 = tag_loaded(tag_ref[0], (const char *)tag_ref[1]);
+  if (tag_ref[3] != iVar1) {
+    display_assert(csprintf((char *)0x5ab100,
+                            "tag reference \"%s\" and actual index do not match:"
+                            " is %08lX but should be %08lX",
+                            (const char *)tag_ref[1], tag_ref[3], iVar1),
+                   "c:\\halo\\SOURCE\\tag_files\\tag_groups.c", 0xbf5, 1);
+    system_exit(-1);
+  }
+  return iVar1;
+}
+
 /* Returns a pointer into the raw data buffer of a tag_data at the given
  * offset. Asserts that size >= 0 and that offset+size fits within the
  * tag_data's total size. Used to obtain typed pointers into tag data blobs.
@@ -142,6 +172,26 @@ void *tag_block_get_element(void *block, int index, int element_size)
   return (char *)b->address + index * element_size;
 }
 
+/* 0x19b320 — no-op placeholder (cache build: read-only tag groups). */
+void FUN_0019b320(void)
+{
+  return;
+}
+
+/* 0x19b3a0 — reset the cached localization tag index to -1.
+ * Clears the module-level tag_index stored at 0x4d9b08. */
+void FUN_0019b3a0(void)
+{
+  *(int *)0x4d9b08 = -1;
+  return;
+}
+
+/* 0x19b3b0 — no-op placeholder (cache build: read-only tag groups). */
+void FUN_0019b3b0(void)
+{
+  return;
+}
+
 /* Stub: tag_block_resize is not supported when running from a cache file
  * (the map is memory-mapped read-only). Logs an error and returns false.
  * In the tools build this would perform actual reallocation. */
@@ -167,4 +217,72 @@ int16_t tag_block_add_element(void *tag_block)
 {
   error(2, "tag_block_add_element() is not supported with a cache file active");
   return -1;
+}
+
+/* Stub: tag_load is not supported when running from a cache file.
+ * Logs an error and returns an invalid tag handle (-1).
+ * All three parameters are intentionally unused in this stub. */
+int FUN_001b9b00(int tag_class, const char *name, int flags)
+{
+  (void)tag_class;
+  (void)name;
+  (void)flags;
+  error(2, "tag_load() is not supported with a cache file active");
+  return -1;
+}
+
+/* Stub: tag_file_get_path is not supported when running from a cache file.
+ * Logs an error and writes a NUL byte to the output path buffer. */
+void FUN_001b9b30(int tag_class, int param_2, char *out_path)
+{
+  (void)tag_class;
+  (void)param_2;
+  error(2, "tag_file_get_path() is not supported with a cache file active");
+  *out_path = 0;
+}
+
+/* Stub: tag_reference_set is not supported when running from a cache file.
+ * Logs an error and returns immediately. */
+void FUN_001b9b50(void)
+{
+  error(2, "tag_reference_set() is not supported with a cache file active");
+  return;
+}
+
+/* Tag group iterator init: initialize iterator state at 'state' for tag class
+ * 'tag_class'. Sets the index counter to 0 and stores the class filter. */
+void FUN_001b9b60(int state, int tag_class)
+{
+  *(short *)(state + 4) = 0;
+  *(int *)(state + 0x10) = tag_class;
+  return;
+}
+
+/* Tag group iterator step: advance iterator 'state' to the next tag group
+ * entry matching the stored class filter. Returns the datum handle
+ * (entry[3]) on match, or -1 when no more entries remain.
+ * 0x4e5504: ptr to globals (count at +0xc); 0x5054f0: tag group table base */
+int FUN_001b9b80(int state)
+{
+  int iVar1;
+  int iVar2;
+  int *piVar3;
+
+  iVar2 = -1;
+  if ((int)*(short *)(state + 4) < *(int *)(*(int *)0x4e5504 + 0xc)) {
+    while (1) {
+      piVar3 = (int *)(*(short *)(state + 4) * 0x20 + *(int *)0x5054f0);
+      *(short *)(state + 4) = *(short *)(state + 4) + 1;
+      if ((piVar3 != (int *)0) &&
+          (iVar1 = *(int *)(state + 0x10),
+           iVar1 == -1 || iVar1 == piVar3[0] || iVar1 == piVar3[1] || iVar1 == piVar3[2])) {
+        break;
+      }
+      if (*(int *)(*(int *)0x4e5504 + 0xc) <= (int)*(short *)(state + 4)) {
+        return iVar2;
+      }
+    }
+    iVar2 = piVar3[3];
+  }
+  return iVar2;
 }

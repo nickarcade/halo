@@ -2573,6 +2573,70 @@
       "metadata": {
         "source_path": "src/halo/networking/network_game_globals.c"
       }
+    },
+    {
+      "name": "halo/files_windows",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/tag_files/files.c.obj",
+      "base_path": "delinked/files_windows.obj",
+      "metadata": {
+        "source_path": "src/halo/tag_files/files.c"
+      }
+    },
+    {
+      "name": "halo/errors_FUN_8e650",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/cseries/errors.c.obj",
+      "base_path": "delinked/errors.obj_FUN_8e650.obj",
+      "metadata": {
+        "source_path": "src/halo/cseries/errors.c"
+      }
+    },
+    {
+      "name": "halo/hud_messaging_FUN_0d4680",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud_messaging.c.obj",
+      "base_path": "delinked/hud_messaging_FUN_0d4680.obj",
+      "metadata": {
+        "source_path": "src/halo/interface/hud_messaging.c"
+      }
+    },
+    {
+      "name": "halo/hud_messaging_FUN_0d5160",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud_messaging.c.obj",
+      "base_path": "delinked/hud_messaging_FUN_0d5160.obj",
+      "metadata": {
+        "source_path": "src/halo/interface/hud_messaging.c"
+      }
+    },
+    {
+      "name": "halo/hud_messaging_FUN_0d5180",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud_messaging.c.obj",
+      "base_path": "delinked/hud_messaging_FUN_0d5180.obj",
+      "metadata": {
+        "source_path": "src/halo/interface/hud_messaging.c"
+      }
+    },
+    {
+      "name": "halo/input_xbox_FUN_0cf3e0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/input/input_xbox.c.obj",
+      "base_path": "delinked/input_xbox_FUN_0cf3e0.obj",
+      "metadata": {
+        "source_path": "src/halo/input/input_xbox.c"
+      }
+    },
+    {
+      "name": "halo/input_xbox_FUN_0cf690",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/input/input_xbox.c.obj",
+      "base_path": "delinked/input_xbox_FUN_0cf690.obj",
+      "metadata": {
+        "source_path": "src/halo/input/input_xbox.c"
+      }
+    },
+    {
+      "name": "halo/collision_usage_FUN_0014cde0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/physics/collision_usage.c.obj",
+      "base_path": "delinked/collision_usage_FUN_0014cde0.obj",
+      "metadata": {
+        "source_path": "halo/physics/collision_usage.c"
+      }
     }
   ]
 }
