@@ -2176,7 +2176,7 @@
           "source_path": "src/halo/ai/actions.c"
         },
         {
-          "decl": "void actor_action_can_stop_conversing(void);",
+          "decl": "int actor_action_can_stop_conversing(int actor_handle, int flag);",
           "addr": "0x1cfa0"
         },
         {
@@ -2260,15 +2260,15 @@
           "source_path": "src/halo/ai/actions.c"
         },
         {
-          "decl": "void actor_action_handle_surprise(void);",
+          "decl": "void actor_action_handle_surprise(int actor_handle, int type);",
           "addr": "0x1db90"
         },
         {
-          "decl": "void actor_action_handle_panic_transition(void);",
+          "decl": "void actor_action_handle_panic_transition(int actor_handle, short a, char b, short c);",
           "addr": "0x1dd40"
         },
         {
-          "decl": "void actor_action_handle_berserking_from_attached_projectiles(void);",
+          "decl": "void actor_action_handle_combat_targeting(int actor_handle);",
           "addr": "0x1dea0"
         },
         {
@@ -2292,7 +2292,7 @@
           "addr": "0x1ef90"
         },
         {
-          "decl": "void actor_action_handle_done_fleeing(void);",
+          "decl": "void actor_action_handle_done_fleeing(int actor_handle);",
           "addr": "0x1f6e0"
         },
         {
@@ -2300,7 +2300,7 @@
           "addr": "0x1f770"
         },
         {
-          "decl": "void actor_action_handle_combat_failure(int actor_handle);",
+          "decl": "char actor_action_handle_combat_failure(int actor_handle);",
           "addr": "0x1f920"
         },
         {
@@ -2332,7 +2332,7 @@
           "addr": "0x20280"
         },
         {
-          "decl": "void actor_action_handle_berserk_transition(void);",
+          "decl": "void actor_action_handle_berserk_transition(int actor_handle, int type);",
           "addr": "0x20470"
         },
         {
@@ -2340,15 +2340,15 @@
           "addr": "0x204f0"
         },
         {
-          "decl": "void actor_action_handle_grenade_throwing(void);",
+          "decl": "void actor_action_handle_grenade_throwing(int actor_handle);",
           "addr": "0x205a0"
         },
         {
-          "decl": "void actor_action_handle_evasion(void);",
+          "decl": "void actor_action_handle_evasion(int actor_handle);",
           "addr": "0x20670"
         },
         {
-          "decl": "void FUN_00020990(void);",
+          "decl": "void FUN_00020990(int actor_handle);",
           "addr": "0x20990"
         },
         {
@@ -2421,12 +2421,14 @@
           "ported": true
         },
         {
-          "decl": "void FUN_00036a90(void);",
-          "addr": "0x36a90"
+          "decl": "void FUN_00036a90(int actor_handle, int prop_handle);",
+          "addr": "0x36a90",
+          "ported": false
         },
         {
-          "decl": "void FUN_00036b10(void);",
-          "addr": "0x36b10"
+          "decl": "void FUN_00036b10(int actor_handle, int prop_handle);",
+          "addr": "0x36b10",
+          "ported": false
         },
         {
           "decl": "void FUN_00036b50(int param_1, int param_2);",
@@ -2444,8 +2446,9 @@
           "ported": true
         },
         {
-          "decl": "void FUN_00036c50(void);",
-          "addr": "0x36c50"
+          "decl": "void FUN_00036c50(int actor_handle, int prop_handle);",
+          "addr": "0x36c50",
+          "ported": false
         },
         {
           "decl": "void FUN_00036da0(int actor_handle);",
@@ -2465,8 +2468,9 @@
           "ported": true
         },
         {
-          "decl": "void FUN_00036e50(void);",
-          "addr": "0x36e50"
+          "decl": "void FUN_00036e50(int actor_handle);",
+          "addr": "0x36e50",
+          "ported": true
         },
         {
           "decl": "void FUN_00036f20(void);",
@@ -2503,7 +2507,7 @@
           "decl": "void FUN_000379f0(int actor_handle);",
           "addr": "0x379f0",
           "source_path": "halo/ai/actors.c",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void FUN_00037b50(void);",
@@ -2514,12 +2518,16 @@
           "addr": "0x37d50"
         },
         {
-          "decl": "void FUN_00038000(void);",
-          "addr": "0x38000"
+          "decl": "void FUN_00038000(int actor_handle);",
+          "addr": "0x38000",
+          "ported": true,
+          "source_path": "src/halo/ai/actors.c"
         },
         {
-          "decl": "void FUN_00038200(void);",
-          "addr": "0x38200"
+          "decl": "void FUN_00038200(int actor_handle);",
+          "addr": "0x38200",
+          "ported": false,
+          "source_path": "ai/actors.c"
         },
         {
           "decl": "void FUN_00038370(void);",
@@ -2530,8 +2538,10 @@
           "addr": "0x38880"
         },
         {
-          "decl": "void FUN_00038b10(void);",
-          "addr": "0x38b10"
+          "decl": "void FUN_00038b10(int actor_handle);",
+          "addr": "0x38b10",
+          "ported": true,
+          "source_path": "halo/ai/actors.c"
         },
         {
           "decl": "void FUN_00038c70(void);",
@@ -2812,8 +2822,10 @@
           "ported": true
         },
         {
-          "decl": "void actor_destination_tolerance(void);",
-          "addr": "0x3bd50"
+          "decl": "float actor_destination_tolerance(int actor_handle);",
+          "addr": "0x3bd50",
+          "source_path": "halo/ai/actors.c",
+          "ported": true
         },
         {
           "addr": "0x3bde0",
@@ -2905,8 +2917,10 @@
           "ported": true
         },
         {
-          "decl": "void actor_get_running_blind_vector(void);",
-          "addr": "0x3ce40"
+          "decl": "char actor_get_running_blind_vector(int actor_handle, float *vector_out);",
+          "addr": "0x3ce40",
+          "source_path": "halo/ai/actors.c",
+          "ported": true
         },
         {
           "decl": "void actor_kill(int actor_handle, char by_player, char no_delete);",
@@ -4718,7 +4732,8 @@
         {
           "decl": "char FUN_0014cde0(int param_1, int param_2, float param_3, int param_4, int param_5, int param_6);",
           "addr": "0x14cde0",
-          "ported": true
+          "ported": true,
+          "source_path": "src/halo/physics/collision_usage.c"
         },
         {
           "decl": "void FUN_0014cf20(int param_1);",
@@ -7822,11 +7837,11 @@
           "ported": true
         },
         {
-          "decl": "void game_engine_remap_vehicle(void);",
+          "decl": "int game_engine_remap_vehicle(int tag_index);",
           "addr": "0xa96b0"
         },
         {
-          "decl": "void game_engine_remap_weapon(void);",
+          "decl": "int game_engine_remap_weapon(int tag_index);",
           "addr": "0xa9770"
         },
         {
@@ -13701,28 +13716,39 @@
           "addr": "0x84ae0"
         },
         {
-          "decl": "void FUN_00084fe0(void);",
-          "addr": "0x84fe0"
+          "decl": "void FUN_00084fe0(unsigned char param_1);",
+          "addr": "0x84fe0",
+          "ported": true,
+          "source_path": "camera/bored_camera.c"
         },
         {
-          "decl": "void FUN_00085000(void);",
-          "addr": "0x85000"
+          "decl": "void FUN_00085000(int param_1, const char *param_2);",
+          "addr": "0x85000",
+          "ported": false,
+          "source_path": "objects/objects.c"
         },
         {
-          "decl": "void FUN_000850d0(void);",
-          "addr": "0x850d0"
+          "decl": "void FUN_000850d0(int param_1);",
+          "addr": "0x850d0",
+          "ported": true,
+          "source_path": "camera/bored_camera.c"
         },
         {
-          "decl": "void FUN_00085110(void);",
-          "addr": "0x85110"
+          "decl": "void FUN_00085110(int param_1);",
+          "addr": "0x85110",
+          "ported": true,
+          "source_path": "camera/bored_camera.c"
         },
         {
-          "decl": "void FUN_00085150(void);",
-          "addr": "0x85150"
+          "decl": "int FUN_00085150(int param_1);",
+          "addr": "0x85150",
+          "ported": false
         },
         {
-          "decl": "void FUN_00085180(void);",
-          "addr": "0x85180"
+          "decl": "void FUN_00085180(short param_1, short param_2, int param_3);",
+          "addr": "0x85180",
+          "ported": true,
+          "source_path": "objects/objects.c"
         },
         {
           "decl": "void FUN_00085260(void);",
@@ -13754,13 +13780,14 @@
           "ported": false
         },
         {
-          "decl": "void FUN_000adf70(void);",
+          "decl": "int FUN_000adf70(int tag_index);",
           "addr": "0xadf70"
         },
         {
           "decl": "int FUN_000ae0a0(int tag_index);",
           "addr": "0xae0a0",
-          "ported": false
+          "ported": true,
+          "source_path": "objects/objects.c"
         },
         {
           "decl": "void FUN_000ae110(void);",
@@ -13996,7 +14023,8 @@
         {
           "decl": "void *FUN_0013c100(int16_t object_type);",
           "addr": "0x13c100",
-          "ported": false
+          "ported": true,
+          "source_path": "objects/objects.c"
         },
         {
           "decl": "void FUN_0013c1b0(void);",
@@ -14190,9 +14218,11 @@
           "ported": true
         },
         {
-          "decl": "void FUN_0013d880(short param_1, int param_2);",
+          "name": "object_name_list_set_handle",
+          "decl": "void object_name_list_set_handle(int16_t param_1, int param_2);",
           "addr": "0x13d880",
-          "ported": false
+          "ported": true,
+          "source_path": "objects/objects.c"
         },
         {
           "decl": "void objects_fix_for_deleted_object(void);",
@@ -14347,8 +14377,10 @@
           "ported": true
         },
         {
-          "decl": "void recursive_object_adder(void);",
-          "addr": "0x13f080"
+          "decl": "int FUN_0013f080(int param_1, char (*param_2)(int, int), int param_3, int param_4, int param_5, int *param_6);",
+          "addr": "0x13f080",
+          "source_path": "objects/objects.c",
+          "ported": true
         },
         {
           "decl": "void find_objects_from_point_vector(void);",
@@ -15602,17 +15634,17 @@
         {
           "decl": "void rumble_player_impulse(short unit_index, float *rumble_def, float damage_amount, float scale);",
           "addr": "0xb9bc0",
-          "ported": null
+          "ported": true
         },
         {
           "decl": "void rumble_player_set_scripted_values(float left_motor, float right_motor);",
           "addr": "0xb9b80",
-          "ported": null
+          "ported": true
         },
         {
           "decl": "void rumble_player_set_scale(float scale);",
           "addr": "0xb9ba0",
-          "ported": null
+          "ported": true
         },
         {
           "decl": "void rumble_set_direct_motors(short local_player_index, int left_motor, int right_motor);",
@@ -15658,7 +15690,7 @@
           "addr": "0xe0740"
         },
         {
-          "decl": "void player_ui_get_single_player_local_player_from_controller(void);",
+          "decl": "int player_ui_get_single_player_local_player_from_controller(short local_player_index);",
           "addr": "0xe0810"
         },
         {
@@ -15702,7 +15734,7 @@
           "addr": "0xe0ab0"
         },
         {
-          "decl": "void player_ui_rumble_disabled(void);",
+          "decl": "bool player_ui_rumble_disabled(int controller_index);",
           "addr": "0xe0b00"
         },
         {
@@ -17306,7 +17338,8 @@
         },
         {
           "decl": "int FUN_000f9c40(int projectile_handle);",
-          "addr": "0xf9c40"
+          "addr": "0xf9c40",
+          "ported": true
         },
         {
           "decl": "float FUN_000fac20(int weapon_tag_index, float *out_field8);",
@@ -17314,12 +17347,14 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000face0(void);",
-          "addr": "0xface0"
+          "decl": "void FUN_000face0(int animation_graph_tag_index, short *state, int *out_sound);",
+          "addr": "0xface0",
+          "ported": true
         },
         {
-          "decl": "void FUN_000fad00(void);",
-          "addr": "0xfad00"
+          "decl": "void FUN_000fad00(int animation_graph_tag_index, int16_t animation_index);",
+          "addr": "0xfad00",
+          "ported": true
         }
       ],
       "src": "src/halo/items/projectiles.c"
@@ -19020,11 +19055,11 @@
           "ported": true
         },
         {
-          "decl": "void FUN_0010a5e0(void);",
+          "decl": "float FUN_0010a5e0(int16_t function_type, float input);",
           "addr": "0x10a5e0"
         },
         {
-          "decl": "void FUN_0010a710(void);",
+          "decl": "float transition_function_evaluate(short function_type, float t);",
           "addr": "0x10a710"
         },
         {
@@ -24349,40 +24384,54 @@
           "addr": "0x1a6350"
         },
         {
-          "decl": "void FUN_001a67b0(void);",
-          "addr": "0x1a67b0"
+          "decl": "char *FUN_001a67b0(short param_1, unsigned char param_2);",
+          "addr": "0x1a67b0",
+          "ported": true,
+          "source_path": "units/units.c"
         },
         {
-          "decl": "void FUN_001a67e0(void);",
-          "addr": "0x1a67e0"
+          "decl": "short FUN_001a67e0(const char *param_1);",
+          "addr": "0x1a67e0",
+          "ported": false,
+          "source_path": "units/units.c"
         },
         {
-          "decl": "void FUN_001a6820(void);",
-          "addr": "0x1a6820"
+          "decl": "int FUN_001a6820(int param_1, char param_2);",
+          "addr": "0x1a6820",
+          "ported": true,
+          "source_path": "units/units.c"
         },
         {
-          "decl": "void FUN_001a6870(void);",
-          "addr": "0x1a6870"
+          "decl": "int FUN_001a6870(int param_1, short param_2, char param_3);",
+          "addr": "0x1a6870",
+          "ported": true,
+          "source_path": "units/units.c"
         },
         {
           "decl": "void FUN_001a68d0(void);",
           "addr": "0x1a68d0"
         },
         {
-          "decl": "void FUN_001a6bc0(void);",
-          "addr": "0x1a6bc0"
+          "decl": "int FUN_001a6bc0(int param_1);",
+          "addr": "0x1a6bc0",
+          "ported": true,
+          "source_path": "units/units.c"
         },
         {
           "decl": "void FUN_001a6bf0(void);",
           "addr": "0x1a6bf0"
         },
         {
-          "decl": "void FUN_001a6ca0(void);",
-          "addr": "0x1a6ca0"
+          "decl": "char *FUN_001a6ca0(short param_1);",
+          "addr": "0x1a6ca0",
+          "ported": true,
+          "source_path": "units/units.c"
         },
         {
-          "decl": "void FUN_001a6cd0(void);",
-          "addr": "0x1a6cd0"
+          "decl": "short FUN_001a6cd0(const char *param_1);",
+          "addr": "0x1a6cd0",
+          "ported": true,
+          "source_path": "units/units.c"
         },
         {
           "decl": "void FUN_001a6d10(void);",
@@ -28469,22 +28518,29 @@
           "addr": "0xfad60"
         },
         {
-          "decl": "void weapon_preprocess_node_orientations(void);",
-          "addr": "0xfae30"
+          "decl": "void weapon_preprocess_node_orientations(int weapon_handle);",
+          "addr": "0xfae30",
+          "name": "weapon_preprocess_node_orientations",
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "char *weapon_get_label(int weapon_handle);",
           "addr": "0xfae80",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
-          "decl": "void weapon_set_integrated_light_power(void);",
-          "addr": "0xfaeb0"
+          "decl": "void weapon_set_integrated_light_power(int weapon_handle, int light_power);",
+          "addr": "0xfaeb0",
+          "source_path": "halo/items/weapons.c",
+          "ported": true
         },
         {
           "decl": "float weapon_estimate_time_to_target(int weapon_handle, int16_t trigger_index, float param_3);",
           "addr": "0xfaed0",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void weapon_can_be_fired(void);",
@@ -28499,26 +28555,37 @@
           "addr": "0xfb010"
         },
         {
-          "decl": "void weapon_must_be_readied(void);",
-          "addr": "0xfb090"
+          "decl": "int weapon_must_be_readied(int weapon_handle);",
+          "addr": "0xfb090",
+          "name": "weapon_must_be_readied",
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "bool weapon_is_flag(int object_index);",
           "addr": "0xfb0c0",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
-          "decl": "void weapon_prevents_grenade_throwing(void);",
-          "addr": "0xfb0f0"
+          "decl": "int weapon_prevents_grenade_throwing(int weapon_handle);",
+          "addr": "0xfb0f0",
+          "name": "weapon_prevents_grenade_throwing",
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "int16_t weapon_get_animation_frame(int weapon_handle, int16_t param_2, int16_t param_3, int16_t param_4);",
           "addr": "0xfb140",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
-          "decl": "void weapon_overcharged(void);",
-          "addr": "0xfb2f0"
+          "decl": "int weapon_overcharged(int weapon_handle);",
+          "addr": "0xfb2f0",
+          "name": "weapon_overcharged",
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void FUN_000fb320(void);",
@@ -28527,12 +28594,14 @@
         {
           "decl": "void *FUN_000fb370(void *weapon_obj@<edi>, int16_t magazine_index@<si>);",
           "addr": "0xfb370",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "bool weapon_has_activity(int weapon_handle @<eax>);",
           "addr": "0xfb3c0",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void FUN_000fb510(void);",
@@ -28549,7 +28618,8 @@
         {
           "decl": "int weapon_start_effect(int trigger_effect, int param_2, int param_3, int weapon_handle @<eax>);",
           "addr": "0xfb6e0",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void FUN_000fb7d0(void);",
@@ -28574,12 +28644,14 @@
         {
           "decl": "int weapon_set_animation_state(int weapon_handle, char param_2, int16_t state @<bx>);",
           "addr": "0xfba20",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void weapon_set_total_rounds(int weapon_handle, int16_t *rounds_array);",
           "addr": "0xfbbd0",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void FUN_000fbcf0(void);",
@@ -28600,7 +28672,8 @@
         {
           "decl": "bool weapon_handle_potential_inventory_item(int seat_occupant, int object_handle, uint16_t local_player_index, int16_t *seat_index);",
           "addr": "0xfc290",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void weapon_owner_update(void);",
@@ -28633,12 +28706,14 @@
         {
           "decl": "void FUN_000fc990(int16_t magazine_index@<ax>, int weapon_handle, int param_2);",
           "addr": "0xfc990",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void FUN_000fcaf0(int weapon_handle, int magazine_index);",
           "addr": "0xfcaf0",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void FUN_000fcbd0(void);",
@@ -28667,7 +28742,8 @@
         {
           "decl": "void weapon_reset_state(int weapon_handle);",
           "addr": "0xfcf20",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void FUN_000fd0b0(void);",
@@ -28680,25 +28756,29 @@
         {
           "decl": "void weapon_set_current_amount(int weapon_handle, float ammo_fraction);",
           "addr": "0xfd180",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void weapon_activate(int weapon_handle);",
           "addr": "0xfd2e0",
           "comment": "Initialize a weapon after it becomes the active weapon for a unit.",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "bool weapon_try_place(int weapon_handle, int flag);",
           "addr": "0xfd360",
           "comment": "Attempt to put away a weapon; returns false if the weapon has active triggers.",
-          "ported": true
+          "ported": true,
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "bool weapon_aim(int weapon_handle, int16_t trigger_index, void *param_3, void *param_4, int param_5, float *param_6, int param_7, void *param_8, void *param_9);",
           "addr": "0xfd400",
           "ported": true,
-          "signature": "bool weapon_aim(int weapon_handle, int16_t trigger_index, void *param_3, void *param_4, int param_5, float *param_6, int param_7, void *param_8, void *param_9)"
+          "signature": "bool weapon_aim(int weapon_handle, int16_t trigger_index, void *param_3, void *param_4, int param_5, float *param_6, int param_7, void *param_8, void *param_9)",
+          "source_path": "halo/items/weapons.c"
         },
         {
           "decl": "void weapon_stop_reload(void);",
@@ -32000,7 +32080,7 @@
           "ported": true
         },
         {
-          "decl": "void animation_update_internal(void);",
+          "decl": "int animation_update_internal(int update_kind, int animation_graph_tag_index, short *state, int *out_sound);",
           "addr": "0x121c30"
         },
         {

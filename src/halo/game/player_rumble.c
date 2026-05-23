@@ -31,6 +31,65 @@ void rumble_player_set_scale(float scale)
   *(float *)(rumble_globals + 0x828) = scale;
 }
 
+/* Apply a rumble impulse to a unit's player slot. Finds the sub-slot with the
+ * highest elapsed timer (most stale), copies the rumble definition into it,
+ * then scales the motor columns by damage_amount (lerped) and scale.
+ *
+ * 0xb9bc0 / player_rumble.obj */
+void rumble_player_impulse(short unit_index, float *rumble_def, float damage_amount, float scale)
+{
+  char *slot_base;
+  float *dest;
+  float max_timer;
+  float t;
+  int slot_index;
+
+  slot_base = rumble_globals + (int)unit_index * 0x208;
+  max_timer = *(float *)(slot_base + 0x1e0);
+  dest = (float *)slot_base;
+
+  assert_halt_msg(rumble_def != NULL, "rumble_definition");
+
+  if (max_timer < *(float *)(slot_base + 0x1e4)) {
+    dest = (float *)(slot_base + 0x3c);
+    max_timer = *(float *)(slot_base + 0x1e4);
+  }
+  if (max_timer < *(float *)(slot_base + 0x1e8)) {
+    dest = (float *)(slot_base + 0x78);
+    max_timer = *(float *)(slot_base + 0x1e8);
+  }
+  if (max_timer < *(float *)(slot_base + 0x1ec)) {
+    dest = (float *)(slot_base + 0xb4);
+    max_timer = *(float *)(slot_base + 0x1ec);
+  }
+  if (max_timer < *(float *)(slot_base + 0x1f0)) {
+    dest = (float *)(slot_base + 0xf0);
+    max_timer = *(float *)(slot_base + 0x1f0);
+  }
+  if (max_timer < *(float *)(slot_base + 0x1f4)) {
+    dest = (float *)(slot_base + 0x12c);
+    max_timer = *(float *)(slot_base + 0x1f4);
+  }
+  if (max_timer < *(float *)(slot_base + 0x1f8)) {
+    dest = (float *)(slot_base + 0x168);
+    max_timer = *(float *)(slot_base + 0x1f8);
+  }
+  if (max_timer < *(float *)(slot_base + 0x1fc)) {
+    dest = (float *)(slot_base + 0x1a4);
+  }
+
+  csmemcpy(dest, rumble_def, 0x3c);
+
+  t = (*(float *)0x2533c8 - rumble_def[10]) * damage_amount + rumble_def[10];
+  dest[0] *= t;
+  dest[5] *= t;
+  dest[1] *= scale;
+  dest[6] *= scale;
+
+  slot_index = ((int)dest - (int)slot_base) / 0x3c;
+  *(float *)(slot_base + 0x1e0 + slot_index * 4) = 0.0f;
+}
+
 void rumble_clear_for_local_player(int16_t local_player_index)
 {
   csmemset(rumble_globals + local_player_index * 0x208, 0, 0x208);
@@ -82,7 +141,6 @@ uint32_t rumble_calculate(char *slot)
   float motors[2];
   float *effect_ptr;
   float *timer_ptr;
-  float *effect_start;
   float timer_val;
   float blend;
   float scaled;
@@ -94,9 +152,9 @@ uint32_t rumble_calculate(char *slot)
   effect_ptr = (float *)(slot + 4);
   timer_ptr = (float *)(slot + 0x1e0);
 
-  for (i = 0; i < 8; i++) {
+  i = 8;
+  do {
     timer_val = *timer_ptr;
-    effect_start = effect_ptr;
     for (j = 0; j < 2; j++) {
       if (timer_val < *effect_ptr) {
         blend = *(float *)0x2533c8 - timer_val / *effect_ptr;
@@ -104,15 +162,16 @@ uint32_t rumble_calculate(char *slot)
           blend = 0.0f;
         else if (blend > *(float *)0x2533c8)
           blend = 1.0f;
-        motors[j] += ((float (*)(uint16_t, float))0x10a710)(
+        motors[j] += transition_function_evaluate(
                        *(uint16_t *)((char *)effect_ptr + 4), blend) *
                      effect_ptr[-1];
       }
       effect_ptr += 5;
     }
-    effect_ptr = effect_start + 15;
+    effect_ptr += 5;
     timer_ptr++;
-  }
+    i--;
+  } while (i);
 
   if (*(float *)(rumble_globals + 0x828) != *(float *)0x2533c0) {
     motors[0] +=
@@ -166,8 +225,8 @@ void rumble_update(void)
       player = (char *)datum_get(player_data, player_handle);
       local_player_index = *(int16_t *)(player + 2);
       if (local_player_index != NONE) {
-        controller = ((int (*)(int16_t))0xe0810)(local_player_index);
-        if (((bool (*)(int))0xe0b00)(controller)) {
+        controller = player_ui_get_single_player_local_player_from_controller(local_player_index);
+        if (player_ui_rumble_disabled(controller)) {
           input_set_rumble(local_player_index, 0, 0);
         } else {
           input_set_rumble(local_player_index, (uint16_t)rumble,

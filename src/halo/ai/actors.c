@@ -111,6 +111,7 @@ void FUN_00036a20(int actor_handle, int encounter_handle, char param_3)
   }
 }
 
+
 /*
  * FUN_00036b50 — trigger a swarm damage/retreat reaction.
  *
@@ -190,6 +191,7 @@ void FUN_00036c00(int actor_handle, int object_handle, float *position,
   }
 }
 
+
 /* 0x36da0 — Set actor stimulus-received flag at offset +0x2f0 to 1. */
 void FUN_00036da0(int actor_handle)
 {
@@ -244,6 +246,59 @@ void FUN_00036e30(int ai_handle)
 
   actor = (char *)datum_get(actor_data, ai_handle);
   *(char *)(actor + 0x2ed) = 1;
+}
+
+/* FUN_00036e50 (0x36e50) — handle actor flight-duration countdown.
+ *
+ * If actor+0x358 (flight-active bool) is set AND the actor's actr tag field
+ * at +0x334 exceeds the global zero constant (0x2533c0), clears the bool and:
+ *   1. Converts (tag+0x334 * [0x253394]) to short → stores at actor+0x35a.
+ *      (Ghidra shows _ftol2 call; disassembly: FLD [tag+0x334] / FMUL
+ * [0x253394] / CALL _ftol2 at 0x36ea1-0x36ead.)
+ *   2. If actor+0x270 (encounter handle) != -1:
+ *        datum_get(0x5ab23c, encounter_handle) → encounter.
+ *        If encounter+0x11c < [0x2533d8]:
+ *          If actor+0x354 > [0x255154]:
+ *            actor+0x354 = [0x255154]  (cap / floor to constant).
+ *          Else:
+ *            actor+0x354 = actor+0x354  (FPU precision normalize no-op).
+ *
+ * Confirmed: FLD [ECX+0x334] / FCOMP [0x2533c0] / FNSTSW / TEST AH,0x41 / JNZ
+ * at 0x36e87-0x36e98; FLD [ECX+0x334] / FMUL [0x253394] / CALL 0x1d9068 at
+ * 0x36ea1-0x36ead; CMP [ESI+0x270],-1 / JZ at 0x36ebf-0x36ec2; FLD/FCOMP/TEST
+ * AH,0x5 / JP at 0x36ed0-0x36ee4; FLD/FCOMP/TEST AH,0x41/JNZ for the +0x354 cap
+ * at 0x36ee6-0x36ef7. */
+#ifdef __clang__
+__attribute__((target("arch=i486")))
+#endif
+void FUN_00036e50(int actor_handle)
+{
+  char *actor;
+  char *actor_tag;
+  char *encounter;
+  int encounter_handle;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_tag = (char *)tag_get(0x61637472, *(int *)(actor + 0x58));
+  if (*(char *)(actor + 0x358) != 0 &&
+      *(float *)(actor_tag + 0x334) > *(float *)0x2533c0) {
+    *(char *)(actor + 0x358) = 0;
+    *(short *)(actor + 0x35a) =
+      (short)(*(float *)(actor_tag + 0x334) * *(float *)0x253394);
+    encounter_handle = *(int *)(actor + 0x270);
+    if (encounter_handle != -1) {
+      encounter = (char *)datum_get(*(data_t **)0x5ab23c, encounter_handle);
+      if (*(float *)(encounter + 0x11c) < *(float *)0x2533d8) {
+        if (*(float *)(actor + 0x354) > *(float *)0x255154) {
+          float tmp;
+          tmp = *(float *)(actor + 0x354);
+          *(volatile float *)(actor + 0x354) = tmp;
+        } else {
+          *(float *)(actor + 0x354) = *(float *)0x255154;
+        }
+      }
+    }
+  }
 }
 
 /* FUN_000373b0 (0x373b0) — charge effect dispatch (audible AI broadcast).
@@ -486,6 +541,364 @@ void FUN_000377d0(int actor_handle, int prop_handle)
   }
   *(int16_t *)(actor + 0x308) = 2;
   *(int *)(actor + 0x30c) = new_payload;
+}
+
+/* FUN_000379f0 (0x379f0) — actor action state-machine tick (basic).
+ *
+ * A lighter variant of FUN_00038b10. Calls the standard action preamble
+ * (initial_action, pending_command_list, surprise with type 4), then if
+ * actor_action_deny_transition returns false, runs the berserking helpers and
+ * combat transition. After that, dispatches per-state behavior based on
+ * *(short *)(actor + 0x6c):
+ *
+ *   3, 10: handle_combat_status(actor, 1, 0). If both that and
+ *          handle_combat_failure return false, call handle_evasion and return.
+ *   4:     If actor+0xaa, handle_combat_status(actor, 1, 1) and return.
+ *          Else handle_done_fleeing and return.
+ *   5,7,8: handle_combat_status(actor, 1, 0). If false, handle_exit_pursuit.
+ *   6:     can_stop_guarding(actor,3,6,0) result → handle_combat_status(actor,
+ *          result, actor_handle [MSVC batch-cleanup residue]).
+ *   0xb:   handle_combat_status(actor, actor+0x9e, actor+0xa1).
+ *
+ * Confirmed: tag_get(0x61637472, actor+0x58) called but result unused (cache
+ * warm); SUB not needed; batch ADD ESP,0x24 covers datum_get×2+calls at
+ * 0x37a2e; MOVSX EAX,word[EDI+0x6c] / ADD -3 / CMP 8 / JA → switch table at
+ * 0x37a58-0x37a68; case 6 uses push-residue 3rd arg (actor_handle) at
+ * 0x37aa2-0x37ab8. */
+void FUN_000379f0(int actor_handle)
+{
+  char *actor;
+  char cVar1;
+  int uVar3;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  (void)tag_get(0x61637472, *(int *)(actor + 0x58));
+  actor_action_handle_initial_action(actor_handle);
+  actor_action_handle_pending_command_list(actor_handle);
+  actor_action_handle_surprise(actor_handle, 4);
+  cVar1 = actor_action_deny_transition(actor_handle);
+  if (cVar1 == '\0') {
+    actor_action_handle_berserking_from_attacking_mode(actor_handle);
+    actor_action_handle_berserking_from_damage(actor_handle);
+    actor_action_handle_berserking_from_proximity(actor_handle);
+    actor_action_handle_berserk_transition(actor_handle, 1);
+    actor_action_handle_combat_transition(actor_handle);
+  }
+  switch (*(short *)(actor + 0x6c)) {
+  case 3:
+  case 10:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 == '\0' &&
+        (cVar1 = actor_action_handle_combat_failure(actor_handle),
+         cVar1 == '\0')) {
+      actor_action_handle_evasion(actor_handle);
+      return;
+    }
+    break;
+  case 6:
+    /* PUSH 0x0 at 0x37aa2 is pre-positioned residue for handle_combat_status
+     * 3rd arg; actor_action_can_stop_guarding takes 3 args (ADD ESP,0xc at
+     * 0x37aae cleans 3). */
+    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
+    actor_action_handle_combat_status(actor_handle, uVar3, 0);
+    return;
+  case 4:
+    if (*(char *)(actor + 0xaa) != '\0') {
+      actor_action_handle_combat_status(actor_handle, 1, 1);
+      return;
+    }
+    actor_action_handle_done_fleeing(actor_handle);
+    return;
+  case 5:
+  case 7:
+  case 8:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 == '\0') {
+      actor_action_handle_exit_pursuit(actor_handle);
+      return;
+    }
+    break;
+  case 0xb:
+    actor_action_handle_combat_status(actor_handle,
+                                      *(unsigned char *)(actor + 0x9e),
+                                      *(unsigned char *)(actor + 0xa1));
+    break;
+  }
+}
+
+/* FUN_00038000 (0x38000) — actor action state-machine tick (panic/ambush
+ * variant).
+ *
+ * Sibling of FUN_000379f0 but with an expanded deny=false block (panic helpers
+ * + grenade/evasion setup) and a wider switch covering states 3–0xd.  No
+ * tag_get warm-up call (unlike FUN_000379f0).
+ *
+ * Preamble: datum_get, handle_initial_action, handle_pending_command_list,
+ * handle_surprise(1), deny_transition check.  If deny=false: panic helpers
+ * (from_damage, from_attached_projectiles, from_attached_melee_attackers,
+ * from_burning_to_death), handle_panic_transition(1,0,9),
+ * handle_combat_transition, handle_grenade_throwing, FUN_00020990.
+ *
+ * Switch physical layout (from jump table at 0x381c8, EAX=value-3):
+ *   3,10 → 0x38087; 6 → 0x380ba; 4 → 0x380d7; 5,7,8 → 0x380f2;
+ *   9 → 0x38114; 0xb → 0x38141; 0xc → 0x38160; 0xd → 0x381aa.
+ * Shared tail at 0x381b4: handle_combat_status(actor_handle,1,1).
+ *
+ * Case 6: actor_action_can_stop_guarding(actor_handle,3,6,0) — 4 args
+ *   (ADD ESP,0xc at 0x380c6 cleans 3; 4th arg 0 is PUSH residue
+ * pre-positioned). Case 0xc: actor_action_can_stop_conversing(actor_handle,
+ * flag) — batch-cleanup residue pattern (ADD ESP,0x4 cleans only flag; ESI
+ * cleaned by later ADD ESP,0xc). Case 0xb: XOR+MOV pattern for unsigned byte
+ * loads at actor+0xa1, actor+0x9e. Confirmed: disassembly 0x38000–0x381c4
+ * cross-checked. */
+void FUN_00038000(int actor_handle)
+{
+  char *actor;
+  char cVar1;
+  int uVar3;
+  unsigned char bVar1;
+  unsigned char bVar2;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_action_handle_initial_action(actor_handle);
+  actor_action_handle_pending_command_list(actor_handle);
+  actor_action_handle_surprise(actor_handle, 1);
+  cVar1 = actor_action_deny_transition(actor_handle);
+  if (cVar1 == '\0') {
+    actor_action_handle_panic_from_damage(actor_handle);
+    actor_action_handle_panic_from_attached_projectiles(actor_handle);
+    actor_action_handle_panic_from_attached_melee_attackers(actor_handle);
+    actor_action_handle_panic_from_burning_to_death(actor_handle);
+    actor_action_handle_panic_transition(actor_handle, 1, 0, 9);
+    actor_action_handle_combat_transition(actor_handle);
+    actor_action_handle_grenade_throwing(actor_handle);
+    FUN_00020990(actor_handle);
+  }
+  switch (*(short *)(actor + 0x6c)) {
+  case 3:
+  case 10:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 != '\0') {
+      return;
+    }
+    cVar1 = actor_action_handle_combat_failure(actor_handle);
+    if (cVar1 != '\0') {
+      return;
+    }
+    actor_action_handle_evasion(actor_handle);
+    return;
+  case 6:
+    /* PUSH 0x0 at 0x380ba is pre-positioned residue for handle_combat_status
+     * 3rd arg; ADD ESP,0xc at 0x380c6 cleans 3 args for can_stop_guarding. */
+    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
+    actor_action_handle_combat_status(actor_handle, uVar3, 0);
+    return;
+  case 4:
+    if (*(char *)(actor + 0xaa) == '\0') {
+      actor_action_handle_done_fleeing(actor_handle);
+      return;
+    }
+    break;
+  case 5:
+  case 7:
+  case 8:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 != '\0') {
+      return;
+    }
+    actor_action_handle_exit_pursuit(actor_handle);
+    return;
+  case 9:
+    if (*(char *)(actor + 0xa5) != '\0') {
+      break;
+    }
+    if (*(char *)(actor + 0xa6) == '\0') {
+      return;
+    }
+    actor_action_handle_combat_status(actor_handle, 1, 1);
+    return;
+  case 0xb:
+    bVar2 = *(unsigned char *)(actor + 0x9e);
+    bVar1 = *(unsigned char *)(actor + 0xa1);
+    actor_action_handle_combat_status(actor_handle, bVar2, bVar1);
+    return;
+  case 0xc:
+    if (*(char *)(actor + 0xa0) == '\0' && *(int *)(actor + 0x1dc) != -1) {
+      uVar3 = actor_action_can_stop_conversing(actor_handle, 0);
+      actor_action_handle_combat_status(actor_handle, uVar3, 0);
+      return;
+    }
+    uVar3 = actor_action_can_stop_conversing(actor_handle, 1);
+    actor_action_handle_combat_status(actor_handle, uVar3, 1);
+    return;
+  case 0xd:
+    if (*(short *)(actor + 0x280) != 0) {
+      return;
+    }
+    break;
+  default:
+    return;
+  }
+  actor_action_handle_combat_status(actor_handle, 1, 1);
+}
+
+/* FUN_00038200 (0x38200) — actor action state-machine tick (berserking/guarding
+ * variant).
+ *
+ * Sibling of FUN_00038000. Preamble: datum_get, tag_get(0x61637472,actor+0x58)
+ * result unused (cache warm), handle_initial_action, handle_pending_command_list,
+ * handle_surprise(actor_handle,4), deny_transition check. If deny=false:
+ * handle_berserking_from_damage, handle_berserk_transition(3),
+ * handle_combat_transition, FUN_00020990.
+ *
+ * Switch physical layout (EAX = *(short*)(actor+0x6c)-3, range 0–0xa):
+ *   3,10 → 0x38279; 4 → 0x382ac; 6 → 0x382c3; 5,7,8 → 0x382e0;
+ *   0xb → 0x382fe; 0xd → 0x3831d. Shared tail 0x38327: combat_status(1,1).
+ *   States 9 and 0xc are absent → default (just return).
+ *
+ * Case 4: when actor+0xaa!=0, JNZ to 0x38327 shared tail (combat_status(1,1)).
+ *   When actor+0xaa==0: handle_done_fleeing and return.
+ * Case 6: PUSH 0x0 at 0x382c3 is pre-positioned residue for combat_status 3rd
+ *   arg; ADD ESP,0xc at 0x382cf cleans 3 args for can_stop_guarding.
+ * Case 0xb: XOR+MOV pattern loads zero-extended unsigned bytes actor+0xa1 (EDX)
+ *   and actor+0x9e (EAX) for the 3rd and 2nd args of combat_status.
+ * Confirmed: disassembly 0x38200–0x38337 cross-checked. */
+void FUN_00038200(int actor_handle)
+{
+  char *actor;
+  char cVar1;
+  int uVar3;
+  unsigned char bVar1;
+  unsigned char bVar2;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  (void)tag_get(0x61637472, *(int *)(actor + 0x58));
+  actor_action_handle_initial_action(actor_handle);
+  actor_action_handle_pending_command_list(actor_handle);
+  actor_action_handle_surprise(actor_handle, 4);
+  cVar1 = actor_action_deny_transition(actor_handle);
+  if (cVar1 == '\0') {
+    actor_action_handle_berserking_from_damage(actor_handle);
+    actor_action_handle_berserk_transition(actor_handle, 3);
+    actor_action_handle_combat_transition(actor_handle);
+    FUN_00020990(actor_handle);
+  }
+  switch (*(short *)(actor + 0x6c)) {
+  case 3:
+  case 10:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 == '\0' &&
+        (cVar1 = actor_action_handle_combat_failure(actor_handle),
+         cVar1 == '\0')) {
+      actor_action_handle_evasion(actor_handle);
+      return;
+    }
+    break;
+  case 4:
+    if (*(char *)(actor + 0xaa) == '\0') {
+      actor_action_handle_done_fleeing(actor_handle);
+      return;
+    }
+    /* fall through to shared tail */
+    goto shared_tail;
+  case 6:
+    /* PUSH 0x0 at 0x382c3 is pre-positioned residue for combat_status 3rd arg;
+     * ADD ESP,0xc at 0x382cf cleans 3 args for can_stop_guarding. */
+    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
+    actor_action_handle_combat_status(actor_handle, uVar3, 0);
+    return;
+  case 5:
+  case 7:
+  case 8:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 == '\0') {
+      actor_action_handle_exit_pursuit(actor_handle);
+      return;
+    }
+    break;
+  case 0xb:
+    bVar2 = *(unsigned char *)(actor + 0x9e);
+    bVar1 = *(unsigned char *)(actor + 0xa1);
+    actor_action_handle_combat_status(actor_handle, bVar2, bVar1);
+    return;
+  case 0xd:
+    if (*(short *)(actor + 0x280) != 0) {
+      return;
+    }
+    goto shared_tail;
+  default:
+    return;
+  }
+  return;
+shared_tail:
+  actor_action_handle_combat_status(actor_handle, 1, 1);
+}
+
+/* FUN_00038b10 (0x38b10) — actor action state-machine tick for fighter/retreat
+ * type. Handles initial action, combat targeting, berserk transitions, and
+ * behavior dispatch. Confirmed from disassembly: switch on
+ * *(short*)(actor+0x6c); actor_action_can_stop_conversing takes 2 params (flag
+ * 0/1); case 0xb loads bytes via local unsigned char vars (XOR+MOV pattern);
+ * case 0xc uses batched-cleanup residue: 3rd arg to handle_combat_status is
+ * the flag (0/1) pushed before can_stop_conversing and partially cleaned. */
+void FUN_00038b10(int actor_handle)
+{
+  char *actor;
+  char cVar1;
+  int uVar3;
+  unsigned char bVar1;
+  unsigned char bVar2;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_action_handle_initial_action(actor_handle);
+  actor_action_handle_pending_command_list(actor_handle);
+  cVar1 = actor_action_deny_transition(actor_handle);
+  if (cVar1 == '\0') {
+    actor_action_handle_berserking_from_damage(actor_handle);
+    actor_action_handle_combat_targeting(actor_handle);
+    actor_action_handle_berserk_transition(actor_handle, 3);
+    actor_action_handle_combat_transition(actor_handle);
+    FUN_00020990(actor_handle);
+  }
+  switch (*(short *)(actor + 0x6c)) {
+  case 3:
+  case 4:
+  case 6:
+  case 10:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 == '\0') {
+      actor_action_handle_combat_failure(actor_handle);
+      return;
+    }
+    break;
+  case 5:
+  case 7:
+  case 8:
+    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
+    if (cVar1 == '\0') {
+      actor_action_handle_exit_pursuit(actor_handle);
+      return;
+    }
+    break;
+  case 0xb:
+    bVar1 = *(unsigned char *)(actor + 0x9e);
+    bVar2 = *(unsigned char *)(actor + 0xa1);
+    actor_action_handle_combat_status(actor_handle, bVar1, bVar2);
+    return;
+  case 0xc:
+    if (*(char *)(actor + 0xa0) == '\0' && *(int *)(actor + 0x1dc) != -1) {
+      uVar3 = actor_action_can_stop_conversing(actor_handle, 0);
+      actor_action_handle_combat_status(actor_handle, uVar3, 0);
+      return;
+    }
+    uVar3 = actor_action_can_stop_conversing(actor_handle, 1);
+    actor_action_handle_combat_status(actor_handle, uVar3, 1);
+    return;
+  case 0xd:
+    if (*(short *)(actor + 0x280) == 0) {
+      actor_action_handle_combat_status(actor_handle, 1, 1);
+    }
+  }
 }
 
 /* 0x3a3b0
@@ -2169,6 +2582,55 @@ void actor_find_pathfinding_location(int actor_handle)
 done:;
 }
 
+/*
+ * actor_destination_tolerance (0x3bd50) — Compute the destination arrival
+ * tolerance radius for an actor.
+ *
+ * Loads the default tolerance from the global at 0x253398. If the actor has
+ * a vehicle (actor+0x158 != -1), overrides by reading the vehicle's unit tag
+ * (tag_get('vehi', unit[0])) and taking the float at tag+0x384.
+ *
+ * Special cases:
+ *   actor_type (actor+0x6c) == 0xb AND actor+0xf0 != 0 → return actor+0xf4
+ *   actor_type == 9 → return constant at 0x2533c4 (water/flood override)
+ *
+ * Clamps result to minimum at 0x2549d4 before returning.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3bd5f.
+ * Confirmed: FLD [0x253398] default at 0x3bd64; FSTP ST0 discard at 0x3bd7c.
+ * Confirmed: object_get_and_verify_type(actor+0x158, 2) at 0x3bd7f.
+ * Confirmed: tag_get(0x76656869, unit_obj[0]) at 0x3bd8c.
+ * Confirmed: FLD [EAX+0x384] at 0x3bd91 (tag offset 900 = 0x384).
+ * Confirmed: CMP AX,0xb / CMP AX,0x9 actor_type tests at 0x3bd9e/0x3bdb6.
+ * Confirmed: FCOM [0x2549d4] / TEST AH,0x41 / JZ keep at 0x3bdc7.
+ * actors.obj / actors.c
+ */
+float actor_destination_tolerance(int actor_handle)
+{
+  char *actor;
+  char *unit_obj;
+  char *tag;
+  float result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  result = *(float *)0x253398;
+  if (*(int *)(actor + 0x158) != -1) {
+    unit_obj = (char *)object_get_and_verify_type(*(int *)(actor + 0x158), 2);
+    tag = (char *)tag_get(0x76656869, *(int *)unit_obj);
+    result = *(float *)(tag + 0x384);
+  }
+  if ((*(short *)(actor + 0x6c) == 0xb) && (*(char *)(actor + 0xf0) != '\0')) {
+    return *(float *)(actor + 0xf4);
+  }
+  if (*(short *)(actor + 0x6c) == 9) {
+    return *(float *)0x2533c4;
+  }
+  if (result < *(float *)0x2549d4) {
+    result = *(float *)0x2549d4;
+  }
+  return result;
+}
+
 /* FUN_0003bde0 (0x3bde0) — actor_fill_unit_input_block
  *
  * Populates an input block structure with the unit's world position,
@@ -3135,6 +3597,63 @@ void actor_swarm_cache_new(int actor_handle)
       }
     }
   }
+}
+
+/*
+ * actor_get_running_blind_vector (0x3ce40) — compute the run-blind direction
+ * for an actor and normalize it.
+ *
+ * Asserts vector_out != NULL (display_assert + system_exit if NULL).
+ * If actor[6] != 0 (swarm): return 0 immediately (no vector).
+ * If actor[0x504] != 0: integer-copy the 3 floats at actor+0x518 to vector_out.
+ * Else if actor[0x4a8] != 0: compute difference
+ *   actor+0x488/0x48c/0x490 minus actor+0x12c/0x130/0x134.
+ * Else: return 0 immediately (no blind target).
+ * Then: normalize3d(vector_out); if length == 0, return 1 (degenerate).
+ * On successful normalization, return 0.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x3ce51.
+ * Confirmed: NULL assert with display_assert("run_vector", ..., 0x7ae, 1)
+ *   + system_exit(-1) at 0x3ce75/0x3ce7c.
+ * Confirmed: TEST [ESI+6] / JNZ 0x3cf04 at 0x3ce84/0x3ce89 (swarm guard).
+ * Confirmed: TEST [ESI+0x504] / JZ 0x3ceaf at 0x3ce8b/0x3ce93.
+ * Confirmed: MOV EAX/ECX/EAX integer copy from ESI+0x518 at 0x3ce9b-0x3ceaa.
+ * Confirmed: FLD/FSUB/FSTP triples for 0x488-0x12c, 0x48c-0x130, 0x490-0x134
+ *   at 0x3ceb9-0x3cee2.
+ * Confirmed: CALL normalize3d(0x13010) at 0x3cee8.
+ * Confirmed: FCOMP [0x2533c0] / TEST AH,0x44 / JP 0x3cf04 at 0x3ceed-0x3cefb.
+ * Confirmed: XOR AL,AL at 0x3ceff (return 0 = normalized ok).
+ * Confirmed: MOV AL,BL at 0x3cf06 (return BL = initial 0 or 1 after normalize).
+ * actors.obj / actors.c
+ */
+char actor_get_running_blind_vector(int actor_handle, float *vector_out)
+{
+  char *actor;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (vector_out == NULL) {
+    display_assert("run_vector", "c:\\halo\\SOURCE\\ai\\actors.c", 0x7ae, 1);
+    system_exit(-1);
+  }
+  if (*(char *)(actor + 6) != '\0') {
+    return 0;
+  }
+  if (*(char *)(actor + 0x504) != '\0') {
+    ((int *)vector_out)[0] = *(int *)(actor + 0x518);
+    ((int *)vector_out)[1] = *(int *)(actor + 0x51c);
+    ((int *)vector_out)[2] = *(int *)(actor + 0x520);
+  } else {
+    if (*(char *)(actor + 0x4a8) == '\0') {
+      return 0;
+    }
+    vector_out[0] = *(float *)(actor + 0x488) - *(float *)(actor + 0x12c);
+    vector_out[1] = *(float *)(actor + 0x48c) - *(float *)(actor + 0x130);
+    vector_out[2] = *(float *)(actor + 0x490) - *(float *)(actor + 0x134);
+  }
+  if (normalize3d(vector_out) != *(float *)0x2533c0) {
+    return 0;
+  }
+  return 1;
 }
 
 /* actor_kill (0x3cf10) — actor_set_unit_dead_flag

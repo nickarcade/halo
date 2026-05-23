@@ -58,6 +58,49 @@ int valid_real_normal3d_perpendicular(float *a, float *b)
   return fabsf(dot) < 0.001f;
 }
 
+/*
+ * FUN_000ae0a0 — game-engine tag-index remapping dispatch.
+ *
+ * When a game engine is active (*(int *)0x456b60 != 0) and tag_index is
+ * valid (!= -1), reads the object type word from the 'obje' tag header
+ * (first 2 bytes) and dispatches to the appropriate engine-specific
+ * tag-remapping helper:
+ *   type 1 (vehicle) → game_engine_remap_vehicle(tag_index)
+ *   type 2 (weapon)  → game_engine_remap_weapon(tag_index)
+ *   type 3 (?)       → FUN_000adf70(tag_index)
+ * Returns the (possibly remapped) tag index, or the original tag_index
+ * if no engine is active, tag_index is -1, or the type is not 1/2/3.
+ *
+ * Confirmed: MOV EAX,[0x456b60] / TEST EAX,EAX — bool check on engine ptr.
+ * Confirmed: PUSH ESI / PUSH 0x6f626a65 / CALL tag_get — 'obje' tag lookup.
+ * Confirmed: MOV AX,[EAX] — first 2 bytes of tag data = object type word.
+ * Confirmed: CMP AX,1 / CMP AX,2 / CMP AX,3 — three dispatch branches.
+ * Confirmed: each branch PUSH ESI / CALL callee / ADD ESP,4; returns EAX.
+ * Confirmed: fallthrough MOV EAX,ESI — returns original tag_index unchanged.
+ * Note: callee decls carry wrong void return type; binary shows they return
+ * int.
+ */
+int FUN_000ae0a0(int tag_index)
+{
+  short obj_type;
+  short *tag_data;
+
+  if ((*(int *)0x456b60 != 0) && (tag_index != -1)) {
+    tag_data = (short *)tag_get(0x6f626a65, tag_index);
+    obj_type = *tag_data;
+    if (obj_type == 1) {
+      return game_engine_remap_vehicle(tag_index);
+    }
+    if (obj_type == 2) {
+      return game_engine_remap_weapon(tag_index);
+    }
+    if (obj_type == 3) {
+      return FUN_000adf70(tag_index);
+    }
+  }
+  return tag_index;
+}
+
 /* FUN_00136150 — create widgets for an object from its tag definition.
  *
  * Looks up the object's tag (group 'obje'), reads the widget attachments
@@ -206,7 +249,11 @@ typedef void (*pfn_int_t)(int);
 typedef int (*valid_real_point3d_fn)(float *p);
 typedef void (*object_type_validate_fn)(int16_t type);
 
-int FUN_000ae0a0(int tag_index);
+/* game engine tag-index remapping helpers (called from FUN_000ae0a0).
+ * Binary: each takes 1 cdecl int arg, returns int in EAX. */
+int game_engine_remap_vehicle(int tag_index);
+int game_engine_remap_weapon(int tag_index);
+int FUN_000adf70(int tag_index);
 
 /*
  * object_set_position — reposition an object and recompute its orientation.
@@ -730,119 +777,6 @@ void object_move_to_limbo(int object_handle)
   }
 }
 
-/* FUN_0013bce0 — Compute object lighting from BSP lightmap/environment.
- * Samples lighting at the object's position and 4 offset positions, averages
- * successful samples. The original left local_88 uninitialized; when all 5
- * lookups fail (BSP transition), stack residue from clang-compiled ported
- * functions contains x87 NaN that permanently poisons the render state shadow
- * color. Fixed by zero-initializing the fallback buffer.
- * (0x13bce0 / objects.obj, object_lights.c:0x3ca) */
-void FUN_0013bce0(int object_handle, float *lighting)
-{
-  int *obj;
-  int tag_data;
-  uint32_t flags;
-  float local_88[29];
-  float offset_pos[3];
-  int16_t sample_count;
-  uint16_t corner;
-  char ok;
-  float scale;
-  int i;
-
-  obj = (int *)object_get_and_verify_type(object_handle, -1);
-  flags = 0;
-
-  if (lighting == NULL) {
-    display_assert("lighting",
-                   "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x3ca, 1);
-    system_exit(-1);
-  }
-
-  if ((uint8_t)(obj[1] >> 8) & 0x80)
-    flags = 1;
-
-  tag_data = (int)tag_get(0x6f626a65, *obj);
-  if (*(uint8_t *)(tag_data + 2) & 4)
-    flags |= 4;
-
-  csmemset(local_88, 0, sizeof(local_88));
-
-  ok = ((char (*)(uint32_t, int *, float *))0x13ab20)(flags, obj + 0x14, lighting);
-
-  if ((obj[1] & 0x4000) != 0)
-    return;
-
-  if (ok == '\0') {
-    sample_count = 0;
-    csmemset(lighting, 0, 0x74);
-    *(uint16_t *)(lighting + 3) = 2;
-  } else {
-    sample_count = 1;
-  }
-
-  for (corner = 0; (int16_t)corner < 4; corner++) {
-    float xoff;
-    float yoff;
-
-    xoff = *(float *)0x29b5e0;
-    if (corner & 1)
-      xoff = *(float *)0x254b50;
-    yoff = *(float *)0x29b5e0;
-    if (corner & 2)
-      yoff = *(float *)0x254b50;
-
-    offset_pos[0] = xoff * *(float *)(obj + 0x17) + *(float *)(obj + 0x14);
-    offset_pos[1] = yoff * *(float *)(obj + 0x17) + *(float *)(obj + 0x15);
-    *(int *)(offset_pos + 2) = obj[0x16];
-
-    ok = ((char (*)(uint32_t, float *, float *))0x13ab20)(flags, offset_pos, local_88);
-    if (ok != '\0') {
-      sample_count++;
-      for (i = 0; i < 3; i++)
-        lighting[i] += local_88[i];
-      lighting[0x13] += local_88[0x13];
-      lighting[0x14] += local_88[0x14];
-      lighting[0x15] += local_88[0x15];
-      lighting[0x16] += local_88[0x16];
-      for (i = 4; i <= 0xf; i++)
-        lighting[i] += local_88[i];
-      lighting[0x1a] += local_88[0x1a];
-      lighting[0x1b] += local_88[0x1b];
-      lighting[0x1c] += local_88[0x1c];
-      lighting[0x17] += local_88[0x17];
-      lighting[0x18] += local_88[0x18];
-      lighting[0x19] += local_88[0x19];
-    }
-  }
-
-  if (sample_count > 1) {
-    scale = *(float *)0x2533c8 / (float)(int)sample_count;
-    for (i = 0; i < 3; i++)
-      lighting[i] *= scale;
-    lighting[0x13] *= scale;
-    lighting[0x14] *= scale;
-    lighting[0x15] *= scale;
-    lighting[0x16] *= scale;
-    for (i = 4; i <= 6; i++)
-      lighting[i] *= scale;
-    normalize3d(lighting + 7);
-    for (i = 10; i <= 12; i++)
-      lighting[i] *= scale;
-    normalize3d(lighting + 0xd);
-    lighting[0x1a] *= scale;
-    lighting[0x1b] *= scale;
-    lighting[0x1c] *= scale;
-    lighting[0x17] *= scale;
-    lighting[0x18] *= scale;
-    lighting[0x19] *= scale;
-    normalize3d(lighting + 0x17);
-  } else if (sample_count == 0) {
-    for (i = 0; i < 29; i++)
-      lighting[i] = local_88[i];
-  }
-}
-
 /* Create a new point light datum from a light tag (0x13b290).
  * Allocates from the light data table (0x5a90bc), validates the 'ligh' tag,
  * initializes fields, then calls object_move_to_limbo to resolve world-space
@@ -893,7 +827,146 @@ int FUN_0013b290(int tag_index, int object_handle, int16_t marker,
   return handle;
 }
 
-void *FUN_0013c100(int16_t object_type);
+/* FUN_0013bce0 — Compute object lighting from BSP lightmap/environment.
+ * Samples lighting at the object's position and 4 offset positions, averages
+ * successful samples. The original left local_88 uninitialized; when all 5
+ * lookups fail (BSP transition), stack residue from clang-compiled ported
+ * functions contains x87 NaN that permanently poisons the render state shadow
+ * color. Fixed by zero-initializing the fallback buffer.
+ * (0x13bce0 / objects.obj, object_lights.c:0x3ca) */
+void FUN_0013bce0(int object_handle, float *lighting)
+{
+  int *obj;
+  int tag_data;
+  uint32_t flags;
+  float local_88[29];
+  float offset_pos[3];
+  int16_t sample_count;
+  uint16_t corner;
+  char ok;
+  float scale;
+  int i;
+
+  obj = (int *)object_get_and_verify_type(object_handle, -1);
+  flags = 0;
+
+  if (lighting == NULL) {
+    display_assert("lighting", "c:\\halo\\SOURCE\\objects\\object_lights.c",
+                   0x3ca, 1);
+    system_exit(-1);
+  }
+
+  if ((uint8_t)(obj[1] >> 8) & 0x80)
+    flags = 1;
+
+  tag_data = (int)tag_get(0x6f626a65, *obj);
+  if (*(uint8_t *)(tag_data + 2) & 4)
+    flags |= 4;
+
+  csmemset(local_88, 0, sizeof(local_88));
+
+  ok =
+    ((char (*)(uint32_t, int *, float *))0x13ab20)(flags, obj + 0x14, lighting);
+
+  if ((obj[1] & 0x4000) != 0)
+    return;
+
+  if (ok == '\0') {
+    sample_count = 0;
+    csmemset(lighting, 0, 0x74);
+    *(uint16_t *)(lighting + 3) = 2;
+  } else {
+    sample_count = 1;
+  }
+
+  for (corner = 0; (int16_t)corner < 4; corner++) {
+    float xoff;
+    float yoff;
+
+    xoff = *(float *)0x29b5e0;
+    if (corner & 1)
+      xoff = *(float *)0x254b50;
+    yoff = *(float *)0x29b5e0;
+    if (corner & 2)
+      yoff = *(float *)0x254b50;
+
+    offset_pos[0] = xoff * *(float *)(obj + 0x17) + *(float *)(obj + 0x14);
+    offset_pos[1] = yoff * *(float *)(obj + 0x17) + *(float *)(obj + 0x15);
+    *(int *)(offset_pos + 2) = obj[0x16];
+
+    ok = ((char (*)(uint32_t, float *, float *))0x13ab20)(flags, offset_pos,
+                                                          local_88);
+    if (ok != '\0') {
+      sample_count++;
+      for (i = 0; i < 3; i++)
+        lighting[i] += local_88[i];
+      lighting[0x13] += local_88[0x13];
+      lighting[0x14] += local_88[0x14];
+      lighting[0x15] += local_88[0x15];
+      lighting[0x16] += local_88[0x16];
+      for (i = 4; i <= 0xf; i++)
+        lighting[i] += local_88[i];
+      lighting[0x1a] += local_88[0x1a];
+      lighting[0x1b] += local_88[0x1b];
+      lighting[0x1c] += local_88[0x1c];
+      lighting[0x17] += local_88[0x17];
+      lighting[0x18] += local_88[0x18];
+      lighting[0x19] += local_88[0x19];
+    }
+  }
+
+  if (sample_count > 1) {
+    scale = *(float *)0x2533c8 / (float)(int)sample_count;
+    for (i = 0; i < 3; i++)
+      lighting[i] *= scale;
+    lighting[0x13] *= scale;
+    lighting[0x14] *= scale;
+    lighting[0x15] *= scale;
+    lighting[0x16] *= scale;
+    for (i = 4; i <= 6; i++)
+      lighting[i] *= scale;
+    normalize3d(lighting + 7);
+    for (i = 10; i <= 12; i++)
+      lighting[i] *= scale;
+    normalize3d(lighting + 0xd);
+    lighting[0x1a] *= scale;
+    lighting[0x1b] *= scale;
+    lighting[0x1c] *= scale;
+    lighting[0x17] *= scale;
+    lighting[0x18] *= scale;
+    lighting[0x19] *= scale;
+    normalize3d(lighting + 0x17);
+  } else if (sample_count == 0) {
+    for (i = 0; i < 29; i++)
+      lighting[i] = local_88[i];
+  }
+}
+
+/* 0x13c100 / objects.obj */
+void *FUN_0013c100(int16_t object_type)
+{
+  int iVar1;
+
+  if ((object_type < 0) || (0xb < object_type)) {
+    display_assert(csprintf((char *)0x5ab100,
+                            "#%d isn't a valid object type in [#0,#%d)",
+                            (int)object_type, 0xc),
+                   "c:\\halo\\SOURCE\\objects\\object_types.c", 0x277, 1);
+    system_exit(-1);
+  }
+  iVar1 = (int)object_type;
+  if (((void **)0x324608)[iVar1] == (void *)0) {
+    display_assert("object_type_definitions[object_type]",
+                   "c:\\halo\\SOURCE\\objects\\object_types.c", 0x278, 1);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)((void **)0x324608)[iVar1] + 4) == 0) {
+    display_assert("object_type_definitions[object_type]->group_tag",
+                   "c:\\halo\\SOURCE\\objects\\object_types.c", 0x279, 1);
+    system_exit(-1);
+  }
+  return ((void **)0x324608)[iVar1];
+}
 
 int FUN_0013c490(int object_handle);
 
@@ -1685,6 +1758,30 @@ void FUN_0013d870(void)
 {
 }
 
+/*
+ * object_name_list_set_handle — store an object handle at a name-table index.
+ *
+ * Validates that param_1 is non-negative (TEST AX,AX / JL) and less than the
+ * scenario's object-name count (at scenario+0x204), then writes param_2 into
+ * the object_name_list array (pointer at 0x46f07c) at the given index.
+ *
+ * Confirmed: MOVSX ESI,AX — sign-extends param_1 before use.
+ * Confirmed: MOV ECX,[0x46f07c] — dereferences pointer, not direct array.
+ * Confirmed: MOV [ECX + ESI*4],EAX — stores param_2 at name_table[param_1].
+ * Confirmed: cdecl, caller at 0x45ffb does ADD ESP,0x8 after call.
+ */
+void object_name_list_set_handle(short param_1, int param_2)
+{
+  int iVar1;
+
+  if (param_1 < 0)
+    return;
+  iVar1 = (int)global_scenario_get();
+  if (param_1 < *(int *)(iVar1 + 0x204)) {
+    (*(int **)0x46f07c)[param_1] = param_2;
+  }
+}
+
 void object_set_garbage_flag(int object_handle, int is_garbage)
 {
   object_data_t *obj =
@@ -2195,6 +2292,37 @@ void objects_place(void)
 
   /* Clear object_is_being_placed */
   object_globals->object_is_being_placed = 0;
+}
+
+/* 0x13f080 - Walk the object tree recursively, collecting objects into an
+ * output array. Starts from param_1, recurses depth-first into child (obj+0xc8)
+ * then sibling (obj+0xc4). param_2: optional filter callback(handle, context) —
+ * include object when non-zero; NULL = include all. param_3: opaque context
+ * value forwarded to filter callback. param_4: current insertion index into
+ * output array. param_5: maximum capacity of output array (stops when param_4
+ * >= param_5). param_6: output array (int[]) that receives matching object
+ * handles. Returns: updated count after processing this subtree. */
+int FUN_0013f080(int param_1, char (*param_2)(int, int), int param_3,
+                 int param_4, int param_5, int *param_6)
+{
+  void *local_c;
+
+  local_c = object_get_and_verify_type(param_1, 0xffffffff);
+  if (param_4 < param_5) {
+    if (param_2 == 0 || (*param_2)(param_1, param_3) != '\0') {
+      param_6[param_4] = param_1;
+      param_4 = param_4 + 1;
+    }
+    if (*(int *)((char *)local_c + 0xc8) != -1) {
+      param_4 = FUN_0013f080(*(int *)((char *)local_c + 0xc8), param_2, param_3,
+                             param_4, param_5, param_6);
+    }
+    if (*(int *)((char *)local_c + 0xc4) != -1) {
+      param_4 = FUN_0013f080(*(int *)((char *)local_c + 0xc4), param_2, param_3,
+                             param_4, param_5, param_6);
+    }
+  }
+  return param_4;
 }
 
 int sort_dumps(int param_1, int param_2)
@@ -6876,4 +7004,38 @@ void FUN_001a9520(int object_handle, float *out_position)
   out_position[0] = *(float *)(marker_buf + 0x60);
   out_position[1] = *(float *)(marker_buf + 0x64);
   out_position[2] = *(float *)(marker_buf + 0x68);
+}
+
+
+/* FUN_00085180 (0x85180) — Configure camera globals from a cutscene-camera
+ * entry (param_1) in the scenario, using param_2 as tick-based time and
+ * param_3 as unit handle. Triggers director_update and observer_update.
+ * Object: objects.obj / source: bored_camera.c
+ *
+ * Confirmed: CALL global_scenario_get; CALL tag_block_get_element(+0x4f0,param_1,0x68);
+ * stores to 0x2ee5a1..0x2ee5d4; CALL vectors3d_from_euler_angles3d;
+ * float compare for default speed (0x3f9c61aa); CALL director_update(0);
+ * CALL observer_update(0x38d1b717).
+ */
+void FUN_00085180(short param_1, short param_2, int param_3)
+{
+  int iVar1;
+
+  iVar1 = (int)tag_block_get_element((char *)global_scenario_get() + 0x4f0, (int)param_1, 0x68);
+  *(short *)0x2ee5a2 = 0;
+  *(char *)0x2ee5a1 = 1;
+  *(short *)0x2ee5a4 = param_1;
+  *(int *)0x2ee5ac = *(int *)(iVar1 + 0x28);
+  *(int *)0x2ee5b0 = *(int *)(iVar1 + 0x2c);
+  *(int *)0x2ee5b4 = *(int *)(iVar1 + 0x30);
+  vectors3d_from_euler_angles3d((float *)0x2ee5b8, (float *)0x2ee5c4, (float *)(iVar1 + 0x34));
+  if (*(float *)(iVar1 + 0x40) != *(float *)0x2533c0) {
+    *(int *)0x2ee5d0 = *(int *)(iVar1 + 0x40);
+  } else {
+    *(int *)0x2ee5d0 = 0x3f9c61aa;
+  }
+  *(float *)0x2ee5a8 = (float)((int)param_2 / 0x1e);
+  *(int *)0x2ee5d4 = param_3;
+  director_update(0.0f);
+  observer_update(9.9957275390625e-5f);
 }
