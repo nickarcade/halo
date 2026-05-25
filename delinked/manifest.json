@@ -1,8 +1,8 @@
 {
-  "actor_looking.obj": {
-    "obj_path": "/mnt/g/dev/halo/.claude/worktrees/worktree-lift/delinked/actor_looking.obj",
-    "source": "ai/actor_looking.c",
-    "addr_range": "0x00013dd0-0x0002a830",
-    "func_count": 120
+  "objects.obj": {
+    "obj_path": "/mnt/g/dev/halo/delinked/objects.obj",
+    "source": "objects/objects.c",
+    "addr_range": "0x00084a10-0x001a9720",
+    "func_count": 216
   }
 }
