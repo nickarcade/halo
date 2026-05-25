@@ -425,9 +425,9 @@ void FUN_00036f20(int actor_handle, int prop_handle, int param_3, char param_4)
     goto exit_fun;
 
   bVar2 = *(float *)(prop + 0xe0) * *(float *)(actor + 0x174) +
-            *(float *)(prop + 0xe4) * *(float *)(actor + 0x178) +
-            *(float *)(prop + 0xe8) * *(float *)(actor + 0x17c) <
-          *(float *)0x253398;
+          *(float *)(prop + 0xe4) * *(float *)(actor + 0x178) +
+          *(float *)(prop + 0xe8) * *(float *)(actor + 0x17c)
+          < *(float *)0x253398;
   uVar11 = 0;
   uVar1 = *(unsigned short *)(actor + 0x6e);
 
@@ -437,8 +437,7 @@ void FUN_00036f20(int actor_handle, int prop_handle, int param_3, char param_4)
       uVar11 = 0;
       if (*(char *)(prop + 0x12f) != '\0')
         uVar11 = 1;
-      if (*(float *)(prop + 0x11c) < *(float *)(tag + 0x2b0) &&
-          (short)uVar11 <= 3)
+      if (*(float *)(prop + 0x11c) < *(float *)(tag + 0x2b0) && (short)uVar11 <= 3)
         uVar11 = 3;
     }
   } else if ((short)uVar1 >= 5 && !bVar2) {
@@ -506,83 +505,6 @@ exit_fun:
       *(char *)(prop + 0x127) == '\0' && *(short *)(actor + 4) != 0xf &&
       *(char *)0x5aa896 != '\0')
     actor_kill(actor_handle, 0, 1);
-}
-
-/* FUN_00037240 (0x37240) — post prop or direction stimulus to an actor.
- *
- * If prop_handle != -1, resolves the prop datum (asserts type in [2,3]),
- * sets position_b = prop+0xe0. Otherwise if position is non-NULL and its
- * magnitude > 0x25337c, normalizes (scaled by [0x255e94]) to local_dir and
- * sets position_b = local_dir, has_direction = 1.
- * Always sets actor+0x2ec = 1.
- * If (no prop OR prop+0x60 != 0) AND actor+0x6a < 3:
- *   calls FUN_00036960(actor, 5, prop_handle, position_b)
- *   calls FUN_00036890(actor, NULL, 5, position_b,
- * -1,0,0x5a,prop_handle,0x96,0) Then builds a type-1 (prop) or type-4
- * (direction) look buf and calls FUN_00027a60(actor, 0xb, 1, buf). Source:
- * c:\halo\SOURCE\ai\actor_stimulus.c line ~0x154. */
-void FUN_00037240(int actor_handle, int prop_handle, int unused_param_3,
-                  float *position)
-{
-  char *actor;
-  char *prop;
-  int *position_b;
-  float dot;
-  float inv_len;
-  float local_dir[3];
-  short local_buf[8];
-  char has_direction;
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  position_b = NULL;
-  prop = NULL;
-  has_direction = 0;
-
-  if (prop_handle != -1) {
-    prop = (char *)datum_get(prop_data, prop_handle);
-    if (*(short *)(prop + 0x24) < 2 || *(short *)(prop + 0x24) > 3) {
-      display_assert("prop_acknowledged(prop)",
-                     "c:\\halo\\SOURCE\\ai\\actor_stimulus.c", 0x154, 1);
-      system_exit(-1);
-    }
-    position_b = (int *)(prop + 0xe0);
-  } else {
-    if (position != NULL) {
-      dot = position[0] * position[0] + position[1] * position[1] +
-            position[2] * position[2];
-      if (*(float *)0x25337c < dot) {
-        inv_len = *(float *)0x255e94 / sqrtf(dot);
-        local_dir[0] = inv_len * position[0];
-        local_dir[1] = inv_len * position[1];
-        local_dir[2] = inv_len * position[2];
-        position_b = (int *)local_dir;
-        has_direction = 1;
-      }
-    }
-  }
-
-  *(char *)(actor + 0x2ec) = 1;
-
-  if ((prop == NULL || *(char *)(prop + 0x60) != 0) &&
-      *(short *)(actor + 0x6a) < 3) {
-    FUN_00036960(actor_handle, 5, prop_handle, position_b);
-    FUN_00036890(actor_handle, NULL, 5, position_b, -1, 0, 0x5a, prop_handle,
-                 0x96, 0);
-  }
-
-  if (prop_handle != -1) {
-    local_buf[0] = 1;
-    *(int *)((char *)local_buf + 4) = prop_handle;
-  } else {
-    if (!has_direction)
-      return;
-    local_buf[0] = 4;
-    *(unsigned int *)((char *)local_buf + 4) = *(unsigned int *)&local_dir[0];
-    *(unsigned int *)((char *)local_buf + 8) = *(unsigned int *)&local_dir[1];
-    *(unsigned int *)((char *)local_buf + 12) = *(unsigned int *)&local_dir[2];
-  }
-
-  FUN_00027a60(actor_handle, 0xb, 1, local_buf);
 }
 
 /* FUN_000373b0 (0x373b0) — charge effect dispatch (audible AI broadcast).
@@ -1139,135 +1061,6 @@ void FUN_00037b50(int actor_handle)
   actor_action_handle_combat_status(actor_handle, 1, 1);
 }
 
-/* FUN_00037d50 (0x37d50) — actor action state-machine tick (guard/cover-seek
- * variant). Sibling of FUN_00037b50 and FUN_00038000. Preamble: datum_get,
- * tag_get(0x61637472,actor+0x58), handle_initial_action,
- * handle_pending_command_list, handle_surprise(4), deny_transition.
- * If deny=false: berserking_from_attacking_mode, berserking_from_damage,
- * berserking_from_proximity, handle_combat_targeting, berserk_transition(1).
- * If actor+0x378==0: panic_from_attached_projectiles,
- * panic_from_attached_melee_attackers, panic_transition(9,0,0xb).
- * Then: combat_transition, active_cover_seeking(0,0), vehicle_entry,
- * vehicle_exit, grenade_throwing, FUN_00020990.
- * Case 6: if actor+0xa4!=0 && actor+0xa5==0 && actor+0xa6==0: FPU compare
- * tag+0x2e0 (or 0x2e4 if actor+0x6e<4) vs actor+0x1bc; updates actor+0xa4/0xa8.
- * Then can_stop_guarding(3,6) → combat_status(result,0).
- * Confirmed: disassembly 0x37d50–0x37fca cross-checked. */
-void FUN_00037d50(int actor_handle)
-{
-  char *actor;
-  char *tag;
-  char cVar1;
-  int uVar3;
-  unsigned char bVar1;
-  unsigned char bVar2;
-  float fVar4;
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  tag = (char *)tag_get(0x61637472, *(int *)(actor + 0x58));
-  actor_action_handle_initial_action(actor_handle);
-  actor_action_handle_pending_command_list(actor_handle);
-  actor_action_handle_surprise(actor_handle, 4);
-  cVar1 = actor_action_deny_transition(actor_handle);
-  if (cVar1 == '\0') {
-    actor_action_handle_berserking_from_attacking_mode(actor_handle);
-    actor_action_handle_berserking_from_damage(actor_handle);
-    actor_action_handle_berserking_from_proximity(actor_handle);
-    actor_action_handle_combat_targeting(actor_handle);
-    actor_action_handle_berserk_transition(actor_handle, 1);
-    if (*(char *)(actor + 0x378) == '\0') {
-      actor_action_handle_panic_from_attached_projectiles(actor_handle);
-      actor_action_handle_panic_from_attached_melee_attackers(actor_handle);
-      actor_action_handle_panic_transition(actor_handle, 9, 0, 0xb);
-    }
-    actor_action_handle_combat_transition(actor_handle);
-    actor_action_handle_active_cover_seeking(actor_handle, 0, 0);
-    actor_action_handle_vehicle_entry(actor_handle);
-    actor_action_handle_vehicle_exit(actor_handle);
-    actor_action_handle_grenade_throwing(actor_handle);
-    FUN_00020990(actor_handle);
-  }
-  switch (*(short *)(actor + 0x6c)) {
-  case 3:
-  case 10:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    cVar1 = actor_action_handle_combat_failure(actor_handle);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_evasion(actor_handle);
-    return;
-  case 6:
-    if (*(char *)(actor + 0xa4) != '\0' && *(char *)(actor + 0xa5) == '\0' &&
-        *(char *)(actor + 0xa6) == '\0') {
-      if (*(short *)(actor + 0x6e) < 4) {
-        fVar4 = *(float *)(tag + 0x2e4);
-      } else {
-        fVar4 = *(float *)(tag + 0x2e0);
-      }
-      if (fVar4 <= *(float *)(actor + 0x1bc)) {
-        *(char *)(actor + 0xa4) = 0;
-        *(short *)(actor + 0xa8) = 0;
-      } else {
-        *(char *)(actor + 0xa4) = 1;
-        *(short *)(actor + 0xa8) = 0x1e;
-      }
-    }
-    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
-    actor_action_handle_combat_status(actor_handle, uVar3, 0);
-    return;
-  case 4:
-    if (*(char *)(actor + 0xaa) != '\0') {
-      break;
-    }
-    actor_action_handle_done_fleeing(actor_handle);
-    return;
-  case 5:
-  case 7:
-  case 8:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_exit_pursuit(actor_handle);
-    return;
-  case 9:
-    if (*(char *)(actor + 0xa5) != '\0') {
-      break;
-    }
-    if (*(char *)(actor + 0xa6) == '\0') {
-      return;
-    }
-    actor_action_handle_combat_status(actor_handle, 1, 1);
-    return;
-  case 0xb:
-    bVar2 = *(unsigned char *)(actor + 0x9e);
-    bVar1 = *(unsigned char *)(actor + 0xa1);
-    actor_action_handle_combat_status(actor_handle, bVar2, bVar1);
-    return;
-  case 0xc:
-    if (*(char *)(actor + 0xa0) == '\0' && *(int *)(actor + 0x1dc) != -1) {
-      uVar3 = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, uVar3, 0);
-      return;
-    }
-    uVar3 = actor_action_can_stop_conversing(actor_handle, 1);
-    actor_action_handle_combat_status(actor_handle, uVar3, 1);
-    return;
-  case 0xd:
-    if (*(short *)(actor + 0x280) != 0) {
-      return;
-    }
-    break;
-  default:
-    return;
-  }
-  actor_action_handle_combat_status(actor_handle, 1, 1);
-}
-
 /* FUN_00038000 (0x38000) — actor action state-machine tick (panic/ambush
  * variant).
  *
@@ -1476,132 +1269,6 @@ shared_tail:
   actor_action_handle_combat_status(actor_handle, 1, 1);
 }
 
-/* FUN_00038880 (0x38880) — actor action state-machine tick (panic/berserking
- * variant). Preamble: datum_get, save bVar_247=(actor+0x247>0) and
- * cVar_203=(actor+0x203>0), handle_initial_action, handle_pending_command_list,
- * handle_surprise(1), deny_transition. If deny==false: full panic chain
- * (surprise, damage, attached projectiles, melee, burning), panic_transition
- * (actor_handle,1,cVar_203,7), combat_transition, vehicle_entry/exit,
- * grenade_throwing, FUN_00020990. Switch cases 3/10, 4, 5/7/8, 6, 9, 11, 12,
- * 13. Case 4 checks bVar_247 and actor+0xa8 before FUN_00015020(a8); case 9
- * checks actor+0xa5/0xa6. Cases 12/13 share evasion/converging tail. */
-void FUN_00038880(int actor_handle)
-{
-  char *actor;
-  char cVar1;
-  int uVar3;
-  char cVar_203;
-  char bVar_247;
-  unsigned char bVar1;
-  unsigned char bVar2;
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  cVar_203 = (signed char)actor[0x203] > 0 ? 1 : 0;
-  bVar_247 = (signed char)actor[0x247] > 0 ? 1 : 0;
-  actor_action_handle_initial_action(actor_handle);
-  actor_action_handle_pending_command_list(actor_handle);
-  actor_action_handle_surprise(actor_handle, 1);
-  cVar1 = actor_action_deny_transition(actor_handle);
-  if (cVar1 == '\0') {
-    actor_action_handle_panic_from_surprise(actor_handle);
-    actor_action_handle_panic_from_damage(actor_handle);
-    actor_action_handle_panic_from_attached_projectiles(actor_handle);
-    actor_action_handle_panic_from_attached_melee_attackers(actor_handle);
-    actor_action_handle_panic_from_burning_to_death(actor_handle);
-    actor_action_handle_panic_transition(actor_handle, 1, cVar_203, 7);
-    actor_action_handle_combat_transition(actor_handle);
-    actor_action_handle_vehicle_entry(actor_handle);
-    actor_action_handle_vehicle_exit(actor_handle);
-    actor_action_handle_grenade_throwing(actor_handle);
-    FUN_00020990(actor_handle);
-  }
-  switch (*(short *)(actor + 0x6c)) {
-  case 3:
-  case 10:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    cVar1 = actor_action_handle_combat_failure(actor_handle);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_evasion(actor_handle);
-    return;
-  case 6:
-    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
-    actor_action_handle_combat_status(actor_handle, uVar3, 0);
-    return;
-  case 4:
-    if (bVar_247 != '\0') {
-      uVar3 = (int)(short)*(short *)(actor + 0xa8);
-      if (uVar3 > 0) {
-        cVar1 = FUN_00015020(uVar3);
-        if (cVar1 == '\0') {
-          actor[0xab] = 1;
-        }
-      }
-    }
-    if (*(char *)(actor + 0xaa) != '\0') {
-      actor_action_handle_combat_status(actor_handle, 1, 1);
-      return;
-    }
-    cVar1 = actor_action_handle_done_fleeing(actor_handle);
-    if (cVar1 != '\0') {
-      return;
-    }
-    if (*(short *)(actor + 0xa8) != 0) {
-      return;
-    }
-    if (*(short *)(actor + 0x6e) < 5) {
-      return;
-    }
-    actor_action_consider_grenade(actor_handle);
-    return;
-  case 5:
-  case 7:
-  case 8:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_exit_pursuit(actor_handle);
-    return;
-  case 9:
-    if (*(char *)(actor + 0xa5) != '\0') {
-      actor_action_handle_combat_status(actor_handle, 1, 1);
-      return;
-    }
-    if (*(char *)(actor + 0xa6) == '\0') {
-      return;
-    }
-    actor_action_handle_combat_status(actor_handle, 1, 1);
-    return;
-  case 11:
-    bVar2 = *(unsigned char *)(actor + 0xa1);
-    bVar1 = *(unsigned char *)(actor + 0x9e);
-    actor_action_handle_combat_status(actor_handle, bVar1, bVar2);
-    return;
-  case 12:
-    if (*(char *)(actor + 0xa0) == '\0' && *(int *)(actor + 0x1dc) != -1) {
-      uVar3 = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, uVar3, 0);
-      return;
-    }
-    uVar3 = actor_action_can_stop_conversing(actor_handle, 1);
-    actor_action_handle_combat_status(actor_handle, uVar3, 1);
-    return;
-  case 13:
-    if (*(short *)(actor + 0x280) != 0) {
-      return;
-    }
-    actor_action_handle_combat_status(actor_handle, 1, 1);
-    return;
-  default:
-    return;
-  }
-}
-
 /* FUN_00038b10 (0x38b10) — actor action state-machine tick for fighter/retreat
  * type. Handles initial action, combat targeting, berserk transitions, and
  * behavior dispatch. Confirmed from disassembly: switch on
@@ -1669,357 +1336,6 @@ void FUN_00038b10(int actor_handle)
   }
 }
 
-/* FUN_00038c70 (0x38c70) — actor action state-machine tick (combat-only
- * variant). Preamble: datum_get, tag_get(0x61637472, actor+0x58) (cache warm),
- * handle_initial_action, handle_pending_command_list, deny_transition.
- * If deny==false: handle_combat_transition only (no
- * berserking/panic/targeting). Switch on actor+0x6c: cases 3,10 →
- * combat_status(1,0)+combat_failure; case 4 → if actor+0xaa!=0:
- * combat_status(1,1), else done_fleeing; cases 5,7,8 →
- * combat_status(1,0)+exit_pursuit; case 6 →
- * can_stop_guarding(3,6)+combat_status(result,0); case 11 →
- * combat_status(actor+0x9e, actor+0xa1); case 9 → return. */
-void FUN_00038c70(int actor_handle)
-{
-  char *actor;
-  char cVar1;
-  int uVar3;
-  unsigned char bVar1;
-  unsigned char bVar2;
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  (void)tag_get(0x61637472, *(int *)(actor + 0x58));
-  actor_action_handle_initial_action(actor_handle);
-  actor_action_handle_pending_command_list(actor_handle);
-  cVar1 = actor_action_deny_transition(actor_handle);
-  if (cVar1 == '\0') {
-    actor_action_handle_combat_transition(actor_handle);
-  }
-  switch (*(short *)(actor + 0x6c)) {
-  case 3:
-  case 10:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_combat_failure(actor_handle);
-    return;
-  case 4:
-    if (*(char *)(actor + 0xaa) != '\0') {
-      actor_action_handle_combat_status(actor_handle, 1, 1);
-      return;
-    }
-    actor_action_handle_done_fleeing(actor_handle);
-    return;
-  case 6:
-    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
-    actor_action_handle_combat_status(actor_handle, uVar3, 0);
-    return;
-  case 5:
-  case 7:
-  case 8:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_exit_pursuit(actor_handle);
-    return;
-  case 11:
-    bVar2 = *(unsigned char *)(actor + 0xa1);
-    bVar1 = *(unsigned char *)(actor + 0x9e);
-    actor_action_handle_combat_status(actor_handle, bVar1, bVar2);
-    return;
-  default:
-    return;
-  }
-}
-
-/*
-  * FUN_00038da0 -- actor timer for unit-effect durations (main set).
-  *
-  * Returns a random tick count scaled by DAT_00253394 for the given hit type.
-  * unit_effect 1 → [4.0, 5.0]s, 2 → [2.0, 2.8]s, 3 → [0.4, 1.0]s.
-  * Falls back to *(float*)0x2533c8 for unknown types.
-  * Clamps result to 255.
-  *
-  * Disassembly: DEC/JZ/DEC/JZ/DEC/JNZ chain; default float FLD'd first,
-  * popped (FSTP ST0) at merge.  Multiplied by [0x253394], _ftol2, CMP
-  * AX,0xff / JLE clamp, MOVSX EAX,AX return.
-  */
-int FUN_00038da0(short unit_effect /* @<eax> */)
-{
-  float timer_raw;
-  short final_val;
-
-  switch (unit_effect) {
-  case 1:
-    timer_raw = random_real_range(get_global_random_seed_address(), 4.0f, 5.0f);
-    goto compute;
-  case 2:
-    timer_raw = random_real_range(get_global_random_seed_address(), 2.0f, 2.8f);
-    goto compute;
-  case 3:
-    timer_raw = random_real_range(get_global_random_seed_address(), 0.4f, 1.0f);
-    goto compute;
-  default:
-    timer_raw = *(float *)0x2533c8;
-    goto compute;
-  }
-compute:
-  final_val = (short)(int)(timer_raw * *(float *)0x253394);
-  if (final_val > 0xff)
-    return 0xff;
-  return final_val;
-}
-
-/*
-  * FUN_00038e00 -- actor timer for unit-effect durations (secondary set).
-  *
-  * unit_effect 1 → [1.0, 2.5]s, 2-3 → [0.6, 1.8]s.
-  * Falls back to *(float*)0x2533c8 for other types.
-  * Clamps result to 255.
-  *
-  * Disassembly: FLD default → MOVSX → CMP AX,1 / JZ case_1 / JLE skip /
-  * CMP AX,3 / JG skip; matching ranges FSTP ST0 + random; others keep
-  * default on x87 stack.  FMUL [0x253394], _ftol2, CMP AX,0xff / JLE,
-  * MOVSX EAX,AX return.
-  */
-int FUN_00038e00(short unit_effect /* @<eax> */)
-{
-  float timer_raw;
-  short final_val;
-
-  timer_raw = *(float *)0x2533c8;
-  if (unit_effect == 1) {
-    timer_raw = random_real_range(get_global_random_seed_address(), 1.0f, 2.5f);
-  } else if (unit_effect <= 1) {
-    goto scale;
-  } else if (unit_effect > 3) {
-    goto scale;
-  } else {
-    timer_raw = random_real_range(get_global_random_seed_address(), 0.6f, 1.8f);
-  }
-scale:
-  final_val = (short)(int)(timer_raw * *(float *)0x253394);
-  if (final_val > 0xff)
-    return 0xff;
-  return final_val;
-}
-
-/* FUN_00039f30 (0x39f30) — actor action state-machine tick (active-cover
- * variant). Preamble: datum_get, tag_get(0x61637472), initial_action,
- * pending_command_list, handle_surprise(1), deny_transition. If deny==false:
- * full panic chain + combat_transition
- * + active_cover_seeking(1,1) + vehicle_entry/exit + FUN_00020990.
- * Switch on actor+0x6c: cases 3/10 → combat_status+failure+evasion;
- * case 6 → FPU pursuit-speed check then can_stop_guarding+combat_status;
- * case 4 → aa-check/done_fleeing; cases 5/7/8 → combat_status+exit_pursuit;
- * case 11 → combat_status(9e,a1); case 12 → can_stop_conversing; case 13 →
- * a280; case 9 → return. */
-void FUN_00039f30(int actor_handle)
-{
-  char *actor;
-  char *actor_tag;
-  char cVar1;
-  int uVar3;
-  unsigned char bVar1;
-  unsigned char bVar2;
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  actor_tag = (char *)tag_get(0x61637472, *(int *)(actor + 0x58));
-  actor_action_handle_initial_action(actor_handle);
-  actor_action_handle_pending_command_list(actor_handle);
-  actor_action_handle_surprise(actor_handle, 1);
-  cVar1 = actor_action_deny_transition(actor_handle);
-  if (cVar1 == '\0') {
-    actor_action_handle_panic_from_surprise(actor_handle);
-    actor_action_handle_panic_from_damage(actor_handle);
-    actor_action_handle_panic_from_attached_projectiles(actor_handle);
-    actor_action_handle_panic_from_attached_melee_attackers(actor_handle);
-    actor_action_handle_panic_from_burning_to_death(actor_handle);
-    actor_action_handle_panic_transition(actor_handle, 1, 0, 4);
-    actor_action_handle_combat_transition(actor_handle);
-    actor_action_handle_active_cover_seeking(actor_handle, 1, 1);
-    actor_action_handle_vehicle_entry(actor_handle);
-    actor_action_handle_vehicle_exit(actor_handle);
-    FUN_00020990(actor_handle);
-  }
-  switch (*(short *)(actor + 0x6c)) {
-  case 3:
-  case 10:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    cVar1 = actor_action_handle_combat_failure(actor_handle);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_evasion(actor_handle);
-    return;
-  case 6:
-    if (*(char *)(actor + 0xa4) != '\0' && *(char *)(actor + 0xa5) == '\0' &&
-        *(char *)(actor + 0xa6) == '\0') {
-      if (*(float *)((char *)actor_tag +
-                     (*(short *)(actor + 0x6e) >= 4 ? 0x2e0 : 0x2e4)) >
-          *(float *)(actor + 0x1bc)) {
-        *(char *)(actor + 0xa4) = 1;
-        *(short *)(actor + 0xa8) = 0x1e;
-      } else {
-        *(char *)(actor + 0xa4) = 0;
-        *(short *)(actor + 0xa8) = 0;
-      }
-    }
-    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
-    actor_action_handle_combat_status(actor_handle, uVar3, 0);
-    return;
-  case 4:
-    if (*(char *)(actor + 0xaa) != '\0') {
-      actor_action_handle_combat_status(actor_handle, 1, 1);
-      return;
-    }
-    actor_action_handle_done_fleeing(actor_handle);
-    return;
-  case 5:
-  case 7:
-  case 8:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_exit_pursuit(actor_handle);
-    return;
-  case 11:
-    bVar2 = *(unsigned char *)(actor + 0xa1);
-    bVar1 = *(unsigned char *)(actor + 0x9e);
-    actor_action_handle_combat_status(actor_handle, bVar1, bVar2);
-    return;
-  case 12:
-    if (*(char *)(actor + 0xa0) == '\0' && *(int *)(actor + 0x1dc) != -1) {
-      uVar3 = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, uVar3, 0);
-    } else {
-      uVar3 = actor_action_can_stop_conversing(actor_handle, 1);
-      actor_action_handle_combat_status(actor_handle, uVar3, 1);
-    }
-    return;
-  case 13:
-    if (*(short *)(actor + 0x280) != 0) {
-      return;
-    }
-    actor_action_handle_combat_status(actor_handle, 1, 1);
-    return;
-  default:
-    return;
-  }
-}
-
-/* FUN_0003a190 (0x3a190) — actor action state-machine tick (berserking
- * variant). No tag_get. Preamble: datum_get, initial_action,
- * pending_command_list, handle_surprise(1), deny_transition. If deny==false:
- * panic_from_damage, panic_from_attached (2x), panic_from_burning,
- * panic_transition(1,0,0xe), berserking_from_damage, berserk_transition(type),
- * combat_transition, vehicle_entry/exit, grenade_throwing, FUN_00020990. Type =
- * actor[0x20a]>2?5:3. Switch on actor+0x6c cases: 3/10 →
- * status+failure+evasion; 6 → stop_guarding; 4 → aa/done_fleeing; 5/7/8 →
- * status+exit_pursuit; 9 → a5/a6 flags; 11 → status(9e,a1); 12 →
- * can_stop_conversing; 13 → a280/status(1,1). */
-void FUN_0003a190(int actor_handle)
-{
-  char *actor;
-  char cVar1;
-  int uVar3;
-  unsigned char bVar1;
-  unsigned char bVar2;
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  actor_action_handle_initial_action(actor_handle);
-  actor_action_handle_pending_command_list(actor_handle);
-  actor_action_handle_surprise(actor_handle, 1);
-  cVar1 = actor_action_deny_transition(actor_handle);
-  if (cVar1 == '\0') {
-    actor_action_handle_panic_from_damage(actor_handle);
-    actor_action_handle_panic_from_attached_projectiles(actor_handle);
-    actor_action_handle_panic_from_attached_melee_attackers(actor_handle);
-    actor_action_handle_panic_from_burning_to_death(actor_handle);
-    actor_action_handle_panic_transition(actor_handle, 1, 0, 0xe);
-    actor_action_handle_berserking_from_damage(actor_handle);
-    actor_action_handle_berserk_transition(
-      actor_handle, (signed char)actor[0x20a] > 2 ? 5 : 3);
-    actor_action_handle_combat_transition(actor_handle);
-    actor_action_handle_vehicle_entry(actor_handle);
-    actor_action_handle_vehicle_exit(actor_handle);
-    actor_action_handle_grenade_throwing(actor_handle);
-    FUN_00020990(actor_handle);
-  }
-  switch (*(short *)(actor + 0x6c)) {
-  case 3:
-  case 10:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    cVar1 = actor_action_handle_combat_failure(actor_handle);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_evasion(actor_handle);
-    return;
-  case 6:
-    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
-    actor_action_handle_combat_status(actor_handle, uVar3, 0);
-    return;
-  case 4:
-    if (*(char *)(actor + 0xaa) != '\0') {
-      actor_action_handle_combat_status(actor_handle, 1, 1);
-      return;
-    }
-    actor_action_handle_done_fleeing(actor_handle);
-    return;
-  case 5:
-  case 7:
-  case 8:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_exit_pursuit(actor_handle);
-    return;
-  case 9:
-    if (*(char *)(actor + 0xa5) != '\0') {
-      actor_action_handle_combat_status(actor_handle, 1, 1);
-      return;
-    }
-    if (*(char *)(actor + 0xa6) == '\0') {
-      return;
-    }
-    actor_action_handle_combat_status(actor_handle, 1, 1);
-    return;
-  case 11:
-    bVar2 = *(unsigned char *)(actor + 0xa1);
-    bVar1 = *(unsigned char *)(actor + 0x9e);
-    actor_action_handle_combat_status(actor_handle, bVar1, bVar2);
-    return;
-  case 12:
-    if (*(char *)(actor + 0xa0) == '\0' && *(int *)(actor + 0x1dc) != -1) {
-      uVar3 = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, uVar3, 0);
-    } else {
-      uVar3 = actor_action_can_stop_conversing(actor_handle, 1);
-      actor_action_handle_combat_status(actor_handle, uVar3, 1);
-    }
-    return;
-  case 13:
-    if (*(short *)(actor + 0x280) != 0) {
-      return;
-    }
-    actor_action_handle_combat_status(actor_handle, 1, 1);
-    return;
-  default:
-    return;
-  }
-}
-
 /* 0x3a3b0
  *
  * actor_action_handle_status_change
@@ -2067,88 +1383,6 @@ void FUN_0003a3b0(int actor_handle)
     break;
   default:
     break;
-  }
-}
-
-/* FUN_0003a480 (0x3a480) — actor action state-machine tick (combat-only,
- * no berserking/panic). Preamble: datum_get, initial_action,
- * pending_command_list, handle_surprise(1), deny_transition. If deny==false:
- * handle_combat_transition + FUN_00020990 only. Switch on actor+0x6c:
- * cases 3/10 → combat_status+failure+evasion; case 6 → guard check;
- * case 4 → aa-check+done_fleeing or combat_status(1,1);
- * cases 5/7/8 → pursuit; case 11 → combat_status(9e,a1); case 13 → a280;
- * case 12 → can_stop_conversing+combat_status(flag,flag). */
-void FUN_0003a480(int actor_handle)
-{
-  char *actor;
-  char cVar1;
-  int uVar2;
-  int uVar3;
-  unsigned char bVar1;
-  unsigned char bVar2;
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  actor_action_handle_initial_action(actor_handle);
-  actor_action_handle_pending_command_list(actor_handle);
-  actor_action_handle_surprise(actor_handle, 1);
-  cVar1 = actor_action_deny_transition(actor_handle);
-  if (cVar1 == '\0') {
-    actor_action_handle_combat_transition(actor_handle);
-    FUN_00020990(actor_handle);
-  }
-  switch (*(short *)(actor + 0x6c)) {
-  case 3:
-  case 10:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    cVar1 = actor_action_handle_combat_failure(actor_handle);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_evasion(actor_handle);
-    return;
-  case 6:
-    uVar3 = actor_action_can_stop_guarding(actor_handle, 3, 6);
-    actor_action_handle_combat_status(actor_handle, uVar3, 0);
-    return;
-  case 4:
-    if (*(char *)(actor + 0xaa) != '\0') {
-      actor_action_handle_combat_status(actor_handle, 1, 1);
-      return;
-    }
-    actor_action_handle_done_fleeing(actor_handle);
-    return;
-  case 5:
-  case 7:
-  case 8:
-    cVar1 = actor_action_handle_combat_status(actor_handle, 1, 0);
-    if (cVar1 != '\0') {
-      return;
-    }
-    actor_action_handle_exit_pursuit(actor_handle);
-    return;
-  case 11:
-    bVar2 = *(unsigned char *)(actor + 0xa1);
-    bVar1 = *(unsigned char *)(actor + 0x9e);
-    actor_action_handle_combat_status(actor_handle, bVar1, bVar2);
-    return;
-  case 13:
-    if (*(short *)(actor + 0x280) != 0) {
-      return;
-    }
-    actor_action_handle_combat_status(actor_handle, 1, 1);
-    return;
-  case 12:
-    uVar3 = (*(char *)(actor + 0xa0) != '\0' || *(int *)(actor + 0x1dc) == -1) ?
-              1 :
-              0;
-    uVar2 = actor_action_can_stop_conversing(actor_handle, uVar3);
-    actor_action_handle_combat_status(actor_handle, uVar2, uVar3);
-    return;
-  default:
-    return;
   }
 }
 
@@ -2203,39 +1437,39 @@ void FUN_0003a740(void)
 {
   short i;
   for (i = 0; i < 0x10; i++) {
-    FUN_0003a600(i);
+    ((void *(__fastcall*)(int))FUN_0003a600)(i);
   }
 }
 
 /* Return the name string for an actor type definition. */
 const char *FUN_0003a760(int16_t actor_type)
 {
-  return *(const char **)FUN_0003a600(actor_type);
+  return *(const char **)((void *(__fastcall*)(int))FUN_0003a600)(actor_type);
 }
 
 int16_t FUN_0003a770(int16_t actor_type)
 {
-  return *(int16_t *)((char *)FUN_0003a600(actor_type) + 4);
+  return *(int16_t *)((char *)((void *(__fastcall*)(int))FUN_0003a600)(actor_type) + 4);
 }
 
 int16_t FUN_0003a790(int16_t actor_type)
 {
-  return *(int16_t *)((char *)FUN_0003a600(actor_type) + 6);
+  return *(int16_t *)((char *)((void *(__fastcall*)(int))FUN_0003a600)(actor_type) + 6);
 }
 
 int16_t FUN_0003a7b0(int16_t actor_type)
 {
-  return *(int16_t *)((char *)FUN_0003a600(actor_type) + 8);
+  return *(int16_t *)((char *)((void *(__fastcall*)(int))FUN_0003a600)(actor_type) + 8);
 }
 
 int16_t FUN_0003a7d0(int16_t actor_type)
 {
-  return *(int16_t *)((char *)FUN_0003a600(actor_type) + 10);
+  return *(int16_t *)((char *)((void *(__fastcall*)(int))FUN_0003a600)(actor_type) + 10);
 }
 
 unsigned char FUN_0003a7f0(int16_t actor_type)
 {
-  return *(unsigned char *)((char *)FUN_0003a600(actor_type) + 12);
+  return *(unsigned char *)((char *)((void *(__fastcall*)(int))FUN_0003a600)(actor_type) + 12);
 }
 
 /* FUN_0003a800 (0x3a800) — actor_type_is_swarm
@@ -2245,7 +1479,7 @@ unsigned char FUN_0003a7f0(int16_t actor_type)
 int FUN_0003a800(int16_t actor_type)
 {
   char *type_def;
-  type_def = (char *)FUN_0003a600(actor_type);
+  type_def = (char *)((void *(__fastcall*)(int))FUN_0003a600)(actor_type);
   return (int)(unsigned char)type_def[0xd];
 }
 
@@ -2262,7 +1496,7 @@ void FUN_0003a810(int actor_handle)
   void (*init_cb)(int);
 
   actor = (char *)datum_get(actor_data, actor_handle);
-  type_def = (char *)FUN_0003a600(*(short *)(actor + 0x4));
+  type_def = (char *)((void *(__fastcall*)(int))FUN_0003a600)(*(short *)(actor + 0x4));
   init_cb = *(void (**)(int))(type_def + 0x10);
   if (init_cb != NULL) {
     init_cb(actor_handle);
@@ -2276,7 +1510,7 @@ void FUN_0003a840(int actor_handle)
   void *type_def;
 
   actor = (char *)datum_get(actor_data, actor_handle);
-  type_def = FUN_0003a600(*(short *)(actor + 4));
+  type_def = ((void *(__fastcall*)(int))FUN_0003a600)(*(short *)(actor + 4));
 
   if (*(int *)((char *)type_def + 0x14) == 0) {
     display_assert("actor_type_definition->decide_action",
@@ -2299,7 +1533,7 @@ void FUN_0003a840(int actor_handle)
  *
  * Confirmed: datum_get(actor_data, actor_handle) at 0x3a8af.
  * Confirmed: MOV AX,[EAX+4] loads actor_type for @<ax> register call at
- * 0x3a8b4. Confirmed: FUN_0003a600(@<ax>) returns type_def pointer in EAX ->
+ * 0x3a8b4. Confirmed: ((void *(__fastcall*)(int))FUN_0003a600)(@<ax>) returns type_def pointer in EAX ->
  * ESI at 0x3a8bb. Confirmed: type_def->swarm (byte at +0xd) tested at
  * 0x3a8c2-0x3a8c7. Confirmed: type_def->swarm_control (int * at +0x18) tested
  * at 0x3a8e9-0x3a8ee. Confirmed: CALL dword ptr [ESI+0x18] dispatches
@@ -2310,7 +1544,7 @@ void FUN_0003a8a0(int actor_handle)
   void *type_def;
 
   actor = (char *)datum_get(actor_data, actor_handle);
-  type_def = FUN_0003a600(*(short *)(actor + 4));
+  type_def = ((void *(__fastcall*)(int))FUN_0003a600)(*(short *)(actor + 4));
 
   if (*(char *)((char *)type_def + 0xd) == 0) {
     display_assert("actor_type_definition->swarm",
@@ -2324,25 +1558,6 @@ void FUN_0003a8a0(int actor_handle)
   }
 
   (*(void (*)(int)) * (int *)((char *)type_def + 0x18))(actor_handle);
-}
-
-void FUN_0003a920(int actor_handle, int a2, int a3, int a4)
-{
-  char *actor;
-  char *type_def;
-  void (*fn)(int, int, int, int);
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  type_def = (char *)FUN_0003a600(*(short *)(actor + 4));
-  if (*(char *)(type_def + 0xd) == 0) {
-    display_assert("actor_type_definition->swarm",
-                   "c:\\halo\\SOURCE\\ai\\actor_types.c", 0x9d, 1);
-    system_exit(-1);
-  }
-  fn = (void (*)(int, int, int, int)) * (int *)(type_def + 0x1c);
-  if (fn != NULL) {
-    fn(actor_handle, a2, a3, a4);
-  }
 }
 
 /* actors.c — AI actor/swarm data lifecycle.
@@ -3391,7 +2606,7 @@ void actor_handle_damage(int param_1, int prop_handle, float param_3,
         prop_handle2 = -1;
       }
     }
-    FUN_00037240(param_1, prop_handle2, param_3, (float *)param_4);
+    FUN_00037240(param_1, prop_handle2, param_3, param_4);
   }
 }
 
@@ -4809,7 +4024,7 @@ void actor_swarm_cache_new(int actor_handle)
                 0x100);
           return;
         }
-        FUN_0003cb50(swarm_handle, component_handle, unit_handle);
+        ((void(*)(void))FUN_0003cb50)(swarm_handle, component_handle, unit_handle);
         unit_handle = *(int *)(unit + 0x1ac);
         if (unit_handle == -1) {
           return;
@@ -5237,88 +4452,6 @@ void actor_braindead(int actor_handle, char param_2)
     *(int16_t *)(actor + 0x6a) = 2;
 }
 
-void actor_handle_unit_effect(int actor_handle, int prop_handle,
-                              int16_t unit_effect)
-{
-  char *actor;
-  char *prop;
-  char local_1;
-
-  actor = (char *)datum_get(actor_data, actor_handle);
-  prop = (char *)datum_get(prop_data, prop_handle);
-
-  if (*(int *)(actor + 0x34) != -1) {
-    local_1 = *(
-      char *)((char *)datum_get(*(data_t **)0x5ab270, *(int *)(actor + 0x34)) +
-              0x41);
-  } else {
-    local_1 = 0;
-  }
-
-  if (game_connection() == 0 && *(char *)0x5ac9cc != 0) {
-    local_1 = 1;
-  }
-
-  if (*(int16_t *)(prop + 0x66) == (int16_t)-1 ||
-      unit_effect >= *(int16_t *)(prop + 0x66)) {
-    *(int16_t *)(prop + 0x66) = unit_effect;
-    *(int16_t *)(prop + 0x68) =
-      (unit_effect == 3) ? (int16_t)0x96 : (int16_t)0x1e;
-  }
-
-  switch (unit_effect) {
-  case 1:
-    if (local_1 != 0)
-      return;
-    if (*(char *)(prop + 0x133) != 0)
-      return;
-    *(char *)(prop + 0x12f) = 1;
-    *(int16_t *)(prop + 0x34) = 3;
-    *(int16_t *)(prop + 0x30) = 3;
-    *(char *)(prop + 0x64) = 1;
-    if (*(char *)(prop + 0x12e) != 0) {
-      actor_set_dormant(actor_handle, 0);
-    }
-    FUN_00036c50(actor_handle, prop_handle);
-    return;
-  case 2:
-    if (local_1 != 0)
-      return;
-    if (*(char *)(prop + 0x133) != 0)
-      return;
-    *(char *)(prop + 0x127) = 1;
-    *(int16_t *)(prop + 0x34) = 3;
-    *(int16_t *)(prop + 0x30) = 3;
-    *(char *)(prop + 0x64) = 1;
-    if (*(char *)(prop + 0x12e) != 0) {
-      actor_set_dormant(actor_handle, 0);
-    }
-    FUN_00037630(actor_handle, prop_handle);
-    return;
-  case 0:
-    if (*(char *)(prop + 0x133) != 0)
-      return;
-    *(int16_t *)(prop + 0x36) = 3;
-    *(int16_t *)(prop + 0x30) = 3;
-    *(char *)(prop + 0x64) = 1;
-    FUN_00036bd0(actor_handle, prop_handle);
-    return;
-  case 3:
-    if (*(char *)(prop + 0x133) != 0)
-      return;
-    *(int16_t *)(prop + 0x36) = 3;
-    *(int16_t *)(prop + 0x30) = 3;
-    *(char *)(prop + 0x64) = 1;
-    if (*(char *)(prop + 0x12e) != 0) {
-      actor_set_dormant(actor_handle, 0);
-    }
-    actor_perception_become_acknowledged(actor_handle, prop_handle, 0);
-    return;
-  default:
-    return;
-  }
-}
-
 /* actor_set_active (0x3d5f0) — actor_set_activation_state
  *
  * Transition an actor between active (1) and inactive (0) states.
@@ -5525,7 +4658,7 @@ int actor_swarm_attach_unit(int actor_handle, int unit_index)
 
   /* Register swarm component if allocated. */
   if (*(int *)(actor + 0x28) != -1) {
-    FUN_0003cb50(*(int *)(actor + 0x28), swarm_component_handle, unit_index);
+    ((void(*)(void))FUN_0003cb50)(*(int *)(actor + 0x28), swarm_component_handle, unit_index);
   }
 
   /* Increment swarm unit counts. */
@@ -6631,7 +5764,7 @@ void actor_attach_unit(int actor_handle, int unit_index)
  *   at 0x3ecb2/0x3ecba.
  * Confirmed: FUN_0003d9f0(actor_handle) cdecl at 0x3ecc3; returns bool/char.
  *   ADD ESP,4 at 0x3ecc8. Return tested; JZ 0x3edae → early out.
- * Confirmed: FUN_0003bb50(actor_handle@<eax>) at 0x3ecd6 (MOV EAX,ESI).
+ * Confirmed: ((void(__fastcall*)(int))FUN_0003bb50)(actor_handle@<eax>) at 0x3ecd6 (MOV EAX,ESI).
  * Confirmed: FUN_0003dc20(actor_handle) cdecl at 0x3ecdc.
  * Confirmed: FUN_0003355f0(actor_handle) cdecl at 0x3ece2.
  * Confirmed: actor_situation_update(actor_handle) cdecl at 0x3ece8.
@@ -6647,10 +5780,10 @@ void actor_attach_unit(int actor_handle, int unit_index)
  * Confirmed: iVar2/actor+0x13 checked at 0x3ed3c; JNZ → skip subsystem init.
  * Confirmed: iVar2/actor+6 checked at 0x3ed47; JNZ (swarm actor) → call
  *   FUN_0003a8a0(actor_handle) then return.
- * Confirmed: FUN_0003bbf0(actor_handle@<eax>) at 0x3ed64 (MOV EAX,ESI).
+ * Confirmed: ((void(__fastcall*)(int))FUN_0003bbf0)(actor_handle@<eax>) at 0x3ed64 (MOV EAX,ESI).
  * Confirmed: 8 cdecl calls follow (0x1c3e0, 0x43db0, 0x14540, 0x2d350,
  *   0x2a2b0, 0x2e560, 0x29040, 0x22dc0); ADD ESP,0x20 at 0x3ed99.
- * Confirmed: FUN_0003e7a0(actor_handle@<eax>) at 0x3ed9e (MOV EAX,ESI).
+ * Confirmed: ((void(__fastcall*)(int))FUN_0003e7a0)(actor_handle@<eax>) at 0x3ed9e (MOV EAX,ESI).
  * Confirmed: DAT_002c8728 = EBX (0xffffffff) at 0x3eda3 (normal exit).
  * Confirmed: DAT_002c8728 = 0xffffffff at 0x3edae (early-out path, literal).
  * Inferred: DAT_002c8728 holds the "currently activating actor" handle;
@@ -6690,7 +5823,7 @@ void FUN_0003ec80(int actor_handle /* @<esi> */)
   /* --- actor is ready for activation --- */
 
   /* Subsystem pre-init */
-  FUN_0003bb50(actor_handle);
+  ((void(__fastcall*)(int))FUN_0003bb50)(actor_handle);
   FUN_0003dc20(actor_handle);
   FUN_000355f0(actor_handle);
   actor_situation_update(actor_handle);
@@ -6725,7 +5858,7 @@ void FUN_0003ec80(int actor_handle /* @<esi> */)
   }
 
   /* Normal actor: full subsystem init sequence */
-  FUN_0003bbf0(actor_handle);
+  ((void(__fastcall*)(int))FUN_0003bbf0)(actor_handle);
   actor_action_control(actor_handle);
   actor_communication_update(actor_handle);
   FUN_00014540(actor_handle);
@@ -6734,7 +5867,7 @@ void FUN_0003ec80(int actor_handle /* @<esi> */)
   FUN_0002e560(actor_handle);
   actor_look_update(actor_handle);
   FUN_00022dc0(actor_handle);
-  FUN_0003e7a0(actor_handle);
+  ((void(__fastcall*)(int))FUN_0003e7a0)(actor_handle);
 
   *(int *)0x2c8728 = -1;
 }

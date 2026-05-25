@@ -26,6 +26,8 @@ GHIDRA_BASE = "http://localhost:8089"
 _SCHEMA_TTL_S = 300
 _HEALTH_CHECK_S = 30
 _MAX_CONCURRENT = 4
+_TOOL_TIMEOUT_S = 60
+_SESSION_GC_S = 60
 
 
 def _log(msg: str) -> None:
@@ -195,6 +197,7 @@ _ghidra_up: bool = False
 _active_sessions: int = 0
 _next_session_id: int = 0
 _ghidra_sem: asyncio.Semaphore | None = None
+_sessions_pruned_total: int = 0
 
 
 def _ensure_loaded() -> None:
@@ -233,7 +236,10 @@ async def list_tools() -> list[types.Tool]:
 
 
 @server.call_tool()
-async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
+async def call_tool(
+    name: str, arguments: dict[str, Any] | None = None
+) -> list[types.TextContent]:
+    arguments = arguments or {}
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _ensure_loaded)
 
@@ -275,11 +281,28 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         return _http_request(method, path, query_params, body_params)
 
     sem = _ghidra_sem
-    if sem:
-        async with sem:
-            result = await loop.run_in_executor(None, _call)
-    else:
-        result = await loop.run_in_executor(None, _call)
+    try:
+        if sem:
+            async with sem:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(None, _call), timeout=_TOOL_TIMEOUT_S
+                )
+        else:
+            result = await asyncio.wait_for(
+                loop.run_in_executor(None, _call), timeout=_TOOL_TIMEOUT_S
+            )
+    except asyncio.TimeoutError:
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "error": f"Tool call timed out after {_TOOL_TIMEOUT_S}s",
+                        "hint": "Ghidra may be busy or unresponsive. Retry later.",
+                    }
+                ),
+            )
+        ]
 
     return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
@@ -362,6 +385,25 @@ async def _health_loop() -> None:
             _log("Ghidra became unavailable")
 
 
+async def _session_gc_loop(sse_transport) -> None:
+    """Periodically prune closed writers from the SSE transport's writer dict."""
+    global _sessions_pruned_total
+    while True:
+        await asyncio.sleep(_SESSION_GC_S)
+        writers = getattr(sse_transport, "_read_stream_writers", {})
+        before = len(writers)
+        stale = [
+            sid for sid, w in writers.items()
+            if getattr(w, "_closed", False)
+        ]
+        for sid in stale:
+            del writers[sid]
+        after = len(writers)
+        if stale:
+            _sessions_pruned_total += len(stale)
+            _log(f"Session GC: pruned {len(stale)} stale sessions ({before}→{after}, total pruned={_sessions_pruned_total})")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -413,6 +455,8 @@ async def main() -> None:
                 "sdk_writers": writers,
                 "tools": len(_tools),
                 "schema_age_s": age,
+                "sessions_pruned_total": _sessions_pruned_total,
+                "tool_timeout_s": _TOOL_TIMEOUT_S,
             }
         )
 
@@ -434,6 +478,7 @@ async def main() -> None:
             _log(f"Schema pre-load failed (will retry on first request): {exc}")
 
     asyncio.ensure_future(_health_loop())
+    asyncio.ensure_future(_session_gc_loop(sse))
 
     _log(f"SSE server listening on http://{host}:{port}/sse")
     _log(f"Health endpoint: http://{host}:{port}/health")

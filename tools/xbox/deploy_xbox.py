@@ -667,6 +667,21 @@ def should_prepare_xemu(host: str) -> bool:
     return normalized in {"", "127.0.0.1", "::1", "localhost"}
 
 
+def deploy_init_txt(dest: str, host: str, dry_run: bool, common_kwargs: dict) -> None:
+    init_path = os.path.join(ROOT_DIR, "init.txt")
+    remote_init = f"{dest.lstrip('x')}\\init.txt"
+    if os.path.isfile(init_path):
+        print(f"  init.txt ({os.path.getsize(init_path)} bytes)")
+        if not dry_run:
+            rc = upload_via_xbdm(init_path, remote_init, host)
+            if rc != 0:
+                print("  falling back to xbcp for init.txt...", file=sys.stderr)
+                run_xbcp(src=to_windows_path(init_path), dest=f"{dest}\\init.txt", **common_kwargs)
+    else:
+        print("  deleting init.txt...")
+        if not dry_run:
+            delete_remote_file(host, remote_init, dry_run)
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Deploy patched Halo build to Xbox via xbcp (XDK)"
@@ -721,8 +736,20 @@ def main() -> int:
         return 1
 
     xbe_path = os.path.join(HALO_PATCHED_DIR, "default.xbe")
-    if not args.skip_build and os.path.isdir(os.path.join(ROOT_DIR, "build")):
-        if is_build_current(xbe_path):
+    elf_path = os.path.join(ROOT_DIR, "build", "halo")
+    if os.path.isdir(os.path.join(ROOT_DIR, "build")):
+        if args.skip_build:
+            # --skip-build skips compile but still patches XBE if the ELF is newer
+            if os.path.isfile(elf_path) and (
+                not os.path.isfile(xbe_path)
+                or os.path.getmtime(elf_path) > os.path.getmtime(xbe_path)
+            ):
+                print("ELF newer than XBE, patching XBE...")
+                rc = run_build(target="patched_xbe", quiet=True)
+                if rc != 0:
+                    print("error: XBE patch failed", file=sys.stderr)
+                    return rc
+        elif is_build_current(xbe_path):
             print("build unchanged, skipping rebuild...")
         else:
             print("building patched XBE...")
@@ -780,6 +807,7 @@ def main() -> int:
         if not delete_state_files(host, [debug_txt_dest, gamestate_txt_dest, stabbed_txt_dest, crashdump_dest], args.dry_run, qmp_script):
             return 1
         print("done.")
+        deploy_init_txt(args.dest, host, args.dry_run, common_kwargs)
         rc = launch_xbe(args.dest, host, args.dry_run)
         if rc != 0:
             return rc
@@ -807,6 +835,7 @@ def main() -> int:
         if not delete_state_files(host, [debug_txt_dest, gamestate_txt_dest, stabbed_txt_dest, crashdump_dest], args.dry_run, qmp_script):
             return 1
         print("done.")
+        deploy_init_txt(args.dest, host, args.dry_run, common_kwargs)
         rc = launch_xbe(args.dest, host, args.dry_run)
         if rc != 0:
             return rc
@@ -854,6 +883,7 @@ def main() -> int:
             return rc
 
     print("done.")
+    deploy_init_txt(args.dest, host, args.dry_run, common_kwargs)
     rc = launch_xbe(args.dest, host, args.dry_run)
     if rc != 0:
         return rc

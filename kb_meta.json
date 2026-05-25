@@ -798,6 +798,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x42b80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x48e90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x48f50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x48fa0": {
       "kind": "function",
       "status": "ported"
@@ -1221,6 +1233,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x77e60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x78b80": {
       "kind": "function",
       "status": "ported"
@@ -1270,6 +1286,10 @@
       "status": "ported"
     },
     "0x7b0e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x7b1b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -8482,6 +8502,10 @@
       "status": "ported"
     },
     "0x1bf990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bfa00": {
       "kind": "function",
       "status": "ported"
     },

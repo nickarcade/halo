@@ -69,7 +69,7 @@ void ai_initialize(void)
     system_exit(-1);
   }
   csmemset(*(void **)0x632574, 0, 0x8dc);
-  FUN_00048e90();
+  ai_debug_initialize();
   set_real_point3d();
   FUN_0005df80();
   actors_initialize();
@@ -85,14 +85,14 @@ void ai_initialize(void)
  * Confirmed: 7 CALL + 1 JMP (tail call to FUN_00048f50) in disassembly. */
 void ai_dispose(void)
 {
-  FUN_00042b80();
+  ai_communication_dispose();
   ai_profile_dispose();
   encounters_dispose();
   FUN_00064140();
   actors_dispose();
   FUN_0005df90();
   ai_debug_lineoffire_success();
-  FUN_00048f50();
+  ai_debug_dispose();
 }
 
 /* ai_dispose_from_old_map: release per-map AI state when leaving a map.

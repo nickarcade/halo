@@ -85,7 +85,47 @@
       "source": "src/halo/math/vector_math.c"
     },
     "FUN_00014540": {
-      "score": 85.7,
+      "score": 86.7,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_000145c0": {
+      "score": 100.0,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_000145f0": {
+      "score": 100.0,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_000146f0": {
+      "score": 92.6,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_00014b40": {
+      "score": 100.0,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_00014b70": {
+      "score": 96.0,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_00014ff0": {
+      "score": 97.0,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_00015020": {
+      "score": 100.0,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_00015150": {
+      "score": 96.4,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_000151b0": {
+      "score": 100.0,
+      "source": "src/halo/ai/actor_looking.c"
+    },
+    "FUN_00017090": {
+      "score": 100.0,
       "source": "src/halo/ai/actor_looking.c"
     },
     "FUN_000178d0": {
@@ -244,12 +284,16 @@
       "score": 80.6,
       "source": "src/halo/math/vector_math.c"
     },
+    "FUN_00027870": {
+      "score": 100.0,
+      "source": "src/halo/ai/actor_looking.c"
+    },
     "FUN_00028610": {
       "score": 80.6,
       "source": "src/halo/math/vector_math.c"
     },
     "FUN_0002a2b0": {
-      "score": 85.1,
+      "score": 89.1,
       "source": "src/halo/ai/actor_looking.c"
     },
     "FUN_0002a360": {
@@ -261,7 +305,7 @@
       "source": "src/halo/ai/actor_moving.c"
     },
     "FUN_0002a3d0": {
-      "score": 95.7,
+      "score": 100.0,
       "source": "src/halo/ai/actor_looking.c"
     },
     "FUN_0002a470": {
@@ -1256,12 +1300,28 @@
       "score": 88.5,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
     },
+    "FUN_00075630": {
+      "score": 92.1,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_000766e0": {
+      "score": 87.9,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_00076a70": {
+      "score": 99.1,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
     "FUN_00076bb0": {
       "score": 100.0,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
     },
     "FUN_00076ff0": {
       "score": 100.0,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_00077040": {
+      "score": 72.6,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
     },
     "FUN_00077510": {
@@ -1272,12 +1332,40 @@
       "score": 98.5,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
     },
+    "FUN_00077590": {
+      "score": 98.6,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_00077720": {
+      "score": 88.0,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_000779b0": {
+      "score": 85.8,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_00077ff0": {
+      "score": 55.5,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_00078460": {
+      "score": 87.0,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
     "FUN_00078b80": {
       "score": 96.8,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
     },
     "FUN_000790b0": {
       "score": 97.4,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_00079180": {
+      "score": 97.4,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_00079250": {
+      "score": 68.4,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
     },
     "FUN_00079590": {
@@ -1322,6 +1410,10 @@
     },
     "FUN_0007b0e0": {
       "score": 94.4,
+      "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "FUN_0007b1b0": {
+      "score": 94.9,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
     },
     "FUN_0007b470": {

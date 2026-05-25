@@ -1,75 +1,3 @@
-/* ai_debug.c — AI debug array allocation, per-tick debug update, and
- * encounter-viewer state management.
- *
- * Corresponds to ai_debug.obj (XBE addresses 0x48e90–0x4c0f0).
- * Source path confirmed via __FILE__ strings in 0x48e90 and 0x48f50:
- *   c:\halo\SOURCE\ai\ai_debug.c
- *
- * Subsystem roles:
- *   ai_debug_initialize  (0x48e90) — allocate actor/path debug arrays
- *   ai_debug_dispose     (0x48f50) — free actor/path debug arrays
- *   ai_debug_dispose_from_old_map         (0x48fa0) — load encounter name into
- * debug state ai_debug_actor_deleted         (0x49080) — clear path debug
- * entries for an actor ai_debug_update         (0x4ab10) — per-tick AI debug
- * update ai_debug_initialize_for_new_map         (0x4c0f0) — set current debug
- * encounter by name
- *
- * Key globals:
- *   0x331f58  void *: actor_debug_array  (0x657c00 bytes)
- *   0x331f5c  void *: actor_path_debug_array (0x394f80 bytes; stride
- *                     0x1ca7c × 0x20 entries)
- *   0x5ac9c0  byte[0x85b2c]: AI debug globals block
- *   0x5ac9f4  int32_t: current encounter index (0xffffffff = none)
- *   0x5ac9f8  int32_t: secondary encounter index
- *   0x5acab4  int32_t: debug init flag
- *   0x5aca65  uint8_t: debug init flag
- *   0x5ac9d2  char[0x20]: current encounter name string
- *   0x5ac9f1  uint8_t: encounter name dirty flag
- *   0x5ac9c2  uint8_t: guard-position update request flag
- *   0x5ac9c3  uint8_t: actor-variant reset request flag
- *   0x5aca6a  uint8_t: camera-reset flag
- *   0x5ac9fc  uint8_t: camera-follow master enable
- *   0x5ac9fd  uint8_t: camera-follow mode flag
- *   0x5ac9fe  uint8_t: camera-look-at mode flag
- *   0x5ac9ff  uint8_t: camera pre/post fire flag
- *   0x5aca00  float:   camera min speed
- *   0x5aca04  uint8_t: camera vehicle-look enable
- *   0x5aca08  float:   camera vehicle inner radius (default 8.0)
- *   0x5aca0c  float:   camera vehicle outer radius (default 20.0)
- *   0x5aca10  int32_t: camera collision mask
- */
-
-/* ai_debug_initialize: zero AI debug globals block, reset encounter indices,
- * set init flags, allocate actor_debug_array and actor_path_debug_array via
- * debug_malloc.  Asserts that both allocations succeed.
- *
- * Confirmed: __FILE__ = "c:\halo\SOURCE\ai\ai_debug.c"
- *   line 0x93 (147) — actor_debug_array alloc
- *   line 0x94 (148) — actor_path_debug_array alloc
- *   line 0x96 (150) — both-non-null assert
- * Called from ai_initialize (0x3f670). */
-void ai_debug_initialize(void)
-{
-  csmemset((void *)0x5ac9c0, 0, 0x85b2c);
-  *(int32_t *)0x5ac9f8 = -1;
-  *(int32_t *)0x5ac9f4 = -1;
-  *(int32_t *)0x5acab4 = 1;
-  *(uint8_t *)0x5aca65 = 1;
-
-  if (*(void **)0x331f58 == NULL) {
-    *(void **)0x331f58 =
-      debug_malloc(0x657c00, 0, "c:\\halo\\SOURCE\\ai\\ai_debug.c", 0x93);
-  }
-  if (*(void **)0x331f5c == NULL) {
-    *(void **)0x331f5c =
-      debug_malloc(0x394f80, 0, "c:\\halo\\SOURCE\\ai\\ai_debug.c", 0x94);
-  }
-  if (*(void **)0x331f58 == NULL || *(void **)0x331f5c == NULL) {
-    display_assert("actor_debug_array && actor_path_debug_array",
-                   "c:\\halo\\SOURCE\\ai\\ai_debug.c", 0x96, 1);
-    system_exit(-1);
-  }
-}
 
 /* ai_debug_dispose: free actor_debug_array and actor_path_debug_array.
  *
@@ -196,6 +124,15 @@ void ai_debug_select_encounter(int encounter_idx)
   }
 }
 
+/* FUN_000494d0: set debug ray-test success flag.
+ *
+ * No __FILE__ string. Called from FUN_000493d0 (ray setup) and
+ * FUN_000494e0 (ray render). */
+void FUN_000494d0(char success)
+{
+  *(uint8_t *)0x5acab9 = success;
+}
+
 /* ai_debug_update: per-tick AI debug update.  Three independent debug actions:
  *
  *   1. Camera-follow (0x5ac9fc):  acquire actor or LOS-hit target, then
@@ -227,7 +164,8 @@ void ai_debug_update(void)
       int actor = player_control_get_unit_index(0);
       if (actor != -1 && object_try_and_get_and_verify_type(actor, 1) != NULL) {
         float pos[3];
-        int bone = biped_find_pathfinding_surface_index(actor, pos);
+        int bone =
+          biped_find_pathfinding_surface_index(actor, (vector3_t *)pos);
         if (bone != -1) {
           *(float *)0x5f91ac = pos[0];
           *(float *)0x5f91b0 = pos[1];
@@ -301,7 +239,7 @@ void ai_debug_update(void)
         FUN_0005e0d0((void *)0x5f91dc, (void *)0x5f91c4, *(int32_t *)0x5f91d0,
                      *(int32_t *)0x5aca10);
       }
-      path_state_build_path((void *)0x5f91dc, (void *)0x60d268);
+      path_state_build_path((unsigned int)0x5f91dc, (unsigned int *)0x60d268);
       *(uint8_t *)0x5f91d8 = 1;
       *(uint8_t *)0x60d2d0 = 1;
       *(int32_t *)0x60d2c8 = game_time_get();
@@ -476,7 +414,7 @@ void ai_debug_initialize_for_new_map(void)
   uint8_t *p;
   int n;
 
-  enc_idx = encounter_get_by_name((const char *)0x5ac9d2);
+  enc_idx = encounter_get_by_name((char *)0x5ac9d2);
   ai_debug_clear_storage();
   if (*(int32_t *)0x5ac9f4 != enc_idx || *(int32_t *)0x5ac9f8 != -1) {
     ai_debug_select_encounter(enc_idx);
