@@ -42,6 +42,289 @@ void FUN_0002f1a0(int actor_handle)
   actor_path_refresh(actor_handle, 1, NULL);
 }
 
+/* FUN_0002f230 (0x2f230): refresh actor path or dispatch to move/firing
+ * position.
+ *
+ * If actor is NOT in move-to-point mode (field_15e != 4):
+ *   copies 6-dword block from +0x400 to +0x46c (if not already done),
+ *   then calls actor_path_refresh(actor_handle, 1, NULL).
+ * If in move-to-point mode and field_3b8 != -1:
+ *   calls actor_move_to_firing_position.
+ * Otherwise falls through to FUN_0002f1a0. */
+void FUN_0002f230(int actor_handle)
+{
+  char *actor;
+  unsigned int *src;
+  unsigned int *dst;
+  int k;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+
+  if (*(short *)(actor + 0x15e) == 4) {
+    if (*(short *)(actor + 0x3b8) == -1) {
+      FUN_0002f1a0(actor_handle);
+      return;
+    }
+    actor_move_to_firing_position(actor_handle, *(short *)(actor + 0x3b8), 0);
+    return;
+  }
+
+  if (*(short *)(actor + 0x46c) != 1) {
+    *(short *)(actor + 0x400) = 1;
+    src = (unsigned int *)(actor + 0x400);
+    dst = (unsigned int *)(actor + 0x46c);
+    for (k = 6; k != 0; k--) {
+      *dst++ = *src++;
+    }
+  }
+  actor_path_refresh(actor_handle, 1, NULL);
+}
+
+/* actor_perception_acknowledge (0x2f2b0)
+ * Acknowledge a damaging prop for an actor. Validates ownership and prop type,
+ * clears acknowledgement fields, sets the acknowledged flag, then dispatches
+ * to the update function.
+ *
+ * Asserts: prop->owner_actor_index == actor_index (line 0x40d)
+ *          prop_acknowledged(prop) — type in [2,3] (line 0x40e)
+ *          prop->orphan_prop_index == NONE (line 0x40f) */
+void actor_perception_acknowledge(int actor_handle, int prop_handle,
+                                  int param_3, char param_4)
+{
+  char *prop;
+
+  prop = (char *)datum_get(*(data_t **)0x5ab23c, prop_handle);
+
+  if (*(int *)(prop + 4) != actor_handle) {
+    display_assert("prop->owner_actor_index == actor_index",
+                   "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x40d, 1);
+    system_exit(-1);
+  }
+
+  if (*(short *)(prop + 0x24) < 2 || *(short *)(prop + 0x24) > 3) {
+    display_assert("prop_acknowledged(prop)",
+                   "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x40e, 1);
+    system_exit(-1);
+  }
+
+  if (*(int *)(prop + 0xc) != -1) {
+    display_assert("prop->orphan_prop_index == NONE",
+                   "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x40f, 1);
+    system_exit(-1);
+  }
+
+  *(char *)(prop + 0xba) = 0;
+  *(char *)(prop + 0xb9) = 0;
+  *(char *)(prop + 0xbb) = 0;
+  *(char *)(prop + 0x64) = 1;
+
+  FUN_00036f20(actor_handle, prop_handle, param_3, param_4);
+}
+
+/* FUN_0002f380 (0x2f380)
+ * Returns the engagement level (0-3) for a prop relative to actor.
+ * 3 = actively targeting/seen; 2/3 = based on orphan state; 0/1/2 = based
+ * on actor awareness level when no prop or no orphan.
+ */
+uint16_t FUN_0002f380(int actor_handle, int prop_handle)
+{
+  char *actor;
+  char *prop;
+  char *orphan;
+  uint16_t r;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (prop_handle != -1) {
+    prop = (char *)datum_get(*(data_t **)0x5ab23c, prop_handle);
+    if (*(int *)(prop + 4) != actor_handle) {
+      display_assert("prop->owner_actor_index == actor_index",
+                     "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x572, 1);
+      system_exit(-1);
+    }
+    if ((*(short *)(prop + 0x24) >= 2 && *(short *)(prop + 0x24) <= 3) ||
+        *(short *)(prop + 0x66) == 1 || *(short *)(prop + 0x66) == 2 ||
+        (*(char *)(prop + 0x60) == 0 &&
+         (*(char *)(prop + 0x127) == 0 || *(short *)(actor + 0x6a) >= 3))) {
+      return 3;
+    }
+    if (*(int *)(prop + 0xc) != -1) {
+      orphan = (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(prop + 0xc));
+      r = (uint16_t)((*(char *)(orphan + 0xb8) != 0) + 2);
+      if (r != 0xffff) {
+        return r;
+      }
+    }
+  }
+  if (*(short *)(actor + 0x6e) >= 2)
+    return 2;
+  return (uint16_t)(*(short *)(actor + 0x6a) >= 3);
+}
+
+/* FUN_0002f5b0 (0x2f5b0)
+ * Compare two prop-like structs by their float[2] field (offset +8).
+ * Returns -1, 0, or 1 (strcmp-style).
+ */
+int FUN_0002f5b0(int param_1, int param_2)
+{
+  float f1;
+  float f2;
+
+  f1 = *(float *)(param_1 + 8);
+  f2 = *(float *)(param_2 + 8);
+  if (f1 < f2)
+    return -1;
+  if (f2 < f1)
+    return 1;
+  return 0;
+}
+
+/* actor_perception_find_prop_pathfinding_location (0x2f910)
+ * Fills prop->pathfinding_surface_index (+0xec) if not already set.
+ * If prop has a vehicle handle (+0x110), uses vehicle_get_estimated_position;
+ * otherwise if unit is a biped, uses biped_find_pathfinding_surface_index.
+ * Output position written to prop->pathfinding_position (+0xf0).
+ */
+void actor_perception_find_prop_pathfinding_location(int actor_handle,
+                                                     int prop_handle)
+{
+  char *prop;
+  int unit_handle;
+
+  prop = (char *)datum_get(*(data_t **)0x5ab23c, prop_handle);
+  if (*(int *)(prop + 4) != actor_handle) {
+    display_assert("prop->owner_actor_index == actor_index",
+                   "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0xe01, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(prop + 0xec) == -1) {
+    if (*(int *)(prop + 0x110) != -1) {
+      *(int *)(prop + 0xec) = vehicle_get_estimated_position(
+        *(int *)(prop + 0x110), (vector3_t *)(prop + 0xf0));
+      return;
+    }
+    unit_handle = *(int *)(prop + 0x18);
+    if (object_try_and_get_and_verify_type(unit_handle, 1) != NULL) {
+      *(int *)(prop + 0xec) = biped_find_pathfinding_surface_index(
+        unit_handle, (vector3_t *)(prop + 0xf0));
+    }
+  }
+}
+
+/* actor_perception_find_killer_prop_index (0x2f9b0)
+ * Find the highest-scoring active damaging prop visible to the unit that owns
+ * the given prop. Similar to actor_get_best_damaging_prop but uses the prop's
+ * owning unit as the source of weapon slots.
+ * flag: when non-zero, require prop visibility; when 0, accept any.
+ */
+int actor_perception_find_killer_prop_index(int actor_handle, int prop_handle,
+                                            int flag)
+{
+  char *prop_rec;
+  char *unit;
+  char *cand_prop;
+  int *slot;
+  int score;
+  int responsible;
+  int cand_handle;
+  int best_handle;
+  int best_score;
+  int count;
+  short prop_type;
+
+  prop_rec = (char *)datum_get(*(data_t **)0x5ab23c, prop_handle);
+  unit = (char *)object_get_and_verify_type(*(int *)(prop_rec + 0x18), 3);
+  best_handle = -1;
+  best_score = 0;
+  slot = (int *)(unit + 0x3e8);
+  count = 4;
+  do {
+    score = slot[-2];
+    responsible = ai_get_responsible_unit((unsigned int)*slot, 1);
+    if (responsible != -1) {
+      cand_handle = prop_get_active_by_unit_index(actor_handle, responsible);
+      if (cand_handle != -1) {
+        cand_prop = (char *)datum_get(*(data_t **)0x5ab23c, cand_handle);
+        prop_type = *(short *)(cand_prop + 0x24);
+        if (prop_type >= 2 && prop_type <= 3) {
+          if (*(char *)(cand_prop + 0x60) != '\0' || flag == '\0') {
+            if (best_score < score) {
+              best_handle = cand_handle;
+              best_score = score;
+            }
+          }
+        }
+      }
+    }
+    slot += 4;
+    count--;
+  } while (count != 0);
+  return best_handle;
+}
+
+/* actor_get_best_damaging_prop (0x2fa70)
+ * Find the highest-scoring active damaging prop visible to the actor's unit.
+ *
+ * Iterates up to 4 weapon slots on the actor's unit object (+0x3e0),
+ * calling ai_get_responsible_unit and prop_get_active_by_unit_index for
+ * each slot. Selects the prop whose slot score (*slot) is greatest among
+ * those with type in [2,3] and either a visibility flag or no-filter mode.
+ *
+ * param_2 (prefer_visible): when 0, accept props regardless of visibility
+ * flag; when non-zero, require prop visibility byte (+0x60) != 0.
+ *
+ * Returns the best damaging prop handle, or -1 if none found.
+ * Asserts damaging_prop_index != 0 (handle 0 is reserved/invalid). */
+int actor_get_best_damaging_prop(int actor_handle, char prefer_visible)
+{
+  char *unit;
+  char *prop_rec;
+  unsigned int *slot;
+  int unit_handle;
+  int unit_result;
+  int prop_handle;
+  unsigned int best_score;
+  int damaging_prop_index;
+  short prop_type;
+  int iter;
+
+  unit_handle = *(int *)((char *)datum_get(actor_data, actor_handle) + 0x18);
+  damaging_prop_index = -1;
+  if (unit_handle != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    best_score = 0;
+    slot = (unsigned int *)(unit + 0x3e0);
+    iter = 4;
+    do {
+      unit_result = ai_get_responsible_unit(slot[2], 1);
+      if (unit_result != -1) {
+        prop_handle = prop_get_active_by_unit_index(actor_handle, unit_result);
+        if (prop_handle != -1) {
+          prop_rec = (char *)datum_get(*(data_t **)0x5ab23c, prop_handle);
+          prop_type = *(short *)(prop_rec + 0x24);
+          if (prop_type >= 2 && prop_type <= 3) {
+            if (*(char *)(prop_rec + 0x60) != '\0' || prefer_visible == '\0') {
+              if (*slot > best_score) {
+                best_score = *slot;
+                damaging_prop_index = prop_handle;
+              }
+            }
+          }
+        }
+      }
+      slot += 4;
+      iter--;
+    } while (iter != 0);
+
+    if (damaging_prop_index == 0) {
+      display_assert("damaging_prop_index != 0x00000000",
+                     "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0xe8e, 1);
+      system_exit(-1);
+    }
+    return damaging_prop_index;
+  }
+  return damaging_prop_index;
+}
+
 /* actor_get_perception_knowledge (0x2fc20)
  * Evaluate whether an actor should engage a prop. Checks prop type,
  * visibility flags, and actor state to determine engagement eligibility.

@@ -7,6 +7,127 @@
 
 #include "../../common.h"
 
+/* actor_update_prop_desire (0x14360)
+ * Update actor's desire to reach its prop target.
+ *
+ * If the actor has no current prop (field_ac == -1) but has a follow-prop
+ * handle (field_a8 != -1), acquires a prop near the follow target via
+ * FUN_00064b40.  Then, if a prop is held, checks whether the prop's type
+ * qualifies (field_32 >= 2) and its distance (field_11c) is within the
+ * actor's tolerance (field_a4), or the prop distance is less than 0.7f; if
+ * so, marks the actor as ready (field_a1 = 1).  When ready, calls
+ * FUN_0002f1a0 (perception acknowledge) and returns the current state byte
+ * (field_a0).  Otherwise tries to move toward the prop via
+ * actor_move_to_prop; sets field_a0 = 1 if no prop at all, or if
+ * actor_move_to_prop returns 0.
+ *
+ * Confirmed: EBX = 1 set at 0x1438c; used as literal arg to FUN_00064b40
+ *   and as byte written to field_a1 at 0x14408 and field_a0 at 0x14447.
+ * Confirmed: actor_move_to_prop pushes [ESI+0xa4] raw (float bits) as 3rd arg.
+ * Confirmed: field_32 comparison is signed short CMP vs 2 (JL 0x143f5).
+ * Confirmed: float threshold at 0x2533c4 = 0.7f (0x3f333333).
+ * Confirmed: early return at 0x1441e returns field_a0 without setting it. */
+char actor_update_prop_desire(int actor_handle)
+{
+  char *actor;
+  char *prop;
+  char a1_flag;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(char *)(actor + 0x4c) == '\0') {
+    return *(char *)(actor + 0xa0);
+  }
+  if ((*(int *)(actor + 0xac) == -1) && (*(int *)(actor + 0xa8) != -1)) {
+    *(int *)(actor + 0xac) =
+      FUN_00064b40(actor_handle, *(int *)(actor + 0xa8), 1, 1);
+  }
+  if (*(int *)(actor + 0xac) == -1) {
+    *(char *)(actor + 0xa0) = 1;
+    return *(char *)(actor + 0xa0);
+  }
+  a1_flag = *(char *)(actor + 0xa1);
+  if (a1_flag == '\0') {
+    prop = (char *)datum_get(prop_data, *(int *)(actor + 0xac));
+    if ((*(short *)(prop + 0x32) >= 2 &&
+         *(float *)(prop + 0x11c) < *(float *)(actor + 0xa4)) ||
+        (*(float *)(prop + 0x11c) < *(float *)0x2533c4)) {
+      *(char *)(actor + 0xa1) = 1;
+    }
+  }
+  if (*(char *)(actor + 0xa1) != '\0') {
+    FUN_0002f1a0(actor_handle);
+    return *(char *)(actor + 0xa0);
+  }
+  if (actor_move_to_prop(actor_handle, *(int *)(actor + 0xac),
+                         *(float *)(actor + 0xa4)) == '\0') {
+    *(char *)(actor + 0xa0) = 1;
+  }
+  return *(char *)(actor + 0xa0);
+}
+
+/* FUN_00014480 (0x14480)
+ * Set up an actor's prop-look reference from its conversation or existing prop.
+ *
+ * Looks up the actor's conversation handle (actor+0x9c).  If a conversation
+ * is active, fetches the conversation record and, if the actor has no current
+ * prop (actor+0xac == -1), looks up the active prop for the conversation's
+ * unit (conversation+0x10) via prop_get_active_by_unit_index.  Then marks
+ * actor+0x3fc = 1 (look-spec active).  If a prop was resolved, sets the
+ * look-type word at actor+0x3e8 = 3, the look-active flag at actor+0x3ec = 1,
+ * and stores the prop handle at actor+0x3f0.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle); ESI = actor record.
+ * Confirmed: CMP dword [ESI+0x9c],-0x1; JZ skip; PUSH [ESI+0x9c]; MOV
+ *   ECX,[0x6324ec]; PUSH ECX; CALL datum_get → EAX = conversation ptr.
+ * Confirmed: MOV ECX,[ESI+0xac]; CMP ECX,-0x1; JZ prop_none;
+ *   MOV EDI,ECX.
+ * Confirmed: TEST EAX,EAX; JZ done; MOV EAX,[EAX+0x10]; CMP EAX,-0x1;
+ *   JZ done; PUSH EAX; PUSH EBX; CALL 0x64ab0 → prop_get_active_by_unit_index.
+ * Confirmed: MOV word [ESI+0x3fc],1; if EDI!=-1: MOV word [ESI+0x3e8],3;
+ *   MOV word [ESI+0x3ec],1; MOV dword [ESI+0x3f0],EDI. */
+void FUN_00014480(int actor_handle)
+{
+  char *actor;
+  char *conversation;
+  int prop_handle;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  conversation = NULL;
+  if (*(int *)(actor + 0x9c) != -1)
+    conversation =
+      (char *)datum_get(*(data_t **)0x6324ec, *(int *)(actor + 0x9c));
+  prop_handle = *(int *)(actor + 0xac);
+  if (prop_handle == -1 && conversation != NULL &&
+      *(int *)(conversation + 0x10) != -1)
+    prop_handle = prop_get_active_by_unit_index(actor_handle,
+                                                *(int *)(conversation + 0x10));
+  *(int16_t *)(actor + 0x3fc) = 1;
+  if (prop_handle != -1) {
+    *(int16_t *)(actor + 0x3e8) = 3;
+    *(int16_t *)(actor + 0x3ec) = 1;
+    *(int *)(actor + 0x3f0) = prop_handle;
+  }
+}
+
+/* actor_set_prop_if_match (0x14510)
+ * Conditionally replace an actor's prop handle if it matches old_prop.
+ *
+ * If the actor's current prop handle at actor+0xac equals old_prop, replace
+ * it with new_prop.  Used to safely swap out a prop reference without
+ * touching actors that already moved to a different prop.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) from decompile.
+ * Confirmed: compare *(int *)(actor+0xac) == old_prop; store new_prop on
+ *   match. */
+void actor_set_prop_if_match(int actor_handle, int old_prop, int new_prop)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(int *)(actor + 0xac) == old_prop) {
+    *(int *)(actor + 0xac) = new_prop;
+  }
+}
+
 /* FUN_00014540 (0x14540)
  * Initialize actor looking state from the scripted look target at activation.
  *
@@ -103,6 +224,31 @@ void FUN_000145f0(int actor_handle)
   actor = (char *)datum_get(actor_data, actor_handle);
   if (*(int *)(actor + 0x1dc) != -1) {
     ai_conversation_finish(*(int *)(actor + 0x1dc), 0, 0);
+  }
+}
+
+/* FUN_00014680 (0x14680)
+ * Countdown timer for actor action state: decrements actor+0x9c when flag
+ * actor+0x484 is set; when the counter hits zero and a pending action state
+ * exists (actor+0x3b8 != -1) with no transition in progress (actor+0x3ba == 0),
+ * dispatches the state via FUN_00024be0.
+ */
+void FUN_00014680(int actor_handle)
+{
+  char *actor;
+  short cnt;
+  short state;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(short *)(actor + 0x9c) > 0 && *(char *)(actor + 0x484) != '\0') {
+    cnt = *(short *)(actor + 0x9c) - 1;
+    *(short *)(actor + 0x9c) = cnt;
+    if (cnt == 0) {
+      state = *(short *)(actor + 0x3b8);
+      if (state != -1 && *(char *)(actor + 0x3ba) == '\0') {
+        FUN_00024be0(actor_handle, state, 0);
+      }
+    }
   }
 }
 
@@ -292,6 +438,216 @@ void FUN_000151b0(int actor_handle)
   }
 }
 
+/* FUN_00015880 (0x15880)
+ * Initializes a guard state block (0x44 bytes) for the given actor.
+ * Copies 3 floats from actor+0x174..0x17c into state_data+0x18..0x20,
+ * sets state_data+0x24 = 1 (short), state_data+0x14 = 1 (byte),
+ * state_data+0x3c = -1 (sentinel), and clears the rest to zero.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) call at 0x15890.
+ * Confirmed: assert on state_data != NULL (line 0x72 in action_guard.c).
+ * Confirmed: csmemset(state_data, 0, 0x44) at 0x158be.
+ * Confirmed: all field offsets from raw disassembly MOV stores.
+ */
+int FUN_00015880(int actor_handle, char *state_data)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (state_data == NULL) {
+    display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_guard.c", 0x72,
+                   1);
+    system_exit(-1);
+  }
+  csmemset(state_data, 0, 0x44);
+  *(short *)(state_data + 0x24) = 1;
+  *(char *)(state_data + 0x14) = 1;
+  *(int *)(state_data + 0x18) = *(int *)(actor + 0x174);
+  *(int *)(state_data + 0x1c) = *(int *)(actor + 0x178);
+  *(int *)(state_data + 0x20) = *(int *)(actor + 0x17c);
+  *(int *)(state_data + 0x3c) = -1;
+  return 1;
+}
+
+/* FUN_00015900 (0x15900)
+ * Initializes a guard state block (0x44 bytes) for the given actor,
+ * conditionally populating fields based on actor flags and param_2.
+ *
+ * If actor+0x160 != 0 OR actor+6 != 0 (actor already has guard/prop state):
+ *   sets state_data+0x24 = 1, state_data+0x3c = -1 and returns 1.
+ * Otherwise writes param_2 to *state_data (short), then:
+ *   - if param_2 == 0: sets state_data+0xe = 1, state_data+0x24 = 0, +0x3c =
+ * -1.
+ *   - if param_2 != 0: sets state_data+0x24 = 1, state_data+0x14 = 1, copies
+ *     actor+0x174..0x17c into state_data+0x18..0x20, state_data+0x3c = -1.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) call at 0x15911.
+ * Confirmed: assert on state_data != NULL (line 0x86 in action_guard.c).
+ * Confirmed: csmemset(state_data, 0, 0x44) at 0x1594b.
+ * Confirmed: all branch conditions and field offsets from raw disassembly.
+ */
+int FUN_00015900(int actor_handle, short param_2, char *state_data)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (state_data == NULL) {
+    display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_guard.c", 0x86,
+                   1);
+    system_exit(-1);
+  }
+  csmemset(state_data, 0, 0x44);
+  if ((*(char *)(actor + 0x160) == '\0') && (*(char *)(actor + 6) == '\0')) {
+    *(short *)state_data = param_2;
+    if (param_2 == 0) {
+      *(char *)(state_data + 0xe) = 1;
+      *(short *)(state_data + 0x24) = 0;
+      *(int *)(state_data + 0x3c) = -1;
+      return 1;
+    }
+    *(short *)(state_data + 0x24) = 1;
+    *(char *)(state_data + 0x14) = 1;
+    *(int *)(state_data + 0x18) = *(int *)(actor + 0x174);
+    *(int *)(state_data + 0x1c) = *(int *)(actor + 0x178);
+    *(int *)(state_data + 0x20) = *(int *)(actor + 0x17c);
+    *(int *)(state_data + 0x3c) = -1;
+    return 1;
+  }
+  *(short *)(state_data + 0x24) = 1;
+  *(int *)(state_data + 0x3c) = -1;
+  return 1;
+}
+
+/* FUN_00015b30 (0x15b30) */
+void FUN_00015b30(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_perception_forget_recent_damage(actor_handle);
+  *(char *)(actor + 0x98) = 0;
+  if (*(char *)(actor + 0xa6) != '\0') {
+    actor_perception_retreat_successful(actor_handle);
+  }
+}
+
+/* actor_clear_guard_state (0x15b70)
+ * Clears the actor's prop/guard encounter state when the prop-ready flag is
+ * set.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) from decompile.
+ * Confirmed: branch on *(char *)(actor+0xa1) != 0 from decompile.
+ * Confirmed: *(int16_t *)(actor+0x1e4) = 0; *(int *)(actor+0x1e8) = -1 from
+ * decompile. Inferred: actor+0xa1 = prop-ready flag (set by
+ * actor_update_prop_desire at 0x14360). Inferred: actor+0x1e4 = guard/prop
+ * state index (int16_t). Inferred: actor+0x1e8 = guard/prop encounter handle,
+ * reset to invalid (-1). */
+void actor_clear_guard_state(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(char *)(actor + 0xa1) != '\0') {
+    *(int16_t *)(actor + 0x1e4) = 0;
+    *(int *)(actor + 0x1e8) = -1;
+  }
+}
+
+/* actor_reset_action_state (0x15eb0)
+ * If actor is active (actor+0xa4 != 0) and in state 3, clears the prop flags
+ * at a4, a6, a8. If state==3 or (state==1 and not suppressed at 0x160),
+ * resets action state: c0=0 (idle), c4=0xffff, aa=1.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x15ebe.
+ * Confirmed: field offsets a4, a6, a8, aa, c0, c4, 160 from disassembly.
+ * Inferred: state 3 = fleeing/post-action; state 1 = normal; 0x160 = suppressed
+ * flag. */
+void actor_reset_action_state(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(char *)(actor + 0xa4) != '\0' && *(int16_t *)(actor + 0xc0) == 3) {
+    *(char *)(actor + 0xa4) = 0;
+    *(int16_t *)(actor + 0xa8) = 0;
+    *(char *)(actor + 0xa6) = 0;
+  }
+  if (*(int16_t *)(actor + 0xc0) == 3 ||
+      (*(int16_t *)(actor + 0xc0) == 1 && *(char *)(actor + 0x160) == '\0')) {
+    *(int16_t *)(actor + 0xc0) = 0;
+    *(int16_t *)(actor + 0xc4) = (int16_t)0xffff;
+    *(char *)(actor + 0xaa) = 1;
+  }
+}
+
+/* actor_clear_flee_target (0x15f30)
+ * If the actor is in flee state (action state 2 at actor+0xc0), clears the
+ * flee target handle at actor+0xd0 to -1 (invalid datum).
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x15f3e.
+ * Confirmed: cmp word ptr [eax+0xc0], 2 and mov dword ptr [eax+0xd0], -1 from
+ * disassembly. Inferred: actor+0xc0 = action state enum; actor+0xd0 =
+ * flee-target datum handle. */
+void actor_clear_flee_target(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(int16_t *)(actor + 0xc0) == 2) {
+    *(int *)(actor + 0xd0) = -1;
+  }
+}
+
+/* actor_replace_prop_handle (0x16000)
+ * Replace all references to old_handle in actor prop fields with new_handle.
+ *
+ * Checks actor+0xd8 (prop field) and actor+0xac (scripted-look prop handle).
+ * If new_handle is -1 (invalid datum), also clears the byte flag at actor+0xab.
+ *
+ * Confirmed: cdecl, three stack args at [EBP+0x8], [EBP+0xC], [EBP+0x10].
+ * Confirmed: datum_get(actor_data=DAT_006325a4, actor_handle) at 0x1600e.
+ * Confirmed: ADD EAX,0x9c at 0x1601c gives base; [EAX+0x3c]=actor+0xd8,
+ *   [EAX+0x10]=actor+0xac, byte [EAX+0x0f]=actor+0xab.
+ * Confirmed: CMP [EAX+0x3c],EDX / MOV [EAX+0x3c],ECX at 0x16024-0x1602b.
+ * Confirmed: CMP [EAX+0x10],EDX / MOV [EAX+0x10],ECX / CMP ECX,-1 /
+ *   MOV byte [EAX+0xf],0 at 0x1602e-0x1603b.
+ * Inferred: actor+0xd8 = prop datum handle; actor+0xac = scripted-look prop
+ * handle; actor+0xab = scripted-look prop valid flag. */
+void actor_replace_prop_handle(int actor_handle, int old_handle, int new_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(int *)(actor + 0xd8) == old_handle) {
+    *(int *)(actor + 0xd8) = new_handle;
+  }
+  if (*(int *)(actor + 0xac) == old_handle) {
+    *(int *)(actor + 0xac) = new_handle;
+    if (new_handle == -1) {
+      *(char *)(actor + 0xab) = 0;
+    }
+  }
+}
+
+/* FUN_00016c40 (0x16c40) */
+void FUN_00016c40(int param_1, int param_2, short param_3, char *param_4)
+{
+  int iVar1;
+  iVar1 = (int)tag_block_get_element(
+      (char *)global_scenario_get() + 0x438, (int)param_3, 0x60);
+  if ((int)(unsigned char)*param_4 >= *(int *)(iVar1 + 0x30)) {
+    *param_4 = (char)0xff;
+  }
+}
+
+/* actor_clear_aim_target (0x17060)
+ * If the actor's aiming-active flag (actor+0xcc) is set, resets the aim
+ * target handle (actor+0xdc) to the -1 sentinel.
+ *
+ * Confirmed: datum_get(DAT_006325a4, param_1) from decompile.
+ * Confirmed: actor+0xcc flag check (char), actor+0xdc reset to 0xffffffff. */
+void actor_clear_aim_target(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(char *)(actor + 0xcc) != '\0') {
+    *(int *)(actor + 0xdc) = -1;
+  }
+}
+
 /* FUN_00017090 (0x17090)
  * Compute actor prop-interest for the prop list at actor+0x9c.
  *
@@ -308,6 +664,40 @@ void FUN_00017090(int actor_handle)
   actor = (char *)datum_get(actor_data, actor_handle);
   actor_look_compute_prop_interest(actor_handle, 0, (short *)(actor + 0x9c),
                                    FUN_00016cd0, 0);
+}
+
+/* FUN_000170c0 (0x170c0)
+ * Compute actor prop-interest for the prop list at actor+0x9c using the
+ * guard-zone boundary callback (FUN_00016c80).
+ *
+ * Same pattern as FUN_00017090 but selects the guard-specific callback.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle);
+ * actor_look_compute_prop_interest with callback=FUN_00016c80, reset=0,
+ * prop_state=actor+0x9c, param_5=0. */
+void FUN_000170c0(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_look_compute_prop_interest(actor_handle, 0, (short *)(actor + 0x9c),
+                                   FUN_00016c80, 0);
+}
+
+/* FUN_000170f0 (0x170f0)
+ * Compute actor prop-interest for the prop list at actor+0x9c using the
+ * danger-zone update callback (FUN_00016cf0).
+ *
+ * Same pattern as FUN_00017090 but selects the danger-update callback.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle);
+ * actor_look_compute_prop_interest with callback=FUN_00016cf0, reset=0,
+ * prop_state=actor+0x9c, param_5=0. */
+void FUN_000170f0(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_look_compute_prop_interest(actor_handle, 0, (short *)(actor + 0x9c),
+                                   FUN_00016cf0, 0);
 }
 
 /* Compute the cross product of two 3D vectors.
@@ -329,6 +719,263 @@ void cross_product3d(float *a, float *b, float *out)
   out[0] = a1 * b2 - a2 * b1;
   out[1] = a2 * b0 - a0 * b2;
   out[2] = a0 * b1 - a1 * b0;
+}
+
+/* FUN_00017940 (0x17940)
+ * Draw a random int16_t in [min, max] using the global random seed.
+ *
+ * Calls get_global_random_seed_address() to obtain a pointer to the global
+ * RNG seed, then passes it together with min and max to random_range.
+ *
+ * Note: MSVC pre-pushed min/max before calling get_global_random_seed_address
+ * (which is void), reusing that stack space.  The seed pointer (EAX) is then
+ * pushed last, making it the first C argument to random_range.
+ *
+ * Confirmed: PUSH EAX (max); PUSH ECX (min); CALL 0x10b0d0
+ *   (get_global_random_seed_address, takes no params); PUSH EAX (seed);
+ *   CALL 0x10b2d0 (random_range); ADD ESP,0xc. */
+int16_t FUN_00017940(int16_t min, int16_t max)
+{
+  return random_range((unsigned int *)get_global_random_seed_address(), min,
+                      max);
+}
+
+/* FUN_00019280 (0x19280)
+ * Compute actor prop-interest for the prop list at actor+0x9c using the
+ * scripted-look update callback (FUN_00019230).
+ *
+ * Same pattern as FUN_00017090 but selects the scripted-look callback.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle);
+ * actor_look_compute_prop_interest with callback=FUN_00019230, reset=0,
+ * prop_state=actor+0x9c, param_5=0. */
+void FUN_00019280(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  actor_look_compute_prop_interest(actor_handle, 0, (short *)(actor + 0x9c),
+                                   FUN_00019230, 0);
+}
+
+/* FUN_00019750 (0x19750)
+ * Initialize action_search state for a non-retreating actor (type 0).
+ *
+ * Validates state_data != NULL, zeros the 0x2c-byte buffer, then if the
+ * actor is not in retreat (actor+0x160 == 0) fills in the initial state:
+ * type=0 at state_data+8, param flag at state_data+5, and marks actor
+ * as active (actor+0x98 = 1). Returns 1 on success, 0 if retreating.
+ *
+ * Confirmed: display_assert "state_data", action_search.c line 0x21.
+ * Confirmed: csmemset(state_data, 0, 0x2c); actor+0x160 branch. */
+int FUN_00019750(int actor_handle, char param_2, char *state_data)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (state_data == NULL) {
+    display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_search.c", 0x21,
+                   1);
+    system_exit(-1);
+  }
+  csmemset(state_data, 0, 0x2c);
+  if (*(char *)(actor + 0x160) == '\0') {
+    *(short *)(state_data + 8) = 0;
+    *(char *)(state_data + 5) = param_2;
+    *(char *)(actor + 0x98) = 1;
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_000198d0 (0x198d0)
+ * Initialize action_search state for a berserk actor (type 2).
+ *
+ * Validates state_data != NULL, zeros the 0x2c-byte buffer, then if the
+ * actor is berserk (actor+6 != 0) sets state type=2 at state_data+8 and
+ * marks actor as active (actor+0x98 = 1). Returns 1 on success, 0 if
+ * not berserk.
+ *
+ * Confirmed: display_assert "state_data", action_search.c line 0x57.
+ * Confirmed: csmemset(state_data, 0, 0x2c); actor+6 branch; type=2. */
+int FUN_000198d0(int actor_handle, int param_2, char *state_data)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (state_data == NULL) {
+    display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_search.c", 0x57,
+                   1);
+    system_exit(-1);
+  }
+  csmemset(state_data, 0, 0x2c);
+  if (*(char *)(actor + 6) != '\0') {
+    *(short *)(state_data + 8) = 2;
+    *(char *)(actor + 0x98) = 1;
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_00019ac0 (0x19ac0)
+ * Mark actor look-state as interrupted (target type 1 path).
+ *
+ * If the look-target type word at actor+0xa4 equals 1, clears the
+ * target-acquired index at actor+0xa6 (set to 0xffff = none) and
+ * sets the look-state byte at actor+0x9c to 1.
+ *
+ * Confirmed: ADD EAX,0x9c after datum_get; CMP word [EAX+0x8],0x1;
+ *   MOV word [EAX+0xa],0xffff; MOV byte [EAX],0x1. */
+void FUN_00019ac0(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(short *)(actor + 0xa4) == 1) {
+    *(short *)(actor + 0xa6) = (short)0xffff;
+    *(char *)(actor + 0x9c) = 1;
+  }
+}
+
+/* FUN_00019af0 (0x19af0)
+ * Reset actor look-target handles to invalid (-1).
+ *
+ * Unconditionally clears actor+0xa8 (int16_t) and actor+0xac (int32_t)
+ * to -1 (all-bits-set via OR ECX,0xffffffff).
+ *
+ * Confirmed: ADD EAX,0x9c after datum_get; OR ECX,0xffffffff;
+ *   MOV word [EAX+0xc],CX (actor+0xa8); MOV dword [EAX+0x10],ECX (actor+0xac).
+ */
+void FUN_00019af0(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  *(short *)(actor + 0xa8) = -1;
+  *(int *)(actor + 0xac) = -1;
+}
+
+/* FUN_0001a050 (0x1a050)
+ * Clear the look-spec type word at actor+0x3fc.
+ *
+ * Sets actor+0x3fc to 0 (int16_t write, zero-extending).
+ *
+ * Confirmed: CALL datum_get; ADD ESP,0x8;
+ *   MOV word [EAX+0x3fc],0x0. */
+void FUN_0001a050(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  *(short *)(actor + 0x3fc) = 0;
+}
+
+/* FUN_0001a080 (0x1a080)
+ * Initialize action_uncover state data for a non-retreating, non-berserk actor.
+ *
+ * Validates state_data != NULL, zeros the 0x34-byte buffer, then checks
+ * two actor flags: if the actor is not retreating (actor+0x160 == 0) AND
+ * not berserk (actor+6 == 0), fills in the initial state: type=0 at
+ * state_data+8, param_2 at state_data+3, and returns 1.  Returns 0 if
+ * either flag is set.
+ *
+ * Confirmed: display_assert "state_data", action_uncover.c line 0x22.
+ * Confirmed: csmemset(state_data, 0, 0x34); MOV word [state_data+8],0x0.
+ * Confirmed: MOV byte [state_data+3],param_2; actor+0x160 and actor+6 checks.
+ * Confirmed: MOV AL,0x1 (success path); MOV AL,BL (BL=0, failure path). */
+int FUN_0001a080(int actor_handle, char param_2, char *state_data)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (state_data == NULL) {
+    display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_uncover.c", 0x22,
+                   1);
+    system_exit(-1);
+  }
+  csmemset(state_data, 0, 0x34);
+  if ((*(char *)(actor + 0x160) == '\0') && (*(char *)(actor + 6) == '\0')) {
+    *(short *)(state_data + 8) = 0;
+    *(char *)(state_data + 3) = param_2;
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_0001a590 (0x1a590)
+ * Mark actor look-state as interrupted (target type 1 path, byte +0x9d).
+ *
+ * If the look-target type word at actor+0xa4 equals 1, clears the
+ * target-acquired index at actor+0xa6 (set to 0xffff = none) and
+ * sets the look-state byte at actor+0x9d to 1.  Differs from FUN_00019ac0
+ * only in the byte offset written: 0x9d vs 0x9c.
+ *
+ * Confirmed: ADD EAX,0x9c; MOV ECX,0x1; CMP word [EAX+0x8],CX;
+ *   MOV word [EAX+0xa],0xffff; MOV byte [EAX+0x1],CL. */
+void FUN_0001a590(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(short *)(actor + 0xa4) == 1) {
+    *(short *)(actor + 0xa6) = (short)0xffff;
+    *(char *)(actor + 0x9d) = 1;
+  }
+}
+
+/* FUN_0001a5d0 (0x1a5d0)
+ * Reset actor look-target handles to invalid (-1).
+ *
+ * Identical body to FUN_00019af0: clears actor+0xa8 (int16_t) and
+ * actor+0xac (int32_t) to -1.  Compiled as a separate function at a
+ * different address.
+ *
+ * Confirmed: ADD EAX,0x9c; OR ECX,0xffffffff;
+ *   MOV word [EAX+0xc],CX (actor+0xa8); MOV dword [EAX+0x10],ECX (actor+0xac).
+ */
+void FUN_0001a5d0(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  *(short *)(actor + 0xa8) = -1;
+  *(int *)(actor + 0xac) = -1;
+}
+
+/* FUN_0001aae0 (0x1aae0)
+ * Get an object's bounding sphere (center and radius).
+ *
+ * Resolves the object via object_get_and_verify_type with type_mask=0xffffffff
+ * (all types accepted).  Asserts that center and radius pointers are non-NULL.
+ * Copies the three-float center position from object+0x50..0x58 and the scalar
+ * radius from object+0x5c.
+ *
+ * Confirmed: PUSH -0x1; PUSH param_1; CALL 0x13d680
+ * (object_get_and_verify_type). Confirmed: MOV ESI,[EBP+0xc] (center); TEST
+ * ESI,ESI; JNZ ok; display_assert("center","..\\objects\\objects.h",0x217,1);
+ * system_exit(-1). Confirmed: MOV EBX,[EBP+0x10] (radius); TEST EBX,EBX; JNZ
+ * ok; display_assert("radius","..\\objects\\objects.h",0x218,1);
+ * system_exit(-1). Confirmed: LEA ECX,[EDI+0x50]; MOV EDX,[ECX]; MOV [ESI],EDX;
+ *   MOV EAX,[ECX+0x4]; MOV [ESI+0x4],EAX; MOV ECX,[ECX+0x8]; MOV [ESI+0x8],ECX;
+ *   MOV EDX,[EDI+0x5c]; MOV [EBX],EDX. */
+void FUN_0001aae0(int object_handle, float *center, float *radius)
+{
+  char *obj;
+  obj = (char *)object_get_and_verify_type(object_handle, 0xffffffff);
+  if (center == NULL) {
+    display_assert("center", "..\\objects\\objects.h", 0x217, 1);
+    system_exit(-1);
+  }
+  if (radius == NULL) {
+    display_assert("radius", "..\\objects\\objects.h", 0x218, 1);
+    system_exit(-1);
+  }
+  center[0] = *(float *)(obj + 0x50);
+  center[1] = *(float *)(obj + 0x54);
+  center[2] = *(float *)(obj + 0x58);
+  *radius = *(float *)(obj + 0x5c);
+}
+
+/* FUN_0001abd0 (0x1abd0)
+ * Clear actor look-at target: set the 32-bit field at actor+0xe4 to -1
+ * (null/invalid handle sentinel).
+ */
+void FUN_0001abd0(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  *(int *)(actor + 0xe4) = -1;
 }
 
 /* FUN_00027870 (0x27870)
@@ -355,7 +1002,8 @@ void FUN_00027870(int actor_handle)
   char *desc;
   actor = (char *)datum_get(actor_data, actor_handle);
   if (*(short *)(actor + 0x544) > 0 && *(char *)0x5aca5d != '\0') {
-    desc = ai_debug_describe_actor(actor_handle, -1, 0, error_string_buffer, 0x100);
+    desc =
+      ai_debug_describe_actor(actor_handle, -1, 0, error_string_buffer, 0x100);
     console_printf(0, "%s: look-stop", desc);
   }
   *(short *)(actor + 0x546) = 0;
