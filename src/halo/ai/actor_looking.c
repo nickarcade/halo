@@ -7,6 +7,49 @@
 
 #include "../../common.h"
 
+/* FUN_000142a0 (0x142a0)
+ * Conversation action initializer (action_converse.c, line 0x21).
+ * Validates actor, looks up the conversation datum via 0x6324ec, fetches the
+ * scenario conversation entry at scenario+0x468[*(short*)(action_ref+2)],
+ * and populates state_data (20 bytes): [0]=action_handle, float@+8 from
+ * tag+0x28, [3]=speaker_handle (if float==REAL_NONE) else -1, [4]=-1,
+ * byte@+5=0. Returns 1 always.
+ *
+ * Confirmed: first datum_get(actor_data, actor_handle) result is discarded.
+ * Confirmed: FCOMP+TEST AH,0x44+JP at 0x1432f — JP taken when PF=1 (NOT equal/NaN)
+ *   → speaker handle; fall-through (equal) → -1. */
+char FUN_000142a0(int actor_handle, int action_handle, int *state_data)
+{
+  char *action_ref;
+  char *tag_elem;
+  float fVar1;
+  int speaker;
+
+  datum_get(actor_data, actor_handle);
+  action_ref = (char *)datum_get(*(data_t **)0x6324ec, action_handle);
+  tag_elem =
+    (char *)tag_block_get_element((char *)global_scenario_get() + 0x468,
+                                  (int)*(int16_t *)(action_ref + 2), 0x74);
+  if (state_data == (int *)0) {
+    display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_converse.c",
+                   0x21, 1);
+    system_exit(-1);
+  }
+  csmemset(state_data, 0, 0x14);
+  *state_data = action_handle;
+  fVar1 = *(float *)(tag_elem + 0x28);
+  *(float *)((char *)state_data + 8) = fVar1;
+  if (fVar1 == *(float *)0x2533c0) {
+    speaker = -1;
+  } else {
+    speaker = *(int *)(action_ref + 0x10);
+  }
+  state_data[3] = speaker;
+  state_data[4] = -1;
+  *(char *)((char *)state_data + 5) = 0;
+  return 1;
+}
+
 /* actor_update_prop_desire (0x14360)
  * Update actor's desire to reach its prop target.
  *
@@ -63,6 +106,13 @@ char actor_update_prop_desire(int actor_handle)
     *(char *)(actor + 0xa0) = 1;
   }
   return *(char *)(actor + 0xa0);
+}
+
+/* FUN_00014460 (0x14460)
+ * Validate actor handle by performing a datum lookup (result discarded). */
+void FUN_00014460(int actor_handle)
+{
+  datum_get(actor_data, actor_handle);
 }
 
 /* FUN_00014480 (0x14480)
@@ -225,6 +275,25 @@ void FUN_000145f0(int actor_handle)
   if (*(int *)(actor + 0x1dc) != -1) {
     ai_conversation_finish(*(int *)(actor + 0x1dc), 0, 0);
   }
+}
+
+/* FUN_00014620 (0x14620)
+ * Initialize action fight state: asserts non-null state pointer, zeroes 4
+ * bytes, returns true.
+ *
+ * Confirmed: cdecl, two args: [EBP+0x8]=actor_handle (unused),
+ * [EBP+0xc]=state_data. Confirmed: TEST ESI,ESI at 0x14627;
+ * csmemset(state_data,0,4) at 0x1464d. Confirmed: MOV AL,0x1 at 0x14655 (byte
+ * return). */
+char FUN_00014620(int actor_handle, void *state_data)
+{
+  if (state_data == NULL) {
+    display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_fight.c", 0x1e,
+                   1);
+    system_exit(-1);
+  }
+  csmemset(state_data, 0, 4);
+  return 1;
 }
 
 /* FUN_00014680 (0x14680)
@@ -438,6 +507,113 @@ void FUN_000151b0(int actor_handle)
   }
 }
 
+/* FUN_00015250 (0x15250)
+ * Classify the actor's current looking state and configure the firing-position
+ * state block fields from live actor data.
+ *
+ * First, selects a look-mode value written to actor+0x3e8 (the enum field at
+ * offset 1000).  Priority order:
+ *   1. If actor+0xa8 >= 1 (has props? look-state > 0):
+ *        mode=6, actor+0x3ec=0, actor+0x456=1.
+ *   2. Else if actor+0x270 != -1 and prop_data[actor+0x270]+0x32 > 0:
+ *        mode=7, actor+0x3ec=2, actor+0x454=1.  (forward goto to shared tail)
+ *   3. Else if actor+0xb8 == -1:
+ *        mode=0.
+ *   4. Else:
+ *        mode=3, actor+0x3ec=1, actor+0x3f0 = actor+0xb8.
+ *
+ * Shared tail (always executed):
+ *   - actor+0x3fc = 4
+ *   - actor+0x428 = (actor+0xa8 > 0) (bool byte)
+ *   - actor+0x429 = (actor+0xa8 in [9,12])
+ *   - actor+0x426 = 1, actor+0x427 = 0
+ *   - actor+0x424 = 1, actor+0x425 = 0
+ *
+ * Then dispatches the look target:
+ *   - If actor+0xa4 == -1: call FUN_0002f1a0 and return.
+ *   - If actor+0x4c != 0: try actor_move_to_firing_position.
+ *     On success: copy actor+0xa4..0xa6 into actor+0x3b8..0x3ba and return.
+ *     On failure: if actor+0x3b8 != -1, dispatch FUN_00024be0 + FUN_0002f1a0
+ *                 and clear 0x3b8.  Then set actor+0xa4=-1, actor+0xa2=1.
+ *
+ * Note: The original has a goto from branch 2 to the shared tail, bypassing
+ * branches 3 and 4.  Restructured here with a `handled` flag (no C89 goto).
+ * This produces TEST+JNZ instead of a JMP in VC71, which is a known structural
+ * ceiling.  Disassembly cross-check not performed (Ghidra MCP unavailable at
+ * lift time).
+ *
+ * Confirmed (decompilation): datum_get(actor_data, actor_handle) at entry;
+ *   prop_data lookup at actor+0x270; sentinel comparisons -1 on actor+0xb8,
+ *   actor+0xa4, actor+0x3b8.
+ * Inferred: actor+0xa8 = look state (int16_t); actor+0x270 = prop handle (int);
+ *   actor+0x4c = is_vehicle/prop flag (byte); actor+0x3b8 = cached look target;
+ *   actor+0x3ec, 0x3fc = look-mode sub-fields; 0x424-0x429 = look flags. */
+void FUN_00015250(int actor_handle)
+{
+  char *actor;
+  char *prop;
+  char move_result;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+
+  if (*(short *)(actor + 0xa8) > 0) {
+    *(short *)(actor + 0x3e8) = 6;
+    *(short *)(actor + 0x3ec) = 0;
+    *(char *)(actor + 0x456) = 1;
+  } else {
+    if (*(int *)(actor + 0x270) != -1) {
+      prop = (char *)datum_get(prop_data, *(int *)(actor + 0x270));
+      if (*(short *)(prop + 0x32) > 0) {
+        *(short *)(actor + 0x3e8) = 7;
+        *(short *)(actor + 0x3ec) = 2;
+        *(char *)(actor + 0x454) = 1;
+        goto FUN_00015250_tail;
+      }
+    }
+    if (*(int *)(actor + 0xb8) != -1) {
+      *(short *)(actor + 0x3e8) = 3;
+      *(short *)(actor + 0x3ec) = 1;
+      *(int *)(actor + 0x3f0) = *(int *)(actor + 0xb8);
+    } else {
+      *(short *)(actor + 0x3e8) = 0;
+    }
+  }
+FUN_00015250_tail:
+
+  *(short *)(actor + 0x3fc) = 4;
+  *(char *)(actor + 0x428) = *(short *)(actor + 0xa8) > 0;
+  if (*(short *)(actor + 0xa8) >= 9 && *(short *)(actor + 0xa8) <= 0xc) {
+    *(char *)(actor + 0x429) = 1;
+  } else {
+    *(char *)(actor + 0x429) = 0;
+  }
+  *(char *)(actor + 0x426) = 1;
+  *(char *)(actor + 0x427) = 0;
+  *(char *)(actor + 0x424) = 1;
+  *(char *)(actor + 0x425) = 0;
+
+  if (*(short *)(actor + 0xa4) == -1) {
+    FUN_0002f1a0(actor_handle);
+    return;
+  }
+  if (*(char *)(actor + 0x4c) != 0) {
+    move_result =
+      actor_move_to_firing_position(actor_handle, *(short *)(actor + 0xa4), 0);
+    if (move_result != 0) {
+      *(short *)(actor + 0x3b8) = *(short *)(actor + 0xa4);
+      *(char *)(actor + 0x3ba) = *(char *)(actor + 0xa6);
+      return;
+    }
+    if (*(short *)(actor + 0x3b8) != -1) {
+      FUN_00024be0(actor_handle, *(short *)(actor + 0x3b8), 0);
+      FUN_0002f1a0(actor_handle);
+      *(short *)(actor + 0x3b8) = -1;
+    }
+    *(short *)(actor + 0xa4) = -1;
+    *(char *)(actor + 0xa2) = 1;
+  }
+}
+
 /* FUN_00015880 (0x15880)
  * Initializes a guard state block (0x44 bytes) for the given actor.
  * Copies 3 floats from actor+0x174..0x17c into state_data+0x18..0x20,
@@ -622,15 +798,93 @@ void actor_replace_prop_handle(int actor_handle, int old_handle, int new_handle)
   }
 }
 
+/* FUN_00016ff0 (0x16ff0)
+ * Update actor scripted-look prop interest, or invalidate if out of range.
+ *
+ * Fetches actor record; prop_state = (short*)(actor+0x9c).  If the prop
+ * index (*prop_state) is valid (>= 0) and within the scenario prop count
+ * (*(int*)(scenario+0x438)), delegates to actor_look_compute_prop_interest
+ * with reset=0, callback=FUN_00016c40, param_5=0.  Otherwise marks the
+ * prop as invalid: *prop_state = -1, actor+0xa1 = 1, then calls
+ * actor_action_change(actor_handle, 0, 0).
+ *
+ * Confirmed: cdecl, single stack arg (actor_handle).
+ * Confirmed: datum_get(actor_data, actor_handle); ADD ESI,0x9c.
+ * Confirmed: MOV CX,[ESI]; TEST CX,CX; JL else; MOV EDX,[EAX+0x438].
+ * Confirmed: MOV word [ESI],0xffff; MOV byte [ESI+0x5],0x1 in else-branch.
+ * Confirmed: CALL actor_action_change(actor_handle, 0, 0) in else-branch.
+ * Inferred: actor+0x9c = scripted-look prop state (short index);
+ *   actor+0xa1 = scripted-look valid flag; scenario+0x438 = prop count. */
+void FUN_00016ff0(int actor_handle)
+{
+  int scenario;
+  char *actor;
+  short *prop_state;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  prop_state = (short *)(actor + 0x9c);
+  scenario = (int)global_scenario_get();
+  if ((*prop_state >= 0) && ((int)*prop_state < *(int *)(scenario + 0x438))) {
+    actor_look_compute_prop_interest(actor_handle, 0, prop_state,
+                                     (void (*)(void))FUN_00016c40, 0);
+    return;
+  }
+  *prop_state = -1;
+  *(char *)(actor + 0xa1) = 1;
+  actor_action_change(actor_handle, 0, 0);
+}
+
+/* FUN_00016960 (0x16960)
+ * Three-way float comparator: -1 if *a < *b, 1 if *a > *b, 0 if equal.
+ *
+ * Confirmed: FLD [ECX] / FCOMP [EDX] for both comparisons (param_1=ECX,
+ * param_2=EDX). First: TEST AH,0x5; JP (jump if not-less). Second: TEST
+ * AH,0x41; JNZ (jump if equal-or-less → return 0). Fall-through → return 1.
+ * Confirmed: MOV EAX,0xffffffff / MOV EAX,0x1 / XOR EAX,EAX returns. */
+int FUN_00016960(float *param_1, float *param_2)
+{
+  if (*param_1 < *param_2) {
+    return -1;
+  }
+  if (*param_1 > *param_2) {
+    return 1;
+  }
+  return 0;
+}
+
 /* FUN_00016c40 (0x16c40) */
 void FUN_00016c40(int param_1, int param_2, short param_3, char *param_4)
 {
   int iVar1;
-  iVar1 = (int)tag_block_get_element(
-      (char *)global_scenario_get() + 0x438, (int)param_3, 0x60);
+  iVar1 = (int)tag_block_get_element((char *)global_scenario_get() + 0x438,
+                                     (int)param_3, 0x60);
   if ((int)(unsigned char)*param_4 >= *(int *)(iVar1 + 0x30)) {
     *param_4 = (char)0xff;
   }
+}
+
+/* FUN_00016c80 (0x16c80) — Scenario encounter guard-zone boundary callback.
+ * Checks if the encounter element at param_3 has the 0x10 flag set at +0x20.
+ * If so, sets bit 0x1000 in the object's flags at +0x1b4. */
+void FUN_00016c80(int param_1, int param_2, short param_3)
+{
+  char *elem;
+  char *obj;
+  elem = (char *)tag_block_get_element((char *)global_scenario_get() + 0x438,
+                                       (int)param_3, 0x60);
+  if ((*(unsigned char *)(elem + 0x20) & 0x10) != 0) {
+    obj = (char *)object_get_and_verify_type(param_2, 3);
+    *(unsigned int *)(obj + 0x1b4) = *(unsigned int *)(obj + 0x1b4) | 0x1000;
+  }
+}
+
+/* FUN_00016cd0 (0x16cd0) — Prop-interest reset callback.
+ * Sets bit 3 (0x08) and clears bit 4 (0x10) in byte at param_4+4.
+ * Called by actor_look_compute_prop_interest as the reset callback.
+ * Dispatcher passes: (actor_handle, object_handle, index, state_data_ptr, ...)
+ */
+void FUN_00016cd0(int param_1, int param_2, int param_3, char *param_4)
+{
+  param_4[4] = (param_4[4] & (char)0xef) | 8;
 }
 
 /* actor_clear_aim_target (0x17060)
@@ -663,7 +917,7 @@ void FUN_00017090(int actor_handle)
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
   actor_look_compute_prop_interest(actor_handle, 0, (short *)(actor + 0x9c),
-                                   FUN_00016cd0, 0);
+                                   (void (*)(void))FUN_00016cd0, 0);
 }
 
 /* FUN_000170c0 (0x170c0)
@@ -680,7 +934,7 @@ void FUN_000170c0(int actor_handle)
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
   actor_look_compute_prop_interest(actor_handle, 0, (short *)(actor + 0x9c),
-                                   FUN_00016c80, 0);
+                                   (void (*)(void))FUN_00016c80, 0);
 }
 
 /* FUN_000170f0 (0x170f0)
@@ -697,7 +951,7 @@ void FUN_000170f0(int actor_handle)
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
   actor_look_compute_prop_interest(actor_handle, 0, (short *)(actor + 0x9c),
-                                   FUN_00016cf0, 0);
+                                   (void (*)(void))FUN_00016cf0, 0);
 }
 
 /* Compute the cross product of two 3D vectors.
@@ -754,7 +1008,7 @@ void FUN_00019280(int actor_handle)
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
   actor_look_compute_prop_interest(actor_handle, 0, (short *)(actor + 0x9c),
-                                   FUN_00019230, 0);
+                                   (void (*)(void))FUN_00019230, 0);
 }
 
 /* FUN_00019750 (0x19750)
@@ -967,6 +1221,27 @@ void FUN_0001aae0(int object_handle, float *center, float *radius)
   *radius = *(float *)(obj + 0x5c);
 }
 
+/* FUN_0001ab70 (0x1ab70) — Initialize actor look-at snapshot.
+ * Clears the look-at timer (actor+0xaa), records current game time at
+ * actor+0xac, and copies the 3-float vector at actor+0x12c into actor+0xb0. */
+void FUN_0001ab70(int actor_handle)
+{
+  char *actor;
+  char *src;
+  int t;
+  int v;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  *(short *)(actor + 0xaa) = 0;
+  t = game_time_get();
+  *(int *)(actor + 0xac) = t;
+  src = actor + 0x12c;
+  v = *(int *)src;
+  actor += 0xb0;
+  *(int *)actor = v;
+  *(int *)(actor + 4) = *(int *)(src + 4);
+  *(int *)(actor + 8) = *(int *)(src + 8);
+}
+
 /* FUN_0001abd0 (0x1abd0)
  * Clear actor look-at target: set the 32-bit field at actor+0xe4 to -1
  * (null/invalid handle sentinel).
@@ -1057,6 +1332,16 @@ void FUN_0002a2b0(int actor_handle)
   actor[0x505] = 0;
 }
 
+/* FUN_0002a330 (0x2a330) — Set actor 'looking' active flags.
+ * Sets the byte at actor+0x402 and actor+0x46e both to 1. */
+void FUN_0002a330(int actor_handle)
+{
+  char *actor;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  *(char *)(actor + 0x402) = 1;
+  *(char *)(actor + 0x46e) = 1;
+}
+
 /* FUN_0002a3d0 (0x2a3d0)
  * Return the in-vehicle / mounted flag byte for the actor.
  *
@@ -1071,4 +1356,29 @@ char FUN_0002a3d0(int actor_handle)
 {
   char *actor = (char *)datum_get(actor_data, actor_handle);
   return actor[0x4a8];
+}
+
+/* FUN_0002a3f0 (0x2a3f0) — Check if actor can move (not on active path and
+ * is_moving). Returns 0 if path_active (+0x4a8) is set AND is_moving (+0x484)
+ * is clear, else 1. */
+int FUN_0002a3f0(int actor_handle)
+{
+  char *actor;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(char *)(actor + 0x4a8) != 0 && *(char *)(actor + 0x484) == 0)
+    return 0;
+  return 1;
+}
+
+/* FUN_0002a430 (0x2a430) — Get actor activation value if activation state is 3.
+ * Returns actor[+0x470] (short) if actor[+0x46c] == 3, else -1. */
+short FUN_0002a430(int actor_handle)
+{
+  char *actor;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(short *)(actor + 0x46c) == 3)
+    return *(short *)(actor + 0x470);
+  return -1;
 }

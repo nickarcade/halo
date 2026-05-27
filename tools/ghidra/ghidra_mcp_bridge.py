@@ -25,7 +25,7 @@ GHIDRA_BASE = "http://localhost:8089"
 
 _SCHEMA_TTL_S = 300
 _HEALTH_CHECK_S = 30
-_MAX_CONCURRENT = 4
+_MAX_CONCURRENT = 10
 _TOOL_TIMEOUT_S = 60
 _SESSION_GC_S = 60
 
@@ -225,7 +225,8 @@ def _ensure_loaded() -> None:
             if _schema_loaded_at:
                 _log(f"Schema refresh failed (serving cached {len(_tools)} tools): {exc}")
                 return
-            raise
+            _log(f"Schema load failed (Ghidra not ready, returning empty tools): {exc}")
+            return
 
 
 @server.list_tools()
@@ -354,6 +355,7 @@ class _SSEEndpoint:
                     streams[0],
                     streams[1],
                     self._mcp_server.create_initialization_options(),
+                    stateless=True,
                 )
         finally:
             _active_sessions -= 1
@@ -433,7 +435,8 @@ async def main() -> None:
 
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
-                read_stream, write_stream, server.create_initialization_options()
+                read_stream, write_stream, server.create_initialization_options(),
+                stateless=True,
             )
         return
 

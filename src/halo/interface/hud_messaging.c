@@ -19,6 +19,18 @@ void FUN_000d46a0(void)
   csmemset(buf, 0, 0x11a8);
 }
 
+/* FUN_000d46d0 (0xd46d0)
+ * Shared RET stub, tail-called from hud_dispose_from_old_map. Empty body. */
+void FUN_000d46d0(void)
+{
+}
+
+/* FUN_000d46e0 (0xd46e0)
+ * Shared RET stub, tail-called from hud_dispose. Empty body. */
+void FUN_000d46e0(void)
+{
+}
+
 /* Find a message slot in the 4-entry array at base (each 0x8c bytes).
  * Prefers: exact match (tag_handle + param2), then free slot, then oldest.
  * tag_handle passed in ESI (register arg). */
@@ -242,5 +254,62 @@ void hud_messaging_dispose_from_old_map(void)
 /* hud_messaging_dispose: no-op stub.
  * Called from hud_dispose (0xd0340). */
 void hud_messaging_dispose(void)
+{
+}
+
+/* FUN_000d7330 (0xd7330)
+ * Initialize unit_hud_globals: clears the global buffer (0x164 bytes),
+ * then for each of 4 local players sets float fields to -1.0f (0xbf800000),
+ * marks int fields as -1, and fills remaining slot bytes with 0xff. */
+void FUN_000d7330(void)
+{
+  int *slot;
+  int i;
+  int16_t j;
+
+  if (*(void **)0x46bd20 == 0) {
+    display_assert("unit_hud_globals",
+                   "c:\\halo\\SOURCE\\interface\\hud_unit.c", 0x11b, 1);
+    system_exit(-1);
+  }
+  csmemset(*(void **)0x46bd20, 0, 0x164);
+  j = 0;
+  i = 0;
+  do {
+    if ((j < 0) || (3 < j)) {
+      display_assert("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\interface\\hud_unit.c", 0x106, 1);
+      system_exit(-1);
+    }
+    if (*(void **)0x46bd20 == 0) {
+      display_assert("unit_hud_globals",
+                     "c:\\halo\\SOURCE\\interface\\hud_unit.c", 0x107, 1);
+      system_exit(-1);
+    }
+    slot = (int *)(i + *(int *)0x46bd20);
+    csmemset((char *)slot + 0x22, 0xff, 2);
+    slot[1] = (int)0xbf800000;
+    slot[0] = (int)0xbf800000;
+    slot[5] = -1;
+    slot[6] = -1;
+    slot[2] = (int)0xbf800000;
+    slot[7] = -1;
+    *(int16_t *)((char *)slot + 0x24) = 0;
+    csmemset((char *)slot + 0x28, 0xff, 0x30);
+    j++;
+    i += 0x58;
+  } while (j < 4);
+}
+
+/* FUN_000d7420 (0xd7420)
+ * Shared RET stub, tail-called from hud_dispose_from_old_map. Empty body. */
+void FUN_000d7420(void)
+{
+}
+
+/* FUN_000d7430 (0xd7430)
+ * Shared RET stub, tail-called from hud_dispose. Empty body. */
+void FUN_000d7430(void)
 {
 }

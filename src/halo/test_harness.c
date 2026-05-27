@@ -30,6 +30,8 @@ extern void scalars_interpolate_and_clamp_0_to_1(float a, float b, float t,
 extern uint32_t FUN_000d1c90(float *color);
 extern void FUN_001bd5f0(void);
 extern void *csmemset(void *buffer, int c, size_t size);
+extern void crc_new(uint32_t *checksum);
+extern void crc_checksum_buffer(uint32_t *checksum, void *data, int size);
 
 
 static int check(const char *name, uint32_t got, uint32_t expected, char *buf)
@@ -286,22 +288,30 @@ void run_tests(void)
     dump_float_case("matrix_inverse", "mat_inv_rot_trans", dst_mat, 12, buf);
   }
 
-  /* matrix4x3_multiply */
+  /* matrix4x3_multiply: layout is [scale, 3x3-rotation, tx, ty, tz] = 13 floats.
+   * mat_a = identity rotation, scale 1.0, translation (1, 2, 3).
+   * mat_b = 90-degree Z rotation, scale 1.0, translation (5, 5, 5).
+   * Expected: scale=1, rot=B*A, trans=B_trans*A_rot*A_scale+A_trans=(6,7,8). */
   {
-    float mat_a[12] = { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
-                        0.0f, 0.0f, 1.0f, 1.0f, 2.0f, 3.0f };
-    float mat_b[12] = { 0.0f, 1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
-                        0.0f, 0.0f, 1.0f, 5.0f,  5.0f, 5.0f };
-    float out_mat[12];
+    float mat_a[13] = { 1.0f,
+                        1.0f, 0.0f, 0.0f,
+                        0.0f, 1.0f, 0.0f,
+                        0.0f, 0.0f, 1.0f,
+                        1.0f, 2.0f, 3.0f };
+    float mat_b[13] = { 1.0f,
+                        0.0f, 1.0f, 0.0f,
+                       -1.0f, 0.0f, 0.0f,
+                        0.0f, 0.0f, 1.0f,
+                        5.0f, 5.0f, 5.0f };
+    float out_mat[13];
 
     matrix4x3_multiply(mat_a, mat_b, out_mat);
 
-    total += 3;
-    passed += check("mat_mul m01", *(uint32_t *)&out_mat[1], 0x00000000, buf);
-    passed +=
-      check("mat_mul trans_y", *(uint32_t *)&out_mat[10], 0x40E00000, buf);
-    passed +=
-      check("mat_mul trans_z", *(uint32_t *)&out_mat[11], 0x40400000, buf);
+    total += 4;
+    passed += check("mat_mul scale", *(uint32_t *)&out_mat[0], 0x3F800000, buf);
+    passed += check("mat_mul rot_10", *(uint32_t *)&out_mat[4], 0xBF800000, buf);
+    passed += check("mat_mul trans_x", *(uint32_t *)&out_mat[10], 0x40C00000, buf);
+    passed += check("mat_mul trans_z", *(uint32_t *)&out_mat[12], 0x41000000, buf);
   }
 
   /* matrix_from_forward_and_up */
@@ -634,6 +644,38 @@ void run_tests(void)
                       (uint32_t)(handle != 0 && handle != -1),
                       1, buf);
     }
+  }
+
+  /* CRC round-trip: exercises the write→read checksum invariant that broke
+   * when game_state_test_persistent_storage passed a separate scratch variable
+   * instead of a pointer into header+0x148.  Uses the real crc_new /
+   * crc_checksum_buffer from the engine. */
+  {
+    uint8_t header[0x14c];
+    uint32_t write_crc;
+    uint32_t read_saved;
+    uint32_t read_computed;
+    int i;
+
+    for (i = 0; i < 0x14c; i++)
+      header[i] = (uint8_t)(i * 7 + 0x13);
+
+    /* --- write side: zero checksum field, compute, store --- */
+    *(uint32_t *)(header + 0x148) = 0;
+    crc_new(&write_crc);
+    crc_checksum_buffer(&write_crc, header, 0x14c);
+    *(uint32_t *)(header + 0x148) = write_crc;
+
+    /* --- read side: pointer-into-header pattern (the correct way) --- */
+    read_saved = *(uint32_t *)(header + 0x148);
+    *(uint32_t *)(header + 0x148) = 0;
+    crc_new(&read_computed);
+    crc_checksum_buffer(&read_computed, header, 0x14c);
+
+    total += 2;
+    passed += check("crc_roundtrip_match",
+                    (uint32_t)(read_computed == read_saved), 1, buf);
+    passed += check("crc_roundtrip_value", read_computed, write_crc, buf);
   }
 
   crt_sprintf(buf, "RUN|END|passed=%d|failed=%d|total=%d\n", passed,

@@ -302,16 +302,15 @@ int FUN_001160c0(unsigned int param_1, int param_2, int param_3, int *param_4,
                                                        0x120, 4);
   if (iVar1 == 0)
     return -4;
-  iVar2 =
-    FUN_00115ba0((unsigned int *)param_4, (int *)param_3, param_1, 0x101,
-                 (int)0x28d960, (int)0x28d9e0, (int *)param_6, param_8,
-                 &local_8, (unsigned int *)iVar1);
+  iVar2 = FUN_00115ba0((unsigned int *)param_4, (int *)param_3, param_1, 0x101,
+                       (int)0x28d960, (int)0x28d9e0, (int *)param_6, param_8,
+                       &local_8, (unsigned int *)iVar1);
   if (iVar2 == 0) {
     if (*param_4 != 0) {
-      iVar2 =
-        FUN_00115ba0((unsigned int *)param_5, (int *)(param_3 + (int)param_1 * 4),
-                     (unsigned int)param_2, 0, (int)0x28da60, (int)0x28dad8,
-                     (int *)param_7, param_8, &local_8, (unsigned int *)iVar1);
+      iVar2 = FUN_00115ba0(
+        (unsigned int *)param_5, (int *)(param_3 + (int)param_1 * 4),
+        (unsigned int)param_2, 0, (int)0x28da60, (int)0x28dad8, (int *)param_7,
+        param_8, &local_8, (unsigned int *)iVar1);
       if (iVar2 == 0) {
         if (*param_5 != 0 || param_1 < 0x102) {
           (*(void (**)(int, int))(param_9 + 0x24))(*(int *)(param_9 + 0x28),
@@ -392,8 +391,10 @@ int FUN_00116280(int param_1, int param_2, int param_3)
   }
   *(unsigned int *)(param_2 + 0x10) = uVar2 - uVar5;
   *(int *)(param_2 + 0x14) = *(int *)(param_2 + 0x14) + (int)uVar5;
-  callback = *(unsigned int (**)(unsigned int, unsigned int, unsigned int))(param_1 + 0x38);
-  if (callback != (unsigned int (*)(unsigned int, unsigned int, unsigned int))0) {
+  callback = *(unsigned int (**)(unsigned int, unsigned int, unsigned int))(
+    param_1 + 0x38);
+  if (callback !=
+      (unsigned int (*)(unsigned int, unsigned int, unsigned int))0) {
     uVar3 = callback(*(unsigned int *)(param_1 + 0x3c), uVar1, uVar5);
     *(unsigned int *)(param_1 + 0x3c) = uVar3;
     *(unsigned int *)(param_2 + 0x30) = uVar3;
@@ -416,9 +417,12 @@ int FUN_00116280(int param_1, int param_2, int param_3)
     }
     *(unsigned int *)(param_2 + 0x10) = uVar2 - uVar5;
     *(int *)(param_2 + 0x14) = *(int *)(param_2 + 0x14) + (int)uVar5;
-    callback = *(unsigned int (**)(unsigned int, unsigned int, unsigned int))(param_1 + 0x38);
-    if (callback != (unsigned int (*)(unsigned int, unsigned int, unsigned int))0) {
-      uVar3 = callback(*(unsigned int *)(param_1 + 0x3c), (unsigned int)iVar4, uVar5);
+    callback = *(unsigned int (**)(unsigned int, unsigned int, unsigned int))(
+      param_1 + 0x38);
+    if (callback !=
+        (unsigned int (*)(unsigned int, unsigned int, unsigned int))0) {
+      uVar3 =
+        callback(*(unsigned int *)(param_1 + 0x3c), (unsigned int)iVar4, uVar5);
       *(unsigned int *)(param_1 + 0x3c) = uVar3;
       *(unsigned int *)(param_2 + 0x30) = uVar3;
     }
@@ -889,6 +893,39 @@ void FUN_001172d0(int *param_1, int param_2, short *bl_count)
       iVar2++;
     } while (iVar2 <= param_2);
   }
+}
+
+/* uncompress: inflate a zlib-deflated block into dest.
+ * Returns 0 (Z_OK) on success with *p2 set to decompressed byte count,
+ * -5 (Z_BUF_ERROR) if inflate returned Z_OK without Z_STREAM_END,
+ * or the raw zlib error code on any other failure.
+ * 0x1179e0 / circular_queue.obj (uncompress.c) */
+int FUN_001179e0(int p1, unsigned int *p2, unsigned int *p3, unsigned int p4)
+{
+  int err;
+  int z[14]; /* z_stream, 0x38 bytes */
+
+  z[1] = (int)p4;
+  z[0] = (int)p3;
+  z[4] = (int)*p2;
+  z[3] = p1;
+  z[8] = 0;
+  z[9] = 0;
+  err = FUN_001155c0((int)z, "1.1.3", 0x38);
+  if (err == 0) {
+    int inflate_ret;
+    inflate_ret = FUN_001155e0((int)z, 4);
+    if (inflate_ret != 1) {
+      FUN_00115430((int)z);
+      err = -5;
+      if (inflate_ret != 0)
+        return inflate_ret;
+    } else {
+      *p2 = (unsigned int)z[5];
+      err = FUN_00115430((int)z);
+    }
+  }
+  return err;
 }
 
 /* z_error: print assertion message and exit.
@@ -1370,6 +1407,80 @@ void FUN_00118520(unsigned char *count, int elements, short element_size,
   }
   csmemset((void *)((unsigned int)*count * (int)element_size + elements),
            0xffffffff, (int)element_size);
+}
+
+/* FUN_00118620 (0x118620) — Byte-swap an array of elements in place.
+ * element_size encodes the swap width: -2 = 2-byte, -4 = 4-byte, -8 = 8-byte.
+ * 0x118620 / circular_queue.obj (byte_swapping_codes.c line 113) */
+void FUN_00118620(void *data, int count, int element_size)
+{
+  unsigned short *p2;
+  unsigned int *p4;
+  unsigned long long *p8;
+  int new_var;
+  unsigned int v;
+  unsigned long long v8;
+
+  if (data == 0) {
+    display_assert("memory",
+                   "c:\\halo\\SOURCE\\memory\\byte_swapping_codes.c", 0x71, 1);
+    system_exit(-1);
+  }
+  if (count < 0) {
+    display_assert("count>=0",
+                   "c:\\halo\\SOURCE\\memory\\byte_swapping_codes.c", 0x72, 1);
+    system_exit(-1);
+  }
+  if (element_size != -2 && element_size != -4 &&
+      (new_var = element_size) != -8) {
+    display_assert(
+        "code==_2byte || code==_4byte || code==_8byte",
+        "c:\\halo\\SOURCE\\memory\\byte_swapping_codes.c", 0x73, 1);
+    system_exit(-1);
+  }
+
+  switch (element_size) {
+  case -8:
+    p8 = (unsigned long long *)data;
+    if (count > 0) {
+      do {
+        v8 = *p8;
+        *p8 = ((*p8 >> 56) |
+              ((*p8 >> 40) & 0xff00ULL) |
+              ((*p8 >> 24) & 0xff0000ULL) |
+              ((*p8 >> 8)  & 0xff000000ULL) |
+              ((v8 << 8)   & 0xff00000000ULL) |
+              ((*p8 << 24) & 0xff0000000000ULL) |
+              ((*p8 << 40) & 0xff000000000000ULL) |
+              (*p8 << 56));
+        p8++;
+        count--;
+      } while (count != 0);
+    }
+    break;
+  case -4:
+    p4 = (unsigned int *)data;
+    if (count > 0) {
+      do {
+        v = *p4;
+        *p4 = (v >> 24) | ((v >> 8) & 0xff00) |
+              ((v << 8) & 0xff0000) | (v << 24);
+        p4++;
+        count--;
+      } while (count != 0);
+    }
+    break;
+  case -2:
+    p2 = (unsigned short *)data;
+    if (count > 0) {
+      do {
+        *p2 = (unsigned short)((*p2 >> 8) | (*p2 << 8));
+        p2++;
+        count--;
+      } while (count != 0);
+    }
+    break;
+  }
 }
 
 /* Compute the byte size described by a byte-swap definition by walking
