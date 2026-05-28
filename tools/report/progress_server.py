@@ -30,6 +30,70 @@ logging.basicConfig(
 )
 
 
+def _function_symbol_aliases(func):
+    """Return likely objdiff symbol names for a report function entry."""
+    aliases = []
+    name = func.get('name')
+    if name:
+        aliases.append(name)
+
+    address = func.get('address')
+    if isinstance(address, str):
+        try:
+            addr = int(address, 0)
+        except ValueError:
+            addr = None
+        if addr is not None:
+            suffix = f'{addr:08x}'
+            aliases.append(f'FUN_{suffix}')
+            aliases.append(f'thunk_FUN_{suffix}')
+
+    return aliases
+
+
+def _lookup_score_for_function(func, func_scores):
+    for alias in _function_symbol_aliases(func):
+        if alias in func_scores:
+            return func_scores[alias]
+    return None
+
+
+def _function_reference_unit_name(func):
+    address = func.get('address')
+    if not isinstance(address, str):
+        return None
+    try:
+        return f'FUN_{int(address, 0):08x}'
+    except ValueError:
+        return None
+
+
+def _score_function_from_reference_unit(tracker, func):
+    """Fallback to the per-function reference unit for thunked/mis-grouped symbols."""
+    unit_name = _function_reference_unit_name(func)
+    if not unit_name:
+        return None
+
+    config = tracker._get_unit_config(unit_name)
+    if not config:
+        return None
+
+    aliases = tracker._get_unit_symbols(config['base_path'])
+    if not aliases:
+        return None
+
+    result = tracker.check_unit(
+        unit_name,
+        force=True,
+        symbol_aliases={func['name']: aliases},
+    )
+    if not result:
+        return None
+
+    scores = {entry.get('name'): entry.get('match') for entry in result.get('functions', [])}
+    return scores.get(func['name'])
+
+
 class SSEHandler(SimpleHTTPRequestHandler):
     """HTTP handler that also serves an SSE endpoint at /events."""
 
@@ -103,22 +167,34 @@ class SSEHandler(SimpleHTTPRequestHandler):
 
         # Collect ported function names from report so we only diff those
         report_path = os.path.join(self.directory, 'report.json')
-        ported_symbols = None
+        ported_funcs = None
         try:
             with open(report_path) as f:
                 report = json.load(f)
             for unit in report.get('units', []):
                 if unit['name'] == unit_name:
-                    ported_symbols = [
-                        fn['name'] for fn in unit.get('functions', [])
+                    ported_funcs = [
+                        fn for fn in unit.get('functions', [])
                         if fn.get('ported')
                     ]
                     break
         except Exception:
             report = None
 
+        ported_symbol_aliases = None
+        if ported_funcs:
+            ported_symbol_aliases = {
+                func['name']: _function_symbol_aliases(func)
+                for func in ported_funcs
+                if func.get('name')
+            }
+
         tracker = MatchingTracker()
-        unit_data = tracker.check_unit(unit_name, force=True, symbols=ported_symbols)
+        unit_data = tracker.check_unit(
+            unit_name,
+            force=True,
+            symbol_aliases=ported_symbol_aliases,
+        )
         if unit_data is None:
             logging.warning('Scoring failed for unit %s (no reference or objdiff error)', unit_name)
             return None
@@ -142,8 +218,11 @@ class SSEHandler(SimpleHTTPRequestHandler):
             if unit['name'] == unit_name:
                 for func in unit.get('functions', []):
                     fname = func.get('name')
-                    if fname in func_scores:
-                        func['match_percent'] = round(func_scores[fname], 2)
+                    score = _lookup_score_for_function(func, func_scores)
+                    if score is None and func.get('ported') and fname:
+                        score = _score_function_from_reference_unit(tracker, func)
+                    if score is not None:
+                        func['match_percent'] = round(score, 2)
                         updated_funcs[fname] = func['match_percent']
                 break
 

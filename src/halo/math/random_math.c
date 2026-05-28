@@ -1,3 +1,5 @@
+#include "x87_math.h"
+
 /* Fill a 0x400-byte periodic function lookup table for one of 6 types:
  * raw(0), pow_a(1), pow_b(2), pow_c(3), pow_d(4), sine_wave(5).
  * Each sample is scaled by *(float*)0x2602c8 then clamped to [0, 255].
@@ -31,7 +33,8 @@ void FUN_0010a930(int16_t type_index, void *buffer)
       sample = (float)pow((double)phase, *(double *)0x281de8);
       break;
     case 5:
-      sample = (sinf(phase * *(float *)0x256980 - *(float *)0x2568bc) + 1.0f) *
+      sample = (x87_fsin_msub(phase, *(float *)0x256980, *(float *)0x2568bc) +
+                1.0f) *
                *(float *)0x253398;
       break;
     default:
@@ -95,13 +98,13 @@ void FUN_0010aa60(short type_index, void *buffer)
       sample = 0.0f;
       break;
     case 2:
-      sample = (float)cos((double)(phase * *(float *)0x255a54));
+      sample = x87_fcos_mul(phase, *(float *)0x255a54);
       break;
     case 3:
-      sample = (float)cos((double)(phase_var * *(float *)0x255a54));
+      sample = x87_fcos_mul(phase_var, *(float *)0x255a54);
       break;
     case 4:
-      p = (float)fmod((double)phase, *(double *)0x2573d8);
+      p = x87_fmod(phase, *(double *)0x2573d8);
       if (p < *(float *)0x253398)
         sample = p + p;
       else
@@ -109,7 +112,7 @@ void FUN_0010aa60(short type_index, void *buffer)
                  ((p - *(float *)0x253398) + (p - *(float *)0x253398));
       break;
     case 5:
-      p = (float)fmod((double)phase_var, *(double *)0x2573d8);
+      p = x87_fmod(phase_var, *(double *)0x2573d8);
       if (p < *(float *)0x253398)
         sample = p + p;
       else
@@ -117,10 +120,10 @@ void FUN_0010aa60(short type_index, void *buffer)
                  ((p - *(float *)0x253398) + (p - *(float *)0x253398));
       break;
     case 6:
-      sample = (float)fmod((double)phase, *(double *)0x2573d8);
+      sample = x87_fmod(phase, *(double *)0x2573d8);
       break;
     case 7:
-      sample = (float)fmod((double)phase_var, *(double *)0x2573d8);
+      sample = x87_fmod(phase_var, *(double *)0x2573d8);
       break;
     case 8:
       sample =
@@ -128,16 +131,16 @@ void FUN_0010aa60(short type_index, void *buffer)
       break;
     case 9:
     case 10:
-      sample = ((float)cos((double)(phase * *(float *)0x28c8ec)) *
-                  (float)cos((double)(phase * *(float *)0x28c8e8)) +
-                (float)cos((double)(phase * *(float *)0x28c8e4)) *
-                  (float)sin((double)(phase * *(float *)0x2568bc))) *
+      sample = (x87_fcos_mul(phase, *(float *)0x28c8ec) *
+                  x87_fcos_mul(phase, *(float *)0x28c8e8) +
+                x87_fcos_mul(phase, *(float *)0x28c8e4) *
+                  x87_fsin_mul(phase, *(float *)0x2568bc)) *
                  *(float *)0x253398 +
-               (float)sin((double)(phase * *(float *)0x256980)) *
-                 (float)cos((double)(phase * *(float *)0x255a54));
+               x87_fsin_mul(phase, *(float *)0x256980) *
+                 x87_fcos_mul(phase, *(float *)0x255a54);
       break;
     case 11:
-      p = (float)fmod((double)phase_var, *(double *)0x2573d8);
+      p = x87_fmod(phase_var, *(double *)0x2573d8);
       sample = p * p;
       break;
     default:
@@ -208,7 +211,7 @@ void periodic_functions_initialize(void)
     system_exit(-1);
   }
   *(uint8_t *)0x46e39c = 1;
-  *(int *)0x46e3f4 = 0x20f3f660;
+  *get_global_random_seed_address() = 0x20f3f660;
 
   tables = (int *)0x46e3b8;
   for (i = 0; i < 12; i++, tables++) {
@@ -643,10 +646,10 @@ void seed_random_orientation(unsigned int *seed, float *facing, float *up)
   *seed = s3;
   roll = (float)(s3 >> 16) * *(float *)0x2647f4 * *(float *)0x255a54;
 
-  az_cos = (float)cos((double)azimuth);
-  az_sin = (float)sin((double)azimuth);
-  el_cos = (float)cos((double)elevation);
-  el_sin = (float)sin((double)elevation);
+  az_cos = x87_fcos(azimuth);
+  az_sin = x87_fsin(azimuth);
+  el_cos = x87_fcos(elevation);
+  el_sin = x87_fsin(elevation);
 
   facing[0] = el_cos * az_cos;
   facing[1] = el_cos * az_sin;
@@ -656,7 +659,7 @@ void seed_random_orientation(unsigned int *seed, float *facing, float *up)
   up[1] = -(az_sin * el_sin);
   up[2] = el_cos;
 
-  FUN_0010c690(up, facing, (float)sin((double)roll), (float)cos((double)roll));
+  FUN_0010c690(up, facing, x87_fsin(roll), x87_fcos(roll));
 }
 
 /* Generate a random 3D direction within a cone around a forward vector.
@@ -706,8 +709,8 @@ void random_direction3d(int *seed, float *forward, float zero, float angle,
 
   /* Random rotation angle in [zero, angle] (inlines random_real_range) */
   random_angle = random_real_range(seed, zero, angle);
-  sin_val = sinf(random_angle);
-  cos_val = cosf(random_angle);
+  sin_val = x87_fsin(random_angle);
+  cos_val = x87_fcos(random_angle);
 
   /* Rotate result around the cross axis by the random angle */
   rotate_vector3d_by_sincos(result, cross, sin_val, cos_val);
@@ -988,7 +991,7 @@ void FUN_0010c7d0(float *param_1, float *param_2, float param_3, float *param_4)
     param_4[2] = param_2[2];
   }
   if (normalize3d(axis) > 0.0f) {
-    rotate_vector3d_by_sincos(param_4, axis, sinf(blend), cosf(blend));
+    rotate_vector3d_by_sincos(param_4, axis, x87_fsin(blend), x87_fcos(blend));
   }
 }
 
