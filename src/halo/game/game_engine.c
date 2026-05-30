@@ -2228,8 +2228,7 @@ void game_engine_validate_map_netgame_flags(void)
   int found_index;
   void (*validate_duplicate_flags)(short, const char *) =
     (void (*)(short, const char *))0xaa010;
-  void (*validate_flag_out_of_range)(short, short, const char *) =
-    (void (*)(short, short, const char *))0xaa0b0;
+  /* FUN_000aa0b0 has game_type@<bx> — must call by name, not raw cast */
   void (*validate_spawn_points)(short, int, short, const char *) =
     (void (*)(short, int, short, const char *))0xae400;
   int (*matches_game_type)(int, int, void *) =
@@ -2258,8 +2257,8 @@ void game_engine_validate_map_netgame_flags(void)
 
   validate_duplicate_flags(0,
                            "NETGAME MAP FAILURE: duplicate ctf flag [team %d]");
-  validate_flag_out_of_range(
-    0, 1, "NETGAME MAP FAILURE: ctf flag out of range [team %d]");
+  FUN_000aa0b0(
+    0, 1, (int)"NETGAME MAP FAILURE: ctf flag out of range [team %d]", 0);
 
   found_index = -1;
   find_netgame_flags(0, 0.0f, 0.0f, 8, 0, 1, &found_index);
@@ -3205,7 +3204,7 @@ char FUN_000a9ff0(void)
 }
 
 /* Initialize the default map name and game variant for multiplayer. */
-void FUN_000aa120(void)
+void game_engine_playlist_next(void)
 {
   char *map_name;
   char local_6c[104];
@@ -3303,10 +3302,11 @@ char FUN_000ab9e0(void)
 }
 
 /* Initialize a CTF game variant (slayer pro). */
-void FUN_000aa220(int *param_1)
+game_variant_t *FUN_000aa220(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3327,19 +3327,22 @@ void FUN_000aa220(int *param_1)
   *(char *)(buf + 0x1c) = 0;
   *(int *)(buf + 0x44) = 0;
   *(char *)(buf + 0x4e) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a Slayer game variant. */
-void FUN_000aa340(int *param_1)
+game_variant_t *FUN_000aa340(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3360,19 +3363,22 @@ void FUN_000aa340(int *param_1)
   *(int *)(buf + 0x40) = 10;
   *(char *)(buf + 0x1c) = 0;
   *(int *)(buf + 0x44) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a King of the Hill game variant. */
-void FUN_000aa3d0(int *param_1)
+game_variant_t *FUN_000aa3d0(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3393,19 +3399,22 @@ void FUN_000aa3d0(int *param_1)
   *(char *)(buf + 0x4c) = 0;
   *(char *)(buf + 0x4d) = 0;
   *(char *)(buf + 0x4e) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a Oddball game variant. */
-void FUN_000aa460(int *param_1)
+game_variant_t *FUN_000aa460(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3426,19 +3435,22 @@ void FUN_000aa460(int *param_1)
   *(char *)(buf + 0x4c) = 0;
   *(char *)(buf + 0x4d) = 0;
   *(char *)(buf + 0x4e) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a Oddball variant (alt). */
-void FUN_000aa4f0(int *param_1)
+game_variant_t *FUN_000aa4f0(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3459,19 +3471,22 @@ void FUN_000aa4f0(int *param_1)
   *(char *)(buf + 0x4c) = 0;
   *(char *)(buf + 0x4d) = 0;
   *(char *)(buf + 0x4e) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a Race game variant. */
-void FUN_000aa730(int *param_1)
+game_variant_t *FUN_000aa730(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3496,19 +3511,22 @@ void FUN_000aa730(int *param_1)
   *(int *)(buf + 0x54) = 0;
   *(int *)(buf + 0x58) = 0;
   *(int *)(buf + 0x50) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a Race game variant (alt). */
-void FUN_000aa860(int *param_1)
+game_variant_t *FUN_000aa860(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3532,19 +3550,22 @@ void FUN_000aa860(int *param_1)
   *(char *)(buf + 0x4d) = 0;
   *(char *)(buf + 0x4c) = 0;
   *(int *)(buf + 0x58) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a CTF variant (team). */
-void FUN_000aaa20(int *param_1)
+game_variant_t *FUN_000aaa20(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3563,19 +3584,22 @@ void FUN_000aaa20(int *param_1)
   *(char *)(buf + 0x1c) = 0;
   *(int *)(buf + 0x44) = 0;
   *(char *)(buf + 0x4c) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a CTF variant (no teams). */
-void FUN_000aaab0(int *param_1)
+game_variant_t *FUN_000aaab0(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3594,19 +3618,22 @@ void FUN_000aaab0(int *param_1)
   *(int *)(buf + 0x34) = 150;
   *(char *)(buf + 0x1c) = 0;
   *(int *)(buf + 0x44) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a Assault game variant. */
-void FUN_000aac50(int *param_1)
+game_variant_t *FUN_000aac50(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3629,19 +3656,22 @@ void FUN_000aac50(int *param_1)
   *(char *)(buf + 0x4e) = 0;
   *(char *)(buf + 0x4d) = 0;
   *(int *)(buf + 0x50) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a Assault game variant (alt). */
-void FUN_000aace0(int *param_1)
+game_variant_t *FUN_000aace0(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3664,19 +3694,22 @@ void FUN_000aace0(int *param_1)
   *(char *)(buf + 0x4e) = 0;
   *(char *)(buf + 0x4d) = 0;
   *(int *)(buf + 0x50) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 /* Initialize a Race game variant (team). */
-void FUN_000aafb0(int *param_1)
+game_variant_t *FUN_000aafb0(game_variant_t *out)
 {
   int i;
   int *src;
+  int *dst;
   char buf[0x68];
 
   csmemset(buf, 0, 0x68);
@@ -3696,12 +3729,14 @@ void FUN_000aafb0(int *param_1)
   *(int *)(buf + 0x34) = 0x12c;
   *(int *)(buf + 0x44) = 0;
   *(int *)(buf + 0x50) = 0;
+  dst = (int *)out;
   src = (int *)buf;
   for (i = 0x1a; i != 0; i--) {
-    *param_1 = *src;
+    *dst = *src;
     src++;
-    param_1++;
+    dst++;
   }
+  return out;
 }
 
 
@@ -3780,7 +3815,7 @@ void game_engine_playlist_initialize(void)
 
 {
 
-  FUN_000aa120();
+  game_engine_playlist_next();
 
 }
 
@@ -6170,6 +6205,99 @@ int FUN_000abfd0(int param_1, int param_2, int param_3)
   return place;
 }
 
+/* Build sorted player list for scoreboard display (ac030).
+ * Fills out_buffer with up to max_count player entries (0x1c bytes each),
+ * sorted by score. Returns the actual count written. */
+int FUN_000ac030(int param_eax, int unused_arg1, void *out_buffer, int max_count)
+{
+  int total;
+  int filtered;
+  int remaining;
+  int i;
+  int j;
+  int result;
+  char is_version_45;
+  int *src;
+  int *dst;
+  void *player;
+  char buffer[0x1C0];
+  char filtered_buf[0x70];
+
+  total = FUN_000abd20((int *)buffer, param_eax, 0);
+  is_version_45 = (*(int16_t *)0x3256ea == 0x45);
+  (void)is_version_45;
+
+  if (total > 0) {
+    src = (int *)buffer;
+    i = total;
+    do {
+      datum_get(player_data, (uint32_t)*src);
+      src = (int *)((char *)src + 0x1c);
+      i--;
+    } while (i != 0);
+  }
+
+  if (max_count >= total) {
+    result = total;
+    goto copy_out;
+  }
+
+  filtered = 0;
+  if (max_count < total) {
+    src = (int *)((char *)buffer + max_count * 0x1c);
+    dst = (int *)filtered_buf;
+    remaining = total - max_count;
+    do {
+      player = datum_get(player_data, (uint32_t)*src);
+      if (player != NULL && *(int16_t *)((char *)player + 2) != -1) {
+        (void)is_version_45;
+        memcpy(dst, src, 0x1c);
+        filtered++;
+        dst = (int *)((char *)dst + 0x1c);
+      }
+      src = (int *)((char *)src + 0x1c);
+      remaining--;
+    } while (remaining != 0);
+  }
+
+  if (filtered > 0) {
+    j = max_count - 1;
+    dst = (int *)filtered_buf;
+    remaining = filtered;
+    do {
+      if (j >= 0) {
+        i = j;
+        src = (int *)((char *)buffer + j * 0x1c);
+        do {
+          player = datum_get(player_data, (uint32_t)*src);
+          if (*(int16_t *)((char *)player + 2) == -1)
+            goto found_insert;
+          i--;
+          src = (int *)((char *)src - 0x1c);
+        } while (i >= 0);
+      }
+      goto next_filtered;
+
+    found_insert:
+      {
+        int shift_src_off = i * 0x1c;
+        int shift_size = max_count * 0x1c - shift_src_off - 0x1c;
+        csmemmove((char *)buffer + shift_src_off, (char *)buffer + shift_src_off + 0x1c, shift_size);
+        memcpy((char *)buffer + (max_count - 1) * 0x1c, dst, 0x1c);
+      }
+    next_filtered:
+      dst = (int *)((char *)dst + 0x1c);
+      remaining--;
+    } while (remaining != 0);
+  }
+
+  result = (max_count > total) ? total : max_count;
+
+copy_out:
+  csmemcpy(out_buffer, buffer, result * 0x1c);
+  return (max_count > total) ? total : max_count;
+}
+
 /* Spawn weapon equipment at scenario netgame equipment locations (ad2b0). */
 void FUN_000ad2b0(int param_1, int *param_2, int *param_3)
 {
@@ -6192,7 +6320,7 @@ void FUN_000ad2b0(int param_1, int *param_2, int *param_3)
       flag = (int)tag_block_get_element(flag_block, i, 0xcc);
       variant_type = -1;
       if (current_game_engine)
-        variant_type = *(int *)(current_game_engine + 4);
+        variant_type = *(int *)((char *)current_game_engine + 4);
       if (match_game_type(variant_type, 4, (int16_t *)(flag + 4)))
         break;
       i++;
@@ -6769,7 +6897,7 @@ float game_engine_get_starting_location_rating(int param_1, int param_2)
 
   variant_type = -1;
   if (current_game_engine)
-    variant_type = *(int *)(current_game_engine + 4);
+    variant_type = *(int *)((char *)current_game_engine + 4);
   if (!match_game_type(variant_type, 4, (int16_t *)(param_2 + 0x14)))
     return 0.0f;
   if (FUN_000a8ec0(param_1))
@@ -7565,6 +7693,61 @@ int FUN_000aca70(void)
   return -1;
 }
 
+/* CTF: handle a player picking up or returning a flag weapon (b0ed0). */
+int FUN_000b0ed0(int weapon_handle, int player_handle)
+{
+  int weapon;
+  int player;
+  int variant;
+  int16_t flag_team;
+
+  weapon = (int)object_get_and_verify_type(weapon_handle, 4);
+  if (!weapon_is_flag(weapon_handle)) {
+    display_assert("weapon_is_flag(weapon_index)",
+                   "c:\\halo\\SOURCE\\game\\game_engine_ctf.c", 0x3a9, 1);
+    system_exit(-1);
+  }
+  if (player_handle != -1) {
+    player = (int)datum_get(player_data, player_handle);
+    flag_team = *(int16_t *)(weapon + 0x68);
+    if ((int)flag_team == *(int *)(player + 0x20)) {
+      variant = (int)game_engine_get_variant();
+      if (*(char *)(variant + 0x4e) == 0) {
+        if ((*(uint8_t *)(weapon + 0x1dc) & 0x40) != 0) {
+          if (game_engine_can_score()) {
+            *(char *)(0x456b90 + flag_team) = 0;
+            *(int *)(0x456b94 + flag_team * 4) = 0;
+            *(int16_t *)(player + 0xc2) = *(int16_t *)(player + 0xc2) + 1;
+            game_show_score_you_ally_enemy(player_handle, 0x23, 0x28, 0x26);
+            { char event = (-(uint32_t)(*(int *)(player + 0x20) != 0) & 0xfffffffd) + 0xc;
+            game_engine_post_event(event); }
+          }
+        }
+        FUN_000b0990(weapon_handle);
+        return 0;
+      }
+      if ((*(uint8_t *)(weapon + 0x1dc) & 0x40) != 0)
+        FUN_000b00c0(player_handle);
+      return 0;
+    }
+    if ((*(uint8_t *)(weapon + 0x1dc) & 0x40) == 0) {
+      if (game_engine_can_score()) {
+        *(int16_t *)(player + 0xc0) = *(int16_t *)(player + 0xc0) + 1;
+        variant = (int)game_engine_get_variant();
+        if (*(char *)(variant + 0x4c) == 0) {
+          { char event = (-(uint32_t)(*(int *)(player + 0x20) != 0) & 0xfffffffd) + 0xb;
+          game_engine_post_event(event); }
+          *(char *)(0x456b90 + flag_team) = 1;
+          *(int *)(0x456b94 + flag_team * 4) = 0;
+          game_show_score_you_ally_enemy(player_handle, -1, 0x27, 0x24);
+        }
+      }
+    }
+    *(uint32_t *)(weapon + 0x1dc) |= 0x40;
+  }
+  return 1;
+}
+
 /* CTF: per-tick flag carrier update — check if carrying player can score (b0ac0). */
 void FUN_000b0ac0(int param_1)
 {
@@ -7606,6 +7789,172 @@ void FUN_000b0ac0(int param_1)
         }
       }
     }
+  }
+}
+
+/* Oddball: per-tick scoring and speed update (b3120). */
+int FUN_000b3120(int param_1)
+{
+  int player;
+  int variant;
+  int balls_held;
+  int i;
+  int biped;
+  int weapon_handle;
+  int weapon;
+  int score;
+  int count;
+
+  player = (int)datum_get(player_data, param_1);
+  game_engine_state_message(param_1, -1, -1);
+  FUN_000b3090(param_1);
+  balls_held = 0;
+  variant = (int)game_engine_get_variant();
+  i = 0;
+  if (0 < *(int *)(variant + 0x60)) {
+    do {
+      if (*(int *)(0x456ecc + i * 4) == (int)param_1)
+        balls_held++;
+      i++;
+    } while (i < *(int *)(variant + 0x60));
+  }
+  *(int *)(player + 0x6c) = 0x3f800000;
+  if (0 < balls_held) {
+    variant = (int)game_engine_get_variant();
+    if (*(int *)(variant + 0x54) != 1)
+      game_engine_player_depower_active_camo(param_1);
+    variant = (int)game_engine_get_variant();
+    if (*(int *)(variant + 0x50) == 1)
+      *(int *)(player + 0x6c) = 0x3f800000;
+    else if (*(int *)(variant + 0x50) == 2)
+      *(int *)(player + 0x6c) = 0x3fa00000;
+    else
+      *(int *)(player + 0x6c) = 0x3f400000;
+  }
+  if (game_engine_can_score()) {
+    variant = (int)game_engine_get_variant();
+    if (*(int *)(variant + 0x5c) != 2 && 0 < balls_held) {
+      count = balls_held;
+      do {
+        player = (int)datum_get(player_data, param_1);
+        variant = (int)game_engine_get_variant();
+        if (*(int *)(variant + 0x5c) == 0)
+          game_engine_state_message(param_1, 0x27, param_1);
+        *(int16_t *)(player + 0xc0) = *(int16_t *)(player + 0xc0) + 1;
+        FUN_000b2740(param_1);
+        count--;
+      } while (count != 0);
+    }
+  }
+  variant = (int)game_engine_get_variant();
+  if (0 < *(int *)(variant + 0x5c) && *(int *)(variant + 0x5c) < 3 && 0 < balls_held)
+    game_engine_state_message(param_1, 0x21, param_1);
+  biped = *(int *)(player + 0x34);
+  if (biped != -1) {
+    biped = (int)object_get_and_verify_type(biped, 3);
+    if (*(int16_t *)(biped + 0x2a2) != -1) {
+      weapon_handle = *(int *)(biped + 0x2a8 + *(int16_t *)(biped + 0x2a2) * 4);
+      if (weapon_handle != -1 && weapon_is_flag(weapon_handle)) {
+        score = *(int *)(0x456e4c + (param_1 & 0xffff) * 4);
+        weapon = (int)object_get_and_verify_type(weapon_handle, 4);
+        if (0 < score && score % 0x96 == 0 && score < *(int *)0x456e08)
+          game_engine_post_event(0x2a);
+        *(int16_t *)(weapon + 0x260) = (int16_t)(score / 30);
+      }
+    }
+  }
+  return 0;
+}
+
+/* Oddball: handle player death — transfer ball possession (b3470). ECX = killer. */
+void FUN_000b3470(int killer_handle, int param_2, int param_3, int dead_player, char param_5)
+{
+  int variant;
+  int num_balls;
+  int capture_idx;
+  int player;
+  int i;
+  int first_empty;
+
+  variant = (int)game_engine_get_variant();
+  if (*(int *)(variant + 0x5c) < 1 || 2 < *(int *)(variant + 0x5c))
+    return;
+  variant = (int)game_engine_get_variant();
+  num_balls = *(int *)(variant + 0x60);
+  capture_idx = -1;
+  if (dead_player == -1) {
+    display_assert("dead_player_index != NONE",
+                   "c:\\halo\\SOURCE\\game\\game_engine_oddball.c", 0x2f2, 1);
+    system_exit(-1);
+  }
+  if (param_2 == -1 || param_5 != 0)
+    goto clear_dead;
+  player = (int)datum_get(player_data, param_2);
+  if (!FUN_000b2890(dead_player)) {
+    if (!FUN_000b2890(param_2)) {
+      if (FUN_000b28c0())
+        goto score_check;
+    } else {
+      *(int16_t *)(player + 0xc4) = *(int16_t *)(player + 0xc4) + 1;
+      if (!FUN_000b2bc0())
+        goto find_slot;
+      if (game_engine_can_score())
+        goto score_check;
+    }
+score_check:
+    if (1)
+      FUN_000b2740(param_2);
+  } else {
+    *(int16_t *)(player + 0xc2) = *(int16_t *)(player + 0xc2) + 1;
+    variant = (int)game_engine_get_variant();
+    if (*(int *)(variant + 0x5c) == 2) {
+      if (game_engine_can_score())
+        FUN_000b2740(param_2);
+    }
+  }
+find_slot:
+  if (*(int *)(player + 0x34) != -1) {
+    first_empty = -1;
+    i = 0;
+    if (0 < num_balls) {
+      do {
+        if (*(int *)(0x456e8c + i * 4) == 0 && first_empty == -1 &&
+            *(int *)(0x456ecc + i * 4) == -1)
+          first_empty = i;
+        if (*(int *)(0x456ecc + i * 4) == dead_player) {
+          capture_idx = i;
+          break;
+        }
+        i++;
+        capture_idx = first_empty;
+      } while (i < num_balls);
+    }
+    if (!FUN_000b28c0()) {
+      if (capture_idx == -1)
+        goto clear_dead;
+    } else if (capture_idx == -1) {
+      display_assert("!ball_available() || (capture_index != NONE)",
+                     "c:\\halo\\SOURCE\\game\\game_engine_oddball.c", 0x325, 1);
+      system_exit(-1);
+      goto clear_dead;
+    }
+    { char is_team_mode;
+    variant = (int)game_engine_get_variant();
+    is_team_mode = *(int *)(variant + 0x5c) >= 1 && *(int *)(variant + 0x5c) <= 2;
+    game_show_score_you_ally_enemy(param_2,
+        is_team_mode ? 0x03 : 0x21, 0x22, 0x23);
+    *(int *)(0x456ecc + capture_idx * 4) = param_2; }
+  }
+clear_dead:
+  /* Note: game_show_score_you_ally_enemy above uses 0x03 for team mode
+   * and 0x21 for FFA mode, matching the decompile's -(uint)bVar1 & 0xffffffde + 0x21 pattern. */
+  i = 0;
+  if (0 < num_balls) {
+    do {
+      if (*(int *)(0x456ecc + i * 4) == dead_player)
+        *(int *)(0x456ecc + i * 4) = -1;
+      i++;
+    } while (i < num_balls);
   }
 }
 
@@ -7702,7 +8051,7 @@ void FUN_000a84f0(int text, int color, int16_t row_index)
   *(int16_t *)rect = row_index * 0x12;
   *(int16_t *)((char *)rect + 4) = row_index * 0x12 + 0x1a;
   draw_string_set_style_justify_flags(-1, (short)color, 0);
-  ((void (*)(int16_t *, int, int, int, int))rasterizer_draw_string)((int16_t *)rect, 0, 0, 0, text);
+  rasterizer_draw_string((int16_t *)rect, 0, 0, 0, (wchar_t *)text);
 }
 
 /* Render nav points for the active game engine (a9480). */
@@ -7756,5 +8105,1023 @@ void FUN_000b00c0(int player_handle)
 }
 
 /* CTF: find player carrying enemy flag (b0100 already above). */
+
+/* CTF: per-tick flag weapon status update (b0c10). */
+void FUN_000b0c10(int weapon_handle, int weapon_obj)
+{
+  int16_t flag_team;
+  int flag_carrier;
+  int tick;
+  uint32_t team_idx;
+  float position[3];
+
+  if (!weapon_is_flag(weapon_handle)) {
+    display_assert("weapon_is_flag(weapon_index)",
+                   "c:\\halo\\SOURCE\\game\\game_engine_ctf.c", 0x25c, 1);
+    system_exit(-1);
+  }
+  { int variant = (int)game_engine_get_variant();
+  if (0 < *(int *)(variant + 0x50)) {
+    if (0 < *(int *)0x456b9c)
+      *(int *)0x456b9c = *(int *)0x456b9c - 1;
+    if (*(int *)0x456b9c == 0 && (*(uint8_t *)(weapon_obj + 0x1a4) & 1) == 0) {
+      FUN_000ad140(-1, 0x2b);
+      *(char *)0x456b90 = 0;
+      *(int *)0x456b94 = 0;
+      *(char *)0x456b91 = 0;
+      *(int *)0x456b98 = 0;
+      flag_team = *(int16_t *)(weapon_obj + 0x68);
+      *(int *)(0x456b7c + flag_team * 4) = -1;
+      game_engine_clear_goal_position(0);
+      game_engine_clear_goal_position(1);
+      team_idx = (int)flag_team + 1;
+      team_idx = team_idx & 0x80000001;
+      if ((int)team_idx < 0)
+        team_idx = (team_idx - 1 | 0xfffffffe) + 1;
+      *(int16_t *)(weapon_obj + 0x68) = (int16_t)team_idx;
+      game_engine_post_event(((int16_t)team_idx != 0) + 0x25);
+      FUN_000b0990(weapon_handle);
+      game_engine_clear_goal_position(2);
+      game_engine_clear_goal_position(3);
+      variant = (int)game_engine_get_variant();
+      *(int *)0x456b9c = *(int *)(variant + 0x50);
+      FUN_000aff20(team_idx);
+    }
+  } }
+  tick = game_time_get();
+  if (0x1fe < (unsigned int)(tick - *(int *)(weapon_obj + 0x1b4))) {
+    if (weapon_is_flag(weapon_handle) &&
+        (*(uint32_t *)(weapon_obj + 4) >> 11 & 1) != 0 &&
+        *(int *)(weapon_obj + 0xcc) == -1) {
+      flag_team = *(int16_t *)(weapon_obj + 0x68);
+      team_idx = (int)flag_team + 1;
+      team_idx = team_idx & 0x80000001;
+      if ((int)team_idx < 0)
+        team_idx = (team_idx - 1 | 0xfffffffe) + 1;
+      if ((*(uint8_t *)(weapon_obj + 0x1dc) & 0x40) != 0) {
+        game_engine_post_event((-(uint32_t)((int)flag_team != 0) & 0xfffffffd) + 0xc);
+        *(char *)(0x456b90 + flag_team) = 0;
+        *(int *)(0x456b94 + flag_team * 4) = 0;
+        game_show_score_team((int)flag_team, 0x29);
+        game_show_score_team(team_idx, 0x2a);
+      }
+      FUN_000b0990(weapon_handle);
+    }
+  }
+  flag_carrier = FUN_000b0100();
+  flag_team = *(int16_t *)(weapon_obj + 0x68);
+  team_idx = (int)flag_team + 1;
+  team_idx = team_idx & 0x80000001;
+  if ((int)team_idx < 0)
+    team_idx = (team_idx - 1 | 0xfffffffe) + 1;
+  ((void (*)(int, float *))item_get_position_even_if_in_inventory)(weapon_handle, position);
+  game_engine_set_goal_position((int)flag_team, (int *)position, 0, "flag_blue", -1, (int16_t)team_idx, flag_carrier);
+  if (flag_carrier != -1) {
+    float *flag_pos = (float *)*(int *)(0x456b74 + team_idx * 4);
+    position[0] = flag_pos[0];
+    position[2] = flag_pos[2];
+    position[1] = flag_pos[1] + *(float *)0x253398;
+    game_engine_set_goal_position((int)flag_team + 2, (int *)position, 0, "default", flag_carrier, -1, -1);
+  } else {
+    game_engine_clear_goal_position((int)flag_team + 2);
+  }
+}
+
+/* CTF: initialize CTF game mode — find flags, create weapons, validate (b05c0). */
+int FUN_000b05c0(void)
+{
+  int variant;
+  int scenario;
+  int flag_idx;
+  int team;
+  uint32_t slot;
+  int16_t rng;
+  int weapon;
+  int weapon_obj;
+  int16_t loc_count;
+  int loc_idx;
+  float *loc_pos;
+  float *flag_pos;
+  float *other_pos;
+  float dist_own;
+  float dist_enemy;
+  uint32_t own_team;
+  uint32_t enemy_team;
+  int16_t loc_team;
+  char placement[0x88];
+
+  variant = (int)game_engine_get_variant();
+  if (*(char *)(variant + 0x1c) == 0)
+    error(2, "ctf started up without teams");
+  csmemset((void *)0x456b74, 0, 0x30);
+  *(int *)0x456b7c = -1;
+  *(int *)0x456b80 = -1;
+  *(int *)0x5aa744 = 0x3c;
+  scenario = (int)global_scenario_get();
+  team = 0;
+  do {
+    flag_idx = find_netgame_flag(0, 0, 0, 0, team);
+    *(int *)(0x456b84 + team * 4) = 0;
+    variant = (int)game_engine_get_variant();
+    slot = team;
+    if (*(char *)(variant + 0x4c) != 0) {
+      slot = (team + 1) & 0x80000001;
+      if ((int)slot < 0)
+        slot = (slot - 1 | 0xfffffffe) + 1;
+    }
+    *(int *)(0x456b74 + slot * 4) = 0;
+    if (flag_idx != -1)
+      *(int *)(0x456b74 + slot * 4) = (int)tag_block_get_element((int *)(scenario + 0x378), flag_idx, 0x94);
+    if (*(int *)(0x456b74 + slot * 4) == 0)
+      error(2, "failed to find one of the ctf flags");
+    team++;
+  } while (team < 2);
+  variant = (int)game_engine_get_variant();
+  if (*(int *)(variant + 0x50) < 1) {
+    team = 0;
+    do {
+      if (*(int *)(0x456b74 + team * 4) != 0) {
+        int tag_idx = get_flag_definition_index();
+        object_placement_data_new(placement, tag_idx, -1);
+        *(int *)(placement + 0x1c) = *(int *)*(int *)(0x456b74 + team * 4);
+        *(int *)(placement + 0x20) = ((int *)*(int *)(0x456b74 + team * 4))[1];
+        *(int *)(placement + 0x24) = ((int *)*(int *)(0x456b74 + team * 4))[2];
+        weapon = object_new(placement);
+        object_set_automatic_deactivation(weapon, 0);
+        if (weapon == -1) {
+          display_assert("NONE != weapon_index", "c:\\halo\\SOURCE\\game\\game_engine_ctf.c", 0xbc, 1);
+          system_exit(-1);
+          error(2, "failed to create the flag");
+        } else {
+          weapon_obj = (int)object_get_and_verify_type(weapon, 4);
+          *(int16_t *)(weapon_obj + 0x68) = (int16_t)team;
+          *(int *)(0x456b7c + team * 4) = weapon;
+        }
+      }
+      team++;
+    } while (team < 2);
+  } else {
+    { unsigned int *seed = (unsigned int *)get_global_random_seed_address();
+    rng = random_range(seed, 0, 2); }
+    if ((int)rng < 0 || 1 < (int)rng) {
+      display_assert("(flag_to_create >= 0) && (flag_to_create <= 1)",
+                     "c:\\halo\\SOURCE\\game\\game_engine_ctf.c", 0x106, 1);
+      system_exit(-1);
+    }
+    if (*(int *)(0x456b74 + (int)rng * 4) != 0) {
+      weapon = FUN_000afe50((float *)*(int *)(0x456b74 + (int)rng * 4));
+      if (weapon == -1) {
+        display_assert("NONE != weapon_index", "c:\\halo\\SOURCE\\game\\game_engine_ctf.c", 0xbc, 1);
+        system_exit(-1);
+        error(2, "failed to create the flag");
+      } else {
+        weapon_obj = (int)object_get_and_verify_type(weapon, 4);
+        *(int16_t *)(weapon_obj + 0x68) = rng;
+        *(int *)(0x456b7c + (int)rng * 4) = weapon;
+      }
+    }
+    { uint32_t t0 = (int)rng & 0x80000001;
+    if ((int)t0 < 0) t0 = (t0 - 1 | 0xfffffffe) + 1;
+    game_show_score_team(t0, 0x2d); }
+    { uint32_t t1 = ((int)rng + 1) & 0x80000001;
+    if ((int)t1 < 0) t1 = (t1 - 1 | 0xfffffffe) + 1;
+    game_show_score_team(t1, 0x2c); }
+    variant = (int)game_engine_get_variant();
+    *(int *)0x456b9c = *(int *)(variant + 0x50);
+  }
+  variant = (int)game_engine_get_variant();
+  *(int *)0x456b8c = *(int *)(variant + 0x40);
+  loc_count = ((int16_t (*)(void))player_get_starting_location_count)();
+  loc_idx = 0;
+  if (0 < loc_count) {
+    team = 0;
+    do {
+      loc_pos = (float *)((int (*)(int))player_get_starting_location)(loc_idx);
+      loc_team = *(int16_t *)(loc_pos + 4);
+      if (loc_team == 0 || loc_team == 1) {
+        if (match_game_type(1, 4, (int16_t *)(loc_pos + 5))) {
+          variant = (int)game_engine_get_variant();
+          own_team = (int)loc_team & 0x80000001;
+          if ((int)own_team < 0) own_team = (own_team - 1 | 0xfffffffe) + 1;
+          flag_pos = (float *)*(int *)(0x456b74 + own_team * 4);
+          enemy_team = (own_team + 1) & 0x80000001;
+          dist_own = (loc_pos[2] - flag_pos[2]) * (loc_pos[2] - flag_pos[2]) +
+                     (loc_pos[0] - flag_pos[0]) * (loc_pos[0] - flag_pos[0]) +
+                     (loc_pos[1] - flag_pos[1]) * (loc_pos[1] - flag_pos[1]);
+          if ((int)enemy_team < 0) enemy_team = (enemy_team - 1 | 0xfffffffe) + 1;
+          other_pos = (float *)*(int *)(0x456b74 + enemy_team * 4);
+          dist_enemy = (loc_pos[0] - other_pos[0]) * (loc_pos[0] - other_pos[0]) +
+                       (loc_pos[1] - other_pos[1]) * (loc_pos[1] - other_pos[1]) +
+                       (loc_pos[2] - other_pos[2]) * (loc_pos[2] - other_pos[2]);
+          if (*(char *)(variant + 0x4c) == 0) {
+            if (dist_own >= dist_enemy && dist_own != dist_enemy) {
+              error(2, "NETGAME_FLAG_WARNING starting location %d team %d, too close to enemy flag",
+                    team, (int)loc_team);
+              *(int16_t *)(loc_pos + 4) = 3;
+            }
+          } else if (dist_own < dist_enemy) {
+            error(2, "NETGAME_FLAG_WARNING starting location %d team %d, too close to enemy flag",
+                  team, (int)loc_team);
+            *(int16_t *)(loc_pos + 4) = 3;
+          }
+        }
+      } else {
+        error(2, "NETGAME_FLAG_WARNING starting location %d bad team index %d", team, (int)loc_team);
+      }
+      loc_idx++;
+      team++;
+    } while ((int16_t)loc_idx < loc_count);
+  }
+  return 1;
+}
+
+/* Render a score message on the HUD with color and positioning (a8fb0). */
+void game_engine_rasterize_message(int text, float alpha)
+{
+  int16_t split_count;
+  int font_tag;
+  int rect[2];
+  float color[4];
+  int16_t y_pos;
+
+  split_count = local_player_count();
+  if (split_count == 0)
+    font_tag = *(int *)(*(int *)0x46bd0c + 0x54);
+  else
+    font_tag = *(int *)(*(int *)0x46bd0c + 0x64);
+  rect[0] = *(int *)0x506584;
+  rect[1] = *(int *)0x506588;
+  { int hud_font = interface_get_tag_index(1);
+  draw_string_set_font(hud_font, -1, 0, 0, *(const void **)0x2ee6c4); }
+  color[0] = alpha;
+  color[1] = 0.459f;
+  color[2] = 0.729f;
+  color[3] = 1.0f;
+  rect2d_offset((int16_t *)rect, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+  { long long product = (long long)((int16_t)rect[0] * 5 + (int)(int16_t)rect[1]) * 0x2aaaaaab;
+  y_pos = ((int16_t)(product >> 32) + 9) - (int16_t)(product >> 63); }
+  *(int16_t *)((char *)rect + 4) = y_pos;
+  *(int16_t *)rect = y_pos - 0xf;
+  draw_string_set_font(font_tag, -1, 2, 8, (const void *)color);
+  draw_string_set_color(color);
+  rasterizer_draw_string((int16_t *)rect, 0, 0, 0, (wchar_t *)text);
+  draw_string_set_style_justify_flags(-1, 0, 0);
+  draw_string_set_tab_stops(0, 0);
+}
+
+/* Render a score row in the post-game scoreboard (ab090). EAX=row, ESI=state. */
+void FUN_000ab090(int text, char highlight, int row, int state)
+{
+  int16_t split;
+  int font_tag;
+  int tag_data;
+  int16_t char_height;
+  int16_t row_top;
+  int rect[2];
+  int16_t tab_stops_small[3];
+  int16_t tab_stops_large[3];
+  int16_t *tabs;
+
+  split = local_player_count();
+  font_tag = ((int (*)(void))hud_get_font_index)();
+  tab_stops_small[0] = 0x50;
+  tab_stops_small[1] = 0x7d;
+  tab_stops_small[2] = 0xc8;
+  tab_stops_large[0] = 0x82;
+  tab_stops_large[1] = 0xc3;
+  tab_stops_large[2] = 0x13b;
+  tabs = tab_stops_large;
+  if ((int)*(int16_t *)((char *)rect + 6) - (int)*(int16_t *)((char *)rect + 2) < 0x141)
+    tabs = tab_stops_small;
+  if (row == 0) {
+    draw_string_set_tab_stops(NULL, 0);
+    tabs = NULL;
+  } else {
+    draw_string_set_tab_stops(tabs, 3);
+  }
+  rect[0] = *(int *)0x506584;
+  rect[1] = *(int *)0x506588;
+  rect2d_offset((int16_t *)rect, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+  if (font_tag != -1) {
+    tag_data = (int)tag_get(0x666f6e74, font_tag);
+    char_height = *(int16_t *)(tag_data + 8);
+    if (split < 2)
+      char_height = char_height + *(int16_t *)(tag_data + 6);
+    char_height = char_height + *(int16_t *)(tag_data + 4);
+    if (highlight != 0) {
+      *(float *)(state + 4) = *(float *)(state + 4) + *(float *)0x253524;
+      *(float *)(state + 8) = *(float *)(state + 8) + *(float *)0x253524;
+      *(float *)(state + 0xc) = *(float *)(state + 0xc) + *(float *)0x253524;
+      if (1.0f < *(float *)(state + 4))
+        *(int *)(state + 4) = 0x3f800000;
+      if (1.0f < *(float *)(state + 8))
+        *(int *)(state + 8) = 0x3f800000;
+      if (1.0f < *(float *)(state + 0xc))
+        *(int *)(state + 0xc) = 0x3f800000;
+    }
+    row_top = (int16_t)(row + (split < 2 ? 4 : 0) + 4) * char_height;
+    *(int16_t *)rect = row_top;
+    *(int16_t *)((char *)rect + 4) = row_top + char_height;
+    draw_string_set_font(font_tag, -1, 0, 0, NULL);
+    rasterizer_draw_string((int16_t *)rect, 0, 0, 0, (wchar_t *)text);
+  }
+  draw_string_set_tab_stops(0, 0);
+}
+
+/* Live score update: manage score fade-in/out per local player (afcb0). */
+void FUN_000afcb0(void)
+{
+  int local_idx;
+  int player_handle;
+  int player;
+  int gamepad;
+  float fade;
+
+  local_idx = (int)(int16_t)*(int *)0x506548;
+  player_handle = local_player_get_player_index(local_idx);
+  player = (int)datum_get(player_data, player_handle);
+  if (local_idx == -1) {
+    display_assert("NONE != local_player_index",
+                   "c:\\halo\\SOURCE\\game\\game_engine.c", 0x6f2, 1);
+    system_exit(-1);
+  }
+  if (current_game_engine == 0) {
+    display_assert("NULL != game_engine",
+                   "c:\\halo\\SOURCE\\game\\game_engine.c", 0x6f3, 1);
+    system_exit(-1);
+  }
+  if (player != 0)
+    FUN_000ac3e0(player_handle);
+  gamepad = (int)input_get_gamepad_state(local_idx);
+  if ((gamepad == 0 || *(char *)(gamepad + 0x1d) == 0) && *(int *)0x5aa730 != 1)
+    fade = *(float *)(0x5aa734 + local_idx * 4) - *(float *)0x253d48;
+  else
+    fade = *(float *)(0x5aa734 + local_idx * 4) + *(float *)0x253d48;
+  if (fade < 0.0f) {
+    *(float *)(0x5aa734 + local_idx * 4) = 0.0f;
+    return;
+  }
+  if (fade > 1.0f)
+    fade = 1.0f;
+  if (fade > 0.0f) {
+    float alpha = (float)game_globals_get_weapon(fade);
+    ((void (*)(int, float))FUN_000afa40)(player_handle, alpha);
+  }
+  *(float *)(0x5aa734 + local_idx * 4) = fade;
+}
+
+/* In-game score overlay renderer (afa40). */
+void FUN_000afa40(int param_1, float param_2)
+{
+  int player_count;
+  int player;
+  int i;
+  uint32_t player_handle;
+  uint32_t *entry;
+  wchar_t *status;
+  wchar_t local_59c[256];
+  wchar_t local_39c[256];
+  uint32_t scoreboard[42];
+  wchar_t local_f4[80];
+  float local_54[4];
+  float color_teams[2][4];
+  float color_a[4];
+  char has_teams;
+  char is_self;
+
+  has_teams = 0;
+  if (current_game_engine)
+    has_teams = *(char *)0x456b14;
+  (void)has_teams;
+  FUN_000ae920(local_f4);
+  player_count = FUN_000ac030(0, param_1, scoreboard, 6);
+  color_a[0] = param_2;
+  color_a[1] = 0.7f;
+  color_a[2] = 0.7f;
+  color_a[3] = 0.7f;
+  FUN_000ab090((int)local_f4, 0, 0, (int)color_a);
+  color_a[1] = 0.5f;
+  color_a[2] = 0.5f;
+  color_a[3] = 0.5f;
+  color_a[0] = param_2;
+  ((void (*)(int, wchar_t *))((int *)current_game_engine)[0x50 / 4])(0, local_39c);
+  usprintf(local_59c, L"\t%s\t%s\t%s", L"Place", L"Name", local_39c);
+  FUN_000ab090((int)local_59c, 0, 1, (int)color_a);
+  i = 0;
+  if (0 < player_count) {
+    entry = scoreboard + 6;
+    do {
+      float *sel_color;
+      int team;
+      player_handle = entry[-6];
+      is_self = (param_1 == (int)player_handle);
+      if (datum_absolute_index_to_index(player_data, player_handle)) {
+        hud_get_text_color((int *)local_54);
+        color_a[0] = local_54[0]; color_a[1] = local_54[1]; color_a[2] = local_54[2]; color_a[3] = local_54[3];
+        player = (int)datum_get(player_data, player_handle);
+        color_teams[0][0] = param_2; color_teams[0][1] = 0.6f; color_teams[0][2] = 0.3f; color_teams[0][3] = 0.3f;
+        color_teams[1][0] = param_2; color_teams[1][1] = 0.3f; color_teams[1][2] = 0.3f; color_teams[1][3] = 0.6f;
+        color_a[0] = param_2;
+        ((void (*)(int, wchar_t *))((int *)current_game_engine)[0x4c / 4])(player_handle, local_39c);
+        if (*(int *)0x456b30 < 1 ||
+            *(int *)(player + 0x34) != -1 ||
+            *(int16_t *)(player + 0xaa) < *(int *)0x456b30) {
+          status = L"Quit";
+          if (*(char *)(player + 0xd1) == 0)
+            status = local_39c;
+        } else {
+          status = L"Dead";
+        }
+        usprintf(local_59c, L"\t%s\t%s\t%s",
+                 *(wchar_t **)(0x2efe28 + (*entry & 0x7f) * 4),
+                 (wchar_t *)(player + 4), status);
+        if (has_teams) {
+          team = *(int *)(player + 0x20);
+          if (team < 0) team = 0;
+          if (team > 1) team = 1;
+          sel_color = color_teams[team];
+        } else {
+          sel_color = color_a;
+        }
+        FUN_000ab090((int)local_59c, is_self, i + 2, (int)sel_color);
+      }
+      i++;
+      entry += 7;
+    } while (i < player_count);
+  }
+}
+
+/* Post-game: render title string with lives/score info (ae920). */
+void FUN_000ae920(wchar_t *title_buf)
+{
+  int player;
+  int lives_remaining;
+  wchar_t lives_buf[40];
+  wchar_t *lives_text;
+
+  datum_get(player_data, 0);
+  if (title_buf == NULL) {
+    display_assert("title_string",
+                   "c:\\halo\\SOURCE\\game\\game_engine.c", 0x363, 1);
+    system_exit(-1);
+  }
+  usprintf(lives_buf, *(wchar_t **)0x26cdf0);
+  if (0 < *(int *)0x456b30) {
+    player = (int)datum_get(player_data, 0);
+    lives_remaining = *(int *)0x456b30 - *(int16_t *)(player + 0xaa);
+    if (lives_remaining == 0)
+      lives_text = L"(no lives)";
+    else if (lives_remaining == 1)
+      lives_text = L"(1 life)";
+    else {
+      usprintf(lives_buf, L"(%d lives)", lives_remaining);
+      goto check_phase;
+    }
+    usprintf(lives_buf, lives_text);
+  }
+check_phase:
+  if (*(int *)0x5aa730 == 1) {
+    int won;
+    char has_teams;
+
+    won = game_engine_did_player_win();
+    has_teams = 0;
+    if (current_game_engine)
+      has_teams = *(char *)0x456b14;
+    if (won == -1) {
+      usprintf(title_buf, L"Game ends in a draw");
+      return;
+    }
+    if (won == 0) {
+      if (has_teams == 0)
+        usprintf(title_buf, L"You lost");
+      else
+        usprintf(title_buf, L"Your team lost");
+      return;
+    }
+    if (won == 1) {
+      if (has_teams == 0)
+        usprintf(title_buf, L"You won");
+      else
+        usprintf(title_buf, L"Your team won");
+      return;
+    }
+  } else {
+    if (current_game_engine && *(char *)0x456b14 != 0) {
+      char score_a[16];
+      char score_b[16];
+      ((void (*)(int, char *))((int *)current_game_engine)[0x54 / 4])(0, score_a);
+      ((void (*)(int, char *))((int *)current_game_engine)[0x54 / 4])(1, score_b);
+      { int team0_score = FUN_000a8130(0);
+      int team1_score = FUN_000a8130(1);
+      if (team1_score < team0_score) {
+        usprintf(title_buf, L"Red leads Blue %s to %s %s", score_a, score_b, lives_buf);
+        return;
+      }
+      if (team1_score <= team0_score) {
+        usprintf(title_buf, L"Teams tied at %s %s", score_b, lives_buf);
+        return;
+      }
+      usprintf(title_buf, L"Blue leads Red %s to %s %s", score_b, score_a, lives_buf);
+      return; }
+    }
+    { int local_stats[28];
+    FUN_000abf50(local_stats, 0);
+    ((void (*)(int, wchar_t *))((int *)current_game_engine)[0x4c / 4])(0, (wchar_t *)lives_buf);
+    if ((*(uint32_t *)(local_stats + 6) & 0x80000000) != 0)
+      usprintf(title_buf, L"Tied for %s place with %s %s",
+               *(wchar_t **)(0x2efe28 + (*(uint32_t *)(local_stats + 6) & 0x7f) * 4),
+               lives_buf, lives_buf);
+    else
+      usprintf(title_buf, L"In %s place with %s %s",
+               *(wchar_t **)(0x2efe28 + (*(uint32_t *)(local_stats + 6) & 0x7f) * 4),
+               lives_buf, lives_buf);
+    }
+  }
+}
+
+/* Validate netgame flag starting locations for a game type (aa0b0). BX = type. */
+void FUN_000aa0b0(int16_t param_1, int16_t param_2, int param_3, int16_t game_type)
+{
+  int *flag_block;
+  int scenario;
+  int16_t i;
+  int elem;
+  int16_t seq;
+
+  scenario = (int)global_scenario_get();
+  flag_block = (int *)(scenario + 0x378);
+  i = 0;
+  if (0 < *flag_block) {
+    do {
+      elem = (int)tag_block_get_element(flag_block, (int)i, 0x94);
+      if (game_type == *(int16_t *)(elem + 0x10)) {
+        seq = *(int16_t *)(elem + 0x12);
+        if (seq < param_1 || param_2 < seq)
+          error(2, (char *)param_3, (int)seq);
+      }
+      i++;
+    } while ((int)i < *flag_block);
+  }
+}
+
+/* Post-game scoreboard renderer (aebd0). */
+void game_engine_post_rasterize_post_game(void)
+{
+  int iVar5;
+  int iVar6;
+  int player_count;
+  int row;
+  int team_idx;
+  int player;
+  uint32_t player_handle;
+  uint32_t *entry;
+  void *puVar9;
+  uint32_t scoreboard_buf[84];
+  wchar_t local_4b0[256];
+  wchar_t local_2b0[256];
+  float local_b0[16];
+  int16_t tab_stops[6];
+  float color[4];
+  int16_t rect[4];
+  int16_t rect2[4];
+  int16_t team_tabs[6];
+  wchar_t *team_fmts[2];
+  int team_order[2];
+
+  if (*(int *)0x456b60 == 0)
+    return;
+
+  tab_stops[0] = 0x32;
+  tab_stops[1] = 0x7d;
+  tab_stops[2] = 0xfa;
+  tab_stops[3] = 0x15e;
+  tab_stops[4] = 0x19a;
+  tab_stops[5] = 500;
+  color[1] = 0.459f;
+  color[2] = 0.729f;
+  color[3] = 1.0f;
+  color[0] = 1.0f;
+  local_b0[9] = 1.0f;
+  local_b0[10] = 1.0f;
+  local_b0[11] = 0.0f;
+  local_b0[8] = 1.0f;
+  local_b0[13] = 0.98f;
+  local_b0[14] = 0.96f;
+  local_b0[15] = 0.96f;
+  local_b0[12] = 1.0f;
+  draw_string_set_font(*(int *)(*(int *)0x46bd0c + 0x54), -1, 2, 8, color);
+  draw_string_set_color(color);
+  draw_string_set_style_justify_flags(-1, 0, 0);
+  iVar5 = interface_get_tag_index(6);
+  iVar6 = (int)tag_get(0x68756467, iVar5);
+  rect[0] = 0;
+  rect[1] = 0;
+  rect[2] = 640;
+  rect[3] = 480;
+  iVar5 = (int)FUN_00076ff0(*(int *)(iVar6 + 0x3d4), 0);
+  if (iVar5 != 0) {
+    draw_bitmap_in_rect(FUN_00076ff0(*(int *)(iVar6 + 0x3d4), 0));
+  }
+  if (*(char *)0x456b14 != 0) {
+    team_tabs[0] = 0x32;
+    team_tabs[1] = 200;
+    team_tabs[2] = 0x12c;
+    team_tabs[3] = 0x15e;
+    team_tabs[4] = 0x19a;
+    team_tabs[5] = 500;
+    team_order[0] = 0;
+    team_order[1] = 1;
+    team_fmts[0] = L"\tRed Team\t%s";
+    team_fmts[1] = L"\tBlue Team\t%s";
+    iVar5 = FUN_000ae340(0);
+    if (iVar5 == 0) {
+      team_order[0] = 1;
+      team_order[1] = 0;
+    }
+    draw_string_set_tab_stops(team_tabs, 6);
+    team_idx = 0;
+    do {
+      { int idx = team_order[team_idx];
+      (*(void (**)(int, wchar_t *))(*(int *)0x456b60 + 0x54))(idx, local_4b0);
+      usprintf(local_2b0, team_fmts[idx], local_4b0);
+      FUN_000a84f0((int)local_2b0, 0, (int16_t)(team_idx + 4)); }
+      team_idx++;
+    } while (team_idx < 2);
+  }
+  (*(void (**)(wchar_t *))(*(int *)0x456b60 + 0x50))(local_4b0);
+  usprintf(local_2b0, L"\t%s\t%s\t%s\t%s\t%s\t%s", L"Place", L"Name", local_4b0,
+           L"Kills", L"Assists", L"Deaths");
+  draw_string_set_tab_stops(tab_stops, 6);
+  FUN_000a84f0((int)local_2b0, 0, 7);
+  player_count = FUN_000ac030(0, -1, scoreboard_buf, 12);
+  if (0 < player_count) {
+    entry = scoreboard_buf + 6;
+    row = 8;
+    do {
+      player_handle = entry[-6];
+      player = (int)datum_get(player_data, player_handle);
+      if (*(int16_t *)(player + 2) == -1)
+        puVar9 = color;
+      else
+        puVar9 = &local_b0[8];
+      draw_string_set_color(puVar9);
+      draw_string_set_tab_stops(tab_stops, 6);
+      usprintf(local_2b0, L" \t%s", *(wchar_t **)(0x2efe28 + (*entry & 0x7f) * 4));
+      { int16_t sy = (int16_t)row * 0x12;
+        int16_t ey = (int16_t)row * 0x12 + 0x1a;
+      rect2[0] = *(int16_t *)0x506584;
+      rect2[1] = *(int16_t *)0x506586;
+      rect2[2] = *(int16_t *)0x506588;
+      rect2[3] = *(int16_t *)0x50658a;
+      rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+      rect2[0] = sy;
+      rect2[2] = ey;
+      draw_string_set_style_justify_flags(-1, 0, 0);
+      rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+      draw_string_set_color(color);
+
+      if (*(char *)0x456b14 != 0) {
+        iVar5 = *(int *)(player + 0x20);
+        local_b0[1] = 0.8f;
+        local_b0[2] = 0.4f;
+        local_b0[3] = 0.4f;
+        local_b0[0] = 1.0f;
+        local_b0[5] = 0.4f;
+        local_b0[6] = 0.4f;
+        local_b0[7] = 0.8f;
+        local_b0[4] = 1.0f;
+        if (iVar5 < 0)
+          iVar5 = 0;
+        else if (1 < iVar5)
+          iVar5 = 1;
+        draw_string_set_color(&local_b0[iVar5 * 4]);
+      }
+      usprintf(local_2b0, L" \t \t%s", (wchar_t *)(player + 4));
+      rect2[0] = *(int16_t *)0x506584;
+      rect2[1] = *(int16_t *)0x506586;
+      rect2[2] = *(int16_t *)0x506588;
+      rect2[3] = *(int16_t *)0x50658a;
+      rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+      rect2[0] = sy;
+      rect2[2] = ey;
+      draw_string_set_style_justify_flags(-1, 0, 0);
+      rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+      draw_string_set_color(color);
+
+      iVar5 = FUN_000abfd0(player_handle, 1, 0);
+      if (iVar5 == 0)
+        draw_string_set_color(&local_b0[12]);
+      (*(void (**)(uint32_t, wchar_t *))(*(int *)0x456b60 + 0x4c))(player_handle, local_4b0);
+      usprintf(local_2b0, L" \t \t \t%s", local_4b0);
+      rect2[0] = *(int16_t *)0x506584;
+      rect2[1] = *(int16_t *)0x506586;
+      rect2[2] = *(int16_t *)0x506588;
+      rect2[3] = *(int16_t *)0x50658a;
+      rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+      rect2[0] = sy;
+      rect2[2] = ey;
+      draw_string_set_style_justify_flags(-1, 0, 0);
+      rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+      draw_string_set_color(color);
+
+      iVar5 = FUN_000abfd0(player_handle, 2, 0);
+      if (iVar5 == 0)
+        draw_string_set_color(&local_b0[12]);
+      usprintf(local_2b0, L" \t \t \t \t%d", (int)*(int16_t *)(player + 0x98));
+      rect2[0] = *(int16_t *)0x506584;
+      rect2[1] = *(int16_t *)0x506586;
+      rect2[2] = *(int16_t *)0x506588;
+      rect2[3] = *(int16_t *)0x50658a;
+      rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+      rect2[0] = sy;
+      rect2[2] = ey;
+      draw_string_set_style_justify_flags(-1, 0, 0);
+      rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+      draw_string_set_color(color);
+
+      iVar5 = FUN_000abfd0(player_handle, 3, 0);
+      if (iVar5 == 0)
+        draw_string_set_color(&local_b0[12]);
+      usprintf(local_2b0, L" \t \t \t \t \t%d", (int)*(int16_t *)(player + 0xa0));
+      rect2[0] = *(int16_t *)0x506584;
+      rect2[1] = *(int16_t *)0x506586;
+      rect2[2] = *(int16_t *)0x506588;
+      rect2[3] = *(int16_t *)0x50658a;
+      rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+      rect2[0] = sy;
+      rect2[2] = ey;
+      draw_string_set_style_justify_flags(-1, 0, 0);
+      rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+      draw_string_set_color(color);
+
+      iVar5 = FUN_000abfd0(player_handle, 4, 0);
+      if (iVar5 == 0)
+        draw_string_set_color(&local_b0[12]);
+      usprintf(local_2b0, L" \t \t \t \t \t \t%d", (int)*(int16_t *)(player + 0xaa));
+      rect2[0] = *(int16_t *)0x506584;
+      rect2[1] = *(int16_t *)0x506586;
+      rect2[2] = *(int16_t *)0x506588;
+      rect2[3] = *(int16_t *)0x50658a;
+      rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+      rect2[0] = sy;
+      rect2[2] = ey;
+      draw_string_set_style_justify_flags(-1, 0, 0);
+      rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+      draw_string_set_tab_stops(tab_stops, 6); }
+      entry += 7;
+      player_count--;
+      row++;
+    } while (player_count != 0);
+  }
+  { float bottom_color[4];
+  bottom_color[3] = color[3];
+  bottom_color[2] = color[2];
+  bottom_color[1] = color[1];
+  bottom_color[0] = *(float *)0x5aa72c;
+  rect2[0] = *(int16_t *)0x506584;
+  rect2[1] = 0x19a;
+  rect2[2] = *(int16_t *)0x506588;
+  rect2[3] = 0x46;
+  rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+  draw_string_set_tab_stops(0, 0);
+  draw_string_set_color(bottom_color);
+  iVar5 = (int)network_game_server_get();
+  if (iVar5 != 0) {
+    rect2[2] = 0x17c;
+    draw_string_and_hack_in_icons(rect2, 0, 0, 0, L"\t%b-button =quit    %a-button =pick game", 0);
+    return;
+  }
+  rect2[2] = 0x208;
+  draw_string_and_hack_in_icons(rect2, 0, 0, 0, L"\t%b-button =quit", 0); }
+}
+
+/* Render a 3D nav marker sprite (b1b30). */
+void FUN_000b1b30(float *param_1, int param_2, void *param_3, void *param_4,
+                  float param_5, float param_6)
+{
+  int iVar2;
+  int iVar4;
+  int iVar5;
+  int16_t *ppoint_count;
+  void *puVar6;
+  char render_state[0xcc];
+  float centroid[3];
+  int local_c;
+  int local_8;
+
+  *(int16_t *)0x325652 = 9;
+  iVar2 = rasterizer_widget_submit(2);
+  local_8 = rasterizer_widget_set_zbuffer_enable(5, 4);
+  if (iVar2 == -1 || local_8 == -1) {
+    *(int16_t *)0x325652 = 0;
+    return;
+  }
+  local_c = rasterizer_widget_draw_sprite3d(local_8);
+  ppoint_count = (int16_t *)rasterizer_widget_begin(iVar2);
+  FUN_00180d10(4, 4, local_c, 0x80, param_1, 0x110);
+  ppoint_count[0] = 0;
+  ppoint_count[1] = 1;
+  ppoint_count[2] = 2;
+  ppoint_count[3] = 2;
+  ppoint_count[4] = 3;
+  ppoint_count[5] = 0;
+  rasterizer_widget_set_texture(iVar2);
+  rasterizer_widget_end(local_8);
+  iVar4 = (int)tag_get(0x73686472, param_2);
+  centroid[0] = (param_1[0x33] + param_1[0x22] + param_1[0x11] + param_1[0]) * *(float *)0x25337c;
+  centroid[1] = (param_1[0x34] + param_1[0x23] + param_1[0x12] + param_1[1]) * *(float *)0x25337c;
+  centroid[2] = (param_1[0x35] + param_1[0x24] + param_1[0x13] + param_1[2]) * *(float *)0x25337c;
+  local_c = iVar4;
+  csmemset(render_state, 0, 0xcc);
+  *(int *)(render_state + 4) = 1;
+  *(int16_t *)(render_state + 0xc) = 1;
+  *(void **)(render_state + 8) = *(void **)0x31fc60;
+  if (param_3 == NULL) {
+    *(int *)(render_state + 0x10) = *(int *)(*(int *)0x2ee708);
+    *(int *)(render_state + 0x14) = *(int *)(*(int *)0x2ee708 + 4);
+    *(int *)(render_state + 0x18) = *(int *)(*(int *)0x2ee708 + 8);
+    *(int16_t *)(render_state + 0x1c) = 0;
+    *(int16_t *)(render_state + 0x50) = 0;
+    *(int *)(render_state + 0x5c) = *(int *)(*(int *)0x2ee6c4);
+    *(int *)(render_state + 0x60) = *(int *)(*(int *)0x2ee6c4 + 4);
+    *(int *)(render_state + 0x64) = *(int *)(*(int *)0x2ee6c4 + 8);
+    *(int *)(render_state + 0x68) = *(int *)(*(int *)0x2ee6c4 + 0xc);
+    *(int *)(render_state + 0x6c) = 0;
+    *(int *)(render_state + 0x70) = 0x3f800000;
+    *(int *)(render_state + 0x74) = 0;
+    *(int *)(render_state + 0x78) = *(int *)(*(int *)0x2ee710);
+    *(int *)(render_state + 0x7c) = *(int *)(*(int *)0x2ee710 + 4);
+    *(int *)(render_state + 0x80) = *(int *)(*(int *)0x2ee710 + 8);
+  } else {
+    puVar6 = render_state + 0x10;
+    iVar5 = 0x1d;
+    do {
+      *(int *)puVar6 = *(int *)param_3;
+      param_3 = (char *)param_3 + 4;
+      puVar6 = (char *)puVar6 + 4;
+      iVar5--;
+    } while (iVar5 != 0);
+    iVar4 = local_c;
+  }
+  if (param_4 == NULL) {
+    *(void **)(render_state + 0x84) = (void *)0x5aa6e0;
+    *(void **)(render_state + 0x88) = (void *)0x5aa710;
+  } else {
+    *(int *)(render_state + 0x84) = *(int *)param_4;
+    *(int *)(render_state + 0x88) = *((int *)param_4 + 1);
+  }
+  *(float *)(render_state + 0xb4) = centroid[0];
+  *(float *)(render_state + 0xb8) = centroid[1];
+  *(float *)(render_state + 0xbc) = centroid[2];
+  *(float *)(render_state + 0xc4) = param_5;
+  *(float *)(render_state + 0xc8) = param_6;
+  rasterizer_psuedo_dynamic_screen_quad_draw(0);
+  FUN_0017d1a0(0);
+  FUN_0017cbb0(render_state, 1);
+  { char is_transparent = shader_type_is_transparent(*(int16_t *)(iVar4 + 0x24));
+  if (is_transparent == 0)
+    FUN_0017cbc0(iVar4, 0, 0, iVar2, 2, 0, local_8);
+  else
+    FUN_0017cbd0(iVar4, 0, 0, iVar2, 2, 0, local_8, centroid, 0); }
+  FUN_0016b1c0();
+  FUN_0016b240();
+  rasterizer_psuedo_dynamic_screen_quad_draw(1);
+  rasterizer_widget_set_tint_factor(iVar2);
+  rasterizer_widget_submit_occlusion_test(local_8);
+  *(int16_t *)0x325652 = 0;
+}
+
+/* Render race path 3D markers along waypoint segments (b2010).
+ * Buffer base is local_158 = EBP-0x154.
+ * Index: buf[(0x158-NN)/4] for Ghidra local_NN. */
+extern double floor(double);
+void FUN_000b2010(void)
+{
+  int iVar4;
+  uint32_t point_count;
+  uint32_t uVar5;
+  uint32_t uVar6;
+  uint32_t uVar8;
+  float *pfVar7;
+  float fVar2;
+  float total_distance;
+  float t_per_distance;
+  float inv_t;
+  float t_accum;
+  float t_value;
+  float dx;
+  float dy;
+  float cross_x;
+  float cross_y;
+  float cross_z;
+  float mag;
+  int shader_tag;
+  float render_buf[0x44];
+  uint32_t loop_count;
+
+  global_scenario_get();
+  iVar4 = (int)game_globals_get();
+  iVar4 = (int)tag_block_get_element((int *)(iVar4 + 0x164), 0, 0xa0);
+  point_count = *(uint32_t *)0x456c38;
+  total_distance = *(float *)0x2533c0;
+  shader_tag = *(int *)(iVar4 + 0x38);
+  if (0 < (int)point_count) {
+    uVar6 = 1;
+    pfVar7 = (float *)0x456c44;
+    uVar8 = point_count;
+    do {
+      uVar5 = ((uVar6 == point_count) - 1) & uVar6;
+      uVar6++;
+      uVar8--;
+      { float ddx = ((float *)0x456c3c)[uVar5 * 3] - pfVar7[-2];
+        float ddy = ((float *)0x456c40)[uVar5 * 3] - pfVar7[-1];
+        float ddz = ((float *)0x456c44)[uVar5 * 3] - *pfVar7;
+      total_distance += xbox_sqrtf(ddx * ddx + ddy * ddy + ddz * ddz); }
+      pfVar7 += 3;
+    } while (uVar8 != 0);
+  }
+  { double fVar9 = floor((double)(total_distance + *(float *)0x253398));
+  t_accum = 0.0f;
+  t_per_distance = (float)(*(double *)0x2573d8 / fVar9);
+  inv_t = (float)((double)*(float *)0x2533c8 / ((*(double *)0x2573d8 / fVar9) * (double)total_distance));
+  total_distance = 0.0f; }
+  if (0 < (int)point_count) {
+    uVar8 = 1;
+    inv_t = *(float *)0x2533c8 / t_per_distance;
+    pfVar7 = (float *)0x456c3c;
+    loop_count = point_count;
+    do {
+      uVar6 = (uVar8 == point_count) ? 0 : uVar8;
+      { float ddx = ((float *)0x456c3c)[uVar6 * 3] - pfVar7[0];
+        float ddy = ((float *)0x456c40)[uVar6 * 3] - pfVar7[1];
+        float ddz = ((float *)0x456c44)[uVar6 * 3] - pfVar7[2];
+      total_distance += xbox_sqrtf(ddx * ddx + ddy * ddy + ddz * ddz); }
+      t_value = total_distance / inv_t;
+      csmemset(render_buf, 0, 0x110);
+      /* local_114/110/10c → buf[0x11/0x12/0x13]: current pos + z_offset */
+      render_buf[0x11] = pfVar7[0];
+      render_buf[0x12] = pfVar7[1];
+      render_buf[0x13] = pfVar7[2] + *(float *)0x2533f0;
+      /* local_158/154/150 → buf[0x00/0x01/0x02]: current pos raw */
+      render_buf[0x00] = pfVar7[0];
+      render_buf[0x01] = pfVar7[1];
+      render_buf[0x02] = pfVar7[2];
+      { float nx_x = ((float *)0x456c3c)[uVar6 * 3];
+        float nx_y = ((float *)0x456c40)[uVar6 * 3];
+        float nx_z = ((float *)0x456c44)[uVar6 * 3];
+      /* local_8c/88/84 → buf[0x33/0x34/0x35] */
+      render_buf[0x33] = nx_x;
+      render_buf[0x34] = nx_y;
+      render_buf[0x35] = nx_z;
+      /* local_d0/cc/c8 → buf[0x22/0x23/0x24]: next pos + z_offset */
+      render_buf[0x22] = nx_x;
+      render_buf[0x24] = nx_z + *(float *)0x2533f0;
+      render_buf[0x23] = nx_y;
+      dx = render_buf[0x22] - render_buf[0x11];
+      dy = render_buf[0x23] - render_buf[0x12];
+      cross_x = (render_buf[0x24] - render_buf[0x13]) * (render_buf[0x12] - render_buf[0x01]) -
+                dy * (render_buf[0x13] - render_buf[0x02]);
+      cross_y = dx * (render_buf[0x13] - render_buf[0x02]) -
+                (render_buf[0x24] - render_buf[0x13]) * (render_buf[0x11] - render_buf[0x00]);
+      cross_z = dy * (render_buf[0x11] - render_buf[0x00]) -
+                dx * (render_buf[0x12] - render_buf[0x01]); }
+      mag = xbox_sqrtf(cross_x * cross_x + cross_y * cross_y + cross_z * cross_z);
+      if (*(double *)0x2533d0 <= (mag < 0 ? -mag : mag)) {
+        fVar2 = *(float *)0x2533c8 / mag;
+        cross_x *= fVar2;
+        cross_y *= fVar2;
+        cross_z *= fVar2;
+      }
+      { float u0 = t_accum * t_per_distance;
+        float u1 = t_value * t_per_distance;
+      render_buf[0x0c] = u0;
+      render_buf[0x37] = cross_y;
+      render_buf[0x26] = cross_y;
+      render_buf[0x15] = cross_y;
+      render_buf[0x04] = cross_y;
+      render_buf[0x2e] = u1;
+      render_buf[0x36] = cross_x;
+      render_buf[0x25] = cross_x;
+      render_buf[0x14] = cross_x;
+      render_buf[0x03] = cross_x;
+      render_buf[0x38] = cross_z;
+      render_buf[0x27] = cross_z;
+      render_buf[0x16] = cross_z;
+      render_buf[0x05] = cross_z;
+      t_accum = t_value;
+      render_buf[0x0d] = 1.0f;
+      render_buf[0x1e] = 0.2f;
+      render_buf[0x2f] = 0.2f;
+      render_buf[0x40] = 1.0f;
+      render_buf[0x1d] = u0;
+      render_buf[0x3f] = u1; }
+      FUN_000b1b30(render_buf, shader_tag, 0, 0, inv_t, 1.0f);
+      pfVar7 += 3;
+      uVar8++;
+      loop_count--;
+    } while (loop_count != 0);
+  }
+}
 
 /* Race: per-player validate (b3900 already above). */
