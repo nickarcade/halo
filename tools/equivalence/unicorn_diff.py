@@ -502,10 +502,25 @@ def _build_globals_seeds(*slot_maps: dict,
             if is_dllimport and snap is not None:
                 seeds[slot_addr] = _struct.pack("<I", orig_addr)
             elif snap is not None:
-                # Snapshot overrides take priority over hardcoded known globals
-                seeds[slot_addr] = snap
+                # Direct value reference (DAT_X).  Seed up to 8 bytes so a
+                # constant read as an 8-byte double (e.g. `*(double*)0x2533d0`)
+                # is NOT truncated to its low dword.  DIR32 globals slots are
+                # 256 bytes apart, so over-seeding a 4-byte consumer is
+                # harmless — it only reads its own 4 bytes.  Snapshot overrides
+                # take priority over hardcoded known globals.
+                seeds[slot_addr] = _snapshot_value_at(snapshot_overrides,
+                                                      orig_addr, 8) or snap
             elif orig_addr in _KNOWN_GLOBAL_BYTES:
-                seeds[slot_addr] = _KNOWN_GLOBAL_BYTES[orig_addr]
+                # Static fallback: concatenate the adjacent dword when it was
+                # also extracted, so double reads get both halves even without
+                # a snapshot.  (Many epsilon doubles have an unreferenced high
+                # dword that the extractor never captured — those still need a
+                # snapshot; see memsave_snapshot.py.)
+                val = _KNOWN_GLOBAL_BYTES[orig_addr]
+                nxt = _KNOWN_GLOBAL_BYTES.get(orig_addr + 4)
+                if nxt is not None and len(val) == 4:
+                    val = val + nxt
+                seeds[slot_addr] = val
     return seeds
 
 
@@ -1090,6 +1105,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
              mem_trace: bool = False,
              state_snapshot: Optional[Path] = None,
              no_concolic: bool = False,
+             real_callees: bool = False,
              max_insn: int = None) -> int:
     """Run the differential test.  Returns 0 if all pass, 1 if any diverge."""
 
@@ -1407,8 +1423,24 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         combined_stub_map.update(lft_stub_map)
         if combined_stub_map:
             stub_mgr = StubManager(KB_JSON, DELINKED_DIR)
-            n_prepared = stub_mgr.prepare_stubs(combined_stub_map)
+            # Allocate callee globals slots past the caller's own oracle+lifted
+            # slots so they never overlap.
+            callee_globals_base = lft_globals_base + len(lft_data_slots) * 256
+            n_prepared = stub_mgr.prepare_stubs(
+                combined_stub_map,
+                globals_base=callee_globals_base,
+                shared_sentinels=shared_stub_sentinels,
+                real_callees=real_callees)
             info(f"  stubs prepared: {n_prepared}/{len(combined_stub_map)}")
+            if real_callees and stub_mgr._callee_dir32_slots:
+                # Seed the globals the loaded callee code reads (DAT_ -> snapshot
+                # / known_globals), same path as the caller's own globals.
+                globals_seeds.update(_build_globals_seeds(
+                    stub_mgr._callee_dir32_slots,
+                    snapshot_overrides=snapshot_overrides))
+                globals_seeds.update(stub_mgr._extra_rdata_seeds)
+                info(f"  real callees: {stub_mgr._real_code_count} loaded, "
+                     f"{len(stub_mgr._callee_dir32_slots)} callee globals seeded")
             stub_manager = stub_mgr
             use_stubs = True
 
@@ -2046,7 +2078,12 @@ def main():
                         help="Load state snapshot JSON for memory initialization (replaces zero-fill)")
     parser.add_argument("--no-concolic", action="store_true",
                         help="Disable automatic concolic Phase 2 when coverage is low")
+    parser.add_argument("--real-callees", action="store_true",
+                        help="Run callees as native oracle code (loops iterate over "
+                             "snapshot data) instead of return-0 stubs. Implies --allow-stubs.")
     args = parser.parse_args()
+    if args.real_callees:
+        args.allow_stubs = True
 
     if args.batch_classify:
         sys.exit(_run_batch_classify())
@@ -2083,6 +2120,7 @@ def main():
         mem_trace=args.mem_trace,
         state_snapshot=args.state_snapshot,
         no_concolic=args.no_concolic,
+        real_callees=args.real_callees,
         max_insn=args.max_insn,
     ))
 
