@@ -8488,7 +8488,7 @@
         },
         {
           "addr": "0xabf50",
-          "decl": "void FUN_000abf50(int *param_1, int player_handle@<bx>);",
+          "decl": "void FUN_000abf50(int *param_1, int player_handle@<ebx>);",
           "ported": true,
           "src": "src/halo/game/game_engine.c"
         },
@@ -8555,7 +8555,7 @@
         },
         {
           "addr": "0xaceb0",
-          "decl": "void FUN_000aceb0(int player_handle@<ecx>, int message_type@<eax>, int extra@<ebx>);",
+          "decl": "void FUN_000aceb0(int player_handle@<ecx>, int message_type@<eax>, int extra@<ebx>, int param4, int param5);",
           "ported": true,
           "src": "src/halo/game/game_engine.c"
         },
@@ -8703,7 +8703,7 @@
         },
         {
           "addr": "0xae920",
-          "decl": "void FUN_000ae920(wchar_t *title_buf);",
+          "decl": "void FUN_000ae920(wchar_t *title_buf, int player_handle@<eax>);",
           "ported": true,
           "src": "src/halo/game/game_engine.c"
         },
@@ -15570,7 +15570,7 @@
         },
         {
           "addr": "0x8aa80",
-          "decl": "void observer_up_from_forward(void);"
+          "decl": "void observer_up_from_forward(float *forward, float *up);"
         },
         {
           "addr": "0x8ab10",
@@ -27517,15 +27517,18 @@
       "functions": [
         {
           "addr": "0x108e70",
-          "decl": "char bit_vector_and(int16_t bit_vector_size, int v0, int v1, int result_out);"
+          "decl": "char bit_vector_and(int16_t bit_vector_size, int v0, int v1, int result_out);",
+          "ported": true
         },
         {
           "addr": "0x108f00",
-          "decl": "void bit_vector_or(void);"
+          "decl": "void bit_vector_or(int16_t bit_vector_size, int v0, int v1, int result_out);",
+          "ported": true
         },
         {
           "addr": "0x108fa0",
-          "decl": "void FUN_00108fa0(void);"
+          "decl": "void FUN_00108fa0(int16_t bit_vector_size, int vector, int result_out);",
+          "ported": true
         }
       ],
       "name": "integer_math.obj",
@@ -33842,7 +33845,7 @@
       "functions": [
         {
           "addr": "0x1c8d90",
-          "decl": "void *FUN_001c8d90(int permutation_block_ptr, int tick_index);",
+          "decl": "void *FUN_001c8d90(int permutation_block_ptr, short tick_index);",
           "ported": true
         }
       ],

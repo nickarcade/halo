@@ -4144,7 +4144,7 @@ wchar_t *FUN_000b2c50(int param_1, wchar_t *param_2)
 
   if (*(int *)(variant + 0x5c) == 2) {
 
-    usprintf(param_2, *(wchar_t **)0x26c118, score);
+    usprintf(param_2, (wchar_t *)0x26c118, score); /* 0x26c118 IS L"%d" (addr), not a ptr */
 
     return param_2;
 
@@ -4176,7 +4176,7 @@ wchar_t *FUN_000b2ce0(int param_1, wchar_t *param_2)
 
   if (*(int *)(variant + 0x5c) == 2) {
 
-    usprintf(param_2, *(wchar_t **)0x26c118, score);
+    usprintf(param_2, (wchar_t *)0x26c118, score); /* 0x26c118 IS L"%d" (addr), not a ptr */
 
     return param_2;
 
@@ -4682,19 +4682,19 @@ void ticks_to_unicode_time_string(int param_1, int param_2, wchar_t *param_3)
 
   if (minutes == 0)
 
-    unicode_sprintf(min_buf, 0x40, *(wchar_t **)0x26c120);
+    unicode_sprintf(min_buf, 0x40, (wchar_t *)0x26c120);
 
   else
 
-    unicode_sprintf(min_buf, 0x40, *(wchar_t **)0x26c118, minutes);
+    unicode_sprintf(min_buf, 0x40, (wchar_t *)0x26c118, minutes);
 
   if (seconds < 10)
 
-    unicode_sprintf(sec_buf, 0x40, *(wchar_t **)0x26c110, seconds);
+    unicode_sprintf(sec_buf, 0x40, (wchar_t *)0x26c110, seconds);
 
   else
 
-    unicode_sprintf(sec_buf, 0x40, *(wchar_t **)0x26c118, seconds);
+    unicode_sprintf(sec_buf, 0x40, (wchar_t *)0x26c118, seconds);
 
   unicode_sprintf(param_3, param_2, L"%s:%s", min_buf, sec_buf);
 
@@ -5198,7 +5198,7 @@ int FUN_000b0210(int param_1, int param_2, int param_3, wchar_t *param_4, int pa
 
   case 0x22:
 
-    unicode_sprintf(param_4, param_5, *(wchar_t **)0x26cdf0);
+    unicode_sprintf(param_4, param_5, (wchar_t *)0x26cdf0);
 
     return 1;
 
@@ -5946,11 +5946,11 @@ void game_engine_player_event(int param_1, int param_2, int param_3)
     player = (int)data_iterator_next(&iter);
     while (player != 0) {
       if (param_2 != -1)
-        game_engine_hud_update_player(iter.datum_handle, param_2, param_3);
+        game_engine_hud_update_player(iter.datum_handle, param_3, param_2);
       player = (int)data_iterator_next(&iter);
     }
   } else if (param_2 != -1) {
-    game_engine_hud_update_player(param_1, param_2, param_3);
+    game_engine_hud_update_player(param_1, param_3, param_2);
   }
 }
 
@@ -6150,23 +6150,29 @@ int FUN_000abd20(int *param_1, int param_2, char param_3)
 void FUN_000abf50(int *param_1, int player_handle)
 {
   int i;
+  int count;
   int *src;
   int *dst;
   int local_1c4[112];
 
   i = 0;
-  FUN_000abd20(local_1c4, 0, 0);
-  if (local_1c4[0] != player_handle) {
+  count = FUN_000abd20(local_1c4, 0, 0);
+  if (count > 0 && local_1c4[0] != player_handle) {
     src = local_1c4;
     do {
       i++;
       src += 7;
-      if (0xf < i) {
-        display_assert("place<MULTIPLAYER_MAXIMUM_PLAYERS",
-                       "c:\\halo\\SOURCE\\game\\game_engine.c", 0x359, 1);
-        system_exit(-1);
+      if (i >= count) {
+        /* player datum inactive (quit) — not in sorted array; zero output */
+        int n;
+        for (n = 0; n < 7; n++) param_1[n] = 0;
+        return;
       }
     } while (*src != player_handle);
+  } else if (count == 0) {
+    int n;
+    for (n = 0; n < 7; n++) param_1[n] = 0;
+    return;
   }
   src = local_1c4 + i * 7;
   dst = param_1;
@@ -6926,26 +6932,32 @@ char FUN_000a9190(int param_1, int flag_index, int player_handle)
   return 0;
 }
 
-/* Dispatch HUD update event with register args. ECX=player, EAX=msg, EBX=extra. */
-void FUN_000aceb0(int player_handle, int message_type, int extra)
+/* FUN_000aceb0 / game_engine.obj -- dispatch a player game-engine message.
+ *
+ * ABI: 3 register args + 2 stack args (ECX=player_handle, EAX=message_type,
+ * EBX=extra, [EBP+8]=param4 (stack1), [EBP+0xc]=param5 (stack2)). It calls the
+ * current game engine's handler vtable[0x64] with
+ * (param4, param5, extra, player_handle, message_type); if the handler returns
+ * nonzero it stops, otherwise (or if the handler is NULL) it falls back to
+ * game_engine_get_score_hud_text(param4, param5, extra, EDI=player_handle,
+ * ESI=message_type).
+ *
+ * Must stay ported=true: the original aceb0 (0xaceb0) reads its two stack args
+ * from [EBP+8]/[EBP+0xc], but the ported=false redirect thunk only marshals the
+ * 3 register args and tail-jmps, leaving the caller's param2/param3 (a HUD-buffer
+ * pointer) at the original's stack1 slot -- which then reaches a players datum_get
+ * as a bogus handle and asserts "players index ... unused". Running our cdecl impl
+ * directly (only caller is our lifted FUN_000ae110) avoids the broken thunk. */
+void FUN_000aceb0(int player_handle, int message_type, int extra, int param4, int param5)
 {
-  int player;
+  char (*handler)(int, int, int, int, int);
 
-  player = (int)datum_get(player_data, player_handle);
-  if (*(int16_t *)(player + 2) == -1)
-    return;
-  if (((char (**)(void))current_game_engine)[0x64 / 4] != NULL) {
-    if (((char (*)(int, int, int, wchar_t *, int))((void **)current_game_engine)[0x64 / 4])(
-            player_handle, message_type, extra, (wchar_t *)((char *)player - 0x804 + 0x808), 0x400))
-      goto display;
+  handler = (char (*)(int, int, int, int, int))((void **)current_game_engine)[0x64 / 4];
+  if (handler != NULL) {
+    if (handler(param4, param5, extra, player_handle, message_type))
+      return;
   }
-  if (!game_engine_get_score_hud_text(player_handle, message_type, extra,
-                                       (wchar_t *)((char *)player - 0x804 + 0x808), 0x400))
-    return;
-display:
-  { int16_t screen_index = *(int16_t *)(player + 2);
-  *(int16_t *)((char *)player - 2) = 0;
-  hud_print_message(screen_index, (wchar_t *)((char *)player - 0x804 + 0x808)); }
+  game_engine_get_score_hud_text(param4, param5, extra, (wchar_t *)player_handle, message_type);
 }
 
 /* Check if the team won by finding a player on team ESI and dispatching. */
@@ -7480,9 +7492,14 @@ int FUN_000ac220(int param_1)
   char local_3c[12];
   char local_30[12];
   char local_24[4];
-  float local_20 = 0;
-  float local_1c = 0;
-  float local_18 = 0;
+  /* Position vec3 filled by unit_set_seat_state (a 12-byte write to local_20).
+   * MUST be one contiguous 3-float buffer. The original keeps `player` in EDI
+   * (a register untouched by callees), but our clang lift spills `player` to the
+   * stack at EBP-0x10 -- 4 bytes after this buffer at EBP-0x14. Declaring the
+   * components as 3 separate floats let the 12-byte vec3 write spill position.y
+   * onto `player`, turning it into a float; the later *(player+0x34) deref then
+   * page-faulted (float-as-pointer). A real array keeps the write self-contained. */
+  float local_20[3];
   int num_found;
   float local_10;
   float local_c;
@@ -7496,24 +7513,24 @@ int FUN_000ac220(int param_1)
         return player_index_from_unit_index(best);
     }
   }
-  ((void (*)(int, float *))unit_set_seat_state)(*(int *)(player + 0x34), &local_20);
+  ((void (*)(int, float *))unit_set_seat_state)(*(int *)(player + 0x34), local_20);
   ((void (*)(int16_t, float *))player_control_get_facing_direction)(*(int16_t *)(player + 2), (float *)local_30);
   num_found = ((int (*)(float *, float *, void *, int *, int, int *))find_objects_from_point_vector)(
-      &local_20, (float *)local_30, FUN_000a85d0, &param_1, 0x20, local_c8);
+      local_20, (float *)local_30, FUN_000a85d0, &param_1, 0x20, local_c8);
   i = 0;
   if (0 < num_found) {
     do {
       obj = local_c8[i];
       biped = (int)object_get_and_verify_type(obj, 3);
-      dx = *(float *)(biped + 0xc) - local_20;
-      dy = *(float *)(biped + 0x10) - local_1c;
-      dz = *(float *)(biped + 0x14) - local_18;
+      dx = *(float *)(biped + 0xc) - local_20[0];
+      dy = *(float *)(biped + 0x10) - local_20[1];
+      dz = *(float *)(biped + 0x14) - local_20[2];
       local_c = dy * dy + dx * dx + dz * dz;
       if ((*(float *)(biped + 0x32c) < 1.0f ||
            (player_idx = player_index_from_unit_index(obj),
             *(int *)(player + 0x7c) == player_idx)) &&
           ((char (*)(int, float *, float *, int, char *, char *, char *, float *))FUN_000a5c60)(
-              local_c8[i], &local_20, (float *)local_30, *(int *)(player + 0x34),
+              local_c8[i], local_20, (float *)local_30, *(int *)(player + 0x34),
               local_48, local_3c, local_24, &local_10) &&
           (local_10 > -*(float *)0x26c228 && local_10 < *(float *)0x26c228) &&
           local_c < *(float *)0x254f90 &&
@@ -7653,16 +7670,24 @@ void FUN_000ac3e0(int player_handle)
   if (*(int *)(player + 0x7c) != -1) {
     int target_player;
     int hold_time;
+    float alpha;
 
     target_player = (int)datum_get(player_data, *(int *)(player + 0x7c));
     hold_time = *(int *)(player + 0x80);
     csmemset(target_name, 0, sizeof(target_name));
     if (9 < hold_time)
       hold_time = 10;
-    ((void (*)(wchar_t *, wchar_t *, int))ustrncpy)(target_name, (wchar_t *)(target_player + 4), 11);
+    ustrncpy(target_name, (wchar_t *)(target_player + 4), 11);
     target_name[11] = 0;
-    { float alpha = (float)game_globals_get_weapon((float)hold_time * *(float *)0x253398);
-    ((void (*)(wchar_t *, float))game_engine_rasterize_message)(target_name, alpha); }
+    /* Target-name fade alpha = pow(hold_time*0.1, ~1.9) * 0.5, ramping
+     * 0 -> 0.5 as the reticle-hold counter (player+0x80) climbs 0..10.
+     * Mirrors the original x87 sequence at 0xac4a9:
+     *   FILD hold_time; FMUL [0x25496c]=0.1f; FLD [0x26b678]=double exp;
+     *   CALL _CIpow (0x1d9e70); FMUL [0x253398]=0.5f.
+     * pow(0,exp)=0 (CRT/x87 handle base==0), so hold_time==0 -> alpha 0. */
+    alpha = (float)(pow((double)hold_time * *(float *)0x25496c,
+                        *(double *)0x26b678) * *(float *)0x253398);
+    game_engine_rasterize_message((int)target_name, alpha);
   }
 }
 
@@ -7673,19 +7698,25 @@ int FUN_000aca70(int item_collection_tag)
   int count;
   int data;
   int i;
+  int accum;
+  unsigned int *seed;
 
+  /* Weighted-random selection over an item-collection's entries (0x54 bytes
+   * each). Seed the accumulator with a random value in [0, total_weight),
+   * then subtract each entry's weight (float at +0x20); the first entry that
+   * drives the accumulator negative is chosen, returning its item tag at +0x30.
+   * Returns -1 if the collection is empty. */
   tag = (int *)tag_get(0x69746d63, item_collection_tag);
   count = *tag;
-  { unsigned int *seed = (unsigned int *)get_global_random_seed_address();
-  int rng = random_range(seed, 0, FUN_000a8970(tag));
-  (void)rng; }
+  seed = (unsigned int *)get_global_random_seed_address();
+  accum = random_range(seed, 0, FUN_000a8970(tag));
   data = tag[1];
   i = 0;
   if (0 < count) {
     do {
-      int weight = (int)((float)0 + *(float *)(data + i * 0x54 + 0x20));
-      if (weight < 0)
-        return *(int *)(i * 0x54 + 0x30 + data);
+      accum = (int)((float)accum - *(float *)(data + i * 0x54 + 0x20));
+      if (accum < 0)
+        return *(int *)(data + i * 0x54 + 0x30);
       i++;
     } while (i < count);
   }
@@ -8421,7 +8452,7 @@ void FUN_000ab090(int text, char highlight, int row, int state)
     row_top = (int16_t)(row + (split < 2 ? 4 : 0) + 4) * char_height;
     *(int16_t *)rect = row_top;
     *(int16_t *)((char *)rect + 4) = row_top + char_height;
-    draw_string_set_font(font_tag, -1, 0, 0, NULL);
+    draw_string_set_font(font_tag, -1, 0, 0, (const void *)state);
     rasterizer_draw_string((int16_t *)rect, 0, 0, 0, (wchar_t *)text);
   }
   draw_string_set_tab_stops(0, 0);
@@ -8492,7 +8523,7 @@ void FUN_000afa40(int param_1, float param_2)
   if (current_game_engine)
     has_teams = *(char *)0x456b14;
   (void)has_teams;
-  FUN_000ae920(local_f4);
+  FUN_000ae920(local_f4, param_1);
   player_count = FUN_000ac030(0, param_1, scoreboard, 6);
   color_a[0] = param_2;
   color_a[1] = 0.7f;
@@ -8503,7 +8534,7 @@ void FUN_000afa40(int param_1, float param_2)
   color_a[2] = 0.5f;
   color_a[3] = 0.5f;
   color_a[0] = param_2;
-  ((void (*)(int, wchar_t *))((int *)current_game_engine)[0x50 / 4])(0, local_39c);
+  ((void (*)(wchar_t *))((int *)current_game_engine)[0x50 / 4])(local_39c);
   usprintf(local_59c, L"\t%s\t%s\t%s", L"Place", L"Name", local_39c);
   FUN_000ab090((int)local_59c, 0, 1, (int)color_a);
   i = 0;
@@ -8551,7 +8582,7 @@ void FUN_000afa40(int param_1, float param_2)
 }
 
 /* Post-game: render title string with lives/score info (ae920). */
-void FUN_000ae920(wchar_t *title_buf)
+void FUN_000ae920(wchar_t *title_buf, int player_handle)
 {
   int player;
   int lives_remaining;
@@ -8559,13 +8590,17 @@ void FUN_000ae920(wchar_t *title_buf)
   wchar_t score_buf[256];
   wchar_t *lives_text;
 
-  datum_get(player_data, 0);
+  datum_get(player_data, player_handle);
   if (title_buf == NULL) {
     display_assert("title_string",
                    "c:\\halo\\SOURCE\\game\\game_engine.c", 0x363, 1);
     system_exit(-1);
   }
-  usprintf(lives_buf, *(wchar_t **)0x26cdf0);
+  /* 0x26cdf0 IS the (empty) wide format string L"", passed by address.
+   * Original at 0xae966 does PUSH 0x26cdf0 (immediate), NOT PUSH [0x26cdf0];
+   * dereferencing it yields NULL -> usprintf "string && format" assert
+   * (the MP-quit / post-game-report crash). */
+  usprintf(lives_buf, (wchar_t *)0x26cdf0);
   if (0 < *(int *)0x456b30) {
     player = (int)datum_get(player_data, 0);
     lives_remaining = *(int *)0x456b30 - *(int16_t *)(player + 0xaa);
@@ -8626,7 +8661,7 @@ check_phase:
       return; }
     }
     { int local_stats[28];
-    FUN_000abf50(local_stats, 0);
+    FUN_000abf50(local_stats, player_handle);
     ((void (*)(int, wchar_t *))((int *)current_game_engine)[0x4c / 4])(0, score_buf);
     if ((*(uint32_t *)(local_stats + 6) & 0x80000000) != 0)
       usprintf(title_buf, L"Tied for %s place with %s %s",

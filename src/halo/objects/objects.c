@@ -19,10 +19,6 @@ double pow(double x, double y);
 #define CALL_FUN_000b6740(a,b) XCALL(0xb6740, void(*)(unsigned short,void*))(a,b)
 #define CALL_FUN_000b7e30(a) XCALL(0xb7e30, void*(*)(unsigned short))(a)
 #define CALL_FUN_001a9240(a,b) XCALL(0x1a9240, void(*)(int,void*))(a,b)
-#define CALL_FUN_0010b120(a,b) XCALL(0x10b120, int(*)(int,int))(a,b)
-#define CALL_FUN_0010b270(a) XCALL(0x10b270, float(*)(int))(a)
-#define CALL_FUN_0010cc40() XCALL(0x10cc40, void(*)(void))()
-#define CALL_FUN_0008aa80() XCALL(0x8aa80, void(*)(void))()
 #define CALL_FUN_00084a70(a,b) XCALL(0x84a70, char(*)(float*,float*))(a,b)
 #define CALL_FUN_00084a10(a) XCALL(0x84a10, char(*)(float*))(a)
 #define CALL_game_time_get_rate() XCALL(0xb5cc0, float(*)(void))()
@@ -61,12 +57,9 @@ double pow(double x, double y);
 #define CALL_FUN_00021fb0(a) XCALL(0x21fb0, char(*)(float*))(a)
 #define CALL_FUN_000a16b0(a) XCALL(0xa16b0, char(*)(void*))(a)
 #define CALL_FUN_00143ae0() XCALL(0x143ae0, void(*)(void))()
-#define CALL_FUN_0013d880() XCALL(0x13d880, void(*)(void))()
 #define CALL_FUN_001d9e59(a,b) XCALL(0x1d9e59, void*(*)(const char*,const char*))(a,b)
 #define CALL_FUN_001d9260 XCALL(0x1d9260, int(*)(void*,const char*,...))
 #define CALL_FUN_0013f3b0(a,b) XCALL(0x13f3b0, void(*)(void*,int))(a,b)
-#define CALL_FUN_001493b0(a) XCALL(0x1493b0, void(*)(int))(a)
-#define CALL_FUN_0018e3f0(a,b,c,d,e) XCALL(0x18e3f0, int(*)(int,int,int,int,void*))(a,b,c,d,e)
 #define CALL_FUN_0018f180(a,b) XCALL(0x18f180, void(*)(void*,void*))(a,b)
 #define CALL_FUN_00140ce0(a,b) XCALL(0x140ce0, void(*)(int,void*))(a,b)
 #define CALL_FUN_00013010(a) XCALL(0x13010, float(*)(void*))(a)
@@ -341,11 +334,11 @@ int FUN_000ae110(int param_1, int param_2, int param_3)
   if (*(int *)(player + 0x34) != -1) {
     time = game_time_get();
     if (time < 0x1c2) {
-      FUN_000aceb0(param_2, param_3, -1);
+      FUN_000aceb0(param_2, param_3, -1, param_1, 0x1d);
       return 0;
     }
     if (*(int *)(player + 0x74) != -1) {
-      FUN_000aceb0(param_2, param_3, *(int *)(player + 0x78));
+      FUN_000aceb0(param_2, param_3, *(int *)(player + 0x78), param_1, *(int *)(player + 0x74));
       return 0;
     }
     return 0;
@@ -8284,7 +8277,6 @@ void FUN_00084ae0(int *param_1, unsigned short *param_2, unsigned char *param_3)
   int iVar4;
   float *pfVar5;
   int uVar6;
-  float fVar7;
   char cVar2;
   char local_30[8];
   int local_28 = 0;
@@ -8292,8 +8284,7 @@ void FUN_00084ae0(int *param_1, unsigned short *param_2, unsigned char *param_3)
   int local_20 = 0;
   int local_1c = 0;
   char local_18[12];
-  float local_c = 0;
-  float local_8 = 0;
+  float angles[2];
   unsigned char *puVar1;
 
   iVar3 = CALL_FUN_001d0581();
@@ -8322,24 +8313,29 @@ void FUN_00084ae0(int *param_1, unsigned short *param_2, unsigned char *param_3)
         tag_block_get_element((void *)(local_28 + 0x4c), 0, 0x1c);
       }
       pfVar5 = (float *)CALL_FUN_000b7e30(*param_2);
-      local_c = *pfVar5;
-      local_8 = pfVar5[1];
+      angles[0] = *pfVar5;
+      angles[1] = pfVar5[1];
       CALL_FUN_001a9240(iVar3, local_18);
-      uVar6 = CALL_FUN_0010b120(0xbf8cbe4c, 0x3ec90fdb);
-      fVar7 = (float)CALL_FUN_0010b270(uVar6);
-      (void)local_8; /* set but used only transiently by the original */
-      local_8 = fVar7;
-      uVar6 = CALL_FUN_0010b120(0xbf490fdb, 0x3f490fdb);
-      fVar7 = (float)CALL_FUN_0010b270(uVar6);
-      local_c = fVar7 + local_c + *(float *)0x256980;
-      CALL_FUN_0010cc40();
-      CALL_FUN_0008aa80();
-      uVar6 = CALL_FUN_0010b120(0x3f060a92, 0x3fb2b8c2);
-      fVar7 = (float)CALL_FUN_0010b270(uVar6);
-      *(float *)(param_3 + 0x20) = fVar7;
-      uVar6 = CALL_FUN_0010b120(0x3f800000, 0x40c00000);
-      fVar7 = (float)CALL_FUN_0010b270(uVar6);
-      *(float *)(param_3 + 0x1c) = fVar7;
+      /* Random bored-camera angles. The original evaluates each
+       * random_real_range(min,max) by pushing min/max, then calling the
+       * 0-arg local-seed getter, then random_real_range(seed, min, max).
+       * Ghidra mis-grouped the constants onto the 0-arg seed getter; they
+       * are the random ranges (radians). angles[] is a contiguous pair so
+       * angles_to_vector can read {angles[0], angles[1]} through one
+       * pointer (matches the original EBP-8 / EBP-4 stack layout). */
+      angles[1] = random_real_range((int *)random_math_get_local_seed_address(),
+                                    -1.0995574f, 0.39269909f);
+      angles[0] = random_real_range((int *)random_math_get_local_seed_address(),
+                                    -0.78539819f, 0.78539819f)
+                  + angles[0] + *(float *)0x256980;
+      angles_to_vector((float *)(param_3 + 0x24), angles);
+      observer_up_from_forward((float *)(param_3 + 0x24), (float *)(param_3 + 0x30));
+      *(float *)(param_3 + 0x20) =
+          random_real_range((int *)random_math_get_local_seed_address(),
+                            0.52359879f, 1.3962634f);
+      *(float *)(param_3 + 0x1c) =
+          random_real_range((int *)random_math_get_local_seed_address(),
+                            1.0f, 6.0f);
       puVar1 = *(unsigned char **)0x31fc38;
       *(int *)(param_3 + 0x3c) = *(int *)puVar1;
       *(int *)(param_3 + 0x40) = *(int *)(puVar1 + 4);
@@ -8911,9 +8907,7 @@ char FUN_0013ab20(unsigned int param_1, int param_2, int *param_3)
   char local_64[12];
   char local_58[12];
   char local_4c[12];
-  float local_40 = 0;
-  float local_3c = 0;
-  float local_38 = 0;
+  float local_40[3];
   int local_34;
   int local_30;
   float local_2c;
@@ -8984,7 +8978,7 @@ char FUN_0013ab20(unsigned int param_1, int param_2, int *param_3)
           && (iVar4 = CALL_FUN_00138ee0(iVar2), iVar4 != 0)
           && (iVar4 = CALL_FUN_00138ee0(local_14), iVar4 != 0)) {
         CALL_FUN_001390d0(iVar6, local_14, puVar5, local_c, local_10, (void *)local_88);
-        FUN_00138fd0(iVar6, iVar2, puVar5, local_c, local_10, (int)&local_40);
+        FUN_00138fd0(iVar6, iVar2, puVar5, local_c, local_10, (int)local_40);
         CALL_FUN_00180570((unsigned int)*puVar5 * 0x20 + *(int *)(iVar6 + 0xf8), (void *)local_64);
         CALL_FUN_00180570((unsigned int)puVar5[1] * 0x20 + *(int *)(iVar6 + 0xf8), (void *)local_58);
         CALL_FUN_00180570((unsigned int)puVar5[2] * 0x20 + *(int *)(iVar6 + 0xf8), (void *)local_4c);
@@ -9000,16 +8994,16 @@ char FUN_0013ab20(unsigned int param_1, int param_2, int *param_3)
         distance_scale = (local_24 - local_2c) * local_10 + (local_28 - local_2c) * local_c + local_2c;
         CALL_FUN_00013010((void *)local_70);
         if (*(char *)0x5a8d59 != '\0') {
-          local_2c = local_40;
-          local_28 = local_3c;
-          local_24 = local_38;
+          local_2c = local_40[0];
+          local_28 = local_40[1];
+          local_24 = local_40[2];
           local_30 = 0x3f800000;
           CALL_FUN_00189150(1, param_2, 0x3f000000, &local_30);
           { int ds_bits; memcpy(&ds_bits, &distance_scale, 4);
           ((void (*)(int, void *, void *, int, void *))FUN_00189320)(1, (void *)param_2, local_70, ds_bits, &local_30); }
         }
         FUN_00139e50(param_1, (float *)local_7c, (float *)local_70, distance_scale,
-                     (float *)local_88, (float *)param_3, (float *)&local_40);
+                     (float *)local_88, (float *)param_3, (float *)local_40);
         local_5 = 1;
       }
     }
@@ -9503,7 +9497,10 @@ LAB_0013d51f:
               (void *)((int)global_scenario_get() + 0x204), (int)param_2[1], 0x24);
     *(short *)(iVar6 + 0x20) = param_4;
     *(short *)(iVar6 + 0x22) = param_5;
-    CALL_FUN_0013d880();
+    /* Store this object's handle (param_1, held in ESI / the return value) at
+     * the scenario name-table index param_2[1]. Confirmed at 0x13d551-0x13d557:
+     * PUSH ESI (=param_1); PUSH EDX (=param_2[1]); CALL 0x13d880. */
+    object_name_list_set_handle(param_2[1], param_1);
   }
   return param_1;
 }
@@ -9657,9 +9654,14 @@ LAB_0013f5ad:
 void objects_reconnect_to_structure_bsp(void)
 {
   int iVar1;
-  int local_102c[771]; /* large buffer for cluster lookup */
-  int local_420 = 0;
-  unsigned int local_41c = 0;
+  /* collision_bsp_test_sphere results buffer. Original frame is 0x1028 bytes =
+   * 0x1010 (buffer) + 0x10 (bsp_iter) + 0x8 (bsp_data), so the buffer is
+   * int[1028]. The test outcome is read back from the TAIL of this same buffer:
+   *   local_102c[771] (EBP-0x41c) = hit flag
+   *   local_102c[772] (EBP-0x418) = leaf/cluster index
+   * Hazard #5: these must index the buffer the callee wrote — not separate
+   * locals — or clang would not lay them contiguously with the array. */
+  int local_102c[1028];
   int obj;
   object_iter_t bsp_iter;
   char bsp_data[8]; /* scenario_location_from_point output; bsp_data+4 = bsp index (short) */
@@ -9678,20 +9680,29 @@ void objects_reconnect_to_structure_bsp(void)
       }
       CALL_FUN_0018f180(bsp_data, (void *)(obj + 0x50));
       if (*(short *)(bsp_data + 4) == -1) {
-        {
-          int bsp_index;
-          bsp_index = CALL_FUN_0018e3f0(obj + 0x50, 0, 0, *(int *)(obj + 0x5c), local_102c);
-          CALL_FUN_001493b0(bsp_index);
-        }
-        if (local_420 == 0) {
+        /* Sphere-test the object's bounding sphere against the current BSP.
+         * Confirmed 6 cdecl args at 0x14185d-0x141873 (single ADD ESP,0x18):
+         *   collision_bsp_test_sphere(global_collision_bsp_get(), 0, 0,
+         *                             obj+0x50, *(int*)(obj+0x5c), local_102c)
+         * The objects.obj mass-lift dropped 5 of these (called with only the
+         * bsp), so origin/direction/radius/results* came from stale stack ->
+         * wild access -> the "Loading level..." kernel halt. */
+        collision_bsp_test_sphere((int)global_collision_bsp_get(), 0, 0,
+                                  obj + 0x50, *(int *)(obj + 0x5c), local_102c);
+        if (local_102c[771] == 0) {
           CALL_FUN_0018f180(bsp_data, (void *)(obj + 0xc));
-        } else if (local_41c == 0xffffffff) {
-          *(short *)(bsp_data + 4) = -1;
         } else {
-          {
+          /* Hit: record the leaf/cluster index (local_102c[772]) in bsp_data[0]
+           * (MOV [EBP-0x8],EAX at 0x14188d — omitted by the original lift),
+           * then resolve the structure BSP index from the scenario block. */
+          *(int *)bsp_data = local_102c[772];
+          if (local_102c[772] == -1) {
+            *(short *)(bsp_data + 4) = -1;
+          } else {
             int sc;
             sc = (int)scenario_get();
-            iVar1 = (int)tag_block_get_element((void *)(sc + 0xe0), local_41c & 0x7fffffff, 0x10);
+            iVar1 = (int)tag_block_get_element((void *)(sc + 0xe0),
+                                               local_102c[772] & 0x7fffffff, 0x10);
             *(short *)(bsp_data + 4) = *(short *)(iVar1 + 8);
           }
         }
