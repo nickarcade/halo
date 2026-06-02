@@ -45,6 +45,19 @@ DELINKED_DIR = REPO_ROOT / "delinked"
 BUILD_VC71 = REPO_ROOT / "build" / "vc71"
 WIN_TMPDIR = BUILD_VC71 / "permuter_tmp"
 
+# Symbols already defined by the force-included xdk_common.h.
+# Any static const with one of these names in func_statics would cause C2370.
+_XDK_COMMON_H = REPO_ROOT / "src" / "xdk_common.h"
+_STATIC_CONST_RE = re.compile(r'^\s*static\s+const\s+\w[\w\s\*]*\s+(\w+)\s*=')
+try:
+    _XDK_COMMON_SYMBOLS: set = {
+        m.group(1)
+        for line in _XDK_COMMON_H.read_text(errors='replace').splitlines()
+        if (m := _STATIC_CONST_RE.match(line))
+    }
+except OSError:
+    _XDK_COMMON_SYMBOLS: set = set()
+
 # Typedefs needed by pycparser (which runs with cpp -nostdinc, so sees no system headers)
 PYCPARSER_TYPEDEFS = """\
 /* Types needed by pycparser (cpp -nostdinc cannot see types.h) */
@@ -142,19 +155,37 @@ def extract_function_body(source: Path, func_name: str) -> tuple[str, str] | Non
 
     src = proc.stdout
 
-    # Find the function
-    m = re.search(rf'^(?:void|int|char|float|short|unsigned|static)\s+{re.escape(func_name)}\s*\(',
-                  src, re.MULTILINE)
-    if not m:
-        m = re.search(rf'^[\w\s\*]+{re.escape(func_name)}\s*\(', src, re.MULTILINE)
-    if not m:
+    # Find the function definition (not a forward declaration).
+    # Try each match of the function name in order; skip any match where a
+    # semicolon appears before the opening brace (that's a declaration, not a
+    # definition).
+    patterns = [
+        re.compile(rf'^(?:void|int|char|float|short|unsigned|static)\s+{re.escape(func_name)}\s*\(',
+                   re.MULTILINE),
+        re.compile(rf'^[\w\s\*]+{re.escape(func_name)}\s*\(', re.MULTILINE),
+    ]
+    start = None
+    brace_pos = None
+    for pat in patterns:
+        for m in pat.finditer(src):
+            candidate = m.start()
+            next_brace = src.find('{', candidate)
+            next_semi = src.find(';', candidate)
+            if next_brace == -1:
+                continue
+            # Skip forward declarations: ; before {
+            if next_semi != -1 and next_semi < next_brace:
+                continue
+            start = candidate
+            brace_pos = next_brace
+            break
+        if start is not None:
+            break
+    if start is None:
         print(f"[run.py] Function {func_name} not found in preprocessed source",
               file=sys.stderr)
         return None
-
-    start = m.start()
-    brace_pos = src.find('{', start)
-    if brace_pos == -1:
+    if brace_pos is None:
         print(f"[run.py] No opening brace found for {func_name}", file=sys.stderr)
         return None
 
@@ -301,8 +332,31 @@ def build_base_c(func_name: str, func_body: str, file_statics: str = "") -> str:
     # Flush any unterminated block into func_statics (safety net)
     func_statics_lines.extend(current_block)
 
+    # Drop single-line static const declarations whose symbol is already
+    # defined by the force-included xdk_common.h (would cause C2370).
+    if _XDK_COMMON_SYMBOLS:
+        filtered = []
+        for line in func_statics_lines:
+            m = _STATIC_CONST_RE.match(line)
+            if m and m.group(1) in _XDK_COMMON_SYMBOLS:
+                continue
+            filtered.append(line)
+        func_statics_lines = filtered
+
     type_statics = "".join(type_statics_lines)
     func_statics = "".join(func_statics_lines)
+
+    # pycparser (C99) cannot parse the MSVC `__int64` keyword. Headers expanded
+    # by cpp can leak `typedef __int64 int64_t;` (and the unsigned variant) into
+    # type_statics, which sits inside the #ifndef TYPES_H guard alongside
+    # PYCPARSER_TYPEDEFS — so pycparser sees both the friendly `long long`
+    # typedef and the `__int64` one and aborts with a syntax error (0 iterations,
+    # vacuous "no improvements"). These are redundant with PYCPARSER_TYPEDEFS for
+    # the pycparser path, and VC71 never sees type_statics (TYPES_H is defined),
+    # so drop the offending typedef statements from the guarded block.
+    type_statics = re.sub(
+        r'(?m)^[ \t]*typedef\b[^;\n]*\b__int64\b[^;\n]*;[ \t]*\n?', '', type_statics
+    )
 
     # PYCPARSER_TYPEDEFS and conflicting type statics are guarded so they are
     # only active in bare pycparser runs (where TYPES_H is not yet defined).
@@ -349,11 +403,15 @@ def _resolve_ref_name(func_name: str) -> str | None:
         return None
     try:
         kb = json.loads(kb_path.read_text())
+        # Match the function name as a whole identifier immediately followed by
+        # '(' so that e.g. "actor_look_secondary" does not spuriously match
+        # "actor_look_secondary_stop" (a substring) and resolve to the wrong addr.
+        name_re = re.compile(r"\b" + re.escape(func_name) + r"\s*\(")
         for obj in kb.get("objects", []):
             for fn in obj.get("functions", []):
                 decl = fn.get("decl", "")
                 addr = fn.get("addr", "")
-                if func_name in decl and addr:
+                if addr and name_re.search(decl):
                     raw = int(addr, 16)
                     return f"FUN_{raw:08x}"
     except Exception:
