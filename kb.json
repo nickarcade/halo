@@ -2628,7 +2628,8 @@
         },
         {
           "addr": "0x39c80",
-          "decl": "void FUN_00039c80(void);"
+          "decl": "void FUN_00039c80(int actor_handle, int object_handle, float speed, float *out_velocity);",
+          "ported": true
         },
         {
           "addr": "0x39f30",
@@ -3605,7 +3606,7 @@
         },
         {
           "addr": "0x25970",
-          "decl": "char FUN_00025970(void *state@<eax>, int actor_handle, char *actor@<esi>);",
+          "decl": "char FUN_00025970(void *state@<eax>, int actor_handle, char *actor);",
           "ported": true
         },
         {
@@ -7645,7 +7646,7 @@
         },
         {
           "addr": "0xb4250",
-          "decl": "wchar_t *FUN_000b4250(wchar_t *dst, int player_handle);",
+          "decl": "wchar_t *FUN_000b4250(int player_handle, wchar_t *dst);",
           "ported": true
         },
         {
@@ -14937,7 +14938,7 @@
         {
           "addr": "0x13db60",
           "decl": "void FUN_0013db60(short *param_1);",
-          "ported": false,
+          "ported": true,
           "source_path": "objects/objects.c"
         },
         {
@@ -15820,7 +15821,7 @@
         {
           "addr": "0xa1fd0",
           "decl": "void particle_new(void *spawn_params);",
-          "ported": true
+          "ported": false
         },
         {
           "addr": "0xa2570",
@@ -20867,7 +20868,7 @@
         },
         {
           "addr": "0x189540",
-          "decl": "void FUN_00189540(int flag, void *p1, int val, void *ctx);"
+          "decl": "void FUN_00189540(int flag, void *p1, float val, void *ctx);"
         },
         {
           "addr": "0x1896d0",

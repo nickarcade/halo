@@ -6331,7 +6331,7 @@ void FUN_000ad2b0(int param_1, int *param_2, int *param_3)
     equip_count = 5;
     do {
       if (*equip_ptr != -1) {
-        obj_handle = ((int (*)(void))FUN_000aca70)();
+        obj_handle = FUN_000aca70(*equip_ptr);
         object_placement_data_new(local_94, obj_handle, -1);
         obj_handle = (int)object_new(local_94);
         if (obj_handle != -1) {
@@ -6415,10 +6415,10 @@ void game_engine_set_goal_position(int flag_index, int *position,
   idx = (int)flag_index;
   *(int *)(0x456710 + idx * 0x20) = player;
   icon = ((int16_t (*)(int))FUN_000d5ec0)((int)name);
-  *(int16_t *)(0x456714 + idx * 0x10) = icon;
+  *(int16_t *)(0x456714 + idx * 0x20) = icon;
   *(char *)(0x456704 + idx * 0x20) = 1;
-  *(int *)(0x4566f8 + idx * 8) = position[0];
-  *(int *)(0x4566fc + idx * 8) = position[1];
+  *(int *)(0x4566f8 + idx * 0x20) = position[0];
+  *(int *)(0x4566fc + idx * 0x20) = position[1];
   *(int *)(0x456700 + idx * 0x20) = position[2];
   *(int16_t *)(0x45670c + idx * 0x20) = team;
   *(float *)(0x456700 + idx * 0x20) = height + *(float *)(0x456700 + idx * 0x20) + *(float *)0x26b814;
@@ -6914,7 +6914,7 @@ char FUN_000a9190(int param_1, int flag_index, int player_handle)
   idx = flag_index * 0x20;
   if (((void (**)(void))current_game_engine)[0x78 / 4] != NULL) {
     if (*(char *)(0x456704 + idx) != 0)
-      return ((char (*)(void))((void **)current_game_engine)[0x78 / 4])();
+      return ((char (*)(int, int))((void **)current_game_engine)[0x78 / 4])(player_handle, flag_index);
     return 0;
   }
   if (*(char *)(0x456704 + idx) != 0 &&
@@ -7129,7 +7129,7 @@ int16_t game_engine_player_get_custom_motion_sensor_positions(
     flag_idx = 0;
     flag_ptr = (int *)0x4566f8;
     do {
-      if (FUN_000a9190(0, flag_idx, player) && count < param_4) {
+      if (FUN_000a9190(player, flag_idx, param_1) && count < param_4) {
         *(char *)(param_3 + (int)count) = flag_idx;
         *(int *)(param_2 + (int)count * 8) = *flag_ptr;
         count++;
@@ -8097,7 +8097,7 @@ void game_engine_render_nav_points(int param_1)
         unit_get_head_position(*(int *)(player + 0x34), (float *)local_18);
         flag_ptr = (int *)0x4566f8;
         do {
-          if (FUN_000a9190(0, (int)((char *)flag_ptr - (char *)0x4566f8) / 0x20, player)) {
+          if (FUN_000a9190(player, (int)((char *)flag_ptr - (char *)0x4566f8) / 0x20, local_c)) {
             { int dist = ((int (*)(int, void *, int *, int))FUN_000d6550)(param_1, local_18, flag_ptr, -1);
             ((void (*)(int, int *, int16_t, int))FUN_000d6660)(param_1, flag_ptr, *(int16_t *)((char *)flag_ptr + 0x1c), dist); }
           }

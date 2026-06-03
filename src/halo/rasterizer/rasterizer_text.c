@@ -1853,7 +1853,7 @@ void rasterizer_text_cache_character(void *font_character, void *font)
   short y;
   short x;
   short *pixel_out;
-  int font_pixels;
+  unsigned char *pixel_data;
   int i;
   int cache_top;
   int cache_bottom;
@@ -1887,16 +1887,22 @@ void rasterizer_text_cache_character(void *font_character, void *font)
 
     *(short *)(character + 0xe) = *(short *)0x325748;
 
-    /* Advance to next row if needed */
+    /* Advance to next row if needed. Original writes _DAT_004d04a8 =
+       (uint)cursor_y as a single 32-bit store, which zero-extends cursor_y
+       into the high half — i.e. max_char_height (0x4d04aa) is reset to 0. */
     if (128 < (int)*(short *)0x4d04a6 + (int)char_width) {
       *(short *)0x4d04a8 += *(short *)0x4d04aa;
       *(short *)0x4d04a6 = 0;
+      *(short *)0x4d04aa = 0;
     }
 
-    /* Wrap back to top if needed, evicting characters */
+    /* Wrap back to top if needed, evicting characters. Original writes
+       _DAT_004d04a8 = 0 as a single 32-bit store, clearing both cursor_y
+       (0x4d04a8) and max_char_height (0x4d04aa). */
     if (128 < (int)*(short *)0x4d04a8 + (int)char_height) {
       *(short *)0x4d04a6 = 0;
       *(short *)0x4d04a8 = 0;
+      *(short *)0x4d04aa = 0;
 
       read_index = *(unsigned short *)0x4d04a2;
       write_index = *(unsigned short *)0x4d04a4;
@@ -1924,24 +1930,43 @@ void rasterizer_text_cache_character(void *font_character, void *font)
 
       if (read_index != write_index) {
         i = read_index & 0xFF;
-        while (i != (write_index & 0xFF)) {
-          if ((*(short *)(0x4d04b6 + i * 8) >= (short)cache_top) &&
-              (*(short *)(0x4d04b6 + i * 8) <= (short)cache_bottom)) {
-            rasterizer_text_evict_character((int **)(0x4d04b0 + i * 8));
+        /* Original is a FIFO drain: break at the first slot whose y is
+           outside [cache_top, cache_bottom); only the contiguous front
+           entries are evicted and read_index advances past them. cache_bottom
+           is exclusive. The prior lift instead scanned the whole queue and
+           then set read_index = write_index, draining the entire character
+           cache whenever a taller glyph arrived, which dropped already-cached
+           menu text. */
+        do {
+          if (*(short *)(0x4d04b6 + i * 8) < (short)cache_top ||
+              (short)cache_bottom <= *(short *)(0x4d04b6 + i * 8)) {
+            break;
           }
+          rasterizer_text_evict_character((int **)(0x4d04b0 + i * 8));
           i = (i + 1) & 0xFF;
-        }
+        } while (i != (write_index & 0xFF));
         *(unsigned short *)0x4d04a2 = (unsigned short)i;
       }
-      *(short *)0x4d04a8 += char_height;
+      /* Original writes _DAT_004d04a8 = CONCAT22(char_height, cursor_y):
+         a 32-bit store that sets max_char_height (0x4d04aa, high half) to
+         char_height while leaving cursor_y (0x4d04a8, low half) UNCHANGED.
+         The prior lift mistranslated this as `cursor_y += char_height`,
+         which advanced the pen down a full row each character until a
+         glyph was placed at cursor_y=128, overflowing the 128-tall cache
+         texture (bitmaps.c:421 "y>=0 && y<bitmap->height"). */
+      *(short *)0x4d04aa = char_height;
     }
 
-    /* Handle full cache: evict oldest character */
-    if ((*(unsigned char *)0x4d04a4 + 1u) == *(unsigned char *)0x4d04a2) {
+    /* Handle full cache: evict oldest character. Original compares
+       (byte)(write_index + 1) against read_index, so the +1 wraps at 256;
+       truncate to unsigned char before comparing or the 255->0 wrap is
+       missed and the cache-full case is never detected. */
+    if ((unsigned char)(*(unsigned char *)0x4d04a4 + 1) ==
+        *(unsigned char *)0x4d04a2) {
       character_slot = (int **)(0x4d04b0 + *(short *)0x4d04a2 * 8);
       rasterizer_text_evict_character(character_slot);
       *(unsigned short *)0x4d04a2 =
-        (unsigned short)(*(unsigned char *)0x4d04a2 + 1);
+        (unsigned short)(unsigned char)(*(unsigned char *)0x4d04a2 + 1);
     }
 
     /* Allocate slot and copy bitmap to texture */
@@ -1951,16 +1976,16 @@ void rasterizer_text_cache_character(void *font_character, void *font)
     *(short *)(0x4d04b4 + i * 8) = *(short *)0x4d04a6;
     *(short *)(0x4d04b6 + i * 8) = *(short *)0x4d04a8;
 
-    font_pixels =
-      *(int *)(*(int *)((int)font + 0x94) + *(int *)(character + 0x10));
+    pixel_data =
+      (unsigned char *)(*(int *)((int)font + 0x94) + *(int *)(character + 0x10));
 
     for (y = 0; y < char_height; y++) {
       pixel_out = (short *)bitmap_2d_address(
         *(void **)0x4d04ac, *(short *)(0x4d04b4 + i * 8),
         *(short *)(0x4d04b6 + i * 8) + y, 0);
       for (x = 0; x < char_width; x++) {
-        *pixel_out =
-          (short)((*(unsigned char *)(font_pixels + x) << 8) | 0xfff);
+        *pixel_out = (short)((*pixel_data << 8) | 0xfff);
+        pixel_data++;
         pixel_out++;
       }
     }
@@ -1969,7 +1994,7 @@ void rasterizer_text_cache_character(void *font_character, void *font)
 
     *(short *)0x4d04a6 += char_width;
     *(unsigned short *)0x4d04a4 =
-      (unsigned short)(*(unsigned char *)0x4d04a4 + 1);
+      (unsigned short)(unsigned char)(*(unsigned char *)0x4d04a4 + 1);
   } else {
     if (hw_index < 0 || hw_index >= 256) {
       display_assert(
@@ -1988,143 +2013,149 @@ void rasterizer_text_cache_character(void *font_character, void *font)
   }
 }
 
-/* FUN_00183c00: draw a single cached character quad. */
+/* FUN_00183c00: draw a single cached character quad.
+ * Vertex format is 5 floats each (screen x, screen y, texel u, texel v,
+ * packed color) — 4 verts = 20 floats — in winding order TL, TR, BR, BL.
+ * cache_offset_x/y (param 7/8) are added to the TEXEL coords (the atlas
+ * position), not the screen position. */
 void rasterizer_text_draw_cached_char(void *arg0, void *font,
                                       void *font_character, unsigned int color,
-                                      short x, short y, int screen_x,
-                                      int screen_y, short width, short height)
+                                      short x, short y, int cache_offset_x,
+                                      int cache_offset_y, short width,
+                                      short height)
 {
-  float quad_verts[28];
+  float quad_verts[20];
   short cache_x;
   short cache_y;
+  short tx;
+  short ty;
 
   rasterizer_text_cache_character(font_character, font);
 
   if (*(short *)((int)font_character + 0xc) != -1) {
     rasterizer_text_get_character_position(
       *(short *)((int)font_character + 0xc), &cache_y, &cache_x);
+    tx = (short)(cache_x + (short)cache_offset_x);
+    ty = (short)(cache_y + (short)cache_offset_y);
 
+    /* vert0 TL */
     quad_verts[0] = (float)x;
     quad_verts[1] = (float)y;
-    quad_verts[2] = (float)cache_x;
-    quad_verts[3] = (float)cache_y;
-    quad_verts[4] = *(float *)&color;
-    quad_verts[5] = 1.0f;
-    quad_verts[6] = 1.0f;
-
-    quad_verts[7] = (float)(x + width);
-    quad_verts[8] = (float)y;
-    quad_verts[9] = (float)(cache_x + width);
-    quad_verts[10] = (float)cache_y;
-    quad_verts[11] = *(float *)&color;
-    quad_verts[12] = 1.0f;
-    quad_verts[13] = 1.0f;
-
-    quad_verts[14] = (float)x;
-    quad_verts[15] = (float)(y + height);
-    quad_verts[16] = (float)cache_x;
-    quad_verts[17] = (float)(cache_y + height);
-    quad_verts[18] = *(float *)&color;
-    quad_verts[19] = 1.0f;
-    quad_verts[20] = 1.0f;
-
-    quad_verts[21] = (float)(x + width);
-    quad_verts[22] = (float)(y + height);
-    quad_verts[23] = (float)(cache_x + width);
-    quad_verts[24] = (float)(cache_y + height);
-    quad_verts[25] = *(float *)&color;
-    quad_verts[26] = 1.0f;
-    quad_verts[27] = 1.0f;
+    quad_verts[2] = (float)tx;
+    quad_verts[3] = (float)ty;
+    *(unsigned int *)&quad_verts[4] = color;
+    /* vert1 TR */
+    quad_verts[5] = (float)(x + width);
+    quad_verts[6] = (float)y;
+    quad_verts[7] = (float)(tx + width);
+    quad_verts[8] = (float)ty;
+    *(unsigned int *)&quad_verts[9] = color;
+    /* vert2 BR */
+    quad_verts[10] = (float)(x + width);
+    quad_verts[11] = (float)(y + height);
+    quad_verts[12] = (float)(tx + width);
+    quad_verts[13] = (float)(ty + height);
+    *(unsigned int *)&quad_verts[14] = color;
+    /* vert3 BL */
+    quad_verts[15] = (float)x;
+    quad_verts[16] = (float)(y + height);
+    quad_verts[17] = (float)tx;
+    quad_verts[18] = (float)(ty + height);
+    *(unsigned int *)&quad_verts[19] = color;
 
     FUN_001741d0(quad_verts);
   }
 }
 
 /* FUN_00183cf0: draw character string via hardware cache.
- * This is the callback used by the text drawing system.
- * Shadow pass draws with shadow_color, then second pass draws with actual
- * color.
- */
+ * This is the callback used by the text drawing system. It draws the glyph
+ * twice: pass 1 is the drop shadow (offset +1.0 in x/y, shadow color), pass 2
+ * is the glyph itself (no offset, actual color). Vertex format is 5 floats
+ * (screen x, screen y, texel u, texel v, packed color) — 4 verts = 20 floats —
+ * in winding order TL, TR, BR, BL. cache_offset_x/y (param 7/8) are added to
+ * the TEXEL coords, not the screen position; the shadow offset is what moves
+ * the screen position. */
 void rasterizer_text_draw_cached_chars(void *arg0, void *font,
                                        void *font_character, unsigned int color,
-                                       short x, short y, int offset_x,
-                                       int offset_y, short width, short height)
+                                       short x, short y, int cache_offset_x,
+                                       int cache_offset_y, short width,
+                                       short height)
 {
-  float quad_verts[28];
+  float quad_verts[20];
   short cache_x;
   short cache_y;
+  short tx;
+  short ty;
   unsigned int draw_color;
-  float x_pos;
-  float y_pos;
-  float shadow_x;
-  float shadow_y;
-  int has_shadow;
-  int c;
+  unsigned int shadow_color;
+  float x_base;
+  float x_right;
+  float y_base;
+  float y_bottom;
+  float shadow_off_x;
+  float shadow_off_y;
+  int first_pass;
+  int was_first;
 
   rasterizer_text_cache_character(font_character, font);
 
   if (*(short *)((int)font_character + 0xc) != -1) {
-    x_pos = (float)(x + offset_x);
-    y_pos = (float)(y + offset_y);
-    shadow_x = 0.0f;
-    shadow_y = 0.0f;
-    has_shadow = 1;
-
-    draw_color = *(unsigned int *)0x4d0cb0;
+    shadow_off_x = 1.0f;
+    shadow_off_y = 1.0f;
+    shadow_color = *(unsigned int *)0x4d0cb0;
     if (*(unsigned int *)0x4d0cb0 == 0) {
-      draw_color = color & 0xff000000;
+      shadow_color = color & 0xff000000;
     }
+    x_base = (float)x;
+    x_right = (float)(width + x);
+    y_base = (float)y;
+    y_bottom = (float)(height + y);
+    first_pass = 1;
 
-    /* First pass: shadow, second pass: actual color */
-    c = 0;
-    while (c < 2 && has_shadow != 0) {
+    while (1) {
       rasterizer_text_get_character_position(
         *(short *)((int)font_character + 0xc), &cache_y, &cache_x);
-
-      if (has_shadow == 1) {
-        /* first pass uses shadow color */
-      } else {
+      was_first = first_pass;
+      tx = (short)(cache_x + (short)cache_offset_x);
+      ty = (short)(cache_y + (short)cache_offset_y);
+      draw_color = shadow_color;
+      if (first_pass == 0) {
         draw_color = color;
       }
 
-      quad_verts[0] = x_pos + shadow_x;
-      quad_verts[1] = y_pos + shadow_y;
-      quad_verts[2] = (float)cache_x;
-      quad_verts[3] = (float)cache_y;
-      quad_verts[4] = *(float *)&draw_color;
-      quad_verts[5] = 1.0f;
-      quad_verts[6] = 1.0f;
-
-      quad_verts[7] = (x_pos + (float)width) + shadow_x;
-      quad_verts[8] = y_pos + shadow_y;
-      quad_verts[9] = (float)(cache_x + width);
-      quad_verts[10] = (float)cache_y;
-      quad_verts[11] = *(float *)&draw_color;
-      quad_verts[12] = 1.0f;
-      quad_verts[13] = 1.0f;
-
-      quad_verts[14] = x_pos + shadow_x;
-      quad_verts[15] = (y_pos + (float)height) + shadow_y;
-      quad_verts[16] = (float)cache_x;
-      quad_verts[17] = (float)(cache_y + height);
-      quad_verts[18] = *(float *)&draw_color;
-      quad_verts[19] = 1.0f;
-      quad_verts[20] = 1.0f;
-
-      quad_verts[21] = (x_pos + (float)width) + shadow_x;
-      quad_verts[22] = (y_pos + (float)height) + shadow_y;
-      quad_verts[23] = (float)(cache_x + width);
-      quad_verts[24] = (float)(cache_y + height);
-      quad_verts[25] = *(float *)&draw_color;
-      quad_verts[26] = 1.0f;
-      quad_verts[27] = 1.0f;
+      /* vert0 TL */
+      quad_verts[0] = x_base + shadow_off_x;
+      quad_verts[1] = y_base + shadow_off_y;
+      quad_verts[2] = (float)tx;
+      quad_verts[3] = (float)ty;
+      *(unsigned int *)&quad_verts[4] = draw_color;
+      /* vert1 TR */
+      quad_verts[5] = x_right + shadow_off_x;
+      quad_verts[6] = y_base + shadow_off_y;
+      quad_verts[7] = (float)(tx + width);
+      quad_verts[8] = (float)ty;
+      *(unsigned int *)&quad_verts[9] = draw_color;
+      /* vert2 BR */
+      quad_verts[10] = x_right + shadow_off_x;
+      quad_verts[11] = y_bottom + shadow_off_y;
+      quad_verts[12] = (float)(tx + width);
+      quad_verts[13] = (float)(ty + height);
+      *(unsigned int *)&quad_verts[14] = draw_color;
+      /* vert3 BL */
+      quad_verts[15] = x_base + shadow_off_x;
+      quad_verts[16] = y_bottom + shadow_off_y;
+      quad_verts[17] = (float)tx;
+      quad_verts[18] = (float)(ty + height);
+      *(unsigned int *)&quad_verts[19] = draw_color;
 
       FUN_001741d0(quad_verts);
 
-      has_shadow = 0;
-      shadow_x = 0.0f;
-      shadow_y = 0.0f;
-      c++;
+      if (was_first == 0) {
+        break;
+      }
+      first_pass = 0;
+      shadow_off_x = 0.0f;
+      shadow_off_y = 0.0f;
     }
   }
 }
@@ -2146,7 +2177,7 @@ void rasterizer_text_draw(void *screen_pos, short *bounds, const void *color,
   int clamp_x;
   int clamp_y;
 
-  if (*(char *)0x3256da == 0 || *(int *)0x5a5bc0 != 0) {
+  if (*(char *)0x3256da == 0 || *(short *)0x5a5bc0 != 0) {
     return;
   }
 
@@ -2204,14 +2235,11 @@ void rasterizer_text_draw(void *screen_pos, short *bounds, const void *color,
     texel_width = *(float *)0x2533c8 / (float)font_width;
     texel_height = *(float *)0x2533c8 / (float)font_height;
 
-    widget_params[0] = 0;
-    widget_params[1] = *(int *)&texel_width;
-    widget_params[2] = *(int *)&texel_height;
-    widget_params[3] = 0x3f800000;
-    widget_params[4] = 0x3f800000;
-    widget_params[5] = 0;
-    widget_params[6] = 0;
-    widget_params[7] = (int)texture;
+    *(unsigned int *)&widget_params[3] = (unsigned int)texture;
+    widget_params[10] = 1.0f;
+    widget_params[11] = 1.0f;
+    widget_params[16] = texel_width;
+    widget_params[17] = texel_height;
 
     FUN_00173b40(widget_params);
     FUN_0019c5d0(rasterizer_text_draw_cached_chars, draw_bounds, color,
@@ -2237,7 +2265,7 @@ void rasterizer_draw_string(void *screen_pos, short *bounds, const void *color,
   int clamp_x;
   int clamp_y;
 
-  if (*(char *)0x3256da == 0 || *(int *)0x5a5bc0 != 0) {
+  if (*(char *)0x3256da == 0 || *(short *)0x5a5bc0 != 0) {
     return;
   }
 
@@ -2295,14 +2323,11 @@ void rasterizer_draw_string(void *screen_pos, short *bounds, const void *color,
     texel_width = *(float *)0x2533c8 / (float)font_width;
     texel_height = *(float *)0x2533c8 / (float)font_height;
 
-    widget_params[0] = 0;
-    widget_params[1] = *(int *)&texel_width;
-    widget_params[2] = *(int *)&texel_height;
-    widget_params[3] = 0x3f800000;
-    widget_params[4] = 0x3f800000;
-    widget_params[5] = 0;
-    widget_params[6] = 0;
-    widget_params[7] = (int)texture;
+    *(unsigned int *)&widget_params[3] = (unsigned int)texture;
+    widget_params[10] = 1.0f;
+    widget_params[11] = 1.0f;
+    widget_params[16] = texel_width;
+    widget_params[17] = texel_height;
 
     FUN_00173b40(widget_params);
     FUN_0019c960(rasterizer_text_draw_cached_chars, draw_bounds, color,
