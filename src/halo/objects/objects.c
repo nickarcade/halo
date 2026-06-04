@@ -368,6 +368,49 @@ int FUN_000ae110(int param_1, int param_2, int param_3)
       param_1, respawn_state, local_8, (wchar_t *)param_2, param_3);
 }
 
+/* Default player-win check used when no game-engine vtable slot 0x84 is set.
+ * Returns 1 (won), 0 (not won), or -1 (invalid/undecided). */
+int FUN_000ae250(int param_1)
+{
+    int iVar2;
+    int iVar3;
+    int iVar4;
+    char cVar1;
+    int bVar7;
+    int buf[7];
+    int *puVar5;
+    int *puVar6;
+
+    if (*(char *)0x456b14 != '\0') {
+        iVar2 = FUN_000a8130(0);
+        iVar3 = FUN_000a8130(1);
+        iVar4 = (int)datum_get(*(data_t **)0x5aa6d4, param_1);
+        cVar1 = game_engine_teams_still_playing();
+        if (cVar1 != '\0') {
+            if (iVar2 == iVar3) goto done_minus1;
+            bVar7 = (iVar2 <= iVar3);
+        } else {
+            cVar1 = (char)FUN_000abb90(0);
+            bVar7 = (cVar1 == '\0') ? 1 : 0;
+        }
+        if (bVar7 == (int)0xffffffff) goto done_minus1;
+        return (int)(*(unsigned int *)(iVar4 + 0x20) == (unsigned int)bVar7);
+    }
+    puVar5 = FUN_000abf50(buf, param_1);
+    puVar6 = buf;
+    for (iVar2 = 7; iVar2 != 0; iVar2 = iVar2 + -1) {
+        *puVar6 = *puVar5;
+        puVar5 = puVar5 + 1;
+        puVar6 = puVar6 + 1;
+    }
+    if ((unsigned int)buf[6] & 0x80000000) {
+        if (!((unsigned int)buf[6] & 0x7fffffff)) goto done_minus1;
+    }
+    return (int)(((unsigned int)buf[6] & 0x7fffffff) == 0);
+done_minus1:
+    return (int)0xffffffff;
+}
+
 
 /* FUN_00136150 — create widgets for an object from its tag definition.
  *
@@ -917,6 +960,44 @@ int FUN_00139990(int param_1)
     return 1;
   }
   return 0;
+}
+
+/* Update dynamic lighting for a single light object (object_lights.c).
+ * Reads the light tag, builds a 5-float color/scale buffer, and submits
+ * it to FUN_00189540 for each active channel. */
+void FUN_00139a30(int param_1)
+{
+    int iVar1;
+    int iVar2;
+    unsigned char *pbVar3;
+    float ctx[5]; /* contiguous: [local_18,local_14,local_10,local_c,local_8] */
+
+    if (*(char *)0x5a8d58 == '\0')
+        return;
+
+    iVar2 = (int)datum_get(*(data_t **)0x5a90bc, param_1);
+    pbVar3 = (unsigned char *)tag_get(0x6c696768, *(int *)(iVar2 + 4));
+    *(int *)&ctx[0] = *(int *)(*(int *)0x2ee6f0);
+    ctx[4] = *(float *)(pbVar3 + 0xc) * *(float *)(pbVar3 + 4);
+    ctx[1] = *(float *)(*(int *)0x2ee6f0 + 4);
+    ctx[2] = *(float *)(*(int *)0x2ee6f0 + 8);
+    ctx[3] = *(float *)(*(int *)0x2ee6f0 + 0xc);
+    iVar1 = iVar2 + 0x30;
+    FUN_00189540(1, (void *)iVar1, *(float *)(pbVar3 + 0x18), *(void **)0x2ee6c4);
+    FUN_00189540(1, (void *)iVar1, *(float *)((char *)iVar2 + 0x54), ctx);
+    ctx[1] = ctx[1] * *(float *)0x2533f0;
+    ctx[2] = ctx[2] * *(float *)0x2533f0;
+    ctx[3] = ctx[3] * *(float *)0x2533f0;
+    if ((*pbVar3 & 2) == 0) {
+        ctx[4] = ctx[4] * *(float *)(pbVar3 + 0x24);
+        FUN_00189540(1, (void *)iVar1,
+                     *(float *)(pbVar3 + 0x24) * *(float *)((char *)iVar2 + 0x54),
+                     ctx);
+    }
+    ctx[1] = ctx[1] * *(float *)0x2533f0;
+    ctx[2] = ctx[2] * *(float *)0x2533f0;
+    ctx[3] = ctx[3] * *(float *)0x2533f0;
+    FUN_00189540(1, (void *)iVar1, ctx[4], ctx);
 }
 
 /*
