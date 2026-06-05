@@ -567,6 +567,118 @@ void FUN_001164d0(int param_1, int state, int tree)
   *(int *)(state + 0xb54 + param_1 * 4) = iVar3;
 }
 
+/* gen_bitlen: compute optimal bit lengths for a tree (0x1165b0).
+ * Adjusts the bit length distribution to satisfy maximum depth constraint,
+ * then recomputes opt_len and static_len.
+ * ABI: @eax=tree_desc*, @esi=deflate_state (preserved by caller) */
+void FUN_001165b0(int *desc, int state)
+{
+  int max_code;
+  int *tree;
+  int *stree_ptr;
+  int stree;
+  int *extra;
+  int extra_base;
+  unsigned int max_length;
+  int overflow;
+  int h;
+  int *heap_ptr;
+  unsigned int heap_count;
+  int n;
+  unsigned int bits;
+  unsigned int freq;
+  int xbits;
+  short *bl;
+  int k;
+
+  max_code = ((int *)desc)[1];
+  tree = (int *)((int *)desc)[0];
+  stree_ptr = (int *)((int *)desc)[2];
+  stree = stree_ptr[0];
+  extra = (int *)stree_ptr[1];
+  extra_base = stree_ptr[2];
+  max_length = (unsigned int)stree_ptr[4];
+
+  csmemset((void *)(state + 0xb34), 0, 0x20);
+
+  *(short *)((char *)tree + *(int *)(state + 0xb54 + *(int *)(state + 0x144c) * 4) * 4 + 2) = 0;
+
+  h = *(int *)(state + 0x144c) + 1;
+  overflow = 0;
+  if (h < 0x23d) {
+    heap_ptr = (int *)(state + 0xb54 + h * 4);
+    heap_count = 0x23d - h;
+    h = h + heap_count;
+    do {
+      n = *heap_ptr;
+      bits = (unsigned int)*(unsigned short *)((char *)tree + (unsigned int)*(unsigned short *)((char *)tree + n * 4 + 2) * 4 + 2) + 1;
+      if ((int)max_length < (int)bits) {
+        overflow = overflow + 1;
+        bits = max_length;
+      }
+      *(short *)((char *)tree + n * 4 + 2) = (short)bits;
+      if (n <= max_code) {
+        *(short *)(state + 0xb34 + bits * 2) = *(short *)(state + 0xb34 + bits * 2) + 1;
+        xbits = 0;
+        if (n >= extra_base) {
+          xbits = extra[(n - extra_base)];
+        }
+        freq = (unsigned int)*(unsigned short *)((char *)tree + n * 4);
+        *(int *)(state + 0x16a0) = *(int *)(state + 0x16a0) + (int)(bits + xbits) * (int)freq;
+        if (stree != 0) {
+          *(int *)(state + 0x16a4) = *(int *)(state + 0x16a4) + (int)((unsigned int)*(unsigned short *)(stree + n * 4 + 2) + xbits) * (int)freq;
+        }
+      }
+      heap_ptr = heap_ptr + 1;
+      heap_count = heap_count - 1;
+    } while (heap_count != 0);
+
+    if (overflow != 0) {
+      if (z_verbose >= 0) {
+        crt_fprintf(&z_stderr, "\nbit length overflow\n");
+      }
+      bl = (short *)(state + 0xb34 + max_length * 2);
+      do {
+        k = max_length - 1;
+        while (*(short *)(state + 0xb34 + k * 2) == 0) {
+          k = k - 1;
+        }
+        *(short *)(state + 0xb34 + k * 2) = *(short *)(state + 0xb34 + k * 2) - 1;
+        *(short *)(state + 0xb36 + k * 2) = *(short *)(state + 0xb36 + k * 2) + 2;
+        *bl = *bl - 1;
+        overflow = overflow - 2;
+      } while (overflow > 0);
+
+      for (; (int)max_length > 0; max_length = max_length - 1) {
+        bits = (unsigned int)*bl;
+        if (bits != 0) {
+          int addr = state + 0xb54 + h * 4;
+          heap_count = bits;
+          do {
+            n = *(int *)(addr - 4);
+            h = h - 1;
+            addr = addr - 4;
+            if (n <= max_code) {
+              freq = (unsigned int)*(unsigned short *)((char *)tree + n * 4 + 2);
+              if (freq != max_length) {
+                if (z_verbose >= 0) {
+                  crt_fprintf(&z_stderr, "code %d bits %d->%d\n", n, freq, max_length);
+                }
+                *(int *)(state + 0x16a0) = *(int *)(state + 0x16a0) + (int)(max_length - *(unsigned short *)((char *)tree + n * 4 + 2)) * (int)(unsigned int)*(unsigned short *)((char *)tree + n * 4);
+                *(short *)((char *)tree + n * 4 + 2) = (short)max_length;
+                bits = heap_count;
+              }
+              bits = bits - 1;
+              heap_count = bits;
+            }
+          } while (bits != 0);
+        }
+        bl = bl - 1;
+      }
+    }
+  }
+}
+
 /* scan_tree: scan a Huffman tree to determine code lengths and run statistics.
  * 0x1167f0 / circular_queue.obj (deflate.c)
  * ABI: @eax=tree(ct_data*), cdecl param_1=max_code, param_2=deflate_state */
@@ -636,6 +748,167 @@ void FUN_001167f0(int param_1, int param_2, int tree)
   }
 }
 
+/* send_tree: send a literal or distance tree with run-length encoding (0x1168e0).
+ * Emits REP(16), REPZ_3_10(17), REPZ_11_138(18) codes for runs.
+ * ABI: @eax=state, cdecl param_1=tree, param_2=max_code */
+void FUN_001168e0(int state, int param_1, int param_2)
+{
+  unsigned int curlen;
+  unsigned int nextlen;
+  int count;
+  int max_count;
+  int min_count;
+  unsigned int prevlen;
+
+  prevlen = 0xffffffff;
+  max_count = 7;
+  min_count = 4;
+  curlen = (unsigned int)*(unsigned short *)(param_1 + 2);
+  if (curlen == 0) {
+    max_count = 0x8a;
+    min_count = 3;
+  }
+  if (param_2 >= 0) {
+    int ptr = param_1 + 6;
+    int loop_count = param_2 + 1;
+    count = 0;
+    do {
+      nextlen = (unsigned int)*(unsigned short *)ptr;
+      count = count + 1;
+      if (count >= max_count || curlen != nextlen) {
+        if (count < min_count) {
+          do {
+            if (z_verbose > 2) {
+              crt_fprintf(&z_stderr, "\ncd %3d ", curlen);
+            }
+            FUN_00116390(*(unsigned short *)(state + 0xa74 + curlen * 4),
+                         *(unsigned short *)(state + 0xa76 + curlen * 4),
+                         state);
+            count = count - 1;
+          } while (count != 0);
+        } else {
+          if (curlen == 0) {
+            if (count < 0xb) {
+              if (z_verbose > 2) {
+                crt_fprintf(&z_stderr, "\ncd %3d ", 0x11);
+              }
+              FUN_00116390(*(unsigned short *)(state + 0xab8),
+                           *(unsigned short *)(state + 0xaba),
+                           state);
+              FUN_00116390(count - 3, 3, state);
+            } else {
+              if (z_verbose > 2) {
+                crt_fprintf(&z_stderr, "\ncd %3d ", 0x12);
+              }
+              FUN_00116390(*(unsigned short *)(state + 0xabc),
+                           *(unsigned short *)(state + 0xabe),
+                           state);
+              FUN_00116390(count - 0xb, 7, state);
+            }
+          } else {
+            if (curlen != prevlen) {
+              if (z_verbose > 2) {
+                crt_fprintf(&z_stderr, "\ncd %3d ", curlen);
+              }
+              FUN_00116390(*(unsigned short *)(state + 0xa74 + curlen * 4),
+                           *(unsigned short *)(state + 0xa76 + curlen * 4),
+                           state);
+              count = count - 1;
+            }
+            if (count < 3 || count > 6) {
+              FUN_00117a80(" 3_6?");
+            }
+            if (z_verbose > 2) {
+              crt_fprintf(&z_stderr, "\ncd %3d ", 0x10);
+            }
+            FUN_00116390(*(unsigned short *)(state + 0xab4),
+                         *(unsigned short *)(state + 0xab6),
+                         state);
+            FUN_00116390(count - 3, 2, state);
+          }
+        }
+        count = 0;
+        prevlen = curlen;
+        if (nextlen == 0) {
+          max_count = 0x8a;
+          min_count = 3;
+        } else if (curlen == nextlen) {
+          max_count = 6;
+          min_count = 3;
+        } else {
+          max_count = 7;
+          min_count = 4;
+        }
+      }
+      ptr = ptr + 4;
+      loop_count = loop_count - 1;
+      curlen = nextlen;
+    } while (loop_count != 0);
+  }
+}
+
+/* send_all_trees: send literal, distance, and bit-length tree headers (0x116b00).
+ * ABI: @eax=state, cdecl param_1=lcodes, param_2=dcodes, param_3=blcodes */
+void FUN_00116b00(int state, int param_1, int param_2, int param_3)
+{
+  unsigned short uVar1;
+  int i;
+  int iVar2;
+
+  if (param_1 < 0x101 || param_2 < 1 || param_3 < 4) {
+    FUN_00117a80("not enough codes");
+  }
+  if (param_1 > 0x11e || param_2 > 0x1e || param_3 > 0x13) {
+    FUN_00117a80("too many codes");
+  }
+  if (z_verbose > 0) {
+    crt_fprintf(&z_stderr, "\nbl counts: ");
+  }
+  FUN_00116390(param_1 - 0x101, 5, state);
+  FUN_00116390(param_2 - 1, 5, state);
+  FUN_00116390(param_3 - 4, 4, state);
+  i = 0;
+  if (param_3 > 0) {
+    do {
+      if (z_verbose > 0) {
+        crt_fprintf(&z_stderr, "\nbl code %2d ", (unsigned int)zlib_bl_order[i]);
+      }
+      uVar1 = *(unsigned short *)(state + 0xa76 + (unsigned int)zlib_bl_order[i] * 4);
+      if (z_verbose > 1) {
+        crt_fprintf(&z_stderr, " l %2d v %4x ", 3, (unsigned int)uVar1);
+      }
+      *(int *)(state + 0x16b4) = *(int *)(state + 0x16b4) + 3;
+      iVar2 = *(int *)(state + 0x16bc);
+      if (iVar2 > 0xd) {
+        *(unsigned short *)(state + 0x16b8) = *(unsigned short *)(state + 0x16b8) | (unsigned short)(uVar1 << ((unsigned char)iVar2 & 0x1f));
+        *(unsigned char *)(*(int *)(state + 8) + *(int *)(state + 0x14)) = *(unsigned char *)(state + 0x16b8);
+        iVar2 = *(int *)(state + 0x14) + 1;
+        *(int *)(state + 0x14) = iVar2;
+        *(unsigned char *)(iVar2 + *(int *)(state + 8)) = *(unsigned char *)(state + 0x16b9);
+        *(int *)(state + 0x14) = *(int *)(state + 0x14) + 1;
+        iVar2 = *(int *)(state + 0x16bc);
+        *(int *)(state + 0x16bc) = iVar2 + -0xd;
+        *(unsigned short *)(state + 0x16b8) = (unsigned short)(uVar1 >> ((unsigned char)(0x10 - (char)iVar2) & 0x1f));
+      } else {
+        *(unsigned short *)(state + 0x16b8) = *(unsigned short *)(state + 0x16b8) | (unsigned short)(uVar1 << ((unsigned char)iVar2 & 0x1f));
+        *(int *)(state + 0x16bc) = iVar2 + 3;
+      }
+      i = i + 1;
+    } while (i < param_3);
+  }
+  if (z_verbose > 0) {
+    crt_fprintf(&z_stderr, "\nbl tree: sent %ld", *(int *)(state + 0x16b4));
+  }
+  FUN_001168e0(state, state + 0x8c, param_1 - 1);
+  if (z_verbose > 0) {
+    crt_fprintf(&z_stderr, "\nlit tree: sent %ld", *(int *)(state + 0x16b4));
+  }
+  FUN_001168e0(state, state + 0x980, param_2 - 1);
+  if (z_verbose > 0) {
+    crt_fprintf(&z_stderr, "\ndist tree: sent %ld", *(int *)(state + 0x16b4));
+  }
+}
+
 /* _tr_tally: record a literal or a match (distance/length) in deflate buffers.
  * 0x116d10 / circular_queue.obj (deflate.c) */
 int FUN_00116d10(int param_1, int param_2, int param_3)
@@ -682,6 +955,78 @@ int FUN_00116d10(int param_1, int param_2, int param_3)
     *(short *)(param_1 + 0x980 + bVar2 * 4) += 1;
   }
   return *(int *)(param_1 + 0x1698) == *(int *)(param_1 + 0x1694) - 1;
+}
+
+/* compress_block: send the block data compressed using given Huffman trees (0x116e00).
+ * ABI: @eax=state, cdecl param_1=ltree, param_2=dtree */
+void FUN_00116e00(int state, int param_1, int param_2)
+{
+  unsigned int dist;
+  unsigned int lc;
+  unsigned int code;
+  unsigned int extra;
+  unsigned int idx;
+
+  idx = 0;
+  if (*(unsigned int *)(state + 0x1698) != 0) {
+    do {
+      dist = (unsigned int)*(unsigned short *)(*(int *)(state + 0x169c) + idx * 2);
+      lc = (unsigned int)*(unsigned char *)(idx + *(int *)(state + 0x1690));
+      idx = idx + 1;
+      if (dist == 0) {
+        if (z_verbose > 2) {
+          crt_fprintf(&z_stderr, "\ncd %3d ", lc);
+        }
+        FUN_00116390(*(unsigned short *)(param_1 + lc * 4),
+                     *(unsigned short *)(param_1 + lc * 4 + 2),
+                     state);
+        if (z_verbose > 1 && crt_isgraph(lc) != 0) {
+          crt_fprintf(&z_stderr, " \'%c\' ", lc);
+        }
+      } else {
+        code = (unsigned int)zlib_length_code[lc];
+        if (z_verbose > 2) {
+          crt_fprintf(&z_stderr, "\ncd %3d ", code + 0x101);
+        }
+        FUN_00116390(*(unsigned short *)(param_1 + code * 4 + 0x404),
+                     *(unsigned short *)(param_1 + code * 4 + 0x406),
+                     state);
+        extra = (unsigned int)zlib_extra_lbits[code];
+        if (extra != 0) {
+          FUN_00116390(lc - zlib_base_length[code], extra, state);
+        }
+        dist = dist - 1;
+        if (dist < 0x100) {
+          code = (unsigned int)zlib_dist_code_lo[dist];
+        } else {
+          code = (unsigned int)zlib_dist_code_hi[dist >> 7];
+        }
+        if (code >= 0x1e) {
+          FUN_00117a80("bad d_code");
+        }
+        if (z_verbose > 2) {
+          crt_fprintf(&z_stderr, "\ncd %3d ", code);
+        }
+        FUN_00116390(*(unsigned short *)(param_2 + code * 4),
+                     *(unsigned short *)(param_2 + code * 4 + 2),
+                     state);
+        extra = (unsigned int)zlib_extra_dbits[code];
+        if (extra != 0) {
+          FUN_00116390(dist - zlib_base_dist[code], extra, state);
+        }
+      }
+      if (*(unsigned int *)(state + 0x14) >= *(unsigned int *)(state + 0x1694) + idx * 2) {
+        FUN_00117a80("pendingBuf overflow");
+      }
+    } while (idx < *(unsigned int *)(state + 0x1698));
+  }
+  if (z_verbose > 2) {
+    crt_fprintf(&z_stderr, "\ncd %3d ", 0x100);
+  }
+  FUN_00116390(*(unsigned short *)(param_1 + 0x400),
+               *(unsigned short *)(param_1 + 0x402),
+               state);
+  *(int *)(state + 0x16ac) = (int)(unsigned int)*(unsigned short *)(param_1 + 0x402);
 }
 
 /* set_data_type: set data_type field based on literal frequency counts.
@@ -777,7 +1122,7 @@ int FUN_00117130(int state)
  * 0x1171a0 / circular_queue.obj (deflate.c)
  * ABI: @ecx=len, @edx=buf, @eax=state (threaded through FUN_00117130), cdecl
  * param_3=header */
-void FUN_001171a0(int len, unsigned char *buf, int state, int header)
+void FUN_001171a0(unsigned int len, unsigned char *buf, int state, int header)
 {
   int iVar1;
   int iVar2;
@@ -802,9 +1147,10 @@ void FUN_001171a0(int len, unsigned char *buf, int state, int header)
     *(int *)(iVar1 + 0x16b4) += 0x20;
   }
   *(int *)(iVar1 + 0x16b4) += len * 8;
-  for (; len != 0; len--) {
+  while (len > 0) {
     *(unsigned char *)(*(int *)(iVar1 + 0x14) + *(int *)(iVar1 + 8)) = *buf++;
     *(int *)(iVar1 + 0x14) += 1;
+    len--;
   }
 }
 
@@ -892,6 +1238,261 @@ void FUN_001172d0(int *param_1, int param_2, short *bl_count)
       }
       iVar2++;
     } while (iVar2 <= param_2);
+  }
+}
+
+/* build_tree: build a Huffman tree from frequency counts (0x1173f0).
+ * Constructs heap, builds tree using pqdownheap, generates bit lengths
+ * and codes.
+ * ABI: @eax=state, cdecl param_1=tree_desc* */
+void FUN_001173f0(int state, int *param_1)
+{
+  int *tree;
+  int *stree_info;
+  int stree;
+  int max_elems;
+  int n;
+  int max_code;
+  int node;
+  int m;
+  unsigned char d1, d2;
+
+  tree = (int *)param_1[0];
+  stree_info = (int *)param_1[2];
+  max_elems = stree_info[3];
+  stree = stree_info[0];
+
+  n = 0;
+  max_code = -1;
+  *(int *)(state + 0x1448) = 0;
+  *(int *)(state + 0x144c) = 0x23d;
+
+  if (max_elems > 0) {
+    do {
+      if (*(short *)((char *)tree + n * 4) != 0) {
+        int heap_size = *(int *)(state + 0x1448) + 1;
+        *(int *)(state + 0x1448) = heap_size;
+        *(int *)(state + 0xb54 + heap_size * 4) = n;
+        max_code = n;
+        *(unsigned char *)(state + 0x1450 + n) = 0;
+      } else {
+        *(short *)((char *)tree + n * 4 + 2) = 0;
+      }
+      n = n + 1;
+    } while (n < max_elems);
+  }
+
+  while (*(int *)(state + 0x1448) < 2) {
+    if (max_code < 2) {
+      max_code = max_code + 1;
+      n = max_code;
+    } else {
+      n = 0;
+    }
+    {
+      int heap_size = *(int *)(state + 0x1448) + 1;
+      *(int *)(state + 0x1448) = heap_size;
+      *(int *)(state + 0xb54 + heap_size * 4) = n;
+    }
+    *(short *)((char *)tree + n * 4) = 1;
+    *(unsigned char *)(state + 0x1450 + n) = 0;
+    *(int *)(state + 0x16a0) = *(int *)(state + 0x16a0) - 1;
+    if (stree != 0) {
+      *(int *)(state + 0x16a4) = *(int *)(state + 0x16a4) - (int)(unsigned int)*(unsigned short *)(stree + n * 4 + 2);
+    }
+  }
+  param_1[1] = max_code;
+
+  {
+    int half = *(int *)(state + 0x1448) / 2;
+    for (; half >= 1; half = half - 1) {
+      FUN_001164d0(half, state, (int)tree);
+    }
+  }
+
+  node = max_elems;
+  do {
+    m = *(int *)(state + 0xb58);
+    {
+      int last = *(int *)(state + 0x1448);
+      *(int *)(state + 0x1448) = last - 1;
+      *(int *)(state + 0xb58) = *(int *)(state + 0xb54 + last * 4);
+    }
+    FUN_001164d0(1, state, (int)tree);
+
+    n = *(int *)(state + 0xb58);
+
+    {
+      int mh = *(int *)(state + 0x144c) - 1;
+      *(int *)(state + 0x144c) = mh;
+      *(int *)(state + 0xb54 + mh * 4) = m;
+    }
+    {
+      int mh = *(int *)(state + 0x144c) - 1;
+      *(int *)(state + 0x144c) = mh;
+      *(int *)(state + 0xb54 + mh * 4) = n;
+    }
+
+    *(short *)((char *)tree + node * 4) = *(short *)((char *)tree + n * 4) + *(short *)((char *)tree + m * 4);
+
+    d1 = *(unsigned char *)(state + 0x1450 + n);
+    d2 = *(unsigned char *)(state + 0x1450 + m);
+    if (d2 < d1) {
+      d2 = d1;
+    }
+    *(unsigned char *)(state + 0x1450 + node) = (unsigned char)(d2 + 1);
+    *(short *)((char *)tree + n * 4 + 2) = (short)node;
+    *(short *)((char *)tree + m * 4 + 2) = (short)node;
+
+    *(int *)(state + 0xb58) = node;
+    node = node + 1;
+    FUN_001164d0(1, state, (int)tree);
+  } while (*(int *)(state + 0x1448) >= 2);
+
+  {
+    int mh = *(int *)(state + 0x144c) - 1;
+    *(int *)(state + 0x144c) = mh;
+    *(int *)(state + 0xb54 + mh * 4) = *(int *)(state + 0xb58);
+  }
+
+  FUN_001165b0(param_1, state);
+  FUN_001172d0(tree, max_code, (short *)(state + 0xb34));
+}
+
+/* build_bl_tree: build the bit-length tree and return max bl_order index (0x117600).
+ * ABI: @esi=state (preserved by caller). Returns max index in EDI→EAX. */
+int FUN_00117600(int state)
+{
+  int max_blindex;
+  int opt_len;
+
+  FUN_001167f0(*(int *)(state + 0xb14), state, state + 0x8c);
+  FUN_001167f0(*(int *)(state + 0xb20), state, state + 0x980);
+  FUN_001173f0(state, (int *)(state + 0xb28));
+
+  max_blindex = 0x12;
+  do {
+    if (*(short *)(state + 0xa76 + (unsigned int)zlib_bl_order[max_blindex] * 4) != 0)
+      break;
+    max_blindex = max_blindex - 1;
+  } while (max_blindex > 2);
+
+  opt_len = *(int *)(state + 0x16a0) + max_blindex * 3 + 0x11;
+  *(int *)(state + 0x16a0) = opt_len;
+  if (z_verbose > 0) {
+    crt_fprintf(&z_stderr, "\ndyn trees: dyn %ld, stat %ld", opt_len,
+                *(int *)(state + 0x16a4));
+  }
+  return max_blindex;
+}
+
+/* Align the output stream and emit STATIC_TREES end-of-block (0x1176f0).
+ * If the last match distance is too small, repeat alignment. */
+void FUN_001176f0(int param_1)
+{
+  FUN_00116390(2, 3, param_1);
+  if (z_verbose > 2) {
+    crt_fprintf(&z_stderr, "\ncd %3d ", 0x100);
+  }
+  FUN_00116390(0, 7, param_1);
+  *(int *)(param_1 + 0x16b0) = *(int *)(param_1 + 0x16b0) + 10;
+  FUN_001170b0(param_1);
+  if (*(int *)(param_1 + 0x16ac) - *(int *)(param_1 + 0x16bc) + 0xb < 9) {
+    FUN_00116390(2, 3, param_1);
+    if (z_verbose > 2) {
+      crt_fprintf(&z_stderr, "\ncd %3d ", 0x100);
+    }
+    FUN_00116390(0, 7, param_1);
+    *(int *)(param_1 + 0x16b0) = *(int *)(param_1 + 0x16b0) + 10;
+    FUN_001170b0(param_1);
+    *(int *)(param_1 + 0x16ac) = 7;
+    return;
+  }
+  *(int *)(param_1 + 0x16ac) = 7;
+}
+
+/* Send a stored block: emit 3-bit block type header, then raw copy (0x1176a0).
+ * Updates bits_sent accounting. */
+void FUN_001176a0(int param_1, unsigned char *param_2, int param_3, int param_4)
+{
+  FUN_00116390(param_4, 3, param_1);
+  *(int *)(param_1 + 0x16b0) =
+    ((*(int *)(param_1 + 0x16b0) + 10) & 0xfffffff8) + 0x20 + param_3 * 8;
+  FUN_001171a0(param_3, param_2, param_1, 1);
+}
+
+/* _tr_flush_block: decide how to flush the current block and emit it (0x1177c0).
+ * Chooses between stored, static Huffman, or dynamic Huffman based on sizes. */
+void FUN_001177c0(int param_1, int param_2, int param_3, int param_4)
+{
+  unsigned int opt_len;
+  unsigned int static_len;
+  int max_blindex;
+  int bits_sent;
+
+  max_blindex = 0;
+  if (*(int *)(param_1 + 0x7c) < 1) {
+    if (param_2 == 0) {
+      FUN_00117a80("lost buf");
+    }
+    static_len = param_3 + 5;
+  } else {
+    if (*(char *)(param_1 + 0x1c) == 2) {
+      FUN_00117000(param_1);
+    }
+    FUN_001173f0(param_1, (int *)(param_1 + 0xb10));
+    if (z_verbose > 0) {
+      crt_fprintf(&z_stderr, "\nlit data: dyn %ld, stat %ld",
+                  *(int *)(param_1 + 0x16a0), *(int *)(param_1 + 0x16a4));
+    }
+    FUN_001173f0(param_1, (int *)(param_1 + 0xb1c));
+    if (z_verbose > 0) {
+      crt_fprintf(&z_stderr, "\ndist data: dyn %ld, stat %ld",
+                  *(int *)(param_1 + 0x16a0), *(int *)(param_1 + 0x16a4));
+    }
+    max_blindex = FUN_00117600(param_1);
+    opt_len = (*(unsigned int *)(param_1 + 0x16a0) + 10) >> 3;
+    static_len = (*(unsigned int *)(param_1 + 0x16a4) + 10) >> 3;
+    if (z_verbose > 0) {
+      crt_fprintf(&z_stderr,
+                  "\nopt %lu(%lu) stat %lu(%lu) stored %lu lit %u ",
+                  opt_len, *(int *)(param_1 + 0x16a0),
+                  static_len, *(int *)(param_1 + 0x16a4),
+                  param_3, *(int *)(param_1 + 0x1698));
+    }
+    if (static_len > opt_len)
+      goto use_opt;
+  }
+  opt_len = static_len;
+use_opt:
+  if (opt_len < (unsigned int)(param_3 + 4) || param_2 == 0) {
+    if (static_len == opt_len) {
+      FUN_00116390(param_4 + 2, 3, param_1);
+      FUN_00116e00(param_1, (int)&zlib_static_ltree, (int)&zlib_static_dtree);
+      bits_sent = *(int *)(param_1 + 0x16a4);
+    } else {
+      FUN_00116390(param_4 + 4, 3, param_1);
+      FUN_00116b00(param_1, *(int *)(param_1 + 0xb14) + 1,
+                   *(int *)(param_1 + 0xb20) + 1, max_blindex + 1);
+      FUN_00116e00(param_1, param_1 + 0x8c, param_1 + 0x980);
+      bits_sent = *(int *)(param_1 + 0x16a0);
+    }
+    *(int *)(param_1 + 0x16b0) = *(int *)(param_1 + 0x16b0) + bits_sent + 3;
+  } else {
+    FUN_001176a0(param_1, (unsigned char *)param_2, param_3, param_4);
+  }
+  if (*(int *)(param_1 + 0x16b0) != *(int *)(param_1 + 0x16b4)) {
+    FUN_00117a80("bad compressed size");
+  }
+  FUN_00116460(param_1);
+  if (param_4 != 0) {
+    FUN_00117130(param_1);
+    *(int *)(param_1 + 0x16b0) = *(int *)(param_1 + 0x16b0) + 7;
+  }
+  if (z_verbose > 0) {
+    crt_fprintf(&z_stderr, "\ncomprlen %lu(%lu) ",
+                *(unsigned int *)(param_1 + 0x16b0) >> 3,
+                *(unsigned int *)(param_1 + 0x16b0) + param_4 * -7);
   }
 }
 
@@ -1481,6 +2082,158 @@ void FUN_00118620(void *data, int count, int element_size)
     }
     break;
   }
+}
+
+/* Byte-swap interpreter: walk a byte-swap code array and swap fields (0x1187f0).
+ * Handles 2/4/8-byte swaps, nested struct references, and array repeats.
+ * out_size receives the total data offset processed, out_step receives
+ * the number of code words consumed. */
+void FUN_001187f0(void *bs_definition, int data_ptr, int *codes,
+                  int *out_size, int *out_step)
+{
+  int *def = (int *)bs_definition;
+  char *msg;
+  int code;
+  int offset;
+  int step;
+  int array_count;
+  int local_size;
+  int local_step;
+  unsigned int v4;
+  unsigned int v8_lo, v8_hi;
+
+  if (def[3] != 0x62797377) {
+    msg = csprintf((char *)0x5ab100,
+                   "got bs data with bad signature (assuming name is wrong)",
+                   "c:\\halo\\SOURCE\\memory\\byte_swapping.c", 0xb0, 0);
+    display_assert(msg, 0, 0, 0);
+    if (def[3] != 0x62797377) {
+      msg = csprintf((char *)0x5ab100, "%s bs data has bad signature", *(char **)def,
+                     "c:\\halo\\SOURCE\\memory\\byte_swapping.c", 0xb2, 1);
+      display_assert(msg, 0, 0, 0);
+      system_exit(-1);
+    }
+  }
+
+  if (codes[0] != -100) {
+    msg = csprintf((char *)0x5ab100,
+                   "%s bs data @%p.#0 has bad start #%d",
+                   *(char **)def, codes, *(int *)def[2],
+                   "c:\\halo\\SOURCE\\memory\\byte_swapping.c", 0xb7, 1);
+    display_assert(msg, 0, 0, 0);
+    system_exit(-1);
+  }
+
+  array_count = codes[1];
+  if (array_count < 0) {
+    msg = csprintf((char *)0x5ab100,
+                   "%s bs data @%p.#1 has invalid array size #%d",
+                   *(char **)def, codes, array_count,
+                   "c:\\halo\\SOURCE\\memory\\byte_swapping.c", 0xbd, 1);
+    display_assert(msg, 0, 0, 0);
+    system_exit(-1);
+  }
+
+  offset = 0;
+  if (array_count < 1)
+    goto done;
+
+  do {
+    step = 2;
+    for (;;) {
+      code = codes[step];
+      switch (code) {
+      case -2:
+        if (data_ptr != 0) {
+          unsigned short w = *(unsigned short *)(offset + data_ptr);
+          *(unsigned short *)(offset + data_ptr) =
+              (unsigned short)((w >> 8) | (w << 8));
+        }
+        step = step + 1;
+        offset = offset + 2;
+        break;
+
+      case -4:
+        if (data_ptr != 0) {
+          v4 = *(unsigned int *)(offset + data_ptr);
+          *(unsigned int *)(offset + data_ptr) =
+              (((v4 & 0xff0000) | (v4 >> 16)) >> 8) |
+              (((v4 << 16) | (v4 & 0xff00)) << 8);
+        }
+        step = step + 1;
+        offset = offset + 4;
+        break;
+
+      case -8:
+        if (data_ptr != 0) {
+          v8_lo = *(unsigned int *)(offset + data_ptr);
+          v8_hi = *(unsigned int *)(offset + data_ptr + 4);
+          *(unsigned int *)(offset + data_ptr) =
+              (((v8_hi >> 16) | (((v8_hi & 0xff0000) >> 16) | (v8_hi & 0xff00)) << 16) >> 8) |
+              (v8_hi << 24);
+          *(unsigned int *)(offset + data_ptr + 4) =
+              (((v8_lo << 16) | (((v8_lo & 0xff00) << 16) | (v8_lo & 0xff0000)) >> 16) << 8) |
+              (v8_lo >> 24);
+        }
+        step = step + 1;
+        offset = offset + 8;
+        break;
+
+      case -100: {
+        int sub_data;
+        if (data_ptr == 0)
+          sub_data = 0;
+        else
+          sub_data = offset + data_ptr;
+        FUN_001187f0(bs_definition, sub_data, codes + step, &local_size,
+                     &local_step);
+        step = step + local_step;
+        offset = offset + local_size;
+        break;
+      }
+
+      case -102: {
+        int ref_def = codes[step + 1];
+        int sub_data;
+        if (data_ptr == 0)
+          sub_data = 0;
+        else
+          sub_data = offset + data_ptr;
+        FUN_001187f0((void *)ref_def, sub_data, *(int **)(ref_def + 8),
+                     &local_size, 0);
+        step = step + 2;
+        offset = offset + local_size;
+        break;
+      }
+
+      case -101:
+        goto next_iteration;
+
+      default:
+        if (code < 1) {
+          msg = csprintf((char *)0x5ab100,
+                         "%s bs @%p.#%d has invalid code #%d",
+                         *(char **)def, codes, step, code,
+                         "c:\\halo\\SOURCE\\memory\\byte_swapping.c", 0x129, 1);
+          display_assert(msg, 0, 0, 0);
+          system_exit(-1);
+        } else {
+          step = step + 1;
+          offset = offset + code;
+        }
+        break;
+      }
+    }
+  next_iteration:
+    step = step + 1;
+    array_count = array_count - 1;
+  } while (array_count != 0);
+
+done:
+  if (out_size != 0)
+    *out_size = offset;
+  if (out_step != 0)
+    *out_step = step;
 }
 
 /* Compute the byte size described by a byte-swap definition by walking
