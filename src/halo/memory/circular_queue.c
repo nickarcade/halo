@@ -160,7 +160,7 @@ int FUN_00114fa0(int param_1, int param_2, int param_3, int param_4,
                  int param_5, int *param_6)
 {
   unsigned char *pbVar7;
-  unsigned char bVar2;
+  int bVar2;
   unsigned char bVar3;
   unsigned int uVar4;
   unsigned int uVar5;
@@ -374,7 +374,7 @@ LAB_0011522d:
 void FUN_00114740(unsigned int param_1, int *param_2, int param_3)
 {
   unsigned char *pbVar1;
-  unsigned char bVar2;
+  int bVar2;
   unsigned int *c; /* codes state struct */
   unsigned char *puVar4;
   int s;          /* block state pointer (saved param_1) */
@@ -788,7 +788,7 @@ int FUN_00115ba0(unsigned int *bb, int *param_1, unsigned int param_2,
   unsigned int *puVar10;
   unsigned int uVar11;
   int iVar12;
-  unsigned char bVar13;
+  int bVar13;
   int iVar14;
   unsigned int uVar15;
   int local_104[14]; /* u: table stack */
@@ -1075,7 +1075,6 @@ int FUN_001155e0(int z, int flush)
       if (((unsigned char)uVar2 & 0xf) == 8) {
         if (((unsigned int)puVar3[1] >> 4) + 8 <= (unsigned int)puVar3[4]) {
           *puVar3 = 1;
-          uVar5 = uVar4;
           goto case_1;
         }
         *puVar3 = 0xd;
@@ -1087,7 +1086,7 @@ int FUN_001155e0(int z, int flush)
       goto set_mark;
     case 1:
     case_1:
-      if (param_1[1] == 0) return uVar5;
+      if (param_1[1] == 0) return uVar4;
       param_1[1] = param_1[1] - 1;
       param_1[2] = param_1[2] + 1;
       bVar1 = *(unsigned char *)*param_1;
@@ -1539,13 +1538,12 @@ void FUN_00116390(int value, int length, int state)
       (unsigned short)(value << iVar1);
     *(unsigned char *)(*(int *)(state + 8) + *(int *)(state + 0x14)) =
       *(unsigned char *)(state + 0x16b8);
-    iVar1 = *(int *)(state + 0x14) + 1;
-    *(int *)(state + 0x14) = iVar1;
+    iVar1 = (*(int *)(state + 0x14) = *(int *)(state + 0x14) + 1);
     *(unsigned char *)(iVar1 + *(int *)(state + 8)) =
       *(unsigned char *)(state + 0x16b9);
     *(int *)(state + 0x14) = *(int *)(state + 0x14) + 1;
     iVar1 = *(int *)(state + 0x16bc);
-    *(int *)(state + 0x16bc) = iVar1 + -0x10 + length;
+    *(int *)(state + 0x16bc) = (iVar1 + -0x10) + length;
     *(unsigned short *)(state + 0x16b8) =
       (unsigned short)value >> ((unsigned int)(0x10 - (char)iVar1) & 0x1f);
     return;
@@ -1673,6 +1671,7 @@ void FUN_001165b0(int *desc, int state)
   int xbits;
   short *bl;
   int k;
+  volatile unsigned int new_var;
 
   max_code = ((int *)desc)[1];
   tree = (int *)((int *)desc)[0];
@@ -1741,13 +1740,14 @@ void FUN_001165b0(int *desc, int state)
             n = *(int *)(addr - 4);
             h = h - 1;
             addr = addr - 4;
+            new_var = max_length;
             if (n <= max_code) {
               freq = (unsigned int)*(unsigned short *)((char *)tree + n * 4 + 2);
               if (freq != max_length) {
                 if (z_verbose >= 0) {
                   crt_fprintf(&z_stderr, "code %d bits %d->%d\n", n, freq, max_length);
                 }
-                *(int *)(state + 0x16a0) = *(int *)(state + 0x16a0) + (int)(max_length - *(unsigned short *)((char *)tree + n * 4 + 2)) * (int)(unsigned int)*(unsigned short *)((char *)tree + n * 4);
+                *(int *)(state + 0x16a0) = *(int *)(state + 0x16a0) + (int)(new_var - *(unsigned short *)((char *)tree + n * 4 + 2)) * (int)(unsigned int)*(unsigned short *)((char *)tree + n * 4);
                 *(short *)((char *)tree + n * 4 + 2) = (short)max_length;
                 bits = heap_count;
               }
@@ -2047,7 +2047,7 @@ void FUN_00116e00(int state, int param_1, int param_2)
   unsigned int dist;
   unsigned int lc;
   unsigned int code;
-  unsigned int extra;
+  volatile long extra;
   unsigned int idx;
 
   idx = 0;
@@ -2271,7 +2271,6 @@ void FUN_001172d0(int *param_1, int param_2, short *bl_count)
   unsigned int uVar9;
   unsigned int uVar10;
   unsigned short auStack_28[16];
-  unsigned int local_8;
   unsigned short uVar6;
 
   uVar6 = 0;
@@ -2295,8 +2294,7 @@ void FUN_001172d0(int *param_1, int param_2, short *bl_count)
       uVar10 = (unsigned int)*(unsigned short *)((int)param_1 + iVar2 * 4 + 2);
       if (uVar10 != 0) {
         uVar7 = (unsigned int)auStack_28[uVar10];
-        local_8 = (unsigned int)auStack_28[uVar10] + 1;
-        auStack_28[uVar10] = (unsigned short)local_8;
+        auStack_28[uVar10] = (unsigned short)((unsigned int)auStack_28[uVar10] + 1);
         uVar1 = 0;
         uVar8 = uVar10;
         do {
@@ -2316,7 +2314,7 @@ void FUN_001172d0(int *param_1, int param_2, short *bl_count)
           crt_fprintf(
             *(void **)0x331070, "\nn %3d %c l %2d c %4x (%x) ", iVar2, iVar5,
             uVar10, (unsigned int)*(unsigned short *)((int)param_1 + iVar2 * 4),
-            (local_8 & 0xffff) - 1);
+            ((unsigned int)auStack_28[uVar10] & 0xffff) - 1);
         }
       }
       iVar2++;
@@ -3183,7 +3181,9 @@ void FUN_001187f0(void *bs_definition, int data_ptr, int *codes,
   int local_size;
   int local_step;
   unsigned int v4;
-  unsigned int v8_lo, v8_hi;
+  unsigned int v8_lo;
+  unsigned int v8_hi;
+  char *new_var;
 
   if (def[3] != 0x62797377) {
     msg = csprintf((char *)0x5ab100,
@@ -3294,7 +3294,8 @@ void FUN_001187f0(void *bs_definition, int data_ptr, int *codes,
 
       default:
         if (code < 1) {
-          msg = csprintf((char *)0x5ab100,
+          new_var = (char *)0x5ab100;
+          msg = csprintf(new_var,
                          "%s bs @%p.#%d has invalid code #%d",
                          *(char **)def, codes, step, code,
                          "c:\\halo\\SOURCE\\memory\\byte_swapping.c", 0x129, 1);

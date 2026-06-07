@@ -239,6 +239,7 @@ void FUN_000d44f0(int cursor, short *element, int param_1, int param_2)
   short local_10[2];
   int local_c;
   int local_8;
+  float scale;
 
   iVar4 = 0;
   local_c = 0;
@@ -256,22 +257,34 @@ void FUN_000d44f0(int cursor, short *element, int param_1, int param_2)
     if (sVar2 < 2) {
       local_8 = 0x3f800000;
     }
-    local_10[0] = (short)*(int *)(cursor + 2);
-    local_10[1] = (short)element[3];
+    scale = *(float *)&local_8;
+    local_10[0] = (short)((float)(int)element[2] * scale +
+                          (float)(int)*(short *)(cursor + 2));
+    local_10[1] = (short)((float)(int)*(short *)(cursor + 4) -
+                          (float)(int)element[3] * scale);
     if ((*(unsigned char *)((int)element + 0xd) & 2) != 0) {
       param_2 = *(int *)(element + 4);
     }
-    FUN_000d3200(local_c, 2, local_10, local_14, *(float *)&local_8, 0,
+    FUN_000d3200(local_c, 2, local_10, local_14, scale, 0,
                  param_2, 0);
     if ((*(unsigned char *)((int)element + 0xd) & 4) != 0) {
-      *(short *)(cursor + 2) = (short)local_10[0];
+      *(short *)(cursor + 2) = (short)((float)(int)element[1] * scale +
+                                        (float)(int)local_10[0]);
       return;
     }
     if (local_14 != 0) {
-      *(short *)(cursor + 2) = (short)local_10[0];
+      int *rect = (int *)local_14;
+      float rect_w = *(float *)(rect + 1) - *(float *)rect;
+      *(short *)(cursor + 2) =
+          (short)(((float)(int)*(short *)(local_c + 4) * rect_w +
+                   (float)(int)element[1]) * scale +
+                  (float)(int)local_10[0]);
       return;
     }
-    *(short *)(cursor + 2) = (short)local_10[0];
+    *(short *)(cursor + 2) =
+        (short)((float)((int)*(short *)(local_c + 4) +
+                        (int)element[1]) * scale +
+                (float)(int)local_10[0]);
   }
 }
 
@@ -1212,7 +1225,8 @@ LAB_000d57ad:
               (void *)tag_block_base,
               (int)(unsigned short)*(unsigned short *)(message_ptr + 0x22) + iVar16,
               2);
-          if (*pcVar9 == '\0') {
+          switch (*pcVar9) {
+          case '\0':
             uVar7 = (int)tag_data_get_pointer((void *)hmt_tag,
                 ((unsigned int)(unsigned short)local_30_dw) << 1,
                 (unsigned int)(unsigned char)pcVar9[1] << 1);
@@ -1225,7 +1239,8 @@ LAB_000d57ad:
             rect_a[0] = rect_b[0];
             local_30_dw = local_30_dw +
                 (int)(unsigned short)(unsigned char)pcVar9[1];
-          } else if (*pcVar9 == '\x01') {
+            break;
+          case '\x01': {
             unsigned char bVar1;
             int icon_idx;
             bVar1 = (unsigned char)pcVar9[1];
@@ -1326,10 +1341,13 @@ LAB_000d57ad:
                   (unsigned short *)L"<no button icon>");
               rect_a[0] = rect_b[0];
             }
-          } else {
+            break;
+          }
+          default:
             display_assert("!\"unreachable\"",
                 "c:\\halo\\SOURCE\\interface\\hud_messaging.c", 0x4a5, 1);
             system_exit(-1);
+            break;
           }
 LAB_000d5b78:
           local_2c = local_2c + 1;
@@ -1886,6 +1904,7 @@ void FUN_000d6660(int param_1, float *param_2, short param_3, short param_4)
   float local_10;
   float local_c = 0;
   float local_8;
+  short screen_coords[2];
 
   (void)local_28;
   local_34 = FUN_000d1540();
@@ -1908,10 +1927,12 @@ void FUN_000d6660(int param_1, float *param_2, short param_3, short param_4)
   local_18 = sqrtf((*pfVar4 - local_24) * (*pfVar4 - local_24) +
                   (pfVar4[1] - local_20) * (pfVar4[1] - local_20) +
                   (pfVar4[2] - local_1c) * (pfVar4[2] - local_1c));
-  if (local_18 <= *(float *)0x254cc0) {
-    local_14 = *(float *)0x2533c8;
-  } else {
+  if (local_18 > *(float *)0x254cc0) {
     local_14 = 0.5f;
+  } else {
+    local_14 = (float)pow(
+        (double)(*(float *)0x2533c8 - local_18 * *(float *)0x253d48),
+        *(double *)0x281e18) + *(float *)0x253398;
   }
   matrix_transform_point((float *)0x5065b4, &local_30, &local_30);
   sVar7 = param_4;
@@ -1972,9 +1993,17 @@ void FUN_000d6660(int param_1, float *param_2, short param_3, short param_4)
                *(short *)(iVar8 + 0x34 + sVar7 * 2), 0, &iVar9, &uVar11);
   if (iVar9 != 0 &&
       (int)xbox_texture_cache_get_hardware_format((void *)iVar9, 0, 1) != 0) {
-    local_10 = (float)(int)local_10;
-    local_c = (float)(int)local_c;
-    bVar12 = (unsigned char)FUN_000d1c50(*(float *)(iVar8 + 0x2c) * 255.0f);
+    {
+      int alpha_round = FUN_000d1c50(*(float *)(iVar8 + 0x2c));
+      int alpha_scaled = alpha_round * 0xff;
+      if (alpha_scaled < 0) {
+        bVar12 = 0;
+      } else if (alpha_scaled > 0xff) {
+        bVar12 = 0xff;
+      } else {
+        bVar12 = (unsigned char)(-(char)FUN_000d1c50(*(float *)(iVar8 + 0x2c)));
+      }
+    }
     pixel32_to_real_argb_color(*(unsigned int *)(iVar8 + 0x28), &local_24);
     fVar1 = *(float *)0x2533c8 - *(float *)(iVar8 + 0x30);
     fVar2 = *(float *)0x2533c0;
@@ -2003,8 +2032,72 @@ void FUN_000d6660(int param_1, float *param_2, short param_3, short param_4)
     local_1c = fVar2 * local_1c;
     uVar13 = (unsigned int)bVar12 << 0x18;
     uVar10 = FUN_000d1dd0(&local_24);
-    FUN_000d3200(iVar9, 4, &local_10, uVar11, local_14, local_8,
+    screen_coords[0] = (short)local_10;
+    screen_coords[1] = (short)local_c;
+    FUN_000d3200(iVar9, 4, screen_coords, uVar11, local_14, local_8,
                  uVar10 | uVar13, 0);
+
+    if (sVar7 != 1) {
+      char text_element[36];
+      char text_pos_buf[84];
+      short *text_pos_ptr;
+      short text_x, text_y;
+      int tmp_int;
+      float pow_val;
+      int text_value;
+
+      local_18 = local_18 * *(float *)0x281e00;
+      csmemset(text_element, 0, 0x24);
+      csmemset(text_pos_buf, 0, 0x54);
+      *(short *)text_element = 0;
+      *(unsigned int *)(text_element + 0x18) =
+          FUN_000d1dd0(&local_24) | uVar13;
+      *(unsigned int *)(text_element + 0x1c) =
+          FUN_000d1dd0(&local_24) | uVar13;
+      text_element[0x20] = 3;
+      text_element[0x22] = 1;
+      text_element[0x21] = 5;
+
+      {
+        short scr_x = (short)local_10;
+        short scr_y = (short)local_c;
+        float bmp_w;
+        float bmp_h;
+
+        tmp_int = (int)*(short *)(iVar9 + 4);
+        bmp_w = (*(float *)(uVar11 + 4) - *(float *)uVar11);
+        text_x = (short)((float)(int)scr_x +
+                 bmp_w * (float)tmp_int * *(float *)0x253398 *
+                 local_14 * *(float *)0x281dfc);
+
+        tmp_int = (int)*(short *)(iVar9 + 6);
+        bmp_h = (*(float *)(uVar11 + 0xc) - *(float *)(uVar11 + 0x8));
+        text_y = (short)((float)(int)scr_y +
+                 bmp_h * (float)tmp_int * *(float *)0x253398 *
+                 local_14 * *(float *)0x281df8);
+
+        text_x = text_x + (*(short *)0x50657e - *(short *)0x506586);
+        text_y = text_y + (*(short *)0x50657c - *(short *)0x506584);
+      }
+
+      text_pos_ptr = (short *)text_pos_buf;
+      text_pos_ptr[0] = text_x;
+      text_pos_ptr[1] = text_y;
+
+      pow_val = (float)pow(*(double *)0x281df0, *(double *)0x281de8);
+      {
+        float fmod_input = (float)fabs((double)(pow_val * local_18));
+        float fmod_result = (float)fmod((double)fmod_input,
+                                         (double)pow_val);
+        text_value = (int)fmod_result;
+      }
+
+      {
+        int rounded = FUN_000d1c50(local_18);
+        FUN_000d3860((short)param_1, text_element, text_pos_buf,
+                     rounded, text_value, 0, 0, 0.0f);
+      }
+    }
   }
   sVar7 = 0x7f;
   do {
@@ -2061,25 +2154,30 @@ void FUN_000d6cc0(int param_1)
       *(unsigned char *)((char *)puVar6 - 6) |= 0xf;
     } else {
       sVar5 = (short)(*((unsigned short *)puVar6 - 3) << 12) >> 12;
-      if (sVar5 == 0) {
+      switch (sVar5) {
+      case 0:
         iVar2 = (int)global_scenario_get();
         iVar2 = (int)tag_block_get_element((void *)(iVar2 + 0x4e4),
                                            *(int *)puVar6, 0x5c);
         position[0] = *(float *)(iVar2 + 0x24);
         position[1] = *(float *)(iVar2 + 0x28);
         position[2] = *(float *)(iVar2 + 0x2c);
-      } else if (sVar5 == 1) {
+        break;
+      case 1:
         iVar2 = (int)object_try_and_get_and_verify_type(*(int *)puVar6, -1);
         if (iVar2 == 0)
           goto skip;
         FUN_0001aae0(*(int *)puVar6, position, (float *)&param_1);
-      } else if (sVar5 == 2) {
+        break;
+      case 2:
         game_engine_get_goal_position((int *)position, (short)*(int *)puVar6);
-      } else {
+        break;
+      default:
         display_assert("!\"unreachable\"",
                        "c:\\halo\\SOURCE\\interface\\hud_nav_points.c", 0x2d5,
                        1);
         system_exit(-1);
+        break;
       }
       position[2] = position[2] + *(float *)((char *)puVar6 - 4);
       FUN_000d6660(
@@ -2220,6 +2318,7 @@ void FUN_000d7080(void)
 void FUN_000d70b0(short param_1, unsigned int param_2, int *param_3,
                   int param_4, unsigned short *param_5)
 {
+  float new_var;
   int iVar1;
   short sVar2;
   int *piVar3;
@@ -2232,6 +2331,7 @@ void FUN_000d70b0(short param_1, unsigned int param_2, int *param_3,
     do {
       piVar3 = (int *)tag_block_get_element((void *)param_3, iVar6, 0x38);
       bVar5 = (unsigned char)iVar6;
+      new_var = *(float *)(piVar3 + 5);
       if ((param_2 & piVar3[4]) != 0) {
         if (*piVar3 == 0x6c736e64) {
           if (*(int *)(param_4 + iVar6 * 4) == -1) {
@@ -2247,7 +2347,7 @@ void FUN_000d70b0(short param_1, unsigned int param_2, int *param_3,
               sound_stop_impulse(iVar1);
             }
           }
-          sound_impulse_start(piVar3[3], *(float *)(piVar3 + 5));
+          sound_impulse_start(piVar3[3], new_var);
           *(int *)(param_4 + iVar6 * 4) = piVar3[3];
         } else {
           display_assert("!\"unreachable\"",
@@ -2618,7 +2718,7 @@ LAB_000d794f:
     iVar2 = local_player_get_player_index(player_handle);
     if (iVar2 != -1) {
       iVar2 = (int)datum_get(*(data_t **)0x5aa6d4, iVar2);
-      FUN_000d7560(iVar2, *(char *)0x46bd10);
+      FUN_000d7560(iVar2, **(char **)0x46bd10);
     }
   }
   sVar7 = 0x7f;
@@ -2656,6 +2756,10 @@ void FUN_000d7a20(int param_1)
   short local_10[2];
   int local_c;
   int local_8;
+  int tmp;
+  float pos_x;
+  float pos_y;
+  short *pESI;
 
   if ((short)param_1 == -1) {
     return;
@@ -2674,6 +2778,7 @@ void FUN_000d7a20(int param_1)
     return;
   }
   iVar3 = *(int *)0x46bd0c;
+  pESI = (short *)(iVar3 + 0x310);
   sVar2 = local_player_count();
   fVar7 = FUN_000d1690(1 < sVar2);
   player_effect_get_damage_indicators(param_1, local_18);
@@ -2683,22 +2788,38 @@ void FUN_000d7a20(int param_1)
     if (local_18[iVar5] != 0 && local_18[iVar5] < 0x1e) {
       switch (iVar5) {
       case 0:
+        pos_x = (float)((int)pESI[0] + (int)*(short *)0x506584);
+        tmp = ((int)*(short *)0x506582 + (int)*(short *)0x50657e) / 2;
         param_1 = 0x40490fdb;
+        pos_y = (float)tmp;
         break;
       case 1:
+        pos_x = (float)((int)pESI[2] + (int)*(short *)0x506586);
+        tmp = ((int)*(short *)0x506580 + (int)*(short *)0x50657c) / 2;
         param_1 = 0x3fc90fdb;
+        pos_y = (float)tmp;
         break;
       case 2:
+        pos_x = (float)((int)*(short *)0x506588 - (int)pESI[1]);
+        tmp = ((int)*(short *)0x506582 + (int)*(short *)0x50657e) / 2;
         param_1 = 0;
+        pos_y = (float)tmp;
         break;
       case 3:
+        pos_x = (float)((int)*(short *)0x50658a - (int)pESI[3]);
+        tmp = ((int)*(short *)0x506580 + (int)*(short *)0x50657c) / 2;
         param_1 = 0x4096cbe4;
+        pos_y = (float)tmp;
         break;
       default:
         display_assert("!\"unreachable\"",
                        "c:\\halo\\SOURCE\\interface\\hud_unit.c", 0x400, 1);
         system_exit(-1);
       }
+
+      pos_x = pos_x - (float)(int)*(short *)0x50657e;
+      pos_y = pos_y - (float)(int)*(short *)0x50657c;
+
       iVar6 = *(int *)(iVar3 + 0x344);
       sVar2 = local_player_count();
       if (sVar2 < 2) {
@@ -2712,8 +2833,8 @@ void FUN_000d7a20(int param_1)
       if (local_8 != 0 &&
           (int)xbox_texture_cache_get_hardware_format((void *)local_8, 0, 1) !=
               0) {
-        local_10[0] = (short)fVar7;
-        local_10[1] = (short)fVar7;
+        local_10[0] = (short)pos_x;
+        local_10[1] = (short)pos_y;
         FUN_000d3200(local_8, 4, local_10, local_c, fVar7,
                      *(float *)&param_1, *(int *)(iVar3 + 0x34c), 0);
       }
@@ -2821,16 +2942,12 @@ void FUN_000d7d40(int param_1)
   pfVar6 = (float *)FUN_000d7280((short)local_player_idx);
 
   handle_slots[0] = *(int *)(param_1 + 0x34);
-  for (i = 0; i < 17; i++) {
-    handle_slots[1 + i] = 0;
-  }
+  csmemset(handle_slots + 1, 0, 17 * 4);
 
   sVar4 = local_player_count();
   tag_indices[0] = FUN_001a6820((int)unit_tag_data, 1 < sVar4);
 
-  for (i = 0; i < 17; i++) {
-    tag_indices[1 + i] = 0;
-  }
+  csmemset(tag_indices + 1, 0, 17 * 4);
 
   slot_count = 1;
 
@@ -2842,7 +2959,6 @@ void FUN_000d7d40(int param_1)
   *(int *)((char *)pfVar6 + 0x1c) = *(int *)(param_1 + 0x34);
 
   parent_handle = unit_ptr[0x33];
-  fraction_slots[0] = *(float *)&parent_handle;
 
   if (parent_handle != -1 && *(short *)((char *)unit_ptr + 0x2a0) != -1) {
     int *vehicle_ptr;
@@ -2877,7 +2993,7 @@ void FUN_000d7d40(int param_1)
         next_unit =
             (int)object_try_and_get_and_verify_type(iVar13, 3);
         if (next_unit != 0 &&
-            (float)*(int *)(next_unit + 0xcc) == fraction_slots[0] &&
+            *(int *)(next_unit + 0xcc) == parent_handle &&
             *(short *)(next_unit + 0x2a0) != -1) {
           handle_slots[slot_count] = iVar13;
           sVar4 = local_player_count();
@@ -3009,7 +3125,6 @@ void FUN_000d7d40(int param_1)
             color_ptr = overlay_colors;
 
             layer_idx = 0;
-            fVar14 = *(float *)&flags;
 
             if (0 <= *(int *)0x2f66f0) {
               do {
@@ -3039,8 +3154,7 @@ void FUN_000d7d40(int param_1)
 
                 if ((local_34 < *(float *)0x2533c0 !=
                      (local_34 == *(float *)0x2533c0)) &&
-                    (fVar14 = *(float *)&flags,
-                     fVar2 < *(float *)0x2533c0 !=
+                    (fVar2 < *(float *)0x2533c0 !=
                          (fVar2 == *(float *)0x2533c0)))
                   break;
 
@@ -3092,7 +3206,6 @@ void FUN_000d7d40(int param_1)
 
                 color_ptr = color_ptr + 1;
                 layer_idx = saved_layer_idx + 1;
-                fVar14 = *(float *)&flags;
               } while (saved_layer_idx + 1 <= *(int *)0x2f66f0);
             }
           }
@@ -3102,7 +3215,7 @@ void FUN_000d7d40(int param_1)
 
           if (*(int *)(unhi_tag + 0xbc) != -1) {
             FUN_000d3fe0(local_player_idx, (short *)unhi_tag,
-                         unhi_tag + 0x8c, (unsigned int)fVar14,
+                         unhi_tag + 0x8c, flags,
                          *(int *)((char *)pfVar6 + 0x10));
             iVar8 = unit_data;
             iVar21 = unhi_tag;
@@ -3139,7 +3252,6 @@ void FUN_000d7d40(int param_1)
           iVar13 = unhi_tag;
           if (*(int *)(iVar21 + 0x214) != -1) {
             short health_max;
-            int h_cnt;
             int health_alpha;
             int health_flash_alpha;
 
@@ -3151,6 +3263,7 @@ void FUN_000d7d40(int param_1)
             {
               int *h_src = (int *)(unhi_tag + 0x1e4);
               int *h_dst = health_meter_data;
+              int h_cnt;
               for (iVar8 = unit_data, h_cnt = 0x1a; h_cnt != 0;
                    h_cnt--) {
                 *h_dst = *h_src;
