@@ -414,7 +414,7 @@ void FUN_00114740(unsigned int param_1, int *param_2, int param_3)
     case 0:
       if ((unsigned char *)0x101 < m_ptr && 9 < n) {
         *(unsigned int *)(s + 0x20) = b;
-        *(int **)(s + 0x1c) = (int *)r;
+        *(unsigned int *)(s + 0x1c) = k;
         z[1] = (int)n;
         iVar8 = *z;
         *z = (int)local_c;
@@ -444,20 +444,20 @@ void FUN_00114740(unsigned int param_1, int *param_2, int param_3)
       *c = 1;
       /* fall through */
     case 1:
-      for (; (int *)r < (int *)c[3];
-           r = r + 8) {
+      for (; k < c[3];
+           k = k + 8) {
         if (n == 0) {
           goto LAB_00114dca;
         }
         n = n - 1;
-        (void)r; /* original: r = r */
-        b = b | (unsigned int)*local_c << (unsigned char)r;
+        r = 0;
+        b = b | (unsigned int)*local_c << (unsigned char)k;
         local_c = local_c + 1;
       }
       pbVar1 = (unsigned char *)(c[2] +
                 (*(unsigned int *)(0x320d88 + c[3] * 4) & b) * 8);
       b = b >> pbVar1[1];
-      r = r - (unsigned int)pbVar1[1];
+      k = k - (unsigned int)pbVar1[1];
       bVar2 = *pbVar1;
       uVar7 = (unsigned int)bVar2;
       if (uVar7 == 0) {
@@ -495,17 +495,17 @@ void FUN_00114740(unsigned int param_1, int *param_2, int param_3)
       break;
     case 2:
       uVar7 = c[2];
-      for (; (unsigned int)r < uVar7;
-           r = r + 8) {
+      for (; k < uVar7;
+           k = k + 8) {
         if (n == 0) goto LAB_00114dca;
         n = n - 1;
-        (void)r; /* original: r = r */
-        b = b | (unsigned int)*local_c << (unsigned char)r;
+        r = 0;
+        b = b | (unsigned int)*local_c << (unsigned char)k;
         local_c = local_c + 1;
       }
       c[1] = c[1] + (*(unsigned int *)(0x320d88 + uVar7 * 4) & b);
       b = b >> (unsigned char)uVar7;
-      r = r - (int)uVar7;
+      k = k - (int)uVar7;
       c[3] = (unsigned int)*((unsigned char *)c + 0x11);
       c[2] = c[6];
       if (*(int *)0x320e30 > 1) {
@@ -516,22 +516,22 @@ void FUN_00114740(unsigned int param_1, int *param_2, int param_3)
       goto LAB_00114a43;
     case 3:
 LAB_00114a43:
-      for (; (unsigned int)r < c[3];
-           r = r + 8) {
+      for (; k < c[3];
+           k = k + 8) {
         if (n == 0) {
           *(unsigned int *)(s + 0x20) = b;
-          *(int **)(s + 0x1c) = (int *)r;
+          *(unsigned int *)(s + 0x1c) = k;
           goto LAB_00114e4b;
         }
         n = n - 1;
-        (void)r; /* original: r = r */
-        b = b | (unsigned int)*local_c << (unsigned char)r;
+        r = 0;
+        b = b | (unsigned int)*local_c << (unsigned char)k;
         local_c = local_c + 1;
       }
       pbVar1 = (unsigned char *)(c[2] +
                 (*(unsigned int *)(0x320d88 + c[3] * 4) & b) * 8);
       b = b >> pbVar1[1];
-      r = r - (unsigned int)pbVar1[1];
+      k = k - (unsigned int)pbVar1[1];
       bVar2 = *pbVar1;
       if ((bVar2 & 0x10) != 0) {
         c[2] = bVar2 & 0xf;
@@ -543,7 +543,7 @@ LAB_00114a43:
         *c = 9;
         z[6] = (int)"invalid distance code";
         *(unsigned int *)(s + 0x20) = b;
-        *(int **)(s + 0x1c) = (int *)r;
+        *(unsigned int *)(s + 0x1c) = k;
         z[1] = (int)n;
         r = -3;
         goto LAB_00114d76;
@@ -553,20 +553,20 @@ LAB_00114a43:
       break;
     case 4:
       uVar7 = c[2];
-      for (; (unsigned int)r < uVar7;
-           r = r + 8) {
+      for (; k < uVar7;
+           k = k + 8) {
         if (n == 0) {
           *(unsigned int *)(s + 0x20) = b;
-          *(int **)(s + 0x1c) = (int *)r;
+          *(unsigned int *)(s + 0x1c) = k;
           goto LAB_00114e4b;
         }
         n = n - 1;
-        (void)r; /* original: r = r */
-        b = b | (unsigned int)*local_c << (unsigned char)r;
+        r = 0;
+        b = b | (unsigned int)*local_c << (unsigned char)k;
         local_c = local_c + 1;
       }
       c[3] = c[3] + (*(unsigned int *)(0x320d88 + uVar7 * 4) & b);
-      r = r - (int)uVar7;
+      k = k - (int)uVar7;
       b = b >> (unsigned char)uVar7;
       if (*(int *)0x320e30 > 1) {
         crt_fprintf(*(void **)0x331070,
@@ -682,11 +682,11 @@ LAB_00114d37:
       *c = 0;
       break;
     case 7:
-      if ((unsigned int)r > 7) {
-        if ((unsigned int)r > 0xf) {
+      if ((unsigned int)k > 7) {
+        if ((unsigned int)k > 0xf) {
           FUN_00117a80("inflate_codes grabbed too many bytes");
         }
-        r = r - 8;
+        k = k - 8;
         n = n + 1;
         local_c = local_c + -1;
       }
@@ -695,7 +695,7 @@ LAB_00114d37:
       p = *(unsigned char **)(s + 0x34);
       if (*(unsigned char **)(s + 0x30) != p) {
         *(unsigned int *)(s + 0x20) = b;
-        *(int **)(s + 0x1c) = (int *)r;
+        *(unsigned int *)(s + 0x1c) = k;
         z[1] = (int)n;
         z[2] = (int)(local_c + (z[2] - *z));
         *z = (int)local_c;
@@ -707,7 +707,7 @@ LAB_00114d37:
       /* fall through */
     case 8:
       *(unsigned int *)(s + 0x20) = b;
-      *(int **)(s + 0x1c) = (int *)r;
+      *(unsigned int *)(s + 0x1c) = k;
       z[1] = (int)n;
       r = 1;
       goto LAB_00114d76;
@@ -1075,6 +1075,7 @@ int FUN_001155e0(int z, int flush)
       if (((unsigned char)uVar2 & 0xf) == 8) {
         if (((unsigned int)puVar3[1] >> 4) + 8 <= (unsigned int)puVar3[4]) {
           *puVar3 = 1;
+          uVar5 = uVar4; /* orig MOV EDI,EBX @0x11565a: fall-through carries uVar4 */
           goto case_1;
         }
         *puVar3 = 0xd;
@@ -1086,7 +1087,9 @@ int FUN_001155e0(int z, int flush)
       goto set_mark;
     case 1:
     case_1:
-      if (param_1[1] == 0) return uVar4;
+      /* direct re-entry returns uVar5 (0xfffffffb=Z_BUF_ERROR); fall-through from
+       * case 0 sets uVar5=uVar4 above so it returns uVar4 (matches orig EDI). */
+      if (param_1[1] == 0) return uVar5;
       param_1[1] = param_1[1] - 1;
       param_1[2] = param_1[2] + 1;
       bVar1 = *(unsigned char *)*param_1;
@@ -1783,8 +1786,11 @@ void FUN_001167f0(int param_1, int param_2, int tree)
   local_c = 0xffffffff;
   iVar3 = 7;
   iVar4 = 4;
-  iVar3 = 0;
-  if (uVar2 == iVar3) {
+  /* original keeps max_count(iVar3)=7 here; the lift's `iVar3 = 0` clobbered it,
+   * making the run-flush condition (count <= max_count) always true and breaking
+   * run-length detection -> corrupted deflate output. Test first code length
+   * directly (orig: MOV ECX,7 kept; sets 0x8a only when first length == 0). */
+  if (uVar2 == 0) {
     iVar3 = 0x8a;
     iVar4 = 3;
   }

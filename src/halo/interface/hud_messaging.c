@@ -16,18 +16,15 @@ void FUN_000d3fe0(int param_1, short *param_2, int param_3,
 {
   int iVar1;
   int iVar2;
-  int *puVar3;
+  float *puVar3;
   int uVar4;
   char cVar5;
   short sVar6;
+  int draw_flag;
+  float scale[2];
+  float icon_rect[4];
   int local_24c[128];
   unsigned char local_4c[16];
-  int local_3c;
-  int local_38;
-  int local_34;
-  float local_30;
-  int local_2c;
-  float local_28;
   unsigned int local_24;
   int local_20;
   int local_1c;
@@ -37,7 +34,6 @@ void FUN_000d3fe0(int param_1, short *param_2, int param_3,
   int local_c;
   short *local_8;
 
-  (void)local_28;
   local_20 = FUN_000d1540();
   csmemset(local_24c, 0x62, 0x200);
   iVar1 = verify_tag_reference((int *)(param_3 + 0x24));
@@ -47,7 +43,7 @@ void FUN_000d3fe0(int param_1, short *param_2, int param_3,
   iVar2 = (int)xbox_texture_cache_get_hardware_format((void *)local_c, 0, 1);
   if (iVar2 != 0) {
     verify_tag_reference((int *)(param_3 + 0x24));
-    puVar3 = FUN_000d1580();
+    puVar3 = (float *)FUN_000d1580();
     if ((param_4 & 2) == 0) {
       if ((param_4 & 1) == 0) {
         uVar4 = *(int *)(param_3 + 0x34);
@@ -65,32 +61,37 @@ void FUN_000d3fe0(int param_1, short *param_2, int param_3,
     if (0 < *(int *)(param_3 + 0x58)) {
       iVar2 = 0;
       local_24 = param_4 & 4;
-      local_34 = 0;
-      local_2c = 0;
+      icon_rect[0] = 0.0f;
+      icon_rect[2] = 0.0f;
       cVar5 = (char)(sVar6 == 4);
       while (1) {
         local_1c = (int)tag_block_get_element((void *)(param_3 + 0x58), iVar2,
                                               0x1e0);
-        local_30 = 1.0f;
-        local_28 = 1.0f;
+        icon_rect[1] = 1.0f;
+        icon_rect[3] = 1.0f;
         if (cVar5 != '\0') {
           local_10 = (int)*(short *)(local_c + 6);
-          local_30 = (float)(int)*(short *)(local_c + 4);
-          local_28 = (float)local_10;
+          icon_rect[1] = (float)(int)*(short *)(local_c + 4);
+          icon_rect[3] = (float)local_10;
         }
-        if (puVar3 == (int *)0) {
-          puVar3 = &local_34;
+        if (puVar3 == (float *)0) {
+          puVar3 = icon_rect;
         }
-        local_3c = *(int *)(param_3 + 4);
-        local_38 = *(int *)(param_3 + 8);
+        scale[0] = *(float *)(param_3 + 4);
+        scale[1] = *(float *)(param_3 + 8);
         if (((short)local_24 == 0) ||
-            (uVar4 = 1, (*(unsigned char *)(param_3 + 0xc) & 1) != 0)) {
-          uVar4 = 0;
+            (draw_flag = 1, (*(unsigned char *)(param_3 + 0xc) & 1) != 0)) {
+          draw_flag = 0;
         }
-        FUN_000d1f40((short)*(int *)0x506548, param_2, (int)param_3, 0, uVar4,
+        FUN_000d1f40((short)*(int *)0x506548, param_2, (int)param_3, 0, draw_flag,
                      0, local_18);
-        FUN_000d1890(local_c, *param_2);
-        FUN_000d27a0(param_1, local_18, puVar3, local_4c, 0, uVar4);
+        /* d1890: @<eax>=local_4c (out corners), @<edi>=puVar3 (in rect),
+         * @<bl>=cVar5 (align flag); 2 stack args: bitmap, screen index. */
+        FUN_000d1890((float *)local_4c, puVar3, cVar5, local_c, *param_2);
+        /* d27a0: @<ecx>=local_1c (element ptr), @<eax>=scale[2];
+         * 6 stack args; 6th = uVar4 (color, raw int bitpattern). */
+        FUN_000d27a0(local_1c, scale, param_1, local_18, puVar3,
+                     (float *)local_4c, 0, uVar4);
         iVar2 = iVar2 + 1;
         iVar2 = (int)(short)iVar2;
         if (*(int *)(param_3 + 0x58) <= iVar2) break;
@@ -98,8 +99,7 @@ void FUN_000d3fe0(int param_1, short *param_2, int param_3,
       }
     }
   }
-  (void)local_3c; (void)local_38; (void)local_30; (void)local_2c;
-  (void)local_28; (void)local_1c;
+  (void)scale; (void)local_1c;
   sVar6 = 0x7f;
   do {
     if (local_24c[(int)sVar6] != 0x62626262) goto LAB_000d41e7;
@@ -1249,8 +1249,10 @@ LAB_000d57ad:
               icon_idx = (int)(unsigned short)bVar1;
             } else if (bVar1 <= 0x1f) {
               if (bVar1 <= 0x1c) {
+                /* prefs buffer is filled at base+0; the original indexes it at
+                 * base+8 (movzx bx,[ebp+edx-0x98] vs buffer base [ebp-0xa0]). */
                 icon_idx = (int)(unsigned short)
-                    prefs[(int)(signed char)((char *)0x2f66c2)[bVar1]];
+                    prefs[(int)(signed char)((char *)0x2f66c2)[bVar1] + 8];
               } else {
                 icon_idx = (int)(short)(signed char)((char *)0x2f66c2)[bVar1];
               }
@@ -1801,14 +1803,17 @@ void FUN_000d64c0(int param_1, int unit_handle, int param_3, int param_4)
   }
 }
 
-/* FUN_000d64f0 (0xd64f0) — clear object nav point for a unit's player. */
-void FUN_000d64f0(int param_1, int param_2)
+/* FUN_000d64f0 (0xd64f0) — clear object nav point for a unit's player.
+ * param_2 is a 16-bit object handle: the original sign-extends it
+ * (MOVSX EDI,word[EBP+0xc]) before the full 32-bit compare in FUN_000d6320,
+ * so it must be a short here, not an int. */
+void FUN_000d64f0(int param_1, short param_2)
 {
   int player_index;
 
   player_index = player_index_from_unit_index(param_1);
   if (player_index != -1) {
-    FUN_000d6320(player_index, 0, param_2);
+    FUN_000d6320(player_index, 0, (int)param_2);
   }
 }
 
@@ -1832,7 +1837,7 @@ short FUN_000d6550(int param_1, float *param_2, float *param_3, int param_4)
   int player;
   int unit_handle;
   short result;
-  short collision_result[28];
+  char collision_result[80];
   float direction[3];
 
   if (global_current_collision_user_depth >= 0x20) {
@@ -1857,10 +1862,11 @@ short FUN_000d6550(int param_1, float *param_2, float *param_3, int param_4)
   direction[1] = param_3[1] - param_2[1];
   direction[2] = param_3[2] - param_2[2];
 
-  if (FUN_0014df70(0xc2ad, param_2, direction, unit_handle, collision_result) ==
+  if (FUN_0014df70(0xc2ad, param_2, direction, unit_handle,
+                   (short *)collision_result) ==
         '\0' ||
-      (collision_result[0] == 3 &&
-       *(int *)(collision_result + 0x14) == param_4)) {
+      (*(short *)collision_result == 3 &&
+       *(int *)(collision_result + 0x38) == param_4)) {
     result = 0;
   } else {
     result = 2;
@@ -1955,7 +1961,7 @@ void FUN_000d6660(int param_1, float *param_2, short param_3, short param_4)
   }
   local_8 = 0.0f;
   fVar1 =
-      ((float)((int)*(short *)0x506588 + 2 - (int)*(short *)0x506584 + 2) -
+      ((float)((int)*(short *)0x50658a - (int)*(short *)0x506586) -
        (*(float *)(*(int *)0x46bd0c + 300) +
         *(float *)(*(int *)0x46bd0c + 0x128))) *
       *(float *)0x253398;
@@ -2050,13 +2056,17 @@ void FUN_000d6660(int param_1, float *param_2, short param_3, short param_4)
       csmemset(text_element, 0, 0x24);
       csmemset(text_pos_buf, 0, 0x54);
       *(short *)text_element = 0;
-      *(unsigned int *)(text_element + 0x18) =
+      /* original writes the 5 color/style fields into text_pos_buf (arg3), NOT
+       * text_element (arg2, whose only write is the first-word zero above).
+       * Disasm: stores at [EBP-0x60]/[EBP-0x5c]/[EBP-0x40]/[EBP-0x3f]/[EBP-0x3e]
+       * = text_pos_buf+0x24/+0x28/+0x44/+0x45/+0x46 (base EBP-0x84). */
+      *(unsigned int *)(text_pos_buf + 0x24) =
           FUN_000d1dd0(&local_24) | uVar13;
-      *(unsigned int *)(text_element + 0x1c) =
+      *(unsigned int *)(text_pos_buf + 0x28) =
           FUN_000d1dd0(&local_24) | uVar13;
-      text_element[0x20] = 3;
-      text_element[0x22] = 1;
-      text_element[0x21] = 5;
+      text_pos_buf[0x44] = 3;
+      text_pos_buf[0x46] = 1;
+      text_pos_buf[0x45] = 5;
 
       {
         short scr_x = (short)local_10;
@@ -2347,8 +2357,10 @@ void FUN_000d70b0(short param_1, unsigned int param_2, int *param_3,
               sound_stop_impulse(iVar1);
             }
           }
-          sound_impulse_start(piVar3[3], new_var);
-          *(int *)(param_4 + iVar6 * 4) = piVar3[3];
+          /* store the RETURNED sound datum handle (not the tag index piVar3[3]);
+           * this slot is consumed later by sound_stop_impulse. */
+          *(int *)(param_4 + iVar6 * 4) =
+              sound_impulse_start(piVar3[3], new_var);
         } else {
           display_assert("!\"unreachable\"",
                          "c:\\halo\\SOURCE\\interface\\hud_sounds.c", 0x2f,
@@ -2884,6 +2896,18 @@ void FUN_000d7d40(int param_1)
   int canary_buf[128];
   int handle_slots[18];
   int tag_indices[18];
+  /*
+   * In the original MSVC frame this is &local_24 (base EBP-0x20); only
+   * fraction_slots[0] (the shield fraction, unit_ptr+0x2f4) is ever stored.
+   * The overlay loop reads fraction_slots[*psVar12], where *psVar12 is the
+   * overlay_type. That read is reached only via the (full_shield & (1<<type))
+   * branch, and full_shield is forced to {0,1} at 0x7f91/0x7f9a
+   * (= unit_ptr+0x2f0 == 1.0f). A {0,1} value ANDed with (1<<type) is nonzero
+   * only for type==0, so the indexed read is structurally always
+   * fraction_slots[0]; slots [1..3] are dead on the read path and the latent
+   * OOB for overlay_type>=4 cannot occur here. The discrete float[4] is
+   * therefore faithful. (See FUN_000d7d40 disasm 0x87d2-0x87e1.)
+   */
   float fraction_slots[4];
   unsigned int full_shield;
   unsigned int damage_active;
@@ -3278,12 +3302,14 @@ void FUN_000d7d40(int param_1)
                       *(float *)(iVar13 + 0x254) ||
                   *(float *)(unit_data + 0x90) ==
                       *(float *)(iVar13 + 0x254)) {
-                health_meter_data[15] = health_meter_data[14];
+                /* override stores at base+0x38/+0x34 = indices 14/13, not 15/14
+                 * (disasm: MOV [EBP-0x15c]/[EBP-0x160], base EBP-0x194). */
+                health_meter_data[14] = health_meter_data[13];
               } else {
-                health_meter_data[15] = *(int *)(iVar13 + 0x24c);
+                health_meter_data[14] = *(int *)(iVar13 + 0x24c);
               }
             }
-            health_meter_data[14] = health_meter_data[15];
+            health_meter_data[13] = health_meter_data[14];
 
             meter_scale = (float)(int)health_max;
 

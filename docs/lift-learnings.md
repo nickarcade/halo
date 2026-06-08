@@ -703,3 +703,101 @@ nothing to do with the failing feature.
 - When a symbolized crash points somewhere surprising, re-symbolize from the
   export table before forming any hypothesis — wrong symbols are the most
   expensive kind of wrong, because every downstream step inherits the error.
+
+---
+
+## 16. Void-Return Out-Param Functions That Return EAX Implicitly
+
+**What happens:** MSVC frequently ends "void-like" functions that write through
+an out-parameter with `MOV EAX, [EBP+8]` (loading the first argument — the
+out-param pointer — into EAX) immediately before `RET`. The function is logically
+void, but MSVC returns the pointer in EAX as a convenience. Unported callers
+in Ghidra are shown reading that EAX as a pointer (`puVar = (undefined4 *)fn(buf, idx)`).
+
+When ported with `void` return type, our compiled function does not set EAX to
+`param_1` on return. The unported caller receives garbage EAX and reads position
+data (or any other output) from a dangling pointer. This causes:
+- Wrong coordinates or positions read from the goal table
+- Silent corruption (no crash — wrong numbers)
+- Features that work but produce the wrong visual output
+
+The symptom is **subtle**: the function call itself succeeds, no assert fires,
+but the data read back is wrong because it came from a random address.
+
+**Example:** `game_engine_get_goal_position` (0xa9380) writes x/y/z into `param_1`
+and ends with `MOV EAX, [EBP+8]; RET`. The unported caller `FUN_000d6cc0` does
+`puVar5 = (undefined4 *)FUN_000a9380(local_1c, idx)` and reads `*puVar5`,
+`puVar5[1]`, `puVar5[2]`. Declared void, the CTF score-here nav pointed nowhere
+and the flag-position nav showed to the carrier incorrectly.
+
+**Detection:**
+1. Check the last 4–6 instructions before `RET` in the original disassembly
+   (`disassemble_function` in Ghidra MCP). If it ends with `MOV EAX, [EBP+8]`
+   or `LEA EAX, [EBP-N]`, the function returns a pointer in EAX.
+2. Search Ghidra's decompile of unported callers for the pattern
+   `ptr = (type *)fn(buf, ...)` — if a void function's call site is assigned to
+   a pointer, the function returns in EAX.
+3. `check_lift_hazards.py` now checks the `VOID_BUT_RETURNS_EAX` table against
+   `decl.h` and errors if any entry is still declared `void`.
+
+**Fix:**
+```c
+// Before (wrong):
+void game_engine_get_goal_position(int *param_1, short param_2) {
+    // ... write to *param_1 ...
+}
+
+// After (correct):
+int *game_engine_get_goal_position(int *param_1, short param_2) {
+    // ... write to *param_1 ...
+    return param_1;  // matches MOV EAX,[EBP+8] at original RET
+}
+```
+Update the kb.json `decl` from `void fn(int *out, ...)` to `int *fn(int *out, ...)`
+and add the address to `VOID_BUT_RETURNS_EAX` in `check_lift_hazards.py`.
+
+**Unicorn catchability:** A unicorn test of the function in isolation won't catch
+this — the function produces correct data in `param_1` regardless of return type.
+The divergence only manifests in the **caller's** read of EAX. The correct test is
+`unicorn_diff.py` on the *caller* function with `--allow-stubs --state-snapshot`,
+or a targeted check comparing `*(int*)EAX_on_return` between oracle and candidate.
+
+## 17. Address Offset Mis-Rendered as a Value Addition
+
+**What happens:** Two adjacent fields of a global struct live at `BASE` and
+`BASE+N` (e.g. two `short` rect edges at `0x506588` and `0x50658a`). The
+original reads the second field directly: `*(short*)(BASE+N)`. A lift that is
+thinking of the struct as "base plus an index" writes the `+N` on the **wrong
+side of the dereference**: `*(short*)BASE + N` (value add) instead of
+`*(short*)(BASE+N)` (address add). These are not equal —
+`((int)*(short*)0x506588) + 2 != *(short*)0x50658a` — so the function reads the
+wrong field *and* adds a stray constant.
+
+**Symptoms:** No crash (both addresses are valid globals). Silent wrong scalar:
+a width computed from the height fields, a Y from an X field, etc. The effect is
+a subtly-wrong geometric quantity — here a nav-point clamping ellipse with the
+wrong aspect ratio, mis-positioning off-cone markers.
+
+**Example (`nav_point_draw_single`, FUN_000d6660):** the visibility-cone
+half-extents are two rect deltas. Disasm at 0xd67e9-0xd6822:
+```
+fVar1.int: movswl [0x50658a]; movswl [0x506586]; sub   ->  *0x50658a - *0x506586   (width = field[3]-field[1])
+fVar3.int: movswl [0x506588]; movswl [0x506584]; sub   ->  *0x506588 - *0x506584   (height = field[2]-field[0])
+```
+The lift wrote fVar1 as `*(short*)0x506588 + 2 - *(short*)0x506584 + 2`, turning
+the address offsets `0x506588+2`/`0x506584+2` into value `+2`s on the height
+fields — computing `height + 4` instead of `width`.
+
+**Prevention — the detection grep (this is the reusable part):**
+- `grep -nE '\*\(\w+ \*\)0x[0-9a-f]+ \+ [0-9]'` (and the `*(T*)(ptr) + N` form on
+  a named pointer). For each hit, check whether a **sibling expression reads the
+  adjacent address `BASE+N` directly**. If it does, the `+N` is an address
+  offset that belongs *inside* the cast: rewrite `*(T*)BASE + N` →
+  `*(T*)(BASE+N)`.
+- Cross-confirm against the disasm: a single `movswl [BASE+N]` (or
+  `mov [BASE+N]`) with **no** trailing `add reg, N` proves the constant is part
+  of the address, not a value added after the load.
+
+**Detection at runtime:** No signal — a wrong scalar with no crash. Use §9
+toggle bisection / a state-snapshot mem-trace differential to localize, then
+read the disasm to confirm which address is actually loaded.
