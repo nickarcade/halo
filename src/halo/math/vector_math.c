@@ -113,13 +113,10 @@ float normalize3d(float *v)
   float scale;
 
   mag = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-  if (!(fabsf(mag) >= *(double *)0x2533d0)) {
-    /* Only zero for NaN input — NaN mag means NaN input components.
-       Near-zero non-NaN vectors are left unchanged (original behavior);
-       callers may check the 0.0f return and skip use of the vector. */
-    if (v[0] != v[0] || v[1] != v[1] || v[2] != v[2]) {
-      v[0] = v[1] = v[2] = 0.0f;
-    }
+  /* _DAT_002533d0 = -3.69e19: original condition (-3.69e19 <= ABS(mag)) is
+     always true for non-NaN. Guard against zero/NaN to avoid Inf/NaN in
+     components; callers check the 0.0f return. */
+  if (mag == 0.0f || v[0] != v[0] || v[1] != v[1] || v[2] != v[2]) {
     return 0.0f;
   }
   scale = 1.0f / mag;

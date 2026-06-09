@@ -3242,8 +3242,8 @@
         },
         {
           "addr": "0x14c10",
-          "decl": "void FUN_00014c10(int param_1);",
-          "ported": false
+          "decl": "void FUN_00014c10(int actor_handle @<ebx>, char *look_state @<esi>, int param_1);",
+          "ported": true
         },
         {
           "addr": "0x14e90",
@@ -3294,7 +3294,7 @@
         },
         {
           "addr": "0x15520",
-          "decl": "void FUN_00015520(void);",
+          "decl": "int FUN_00015520(int actor_index);",
           "ported": false
         },
         {
@@ -3383,8 +3383,8 @@
         },
         {
           "addr": "0x169a0",
-          "decl": "void FUN_000169a0(int param_1, int param_2, short param_3, int param_4, char *param_5);",
-          "ported": false
+          "decl": "void FUN_000169a0(int actor_handle, int object_handle, short cmd_type, int out_state, char *out_index, unsigned char *state @<esi>);",
+          "ported": true
         },
         {
           "addr": "0x16bd0",
@@ -3489,7 +3489,7 @@
         },
         {
           "addr": "0x18b90",
-          "decl": "bool FUN_00018b90(int unit_handle, int actor_handle, short scenario_index, char *output, void *command);",
+          "decl": "bool FUN_00018b90(int unit_handle @<eax>, int actor_handle, short scenario_index, char *output, void *command);",
           "ported": true
         },
         {
@@ -25137,7 +25137,7 @@
         {
           "addr": "0x1a0680",
           "decl": "char FUN_001a0680(int unit_handle);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a07c0",
@@ -25197,7 +25197,7 @@
         {
           "addr": "0x1a0e00",
           "decl": "void FUN_001a0e00(float threshold, int unit_handle@<eax>);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a0f10",
@@ -30248,11 +30248,11 @@
         },
         {
           "addr": "0x300b0",
-          "decl": "void actor_situation_update_target_status(void);"
+          "decl": "void actor_situation_update_target_status(int actor_index);"
         },
         {
           "addr": "0x302b0",
-          "decl": "void actor_situation_combat_status_update(void);"
+          "decl": "void actor_situation_combat_status_update(int actor_index);"
         },
         {
           "addr": "0x303f0",
@@ -35287,7 +35287,7 @@
         },
         {
           "addr": "0x5e9b0",
-          "decl": "void path_state_approach_point(void);"
+          "decl": "char path_state_approach_point(int path_state, int pos_ptr, int pos2, unsigned char *out_straight, int *out_ref);"
         },
         {
           "addr": "0x5eae0",
