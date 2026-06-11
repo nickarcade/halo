@@ -93,6 +93,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x17ab0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "28-case switch dispatcher (~1280 instructions); VC71 best score reached 63.5% with raw function-pointer casts for 0x1ac180/0x1a68d0/0x1a6ef0/0xcb9a0/0x936b0/0x95640 and full case coverage.",
+        "Key callees for future lift: FUN_001ac180 is (char)(int actor, int anim_tag, void *entry, int do_flag); FUN_001a68d0 is (short)(int actor, int mode, int a3, int a4, int a5, short *seat_out, int *obj_out); FUN_001a6ef0 is (void)(int actor, short count, void *comm_buf).",
+        "Final lift uses named kb.json callees for all six previously-raw-cast targets (0x1ac180, 0x1a68d0, 0x1a6ef0, 0xcb9a0, 0x936b0, 0x95640), reaching 89.7% VC71 (1253/1269) after two permuter-validated scheduling hoists (elem[2] copy before the cmd_param store burst in cases 1/2, and bipd NULL test computed before the FUN_00012140 call in case 0x1b)."
+      ],
+      "uncertain": [
+        "Score gap likely due to: (1) MSVC register allocation differences when using raw casts vs named functions (casts cause extra stack spill); (2) cmd_block+0x30 being kept in EBX register in original but recomputed in C; (3) prologue register save ordering differs.",
+        "Remaining ~10% VC71 gap is register allocation around the @<eax>/@<ecx> register-arg prologue and callee-saved register choice; no behavioral divergence found in the instruction diff."
+      ]
+    },
     "0x19d00": {
       "kind": "function",
       "status": "ported"
@@ -177,6 +190,22 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x25a00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x25c10": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Lift derived from a full disasm audit that corrected fourteen issues in the earlier 74% draft, most importantly: the prop-scan gate flags and the seed weights read the ACTR TAG (+0/+4 sign and bit0, +0x3c8/+0x3cc weights) not the encounter element; the scorer-table entries are called as fn(actor_handle, ctx, rec_count, records); path_state_estimated_distance is 6-arg cdecl with main-loop args (huge_buf, pos, pos[0x14], rec+0x8, rec+0x1c, ctx[0x40]?rec+0xc:NULL); unit_estimate_position estimate_mode is 1 (PUSH 0x1 at 0x25e34); the discard test is <= (TEST AH,0x41/JP); record init zeroes rec+0x2c/+0x34/+0x38; the overflow error passes the encounter element for %s; and the fp-eval debug name table is {fight,panic,cover,uncover,guard,pursue}.",
+        "VC71 87.1% against the per-function delinked reference; all large buffers are plain stack locals reproducing the 0x1c91c frame under both compilers, enabled by the __chkstk runtime stub added in src/halo/cseries/xbox_crt.c (lift-learnings section 20)."
+      ],
+      "uncertain": [
+        "Unicorn equivalence under zero-fill is inconclusive for this target: the oracle crashes on unresolved data relocs on most seeds, and the remaining divergences trace to differing uninitialized-buffer fill (0xcc oracle stack vs zeroed candidate memory) flowing through the stubbed encounter_build_firing_position_owner_actor_indices initializer (owner_indices garbage 0xcccccccc vs 0), not to lift behavior.",
+        "Remaining ~13% VC71 gap is x87 scheduling (FMULP/FXCH distance-sum patterns VC71 will not reproduce from any tried source form) plus minor register-choice and spill-slot differences; a 420s permuter pass found only a +0.4pp candidate that relied on an uninitialized-pointer UB transform (alias of ctx+0x50 assigned inside a gated block but read unconditionally) and was rejected; the safe equivalent of that transform scores equal to baseline."
+      ]
+    },
     "0x28610": {
       "kind": "function",
       "status": "ported"
@@ -201,6 +230,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2a530": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2a540": {
       "kind": "function",
       "status": "ported"
@@ -221,7 +254,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2a8f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2ab40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2ace0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2b400": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2b490": {
       "kind": "function",
       "status": "ported"
     },
@@ -247,6 +296,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2d720": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2d850": {
       "kind": "function",
       "status": "ported"
@@ -256,6 +309,14 @@
       "status": "ported"
     },
     "0x2d9b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2daa0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2e560": {
       "kind": "function",
       "status": "ported"
     },
@@ -6775,7 +6836,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12c410": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12c500": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12c560": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12c7e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -6795,7 +6868,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12cc10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12cd60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12cdb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -6834,6 +6915,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12d250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12d2f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12d380": {
       "kind": "function",
       "status": "ported"
@@ -6842,7 +6931,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12d3d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12d450": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12d4a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -6855,6 +6952,10 @@
       "status": "ported"
     },
     "0x12d690": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12d6f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -6931,6 +7032,10 @@
       "status": "ported"
     },
     "0x12f5d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f690": {
       "kind": "function",
       "status": "ported"
     },

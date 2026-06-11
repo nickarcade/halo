@@ -4000,30 +4000,6 @@
       }
     },
     {
-      "name": "halo/actor_looking_FUN_00017960",
-      "target_path": "build/vc71/actor_looking.obj",
-      "base_path": "delinked/actor_looking_FUN_00017960.obj",
-      "metadata": {
-        "source_path": "src/halo/ai/actor_looking.c"
-      }
-    },
-    {
-      "name": "halo/actor_looking_FUN_00017ab0",
-      "target_path": "build/vc71/actor_looking.obj",
-      "base_path": "delinked/actor_looking_FUN_00017ab0.obj",
-      "metadata": {
-        "source_path": "src/halo/ai/actor_looking.c"
-      }
-    },
-    {
-      "name": "halo/actor_looking_FUN_00019110",
-      "target_path": "build/vc71/actor_looking.obj",
-      "base_path": "delinked/actor_looking_FUN_00019110.obj",
-      "metadata": {
-        "source_path": "src/halo/ai/actor_looking.c"
-      }
-    },
-    {
       "name": "halo/actor_looking_FUN_000192b0",
       "target_path": "build/vc71/actor_looking.obj",
       "base_path": "delinked/actor_looking_FUN_000192b0.obj",
@@ -4067,14 +4043,6 @@
       "name": "halo/actor_looking_FUN_00019d00",
       "target_path": "build/vc71/actor_looking.obj",
       "base_path": "delinked/actor_looking_FUN_00019d00.obj",
-      "metadata": {
-        "source_path": "src/halo/ai/actor_looking.c"
-      }
-    },
-    {
-      "name": "halo/actor_looking_FUN_0001a200",
-      "target_path": "build/vc71/actor_looking.obj",
-      "base_path": "delinked/actor_looking_FUN_0001a200.obj",
       "metadata": {
         "source_path": "src/halo/ai/actor_looking.c"
       }
@@ -4136,22 +4104,6 @@
       }
     },
     {
-      "name": "halo/actor_looking_FUN_00024cf0",
-      "target_path": "build/vc71/actor_looking.obj",
-      "base_path": "delinked/actor_looking_FUN_00024cf0.obj",
-      "metadata": {
-        "source_path": "src/halo/ai/actor_looking.c"
-      }
-    },
-    {
-      "name": "halo/actor_looking_FUN_00025a00",
-      "target_path": "build/vc71/actor_looking.obj",
-      "base_path": "delinked/actor_looking_FUN_00025a00.obj",
-      "metadata": {
-        "source_path": "src/halo/ai/actor_looking.c"
-      }
-    },
-    {
       "name": "halo/actor_looking_FUN_000272d0",
       "target_path": "build/vc71/actor_looking.obj",
       "base_path": "delinked/actor_looking_FUN_000272d0.obj",
@@ -4179,14 +4131,6 @@
       "name": "halo/actor_looking_FUN_00027a60",
       "target_path": "build/vc71/actor_looking.obj",
       "base_path": "delinked/actor_looking_FUN_00027a60.obj",
-      "metadata": {
-        "source_path": "src/halo/ai/actor_looking.c"
-      }
-    },
-    {
-      "name": "halo/actor_looking_FUN_00028ed0",
-      "target_path": "build/vc71/actor_looking.obj",
-      "base_path": "delinked/actor_looking_FUN_00028ed0.obj",
       "metadata": {
         "source_path": "src/halo/ai/actor_looking.c"
       }
@@ -4657,6 +4601,14 @@
       }
     },
     {
+      "name": "halo/collision_usage_FUN_0014cc80",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/physics/collision_usage.c.obj",
+      "base_path": "delinked/collision_usage_FUN_0014cc80.obj",
+      "metadata": {
+        "source_path": "src/halo/physics/collision_usage.c"
+      }
+    },
+    {
       "name": "halo/collision_usage_FUN_0014cde0",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/physics/collision_usage.c.obj",
       "base_path": "delinked/collision_usage_FUN_0014cde0.obj",
@@ -4686,6 +4638,14 @@
       "base_path": "delinked/collision_usage_FUN_0014dab0.obj",
       "metadata": {
         "source_path": "halo/physics/collision_usage.c"
+      }
+    },
+    {
+      "name": "halo/collision_usage_FUN_0014db10",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/physics/collision_usage.c.obj",
+      "base_path": "delinked/collision_usage_FUN_0014db10.obj",
+      "metadata": {
+        "source_path": "src/halo/physics/collision_usage.c"
       }
     },
     {
@@ -4726,6 +4686,14 @@
       "base_path": "delinked/console.obj",
       "metadata": {
         "source_path": "src/halo/main/console.c"
+      }
+    },
+    {
+      "name": "halo/contrails",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/effects/contrails.c.obj",
+      "base_path": "delinked/contrails.obj",
+      "metadata": {
+        "source_path": "src/halo/effects/contrails.c"
       }
     },
     {
@@ -5193,6 +5161,14 @@
       }
     },
     {
+      "name": "halo/hs_compile",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/hs/hs_compile.c.obj",
+      "base_path": "delinked/hs_compile.obj",
+      "metadata": {
+        "source_path": "src/halo/hs/hs_compile.c"
+      }
+    },
+    {
       "name": "halo/hs_runtime",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/hs/hs_runtime.c.obj",
       "base_path": "delinked/hs_runtime.obj",
@@ -5246,6 +5222,14 @@
       "base_path": "delinked/hud_d1dd0_d1f00.obj",
       "metadata": {
         "source_path": "src/halo/interface/hud.c"
+      }
+    },
+    {
+      "name": "halo/hud_messaging",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud_messaging.c.obj",
+      "base_path": "delinked/hud_messaging.obj",
+      "metadata": {
+        "source_path": "src/halo/interface/hud_messaging.c"
       }
     },
     {
@@ -5361,6 +5345,14 @@
       }
     },
     {
+      "name": "halo/memory_pool",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/memory/memory_pool.c.obj",
+      "base_path": "delinked/memory_pool.obj",
+      "metadata": {
+        "source_path": "src/halo/memory/memory_pool.c"
+      }
+    },
+    {
       "name": "halo/model_animations",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/models/model_animations.c.obj",
       "base_path": "delinked/model_animations.obj",
@@ -5393,6 +5385,14 @@
       }
     },
     {
+      "name": "halo/network_messages",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/networking/network_messages.c.obj",
+      "base_path": "delinked/network_messages.obj",
+      "metadata": {
+        "source_path": "src/halo/networking/network_messages.c"
+      }
+    },
+    {
       "name": "halo/network_server_manager",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/networking/network_server_manager.c.obj",
       "base_path": "delinked/network_server_manager.obj",
@@ -5404,6 +5404,22 @@
       "name": "halo/network_server_manager_12bf70",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/networking/network_server_manager.c.obj",
       "base_path": "delinked/network_server_manager_12bf70_12d100.obj",
+      "metadata": {
+        "source_path": "src/halo/networking/network_server_manager.c"
+      }
+    },
+    {
+      "name": "halo/network_server_manager_12c410",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/networking/network_server_manager.c.obj",
+      "base_path": "delinked/network_server_manager_12c410_12fd74.obj",
+      "metadata": {
+        "source_path": "src/halo/networking/network_server_manager.c"
+      }
+    },
+    {
+      "name": "halo/network_server_manager_FUN_0012f540",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/networking/network_server_manager.c.obj",
+      "base_path": "delinked/network_server_manager_FUN_0012f540.obj",
       "metadata": {
         "source_path": "src/halo/networking/network_server_manager.c"
       }
@@ -6192,6 +6208,22 @@
       }
     },
     {
+      "name": "halo/random_math_FUN_10b110",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10b110.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
+      "name": "halo/random_math_FUN_10b110",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10b110.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
       "name": "halo/random_math_FUN_10b160",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
       "base_path": "delinked/random_math_FUN_10b160.obj",
@@ -6203,6 +6235,22 @@
       "name": "halo/random_math_FUN_10b3c0",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
       "base_path": "delinked/random_math_FUN_10b3c0.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
+      "name": "halo/random_math_FUN_10b3c0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10b3c0.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
+      "name": "halo/random_math_FUN_10b9c0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10b9c0.obj",
       "metadata": {
         "source_path": "src/halo/math/random_math.c"
       }
@@ -6240,6 +6288,22 @@
       }
     },
     {
+      "name": "halo/random_math_FUN_10c2e0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10c2e0.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
+      "name": "halo/random_math_FUN_10c340",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10c340.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
       "name": "halo/random_math_FUN_10c340",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
       "base_path": "delinked/random_math_FUN_10c340.obj",
@@ -6264,9 +6328,33 @@
       }
     },
     {
+      "name": "halo/random_math_FUN_10c780",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10c780.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
       "name": "halo/random_math_FUN_10c7d0",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
       "base_path": "delinked/random_math_FUN_10c7d0.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
+      "name": "halo/random_math_FUN_10c7d0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10c7d0.obj",
+      "metadata": {
+        "source_path": "src/halo/math/random_math.c"
+      }
+    },
+    {
+      "name": "halo/random_math_FUN_10c920",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/math/random_math.c.obj",
+      "base_path": "delinked/random_math_FUN_10c920.obj",
       "metadata": {
         "source_path": "src/halo/math/random_math.c"
       }
@@ -6512,6 +6600,14 @@
       }
     },
     {
+      "name": "halo/sound_manager",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/sound/sound_manager.c.obj",
+      "base_path": "delinked/sound_manager.obj",
+      "metadata": {
+        "source_path": "src/halo/sound/sound_manager.c"
+      }
+    },
+    {
       "name": "halo/stack_memory_pool",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/memory/stack_memory_pool.c.obj",
       "base_path": "delinked/stack_memory_pool.obj",
@@ -6525,6 +6621,14 @@
       "base_path": "delinked/stack_walk_windows.obj",
       "metadata": {
         "source_path": "src/halo/cseries/stack_walk_windows.c"
+      }
+    },
+    {
+      "name": "halo/structure_bsp_definitions",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structure_bsp_definitions.c.obj",
+      "base_path": "delinked/structure_bsp_definitions.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structure_bsp_definitions.c"
       }
     },
     {
