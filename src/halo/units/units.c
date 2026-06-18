@@ -3702,3 +3702,967 @@ bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
   unit_reset_weapon_state(unit_handle);
   return true;
 }
+
+/* unit_get_zoom_level (0x1a8690)
+ * Returns the unit's current zoom level from byte at unit+0x2D0. */
+int16_t unit_get_zoom_level(int unit_handle)
+{
+  char *unit;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  return (int16_t)*(int8_t *)(unit + 0x2D0);
+}
+
+/* unit_kill (0x1a7fa0)
+ * Marks a unit for killing by setting bit 0x40 on object flags at +0xB6. */
+void unit_kill(int unit_handle)
+{
+  char *obj;
+
+  obj = (char *)object_get_and_verify_type(unit_handle, 3);
+  *(uint8_t *)(obj + 0xB6) |= 0x40;
+}
+
+/* unit_set_controllable (0x1a9a50)
+ * Sets or clears bit 6 (0x40) of unit flags dword at +0x1B4. */
+void unit_set_controllable(int unit_handle, char controllable)
+{
+  char *unit;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  if (controllable) {
+    *(uint32_t *)(unit + 0x1B4) |= 0x40;
+  } else {
+    *(uint32_t *)(unit + 0x1B4) &= ~0x40u;
+  }
+}
+
+/* unit_set_possessed (0x1a9a90)
+ * Sets or clears bit 27 (0x8000000) of unit flags dword at +0x1B4. */
+void unit_set_possessed(int unit_handle, char possessed)
+{
+  char *unit;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  if (possessed) {
+    *(uint32_t *)(unit + 0x1B4) |= 0x8000000;
+  } else {
+    *(uint32_t *)(unit + 0x1B4) &= ~0x8000000u;
+  }
+}
+
+/* FUN_001a9ec0 (0x1a9ec0)
+ * Returns datum handle at unit+0x2D4, or NONE if object lookup fails. */
+int FUN_001a9ec0(int unit_handle)
+{
+  char *unit;
+
+  unit = (char *)object_try_and_get_and_verify_type(unit_handle, 3);
+  if (unit != NULL) {
+    return *(int *)(unit + 0x2D4);
+  }
+  return -1;
+}
+
+/* FUN_001a9ef0 (0x1a9ef0)
+ * Returns datum handle at unit+0x2D8, or NONE if object lookup fails. */
+int FUN_001a9ef0(int unit_handle)
+{
+  char *unit;
+
+  unit = (char *)object_try_and_get_and_verify_type(unit_handle, 3);
+  if (unit != NULL) {
+    return *(int *)(unit + 0x2D8);
+  }
+  return -1;
+}
+
+/* FUN_001a7e70 (0x1a7e70)
+ * Guard wrapper around unit_has_weapon_definition_index.
+ * Returns false if either handle is NONE. */
+char FUN_001a7e70(int unit_handle, int definition_index)
+{
+  char result;
+
+  result = 0;
+  if (unit_handle != -1 && definition_index != -1) {
+    result = unit_has_weapon_definition_index(unit_handle, definition_index);
+  }
+  return result;
+}
+
+/* unit_destroy (0x1a91e0)
+ * Destroys a unit: runs object_destroy then unit_test_spawning. */
+void unit_destroy(int unit_handle)
+{
+  object_destroy(unit_handle);
+  unit_test_spawning(unit_handle);
+}
+
+/* unit_scripting_can_blink (0x1a9c00)
+ * Sets whether a unit can blink. Inverted: bit 22 (0x400000) at +0x1B4
+ * means "cannot blink", so can_blink=false sets the bit. */
+void unit_scripting_can_blink(int unit_handle, char can_blink)
+{
+  char *unit;
+
+  if (unit_handle != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    if (can_blink == '\0') {
+      *(uint32_t *)(unit + 0x1B4) |= 0x400000;
+    } else {
+      *(uint32_t *)(unit + 0x1B4) &= ~0x400000u;
+    }
+  }
+}
+
+/* unit_scripting_doesnt_drop_items (0x1a9c40)
+ * Iterates child objects and sets bit 20 (0x100000) on each unit's flags. */
+void unit_scripting_doesnt_drop_items(int object_list)
+{
+  int iter_state;
+  int child;
+  char *unit;
+
+  child = FUN_000ce450(object_list, &iter_state);
+  while (child != -1) {
+    unit = (char *)object_try_and_get_and_verify_type(child, 3);
+    if (unit != NULL) {
+      *(uint32_t *)(unit + 0x1B4) |= 0x100000;
+    }
+    child = FUN_000ce320(object_list, &iter_state);
+  }
+}
+
+/* FUN_001a7d40 (0x1a7d40)
+ * Sums grenade counts for all grenade types (2 types). */
+int FUN_001a7d40(int datum_handle)
+{
+  int i;
+  int sum;
+  char *ptr;
+  char *unit;
+
+  unit = (char *)object_try_and_get_and_verify_type(datum_handle, 3);
+  sum = 0;
+  if (unit != NULL) {
+    ptr = unit + 0x2ce;
+    i = 2;
+    do {
+      sum += (int16_t)*(int8_t *)ptr;
+      ptr++;
+      i--;
+    } while (i != 0);
+  }
+  return sum;
+}
+
+/* FUN_001a7d80 (0x1a7d80)
+ * Sets or clears bit 23 (0x800000) in unit flags for all child units. */
+void FUN_001a7d80(int datum_handle, char flag)
+{
+  int iter_state;
+  int child;
+  char *unit;
+  uint32_t flags;
+
+  child = FUN_000ce450(datum_handle, &iter_state);
+  while (child != -1) {
+    unit = (char *)object_try_and_get_and_verify_type(child, 3);
+    if (unit != NULL) {
+      if (flag == '\0') {
+        flags = *(uint32_t *)(unit + 0x1b4) & 0xff7fffff;
+      } else {
+        flags = *(uint32_t *)(unit + 0x1b4) | 0x800000;
+      }
+      *(uint32_t *)(unit + 0x1b4) = flags;
+    }
+    child = FUN_000ce320(datum_handle, &iter_state);
+  }
+}
+
+/* FUN_001a7df0 (0x1a7df0)
+ * Returns true only if FUN_001ac180 returns true for ALL child units. */
+char FUN_001a7df0(int datum_handle, int param_2, int param_3, int param_4)
+{
+  char result;
+  char cVar2;
+  int child;
+  char *unit;
+  int iter_state;
+
+  result = 1;
+  child = FUN_000ce450(datum_handle, &iter_state);
+  while (child != -1) {
+    unit = (char *)object_try_and_get_and_verify_type(child, 3);
+    if (unit != NULL) {
+      if (result && (cVar2 = FUN_001ac180(child, param_2, (void *)param_3, param_4), cVar2 != '\0')) {
+        result = 1;
+      } else {
+        result = 0;
+      }
+    }
+    child = FUN_000ce320(datum_handle, &iter_state);
+  }
+  return result;
+}
+
+/* FUN_001a7ea0 (0x1a7ea0)
+ * Checks if the unit's current weapon has the given tag definition. */
+char FUN_001a7ea0(int unit_handle, int weapon_def_tag)
+{
+  char *unit;
+  int weapon;
+  int *weapon_data;
+
+  if (unit_handle != -1 && weapon_def_tag != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    weapon = unit_get_weapon(unit_handle, (int)*(int16_t *)(unit + 0x2a2));
+    if (weapon != -1) {
+      weapon_data = (int *)object_get_and_verify_type(weapon, 4);
+      return *weapon_data == weapon_def_tag;
+    }
+  }
+  return 0;
+}
+
+/* unit_get_animation_frames_remaining (0x1a84c0)
+ * Returns the number of animation frames remaining.
+ * Outputs the current animation state byte to *animation_state_out. */
+int unit_get_animation_frames_remaining(int unit_handle, int16_t *animation_state_out)
+{
+  char *unit;
+  char *anim_tag;
+  char *anim_entry;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  anim_tag = (char *)tag_get(0x616e7472, *(int *)(unit + 0x7c));
+  anim_entry = (char *)tag_block_get_element(
+      (int *)(anim_tag + 0x74),
+      (int)*(int16_t *)(unit + 0x80),
+      0xb4);
+  if (animation_state_out == NULL) {
+    display_assert("animation_state",
+                   "c:\\halo\\SOURCE\\units\\units.c", 0x738, 1);
+    system_exit(-1);
+  }
+  *animation_state_out = (int16_t)*(int8_t *)(unit + 0x253);
+  return (int)*(uint16_t *)(anim_entry + 0x22) -
+         (int)*(uint16_t *)(unit + 0x82);
+}
+
+/* FUN_001a8730 (0x1a8730)
+ * Returns 1 for vehicle-related animation states. @ecx = anim state ptr. */
+char FUN_001a8730(void *anim_state)
+{
+  switch (*(uint8_t *)((char *)anim_state + 0xb)) {
+  case 0x17: case 0x18: case 0x19: case 0x1a: case 0x1b:
+  case 0x1d: case 0x1e: case 0x1f: case 0x20: case 0x21:
+  case 0x22: case 0x23: case 0x27: case 0x29:
+    return 1;
+  }
+  return 0;
+}
+
+/* FUN_001a8790 (0x1a8790)
+ * Returns 0 for vehicle/combat animation states. @ecx = anim state ptr. */
+char FUN_001a8790(void *anim_state)
+{
+  switch (*(uint8_t *)((char *)anim_state + 0xb)) {
+  case 1: case 2: case 3:
+  case 0x17: case 0x1a: case 0x1b: case 0x1c:
+  case 0x1d: case 0x1e: case 0x1f:
+  case 0x21: case 0x22: case 0x23:
+  case 0x27: case 0x29:
+    return 0;
+  }
+  return 1;
+}
+
+/* FUN_001a87f0 (0x1a87f0)
+ * Boolean: idle and free, unless overridden by certain anim states.
+ * @ecx = anim state ptr. Switch table verified from binary. */
+char FUN_001a87f0(void *anim_state)
+{
+  char result;
+
+  result = *(char *)((char *)anim_state + 0xc) == '\0' &&
+           *(int16_t *)((char *)anim_state + 0x1a) == -1;
+  switch (*(uint8_t *)((char *)anim_state + 0xb)) {
+  case 0x14: case 0x15: case 0x16:
+  case 0x24: case 0x25: case 0x26:
+    result = 0;
+  }
+  return result;
+}
+
+/* FUN_001a8850 (0x1a8850)
+ * Returns 0 for specific vehicle/boarding animation states.
+ * @ecx = anim state ptr. */
+char FUN_001a8850(void *anim_state)
+{
+  switch (*(uint8_t *)((char *)anim_state + 0xb)) {
+  case 0x17: case 0x18: case 0x19: case 0x1a: case 0x1b:
+  case 0x1d: case 0x22: case 0x23:
+    return 0;
+  }
+  return 1;
+}
+
+/* FUN_001a88b0 (0x1a88b0)
+ * Maps animation state to animation index. @ecx = anim state value. */
+int FUN_001a88b0(int16_t anim_state)
+{
+  switch ((int)anim_state) {
+  case 0x0: case 0x2: case 0x3:
+  case 0x10: case 0x11: case 0x12: case 0x13:
+  case 0x14: case 0x15: case 0x16:
+  case 0x25: case 0x26:
+    return 0x19;
+  case 0x4: case 0x5: case 0x6: case 0x7:
+  case 0x8: case 0x9: case 0xa: case 0xb:
+  case 0xc: case 0xd: case 0xe: case 0xf:
+    return 0x1a;
+  }
+  return -1;
+}
+
+/* FUN_001a86b0 (0x1a86b0)
+ * Animation state transition check. @ecx = anim state ptr, @edx = target state. */
+char FUN_001a86b0(void *anim_state, int16_t target_state)
+{
+  switch (*(uint8_t *)((char *)anim_state + 0xb)) {
+  case 0x2: case 0x3: case 0x25: case 0x26:
+    if (target_state != 0) {
+      return 1;
+    }
+    break;
+  case 0x17: case 0x1a: case 0x1b: case 0x1c:
+    break;
+  case 0x18: case 0x19:
+    if (target_state > 0x17 && target_state < 0x1a) {
+      return 1;
+    }
+    break;
+  case 0x1d: case 0x1e: case 0x1f:
+  case 0x21: case 0x22: case 0x23:
+  case 0x27: case 0x29:
+    if (target_state != 0x17) {
+      return 0;
+    }
+    goto default_return;
+  default:
+    goto default_return;
+  }
+  return 0;
+default_return:
+  return 1;
+}
+
+/* unit_impulse (0x1a8da0)
+ * Applies scaled impulse to unit's transitional velocity (unit+0x18). */
+void unit_impulse(int unit_index, int unused, float *impulse_vector, float scale)
+{
+  uint32_t *unit;
+  char *unit_tag;
+  char *phys_tag;
+  (void)unused;
+
+  unit = (uint32_t *)object_get_and_verify_type(unit_index, 3);
+  unit_tag = (char *)tag_get(0x756e6974, *unit);
+  if (*(int *)(unit_tag + 0x8c) != -1) {
+    phys_tag = (char *)tag_get(0x70687973, *(int *)(unit_tag + 0x8c));
+    scale = scale / *(float *)(phys_tag + 8);
+    *(float *)((char *)unit + 0x18) = scale * impulse_vector[0] + *(float *)((char *)unit + 0x18);
+    *(float *)((char *)unit + 0x1c) = scale * impulse_vector[1] + *(float *)((char *)unit + 0x1c);
+    *(float *)((char *)unit + 0x20) = scale * impulse_vector[2] + *(float *)((char *)unit + 0x20);
+  }
+}
+
+/* unit_get_aiming_unit_index (0x1a9880)
+ * Returns the datum index of the unit that controls aiming.
+ * If the unit is in a seat with the aiming flag, returns the parent. */
+int unit_get_aiming_unit_index(int unit_index)
+{
+  char *unit;
+  uint32_t *parent;
+  char *parent_tag;
+  uint8_t *seat;
+
+  if (unit_index == -1) {
+    return -1;
+  }
+  unit = (char *)object_get_and_verify_type(unit_index, 3);
+  if (*(int *)(unit + 0xcc) != -1 && *(int16_t *)(unit + 0x2a0) != -1) {
+    parent = (uint32_t *)object_get_and_verify_type(*(int *)(unit + 0xcc), 3);
+    parent_tag = (char *)tag_get(0x756e6974, *parent);
+    seat = (uint8_t *)tag_block_get_element(
+        (int *)(parent_tag + 0x2e4),
+        (int)*(int16_t *)(unit + 0x2a0), 0x11c);
+    if ((*seat & 9) != 0) {
+      return *(int *)(unit + 0xcc);
+    }
+  }
+  return unit_index;
+}
+
+/* unit_scripting_set_emotion_animation (0x1a9b30)
+ * Looks up an animation by name and sets it as the unit's emotion animation. */
+void unit_scripting_set_emotion_animation(int unit_index, const char *animation_name)
+{
+  char *unit;
+  int16_t anim;
+
+  if (unit_index != -1) {
+    unit = (char *)object_get_and_verify_type(unit_index, 3);
+    anim = FUN_00120cb0(*(int *)(unit + 0x7c), animation_name);
+    if (anim != -1) {
+      *(int16_t *)(unit + 0x1ce) = anim;
+      return;
+    }
+    console_warning("couldn\'t find the emotion animation \'%s\'", animation_name);
+  }
+}
+
+/* unit_scripting_suspended (0x1a9b80)
+ * Suspends or unsuspends a unit. Sets/clears bit 24 (0x1000000) at +0x1B4,
+ * zeros the velocity from global origin, and clears biped bit if type==0. */
+void unit_scripting_suspended(int unit_index, char suspended)
+{
+  char *unit;
+  uint32_t flags;
+  char *global_origin;
+  char *biped;
+
+  if (unit_index != -1) {
+    unit = (char *)object_get_and_verify_type(unit_index, 3);
+    if (suspended != '\0') {
+      flags = *(uint32_t *)(unit + 0x1b4) | 0x1000000;
+    } else {
+      flags = *(uint32_t *)(unit + 0x1b4) & 0xfeffffff;
+    }
+    *(uint32_t *)(unit + 0x1b4) = flags;
+    global_origin = *(char **)0x31fc38;
+    *(uint32_t *)(unit + 0x18) = *(uint32_t *)global_origin;
+    *(uint32_t *)(unit + 0x1c) = *(uint32_t *)(global_origin + 4);
+    *(uint32_t *)(unit + 0x20) = *(uint32_t *)(global_origin + 8);
+    if (*(int16_t *)(unit + 0x64) == 0) {
+      biped = (char *)object_get_and_verify_type(unit_index, 1);
+      *(uint32_t *)(biped + 0x424) &= 0xfffffffe;
+    }
+  }
+}
+
+/* unit_scripting_vehicle_test_seat (0x1a9da0)
+ * Returns true if unit_index is sitting in the named seat of vehicle_index. */
+char unit_scripting_vehicle_test_seat(int vehicle_index, const char *seat_name, int unit_index)
+{
+  uint32_t *vehicle;
+  char *vehicle_tag;
+  int *seats_block;
+  char *seat_element;
+  char *unit_data;
+  int16_t i;
+
+  if (vehicle_index != -1 && unit_index != -1) {
+    vehicle = (uint32_t *)object_get_and_verify_type(vehicle_index, 3);
+    vehicle_tag = (char *)tag_get(0x756e6974, *vehicle);
+    seats_block = (int *)(vehicle_tag + 0x2e4);
+    if (0 < *seats_block) {
+      i = 0;
+      do {
+        seat_element = (char *)tag_block_get_element(seats_block, (int)i, 0x11c);
+        if (crt_stricmp(seat_name, seat_element + 4) == 0) {
+          unit_data = (char *)object_get_and_verify_type(unit_index, 3);
+          if (*(int *)(unit_data + 0xcc) == vehicle_index &&
+              *(int16_t *)(unit_data + 0x2a0) == i) {
+            return 1;
+          }
+        }
+        i++;
+      } while ((int)i < *seats_block);
+    }
+  }
+  return 0;
+}
+
+/* FUN_001aa4d0 (0x1aa4d0) — unit_driven_by_ai
+ * Returns true if the unit (or its driver) has an AI actor. */
+char FUN_001aa4d0(int unit_handle)
+{
+  char *unit;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  if (*(int *)(unit + 0x2d4) != -1) {
+    unit = (char *)object_get_and_verify_type(*(int *)(unit + 0x2d4), 3);
+  }
+  return *(int *)(unit + 0x1a4) != -1;
+}
+
+/* FUN_001aa510 (0x1aa510) — unit_gunned_by_ai
+ * Returns true if the unit (or its gunner) has an AI actor. */
+char FUN_001aa510(int unit_handle)
+{
+  char *unit;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  if (*(int *)(unit + 0x2d8) != -1) {
+    unit = (char *)object_get_and_verify_type(*(int *)(unit + 0x2d8), 3);
+  }
+  return *(int *)(unit + 0x1a4) != -1;
+}
+
+/* FUN_001a7cc0 (0x1a7cc0)
+ * Returns the body vitality (0x90) or 0.0 if dead, default if invalid. */
+float FUN_001a7cc0(int datum_handle)
+{
+  char *obj;
+  float result;
+
+  obj = (char *)object_try_and_get_and_verify_type(datum_handle, -1);
+  result = *(float *)0x255e94;
+  if (obj != NULL) {
+    if ((*(uint8_t *)(obj + 0xb6) & 4) != 0) {
+      return 0.0f;
+    }
+    result = *(float *)(obj + 0x90);
+  }
+  return result;
+}
+
+/* FUN_001a7d00 (0x1a7d00)
+ * Returns the shield vitality (0x94) or 0.0 if dead, default if invalid. */
+float FUN_001a7d00(int datum_handle)
+{
+  char *obj;
+  float result;
+
+  obj = (char *)object_try_and_get_and_verify_type(datum_handle, -1);
+  result = *(float *)0x255e94;
+  if (obj != NULL) {
+    if ((*(uint8_t *)(obj + 0xb6) & 4) != 0) {
+      return 0.0f;
+    }
+    result = *(float *)(obj + 0x94);
+  }
+  return result;
+}
+
+/* FUN_001a7c70 (0x1a7c70)
+ * Iterates child objects and calls FUN_001a7b50 on each. */
+void FUN_001a7c70(int parent_handle, int param_2, int param_3)
+{
+  int iter_state;
+  int child;
+
+  child = FUN_000ce450(parent_handle, &iter_state);
+  while (child != -1) {
+    FUN_001a7b50(child, param_2, param_3);
+    child = FUN_000ce320(parent_handle, &iter_state);
+  }
+}
+
+/* unit_inventory_next_grenade (0x1a9980)
+ * Cycles through grenade types to find the next available one. */
+int16_t unit_inventory_next_grenade(int unit_handle, int current_index, int16_t direction)
+{
+  char *unit;
+  int16_t start;
+  int16_t saved;
+  int idx;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  saved = -1;
+  start = (int16_t)current_index;
+  if (start == -1) {
+    current_index = 0;
+    idx = current_index;
+  } else {
+    idx = current_index;
+    if (start < 0 || 1 < start) {
+      display_assert("current_index>=0 && current_index<NUMBER_OF_UNIT_GRENADE_TYPES",
+                     "c:\\halo\\SOURCE\\units\\units.c", 0x163e, 1);
+      system_exit(-1);
+    }
+  }
+  do {
+    start = (int16_t)current_index;
+    if (*(char *)((int)start + 0x2ce + (int)unit) > '\0') {
+      if (start != (int16_t)idx) {
+        return start;
+      }
+      saved = (int16_t)current_index;
+      if (direction == 0) {
+        return start;
+      }
+    }
+    if (direction < 0) {
+      if (start == 0) {
+        current_index = 1;
+      } else {
+        current_index = (int)start - 1;
+      }
+    } else if (start == 1) {
+      current_index = 0;
+    } else {
+      current_index = (int)start + 1;
+    }
+    if ((int16_t)current_index == (int16_t)idx) {
+      return saved;
+    }
+  } while (1);
+}
+
+/* unit_scripting_unit_riders (0x1a9e40)
+ * Creates a list of all child units that have a seat assignment. */
+int unit_scripting_unit_riders(int unit_handle)
+{
+  char *unit;
+  int list;
+  int child;
+  char *child_obj;
+
+  list = -1;
+  if (unit_handle != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    list = FUN_000ce200();
+    if (list != -1) {
+      child = *(int *)(unit + 0xc8);
+      while (child != -1) {
+        child_obj = (char *)object_get_and_verify_type(child, -1);
+        if (((1 << (*(uint8_t *)(child_obj + 0x64) & 0x1f)) & 3u) != 0 &&
+            *(int16_t *)(child_obj + 0x2a0) != -1) {
+          FUN_000ce2b0(list, child);
+        }
+        child = *(int *)(child_obj + 0xc4);
+      }
+    }
+  }
+  return list;
+}
+
+/* units_debug_get_next_unit (0x1aa080)
+ * Finds the next debug-selectable unit after current_unit. */
+int units_debug_get_next_unit(int current_unit)
+{
+  int result;
+  char *iVar1;
+  char local_14[8];
+  int local_c = 0;
+
+  result = -1;
+  if (current_unit != -1) {
+    object_iterator_new(local_14, 3, 0);
+    iVar1 = (char *)object_iterator_next(local_14);
+    while (iVar1 != NULL && local_c != current_unit) {
+      iVar1 = (char *)object_iterator_next(local_14);
+    }
+    iVar1 = (char *)object_iterator_next(local_14);
+    while (iVar1 != NULL) {
+      if (*(int *)(iVar1 + 0x1a4) == -1 &&
+          *(int *)(iVar1 + 0x1a8) == -1 &&
+          (*(uint8_t *)(iVar1 + 0xb6) & 4) == 0) {
+        result = local_c;
+        if (local_c != -1) {
+          return local_c;
+        }
+        break;
+      }
+      iVar1 = (char *)object_iterator_next(local_14);
+    }
+  }
+  object_iterator_new(local_14, 3, 0);
+  iVar1 = (char *)object_iterator_next(local_14);
+  while (1) {
+    if (iVar1 == NULL) {
+      return result;
+    }
+    if (*(int *)(iVar1 + 0x1a4) == -1 &&
+        *(int *)(iVar1 + 0x1a8) == -1 &&
+        (*(uint8_t *)(iVar1 + 0xb6) & 4) == 0) {
+      break;
+    }
+    iVar1 = (char *)object_iterator_next(local_14);
+  }
+  return local_c;
+}
+
+/* unit_set_desired_flashlight_state (0x1aa550)
+ * Sets the desired flashlight state. Bit 28=on, bit 29=off at +0x1B4. */
+void unit_set_desired_flashlight_state(int unit_handle, char desired)
+{
+  char *unit;
+
+  if (unit_handle != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    if (desired != '\0') {
+      *(uint32_t *)(unit + 0x1b4) |= 0x10000000;
+    } else {
+      *(uint32_t *)(unit + 0x1b4) |= 0x20000000;
+    }
+  }
+}
+
+/* unit_get_current_flashlight_state (0x1aa590)
+ * Returns whether the flashlight is currently on. Bit 19 of +0x1B4. */
+char unit_get_current_flashlight_state(int unit_handle)
+{
+  char *unit;
+
+  if (unit_handle != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    return (*(uint32_t *)(unit + 0x1b4) >> 0x13) & 1;
+  }
+  return 0;
+}
+
+/* unit_seat_filled (0x1aa700)
+ * Returns true if any unit is sitting in the specified seat. */
+char unit_seat_filled(int unit_handle, int16_t seat_index)
+{
+  char *iVar1;
+  char local_14[16];
+
+  object_iterator_new(local_14, 3, 0);
+  iVar1 = (char *)object_iterator_next(local_14);
+  while (1) {
+    if (iVar1 == NULL) {
+      return 0;
+    }
+    if (*(int *)(iVar1 + 0xcc) == unit_handle &&
+        *(int16_t *)(iVar1 + 0x2a0) == seat_index) {
+      break;
+    }
+    iVar1 = (char *)object_iterator_next(local_14);
+  }
+  return 1;
+}
+
+/* unit_seat_is_driver (0x1aa770)
+ * Returns true if the seat at seat_index has the driver flag (bit 2). */
+char unit_seat_is_driver(int unit_handle, int16_t seat_index)
+{
+  uint32_t *unit;
+  char *unit_tag;
+  uint32_t *seat;
+
+  unit = (uint32_t *)object_get_and_verify_type(unit_handle, 3);
+  unit_tag = (char *)tag_get(0x756e6974, *unit);
+  if (seat_index >= 0) {
+    if ((int)seat_index < *(int *)(unit_tag + 0x2e4)) {
+      seat = (uint32_t *)tag_block_get_element(
+          (int *)(unit_tag + 0x2e4), (int)seat_index, 0x11c);
+      return (*seat >> 2) & 1;
+    }
+  }
+  return 0;
+}
+
+/* unit_seat_is_gunner (0x1aa7d0)
+ * Returns true if the seat at seat_index has the gunner flag (bit 3). */
+char unit_seat_is_gunner(int unit_handle, int16_t seat_index)
+{
+  uint32_t *unit;
+  char *unit_tag;
+  uint32_t *seat;
+
+  unit = (uint32_t *)object_get_and_verify_type(unit_handle, 3);
+  unit_tag = (char *)tag_get(0x756e6974, *unit);
+  if (seat_index >= 0) {
+    if ((int)seat_index < *(int *)(unit_tag + 0x2e4)) {
+      seat = (uint32_t *)tag_block_get_element(
+          (int *)(unit_tag + 0x2e4), (int)seat_index, 0x11c);
+      return (*seat >> 3) & 1;
+    }
+  }
+  return 0;
+}
+
+/* unit_seat_allow_noncombatants (0x1aa830)
+ * Returns true if the seat at seat_index allows noncombatants (bit 10). */
+char unit_seat_allow_noncombatants(int unit_handle, int16_t seat_index)
+{
+  uint32_t *unit;
+  char *unit_tag;
+  uint32_t *seat;
+
+  unit = (uint32_t *)object_get_and_verify_type(unit_handle, 3);
+  unit_tag = (char *)tag_get(0x756e6974, *unit);
+  if (seat_index >= 0) {
+    if ((int)seat_index < *(int *)(unit_tag + 0x2e4)) {
+      seat = (uint32_t *)tag_block_get_element(
+          (int *)(unit_tag + 0x2e4), (int)seat_index, 0x11c);
+      return (*seat >> 10) & 1;
+    }
+  }
+  return 0;
+}
+
+/* unit_has_weapon_definition_index (0x1aad00)
+ * Checks whether a unit is carrying a weapon with the given tag definition. */
+char unit_has_weapon_definition_index(int unit_handle, int definition_index)
+{
+  char *unit;
+  int weapon_handle;
+  int *weapon;
+  int16_t i;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  i = 0;
+  do {
+    weapon_handle = *(int *)(unit + 0x2a8 + i * 4);
+    if (weapon_handle != -1) {
+      weapon = (int *)object_get_and_verify_type(weapon_handle, 4);
+      if (*weapon == definition_index) {
+        return 1;
+      }
+    }
+    i++;
+  } while (i < 4);
+  return 0;
+}
+
+/* unit_stop_running_blindly (0x1ac520)
+ * Clears bit 25 (0x2000000) of unit flags at +0x1B4. */
+void unit_stop_running_blindly(int unit_handle)
+{
+  char *unit;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  *(uint32_t *)(unit + 0x1b4) &= ~0x2000000u;
+}
+
+/* unit_flying_through_air (0x1ac650)
+ * Returns true if this is a biped (type==0) and it's flying through air. */
+char unit_flying_through_air(int unit_handle)
+{
+  char *unit;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  if (*(int16_t *)(unit + 0x64) == 0) {
+    return FUN_001a0db0(unit_handle);
+  }
+  return 0;
+}
+
+/* unit_abort_animation (0x1ad7e0)
+ * Aborts the current animation by calling FUN_001ad260 with state 0. */
+void unit_abort_animation(int unit_handle)
+{
+  FUN_001ad260(unit_handle, 0);
+}
+
+/* unit_open (0x1ae160)
+ * Opens a unit by transitioning to animation state 0x25. */
+void unit_open(int unit_handle)
+{
+  if (unit_handle != -1) {
+    FUN_001ad260(unit_handle, 0x25);
+  }
+}
+
+/* unit_close (0x1ae180)
+ * Closes a unit by transitioning to animation state 0x26. */
+void unit_close(int unit_handle)
+{
+  if (unit_handle != -1) {
+    FUN_001ad260(unit_handle, 0x26);
+  }
+}
+
+/* units_set_desired_flashlight_state (0x1ae210)
+ * Iterates child objects and sets flashlight state for each unit. */
+void units_set_desired_flashlight_state(int object_list, char desired)
+{
+  int iter_state;
+  int child;
+  char *unit;
+  uint32_t flags;
+
+  child = FUN_000ce450(object_list, &iter_state);
+  while (child != -1) {
+    unit = (char *)object_try_and_get_and_verify_type(child, 3);
+    if (unit != NULL && child != -1) {
+      unit = (char *)object_get_and_verify_type(child, 3);
+      if (desired == '\0') {
+        flags = *(uint32_t *)(unit + 0x1b4) | 0x20000000;
+      } else {
+        flags = *(uint32_t *)(unit + 0x1b4) | 0x10000000;
+      }
+      *(uint32_t *)(unit + 0x1b4) = flags;
+    }
+    child = FUN_000ce320(object_list, &iter_state);
+  }
+}
+
+/* unit_scripting_set_seat (0x1ae750)
+ * Sets the unit's seat override from the magic base seat. */
+void unit_scripting_set_seat(int unit_handle)
+{
+  char *unit;
+  char seat;
+
+  if (unit_handle != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    seat = FUN_001ab730();
+    *(char *)(unit + 0x1bf) = seat;
+  }
+}
+
+/* unit_handle_deleted_object (0x1ae780)
+ * Cleans up references to a deleted object in all unit fields. */
+void unit_handle_deleted_object(int unit_handle, int deleted_handle)
+{
+  char *unit;
+  int16_t i;
+  int *weapon_slot;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  if (*(int *)(unit + 0x244) == deleted_handle) {
+    *(int *)(unit + 0x244) = -1;
+  }
+  if (*(int *)(unit + 0x2d4) == deleted_handle) {
+    *(int *)(unit + 0x2d4) = -1;
+  }
+  if (*(int *)(unit + 0x2d8) == deleted_handle) {
+    *(int *)(unit + 0x2d8) = -1;
+  }
+  i = 0;
+  weapon_slot = (int *)(unit + 0x2a8);
+  do {
+    if (*weapon_slot == deleted_handle) {
+      *weapon_slot = -1;
+      if (i == *(int16_t *)(unit + 0x2a4)) {
+        *(int16_t *)(unit + 0x2a4) = -1;
+      }
+      if (i == *(int16_t *)(unit + 0x2a2)) {
+        *(int16_t *)(unit + 0x2a2) = -1;
+      }
+    }
+    i++;
+    weapon_slot++;
+  } while (i < 4);
+  if (*(int16_t *)(unit + 0x2a2) == -1) {
+    *(int16_t *)(unit + 0x2a4) = FUN_001ae490(-1, 0);
+  }
+  if (*(int *)(unit + 0x2c8) == deleted_handle) {
+    *(int *)(unit + 0x2c8) = -1;
+  }
+  if (*(int *)(unit + 0x3bc) == deleted_handle) {
+    *(int *)(unit + 0x3bc) = -1;
+  }
+}
+
+/* unit_stop_custom_animation (0x1af0d0)
+ * Stops a custom animation if the current state is 0x1c. */
+void unit_stop_custom_animation(int unit_handle)
+{
+  char *unit;
+
+  if (unit_handle != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    if (*(char *)(unit + 0x253) == '\x1c') {
+      FUN_001ad260(unit_handle, 0);
+    }
+  }
+}
