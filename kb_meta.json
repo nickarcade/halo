@@ -8882,6 +8882,10 @@
         "Global at 0x4e4cf8 is a pointer to a 5-byte struct {int16_t, int16_t, uint8_t} used for units per-tick update state tracking."
       ]
     },
+    "0x1a8010": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a8190": {
       "kind": "function",
       "status": "ported"
@@ -8892,6 +8896,10 @@
       "comments": {
         "summary": "Resolves seat animation mode for target seat label, computes enter-position matrix and marker positions via animation/marker helpers, and writes up to three output vectors (out_pos_a/out_pos_b/out_pos_c). Returns 1 on success, 0 when no valid mode/path is found."
       }
+    },
+    "0x1a83e0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1a84c0": {
       "kind": "function",
@@ -8925,6 +8933,14 @@
       "status": "ported"
     },
     "0x1a8e10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a8ee0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a9130": {
       "kind": "function",
       "status": "ported"
     },
@@ -8965,6 +8981,10 @@
       "uncertain": [
         "Exact set of blocking animation states from switch table 0x1a97a8 \u2014 cases 0x17-0x1b, 0x1d-0x23, 0x27, 0x29 confirmed; gaps 0x1c and 0x24-0x26, 0x28 not independently verified."
       ]
+    },
+    "0x1a97c0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1a9880": {
       "kind": "function",
@@ -9035,6 +9055,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1aa240": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1aa3c0": {
       "kind": "function",
       "status": "ported",
@@ -9049,6 +9073,10 @@
       "status": "ported"
     },
     "0x1aa590": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1aa5c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -9137,6 +9165,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1aaee0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ab410": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ab7c0": {
       "kind": "function",
       "status": "ported",
@@ -9159,6 +9195,18 @@
         "The exact name of 0x1a9240 (unit_set_seat_state) is uncertain; it receives the unit handle and the root position vector."
       ]
     },
+    "0x1abb20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1abbd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1abcd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ac2f0": {
       "kind": "function",
       "status": "ported"
@@ -9167,11 +9215,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1ac450": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ac520": {
       "kind": "function",
       "status": "ported"
     },
+    "0x1ac550": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ac650": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1acb70": {
       "kind": "function",
       "status": "ported"
     },
@@ -9184,6 +9244,14 @@
       "uncertain": [
         "The multi-weapon flag logic checks key_data pointers at mode+0x44 offsets +4, +6, +8 for non-NONE int16_t values; exact semantics of these weapon animation channels are unconfirmed."
       ]
+    },
+    "0x1acf90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ad060": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1ad7e0": {
       "kind": "function",
@@ -9208,6 +9276,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1adfc0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ae160": {
       "kind": "function",
       "status": "ported"
@@ -9222,6 +9294,10 @@
       "comments": {
         "summary": "Checks if the unit's current weapon is in state 2 or 3 (offset 0x211). Returns true if busy, false if no weapon or in another state."
       }
+    },
+    "0x1ae1e0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1ae210": {
       "kind": "function",
@@ -9272,6 +9348,14 @@
         "FUN_001ae490 computes next weapon index; FUN_000fd360 attempts weapon placement; FUN_000de360 fires a unit event; FUN_001ab990 is a weapon-stow notification; FUN_000faf50 checks if weapon should be kept alive."
       ]
     },
+    "0x1ae700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ae730": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ae750": {
       "kind": "function",
       "status": "ported"
@@ -9280,7 +9364,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1ae840": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1aea90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1af0d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1af100": {
       "kind": "function",
       "status": "ported"
     },
@@ -9289,6 +9385,14 @@
       "status": "ported",
       "name": "unit_apply_alignment_vector",
       "name_confidence": "confirmed"
+    },
+    "0x1af2a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1af340": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1af620": {
       "kind": "function",
@@ -9315,6 +9419,10 @@
         "FUN_0x21fb0 is assert_valid_real_normal3d (validates unit vector). FUN_0x1af6b0 is a profiling/trace function accepting a string label."
       ]
     },
+    "0x1b0d00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b1290": {
       "kind": "function",
       "status": "ported",
@@ -9322,6 +9430,14 @@
         "Weapon tag offset 0x4bc is a sound tag index for zoom-deactivation sound.",
         "Player datum offset +2 is checked against -1 to verify player validity before playing sound."
       ]
+    },
+    "0x1b1350": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b13a0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1b1a20": {
       "kind": "function",
@@ -9335,6 +9451,18 @@
         "The anim_data parameter (void*) is passed as the alignment_vector to FUN_001af180; it's a float[2] (2D normal) representing a facing direction in the ground plane.",
         "The anim_index parameter doubles as the EDI register value passed to unit_animation_state_allows_impulse (0x1a96f0) via register leak \u2014 the callee uses DI to gate impulses 0xc and 0xd."
       ]
+    },
+    "0x1b1b40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b1b60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b1c70": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1b1d00": {
       "kind": "function",
@@ -9352,6 +9480,34 @@
         "When weapon readiness transitions to a new weapon, unk_696[weapon_index] records game_time_get() as a timestamp."
       ]
     },
+    "0x1b2090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b2260": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b2290": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b24d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b2610": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b2660": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b2740": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b2b80": {
       "kind": "function",
       "status": "ported",
@@ -9362,6 +9518,26 @@
       "uncertain": [
         "0x1ab7c0 uses three register args (EAX, EDI, BX); current inline asm saves/restores EDI and EBX via push/pop which may cause stack misalignment issues under some calling conventions."
       ]
+    },
+    "0x1b2dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b3060": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b32d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b3400": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b3580": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1b5df0": {
       "kind": "function",
