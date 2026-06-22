@@ -6628,7 +6628,7 @@
         {
           "addr": "0x9ca70",
           "decl": "void effects_information_get(int effect_ptr@<ebx>, uint32_t flags_hi@<edi>, unsigned int *seed, float *velocity_out, float min_val, float max_val, uint32_t flags_lo);",
-          "note": "hidden reg deps (EDI=flags_hi, EBX=effect_ptr) \u2014 callers pass these in registers; all known callers inlined",
+          "note": "hidden reg deps (EDI=flags_hi, EBX=effect_ptr) — callers pass these in registers; all known callers inlined",
           "ported": true
         },
         {
@@ -6689,7 +6689,7 @@
         {
           "addr": "0x9dcf0",
           "decl": "void FUN_0009dcf0(float *position, void *effect, void *location, void *part, float *forward, float *up, float scale);",
-          "note": "4 reg args (EAX,EDX,ECX,ESI) \u2014 inlined into FUN_0009e310, cannot be thunked separately",
+          "note": "4 reg args (EAX,EDX,ECX,ESI) — inlined into FUN_0009e310, cannot be thunked separately",
           "ported": true
         },
         {
@@ -14728,7 +14728,8 @@
         {
           "addr": "0x134ae0",
           "decl": "void FUN_00134ae0(int object_handle, int widget_datum);",
-          "ported": false
+          "ported": true,
+          "name": null
         },
         {
           "addr": "0x134be0",
@@ -14884,7 +14885,7 @@
         },
         {
           "addr": "0x139b40",
-          "decl": "void FUN_00139b40(int param_1, int *param_2, int param_3, int param_4, float *param_5, int param_6);",
+          "decl": "void FUN_00139b40(int param_1, int *param_2, int param_3, int param_4, float *param_5, float param_6);",
           "ported": false,
           "source_path": "objects/objects.c"
         },
@@ -15484,7 +15485,7 @@
         {
           "addr": "0x13fe10",
           "decl": "int16_t object_get_first_cluster(void *iter_state, int object_handle);",
-          "ported": false,
+          "ported": true,
           "source_path": "objects/objects.c"
         },
         {
@@ -15641,7 +15642,7 @@
         {
           "addr": "0x1414e0",
           "decl": "void FUN_001414e0(int param_1, int param_2, int param_3, int param_4, int param_5);",
-          "ported": false,
+          "ported": true,
           "source_path": "objects/objects.c"
         },
         {
@@ -20304,7 +20305,8 @@
         },
         {
           "addr": "0x10ce10",
-          "decl": "float vector_to_line_distance_squared3d(float *p1, float *p2, float *p3, float *p4);"
+          "decl": "float vector_to_line_distance_squared3d(float *p1, float *p2, float *p3, float *p4);",
+          "ported": false
         },
         {
           "addr": "0x10d380",
@@ -20353,7 +20355,8 @@
         },
         {
           "addr": "0x10dcb0",
-          "decl": "int vector_intersects_pill2d(float *line_start, float *line_dir, float *pill_center, float *pill_dir, float pill_radius);"
+          "decl": "char vector_intersects_pill2d(float *line_start, float *line_dir, float *pill_center, float *pill_dir, float pill_radius);",
+          "ported": true
         },
         {
           "addr": "0x10e040",
@@ -33770,7 +33773,7 @@
         },
         {
           "addr": "0x120fd0",
-          "decl": "void inverse_kinematics_adjust_matrices(void);"
+          "decl": "void inverse_kinematics_adjust_matrices(float *composed_matrix, int node_matrix_b, int node_matrix_c, int node_matrix_d);"
         },
         {
           "addr": "0x121330",

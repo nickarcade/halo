@@ -463,6 +463,41 @@ done_minus1:
  * Confirmed: assert_halt for type range check at 0x1361fe.
  */
 
+/* FUN_00134ae0 (0x134ae0 / objects.obj, object_lights.c) — initialize a glow
+ * widget instance attached to an object.
+ *
+ * Given an object handle and a widget datum handle, looks up the object datum,
+ * resolves the glow-widget tag ('glw!' = 0x676c7721) referenced at object+0x224,
+ * then runs the glow-widget initialization (FUN_001345b0) on the object datum,
+ * builds the object's marker set for the widget tag (FUN_00140f10), and refreshes
+ * the widget render batch (FUN_00133520).
+ *
+ * Confirmed: 2 cdecl args (object_handle @ [EBP+0x8], widget_datum @ [EBP+0xc]),
+ * early-out if either is -1.
+ * Confirmed: first datum_get(*(data_t**)0x5a90c8, widget_datum) -> object datum;
+ * widget tag = tag_get(0x676c7721, *(object_datum+0x224)).
+ * Confirmed: FUN_001345b0 is register-arg — glow_widget@<eax> receives the
+ * second datum_get's return (object datum ptr); object_handle pushed (the EDI
+ * push at 0x134b1f) is its single cdecl stack arg. The trailing ADD ESP,0x1c
+ * batch-cleans this push plus FUN_00140f10's 4 args and FUN_00133520's 2 args.
+ * Confirmed: FUN_00140f10(object_handle, widget_tag, local_buf[0x6c], 1).
+ * Confirmed: FUN_00133520(object_handle, widget_datum).
+ */
+void FUN_00134ae0(int object_handle, int widget_datum)
+{
+  unsigned char local_buf[0x6c];
+  int object_datum;
+  void *widget_tag;
+
+  if ((object_handle != -1) && (widget_datum != -1)) {
+    object_datum = (int)datum_get(*(data_t **)0x5a90c8, widget_datum);
+    widget_tag = tag_get(0x676c7721, *(int *)(object_datum + 0x224));
+    FUN_001345b0((int)datum_get(*(data_t **)0x5a90c8, widget_datum), object_handle);
+    object_get_markers_by_string_id((int)object_handle, widget_tag, local_buf, 1);
+    FUN_00133520(object_handle, widget_datum);
+  }
+}
+
 /* Allocates a new entry in the 0x46f020 data table and stores param_1 at +4.
  * Returns the datum handle, or -1 on failure.
  * 0x134be0 / objects.obj
@@ -507,6 +542,226 @@ float FUN_00134e50(float value, float period)
     return value;
   }
   return x87_fmod(value, (double)period);
+}
+
+/* FUN_00134e80 (0x134e80 / objects.obj, object_lights.c) — render a light-volume
+ * effect (group 'lmgs2'/0x6d677332 contrail-style sprite strip) along an object's
+ * marker, fading by view-direction and distance falloff.
+ *
+ * Resolves the light-volume tag from the light-volume datum, gates on the tag
+ * having marker count (+0x6e > 0) and a positive sprite count (+0x120 > 0), then:
+ *   - fetches the object's marker buffer for the tag (FUN_00140f10);
+ *   - computes a view-dependent intensity from the camera forward axis
+ *     (globals 0x50655c/0x506560/0x506564) and camera position
+ *     (0x506550/0x506554/0x506558), clamped to [0,1];
+ *   - applies the tag's distance attenuation (+0x34/+0x38/+0x3c/+0x40) and the
+ *     object function value (FUN_001403a0, function index tag+0x44 - 1);
+ *   - if visible, emits a sprite strip via the rendering batch
+ *     (FUN_0017cfc0/0017cfd0/0017d010/0017ad90).
+ *
+ * Confirmed: 2 cdecl args (object_handle @ [EBP+0x8], light_volume_datum @ [EBP+0xc]).
+ * Confirmed: light tag 'lmgs2' = tag_get(0x6d677332, *(light_datum+4)).
+ * Confirmed: FUN_00134c40 is register-arg — light_tag@<ebx> (EBX from MOV EBX,EAX
+ * at 0x134ebe), object_handle pushed (EDI). Decompiler dropped the @<ebx> arg.
+ * Confirmed: marker buffer base EBP-0xa4, size 0x6c; FUN_00140f10 fills it.
+ *   Marker position = buf+0x60/+0x64/+0x68 (FLD [EBP-0x44/-0x40/-0x3c]).
+ *   Marker forward  = buf+0x3c/+0x40/+0x44 (FLD [EBP-0x68/-0x64/-0x60]).
+ * Confirmed: object_handle copied to EDI; the [EBP+0x8] param slot is reused as a
+ * float scratch (blend value), kept as a separate local here.
+ * Inferred: fmod-by-period uses the "skip when period==1.0" idiom (CALL 0x1d9e70).
+ * Uncertain: marker_state struct field meanings at +0x10/+0x14/+0x18/+0x3c/+0x40/
+ *   +0x44/+0x68/+0x78/+0x88/+0x8c (read-only here).
+ */
+void FUN_00134e80(int object_handle, int light_volume_datum)
+{
+  unsigned char marker_buf[0x6c];
+  int light_datum;
+  int light_tag;
+  int marker_state;
+  unsigned short marker_count;
+  unsigned int rem;
+  short i;
+  float fwd_x, fwd_y, fwd_z;       /* camera forward axis (globals) */
+  float cam_x, cam_y, cam_z;       /* camera position (globals) */
+  float intensity;
+  float depth_factor;
+  float dot_to_marker;
+  float t;
+  float blend;
+  float period;
+  float frac;
+  float scratch;
+  float pos_x, pos_y, pos_z;
+  float out_pos[3];                /* local_1c..: world position for sprite */
+  float color2[3];                 /* local_38..: per-segment color (FUN_0007c270 out / FUN_000d1c90 in) */
+  float interp_a, interp_b;        /* local_2c / local_28 */
+  unsigned char zfn;
+  float fn_val;
+  unsigned int color_argb;
+
+  if ((object_handle != -1) && (light_volume_datum != -1)) {
+    light_datum = (int)datum_get(*(data_t **)0x46f020, light_volume_datum);
+    light_tag = (int)tag_get(0x6d677332, *(int *)(light_datum + 4));
+    if ((0 < *(short *)(light_tag + 0x6e)) && (0 < *(int *)(light_tag + 0x120))) {
+      marker_state = (int)FUN_00134c40(light_tag, object_handle);
+      object_get_markers_by_string_id(object_handle, (void *)light_tag, marker_buf, 1);
+
+      pos_x = *(float *)(marker_buf + 0x60);
+      pos_y = *(float *)(marker_buf + 0x64);
+      pos_z = *(float *)(marker_buf + 0x68);
+      fwd_x = *(float *)(marker_buf + 0x3c);
+      fwd_y = *(float *)(marker_buf + 0x40);
+      fwd_z = *(float *)(marker_buf + 0x44);
+
+      cam_x = pos_x - *(float *)0x506550;
+      cam_y = pos_y - *(float *)0x506554;
+      cam_z = pos_z - *(float *)0x506558;
+
+      /* view-direction dot with camera forward axis, |.| */
+      dot_to_marker = *(float *)0x50655c * fwd_x
+                    + fwd_y * *(float *)0x506560
+                    + fwd_z * *(float *)0x506564;
+      if (dot_to_marker < *(float *)0x2533c0) {
+        dot_to_marker = -dot_to_marker;
+      }
+
+      blend = *(float *)0x2533c8;   /* 1.0 */
+      depth_factor = *(float *)0x2533c8;
+      if (*(float *)0x2533c0 < *(float *)(light_tag + 0x38)) {
+        t = ((*(float *)0x50655c * cam_x + cam_y * *(float *)0x506560
+              + cam_z * *(float *)0x506564) - *(float *)(light_tag + 0x38))
+            / (*(float *)(light_tag + 0x34) - *(float *)(light_tag + 0x38));
+        depth_factor = *(float *)0x2533c0;
+        if (*(float *)0x2533c0 <= t) {
+          depth_factor = t;
+          if (*(float *)0x2533c8 < t) {
+            depth_factor = *(float *)0x2533c8;
+          }
+        }
+      }
+
+      intensity = dot_to_marker * *(float *)(light_tag + 0x40)
+                + (*(float *)0x2533c8 - dot_to_marker) * *(float *)(light_tag + 0x3c);
+      scratch = *(float *)0x2533c0;
+      if (*(float *)0x2533c0 <= intensity) {
+        scratch = intensity;
+        if (*(float *)0x2533c8 < intensity) {
+          scratch = *(float *)0x2533c8;
+        }
+      }
+      depth_factor = scratch * depth_factor;
+
+      zfn = object_get_function_value(object_handle,
+                                      (short)(*(short *)(light_tag + 0x44) - 1), &blend);
+      if (zfn != 0) {
+        depth_factor = blend * depth_factor;
+      }
+
+      if ((*(float *)0x2533c0 < depth_factor)
+          && ((*(float *)0x2533c0 < *(float *)(marker_state + 0x68))
+              || (*(float *)0x2533c0 < *(float *)(marker_state + 0x78)))
+          && ((*(float *)0x2533c0 < *(float *)(marker_state + 0x3c))
+              || (*(float *)0x2533c0 < *(float *)(marker_state + 0x40)))) {
+        FUN_0017cfc0(5, 1);
+        FUN_0017cfd0(0, *(int *)(light_tag + 0x68), *(short *)(light_tag + 0x6c));
+        marker_count = *(unsigned short *)(light_tag + 0x6e);
+        if (0 < (short)marker_count) {
+          i = 0;
+          rem = (unsigned int)marker_count;
+          do {
+            period = *(float *)(marker_state + 0x14);
+            frac = (float)i / (float)(short)(marker_count - 1);
+            frac = (period == *(float *)0x2533c8) ? frac : x87_fmod(frac, (double)period);
+
+            period = *(float *)(marker_state + 0x44);
+            interp_a = (period == *(float *)0x2533c8) ? frac : x87_fmod(frac, (double)period);
+            interp_a = interp_a * *(float *)(marker_state + 0x40)
+                     + (*(float *)0x2533c8 - interp_a) * *(float *)(marker_state + 0x3c);
+
+            period = *(float *)(marker_state + 0x88);
+            interp_b = (period == *(float *)0x2533c8) ? frac : x87_fmod(frac, (double)period);
+
+            period = *(float *)(marker_state + 0x8c);
+            fn_val = (period == *(float *)0x2533c8) ? frac : x87_fmod(frac, (double)period);
+
+            t = frac * *(float *)(marker_state + 0x18) + *(float *)(marker_state + 0x10);
+            out_pos[0] = fwd_x * t + pos_x;
+            out_pos[1] = fwd_y * t + pos_y;
+            out_pos[2] = fwd_z * t + pos_z;
+
+            FUN_0007c270(color2, *(unsigned char *)(light_tag + 0x22) & 3,
+                         (float *)(marker_state + 0x6c), (float *)(marker_state + 0x7c),
+                         interp_b);
+
+            /* color2[0] is overwritten with the view/distance-scaled intensity
+             * (1-fn)*+0x68 + fn*+0x78, times depth_factor; color2[1..2] keep the
+             * FUN_0007c270 output, then the whole triple is packed to ARGB. */
+            color2[0] = (fn_val * *(float *)(marker_state + 0x78)
+                         + (*(float *)0x2533c8 - fn_val) * *(float *)(marker_state + 0x68))
+                        * depth_factor;
+            color_argb = FUN_000d1c90(color2);
+            FUN_0017d010(out_pos, interp_a, (float *)0, 0.0f, color_argb);
+
+            i = (short)(i + 1);
+            rem = rem - 1;
+          } while (rem != 0);
+        }
+        FUN_0017d020();
+      }
+    }
+  }
+}
+
+/* FUN_00135210 (0x135210 / objects.obj, object_lights.c) — visibility/submit
+ * pre-pass for an object's light-volume effect; if visible, queues it for
+ * deferred rendering with FUN_00134e80 as the draw callback.
+ *
+ * Gates on the same light-volume tag ('lmgs2') having marker count (+0x6e > 0)
+ * and sprite count (+0x120 > 0); additionally, when the tag has a function index
+ * (+0x44 != 0) and a function-state pointer (param_4) is supplied, requires the
+ * indexed function value (param_4->[+4][index-1]) to be > 0. Then fetches the
+ * object marker buffer (FUN_00140f10) and, if the tag's near distance (+0x38) is
+ * 0 or the camera-relative depth along the view forward axis is within it,
+ * submits the volume via FUN_0017cfb0(object_handle, light_volume_datum,
+ * &marker_position, FUN_00134e80).
+ *
+ * Confirmed: 4 cdecl args. object_handle @ [EBP+0x8] (EBX), light_volume_datum
+ * @ [EBP+0xc] (EDI); param_3 @ [EBP+0x10] is unused here; param_4 @ [EBP+0x14]
+ * is a function-state pointer (reads ptr+0x4 then indexes by tag+0x44).
+ * Confirmed: PUSH 0x134e80 at 0x135303 — FUN_00134e80 is the draw callback.
+ * Confirmed: marker buffer base EBP-0x6c, size 0x6c; position at buf+0x60/+0x64/
+ * +0x68 (FLD [EBP-0xc/-0x8/-0x4]); &buf[0x60] passed as position to FUN_0017cfb0.
+ */
+void FUN_00135210(int object_handle, int light_volume_datum, int param_3, int param_4)
+{
+  unsigned char marker_buf[0x6c];
+  int light_tag;
+  short fn_index;
+  float *marker_pos;
+  float depth;
+
+  (void)param_3;
+  if ((object_handle != -1) && (light_volume_datum != -1)) {
+    light_tag = (int)tag_get(0x6d677332,
+                             *(int *)((int)datum_get(*(data_t **)0x46f020,
+                                                     light_volume_datum) + 4));
+    fn_index = *(short *)(light_tag + 0x44);
+    if ((0 < *(short *)(light_tag + 0x6e)) && (0 < *(int *)(light_tag + 0x120))
+        && ((fn_index == 0) || (param_4 == 0)
+            || (*(float *)0x2533c0
+                < *(float *)(*(int *)(param_4 + 4) - 4 + fn_index * 4)))) {
+      object_get_markers_by_string_id(object_handle, (void *)light_tag, marker_buf, 1);
+      marker_pos = (float *)(marker_buf + 0x60);
+      depth = *(float *)0x50655c * (marker_pos[0] - *(float *)0x506550)
+            + *(float *)0x506560 * (marker_pos[1] - *(float *)0x506554)
+            + *(float *)0x506564 * (marker_pos[2] - *(float *)0x506558);
+      if ((*(float *)(light_tag + 0x38) == *(float *)0x2533c0)
+          || (depth < *(float *)(light_tag + 0x38))) {
+        FUN_0017cfb0(object_handle, light_volume_datum, marker_pos,
+                     (int)FUN_00134e80);
+      }
+    }
+  }
 }
 
 /* Allocates a new entry in the 0x46f024 data table and stores param_1 at +4.
@@ -1894,6 +2149,34 @@ void FUN_0013b150(void)
   }
 }
 
+/* FUN_0013c030 (0x13c030 / objects.obj) — depth-first walk of an object's child
+ * hierarchy, forwarding two opaque parameters down the tree.
+ *
+ * For each object node (param_1), verifies the datum (object_get_and_verify_type
+ * with type_mask -1), recurses into the first-child handle (node+0xc8) carrying
+ * param_2/param_3 unchanged, then advances along the sibling chain (node+0xc4)
+ * until the handle is -1.
+ *
+ * Confirmed: 3 cdecl args. param_1 @ [EBP+0x8] (ESI), param_2 @ [EBP+0xc],
+ * param_3 @ [EBP+0x10] (EBX). param_2/param_3 are only forwarded to the
+ * recursion (no local use).
+ * Confirmed: object_get_and_verify_type(param_1, -1) is called twice per node;
+ * the first result (EDI) supplies the child (+0xc8) and sibling (+0xc4) handles,
+ * the second call's result is discarded (re-verify side effect).
+ * Confirmed: tail iteration over sibling chain (CMP ESI,-1; JNZ loop).
+ */
+void FUN_0013c030(int param_1, int param_2, int param_3)
+{
+  int node;
+
+  while (param_1 != -1) {
+    node = (int)object_get_and_verify_type(param_1, -1);
+    object_get_and_verify_type(param_1, -1);
+    FUN_0013c030(*(int *)(node + 0xc8), param_2, param_3);
+    param_1 = *(int *)(node + 0xc4);
+  }
+}
+
 /* 0x13c100 / objects.obj */
 void *FUN_0013c100(int16_t object_type)
 {
@@ -2645,6 +2928,145 @@ int FUN_0013cab0(int param_1, int param_2)
     system_exit(-1);
   }
   return *(short *)(iVar1 + 0xc) + param_1;
+}
+
+/*
+ * FUN_0013cb80 (0x13cb80 / object_types.c) — refresh scenario object placement
+ * for the currently-loaded BSP cluster slot, and (when do_spawn is set) spawn the
+ * eligible placements.
+ *
+ * No-op when in the editor (game_in_editor()) or no BSP slot is active
+ * (DAT_00326a0c == -1). Iterates object types 0..0xb, skipping the mask 0x240
+ * (bits 6 and 9 — types with no scenario placement). For each type whose
+ * definition (FUN_0013c100) has valid placement (def+0xa) and palette (def+0xc)
+ * tag-block offsets:
+ *   - fetches the scenario placement block (FUN_0013ca30, also writes the block
+ *     element size) and the palette base index (FUN_0013cab0);
+ *   - if this BSP slot has NOT yet been processed (bit (1<<DAT_00326a0c) clear in
+ *     DAT_0046f078): for each placement, builds a rotation matrix from the
+ *     placement's Euler angles (element+0x14/+0x18/+0x1c via FUN_00109e90),
+ *     stamps the placement position (element+0x8/+0xc/+0x10) as the matrix
+ *     translation, transforms it (matrix_transform_point), then queries cluster
+ *     membership (FUN_0018e720) for both the raw position and the transformed
+ *     point; sets/clears the per-placement "in this BSP slot" flag (element+0x20)
+ *     accordingly;
+ *   - if do_spawn != 0: runs FUN_00145490, then for each placement not already
+ *     instantiated (element+0x2 NONE or object_name_list_get_handle == -1), not
+ *     flagged no-spawn (element+0x4 bit0), and flagged for this slot
+ *     (element+0x20 bit (1<<DAT_00326a0c)): spawns it via object_new_from_scenario
+ *     and runs objects_garbage_collect_tick.
+ * After all types: marks this BSP slot processed (sets bit in DAT_0046f078).
+ *
+ * DORMANT — kept ported=false. Gate B cluster edge: calls object_new_from_scenario
+ * (0x144770) and objects_garbage_collect_tick (0x144b50), both GC/lifecycle
+ * cluster members, and mutates streaming state (DAT_0046f078 BSP-loaded mask,
+ * per-placement flags element+0x20). Piecemeal cluster activation is unsafe.
+ *
+ * Confirmed: 1 cdecl arg (do_spawn @ [EBP+0x8], tested as a byte: MOV AL,[EBP+0x8]).
+ * Confirmed: 12-iteration type loop (CMP SI,0xc); dual counter type/shift equal.
+ * Confirmed: matrix out buffer base EBP-0x5c; translation stamped at +0x28/+0x2c/
+ * +0x30; matrix_transform_point(matrix, element+0x8, &xform_point).
+ * Confirmed: bit slot = DAT_00326a0c; loaded mask = DAT_0046f078 (word).
+ */
+void FUN_0013cb80(int do_spawn)
+{
+  unsigned char matrix[0x34];   /* EBP-0x5c: Euler matrix; translation at +0x28 */
+  float xform_point[3];         /* EBP-0x28: transformed position */
+  int scenario;
+  int type;
+  int def;
+  int *block;
+  int element_size;             /* written by FUN_0013ca30 via &element_size */
+  int palette_base;
+  short *element;
+  int obj_tag;
+  short index;
+  int i;
+  int slot_bit;
+
+  if (game_in_editor() || (*(short *)0x326a0c == -1)) {
+    return;
+  }
+
+  scenario = (int)global_scenario_get();
+  type = 0;
+  do {
+    if (((1 << (type & 0x1f)) & 0x240) != 0) {
+      goto next_type;
+    }
+    def = (int)FUN_0013c100((int16_t)type);
+    if ((*(short *)(def + 0xa) == -1) || (*(short *)(def + 0xc) == -1)) {
+      goto next_type;
+    }
+
+    block = (int *)FUN_0013ca30(scenario, type, &element_size);
+    palette_base = FUN_0013cab0(scenario, type);
+
+    /* Phase 1: refresh per-placement cluster membership, once per BSP slot. */
+    if (((unsigned int)*(unsigned short *)0x46f078
+         & (1 << (*(unsigned char *)0x326a0c & 0x1f))) == 0) {
+      index = 0;
+      if (*block > 0) {
+        i = 0;
+        do {
+          element = (short *)tag_block_get_element(block, i, element_size);
+          if (*element != -1) {
+            obj_tag = (int)tag_block_get_element((void *)palette_base,
+                                                 (int)*element, 0x30);
+            obj_tag = (int)tag_get(0x6f626a65, *(int *)(obj_tag + 0xc));
+            FUN_00109e90((float *)matrix,
+                         *(float *)((char *)element + 0x14),
+                         *(float *)((char *)element + 0x18),
+                         *(float *)((char *)element + 0x1c));
+            /* stamp placement position into matrix translation (+0x28..+0x30) */
+            *(int *)(matrix + 0x28) = *(int *)((char *)element + 0x8);
+            *(int *)(matrix + 0x2c) = *(int *)((char *)element + 0xc);
+            *(int *)(matrix + 0x30) = *(int *)((char *)element + 0x10);
+            matrix_transform_point((float *)matrix,
+                                   (float *)(obj_tag + 8), xform_point);
+            if ((FUN_0018e720((int)((char *)element + 8)) == -1)
+                && (FUN_0018e720((int)xform_point) == -1)) {
+              element[0x10] = (short)(element[0x10]
+                  & ~(unsigned short)(1 << (*(unsigned char *)0x326a0c & 0x1f)));
+            } else {
+              element[0x10] = (short)(element[0x10]
+                  | (unsigned short)(1 << (*(unsigned char *)0x326a0c & 0x1f)));
+            }
+          }
+          index++;
+          i = (int)index;
+        } while (i < *block);
+      }
+    }
+
+    /* Phase 2: spawn eligible placements (param tested as a byte in the original). */
+    if ((char)do_spawn != '\0') {
+      FUN_00145490();
+      index = 0;
+      if (*block > 0) {
+        i = 0;
+        do {
+          element = (short *)tag_block_get_element(block, i, element_size);
+          if (((*(short *)((char *)element + 2) == -1)
+               || (object_name_list_get_handle(*(short *)((char *)element + 2)) == -1))
+              && ((*(unsigned char *)((char *)element + 4) & 1) == 0)
+              && (((unsigned int)*(unsigned short *)((char *)element + 0x20)
+                   & (1 << (*(unsigned char *)0x326a0c & 0x1f))) != 0)) {
+            object_new_from_scenario(element, palette_base);
+            objects_garbage_collect_tick();
+          }
+          index++;
+          i = (int)index;
+        } while (i < *block);
+      }
+    }
+
+next_type:
+    type++;
+  } while ((short)type < 0xc);
+
+  slot_bit = 1 << (*(unsigned char *)0x326a0c & 0x1f);
+  *(unsigned short *)0x46f078 = (unsigned short)(*(unsigned short *)0x46f078 | slot_bit);
 }
 
 /*
@@ -3947,7 +4369,111 @@ int object_mark(int object_handle)
   return 0;
 }
 
-void attachments_new(int object_handle);
+/* attachments_new (0x13ecb0 / objects.obj) — create every attachment defined in
+ * an object's tag and record each in the object datum's attachment table.
+ *
+ * Resolves the object datum and its 'obje' tag, then for each attachment element
+ * (block at tag+0x140, stride 0x48) whose definition tag (element+0xc) is valid,
+ * classifies the attachment by its group tag (element+0x0) into one of five
+ * types and dispatches to the matching creator:
+ *   type 0 'ligh' -> FUN_0013b1b0  (light)        ; sets object flag 0x100
+ *   type 1 'lsnd' -> game_looping_sound_new       ; sets object flag 0x400
+ *   type 2 'effe' -> FUN_0009eb40  (effect)
+ *   type 3 'cont' -> contrail_new
+ *   type 4 'pctl' -> FUN_000a12e0  (particle)
+ * The attachment type byte is stored at object+0xf4+i and the created handle at
+ * object+0xfc+i*4. Marker indices passed to creators are element fields minus 1
+ * (element+0x30/+0x32/+0x34 -> marker / secondary / tertiary).
+ *
+ * DORMANT — kept ported=false. Gate B: caller edge from object_new (0x143c80,
+ * lifecycle cluster member) at 0x144147, AND object-lifecycle mutation (fills the
+ * object attachment table at +0xf4/+0xfc and sets creation flags at object+0x4).
+ * Part of the object creation path; activate only with the lifecycle cluster.
+ *
+ * Confirmed: 1 cdecl arg (object_handle @ [EBP+0x8]).
+ * Confirmed: jump table at 0x13ee4c maps type 0..4 to the five creators.
+ * Confirmed: attachment element def index = element[3] (+0xc); store offsets
+ * object+0xf4+i (type byte) and object+0xfc+i*4 (handle).
+ * Confirmed: loop index is int16_t (MOVSX EDI,AX); count re-read from tag+0x140.
+ */
+void attachments_new(int object_handle)
+{
+  int *obj;
+  int obj_tag;
+  unsigned int *element;
+  unsigned int def;
+  unsigned int group;
+  short type;
+  int handle;
+  int count;
+  short i;       /* attachment slot index (int16_t in original) */
+  int idx;
+
+  obj = (int *)object_get_and_verify_type(object_handle, -1);
+  obj_tag = (int)tag_get(0x6f626a65, *(int *)obj);
+  i = 0;
+  idx = 0;
+  count = *(int *)(obj_tag + 0x140);
+  if (0 < count) {
+    do {
+      element = (unsigned int *)tag_block_get_element((void *)(obj_tag + 0x140), idx, 0x48);
+      def = element[3];
+      type = -1;
+      handle = -1;
+      if (def != 0xffffffff) {
+        group = element[0];
+        if (group < 0x6c696769) {
+          if (group == 0x6c696768) {        /* 'ligh' */
+            type = 0;
+          } else if (group == 0x636f6e74) { /* 'cont' */
+            type = 3;
+          } else if (group == 0x65666665) { /* 'effe' */
+            type = 2;
+          }
+        } else if (group == 0x6c736e64) {   /* 'lsnd' */
+          type = 1;
+        } else if (group == 0x7063746c) {   /* 'pctl' */
+          type = 4;
+        }
+      }
+      switch (type) {
+      case 0:
+        handle = FUN_0013b1b0((int)def, object_handle, i,
+                              (short)(*(short *)((char *)element + 0x30) - 1),
+                              (short)(*(short *)((char *)element + 0x34) - 1));
+        if (handle != -1) {
+          obj[1] = obj[1] | 0x100;
+        }
+        break;
+      case 1:
+        handle = game_looping_sound_new(object_handle, (int)def, element + 4,
+                                        (short)(*(short *)((char *)element + 0x30) - 1));
+        if (handle != -1) {
+          obj[1] = obj[1] | 0x400;
+        }
+        break;
+      case 2:
+        handle = FUN_0009eb40((int)def, object_handle,
+                              (short)(*(short *)((char *)element + 0x30) - 1),
+                              (short)(*(short *)((char *)element + 0x32) - 1),
+                              (short)(*(short *)((char *)element + 0x34) - 1));
+        break;
+      case 3:
+        handle = contrail_new((int)def, object_handle, i);
+        break;
+      case 4:
+        handle = FUN_000a12e0((int)def, object_handle, i);
+        break;
+      default:
+        break;
+      }
+      *((char *)obj + 0xf4 + idx) = (char)type;
+      obj[idx + 0x3f] = handle;
+      i++;
+      idx = (int)i;
+    } while (idx < count);
+  }
+}
 
 /* Propagate flags to all children of an object. For each child slot where
  * the "created" flag at obj+0xf4+i is clear and the child handle is valid,
@@ -4372,6 +4898,416 @@ char object_select_random_region_permutations_by_variant(
     } while ((int)i < *(int *)(model + 0xc4));
   }
   return all_ok;
+}
+
+/* 0x13e1f0 / objects.obj — Seed the object's four change-color slots during
+ * spawn. For each of the 4 slots, copies the base RGB triple from the
+ * placement color_data, then (if the model tag declares a change-color
+ * animation for this slot index, block at obj_tag+0x164, element size 0x2c)
+ * derives a deterministic pseudo-random blend value from the object's basis
+ * vectors (obj+0xc/0x10/0x14) and the slot index, walks the slot's permutation
+ * sub-block (element+0x20, element size 0x1c) as a cumulative distribution,
+ * and on the first permutation whose threshold (perm[0]) is >= the blend
+ * value, blends an RGB pair (perm+0x4 .. perm+0x10) into the slot color via
+ * FUN_0007c270. Finally clamps each RGB component of the slot to [0,1] and
+ * writes the clamped triple to the +0x30 mirror (obj+0x138 slot layout:
+ * base RGB at +0, clamped RGB at +0x30).
+ * Role: object spawn-appearance setup; establishes per-object tinting.
+ * object_handle in EAX (register arg); color_data is first stack argument.
+ * Confirmed: PUSH -1; PUSH EAX; CALL object_get_and_verify_type.
+ * Confirmed: pseudo-random frac via x87_fmod(|dot|, 1.0) (CALL 0x1daf7e).
+ * Confirmed: clamp lo/hi = *(float*)0x2533c0 (0.0) / 0x2533c8 (1.0).
+ * Confirmed: 4 iterations; dest stride 0xc bytes, color_data stride 0xc. */
+void object_choose_random_change_colors(int object_handle /* @<eax> */,
+                                        void *color_data)
+{
+  char *obj;
+  int obj_tag;
+  float *src;
+  float *dst;
+  int i;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  obj_tag = (int)tag_get(0x6f626a65, *(int *)obj);
+  src = (float *)color_data;
+  dst = (float *)(obj + 0x138);
+
+  for (i = 0; i < 4; i = i + 1) {
+    float frac;
+    float c;
+
+    /* base RGB triple from placement data */
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+
+    if (i < *(int *)(obj_tag + 0x164)) {
+      char *cc_elem = (char *)tag_block_get_element(
+          (void *)(obj_tag + 0x164), i, 0x2c);
+
+      /* deterministic pseudo-random selector from object basis + slot index;
+       * the FABS is applied to the dot sum before the modulo */
+      frac = *(float *)(obj + 0x14) * *(float *)0x29bbe0 +
+             *(float *)(obj + 0xc) * *(float *)0x29bbdc +
+             *(float *)(obj + 0x10) * *(float *)0x29bbd8 +
+             (float)i * *(float *)0x29bbd4;
+      if (frac < 0.0f) {
+        frac = -frac;
+      }
+      frac = x87_fmod(frac, 1.0);
+
+      if (*(int *)(cc_elem + 0x20) > 0) {
+        int16_t j = 0;
+        do {
+          float *perm = (float *)tag_block_get_element(
+              (void *)(cc_elem + 0x20), (int)j, 0x1c);
+          if (frac <= perm[0]) {
+            float blend;
+            /* FABS applies only to obj+0x10 here, before adding index term */
+            blend = *(float *)(obj + 0x10);
+            if (blend < 0.0f) {
+              blend = -blend;
+            }
+            blend = blend + (float)i * *(float *)0x29bbd0;
+            blend = x87_fmod(blend, 1.0);
+            FUN_0007c270(dst, 1, perm + 1, perm + 4, blend);
+            break;
+          }
+          j = j + 1;
+        } while ((int)j < *(int *)(cc_elem + 0x20));
+      }
+    }
+
+    /* clamp each component to [0,1] and store in the +0x30 mirror */
+    c = *(float *)0x2533c0;
+    if (*(float *)0x2533c0 <= dst[0] && (c = *(float *)0x2533c8, dst[0] <= *(float *)0x2533c8)) {
+      c = dst[0];
+    }
+    dst[0xc] = c;
+    c = *(float *)0x2533c0;
+    if (*(float *)0x2533c0 <= dst[1] && (c = *(float *)0x2533c8, dst[1] <= *(float *)0x2533c8)) {
+      c = dst[1];
+    }
+    dst[0xd] = c;
+    c = *(float *)0x2533c0;
+    if (*(float *)0x2533c0 <= dst[2] && (c = *(float *)0x2533c8, dst[2] <= *(float *)0x2533c8)) {
+      c = dst[2];
+    }
+    dst[0xe] = c;
+
+    src = src + 3;
+    dst = dst + 3;
+  }
+}
+
+/* 0x13e5d0 / objects.obj — Recompute the object's live change colors from its
+ * current animation-function values. Gated on the object tag flag bit 0 at
+ * obj_tag+0x24. For each change-color animation entry (block obj_tag+0x164,
+ * element size 0x2c): if its blend-function index (entry+0x2) is nonzero,
+ * blends an RGB pair (entry+0x8 .. entry+0x14) into the computed color slot
+ * (obj+0x168 + i*0xc) using the precomputed function value as the blend
+ * weight; if its scale-function index (entry+0x0) is nonzero, multiplies all
+ * three components of the slot by that function value; finally clamps each
+ * component to [0,1] in place. Function values are read directly from the
+ * precomputed array at obj+0xd0 (filled by object_compute_function_values).
+ * Role: object spawn-appearance / per-frame appearance update.
+ * object_handle in EAX (register arg).
+ * Confirmed: PUSH -1; PUSH EAX; CALL object_get_and_verify_type.
+ * Confirmed: gate on (*(uint8_t*)(obj_tag+0x24) & 1).
+ * Confirmed: function value = *(float*)(obj + 0xd0 + fn_idx*4).
+ * Confirmed: computed color slot base obj+0x168 (the +0x30 change-color mirror).
+ * Confirmed: clamp lo/hi = *(float*)0x2533c0 / 0x2533c8. */
+void object_compute_change_colors(int object_handle /* @<eax> */)
+{
+  char *obj;
+  int obj_tag;
+  int16_t i;
+  int16_t counter;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  obj_tag = (int)tag_get(0x6f626a65, *(int *)obj);
+  if ((*(unsigned char *)(obj_tag + 0x24) & 1) == 0) {
+    return;
+  }
+
+  i = 0;
+  counter = 0;
+  if (*(int *)(obj_tag + 0x164) <= 0) {
+    return;
+  }
+  do {
+    char *entry = (char *)tag_block_get_element(
+        (void *)(obj_tag + 0x164), (int)i, 0x2c);
+    float *slot = (float *)(obj + 0x168 + (int)i * 0xc);
+    int16_t blend_fn;
+    int16_t scale_fn;
+    float c;
+
+    /* blend-function: blend the entry RGB pair into the slot */
+    blend_fn = *(int16_t *)(entry + 0x2);
+    if (blend_fn != 0) {
+      float fn_val = *(float *)(obj + 0xd0 + (int)blend_fn * 4);
+      FUN_0007c270(slot, *(int *)(entry + 0x4),
+                   (float *)(entry + 0x8), (float *)(entry + 0x14), fn_val);
+    }
+
+    /* scale-function: multiply all three components by the function value */
+    scale_fn = *(int16_t *)entry;
+    if (scale_fn != 0) {
+      float fn_val = *(float *)(obj + 0xd0 + (int)scale_fn * 4);
+      slot[0] = fn_val * slot[0];
+      slot[1] = fn_val * slot[1];
+      slot[2] = fn_val * slot[2];
+    }
+
+    /* clamp each component to [0,1] in place */
+    c = *(float *)0x2533c0;
+    if (*(float *)0x2533c0 <= slot[0] && (c = *(float *)0x2533c8, slot[0] <= *(float *)0x2533c8)) {
+      c = slot[0];
+    }
+    slot[0] = c;
+    c = *(float *)0x2533c0;
+    if (*(float *)0x2533c0 <= slot[1] && (c = *(float *)0x2533c8, slot[1] <= *(float *)0x2533c8)) {
+      c = slot[1];
+    }
+    slot[1] = c;
+    c = *(float *)0x2533c0;
+    if (*(float *)0x2533c0 <= slot[2] && (c = *(float *)0x2533c8, slot[2] <= *(float *)0x2533c8)) {
+      c = slot[2];
+    }
+    slot[2] = c;
+
+    counter = counter + 1;
+    i = counter;
+  } while ((int)i < *(int *)(obj_tag + 0x164));
+}
+
+/* 0x140ad0 / objects.obj — Choose random region permutations for an object's
+ * model during spawn, honoring the object's requested variant (obj+0x6e).
+ * Resolves the model tag (group 'mode') from the object tag (group 'obje'),
+ * then asks object_select_random_region_permutations_by_variant to populate
+ * the per-region permutation indices at obj+0x130. If the requested variant
+ * is not positive, or selection by that variant fails for any region, falls
+ * back to variant -1 (any), then determines an actual variant number via
+ * object_determine_variant_number, records it in obj+0x6e, and (if positive)
+ * re-selects permutations for that resolved variant.
+ * Role: part of the object spawn-appearance setup chain in object_new.
+ * object_handle in EDI (register arg).
+ * Confirmed: PUSH -1; PUSH EDI; CALL object_get_and_verify_type.
+ * Confirmed: tag_get('obje', obj->tag_index) then tag_get('mode', tag+0x34).
+ * Confirmed: variant read as int16_t from obj+0x6e (sign-extended; <=0 path).
+ * Confirmed: callees receive object_handle in EAX (MOV EAX,EDI before CALL). */
+void object_choose_random_region_permutations(int object_handle /* @<edi> */)
+{
+  char *obj;
+  int obj_tag;
+  void *model_tag;
+  int16_t variant;
+  int16_t resolved;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  obj_tag = (int)tag_get(0x6f626a65, *(int *)obj);
+  if (*(int *)(obj_tag + 0x34) == -1) {
+    return;
+  }
+
+  model_tag = tag_get(0x6d6f6465, *(int *)(obj_tag + 0x34));
+  variant = *(int16_t *)(obj + 0x6e);
+  if (variant < 1 ||
+      object_select_random_region_permutations_by_variant(
+          object_handle, model_tag, variant) == 0) {
+    object_select_random_region_permutations_by_variant(
+        object_handle, model_tag, -1);
+    resolved = object_determine_variant_number(object_handle, model_tag);
+    *(int16_t *)(obj + 0x6e) = resolved;
+    if (resolved > 0) {
+      object_select_random_region_permutations_by_variant(
+          object_handle, model_tag, resolved);
+    }
+  }
+}
+
+/* 0x13e7b0 / objects.obj — Evaluate all of the object tag's animation
+ * functions for the current frame and store the results into the object's
+ * function-value array (obj+0xe4 onward), updating the per-function active
+ * bitmask byte at obj+0xd3.
+ *
+ * For each function definition (block obj_tag+0x158, element size 0x168):
+ *   - Builds a per-object time input: (game_time_get() + (handle&0xffff)*0x39)
+ *     scaled by a global constant (0x2546a4).
+ *   - Evaluates a periodic waveform (FUN_0010a5e0) over that time, optionally
+ *     scaled by a referenced function value, then applies inversion (flag 1),
+ *     a secondary sinusoidal offset term, a step threshold, an exponent/floor
+ *     stage, a modulo wrap, an additive function with clamp-to-1, a final
+ *     multiplier function, a transition remap (transition_function_evaluate),
+ *     a scale, and a range remap with min/max clamping (modes 1/2).
+ *   - Computes an "active" bit from flag bit 2 and a dependency function's
+ *     active bit (obj+0xd3 & (1<<elem[+0x36])).
+ *   - With flag bit 1, wraps the result by adding the prior slot value and
+ *     taking fmod(.,1.0) (accumulator).
+ *   - Writes the result to obj+0xe4+i*4 and updates obj+0xd3 bit i.
+ *
+ * Role: object spawn / per-frame appearance; feeds object_compute_change_colors
+ * and node/marker animation. Function values 0-4 (obj+0xd0) are engine
+ * built-ins; indices 5+ written here begin at obj+0xe4 (=obj+0xd0+5*4).
+ * object_handle in EAX (register arg).
+ * Confirmed: ESI=object_handle saved before object_get_and_verify_type(EAX,-1).
+ * Confirmed: time scale const *(float*)0x2546a4; output array obj+0xe4.
+ * Confirmed: CMP 0x5;JL branches are vestigial bounds checks (identical loads).
+ * Uncertain: many field offsets within the 0x168-byte element (see inline). */
+void object_compute_function_values(int object_handle /* @<eax> */)
+{
+  char *obj;
+  int obj_tag;
+  float time_base;
+  int func_count;
+  int16_t i;
+  int16_t counter;
+
+  obj = (char *)object_get_and_verify_type(object_handle, -1);
+  obj_tag = (int)tag_get(0x6f626a65, *(int *)obj);
+
+  /* per-object time input, scaled to seconds */
+  time_base = (float)(game_time_get() + (object_handle & 0xffff) * 0x39) *
+              *(float *)0x2546a4;
+
+  func_count = *(int *)(obj_tag + 0x158);
+  i = 0;
+  counter = 0;
+  if (func_count <= 0) {
+    return;
+  }
+  do {
+    char *elem = (char *)tag_block_get_element(
+        (void *)(obj_tag + 0x158), (int)i, 0x168);
+    unsigned char active;
+    float value;
+    float t;
+    int16_t fn;
+    int16_t mode;
+
+    active = 1;
+
+    /* --- primary periodic waveform --- */
+    t = *(float *)(elem + 0x144);
+    fn = *(int16_t *)(elem + 0x8);
+    if (fn != 0) {
+      float fv = *(float *)(obj + 0xd0 + (int)fn * 4);
+      if (fv > *(float *)0x2533c0) {
+        t = t / fv;
+      }
+    }
+    t = t * time_base;
+    value = FUN_0010a5e0(*(int16_t *)(elem + 0xa), t);
+
+    /* --- optional amplitude function --- */
+    fn = *(int16_t *)(elem + 0xc);
+    if (fn != 0) {
+      value = *(float *)(obj + 0xd0 + (int)fn * 4) * value;
+    }
+
+    /* --- inversion (flag bit 0) --- */
+    if ((*(unsigned char *)elem & 1) != 0) {
+      value = *(float *)0x2533c8 - value;
+    }
+
+    /* --- secondary sinusoidal offset term (when elem+0x14 != 0) --- */
+    if (*(float *)(elem + 0x14) != *(float *)0x2533c0) {
+      float w = FUN_0010a5e0(*(int16_t *)(elem + 0xe),
+                             time_base * *(float *)(elem + 0x10));
+      w = (w - *(float *)0x253398) * *(float *)(elem + 0x14);
+      value = w + w + value;
+    }
+
+    /* --- step threshold (when elem+0x18 != 0): 1.0 if value>thr else 0.0 --- */
+    if (*(float *)(elem + 0x18) != *(float *)0x2533c0) {
+      float prev = value;
+      value = 1.0f;
+      if (prev <= *(float *)(elem + 0x18)) {
+        value = 0.0f;
+      }
+    }
+
+    /* --- exponent/floor stage (when elem+0x1c > 1) --- */
+    if (*(int16_t *)(elem + 0x1c) > 1) {
+      value = (float)floor((double)((float)*(int16_t *)(elem + 0x1c) * value)) *
+              *(float *)(elem + 0x140);
+    }
+
+    /* --- modulo wrap (when elem+0x13c > 0) --- */
+    if (*(float *)(elem + 0x13c) > *(float *)0x2533c0) {
+      value = x87_fmod(value, (double)*(float *)(elem + 0x13c));
+    }
+
+    /* --- additive function with clamp-to-1 --- */
+    fn = *(int16_t *)(elem + 0x22);
+    if (fn != 0) {
+      value = *(float *)(obj + 0xd0 + (int)fn * 4) + value;
+      if (value > *(float *)0x2533c8) {
+        value = *(float *)0x2533c8;
+      }
+    }
+
+    /* --- final multiplier function --- */
+    fn = *(int16_t *)(elem + 0x24);
+    if (fn != 0) {
+      value = *(float *)(obj + 0xd0 + (int)fn * 4) * value;
+    }
+
+    /* --- transition remap --- */
+    value = transition_function_evaluate(*(int16_t *)(elem + 0x1e), value);
+
+    /* --- scale (when elem+0x38 > 0) --- */
+    if (*(float *)(elem + 0x38) > *(float *)0x2533c0) {
+      value = value * *(float *)(elem + 0x38);
+    }
+
+    /* --- range remap (modes 1/2) --- */
+    mode = *(int16_t *)(elem + 0x26);
+    if (mode == 2) {
+      value = (*(float *)(elem + 0x2c) - *(float *)(elem + 0x28)) * value +
+              *(float *)(elem + 0x28);
+      if (*(float *)(elem + 0x28) + *(float *)0x253f44 >= value) {
+        active = (unsigned char)(*(unsigned int *)elem >> 2) & 1;
+      }
+    } else {
+      if (*(float *)(elem + 0x28) + *(float *)0x253f44 >= value) {
+        value = *(float *)(elem + 0x28);
+        active = (unsigned char)(*(unsigned int *)elem >> 2) & 1;
+      }
+      if (value > *(float *)(elem + 0x2c)) {
+        value = *(float *)(elem + 0x2c);
+      }
+      if (mode == 1) {
+        value = (value - *(float *)(elem + 0x28)) * *(float *)(elem + 0x138);
+      }
+    }
+
+    /* --- dependency on another function's active bit --- */
+    if (*(int16_t *)(elem + 0x36) != -1 &&
+        (*(unsigned char *)(obj + 0xd3) &
+         (unsigned char)(1 << (*(int16_t *)(elem + 0x36) & 0x1f))) == 0) {
+      active = 0;
+    }
+
+    /* --- accumulator wrap (flag bit 1), using prior slot value --- */
+    if ((*(unsigned char *)elem & 2) != 0) {
+      value = x87_fmod(value + *(float *)(obj + 0xe4 + (int)i * 4), 1.0);
+    }
+
+    /* --- store result and update active bitmask --- */
+    *(float *)(obj + 0xe4 + (int)i * 4) = value;
+    if (active != 0) {
+      *(unsigned char *)(obj + 0xd3) =
+          *(unsigned char *)(obj + 0xd3) | (unsigned char)(1 << ((int)i & 0x1f));
+    } else {
+      *(unsigned char *)(obj + 0xd3) =
+          *(unsigned char *)(obj + 0xd3) & ~(unsigned char)(1 << ((int)i & 0x1f));
+    }
+
+    counter = counter + 1;
+    i = counter;
+  } while ((int)i < *(int *)(obj_tag + 0x158));
 }
 
 /*
@@ -5613,6 +6549,125 @@ void FUN_00141900(void)
 }
 
 /*
+ * FUN_00141970 (0x141970 / objects.obj) — evaluate the four object "function
+ * input" values from the object tag and store them into the object's function
+ * value cache (object+0xd4, four floats).
+ *
+ * For each of the four function-input source codes (object tag+0x108, stride 2),
+ * a non-zero code selects a value via a jump table (table at 0x141b38, byte index
+ * map at 0x141b58 keyed on code-1):
+ *   code 1  -> object+0x90               (raw float)
+ *   code 2  -> object+0x94, clamped <=1.0
+ *   code 3  -> object+0x9c
+ *   code 4  -> object+0x98
+ *   code 5  -> if cached value == 1.0, a new random value (random_math_real)
+ *   code 0x12 -> 0.0 when object+0xb6 bit 4 set, else 1.0
+ *   code 0x13 -> heading-vs-scenario angle: atan2(marker[+4], marker[+8]) of the
+ *                base node marker (object_get_node_matrix(handle,0)); wrapped
+ *                against scenario+0x4c (FUN_000b6dd0), scaled (0x29c120) + offset
+ *                (0x253398), clamped to [0,1]; falls back to the cached value when
+ *                |marker[+0xc]| >= threshold (0x29c128)
+ *   codes 0xa..0x11 (default) -> region state byte object+0x128+(code-0xa) * 0x261518
+ *   any other code in default range -> assert (region_index out of range)
+ *
+ * Read-only with respect to object lifecycle: writes only the object's own
+ * function value cache (object+0xd4..). No GC/garbage/cluster-list mutation.
+ *
+ * Confirmed: 1 cdecl arg (object_handle @ [EBP+0x8]); 4-iteration loop ([EBP-0x8]).
+ * Confirmed: default value is 0.0 (FLOAT 0x2533c0); 1.0 = 0x2533c8.
+ * Confirmed (push-then-fstp): FUN_000b6dd0 takes TWO args — param_1 = scenario+0x4c
+ * (PUSH ECX at 0x141a9a), param_2 = the FPATAN result stored via FSTP [ESP] at
+ * 0x141a8f over the PUSH ECX at 0x141a89; ADD ESP,8 cleans both. Decompiler
+ * dropped param_2.
+ * Confirmed: jump table at 0x141b38 / index map at 0x141b58 (code-1 keyed).
+ */
+void FUN_00141970(int param_1)
+{
+  int *obj;
+  int obj_tag;
+  short *codes;
+  float *values;
+  int n;
+  short code;
+  float value;
+  int marker;
+  float angle;
+
+  obj = (int *)object_get_and_verify_type(param_1, -1);
+  obj_tag = (int)tag_get(0x6f626a65, *obj);
+  codes = (short *)(obj_tag + 0x108);
+  values = (float *)(obj + 0x35);   /* object+0xd4 */
+  n = 4;
+  do {
+    code = *codes;
+    if (code != 0) {
+      value = *(float *)0x2533c0;   /* default 0.0 */
+      switch (code) {
+      case 1:
+        value = *(float *)((char *)obj + 0x90);
+        break;
+      case 2:
+        value = *(float *)((char *)obj + 0x94);
+        if (*(float *)0x2533c8 < value) {
+          value = *(float *)0x2533c8;
+        }
+        break;
+      case 3:
+        value = *(float *)((char *)obj + 0x9c);
+        break;
+      case 4:
+        value = *(float *)((char *)obj + 0x98);
+        break;
+      case 5:
+        if (*values == 1.0f) {
+          value = random_math_real((unsigned int *)get_global_random_seed_address());
+        }
+        break;
+      case 0x12:
+        if ((*(unsigned char *)((char *)obj + 0xb6) & 4) == 0) {
+          value = *(float *)0x2533c8;
+        } else {
+          value = *(float *)0x2533c0;
+        }
+        break;
+      case 0x13:
+        marker = (int)object_get_node_matrix(param_1, 0);
+        if ((float)xbox_fabsf(*(float *)(marker + 0xc)) >= *(float *)0x29c128) {
+          value = *values;
+        } else {
+          angle = (float)xbox_atan2((double)*(float *)(marker + 4),
+                                    (double)*(float *)(marker + 8));
+          angle = FUN_000b6dd0(*(float *)((char *)global_scenario_get() + 0x4c), angle);
+          value = angle * *(float *)0x29c120 + *(float *)0x253398;
+          if (*(float *)0x2533c0 <= value) {
+            if (*(float *)0x2533c8 < value) {
+              value = *(float *)0x2533c8;
+            }
+          } else {
+            value = *(float *)0x2533c0;
+          }
+        }
+        break;
+      default:
+        code = (short)(code - 0xa);
+        if ((code < 0) || (7 < code)) {
+          display_assert("region_index>=0 && region_index<MAXIMUM_REGIONS_PER_OBJECT",
+                         "c:\\halo\\SOURCE\\objects\\objects.c", 0xa46, 1);
+          system_exit(-1);
+        }
+        value = (float)*(unsigned char *)((char *)obj + 0x128 + (int)code)
+                * *(float *)0x261518;
+        break;
+      }
+      *values = value;
+    }
+    codes = codes + 1;
+    values = values + 1;
+    n = n - 1;
+  } while (n != 0);
+}
+
+/*
  * FUN_00145490 (0x145490 / objects.obj) — flush deferred object work: run one
  * garbage-collect tick, then compact the global objects memory pool (0x46f080).
  *
@@ -5623,6 +6678,45 @@ void FUN_00145490(void)
 {
   objects_garbage_collect_tick();
   memory_pool_compact(*(void **)0x46f080);
+}
+
+/*
+ * object_get_first_cluster (0x13fe10 / objects.obj) — begin iterating the cluster
+ * set that an object belongs to; returns the first cluster's marker (or NONE).
+ *
+ * Resolves the object's root parent (object_get_root_parent), then selects the
+ * cluster-partition table based on the root object's flags: table 0x5a8d40 when
+ * flag bit 0x2000000 is set, otherwise 0x5a8d30. Stores the table pointer in
+ * iter_state[0] and initializes the cluster iterator via FUN_00191690, seeding it
+ * with the root object's cluster reference (root_object+0xbc) and writing the
+ * iterator state into iter_state[1]. Returns FUN_00191690's first cluster marker.
+ *
+ * Read-only with respect to object lifecycle: writes only the caller's 8-byte
+ * iter_state buffer ([0] table ptr, [4] cluster iterator state). Paired with
+ * FUN_0013d5f0 (cluster-next) on the same iter_state.
+ *
+ * Confirmed: 2 cdecl args (iter_state @ [EBP+0x8] ESI, object_handle @ [EBP+0xc]).
+ * Confirmed: object_get_root_parent(object_handle) result reused for both
+ * object_get_and_verify_type(root, -1) calls (flags read +0x4, cluster ref +0xbc).
+ * Confirmed: returns FUN_00191690's EAX (first cluster marker, int16_t in callers).
+ */
+int16_t object_get_first_cluster(void *iter_state, int object_handle)
+{
+  unsigned int **iter = (unsigned int **)iter_state;
+  int root;
+  int root_obj;
+  unsigned int *table;
+
+  root = object_get_root_parent(object_handle);
+  root_obj = (int)object_get_and_verify_type(root, -1);
+  table = (unsigned int *)0x5a8d40;
+  if ((*(unsigned int *)(root_obj + 4) & 0x2000000) == 0) {
+    table = (unsigned int *)0x5a8d30;
+  }
+  iter[0] = table;
+  root_obj = (int)object_get_and_verify_type(root, -1);
+  return (int16_t)FUN_00191690(iter[0], (int *)(iter + 1),
+                               *(int *)(root_obj + 0xbc));
 }
 
 /*
@@ -9780,6 +10874,70 @@ camera_invalid:
   }
 }
 
+/* 0x139b40 (object_lights.c) — register one lens-flare/light marker record
+ * into the per-frame light marker array at 0x5a8f6c (count at 0x5a90ac, max 8
+ * entries, 0x28-byte stride).
+ *
+ * Early-out if the array is already full (count >= 8) OR if all three color
+ * components in param_5 equal 0 (the FCOMP vs FLOAT_002533c0 == 0.0 guard:
+ * when color[0]==0 && color[1]==0 && color[2]==0 the record is skipped).
+ *
+ * Record layout filled at base = 0x5a8f6c + count*0x28:
+ *   +0x00 : tag_get('lens', param_1)               (lens tag definition)
+ *   +0x04 : param_2[0]                              (vec3 word 0)
+ *   +0x08 : param_2[1]                              (vec3 word 1)
+ *   +0x0c : param_2[2]                              (vec3 word 2)
+ *   +0x10 : FUN_00180b10(param_3)                   (compressed normal)
+ *   +0x14 : FUN_00180b10(param_4)                   (compressed normal)
+ *   +0x18 : real_a_rgb_color_to_pixel32(1.0f, param_5)  (pixel32 color)
+ *   +0x1c : 0xffff (short)
+ *   +0x1e : 0xffff (short)
+ *   +0x20 : (short)count                            (this record's index)
+ *   +0x22 : byte at global 0x50654a (0x506548+2)
+ *   +0x23 : (byte)FUN_00180770(param_6)             (alpha/intensity quantized)
+ * Then count++ at 0x5a90ac.
+ *
+ * Confirmed (disasm 0x139b40): cdecl 6 stack args, RET (no RET N); ADD ESP,0x1c
+ * = 8(rgb)+4(180770)+8(tag_get)+4(180b10)+4(180b10). param_6 is a float passed
+ * raw to FUN_00180770 (caller MOV+PUSH, no FILD; callee FLD [EBP+8]). param_3
+ * and param_4 are vec3 pointers passed as int (FUN_00180b10 derefs them);
+ * kept as int to match the existing int(*)(int) thunk.
+ */
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-but-set-variable"
+#pragma clang diagnostic ignored "-Wunused-variable"
+/* 0x139b40 */
+void FUN_00139b40(int param_1, int *param_2, int param_3, int param_4,
+                  float *param_5, float param_6)
+{
+  int iVar1;
+  char *base;
+  int *vec;
+
+  if ((*(short *)0x5a90ac < 8) &&
+      ((param_5[0] != *(float *)0x2533c0 || param_5[1] != *(float *)0x2533c0)
+       || param_5[2] != *(float *)0x2533c0)) {
+    iVar1 = *(short *)0x5a90ac * 0x28;
+    base = (char *)0x5a8f6c + iVar1;
+
+    *(unsigned int *)(base + 0x18) =
+        real_a_rgb_color_to_pixel32(1.0f, param_5);
+    base[0x23] = (char)CALL_FUN_00180770(param_6);
+    *(void **)(base + 0x00) = tag_get(0x6c656e73, param_1);
+    vec = (int *)(base + 0x04);
+    vec[0] = param_2[0];
+    vec[1] = param_2[1];
+    vec[2] = param_2[2];
+    *(int *)(base + 0x10) = CALL_FUN_00180b10(param_3);
+    *(int *)(base + 0x14) = CALL_FUN_00180b10(param_4);
+    base[0x22] = *(char *)0x50654a;
+    *(short *)(base + 0x1e) = (short)0xffff;
+    *(short *)(base + 0x1c) = (short)0xffff;
+    *(short *)(base + 0x20) = *(short *)0x5a90ac;
+    *(short *)0x5a90ac = *(short *)0x5a90ac + 1;
+  }
+}
+
 /* 0x139e50 — light_fill_structure: fills a light output structure from
  * intensity, color, and position data. Heavy FPU with many clamp operations.
  *
@@ -11410,4 +12568,85 @@ void FUN_0013aa10(int param_1, int param_2)
       i++;
     } while (i < *count);
   }
+}
+
+/*
+ * FUN_001414e0 — inverse-kinematics matrix adjustment between two object markers.
+ *
+ * Resolves two named markers (marker A on object param_1, marker B on object
+ * param_3) into local marker buffers via object_get_markers_by_string_id, then
+ * walks marker A's animation-node parent chain (self -> parent -> grandparent)
+ * using the model tag's node block (mode tag, 'mode' = 0x6d6f6465). It composes
+ * inverse(markerA_matrix) * markerB_matrix into a local 4x3 matrix and hands that
+ * plus the three node matrices (self/parent/grandparent, indexed into the caller's
+ * node-matrix array at param_5 with a 0x34-byte stride) to the IK solver
+ * (inverse_kinematics_adjust_matrices @ 0x120fd0).
+ *
+ * Early-exits (returns) if either marker lookup fails or a parent index is NONE
+ * (-1). param_5 is the caller-owned node-matrix array (node_matrices).
+ *
+ * ABI: cdecl, 5 stack args (confirmed: MOV ESP,EBP / caller cleanup ADD ESP,...).
+ *
+ * Decompiler traps resolved:
+ *  - Ghidra's local_a4/local_a0 and local_d8 names were systematically off by 4;
+ *    the marker buffers are single contiguous 0x6c-byte objects (matrix_identity
+ *    fills +4, the node-matrix copy fills +0x38; the short node index is at +0).
+ *    Declared as char[0x6c] so MSVC's full-buffer write cannot overflow.
+ *  - EBX register reuse: it holds the node block pointer (mode_tag + 0xb8) across
+ *    both tag_block_get_element calls, then its low word is reused as the
+ *    grandparent index. Kept as two distinct C variables (nodes_block,
+ *    grandparent_index) to avoid aliasing.
+ *  - markerA matrix is read at bufA+4 (matrix_inverse); markerB matrix is read at
+ *    bufB+0x38 (matrix4x3_multiply). Asymmetric on purpose — preserved.
+ *  - matrix4x3_multiply aliases b == out (&composed_matrix twice). Faithful.
+ *  - Node indices are signed shorts via MOVSX; NONE test is == -1.
+ */
+void FUN_001414e0(int param_1, int param_2, int param_3, int param_4, int param_5)
+{
+  char marker_a[0x6c];
+  char marker_b[0x6c];
+  char composed_matrix[0x34];
+  void *obj_datum;
+  int obje_tag;
+  int mode_tag;
+  int nodes_block;
+  void *node_element;
+  short self_index;
+  short parent_index;
+  short grandparent_index;
+
+  obj_datum = object_get_and_verify_type(param_1, -1);
+  obje_tag = (int)tag_get(0x6f626a65, *(int *)obj_datum);
+  mode_tag = (int)tag_get(0x6d6f6465, *(int *)(obje_tag + 0x34));
+
+  if (object_get_markers_by_string_id(param_1, (void *)param_2, marker_a, 1) == 0) {
+    return;
+  }
+  if (object_get_markers_by_string_id(param_3, (void *)param_4, marker_b, 1) == 0) {
+    return;
+  }
+
+  nodes_block = mode_tag + 0xb8;
+  self_index = *(short *)marker_a;
+
+  node_element = tag_block_get_element((void *)nodes_block, (int)self_index, 0x9c);
+  parent_index = *(short *)((char *)node_element + 0x24);
+  if (parent_index == -1) {
+    return;
+  }
+
+  node_element = tag_block_get_element((void *)nodes_block, (int)parent_index, 0x9c);
+  grandparent_index = *(short *)((char *)node_element + 0x24);
+  if (grandparent_index == -1) {
+    return;
+  }
+
+  matrix_inverse((float *)(marker_a + 4), (float *)composed_matrix);
+  matrix4x3_multiply((float *)(marker_b + 0x38), (float *)composed_matrix,
+                     (float *)composed_matrix);
+
+  inverse_kinematics_adjust_matrices((float *)composed_matrix,
+                                     (int)grandparent_index * 0x34 + param_5,
+                                     (int)parent_index * 0x34 + param_5,
+                                     (int)self_index * 0x34 + param_5);
 }
