@@ -20,6 +20,10 @@ CodeBurn analysis: **~1.7M tokens wasted in 7 days** (~$0.64). The root causes a
 - **The Edit tool confirms success.** Do not re-read to verify your edit worked.
 - **Failure exception only:** If an edit fails, re-read *only* the failing line range (≤20 lines), never the full file.
 
+### Wording and language
+- Be brief and concise. Don't use words as "This is the smoking gun", "Honestly", "I'll be honest".
+- Use natural normal concise language.
+
 ### Research Ratio Gate (4:1 minimum)
 - **Target: 4+ reads per edit.** CodeBurn measured 2.2:1 (1,958 reads vs. 878 edits), causing ~932K wasted tokens from edit-without-research retries.
 - Before editing any function, perform at least these research steps:
@@ -30,12 +34,12 @@ CodeBurn analysis: **~1.7M tokens wasted in 7 days** (~$0.64). The root causes a
 - If you have not done 4 reads, do more research before editing.
 
 ### File-Specific Bans & Caps
-| File / Directory | Action | Max Lines | Why |
-|------------------|--------|-----------|-----|
-| `kb.json` | `rtk jq` ONLY | **0** | 6,000+ lines; 239 redundant reads = ~143K tokens |
-| `objects.c`, `units.c`, `sound_manager.c` | `rtk read -o -l` | **100** | 100+ redundant reads each = ~300K tokens |
-| `build/`, `build_debug/`, `node_modules/`, `.git/`, `halo-patched/`, `__pycache__/`, `dist/` | **NEVER** | **0** | Generated artifacts; 7 reads = ~4K tokens for zero value |
-| Any `*.log` | **NEVER** | **0** | Run the command instead of reading output |
+| File / Directory                                                                             | Action           | Max Lines | Why                                                      |
+|----------------------------------------------------------------------------------------------|------------------|-----------|----------------------------------------------------------|
+| `kb.json`                                                                                    | `rtk jq` ONLY    | **0**     | 6,000+ lines; 239 redundant reads = ~143K tokens         |
+| `objects.c`, `units.c`, `sound_manager.c`                                                    | `rtk read -o -l` | **100**   | 100+ redundant reads each = ~300K tokens                 |
+| `build/`, `build_debug/`, `node_modules/`, `.git/`, `halo-patched/`, `__pycache__/`, `dist/` | **NEVER**        | **0**     | Generated artifacts; 7 reads = ~4K tokens for zero value |
+| Any `*.log`                                                                                  | **NEVER**        | **0**     | Run the command instead of reading output                |
 
 ### Session Memory
 Maintain a mental ledger of files already read in this conversation. If you need a fact from a file you've already read, recall it from context or `rtk rg` for the specific string — do not re-read the file.
@@ -46,6 +50,7 @@ A hook (`tools/audit/token_discipline_hook.py`, wired in `.claude/settings.json`
 
 ### 1. Research & Analysis
 - **Scope-first:** Start tasks with exact path(s), symbol(s), and line range(s).
+- **Prior-fix lookup:** Before debugging any regression, crash, hang, assert, visual bug, wrong behavior, or build/deploy failure, run `rtk python3 tools/memory/prior_fixes.py "<symptom or target>"`. Treat matches as hypotheses only; confirm against binary/disassembly/runtime evidence before fixing code.
 - **Token Discipline:** See the [Token Discipline](#token-discipline) section above. Use line-ranged reads (`rtk read -o <start> -l <limit>`). Never re-read a file after a successful edit.
 - **Large files:** For files >300 lines, always read with `rtk read -o <start> -l <limit>`. Cap at 100 lines per read. See the File-Specific Bans & Caps table.
 - **kb.json:** `rtk jq` ONLY — never use the Read tool. See the File-Specific Bans & Caps table.
@@ -66,16 +71,16 @@ A hook (`tools/audit/token_discipline_hook.py`, wired in `.claude/settings.json`
 - **Auto-lift delegates to `/lift`:** `tools/llm_auto_lift.py` provides target selection, liftability scoring, and Ghidra context caching. Code generation is delegated to `/lift` which has full agent context. Legacy `review`/`promote` subcommands exist for old batch artifacts.
 - **Never transcribe MSVC intrinsics as C function calls.** Ghidra shows them as regular calls but they have non-standard ABIs that corrupt the stack or registers when called from C. Use the equivalent C idiom — the compiler generates the intrinsic automatically:
 
-  | Address | Intrinsic | Refs | Ghidra shows | Write in C instead |
-  |---------|-----------|------|--------------|-------------------|
-  | 0x1d90e0 | `_chkstk` | 71 | `regparm(1)` call | declare locals normally (or `static` for large buffers) |
-  | 0x1d9068 | `_ftol2` | 228 | `_ftol2(var)` or cast | `(int)float_expr` |
-  | 0x1dd5c8 | `__SEH_prolog` | 74 | mangled params | `__try/__except` — clang supports this natively on `-target i386-pc-win32`; see `docs/seh-handling.md` |
-  | 0x1dd601 | `__SEH_epilog` | 73 | mangled return | (paired with prolog — handled automatically by `__try/__except`) |
-  | 0x1dd620 | `_allmul` | 10 | 4-arg call | `(int64_t)a * b` |
-  | 0x1dd660 | `_aullshr` | 1 | register call | `(uint64_t)val >> shift` |
-  | 0x1dd680 | `_aullrem` | 1 | 4-arg call | `(uint64_t)a % b` |
-  | 0x1dd770 | `_aulldiv` | 1 | 4-arg call | `(uint64_t)a / b` |
+  | Address  | Intrinsic      | Refs | Ghidra shows          | Write in C instead                                                                                     |
+  |----------|----------------|------|-----------------------|--------------------------------------------------------------------------------------------------------|
+  | 0x1d90e0 | `_chkstk`      | 71   | `regparm(1)` call     | declare locals normally (or `static` for large buffers)                                                |
+  | 0x1d9068 | `_ftol2`       | 228  | `_ftol2(var)` or cast | `(int)float_expr`                                                                                      |
+  | 0x1dd5c8 | `__SEH_prolog` | 74   | mangled params        | `__try/__except` — clang supports this natively on `-target i386-pc-win32`; see `docs/seh-handling.md` |
+  | 0x1dd601 | `__SEH_epilog` | 73   | mangled return        | (paired with prolog — handled automatically by `__try/__except`)                                       |
+  | 0x1dd620 | `_allmul`      | 10   | 4-arg call            | `(int64_t)a * b`                                                                                       |
+  | 0x1dd660 | `_aullshr`     | 1    | register call         | `(uint64_t)val >> shift`                                                                               |
+  | 0x1dd680 | `_aullrem`     | 1    | 4-arg call            | `(uint64_t)a % b`                                                                                      |
+  | 0x1dd770 | `_aulldiv`     | 1    | 4-arg call            | `(uint64_t)a / b`                                                                                      |
 
   Never add these to kb.json. They are compiler runtime, not game functions.
 
@@ -178,8 +183,19 @@ A hook (`tools/audit/token_discipline_hook.py`, wired in `.claude/settings.json`
 - Need real Xbox probing: `/deploy --xbe-only`, then `/xbdm <mode>`.
 - Need xemu build/load: `/build` or `/xemu build-load`.
 - Need regression investigation: `/debug-regression <symptom>`.
+- Need to replay an existing fixture (quick path — no flags to remember): `/replay-input` — picks level/scenario/build interactively, fires `capture_scenario.py replay`.
+- Need deterministic input testing (capture gameplay, replay the exact same input repeatedly, or diff patched vs unpatched build on identical input): `rtk python3 tools/xbox/capture_scenario.py replay --level <lvl> --scenario <name> [--xbe cachebeta.xbe|default.xbe]` — skill `input-replay-testing`, doc `docs/input-fixture-capture.md`.
+- Need an A/B regression test (does the patched build behave like the original on the same input): `rtk python3 tools/equivalence/ab_check.py --level <lvl> --scenario <name>` — one command: **builds+deploys your candidate and gates build-liveness first** (`verify_toggles_live --all-off`, so it tests your local build not a stale on-box one; `--no-deploy` to skip), then replays the fixture on cachebeta (golden) + default (candidate), captures both trajectories, runs the tolerant `behavior_diff`, and prints the localized divergence (exit 0 clean / 3 divergent / 2 inconclusive = deploy or gate failed). Add `--golden <frozen>.halorec` to reuse a frozen faithful golden (CI tripwire), `--aa-first` to self-check determinism. Skill `ab-trajectory-testing`, doc `docs/ab-trajectory-testing.md`.
 
 ## Analysis Tools
+- **`tools/xbox/capture_scenario.py`** — Deterministic controller-input record/replay test fixtures (per-level, host-only). `record`/`arm`/`finalize`/`replay`/`selftest`; `--xbe` selects and verifies the build (`cachebeta.xbe`=unpatched faithful, `default.xbe`=patched). Capture gameplay once, replay identical input on demand or in a loop; diff builds on the same input. Skill `input-replay-testing`; doc `docs/input-fixture-capture.md`.
+- **`tools/equivalence/qmp_capture.py`** — Atomic live-state capture engine for A/B trajectory testing. Wraps raw QMP (`:4444`) `stop`→`memsave`(VIRTUAL — never `pmemsave`, which is broken on this Cerbios/kernel-irqchip=off box)→`cont` so one frame is read coherently; resolves the data_t pools (objects/players/actors/props), reads the game tick (`*0x45708C+0xC`), and verifies the objtable magic (`0x64407440`) before trusting a capture. Never touch the gdbstub (`:1234` halts the CPU). Doc `docs/ab-trajectory-testing.md`.
+- **`tools/equivalence/hmrc.py`** — `.halorec`/HMRC writer. Encodes captured frames into the halo-memory-viewer format (gzip; round-trips with `halorec_to_snapshot.py`), so trajectories are both Python-diffable and viewer-playable. Output is literal game memory — host-only, gitignored, never commit.
+- **`tools/xbox/capture_trajectory.py`** — Captures a game-state trajectory to a `.halorec` while a deterministic fixture replays. Waits for gameplay, anchors on that engine event, captures the full pool set every K **relative** game ticks (fixed bucket grid, so two runs of the same fixture align). Run it alongside `capture_scenario.py replay`. Skill `ab-trajectory-testing`.
+- **`tools/equivalence/trajectory_diff.py`** — STRICT byte-diff of two `.halorec` trajectories at the exact tick. This is the **A/A determinism check only** (masks the known sub-frame phase counters actor+0x4a/+0x7c, prop+0x26); it is the wrong tool for A/B because it flags benign x87/phase drift. Exit 0 clean / 3 divergent.
+- **`tools/equivalence/behavior_diff.py`** — TOLERANT behavioral diff = the **A/B regression oracle**. Aligns by nearest tick within ±W, matches entities by datum SLOT (salts differ across builds), reports a discrete-field divergence only when SUSTAINED (≥`min_run` samples), compares positions at a value eps and handles by LIVENESS, and checks aggregate invariants. The earliest sustained onset names the time+field+entity to investigate. Built-in watch-list targets a10 AI; override with `--config`. Exit 0 clean / 3 divergent.
+- **`tools/equivalence/aa_check.py`** — Orchestrates the A/A determinism check: replays one fixture twice on the same build (cachebeta) and runs `trajectory_diff`. Must be CLEAN before trusting any A/B result. Skill `ab-trajectory-testing`.
+- **`tools/equivalence/ab_check.py`** — The one-command A/B regression check (primary entry point). By default **builds+deploys the candidate (`build_deploy_run.sh -q`, which always re-patches via the `patched_xbe` ALL target) and gates build-liveness (`verify_toggles_live --all-off`) before capturing** — so it tests your local build, not a stale on-box one; either step failing → exit 2 INCONCLUSIVE, no diff. Then replays the fixture on cachebeta (golden) + default (candidate), captures both, runs `behavior_diff`, prints the localized divergence + verdict (exit 0 clean / 3 divergent). `--no-deploy` skips the rebuild (verdict flagged UNVERIFIED unless `--verify-live`); `--golden <path>` reuses/`--freeze` writes a frozen faithful golden (CI tripwire — capture cachebeta once, reuse); `--aa-first` self-checks determinism before the A/B; `--reuse` diffs existing captures. Skill `ab-trajectory-testing`.
 - **`tools/analysis/frontier.py`** — Decompilation frontier scoring and target recommendations.
 - **`tools/analysis/fun_pipeline.py`** — FUN_ function naming pipeline. Four stages: `reclassify` moves `<common>` FUN_ functions to named objects (feeds frontier.py accuracy); `prioritize` tiers remaining FUN_ functions by evidence quality (P0 = attributed + signature, P3 = unclassified); `propose` outputs a Ghidra work queue for decompile-based naming; `apply` writes proposed names back to kb.json. Run `status` first to gauge naming debt. Prerequisite for accurate frontier scoring when `<common>` is large.
 - **`tools/llm_auto_lift.py`** — Target selection, liftability scoring, and Ghidra context caching. Use `select` for combined frontier/liftability target choice; `cache-context` to pre-cache Ghidra output; code generation delegated to `/lift`.
@@ -204,11 +220,30 @@ A hook (`tools/audit/token_discipline_hook.py`, wired in `.claude/settings.json`
 - **`tools/analysis/punpckhdq_import.py`** — Imports PDB-derived TU/symbol corpus from punpckhdq/halo (debug-build PDB) and proposes real names for our `FUN_<addr>` placeholders. `tools/analysis/apply_punpckhdq_renames.py` performs textual renames across kb.json/baseline/src after dry-run review.
 
 ## Architecture and Skills
+
+**Skill-first discipline (MANDATORY — applies to every Claude/agent/subagent instance in this repo):** Before doing lift, score-recovery, call-site verification, hazard, or crash/regression work, FIND and APPLY the matching skill under `.claude/skills/`. Do NOT default to raw `docs/lift-learnings.md` or a hand-rolled approach — the skills are the indexed, trigger-keyed front door to that doctrine and must be used actively. Discover with `rtk fd -e md . .claude/skills` (or grep the skill name), read the skill's **"Invoke this skill when"** block, and follow its checklist. Invoke via the Skill tool when it is surfaced as user-invocable; when it is NOT surfaced (the `lift-*` task skills frequently aren't loaded per session), READ the `SKILL.md` and apply it directly — being unlisted is not a reason to skip it. When delegating to a subagent, NAME the relevant skill(s) in the brief so the subagent runs the same doctrine. Trigger → skill map:
+
+| Situation                                                                                                                        | Skill                                        |
+|----------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
+| VC71 65–84% and the gap "looks structural" (before writing "structural ceiling")                                                 | `lift-score-improve`                         |
+| Any new/changed lift, before commit or deploy (non-crashing correctness; box is the only oracle)                                 | `lift-silent-bugs` + `bug-hunt`              |
+| Verifying a call site against disassembly                                                                                        | `lift-decompiler-traps` + `lift-arg-hazards` |
+| Calling an UNPORTED callee (implicit `@<reg>` args)                                                                              | `check-callee-regs`                          |
+| Sizing a local buffer / `_chkstk` frame / stack aliasing                                                                         | `lift-frame-hazards`                         |
+| Any Xbox crash / hang / assert / visual regression / toggle-bisect                                                               | `crash-triage` → `lift-crash-signals`        |
+| Replay an existing input fixture (quick path, no flags)                                                                          | `replay-input`                               |
+| Deterministic input record/replay testing (capture gameplay, replay over and over, diff patched vs unpatched on identical input) | `input-replay-testing`                       |
+| A/B trajectory regression test: replay same input on patched+unpatched, capture state, diff behavior over a time window          | `ab-trajectory-testing`                      |
+
+Broad doctrine skills:
 - `halo-xbox-re`: RE doctrine and evidence rules.
 - `halo-re-lift`: Lift workflow and ABI-specific execution.
 - `halo-verify-debug`: Verification lanes, delink comparison, and regression debugging.
 - `halo-build-xemu`: Build and XBE deployment workflow.
 - `halo-xbdm`: RDCP/XBDM workflow for real Xbox.
+- `input-replay-testing`: deterministic controller-input record/replay for testing (capture_scenario.py; per-level host-only fixtures; cachebeta vs default builds).
+- `replay-input`: quick replay wizard — lists fixtures, asks level/scenario/build, fires `capture_scenario.py replay` (no flags needed).
+- `ab-trajectory-testing`: A/B regression testing — replay the same input on patched + unpatched, capture state trajectories (atomic QMP → `.halorec`), diff behavior over a time window (`behavior_diff` = tolerant A/B oracle, `aa_check` = A/A determinism check); doc `docs/ab-trajectory-testing.md`.
 
 <!-- rtk-instructions v2 -->
 # RTK (Rust Token Killer) - Token-Optimized Commands
@@ -220,13 +255,13 @@ A hook (`tools/audit/token_discipline_hook.py`, wired in `.claude/settings.json`
 
 ## RTK Commands by Workflow
 
-| Category | Typical Savings | Examples |
-|----------|-----------------|----------|
-| **Build** | 70-90% | `rtk cmake`, `rtk tsc`, `rtk lint` |
-| **Test** | 90-99% | `rtk pytest`, `rtk cargo test`, `rtk vitest` |
-| **Git** | 60-80% | `rtk git status`, `rtk git diff`, `rtk git log` |
-| **Files** | 60-75% | `rtk read`, `rtk grep`, `rtk find`, `rtk ls` |
-| **Ghidra**| 70-90% | `rtk python3 tools/audit/check_ghidra_mcp.py` |
+| Category   | Typical Savings | Examples                                        |
+|------------|-----------------|-------------------------------------------------|
+| **Build**  | 70-90%          | `rtk cmake`, `rtk tsc`, `rtk lint`              |
+| **Test**   | 90-99%          | `rtk pytest`, `rtk cargo test`, `rtk vitest`    |
+| **Git**    | 60-80%          | `rtk git status`, `rtk git diff`, `rtk git log` |
+| **Files**  | 60-75%          | `rtk read`, `rtk grep`, `rtk find`, `rtk ls`    |
+| **Ghidra** | 70-90%          | `rtk python3 tools/audit/check_ghidra_mcp.py`   |
 
 Use `rtk gain` to view savings statistics.
 <!-- /rtk-instructions -->

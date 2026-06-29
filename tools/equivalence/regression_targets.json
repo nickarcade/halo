@@ -2,6 +2,171 @@
   "description": "Curated high-risk ported functions for fast regression testing. Run with: python3 tools/equivalence/regression_test.py",
   "targets": [
     {
+      "addr": "0x2fd10",
+      "name": "actor_compute_prop_target_weight",
+      "obj": "actor_perception.obj",
+      "seeds": 8,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace"
+      ],
+      "reason": "perception prop-weight scorer; runs on real actor+perception-prop state from host-only Recording 19 (door grunt slot6, awareness=10). Audited faithful (a10) — this guards against future lift drift. SKIPs cleanly when the host recording/snapshot is absent (forks, hosted CI) — no game memory in git."
+    },
+    {
+      "addr": "0x2fd10",
+      "name": "actor_compute_prop_target_weight",
+      "obj": "actor_perception.obj",
+      "seeds": 8,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace"
+      ],
+      "reason": "prop-weight scorer on Recording 19 door grunt slot10 (awareness=6) — mid-alertness state covers a different path than grunt6 (52.9% vs 48.6%). SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2fd10",
+      "name": "actor_compute_prop_target_weight",
+      "obj": "actor_perception.obj",
+      "seeds": 8,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace"
+      ],
+      "reason": "prop-weight scorer on Recording 19 door grunt slot11 (awareness=6) — second mid-alertness grunt for added path coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f910",
+      "name": "actor_perception_find_prop_pathfinding_location",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot6 actor+prop state; confirmed PASS 20/20 seeds with 48.1% moderate real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f910",
+      "name": "actor_perception_find_prop_pathfinding_location",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot10 actor+prop state; confirmed PASS 20/20 seeds with 48.1% moderate real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f910",
+      "name": "actor_perception_find_prop_pathfinding_location",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot11 actor+prop state; confirmed PASS 20/20 seeds with 48.1% moderate real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f9b0",
+      "name": "actor_perception_find_killer_prop_index",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot6 actor+prop state; confirmed PASS 20/20 seeds with 83.3% weak real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f9b0",
+      "name": "actor_perception_find_killer_prop_index",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot10 actor+prop state; confirmed PASS 20/20 seeds with 83.3% weak real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f9b0",
+      "name": "actor_perception_find_killer_prop_index",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot11 actor+prop state; confirmed PASS 20/20 seeds with 83.3% weak real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2fc20",
+      "name": "actor_get_perception_knowledge",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot6 actor+clump state; confirmed PASS 20/20 seeds with 51.3% weak real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2fc20",
+      "name": "actor_get_perception_knowledge",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot10 actor+clump state; confirmed PASS 20/20 seeds with 40.3% weak real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2fc20",
+      "name": "actor_get_perception_knowledge",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot11 actor+clump state; confirmed PASS 20/20 seeds with 40.3% weak real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f2b0",
+      "name": "actor_perception_acknowledge",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot6 actor+acknowledgeable prop state; confirmed PASS 20/20 seeds with 52.2% moderate real-state coverage. Separate a10-checkpoint high-cadence sweep also confirmed 176/176 active frames. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f2b0",
+      "name": "actor_perception_acknowledge",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10_ack.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot10 with valid alternate ack prop 0xf7480029; confirmed PASS 20/20 seeds with 52.2% moderate real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
+      "addr": "0x2f2b0",
+      "name": "actor_perception_acknowledge",
+      "obj": "actor_perception.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11_ack.json",
+        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+      ],
+      "reason": "Recording 19 door grunt slot11 with valid alternate ack prop 0xf7460026; confirmed PASS 20/20 seeds with 52.2% moderate real-state coverage. SKIPs if host snapshot absent."
+    },
+    {
       "addr": "0xb4da0",
       "name": "FUN_000b4da0",
       "obj": "game.obj",
