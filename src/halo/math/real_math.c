@@ -343,8 +343,8 @@ void FUN_00109500(float *out, float *qsp)
  * Confirmed: reads 9 floats from fixed offsets, writes to three
  * separate output vectors. No scale component is returned.
  */
-__declspec(noinline) void matrix4x3_decompose(float *matrix, float *out_pos, float *out_forward,
-                         float *out_up)
+__declspec(noinline) void matrix4x3_decompose(float *matrix, float *out_pos,
+                                              float *out_forward, float *out_up)
 {
   out_forward[0] = *(float *)((char *)matrix + 0x04);
   out_forward[1] = *(float *)((char *)matrix + 0x08);
@@ -1130,6 +1130,187 @@ void FUN_0010a570(void)
   }
 }
 
+/* 0x10a5e0 — evaluate one of the built-in periodic functions
+ * (function_type 0..11) at the given input.
+ *
+ * function_type 0 returns 1.0 unconditionally. Otherwise the curve is
+ * sampled from a runtime byte table (PERIODIC_FUNCTION_TABLES at 0x46e3b8,
+ * indexed by type), each a byte[1024] normalised by 1/255. The input is
+ * scaled by 25.6 (0x28c838); the fractional weight is fmod(scaled, 1.0)
+ * and the integer index is FISTP(scaled - weight), masked to [0,0x3ff].
+ * Both the index and index+1 wrap modulo 1024. The result is the linear
+ * interpolation table[idx]*(1-weight) + table[idx+1]*weight.
+ *
+ * For function_types 6 and 7 (bit mask 0xc0) a discontinuity fix-up is
+ * applied: when the first sample is above 0.75 and the next is below 0.25
+ * (a wrap from ~1 down through 0) the next sample is bumped by +1.0 before
+ * interpolating, and any result exceeding 1.0 is brought back by -1.0 so
+ * the output stays in [0,1). If the tables are not yet initialised
+ * (flag at 0x46e39c == 0) it returns 0.0. */
+float FUN_0010a5e0(int16_t function_type, float input)
+{
+  unsigned char *table;
+  float scaled;
+  float weight;
+  unsigned int idx;
+  float v0;
+  float v1;
+  float result;
+
+  if (function_type == 0) {
+    return *(float *)0x2533c8;
+  }
+
+  if (function_type < 0 || function_type > 0xb) {
+    display_assert(
+      "function_type>=0 && function_type<NUMBER_OF_PERIODIC_FUNCTIONS",
+      "c:\\halo\\SOURCE\\math\\periodic_functions.c", 0x9d, 1);
+    system_exit(-1);
+  }
+
+  if (*(char *)0x46e39c == '\0') {
+    return *(float *)0x2533c0;
+  }
+
+  scaled = input * *(float *)0x28c838;
+  weight = x87_fmod(scaled, *(double *)0x2573d8);
+  idx = (unsigned int)x87_round_to_int(scaled - weight) & 0x3ff;
+
+  table = ((unsigned char **)0x46e3b8)[function_type];
+  v0 = (float)table[idx] * *(float *)0x261518;
+  v1 = (float)table[(idx + 1) & 0x3ff] * *(float *)0x261518;
+
+  if ((1 << function_type & 0xc0) == 0) {
+    return (*(float *)0x2533c8 - weight) * v0 + v1 * weight;
+  }
+
+  if (*(float *)0x25afcc < v0 && v1 < *(float *)0x25337c) {
+    v1 = v1 + *(float *)0x2533c8;
+  }
+  result = (*(float *)0x2533c8 - weight) * v0 + v1 * weight;
+  if (*(float *)0x2533c8 < result) {
+    return result - *(float *)0x2533c8;
+  }
+  return result;
+}
+
+/* 0x10a710 — transition_function_evaluate: evaluate one of the built-in
+ * transition curves (function_type 0..5) at parameter t in [0,1].
+ *
+ * t is first clamped to [0,1]. function_type 0 is the identity (returns
+ * the clamped t directly). Otherwise the curve is sampled from a runtime
+ * byte table (TRANSITION_FUNCTION_TABLES at 0x46e3a0, indexed by type),
+ * each entry a byte[1024] of values normalised by 1/255. The clamped t is
+ * scaled by 1023.0, the integer sample index is the FISTP round-to-nearest
+ * of (scaled - 0.5) == floor(scaled), and the fractional weight is
+ * fmod(scaled, 1.0). The result is a linear interpolation between
+ * table[idx] and table[idx+1]. When idx hits the last slot (0x3ff) the
+ * top sample is returned directly. If the tables are not yet initialised
+ * (flag at 0x46e39c == 0) it returns 0.0. */
+float transition_function_evaluate(short function_type, float t)
+{
+  unsigned char *table;
+  float scaled;
+  float weight;
+  int idx;
+
+  if (t < *(float *)0x2533c0) {
+    t = 0.0f;
+  } else if (*(float *)0x2533c8 < t) {
+    t = 1.0f;
+  }
+
+  if (function_type == 0) {
+    return t;
+  }
+
+  if (function_type < 0 || function_type > 5) {
+    display_assert(
+      "function_type>=0 && function_type<NUMBER_OF_TRANSITION_FUNCTIONS",
+      "c:\\halo\\SOURCE\\math\\periodic_functions.c", 0xd8, 1);
+    system_exit(-1);
+  }
+
+  if (*(char *)0x46e39c == '\0') {
+    return *(float *)0x2533c0;
+  }
+
+  table = ((unsigned char **)0x46e3a0)[function_type];
+  scaled = t * *(float *)0x28c87c;
+  weight = x87_fmod(scaled, *(double *)0x2573d8);
+  idx = x87_round_to_int(scaled - *(float *)0x253398);
+
+  if ((short)idx == 0x3ff) {
+    return (float)table[0x3ff] * *(float *)0x261518;
+  }
+
+  return (float)table[idx] * *(float *)0x261518 *
+           (*(float *)0x2533c8 - weight) +
+         (float)table[idx + 1] * *(float *)0x261518 * weight;
+}
+
+/* 0x10a830 (real_math.obj) — build a 1024-entry cumulative-distribution
+ * lookup table into buf (passed in EBX, 1024 floats).
+ *
+ * This is the periodic-functions / gaussian-noise CDF table builder.  It runs
+ * a 1024-step cumulative sum: each entry stores the running sum so far, then a
+ * new positive term is accumulated.  The term is the sum of four random draws,
+ * three weighted by (cos(i*freq)+1) at three different low frequencies and the
+ * fourth weighted by a constant 0.25, plus the previous accumulator.  Because
+ * every term is non-negative (random_math_real() in [0,1), cos+1 in [0,2]) the
+ * sequence is monotonically non-decreasing — a CDF shape.  A second pass
+ * normalizes every entry by 1.0 / total_sum so the table ranges in [0,1].
+ *
+ * Constants (resolved from the binary):
+ *   0.0f        @0x2533c0  initial accumulator
+ *   1.0f        @0x2533c8  cos bias added to each cos term; normalization target
+ *   0.25f       @0x25337c  weight for the 4th (constant-frequency) random term
+ *   0.04479224f @0x28c8cc  frequency paired with random #3
+ *   0.03129321f @0x28c8c8  frequency paired with random #2
+ *   0.02515729f @0x28c8c4  frequency paired with random #1
+ *
+ * Faithfulness notes (verified against disassembly 0x10a830-0x10a923):
+ *   - buf[i] is stored BEFORE the four random draws overwrite the accumulator.
+ *   - The carried accumulator (sum) is a 32-bit float: each iteration reloads
+ *     the 32-bit mirror via FADD, and buf[i] is the same rounded value.
+ *   - cos-constant pairing follows the expression's operand, not computation
+ *     order: 0x28c8c4*r1, 0x28c8c8*r2, 0x28c8cc*r3.
+ *   - The "+ sum" addend is LAST (non-associative cumulative add).
+ *   - Loop 2 computes one reciprocal (1.0/sum) then multiplies each element.
+ */
+void FUN_0010a830(float *buf)
+{
+  float sum;
+  float r1;
+  float r2;
+  float r3;
+  float fi;
+  float recip;
+  int i;
+
+  sum = 0.0f; /* 0x2533c0 */
+  for (i = 0; i < 0x400; i++) {
+    buf[i] = sum;
+    r1 = random_math_real((unsigned int *)get_global_random_seed_address());
+    r2 = random_math_real((unsigned int *)get_global_random_seed_address());
+    r3 = random_math_real((unsigned int *)get_global_random_seed_address());
+    fi = (float)i;
+    /* 4th random kept inline (no 32-bit spill in the original) */
+    sum = (random_math_real((unsigned int *)get_global_random_seed_address()) +
+           1.0f) *
+            0.25f +                                  /* 0x25337c */
+          (x87_fcos_mul(fi, 0.04479224f) + 1.0f) * r3 + /* 0x28c8cc */
+          (x87_fcos_mul(fi, 0.03129321f) + 1.0f) * r2 + /* 0x28c8c8 */
+          (x87_fcos_mul(fi, 0.02515729f) + 1.0f) * r1 + /* 0x28c8c4 */
+          sum;
+  }
+
+  recip = 1.0f / sum; /* 0x2533c8 = 1.0 / total */
+  for (i = 0; i < 0x400; i++) {
+    buf[i] = buf[i] * recip;
+  }
+}
+
 /* 0x10b5c0 — real_math_initialize: init random tables and periodic functions.
  */
 void real_math_initialize(void)
@@ -1788,6 +1969,156 @@ float FUN_0010cd40(float *p1, float *p2, float *p3)
   return dy * dy + dx * dx + dz * dz;
 }
 
+/* 0x10ce10 — squared distance between two 3D line segments.
+ * p1/p2 = segment A (start, dir); p3/p4 = segment B (start, dir). Returns the
+ * squared distance between the closest points of the two segments.
+ *   Parallel case (|dir_a x dir_b|^2 < epsilon): closest-point parameters s,t
+ *     via projection + clamp-midpoint, then fall through to the distance.
+ *   Non-parallel: scalar-triple-product params s,t; if either is out of [0,1]
+ *     the closest approach is at an endpoint -> clamp it onto its line and take
+ *     the min of point-vs-segment squared distances via FUN_0010cd40 (asserting
+ *     at least one is finite); else both in [0,1] (asserted) -> fall through.
+ * Constants: 0x2533c0=0.0f, 0x2533c8=1.0f, 0x253398=0.5f, 0x253f44=len eps,
+ * 0x2533d0=double parallel eps, 0x2548fc=REAL_MAX (FLT_MAX). */
+float vector_to_line_distance_squared3d(float *p1, float *p2, float *p3,
+                                        float *p4)
+{
+  float delta_x, delta_y, delta_z;
+  float nx, ny, nz;
+  float cross_sq;
+  float d0_d1, d0_sq, d1_sq;
+  float inv;
+  float s, t;
+  float s_start, s_end, t_start, t_end;
+  float clamped_s, clamped_t;
+  float d0, d1;
+  float closest_a[3];
+  float closest_b[3];
+  float diff_x, diff_y, diff_z;
+  char s_oob, t_oob;
+
+  delta_x = p3[0] - p1[0];
+  delta_y = p3[1] - p1[1];
+  delta_z = p3[2] - p1[2];
+
+  /* n = dir_a x dir_b */
+  nx = p2[1] * p4[2] - p4[1] * p2[2];
+  ny = p2[2] * p4[0] - p2[0] * p4[2];
+  nz = p4[1] * p2[0] - p2[1] * p4[0];
+  cross_sq = nx * nx + ny * ny + nz * nz;
+
+  if (fabsf(cross_sq) < (float)*(double *)0x2533d0) {
+    /* parallel: closest-point parameters via projection + clamp-midpoint */
+    d0_d1 = p2[1] * p4[1] + p2[2] * p4[2] + p2[0] * p4[0];
+    d0_sq = p2[1] * p2[1] + p2[2] * p2[2] + p2[0] * p2[0];
+    if (d0_sq <= *(float *)0x253f44) {
+      s = *(float *)0x2533c0;
+    } else {
+      inv = *(float *)0x2533c8 / d0_sq;
+      s_start = (delta_x * p2[0] + delta_y * p2[1] + delta_z * p2[2]) * inv;
+      s_end = inv * d0_d1 + s_start;
+      clamped_s = *(float *)0x2533c0;
+      if (*(float *)0x2533c0 <= s_start) {
+        clamped_s = s_start;
+        if (*(float *)0x2533c8 < s_start)
+          clamped_s = *(float *)0x2533c8;
+      }
+      if (*(float *)0x2533c0 <= s_end) {
+        if (s_end <= *(float *)0x2533c8)
+          s = (s_end + clamped_s) * *(float *)0x253398;
+        else
+          s = (*(float *)0x2533c8 + clamped_s) * *(float *)0x253398;
+      } else {
+        s = (*(float *)0x2533c0 + clamped_s) * *(float *)0x253398;
+      }
+    }
+    d1_sq = p4[2] * p4[2] + p4[1] * p4[1] + p4[0] * p4[0];
+    if (d1_sq <= *(float *)0x253f44) {
+      t = *(float *)0x2533c0;
+    } else {
+      inv = *(float *)0x2533c8 / d1_sq;
+      t_start = -((delta_z * p4[2] + delta_x * p4[0] + delta_y * p4[1]) * inv);
+      t_end = inv * d0_d1 + t_start;
+      clamped_t = *(float *)0x2533c0;
+      if (*(float *)0x2533c0 <= t_start) {
+        clamped_t = t_start;
+        if (*(float *)0x2533c8 < t_start)
+          clamped_t = *(float *)0x2533c8;
+      }
+      if (*(float *)0x2533c0 <= t_end) {
+        if (t_end <= *(float *)0x2533c8)
+          t = (t_end + clamped_t) * *(float *)0x253398;
+        else
+          t = (*(float *)0x2533c8 + clamped_t) * *(float *)0x253398;
+      } else {
+        t = (*(float *)0x2533c0 + clamped_t) * *(float *)0x253398;
+      }
+    }
+    /* fall through to closest-point distance */
+  } else {
+    inv = *(float *)0x2533c8 / cross_sq;
+    s = (delta_y * p4[2] - delta_z * p4[1]) * nx * inv +
+        (delta_z * p4[0] - delta_x * p4[2]) * ny * inv +
+        (delta_x * p4[1] - delta_y * p4[0]) * nz * inv;
+    t = (delta_y * p2[2] - delta_z * p2[1]) * nx * inv +
+        (delta_z * p2[0] - delta_x * p2[2]) * ny * inv +
+        (delta_x * p2[1] - delta_y * p2[0]) * nz * inv;
+
+    s_oob = (s < *(float *)0x2533c0 || *(float *)0x2533c8 < s);
+    t_oob = (t < *(float *)0x2533c0 || *(float *)0x2533c8 < t);
+
+    if (s_oob || t_oob) {
+      d0 = 3.4028235e+38f; /* REAL_MAX */
+      d1 = 3.4028235e+38f;
+      if (s_oob) {
+        clamped_s = *(float *)0x2533c8;
+        if (s < *(float *)0x2533c0)
+          clamped_s = *(float *)0x2533c0;
+        closest_a[0] = clamped_s * p2[0] + p1[0];
+        closest_a[1] = clamped_s * p2[1] + p1[1];
+        closest_a[2] = clamped_s * p2[2] + p1[2];
+        d0 = FUN_0010cd40(closest_a, p3, p4);
+      }
+      if (t_oob) {
+        clamped_t = *(float *)0x2533c8;
+        if (t < *(float *)0x2533c0)
+          clamped_t = *(float *)0x2533c0;
+        closest_b[0] = clamped_t * p4[0] + p3[0];
+        closest_b[1] = clamped_t * p4[1] + p3[1];
+        closest_b[2] = clamped_t * p4[2] + p3[2];
+        /* 2nd arg is start_a (p1): decompile shows extraout_EDX, but
+         * FUN_0010cd40 preserves EDX which still holds p1 from entry. */
+        d1 = FUN_0010cd40(closest_b, p1, p2);
+      }
+      if (*(float *)0x2548fc <= d0 && *(float *)0x2548fc <= d1) {
+        display_assert("(d0 < REAL_MAX) || (d1 < REAL_MAX)",
+                       "c:\\halo\\SOURCE\\math\\real_math.c", 0x3ae, 1);
+        system_exit(-1);
+      }
+      if (d0 <= d1)
+        return d0;
+      return d1;
+    }
+  }
+
+  /* both params in [0, 1] (parallel clamped, or non-parallel in-range):
+   * sanity-assert then return the closest-point squared distance */
+  if (s < *(float *)0x2533c0 || *(float *)0x2533c8 < s) {
+    display_assert("(t0 >= 0.0f) && (t0 <= 1.0f)",
+                   "c:\\halo\\SOURCE\\math\\real_math.c", 0x3da, 1);
+    system_exit(-1);
+  }
+  if (t < *(float *)0x2533c0 || *(float *)0x2533c8 < t) {
+    display_assert("(t1 >= 0.0f) && (t1 <= 1.0f)",
+                   "c:\\halo\\SOURCE\\math\\real_math.c", 0x3db, 1);
+    system_exit(-1);
+  }
+  diff_x = (t * p4[0] + p3[0]) - (s * p2[0] + p1[0]);
+  diff_y = (t * p4[1] + p3[1]) - (s * p2[1] + p1[1]);
+  diff_z = (t * p4[2] + p3[2]) - (s * p2[2] + p1[2]);
+  return diff_x * diff_x + diff_y * diff_y + diff_z * diff_z;
+}
+
 /* 0x10d380 — Ray-sphere intersection.
  * p1=ray_origin, p2=sphere_radius, p3=sphere_center, p4=ray_direction.
  * Returns 1 if intersect, sets *out_t and *out_normal. */
@@ -2130,6 +2461,145 @@ char FUN_0010dbf0(float *p1, float *p2, float *p3, float cone_radius,
   return 1;
 }
 
+/* 0x10dcb0 — 2D segment vs pill (capsule) intersection.
+ * line_start/line_dir = segment A; pill_center/pill_dir = pill spine segment B;
+ * pill_radius = capsule radius. Returns 1 if segment A comes within pill_radius
+ * of the pill spine, else 0. 2D analog of the 3D pill-pill test above.
+ *   Parallel case (|cross| < epsilon): closest-point parameters s,t via
+ *     projection + clamp-midpoint, then one distance check.
+ *   Non-parallel case: 2D line-intersection params s,t; if both in [0,1] the
+ *     segments cross; otherwise clamp the out-of-range endpoint onto its line
+ *     and delegate to FUN_0010cc90 (point vs segment within radius).
+ * Constants: 0x2533c0=0.0f, 0x2533c8=1.0f, 0x253398=0.5f, 0x253f44=len epsilon,
+ * 0x2533d0=double cross-parallel epsilon. */
+char vector_intersects_pill2d(float *line_start, float *line_dir,
+                              float *pill_center, float *pill_dir,
+                              float pill_radius)
+{
+  float delta_x, delta_y;
+  float cross2d;
+  float d0_d1, d0_sq, d1_sq;
+  float inv;
+  float s, t;
+  float s_start, s_end, t_start, t_end;
+  float clamped_s, clamped_t;
+  float closest_a_x, closest_a_y;
+  float closest_b_x, closest_b_y;
+  float diff_x, diff_y;
+  char s_oob, t_oob;
+
+  delta_x = pill_center[0] - line_start[0];
+  delta_y = pill_center[1] - line_start[1];
+
+  /* 2D cross of the two directions */
+  cross2d = line_dir[0] * pill_dir[1] - line_dir[1] * pill_dir[0];
+
+  if (fabsf(cross2d) < (float)*(double *)0x2533d0) {
+    /* parallel or nearly parallel lines */
+    d0_d1 = line_dir[0] * pill_dir[0] + line_dir[1] * pill_dir[1];
+    d0_sq = line_dir[0] * line_dir[0] + line_dir[1] * line_dir[1];
+
+    if (d0_sq <= *(float *)0x253f44) {
+      s = *(float *)0x2533c0;
+    } else {
+      inv = *(float *)0x2533c8 / d0_sq;
+      s_start = (delta_y * line_dir[1] + delta_x * line_dir[0]) * inv;
+      s_end = inv * d0_d1 + s_start;
+
+      /* clamp s_start to [0, 1] (decompile branch shape: default 0, take
+       * value if >=0, cap at 1 if >1 — comparison directions preserved) */
+      clamped_s = *(float *)0x2533c0;
+      if (*(float *)0x2533c0 <= s_start) {
+        clamped_s = s_start;
+        if (*(float *)0x2533c8 < s_start)
+          clamped_s = *(float *)0x2533c8;
+      }
+
+      /* clamp s_end to [0, 1], average with clamped s_start */
+      if (*(float *)0x2533c0 <= s_end) {
+        if (s_end <= *(float *)0x2533c8)
+          s = (s_end + clamped_s) * *(float *)0x253398;
+        else
+          s = (*(float *)0x2533c8 + clamped_s) * *(float *)0x253398;
+      } else {
+        s = (*(float *)0x2533c0 + clamped_s) * *(float *)0x253398;
+      }
+    }
+
+    d1_sq = pill_dir[1] * pill_dir[1] + pill_dir[0] * pill_dir[0];
+
+    if (d1_sq <= *(float *)0x253f44) {
+      t = *(float *)0x2533c0;
+    } else {
+      inv = *(float *)0x2533c8 / d1_sq;
+      t_start = -((delta_y * pill_dir[1] + delta_x * pill_dir[0]) * inv);
+      t_end = inv * d0_d1 + t_start;
+
+      /* clamp t_start to [0, 1] */
+      clamped_t = *(float *)0x2533c0;
+      if (*(float *)0x2533c0 <= t_start) {
+        clamped_t = t_start;
+        if (*(float *)0x2533c8 < t_start)
+          clamped_t = *(float *)0x2533c8;
+      }
+
+      /* clamp t_end to [0, 1], average with clamped t_start */
+      if (*(float *)0x2533c0 <= t_end) {
+        if (t_end <= *(float *)0x2533c8)
+          t = (t_end + clamped_t) * *(float *)0x253398;
+        else
+          t = (*(float *)0x2533c8 + clamped_t) * *(float *)0x253398;
+      } else {
+        t = (*(float *)0x2533c0 + clamped_t) * *(float *)0x253398;
+      }
+    }
+
+    closest_a_x = s * line_dir[0] + line_start[0];
+    closest_a_y = s * line_dir[1] + line_start[1];
+    closest_b_x = t * pill_dir[0] + pill_center[0];
+    closest_b_y = t * pill_dir[1] + pill_center[1];
+    diff_x = closest_b_x - closest_a_x;
+    diff_y = closest_b_y - closest_a_y;
+    if (pill_radius * pill_radius < diff_x * diff_x + diff_y * diff_y)
+      return 0;
+    return 1;
+  }
+
+  /* non-parallel: solve the 2D line intersection */
+  inv = *(float *)0x2533c8 / cross2d;
+  s = (delta_x * pill_dir[1] - delta_y * pill_dir[0]) * inv;
+  t = (delta_x * line_dir[1] - delta_y * line_dir[0]) * inv;
+
+  s_oob = (s < *(float *)0x2533c0 || *(float *)0x2533c8 < s);
+  t_oob = (t < *(float *)0x2533c0 || *(float *)0x2533c8 < t);
+
+  if (s_oob) {
+    clamped_s = *(float *)0x2533c8;
+    if (s < *(float *)0x2533c0)
+      clamped_s = *(float *)0x2533c0;
+    closest_a_x = clamped_s * line_dir[0] + line_start[0];
+    closest_a_y = clamped_s * line_dir[1] + line_start[1];
+    if (!t_oob)
+      goto point_segment_checks;
+  } else if (!t_oob) {
+    return 1;
+  }
+
+  clamped_t = *(float *)0x2533c8;
+  if (t < *(float *)0x2533c0)
+    clamped_t = *(float *)0x2533c0;
+  closest_b_x = clamped_t * pill_dir[0] + pill_center[0];
+  closest_b_y = clamped_t * pill_dir[1] + pill_center[1];
+
+point_segment_checks:
+  if ((!s_oob ||
+       FUN_0010cc90(&closest_a_x, pill_center, pill_dir, pill_radius) == 0) &&
+      (!t_oob ||
+       FUN_0010cc90(&closest_b_x, line_start, line_dir, pill_radius) == 0))
+    return 0;
+  return 1;
+}
+
 /* vector_intersects_pill3d (0x10e040) — Test if two line segments are within a
  * given radius. Computes closest points between segments A (start_a + s*dir_a,
  * s in [0,1]) and B (start_b + t*dir_b, t in [0,1]). Returns true if distance <
@@ -2287,293 +2757,102 @@ distance_check:
   return 1;
 }
 
-/* 0x10ce10 — squared distance between two 3D line segments.
- * p1/p2 = segment A (start, dir); p3/p4 = segment B (start, dir). Returns the
- * squared distance between the closest points of the two segments.
- *   Parallel case (|dir_a x dir_b|^2 < epsilon): closest-point parameters s,t
- *     via projection + clamp-midpoint, then fall through to the distance.
- *   Non-parallel: scalar-triple-product params s,t; if either is out of [0,1]
- *     the closest approach is at an endpoint -> clamp it onto its line and take
- *     the min of point-vs-segment squared distances via FUN_0010cd40 (asserting
- *     at least one is finite); else both in [0,1] (asserted) -> fall through.
- * Constants: 0x2533c0=0.0f, 0x2533c8=1.0f, 0x253398=0.5f, 0x253f44=len eps,
- * 0x2533d0=double parallel eps, 0x2548fc=REAL_MAX (FLT_MAX). */
-float vector_to_line_distance_squared3d(float *p1, float *p2, float *p3,
-                                        float *p4)
+/* 0x10e4d0 — 2D ray vs triangle intersection (Liang-Barsky interval clip).
+ * Checks whether the parametric ray point + t*dir (t in [0,1]) passes through
+ * the 2D triangle (v0,v1,v2).  For each edge the function clips the t-interval
+ * using the sign of the edge normal relative to dir, then returns 1 if the
+ * surviving window is non-empty.
+ *
+ * point : 2-element position array [x,y]
+ * dir   : 2-element direction array [x,y]
+ * v0,v1,v2 : triangle vertices, each 2-element [x,y]
+ * Returns 1 if intersection, 0 otherwise. */
+char FUN_0010e4d0(float *point, float *dir, float *v0, float *v1, float *v2)
 {
-  float delta_x, delta_y, delta_z;
-  float nx, ny, nz;
-  float cross_sq;
-  float d0_d1, d0_sq, d1_sq;
-  float inv;
-  float s, t;
-  float s_start, s_end, t_start, t_end;
-  float clamped_s, clamped_t;
-  float d0, d1;
-  float closest_a[3];
-  float closest_b[3];
-  float diff_x, diff_y, diff_z;
-  char s_oob, t_oob;
+    float tmin, tmax;
+    float e_x, e_y, p_x, p_y, num, den, t;
 
-  delta_x = p3[0] - p1[0];
-  delta_y = p3[1] - p1[1];
-  delta_z = p3[2] - p1[2];
+    tmin = 0.0f;
+    tmax = 1.0f;
 
-  /* n = dir_a x dir_b */
-  nx = p2[1] * p4[2] - p4[1] * p2[2];
-  ny = p2[2] * p4[0] - p2[0] * p4[2];
-  nz = p4[1] * p2[0] - p2[1] * p4[0];
-  cross_sq = nx * nx + ny * ny + nz * nz;
-
-  if (fabsf(cross_sq) < (float)*(double *)0x2533d0) {
-    /* parallel: closest-point parameters via projection + clamp-midpoint */
-    d0_d1 = p2[1] * p4[1] + p2[2] * p4[2] + p2[0] * p4[0];
-    d0_sq = p2[1] * p2[1] + p2[2] * p2[2] + p2[0] * p2[0];
-    if (d0_sq <= *(float *)0x253f44) {
-      s = *(float *)0x2533c0;
+    /* Edge 1: v0 -> v1 */
+    p_x = point[0] - v0[0];
+    p_y = point[1] - v0[1];
+    e_x = v1[0] - v0[0];
+    e_y = v1[1] - v0[1];
+    num = p_x * e_y - e_x * p_y;
+    den = e_x * dir[1] - e_y * dir[0];
+    if (fabs(den) < *(double *)0x2533d0) {
+        if (num > 0.0f)
+            return 0;
     } else {
-      inv = *(float *)0x2533c8 / d0_sq;
-      s_start = (delta_x * p2[0] + delta_y * p2[1] + delta_z * p2[2]) * inv;
-      s_end = inv * d0_d1 + s_start;
-      clamped_s = *(float *)0x2533c0;
-      if (*(float *)0x2533c0 <= s_start) {
-        clamped_s = s_start;
-        if (*(float *)0x2533c8 < s_start)
-          clamped_s = *(float *)0x2533c8;
-      }
-      if (*(float *)0x2533c0 <= s_end) {
-        if (s_end <= *(float *)0x2533c8)
-          s = (s_end + clamped_s) * *(float *)0x253398;
-        else
-          s = (*(float *)0x2533c8 + clamped_s) * *(float *)0x253398;
-      } else {
-        s = (*(float *)0x2533c0 + clamped_s) * *(float *)0x253398;
-      }
+        t = num / den;
+        if (den > 0.0f) {
+            if (t > 0.0f) {
+                tmin = t;
+                if (tmin > tmax)
+                    return 0;
+            }
+        } else {
+            if (t < 1.0f) {
+                tmax = t;
+                if (tmin > tmax)
+                    return 0;
+            }
+        }
     }
-    d1_sq = p4[2] * p4[2] + p4[1] * p4[1] + p4[0] * p4[0];
-    if (d1_sq <= *(float *)0x253f44) {
-      t = *(float *)0x2533c0;
+
+    /* Edge 2: v1 -> v2 */
+    p_x = point[0] - v1[0];
+    p_y = point[1] - v1[1];
+    e_x = v2[0] - v1[0];
+    e_y = v2[1] - v1[1];
+    num = p_x * e_y - e_x * p_y;
+    den = e_x * dir[1] - e_y * dir[0];
+    if (fabs(den) < *(double *)0x2533d0) {
+        if (num > 0.0f)
+            return 0;
     } else {
-      inv = *(float *)0x2533c8 / d1_sq;
-      t_start = -((delta_z * p4[2] + delta_x * p4[0] + delta_y * p4[1]) * inv);
-      t_end = inv * d0_d1 + t_start;
-      clamped_t = *(float *)0x2533c0;
-      if (*(float *)0x2533c0 <= t_start) {
-        clamped_t = t_start;
-        if (*(float *)0x2533c8 < t_start)
-          clamped_t = *(float *)0x2533c8;
-      }
-      if (*(float *)0x2533c0 <= t_end) {
-        if (t_end <= *(float *)0x2533c8)
-          t = (t_end + clamped_t) * *(float *)0x253398;
-        else
-          t = (*(float *)0x2533c8 + clamped_t) * *(float *)0x253398;
-      } else {
-        t = (*(float *)0x2533c0 + clamped_t) * *(float *)0x253398;
-      }
+        t = num / den;
+        if (den > 0.0f) {
+            if (t > tmin) {
+                tmin = t;
+            }
+        } else {
+            if (t < tmax) {
+                tmax = t;
+            }
+        }
+        if (tmin > tmax)
+            return 0;
     }
-    /* fall through to closest-point distance */
-  } else {
-    inv = *(float *)0x2533c8 / cross_sq;
-    s = (delta_y * p4[2] - delta_z * p4[1]) * nx * inv +
-        (delta_z * p4[0] - delta_x * p4[2]) * ny * inv +
-        (delta_x * p4[1] - delta_y * p4[0]) * nz * inv;
-    t = (delta_y * p2[2] - delta_z * p2[1]) * nx * inv +
-        (delta_z * p2[0] - delta_x * p2[2]) * ny * inv +
-        (delta_x * p2[1] - delta_y * p2[0]) * nz * inv;
 
-    s_oob = (s < *(float *)0x2533c0 || *(float *)0x2533c8 < s);
-    t_oob = (t < *(float *)0x2533c0 || *(float *)0x2533c8 < t);
-
-    if (s_oob || t_oob) {
-      d0 = 3.4028235e+38f; /* REAL_MAX */
-      d1 = 3.4028235e+38f;
-      if (s_oob) {
-        clamped_s = *(float *)0x2533c8;
-        if (s < *(float *)0x2533c0)
-          clamped_s = *(float *)0x2533c0;
-        closest_a[0] = clamped_s * p2[0] + p1[0];
-        closest_a[1] = clamped_s * p2[1] + p1[1];
-        closest_a[2] = clamped_s * p2[2] + p1[2];
-        d0 = FUN_0010cd40(closest_a, p3, p4);
-      }
-      if (t_oob) {
-        clamped_t = *(float *)0x2533c8;
-        if (t < *(float *)0x2533c0)
-          clamped_t = *(float *)0x2533c0;
-        closest_b[0] = clamped_t * p4[0] + p3[0];
-        closest_b[1] = clamped_t * p4[1] + p3[1];
-        closest_b[2] = clamped_t * p4[2] + p3[2];
-        /* 2nd arg is start_a (p1): decompile shows extraout_EDX, but
-         * FUN_0010cd40 preserves EDX which still holds p1 from entry. */
-        d1 = FUN_0010cd40(closest_b, p1, p2);
-      }
-      if (*(float *)0x2548fc <= d0 && *(float *)0x2548fc <= d1) {
-        display_assert("(d0 < REAL_MAX) || (d1 < REAL_MAX)",
-                       "c:\\halo\\SOURCE\\math\\real_math.c", 0x3ae, 1);
-        system_exit(-1);
-      }
-      if (d0 <= d1)
-        return d0;
-      return d1;
-    }
-  }
-
-  /* both params in [0, 1] (parallel clamped, or non-parallel in-range):
-   * sanity-assert then return the closest-point squared distance */
-  if (s < *(float *)0x2533c0 || *(float *)0x2533c8 < s) {
-    display_assert("(t0 >= 0.0f) && (t0 <= 1.0f)",
-                   "c:\\halo\\SOURCE\\math\\real_math.c", 0x3da, 1);
-    system_exit(-1);
-  }
-  if (t < *(float *)0x2533c0 || *(float *)0x2533c8 < t) {
-    display_assert("(t1 >= 0.0f) && (t1 <= 1.0f)",
-                   "c:\\halo\\SOURCE\\math\\real_math.c", 0x3db, 1);
-    system_exit(-1);
-  }
-  diff_x = (t * p4[0] + p3[0]) - (s * p2[0] + p1[0]);
-  diff_y = (t * p4[1] + p3[1]) - (s * p2[1] + p1[1]);
-  diff_z = (t * p4[2] + p3[2]) - (s * p2[2] + p1[2]);
-  return diff_x * diff_x + diff_y * diff_y + diff_z * diff_z;
-}
-
-/* 0x10dcb0 — 2D segment vs pill (capsule) intersection.
- * line_start/line_dir = segment A; pill_center/pill_dir = pill spine segment B;
- * pill_radius = capsule radius. Returns 1 if segment A comes within pill_radius
- * of the pill spine, else 0. 2D analog of the 3D pill-pill test above.
- *   Parallel case (|cross| < epsilon): closest-point parameters s,t via
- *     projection + clamp-midpoint, then one distance check.
- *   Non-parallel case: 2D line-intersection params s,t; if both in [0,1] the
- *     segments cross; otherwise clamp the out-of-range endpoint onto its line
- *     and delegate to FUN_0010cc90 (point vs segment within radius).
- * Constants: 0x2533c0=0.0f, 0x2533c8=1.0f, 0x253398=0.5f, 0x253f44=len epsilon,
- * 0x2533d0=double cross-parallel epsilon. */
-char vector_intersects_pill2d(float *line_start, float *line_dir,
-                              float *pill_center, float *pill_dir,
-                              float pill_radius)
-{
-  float delta_x, delta_y;
-  float cross2d;
-  float d0_d1, d0_sq, d1_sq;
-  float inv;
-  float s, t;
-  float s_start, s_end, t_start, t_end;
-  float clamped_s, clamped_t;
-  float closest_a_x, closest_a_y;
-  float closest_b_x, closest_b_y;
-  float diff_x, diff_y;
-  char s_oob, t_oob;
-
-  delta_x = pill_center[0] - line_start[0];
-  delta_y = pill_center[1] - line_start[1];
-
-  /* 2D cross of the two directions */
-  cross2d = line_dir[0] * pill_dir[1] - line_dir[1] * pill_dir[0];
-
-  if (fabsf(cross2d) < (float)*(double *)0x2533d0) {
-    /* parallel or nearly parallel lines */
-    d0_d1 = line_dir[0] * pill_dir[0] + line_dir[1] * pill_dir[1];
-    d0_sq = line_dir[0] * line_dir[0] + line_dir[1] * line_dir[1];
-
-    if (d0_sq <= *(float *)0x253f44) {
-      s = *(float *)0x2533c0;
+    /* Edge 3: v2 -> v0 */
+    p_x = point[0] - v2[0];
+    p_y = point[1] - v2[1];
+    e_x = v0[0] - v2[0];
+    e_y = v0[1] - v2[1];
+    num = p_x * e_y - e_x * p_y;
+    den = e_x * dir[1] - e_y * dir[0];
+    if (fabs(den) < *(double *)0x2533d0) {
+        if (num > 0.0f)
+            return 0;
     } else {
-      inv = *(float *)0x2533c8 / d0_sq;
-      s_start = (delta_y * line_dir[1] + delta_x * line_dir[0]) * inv;
-      s_end = inv * d0_d1 + s_start;
-
-      /* clamp s_start to [0, 1] (decompile branch shape: default 0, take
-       * value if >=0, cap at 1 if >1 — comparison directions preserved) */
-      clamped_s = *(float *)0x2533c0;
-      if (*(float *)0x2533c0 <= s_start) {
-        clamped_s = s_start;
-        if (*(float *)0x2533c8 < s_start)
-          clamped_s = *(float *)0x2533c8;
-      }
-
-      /* clamp s_end to [0, 1], average with clamped s_start */
-      if (*(float *)0x2533c0 <= s_end) {
-        if (s_end <= *(float *)0x2533c8)
-          s = (s_end + clamped_s) * *(float *)0x253398;
-        else
-          s = (*(float *)0x2533c8 + clamped_s) * *(float *)0x253398;
-      } else {
-        s = (*(float *)0x2533c0 + clamped_s) * *(float *)0x253398;
-      }
+        t = num / den;
+        if (den > 0.0f) {
+            if (t > tmin) {
+                tmin = t;
+            }
+        } else {
+            if (t < tmax) {
+                tmax = t;
+            }
+        }
+        if (tmin > tmax)
+            return 0;
     }
 
-    d1_sq = pill_dir[1] * pill_dir[1] + pill_dir[0] * pill_dir[0];
-
-    if (d1_sq <= *(float *)0x253f44) {
-      t = *(float *)0x2533c0;
-    } else {
-      inv = *(float *)0x2533c8 / d1_sq;
-      t_start = -((delta_y * pill_dir[1] + delta_x * pill_dir[0]) * inv);
-      t_end = inv * d0_d1 + t_start;
-
-      /* clamp t_start to [0, 1] */
-      clamped_t = *(float *)0x2533c0;
-      if (*(float *)0x2533c0 <= t_start) {
-        clamped_t = t_start;
-        if (*(float *)0x2533c8 < t_start)
-          clamped_t = *(float *)0x2533c8;
-      }
-
-      /* clamp t_end to [0, 1], average with clamped t_start */
-      if (*(float *)0x2533c0 <= t_end) {
-        if (t_end <= *(float *)0x2533c8)
-          t = (t_end + clamped_t) * *(float *)0x253398;
-        else
-          t = (*(float *)0x2533c8 + clamped_t) * *(float *)0x253398;
-      } else {
-        t = (*(float *)0x2533c0 + clamped_t) * *(float *)0x253398;
-      }
-    }
-
-    closest_a_x = s * line_dir[0] + line_start[0];
-    closest_a_y = s * line_dir[1] + line_start[1];
-    closest_b_x = t * pill_dir[0] + pill_center[0];
-    closest_b_y = t * pill_dir[1] + pill_center[1];
-    diff_x = closest_b_x - closest_a_x;
-    diff_y = closest_b_y - closest_a_y;
-    if (pill_radius * pill_radius < diff_x * diff_x + diff_y * diff_y)
-      return 0;
     return 1;
-  }
-
-  /* non-parallel: solve the 2D line intersection */
-  inv = *(float *)0x2533c8 / cross2d;
-  s = (delta_x * pill_dir[1] - delta_y * pill_dir[0]) * inv;
-  t = (delta_x * line_dir[1] - delta_y * line_dir[0]) * inv;
-
-  s_oob = (s < *(float *)0x2533c0 || *(float *)0x2533c8 < s);
-  t_oob = (t < *(float *)0x2533c0 || *(float *)0x2533c8 < t);
-
-  if (s_oob) {
-    clamped_s = *(float *)0x2533c8;
-    if (s < *(float *)0x2533c0)
-      clamped_s = *(float *)0x2533c0;
-    closest_a_x = clamped_s * line_dir[0] + line_start[0];
-    closest_a_y = clamped_s * line_dir[1] + line_start[1];
-    if (!t_oob)
-      goto point_segment_checks;
-  } else if (!t_oob) {
-    return 1;
-  }
-
-  clamped_t = *(float *)0x2533c8;
-  if (t < *(float *)0x2533c0)
-    clamped_t = *(float *)0x2533c0;
-  closest_b_x = clamped_t * pill_dir[0] + pill_center[0];
-  closest_b_y = clamped_t * pill_dir[1] + pill_center[1];
-
-point_segment_checks:
-  if ((!s_oob ||
-       FUN_0010cc90(&closest_a_x, pill_center, pill_dir, pill_radius) == 0) &&
-      (!t_oob ||
-       FUN_0010cc90(&closest_b_x, line_start, line_dir, pill_radius) == 0))
-    return 0;
-  return 1;
 }
 
 /* 0x10e6f0 — 3D ray vs triangle intersection (Möller–Trumbore-like).
@@ -3053,6 +3332,318 @@ char FUN_0010f480(float *p1, float *p2, float *out, float *cross_out)
   return 1;
 }
 
+/* 0x10f5b0 — accelerate_to_position: advance a 1D value (*pos) and its rate
+ * (*vel) toward `target` under acceleration `accel`, capped at speed
+ * `max_speed`. Uses a critically-damped approach: when the braking speed
+ * sqrt(2*accel*|delta|) is below max_speed it is used instead, so the value
+ * decelerates to rest exactly at the target. The result is always clamped to
+ * the bounds [wrap_min, wrap_max]. When `wrap_flag` is set the axis is periodic
+ * (e.g. an angle): the shortest signed delta is taken and the integrated
+ * position is wrapped back into one period before clamping. Writes new *pos and
+ * *vel. Returns 1 when within reach this step (snapped to target/bound, *vel
+ * zeroed), 0 while still accelerating.
+ * Constants: 0x2533c0 = 0.0f, 0x253398 = 0.5f. */
+char accelerate_to_position(float *pos, float *vel, float target, float accel,
+                            float max_speed, float wrap_min, float wrap_max,
+                            char wrap_flag)
+{
+  float cur_pos;
+  float cur_vel;
+  float delta;
+  float half_range;
+  float limit;
+  float speed;
+  float brake_dist;
+  float step;
+  float step_clamped;
+  float new_pos;
+  float out_pos;
+  float max_speed_sq;
+  char result;
+
+  cur_pos = *pos;
+  cur_vel = *vel;
+  max_speed_sq = max_speed * max_speed;
+  result = 0;
+  delta = target - cur_pos;
+
+  if (wrap_flag != '\0') {
+    half_range = (wrap_max - wrap_min) * *(float *)0x253398;
+    if (delta <= half_range) {
+      if (delta < -half_range)
+        delta = (half_range + half_range) + delta;
+    } else {
+      delta = delta - (half_range + half_range);
+    }
+  }
+
+  limit = accel;
+  if (max_speed < accel)
+    limit = max_speed;
+
+  if (limit < fabsf(delta - cur_vel)) {
+    /* still accelerating toward target */
+    brake_dist = (accel + accel) * fabsf(delta);
+    speed = max_speed;
+    if (brake_dist < max_speed_sq)
+      speed = sqrtf(brake_dist);
+    if (delta < *(float *)0x2533c0)
+      speed = -speed;
+    step = speed - cur_vel;
+    step_clamped = step;
+    if (accel < fabsf(step)) {
+      step_clamped = accel;
+      if (step < *(float *)0x2533c0)
+        step_clamped = -accel;
+    }
+    cur_vel = cur_vel + step_clamped;
+    new_pos = step_clamped * *(float *)0x253398 + cur_vel + cur_pos;
+    if (wrap_flag != '\0') {
+      if (new_pos < wrap_min)
+        new_pos = (wrap_max - wrap_min) + new_pos;
+      else if (wrap_max < new_pos)
+        new_pos = new_pos - (wrap_max - wrap_min);
+    }
+    if (new_pos >= wrap_min) {
+      out_pos = new_pos;
+      if (wrap_max < new_pos)
+        out_pos = wrap_max;
+      *vel = cur_vel;
+      *pos = out_pos;
+      return result;
+    }
+    *vel = cur_vel;
+    *pos = wrap_min;
+    return result;
+  }
+
+  /* within reach: snap to target, zero velocity */
+  if (target >= wrap_min) {
+    out_pos = target;
+    if (wrap_max < target)
+      out_pos = wrap_max;
+    *vel = *(float *)0x2533c0;
+    *pos = out_pos;
+    result = 1;
+    return result;
+  }
+  *vel = *(float *)0x2533c0;
+  *pos = wrap_min;
+  result = 1;
+  return result;
+}
+
+/* 0x10f770 — angular_accelerate_to_position: rotate a unit facing vector
+ * (`facing`) toward a target unit facing (`target_facing`) using an angular
+ * velocity vector (`ang_vel`), bounded by `max_ang_speed` and `ang_accel`.
+ *
+ * ABI: cdecl, void return, 5 stack args:
+ *   facing         [EBP+0x8]  float* current facing (unit vector, updated)
+ *   target_facing  [EBP+0xC]  float* desired facing (unit vector, read-only)
+ *   ang_vel        [EBP+0x10] float* angular-velocity vector (read + written)
+ *   max_ang_speed  [EBP+0x14] float  cap on angular speed
+ *   ang_accel      [EBP+0x18] float  angular acceleration this step
+ *
+ * When both limits are <= 0 (0x10f784/0x10f794 `<=` tests) it snaps: ang_vel
+ * is set to the global reference vector *(float**)0x31fc38 and facing is set to
+ * target_facing, then returns.
+ *
+ * Otherwise it computes the dot product (cos of the angle between facing and
+ * target), clamps it to [-1, 1] via _DAT_00255e94 (lower) / _DAT_002533c8
+ * (upper = 1.0), and forms the desired angular speed:
+ *   sp = acos(cos_theta);  sp = sp*ang_accel + sp*ang_accel  (= 2*acos*accel)
+ *   speed = (sp < ang_accel*ang_accel) ? sqrt(sp) : ang_accel
+ * The rotation axis is cross(facing, target_facing), normalized in place and
+ * scaled by `speed`.  The axis is compared with the current ang_vel; if the
+ * change exceeds ang_accel the ang_vel is nudged toward the target axis by
+ * ang_accel, otherwise it snaps to the target axis (or, when speed is below
+ * _DAT_0025ac64, snaps facing to target and returns).  Finally facing is
+ * rotated about the (normalized) ang_vel by its magnitude and re-normalized.
+ *
+ * The rotation axis is cross(facing, target_facing) — verified against the
+ * disassembly FLD/FMUL/FSUBP order (each component FSTP'd immediately, no
+ * FPU-LIFO reorder).  The axis is a contiguous float[3] because it is passed
+ * by address to normalize3d (which reads v[0..2]).
+ * Constants: 0x2533c0 = 0.0f, 0x2533c8 = 1.0f. */
+void angular_accelerate_to_position(float *facing, float *target_facing,
+                                    float *ang_vel, float max_ang_speed,
+                                    float ang_accel)
+{
+  float *ref;
+  float cos_theta;
+  float speed;
+  float sp;
+  float axis[3];
+  float dx;
+  float dy;
+  float dz;
+  float mag_sq;
+  float scale;
+  float angle;
+
+  ref = *(float **)0x31fc38;
+  if (max_ang_speed <= *(float *)0x2533c0 && ang_accel <= *(float *)0x2533c0) {
+    ang_vel[0] = ref[0];
+    ang_vel[1] = ref[1];
+    ang_vel[2] = ref[2];
+    facing[0] = target_facing[0];
+    facing[1] = target_facing[1];
+    facing[2] = target_facing[2];
+    return;
+  }
+
+  /* dot(facing, target_facing), clamped to [lower, 1.0].  Term order matches
+   * the disassembly accumulation: t[2]*f[2] + f[0]*t[0] + t[1]*f[1]. */
+  cos_theta = target_facing[2] * facing[2] + facing[0] * target_facing[0] +
+              target_facing[1] * facing[1];
+  if (cos_theta < *(float *)0x00255e94) {
+    cos_theta = -1.0f;
+  } else if (*(float *)0x002533c8 < cos_theta) {
+    cos_theta = 1.0f;
+  }
+
+  /* sp = 2 * acos(cos_theta) * ang_accel.  acosf macro-expands to xbox_acosf,
+   * the faithful _CIacos-style atan2(sqrt((1+x)(1-x)), x) helper matching the
+   * original CRT callee FUN_001d94f0 at 0x1d94f0. */
+  sp = acosf(cos_theta);
+  sp = sp * ang_accel + sp * ang_accel;
+  if (sp < ang_accel * ang_accel) {
+    speed = sqrtf(sp);
+  } else {
+    speed = ang_accel;
+  }
+
+  /* axis = cross(facing, target_facing) */
+  axis[0] = target_facing[2] * facing[1] - facing[2] * target_facing[1];
+  axis[1] = facing[2] * target_facing[0] - target_facing[2] * facing[0];
+  axis[2] = facing[0] * target_facing[1] - target_facing[0] * facing[1];
+  normalize3d(axis);
+
+  /* scale axis by speed (in place), then measure distance to current ang_vel */
+  axis[0] = axis[0] * speed;
+  axis[1] = axis[1] * speed;
+  axis[2] = axis[2] * speed;
+  dx = axis[0] - ang_vel[0];
+  dy = axis[1] - ang_vel[1];
+  dz = axis[2] - ang_vel[2];
+  mag_sq = dz * dz + dy * dy + dx * dx;
+  if (max_ang_speed * max_ang_speed <= mag_sq) {
+    /* nudge ang_vel toward target axis by max_ang_speed */
+    scale = max_ang_speed / sqrtf(mag_sq);
+    ang_vel[0] = dx * scale + ang_vel[0];
+    ang_vel[1] = dy * scale + ang_vel[1];
+    ang_vel[2] = dz * scale + ang_vel[2];
+  } else {
+    if (speed < *(float *)0x0025ac64) {
+      /* essentially aligned: snap facing to target, reset ang_vel */
+      ang_vel[0] = ref[0];
+      ang_vel[1] = ref[1];
+      ang_vel[2] = ref[2];
+      facing[0] = target_facing[0];
+      facing[1] = target_facing[1];
+      facing[2] = target_facing[2];
+      return;
+    }
+    ang_vel[0] = axis[0];
+    ang_vel[1] = axis[1];
+    ang_vel[2] = axis[2];
+  }
+
+  /* rotate facing about ang_vel by its magnitude */
+  axis[0] = ang_vel[0];
+  axis[1] = ang_vel[1];
+  axis[2] = ang_vel[2];
+  angle = normalize3d(axis);
+  if (angle != *(float *)0x2533c0) {
+    rotate_vector3d_by_sincos(facing, axis, x87_fsin(angle), x87_fcos(angle));
+    normalize3d(facing);
+  }
+}
+
+/* Move point param_1 toward point param_2 by at most max_length (vector clamp).
+   Computes delta = param_2 - param_1, asks FUN_000a57b0 to clamp its length to
+   max_length; if it clamped (returns nonzero), advances param_1 by the clamped
+   delta and returns 0 (not arrived); otherwise snaps param_1 to param_2 and
+   returns 1 (arrived). */
+char FUN_0010f9b0(float *param_1, float *param_2, float max_length)
+{
+  float delta[3];
+
+  delta[0] = param_2[0] - param_1[0];
+  delta[1] = param_2[1] - param_1[1];
+  delta[2] = param_2[2] - param_1[2];
+  if (FUN_000a57b0(delta, max_length) != 0) {
+    param_1[0] = delta[0] + param_1[0];
+    param_1[1] = delta[1] + param_1[1];
+    param_1[2] = delta[2] + param_1[2];
+    return 0;
+  }
+  param_1[0] = param_2[0];
+  param_1[1] = param_2[1];
+  param_1[2] = param_2[2];
+  return 1;
+}
+
+/* 0x10fa30 — accerate_to_position3d: advance a 3D point `pos` toward a 3D
+ * target `target` by integrating a step/velocity vector `vel`, capped at
+ * `max_length` per step.
+ *
+ * ABI: char return (AL), cdecl, 5 stack args (arg4 at [EBP+0x14] is unused):
+ *   pos        [EBP+0x8]  float* current position (updated)
+ *   vel        [EBP+0xC]  float* step/velocity vector (updated by clamp helper,
+ *                         then added into pos)
+ *   target     [EBP+0x10] float* desired position (read-only; slot is reused as
+ *                         scratch for the delta magnitude by the compiler)
+ *   unused     [EBP+0x14] (dead argument — never referenced)
+ *   max_length [EBP+0x18] float  per-step distance cap
+ *
+ * delta = target - pos; mag = |delta| (normalize3d normalizes delta in place).
+ * When mag == 0 the delta is zeroed; otherwise delta is scaled by
+ * sqrt(2*mag*max_length) (a braking curve that reaches the target with zero
+ * residual speed).  FUN_0010f9b0 clamps the desired move (`vel`, `delta`,
+ * max_length): if it reports arrival AND the original distance was already 0,
+ * pos snaps to target and returns 1.  Otherwise pos += vel and returns 0.
+ *
+ * `delta` is a contiguous float[3] because its address is passed to both
+ * normalize3d and FUN_0010f9b0 (both read v[0..2]).
+ * Constant: 0x2533c0 = 0.0f. */
+char accerate_to_position3d(float *pos, float *vel, float *target, int unused,
+                            float max_length)
+{
+  float delta[3];
+  float mag;
+  float scale;
+  (void)unused;
+
+  delta[0] = target[0] - pos[0];
+  delta[1] = target[1] - pos[1];
+  delta[2] = target[2] - pos[2];
+  mag = normalize3d(delta);
+  if (mag == *(float *)0x2533c0) {
+    delta[0] = 0.0f;
+    delta[1] = 0.0f;
+    delta[2] = 0.0f;
+  } else {
+    scale = sqrtf(mag * max_length + mag * max_length);
+    delta[0] = delta[0] * scale;
+    delta[1] = delta[1] * scale;
+    delta[2] = delta[2] * scale;
+  }
+
+  if (FUN_0010f9b0(vel, delta, max_length) != 0) {
+    if (mag == *(float *)0x2533c0) {
+      pos[0] = target[0];
+      pos[1] = target[1];
+      pos[2] = target[2];
+      return 1;
+    }
+  }
+  pos[0] = pos[0] + vel[0];
+  pos[1] = vel[1] + pos[1];
+  pos[2] = vel[2] + pos[2];
+  return 0;
+}
+
 /* Quantize a float to a byte, finding the largest byte whose dequantized
  * value is <= the input value (lower bound). */
 unsigned char quantize_real_to_byte_lower_bound(float min, float max,
@@ -3408,6 +3999,72 @@ char FUN_001104e0(float *p1, float p2, float *p3, float *p4, float p5,
   return 0;
 }
 
+/* 0x110650 — FUN_00110650: 1D accelerate-toward with two modes selected by
+ * `wrap_flag`.
+ *
+ * ABI (derived from disasm): void return, 7-arg cdecl, no register params
+ * (the decompiler's __thiscall/param_1 is a misread — incoming ECX is never
+ * read before being overwritten; the prologue PUSH ECX is a 4-byte local
+ * temp at [EBP-0x4]).  The two float* are labelled neutrally (p_a=[EBP+0x8],
+ * p_b=[EBP+0xC]) because they serve different roles in the two branches;
+ * they are forwarded positionally to accelerate_to_position (0x10f5b0).
+ *   p_a       [EBP+0x8]  float*
+ *   p_b       [EBP+0xC]  float*
+ *   accel     [EBP+0x10] float
+ *   value     [EBP+0x14] float
+ *   wrap_min  [EBP+0x18] float
+ *   wrap_max  [EBP+0x1C] float
+ *   wrap_flag [EBP+0x20] char
+ *
+ * wrap_flag != 0 (the wrap branch): step = value - p_b[0], clamped in
+ * magnitude to `accel` (sign preserved).  new_pos = p_b[0] + step;
+ * acc = step*0.5 + new_pos + p_a[0].  If acc leaves [wrap_min, wrap_max] it is
+ * wrapped: acc = fmod(acc - wrap_min, wrap_max - wrap_min) - wrap_min.  Writes
+ * p_a[0] = acc and p_b[0] = new_pos.  (fmod = _CIfmod / FUN_001daf7e; compiles
+ * to the xbox_fmod FPREM1 helper.  The trailing `- wrap_min` is exactly what
+ * the disasm does — [EBP+0x18] is not clobbered.)
+ *
+ * wrap_flag == 0 (the delegate branch): target = (value >= 0) ? wrap_max :
+ * wrap_min; calls accelerate_to_position(p_a, p_b, target, accel,
+ * fabsf(value), wrap_min, wrap_max, 0).
+ * Constants: 0x2533c0 = 0.0f, 0x253398 = 0.5f. */
+void FUN_00110650(float *p_a, float *p_b, float accel, float value,
+                  float wrap_min, float wrap_max, char wrap_flag)
+{
+  float step;
+  float new_pos;
+  float acc;
+  float target;
+
+  if (wrap_flag != '\0') {
+    step = value - p_b[0];
+    if (accel < fabsf(step)) {
+      if (step < *(float *)0x2533c0)
+        step = -accel;
+      else
+        step = accel;
+    }
+    new_pos = p_b[0] + step;
+    acc = step * *(float *)0x253398 + new_pos + p_a[0];
+    if (acc < wrap_min || wrap_max < acc) {
+      /* _CIfmod (FUN_001daf7e) = C fmod = truncated remainder (x87 FPREM with
+       * the C2-reduction loop).  Use x87_fmod, NOT the fmod macro (which maps
+       * to xbox_fmod / FPREM1 = IEEE round-to-nearest remainder — wrong). */
+      acc = x87_fmod(acc - wrap_min, (double)(wrap_max - wrap_min)) - wrap_min;
+    }
+    p_a[0] = acc;
+    p_b[0] = new_pos;
+    return;
+  }
+
+  if (*(float *)0x2533c0 <= value)
+    target = wrap_max;
+  else
+    target = wrap_min;
+  accelerate_to_position(p_a, p_b, target, accel, fabsf(value), wrap_min,
+                         wrap_max, 0);
+}
+
 /* Initialize a vector tree structure (k-d tree for spatial lookups). */
 void FUN_00110730(int *param_1, short param_2, int param_3, int param_4,
                   int param_5)
@@ -3443,6 +4100,120 @@ void FUN_00110730(int *param_1, short param_2, int param_3, int param_4,
 void FUN_00110800(int param_1)
 {
   FUN_00117cf0((int *)(param_1 + 4));
+}
+
+/*
+ * 0x1108b0 — vector_tree BST search/insert.
+ *
+ * Traverses a ternary BST built on an array_new pool. Each node holds a
+ * stored value and three child indices (left/equal/right), all initialised to
+ * -1. The tree struct layout (int[]):
+ *   [0]  root index (-1 = empty)
+ *   [1+] node pool (passed to FUN_00117da0/FUN_00117ee0 as &tree[1])
+ *   [2]  free-list head  (written into the target slot before FUN_00117da0)
+ *   [4]  max component count (short, compared with (short) casts)
+ *   [5]  user_data passed to the two callbacks
+ *   [6]  fn ptr: key_of(user_data, node_value) -> key
+ *   [7]  fn ptr: compare(user_data, vector, key, count) -> <0/0/>0
+ *
+ * Control flow:
+ *   - Traverse until an empty slot (-1): allocate a new node there, return 0.
+ *   - compare < 0  -> follow left  child (node+1)
+ *   - compare > 0  -> follow right child (node+3)
+ *   - compare == 0 -> increment persistent count, re-compare with new count
+ *                     until non-zero or count reaches max: return 1 (found).
+ *                     If re-compare non-zero, follow equal/mid child (node+2).
+ *
+ * Returns 1 (found), 0 (inserted or alloc failed). *out_node receives the
+ * node pointer on found, or the new node pointer on insert, or 0 on alloc fail.
+ *
+ * The persistent outer count lives in [EBP+8] (the reused param_1 slot zeroed
+ * at entry). The inner duplicate-scan increments a separate EBX scan variable
+ * without writing back, so it does not corrupt the outer count.
+ */
+char FUN_001108b0(int *tree, int vector, int *out_node)
+{
+    int *slot;
+    int *node;
+    int key;
+    int cmp;
+    int count;
+    int scan;
+    int new_node;
+
+    if (tree == (int *)0) {
+        display_assert("tree", "c:\\halo\\SOURCE\\math\\vector_tree.c", 0x4a,
+                       1);
+        system_exit(-1);
+    }
+    if (vector == 0) {
+        display_assert("vector", "c:\\halo\\SOURCE\\math\\vector_tree.c", 0x4b,
+                       1);
+        system_exit(-1);
+    }
+    if (out_node == (int *)0) {
+        display_assert("index_reference",
+                       "c:\\halo\\SOURCE\\math\\vector_tree.c", 0x4c, 1);
+        system_exit(-1);
+    }
+
+    count = 0;
+    slot = tree; /* initially points at tree[0] = root index field */
+
+    do {
+        if (*slot == -1) {
+            /* Empty slot: insert here. Write free-list head into slot, then
+               allocate a node from the pool. */
+            *slot = tree[2];
+            new_node = FUN_00117da0(&tree[1]);
+            if (new_node != -1) {
+                new_node = FUN_00117ee0(&tree[1], new_node, 0x10);
+                ((int *)new_node)[1] = -1;
+                ((int *)new_node)[2] = -1;
+                ((int *)new_node)[3] = -1;
+                *out_node = new_node;
+                return 0;
+            }
+            *out_node = 0;
+            return 0;
+        }
+
+        /* Get pointer to current node's data block. */
+        node = (int *)FUN_00117ee0(&tree[1], *slot, 0x10);
+        key = (*(int (*)(int, int))tree[6])(tree[5], node[0]);
+        cmp = (*(int (*)(int, int, int, int))tree[7])(tree[5], vector, key,
+                                                       count);
+        if (cmp < 0) {
+            slot = node + 1; /* left child */
+        } else if (cmp > 0) {
+            slot = node + 3; /* right child */
+        } else {
+            /* Equal: increment persistent count, check against max.
+             * Both the outer-max check and inner-loop exhaustion share the
+             * same found epilogue (matches original's single LAB_1109a2).
+             */
+            count++;
+            scan = count;
+            if ((short)scan < (short)tree[4]) {
+                /* Inner duplicate scan: call comparator with increasing scan
+                   value until non-zero result or scan reaches max. */
+                do {
+                    cmp = (*(int (*)(int, int, int, int))tree[7])(
+                        tree[5], vector, key, scan);
+                    if (cmp != 0) {
+                        /* Non-zero: follow equal/mid child. */
+                        slot = node + 2;
+                        goto next_iter;
+                    }
+                    scan++;
+                } while ((short)scan < (short)tree[4]);
+            }
+            /* Scan exhausted (or count already at max): found. */
+            *out_node = (int)node;
+            return 1;
+        next_iter: ;
+        }
+    } while (1);
 }
 
 /* 0x110a10 — zlib adler32 checksum (pure integer leaf, no calls).
@@ -3530,233 +4301,56 @@ unsigned int FUN_00110a10(unsigned int param_1, unsigned char *param_2,
   return param_1 << 0x10 | uVar2;
 }
 
-/* zlib gzwrite: forwards to FUN_00110b40 with a -1 (end-of-stream) flag. */
-void FUN_00110be0(unsigned int *param_1, int *param_2, int param_3, unsigned int param_4)
+/* 0x110b40 — zlib compress2: deflate source into dest using a one-shot
+ * deflate pass.  Allocates a z_stream on the stack (0x38 bytes = 14 dwords),
+ * initialises it with deflateInit_ (FUN_001127b0), runs deflate with
+ * Z_FINISH flush, then calls deflateEnd.  On Z_STREAM_END the compressed
+ * output length is written back through destLen.
+ *
+ * Stack layout (stream base = EBP-0x38, 14-dword array):
+ *   s[0] = next_in  = source        s[1] = avail_in = sourceLen
+ *   s[3] = next_out = dest          s[4] = avail_out = *destLen (in)
+ *   s[5] = total_out (read back)    s[8..10] = zalloc/zfree/opaque = 0
+ *
+ * Return: 0 on success (deflateEnd result), -5 if deflate returned Z_OK but
+ * not Z_STREAM_END (output buffer too small), or the raw deflate/init error
+ * code.  param_5 is the compression level (e.g. -1 = Z_DEFAULT_COMPRESSION,
+ * 9 = Z_BEST_COMPRESSION) passed to deflateInit_. */
+int FUN_00110b40(void *dest, int *destLen, int source,
+                 unsigned int sourceLen, int level)
+{
+  unsigned int s[14];
+  int r;
+  int err;
+
+  s[0]  = (unsigned int)source;
+  s[1]  = sourceLen;
+  s[3]  = (unsigned int)dest;
+  s[4]  = (unsigned int)*destLen;
+  s[8]  = 0;
+  s[9]  = 0;
+  s[10] = 0;
+  err = FUN_001127b0((int)s, level, "1.1.3", 0x38);
+  if (err != 0) goto compress_init_failed;
+  r = FUN_00110ed0((void *)s, 4);
+  if (r != 1) goto compress_deflate_failed;
+  *destLen = (int)s[5];
+  return FUN_00111170((int)s);
+compress_deflate_failed:
+  FUN_00111170((int)s);
+  if (r == 0) return -5;
+  return r;
+compress_init_failed:
+  return err;
+}
+
+/* zlib compress: forwards to compress2 (FUN_00110b40) with level=-1
+   (Z_DEFAULT_COMPRESSION). */
+void FUN_00110be0(unsigned int *param_1, int *param_2, int param_3,
+                  unsigned int param_4)
 {
   FUN_00110b40(param_1, param_2, param_3, param_4, 0xffffffff);
   return;
-}
-
-/* zlib gzputs: writes the C string param_2 to stream param_1, computing its length first. */
-void FUN_00112ee0(void *param_1, const char *param_2)
-{
-  int iVar1;
-
-  iVar1 = csstrlen(param_2);
-  FUN_00112db0(param_1, (int)param_2, iVar1);
-  return;
-}
-
-/* zlib deflateInit_: forwards to deflateInit2_ (FUN_00112590) with method=8,
-   windowBits=15, memLevel=8, strategy=0. */
-void FUN_001127b0(int param_1, int param_2, char *param_3, int param_4)
-{
-  FUN_00112590(param_1, param_2, 8, 0xf, 8, 0, param_3, param_4);
-  return;
-}
-
-/* zlib gzgetc: read a single byte from stream param_1 via FUN_00112db0
-   (gzread, count=1). Returns the byte (zero-extended) on success, or -1 (EOF)
-   if the read did not yield exactly one byte. */
-unsigned int FUN_00112eb0(void *param_1, unsigned char param_2)
-{
-  unsigned char buf;
-  int n;
-
-  buf = param_2;
-  n = FUN_00112db0(param_1, (int)&buf, 1);
-  if (n == 1)
-    return (unsigned int)buf;
-  return 0xffffffff;
-}
-
-/* 0x113080 — zlib gz stream accessor: if the stream is non-null and in read
- * mode (mode byte at +0x5c == 'r'), return the field at +0x3c; else 0. */
-unsigned int FUN_00113080(int param_1)
-{
-  if (param_1 != 0 && *(char *)(param_1 + 0x5c) == 'r') {
-    return *(unsigned int *)(param_1 + 0x3c);
-  }
-  return 0;
-}
-
-/* 0x112db0 — zlib gzwrite: deflate up to len bytes from buf through the gz_stream
- * s (write mode only). Drains the deflate output via fread-fill of the input
- * buffer, updates the running crc32, and returns the number of bytes consumed
- * (len - remaining avail_in). s modelled as unsigned int* (dword fields). */
-int FUN_00112db0(void *param_1, int param_2, int param_3)
-{
-  unsigned int *s;
-  unsigned int r;
-  int n;
-
-  s = (unsigned int *)param_1;
-  if (s == 0 || *(char *)(s + 0x17) != 'w') {
-    return -2;
-  }
-  s[0] = (unsigned int)param_2;   /* stream.next_in  = buf */
-  s[1] = (unsigned int)param_3;   /* stream.avail_in = len */
-  n = param_3;
-  do {
-    if (n == 0) {
-      s[0x13] = FUN_00110c10(s[0x13], (void *)param_2, param_3);  /* crc32 */
-      return param_3 - (int)s[1];
-    }
-    if (s[4] == 0) {
-      s[3] = s[0x12];
-      r = _fread((void *)s[0x12], 1, 0x4000, (void *)s[0x10]);  /* fread */
-      if (r != 0x4000) {
-        s[0xe] = 0xffffffff;
-        s[0x13] = FUN_00110c10(s[0x13], (void *)param_2, param_3);  /* crc32 */
-        return param_3 - (int)s[1];
-      }
-      s[4] = 0x4000;
-    }
-    n = FUN_00110ed0(s, 0);   /* deflate */
-    s[0xe] = (unsigned int)n;
-    if (n != 0) {
-      s[0x13] = FUN_00110c10(s[0x13], (void *)param_2, param_3);  /* crc32 */
-      return param_3 - (int)s[1];
-    }
-    n = (int)s[1];
-  } while (1);
-}
-
-/* 0x113930 — zlib inflate_blocks_reset: reset the inflate_blocks_state param_1
- * for a fresh block stream. Optionally writes the pending byte count to the OUT
- * param param_3, releases the current decoder mode (codes/codes-with-tree), then
- * clears window pointers, mode/bytes counters, and re-seeds the running check
- * value via the stream's check function (z_stream at param_2). */
-void FUN_00113930(int s, int param_2, int last)
-{
-  int *param_1 = (int *)s;
-  int *param_3 = (int *)last;
-  int iVar1;
-
-  if (param_3 != 0) {
-    *param_3 = param_1[0xf];
-  }
-  if (param_1[0] == 4 || param_1[0] == 5) {
-    (*(void (**)(int, int))(param_2 + 0x24))(*(int *)(param_2 + 0x28), param_1[3]);
-  }
-  if (param_1[0] == 6) {
-    FUN_00114f60(param_1[1], param_2);
-  }
-  param_1[0xd] = param_1[10];
-  param_1[0xc] = param_1[10];
-  param_1[0] = 0;
-  param_1[7] = 0;
-  param_1[8] = 0;
-  if (param_1[0xe] != 0) {
-    iVar1 = ((int (*)(int, int, int))param_1[0xe])(0, 0, 0);
-    param_1[0xf] = iVar1;
-    *(int *)(param_2 + 0x30) = iVar1;
-  }
-  if (*(int *)0x320e30 > 0) {
-    crt_fprintf(*(void **)0x331070, "inflate:   blocks reset\n");
-  }
-  return;
-}
-
-/* zlib gzdopen(fd, mode): wrap an existing fd; synthesizes a "<fd:%d>" name. */
-void *FUN_001134a0(int fd, char *mode)
-{
-  char name[20];
-
-  if (fd < 0) {
-    return (void *)0;
-  }
-  crt_sprintf(name, "<fd:%d>", fd);
-  return FUN_00113230(name, fd, mode);
-}
-
-/* zlib gzseek wrapper: seek file to offset 0 with whence=1 (relative). */
-int FUN_00113910(void *file)
-{
-  return FUN_001137a0(file, 0, 1);
-}
-
-/* zlib gzread: read up to len bytes from gzFile into buf via deflate state; returns byte count or <0 on error. */
-int FUN_001127e0(int *param_1, int param_2, int param_3)
-{
-  size_t sVar1;
-
-  if ((param_1 != (int *)0) && (*(char *)((int)param_1 + 0x5c) == 'w')) {
-    if (*(int *)((int)param_1 + 0x10) == 0) {
-      *(void **)((int)param_1 + 0xc) = *(void **)((int)param_1 + 0x48);
-      sVar1 = _fread(*(void **)((int)param_1 + 0x48), 1, 0x4000,
-                           *(void **)((int)param_1 + 0x40));
-      if (sVar1 != 0x4000) {
-        *(int *)((int)param_1 + 0x38) = -1;
-      }
-      *(int *)((int)param_1 + 0x10) = 0x4000;
-    }
-    return FUN_001122e0(param_1, param_2, param_3);
-  }
-  return -2;
-}
-
-/* zlib gzprintf: vsprintf into a 4 KB stack buffer, then write strlen bytes to the gzFile. */
-int FUN_00112e50(void *param_1, const char *param_2, ...)
-{
-  char local_buf[4096];
-  int len;
-
-  vsprintf(local_buf, param_2, (char *)((char **)&param_2 + 1));
-  len = csstrlen(local_buf);
-  if (len < 1) {
-    return 0;
-  }
-  return FUN_00112db0(param_1, (int)local_buf, len);
-}
-
-/* Move point param_1 toward point param_2 by at most max_length (vector clamp).
-   Computes delta = param_2 - param_1, asks FUN_000a57b0 to clamp its length to
-   max_length; if it clamped (returns nonzero), advances param_1 by the clamped
-   delta and returns 0 (not arrived); otherwise snaps param_1 to param_2 and
-   returns 1 (arrived). */
-char FUN_0010f9b0(float *param_1, float *param_2, float max_length)
-{
-  float delta[3];
-
-  delta[0] = param_2[0] - param_1[0];
-  delta[1] = param_2[1] - param_1[1];
-  delta[2] = param_2[2] - param_1[2];
-  if (FUN_000a57b0(delta, max_length) != 0) {
-    param_1[0] = delta[0] + param_1[0];
-    param_1[1] = delta[1] + param_1[1];
-    param_1[2] = delta[2] + param_1[2];
-    return 0;
-  }
-  param_1[0] = param_2[0];
-  param_1[1] = param_2[1];
-  param_1[2] = param_2[2];
-  return 1;
-}
-
-/* zlib gzrewind: reset a gzip read-stream (param_1[0x17]/+0x5c byte == 'r') to
-   the start. Clears decode state, reinitializes crc, then either rewinds the
-   underlying FILE* (+0x40) when there is no gzip header start offset (+0x60),
-   or re-inits inflate (FUN_001153c0) and seeks to the header start. */
-int FUN_00113000(int *param_1)
-{
-  int ret;
-
-  if ((param_1 != (int *)0) && (*((char *)param_1 + 0x5c) == 'r')) {
-    param_1[0xe] = 0;
-    param_1[0xf] = 0;
-    param_1[1] = 0;
-    param_1[0] = param_1[0x11];
-    param_1[0x13] = (int)FUN_00110c10(0, (void *)0, 0);  /* crc32(0, Z_NULL, 0) */
-    if (param_1[0x18] == 0) {
-      _rewind((void *)param_1[0x10]);  /* rewind(FILE*) */
-      return 0;
-    }
-    FUN_001153c0((int)param_1);  /* inflateReset */
-    ret = _fseek((void *)param_1[0x10], param_1[0x18], 0);  /* fseek(FILE*, off, SEEK_SET) */
-    return ret;
-  }
-  return -1;
 }
 
 /* zlib crc32(crc, buf, len): accumulate a CRC-32 over a byte buffer using the
@@ -3778,14 +4372,22 @@ unsigned int FUN_00110c10(unsigned int crc, void *buf, int len)
     n8 = rem >> 3;
     do {
       rem = rem - 8;
-      crc = *(unsigned int *)(0x28ce48 + ((p[0] ^ crc) & 0xff) * 4) ^ (crc >> 8);
-      crc = *(unsigned int *)(0x28ce48 + ((p[1] ^ crc) & 0xff) * 4) ^ (crc >> 8);
-      crc = *(unsigned int *)(0x28ce48 + ((p[2] ^ crc) & 0xff) * 4) ^ (crc >> 8);
-      crc = *(unsigned int *)(0x28ce48 + ((p[3] ^ crc) & 0xff) * 4) ^ (crc >> 8);
-      crc = *(unsigned int *)(0x28ce48 + ((p[4] ^ crc) & 0xff) * 4) ^ (crc >> 8);
-      crc = *(unsigned int *)(0x28ce48 + ((p[5] ^ crc) & 0xff) * 4) ^ (crc >> 8);
-      crc = *(unsigned int *)(0x28ce48 + ((p[6] ^ crc) & 0xff) * 4) ^ (crc >> 8);
-      crc = (crc >> 8) ^ *(unsigned int *)(0x28ce48 + ((p[7] ^ crc) & 0xff) * 4);
+      crc =
+        *(unsigned int *)(0x28ce48 + ((p[0] ^ crc) & 0xff) * 4) ^ (crc >> 8);
+      crc =
+        *(unsigned int *)(0x28ce48 + ((p[1] ^ crc) & 0xff) * 4) ^ (crc >> 8);
+      crc =
+        *(unsigned int *)(0x28ce48 + ((p[2] ^ crc) & 0xff) * 4) ^ (crc >> 8);
+      crc =
+        *(unsigned int *)(0x28ce48 + ((p[3] ^ crc) & 0xff) * 4) ^ (crc >> 8);
+      crc =
+        *(unsigned int *)(0x28ce48 + ((p[4] ^ crc) & 0xff) * 4) ^ (crc >> 8);
+      crc =
+        *(unsigned int *)(0x28ce48 + ((p[5] ^ crc) & 0xff) * 4) ^ (crc >> 8);
+      crc =
+        *(unsigned int *)(0x28ce48 + ((p[6] ^ crc) & 0xff) * 4) ^ (crc >> 8);
+      crc =
+        (crc >> 8) ^ *(unsigned int *)(0x28ce48 + ((p[7] ^ crc) & 0xff) * 4);
       p = p + 8;
       n8 = n8 - 1;
     } while (n8 != 0);
@@ -3797,17 +4399,69 @@ unsigned int FUN_00110c10(unsigned int crc, void *buf, int len)
   return ~crc;
 }
 
-/* zlib gzgetc(file): read a single byte from a gzip read-stream. Reads 1 byte
-   into a stack buffer via the gzread helper (FUN_001134e0); returns the byte
-   zero-extended, or -1 on EOF/error (read count != 1). */
-unsigned int FUN_00113710(int *file)
+/* zlib read_buf + hash insertion: copy up to (window_size - MIN_LOOKAHEAD)
+   bytes from the input into the deflate window via csmemcpy, update the adler
+   checksum (FUN_00110a10), then for runs of 3+ bytes rebuild the hash chain:
+   roll the rolling hash ins_h (+0x40) over each byte and link head (+0x38) /
+   prev (+0x3c) using the window mask (+0x2c). The shift (+0x50) and hash mask
+   (+0x4c) drive the rolling hash. Returns Z_OK (0), or Z_STREAM_ERROR (-2) on
+   a bad stream. */
+int FUN_00110d40(int param_1, int param_2, unsigned int param_3)
 {
-  unsigned char c;
+  int state;
+  unsigned int more;
+  unsigned int n;
+  unsigned int count;
+  unsigned int ins_h;
 
-  if (FUN_001134e0(file, &c, 1) == 1) {
-    return (unsigned int)c;
+  if (param_1 == 0) goto stream_error_d40;
+  state = *(int *)(param_1 + 0x1c);
+  if (state == 0) goto stream_error_d40;
+  if (param_2 == 0) goto stream_error_d40;
+  if (*(int *)(state + 4) != 0x2a) goto stream_error_d40;
+
+  *(int *)(param_1 + 0x30) = (int)FUN_00110a10(
+    *(unsigned int *)(param_1 + 0x30), (unsigned char *)param_2, param_3);
+
+  if (2 < param_3) {
+    count = param_3;
+    more = *(int *)(state + 0x24) - 0x106;
+    if (more < param_3) {
+      param_2 = param_2 + (param_3 - more);
+      param_3 = more;
+      count = more;
+    }
+    csmemcpy(*(void **)(state + 0x30), (void *)param_2, param_3);
+    *(unsigned int *)(state + 0x64) = count;
+    *(unsigned int *)(state + 0x54) = count;
+
+    ins_h = (unsigned int)**(unsigned char **)(state + 0x30);
+    *(unsigned int *)(state + 0x40) = ins_h;
+    ins_h = ((ins_h << ((unsigned char)*(int *)(state + 0x50) & 0x1f)) ^
+             (unsigned int)(*(unsigned char **)(state + 0x30))[1]) &
+            *(unsigned int *)(state + 0x4c);
+    *(unsigned int *)(state + 0x40) = ins_h;
+
+    n = 0;
+    do {
+      ins_h =
+        ((unsigned int)*(unsigned char *)(*(int *)(state + 0x30) + 2 + n) ^
+         (*(int *)(state + 0x40)
+          << ((unsigned char)*(int *)(state + 0x50) & 0x1f))) &
+        *(unsigned int *)(state + 0x4c);
+      *(unsigned int *)(state + 0x40) = ins_h;
+      *(unsigned short *)(*(int *)(state + 0x38) +
+                          (*(unsigned int *)(state + 0x2c) & n) * 2) =
+        *(unsigned short *)(*(int *)(state + 0x3c) + ins_h * 2);
+      *(unsigned short *)(*(int *)(state + 0x3c) +
+                          *(unsigned int *)(state + 0x40) * 2) =
+        (unsigned short)n;
+      n = n + 1;
+    } while (n <= param_3 - 3);
   }
-  return 0xffffffff;
+  return 0;
+stream_error_d40:
+  return -2;
 }
 
 /* zlib deflateEnd(strm): tear down a deflate stream. Validates the stream and
@@ -3823,17 +4477,11 @@ int FUN_00111170(int param_1)
   int status;
   int ptr;
 
-  if (param_1 == 0) {
-    return -2;
-  }
+  if (param_1 == 0) goto z_stream_error;
   state = *(int *)(param_1 + 0x1c);
-  if (state == 0) {
-    return -2;
-  }
+  if (state == 0) goto z_stream_error;
   status = *(int *)(state + 4);
-  if (status != 0x2a && status != 0x71 && status != 0x29a) {
-    return -2;
-  }
+  if (status != 0x2a && status != 0x71 && status != 0x29a) goto z_stream_error;
 
   zfree = (void (*)(int, int)) * (void **)(param_1 + 0x24);
 
@@ -3857,192 +4505,1954 @@ int FUN_00111170(int param_1)
   *(int *)(param_1 + 0x1c) = 0;
 
   return ((status != 0x71) - 1) & 0xfffffffd;
+z_stream_error:
+  return -2;
 }
 
-/* zlib read_buf + hash insertion: copy up to (window_size - MIN_LOOKAHEAD)
-   bytes from the input into the deflate window via csmemcpy, update the adler
-   checksum (FUN_00110a10), then for runs of 3+ bytes rebuild the hash chain:
-   roll the rolling hash ins_h (+0x40) over each byte and link head (+0x38) /
-   prev (+0x3c) using the window mask (+0x2c). The shift (+0x50) and hash mask
-   (+0x4c) drive the rolling hash. Returns Z_OK (0), or Z_STREAM_ERROR (-2) on
-   a bad stream. */
-int FUN_00110d40(int param_1, int param_2, unsigned int param_3)
+/* 0x112590 — zlib deflateInit2_: allocate and initialize a deflate stream.
+ * param_1=z_stream, param_2=level(-1=>6), param_3=method(must be 8),
+ * param_4=windowBits(8..15; negative => raw deflate, |windowBits| with wrap=0),
+ * param_5=memLevel(1..9), param_6=strategy(0..2), param_7=version string,
+ * param_8=sizeof(z_stream) (must be 0x38). Validates the args and the zlib
+ * version's first char; installs the default zalloc/zfree (FUN_00117ad0 /
+ * FUN_00117b00) when the caller left them NULL; allocates the deflate_state
+ * (0x16c0 bytes) and the window/prev/head/pending buffers via the stream's
+ * zalloc callback; derives w_size/w_mask/hash_size/hash_bits/hash_mask/
+ * hash_shift/lit_bufsize and the sym buffer pointers; then defers to
+ * deflateReset (FUN_00112260). Returns the deflateReset result, or
+ * Z_STREAM_ERROR(-2) / Z_MEM_ERROR(-4) / Z_VERSION_ERROR(-6).
+ * deflate_state (s, int* index): [2]pending_buf [3]pending_buf_size [6]wrap
+ * [9]w_size [0xa]w_bits [0xb]w_mask [0xc]window [0xe]prev [0xf]head
+ * [0x11]hash_size [0x12]hash_bits [0x13]hash_mask [0x14]hash_shift [0x1f]level
+ * [0x20]strategy [0x5a4]sym_end [0x5a5]lit_bufsize [0x5a7]sym_buf; byte+0x1d=
+ * method. z_stream byte offsets: +0x18 msg, +0x1c state, +0x20 zalloc,
+ * +0x24 zfree, +0x28 opaque. Version string ptr @0x31fc70, "insufficient
+ * memory" msg ptr @0x320e20. */
+int FUN_00112590(int param_1, int param_2, int param_3, int param_4,
+                 int param_5, int param_6, char *param_7, int param_8)
 {
-  int state;
-  unsigned int more;
-  unsigned int n;
-  unsigned int count;
-  unsigned int ins_h;
+  int *s;
+  int wrap;
+  int w_size;
+  int lit_bufsize;
+  int opaque;
+  void *(*zalloc)(int, unsigned int, unsigned int);
 
-  if (param_1 == 0) {
+  if (param_7 == (char *)0 || *param_7 != **(char **)0x31fc70 || param_8 != 0x38)
+    return -6;
+  if (param_1 == 0)
     return -2;
+
+  *(int *)(param_1 + 0x18) = 0;
+  if (*(int *)(param_1 + 0x20) == 0) {
+    *(int *)(param_1 + 0x20) = (int)FUN_00117ad0;
+    *(int *)(param_1 + 0x28) = 0;
   }
-  state = *(int *)(param_1 + 0x1c);
-  if (state == 0) {
+  if (*(int *)(param_1 + 0x24) == 0)
+    *(int *)(param_1 + 0x24) = (int)FUN_00117b00;
+
+  if (param_2 == -1)
+    param_2 = 6;
+  wrap = 0;
+  if (param_4 < 0) {
+    param_4 = -param_4;
+    wrap = 1;
+  }
+  if (param_5 < 1 || param_5 > 9 || param_3 != 8 || param_4 < 8 || param_4 > 0xf ||
+      param_2 < 0 || param_2 > 9 || param_6 < 0 || param_6 > 2)
     return -2;
+
+  zalloc = *(void *(**)(int, unsigned int, unsigned int))(param_1 + 0x20);
+  opaque = *(int *)(param_1 + 0x28);
+  s = (int *)zalloc(opaque, 1, 0x16c0);
+  if (s == (int *)0)
+    return -4;
+  *(int *)(param_1 + 0x1c) = (int)s;
+  s[0xa] = param_4;
+  w_size = 1 << param_4;
+  s[6] = wrap;
+  s[0xb] = w_size - 1;
+  s[0x12] = param_5 + 7;
+  s[0] = param_1;
+  s[0x11] = 1 << (param_5 + 7);
+  s[0x13] = s[0x11] - 1;
+  s[9] = w_size;
+  s[0x14] = (unsigned int)(param_5 + 9) / 3;
+  s[0xc] = (int)zalloc(opaque, w_size, 2);
+  s[0xe] = (int)zalloc(opaque, s[9], 2);
+  s[0xf] = (int)zalloc(opaque, s[0x11], 2);
+  lit_bufsize = 1 << (param_5 + 6);
+  s[0x5a5] = lit_bufsize;
+  s[2] = (int)zalloc(opaque, lit_bufsize, 4);
+  s[3] = s[0x5a5] * 4;
+  if (s[0xc] != 0 && s[0xe] != 0 && s[0xf] != 0 && s[2] != 0) {
+    s[0x5a7] = s[2] + (int)((unsigned int)s[0x5a5] & 0xfffffffe);
+    s[0x5a4] = s[2] + s[0x5a5] * 3;
+    s[0x1f] = param_2;
+    s[0x20] = param_6;
+    *((char *)s + 0x1d) = 8;
+    return FUN_00112260(param_1);
   }
-  if (param_2 == 0) {
-    return -2;
-  }
-  if (*(int *)(state + 4) != 0x2a) {
-    return -2;
-  }
+  *(int *)(param_1 + 0x18) = *(int *)0x320e20; /* "insufficient memory" */
+  FUN_00111170(param_1);
+  return -4;
+}
 
-  *(int *)(param_1 + 0x30) =
-      (int)FUN_00110a10(*(unsigned int *)(param_1 + 0x30),
-                        (unsigned char *)param_2, param_3);
+/* zlib deflateInit_: forwards to deflateInit2_ (FUN_00112590) with method=8,
+   windowBits=15, memLevel=8, strategy=0. Returns the deflateInit2_ result
+   code (Z_OK=0 on success, negative on error). noinline prevents inlining
+   across the original TU boundary (originally a separate zlib .c file). */
+__declspec(noinline) int FUN_001127b0(int param_1, int param_2, char *param_3,
+                                      int param_4)
+{
+  return FUN_00112590(param_1, param_2, 8, 0xf, 8, 0, param_3, param_4);
+}
 
-  if (2 < param_3) {
-    count = param_3;
-    more = *(int *)(state + 0x24) - 0x106;
-    if (more < param_3) {
-      param_2 = param_2 + (param_3 - more);
-      param_3 = more;
-      count = more;
-    }
-    csmemcpy(*(void **)(state + 0x30), (void *)param_2, param_3);
-    *(unsigned int *)(state + 0x64) = count;
-    *(unsigned int *)(state + 0x54) = count;
+/* 0x111420 — zlib lm_init: initialize the deflate longest-match state for the
+ * current level (state @<esi>). Sets window_size (s+0x34) = 2*w_size (s+0x24);
+ * NIL-terminates and zeroes the hash head table (s+0x3c, hash_size s+0x44
+ * entries); loads the per-level tuning from the config table @0x28d280
+ * (max_lazy s+0x78, good_length s+0x84, nice_length s+0x88, max_chain s+0x74);
+ * and resets match bookkeeping (s+0x40 block_start, s+0x54/0x58/0x60/0x64/0x6c
+ * strstart/match_start/lookahead/prev_length/match_available, s+0x70). The
+ * config layout matches deflateParams/deflateInit2_. @<esi>-defined => VC71
+ * prologue ceiling. */
+void FUN_00111420(int s)
+{
+  int cfg;
+  unsigned int max_chain;
 
-    ins_h = (unsigned int)**(unsigned char **)(state + 0x30);
-    *(unsigned int *)(state + 0x40) = ins_h;
-    ins_h = ((ins_h << ((unsigned char)*(int *)(state + 0x50) & 0x1f)) ^
-             (unsigned int)(*(unsigned char **)(state + 0x30))[1]) &
-            *(unsigned int *)(state + 0x4c);
-    *(unsigned int *)(state + 0x40) = ins_h;
+  *(int *)(s + 0x34) = *(int *)(s + 0x24) << 1;
+  *(unsigned short *)(*(int *)(s + 0x3c) + *(int *)(s + 0x44) * 2 - 2) = 0;
+  csmemset(*(void **)(s + 0x3c), 0, *(int *)(s + 0x44) * 2 - 2);
+  cfg = *(int *)(s + 0x7c) * 0xc;
+  *(unsigned int *)(s + 0x78) = *(unsigned short *)(0x28d282 + cfg);
+  *(unsigned int *)(s + 0x84) = *(unsigned short *)(0x28d280 + cfg);
+  *(unsigned int *)(s + 0x88) = *(unsigned short *)(0x28d284 + cfg);
+  max_chain = *(unsigned short *)(0x28d286 + cfg);
+  *(int *)(s + 0x64) = 0;
+  *(int *)(s + 0x54) = 0;
+  *(int *)(s + 0x6c) = 0;
+  *(int *)(s + 0x60) = 0;
+  *(int *)(s + 0x40) = 0;
+  *(unsigned int *)(s + 0x74) = max_chain;
+  *(int *)(s + 0x70) = 2;
+  *(int *)(s + 0x58) = 2;
+}
 
-    n = 0;
+/* 0x110e40 — zlib putShortMSB: append a 16-bit value to the deflate pending
+ * buffer most-significant-byte first, as two post-increment put_byte stores
+ * (pending_buf @ state+0x8, pending count @ state+0x14). @<eax>=state =>
+ * VC71 prologue ceiling. */
+void FUN_00110e40(unsigned int byte_val /*@<ecx>*/, int state /*@<eax>*/)
+{
+  *(unsigned char *)(*(int *)(state + 8) + *(int *)(state + 0x14)) =
+      (unsigned char)(byte_val >> 8);
+  ++*(int *)(state + 0x14);
+  *(unsigned char *)(*(int *)(state + 8) + *(int *)(state + 0x14)) =
+      (unsigned char)byte_val;
+  ++*(int *)(state + 0x14);
+}
+
+/* 0x110e70 — zlib flush_pending: copy as many pending output bytes as fit into
+ * strm->next_out, capped at avail_out. strm fields: state @ +0x1c, next_out
+ * @ +0xc, avail_out @ +0x10, total_out @ +0x14; state fields: pending_buf @
+ * +0x8, pending_out @ +0x10, pending @ +0x14. Advances next_out/total_out and
+ * pending_out by len, drains avail_out/pending by len; when the buffer fully
+ * drains (pending==0) resets pending_out to pending_buf. @<eax>=strm => VC71
+ * prologue ceiling. (kb decl names the arg "state"; it is the z_streamp.) */
+void FUN_00110e70(int strm /*@<eax>*/)
+{
+  int s;
+  unsigned int len;
+
+  s = *(int *)(strm + 0x1c);                /* strm->state */
+  len = *(unsigned int *)(s + 0x14);        /* state->pending */
+  if (len > *(unsigned int *)(strm + 0x10)) /* > avail_out */
+    len = *(unsigned int *)(strm + 0x10);
+  if (len == 0)
+    return;
+  csmemcpy(*(void **)(strm + 0xc),          /* next_out (dst) */
+           *(void **)(s + 0x10),            /* pending_out (src) */
+           len);
+  *(int *)(strm + 0xc) += len;              /* next_out += len */
+  *(int *)(s + 0x10) += len;                /* pending_out += len */
+  *(int *)(strm + 0x14) += len;             /* total_out += len */
+  *(int *)(strm + 0x10) -= len;             /* avail_out -= len */
+  *(int *)(s + 0x14) -= len;                /* pending -= len */
+  s = *(int *)(strm + 0x1c);                /* reload strm->state */
+  if (*(int *)(s + 0x14) == 0)              /* pending == 0 */
+    *(int *)(s + 0x10) = *(int *)(s + 8);   /* pending_out = pending_buf */
+}
+
+/* 0x1116b0 — zlib check_match (DEBUG): verify the match the deflater found
+ * actually matches the look-ahead, and optionally dump it. Compares `length`
+ * bytes of the window (s+0x30) at offsets `match` vs `start` via csmemcmp; on
+ * mismatch it prints the offending positions and each byte pair (crt_fprintf),
+ * then asserts "invalid match" (FUN_00117a80, which halts). When z_verbose
+ * (*0x320e30) > 1 it dumps the matched run a byte at a time via fputc
+ * (FUN_001db71f). In a correct build the compare always passes, so this is an
+ * inert verification in release. ABI: length in EAX, match in ECX, start in EDX,
+ * s on the stack => VC71 prologue ceiling. */
+void FUN_001116b0(int length /*@<eax>*/, int match /*@<ecx>*/,
+                  int start /*@<edx>*/, int s)
+{
+  int window;
+
+  window = *(int *)(s + 0x30);
+  if (csmemcmp((void *)(window + match), (void *)(window + start), length) != 0) {
+    crt_fprintf((void *)0x331070, (const char *)0x28d368, start, match, length);
     do {
-      ins_h = ((unsigned int)*(unsigned char *)(*(int *)(state + 0x30) + 2 + n) ^
-               (*(int *)(state + 0x40) << ((unsigned char)*(int *)(state + 0x50) & 0x1f))) &
-              *(unsigned int *)(state + 0x4c);
-      *(unsigned int *)(state + 0x40) = ins_h;
-      *(unsigned short *)(*(int *)(state + 0x38) + (*(unsigned int *)(state + 0x2c) & n) * 2) =
-          *(unsigned short *)(*(int *)(state + 0x3c) + ins_h * 2);
-      *(unsigned short *)(*(int *)(state + 0x3c) + *(unsigned int *)(state + 0x40) * 2) =
-          (unsigned short)n;
-      n = n + 1;
-    } while (n <= param_3 - 3);
+      window = *(int *)(s + 0x30);
+      crt_fprintf((void *)0x331070, (const char *)0x28d360,
+                  (unsigned int)*(unsigned char *)(window + match),
+                  (unsigned int)*(unsigned char *)(window + start));
+      match = match + 1;
+      start = start + 1;
+      length = length - 1;
+    } while (length != 0);
+    FUN_00117a80((const char *)0x28d350);          /* assert("invalid match") */
+  }
+  if (*(int *)0x320e30 > 1) {                       /* z_verbose > 1 */
+    crt_fprintf((void *)0x331070, (const char *)0x28d344, start - match, length);
+    do {
+      window = *(int *)(s + 0x30);
+      FUN_001db71f((unsigned int)*(unsigned char *)(start + window),
+                   (void *)0x331070);              /* fputc(window[start]) */
+      start = start + 1;
+      length = length - 1;
+    } while (length != 0);
+  }
+}
+
+/* 0x110820 — bounded callback iterator (real_math.obj). For each index in
+ * [start, count) where count = *(short*)(obj+0x10), invoke the object's
+ * callback at obj+0x1c as callback(context=*(int*)(obj+0x14), param_1, passthru,
+ * index). Returns 0 the moment any callback returns nonzero, else 1 once every
+ * element passes. The loop counter is a 16-bit signed short held in a 32-bit
+ * register (MSVC short-loop codegen). ABI: start in EAX, passthru in EBX
+ * (forwarded untouched to the callback), obj in ESI, param_1 on the stack =>
+ * VC71 prologue ceiling. (Decompiler under-counts the 4-arg callback and misses
+ * the EBX passthrough; both recovered from disassembly.) */
+int FUN_00110820(int start /*@<eax>*/, int passthru /*@<ebx>*/,
+                 void *obj /*@<esi>*/, int param_1)
+{
+  int (*callback)(int, int, int, int);
+  int index;
+
+  index = start;
+  while ((short)index < *(short *)((char *)obj + 0x10)) {  /* index < count */
+    callback = *(int (**)(int, int, int, int))((char *)obj + 0x1c);
+    if (callback(*(int *)((char *)obj + 0x14), param_1, passthru, index) != 0)
+      return 0;
+    index = index + 1;
+  }
+  return 1;
+}
+
+/* 0x1114a0 — zlib longest_match(): the hash-chain match finder shared by
+ * deflate_fast/deflate_slow. Given cur_match (a hash-chain head) it walks the
+ * prev[] chain (state+0x38, masked by w_mask state+0x2c), at each candidate
+ * quick-rejecting on the bytes at best_len/best_len-1 (scan_end/scan_end1) and
+ * the first two bytes, then extending the match 8 bytes at a time up to MAX_MATCH
+ * (strend = scan + 0x102). It keeps the longest, recording match_start (state+
+ * 0x68) and best_len, stopping early at nice_match (state+0x88) or when the chain
+ * passes the window limit. chain_length starts at max_chain (state+0x74), halved
+ * when strstart >= good_match (state+0x84). Returns the best match length clamped
+ * to lookahead (state+0x6c). @<eax>=state => VC71 prologue ceiling; the built-in
+ * asserts ("Code too clever"/"need lookahead"/"no future"/"match[2]?"/"wild
+ * scan") guard the scan bounds. state offsets: window 0x30 strstart 0x64
+ * prev_length(best_len start) 0x70 max_chain 0x74 nice_match 0x88 w_size 0x24
+ * window_size 0x34 prev 0x38 w_mask 0x2c good_match 0x84 lookahead 0x6c
+ * match_start 0x68 hash_bits 0x48. */
+int FUN_001114a0(int s, int cur_match)
+{
+  char *scan;
+  char *match;
+  char *strend;
+  char *scan_init;
+  unsigned int chain_length;
+  int best_len;
+  int nice_match;
+  unsigned int limit;
+  int prev_tab;
+  unsigned int w_mask;
+  unsigned char scan_end1, scan_end;
+  int len;
+
+  chain_length = *(unsigned int *)(s + 0x74);                 /* max_chain */
+  best_len = *(int *)(s + 0x70);                              /* prev_length */
+  scan_init = (char *)(*(int *)(s + 0x30) + *(int *)(s + 0x64));  /* window + strstart */
+  scan = scan_init;
+  nice_match = *(int *)(s + 0x88);
+  if ((unsigned int)(*(int *)(s + 0x24) - 0x106) < *(unsigned int *)(s + 0x64))
+    limit = (unsigned int)(*(int *)(s + 0x64) - *(int *)(s + 0x24) + 0x106);   /* strstart - MAX_DIST */
+  else
+    limit = 0;
+  prev_tab = *(int *)(s + 0x38);
+  w_mask = *(unsigned int *)(s + 0x2c);
+  strend = scan_init + 0x102;
+  scan_end1 = (unsigned char)scan_init[best_len - 1];
+  scan_end = (unsigned char)scan_init[best_len];
+  if (*(unsigned int *)(s + 0x48) < 8)
+    FUN_00117a80((const char *)0x28d334);                     /* "Code too clever" */
+  if (*(unsigned int *)(s + 0x84) <= *(unsigned int *)(s + 0x70))   /* prev_length >= good_match */
+    chain_length >>= 2;
+  if (*(unsigned int *)(s + 0x6c) < (unsigned int)nice_match)  /* lookahead < nice_match */
+    nice_match = *(int *)(s + 0x6c);
+  if ((unsigned int)(*(int *)(s + 0x34) - 0x106) < *(unsigned int *)(s + 0x64))
+    FUN_00117a80((const char *)0x28d324);                     /* "need lookahead" */
+  do {
+    if (*(unsigned int *)(s + 0x64) <= (unsigned int)cur_match)
+      FUN_00117a80((const char *)0x28d318);                   /* "no future" */
+    match = (char *)(*(int *)(s + 0x30) + cur_match);
+    if (match[best_len] == (char)scan_end && match[best_len - 1] == (char)scan_end1 &&
+        *match == *scan_init && match[1] == scan_init[1]) {
+      scan = scan_init + 2;
+      match = match + 2;
+      if (*scan != *match)
+        FUN_00117a80((const char *)0x28d30c);                 /* "match[2]?" */
+      do {
+      } while (*++scan == *++match && *++scan == *++match &&
+               *++scan == *++match && *++scan == *++match &&
+               *++scan == *++match && *++scan == *++match &&
+               *++scan == *++match && *++scan == *++match &&
+               scan < strend);
+      if ((char *)(*(int *)(s + 0x34) - 1 + *(int *)(s + 0x30)) < scan)
+        FUN_00117a80((const char *)0x28d300);                 /* "wild scan" */
+      len = (int)(scan - strend) + 0x102;
+      scan = scan_init;
+      if (len > best_len) {
+        *(int *)(s + 0x68) = cur_match;                       /* match_start = cur_match */
+        best_len = len;
+        if (len >= nice_match)
+          break;
+        scan_end1 = (unsigned char)scan_init[len - 1];
+        scan_end = (unsigned char)scan_init[len];
+      }
+    }
+    cur_match = (int)*(unsigned short *)(prev_tab + ((unsigned int)cur_match & w_mask) * 2);
+    if ((unsigned int)cur_match <= limit)
+      break;
+    chain_length -= 1;
+  } while (chain_length != 0);
+  if ((unsigned int)best_len > *(unsigned int *)(s + 0x6c))   /* > lookahead */
+    best_len = *(int *)(s + 0x6c);
+  return best_len;
+}
+
+/* 0x111ea0 — zlib deflate_slow(): the level 4-9 block_state function (lazy
+ * matching) referenced by configuration_table[4..9].func. Each step it
+ * INSERT_STRINGs the head, shifts the current match to prev (prev_length[s+0x70]
+ * = match_length, prev_match[s+0x5c] = match_start), and runs longest_match when
+ * a candidate exists within MAX_DIST, prev_length < max_lazy and strategy !=
+ * HUFFMAN_ONLY, discarding a length-3 match that is too far (filtered/0x1000).
+ * If the PREVIOUS match was at least as good (prev_length >= MIN_MATCH &&
+ * match_length <= prev_length) it emits that match (check_match + _tr_tally(s,
+ * strstart-prev_match-1, prev_length-3)), advancing strstart over it while
+ * inserting strings up to max_insert, and clears match_available. Otherwise, if
+ * a literal was deferred (match_available[s+0x60]) it emits window[strstart-1];
+ * else it defers the current byte. _tr_tally signalling a full block triggers a
+ * FLUSH_BLOCK (_tr_flush_block + flush_pending). NOTE: unlike deflate_fast/stored
+ * this CALLs flush_pending (FUN_00110e70(s->strm)) at every site — no inline
+ * drain, so no z_stream-vs-state base hazard. The avail_out return is asymmetric:
+ * the match path only checks when bflush!=0 (FLUSH_BLOCK's own return); the
+ * literal path always checks after advancing; the defer path never checks.
+ * Returns the block_state. cdecl, s in ESI. state offsets (byte): match_length
+ * 0x58 match_start 0x68 prev_length 0x70 prev_match 0x5c match_available 0x60
+ * max_lazy 0x78 strstart 0x64 lookahead 0x6c block_start 0x54 strategy 0x80
+ * w_size 0x24 window 0x30 head 0x3c prev 0x38 ins_h 0x40 hash_mask 0x4c
+ * hash_shift 0x50 w_mask 0x2c. */
+unsigned char FUN_00111ea0(int *strm, int flush)
+{
+  int s;
+  unsigned int hash_head;
+  unsigned int h;
+  int bflush;
+  int window;
+  unsigned int prev_length;
+  unsigned int match_length;
+  int max_insert;
+
+  s = (int)strm;
+  hash_head = 0;
+  for (;;) {
+    if (*(unsigned int *)(s + 0x6c) < 0x106) {        /* lookahead < MIN_LOOKAHEAD */
+      FUN_00111770(s);                                /* fill_window(s) */
+      if (*(unsigned int *)(s + 0x6c) < 0x106 && flush == 0)
+        return 0;                                     /* need_more */
+      if (*(unsigned int *)(s + 0x6c) == 0)
+        break;
+    }
+    if (*(unsigned int *)(s + 0x6c) >= 3) {           /* INSERT_STRING(strstart) */
+      window = *(int *)(s + 0x30);
+      h = ((*(unsigned int *)(s + 0x40) << (*(unsigned char *)(s + 0x50) & 0x1f)) ^
+           *(unsigned char *)(window + *(int *)(s + 0x64) + 2)) & *(unsigned int *)(s + 0x4c);
+      *(unsigned int *)(s + 0x40) = h;
+      hash_head = *(unsigned short *)(*(int *)(s + 0x3c) + h * 2);
+      *(unsigned short *)(*(int *)(s + 0x38) +
+                          (*(unsigned int *)(s + 0x2c) & *(unsigned int *)(s + 0x64)) * 2) =
+          (unsigned short)hash_head;
+      *(unsigned short *)(*(int *)(s + 0x3c) + *(unsigned int *)(s + 0x40) * 2) =
+          (unsigned short)*(int *)(s + 0x64);
+    }
+    *(int *)(s + 0x70) = *(int *)(s + 0x58);          /* prev_length = match_length */
+    *(int *)(s + 0x5c) = *(int *)(s + 0x68);          /* prev_match = match_start */
+    *(int *)(s + 0x58) = 2;                            /* match_length = MIN_MATCH-1 */
+    if (hash_head != 0 &&
+        (unsigned int)*(int *)(s + 0x70) < (unsigned int)*(int *)(s + 0x78) &&  /* prev_length < max_lazy */
+        *(unsigned int *)(s + 0x64) - hash_head <= *(unsigned int *)(s + 0x24) - 0x106) {
+      if (*(int *)(s + 0x80) != 2)                     /* strategy != Z_HUFFMAN_ONLY */
+        *(int *)(s + 0x58) = FUN_001114a0(s, hash_head);  /* longest_match(s, cur_match) */
+      if ((unsigned int)*(int *)(s + 0x58) <= 5 &&
+          (*(int *)(s + 0x80) == 1 ||                  /* Z_FILTERED */
+           (*(int *)(s + 0x58) == 3 &&
+            (unsigned int)(*(int *)(s + 0x64) - *(int *)(s + 0x68)) > 0x1000)))
+        *(int *)(s + 0x58) = 2;                        /* drop a too-distant length-3 match */
+    }
+    prev_length = *(unsigned int *)(s + 0x70);
+    match_length = *(unsigned int *)(s + 0x58);
+    if (prev_length >= 3 && match_length <= prev_length) {
+      /* Emit the PREVIOUS match. */
+      max_insert = *(int *)(s + 0x64) + *(int *)(s + 0x6c) - 3;   /* strstart + lookahead - MIN_MATCH */
+      FUN_001116b0((int)prev_length, *(int *)(s + 0x5c),
+                   *(int *)(s + 0x64) - 1, s);          /* check_match(prev_length, prev_match, strstart-1, s) */
+      bflush = FUN_00116d10(s, *(int *)(s + 0x64) - *(int *)(s + 0x5c) - 1,
+                            (int)prev_length - 3);      /* _tr_tally(s, strstart-prev_match-1, prev_length-3) */
+      *(unsigned int *)(s + 0x6c) += 1 - prev_length;   /* lookahead -= prev_length - 1 */
+      *(int *)(s + 0x70) = (int)prev_length - 2;
+      do {
+        *(int *)(s + 0x64) += 1;                        /* strstart++ */
+        if (*(unsigned int *)(s + 0x64) <= (unsigned int)max_insert) {
+          window = *(int *)(s + 0x30);
+          h = ((*(unsigned int *)(s + 0x40) << (*(unsigned char *)(s + 0x50) & 0x1f)) ^
+               *(unsigned char *)(window + *(int *)(s + 0x64) + 2)) & *(unsigned int *)(s + 0x4c);
+          *(unsigned int *)(s + 0x40) = h;
+          hash_head = *(unsigned short *)(*(int *)(s + 0x3c) + h * 2);
+          *(unsigned short *)(*(int *)(s + 0x38) +
+                              (*(unsigned int *)(s + 0x2c) & *(unsigned int *)(s + 0x64)) * 2) =
+              (unsigned short)hash_head;
+          *(unsigned short *)(*(int *)(s + 0x3c) + *(unsigned int *)(s + 0x40) * 2) =
+              (unsigned short)*(int *)(s + 0x64);
+        }
+        *(int *)(s + 0x70) -= 1;
+      } while (*(int *)(s + 0x70) != 0);
+      *(int *)(s + 0x60) = 0;                           /* match_available = 0 */
+      *(int *)(s + 0x58) = 2;                           /* match_length = MIN_MATCH-1 */
+      *(int *)(s + 0x64) += 1;                          /* strstart++ */
+      if (bflush != 0) {
+        FUN_001177c0(s, *(int *)(s + 0x54) < 0 ? 0 : *(int *)(s + 0x30) + *(int *)(s + 0x54),
+                     *(int *)(s + 0x64) - *(int *)(s + 0x54), 0);
+        *(int *)(s + 0x54) = *(int *)(s + 0x64);
+        FUN_00110e70(*(int *)s);                        /* flush_pending(s->strm) */
+        if (*(int *)0x320e30 > 0)
+          crt_fprintf((void *)0x331070, (const char *)0x28d394);
+        if (*(unsigned int *)(*(int *)s + 0x10) == 0)   /* avail_out == 0 */
+          return 0;
+      }
+    } else if (*(int *)(s + 0x60) != 0) {               /* match_available: emit deferred literal */
+      if (*(int *)0x320e30 > 1) {
+        window = *(int *)(s + 0x30);
+        crt_fprintf((void *)0x331070, (const char *)0x28d3b8,
+                    (unsigned int)*(unsigned char *)(*(int *)(s + 0x64) + window - 1));
+      }
+      window = *(int *)(s + 0x30);
+      bflush = FUN_00116d10(s, 0,
+                            (int)(unsigned int)*(unsigned char *)(*(int *)(s + 0x64) + window - 1));
+      if (bflush != 0) {
+        FUN_001177c0(s, *(int *)(s + 0x54) < 0 ? 0 : *(int *)(s + 0x30) + *(int *)(s + 0x54),
+                     *(int *)(s + 0x64) - *(int *)(s + 0x54), 0);
+        *(int *)(s + 0x54) = *(int *)(s + 0x64);
+        FUN_00110e70(*(int *)s);
+        if (*(int *)0x320e30 > 0)
+          crt_fprintf((void *)0x331070, (const char *)0x28d394);
+      }
+      *(int *)(s + 0x64) += 1;                          /* strstart++ */
+      *(int *)(s + 0x6c) -= 1;                          /* lookahead-- */
+      if (*(unsigned int *)(*(int *)s + 0x10) == 0)     /* avail_out == 0 */
+        return 0;
+    } else {
+      *(int *)(s + 0x60) = 1;                           /* match_available = 1 (defer) */
+      *(int *)(s + 0x64) += 1;                          /* strstart++ */
+      *(int *)(s + 0x6c) -= 1;                          /* lookahead-- */
+    }
+  }
+  /* lookahead == 0: final flush. */
+  if (flush == 0)
+    FUN_00117a80((const char *)0x28d3bc);               /* assert("no flush?") */
+  if (*(int *)(s + 0x60) != 0) {                        /* emit the last deferred literal */
+    if (*(int *)0x320e30 > 1) {
+      window = *(int *)(s + 0x30);
+      crt_fprintf((void *)0x331070, (const char *)0x28d3b8,
+                  (unsigned int)*(unsigned char *)(*(int *)(s + 0x64) + window - 1));
+    }
+    window = *(int *)(s + 0x30);
+    FUN_00116d10(s, 0, (int)(unsigned int)*(unsigned char *)(*(int *)(s + 0x64) + window - 1));
+    *(int *)(s + 0x60) = 0;
+  }
+  FUN_001177c0(s, *(int *)(s + 0x54) < 0 ? 0 : *(int *)(s + 0x30) + *(int *)(s + 0x54),
+               *(int *)(s + 0x64) - *(int *)(s + 0x54), flush == 4);
+  *(int *)(s + 0x54) = *(int *)(s + 0x64);
+  FUN_00110e70(*(int *)s);                              /* flush_pending(s->strm) */
+  if (*(int *)0x320e30 > 0)
+    crt_fprintf((void *)0x331070, (const char *)0x28d394);
+  if (*(unsigned int *)(*(int *)s + 0x10) == 0)         /* avail_out == 0 */
+    return (unsigned char)(flush == 4 ? 2 : 0);
+  return (unsigned char)(flush == 4 ? 3 : 1);
+}
+
+/* 0x111ba0 — zlib deflate_fast(): the level 1-3 block_state function referenced
+ * by configuration_table[1..3].func. Greedy matching: for each position it
+ * INSERT_STRINGs the head into the hash chains, runs longest_match (FUN_001114a0,
+ * s in EAX) when a candidate exists within MAX_DIST and strategy != HUFFMAN_ONLY,
+ * then either emits a match (>= MIN_MATCH: check_match + _tr_tally(s, dist,
+ * len-3), advancing strstart over the match while inserting strings until
+ * max_insert) or a single literal (_tr_tally(s, 0, byte)). When _tr_tally signals
+ * a full block it FLUSH_BLOCKs (_tr_flush_block + inline flush_pending). The
+ * terminal flush (lookahead==0) emits the remaining block with last=(flush==
+ * Z_FINISH). Returns the block_state (need_more=0/block_done=1/finish_started=2/
+ * finish_done=3). cdecl, s in ESI. NOTE: the inline flush_pending operates on the
+ * z_stream (z = s->strm = *(int*)s), NOT the deflate_state base — z fields
+ * next_out[z+0xc]/avail_out[z+0x10]/total_out[z+0x14], state(=z->state) fields
+ * pending[state+0x14]/pending_out[state+0x10]/pending_buf[state+8]. state offsets
+ * (int*): strm[0] w_mask[0x2c] window[0x30] head[0x3c] prev[0x38] ins_h[0x40]
+ * hash_mask[0x4c] hash_shift[0x50] block_start[0x54] match_length[0x58] strstart
+ * [0x64] match_start[0x68] lookahead[0x6c] max_insert[0x78] w_size[0x24]
+ * strategy[0x80]. */
+unsigned char FUN_00111ba0(int *strm, int flush)
+{
+  int s;
+  int z;                 /* s->strm (z_stream) */
+  int state;             /* z->state (== s) */
+  unsigned int len;      /* inline flush_pending drain */
+  unsigned int hash_head;
+  int bflush;
+  int window;
+  unsigned int match_length;
+  unsigned int h;
+
+  s = (int)strm;
+  hash_head = 0;
+  for (;;) {
+    if (*(unsigned int *)(s + 0x6c) < 0x106) {        /* lookahead < MIN_LOOKAHEAD */
+      FUN_00111770(s);                                /* fill_window(s) */
+      if (*(unsigned int *)(s + 0x6c) < 0x106 && flush == 0)
+        return 0;                                     /* need_more */
+      if (*(unsigned int *)(s + 0x6c) == 0)           /* lookahead == 0 */
+        break;
+    }
+    /* INSERT_STRING(strstart): hash the 3 bytes at strstart. */
+    if (*(unsigned int *)(s + 0x6c) >= 3) {           /* lookahead >= MIN_MATCH */
+      window = *(int *)(s + 0x30);
+      h = ((*(unsigned int *)(s + 0x40) << (*(unsigned char *)(s + 0x50) & 0x1f)) ^
+           *(unsigned char *)(window + *(int *)(s + 0x64) + 2)) &
+          *(unsigned int *)(s + 0x4c);
+      *(unsigned int *)(s + 0x40) = h;                /* ins_h */
+      hash_head = *(unsigned short *)(*(int *)(s + 0x3c) + h * 2);  /* head[ins_h] */
+      *(unsigned short *)(*(int *)(s + 0x38) +
+                          (*(unsigned int *)(s + 0x2c) & *(unsigned int *)(s + 0x64)) * 2) =
+          (unsigned short)hash_head;                  /* prev[strstart & w_mask] = head[ins_h] */
+      *(unsigned short *)(*(int *)(s + 0x3c) + *(unsigned int *)(s + 0x40) * 2) =
+          (unsigned short)*(int *)(s + 0x64);         /* head[ins_h] = strstart */
+    }
+    if (hash_head != 0 &&
+        *(unsigned int *)(s + 0x64) - hash_head <= *(unsigned int *)(s + 0x24) - 0x106 &&
+        *(int *)(s + 0x80) != 2) {                    /* strategy != Z_HUFFMAN_ONLY */
+      *(int *)(s + 0x58) = FUN_001114a0(s, hash_head); /* match_length = longest_match(s, cur_match) */
+    }
+    match_length = *(unsigned int *)(s + 0x58);
+    if (match_length >= 3) {                          /* MIN_MATCH */
+      FUN_001116b0((int)match_length, *(int *)(s + 0x68),
+                   *(int *)(s + 0x64), s);            /* check_match(len, match_start, strstart, s) */
+      bflush = FUN_00116d10(s, *(int *)(s + 0x64) - *(int *)(s + 0x68),
+                            (int)match_length - 3);   /* _tr_tally(s, dist, len-MIN_MATCH) */
+      *(unsigned int *)(s + 0x6c) -= match_length;    /* lookahead -= match_length */
+      if (match_length <= (unsigned int)*(int *)(s + 0x78) &&  /* <= max_insert */
+          *(unsigned int *)(s + 0x6c) >= 3) {          /* lookahead >= MIN_MATCH */
+        *(int *)(s + 0x58) = (int)match_length - 1;
+        do {                                          /* insert the matched substrings */
+          *(int *)(s + 0x64) += 1;                    /* strstart++ */
+          window = *(int *)(s + 0x30);
+          h = ((*(unsigned int *)(s + 0x40) << (*(unsigned char *)(s + 0x50) & 0x1f)) ^
+               *(unsigned char *)(window + *(int *)(s + 0x64) + 2)) &
+              *(unsigned int *)(s + 0x4c);
+          *(unsigned int *)(s + 0x40) = h;
+          hash_head = *(unsigned short *)(*(int *)(s + 0x3c) + h * 2);
+          *(unsigned short *)(*(int *)(s + 0x38) +
+                              (*(unsigned int *)(s + 0x64) & *(unsigned int *)(s + 0x2c)) * 2) =
+              (unsigned short)hash_head;
+          *(unsigned short *)(*(int *)(s + 0x3c) + *(unsigned int *)(s + 0x40) * 2) =
+              (unsigned short)*(int *)(s + 0x64);
+          *(int *)(s + 0x58) -= 1;
+        } while (*(int *)(s + 0x58) != 0);
+        *(int *)(s + 0x64) += 1;                       /* strstart++ */
+      } else {
+        *(int *)(s + 0x64) += match_length;            /* strstart += match_length */
+        window = *(int *)(s + 0x30) + *(int *)(s + 0x64);
+        *(int *)(s + 0x58) = 0;                         /* match_length = 0 */
+        h = *(unsigned char *)window;
+        *(unsigned int *)(s + 0x40) = h;
+        *(unsigned int *)(s + 0x40) =
+            ((h << (*(unsigned char *)(s + 0x50) & 0x1f)) ^
+             *(unsigned char *)(window + 1)) & *(unsigned int *)(s + 0x4c);
+      }
+    } else {
+      /* Emit a single literal. */
+      if (*(int *)0x320e30 > 1) {                      /* z_verbose > 1 */
+        window = *(int *)(s + 0x30);
+        crt_fprintf((void *)0x331070, (const char *)0x28d3b8,
+                    (unsigned int)*(unsigned char *)(*(int *)(s + 0x64) + window));
+      }
+      window = *(int *)(s + 0x30);
+      bflush = FUN_00116d10(s, 0,
+                            (int)(unsigned int)*(unsigned char *)(*(int *)(s + 0x64) + window));
+      *(unsigned int *)(s + 0x6c) -= 1;                /* lookahead-- */
+      *(int *)(s + 0x64) += 1;                         /* strstart++ */
+    }
+    if (bflush != 0) {
+      /* FLUSH_BLOCK(s, 0). */
+      FUN_001177c0(s,
+                   *(int *)(s + 0x54) < 0 ? 0 : *(int *)(s + 0x30) + *(int *)(s + 0x54),
+                   *(int *)(s + 0x64) - *(int *)(s + 0x54), 0);
+      *(int *)(s + 0x54) = *(int *)(s + 0x64);          /* block_start = strstart */
+      z = *(int *)s;                                    /* s->strm (z_stream) */
+      state = *(int *)(z + 0x1c);                       /* strm->state */
+      len = *(unsigned int *)(state + 0x14);            /* pending */
+      if (len > *(unsigned int *)(z + 0x10))            /* > avail_out */
+        len = *(unsigned int *)(z + 0x10);
+      if (len != 0) {
+        csmemcpy(*(void **)(z + 0xc), *(void **)(state + 0x10), len);
+        *(int *)(z + 0xc) += len;                       /* next_out += len */
+        *(int *)(state + 0x10) += len;                  /* pending_out += len */
+        *(int *)(z + 0x14) += len;                      /* total_out += len */
+        *(int *)(z + 0x10) -= len;                      /* avail_out -= len */
+        *(int *)(state + 0x14) -= len;                  /* pending -= len */
+        state = *(int *)(z + 0x1c);
+        if (*(int *)(state + 0x14) == 0)
+          *(int *)(state + 0x10) = *(int *)(state + 8);
+      }
+      if (*(int *)0x320e30 > 0)                         /* z_verbose > 0 */
+        crt_fprintf((void *)0x331070, (const char *)0x28d394);
+      if (*(unsigned int *)(z + 0x10) == 0)             /* avail_out == 0 */
+        return 0;                                       /* need_more */
+    }
+  }
+  /* lookahead == 0: final flush. */
+  FUN_001177c0(s,
+               *(int *)(s + 0x54) < 0 ? 0 : *(int *)(s + 0x30) + *(int *)(s + 0x54),
+               *(int *)(s + 0x64) - *(int *)(s + 0x54),
+               flush == 4);                             /* last = (flush == Z_FINISH) */
+  *(int *)(s + 0x54) = *(int *)(s + 0x64);             /* block_start = strstart */
+  z = *(int *)s;                                        /* s->strm */
+  FUN_00110e70(z);                                     /* flush_pending(s->strm) */
+  if (*(int *)0x320e30 > 0)
+    crt_fprintf((void *)0x331070, (const char *)0x28d394);
+  if (*(unsigned int *)(z + 0x10) == 0)                /* avail_out == 0 */
+    return (unsigned char)(flush == 4 ? 2 : 0);        /* finish_started : need_more */
+  return (unsigned char)(flush == 4 ? 3 : 1);          /* finish_done : block_done */
+}
+
+/* 0x111910 — zlib deflate_stored(): the level-0 "store" block_state function
+ * referenced by configuration_table[0].func. Copies input straight through with
+ * no compression, emitting stored blocks. Loop: ensure >1 byte of lookahead
+ * (fill_window, FUN_00111770), assert the slide guards, advance strstart by the
+ * whole lookahead, and flush a stored block whenever strstart reaches the next
+ * max_block boundary (FLUSH_BLOCK at max_start) or once strstart-block_start has
+ * built up MAX_DIST worth of data (second FLUSH_BLOCK). The terminal flush (when
+ * lookahead hits 0) emits the remaining block, last = (flush == Z_FINISH).
+ *
+ * FLUSH_BLOCK expands to _tr_flush_block (FUN_001177c0) + flush_pending. To match
+ * the original codegen exactly, the two in-loop FLUSH_BLOCK sites INLINE
+ * flush_pending (the csmemcpy drain, identical to FUN_00110e70's body), while the
+ * terminal flush CALLS FUN_00110e70. The stored-block source pointer is NULL when
+ * block_start < 0 (signed test), else window + block_start.
+ *
+ * Signedness recovered from disasm branch flavors: block_start is signed long
+ * (jge/jl at 111948/11196a and the null-buf jl); max_block_size, max_start,
+ * strstart, lookahead, w_size are all unsigned (jnc/jc/ja). The two return
+ * idioms (need_more=0 / finish_started=2; block_done=1 / finish_done=3) are
+ * chosen so MSVC lowers the `flush == Z_FINISH ? ... : ...` ternaries to the
+ * branchless `dec eax; and eax,2` / `lea [eax+eax+1]` sequences.
+ *
+ * z_streamp(strm) fields: next_out[0xc] avail_out[0x10] total_out[0x14]
+ * state[0x1c]. deflate_state(s) fields: pending_buf_size[0xc] window[0x30]
+ * block_start[0x54] strstart[0x64] lookahead[0x6c] w_size[0x24]; and within
+ * strm->state: pending_buf[8] pending_out[0x10] pending[0x14]. cdecl, s in ESI,
+ * flush at [EBP+0xc]; returns the block_state byte in AL. */
+unsigned char FUN_00111910(int *strm, int flush)
+{
+  int s;                       /* deflate_state* (s in ESI)        */
+  int z;                       /* s->strm (z_stream) = *(int*)s    */
+  unsigned int max_block_size; /* ulg: min(0xffff, pending_buf_size-5) */
+  unsigned int max_start;      /* ulg: block_start + max_block_size    */
+  int state;                   /* strm->state (deflate internal state) */
+  unsigned int len;            /* inline flush_pending drain length    */
+
+  s = (int)strm;
+
+  /* max_block_size = MIN(pending_buf_size - 5, 0xffff); */
+  max_block_size = *(unsigned int *)(s + 0xc) - 5;
+  if (max_block_size > 0xffff)
+    max_block_size = 0xffff;
+
+  /* Copy as much input as possible into the window and flush. */
+  for (;;) {
+    /* Fill the window if we're nearly empty. */
+    if (*(unsigned int *)(s + 0x6c) <= 1) {        /* lookahead <= 1 */
+      /* assert(strstart < 2*w_size - MIN_LOOKAHEAD || block_start >= w_size,
+       *        "slide too late"); */
+      if (*(unsigned int *)(s + 0x64) >=             /* strstart >= */
+              2 * *(unsigned int *)(s + 0x24) - 0x106 &&  /* 2*w_size - 0x106 */
+          *(long *)(s + 0x54) < *(long *)(s + 0x24))      /* block_start < w_size */
+        FUN_00117a80((const char *)0x28d3a8);            /* "slide too late" */
+
+      FUN_00111770(s);                                /* fill_window(s) */
+      if (*(unsigned int *)(s + 0x6c) == 0)           /* lookahead == 0 */
+        break;
+    }
+    /* assert(block_start >= 0L, "block gone"); */
+    if (*(long *)(s + 0x54) < 0)
+      FUN_00117a80((const char *)0x28d39c);            /* "block gone" */
+
+    /* strstart += lookahead;  lookahead = 0; */
+    *(unsigned int *)(s + 0x64) += *(unsigned int *)(s + 0x6c);
+    *(unsigned int *)(s + 0x6c) = 0;
+
+    /* Emit a stored block whenever strstart reaches the next block boundary. */
+    max_start = (unsigned int)*(long *)(s + 0x54) + max_block_size;
+    if (*(unsigned int *)(s + 0x64) == 0 ||           /* strstart == 0 */
+        *(unsigned int *)(s + 0x64) >= max_start) {    /* || strstart >= max_start */
+      /* strstart left at the boundary; the rest becomes lookahead. */
+      *(unsigned int *)(s + 0x6c) =                    /* lookahead = */
+          *(unsigned int *)(s + 0x64) - max_start;     /*   strstart - max_start */
+      *(unsigned int *)(s + 0x64) = max_start;         /* strstart = max_start */
+
+      /* FLUSH_BLOCK(s, 0): _tr_flush_block + inline flush_pending. */
+      FUN_001177c0(s,
+                   *(long *)(s + 0x54) < 0
+                       ? 0
+                       : *(int *)(s + 0x30) + *(long *)(s + 0x54), /* window+block_start */
+                   max_start - (unsigned int)*(long *)(s + 0x54),  /* len */
+                   0);
+      *(int *)(s + 0x54) = *(int *)(s + 0x64);         /* block_start = strstart */
+
+      /* inline flush_pending(s->strm) */
+      z = *(int *)s;                                    /* s->strm (z_stream) */
+      state = *(int *)(z + 0x1c);                       /* strm->state */
+      len = *(unsigned int *)(state + 0x14);            /* pending */
+      if (len > *(unsigned int *)(z + 0x10))            /* > avail_out */
+        len = *(unsigned int *)(z + 0x10);
+      if (len != 0) {
+        csmemcpy(*(void **)(z + 0xc), *(void **)(state + 0x10), len);
+        *(int *)(z + 0xc) += len;                       /* next_out += len */
+        *(int *)(state + 0x10) += len;                  /* pending_out += len */
+        *(int *)(z + 0x14) += len;                      /* total_out += len */
+        *(int *)(z + 0x10) -= len;                      /* avail_out -= len */
+        *(int *)(state + 0x14) -= len;                  /* pending -= len */
+        state = *(int *)(z + 0x1c);
+        if (*(int *)(state + 0x14) == 0)                /* pending == 0 */
+          *(int *)(state + 0x10) = *(int *)(state + 8); /* pending_out = pending_buf */
+      }
+      if (*(int *)0x320e30 > 0)                         /* z_verbose > 0 */
+        crt_fprintf((void *)0x331070, (const char *)0x28d394); /* "[FLUSH]" */
+
+      if (*(unsigned int *)(z + 0x10) == 0)             /* avail_out == 0 */
+        return 0;                                       /* need_more */
+    }
+
+    /* Flush if we have enough buffered for a useful stored block. */
+    if (*(unsigned int *)(s + 0x64) - (unsigned int)*(long *)(s + 0x54)
+        >= *(unsigned int *)(s + 0x24) - 0x106) {       /* >= w_size - MAX_DIST */
+      /* FLUSH_BLOCK(s, 0): _tr_flush_block + inline flush_pending. */
+      FUN_001177c0(s,
+                   *(long *)(s + 0x54) < 0
+                       ? 0
+                       : *(int *)(s + 0x30) + *(long *)(s + 0x54),
+                   *(unsigned int *)(s + 0x64) - (unsigned int)*(long *)(s + 0x54),
+                   0);
+      *(int *)(s + 0x54) = *(int *)(s + 0x64);          /* block_start = strstart */
+
+      /* inline flush_pending(s->strm) */
+      z = *(int *)s;                                    /* s->strm (z_stream) */
+      state = *(int *)(z + 0x1c);                       /* strm->state */
+      len = *(unsigned int *)(state + 0x14);            /* pending */
+      if (len > *(unsigned int *)(z + 0x10))            /* > avail_out */
+        len = *(unsigned int *)(z + 0x10);
+      if (len != 0) {
+        csmemcpy(*(void **)(z + 0xc), *(void **)(state + 0x10), len);
+        *(int *)(z + 0xc) += len;                       /* next_out += len */
+        *(int *)(state + 0x10) += len;                  /* pending_out += len */
+        *(int *)(z + 0x14) += len;                      /* total_out += len */
+        *(int *)(z + 0x10) -= len;                      /* avail_out -= len */
+        *(int *)(state + 0x14) -= len;                  /* pending -= len */
+        state = *(int *)(z + 0x1c);
+        if (*(int *)(state + 0x14) == 0)                /* pending == 0 */
+          *(int *)(state + 0x10) = *(int *)(state + 8); /* pending_out = pending_buf */
+      }
+      if (*(int *)0x320e30 > 0)
+        crt_fprintf((void *)0x331070, (const char *)0x28d394); /* "[FLUSH]" */
+
+      if (*(unsigned int *)(z + 0x10) == 0)             /* avail_out == 0 */
+        return 0;                                       /* need_more */
+    }
+  }
+
+  /* lookahead == 0: emit the final block if there is anything to flush. */
+  if (flush == 0)                                       /* Z_NO_FLUSH */
+    return 0;                                           /* need_more */
+
+  /* FLUSH_BLOCK_ONLY(s, flush == Z_FINISH): _tr_flush_block, then a real
+   * flush_pending call (NOT inlined here). */
+  FUN_001177c0(s,
+               *(long *)(s + 0x54) < 0
+                   ? 0
+                   : *(int *)(s + 0x30) + *(long *)(s + 0x54),
+               *(unsigned int *)(s + 0x64) - (unsigned int)*(long *)(s + 0x54),
+               flush == 4);                             /* last = (flush == Z_FINISH) */
+  *(int *)(s + 0x54) = *(int *)(s + 0x64);             /* block_start = strstart */
+  z = *(int *)s;                                        /* s->strm (z_stream) */
+  FUN_00110e70(z);                                     /* flush_pending(s->strm) */
+
+  if (*(int *)0x320e30 > 0)                             /* z_verbose > 0 */
+    crt_fprintf((void *)0x331070, (const char *)0x28d394); /* "[FLUSH]" */
+
+  if (*(unsigned int *)(z + 0x10) == 0)                 /* avail_out == 0 */
+    return (unsigned char)(flush == 4 ? 2 : 0);         /* finish_started : need_more */
+  return (unsigned char)(flush == 4 ? 3 : 1);           /* finish_done : block_done */
+}
+
+/* 0x110ed0 — zlib deflate(): the compression driver/state machine. Validates
+ * the stream + flush (0..4); errors with Z_STREAM_ERROR(-2)/Z_BUF_ERROR(-5).
+ * On INIT_STATE writes the 2-byte zlib header (round-to-multiple-of-31, with
+ * PRESET_DICT bit + preset-dictionary adler when strstart!=0) and sets BUSY.
+ * Drains pending output (flush_pending). Then, when there is input/lookahead or
+ * a non-zero flush outside FINISH, runs configuration_table[level].func(s,flush)
+ * and acts on its block_state: need_more/finish_started -> Z_OK (last_flush=-1
+ * if output is full); block_done -> _tr_align (PARTIAL) or _tr_stored_block +
+ * optional hash clear (FULL), then flush. On Z_FINISH writes the adler32 trailer
+ * (unless noheader) and returns Z_STREAM_END once fully flushed. strm fields:
+ * next_in[0]/avail_in[1]/next_out[3]/avail_out[4]/msg[6]/state[7]/adler[0xc];
+ * state fields: strm[0]/status[1]/pending[5]/noheader[6]/last_flush[8]/w_bits
+ * [0xa]/head[0xf]/hash_size[0x11]/strstart[0x19]/lookahead[0x1b]/level[0x1f]. */
+int FUN_00110ed0(void *strm, int flush)
+{
+  int *z;
+  int *s;
+  int old_flush;
+  int bstate;
+  unsigned int header;
+  int level_flags;
+  int (*deflate_func)(int *, int);
+
+  z = (int *)strm;
+  if (z == (int *)0 || (s = *(int **)(z + 7)) == (int *)0 ||
+      flush > 4 || flush < 0)
+    return -2;                                  /* Z_STREAM_ERROR */
+  if (z[3] == 0 || (z[0] == 0 && z[1] != 0) ||
+      (s[1] == 0x29a && flush != 4)) {          /* FINISH_STATE && !Z_FINISH */
+    z[6] = *(int *)0x320e18;                     /* msg = "stream error" */
+    return -2;
+  }
+  if (z[4] == 0) {                              /* avail_out == 0 */
+    z[6] = *(int *)0x320e24;                     /* msg = "buffer error" */
+    return -5;                                  /* Z_BUF_ERROR */
+  }
+
+  old_flush = s[8];                             /* save last_flush */
+  s[0] = (int)z;                                /* s->strm = strm */
+  s[8] = flush;                                 /* s->last_flush = flush */
+
+  /* Write the zlib header. */
+  if (s[1] == 0x2a) {                           /* INIT_STATE */
+    header = (unsigned int)(((s[0xa] - 8) << 12) + 0x800); /* (Z_DEFLATED|((w_bits-8)<<4))<<8 */
+    level_flags = (s[0x1f] - 1) >> 1;
+    if ((unsigned int)level_flags > 3)
+      level_flags = 3;
+    header |= (unsigned int)(level_flags << 6);
+    if (s[0x19] != 0)                           /* strstart != 0 */
+      header |= 0x20;                           /* PRESET_DICT */
+    header += 31 - header % 31;
+    s[1] = 0x71;                                /* BUSY_STATE */
+    FUN_00110e40(header, (int)s);               /* putShortMSB(s, header) */
+    if (s[0x19] != 0) {                         /* preset dictionary adler32 */
+      FUN_00110e40((unsigned int)*(unsigned short *)((char *)z + 0x32), (int)s);
+      FUN_00110e40((unsigned int)z[0xc] & 0xffff, (int)s);
+    }
+    z[0xc] = 1;                                 /* strm->adler = 1 */
+  }
+
+  /* Flush as much pending output as possible. */
+  if (s[5] != 0) {                              /* s->pending != 0 */
+    FUN_00110e70((int)z);                       /* flush_pending(strm) */
+    if (z[4] == 0) {                            /* avail_out == 0 */
+      s[8] = -1;                                /* last_flush = -1 */
+      return 0;                                 /* Z_OK */
+    }
+  } else if (z[1] == 0 && flush <= old_flush && flush != 4) {
+    z[6] = *(int *)0x320e24;                     /* "buffer error" */
+    return -5;
+  }
+
+  /* No more input is allowed after the first Z_FINISH. */
+  if (s[1] == 0x29a && z[1] != 0) {             /* FINISH_STATE && avail_in != 0 */
+    z[6] = *(int *)0x320e24;
+    return -5;
+  }
+
+  /* Start a new block or continue the current one. */
+  if (z[1] != 0 || s[0x1b] != 0 || (flush != 0 && s[1] != 0x29a)) {
+    deflate_func = *(int (**)(int *, int))(0x28d288 + s[0x1f] * 0xc);
+    bstate = deflate_func(s, flush);            /* configuration_table[level].func */
+    if (bstate == 2 || bstate == 3)             /* finish_started / finish_done */
+      s[1] = 0x29a;                             /* FINISH_STATE */
+    if (bstate == 0 || bstate == 2) {           /* need_more / finish_started */
+      if (z[4] == 0)                            /* avail_out == 0 */
+        s[8] = -1;                              /* last_flush = -1 */
+      return 0;                                 /* Z_OK */
+    }
+    if (bstate == 1) {                          /* block_done */
+      if (flush == 1) {                         /* Z_PARTIAL_FLUSH */
+        FUN_001176f0((int)s);                   /* _tr_align(s) */
+      } else {                                  /* FULL_FLUSH or SYNC_FLUSH */
+        FUN_001176a0((int)s, (unsigned char *)0, 0, 0); /* _tr_stored_block(s,0,0,0) */
+        if (flush == 3) {                       /* Z_FULL_FLUSH: clear hash */
+          *(unsigned short *)(s[0xf] + s[0x11] * 2 - 2) = 0;
+          csmemset((void *)s[0xf], 0, s[0x11] * 2 - 2);
+        }
+      }
+      FUN_00110e70((int)z);                     /* flush_pending(strm) */
+      if (z[4] == 0) {                          /* avail_out == 0 */
+        s[8] = -1;                              /* last_flush = -1 */
+        return 0;
+      }
+    }
+  }
+  /* Assert(strm->avail_out > 0, "bug2") */
+  if (z[4] == 0)
+    FUN_00117a80((const char *)0x28d2f8);
+  if (flush != 4)                               /* != Z_FINISH */
+    return 0;                                   /* Z_OK */
+  if (s[6] != 0)                                /* noheader != 0: raw deflate, no trailer */
+    return 1;                                   /* Z_STREAM_END */
+  /* Write the gzip/zlib adler32 trailer. */
+  FUN_00110e40((unsigned int)*(unsigned short *)((char *)z + 0x32), (int)s); /* adler>>16 */
+  FUN_00110e40((unsigned int)z[0xc] & 0xffff, (int)s);                       /* adler&0xffff */
+  FUN_00110e70((int)z);                         /* flush_pending(strm) */
+  s[6] = -1;                                    /* noheader = -1 */
+  return (s[5] == 0);                           /* pending==0 ? Z_STREAM_END(1) : Z_OK(0) */
+}
+
+/* 0x1113c0 — zlib read_buf: copy up to `size` bytes from the stream input
+ * (strm->next_in, strm[0]) into `buf`, capping at strm->avail_in (strm[1]).
+ * Returns the byte count copied (0 if avail_in==0). When state->wrap (state at
+ * strm+0x1c, wrap at +0x18) is zero the running checksum strm->adler (strm+0x30)
+ * is folded over the copied bytes via FUN_00110a10 (adler32). Then advances
+ * avail_in (-=len), total_in (strm+8 +=len) and next_in (+=len). ABI: strm in
+ * EDI, size in ECX, buf pushed on the stack => VC71 prologue ceiling. */
+unsigned int FUN_001113c0(int strm /*@<edi>*/, unsigned int size /*@<ecx>*/,
+                          void *buf)
+{
+  int *s;
+  unsigned int len;
+
+  s = (int *)strm;
+  len = (unsigned int)s[1];          /* avail_in */
+  if (len > size)
+    len = size;
+  if (len == 0)
+    return 0;
+  s[1] -= len;                       /* avail_in -= len */
+  if (*(int *)(s[7] + 0x18) == 0)    /* state->wrap == 0 */
+    s[0xc] = (int)FUN_00110a10((unsigned int)s[0xc],
+                               (unsigned char *)s[0], len);
+  csmemcpy(buf, (void *)s[0], len);  /* next_in -> buf */
+  s[2] += len;                       /* total_in += len */
+  s[0] += len;                       /* next_in += len */
+  return len;
+}
+
+/* 0x112260 — zlib deflateReset: reset a deflate stream so a fresh compression
+ * can begin on the same allocated state. Validates strm + state (strm+0x1c) +
+ * zalloc/zfree (strm+0x20/0x24), else Z_STREAM_ERROR(-2). Clears total_out
+ * (strm+0x14), total_in (strm+0x8) and msg (strm+0x18); sets data_type
+ * (strm+0x2c)=Z_UNKNOWN(2) and adler (strm+0x30)=1. Resets the deflate_state:
+ * pending_out (s+0x10)=pending_buf (s+0x8), pending (s+0x14)=0, normalizes wrap
+ * (s+0x18 = |wrap|), status (s+0x4) = wrap ? 0x71 : INIT_STATE(0x2a), last_flush
+ * (s+0x20)=0; then _tr_init (FUN_00117250) and lm_init (FUN_00111420 @<esi>=
+ * state). Returns Z_OK(0). */
+int FUN_00112260(int strm)
+{
+  int s;
+
+  if (strm == 0 || (s = *(int *)(strm + 0x1c)) == 0 ||
+      *(int *)(strm + 0x20) == 0 || *(int *)(strm + 0x24) == 0)
+    return -2;
+  *(int *)(strm + 0x14) = 0;
+  *(int *)(strm + 8) = 0;
+  *(int *)(strm + 0x18) = 0;
+  *(int *)(strm + 0x2c) = 2;
+  *(int *)(s + 0x10) = *(int *)(s + 8);
+  *(int *)(s + 0x14) = 0;
+  if (*(int *)(s + 0x18) < 0)
+    *(int *)(s + 0x18) = 0;
+  *(int *)(s + 4) = (-(int)(*(int *)(s + 0x18) != 0) & 0x47) + 0x2a;
+  *(int *)(strm + 0x30) = 1;
+  *(int *)(s + 0x20) = 0;
+  FUN_00117250(s);
+  FUN_00111420(s);
+  return 0;
+}
+
+/* 0x1122e0 — zlib deflateParams: dynamically change the deflate compression
+ * level (level; -1 => default 6, valid 0..9) and strategy (0..2) on stream
+ * `strm`. If the new level selects a different deflate function than the active
+ * one (configuration_table[level].func) and input has been consumed, the
+ * current block is flushed first — writing the zlib header if still in
+ * INIT_STATE (status 0x2a) — via configuration_table[s->level].func(s, Z_BLOCK).
+ * Then level/strategy and the good_length/max_lazy/nice_length/max_chain tuning
+ * are updated from the config table. Returns Z_OK(0), Z_STREAM_ERROR(-2) or
+ * Z_BUF_ERROR(-5).
+ *   z_stream: [0]next_in [1]avail_in [2]total_in [3]next_out [4]avail_out
+ *   [6]msg [7]state [0xc]adler ; deflate_state s: [0]strm [1]status [5]pending
+ *   [8]last_flush [0xa]w_bits [0x19]wrap/dict [0x1b]high_water flag [0x1d]
+ *   max_chain [0x1e]max_lazy [0x1f]level [0x20]strategy [0x21]good_length
+ *   [0x22]nice_length. config table @0x28d280: { ush good_length, max_lazy,
+ *   nice_length, max_chain; func } (12 B/entry). Callees: FUN_00110e40 =
+ *   putShortMSB(@<ecx>=val, @<eax>=s); FUN_00110e70 = flush_pending(@<eax>=strm);
+ *   FUN_001176f0 = _tr_align; FUN_00117a80 = trace/assert(msg). */
+int FUN_001122e0(int *strm, int level, int strategy)
+{
+  int *s;
+  int err;
+  int old_last_flush;
+  int level_off;
+  unsigned int header;
+  int level_flags;
+  int bstate;
+  int need_assert;
+  int (*deflate_func)(int *, int);
+
+  err = 0;
+  if (strm == (int *)0 || (s = (int *)strm[7]) == (int *)0)
+    return -2;
+  if (level == -1)
+    level = 6;
+  else if (level < 0 || level > 9)
+    return -2;
+  if (strategy < 0 || strategy > 2)
+    return -2;
+
+  level_off = level * 0xc;
+  if (*(void **)(0x28d288 + s[0x1f] * 0xc) == *(void **)(0x28d288 + level_off) ||
+      strm[2] == 0)
+    goto set_params;
+
+  if (strm[3] == 0 || (*strm == 0 && strm[1] != 0) || s[1] == 0x29a) {
+    err = -2;
+    strm[6] = *(int *)0x320e18; /* "stream error" */
+    goto set_params;
+  }
+  if (strm[4] == 0) {
+    strm[6] = *(int *)0x320e24; /* "buffer error" */
+    err = -5;
+    goto set_params;
+  }
+
+  old_last_flush = s[8];
+  s[0] = (int)strm;
+  s[8] = 1;
+  if (s[1] == 0x2a) { /* INIT_STATE: emit the zlib header */
+    s[1] = 0x71;      /* BUSY_STATE */
+    header = (unsigned int)(((s[0xa] - 8) << 0xc) + 0x800);
+    level_flags = (s[0x1f] - 1) >> 1;
+    if ((unsigned int)level_flags > 3)
+      level_flags = 3;
+    header |= (unsigned int)(level_flags << 6);
+    if (s[0x19] != 0)
+      header |= 0x20; /* PRESET_DICT */
+    header += 0x1f - header % 0x1f;
+    FUN_00110e40(header, (int)s);
+    if (s[0x19] != 0) {
+      FUN_00110e40((unsigned int)*(unsigned short *)((int)strm + 0x32), (int)s);
+      FUN_00110e40((unsigned int)(strm[0xc] & 0xffff), (int)s);
+    }
+    strm[0xc] = 1;
+  }
+
+  if (s[5] != 0) { /* pending output: flush it */
+    FUN_00110e70((int)strm);
+    if (strm[4] == 0) {
+      s[8] = -1;
+      err = 0;
+      goto set_params;
+    }
+  } else if (strm[1] == 0 && old_last_flush >= 1) {
+    err = -5;
+    strm[6] = *(int *)0x320e24;
+    goto set_params;
+  }
+
+  if (s[1] == 0x29a) {
+    if (strm[1] != 0) {
+      strm[6] = *(int *)0x320e24;
+      err = -5;
+      goto set_params;
+    }
+    if (s[0x1b] == 0 && s[1] == 0x29a)
+      goto need_more;
+  } else if (strm[1] == 0) {
+    if (s[0x1b] == 0 && s[1] == 0x29a)
+      goto need_more;
+  }
+
+  deflate_func = *(int (**)(int *, int))(0x28d288 + s[0x1f] * 0xc);
+  bstate = deflate_func(s, 1);
+  if (bstate == 2 || bstate == 3)
+    s[1] = 0x29a;
+  if (bstate == 0 || bstate == 2) {
+    if (strm[4] == 0)
+      s[8] = -1;
+    err = 0;
+    goto set_params;
+  }
+  if (bstate != 1)
+    goto need_more;
+  FUN_001176f0((int)s);
+  FUN_00110e70((int)strm);
+  if (strm[4] == 0) {
+    s[8] = -1;
+    err = 0;
+    goto set_params;
+  }
+  need_assert = 0;
+  goto after_block;
+
+need_more:
+  need_assert = 1;
+after_block:
+  if (need_assert && strm[4] == 0)
+    FUN_00117a80((const char *)0x28d2f8);
+  err = 0;
+
+set_params:
+  if (s[0x1f] != level) {
+    s[0x1f] = level;
+    s[0x1e] = (int)*(unsigned short *)(0x28d282 + level_off);
+    s[0x21] = (int)*(unsigned short *)(0x28d280 + level_off);
+    s[0x22] = (int)*(unsigned short *)(0x28d284 + level_off);
+    s[0x1d] = (int)*(unsigned short *)(0x28d286 + level_off);
+  }
+  s[0x20] = strategy;
+  return err;
+}
+
+/* zlib gzread: read up to len bytes from gzFile into buf via deflate state;
+ * returns byte count or <0 on error. */
+int FUN_001127e0(int *param_1, int param_2, int param_3)
+{
+  size_t sVar1;
+
+  if ((param_1 != (int *)0) && (*(char *)((int)param_1 + 0x5c) == 'w')) {
+    if (*(int *)((int)param_1 + 0x10) == 0) {
+      *(void **)((int)param_1 + 0xc) = *(void **)((int)param_1 + 0x48);
+      sVar1 = _fread(*(void **)((int)param_1 + 0x48), 1, 0x4000,
+                           *(void **)((int)param_1 + 0x40));
+      if (sVar1 != 0x4000) {
+        *(int *)((int)param_1 + 0x38) = -1;
+      }
+      *(int *)((int)param_1 + 0x10) = 0x4000;
+    }
+    return FUN_001122e0(param_1, param_2, param_3);
+  }
+  return -2;
+}
+
+/* 0x112db0 — zlib gzwrite: deflate up to len bytes from buf through the
+ * gz_stream s (write mode only). Drains the deflate output via fread-fill of
+ * the input buffer, updates the running crc32, and returns the number of bytes
+ * consumed (len - remaining avail_in). s modelled as unsigned int* (dword
+ * fields). */
+int FUN_00112db0(void *param_1, int param_2, int param_3)
+{
+  unsigned int *s;
+  unsigned int r;
+  int n;
+
+  s = (unsigned int *)param_1;
+  if (s == 0 || *(char *)(s + 0x17) != 'w') {
+    return -2;
+  }
+  s[0] = (unsigned int)param_2; /* stream.next_in  = buf */
+  s[1] = (unsigned int)param_3; /* stream.avail_in = len */
+  n = param_3;
+  do {
+    if (n == 0) {
+      s[0x13] = FUN_00110c10(s[0x13], (void *)param_2, param_3); /* crc32 */
+      return param_3 - (int)s[1];
+    }
+    if (s[4] == 0) {
+      s[3] = s[0x12];
+      r = _fread((void *)s[0x12], 1, 0x4000, (void *)s[0x10]); /* fread */
+      if (r != 0x4000) {
+        s[0xe] = 0xffffffff;
+        s[0x13] = FUN_00110c10(s[0x13], (void *)param_2, param_3); /* crc32 */
+        return param_3 - (int)s[1];
+      }
+      s[4] = 0x4000;
+    }
+    n = FUN_00110ed0(s, 0); /* deflate */
+    s[0xe] = (unsigned int)n;
+    if (n != 0) {
+      s[0x13] = FUN_00110c10(s[0x13], (void *)param_2, param_3); /* crc32 */
+      return param_3 - (int)s[1];
+    }
+    n = (int)s[1];
+  } while (1);
+}
+
+/* zlib gzprintf: vsprintf into a 4 KB stack buffer, then write strlen bytes to
+ * the gzFile. */
+int FUN_00112e50(void *param_1, const char *param_2, ...)
+{
+  char local_buf[4096];
+  int len;
+
+  vsprintf(local_buf, param_2, (char *)((char **)&param_2 + 1));
+  len = csstrlen(local_buf);
+  if (len < 1) {
+    return 0;
+  }
+  return FUN_00112db0(param_1, (int)local_buf, len);
+}
+
+/* zlib gzgetc: read a single byte from stream param_1 via FUN_00112db0
+   (gzread, count=1). Returns the byte (zero-extended) on success, or -1 (EOF)
+   if the read did not yield exactly one byte. */
+unsigned int FUN_00112eb0(void *param_1, unsigned char param_2)
+{
+  unsigned char buf;
+  int n;
+
+  buf = param_2;
+  n = FUN_00112db0(param_1, (int)&buf, 1);
+  if (n == 1)
+    return (unsigned int)buf;
+  return 0xffffffff;
+}
+
+/* zlib gzputs: writes the C string param_2 to stream param_1, computing its
+ * length first. */
+void FUN_00112ee0(void *param_1, const char *param_2)
+{
+  int iVar1;
+
+  iVar1 = csstrlen(param_2);
+  FUN_00112db0(param_1, (int)param_2, iVar1);
+  return;
+}
+
+/* 0x112cd0 — zlib gzio gz_destroy: tear down a gz stream (gz @<esi>). Frees the
+ * inflate/deflate workspace (gz+0x50); ends the deflate (write mode 'w' ->
+ * FUN_00111170 deflateEnd) or inflate (read mode 'r' -> FUN_00115430
+ * inflateEnd) engine when a state (gz+0x1c) exists; closes the backing FILE*
+ * (gz+0x40) via crt_fclose, treating a failed close whose errno != ENOENT(0x1d)
+ * as err=-1; if z_err (gz+0x38) is negative it overrides err; frees the input
+ * and output buffers (gz+0x44, gz+0x48), the path string (gz+0x54), and finally
+ * the gz struct itself — all via debug_free(ptr, gzio.c, line). Returns the
+ * accumulated error code, or Z_STREAM_ERROR(-2) for a NULL gz.
+ * @<esi>-defined => VC71 cannot reproduce the ESI-receiving prologue. */
+int FUN_00112cd0(int gz)
+{
+  int err;
+
+  err = 0;
+  if (gz == 0)
+    return -2;
+  if (*(int *)(gz + 0x50) != 0)
+    debug_free(*(void **)(gz + 0x50),
+               "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x143);
+  if (*(int *)(gz + 0x1c) != 0) {
+    if (*(char *)(gz + 0x5c) == 'w')
+      err = FUN_00111170(gz);
+    else if (*(char *)(gz + 0x5c) == 'r')
+      err = FUN_00115430(gz);
+  }
+  if (*(void **)(gz + 0x40) != (void *)0 &&
+      crt_fclose(*(void **)(gz + 0x40)) != 0 && *(int *)FUN_001db777() != 0x1d)
+    err = -1;
+  if (*(int *)(gz + 0x38) < 0)
+    err = *(int *)(gz + 0x38);
+  if (*(int *)(gz + 0x44) != 0)
+    debug_free(*(void **)(gz + 0x44),
+               "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x158);
+  if (*(int *)(gz + 0x48) != 0)
+    debug_free(*(void **)(gz + 0x48),
+               "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x159);
+  if (*(int *)(gz + 0x54) != 0)
+    debug_free(*(void **)(gz + 0x54),
+               "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x15a);
+  debug_free((void *)gz, "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x15b);
+  return err;
+}
+
+/* 0x112850 — zlib gzio get_byte: read the next raw byte from a gzip read-stream
+ * (gz @<esi>). Returns -1 when z_eof (gz+0x3c) is already set. When the input
+ * buffer is empty (count gz+0x4 == 0), clears errno (FUN_001db777) and refills
+ * up to 0x4000 bytes via fread (FUN_001db3f7) from the FILE* (gz+0x40) into the
+ * input buffer (gz+0x44); on a zero read sets z_eof (gz+0x3c=1) and, if the
+ * FILE error flag (*(FILE+0xc) & 0x20) is set, z_err (gz+0x38=-1), then returns
+ * -1; otherwise resets the read pointer (gz+0) to the buffer start. Consumes
+ * and returns one byte, advancing gz+0 and decrementing the count.
+ * @<esi>-defined: VC71 cannot reproduce the ESI-receiving prologue (structural
+ * ceiling). Callees: FUN_001db777=_errno (returns int*), FUN_001db3f7=fread. */
+unsigned int FUN_00112850(int gz)
+{
+  unsigned int n;
+  unsigned char b;
+
+  if (*(int *)(gz + 0x3c) != 0)
+    return 0xffffffff;
+  if (*(int *)(gz + 4) == 0) {
+    *(int *)FUN_001db777() = 0;
+    n = FUN_001db3f7(*(void **)(gz + 0x44), 1, 0x4000, *(void **)(gz + 0x40));
+    *(int *)(gz + 4) = n;
+    if (n == 0) {
+      *(int *)(gz + 0x3c) = 1;
+      if ((*(unsigned char *)(*(int *)(gz + 0x40) + 0xc) & 0x20) != 0)
+        *(int *)(gz + 0x38) = -1;
+      return 0xffffffff;
+    }
+    *(int *)gz = *(int *)(gz + 0x44);
+  }
+  *(int *)(gz + 4) = *(int *)(gz + 4) - 1;
+  b = **(unsigned char **)gz;
+  *(int *)gz = *(int *)gz + 1;
+  return (unsigned int)b;
+}
+
+/* 0x112f00 — zlib gz_flush internal: deflate-and-write buffered data for a
+ * gzip write-stream (gz @<eax>, gz+0x5c=='w'). Loops draining the deflate
+ * output: when the output buffer (gz+0x48, gz+0x10 = bytes left) has data,
+ * writes it to the FILE* (gz+0x40) via FUN_001db2b3 (=_fread thunk; the gzio
+ * read/write CRT entry), resetting gz+0xc/gz+0x10; then runs one deflate step
+ * FUN_00110ed0((z_stream*)gz, flush) storing z_err at gz+0x38, treating a
+ * Z_BUF_ERROR(-5) with no pending output as Z_OK. Continues while z_err is
+ * Z_OK(0) or Z_STREAM_END(1) and not yet `done` (done set once output drains
+ * and z_err != Z_STREAM_END). Returns z_err, mapping Z_STREAM_END(1) to 0
+ * (the SBB idiom `-(z_err!=1) & z_err`), or Z_STREAM_ERROR(-2)/IO-error(-1).
+ * Note: @<eax>-defined, so VC71 cannot reproduce the reg-receiving prologue —
+ * a structural ceiling; correctness verified vs disasm. */
+unsigned int FUN_00112f00(int gz, int flush)
+{
+  int done;
+  unsigned int n;
+
+  done = 0;
+  if (gz == 0 || *(char *)(gz + 0x5c) != 'w')
+    return 0xfffffffe;
+  *(int *)(gz + 4) = 0;
+  do {
+    n = 0x4000 - *(int *)(gz + 0x10);
+    if (n != 0) {
+      if (_fread(*(void **)(gz + 0x48), 1, n, *(void **)(gz + 0x40)) != n) {
+        *(int *)(gz + 0x38) = -1;
+        return 0xffffffff;
+      }
+      *(int *)(gz + 0xc) = *(int *)(gz + 0x48);
+      *(int *)(gz + 0x10) = 0x4000;
+    }
+    if (done)
+      break;
+    *(int *)(gz + 0x38) = FUN_00110ed0((void *)gz, flush);
+    if (n == 0 && *(int *)(gz + 0x38) == -5)
+      *(int *)(gz + 0x38) = n;
+    if (*(int *)(gz + 0x10) == 0 && *(int *)(gz + 0x38) != 1)
+      done = 0;
+    else
+      done = 1;
+  } while (*(int *)(gz + 0x38) == 0 || *(int *)(gz + 0x38) == 1);
+  return -(unsigned int)(*(unsigned int *)(gz + 0x38) != 1) &
+         *(unsigned int *)(gz + 0x38);
+}
+
+/* zlib gzflush: flush a gzip write-stream (+0x5c == 'w'). Calls FUN_00112f00
+   (@eax=gz, flush) to deflate+write buffered data; if it succeeds (returns 0),
+   flushes the underlying FILE* and returns gz+0x38 (z_err) — but maps z_err==1
+   (Z_STREAM_END) to 0, leaving any other error code unchanged. */
+unsigned int FUN_00112fc0(int gz, int flush)
+{
+  unsigned int uVar1;
+
+  uVar1 = FUN_00112f00(gz, flush);
+  if (uVar1 == 0) {
+    crt_fflush(*(void **)(gz + 0x40));
+    uVar1 = *(unsigned int *)(gz + 0x38);
+    uVar1 = (uVar1 != 1u ? 0xffffffffu : 0u) & uVar1;
+  }
+  return uVar1;
+}
+
+/* 0x1130a0 — zlib gzio putLong: write a 32-bit value little-endian to a FILE*
+ * (value @<eax>, file @<ebx>) as four putc (FUN_001db6c7) calls, LSB first.
+ * @<eax>/@<ebx>-defined => VC71 cannot reproduce the reg-receiving prologue
+ * (structural ceiling). */
+void FUN_001130a0(unsigned int value, void *file)
+{
+  int i;
+
+  i = 4;
+  do {
+    _fputc((int)(value & 0xff), file);
+    value = value >> 8;
+    i = i - 1;
+  } while (i != 0);
+}
+
+/* 0x1130d0 — zlib gzio get_long: read a little-endian 32-bit value from a gzip
+ * read-stream (gz @<eax>) as four get_byte (FUN_00112850) reads, LSB first. If
+ * the final (MSB) byte returns EOF (-1), sets z_err (gz+0x38) = Z_DATA_ERROR
+ * (-3). Returns b0 | b1<<8 | b2<<16 | b3<<24. @<eax>-defined => VC71 cannot
+ * reproduce the EAX-receiving prologue (structural ceiling). */
+int FUN_001130d0(int gz)
+{
+  int b0, b1, b2, b3;
+
+  b0 = FUN_00112850(gz);
+  b1 = FUN_00112850(gz);
+  b2 = FUN_00112850(gz);
+  b3 = FUN_00112850(gz);
+  if (b3 == -1)
+    *(int *)(gz + 0x38) = 0xfffffffd;
+  return b0 + (b1 << 8) + (b2 << 0x10) + (b3 << 0x18);
+}
+
+/* 0x113110 — zlib gzclose: close a gzip stream. For a write-stream (gz+0x5c ==
+ * 'w'), flushes the remaining output with Z_FINISH(4) via gz_flush
+ * (FUN_00112f00); on success appends the gzip footer — the running CRC32
+ * (gz+0x4c) then the uncompressed size (gz+0x8) — as little-endian 32-bit
+ * values via putLong (FUN_001130a0) to the FILE* (gz+0x40). Then tears the
+ * stream down via gz_destroy (FUN_00112cd0) and returns its result. A NULL gz
+ * returns Z_STREAM_ERROR(-2). */
+int FUN_00113110(int gz)
+{
+  if (gz == 0)
+    return -2;
+  if (*(char *)(gz + 0x5c) == 'w') {
+    if (FUN_00112f00(gz, 4) == 0) {
+      FUN_001130a0(*(unsigned int *)(gz + 0x4c), *(void **)(gz + 0x40));
+      FUN_001130a0(*(unsigned int *)(gz + 8), *(void **)(gz + 0x40));
+    }
+  }
+  return FUN_00112cd0(gz);
+}
+
+/* zlib gzrewind: reset a gzip read-stream (param_1[0x17]/+0x5c byte == 'r') to
+   the start. Clears decode state, reinitializes crc, then either rewinds the
+   underlying FILE* (+0x40) when there is no gzip header start offset (+0x60),
+   or re-inits inflate (FUN_001153c0) and seeks to the header start. */
+int FUN_00113000(int *param_1)
+{
+  int ret;
+
+  if ((param_1 != (int *)0) && (*((char *)param_1 + 0x5c) == 'r')) {
+    param_1[0xe] = 0;
+    param_1[0xf] = 0;
+    param_1[1] = 0;
+    param_1[0] = param_1[0x11];
+    param_1[0x13] =
+      (int)FUN_00110c10(0, (void *)0, 0); /* crc32(0, Z_NULL, 0) */
+    if (param_1[0x18] == 0) {
+      _rewind((void *)param_1[0x10]); /* rewind(FILE*) */
+      return 0;
+    }
+    FUN_001153c0((int)param_1); /* inflateReset */
+    ret = _fseek((void *)param_1[0x10], param_1[0x18],
+                       0); /* fseek(FILE*, off, SEEK_SET) */
+    return ret;
+  }
+  return -1;
+}
+
+/* 0x113080 — zlib gz stream accessor: if the stream is non-null and in read
+ * mode (mode byte at +0x5c == 'r'), return the field at +0x3c; else 0. */
+unsigned int FUN_00113080(int param_1)
+{
+  if (param_1 != 0 && *(char *)(param_1 + 0x5c) == 'r') {
+    return *(unsigned int *)(param_1 + 0x3c);
   }
   return 0;
 }
 
-
-
-/* 0x10a710 — transition_function_evaluate: evaluate one of the built-in
- * transition curves (function_type 0..5) at parameter t in [0,1].
- *
- * t is first clamped to [0,1]. function_type 0 is the identity (returns
- * the clamped t directly). Otherwise the curve is sampled from a runtime
- * byte table (TRANSITION_FUNCTION_TABLES at 0x46e3a0, indexed by type),
- * each entry a byte[1024] of values normalised by 1/255. The clamped t is
- * scaled by 1023.0, the integer sample index is the FISTP round-to-nearest
- * of (scaled - 0.5) == floor(scaled), and the fractional weight is
- * fmod(scaled, 1.0). The result is a linear interpolation between
- * table[idx] and table[idx+1]. When idx hits the last slot (0x3ff) the
- * top sample is returned directly. If the tables are not yet initialised
- * (flag at 0x46e39c == 0) it returns 0.0. */
-float transition_function_evaluate(short function_type, float t)
+/* 0x113160 — zlib gzerror: return the error string for a gz_stream, and store
+ * the z_err code in *errnum.  If the stream pointer is null, stores Z_STREAM_ERROR
+ * (-2) and returns the static "stream error" string.  If z_err is 0 returns the
+ * empty string.  For z_err == -1 (Z_ERRNO) or when the stream's msg pointer is
+ * absent/empty the error text is looked up from the static table at 0x320e10
+ * indexed by -z_err.  Any previously allocated message buffer at +0x50 is freed
+ * before a new one is allocated to hold path ": " errstr. */
+char *FUN_00113160(int gz, int *errnum)
 {
-  unsigned char *table;
-  float scaled;
-  float weight;
-  int idx;
+  int z_err;
+  char *pcVar4;
+  int iVar1;
+  int iVar2;
+  char *buf;
 
-  if (t < *(float *)0x2533c0) {
-    t = 0.0f;
-  } else if (*(float *)0x2533c8 < t) {
-    t = 1.0f;
+  if (gz == 0) {
+    *errnum = -2;
+    return *(char **)0x320e18;
   }
-
-  if (function_type == 0) {
-    return t;
+  z_err = *(int *)(gz + 0x38);
+  *errnum = z_err;
+  if (z_err == 0) {
+    return (char *)0x25386f;
   }
-
-  if (function_type < 0 || function_type > 5) {
-    display_assert(
-        "function_type>=0 && function_type<NUMBER_OF_TRANSITION_FUNCTIONS",
-        "c:\\halo\\SOURCE\\math\\periodic_functions.c", 0xd8, 1);
-    system_exit(-1);
+  pcVar4 = *(char **)(gz + 0x18);
+  if ((z_err == -1) || (pcVar4 == (char *)0) || (*pcVar4 == '\0')) {
+    pcVar4 = ((char **)0x320e10)[-*(int *)(gz + 0x38)];
   }
-
-  if (*(char *)0x46e39c == '\0') {
-    return *(float *)0x2533c0;
+  if (*(int *)(gz + 0x50) != 0) {
+    debug_free(*(void **)(gz + 0x50), "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x365);
   }
-
-  table = ((unsigned char **)0x46e3a0)[function_type];
-  scaled = t * *(float *)0x28c87c;
-  weight = x87_fmod(scaled, *(double *)0x2573d8);
-  idx = x87_round_to_int(scaled - *(float *)0x253398);
-
-  if ((short)idx == 0x3ff) {
-    return (float)table[0x3ff] * *(float *)0x261518;
-  }
-
-  return (float)table[idx] * *(float *)0x261518 * (*(float *)0x2533c8 - weight) +
-         (float)table[idx + 1] * *(float *)0x261518 * weight;
+  iVar1 = csstrlen(*(char **)(gz + 0x54));
+  iVar2 = csstrlen(pcVar4);
+  buf = (char *)debug_malloc(iVar1 + 3 + iVar2, 0, "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x366);
+  *(void **)(gz + 0x50) = buf;
+  csstrcpy(buf, *(char **)(gz + 0x54));
+  FUN_0008dc30(*(char **)(gz + 0x50), (char *)0x28d3ec);
+  FUN_0008dc30(*(char **)(gz + 0x50), pcVar4);
+  return *(char **)(gz + 0x50);
 }
 
-/* 0x10a5e0 — evaluate one of the built-in periodic functions
- * (function_type 0..11) at the given input.
- *
- * function_type 0 returns 1.0 unconditionally. Otherwise the curve is
- * sampled from a runtime byte table (PERIODIC_FUNCTION_TABLES at 0x46e3b8,
- * indexed by type), each a byte[1024] normalised by 1/255. The input is
- * scaled by 25.6 (0x28c838); the fractional weight is fmod(scaled, 1.0)
- * and the integer index is FISTP(scaled - weight), masked to [0,0x3ff].
- * Both the index and index+1 wrap modulo 1024. The result is the linear
- * interpolation table[idx]*(1-weight) + table[idx+1]*weight.
- *
- * For function_types 6 and 7 (bit mask 0xc0) a discontinuity fix-up is
- * applied: when the first sample is above 0.75 and the next is below 0.25
- * (a wrap from ~1 down through 0) the next sample is bumped by +1.0 before
- * interpolating, and any result exceeding 1.0 is brought back by -1.0 so
- * the output stays in [0,1). If the tables are not yet initialised
- * (flag at 0x46e39c == 0) it returns 0.0. */
-float FUN_0010a5e0(int16_t function_type, float input)
+/* 0x113480 — zlib gzopen(path, mode): open a gzip file by path. Forwards to the
+ * internal open (FUN_00113230) with fd = -1 (path-based open; mode passed in
+ * @<eax>). Returns the gzFile handle (or NULL). */
+void *FUN_00113480(char *path, char *mode)
 {
-  unsigned char *table;
-  float scaled;
-  float weight;
-  unsigned int idx;
-  float v0;
-  float v1;
-  float result;
-
-  if (function_type == 0) {
-    return *(float *)0x2533c8;
-  }
-
-  if (function_type < 0 || function_type > 0xb) {
-    display_assert(
-        "function_type>=0 && function_type<NUMBER_OF_PERIODIC_FUNCTIONS",
-        "c:\\halo\\SOURCE\\math\\periodic_functions.c", 0x9d, 1);
-    system_exit(-1);
-  }
-
-  if (*(char *)0x46e39c == '\0') {
-    return *(float *)0x2533c0;
-  }
-
-  scaled = input * *(float *)0x28c838;
-  weight = x87_fmod(scaled, *(double *)0x2573d8);
-  idx = (unsigned int)x87_round_to_int(scaled - weight) & 0x3ff;
-
-  table = ((unsigned char **)0x46e3b8)[function_type];
-  v0 = (float)table[idx] * *(float *)0x261518;
-  v1 = (float)table[(idx + 1) & 0x3ff] * *(float *)0x261518;
-
-  if ((1 << function_type & 0xc0) == 0) {
-    return (*(float *)0x2533c8 - weight) * v0 + v1 * weight;
-  }
-
-  if (*(float *)0x25afcc < v0 && v1 < *(float *)0x25337c) {
-    v1 = v1 + *(float *)0x2533c8;
-  }
-  result = (*(float *)0x2533c8 - weight) * v0 + v1 * weight;
-  if (*(float *)0x2533c8 < result) {
-    return result - *(float *)0x2533c8;
-  }
-  return result;
+  return FUN_00113230(path, -1, mode);
 }
+
+/* zlib gzdopen(fd, mode): wrap an existing fd; synthesizes a "<fd:%d>" name. */
+void *FUN_001134a0(int fd, char *mode)
+{
+  char name[20];
+
+  if (fd < 0) {
+    return (void *)0;
+  }
+  crt_sprintf(name, "<fd:%d>", fd);
+  return FUN_00113230(name, fd, mode);
+}
+
+/* 0x1134e0 — zlib gzread(file, buf, len): decompress up to `len` bytes from a
+ * gzip read-stream into buf. Returns bytes read, 0 at stream end, -1 on error,
+ * -2 if not a read stream. Rejects non-'r' mode (gz+0x5c) and sticky error/eof
+ * (z_err gz[0xe] = -3/-1 -> -1, == 1 -> 0). Sets next_out (gz[3])=buf and
+ * avail_out (gz[4])=len, then loops: in transparent mode (gz[0x16]) it drains the
+ * input buffer (csmemcpy next_in->next_out) and reads the remainder straight from
+ * the FILE* (gz[0x10]); otherwise it refills inbuf (gz[0x11]) via fread when
+ * avail_in (gz[1]) is empty and !z_eof (gz[0xf]), runs inflate (FUN_001155e0),
+ * and on Z_STREAM_END folds the output run into crc (gz[0x13]), checks the stored
+ * CRC32 (get_long FUN_001130d0) + skips ISIZE, then check_header (FUN_001128c0)
+ * + inflateReset (FUN_001153c0) to support concatenated members. CRC (crc32
+ * FUN_00110c10) is taken over each output run from `start`. cdecl; gz embeds the
+ * z_stream at offset 0 so every field is gz-relative (single base). */
+int FUN_001134e0(int *gz, void *buf, int len)
+{
+  int start;        /* start of the not-yet-checksummed output run (EDI) */
+  unsigned int n;
+  int saved_in;
+  int saved_out;
+
+  if (gz == 0 || *(char *)((int)gz + 0x5c) != 'r')   /* mode != 'r' */
+    return -2;                                        /* Z_STREAM_ERROR */
+  if (gz[0xe] == -3 || gz[0xe] == -1)                 /* z_err: DATA_ERROR / ERRNO */
+    return -1;
+  if (gz[0xe] == 1)                                   /* z_err: STREAM_END */
+    return 0;
+
+  start = (int)buf;
+  gz[3] = (int)buf;                                   /* next_out = buf */
+  gz[4] = len;                                        /* avail_out = len */
+  if (len == 0)
+    goto finalize;
+
+  do {
+    if (gz[0x16] != 0) {                              /* transparent (stored) copy */
+      n = (unsigned int)gz[1];                        /* avail_in */
+      if (n > (unsigned int)gz[4])
+        n = (unsigned int)gz[4];                      /* n = min(avail_in, avail_out) */
+      if (n != 0) {
+        csmemcpy((void *)gz[3], *(void **)gz, n);     /* next_out <- next_in */
+        gz[3] = (int)buf + n;                         /* next_out = buf + n */
+        gz[0] += n;                                   /* next_in += n */
+        gz[4] -= n;                                   /* avail_out -= n */
+        gz[1] -= n;                                   /* avail_in -= n */
+      }
+      if (gz[4] != 0)                                 /* read the rest straight from file */
+        gz[4] -= (int)FUN_001db3f7((void *)gz[3], 1, (unsigned int)gz[4],
+                                   (void *)gz[0x10]);
+      len = len - gz[4];                              /* bytes produced */
+      gz[2] += len;                                   /* total_in += len */
+      gz[5] += len;                                   /* total_out += len */
+      if (len == 0)
+        gz[0xf] = 1;                                  /* z_eof */
+      return len;
+    }
+
+    /* Refill the input buffer when empty. */
+    if (gz[1] == 0 && gz[0xf] == 0) {                 /* avail_in == 0 && !z_eof */
+      *FUN_001db777() = 0;                            /* errno = 0 */
+      gz[1] = (int)FUN_001db3f7((void *)gz[0x11], 1, 0x4000, (void *)gz[0x10]);
+      if (gz[1] == 0) {
+        gz[0xf] = 1;                                  /* z_eof = 1 */
+        if ((*(unsigned char *)(gz[0x10] + 0xc) & 0x20) != 0) {  /* FILE error flag */
+          gz[0xe] = -1;                               /* z_err = Z_ERRNO */
+          goto finalize;
+        }
+      } else {
+        gz[0] = gz[0x11];                             /* next_in = inbuf */
+      }
+    }
+
+    gz[0xe] = FUN_001155e0((int)gz, 0);               /* z_err = inflate(gz, Z_NO_FLUSH) */
+    if (gz[0xe] == 1) {                               /* Z_STREAM_END: member done */
+      gz[0x13] = (int)FUN_00110c10((unsigned int)gz[0x13],
+                                   (void *)start, gz[3] - start);  /* crc the run */
+      start = gz[3];
+      if (FUN_001130d0((int)gz) != gz[0x13]) {        /* stored CRC32 mismatch */
+        gz[0xe] = -3;                                 /* z_err = Z_DATA_ERROR */
+        goto finalize;
+      }
+      FUN_001130d0((int)gz);                          /* read & discard ISIZE */
+      FUN_001128c0((int)gz);                          /* check_header for next member */
+      if (gz[0xe] == 0) {                             /* another member follows */
+        saved_in = gz[2];
+        saved_out = gz[5];
+        FUN_001153c0((int)gz);                        /* inflateReset */
+        gz[2] = saved_in;
+        gz[5] = saved_out;
+        gz[0x13] = (int)FUN_00110c10(0, 0, 0);        /* crc = crc32(0, NULL, 0) */
+      }
+    }
+    if (gz[0xe] != 0 || gz[0xf] != 0)                 /* error or eof */
+      goto finalize;
+  } while (gz[4] != 0);                               /* until output buffer full */
+
+finalize:
+  gz[0x13] = (int)FUN_00110c10((unsigned int)gz[0x13],
+                               (void *)start, gz[3] - start);
+  return len - gz[4];                                 /* bytes actually written */
+}
+
+/* zlib gzgetc(file): read a single byte from a gzip read-stream. Reads 1 byte
+   into a stack buffer via the gzread helper (FUN_001134e0); returns the byte
+   zero-extended, or -1 on EOF/error (read count != 1). */
+unsigned int FUN_00113710(int *file)
+{
+  unsigned char c;
+
+  if (FUN_001134e0(file, &c, 1) == 1) {
+    return (unsigned int)c;
+  }
+  return 0xffffffff;
+}
+
+/* zlib gzgets(file, buf, len): read up to len-1 bytes from gzip stream into
+   buf, stopping at newline (inclusive) or EOF. Null-terminates the result.
+   Returns buf if any bytes were written (or len==1), NULL on EOF with no
+   bytes read or on invalid args. Faithful lift of FUN_00113740. */
+char *FUN_00113740(int *file, char *buf, int len)
+{
+  char c;
+  char *p;
+
+  if (buf != (char *)0x0 && 0 < len) {
+    p = buf;
+    while (--len > 0) {
+      if (FUN_001134e0(file, p, 1) != 1) break;
+      c = *p;
+      p = p + 1;
+      if (c != '\n') continue;
+      break;
+    }
+    *p = '\0';
+    if (buf != p) {
+      return buf;
+    }
+    if (len <= 0) {
+      return buf;
+    }
+  }
+  return (char *)0x0;
+}
+
+/* gzseek: seek within a gzip stream by 'offset' bytes with SEEK_SET(0) or
+ * SEEK_CUR(1). SEEK_END(2) is not supported. For write streams, advances by
+ * writing zeros. For read streams in transparent mode, delegates to fseek;
+ * otherwise, reads and discards bytes to advance the position.
+ * Returns the new stream position, or 0xffffffff on error. */
+unsigned int FUN_001137a0(int *file, unsigned int offset, int whence)
+{
+    unsigned int uVar3;
+    int iVar2;
+    int *gz;
+    void *uVar1;
+
+    gz = file;
+
+    if (gz == (int *)0x0) {
+        return 0xffffffff;
+    }
+    if (whence == 2) {
+        return 0xffffffff;
+    }
+    if (gz[0xe] == -1 || gz[0xe] == -3) {
+        return 0xffffffff;
+    }
+
+    if (*(char *)((char *)gz + 0x5c) == 'w') {
+        /* write mode */
+        if (whence == 0) {
+            offset = offset - (unsigned int)gz[2];
+        }
+        if ((int)offset < 0) {
+            return 0xffffffff;
+        }
+        if (gz[0x11] == 0) {
+            uVar1 = debug_malloc(0x4000, 0, "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x2ab);
+            gz[0x11] = (int)uVar1;
+            csmemset(uVar1, 0, 0x4000);
+        }
+        while ((int)offset > 0) {
+            uVar3 = 0x4000;
+            if ((int)offset < 0x4000) {
+                uVar3 = offset;
+            }
+            iVar2 = FUN_00112db0(gz, gz[0x11], (int)uVar3);
+            if (iVar2 == 0) break;
+            offset = offset - (unsigned int)iVar2;
+        }
+        return (unsigned int)gz[2];
+    } else {
+        /* read mode */
+        if (whence == 1) {
+            offset = offset + (unsigned int)gz[5];
+        }
+        if ((int)offset < 0) {
+            return 0xffffffff;
+        }
+        if (gz[0x16] != 0) {
+            /* transparent mode: use fseek directly */
+            gz[1] = 0;
+            gz[0] = gz[0x11];
+            iVar2 = _fseek((void *)gz[0x10], (int)offset, 0);
+            if (-1 < iVar2) {
+                gz[5] = (int)offset;
+                gz[2] = (int)offset;
+                return offset;
+            }
+        } else {
+        /* compressed mode: seek by rewinding then reading forward */
+        if (offset >= (unsigned int)gz[5]) {
+            offset = offset - (unsigned int)gz[5];
+        } else {
+            iVar2 = FUN_00113000(gz);
+            if (iVar2 < 0) {
+                return 0xffffffff;
+            }
+        }
+        if (offset != 0) {
+            if (gz[0x12] == 0) {
+                uVar1 = debug_malloc(0x4000, 0, "c:\\halo\\SOURCE\\memory\\zlib\\gzio.c", 0x2d5);
+                gz[0x12] = (int)uVar1;
+            }
+            for (; 0 < (int)offset; offset = offset - (unsigned int)iVar2) {
+                uVar3 = 0x4000;
+                if ((int)offset < 0x4000) {
+                    uVar3 = offset;
+                }
+                iVar2 = FUN_001134e0(gz, (void *)gz[0x12], (int)uVar3);
+                if (iVar2 < 1) {
+                    return 0xffffffff;
+                }
+            }
+        }
+        return (unsigned int)gz[5];
+        }
+    }
+    return 0xffffffff;
+}
+
+/* zlib gzseek wrapper: seek file to offset 0 with whence=1 (relative). */
+int FUN_00113910(void *file)
+{
+  return FUN_001137a0(file, 0, 1);
+}
+
+typedef void *(*zlib_zalloc_fn)(void *, int, int);
+typedef void  (*zlib_zfree_fn)(void *, void *);
+
+/* 0x113930 — zlib inflate_blocks_reset: reset the inflate_blocks_state param_1
+ * for a fresh block stream. Optionally writes the pending byte count to the OUT
+ * param param_3, releases the current decoder mode (codes/codes-with-tree),
+ * then clears window pointers, mode/bytes counters, and re-seeds the running
+ * check value via the stream's check function (z_stream at param_2). */
+void FUN_00113930(int s, int param_2, int last)
+{
+  int *param_1 = (int *)s;
+  int *param_3 = (int *)last;
+  int iVar1;
+
+  if (param_3 != 0) {
+    *param_3 = param_1[0xf];
+  }
+  if (param_1[0] == 4 || param_1[0] == 5) {
+    (*(void (**)(int, int))(param_2 + 0x24))(*(int *)(param_2 + 0x28),
+                                             param_1[3]);
+  }
+  if (param_1[0] == 6) {
+    FUN_00114f60(param_1[1], param_2);
+  }
+  param_1[0xd] = param_1[10];
+  param_1[0xc] = param_1[10];
+  param_1[0] = 0;
+  param_1[7] = 0;
+  param_1[8] = 0;
+  if (param_1[0xe] != 0) {
+    iVar1 = ((int (*)(int, int, int))param_1[0xe])(0, 0, 0);
+    param_1[0xf] = iVar1;
+    *(int *)(param_2 + 0x30) = iVar1;
+  }
+  if (*(int *)0x320e30 > 0) {
+    crt_fprintf((void *)0x331070, "inflate:   blocks reset\n");
+  }
+  return;
+}
+
+/* 0x1139d0 — zlib inflate_blocks_new: allocate and initialise a new
+ * inflate_blocks_state for decompression. Allocates the state struct (0x40
+ * bytes), the sliding window (wsize bytes), and the codes workspace (0x5a0
+ * bytes) via z_stream's zalloc. On any allocation failure, frees already-
+ * allocated buffers and returns NULL. On success, stores function pointers,
+ * initialises mode=0, then calls inflate_blocks_reset to seed the checksum. */
+void *FUN_001139d0(int z, int adler_fn, int wsize)
+{
+    int *s;
+
+    s = (int *)((zlib_zalloc_fn)(*(int *)(z + 0x20)))(*(void **)(z + 0x28), 1, 0x40);
+    if (s == 0) {
+        return 0;
+    }
+
+    s[9] = (int)((zlib_zalloc_fn)(*(int *)(z + 0x20)))(*(void **)(z + 0x28), 8, 0x5a0);
+    if (s[9] == 0) {
+        ((zlib_zfree_fn)(*(int *)(z + 0x24)))(*(void **)(z + 0x28), s);
+        return 0;
+    }
+
+    s[10] = (int)((zlib_zalloc_fn)(*(int *)(z + 0x20)))(*(void **)(z + 0x28), 1, wsize);
+    if (s[10] == 0) {
+        ((zlib_zfree_fn)(*(int *)(z + 0x24)))(*(void **)(z + 0x28), (void *)s[9]);
+        ((zlib_zfree_fn)(*(int *)(z + 0x24)))(*(void **)(z + 0x28), s);
+        return 0;
+    }
+
+    s[0xb] = s[10] + wsize;
+    s[0xe] = adler_fn;
+    s[0]   = 0;
+
+    if (*(int *)0x320e30 > 0) {
+        crt_fprintf((void *)0x331070, "inflate:   blocks allocated\n");
+    }
+
+    FUN_00113930((int)s, z, 0);
+    return s;
+}
+
+/* 0x111220 — zlib deflateCopy: create an independent copy of a deflate stream.
+ * Copies the z_stream header (14 dwords = 0x38 bytes) from source to dest, then
+ * allocates a fresh deflate_state (0x16c0 bytes) via dest->zalloc.  The new
+ * state is populated by bulk-copying the 0x16c0-byte source state, then
+ * re-allocating and re-copying the three variable-length sub-buffers
+ * (pending_buf at +0x30, d_buf at +0x38, l_buf at +0x3c) and the sliding
+ * window (+0x8).  Internal pointers that track position within pending_buf and
+ * within the window are fixed up so the new stream is self-consistent.  On any
+ * allocation failure, calls deflateFreeState (FUN_00111170) to clean up and
+ * returns Z_MEM_ERROR (-4).  Returns Z_STREAM_ERROR (-2) if either stream
+ * pointer is NULL or if the source has no internal state. */
+int FUN_00111220(int dest, int source)
+{
+    int *ds;        /* new deflate_state */
+    int *ss;        /* source deflate_state */
+    int w_size;     /* [ds+0x1694] window count for size calculations */
+    int window_buf; /* new window allocation address */
+
+    /* Validate: both stream pointers and source state must be non-NULL */
+    if (source == 0) goto stream_error;
+    if (dest   == 0) goto stream_error;
+    ss = (int *)(*(int *)(source + 0x1c));
+    if (ss == 0) goto stream_error;
+
+    /* Copy z_stream header: 14 dwords (0x38 bytes) from source to dest */
+    memcpy((void *)dest, (void *)source, 0xe * sizeof(int));
+
+    /* Allocate a fresh deflate_state (0x16c0 bytes) */
+    ds = (int *)((zlib_zalloc_fn)(*(int *)(dest + 0x20)))(*(void **)(dest + 0x28), 1, 0x16c0);
+    if (ds == 0) return 0xfffffffc;
+
+    /* Link new state into dest z_stream */
+    *(int *)(dest + 0x1c) = (int)ds;
+
+    /* Bulk-copy source deflate_state (0x5b0 dwords = 0x16c0 bytes) */
+    memcpy(ds, ss, 0x5b0 * sizeof(int));
+
+    /* Fix strm back-pointer: new state must point to dest, not source */
+    ds[0] = dest;
+
+    /* Re-allocate the four variable-length sub-buffers.
+     * Results stored at the same byte offsets as in the source state. */
+    *(int *)((char *)ds + 0x30) = (int)((zlib_zalloc_fn)(*(int *)(dest + 0x20)))(*(void **)(dest + 0x28), *(int *)((char *)ds + 0x24), 2);
+    *(int *)((char *)ds + 0x38) = (int)((zlib_zalloc_fn)(*(int *)(dest + 0x20)))(*(void **)(dest + 0x28), *(int *)((char *)ds + 0x24), 2);
+    *(int *)((char *)ds + 0x3c) = (int)((zlib_zalloc_fn)(*(int *)(dest + 0x20)))(*(void **)(dest + 0x28), *(int *)((char *)ds + 0x44), 2);
+    w_size = *(int *)((char *)ds + 0x1694);
+    *(int *)((char *)ds + 0x8)  = (int)((zlib_zalloc_fn)(*(int *)(dest + 0x20)))(*(void **)(dest + 0x28), w_size, 4);
+
+    if (*(int *)((char *)ds + 0x30) != 0 &&
+        *(int *)((char *)ds + 0x38) != 0 &&
+        *(int *)((char *)ds + 0x3c) != 0 &&
+        *(int *)((char *)ds + 0x8)  != 0) {
+
+        /* Copy pending_buf (w_size * 2 bytes) */
+        csmemcpy((void *)*(int *)((char *)ds + 0x30), (void *)*(int *)((char *)ss + 0x30), *(int *)((char *)ds + 0x24) << 1);
+        /* Copy d_buf (w_size * 2 bytes) */
+        csmemcpy((void *)*(int *)((char *)ds + 0x38), (void *)*(int *)((char *)ss + 0x38), *(int *)((char *)ds + 0x24) << 1);
+        /* Copy l_buf (lit_bufsize * 2 bytes) */
+        csmemcpy((void *)*(int *)((char *)ds + 0x3c), (void *)*(int *)((char *)ss + 0x3c), *(int *)((char *)ds + 0x44) << 1);
+        /* Copy window ([ds+0xc] bytes) */
+        csmemcpy((void *)*(int *)((char *)ds + 0x8),  (void *)*(int *)((char *)ss + 0x8),  *(int *)((char *)ds + 0xc));
+
+        /* Fix pending_out (+0x10): translate source-relative offset into new window */
+        window_buf = *(int *)((char *)ds + 0x8);
+        *(int *)((char *)ds + 0x10) = (*(int *)((char *)ss + 0x10) - *(int *)((char *)ss + 0x8)) + window_buf;
+
+        /* pending_buf_size (+0x1690) = window_buf + w_size*3 */
+        *(int *)((char *)ds + 0x1690) = window_buf + w_size + w_size * 2;
+
+        /* window_size (+0x169c) = window_buf + (w_size rounded down to even) */
+        *(int *)((char *)ds + 0x169c) = window_buf + (w_size & 0xfffffffe);
+
+        /* Fix intra-state pointers (all point into the deflate_state itself) */
+        *(int *)((char *)ds + 0xb1c) = (int)((char *)ds + 0x980);
+        *(int *)((char *)ds + 0xb10) = (int)((char *)ds + 0x8c);
+        *(int *)((char *)ds + 0xb28) = (int)((char *)ds + 0xa74);
+
+        return 0;
+    }
+
+    FUN_00111170(dest);
+    return 0xfffffffc;
+stream_error:
+    return 0xfffffffe;
+}
+
