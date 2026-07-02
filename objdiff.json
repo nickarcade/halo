@@ -5377,6 +5377,14 @@
       }
     },
     {
+      "name": "halo/hud_d1090_d1400",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud.c.obj",
+      "base_path": "delinked/hud_d1090_d1400.obj",
+      "metadata": {
+        "source_path": "src/halo/interface/hud.c"
+      }
+    },
+    {
       "name": "halo/hud_d04a0_d04c7",
       "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud.c.obj",
       "base_path": "delinked/hud_d04a0_d04c7.obj",
@@ -5614,6 +5622,14 @@
       "base_path": "delinked/network_messages.obj",
       "metadata": {
         "source_path": "src/halo/networking/network_messages.c"
+      }
+    },
+    {
+      "name": "halo/network_server_message_handler",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/networking/network_server_message_handler.c.obj",
+      "base_path": "delinked/network_server_message_handler.obj",
+      "metadata": {
+        "source_path": "src/halo/networking/network_server_message_handler.c"
       }
     },
     {
@@ -6717,6 +6733,14 @@
       "base_path": "delinked/render_cameras.obj",
       "metadata": {
         "source_path": "src/halo/render/render_cameras.c"
+      }
+    },
+    {
+      "name": "halo/render_debug",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/render/render_debug.c.obj",
+      "base_path": "delinked/render_debug.obj",
+      "metadata": {
+        "source_path": "src/halo/render/render_debug.c"
       }
     },
     {
@@ -7845,6 +7869,30 @@
       "base_path": "delinked/message_header.obj",
       "metadata": {
         "source_path": "src/halo/networking/message_header.c"
+      }
+    },
+    {
+      "name": "halo/FUN_000d1540",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud.c.obj",
+      "base_path": "delinked/hud_FUN_000d1540.obj",
+      "metadata": {
+        "source_path": "src/halo/interface/hud.c"
+      }
+    },
+    {
+      "name": "halo/hud_weapon",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud_weapon.c.obj",
+      "base_path": "delinked/hud_weapon.obj",
+      "metadata": {
+        "source_path": "src/halo/interface/hud_weapon.c"
+      }
+    },
+    {
+      "name": "halo/hud_draw",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/hud_draw.c.obj",
+      "base_path": "delinked/hud_draw.obj",
+      "metadata": {
+        "source_path": "src/halo/interface/hud_draw.c"
       }
     }
   ]

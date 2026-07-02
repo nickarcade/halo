@@ -33,6 +33,37 @@ static __inline float x87_fsin(float val) {
   return r;
 }
 
+/* Double-input FSIN/FCOS: FLD QWORD; FSIN/FCOS. Matches the original binary's
+ * sin/cos of a double-precision constant (e.g. the debug circle angle), keeping
+ * the argument at double width rather than narrowing to float first. */
+static __inline double x87_fsin_d(double val) {
+  double r;
+#if defined(_MSC_VER) && !defined(__clang__)
+  __asm {
+    fld QWORD PTR [val]
+    fsin
+    fstp QWORD PTR [r]
+  }
+#else
+  __asm__ __volatile__("fsin" : "=t"(r) : "0"(val));
+#endif
+  return r;
+}
+
+static __inline double x87_fcos_d(double val) {
+  double r;
+#if defined(_MSC_VER) && !defined(__clang__)
+  __asm {
+    fld QWORD PTR [val]
+    fcos
+    fstp QWORD PTR [r]
+  }
+#else
+  __asm__ __volatile__("fcos" : "=t"(r) : "0"(val));
+#endif
+  return r;
+}
+
 static __inline float x87_fcos_mul(float val, float mul) {
   float r;
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -133,6 +164,24 @@ static __inline int x87_round_to_int(float val) {
   }
 #else
   __asm__ __volatile__("fistpl %0" : "=m"(r) : "t"(val) : "st");
+#endif
+  return r;
+}
+
+/* atan2 via x87 FPATAN: FLD a; FLD b; FPATAN computes atan2(a, b) in ST0.
+ * Matches the original binary's inline fpatan on float inputs rather than a
+ * libm atan2f call. */
+static __inline float x87_fatan2f(float a, float b) {
+  float r;
+#if defined(_MSC_VER) && !defined(__clang__)
+  __asm {
+    fld DWORD PTR [a]
+    fld DWORD PTR [b]
+    fpatan
+    fstp DWORD PTR [r]
+  }
+#else
+  __asm__ __volatile__("fpatan" : "=t"(r) : "0"(b), "u"(a) : "st(1)");
 #endif
   return r;
 }

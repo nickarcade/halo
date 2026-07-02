@@ -474,8 +474,13 @@ void hud_set_element_digital(float param_1, const void *param_2)
   angle = 0.0f;
   for (i = 0; i < 16; i++) {
     vertices[i][2] = -0.0625f;
+#if defined(_MSC_VER) && !defined(__clang__)
+    vertices[i][0] = (float)cos((double)angle) * radius;
+    vertices[i][1] = (float)sin((double)angle) * radius;
+#else
     vertices[i][0] = x87_fcos(angle) * radius;
     vertices[i][1] = x87_fsin(angle) * radius;
+#endif
     matrix_transform_point((float *)0x5065e8, vertices[i], vertices[i]);
     angle += *(float *)0x26b164;
   }
@@ -878,6 +883,38 @@ done:
     FUN_000d1090();
   }
 }
+
+/* FUN_000d1540 (0xd1540) — return the caller's return address.
+ *
+ * Frameless helper, `mov eax,[ebp+4]; ret` (bytes 8B 45 04 C3). Because it sets
+ * up no prologue, EBP still holds the *caller's* frame pointer at entry, so
+ * [ebp+4] is the caller's return address on the stack. The HUD render functions
+ * capture this at entry and re-check it at exit as a stack-smash canary
+ * ("corrupt return address!"); the value must therefore be constant across both
+ * call sites within one caller invocation.
+ *
+ * This cannot be expressed in portable C: it reads a frame it does not own, so
+ * a naked body is required (necessity exception, like the x87 helpers in
+ * x87_math.h). Note that _ReturnAddress() is NOT equivalent — it would read
+ * this function's own [esp]-at-entry, which differs between the two call sites
+ * and would make every canary check fail. Both branches emit the exact original
+ * bytes; clang defines _MSC_VER under -target i386-pc-win32, so the
+ * !defined(__clang__) guard is required to select the GCC-style asm for the
+ * shipping build. */
+#if defined(_MSC_VER) && !defined(__clang__)
+__declspec(naked) int FUN_000d1540(void)
+{
+  __asm {
+    mov eax, dword ptr [ebp + 4]
+    ret
+  }
+}
+#else
+__attribute__((naked)) int FUN_000d1540(void)
+{
+  __asm__ __volatile__("movl 4(%ebp), %eax\n\tret");
+}
+#endif
 
 /* Scan int array backwards from index 127, return first index where element
  * is not the sentinel 0x62626262 ("bbbb"). Returns -1 if all are sentinel.
@@ -1305,7 +1342,11 @@ unsigned int FUN_000d1dd0(float *color)
   return (unsigned int)packed;
 }
 
-void FUN_000d1e90(float alpha, float intensity)
+/* Returns the packed 0xAARRGGBB pixel32 for a uniform (alpha, intensity,
+ * intensity, intensity) color.  The original tail-calls FUN_000d1c90, so its
+ * EAX (the pixel32) is the return value; the HUD meter builder (FUN_000d3340)
+ * stores it into meter+0x14 as the flash/blend render-state. */
+unsigned int FUN_000d1e90(float alpha, float intensity)
 {
   float color[4];
 
@@ -1323,7 +1364,7 @@ void FUN_000d1e90(float alpha, float intensity)
   color[1] = intensity;
   color[2] = intensity;
   color[3] = intensity;
-  FUN_000d1c90(color);
+  return FUN_000d1c90(color);
 }
 
 /* Resolves an absolute on-screen position (out[0],out[1]) from an anchor-mode
@@ -1623,8 +1664,13 @@ void FUN_000d2580(float *scale, short *screen_pos, int bitmap_handle,
   return_address = FUN_000d1540();
   csmemset(guard, 0x62, 0x200);
 
+#if defined(_MSC_VER) && !defined(__clang__)
+  sin_a = (float)sin((double)angle);
+  cos_a = (float)cos((double)angle);
+#else
   sin_a = x87_fsin(angle);
   cos_a = x87_fcos(angle);
+#endif
 
   cnt = 1;
   vp = vertex_buf;
@@ -1757,7 +1803,11 @@ void FUN_000d27a0(int element, float *scale, int local_player_index,
   return_addr = FUN_000d1540();
   csmemset(guard, 0x62, 0x200);
 
+#if defined(_MSC_VER) && !defined(__clang__)
+  sin_a = (float)sin((double)angle);
+#else
   sin_a = x87_fsin(angle);
+#endif
 
   /* element+0x4c .. +0x60 -> color_block[0x0 .. 0x14] */
   *(int *)(color_block + 0x0) = *(int *)(element + 0x4c);
@@ -1783,7 +1833,11 @@ void FUN_000d27a0(int element, float *scale, int local_player_index,
   *(int *)(color_block + 0x60) = 0;
   *(int *)(color_block + 0x64) = 0;
 
+#if defined(_MSC_VER) && !defined(__clang__)
+  cos_a = (float)cos((double)angle);
+#else
   cos_a = x87_fcos(angle);
+#endif
 
   player_index = local_player_get_player_index((short)local_player_index);
   hud_globals = datum_get(*(data_t **)0x5aa6d4, player_index);

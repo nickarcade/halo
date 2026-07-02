@@ -83,6 +83,7 @@
 	halo/networking/message_header.c
 	halo/networking/network_messages.c
 	halo/networking/network_server_manager.c
+	halo/networking/network_server_message_handler.c
 	halo/main/console.c
 	halo/main/d3d_intimacy.c
 	halo/main/debug_keys.c
@@ -113,8 +114,11 @@
 	halo/rasterizer/xbox/rasterizer_xbox_shadows.c
 	halo/render/render.c
 	halo/render/render_cameras.c
+	halo/render/render_debug.c
 	"halo/saved games/saved_game_files.c"
 	halo/interface/hud_messaging.c
+	halo/interface/hud_draw.c
+	halo/interface/hud_weapon.c
 	halo/saved_games/game_state.c
 	halo/saved_games/game_state_xbox.c
 	halo/scenario/scenario.c

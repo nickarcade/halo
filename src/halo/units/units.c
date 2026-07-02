@@ -8336,17 +8336,13 @@ void unit_render_debug(int unit_handle)
     object_get_world_position(unit_handle, (vector3_t *)head_pos);
     head_pos[2] = head_pos[2] + 0.1f;
     /* Draw aim direction line (scale 1.0, yellow) */
-    FUN_00189320(1, eye_pos, (void *)(unit + 0x1ec), 0x3f800000,
-                 *(int *)0x2ee6c4);
+    FUN_00189320(1, eye_pos, (void *)(unit + 0x1ec), 1.0f, *(void **)0x2ee6c4);
     /* Draw aim direction line (scale 0.5, green) */
-    FUN_00189320(1, eye_pos, (void *)(unit + 0x1e0), 0x3f000000,
-                 *(int *)0x2ee6d0);
+    FUN_00189320(1, eye_pos, (void *)(unit + 0x1e0), 0.5f, *(void **)0x2ee6d0);
     /* Draw head position (scale 1.0, yellow) */
-    FUN_00189320(1, head_pos, (void *)(unit + 0x24), 0x3f800000,
-                 *(int *)0x2ee6c4);
+    FUN_00189320(1, head_pos, (void *)(unit + 0x24), 1.0f, *(void **)0x2ee6c4);
     /* Draw body direction (scale 0.5, green) */
-    FUN_00189320(1, head_pos, (void *)(unit + 0x1d4), 0x3f000000,
-                 *(int *)0x2ee6d0);
+    FUN_00189320(1, head_pos, (void *)(unit + 0x1d4), 0.5f, *(void **)0x2ee6d0);
   }
 
   /* Debug seat positions */
@@ -13430,7 +13426,16 @@ char FUN_001b3690(int unit_handle)
                         int ud2 = (int)object_get_and_verify_type(unit_handle, 3);
                         int w = unit_get_weapon(unit_handle,
                                     *(int16_t *)(ud2 + 0x2a2));
-                        ((void (*)(int))0xfaeb0)(w);
+                        /* Set the held weapon's integrated-light (flashlight)
+                         * power from this unit's power field (unit+0x2f0, a
+                         * float; 0.0 = off). The original passes it as arg2 via
+                         * MSVC stack-arg reuse (MOV ECX,[unit+0x2f0]; PUSH ECX);
+                         * a prior raw 1-arg fn-ptr cast dropped it, leaving
+                         * light_power reading a stale stack slot (a light-cluster
+                         * pointer / -1) that corrupted weapon+0x1f8 -> funcval
+                         * -> flashlight color (over-bright, or NaN -> assert). */
+                        weapon_set_integrated_light_power(
+                            w, *(int *)((char *)unit + 0x2f0));
                     }
                 }
                 if (((uint32_t)unit[0x6e] & 0x400) != 0) { uVar15 |= 8; }
