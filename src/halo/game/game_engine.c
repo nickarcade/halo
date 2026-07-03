@@ -513,13 +513,25 @@ bool game_engine_running(void)
 
 bool game_engine_can_score(void)
 {
-  return *(int *)0x456b60 == 0 || *(int *)0x5aa730 == 0;
+  /* Original preloads AL=1 for the no-engine case and computes
+   * SETZ on the phase word otherwise (single RET). */
+  bool result = 1;
+  if (current_game_engine)
+    result = *(int *)0x5aa730 == 0;
+  return result;
 }
 
 bool game_engine_force_single_screen(void)
 {
-  return current_game_engine && game_engine_variant_index > 1 &&
-         game_engine_variant_index < 4;
+  /* Original reads the variant index as a full DWORD at 0x5aa730
+   * (MOV ECX,[0x5aa730]; CMP ECX,2; JL / CMP ECX,3; JG), not the
+   * int16 the global is declared as. */
+  if (current_game_engine) {
+    int variant = *(int *)0x5aa730;
+    if (variant >= 2 && variant <= 3)
+      return 1;
+  }
+  return 0;
 }
 
 /* game_engine_unit_can_enter_seat (0xa90b0)
@@ -842,14 +854,30 @@ void FUN_000aa010(short param_1, const char *param_2)
  * 1.0 speed. */
 game_variant_t *game_engine_slayer_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 2;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x34) = 0x12c;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 0xf;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Original builds the variant in a local ({0} zeroing = word store +
+   * REP STOSD from +2), read-modify-writes the +0x20 flag word with an
+   * AND/OR mask, re-stores several fields to zero explicitly, then
+   * block-copies 0x1a dwords to the out pointer (REP MOVSD). */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x24) = 0;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0xf;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *variant = v;
   return variant;
 }
 
@@ -859,15 +887,29 @@ game_variant_t *game_engine_slayer_default(game_variant_t *variant)
  * 1 round, 25 lives, 2 weapon sets, 1.0 speed. */
 game_variant_t *game_engine_elimination_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 2;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x34) = 0x12c;
-  *(int32_t *)((char *)variant + 0x38) = 1;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 0x19;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local (word store + REP STOSD),
+   * read-modify-writes the +0x20 flag dword with an AND/OR mask,
+   * then block-copies 0x1a dwords to the out pointer (REP MOVSD). */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x38) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 0;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0x19;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -877,16 +919,28 @@ game_variant_t *game_engine_elimination_default(game_variant_t *variant)
  * score/time limits 300, 50 lives, 2 weapon sets, 1.0 speed. */
 game_variant_t *game_engine_team_slayer_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 2;
-  *(uint8_t *)((char *)variant + 0x1c) = 1;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x30) = 0x12c;
-  *(int32_t *)((char *)variant + 0x34) = 0x12c;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 0x32;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x30) = 0x12c;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 0;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0x32;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -896,18 +950,32 @@ game_variant_t *game_engine_team_slayer_default(game_variant_t *variant)
  * 2 lives, 1 weapon set, ball indicator on, 1.0 speed. */
 game_variant_t *game_engine_oddball_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 3;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x30) = 0x96;
-  *(int32_t *)((char *)variant + 0x34) = 0x96;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 2;
-  *(int32_t *)((char *)variant + 0x48) = 1;
-  *(uint8_t *)((char *)variant + 0x4d) = 1;
-  *(int32_t *)((char *)variant + 0x60) = 1;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int32_t *)((char *)&v + 0x48) = 1;
+  *(int32_t *)((char *)&v + 0x60) = 1;
+  *(uint8_t *)((char *)&v + 0x4d) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x18) = 3;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 2;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(int32_t *)((char *)&v + 0x5c) = 0;
+  *(int32_t *)((char *)&v + 0x54) = 0;
+  *(int32_t *)((char *)&v + 0x58) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -918,18 +986,36 @@ game_variant_t *game_engine_oddball_default(game_variant_t *variant)
  * 1 weapon set, ball indicator on, 1.0 speed. */
 game_variant_t *game_engine_team_oddball_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 3;
-  *(uint8_t *)((char *)variant + 0x1c) = 1;
-  *(int32_t *)((char *)variant + 0x20) = 0x23;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x30) = 0x12c;
-  *(int32_t *)((char *)variant + 0x34) = 0x96;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 2;
-  *(int32_t *)((char *)variant + 0x48) = 1;
-  *(int32_t *)((char *)variant + 0x60) = 1;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* NOTE: the original has NO zero-init prologue (no word-store + REP
+   * STOSD); it writes 21 explicit fields and leaves 0x00-0x17, 0x4e-0x4f
+   * and 0x66 uninitialized before the REP MOVSD copy-out, so its +0x20
+   * RMW reads uninitialized stack. We zero-init the local (matching the
+   * intended/safe image and the prior lift); this adds a zeroing prologue
+   * not present in the reference, capping VC71 match. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(int32_t *)((char *)&v + 0x5c) = 0;
+  *(int32_t *)((char *)&v + 0x54) = 0;
+  *(int32_t *)((char *)&v + 0x58) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(int32_t *)((char *)&v + 0x48) = 1;
+  *(int32_t *)((char *)&v + 0x60) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 3;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x30) = 0x12c;
+  *(int32_t *)((char *)&v + 0x40) = 2;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *variant = v;
   return variant;
 }
 
@@ -940,18 +1026,31 @@ game_variant_t *game_engine_team_oddball_default(game_variant_t *variant)
  * 1 score unit, 1.0 speed. */
 game_variant_t *game_engine_accumulation_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 3;
-  *(int32_t *)((char *)variant + 0x20) = 2;
-  *(int32_t *)((char *)variant + 0x24) = 2;
-  *(int32_t *)((char *)variant + 0x30) = 0x96;
-  *(int32_t *)((char *)variant + 0x34) = 0x96;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 5;
-  *(int32_t *)((char *)variant + 0x48) = 1;
-  *(int32_t *)((char *)variant + 0x5c) = 1;
-  *(int32_t *)((char *)variant + 0x60) = 0x10;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc2) | 2;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x48) = 1;
+  *(int32_t *)((char *)&v + 0x5c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 3;
+  *(int32_t *)((char *)&v + 0x24) = 2;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 5;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x60) = 0x10;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(int32_t *)((char *)&v + 0x54) = 0;
+  *(int32_t *)((char *)&v + 0x58) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -962,20 +1061,32 @@ game_variant_t *game_engine_accumulation_default(game_variant_t *variant)
  * fields, 1.0 speed. */
 game_variant_t *game_engine_stalker_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 3;
-  *(int32_t *)((char *)variant + 0x20) = 2;
-  *(int32_t *)((char *)variant + 0x30) = 0x96;
-  *(int32_t *)((char *)variant + 0x34) = 0x96;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 0xa;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int32_t *)((char *)variant + 0x50) = 2;
-  *(int32_t *)((char *)variant + 0x54) = 1;
-  *(int32_t *)((char *)variant + 0x58) = 3;
-  *(int32_t *)((char *)variant + 0x5c) = 2;
-  *(int32_t *)((char *)variant + 0x60) = 1;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc2) | 2;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x60) = 1;
+  *(int32_t *)((char *)&v + 0x54) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 3;
+  *(int32_t *)((char *)&v + 0x58) = 3;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x5c) = 2;
+  *(int32_t *)((char *)&v + 0x50) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 0;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0xa;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -985,16 +1096,26 @@ game_variant_t *game_engine_stalker_default(game_variant_t *variant)
  * score/time 150 each, 2 lives, modifier 1, 1.0 speed. */
 game_variant_t *game_engine_king_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 4;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x30) = 0x96;
-  *(int32_t *)((char *)variant + 0x34) = 0x96;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 2;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x40) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x18) = 4;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -1005,18 +1126,26 @@ game_variant_t *game_engine_king_default(game_variant_t *variant)
  * hill indicator on, 1.0 speed. */
 game_variant_t *game_engine_team_king_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 4;
-  *(uint8_t *)((char *)variant + 0x1c) = 1;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x30) = 0x12c;
-  *(int32_t *)((char *)variant + 0x34) = 0x96;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 2;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(uint8_t *)((char *)variant + 0x4c) = 1;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(uint8_t *)((char *)&v + 0x4c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x40) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x18) = 4;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0x12c;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -1027,17 +1156,30 @@ game_variant_t *game_engine_team_king_default(game_variant_t *variant)
  * 2 weapon sets, 1.0 speed. */
 game_variant_t *game_engine_ctf_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 1;
-  *(uint8_t *)((char *)variant + 0x1c) = 1;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x30) = 0x12c;
-  *(int32_t *)((char *)variant + 0x34) = 0x96;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 3;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x18) = 1;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0x12c;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 3;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4f) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -1048,18 +1190,30 @@ game_variant_t *game_engine_ctf_default(game_variant_t *variant)
  * 4 weapon sets, flag indicator on, 2.0 speed. */
 game_variant_t *game_engine_ironctf_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 1;
-  *(uint8_t *)((char *)variant + 0x1c) = 1;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x30) = 0x1c2;
-  *(int32_t *)((char *)variant + 0x34) = 0x96;
-  *(int32_t *)((char *)variant + 0x3c) = 0x40000000;
-  *(int32_t *)((char *)variant + 0x40) = 3;
-  *(int32_t *)((char *)variant + 0x48) = 4;
-  *(uint8_t *)((char *)variant + 0x4e) = 1;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x18) = 1;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(uint8_t *)((char *)&v + 0x4e) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x3c) = 0x40000000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0x1c2;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 3;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x48) = 4;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4f) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -1069,15 +1223,27 @@ game_variant_t *game_engine_ironctf_default(game_variant_t *variant)
  * time limit 300, 3 lives, 2 weapon sets, 1.0 speed. */
 game_variant_t *game_engine_race_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 5;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x34) = 0x12c;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 3;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 5;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 3;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x4c) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -1088,16 +1254,27 @@ game_variant_t *game_engine_race_default(game_variant_t *variant)
  * 1.0 speed. */
 game_variant_t *game_engine_rally_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 5;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x34) = 0x12c;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 0xf;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int32_t *)((char *)variant + 0x4c) = 2;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x4c) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 5;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0xf;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -1108,16 +1285,27 @@ game_variant_t *game_engine_rally_default(game_variant_t *variant)
  * 1.0 speed. */
 game_variant_t *game_engine_team_race_default(game_variant_t *variant)
 {
-  csmemset(variant, 0, 0x68);
-  *(int32_t *)((char *)variant + 0x18) = 5;
-  *(uint8_t *)((char *)variant + 0x1c) = 1;
-  *(int32_t *)((char *)variant + 0x20) = 3;
-  *(int32_t *)((char *)variant + 0x24) = 1;
-  *(int32_t *)((char *)variant + 0x34) = 0x12c;
-  *(int32_t *)((char *)variant + 0x3c) = 0x3f800000;
-  *(int32_t *)((char *)variant + 0x40) = 3;
-  *(int32_t *)((char *)variant + 0x48) = 2;
-  *(int16_t *)((char *)variant + 0x64) = 1;
+  /* Builds the variant in a zeroed local, RMWs the +0x20 flag dword,
+   * then REP MOVSD 0x1a dwords to the out pointer. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 5;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 3;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x4c) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *variant = v;
   return variant;
 }
 
@@ -3123,9 +3311,12 @@ int FUN_000a8470(int param_1, int param_2)
  * otherwise returns the incoming AL (0). */
 char FUN_000a9550(void)
 {
-  if ((*(uint32_t *)0x5aa720 & 4) == 0)
-    return (char)(*(uint32_t *)0x456b18 >> 2) & 1;
-  return 0;
+  /* Original: byte load of the complexity flags (MOV CL,[0x5aa720]),
+   * result preloaded 0, single RET. */
+  char result = 0;
+  if ((*(uint8_t *)0x5aa720 & 4) == 0)
+    result = (char)((*(uint32_t *)0x456b18 >> 2) & 1);
+  return result;
 }
 
 /* Return whether friendly fire is enabled for a specific player.
@@ -3280,465 +3471,363 @@ int FUN_000ab290(int param_1)
   return (*(uint32_t *)(weapon_tag + 0x308) >> 13) & 1;
 }
 
-/* Return 1 if the game engine is inactive (no engine), or bit 0 of flags. */
+/* Return 1 if the game engine is inactive (no engine), or bit 0 of flags.
+ * Original preloads AL=1 and overwrites in the engine-active branch
+ * (single RET) — keep the result-variable form. */
 char FUN_000ab9a0(void)
 {
+  char result = 1;
   if (current_game_engine)
-    return *(uint8_t *)0x456b18 & 1;
-  return 1;
+    result = *(uint8_t *)0x456b18 & 1;
+  return result;
 }
 
 /* Return 1 if no engine, or inverted bit 0 of the complexity word. */
 char FUN_000ab9c0(void)
 {
+  char result = 1;
   if (current_game_engine)
-    return ~(*(uint8_t *)0x5aa720) & 1;
-  return 1;
+    result = ~(*(uint8_t *)0x5aa720) & 1;
+  return result;
 }
 
-/* Return 1 if no engine, or inverted bit 1 of the complexity word. */
+/* Return 1 if no engine, or inverted bit 1 of the complexity word.
+ * Original loads the full DWORD at 0x5aa720 then SHR 1. */
 char FUN_000ab9e0(void)
 {
+  char result = 1;
   if (current_game_engine)
-    return ~(*(uint8_t *)0x5aa720 >> 1) & 1;
-  return 1;
+    result = (char)(~(*(uint32_t *)0x5aa720 >> 1) & 1);
+  return result;
 }
 
 /* Initialize a CTF game variant (slayer pro). */
 game_variant_t *FUN_000aa220(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffe3) | 0x23;
-  *(int *)(buf + 0x18) = 2;
-  *(int *)(buf + 0x48) = 2;
-  *(char *)(buf + 0x4c) = 1;
-  *(char *)(buf + 0x4d) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x24) = 0;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x30) = 0;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x40) = 25;
-  *(int *)(buf + 0x34) = 0x1c2;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 0;
-  *(char *)(buf + 0x4e) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* CTF ("slayer pro") variant: zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(uint8_t *)((char *)&v + 0x4c) = 1;
+  *(uint8_t *)((char *)&v + 0x4d) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
+  *(int32_t *)((char *)&v + 0x24) = 0;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0x19;
+  *(int32_t *)((char *)&v + 0x34) = 0x1c2;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a Slayer game variant. */
 game_variant_t *FUN_000aa340(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffd2) | 0x12;
-  *(int *)(buf + 0x24) = 1;
-  *(char *)(buf + 0x4c) = 1;
-  *(char *)(buf + 0x4d) = 1;
-  *(char *)(buf + 0x4e) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x18) = 2;
-  *(int *)(buf + 0x48) = 2;
-  *(int *)(buf + 0x30) = 150;
-  *(int *)(buf + 0x34) = 150;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x40) = 10;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* Slayer variant: zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffd2) | 0x12;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x4c) = 1;
+  *(uint8_t *)((char *)&v + 0x4d) = 1;
+  *(uint8_t *)((char *)&v + 0x4e) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0xa;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a King of the Hill game variant. */
 game_variant_t *FUN_000aa3d0(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffc3) | 0x3;
-  *(int *)(buf + 0x2c) = 0x12c;
-  *(int *)(buf + 0x34) = 0x12c;
-  *(int *)(buf + 0x18) = 2;
-  *(int *)(buf + 0x48) = 2;
-  *(char *)(buf + 0x28) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x24) = 0;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 5;
-  *(int *)(buf + 0x30) = 0;
-  *(int *)(buf + 0x40) = 10;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 0;
-  *(char *)(buf + 0x4c) = 0;
-  *(char *)(buf + 0x4d) = 0;
-  *(char *)(buf + 0x4e) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* King of the Hill variant: zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x2c) = 0x12c;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(uint8_t *)((char *)&v + 0x28) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x24) = 0;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 5;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0xa;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a Oddball game variant. */
 game_variant_t *FUN_000aa460(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffe2) | 0x22;
-  *(int *)(buf + 0x24) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x18) = 2;
-  *(int *)(buf + 0x48) = 2;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x30) = 0;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x40) = 25;
-  *(int *)(buf + 0x34) = 0x12c;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 6;
-  *(char *)(buf + 0x4c) = 0;
-  *(char *)(buf + 0x4d) = 0;
-  *(char *)(buf + 0x4e) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* Oddball variant: zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffe2) | 0x22;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0x19;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 6;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a Oddball variant (alt). */
 game_variant_t *FUN_000aa4f0(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffe2) | 0x22;
-  *(int *)(buf + 0x24) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x18) = 2;
-  *(int *)(buf + 0x48) = 2;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x30) = 0;
-  *(int *)(buf + 0x2c) = 150;
-  *(int *)(buf + 0x40) = 15;
-  *(int *)(buf + 0x34) = 0x12c;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 4;
-  *(char *)(buf + 0x4c) = 0;
-  *(char *)(buf + 0x4d) = 0;
-  *(char *)(buf + 0x4e) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* Oddball variant (alt): zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffe2) | 0x22;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0x96;
+  *(int32_t *)((char *)&v + 0x40) = 0xf;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 4;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a Race game variant. */
 game_variant_t *FUN_000aa730(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffc2) | 0x2;
-  *(int *)(buf + 0x24) = 1;
-  *(int *)(buf + 0x48) = 1;
-  *(int *)(buf + 0x60) = 1;
-  *(char *)(buf + 0x4d) = 1;
-  *(int *)(buf + 0x5c) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x30) = 150;
-  *(int *)(buf + 0x34) = 150;
-  *(int *)(buf + 0x18) = 3;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x40) = 2;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 0;
-  *(char *)(buf + 0x4c) = 0;
-  *(int *)(buf + 0x54) = 0;
-  *(int *)(buf + 0x58) = 0;
-  *(int *)(buf + 0x50) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* Race variant: zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc2) | 2;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int32_t *)((char *)&v + 0x48) = 1;
+  *(int32_t *)((char *)&v + 0x60) = 1;
+  *(uint8_t *)((char *)&v + 0x4d) = 1;
+  *(int32_t *)((char *)&v + 0x5c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x18) = 3;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 2;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(int32_t *)((char *)&v + 0x54) = 0;
+  *(int32_t *)((char *)&v + 0x58) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a Race game variant (alt). */
 game_variant_t *FUN_000aa860(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffc3) | 0x3;
-  *(int *)(buf + 0x30) = 150;
-  *(int *)(buf + 0x34) = 150;
-  *(int *)(buf + 0x48) = 2;
-  *(int *)(buf + 0x54) = 2;
-  *(int *)(buf + 0x5c) = 2;
-  *(int *)(buf + 0x24) = 1;
-  *(int *)(buf + 0x60) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x18) = 3;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x40) = 10;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 0;
-  *(char *)(buf + 0x4d) = 0;
-  *(char *)(buf + 0x4c) = 0;
-  *(int *)(buf + 0x58) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* Race variant (alt): zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x54) = 2;
+  *(int32_t *)((char *)&v + 0x5c) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int32_t *)((char *)&v + 0x60) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 3;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 0xa;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(int32_t *)((char *)&v + 0x58) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a CTF variant (team). */
 game_variant_t *FUN_000aaa20(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffe3) | 0x23;
-  *(int *)(buf + 0x40) = 2;
-  *(int *)(buf + 0x48) = 2;
-  *(int *)(buf + 0x24) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x18) = 4;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x30) = 0x12c;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x34) = 0x1c2;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 0;
-  *(char *)(buf + 0x4c) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* CTF variant (team): zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
+  *(int32_t *)((char *)&v + 0x40) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x18) = 4;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0x12c;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x34) = 0x1c2;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a CTF variant (no teams). */
 game_variant_t *FUN_000aaab0(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffc3) | 0x3;
-  *(int *)(buf + 0x24) = 1;
-  *(char *)(buf + 0x4c) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x40) = 2;
-  *(int *)(buf + 0x48) = 2;
-  *(int *)(buf + 0x18) = 4;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x30) = 0;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x34) = 150;
-  *(char *)(buf + 0x1c) = 0;
-  *(int *)(buf + 0x44) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* CTF variant (no teams): zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x4c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x40) = 2;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x18) = 4;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(uint8_t *)((char *)&v + 0x1c) = 0;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a Assault game variant. */
 game_variant_t *FUN_000aac50(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffe3) | 0x23;
-  *(int *)(buf + 0x18) = 1;
-  *(int *)(buf + 0x24) = 1;
-  *(char *)(buf + 0x1c) = 1;
-  *(char *)(buf + 0x4f) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x30) = 0x12c;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x40) = 3;
-  *(int *)(buf + 0x34) = 0x1c2;
-  *(int *)(buf + 0x44) = 0;
-  *(int *)(buf + 0x48) = 2;
-  *(char *)(buf + 0x4c) = 0;
-  *(char *)(buf + 0x4e) = 0;
-  *(char *)(buf + 0x4d) = 0;
-  *(int *)(buf + 0x50) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* Assault variant: zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x18) = 1;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(uint8_t *)((char *)&v + 0x4f) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0x12c;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 3;
+  *(int32_t *)((char *)&v + 0x34) = 0x1c2;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(uint8_t *)((char *)&v + 0x4c) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a Assault game variant (alt). */
 game_variant_t *FUN_000aace0(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffc3) | 0x3;
-  *(int *)(buf + 0x18) = 1;
-  *(int *)(buf + 0x24) = 1;
-  *(char *)(buf + 0x1c) = 1;
-  *(char *)(buf + 0x4c) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 5;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x30) = 0;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x40) = 3;
-  *(int *)(buf + 0x34) = 150;
-  *(int *)(buf + 0x44) = 0;
-  *(int *)(buf + 0x48) = 2;
-  *(char *)(buf + 0x4f) = 0;
-  *(char *)(buf + 0x4e) = 0;
-  *(char *)(buf + 0x4d) = 0;
-  *(int *)(buf + 0x50) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* Assault variant (alt): zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x18) = 1;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(uint8_t *)((char *)&v + 0x4c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 5;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x40) = 3;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(uint8_t *)((char *)&v + 0x4f) = 0;
+  *(uint8_t *)((char *)&v + 0x4e) = 0;
+  *(uint8_t *)((char *)&v + 0x4d) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *out = v;
   return out;
 }
 
 /* Initialize a Race game variant (team). */
 game_variant_t *FUN_000aafb0(game_variant_t *out)
 {
-  int i;
-  int *src;
-  int *dst;
-  char buf[0x68];
-
-  csmemset(buf, 0, 0x68);
-  *(uint32_t *)(buf + 0x20) = (*(uint32_t *)(buf + 0x20) & 0xffffffc3) | 0x3;
-  *(int *)(buf + 0x18) = 5;
-  *(int *)(buf + 0x40) = 5;
-  *(int *)(buf + 0x24) = 1;
-  *(char *)(buf + 0x1c) = 1;
-  *(int16_t *)(buf + 0x64) = 1;
-  *(int *)(buf + 0x48) = 2;
-  *(int *)(buf + 0x4c) = 2;
-  *(int *)(buf + 0x3c) = 0x3f800000;
-  *(int *)(buf + 0x38) = 0;
-  *(char *)(buf + 0x28) = 0;
-  *(int *)(buf + 0x30) = 0;
-  *(int *)(buf + 0x2c) = 0;
-  *(int *)(buf + 0x34) = 0x12c;
-  *(int *)(buf + 0x44) = 0;
-  *(int *)(buf + 0x50) = 0;
-  dst = (int *)out;
-  src = (int *)buf;
-  for (i = 0x1a; i != 0; i--) {
-    *dst = *src;
-    src++;
-    dst++;
-  }
+  /* Race variant (team): zeroed local, +0x20 RMW, REP MOVSD out. */
+  game_variant_t v = {0};
+  *(int32_t *)((char *)&v + 0x20) =
+      (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x18) = 5;
+  *(int32_t *)((char *)&v + 0x40) = 5;
+  *(int32_t *)((char *)&v + 0x24) = 1;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
+  *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x4c) = 2;
+  *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
+  *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x30) = 0;
+  *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x50) = 0;
+  *out = v;
   return out;
 }
 
@@ -4806,6 +4895,8 @@ int game_engine_remap_weapon(int param_1)
 
   case 2:
 
+    /* Original (T2 @0xa98d4 + JA 0xa9888): every index OUTSIDE {3,4,6,7}
+     * — including 5 and out-of-range — maps to list index 0. */
     switch (index) {
 
     case 3: case 4: case 6: case 7:
@@ -4814,7 +4905,7 @@ int game_engine_remap_weapon(int param_1)
 
     }
 
-    break;
+    return list_index_to_weapon_definition_index(0);
 
   case 3:
 
@@ -4834,9 +4925,10 @@ int game_engine_remap_weapon(int param_1)
 
   case 5:
 
+    /* Original (0xa9836): index 4 -> JZ 0xa9888 (XOR EAX) = list 0. */
     if (index == 4)
 
-      break;
+      return list_index_to_weapon_definition_index(0);
 
     if (index == 9)
 
@@ -4866,17 +4958,20 @@ int game_engine_remap_weapon(int param_1)
 
   case 9:
 
+    /* Original (0xa9875): index 3 -> list 0 (JZ 0xa9888); index 5 ->
+     * list 4 (0xa97cb); index 6 -> list 0 (fallthrough to 0xa9888);
+     * everything else passes through. */
     if (index == 3)
 
-      break;
+      return list_index_to_weapon_definition_index(0);
 
     if (index == 5)
 
       return list_index_to_weapon_definition_index(4);
 
-    if (index != 6)
+    if (index == 6)
 
-      break;
+      return list_index_to_weapon_definition_index(0);
 
     break;
 
@@ -5636,16 +5731,23 @@ float game_engine_get_distance_rating_for_spawn(int param_1, float *param_2)
 
 }
 
-/* Get blink alpha for HUD animation. ECX = random seed input. */
-int FUN_000a8e80(int param_1)
+/* Periodic sine wave from the millisecond clock (period 0xa8c ms).
+ * Original: CALL system_milliseconds; XOR EDX,EDX; DIV 0xa8c;
+ * FILD remainder; FMUL double [0x26b750]; FSIN; RET (float in ST0).
+ * The old lift returned the DIV quotient as int (wrong register class:
+ * EAX instead of ST0, and dropped the FSIN). No xrefs in the binary
+ * (dead code), fixed for faithfulness. PUSH ECX at entry is 4-byte
+ * local alloc, not a parameter. */
+float FUN_000a8e80(void)
 {
-  unsigned int val;
-  unsigned int remainder;
+  int remainder;
 
-  val = system_milliseconds();
-  remainder = val % 0xa8c;
-  (void)remainder;
-  return val / 0xa8c;
+  remainder = (int)(system_milliseconds() % 0xa8cu);
+#if defined(_MSC_VER) && !defined(__clang__)
+  return (float)sin((double)remainder * *(double *)0x26b750);
+#else
+  return (float)x87_fsin_d((double)remainder * *(double *)0x26b750);
+#endif
 }
 
 /* Check if a nearby enemy exists at a location. ECX=location_ptr, EAX=player_handle. */
@@ -5879,7 +5981,7 @@ char game_engine_should_spawn_player(int param_1)
   int player;
   int countdown;
   int tick;
-  uint32_t tick_masked;
+  int tick_masked;
 
   if (current_game_engine == 0)
     return 0;
@@ -5914,13 +6016,13 @@ char game_engine_should_spawn_player(int param_1)
   if (countdown != 0)
     return countdown == 0;
 check_tick:
+  /* Original: signed %32 idiom (AND 0x8000001f; JNS; DEC/OR/INC fixup)
+   * on both the tick and the 16-bit-masked player handle. */
   tick = game_time_get();
   if (tick < 4)
     return 1;
-  tick_masked = (uint32_t)game_time_get() & 0x8000001f;
-  if ((int)tick_masked < 0)
-    tick_masked = (tick_masked - 1 | 0xffffffe0) + 1;
-  if (tick_masked != (param_1 & 0x1f))
+  tick_masked = game_time_get() % 32;
+  if (tick_masked != (int)(param_1 & 0xffff) % 32)
     return 0;
   return 1;
 }
@@ -6138,42 +6240,59 @@ int FUN_000abd20(int *param_1, int param_2, char param_3)
   return count;
 }
 
-/* Get the local player's stat entry from the sorted buffer. */
+/* One postgame stat entry: 7 dwords (0x1c bytes), 16-entry array on the
+ * stack of FUN_000abf50 (SUB ESP,0x1c0). Struct assignment reproduces the
+ * original's REP MOVSD (ECX=7) copy-out. */
+typedef struct {
+  int32_t w[7];
+} postgame_stat_entry_t;
+
+/* Get the local player's stat entry from the sorted buffer.
+ * Original (0xabf50): FUN_000abd20's return value is IGNORED; the search
+ * runs until the handle matches, and the original hard-asserts
+ * ("place<MULTIPLAYER_MAXIMUM_PLAYERS", line 0x359) once the index
+ * reaches 16 — confirmed via fresh disassembly (no count bound, no
+ * zero-fill in the original).
+ *
+ * DEVIATION (2026-07-03): this assert was reported firing in live FFA
+ * postgame-report play (game_engine.c #857). Re-verified the entire
+ * reachable chain against disassembly — FUN_000abd20, this function,
+ * FUN_000afcb0's caller-side guard, and data_iterator_next/datum_get in
+ * data.c — all byte-faithful to the original; no lift bug found. The
+ * local player's own handle passes datum_get a few calls upstream
+ * (FUN_000afcb0) yet is absent from FUN_000abd20's active-player scan
+ * by the time this runs, which must be a rare race even on real
+ * hardware (see docs/lift-learnings.md §11 for the same failure
+ * signature on a different caller). Since we cannot reproduce the
+ * original's exact frame-level scheduling around postgame/network
+ * teardown, and a fatal HALT here ends the session on every hit, we
+ * zero-fill and return instead of asserting. This is a deliberate,
+ * documented divergence from the confirmed-faithful original body —
+ * not a re-lift — and only activates in the already-anomalous
+ * "handle not found" case, so all normal (found) behavior is unchanged.
+ * Copy-out is REP MOVSD of 7 dwords. */
 int *FUN_000abf50(int *param_1, int player_handle)
 {
   int i;
-  int count;
-  int *src;
-  int *dst;
-  int local_1c4[112];
+  int n;
+  int *cursor;
+  postgame_stat_entry_t entries[16];
 
   i = 0;
-  count = FUN_000abd20(local_1c4, 0, 0);
-  if (count > 0 && local_1c4[0] != player_handle) {
-    src = local_1c4;
+  FUN_000abd20((int *)entries, 0, 0);
+  if (entries[0].w[0] != player_handle) {
+    cursor = (int *)entries;
     do {
       i++;
-      src += 7;
-      if (i >= count) {
-        /* player datum inactive (quit) — not in sorted array; zero output */
-        int n;
-        for (n = 0; n < 7; n++) param_1[n] = 0;
+      cursor += 7;
+      if (i >= 16) {
+        for (n = 0; n < 7; n++)
+          param_1[n] = 0;
         return param_1;
       }
-    } while (*src != player_handle);
-  } else if (count == 0) {
-    int n;
-    for (n = 0; n < 7; n++) param_1[n] = 0;
-    return param_1;
+    } while (*cursor != player_handle);
   }
-  src = local_1c4 + i * 7;
-  dst = param_1;
-  { int n;
-  for (n = 7; n != 0; n--) {
-    *dst = *src;
-    src++;
-    dst++;
-  } }
+  *(postgame_stat_entry_t *)param_1 = entries[i];
   return param_1;
 }
 
@@ -6618,45 +6737,9 @@ void FUN_000b1760(void)
   uint32_t last_player;
   data_iter_t iter;
 
-  if (FUN_000a95a0() == 0) {
-    on_hill_count = 0;
-    data_iterator_new(&iter, player_data);
-    player = (int)data_iterator_next(&iter);
-    if (player == 0) {
-      *(int *)0x456d40 = -1;
-      *(int *)0x456d38 = 0;
-      *(int *)0x456d3c = 0;
-      return;
-    }
-    do {
-      last_player = iter.datum_handle;
-      if (*(char *)(0x456c28 + (iter.datum_handle & 0xffff)) != 0) {
-        on_hill_count++;
-        last_player = iter.datum_handle;
-      }
-      player = (int)data_iterator_next(&iter);
-    } while (player != 0);
-    state = 1;
-    if (1 < on_hill_count) {
-      *(int *)0x456d38 = 4;
-      if (300 < *(int *)0x456d3c)
-        game_engine_post_event(0x27);
-      *(int *)0x456d3c = 0;
-      *(int *)0x456d40 = -1;
-      return;
-    }
-    if (on_hill_count == 0) {
-      *(int *)0x456d38 = 0;
-      *(int *)0x456d3c = 0;
-      *(int *)0x456d40 = -1;
-      return;
-    }
-    if (*(int *)0x456d38 != 1 || last_player != *(uint32_t *)0x456d40) {
-      *(int *)0x456d3c = 0;
-      *(uint32_t *)0x456d40 = last_player;
-      goto update;
-    }
-  } else {
+  /* Original layout: team play (AL!=0) is the fallthrough path; FFA is the
+   * JZ target placed after it. Keep that order for the compiler. */
+  if (FUN_000a95a0() != 0) {
     team0_count = 0;
     team1_count = 0;
     data_iterator_new(&iter, player_data);
@@ -6694,6 +6777,53 @@ void FUN_000b1760(void)
     }
     if (*(int *)0x456d38 != state) {
       *(int *)0x456d3c = 0;
+      goto update;
+    }
+  } else {
+    on_hill_count = 0;
+    data_iterator_new(&iter, player_data);
+    player = (int)data_iterator_next(&iter);
+    if (player == 0) {
+      *(int *)0x456d40 = -1;
+      *(int *)0x456d38 = 0;
+      *(int *)0x456d3c = 0;
+      return;
+    }
+    /* Original (0xb1870 loop): EDI (last_player) is updated ONLY when the
+     * player's on-hill flag is set (MOV EDI,EAX guarded by the CMP byte
+     * [ECX+0x456c28],BL check). Assigning it unconditionally made the
+     * single-holder identity check below compare against the last player
+     * iterated instead of the last player on the hill, resetting the
+     * crown timer whenever the holder wasn't last in the player table.
+     * (The original loads the still-uninitialized last_player local into
+     * EDI before the loop; it is only consumed when on_hill_count==1, in
+     * which case the loop always assigned it. Zero-init for hygiene.) */
+    last_player = 0;
+    do {
+      if (*(char *)(0x456c28 + (iter.datum_handle & 0xffff)) != 0) {
+        on_hill_count++;
+        last_player = iter.datum_handle;
+      }
+      player = (int)data_iterator_next(&iter);
+    } while (player != 0);
+    state = 1;
+    if (1 < on_hill_count) {
+      *(int *)0x456d38 = 4;
+      if (300 < *(int *)0x456d3c)
+        game_engine_post_event(0x27);
+      *(int *)0x456d3c = 0;
+      *(int *)0x456d40 = -1;
+      return;
+    }
+    if (on_hill_count == 0) {
+      *(int *)0x456d38 = 0;
+      *(int *)0x456d3c = 0;
+      *(int *)0x456d40 = -1;
+      return;
+    }
+    if (*(int *)0x456d38 != 1 || last_player != *(uint32_t *)0x456d40) {
+      *(int *)0x456d3c = 0;
+      *(uint32_t *)0x456d40 = last_player;
       goto update;
     }
   }
@@ -6782,12 +6912,15 @@ void FUN_000b1600(int param_1)
   }
 }
 
-/* Oddball: increment score for a player holding the ball (b2740). */
+/* Oddball: increment score for a player holding the ball (b2740).
+ * player_handle arrives in EAX (kb @<eax>): the unported ball-carrier
+ * tick FUN_000b2810 tail-jumps here with MOV EAX,ESI.
+ * The original RE-READS [0x456e08] and the team score before each of
+ * the three checks (game_engine_post_event can mutate them) — do not
+ * cache across the calls. */
 void FUN_000b2740(int player_handle)
 {
   int player;
-  int target;
-  int current;
   char event;
 
   player = (int)datum_get(player_data, player_handle);
@@ -6795,23 +6928,24 @@ void FUN_000b2740(int player_handle)
       *(int *)(0x456e4c + (player_handle & 0xffff) * 4) + 1;
   *(int *)(0x456e0c + *(int *)(player + 0x20) * 4) =
       *(int *)(0x456e0c + *(int *)(player + 0x20) * 4) + 1;
-  target = *(int *)0x456e08;
-  current = *(int *)(0x456e0c + *(int *)(player + 0x20) * 4);
-  if (target - current == 900) {
+  if (*(int *)0x456e08 -
+      *(int *)(0x456e0c + *(int *)(player + 0x20) * 4) == 0x384) {
     if (FUN_000a95a0() == 0)
       event = 3;
     else
       event = (*(int *)(player + 0x20) != 0) * 2 + 5;
     game_engine_post_event(event);
   }
-  if (target - current == 0x708) {
+  if (*(int *)0x456e08 -
+      *(int *)(0x456e0c + *(int *)(player + 0x20) * 4) == 0x708) {
     if (FUN_000a95a0() == 0)
       event = 2;
     else
       event = (*(int *)(player + 0x20) != 0) * 2 + 4;
     game_engine_post_event(event);
   }
-  if (target <= current)
+  if (*(int *)(0x456e0c + *(int *)(player + 0x20) * 4) >=
+      *(int *)0x456e08)
     game_engine_start_over();
 }
 
@@ -6882,10 +7016,15 @@ void FUN_000ae460(int param_1, int16_t game_type)
   error(2, (char *)param_1);
 }
 
-/* Compute fmod of a float value against the double constant at 0x26b678 (~1.9). */
+/* Compute fmod of a float value against the double constant at 0x26b678 (~1.9).
+ * Original: FLD [ebp+8]; FLD qword [0x26b678]; CALL _CIfmod (0x1d9e70). */
 float game_globals_get_weapon(float param_1)
 {
+#if defined(_MSC_VER) && !defined(__clang__)
+  return (float)fmod((double)param_1, *(double *)0x26b678);
+#else
   return (float)x87_fmod((double)param_1, *(double *)0x26b678);
+#endif
 }
 
 /* Get the starting location rating for a spawn point (adcf0). */
@@ -7184,14 +7323,14 @@ char FUN_000b3630(int weapon_handle, int player_handle)
 char FUN_000b2be0(int param_1)
 {
   int variant;
+  char result = 0;
 
   if (param_1 == 1) {
     variant = (int)game_engine_get_variant();
-    if (*(int *)(variant + 0x5c) - 2 == 0)
-      return 1;
-    return 0;
+    if (*(int *)(variant + 0x5c) == 2)
+      result = 1;
   }
-  return 0;
+  return result;
 }
 
 /* King of the Hill: compute hill geometry from scenario flag positions (b1180). */
