@@ -5509,7 +5509,7 @@
       "target_path": "build/CMakeFiles/halo.dir/src/halo/math/integer_math.c.obj",
       "base_path": "delinked/integer_math.obj",
       "metadata": {
-        "source_path": "halo/math/integer_math.c"
+        "source_path": "src/halo/math/integer_math.c"
       }
     },
     {
@@ -6644,7 +6644,7 @@
       "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/rasterizer_text.c.obj",
       "base_path": "delinked/rasterizer_text.obj",
       "metadata": {
-        "source_path": "halo/rasterizer/rasterizer_text.c"
+        "source_path": "src/halo/rasterizer/rasterizer_text.c"
       }
     },
     {
@@ -7957,6 +7957,54 @@
       "base_path": "delinked/rasterizer_FUN_00174d10.obj",
       "metadata": {
         "source_path": "src/halo/rasterizer/rasterizer.c"
+      }
+    },
+    {
+      "name": "halo/rasterizer_FUN_0016eef0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/rasterizer.c.obj",
+      "base_path": "delinked/rasterizer_FUN_0016eef0.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/rasterizer.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00172a30",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/rasterizer.c.obj",
+      "base_path": "delinked/functions/00172a30.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/rasterizer.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00170c90",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/rasterizer.c.obj",
+      "base_path": "delinked/functions/00170c90.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/rasterizer.c"
+      }
+    },
+    {
+      "name": "halo/FUN_0016f910",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/xbox/rasterizer_xbox_profile.c.obj",
+      "base_path": "delinked/functions/0016f910.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+      }
+    },
+    {
+      "name": "halo/FUN_0016fa40",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/xbox/rasterizer_xbox_profile.c.obj",
+      "base_path": "delinked/functions/0016fa40.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+      }
+    },
+    {
+      "name": "halo/rasterizer_xbox_shadows",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/xbox/rasterizer_xbox_shadows.c.obj",
+      "base_path": "delinked/rasterizer_xbox_shadows.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_shadows.c"
       }
     }
   ]

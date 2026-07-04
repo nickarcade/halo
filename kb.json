@@ -2385,7 +2385,8 @@
      "ported": true
     }
    ],
-   "name": "actions.obj"
+   "name": "actions.obj",
+   "source": "ai/actions.c"
   },
   {
    "data": [
@@ -6281,7 +6282,7 @@
     },
     {
      "addr": "0x17ccb0",
-     "decl": "void FUN_0017ccb0(int param_1, void *decal_set, void *position, float radius, int *result_out);",
+     "decl": "void FUN_0017ccb0(int param_1, const float *shadow_matrix, const float *shadow_color, float object_bounding_radius, float *out_radius);",
      "ported": true
     },
     {
@@ -13145,7 +13146,7 @@
     },
     {
      "addr": "0x100b00",
-     "decl": "void main_get_window_count(void);"
+     "decl": "short main_get_window_count(void);"
     },
     {
      "addr": "0x100b40",
@@ -18814,11 +18815,12 @@
    "functions": [
     {
      "addr": "0x16eef0",
-     "decl": "void FUN_0016eef0(void *group);"
+     "decl": "void FUN_0016eef0(void *group);",
+     "ported": true
     },
     {
      "addr": "0x16f480",
-     "decl": "void FUN_0016f480(void);"
+     "decl": "void FUN_0016f480(const char *message@<esi>, int16_t profile_index@<di>, char condition);"
     },
     {
      "addr": "0x16f500",
@@ -18843,15 +18845,6 @@
     {
      "addr": "0x16f8a0",
      "decl": "void FUN_0016f8a0(void);"
-    },
-    {
-     "addr": "0x16f910",
-     "decl": "void FUN_0016f910(int type);",
-     "ported": false
-    },
-    {
-     "addr": "0x16fa40",
-     "decl": "void FUN_0016fa40(int param1);"
     },
     {
      "addr": "0x16fb80",
@@ -18887,11 +18880,11 @@
     },
     {
      "addr": "0x170440",
-     "decl": "void FUN_00170440(void);"
+     "decl": "void FUN_00170440(void *params@<eax>, short pass, short pass_count);"
     },
     {
      "addr": "0x170c90",
-     "decl": "void FUN_00170c90(void *decal);"
+     "decl": "void FUN_00170c90(void *effect);"
     },
     {
      "addr": "0x171bc0",
@@ -18923,7 +18916,8 @@
     },
     {
      "addr": "0x172a30",
-     "decl": "void FUN_00172a30(int param_1, void *decal_set, void *position, float radius, int *result_out);"
+     "decl": "char FUN_00172a30(int param_1, const float *shadow_matrix, const float *shadow_color, float object_bounding_radius, float *out_radius);",
+     "ported": true
     },
     {
      "addr": "0x172de0",
@@ -19277,7 +19271,7 @@
     },
     {
      "addr": "0x158140",
-     "decl": "void FUN_00158140(void);"
+     "decl": "void FUN_00158140(int a1, int a2, uint32_t a3, int a4, int a5);"
     },
     {
      "addr": "0x1584f0",
@@ -28102,7 +28096,7 @@
     },
     {
      "addr": "0x17dc70",
-     "decl": "void FUN_0017dc70(void);"
+     "decl": "void *FUN_0017dc70(void *effect);"
     },
     {
      "addr": "0x17dec0",
@@ -30108,7 +30102,8 @@
     }
    ],
    "name": "international_strings.obj",
-   "source_path": "text/international_strings.c"
+   "source_path": "text/international_strings.c",
+   "source": "text/international_strings.c"
   },
   {
    "functions": [
@@ -36209,6 +36204,22 @@
    ]
   },
   {
+   "name": "rasterizer_xbox_profile.obj",
+   "source": "rasterizer/xbox/rasterizer_xbox_profile.c",
+   "functions": [
+    {
+     "addr": "0x16f910",
+     "decl": "void FUN_0016f910(int16_t profile);",
+     "ported": true
+    },
+    {
+     "addr": "0x16fa40",
+     "decl": "void FUN_0016fa40(int16_t profile);",
+     "ported": true
+    }
+   ]
+  },
+  {
    "functions": [
     {
      "addr": "0x001cfb73",
@@ -37284,7 +37295,7 @@
     },
     {
      "addr": "0x001ef8c0",
-     "decl": "void D3DDevice_InsertCallback(void);"
+     "decl": "void __stdcall D3DDevice_InsertCallback(uint32_t type, void *callback, uint32_t context);"
     },
     {
      "addr": "0x001ef930",

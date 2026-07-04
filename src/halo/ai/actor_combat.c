@@ -865,7 +865,14 @@ int actor_aim_grenade(int actor_handle, void *aim_params, float *out_aim_vector)
 {
   char *actor = (char *)datum_get(*(void **)0x6325a4, actor_handle);
   float aim_x, aim_y, aim_z;   /* [ebp-0x24/-0x20/-0x1c] chosen aim vector  */
-  float nrm_x, nrm_y, nrm_z;   /* [ebp-0x18/-0x14/-0x10] rotated facing nrm  */
+  float nrm[3];                /* [ebp-0x18/-0x14/-0x10] rotated facing nrm;
+                                  MUST be contiguous — passed by &nrm[0] to
+                                  rotate_vector3d_by_sincos and
+                                  valid_real_normal3d, both of which read 3
+                                  adjacent floats. Separate scalar locals let
+                                  clang scatter the stack slots, so the pointer
+                                  reads picked up unrelated locals and a valid
+                                  unit normal failed assert_valid_real_normal3d. */
   float planar[2];             /* [ebp-0xc/-0x8] planar dir for normalize    */
   int result;                  /* [ebp-0x4] encounter datum / -1             */
   char *enc;
@@ -902,33 +909,40 @@ int actor_aim_grenade(int actor_handle, void *aim_params, float *out_aim_vector)
     if (magnitude3d(planar) > *(float *)0x2533c0 &&
         planar[0] * *(float *)(actor + 0x174) +
             planar[1] * *(float *)(actor + 0x178) < *(float *)0x2533dc) {
-      nrm_x = *(float *)(actor + 0x174);
-      nrm_y = *(float *)(actor + 0x178);
-      nrm_z = *(float *)(actor + 0x17c);
+      nrm[0] = *(float *)(actor + 0x174);
+      nrm[1] = *(float *)(actor + 0x178);
+      nrm[2] = *(float *)(actor + 0x17c);
       t = planar[1] * *(float *)(actor + 0x174) -
           planar[0] * *(float *)(actor + 0x178);
       sign = (t > *(float *)0x2533c0) ? 1 : -1;
       sin_a = (float)sign * *(float *)0x253398;
       /* orig 0x22cc2: rotate input z is the facing z (actor+0x17c), set at
          line 649 above. Do NOT clobber it with aim_z before the rotate. */
-      rotate_vector3d_by_sincos(&nrm_x, *(float **)0x31fc44, sin_a,
-                                0.857651889f /* 0x3f5db3d7 */);
+      /* cos(30 deg); paired with sin_a = +/-0.5 (*0x253398 = sin 30 deg) for a
+         length-preserving 30-degree rotation about world-up. The prior literal
+         0.857651889f (0x3f5b8f13, cos 30.95 deg) did NOT match the original
+         immediate 0x3f5db3d7 = 0.866025388: with sin=0.5 that pair has
+         sin^2+cos^2 = 0.9856, so it shrank the rotated facing ~0.7% and tripped
+         assert_valid_real_normal3d at actor_combat.c:1865 on grenade throws
+         whose aim was >30deg off the actor facing (PoA covenant combat). */
+      rotate_vector3d_by_sincos(nrm, *(float **)0x31fc44, sin_a,
+                                0.866025388f /* 0x3f5db3d7 = cos(30 deg) */);
       /* orig 0x22d1b: overwrite the rotated z with aim_z AFTER the rotate. */
-      nrm_z = aim_z;
+      nrm[2] = aim_z;
       planar_mag = (float)x87_sqrt(aim_x * aim_x + aim_y * aim_y);
-      nrm_x = nrm_x * planar_mag;
-      nrm_y = planar_mag * nrm_y;
-      if (!valid_real_normal3d(&nrm_x)) {
+      nrm[0] = nrm[0] * planar_mag;
+      nrm[1] = planar_mag * nrm[1];
+      if (!valid_real_normal3d(nrm)) {
         csprintf((char *)0x5ab100,
                  "%s: assert_valid_real_normal3d(%f, %f, %f)", "&new_aim_vector",
-                 (double)nrm_x, (double)nrm_y, (double)aim_z);
+                 (double)nrm[0], (double)nrm[1], (double)aim_z);
         display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\ai\\actor_combat.c",
                        0x749, 1);
         system_exit(-1);
       }
-      aim_x = nrm_x;
-      aim_y = nrm_y;
-      aim_z = nrm_z;
+      aim_x = nrm[0];
+      aim_y = nrm[1];
+      aim_z = nrm[2];
     }
   }
 

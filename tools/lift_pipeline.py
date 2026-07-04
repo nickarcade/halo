@@ -90,7 +90,11 @@ def load_kb_index() -> tuple[dict[str, Target], dict[str, Target]]:
       name = parse_function_name_from_decl(decl)
       if not addr or not name:
         continue
-      target = Target(addr=addr, name=name, decl=decl, object_name=object_name, source_path=source_path)
+      # Per-function source_path (repo-root relative) overrides the object's
+      # primary TU — needed for objects whose lifts span multiple TUs.
+      fn_source = fn.get("source_path", "")
+      target = Target(addr=addr, name=name, decl=decl, object_name=object_name,
+                      source_path=fn_source if fn_source else source_path)
       by_name[name] = target
       by_addr[addr] = target
   return by_name, by_addr
@@ -805,6 +809,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
       proc = run_command(cmd, cwd=ROOT, log_path=artifact_dir / "vc71_verify.log")
       output = (proc.stdout or "") + (proc.stderr or "")
       vc71_has_fpu_warn = "FPU-WARN" in output
+      vc71_has_imm_warn = "IMM-WARN" in output
       vc71_match_pct = parse_match_percent(output)
       vc71_verify_ok = proc.returncode == 0
       if proc.returncode == 0:
@@ -813,8 +818,15 @@ def run_pipeline(args: argparse.Namespace) -> int:
         details = f"{vc71_match_pct:.1f}% match, FPU operand-order warnings" if vc71_match_pct else "FPU warnings"
       else:
         details = "VC71 compilation or comparison failed"
+      # IMM-WARN (wrong float/magic literal) is a very low-false-positive signal
+      # since both objects are VC71 codegen — flag it for review alongside FPU.
+      review_tags = ""
+      if vc71_has_fpu_warn:
+        review_tags += " [REVIEW FPU-WARN]"
+      if vc71_has_imm_warn:
+        review_tags += " [REVIEW IMM-WARN]"
       stages.append(StageResult("vc71_verify", ran=True, ok=vc71_verify_ok,
-                                details=details + (" [REVIEW FPU-WARN]" if vc71_has_fpu_warn else "")))
+                                details=details + review_tags))
     else:
       if vc71_source:
         reason = "no delinked reference — run: python3 tools/audit/batch_delink.py --per-function-only"

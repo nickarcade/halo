@@ -1,3 +1,219 @@
+/* MSVC CRT pow(): compiles to the _CIpow intrinsic (0x1d9e70 dispatcher,
+ * body at 0x1d9e94 uses fyl2x). Not in decl.h; declared locally as in
+ * objects.c so the compiler emits the intrinsic. */
+double pow(double x, double y);
+
+/* rasterizer_plasma_energy_draw (FUN_0016eef0): emit the plasma-energy
+ * transparent shader (shader type 10) for one geometry group. Binds the two
+ * noise-map textures (primary at shader+0xe0, secondary at shader+0x128),
+ * sets fixed-function / render state, computes the two animation scroll
+ * matrices (vs const block A: 6 vec4) and the perpendicular/parallel tint
+ * colour rows (block B: 3 vec4) into vertex-shader constants, then installs
+ * the plasma pixel shader and draws.
+ * Original TU: c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_plasma_energy.c
+ */
+void FUN_0016eef0(void *group)
+{
+  char *grp = (char *)group;
+  char *p; /* plasma shader params base = FUN_001906b0(..)+0x28 */
+  int *params; /* grp+0x6c: {color_table, pow_table} pointer pair */
+  float *color_table; /* params[0]: 12-byte-stride colour entries */
+  float *pow_table; /* params[1]: exponent-table floats [EBP-0xc] */
+  float *tint; /* [EBX] tint rgb triple */
+  float alpha_c; /* [EBP-8] default 1.0 */
+  float alpha_s; /* [EBP-4] default 0.0 */
+  float t; /* DAT_005a5e18 scroll time */
+  float adiv; /* t / primary_noise_map_animation_period */
+  float bdiv; /* t / secondary_noise_map_animation_period */
+  float dupA; /* shader+0xa8 diagonal duplicate (primary) */
+  float dupB; /* shader+0xf0 diagonal duplicate (secondary) */
+  float vsA[24]; /* [EBP-0x9c] vertex-shader const block A (6 vec4) */
+  float vsB[12]; /* [EBP-0x3c] vertex-shader const block B (3 vec4) */
+  short idx;
+
+  if (*(int *)0x476ab0 == 0) {
+    display_assert("global_d3d_device",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                   "plasma_energy.c",
+                   0x15, 1);
+    system_exit(-1);
+  }
+  if (*(char *)0x3256fb == 0) {
+    return;
+  }
+
+  p = (char *)FUN_001906b0(*(void **)(grp + 0xc), 10) + 0x28;
+  tint = *(float **)0x2ee708;
+  alpha_c = 1.0f;
+  alpha_s = 0.0f;
+
+  params = *(int **)(grp + 0x6c);
+  if (params != 0) {
+    color_table = *(float **)params;
+    if (color_table != 0) {
+      idx = *(short *)(p + 0x58);
+      if (idx >= 1 && idx <= 4) {
+        tint = (float *)((char *)color_table + (idx - 1) * 12);
+      }
+    }
+    pow_table = *(float **)(params + 1);
+    if (pow_table != 0) {
+      idx = *(short *)(p + 4);
+      if (idx >= 1 && idx <= 4) {
+        alpha_c =
+          (float)pow((double)pow_table[idx - 1], (double)*(float *)(p + 8));
+      }
+      idx = *(short *)(p + 0xc);
+      if (idx >= 1 && idx <= 4) {
+        alpha_s =
+          (float)pow((double)pow_table[idx - 1], (double)*(float *)(p + 0x14)) *
+          *(float *)(p + 0x10);
+      }
+    }
+  }
+
+  /* Bind the two noise-map textures and their fixed-function stage state. */
+  rasterizer_set_texture(0, 1, 0, *(int *)(p + 0xb8),
+                         *(unsigned short *)(grp + 0x10));
+  SetTextureStageStateSmart(0, 0xa, 1);
+  SetTextureStageStateSmart(0, 0xb, 1);
+  SetTextureStageStateSmart(0, 0xc, 1);
+  SetTextureStageStateSmart(0, 0xd, 2);
+  SetTextureStageStateSmart(0, 0xe, 2);
+  SetTextureStageStateSmart(0, 0xf, 2);
+  rasterizer_set_texture(1, 1, 0, *(int *)(p + 0x100),
+                         *(unsigned short *)(grp + 0x10));
+  SetTextureStageStateSmart(1, 0xa, 1);
+  SetTextureStageStateSmart(1, 0xb, 1);
+  SetTextureStageStateSmart(1, 0xc, 1);
+  SetTextureStageStateSmart(1, 0xd, 2);
+  SetTextureStageStateSmart(1, 0xe, 2);
+  SetTextureStageStateSmart(1, 0xf, 2);
+
+  D3DDevice_SetRenderState_CullMode(0);
+  /* 0x10101 is correct despite the delinked disasm showing $0x101: the
+   * imm carries a dir32 reloc to XBE_FILE_HEADER_00010000, so the real
+   * value is 0x10000 (XBE base) + 0x101 addend = 0x10101. */
+  D3DDevice_SetRenderState_Simple(0x40358, 0x10101);
+  *(uint32_t *)0x1fb7a4 = 0x10101;
+  D3DDevice_SetRenderState_Simple(0x40304, 1);
+  *(uint32_t *)0x1fb784 = 1;
+  D3DDevice_SetRenderState_Simple(0x40344, 0x302);
+  *(uint32_t *)0x1fb790 = 0x302;
+  D3DDevice_SetRenderState_Simple(0x40348, 1);
+  *(uint32_t *)0x1fb794 = 1;
+  D3DDevice_SetRenderState_Simple(0x40350, 0x8006);
+  *(uint32_t *)0x1fb7c0 = 0x8006;
+  D3DDevice_SetRenderState_Simple(0x40300, 0);
+  *(uint32_t *)0x1fb788 = 0;
+  D3DDevice_SetRenderState_ZEnable(1);
+  D3DDevice_SetRenderState_Simple(0x4035c, 0);
+  *(uint32_t *)0x1fb798 = 0;
+  D3DDevice_SetRenderState_Simple(0x40354, 0x203);
+  *(uint32_t *)0x1fb77c = 0x203;
+  D3DDevice_SetRenderState_ZBias(0);
+
+  FUN_00178b40(0xf, FUN_00184610(grp), 0);
+
+  if (!(*(float *)(p + 0x98) != 0.0f)) {
+    display_assert("plasma->primary_noise_map_animation_period!=0.0f",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                   "plasma_energy.c",
+                   0x69, 1);
+    system_exit(-1);
+  }
+  if (!(*(float *)(p + 0xe0) != 0.0f)) {
+    display_assert("plasma->secondary_noise_map_animation_period!=0.0f",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                   "plasma_energy.c",
+                   0x6a, 1);
+    system_exit(-1);
+  }
+
+  if (alpha_s < *(float *)0x2a39e0) {
+    alpha_s = 0.0f;
+  }
+
+  /* Vertex-shader const block A (register -0x51): two scroll matrices.
+   * Rows 0-2 scale t/primary_period by shader+0xc4/0xc8/0xcc with the
+   * shader+0xd0 duplicate on the diagonal; rows 3-5 use t/secondary_period
+   * with shader+0x10c/0x110/0x114 and the shader+0x118 duplicate. alpha_s
+   * rides in A[2]. */
+  t = *(float *)0x5a5e18;
+  adiv = t / *(float *)(p + 0x98);
+  bdiv = t / *(float *)(p + 0xe0);
+  dupA = *(float *)(p + 0xa8);
+  dupB = *(float *)(p + 0xf0);
+  vsA[0] = dupA;
+  vsA[1] = 0.0f;
+  vsA[2] = alpha_s;
+  vsA[3] = adiv * *(float *)(p + 0x9c);
+  vsA[4] = 0.0f;
+  vsA[5] = dupA;
+  vsA[6] = 0.0f;
+  vsA[7] = adiv * *(float *)(p + 0xa0);
+  vsA[8] = 0.0f;
+  vsA[9] = 0.0f;
+  vsA[10] = dupA;
+  vsA[11] = adiv * *(float *)(p + 0xa4);
+  vsA[12] = dupB;
+  vsA[13] = 0.0f;
+  vsA[14] = 0.0f;
+  vsA[15] = bdiv * *(float *)(p + 0xe4);
+  vsA[16] = 0.0f;
+  vsA[17] = dupB;
+  vsA[18] = 0.0f;
+  vsA[19] = bdiv * *(float *)(p + 0xe8);
+  vsA[20] = 0.0f;
+  vsA[21] = 0.0f;
+  vsA[22] = dupB;
+  vsA[23] = bdiv * *(float *)(p + 0xec);
+
+  /* Block B (register -0x54): identity row, (perp-parallel)*colour row, and
+   * parallel*colour row.  perp rgba = shader+0x64/0x68/0x6c/0x60,
+   * parallel rgba = shader+0x74/0x78/0x7c/0x70; alpha uses alpha_c. */
+  vsB[0] = 1.0f;
+  vsB[1] = 1.0f;
+  vsB[2] = 1.0f;
+  vsB[3] = 1.0f;
+  vsB[4] = (*(float *)(p + 0x3c) - *(float *)(p + 0x4c)) * tint[0];
+  vsB[5] = (*(float *)(p + 0x40) - *(float *)(p + 0x50)) * tint[1];
+  vsB[6] = (*(float *)(p + 0x44) - *(float *)(p + 0x54)) * tint[2];
+  vsB[7] = (*(float *)(p + 0x38) - *(float *)(p + 0x48)) * alpha_c;
+  vsB[8] = *(float *)(p + 0x4c) * tint[0];
+  vsB[9] = *(float *)(p + 0x50) * tint[1];
+  vsB[10] = *(float *)(p + 0x54) * tint[2];
+  vsB[11] = alpha_c * *(float *)(p + 0x48);
+
+  D3DDevice_SetVertexShaderConstant(-0x51, vsA, 6);
+  D3DDevice_SetVertexShaderConstant(-0x54, vsB, 3);
+
+  /* Pixel-shader state block for the plasma-energy shader. */
+  csmemset((void *)0x5a5ac0, 0, 0xf0);
+  *(uint32_t *)0x5a5b98 = 0x42;
+  *(uint32_t *)0x5a5b94 = 0x104;
+  *(uint32_t *)0x5a5ac0 = 0x820a920;
+  *(uint32_t *)0x5a5b28 = 0xc00;
+  *(uint32_t *)0x5a5b48 = 0x1920b820;
+  *(uint32_t *)0x5a5b74 = 0xc00;
+  *(uint32_t *)0x5a5ac4 = 0x1c1c0c0c;
+  *(uint32_t *)0x5a5b2c = 0x24c00;
+  *(uint32_t *)0x5a5b4c = 0;
+  *(uint32_t *)0x5a5b78 = 0;
+  *(uint32_t *)0x5a5ac8 = 0x5c5c;
+  *(uint32_t *)0x5a5b30 = 0x4d00;
+  *(uint32_t *)0x5a5b50 = 0;
+  *(uint32_t *)0x5a5b7c = 0;
+  *(uint32_t *)0x5a5acc = 0x14150000;
+  *(uint32_t *)0x5a5b34 = 0x40;
+  *(uint32_t *)0x5a5b54 = 0x1c051da0;
+  *(uint32_t *)0x5a5b80 = 0xc00;
+  *(uint32_t *)0x5a5ae0 = 0xc0f0000;
+  *(uint32_t *)0x5a5ae4 = 0x1c1c1400;
+  rasterizer_set_pixel_shader((void *)0x5a5ac0);
+  FUN_00174510(grp, 0);
+}
+
 /* rasterizer_transparent_geometry_group_draw: draw one sorted transparent
  * geometry group, dispatching per shader type (generic/chicago/glass/meter/
  * plasma/water), handling extra layers via self-recursion, predicted shader
@@ -402,7 +618,11 @@ void rasterizer_transparent_geometry_group_draw(void *group, int dirty)
       int idx;
 
       env = (char *)FUN_001906b0(sh, 1);
-      if (*(int *)(env + 0x58) != -1 && *(short *)(env + 0x5c) == 2) {
+      /* has_multi = secondary map used as a regular multitexture stage.
+       * A z-sprite secondary map (env+0x5c == 2) is NOT a multitexture
+       * stage — it goes through the dedicated z-sprite final-combiner
+       * path instead (original 0x175830: jne keeps 1, i.e. != 2). */
+      if (*(int *)(env + 0x58) != -1 && *(short *)(env + 0x5c) != 2) {
         has_multi = 1;
       } else {
         has_multi = 0;
@@ -2104,4 +2324,187 @@ void rasterizer_frame_end(void)
 void rasterizer_set_vblank_callback(void *cb)
 {
   ((void (*)(void *))0x155c10)(cb);
+}
+
+/* 0x172a30
+ *
+ * FUN_00172a30
+ *
+ * Shadow-pass begin / shadow-generate setup. Programs the D3D render
+ * states, pixel shader, and vertex-shader constants for the shadow
+ * generation pass, then stashes the shadow projection matrix, RGB color,
+ * and object bounding radius into the module-global shadow parameter block
+ * (0x47e46c..).
+ *
+ * Asserts the D3D device exists. When rendering is enabled
+ * (*(short *)0x5a5bc0 == 0) and the shadow feature flag is set
+ * (*(char *)0x3256ca != 0):
+ *   1. Validates the matrix/color pointers, each RGB component (in [0,1]),
+ *      and the object bounding radius (> 0).
+ *   2. Sets cull mode, four "simple" render states (each mirrored into a
+ *      module global at 0x1fb7a4/784/788/78c), disables Z test and Z bias.
+ *   3. Clears and programs the 0xf0-byte pixel-shader state block at
+ *      0x5a5ac0, then binds it.
+ *   4. Builds five vertex-shader constant registers - a shadow-projection
+ *      transform scaled by 1/radius - and uploads them at register -0x44.
+ *   5. Stashes the 13-dword matrix, RGB color, and radius into the shadow
+ *      parameter block, and clears the associated state bytes.
+ *   6. Optionally writes the radius back through out_radius.
+ *   7. If the render-mode word (*(short *)0x3256ba) == 2, bumps the
+ *      per-frame counter at 0x5a5430.
+ *
+ * param_1:                unused (present for the cdecl caller ABI).
+ * shadow_matrix:          shadow projection matrix (13 dwords / 4x3-ish).
+ * shadow_color:           RGB shadow color (3 floats, each in [0,1]).
+ * object_bounding_radius: bounding radius (> 0); its reciprocal scales the
+ *                         projection transform.
+ * out_radius:             optional; receives object_bounding_radius.
+ *
+ * Returns 1 (AL).
+ */
+char FUN_00172a30(int param_1, const float *shadow_matrix,
+                  const float *shadow_color, float object_bounding_radius,
+                  float *out_radius)
+{
+  float vs_const[20];
+  float inv_r;
+  const unsigned long *src;
+  unsigned long *dst;
+  int i;
+
+  (void)param_1;
+
+  if (*(void **)0x476ab0 == 0) {
+    display_assert(
+      "global_d3d_device",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x93, 1);
+    system_exit(-1);
+  }
+  if (*(short *)0x5a5bc0 == 0 && *(char *)0x3256ca != 0) {
+    if (shadow_matrix == 0) {
+      display_assert(
+        "shadow_matrix",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x99,
+        1);
+      system_exit(-1);
+    }
+    if (shadow_color == 0) {
+      display_assert(
+        "shadow_color",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9a,
+        1);
+      system_exit(-1);
+    }
+    if (!(shadow_color[0] >= 0.0f) || !(shadow_color[0] <= 1.0f)) {
+      display_assert(
+        "shadow_color->red >=0.0f && shadow_color->red <=1.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9b,
+        1);
+      system_exit(-1);
+    }
+    if (!(shadow_color[1] >= 0.0f) || !(shadow_color[1] <= 1.0f)) {
+      display_assert(
+        "shadow_color->green>=0.0f && shadow_color->green<=1.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9c,
+        1);
+      system_exit(-1);
+    }
+    if (!(shadow_color[2] >= 0.0f) || !(shadow_color[2] <= 1.0f)) {
+      display_assert(
+        "shadow_color->blue >=0.0f && shadow_color->blue <=1.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9d,
+        1);
+      system_exit(-1);
+    }
+    if (!(object_bounding_radius > 0.0f)) {
+      display_assert(
+        "object_bounding_radius>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9e,
+        1);
+      system_exit(-1);
+    }
+
+    /* Render state: cull, four "simple" states (mirrored to module globals),
+     * Z test/bias off. Each mirror store is paired with its state by value;
+     * MSVC schedules the store into the following call's setup window. */
+    D3DDevice_SetRenderState_CullMode(0x901);
+    D3DDevice_SetRenderState_Simple(0x40358, 0x10101);
+    *(unsigned long *)0x1fb7a4 = 0x10101;
+    D3DDevice_SetRenderState_Simple(0x40304, 0);
+    *(unsigned long *)0x1fb784 = 0;
+    D3DDevice_SetRenderState_Simple(0x40300, 1);
+    *(unsigned long *)0x1fb788 = 1;
+    D3DDevice_SetRenderState_Simple(0x40340, 0x7f);
+    *(unsigned long *)0x1fb78c = 0x7f;
+    D3DDevice_SetRenderState_ZEnable(0);
+    D3DDevice_SetRenderState_ZBias(0);
+
+    /* Program and bind the shadow-generation pixel-shader state block. */
+    csmemset((void *)0x5a5ac0, 0, 0xf0);
+    *(int *)0x5a5b98 = 1;
+    *(int *)0x5a5b94 = 1;
+    *(int *)0x5a5ae0 = 0x20;
+    *(int *)0x5a5ae4 = 0x1800;
+    rasterizer_set_pixel_shader((void *)0x5a5ac0);
+
+    /* Vertex-shader constants: rows 0/1 are the shadow projection scaled by
+     * 1/radius; the trailing constants are fixed. All 20 floats form one
+     * contiguous buffer that SetVertexShaderConstant uploads (5 registers). */
+    inv_r = 1.0f / object_bounding_radius;
+    vs_const[8] = 0.0f;
+    vs_const[9] = 0.0f;
+    vs_const[10] = 0.0f;
+    vs_const[11] = 0.5f;
+    vs_const[12] = 0.0f;
+    vs_const[0] = inv_r * shadow_matrix[1];
+    vs_const[1] = inv_r * shadow_matrix[2];
+    vs_const[2] = inv_r * shadow_matrix[3];
+    vs_const[3] = -((shadow_matrix[10] * shadow_matrix[1] +
+                     shadow_matrix[11] * shadow_matrix[2] +
+                     shadow_matrix[12] * shadow_matrix[3]) *
+                    inv_r);
+    vs_const[4] = inv_r * shadow_matrix[4];
+    vs_const[5] = inv_r * shadow_matrix[5];
+    vs_const[6] = inv_r * shadow_matrix[6];
+    vs_const[7] = -((shadow_matrix[10] * shadow_matrix[4] +
+                     shadow_matrix[11] * shadow_matrix[5] +
+                     shadow_matrix[12] * shadow_matrix[6]) *
+                    inv_r);
+    vs_const[13] = 0.0f;
+    vs_const[14] = 0.0f;
+    vs_const[15] = 1.0f;
+    vs_const[16] = 0.0f;
+    vs_const[17] = 0.0f;
+    vs_const[18] = 0.0f;
+    vs_const[19] = 0.0f;
+    D3DDevice_SetVertexShaderConstant(-0x44, vs_const, 5);
+
+    FUN_00158140(2, 0,
+                 (*(unsigned char *)0x3256f7 != 0) ? 0x88888888u : 0u, 1, 0);
+    FUN_00158ae0(0);
+
+    /* Stash the 13-dword matrix, then the RGB color, then the radius. */
+    src = (const unsigned long *)shadow_matrix;
+    dst = (unsigned long *)0x47e47c;
+    for (i = 0xd; i != 0; i--) {
+      *dst = *src;
+      src++;
+      dst++;
+    }
+    *(float *)0x47e46c = shadow_color[0];
+    *(float *)0x47e470 = shadow_color[1];
+    *(float *)0x47e474 = shadow_color[2];
+    *(float *)0x47e478 = object_bounding_radius;
+    if (out_radius != 0) {
+      *out_radius = object_bounding_radius;
+    }
+    *(int *)0x47e4b0 = 0;
+    *(char *)0x47e4b4 = 0;
+    *(char *)0x47e4b5 = 0;
+    *(char *)0x3251fc = 0;
+    if (*(short *)0x3256ba == 2) {
+      *(int *)0x5a5430 = *(int *)0x5a5430 + 1;
+    }
+  }
+  return 1;
 }
