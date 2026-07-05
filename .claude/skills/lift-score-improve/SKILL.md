@@ -1,5 +1,7 @@
 ---
 name: lift-score-improve
+tier: agent
+triggers: ["structural ceiling", "vc71", "low match", "score improve", "improve match", "65%", "84%", "looks structural"]
 description: Checklist for recovering VC71 match before declaring a structural ceiling. Invoke when score is 65–84% and the gap looks "structural".
 ---
 
@@ -97,6 +99,42 @@ float dir2 = direction[2];
 
 Add these right after variable declarations, before any other logic.
 **Recovered +11.5pp on FUN_001a1a10 (80% → 91.5%).**
+
+---
+
+## Step 3b — Break VC71 cross-jump tail merging (accumulator variable)
+
+If the reference repeats a short conditional-call idiom at two sites (e.g.
+`x = 0; if (ref != -1) x = tag_get(...);` in both an if- and else-branch) but
+your candidate is SHORTER at that spot in `--show-diffs`, VC71 merged your
+two identical tails into one block. The reference kept them separate because
+the original inlined a helper there (signature: `xor ecx,ecx` accumulator +
+`mov ecx,eax; mov eax,ecx` round-trip).
+
+Do NOT add a real static helper (VC71 refuses to inline it → new CALL →
+score drops). Instead give ONE branch a distinct accumulator variable:
+```c
+void *sky_ptr;             /* mimics the inlined helper's return slot */
+sky_ptr = (void *)0;
+if (tag_ref != -1) sky_ptr = tag_get(...);
+sky_tag = (int)sky_ptr;
+```
+**Recovered +3.5pp on FUN_0018fbc0 (92.3% → 95.8%).**
+
+## Step 3c — Float literal stores vs const-pool loads
+
+Read the reference for each float store: `MOV dword ptr [x],0x3f800000`
+(immediate) comes from a literal `x = 1.0f;` — while `x = *(const float *)
+0x2533c8;` compiles to a load+store pair and never matches an immediate MOV.
+Compares are the opposite: `FCOMP [FLOAT_002533c0]` needs the explicit
+`*(const float *)0xADDR` operand. Pick per-site from the disasm.
+
+**NaN caution:** never flip a compare direction just to match TEST/Jcc bits.
+VC71's x87 masks treat unordered differently per idiom, but clang (the
+shipping compiler) applies strict IEEE C semantics — `x <= 1.0f` and
+`!(1.0f < x)` differ for NaN. Trace the original's unordered path (which
+branch does TEST AH,…/JP|JNE take on NaN?) and keep the C form whose CLANG
+codegen preserves it, even at a 1-insn VC71 cost.
 
 ---
 

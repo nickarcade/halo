@@ -20,6 +20,7 @@ Usage:
 """
 
 import argparse
+import bisect
 import json
 import os
 import re
@@ -144,6 +145,72 @@ def _per_function_ref(function: str) -> Path | None:
             if candidate.exists():
                 return candidate
     return None
+
+
+_kb_starts_cache: list[int] | None = None
+
+
+def _kb_func_starts() -> list[int]:
+    """Sorted list of all function start addresses in kb.json (cached)."""
+    global _kb_starts_cache
+    if _kb_starts_cache is None:
+        starts: set[int] = set()
+        try:
+            for obj in _load_kb().get("objects", []):
+                for entry in obj.get("functions", []):
+                    a = entry.get("addr")
+                    if not a:
+                        continue
+                    try:
+                        starts.add(int(a, 16))
+                    except (ValueError, TypeError):
+                        pass
+        except (OSError, ValueError, json.JSONDecodeError):
+            pass
+        _kb_starts_cache = sorted(starts)
+    return _kb_starts_cache
+
+
+def _func_addr(function: str) -> int | None:
+    """Resolve a function name/alias to its start address, or None."""
+    for alias in function_aliases(function) | {function}:
+        m = re.match(r"FUN_0*([0-9a-fA-F]+)$", alias or "")
+        if m:
+            return int(m.group(1), 16)
+    return None
+
+
+def _func_span(function: str) -> int | None:
+    """Byte span of a function (next function start - its start), or None."""
+    addr = _func_addr(function)
+    starts = _kb_func_starts()
+    if addr is None or not starts:
+        return None
+    i = bisect.bisect_right(starts, addr)
+    return (starts[i] - addr) if i < len(starts) else None
+
+
+def _ref_insns_valid(n_r: int, span: int | None) -> bool:
+    """Whether a reference's instruction count plausibly matches the function's
+    byte size.  Rejects both truncated and bloated references:
+
+    - n_r * 15 (max x86 instruction length) < span  => truncated (too few insns
+      to cover the function's bytes).
+    - n_r > span                                     => bloated (more insns than
+      bytes is impossible for real code; the reference swallowed neighbours).
+
+    The bloat bound matters here because ~stale per-function chunks (pre-fix,
+    0x2000-byte window) still exist on disk; without it the fallback could pick
+    a bloated chunk over a good whole-object reference.  Mirrors the gate in
+    vc71_regression.py.
+    """
+    if not n_r:
+        return False
+    if span and n_r * 15 < span:
+        return False
+    if span and n_r > span:
+        return False
+    return True
 
 
 def choose_unit(source: str, units: list[dict], function: str | None) -> dict | None:
@@ -451,27 +518,139 @@ def run_compare_cached(
     reference_funcs: dict[str, list[str]] = co.disassemble(str(reference))
 
     matched: set[str] = set(compiled_funcs.keys()) & set(reference_funcs.keys())
+
+    # Delinked XDK objects can keep C++ namespace-qualified symbols while our
+    # C source emits plain function names.
+    namespace_map: dict[str, str] = {}
+    for ref_name in reference_funcs:
+        short_name = ref_name.rsplit("::", 1)[-1]
+        if short_name != ref_name and short_name in compiled_funcs:
+            namespace_map[short_name] = ref_name
+            if ref_name not in matched:
+                compiled_funcs[ref_name] = compiled_funcs[short_name]
+                matched.add(ref_name)
     rename_map = _build_rename_map(set(compiled_funcs.keys()), matched)
 
     if fn_filter:
         fn = fn_filter.lstrip("_")
         if fn not in matched:
-            old_name = rename_map.get(fn)
-            if old_name and old_name in reference_funcs and fn in compiled_funcs:
-                compiled_funcs[old_name] = compiled_funcs[fn]
-                matched = {old_name}
-                fn = old_name
+            namespace_name = namespace_map.get(fn)
+            if namespace_name and namespace_name in reference_funcs and fn in compiled_funcs:
+                compiled_funcs[namespace_name] = compiled_funcs[fn]
+                matched = {namespace_name}
+                fn = namespace_name
             else:
-                print(f"Function {fn} not found in both objects")
-                print(f"  compiled:  {sorted(compiled_funcs.keys())[:10]}")
-                print(f"  reference: {sorted(reference_funcs.keys())[:10]}")
-                return 1
+                old_name = rename_map.get(fn)
+                if old_name and old_name in reference_funcs and fn in compiled_funcs:
+                    compiled_funcs[old_name] = compiled_funcs[fn]
+                    matched = {old_name}
+                    fn = old_name
+                else:
+                    print(f"Function {fn} not found in both objects")
+                    print(f"  compiled:  {sorted(compiled_funcs.keys())[:10]}")
+                    print(f"  reference: {sorted(reference_funcs.keys())[:10]}")
+                    return 1
         matched = {fn}
     else:
         for new_name, old_name in rename_map.items():
             if new_name in compiled_funcs and old_name in reference_funcs and new_name not in matched:
                 compiled_funcs[old_name] = compiled_funcs[new_name]
                 matched.add(old_name)
+
+    # NB: the "no matching functions" bail-out is deferred until *after* the
+    # per-function fallback below, so a TU whose whole-object reference has no
+    # symbol overlap (missing/truncated) can still recover functions from valid
+    # per-function chunks instead of returning empty here.
+
+    # Per-function reference fallback: when a function's whole-object reference
+    # is unusable — truncated (instruction count cannot span its kb.json byte
+    # size) or dropped entirely (e.g. a last-function excluded by the BFT COFF
+    # relocation-bug truncation workaround) — score it against its
+    # function-aligned per-function chunk instead, if that chunk's symbol is
+    # present and itself valid.  Gated on byte span in BOTH directions so a
+    # stale (pre-fix, bloated) chunk is never preferred over a good reference.
+    ref_overrides: set[str] = set()
+
+    def _valid_chunk_ref(fn: str):
+        """Instruction list from fn's per-function chunk, or None if unusable.
+
+        Uses the chunk-aware, boundary-capped disassembly (co.first_function_insns)
+        so a stale 0x2000-window chunk that packed following functions/stub slots
+        under the same symbol collapses to its true first function — which then
+        either scores honestly or fails the byte-span validity gate (and is
+        quarantined for re-delink) rather than producing a false low against
+        swallowed neighbours.
+        """
+        chunk = _per_function_ref(fn)
+        if not chunk or not chunk.exists():
+            return None
+        aliases = set(function_aliases(fn)) | {fn}
+        addr = _func_addr(fn)
+        if addr is not None:
+            aliases.add(f"FUN_{addr & 0xffffffff:08x}")
+        try:
+            cand = co.first_function_insns(str(chunk), aliases)
+        except Exception:
+            return None
+        if not cand:
+            return None
+        return cand if _ref_insns_valid(len(cand), _func_span(fn)) else None
+
+    # (1) Override a truncated/invalid whole-object reference with the chunk.
+    for fn in list(matched):
+        whole = reference_funcs.get(fn, [])
+        if _ref_insns_valid(len(whole), _func_span(fn)):
+            continue
+        cand = _valid_chunk_ref(fn)
+        if cand is not None and len(cand) > len(whole):
+            reference_funcs[fn] = cand
+            ref_overrides.add(fn)
+
+    # (2) Add candidate functions the whole-object reference dropped entirely.
+    for fn in list(compiled_funcs.keys()):
+        if fn in matched:
+            continue
+        cand = _valid_chunk_ref(fn)
+        if cand is not None:
+            reference_funcs[fn] = cand
+            matched.add(fn)
+            ref_overrides.add(fn)
+
+    if ref_overrides and not quiet:
+        shown = ", ".join(sorted(ref_overrides)[:6])
+        more = " ..." if len(ref_overrides) > 6 else ""
+        print(f"[ref] {len(ref_overrides)} function(s) scored against per-function "
+              f"chunk (whole-object reference truncated): {shown}{more}", flush=True)
+
+    # Report compiled, kb.json-tracked functions we could NOT score against any
+    # valid reference (whole-object truncated/absent AND no valid per-function
+    # chunk).  These never produce a score line, so vc71_regression's gate — which
+    # only sees scored functions — would miss them and leave the re-delink queue
+    # incomplete.  Emit a machine-parseable DROP line per function so the runner
+    # can record them.  Only in whole-file mode (a --function run scores exactly
+    # one requested symbol; a miss there is already reported above).
+    if fn_filter is None:
+        for fn in sorted(compiled_funcs.keys()):
+            # A renamed function is scored under whichever symbol its reference
+            # carries: if the delinked ref still uses the pre-rename FUN_<addr>,
+            # the rename bridge scores it under that name and adds *it* (not the
+            # source's real name) to `matched`.  So a compiled `magnitude3d` whose
+            # ref symbol is `FUN_00012f10` is NOT literally in `matched` yet is
+            # not a drop — check the function's aliases too.
+            if fn in matched or (function_aliases(fn) & matched):
+                continue
+            span = _func_span(fn)
+            if span is None:
+                continue  # not a kb.json-tracked function (helper/thunk/static)
+            chunk = _per_function_ref(fn)
+            if chunk and chunk.exists():
+                reason = ("per-function chunk invalid after boundary cap "
+                          "(stale/truncated) — re-delink")
+            else:
+                reason = ("no reference (whole-object truncated/absent, no "
+                          "per-function chunk) — delink")
+            print(f"  DROP {fn}: no valid reference — {reason} (span {span} bytes)",
+                  flush=True)
 
     if not matched:
         print("No matching functions found between objects")
@@ -488,7 +667,9 @@ def run_compare_cached(
 
     for fn in sorted(matched):
         cached_result = None
-        if not no_cache and cache is not None:
+        # Overridden functions were scored against a per-function chunk, not the
+        # whole-object `reference` the cache key is derived from — bypass cache.
+        if not no_cache and cache is not None and fn not in ref_overrides:
             cached_result = cache.get(fn, source, reference, opt=opt)
 
         if cached_result is not None:
@@ -507,8 +688,10 @@ def run_compare_cached(
                 reg_normalize=reg_normalize,
             )
             cache_tag = ""
-            # Store result; always save diff_lines so future --show-diffs works
-            if cache is not None and not no_cache:
+            # Store result; always save diff_lines so future --show-diffs works.
+            # Skip overridden functions — their score is against a per-function
+            # chunk, not the whole-object reference the cache key encodes.
+            if cache is not None and not no_cache and fn not in ref_overrides:
                 cache.put(fn, source, reference, pct, fpu_warnings, diffs,
                           loadw_warnings=loadw_warnings, imm_warnings=imm_warnings,
                           opt=opt)

@@ -1,5 +1,7 @@
 ---
 name: lift-silent-bugs
+tier: agent
+triggers: ["wrong color", "yellow", "white tint", "invisible", "missing geometry", "no effect", "does nothing", "wrong position", "silent bug", "visual regression", "behavioral regression"]
 description: >-
   Checklist for non-crashing silent correctness bugs — wrong colors, yellow/white
   tint, invisible geometry, missing spawn, no effect, wrong positions, wrong
@@ -22,6 +24,26 @@ These bugs do NOT trigger assertions and do NOT change VC71 match. The box is
 the only oracle. Run this checklist BEFORE deploying.
 
 Source: `docs/lift-learnings.md` §6, §8, §11, §16, §17.
+
+---
+
+## Check 0 — Wrong-callee reloc audit (VC71-blind; found a LIVE bug 2026-07-04)
+
+**Symptom:** none until the box. A call to a wrong callee **with the same
+signature** byte-matches perfectly — `compare_obj`'s instruction diff ignores
+relocation TARGETS entirely. `scenario_test_pas` shipped calling
+`FUN_0017cca0/FUN_0017cd10` instead of `FUN_00172520/FUN_00172720` at 97% VC71.
+
+**Detection (mandatory for every new lift with a delinked reference):**
+```bash
+objdump -r delinked/functions/<addr>.obj | grep -E "DISP32|dir32" \
+  | awk '{print $3}' | sort | uniq -c
+```
+Compare every symbol AND its count against the C source: each `FUN_*`/named
+callee, each `DAT_*` global, each string. A count mismatch (e.g. 5×
+`DAT_005064e4` in the reference vs 4 reads in your C) or an unexpected callee
+is a real bug even at 95%+ match. Constants referenced via
+`*(const float *)0xADDR` appear as `FLOAT_*`/`DAT_*` relocs — count those too.
 
 ---
 

@@ -2,6 +2,7 @@
 	entrypoint.c
 	inlines.c
 	halo/ai/actions.c
+	halo/ai/action_vehicle.c
 	halo/ai/actor_combat.c
 	halo/ai/actor_moving.c
 	halo/ai/actor_perception.c
@@ -78,8 +79,8 @@
 	halo/units/units.c
 	halo/units/vehicles.c
 	halo/networking/network_client_manager.c
-		halo/networking/network_game_globals.c
-		halo/networking/network_game_globals.c
+	halo/networking/network_connection.c
+	halo/networking/network_game_globals.c
 	halo/networking/message_header.c
 	halo/networking/network_messages.c
 	halo/networking/network_server_manager.c
@@ -123,6 +124,7 @@
 	halo/saved_games/game_state.c
 	halo/saved_games/game_state_xbox.c
 	halo/scenario/scenario.c
+	halo/scenario/wind.c
 	halo/structures/structure_bsp_definitions.c
 	halo/structures/structure_detail_objects.c
 	halo/structures/structure_runtime_decals.c

@@ -144,6 +144,35 @@ def _is_chkstk_name(name: str) -> bool:
     return key in ("chkstk", "fun_001d90e0", "system_exit", "halt_and_catch_fire", "fun_001029a0")
 
 
+# MSVC compiler-runtime intrinsics (see the intrinsic table in CLAUDE.md).
+# The MSVC-built oracle CALLs these; correct lifted C writes the equivalent
+# idiom ((int)expr, (int64_t)a*b, ...) which clang INLINES — so the intrinsic
+# call appears only in the oracle trace and a call-seq compare flags a bogus
+# divergence (falsely failed FUN_0018dcf0 on all 100 seeds, 2026-07-04: oracle
+# called _ftol2 @0x1d9068 after tag_block_get_element; candidate inlined the
+# float->int conversion). Filtering them from BOTH sides is safe: they are pure
+# computation with results in registers/stack, so any wrong inline math still
+# surfaces in the return-value and mem-trace comparison.
+_INLINED_INTRINSIC_KEYS = frozenset((
+    "ftol2",       "fun_001d9068",
+    "allmul",      "fun_001dd620",
+    "aullshr",     "fun_001dd660",
+    "aullrem",     "fun_001dd680",
+    "aulldiv",     "fun_001dd770",
+    "seh_prolog",  "fun_001dd5c8",
+    "seh_epilog",  "fun_001dd601",
+    # CRT two-arg FP intrinsic dispatch thunk: MOV EDX,0x3312d0; JMP
+    # __cintrindisp2 (fmod/atan2/pow dispatcher). MSVC emits a CALL here;
+    # clang inlines the x87 sequence (e.g. FPREM1 for fmod). Sole
+    # __cintrindisp2 thunk in the XBE (verified via Ghidra xrefs 2026-07-04).
+    "fun_001daf7e",
+))
+
+
+def _is_inlined_intrinsic_name(name: str) -> bool:
+    return name.lstrip("_").lower() in _INLINED_INTRINSIC_KEYS
+
+
 def compare_stub_arg_traces(oracle_tracer: StubArgTracer,
                              cand_tracer: StubArgTracer,
                              seed_label: str = "") -> StubArgDiff:
@@ -156,8 +185,12 @@ def compare_stub_arg_traces(oracle_tracer: StubArgTracer,
         to legitimate frame-layout differences and count as soft matches.
       - Varargs callees: only fixed args (those recorded) are compared.
     """
-    oc = [r for r in oracle_tracer.records if not _is_chkstk_name(r.callee_name)]
-    cc = [r for r in cand_tracer.records if not _is_chkstk_name(r.callee_name)]
+    oc = [r for r in oracle_tracer.records
+          if not _is_chkstk_name(r.callee_name)
+          and not _is_inlined_intrinsic_name(r.callee_name)]
+    cc = [r for r in cand_tracer.records
+          if not _is_chkstk_name(r.callee_name)
+          and not _is_inlined_intrinsic_name(r.callee_name)]
 
     total_calls = len(oc)
     seq_diverged = False
@@ -276,7 +309,8 @@ def classify_relocations(relocs: list, defined_symbols: set) -> RelocClassificat
 def patch_dir32_relocs(code: bytes, relocs: list, defined_symbols: set,
                        globals_base: int = GLOBALS_BASE,
                        return_slots: bool = False,
-                       rdata_map: dict = None):
+                       rdata_map: dict = None,
+                       snapshot_regions: dict = None):
     """Rewrite DIR32 relocations to point into the globals memory region.
 
     Each unique external DIR32 symbol gets a 256-byte slot in the globals
@@ -286,10 +320,21 @@ def patch_dir32_relocs(code: bytes, relocs: list, defined_symbols: set,
     Symbols in rdata_map (intra-object cross-section references like .rdata
     constants) also get globals slots, seeded with actual section data.
 
+    snapshot_regions ({addr: bytes} from a --state-snapshot) enables IDENTITY
+    relocation: a DAT_/PTR_/FLOAT_<addr> symbol whose encoded XBE address
+    falls inside a snapshot region is patched to its REAL address instead of
+    a slot.  The region bytes are mapped into emulator memory verbatim, so
+    the oracle then reads the same full-size data the candidate reads via
+    absolute immediates — required for indexed tables larger than the 8-byte
+    slot seed window (e.g. the 2304-byte wind noise table at 0x5057c4, whose
+    slot-relocated indexed reads would otherwise walk into neighboring
+    slots).
+
     Returns a mutable copy of the code with patched addresses.
     If return_slots is True, returns (patched, symbol_slots) where
     symbol_slots maps symbol_name -> slot_address.
     """
+    import re as _re
     patched = bytearray(code)
     slot_size = 256
     symbol_slots = {}
@@ -297,6 +342,19 @@ def patch_dir32_relocs(code: bytes, relocs: list, defined_symbols: set,
     next_slot = 0
     if rdata_map is None:
         rdata_map = {}
+
+    def _snapshot_identity_addr(sym_name):
+        if not snapshot_regions:
+            return None
+        m = _re.match(r'(?:DAT|PTR|PTR_DAT|FLOAT)_([0-9a-fA-F]{4,})$',
+                      sym_name)
+        if not m:
+            return None
+        orig = int(m.group(1), 16)
+        for base, data in snapshot_regions.items():
+            if base <= orig < base + len(data):
+                return orig
+        return None
 
     for r in relocs:
         if r.reloc_type != IMAGE_REL_I386_DIR32:
@@ -308,6 +366,14 @@ def patch_dir32_relocs(code: bytes, relocs: list, defined_symbols: set,
             continue
         if sym in defined_symbols and not is_rdata_ref:
             continue
+
+        if not is_rdata_ref:
+            _ident = _snapshot_identity_addr(sym)
+            if _ident is not None:
+                off = r.virtual_address
+                if off + 4 <= len(patched):
+                    struct.pack_into('<I', patched, off, _ident)
+                continue
 
         if sym not in symbol_slots:
             symbol_slots[sym] = globals_base + next_slot * slot_size
@@ -394,6 +460,23 @@ def patch_rel32_calls(code: bytes, relocs: list, defined_symbols: set,
     return bytes(patched), stub_map
 
 
+DEFAULT_STUB_RETURNS = {
+    "createfilea": 0x100,
+    "readfile": 1,
+    "writefile": 1,
+    "closehandle": 1,
+    "getfileattributesa": 0x80,
+    "file_exists": 1,
+    "file_open": 1,
+    "file_close": 1,
+    "file_read": 1,
+    "display_assert": 0,
+    "system_exit": 0,
+    "debug_malloc": 0x10000000,
+    "csmemcpy": 0x10000000,
+}
+
+
 class StubManager:
     """Manages callee stubs for non-leaf function emulation.
 
@@ -419,6 +502,40 @@ class StubManager:
         self._real_code_count = 0
         # Optional stub argument tracer; set via set_tracer() before each run.
         self._tracer: Optional[StubArgTracer] = None
+        # Per-name call counters for list-valued stub_returns (sequenced
+        # returns).  Reset via reset_stub_sequences() before each run so
+        # oracle and candidate see the identical sequence.
+        self._seq_counters: dict[str, int] = {}
+
+    def reset_stub_sequences(self):
+        """Reset the per-name call counters for list-valued stub_returns.
+
+        Call before every emulation run (oracle AND candidate, every seed)
+        so both sides replay the identical return sequence.
+        """
+        self._seq_counters.clear()
+
+    def _lookup_return_override(self, address: int):
+        """Resolve the snapshot stub_returns entry for a sentinel.
+
+        Returns (key, value); value may be an int, a float, or a list
+        (sequenced returns). (None, None) when no override matches.
+        """
+        canon = self._canonical_names.get(address, "").lower()
+        raw = self._stub_names.get(address, "").lstrip("_").lower()
+
+        if self.stub_return_overrides:
+            if canon in self.stub_return_overrides:
+                return canon, self.stub_return_overrides[canon]
+            if raw in self.stub_return_overrides:
+                return raw, self.stub_return_overrides[raw]
+
+        if canon in DEFAULT_STUB_RETURNS:
+            return canon, DEFAULT_STUB_RETURNS[canon]
+        if raw in DEFAULT_STUB_RETURNS:
+            return raw, DEFAULT_STUB_RETURNS[raw]
+
+        return None, None
 
     def set_tracer(self, tracer: Optional["StubArgTracer"]):
         """Attach (or detach) a StubArgTracer for the current emulation run.
@@ -472,6 +589,18 @@ class StubManager:
         candidates = list(self.delinked_dir.glob(f"{obj_name}.obj"))
         if not candidates:
             candidates = list(self.delinked_dir.glob("*.obj"))
+        # Per-function delinked refs (delinked/functions/<addr8>.obj) — the
+        # only oracle-side source for intra-object siblings whose TU has no
+        # whole-object delinked export.
+        _addr = kb_entry.get("addr", "")
+        if _addr:
+            try:
+                _fp = (self.delinked_dir / "functions"
+                       / f"{int(_addr, 16):08x}.obj")
+                if _fp.exists():
+                    candidates.insert(0, _fp)
+            except ValueError:
+                pass
 
         # Delinked objects name functions FUN_<addr>, but a call site may use the
         # real name (lifted/clang obj) or the FUN_ form (delinked oracle).  Both
@@ -598,6 +727,14 @@ class StubManager:
             if stub is None:
                 continue  # no decl/abi -> synthetic ret-stub
             kb_entry = self._find_callee_in_kb(symbol_name)
+            # BIPED_REAL_SAME_OBJ=<obj name>: restrict real-code loading to
+            # intra-object siblings. Extern callees stay symmetric stubs —
+            # the candidate (full clang TU) cannot run them either, so
+            # loading them only into the oracle diverges the two sides.
+            _same_obj = os.environ.get("BIPED_REAL_SAME_OBJ")
+            if (_same_obj and kb_entry
+                    and kb_entry.get("_obj_name") != _same_obj):
+                continue
             fs = self._load_callee_code(symbol_name, kb_entry) if kb_entry else None
             if fs is None or not fs.code or len(fs.code) > STUB_SLOT:
                 continue  # not found / too big for a sentinel slot -> trampoline
@@ -633,6 +770,9 @@ class StubManager:
             stub.code = bytes(patched2)
             stub.has_real_code = True
             self._real_code_count += 1
+            if os.environ.get("BIPED_TRACE_REAL") == "1":
+                print(f"  [real-callee] {symbol_name} "
+                      f"({len(stub.code)}B, depth {depth})")
             # Enqueue nested callees discovered in this callee's body.
             for new_sentinel, new_sym in new_map.items():
                 if new_sentinel in processed:
@@ -736,6 +876,13 @@ class StubManager:
         return raw
 
     def should_intercept(self, address: int) -> bool:
+        # List-valued stub_returns (sequenced returns) are served dynamically
+        # in execute_stub — the static trampoline can only encode one value.
+        # An explicit snapshot sequence outranks named intercepts and real
+        # loaded code.
+        _k, _v = self._lookup_return_override(address)
+        if isinstance(_v, list):
+            return True
         # Named intercepts always take priority — even if oracle code was loaded.
         name = self._resolve_name(address)
         if name in self._INTERCEPT_NAMES or name in self._FTOL2_ADDRS:
@@ -774,19 +921,26 @@ class StubManager:
             conv = 'cdecl'
             n_stack_params = 0
 
-        _ret_override = None
-        if self.stub_return_overrides:
-            _raw = self._stub_names.get(address, "").lstrip("_").lower()
-            _canon = self._canonical_names.get(address, "").lower()
-            _ret_override = self.stub_return_overrides.get(
-                _canon, self.stub_return_overrides.get(_raw))
+        _, _ret_override = self._lookup_return_override(address)
+        if isinstance(_ret_override, list):
+            # Sequenced returns are served dynamically (should_intercept →
+            # execute_stub); the static bytes below are a never-executed
+            # fallback, so bake the safe default instead of one list element.
+            _ret_override = None
 
         code = bytearray()
         if ret_st0:
-            code += b"\xD9\xEE"  # FLDZ
+            if _ret_override is not None:
+                # Snapshot-driven float return (same for oracle+candidate):
+                # PUSH imm32 (float bits); FLD dword [ESP]; ADD ESP,4
+                code += b"\x68" + struct.pack('<f', float(_ret_override))
+                code += b"\xD9\x04\x24"
+                code += b"\x83\xC4\x04"
+            else:
+                code += b"\xD9\xEE"  # FLDZ
         elif _ret_override is not None:
             # Snapshot-driven deterministic return (same for oracle+candidate)
-            code += b"\xB8" + int(_ret_override).to_bytes(4, "little")  # MOV EAX, imm32
+            code += b"\xB8" + (int(_ret_override) & 0xFFFFFFFF).to_bytes(4, "little")  # MOV EAX, imm32
         elif not ret_void:
             code += b"\x31\xC0"  # XOR EAX, EAX
 
@@ -852,9 +1006,12 @@ class StubManager:
                 # Import ESI/EDI lazily (they're in abi._uc_regs but not
                 # imported at the top of execute_stub).
                 try:
-                    from unicorn.x86_const import UC_X86_REG_ESI, UC_X86_REG_EDI
+                    from unicorn.x86_const import (UC_X86_REG_ESI,
+                                                   UC_X86_REG_EDI,
+                                                   UC_X86_REG_EBX)
                     _reg_map["esi"] = UC_X86_REG_ESI
                     _reg_map["edi"] = UC_X86_REG_EDI
+                    _reg_map["ebx"] = UC_X86_REG_EBX
                 except ImportError:
                     pass
 
@@ -893,6 +1050,32 @@ class StubManager:
                     is_varargs=_is_varargs,
                 ))
             # --- end arg capture ---
+
+            # --- Sequenced stub returns (list-valued snapshot stub_returns) ---
+            # The per-name counter advances on every call and is reset via
+            # reset_stub_sequences() before each oracle/candidate run, so both
+            # sides replay the identical sequence.  Past the end of the list
+            # the last value repeats (natural for -1 loop terminators).
+            _seq_key, _seq_val = self._lookup_return_override(address)
+            if isinstance(_seq_val, list) and _seq_val:
+                _idx = self._seq_counters.get(_seq_key, 0)
+                self._seq_counters[_seq_key] = _idx + 1
+                _val = _seq_val[_idx] if _idx < len(_seq_val) else _seq_val[-1]
+                if stub is not None:
+                    _seq_st0 = stub.abi.get('ret_st0', False)
+                    _seq_conv = stub.abi.get('conv', 'cdecl')
+                    _seq_nsp = sum(1 for p in stub.abi['params'] if not p.reg)
+                else:
+                    _seq_st0 = isinstance(_val, float)
+                    _seq_conv = 'cdecl'
+                    _seq_nsp = 0
+                if _seq_st0:
+                    _write_st0_double(uc, float(_val))
+                else:
+                    uc.reg_write(UC_X86_REG_EAX, int(_val) & 0xFFFFFFFF)
+                if _seq_conv == 'stdcall':
+                    uc.reg_write(UC_X86_REG_ESP, caller_esp + _seq_nsp * 4)
+                return True
 
             if symbol_name in ("_chkstk", "__chkstk", "chkstk", "fun_001d90e0"):
                 size = uc.reg_read(UC_X86_REG_EAX) & 0xFFFFFFFF
@@ -1254,12 +1437,8 @@ class StubManager:
                 # Push 0.0 onto FPU stack
                 pass  # ST0 is already undefined; caller will use it as-is
             elif not ret_void:
-                _ret = 0
-                if self.stub_return_overrides:
-                    _raw = self._stub_names.get(address, "").lstrip("_").lower()
-                    _canon = self._canonical_names.get(address, "").lower()
-                    _ret = self.stub_return_overrides.get(
-                        _canon, self.stub_return_overrides.get(_raw, 0))
+                _key, _ret_val = self._lookup_return_override(address)
+                _ret = _ret_val if _ret_val is not None else 0
                 uc.reg_write(UC_X86_REG_EAX, _ret)
 
             # Clean up stack based on calling convention

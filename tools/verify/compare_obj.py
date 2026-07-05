@@ -48,6 +48,35 @@ def disassemble(obj_path: str) -> dict[str, list[str]]:
             if sym.startswith("LAB_") or sym.startswith("switchD_") or sym.startswith("$L") or sym.startswith("$case") or sym.startswith("$next"):
                 current_labels.add(len(current_lines))
                 continue
+            if sym.startswith("FUN_") and current_func and current_lines:
+                # Look back past trailing padding to the last real instruction.
+                # MSVC pads between functions with nop/int3, so inspecting only
+                # current_lines[-1] sees the padding rather than the terminating
+                # ret — which mis-folds the *next* function into this one and
+                # massively inflates its instruction count (e.g. csmemset read as
+                # 298 insns instead of ~80).
+                #
+                # Fold a FUN_ label into the current function ONLY when real code
+                # flows straight into it: the last real instruction is not a ret
+                # AND there is no inter-function padding before the label.  A
+                # genuine next function is preceded either by a ret or by
+                # alignment padding — and MSVC pads (nop/int3) only *between*
+                # functions, never mid-body — so padding before a FUN_ symbol
+                # marks a real boundary even when the predecessor ends in a
+                # tail-call jmp rather than a ret (which would otherwise fold the
+                # successor away and drop it from the reference entirely).
+                last_mnem = ""
+                had_padding = False
+                for _prev in reversed(current_lines):
+                    _mn = mnemonic(_prev).lower()
+                    if _mn in _PAD_MNEMS:
+                        had_padding = True
+                        continue
+                    last_mnem = _mn
+                    break
+                if last_mnem and last_mnem not in _RET_MNEMS and not had_padding:
+                    current_labels.add(len(current_lines))
+                    continue
             if current_func and current_lines:
                 functions[current_func] = current_lines
                 _label_positions[current_func] = current_labels
@@ -75,7 +104,7 @@ def disassemble(obj_path: str) -> dict[str, list[str]]:
 
     for fn in functions:
         lines = functions[fn]
-        while lines and lines[-1].strip().split()[0].startswith('nop'):
+        while lines and mnemonic(lines[-1]).lower() in _PAD_MNEMS:
             lines.pop()
         lines = _trim_trailing_table_data(lines)
         lines = _trim_trailing_thunks(lines)
@@ -84,8 +113,90 @@ def disassemble(obj_path: str) -> dict[str, list[str]]:
     return functions
 
 
+def first_function_insns(obj_path: str, aliases) -> list[str] | None:
+    """Instructions of the first matching function in a per-function chunk,
+    capped at the first genuine function boundary.
+
+    A per-function chunk (delinked/functions/<addr>.obj) is meant to hold a
+    single function.  Stale pre-fix (0x2000-byte-window) exports instead packed
+    the following functions into the same .text section, labelling them
+    LAB_/switchD_ (jump-target style) rather than FUN_ — often as ret+nop
+    relocation-stub slots.  disassemble() treats LAB_ as within-function, which
+    is correct for whole objects but here swallows those neighbours and inflates
+    the symbol (e.g. a real 6-insn function read as 102).
+
+    Cap at the first ret-followed-by-a-label boundary: the same ret(+padding)
+    signal disassemble() already trusts for FUN_ boundaries, extended to any
+    label because nothing legitimately follows the sole function's terminating
+    ret in a single-function chunk.  Returns the padding-trimmed instruction
+    list, or None if the symbol is absent.
+    """
+    result = subprocess.run(
+        ["llvm-objdump", "-d", "--no-show-raw-insn", "--no-leading-addr", obj_path],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return None
+
+    want = set(aliases)
+    insns: list[str] = []
+    in_target = False
+    found = False
+
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.rstrip()
+        m = re.match(r'^(?:[0-9a-f]+ )?<([^>]+)>:', line)
+        if m:
+            sym = re.sub(r'@\d+$', '', m.group(1).lstrip("_"))
+            if not in_target:
+                in_target = sym in want
+                found = found or in_target
+                continue
+            # Inside the target function.  A real next symbol (FUN_/thunk_/any
+            # non-jump-target) is a hard boundary — stop (handles jmp-terminated
+            # trampolines whose successor carries a proper symbol).  A jump-target
+            # label (LAB_/switchD_/$L/$case/$next) is only a boundary when the
+            # last real instruction was a ret, i.e. a stub/neighbour slot follows;
+            # otherwise real code flows into it (internal jump target).
+            is_label = sym.startswith(("LAB_", "switchD_", "$L", "$case", "$next"))
+            if not is_label:
+                break
+            last = ""
+            for prev in reversed(insns):
+                mn = mnemonic(prev).lower()
+                if mn in _PAD_MNEMS:
+                    continue
+                last = mn
+                break
+            if last in _RET_MNEMS:
+                break
+            continue
+
+        if not in_target:
+            continue
+        stripped = line.strip()
+        if not stripped or stripped.startswith("...") or stripped.startswith("Disassembly of section"):
+            continue
+        parts = stripped.split(None, 1)
+        insn = stripped
+        if parts and re.match(r'^[0-9a-f]+:', parts[0]):
+            insn = parts[1] if len(parts) > 1 else ""
+        if insn:
+            insns.append(insn)
+
+    if not found:
+        return None
+    while insns and mnemonic(insns[-1]).lower() in _PAD_MNEMS:
+        insns.pop()
+    return insns or None
+
+
 _RET_MNEMS = {'ret', 'retl', 'retw', 'retq', 'retn'}
 _NOP_MNEMS = {'nop', 'nopl', 'nopw'}
+# Inter-function padding emitted by MSVC (0x90 nop / 0xCC int3).  Never part of a
+# function body; skipped when locating a function's terminating instruction and
+# trimmed from function tails.
+_PAD_MNEMS = _NOP_MNEMS | {'int3'}
 _THUNK_BODY_MNEMS = {'push', 'pushl', 'pushw', 'call', 'calll', 'callw',
                      'add', 'addl', 'nop', 'pop', 'popl'}
 
@@ -885,6 +996,17 @@ def main():
     reference_funcs = disassemble(args.reference)
 
     matched = set(compiled_funcs.keys()) & set(reference_funcs.keys())
+
+    # Delinked XDK objects may preserve C++ namespace-qualified names while
+    # our C implementations use the unqualified function name.
+    namespace_map = {}
+    for ref_name in reference_funcs:
+        short_name = ref_name.rsplit("::", 1)[-1]
+        if short_name != ref_name and short_name in compiled_funcs:
+            namespace_map[short_name] = ref_name
+            if ref_name not in matched:
+                compiled_funcs[ref_name] = compiled_funcs[short_name]
+                matched.add(ref_name)
     # Build rename map: when a function was renamed from FUN_xxx, map
     # the new name to the old FUN_xxx name for matching against references.
     rename_map = {}
@@ -914,17 +1036,23 @@ def main():
     if args.function:
         fn = args.function.lstrip("_")
         if fn not in matched:
-            # Try rename fallback: look up old FUN_xxx name in reference
-            old_name = rename_map.get(fn)
-            if old_name and old_name in reference_funcs and fn in compiled_funcs:
-                compiled_funcs[old_name] = compiled_funcs[fn]
-                matched = {old_name}
-                fn = old_name
+            namespace_name = namespace_map.get(fn)
+            if namespace_name and namespace_name in reference_funcs and fn in compiled_funcs:
+                compiled_funcs[namespace_name] = compiled_funcs[fn]
+                matched = {namespace_name}
+                fn = namespace_name
             else:
-                print(f"Function {fn} not found in both objects")
-                print(f"  compiled:  {sorted(compiled_funcs.keys())[:10]}")
-                print(f"  reference: {sorted(reference_funcs.keys())[:10]}")
-                sys.exit(1)
+            # Try rename fallback: look up old FUN_xxx name in reference
+                old_name = rename_map.get(fn)
+                if old_name and old_name in reference_funcs and fn in compiled_funcs:
+                    compiled_funcs[old_name] = compiled_funcs[fn]
+                    matched = {old_name}
+                    fn = old_name
+                else:
+                    print(f"Function {fn} not found in both objects")
+                    print(f"  compiled:  {sorted(compiled_funcs.keys())[:10]}")
+                    print(f"  reference: {sorted(reference_funcs.keys())[:10]}")
+                    sys.exit(1)
         matched = {fn}
 
     # Apply rename map for unmatched compiled functions only for whole-object

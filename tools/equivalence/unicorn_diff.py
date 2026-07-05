@@ -204,6 +204,18 @@ _ORACLE_SWITCH_TABLE_FIXUPS = {
             0x000D0863, 0x000D06A5, 0x000D08E3,
         ),
     },
+    # actor_action_try_to_dive: two 4-entry jump tables (0x20120/0x20130) live
+    # just past the RET (0x2011f); a function-only delinked export keeps the
+    # table labels but drops the entries.  Targets read directly from the
+    # pristine cachebeta.xbe disassembly (JMP [EAX*4+table] case dispatch).
+    0x0001FE70: {
+        "switchD_0001fef4::switchdataD_00020120": (
+            0x0001FEFB, 0x0001FF0D, 0x0001FF1F, 0x0001FF2F,
+        ),
+        "switchD_00020055::switchdataD_00020130": (
+            0x0002005C, 0x0002006C, 0x0002007C, 0x0002008A,
+        ),
+    },
 }
 
 
@@ -713,6 +725,10 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
     last_map_error = [""]
     last_unmapped_access = [""]
     stub_addrs = stub_manager.get_stub_addresses() if stub_manager else set()
+    if stub_manager is not None:
+        # Sequenced stub_returns replay from call #0 in every run so oracle
+        # and candidate (and every seed) see the identical sequence.
+        stub_manager.reset_stub_sequences()
     if verbose and stub_addrs:
         stub_pairs = []
         for addr in sorted(stub_addrs):
@@ -896,9 +912,16 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
     insn_count = [0]
     stub_trace_count = [0]
     visited_pcs = {}
+    _ring = None
+    if os.environ.get("BIPED_RING_TRACE") == "1":
+        from collections import deque
+        _ring = deque(maxlen=48)
 
     def hook_code(uc, address, size, user_data):
         insn_count[0] += 1
+        if _ring is not None:
+            from unicorn.x86_const import UC_X86_REG_ESP as _ESP_T
+            _ring.append((address, uc.reg_read(_ESP_T)))
         if address not in visited_pcs:
             visited_pcs[address] = size
         if verbose and address in stub_addrs and stub_trace_count[0] < 64:
@@ -1145,6 +1168,10 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
             s.st[i] = fxsave_data[off:off + 10]
     except Exception:
         pass
+    if err_msg and _ring is not None:
+        print("    [ring] last insns (pc, esp):")
+        for _pc, _sp in _ring:
+            print(f"      0x{_pc:08x}  esp=0x{_sp:08x}")
     s.error = err_msg
     s.insn_count = insn_count[0]
     s.visited_pcs = visited_pcs
@@ -1417,7 +1444,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         if addr_int_for_search is not None:
             addr_sym_upper = f"FUN_{addr_int_for_search:08X}"
             addr_sym_lower = f"FUN_{addr_int_for_search:08x}"
-            for d in DELINKED_DIR.glob("*.obj"):
+            for d in list(DELINKED_DIR.glob("*.obj")) + \
+                     sorted(DELINKED_DIR.glob("functions/*.obj")):
                 try:
                     result = subprocess.run(
                         ["llvm-objdump", "-t", str(d)],
@@ -1579,6 +1607,20 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         info(f"  oracle class: {orc_cls.category} ({orc_cls.reason})")
         info(f"  lifted class: {lft_cls.category} ({lft_cls.reason})")
 
+        # Load state snapshot BEFORE the DIR32 patch so (a) identity
+        # relocation can point snapshot-covered DAT_ symbols at their real
+        # addresses and (b) _build_globals_seeds can seed the remaining slots
+        # from real game-state data.  Snapshot regions are {addr: bytes}.
+        if state_snapshot:
+            from state_snapshot import load_snapshot
+            snapshot_overrides, snapshot_arg_overrides, snapshot_stub_returns = \
+                load_snapshot(str(state_snapshot))
+            info(f"  snapshot: {len(snapshot_overrides)} region(s) from {state_snapshot.name}")
+            if snapshot_arg_overrides:
+                info(f"  arg overrides: {list(snapshot_arg_overrides.keys())}")
+            if snapshot_stub_returns:
+                info(f"  stub returns: {snapshot_stub_returns}")
+
         # Patch DIR32 relocations for both, with non-overlapping slot ranges
         orc_defined = getattr(oracle_slice, 'defined_symbols', set())
         lft_defined = getattr(lifted_slice, 'defined_symbols', set())
@@ -1591,27 +1633,16 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         lft_rdata = _relocate_rdata_text_refs(lifted_slice, lft_rdata, False)
         oracle_code_patched, orc_data_slots, orc_rdata_seeds = patch_dir32_relocs(
             oracle_slice.code, oracle_slice.relocs, orc_defined,
-            return_slots=True, rdata_map=orc_rdata)
+            return_slots=True, rdata_map=orc_rdata,
+            snapshot_regions=snapshot_overrides)
         oracle_code_patched = bytes(oracle_code_patched)
         lft_globals_base = GLOBALS_BASE + len(orc_data_slots) * 256
         lifted_code_patched, lft_data_slots, lft_rdata_seeds = patch_dir32_relocs(
             lifted_slice.code, lifted_slice.relocs, lft_defined,
             globals_base=lft_globals_base,
-            return_slots=True, rdata_map=lft_rdata)
+            return_slots=True, rdata_map=lft_rdata,
+            snapshot_regions=snapshot_overrides)
         lifted_code_patched = bytes(lifted_code_patched)
-
-        # Load state snapshot early so _build_globals_seeds can seed
-        # globals slots from real game-state data (e.g. game_state_globals at
-        # 0x4EA990+).  Snapshot regions are {addr: bytes}.
-        if state_snapshot:
-            from state_snapshot import load_snapshot
-            snapshot_overrides, snapshot_arg_overrides, snapshot_stub_returns = \
-                load_snapshot(str(state_snapshot))
-            info(f"  snapshot: {len(snapshot_overrides)} region(s) from {state_snapshot.name}")
-            if snapshot_arg_overrides:
-                info(f"  arg overrides: {list(snapshot_arg_overrides.keys())}")
-            if snapshot_stub_returns:
-                info(f"  stub returns: {snapshot_stub_returns}")
 
         globals_seeds = _build_globals_seeds(orc_data_slots, lft_data_slots,
                                              snapshot_overrides=snapshot_overrides)
@@ -1679,7 +1710,12 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         # BOTH sides (same bytes), giving a valid, lift-isolating comparison.
         # Gated (additive) so the rest of the suite is unperturbed.
         _sibling_resolve = os.environ.get("BIPED_SIBLING_RESOLVE") == "1"
-        if lft_cls.call_count > 0:
+        # call_count counts EXTERN calls only; a candidate whose only calls
+        # are defined intra-object siblings (e.g. FUN_0018c370 -> FUN_0018c100)
+        # has call_count == 0 yet still needs sibling-resolve patching, or its
+        # unpatched rel32 (disp 0) falls through leaving the return address on
+        # the stack -> epilogue RETs into the saved-EBP slot.
+        if lft_cls.call_count > 0 or _sibling_resolve:
             lifted_code_patched, lft_stub_map = patch_rel32_calls(
                 bytes(lifted_code_patched), lft_relocs_canon, lft_defined,
                 symbol_sentinels=shared_stub_sentinels,
@@ -1802,6 +1838,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                     sv[idx] = bytes.fromhex(val)
                 elif isinstance(val, list) and len(val) == 2:
                     sv[idx] = _ov_rng.randint(val[0], val[1])
+                elif val is None:
+                    sv[idx] = None   # NULL pointer pin (JSON null)
+                elif isinstance(val, float):
+                    sv[idx] = val    # float pin — setup_args packs '<f'
                 else:
                     sv[idx] = int(val)
 
@@ -1891,6 +1931,9 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         if lifted_state.error:
             log(f"  {seed_label} LIFTED-CRASH: {lifted_state.error}")
             error_details.append(f"{seed_label} LIFTED-CRASH: {lifted_state.error}")
+            if os.environ.get("BIPED_CRASH_PCS") == "1":
+                _pcs = sorted(lifted_state.visited_pcs)[-12:] if lifted_state.visited_pcs else []
+                log(f"    last visited PCs (sorted tail): {[hex(p) for p in _pcs]}")
             errors += 1
             continue
         # If either side hit the instruction limit, the register state is
@@ -2023,6 +2066,27 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
     info("")
     info(f"  coverage: {covered_bytes}/{oracle_func_size} bytes ({coverage_pct:.1f}%) — confidence: {confidence}")
+    if os.environ.get("BIPED_COVERAGE_GAPS") == "1":
+        _gap_start = None
+        _pc = oracle_func_base
+        _covered_set = set()
+        for _p, _s in all_visited_pcs.items():
+            for _b in range(_p, _p + _s):
+                _covered_set.add(_b)
+        _gaps = []
+        while _pc < oracle_func_end:
+            if _pc not in _covered_set:
+                if _gap_start is None:
+                    _gap_start = _pc
+            else:
+                if _gap_start is not None:
+                    _gaps.append((_gap_start, _pc))
+                    _gap_start = None
+            _pc += 1
+        if _gap_start is not None:
+            _gaps.append((_gap_start, oracle_func_end))
+        for _g0, _g1 in _gaps:
+            info(f"    gap: +0x{_g0 - oracle_func_base:x}..+0x{_g1 - oracle_func_base:x} ({_g1 - _g0}B)")
     if monotonic_return:
         ret_val = next(iter(oracle_returns)) if oracle_returns else 0
         log(f"  WARNING: all {passed} seeds returned identical value (0x{ret_val:08x}) — low path diversity")

@@ -24,6 +24,10 @@ from socketserver import ThreadingMixIn
 _score_locks = {}
 _score_locks_mu = threading.Lock()
 
+# SSE client tracking, for visibility into how many browsers are connected
+_sse_clients = 0
+_sse_clients_mu = threading.Lock()
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -128,16 +132,22 @@ class SSEHandler(SimpleHTTPRequestHandler):
             self._json_response(400, {'error': 'Missing "unit" field'})
             return
 
+        logging.info('Score request for unit %s from %s', unit_name, self.client_address[0])
+
         # Per-unit lock so we don't run two objdiff instances for the same unit
         with _score_locks_mu:
             if unit_name not in _score_locks:
                 _score_locks[unit_name] = threading.Lock()
             lock = _score_locks[unit_name]
 
+        if lock.locked():
+            logging.info('Unit %s is already scoring; waiting for it to finish', unit_name)
+
         with lock:
             result = self._run_score(unit_name)
 
         if result is None:
+            logging.warning('Score request for unit %s failed (no_reference)', unit_name)
             self._json_response(404, {'error': 'no_reference', 'unit': unit_name})
             return
 
@@ -157,13 +167,25 @@ class SSEHandler(SimpleHTTPRequestHandler):
             logging.error('Cannot read report.json: %s', e)
             return None
 
+        report_unit = None
+        for unit in report.get('units', []):
+            if unit.get('name') == unit_name:
+                report_unit = unit
+                break
+        if report_unit is None:
+            logging.warning('Unit %s not found in report.json', unit_name)
+            return None
+
         # Look up unit in objdiff.json to get the source file path and delinked ref.
+        # Some delinked references are tracked only through delinked/manifest.json
+        # and the generated report, so objdiff.json is a preferred source, not a
+        # hard requirement.
         try:
             with open('objdiff.json') as f:
                 objdiff_config = json.load(f)
         except Exception as e:
-            logging.error('Cannot read objdiff.json: %s', e)
-            return None
+            logging.warning('Cannot read objdiff.json: %s', e)
+            objdiff_config = {'units': []}
 
         unit_config = None
         for entry in objdiff_config.get('units', []):
@@ -171,12 +193,13 @@ class SSEHandler(SimpleHTTPRequestHandler):
                 unit_config = entry
                 break
 
-        if not unit_config:
-            logging.warning('Unit %s not found in objdiff.json', unit_name)
-            return None
-
-        source_path_rel = unit_config.get('metadata', {}).get('source_path')
-        base_path = unit_config.get('base_path')
+        source_path_rel = None
+        base_path = None
+        if unit_config:
+            source_path_rel = unit_config.get('metadata', {}).get('source_path')
+            base_path = unit_config.get('base_path')
+        if not source_path_rel:
+            source_path_rel = report_unit.get('source_path')
 
         if not source_path_rel:
             logging.warning('No source_path in objdiff.json metadata for unit %s', unit_name)
@@ -188,22 +211,19 @@ class SSEHandler(SimpleHTTPRequestHandler):
             and entry.get('base_path')
             and os.path.exists(entry.get('base_path'))
         ]
+        has_report_ref = bool(report_unit.get('summary', {}).get('has_delinked_ref'))
         if not base_path or not os.path.exists(base_path):
             if same_source_refs:
                 logging.info('No TU delinked reference for unit %s; using per-function refs',
                              unit_name)
+            elif has_report_ref:
+                logging.info('No objdiff unit for %s; using report/delinked manifest ref',
+                             unit_name)
             else:
                 logging.warning('No delinked reference for unit %s (%s)', unit_name, base_path)
                 return None
-
-        report_unit = None
-        for unit in report.get('units', []):
-            if unit.get('name') == unit_name:
-                report_unit = unit
-                break
-        if report_unit is None:
-            logging.warning('Unit %s not found in report.json', unit_name)
-            return None
+        else:
+            logging.info('Using whole-TU delinked reference for unit %s: %s', unit_name, base_path)
 
         # Import run_vc71_verify from tools/verify/vc71_regression.py
         import sys as _sys
@@ -243,6 +263,10 @@ class SSEHandler(SimpleHTTPRequestHandler):
             for key in candidates:
                 if key and key in results:
                     return results[key]['score']
+            name = func.get('name')
+            for key, info in results.items():
+                if key.rsplit('::', 1)[-1] == name:
+                    return info['score']
             return None
 
         def _has_function_ref(func):
@@ -266,9 +290,11 @@ class SSEHandler(SimpleHTTPRequestHandler):
             return False
 
         logging.info('Running vc71_verify for %s ...', source_path_rel)
+        t_start = time.time()
         try:
             vc71_results = {}
-            if base_path and os.path.exists(base_path):
+            fallback_funcs = []
+            if (base_path and os.path.exists(base_path)) or has_report_ref:
                 vc71_results.update(_run_vc71_verify(source_path))
 
             for func in report_unit.get('functions', []):
@@ -278,14 +304,25 @@ class SSEHandler(SimpleHTTPRequestHandler):
                     continue
                 if not _has_function_ref(func):
                     continue
+                fallback_funcs.append(func.get('name'))
                 vc71_results.update(_run_vc71_verify(source_path, function=func.get('name')))
         except Exception as e:
-            logging.error('vc71_verify failed for unit %s: %s', unit_name, e)
+            logging.error('vc71_verify failed for unit %s (%.1fs): %s',
+                           unit_name, time.time() - t_start, e)
             return None
+        verify_elapsed = time.time() - t_start
+
+        if fallback_funcs:
+            logging.info('Per-function fallback ran for %d function(s): %s',
+                         len(fallback_funcs), ', '.join(fallback_funcs))
 
         if not vc71_results:
-            logging.warning('vc71_verify produced no results for unit %s', unit_name)
+            logging.warning('vc71_verify produced no results for unit %s (%.1fs)',
+                             unit_name, verify_elapsed)
             return None
+
+        logging.info('vc71_verify finished for %s in %.1fs: %d function(s) scored',
+                     source_path_rel, verify_elapsed, len(vc71_results))
 
         # 1) Persist to vc71_scores.json — the SOURCE OF TRUTH the report generator
         #    reads. Mirror the regression policy: raise an existing floor or add a new
@@ -297,6 +334,11 @@ class SSEHandler(SimpleHTTPRequestHandler):
             new_score = info['score']
             old = baseline.get(fn_name)
             if old is None or new_score > old.get('score', -1) + 0.1:
+                if old is None:
+                    logging.info('  %s: %.1f%% (new baseline)', fn_name, new_score)
+                else:
+                    logging.info('  %s: %.1f%% -> %.1f%% (baseline raised)',
+                                 fn_name, old.get('score', 0.0), new_score)
                 baseline[fn_name] = {'score': new_score, 'source': source_path_rel}
                 baseline_changed = True
         if baseline_changed:
@@ -321,6 +363,10 @@ class SSEHandler(SimpleHTTPRequestHandler):
             for key in candidates:
                 if key and key in vc71_results:
                     return vc71_results[key]['score']
+            name = func.get('name')
+            for key, info in vc71_results.items():
+                if key.rsplit('::', 1)[-1] == name:
+                    return info['score']
             return None
 
         updated_funcs = {}
@@ -348,7 +394,12 @@ class SSEHandler(SimpleHTTPRequestHandler):
             logging.error('Cannot write report.json: %s', e)
             return None
 
-        logging.info('VC71-scored unit %s: %d functions updated', unit_name, len(updated_funcs))
+        total_elapsed = time.time() - t_start
+        score_summary = ', '.join(
+            f'{name}={score:.1f}%' for name, score in sorted(updated_funcs.items())
+        )
+        logging.info('VC71-scored unit %s: %d function(s) updated in %.1fs — %s',
+                     unit_name, len(updated_funcs), total_elapsed, score_summary or 'none')
         return {'ok': True, 'unit': unit_name, 'scores': updated_funcs}
 
     def log_message(self, format, *args):
@@ -371,7 +422,11 @@ class SSEHandler(SimpleHTTPRequestHandler):
             history_path: 0,
         }
 
-        logging.info('SSE client connected')
+        global _sse_clients
+        with _sse_clients_mu:
+            _sse_clients += 1
+            active = _sse_clients
+        logging.info('SSE client connected from %s (%d active)', self.client_address[0], active)
 
         def send_field(name, data):
             msg = f'event: {name}\ndata: {data}\n\n'
@@ -410,7 +465,10 @@ class SSEHandler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
         finally:
-            logging.info('SSE client disconnected')
+            with _sse_clients_mu:
+                _sse_clients -= 1
+                active = _sse_clients
+            logging.info('SSE client disconnected from %s (%d active)', self.client_address[0], active)
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -429,21 +487,30 @@ def _background_regen(serve_dir: str, project_root: str, interval_secs: int = 30
 
     while True:
         time.sleep(interval_secs)
+        logging.info('Background dashboard refresh starting...')
+        t_start = time.time()
         try:
             r = subprocess.run(
                 [py, ci_script, '--output-dir', serve_dir],
                 cwd=project_root, capture_output=True, timeout=30,
             )
             if r.returncode == 0:
-                subprocess.run(
+                r2 = subprocess.run(
                     [py, report_script, '--output', report_json, '--html', report_html],
                     cwd=project_root, capture_output=True, timeout=60,
                 )
-                logging.info('Dashboard auto-refreshed')
+                if r2.returncode == 0:
+                    logging.info('Dashboard auto-refreshed in %.1fs', time.time() - t_start)
+                else:
+                    logging.warning('Report regen failed (rc=%d, %.1fs): %s',
+                                     r2.returncode, time.time() - t_start,
+                                     r2.stderr.decode(errors='replace')[:200])
             else:
-                logging.warning('CI regen failed: %s', r.stderr.decode(errors='replace')[:200])
+                logging.warning('CI regen failed (rc=%d, %.1fs): %s',
+                                 r.returncode, time.time() - t_start,
+                                 r.stderr.decode(errors='replace')[:200])
         except Exception as exc:
-            logging.warning('Background regen error: %s', exc)
+            logging.warning('Background regen error (%.1fs): %s', time.time() - t_start, exc)
 
 
 def main():
