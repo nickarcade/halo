@@ -74,6 +74,56 @@ bool FUN_001298f0(int connection, void *buffer, int *size, void *addr)
   return result;
 }
 
+/* FUN_00129980 (0x129980)
+ *
+ * Resets a network connection's endpoints. Called from network_game_client_reset
+ * (0x1267c0) and network_game_client_leave_game (0x126140).
+ *
+ * If the connection is currently connected, runs the FUN_001294d0 teardown when
+ * the connection's +0x30 flag byte has bit 1 or 2 set, then closes the active
+ * endpoint stored at +0x00.
+ *
+ * If the connection has a secondary endpoint (+0x04) and a non-zero bound port
+ * (+0x34), it destroys that endpoint and recreates one from endpoint set 0x11,
+ * rebinding it to an address record { address = 0, type = 4, port }. Returns
+ * true on success (or when there is nothing to rebind), false if the endpoint
+ * could not be recreated or rebound.
+ */
+bool FUN_00129980(int connection)
+{
+  int addr[6];
+  int new_endpoint;
+  short port;
+
+  if (network_connection_connected(connection)) {
+    if ((*(uint8_t *)(connection + 0x30) & 6) != 0) {
+      FUN_001294d0(connection);
+    }
+    close_endpoint(*(int **)connection);
+  }
+
+  if (*(int *)(connection + 4) != 0) {
+    port = *(short *)(connection + 0x34);
+    if (port != 0) {
+      *(short *)((char *)addr + 0x10) = 4;
+      addr[0] = 0;
+      *(short *)((char *)addr + 0x12) = port;
+      destroy_endpoint(*(int **)(connection + 4));
+      new_endpoint = get_next_endpoint_from_set(0x11);
+      *(int *)(connection + 4) = new_endpoint;
+      if (new_endpoint != 0) {
+        if (FUN_00083ce0((int *)new_endpoint, addr) == 0) {
+          if (FUN_00083bd0(*(int *)(connection + 4), 0) == 0) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
 /* FUN_00129cf0 (0x129cf0)
  *
  * Network connection idle processing. Handles timeout detection, reliable and
@@ -231,17 +281,17 @@ bool network_game_in_progress(void)
  */
 void network_game_set_number_of_games_played(int games_played)
 {
-    int game;
-    int server = *(int *)0x46e8bc;
-    if (server != 0) {
-        game = network_game_server_get_game((void *)server);
-        *(int *)(game + 0x42c) = games_played;
-    }
-    server = *(int *)0x46e8c0;
-    if (server != 0) {
-        game = (int)network_game_client_get_machine_index((void *)server);
-        *(int *)(game + 0x42c) = games_played;
-    }
+  int game;
+  int server = *(int *)0x46e8bc;
+  if (server != 0) {
+    game = network_game_server_get_game((void *)server);
+    *(int *)(game + 0x42c) = games_played;
+  }
+  server = *(int *)0x46e8c0;
+  if (server != 0) {
+    game = (int)network_game_client_get_machine_index((void *)server);
+    *(int *)(game + 0x42c) = games_played;
+  }
 }
 
 /* Set the random seed in both server and client game globals.
@@ -249,17 +299,17 @@ void network_game_set_number_of_games_played(int games_played)
  */
 void network_game_set_random_seed(int seed)
 {
-    int game;
-    int server = *(int *)0x46e8bc;
-    if (server != 0) {
-        game = network_game_server_get_game((void *)server);
-        *(int *)(game + 0x428) = seed;
-    }
-    server = *(int *)0x46e8c0;
-    if (server != 0) {
-        game = (int)network_game_client_get_machine_index((void *)server);
-        *(int *)(game + 0x428) = seed;
-    }
+  int game;
+  int server = *(int *)0x46e8bc;
+  if (server != 0) {
+    game = network_game_server_get_game((void *)server);
+    *(int *)(game + 0x428) = seed;
+  }
+  server = *(int *)0x46e8c0;
+  if (server != 0) {
+    game = (int)network_game_client_get_machine_index((void *)server);
+    *(int *)(game + 0x428) = seed;
+  }
 }
 
 /* Return the active game object: server's game if server exists,
@@ -278,6 +328,60 @@ int FUN_0012a0a0(void)
     return uVar1;
   }
   return 0;
+}
+
+/* network_game_player_is_local (0x12a0d0)
+ *
+ * Returns whether the given player is local to this machine.
+ *
+ * If the player is valid and a network game client exists, the player is
+ * local when the client's active machine index (machine byte at +0x40)
+ * matches the player's machine index (player byte at +0x1c).
+ *
+ * Otherwise, when not connected as a client (game_connection() != 3, i.e.
+ * single-player or host), every player is treated as local. When connected
+ * as a client, machine index 0 (player byte +0x1c == 0) is the local machine.
+ * A NULL player in the client case triggers an assert/halt.
+ *
+ * Source: network_game_globals.c line 0x9b (155).
+ */
+bool network_game_player_is_local(void *player)
+{
+  void *machine;
+
+  if (player != NULL && network_player_is_valid(player) &&
+      *(void **)0x0046e8c0 != NULL) {
+    machine = network_game_client_get_machine(*(void **)0x0046e8c0);
+    if (machine != NULL &&
+        *(char *)((char *)machine + 0x40) == *(char *)((char *)player + 0x1c)) {
+      return true;
+    }
+    return false;
+  }
+
+  if (game_connection() != 3) {
+    return true;
+  }
+
+  if (player == NULL) {
+    display_assert("player",
+                   "c:\\halo\\SOURCE\\networking\\network_game_globals.c", 0x9b,
+                   1);
+    system_exit(-1);
+  }
+
+  return *(char *)((char *)player + 0x1c) == '\0';
+}
+
+/* network_game_set_accept_remote_connections (0x12a150)
+ *
+ * Stores the one-byte "accept remote connections" flag to the network game
+ * globals byte at 0x46e8c4 (the byte read back by
+ * network_game_accept_remote_connections at 0x12a160).
+ */
+void network_game_set_accept_remote_connections(char accept)
+{
+  *(char *)0x46e8c4 = accept;
 }
 
 /* network_game_accept_remote_connections (0x12a160)
@@ -314,7 +418,8 @@ void FUN_0012a190(void)
  * 0x12a1a0 / network_game_globals.obj */
 unsigned int FUN_0012a1a0(void)
 {
-  if ((*(void **)0x0046e8bc == NULL) || (*(unsigned char *)0x0046e8c4 != '\0') ||
+  if ((*(void **)0x0046e8bc == NULL) ||
+      (*(unsigned char *)0x0046e8c4 != '\0') ||
       (*(unsigned char *)0x0046e8c5 != '\x01')) {
     return 0;
   }
@@ -438,11 +543,15 @@ bool network_game_client_start_frame(void)
   }
 
   result = FUN_00127070(*(void **)0x46e8c0);
-  if (!result)
+  if (!result) {
+    network_game_log("internal networking error [network_game_client_idle() failed]");
     return false;
+  }
 
-  if (FUN_00124cc0(*(void **)0x46e8c0) != 0)
+  if (FUN_00124cc0(*(void **)0x46e8c0) != 0) {
+    network_game_log("internal networking error [network_game_client_get_error()!=0]");
     return false;
+  }
 
   state = network_game_client_get_state(*(void **)0x46e8c0, &local_4);
 
@@ -538,8 +647,13 @@ bool network_game_client_end_frame(void)
         result = false;
       } else {
         network_game_client_switch_to_postgame(*(void **)0x46e8c0, local_1c);
-        result =
-          FUN_00124d40(*(void **)0x46e8c0, msg, *msg >> 4, *(int *)local_1c, 0);
+        /* arg1 is the client's connection handle at +0x82c, fetched via the
+         * 0x125710 getter (its kb name is a misnomer; it returns *(client+0x82c),
+         * the same send channel FUN_001263a0 passes to FUN_00128e00). arg4 is the
+         * address of the local_1c record filled by switch_to_postgame. */
+        result = FUN_00124d40(
+          (void *)network_game_client_get_seconds_to_game_start(*(void **)0x46e8c0),
+          msg, *msg >> 4, (int)local_1c, 0);
         if (!result) {
           network_game_log("failed to send a game update to the server");
           *(int *)0x46e8c8 = now;
@@ -551,6 +665,90 @@ bool network_game_client_end_frame(void)
 
   *(int *)0x46e8c8 = last_send;
   return result;
+}
+
+/* network_game_client_get_local_machine_index (0x12a690)
+ *
+ * Returns the local machine index for the network game client, or -1 if the
+ * client is absent or has no valid machine record. The machine record is
+ * fetched via network_game_client_get_machine(); the index is a signed byte
+ * at machine+0x40, sign-extended to short.
+ * Source: network_game_globals.c
+ */
+short network_game_client_get_local_machine_index(void)
+{
+  void *machine;
+  short result;
+
+  result = -1;
+  if (*(void **)0x0046e8c0 != NULL) {
+    machine = network_game_client_get_machine(*(void **)0x0046e8c0);
+    if (machine != NULL) {
+      result = (short)*(char *)((char *)machine + 0x40);
+    }
+  }
+  return result;
+}
+
+/* network_game_client_local_player_quit (0x12a6c0)
+ *
+ * Handles a local player quitting an in-progress network game. Walks the
+ * client's 16-slot player table (records at index_base + 0x226, stride 0x20)
+ * looking for the valid player record whose machine index (+0x40 on the
+ * machine object) matches this client's machine and whose controller index
+ * (record byte +1) matches the requested player. On a match, requests that
+ * player's removal via the network client; logs an error if the request fails.
+ */
+void network_game_client_local_player_quit(short player)
+{
+  void *machine;
+  void *index_base;
+  char *slot;
+  char *record;
+  int i;
+
+  if (*(void **)0x0046e8c0 != NULL) {
+    machine = network_game_client_get_machine(*(void **)0x0046e8c0);
+    index_base = network_game_client_get_machine_index(*(void **)0x0046e8c0);
+    if (machine != NULL) {
+      i = 0;
+      slot = (char *)index_base + 0x242;
+      while (!network_player_is_valid(slot - 0x1c) ||
+             *slot != *((char *)machine + 0x40) ||
+             slot[1] != player) {
+        i = i + 1;
+        slot = slot + 0x20;
+        if (0xf < i) {
+          return;
+        }
+      }
+      record = (char *)index_base + i * 0x20 + 0x226;
+      if (record != NULL &&
+          !network_game_client_request_remove_player(*(void **)0x0046e8c0,
+                                                     record)) {
+        error(2, "failed to request player removal in-game for player #%d",
+              (int)*(char *)(record + 0x1d));
+      }
+    }
+  }
+}
+
+/* network_game_abort (0x12a780)
+ *
+ * Signals network-game abort by setting the global abort flag byte.
+ */
+void network_game_abort(void)
+{
+  *(unsigned char *)0x46e8c6 = 1;
+}
+
+/* network_game_client_all_local_players_have_quit (0x12a790)
+ *
+ * Sets the network-game abort flag byte when all local players have quit.
+ */
+void network_game_client_all_local_players_have_quit(void)
+{
+  *(unsigned char *)0x46e8c6 = 1;
 }
 
 /* Request a game start from the network client (request_type=3).
@@ -565,13 +763,30 @@ void FUN_0012a7a0(void)
   }
 }
 
-/* network_game_abort (0x12a780)
- *
- * Signals network-game abort by setting the global abort flag byte.
- */
-void network_game_abort(void)
+/* Return the number of games played from the active network game globals.
+ * Resolves the server's game globals if a server exists, otherwise the
+ * client's; asserts a non-null game pointer was resolved, then reads the
+ * field at game+0x428.
+ * 0x12a830 / network_game_globals.obj */
+int network_game_get_number_of_games_played(void)
 {
-  *(unsigned char *)0x46e8c6 = 1;
+  int game;
+
+  if (*(void **)0x0046e8bc != NULL) {
+    game = network_game_server_get_game(*(void **)0x0046e8bc);
+  } else if (*(void **)0x0046e8c0 != NULL) {
+    game = (int)network_game_client_get_machine_index(*(void **)0x0046e8c0);
+  } else {
+    game = 0;
+  }
+
+  if (game == 0) {
+    display_assert(
+      "game", "c:\\halo\\SOURCE\\networking\\network_game_globals.c", 0x73, 1);
+    system_exit(-1);
+  }
+
+  return *(int *)(game + 0x428);
 }
 
 /* Create and initialize the global network game server.
@@ -586,8 +801,8 @@ bool FUN_0012a890(void)
 
   if (*(void **)0x0046e8bc != NULL) {
     display_assert("global_network_game_server==NULL",
-                   "c:\\halo\\SOURCE\\networking\\network_game_globals.c",
-                   0xd6, 1);
+                   "c:\\halo\\SOURCE\\networking\\network_game_globals.c", 0xd6,
+                   1);
     system_exit(-1);
   }
   *(void **)0x0046e8bc = FUN_0012eef0();
