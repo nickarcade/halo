@@ -34,10 +34,13 @@ use `rtk jq`. All lifted C is C89; the tools below are Python and unaffected.
   (manual invocation only) and is documented false-positive-prone (§9).
 - Skill duplication: `/auto-lift` and `/goal-lift` carry near-identical copies of
   the Opus escalation flow (~90 lines), Phase-1 subagent prompt, and pass/fail
-  thresholds. `/mass-lift` is listed in the session skill registry but has **no
-  definition** in `.claude/skills/`, `.claude/commands/`, or `~/.claude/`.
+  thresholds. `/mass-lift` (backed by `.claude/workflows/mass-lift.js`) was
+  **retired 2026-07-07** — unwired, no reviewer gate, no model/effort policy;
+  `goal-lift.js` is the sole governed orchestrator.
 - Cruft: `.claude/commands/frontier.md~`; legacy `review`/`promote` subcommands
-  documented in `auto-lift.md`; `tools/verify/verify_option3.py` likely stale.
+  documented in `auto-lift.md`; the retired Option 3 verification path has been
+  archived in favor of `lift_pipeline.py`, `run_golden_tests.py`, and
+  `test_inventory.py`.
 
 ---
 
@@ -322,11 +325,10 @@ expressed as divergent prose).
    as a policy preset rather than skill prose.
 4. While editing: remove or clearly mark the legacy `review`/`promote`
    subcommand docs in `auto-lift.md`; delete `.claude/commands/frontier.md~`.
-5. Resolve `/mass-lift`: it appears in the session skill registry with a detailed
-   description but has no definition in the repo or `~/.claude`. Determine its
-   origin (likely a plugin); either implement it as a thin orchestration doc over
-   the now-shared policy presets, or note in `docs/lift-policy.md` that it is
-   unimplemented so nobody invokes it expecting the described behavior.
+5. Resolve `/mass-lift`: **DONE (2026-07-07)** — `.claude/workflows/mass-lift.js`
+   was deleted (unwired, no reviewer gate, no model/effort policy) and
+   `docs/lift-policy.md` marks it retired. `goal-lift.js` is the sole governed
+   orchestrator.
 
 **Acceptance:** both skill files shrink materially; a grep for threshold numbers
 (`65%`, `90%`, `85`) in the two skill files returns only policy-preset names or
@@ -436,9 +438,8 @@ keying pattern), `tools/llm_auto_lift.py` (call-site audit).
 2. Cache call-site audit output keyed by `(disasm_sha256, kb_decl_map_sha256)`.
 3. Skip re-ranking the frontier per-target inside batch loops when kb.json's
    mtime/hash is unchanged (cache the ranking for the batch).
-4. Investigate `tools/verify/verify_option3.py` and `vc71_regression.py`:
-   delete if dead (git log + grep for callers), or add a docstring stating their
-   role.
+4. Keep `vc71_regression.py` cache/report behavior documented; the stale
+   `verify_option3.py` lane has been archived.
 
 **Acceptance:** second consecutive pipeline run on an unchanged target shows the
 cached stages as instant in the stage timing output; stale-tool decision recorded

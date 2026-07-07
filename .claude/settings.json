@@ -55,6 +55,17 @@
             "statusMessage": "Action router: commit/deploy skill reminders"
           }
         ]
+      },
+      {
+        "matcher": "mcp__ghidra",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd $(git rev-parse --show-toplevel) && bash tools/hooks/ghidra_preflight_hook.sh",
+            "timeout": 10,
+            "statusMessage": "Ghidra preflight: checking MCP endpoints"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -85,13 +96,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd $(git rev-parse --show-toplevel) && python3 tools/retrieval/decompile_hook.py",
+            "command": "cd $(git rev-parse --show-toplevel) && rtk python3 tools/retrieval/decompile_hook.py",
             "timeout": 15,
             "statusMessage": "Retrieval: finding similar ported functions"
           },
           {
             "type": "command",
-            "command": "cd $(git rev-parse --show-toplevel) && python3 tools/retrieval/enrichment_hook.py",
+            "command": "cd $(git rev-parse --show-toplevel) && rtk python3 tools/retrieval/enrichment_hook.py",
             "timeout": 5,
             "statusMessage": "Enrichment: injecting cached callee/struct/alias analysis"
           }

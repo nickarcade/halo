@@ -133,18 +133,21 @@ Write to `artifacts/auto_lift/failures/<target_name>.json`:
 
 ---
 
-## /mass-lift status
+## /mass-lift status — RETIRED (2026-07-07)
 
-`/mass-lift` appears in the session skill registry with a description but has
-**no implementation** in this repo or `~/.claude/`.  Do not invoke it expecting
-the described behavior.  Implement it as a thin orchestration document over the
-`goal90` policy preset when needed.
+`.claude/workflows/mass-lift.js` was **removed** in the 2026-07-07 architecture
+review.  It was unwired (no command/skill backed it), committed without the
+`xbox-halo-lift-reviewer` fail-closed gate, carried no central model/effort
+policy, and its "Opus escalation" was a same-model retry.  `goal-lift.js` is the
+single governed mass-decompilation orchestrator; use `/goal-lift` instead.  If a
+mass path is ever needed again, extract goal-lift's `M` policy + reviewer gate
+into a shared module rather than reviving the old workflow.
 
 ---
 
-## Notes on legacy subcommands
+## Auto-lift helper subcommands
 
-`/auto-lift review` and `/auto-lift promote` are legacy subcommands for old
-batch-artifact workflows.  They still exist in the code (`tools/llm_auto_lift.py`)
-but are not part of the standard lift loop.  Use `/auto-lift cache-context` and
-`/auto-lift select` instead.
+`/auto-lift select`, `/auto-lift score`, and `/auto-lift cache-context` are the
+supported helper subcommands. Old batch-artifact review/promote flows have been
+retired; use the failure records under `artifacts/auto_lift/failures/` and the
+standard `/lift` verification loop for follow-up work.

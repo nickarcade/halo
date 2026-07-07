@@ -79,8 +79,10 @@
 	halo/units/units.c
 	halo/units/vehicles.c
 	halo/networking/network_client_manager.c
+	halo/networking/network_client_message_handler.c
 	halo/networking/network_connection.c
 	halo/networking/network_game_globals.c
+	halo/networking/network_game_manager.c
 	halo/networking/message_header.c
 	halo/networking/network_messages.c
 	halo/networking/network_server_manager.c
@@ -99,11 +101,13 @@
 	halo/physics/collision_features.c
 	halo/physics/collision_usage.c
 	halo/physics/point_physics.c
+	halo/physics/bsp3d.c
 	halo/math/integer_math.c
 	halo/math/random_math.c
 	halo/math/real_math.c
 	halo/math/rectangles.c
 	halo/math/vector_math.c
+	halo/math/geometry.c
 	halo/models/model_animations.c
 	halo/rasterizer/rasterizer.c
 	halo/rasterizer/rasterizer_sprites.c
