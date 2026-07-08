@@ -6657,7 +6657,7 @@
         {
           "addr": "0x9ca70",
           "decl": "void effects_information_get(int effect_ptr@<ebx>, uint32_t flags_hi@<edi>, unsigned int *seed, float *velocity_out, float min_val, float max_val, uint32_t flags_lo);",
-          "note": "hidden reg deps (EDI=flags_hi, EBX=effect_ptr) \u2014 callers pass these in registers; all known callers inlined",
+          "note": "hidden reg deps (EDI=flags_hi, EBX=effect_ptr) — callers pass these in registers; all known callers inlined",
           "ported": true
         },
         {
@@ -6718,7 +6718,7 @@
         {
           "addr": "0x9dcf0",
           "decl": "void FUN_0009dcf0(float *position, void *effect, void *location, void *part, float *forward, float *up, float scale);",
-          "note": "4 reg args (EAX,EDX,ECX,ESI) \u2014 inlined into FUN_0009e310, cannot be thunked separately",
+          "note": "4 reg args (EAX,EDX,ECX,ESI) — inlined into FUN_0009e310, cannot be thunked separately",
           "ported": true
         },
         {
@@ -14657,7 +14657,7 @@
         },
         {
           "addr": "0x84a70",
-          "decl": "int valid_real_normal3d_perpendicular(float *a, float *b);",
+          "decl": "bool valid_real_normal3d_perpendicular(float *a, float *b);",
           "ported": true,
           "source": "src/halo/objects/objects.c",
           "status": "ported"
@@ -19770,7 +19770,7 @@
         },
         {
           "addr": "0x21fb0",
-          "decl": "int valid_real_normal3d(float *v);",
+          "decl": "bool valid_real_normal3d(float *v);",
           "ported": true,
           "source": "src/halo/math/vector_math.c",
           "status": "ported"
@@ -26749,6 +26749,26 @@
           "addr": "0x1b3690",
           "decl": "char FUN_001b3690(int unit_handle);",
           "ported": true
+        },
+        {
+          "addr": "0x1a8770",
+          "decl": "char FUN_001a8770(void *anim_state@<ecx>);",
+          "ported": false
+        },
+        {
+          "addr": "0x1a8890",
+          "decl": "char FUN_001a8890(void *anim_state@<ecx>);",
+          "ported": false
+        },
+        {
+          "addr": "0x1a8910",
+          "decl": "char FUN_001a8910(int16_t anim_state@<ecx>);",
+          "ported": false
+        },
+        {
+          "addr": "0x1a8950",
+          "decl": "int FUN_001a8950(int16_t anim_state@<ecx>, int16_t target_state@<edx>);",
+          "ported": false
         }
       ],
       "name": "units.obj",
@@ -28801,19 +28821,26 @@
       "functions": [
         {
           "addr": "0x11c530",
-          "decl": "void FUN_0011c530(void);"
+          "name": "FUN_0011c530",
+          "decl": "void FUN_0011c530(int cache, int block);",
+          "ported": true
         },
         {
           "addr": "0x11c580",
-          "decl": "void FUN_0011c580(void);"
+          "name": "FUN_0011c580",
+          "decl": "void FUN_0011c580(int cache, void *pointer);",
+          "ported": true
         },
         {
           "addr": "0x11c5d0",
-          "decl": "void FUN_0011c5d0(void);"
+          "decl": "int FUN_0011c5d0(int block @<eax>, int cache @<ecx>);",
+          "ported": true
         },
         {
           "addr": "0x11c5f0",
-          "decl": "void FUN_0011c5f0(void);"
+          "name": "FUN_0011c5f0",
+          "decl": "void *FUN_0011c5f0(int cache, int size, void *data);",
+          "ported": true
         },
         {
           "addr": "0x11c780",
@@ -28827,91 +28854,124 @@
         },
         {
           "addr": "0x11c7a0",
-          "decl": "void lruv_allocation_size(void);"
+          "decl": "void lruv_allocation_size(int block @<esi>, int cache);",
+          "ported": true
         },
         {
           "addr": "0x11c7c0",
-          "decl": "void FUN_0011c7c0(void);"
+          "decl": "void FUN_0011c7c0(int cache @<eax>, int block @<esi>);",
+          "ported": true
         },
         {
           "addr": "0x11c820",
-          "decl": "void lruv_update_function_pointers(void);"
+          "decl": "void lruv_update_function_pointers(int cache@<eax>);",
+          "ported": true
         },
         {
           "addr": "0x11c870",
-          "decl": "void FUN_0011c870(void);"
+          "decl": "void *lrar_cache_new(const char *name, unsigned int minimum_address, unsigned int maximum_address, short block_count, short alignment_bit, short boundary_bit, void (*lock_proc)(short *, short), void (*unlock_proc)(short *));",
+          "name": "lrar_cache_new",
+          "ported": true,
+          "source_path": "src/halo/memory/lruv_cache.c"
         },
         {
           "addr": "0x11ca20",
-          "decl": "void lruv_has_locked_proc(void);"
+          "decl": "void lruv_has_locked_proc(void *cache);",
+          "ported": true
         },
         {
           "addr": "0x11ca60",
-          "decl": "void FUN_0011ca60(void);"
+          "decl": "int FUN_0011ca60(short block_index @<ax>, int cache @<edi>);",
+          "ported": true
         },
         {
           "addr": "0x11cab0",
-          "decl": "void FUN_0011cab0(void);"
+          "name": "lrar_cache_dispose",
+          "decl": "void lrar_cache_dispose(int cache);",
+          "ported": true
         },
         {
           "addr": "0x11cbf0",
-          "decl": "void FUN_0011cbf0(void);"
+          "decl": "short FUN_0011cbf0(int cache, int size, void *data);",
+          "ported": true
         },
         {
           "addr": "0x11cf00",
-          "decl": "void FUN_0011cf00(void);"
+          "decl": "void *FUN_0011cf00(int cache, short block_index);",
+          "ported": true
         },
         {
           "addr": "0x11cf60",
-          "decl": "void FUN_0011cf60(void);"
+          "decl": "void FUN_0011cf60(int cache, short block_index);",
+          "ported": true
         },
         {
           "addr": "0x11cfd0",
-          "decl": "void FUN_0011cfd0(void);"
+          "decl": "void FUN_0011cfd0(int *ptr, int value);"
         },
         {
           "addr": "0x11cfe0",
-          "decl": "void FUN_0011cfe0(void);"
+          "decl": "void FUN_0011cfe0(void *param_1);",
+          "ported": true
         },
         {
           "addr": "0x11d010",
-          "decl": "void FUN_0011d010(void);"
+          "decl": "void FUN_0011d010(int cache, void *entry);",
+          "name": "FUN_0011d010",
+          "ported": true,
+          "source_path": "src/halo/memory/lruv_cache.c"
         },
         {
           "addr": "0x11d090",
-          "decl": "void FUN_0011d090(void);"
+          "decl": "void FUN_0011d090(int cache@<eax>);",
+          "ported": true
         },
         {
           "addr": "0x11d110",
-          "decl": "void FUN_0011d110(void);"
+          "decl": "void *FUN_0011d110(const char *name, int total_size, int block_size, void *delete_callback, void *query_callback, void *buffer);",
+          "ported": true
         },
         {
           "addr": "0x11d250",
-          "decl": "void FUN_0011d250(void);"
+          "decl": "void lru_cache_dispose(void *cache);",
+          "name": "lru_cache_dispose",
+          "ported": true,
+          "source_path": "src/halo/memory/lruv_cache.c"
         },
         {
           "addr": "0x11d2a0",
-          "decl": "void FUN_0011d2a0(void);"
+          "decl": "void FUN_0011d2a0(int cache);",
+          "ported": true,
+          "source_path": "src/halo/memory/lruv_cache.c"
         },
         {
           "addr": "0x11d300",
-          "decl": "void FUN_0011d300(void);"
+          "decl": "int FUN_0011d300(int cache);",
+          "ported": true
         },
         {
           "addr": "0x11d320",
-          "decl": "void FUN_0011d320(void);"
+          "name": "FUN_0011d320",
+          "decl": "void *FUN_0011d320(int cache, int value);",
+          "ported": true
         },
         {
           "addr": "0x11d3f0",
-          "decl": "void FUN_0011d3f0(void);"
+          "decl": "void FUN_0011d3f0(int cache, int block);",
+          "ported": true,
+          "source_path": "src/halo/memory/lruv_cache.c"
         },
         {
           "addr": "0x11d420",
-          "decl": "void FUN_0011d420(void);"
+          "decl": "void FUN_0011d420(int cache, int block);",
+          "ported": true,
+          "source_path": "src/halo/memory/lruv_cache.c"
         },
         {
           "addr": "0x11d450",
-          "decl": "void FUN_0011d450(void);"
+          "decl": "void FUN_0011d450(int cache, int block);",
+          "ported": true,
+          "source_path": "src/halo/memory/lruv_cache.c"
         },
         {
           "addr": "0x11d480",
@@ -28945,7 +29005,8 @@
         },
         {
           "addr": "0x11d8d0",
-          "decl": "void lruv_idle(void *cache);"
+          "decl": "void lruv_idle(void *cache);",
+          "ported": true
         },
         {
           "addr": "0x11d8f0",
@@ -28959,15 +29020,21 @@
         },
         {
           "addr": "0x11da00",
-          "decl": "int lruv_block_get_address(void *lruv, int block_index);"
+          "decl": "int lruv_block_get_address(void *lruv, int block_index);",
+          "ported": true
         },
         {
           "addr": "0x11da30",
-          "decl": "void lruv_block_touched(void);"
+          "decl": "bool lruv_block_touched(void *lruv, int block_index);",
+          "name": "lruv_block_touched",
+          "ported": true
         },
         {
           "addr": "0x11da60",
-          "decl": "void lruv_cache_get_page_usage(void);"
+          "decl": "void lruv_cache_get_page_usage(void *cache, unsigned char *usage);",
+          "name": "lruv_cache_get_page_usage",
+          "ported": true,
+          "source_path": "src/halo/memory/lruv_cache.c"
         },
         {
           "addr": "0x11db00",
@@ -28981,7 +29048,8 @@
         },
         {
           "addr": "0x11dd60",
-          "decl": "void lruv_new(void);"
+          "decl": "void *lruv_new(int name, int page_count, int page_size_bits, int maximum_block_count, void (*delete_cb)(int), int (*query_cb)(int));",
+          "ported": true
         },
         {
           "addr": "0x11ddc0",
@@ -28990,7 +29058,9 @@
         },
         {
           "addr": "0x11de10",
-          "decl": "int FUN_0011de10(void *lruv, int block_index);"
+          "name": "FUN_0011de10",
+          "decl": "int FUN_0011de10(void *cache, unsigned int size);",
+          "ported": true
         },
         {
           "addr": "0x1bfe90",
@@ -34005,7 +34075,7 @@
         },
         {
           "addr": "0x1283c0",
-          "decl": "void FUN_001283c0(int connection, void *buf, int flag);",
+          "decl": "void network_connection_get_address(int connection, void *buf, int flag);",
           "ported": true
         },
         {
@@ -34025,7 +34095,7 @@
         },
         {
           "addr": "0x1286e0",
-          "decl": "bool FUN_001286e0(int connection@<esi>, void *buffer, int *size, void *addr);",
+          "decl": "bool network_connection_read_unreliable(int connection@<esi>, void *buffer, int *size, void *addr);",
           "ported": true
         },
         {
@@ -34040,17 +34110,17 @@
         },
         {
           "addr": "0x1292f0",
-          "decl": "bool FUN_001292f0(int connection@<edi>, void *buffer, int *size, void *addr);",
+          "decl": "bool network_connection_read_reliable(int connection@<edi>, void *buffer, int *size, void *addr);",
           "ported": true
         },
         {
           "addr": "0x1294d0",
-          "decl": "bool FUN_001294d0(int connection@<esi>);",
+          "decl": "bool network_connection_idle_client_reliable_endpoint(int connection@<esi>);",
           "ported": true
         },
         {
           "addr": "0x129a30",
-          "decl": "bool FUN_00129a30(int connection@<ebx>, int *output);",
+          "decl": "bool network_connection_idle(int connection@<ebx>, int *output);",
           "ported": true
         },
         {
@@ -34065,7 +34135,7 @@
         },
         {
           "addr": "0x1288e0",
-          "decl": "void FUN_001288e0(int event@<ecx>, int enable@<eax>, int connection@<esi>);",
+          "decl": "void network_connection_notify_traffic_event(int event@<ecx>, int enable@<eax>, int connection@<esi>);",
           "ported": true
         },
         {
@@ -34075,7 +34145,7 @@
         },
         {
           "addr": "0x129270",
-          "decl": "void *FUN_00129270(int endpoint@<edi>);",
+          "decl": "void *network_connection_new_serverside_client(int endpoint@<edi>);",
           "ported": true
         },
         {
@@ -38828,5 +38898,8 @@
     "decl": "unsigned int *sieve_of_eratosthenes(unsigned int limit, unsigned int *num_primes);",
     "ported": true,
     "source_path": "src/halo/networking/message_header.c"
+  },
+  "0x11cfd0": {
+    "ported": true
   }
 }
