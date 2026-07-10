@@ -1,3 +1,830 @@
+#include "x87_math.h" /* x87_fatan2f: inline FPATAN atan2, matches original */
+
+/* MSVC 7.1 FABS intrinsic: declared+pragma here so fabs() inlines to a single
+ * FABS instruction instead of a CRT call. */
+extern double __cdecl fabs(double);
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma intrinsic(fabs)
+#else
+/* clang builds with -fno-builtin, which ignores the intrinsic pragma above and
+ * emits a real CRT call to fabs. The original inlines a single x87 FABS. Force
+ * clang to inline via the always-available builtin so the codegen matches the
+ * binary (and so equivalence harnesses don't see an external fabs stub). */
+#define fabs __builtin_fabs
+#endif
+
+/* FUN_00061ca0 (0x61ca0)
+ *
+ * Per-tick debug path-obstacle-avoidance key handler.  When the debug enable
+ * byte (0x3340a9) is set and the developer console is not active, polls debug
+ * keys and toggles the mode/enable bytes, optionally (re)builds the obstacle
+ * avoidance record and advances it, then draws the current obstacle discs and
+ * path steps.  Runs the two draw calls whenever the enable byte is set,
+ * regardless of console state.
+ *
+ * Confirmed from disassembly at 0x61ca0:
+ *   - scenario_get() is 0-arg (returns the current scenario tag base; 50+
+ *     ported callers).  The 7 pushes Ghidra attributed to scenario_get are
+ *     actually FUN_00060ea0's stack args (cdecl arg mis-grouping, §7).
+ *   - FUN_00060ea0 is __thiscall + @eax: ECX=0x331f68 (avoidance record),
+ *     EAX=0x5ab250 (end point2d), plus 9 cdecl stack args.  ADD ESP,0x24
+ *     (36 bytes = 9 args) proves the split is 0 (scenario_get) + 9, not 7+2.
+ *   - FUN_000615b0 takes @eax=0x331f68 (the record); its return is discarded.
+ *   - path_obstacles_debug_render(&0x3334a0 obstacles, 0x5ab240 radius) and
+ *     FUN_000609e0(&0x331f68 path) are clean cdecl (ADD ESP,0xc = 2+1).
+ */
+void FUN_00061ca0(void)
+{
+  void *scenario;
+
+  if (*(char *)0x3340a9 != 0) {
+    if (!console_is_active()) {
+      if (input_key_is_down(0x22)) {
+        *(char *)0x3340a8 = 1;
+        *(char *)0x3340a9 = 0;
+      }
+      if (input_key_is_down(0x31)) {
+        *(char *)0x3340a8 = 0;
+        *(char *)0x3340a9 = 0;
+      }
+      if (input_key_is_down(0x3f)) {
+        scenario = scenario_get();
+        FUN_00060ea0((void *)0x331f68, (float *)0x5ab250, (void *)0x3334a0,
+                     scenario, *(unsigned char *)0x5ab244, *(float *)0x5ab240,
+                     (float *)0x5ab260, *(int *)0x5ab25c, *(float *)0x5ab248,
+                     *(unsigned char *)0x5ab245, 0);
+      }
+      if (input_key_is_down(0x26)) {
+        FUN_000615b0((void *)0x331f68);
+      }
+    }
+    path_obstacles_debug_render((void *)0x3334a0, *(float *)0x5ab240);
+    FUN_000609e0((void *)0x331f68);
+  }
+  return;
+}
+
+/* FUN_00061d80 (0x61d80)
+ *
+ * Zero-clear three consecutive int16 fields (6 bytes) at the pointer arg.
+ * Disassembly: XOR ECX,ECX then MOV WORD PTR [EAX+{0,2,4}],CX -- the 0x66
+ * operand-size prefix confirms 16-bit store width (LOADW), so the target is
+ * a short[3] / small struct of three int16 fields, not int[3].  cdecl, one
+ * stack pointer arg; leaf, no calls, no FPU.
+ */
+void FUN_00061d80(int16_t *out)
+{
+  out[0] = 0;
+  out[1] = 0;
+  out[2] = 0;
+  return;
+}
+
+/* FUN_00061da0 (0x61da0)
+ *
+ * Store a float/int pair into a structure: value0 (float) -> [out+0x0],
+ * value1 (int) -> [out+0x4].  cdecl, three stack args, void return; leaf,
+ * no calls.  Disassembly: FLDS 0xc(ebp) / FSTPS (eax) proves the first field
+ * is a float copied through the x87 (not a plain MOV); the second field is a
+ * plain MOV of a 32-bit int/handle.  The Ghidra "undefined4" for arg0 masked
+ * the float store.
+ */
+void FUN_00061da0(void *out, float value0, int value1)
+{
+  *(float *)out = value0;
+  *((int *)out + 1) = value1;
+  return;
+}
+
+/* FUN_00061dc0 (0x61dc0)
+ *
+ * 2D rotation / complex multiply.  Rotates the 2D vector (point[0], point[1])
+ * by an angle whose sine is rot_sin and cosine is rot_cos, writing the result
+ * to out[0..1]:
+ *   out[0] = rot_cos*point[0] - rot_sin*point[1]   (real part, FSUBP)
+ *   out[1] = rot_sin*point[0] + rot_cos*point[1]   (imag part, FADDP)
+ * cdecl, four stack args, void return; leaf, no calls.  Disassembly verified:
+ * each product uses a memory-operand FMUL in the exact binary order, and the
+ * real part is evaluated first (FSUBRP st1-st0 = cos*x - sin*y, NOT inverted)
+ * then the imag part (FADDP), storing real then imag.  Computing both into
+ * named temps (real before imag) before the two stores reproduces that
+ * evaluation order exactly -- 100% VC71 (18/18 insns).
+ */
+void FUN_00061dc0(float *point, float rot_sin, float rot_cos, float *out)
+{
+  float real;
+  float imag;
+
+  real = rot_cos * point[0] - rot_sin * point[1];
+  imag = rot_sin * point[0] + rot_cos * point[1];
+  out[0] = real;
+  out[1] = imag;
+  return;
+}
+
+/* Projection axis remapping table at 0x28cb10.
+ * Indexed as [projection_axis * 2 + projection_sign][component].
+ * Maps a 3D projection basis + sign to two axis indices for 2D projection.
+ * Component 0 -> out[0], component 1 -> out[1]. */
+static const short g_projection3d_mappings[6][2] = {
+  { 2, 1 }, { 1, 2 }, { 0, 2 }, { 2, 0 }, { 1, 0 }, { 0, 1 },
+};
+
+/* 0x61df0 — Project a 3D point onto a 2D plane.
+ * Selects two of the three float lanes of `point` according to the projection
+ * axis (0..2) and sign (0/1), writing them to out_projected[0] and [1].
+ * real_math.h:0x35b/0x35c assert projection in [_x,_z] and sign in {0,1}. */
+void FUN_00061df0(void *point, short projection, unsigned char sign,
+                  void *out_projected)
+{
+  int idx;
+  float tmp;
+
+  if ((projection < 0) || (projection > 2)) {
+    display_assert("projection>=_x && projection<=_z", "..\\math\\real_math.h",
+                   0x35b, 1);
+    system_exit(-1);
+  }
+  if (!(~(sign & ~1))) {
+    display_assert("~(sign&~1)", "..\\math\\real_math.h", 0x35c, 1);
+    system_exit(-1);
+  }
+  idx = sign + projection * 2;
+  /* out[1] loaded first (FPU), out[0] copied as a raw dword, matching the
+   * original's interleaved fld / integer-mov scheduling. */
+  tmp = ((float *)point)[g_projection3d_mappings[idx][1]];
+  ((unsigned int *)out_projected)[0] =
+    ((unsigned int *)point)[g_projection3d_mappings[idx][0]];
+  ((float *)out_projected)[1] = tmp;
+}
+
+/* 0x61e80 — 2D point-in-radius test.
+ * Returns 1 when the squared 2D distance between points p0 and p1 (using the
+ * x=[0] and y=[1] lanes only) is <= radius*radius, else 0.  Pure leaf, cdecl,
+ * three stack args (two float*, one float).  The y-term is summed before the
+ * x-term, matching the decompiler's fld ordering; every product is a
+ * self-multiply so there is no operand-order/cross-product hazard. */
+int FUN_00061e80(float *p0, float *p1, float radius)
+{
+  if ((p1[1] - p0[1]) * (p1[1] - p0[1]) + (p1[0] - p0[0]) * (p1[0] - p0[0]) <=
+      radius * radius) {
+    return 1;
+  }
+  return 0;
+}
+
+/* 0x61ec0 — 3D point-in-radius test.
+ * Returns 1 when the squared 3D distance between points p0 and p1 (x=[0],
+ * y=[1], z=[2] lanes) is <= radius*radius, else 0.  Pure leaf, cdecl, three
+ * stack args (two float*, one float).  The sum order is y-term, z-term,
+ * x-term, matching the decompiler's fld ordering at 0x61ed9; every product is
+ * a self-multiply so there is no operand-order/cross-product hazard.  This is
+ * the 3D counterpart to the 2D test at 0x61e80. */
+int FUN_00061ec0(float *p0, float *p1, float radius)
+{
+  if ((p1[1] - p0[1]) * (p1[1] - p0[1]) + (p1[2] - p0[2]) * (p1[2] - p0[2]) +
+        (p1[0] - p0[0]) * (p1[0] - p0[0]) <=
+      radius * radius) {
+    return 1;
+  }
+  return 0;
+}
+
+/* 0x61f10 - 2D ray/segment vs circle nearest-hit solve.
+ *
+ * Given the 2D unit direction vec_a, the segment endpoints pt0 and pt1, and a
+ * circle radius, projects the segment vector (pt1-pt0) onto vec_a (dot).  When
+ * dot > 0, forms d = |pt1-pt0|^2 - radius^2: if d <= 0 the origin is inside the
+ * circle and out=0 is returned (hit); otherwise the discriminant dot^2 - d is
+ * tested and, if >= 0, out = dot - sqrt(disc) (the near intersection distance).
+ * Returns 1 when a value was written to out, 0 otherwise (dot <= 0, or negative
+ * discriminant).  Comparisons use the shared 0.0f constant at 0x2533c0 and keep
+ * the original ordered/unordered (NaN) branch behaviour.
+ *
+ * Register ABI (prologue at 0x61f10): no entry moves; EAX read as vec_a
+ * (FMUL [EAX],[EAX+4]), ECX as pt0 (FSUB [ECX],[ECX+4]), EDX as pt1
+ * (FLD [EDX],[EDX+4]), ESI as the out pointer (FSTP [ESI]/MOV [ESI],0).
+ * radius is the sole stack arg [EBP+8] (float).  Return AL (char). */
+char FUN_00061f10(float *vec_a, float *pt0, float *pt1, float *out, float radius)
+{
+  float dx;
+  float dy;
+  float dot;
+  float disc;
+
+  dx = pt1[0] - pt0[0];
+  dy = pt1[1] - pt0[1];
+  dot = dx * vec_a[0] + dy * vec_a[1];
+  if (*(float *)0x002533c0 < dot) {
+    disc = (dx * dx + dy * dy) - radius * radius;
+    if (disc <= *(float *)0x002533c0) {
+      out[0] = 0.0f;
+      return 1;
+    }
+    disc = dot * dot - disc;
+    if (*(float *)0x002533c0 <= disc) {
+      out[0] = dot - sqrtf(disc);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* 0x61fa0 - build the two boundary rays of a 2D cone around a direction.
+ *
+ * Given the 2D direction vec and a cone whose sine is num/denom (clamped to the
+ * 1.0f constant at 0x2533c8), computes cos = sqrt(1 - sin^2) and rotates vec by
+ * +/- the cone half-angle:
+ *   out_a = { cos*vx - sin*vy, cos*vy + sin*vx }   (rotate by -angle)
+ *   out_b = { cos*vx + sin*vy, cos*vy - sin*vx }   (rotate by +angle)
+ * and writes out_scalar = cos*denom.  All FPU; no calls but sqrtf (FSQRT).
+ *
+ * Register ABI (prologue at 0x61fa0): no entry moves; ECX read as vec
+ * (FMUL [ECX],[ECX+4]), EDX as out_a (FSTP [EDX],[EDX+4]), ESI as out_b
+ * (FSTP [ESI],[ESI+4]).  Stack args: denom=[EBP+8], num=[EBP+0xc],
+ * out_scalar=[EBP+0x10] (float*).  EAX is loaded from [EBP+0x10] (not an arg).
+ * void return. */
+void FUN_00061fa0(float *vec, float *out_a, float *out_b, float denom, float num,
+                  float *out_scalar)
+{
+  float s;
+  float c;
+  float vx;
+  float vy;
+
+  s = num / denom;
+  if (*(float *)0x002533c8 < s) {
+    s = *(float *)0x002533c8;
+  }
+  c = sqrtf(*(float *)0x002533c8 - s * s);
+  vx = vec[0];
+  vy = vec[1];
+  out_b[0] = c * vec[0] + s * vec[1];
+  out_b[1] = c * vy - s * vx;
+  vx = vec[0];
+  vy = vec[1];
+  out_a[0] = c * vec[0] - s * vec[1];
+  out_a[1] = c * vy + s * vx;
+  out_scalar[0] = c * denom;
+}
+
+/* FUN_00062020 (0x62020)  --  add_obstacle (path_obstacles.c)
+ *
+ * Append one obstacle record to an obstacle-set.  The set header is a small
+ * int16 struct: [+0x00] obstacle_count, [+0x02] disc_count (element count,
+ * MAXIMUM_DISC_COUNT == 0x80), [+0x04] a secondary count bumped only when the
+ * flags low bit is set.  Records begin at +0x08 with a 24-byte (0xc short)
+ * stride; record N lives at (char *)set + N*24 + 8.
+ *
+ * Two bounds asserts (path_obstacles.c lines 0x68/0x69) then a capacity guard
+ * that returns false when the set is full.  On success the new record is
+ * filled and true is returned.
+ *
+ * Field-copy widths are taken from the disassembly (0x62020): rec+0x0c is an
+ * x87 float copy (FLD/FSTP) of vector[j]; rec+0x08 and rec+0x14 are raw 32-bit
+ * dword copies (integer MOV) of vector[i] and vector[2].  DAT_0028cb24 /
+ * DAT_0028cb26 are int16 axis-index selectors (read via MOVSX), i.e. the two
+ * projected components of the vector.  cdecl, five stack args, bool in AL.
+ */
+bool FUN_00062020(int16_t *obstacle_set, uint32_t datum, uint16_t flags,
+                  float *vector, uint32_t param_5)
+{
+  int16_t disc_count;
+  int16_t i;
+  int16_t j;
+  char *rec;
+
+  /* obstacles->disc_count>=0 && obstacles->disc_count<=MAXIMUM_DISC_COUNT */
+  if (obstacle_set[1] < 0 || obstacle_set[1] > 0x80) {
+    display_assert(
+      "obstacles->disc_count>=0 && obstacles->disc_count<=MAXIMUM_DISC_COUNT",
+      "c:\\halo\\SOURCE\\ai\\path_obstacles.c", 0x68, 1);
+    system_exit(-1);
+  }
+  /* obstacles->obstacle_count>=0 &&
+   * obstacles->obstacle_count<=obstacles->disc_count */
+  if (obstacle_set[0] < 0 || obstacle_set[0] > obstacle_set[1]) {
+    display_assert("obstacles->obstacle_count>=0 && "
+                   "obstacles->obstacle_count<=obstacles->disc_count",
+                   "c:\\halo\\SOURCE\\ai\\path_obstacles.c", 0x69, 1);
+    system_exit(-1);
+  }
+
+  disc_count = obstacle_set[1];
+  if (disc_count == 0x80)
+    return false; /* set is full */
+
+  obstacle_set[1] = disc_count + 1;
+  rec = (char *)obstacle_set + disc_count * 24 + 8;
+  if ((flags & 1) != 0)
+    obstacle_set[2] = obstacle_set[2] + 1;
+
+  *(uint16_t *)(rec + 0x00) = flags;
+  *(uint32_t *)(rec + 0x04) = datum;
+  *(uint16_t *)(rec + 0x02) = 0xffff;
+
+  i = *(int16_t *)0x28cb24;
+  j = *(int16_t *)0x28cb26;
+  *(uint32_t *)(rec + 0x08) = *(uint32_t *)&vector[i];
+  *(float *)(rec + 0x0c) = vector[j];
+  *(uint32_t *)(rec + 0x10) = param_5;
+  *(uint32_t *)(rec + 0x14) = *(uint32_t *)&vector[2];
+
+  return true;
+}
+
+/* path_obstacles.c — AI path obstacle-disc connectivity.
+ *
+ * Corresponds to a routine in structures.obj (its sole ported caller,
+ * cluster_partition_assign_groups / FUN_000628b0 at 0x628b0, lives in
+ * src/halo/structures/structures.c).  __FILE__ evidence for this function is
+ * c:\halo\SOURCE\ai\path_obstacles.c (from its display_assert strings at
+ * lines 0x183, 0x18c, 0x1a5); two interior asserts cite
+ * c:\halo\source\ai\path.h (0x18c) verbatim.
+ *
+ * Ported: FUN_00062680 (0x62680) — flood-fill of the "obstacle disc" set.
+ */
+
+#include "../../common.h"
+#include "../../x87_math.h"
+
+/* 0x0062410 — FUN_00062410
+ *
+ * Obstacle-disc overlap query: given an obstacle-disc set (obstacles), a disc
+ * index to skip (disc_index_skip), a 2D query centre (position_xy[0]=x,
+ * position_xy[1]=y), and a radius pad, returns the index of the FIRST disc
+ * (other than the skipped one) whose inflated circle contains/overlaps the
+ * query point, or -1 (NONE) if none do.
+ *
+ * Per disc, using the obstacle-set layout shared with FUN_00062020 /
+ * FUN_00062680 (base+2 = int16 disc_count; disc[] base at +8, stride 0x18;
+ * disc +8 = float x, +0xc = float y, +0x10 = float radius):
+ *     dx = disc.x - position_xy[0]
+ *     dy = disc.y - position_xy[1]
+ *     sum_radius = disc.radius + radius
+ *   overlap when  NOT( sum_radius^2 < dy^2 + dx^2 )
+ * i.e. the disc is returned when its inflated radius squared is >= the squared
+ * centre distance.  Loop scans discs in order and returns the first match.
+ *
+ * FPU order is disassembly-authoritative: sum_radius is disc.radius + radius,
+ * the subtractions are disc-field MINUS position, and the distance term is
+ * evaluated dy*dy + dx*dx (matching the decompile's fVar4*fVar4 + fVar3*fVar3);
+ * the comparison primitive is `<`.  disc_count is re-read from memory each
+ * iteration exactly as the original does.
+ *
+ * Bounds assert (c:\halo\source\ai\path.h:0x18c): disc index in
+ * [0, disc_count) and disc_count <= MAXIMUM_DISC_COUNT (0x80); the assert
+ * macro is display_assert + system_exit(-1) (do NOT lift as hcf).
+ *
+ * ABI: cdecl, 4 stack args, short return (disc index or -1).
+ */
+short FUN_00062410(void *obstacles, short disc_index_skip, float *position_xy,
+                   float radius)
+{
+  char *base;
+  short i;
+  short disc_count;
+  char *disc;
+  float sum_radius;
+  float dx;
+  float dy;
+
+  base = (char *)obstacles;
+  disc_count = *(short *)(base + 2);
+  i = 0;
+  if (disc_count > 0) {
+    do {
+      if (i != disc_index_skip) {
+        if (i < 0 || disc_count <= i || disc_count > 0x80) {
+          display_assert("disc_index>=0 && disc_index<obstacles->disc_count && "
+                         "obstacles->disc_count<=MAXIMUM_DISC_COUNT",
+                         "c:\\halo\\source\\ai\\path.h", 0x18c, 1);
+          system_exit(-1);
+        }
+        disc = base + 8 + i * 0x18;
+        sum_radius = *(float *)(disc + 0x10) + radius;
+        dx = *(float *)(disc + 8) - position_xy[0];
+        dy = *(float *)(disc + 0xc) - position_xy[1];
+        if (!(sum_radius * sum_radius < dy * dy + dx * dx)) {
+          return i;
+        }
+      }
+      disc_count = *(short *)(base + 2);
+      i = i + 1;
+    } while (i < disc_count);
+  }
+  return -1;
+}
+
+/* 0x0062680 — FUN_00062680
+ *
+ * Given an obstacle-disc set (obstacles), a shared radius pad (arg2, an
+ * IEEE-754 float smuggled through a uint32_t stack slot — the ported caller
+ * forwards it as an opaque dword), a seed disc index, and an output bitvector,
+ * marks every disc reachable from the seed by "inflated-circle overlap"
+ * connectivity.
+ *
+ * Two discs A and B are connected when the squared centre distance is <= the
+ * squared sum of their pad-inflated radii:
+ *     dx = B.x - A.x ; dy = B.y - A.y
+ *     dx*dx + dy*dy <= ((pad + B.radius) + (pad + A.radius))^2
+ * The search is an iterative worklist flood-fill seeded at seed_disc_index; the
+ * result is a 1-bit-per-disc membership bitvector (index>>5 dword,
+ * 1<<(index&31) bit).
+ *
+ * Obstacle-set layout (byte offsets from the base pointer, disasm-confirmed):
+ *   +0x02  int16  disc_count           (0 <= disc_count <= 0x80)
+ *   +0x08  disc[] base, stride 0x18 (24 bytes)
+ *     disc +0x08 float x
+ *     disc +0x0c float y
+ *     disc +0x10 float radius
+ * MAXIMUM_DISC_COUNT = 0x80 = 128.
+ *
+ * FPU order is disassembly-authoritative (0x17a-0x1ad): the inflated-radius sum
+ * evaluates the candidate term first, then the current term; the distance
+ * squared evaluates dx*dx before dy*dy.  Preserve the parenthesisation for
+ * VC71.
+ *
+ * ABI: cdecl, 4 stack args, void return.
+ */
+void FUN_00062680(int16_t *partition, uint32_t arg2, int16_t index,
+                  uint32_t *out_mask)
+{
+  uint32_t *mask_word;
+  int cand_base;
+  float inflated_sum;
+  float dx;
+  float dy;
+  int top_prev;
+  int16_t disc_idx;
+  int i;
+  int16_t disc_count;
+  uint32_t bit;
+  int16_t stack[128];
+  int cur_base;
+  int top;
+  int base;
+
+  base = (int)partition;
+
+  if ((*(int16_t *)(base + 2) < 0) || (0x80 < *(int16_t *)(base + 2))) {
+    display_assert(
+      "obstacles->disc_count>=0 && obstacles->disc_count<=MAXIMUM_DISC_COUNT",
+      "c:\\halo\\SOURCE\\ai\\path_obstacles.c", 0x183, 1);
+    system_exit(-1);
+  }
+  csmemset(out_mask, 0, ((*(int16_t *)(base + 2) + 0x1f) >> 5) * 4);
+  if (index != -1) {
+    if ((index < 0) || (*(int16_t *)(base + 2) <= index)) {
+      display_assert(
+        "seed_disc_index>=0 && seed_disc_index<obstacles->disc_count",
+        "c:\\halo\\SOURCE\\ai\\path_obstacles.c", 0x18c, 1);
+      system_exit(-1);
+    }
+    /* stage index through top (dead until the loop reassigns it) — matches
+     * the original's register flow (permuter-found, byte-verified) */
+    top = index;
+    mask_word = &out_mask[(int)top >> 5];
+    stack[0] = top;
+    *mask_word = *mask_word | 1 << ((uint8_t)top & 0x1f);
+    i = 1;
+    do {
+      i = i + -1;
+      disc_idx = stack[(int16_t)i];
+      top = i;
+      if (((disc_idx < 0) || (*(int16_t *)(base + 2) <= disc_idx)) ||
+          (0x80 < *(int16_t *)(base + 2))) {
+        display_assert("disc_index>=0 && disc_index<obstacles->disc_count && "
+                       "obstacles->disc_count<=MAXIMUM_DISC_COUNT",
+                       "c:\\halo\\source\\ai\\path.h", 0x18c, 1);
+        system_exit(-1);
+      }
+      disc_count = *(int16_t *)(base + 2);
+      cur_base = base + 8 + disc_idx * 0x18;
+      disc_idx = 0;
+      if (0 < disc_count) {
+        do {
+          i = (int)disc_idx;
+          bit = 1 << ((uint8_t)disc_idx & 0x1f);
+          mask_word = &out_mask[i >> 5];
+          if ((*mask_word & bit) == 0) {
+            if (((disc_idx < 0) || (disc_count <= disc_idx)) ||
+                (0x80 < disc_count)) {
+              display_assert(
+                "disc_index>=0 && disc_index<obstacles->disc_count && "
+                "obstacles->disc_count<=MAXIMUM_DISC_COUNT",
+                "c:\\halo\\source\\ai\\path.h", 0x18c, 1);
+              system_exit(-1);
+            }
+            top_prev = top;
+            cand_base = base + 8 + i * 0x18;
+            inflated_sum =
+              (*(float *)&arg2 + *(float *)(base + 0x18 + i * 0x18)) +
+              (*(float *)&arg2 + *(float *)(cur_base + 0x10));
+            dx = *(float *)(cand_base + 8) - *(float *)(cur_base + 8);
+            dy = *(float *)(cand_base + 0xc) - *(float *)(cur_base + 0xc);
+            if (dx * dx + dy * dy <= inflated_sum * inflated_sum) {
+              disc_count = (int16_t)top;
+              *mask_word = *mask_word | bit;
+              if (0x7f < disc_count) {
+                display_assert("stack_top<MAXIMUM_DISC_COUNT",
+                               "c:\\halo\\SOURCE\\ai\\path_obstacles.c", 0x1a5,
+                               1);
+                system_exit(-1);
+              }
+              stack[disc_count] = disc_idx;
+              top = top_prev + 1;
+            }
+          }
+          disc_count = *(int16_t *)(base + 2);
+          disc_idx = disc_idx + 1;
+          i = top;
+        } while (disc_idx < disc_count);
+      }
+    } while (0 < (int16_t)i);
+  }
+  return;
+}
+
+/* 0x624b0 - find the nearest obstacle disc a ray/segment intersects.
+ * (TU: c:\halo\source\ai\path.h, inlined into path_obstacles.c)
+ *
+ * Pure cdecl min-find over obstacle discs. obstacles (disc_count at +2, discs
+ * at +8 stride 0x18), skip_index (short, disc to ignore), pt0/vec_a (float*
+ * ray endpoints passed to the intersection predicate), radius_base (float),
+ * max_distance (float, seeds result.distance and is the in/out scratch the
+ * predicate writes its computed distance through), check_extant (byte: when
+ * set, skip discs whose flag bit0 is set), result (out struct: float distance
+ * at +0, short disc_index at +4, short at +6).
+ *
+ * For each disc (except skip_index) the register-arg predicate
+ * FUN_00061f10(vec_a@eax, pt0@ecx, &disc[8]@edx, &max_distance@esi,
+ * radius_base+disc[4]) tests the ray against the disc and WRITES the hit
+ * distance back through &max_distance; when it hits and the new distance is
+ * closer than the best so far, result is updated.  Returns true if any disc
+ * was selected (result.disc_index != -1). */
+char FUN_000624b0(void *obstacles, short skip_index, float *pt0, float *vec_a,
+                  float radius_base, float max_distance, char check_extant,
+                  void *result)
+{
+  short i;
+  short disc_count;
+  float *disc;
+
+  *(float *)result = max_distance;
+  *(short *)((char *)result + 4) = -1;
+  *(short *)((char *)result + 6) = -1;
+  disc_count = *(short *)((char *)obstacles + 2);
+  i = 0;
+  if (disc_count > 0) {
+    do {
+      if (i != skip_index) {
+        if (i < 0 || i >= disc_count || disc_count > 0x80) {
+          display_assert(
+              "disc_index>=0 && disc_index<obstacles->disc_count && "
+              "obstacles->disc_count<=MAXIMUM_DISC_COUNT",
+              "c:\\halo\\source\\ai\\path.h", 0x18c, true);
+          system_exit(-1);
+        }
+        disc = (float *)((char *)obstacles + (int)i * 0x18 + 8);
+        if (check_extant == 0 || (*(char *)disc & 1) == 0) {
+          if (FUN_00061f10(vec_a, pt0, (float *)((char *)disc + 8),
+                           &max_distance, radius_base + disc[4]) != 0) {
+            if (*(float *)result > max_distance) {
+              *(float *)result = max_distance;
+              *(short *)((char *)result + 4) = i;
+              *(short *)((char *)result + 6) = *(short *)((char *)disc + 2);
+            }
+          }
+        }
+      }
+      disc_count = *(short *)((char *)obstacles + 2);
+      i = (short)(i + 1);
+    } while (i < disc_count);
+  }
+  return (char)(*(short *)((char *)result + 4) != -1);
+}
+
+/* 0x625a0 - build a 2D cone toward an obstacle disc for path planning.
+ * (TU: c:\halo\source\ai\path.h, inlined into path_obstacles.c)
+ *
+ * Pure cdecl. obstacles (param_1, disc_count at +2, discs at +8 stride 0x18),
+ * disc_index (short), point (float* 2D reference). Bounds-checks disc_index
+ * against disc_count (and disc_count <= MAXIMUM_DISC_COUNT=0x80).  Computes the
+ * 2D direction from the disc center (disc[2],disc[3]) to point, normalizes it
+ * (dividing by the distance unless the distance is below the 0x2533d0 epsilon,
+ * in which case the distance is forced to 0), then hands the direction, the
+ * distance, and (base_value + disc_radius(disc[4]) + 0x25ee6c) to
+ * FUN_00061fa0 to build the two cone boundary rays into out_a/out_b/out_scalar.
+ * 0x2533c8 == 1.0f. */
+void FUN_000625a0(void *obstacles, short disc_index, float *point,
+                  float base_value, float *out_b, float *out_a,
+                  float *out_scalar)
+{
+  float dir[2];
+  float dist;
+  float num;
+  float *disc;
+  short disc_count;
+
+  disc_count = *(short *)((char *)obstacles + 2);
+  if (disc_index < 0 || disc_index >= disc_count || disc_count > 0x80) {
+    display_assert(
+        "disc_index>=0 && disc_index<obstacles->disc_count && "
+        "obstacles->disc_count<=MAXIMUM_DISC_COUNT",
+        "c:\\halo\\source\\ai\\path.h", 0x18c, true);
+    system_exit(-1);
+  }
+  disc = (float *)((char *)obstacles + (int)disc_index * 0x18 + 8);
+  dir[0] = disc[2] - point[0];
+  dir[1] = disc[3] - point[1];
+  dist = sqrtf(dir[1] * dir[1] + dir[0] * dir[0]);
+  if (fabs(dist) < *(double *)0x002533d0) {
+    dist = 0.0f;
+  } else {
+    float inv = *(float *)0x002533c8 / dist;
+    dir[0] = dir[0] * inv;
+    dir[1] = dir[1] * inv;
+  }
+  num = base_value + disc[4] + *(float *)0x0025ee6c;
+  FUN_00061fa0(dir, out_a, out_b, dist, num, out_scalar);
+}
+
+/* FUN_000628b0 (0x628b0)  --  cluster_partition_assign_groups
+ * (cluster_partitions.c)
+ *
+ * Partitions the elements of a cluster-partition set into connected groups.
+ * The set header is two shorts: [0] = running group-id counter (reset to 0
+ * here and bumped once per new group), [1] = element count.  Each element is
+ * 0xc shorts (0x18 bytes) wide; the short at element-index 5 (byte 0xa) holds
+ * the assigned group id, with -1 meaning "unassigned".
+ *
+ * Pass 1 marks every element unassigned.  Pass 2 walks the elements; for each
+ * still-unassigned element it allocates a new group id, calls FUN_00062680 to
+ * produce a 128-bit membership bitset (out param), then stamps the new group id
+ * into every element whose bit is set.
+ *
+ * ABI: cdecl, 2 stack args, void return (RET, no N).  The single call to
+ * FUN_00062680 pushes ESI(partition), EDX(arg2), EBX(i), ECX(&mask) and is
+ * followed by ADD ESP,0x10 => 4 dword args.  The local frame is only 0x10 bytes
+ * (the 4-dword bitset); Ghidra's auStackY_1014[1017] is a hallucination and is
+ * omitted.
+ */
+void FUN_000628b0(int16_t *partition, uint32_t arg2)
+{
+  int16_t group_id;
+  int16_t i;
+  int16_t j;
+  uint32_t mask[4];
+
+  partition[0] = 0;
+
+  /* Pass 1: mark all elements unassigned. */
+  group_id = 0;
+  if (partition[1] > 0) {
+    do {
+      partition[group_id * 0xc + 5] = -1;
+      group_id = group_id + 1;
+    } while (group_id < partition[1]);
+  }
+
+  /* Pass 2: assign a group id to each connected component. */
+  i = 0;
+  if (partition[1] > 0) {
+    do {
+      if (partition[i * 0xc + 5] == -1) {
+        group_id = partition[0];
+        partition[0] = group_id + 1;
+        FUN_00062680(partition, arg2, i, mask);
+        j = 0;
+        if (partition[1] > 0) {
+          do {
+            if ((mask[(int)j >> 5] & (1 << ((uint8_t)j & 0x1f))) != 0) {
+              partition[j * 0xc + 5] = group_id;
+            }
+            j = j + 1;
+          } while (j < partition[1]);
+        }
+      }
+      i = i + 1;
+    } while (i < partition[1]);
+  }
+}
+
+/* FUN_00099070 (0x99070)
+ *
+ * Debug overlay for the decal render queue and per-cluster decal labels.
+ * Runs only when the global debug flag at 0x5aa8b4 is set.
+ *
+ * Part 1 (decal queue): for each queue in [0, *0x4547da), walk its
+ * *0x453fda[queue] elements.  Elements are 0x18-byte records in three
+ * parallel arrays: point_a base 0x44dfc0, point_b base 0x44dfd8, and a
+ * flag byte base 0x44dfec, all indexed by (element + base)*0x18.  For each
+ * element FUN_00189270 draws the edge (running point) -> point_b in the
+ * global color at 0x2ee6e0, then FUN_00189150 draws point_b as a 0.0625f
+ * point using color 0x2ee6d0 (flag set) or 0x2ee6c4 (flag clear).  After
+ * each queue a duplicate-surface-index scan over 0x4547dc reports an error.
+ *
+ * Part 2 (cluster labels): for each rendered cluster in [0, *0x5137cc), and
+ * each of its 5 layers, walk the decal linked list (next handle at
+ * record+0x34, -1 terminates) resolved through the decals pool *0x5aa8b8;
+ * label each decal with its surface index (record+0x2a, sign-extended and
+ * <<2) drawn at record+8.
+ *
+ * Confirmed from decompile at 0x99070:
+ *   - loop bound *0x4547da is re-read after every error() and each inner draw.
+ *   - FUN_00189150 scale arg is float 0.0625f (0x3d800000), passed by value.
+ *   - sprintf vararg is (int)(short)*(record+0x2a) << 2.
+ *   - the linked-list "next" is read from the resolved record pointer +0x34.
+ * ABI: cdecl, no args, void return.
+ */
+void FUN_00099070(void)
+{
+  char local_50[64];
+  int base_element;
+  int queue_index;
+  short queue_count_g;
+  short count;
+  short e;
+  short dup;
+  int byte_off;
+  float *point_a;
+  float *point_b;
+  void *color;
+  int ri;
+  void *cluster;
+  short cluster_id;
+  short layer;
+  int node;
+  char *rec;
+
+  if (*(char *)0x5aa8b4 == 0)
+    return;
+
+  base_element = 0;
+  queue_index = 0;
+  queue_count_g = *(short *)0x4547da;
+  if (queue_count_g > 0) {
+    do {
+      count = ((short *)0x453fda)[(short)queue_index];
+      e = 0;
+      point_a = (float *)(0x44dfc0 + (count + (short)base_element) * 0x18);
+      if (count > 0) {
+        do {
+          byte_off = (e + (short)base_element) * 0x18;
+          point_b = (float *)(0x44dfd8 + byte_off);
+          FUN_00189270(1, point_a, point_b, *(void **)0x2ee6e0);
+          color = *(void **)0x2ee6d0;
+          /* flag byte lives at 0x44dfec + byte_off (== point_b + 0x14); both
+           * are byte reads, so the [LOADW-WARN] is a benign addressing-encoding
+           * diff. */
+          if (*(char *)(0x44dfec + byte_off) == 0)
+            color = *(void **)0x2ee6c4;
+          FUN_00189150(1, point_b, 0.0625f, color);
+          e = e + 1;
+          point_a = point_b;
+          queue_count_g = *(short *)0x4547da;
+        } while (e < ((short *)0x453fda)[(short)queue_index]);
+      }
+      dup = 0;
+      if (queue_count_g > 0) {
+        do {
+          if (dup != (short)queue_index &&
+              ((short *)0x4547dc)[(short)queue_index] ==
+                ((short *)0x4547dc)[dup]) {
+            error(2, "### ERROR decals: duplicate surface indices in queue -- "
+                     "tell Bernie!!");
+            queue_count_g = *(short *)0x4547da;
+          }
+          dup = dup + 1;
+        } while (dup < queue_count_g);
+      }
+      base_element = base_element + count;
+      queue_index = queue_index + 1;
+    } while ((short)queue_index < queue_count_g);
+  }
+
+  ri = 0;
+  if (*(short *)0x5137cc > 0) {
+    do {
+      cluster = rendered_cluster_get(ri);
+      cluster_id = *(short *)cluster;
+      layer = 0;
+      do {
+        node = FUN_00098fe0(cluster_id, layer);
+        while (node != -1) {
+          rec = (char *)datum_get(*(void **)0x5aa8b8, node);
+          crt_sprintf(local_50, "%d", (int)*(short *)(rec + 0x2a) << 2);
+          FUN_00189cb0(0, rec + 8, local_50, *(int *)0x2ee6d0);
+          node = *(int *)(rec + 0x34);
+        }
+        layer = layer + 1;
+      } while ((short)layer < 5);
+      ri = ri + 1;
+    } while ((short)ri < *(short *)0x5137cc);
+  }
+}
+
 /* FUN_00099220 (0x99220)
  *
  * Determine the dominant axis of a plane normal.  Returns the index
@@ -25,6 +852,945 @@ uint8_t FUN_00099270(float *plane, uint32_t basis)
 {
   assert_halt((int16_t)basis >= 0 && (int16_t)basis <= 2);
   if (plane[basis] > 0.0f)
+    return 1;
+  return 0;
+}
+
+/* FUN_00104bd0 (0x104bd0)  error_geometry.c:0x237-0x239
+ *
+ * Debug two-point (line segment) axis-aligned bounding box.  Expands the
+ * per-axis min/max of p0 and p1 outward by 'radius', packs the 6-float box and
+ * the 4-float color (red channel scaled by 0.5) into a contiguous scratch
+ * buffer, hands them to FUN_001049d0, then renders the segment via
+ * FUN_00103e80.  Gated on the debug-geometry-enabled predicate FUN_00103d30.
+ *
+ * cdecl, verified from disassembly at 0x104bd0:
+ *   [EBP+0x8]=p0 (ESI), [EBP+0xc]=p1 (EDI), [EBP+0x10]=radius (float),
+ *   [EBP+0x14]=color (EBX).  Both min and max select on (p0<=p1).  Color scale
+ *   const 0x253398 = 0.5f.  0x1029a0 thunk in the decompiler is actually
+ *   system_exit(-1) (CALL 0x8e2f0).  Box buffer EBP-0x28..-0x14, color
+ * -0x10..-0x4.
+ */
+void FUN_00104bd0(float *p0, float *p1, float radius, float *color)
+{
+  float box[6];
+  float col[4];
+
+  if (p0 == 0) {
+    display_assert("p0", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x237,
+                   true);
+    system_exit(-1);
+  }
+  if (p1 == 0) {
+    display_assert("p1", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x238,
+                   true);
+    system_exit(-1);
+  }
+  if (color == 0) {
+    display_assert("color", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x239,
+                   true);
+    system_exit(-1);
+  }
+  if (FUN_00103d30()) {
+    if (p0[0] <= p1[0])
+      box[0] = p0[0];
+    else
+      box[0] = p1[0];
+    box[0] = box[0] - radius;
+    if (p0[0] <= p1[0])
+      box[1] = p1[0];
+    else
+      box[1] = p0[0];
+    box[1] = box[1] + radius;
+    if (p0[1] <= p1[1])
+      box[2] = p0[1];
+    else
+      box[2] = p1[1];
+    box[2] = box[2] - radius;
+    if (p0[1] <= p1[1])
+      box[3] = p1[1];
+    else
+      box[3] = p0[1];
+    box[3] = box[3] + radius;
+    if (p0[2] <= p1[2])
+      box[4] = p0[2];
+    else
+      box[4] = p1[2];
+    box[4] = box[4] - radius;
+    if (p0[2] <= p1[2])
+      box[5] = p1[2];
+    else
+      box[5] = p0[2];
+    box[5] = box[5] + radius;
+    col[1] = color[1];
+    col[2] = color[2];
+    col[3] = color[3];
+    col[0] = color[0] * 0.5f;
+    FUN_001049d0(box, col);
+    FUN_00103e80(p0, p1, color);
+  }
+}
+
+/* FUN_00104d40 (0x104d40)  error_geometry.c:0x255-0x258
+ *
+ * Debug three-point (triangle) axis-aligned bounding box.  Computes the 3-way
+ * per-axis min/max of p0,p1,p2 (min(p1,p2) resolved first, then folded against
+ * p0), expands by 'radius', and emits box+color (red*0.5) via FUN_001049d0
+ * then FUN_00104040.  cdecl, verified at 0x104d40: [EBP+0x8]=p0 (EBX),
+ * [EBP+0xc]=p1 (EDI), [EBP+0x10]=p2 (ESI), [EBP+0x14]=radius, [EBP+0x18]=color.
+ * All comparisons select on '<=' (FCOMP TEST AH,0x41 / TEST AH,0x5 JP idiom).
+ */
+void FUN_00104d40(float *p0, float *p1, float *p2, float radius, float *color)
+{
+  float box[6];
+  float col[4];
+  float m;
+
+  if (p0 == 0) {
+    display_assert("p0", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x255,
+                   true);
+    system_exit(-1);
+  }
+  if (p1 == 0) {
+    display_assert("p1", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x256,
+                   true);
+    system_exit(-1);
+  }
+  if (p2 == 0) {
+    display_assert("p2", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x257,
+                   true);
+    system_exit(-1);
+  }
+  if (color == 0) {
+    display_assert("color", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x258,
+                   true);
+    system_exit(-1);
+  }
+  if (FUN_00103d30()) {
+    /* X */
+    if (p1[0] <= p2[0])
+      m = p1[0];
+    else
+      m = p2[0];
+    if (p0[0] <= m)
+      box[0] = p0[0];
+    else if (p1[0] <= p2[0])
+      box[0] = p1[0];
+    else
+      box[0] = p2[0];
+    box[0] = box[0] - radius;
+    if (p1[0] <= p2[0])
+      m = p2[0];
+    else
+      m = p1[0];
+    if (p0[0] <= m) {
+      if (p1[0] <= p2[0])
+        box[1] = p2[0];
+      else
+        box[1] = p1[0];
+    } else
+      box[1] = p0[0];
+    box[1] = box[1] + radius;
+    /* Y */
+    if (p1[1] <= p2[1])
+      m = p1[1];
+    else
+      m = p2[1];
+    if (p0[1] <= m)
+      box[2] = p0[1];
+    else if (p1[1] <= p2[1])
+      box[2] = p1[1];
+    else
+      box[2] = p2[1];
+    box[2] = box[2] - radius;
+    if (p1[1] <= p2[1])
+      m = p2[1];
+    else
+      m = p1[1];
+    if (p0[1] <= m) {
+      if (p1[1] <= p2[1])
+        box[3] = p2[1];
+      else
+        box[3] = p1[1];
+    } else
+      box[3] = p0[1];
+    box[3] = box[3] + radius;
+    /* Z */
+    if (p1[2] <= p2[2])
+      m = p1[2];
+    else
+      m = p2[2];
+    if (p0[2] <= m)
+      box[4] = p0[2];
+    else if (p1[2] <= p2[2])
+      box[4] = p1[2];
+    else
+      box[4] = p2[2];
+    box[4] = box[4] - radius;
+    if (p1[2] <= p2[2])
+      m = p2[2];
+    else
+      m = p1[2];
+    if (p0[2] <= m) {
+      if (p1[2] <= p2[2])
+        box[5] = p2[2];
+      else
+        box[5] = p1[2];
+    } else
+      box[5] = p0[2];
+    box[5] = box[5] + radius;
+    col[1] = color[1];
+    col[2] = color[2];
+    col[0] = color[0] * 0.5f;
+    col[3] = color[3];
+    FUN_001049d0(box, col);
+    FUN_00104040(p0, p1, p2, color);
+  }
+}
+
+/* FUN_00104fa0 (0x104fa0)  error_geometry.c:0x273-0x275
+ *
+ * Debug point-cloud axis-aligned bounding box.  Iterates 'point_count' packed
+ * 3-float points, accumulates per-axis min/max (min uses '<', max uses '<=',
+ * matching the FCOMP polarity), expands by 'radius', and emits the box+color
+ * via FUN_001049d0 then FUN_00104240.  Requires count>=3.  The z-max
+ * accumulator is register-resident (ST0) in the original; modelling it as a
+ * local produces the documented ~84% VC71 structural cap (accepted via
+ * equivalence).  cdecl, verified at 0x104fa0: [EBP+0x8]=count (low 16 bits,
+ * signed; loop count zero-extended), [EBP+0xc]=points (stride 12B),
+ * [EBP+0x10]=radius, [EBP+0x14]=color.  FLT_MAX=0x7f7fffff, -FLT_MAX (z init
+ * const 0x255c98)=0xff7fffff.
+ */
+void FUN_00104fa0(int point_count, float *points, float radius, float *color)
+{
+  float box[6];
+  float col[4];
+  float *p;
+  short count;
+  unsigned int i;
+
+  count = (short)point_count;
+  if (count < 0) {
+    display_assert("point_count>=0", "c:\\halo\\SOURCE\\tool\\error_geometry.c",
+                   0x273, true);
+    system_exit(-1);
+  }
+  if (points == 0) {
+    display_assert("points", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x274,
+                   true);
+    system_exit(-1);
+  }
+  if (color == 0) {
+    display_assert("color", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x275,
+                   true);
+    system_exit(-1);
+  }
+  if (count > 2) {
+    if (FUN_00103d30()) {
+      box[0] = 3.4028235e+38f;
+      box[1] = -3.4028235e+38f;
+      box[2] = 3.4028235e+38f;
+      box[3] = -3.4028235e+38f;
+      box[4] = 3.4028235e+38f;
+      box[5] = -3.4028235e+38f;
+      if (count > 0) {
+        p = points + 2;
+        i = (unsigned int)point_count & 0xffff;
+        do {
+          if (p[-2] < box[0])
+            box[0] = p[-2];
+          if (box[1] <= p[-2])
+            box[1] = p[-2];
+          if (p[-1] < box[2])
+            box[2] = p[-1];
+          if (box[3] <= p[-1])
+            box[3] = p[-1];
+          if (p[0] < box[4])
+            box[4] = p[0];
+          if (box[5] <= p[0])
+            box[5] = p[0];
+          p = p + 3;
+          i = i - 1;
+        } while (i != 0);
+      }
+      box[0] = box[0] - radius;
+      col[1] = color[1];
+      col[2] = color[2];
+      col[3] = color[3];
+      box[1] = box[1] + radius;
+      box[2] = box[2] - radius;
+      box[3] = box[3] + radius;
+      box[4] = box[4] - radius;
+      box[5] = box[5] + radius;
+      col[0] = color[0] * 0.5f;
+      FUN_001049d0(box, col);
+      FUN_00104240(point_count, points, color);
+    }
+  }
+}
+
+/* 0x105550 — error_geometry.c: draw a small fixed-size debug marker box at a
+ * point (half-extent _DAT_0025bb10 = 0.01f on each axis).  cdecl, 2 stack args.
+ * Asserts at source lines 0x77-0x78. */
+void FUN_00105550(float *point, float *color)
+{
+  float bounds[6];
+
+  if (point == 0) {
+    display_assert("point", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x77,
+                   1);
+    halt_and_catch_fire();
+  }
+  if (color == 0) {
+    display_assert("color", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x78,
+                   1);
+    halt_and_catch_fire();
+  }
+  if (FUN_00103d30()) {
+    bounds[0] = *point - 0.01f;
+    bounds[1] = *point + 0.01f;
+    bounds[2] = point[1] - 0.01f;
+    bounds[3] = point[1] + 0.01f;
+    bounds[4] = point[2] - 0.01f;
+    bounds[5] = point[2] + 0.01f;
+    FUN_001049d0(bounds, color);
+  }
+}
+
+/* FUN_00105610 (0x105610)  error_geometry.c:0x21b-0x21c
+ *
+ * Debug single-point cube: builds an AABB centered on 'point' with half-extent
+ * 'radius' on every axis, packs box+color (red*0.5), and emits via
+ * FUN_001049d0 then FUN_00105550.  cdecl, verified at 0x105610:
+ *   [EBP+0x8]=point (ESI), [EBP+0xc]=radius (float), [EBP+0x10]=color (EDI).
+ *   Max axes computed as (radius + point[i]) matching the FLD radix/FADD order.
+ */
+void FUN_00105610(float *point, float radius, float *color)
+{
+  float box[6];
+  float col[4];
+
+  if (point == 0) {
+    display_assert("point", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x21b,
+                   true);
+    system_exit(-1);
+  }
+  if (color == 0) {
+    display_assert("color", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x21c,
+                   true);
+    system_exit(-1);
+  }
+  if (FUN_00103d30()) {
+    box[0] = point[0] - radius;
+    col[1] = color[1];
+    col[2] = color[2];
+    col[3] = color[3];
+    box[1] = radius + point[0];
+    box[2] = point[1] - radius;
+    box[3] = radius + point[1];
+    box[4] = point[2] - radius;
+    box[5] = radius + point[2];
+    col[0] = color[0] * 0.5f;
+    FUN_001049d0(box, col);
+    FUN_00105550(point, color);
+  }
+}
+
+/* 0x1056e0 — Dispose of a sphere geometry object.
+ * Asserts the sphere handle and its two allocated arrays (vertices at +0x4,
+ * triangle_strip_vertex_indices at +0x8) are non-NULL, then frees the two
+ * arrays followed by the sphere structure itself.
+ * Source: c:\halo\SOURCE\math\geometry.c (lines 0x75-0x7b). */
+void FUN_001056e0(void *handle)
+{
+  if (handle == 0) {
+    display_assert("sphere", "c:\\halo\\SOURCE\\math\\geometry.c", 0x75, 1);
+    halt_and_catch_fire();
+  }
+  if (*(int *)((char *)handle + 4) == 0) {
+    display_assert("sphere->vertices", "c:\\halo\\SOURCE\\math\\geometry.c",
+                   0x76, 1);
+    halt_and_catch_fire();
+  }
+  if (*(int *)((char *)handle + 8) == 0) {
+    display_assert("sphere->triangle_strip_vertex_indices",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x77, 1);
+    halt_and_catch_fire();
+  }
+  debug_free(*(void **)((char *)handle + 4),
+             "c:\\halo\\SOURCE\\math\\geometry.c", 0x79);
+  debug_free(*(void **)((char *)handle + 8),
+             "c:\\halo\\SOURCE\\math\\geometry.c", 0x7a);
+  debug_free(handle, "c:\\halo\\SOURCE\\math\\geometry.c", 0x7b);
+}
+
+/* FUN_001057a0 (0x1057a0)
+ *
+ * Signed-distance evaluation of a 2D point against a plane2d
+ * (normal.x, normal.y, distance).  Computes the 2D dot product of the
+ * first two components of param_1 and param_2, then subtracts the third
+ * component of param_1: (p1[0]*p2[0] + p1[1]*p2[1]) - p1[2].
+ * Pure x87 leaf; operand order preserved to match FADD/FSUBP ordering.
+ */
+float FUN_001057a0(float *param_1, float *param_2)
+{
+  return (param_1[0] * param_2[0] + param_1[1] * param_2[1]) - param_1[2];
+}
+
+/* FUN_001057c0 (0x1057c0)
+ *
+ * 2D parametric line-intersection solve.  Given plane2d param_1 and param_2
+ * (each normal.x, normal.y with param_1 carrying a distance at +0x8) and a
+ * shared point/direction param_3 (x at +0x0, y at +0x4, offset at +0x8),
+ * returns the negated ratio of two signed 2D evaluations:
+ *   num = param_1[0]*param_3[0] + param_1[1]*param_3[1] - param_3[2]
+ *   den = param_2[0]*param_3[0] + param_2[1]*param_3[1]
+ *   return -(num / den)
+ * Pure x87 leaf; single-expression form keeps intermediates in ST(0) to
+ * match the FLD/FMUL/FADDP/FSUB/FDIVP/FCHS chain (FSUB not FSUBR: the
+ * subtrahend is param_3[2]; FDIVP yields num/den; FCHS negates).
+ * EAX holds param_3 throughout; ECX switches from param_1 to param_2.
+ */
+float FUN_001057c0(float *param_1, float *param_2, float *param_3)
+{
+  return -(((param_1[0] * param_3[0] + param_1[1] * param_3[1]) - param_3[2]) /
+           (param_2[0] * param_3[0] + param_2[1] * param_3[1]));
+}
+
+/* FUN_001057f0 (0x1057f0)
+ *
+ * 3D ray/plane parametric-t solve (3D twin of FUN_001057c0).  param_3 is a
+ * plane3d (normal.x/y/z at +0x0/+0x4/+0x8, distance at +0xc); param_1 and
+ * param_2 are 3D vectors:
+ *   num = param_1[0]*param_3[0] + param_1[1]*param_3[1] + param_1[2]*param_3[2]
+ * - param_3[3] den = param_2[0]*param_3[0] + param_2[1]*param_3[1] +
+ * param_2[2]*param_3[2] return -(num / den) Pure x87 leaf; single-expression
+ * form keeps intermediates in ST(0) to match the FLD/FMUL/FADDP/FSUB/FDIVP/FCHS
+ * chain (FSUB not FSUBR: the subtrahend is param_3[3]; FDIVP yields num/den;
+ * FCHS negates).  EAX holds param_3 throughout; ECX switches from param_1 to
+ * param_2.
+ */
+float FUN_001057f0(float *param_1, float *param_2, float *param_3)
+{
+  return -((((param_1[0] * param_3[0] + param_1[1] * param_3[1] +
+              param_1[2] * param_3[2]) -
+             param_3[3]) /
+            (param_2[0] * param_3[0] + param_2[1] * param_3[1] +
+             param_2[2] * param_3[2])));
+}
+
+/* 0x105830 - interpolate a subdivision vertex between two parent vertices.
+ * (TU: c:\halo\SOURCE\math\geometry.c)
+ *
+ * Register ABI (prologue at 0x105830): MOV SI,DX and direct use of AX/CX/BX/EDI
+ * with only ESI preserved. Register args (all low-16 values):
+ *   subdivision_index@<eax>, subdivision_count@<ecx>, parent2@<edx> (copied to
+ *   SI), parent1@<ebx>, sphere@<edi>.  Stack arg: new_vertex ([EBP+0x8]).
+ *
+ * frac = subdivision_index / subdivision_count (FILD/FIDIV); the new vertex is
+ * inv_frac*parent1 + frac*parent2 component-wise (inv_frac = 1.0 - frac; 1.0 at
+ * 0x2533c8), written into sphere->vertices[new_vertex] (vertices at sphere+0x4,
+ * stride 3 floats), then normalized in place via normalize3d (return discarded).
+ * Asserts subdivision_index in (0,count) and each vertex index in
+ * [0,vertex_count] (vertex_count is a short at sphere+0xc). */
+void calculate_vertex(short subdivision_index /* @<eax> */,
+                      short subdivision_count /* @<ecx> */,
+                      short parent2 /* @<edx> */, short parent1 /* @<ebx> */,
+                      void *sphere /* @<edi> */, short new_vertex)
+{
+  float frac;
+  float inv_frac;
+  int itmp;
+  float *verts;
+  float *vp1;
+  float *vp2;
+  float *vout;
+  short vertex_count;
+
+  itmp = subdivision_index;
+  frac = (float)itmp;
+  itmp = subdivision_count;
+  frac = frac / itmp;
+  inv_frac = *(float *)0x002533c8 - frac;
+
+  if (subdivision_index <= 0 || subdivision_index >= subdivision_count) {
+    display_assert(
+        "subdivision_index > 0 && subdivision_index < subdivision_count",
+        "c:\\halo\\SOURCE\\math\\geometry.c", 0x13b, true);
+    system_exit(-1);
+  }
+  vertex_count = *(short *)((char *)sphere + 0xc);
+  if (parent1 < 0 || parent1 > vertex_count) {
+    display_assert("parent1 >=0 && parent1 <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13c, true);
+    system_exit(-1);
+  }
+  if (parent2 < 0 || parent2 > vertex_count) {
+    display_assert("parent2 >=0 && parent2 <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13d, true);
+    system_exit(-1);
+  }
+  if (new_vertex < 0 || new_vertex > vertex_count) {
+    display_assert("new_vertex >=0 && new_vertex <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13e, true);
+    system_exit(-1);
+  }
+
+  verts = *(float **)((char *)sphere + 4);
+  vp1 = verts + (int)parent1 * 3;
+  vp2 = verts + (int)parent2 * 3;
+  vout = verts + (int)new_vertex * 3;
+  vout[0] = inv_frac * vp1[0] + frac * vp2[0];
+  vout[1] = frac * vp2[1] + inv_frac * vp1[1];
+  vout[2] = frac * vp2[2] + inv_frac * vp1[2];
+  normalize3d(vout);
+}
+
+/* 0x105980 — Build a ring/cylinder (torus-like) mesh.
+ * Sweeps ring_segment_count rings around a cross-section of
+ * cylinder_segment_count segments. For each ring the ring angle drives a
+ * cos/sin pair (scaled by param_8) that offsets a cross-section built by
+ * rotating a base radius (param_10) about the ring normal, then transforms
+ * each vertex by the caller's matrix.
+ * Outputs: vertex positions (out_positions, stride 3 floats), tex coords
+ * (out_texcoords, stride 2 floats), a triangle-strip index buffer
+ * (out_indices), the emitted vertex count (*out_vertex_count) and the number
+ * of strip index-runs (*out_index_run_count).
+ * The ring normal is the cross product of the cross-section direction
+ * (cos*param_8, sin*param_8, 0) with the global axis vector at *0x31fc44,
+ * normalized when its length is >= the epsilon at 0x2533d0.
+ * Constants: 0x255a54 = 6.2831855f (2*pi), 0x2533c0 = 0.0f, 0x2533c8 = 1.0f,
+ * 0x2533d0 = double epsilon. Asserts at geometry.c:0x15a/0x15b.
+ * Source: c:\halo\SOURCE\math\geometry.c:346 */
+void FUN_00105980(float *matrix, short *out_vertex_count,
+                  short *out_index_run_count, float *out_positions,
+                  float *out_texcoords, short *out_indices,
+                  short ring_segment_count, float param_8,
+                  int cylinder_segment_count, float param_10)
+{
+  float fVar1, fVar2, fVar4, angle;
+  float fVar9, fVar10, fVar11, fVar12, fVar_sin;
+  int iVar5;
+  float *pfVar6;
+  float *pfVar7;
+  short sVar8;
+  /* normal[0]=local_38, normal[1]=local_34, normal[2]=local_30; the three
+   * must be contiguous+ascending because &normal[0] is passed as the axis
+   * argument to rotate_vector3d_by_sincos (stack-aliasing hazard). */
+  float normal[3];
+  int local_2c;
+  float local_28, local_24;
+  int local_20, local_1c, local_18, local_14, local_10, local_c, local_8;
+
+  local_1c = 0;
+  local_8 = 0;
+  if (ring_segment_count <= 2) {
+    display_assert("ring_segment_count>2", "c:\\halo\\SOURCE\\math\\geometry.c",
+                   0x15a, 1);
+    system_exit(-1);
+  }
+  if ((short)cylinder_segment_count <= 2) {
+    display_assert("cylinder_segment_count>2",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x15b, 1);
+    system_exit(-1);
+  }
+  local_10 = 0;
+  if (ring_segment_count < 0) {
+    *out_vertex_count = 0;
+    *out_index_run_count = 0;
+    return;
+  }
+  local_20 = (int)ring_segment_count;
+  local_18 = 0;
+  local_24 = (float)local_20;
+  pfVar6 = *(float **)0x0031fc44;
+  pfVar7 = out_texcoords;
+  do {
+    fVar9 = (float)local_18 / local_24;
+    angle = *(float *)0x00255a54 * fVar9;
+    fVar10 = x87_fcos(angle);
+    fVar1 = fVar10 * param_8;
+    fVar11 = x87_fsin(angle);
+    fVar2 = param_8 * fVar11;
+    /* ring normal = (fVar1, fVar2, 0) x axis[]; 0x2533c0 == 0.0f.
+     * normal[2]=A, normal[1]=B, normal[0]=C; length sum is (C^2+B^2)+A^2 to
+     * match the original's x87 add order. */
+    normal[2] = fVar1 * pfVar6[1] - fVar2 * pfVar6[0];
+    normal[1] = pfVar6[0] * *(float *)0x002533c0 - fVar1 * pfVar6[2];
+    normal[0] = fVar2 * pfVar6[2] - pfVar6[1] * *(float *)0x002533c0;
+    fVar4 = sqrtf(normal[0] * normal[0] + normal[1] * normal[1] +
+                  normal[2] * normal[2]);
+    if (fabsf(fVar4) >= (float)*(double *)0x002533d0) {
+      fVar4 = *(float *)0x002533c8 / fVar4;
+      normal[0] = normal[0] * fVar4;
+      normal[1] = normal[1] * fVar4;
+      normal[2] = fVar4 * normal[2];
+    }
+    sVar8 = 0;
+    if (-1 < (short)cylinder_segment_count) {
+      local_c = (int)(short)cylinder_segment_count;
+      local_14 = (local_8 - cylinder_segment_count) + -1;
+      local_28 = (float)(fVar9 + fVar9);
+      do {
+        pfVar7[1] = local_28;
+        if (0 < (short)local_10) {
+          if (sVar8 == 0) {
+            *out_indices = (short)cylinder_segment_count * 2 + 2;
+            out_indices = out_indices + 1;
+            local_1c = local_1c + 1;
+          }
+          *out_indices = (short)local_8;
+          out_indices[1] = (short)local_14;
+          out_indices = out_indices + 2;
+        }
+        if ((short)local_10 == ring_segment_count) {
+          /* last ring: copy the vertex/texcoord from the first ring */
+          iVar5 = (local_c + 1) * local_20;
+          pfVar6 = out_positions + iVar5 * -3;
+          *out_positions = *pfVar6;
+          out_positions[1] = pfVar6[1];
+          out_positions[2] = pfVar6[2];
+          *out_texcoords = out_texcoords[iVar5 * -2];
+          pfVar7 = out_texcoords;
+        } else {
+          local_2c = (int)sVar8;
+          fVar9 = (float)local_2c / (float)local_c;
+          *pfVar7 = (float)(fVar9 + fVar9);
+          if (sVar8 == (short)cylinder_segment_count) {
+            /* seam: copy from the start of this ring */
+            pfVar6 = out_positions + local_c * -3;
+            *out_positions = *pfVar6;
+            out_positions[1] = pfVar6[1];
+            out_positions[2] = pfVar6[2];
+          } else {
+            angle = *(float *)0x00255a54 * fVar9;
+            fVar12 = x87_fcos(angle);
+            *out_positions = fVar10 * param_10;
+            out_positions[1] = fVar11 * param_10;
+            out_positions[2] = 0.0f;
+            fVar_sin = x87_fsin(angle);
+            rotate_vector3d_by_sincos(out_positions, normal, fVar_sin, fVar12);
+            *out_positions = fVar1 + *out_positions;
+            out_positions[2] = out_positions[2];
+            out_positions[1] = fVar2 + out_positions[1];
+            matrix_transform_point(matrix, out_positions, out_positions);
+          }
+        }
+        pfVar7 = pfVar7 + 2;
+        out_positions = out_positions + 3;
+        local_8 = local_8 + 1;
+        local_14 = local_14 + 1;
+        sVar8 = sVar8 + 1;
+        pfVar6 = *(float **)0x0031fc44;
+        out_texcoords = pfVar7;
+      } while (sVar8 <= (short)cylinder_segment_count);
+    }
+    local_10 = local_10 + 1;
+    local_18 = local_18 + 1;
+  } while ((short)local_10 <= ring_segment_count);
+  *out_vertex_count = (short)local_8;
+  *out_index_run_count = (short)local_1c;
+}
+
+/* 0x105c80 - classify a 2D vertex set as empty/point/collinear/planar.
+ *
+ * Register ABI (prologue at 0x105c80): no entry moves; ESI/EDI are zeroed at
+ * entry, so the only register argument is EBX.
+ *   vertex_count : stack [EBP+0x8] (short, number of 2D vertices)
+ *   vertices@<ebx> : float* array of 2D points, stride 2 floats (8 bytes)
+ *
+ * Runs a small state machine over the points.  state (-1) records the first
+ * point p0 and advances to 0.  state 0 tries to build a 2D line through p0 and
+ * the current point via plane2d_from_points; a non-null result (a real edge)
+ * advances to 1.  state 1 evaluates the line equation nx*x+ny*y-d at each
+ * later point; the first point off the line (|eval| >= 0x2533d0 epsilon)
+ * advances to 2 and terminates the scan.  Returns the final state: -1 (no
+ * vertices), 0 (all coincident), 1 (all collinear), 2 (genuinely planar).
+ * 0x2533d0 is a double epsilon. */
+short shell_update(short vertex_count, float *vertices /* @<ebx> */)
+{
+  float line[3]; /* [EBP-0x14]=nx, [EBP-0x10]=ny, [EBP-0xc]=d */
+  float p0[2];   /* [EBP-0x8], [EBP-0x4] */
+  short state;
+  short i;
+  float eval;
+
+  state = -1;
+  for (i = 0; i < vertex_count; i++) {
+    int s = (int)state;
+    if (s == -1) {
+      p0[0] = vertices[i * 2];
+      p0[1] = vertices[i * 2 + 1];
+      state = 0;
+    } else if (s == 0) {
+      if (plane2d_from_points(line, &vertices[i * 2], p0) != (float *)0) {
+        state = 1;
+      }
+    } else if (s == 1) {
+      eval = line[0] * vertices[i * 2] + line[1] * vertices[i * 2 + 1] - line[2];
+      if (fabs(eval) >= *(double *)0x002533d0) {
+        state = 2;
+      }
+    }
+    if (state >= 2) {
+      break;
+    }
+  }
+  return state;
+}
+
+/* 0x105d20 — Reduce a 2D point set to its convex hull as an index list.
+ * Gift-wrapping (Jarvis march). shell_update (called with the vertex array in
+ * EBX) validates that at least three non-collinear points exist (returns 2);
+ * otherwise nothing is emitted and 0 is returned.
+ *   Phase 1: pick the start vertex (lowest y, then leftmost x) with an epsilon
+ *            tie-break (1e-4f) on both axes.
+ *   Phase 2: from the current vertex, atan2(dy,dx) angle scan against a running
+ *            angle base, wrapping candidate angles into [-1e-4f, ...) by adding
+ *            2*pi; keep the minimum-angle vertex, append its index, and stop
+ *            when the chosen vertex closes back on the first. A collinear/
+ *            degenerate guard uses a double epsilon (=(double)1e-4f) on the
+ *            |component delta| between the chosen and first vertices.
+ *   Phase 3: reached only when the walk fills all slots (index_count reaches
+ *            vertex_count); compacts a trailing duplicate run to the front with
+ *            three bounds asserts (geometry.c 0x279,0x27a,0x282).
+ * param_1 = vertex_count, param_2 = float[2] vertex array (x,y; 8-byte stride),
+ * param_3 = int16 output index list. Returns the emitted index count in AX.
+ * Source: c:\halo\SOURCE\math\geometry.c */
+int16_t convex_hull2d_reduce(int16_t vertex_count, float *vertices,
+                             int16_t *out_indices)
+{
+  int16_t index_count;
+
+  index_count = 0;
+  if (shell_update(vertex_count, vertices) == 2) {
+    float base_angle;
+    float best_x;
+    float best_y;
+    int16_t start_index;
+    int16_t current_index;
+    int16_t next_index;
+    float min_angle;
+    int16_t collinear_flag;
+    int16_t i;
+    int16_t first;
+    float *p;
+    float *ref;
+
+    base_angle = 0.0f; /* FLOAT_002533c0 = 0.0f, running gift-wrap base */
+    best_x = 3.4028235e38f; /* FLT_MAX */
+    best_y = 3.4028235e38f;
+    start_index = -1; /* SI default = low word of FLT_MAX (dead: count>0) */
+    collinear_flag = 0;
+
+    /* Phase 1: lowest y, then leftmost x, with epsilon tie-break. */
+    if (vertex_count > 0) {
+      p = vertices + 1; /* &vertices[0].y */
+      for (i = 0; i < vertex_count; i = i + 1) {
+        if ((p[0] < best_y - 1e-4f) ||
+            ((p[0] < best_y) && (p[-1] < best_x + 1e-4f)) ||
+            ((p[0] < best_y + 1e-4f) && (p[-1] < best_x - 1e-4f))) {
+          best_x = p[-1];
+          best_y = p[0];
+          start_index = i;
+        }
+        p = p + 2;
+      }
+    }
+
+    current_index = start_index;
+    next_index =
+      start_index; /* EBX default (dead: inner loop always assigns) */
+    for (;;) {
+      min_angle = 3.4028235e38f; /* FLT_MAX reset (0x105de9) */
+      if (index_count >= vertex_count) {
+        goto compaction;
+      }
+      out_indices[index_count] = current_index;
+      index_count = index_count + 1;
+
+      /* Phase 2: min-angle gift-wrap scan. */
+      if (vertex_count > 0) {
+        ref = vertices + current_index * 2;
+        p = vertices;
+        for (i = 0; i < vertex_count; i = i + 1) {
+          if ((p[0] != ref[0]) || (p[1] != ref[1])) {
+            float angle;
+
+            angle = x87_fatan2f(p[1] - ref[1], p[0] - ref[0]) - base_angle;
+            if (angle < -1e-4f) {
+              do {
+                angle = angle + 6.2831855f; /* 2*pi wrap */
+              } while (angle < -1e-4f);
+            }
+            if (angle < min_angle) {
+              min_angle = angle;
+              next_index = i;
+            }
+          }
+          p = p + 2;
+        }
+      }
+
+      base_angle = base_angle + min_angle;
+      current_index = next_index;
+
+      first = out_indices[0];
+      if (collinear_flag == 0) {
+        if ((fabs(vertices[next_index * 2] - vertices[first * 2]) >= 1e-4f) ||
+            (fabs(vertices[next_index * 2 + 1] - vertices[first * 2 + 1]) >=
+             1e-4f)) {
+          collinear_flag = 1;
+        }
+      }
+
+      first = out_indices[0];
+      if (next_index == first) {
+        return index_count;
+      }
+      if (collinear_flag == 0) {
+        continue;
+      }
+      if ((fabs(vertices[next_index * 2] - vertices[first * 2]) >= 1e-4f) ||
+          (fabs(vertices[next_index * 2 + 1] - vertices[first * 2 + 1]) >=
+           1e-4f)) {
+        continue;
+      }
+      return index_count;
+    }
+
+  compaction: {
+    int16_t last_hull;
+    int16_t search;
+    int16_t k;
+
+    search = index_count - 2;
+    if (search <= 0) {
+      goto assert_start_positive;
+    }
+    last_hull = out_indices[index_count - 1];
+    for (;;) {
+      if (out_indices[search] == last_hull) {
+        int16_t new_count;
+
+        new_count = (index_count - 1) - search;
+        index_count = new_count;
+        if (new_count > 0) {
+          int src;
+          int16_t *psrc;
+          int16_t *pdst;
+
+          src = search;
+          psrc = out_indices + search;
+          pdst = out_indices;
+          k = 0;
+          do {
+            if (vertex_count <= k) {
+              display_assert("vertex_index<vertex_count",
+                             "c:\\halo\\SOURCE\\math\\geometry.c", 0x279, 1);
+              system_exit(-1);
+            }
+            if (vertex_count <= src) {
+              display_assert("start_vertex_index+vertex_index<vertex_count",
+                             "c:\\halo\\SOURCE\\math\\geometry.c", 0x27a, 1);
+              system_exit(-1);
+            }
+            k = k + 1;
+            *pdst = *psrc;
+            psrc = psrc + 1;
+            pdst = pdst + 1;
+            src = src + 1;
+          } while (k < new_count);
+        }
+        if (search > 0) {
+          return index_count;
+        }
+        goto assert_start_positive;
+      }
+      search = search - 1;
+      if (search < 1) {
+        goto assert_start_positive;
+      }
+    }
+  }
+
+  assert_start_positive:
+    display_assert("start_vertex_index>0", "c:\\halo\\SOURCE\\math\\geometry.c",
+                   0x282, 1);
+    system_exit(-1);
+  }
+  return index_count;
+}
+
+/* FUN_00106030 (0x106030)
+ *
+ * Validate a 2D polygon (given as an index list into a shared vertex array)
+ * for convexity and a closed interior-angle sum.  Vertices are 2D (x, y
+ * pairs, stride 8 bytes); param_4 is a short[] index array, param_2 the
+ * vertex-array base, param_3 the vertex count.  For each vertex it forms the
+ * two incident edge vectors (cur-prev, next-cur), rejects the polygon
+ * (return 0) if the signed 2D cross product is below a threshold (reflex /
+ * wrong-winding vertex), and otherwise accumulates the angle between the
+ * edges (via FUN_0010c440).  Succeeds (return 1) only if the accumulated
+ * angle matches the expected total within a tolerance.
+ *
+ * Confirmed from disassembly at 0x106030:
+ *   - cdecl; param_1 (EBP+0x8) is unused but preserved for stack ABI.
+ *   - Returns int 0/1 in EAX (the Ghidra CONCAT22 early-return is XOR AL,AL).
+ *   - prev index uses a real branch (wrap to count-1); next index uses a
+ *     branchless SETcc/SBB/AND wrap to 0 (asymmetry preserved).
+ *   - cross = edge1.y*edge0.x - edge1.x*edge0.y (FSUBP ST1-ST0, verified).
+ *   - FUN_0010c440(&edge0, &edge1): 2 float* args, angle returned in ST0;
+ *     kept in the x87 stack across the counter increment (no round-trip).
+ *   - 0x2533c0 threshold (float, '<'); 0x255a54 expected sum (float FSUB);
+ *     0x2549d8 tolerance (loaded as DOUBLE via FCOMP m64).
+ */
+int FUN_00106030(void *param_1, int param_2, short param_3, int param_4)
+{
+  float edge0[2]; /* local_1c=x, local_18=y : cur - prev  (contiguous) */
+  float edge1[2]; /* local_14=x, local_10=y : next - cur  (contiguous) */
+  float cross; /* fVar3 */
+  float sum; /* local_8 : accumulated interior angle */
+  int i; /* local_c : loop counter (16-bit compared) */
+  int cur16; /* iVar5 = (short)i */
+  int prev_idx; /* iVar4 (prev), reused for next */
+  int cur_idx;
+  int next_idx;
+  float *prev; /* pfVar1 */
+  float *cur; /* pfVar2 */
+  float *next; /* pfVar1 reused */
+
+  (void)param_1;
+
+  sum = 0.0f;
+  i = 0;
+  if (param_3 > 0) {
+    do {
+      cur16 = (int)(short)i;
+      prev_idx = cur16 - 1;
+      if (prev_idx < 0)
+        prev_idx = param_3 - 1;
+      prev = (float *)(param_2 + (int)*(short *)(param_4 + prev_idx * 2) * 8);
+      cur_idx = (int)*(short *)(param_4 + cur16 * 2);
+      cur = (float *)(param_2 + cur_idx * 8);
+      edge0[0] = cur[0] - prev[0];
+      edge0[1] = cur[1] - prev[1];
+      next_idx = ((param_3 <= cur16 + 1) - 1) & (cur16 + 1);
+      next = (float *)(param_2 + (int)*(short *)(param_4 + next_idx * 2) * 8);
+      edge1[0] = next[0] - cur[0];
+      edge1[1] = next[1] - cur[1];
+      cross = edge1[1] * edge0[0] - edge1[0] * edge0[1];
+      /* redundant recompute (same value): the original stores edge0[1] again
+       * here — VC71 keeps the extra FSUB/FSTP (permuter-found, byte-verified)
+       */
+      edge0[1] = cur[1] - prev[1];
+      if (cross < *(float *)0x2533c0)
+        return 0;
+      sum = FUN_0010c440(edge0, edge1) + sum;
+      i = i + 1;
+    } while ((short)i < param_3);
+  }
+  if (fabsf(sum - *(float *)0x255a54) < *(double *)0x2549d8)
     return 1;
   return 0;
 }
@@ -120,6 +1886,107 @@ bool FUN_00106200(int16_t count, void *points, float *query_point,
   return true;
 }
 
+/* FUN_00106290 (0x106290)
+ *
+ * Indexed variant of the 2D point-in-polygon winding test (FUN_00106200).
+ * Instead of iterating vertices directly, the polygon boundary is described
+ * by an index array (int16 indices, stride 2) into a shared vertex pool
+ * (float[2] per vertex, x at +0, y at +4).  For every edge
+ * (vert[index[i]] -> vert[index[next]]) computes:
+ *   cross = (P.y - A.y) * (B.x - A.x) - (P.x - A.x) * (B.y - A.y)
+ * and returns 0 as soon as cross < -epsilon for any edge (point is outside
+ * that edge beyond the tolerance).  Returns 1 if the point passes every edge.
+ * Empty polygon (count <= 0) returns 1.  Wrap-around index uses
+ * next = (i+1 >= count) ? 0 : i+1.  Indices are loaded narrow (int16, signed);
+ * the cross-product/subtraction order matches FUN_00106200 and disassembly.
+ */
+int FUN_00106290(int16_t count, void *index_array, void *vertex_base,
+                 float *query_point, float epsilon)
+{
+  int16_t i;
+  float neg_epsilon;
+  int16_t *indices;
+  float *verts;
+  float *qp;
+
+  i = 0;
+  if (count <= 0)
+    return 1;
+
+  neg_epsilon = -epsilon;
+  indices = (int16_t *)index_array;
+  verts = (float *)vertex_base;
+  qp = query_point;
+
+  do {
+    int idx = (int)i;
+    int next = (idx + 1 >= (int)count) ? 0 : idx + 1;
+    int a = (int)indices[idx];
+    int b = (int)indices[next];
+    float *A = &verts[a * 2];
+    float ax = A[0], ay = A[1];
+    float bx = verts[b * 2];
+    float by = verts[b * 2 + 1];
+    float dx = qp[0] - ax;
+    float dy = qp[1] - ay;
+    float ex = bx - ax;
+    float ey = by - ay;
+
+    if (dy * ex - dx * ey < neg_epsilon)
+      return 0;
+
+    i++;
+  } while (i < count);
+
+  return 1;
+}
+
+/* FUN_00106330 (0x106330)
+ *
+ * 2D polygon signed-area accumulation (triangle-fan / shoelace) returning the
+ * absolute area. Points are stored as float[2] pairs (x, y) with stride 2;
+ * vertex 0 (points[0], points[1]) is the fan anchor. For each triangle
+ * (anchor, cur = points[i], next = points[i+1]), i running over count-2
+ * iterations, accumulates half the 2D cross product of the two edge vectors
+ * measured from the anchor:
+ *   cross = (next.y - anchor.y) * (cur.x - anchor.x)
+ *         - (next.x - anchor.x) * (cur.y - anchor.y)
+ *   area += 0.5 * cross
+ * Returns fabs(area).
+ *
+ * Confirmed from disasm: seed FLOAT_002533c0 = 0.0f, scale _DAT_00253398 =
+ * 0.5f (both single-precision, byte-verified). Cross-product operand order is
+ * A*B - C*D (hazard #4, verified against FSUBP direction). x87 extended
+ * intermediates are preserved as double; do not reassociate. Loop count is
+ * unsigned 16-bit ((unsigned short)(count - 2)); guarded by count > 2. Leaf,
+ * cdecl, result left in ST0 with a trailing FABS.
+ */
+float FUN_00106330(int16_t count, float *points)
+{
+  float area;
+  float *p;
+  unsigned int n;
+
+  area = 0.0f; /* FLOAT_002533c0 seed */
+  if (count > 2) {
+    n = (unsigned int)(unsigned short)(count - 2);
+    p = points + 2;
+    do {
+      n = n - 1;
+      /* Signed area of triangle (anchor, cur, next), doubled; scaled by 0.5.
+       * Reference computes (next.x-x0)*(cur.y-y0) - (next.y-y0)*(cur.x-x0);
+       * result is negated vs the standard fan cross but fabs() absorbs the
+       * sign. MSVC schedules this as a pairwise x87 multiply. */
+      area = ((p[2] - points[0]) * (p[1] - points[1]) -
+              (p[3] - points[1]) * (p[0] - points[0])) *
+               0.5f /* _DAT_00253398 */
+             + area;
+      p = p + 2;
+    } while (n != 0);
+  }
+  return (float)fabs(area); /* FABS */
+}
+
 /* FUN_0018e420 (0x18e420)
  *
  * Returns the global BSP3D pointer (DAT_005064d8). Asserts with a halt if
@@ -165,6 +2032,148 @@ void reference_list_remove(data_t *data, int *head, int value)
   system_exit(-1);
 }
 
+/* reference_list_copy (0x191440) — Copy a reference_list's entries from source
+ * into result. Both lists must have identical size and maximum_count
+ * (asserted).
+ *
+ * For each slot in [0, maximum_count): if the source entry is live (its first
+ * word != 0) the 12-byte (3-dword) entry is copied verbatim; otherwise, if the
+ * result entry is live, it is removed via datum_delete(result, index).
+ *
+ * Struct offsets (reference_lists.h):
+ *   +0x20 maximum_count (int16)   +0x22 size (int16)   +0x34 entry array ptr
+ * Entry stride = 0xc (12 bytes) = 3 dwords; both pointers advance by 0xc/iter.
+ *
+ * Confirmed (disasm): cdecl(result @EBP+8 = EDI, source @EBP+0xc = EBX);
+ * size mismatch asserts at line 0x88 (136), maximum_count mismatch at line 0x89
+ * (137), reason strings shown, halt=1, then system_exit(-1). The loop count
+ * [result+0x20] is RE-READ from memory each iteration (CMP SI,word[EDI+0x20]),
+ * and the index is a signed int16 (JL). datum_delete push order is EDI then
+ * MOVSX-of-SI => datum_delete(result, (int)index). No FPU. */
+void reference_list_copy(void *result, void *source)
+{
+  short *result_entry;
+  short *source_entry;
+  short index;
+
+  if (*(short *)((char *)result + 0x22) != *(short *)((char *)source + 0x22)) {
+    display_assert("result->size==source->size",
+                   "..\\objects\\reference_lists.h", 0x88, 1);
+    system_exit(-1);
+  }
+  if (*(short *)((char *)result + 0x20) != *(short *)((char *)source + 0x20)) {
+    display_assert("result->maximum_count==source->maximum_count",
+                   "..\\objects\\reference_lists.h", 0x89, 1);
+    system_exit(-1);
+  }
+
+  result_entry = *(short **)((char *)result + 0x34);
+  source_entry = *(short **)((char *)source + 0x34);
+  index = 0;
+  if (0 < *(short *)((char *)result + 0x20)) {
+    do {
+      if (*source_entry == 0) {
+        if (*result_entry != 0) {
+          datum_delete((data_t *)result, (int)index);
+        }
+      } else {
+        *(int *)result_entry = *(int *)source_entry;
+        *(int *)(result_entry + 2) = *(int *)(source_entry + 2);
+        *(int *)(result_entry + 4) = *(int *)(source_entry + 4);
+      }
+      index = index + 1;
+      result_entry = result_entry + 6;
+      source_entry = source_entry + 6;
+    } while (index < *(short *)((char *)result + 0x20));
+  }
+}
+
+/* Allocate the three cluster-partition globals (0x191500).
+ * out[0] = game_state_malloc("<name>"... , "cluster references", 0x800) -- the
+ *          per-cluster head block (0x800 bytes).
+ * out[1] = game_state_data_new("<name> reference", 0x800, 0xc) built from the
+ *          intermediate "cluster <name>" name buffer.
+ * out[2] = game_state_data_new("<name> reference", 0x800, 0xc) built from the
+ *          intermediate "<name> cluster" name buffer.
+ * If any allocation fails, error(0, "couldn't allocate %s cluster partition
+ * globals", name). Confirmed (disasm 0x191500-0x1915cf): cdecl(out @EBP+8=ESI,
+ * name @EBP+0xc=EDI); two 256-byte scratch buffers (local_204/local_104, frame
+ * SUB ESP,0x200, no _chkstk); crt_sprintf/game_state_malloc/game_state_data_new
+ * all cdecl (first push = last arg). Failure test order out[0], out[2], out[1]
+ * matches the TEST sequence; the last data_new result is held for that test. */
+void cluster_partition_globals_new(void **out, const char *name)
+{
+  char buffer[256];
+  char name_buffer[256];
+  void *references;
+
+  out[0] = game_state_malloc(name, "cluster references", 0x800);
+  crt_sprintf(name_buffer, "cluster %s", name);
+  crt_sprintf(buffer, "%s reference", name_buffer);
+  out[1] = game_state_data_new(buffer, 0x800, 0xc);
+  crt_sprintf(name_buffer, "%s cluster", name);
+  crt_sprintf(buffer, "%s reference", name_buffer);
+  references = game_state_data_new(buffer, 0x800, 0xc);
+  out[2] = references;
+  if (out[0] == 0 || references == 0 || out[1] == 0) {
+    error(0, "couldn't allocate %s cluster partition globals", name);
+  }
+}
+
+/* Clear a cluster partition (0x1915d0).
+ * Resets the per-cluster head array (partition[0], 0x800 bytes) to the empty
+ * sentinel (-1), then empties both datum pools: the per-object cluster
+ * references (partition[2]) first, then the per-cluster object references
+ * (partition[1]). Callee order and struct offsets confirmed from disassembly.
+ */
+void cluster_partition_clear(void *partition)
+{
+  int **part = (int **)partition;
+
+  csmemset(part[0], -1, 0x800);
+  data_delete_all((data_t *)part[2]);
+  data_delete_all((data_t *)part[1]);
+}
+
+/* Dispose both datum pools of a cluster partition (0x191600).
+ * Mirrors cluster_partition_clear's pool layout: the per-object cluster
+ * references (partition[2]) are disposed first, then the per-cluster object
+ * references (partition[1]). Each pool is a data_t whose signature byte at
+ * +0x24 is non-zero only while allocated; disposal is skipped otherwise.
+ * Callee (data_make_invalid) and disposal order confirmed from disassembly.
+ */
+void cluster_partition_dispose(void *partition)
+{
+  data_t **part = (data_t **)partition;
+
+  if (*((char *)part[2] + 0x24) != '\0') {
+    data_make_invalid(part[2]);
+  }
+  if (*((char *)part[1] + 0x24) != '\0') {
+    data_make_invalid(part[1]);
+  }
+}
+
+/* Null a cluster partition's three references (0x191630).
+ * Zeroes the head-array pointer (partition[0]), the per-object cluster
+ * references pool (partition[2]), then the per-cluster object references pool
+ * (partition[1]) -- same [2]-before-[1] pool order as the clear/dispose
+ * helpers. Each store is guarded by a test against 0 (if (f != 0) f = 0);
+ * this conditional-store shape is preserved verbatim from the original.
+ */
+void cluster_partition_null_references(int *partition)
+{
+  if (partition[0] != 0) {
+    partition[0] = 0;
+  }
+  if (partition[2] != 0) {
+    partition[2] = 0;
+  }
+  if (partition[1] != 0) {
+    partition[1] = 0;
+  }
+}
+
 int cluster_partition_iter_next(void *partition, int *state)
 {
   if (*state != -1) {
@@ -175,6 +2184,80 @@ int cluster_partition_iter_next(void *partition, int *state)
   }
 
   return -1;
+}
+
+/* Seed-and-advance a cluster iterator (0x191690).
+ * Stores cluster_handle into *out_cluster unconditionally; if the handle is
+ * valid (!= -1), fetches the cluster reference datum from the pool at
+ * cluster_list+8, overwrites *out_cluster with the next link (ref+8), and
+ * returns the reference value (ref+4). Returns -1 for an exhausted handle.
+ */
+int FUN_00191690(void *cluster_list, int *out_cluster, int cluster_handle)
+{
+  *out_cluster = cluster_handle;
+  if (cluster_handle != -1) {
+    char *cluster_reference =
+      datum_get(*(void **)((char *)cluster_list + 8), cluster_handle);
+    *out_cluster = *(int *)(cluster_reference + 8);
+    return *(int *)(cluster_reference + 4);
+  }
+
+  return -1;
+}
+
+/* Advance a cluster iterator over the pool at offset +8 (0x1916d0).
+ * Advance-only counterpart to FUN_00191690 (which seeds *state first). If the
+ * current handle (*state) is exhausted (-1) returns -1; otherwise fetches the
+ * reference datum from the pool at partition+8, advances *state to the next
+ * link (ref+8), and returns the reference value (ref+4).
+ */
+int FUN_001916d0(int partition, int *state)
+{
+  if (*state != -1) {
+    char *cluster_reference = datum_get(*(void **)(partition + 8), *state);
+    *state = *(int *)(cluster_reference + 8);
+    return *(int *)(cluster_reference + 4);
+  }
+
+  return -1;
+}
+
+/* Copy a cluster partition (0x191700).
+ * Both operands are 3-pointer structs (see cluster_partition_add_object):
+ *   [0] -> cluster head array (one dword per cluster)
+ *   [1] -> reference_list (per-cluster object references)
+ *   [2] -> reference_list (per-object cluster references)
+ * The head array holds scenario->0x134 (cluster tag_block count) dwords, so
+ * csmemcpy moves count*4 bytes (the <<2 converts the dword count to bytes).
+ * Copy order: element [2] BEFORE [1] -- preserve for codegen match.
+ */
+void cluster_partition_copy(void **destination, void **source)
+{
+  void *scenario = scenario_get();
+
+  csmemcpy(destination[0], source[0], *(int *)((char *)scenario + 0x134) << 2);
+  reference_list_copy(destination[2], source[2]);
+  reference_list_copy(destination[1], source[1]);
+}
+
+/* 0x191750 - get a pointer to a cluster partition's per-cluster slot.
+ * (TU: c:\halo\SOURCE\structures\cluster_partitions.c)
+ *
+ * Register ABI (prologue at 0x191750): TEST SI,SI and direct use of ESI; the
+ * only register arg is cluster_index@<esi> (short). Stack arg: partition
+ * ([EBP+0x8]), whose first field (partition[0]) is the per-cluster int array
+ * base.  Bounds-checks cluster_index against clusters.count (scenario+0x134)
+ * and returns &partition[0][cluster_index]. */
+int *FUN_00191750(short cluster_index /* @<esi> */, int **partition)
+{
+  if (cluster_index < 0 ||
+      (int)cluster_index >= *(int *)((char *)scenario_get() + 0x134)) {
+    display_assert(
+        "cluster_index>=0 && cluster_index<global_structure_bsp_get()->clusters.count",
+        "c:\\halo\\SOURCE\\structures\\cluster_partitions.c", 0xd5, true);
+    system_exit(-1);
+  }
+  return *partition + cluster_index;
 }
 
 /* Add an object to a cluster partition (0x1917a0).
@@ -328,6 +2411,2313 @@ int cluster_partition_iter_first(void *partition, int *state,
   return -1;
 }
 
+/* leaf_map_node_stack_push (FUN_00191ad0, 0x191ad0)
+ *
+ * Bounds-checked push onto the global leaf-map node stack.  If the stack is
+ * already full (count > MAXIMUM_NODE_STACK_COUNT-1 = 0xff), fires the engine
+ * assert then system_exit(-1); otherwise stores the node value at
+ * node_stack[count] and increments count.
+ *
+ * Confirmed from disassembly at 0x191ad0:
+ *   - node_stack_count : int16 @ 0x4d8e90 (cmpw $0x100 / movswl / incw prove
+ *     a 16-bit signed counter, not int32)
+ *   - node_stack       : int32[256] @ 0x4d8a90 (0x400 bytes, ends at 0x4d8e90)
+ *   - MAXIMUM_NODE_STACK_COUNT = 0x100; guard fires when count >= 0x100.
+ *   - display_assert(reason, "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x2a,
+ * 1) then system_exit(-1) (thunk_FUN_001029a0 resolves to system_exit
+ * @0x8e2f0).
+ *   - Single cdecl stack arg (the pushed node value); kb decl was void(void).
+ */
+void leaf_map_node_stack_push(int32_t node)
+{
+  if (*(int16_t *)0x4d8e90 >= 0x100) {
+    display_assert("leaf_map_globals.node_stack_count<MAXIMUM_NODE_STACK_COUNT",
+                   "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x2a, 1);
+    system_exit(-1);
+  }
+  *(int32_t *)(0x4d8a90 + *(int16_t *)0x4d8e90 * 4) = node;
+  ++*(int16_t *)0x4d8e90;
+}
+
+/* leaf_map_node_stack_pop (0x191b20)
+ *
+ * Pops and returns the top entry of the global leaf-map node stack.
+ * Asserts the stack is non-empty (leaf_map.c:0x33) then decrements the
+ * 16-bit count and returns node_stack[count].
+ *
+ * Confirmed from disassembly at 0x191b20: 16-bit DEC on AX then MOVSWL of
+ * the same register indexes the int32 array at 0x4d8a90.  No callers exist
+ * in the shipped XBE (editor-era leaf_map code, like its neighbors).
+ */
+int32_t leaf_map_node_stack_pop(void)
+{
+  int16_t count;
+  if (*(int16_t *)0x4d8e90 <= 0) {
+    display_assert("leaf_map_globals.node_stack_count>0",
+                   "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x33, 1);
+    system_exit(-1);
+  }
+  count = (int16_t)(*(int16_t *)0x4d8e90 - 1);
+  *(int16_t *)0x4d8e90 = count;
+  return *(int32_t *)(0x4d8a90 + count * 4);
+}
+
+/* leaf_map_node_stack_peek (0x191b60)
+ *
+ * Returns the stack entry levels_up below the top without popping:
+ * node_stack[count - levels_up - 1] (levels_up = 0 reads the top).
+ * Asserts 0 <= levels_up < count (leaf_map.c:0x3b).
+ *
+ * Confirmed from disassembly at 0x191b60:
+ *   - levels_up arrives in SI (TESTW SI,SI at entry with no prior write);
+ *     registered as @<si> in kb.json.
+ *   - the load uses base 0x4d8a8c = node_stack - 4 with index
+ *     (count - levels_up), i.e. node_stack[count - levels_up - 1].
+ *   - No callers exist in the shipped XBE.
+ */
+int32_t leaf_map_node_stack_peek(int16_t levels_up)
+{
+  if (!(levels_up >= 0 && levels_up < *(int16_t *)0x4d8e90)) {
+    display_assert(
+      "levels_up>=0 && levels_up<leaf_map_globals.node_stack_count",
+      "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x3b, 1);
+    system_exit(-1);
+  }
+  return *(int32_t *)(0x4d8a8c +
+                      ((int32_t) * (int16_t *)0x4d8e90 - levels_up) * 4);
+}
+
+/* FUN_00191ba0 (0x191ba0)
+ *
+ * Clears two tag_block members of a structure by resizing each to zero
+ * elements.  The structure base is passed as a single cdecl stack argument;
+ * the two 0xC-byte tag_blocks (count/address/definition triple) live at
+ * base+0x4 and base+0x10.
+ *
+ * Confirmed from disassembly at 0x191ba0:
+ *   - No FPU ops, no branching; two cdecl CALLs to tag_block_resize
+ *     (FUN_001b9a90), each: push 0 (count); push block-ptr; call; ADD ESP,8.
+ *   - kb decl was void(void); real signature is void f(void *base).
+ */
+void FUN_00191ba0(void *base)
+{
+  tag_block_resize((char *)base + 0x4, 0);
+  tag_block_resize((char *)base + 0x10, 0);
+}
+
+/* 0x191bd0 - search the leaf-map node stack for a node referencing a value.
+ * (TU: c:\halo\SOURCE\structures\leaf_map.c)
+ *
+ * Register ABI (prologue at 0x191bd0): direct use of EBX with no entry moves;
+ * the only register arg is search_value@<ebx> (int). Stack args: param_1
+ * ([EBP+0x8], a pointer whose first field is the tag_block searched) and out
+ * ([EBP+0xc], char* flag). Walks the node stack from the top for each level
+ * (levels_up in [0,node_stack_count); count @ 0x4d8e90, stack @ 0x4d8a8c[count]
+ * i.e. node_stack-1). Each stacked node's low 31 bits index a 0xc-stride
+ * tag_block element; when that element's first field equals search_value it
+ * writes the node's sign bit to *out and returns 1. Returns 0 if no level
+ * matches (or the stack is empty). */
+char FUN_00191bd0(int search_value /* @<ebx> */, void **param_1, char *out)
+{
+  short count;
+  short i;
+  int node;
+  int *element;
+
+  count = *(short *)0x004d8e90;
+  i = 0;
+  if (count <= 0) {
+    return 0;
+  }
+  do {
+    if (i < 0 || i >= count) {
+      display_assert(
+          "levels_up>=0 && levels_up<leaf_map_globals.node_stack_count",
+          "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x3b, true);
+      system_exit(-1);
+    }
+    node = *(int *)(0x004d8a8c + ((int)count - (int)i) * 4);
+    element = (int *)tag_block_get_element(*param_1, node & 0x7fffffff, 0xc);
+    if (*element == search_value) {
+      *out = (char)((node & 0x80000000) != 0);
+      return 1;
+    }
+    count = *(short *)0x004d8e90;
+    i = (short)(i + 1);
+  } while (i < count);
+  return 0;
+}
+
+/* 0x191c70 - linear-search a tag_block for the element referencing a value.
+ * (TU: c:\halo\SOURCE\structures\leaf_map.c)
+ *
+ * Register ABI (frameless; direct use of ESI and EBX): block@<esi> (tag_block
+ * pointer; *block is the element count) and search_value@<ebx> (int). Scans
+ * elements 0..count-1 (stride 0x10); returns the index of the first element
+ * whose first field equals search_value, or -1 if none match. */
+short FUN_00191c70(void *block /* @<esi> */, int search_value /* @<ebx> */)
+{
+  int count;
+  short i;
+  int *element;
+
+  count = *(int *)block;
+  if (count <= 0) {
+    return -1;
+  }
+  i = 0;
+  do {
+    element = (int *)tag_block_get_element(block, i, 0x10);
+    if (*element == search_value) {
+      return i;
+    }
+    count = *(int *)block;
+    i = (short)(i + 1);
+  } while ((int)i < count);
+  return -1;
+}
+
+/* leaf_map_mark_portal_designators (FUN_00191cb0, 0x191cb0)
+ *
+ * structures.obj / c:\halo\SOURCE\structures\leaf_map.c
+ *
+ * Given a portal index, mark the matching portal-designator entry as visited
+ * in each of the portal's two adjacent leaves.
+ *
+ * The portal record (block at structure+0x10, stride 0x18, index = portal
+ * index) carries the two adjacent leaf indices at record offsets +4 and +8
+ * (masked with 0x7fffffff to drop the sign/plane bit).  For each of those two
+ * leaves (block at structure+0x4, stride 0x18) the leaf's portal_designators
+ * block header lives at leaf+0xc (count at [0], stride 4).  That sub-block is
+ * scanned for the designator whose (value & 0x7fffffff) equals this portal
+ * index; when found, the high bit (0x80000000) is set to mark it.  If no
+ * designator references the portal the original asserts
+ *   portal_designator_index != leaf->portal_designators.count
+ * at leaf_map.c:0x2a1 and halt_and_catch_fire()s.
+ *
+ * Confirmed from disassembly at 0x191cb0:
+ *   - tag_block_get_element is cdecl (block, index, element_size); the two
+ *     leaf-block fetches use element_size 0x18, the designator fetch uses 4.
+ *   - the inner designator counter is a 16-bit short (sVar5); the (int)cast
+ *     truncation is deliberate and preserved for VC71 fidelity.
+ *   - the assert-halt path calls halt_and_catch_fire (thunk 0x1029a0); its
+ *     0xffffffff argument in the decompile is dead (callee is void(void)).
+ * Inferred: field semantics (front/back leaf, "visited" meaning of the high
+ * bit) from the leaf_map.c source string; the two-iteration loop and offsets
+ * are Confirmed from the disassembly.
+ */
+void leaf_map_mark_portal_designators(void *structure, uint32_t portal_index)
+{
+  int *designator_count;
+  uint32_t *designator;
+  int block_index;
+  short designator_index;
+  int remaining;
+  uint32_t *portal;
+  int leaves_block;
+
+  portal = (uint32_t *)tag_block_get_element((char *)structure + 0x10,
+                                             portal_index, 0x18);
+  leaves_block = (int)structure + 4;
+  remaining = 2;
+  do {
+    portal = portal + 1;
+    block_index = (int)tag_block_get_element((void *)leaves_block,
+                                             *portal & 0x7fffffff, 0x18);
+    designator_count = (int *)(block_index + 0xc);
+    designator_index = 0;
+    if (0 < *designator_count) {
+      block_index = 0;
+      do {
+        designator =
+          (uint32_t *)tag_block_get_element(designator_count, block_index, 4);
+        if ((*designator & 0x7fffffff) == portal_index) {
+          *designator = *designator | 0x80000000;
+          break;
+        }
+        designator_index = designator_index + 1;
+        block_index = (int)designator_index;
+      } while (block_index < *designator_count);
+    }
+    if ((int)designator_index == *designator_count) {
+      display_assert("portal_designator_index!=leaf->portal_designators.count",
+                     "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x2a1, 1);
+      halt_and_catch_fire();
+    }
+    remaining = remaining - 1;
+  } while (remaining != 0);
+}
+
+/* FUN_00191d80 (0x191d80)
+ *
+ * Fetches an outer tag_block element (block = base+4, index masked to
+ * 31 bits, stride 0x18), then scans the nested tag_block located at
+ * outer_element+0xc (stride 4). Returns false (0) as soon as any inner
+ * element's leading int is non-negative; otherwise returns the low byte
+ * of the nested element count.
+ *
+ * Confirmed from disassembly at 0x191d80:
+ *   - two cdecl calls to tag_block_get_element (ADD ESP,0xc each);
+ *     push order gives (block, index, element_size).
+ *   - the nested block pointer (outer_element+0xc) is held in ESI for
+ *     the whole function; *ESI is the element count (int at offset 0).
+ *   - inner loop counter is a signed short: INC EDI; MOVSX EAX,DI;
+ *     CMP EAX,ECX; JL — kept as `short` so codegen emits the MOVSX.
+ *   - both RET sites return AL only: early XOR AL,AL (false), and
+ *     fall-through MOV AL,byte ptr [ESI] (low byte of the count).
+ */
+char FUN_00191d80(int base, unsigned int index)
+{
+  int *count_block;
+  int count;
+  int *inner;
+  short i;
+
+  count_block = (int *)((int)tag_block_get_element((void *)(base + 4),
+                                                   index & 0x7fffffff, 0x18) +
+                        0xc);
+  count = *count_block;
+  i = 0;
+  if (0 < count) {
+    count = 0;
+    do {
+      inner = (int *)tag_block_get_element(count_block, count, 4);
+      if (-1 < *inner) {
+        return 0;
+      }
+      i = i + 1;
+      count = (int)i;
+    } while (count < *count_block);
+  }
+  return *(char *)count_block;
+}
+
+/* FUN_00191de0 (0x191de0)
+ *
+ * Recursive cluster-visibility flood-fill. Given a cluster index, walks that
+ * cluster's portal list (nested tag_block at cluster+0xc). For each portal it
+ * resolves the connection element (descriptor+0x10) to find the neighbouring
+ * cluster: the connection stores its two endpoint cluster indices at +4 and
+ * +8; whichever is not the current cluster is the neighbour. It sets the
+ * neighbour's bit in the destination bitset and, if that bit was newly set,
+ * recurses into the neighbour.
+ *
+ * Confirmed from disassembly at 0x191de0:
+ * - cluster elem = tag_block_get_element(descriptor+4, index&0x7fffffff, 0x18)
+ * - portal block header at cluster+0xc; portal element size 4, its *value is
+ *   the connection index (masked 0x7fffffff)
+ * - connection elem = tag_block_get_element(descriptor+0x10, conn, 0x18)
+ * - neighbour = *(conn+4); if neighbour == index, neighbour = *(conn+8)
+ * - bit_mask = 1 << (neighbour & 0x1f); word = dst + (neighbour>>5)*4
+ * - the loop counter is a signed 16-bit index (MOVSX AX), compared against the
+ *   portal count re-read from *(cluster+0xc) each iteration
+ * All calls cdecl, args pushed right-to-left; self-recursive.
+ */
+void FUN_00191de0(int descriptor, int dst, unsigned int cluster_index)
+{
+  int *portal_block;
+  int connection_elem;
+  unsigned int *portal;
+  unsigned int neighbor;
+  unsigned int bit_mask;
+  unsigned int *word;
+  short i;
+  int i_idx;
+
+  portal_block =
+    (int *)((char *)tag_block_get_element((void *)(descriptor + 4),
+                                          cluster_index & 0x7fffffff, 0x18) +
+            0xc);
+  i = 0;
+  if (0 < *portal_block) {
+    i_idx = 0;
+    do {
+      portal = (unsigned int *)tag_block_get_element(portal_block, i_idx, 4);
+      connection_elem = (int)tag_block_get_element((void *)(descriptor + 0x10),
+                                                   *portal & 0x7fffffff, 0x18);
+      neighbor = *(unsigned int *)(connection_elem + 4);
+      if (neighbor == cluster_index) {
+        neighbor = *(unsigned int *)(connection_elem + 8);
+      }
+      bit_mask = 1 << (neighbor & 0x1f);
+      word = (unsigned int *)(dst + ((int)neighbor >> 5) * 4);
+      if ((bit_mask & *word) == 0) {
+        *word = *word | bit_mask;
+        FUN_00191de0(descriptor, dst, neighbor);
+      }
+      i = i + 1;
+      i_idx = (int)i;
+    } while (i_idx < *portal_block);
+  }
+  return;
+}
+
+/* FUN_00191e90 (0x191e90)
+ *
+ * Draws a debug triangle-fan outline for one element of a tag block.
+ * Fetches the outer tag_block element (block = param_1+0x10, index =
+ * low 31 bits of param_2, stride 0x18); the nested tag_block at
+ * element+0xc holds the fan vertices (count@0, elements@+4, stride 0xc).
+ * The high bit of param_2 selects one of two hard-coded fill colors.
+ *
+ * For each vertex i in [2, count):
+ *   - FUN_00188890 fills the fan triangle (vertex0, vertex(i-1),
+ *     vertex(i)) with the selected color.
+ *   - FUN_00189270 draws the edge line vertex(i-1)->vertex(i) in the
+ *     global debug color pointed to by [0x2ee6d0].
+ * Two trailing FUN_00189270 calls close the fan: edge (0,1) and edge
+ * (0,count-1).
+ *
+ * Confirmed from disassembly at 0x191e90:
+ *   - Ghidra mis-groups the cdecl args (§7): each tag_block_get_element
+ *     cleans only 3 args (ADD ESP,0xc); the surplus pushes belong to the
+ *     outer FUN_00188890 (ADD ESP,0x14) / FUN_00189270 (ADD ESP,0x10).
+ *   - color select: TEST ESI,0x80000000; SETNZ CL; color = colors+CL*0x10.
+ *   - fan index is a signed short widened to int each iteration (INC;MOVSX).
+ *   - the global color [0x2ee6d0] is re-read fresh on every call.
+ *   - MSVC evaluates call args right-to-left, so the tag_block_get_element
+ *     for the higher vertex index fires before the lower one; the arg
+ *     order below reproduces that push sequence.
+ */
+void FUN_00191e90(int param_1, int param_2)
+{
+  int *verts;
+  float colors[8];
+  short i;
+  int idx;
+
+  verts = (int *)((int)tag_block_get_element((void *)(param_1 + 0x10),
+                                             param_2 & 0x7fffffff, 0x18) +
+                  0xc);
+  colors[0] = 0.1f;
+  colors[1] = 0.0f;
+  colors[2] = 1.0f;
+  colors[3] = 0.0f;
+  colors[4] = 0.1f;
+  colors[5] = 1.0f;
+  colors[6] = 0.0f;
+  colors[7] = 0.0f;
+
+  i = 2;
+  idx = 2;
+  if (2 < *verts) {
+    do {
+      FUN_00188890(
+        1, (float *)tag_block_get_element(verts, 0, 0xc),
+        (float *)tag_block_get_element(verts, idx - 1, 0xc),
+        (float *)tag_block_get_element(verts, idx, 0xc),
+        (void *)((char *)colors +
+                 (((unsigned int)param_2 & 0x80000000) != 0) * 0x10));
+      FUN_00189270(1, (float *)tag_block_get_element(verts, idx - 1, 0xc),
+                   (float *)tag_block_get_element(verts, idx, 0xc),
+                   *(void **)0x2ee6d0);
+      i = i + 1;
+      idx = (int)i;
+    } while (idx < *verts);
+  }
+  FUN_00189270(1, (float *)tag_block_get_element(verts, 0, 0xc),
+               (float *)tag_block_get_element(verts, 1, 0xc),
+               *(void **)0x2ee6d0);
+  FUN_00189270(1, (float *)tag_block_get_element(verts, 0, 0xc),
+               (float *)tag_block_get_element(verts, *verts - 1, 0xc),
+               *(void **)0x2ee6d0);
+}
+
+/* FUN_00191ff0 (0x191ff0)
+ *
+ * Tag-block iterator. Fetches the tag-block element at
+ * (index & 0x7fffffff) with stride 0x18 from the block at base+4,
+ * then walks the nested tag-block at element+0xc (count@0, elements@+4),
+ * passing each 4-byte element's first dword to FUN_00191e90(base, *elem).
+ *
+ * Confirmed from disassembly at 0x191ff0:
+ * - outer tag_block_get_element(base+4, index & 0x7fffffff, 0x18)
+ * - nested block pointer = element + 0xc
+ * - inner tag_block_get_element(nested, i, 4)
+ * - loop counter is a 16-bit short widened to int each iteration (movsx)
+ * All calls cdecl, args pushed right-to-left. No FPU.
+ */
+void FUN_00191ff0(int base, unsigned int index)
+{
+  int *count_block;
+  int i_idx;
+  int *inner;
+  short i;
+
+  count_block = (int *)((int)tag_block_get_element((void *)(base + 4),
+                                                   index & 0x7fffffff, 0x18) +
+                        0xc);
+  i = 0;
+  if (0 < *count_block) {
+    i_idx = 0;
+    do {
+      inner = (int *)tag_block_get_element(count_block, i_idx, 4);
+      FUN_00191e90(base, *inner);
+      i = i + 1;
+      i_idx = (int)i;
+    } while (i_idx < *count_block);
+  }
+}
+
+/* FUN_001926a0 (0x1926a0)
+ *
+ * Copies a tag-block bitset from src to dst (word-granular), then for
+ * every bit set in the destination bitset invokes FUN_00191de0 to
+ * propagate/traverse the corresponding element.
+ *
+ * Confirmed from disassembly at 0x1926a0:
+ * - descriptor at param_1; element count at *(param_1+4)
+ * - if src != dst: csmemcpy(dst, src, ((count+0x1f)>>5)<<2) bytes
+ *   (word-granular rounded copy of the bitset)
+ * - for each bit index i in [0,count) that is set in the dst bitset:
+ *     FUN_00191de0(descriptor, dst, i)
+ * - count is re-read from *(param_1+4) every iteration (not cached)
+ * - returns byte-bool true (AL=1; CONCAT31 high bytes are incidental)
+ * All calls cdecl, args pushed right-to-left. No FPU.
+ */
+unsigned char FUN_001926a0(int descriptor, int src, int dst)
+{
+  int count;
+  int i;
+
+  if (src != dst) {
+    csmemcpy((void *)dst, (void *)src,
+             (size_t)(((*(int *)(descriptor + 4) + 0x1f) >> 5) * 4));
+  }
+  count = *(int *)(descriptor + 4);
+  i = 0;
+  if (0 < count) {
+    do {
+      if ((*(unsigned int *)(dst + (i >> 5) * 4) & (1 << (i & 0x1f))) != 0) {
+        FUN_00191de0(descriptor, dst, i);
+      }
+      count = *(int *)(descriptor + 4);
+      i = i + 1;
+    } while (i < count);
+  }
+  return 1;
+}
+
+void structure_detail_objects_initialize(void)
+{
+  int base;
+
+  base = (int)game_state_malloc("structure detail objects", 0, 0xa430);
+  *(int *)(base + 0xa420) = 0;
+  *(int *)(base + 0xa424) = 0;
+  *(int *)(base + 0xa428) = 0x3f800000; /* 1.0f */
+  *(int *)0x4d8ea0 = base;
+  *(int *)(base + 0xa42c) = 0;
+}
+
+/* structure_detail_objects_initialize_for_new_map @ 0x193bb0
+ * Per-map reset of the detail_object_global_runtime_data block. Asserts the
+ * block was allocated (sibling structure_detail_objects_initialize stores the
+ * base at 0x4d8ea0), then zeroes the whole 0xa430-byte block and clears the
+ * byte at base+0x520e. display_assert lineno 0x6d (109), halt=1; on failure
+ * the original tail-calls system_exit(-1) (the assert hard-exit).
+ * Global 0x4d8ea0 re-read (not cached) to match the original. */
+/* noinline: original build had this in a separate TU
+ * (structure_detail_objects.c). */
+__declspec(noinline) void structure_detail_objects_initialize_for_new_map(void)
+{
+  if (*(int *)0x4d8ea0 == 0) {
+    display_assert("detail_object_global_runtime_data",
+                   "c:\\halo\\SOURCE\\structures\\structure_detail_objects.c",
+                   0x6d, 1);
+    system_exit(-1);
+  }
+  csmemset(*(void **)0x4d8ea0, 0, 0xa430);
+  *(uint8_t *)(*(int *)0x4d8ea0 + 0x520e) = 0;
+}
+
+/* FUN_00194360 (0x194360)
+ * qsort/bsort comparator. Two cdecl stack args are pointers to records.
+ * Reads a signed int16 field at offset +0x10 of each record and orders
+ * descending by that field: returns +1 when the second record's field is
+ * strictly less than the first's (first sorts earlier), -1 otherwise. The
+ * equal case also falls into -1, matching the original (cond*2 - 1) shape.
+ */
+int FUN_00194360(int param_1, int param_2)
+{
+  return (unsigned int)(*(short *)(param_2 + 0x10) <
+                        *(short *)(param_1 + 0x10)) *
+           2 +
+         -1;
+}
+
+/* FUN_00194380 (0x194380)
+ * Collision-BSP point query. Fetches the structure's bsp3d root element
+ * (tag_block at param_1+0xb0, element 0, stride 0x60), locates the leaf that
+ * contains point param_2 via bsp3d_find_leaf(root, node=0, point), then returns
+ * the signed int16 field at +0x8 of the matching leaf element (tag_block at
+ * param_1+0xe0, stride 0x10). Returns -1 on the 0xffffffff not-found sentinel.
+ *
+ * NOTE: Ghidra mis-groups the two calls. MSVC evaluates and pushes
+ * bsp3d_find_leaf's 2nd arg (0) and 3rd arg (param_2) BEFORE the inner
+ * tag_block_get_element call, so the decompiler folded them into
+ * tag_block_get_element as a bogus 5-arg call and showed bsp3d_find_leaf with
+ * a single arg. Both callees are proven 3-arg cdecl: 0x19b210 reads only
+ * [ebp+8]/[ebp+0xc]/[ebp+0x10], and the third call site is a clean
+ * 3-push / add esp,0xc. The nested call form reproduces the push interleave.
+ * The leaf index has its high bit stripped (& 0x7fffffff) before use.
+ */
+int FUN_00194380(int param_1, void *param_2)
+{
+  void *leaf_element;
+  unsigned int leaf;
+
+  leaf = bsp3d_find_leaf(
+    tag_block_get_element((void *)(param_1 + 0xb0), 0, 0x60), 0, param_2);
+  if (leaf != 0xffffffff) {
+    leaf_element = tag_block_get_element((void *)(param_1 + 0xe0),
+                                         (int)(leaf & 0x7fffffff), 0x10);
+    return (int)*(short *)((char *)leaf_element + 8);
+  }
+  return -1;
+}
+
+/* FUN_00195530 (0x195530)
+ * Integer greater-than comparator, likely a qsort/bsearch comparison callback.
+ * Two cdecl stack int args, bool/AL return. Returns true only when
+ * param_1 > param_2 (the equal case returns false). The two-branch shape
+ * (early-return false on param_2 > param_1, then param_2 < param_1) is the
+ * original MSVC codegen shape (cmp param_2,param_1 / jle / xor al,al / setl al)
+ * and is preserved verbatim; collapsing it to a single param_1 > param_2 would
+ * change the emitted branch structure. VC71 recomputes the compare for the
+ * trailing setl (clean-bool-via-edx idiom) where the original reused the
+ * branch's flags directly, a ~3-insn small-function idiom gap (88.9% VC71).
+ */
+char FUN_00195530(int param_1, int param_2)
+{
+  if (param_2 > param_1) {
+    return 0;
+  }
+  return param_2 < param_1;
+}
+
+/* 0x1954d0 - build lens flares for the current structure BSP.
+ * (TU: c:\halo\SOURCE\structures\structure_render.c)
+ *
+ * Pure void(void). Thin wrapper: fetches the scenario structure via
+ * scenario_get() and forwards it to build_structure_lens_flares. */
+void FUN_001954d0(void)
+{
+  build_structure_lens_flares(scenario_get());
+}
+
+/* 0x195550 - gather structure surfaces selected by a per-32-surface bitmask.
+ *
+ * Walks the scenario structure-BSP surfaces tag_block at scenario+0xf8 (first
+ * int = surface element count). mask is an array of uint bitmask words, one
+ * word per 32 surfaces; for each set bit the matching surface index is appended
+ * to out_indices and its 6-byte (short[3]) tag element is copied into
+ * out_surfaces (stride 6 bytes). surface_count bounds the output write index
+ * (asserted).
+ *
+ * A zero mask word skips an entire block of 0x20 surfaces (surface_index +=
+ * 0x20 without touching the tag_block). The loop bound (*count) is re-read
+ * every outer iteration - preserved from the original, not cached. The element
+ * copy is exactly three 16-bit moves (element_size 6); widths are kept at
+ * uint16. */
+void FUN_00195550(short surface_count, int *out_indices, uint32_t *mask,
+                  int out_surfaces)
+{
+  int *block;
+  int scenario;
+  short bit;
+  short write_index;
+  int surface_index;
+  uint16_t *dst;
+  uint16_t *elem;
+
+  scenario = (int)scenario_get();
+  block = (int *)(scenario + 0xf8);
+  write_index = 0;
+  surface_index = 0;
+  if (0 < *(int *)(scenario + 0xf8)) {
+    do {
+      if (*mask == 0) {
+        surface_index = surface_index + 0x20;
+      } else {
+        bit = 0;
+        do {
+          if (*block <= surface_index)
+            break;
+          if ((*mask & 1 << ((uint8_t)bit & 0x1f)) != 0) {
+            elem = (uint16_t *)tag_block_get_element(block, surface_index, 6);
+            if ((write_index < 0) || (surface_count <= write_index)) {
+              display_assert(
+                "surface_index_index>=0 && surface_index_index<surface_count",
+                "c:\\halo\\SOURCE\\structures\\structure_render.c", 0x1a5,
+                true);
+              system_exit(-1);
+            }
+            *out_indices = surface_index;
+            out_indices = out_indices + 1;
+            dst = (uint16_t *)(out_surfaces + write_index * 6);
+            dst[0] = elem[0];
+            dst[1] = elem[1];
+            dst[2] = elem[2];
+            write_index = write_index + 1;
+          }
+          bit = bit + 1;
+          surface_index = surface_index + 1;
+        } while (bit < 0x20);
+      }
+      mask = mask + 1;
+    } while (surface_index < *block);
+  }
+}
+
+/* 0x195650 - copy a sorted set of structure-surface tag elements to a buffer.
+ *
+ * Sorts the caller-supplied index array (indices[count]) ascending in place via
+ * the generic sort FUN_00091ef0 with comparator FUN_00195530, then walks the
+ * sorted indices and copies each surface's 6-byte (short[3]) tag element from
+ * the scenario structure-BSP surfaces tag_block at scenario+0xf8 into out
+ * (stride 6 bytes).  Mirrors the element copy in FUN_00195550.
+ *
+ * Register ABI (from prologue at 0x195650): MOV ESI,EAX / MOV EDI,ECX /
+ * MOV BX,DX -> EAX=out, ECX=indices, EDX=count(int16).  All three args are
+ * register-passed; there are no stack args.  The loop counter is the unsigned
+ * 16-bit count (MOVZX EBX,BX); the copy is exactly three 16-bit moves. */
+void FUN_00195650(void *out, int *indices, short count)
+{
+  int scenario;
+  int *block;
+  uint16_t *elem;
+  uint16_t *dst;
+  int remaining;
+
+  scenario = (int)scenario_get();
+  FUN_00091ef0(indices, count, (int (*)(int, int))FUN_00195530);
+  if (0 < count) {
+    block = (int *)(scenario + 0xf8);
+    dst = (uint16_t *)out;
+    remaining = (unsigned short)count;
+    do {
+      elem = (uint16_t *)tag_block_get_element(block, *indices, 6);
+      dst[0] = elem[0];
+      dst[1] = elem[1];
+      dst[2] = elem[2];
+      indices = indices + 1;
+      dst = dst + 3;
+      remaining = remaining - 1;
+    } while (remaining != 0);
+  }
+}
+
+/* 0x1956d0 - build a dynamic structure-triangle set for the render pipeline.
+ *
+ * Allocates a widget/triangle slot sized for count triangles
+ * (rasterizer_widget_submit), maps it (rasterizer_widget_begin -> triangles
+ * buffer), then fills it: when param_2 (the per-32-surface bitmask) is NULL the
+ * caller supplies a plain index list in param_1 and FUN_00195650 copies the
+ * sorted elements; otherwise FUN_00195550 gathers the mask-selected surfaces.
+ * Finalizes the slot (rasterizer_widget_set_texture) and returns the slot
+ * handle, or -1 when count <= 0 or the allocation fails.
+ *
+ * Register ABI: count arrives in ESI (int16, TEST SI,SI); param_1 and param_2
+ * are stack args ([EBP+8], [EBP+0xc]).  scenario_get() is called for its side
+ * effect and the result discarded (EAX is immediately reloaded with -1).  A
+ * NULL triangles buffer is a hard assert (structure_render.c:0x1e6).  The
+ * one-shot allocation-failure warning is gated by the word at 0x32bd60. */
+int FUN_001956d0(void *param_1, void *param_2, short param_3)
+{
+  int handle;
+  void *triangles;
+
+  scenario_get();
+  if (0 < param_3) {
+    handle = rasterizer_widget_submit((int)param_3);
+    if (handle != -1) {
+      triangles = rasterizer_widget_begin(handle);
+      if (triangles == NULL) {
+        display_assert("triangles",
+                       "c:\\halo\\SOURCE\\structures\\structure_render.c", 0x1e6,
+                       true);
+        system_exit(-1);
+      }
+      if (param_2 == NULL) {
+        FUN_00195650(triangles, (int *)param_1, param_3);
+        rasterizer_widget_set_texture(handle);
+        return handle;
+      }
+      FUN_00195550(param_3, (int *)param_1, (unsigned int *)param_2,
+                   (int)triangles);
+      rasterizer_widget_set_texture(handle);
+      return handle;
+    }
+    if (*(short *)0x32bd60 != 0) {
+      error(2, "unable to allocate dynamic structure triangles.");
+      *(short *)0x32bd60 = 0;
+    }
+  }
+  return -1;
+}
+
+/* FUN_001959f0 (0x1959f0)
+ *
+ * Structure render-triangle build entry.  Under the profiler gate
+ * (0x449ef1 && 0x3275c8), brackets the build call in
+ * profile_enter/exit_private("render_structure_build_triangle").  Builds the
+ * triangle set via FUN_001956d0(&0x5937d4, &0x5137d0), stashing the returned
+ * bsp/structure index at 0x4d8eb4 and a validity flag (index != -1) at
+ * 0x4d8eb0.  Then, when the two staged indices (0x3275b8, 0x3275bc) are in
+ * range against the scenario tag-block counts at scenario+0x270 / scenario+
+ * 0x27c, replays them through the tag-block iterators FUN_00191ff0 /
+ * FUN_00191e90 (both operate on scenario+0x26c).  When the rebuild-all byte
+ * 0x505703 is set, walks every element of the scenario+0x27c tag-block
+ * (stride 0x18, element pointer discarded) and reissues FUN_00191e90 for each.
+ * Finally clears 0x4d8eb8 and snapshots the forward vector (3 dwords) from
+ * *(0x31fc38) into 0x4d8ebc/ec0/ec4.
+ *
+ * Confirmed from decompile at 0x1959f0:
+ *   - scenario_get() 0-arg; scenario+0x270 guards 0x3275b8, +0x27c guards
+ *     0x3275bc and the rebuild loop (element count at *(scenario+0x27c)).
+ *   - FUN_001956d0 returns int (EAX -> 0x4d8eb4), two pointer args.
+ *   - loop sets index=0 before the count check (preserved), stride 0x18.
+ *   - forward-vector snapshot copied as raw dwords (no FPU).
+ * All calls cdecl, args pushed right-to-left.
+ */
+void FUN_001959f0(void)
+{
+  int scenario;
+  int index;
+  char *fwd;
+
+  scenario = (int)scenario_get();
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x3275c8 != 0) {
+    profile_enter_private((void *)0x3275c0);
+  }
+  /* 0x195a18: MOV ESI,[0x5937d0] before the call — count is an implicit
+   * @<esi> arg (callee tests SI). */
+  *(int *)0x4d8eb4 =
+    FUN_001956d0((void *)0x5937d4, (void *)0x5137d0, *(int16_t *)0x5937d0);
+  if (*(char *)0x449ef1 != 0 && *(char *)0x3275c8 != 0) {
+    profile_exit_private((void *)0x3275c0);
+  }
+  *(char *)0x4d8eb0 = (char)(*(int *)0x4d8eb4 != -1);
+
+  if (-1 < *(int *)0x3275b8 && *(int *)0x3275b8 < *(int *)(scenario + 0x270)) {
+    FUN_00191ff0(scenario + 0x26c, *(int *)0x3275b8);
+  }
+  if (-1 < *(int *)0x3275bc && *(int *)0x3275bc < *(int *)(scenario + 0x27c)) {
+    FUN_00191e90(scenario + 0x26c, *(int *)0x3275bc);
+  }
+
+  if (*(char *)0x505703 != 0) {
+    index = 0;
+    if (0 < *(int *)(scenario + 0x27c)) {
+      do {
+        tag_block_get_element((void *)(scenario + 0x27c), index, 0x18);
+        FUN_00191e90(scenario + 0x26c, index);
+        index = index + 1;
+      } while (index < *(int *)(scenario + 0x27c));
+    }
+  }
+
+  *(int *)0x4d8eb8 = 0;
+  fwd = *(char **)0x31fc38;
+  *(int *)0x4d8ebc = *(int *)fwd;
+  *(int *)0x4d8ec0 = *(int *)(fwd + 4);
+  *(int *)0x4d8ec4 = *(int *)(fwd + 8);
+}
+
+/* FUN_00195b10 (0x195b10)
+ *
+ * render_structure_lightmaps: thin render-orchestration wrapper (string ref
+ * "render_structure_lightmaps" @0x327bb8).  Profiles the scope, and when the
+ * map has a valid lightmap (byte at 0x4d8eb0 != 0) it briefly forces the 16-bit
+ * word at 0x3256b0 to 1 -- only when the scenario has no bsp switch pending
+ * (scenario+0xc == -1) and the word is currently 0 -- brackets a rasterizer
+ * setup/teardown pair (FUN_0017cc00 / FUN_0017cc40) around the per-surface
+ * lightmap draw walk (FUN_00195790), then restores the saved low word.
+ *
+ * Notes from disasm/decompile:
+ *  - 0x3256b0 is a 16-bit word: the save reads the full dword (MOV ESI,dword),
+ *    but the conditional set and the restore are word-sized (MOV word,1 /
+ *    MOV word,SI), and the "==0" test is a word compare (CMP word,0).  Do NOT
+ *    transcribe as a 32-bit store.
+ *  - FUN_00195790 takes an @eax pointer (=0x5937d4, surface->material offset
+ *    table) plus 6 stack args (confirmed: its decompile uses int *in_EAX as
+ *    in_EAX + param_1).  arg1 is the zero-extended uint16 at 0x5937d0.
+ */
+void FUN_00195b10(void)
+{
+  int scenario;
+  int saved_flag;
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x327bc0 != 0) {
+    profile_enter_private((void *)0x327bb8);
+  }
+
+  saved_flag = *(int *)0x3256b0;
+
+  if (*(char *)0x4d8eb0 != 0) {
+    scenario = (int)scenario_get();
+    if (*(int *)(scenario + 0xc) == -1 && *(short *)0x3256b0 == 0) {
+      *(short *)0x3256b0 = 1;
+    }
+    FUN_0017cc00();
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 (void *)FUN_0017cc10, (void *)FUN_0017cc20, (void *)0x17cc30,
+                 0);
+    FUN_0017cc40();
+    *(short *)0x3256b0 = (short)saved_flag;
+  }
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x327bc0 != 0) {
+    profile_exit_private((void *)0x327bb8);
+  }
+}
+
+/* FUN_00195bc0 (0x195bc0)
+ *
+ * render_structure_diffuse_texture: thin render-orchestration wrapper (string
+ * ref "render_structure_diffuse_texture" @0x3281b0).  Profiles the scope, and
+ * when the map has a valid diffuse/lightmap pass (byte at 0x4d8eb0 != 0) it
+ * brackets a scope enter/exit pair (FUN_00162790 / FUN_00160950, reached in the
+ * original via 1-instr JMP thunks at 0x17cd20/0x17cd40) around the per-surface
+ * diffuse-texture draw walk (FUN_00195790).
+ *
+ * Notes from disasm/decompile:
+ *  - FUN_00195790 takes an @eax pointer (=0x5937d4, surface->material offset
+ *    table) plus 6 stack args.  arg1 (surface_count) is the zero-extended
+ *    uint16 at 0x5937d0 (XOR ECX,ECX; MOV CX,word ptr); arg2
+ *    (lightmap_pass_index) is the dword at 0x4d8eb4.  This variant has a single
+ *    callback: FUN_0017cd30 is the 5th param (surface_draw_cb);
+ *    material_begin_cb / pass_end_cb / param_7 are all 0.  (Confirmed via push
+ *    order: ADD ESP,0x18 = 6 stack dwords.)
+ */
+void FUN_00195bc0(void)
+{
+  if (*(char *)0x449ef1 != 0 && *(char *)0x3281b8 != 0) {
+    profile_enter_private((void *)0x3281b0);
+  }
+
+  if (*(char *)0x4d8eb0 != 0) {
+    FUN_00162790();
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 (void *)0, (void *)FUN_0017cd30, (void *)0, 0);
+    FUN_00160950();
+  }
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x3281b8 != 0) {
+    profile_exit_private((void *)0x3281b0);
+  }
+}
+
+/* FUN_00195c40 (0x195c40)
+ *
+ * Sibling of FUN_00195b10: when the map has a valid lightmap pass (byte at
+ * 0x4d8eb0 != 0), briefly forces the 16-bit word at 0x3256b0 to 1 -- only when
+ * the scenario has no bsp switch pending (scenario+0xc == -1) and the word is
+ * currently 0 -- brackets a rasterizer setup/teardown pair (thunks 0x17cda0 /
+ * 0x17cde0 -> FUN_00163c40 / FUN_001609a0) around the per-surface draw walk
+ * (FUN_00195790), then restores the saved low word.  Unlike FUN_00195b10 this
+ * variant has no profiler scope.
+ *
+ * Confirmed from disassembly at 0x195c40:
+ *  - 0x3256b0 is a 16-bit word: the save reads the full dword
+ *    (MOV ESI,dword ptr [0x3256b0]), but the conditional set and the restore
+ *    are word-sized (MOV word,1 / MOV word,SI), and the "==0" test is a word
+ *    compare (CMP word,0).  The save/restore live inside the gate block (the
+ *    MOV ESI read is after the JZ), not before it.  Do NOT emit a 32-bit store.
+ *  - FUN_00195790 takes an @eax pointer (MOV EAX,0x5937d4 = surface->material
+ *    offset table) plus 6 stack args; ADD ESP,0x18 = 6 stack dwords.  Push
+ *    order (first push = last C arg): 0 (param_7), 0x17cdd0 (pass_end_cb),
+ *    0x17cdc0 (surface_draw_cb), 0x17cdb0 (material_begin_cb), *0x4d8eb4
+ *    (lightmap_pass_index), uint16 @0x5937d0 (surface_count).  0x17cdd0 is a
+ *    bare label, passed as a raw address.
+ */
+void FUN_00195c40(void)
+{
+  int scenario;
+  int saved_flag;
+
+  if (*(char *)0x4d8eb0 != 0) {
+    saved_flag = *(int *)0x3256b0;
+    scenario = (int)scenario_get();
+    if (*(int *)(scenario + 0xc) == -1 && *(short *)0x3256b0 == 0) {
+      *(short *)0x3256b0 = 1;
+    }
+    FUN_0017cda0();
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 (void *)FUN_0017cdb0, (void *)FUN_0017cdc0, (void *)0x17cdd0,
+                 0);
+    FUN_0017cde0();
+    *(short *)0x3256b0 = (short)saved_flag;
+  }
+}
+
+/* FUN_00195cb0 (0x195cb0)
+ *
+ * Sibling of FUN_00195af0: when the map has a valid lightmap pass (byte at
+ * 0x4d8eb0 != 0), brackets a setup/teardown pair (1-instr JMP thunks
+ * FUN_0017cdf0 -> FUN_001643e0 / FUN_0017ce30 -> FUN_00160bc0) around the
+ * per-surface draw walk (FUN_00195790).  This is the simplest variant: no
+ * profiler scope, no scenario/bsp-switch check, no 0x3256b0 word forcing.
+ *
+ * Notes from disasm (0x195cb0):
+ *  - FUN_00195790 takes an @eax pointer (MOV EAX,0x5937d4 = surface->material
+ *    offset table) plus 6 stack args.  Push order (first push = last C arg):
+ *    0 (param_7), 0x17ce20 (pass_end_cb, bare label), FUN_0017ce10
+ *    (surface_draw_cb), FUN_0017ce00 (material_begin_cb), *0x4d8eb4
+ *    (lightmap_pass_index), uint16 @0x5937d0 (surface_count, XOR ECX,ECX;
+ *    MOV CX,word ptr).  ADD ESP,0x18 = 6 stack dwords confirms.
+ *  - The teardown is emitted in the original as a tail JMP 0x17ce30.
+ */
+void FUN_00195cb0(void)
+{
+  if (*(char *)0x4d8eb0 != 0) {
+    FUN_0017cdf0();
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 (void *)FUN_0017ce00, (void *)FUN_0017ce10, (void *)0x17ce20,
+                 0);
+    FUN_0017ce30();
+  }
+}
+
+/* FUN_00195d00 (0x195d00)
+ *
+ * Sibling of FUN_00195d40 (render_structure_reflections): when the map has a
+ * valid reflection/lightmap pass (byte at 0x4d8eb0 != 0), brackets a scope
+ * enter/exit pair (FUN_0017ce40 / FUN_0017ce60, 1-instr JMP thunks forwarding
+ * to FUN_00160bd0 / FUN_00160be0) around the per-surface draw walk
+ * (FUN_00195790).  No profiler scope.
+ *
+ * Confirmed from disassembly at 0x195d00:
+ *  - Gate: MOV AL,[0x4d8eb0]; TEST AL,AL; JZ end.  When the byte is 0 the
+ *    function does nothing.
+ *  - FUN_00195790 takes an @eax pointer (MOV EAX,0x5937d4 = surface->material
+ *    offset table -- passed as an ADDRESS, not a deref) plus 6 stack args;
+ *    ADD ESP,0x18 = 6 stack dwords.  Push order (first push = last C arg):
+ *    0 (param_7), 0 (pass_end_cb), 0x17ce50 (surface_draw_cb), 0
+ *    (material_begin_cb), *0x4d8eb4 (lightmap_pass_index), zero-extended uint16
+ *    @0x5937d0 (surface_count, XOR ECX,ECX / MOV CX -> unsigned short read).
+ *  - Two distinct globals: uint16 count @0x5937d0 vs int[] offsets @0x5937d4.
+ *  - The teardown FUN_0017ce60 is reached via a tail-call JMP in the original.
+ */
+void FUN_00195d00(void)
+{
+  if (*(char *)0x4d8eb0 != 0) {
+    FUN_0017ce40();
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 (void *)0, (void *)FUN_0017ce50, (void *)0, 0);
+    FUN_0017ce60();
+  }
+}
+
+/* FUN_00195d40 (0x195d40)
+ *
+ * render_structure_reflections: thin render-orchestration wrapper (string ref
+ * "render_structure_reflections" @0x3287a8).  Profiles the scope, and when the
+ * map has a valid reflection/lightmap pass (byte at 0x4d8eb0 != 0) it brackets
+ * a scope enter/exit pair (FUN_00160bf0 / FUN_00160c00, reached in the original
+ * via 1-instr JMP thunks at 0x17ce70/0x17ce90) around the per-surface
+ * reflection draw walk (FUN_00195790).
+ *
+ * Notes from disasm/decompile:
+ *  - FUN_00195790 takes an @eax pointer (=0x5937d4, surface->material offset
+ *    table) plus 6 stack args.  arg1 (surface_count) is the zero-extended
+ *    uint16 at 0x5937d0 (MOV CX,word ptr); arg2 (lightmap_pass_index) is the
+ *    dword at 0x4d8eb4.  This variant has a single callback: FUN_0017ce80 is
+ *    the 5th param (surface_draw_cb); material_begin_cb / pass_end_cb / param_7
+ *    are all 0.  (Confirmed via push order: ADD ESP,0x18 = 6 stack dwords.)
+ */
+void FUN_00195d40(void)
+{
+  if (*(char *)0x449ef1 != 0 && *(char *)0x3287b0 != 0) {
+    profile_enter_private((void *)0x3287a8);
+  }
+
+  if (*(char *)0x4d8eb0 != 0) {
+    FUN_00160bf0();
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 (void *)0, (void *)FUN_0017ce80, (void *)0, 0);
+    FUN_00160c00();
+  }
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x3287b0 != 0) {
+    profile_exit_private((void *)0x3287a8);
+  }
+}
+
+/* FUN_00195dc0 (0x195dc0)
+ *
+ * render_structure_transparent_geo: thin render-orchestration wrapper (string
+ * ref "render_structure_transparent_geo" @0x328da0).  Profiles the scope, and
+ * when the map has a valid lightmap/material pass (byte at 0x4d8eb0 != 0) it
+ * brackets a scope enter/exit pair (thunks 0x17cea0 / 0x17cec0 forwarding to
+ * FUN_00160c10 / FUN_00160c20) around the per-surface transparent-geometry draw
+ * walk (FUN_00195790).
+ *
+ * Confirmed from disassembly at 0x195dc0:
+ *  - Outer profiler scope: MOV AL,[0x449ef1]; TEST/JZ; MOV AL,[0x328da8];
+ *    TEST/JZ around PUSH 0x328da0; CALL profile_enter_private; ADD ESP,4.
+ *    Mirrored at the tail with profile_exit_private (PUSH 0x328da0; CALL; POP).
+ *  - Middle block gate: MOV AL,[0x4d8eb0]; TEST AL,AL; JZ end.
+ *  - FUN_00195790 takes an @eax pointer (MOV EAX,0x5937d4 = surface->material
+ *    offset table -- passed as an ADDRESS, not a deref) plus 6 stack args;
+ *    ADD ESP,0x18 = 6 stack dwords.  Push order (first push = last C arg):
+ *    0x17ceb0 (param_7 -- fn ptr FUN_0017ceb0), 0 (pass_end_cb), 0
+ *    (surface_draw_cb), 0 (material_begin_cb), *0x4d8eb4 (lightmap_pass_index),
+ *    zero-extended uint16 @0x5937d0 (surface_count, XOR ECX,ECX / MOV CX).
+ *  - Two distinct globals: uint16 count @0x5937d0 vs int[] offsets @0x5937d4.
+ *    The lone callback (FUN_0017ceb0) rides in the param_7 slot, unlike the
+ *    sibling reflection/lightmap passes which use surface_draw_cb.
+ * All calls cdecl, args pushed right-to-left.
+ */
+void FUN_00195dc0(void)
+{
+  if (*(char *)0x449ef1 != 0 && *(char *)0x328da8 != 0) {
+    profile_enter_private((void *)0x328da0);
+  }
+
+  if (*(char *)0x4d8eb0 != 0) {
+    FUN_0017cea0();
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 (void *)0, (void *)0, (void *)0, (int)FUN_0017ceb0);
+    FUN_0017cec0();
+  }
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x328da8 != 0) {
+    profile_exit_private((void *)0x328da0);
+  }
+}
+
+/* FUN_00195e40 (0x195e40)
+ *
+ * render_structure_fog: thin render-orchestration wrapper (string ref
+ * "render_structure_fog" @0x329398).  Profiles the scope, and when the map has
+ * a valid lightmap/material pass (byte at 0x4d8eb0 != 0) it brackets a
+ * rasterizer setup/teardown pair (thunks 0x17ced0 / 0x17cef0 forwarding to
+ * FUN_00166400 / FUN_00165dd0) around the per-surface fog draw walk
+ * (FUN_00195790).  Simpler than FUN_00195b10: no scenario_get / 0x3256b0
+ * save-restore.
+ *
+ * Confirmed from disassembly at 0x195e40:
+ *  - Outer profiler scope: MOV AL,[0x449ef1]; TEST/JZ; MOV AL,[0x3293a0];
+ *    TEST/JZ around PUSH 0x329398; CALL profile_enter_private; ADD ESP,4.
+ *    Mirrored at the tail with profile_exit_private (PUSH 0x329398; CALL; POP).
+ *  - Middle block gate: MOV AL,[0x4d8eb0]; TEST AL,AL; JZ end.
+ *  - FUN_0017ced0 (rasterizer setup) before the walk, FUN_0017cef0 (teardown)
+ *    after; both no-arg thunks.
+ *  - FUN_00195790 takes an @eax pointer (MOV EAX,0x5937d4 = surface->material
+ *    offset table -- passed as an ADDRESS, not a deref) plus 6 stack args;
+ *    ADD ESP,0x18 = 6 stack dwords.  Push order (first push = last C arg):
+ *    0 (param_7), 0 (pass_end_cb), 0x17cee0 (surface_draw_cb FUN_0017cee0), 0
+ *    (material_begin_cb), *0x4d8eb4 (lightmap_pass_index), zero-extended uint16
+ *    @0x5937d0 (surface_count, XOR ECX,ECX / MOV CX read).
+ *  - Two distinct globals: uint16 count @0x5937d0 vs int[] offsets @0x5937d4.
+ * All calls cdecl, args pushed right-to-left.
+ */
+void FUN_00195e40(void)
+{
+  if (*(char *)0x449ef1 != 0 && *(char *)0x3293a0 != 0) {
+    profile_enter_private((void *)0x329398);
+  }
+
+  if (*(char *)0x4d8eb0 != 0) {
+    FUN_0017ced0();
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 (void *)0, (void *)FUN_0017cee0, (void *)0, 0);
+    FUN_0017cef0();
+  }
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x3293a0 != 0) {
+    profile_exit_private((void *)0x329398);
+  }
+}
+
+/* FUN_00195ec0 (0x195ec0)
+ *
+ * Two-pass structure lightmap draw driver.  Sibling of FUN_00195b10 /
+ * FUN_00195c40 but with no scenario_get / 0x3256b0 save-restore: when the map
+ * has a valid lightmap pass (byte at 0x4d8eb0 != 0) it runs the per-surface
+ * draw walk (FUN_00195790) twice, once per pass -- FUN_0017cf10(0) then
+ * FUN_0017cf10(1) select the pass index -- with a fog emit (FUN_00167920)
+ * after each walk.
+ *
+ * Confirmed from disassembly at 0x195ec0 (delinked/functions/00195ec0.obj):
+ *  - Gate: MOV AL,[0x4d8eb0]; TEST AL,AL; JZ end.
+ *  - FUN_0017cf10 takes one int arg (PUSH 0 / PUSH 1).  Stack cleanup is
+ *    deferred to a single ADD ESP,0x38 at the end (0x38 = 56 = 4 + 24 + 4 + 24:
+ *    the two cf10 args plus two 6-stack-arg FUN_00195790 calls).
+ *  - FUN_00195790 takes an @eax pointer (MOV EAX,0x5937d4 = surface->material
+ *    offset table) plus 6 stack args.  Push order (first push = last C arg):
+ *    0 (param_7), 0 (pass_end_cb), 0x17cf20 (surface_draw_cb), 0
+ *    (material_begin_cb), *0x4d8eb4 (lightmap_pass_index), zero-extended uint16
+ *    @0x5937d0 (surface_count, XOR ECX,ECX / MOV CX read).
+ *  - Two distinct globals: uint16 count @0x5937d0 vs int[] offsets @0x5937d4.
+ *  - FUN_0017cf20 is passed as a raw callback address, not called here.
+ *  - FUN_00167920 (fog emit) takes no args.
+ */
+void FUN_00195ec0(void)
+{
+  if (*(char *)0x4d8eb0 != 0) {
+    FUN_0017cf10(0);
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 0, (void *)FUN_0017cf20, 0, 0);
+    FUN_00167920();
+    FUN_0017cf10(1);
+    FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
+                 0, (void *)FUN_0017cf20, 0, 0);
+    FUN_00167920();
+  }
+}
+
+/* FUN_00195f30 (0x195f30)
+ *
+ * render_structure_specular_lights: structure specular-light render entry
+ * (string refs "render_structure_specular_lights" @0x329f88 and the outer
+ * scope string @0x329990).  Allocates a 0x4000-byte surface-material scratch
+ * table on the stack, then either builds a per-gel surface set into it
+ * (gel_buffer != 0) or falls back to the globally-built structure surface
+ * table at 0x5937d0/0x5937d4 (gel_buffer == 0).  When the resulting
+ * lightmap/material index is valid (!= -1), sets up the object, walks the
+ * surfaces through FUN_00195790 with a single surface-draw callback
+ * (FUN_0017cd70), ends the rasterizer HUD scope, and (only on the gel path)
+ * commits the tint factor.  The whole body is bracketed by the outer profiler
+ * scope (0x449ef1 && 0x329998); the draw/setup section by the inner scope
+ * (0x449ef1 && 0x329f90).
+ *
+ * Confirmed from disassembly at 0x195f30:
+ *   - Frame: _chkstk(0x4004) -> 0x4000-byte scratch @[EBP-0x4004]; its address
+ *     is stashed to [EBP-4] in the prologue (used later as the FUN_00195790
+ *     @eax argument), and overwritten to the global 0x5937d4 on the fallback
+ *     path.  Callee-saved EBX/ESI/EDI hold gel_buffer / surface_count /
+ *     material_index across the body.
+ *   - gel path: FUN_00197e90(buffer, 0x1000, position, radius, 0, 0, 0,
+ *     gel_count, gel_buffer) returns a short (MOVSX AX -> ESI = surface_count);
+ *     FUN_001956d0(buffer, 0) returns int (EAX -> EDI = material_index).
+ *     Shared ADD ESP,0x2C = 9+2 stack args.
+ *   - fallback: material_index = *(int*)0x4d8eb4, surface_count =
+ *     (short)*(short*)0x5937d0 (MOVSX), material_offsets = 0x5937d4.
+ *   - draw section: FUN_0017cd60(object_handle) [1 arg]; FUN_00195790 takes
+ *     @eax = material_offsets ([EBP-4]) plus 6 stack args (surface_count,
+ *     material_index, 0, FUN_0017cd70 surface-draw cb, 0, 0) -- shared
+ *     ADD ESP,0x1C = 1+6 stack args; _rasterizer_hud_end() via 1-instr JMP
+ *     thunk @0x17cd80 -> 0x160970; rasterizer_widget_set_tint_factor gated on
+ *     gel_buffer != 0.
+ *   - radius is a float passed by value (raw dword push); position is float*.
+ * All calls cdecl, args pushed right-to-left.
+ */
+void FUN_00195f30(int object_handle, float *position, float radius,
+                  int gel_count, int gel_buffer)
+{
+  char buffer[0x4000];
+  int *material_offsets;
+  short surface_count;
+  int material_index;
+
+  material_offsets = (int *)buffer;
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x329998 != 0) {
+    profile_enter_private((void *)0x329990);
+  }
+
+  if (gel_buffer != 0) {
+    surface_count = FUN_00197e90(buffer, 0x1000, position, radius, 0, 0, 0,
+                                 gel_count, gel_buffer);
+    material_index = FUN_001956d0(buffer, (void *)0, surface_count);
+  } else {
+    material_index = *(int *)0x4d8eb4;
+    surface_count = *(short *)0x5937d0;
+    material_offsets = (int *)0x5937d4;
+  }
+
+  if (material_index != -1) {
+    if (*(char *)0x449ef1 != 0 && *(char *)0x329f90 != 0) {
+      profile_enter_private((void *)0x329f88);
+    }
+    FUN_0017cd60(object_handle);
+    FUN_00195790(material_offsets, surface_count, material_index, 0,
+                 (void *)FUN_0017cd70, 0, 0);
+    _rasterizer_hud_end();
+    if (gel_buffer != 0) {
+      rasterizer_widget_set_tint_factor(material_index);
+    }
+    if (*(char *)0x449ef1 != 0 && *(char *)0x329f90 != 0) {
+      profile_exit_private((void *)0x329f88);
+    }
+  }
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x329998 != 0) {
+    profile_exit_private((void *)0x329990);
+  }
+}
+
+/* FUN_00196060 (0x196060)
+ *
+ * render_structure_diffuse_lights: structure diffuse-light render entry.  The
+ * diffuse sibling of FUN_00195f30 (specular): byte-identical shape, differing
+ * only in the diffuse-specific profiler scopes, object-setup/draw callbacks,
+ * and HUD-end thunk.  Allocates a 0x4000-byte surface-material scratch table on
+ * the stack, then either builds a per-gel surface set into it (gel_buffer != 0)
+ * or falls back to the globally-built structure surface table at
+ * 0x5937d0/0x5937d4 (gel_buffer == 0).  When the resulting lightmap/material
+ * index is valid (!= -1), sets up the object, walks the surfaces through
+ * FUN_00195790 with a single surface-draw callback (FUN_0017cc70), commits the
+ * tint factor (gel path only), then ends the rasterizer HUD scope.  The whole
+ * body is bracketed by the outer profiler scope (0x449ef1 && 0x32a588); the
+ * draw/setup section by the inner scope (0x449ef1 && 0x32ab80).
+ *
+ * Confirmed from disassembly at 0x196060:
+ *   - Frame: _chkstk(0x4004) -> 0x4000-byte scratch @[EBP-0x4004]; its address
+ *     is stashed to [EBP-4] in the prologue (used later as the FUN_00195790
+ *     @eax argument), and overwritten to the global 0x5937d4 on the fallback
+ *     path.  Callee-saved EBX/ESI/EDI hold gel_buffer / surface_count /
+ *     material_index across the body.
+ *   - gel path: FUN_00197e90(buffer, 0x1000, position, radius, 0, 0, 0,
+ *     gel_count, gel_buffer) returns a short (MOVSX AX -> ESI = surface_count);
+ *     FUN_001956d0(buffer, 0) returns int (EAX -> EDI = material_index).
+ *     Shared ADD ESP,0x2C = 9+2 stack args.
+ *   - fallback: material_index = *(int*)0x4d8eb4, surface_count =
+ *     (short)*(short*)0x5937d0 (MOVSX), material_offsets = 0x5937d4.
+ *   - draw section: FUN_0017cc60(object_handle) [1 arg]; FUN_00195790 takes
+ *     @eax = material_offsets ([EBP-4]) plus 6 stack args (surface_count,
+ *     material_index, 0, FUN_0017cc70 surface-draw cb, 0, 0) -- shared
+ *     ADD ESP,0x1C = 1+6 stack args; rasterizer_widget_set_tint_factor
+ *     (@0x196139) gated on gel_buffer != 0; FUN_00160930() (HUD end) via
+ *     1-instr JMP thunk @0x17cc80.
+ *   - radius is a float passed by value (raw dword push); position is float*.
+ * All calls cdecl, args pushed right-to-left.
+ */
+void FUN_00196060(int object_handle, float *position, float radius,
+                  int gel_count, int gel_buffer)
+{
+  char buffer[0x4000];
+  int *material_offsets;
+  short surface_count;
+  int material_index;
+
+  material_offsets = (int *)buffer;
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x32a588 != 0) {
+    profile_enter_private((void *)0x32a580);
+  }
+
+  if (gel_buffer != 0) {
+    surface_count = FUN_00197e90(buffer, 0x1000, position, radius, 0, 0, 0,
+                                 gel_count, gel_buffer);
+    material_index = FUN_001956d0(buffer, (void *)0, surface_count);
+  } else {
+    material_index = *(int *)0x4d8eb4;
+    surface_count = *(short *)0x5937d0;
+    material_offsets = (int *)0x5937d4;
+  }
+
+  if (material_index != -1) {
+    if (*(char *)0x449ef1 != 0 && *(char *)0x32ab80 != 0) {
+      profile_enter_private((void *)0x32ab78);
+    }
+    FUN_0017cc60(object_handle);
+    FUN_00195790(material_offsets, surface_count, material_index, 0,
+                 (void *)FUN_0017cc70, 0, 0);
+    if (gel_buffer != 0) {
+      rasterizer_widget_set_tint_factor(material_index);
+    }
+    FUN_00160930();
+    if (*(char *)0x449ef1 != 0 && *(char *)0x32ab80 != 0) {
+      profile_exit_private((void *)0x32ab78);
+    }
+  }
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x32a588 != 0) {
+    profile_exit_private((void *)0x32a580);
+  }
+}
+
+/*
+ * FUN_00196190 (0x196190) — structures.obj
+ *
+ * render_structure_shadows: structure shadow render entry.  Sibling of
+ * FUN_00196060 (diffuse lights) / FUN_00195f30 (specular): identical shape, but
+ * with shadow-specific profiler scopes, NO per-gel branch (always builds the
+ * surface set from the passed center/radius/bounds/count/planes), a single
+ * surface-draw callback (FUN_0017ccf0), and rasterizer_widget_set_tint_factor
+ * as the post-draw thunk (no HUD-end call).  Allocates a 0x4000-byte
+ * surface-material scratch table on the stack, builds the shadow surface set
+ * via FUN_00197e90, resolves the lightmap/pass index via FUN_001956d0, and when
+ * valid (!= -1) walks the surfaces through FUN_00195790.  Outer profiler scope:
+ * 0x449ef1 && 0x32b178 ("render_structure_shadows" @0x32b170); draw scope:
+ * 0x449ef1 && 0x32b770 ("render_structure_shadows_draw" @0x32b768).
+ *
+ * Confirmed from disassembly at 0x196190 (delinked obj):
+ *   - Frame: _chkstk(0x4000) -> 0x4000-byte scratch @[EBP-0x4000]. Callee-saved
+ *     ESI/EDI hold surface_count / pass_index across the body (EBX unused; no
+ *     gel branch).  The PUSH ESI / PUSH EDI scheduled after the outer
+ *     profile_enter are register SAVES, not call arguments (popped at
+ * epilogue); confirmed by ADD ESP,0x2C == 9+2 stack args cleaning both calls
+ * below.
+ *   - FUN_00197e90(buffer, 0x1000, center, radius, bounds, count, planes, 0, 0)
+ *     returns short (MOVSX AX -> ESI = surface_count); FUN_001956d0(buffer, 0)
+ *     returns int (EAX -> EDI = pass_index).  Skip draw when pass_index == -1.
+ *   - draw section: FUN_00195790 @eax = buffer + 6 stack args (surface_count,
+ *     pass_index, 0, FUN_0017ccf0 surface-draw cb, 0, 0) [the 5-byte PUSH at
+ *     +0x95 is a reloc-stripped PUSH 0x17ccf0]; then
+ *     rasterizer_widget_set_tint_factor(pass_index).  ADD ESP,0x1C == 6+1 args.
+ *   - center/bounds/planes are pointers passed through as dwords; radius is a
+ *     float by value.  All calls cdecl, args pushed right-to-left.
+ */
+void FUN_00196190(float *center, float radius_x4, float *bounds6, int count,
+                  float *planes6)
+{
+  char buffer[0x4000];
+  short surface_count;
+  int pass_index;
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x32b178 != 0) {
+    profile_enter_private((void *)0x32b170);
+  }
+
+  surface_count = FUN_00197e90(buffer, 0x1000, center, radius_x4, (int)bounds6,
+                               count, (int)planes6, 0, 0);
+  pass_index = FUN_001956d0(buffer, (void *)0, surface_count);
+
+  if (pass_index != -1) {
+    if (*(char *)0x449ef1 != 0 && *(char *)0x32b770 != 0) {
+      profile_enter_private((void *)0x32b768);
+    }
+    FUN_00195790((int *)buffer, surface_count, pass_index, 0,
+                 (void *)FUN_0017ccf0, 0, 0);
+    rasterizer_widget_set_tint_factor(pass_index);
+    if (*(char *)0x449ef1 != 0 && *(char *)0x32b770 != 0) {
+      profile_exit_private((void *)0x32b768);
+    }
+  }
+
+  if (*(char *)0x449ef1 != 0 && *(char *)0x32b178 != 0) {
+    profile_exit_private((void *)0x32b170);
+  }
+}
+
+void structure_runtime_decals_initialize(void)
+{
+  *(void **)0x4d8ec8 = game_state_malloc("structure decals", 0, 4);
+  if (*(void **)0x4d8ec8 == NULL) {
+    display_assert("structure_decals_globals",
+                   "c:\\halo\\SOURCE\\structures\\structure_runtime_decals.c",
+                   0x1c, true);
+    system_exit(-1);
+  }
+}
+
+/* noinline: original build had this in a separate TU
+ * (structure_runtime_decals.c), so callers in structures.c emit real CALLs —
+ * keep that shape under VC71 /O2. */
+__declspec(noinline) void structure_runtime_decals_initialize_for_new_map(void)
+{
+  uint8_t *runtime_decal_globals = *(uint8_t **)0x4d8ec8;
+
+  if (runtime_decal_globals == NULL) {
+    display_assert("structure_decals_globals",
+                   "c:\\halo\\SOURCE\\structures\\structure_runtime_decals.c",
+                   0x24, true);
+    system_exit(-1);
+  }
+
+  *runtime_decal_globals = 0;
+}
+
+/*
+ * FUN_00196330  (0x196330) — structures.obj
+ *
+ * Sweeps the current scenario's structure-cluster tag block and deletes
+ * permanent decals from clusters flagged for removal.  Guarded by
+ * scenario+0x258 (an int) being non-zero.  The cluster tag block has its
+ * count word at scenario+0x134 and element stride 0x68.  For each cluster
+ * whose int16 field at +0xc is (!= -1) AND whose int16 field at +0xe is
+ * (!= 0), decals_delete_permanent_from_cluster is called with the loop index.
+ *
+ * Confirmed from disassembly 0x196330-0x196391:
+ *   - scenario_get() 0-arg (leading PUSH ECX is a local-slot reserve).
+ *   - +0x258 is an int guard; early return when zero.
+ *   - block pointer = scenario+0x134 passed to tag_block_get_element
+ *     (PUSH 0x68; PUSH index; PUSH block; cdecl, ADD ESP,0xc).
+ *   - count = uint16 at +0x134; signed compare (MOVSX AX; TEST; JLE).
+ *   - element gate: word[elem+0xc] != -1  AND  word[elem+0xe] != 0 (int16).
+ *   - decals_delete_permanent_from_cluster((int16_t)index) — cdecl 1 arg;
+ *     BX (loop index) compared against count spilled at [EBP-4].
+ * All cdecl; no FPU, SEH, or intrinsics.
+ */
+void FUN_00196330(void)
+{
+  char *scenario;
+  void *block;
+  int16_t cluster_count; /* short local: movw load + full-reg spill to EBP-4 */
+  int16_t cluster_index; /* BX */
+  int element_index; /* ESI */
+
+  scenario = (char *)scenario_get();
+  if (*(int *)(scenario + 0x258) != 0) {
+    block = (void *)(scenario + 0x134);
+    cluster_count = *(int16_t *)block;
+    cluster_index = 0;
+    if (cluster_count > 0) {
+      element_index = 0;
+      do {
+        char *cluster = tag_block_get_element(block, element_index, 0x68);
+        if (*(int16_t *)(cluster + 0xc) != -1 &&
+            *(int16_t *)(cluster + 0xe) != 0) {
+          decals_delete_permanent_from_cluster(cluster_index);
+        }
+        cluster_index = (int16_t)(cluster_index + 1);
+        element_index += 1;
+      } while (cluster_index < cluster_count);
+    }
+  }
+}
+
+/* structure_runtime_decals_dispose_from_old_map (0x1963a0) — structures.obj
+ *
+ * Empty no-op in this build: the disassembly is a single RET (C3). Preserved
+ * as an empty body to keep the address populated and the ABI intact. */
+void structure_runtime_decals_dispose_from_old_map(void)
+{
+}
+
+/* structure_runtime_decals_dispose (0x1963b0) — structures.obj
+ *
+ * Empty no-op in this build: the disassembly is a single RET (C3) with no
+ * prologue, stack frame, FPU, memory access, or calls. Preserved as an
+ * empty body to keep the address populated and the ABI intact. */
+void structure_runtime_decals_dispose(void)
+{
+}
+
+/* FUN_00196fd0 (0x196fd0) — structures.obj
+ *
+ * Gathers de-duplicated surface/portal indices from a set of clusters into
+ * out_buf, capped at max_count.  For every cluster in cluster_indices[] it
+ * walks the cluster's sub-block (element+0x34), and for each sub-element that
+ * passes both the cull test FUN_00196a60(element, bounds) and the visibility
+ * test FUN_00196b10(element, arg_1c, arg_20) it iterates the element's index
+ * list (element+0x18, dword indices).  Each index is bit-tested against the
+ * allowed-set bitvector at 0x5137d0; if allowed and not yet marked in the
+ * caller-supplied seen_mask bitvector, it is marked and appended to out_buf.
+ * Returns the number of indices written (AX = running EDI counter).
+ *
+ * Cdecl; +0x10/+0x14 are present-but-unused stack slots (kept in the
+ * signature to preserve the stack layout of the arguments after them).
+ * All three loop counters are 32-bit stack homes used with (short) truncation
+ * (matches the disasm's movsx/16-bit-compare pattern).  The bitvector accesses
+ * use raw base+byteoffset arithmetic (byteoffset = (val>>5)*4), NOT [i]
+ * indexing, to match the original codegen.  Ghidra split the single EDI
+ * running counter into two locals and invented a sVar11<->sVar5 swap; the
+ * disassembly shows one variable at [ebp-4] that is both the append index and
+ * the return value. */
+int16_t FUN_00196fd0(int *out_buf, int16_t max_count, int unused_10,
+                     int unused_14, float *bounds, int arg_1c, int arg_20,
+                     uint32_t *seen_mask, int16_t cluster_count,
+                     int16_t *cluster_indices)
+{
+  char *scenario;
+  int out_count; /* [ebp-4]    running append count == EDI == return */
+  int outer_index; /* [ebp-0x14] cluster loop index */
+  int inner_index; /* [ebp-8]    sub-element loop index */
+  int inner2_index; /* [ebp-0xc]  index-list loop index */
+  char *cluster;
+  int *sub_block; /* element+0x34 */
+  char *element;
+  int *idx_block; /* element+0x18 */
+  int *idx_ptr;
+  short cull;
+  int cluster_idx;
+  int val;
+  uint32_t bit;
+  int byteoff;
+
+  (void)unused_10;
+  (void)unused_14;
+
+  scenario = (char *)scenario_get();
+  out_count = 0;
+  outer_index = 0;
+  if (cluster_count > 0) {
+    do {
+      if ((short)out_count >= max_count) {
+        break;
+      }
+      cluster_idx = cluster_indices[(short)outer_index];
+      cluster = (char *)tag_block_get_element((void *)(scenario + 0x134),
+                                              cluster_idx, 0x68);
+      sub_block = (int *)(cluster + 0x34);
+      inner_index = 0;
+      if (*sub_block > 0) {
+        do {
+          if ((short)out_count >= max_count) {
+            break;
+          }
+          element = (char *)tag_block_get_element((void *)sub_block,
+                                                  (short)inner_index, 0x24);
+          cull = (short)FUN_00196a60((float *)element, bounds);
+          if (cull != 0) {
+            cull = (short)FUN_00196b10((float *)element, arg_1c, arg_20);
+            if (cull != 0) {
+              idx_block = (int *)(element + 0x18);
+              idx_ptr = (int *)tag_block_get_element((void *)idx_block, 0, 4);
+              inner2_index = 0;
+              if (*idx_block > 0) {
+                do {
+                  val = *idx_ptr;
+                  bit = 1u << (val & 0x1f);
+                  byteoff = (val >> 5) * 4;
+                  /* allowed-set bitvector at 0x5137d0, raw base+byteoff */
+                  if ((*(uint32_t *)((char *)0x5137d0 + byteoff) & bit) != 0 &&
+                      (bit & *(uint32_t *)((char *)seen_mask + byteoff)) == 0) {
+                    if ((short)out_count >= max_count) {
+                      break;
+                    }
+                    *(uint32_t *)((char *)seen_mask + byteoff) |= bit;
+                    out_buf[(short)out_count] = *idx_ptr;
+                    out_count++;
+                  }
+                  idx_ptr++;
+                  inner2_index++;
+                } while ((short)inner2_index < *idx_block);
+              }
+            }
+          }
+          inner_index++;
+        } while ((short)inner_index < *sub_block);
+      }
+      outer_index++;
+    } while ((short)outer_index < cluster_count);
+  }
+  return (int16_t)out_count;
+}
+
+/* 0x195790 - iterate structure materials/submaterials and dispatch render
+ * callbacks for each run of surfaces.
+ *
+ * Register ABI (prologue at 0x195790): MOV EBX,EAX -> the only register arg is
+ *   surface_material_offsets@<eax> (int* array of per-surface material offsets).
+ * Stack args: surface_count (u16, [EBP+0x8] initially, then reused as the
+ *   running surface accumulator), lightmap_pass_index (int, [EBP+0xc]),
+ *   material_begin_cb ([EBP+0x10], cdecl void(void*)), surface_draw_cb
+ *   ([EBP+0x14], cdecl 6-arg), pass_end_cb ([EBP+0x18], cdecl void(void)),
+ *   param_7 ([EBP+0x1c], cdecl 12-arg transparent-draw callback).
+ *
+ * Walks scenario materials (tag_block at scenario+0x104, stride 0x20).  For each
+ * material whose surface range covers the current surface offset, resolves an
+ * optional lightmap bitmap (scenario+0xc), fires material_begin_cb, then walks
+ * the material's submaterials (tag_block at material+0x14, stride 0x100).  For
+ * each submaterial in range it resolves the 'shdr' shader tag, advances the
+ * surface cursor over the run belonging to this submaterial, and — if the
+ * breakable surface is extant — dispatches either surface_draw_cb (opaque
+ * shader) or param_7 (transparent shader).  Ends each material with pass_end_cb.
+ * Asserts (structure_render.c:599) if surfaces remain unassigned. */
+void FUN_00195790(int *surface_material_offsets /* @<eax> */,
+                  unsigned short surface_count, int lightmap_pass_index,
+                  void *material_begin_cb, void *surface_draw_cb,
+                  void *pass_end_cb, int param_7)
+{
+  typedef void (*material_begin_fn)(void *);
+  typedef void (*surface_draw_fn)(void *, unsigned short, int, int, int, void *);
+  typedef void (*pass_end_fn)(void);
+  typedef void (*transparent_draw_fn)(void *, unsigned short, void *, int, int,
+                                      int, void *, void *, void *, void *,
+                                      void *, int);
+  void *scenario;
+  int *surf;     /* EBX: current surface offset cursor */
+  int *surf_end; /* [EBP-0x4] */
+  char *materials;
+  int mat_idx;   /* [EBP-0x14] */
+  int accum;     /* [EBP+0x8] running surface accumulator */
+  void *lightmap;/* [EBP-0x8] */
+
+  scenario = scenario_get();
+  surf = surface_material_offsets;
+  surf_end = surface_material_offsets + (short)surface_count;
+  materials = (char *)scenario + 0x104;
+  accum = 0;
+  mat_idx = 0;
+
+  if (*(int *)materials > 0) {
+    do {
+      char *mat;
+      int *submat_block;
+      void *last_sub;
+      if (surf_end <= surf) {
+        return;
+      }
+      mat = (char *)tag_block_get_element(materials, mat_idx, 0x20);
+      submat_block = (int *)(mat + 0x14);
+      last_sub = tag_block_get_element(submat_block, *submat_block - 1, 0x100);
+      if (*surf < *(int *)((char *)last_sub + 0x18) +
+                      *(int *)((char *)last_sub + 0x14)) {
+        int submat_idx;
+        if (*(int *)((char *)scenario + 0xc) == -1) {
+          lightmap = (void *)0;
+        } else {
+          lightmap = FUN_00076ff0(*(int *)((char *)scenario + 0xc),
+                                  *(short *)mat);
+        }
+        if (material_begin_cb != (void *)0) {
+          ((material_begin_fn)material_begin_cb)(lightmap);
+        }
+        submat_idx = 0;
+        if (*submat_block > 0) {
+          do {
+            char *sub;
+            if (surf_end <= surf) {
+              break;
+            }
+            sub = (char *)tag_block_get_element(submat_block, submat_idx, 0x100);
+            if (*surf < *(int *)(sub + 0x14) + *(int *)(sub + 0x18)) {
+              void *shader;
+              int *run_start;
+              short run_count;
+              run_start = surf;
+              shader = tag_get(0x73686472, *(int *)(sub + 0xc));
+              do {
+                surf = surf + 1;
+                if (surf_end <= surf) {
+                  break;
+                }
+              } while (*surf < *(int *)(sub + 0x14) + *(int *)(sub + 0x18));
+              run_count = (short)(surf - run_start);
+              if (breakable_surface_extant(*(short *)(sub + 0xac)) != '\0') {
+                if (shader_type_is_transparent(
+                        *(short *)((char *)shader + 0x24)) == '\0') {
+                  if (surface_draw_cb != (void *)0) {
+                    ((surface_draw_fn)surface_draw_cb)(
+                        shader, *(unsigned short *)(sub + 0x10),
+                        lightmap_pass_index, accum, run_count, sub + 0xb0);
+                  }
+                } else if (param_7 != 0) {
+                  void *xform;
+                  void *extra;
+                  unsigned short flags = *(unsigned short *)(sub + 0x12);
+                  if ((flags & 2) != 0) {
+                    xform = (void *)0x4d8ebc;
+                  } else {
+                    xform = *(void **)0x0031fc38;
+                  }
+                  if ((flags & 1) != 0) {
+                    extra = sub + 0x9c;
+                  } else {
+                    extra = (void *)0;
+                  }
+                  ((transparent_draw_fn)(unsigned int)param_7)(
+                      shader, *(unsigned short *)(sub + 0x10), lightmap,
+                      lightmap_pass_index, accum, run_count, sub + 0xb0,
+                      sub + 0x1c, extra, xform, sub + 0x28, 0);
+                }
+              }
+              accum = accum + run_count;
+            }
+            submat_idx = submat_idx + 1;
+          } while ((short)submat_idx < *submat_block);
+        }
+        if (pass_end_cb != (void *)0) {
+          ((pass_end_fn)pass_end_cb)();
+        }
+      }
+      mat_idx = mat_idx + 1;
+    } while ((short)mat_idx < *(int *)((char *)scenario + 0x104));
+  }
+
+  if (surf < surf_end) {
+    display_assert(
+        "there are more surfaces than materials that reference them, stupid.",
+        "c:\\halo\\SOURCE\\structures\\structure_render.c", 599, true);
+    system_exit(-1);
+  }
+}
+
+/* 0x197130 - gather visible clusters referenced by a BSP leaf's surfaces.
+ *
+ * Register ABI (prologue at 0x197130): MOV EBX,[EBP+0x2c] then MOV ESI,EAX; the
+ * only register arg is leaf@<eax> (BSP node/leaf value; its sign bit is a
+ * node/leaf discriminator, masked off with &0x7fffffff for the leaf index).
+ * Stack args: bounds ([EBP+0x8] parent_bounds), param_2 ([EBP+0xc] per-call
+ * visited-cluster bitset base), param_3 ([EBP+0x10] int* out cluster array),
+ * count ([EBP+0x14] out capacity), center ([EBP+0x18] cull-sphere center,
+ * null-checked only), radius ([EBP+0x1c], unused here), cull_bounds
+ * ([EBP+0x20]), param_8 ([EBP+0x24]), param_9 ([EBP+0x28]), intersection
+ * ([EBP+0x2c], mode: the incoming value is read into EBX and the slot is then
+ * reused as the running output accumulator that is returned).
+ *
+ * Resolves the leaf element (scenario+0xe0, stride 0x10), validates it, derives
+ * child bounds via FUN_00196eb0, and (unless intersection==2) culls against the
+ * cull bounds via FUN_00196a60/FUN_00196b10 taking the min classification.  If
+ * the leaf is at all visible it walks the leaf's surface run (scenario+0xec,
+ * stride 8), and for each surface's cluster index sets a bit in the global
+ * cluster visibility set at 0x5137d0 gated bitset and, if newly visible and not
+ * already recorded in the per-call bitset, appends the cluster to the out array
+ * (until count is reached).  Returns the number of clusters appended. */
+int FUN_00197130(float *bounds, void *param_2, int *param_3, int count,
+                 float *center, float radius, float *cull_bounds, int param_8,
+                 int param_9, int intersection, int leaf /* @<eax> */)
+{
+  void *scenario;
+  char *leaf_element;
+  int accumulator;
+  int cull_result;
+  float local_20[6];
+
+  (void)radius;
+  accumulator = 0;
+  scenario = scenario_get();
+  leaf_element = (char *)tag_block_get_element((char *)scenario + 0xe0,
+                                               leaf & 0x7fffffff, 0x10);
+
+  if ((short)intersection == 0) {
+    display_assert("intersection",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x2f0,
+                   true);
+    system_exit(-1);
+  }
+  if (bounds == (float *)0) {
+    display_assert("parent_bounds",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x2f1,
+                   true);
+    system_exit(-1);
+  }
+  if (center == (float *)0) {
+    display_assert("cull_sphere_center",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x2f2,
+                   true);
+    system_exit(-1);
+  }
+  if (cull_bounds == (float *)0) {
+    display_assert("cull_bounds",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x2f3,
+                   true);
+    system_exit(-1);
+  }
+  if (*(short *)(leaf_element + 8) < 0 ||
+      *(int *)((char *)scenario + 0x134) <= (int)*(short *)(leaf_element + 8)) {
+    display_assert(
+        "leaf->cluster_index>=0 && leaf->cluster_index<structure->clusters.count",
+        "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x2f4, true);
+    system_exit(-1);
+  }
+
+  FUN_00196eb0(bounds, (unsigned char *)leaf_element, local_20);
+
+  cull_result = (short)intersection;
+  if ((short)intersection != 2) {
+    int a = FUN_00196a60(cull_bounds, local_20);
+    int b = FUN_00196b10(local_20, param_8, param_9);
+    cull_result = a;
+    if ((short)b < (short)a) {
+      cull_result = b;
+    }
+  }
+
+  if ((short)cull_result != 0) {
+    int i;
+    int first = *(int *)(leaf_element + 0xc);
+    int end = (int)*(short *)(leaf_element + 0xa) + first;
+    char *surface_block = (char *)scenario + 0xec;
+    for (i = first; i < end; i++) {
+      int *elem = (int *)tag_block_get_element(surface_block, i, 8);
+      int cluster = *elem;
+      int word_off = (cluster >> 5) * 4;
+      unsigned int mask = 1u << (cluster & 0x1f);
+      if ((mask & *(unsigned int *)((char *)0x5137d0 + word_off)) != 0) {
+        unsigned int *per_call = (unsigned int *)((char *)param_2 + word_off);
+        if ((mask & *per_call) == 0) {
+          if ((short)count <= (short)accumulator) {
+            break;
+          }
+          *per_call |= mask;
+          param_3[(short)accumulator] = cluster;
+          accumulator = accumulator + 1;
+        }
+      }
+      end = (int)*(short *)(leaf_element + 0xa) + *(int *)(leaf_element + 0xc);
+    }
+  }
+
+  return accumulator;
+}
+
+/* 0x197310 - project a structure surface's vertices to screen and clip.
+ *
+ * Register ABI (prologue at 0x197310): MOV EBX,EAX / MOV EDI,ECX / MOV ESI,EDX
+ *   verts@<eax>  -> float* source vertex array (stride 3 floats)
+ *   plane@<ecx>  -> float* plane {nx,ny,nz,d}
+ *   ref@<edx>    -> float* reference point; byte at ref+0x24 flips winding
+ * Stack args: arg1 (matrix container; transform matrix at arg1+0x10),
+ *   count (int16_t vertex count), sign (winding direction, +/-1),
+ *   out (short* result: [0]=clipped vertex count, then {float x,float y} pairs
+ *   at byte offsets +4,+8,... i.e. 8-byte stride starting at out+4).
+ *
+ * Computes signed distance of ref from plane, scaled by sign; if the magnitude
+ * is below the 0x2674e8 epsilon the surface is coplanar (return 2); if the
+ * signed side is <= 0 the surface faces away (return 1).  Otherwise transforms
+ * each vertex through the matrix into a 3-float scratch buffer, clips the
+ * polygon against 0x2b35c4, perspective-divides each surviving vertex
+ * (ooz = k / z, k at 0x255e94) walking forward (sign==1) or backward, and
+ * writes the 2D coords to out.  Returns 1 if fewer than 3 vertices survive,
+ * else 0.  0x2533c0 == 0.0f threshold. */
+short FUN_00197310(void *verts, void *plane, void *ref, void *arg1,
+                   int16_t count, int sign, short *out)
+{
+  float *v = (float *)verts;
+  float *p = (float *)plane;
+  float *r = (float *)ref;
+  float buf[256][3];
+  float side;
+  float ooz;
+  int orig_sign;
+  int j;
+  short idx;
+  short end;
+  short oidx;
+
+  scenario_get();
+  *out = 0;
+  orig_sign = (short)sign;
+  side = (r[2] * p[2] + r[1] * p[1] + r[0] * p[0] - p[3]) * (float)orig_sign;
+  if (*((char *)ref + 0x24) != '\0') {
+    sign = -sign;
+  }
+  if (fabs(side) < *(double *)0x002674e8) {
+    return 2;
+  }
+  if (side <= *(float *)0x002533c0) {
+    return 1;
+  }
+
+  if (count > 0) {
+    float *mtx = (float *)((char *)arg1 + 0x10);
+    for (j = 0; j < count; j++) {
+      matrix_transform_point(mtx, v + j * 3, &buf[j][0]);
+    }
+  }
+
+  *out = convex_polygon3d_clip_to_plane(count, &buf[0][0], (float *)0x002b35c4,
+                                        0x100, &buf[0][0], (uint32_t *)0,
+                                        0.0001f, (void *)0x1);
+  if (*out == -1) {
+    display_assert("result->vertex_count!=NONE",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x485,
+                   true);
+    system_exit(-1);
+  }
+
+  if (sign == 1) {
+    idx = 0;
+    end = *out;
+  } else {
+    idx = (short)(*out - 1);
+    end = -1;
+  }
+  oidx = 0;
+  if (idx != end) {
+    do {
+      int e = (int)idx;
+      ooz = *(float *)0x00255e94 / buf[e][2];
+      if (ooz <= *(float *)0x002533c0) {
+        display_assert("ooz>0.f",
+                       "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                       0x497, true);
+        system_exit(-1);
+      }
+      *(float *)(out + oidx * 4 + 2) = ooz * buf[e][0];
+      *(float *)(out + oidx * 4 + 4) = ooz * buf[e][1];
+      idx = (short)(idx + sign);
+      oidx = (short)(oidx + 1);
+    } while (idx != end);
+  }
+
+  return (short)(*out < 3);
+}
+
+/* 0x1974f0 - resolve a structure-connection plane and dispatch the edge solve.
+ *
+ * Looks up the scenario structure connection at index connection_index in the
+ * scenario connections tag_block (scenario+0x154, stride 0x40).  The connection
+ * record supplies the plane-block index (*(int*)(conn+4)) and an edge count
+ * (*(short*)(conn+0x34)).  It fetches the shared structure block
+ * (tag_block scenario+0xb0, element 0, stride 0x60), then the plane element
+ * (tag_block block+0xc, index conn+4, stride 0x10 = one plane[4]).  Finally it
+ * calls the edge-solve helper FUN_00197310 with the connection's vertex array
+ * (*(void**)(conn+0x38)) in EAX, the plane in ECX, the fixed global reference
+ * struct 0x506550 in EDX, the fixed global table 0x5065a4 as stack arg1, the
+ * edge count, a +1/-1 sign selected by `pick` ((pick==0)?1:-1), and the caller
+ * out pointer.  Returns FUN_00197310's short result in AX.
+ *
+ * ABI (prologue at 0x1974f0): PUSH EBP/MOV EBP,ESP/PUSH ESI/PUSH EDI with no
+ * entry register moves -> pure cdecl.  connection_index=[EBP+8] (word, MOVSX),
+ * pick=[EBP+0xc] (byte), out=[EBP+0x10] (dword).  scenario_get / the three
+ * tag_block_get_element calls are cdecl; FUN_00197310 is register-arg
+ * (EAX/ECX/EDX + 4 stack args, ADD ESP,0x10 cleanup). */
+short FUN_001974f0(int16_t connection_index, char pick, int *out)
+{
+  int scenario;
+  void *conn;
+
+  scenario = (int)scenario_get();
+  conn = tag_block_get_element((void *)(scenario + 0x154), connection_index,
+                               0x40);
+  return FUN_00197310(
+      *(void **)((char *)conn + 0x38),
+      tag_block_get_element(
+          (void *)((char *)tag_block_get_element((void *)(scenario + 0xb0), 0,
+                                                 0x60) +
+                   0xc),
+          *(int *)((char *)conn + 4), 0x10),
+      (void *)0x506550, (void *)0x5065a4, *(short *)((char *)conn + 0x34),
+      (pick == 0) ? 1 : -1, (short *)out);
+}
+
+/* 0x197570 - test a run of structure vertices against a stored plane.
+ *
+ * Walks records[count] (stride 3 floats = 0xc bytes) and, for each vertex,
+ * computes the signed distance to the plane whose reference point is the
+ * vector3 at 0x506550 and whose normal is the vector3 at 0x50655c:
+ *   d = n.x*(v.x-p.x) + n.y*(v.y-p.y) + n.z*(v.z-p.z)
+ * Returns 1 as soon as any vertex has d <= threshold (the original's
+ * FCOMP [EBP+8] / TEST AH,0x41 / JNP: jump-to-return-1 on C3|C0, i.e. the
+ * less-or-equal ordered case; unordered/greater continues).  Returns 0 when
+ * no vertex satisfies the test (or count <= 0).
+ *
+ * Register ABI (prologue at 0x197570): no entry moves; EDX is used directly as
+ * the record base (LEA [EDX+EAX*4]) and SI as the loop bound (TEST SI,SI) ->
+ * records=EDX, count=ESI (int16).  threshold is the sole stack arg [EBP+8]
+ * (float).  Return AL (char).  The accumulation order mirrors the original:
+ * normal.z term first, then .y, then .x. */
+char FUN_00197570(float *records, int16_t count, float threshold)
+{
+  int16_t i;
+  float *rec;
+  float d;
+
+  i = 0;
+  if (0 < count) {
+    do {
+      rec = records + i * 3;
+      d = *(float *)0x50655c * (rec[0] - *(float *)0x506550) +
+          *(float *)0x506560 * (rec[1] - *(float *)0x506554) +
+          *(float *)0x506564 * (rec[2] - *(float *)0x506558);
+      if (d <= threshold) {
+        return 1;
+      }
+      i = i + 1;
+    } while (i < count);
+  }
+  return 0;
+}
+
+/* FUN_00197e90 (0x197e90) — structures.obj
+ *
+ * Cluster-query dispatcher for a bounding sphere.  Gathers the visible
+ * structure surfaces overlapping the sphere (center=position, radius) into
+ * `buffer` (capped at max_count) and returns the count.  Three dispatch paths,
+ * all sharing a per-call visibility bitmask (zeroed once up front):
+ *   - radius < 2.0            -> walk the collision BSP from its root node
+ *                                (scenario+0xc8) via FUN_001978a0.
+ *   - explicit cluster list   -> when gel_buffer != 0, gather directly from the
+ *                                caller-supplied clusters via FUN_00196fd0.
+ *   - else                    -> resolve the point's cluster
+ *                                (scenario_location_from_point); if valid,
+ *                                flood the neighbouring clusters
+ *                                (structure_find_in_cluster) then gather via
+ *                                FUN_00196fd0; otherwise fall back to the BSP
+ *                                walk (FUN_001978a0).
+ *
+ * Confirmed from disassembly 0x197e90-0x19806b:
+ *   - Prologue MOV EAX,0x4424 / CALL _chkstk (0x1d90e0) — triggered by the two
+ *     large stack buffers; NOT emitted as a C call.
+ *   - scenario_get() result kept in EDI across the whole body and homed at
+ *     [EBP-4]; scenario+0xf8 = cluster count (bits), scenario+0xc8 = root
+ *     collision-BSP node passed as FUN_001978a0's parent_bounds arg.
+ *   - assert(bounding_sphere_center)               @ line 0x265 (reason string
+ *       "bounding_sphere_center", 0x2b38b8)
+ *   - assert(!bounding_surface_count || bounding_surfaces) @ line 0x266
+ *       (reason "!bounding_surface_count || bounding_surfaces", 0x2b3888);
+ *       tested as (short)surface_count and surfaces==NULL.  Both asserts are
+ *       display_assert(reason, file, line, 1); system_exit(-1) (0x8e2f0),
+ *       NOT halt_and_catch_fire.
+ *   - visibility_mask (local_4428, 0x4000 bytes) zeroed with
+ *     csmemset(mask, 0, ((clustercount+0x1f)>>5)*4) — one 32-bit word per 32
+ *     clusters; size spelled *4 to match the ref's SAR/SHL codegen.
+ *   - cull_bounds: when param_5 (cull_bounds_in) is NULL, a local 6-float AABB
+ *     is filled {cx-r, cx+r, cy-r, cy+r, cz-r, cz+r} and used as the cull
+ *     region; the subtract operands are (center - radius) and the add operands
+ *     are (radius + center), matching the FLD/FSUB vs FLD/FADD operand order.
+ *   - Radius threshold is the float global at 0x32cf50 (== 2.0f); FCOMP + TEST
+ *     AH,0x5 / JP is the `radius < threshold` primitive (fall-through takes
+ * it).
+ *   - loc: scenario_location_from_point writes a dword handle at +0 and a word
+ *     cluster reference at +4; the +4 field is read as a 32-bit int once
+ *     (MOV EAX,[loc+4]) and used for both the (short)!=-1 compare (CMP AX) and
+ *     the structure_find_in_cluster cluster arg (PUSH EAX), so it is modelled
+ *     as an int field.  structure_find_in_cluster's out buffer is 0x200 int16
+ *     indices (local_428, exactly 0x400 bytes).
+ *   - FUN_00196fd0 args 3/4 receive the center pointer and the raw radius dword
+ *     (integer PUSHes); the callee ignores both (unused_10/unused_14), so the
+ *     radius is forwarded as its bit pattern to reproduce the exact push.
+ *
+ * All calls verified push-by-push against the disassembly (cdecl; cleanups
+ * 0x2c for FUN_001978a0, 0x28/0x3c for FUN_00196fd0).  param_5/6/7 kept as int
+ * per kb.json (callers cast pointers to int); cast to the real types locally.
+ */
+short FUN_00197e90(void *buffer, int max_count, float *position, float radius,
+                   int cull_bounds_in, int surface_count, int surfaces,
+                   int gel_count, int gel_buffer)
+{
+  char *scenario;
+  float *cull_bounds;
+  int16_t cluster_count_found;
+  float local_bounds[6];
+  struct {
+    int location_index;
+    int cluster_index;
+  } loc;
+  int16_t cluster_indices[0x200];
+  uint32_t visibility_mask[0x1000];
+
+  scenario = (char *)scenario_get();
+
+  if (position == (float *)0) {
+    display_assert("bounding_sphere_center",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x265, 1);
+    system_exit(-1);
+  }
+  if ((short)surface_count != 0 && surfaces == 0) {
+    display_assert("!bounding_surface_count || bounding_surfaces",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x266, 1);
+    system_exit(-1);
+  }
+
+  csmemset(visibility_mask, 0, ((*(int *)(scenario + 0xf8) + 0x1f) >> 5) * 4);
+
+  cull_bounds = (float *)cull_bounds_in;
+  if (cull_bounds == (float *)0) {
+    cull_bounds = local_bounds;
+    local_bounds[0] = position[0] - radius;
+    local_bounds[1] = radius + position[0];
+    local_bounds[2] = position[1] - radius;
+    local_bounds[3] = radius + position[1];
+    local_bounds[4] = position[2] - radius;
+    local_bounds[5] = radius + position[2];
+  }
+
+  if (radius < *(float *)0x32cf50) {
+    return FUN_001978a0(0, (float *)(scenario + 0xc8), visibility_mask,
+                        (int *)buffer, max_count, position, radius, cull_bounds,
+                        surface_count, surfaces, 1);
+  }
+
+  if (gel_buffer != 0) {
+    return FUN_00196fd0((int *)buffer, max_count, (int)position,
+                        *(const int *)&radius, cull_bounds, surface_count,
+                        surfaces, visibility_mask, gel_count,
+                        (int16_t *)gel_buffer);
+  }
+
+  scenario_location_from_point(&loc, position);
+  if ((short)loc.cluster_index != -1) {
+    cluster_count_found = structure_find_in_cluster(
+      loc.cluster_index, position, radius, 0x200, cluster_indices);
+    return FUN_00196fd0((int *)buffer, max_count, (int)position,
+                        *(const int *)&radius, cull_bounds, surface_count,
+                        surfaces, visibility_mask, cluster_count_found,
+                        cluster_indices);
+  }
+
+  return FUN_001978a0(0, (float *)(scenario + 0xc8), visibility_mask,
+                      (int *)buffer, max_count, position, radius, cull_bounds,
+                      surface_count, surfaces, 1);
+}
+
+/* FUN_00198070 (0x198070) — structures.obj
+ *
+ * Per-frame rebuild of the active cluster's environment sound/geometry list,
+ * then for every rendered cluster this frame it evaluates the clipped frustum
+ * bounds and builds the camera frustum used to draw that cluster.
+ *
+ * Runs only when the active-cluster handle at 0x506784 is not -1.
+ *
+ * Confirmed from disassembly 0x198070-0x19817d:
+ *   - scenario_get() called first (result kept in ESI across the whole body);
+ *     guard is a dword compare CMP [0x506784],-1 / JZ.
+ *   - render_frustum_get_projection_bounds(0x5065a4, proj_bounds) fills a
+ *     4-dword buffer whose base is [EBP-0x10] (Ghidra's "local_14".."local_4";
+ *     the base is EBP-0x10, NOT EBP-0x14 as the decompiler implied).
+ *   - The 4 bounds dwords are scattered into an int16-tagged struct at
+ *     EBP-0x864 (word 4 at +0x0, then 8 dwords at +0x4). Scatter map derived
+ *     from the raw MOV destination offsets, not the decompiler local names:
+ *       +0x04=b[0] +0x08=b[2] +0x0c=b[1] +0x10=b[2]
+ *       +0x14=b[1] +0x18=b[3] +0x1c=b[0] +0x20=b[3]
+ *   - Global 0x4d8ed8 is set to &cluster_buf (a 0x40-byte stack buffer) BEFORE
+ *     csmemset(cluster_buf,0,0x40); tail store order preserved: set global,
+ *     word=4, memset, then FUN_00197b00((uint16)*0x506784, sound_list).
+ *   - Loop over [0, (int16)*0x5137cc): rendered_cluster_get(i) -> cluster;
+ *     tag_block_get_element(scenario+0x134, (int16)*cluster, 0x68) (result
+ *     discarded); render_camera_build_clipped_frustum_bounds(0x506550,
+ *     cluster+2 shorts, frustum_bounds) (result discarded);
+ *     render_camera_build_frustum(0x506550, frustum_bounds, cluster+10 shorts,
+ *     1). scenario+0x134 is hoisted into EBX before the loop (ESI is reused as
+ *     the cluster pointer) — these are distinct variables in C.
+ *   - Signed int16 loop counter/compare (CMP DI,word[0x5137cc] / JL).
+ * All cdecl; no FPU subtraction, SEH, or intrinsics.
+ */
+void FUN_00198070(void)
+{
+  char *scenario;
+  int16_t *cluster;
+  int cluster_index;
+  float proj_bounds[4];
+  float frustum_bounds[4];
+  unsigned char cluster_buf[0x40];
+  struct {
+    int16_t tag;
+    int16_t pad;
+    float v[8];
+  } sound_list;
+
+  scenario = (char *)scenario_get();
+  if (*(int *)0x506784 != -1) {
+    render_frustum_get_projection_bounds((void *)0x5065a4, proj_bounds);
+
+    sound_list.v[0] = proj_bounds[0]; /* +0x04 */
+    sound_list.v[1] = proj_bounds[2]; /* +0x08 */
+    sound_list.v[2] = proj_bounds[1]; /* +0x0c */
+    sound_list.v[3] = proj_bounds[2]; /* +0x10 */
+    sound_list.v[4] = proj_bounds[1]; /* +0x14 */
+    sound_list.v[5] = proj_bounds[3]; /* +0x18 */
+    sound_list.v[6] = proj_bounds[0]; /* +0x1c */
+    sound_list.v[7] = proj_bounds[3]; /* +0x20 */
+
+    *(void **)0x4d8ed8 = cluster_buf;
+    sound_list.tag = 4;
+    csmemset(cluster_buf, 0, 0x40);
+    FUN_00197b00(*(uint16_t *)0x506784, (uint16_t *)&sound_list);
+
+    cluster_index = 0;
+    if (*(int16_t *)0x5137cc > 0) {
+      do {
+        cluster = (int16_t *)rendered_cluster_get(cluster_index);
+        tag_block_get_element(scenario + 0x134, *cluster, 0x68);
+        render_camera_build_clipped_frustum_bounds(
+          (camera_t *)0x506550, (float *)(cluster + 2), frustum_bounds);
+        render_camera_build_frustum((camera_t *)0x506550, frustum_bounds,
+                                    (float *)(cluster + 10), 1);
+        cluster_index += 1;
+      } while ((int16_t)cluster_index < *(int16_t *)0x5137cc);
+    }
+  }
+}
+
+/* FUN_00198180 (0x198180) render_structure_visibility:
+ *   Per-frame rebuild of the structure BSP visibility bitvectors, followed by
+ *   construction of the rendered-cluster list and dispatch to the fast or
+ *   legacy cluster-visibility sweep.
+ *
+ *   scenario = scenario_get(); clusters tag_block at scenario+0x134 (element
+ *   size 0x68, count = *(int*)(scenario+0x134)); scenario+0xf8 sizes the
+ *   per-portal bitvector.  Per-cluster visibility bitvector at 0x50678c is
+ *   memset to 0xffffffff when the active cluster (0x506784) is -1, else 0; the
+ *   per-portal bitvector at 0x5137d0 is zeroed.  0x5137cc = rendered-cluster
+ *   count (int16), 0x4d8edc = cluster_index -> rendered_cluster_index table
+ *   (int16[]).
+ *
+ *   Register-alias note (verified against disasm 0x198180-0x1983b5): ESI holds
+ *   the scenario pointer, but is reused as the loop's bit_index inside the
+ *   sweep and reloaded from [EBP-4] afterward.  Kept as two distinct C locals
+ *   (scenario / bit_index).  The final structure_bsp record at
+ *   tag_block_get_element(clusters,0,0x68)+0x34 selects FUN_001966b0 (!=0, has
+ *   precomputed visibility) vs FUN_00196850 (==0, legacy path that emits the
+ *   reimport warning).
+ *
+ *   __FILE__ = c:\halo\SOURCE\structures\structure_visibility.c */
+void render_structure_visibility(void)
+{
+  int scenario;
+  int *clusters;
+  int bit_index;
+  int cluster_index;
+  short *cluster_rec;
+  void *sound_data;
+  char *first_cluster;
+
+  scenario = (int)scenario_get();
+  if (*(char *)0x449ef1 != '\0' && *(char *)0x32bd70 != '\0') {
+    profile_enter_private((void *)0x32bd68);
+  }
+  clusters = (int *)(scenario + 0x134);
+  /* original branches on the active cluster and duplicates the size
+   * computation per arm (two push sites merged at the call) */
+  if (*(int *)0x506784 != -1) {
+    csmemset((void *)0x50678c, 0, ((*clusters + 0x1f) >> 5) * 4);
+  } else {
+    csmemset((void *)0x50678c, -1, ((*clusters + 0x1f) >> 5) * 4);
+  }
+  *(short *)0x5937d0 = 0;
+  csmemset((void *)0x5137d0, 0, ((*(int *)(scenario + 0xf8) + 0x1f) >> 5) * 4);
+  *(short *)0x5137cc = 0;
+  FUN_00198070();
+  if (*(char *)0x505701 != '\0') {
+    *(short *)0x5137cc = 0;
+    /* zero-extended load (XOR ECX + MOV CX) in the original */
+    sound_data = structure_bsp_get_cluster_sound_data((void *)scenario,
+                                                      *(uint16_t *)0x506784);
+    csmemcpy((void *)0x50678c, sound_data, ((*clusters + 0x1f) >> 5) * 4);
+    if (0 < *clusters) {
+      cluster_index = 0;
+      bit_index = 0;
+      do {
+        if ((((unsigned int *)0x50678c)[bit_index >> 5] &
+             (1u << (bit_index & 0x1f))) != 0) {
+          tag_block_get_element(clusters, bit_index, 0x68);
+          if (*(short *)0x5137cc >= 0x80) {
+            display_assert(
+              "raise MAXIMUM_RENDERED_CLUSTERS",
+              "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x118, 1);
+            system_exit(-1);
+          }
+          if ((short)cluster_index < 0 || (short)cluster_index >= 0x200) {
+            display_assert(
+              "cluster_index>=0 && "
+              "cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
+              "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x11b, 1);
+            system_exit(-1);
+          }
+          ((short *)0x4d8edc)[bit_index] = *(short *)0x5137cc;
+          *(short *)0x5137cc = *(short *)0x5137cc + 1;
+          cluster_rec = (short *)rendered_cluster_get(
+            ((unsigned short *)0x4d8edc)[bit_index]);
+          *cluster_rec = (short)cluster_index;
+          render_frustum_get_projection_bounds((void *)0x5065a4,
+                                               cluster_rec + 2);
+        }
+        cluster_index = cluster_index + 1;
+        bit_index = (int)(short)cluster_index;
+      } while (bit_index < *clusters);
+    }
+  }
+  if (*(char *)0x449ef1 != '\0' && *(char *)0x32bd70 != '\0') {
+    profile_exit_private((void *)0x32bd68);
+  }
+  first_cluster = (char *)tag_block_get_element(clusters, 0, 0x68);
+  if (*(int *)(first_cluster + 0x34) == 0) {
+    if (*(char *)0x4d8ed0 == '\0') {
+      if (0 < *(int *)(scenario + 0xf8)) {
+        error(2, "### WARNING: this structure_bsp needs to be reimported for "
+                 "new, faster visibility.");
+      }
+      *(char *)0x4d8ed0 = '\x01';
+    }
+    FUN_00196850(scenario);
+    return;
+  }
+  FUN_001966b0(scenario);
+}
+
 void structures_initialize(void)
 {
   structure_detail_objects_initialize();
@@ -340,12 +4730,21 @@ void structures_initialize_for_new_map(void)
   structure_runtime_decals_initialize_for_new_map();
 }
 
+/* structures_dispose_from_old_map (0x1983e0): CALL 0x1963a0 + tail-JMP
+ * 0x1939c0 in the original — decals first, then detail objects (reverse of
+ * the initialize order). Both callees are bare RETs in this build, but the
+ * call shape is preserved. */
 void structures_dispose_from_old_map(void)
 {
+  structure_runtime_decals_dispose_from_old_map();
+  structure_detail_objects_dispose_from_old_map();
 }
 
+/* structures_dispose (0x1983f0): CALL 0x1963b0 + tail-JMP 0x1939d0. */
 void structures_dispose(void)
 {
+  structure_runtime_decals_dispose();
+  structure_detail_objects_dispose();
 }
 
 /* structures_cluster_marker_begin (0x198400)
@@ -429,6 +4828,159 @@ void structures_cluster_marker_end(void)
     system_exit(-1);
   }
   *(uint8_t *)0x4d92e1 = 0;
+}
+
+/* structure_render_surface_from_point_and_leaf (0x198580)
+ *
+ * Walks the surfaces of one BSP leaf (leaf_index into the scenario's leaf tag
+ * block at +0xe0, element 0x10; low 31 bits used as index) looking for one
+ * whose material's first field matches material_type.  For each surface whose
+ * material reference is valid (!= -1) and matches, it resolves the surface's
+ * triangle (indices tag block at +0xf8, element 6 = 3 uint16), finds the
+ * geometry material/section (via structure_bsp_find_material_for_surface, which
+ * writes out_collection_index / out_geometry_index), fetches the three vertex
+ * positions (vertex stride 0x20, vertices base at section+0xf8) into three
+ * vec3 buffers, and hands them to FUN_0010d830 (ray/point-vs-triangle test)
+ * along with the caller's context and the out_u/out_v pointers.  On the first
+ * triangle that passes, it stores the surface index into *out_surface and
+ * returns 1; otherwise 0.
+ *
+ * Confirmed from disassembly at 0x198580:
+ *   - param_2 masked with 0x7fffffff before use as a tag-block index (§7
+ *     datum/handle low-word extraction).
+ *   - CDECL arg mis-group (§7): Ghidra rendered the material lookup as a 5-arg
+ *     call + a 1-arg call.  The disasm (6 pushes, two ADD ESP,0xc) proves TWO
+ *     3-arg tag_block_get_element calls: first resolves the structure_bsp
+ *     reference (scenario+0xb0, index 0, size 0x60); its RESULT is the block
+ *     base of the second call (index surface_ref[1], element size 0xc).
+ *   - Only surface modes 0 and 1 (short at section+0xb0) proceed to rasterize.
+ *   - Return is a bool in AL only (Ghidra's CONCAT31 / (x & 0xffffff00) high
+ *     bytes are garbage EAX residue, not part of the value).
+ *   - FUN_001935f0 (structure_bsp_find_material_for_surface) is invoked with 4
+ *     cdecl args and writes the two short OUT params, which are read back
+ *     immediately.
+ */
+char structure_render_surface_from_point_and_leaf(
+  void *render_context, uint32_t leaf_index, int material_type,
+  int16_t *out_collection_index, int16_t *out_geometry_index,
+  int32_t *out_surface, float *out_u, float *out_v)
+{
+  void *scenario;
+  char *leaf;
+  int start;
+  int end;
+  int surface;
+  int *surface_ref;
+  void *structure_bsp;
+  int *material;
+  uint16_t *tri;
+  char *collection;
+  char *section;
+  char *vertices;
+  float v0[3];
+  float v1[3];
+  float v2[3];
+
+  scenario = scenario_get();
+  leaf = tag_block_get_element((char *)scenario + 0xe0,
+                               (int)(leaf_index & 0x7fffffff), 0x10);
+  start = *(int *)(leaf + 0xc);
+  end = *(int16_t *)(leaf + 0xa) + start;
+  if (end <= start) {
+    return 0;
+  }
+
+  surface = start;
+  do {
+    surface_ref = tag_block_get_element((char *)scenario + 0xec, surface, 8);
+    if (surface_ref[1] != -1) {
+      structure_bsp = tag_block_get_element((char *)scenario + 0xb0, 0, 0x60);
+      material = tag_block_get_element(structure_bsp, surface_ref[1], 0xc);
+      if (*material == material_type) {
+        tri = tag_block_get_element((char *)scenario + 0xf8, *surface_ref, 6);
+        structure_bsp_find_material_for_surface(
+          scenario, *surface_ref, out_collection_index, out_geometry_index);
+        collection = tag_block_get_element((char *)scenario + 0x104,
+                                           (int)*out_collection_index, 0x20);
+        section = tag_block_get_element(collection + 0x14,
+                                        (int)*out_geometry_index, 0x100);
+        if (*(int16_t *)(section + 0xb0) == 0 ||
+            *(int16_t *)(section + 0xb0) == 1) {
+          vertices = *(char **)(section + 0xf8);
+          FUN_00180500((float *)(vertices + (uint32_t)tri[0] * 0x20), v0);
+          FUN_00180500((float *)(vertices + (uint32_t)tri[1] * 0x20), v1);
+          FUN_00180500((float *)(vertices + (uint32_t)tri[2] * 0x20), v2);
+          if (FUN_0010d830((float *)render_context, v0, v1, v2, out_u, out_v) !=
+              0) {
+            *out_surface = *surface_ref;
+            return 1;
+          }
+        }
+      }
+    }
+    surface = surface + 1;
+  } while (surface < end);
+
+  return 0;
+}
+
+/* Resolve the planar-fog definition index for a BSP cluster/leaf.
+ * index == -1 returns the -1 sentinel. When flag == 0 the fog reference is
+ * read from the cluster element (+0x134, stride 0x68) at +2; a set top bit
+ * indicates indirection through the +0x178 table (stride 0x20). The masked
+ * reference indexes the +0x184 block (stride 0x28); its +0x24 field indexes
+ * the +0x190 fog-definition block (stride 0x88) whose +0x2c dword is the
+ * result. When flag != 0 the global default (FUN_0018e7d0(0)+0xa4) is used. */
+int32_t structure_get_planar_fog_definition_index(void *structure_bsp,
+                                                  int16_t index, char flag)
+{
+  int16_t fog_ref; /* AX-resident through every gate in the original */
+  char *element;
+  int32_t result = -1; /* EDI; all failure paths share the sunk return */
+
+  if (index == -1) {
+    return result;
+  }
+
+  element =
+    tag_block_get_element((char *)structure_bsp + 0x134, (int)index, 0x68);
+
+  /* flag != 0 arm falls through first in the original; the cluster path is
+   * the sunk arm at 0x198781 */
+  if (flag != '\0') {
+    element = FUN_0018e7d0(0);
+    if (element == 0) {
+      goto fail;
+    }
+    return *(int32_t *)(element + 0xa4);
+  }
+
+  fog_ref = *(int16_t *)(element + 2);
+  if (fog_ref == -1) {
+    goto fail;
+  }
+  if (fog_ref < 0) {
+    element = tag_block_get_element((char *)structure_bsp + 0x178,
+                                    fog_ref & 0x7fff, 0x20);
+    fog_ref = *(int16_t *)element;
+  } else {
+    fog_ref = (int16_t)(fog_ref & 0x7fff);
+  }
+  if (fog_ref == -1) {
+    goto fail;
+  }
+  element =
+    tag_block_get_element((char *)structure_bsp + 0x184, (int)fog_ref, 0x28);
+  fog_ref = *(int16_t *)(element + 0x24);
+  if (fog_ref == -1) {
+    goto fail;
+  }
+  element =
+    tag_block_get_element((char *)structure_bsp + 0x190, (int)fog_ref, 0x88);
+  return *(int32_t *)(element + 0x2c);
+
+fail:
+  return result;
 }
 
 bool structure_get_planar_fog(void *scenario, int16_t portal_index,
@@ -538,6 +5090,438 @@ int16_t FUN_001989b0(uint16_t cluster_count, float *position, float radius,
   return (int16_t)visited_count;
 }
 
+/* structure_clusters_in_cone (0x198ad0)
+ *
+ * Iterative flood-fill over the scenario's structure clusters, collecting
+ * every cluster reachable through portals whose bounding sphere falls inside
+ * a view cone, up to max_count output clusters.  This is the cone analog of
+ * structure_find_in_cluster / FUN_001989b0 (which flood-fill with a sphere
+ * via structure_get_planar_fog); here the portal-vs-cone test is FUN_00110210
+ * against the portal bounding sphere (center at portal+8, radius at
+ * portal+0x14) and the cone (apex `point`, axis `direction`, `length`, and
+ * half-angle sine/cosine).
+ *
+ * Unlike structure_find_in_cluster, MSVC inlined the cluster-marker begin/end
+ * here: the top asserts !cluster_marker_initialized (line 0x103), bumps the
+ * marker generation counter (0x4d92e4) and sets the flag; the tail asserts
+ * cluster_marker_initialized (line 0x130) and clears it.
+ *
+ * Confirmed from decompile:
+ *   - work_stack[MAXIMUM_CLUSTERS_PER_STRUCTURE=512] on the frame, seeded with
+ *     starting_cluster; push bounded by the 0xf5 assert (stack_depth < 512).
+ *   - clusters tag block at scenario+0x134 (stride 0x68); each cluster's
+ *     portal-index block header at cluster+0x5c (count = *(int*)); index
+ *     elements int16 (stride 2).
+ *   - cluster_portals tag block at scenario+0x154 (stride 0x40); portal[0]/
+ *     portal[1] = front/back cluster (int16); if front == current, take back.
+ *   - FUN_00110210 float arg #2 = *(float*)(portal+0x14) (radius), a float,
+ *     NOT a pointer.
+ * Inferred: point/direction/length param semantics from FUN_00110210's
+ *   signature (only forwarded here); return = count of clusters written.
+ */
+int16_t structure_clusters_in_cone(int16_t starting_cluster, float *point,
+                                   float *direction, float length, float sine,
+                                   float cosine, int16_t max_count,
+                                   int16_t *out_indices)
+{
+  int16_t work_stack[512];
+  void *scenario;
+  int stack_depth;
+  int output_count;
+  int work_depth;
+  int next_output;
+
+  if (*(uint8_t *)0x4d92e1 != 0) {
+    display_assert("!structure_globals.cluster_marker_initialized",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x103, true);
+    system_exit(-1);
+  }
+  *(uint32_t *)0x4d92e4 += 1;
+  *(uint8_t *)0x4d92e1 = 1;
+
+  scenario = scenario_get();
+  structure_cluster_mark(starting_cluster);
+  work_stack[0] = starting_cluster;
+  stack_depth = 1;
+  output_count = 0;
+
+  do {
+    int16_t current_cluster;
+    char *cluster;
+    int *portal_count;
+
+    if (max_count <= (int16_t)output_count) {
+      break;
+    }
+
+    stack_depth -= 1;
+    current_cluster = work_stack[(int16_t)stack_depth];
+    work_depth = stack_depth;
+    cluster = tag_block_get_element((char *)scenario + 0x134,
+                                    (int)current_cluster, 0x68);
+    next_output = output_count + 1;
+    portal_count = (int *)(cluster + 0x5c);
+    out_indices[(int16_t)output_count] = current_cluster;
+
+    if (*portal_count > 0) {
+      int16_t portal_iter = 0;
+
+      do {
+        int16_t *portal_index_ptr =
+          tag_block_get_element(portal_count, (int)portal_iter, 2);
+        int16_t *portal = tag_block_get_element((char *)scenario + 0x154,
+                                                (int)*portal_index_ptr, 0x40);
+        int16_t adjacent_cluster = portal[0];
+
+        if (adjacent_cluster == current_cluster) {
+          adjacent_cluster = portal[1];
+        }
+
+        if (structure_cluster_unmarked(adjacent_cluster) &&
+            FUN_00110210((float *)(portal + 4), *(float *)(portal + 10), point,
+                         direction, length, sine, cosine)) {
+          structure_cluster_mark(adjacent_cluster);
+          if ((int16_t)work_depth > 0x1ff) {
+            display_assert("stack_depth<MAXIMUM_CLUSTERS_PER_STRUCTURE",
+                           "c:\\halo\\SOURCE\\structures\\structures.c", 0xf5,
+                           true);
+            system_exit(-1);
+            /* dead at runtime (system_exit never returns): mirrors the
+             * original's register reload on this path (permuter-found) */
+            portal_count = (int *)(cluster + 0x5c);
+          }
+          work_stack[(int16_t)work_depth] = adjacent_cluster;
+          work_depth += 1;
+        }
+
+        portal_iter += 1;
+        stack_depth = work_depth;
+      } while ((int)portal_iter < *portal_count);
+    }
+
+    output_count = next_output;
+  } while (0 < (int16_t)stack_depth);
+
+  if (*(uint8_t *)0x4d92e1 == 0) {
+    display_assert("structure_globals.cluster_marker_initialized",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x130, true);
+    system_exit(-1);
+  }
+  *(uint8_t *)0x4d92e1 = 0;
+
+  return (int16_t)output_count;
+}
+
+/* structure_test_vector (0x198cb0)
+ *
+ * Traces a vector (point + direction) through the BSP, iteratively firing a
+ * collision raycast (FUN_0014df70, flags 0x21) from the current working point
+ * and, on each hit, asking structure_render_surface_from_point_and_leaf whether
+ * the hit surface's material matches.  A matching surface whose collection
+ * element (scenario+0x104, stride 0x20) is not the -1 sentinel terminates the
+ * trace with success (returns 1).  If the collision result requests a continued
+ * trace (result byte +0x4c bit0), the working point is nudged forward along the
+ * direction by the tiny constant at 0x29ca28 (2^-12) and the loop repeats;
+ * otherwise the trace ends with 0.
+ *
+ * Confirmed from disassembly at 0x198cb0:
+ *   - Collision result is an 80-byte (0x50) struct written by FUN_0014df70 via
+ *     LEA [EBP-0x54]; read fields: +0x0c leaf/cluster index (dword),
+ * +0x18..0x20 hit point (vec3), +0x48 material ref (masked & 0x7fffffff), +0x4c
+ * status byte (bit0 = continue-trace).  Sized per hazard #5 / units.c:9411
+ * sibling.
+ *   - Collision user-stack depth guard (global at 0x4761d8, int16) is pushed/
+ *     popped each iteration with the 0xf marker on the stack array at 0x5a8c80.
+ *   - FUN_00198580 called cdecl with 8 args (ADD ESP,0x20), char return in AL:
+ *     (out_point, leaf, material&0x7fffffff, p4..p8).  p4
+ * (out_collection_index) is the only out-pointer the caller itself dereferences
+ * (validity check).
+ *   - Assert condition strings (single-letter param names): "p", "v",
+ *     "material_index", "surface_index", "s", "t" at lines 0x188-0x18d.
+ */
+char structure_test_vector(float *point, float *direction, float *out_point,
+                           int16_t *out_collection_index,
+                           int16_t *out_material_index,
+                           int32_t *out_surface_index, float *out_u,
+                           float *out_v)
+{
+  char result;
+  char terminate;
+  int16_t depth;
+  void *scenario;
+  int16_t *plane;
+  char collision_result[80];
+
+  result = 0;
+  if (point == NULL) {
+    display_assert("p", "c:\\halo\\SOURCE\\structures\\structures.c", 0x188,
+                   true);
+    system_exit(-1);
+  }
+  if (direction == NULL) {
+    display_assert("v", "c:\\halo\\SOURCE\\structures\\structures.c", 0x189,
+                   true);
+    system_exit(-1);
+  }
+  if (out_material_index == NULL) {
+    display_assert("material_index",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x18a, true);
+    system_exit(-1);
+  }
+  if (out_surface_index == NULL) {
+    display_assert("surface_index",
+                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x18b, true);
+    system_exit(-1);
+  }
+  if (out_u == NULL) {
+    display_assert("s", "c:\\halo\\SOURCE\\structures\\structures.c", 0x18c,
+                   true);
+    system_exit(-1);
+  }
+  if (out_v == NULL) {
+    display_assert("t", "c:\\halo\\SOURCE\\structures\\structures.c", 0x18d,
+                   true);
+    system_exit(-1);
+  }
+
+  out_point[0] = point[0];
+  out_point[1] = point[1];
+  out_point[2] = point[2];
+
+  do {
+    terminate = 1;
+    if (*(int16_t *)0x4761d8 >= 32) {
+      display_assert("global_current_collision_user_depth < "
+                     "MAXIMUM_COLLISION_USER_STACK_DEPTH",
+                     "c:\\halo\\SOURCE\\structures\\structures.c", 0x196, true);
+      system_exit(-1);
+    }
+    depth = *(int16_t *)0x4761d8;
+    *(int16_t *)0x4761d8 = depth + 1;
+    *(int16_t *)(0x5a8c80 + depth * 2) = 0xf;
+
+    if (FUN_0014df70(0x21, out_point, direction, -1,
+                     (int16_t *)collision_result) != 0) {
+      scenario = scenario_get();
+      out_point[0] = *(float *)(collision_result + 0x18);
+      out_point[1] = *(float *)(collision_result + 0x1c);
+      out_point[2] = *(float *)(collision_result + 0x20);
+      if (structure_render_surface_from_point_and_leaf(
+            out_point, *(uint32_t *)(collision_result + 0xc),
+            *(uint32_t *)(collision_result + 0x48) & 0x7fffffff,
+            out_collection_index, out_material_index, out_surface_index, out_u,
+            out_v) != 0) {
+        plane = (int16_t *)tag_block_get_element(
+          (char *)scenario + 0x104, (int)*out_collection_index, 0x20);
+        if (*plane != -1) {
+          result = 1;
+          goto done;
+        }
+      }
+      if ((collision_result[0x4c] & 1) != 0) {
+        terminate = 0;
+        out_point[0] = direction[0] * *(float *)0x29ca28 + out_point[0];
+        out_point[1] = direction[1] * *(float *)0x29ca28 + out_point[1];
+        out_point[2] = direction[2] * *(float *)0x29ca28 + out_point[2];
+      }
+    }
+
+  done:
+    if (*(int16_t *)0x4761d8 < 2) {
+      display_assert("global_current_collision_user_depth > 1",
+                     "c:\\halo\\SOURCE\\structures\\structures.c", 0x1aa, true);
+      system_exit(-1);
+    }
+    *(int16_t *)0x4761d8 = *(int16_t *)0x4761d8 - 1;
+  } while (terminate == 0);
+
+  return result;
+}
+
+/* FUN_00198f10 (0x198f10) — resolve planar-fog render parameters
+ *
+ * Fills the caller's fog-parameter record (`fog`, ~0x4c bytes; the single
+ * caller FUN_00185290 passes &global 0x506730) for portal/cluster `index`
+ * (uint16 loaded zero-extended from global 0x506784 by the caller).
+ *
+ * Confirmed from decompile + disassembly:
+ *   - NULL `fog` asserts: display_assert("fog", ".../structures.c", 0x1f1, 1)
+ *     then system_exit(-1). String at 0x29dc54 = "fog" (byte-verified).
+ *   - tag_get(0x666f6720='fog ', fog_index) returns the fog tag definition.
+ *   - fog type word at fog+0x1c: 0=none/early-out, 1=planar plane present,
+ *     2=atmospheric.  from_object path (fog came via FUN_0018e7d0 marker,
+ *     not a portal) instead ORs bit0 into fog+0x02.
+ *   - portal element (scenario+0x134, size 0x68): byte+3 & 0x80 == ushort+2
+ *     bit15 (== (short)ushort < 0); both tests reproduced as written.
+ *   - FLOAT_002533c0 = 0.0f (byte-verified at 0x2533c0); reproduced as the
+ *     literal 0.0f (FMUL against a 0.0 rodata constant).
+ *   - vec[3] (decomp local_14/local_10/local_c, contiguous EBP-0x14..-0xc) is
+ *     declared as a float[3] so &vec[0] passed to FUN_001954e0 (normalize) is
+ *     a contiguous buffer; local_c's reuse as the scale temp is mirrored in
+ *     vec[2].
+ *   - Field-copy store order (fog+0x30..0x44 from fog_tag+0x78/0x7c/0x80/
+ *     0x58/0x68/0x60) preserved exactly as MSVC scheduled it (0x3c before
+ *     0x44 before 0x40).
+ *   - Two tag_block_get_element calls have their results discarded (bounds/
+ *     assert side-effect only) — preserved faithfully.
+ *   - cdecl, 2 stack args (no ADD ESP shown at the call site; caller cleans 8).
+ */
+void FUN_00198f10(int index, void *fog)
+{
+  void *scenario;
+  void *marker;
+  char *portal;
+  char *plane;
+  short *fog_tag;
+  char *out;
+  int fog_index;
+  short portal_idx;
+  char from_object;
+  float vec[3];
+
+  out = (char *)fog;
+  scenario = scenario_get();
+  from_object = 0;
+
+  if (fog == NULL) {
+    display_assert("fog", "c:\\halo\\SOURCE\\structures\\structures.c", 0x1f1,
+                   1);
+    system_exit(-1);
+  }
+
+  *(short *)(out + 0x1c) = 0;
+  *(short *)out = 0;
+  *(int *)(out + 0x48) = 0;
+
+  fog_index = structure_get_planar_fog_definition_index(scenario, index, 0);
+  portal_idx = (short)index;
+
+  if (fog_index == -1) {
+    if (portal_idx != -1) {
+      tag_block_get_element((char *)scenario + 0x134, (int)portal_idx, 0x68);
+      marker = FUN_0018e7d0(0);
+      if (marker != NULL) {
+        fog_index = *(int *)((char *)marker + 0xa4);
+      }
+    }
+    from_object = 1;
+    if (fog_index == -1) {
+      return;
+    }
+  }
+
+  scenario = scenario_get();
+  portal = (char *)tag_block_get_element((char *)scenario + 0x134,
+                                         (int)portal_idx, 0x68);
+  fog_tag = (short *)tag_get(0x666f6720, fog_index);
+
+  if (from_object == 0) {
+    if ((*(unsigned char *)(portal + 3) & 0x80) == 0) {
+      *(short *)(out + 0x1c) = 2;
+    } else {
+      *(short *)(out + 0x1c) = 1;
+      plane = (char *)tag_block_get_element(
+        (char *)scenario + 0x178, *(unsigned short *)(portal + 2) & 0x7fff,
+        0x20);
+      *(int *)(out + 0x20) = *(int *)(plane + 4);
+      *(int *)(out + 0x24) = *(int *)(plane + 8);
+      *(int *)(out + 0x28) = *(int *)(plane + 0xc);
+      *(int *)(out + 0x2c) = *(int *)(plane + 0x10);
+    }
+    *(int *)(out + 0x30) = *(int *)((char *)fog_tag + 0x78);
+    *(int *)(out + 0x34) = *(int *)((char *)fog_tag + 0x7c);
+    *(int *)(out + 0x38) = *(int *)((char *)fog_tag + 0x80);
+    *(int *)(out + 0x3c) = *(int *)((char *)fog_tag + 0x58);
+    *(int *)(out + 0x44) = *(int *)((char *)fog_tag + 0x68);
+    *(int *)(out + 0x40) = *(int *)((char *)fog_tag + 0x60);
+    if ((short)*(unsigned short *)(portal + 2) < 0) {
+      tag_block_get_element((char *)scenario + 0x178,
+                            *(unsigned short *)(portal + 2) & 0x7fff, 0x20);
+      vec[2] = *(float *)((char *)fog_tag + 4) * 0.0f; /* FLOAT_002533c0 */
+      *(float *)(out + 0x2c) = vec[2] + *(float *)(out + 0x2c);
+      vec[0] = vec[2] * *(float *)(out + 0x20);
+      vec[1] = vec[2] * *(float *)(out + 0x24);
+      vec[2] = vec[2] * *(float *)(out + 0x28);
+      FUN_001954e0(vec);
+    }
+  } else {
+    *(unsigned char *)(out + 2) |= 1;
+  }
+
+  *(short *)out = *fog_tag;
+  *(void **)(out + 0x48) = (char *)fog_tag + 0x84;
+}
+
+/*
+ * render_debug_fog_planes (0x1990d0) -- structures.obj
+ *
+ * When fog-plane debug is enabled (byte 0x505700 set, mode word 0x50674c == 1,
+ * and structure-index dword 0x506784 valid), fetch the selected fog plane from
+ * the scenario structure-BSP tag and draw each of its edges. For every edge the
+ * two endpoint vertices are offset inward along the plane normal by the fog
+ * distance (float 0x506770, negated) to build a parallel copy; both the
+ * original edge and the offset edge are emitted through the debug line writer
+ * (0x17eb10) and the two connecting sides through 0x17e5b0, using the pair of
+ * view transforms cached at 0x2ee6c4 / 0x2ee6cc.
+ *
+ * The two 3-float vertex triples live in contiguous stack slots in the original
+ * (EBP-0x14 and EBP-0x20) because their base addresses are passed to callees
+ * that read 3 floats; they are declared as arrays here to guarantee that
+ * contiguity. The (int)(short) narrowing on the edge index / element count is
+ * intentional (original reloads them via MOVSX word) and match-sensitive.
+ */
+void render_debug_fog_planes(void)
+{
+  float fVar1;
+  int iVar2;
+  int iVar3;
+  float *pfVar4;
+  float *pfVar5;
+  float vert_b[3]; /* EBP-0x20 offset triple for pfVar5 */
+  float vert_a[3]; /* EBP-0x14 offset triple for pfVar4 */
+  int local_c;
+  int local_8;
+  int16_t next; /* (j+1) % count remainder: full-reg spill, MOVSWL reload */
+
+  if ((*(char *)0x505700 != 0) && (*(short *)0x50674c == 1) &&
+      (*(int *)0x506784 != -1)) {
+    iVar2 = (int)scenario_get();
+    iVar3 = (int)tag_block_get_element((void *)(iVar2 + 0x134),
+                                       *(int *)0x506784, 0x68);
+    iVar2 = (int)tag_block_get_element(
+      (void *)(iVar2 + 0x178), *(unsigned short *)(iVar3 + 2) & 0x7fff, 0x20);
+    local_c = *(int *)(iVar2 + 0x14);
+    local_8 = 0;
+    if (0 < local_c) {
+      iVar3 = 0;
+      do {
+        next = (int16_t)((iVar3 + 1) % local_c);
+        pfVar4 =
+          (float *)tag_block_get_element((void *)(iVar2 + 0x14), iVar3, 0xc);
+        pfVar5 =
+          (float *)tag_block_get_element((void *)(iVar2 + 0x14), next, 0xc);
+        fVar1 = -*(float *)0x506770;
+        /* Interleaved by component: the original reuses each
+         * (fVar1 * normal_component) product for both endpoints, so the
+         * six independent stores are grouped in component order. */
+        vert_a[0] = fVar1 * *(float *)(iVar2 + 4) + pfVar4[0];
+        vert_b[0] = fVar1 * *(float *)(iVar2 + 4) + pfVar5[0];
+        vert_a[1] = fVar1 * *(float *)(iVar2 + 8) + pfVar4[1];
+        vert_b[1] = fVar1 * *(float *)(iVar2 + 8) + pfVar5[1];
+        vert_a[2] = fVar1 * *(float *)(iVar2 + 0xc) + pfVar4[2];
+        vert_b[2] = fVar1 * *(float *)(iVar2 + 0xc) + pfVar5[2];
+        FUN_0017eb10(pfVar4, pfVar5, *(int *)0x2ee6c4);
+        FUN_0017eb10(vert_a, vert_b, *(int *)0x2ee6cc);
+        FUN_0017e5b0(pfVar4, vert_a, *(int *)0x2ee6c4, *(int *)0x2ee6cc);
+        FUN_0017e5b0(pfVar5, vert_b, *(int *)0x2ee6c4, *(int *)0x2ee6cc);
+        local_c = *(int *)(iVar2 + 0x14);
+        local_8 = local_8 + 1;
+        iVar3 = (int)(short)local_8;
+      } while (iVar3 < local_c);
+    }
+  }
+}
+
 int16_t structure_find_in_cluster(uint16_t cluster_count, float *position,
                                   float radius, int max_count,
                                   int16_t *intersected_indices)
@@ -584,4 +5568,42 @@ int16_t structure_find_in_cluster(uint16_t cluster_count, float *position,
   }
 
   return 0;
+}
+
+/*
+ * file_location_volume_names (0x505500):
+ * char[NUMBER_OF_FILE_REFERENCE_LOCATIONS] [MAXIMUM_FILENAME_LENGTH+1]
+ * volume/device-name table, one 256-byte row per file-reference location,
+ * indexed by location * 0x100.
+ */
+#define file_location_volume_names ((char *)0x505500)
+
+/*
+ * set_file_location_volume_name (0x199360) - record the volume/device name for
+ * a file-reference location.
+ *
+ * The original asserts require: location is in (0, NUMBER_OF_FILE_REFERENCE_
+ * LOCATIONS) i.e. exactly 1; the target row is currently empty; and volume_name
+ * fits in MAXIMUM_FILENAME_LENGTH (255) characters. Copies at most 0xff bytes
+ * with csstrncpy and explicitly null-terminates byte 255 of the row.
+ */
+void set_file_location_volume_name(int16_t location, const char *volume_name)
+{
+  if (location < 1 || location > 1) {
+    display_assert("location>0 && location<NUMBER_OF_FILE_REFERENCE_LOCATIONS",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x4b, true);
+    system_exit(-1);
+  }
+  if (csstrlen(file_location_volume_names + location * 0x100) != 0) {
+    display_assert("strlen(file_location_volume_names[location])==0",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x4c, true);
+    system_exit(-1);
+  }
+  if ((unsigned int)csstrlen(volume_name) > 0xff) {
+    display_assert("strlen(volume_name)<=MAXIMUM_FILENAME_LENGTH",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x4d, true);
+    system_exit(-1);
+  }
+  csstrncpy(file_location_volume_names + location * 0x100, volume_name, 0xff);
+  file_location_volume_names[location * 0x100 + 0xff] = '\0';
 }

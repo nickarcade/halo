@@ -8174,6 +8174,142 @@
       "metadata": {
         "source_path": "halo/physics/bsp3d.c"
       }
+    },
+    {
+      "name": "halo/FUN_00193c00",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structure_detail_objects.c.obj",
+      "base_path": "delinked/functions/00193c00.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structure_detail_objects.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00195bc0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00195bc0.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00197130",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00197130.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_001954d0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/001954d0.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00195790",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00195790.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00197310",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00197310.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_001974f0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/001974f0.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00197570",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00197570.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_000624b0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/000624b0.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_000625a0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/000625a0.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00191c70",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00191c70.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00191bd0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00191bd0.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00191750",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00191750.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/calculate_vertex",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00105830.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/shell_update",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00105c80.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00061f10",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00061f10.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
+    },
+    {
+      "name": "halo/FUN_00061fa0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/structures/structures.c.obj",
+      "base_path": "delinked/functions/00061fa0.obj",
+      "metadata": {
+        "source_path": "src/halo/structures/structures.c"
+      }
     }
   ]
 }

@@ -14,6 +14,8 @@
 	halo/ai/ai_profile.c
 	halo/ai/encounters.c
 	halo/ai/path.c
+	halo/ai/path_obstacle_avoidance.c
+	halo/ai/path_smoothing.c
 	halo/ai/props.c
 	halo/bitmaps/bitmap_utilities.c
 	halo/bitmaps/bitmaps.c
@@ -98,6 +100,7 @@
 	halo/memory/memory_pool.c
 	halo/memory/stack_memory_pool.c
 	halo/physics/breakable_surfaces.c
+	halo/physics/collision_bsp.c
 	halo/physics/collision_features.c
 	halo/physics/collision_usage.c
 	halo/physics/point_physics.c
@@ -131,6 +134,7 @@
 	halo/scenario/wind.c
 	halo/structures/structure_bsp_definitions.c
 	halo/structures/structure_detail_objects.c
+	halo/structures/structure_render.c
 	halo/structures/structure_runtime_decals.c
 	halo/structures/structure_visibility.c
 	halo/structures/structures.c
