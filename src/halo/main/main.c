@@ -1511,7 +1511,8 @@ void main_vertical_blank_interrupt_handler(void)
   int16_t ring_index;
 
   /* increment 64-bit flip counter with carry */
-  flip_lo = *(uint32_t *)0x325678 + 1; /* hazard-ok: value-arithmetic (counter+1 for carry) */
+  flip_lo = *(uint32_t *)0x325678 +
+            1; /* hazard-ok: value-arithmetic (counter+1 for carry) */
   *(uint32_t *)0x325678 = flip_lo;
   *(uint32_t *)0x32567c = *(uint32_t *)0x32567c + (uint32_t)(flip_lo == 0);
 
@@ -2166,7 +2167,7 @@ void halt_and_catch_fire(void)
 #if defined(_MSC_VER) && !defined(__clang__)
     __asm { int 3 }
 #else
-    __asm__ volatile ("int3");
+    __asm__ volatile("int3");
 #endif
     return;
   }
@@ -2232,7 +2233,8 @@ void halt_and_catch_fire(void)
     angle = atan2(scaled, *(double *)0x2573d8);
     window_params.camera.vertical_field_of_view = (float)(angle + angle);
 
-    render_camera_build_frustum(&window_params.camera, 0, window_params.frustum, 1);
+    render_camera_build_frustum(&window_params.camera, 0, window_params.frustum,
+                                1);
 
     window_params.unk_0[0] = 0;
 
@@ -2266,7 +2268,8 @@ void halt_and_catch_fire(void)
       draw_string_set_font(tag_index, -1, 0, 0, default_color);
       draw_string_set_tab_stops(0, 0);
       draw_string_set_color(default_color);
-      rasterizer_text_draw(screen_pos, 0, text_color, -4,
+      rasterizer_text_draw(
+        screen_pos, 0, text_color, -4,
         "halobeta xbox 01.10.12.2276 built at: Oct 12 2001 16:07:48");
 
       /* Original (0x102bd5): MOV EDX,[EBP-0x6]; DEC EDX; MOV [EBP-0x14],DX.
@@ -2275,11 +2278,11 @@ void halt_and_catch_fire(void)
        * message is drawn starting from that line; only the low word of
        * screen_pos[0] is stored (high word untouched, matching the
        * original word store). */
-      *(int16_t *)&screen_pos[0] =
-          (int16_t)(*(int32_t *)(text_color + 2) - 1);
+      *(int16_t *)&screen_pos[0] = (int16_t)(*(int32_t *)(text_color + 2) - 1);
 
       error_msg = error_get();
-      rasterizer_text_draw(screen_pos, 0, text_color, -4, (const char *)error_msg);
+      rasterizer_text_draw(screen_pos, 0, text_color, -4,
+                           (const char *)error_msg);
     }
 
     FUN_00184980(1);
@@ -2686,4 +2689,153 @@ void main_loop(void)
   game_dispose();
   debug_keys_dispose();
   console_dispose();
+}
+
+/*
+ * FUN_001034e0 - 0x1034e0
+ * Dispose helper for an object carrying three sub-allocations plus an
+ * element table. Walks the element table (base at word offset +3 / byte
+ * 0xC, signed count at word offset +4 / byte 0x10) and, for each index,
+ * resolves the element pointer via the indexer FUN_00117ee0(base, index,
+ * stride=0x1c) and frees it with FUN_00117cf0. After the loop it frees
+ * three tables: the object itself (+0x0), the element table (+0xC), and a
+ * third table (+0x18). Element stride is 28 bytes.
+ *
+ * Ghidra mis-detected the prototype as void(void); the sole parameter is a
+ * normal cdecl stack argument (in_stack_00000004). Pointer arithmetic is in
+ * int-word (4-byte) units.
+ */
+void FUN_001034e0(int *param_1)
+{
+  int *elem;
+  int index;
+
+  index = 0;
+  if (0 < param_1[4]) {
+    do {
+      elem = (int *)FUN_00117ee0(param_1 + 3, index, 0x1c);
+      FUN_00117cf0(elem);
+      index = index + 1;
+    } while (index < param_1[4]);
+  }
+  FUN_00117cf0(param_1);
+  FUN_00117cf0(param_1 + 3);
+  FUN_00117cf0(param_1 + 6);
+  return;
+}
+/*
+ * main/main_recursive_tree_walk.c — recursive tree/graph DFS marking helper
+ * XBE source: c:\halo\SOURCE\main\main.c
+ *   (grouped into its own TU for the recursive walk helper)
+ *
+ * Re-implemented functions (by XBE address, ascending):
+ *   0x103530  FUN_00103530  — depth-first marking walk over a node graph
+ */
+
+#include "common.h"
+
+/*
+ * FUN_00103530 — depth-first walk of a node graph.
+ *
+ * Looks up node = base+0x18[node_index] (stride 0x18, 6 dwords). Each node
+ * holds three child-list references at node[0..2] and a visited/mark flag at
+ * node[3] (0xffffffff == unvisited). If the node is unvisited and the optional
+ * caller callback (may be NULL) approves it, the node is stamped with `mark`
+ * and the walk recurses into every child referenced by node[0..2] via the
+ * child-list array at base+0xc (stride 0x1c).
+ *
+ * ABI: cdecl, 5 stack params. Ghidra mis-typed this as void(void); the true
+ * 5-param prototype, the callback's 4-arg char-returning signature (call site
+ * @0x103566), and the recursion's 5th argument (@0x1035c9) are reconstructed
+ * from the disassembly push sequences, not the decompiler.
+ *
+ * FUN_00117ee0(array_base, index, elem_size) returns &array[index].
+ *
+ * The inner child counter is a 16-bit short widened via MOVSX per iteration;
+ * preserved here as `short i` / `(int)i` for codegen fidelity.
+ */
+void FUN_00103530(int base, char (*visit)(uint32_t, int, uint32_t *, uint32_t),
+                  uint32_t visit_arg, uint32_t mark, int node_index)
+{
+  uint32_t *node;
+  int *child_list;
+  int elem;
+  short i;
+  int slot;
+
+  node = (uint32_t *)FUN_00117ee0((int *)(base + 0x18), node_index, 0x18);
+  if ((node[3] == 0xffffffff) &&
+      ((visit == NULL) || ((*visit)(mark, base, node, visit_arg) != 0))) {
+    node[3] = mark;
+    slot = 3;
+    do {
+      if (*node != 0xffffffff) {
+        child_list =
+          (int *)FUN_00117ee0((int *)(base + 0xc), *node & 0x7fffffff, 0x1c);
+        i = 0;
+        if (0 < child_list[1]) {
+          elem = 0;
+          do {
+            FUN_00103530(base, visit, visit_arg, mark,
+                         *(int *)FUN_00117ee0(child_list, elem, 4));
+            i = i + 1;
+            elem = (int)i;
+          } while (elem < child_list[1]);
+        }
+      }
+      node = node + 1;
+      slot = slot + -1;
+    } while (slot != 0);
+  }
+}
+
+/*
+ * FUN_00103b80 — resolve a triangle's three vertices and forward them.
+ *
+ * Looks up element `tri` in table A (obj+0x134, stride 0x34) at `index`.
+ * That element holds three vertex indices at word offsets +2/+3/+4
+ * (byte 0x8/0xc/0x10). Each index is resolved against vertex table B
+ * (obj+0x140, stride 0x50); the +8 offset into each 0x50-byte vertex
+ * element is the payload passed downstream (a float* — a position/vertex
+ * pointer). The three resolved pointers plus `base` and `flag` are handed
+ * to FUN_00103860.
+ *
+ * ABI: cdecl, 4 stack params. Ghidra mis-typed this as void(void) and
+ * aliased EDI=[EBP+0xc]/ESI, losing [EBP+0x8]. The true prototype and the
+ * 5-arg call to FUN_00103860 are reconstructed from the disassembly push
+ * sequences, not the decompiler. FUN_00103860 itself is a 5-param cdecl
+ * (verified from its own disasm/decompile): (base, a, b, c, flag).
+ *
+ * The three inner FUN_00117ee0 calls are written as arguments to
+ * FUN_00103860 so MSVC right-to-left evaluation reproduces the original
+ * interleaved push order: flag first, then vertex[tri[4]], vertex[tri[3]],
+ * vertex[tri[2]], then base last.
+ *
+ * FUN_00117ee0(array_base, index, elem_size) returns &array[index].
+ */
+void FUN_00103b80(int base, int obj, int index, int flag)
+{
+  int *tri;
+
+  tri = (int *)FUN_00117ee0((int *)(obj + 0x134), index, 0x34);
+  FUN_00103860(
+    base, (float *)(FUN_00117ee0((int *)(obj + 0x140), tri[2], 0x50) + 8),
+    (float *)(FUN_00117ee0((int *)(obj + 0x140), tri[3], 0x50) + 8),
+    (float *)(FUN_00117ee0((int *)(obj + 0x140), tri[4], 0x50) + 8), flag);
+}
+/* Lazily opens the debug VRML output file ("debug.wrl") on the first call,
+ * writes the VRML header, flushes it, and caches the FILE* in the global at
+ * 0x46e394. Returns whether the handle is non-NULL (open succeeded). The
+ * open is idempotent: once the handle is cached, subsequent calls skip the
+ * open/write and just report handle-valid status. */
+bool FUN_00103d30(void)
+{
+  if (*(void **)0x46e394 == NULL) {
+    *(void **)0x46e394 = crt_fopen("debug.wrl", "w");
+    if (*(void **)0x46e394 != NULL) {
+      crt_fprintf(*(void **)0x46e394, "#VRML V1.0 ascii\n\n");
+      crt_fflush(*(void **)0x46e394);
+    }
+  }
+  return *(void **)0x46e394 != NULL;
 }

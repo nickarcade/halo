@@ -747,8 +747,8 @@ void FUN_00158800(unsigned short *bounds)
     D3DDevice_SetTextureStageState(0, 0xe, 2);
     D3DDevice_SetTextureStageState(0, 0xf, 2);
     D3DDevice_SetRenderState_CullMode(0x901);
-    D3DDevice_SetRenderState_Simple(0x40358, 0x101);
-    *(uint32_t *)0x1fb7a4 = 0x101;
+    D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD, NV097_COLOR_MASK_RGB);
+    *(uint32_t *)0x1fb7a4 = 0x10101;
     D3DDevice_SetRenderState_Simple(0x40304, 0);
     *(uint32_t *)0x1fb784 = 0;
     D3DDevice_SetRenderState_Simple(0x40300, 0);
@@ -1102,8 +1102,11 @@ static const char kActiveCamoFile[] =
  *     and FUN_00158df0, both review-gate REJECTs).
  *   - Guard bytes: MOV AL,[0x3256f9] / MOV AL,[0x476ac0], both JE end.
  *   - Render-target assert compare is 16-bit: CMP WORD PTR [0x5a5bc0],0.
- *   - SetRenderState_Simple(0x40358, 0x101) — value 0x101
- *     (MOV EDX,0x101), NOT 0x10101; mirror store [0x1fb7a4]=0x101.
+ *   - SetRenderState_Simple(0x40358, 0x10101) — NV2A SET_COLOR_MASK,
+ *     R+G+B write-enabled (MOV EDX,0x10101: BA 01 01 01 00 at 0x15968b);
+ *     mirror store [0x1fb7a4]=0x10101. An earlier 0x101 transcription
+ *     disabled red-channel writes during the capture, garbling the camo
+ *     texture red (2026-07-12 regression).
  *   - Vertex-shader constant block: 5 vec4 at ebp-0x58, exact bit patterns
  *     0x3bcccccd / 0xbf806666 / 0xbc088889 / 0x3f808889 / 0x3f000000 /
  *     0x3f800000 (literals verified to round-trip to these encodings).
@@ -1151,8 +1154,8 @@ void FUN_001595c0(void)
     D3DDevice_SetTextureStageState(0, 0xf, 1);
 
     D3DDevice_SetRenderState_CullMode(0x901);
-    D3DDevice_SetRenderState_Simple(0x40358, 0x101);
-    *(uint32_t *)0x1fb7a4 = 0x101;
+    D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD, NV097_COLOR_MASK_RGB);
+    *(uint32_t *)0x1fb7a4 = 0x10101;
     D3DDevice_SetRenderState_Simple(0x40304, 0);
     *(uint32_t *)0x1fb784 = 0;
     D3DDevice_SetRenderState_Simple(0x40300, 0);
@@ -1380,7 +1383,7 @@ void FUN_00159900(void *group)
 
     /* Render-state block (values decoded from the delinked reference; each
      * SetRenderState_Simple is followed by its render-state cache mirror). */
-    D3DDevice_SetRenderState_Simple(0x40358, 0);
+    D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD, NV097_COLOR_MASK_NONE);
     *(uint32_t *)0x1fb7a4 = 0;
     D3DDevice_SetRenderState_Simple(0x40304, 0);
     *(uint32_t *)0x1fb784 = 0;
@@ -1481,7 +1484,7 @@ void FUN_00159900(void *group)
   D3DDevice_SetRenderState_CullMode(cull);
 
   /* Render state for the distortion pass. */
-  D3DDevice_SetRenderState_Simple(0x40358, 0x10101);
+  D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD, NV097_COLOR_MASK_RGB);
   *(uint32_t *)0x1fb7a4 = 0x10101;
   D3DDevice_SetRenderState_Simple(0x40300, 0);
   *(uint32_t *)0x1fb788 = 0;
@@ -2814,10 +2817,10 @@ void FUN_0015bc40(int rendered_cluster_data)
       if (*(uint16_t *)0x476ad4 != blend) {
         *(uint16_t *)0x476ad4 = blend;
         if (blend == 1 || blend == 2) {
-          D3DDevice_SetRenderState_Simple(0x40358, 0x1010101);
+          D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD, NV097_COLOR_MASK_RGBA);
           *(uint32_t *)0x1fb7a4 = 0x1010101;
         } else {
-          D3DDevice_SetRenderState_Simple(0x40358, 0x10101);
+          D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD, NV097_COLOR_MASK_RGB);
           *(uint32_t *)0x1fb7a4 = 0x10101;
         }
         switch (*(uint16_t *)0x476ad4) {
@@ -3221,7 +3224,7 @@ void FUN_0015c6f0(void)
   /* Fixed render-state block (each Simple call mirrored by its cache global).
    */
   D3DDevice_SetRenderState_CullMode(0);
-  D3DDevice_SetRenderState_Simple(0x40358, 0x10101);
+  D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD, NV097_COLOR_MASK_RGB);
   *(uint32_t *)0x1fb7a4 = 0x10101;
   D3DDevice_SetRenderState_Simple(0x40304, 1);
   *(uint32_t *)0x1fb784 = 1;
@@ -3834,9 +3837,14 @@ void FUN_0015d160(void)
  *
  * cdecl, one int stack arg at [esp+4] (Ghidra draft mis-typed this void(void)
  * with in_stack_00000004; it is a plain cdecl stack param, NOT a register arg).
- * Returns the advanced vertex cursor, or -1 on the count<=0 / overflow paths
- * (edi is seeded to -1 in the prologue and reused as the cursor accumulator;
- * the pristine XBE returns it via `mov eax,edi` at the early-exit merge).
+ * Returns the record index (the widget HANDLE = pre-increment record count:
+ * EAX is loaded from [0x47dbe0] at 0x15d20a and the success exit takes
+ * `jne 0x15d28f`, SKIPPING the `mov eax,edi` at 0x15d28d), or -1 on the
+ * count<=0 / overflow paths (edi is seeded -1 and reaches EAX only there).
+ * Callers pass this handle to 0x15ea70 (rasterizer_widget_begin), which
+ * asserts handle < record count — an earlier lift returned the advanced
+ * cursor instead, firing that assert (draw_primitives.c:338) in-game
+ * (fixed 2026-07-12).
  *
  * NB: every assert path is display_assert(...); system_exit(-1); (confirmed
  * from the pristine XBE: each site pushes -1 and calls 0x8e2f0 with a combined
@@ -3849,6 +3857,7 @@ void FUN_0015d160(void)
 int FUN_0015d170(int count)
 {
   int result;
+  int handle;
 
   result = -1;
   if (count < 0) {
@@ -3866,16 +3875,16 @@ int FUN_0015d170(int count)
   }
   if (0 < count) {
     if ((*(int *)0x47dbe4 < 0x8000 - count) && (*(int *)0x47dbe0 < 0x3ff)) {
-      *(int *)(0x47abe0 + *(int *)0x47dbe0 * 0xc) = *(int *)0x47dbe4;
-      *(int *)(0x47abe4 + *(int *)0x47dbe0 * 0xc) = count;
-      result = *(int *)0x47dbe4 + count;
-      *(int *)0x47dbe4 = result;
-      *(int *)0x47dbe0 = *(int *)0x47dbe0 + 1;
+      handle = *(int *)0x47dbe0;
+      *(int *)(0x47abe0 + handle * 0xc) = *(int *)0x47dbe4;
+      *(int *)(0x47abe4 + handle * 0xc) = count;
+      *(int *)0x47dbe4 = *(int *)0x47dbe4 + count;
+      *(int *)0x47dbe0 = handle + 1;
       if (*(short *)0x3256ba == 2) {
         *(int *)0x5a5538 = *(int *)0x5a5538 + count;
         *(int *)0x5a553c = *(int *)0x5a553c + 1;
       }
-      return result;
+      return handle;
     } else if (*(char *)0x47dbf4 == 0) {
       error(2,
             "### ERROR too many dynamic triangles requested from rasterizer");
@@ -3950,7 +3959,14 @@ int FUN_0015d2d0(int index, int a2, int s1, int s2, int s3, int s4)
  *
  * cdecl, two stack args: short type @[esp+4], int count @[esp+8] (Ghidra draft
  * mis-typed this void(void) with in_stack_00000004/00000008 -- they are plain
- * cdecl stack params, NOT register args).  void return.
+ * cdecl stack params, NOT register args).  Returns the record index (the
+ * handle = pre-increment record count: `mov ecx,[0x47abd8]; mov eax,ecx` at
+ * 0x15d3f3), or -1 (`or eax,-1` at 0x15d472) on the count<=0 / overflow
+ * paths.  Callers reach this via the 0x17c9b0 thunk (kb name
+ * rasterizer_widget_set_zbuffer_enable, a misnomer) and pass the handle to
+ * 0x15ec50 — a void lift here left garbage in EAX, firing the
+ * dynamic_vertex_buffer_index assert (draw_primitives.c:536) in-game
+ * (fixed 2026-07-12, same class as sibling FUN_0015d170).
  *
  * NB: like the sibling FUN_0015d170, every assert path is
  * display_assert(...); system_exit(-1); (the pristine XBE's combined
@@ -3960,10 +3976,11 @@ int FUN_0015d2d0(int index, int a2, int s1, int s2, int s3, int s4)
  *
  * 0x15d310 / rasterizer_decals.obj
  */
-void FUN_0015d310(short type, int count)
+int FUN_0015d310(short type, int count)
 {
   int iType;
   int rec;
+  int handle;
 
   if (count < 0) {
     display_assert("count>=0", kDrawPrimitivesFile, 0x1aa, 1);
@@ -3989,24 +4006,25 @@ void FUN_0015d310(short type, int count)
          *(int *)(0x476aec + iType * 0x14) - count) &&
         (*(int *)0x47abd8 < 0x3ff)) {
       FUN_00180050(type);
-      rec = *(int *)0x47abd8 * 0x10;
+      handle = *(int *)0x47abd8;
+      rec = handle * 0x10;
       *(short *)(0x476bd8 + rec) = type;
       *(unsigned int *)(0x476bdc + rec) = *(int *)(0x476ae8 + iType * 0x14);
       *(int *)(0x476be0 + rec) = count;
       *(int *)(0x476ae8 + iType * 0x14) =
         *(int *)(0x476ae8 + iType * 0x14) + count;
-      *(int *)0x47abd8 = *(int *)0x47abd8 + 1;
+      *(int *)0x47abd8 = handle + 1;
       if (*(short *)0x3256ba == 2) {
         *(int *)0x5a5530 = *(int *)0x5a5530 + count;
         *(int *)0x5a5534 = *(int *)0x5a5534 + 1;
-        return;
       }
+      return handle;
     } else if (*(char *)0x47dbf5 == 0) {
       error(2, "### ERROR too many dynamic vertices requested from rasterizer");
       *(char *)0x47dbf5 = 1;
     }
   }
-  return;
+  return -1;
 }
 
 /* 0x15d480

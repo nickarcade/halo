@@ -24,10 +24,18 @@ Findings:
     WARN   decl is __stdcall but binary uses plain RET
 
 Usage:
-    python3 tools/audit/check_stdcall_ret.py            # full sweep report
-    python3 tools/audit/check_stdcall_ret.py --check    # exit 1 on any ERROR
+    python3 tools/audit/check_stdcall_ret.py                    # full sweep report
+    python3 tools/audit/check_stdcall_ret.py --check            # exit 1 on non-baselined ERRORs
     python3 tools/audit/check_stdcall_ret.py --addr 0x1ea300
+    python3 tools/audit/check_stdcall_ret.py --update-baseline  # accept current ERRORs
     python3 tools/audit/check_stdcall_ret.py --self-test
+
+Baseline: tools/audit/stdcall_ret_baseline.json holds the pre-existing ERRORs
+(545 latent ``(void)``-decl-over-``RET n`` XDK/D3D functions, none called from
+lifted C as of 2026-07-12).  ``--check`` gates only NEW mismatches — a new bad
+decl, or an existing entry whose expected/observed pops changed (i.e. the decl
+was edited but is still wrong).  Fix the decl instead of baselining whenever
+the function is (about to be) called from lifted C.
 """
 
 from __future__ import annotations
@@ -52,6 +60,7 @@ from check_arg_counts import (  # noqa: E402
 import check_arg_counts as cac  # noqa: E402
 
 REPORT_PATH = REPO_ROOT / "artifacts" / "audit" / "stdcall_ret_report.txt"
+BASELINE_PATH = REPO_ROOT / "tools" / "audit" / "stdcall_ret_baseline.json"
 
 _STDCALL_RE = re.compile(r"\b__stdcall\b")
 _NORETURN_RE = re.compile(r"\b__noreturn\b|\bnoreturn\b")
@@ -80,7 +89,14 @@ class RetResult(NamedTuple):
 def find_first_ret(addr: int, bound: int) -> RetResult:
     """Linearly disassemble from addr; return the first RET's pop count.
 
-    Follows up to MAX_THUNK_HOPS leading unconditional direct JMPs (thunks).
+    Follows up to MAX_THUNK_HOPS leading thunks: an unconditional direct JMP
+    within the first few instructions whose target lies OUTSIDE the current
+    body (covers plain ``jmp target`` and reg-loading thunks like the xnet
+    wrappers' ``mov ecx,[glob]; jmp target``).  Any later out-of-body JMP is
+    a tail-call — the RET belongs to the target's convention, so the scan
+    stops as undecidable rather than decoding into the next function (that
+    misattribution produced false ERRORs on xnet_send/xnet_recvfrom).
+    In-body forward JMPs (to the shared epilogue) are passed over linearly.
     Stops as undecidable on decode failure, INT3 padding, or scan overrun —
     a jump table's inline data would derail linear decode, but MSVC places
     tables after the final RET, so the first RET is reached beforehand.
@@ -93,9 +109,10 @@ def find_first_ret(addr: int, bound: int) -> RetResult:
         code = _read_va(addr, size)
         if not code:
             return RetResult("undecidable", 0, 0)
-        first = True
+        entry = addr
+        insn_idx = 0
         pos = 0
-        derailed = True
+        followed = False
         for insn in md.disasm(code, addr):
             pos = insn.address + insn.size - addr
             m = insn.mnemonic
@@ -104,24 +121,73 @@ def find_first_ret(addr: int, bound: int) -> RetResult:
                 return RetResult("ret", imm, insn.address)
             if m == "int3":
                 return RetResult("undecidable", 0, 0)
-            if first and m == "jmp" and re.fullmatch(r"0x[0-9a-f]+", insn.op_str):
-                # leading thunk — follow it
-                hops += 1
-                if hops > MAX_THUNK_HOPS:
-                    return RetResult("undecidable", 0, 0)
-                addr = int(insn.op_str, 16)
-                bound = addr + MAX_BODY
-                derailed = False
-                break
-            first = False
+            if m == "jmp" and re.fullmatch(r"0x[0-9a-f]+", insn.op_str):
+                target = int(insn.op_str, 16)
+                if entry <= target < bound:
+                    insn_idx += 1
+                    continue  # internal flow (epilogue jump) — keep scanning
+                if insn_idx <= 2:
+                    # leading thunk (possibly after reg-arg loads) — follow it
+                    hops += 1
+                    if hops > MAX_THUNK_HOPS:
+                        return RetResult("undecidable", 0, 0)
+                    addr = target
+                    bound = target + MAX_BODY
+                    followed = True
+                    break
+                # mid-body tail-call: RET belongs to the callee's convention
+                return RetResult("undecidable", 0, 0)
+            insn_idx += 1
         else:
-            derailed = pos < len(code)  # decode error mid-buffer
-            if not derailed:
-                return RetResult("undecidable", 0, 0)  # ran off scan window
-        if hops and not derailed:
+            return RetResult("undecidable", 0, 0)  # decode error / ran off window
+        if followed:
             continue
-        if derailed:
-            return RetResult("undecidable", 0, 0)
+        return RetResult("undecidable", 0, 0)
+
+
+_TRAMPOLINE = bytes.fromhex("558bec5de9")  # push ebp; mov ebp,esp; pop ebp; jmp rel32
+_RETTYPE_RE = re.compile(r"\s*([\w\s]+?(?:\s*\*+)?)\s*\b\w+\s*\(")
+
+
+def _decl_rettype(decl: str) -> str:
+    m = _RETTYPE_RE.match(decl)
+    return re.sub(r"\s+", " ", m.group(1)).replace("__cdecl", "").strip() if m else "?"
+
+
+def thunk_decl_audit() -> List[str]:
+    """Cross-check trampoline thunks' decls against their jump targets' decls.
+
+    The XBE routes many subsystem entry points through 5-byte trampolines
+    (``push ebp; mov ebp,esp; pop ebp; jmp impl``) — e.g. the rasterizer
+    widget family at 0x17c970..0x17c9f0.  Ghidra often decompiles the *impl*
+    as ``void f(void)`` while callers only exist on the *thunk* side, so the
+    thunk decl carries the real signature.  A lift of the impl that trusts
+    the impl's void decl silently drops the implicit-EAX return the thunk's
+    callers consume (the 0x15d310 dynamic-vertex allocator returned garbage
+    handles — draw_primitives.c:536 assert in-game, 2026-07-12; sibling
+    0x15d170 had the same class with a wrong return VALUE).  Returns WARN
+    strings for every thunk whose void-ness disagrees with its target.
+    """
+    entries = {e.addr: e for e in _load_kb()}
+    warns: List[str] = []
+    for addr, e in sorted(entries.items()):
+        code = _read_va(addr, 9)
+        if not code or code[:5] != _TRAMPOLINE:
+            continue
+        rel = int.from_bytes(code[5:9], "little", signed=True)
+        target = addr + 9 + rel
+        te = entries.get(target)
+        if not te:
+            continue
+        rt_thunk = _decl_rettype(e.decl)
+        rt_impl = _decl_rettype(te.decl)
+        if (rt_thunk == "void") != (rt_impl == "void"):
+            warns.append(
+                "WARN  0x%06x %-32s returns '%s' but jump target 0x%06x %s "
+                "is declared '%s' — a lift trusting the void side drops/invents "
+                "the implicit-EAX return (see lift-learnings §31)"
+                % (addr, e.name[:32], rt_thunk, target, te.name, rt_impl))
+    return warns
 
 
 class Finding(NamedTuple):
@@ -194,13 +260,54 @@ def _self_test() -> None:
     # FUN_00158ae0: cdecl, plain RET through a switch — first RET is C3
     r = find_first_ret(0x158ae0, 0x158df0)
     assert r.kind == "ret" and r.pop_bytes == 0, r
-    print("self-test OK")
+    # xnet_send: reg-loading thunk (mov ecx,[glob]; jmp send) — must follow
+    # the tail JMP to send's RET 0x10, not decode past it (old false ERROR)
+    r = find_first_ret(0x225c20, 0x225cd1)
+    assert r.kind == "ret" and r.pop_bytes == 16, r
+    # thunk decl audit must parse the widget trampolines (0x17c9b0 -> 0x15d310);
+    # after the 2026-07-12 decl fixes that pair agrees, so it must NOT be listed
+    warns = thunk_decl_audit()
+    assert not any("0x17c9b0" in w for w in warns), warns
+    print("self-test OK (%d thunk-decl warns)" % len(warns))
+
+
+def _load_baseline() -> Dict[str, Dict]:
+    import json
+    if not BASELINE_PATH.exists():
+        return {}
+    return json.loads(BASELINE_PATH.read_text()).get("entries", {})
+
+
+def _write_baseline(errors: List[Finding]) -> None:
+    import json
+    entries = {
+        "0x%06x" % f.entry.addr: {
+            "name": f.entry.name,
+            "expected": f.expected_pop,
+            "observed": f.observed_pop,
+        }
+        for f in errors
+    }
+    payload = {
+        "_comment": (
+            "Pre-existing stdcall-decl mismatches (lift-learnings §30) accepted "
+            "as latent: not called from lifted C when baselined. --check gates "
+            "only ERRORs absent from this file or whose expected/observed pops "
+            "changed. Fix the kb.json decl (do NOT baseline) for any function "
+            "called from lifted C. Regenerate: check_stdcall_ret.py --update-baseline"
+        ),
+        "entries": dict(sorted(entries.items())),
+    }
+    BASELINE_PATH.write_text(json.dumps(payload, indent=2) + "\n")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
-    ap.add_argument("--check", action="store_true", help="exit 1 on any ERROR")
+    ap.add_argument("--check", action="store_true",
+                    help="exit 1 on ERRORs not covered by the baseline")
     ap.add_argument("--addr", type=lambda s: int(s, 16), help="check one function")
+    ap.add_argument("--update-baseline", action="store_true",
+                    help="write current ERRORs to %s" % BASELINE_PATH.name)
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -212,22 +319,45 @@ def main() -> None:
     errors = [f for f in findings if f.level == "ERROR"]
     warns = [f for f in findings if f.level == "WARN"]
 
+    if args.update_baseline:
+        _write_baseline(errors)
+        print("baseline written: %s (%d entries)" % (BASELINE_PATH, len(errors)))
+        return
+
+    baseline = _load_baseline()
+    new_errors = []
+    for f in errors:
+        b = baseline.get("0x%06x" % f.entry.addr)
+        if b is None or b.get("expected") != f.expected_pop \
+                or b.get("observed") != f.observed_pop:
+            new_errors.append(f)
+
+    thunk_warns = thunk_decl_audit() if args.addr is None else []
+
     lines: List[str] = []
     for f in sorted(findings, key=lambda f: (f.level != "ERROR", f.entry.addr)):
+        tag = " [baselined]" if (f.level == "ERROR" and f not in new_errors) else ""
         lines.append(
-            "%-5s 0x%06x %-48s expected RET %-3d observed RET %-3d @0x%06x  %s"
+            "%-5s 0x%06x %-48s expected RET %-3d observed RET %-3d @0x%06x  %s%s"
             % (f.level, f.entry.addr, f.entry.name[:48], f.expected_pop,
-               f.observed_pop, f.ret_va, f.note))
+               f.observed_pop, f.ret_va, f.note, tag))
+    lines.extend(thunk_warns)
     report = "\n".join(lines) + (
-        "\n\n%d checked, %d ok, %d undecidable, %d ERROR, %d WARN\n"
+        "\n\n%d checked, %d ok, %d undecidable, %d ERROR (%d new, %d baselined), "
+        "%d WARN, %d thunk-decl WARN\n"
         % (stats["checked"], stats["ok"], stats["undecidable"],
-           len(errors), len(warns)))
+           len(errors), len(new_errors), len(errors) - len(new_errors),
+           len(warns), len(thunk_warns)))
     print(report)
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(report)
     print("report: %s" % REPORT_PATH)
 
-    if args.check and errors:
+    if args.check and new_errors:
+        print("\n--check FAILED: %d non-baselined stdcall-decl mismatch(es). "
+              "Fix the kb.json decl (see lift-learnings §30); only baseline "
+              "with --update-baseline if the function is provably never "
+              "called from lifted C." % len(new_errors))
         sys.exit(1)
 
 

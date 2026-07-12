@@ -1,3 +1,576 @@
+/*
+ * text_search_and_replace_function_table[1]  (0x000f52f0, __cdecl)
+ *
+ * Resolver that renders a single-digit wide replacement string from a widget
+ * field.  Reads a signed 16-bit selector at (widget + 8), then writes the
+ * digit + NUL terminator into a static wchar_t[2] result buffer at 0x0046cee8
+ * and returns a pointer to it (EAX = 0x0046cee8 in every arm of the original).
+ *
+ *   selector -1 / 0 -> L"1"
+ *   selector  1     -> L"2"
+ *   selector  2     -> L"3"
+ *   selector  3     -> L"4"
+ *   otherwise       -> L"?"
+ *
+ * The original biases the selector by +1 and dispatches through a 5-entry jump
+ * table (indices 0..4 for selector -1..3); the switch below reproduces that
+ * dense mapping.  The 0x0046cee8 result buffer lies inside the delinker's
+ * over-sized game_data build-version array, but is a distinct static owned by
+ * this TU, so it is declared as its own symbol (word_46CEE8).
+ *
+ * ABI: sole cdecl stack arg 'widget' (no register args); leaf, no callees.
+ */
+wchar_t *FUN_000f52f0(void *widget)
+{
+  switch (*(short *)((char *)widget + 8)) {
+  case -1:
+  case 0:
+    word_46CEE8[0] = L'1';
+    word_46CEE8[1] = L'\0';
+    return word_46CEE8;
+  case 1:
+    word_46CEE8[0] = L'2';
+    word_46CEE8[1] = L'\0';
+    return word_46CEE8;
+  case 2:
+    word_46CEE8[0] = L'3';
+    word_46CEE8[1] = L'\0';
+    return word_46CEE8;
+  case 3:
+    word_46CEE8[0] = L'4';
+    word_46CEE8[1] = L'\0';
+    return word_46CEE8;
+  default:
+    word_46CEE8[0] = L'?';
+    word_46CEE8[1] = L'\0';
+    return word_46CEE8;
+  }
+}
+
+/* Virtual on-screen keyboard initialization (items.obj).
+ * TU: c:\halo\SOURCE\interface\virtual_keyboard.c (__FILE__ assert @0x28a854).
+ *
+ * virtual_keyboard_globals lives at 0x46cef0:
+ *   +0x00  byte[4]           four separate byte flags (zeroed individually)
+ *   +0x04  void *keyboard    'vcky' tag_get result (asserted non-NULL, l.363)
+ *   +0x08  int16[3] = 0      state words (0x46cef8/cefa/cefc)
+ *   +0x0e  int16 = -1        sentinel (0x46cefe)
+ *   +0x10  int16 = -1        sentinel (0x46cf00)
+ *   +0x12  int16 = 0         (0x46cf02)
+ *   +0x18  int[3] = 0        dwords 0x46cf08/cf0c/cf10
+ *   +0x24  int caret_bitmap  'bitm' tag index (0x46cf14; -1 = load failed)
+ *
+ * Looks up the 'vcky' virtual keyboard tag for "ui\english"; on success
+ * caches the tag definition pointer and resets the keyboard state fields,
+ * else logs a priority-2 error.  Independently resolves the caret bitmap
+ * 'bitm' tag "ui\shell\bitmaps\white" (also error-logged on failure).
+ *
+ * Returns whether the keyboard definition pointer is non-NULL (SETNE AL
+ * from a reload of 0x46cef4; the sole caller at 0xe8809 does TEST AL,AL
+ * and logs an error when it is false).
+ */
+bool virtual_keyboard_initialize(void)
+{
+  int keyboard_tag;
+
+  *(unsigned char *)0x46cef0 = 0;
+  *(unsigned char *)0x46cef1 = 0;
+  *(unsigned char *)0x46cef2 = 0;
+  *(unsigned char *)0x46cef3 = 0;
+
+  keyboard_tag = tag_loaded(0x76636b79, "ui\\english"); /* 'vcky' */
+  if (keyboard_tag != -1) {
+    *(void **)0x46cef4 = tag_get(0x76636b79, keyboard_tag); /* 'vcky' */
+    if (*(void **)0x46cef4 == (void *)0) {
+      display_assert("virtual_keyboard_globals.keyboard",
+                     "c:\\halo\\SOURCE\\interface\\virtual_keyboard.c", 363,
+                     true);
+      system_exit(-1);
+    }
+    *(short *)0x46cef8 = 0;
+    *(short *)0x46cefa = 0;
+    *(short *)0x46cefc = 0;
+    *(short *)0x46cefe = -1;
+    *(short *)0x46cf00 = -1;
+    *(short *)0x46cf02 = 0;
+    *(int *)0x46cf08 = 0;
+    *(int *)0x46cf0c = 0;
+    *(int *)0x46cf10 = 0;
+  } else {
+    error(2, "failed to load virtual keyboard for '%s' language", "<unknown>");
+  }
+
+  *(int *)0x46cf14 =
+    tag_loaded(0x6269746d, "ui\\shell\\bitmaps\\white"); /* 'bitm' */
+  if (*(int *)0x46cf14 == -1) {
+    error(2, "failed to load virtual keyboard caret bitmap '%s'",
+          "ui\\shell\\bitmaps\\white");
+  }
+
+  return *(void **)0x46cef4 != (void *)0;
+}
+
+/* virtual_keyboard.c — on-screen (IME-style) text entry state machine.
+ *
+ * TU: c:\halo\SOURCE\interface\virtual_keyboard.c  (per __FILE__ assert
+ * string). kb.json currently files 0xf5500 under items.obj; the assert __FILE__
+ * proves the real translation unit is interface/virtual_keyboard.c.
+ *
+ * The virtual-keyboard state lives in a packed, mixed-width global block based
+ * at 0x46cef0 ("virtual_keyboard_globals"). Field widths are preserved exactly
+ * (u8 / u16 / u32 / ptr / wchar[32]); do NOT promote the narrow stores to int.
+ * Layout used here (offset from 0x46cef0):
+ *   +0x00 u8   active flag
+ *   +0x01 u8   (cleared)
+ *   +0x02 u8   (cleared)
+ *   +0x03 u8   (cleared)
+ *   +0x04 u32  readiness gate (read-only here)
+ *   +0x06 u8   (cleared)
+ *   +0x07 u8   set to 1
+ *   +0x08 u16  cursor/selection lo (cleared)
+ *   +0x0a u16  cursor/selection hi (cleared)
+ *   +0x0c u16  buffer_size, clamped <= 0x40 (unsigned)
+ *   +0x0e u16  0xffff sentinel
+ *   +0x14 u16  caption_index
+ *   +0x16 u8   (cleared)
+ *   +0x18 ptr  text_buffer
+ *   +0x1c ptr  text_buffer end = base + ustrlen(base) (wchar_t* arithmetic)
+ *   +0x20 u32  FUN_001d0581() result
+ *   +0x28 wchar[32]  ustrncpy of caller text
+ *   +0x66 u16  0
+ */
+
+/* virtual_keyboard_set_validation — begin a validated virtual-keyboard entry
+ * session over the caller's wchar_t buffer. Asserts the inputs (non-null
+ * buffer, non-zero even byte size, no session already active) and that
+ * caption_index is a valid virtual-keyboard caption string index. If the
+ * subsystem is not ready (or a session is somehow active), returns false
+ * without changing state. Otherwise flushes pending UI events, initializes the
+ * state block, seeds the edit buffer, plays the forward audio cue and returns
+ * true.
+ *
+ * cdecl, bool return in AL (MOV AL,1 success / XOR AL,AL failure). */
+bool virtual_keyboard_set_validation(wchar_t *text_buffer,
+                                     unsigned short buffer_size,
+                                     short caption_index)
+{
+  int len;
+
+  assert_halt_msg(text_buffer && buffer_size && !(buffer_size & 1) &&
+                    !*(uint8_t *)0x46cef0,
+                  "text_buffer && buffer_size && !(buffer_size&1) && "
+                  "!virtual_keyboard_globals.active");
+  assert_halt_msg((caption_index > 7) && (caption_index < 0xb),
+                  "(caption_index>=FIRST_VIRTUAL_KEYBOARD_CAPTION_STRING_INDEX)"
+                  " && (caption_index<NUMBER_OF_VIRTUAL_KEYBOARD_STRINGS)");
+
+  if (*(uint8_t *)0x46cef0 != 0 || *(uint32_t *)0x46cef4 == 0)
+    return false;
+
+  event_manager_flush();
+
+  *(uint16_t *)0x46cef8 = 0;
+  *(uint16_t *)0x46cefa = 0;
+  *(uint8_t *)0x46cef0 = 1;
+  *(wchar_t **)0x46cf08 = text_buffer;
+  len = ustrlen(text_buffer);
+  *(wchar_t **)0x46cf0c = text_buffer + len;
+  *(uint16_t *)0x46cefc = buffer_size;
+  if (buffer_size >= 0x40)
+    *(uint16_t *)0x46cefc = 0x40;
+  *(uint16_t *)0x46cefe = 0xffff;
+  *(uint32_t *)0x46cf10 = (uint32_t)FUN_001d0581();
+  *(uint16_t *)0x46cf04 = (uint16_t)caption_index;
+  *(uint8_t *)0x46cef1 = 0;
+  *(uint8_t *)0x46cef2 = 0;
+  *(uint8_t *)0x46cef3 = 0;
+  *(uint8_t *)0x46cef7 = 1;
+  ustrncpy((wchar_t *)0x46cf18, text_buffer, 0x20);
+  *(uint16_t *)0x46cf56 = 0;
+  *(uint8_t *)0x46cef6 = 0;
+  ui_play_audio_feedback_sound(2);
+  return true;
+}
+
+/* Virtual keyboard cursor move handler: advance the keymap row cursor
+ * upward (0xf5700, virtual_keyboard.obj TU).
+ *
+ * Decrements the row cursor at 0x46cef8 through 5 keymap rows (wrapping
+ * -1 -> 4), skipping rows whose key character (keymap byte at
+ * 0x28a790[col + row*0xb]) equals the character under the pre-move cursor,
+ * so duplicate/merged keys are stepped over in one press. Stores the new
+ * row, plays the UI cursor-move sound (selector 1), and returns 1 (move
+ * accepted -> caller latches last_move_dir/last_move_time). Sibling of
+ * FUN_000f5660/56b0/5750/5fb0.
+ *
+ * Disasm notes: row is held in AX for the whole loop (16-bit dec, signed
+ * jns wrap to 4) and stored to the global once after the loop; the
+ * pre-move key byte is cached in DL before the loop; col (0x46cefa) is
+ * MOVSX-loaded once into ECX. MOV AL,1 before RET -> char return; PUSH 1
+ * is the audio-selector argument. */
+char FUN_000f5700(void)
+{
+  short row;
+  short col;
+  char original_key;
+
+  row = *(short *)0x46cef8;
+  col = *(short *)0x46cefa;
+  original_key = ((char *)0x28a790)[(int)col + row * 0xb];
+  do {
+    row = (short)(row - 1);
+    if (row < 0) {
+      row = 4;
+    }
+  } while (((char *)0x28a790)[(int)col + row * 0xb] == original_key);
+  *(short *)0x46cef8 = row;
+  ui_play_audio_feedback_sound(1);
+  return 1;
+}
+
+/* Virtual keyboard cursor move handler: advance the keymap row cursor
+ * downward (0xf5750, virtual_keyboard.obj TU).
+ *
+ * Increments the row cursor at 0x46cef8 modulo 5 (5 keymap rows), skipping
+ * rows whose key character (keymap byte at 0x28a790[col + row*0xb]) equals
+ * the character under the pre-move cursor, so duplicate/merged keys are
+ * stepped over in one press. Stores the new row, plays the UI cursor-move
+ * sound (selector 1), and returns 1 (move accepted -> caller latches
+ * last_move_dir/last_move_time). Sibling of FUN_000f5660/56b0/5700.
+ *
+ * Disasm notes: row is held in AX for the whole loop (16-bit inc/cmp/xor)
+ * and stored to the global once after the loop; the pre-move key byte is
+ * cached in DL before the loop; col (0x46cefa) is MOVSX-loaded once. */
+char FUN_000f5750(void)
+{
+  short row;
+  short col;
+  char original_key;
+
+  row = *(short *)0x46cef8;
+  col = *(short *)0x46cefa;
+  original_key = ((char *)0x28a790)[(int)col + row * 0xb];
+  do {
+    row = (short)(row + 1);
+    if (row == 5) {
+      row = 0;
+    }
+  } while (((char *)0x28a790)[(int)col + row * 0xb] == original_key);
+  *(short *)0x46cef8 = row;
+  ui_play_audio_feedback_sound(1);
+  return 1;
+}
+
+/* Virtual keyboard edit-buffer commit/flush handler (0xf57a0).
+ * Commits the working edit buffer into the caller's target pointer: if a
+ * target ptr (0x46cf08) is set, copy the working buffer (0x46cf18) into it
+ * as UTF-16 for (capacity>>1) wchars via ustrncpy, then NUL-terminate the
+ * final wchar cell at index (capacity>>1)-1. Afterwards clear the edit
+ * state (active flag 0x46cef0, target ptr 0x46cf08, working buffer word
+ * 0x46cf18, flag byte 0x46cf06) and play the UI "accept" feedback sound
+ * (selector 3). Returns 1 (accepted -> caller latches move state).
+ * Globals: 0x46cf08 = target/dest ptr, 0x46cf18 = working buffer base,
+ * 0x46cefc = capacity in bytes (unsigned 16-bit; loaded via MOVZX), used
+ * both as cap>>1 for the copy count and (cap>>1)-1 for the terminator.
+ * Sibling move handler of FUN_000f5660/56b0/5700/5750/5fb0.
+ * Disasm: MOV AL,1 before RET -> returns char 1; PUSH 3 to the audio call. */
+char FUN_000f57a0(void)
+{
+  wchar_t *dest;
+
+  *(char *)0x46cef0 = 0;
+  dest = *(wchar_t **)0x46cf08;
+  if (dest != (wchar_t *)0x0) {
+    ustrncpy(dest, (wchar_t *)0x46cf18,
+             (unsigned int)*(unsigned short *)0x46cefc >> 1);
+    ((unsigned short *)
+       dest)[((unsigned int)*(unsigned short *)0x46cefc >> 1) - 1] = 0;
+  }
+  *(wchar_t **)0x46cf08 = (wchar_t *)0x0;
+  *(short *)0x46cf18 = 0;
+  *(char *)0x46cf06 = 0;
+  ui_play_audio_feedback_sound(3);
+  return 1;
+}
+
+/* Virtual keyboard backspace / delete-char handler (0xf5f30).
+ * Deletes the wide-char (UTF-16) immediately before the cursor from the
+ * edit buffer. If the cursor (0x46cf0c) is past the buffer base (0x46cf08),
+ * shift the tail back by one 2-byte cell via csmemmove, NUL-terminate the
+ * final wchar cell, then back the cursor up by one wchar. The cursor
+ * feedback sound (selector 1) always plays, whether or not a char was
+ * removed.
+ * Globals: 0x46cf08 = buffer base ptr, 0x46cf0c = cursor/end ptr,
+ * 0x46cefc = buffer capacity in bytes (unsigned 16-bit; loaded via MOVZX).
+ * The terminator index uses (capacity >> 1) - 1 to match the original's
+ * SHR + scaled-index store [base + (cap>>1)*2 - 2]. */
+void FUN_000f5f30(void)
+{
+  char *cursor;
+  int remaining;
+
+  cursor = *(char **)0x46cf0c;
+  if (*(char **)0x46cf08 < cursor) {
+    remaining = ((int)*(unsigned short *)0x46cefc - (int)cursor) +
+                (int)*(char **)0x46cf08;
+    if (remaining >= 0) {
+      csmemmove(cursor - 2, cursor, (unsigned int)remaining);
+      ((unsigned short *)*(
+        char **)0x46cf08)[((unsigned int)*(unsigned short *)0x46cefc >> 1) -
+                          1] = 0;
+      *(char **)0x46cf0c -= 2;
+    }
+  }
+  ui_play_audio_feedback_sound(1);
+}
+
+/* Virtual on-screen keyboard input pump (virtual_keyboard.obj).
+ * TU: c:\halo\SOURCE\interface\virtual_keyboard.c (__FILE__ assert
+ * @0x28a790..).
+ *
+ * FUN_000f63f0 (0xf63f0): drains the per-frame input event queue for the
+ * on-screen keyboard and turns controller events into a single move/action
+ * code, then dispatches the matching per-direction handler.
+ *
+ * virtual_keyboard_globals cluster (see items.c virtual_keyboard_initialize):
+ *   0x46cef8  short  cursor row       (keymap row)
+ *   0x46cefa  short  cursor col       (keymap col)
+ *   0x46cefc  short  buffer_size      (edit buffer capacity, bytes)
+ *   0x46cefe  short  last_move_dir    (latched direction for auto-repeat)
+ *   0x46cf00  short  current_char     (keymap-resolved character)
+ *   0x46cf07  byte   buffer_dirty     (0 = pristine, 1 = user has typed)
+ *   0x46cf08  char*  buffer_base      (edit buffer start)
+ *   0x46cf0c  char*  cursor           (edit caret within the buffer)
+ *   0x46cf10  int    last_move_time   (ms timestamp of last accepted move)
+ *   0x46cf58  int    repeat_timer     (ms timestamp gating auto-repeat)
+ * Keymap dispatch table at 0x28a790 is a signed byte array indexed
+ * [row * 0xb + col] (11 columns) yielding the character stored at 0x46cf00.
+ *
+ * Move handlers FUN_000f5660/56b0/5700/5750/5fb0/57a0 return a char in AL
+ * (0/1); the return latches last_move_dir + last_move_time when it is 1.
+ */
+
+/* Controller input event record; event_manager_get_next_event writes 8 bytes
+ * (two dwords) here: a 16-bit event type at +0 and a 32-bit payload at +4.
+ * The payload is reinterpreted per event type (analog word pair / button
+ * id + pressed-flag bytes). */
+struct virtual_keyboard_event {
+  short type; /* +0 : 1 = analog stick, 3 = button */
+  short reserved; /* +2 */
+  int data; /* +4 : analog X (low word) / Y (high word), or
+                    button id (low byte) + pressed flag (byte +1) */
+};
+
+void virtual_keyboard_process_input(void)
+{
+  struct virtual_keyboard_event event;
+  int now_ms;
+  int action; /* selected move/action code, -1 = none */
+  int timer_tmp; /* value stored back into repeat_timer via the shared tail */
+  char moved; /* nonzero once a handler accepted the move */
+  char pressed; /* button pressed-flag byte */
+
+  now_ms = system_milliseconds();
+  action = -1;
+  moved = 0;
+
+  if (!event_manager_get_next_event(&event, -1))
+    return;
+
+  do {
+    if (event.type == 1) {
+      /* analog stick: cardinal only at full deflection */
+      if ((short)(event.data >> 16) == 0x7fff) {
+        action = 2;
+      } else if ((short)(event.data >> 16) == -0x8000) {
+        action = 3;
+      } else if ((short)event.data == -0x8000) {
+        action = 0;
+      } else {
+        timer_tmp = *(int *)0x46cf58;
+        if ((short)event.data == 0x7fff)
+          goto set_dir_right;
+      }
+    } else if (event.type == 3) {
+      /* button: high byte = pressed flag, low byte = button id */
+      pressed = (char)(event.data >> 8);
+      switch (event.data & 0xff) {
+      case 0: /* A: select current character */
+        if (pressed == 1)
+          action = 4;
+        break;
+      case 1: /* B / start: back */
+      case 0xd:
+        if (pressed == 1)
+          action = 5;
+        break;
+      case 2: /* X: accept / clear */
+        if (pressed == 1) {
+          if (*(unsigned char *)0x46cf07 == 1) {
+            if (*(short *)0x46cefc == 0)
+              display_assert("virtual_keyboard_globals.buffer_size>0",
+                             "c:\\halo\\SOURCE\\interface\\virtual_keyboard.c",
+                             0x27a, true);
+            csmemset(*(char **)0x46cf08, 0, (unsigned int)*(short *)0x46cefc);
+            *(char **)0x46cf0c = *(char **)0x46cf08;
+            *(unsigned char *)0x46cf07 = 0;
+            ui_play_audio_feedback_sound(1);
+            moved = 1;
+          } else {
+            FUN_000f5f30();
+            moved = 1;
+          }
+        }
+        break;
+      case 6: /* cursor left */
+        if (pressed == 1) {
+          if (*(char **)0x46cf08 < *(char **)0x46cf0c)
+            *(char **)0x46cf0c -= 1;
+        cursor_moved:
+          *(unsigned char *)0x46cf07 = 0;
+          ui_play_audio_feedback_sound(1);
+          moved = 1;
+        }
+        break;
+      case 7: /* cursor right */
+        if (pressed == 1) {
+          if (**(char **)0x46cf0c != 0)
+            *(char **)0x46cf0c += 1;
+          goto cursor_moved;
+        }
+        break;
+      case 8: /* dpad up (auto-repeat gated) */
+        if (*(short *)0x46cefe != 2 ||
+            0xf9 < (unsigned int)(now_ms - *(int *)0x46cf58) || pressed == 1) {
+          action = 2;
+          *(int *)0x46cf58 = now_ms;
+        }
+        break;
+      case 9: /* dpad down */
+        if (*(short *)0x46cefe != 3 ||
+            0xf9 < (unsigned int)(now_ms - *(int *)0x46cf58) || pressed == 1) {
+          action = 3;
+          *(int *)0x46cf58 = now_ms;
+        }
+        break;
+      case 10: /* dpad left */
+        if (*(short *)0x46cefe != 0 ||
+            0xf9 < (unsigned int)(now_ms - *(int *)0x46cf58) || pressed == 1) {
+          action = 0;
+          *(int *)0x46cf58 = now_ms;
+        }
+        break;
+      case 0xb: /* dpad right */
+        timer_tmp = now_ms;
+        if (*(short *)0x46cefe != 1 ||
+            0xf9 < (unsigned int)(now_ms - *(int *)0x46cf58) || pressed == 1) {
+        set_dir_right:
+          *(int *)0x46cf58 = timer_tmp;
+          action = 1;
+        }
+        break;
+      case 0xc: /* home / reset to origin */
+        if (pressed == 1) {
+          *(short *)0x46cef8 = 0;
+          *(short *)0x46cefa = 0;
+          action = 4;
+        }
+        break;
+      }
+    }
+  } while (event_manager_get_next_event(&event, -1));
+
+  if (action != -1) {
+    *(short *)0x46cf00 = (short)(char)((
+      char *)0x28a790)[(int)*(short *)0x46cefa + *(short *)0x46cef8 * 0xb];
+    switch (action) {
+    case 0:
+      moved = FUN_000f5660();
+      break;
+    case 1:
+      moved = FUN_000f56b0();
+      break;
+    case 2:
+      moved = FUN_000f5700();
+      break;
+    case 3:
+      moved = FUN_000f5750();
+      break;
+    case 4:
+      moved = FUN_000f5fb0();
+      break;
+    case 5:
+      moved = FUN_000f57a0();
+      break;
+    }
+    if (moved == 1) {
+      *(short *)0x46cefe = (short)action;
+      *(int *)0x46cf10 = now_ms;
+    }
+  }
+}
+
+/* items_dispose_from_old_map (0xf6740)
+ * Guarded per-frame virtual-keyboard input pump. If the
+ * virtual_keyboard_globals block at 0x46cef0 is active (byte flag at offset 0
+ * != 0), drain its input queue via virtual_keyboard_process_input; otherwise
+ * no-op. The kb name is a placeholder and does not describe the observed binary
+ * behavior. */
+void items_dispose_from_old_map(void)
+{
+  if (*(uint8_t *)0x46cef0 != 0) {
+    virtual_keyboard_process_input();
+  }
+}
+
+/*
+ * FUN_000f6750 (0xf6750, __cdecl): apply an item definition's flag bits to a
+ * live object instance.
+ *
+ * Resolves the object instance from its datum handle via
+ * object_get_and_verify_type(object_datum, 8) [type_mask 8], then propagates
+ * two flag bits from the definition struct (byte flags at definition+0x22)
+ * into the object:
+ *
+ *   def+0x22 bit0 (0x1): drives the object flags word at obj+0x4 bit5 (0x20) --
+ *       set -> OR 0x20, clear -> AND ~0x20.  In BOTH arms obj+0x4 is then also
+ *       OR'd with 0x60000.  When the bit is CLEAR the object's float at
+ *       obj+0x14 is additionally biased by +0.05f (*(float *)0x2533e8).
+ *   def+0x22 bit2 (0x4): drives the secondary flags word at obj+0x1a4 bit5 with
+ *       INVERTED sense -- clear -> OR 0x20, set -> AND ~0x20.
+ *
+ * The two consecutive stores to obj+0x4 (bare value, then value|0x60000) are
+ * emitted verbatim by the original and are kept split for byte fidelity.
+ *
+ * ABI: two cdecl stack args (no register args). Sole callee
+ * object_get_and_verify_type is cdecl. void return.
+ */
+void FUN_000f6750(int object_datum, void *definition)
+{
+  void *obj;
+  unsigned int flags;
+
+  obj = object_get_and_verify_type(object_datum, 8);
+  if ((*(unsigned char *)((char *)definition + 0x22) & 1) == 0) {
+    flags = *(unsigned int *)((char *)obj + 4) & 0xffffffdf;
+  } else {
+    flags = *(unsigned int *)((char *)obj + 4) | 0x20;
+  }
+  *(unsigned int *)((char *)obj + 4) = flags;
+  *(unsigned int *)((char *)obj + 4) = flags | 0x60000;
+  if ((*(unsigned char *)((char *)definition + 0x22) & 4) == 0) {
+    *(unsigned int *)((char *)obj + 0x1a4) =
+      *(unsigned int *)((char *)obj + 0x1a4) | 0x20;
+  } else {
+    *(unsigned int *)((char *)obj + 0x1a4) =
+      *(unsigned int *)((char *)obj + 0x1a4) & 0xffffffdf;
+  }
+  if ((*(unsigned char *)((char *)definition + 0x22) & 1) == 0) {
+    *(float *)((char *)obj + 0x14) =
+      *(float *)((char *)obj + 0x14) + *(float *)0x2533e8;
+  }
+}
+
 #include "x87_math.h"
 
 /* Activate the pickup sound effect for an equipment item.
@@ -25,6 +598,28 @@ void FUN_000f67f0(int equipment_tag_index)
   if (*(int *)(tag_data + 0x31c) != -1) {
     sound_impulse_start(*(int *)(tag_data + 0x31c), 1.0f);
   }
+}
+
+/* Item garbage-collection countdown tick (0xf6820).
+ * Fetches the item object (type mask 0x10), decrements the signed 16-bit
+ * despawn timer at item_obj+0x1dc (seeded to a random [300,600] value by
+ * item_begin_garbage_collection), and deletes the object once the timer
+ * reaches 0. Returns whether the item survived this tick (timer still > 0);
+ * the original latches this into BL via SETG and returns it in AL.
+ * Despite the kb name "item_new", the binary behavior is a per-tick
+ * release/countdown, not allocation. */
+char item_new(int object_handle)
+{
+  char *item_obj;
+  char survived;
+
+  item_obj = (char *)object_get_and_verify_type(object_handle, 0x10);
+  *(int16_t *)(item_obj + 0x1dc) = *(int16_t *)(item_obj + 0x1dc) - 1;
+  survived = *(int16_t *)(item_obj + 0x1dc) > 0;
+  if (!survived) {
+    object_delete(object_handle);
+  }
+  return survived;
 }
 
 /* Mark an item (type mask 0x10 = garbage item type) for garbage collection.
@@ -55,7 +650,8 @@ short FUN_000f68b0(int item_handle)
   return (unsigned char)datum[3];
 }
 
-/* Activate an item: set flags 0x6000, record game time, reset timer (0xf6910). */
+/* Activate an item: set flags 0x6000, record game time, reset timer (0xf6910).
+ */
 char item_activate(int item_handle)
 {
   char *item_obj;
@@ -184,6 +780,64 @@ void FUN_000f6b80(int item_handle)
     *(float *)(item_obj + 0x1d4) = 0.0f;
     *(float *)(item_obj + 0x1d8) = 1.0f;
   }
+}
+
+/* valid_real_vector3d_axes3 (0xf6c40)
+ *
+ * Validate that three vectors (a, b, c) form a valid orthonormal axis triple:
+ * each must be a unit normal (valid_real_normal3d), and each adjacent pair
+ * must be mutually perpendicular (dot ~= 0). FUN_00021f70 is the two-float
+ * approximate-equality test (dot, 0.0). FUN_00013070(c, a) returns the
+ * scalar (dot) that must also be ~0. Returns 1 if all checks pass, else 0.
+ *
+ * FP term order preserved from disassembly (MSVC scheduling emits the sum
+ * components in 0,2,1 order); the sum is commutative so this is harmless
+ * mathematically but kept for byte-fidelity. */
+char valid_real_vector3d_axes3(float *a, float *b, float *c)
+{
+  float scalar;
+
+  if (valid_real_normal3d(a)) {
+    if (valid_real_normal3d(b)) {
+      if (valid_real_normal3d(c)) {
+        if ((char)FUN_00021f70(a[0] * b[0] + a[2] * b[2] + a[1] * b[1], 0.0f) !=
+            '\0') {
+          if ((char)FUN_00021f70(b[0] * c[0] + c[2] * b[2] + c[1] * b[1],
+                                 0.0f) != '\0') {
+            scalar = FUN_00013070(c, a);
+            if ((char)FUN_00021f70(scalar, 0.0f) != '\0') {
+              return '\x01';
+            }
+          }
+        }
+      }
+    }
+  }
+  return '\0';
+}
+
+/* valid_real_matrix4x3 (0xf6d00)
+ *
+ * Validate a 4x3 affine matrix: 1 scale scalar @ +0x00, three orthonormal
+ * axis vectors @ +0x04/+0x10/+0x1C, and a translation point @ +0x28.
+ * The scale scalar is finite (not inf/NaN) when its IEEE-754 exponent bits
+ * (mask 0x7f800000) are NOT all set. Then the axis triple and the point are
+ * validated by their respective helpers. Returns 1 only when every check
+ * passes; 0 on any failure or non-finite scale.
+ *
+ * Ghidra mistyped this void(void); it is a bool-returning cdecl fn taking one
+ * float* matrix pointer (proven by the render_cameras.c thunk typedef). Nested
+ * -if shape preserved: single success return, fall-through failure. */
+char valid_real_matrix4x3(float *mat)
+{
+  if ((*(uint32_t *)mat & 0x7f800000) != 0x7f800000) {
+    if (valid_real_vector3d_axes3(mat + 1, mat + 4, mat + 7) != '\0') {
+      if (valid_real_point3d(mat + 10)) {
+        return '\x01';
+      }
+    }
+  }
+  return '\0';
 }
 
 /* item_set_position (0xf6d60)
@@ -392,4 +1046,98 @@ void item_set_position(int item_handle, float *position, int flag)
     system_exit(-1);
   }
   *(int16_t *)0x4761d8 = *(int16_t *)0x4761d8 - 1;
+}
+/*
+ * ui_widget_group.c
+ *
+ * TU: c:\halo\SOURCE\interface\ui_widget_group.c
+ *   (recovered from the __FILE__ assert string passed to display_assert at
+ *    0x000f4f28: "c:\halo\SOURCE\interface\ui_widget_group.c", line 0x1f5.)
+ *
+ * Shell UI tag preload for the current scenario.  Given the scenario tag
+ * index, resolves the 'scnr' tag, force-loads the shared multiplayer game
+ * text and white shell bitmap, then branches on the scenario type field
+ * (scnr + 0x3c, signed int16: 0 = solo, 1 = multiplayer, 2 = main_menu) to
+ * load the matching ui_widget_collection ('Soul') and, for the main menu, a
+ * long list of string-list ('ustr'), sound ('snd!') and music ('lsnd') tags.
+ * Every load is checked against -1 (NONE) and any failure is reported via
+ * error(2, ...).  An unrecognized scenario type asserts and calls
+ * system_exit(-1).
+ *
+ * cachebeta.xbe v01.10.12.2276, FUN_000f4ea0 @ 0x000f4ea0 (items.obj).
+ */
+
+void FUN_000f4ea0(int scenario_tag_index)
+{
+  void *scenario;
+  short scenario_type;
+
+  scenario = tag_get(0x73636e72 /* 'scnr' */, scenario_tag_index);
+
+  if (FUN_001b9b00(0x75737472 /* 'ustr' */, "ui\\multiplayer_game_text", 0) == -1)
+    error(2, "failed to load the multiplayer game text string list tag");
+
+  if (FUN_001b9b00(0x6269746d /* 'bitm' */, "ui\\shell\\bitmaps\\white", 0) == -1)
+    error(2, "generic white texture bitmap");
+
+  /* scnr + 0x3c is a signed int16 scenario type (MOVSX in the original). */
+  scenario_type = *(short *)((char *)scenario + 0x3c);
+
+  switch (scenario_type) {
+  case 0: /* solo */
+    if (FUN_001b9b00(0x536f756c /* 'Soul' */, "ui\\shell\\solo", 0) == -1)
+      error(2, "failed to load the solo scenario ui_widget_collection tag");
+    break;
+
+  case 1: /* multiplayer */
+    if (FUN_001b9b00(0x536f756c, "ui\\shell\\multiplayer", 0) == -1)
+      error(2, "failed to load the multiplayer scenario ui_widget_collection tag");
+    break;
+
+  case 2: /* main_menu */
+    if (FUN_001b9b00(0x536f756c, "ui\\shell\\main_menu", 0) == -1)
+      error(2, "failed to load the main menu scenario ui_widget_collection_tag");
+    if (FUN_001b9b00(0x76636b79 /* 'vcky' */, "ui\\english", 0) == -1)
+      error(2, "failed to load the browser's virtual keyboard tag");
+    if (FUN_001b9b00(0x75737472, "ui\\random_player_names", 0) == -1)
+      error(2, "failed to load random player names string list tag");
+    if (FUN_001b9b00(0x6d706c79 /* 'mply' */, "ui\\multiplayer_scenarios", 0) == -1)
+      error(2, "failed to load the multiplayer scenario description tag");
+    if (FUN_001b9b00(0x75737472, "ui\\saved_game_file_strings", 0) == -1)
+      error(2, "failed to load the default saved game filename string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\default_multiplayer_game_setting_names", 0) == -1)
+      error(2, "failed to load the default playlist profile names string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\shell\\strings\\game_variant_descriptions", 0) == -1)
+      error(2, "failed to load the multiplayer variant description string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\shell\\main_menu\\player_profiles_select\\difficulty_names", 0) == -1)
+      error(2, "failed to load the game difficulty name string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\shell\\strings\\default_player_profile_names", 0) == -1)
+      error(2, "failed to load the default player profile names string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\shell\\main_menu\\player_profiles_select\\button_set_long_descriptions", 0) == -1)
+      error(2, "failed to load the button set long descriptions string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\shell\\main_menu\\player_profiles_select\\button_set_short_descriptions", 0) == -1)
+      error(2, "failed to load the button set short descriptions string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\shell\\main_menu\\player_profiles_select\\joystick_set_defaults_descriptions", 0) == -1)
+      error(2, "failed to load the default joystick set descriptions string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\shell\\main_menu\\player_profiles_select\\joystick_set_short_descriptions", 0) == -1)
+      error(2, "failed to load the joystick set short descriptions string list tag");
+    if (FUN_001b9b00(0x75737472, "ui\\shell\\main_menu\\player_profiles_select\\profile_description_labels", 0) == -1)
+      error(2, "failed to load the profile description labels string list tag");
+    if (FUN_001b9b00(0x736e6421 /* 'snd!' */, "sound\\sfx\\ui\\cursor", 0) == -1)
+      error(2, "failed to load ui cursor sound tag");
+    if (FUN_001b9b00(0x736e6421, "sound\\sfx\\ui\\forward", 0) == -1)
+      error(2, "failed to load ui forward sound tag");
+    if (FUN_001b9b00(0x736e6421, "sound\\sfx\\ui\\back", 0) == -1)
+      error(2, "failed to load ui back sound tag");
+    if (FUN_001b9b00(0x736e6421, "sound\\sfx\\ui\\flag_failure", 0) == -1)
+      error(2, "failed to load ui failure sound tag");
+    if (FUN_001b9b00(0x6c736e64 /* 'lsnd' */, "sound\\music\\title1\\title1", 0) == -1)
+      error(2, "failed to load main menu title music");
+    break;
+
+  default:
+    display_assert("unknown scenario type",
+                   "c:\\halo\\SOURCE\\interface\\ui_widget_group.c", 0x1f5, true);
+    system_exit(-1);
+  }
 }
