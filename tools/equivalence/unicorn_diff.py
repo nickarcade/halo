@@ -236,6 +236,18 @@ _ORACLE_SWITCH_TABLE_FIXUPS = {
             0x0002005C, 0x0002006C, 0x0002007C, 0x0002008A,
         ),
     },
+    # FUN_00141970: two-level MSVC switch — 8-entry pointer table @0x141b38
+    # followed by a byte index-map @0x141b58 (codes->table index), both carried
+    # by ONE symbol (the movzbl addresses the map as switchdata+0x20).  Entries
+    # that are `bytes` are emitted verbatim after the packed pointers; values
+    # read from the pristine cachebeta.xbe (ghidra read_memory 0x141b38, 52B).
+    0x00141970: {
+        "switchD_001419d6::switchdataD_00141b38": (
+            0x001419F7, 0x00141A04, 0x001419DD, 0x001419EA,
+            0x00141A2A, 0x00141A4B, 0x00141A62, 0x00141ACE,
+            b"\x00\x01\x02\x03\x04" + b"\x07" * 13 + b"\x05\x06",
+        ),
+    },
 }
 
 
@@ -255,7 +267,10 @@ def _apply_oracle_switch_table_fixups(func_addr: int, function_slice,
             continue
         data = bytearray()
         for target_va in target_vas:
-            data.extend(struct.pack("<I", CODE_BASE + target_va - section_base_delta))
+            if isinstance(target_va, (bytes, bytearray)):
+                data.extend(target_va)  # raw suffix (e.g. byte index-map)
+            else:
+                data.extend(struct.pack("<I", CODE_BASE + target_va - section_base_delta))
         patched[symbol_name] = bytes(data)
     return patched
 
@@ -612,6 +627,22 @@ def _canonicalize_callee_key(sym_key: str) -> str:
     return _load_function_addr_to_name().get(addr, sym_key)
 
 
+# Ghidra-labeled globals in delinked refs whose name does NOT match kb.json's
+# name for the same address (or matches a DIFFERENT kb global).  Resolved by
+# explicit address, checked before the kb name lookup.  Do NOT generic-strip
+# the g_ prefix instead: g_object_header_data labels 0x5a8d50 (the object
+# table pointer) while kb's object_header_data is 0x5abc10 — a bare strip
+# would seed the wrong slot (2026-07-21, object_iterator_next campaign).
+_GLOBAL_NAME_ALIASES = {
+    "g_object_header_data": 0x5a8d50,
+    # Glow trailing-particle datum pool pointer.  The delinked oracle labels it
+    # g_glow_particle_data; kb.json has no named global at this address, so the
+    # candidate references it as the raw pointer *(data_t**)0x5a90cc.  Alias so
+    # both sides seed the same pool (glow.obj equivalence, 2026-07-21).
+    "g_glow_particle_data": 0x5a90cc,
+}
+
+
 def _normalize_global_symbol(sym_name: str) -> str:
     """Strip MSVC/clang decoration to recover the bare C identifier:
     '__imp__actor_data' -> 'actor_data', '_actor_data@8' -> 'actor_data'."""
@@ -656,7 +687,10 @@ def _build_globals_seeds(*slot_maps: dict,
             if m:
                 orig_addr = int(m.group(1), 16)
             else:
-                orig_addr = name2addr.get(_normalize_global_symbol(sym_name))
+                bare = _normalize_global_symbol(sym_name)
+                orig_addr = _GLOBAL_NAME_ALIASES.get(bare)
+                if orig_addr is None:
+                    orig_addr = name2addr.get(bare)
             if orig_addr is None:
                 continue
             snap = _snapshot_value_at(snapshot_overrides, orig_addr, 4)
@@ -1524,7 +1558,13 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     per_func_ref = _per_function_ref(func_name)
     if per_func_ref:
         try:
-            oracle_slice = extract_function(str(per_func_ref), delinked_sym)
+            try:
+                oracle_slice = extract_function(str(per_func_ref), delinked_sym)
+            except CoffParseError:
+                # A kb-renamed function (e.g. glow_trailing_particle_new)
+                # exports its real name — not FUN_<addr> — in the per-function
+                # delinked ref, so fall back to the kb function name.
+                oracle_slice = extract_function(str(per_func_ref), func_name)
             delinked_path = per_func_ref
             info(f"  (using per-function delinked ref: {per_func_ref.name})")
         except CoffParseError:
