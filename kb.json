@@ -417,7 +417,7 @@
     },
     {
      "addr": "0x1330f0",
-     "decl": "void FUN_001330f0(int glow_widget@<eax>);"
+     "decl": "void FUN_001330f0(int glow_widget@<eax>, int particle_ptr@<esi>);"
     },
     {
      "addr": "0x133170",
@@ -15723,7 +15723,7 @@
     {
      "addr": "0x1407e0",
      "decl": "char object_visible_to_any_player(int object_handle);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1409d0",
