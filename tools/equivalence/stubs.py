@@ -414,7 +414,8 @@ class CalleeStub:
 def patch_rel32_calls(code: bytes, relocs: list, defined_symbols: set,
                       code_base: int = 0x00400000,
                       symbol_sentinels: Optional[dict[str, int]] = None,
-                      include_defined: bool = False) -> tuple:
+                      include_defined: bool = False,
+                      force_redirect_names: Optional[set] = None) -> tuple:
     """Rewrite REL32 call relocations to sentinel addresses.
 
     Returns (patched_code, stub_map) where stub_map is
@@ -426,11 +427,26 @@ def patch_rel32_calls(code: bytes, relocs: list, defined_symbols: set,
     intra-object sibling calls would otherwise keep their original (now wrong)
     displacements.  Section-relative ".text"/".rdata" relocs are still skipped
     (they carry an addend, not a single resolvable symbol).
+
+    force_redirect_names: set of canonical (underscore-stripped) symbol names
+    that must ALWAYS be redirected to a sentinel, even when the symbol is a
+    DEFINED intra-object sibling and include_defined is False.  Used for
+    Python-intercept callees (StubManager._INTERCEPT_NAMES, e.g.
+    object_get_and_verify_type): the oracle references them via a per-function
+    delinked ref where they are external and thus already redirected, but the
+    candidate is the WHOLE .obj where the same callee is a defined sibling.
+    Left unpatched, the sibling call's disp stays 0 (a no-op `call $+5`) so it
+    falls through leaving the pre-call EAX intact — silently substituting the
+    caller's argument for the callee's result and producing a false write-trace
+    divergence.  Redirecting to the shared sentinel makes the Python model run
+    identically on BOTH sides, restoring symmetry.
     """
     patched = bytearray(code)
     stub_map = {}
     if symbol_sentinels is None:
         symbol_sentinels = {}
+    if force_redirect_names is None:
+        force_redirect_names = frozenset()
     next_idx = len(symbol_sentinels)
 
     for r in relocs:
@@ -439,7 +455,8 @@ def patch_rel32_calls(code: bytes, relocs: list, defined_symbols: set,
         sym = r.symbol_name
         if sym.startswith(".text") or sym.startswith(".rdata"):
             continue
-        if sym in defined_symbols and not include_defined:
+        if (sym in defined_symbols and not include_defined
+                and sym.lstrip("_") not in force_redirect_names):
             continue
 
         sym_key = sym.lstrip("_")
@@ -735,7 +752,8 @@ class StubManager:
 
     def prepare_stubs(self, stub_map: dict, globals_base: int = None,
                       shared_sentinels: dict = None,
-                      real_callees: bool = False) -> int:
+                      real_callees: bool = False,
+                      snapshot_regions: dict = None) -> int:
         """Prepare callee stubs for all symbols in the stub_map.
 
         By default each callee is a return-0 trampoline (only its call site is
@@ -763,12 +781,14 @@ class StubManager:
                 prepared += 1
 
         if real_callees:
-            self._load_real_callees(stub_map, globals_base, shared_sentinels)
+            self._load_real_callees(stub_map, globals_base, shared_sentinels,
+                                    snapshot_regions=snapshot_regions)
 
         return prepared
 
     def _load_real_callees(self, top_stub_map: dict, globals_base: int,
-                           shared_sentinels: dict) -> None:
+                           shared_sentinels: dict,
+                           snapshot_regions: dict = None) -> None:
         """BFS-load native oracle code for non-intercept callees.
 
         Mutates self._stubs (sets has_real_code + patched code), discovers
@@ -797,6 +817,20 @@ class StubManager:
             name = self._resolve_name(sentinel_addr)
             if name in self._INTERCEPT_NAMES or name in self._FTOL2_ADDRS:
                 continue
+            # Explicit snapshot stub_returns override wins over real-code
+            # loading.  The snapshot author deliberately stubbed this callee's
+            # return value (e.g. object_header_block_reference_get -> a node
+            # block pointer) precisely because its real body has preconditions
+            # the synthetic state cannot satisfy — running that body would
+            # assert (reference->offset>0) and halt the walk.  Leaving it as a
+            # trampoline lets get_stub_code bake in the MOV EAX,<override>;RET,
+            # applied identically to oracle and candidate.
+            if self.stub_return_overrides:
+                _c = self._canonical_names.get(sentinel_addr, "").lower()
+                _r = self._stub_names.get(sentinel_addr, "").lstrip("_").lower()
+                if (_c in self.stub_return_overrides
+                        or _r in self.stub_return_overrides):
+                    continue
             stub = self._stubs.get(sentinel_addr)
             if stub is None:
                 continue  # no decl/abi -> synthetic ret-stub
@@ -815,9 +849,14 @@ class StubManager:
             defined = getattr(fs, 'defined_symbols', set())
             rdata = getattr(fs, 'rdata_map', {})
             # DIR32 -> fresh globals slots (each unique global one 256B slot).
+            # snapshot_regions: identity-relocate DAT_/FLOAT_ globals that
+            # fall inside snapshot regions, so recursively-loaded callees
+            # (e.g. valid_real_normal3d's epsilon read) see the authored
+            # bytes instead of fresh-zeroed slots.
             patched, slots, rdata_seeds = patch_dir32_relocs(
                 fs.code, fs.relocs, defined,
-                globals_base=glob_cursor, return_slots=True, rdata_map=rdata)
+                globals_base=glob_cursor, return_slots=True, rdata_map=rdata,
+                snapshot_regions=snapshot_regions)
             glob_cursor += max(1, len(slots)) * 256
             self._callee_dir32_slots.update(slots)
             self._extra_rdata_seeds.update(rdata_seeds)
