@@ -47,6 +47,18 @@ typedef unsigned int size_t;
 typedef uint32_t _DWORD;
 typedef uint16_t _WORD;
 typedef uint8_t _BYTE;
+
+/* Bungie cseries primitive aliases (readable-lift initiative, Phase 0).
+ * Codegen-neutral typedefs over existing widths so lifted code can use the
+ * original engine type names instead of stdint / Ghidra spellings. Struct
+ * types (real_vector3d, real_euler_angles2d, real_point3d, ...) are defined
+ * per object during struct-recovery, not here. */
+typedef uint8_t  boolean;
+typedef uint8_t  byte;
+typedef uint16_t word;
+typedef uint32_t dword;
+typedef float    real;
+
 #define __int16 short
 #define __int8 char
 
@@ -663,6 +675,110 @@ typedef struct {
   char unk_0[0x110];
 } player_control_globals_t;
 
+/// size=0x40
+/// One per local player; lives in player_control_globals at +0x10, stride 0x40.
+/// Names carrying a "player->..." comment are recovered verbatim from the
+/// binary's own assert strings (desired_angles.yaw/pitch, primary_trigger);
+/// field_0xNN are offsets whose purpose is not yet established.
+typedef struct {
+  int32_t unit_index;            ///< offset=0x00 owning unit datum handle
+  int32_t field_0x04;            ///< offset=0x04
+  uint16_t action_flags;         ///< offset=0x08 (player_control_set_action_flags)
+  uint16_t persistent_action_flags; ///< offset=0x0a (persistent variant)
+  real    desired_angles_yaw;    ///< offset=0x0c player->desired_angles.yaw
+  real    desired_angles_pitch;  ///< offset=0x10 player->desired_angles.pitch
+  real    field_0x14;            ///< offset=0x14
+  int32_t field_0x18;            ///< offset=0x18
+  real    primary_trigger;       ///< offset=0x1c player->primary_trigger
+  int16_t desired_weapon_index;  ///< offset=0x20
+  int16_t desired_grenade_index; ///< offset=0x22
+  int16_t desired_zoom_level;    ///< offset=0x24
+  uint8_t field_0x26;            ///< offset=0x26 aim-assist enabled flag
+  int8_t  field_0x27;            ///< offset=0x27 aim-assist idle counter
+  int32_t field_0x28;            ///< offset=0x28 (new_unit initializes to -1)
+  uint8_t pad_0x2c[0x4];         ///< offset=0x2c
+  real    field_0x30;            ///< offset=0x30
+  uint8_t pad_0x34[0x4];         ///< offset=0x34
+  real    pitch_minimum;         ///< offset=0x38 lower clamp for desired_angles.pitch
+  real    pitch_maximum;         ///< offset=0x3c upper clamp for desired_angles.pitch
+} player_control_t;
+cs(player_control_t, 0x40);
+co(player_control_t, unit_index,             0x00);
+co(player_control_t, action_flags,           0x08);
+co(player_control_t, persistent_action_flags, 0x0a);
+co(player_control_t, desired_angles_yaw,     0x0c);
+co(player_control_t, desired_angles_pitch,   0x10);
+co(player_control_t, primary_trigger,        0x1c);
+co(player_control_t, desired_weapon_index,   0x20);
+co(player_control_t, desired_grenade_index,  0x22);
+co(player_control_t, desired_zoom_level,     0x24);
+co(player_control_t, pitch_minimum,          0x38);
+co(player_control_t, pitch_maximum,          0x3c);
+
+/// size=0x20
+/// One frame of controller input for a local player, filled by
+/// get_local_player_input_blob (0xb70b0, buffer in EBX) and consumed by
+/// player_control_get_facing. Bungie calls the parameter "input" -- recovered
+/// from that function's own assert string "input->primary_trigger", which
+/// guards a load of +0x08. Field widths are taken from the producer's stores
+/// (byte at +0x14/+0x15, dword elsewhere); field_0xNN are offsets whose
+/// purpose is not yet established.
+typedef struct {
+  real    field_0x00;            ///< offset=0x00
+  real    field_0x04;            ///< offset=0x04
+  real    primary_trigger;       ///< offset=0x08 input->primary_trigger
+  real    look_yaw_delta;        ///< offset=0x0c added to desired_angles.yaw
+  real    look_pitch_delta;      ///< offset=0x10 added to desired_angles.pitch
+  uint8_t field_0x14;            ///< offset=0x14
+  uint8_t field_0x15;            ///< offset=0x15
+  uint8_t pad_0x16[0x2];         ///< offset=0x16
+  uint32_t field_0x18;           ///< offset=0x18
+  uint32_t action_flags;         ///< offset=0x1c bit1 grenade switch, bit2 melee/throw
+} player_input_t;
+/// size=0x20
+/// The action player_control_get_facing builds from a player control slot and
+/// hands to update_client_queue. Bungie calls the local "action" and the angle
+/// pair "desired_facing" -- both verbatim from this function's own assert
+/// strings "action.desired_facing.yaw"/".pitch" (player_control.c:0x369-0x36a),
+/// which guard +0x04 and +0x08. The three index fields and primary_trigger are
+/// copied straight from the identically-named player_control_t fields;
+/// field_0xNN are copied from player_control_t fields that are themselves not
+/// yet identified.
+/// buttons/throttle_x/throttle_y names come from the prior recovery that lived
+/// as a local typedef in game/players.c (bit 6 binoculars, bit 14 zoom, bit 7
+/// alt_attack); consolidated here so there is one definition.
+typedef struct {
+  uint32_t buttons;              ///< offset=0x00 bit6 binoculars, bit7 alt_attack, bit14 zoom
+  real    desired_facing_yaw;    ///< offset=0x04 action.desired_facing.yaw
+  real    desired_facing_pitch;  ///< offset=0x08 action.desired_facing.pitch
+  real    throttle_x;            ///< offset=0x0c
+  real    throttle_y;            ///< offset=0x10
+  real    primary_trigger;       ///< offset=0x14
+  int16_t desired_weapon_index;  ///< offset=0x18
+  int16_t desired_grenade_index; ///< offset=0x1a
+  int16_t desired_zoom_level;    ///< offset=0x1c
+  uint8_t pad_0x1e[0x2];         ///< offset=0x1e
+} player_action_t;
+cs(player_action_t, 0x20);
+co(player_action_t, buttons,               0x00);
+co(player_action_t, throttle_x,            0x0c);
+co(player_action_t, throttle_y,            0x10);
+co(player_action_t, desired_facing_yaw,    0x04);
+co(player_action_t, desired_facing_pitch,  0x08);
+co(player_action_t, primary_trigger,       0x14);
+co(player_action_t, desired_weapon_index,  0x18);
+co(player_action_t, desired_grenade_index, 0x1a);
+co(player_action_t, desired_zoom_level,    0x1c);
+
+cs(player_input_t, 0x20);
+co(player_input_t, primary_trigger,  0x08);
+co(player_input_t, look_yaw_delta,   0x0c);
+co(player_input_t, look_pitch_delta, 0x10);
+co(player_input_t, field_0x14,       0x14);
+co(player_input_t, field_0x15,       0x15);
+co(player_input_t, field_0x18,       0x18);
+co(player_input_t, action_flags,     0x1c);
+
 /// size=0x38
 typedef struct {
   char    name[32];                ///< offset=0x00
@@ -914,7 +1030,8 @@ co(ai_firing_pos_entry_t, radius,    0x24);
  * plus a pointer to the element array. Consumed everywhere via
  * tag_block_get_element(block, index, element_size). The 12-byte size is not
  * asserted directly here (no standalone allocation observed) but is proven by
- * the three consecutive blocks in encounter_definition below: squads@0x80,
+ * the three consecutive blocks in encounter_definition (halo/ai/encounters.h):
+ * squads@0x80,
  * platoons@0x8c, firing_positions@0x98 are exactly 0xc apart, so sizeof must
  * be 0xc for those co() offsets to hold.
  * ------------------------------------------------------------------------- */
@@ -926,39 +1043,5 @@ typedef struct tag_block {
 cs(tag_block, 0xc);
 co(tag_block, count,   0x00);
 co(tag_block, address, 0x04);
-
-/* ---------------------------------------------------------------------------
- * encounter_definition — one element of the scenario "encounters" tag-block
- * (element stride 0xb0, block at scenario+0x42c). This is READ-ONLY tag data.
- * The mutable per-map runtime encounter record (data_t pool *0x5ab270) is a
- * DIFFERENT struct with its own offsets — see encounters.c FUN_0005a120, which
- * copies encounter_def->field_24 into runtime encounter+0x2. Do not conflate
- * the two: identical numeric offsets on each are unrelated fields.
- *
- * Only offsets with an observed access are named; the wide gaps (0x26..0x7e,
- * 0xa4..0xb0) are genuine unobserved tag data, left as pad_XX. Struct name is
- * verbatim from the assert string
- *   "encounter_definition->squads.count <= MAXIMUM_SQUADS_PER_ENCOUNTER"
- * (encounters.c:0x5a4).
- * ------------------------------------------------------------------------- */
-typedef struct encounter_definition {
-    char       name[0x20];       /* +0x00: <=32-byte name; strnicmp(elem,name,0x20) in FUN_00053e20 @0x53e20 */
-    uint32_t   flags;            /* +0x20: bit1/2/3 -> runtime 0x3c/0x40/0x41 (encounters.c:2688-2692); bit4 tested (actors.c:8205, actor_looking.c:4407) */
-    int16_t    field_24;         /* +0x24: copied to runtime encounter+0x2 (encounters.c:2684) */
-    uint8_t    pad_26[0x58];     /* +0x26: no access observed */
-    int16_t    bsp_index;        /* +0x7e: compared to structure BSP index (ai.c:919, ai_reconnect_to_structure_bsp) */
-    tag_block  squads;           /* +0x80: squads.count asserted @encounters.c:0x5a4; element stride 0xe8, max 0x40 */
-    tag_block  platoons;         /* +0x8c: platoons (encounters.c:2654 "platoon count from encounter_def+0x8c"); element stride 0xac, max 0x20 (inferred) */
-    tag_block  firing_positions; /* +0x98: firing positions (actor_looking.c:6442 "iterate over encounter's firing positions"); element stride 0x18 (inferred) */
-    uint8_t    pad_a4[0xc];      /* +0xa4: no access observed */
-} encounter_definition;
-cs(encounter_definition, 0xb0);
-co(encounter_definition, name,             0x00);
-co(encounter_definition, flags,            0x20);
-co(encounter_definition, field_24,         0x24);
-co(encounter_definition, bsp_index,        0x7e);
-co(encounter_definition, squads,           0x80);
-co(encounter_definition, platoons,         0x8c);
-co(encounter_definition, firing_positions, 0x98);
 
 #endif /* TYPES_H */

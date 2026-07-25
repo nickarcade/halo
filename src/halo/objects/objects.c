@@ -1708,8 +1708,9 @@ void FUN_00134e80(int object_handle, int light_volume_datum)
   float frac;
   float scratch;
   float out_pos[3]; /* local_1c..: world position for sprite */
-  float color2[3]; /* local_38..: per-segment color (FUN_0007c270 out /
-                      FUN_000d1c90 in) */
+  float color2[4]; /* local_38..: per-segment ARGB. [0]=alpha (intensity),
+                      [1..3]=RGB (FUN_0007c270 out at EBP-0x34); packed as a
+                      4-float a_rgb by FUN_000d1c90 (EBP-0x38). */
   float interp_a, interp_b; /* local_2c / local_28 */
   unsigned char zfn;
   float fn_val;
@@ -1821,14 +1822,14 @@ void FUN_00134e80(int object_handle, int light_volume_datum)
             out_pos[2] =
               *(float *)(marker_buf + 0x44) * t + *(float *)(marker_buf + 0x68);
 
-            FUN_0007c270(color2, *(unsigned char *)(light_tag + 0x22) & 3,
+            FUN_0007c270(color2 + 1, *(unsigned char *)(light_tag + 0x22) & 3,
                          (float *)(marker_state + 0x6c),
                          (float *)(marker_state + 0x7c), interp_b);
 
-            /* color2[0] is overwritten with the view/distance-scaled intensity
-             * (1-fn)*+0x68 + fn*+0x78, times depth_factor; color2[1..2] keep
-             * the FUN_0007c270 output, then the whole triple is packed to ARGB.
-             */
+            /* color2[0] = view/distance-scaled intensity (alpha):
+             * ((1-fn)*+0x68 + fn*+0x78) * depth_factor; RGB stays at
+             * color2[1..3] where FUN_0007c270 wrote it (reference: c270 out =
+             * EBP-0x34, d1c90 arg = EBP-0x38 — one float apart). */
             color2[0] = (fn_val * *(float *)(marker_state + 0x78) +
                          (*(float *)0x2533c8 - fn_val) *
                            *(float *)(marker_state + 0x68)) *
@@ -5778,8 +5779,14 @@ void FUN_0013cb30(void)
  * the eligible placements.
  *
  * No-op when in the editor (game_in_editor()) or no BSP slot is active
- * (DAT_00326a0c == -1). Iterates object types 0..0xb, skipping the mask 0x240
- * (bits 6 and 9 — types with no scenario placement). For each type whose
+ * (DAT_00326a0c == -1). Iterates object types 0..0xb, processing ONLY the mask
+ * 0x240 (bits 6 and 9 = scenery and light_fixture — the BSP-cluster-scoped
+ * placement types); every other type is skipped. Confirmed from the original at
+ * 0x13cb80+0x49: `test $0x240,%eax; je next_type` — i.e. skip when the bit is
+ * CLEAR. This is the complement of the sibling FUN_0013cdd0, whose `test
+ * $0x240,%eax; jne next_type` places all the non-BSP-scoped types at scenario
+ * load. Getting this backwards leaves scenery (e.g. the teleporter plasma
+ * effect) unspawned. For each processed type whose
  * definition (FUN_0013c100) has valid placement (def+0xa) and palette (def+0xc)
  * tag-block offsets:
  *   - fetches the scenario placement block (FUN_0013ca30, also writes the block
@@ -5834,7 +5841,7 @@ void FUN_0013cb80(int do_spawn)
   scenario = (int)global_scenario_get();
   type = 0;
   do {
-    if (((1 << (type & 0x1f)) & 0x240) != 0) {
+    if (((1 << (type & 0x1f)) & 0x240) == 0) {
       goto next_type;
     }
     def = (int)FUN_0013c100((int16_t)type);
