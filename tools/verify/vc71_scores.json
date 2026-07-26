@@ -1712,12 +1712,28 @@
       "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "FUN_00053b80": {
+      "score": 94.5,
+      "source": "src/halo/ai/encounters.c"
+    },
+    "FUN_00053bf0": {
+      "score": 90.2,
+      "source": "src/halo/ai/encounters.c"
+    },
     "FUN_00053da0": {
       "score": 93.8,
       "source": "src/halo/ai/encounters.c"
     },
     "FUN_00053e20": {
       "score": 93.8,
+      "source": "src/halo/ai/encounters.c"
+    },
+    "FUN_00053e80": {
+      "score": 95.0,
+      "source": "src/halo/ai/encounters.c"
+    },
+    "FUN_00053ee0": {
+      "score": 95.0,
       "source": "src/halo/ai/encounters.c"
     },
     "FUN_00054020": {
@@ -5516,6 +5532,10 @@
       "score": 94.7,
       "source": "src/halo/game/players.c"
     },
+    "FUN_000befd0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
     "FUN_000bf010": {
       "score": 91.4,
       "source": "src/halo/game/players.c"
@@ -5526,6 +5546,10 @@
     },
     "FUN_000bf0b0": {
       "score": 92.1,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bf110": {
+      "score": 100.0,
       "source": "src/halo/game/players.c"
     },
     "FUN_000bf160": {
@@ -5612,6 +5636,10 @@
       "score": 100.0,
       "source": "src/halo/game/players.c"
     },
+    "FUN_000bf830": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
     "FUN_000bf870": {
       "score": 100.0,
       "source": "src/halo/game/players.c"
@@ -5658,6 +5686,202 @@
     },
     "FUN_000bfb80": {
       "score": 94.5,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfbc0": {
+      "score": 90.3,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfc10": {
+      "score": 94.3,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfc50": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfc90": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfcd0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfd10": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfd50": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfd90": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfdb0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfdd0": {
+      "score": 93.6,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfe10": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfe30": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfe70": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bff70": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000bfff0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0030": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0070": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c00b0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c00f0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0130": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c01b0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c01d0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0210": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0230": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0270": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c02b0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c02f0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c03f0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0430": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0470": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c04b0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0530": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0570": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c05b0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0670": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c06b0": {
+      "score": 94.1,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c06f0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0730": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0770": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c07f0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0830": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0870": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c08b0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c08f0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0930": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c09b0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0af0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0b30": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000c0b70": {
+      "score": 100.0,
       "source": "src/halo/game/players.c"
     },
     "FUN_000c0c30": {
@@ -10744,6 +10968,22 @@
       "score": 90.1,
       "source": "src/halo/physics/breakable_surfaces.c"
     },
+    "FUN_00146be0": {
+      "score": 93.9,
+      "source": "src/halo/physics/bsp3d.c"
+    },
+    "FUN_00146d40": {
+      "score": 94.0,
+      "source": "src/halo/physics/bsp3d.c"
+    },
+    "FUN_00146e30": {
+      "score": 82.7,
+      "source": "src/halo/physics/bsp3d.c"
+    },
+    "FUN_001470b0": {
+      "score": 74.6,
+      "source": "src/halo/physics/bsp3d.c"
+    },
     "FUN_0014ad40": {
       "score": 100.0,
       "source": "src/halo/physics/collision_features.c"
@@ -14227,6 +14467,14 @@
     "bink_get_dsound_handle": {
       "score": 46.2,
       "source": "src/halo/bink/bink_sound.c"
+    },
+    "bsp3d_clip_line_to_leaves": {
+      "score": 82.7,
+      "source": "src/halo/physics/bsp3d.c"
+    },
+    "bsp3d_find_leaf": {
+      "score": 98.0,
+      "source": "src/halo/physics/bsp3d.c"
     },
     "calculate_vertex": {
       "score": 84.0,

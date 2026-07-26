@@ -1979,7 +1979,7 @@
     },
     {
      "addr": "0x1e6596",
-     "decl": "void __strnicmp(void);"
+     "decl": "int __strnicmp(const char *s1, const char *s2, unsigned int count);"
     },
     {
      "addr": "0x1e65eb",
@@ -2314,7 +2314,8 @@
     },
     {
      "addr": "0x1e8a0",
-     "decl": "char actor_action_handle_combat_selection(int actor_handle);"
+     "decl": "char actor_action_handle_combat_selection(int actor_handle);",
+     "ported": true
     },
     {
      "addr": "0x1ef90",
@@ -6660,7 +6661,7 @@
     {
      "addr": "0x9ca70",
      "decl": "void effects_information_get(int effect_ptr@<ebx>, uint32_t flags_hi@<edi>, unsigned int *seed, float *velocity_out, float min_val, float max_val, uint32_t flags_lo);",
-     "note": "hidden reg deps (EDI=flags_hi, EBX=effect_ptr) \u2014 callers pass these in registers; all known callers inlined",
+     "note": "hidden reg deps (EDI=flags_hi, EBX=effect_ptr) — callers pass these in registers; all known callers inlined",
      "ported": true
     },
     {
@@ -6721,7 +6722,7 @@
     {
      "addr": "0x9dcf0",
      "decl": "void FUN_0009dcf0(float *position, void *effect, void *location, void *part, float *forward, float *up, float scale);",
-     "note": "4 reg args (EAX,EDX,ECX,ESI) \u2014 inlined into FUN_0009e310, cannot be thunked separately",
+     "note": "4 reg args (EAX,EDX,ECX,ESI) — inlined into FUN_0009e310, cannot be thunked separately",
      "ported": true
     },
     {
@@ -17982,27 +17983,39 @@
     },
     {
      "addr": "0xbfbc0",
-     "decl": "void FUN_000bfbc0(void);"
+     "decl": "void FUN_000bfbc0(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfc10",
-     "decl": "void FUN_000bfc10(void);"
+     "decl": "void FUN_000bfc10(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfc50",
-     "decl": "void FUN_000bfc50(void);"
+     "decl": "void FUN_000bfc50(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfc90",
-     "decl": "void FUN_000bfc90(void);"
+     "decl": "void FUN_000bfc90(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfcd0",
-     "decl": "void FUN_000bfcd0(void);"
+     "decl": "void FUN_000bfcd0(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfd10",
-     "decl": "void FUN_000bfd10(void);"
+     "decl": "void FUN_000bfd10(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfd30",
@@ -18010,7 +18023,8 @@
     },
     {
      "addr": "0xbfd50",
-     "decl": "void FUN_000bfd50(void);"
+     "decl": "void FUN_000bfd50(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xbfd70",
@@ -18018,27 +18032,37 @@
     },
     {
      "addr": "0xbfd90",
-     "decl": "void FUN_000bfd90(void);"
+     "decl": "void FUN_000bfd90(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xbfdb0",
-     "decl": "void FUN_000bfdb0(void);"
+     "decl": "void FUN_000bfdb0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xbfdd0",
-     "decl": "void FUN_000bfdd0(void);"
+     "decl": "void FUN_000bfdd0(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfe10",
-     "decl": "void FUN_000bfe10(void);"
+     "decl": "void FUN_000bfe10(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfe30",
-     "decl": "void FUN_000bfe30(void);"
+     "decl": "void FUN_000bfe30(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfe70",
-     "decl": "void FUN_000bfe70(void);"
+     "decl": "void FUN_000bfe70(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbfeb0",
@@ -18054,7 +18078,9 @@
     },
     {
      "addr": "0xbff70",
-     "decl": "void FUN_000bff70(void);"
+     "decl": "void FUN_000bff70(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xbffb0",
@@ -18062,27 +18088,33 @@
     },
     {
      "addr": "0xbfff0",
-     "decl": "void FUN_000bfff0(void);"
+     "decl": "void FUN_000bfff0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0030",
-     "decl": "void FUN_000c0030(void);"
+     "decl": "void FUN_000c0030(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0070",
-     "decl": "void FUN_000c0070(void);"
+     "decl": "void FUN_000c0070(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc00b0",
-     "decl": "void FUN_000c00b0(void);"
+     "decl": "void FUN_000c00b0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc00f0",
-     "decl": "void FUN_000c00f0(void);"
+     "decl": "void FUN_000c00f0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0130",
-     "decl": "void FUN_000c0130(void);"
+     "decl": "void FUN_000c0130(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0170",
@@ -18090,31 +18122,38 @@
     },
     {
      "addr": "0xc01b0",
-     "decl": "void FUN_000c01b0(void);"
+     "decl": "void FUN_000c01b0(int16_t function_index, int thread_handle);",
+     "ported": true
     },
     {
      "addr": "0xc01d0",
-     "decl": "void FUN_000c01d0(void);"
+     "decl": "void FUN_000c01d0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0210",
-     "decl": "void FUN_000c0210(void);"
+     "decl": "void FUN_000c0210(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0230",
-     "decl": "void FUN_000c0230(void);"
+     "decl": "void FUN_000c0230(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0270",
-     "decl": "void FUN_000c0270(void);"
+     "decl": "void FUN_000c0270(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc02b0",
-     "decl": "void FUN_000c02b0(void);"
+     "decl": "void FUN_000c02b0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc02f0",
-     "decl": "void FUN_000c02f0(void);"
+     "decl": "void FUN_000c02f0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0330",
@@ -18130,19 +18169,23 @@
     },
     {
      "addr": "0xc03f0",
-     "decl": "void FUN_000c03f0(void);"
+     "decl": "void FUN_000c03f0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0430",
-     "decl": "void FUN_000c0430(void);"
+     "decl": "void FUN_000c0430(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0470",
-     "decl": "void FUN_000c0470(void);"
+     "decl": "void FUN_000c0470(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc04b0",
-     "decl": "void FUN_000c04b0(void);"
+     "decl": "void FUN_000c04b0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc04f0",
@@ -18150,15 +18193,18 @@
     },
     {
      "addr": "0xc0530",
-     "decl": "void FUN_000c0530(void);"
+     "decl": "void FUN_000c0530(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0570",
-     "decl": "void FUN_000c0570(void);"
+     "decl": "void FUN_000c0570(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc05b0",
-     "decl": "void FUN_000c05b0(void);"
+     "decl": "void FUN_000c05b0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc05f0",
@@ -18170,23 +18216,28 @@
     },
     {
      "addr": "0xc0670",
-     "decl": "void FUN_000c0670(void);"
+     "decl": "void FUN_000c0670(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc06b0",
-     "decl": "void FUN_000c06b0(void);"
+     "decl": "void FUN_000c06b0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc06f0",
-     "decl": "void FUN_000c06f0(void);"
+     "decl": "void FUN_000c06f0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0730",
-     "decl": "void FUN_000c0730(void);"
+     "decl": "void FUN_000c0730(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0770",
-     "decl": "void FUN_000c0770(void);"
+     "decl": "void FUN_000c0770(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc07b0",
@@ -18194,35 +18245,45 @@
     },
     {
      "addr": "0xc07f0",
-     "decl": "void FUN_000c07f0(void);"
+     "decl": "void FUN_000c07f0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0830",
-     "decl": "void FUN_000c0830(void);"
+     "decl": "void FUN_000c0830(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0870",
-     "decl": "void FUN_000c0870(void);"
+     "decl": "void FUN_000c0870(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc08b0",
-     "decl": "void FUN_000c08b0(void);"
+     "decl": "void FUN_000c08b0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc08f0",
-     "decl": "void FUN_000c08f0(void);"
+     "decl": "void FUN_000c08f0(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0930",
-     "decl": "void FUN_000c0930(void);"
+     "decl": "void FUN_000c0930(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0970",
-     "decl": "void FUN_000c0970(void);"
+     "decl": "void FUN_000c0970(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/hs/hs.c"
     },
     {
      "addr": "0xc09b0",
-     "decl": "void FUN_000c09b0(void);"
+     "decl": "void FUN_000c09b0(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xc09f0",
@@ -18242,15 +18303,19 @@
     },
     {
      "addr": "0xc0af0",
-     "decl": "void FUN_000c0af0(void);"
+     "decl": "void FUN_000c0af0(int16_t function_index, int thread_datum, char init);",
+     "ported": true,
+     "source_path": "src/halo/game/players.c"
     },
     {
      "addr": "0xc0b30",
-     "decl": "void FUN_000c0b30(void);"
+     "decl": "void FUN_000c0b30(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xc0b70",
-     "decl": "void FUN_000c0b70(void);"
+     "decl": "void FUN_000c0b70(int16_t function_index, int thread_datum, char init);",
+     "ported": true
     },
     {
      "addr": "0xbe370",
@@ -24303,7 +24368,7 @@
     {
      "addr": "0x1939c0",
      "decl": "void structure_detail_objects_dispose_from_old_map(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1939d0",
@@ -30677,7 +30742,7 @@
     },
     {
      "addr": "0x96f20",
-     "decl": "void FUN_00096f20(void);"
+     "decl": "char FUN_00096f20(int arg0, float arg1);"
     },
     {
      "addr": "0x97040",
@@ -32135,62 +32200,62 @@
    "functions": [
     {
      "addr": "0x540b0",
-     "decl": "void FUN_000540b0(void);",
+     "decl": "void ai_script_initialize(void);",
      "ported": true
     },
     {
      "addr": "0x540c0",
-     "decl": "void ai_profile_dispose(void);",
+     "decl": "void ai_script_dispose(void);",
      "ported": true
     },
     {
      "addr": "0x540d0",
-     "decl": "void FUN_000540d0(void);",
+     "decl": "void ai_script_initialize_for_new_map(void);",
      "ported": true
     },
     {
      "addr": "0x540e0",
-     "decl": "void ai_profile_dispose_from_old_map(void);",
+     "decl": "void ai_script_dispose_from_old_map(void);",
      "ported": true
     },
     {
      "addr": "0x540f0",
-     "decl": "bool FUN_000540f0(void *scenario, const char *name, int *out_value);",
+     "decl": "bool ai_index_from_string(void *scenario, const char *name, int *out_value);",
      "ported": true
     },
     {
      "addr": "0x54220",
-     "decl": "void FUN_00054220(unsigned int combined_index, void *scenario, char *buffer, int buffer_size);",
+     "decl": "void ai_index_to_string(unsigned int combined_index, void *scenario, char *buffer, int buffer_size);",
      "ported": true
     },
     {
      "addr": "0x54310",
-     "decl": "void FUN_00054310(unsigned int combined_index, int *out);",
+     "decl": "void ai_index_platoon_iterator_new(unsigned int combined_index, int *out);",
      "ported": true
     },
     {
      "addr": "0x54430",
-     "decl": "void *FUN_00054430(int *iter);",
+     "decl": "void *ai_index_platoon_iterator_next(int *iter);",
      "ported": true
     },
     {
      "addr": "0x544a0",
-     "decl": "void FUN_000544a0(unsigned int combined_index, void *iter);",
+     "decl": "void ai_index_squad_iterator_new(unsigned int combined_index, void *iter);",
      "ported": true
     },
     {
      "addr": "0x545a0",
-     "decl": "int FUN_000545a0(void *iter);",
+     "decl": "int ai_index_squad_iterator_next(void *iter);",
      "ported": true
     },
     {
      "addr": "0x54680",
-     "decl": "void FUN_00054680(unsigned int combined_index, void *iter);",
+     "decl": "void ai_index_actor_iterator_new(unsigned int combined_index, void *iter);",
      "ported": true
     },
     {
      "addr": "0x54750",
-     "decl": "int FUN_00054750(void *iter);",
+     "decl": "int ai_index_actor_iterator_next(void *iter);",
      "ported": true
     },
     {
@@ -32205,7 +32270,7 @@
     },
     {
      "addr": "0x54a80",
-     "decl": "void ai_profile_change_render_spray(int parent_handle, unsigned int ai_ref);",
+     "decl": "void FUN_00054a80(int parent_handle, unsigned int ai_ref);",
      "ported": true
     },
     {
@@ -32385,11 +32450,11 @@
     },
     {
      "addr": "0x58cc0",
-     "decl": "void ai_scripting_follow_distance(void);"
+     "decl": "void ai_scripting_follow_distance(int param_1, int param_2, int param_3);"
     },
     {
      "addr": "0x58d40",
-     "decl": "void FUN_00058d40(void);"
+     "decl": "void FUN_00058d40(int handle);"
     }
    ],
    "name": "ai_script.obj",
@@ -32405,7 +32470,8 @@
     },
     {
      "addr": "0x53bf0",
-     "decl": "void FUN_00053bf0(void);"
+     "decl": "void FUN_00053bf0(void);",
+     "ported": true
     },
     {
      "addr": "0x53c50",
@@ -32423,11 +32489,13 @@
     },
     {
      "addr": "0x53e80",
-     "decl": "int FUN_00053e80(void *ai_profile_element, const char *name);"
+     "decl": "int FUN_00053e80(void *ai_profile_element, const char *name);",
+     "ported": true
     },
     {
      "addr": "0x53ee0",
-     "decl": "int FUN_00053ee0(void *ai_profile_element, const char *name);"
+     "decl": "int FUN_00053ee0(void *ai_profile_element, const char *name);",
+     "ported": true
     },
     {
      "addr": "0x53f40",
@@ -32450,7 +32518,7 @@
     },
     {
      "addr": "0x564b0",
-     "decl": "void FUN_000564b0(void);"
+     "decl": "void FUN_000564b0(int arg0, int arg1);"
     },
     {
      "addr": "0x565c0",
@@ -32458,7 +32526,7 @@
     },
     {
      "addr": "0x566a0",
-     "decl": "void encounters_initialize(void);"
+     "decl": "void FUN_000566a0(int arg0, int arg1);"
     },
     {
      "addr": "0x56790",
@@ -32763,7 +32831,7 @@
     },
     {
      "addr": "0x58c40",
-     "decl": "void FUN_00058c40(void);"
+     "decl": "void FUN_00058c40(int param_1, int param_2, int param_3);"
     },
     {
      "addr": "0x58fa0",
@@ -34844,7 +34912,8 @@
    "functions": [
     {
      "addr": "0x146be0",
-     "decl": "void FUN_00146be0(void *damage_params);"
+     "decl": "void FUN_00146be0(void *damage_params);",
+     "ported": true
     },
     {
      "addr": "0x146db0",
@@ -36336,19 +36405,19 @@
     },
     {
      "addr": "0x96510",
-     "decl": "void device_group_set_actual_value(void);"
+     "decl": "void device_group_set_actual_value(int device_group_index, float value);"
     },
     {
      "addr": "0x965f0",
-     "decl": "void device_one_sided_set(void);"
+     "decl": "void device_one_sided_set(int object_list, char one_sided);"
     },
     {
      "addr": "0x96630",
-     "decl": "void device_operates_automatically_set(void);"
+     "decl": "void device_operates_automatically_set(int object_list, char operates_automatically);"
     },
     {
      "addr": "0x96670",
-     "decl": "void device_group_change_only_once_more_set(void);"
+     "decl": "void device_group_change_only_once_more_set(int device_group_index, char change_only_once_more);"
     },
     {
      "addr": "0x966b0",

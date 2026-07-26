@@ -7152,11 +7152,3648 @@ void FUN_000bfb80(int16_t function_index, int thread_datum, char init)
     int i;
   } value;
 
-  record =
-    (unsigned short *)hs_macro_function_evaluate(function_index, thread_datum,
-                                                 init);
+  record = (unsigned short *)hs_macro_function_evaluate(function_index,
+                                                        thread_datum, init);
   if (record != NULL) {
     value.f = device_group_get_value((int)record[0]);
     hs_return(thread_datum, value.i);
+  }
+}
+
+/* FUN_000bfbc0 @ 0x000bfbc0
+ *
+ * HaloScript builtin dispatcher; a near-exact twin of FUN_000bfab0 above --
+ * same 3-parameter cdecl shape, same evaluate / NULL-check / worker /
+ * hs_return skeleton, and the same "pre-zeroed dword whose low BYTE is
+ * overwritten by the worker's AL" result-widening tail.  The two differences
+ * from FUN_000bfab0 are the record's first field (an UNSIGNED 16-bit index
+ * loaded with the MOVZX idiom rather than a dword object handle) and the
+ * worker called (0x96f20 rather than 0x97220).
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ECX (ONE 4-byte local, the result
+ * slot at [EBP-4]); PUSH ESI; ... POP ESI; plain RET (no immediate) => cdecl,
+ * caller cleans.  Body spans 0xbfbc0-0xbfc0a (75 bytes).  No _chkstk, no SEH,
+ * no loops, no buffers, no struct writes, no FPU arithmetic.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, held live across BOTH calls
+ *                                           and reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap).  kb.json's stale
+ * `void FUN_000bfbc0(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift, as was the callee 0x96f20's equally stale
+ * `void FUN_00096f20(void);` -- see below.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   MOV dword ptr [EBP-0x4],0x0 is emitted BEFORE the evaluate call (MSVC
+ *   scheduling of the result slot's zero-init).
+ *   CALL 0xcc560 pushes EAX([EBP+0x10]) / ESI([EBP+0xc]) / ECX([EBP+0x8]) in
+ *   cdecl reverse order -> C order (function_index, thread_datum, init); ADD
+ *   ESP,0xc = 3 args.  Straight pass-through, no reordering.
+ *   TEST EAX,EAX / JZ skips BOTH remaining calls, so the 0xcc560 return is a
+ *   record POINTER that is dereferenced even though kb.json declares it as
+ *   returning int (same as every twin; the cast is local, kb decl untouched).
+ *   Ghidra typed that return `int iVar1` and dropped the dereferences
+ *   entirely; the disassembly reads TWO fields from it:
+ *     record+0x00  FLD is preceded by XOR EDX,EDX; MOV DX,word ptr [EAX] --
+ *                  the MOVZX idiom, an UNSIGNED 16-bit index (zero-extended,
+ *                  NOT sign-extended: lift-learnings 24 LOADW).
+ *     record+0x04  FLD dword ptr [EAX+4] -- a float.
+ *   CALL 0x96f20 is the push-then-fstp float hazard (lift-decompiler-traps
+ *   2): PUSH ECX is a DUMMY slot immediately overwritten by FSTP dword ptr
+ *   [ESP] at 0xbfbec-0xbfbed, then PUSH EDX.  Ghidra rendered this as a
+ *   ZERO-argument call; the real cdecl order is
+ *   FUN_00096f20((int)record[0], *(float *)(record + 4)).  kb.json declared
+ *   it `void (void)`, which would have dropped BOTH arguments (ESP drift,
+ *   the 0x158df0 class of bug) and discarded the AL return (lift-learnings
+ *   16 void-EAX); the decl was corrected to
+ *   `char FUN_00096f20(int arg0, float arg1);` (ported:false, so only the
+ *   thunk decl changes).  Left as FUN_ -- nothing here names it.
+ *   Result widening: MOV byte ptr [EBP-0x4],AL then MOV EAX,dword ptr
+ *   [EBP-0x4]; PUSH EAX.  A pre-zeroed dword with only its low byte
+ *   overwritten and read back as an int -- NOT a MOVZX and NOT a
+ *   sign-extending (int)(char) cast.  The union below reproduces exactly that
+ *   store pair; it is the same idiom that scored 100% on FUN_000bf8f0 and
+ *   FUN_000bfab0.
+ *   CALL 0xcbf80 pushes EAX (the widened byte) then ESI = cdecl reverse ->
+ *   hs_return(thread_datum, value.i).  ONE combined ADD ESP,0x10 at 0xbfc03
+ *   cleans the 2 pushes of 0x96f20 plus hs_return's 2 -- the ARG_COUNT hazard
+ *   on hs_return ("cleanup=4 vs decl=2") is the same FALSE POSITIVE
+ *   documented on the twins at 0xbf8b0 / 0xbf920 / 0xbfab0 / 0xbfb40;
+ *   hs_return really takes 2 args, do NOT "fix" its decl.
+ *
+ * Callees (raw CALL targets, all cdecl, no @<reg> args anywhere):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x96f20 = FUN_00096f20(int index, float value) -> char in AL
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfbc0(int16_t function_index, int thread_datum, char init)
+{
+  unsigned short *record;
+  union {
+    unsigned char b;
+    int i;
+  } value;
+
+  value.i = 0;
+  record = (unsigned short *)hs_macro_function_evaluate(function_index,
+                                                        thread_datum, init);
+  if (record != NULL) {
+    value.b = (unsigned char)FUN_00096f20((int)record[0],
+                                          *(float *)((char *)record + 4));
+    hs_return(thread_datum, value.i);
+  }
+}
+
+/* FUN_000bfc10 @ 0x000bfc10
+ *
+ * HaloScript builtin dispatcher; the device-GROUP SETTER twin of the
+ * device-group reader FUN_000bfb80 above and of the (dword, float) setter
+ * FUN_000bfb40. Identical 3-parameter cdecl shape and the same evaluate /
+ * NULL-check / worker / hs_return skeleton as every twin in this run. What
+ * distinguishes it: the record's first field is an UNSIGNED 16-bit
+ * device-group index (the XOR/MOV-DX zero-extend idiom) and the second is a
+ * FLOAT, so the worker takes (group_index, value); the script return is the
+ * CONSTANT 0, so the entire observable effect is the 0x96510 side effect.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xbfc10-0xbfc4b (28 instructions). NO local slot at all (no
+ * PUSH ECX / SUB ESP), no _chkstk, no FPU arithmetic, no SEH, no struct
+ * writes, no buffers. ESI is the only callee-saved register and holds
+ * thread_datum live across the evaluate call. The exit RET carries no
+ * immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000bfc10(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift, as was the callee 0x96510's equally stale `void
+ * device_group_set_actual_value(void);`; a (void) decl over a stack-arg
+ * callee is the ESP-drift class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   CALL 0xcc560 pushes EAX([EBP+0x10]) / ESI([EBP+0xc]) / ECX([EBP+0x8]) in
+ *   cdecl reverse order -> C order (function_index, thread_datum, init); ADD
+ *   ESP,0xc = 3 args. Straight pass-through, no reordering.
+ *   TEST EAX,EAX / JZ 0xbfc49 skips BOTH remaining calls, so the 0xcc560
+ *   return is a record POINTER that is dereferenced even though kb.json
+ *   declares it as returning int (same as every twin; the cast is local and
+ *   the kb decl is left alone).
+ *   The record is read at exactly two offsets, one field each -- no buffer
+ *   aliasing is possible: FLD dword ptr [EAX+0x4] (a FLOAT, which Ghidra
+ *   hides entirely) and XOR EDX,EDX / MOV DX,word ptr [EAX]. That second
+ *   read is a zero-extended UNSIGNED 16-bit load, NOT an int (lift-learnings
+ *   24 LOADW) -- hence the `unsigned short *` record type, matching the
+ *   device-group reader twin FUN_000bfb80.
+ *   CALL 0x96510 is the push-then-fstp float-argument idiom (lift-learnings
+ *   hazard 2): PUSH ECX is a DUMMY slot reservation immediately overwritten
+ *   by FSTP dword ptr [ESP], then PUSH EDX. Entry stack is therefore
+ *   [ESP+0]=EDX (the zero-extended group index) and [ESP+4]=the float => C
+ *   order device_group_set_actual_value(record[0], *(float *)(record+4)).
+ *   Ghidra printed a bare zero-argument call -- the disassembly, not the
+ *   decompile, is authoritative here; lifting it 0-arg would drift ESP and
+ *   pass nothing.
+ *   CALL 0xcbf80 pushes 0x0 then ESI -> hs_return(thread_datum, 0). ONE
+ *   combined ADD ESP,0x10 cleans the 4 pushes of both 2-arg calls -- the
+ *   ARG_COUNT hazard on hs_return ("cleanup=4 vs decl=2") is that same FALSE
+ *   POSITIVE documented on the twins; hs_return really takes 2 args, do NOT
+ *   "fix" its decl.
+ *
+ * Reloc audit of delinked/functions/000bfc10.obj: exactly three DISP32
+ * targets -- FUN_000cc560, device_group_set_actual_value, hs_return -- with
+ * no global and no string reference.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x96510 = device_group_set_actual_value(int device_group_index,
+ *             float value); the first parameter is typed `int` to mirror its
+ *             already-declared reader sibling device_group_get_value(int) --
+ *             the binary only proves a 32-bit push of a zero-extended word.
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Codegen-shape note (why the float read is `volatile`): under this repo's
+ * VC71 flags (/O2 /Ot) MSVC folds a plain `*(float *)p` argument into a
+ * 4-byte integer copy (`mov 0x4(%eax),%edx; push %edx`), which the original
+ * does NOT do -- it uses the x87 push-then-fstp idiom. Five source spellings
+ * were probe-compiled (pointer cast, `((float *)r)[1]`, struct member, local
+ * float temp, int* base) and ALL folded to the integer copy; only marking the
+ * read `volatile` -- or dropping to /Os, which then breaks the prologue --
+ * restores `flds 0x4(%eax) ... push %ecx; fstps (%esp)`. The qualifier is a
+ * pure codegen lever: the field is read exactly once either way, so the
+ * observable behaviour is unchanged. The same fold silently costs the twin
+ * FUN_000bfb40 above the same two instructions (not touched here).
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfc10(int16_t function_index, int thread_datum, char init)
+{
+  unsigned short *record;
+
+  record = (unsigned short *)hs_macro_function_evaluate(function_index,
+                                                        thread_datum, init);
+  if (record != NULL) {
+    device_group_set_actual_value((int)record[0],
+                                  *(volatile float *)((char *)record + 4));
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000bfc50 @ 0x000bfc50
+ *
+ * HaloScript builtin dispatcher; byte-shape twin of FUN_000bf920 above:
+ * identical 3-parameter cdecl shape and identical evaluate / NULL-check /
+ * worker / hs_return skeleton, including the same "worker takes (dword @
+ * record+0, zero-extended BYTE @ record+4) and the script gets a CONSTANT 0"
+ * tail. The only difference is the worker called: 0x965f0
+ * device_one_sided_set instead of 0x1ae210.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xbfc50-0xbfc87. No locals, no _chkstk, no SUB ESP, no FPU, no
+ * SEH. ESI is the only callee-saved register and holds thread_datum live across
+ * the evaluate call. The exit RET carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000bfc50(void);` decl was corrected to the 3-arg cdecl form as part
+ * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
+ * bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   CALL 0xcc560 pushes EAX([EBP+0x10]) / ESI([EBP+0xc]) / ECX([EBP+0x8]) in
+ *   cdecl reverse order -> C order (function_index, thread_datum, init); ADD
+ *   ESP,0xc = 3 args. Straight pass-through, no reordering.
+ *
+ *   TEST EAX,EAX / JZ 0xbfc85 skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin above; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref (2 fields): MOV EAX,dword ptr [EAX] -> DWORD at record+0;
+ *   XOR EDX,EDX; MOV DL,byte ptr [EAX+0x4] -> zero-extended BYTE at record+4.
+ *   Ghidra renders the +4 read as an int -- that width is WRONG (lift-learnings
+ *   24 LOADW); taking it would pass a garbage one-sided flag. The load is
+ *   unsigned (XOR/MOV DL, not MOVSX). Only +0x0 and +0x4 are touched, one deref
+ *   each -- no buffer-alias risk.
+ *
+ *   CALL 0x965f0 pushes EDX (the zero-extended byte) then EAX (the dword) =
+ *   cdecl reverse -> C order (record[0], byte at record+4). Distinct reloads,
+ *   NOT a duplicated argument. Ghidra shows this call with ZERO arguments --
+ *   that is wrong; the disassembly plainly pushes EDX then EAX.
+ *
+ *   CALL 0xcbf80 pushes 0x0 then ESI -> hs_return(thread_datum, 0). The script
+ *   return value is the CONSTANT 0, not the record and not the worker's result;
+ *   the entire observable effect is the 0x965f0 side effect. ONE combined ADD
+ *   ESP,0x10 cleans the 4 pushes of both 2-arg calls -- the ARG_COUNT hazard on
+ *   hs_return ("cleanup=4 vs decl=2") is that same FALSE POSITIVE documented on
+ *   the twins; hs_return really takes 2 args, do NOT "fix" its decl.
+ *
+ * Reloc audit of delinked/functions/000bfc50.obj: the first three DISP32
+ * targets (offsets 0x11/0x26/0x2e) are FUN_000cc560, FUN_000965f0,
+ * FUN_000cbf80 -- matching the three calls below with no extra global or string
+ * reference. (The exported range also covers the following function 0xbfc90,
+ * whose relocs are the trailing three.)
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x965f0 = device_one_sided_set(int object_list, char one_sided); its stale
+ *             `void device_one_sided_set(void);` kb decl was corrected here --
+ *             calling through a (void) decl would have left 8 bytes of drift.
+ *             Arg names are mechanical (naming-confidence: behaviour-only).
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfc50(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    device_one_sided_set(record[0],
+                         (char)*(unsigned char *)((char *)record + 4));
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000bfc90 @ 0x000bfc90
+ *
+ * HaloScript builtin dispatcher, byte-shape twin of FUN_000bfc50 directly
+ * above and of FUN_000bf8b0 / FUN_000bf8f0 / FUN_000bf920 earlier in this TU:
+ * identical 3-parameter cdecl shape and identical evaluate / NULL-check /
+ * worker / hs_return skeleton, including the same "worker takes (dword @
+ * record+0, zero-extended BYTE @ record+4) and the script gets a CONSTANT 0"
+ * tail. The only difference from FUN_000bfc50 is the worker called: 0x96630
+ * device_operates_automatically_set instead of 0x965f0 device_one_sided_set.
+ *
+ * Ghidra modelled the function as void(void), so all three cdecl STACK
+ * parameters surfaced as in_stack_* pseudo-locals and the 0x96630 call lost
+ * BOTH of its arguments (kb.json also declared that callee void(void)). The
+ * `void FUN_000bfc90(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL of the 24-instruction body
+ * 0xbfc90-0xbfcc7; cdecl prologue PUSH EBP / MOV EBP,ESP / PUSH ESI, no SUB
+ * ESP, no locals, no FPU, no SEH, RET with no immediate so the caller cleans):
+ *   CALL 0xcc560 pushes EAX([EBP+0x10]) / ESI([EBP+0xc]) / ECX([EBP+0x8]) in
+ *   cdecl reverse order -> C order (function_index, thread_datum, init); ADD
+ *   ESP,0xc = 3 args. Straight pass-through, no reordering. ESI (the thread
+ *   datum) is callee-saved across the call and reused for hs_return.
+ *
+ *   TEST EAX,EAX / JZ 0xbfcc5 skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref (2 fields): MOV EAX,dword ptr [EAX] -> DWORD at record+0;
+ *   XOR EDX,EDX; MOV DL,byte ptr [EAX+0x4] -> zero-extended BYTE at record+4.
+ *   Ghidra renders the +4 read as an int -- that width is WRONG (lift-learnings
+ *   24 LOADW); taking it would pass a garbage flag. The load is unsigned
+ *   (XOR/MOV DL, not MOVSX). Only +0x0 and +0x4 are touched, one deref each --
+ *   no buffer-alias risk.
+ *
+ *   CALL 0x96630 pushes EDX (the zero-extended byte) then EAX (the dword) =
+ *   cdecl reverse -> C order (record[0], byte at record+4). Distinct reloads,
+ *   NOT a duplicated argument. Ghidra shows this call with ZERO arguments --
+ *   that is wrong; the disassembly plainly pushes EDX then EAX.
+ *
+ *   CALL 0xcbf80 pushes 0x0 then ESI -> hs_return(thread_datum, 0). The script
+ *   return value is the CONSTANT 0, not the record and not the worker's result;
+ *   the entire observable effect is the 0x96630 side effect. ONE combined ADD
+ *   ESP,0x10 cleans the 4 pushes of both 2-arg calls -- the ARG_COUNT hazard on
+ *   hs_return ("cleanup=4 vs decl=2") is that same FALSE POSITIVE documented on
+ *   the twins; hs_return really takes 2 args, do NOT "fix" its decl.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x96630 = device_operates_automatically_set(int object_list,
+ *             char operates_automatically); its stale
+ *             `void device_operates_automatically_set(void);` kb decl was
+ *             corrected here -- calling through a (void) decl would have left
+ *             8 bytes of drift. Callee is unported, so the change is decl-only.
+ *             Arg names are mechanical (naming-confidence: behaviour-only).
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfc90(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    device_operates_automatically_set(
+      record[0], (char)*(unsigned char *)((char *)record + 4));
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000bfcd0 @ 0x000bfcd0
+ *
+ * HaloScript builtin dispatcher, the immediate neighbour of FUN_000bfc90
+ * above and the same skeleton as every twin earlier in this TU: evaluate the
+ * argument record, NULL-check it, invoke one device worker with two fields of
+ * that record, then hand the script a CONSTANT 0.
+ *
+ * The ONE structural difference from FUN_000bfc90 / FUN_000bfc50 is the WIDTH
+ * of the first record field: those twins load a full DWORD (MOV EAX,[EAX]),
+ * this one loads a SIGNED WORD (MOVSX EAX, word ptr [EAX]). That is
+ * lift-learnings 24 (LOADW) territory -- taking Ghidra's `int` rendering would
+ * emit a plain dword load and silently pass 2 bytes of neighbouring record
+ * data in the high half. The second field is unchanged: XOR EDX,EDX / MOV DL,
+ * byte ptr [EAX+4] = ZERO-extended byte, not signed.
+ *
+ * Ghidra modelled the function as void(void), so all three cdecl STACK
+ * parameters surfaced as in_stack_* pseudo-locals and the 0x96670 call lost
+ * BOTH of its arguments (kb.json also declared that callee void(void)). The
+ * `void FUN_000bfcd0(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL of the body 0xbfcd0-0xbfd09;
+ * cdecl prologue PUSH EBP / MOV EBP,ESP / PUSH ESI, no SUB ESP, no _chkstk, no
+ * locals, no FPU, no buffers, no SEH; RET with no immediate so the caller
+ * cleans):
+ *   CALL 0xcc560 pushes EAX([EBP+0x10]) / ESI([EBP+0xc]) / ECX([EBP+0x8]) in
+ *   cdecl reverse order -> C order (function_index, thread_datum, init); ADD
+ *   ESP,0xc = exactly 3 args, matching the kb decl. Straight pass-through, no
+ *   reordering. ESI (the thread datum) is callee-saved across all three calls
+ *   and is reloaded from nothing -- it is reused directly for hs_return, so
+ *   there is no register-aliasing ambiguity about which C variable it holds.
+ *
+ *   TEST EAX,EAX / JZ 0xbfd06 skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref (2 fields, one load each -- no buffer-alias risk):
+ *     XOR EDX,EDX ; MOV DL, byte ptr [EAX+0x4]  -> unsigned BYTE at record+4
+ *     MOVSX EAX, word ptr [EAX]                 -> signed  WORD at record+0
+ *   The byte at +4 MUST be read BEFORE the word at +0, because the MOVSX
+ *   overwrites the record base in EAX. Writing the two loads as the two
+ *   arguments of one cdecl call reproduces that order for free: MSVC evaluates
+ *   and pushes cdecl arguments right-to-left, so the +4 byte (last argument) is
+ *   materialised first, exactly as in the original.
+ *
+ *   CALL 0x96670 pushes EDX (the zero-extended byte) then EAX (the sign-
+ *   extended word) = cdecl reverse -> C order (word at record+0, byte at
+ *   record+4). Distinct reloads, NOT a duplicated argument. Ghidra shows this
+ *   call with ZERO arguments -- that is wrong; the disassembly plainly pushes
+ *   EDX then EAX. dump_caller_regsetup 0x96670 confirms it, and this is that
+ *   callee's ONLY call site in the image.
+ *
+ *   CALL 0xcbf80 pushes 0x0 then ESI -> hs_return(thread_datum, 0). The script
+ *   return value is the CONSTANT 0, not the record and not the worker's result;
+ *   the entire observable effect is the 0x96670 side effect. ONE combined ADD
+ *   ESP,0x10 cleans the 4 pushes of both 2-arg calls -- the ARG_COUNT hazard on
+ *   hs_return ("cleanup=4 vs decl=2") is the same FALSE POSITIVE documented on
+ *   the twins; hs_return really takes 2 args, do NOT "fix" its decl.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x96670 = device_group_change_only_once_more_set(int device_group_index,
+ *             char change_only_once_more); its stale
+ *             `void device_group_change_only_once_more_set(void);` kb decl was
+ *             corrected here -- calling through a (void) decl would have left
+ *             8 bytes of drift (the a10 object-list dropped-arg class). The
+ *             first parameter is declared `int` because only the CALLER's load
+ *             width is proven (a signed 16-bit field); the push is a full
+ *             sign-extended dword and the callee's own parameter width is not
+ *             observable from here. The sign extension is expressed in the
+ *             source by the int16_t deref, not by the decl. Callee is unported,
+ *             so the change is decl-only. Arg names are mechanical, taken from
+ *             the existing symbol name (naming-confidence: behaviour-only).
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfcd0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    device_group_change_only_once_more_set(
+      *(int16_t *)record, (char)*(unsigned char *)((char *)record + 4));
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000bfd10 @ 0x000bfd10
+ *
+ * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function, the
+ * immediate neighbour of FUN_000bfcd0 above. It is the DEGENERATE member of
+ * the handler family that fills the tail of this TU: because the script
+ * builtin takes no arguments there is no argument record to evaluate, so the
+ * hs_macro_function_evaluate call and its NULL check -- present in every twin
+ * from FUN_000bf870 through FUN_000bfcd0 -- are simply absent. What remains is
+ * the worker call followed by the constant script return.
+ *
+ * Ghidra modelled the function as void(void), so the cdecl STACK parameters
+ * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
+ * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears
+ * anywhere in the decompile, and the body has no register-defining prologue.
+ * The stale `void FUN_000bfd10(void);` kb.json decl was corrected to the 3-arg
+ * cdecl form as part of this lift; a (void) decl over a stack-arg callee is
+ * the ESP-drift class of bug from 0x158df0.
+ *
+ * Binary evidence (the ENTIRE body, 10 instructions, 0xbfd10-0xbfd27; cdecl
+ * prologue PUSH EBP / MOV EBP,ESP with no SUB ESP, no _chkstk, no callee-saved
+ * pushes, no locals, no FPU, no SEH, no buffers, no struct deref, no loops and
+ * no branches -- straight-line, so there is no register-aliasing ambiguity and
+ * no buffer-alias risk anywhere in this function):
+ *
+ *   CALL 0x1459d0 is emitted with NO preceding pushes and NO stack cleanup
+ *   afterwards -> breakable_surfaces_reset(), 0 args, matching its kb decl.
+ *   It comes FIRST, before the script return, and that ordering is the whole
+ *   observable effect of the builtin. (Ghidra's label for this callee reads
+ *   `breakable_surfaces_initialize_for_new_map`; the kb.json name
+ *   breakable_surfaces_reset is used instead, per that entry. The callee is
+ *   ported=false and still thunks to the original -- it is declared in kb and
+ *   callable by name, so no stub is added here.)
+ *
+ *   MOV EAX,[EBP+0xc] / PUSH 0x0 / PUSH EAX / CALL 0xcbf80 -> cdecl reverse
+ *   push order gives C order hs_return(thread_datum, 0). The script return
+ *   value is the LITERAL 0, not any computed result. [EBP+0xc] is the SECOND
+ *   cdecl stack parameter, i.e. thread_datum, matching the slot every twin in
+ *   this family uses for it.
+ *
+ *   ADD ESP,0x8 cleans exactly those 2 pushes. Unlike the twins -- where ONE
+ *   combined ADD ESP,0x10 covers two 2-arg calls and produces the well-known
+ *   ARG_COUNT false positive on hs_return -- this function has a single
+ *   multi-arg call, so the cleanup is a clean 2-arg confirmation of
+ *   hs_return's arity. RET carries no immediate => cdecl, caller cleans.
+ *
+ * [EBP+0x08] (function_index) and [EBP+0x10] (init) are NEVER read by the
+ * body. They are retained in the signature because this is the fixed cdecl
+ * shape of the HS builtin handler family -- the dispatch table pushes three
+ * arguments at every call site, and declaring fewer would reintroduce the same
+ * ESP-drift hazard the corrected decl exists to prevent. Their being unused is
+ * a property of THIS builtin (it takes no script arguments), not evidence of a
+ * narrower signature.
+ *
+ * Callees (both cdecl, both in kb.json, no @<reg> args anywhere):
+ *   0x1459d0 = breakable_surfaces_reset(void)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfd10(int16_t function_index, int thread_datum, char init)
+{
+  breakable_surfaces_reset();
+  hs_return(thread_datum, 0);
+}
+
+/* FUN_000bfd50 @ 0x000bfd50
+ *
+ * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function, the exact
+ * byte-shape twin of FUN_000bfd10 above with a different worker: the builtin
+ * takes no script arguments, so the hs_macro_function_evaluate call and its
+ * NULL check -- present in every twin from FUN_000bf870 through FUN_000bfcd0 --
+ * are simply absent. What remains is the worker call followed by the constant
+ * script return.
+ *
+ * Ghidra modelled the function as void(void), so the cdecl STACK parameters
+ * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
+ * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears
+ * anywhere in the decompile, and the body has no register-defining prologue.
+ * The stale `void FUN_000bfd50(void);` kb.json decl was corrected to the 3-arg
+ * cdecl form as part of this lift; a (void) decl over a stack-arg callee is
+ * the ESP-drift class of bug from 0x158df0.
+ *
+ * Binary evidence (the ENTIRE body, 8 instructions, 0xbfd50-0xbfd67; cdecl
+ * prologue PUSH EBP / MOV EBP,ESP with no SUB ESP, no _chkstk, no callee-saved
+ * pushes, no locals, no FPU, no SEH, no buffers, no struct deref, no loops and
+ * no branches -- straight-line, so there is no register-aliasing ambiguity and
+ * no buffer-alias risk anywhere in this function):
+ *
+ *   CALL 0xa6a80 is emitted with NO preceding pushes and NO stack cleanup
+ *   afterwards (the next instruction is a MOV, not an ADD ESP) -> a 0-argument
+ *   call, matching FUN_000a6a80's kb decl `void FUN_000a6a80(void)`. That is
+ *   the cheat-all-weapons worker (already ported in game.c, carrying the
+ *   contiguous-placement-buffer fix for the 0xf3c90060 tag-index assert); it
+ *   is called BY NAME here, never re-lifted or inlined. It comes FIRST, before
+ *   the script return, and that ordering is the whole observable effect of the
+ *   builtin.
+ *
+ *   MOV EAX,[EBP+0xc] / PUSH 0x0 / PUSH EAX / CALL 0xcbf80 -> cdecl reverse
+ *   push order gives C order hs_return(thread_datum, 0). The script return
+ *   value is the LITERAL 0, not the worker's result (the worker is void and
+ *   its EAX is never read -- lift-silent-bugs check 4 does not apply, nothing
+ *   here consumes an implicit EAX). [EBP+0xc] is the SECOND cdecl stack
+ *   parameter, i.e. thread_datum, the slot every twin in this family uses for
+ *   it. [EBP+0x08] is never loaded.
+ *
+ *   ADD ESP,0x8 cleans exactly those 2 pushes. Unlike the twins -- where ONE
+ *   combined ADD ESP,0x10 covers two 2-arg calls and produces the well-known
+ *   ARG_COUNT false positive on hs_return -- this function has a single
+ *   multi-arg call, so the cleanup is a clean 2-arg confirmation of
+ *   hs_return's arity. Do NOT "fix" hs_return's decl. RET carries no
+ *   immediate => cdecl, caller cleans the incoming args; do not declare it
+ *   __stdcall.
+ *
+ * [EBP+0x08] (function_index) and [EBP+0x10] (init) are NEVER read by the
+ * body. They are retained in the signature because this is the fixed cdecl
+ * shape of the HS builtin handler family -- the dispatch table pushes three
+ * arguments at every call site, and declaring fewer would reintroduce the same
+ * ESP-drift hazard the corrected decl exists to prevent. Their being unused is
+ * a property of THIS builtin (it takes no script arguments), not evidence of a
+ * narrower signature.
+ *
+ * Callees (both cdecl, both in kb.json, both ported, no @<reg> args anywhere):
+ *   0xa6a80 = FUN_000a6a80(void)   -- cheat-all-weapons worker
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfd50(int16_t function_index, int thread_datum, char init)
+{
+  FUN_000a6a80();
+  hs_return(thread_datum, 0);
+}
+
+/* FUN_000bfd90 @ 0x000bfd90
+ *
+ * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function; the exact
+ * byte-shape twin of FUN_000bfd50 directly above, differing only in the worker
+ * it calls. The builtin takes no script arguments, so the
+ * hs_macro_function_evaluate call and its NULL check -- present in the twins
+ * from FUN_000bf870 through FUN_000bfcd0 -- are simply absent. What remains is
+ * the worker call followed by the constant script return. Do NOT "normalise"
+ * this handler to the evaluate/NULL-check shape: there is no evaluate call and
+ * no branch anywhere in the body.
+ *
+ * Ghidra modelled the function as void(void), so the cdecl STACK parameters
+ * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
+ * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears in
+ * the decompile, and the body has no register-defining prologue. The stale
+ * `void FUN_000bfd90(void);` kb.json decl was corrected to the 3-arg cdecl form
+ * as part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (the ENTIRE body, 10 instructions, 0xbfd90-0xbfda7; cdecl
+ * prologue PUSH EBP / MOV EBP,ESP with no SUB ESP, no _chkstk, no callee-saved
+ * pushes, no locals, no FPU, no SEH, no buffers, no struct deref, no loops and
+ * no branches -- straight-line, so there is no register-aliasing ambiguity, no
+ * push-then-fstp float, no struct-field rotation and no buffer-alias risk):
+ *
+ *   CALL 0xa6830 is emitted with NO preceding pushes and NO stack cleanup
+ *   afterwards (the next instruction is a MOV, not an ADD ESP) -> a 0-argument
+ *   call, matching cheat_teleport_to_camera's kb decl `void
+ *   cheat_teleport_to_camera(void)`. It is called BY NAME, never re-lifted or
+ *   inlined. It comes FIRST, before the script return, and that ordering is the
+ *   whole observable effect of the builtin.
+ *
+ *   MOV EAX,[EBP+0xc] / PUSH 0x0 / PUSH EAX / CALL 0xcbf80 -> cdecl reverse
+ *   push order (first PUSH is the LAST C argument) gives C order
+ *   hs_return(thread_datum, 0). The script return value is the LITERAL 0 from
+ *   PUSH 0x0, not the worker's result: cheat_teleport_to_camera is void and its
+ *   EAX is never read, so lift-silent-bugs check 4 (void-EAX implicit return,
+ *   lift-learnings 16) does not apply -- nothing here consumes an implicit EAX.
+ *   [EBP+0xc] is the SECOND cdecl stack parameter, i.e. thread_datum, the slot
+ *   every twin in this family uses for it. [EBP+0x08] is never loaded.
+ *
+ *   ADD ESP,0x8 cleans exactly those 2 pushes -- a clean 2-arg confirmation of
+ *   hs_return's arity (this function has a single multi-arg call, so it does
+ *   not produce the combined-ADD-ESP,0x10 ARG_COUNT false positive the
+ *   evaluate/NULL-check twins do). Do NOT "fix" hs_return's decl. RET carries
+ *   no immediate => cdecl, caller cleans the incoming args; do not declare it
+ *   __stdcall.
+ *
+ * [EBP+0x08] (function_index) and [EBP+0x10] (init) are NEVER read by the body.
+ * They are retained in the signature because this is the fixed cdecl shape of
+ * the HS builtin handler family -- the shared dispatch table pushes three
+ * arguments at every call site, and declaring fewer would reintroduce the same
+ * ESP-drift hazard the corrected decl exists to prevent. Their being unused is
+ * a property of THIS builtin (it takes no script arguments), not evidence of a
+ * narrower signature.
+ *
+ * Callees (both cdecl, both in kb.json, both ported, no @<reg> args anywhere):
+ *   0xa6830 = cheat_teleport_to_camera(void)
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfd90(int16_t function_index, int thread_datum, char init)
+{
+  cheat_teleport_to_camera();
+  hs_return(thread_datum, 0);
+}
+
+/* FUN_000bfdb0 @ 0x000bfdb0
+ *
+ * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function; the exact
+ * byte-shape twin of FUN_000bfd90 directly above, differing only in the worker
+ * it calls. The builtin takes no script arguments, so the
+ * hs_macro_function_evaluate call and its NULL check -- present in the twins
+ * from FUN_000bf870 through FUN_000bfcd0 -- are simply absent. What remains is
+ * the worker call followed by the constant script return. Do NOT "normalise"
+ * this handler to the evaluate/NULL-check shape: there is no evaluate call and
+ * no branch anywhere in the body.
+ *
+ * Ghidra modelled the function as void(void), so the cdecl STACK parameters
+ * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
+ * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears in
+ * the decompile, and the body has no register-defining prologue. The stale
+ * `void FUN_000bfdb0(void);` kb.json decl was corrected to the 3-arg cdecl form
+ * as part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (the ENTIRE body, 10 instructions, 0xbfdb0-0xbfdc7; cdecl
+ * prologue PUSH EBP / MOV EBP,ESP with no SUB ESP, no _chkstk, no callee-saved
+ * pushes, no locals, no FPU, no SEH, no buffers, no struct deref, no loops and
+ * no branches -- straight-line, so there is no register-aliasing ambiguity, no
+ * push-then-fstp float, no struct-field rotation and no buffer-alias risk):
+ *
+ *   CALL 0xa68e0 is emitted with NO preceding pushes and NO stack cleanup
+ *   afterwards (the next instruction is a MOV, not an ADD ESP) -> a 0-argument
+ *   call, matching cheat_all_powerups' kb decl `void cheat_all_powerups(void)`.
+ *   It is called BY NAME (the worker already lives in cheats.c), never
+ *   re-lifted or inlined. It comes FIRST, before the script return, and that
+ *   ordering is the whole observable effect of the builtin.
+ *
+ *   MOV EAX,[EBP+0xc] / PUSH 0x0 / PUSH EAX / CALL 0xcbf80 -> cdecl reverse
+ *   push order (first PUSH is the LAST C argument) gives C order
+ *   hs_return(thread_datum, 0). The script return value is the LITERAL 0 from
+ *   PUSH 0x0, not the worker's result: cheat_all_powerups is void and its EAX
+ *   is never read, so lift-silent-bugs check 4 (void-EAX implicit return,
+ *   lift-learnings 16) does not apply -- nothing here consumes an implicit EAX.
+ *   [EBP+0xc] is the SECOND cdecl stack parameter, i.e. thread_datum, the slot
+ *   every twin in this family uses for it. [EBP+0x08] is never loaded.
+ *
+ *   ADD ESP,0x8 cleans exactly those 2 pushes -- a clean 2-arg confirmation of
+ *   hs_return's arity (this function has a single multi-arg call, so it does
+ *   not produce the combined-ADD-ESP,0x10 ARG_COUNT false positive the
+ *   evaluate/NULL-check twins do). Do NOT "fix" hs_return's decl. RET carries
+ *   no immediate => cdecl, caller cleans the incoming args; do not declare it
+ *   __stdcall.
+ *
+ * [EBP+0x08] (function_index) and [EBP+0x10] (init) are NEVER read by the body.
+ * They are retained in the signature because this is the fixed cdecl shape of
+ * the HS builtin handler family -- the shared dispatch table pushes three
+ * arguments at every call site, and declaring fewer would reintroduce the same
+ * ESP-drift hazard the corrected decl exists to prevent. Their being unused is
+ * a property of THIS builtin (it takes no script arguments), not evidence of a
+ * narrower signature.
+ *
+ * Callees (both cdecl, both in kb.json, both ported, no @<reg> args anywhere):
+ *   0xa68e0 = cheat_all_powerups(void)
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfdb0(int16_t function_index, int thread_datum, char init)
+{
+  cheat_all_powerups();
+  hs_return(thread_datum, 0);
+}
+
+/* FUN_000bfdd0 @ 0x000bfdd0
+ *
+ * HaloScript builtin dispatcher for a ONE-ARGUMENT script function; the
+ * evaluate/NULL-check twin of FUN_000bf870 / FUN_000bf8b0 / FUN_000bf8f0 /
+ * FUN_000bf920 and the rest of the family above. It evaluates the script's
+ * argument list, and only if the evaluation produced a record does it invoke
+ * the worker and return to the script. Unlike the zero-argument twins
+ * immediately above (FUN_000bfd90 / FUN_000bfdb0) the evaluate call and its
+ * NULL check ARE present here, so do not "normalise" this one to their shape.
+ *
+ * Ghidra modelled the function as void(void), so the cdecl STACK parameters
+ * surfaced as `in_stack_00000004` / `in_stack_00000008` / `in_stack_0000000c`
+ * pseudo-locals (lift-learnings 31 void-decl trap). These are STACK args, not
+ * @<reg>: no unaff_/in_EAX/in_ECX appears in the decompile, and the body has no
+ * register-defining prologue. The stale `void FUN_000bfdd0(void);` kb.json decl
+ * was corrected to the 3-arg cdecl form as part of this lift; a (void) decl
+ * over a stack-arg callee is the ESP-drift class of bug from 0x158df0.
+ *
+ * Binary evidence (the ENTIRE body, 0xbfdd0-0xbfe04; prologue PUSH EBP /
+ * MOV EBP,ESP / PUSH ESI, epilogue POP ESI / POP EBP / RET with no immediate
+ * => cdecl, caller cleans. No SUB ESP, no _chkstk, no locals, no FPU, no SEH,
+ * no buffers, no loops, no jump table -- one forward branch only, so there is
+ * no push-then-fstp float, no struct-field rotation and no buffer-alias risk):
+ *
+ *   Parameter slots: [EBP+0x08] function_index -> ECX, [EBP+0x0c]
+ *   thread_datum -> ESI, [EBP+0x10] init -> EAX. ESI is callee-saved and stays
+ *   live across the evaluate call, which is exactly why the original preserves
+ *   it: it is re-used as hs_return's first argument at the tail. Every register
+ *   feeding a PUSH here was loaded from its [EBP+N] slot within the same basic
+ *   block, so lift-decompiler-traps hazard 1 (register aliasing over distance)
+ *   does not apply.
+ *
+ *   PUSH EAX / PUSH ESI / PUSH ECX / CALL 0xcc560 -> cdecl reverse push order
+ *   (first PUSH is the LAST C argument) gives C order
+ *   hs_macro_function_evaluate(function_index, thread_datum, init) -- a
+ *   straight pass-through of all three incoming parameters in slot order.
+ *   ADD ESP,0xc cleans exactly those 3 pushes, matching the kb decl's arity.
+ *
+ *   TEST EAX,EAX / JZ 0xbfe02 skips BOTH remaining calls, and EAX is then
+ *   dereferenced, so 0xcc560's declared `int` return is really a POINTER to the
+ *   evaluated-argument record. It is cast to the record pointer LOCALLY; the
+ *   kb.json decl is deliberately left as int, exactly as on every twin in this
+ *   cluster, so the shared declaration stays consistent across the family.
+ *
+ *   XOR EDX,EDX / MOV DX,word ptr [EAX] -> the record's ONLY field is a
+ *   ZERO-EXTENDED 16-bit value at offset +0. The width is load-bearing
+ *   (lift-learnings 24 LOADW): this is NOT the dword `record[0]` form used by
+ *   the FUN_000bf920 twin, and the XOR+MOV DX pairing (rather than MOVSX)
+ *   proves it is UNSIGNED. Hence `uint16_t *record` and a plain deref.
+ *
+ *   VC71 match note: this two-instruction zero-extend is the ENTIRE residual
+ *   diff -- 93.6% (23 ours / 24 reference, LCS 22). Our C compiles the widening
+ *   to the single `movzx edx,word ptr [eax]`; the original spells it XOR + a
+ *   16-bit partial-register MOV. Verified NOT source-recoverable: hoisting the
+ *   load into an explicit `uint16_t local_player_index` temp (the shape that
+ *   normally forces MSVC's DX partial-register allocation) re-measured at the
+ *   identical 93.6% -- VC71 folds the temp straight back into movzx. Both
+ *   sequences are semantically identical zero-extends, and equivalence agrees
+ *   (100/100 seeds, 0 divergences). Do not chase this instruction; it is a
+ *   codegen-selection difference, not a lift defect.
+ *
+ *   PUSH EDX / CALL 0xa6760 -> a single argument, the zero-extended record
+ *   field, i.e. cheat_active_camouflage_local_player(local_player_index).
+ *
+ *   MOV EAX/PUSH 0x0 / PUSH ESI / CALL 0xcbf80 -> cdecl reverse order gives
+ *   hs_return(thread_datum, 0). The script return value is the LITERAL 0 from
+ *   PUSH 0x0, not the worker's result: cheat_active_camouflage_local_player is
+ *   void and its EAX is never read, so lift-silent-bugs check 4 (void-EAX
+ *   implicit return, lift-learnings 16) does not apply here.
+ *
+ *   The single ADD ESP,0xc at 0xbfdff cleans BOTH tail calls together (1 arg
+ *   for 0xa6760 plus 2 args for hs_return). check_lift_hazards therefore
+ *   reports an ARG_COUNT finding "cleanup=3 stack args, decl=2" against
+ *   hs_return: that is this combined-cleanup artifact, NOT a 3-arg callee. Do
+ *   NOT "fix" hs_return's decl -- its arity is independently confirmed by the
+ *   clean ADD ESP,0x8 in the single-call twin FUN_000bfdb0 directly above.
+ *
+ * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
+ * to the evaluate call; nothing else in the body consumes them.
+ *
+ * Callees (all three cdecl, all in kb.json, all ported, no @<reg> args anywhere
+ * in the chain):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record pointer
+ *   0xa6760 = cheat_active_camouflage_local_player(int local_player_index)
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfdd0(int16_t function_index, int thread_datum, char init)
+{
+  uint16_t *record;
+
+  record =
+    (uint16_t *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    cheat_active_camouflage_local_player((int)*record);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000bfe10 @ 0x000bfe10
+ *
+ * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function: it
+ * unconditionally invokes the worker (reload the cheat table from file) and
+ * then commits the calling script thread with a literal 0 result. This is a
+ * byte-shape twin of FUN_000bfdb0 / FUN_000bfd90 above, differing ONLY in the
+ * worker address; unlike FUN_000bfdd0 there is no argument-list evaluate call
+ * and no NULL check, so do not "normalise" this one to that shape.
+ *
+ * Ghidra modelled the function as void(void), so the cdecl STACK parameter
+ * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
+ * trap). That name is relative to the POST-prologue frame and is NOT arg1: the
+ * disassembly reads [EBP+0x0c], i.e. the SECOND cdecl stack slot. These are
+ * STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears in the decompile and
+ * the body has no register-defining prologue. The stale
+ * `void FUN_000bfe10(void);` kb.json decl was corrected to the 3-arg cdecl form
+ * as part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (the ENTIRE body, 0xbfe10-0xbfe27; prologue PUSH EBP /
+ * MOV EBP,ESP with no SUB ESP, no _chkstk, no PUSH of callee-saved registers;
+ * epilogue POP EBP / RET with no immediate => cdecl, caller cleans. No locals,
+ * no FPU, no SEH, no buffers, no loops, no branches at all and no jump table,
+ * so there is no push-then-fstp float, no struct-field rotation, no
+ * buffer-alias risk and no register-aliasing-over-distance risk):
+ *
+ *   CALL 0x000a66d0 -> cheats_load_from_file(). Zero arguments, no ESP cleanup
+ *   after the call, confirming the void(void) arity in kb.json. It is called
+ *   FIRST and UNCONDITIONALLY -- side-effect order is worker-then-return.
+ *
+ *   MOV EAX,[EBP+0x0c] -> arg2 = thread_datum, loaded in the same basic block
+ *   as the PUSH that consumes it. [EBP+0x08] function_index and [EBP+0x10]
+ *   init are NEVER read anywhere in the body; they are declared purely to keep
+ *   the shared HS evaluator ABI (and therefore the caller's push sequence)
+ *   intact across the family.
+ *
+ *   PUSH 0x0 / PUSH EAX / CALL 0x000cbf80 -> cdecl reverse push order (first
+ *   PUSH is the LAST C argument) gives hs_return(thread_datum, 0). The script
+ *   return value is the LITERAL 0 from PUSH 0x0, not the worker's result:
+ *   cheats_load_from_file is void and its EAX is never read, so
+ *   lift-silent-bugs check 4 (void-EAX implicit return, lift-learnings 16) does
+ *   not apply here.
+ *
+ *   ADD ESP,0x8 at 0xbfe23 cleans exactly hs_return's two pushes -- a clean,
+ *   uncombined cleanup that independently re-confirms hs_return's arity of 2
+ *   (unlike the combined ADD ESP,0xc in FUN_000bfdd0, which produces a
+ *   spurious ARG_COUNT hazard finding).
+ *
+ * Callees (both cdecl, both in kb.json, both ported, no @<reg> args anywhere):
+ *   0xa66d0 = cheats_load_from_file(void)
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfe10(int16_t function_index, int thread_datum, char init)
+{
+  cheats_load_from_file();
+  hs_return(thread_datum, 0);
+}
+
+/* FUN_000bfe30 @ 0x000bfe30
+ *
+ * HaloScript builtin dispatcher for a ONE-ARGUMENT script function: it
+ * evaluates the script's argument list and, only if the evaluation produced a
+ * record, forwards the record's single byte field to the worker
+ * (ai_globals_ai_active) and commits the calling script thread with a literal 0
+ * result. This is the evaluate/NULL-check shape of the family -- the twin of
+ * FUN_000bfdd0 above, differing only in the worker address and in the WIDTH of
+ * the record field it reads. Do NOT "normalise" it to the zero-argument shape
+ * of FUN_000bfe10 / FUN_000bfdb0 directly above: the evaluate call and its
+ * forward branch are both present here.
+ *
+ * Ghidra modelled the function as void(void), so the cdecl STACK parameters
+ * surfaced as `in_stack_00000004` / `in_stack_00000008` / `in_stack_0000000c`
+ * pseudo-locals (lift-learnings 31 void-decl trap). Those names are relative to
+ * the POST-prologue frame and are NOT register args: no unaff_/in_EAX/in_ECX
+ * appears in the decompile, and the body has no register-defining prologue, so
+ * this is not a skip_reg_args case. The stale `void FUN_000bfe30(void);`
+ * kb.json decl was corrected to the 3-arg cdecl form as part of this lift; a
+ * (void) decl over a stack-arg callee is the ESP-drift class of bug from
+ * 0x158df0.
+ *
+ * Binary evidence (the ENTIRE body, 0xbfe30-0xbfe63; prologue PUSH EBP /
+ * MOV EBP,ESP / PUSH ESI, epilogue POP ESI / POP EBP / RET with no immediate
+ * => cdecl, caller cleans. No SUB ESP, no _chkstk, no locals, no FPU, no SEH,
+ * no buffers, no loops and no jump table -- one forward branch only, so there
+ * is no push-then-fstp float, no struct-field rotation and no buffer-alias
+ * risk):
+ *
+ *   Parameter slots, all three loaded in the prologue's own basic block:
+ *   EAX <- [EBP+0x10] init, ECX <- [EBP+0x08] function_index, ESI <-
+ *   [EBP+0x0c] thread_datum. ESI is the ONLY callee-saved register used, which
+ *   is exactly why the original preserves it: thread_datum must stay live
+ *   across the evaluate call to feed hs_return at the tail. Every register
+ *   feeding a PUSH was written from its [EBP+N] slot in that same block, so
+ *   lift-decompiler-traps hazard 1 (register aliasing over distance) does not
+ *   apply.
+ *
+ *   PUSH EAX / PUSH ESI / PUSH ECX / CALL 0xcc560 -> cdecl reverse push order
+ *   (the first PUSH is the LAST C argument) gives C order
+ *   hs_macro_function_evaluate(function_index, thread_datum, init) -- a
+ *   straight pass-through of all three incoming parameters in slot order.
+ *   ADD ESP,0xc cleans exactly those 3 pushes, matching the kb decl's arity.
+ *
+ *   TEST EAX,EAX / JZ (to the epilogue) skips BOTH remaining calls, and EAX is
+ *   then dereferenced, so 0xcc560's declared `int` return is really a POINTER
+ *   to the evaluated-argument record. It is cast to the record pointer LOCALLY;
+ *   the kb.json decl is deliberately left as int, exactly as on every twin in
+ *   this cluster, so the shared declaration stays consistent across the family.
+ *
+ *   XOR EDX,EDX / MOV DL,byte ptr [EAX] -> the record's ONLY field is a
+ *   ZERO-EXTENDED 8-bit value at offset +0. The width is load-bearing
+ *   (lift-learnings 24 LOADW): this is neither the dword `record[0]` form of
+ *   the FUN_000bf920 twin nor the 16-bit MOV DX form of FUN_000bfdd0, and the
+ *   XOR+MOV DL pairing (rather than MOVSX) proves it is UNSIGNED. Hence
+ *   `uint8_t *record` and a plain deref; reading it as an int would be a
+ *   LOADW-class bug.
+ *
+ *   PUSH EDX / CALL 0x3f770 -> a single argument, that zero-extended byte, i.e.
+ *   ai_globals_ai_active(<flag>). The kb decl's parameter type is `char`, so
+ *   the deref is cast at the call site rather than widening the shared decl.
+ *
+ *   PUSH 0x0 / PUSH ESI / CALL 0xcbf80 -> cdecl reverse order gives
+ *   hs_return(thread_datum, 0). The script return value is the LITERAL 0 from
+ *   PUSH 0x0, not the worker's result: ai_globals_ai_active is void and its EAX
+ *   is never read, so lift-silent-bugs check 4 (void-EAX implicit return,
+ *   lift-learnings 16) does not apply here.
+ *
+ *   The single ADD ESP,0xc at 0xbfe5e cleans BOTH tail calls together (1 arg
+ *   for 0x3f770 plus 2 args for hs_return). check_lift_hazards therefore
+ *   reports an ARG_COUNT finding "hs_return cleanup=3 stack args, decl=2":
+ *   that is this MERGED-cleanup artifact (MSVC folds consecutive cdecl
+ *   cleanups), NOT a 3-arg callee. Do NOT "fix" hs_return's decl -- its arity
+ *   of 2 is independently confirmed by the clean, uncombined ADD ESP,0x8 in the
+ *   single-call twins FUN_000bfe10 / FUN_000bfdb0 directly above.
+ *
+ * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
+ * to the evaluate call; nothing else in the body consumes them.
+ *
+ * Callees (all three cdecl, all in kb.json, all ported, no @<reg> args anywhere
+ * in the chain):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record pointer
+ *   0x3f770 = ai_globals_ai_active(char)
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfe30(int16_t function_index, int thread_datum, char init)
+{
+  uint8_t *record;
+
+  record =
+    (uint8_t *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    ai_globals_ai_active((char)*record);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000bfe70 @ 0x000bfe70
+ *
+ * HaloScript builtin dispatcher; byte-shape twin of FUN_000bfe30 directly
+ * above -- same three-call skeleton, differing ONLY in the middle worker
+ * (0x3f7b0 ai_globals_dialogue_triggers_enabled instead of 0x3f770
+ * ai_globals_ai_active).
+ *
+ * ABI: PUSH EBP / MOV EBP,ESP / PUSH ESI, no _chkstk and no locals, RET with
+ * no immediate -> plain cdecl over three incoming stack slots. Ghidra reported
+ * them as `in_stack_00000004/8/c` because the stale kb.json decl said
+ * `void FUN_000bfe70(void);`; the decl is corrected here to the 3-arg cdecl
+ * form used by every twin in this cluster.
+ *
+ *   [EBP+0x08] -> ECX  int16_t function_index
+ *   [EBP+0x0c] -> ESI  int     thread_datum  (held in ESI across the body)
+ *   [EBP+0x10] -> EAX  char    init
+ *
+ * Call-site verification (every register feeding a PUSH is loaded from its
+ * [EBP+N] slot in the same prologue block, so lift-decompiler-traps hazard 1,
+ * register aliasing over distance, does not apply):
+ *
+ *   PUSH EAX / PUSH ESI / PUSH ECX / CALL 0xcc560 -- cdecl reverse push order
+ *   (first PUSH is the LAST C argument) gives
+ *   hs_macro_function_evaluate(function_index, thread_datum, init), a straight
+ *   pass-through in slot order. ADD ESP,0xc cleans exactly those 3 pushes.
+ *
+ *   TEST EAX,EAX / JZ (to the epilogue) skips BOTH remaining calls, and EAX is
+ *   then dereferenced, so 0xcc560's declared `int` return is really a POINTER
+ *   to the evaluated-argument record. Cast to the record pointer LOCALLY; the
+ *   kb.json decl stays `int` so the shared declaration matches every twin.
+ *
+ *   XOR EDX,EDX / MOV DL,byte ptr [EAX] -- the record's only consumed field is
+ *   a ZERO-EXTENDED 8-bit value at offset +0. The width and signedness are
+ *   load-bearing (lift-learnings 24 LOADW): this is NOT the dword `record[0]`
+ *   form of FUN_000bf920 (offset +4) nor a 16-bit MOV DX, and the XOR+MOV DL
+ *   pairing rather than MOVSX proves UNSIGNED. Hence `uint8_t *record` and a
+ *   plain deref; reading it as an int would be a LOADW-class bug.
+ *
+ *   PUSH EDX / CALL 0x3f7b0 -- one argument, that zero-extended byte, i.e.
+ *   ai_globals_dialogue_triggers_enabled(<flag>). Its kb decl parameter type is
+ *   `char`, so the deref is cast at the call site rather than widening the
+ *   shared decl.
+ *
+ *   PUSH 0x0 / PUSH ESI / CALL 0xcbf80 -- cdecl reverse order gives
+ *   hs_return(thread_datum, 0). The script return value is the LITERAL 0 from
+ *   PUSH 0x0, not the worker's result: ai_globals_dialogue_triggers_enabled is
+ *   void and its EAX is never read, so lift-silent-bugs check 4 (void-EAX
+ *   implicit return, lift-learnings 16) does not apply.
+ *
+ *   The single ADD ESP,0xc at 0xbfea1 cleans BOTH tail calls together (1 arg
+ *   for 0x3f7b0 plus 2 args for hs_return). check_lift_hazards therefore
+ *   reports an ARG_COUNT finding "hs_return cleanup=3 stack args, decl=2":
+ *   that is this MERGED-cleanup artifact (MSVC folds consecutive cdecl
+ *   cleanups), NOT a 3-arg callee. Do NOT "fix" hs_return's decl -- its arity
+ *   of 2 is independently confirmed by the clean, uncombined ADD ESP,0x8 in the
+ *   single-call twins FUN_000bfe10 / FUN_000bfdb0 above.
+ *
+ * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
+ * to the evaluate call; nothing else in the body consumes them. No FPU ops, no
+ * struct stores, no buffers passed (buffer_alias: 0 hits), no jump table, no
+ * SEH, no @<reg> callees anywhere in the chain.
+ *
+ * Callees (all three cdecl, all in kb.json, all ported):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record pointer
+ *   0x3f7b0 = ai_globals_dialogue_triggers_enabled(char)
+ *   0xcbf80 = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfe70(int16_t function_index, int thread_datum, char init)
+{
+  uint8_t *record;
+
+  record =
+    (uint8_t *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    ai_globals_dialogue_triggers_enabled((char)*record);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000bff70 @ 0x000bff70
+ *
+ * HaloScript builtin dispatcher, byte-shape twin of FUN_000bf920 /
+ * FUN_000bf960 above: identical 3-parameter cdecl shape and the same evaluate /
+ * NULL-check / two-argument worker / hs_return skeleton. The only structural
+ * difference from those two twins is the WIDTH of the second record field --
+ * this one reads two FULL DWORDs, not a dword plus a zero-extended byte.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xbff70-0xbffa5. No locals, no _chkstk, no SUB ESP, no FPU, no
+ * SEH. ESI is the only callee-saved register and holds thread_datum live across
+ * the evaluate call. The exit RET carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000bff70(void);` decl was corrected to the 3-arg cdecl form as part
+ * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
+ * bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   CALL 0xcc560 (0xbff80) pushes EAX([EBP+0x10]) / ESI([EBP+0xc]) /
+ *   ECX([EBP+0x8]) in cdecl reverse order -> C order (function_index,
+ *   thread_datum, init); ADD ESP,0xc = 3 args. Straight pass-through.
+ *
+ *   TEST EAX,EAX / JZ 0xbffa3 skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin above; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref (2 fields, TWO FULL DWORDS): MOV EDX,dword ptr [EAX+0x4] ->
+ *   32-bit read at record+4; MOV EAX,dword ptr [EAX] -> 32-bit read at
+ *   record+0. There is no XOR/MOV DL and no MOVSX anywhere, so unlike the
+ *   0xbf920/0xbf960 twins there is NO narrow-load (lift-learnings 24 LOADW)
+ *   caveat here -- `record[1]` is the correct width. Only +0x0 and +0x4 are
+ *   touched, one deref each -- no buffer-alias risk.
+ *
+ *   CALL 0x54860 (0xbff93) pushes EDX (record+4) then EAX (record+0) = cdecl
+ *   reverse -> C order (record[0], record[1]). Two distinct reloads, NOT a
+ *   duplicated argument.
+ *
+ *   CALL 0xcbf80 (0xbff9b) pushes 0x0 then ESI -> hs_return(thread_datum, 0).
+ *   The script return value is the CONSTANT 0, not the record and not the
+ *   worker's result (FUN_00054860 is void); the entire observable effect is the
+ *   0x54860 side effect. ONE combined ADD ESP,0x10 at 0xbffa0 cleans the 4
+ *   pushes of both 2-arg calls -- the ARG_COUNT hazard on hs_return
+ *   ("cleanup=4 vs decl=2") is that same FALSE POSITIVE documented on the
+ *   twins; hs_return really takes 2 args, do NOT "fix" its decl.
+ *
+ * Reloc audit of delinked/functions/000bff70.obj: exactly 3 DISP32 targets in
+ * this function's range -- FUN_000cc560, FUN_00054860, FUN_000cbf80 --
+ * matching the three calls below with no extra global or string reference.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x54860  = FUN_00054860(int unit_handle, unsigned int ai_ref)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bff70(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00054860(record[0], (unsigned int)record[1]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000bfff0 @ 0x000bfff0
+ *
+ * HaloScript builtin dispatcher, structural twin of FUN_000bff70 /
+ * FUN_000bf920 above: identical 3-parameter cdecl shape and the same
+ * evaluate / NULL-check / two-argument worker / hs_return skeleton. The only
+ * difference from FUN_000bff70 is the worker it dispatches to -- here the
+ * encounters-side ai_attach_free helper FUN_00057770 rather than
+ * FUN_00054860.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xbfff0-0xc0025. No locals, no _chkstk, no SUB ESP, no FPU, no
+ * SEH. ESI is the only callee-saved register and holds thread_datum live
+ * across the evaluate call, which is precisely why it is saved. The exit RET
+ * carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX (loaded as a full dword, but
+ *                                          declared char to match every twin
+ *                                          in this family and the callee decl)
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000bfff0(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   CALL 0xcc560 (0xc0000) pushes EAX([EBP+0x10]) / ESI([EBP+0xc]) /
+ *   ECX([EBP+0x8]) in cdecl reverse order -> C order (function_index,
+ *   thread_datum, init); ADD ESP,0xc = 3 args. Straight pass-through.
+ *
+ *   TEST EAX,EAX / JZ 0xc0023 skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin above; the cast
+ *   is local and the kb decl is left alone).
+ *
+ *   Record deref (2 fields, TWO FULL DWORDS): MOV EDX,dword ptr [EAX+0x4] ->
+ *   32-bit read at record+4; MOV EAX,dword ptr [EAX] -> 32-bit read at
+ *   record+0. There is no MOVSX/MOVZX and no XOR/MOV DL anywhere, so unlike
+ *   the 0xbf920/0xbf960 twins there is NO narrow-load (lift-learnings 24
+ *   LOADW) caveat here -- both `record[0]` and `record[1]` are full width.
+ *   Only +0x0 and +0x4 are touched, one deref each -- no buffer-alias risk.
+ *
+ *   CALL 0x57770 (0xc0013) pushes EDX (record+4) then EAX (record+0) = cdecl
+ *   reverse -> C order (record[0], record[1]). Two distinct reloads, NOT a
+ *   duplicated argument. FUN_00057770 is ai_attach_free(unit_handle,
+ *   actv_tag_index): param 1 is `unsigned int` per its kb decl, matching the
+ *   untruncated dword load, so record[0] is cast rather than narrowed.
+ *
+ *   CALL 0xcbf80 (0xc001b) pushes 0x0 then ESI -> hs_return(thread_datum, 0).
+ *   The script return value is the literal CONSTANT 0, not a record field and
+ *   not the worker's result (FUN_00057770 is void); the entire observable
+ *   effect is the 0x57770 side effect. ONE combined ADD ESP,0x10 at 0xc0020
+ *   cleans the 4 pushes of both 2-arg calls -- the ARG_COUNT hazard on
+ *   hs_return ("cleanup=4 vs decl=2") is that same FALSE POSITIVE documented
+ *   on the twins; hs_return really takes 2 args, do NOT "fix" its decl.
+ *
+ * Reloc audit of delinked/functions/000bfff0.obj: exactly 3 DISP32 targets in
+ * this function's range -- FUN_000cc560 (+0x11), FUN_00057770 (+0x24),
+ * FUN_000cbf80 (+0x2c) -- matching the three calls below with no extra global
+ * or string reference.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x57770  = FUN_00057770(unsigned int unit_handle, int actv_tag_index)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00057770((unsigned int)record[0], record[1]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0030 @ 0x000c0030
+ *
+ * HaloScript builtin dispatcher, structural twin of FUN_000bfff0 /
+ * FUN_000bff70 / FUN_000bf920 above: identical 3-parameter cdecl shape and
+ * the same evaluate / NULL-check / worker / hs_return skeleton. It differs
+ * from the twins only in the worker it dispatches to (FUN_00054ac0) and in
+ * the worker's arity -- ONE argument here, not two.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xc0030-0xc0061 (50 bytes). No locals, no SUB ESP, no _chkstk,
+ * no FPU, no SEH, no stack buffers, no struct stores. ESI is the only
+ * callee-saved register and holds thread_datum live across the evaluate
+ * call, which is why it is saved. The exit RET carries no immediate =>
+ * cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX (loaded as a full dword but
+ *                                          declared char to match the callee
+ *                                          decl and every twin in this family)
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c0030(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   MOV EAX,[EBP+0x10] / MOV ECX,[EBP+0x8] / MOV ESI,[EBP+0xc] then
+ *   PUSH EAX / PUSH ESI / PUSH ECX; CALL 0xcc560; ADD ESP,0xc. cdecl reverse
+ *   push order -> C order (function_index, thread_datum, init) = a straight
+ *   pass-through of all three params. ESI is assigned exactly once from
+ *   [EBP+0xc] and is never reloaded, so the Ghidra register-aliasing trap
+ *   (decompiler-traps 1) cannot apply to the later PUSH ESI.
+ *
+ *   TEST EAX,EAX / JZ 0xc005f skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin above; the cast
+ *   is local and the kb decl is left alone).
+ *
+ *   Record deref (ONE field, ONE FULL DWORD): MOV EDX,dword ptr [EAX] -> a
+ *   32-bit read at record+0. There is no MOVSX/MOVZX here, unlike the
+ *   0xbf920/0xbf960 twins that narrow record+0 to int16 -- so record[0] is
+ *   full width and must NOT be narrowed (lift-learnings 24 LOADW, in
+ *   reverse). Only +0x0 is touched, one deref, no buffer-alias risk.
+ *
+ *   CALL 0x54ac0 (0xc0054) is preceded by a single PUSH EDX = ONE argument,
+ *   record[0], matching FUN_00054ac0(int unit_handle).
+ *
+ *   CALL 0xcbf80 (0xc005a) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result
+ *   (FUN_00054ac0 is void); the entire observable effect is the 0x54ac0 side
+ *   effect. ONE combined ADD ESP,0xc at 0xc005f cleans the 1 push of the
+ *   0x54ac0 call plus the 2 pushes of the hs_return call -- the ARG_COUNT
+ *   hazard on hs_return ("cleanup=3 vs decl=2") is the same FALSE POSITIVE
+ *   documented on the twins; hs_return really takes 2 args, do NOT "fix" its
+ *   decl.
+ *
+ * Reloc audit of delinked/functions/000c0030.obj: exactly 3 DISP32 targets in
+ * this function's range -- FUN_000cc560 (+0x11), FUN_00054ac0 (+0x20),
+ * FUN_000cbf80 (+0x28) -- matching the three calls below with no extra global
+ * or string reference.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x54ac0  = FUN_00054ac0(int unit_handle)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000c0030(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00054ac0(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0070 @ 0x000c0070
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c0030
+ * immediately above: identical 3-parameter cdecl shape, identical
+ * evaluate / NULL-check / worker / hs_return skeleton, and the same
+ * one-argument worker arity. The ONLY difference between the two functions
+ * is the worker dispatched to -- 0x54b20 here vs 0x54ac0 there.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * 24 instructions, no locals, no SUB ESP, no _chkstk, no FPU, no SEH, no
+ * stack buffers, no struct stores. ESI is the only callee-saved register and
+ * holds thread_datum live across the evaluate call, which is why it is saved.
+ * The exit RET carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c0070(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   MOV EAX,[EBP+0x10] / MOV ECX,[EBP+0x8] / MOV ESI,[EBP+0xc] then
+ *   PUSH EAX / PUSH ESI / PUSH ECX; CALL 0xcc560 (0xc0080); ADD ESP,0xc.
+ *   cdecl reverse push order -> C order (function_index, thread_datum, init)
+ *   = a straight pass-through of all three params. ESI is written exactly
+ *   once at 0xc007a and never reloaded, so the Ghidra register-aliasing trap
+ *   (decompiler-traps 1) cannot apply to the later PUSH ESI.
+ *
+ *   TEST EAX,EAX / JZ skips BOTH remaining calls when the result is NULL, so
+ *   the 0xcc560 return is a POINTER that is dereferenced even though kb.json
+ *   declares it as returning int (same as every twin; the cast is local and
+ *   the kb decl is left alone).
+ *
+ *   Record deref (ONE field, ONE FULL DWORD): MOV EDX,dword ptr [EAX] -- a
+ *   32-bit read at record+0, no MOVSX/MOVZX, so record[0] must NOT be
+ *   narrowed (lift-learnings 24 LOADW, in reverse). Only +0x0 is touched,
+ *   one deref, no buffer-alias risk.
+ *
+ *   CALL 0x54b20 (0xc008f) is preceded by a single PUSH EDX = ONE argument,
+ *   record[0], matching FUN_00054b20(int parent_handle).
+ *
+ *   CALL 0xcbf80 (0xc0097) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result
+ *   (FUN_00054b20 is void). ONE combined ADD ESP,0xc at 0xc009c cleans the
+ *   1 push of the 0x54b20 call plus the 2 pushes of the hs_return call --
+ *   the ARG_COUNT hazard on hs_return ("cleanup=3 vs decl=2") is the same
+ *   FALSE POSITIVE documented on the twins; hs_return really takes 2 args,
+ *   do NOT "fix" its decl.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x54b20  = FUN_00054b20(int parent_handle)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000c0070(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00054b20(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c00b0 @ 0x000c00b0
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c0070
+ * immediately above: identical 3-parameter cdecl shape, identical
+ * evaluate / NULL-check / worker / hs_return skeleton, and the same
+ * one-argument worker arity. The ONLY difference between the two functions
+ * is the worker dispatched to -- 0x54bb0 here vs 0x54b20 there.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * No locals, no SUB ESP, no _chkstk, no FPU, no SEH, no stack buffers, no
+ * struct stores. ESI is the only callee-saved register and holds
+ * thread_datum live across the evaluate call, which is why it is saved.
+ * The exit RET carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c00b0(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   0xc00b3 MOV EAX,[EBP+0x10] / 0xc00b6 MOV ECX,[EBP+0x8] /
+ *   0xc00ba MOV ESI,[EBP+0xc] then PUSH EAX / PUSH ESI / PUSH ECX;
+ *   CALL 0xcc560 (0xc00c0); ADD ESP,0xc. cdecl reverse push order -> C order
+ *   (function_index, thread_datum, init) = a straight pass-through.
+ *   0xc00cc MOV EDX,dword ptr [EAX] is a FULL 32-bit load from record+0 --
+ *   NOT the MOVSX word seen at +0 in the FUN_000bdfa0-family handlers -- so
+ *   the handle is kept 32-bit wide and passed unnarrowed to 0x54bb0, whose
+ *   kb decl is `void FUN_00054bb0(unsigned int ai_ref)`.
+ *   0xc00ce PUSH EDX; CALL 0x54bb0. 0xc00d4 PUSH 0 / PUSH ESI;
+ *   CALL 0xcbf80 (hs_return). The single 0xc00dc ADD ESP,0xc is the SHARED
+ *   cleanup for all three pushes across those two calls (1 + 2 = 3 dwords);
+ *   call_site_audit reads it as a 3-arg hs_return, which is a false positive
+ *   -- both callee decls are correct and were left unchanged.
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000c00b0(int16_t function_index, int thread_datum, char init)
+{
+  unsigned int *record;
+
+  record = (unsigned int *)hs_macro_function_evaluate(function_index,
+                                                      thread_datum, init);
+  if (record != NULL) {
+    FUN_00054bb0(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c00f0 @ 0x000c00f0
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c0030 /
+ * FUN_000c0070 / FUN_000c00b0 above: identical 3-parameter cdecl shape,
+ * identical evaluate / NULL-check / worker / hs_return skeleton, and the same
+ * one-argument worker arity. The ONLY difference from FUN_000c00b0 is the
+ * worker dispatched to -- 0x54ca0 here vs 0x54bb0 there.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * 50 bytes (0xc00f0-0xc0121), no locals, no SUB ESP, no _chkstk, no FPU, no
+ * SEH, no stack buffers, no struct stores. ESI is the only callee-saved
+ * register and holds thread_datum live across the evaluate call, which is why
+ * it is saved. The exit RET carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX (loaded as a full dword;
+ *                                          declared char to match the callee
+ *                                          decl and every twin)
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c00f0(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   PUSH EAX(init) / PUSH ESI(thread_datum) / PUSH ECX(function_index);
+ *   CALL 0xcc560 (0xc0100); ADD ESP,0xc. cdecl reverse push order -> C order
+ *   (function_index, thread_datum, init) = a straight pass-through of all
+ *   three params. ESI is written exactly once and never reloaded, so the
+ *   Ghidra register-aliasing trap (decompiler-traps 1) cannot apply to the
+ *   later PUSH ESI.
+ *
+ *   TEST EAX,EAX / JZ 0xc011f skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref (ONE field, ONE FULL DWORD): MOV EDX,dword ptr [EAX] at
+ *   0xc010c -- a 32-bit read at record+0, no MOVSX/MOVZX, so record[0] must
+ *   NOT be narrowed (lift-learnings 24 LOADW, in reverse). Only +0x0 is
+ *   touched, one deref, no buffer-alias risk.
+ *
+ *   CALL 0x54ca0 (0xc010f) is preceded by a single PUSH EDX = ONE argument,
+ *   record[0], matching FUN_00054ca0(unsigned int ai_ref) -- note the
+ *   unsigned param here (Ghidra also typed the record as uint*), unlike the
+ *   int worker in the 0xc0030 twin.
+ *
+ *   CALL 0xcbf80 (0xc0117) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result (the
+ *   worker is void); the entire observable effect is the worker's side effect.
+ *
+ *   ONE combined ADD ESP,0xc at 0xc011c cleans the 1 push of the 0x54ca0 call
+ *   plus the 2 pushes of the hs_return call -- so call_site_audit's ARG_COUNT
+ *   finding on hs_return ("cleanup=3 stack args, decl=2") is a FALSE POSITIVE;
+ *   hs_return really takes 2 args, and its kb decl was left unchanged (same
+ *   dismissal as on the committed twins 0xc0030 / 0xbfff0 / 0xbff70).
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000c00f0(int16_t function_index, int thread_datum, char init)
+{
+  unsigned int *record;
+
+  record = (unsigned int *)hs_macro_function_evaluate(function_index,
+                                                      thread_datum, init);
+  if (record != NULL) {
+    FUN_00054ca0(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0130 @ 0x000c0130
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c00f0
+ * immediately above (and of FUN_000c0070 / FUN_000c0030 / FUN_000bfff0 /
+ * FUN_000bff70 before it): identical 3-parameter cdecl shape, identical
+ * evaluate / NULL-check / worker / hs_return skeleton, and the same
+ * one-argument worker arity. The ONLY difference from the 0xc00f0 twin is
+ * the worker dispatched to -- 0x54d00 here vs 0x54ca0 there.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xc0130-0xc0161 (50 bytes). No locals, no SUB ESP, no _chkstk,
+ * no FPU, no SEH, no stack buffers, no struct stores, no globals. ESI is the
+ * only callee-saved register and holds thread_datum live across the evaluate
+ * call, which is why it is saved. The exit RET carries no immediate =>
+ * cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c0130(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   MOV EAX,[EBP+0x10] (0xc0133) / MOV ECX,[EBP+0x8] (0xc0136) /
+ *   MOV ESI,[EBP+0xc] (0xc013a) then PUSH EAX / PUSH ESI / PUSH ECX;
+ *   CALL 0xcc560 (0xc0140); ADD ESP,0xc. cdecl reverse push order -> C order
+ *   (function_index, thread_datum, init) = a straight pass-through of all
+ *   three params. ESI is written exactly once at 0xc013a and is never
+ *   reloaded, so the Ghidra register-aliasing trap (decompiler-traps 1)
+ *   cannot apply to the later PUSH ESI.
+ *
+ *   TEST EAX,EAX / JZ 0xc015f skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref (ONE field, ONE FULL DWORD): MOV EDX,dword ptr [EAX] at
+ *   0xc014c -- a 32-bit read at record+0, no MOVSX/MOVZX, so record[0] must
+ *   NOT be narrowed (lift-learnings 24 LOADW, in reverse). Only +0x0 is
+ *   touched, one deref, no buffer-alias risk.
+ *
+ *   CALL 0x54d00 (0xc014f) is preceded by a single PUSH EDX = ONE argument,
+ *   record[0], matching FUN_00054d00(unsigned int ai_ref) -- the unsigned
+ *   param is why the record pointer is typed unsigned int * here, as in the
+ *   0xc00f0 twin rather than the int * of the 0xc0030 twin.
+ *
+ *   CALL 0xcbf80 (0xc0157) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result (the
+ *   worker is void); the entire observable effect is the worker's side effect.
+ *
+ *   ONE combined ADD ESP,0xc at 0xc015c cleans the 1 push of the 0x54d00 call
+ *   plus the 2 pushes of the hs_return call -- so call_site_audit's ARG_COUNT
+ *   finding on hs_return ("cleanup=3 stack args, decl=2") is a FALSE POSITIVE;
+ *   hs_return really takes 2 args, and its kb decl was left unchanged (same
+ *   dismissal as on the committed twins 0xc00f0 / 0xc0070 / 0xc0030).
+ *
+ * Reloc audit of delinked/functions/000c0130.obj: exactly 3 DISP32 targets in
+ * this function's range (offsets 0x11 / 0x20 / 0x28) -- FUN_000cc560,
+ * FUN_00054d00, FUN_000cbf80 -- matching the three calls below with no extra
+ * global or string reference. (The refs at 0x51/0x60/0x68 belong to the next
+ * function in the exported range, 0xc0170.)
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x54d00  = FUN_00054d00(unsigned int ai_ref)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000c0130(int16_t function_index, int thread_datum, char init)
+{
+  unsigned int *record;
+
+  record = (unsigned int *)hs_macro_function_evaluate(function_index,
+                                                      thread_datum, init);
+  if (record != NULL) {
+    FUN_00054d00(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c01b0 @ 0x000c01b0
+ *
+ * HaloScript builtin implementation, same 2-parameter shape as the ported
+ * FUN_000bdf80 / FUN_000be6f0 family in this TU: invoke a no-argument worker,
+ * then complete the calling script thread with hs_return(thread_handle, 0).
+ * Unlike the 3-parameter dispatcher twins (0xc0130 / 0xc0230) it never reads
+ * [EBP+0x10], so no `init` parameter is declared -- narrowest form the body
+ * proves.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; ... POP EBP; RET. Body spans
+ * 0xc01b0-0xc01c7 (24 bytes, 10 instructions). No locals, no SUB ESP, no
+ * _chkstk, no FPU, no SEH, no stack buffers, no struct stores, no globals, no
+ * callee-saved register spills. The exit RET carries no immediate => cdecl,
+ * caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  never loaded (declared, unused)
+ *   thread_handle   int      [EBP+0x0c]  -> hs_return arg1
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   0xc01b3  CALL 0x54df0   -- zero args pushed, no ESP cleanup after it, and
+ *                              its EAX return is never consumed (the next
+ *                              instruction overwrites EAX from the stack), so
+ *                              this is a bare `FUN_00054df0();` statement.
+ *                              kb.json declares it void(void); do not invent
+ *                              args or a result for it.
+ *   0xc01b8  MOV EAX,[EBP+0xc]   -- second cdecl param
+ *   0xc01bb  PUSH 0x0            -- hs_return arg2 (value)
+ *   0xc01bd  PUSH EAX            -- hs_return arg1 (thread_handle)
+ *   0xc01be  CALL 0xcbf80 (hs_return)
+ *   0xc01c3  ADD ESP,0x8         -- exactly 2 cdecl args, matching
+ *                                   `void hs_return(int, int)`
+ * cdecl reverse push order => hs_return(thread_handle, 0), NOT
+ * hs_return(0, thread_handle) (lift-learnings: first PUSH is the last C arg).
+ * EAX is the only register written and it is written immediately before its
+ * PUSH, so the Ghidra register-aliasing trap (decompiler-traps 1) cannot
+ * apply. The worker CALL must stay BEFORE the [EBP+0xc] load to preserve
+ * side-effect and codegen order.
+ *
+ * Ghidra modelled this void(void), so the two cdecl params surfaced as
+ * in_stack_* pseudo-locals (in_stack_00000008 == [EBP+0xc], Ghidra's stack
+ * offset 0 being the return address) and it mislabelled the read as the FIRST
+ * parameter. They are STACK args, not @<reg> -- no unaff_/in_EAX/in_ECX
+ * appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c01b0(void);` decl was corrected to the 2-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0. No direct CALL imm32 site exists in the XBE
+ * (dump_caller_regsetup.py: 0 call sites) -- like every handler in this
+ * family it is reached only through the HaloScript builtin table, so the
+ * arity is established by the body's own [EBP+N] reads, not by an
+ * ADD ESP at a call site. */
+void FUN_000c01b0(int16_t function_index, int thread_handle)
+{
+  FUN_00054df0();
+  hs_return(thread_handle, 0);
+}
+
+/* FUN_000c01d0 @ 0x000c01d0
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c0230 /
+ * FUN_000c0130 / FUN_000c00f0 / FUN_000c0070 / FUN_000c0030 / FUN_000bfff0 /
+ * FUN_000bff70: identical 3-parameter cdecl shape, identical evaluate /
+ * NULL-check / worker / hs_return skeleton, and the same one-argument worker
+ * arity. The ONLY difference from the 0xc0230 twin is the worker dispatched
+ * to -- 0x54e40 here vs 0x54e80 there.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xc01d0-0xc0201 (23 instructions, 50 bytes). No locals, no
+ * SUB ESP, no _chkstk, no FPU, no SEH, no stack buffers, no struct stores,
+ * no globals. ESI is the only callee-saved register and holds thread_datum
+ * live across the evaluate call, which is why it is saved. The exit RET
+ * carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX  (loaded as a full dword, but
+ *                                          the callee decl types it char --
+ *                                          kept char to match the family)
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c01d0(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   MOV EAX,[EBP+0x10] (0xc01d3) / MOV ECX,[EBP+0x8] (0xc01d6) /
+ *   MOV ESI,[EBP+0xc] (0xc01da), then PUSH EAX / PUSH ESI / PUSH ECX;
+ *   CALL 0xcc560 (0xc01e0); ADD ESP,0xc. cdecl reverse push order -> C order
+ *   (function_index, thread_datum, init) = a straight pass-through of all
+ *   three params. ESI is written exactly once at 0xc01da and is never
+ *   reloaded, so the Ghidra register-aliasing trap (decompiler-traps 1)
+ *   cannot apply to the later PUSH ESI at 0xc01f4.
+ *
+ *   TEST EAX,EAX / JZ 0xc01ff skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref (ONE field, ONE FULL DWORD): MOV EDX,dword ptr [EAX] at
+ *   0xc01ec -- a 32-bit read at record+0, no MOVSX/MOVZX, so record[0] must
+ *   NOT be narrowed to int16_t (lift-learnings 24 LOADW, in reverse; the
+ *   0xbe080 sibling DOES use MOVSX and is narrowed there -- this one does
+ *   not). Only +0x0 is touched, one deref, no buffer-alias risk.
+ *
+ *   CALL 0x54e40 (0xc01ef) is preceded by a single PUSH EDX = ONE argument,
+ *   record[0], matching FUN_00054e40(int encounter_ref) -- the signed int
+ *   param is why the record pointer is typed int * here (as in the 0xc0030
+ *   twin) rather than the unsigned int * of the 0xc0230 twin.
+ *
+ *   CALL 0xcbf80 (0xc01f7) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result (the
+ *   worker is void); the entire observable effect is the worker's side effect.
+ *
+ *   ONE combined ADD ESP,0xc at 0xc01fc cleans the 1 push of the 0x54e40 call
+ *   plus the 2 pushes of the hs_return call -- so call_site_audit's ARG_COUNT
+ *   finding on hs_return ("cleanup=3 stack args, decl=2") is a FALSE POSITIVE;
+ *   hs_return really takes 2 args, and its kb decl was left unchanged (same
+ *   dismissal as on the committed twins 0xc0230 / 0xc0130 / 0xc00f0 /
+ *   0xc0070 / 0xc0030).
+ *
+ * Reloc audit of delinked/functions/000c01d0.obj: the three DISP32 targets at
+ * offsets 0x11 / 0x20 / 0x28 (i.e. within this function's 0x32 bytes) are
+ * FUN_000cc560, FUN_00054e40, FUN_000cbf80 -- matching the three calls below
+ * exactly, with no extra global, constant, or string reference.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x54e40  = FUN_00054e40(int encounter_ref)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000c01d0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00054e40(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0210 @ 0x000c0210
+ *
+ * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function -- the
+ * degenerate member of the twin family above (0xc01d0 / 0xc0130 / 0xc00f0 /
+ * 0xc0070 / 0xc0030 / 0xbfff0 / 0xbff70). Because the builtin takes no script
+ * arguments, there is no hs_macro_function_evaluate call, no returned record,
+ * and therefore no NULL check: the body is just the worker followed by
+ * hs_return. Ghidra's `void FUN_000c0210(void);` decl was corrected to the
+ * same 3-argument cdecl form as the twins (the HS dispatcher-table ABI);
+ * function_index and init are genuinely unread by this variant, but the
+ * parameter list is the shared table signature and must not be trimmed.
+ *
+ * Full body from disassembly, 10 instructions, 0xc0210-0xc0227:
+ *   PUSH EBP; MOV EBP,ESP
+ *   CALL 0x54e20                 ; no pushes -> FUN_00054e20(void)
+ *   MOV EAX,[EBP+0xc]            ; SECOND cdecl stack arg = thread_datum
+ *   PUSH 0x0; PUSH EAX; CALL 0xcbf80; ADD ESP,0x8
+ *   POP EBP; RET
+ * cdecl push order: last PUSH (EAX) is arg1 = thread_handle, first PUSH (0)
+ * is arg2 = value -- so hs_return(thread_datum, 0), and the 0 is a literal
+ * constant, not a result (FUN_00054e20 is void). No FPU ops, no locals, no
+ * _chkstk, no struct stores, no buffers; the frame has no PUSH ESI/EDI,
+ * unlike the twins that call hs_macro_function_evaluate.
+ *
+ * Reloc audit of delinked/functions/000c0210.obj: exactly two DISP32 targets
+ * inside this function's 0x18 bytes, at offsets 0x4 and 0xf -> FUN_00054e20
+ * and FUN_000cbf80. No global, constant, or string reference.
+ *
+ * Callees (both cdecl, both in kb.json, no @<reg> args):
+ *   0x54e20  = FUN_00054e20(void)                       -- the worker
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000c0210(int16_t function_index, int thread_datum, char init)
+{
+  (void)function_index;
+  (void)init;
+
+  FUN_00054e20();
+  hs_return(thread_datum, 0);
+}
+
+/* FUN_000c0230 @ 0x000c0230
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c0130 /
+ * FUN_000c00f0 / FUN_000c0070 / FUN_000c0030 / FUN_000bfff0 / FUN_000bff70
+ * above: identical 3-parameter cdecl shape, identical evaluate / NULL-check /
+ * worker / hs_return skeleton, and the same one-argument worker arity. The
+ * ONLY difference from the 0xc0130 twin is the worker dispatched to --
+ * 0x54e80 here vs 0x54d00 there.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xc0230-0xc0261 (50 bytes). No locals, no SUB ESP, no _chkstk,
+ * no FPU, no SEH, no stack buffers, no struct stores, no globals. ESI is the
+ * only callee-saved register and holds thread_datum live across the evaluate
+ * call, which is why it is saved. The exit RET carries no immediate =>
+ * cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c0230(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL):
+ *   MOV EAX,[EBP+0x10] / MOV ECX,[EBP+0x8] / MOV ESI,[EBP+0xc] (0xc023a)
+ *   then PUSH EAX / PUSH ESI / PUSH ECX; CALL 0xcc560 (0xc0240);
+ *   ADD ESP,0xc. cdecl reverse push order -> C order (function_index,
+ *   thread_datum, init) = a straight pass-through of all three params. ESI is
+ *   written exactly once at 0xc023a and is never reloaded, so the Ghidra
+ *   register-aliasing trap (decompiler-traps 1) cannot apply to the later
+ *   PUSH ESI.
+ *
+ *   TEST EAX,EAX / JZ 0xc025f skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref (ONE field, ONE FULL DWORD): MOV EDX,dword ptr [EAX] at
+ *   0xc024c -- a 32-bit read at record+0, no MOVSX/MOVZX, so record[0] must
+ *   NOT be narrowed (lift-learnings 24 LOADW, in reverse). Only +0x0 is
+ *   touched, one deref, no buffer-alias risk.
+ *
+ *   CALL 0x54e80 (0xc024f) is preceded by a single PUSH EDX = ONE argument,
+ *   record[0], matching FUN_00054e80(unsigned int ai_ref) -- the unsigned
+ *   param is why the record pointer is typed unsigned int * here, as in the
+ *   0xc0130 twin rather than the int * of the 0xc0030 twin.
+ *
+ *   CALL 0xcbf80 (0xc0257) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result (the
+ *   worker is void); the entire observable effect is the worker's side effect.
+ *
+ *   ONE combined ADD ESP,0xc at 0xc025c cleans the 1 push of the 0x54e80 call
+ *   plus the 2 pushes of the hs_return call -- so call_site_audit's ARG_COUNT
+ *   finding on hs_return ("cleanup=3 stack args, decl=2") is a FALSE POSITIVE;
+ *   hs_return really takes 2 args, and its kb decl was left unchanged (same
+ *   dismissal as on the committed twins 0xc0130 / 0xc00f0 / 0xc0070 /
+ *   0xc0030).
+ *
+ * Reloc audit of delinked/functions/0000c0230.obj: exactly 3 DISP32 targets
+ * (offsets 0x11 / 0x20 / 0x28) -- FUN_000cc560, FUN_00054e80, FUN_000cbf80 --
+ * matching the three calls below with no extra global or string reference.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x54e80  = FUN_00054e80(unsigned int ai_ref)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. */
+void FUN_000c0230(int16_t function_index, int thread_datum, char init)
+{
+  unsigned int *record;
+
+  record = (unsigned int *)hs_macro_function_evaluate(function_index,
+                                                      thread_datum, init);
+  if (record != NULL) {
+    FUN_00054e80(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0270 @ 0x000c0270
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c02b0 just
+ * below and of FUN_000c0230 / FUN_000c0130 / FUN_000c00f0 / FUN_000c0070 /
+ * FUN_000c0030 / FUN_000bfff0 / FUN_000bff70 above: identical 3-parameter
+ * cdecl shape and the same evaluate / NULL-check / worker / hs_return
+ * skeleton. Like the 0xc02b0 twin -- and UNLIKE the 0xc0230 / 0xc0130 group
+ * -- the worker here takes TWO arguments, so the evaluated argument record is
+ * read at two offsets of MIXED width instead of a single dword. The only
+ * difference from 0xc02b0 is the worker dispatched to: 0x54f90 here vs
+ * 0x55010 there.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xc0270-0xc02a7 (0x38 bytes). No locals, no SUB ESP, no
+ * _chkstk, no FPU, no SEH, no stack buffers, no struct stores, no globals.
+ * ESI is the only callee-saved register and holds thread_datum live across the
+ * evaluate call, which is why it is saved. The exit RET carries no immediate
+ * => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX  (loaded as a full dword but
+ *                                          declared char to match the callee
+ *                                          decl and every twin in this family)
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c0270(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL in the disassembly, not the
+ * decompiler):
+ *   MOV EAX,[EBP+0x10] / MOV ECX,[EBP+0x8] / MOV ESI,[EBP+0xc] then
+ *   PUSH EAX / PUSH ESI / PUSH ECX; CALL 0xcc560 (0xc0280); ADD ESP,0xc.
+ *   cdecl reverse push order -> C order (function_index, thread_datum, init)
+ *   = a straight pass-through of all three params. ESI is written exactly
+ *   once from [EBP+0xc] and is never reloaded, so the Ghidra
+ *   register-aliasing trap (decompiler-traps 1) cannot apply to the later
+ *   PUSH ESI.
+ *
+ *   TEST EAX,EAX / JZ 0xc02a5 skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref -- TWO fields of MIXED width, and this is the only place a
+ *   width mistake could hide (lift-learnings 24 LOADW):
+ *     0xc028c XOR EDX,EDX
+ *     0xc028e MOV DL,byte ptr [EAX+0x4]  -> ZERO-EXTENDED BYTE at +0x4
+ *     0xc0291 MOV EAX,dword ptr [EAX]    -> FULL DWORD at +0x0
+ *   The zero-extension (XOR/MOV DL, not MOVSX) is why +0x4 is read through an
+ *   unsigned char lvalue below; Ghidra's `(char)puVar1[1]` is a dword-indexed
+ *   spelling of the same byte offset and would invite a full-width load.
+ *   record+0x0 must NOT be narrowed. Only +0x0 and +0x4 are touched, one
+ *   deref each, so there is no buffer-alias risk (decompiler-traps 5) in this
+ *   8-byte window. The two loads are emitted in reverse of push order, which
+ *   is just cdecl right-to-left evaluation, not struct-field rotation
+ *   (decompiler-traps 3) -- both offsets are unambiguous in the raw
+ *   disassembly.
+ *
+ *   CALL 0x54f90 (0xc0295) is preceded by PUSH EDX then PUSH EAX = cdecl
+ *   reverse -> FUN_00054f90(record+0x0, record+0x4), matching
+ *   FUN_00054f90(unsigned int combined_index, char flag). This two-argument
+ *   worker is the ONLY divergence from the 0xc0230 twin.
+ *
+ *   CALL 0xcbf80 (0xc029d) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result
+ *   (FUN_00054f90 is void); the entire observable effect is the worker's side
+ *   effect.
+ *
+ *   ONE combined ADD ESP,0x10 at 0xc02a2 cleans the 2 pushes of the 0x54f90
+ *   call plus the 2 pushes of the hs_return call -- so the ARG_COUNT finding
+ *   on hs_return ("cleanup=4 stack args, decl=2") is the same FALSE POSITIVE
+ *   documented on every committed twin; hs_return really takes 2 args and its
+ *   kb decl was left unchanged.
+ *
+ * Reloc audit of delinked/functions/000c0270.obj: .text scnlen 0x40 with
+ * exactly 3 relocations -- matching the three CALL targets below, with no
+ * extra global or string reference.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x54f90  = FUN_00054f90(unsigned int combined_index, char flag)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" all functions out to the same relative path, and
+ * leaves players.c empty (observed 2026-07-26). */
+void FUN_000c0270(int16_t function_index, int thread_datum, char init)
+{
+  unsigned char *record;
+
+  record = (unsigned char *)hs_macro_function_evaluate(function_index,
+                                                       thread_datum, init);
+  if (record != NULL) {
+    FUN_00054f90(*(unsigned int *)record, (char)record[4]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c02b0 @ 0x000c02b0
+ *
+ * HaloScript builtin dispatcher for ai_set_deaf, direct structural twin of
+ * FUN_000c0230 / FUN_000c0130 / FUN_000c00f0 / FUN_000c0070 / FUN_000c0030 /
+ * FUN_000bfff0 / FUN_000bff70 above: identical 3-parameter cdecl shape and
+ * the same evaluate / NULL-check / worker / hs_return skeleton. It differs
+ * from those twins in exactly ONE respect -- the worker takes TWO arguments
+ * here, not one, so the evaluated argument record is read at two offsets of
+ * MIXED width instead of a single dword.
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * Body spans 0xc02b0-0xc02e7 (27 instructions, 56 bytes). No locals, no
+ * SUB ESP, no _chkstk, no FPU, no SEH, no stack buffers, no struct stores,
+ * no globals. ESI is the only callee-saved register and holds thread_datum
+ * live across the evaluate call, which is why it is saved. The exit RET
+ * carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX  (loaded as a full dword but
+ *                                          declared char to match the callee
+ *                                          decl and every twin in this family)
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c02b0(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0. The RET carries no immediate, so the corrected
+ * decl stays cdecl.
+ *
+ * Binary evidence (traced backward from each CALL, verified against the
+ * disassembly of delinked/functions/0000c02b0.obj, not the decompiler):
+ *   MOV EAX,[EBP+0x10] / MOV ECX,[EBP+0x8] / MOV ESI,[EBP+0xc] then
+ *   PUSH EAX / PUSH ESI / PUSH ECX; CALL 0xcc560 (+0x10); ADD ESP,0xc.
+ *   cdecl reverse push order -> C order (function_index, thread_datum, init)
+ *   = a straight pass-through of all three params. ESI is written exactly
+ *   once from [EBP+0xc] and is never reloaded, so the Ghidra
+ *   register-aliasing trap (decompiler-traps 1) cannot apply to the later
+ *   PUSH ESI.
+ *
+ *   TEST EAX,EAX / JZ 0xc02e5 skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref -- TWO fields of MIXED width, and this is the only place a
+ *   width mistake could hide (lift-learnings 24 LOADW):
+ *     XOR EDX,EDX ; MOV DL,byte ptr [EAX+0x4]  -> ZERO-EXTENDED BYTE at +0x4
+ *     MOV EAX,dword ptr [EAX]                  -> FULL DWORD at +0x0
+ *   The zero-extension (XOR/MOV DL, not MOVSX) is why +0x4 is read through an
+ *   unsigned char lvalue below; Ghidra's `(char)puVar1[1]` is a dword-indexed
+ *   spelling of the same offset and would invite a full-width load. Only
+ *   +0x0 and +0x4 are touched, one deref each, so there is no buffer-alias
+ *   risk (decompiler-traps 5) in this 8-byte window. The two loads are
+ *   emitted in reverse of push order, which is just cdecl right-to-left
+ *   evaluation, not struct-field rotation (decompiler-traps 3) -- both
+ *   offsets are unambiguous in the raw disassembly.
+ *
+ *   CALL 0x55010 (+0x25) is preceded by PUSH EDX then PUSH EAX = cdecl
+ *   reverse -> FUN_00055010(record+0x0, record+0x4), matching
+ *   FUN_00055010(unsigned int combined_index, char flag) = ai_set_deaf. This
+ *   two-argument worker is the ONLY divergence from the 0xc0230 twin.
+ *
+ *   CALL 0xcbf80 (+0x2d) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result
+ *   (FUN_00055010 is void); the entire observable effect is the ai_set_deaf
+ *   side effect.
+ *
+ *   ONE combined ADD ESP,0x10 at +0x32 cleans the 2 pushes of the 0x55010
+ *   call plus the 2 pushes of the hs_return call -- so the ARG_COUNT finding
+ *   on hs_return ("cleanup=4 stack args, decl=2") is the same FALSE POSITIVE
+ *   documented on all four committed twins; hs_return really takes 2 args and
+ *   its kb decl was left unchanged.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x55010  = FUN_00055010(unsigned int combined_index, char flag)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" all 111 functions out to the same relative path,
+ * and leaves players.c empty (observed 2026-07-26). */
+void FUN_000c02b0(int16_t function_index, int thread_datum, char init)
+{
+  unsigned char *record;
+
+  record = (unsigned char *)hs_macro_function_evaluate(function_index,
+                                                       thread_datum, init);
+  if (record != NULL) {
+    FUN_00055010(*(unsigned int *)record, (char)record[4]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c02f0 @ 0x000c02f0
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c02b0
+ * immediately above (ai_set_deaf). Identical 3-parameter cdecl shape,
+ * identical evaluate / NULL-check / two-argument-worker / hs_return skeleton,
+ * and the same MIXED-width two-field record read. The ONLY difference from
+ * 0xc02b0 is the worker dispatched to -- 0x55090 here (ai_set_blind) vs
+ * 0x55010 there (ai_set_deaf).
+ *
+ * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
+ * 28 instructions. No locals, no SUB ESP, no _chkstk, no FPU, no SEH, no
+ * stack buffers, no struct stores, no globals. ESI is the only callee-saved
+ * register and holds thread_datum live across the evaluate call, which is why
+ * it is saved. The exit RET carries no immediate => cdecl, caller cleans.
+ *   function_index  int16_t  [EBP+0x08]  -> ECX  (pushed as a full dword; the
+ *                                          int16 narrowing lives inside the
+ *                                          callee, matching every twin)
+ *   thread_datum    int      [EBP+0x0c]  -> ESI, reused as hs_return arg1
+ *   init            char     [EBP+0x10]  -> EAX  (loaded as a full dword but
+ *                                          declared char to match the callee
+ *                                          decl and every twin in this family)
+ * Ghidra modelled this void(void), so the three cdecl params surfaced as
+ * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
+ * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
+ * `void FUN_000c02f0(void);` decl was corrected to the 3-arg cdecl form as
+ * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
+ * class of bug from 0x158df0.
+ *
+ * Binary evidence (traced backward from each CALL in the disassembly, not the
+ * decompiler):
+ *   MOV EAX,[EBP+0x10] / MOV ECX,[EBP+0x8] / MOV ESI,[EBP+0xc] then
+ *   PUSH EAX / PUSH ESI / PUSH ECX; CALL 0xcc560 (0xc0300); ADD ESP,0xc.
+ *   cdecl reverse push order -> C order (function_index, thread_datum, init)
+ *   = a straight pass-through of all three params. ESI is written exactly
+ *   once from [EBP+0xc] and never reloaded, so the Ghidra register-aliasing
+ *   trap (decompiler-traps 1) cannot apply to the later PUSH ESI.
+ *
+ *   TEST EAX,EAX / JZ 0xc0325 skips BOTH remaining calls when the result is
+ *   NULL, so the 0xcc560 return is a POINTER that is dereferenced even though
+ *   kb.json declares it as returning int (same as every twin; the cast is
+ *   local and the kb decl is left alone).
+ *
+ *   Record deref -- TWO fields of MIXED width; the only place a width mistake
+ *   could hide (lift-learnings 24 LOADW):
+ *     XOR EDX,EDX ; MOV DL,byte ptr [EAX+0x4]  -> ZERO-EXTENDED BYTE at +0x4
+ *     MOV EAX,dword ptr [EAX]                  -> FULL DWORD at +0x0
+ *   The zero-extension (XOR/MOV DL, not MOVSX) is why +0x4 is read through an
+ *   unsigned char lvalue below; Ghidra's `(char)puVar1[1]` is a dword-indexed
+ *   spelling of the same offset and would invite a full-width load. Only +0x0
+ *   and +0x4 are touched, one deref each, so there is no buffer-alias risk
+ *   (decompiler-traps 5) in this 8-byte window. The two loads are emitted in
+ *   reverse of push order, which is cdecl right-to-left evaluation, not
+ *   struct-field rotation (decompiler-traps 3).
+ *
+ *   CALL 0x55090 (0xc0315) is preceded by PUSH EDX then PUSH EAX = cdecl
+ *   reverse -> FUN_00055090(record+0x0, record+0x4), matching
+ *   FUN_00055090(unsigned int combined_index, char flag) = ai_set_blind.
+ *
+ *   CALL 0xcbf80 (0xc031d) is preceded by PUSH 0x0 then PUSH ESI = cdecl
+ *   reverse -> hs_return(thread_datum, 0). The script return value is the
+ *   literal CONSTANT 0, not a record field and not the worker's result
+ *   (FUN_00055090 is void); the whole observable effect is the ai_set_blind
+ *   side effect. Nothing computed is discarded.
+ *
+ *   ONE combined ADD ESP,0x10 at 0xc0322 cleans the 2 pushes of the 0x55090
+ *   call plus the 2 pushes of the hs_return call -- so the ARG_COUNT finding
+ *   on hs_return ("cleanup=4 stack args, decl=2") is the same FALSE POSITIVE
+ *   documented on every committed twin; hs_return really takes 2 stack args
+ *   and its kb decl was left unchanged.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x55090  = FUN_00055090(unsigned int combined_index, char flag)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" every function out to the same relative path, and
+ * leaves players.c empty (observed 2026-07-26). */
+void FUN_000c02f0(int16_t function_index, int thread_datum, char init)
+{
+  unsigned char *record;
+
+  record = (unsigned char *)hs_macro_function_evaluate(function_index,
+                                                       thread_datum, init);
+  if (record != NULL) {
+    FUN_00055090(*(unsigned int *)record, (char)record[4]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c03f0 @ 0x000c03f0
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c02f0 /
+ * FUN_000c02b0 / FUN_000c0030 and the rest of this family: identical
+ * 3-parameter cdecl shape, identical evaluate / NULL-check / worker /
+ * hs_return skeleton. The differences from 0xc02f0 are the worker address
+ * (0x551e0 here) and the record field widths (see LOAD WIDTH below).
+ *
+ * cdecl frame (0xc03f0-0xc0425, 22 instructions): PUSH EBP; MOV EBP,ESP;
+ * PUSH ESI; ... POP ESI; POP EBP; RET with NO immediate => caller cleans.
+ * No SUB ESP, no _chkstk, no locals beyond the record pointer, no FPU, no
+ * SEH, no stack buffers, no struct stores, no globals, no CONCAT, no
+ * intrinsics. ESI is the only callee-saved register pushed; it holds
+ * thread_datum live across the evaluate call, which is exactly why it is
+ * saved.
+ *
+ * Ghidra models this as `void __cdecl FUN_000c03f0(void)`, so the three cdecl
+ * params surface as in_stack_00000004/8/c pseudo-locals. Per lift-learnings 31
+ * that is the void-decl trap, NOT a register-argument signal -- the
+ * disassembly loads all three from the frame:
+ *   MOV EAX,[EBP+0x10] -> init           (char)
+ *   MOV ECX,[EBP+0x08] -> function_index (int16_t; pushed as a full dword,
+ *                                         the narrowing lives in the callee)
+ *   MOV ESI,[EBP+0x0c] -> thread_datum   (int), reused as hs_return arg1
+ * The stale kb.json decl `void FUN_000c03f0(void);` was corrected to the
+ * 3-arg cdecl form as part of this lift; a (void) decl over a callee that
+ * consumes three stack dwords is precisely the 0x158df0 ESP-drift crash class.
+ *
+ * Call-site verification (pushes traced backward in the raw XBE disassembly,
+ * not the decompiler; first PUSH is the LAST C argument):
+ *   CALL 0xc0400 -> 0xcc560: PUSH EAX(init); PUSH ESI(thread_datum);
+ *     PUSH ECX(function_index); ADD ESP,0xc => 3 stack args, C order
+ *     (function_index, thread_datum, init) -- a straight pass-through of all
+ *     three parameters. ESI is written exactly once at 0xc03fa and never
+ *     reloaded, so the Ghidra register-aliasing trap (decompiler-traps 1)
+ *     cannot apply to the later PUSH ESI.
+ *   CALL 0xc0413 -> 0x551e0: MOV EDX,[EAX+0x4]; MOV EAX,[EAX]; PUSH EDX;
+ *     PUSH EAX => C order (record[0], record[1]). The [EAX+4] load is issued
+ *     BEFORE the [EAX] load (MSVC scheduling), but the push order fixes the
+ *     mapping: first-pushed EDX is the LAST argument. This matches
+ *     FUN_000551e0's decl (unsigned int combined_handle, int unit_group).
+ *   CALL 0xc041b -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
+ *
+ * LOAD WIDTH (lift-learnings 24): unlike the 0xc02b0/0xc02f0/0xc05b0 twins,
+ * which read a zero-extended BYTE at record+4 (XOR EDX,EDX; MOV DL,[EAX+4]),
+ * BOTH loads here are FULL 32-bit dwords with no MOVSX/MOVZX, so
+ * record[0]/record[1] must NOT be narrowed to int16/int8. Only +0x0 and +0x4
+ * are touched, one deref each, so there is no buffer-alias risk
+ * (decompiler-traps 5) in this 8-byte window.
+ *
+ * NULL guard: TEST EAX,EAX; JZ 0xc0423 skips BOTH tail calls, so the 0xcc560
+ * return value is dereferenced as a POINTER even though kb.json types it as
+ * `int`. The cast is kept local here; the kb declaration is deliberately left
+ * untouched (it is shared with every other dispatcher in this family).
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0x10` at 0xc0420 is a MERGED cleanup for BOTH tail calls -- 2
+ * dwords for FUN_000551e0 (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return
+ * (PUSH 0; PUSH ESI) = 4 dwords. MSVC combined the two cdecl cleanups;
+ * hs_return's 2-arg decl and FUN_000551e0's 2-arg decl are both correct. Do
+ * NOT "fix" either decl.
+ *
+ * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x551e0  = FUN_000551e0(unsigned int combined_handle, int unit_group)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" all functions out to the same relative path, and
+ * leaves players.c empty (observed 2026-07-26). */
+void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_000551e0((unsigned int)record[0], record[1]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0430 @ 0x000c0430
+ *
+ * HaloScript builtin dispatcher, exact structural twin of FUN_000c0570 below
+ * and of FUN_000c0030 / FUN_000c0070 / FUN_000bfff0 / FUN_000bff70 /
+ * FUN_000bfe70 above: identical 3-parameter cdecl shape, identical
+ * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
+ * difference from FUN_000c0570 is the worker address (0x55220 here vs
+ * 0x55870 there).
+ *
+ * Frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET with NO
+ * immediate => cdecl, caller cleans the stack. ESI is the only callee-saved
+ * register pushed; it holds thread_datum live across the evaluate call, which
+ * is exactly why it is saved. No _chkstk/SUB ESP, no locals beyond the record
+ * pointer, no FPU, no SEH, no stack buffers, no struct stores, no CONCAT, no
+ * MSVC intrinsics.
+ *
+ * Ghidra models this as `void __cdecl FUN_000c0430(void)` with the three
+ * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
+ * lift-learnings 31 that is the void-decl trap, NOT a register-argument
+ * signal: the disassembly loads all three from the frame --
+ *   MOV ECX,[EBP+0x08] -> function_index (int16_t, pushed as a full dword)
+ *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
+ *   MOV EAX,[EBP+0x10] -> init           (char)
+ * so these are ordinary STACK args. The stale kb.json decl
+ * `void FUN_000c0430(void);` was corrected to the 3-arg cdecl form; leaving a
+ * (void) decl over a callee that consumes three stack dwords is precisely the
+ * 0x158df0 ESP-drift boot-crash class.
+ *
+ * Call-site verification (all pushes traced backward in the disassembly):
+ *   CALL 0xc0440 -> 0xcc560: PUSH EAX; PUSH ESI; PUSH ECX; ADD ESP,0xc.
+ *     cdecl reverse push order => C args (function_index, thread_datum, init),
+ *     a straight pass-through of all three parameters. ESI is assigned exactly
+ *     once from [EBP+0xc] and never reloaded, so the Ghidra register-aliasing
+ *     trap (decompiler-traps 1) cannot apply to the later PUSH ESI.
+ *   CALL 0xc044f -> 0x55220: PUSH EDX only => 1 argument, record[0].
+ *   CALL 0xc0457 -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
+ *     The 0 is an immediate, NOT the FUN_00055220 result -- that worker
+ *     returns void. This is the "record as evaluation-complete predicate"
+ *     shape of FUN_000be1d0.
+ *
+ * NULL guard: TEST EAX,EAX; JZ skips BOTH tail calls, so the 0xcc560 return
+ * value is dereferenced as a POINTER even though kb.json types it as `int`.
+ * The cast is kept local here; the kb declaration is deliberately left
+ * untouched (it is shared with every other dispatcher in this family).
+ *
+ * Record deref: MOV EDX,dword ptr [EAX] -- ONE field at record+0, a FULL
+ * 32-bit load with no MOVSX/MOVZX. Per lift-learnings 24 in reverse, this must
+ * NOT be narrowed to int16 (unlike the 0xbf920/0xbf960/0xbe080 twins, which do
+ * use MOVSX and therefore read a signed short). No other field of the record
+ * is read, so there is no buffer-alias risk (decompiler-traps 5).
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0xc` at 0xc045c is a MERGED cleanup for BOTH tail calls -- 1 dword
+ * for FUN_00055220 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
+ * FUN_00055220's 1-arg decl are both correct. Do NOT "fix" either decl.
+ *
+ * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x55220  = FUN_00055220(unsigned int combined_index)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" all functions out to the same relative path, and
+ * leaves players.c empty (observed 2026-07-26). */
+void FUN_000c0430(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00055220((unsigned int)record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0470 @ 0x000c0470
+ *
+ * HaloScript builtin dispatcher, exact structural twin of FUN_000c0430 above
+ * and FUN_000c0570 below: identical 3-parameter cdecl shape, identical
+ * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
+ * difference from FUN_000c0430 is the worker address (0x552b0 here vs
+ * 0x55220 there).
+ *
+ * Frame (0xc0470-0xc04a1, 0x32 bytes): PUSH EBP; MOV EBP,ESP; PUSH ESI; ...
+ * POP ESI; POP EBP; RET with NO immediate => cdecl, caller cleans the stack.
+ * ESI is the only callee-saved register pushed; it holds thread_datum live
+ * across the evaluate call, which is exactly why it is saved. No _chkstk/SUB
+ * ESP, no locals beyond the record pointer, no FPU, no SEH, no stack buffers,
+ * no struct stores, no CONCAT, no MSVC intrinsics.
+ *
+ * Ghidra models this as `void __cdecl FUN_000c0470(void)` with the three
+ * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
+ * lift-learnings 31 that is the void-decl trap, NOT a register-argument
+ * signal: the disassembly loads all three from the frame --
+ *   MOV EAX,[EBP+0x10] -> init           (char, whole dword pushed)
+ *   MOV ECX,[EBP+0x08] -> function_index (int16_t, pushed as a full dword)
+ *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
+ * so these are ordinary STACK args. The stale kb.json decl
+ * `void FUN_000c0470(void);` was corrected to the 3-arg cdecl form; leaving a
+ * (void) decl over a callee that consumes three stack dwords is precisely the
+ * 0x158df0 ESP-drift boot-crash class.
+ *
+ * Call-site verification (all pushes traced backward in the disassembly):
+ *   CALL 0xcc560: PUSH EAX; PUSH ESI; PUSH ECX; ADD ESP,0xc.
+ *     cdecl reverse push order => C args (function_index, thread_datum, init),
+ *     a straight pass-through of all three parameters. ESI is assigned exactly
+ *     once from [EBP+0xc] and never reloaded, so the Ghidra register-aliasing
+ *     trap (decompiler-traps 1) cannot apply to the later PUSH ESI.
+ *   CALL 0x552b0: PUSH EDX only => 1 argument, record[0].
+ *   CALL 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0). The 0 is
+ *     an immediate, NOT the FUN_000552b0 result -- that worker returns void.
+ *
+ * NULL guard: TEST EAX,EAX; JZ 0xc049f skips BOTH tail calls, so the 0xcc560
+ * return value is dereferenced as a POINTER even though kb.json types it as
+ * `int`. The cast is kept local here; the kb declaration is deliberately left
+ * untouched (it is shared with every other dispatcher in this family).
+ *
+ * Record deref: MOV EDX,dword ptr [EAX] -- ONE field at record+0, a FULL
+ * 32-bit load with no MOVSX/MOVZX. Per lift-learnings 24 in reverse, this must
+ * NOT be narrowed to a byte or int16 (unlike the 0xbdef0 twin, which uses
+ * XOR EDX,EDX; MOV DL,[EAX] and therefore reads an unsigned char). No other
+ * field of the record is read, so there is no buffer-alias risk
+ * (decompiler-traps 5).
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0xc` at 0xc049c is a MERGED cleanup for BOTH tail calls -- 1 dword
+ * for FUN_000552b0 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
+ * FUN_000552b0's 1-arg decl are both correct. Do NOT "fix" either decl.
+ *
+ * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x552b0  = FUN_000552b0(unsigned int combined_index)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" all functions out to the same relative path, and
+ * leaves players.c empty (observed 2026-07-26). */
+void FUN_000c0470(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_000552b0((unsigned int)record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c04b0 @ 0x000c04b0
+ *
+ * HaloScript builtin dispatcher, exact structural twin of FUN_000c0470 above
+ * and FUN_000c0570 below: identical 3-parameter cdecl shape, identical
+ * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
+ * difference from FUN_000c0470 is the worker address (0x55750 here vs
+ * 0x552b0 there).
+ *
+ * Frame (0xc04b0-0xc04e1, 0x32 bytes): PUSH EBP; MOV EBP,ESP; PUSH ESI; ...
+ * POP ESI; POP EBP; RET with NO immediate => cdecl, caller cleans the stack.
+ * ESI is the only callee-saved register pushed; it holds thread_datum live
+ * across the evaluate call, which is exactly why it is saved. No _chkstk/SUB
+ * ESP, no locals beyond the record pointer, no FPU, no SEH, no stack buffers,
+ * no struct stores, no CONCAT, no MSVC intrinsics.
+ *
+ * Ghidra models this as `void __cdecl FUN_000c04b0(void)` with the three
+ * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
+ * lift-learnings 31 that is the void-decl trap, NOT a register-argument
+ * signal: the disassembly loads all three from the frame --
+ *   MOV EAX,[EBP+0x10] -> init           (char, whole dword pushed)
+ *   MOV ECX,[EBP+0x08] -> function_index (int16_t, pushed as a full dword)
+ *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
+ * so these are ordinary STACK args. The stale kb.json decl
+ * `void FUN_000c04b0(void);` was corrected to the 3-arg cdecl form; leaving a
+ * (void) decl over a callee that consumes three stack dwords is precisely the
+ * 0x158df0 ESP-drift boot-crash class.
+ *
+ * Call-site verification (all pushes traced backward in the disassembly):
+ *   CALL 0xcc560 @0xc04c0: PUSH EAX; PUSH ESI; PUSH ECX; ADD ESP,0xc.
+ *     cdecl reverse push order => C args (function_index, thread_datum, init),
+ *     a straight pass-through of all three parameters. ESI is assigned exactly
+ *     once from [EBP+0xc] and never reloaded, so the Ghidra register-aliasing
+ *     trap (decompiler-traps 1) cannot apply to the later PUSH ESI.
+ *   CALL 0x55750 @0xc04cf: PUSH EDX only => 1 argument, record[0].
+ *   CALL 0xcbf80 @0xc04d7: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
+ *     The 0 is an immediate, NOT the FUN_00055750 result -- that worker
+ *     returns void, so the whole observable effect of this dispatcher is the
+ *     0x55750 side effect.
+ *
+ * NULL guard: TEST EAX,EAX; JZ 0xc04df skips BOTH tail calls, so the 0xcc560
+ * return value is dereferenced as a POINTER even though kb.json types it as
+ * `int`. The cast is kept local here; the kb declaration is deliberately left
+ * untouched (it is shared with every other dispatcher in this family).
+ *
+ * Record deref: MOV EDX,dword ptr [EAX] -- ONE field at record+0, a FULL
+ * 32-bit load with no MOVSX/MOVZX. Per lift-learnings 24 in reverse, this must
+ * NOT be narrowed to a byte or int16 (unlike the 0xbf920/0xbf960 twins, which
+ * use a narrow load and therefore read a 16-bit field). The callee's parameter
+ * is `unsigned int`, so the dword is passed unsigned. No other field of the
+ * record is read, so there is no buffer-alias risk (decompiler-traps 5).
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0xc` at 0xc04dc is a MERGED cleanup for BOTH tail calls -- 1 dword
+ * for FUN_00055750 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
+ * FUN_00055750's 1-arg decl are both correct. Do NOT "fix" either decl.
+ *
+ * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x55750  = FUN_00055750(unsigned int combined_index)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" all functions out to the same relative path, and
+ * leaves players.c empty (observed 2026-07-26). */
+void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00055750((unsigned int)record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0530 @ 0x000c0530
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c04b0 above
+ * and FUN_000c0570 below, and of FUN_000c0430 / FUN_000c0030 / FUN_000bfff0 /
+ * FUN_000bff70 / FUN_000bfe70: identical 3-parameter cdecl shape, identical
+ * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
+ * difference from FUN_000c0570 is the worker address (0x58ae0 here vs
+ * 0x55870 there).
+ *
+ * Frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET with NO
+ * immediate => cdecl, caller cleans the stack. ESI is the only callee-saved
+ * register pushed; it holds thread_datum live across the evaluate call, which
+ * is exactly why it is saved. No _chkstk/SUB ESP, no locals beyond the record
+ * pointer, no FPU, no SEH, no stack buffers, no struct stores, no CONCAT, no
+ * MSVC intrinsics.
+ *
+ * Ghidra models this as `void __cdecl FUN_000c0530(void)` with the three
+ * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
+ * lift-learnings 31 that is the void-decl trap, NOT a register-argument
+ * signal: the disassembly loads all three from the frame --
+ *   MOV ECX,[EBP+0x08] -> function_index (int16_t, pushed as a full dword)
+ *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
+ *   MOV EAX,[EBP+0x10] -> init           (char)
+ * so these are ordinary STACK args. The stale kb.json decl
+ * `void FUN_000c0530(void);` was corrected to the 3-arg cdecl form; leaving a
+ * (void) decl over a callee that consumes three stack dwords is precisely the
+ * 0x158df0 ESP-drift boot-crash class.
+ *
+ * Call-site verification (all pushes traced backward in the disassembly):
+ *   CALL -> 0xcc560: PUSH EAX; PUSH ESI; PUSH ECX; ADD ESP,0xc.
+ *     cdecl reverse push order => C args (function_index, thread_datum, init),
+ *     a straight pass-through of all three parameters. ESI is assigned exactly
+ *     once from [EBP+0xc] and never reloaded, so the Ghidra register-aliasing
+ *     trap (decompiler-traps 1) cannot apply to the later PUSH ESI.
+ *   CALL -> 0x58ae0: MOV EDX,[EAX]; PUSH EDX only => 1 argument, record[0].
+ *     The argument is the DEREFERENCED first dword of the record, not the
+ *     record pointer itself.
+ *   CALL -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0). The 0
+ *     is an immediate, NOT the FUN_00058ae0 result -- that worker returns void.
+ *
+ * NULL guard: TEST EAX,EAX; JZ skips BOTH tail calls, so the guard is
+ * `record != NULL` (not inverted), and the 0xcc560 return value is
+ * dereferenced as a POINTER even though kb.json types it as `int`. The cast is
+ * kept local here; the kb declaration is deliberately left untouched (it is
+ * shared with every other dispatcher in this family).
+ *
+ * Record deref: MOV EDX,dword ptr [EAX] -- ONE field at record+0, a FULL
+ * 32-bit load with no MOVSX/MOVZX. Per lift-learnings 24 in reverse, this must
+ * NOT be narrowed to int16 (unlike the 0xbf920/0xbf960/0xbe080 twins, which do
+ * use MOVSX and therefore read a signed short). No other field of the record
+ * is read, so there is no buffer-alias risk (decompiler-traps 5).
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0xc` at 0xc055c is a MERGED cleanup for BOTH tail calls -- 1 dword
+ * for FUN_00058ae0 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
+ * FUN_00058ae0's 1-arg decl are both correct. Do NOT "fix" hs_return's decl.
+ *
+ * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x58ae0  = FUN_00058ae0(unsigned int combined_index)  [not yet ported]
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * Placement: kept here beside its twins deliberately. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file as
+ * a foreign TU and empties players.c (observed 2026-07-26). */
+void FUN_000c0530(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00058ae0((unsigned int)record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0570 @ 0x000c0570
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c0030 /
+ * FUN_000c0070 / FUN_000bfff0 / FUN_000bff70 / FUN_000bfe70 above: identical
+ * 3-parameter cdecl shape, identical evaluate / NULL-check / worker /
+ * hs_return skeleton, and the same one-argument worker arity. The only
+ * difference from FUN_000c0030 is the worker address (0x55870 here vs
+ * 0x54ac0 there).
+ *
+ * Frame (0xc0570-0xc05a1, 50 bytes): PUSH EBP; MOV EBP,ESP; PUSH ESI; ...
+ * POP ESI; POP EBP; RET with NO immediate => cdecl, caller cleans the stack.
+ * ESI is the only callee-saved register pushed; it holds thread_datum live
+ * across the evaluate call, which is exactly why it is saved.
+ *
+ * Ghidra models this as `void __cdecl FUN_000c0570(void)` with the three
+ * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
+ * lift-learnings 31 that is the void-decl trap, NOT a register-argument
+ * signal: the disassembly loads all three from the frame --
+ *   MOV ECX,[EBP+0x08] -> function_index (int16_t)
+ *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
+ *   MOV EAX,[EBP+0x10] -> init           (char)
+ * so these are ordinary STACK args. The stale kb.json decl
+ * `void FUN_000c0570(void);` was corrected to the 3-arg cdecl form; leaving a
+ * (void) decl over a callee that consumes three stack dwords is precisely the
+ * 0x158df0 ESP-drift boot-crash class.
+ *
+ * Call-site verification (all pushes traced backward in the disassembly):
+ *   CALL 0xc0580 -> 0xcc560: PUSH EAX; PUSH ESI; PUSH ECX; ADD ESP,0xc.
+ *     cdecl reverse push order => C args (function_index, thread_datum, init),
+ *     a straight pass-through of all three parameters. ESI is assigned exactly
+ *     once from [EBP+0xc] and never reloaded, so the Ghidra register-aliasing
+ *     trap cannot apply to the later PUSH ESI.
+ *   CALL 0xc058f -> 0x55870: PUSH EDX only => 1 argument, record[0].
+ *   CALL 0xc0597 -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
+ *
+ * NULL guard: TEST EAX,EAX; JZ 0xc059f skips BOTH tail calls, so the 0xcc560
+ * return value is dereferenced as a POINTER even though kb.json types it as
+ * `int`. The cast is kept local here; the kb declaration is deliberately left
+ * untouched (it is shared with every other dispatcher in this family).
+ *
+ * Record deref: MOV EDX,dword ptr [EAX] -- ONE field at record+0, a FULL
+ * 32-bit load with no MOVSX/MOVZX. Per lift-learnings 24 in reverse, this must
+ * NOT be narrowed to int16 (unlike the 0xbf920/0xbf960 twins, which do use
+ * MOVSX and therefore read a signed short).
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0xc` at 0xc059c is a MERGED cleanup for BOTH tail calls -- 1 dword
+ * for FUN_00055870 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
+ * FUN_00055870's 1-arg decl are both correct.
+ *
+ * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x55870  = FUN_00055870(unsigned int combined_index)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * No FPU, no _chkstk/SUB ESP, no locals beyond the record pointer, no stack
+ * buffers, no struct stores, no SEH, no CONCAT, no intrinsics.
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" all functions out to the same relative path, and
+ * leaves players.c empty (observed 2026-07-26). */
+void FUN_000c0570(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00055870(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c05b0 @ 0x000c05b0
+ *
+ * HaloScript builtin dispatcher, direct structural twin of FUN_000c0570 /
+ * FUN_000c0130 / FUN_000c0030 and the rest of this family. The ONLY structural
+ * difference is that its worker takes TWO arguments instead of one.
+ *
+ * 27 instructions, cdecl. Frame is PUSH EBP; MOV EBP,ESP; PUSH ESI; ...;
+ * POP ESI; POP EBP; RET with NO immediate => caller cleans, cdecl.
+ *
+ * The Ghidra decompile rendered this as `void FUN_000c05b0(void)` with three
+ * `in_stack_*` pseudo-locals, and the kb.json decl was the matching stale
+ * `void FUN_000c05b0(void);`. Those in_stack_* values are ordinary STACK
+ * arguments, not @<reg> args -- per lift-learnings 31 (void-decl trap) a
+ * (void) decl over a 3-stack-arg callee is the 0x158df0 ESP-drift bug class,
+ * so the decl was corrected to the 3-arg cdecl form shared by every sibling:
+ *   function_index int16_t [EBP+0x08] -> ECX  (pushed as a full dword; the
+ *                                              int16 narrowing lives inside
+ *                                              the callee)
+ *   thread_datum   int     [EBP+0x0c] -> ESI  (callee-saved: live across the
+ *                                              evaluate call, reused as
+ *                                              hs_return arg1)
+ *   init           char    [EBP+0x10] -> EAX
+ *
+ * Call-site trace (first PUSH is the LAST C argument):
+ *   CALL 0xc05c0 -> 0xcc560: PUSH EAX(init); PUSH ESI(thread_datum);
+ *     PUSH ECX(function_index); ADD ESP,0xc => C order
+ *     (function_index, thread_datum, init) -- a straight pass-through of all
+ *     three parameters. ESI is written exactly once at 0xc05ba and never
+ *     reloaded, so the Ghidra register-aliasing trap cannot apply to the
+ *     later PUSH ESI.
+ *   CALL 0xc05d5 -> 0x55900: XOR EDX,EDX; MOV DL,byte ptr [EAX+0x4];
+ *     MOV EAX,dword ptr [EAX]; PUSH EDX; PUSH EAX => C order
+ *     (record[0], zero-extended byte at record+4).
+ *   CALL 0xc05dd -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
+ *
+ * LOAD WIDTH (lift-learnings 24): Ghidra wrote the second worker argument as
+ * `(char)puVar1[1]`, i.e. a DWORD at record+4. The disassembly is
+ * `XOR EDX,EDX; MOV DL, byte ptr [EAX+0x4]` -- a ZERO-EXTENDED single BYTE.
+ * Reading it as a dword would pass garbage in the upper bits to
+ * FUN_00055900's `flag`, so it is read here as
+ * *((unsigned char *)record + 4). The record+0 load is
+ * `MOV EAX,dword ptr [EAX]` -- a FULL 32-bit load with no MOVSX/MOVZX, so it
+ * must NOT be narrowed.
+ *
+ * NULL guard: TEST EAX,EAX; JZ skips BOTH tail calls, so the 0xcc560 return
+ * value is dereferenced as a POINTER even though kb.json types it as `int`.
+ * The cast is kept local here; the kb declaration is deliberately left
+ * untouched (it is shared with every other dispatcher in this family).
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0x10` at 0xc05e2 is a MERGED cleanup for BOTH tail calls -- 2
+ * dwords for FUN_00055900 (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return
+ * (PUSH 0; PUSH ESI) = 4 dwords. MSVC combined the two cdecl cleanups;
+ * hs_return's 2-arg decl and FUN_00055900's 2-arg decl are both correct. Do
+ * NOT "fix" either decl.
+ *
+ * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
+ *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
+ *   0x55900  = FUN_00055900(unsigned int combined_index, char flag)
+ *   0xcbf80  = hs_return(int thread_handle, int value)
+ *
+ * No FPU, no _chkstk/SUB ESP, no locals beyond the record pointer, no stack
+ * buffers, no struct stores, no SEH, no CONCAT, no intrinsics.
+ *
+ * Placement: kept here beside its twins deliberately -- the hs helpers are
+ * static in this TU; revert any maintain.py relocation. NOTE: do NOT run
+ * maintain.py on this file with an ABSOLUTE path -- it then treats the file
+ * as a foreign TU, "moves" all functions out to the same relative path, and
+ * leaves players.c empty (observed 2026-07-26). */
+void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_00055900((unsigned int)record[0], (char)*((unsigned char *)record + 4));
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0670 @ 0x000c0670
+ *
+ * hs (HaloScript) macro-function handler, same family as FUN_000c0570 and
+ * FUN_000c05b0 immediately above.  Evaluates the script argument record for
+ * `function_index` on script thread `thread_datum`, and on a non-NULL record
+ * forwards two dwords out of it to the worker at 0x000564b0, then returns
+ * void (0) to the script thread.
+ *
+ * Frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans.  No SUB ESP / no _chkstk => zero stack
+ * locals.  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/[EBP+0x10]; the
+ * Ghidra decompile rendered them as `in_stack_*` pseudo-locals over a
+ * `void FUN_000c0670(void)` signature, and kb.json carried the matching stale
+ * `(void)` decl.  Per lift-learnings 31 (void-decl trap) that is the
+ * 0x158df0 ESP-drift bug class, so the decl was corrected to the 3-arg cdecl
+ * form shared by every sibling in this family.
+ *
+ * The evaluate result is a POINTER to a 2-dword record, not the `int` the
+ * kb decl claims: the disassembly derefs it as
+ *   MOV EDX, dword ptr [EAX+0x4]   ; record[1] -- FULL dword
+ *   MOV EAX, dword ptr [EAX+0x0]   ; record[0]
+ * EAX is only overwritten by its own [EAX+0] load AFTER EDX has been taken,
+ * so both reads are off the original record base (no aliasing subtlety).
+ * Unlike the twin FUN_000c05b0, which loads its second worker arg as a BYTE,
+ * this one loads a full dword -- hence `record[1]` (int), not a char.
+ *
+ * FUN_000564b0's kb decl was also the stale `void FUN_000564b0(void);`; the
+ * push sequence (PUSH EDX; PUSH EAX; first PUSH = last C arg) proves two
+ * dword stack args, so it was corrected to
+ * `void FUN_000564b0(int arg0, int arg1);` (RET carries no immediate =>
+ * cdecl, confirmed with check_stdcall_ret.py --addr 0x564b0).
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE (identical to
+ * the one documented on FUN_000c05b0): the single `ADD ESP,0x10` at
+ * 0x000c06a0 is a MERGED cdecl cleanup for BOTH tail calls -- 2 dwords for
+ * FUN_000564b0 plus 2 dwords for hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions at all, no struct stores, no memset, and no buffer
+ * pointers passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c0670(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    FUN_000564b0(record[0], record[1]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc06b0 -- HS script function handler: evaluate a macro function's arguments
+ * and, on success, forward a 2-field record to FUN_000566a0 before returning a
+ * constant 0 to the calling HS thread.
+ *
+ * Behavior (from disassembly at 0x000c06b0): calls
+ * hs_macro_function_evaluate(function_index, thread_datum, init) -- 3 pushes,
+ * ADD ESP,0xc.  TEST EAX,EAX; JZ -> epilogue, so a NULL result record skips
+ * everything (the thread gets NO hs_return in that path).  On a non-NULL
+ * record it reads two 16-bit fields with DIFFERENT extension:
+ *   XOR EDX,EDX; MOV DX, word ptr [EAX+0x4]   ; ZERO-extended int16 @ +0x4
+ *   MOVSX EAX, word ptr [EAX+0x0]             ; SIGN-extended int16 @ +0x0
+ * then PUSH EDX; PUSH EAX (first PUSH = last C arg) => the signed word at +0x0
+ * is arg 1 and the unsigned word at +0x4 is arg 2.  Do not swap them, and do
+ * not widen the +0x4 field to int -- the zero-extension is load-width evidence
+ * (lift-learnings 24), unlike the sibling FUN_000c0670 whose record fields are
+ * full dwords.  FUN_000566a0's EAX is never tested or reused (the next
+ * instruction pushes an immediate), so its result is discarded.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI and reused for the hs_return call.
+ * Ghidra rendered them as `in_stack_*` pseudo-locals over a
+ * `void FUN_000c06b0(void)` signature and kb.json carried the matching stale
+ * `(void)` decl -- the 0x158df0 ESP-drift trap of lift-learnings 31 -- so the
+ * decl was corrected to the 3-arg cdecl form shared by every sibling here.
+ *
+ * FUN_000566a0's kb decl was likewise stale AND misnamed: it read
+ * `void encounters_initialize(void);` while the call site pushes two dword
+ * stack slots.  Calling it as `(void)` is the a10 dropped-arg crash class, so
+ * the decl was corrected to two dword args; RET carries no immediate (cdecl,
+ * confirmed with check_stdcall_ret.py --addr 0x566a0).  The
+ * `encounters_initialize` name is unproven and inconsistent with a two-value
+ * consumer, so it was reverted to the FUN_ placeholder per Explicit-Unknowns.
+ * The function was referenced by nothing in src/ under the old name.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result, so no zero-init/narrow-store union idiom
+ * is needed here.
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0x10` at 0x000c06e4 is a MERGED cdecl cleanup for BOTH tail calls
+ * -- 2 dwords for FUN_000566a0 plus 2 dwords for hs_return.  Do NOT "fix"
+ * either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
+{
+  short *record;
+
+  record =
+    (short *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* record[0] = signed int16 @ +0x0; record[2] = unsigned int16 @ +0x4 */
+    FUN_000566a0(record[0], (unsigned short)record[2]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c06f0 @ 0x000c06f0
+ * HS script function handler.  Structurally identical to the sibling
+ * FUN_000c06b0 directly above; the ONLY difference is the worker it forwards
+ * to (FUN_00056790 @ 0x56790 here vs FUN_000566a0 @ 0x566a0 there).
+ *
+ * Evaluates the macro function's arguments via hs_macro_function_evaluate
+ * (0xcc560): PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]);
+ * ADD ESP,0xc -- first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ -> epilogue,
+ * so a NULL result record skips everything and the thread gets NO hs_return in
+ * that path.
+ *
+ * On a non-NULL record it reads two 16-bit fields with DIFFERENT extension,
+ * both taken off the ORIGINAL base (EDX is loaded before EAX is overwritten,
+ * so there is no aliasing subtlety):
+ *   0x000c070e: XOR EDX,EDX; MOV DX, word ptr [EAX+0x4]  ; ZERO-extended @ +0x4
+ *   0x000c0712: MOVSX EAX, word ptr [EAX+0x0]            ; SIGN-extended @ +0x0
+ * then PUSH EDX; PUSH EAX (first PUSH = last C arg) => the signed word at +0x0
+ * is arg 1 and the unsigned word at +0x4 is arg 2.  Do not swap them, and do
+ * not widen the +0x4 field -- the zero-extension is load-width evidence
+ * (lift-learnings 24).  FUN_00056790's EAX is never tested or reused (the next
+ * instruction pushes an immediate), so its result is discarded.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI and reused for the hs_return call.
+ * Ghidra rendered them as `in_stack_*` pseudo-locals over a
+ * `void FUN_000c06f0(void)` signature and kb.json carried the matching stale
+ * `(void)` decl -- the 0x158df0 ESP-drift trap of lift-learnings 31 -- so the
+ * decl was corrected to the 3-arg cdecl form shared by every sibling here.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0x10` at 0x000c0724 is a MERGED cdecl cleanup for BOTH tail calls
+ * -- 2 dwords for FUN_00056790 plus 2 dwords for hs_return.  Do NOT "fix"
+ * either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c06f0(int16_t function_index, int thread_datum, char init)
+{
+  short *record;
+
+  record =
+    (short *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* record[0] = signed int16 @ +0x0; record[2] = unsigned int16 @ +0x4 */
+    FUN_00056790(record[0], (unsigned short)record[2]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0730 @ 0x000c0730
+ * HS script function handler.  Same evaluate / forward / hs_return shape as
+ * every sibling in this run, but this one forwards THREE full 32-bit fields of
+ * the evaluated-argument record instead of narrow 16-bit ones.
+ *
+ * Evaluates the macro function's arguments via hs_macro_function_evaluate
+ * (0xcc560): PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]);
+ * ADD ESP,0xc -- first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JE 0xc0767 ->
+ * epilogue, so a NULL result record skips both tail calls and the thread gets
+ * NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here; keep the
+ * return-in-EAX shape if that decl is later narrowed to a real record pointer.
+ *
+ * On a non-NULL record three DWORD loads (full 32-bit MOV, no MOVSX/MOVZX, so
+ * no narrow-field load-width concern -- lift-learnings 24) are pushed:
+ *   0x000c074c: MOV EDX, dword ptr [EAX+0x8]
+ *   0x000c074f: MOV ECX, dword ptr [EAX+0x4]
+ *   0x000c0752: PUSH EDX                      ; first push  => C arg 3 (+0x8)
+ *   0x000c0753: MOV EDX, dword ptr [EAX+0x0]  ; reloads EDX AFTER it was pushed
+ *   0x000c0755: PUSH ECX                      ;             => C arg 2 (+0x4)
+ *   0x000c0756: PUSH EDX                      ; last push   => C arg 1 (+0x0)
+ * so the call is FUN_00058c40(record[0], record[1], record[2]).  All three
+ * loads are taken off the ORIGINAL EAX base before EAX is clobbered, so there
+ * is no aliasing subtlety; the EDX reuse at 0xc0753 is a scheduling artifact,
+ * not a second value for arg 3.  FUN_00058c40's EAX is never tested or reused
+ * (the next instruction pushes an immediate), so its result is discarded.
+ *
+ * kb.json carried a stale `void FUN_00058c40(void);` decl for that worker while
+ * the single call site here pushes 3 dwords -- the ESP-drift trap of
+ * lift-learnings 31.  Lifting against the stale decl would silently drop 12
+ * bytes of arguments, so the decl was widened to 3 cdecl int params first.
+ * dump_caller_regsetup.py confirms 0x58c40 has exactly ONE call site in the
+ * pristine XBE (this one), so no other caller is affected by that widening.
+ * The three fields are typed `int` because the binary only proves 32-bit
+ * dword-through-GPR copies; a float typing would make MSVC emit FLD/FSTP
+ * instead of the MOV/PUSH pairs the original uses.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
+ * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
+ * pseudo-locals over a `void FUN_000c0730(void)` signature and dropped all
+ * three arguments of the FUN_00058c40 call entirely.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 5 stack args) is a
+ * FALSE POSITIVE: the single `ADD ESP,0x14` at the tail is a MERGED cdecl
+ * cleanup for BOTH calls -- 3 dwords for FUN_00058c40 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c0730(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dwords @ +0x0 / +0x4 / +0x8, in C argument order */
+    FUN_00058c40(record[0], record[1], record[2]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0770 @ 0x000c0770
+ * HS script function handler.  Byte-for-byte structural twin of the preceding
+ * FUN_000c0730, differing only in the forwarded worker (0x58cc0 instead of
+ * 0x58c40): evaluate the macro function's arguments, forward three full 32-bit
+ * fields of the evaluated-argument record, then hand a literal 0 back to the
+ * script thread.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560) at 0x000c0780:
+ * PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]); ADD ESP,0xc --
+ * first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ 0x000c07a7 ->
+ * epilogue, so a NULL result record skips BOTH tail calls and the thread gets
+ * NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here; keep the
+ * return-in-EAX shape if that decl is later narrowed to a real record pointer.
+ *
+ * On a non-NULL record three DWORD loads (full 32-bit MOV, no MOVSX/MOVZX, so
+ * no narrow-field load-width concern -- lift-learnings 24) are pushed:
+ *   0x000c078c: MOV EDX, dword ptr [EAX+0x8]
+ *   0x000c078f: MOV ECX, dword ptr [EAX+0x4]
+ *   0x000c0792: PUSH EDX                      ; first push  => C arg 3 (+0x8)
+ *   0x000c0793: MOV EDX, dword ptr [EAX+0x0]  ; reloads EDX AFTER it was pushed
+ *   0x000c0795: PUSH ECX                      ;             => C arg 2 (+0x4)
+ *   0x000c0796: PUSH EDX                      ; last push   => C arg 1 (+0x0)
+ * so the call at 0x000c0797 is
+ * ai_scripting_follow_distance(record[0], record[1], record[2]).  All three
+ * loads are taken off the ORIGINAL EAX base before EAX is clobbered, so there
+ * is no aliasing subtlety; the EDX reuse at 0x000c0793 is a scheduling
+ * artifact, not a second value for arg 3.  That callee's EAX is never tested or
+ * reused (the next instruction pushes an immediate), so its result is
+ * discarded.
+ *
+ * kb.json carried a stale `void ai_scripting_follow_distance(void);` decl for
+ * that worker while the single call site here pushes 3 dwords -- the ESP-drift
+ * trap of lift-learnings 31.  Lifting against the stale decl would silently
+ * drop 12 bytes of arguments, so the decl was widened to 3 cdecl int params
+ * first.  dump_caller_regsetup.py confirms 0x58cc0 has exactly ONE call site in
+ * the pristine XBE (this one), so no other caller is affected by that
+ * widening.  The three fields are typed `int` because the binary only proves
+ * 32-bit dword-through-GPR copies; a float typing would make MSVC emit
+ * FLD/FSTP instead of the MOV/PUSH pairs the original uses.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
+ * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
+ * pseudo-locals over a `void FUN_000c0770(void)` signature and dropped all
+ * three arguments of the 0x58cc0 call entirely.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI at 0x000c079f), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 5 stack args) is a
+ * FALSE POSITIVE: the single `ADD ESP,0x14` at 0x000c07a4 is a MERGED cdecl
+ * cleanup for BOTH tail calls -- 3 dwords for ai_scripting_follow_distance plus
+ * 2 dwords for hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c0770(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dwords @ +0x0 / +0x4 / +0x8, in C argument order */
+    ai_scripting_follow_distance(record[0], record[1], record[2]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c07f0 @ 0x000c07f0
+ * HS script function handler.  Same evaluate / forward / hs_return shape as
+ * every sibling in this run; this one forwards ONE full 32-bit field plus ONE
+ * zero-extended BYTE field of the evaluated-argument record.
+ *
+ * Evaluates the macro function's arguments via hs_macro_function_evaluate
+ * (0xcc560): PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]);
+ * ADD ESP,0xc -- first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ -> epilogue,
+ * so a NULL result record skips both tail calls and the thread gets NO
+ * hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here.
+ *
+ * On a non-NULL record two fields are read off the ORIGINAL base (EDX is
+ * loaded before EAX is overwritten, so there is no aliasing subtlety):
+ *   XOR EDX,EDX; MOV DL, byte ptr [EAX+0x4]  ; ZERO-extended BYTE @ +0x4
+ *   MOV EAX, dword ptr [EAX+0x0]             ; full dword @ +0x0
+ *   PUSH EDX                                 ; first push  => C arg 2 (+0x4)
+ *   PUSH EAX                                 ; last push   => C arg 1 (+0x0)
+ * so the call is FUN_00056980(record[0], byte@+0x4).  The +0x4 field is an
+ * 8-bit ZERO-extended load, not a dword and not a sign-extended byte -- it is
+ * cast through `unsigned char` here so VC71 emits the same zero extension
+ * (lift-learnings 24, narrow-field load width).  Do not widen it and do not
+ * swap the two arguments.  FUN_00056980's EAX is never tested or reused (the
+ * next instruction pushes an immediate), so its result is discarded.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH, no FPU).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
+ * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
+ * pseudo-locals over a `void FUN_000c07f0(void)` signature and kb.json carried
+ * the matching stale `(void)` decl -- the 0x158df0 ESP-drift trap of
+ * lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl form shared
+ * by every sibling here.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is a
+ * FALSE POSITIVE: the single `ADD ESP,0x10` at the tail is a MERGED cdecl
+ * cleanup for BOTH calls -- 2 dwords for FUN_00056980 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c07f0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0, then the zero-extended byte @ +0x4 */
+    FUN_00056980(record[0], (unsigned char)record[1]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0830 @ 0x000c0830
+ * HS script function handler.  Structural twin of FUN_000c07f0 directly above;
+ * the ONLY difference is the worker it forwards to (FUN_00056a20 @ 0x56a20
+ * here vs FUN_00056980 @ 0x56980 there).  Evaluate the macro function's
+ * arguments, forward one full 32-bit field plus one zero-extended byte field
+ * of the evaluated-argument record, then hand a literal 0 back to the script
+ * thread.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560) at 0x000c0840:
+ * PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]); ADD ESP,0xc --
+ * first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ 0x000c0865 ->
+ * POP ESI; POP EBP; RET, so a NULL result record skips BOTH tail calls and the
+ * thread gets NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here.
+ *
+ * On a non-NULL record two fields of DIFFERENT width are read, both off the
+ * ORIGINAL base (EDX is loaded before EAX is overwritten, so there is no
+ * aliasing subtlety):
+ *   XOR EDX,EDX; MOV DL, byte ptr [EAX+0x4]   ; ZERO-extended 8-bit @ +0x4
+ *   MOV EAX, dword ptr [EAX+0x0]              ; FULL 32-bit @ +0x0
+ * then PUSH EDX; PUSH EAX (first PUSH = last C arg) => the dword at +0x0 is
+ * arg 1 and the zero-extended byte at +0x4 is arg 2.  Do not swap them and do
+ * not widen the +0x4 field -- the byte load with explicit zero-extension is
+ * load-width evidence (lift-learnings 24).  Unlike the int16 siblings at
+ * 0xc06b0/0xc06f0 the +0x0 load here is a plain full-width MOV, not MOVSX.
+ * FUN_00056a20's EAX is never tested or reused (the next instruction pushes an
+ * immediate), so its result is discarded.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI across the whole body and re-used
+ * as hs_return's first argument at the tail.  Ghidra rendered the parameters as
+ * `in_stack_*` pseudo-locals over a `void FUN_000c0830(void)` signature and
+ * kb.json carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift
+ * trap of lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl
+ * form shared by every sibling here.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is a
+ * FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c0862 is a MERGED cdecl
+ * cleanup for BOTH tail calls -- 2 dwords for FUN_00056a20 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c0830(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0, then the zero-extended byte @ +0x4 */
+    FUN_00056a20(record[0], (unsigned char)record[1]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0870 @ 0x000c0870
+ * HS script function handler.  Byte-for-byte structural twin of
+ * FUN_000c0830 directly above (and of FUN_000c07f0 above that); the ONLY
+ * difference is the worker it forwards to (FUN_00056b20 @ 0x56b20 here vs
+ * FUN_00056a20 @ 0x56a20 / FUN_00056980 @ 0x56980).  Evaluate the macro
+ * function's arguments, forward one full 32-bit field plus one zero-extended
+ * byte field of the evaluated-argument record, then hand a literal 0 back to
+ * the script thread.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560):
+ * PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]); ADD ESP,0xc --
+ * first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ 0x000c08a5 ->
+ * POP ESI; POP EBP; RET, so a NULL result record skips BOTH tail calls and the
+ * thread gets NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here.
+ *
+ * On a non-NULL record two fields of DIFFERENT width are read, both off the
+ * ORIGINAL base (EDX is loaded before EAX is overwritten, so there is no
+ * aliasing subtlety):
+ *   XOR EDX,EDX; MOV DL, byte ptr [EAX+0x4]   ; ZERO-extended 8-bit @ +0x4
+ *   MOV EAX, dword ptr [EAX+0x0]              ; FULL 32-bit @ +0x0
+ * then PUSH EDX; PUSH EAX (first PUSH = last C arg) => the dword at +0x0 is
+ * arg 1 and the zero-extended byte at +0x4 is arg 2.  Do not swap them and do
+ * not widen the +0x4 field -- the byte load with explicit zero-extension is
+ * load-width evidence (lift-learnings 24).  FUN_00056b20's EAX is never tested
+ * or reused (the next instruction pushes an immediate), so its result is
+ * discarded.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI across the whole body and re-used
+ * as hs_return's first argument at the tail.  Ghidra rendered the parameters as
+ * `in_stack_*` pseudo-locals over a `void FUN_000c0870(void)` signature and
+ * kb.json carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift
+ * trap of lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl
+ * form shared by every sibling here.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is a
+ * FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c08a2 is a MERGED cdecl
+ * cleanup for BOTH tail calls -- 2 dwords for FUN_00056b20 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c0870(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0, then the zero-extended byte @ +0x4 */
+    FUN_00056b20(record[0], (unsigned char)record[1]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c08b0 @ 0x000c08b0
+ * HS script function handler.  Structural twin of FUN_000c0870 directly above
+ * (and of FUN_000c0830 / FUN_000c07f0 above that); the ONLY difference is the
+ * worker it forwards to (FUN_00056bc0 @ 0x56bc0 here).  Evaluate the macro
+ * function's arguments, forward one full 32-bit field plus one zero-extended
+ * byte field of the evaluated-argument record, then hand a literal 0 back to
+ * the script thread.
+ *
+ * Evaluates the arguments via hs_macro_function_evaluate (0xcc560):
+ * PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]); ADD ESP,0xc --
+ * first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ -> epilogue,
+ * so a NULL result record skips BOTH tail calls and the thread gets NO
+ * hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even
+ * though it is only ever tested with TEST EAX,EAX; hs_macro_function_evaluate
+ * is still declared returning `int` in kb.json, hence the cast.
+ *
+ * Record field loads, both off the ORIGINAL EAX base (EDX is loaded before EAX
+ * is overwritten, so there is no aliasing subtlety):
+ *   0xc08cc: XOR EDX,EDX
+ *   0xc08ce: MOV DL, byte ptr [EAX+0x4]   ; ZERO-EXTENDED 8-bit load @ +0x4
+ *   0xc08d1: MOV EAX, dword ptr [EAX]     ; full 32-bit load @ +0x0
+ * The byte width at +0x4 is binary evidence (lift-learnings 24); Ghidra's
+ * `(char)piVar1[1]` hides it behind a truncated dword load.  PUSH EDX; PUSH
+ * EAX at the call means first PUSH is the last C arg, i.e.
+ * FUN_00056bc0(dword@+0x0, byte@+0x4) -- do NOT swap.  Its EAX result is never
+ * tested or reused (the next instruction pushes an immediate), so it is
+ * discarded; the value handed back to the script thread is a hardcoded
+ * literal 0, not a computed result.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH), ESI the only callee-saved register.  Args are ordinary
+ * STACK args at [EBP+8]/[EBP+0xc]/[EBP+0x10]; thread_datum is cached in ESI
+ * and reused for the hs_return call.  Ghidra rendered them as `in_stack_*`
+ * pseudo-locals over a `void FUN_000c08b0(void)` signature and kb.json carried
+ * the matching stale `(void)` decl -- the 0x158df0 ESP-drift trap of
+ * lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl form
+ * shared by every sibling here.
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0x10` at 0x000c08e2 is a MERGED cdecl cleanup for BOTH tail calls
+ * -- 2 dwords for FUN_00056bc0 plus 2 dwords for hs_return.  Do NOT "fix"
+ * either decl.
+ */
+void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0, then the zero-extended byte @ +0x4 */
+    FUN_00056bc0(record[0], (unsigned char)record[1]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c08f0 @ 0x000c08f0
+ * HS script function handler.  Structural twin of the preceding sibling
+ * handlers: evaluate the macro function's arguments, forward one full 32-bit
+ * field of the evaluated-argument record to a worker, then hand a literal 0
+ * back to the script thread.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560):
+ * PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]); ADD ESP,0xc --
+ * first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ 0x000c091f
+ * -> epilogue, so a NULL result record skips BOTH tail calls and the thread
+ * gets NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here.
+ *
+ * On a non-NULL record a single DWORD load is forwarded:
+ *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
+ *   PUSH EDX                   ; narrow-field load-width concern
+ *                              ; (lift-learnings 24) -- do NOT narrow it.
+ * Unlike the sibling FUN_000c06f0, which loads 16-bit fields via MOVSX/MOVZX,
+ * this record is typed `int *`.  FUN_00056de0's return value in EAX is never
+ * tested or reused (the next instruction pushes an immediate), so discarding
+ * it is faithful to the original.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
+ * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
+ * pseudo-locals over a `void FUN_000c08f0(void)` signature, and kb.json
+ * carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift trap of
+ * lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl form
+ * shared by every sibling here.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
+ * `ADD ESP,0xc` at 0x000c091c is a MERGED cdecl cleanup for BOTH tail calls
+ * -- 1 dword for FUN_00056de0 plus 2 dwords for hs_return.  Do NOT "fix"
+ * either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0 */
+    FUN_00056de0(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0930 @ 0x000c0930
+ * HS script function handler.  Structural twin of the immediately preceding
+ * sibling FUN_000c08f0, differing only in the forwarded worker (0x56d80
+ * instead of 0x56de0): evaluate the macro function's arguments, forward one
+ * full 32-bit field of the evaluated-argument record to a worker, then hand a
+ * literal 0 back to the script thread.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560):
+ * PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]); ADD ESP,0xc --
+ * first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ 0x000c095f
+ * -> epilogue, so a NULL result record skips BOTH tail calls and the thread
+ * gets NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here; keep the
+ * return-in-EAX shape if that decl is later narrowed to a real record pointer.
+ *
+ * On a non-NULL record a single DWORD load is forwarded:
+ *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
+ *   PUSH EDX                   ; narrow-field load-width concern
+ *                              ; (lift-learnings 24) -- do NOT narrow it.
+ * Unlike the sibling FUN_000c06f0, which loads 16-bit fields via MOVSX/MOVZX,
+ * this record is typed `int *`.  FUN_00056d80's return value in EAX is never
+ * tested or reused (the next instruction pushes an immediate), so discarding
+ * it is faithful to the original.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI at 0x000c0938 and re-used as
+ * hs_return's first argument at the tail.  Ghidra rendered the parameters as
+ * `in_stack_*` pseudo-locals over a `void FUN_000c0930(void)` signature, and
+ * kb.json carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift
+ * trap of lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl
+ * form shared by every sibling here.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is a
+ * FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c095c is a MERGED cdecl
+ * cleanup for BOTH tail calls -- 1 dword for FUN_00056d80 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.  The delinked
+ * reference carries exactly three DISP32 relocations -- FUN_000cc560,
+ * FUN_00056d80, FUN_000cbf80, one each -- matching the three calls below.
+ */
+void FUN_000c0930(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0 */
+    FUN_00056d80(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c09b0 @ 0x000c09b0
+ * HS script function handler.  Exact structural twin of the preceding sibling
+ * FUN_000c0930, differing only in the forwarded worker (0x56e40 instead of
+ * 0x56d80) and the branch target: evaluate the macro function's arguments,
+ * forward one full 32-bit field of the evaluated-argument record to a worker,
+ * then hand a literal 0 back to the script thread.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560):
+ * PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]); ADD ESP,0xc --
+ * first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ 0x000c09df
+ * -> epilogue, so a NULL result record skips BOTH tail calls and the thread
+ * gets NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here.
+ *
+ * On a non-NULL record a single DWORD load is forwarded:
+ *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
+ *   PUSH EDX                   ; narrow-field load-width concern
+ *                              ; (lift-learnings 24) -- do NOT narrow it.
+ * FUN_00056e40's return value in EAX is never tested or reused (the next
+ * instruction pushes an immediate), so discarding it is faithful to the
+ * original and is not a void-EAX bug (lift-learnings 16).
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI at 0x000c09ba and re-used as
+ * hs_return's first argument at the tail.  Ghidra rendered the parameters as
+ * `in_stack_*` pseudo-locals over a `void FUN_000c09b0(void)` signature, and
+ * kb.json carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift
+ * trap of lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl
+ * form shared by every sibling here.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is a
+ * FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c09dc is a MERGED cdecl
+ * cleanup for BOTH tail calls -- 1 dword for FUN_00056e40 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c09b0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0 */
+    FUN_00056e40(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0af0 @ 0x000c0af0
+ * HS script function handler.  Same evaluate / forward / hs_return shape as
+ * every sibling in this run; this is the ONE-field variant, forwarding a single
+ * full 32-bit field of the evaluated-argument record to 0x57230.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560):
+ * PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]); ADD ESP,0xc --
+ * first PUSH is the last C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ 0x000c0b1f ->
+ * epilogue, so a NULL result record skips BOTH tail calls and the thread gets
+ * NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even though
+ * it is only ever tested with TEST EAX,EAX.  kb.json still declares
+ * hs_macro_function_evaluate as returning `int`, hence the cast here; keep the
+ * return-in-EAX shape if that decl is later narrowed to a real record pointer.
+ *
+ * On a non-NULL record one field is read off the base:
+ *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
+ *                              ; narrow-field load-width concern (§24)
+ *   PUSH EDX                   ; the only push => C arg 1 (+0x0)
+ * so the call is FUN_00057230(record[0]).  That callee's EAX is never tested or
+ * reused (the next instruction pushes an immediate), so its result is
+ * discarded.  Its kb.json decl already carried its single int param, so no
+ * ESP-drift decl widening was needed for it (unlike the 0x58c40 / 0x58cc0
+ * workers of the c0730 / c0770 siblings).
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
+ * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
+ * pseudo-locals over a stale `void FUN_000c0af0(void)` signature, which kb.json
+ * also carried -- the ESP-drift trap of lift-learnings §31; the decl was
+ * widened to the three cdecl params before lifting.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is a
+ * FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c0b1c is a MERGED cdecl
+ * cleanup for BOTH tail calls -- 1 dword for FUN_00057230 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c0af0(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0 */
+    FUN_00057230(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0b30 @ 0x000c0b30
+ * HS script function handler.  Structurally IDENTICAL to the immediately
+ * preceding sibling FUN_000c0af0 (0x000c0af0); the ONLY difference is the
+ * forwarding worker address (0x572c0 here vs 0x57230 there).  One-field
+ * variant: forwards a single full 32-bit field of the evaluated-argument
+ * record.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560):
+ *   MOV EAX,[EBP+0x10]; MOV ECX,[EBP+0x8]; PUSH ESI; MOV ESI,[EBP+0xc]
+ *   PUSH EAX; PUSH ESI; PUSH ECX; CALL 0xcc560; ADD ESP,0xc
+ * First PUSH is the LAST C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ -> epilogue,
+ * so a NULL result record skips BOTH tail calls and the thread gets NO
+ * hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even
+ * though it is only ever tested with TEST EAX,EAX -- it is dereferenced on the
+ * non-NULL path.  kb.json still declares hs_macro_function_evaluate as
+ * returning `int`, hence the cast here.
+ *
+ * On a non-NULL record one field is read off the base:
+ *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
+ *                              ; narrow-field load-width concern (S24)
+ *   PUSH EDX                   ; the only push => C arg 1 (+0x0)
+ * so the call is FUN_000572c0(record[0]).  That callee is declared void and
+ * its EAX is never tested or reused (the next instruction pushes an
+ * immediate), so no result is consumed.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI across the evaluate call and
+ * re-used as hs_return's first argument at the tail -- it is the SAME value,
+ * not a separate local.  Ghidra rendered the parameters as `in_stack_*`
+ * pseudo-locals over a stale `void FUN_000c0b30(void)` signature, which
+ * kb.json also carried -- the ESP-drift trap of lift-learnings S31; the decl
+ * was widened to the three cdecl params before lifting.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is
+ * a FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c0b5c is a MERGED cdecl
+ * cleanup for BOTH tail calls -- 1 dword for FUN_000572c0 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    /* dword @ +0x0 */
+    FUN_000572c0(record[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* FUN_000c0b70 @ 0x000c0b70
+ * HS script function handler.  Same family as the preceding siblings
+ * FUN_000c0af0 / FUN_000c0b30: evaluate the script arguments, then forward
+ * fields of the evaluated-argument record to one worker and hand a literal 0
+ * back to the calling thread.  Two-field variant, mixed widths.
+ *
+ * Argument evaluation via hs_macro_function_evaluate (0xcc560):
+ *   PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8])
+ *   CALL 0xcc560; ADD ESP,0xc
+ * First PUSH is the LAST C arg, so the call is
+ * evaluate(function_index, thread_datum, init).  TEST EAX,EAX; JZ 0x000c0ba5
+ * (epilogue), so a NULL result record skips BOTH tail calls and the thread
+ * gets NO hs_return on that path.
+ *
+ * EAX is a POINTER to the evaluated-argument record, not a boolean, even
+ * though it is only ever tested with TEST EAX,EAX -- it is dereferenced on the
+ * non-NULL path.  kb.json still declares hs_macro_function_evaluate as
+ * returning `int`, hence the cast here.
+ *
+ * On a non-NULL record two fields are read off the ORIGINAL EAX base (EDX is
+ * loaded before EAX is overwritten, so there is no aliasing subtlety):
+ *   0x000c0b8c: XOR EDX,EDX; MOV DL, byte ptr [EAX+0x4]  ; ZERO-extended BYTE
+ *   0x000c0b91: MOV EAX, dword ptr [EAX]                 ; full DWORD @ +0x0
+ *   PUSH EDX   ; first push  => C arg 2
+ *   PUSH EAX   ; second push => C arg 1
+ * so the call is FUN_00057850(dword@+0x0, byte@+0x4).  The +0x4 field is an
+ * 8-bit ZERO-extended load and must NOT be widened to short/int (S24
+ * load-width); this is where the function differs from sibling FUN_000c06f0,
+ * which reads a zero-extended WORD at the same offset.  Ghidra rendered the
+ * field as `puVar1[1]` on a `uint *`, which would emit a dword load -- a
+ * decompiler artifact, not the binary.  FUN_00057850 (ai_force_active) is
+ * declared void and its EAX is never tested or reused (the next instruction
+ * pushes an immediate), so no result is consumed.
+ *
+ * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
+ * immediate) => cdecl, caller cleans, zero stack locals (no SUB ESP, no
+ * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
+ * [EBP+0x10]; thread_datum is cached in ESI across the evaluate call and
+ * re-used as hs_return's first argument at the tail -- it is the SAME value,
+ * not a separate local.  Ghidra rendered the parameters as `in_stack_*`
+ * pseudo-locals over a stale `void FUN_000c0b70(void)` signature, which
+ * kb.json also carried -- the ESP-drift trap of lift-learnings S31; the decl
+ * was widened to the three cdecl params before lifting.
+ *
+ * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
+ * PUSH ESI at 0x000c0b9d), not a computed result.
+ *
+ * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is
+ * a FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c0ba2 is a MERGED cdecl
+ * cleanup for BOTH tail calls -- 2 dwords for FUN_00057850 plus 2 dwords for
+ * hs_return.  Do NOT "fix" either decl.
+ *
+ * No FPU instructions, no struct stores, no memset, and no buffer pointers
+ * passed anywhere, so no operand-order or buffer-alias concerns.
+ */
+void FUN_000c0b70(int16_t function_index, int thread_datum, char init)
+{
+  unsigned char *record;
+
+  record =
+    (unsigned char *)hs_macro_function_evaluate(function_index, thread_datum,
+                                                init);
+  if (record != NULL) {
+    /* dword @ +0x0; zero-extended byte @ +0x4 */
+    FUN_00057850(*(unsigned int *)record, record[4]);
+    hs_return(thread_datum, 0);
   }
 }
