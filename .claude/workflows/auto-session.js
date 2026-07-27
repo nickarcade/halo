@@ -30,6 +30,15 @@ const DRY_RUN    = !!(args && args.dryRun)
 const OBJECTS    = (args && args.objects) || undefined
 const CRITERIA   = (args && args.criteria) || undefined
 
+// Resolving the child by NAME uses a workflow registry snapshotted at session
+// start, so mid-session edits to goal-lift.js are silently ignored -- the agents
+// keep running the stale script. Passing goalLiftPath makes the child resolve by
+// scriptPath instead, which is read from disk at invoke time. Left optional so
+// the workflow stays portable across worktrees (no hardcoded absolute path).
+const GOAL_LIFT = (args && args.goalLiftPath)
+  ? { scriptPath: args.goalLiftPath }
+  : 'goal-lift'
+
 // Deterministic tool-runs only -- all the reasoning cost is inside the nested
 // goal-lift workflow, which sets its own (Opus-high) model policy.
 const MECH = { model: 'haiku', effort: 'low' }
@@ -86,6 +95,13 @@ let stoppedReason = 'batches_exhausted'
 let parkReason = null
 let parkConflicts = null
 
+// Infra failures (API 529 killing an agent, Ghidra bridge down) are transient
+// and must NOT be treated as "no work left". Retry the batch a bounded number of
+// times across the whole run; reset the budget after any batch that commits, so
+// a long run that hits trouble late still gets fresh attempts.
+const MAX_INFRA_RETRIES = 2
+let infraRetries = 0
+
 for (let i = 1; i <= BATCHES; i++) {
   log(`\n── Batch ${i}/${BATCHES} ─────────────────────────────`)
 
@@ -94,18 +110,37 @@ for (let i = 1; i <= BATCHES; i++) {
   const glArgs = { goal: BATCH_GOAL, dryRun: DRY_RUN }
   if (OBJECTS) glArgs.objects = OBJECTS
   if (CRITERIA) glArgs.criteria = CRITERIA
-  const r = await workflow('goal-lift', glArgs)
+  const r = await workflow(GOAL_LIFT, glArgs)
 
   const committed = (r && r.committed) || 0
   functionsCommitted += committed
   log(`Batch ${i}: goal-lift committed ${committed} (reason: ${r ? r.reason : 'null'})`)
 
-  // 2. Queue exhausted -> nothing more to do.
+  // 2. Zero commits -> is this REAL (frontier empty) or INFRA (select agent died
+  //    on an API 529, Ghidra bridge down)? These used to collapse into
+  //    "queue_exhausted", so one transient error abandoned every remaining
+  //    batch. Retry infra; only stop for a genuinely empty queue.
   if (committed === 0) {
-    stoppedReason = (r && /empty_queue/.test(r.reason || '')) ? 'queue_exhausted' : 'no_commit'
-    log(`Stopping: ${stoppedReason}`)
+    const reason = (r && r.reason) || 'agent_null'
+    const isEmpty = /empty_queue/.test(reason)
+    const isInfra = !isEmpty &&
+      (!r || /select_agent_null|infra_blocked|ghidra_unavailable|agent_null/.test(reason))
+
+    if (isInfra && infraRetries < MAX_INFRA_RETRIES) {
+      infraRetries++
+      log(`Batch ${i}: infra failure (${reason}) — retrying batch ${infraRetries}/${MAX_INFRA_RETRIES}`)
+      i--            // redo this batch index (bounded by infraRetries)
+      continue
+    }
+
+    stoppedReason = isEmpty ? 'queue_exhausted' : isInfra ? 'infra_blocked' : 'no_commit'
+    log(`Stopping: ${stoppedReason} (${reason})`)
+    if (isInfra) parkReason = `infra: ${reason} (after ${infraRetries} retries)`
     break
   }
+
+  // A productive batch refills the infra-retry budget.
+  infraRetries = 0
 
   // 3. Dry run: never land.
   if (DRY_RUN) {
