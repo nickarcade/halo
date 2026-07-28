@@ -500,6 +500,10 @@
       "score": 88.1,
       "source": "src/halo/ai/actions.c"
     },
+    "FUN_0001beb0": {
+      "score": 96.6,
+      "source": "src/halo/ai/actions.c"
+    },
     "FUN_0001c030": {
       "score": 100.0,
       "source": "src/halo/ai/actions.c"
@@ -3416,6 +3420,10 @@
       "score": 73.5,
       "source": "src/halo/effects/decals.c"
     },
+    "FUN_00099490": {
+      "score": 87.0,
+      "source": "src/halo/effects/decals.c"
+    },
     "FUN_000994d0": {
       "score": 100.0,
       "source": "src/halo/math/geometry.c"
@@ -3641,7 +3649,7 @@
       "source": "src/halo/effects/particle_systems.c"
     },
     "FUN_0009fd30": {
-      "score": 71.8,
+      "score": 72.4,
       "source": "src/halo/effects/particle_systems.c"
     },
     "FUN_000a0080": {
@@ -12452,6 +12460,10 @@
       "score": 96.1,
       "source": "src/halo/structures/structure_visibility.c"
     },
+    "FUN_00196850": {
+      "score": 91.5,
+      "source": "src/halo/structures/structure_visibility.c"
+    },
     "FUN_00196fd0": {
       "score": 96.2,
       "source": "src/halo/structures/structures.c"
@@ -14348,12 +14360,28 @@
       "score": 92.7,
       "source": "src/halo/math/real_math.c"
     },
+    "action_vehicle_setup_impromptu": {
+      "score": 87.6,
+      "source": "src/halo/ai/actions.c"
+    },
     "actor_action_allow_cover_seeking": {
-      "score": 89.9,
+      "score": 86.1,
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_handle_combat_selection": {
       "score": 90.6,
+      "source": "src/halo/ai/actions.c"
+    },
+    "actor_action_handle_combat_status": {
+      "score": 83.7,
+      "source": "src/halo/ai/actions.c"
+    },
+    "actor_action_handle_lost_contact": {
+      "score": 70.3,
+      "source": "src/halo/ai/actions.c"
+    },
+    "actor_action_handle_vehicle_entry": {
+      "score": 92.5,
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_test_grenade": {
@@ -14667,6 +14695,18 @@
     "debug_malloc": {
       "score": 77.5,
       "source": "src/halo/cseries/debug_memory.c"
+    },
+    "decal_delete": {
+      "score": 96.2,
+      "source": "src/halo/effects/decals.c"
+    },
+    "decals_disconnect_from_structure_bsp": {
+      "score": 95.9,
+      "source": "src/halo/effects/decals.c"
+    },
+    "decals_reconnect_to_structure_bsp": {
+      "score": 95.6,
+      "source": "src/halo/effects/decals.c"
     },
     "destroy_endpoint": {
       "score": 100.0,

@@ -388,6 +388,34 @@ float *plane2d_from_points(float *out_line, float *point_a, float *point_b)
   return NULL;
 }
 
+/*
+ * FUN_00099490 — build a 3D plane from a point on the plane and its normal.
+ *
+ * plane_out[0..2] = normal[0..2] (copied via integer moves in the original,
+ * which is what VC71 emits for plain float assignment), and
+ * plane_out[3] = dot(plane_out[0..2], point).
+ *
+ * NOTE (binary fidelity): the dot product's left operand is re-read out of
+ * plane_out (EAX), not out of the normal argument, even though the two hold
+ * equal values after the copy. Preserve that shape — substituting normal[i]
+ * changes the emitted loads. Terms are written x + y + z in source order; the
+ * x87 push order in the original (z, then y, then x with FADDPs) is exactly
+ * what MSVC emits for left-to-right evaluation of that expression.
+ *
+ * 0x99490 / decals.obj
+ */
+void FUN_00099490(float *plane_out, float *point, float *normal)
+{
+  float *plane_normal;
+
+  plane_normal = plane_out;
+  plane_normal[0] = normal[0];
+  plane_normal[1] = normal[1];
+  plane_normal[2] = normal[2];
+  plane_out[3] =
+    plane_out[0] * point[0] + plane_out[1] * point[1] + plane_out[2] * point[2];
+}
+
 /* Signed distance from a point to a plane (normal·point - d). */
 float plane3d_distance_to_point(float *plane, float *point)
 {
@@ -624,6 +652,189 @@ int FUN_000998b0(int new_index_hint, int16_t cluster_index, int16_t layer,
   return decal_index;
 }
 
+/*
+ * decals_reconnect_to_structure_bsp — walk the disconnected-decal list
+ * (decal_globals->first_disconnected_decal_index at +0x2800) and reattach
+ * each decal to its structure-BSP cluster. For every decal on the list the
+ * next handle (+0x34) is cached BEFORE any relinking, the decal is
+ * consistency-checked (FUN_00098970), its cluster is resolved from the decal
+ * position (+8) via scenario_location_from_point, and when a valid cluster
+ * is found the decal is unlinked from the disconnected list (repairing
+ * neighbour prev/next at +0x30/+0x34, or the list head at +0x2800 when it is
+ * the first entry) and prepended to the cluster/layer list via FUN_00099840.
+ * A post-incremented guard counter aborts with an error after 0x801
+ * iterations.
+ *
+ * 0x99b70 / decals.obj
+ */
+void decals_reconnect_to_structure_bsp(void)
+{
+  int guard;
+  int location[2]; /* scenario_location, 6 bytes; cluster_index at +4 */
+  int decal_index;
+  int next;
+  char *decal;
+  char *other;
+
+  if (global_decal_data == NULL) {
+    display_assert("global_decal_data", "c:\\halo\\SOURCE\\effects\\decals.c",
+                   0x279, true);
+    system_exit(-1);
+  }
+
+  if (global_decal_data->valid) {
+    guard = 0;
+    if (decal_globals == NULL) {
+      display_assert("decal_globals", "c:\\halo\\SOURCE\\effects\\decals.c",
+                     0x281, true);
+      system_exit(-1);
+    }
+    decal_index = *(int *)(decal_globals + 0x2800);
+    if (decal_index != -1) {
+      do {
+        decal = (char *)datum_get(global_decal_data, decal_index);
+        /* cache next BEFORE the unlink below rewrites neighbour links */
+        next = *(int *)(decal + 0x34);
+        if (guard++ > 0x800) {
+          error(2, "### ERROR decals: infinite loop -- tell Bernie!!");
+          break;
+        }
+        if (*(int16_t *)(decal + 4) != -1) {
+          display_assert("decal->cluster_index==NONE",
+                         "c:\\halo\\SOURCE\\effects\\decals.c", 0x294, true);
+          system_exit(-1);
+        }
+        if (*(int16_t *)(decal + 6) < 0 || *(int16_t *)(decal + 6) >= 5) {
+          display_assert(
+            "decal->layer>=0 && decal->layer<NUMBER_OF_DECAL_LAYERS",
+            "c:\\halo\\SOURCE\\effects\\decals.c", 0x295, true);
+          system_exit(-1);
+        }
+        FUN_00098970(decal_index, false);
+        scenario_location_from_point(location, decal + 8);
+        if (*(int16_t *)((char *)location + 4) != -1) {
+          if (*(int *)(decal + 0x34) != -1) {
+            other =
+              (char *)datum_get(global_decal_data, *(int *)(decal + 0x34));
+            *(int *)(other + 0x30) = *(int *)(decal + 0x30);
+          }
+          if (*(int *)(decal + 0x30) != -1) {
+            other =
+              (char *)datum_get(global_decal_data, *(int *)(decal + 0x30));
+            *(int *)(other + 0x34) = *(int *)(decal + 0x34);
+          } else {
+            if (*(int *)(decal_globals + 0x2800) != decal_index) {
+              display_assert(
+                "decal_globals->first_disconnected_decal_index==decal_index",
+                "c:\\halo\\SOURCE\\effects\\decals.c", 0x2aa, true);
+              system_exit(-1);
+            }
+            *(int *)(decal_globals + 0x2800) = *(int *)(decal + 0x34);
+          }
+          FUN_00099840(*(int16_t *)((char *)location + 4),
+                       *(int16_t *)(decal + 6), decal_index);
+        }
+        FUN_00098970(decal_index, false);
+        decal_index = next;
+      } while (next != -1);
+    }
+  }
+}
+
+/*
+ * decals_disconnect_from_structure_bsp — move every clustered decal onto the
+ * disconnected list.
+ *
+ * Walks all [cluster][layer] lists (layer inner, cluster outer). Every decal
+ * visited has its cluster_index (+4, int16_t) cleared to NONE. When the walk
+ * reaches the tail of a list (next at +0x34 == NONE) the whole list is spliced
+ * onto the front of the disconnected list: the tail's next takes the old
+ * disconnected head (decal_globals + 0x2800), that old head's prev (+0x30) is
+ * repaired to point at the tail, the disconnected head becomes the list's
+ * ORIGINAL first index (the FUN_00098fe0 result, not the current node), and
+ * the [layer][cluster] slot is cleared to NONE. The trailing bound asserts
+ * (source lines 0xd8/0xd9) come from decal_set_first_decal_index being inlined
+ * here. A post-incremented guard aborts a list after 0x801 iterations.
+ *
+ * 0x99d60 / decals.obj
+ */
+void decals_disconnect_from_structure_bsp(void)
+{
+  int16_t cluster_index;
+  int16_t layer;
+  int first;
+  int guard;
+  int decal_index;
+  int current;
+  char *decal;
+  char *other;
+
+  if (global_decal_data == NULL) {
+    display_assert("global_decal_data", "c:\\halo\\SOURCE\\effects\\decals.c",
+                   0x2c9, true);
+    system_exit(-1);
+  }
+
+  if (global_decal_data->valid) {
+    if (decal_globals == NULL) {
+      display_assert("decal_globals", "c:\\halo\\SOURCE\\effects\\decals.c",
+                     0x2cf, true);
+      system_exit(-1);
+    }
+
+    for (cluster_index = 0; cluster_index < 0x200; ++cluster_index) {
+      for (layer = 0; layer < 5; ++layer) {
+        first = FUN_00098fe0(cluster_index, layer);
+        guard = 0;
+        decal_index = first;
+
+        while (decal_index != -1) {
+          current = decal_index;
+          decal = (char *)datum_get(global_decal_data, current);
+          /* latch next BEFORE the splice below rewrites +0x34 */
+          decal_index = *(int *)(decal + 0x34);
+
+          if (guard++ > 0x800) {
+            error(2, "### ERROR decals: infinite loop -- tell Bernie!!");
+            break;
+          }
+
+          if (*(int16_t *)(decal + 4) != cluster_index) {
+            display_assert("decal->cluster_index==cluster_index",
+                           "c:\\halo\\SOURCE\\effects\\decals.c", 0x2ea, true);
+            system_exit(-1);
+          }
+          *(int16_t *)(decal + 4) = -1;
+
+          if (*(int *)(decal + 0x34) == -1) {
+            *(int *)(decal + 0x34) = *(int *)(decal_globals + 0x2800);
+            if (*(int *)(decal_globals + 0x2800) != -1) {
+              other = (char *)datum_get(global_decal_data,
+                                        *(int *)(decal_globals + 0x2800));
+              *(int *)(other + 0x30) = current;
+            }
+            *(int *)(decal_globals + 0x2800) = first;
+
+            if (cluster_index < 0 || cluster_index >= 0x200) {
+              display_assert("cluster_index>=0 && "
+                             "cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
+                             "c:\\halo\\SOURCE\\effects\\decals.c", 0xd8, true);
+              system_exit(-1);
+            }
+            if (layer < 0 || layer >= 5) {
+              display_assert("layer>=0 && layer<NUMBER_OF_DECAL_LAYERS",
+                             "c:\\halo\\SOURCE\\effects\\decals.c", 0xd9, true);
+              system_exit(-1);
+            }
+            *(int *)(decal_globals +
+                     ((int)layer * 0x200 + (int)cluster_index) * 4) = -1;
+          }
+        }
+      }
+    }
+  }
+}
+
 void decals_delete_permanent_from_cluster(int16_t cluster_index)
 {
   if (cluster_index < 0 || cluster_index >= 0x200) {
@@ -686,6 +897,84 @@ void decals_delete_permanent_from_cluster(int16_t cluster_index)
       system_exit(-1);
     }
   }
+}
+
+/*
+ * decal_delete — unlink a decal from its list and release its datum.
+ *
+ * Warns once per session (two independent byte latches) when a locked
+ * (+2 bit 0) or permanent (+2 bit 1) decal is deleted, repairs the
+ * doubly-linked neighbours (prev at +0x30, next at +0x34), then updates the
+ * list head: decal_globals->first_disconnected_decal_index (+0x2800) when
+ * cluster_index (+4) is -1, otherwise the [layer][cluster] slot via
+ * FUN_00098aa0. Every path ends in datum_delete.
+ *
+ * 0x9a160 / decals.obj
+ */
+void decal_delete(int decal_index)
+{
+  void *decal;
+  void *other;
+  int first;
+
+  decal = datum_get(global_decal_data, decal_index);
+  if (decal == NULL) {
+    display_assert("decal", "c:\\halo\\SOURCE\\effects\\decals.c", 0x3b3, true);
+    system_exit(-1);
+  }
+
+  if ((*(uint8_t *)((char *)decal + 2) & 1) != 0 &&
+      decals_reported_locked_delete == 0) {
+    error(2, "### ERROR decals: deleting locked decal (#%d) -- tell Bernie!!",
+          decal_index);
+    decals_reported_locked_delete = 1;
+  }
+
+  if ((*(uint8_t *)((char *)decal + 2) & 2) != 0 &&
+      decals_reported_permanent_delete == 0) {
+    error(2,
+          "### ERROR decals: deleting permanent decal (#%d) -- tell Bernie!!",
+          decal_index);
+    decals_reported_permanent_delete = 1;
+  }
+
+  if (*(int *)((char *)decal + 0x34) != -1) {
+    other = datum_get(global_decal_data, *(int *)((char *)decal + 0x34));
+    *(int *)((char *)other + 0x30) = *(int *)((char *)decal + 0x30);
+  }
+
+  if (*(int *)((char *)decal + 0x30) != -1) {
+    other = datum_get(global_decal_data, *(int *)((char *)decal + 0x30));
+    *(int *)((char *)other + 0x34) = *(int *)((char *)decal + 0x34);
+    datum_delete(global_decal_data, decal_index);
+    return;
+  }
+
+  if (*(int16_t *)((char *)decal + 4) == -1) {
+    if (*(int *)(decal_globals + 0x2800) != decal_index) {
+      display_assert(
+        "decal_globals->first_disconnected_decal_index==decal_index",
+        "c:\\halo\\SOURCE\\effects\\decals.c", 0x3db, true);
+      system_exit(-1);
+    }
+    *(int *)(decal_globals + 0x2800) = *(int *)((char *)decal + 0x34);
+    datum_delete(global_decal_data, decal_index);
+    return;
+  }
+
+  first = FUN_00098fe0(*(int16_t *)((char *)decal + 4),
+                       *(int16_t *)((char *)decal + 6));
+  if (first != decal_index) {
+    display_assert(
+      "decal_get_first_decal_index(decal->cluster_index, decal->layer)"
+      "==decal_index",
+      "c:\\halo\\SOURCE\\effects\\decals.c", 0x3e0, true);
+    system_exit(-1);
+  }
+
+  FUN_00098aa0(*(int16_t *)((char *)decal + 4), *(int16_t *)((char *)decal + 6),
+               *(int *)((char *)decal + 0x34));
+  datum_delete(global_decal_data, decal_index);
 }
 
 void FUN_0009a300(float *bounds, float *projection, float *basis)

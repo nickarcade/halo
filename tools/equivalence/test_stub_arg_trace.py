@@ -29,6 +29,7 @@ _SP2 = _STACK_BASE + 0x200   # candidate stack pointer (different frame layout)
 # Sentinel addresses
 _SENTINEL_A = 0x40000000
 _SENTINEL_B = 0x40004000
+_SENTINEL_C = 0x40008000
 
 
 class _FakeReloc:
@@ -167,6 +168,107 @@ def test_chkstk_ignored():
     print("  PASS  test_chkstk_ignored")
 
 
+def test_assert_metadata_soft_matched():
+    """display_assert's message/__FILE__/__LINE__ differ by construction.
+
+    Our lifted sources do not reproduce the original's line numbering and our
+    string literals land in a different section. 101 of the 331 divergences in
+    the 2026-07-28 batch were nothing but this.
+    """
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "_display_assert", 0x1f4a20, 0x1f4b00, 0xa89, 0x1),
+    )
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_A, "_display_assert", 0x4c1180, 0x4c1200, 0x374, 0x1),
+    )
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s8")
+    assert d.arg_mismatches == 0, f"expected 0 hard mismatches, got {d.arg_mismatches}"
+    assert d.soft_semantic_matches == 3, d.soft_semantic_matches
+    assert d.soft_reasons.get("assert-metadata") == 3, d.soft_reasons
+    assert not d.has_differences(), f"assert metadata should not fail: {d}"
+    assert "assert-metadata" in d.summary(), d.summary()
+    print("  PASS  test_assert_metadata_soft_matched")
+
+
+def test_assert_halt_arg_still_compared():
+    """Arg 3 (`halt`) is behavioural — whether the assert aborts — not metadata."""
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "_display_assert", 0x1f4a20, 0x1f4b00, 0xa89, 0x1),
+    )
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_A, "_display_assert", 0x1f4a20, 0x1f4b00, 0xa89, 0x0),
+    )
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s9")
+    assert d.arg_mismatches == 1, f"halt arg must be compared, got {d.arg_mismatches}"
+    assert d.has_differences()
+    print("  PASS  test_assert_halt_arg_still_compared")
+
+
+def test_assert_exemption_does_not_cover_other_callees():
+    """The metadata rule is a display_assert contract, not a general one."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "datum_get", 0x1f4a20, 0x2, 0xa89))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "datum_get", 0x4c1180, 0x2, 0x374))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s10")
+    assert d.arg_mismatches == 2, d.arg_mismatches
+    assert d.has_differences()
+    print("  PASS  test_assert_exemption_does_not_cover_other_callees")
+
+
+def test_memset_fill_low_byte_soft_matched():
+    """memset(p, -1, n) and memset(p, 0xff, n) write identical bytes."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", 0x40000, 0xffffffff, 0x20))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", 0x40000, 0xff, 0x20))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s11")
+    assert d.arg_mismatches == 0, d.arg_mismatches
+    assert d.soft_reasons.get("memset-fill") == 1, d.soft_reasons
+    assert not d.has_differences()
+    print("  PASS  test_memset_fill_low_byte_soft_matched")
+
+
+def test_memset_differing_low_byte_still_fails():
+    """Only the low byte is unobservable; a different one is a real bug."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", 0x40000, 0xffffffff, 0x20))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", 0x40000, 0x00, 0x20))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s12")
+    assert d.arg_mismatches == 1, d.arg_mismatches
+    assert d.has_differences()
+    print("  PASS  test_memset_differing_low_byte_still_fails")
+
+
+def test_memset_size_arg_still_compared():
+    """A benign fill must not launder a wrong destination or size."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", 0x40000, 0xffffffff, 0x40))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", 0x40000, 0xff, 0x10))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s13")
+    assert d.arg_mismatches == 1, d.arg_mismatches
+    assert d.details[0][3] == 2, f"expected the size arg to fail, got {d.details[0]}"
+    print("  PASS  test_memset_size_arg_still_compared")
+
+
+def test_candidate_globals_slot_above_nominal_top():
+    """Candidate DIR32 slots sit above the oracle's and can pass 0x600000.
+
+    Using the nominal arena top made every such slot pointer a hard mismatch.
+    """
+    from stubs import (set_globals_arena_top, reset_globals_arena_top,
+                       GLOBALS_SIZE)
+    reset_globals_arena_top()
+    o_slot = GLOBALS_BASE + 0x300
+    c_slot = GLOBALS_BASE + GLOBALS_SIZE + 0x200300   # candidate base ran past
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "foo", o_slot))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "foo", c_slot))
+
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s14")
+    assert d.arg_mismatches == 1, "without the arena top this must still fail"
+
+    set_globals_arena_top(c_slot + 0x100)
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s14b")
+    assert d.arg_mismatches == 0, f"expected soft match, got {d.arg_mismatches}"
+    assert d.soft_stack_ptr_matches == 1, d.soft_stack_ptr_matches
+    reset_globals_arena_top()
+    print("  PASS  test_candidate_globals_slot_above_nominal_top")
+
+
 def test_rdata_dir32_patched():
     relocs = [
         _FakeReloc(IMAGE_REL_I386_DIR32, ".rdata$switch", 0),
@@ -200,18 +302,131 @@ def test_empty_traces():
     print("  PASS  test_empty_traces")
 
 
+def test_excused_sentinel_is_dropped_from_both_sides():
+    """A callee one side resolves internally must not read as a divergence.
+
+    When the oracle maps its whole .text, its intra-.text calls never reach
+    a sentinel and so are never recorded, while the candidate's equivalents
+    are. Both execute the same bytes, so comparing unfiltered reports a
+    phantom `oracle=<end at 0>` seq-divergence (observed on FUN_0013c620).
+    """
+    oracle = _make_tracer()                                   # recorded nothing
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_A, "datum_get", 0x00, 0x02),
+        _rec(1, _SENTINEL_B, "bar", 0xAA),
+    )
+    # Neither sentinel is comparable -> nothing to diff.
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s15",
+                                comparable_sentinels=set())
+    assert not d.has_differences(), f"excused calls must not diverge: {d}"
+    assert d.total_calls == 0
+    print("  PASS  test_excused_sentinel_is_dropped_from_both_sides")
+
+
+def test_unexcused_missing_call_still_diverges():
+    """The boundary: a genuinely DROPPED call must keep failing.
+
+    "No record" is also what a dropped call looks like, so the filter must
+    be driven by whether the silent side resolves the callee internally --
+    never by absence alone. FUN_00019110 omits the oracle's leading
+    datum_get; if this ever passes, that real bug goes invisible.
+    """
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "datum_get", 0x700300, 0x02),
+        _rec(1, _SENTINEL_B, "bar", 0xAA),
+    )
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_B, "bar", 0xAA),
+    )
+    # Both sentinels ARE comparable (neither side resolves them internally).
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s16",
+                                comparable_sentinels={_SENTINEL_A, _SENTINEL_B})
+    assert d.has_differences(), "a dropped call must still diverge"
+    assert d.sequence_diverged
+    print("  PASS  test_unexcused_missing_call_still_diverges")
+
+
+def test_filter_none_preserves_historical_behaviour():
+    """Default (None) must compare everything, exactly as before."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "foo", 0x10, 0x20))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "foo", 0x20, 0x10))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s17")
+    assert d.has_differences() and d.arg_mismatches == 2
+    print("  PASS  test_filter_none_preserves_historical_behaviour")
+
+
+def test_shifted_sequence_reports_no_arg_mismatches():
+    """A sequence shifted by one extra leading call must not manufacture
+    argument evidence against the calls that DO match.
+
+    The real shape, from object_has_node:
+      oracle    = [tag_get('obje',0), tag_get('mode',0)]
+      candidate = [datum_get(0,0),   tag_get('obje',0), tag_get('mode',0)]
+    The candidate makes exactly the same two tag_get calls, but pairing the
+    lists positionally compares tag_get against datum_get and reported
+    "arg[0]: oracle=0x6f626a65 candidate=0x0" -- a dropped tag-group literal
+    that does not exist. ~20 of the ledger's 50 arg_mismatch entries were this.
+    """
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "tag_get", 0x6F626A65, 0x00),
+        _rec(1, _SENTINEL_B, "tag_get", 0x6D6F6465, 0x00),
+    )
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_C, "datum_get", 0x00, 0x00),
+        _rec(1, _SENTINEL_A, "tag_get", 0x6F626A65, 0x00),
+        _rec(2, _SENTINEL_B, "tag_get", 0x6D6F6465, 0x00),
+    )
+    d = compare_stub_arg_traces(
+        oracle, cand, seed_label="s18",
+        comparable_sentinels={_SENTINEL_A, _SENTINEL_B, _SENTINEL_C})
+    assert d.sequence_diverged, "the sequence genuinely differs -- still fail"
+    assert d.sequence_diverge_index == 0, (
+        f"first disagreement is at index 0, got {d.sequence_diverge_index}; "
+        "a min(len) index would leave misaligned pairs arg-compared")
+    assert d.arg_mismatches == 0, (
+        f"expected no fabricated arg mismatches, got {d.arg_mismatches}: "
+        f"{d.details}")
+    print("  PASS  test_shifted_sequence_reports_no_arg_mismatches")
+
+
+def test_real_arg_bug_before_divergence_still_caught():
+    """The boundary for the truncation: an argument bug in the matching PREFIX
+    must survive, even when the sequence diverges later on. Truncating too
+    eagerly (e.g. at index 0 whenever lengths differ) would hide it."""
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x10, 0x20),
+        _rec(1, _SENTINEL_B, "bar", 0xAA),
+    )
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x20, 0x10),   # swapped -- REAL bug
+        _rec(1, _SENTINEL_C, "baz", 0xAA),         # sequence diverges here
+    )
+    d = compare_stub_arg_traces(
+        oracle, cand, seed_label="s19",
+        comparable_sentinels={_SENTINEL_A, _SENTINEL_B, _SENTINEL_C})
+    assert d.sequence_diverged and d.sequence_diverge_index == 1
+    assert d.arg_mismatches == 2, (
+        f"the swapped args at index 0 are before the divergence and must "
+        f"still be reported, got {d.arg_mismatches}")
+    print("  PASS  test_real_arg_bug_before_divergence_still_caught")
+
+
 def main():
+    # Auto-discover, so a new test is never silently left out of the run.
     print("Running stub-arg trace comparator self-tests...")
-    test_identical()
-    test_swapped_args()
-    test_stack_ptr_soft_match()
-    test_stack_ptr_one_side_only()
-    test_sequence_length_diverged()
-    test_sequence_callee_diverged()
-    test_chkstk_ignored()
-    test_rdata_dir32_patched()
-    test_empty_traces()
-    print("\nAll tests passed.")
+    tests = [v for k, v in sorted(globals().items())
+             if k.startswith("test_") and callable(v)]
+    failed = 0
+    for t in tests:
+        try:
+            t()
+        except AssertionError as exc:
+            print(f"  FAIL  {t.__name__}: {exc}")
+            failed += 1
+    if failed:
+        print(f"\n{failed}/{len(tests)} FAILED")
+        return 1
+    print(f"\nAll {len(tests)} tests passed.")
     return 0
 
 

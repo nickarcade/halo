@@ -821,6 +821,79 @@ def _build_globals_seeds(*slot_maps: dict,
     return seeds
 
 
+def _seed_dllimport_indirection(orc_slots: dict, lft_slots: dict) -> dict:
+    """Make a dllimport (indirect) reference resolve to the same storage as the
+    other side's direct reference to the same global.
+
+    kb.json globals are declared ``HDATA`` = ``__declspec(dllimport)``, so the
+    clang candidate reaches one via a pointer-to-pointer::
+
+        mov eax,[__imp__event_manager_globals]   ; slot holds &global
+        push eax                                  ; the global's address
+
+    The delinked MSVC oracle has no import table and references the same
+    storage directly as ``DAT_0046bd40``, which patch_dir32_relocs rewrites to
+    a globals slot.  The candidate's ``__imp_`` slot, though, is only seeded
+    when a snapshot or _KNOWN_GLOBAL_BYTES entry exists for the target -- with
+    neither, it stays zero-filled and the extra deref yields a NULL pointer.
+    The two sides then pass different pointers and write to different pages,
+    so both the stub-arg compare and the memory-trace compare are meaningless
+    rather than merely imprecise.
+
+    So: point each ``__imp_X`` slot at the OTHER side's direct slot for X,
+    falling back to its own side's direct slot.  Both sides then agree on the
+    pointer and share one page of storage.
+
+    When BOTH sides go through ``__imp_X`` nothing is emitted -- they already
+    agree (both deref the same zero), and the existing snapshot /
+    known-globals seeding in _build_globals_seeds still takes precedence,
+    since callers apply that map after this one.
+    """
+    import re, struct as _struct
+    name2addr = _load_symbol_addrs()
+
+    def _direct_slots(smap):
+        """{real_address: slot} for non-dllimport symbols we can resolve.
+
+        The delinked oracle names data by address (``DAT_0046bd40``), so match
+        that spelling too -- resolving only friendly names would miss every
+        oracle-side direct reference, which is exactly the side we need.
+        """
+        out = {}
+        for sym, slot in smap.items():
+            if sym.startswith("__imp_"):
+                continue
+            m = re.match(r'(?:DAT|PTR|PTR_FUN|PTR_DAT|FLOAT|s)_([0-9a-fA-F]{4,})$',
+                         sym)
+            if m:
+                out.setdefault(int(m.group(1), 16), slot)
+                continue
+            bare = _normalize_global_symbol(sym)
+            addr = (_GLOBAL_NAME_ALIASES.get(bare) if bare else None)
+            if addr is None and bare:
+                addr = name2addr.get(bare)
+            if addr is not None:
+                out.setdefault(addr, slot)
+        return out
+
+    orc_direct = _direct_slots(orc_slots)
+    lft_direct = _direct_slots(lft_slots)
+    seeds = {}
+    for smap, other_direct, own_direct in ((orc_slots, lft_direct, orc_direct),
+                                           (lft_slots, orc_direct, lft_direct)):
+        for sym, slot in smap.items():
+            if not sym.startswith("__imp_"):
+                continue
+            bare = _normalize_global_symbol(sym)
+            addr = _GLOBAL_NAME_ALIASES.get(bare) or name2addr.get(bare)
+            if addr is None:
+                continue
+            target = other_direct.get(addr, own_direct.get(addr))
+            if target is not None:
+                seeds[slot] = _struct.pack("<I", target)
+    return seeds
+
+
 # ---------------------------------------------------------------------------
 # Unicorn emulation
 # ---------------------------------------------------------------------------
@@ -834,13 +907,21 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
                   collect_mem_trace: bool = False,
                   memory_overrides: dict = None,
                   max_insn: int = None,
-                  stub_arg_tracer=None) -> "state.CPUState":
+                  stub_arg_tracer=None,
+                  auto_map_unmapped: bool = False) -> "state.CPUState":
     """Run a function in a fresh Unicorn instance.
 
     Returns a CPUState with captured registers and scratch memory.
     If emulation fails, returns a CPUState with .error set.
 
     map_globals: if True, maps a zeroed globals region at 0x500000
+    auto_map_unmapped: if True, installs the auto-map hook without also
+        mapping/seeding the globals region. A leaf that reads a global (or
+        dereferences an int-typed parameter that is really a pointer) would
+        otherwise die on its first access with UC_ERR_READ_UNMAPPED before
+        executing anything, which is why 170 cached entries sit at 0.0%
+        coverage. The hook is symmetric across oracle and candidate, so a
+        genuine difference in what each side reads still surfaces.
     stub_manager: if set, installs a fetch-unmapped hook to intercept calls
     globals_seeds: dict of {address: bytes} to write into the globals region
                    after zero-initialization (seeds known global values).
@@ -1065,6 +1146,14 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
     insn_count = [0]
     stub_trace_count = [0]
     visited_pcs = {}
+    # Times we caught execution running inside an auto-mapped DATA page and
+    # returned to the caller instead of letting it slide (see hook_code).
+    # HALO_NO_DATA_EXEC_GUARD=1 disables the guard, so its effect can be
+    # A/B-measured with a flag instead of a source swap (a source swap during a
+    # long measurement has burned us before).
+    data_exec_recoveries = [0]
+    MAX_DATA_EXEC_RECOVERIES = 64
+    _data_exec_guard = os.environ.get("HALO_NO_DATA_EXEC_GUARD") != "1"
     _ring = None
     if os.environ.get("BIPED_RING_TRACE") == "1":
         from collections import deque
@@ -1077,6 +1166,42 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
             _ring.append((address, uc.reg_read(_ESP_T)))
         if address not in visited_pcs:
             visited_pcs[address] = size
+        # Executing inside a page we auto-mapped for DATA is never legitimate:
+        # it means an indirect call went through synthetic state -- a garbage
+        # function pointer that still passed a `!= NULL` check. Those pages are
+        # zero-filled, and zeros decode as `add [eax], al`: a 2-byte
+        # instruction that alters neither ESP nor control flow, so execution
+        # SLID through the entire page and only stopped on walking off the end,
+        # reporting UC_ERR_FETCH_UNMAPPED at an address unrelated to the actual
+        # call. That is the single largest error class in the batch.
+        #
+        # The fill cannot just be made non-zero (the hook_mem_unmapped comment
+        # proposes 0xCC): these are DATA pages, so the fill is read back as
+        # pointers and counts, and 0xCC is swallowed by hook_interrupt anyway,
+        # which only turns a 2-byte slide into a 1-byte one. Guard the
+        # EXECUTION instead, exactly as hook_fetch_unmapped does for a target
+        # that is still unmapped: EAX=0, pop the return address, continue.
+        # Applied identically to oracle and candidate, so a wrong call target
+        # surfaces in the differential rather than crashing both sides.
+        if (_data_exec_guard and (address & ~0xFFFF) in _mapped_regions
+                and address not in stub_addrs):
+            if data_exec_recoveries[0] >= MAX_DATA_EXEC_RECOVERIES:
+                uc.emu_stop()
+                return
+            data_exec_recoveries[0] += 1
+            from unicorn.x86_const import (UC_X86_REG_EAX as _EAX_G,
+                                           UC_X86_REG_ESP as _ESP_G,
+                                           UC_X86_REG_EIP as _EIP_G)
+            try:
+                _esp = uc.reg_read(_ESP_G)
+                _ret = struct.unpack('<I', bytes(uc.mem_read(_esp, 4)))[0]
+            except Exception:
+                uc.emu_stop()
+                return
+            uc.reg_write(_EAX_G, 0)
+            uc.reg_write(_ESP_G, _esp + 4)
+            uc.reg_write(_EIP_G, _ret)
+            return
         if verbose and address in stub_addrs and stub_trace_count[0] < 64:
             symbol_name = ""
             if stub_manager is not None:
@@ -1164,13 +1289,16 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
         uc.hook_add(UC_HOOK_MEM_READ, hook_mem_read)
 
     # Non-leaf support: handle unmapped memory access
-    if map_globals:
+    if map_globals or auto_map_unmapped:
 
         def hook_mem_unmapped(uc, access, address, size, value, user_data):
             # Auto-map a 64KB page for any unmapped read/write.
-            # Fill with 0xCC (INT3) so that accidental code execution on
-            # data pages stops immediately instead of sliding through zero
-            # bytes as 2-byte ADD [eax],al instructions.
+            # Fill with ZEROS. An earlier version of this comment proposed
+            # 0xCC (INT3) to stop accidental code execution on data pages, but
+            # that is not viable: the fill is read back as data (pointers,
+            # counts, sizes), so a non-zero fill changes program meaning, and
+            # hook_interrupt swallows INT3 regardless. Accidental execution is
+            # caught in hook_code via _mapped_regions instead.
             page_base = address & ~0xFFFF
             last_unmapped_access[0] = (
                 f"page={page_base:#x} addr={address:#x} size={size} access={access}"
@@ -1420,7 +1548,34 @@ def _record_leaf_classification(addr: str, is_leaf: bool) -> None:
         pass
 
 
-_CONFIDENCE_RANK = {"weak": 0, "moderate": 1, "high": 2}
+_CONFIDENCE_RANK = {"none": -1, "weak": 0, "moderate": 1, "high": 2}
+
+# Below this much coverage, a run has not tested the function in any meaningful
+# sense and must not be recorded with a confidence tier at all. 129 cached
+# entries were carrying a tier at literally 0.0% coverage -- a verdict with no
+# evidence behind it reads downstream exactly like a verdict with evidence.
+COVERAGE_FLOOR_PCT = 10.0
+
+
+def _classify_confidence(coverage_pct: float, output_varied: bool,
+                         passed: int) -> str:
+    """Map a run's coverage and observable-output diversity to a tier.
+
+    `output_varied` means the oracle produced more than one distinct
+    observable result across seeds -- counting return value, scratch-buffer
+    payload, AND memory writes. Judging diversity on the return value alone
+    (the previous `monotonic_return -> weak` rule) mislabels every function
+    whose real output is a buffer it was handed: vector3d_scale_add covers
+    100% of its body and writes different floats every seed, yet returned the
+    same out-pointer each time and was therefore recorded "weak".
+    """
+    if passed <= 0 or coverage_pct < COVERAGE_FLOOR_PCT:
+        return "none"
+    if coverage_pct >= 60:
+        return "high" if output_varied else "moderate"
+    if coverage_pct >= 30:
+        return "moderate"
+    return "weak"
 
 
 def _record_confidence(addr, confidence: str, coverage_pct: float) -> None:
@@ -1524,7 +1679,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     _max_insn = max_insn if max_insn is not None else (1_000_000 if allow_stubs else MAX_INSN)
 
     sys.path.insert(0, str(_SCRIPT_DIR))
-    from coff_loader import extract_function, CoffParseError
+    from coff_loader import extract_function, CoffParseError, slice_looks_truncated
     from abi import parse_decl
     from seeds import generate_seeds
     import state as state_mod
@@ -1595,6 +1750,15 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     decl = entry.get("decl", "")
     addr = entry.get("addr", "")
     obj_name = entry.get("_obj_name", "")
+    # Capture the target address NOW, for the leaf_cache write ~1100 lines
+    # below. Six later loops in this same function say `for addr, ... in`
+    # (global_reads, and the five mem-trace diff lists), each of which rebinds
+    # this `addr` at function scope -- so by the time we record coverage it can
+    # hold a *memory* address instead of the function's. That is how
+    # leaf_cache.json collected keys like 0x3f800034 / 0xccccccda / 0x700804,
+    # none of which is a function in kb.json: the measurement was filed under
+    # a garbage key, and the real target's entry never got updated.
+    target_addr = addr
     info(f"  decl : {decl}")
     info(f"  addr : {addr}")
     info(f"  obj  : {obj_name}")
@@ -1786,6 +1950,23 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         log("ERROR: lifted code is empty")
         return finish("error", True, "empty_lifted_code", 1)
 
+    # A delinked reference that does not reach the target leaves an oracle slice
+    # that is only the first byte(s) of the prologue.  Emulating it compares the
+    # lift against nothing, while byte-coverage reports 100% because every byte
+    # present was executed -- a truncated reference otherwise yields a confident
+    # -looking divergence.  This is missing evidence, not a behavioural result,
+    # so it must not reach the seed loop.  Re-export the delinked object over a
+    # range that covers the function (see the delinked-reference precondition in
+    # CLAUDE.md) to make the target testable.
+    truncated = slice_looks_truncated(oracle_slice)
+    if truncated:
+        log(f"ERROR: delinked reference does not cover {func_name}: {truncated}")
+        log(f"  oracle slice is {len(oracle_slice.code)} byte(s) at section offset "
+            f"0x{oracle_slice.section_offset:x} and runs to the end of the section;")
+        log(f"  the lifted body is {len(lifted_slice.code)} bytes.")
+        log(f"  Re-export {delinked_path.name} over a range covering this function.")
+        return finish("not_applicable", False, "oracle_truncated", 2)
+
     # --- Check for external relocations ---
     oracle_ok = _check_relocations(oracle_slice, "oracle", quiet=quiet)
     lifted_ok = _check_relocations(lifted_slice, "lifted", quiet=quiet)
@@ -1797,6 +1978,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     use_stubs = False
     stub_manager = None
     globals_seeds = None
+    # None = compare every recorded stub call (correct when both sides stub
+    # alike). Narrowed to the oracle/candidate intersection once both stub
+    # maps exist; must stay bound for the leaf path, which never builds them.
+    comparable_stub_sentinels = None
     oracle_code_patched = oracle_slice.code
     lifted_code_patched = lifted_slice.code
     if not is_leaf and allow_stubs:
@@ -1854,8 +2039,21 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         lifted_code_patched = _relocate_text_label_refs(
             lifted_slice, lifted_code_patched, False)
 
-        globals_seeds = _build_globals_seeds(orc_data_slots, lft_data_slots,
-                                             snapshot_overrides=snapshot_overrides)
+        # The candidate's slots sit above the oracle's, so with enough oracle
+        # slots the candidate arena runs past GLOBALS_BASE+GLOBALS_SIZE. Tell
+        # the stub-arg comparator how far it actually reaches, or every such
+        # candidate slot pointer reads as a hard argument mismatch.
+        from stubs import set_globals_arena_top, reset_globals_arena_top
+        reset_globals_arena_top()
+        set_globals_arena_top(lft_globals_base + len(lft_data_slots) * 256)
+
+        # dllimport indirection first, so real snapshot / known-globals data
+        # from _build_globals_seeds overrides it rather than the reverse.
+        globals_seeds = _seed_dllimport_indirection(orc_data_slots,
+                                                    lft_data_slots)
+        globals_seeds.update(_build_globals_seeds(
+            orc_data_slots, lft_data_slots,
+            snapshot_overrides=snapshot_overrides))
         globals_seeds.update(orc_rdata_seeds)
         globals_seeds.update(lft_rdata_seeds)
         # Seed MSVC two-level switch index-maps at their original VA so the
@@ -1963,6 +2161,34 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
         combined_stub_map = dict(orc_stub_map)
         combined_stub_map.update(lft_stub_map)
+        # A stub-arg record exists only for an INTERCEPTED call, and the two
+        # sides do not intercept the same set. Excuse a one-sided absence
+        # ONLY when that side provably resolves the callee internally --
+        # never merely because it produced no record, since "no record" is
+        # also what a genuinely DROPPED call looks like (FUN_00019110 omits
+        # the oracle's leading datum_get; that must keep failing).
+        #   candidate silent  -> excused iff it DEFINES the symbol (whole .obj
+        #                        sibling, executed natively)
+        #   oracle silent     -> excused iff oracle_text is mapped (raw
+        #                        intra-.text calls resolve inside the mapping)
+        #                        or it defines the symbol
+        def _defines(defined_set, sym):
+            s = sym.lstrip("_")
+            return s in defined_set or ("_" + s) in defined_set
+
+        _excused = set()
+        for _sent, _sym in combined_stub_map.items():
+            _in_orc, _in_lft = _sent in orc_stub_map, _sent in lft_stub_map
+            if _in_orc and not _in_lft:
+                if _defines(lft_defined, _sym):
+                    _excused.add(_sent)
+            elif _in_lft and not _in_orc:
+                if oracle_text is not None or _defines(orc_defined, _sym):
+                    _excused.add(_sent)
+        comparable_stub_sentinels = set(combined_stub_map) - _excused
+        if _excused:
+            info(f"  stub-arg: {len(_excused)} callee(s) excused from the "
+                 f"call-sequence compare (resolved internally on one side)")
         if combined_stub_map:
             stub_mgr = StubManager(KB_JSON, DELINKED_DIR)
             stub_mgr.stub_return_overrides = snapshot_stub_returns
@@ -2013,13 +2239,23 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         return finish("not_applicable", False, "external_relocations", 2)
 
     # --- Z3 formal equivalence proof (optional) ---
+    #
+    # A proof is ADDITIVE evidence, not a substitute for the seed sweep. This
+    # used to `return finish("pass", ..., seeds=0)`, so a proven function was
+    # never emulated at all -- meaning any flaw in the proof (see the strict-lift
+    # soundness gate in z3_equiv/x86_to_z3, and test_z3_strict_lift.py) silenced
+    # every other check on that function. Now we record the proof and fall
+    # through to Unicorn; the two are independent oracles and a disagreement
+    # between them is itself a finding worth surfacing.
+    z3_proven = False
     if z3_equiv and is_leaf:
         try:
             from z3_equiv import prove_equivalence
             info("\n  Attempting Z3 formal equivalence proof...")
             eq_result = prove_equivalence(oracle_slice.code, lifted_slice.code, abi)
             if eq_result.proven:
-                log(f"  Z3 PROVEN EQUIVALENT")
+                log(f"  Z3 PROVEN EQUIVALENT (continuing to Unicorn for confirmation)")
+                z3_proven = True
                 # Update cache
                 if record_leaf:
                     try:
@@ -2035,9 +2271,6 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                     _LEAF_CACHE_PATH.write_text(
                         json.dumps(dict(sorted(cache_data.items())), indent=2) + "\n",
                         encoding="utf-8")
-                return finish("pass", True, None, 0,
-                              passed=0, failed=0, errors=0, seeds=0,
-                              z3_proven=True)
             elif eq_result.counterexample:
                 log(f"  Z3 found divergence: {eq_result.counterexample}")
                 log(f"  Falling through to Unicorn to confirm...")
@@ -2121,6 +2354,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     _heap_compare_on = os.environ.get("BIPED_HEAP_COMPARE") == "1"
     all_visited_pcs = {}
     oracle_returns = set()
+    oracle_scratch_digests = set()
+    oracle_write_digests = set()
     merged_global_reads = {}
     merged_auto_mapped_pages = set()
     oracle_func_base = (CODE_BASE + oracle_slice.section_offset) if oracle_text else CODE_BASE
@@ -2136,6 +2371,9 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     stub_arg_total_calls = 0
     stub_arg_total_mismatches = 0
     stub_arg_total_soft = 0
+    # {reason: count} for args excused by a callee-contract rule (assert
+    # metadata, memset fill width). Reported so an exemption stays visible.
+    stub_arg_soft_reasons = {}
     stub_arg_mismatch_details = []  # (seed_label, seq, callee_name, arg_pos, o_val, c_val)
     stub_arg_failed_seeds = 0
 
@@ -2147,6 +2385,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         try:
             oracle_state = _run_function(oracle_code_patched, abi, seed_vec,
                                          verbose=verbose, map_globals=use_stubs,
+                                         auto_map_unmapped=True,
                                          stub_manager=stub_manager,
                                          globals_seeds=globals_seeds,
                                          section_code=oracle_text,
@@ -2166,6 +2405,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         try:
             lifted_state = _run_function(lifted_code_patched, abi, seed_vec,
                                          verbose=verbose, map_globals=use_stubs,
+                                         auto_map_unmapped=True,
                                          stub_manager=stub_manager,
                                          globals_seeds=globals_seeds,
                                          lifted=True,
@@ -2207,6 +2447,17 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                 all_visited_pcs[pc] = sz
         if not abi['ret_void']:
             oracle_returns.add(oracle_state.eax)
+        # Observable-output evidence beyond EAX. A function can be fully
+        # exercised and still return the same value every seed (e.g. one that
+        # returns its own out-param pointer) -- judging path diversity on EAX
+        # alone marks those "weak" at 100% coverage. Scratch payloads and
+        # memory writes are the outputs that actually vary there.
+        if oracle_state.scratch_data:
+            oracle_scratch_digests.add(hash(oracle_state.scratch_data))
+        if oracle_state.mem_writes:
+            oracle_write_digests.add(
+                hash(tuple(sorted((w.address, w.size, w.value)
+                                  for w in oracle_state.mem_writes))))
         for addr, val in oracle_state.global_reads.items():
             if addr not in merged_global_reads:
                 merged_global_reads[addr] = val
@@ -2270,10 +2521,14 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         stub_arg_diff = None
         if enable_stub_arg_trace and oracle_tracer and cand_tracer:
             stub_arg_diff = compare_stub_arg_traces(
-                oracle_tracer, cand_tracer, seed_label=seed_label)
+                oracle_tracer, cand_tracer, seed_label=seed_label,
+                comparable_sentinels=comparable_stub_sentinels)
             stub_arg_total_calls += stub_arg_diff.total_calls
             stub_arg_total_mismatches += stub_arg_diff.arg_mismatches
             stub_arg_total_soft += stub_arg_diff.soft_stack_ptr_matches
+            for _reason, _n in stub_arg_diff.soft_reasons.items():
+                stub_arg_soft_reasons[_reason] = \
+                    stub_arg_soft_reasons.get(_reason, 0) + _n
             if stub_arg_diff.has_differences():
                 stub_arg_failed_seeds += 1
                 stub_arg_mismatch_details.extend(stub_arg_diff.details)
@@ -2310,15 +2565,11 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     coverage_pct = covered_bytes / oracle_func_size * 100 if oracle_func_size > 0 else 0
     unique_returns = len(oracle_returns)
     monotonic_return = unique_returns <= 1 and not abi['ret_void'] and passed > 0
+    output_varied = (unique_returns > 1
+                     or len(oracle_scratch_digests) > 1
+                     or len(oracle_write_digests) > 1)
 
-    if monotonic_return:
-        confidence = "weak"
-    elif coverage_pct >= 60:
-        confidence = "high"
-    elif coverage_pct >= 30:
-        confidence = "moderate"
-    else:
-        confidence = "weak"
+    confidence = _classify_confidence(coverage_pct, output_varied, passed)
 
     info("")
     info(f"  coverage: {covered_bytes}/{oracle_func_size} bytes ({coverage_pct:.1f}%) — confidence: {confidence}")
@@ -2345,9 +2596,20 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             info(f"    gap: +0x{_g0 - oracle_func_base:x}..+0x{_g1 - oracle_func_base:x} ({_g1 - _g0}B)")
     if monotonic_return:
         ret_val = next(iter(oracle_returns)) if oracle_returns else 0
-        log(f"  WARNING: all {passed} seeds returned identical value (0x{ret_val:08x}) — low path diversity")
+        if output_varied:
+            # Constant EAX but the buffers/writes differ — normal for a
+            # function that returns its own out-param. Not a diversity problem.
+            info(f"  note: all {passed} seeds returned identical value "
+                 f"(0x{ret_val:08x}), but scratch/memory output varied")
+        else:
+            log(f"  WARNING: all {passed} seeds returned identical value "
+                f"(0x{ret_val:08x}) and no scratch/memory output varied "
+                f"— low path diversity")
     if coverage_pct < 30 and passed > 0:
         log(f"  WARNING: only {coverage_pct:.1f}% code coverage — likely testing only early-exit path")
+    if confidence == "none" and passed > 0:
+        log(f"  WARNING: coverage {coverage_pct:.1f}% is below the "
+            f"{COVERAGE_FLOOR_PCT:.0f}% floor — recording no confidence tier")
 
     # --- Concolic Phase 2: coverage-guided memory injection ---
     phase1_coverage = coverage_pct
@@ -2364,12 +2626,19 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             if uncovered:
                 # Step 4: ground residual-branch injection in real frame values.
                 corpus = load_value_corpus(value_corpus)
+                z3_stats = {}
                 injections = generate_memory_injections(
                     uncovered, merged_global_reads, oracle_func_base,
-                    value_corpus=corpus)
+                    value_corpus=corpus,
+                    code=oracle_code_patched,
+                    visited_pcs=all_visited_pcs,
+                    z3_stats=z3_stats)
                 if corpus:
                     info(f"  concolic: using real-frame value corpus "
                          f"({len(corpus)} globals)")
+                if z3_stats.get("stats") is not None:
+                    info(f"  concolic: z3 path solve — "
+                         f"{z3_stats['stats'].summary()}")
 
                 if injections:
                     info(f"\n  concolic: {len(uncovered)} uncovered branch(es), "
@@ -2446,6 +2715,12 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                     all_visited_pcs[pc] = sz
                             if not abi['ret_void']:
                                 oracle_returns.add(orc_s.eax)
+                            if orc_s.scratch_data:
+                                oracle_scratch_digests.add(hash(orc_s.scratch_data))
+                            if orc_s.mem_writes:
+                                oracle_write_digests.add(
+                                    hash(tuple(sorted((w.address, w.size, w.value)
+                                                      for w in orc_s.mem_writes))))
 
                             ret_eax = (not abi['ret_void'] and not abi['ret_st0']
                                        and not abi.get('ret_is_ptr', False))
@@ -2477,15 +2752,12 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                     unique_returns = len(oracle_returns)
                     monotonic_return = (unique_returns <= 1
                                         and not abi['ret_void'] and passed > 0)
+                    output_varied = (unique_returns > 1
+                                     or len(oracle_scratch_digests) > 1
+                                     or len(oracle_write_digests) > 1)
 
-                    if coverage_pct >= 60 and not monotonic_return:
-                        confidence = "high"
-                    elif coverage_pct >= 60:
-                        confidence = "moderate"
-                    elif coverage_pct >= 30:
-                        confidence = "moderate"
-                    else:
-                        confidence = "weak"
+                    confidence = _classify_confidence(coverage_pct,
+                                                      output_varied, passed)
 
                     info(f"  concolic result: {concolic_seeds_run} seeds, "
                          f"coverage {phase1_coverage:.1f}% → {coverage_pct:.1f}%, "
@@ -2505,9 +2777,11 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         log(f"  mem-trace: {trace_diff_count} seed(s) with write-trace divergences")
 
     if enable_stub_arg_trace:
+        _soft_extra = "".join(
+            f", {n} {reason}" for reason, n in sorted(stub_arg_soft_reasons.items()))
         log(f"  stub-arg differential: {stub_arg_total_calls} calls, "
             f"{stub_arg_total_mismatches} arg mismatch(es), "
-            f"{stub_arg_total_soft} soft-matched stack ptr(s)")
+            f"{stub_arg_total_soft} soft-matched stack ptr(s){_soft_extra}")
         if stub_arg_mismatch_details and not quiet:
             for (sl, seq, callee, ai, o_val, c_val) in stub_arg_mismatch_details[:20]:
                 log(f"    {sl} call[{seq}] {callee} arg[{ai}]: "
@@ -2580,12 +2854,14 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                 log(line)
 
     if record_leaf:
-        _record_confidence(addr, confidence, round(coverage_pct, 1))
+        # target_addr, NOT addr -- see the capture near the top of run_diff.
+        _record_confidence(target_addr, confidence, round(coverage_pct, 1))
 
     extra = dict(
         passed=passed, failed=failed, errors=errors,
         error_details=error_details,
         seeds=total_seeds,
+        z3_proven=z3_proven,
         coverage_pct=round(coverage_pct, 1),
         func_size=oracle_func_size,
         # {hex pc: instruction size} of every oracle PC visited across all seeds
@@ -2617,6 +2893,17 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         ]
     if concolic_seeds_run:
         extra["phase1_coverage_pct"] = round(phase1_coverage, 1)
+
+    # A Z3 proof and a seed divergence cannot both be right. Surface the
+    # contradiction explicitly rather than letting the "fail" verdict quietly
+    # coexist with a z3_proven=True flag downstream.
+    if z3_proven and failed > 0:
+        log("")
+        log("  *** CONTRADICTION: Z3 proved equivalence but Unicorn found "
+            f"{failed} diverging seed(s).")
+        log("      One of the two oracles is wrong -- treat the proof as "
+            "unsound until this is explained.")
+        extra["z3_proof_contradicted"] = True
 
     if failed > 0:
         return finish("fail", True, "divergence", 1, **extra)
@@ -2825,6 +3112,12 @@ def main():
                         help="Attempt Z3 formal equivalence proof before Unicorn testing")
     parser.add_argument("--allow-stubs", action="store_true",
                         help="Enable non-leaf emulation with callee stubbing and DIR32 patching")
+    parser.add_argument("--rich-stub-returns", action="store_true",
+                        help="Return scratch pointers (not 0) from stubbed pointer-returning "
+                             "accessors so callers get past their NULL check. Raises coverage, "
+                             "but the scratch page is not a real object, so a caller that calls "
+                             "through a function pointer in it will crash. Coverage exploration "
+                             "only — prefer --real-callees or --state-snapshot for verdicts.")
     parser.add_argument("--max-insn", type=int, default=None, metavar="N",
                         help="Maximum instructions per emulation run (default: 1M with --allow-stubs, 100K otherwise)")
     parser.add_argument("--float-tolerance", type=int, default=0, metavar="ULP",
@@ -2852,9 +3145,17 @@ def main():
                              "halorec_frame_sweep.py --emit-value-corpus; concolic Phase 2 "
                              "injects these feasible engine-produced values for residual "
                              "uncovered branches instead of invented constants.")
-    parser.add_argument("--real-callees", action="store_true",
+    parser.add_argument("--real-callees", action="store_true", default=None,
                         help="Run callees as native oracle code (loops iterate over "
-                             "snapshot data) instead of return-0 stubs. Implies --allow-stubs.")
+                             "snapshot data) instead of return-0 stubs. Implies "
+                             "--allow-stubs. ON BY DEFAULT since 2026-07-28; use "
+                             "--no-real-callees to get return-0 stubs back.")
+    parser.add_argument("--no-real-callees", dest="real_callees",
+                        action="store_false",
+                        help="Stub every callee to return 0 instead of sub-emulating "
+                             "it. Measured cost of doing so, on 60 targets under 30%% "
+                             "coverage: 10 that pass with real callees only error, and "
+                             "2 more fail.")
     parser.add_argument("--no-stub-arg-trace", action="store_true",
                         help="Disable stub-argument differential (default: enabled with "
                              "--allow-stubs). When enabled, oracle and candidate argument "
@@ -2867,7 +3168,28 @@ def main():
                              "the declared convention, so the differential cannot "
                              "see the mismatch — the box crashes instead.")
     args = parser.parse_args()
-    if args.real_callees:
+    # Default ON, but only where stubbing is already in play.  The A/B evidence
+    # for this default (60 targets under 30% coverage, plus 22 healthy controls)
+    # compared --allow-stubs against --real-callees -- both with stubs enabled --
+    # so it says nothing about runs that deliberately use neither.  Letting the
+    # new default force allow_stubs on would silently change those too, well
+    # beyond what was measured.
+    # ...and not when a state snapshot is driving the run.  A snapshot already
+    # supplies the real engine state that sub-emulating a callee only tries to
+    # approximate, and its stub_returns are curated by whoever captured it --
+    # some callee bodies asserts against synthetic state, which is exactly why
+    # they were pinned to a return value instead.  Measured on FUN_000d04d0:
+    # loading 29 real callees changed coverage not at all (14.3% either way) and
+    # turned a passing seed into "call-seq diverged at index 3, 4 arg
+    # mismatch(es)".  Snapshot runs were tuned against return-0 stubs; three of
+    # the 62 regression targets (all --state-snapshot) failed on the flip.
+    if args.real_callees is None:
+        args.real_callees = bool(args.allow_stubs) and not args.state_snapshot
+    elif args.real_callees:
+        args.allow_stubs = True  # explicit --real-callees still implies stubs
+    if args.rich_stub_returns:
+        from stubs import set_accessor_stub_returns
+        set_accessor_stub_returns(True)
         args.allow_stubs = True
 
     if args.from_halorec:
