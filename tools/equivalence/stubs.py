@@ -16,7 +16,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 
 IMAGE_REL_I386_DIR32 = 0x0006
 IMAGE_REL_I386_REL32 = 0x0014
@@ -75,6 +75,11 @@ class StubCallRecord:
     callee_name: str   # resolved callee name (from _stub_names)
     args: List[int]    # dword values: reg-args first, then stack-args (ESP+4, ESP+8, …)
     is_varargs: bool   # True when callee has a '...' param
+    # Return address captured at intercept time, i.e. call_site + 5.  Identifies
+    # WHO made the call: inside the target's own byte extent, or inside a callee
+    # body the emulator is executing natively.  0 = not captured (older records,
+    # or an unreadable stack) and must never be treated as "outside".
+    caller_addr: int = 0
 
 
 @dataclass
@@ -84,6 +89,12 @@ class StubArgTracer:
     Attach via StubManager.set_tracer() before a run, then read .records after.
     """
     records: List[StubCallRecord] = field(default_factory=list)
+    # (start, end) byte extent of the TARGET function in this run's address
+    # space.  Set by the runner; when present, compare_stub_arg_traces drops
+    # records whose caller_addr falls outside it -- those calls were made by a
+    # natively-executed callee, not by the function under test.  None = no
+    # attribution available, compare everything (historical behaviour).
+    target_range: Optional[Tuple[int, int]] = None
 
     def reset(self):
         self.records = []
@@ -107,9 +118,125 @@ class StubArgDiff:
     # exemption is always visible in the summary rather than silently dropped.
     soft_semantic_matches: int = 0
     soft_reasons: Dict[str, int] = field(default_factory=dict)
+    # The two callee-name sequences, kept so a divergence can actually be
+    # adjudicated. Recording only the index (as this did) says a divergence
+    # happened but not what it was, and the two cases have opposite meanings: a
+    # SHIFTED sequence (one side has an extra or missing call, the rest lining up
+    # after the offset) is a comparator-alignment artifact, whereas a genuinely
+    # DIFFERENT callee at the same position is a real control-flow bug. On the
+    # 07-29 batch this was 71 of 186 failures -- the largest single class -- and
+    # none of them could be told apart from the log alone.
+    oracle_seq: List[str] = field(default_factory=list)
+    candidate_seq: List[str] = field(default_factory=list)
+    # Records dropped per side because caller_addr fell outside that side's
+    # target extent, i.e. the call was made by a natively-executed callee and
+    # belongs to that callee's own equivalence target, not this one. Reported
+    # rather than silently swallowed: a large count means the two sides are
+    # executing very different amounts of code, which is context a reader of
+    # the divergence needs.
+    nested_dropped_oracle: int = 0
+    nested_dropped_candidate: int = 0
 
     def has_differences(self) -> bool:
         return self.sequence_diverged or self.arg_mismatches > 0
+
+    def sequence_relation(self):
+        """Classify HOW the two sequences differ: -> (kind, description).
+
+        Three outcomes, and only the last is a lift bug:
+
+        ``truncated``  the shorter sequence is a PREFIX of the longer -- one side
+                       simply stopped making calls. Both sides agree on every
+                       call they both made, so this is one side ending early
+                       (oracle crash, early return, instruction limit), not a
+                       control-flow difference. This is the common case: of six
+                       call_seq targets sampled on 07-29, four were this.
+        ``shifted``    one side has an extra call in the MIDDLE and the tail
+                       still lines up. The comparison then walks two lists off
+                       by one, so every later position reports as divergent.
+                       An alignment artifact.
+        ``divergent``  neither -- the two sides genuinely call different things
+                       at the same position. A real control-flow difference.
+                       Example: FUN_000d6cc0, where the candidate calls
+                       _display_assert where the oracle calls
+                       _global_scenario_get.
+
+        Prefix is tested first because it subsumes an extra call at either END,
+        and 'one side stopped' is the more accurate description of that shape
+        than 'off by one'.
+        """
+        o, c = self.oracle_seq, self.candidate_seq
+        if o == c:
+            return (None, "")
+        longer, shorter, side = (o, c, "oracle") if len(o) > len(c) else (c, o, "candidate")
+        if longer[:len(shorter)] == shorter:
+            return ("truncated",
+                    "%s stopped after %d call(s); %s continued to %d -- both agree "
+                    "on every shared call, so one side ended early rather than "
+                    "diverging" % ("oracle" if side == "candidate" else "candidate",
+                                   len(shorter), side, len(longer)))
+        if len(longer) - len(shorter) == 1:
+            for k in range(len(longer)):
+                if longer[:k] + longer[k + 1:] == shorter:
+                    return ("shifted",
+                            "%s has one extra call at index %d (sequences identical "
+                            "without it) -- alignment artifact, not a control-flow "
+                            "difference" % (side, k))
+        first = next((i for i, (a, b) in enumerate(zip(o, c)) if a != b), min(len(o), len(c)))
+        # One side had calls attributed away as nested while the other had none:
+        # the two sides resolved the same callee differently -- one CALLed it (so
+        # its inner calls are nested and dropped), the other INLINED it (so the
+        # identical inner calls issue from within the target's own extent and are
+        # kept). The surviving sequences are then not comparable, and the
+        # difference is not evidence about the target. object_get_node_matrix is
+        # the worked example: both sides end at the SAME assert (line 0x424),
+        # but the candidate shows the inlined helper's datum_get/tag_get/tag_get
+        # first while the oracle's three equivalents were dropped as nested.
+        if bool(self.nested_dropped_oracle) != bool(self.nested_dropped_candidate):
+            return ("inline-asymmetry",
+                    "one side CALLed a callee the other INLINED (nested dropped: "
+                    "oracle=%d candidate=%d), so the surviving sequences are not "
+                    "comparable; first difference at index %d: oracle=%s "
+                    "candidate=%s" % (
+                        self.nested_dropped_oracle,
+                        self.nested_dropped_candidate, first,
+                        o[first] if first < len(o) else "(end)",
+                        c[first] if first < len(c) else "(end)"))
+        return ("divergent",
+                "callees differ at index %d: oracle=%s candidate=%s -- real "
+                "control-flow difference" % (
+                    first,
+                    o[first] if first < len(o) else "(end)",
+                    c[first] if first < len(c) else "(end)"))
+
+    def sequence_detail(self, window: int = 4) -> List[str]:
+        """Human-readable lines describing a sequence divergence.
+
+        Emitted on its own lines, never folded into summary(): triage_failures
+        regexes on the exact `call-seq diverged at index N` text in summary(),
+        so that string has to stay byte-stable.
+        """
+        if not self.sequence_diverged:
+            return []
+        i = max(0, self.sequence_diverge_index - window)
+        j = self.sequence_diverge_index + window + 1
+        lines = [
+            "  call-seq oracle   [%d..%d] len=%d: %s"
+            % (i, min(j, len(self.oracle_seq)), len(self.oracle_seq),
+               " ".join(self.oracle_seq[i:j]) or "(empty)"),
+            "  call-seq candidate[%d..%d] len=%d: %s"
+            % (i, min(j, len(self.candidate_seq)), len(self.candidate_seq),
+               " ".join(self.candidate_seq[i:j]) or "(empty)"),
+        ]
+        kind, desc = self.sequence_relation()
+        if kind:
+            lines.append("  call-seq %s: %s" % (kind.upper(), desc))
+        if self.nested_dropped_oracle or self.nested_dropped_candidate:
+            lines.append(
+                "  call-seq NESTED-DROPPED oracle=%d candidate=%d "
+                "(calls made by natively-executed callees, attributed away)"
+                % (self.nested_dropped_oracle, self.nested_dropped_candidate))
+        return lines
 
     def summary(self) -> str:
         parts = []
@@ -146,6 +273,71 @@ def set_globals_arena_top(top: int) -> None:
 def reset_globals_arena_top() -> None:
     global _GLOBALS_ARENA_TOP
     _GLOBALS_ARENA_TOP = None
+
+
+# {oracle_slot_address: original_XBE_address} for this run's oracle DIR32
+# slots, derived from the pristine XBE (see _xbe_dir32_symbol_addrs).  Only the
+# oracle side: the candidate's slots sit strictly above every oracle slot, so
+# an address landing on one of these keys is unambiguously the oracle's.
+def _cva_ok(addr) -> bool:
+    """True for a kb.json 'addr' string we can turn into an int."""
+    if not isinstance(addr, str) or not addr:
+        return False
+    try:
+        int(addr, 16)
+    except ValueError:
+        return False
+    return True
+
+
+_GLOBALS_SLOT_REAL = {}
+# {(slot - real_address) & 0xffffffff} -- the fixed displacement between the
+# two address spaces for each mapped global.
+_GLOBALS_SLOT_DISPLACEMENTS = set()
+
+
+def set_globals_slot_real_map(mapping: dict) -> None:
+    """Record {slot_address: original_XBE_address} for oracle DIR32 slots."""
+    _GLOBALS_SLOT_REAL.clear()
+    _GLOBALS_SLOT_REAL.update(mapping or {})
+    _GLOBALS_SLOT_DISPLACEMENTS.clear()
+    _GLOBALS_SLOT_DISPLACEMENTS.update(
+        (slot - real) & 0xFFFFFFFF for slot, real in _GLOBALS_SLOT_REAL.items())
+
+
+def reset_globals_slot_real_map() -> None:
+    _GLOBALS_SLOT_REAL.clear()
+    _GLOBALS_SLOT_DISPLACEMENTS.clear()
+
+
+def _is_slot_vs_real_global(o_val: int, c_val: int) -> bool:
+    """True when both sides passed the address of the SAME global, expressed in
+    the two different address spaces the harness gives them.
+
+    ``&some_global`` is a DIR32 reloc in the oracle, so patch_dir32_relocs
+    rewrites it to a 256-byte slot and the oracle pushes that slot address.
+    The candidate reaches the same global through an absolute immediate and
+    pushes its real XBE address.  Both are correct and denote one object;
+    numerically they never match.  input_flush pushed three of them into
+    csmemset and reported 150 arg mismatches across 50 seeds -- 0x500000 vs
+    0x46ba4c, 0x500100 vs 0x46bb38, 0x500200 vs 0x46bba0 (2026-07-28).
+
+    _is_stack_ptr already excuses the case where BOTH values land in the slot
+    arena; this is the asymmetric one.
+
+    The test is on the DISPLACEMENT, not on a range: the pair is excused only
+    when ``o_val - c_val`` equals ``slot - real_address`` for a global this
+    function actually relocates.  That keeps it sound -- the two sides must
+    have applied the SAME offset to the same object, so a wrong index is still
+    reported -- while covering indices that leave the slot's 256-byte window.
+    They routinely do, and not only upward: game_engine_clear_goal_position
+    computes ``0x4566f8 + (short)index * 0x20``, so a negative index lands
+    BELOW GLOBALS_BASE and a range check excused only the 5 non-negative seeds
+    out of 41 (2026-07-28).
+    """
+    if not _GLOBALS_SLOT_DISPLACEMENTS:
+        return False
+    return ((o_val - c_val) & 0xFFFFFFFF) in _GLOBALS_SLOT_DISPLACEMENTS
 
 
 def _is_stack_ptr(v: int) -> bool:
@@ -274,15 +466,49 @@ def compare_stub_arg_traces(oracle_tracer: StubArgTracer,
     is meaningful and silent where it is not.  None = compare everything
     (the historical behaviour, correct whenever both sides stub alike).
     """
-    def _keep(r):
-        if _is_chkstk_name(r.callee_name) or _is_inlined_intrinsic_name(r.callee_name):
-            return False
-        if comparable_sentinels is not None and r.callee_addr not in comparable_sentinels:
-            return False
-        return True
+    def _keeper(tracer):
+        """Per-side filter: each side has its own target extent."""
+        rng = getattr(tracer, "target_range", None)
 
-    oc = [r for r in oracle_tracer.records if _keep(r)]
-    cc = [r for r in cand_tracer.records if _keep(r)]
+        def _keep(r):
+            if (_is_chkstk_name(r.callee_name)
+                    or _is_inlined_intrinsic_name(r.callee_name)):
+                return False
+            if (comparable_sentinels is not None
+                    and r.callee_addr not in comparable_sentinels):
+                return False
+            # Only the TARGET's own calls are the target's behaviour.  When one
+            # side stubs an intra-object sibling and the other executes it
+            # natively, the native side additionally records every call the
+            # SIBLING makes -- extra entries that make the sequences differ
+            # without the target having done anything different.  Those belong
+            # to the sibling's own equivalence target, so drop them here.
+            # caller_addr == 0 means attribution was unavailable: keep the
+            # record, since absent evidence is not evidence of nesting.
+            if rng is not None and r.caller_addr:
+                # Upper bound inclusive: a CALL as the function's last
+                # instruction leaves a return address equal to `end`.
+                if not (rng[0] <= r.caller_addr <= rng[1]):
+                    return False
+            return True
+
+        return _keep
+
+    def _nested_count(tracer, keep):
+        """How many records `keep` rejected specifically for being nested."""
+        rng = getattr(tracer, "target_range", None)
+        if rng is None:
+            return 0
+        return sum(1 for r in tracer.records
+                   if r.caller_addr and not (rng[0] <= r.caller_addr <= rng[1])
+                   and not _is_chkstk_name(r.callee_name)
+                   and not _is_inlined_intrinsic_name(r.callee_name))
+
+    _keep_orc, _keep_cand = _keeper(oracle_tracer), _keeper(cand_tracer)
+    oc = [r for r in oracle_tracer.records if _keep_orc(r)]
+    cc = [r for r in cand_tracer.records if _keep_cand(r)]
+    n_nested_orc = _nested_count(oracle_tracer, _keep_orc)
+    n_nested_cand = _nested_count(cand_tracer, _keep_cand)
 
     total_calls = len(oc)
     seq_diverged = False
@@ -353,6 +579,11 @@ def compare_stub_arg_traces(oracle_tracer: StubArgTracer,
             if _is_stack_ptr(o_val) and _is_stack_ptr(c_val):
                 soft_matches += 1
                 continue
+            if _is_slot_vs_real_global(o_val, c_val):
+                soft_semantic += 1
+                soft_reasons["globals-slot-alias"] = \
+                    soft_reasons.get("globals-slot-alias", 0) + 1
+                continue
             if _is_assert_metadata_arg(o_rec.callee_name, ai):
                 soft_semantic += 1
                 soft_reasons["assert-metadata"] = \
@@ -375,6 +606,12 @@ def compare_stub_arg_traces(oracle_tracer: StubArgTracer,
         sequence_diverge_index=seq_diverge_idx,
         soft_semantic_matches=soft_semantic,
         soft_reasons=soft_reasons,
+        # Built from the same filtered lists the comparison walked, so the
+        # recorded sequences are exactly what produced the verdict.
+        oracle_seq=[r.callee_name for r in oc],
+        candidate_seq=[r.callee_name for r in cc],
+        nested_dropped_oracle=n_nested_orc,
+        nested_dropped_candidate=n_nested_cand,
     )
 
 
@@ -690,6 +927,11 @@ class StubManager:
         # real_callees is enabled): DIR32 slots the loaded callee code reads
         # from (caller seeds them) and any .rdata constant seeds.
         self._callee_dir32_slots: dict[str, int] = {}
+        # {symbol_name: absolute VA of the DIR32 reloc SITE in the pristine
+        # XBE}.  The caller reads those 4 bytes to recover which global each
+        # callee slot stands for -- the same ground-truth resolution the
+        # target function gets, extended to real-callee code.
+        self._callee_dir32_sites: dict[str, int] = {}
         self._extra_rdata_seeds: dict[int, bytes] = {}
         self._real_code_count = 0
         # Optional stub argument tracer; set via set_tracer() before each run.
@@ -703,10 +945,16 @@ class StubManager:
         # immediate in the pristine XBE.  A mismatch means BOTH oracle and
         # candidate stubs honor the same wrong convention — invisible to the
         # differential, fatal on the box (ESP drift, the 0x158df0 boot crash).
-        # Mismatch strings accumulate here; unicorn_diff fails the run on any,
-        # unless --no-stub-conv-check.
+        # Mismatch strings accumulate here for reporting; the run-failing subset
+        # is blocking_convention_mismatches() (registration cannot yet know
+        # which stubs are even used -- see that method).
         self.convention_mismatches: list[str] = []
+        # Structured form of the same: {sentinel, addr, name, msg}.
+        self._conv_mismatches: list[dict] = []
         self._conv_checked: set[int] = set()
+        # Sentinels whose SYNTHETIC stub actually ran (populated by
+        # execute_stub, which real-code callees never reach).
+        self._executed_stubs: set[int] = set()
         self._kb_addrs_sorted: Optional[list[int]] = None
 
     def reset_stub_sequences(self):
@@ -865,7 +1113,7 @@ class StubManager:
         stub = CalleeStub(name=symbol_name, code=b"", abi=abi,
                           sentinel_addr=sentinel_addr, has_real_code=False)
         self._stubs[sentinel_addr] = stub
-        self._check_convention(symbol_name, kb_entry, decl, abi)
+        self._check_convention(symbol_name, kb_entry, decl, abi, sentinel_addr)
         return stub, kb_entry
 
     def _next_kb_addr(self, addr: int) -> int:
@@ -886,7 +1134,8 @@ class StubManager:
         return addr + 0x2000
 
     def _check_convention(self, symbol_name: str, kb_entry: Optional[dict],
-                          decl: str, abi: dict) -> None:
+                          decl: str, abi: dict,
+                          sentinel_addr: int = 0) -> None:
         """Verify the declared convention against the callee's binary RET.
 
         Both oracle and candidate stubs honor the kb.json decl, so a wrong
@@ -929,7 +1178,41 @@ class StubManager:
                    f"{res.pop_bytes} — the stub honors the WRONG convention on "
                    f"both sides; fix the kb.json decl (lift-learnings §30)")
             self.convention_mismatches.append(msg)
+            self._conv_mismatches.append({"sentinel": sentinel_addr,
+                                          "addr": addr,
+                                          "name": symbol_name,
+                                          "msg": msg})
             print(f"  [stub-conv MISMATCH] {msg}", file=sys.stderr)
+
+    def blocking_convention_mismatches(self) -> list[str]:
+        """The mismatches that could actually corrupt ESP in *this* run.
+
+        A declared convention is only consulted when a SYNTHETIC stub is both
+        emitted and executed, so the raw list over-reports on two counts:
+
+        * ``has_real_code`` -- get_stub_code returns the callee's own oracle
+          bytes, whose real ``RET N`` pops correctly, so the decl is never
+          used.  Registration runs before _load_real_callees, so at check time
+          we cannot yet know this.
+        * never executed -- registration covers every callee in the stub map
+          regardless of reachability, so a decl bug on a callee no seed ever
+          calls used to block the whole target (measured: bink_playback_stop
+          blocked on FUN_000e5590 with 0 stub calls on the covered path).
+
+        Neither case can drift ESP, so neither should fail the run.  A wrong
+        decl is still a real kb.json defect -- it stays in
+        ``convention_mismatches`` and is reported as a warning.  Fixing it is
+        check_stdcall_ret.py's job, which gates separately at pre-commit/CI.
+        """
+        blocking = []
+        for m in self._conv_mismatches:
+            stub = self._stubs.get(m["sentinel"])
+            if stub is not None and stub.has_real_code:
+                continue
+            if m["sentinel"] not in self._executed_stubs:
+                continue
+            blocking.append(m["msg"])
+        return blocking
 
     def prepare_stubs(self, stub_map: dict, globals_base: int = None,
                       shared_sentinels: dict = None,
@@ -1040,6 +1323,16 @@ class StubManager:
                 snapshot_regions=snapshot_regions)
             glob_cursor += max(1, len(slots)) * 256
             self._callee_dir32_slots.update(slots)
+            # Record where each of this callee's DIR32 relocs lives in the
+            # original image, so the caller can resolve slot -> real global.
+            _cva = kb_entry.get("addr") if kb_entry else None
+            if _cva_ok(_cva):
+                _cva = int(_cva, 16)
+                for _r in fs.relocs:
+                    if (_r.reloc_type == IMAGE_REL_I386_DIR32
+                            and _r.symbol_name in slots):
+                        self._callee_dir32_sites.setdefault(
+                            _r.symbol_name, _cva + _r.virtual_address)
             self._extra_rdata_seeds.update(rdata_seeds)
             # REL32 -> sentinels, relative to where this callee will be written.
             # include_defined: sibling (intra-object) calls must also redirect
@@ -1289,6 +1582,11 @@ class StubManager:
             # Read caller's current state
             caller_esp = uc.reg_read(UC_X86_REG_ESP)
             symbol_name = self._resolve_name(address)
+            # Only synthetic stubs reach here (should_intercept returns False
+            # for real-code callees), so this is exactly the set whose declared
+            # convention governs the stack -- see
+            # blocking_convention_mismatches().
+            self._executed_stubs.add(address)
 
             # --- Stub argument capture (depth==1 only: top-level callee) ---
             if (self._tracer is not None and self._depth == 1
@@ -1336,12 +1634,20 @@ class StubManager:
                     except Exception:
                         _args.append(0)
 
+                # The sentinel was reached by CALL, so [ESP] holds the return
+                # address (call_site + 5).  Attributes the call to its caller.
+                try:
+                    _ra = int.from_bytes(
+                        bytes(uc.mem_read(caller_esp, 4)), "little")
+                except Exception:
+                    _ra = 0
                 self._tracer.records.append(StubCallRecord(
                     seq=len(self._tracer.records),
                     callee_addr=address,
                     callee_name=self._stub_names.get(address, hex(address)),
                     args=_args,
                     is_varargs=_is_varargs,
+                    caller_addr=_ra,
                 ))
             # --- end arg capture ---
 

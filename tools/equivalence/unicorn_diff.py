@@ -750,8 +750,88 @@ def _snapshot_value_at(snapshot_overrides: dict, addr: int, n: int = 4):
     return None
 
 
+_XBE_SECTIONS_CACHE = None
+
+
+def _xbe_sections() -> list:
+    """Pristine-XBE section headers, loaded once ([] when unavailable)."""
+    global _XBE_SECTIONS_CACHE
+    if _XBE_SECTIONS_CACHE is None:
+        try:
+            from extract_globals import _load_xbe_sections, XBE_PATH
+            _XBE_SECTIONS_CACHE = (_load_xbe_sections()
+                                   if XBE_PATH.exists() else [])
+        except Exception:
+            _XBE_SECTIONS_CACHE = []
+    return _XBE_SECTIONS_CACHE
+
+
+def _xbe_dir32_symbol_addrs(func_va: int, relocs) -> dict:
+    """Resolve each DIR32 relocation's symbol to the absolute address the
+    ORIGINAL code stored at that spot, by reading the pristine XBE at
+    func_va + reloc_offset.  Returns {symbol_name: original_address}.
+
+    Relocs are function-relative (coff_loader rebases them by func_offset),
+    so func_va + r.virtual_address is exactly the dword the linker wrote.
+    That makes this ground truth and, unlike name matching, completely
+    label-independent: it resolves `g_decals_data` -- a Ghidra label with no
+    kb.json counterpart, since kb calls 0x5aa8b8 `global_decal_data` -- just
+    as well as `DAT_0032516c`.  Name matching resolved only the latter, so
+    the oracle's slot for the former stayed zero while the candidate read
+    the seeded pool pointer through its absolute immediate.  Every seed then
+    diverged on arg[0] of datum_get and looked like a dropped argument
+    (FUN_0015b0c0, 2026-07-28).
+
+    Only DIR32 relocs are read: a DISP32 (call) site holds a displacement,
+    not an address.  Values outside the XBE's mapped VA range are ignored,
+    and a symbol resolving to two different addresses is dropped rather
+    than guessed.
+    """
+    from stubs import IMAGE_REL_I386_DIR32
+    # Pass the un-deduplicated pair list: a symbol relocated at two sites that
+    # hold different addresses must be dropped, and a dict would hide that.
+    return _xbe_addrs_at_sites(
+        (r.symbol_name, func_va + r.virtual_address) for r in relocs
+        if getattr(r, "reloc_type", None) == IMAGE_REL_I386_DIR32)
+
+
+def _xbe_addrs_at_sites(sites) -> dict:
+    """{symbol: address} by reading 4 bytes at each relocation SITE in the
+    pristine XBE.
+
+    ``sites`` is either {symbol: site_va} or an iterable of (symbol, site_va)
+    pairs.  Values outside the XBE's mapped VA range are ignored, and a symbol
+    whose sites disagree is dropped rather than guessed.
+    """
+    import struct as _struct
+    secs = _xbe_sections()
+    if not secs:
+        return {}
+    from extract_globals import _read_xbe_bytes
+    lo = min(s["vaddr"] for s in secs)
+    hi = max(s["vaddr"] + s["vsize"] for s in secs)
+    items = sites.items() if isinstance(sites, dict) else sites
+    out, ambiguous = {}, set()
+    for sym, site in items:
+        raw = _read_xbe_bytes(secs, site, 4)
+        if not raw or len(raw) != 4:
+            continue
+        val = _struct.unpack("<I", raw)[0]
+        if not (lo <= val < hi):
+            continue
+        prev = out.get(sym)
+        if prev is not None and prev != val:
+            ambiguous.add(sym)
+            continue
+        out[sym] = val
+    for sym in ambiguous:
+        out.pop(sym, None)
+    return out
+
+
 def _build_globals_seeds(*slot_maps: dict,
-                         snapshot_overrides: dict = None) -> dict:
+                         snapshot_overrides: dict = None,
+                         sym_addr_hints: dict = None) -> dict:
     """Build {slot_address: bytes} from DIR32 slot mappings + _KNOWN_GLOBAL_BYTES
     + optional state-snapshot overrides.
 
@@ -767,9 +847,15 @@ def _build_globals_seeds(*slot_maps: dict,
     seeds = {}
     for smap in slot_maps:
         for sym_name, slot_addr in smap.items():
-            orig_addr = None
-            m = re.match(r'(?:DAT|PTR|PTR_FUN|PTR_DAT|s)_([0-9a-fA-F]{4,})', sym_name)
-            if m:
+            # XBE-derived hints first: the address the original linker wrote
+            # at this reloc site is ground truth, so it outranks every name
+            # heuristic -- including a bare-name match that lands on a
+            # DIFFERENT kb global (the hazard _GLOBAL_NAME_ALIASES documents).
+            orig_addr = (sym_addr_hints or {}).get(sym_name)
+            if orig_addr is not None:
+                pass
+            elif (m := re.match(r'(?:DAT|PTR|PTR_FUN|PTR_DAT|s)_([0-9a-fA-F]{4,})',
+                                sym_name)):
                 orig_addr = int(m.group(1), 16)
             else:
                 bare = _normalize_global_symbol(sym_name)
@@ -821,7 +907,8 @@ def _build_globals_seeds(*slot_maps: dict,
     return seeds
 
 
-def _seed_dllimport_indirection(orc_slots: dict, lft_slots: dict) -> dict:
+def _seed_dllimport_indirection(orc_slots: dict, lft_slots: dict,
+                                orc_addr_hints: dict = None) -> dict:
     """Make a dllimport (indirect) reference resolve to the same storage as the
     other side's direct reference to the same global.
 
@@ -852,16 +939,22 @@ def _seed_dllimport_indirection(orc_slots: dict, lft_slots: dict) -> dict:
     import re, struct as _struct
     name2addr = _load_symbol_addrs()
 
-    def _direct_slots(smap):
+    def _direct_slots(smap, hints=None):
         """{real_address: slot} for non-dllimport symbols we can resolve.
 
         The delinked oracle names data by address (``DAT_0046bd40``), so match
         that spelling too -- resolving only friendly names would miss every
         oracle-side direct reference, which is exactly the side we need.
+        XBE-derived hints outrank both, and cover Ghidra labels that match no
+        kb.json name at all (see _xbe_dir32_symbol_addrs).
         """
         out = {}
         for sym, slot in smap.items():
             if sym.startswith("__imp_"):
+                continue
+            hinted = (hints or {}).get(sym)
+            if hinted is not None:
+                out.setdefault(hinted, slot)
                 continue
             m = re.match(r'(?:DAT|PTR|PTR_FUN|PTR_DAT|FLOAT|s)_([0-9a-fA-F]{4,})$',
                          sym)
@@ -876,7 +969,9 @@ def _seed_dllimport_indirection(orc_slots: dict, lft_slots: dict) -> dict:
                 out.setdefault(addr, slot)
         return out
 
-    orc_direct = _direct_slots(orc_slots)
+    # Hints are read out of the pristine XBE at the ORACLE's reloc sites, so
+    # they only apply to the oracle map -- the candidate's code layout differs.
+    orc_direct = _direct_slots(orc_slots, orc_addr_hints)
     lft_direct = _direct_slots(lft_slots)
     seeds = {}
     for smap, other_direct, own_direct in ((orc_slots, lft_direct, orc_direct),
@@ -1407,6 +1502,10 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
 
     # Attach stub-arg tracer for this run (detached in the finally block below)
     if stub_manager is not None and stub_arg_tracer is not None:
+        # Record this side's target extent so the comparator can tell the
+        # target's own calls from calls made by natively-executed callees.
+        # Each side has its own layout, hence per-tracer rather than global.
+        stub_arg_tracer.target_range = (entry_point, entry_point + len(code))
         stub_manager.set_tracer(stub_arg_tracer)
 
     err_msg = None
@@ -2043,17 +2142,34 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         # slots the candidate arena runs past GLOBALS_BASE+GLOBALS_SIZE. Tell
         # the stub-arg comparator how far it actually reaches, or every such
         # candidate slot pointer reads as a hard argument mismatch.
-        from stubs import set_globals_arena_top, reset_globals_arena_top
+        from stubs import (set_globals_arena_top, reset_globals_arena_top,
+                           set_globals_slot_real_map,
+                           reset_globals_slot_real_map)
         reset_globals_arena_top()
         set_globals_arena_top(lft_globals_base + len(lft_data_slots) * 256)
+
+        # Resolve the oracle's DIR32 symbols against the pristine XBE, so a
+        # Ghidra label with no kb.json counterpart still seeds its slot.
+        orc_addr_hints = _xbe_dir32_symbol_addrs(int(addr, 16),
+                                                 oracle_slice.relocs)
+
+        # Tell the stub-arg comparator which real global each oracle slot
+        # stands for, so `&global` passed as an argument compares equal
+        # across the two address spaces instead of reading as a wrong arg.
+        reset_globals_slot_real_map()
+        set_globals_slot_real_map({
+            slot: orc_addr_hints[sym]
+            for sym, slot in orc_data_slots.items() if sym in orc_addr_hints})
 
         # dllimport indirection first, so real snapshot / known-globals data
         # from _build_globals_seeds overrides it rather than the reverse.
         globals_seeds = _seed_dllimport_indirection(orc_data_slots,
-                                                    lft_data_slots)
+                                                    lft_data_slots,
+                                                    orc_addr_hints)
         globals_seeds.update(_build_globals_seeds(
             orc_data_slots, lft_data_slots,
-            snapshot_overrides=snapshot_overrides))
+            snapshot_overrides=snapshot_overrides,
+            sym_addr_hints=orc_addr_hints))
         globals_seeds.update(orc_rdata_seeds)
         globals_seeds.update(lft_rdata_seeds)
         # Seed MSVC two-level switch index-maps at their original VA so the
@@ -2205,27 +2321,46 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             if real_callees and stub_mgr._callee_dir32_slots:
                 # Seed the globals the loaded callee code reads (DAT_ -> snapshot
                 # / known_globals), same path as the caller's own globals.
+                callee_hints = _xbe_addrs_at_sites(
+                    stub_mgr._callee_dir32_sites)
                 globals_seeds.update(_build_globals_seeds(
                     stub_mgr._callee_dir32_slots,
-                    snapshot_overrides=snapshot_overrides))
+                    snapshot_overrides=snapshot_overrides,
+                    sym_addr_hints=callee_hints))
+                # Extend the slot -> real-global map with the callee slots, so
+                # a `&global` argument coming out of real callee code compares
+                # across address spaces the same way the target's own does.
+                set_globals_slot_real_map({
+                    **{slot: orc_addr_hints[sym]
+                       for sym, slot in orc_data_slots.items()
+                       if sym in orc_addr_hints},
+                    **{slot: callee_hints[sym]
+                       for sym, slot in stub_mgr._callee_dir32_slots.items()
+                       if sym in callee_hints}})
                 globals_seeds.update(stub_mgr._extra_rdata_seeds)
                 info(f"  real callees: {stub_mgr._real_code_count} loaded, "
                      f"{len(stub_mgr._callee_dir32_slots)} callee globals seeded")
             if stub_mgr.convention_mismatches:
                 # Both oracle and candidate stubs honor the declared (wrong)
                 # convention, so the differential is blind to this — but the
-                # box is not (ESP drift, lift-learnings §30). Fail the run.
+                # box is not (ESP drift, lift-learnings §30).
+                #
+                # The VERDICT is deferred to after the seed loop: at this point
+                # _load_real_callees has not run, so we cannot yet tell which of
+                # these callees will execute their own oracle bytes (decl never
+                # consulted) or will never be called at all. Failing here blocked
+                # 64 targets on 15 unported CRT decls, none of them reached by
+                # lifted C. See blocking_convention_mismatches().
                 n_mm = len(stub_mgr.convention_mismatches)
-                if stub_conv_check:
-                    log(f"ERROR: {n_mm} stub convention mismatch(es) — "
-                        f"kb.json decl vs binary RET (lift-learnings §30):")
-                    for m in stub_mgr.convention_mismatches:
-                        log(f"  {m}")
-                    log("  Fix the kb.json decl (check_stdcall_ret.py --addr "
-                        "0xADDR); bypass with --no-stub-conv-check.")
-                    return finish("error", True, "stub_convention_mismatch", 2)
-                log(f"WARNING: {n_mm} stub convention mismatch(es) ignored "
-                    f"(--no-stub-conv-check)")
+                log(f"WARNING: {n_mm} stub convention mismatch(es) — kb.json "
+                    f"decl vs binary RET (lift-learnings §30):")
+                for m in stub_mgr.convention_mismatches:
+                    log(f"  {m}")
+                log("  Fix the kb.json decl (check_stdcall_ret.py --addr "
+                    "0xADDR). The run fails only if one of these stubs is "
+                    "actually executed"
+                    + ("" if stub_conv_check else " (disabled: "
+                       "--no-stub-conv-check)") + ".")
             stub_manager = stub_mgr
             use_stubs = True
 
@@ -2339,6 +2474,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
 
     passed = 0
     failed = 0
+    seq_detail_logged = 0  # cap call-seq dumps; see the emit site below
     errors = 0
     error_details = []
     first_diff = None
@@ -2553,6 +2689,14 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                     log(f"  {seed_label} FAIL: {diff.summary()}")
                 if stub_arg_diff is not None and stub_arg_diff.has_differences():
                     log(f"  {seed_label} FAIL: {stub_arg_diff.summary()}")
+                    # Only for the first few diverging seeds: the sequences are
+                    # identical across seeds in every case observed, so logging
+                    # all 50 adds bulk without adding evidence.
+                    if seq_detail_logged < 2:
+                        for line in stub_arg_diff.sequence_detail():
+                            log(line)
+                        if stub_arg_diff.sequence_diverged:
+                            seq_detail_logged += 1
         else:
             passed += 1
             if verbose and si < 3:
@@ -2904,6 +3048,30 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         log("      One of the two oracles is wrong -- treat the proof as "
             "unsound until this is explained.")
         extra["z3_proof_contradicted"] = True
+
+    # Stub-convention verdict (lift-learnings §30), deferred from setup: a wrong
+    # decl only corrupts ESP if the SYNTHETIC stub honoring it actually ran. Both
+    # sides drift identically, so a pass here is not evidence of anything --
+    # report it even when every seed agreed.
+    if stub_conv_check and stub_manager is not None:
+        blocking = stub_manager.blocking_convention_mismatches()
+        if blocking:
+            log("")
+            log(f"ERROR: {len(blocking)} EXECUTED stub(s) honored a wrong "
+                f"convention — kb.json decl vs binary RET:")
+            for m in blocking:
+                log(f"  {m}")
+            log("  Both sides drift ESP identically, so the differential is "
+                "blind; fix the decl (check_stdcall_ret.py --addr 0xADDR).")
+            return finish("error", True, "stub_convention_mismatch", 2, **extra)
+        if stub_manager.convention_mismatches:
+            # State WHY the mismatches did not block. Without this a gate that
+            # silently stopped observing stub execution would look identical to
+            # one correctly finding nothing to complain about.
+            n_exec = len(stub_manager._executed_stubs)
+            log(f"  stub-conv: {len(stub_manager.convention_mismatches)} "
+                f"mismatch(es) did not block — {n_exec} synthetic stub(s) "
+                f"executed this run, none of them wrongly declared")
 
     if failed > 0:
         return finish("fail", True, "divergence", 1, **extra)

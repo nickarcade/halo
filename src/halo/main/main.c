@@ -1905,6 +1905,25 @@ void main_menu_load(void)
   main_menu_load_pending = false;
 }
 
+/*
+ * main_roll_credits (0x102070)
+ *
+ * End-of-campaign hook. Emits an informational error-log line, drops back to
+ * the main menu, then hands off to the event-manager reset at 0xdc110.
+ *
+ * Binary shape (6 instructions, no frame):
+ *   PUSH 0x28b68c / PUSH 2 / CALL error / ADD ESP,8  -> error(2, msg)
+ *   CALL 0x101fe0                                    -> main_menu_load()
+ *   JMP  0x000dc110                                  -> tail call
+ * The trailing JMP is a tail call, written here as a plain final statement.
+ */
+void main_roll_credits(void)
+{
+  error(2, "congratulations, you won the game!");
+  main_menu_load();
+  FUN_000dc110();
+}
+
 void main_pregame_render(void)
 {
   vector3_t unk[3];
@@ -2247,6 +2266,184 @@ void screenshot_render(void *a1)
 
 done:
   global_screenshot_count = 0;
+}
+
+/*
+ * main_framerate_render - 0x102700
+ *
+ * Draws up to three debug overlays in the lower-right corner of the screen,
+ * each gated by its own console/debug byte flag and each requiring the
+ * interface-globals font tag at *(int*)(*(int*)0x46bd0c + 0x54) to be valid
+ * (!= -1, the tag "none" sentinel).
+ *
+ * Confirmed:
+ *  - No arguments; void return. cdecl, frame `sub esp,0x1c`, saves EBX/ESI/EDI.
+ *    EBX is zeroed in the prologue and used as the literal 0 for every
+ *    NULL/0 push and as the compare operand for the three byte flags.
+ *  - Overlay 1 (flag 0x46e004, framerate): fps = 1.0f / max(frame_seconds,
+ *    0.01f), where frame_seconds is flt_46DA08 (the same current-frame
+ *    seconds global main_frame_rate_debug samples). Disasm:
+ *    FLD [0x46da08]; FCOMP [0x25bb10 = 0.01f]; TEST AH,0x41; JNE — i.e. the
+ *    0.01f branch is taken when frame_seconds <= 0.01f, so the selected value
+ *    is max(). Then FLD [0x2533c8 = 1.0f]; FDIV ST(1) => 1.0f / max (numerator
+ *    is the 1.0f constant; division direction verified in disasm).
+ *    The quotient is stored to a float slot, reloaded, and FISTP'd => (int).
+ *  - Overlay 1 alternate: when byte 0x46dd9a != 0 the displayed number is
+ *    60 / (int)*(int16_t*)0x46dd96 via MOV EAX,0x3c; CDQ; IDIV — a signed
+ *    32-bit divide (not the 64-bit divide Ghidra's `(longlong)` suggests).
+ *    0x46dd96 is the "current frame divisor" main_set_frame_rate maintains,
+ *    so this path prints the locked tick rate instead of the measured rate.
+ *  - Overlay 1 color: CMP SI,0x1e; JGE keeps *(void**)0x2ee6d4, otherwise
+ *    *(void**)0x2ee6d0 — i.e. (short)value >= 30 ? normal : warning color.
+ *  - Overlay 2 (flag 0x46e005): walks a 15-entry int16 ring buffer at
+ *    0x46ddde backwards from the head index at *(int16_t*)0x46dddc:
+ *    index = (head + 14) % 15, stepping by the same (+14 % 15) until the
+ *    head is reached again (do/while, so an already-equal first index skips
+ *    the loop entirely). Each entry is printed on its own line, the rect
+ *    top/bottom both moving up 0x14 per line. Entry value 2 uses
+ *    *(void**)0x2ee6c4, anything else *(void**)0x2ee6d0.
+ *  - Overlay 3 (flag 0x46e006): only when cache_files_precache_in_progress()
+ *    and cache_files_precache_map_status(&progress) returns 0. Prints
+ *    (int)(progress * 100.0f [0x253f00]) as a percentage.
+ *  - Screen rect: the 8 bytes at 0x506584/0x506588 are copied as two dwords
+ *    into a 4 x int16 rectangle2d {top,left,bottom,right}; overlays 1 and 2
+ *    then set top = bottom - 0x32 and left = right - 0x32, overlay 3 sets
+ *    left = right - 0x32 and top = bottom - 0x64. The -0x32/-0x14/-0x64
+ *    adjustments are 32-bit adds of a dword load with only the low 16 bits
+ *    stored back (MSVC's short-arithmetic idiom), confirmed at 0x10279f,
+ *    0x102861 and 0x10294e.
+ *  - Text buffer: snprintf(buf, 3, "%d", v) followed by an explicit
+ *    buf[3] = 0 (the `& 0xffffff` Ghidra shows for overlay 2 is that NUL
+ *    store into a 4-byte char buffer, not float bit masking). Format string
+ *    "%d" is at 0x25acb8.
+ *  - Per-overlay call order differs and is preserved verbatim: overlays 1
+ *    and 3 do set_style -> set_color -> set_font -> text_draw, overlay 2 does
+ *    set_style -> set_font -> set_color -> text_draw (0x102881, 0x102887,
+ *    0x1028a5).
+ *  - 0x19b7e0 takes one stack argument at all five original call sites
+ *    (verified with dump_caller_regsetup.py); its body is
+ *    `tag_get('font', arg); *(int*)0x4d9b0c = arg;` and it returns with a
+ *    plain RET, so it is cdecl with a single int tag-index parameter. Its
+ *    kb.json decl was `void(void)`, which would have dropped the argument.
+ *  - The interface-globals pointer at 0x46bd0c is re-read at the top of each
+ *    overlay in the original; not hoisted here either.
+ *
+ * Inferred:
+ *  - 0x46e004/0x46e005/0x46e006 are three separate debug-render toggles
+ *    (framerate, frame-time history, precache progress).
+ *  - 0x2ee6d0 is a "bad/warning" text color shared by overlays 1 and 2;
+ *    0x2ee6d4, 0x2ee6c4 and 0x2ee6f4 are the respective normal colors.
+ *
+ * Uncertain:
+ *  - The meaning of the int16 ring-buffer entries in overlay 2 (only the
+ *    special value 2 is distinguished) and the exact semantic names of the
+ *    three toggles.
+ *  - The original frame is 0x1c bytes with a dead 4-byte slot at EBP-0x14
+ *    and several stack slots shared between overlays (the float at EBP-8
+ *    serves as fps, as overlay 2's text buffer and as overlay 3's out
+ *    parameter). That sharing is MSVC slot coalescing of disjoint lifetimes
+ *    and is not reproduced field-for-field here.
+ */
+void main_framerate_render(void)
+{
+  int16_t bounds[4]; /* rectangle2d: top, left, bottom, right */
+  int percent;
+  int frame_rate;
+  float scaled;
+  float value;
+  char string[4];
+  int font_tag;
+  int displayed;
+  int index;
+  const void *color;
+
+  font_tag = -1;
+
+  /* Overlay 1: measured (or locked) frame rate. */
+  if (*(char *)0x46e004 != 0 &&
+      (font_tag = *(int *)(*(int *)0x46bd0c + 0x54)) != -1) {
+    *(int *)&bounds[0] = *(int *)0x506584;
+    *(int *)&bounds[2] = *(int *)0x506588;
+
+    value = *(float *)0x46da08 > 0.01f ? *(float *)0x46da08 : 0.01f;
+    value = 1.0f / value;
+    frame_rate = (int)value;
+
+    displayed = frame_rate;
+    if (*(char *)0x46dd9a != 0) {
+      displayed = 60 / (int)*(int16_t *)0x46dd96;
+    }
+
+    snprintf(string, 3, "%d", (int)(int16_t)displayed);
+    string[3] = 0;
+
+    bounds[1] = (int16_t)(bounds[3] - 0x32);
+    bounds[0] = (int16_t)(bounds[2] - 0x32);
+
+    draw_string_set_style_justify_flags(-1, 0, 0);
+
+    color = *(const void **)0x2ee6d4;
+    if ((int16_t)displayed < 30) {
+      color = *(const void **)0x2ee6d0;
+    }
+    draw_string_set_color(color);
+    draw_string_set_font_tag(font_tag);
+    rasterizer_text_draw(bounds, NULL, NULL, 0, string);
+  }
+
+  /* Overlay 2: int16 ring buffer at 0x46ddde, newest line at the bottom. */
+  if (*(char *)0x46e005 != 0 &&
+      (font_tag = *(int *)(*(int *)0x46bd0c + 0x54)) != -1) {
+    *(int *)&bounds[0] = *(int *)0x506584;
+    *(int *)&bounds[2] = *(int *)0x506588;
+    bounds[0] = (int16_t)(bounds[2] - 0x32);
+    bounds[1] = (int16_t)(bounds[3] - 0x32);
+
+    index = (int16_t)(((int)*(int16_t *)0x46dddc + 14) % 15);
+    if ((int16_t)index != *(int16_t *)0x46dddc) {
+      do {
+        bounds[0] = (int16_t)(bounds[0] - 0x14);
+        bounds[2] = (int16_t)(bounds[2] - 0x14);
+
+        snprintf(string, 3, "%d",
+                 (int)*(int16_t *)(0x46ddde + (int16_t)index * 2));
+        string[3] = 0;
+
+        draw_string_set_style_justify_flags(-1, 1, 0);
+        draw_string_set_font_tag(font_tag);
+
+        color = *(const void **)0x2ee6c4;
+        if (*(int16_t *)(0x46ddde + (int16_t)index * 2) != 2) {
+          color = *(const void **)0x2ee6d0;
+        }
+        draw_string_set_color(color);
+        rasterizer_text_draw(bounds, NULL, NULL, 0, string);
+
+        index = (int16_t)(((int16_t)index + 14) % 15);
+      } while ((int16_t)index != *(int16_t *)0x46dddc);
+    }
+  }
+
+  /* Overlay 3: map precache progress percentage. */
+  if (*(char *)0x46e006 != 0 && cache_files_precache_in_progress() &&
+      (font_tag = *(int *)(*(int *)0x46bd0c + 0x54)) != -1 &&
+      cache_files_precache_map_status(&value) == 0) {
+    scaled = value * 100.0f;
+    *(int *)&bounds[0] = *(int *)0x506584;
+    *(int *)&bounds[2] = *(int *)0x506588;
+    percent = (int)scaled;
+
+    snprintf(string, 3, "%d", (int)(int16_t)percent);
+    string[3] = 0;
+
+    bounds[1] = (int16_t)(bounds[3] - 0x32);
+    bounds[0] = (int16_t)(bounds[2] - 0x64);
+
+    draw_string_set_style_justify_flags(-1, 0, 0);
+    draw_string_set_color(*(const void **)0x2ee6f4);
+    draw_string_set_font_tag(font_tag);
+    rasterizer_text_draw(bounds, NULL, NULL, 0, string);
+  }
 }
 
 /*
@@ -2940,6 +3137,87 @@ void FUN_00103b80(int base, int obj, int index, int flag)
     (float *)(FUN_00117ee0((int *)(obj + 0x140), tri[4], 0x50) + 8), flag);
 }
 
+/*
+ * FUN_00103c00 — walk a BSP's surface list and flood-mark unassigned surfaces.
+ *
+ * `bsp` is a collision-BSP-like structure of tag blocks:
+ *   bsp+0x00 (bsp[0])  vertex block,  element size 0x0c (3 floats)
+ *   bsp+0x0c (bsp[3])  edge block,    element size 0x1c
+ *   bsp+0x18 (bsp[6])  surface block, element size 0x18
+ *   bsp+0x1c (bsp[7])  surface element count
+ *
+ * For every surface i, the three edge indices at surface[0]/[1]/[2] are
+ * resolved. Each edge index carries a direction flag in bit 31: the low 31
+ * bits index the edge block, and the flag selects which of the two vertex
+ * indices stored at edge+0x0c / edge+0x10 is this surface's vertex. That
+ * vertex index is resolved against the vertex block to a float* position.
+ *
+ * The three positions build a plane via FUN_001037b0(out, p0, p1, p2). If the
+ * surface's field at +0x0c is still 0xffffffff (unassigned), a depth-first
+ * marking walk FUN_00103530 is seeded from this surface with the running
+ * count as the mark value and FUN_00103a00 as the visitor. The number of
+ * seeded walks is returned.
+ *
+ * ABI: cdecl, one stack param. Ghidra prints void __cdecl f(void) with the
+ * param surfacing as in_stack_00000004, and prints no return — but 0x103c0d
+ * XOR EAX,EAX (zero-iteration path) and 0x103d17 MOV EAX,[EBP-0x8] before the
+ * epilogue prove the count is returned in EAX (lift-learnings §16 void-EAX).
+ *
+ * The 5-arg FUN_00103530 call is reconstructed from the disassembly push
+ * sequence (Ghidra dropped all five args): PUSH [EBP-0x4](i), PUSH
+ * [EBP-0x8](count), PUSH LEA[EBP-0x18](plane), PUSH 0x103a00, PUSH EDI(bsp);
+ * first arg is the last push.
+ *
+ * The three vertex lookups are written inline as arguments so MSVC's
+ * right-to-left evaluation reproduces the original interleaved sequence:
+ * the vertex for edge[1] is produced and pushed first, then edge[2], then
+ * edge[0], and all three are held on the stack across the intervening calls.
+ * That production order is NOT the argument order.
+ *
+ * FUN_00117ee0(block, index, element_size) returns &block[index].
+ */
+int FUN_00103c00(int *bsp)
+{
+  int *edges;
+  uint32_t *surface;
+  int count;
+  int i;
+  float plane[4];
+
+  count = 0;
+  i = 0;
+  if (0 < bsp[7]) {
+    edges = bsp + 3;
+    do {
+      surface = (uint32_t *)FUN_00117ee0(bsp + 6, i, 0x18);
+      FUN_001037b0(
+        plane,
+        (float *)FUN_00117ee0(
+          bsp,
+          ((int *)(FUN_00117ee0(edges, (int)(surface[0] & 0x7fffffff), 0x1c) +
+                   0xc))[(int)(surface[0] & 0x80000000) != 0],
+          0xc),
+        (float *)FUN_00117ee0(
+          bsp,
+          ((int *)(FUN_00117ee0(edges, (int)(surface[2] & 0x7fffffff), 0x1c) +
+                   0xc))[(int)(surface[2] & 0x80000000) != 0],
+          0xc),
+        (float *)FUN_00117ee0(
+          bsp,
+          ((int *)(FUN_00117ee0(edges, (int)(surface[1] & 0x7fffffff), 0x1c) +
+                   0xc))[(int)(surface[1] & 0x80000000) != 0],
+          0xc));
+      if (surface[3] == 0xffffffff) {
+        FUN_00103530((int)bsp, FUN_00103a00, (uint32_t)plane, (uint32_t)count,
+                     i);
+        count = count + 1;
+      }
+      i = i + 1;
+    } while (i < bsp[7]);
+  }
+  return count;
+}
+
 /* Lazily opens the debug VRML output file ("debug.wrl") on the first call,
  * writes the VRML header, flushes it, and caches the FILE* in the global at
  * 0x46e394. Returns whether the handle is non-NULL (open succeeded). The
@@ -3162,6 +3440,156 @@ void FUN_00104240(int point_count, float *points, float *color)
       }
       crt_fprintf(*(void **)0x46e394, "-1] }\n");
       crt_fprintf(*(void **)0x46e394, "}\n");
+      crt_fflush(*(void **)0x46e394);
+    }
+  }
+}
+
+/* FUN_00104430 (0x104430)  error_geometry.c:0x14c-0x14e
+ *
+ * Emits a debug *multi-polygon* mesh as a VRML/Open-Inventor "Separator" block
+ * to the open error-geometry stream *(void**)0x46e394.  Sibling of
+ * FUN_00104240 (single point-cloud) but takes a per-polygon vertex count
+ * array, so it writes a real IndexedFaceSet with a coordIndex list.
+ *
+ *   polygon_count  number of polygons
+ *   point_counts   short[polygon_count], vertices in each polygon
+ *   points         packed 3-float vertices, concatenated over all polygons
+ *   color          4 floats per polygon, packed alpha-first (may be NULL)
+ *
+ * Three passes over point_counts[]:
+ *   1. Coordinate3 point[]  -- every vertex, transformed by the world matrix at
+ *      0x31fb08 into a local float[3] and scaled by *(float*)0x253f00 (=100.0f,
+ *      world units -> cm).  A single running vertex index walks `points`.
+ *   2. Material diffuseColor[] -- per polygon, color[p*4+1..3] repeated once per
+ *      *triangle* (i = 2 .. point_counts[p]-1) then a newline.  ESI is NOT
+ *      advanced inside the inner loop in the original (0x1045e0-0x104610), so
+ *      the same triple really is printed repeatedly.  transparency =
+ *      *(float*)0x2533c8 (=1.0f) - color[0] (plain FSUB, not FSUBR).
+ *   3. IndexedFaceSet coordIndex[] -- fan triangulation: for each polygon,
+ *      (base, base+i-1, base+i, -1) for i = 2 .. point_counts[p]-1, then
+ *      base += point_counts[p] (MOVSX word at 0x1046d4).  Ghidra dropped all
+ *      three %d arguments and the base accumulator from its decompile; they are
+ *      recovered from the pushes at 0x1046a0-0x1046b5 (PUSH base+i / DEC /
+ *      PUSH base+i-1 / PUSH base, ADD ESP,0x14 = 5 dwords).
+ *
+ * cdecl, verified from disassembly at 0x104430: [EBP+0x8]=polygon_count (ESI,
+ * full 32-bit -- no short truncation, unlike FUN_00104240), [EBP+0xc]=
+ * point_counts (EDI, stride 2B), [EBP+0x10]=points, [EBP+0x14]=color (EBX).
+ * Frame = 0x14 bytes = float[3] transform output at EBP-0x14..EBP-0xc plus the
+ * running vertex index at EBP-0x4 and one loop down-counter at EBP-0x8; the
+ * other two down-counters are spilled over the dead [EBP+0x10] and [EBP+0x8]
+ * param slots, so they are three distinct locals here.  All inner counters are
+ * 16-bit (CMP DI/BX/SI, WORD PTR [reg]).  The stream global is re-loaded before
+ * every crt_fprintf in the original, so it is never cached in a local.  Assert
+ * tails are system_exit(-1) (CALL 0x8e2f0), not halt_and_catch_fire.
+ */
+void FUN_00104430(int polygon_count, short *point_counts, float *points,
+                 float *color)
+{
+  float p[3];
+  float *pt;
+  float *cp;
+  short *pc;
+  short i;
+  int vertex_index;
+  int n1;
+  int n2;
+  int n3;
+
+  if (polygon_count < 0) {
+    display_assert("polygon_count>=0",
+                   "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x14c, true);
+    system_exit(-1);
+  }
+  if (point_counts == 0) {
+    display_assert("point_counts", "c:\\halo\\SOURCE\\tool\\error_geometry.c",
+                   0x14d, true);
+    system_exit(-1);
+  }
+  if (points == 0) {
+    display_assert("points", "c:\\halo\\SOURCE\\tool\\error_geometry.c", 0x14e,
+                   true);
+    system_exit(-1);
+  }
+  if (polygon_count > 0) {
+    if (FUN_00103d30()) {
+      crt_fprintf(*(void **)0x46e394, "Separator\n{\n");
+      crt_fprintf(*(void **)0x46e394, "\tCoordinate3\n\t{\n\t\tpoint\n\t\t[\n");
+      vertex_index = 0;
+      if (polygon_count > 0) {
+        pc = point_counts;
+        n1 = polygon_count;
+        do {
+          i = 0;
+          if (*pc > 0) {
+            pt = points + vertex_index * 3;
+            do {
+              matrix_transform_point((float *)0x31fb08, pt, p);
+              crt_fprintf(*(void **)0x46e394, "\t\t\t%f %f %f,\n",
+                          p[0] * *(float *)0x253f00, p[1] * *(float *)0x253f00,
+                          p[2] * *(float *)0x253f00);
+              i = i + 1;
+              vertex_index = vertex_index + 1;
+              pt = pt + 3;
+            } while (i < *pc);
+          }
+          pc = pc + 1;
+          n1 = n1 - 1;
+        } while (n1 != 0);
+      }
+      crt_fprintf(*(void **)0x46e394, "\t\t]\n\t}\n");
+      crt_fprintf(*(void **)0x46e394,
+                  "\tMaterialBinding\n\t{\n\t\tvalue PER_FACE\n\t}\n");
+      if (color != 0) {
+        crt_fprintf(*(void **)0x46e394,
+                    "\tMaterial\n\t{\n\t\tdiffuseColor\n\t\t[\n");
+        if (polygon_count > 0) {
+          n2 = polygon_count;
+          cp = color + 2;
+          pc = point_counts;
+          do {
+            i = 2;
+            if (*pc > 2) {
+              do {
+                crt_fprintf(*(void **)0x46e394, "\t\t\t%f %f %f, ", cp[-1],
+                            cp[0], cp[1]);
+                i = i + 1;
+              } while (i < *pc);
+            }
+            crt_fprintf(*(void **)0x46e394, "\n");
+            cp = cp + 4;
+            pc = pc + 1;
+            n2 = n2 - 1;
+          } while (n2 != 0);
+        }
+        crt_fprintf(*(void **)0x46e394,
+                    "\t\t]\n\t\ttransparency[%f]\n\t}\n",
+                    *(float *)0x2533c8 - color[0]);
+      }
+      crt_fprintf(*(void **)0x46e394,
+                  "\tIndexedFaceSet\n\t{\n\t\tcoordIndex\n\t\t[\n");
+      vertex_index = 0;
+      if (polygon_count > 0) {
+        n3 = polygon_count;
+        pc = point_counts;
+        do {
+          crt_fprintf(*(void **)0x46e394, "\t\t\t");
+          i = 2;
+          if (*pc > 2) {
+            do {
+              crt_fprintf(*(void **)0x46e394, "%d,%d,%d,-1, ", vertex_index,
+                          vertex_index + i - 1, vertex_index + i);
+              i = i + 1;
+            } while (i < *pc);
+          }
+          crt_fprintf(*(void **)0x46e394, "\n");
+          vertex_index = vertex_index + *pc;
+          pc = pc + 1;
+          n3 = n3 - 1;
+        } while (n3 != 0);
+      }
+      crt_fprintf(*(void **)0x46e394, "\t\t]\n\t}\n}\n");
       crt_fflush(*(void **)0x46e394);
     }
   }

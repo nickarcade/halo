@@ -45,9 +45,22 @@ def _make_tracer(*records):
     return t
 
 
-def _rec(seq, addr, name, *args):
+def _rec(seq, addr, name, *args, caller_addr=0):
     return StubCallRecord(seq=seq, callee_addr=addr, callee_name=name,
-                          args=list(args), is_varargs=False)
+                          args=list(args), is_varargs=False,
+                          caller_addr=caller_addr)
+
+
+# A target function occupying [0x400000, 0x400100); anything outside was called
+# by a natively-executed callee, not by the target.
+_TGT = (0x400000, 0x400100)
+_IN, _OUTSIDE = 0x400040, 0x40008034
+
+
+def _ranged_tracer(rng, *records):
+    t = _make_tracer(*records)
+    t.target_range = rng
+    return t
 
 
 def test_identical():
@@ -152,6 +165,99 @@ def test_sequence_callee_diverged():
     assert d.sequence_diverge_index == 1
     assert d.has_differences()
     print("  PASS  test_sequence_callee_diverged")
+
+
+def test_sequences_are_recorded():
+    """The comparator must keep the two sequences, not just the divergence index.
+
+    Without them a call_seq verdict cannot be adjudicated at all -- which was the
+    state on the 07-29 batch, where call_seq was the largest failure class (71 of
+    186) and every one of them read only "diverged at index N".
+    """
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x1),
+        _rec(1, _SENTINEL_B, "bar", 0x2),
+    )
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "foo", 0x1))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-rec")
+    assert d.oracle_seq == ["foo", "bar"], d.oracle_seq
+    assert d.candidate_seq == ["foo"], d.candidate_seq
+    assert any("call-seq oracle" in ln for ln in d.sequence_detail())
+    print("  PASS  test_sequences_are_recorded")
+
+
+def test_shifted_sequence_is_flagged_as_alignment():
+    """One extra call on one side, rest lining up = alignment artifact, not a bug.
+
+    This is the case worth separating: the comparison walks two lists off by one,
+    so every position after the insertion 'diverges' while both sides really call
+    the same things in the same order.
+    """
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x1),
+        _rec(1, _SENTINEL_B, "extra", 0x9),
+        _rec(2, _SENTINEL_C, "bar", 0x2),
+    )
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x1),
+        _rec(2, _SENTINEL_C, "bar", 0x2),
+    )
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-shift")
+    assert d.sequence_diverged
+    kind, _ = d.sequence_relation()
+    assert kind == "shifted", kind
+    assert any("SHIFTED" in ln for ln in d.sequence_detail())
+    print("  PASS  test_shifted_sequence_is_flagged_as_alignment")
+
+
+def test_truncated_sequence_is_flagged_as_early_exit():
+    """Shorter is a prefix of longer = one side stopped, not a divergence.
+
+    Four of six call_seq targets sampled on 07-29 were this shape (oracle made
+    2 calls, candidate 4-5, oracle's list a prefix). Calling that a wrong-callee
+    bug would put four artifacts on the bug list.
+    """
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x1),
+        _rec(1, _SENTINEL_B, "bar", 0x2),
+    )
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x1),
+        _rec(1, _SENTINEL_B, "bar", 0x2),
+        _rec(2, _SENTINEL_C, "baz", 0x3),
+        _rec(3, _SENTINEL_C, "baz", 0x4),
+    )
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-trunc")
+    assert d.sequence_diverged
+    kind, _ = d.sequence_relation()
+    assert kind == "truncated", kind
+    assert any("TRUNCATED" in ln for ln in d.sequence_detail())
+    print("  PASS  test_truncated_sequence_is_flagged_as_early_exit")
+
+
+def test_genuinely_different_callee_is_not_called_a_shift():
+    """The opposite direction: a real wrong-callee must NOT be excused.
+
+    Equal lengths with a different callee at one position can never be explained
+    by an off-by-one, so sequence_shift() must return None or the alignment
+    story would launder real control-flow bugs.
+    """
+    oracle = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x1),
+        _rec(1, _SENTINEL_B, "bar", 0x2),
+    )
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x1),
+        _rec(1, _SENTINEL_C, "baz", 0x2),
+    )
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-real")
+    assert d.sequence_diverged
+    kind, desc = d.sequence_relation()
+    assert kind == "divergent", kind
+    assert "index 1" in desc, desc
+    assert not any("SHIFTED" in ln or "TRUNCATED" in ln
+                   for ln in d.sequence_detail())
+    print("  PASS  test_genuinely_different_callee_is_not_called_a_shift")
 
 
 def test_chkstk_ignored():
@@ -409,6 +515,244 @@ def test_real_arg_bug_before_divergence_still_caught():
         f"the swapped args at index 0 are before the divergence and must "
         f"still be reported, got {d.arg_mismatches}")
     print("  PASS  test_real_arg_bug_before_divergence_still_caught")
+
+
+_REAL_GLOBAL = 0x0046BA4C   # input_flush's first csmemset target
+
+
+def _with_slot_map(mapping, fn):
+    """Run fn() with the oracle slot -> real-address map installed."""
+    from stubs import set_globals_slot_real_map, reset_globals_slot_real_map
+    set_globals_slot_real_map(mapping)
+    try:
+        return fn()
+    finally:
+        reset_globals_slot_real_map()
+
+
+def test_slot_vs_real_global_soft_matches():
+    """`&global` is a slot address in the oracle and a real VA in the
+    candidate.  Same object, two address spaces -- not an arg bug."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", GLOBALS_BASE, 0, 8))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", _REAL_GLOBAL, 0, 8))
+    d = _with_slot_map(
+        {GLOBALS_BASE: _REAL_GLOBAL},
+        lambda: compare_stub_arg_traces(oracle, cand, seed_label="sg0"))
+    assert d.arg_mismatches == 0, f"expected soft match, got {d.arg_mismatches}"
+    assert d.soft_reasons.get("globals-slot-alias") == 1, d.soft_reasons
+    print("  PASS  test_slot_vs_real_global_soft_matches")
+
+
+def test_slot_alias_preserves_offset_within_the_global():
+    """Offset into the object must agree: slot+0x10 pairs with real+0x10."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", GLOBALS_BASE + 0x10))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", _REAL_GLOBAL + 0x10))
+    d = _with_slot_map(
+        {GLOBALS_BASE: _REAL_GLOBAL},
+        lambda: compare_stub_arg_traces(oracle, cand, seed_label="sg1"))
+    assert d.arg_mismatches == 0, f"expected soft match, got {d.arg_mismatches}"
+    print("  PASS  test_slot_alias_preserves_offset_within_the_global")
+
+
+def test_wrong_offset_into_right_global_is_still_reported():
+    """The soundness property: identifying the global correctly does NOT
+    excuse indexing into it wrongly.  A range-based excusal would swallow
+    this; the exact base+offset test must not."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", GLOBALS_BASE + 0x10))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", _REAL_GLOBAL + 0x20))
+    d = _with_slot_map(
+        {GLOBALS_BASE: _REAL_GLOBAL},
+        lambda: compare_stub_arg_traces(oracle, cand, seed_label="sg2"))
+    assert d.arg_mismatches == 1, (
+        f"a wrong offset into a correctly-identified global must still be "
+        f"reported, got {d.arg_mismatches}")
+    print("  PASS  test_wrong_offset_into_right_global_is_still_reported")
+
+
+def test_slot_alias_inactive_without_a_map():
+    """Strictly additive: with no map installed, nothing is excused."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", GLOBALS_BASE))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", _REAL_GLOBAL))
+    d = _with_slot_map(
+        {}, lambda: compare_stub_arg_traces(oracle, cand, seed_label="sg3"))
+    assert d.arg_mismatches == 1, (
+        f"no map means no excusal, got {d.arg_mismatches}")
+    print("  PASS  test_slot_alias_inactive_without_a_map")
+
+
+def test_slot_alias_covers_index_below_the_arena():
+    """game_engine_clear_goal_position computes base + (short)idx * 0x20, so a
+    negative index puts the oracle's value BELOW GLOBALS_BASE.  A range check
+    excused only the non-negative seeds; the displacement test must cover
+    both."""
+    off = -0x20 * 3
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", GLOBALS_BASE + off))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", _REAL_GLOBAL + off))
+    assert GLOBALS_BASE + off < GLOBALS_BASE, "test premise: must be below arena"
+    d = _with_slot_map(
+        {GLOBALS_BASE: _REAL_GLOBAL},
+        lambda: compare_stub_arg_traces(oracle, cand, seed_label="sg5"))
+    assert d.arg_mismatches == 0, (
+        f"negative index must still soft-match, got {d.arg_mismatches}")
+    print("  PASS  test_slot_alias_covers_index_below_the_arena")
+
+
+def test_unmapped_slot_is_still_reported():
+    """A slot with no XBE-derived real address must not be excused against
+    an arbitrary candidate value."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", GLOBALS_BASE + 0x100))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "_csmemset", _REAL_GLOBAL))
+    d = _with_slot_map(
+        {GLOBALS_BASE: _REAL_GLOBAL},
+        lambda: compare_stub_arg_traces(oracle, cand, seed_label="sg4"))
+    assert d.arg_mismatches == 1, (
+        f"unmapped slot must not be excused, got {d.arg_mismatches}")
+    print("  PASS  test_unmapped_slot_is_still_reported")
+
+
+def test_one_sided_nesting_is_flagged_as_inline_asymmetry():
+    """Nested drops on one side only means inline-vs-call, not a real difference.
+
+    Attribution fixes the side that CALLed the callee (its inner calls are
+    dropped) but cannot touch the side that INLINED it (identical inner calls
+    issue from within the target's own extent). The surviving sequences then
+    describe different amounts of code. object_get_node_matrix is the worked
+    example: both sides end at the same assert (line 0x424), yet the candidate
+    shows the inlined helper's three calls first.
+    """
+    # Three extra calls, as in the real case: a single extra would be explained
+    # (correctly, and more specifically) by the `shifted` rule, which is tested
+    # separately and runs first.
+    oracle = _ranged_tracer(_TGT,
+                            _rec(0, _SENTINEL_A, "assert", 0x424,
+                                 caller_addr=_IN),
+                            _rec(1, _SENTINEL_B, "inner1", 0x1,
+                                 caller_addr=_OUTSIDE),
+                            _rec(2, _SENTINEL_B, "inner2", 0x2,
+                                 caller_addr=_OUTSIDE),
+                            _rec(3, _SENTINEL_B, "inner3", 0x3,
+                                 caller_addr=_OUTSIDE))
+    cand = _ranged_tracer(_TGT,
+                          _rec(0, _SENTINEL_B, "inner1", 0x1, caller_addr=_IN),
+                          _rec(1, _SENTINEL_B, "inner2", 0x2, caller_addr=_IN),
+                          _rec(2, _SENTINEL_B, "inner3", 0x3, caller_addr=_IN),
+                          _rec(3, _SENTINEL_A, "assert", 0x424,
+                               caller_addr=_IN))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-inline")
+    assert d.sequence_diverged, "still a divergence, just not an adjudicable one"
+    kind, _ = d.sequence_relation()
+    assert kind == "inline-asymmetry", kind
+    assert d.nested_dropped_oracle == 3 and d.nested_dropped_candidate == 0, (
+        f"{d.nested_dropped_oracle}/{d.nested_dropped_candidate}")
+    print("  PASS  test_one_sided_nesting_is_flagged_as_inline_asymmetry")
+
+
+def test_symmetric_nesting_still_reports_divergent():
+    """The opposite direction: equal nesting on both sides is comparable.
+
+    inline-asymmetry must key on the ASYMMETRY, not on nesting existing at all —
+    otherwise any target with nested calls becomes unadjudicable and real
+    control-flow bugs stop being reported.
+    """
+    oracle = _ranged_tracer(_TGT,
+                            _rec(0, _SENTINEL_A, "foo", 0x1, caller_addr=_IN),
+                            _rec(1, _SENTINEL_B, "inner", 0x1,
+                                 caller_addr=_OUTSIDE))
+    cand = _ranged_tracer(_TGT,
+                          _rec(0, _SENTINEL_B, "bar", 0x1, caller_addr=_IN),
+                          _rec(1, _SENTINEL_B, "inner", 0x1,
+                               caller_addr=_OUTSIDE))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-sym")
+    kind, _ = d.sequence_relation()
+    assert kind == "divergent", f"symmetric nesting must stay adjudicable: {kind}"
+    print("  PASS  test_symmetric_nesting_still_reports_divergent")
+
+
+def test_nested_call_is_attributed_away():
+    """A call made by a natively-executed callee is not the target's behaviour.
+
+    The asymmetry this fixes: when one side CALLs an intra-object sibling (and
+    gets a stub) while the other executes that sibling for real, the executing
+    side additionally records every call the SIBLING makes. Those extra records
+    made the sequences differ even though the target did nothing different --
+    FUN_0005a120 failed 5 seeds purely on this. The sibling has its own
+    equivalence target; its calls are not evidence about this one.
+    """
+    oracle = _ranged_tracer(_TGT, _rec(0, _SENTINEL_A, "foo", 0x1,
+                                       caller_addr=_IN))
+    cand = _ranged_tracer(_TGT,
+                          _rec(0, _SENTINEL_A, "foo", 0x1, caller_addr=_IN),
+                          _rec(1, _SENTINEL_B, "bar", 0x2,
+                               caller_addr=_OUTSIDE))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-nest")
+    assert not d.sequence_diverged, f"nested call must not diverge: {d}"
+    assert d.candidate_seq == ["foo"], d.candidate_seq
+    assert d.nested_dropped_candidate == 1, d.nested_dropped_candidate
+    print("  PASS  test_nested_call_is_attributed_away")
+
+
+def test_in_range_extra_call_still_diverges():
+    """The opposite direction: an extra call the TARGET itself makes is real.
+
+    Attribution must not become a blanket excuse for extra calls -- only for
+    calls provably made from outside the target's own bytes.
+    """
+    oracle = _ranged_tracer(_TGT, _rec(0, _SENTINEL_A, "foo", 0x1,
+                                       caller_addr=_IN))
+    cand = _ranged_tracer(_TGT,
+                          _rec(0, _SENTINEL_A, "foo", 0x1, caller_addr=_IN),
+                          _rec(1, _SENTINEL_B, "bar", 0x2, caller_addr=_IN + 8))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-inrange")
+    assert d.sequence_diverged, "an extra call by the target must still fail"
+    assert d.nested_dropped_candidate == 0, d.nested_dropped_candidate
+    print("  PASS  test_in_range_extra_call_still_diverges")
+
+
+def test_unattributed_call_is_not_assumed_nested():
+    """caller_addr == 0 means "unknown", which must not read as "nested".
+
+    Same principle as the missing call-seq shape marker: absent evidence is not
+    evidence of an artifact. A record with no attribution keeps its old
+    behaviour, so an older or partially-readable run can never be silently
+    downgraded to clean.
+    """
+    oracle = _ranged_tracer(_TGT, _rec(0, _SENTINEL_A, "foo", 0x1,
+                                       caller_addr=_IN))
+    cand = _ranged_tracer(_TGT,
+                          _rec(0, _SENTINEL_A, "foo", 0x1, caller_addr=_IN),
+                          _rec(1, _SENTINEL_B, "bar", 0x2))  # caller unknown
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-unattr")
+    assert d.sequence_diverged, "unattributed extra call must still fail"
+    print("  PASS  test_unattributed_call_is_not_assumed_nested")
+
+
+def test_attribution_is_off_without_a_range():
+    """Strictly additive: no target_range installed => nothing is attributed."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "foo", 0x1, caller_addr=_IN))
+    cand = _make_tracer(_rec(0, _SENTINEL_A, "foo", 0x1, caller_addr=_IN),
+                        _rec(1, _SENTINEL_B, "bar", 0x2,
+                             caller_addr=_OUTSIDE))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-norange")
+    assert d.sequence_diverged, "no range => historical behaviour"
+    assert d.nested_dropped_candidate == 0
+    print("  PASS  test_attribution_is_off_without_a_range")
+
+
+def test_call_at_function_end_is_kept():
+    """A CALL as the last instruction leaves a return address equal to `end`.
+
+    An exclusive upper bound would attribute the target's own final call to a
+    callee and drop it -- exactly the kind of off-by-one that would silently
+    hide a dropped tail call.
+    """
+    oracle = _ranged_tracer(_TGT, _rec(0, _SENTINEL_A, "foo", 0x1,
+                                       caller_addr=_TGT[1]))
+    cand = _ranged_tracer(_TGT, _rec(0, _SENTINEL_A, "foo", 0x9,
+                                     caller_addr=_TGT[1]))
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-tail")
+    assert not d.sequence_diverged, f"tail call must be kept: {d}"
+    assert d.arg_mismatches == 1, "and still arg-compared"
+    print("  PASS  test_call_at_function_end_is_kept")
 
 
 def main():

@@ -225,6 +225,128 @@ def test_call_seq_divergence_is_suspect():
     print("  ok  call-sequence divergence -> call_seq/suspect-real")
 
 
+def _seq_body(shape):
+    body = "".join(
+        f"  seed[ {i}] FAIL: stub-args: call-seq diverged at index 2\n"
+        for i in range(20)
+    )
+    return body + f"  call-seq {shape}: (detail)\n"
+
+
+def test_truncated_call_seq_is_harness_artifact():
+    """One side stopped early -> artifact, not a bug.
+
+    57 of the 71 call_seq targets on the 07-29 batch were this shape. Leaving
+    them as suspect-real makes the largest class in the corpus 95% noise.
+    """
+    cat, _ = classify(ROW, _smoke(_seq_body("TRUNCATED")))
+    assert cat == "call_seq_truncated", cat
+    assert BUCKETS[cat] == "harness-artifact", BUCKETS[cat]
+    print("  ok  truncated call-seq -> harness-artifact")
+
+
+def test_shifted_call_seq_is_harness_artifact():
+    cat, _ = classify(ROW, _smoke(_seq_body("SHIFTED")))
+    assert cat == "call_seq_shifted", cat
+    assert BUCKETS[cat] == "harness-artifact", BUCKETS[cat]
+    print("  ok  shifted call-seq -> harness-artifact")
+
+
+def test_divergent_call_seq_stays_suspect_real():
+    """The 3-of-71 real case must survive the split."""
+    cat, detail = classify(ROW, _smoke(_seq_body("DIVERGENT")))
+    assert cat == "call_seq", cat
+    assert BUCKETS[cat] == "suspect-real", BUCKETS[cat]
+    assert "different callee" in detail, detail
+    print("  ok  divergent call-seq -> call_seq/suspect-real")
+
+
+def test_call_seq_without_shape_marker_stays_suspect_real():
+    """Logs predating the shape marker must NOT be reclassified as artifacts.
+
+    Absent evidence is not evidence of an artifact -- an old log has no marker,
+    and defaulting those to harness-artifact would silently retire real bugs
+    that were never re-examined.
+    """
+    body = "".join(
+        f"  seed[ {i}] FAIL: stub-args: call-seq diverged at index 2\n"
+        for i in range(20)
+    )
+    cat, detail = classify(ROW, _smoke(body))
+    assert cat == "call_seq", cat
+    assert BUCKETS[cat] == "suspect-real", BUCKETS[cat]
+    assert "not recorded" in detail, detail
+    print("  ok  call-seq with no shape marker stays suspect-real")
+
+
+def test_inline_asymmetry_is_needs_evidence_not_artifact():
+    """One side CALLed what the other INLINED: uninformative, not proven benign.
+
+    The comparison cannot say anything about the target, so it must not stay
+    suspect-real -- but it also must not be filed as harness-artifact, because a
+    real bug could sit behind an uncomparable sequence. needs-evidence is the
+    calibrated bucket: re-run with symmetric callee resolution to decide.
+    """
+    body = "".join(
+        f"  seed[ {i}] FAIL: stub-args: call-seq diverged at index 0\n"
+        "  call-seq INLINE-ASYMMETRY: one side CALLed a callee the other "
+        "INLINED (nested dropped: oracle=3 candidate=0)\n"
+        for i in range(20)
+    )
+    cat, detail = classify(ROW, _smoke(body))
+    assert cat == "call_seq_inline_asymmetry", cat
+    assert BUCKETS[cat] == "needs-evidence", BUCKETS[cat]
+    assert "INLINED" in detail, detail
+    print("  ok  inline-asymmetry is needs-evidence")
+
+
+def test_narrow_field_read_wide_is_load_width():
+    """oracle reads 16 bits, we read 32 and pull in the adjacent fill.
+
+    This shape also satisfies _is_dirty_eax (low 16 bits match), which buckets
+    it harness-artifact. It must reach load_width/suspect-real instead, or a real
+    wrong-width return type is filed as benign and never looked at. Real case:
+    unit_inventory_next_weapon returns a short NONE (0xffff), our lift an int -1.
+    """
+    body = "".join(
+        f"  seed[ {i}] FAIL: EAX: oracle=0x0000ffff lifted=0xffffffff\n"
+        for i in range(8)
+    )
+    cat, detail = classify(ROW, _smoke(body))
+    assert cat == "load_width", cat
+    assert BUCKETS[cat] == "suspect-real", BUCKETS[cat]
+    print("  ok  16-bit field read as 32-bit -> load_width/suspect-real")
+
+
+def test_byte_field_read_wide_is_load_width():
+    """Same bug one width down: oracle reads 8 bits of 0xcc, we read 32."""
+    body = "".join(
+        f"  seed[ {i}] FAIL: EAX: oracle=0x000000cc lifted=0xcccccccc\n"
+        for i in range(4)
+    )
+    cat, _ = classify(ROW, _smoke(body))
+    assert cat == "load_width", cat
+    print("  ok  8-bit field read as 32-bit -> load_width")
+
+
+def test_stale_upper_bits_stays_dirty_eax():
+    """The benign direction must NOT be captured by the new detector.
+
+    A real `mov ax` leaves arbitrary leftovers in the upper bits -- not a
+    repeated-byte fill -- so it stays dirty_eax/harness-artifact. Without this
+    pin, widening load_width would quietly reclassify a whole benign class as
+    suspect-real and bury the genuine bugs in noise.
+    """
+    body = "".join(
+        f"  seed[ {i}] FAIL: EAX: oracle=0x00601234 lifted=0x00001234\n"
+        for i in range(50)
+    )
+    cat, _ = classify(ROW, _smoke(body))
+    assert cat == "dirty_eax", cat
+    assert BUCKETS[cat] == "harness-artifact", BUCKETS[cat]
+    print("  ok  stale upper bits stay dirty_eax/harness-artifact")
+
+
 def test_every_category_has_a_bucket():
     """A category with no bucket would silently become needs-evidence."""
     import triage_failures as tf

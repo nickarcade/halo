@@ -434,6 +434,132 @@ to all-seeds-error with the guard disabled, so they cannot pass vacuously.
 The 21 unchanged targets are a different root cause and remain open — e.g.
 `actor_died`, `actor_erase`, `actor_delete_props` still sit at 0%.
 
+### Most of the all-errors table was a fossil (2026-07-29)
+
+Re-reading `summary.json` a day later, 435 rows were `status: error` — but
+**270 of them had a per-target result JSON from 07-08/07-09**, i.e. from before
+both the data-page guard (`b37696b4`, 07-28 22:03) and real-callees-by-default
+(07-28). The batch had been run with `--skip-existing`, so it carried those
+rows forward verbatim instead of re-running them.
+
+The effect is not evenly spread — clustering the error rows by cause and by
+result age separates a fixed bug from a live one:
+
+| cluster | stale | fresh |
+|---|---|---|
+| `FETCH_UNMAPPED` at `0xffXX` (the data-page slide above) | 124 | 14 |
+| `stub_convention_mismatch` | 0 | **64** |
+| `READ_UNMAPPED` | 45 | 0 |
+| timeout | 21 | 0 |
+| `INSN-LIMIT` | 22 | 12 |
+| `eip=0xcccccccc` | 17 | 8 |
+
+The largest cluster was 90% stale — it is the already-fixed slide, whose
+signature addresses (`0xff84`, `0xff85`, `0xff86`) are exactly the
+two-bytes-at-a-time walk documented above. Meanwhile the one cluster that is
+**100% fresh** was invisible underneath it.
+
+Lesson: age the per-target JSONs before believing an aggregate. A
+`--skip-existing` batch reports a mixture of measurements and memories.
+
+The mechanism was `run_local_equiv.sh full`, which passes `--skip-existing`
+into the persistent `artifacts/batch_verify/` and feeds the previous
+`summary.json` back as `--baseline` — so each nightly filled only the gaps,
+carried the rest forward untouched, and compared the mixture against itself.
+
+`--skip-existing` is now **age-aware**: `reusable_results()` discards any
+cached result older than the newest mtime across `HARNESS_SOURCES` (the
+driver, stubs, ABI/COFF loading, seed generation, concolic, the z3 lane, state
+injection). A cached result is evidence about the harness that produced it, so
+any harness edit invalidates everything measured before it. Keying on source
+mtime rather than a date means there is no cutoff to maintain. The run prints
+what it did, and `summary.json` carries `reused_results` /
+`invalidated_results` so a reader can tell a measurement from a carry-forward
+without stat-ing every file.
+
+`test_batch_reuse.py` pins the split, that `summary.json` is never counted as
+a per-target result, and — the two that matter — that `harness_mtime()`
+actually resolves real files and that every name in `HARNESS_SOURCES` exists.
+A zero cutoff, or a renamed module, would silently restore
+reuse-everything-forever; the list already had one bogus entry
+(`value_corpus.py`) that this test caught on first run.
+
+### The convention gate blocked 64 targets on 15 decls (2026-07-29)
+
+`stub_convention_mismatch` is not a harness malfunction — it is the harness
+refusing to run because a kb.json decl disagrees with the callee's `RET`
+immediate in the pristine XBE (§30, the `0x158df0` boot crash). Honoring a
+wrong decl makes the stub pop the wrong number of bytes on *both* sides, so
+the differential passes while the box drifts ESP. That has to fail.
+
+But all 64 blocked targets traced to just **15 distinct callees**, 14 of them
+in the `0x1d0xxx–0x1d6xxx` CRT region, all declared by Ghidra as placeholder
+`void FUN_xxx(void)` over a body that RETs 4/8/12/16/24:
+
+| callee | binary | targets blocked |
+|---|---|---|
+| `FUN_001d0c48` | RET 8 | 42 |
+| `FUN_001d5c66` | RET 12 | 25 |
+| `FUN_001d0c65` | RET 12 | 12 |
+| `FUN_001d0362` | RET 4 | 10 |
+| `FUN_001d18aa` | RET 16 | 9 |
+
+None is called from lifted C (`grep -rl` across `src/` finds no caller), so
+none was a live ESP drift in the shipped build.
+
+The gate was over-broad on two independent counts, both structural:
+
+1. It ran inside `_register_stub`, which executes **before**
+   `_load_real_callees`. A callee that ends up with `has_real_code=True` has
+   `get_stub_code` return its own oracle bytes, whose real `RET N` pops
+   correctly — the decl is never consulted.
+2. It fired for every callee in the stub map **regardless of reachability**.
+   `bink_playback_stop` was blocked by `FUN_000e5590` while reporting
+   `stub-arg differential: 0 calls` — no path reached it. Unblocked, it passes
+   20/20.
+
+So the verdict moved from setup to after the seed loop, and now fails only on
+mismatches that are both synthetic and *executed*
+(`StubManager.blocking_convention_mismatches()`, fed by `_executed_stubs`,
+which only `execute_stub` populates and real-code callees never reach).
+Non-blocking mismatches are still printed as warnings — a wrong decl remains
+a real defect, and `check_stdcall_ret.py` is what fixes it.
+
+`test_stub_conv_gate.py` pins both directions. The relaxation is only sound
+while the executed-synthetic case still fails, so that case is the first test
+in the file; `test_unknown_sentinel_is_not_silently_excused` pins that absence
+from `_stubs` does not excuse (only a positive `has_real_code` does), since
+excusing on absence would forgive precisely the case we cannot reason about.
+
+Measured on the same 64 targets, 50 seeds each:
+
+| outcome | count |
+|---|---|
+| pass | **48** |
+| fail (divergence previously hidden behind the block) | 6 |
+| error, different cause (`emulation_error`) | 6 |
+| timeout at 90s (they now get far enough to spend it) | 3 |
+| not_applicable | 1 |
+
+**Zero** were still blocked by an *executed* wrong-convention stub, so nothing
+in this set relied on the gate — but "zero" is also what a gate that stopped
+observing stub execution would report. So the non-blocking path now prints its
+own evidence, e.g. for `create_message`:
+
+```
+stub-conv: 2 mismatch(es) did not block — 3 synthetic stub(s) executed
+           this run, none of them wrongly declared
+```
+
+Three executed, neither `FUN_001d0c48` nor `FUN_001d5c66` among them. A
+vacuous gate would say `0 synthetic stub(s) executed` while claiming the same
+verdict, so the two cases stay distinguishable in the log.
+
+The 6 new divergences (`cache_files_precache_map_status`, `create_message`,
+`find_files_next`, `FUN_0007c6c0`, `hs_compile_source`,
+`network_game_client_dispose`) are evidence gained, not cleanliness: they were
+always diverging and the block hid it. They need ordinary triage.
+
 ### What does NOT lift the remaining tail (measured 2026-07-28)
 
 260 of 822 cached targets still sit below 30% coverage (154 of them
@@ -543,6 +669,100 @@ Every category maps to one of three **buckets**:
 | `harness-artifact` | The emulator, not the lift, produced the difference |
 | `needs-evidence` | Cannot be adjudicated from the smoke log alone |
 | `suspect-real` | Candidate lift bug — investigate |
+
+### Call-sequence divergences have three shapes (2026-07-29)
+
+`call-seq diverged at index N` was the single largest failure class — 71 of 186
+on the 07-29 batch, all filed `suspect-real` — and it could not be adjudicated
+at all, because the harness recorded only the index and never the two sequences.
+`stubs.py::StubArgDiff` now keeps both and `sequence_relation()` classifies the
+shape:
+
+| Shape | Meaning | Bucket |
+|-------|---------|--------|
+| `truncated` | Shorter sequence is a **prefix** of the longer: one side stopped early (oracle crash, early return, insn limit). Both sides agree on every call they both made. | harness-artifact |
+| `shifted` | One extra call in the **middle**, tail lines up. The comparison then walks two lists off by one, so every later position reports divergent. | harness-artifact |
+| `divergent` | Genuinely different callee at the same position. | suspect-real |
+
+Measured across all 71: **57 truncated, 4 shifted, 3 divergent** (7 no longer
+reproduced). That is 95% artifact, and it moved the corpus from 108 suspect-real
+to 40.
+
+Two properties are pinned by test in `test_stub_arg_trace.py` and
+`test_triage_classify.py`, because both failure modes are silent:
+
+- A genuinely different callee must **not** be explained away as a shift —
+  otherwise the alignment story launders real control-flow bugs.
+- A smoke log with **no shape marker** (written before this change) keeps the
+  old `suspect-real` verdict. Absent evidence is not evidence of an artifact;
+  defaulting old logs to `harness-artifact` would retire real bugs unexamined.
+
+Re-run a target to get the marker: the shape is written to the smoke log by
+`unicorn_diff.py`, capped at the first two diverging seeds (the sequences were
+identical across seeds in every case observed).
+
+#### The three `divergent` ones were also artifacts: calls attributed to the wrong function (2026-07-29)
+
+Investigating the three `divergent` survivors showed the comparator was counting
+calls the target never made. The two sides do not execute the same amount of
+code: the oracle CALLs an intra-object sibling and gets a **stub**, while the
+candidate either loads that sibling's real body or has **inlined** it. Every call
+the sibling then makes was recorded as if the target had made it — so the
+sequences differed while the target itself did nothing different.
+
+`StubCallRecord.caller_addr` now records the return address captured at intercept
+time (`[ESP]` at the sentinel, i.e. `call_site + 5`), and `StubArgTracer`
+carries the target's byte extent for its own side. `compare_stub_arg_traces`
+drops records whose caller falls outside that extent: those calls belong to the
+sibling's own equivalence target, not this one. The drop count is reported as
+`call-seq NESTED-DROPPED oracle=N candidate=M`, never silently swallowed — a
+large asymmetry there is exactly the context a reader of the divergence needs.
+
+Result on the three: `FUN_0005a120` went clean on 45 of 46 seeds;
+`object_delete_recursive` stopped being `divergent` and self-classifies as
+`shifted`; `FUN_000d6cc0` stayed `divergent` for the reason below. **None is a
+lift bug.**
+
+#### Attribution cannot see through inlining — `inline-asymmetry`
+
+When clang **inlines** the sibling, its calls issue from inside the target's own
+extent, so attribution cannot reach them. Two sub-cases, both measured:
+
+- **One-sided nesting.** The side that CALLed the callee has its inner calls
+  dropped; the side that inlined it keeps the identical inner calls. The
+  surviving sequences then describe different amounts of code and are not
+  comparable. `sequence_relation()` reports `inline-asymmetry` when nested drops
+  are non-zero on exactly one side, and triage files it **`needs-evidence`** —
+  not `harness-artifact`, because "uninformative" is not "proven benign".
+  `object_get_node_matrix` is the worked example: both sides end at the *same*
+  assert (line `0x424`), but the candidate shows the inlined helper's
+  `datum_get`/`tag_get('obje')`/`tag_get('mode')` first while the oracle's three
+  equivalents were dropped as nested. The rule keys on the **asymmetry**, not on
+  nesting existing at all — symmetric nesting stays adjudicable, or any target
+  with nested calls would silently become unreportable.
+
+- **No nesting either side, inlined guard fires.** `FUN_000d6cc0` is 1152
+  candidate bytes against 400 oracle bytes because `hud_get_nav_point_data` was
+  inlined; its extra `_display_assert` at `+0x447` is that helper's NULL-guard
+  (line `0x60`) firing because `nav_point_data` (`0x46bd1c`) is zero in a
+  zero-filled harness. The oracle CALLs the helper, gets a stub returning 0, and
+  never runs the guard. Confirmed by measurement rather than inference: seeding
+  `0x46bd1c` non-NULL via `--state-snapshot` removes the call-seq divergence on
+  every seed that completes (4 of 12 — the other 8 become ORACLE-CRASH
+  `eip=0xffffffff`, the known synthetic-block artifact, so they are
+  inconclusive rather than clean). This shape is not mechanically separable
+  from a real divergence, so it stays `divergent`/`suspect-real` in the ledger
+  with the diagnosis recorded.
+
+Three properties pinned by test, each a silent failure mode:
+
+- An extra call made from **inside** the target's extent still fails. Attribution
+  must not become a blanket excuse for extra calls.
+- `caller_addr == 0` means *unknown*, not *nested* — same principle as the
+  missing shape marker above.
+- A `CALL` as the function's last instruction leaves a return address equal to
+  `end`, so the upper bound is **inclusive**. An exclusive bound would attribute
+  the target's own final call to a callee and hide a dropped tail call.
 
 The two classes that dominate a real batch, and why they are artifacts:
 
@@ -655,6 +875,90 @@ truncation, so the tail can be compared against its true counterpart. Until
 then, the sequence divergence is the finding to chase first; fix that and the
 arg comparison over the whole sequence comes back for free.
 
+### Resolving oracle globals from the XBE instead of by name (2026-07-29)
+
+Three of the categories in the table above — `oracle arena slot / candidate
+real VA`, its reverse, and part of `differing constant` — turned out to share
+one cause, and it was not in any lift.
+
+A delinked reference's data labels come from **Ghidra**, and Ghidra's name for
+an address need not be kb.json's. 0x5aa8b8 is the decal datum-pool pointer:
+Ghidra calls it `g_decals_data`, kb.json declares it `global_decal_data`.
+Neither normalizes to the other, so `_build_globals_seeds` resolved nothing,
+the oracle's slot for it stayed zero-filled, and the oracle called
+`datum_get(0, idx)` while the candidate — which reaches the same global through
+an absolute immediate that the emulator's flat memory *does* seed — passed
+`0x700700`. All 50 seeds of `FUN_0015b0c0` failed on what read as a dropped
+argument.
+
+Name matching was never the right tool. Relocations are function-relative, so
+`func_va + reloc.virtual_address` points at exactly the dword the original
+linker wrote, and reading it out of the pristine XBE resolves **any** label:
+
+```
++0x46  g_decals_data   -> 0x5aa8b8     (name matching: unresolved)
++0x5c  DAT_0032516c    -> 0x32516c     (name matching: correct)
+```
+
+`_xbe_dir32_symbol_addrs()` does this for the target's own relocs and
+`_xbe_addrs_at_sites()` for real-callee slots; both feed `sym_addr_hints`,
+which outranks every name heuristic — including a bare-name match landing on a
+*different* kb global, the hazard `_GLOBAL_NAME_ALIASES` exists to paper over.
+A symbol whose sites disagree is dropped rather than guessed.
+
+**The comparator needed the same map.** `&some_global` is a DIR32 reloc in the
+oracle, so it pushes a *slot* address, while the candidate pushes the global's
+*real* address. Both are correct; numerically they never match. `input_flush`
+reported 150 arg mismatches across 50 seeds for exactly this
+(`0x500000` vs `0x46ba4c`, `0x500100` vs `0x46bb38`, `0x500200` vs `0x46bba0`).
+
+The excusal is on the **displacement**, not on a range: a pair is soft-matched
+only when `o_val - c_val` equals `slot - real_address` for a global this
+function actually relocates. That keeps it sound — both sides must have applied
+the same offset to the same object, so a wrong index is still reported — and it
+covers indices that leave the slot's 256-byte window. They routinely do, in
+both directions: `game_engine_clear_goal_position` computes
+`0x4566f8 + (short)index * 0x20`, so negative indices land *below*
+`GLOBALS_BASE`, and a first cut that range-checked the arena excused only 5 of
+41 seeds. `test_wrong_offset_into_right_global_is_still_reported` and
+`test_unmapped_slot_is_still_reported` pin the soundness boundary.
+
+Census over all 50 `arg_mismatch` entries at 50 seeds: **47 report zero arg
+mismatches**, up from 42 before this change (33 when the triage started). The
+equivalence regression gate stays at 69 passed / 0 failed / 0 errors.
+
+Measured effect, at the ledger's 50 seeds:
+
+| target | before | after |
+|---|---|---|
+| `FUN_0015b0c0` | 6/50 | **50/50** |
+| `input_flush` | 0/50 | **50/50** (150 aliases) |
+| `game_engine_clear_goal_position` | 8/50 | **49/50** (41 aliases) |
+| `FUN_001a7ea0` | 4/50 | **50/50** |
+| `FUN_00019110` | 0 passing | arg mismatches → 0 (fails for another reason) |
+
+**Unproven part, stated plainly.** Extending the hints to real-callee slots is
+live and correct (7/7 sites resolved on `FUN_0008c030`) but has **not** been
+observed to change any result: every real-callee global in the sampled targets
+is spelled `DAT_<hex>`, which name matching already resolved correctly. It is
+kept because it removes the same latent failure mode from that path, and it is
+unit-tested rather than left to chance — not because it fixed anything
+measurable.
+
+**Still open** — the 3 entries that are not arg-clean, with causes identified
+but not fixed:
+
+- `FUN_0008c030` — oracle passes `0x0` where the candidate passes scratch
+  pointers (`0x10000800`, `0x10000c00`); runs under `--real-callees`.
+- `FUN_000142a0` — candidate reads `0xcccccccc`, the concolic phase's data-page
+  fill, through a data ref the oracle reaches via an un-injected slot. Same
+  address-space asymmetry, but on *injected* values rather than passed pointers.
+- `debug_keys_initialize` — no result within 600 s.
+
+`FUN_0005ff70` (scratch-pointer layout) and `FUN_0011be10` (errors on every
+seed, task #21's class) came back arg-clean in the census and are no longer
+`arg_mismatch` findings, though `FUN_0011be10` still errors.
+
 #### The two real bugs (both VC71-blind)
 
 Both were sign/zero-extension of a 16-bit value, in **opposite** directions,
@@ -718,6 +1022,48 @@ change; `test_dat_spelling_is_required` pins that.
 | `tools/llm_auto_lift.py` | `leaf_cache.json` | `+3 eq_high_conf` for high-confidence entries |
 | `/verify equivalence` skill | CLI invocation | Delegates to unicorn_diff |
 
+### Who tests the harness (2026-07-29)
+
+The harness verifies lifts; two gates now verify the harness. Both were added
+after noticing that the XBE-global fix above shipped with its soundness pins
+running nowhere.
+
+| Gate | Fires on | Runs |
+|------|----------|------|
+| `audit.yml` → *Equivalence harness self-tests* | nightly 03:00 UTC; PR touching `tools/equivalence/**` | `run_all_tests.py` (~5s) |
+| `pre-commit-regression-test.sh` | staged `src/*.c`, `src/*.h`, `kb.json`, **`tools/equivalence/*.py`** | `run_all_tests.py`, then `regression_test.py --quick` (~130s) |
+
+Two things this had to get right, both of which a naive version gets wrong:
+
+**`unittest discover` is the wrong runner here.** Only 6 of the 12 suites are
+`unittest.TestCase`-based; the other 6 are plain `sys.exit(main())` scripts,
+and discovery finds *zero* tests in them. `test_stub_arg_trace.py` — which
+holds the pins that a wrong offset into the right global must still be
+REPORTED, and that the slot alias is inert without a map — is in the second
+group. A discovery step would have reported 49 tests passing while running
+none of the ones that matter most. `run_all_tests.py` executes each file as a
+subprocess and trusts its exit code, so both shapes count.
+
+**The pre-commit filter used to exclude the harness.** It gated on
+`src/*.c`, `src/*.h`, `kb.json` only, so a commit touching nothing but
+`tools/equivalence/**` — exactly the change that can break the differential —
+skipped the hook and offered no opinion at all.
+
+`run_all_tests.py` also refuses two ways of passing vacuously: a suite with no
+`__main__` block is an ERROR (it would exit 0 having run nothing), and a suite
+that self-skips for a missing optional dep is a SKIP, surfaced in the CI
+summary as a coverage hole rather than folded into the pass count. Without the
+venv (`z3` absent) the tally is 10 passed / 2 skipped, which is why `audit.yml`
+prefers `VENV_PYTHON` and falls back to `python3`.
+
+Not covered by either gate: `batch_verify.py`'s nightly behaviour itself, and
+the fact that `batch_verify_baseline.json` still lists as failing the targets
+the XBE fix repaired. That direction is safe — `--fail-on-new` only fails on
+divergences *absent* from the baseline, so a fixed target simply stops
+appearing — but those entries now over-forgive, and should be refreshed with
+`freeze_batch_baseline.py` after the first post-fix nightly (not before, so the
+refresh rests on measured results).
+
 ## File Map
 
 ```
@@ -738,4 +1084,5 @@ tools/equivalence/
   batch_verify.py       — Batch runner for multiple functions
   triage_failures.py    — Divergence classifier + ledger writer
   divergence_ledger.json— Persistent per-divergence category/status/priority
+  run_all_tests.py      — Runs all 12 test_*.py suites (both styles); CI gate
 ```
