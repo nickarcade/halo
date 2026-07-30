@@ -127,6 +127,16 @@ int16_t players_get_respawn_failure(void)
   return *(int16_t *)((char *)players_globals + 0x2c);
 }
 
+/* Out-of-line by original codegen: every in-TU caller (players_debug_render at
+ * 0xbc520, ...) emits PUSH/CALL 0xba3c0 rather than the slot arithmetic, so the
+ * assert and the players_globals index never appear inlined in the caller.
+ * MSVC's auto-inliner does expand it (players_debug_render grew by 14
+ * instructions, dragging in this function's own assert line number), so the
+ * expansion is suppressed.  Guarded to VC71 only; clang neither needs nor
+ * recognizes the pragma. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma auto_inline(off)
+#endif
 int local_player_get_player_index(int16_t local_player_index)
 {
   assert_halt(local_player_index >= NONE &&
@@ -135,6 +145,9 @@ int local_player_get_player_index(int16_t local_player_index)
     return NONE;
   return *(int *)&players_globals->unk_0[4 + local_player_index * 4];
 }
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma auto_inline(on)
+#endif
 
 int local_player_set_player_index(unsigned __int16 local_player_index,
                                   int player_index)
@@ -163,6 +176,13 @@ __int16 local_player_count(void)
   return *(__int16 *)&players_globals->unk_0[0x24];
 }
 
+/* Out-of-line by original codegen: players_debug_render (0xbc520) PUSH/CALLs
+ * 0xba4c0 for both of its walk steps rather than expanding the four-slot scan,
+ * and MSVC's auto-inliner does expand it (13 instructions per site), so the
+ * expansion is suppressed.  VC71 only; clang does not recognize the pragma. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma auto_inline(off)
+#endif
 __int16 local_player_get_next(__int16 local_player_index)
 {
   __int16 result;
@@ -178,6 +198,9 @@ __int16 local_player_get_next(__int16 local_player_index)
   }
   return result;
 }
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma auto_inline(on)
+#endif
 
 int player_index_from_unit_index(int unit_index)
 {
@@ -843,6 +866,35 @@ void FUN_000bb1f0(int player_index /* @<eax> */, int16_t param2)
   }
 }
 
+/* React to an object being deleted (0xbb220).
+ *
+ * Verifies the doomed object with a wildcard type mask (-1 = any type), then
+ * inspects the object type byte at +0x64.  The original builds (1 << type)
+ * and does a byte-wide TEST against 3, so only object types 0 and 1 (the
+ * biped/vehicle unit family) take the body; everything else returns.
+ *
+ * For a matching object, every player datum whose unit handle (player+0x34)
+ * is the deleted object is reported dead via player_died, passing the
+ * iterator's current datum handle (iter+0x8) rather than the player pointer.
+ *
+ * The object_get_and_verify_type result is dereferenced with no NULL check,
+ * faithful to the original. */
+void players_handle_deleted_object(int object_handle)
+{
+  char *object;
+  char *player;
+  data_iter_t iter;
+
+  object = (char *)object_get_and_verify_type(object_handle, -1);
+  if (((1 << *(unsigned char *)(object + 0x64)) & 3) != 0) {
+    data_iterator_new(&iter, player_data);
+    while ((player = (char *)data_iterator_next(&iter)) != NULL) {
+      if (*(int *)(player + 0x34) == object_handle)
+        player_died((int)iter.datum_handle);
+    }
+  }
+}
+
 /* Allocate and initialise a new player datum.
  *
  * local_player_index  (a1) -- which local player slot to assign; NONE (-1) is
@@ -1043,6 +1095,40 @@ void player_build_action_update(int datum_handle, float *aiming_out,
   }
   matrix_from_forward_and_up(matrix, forward, (float *)(vehicle + 0x30));
   matrix_transform_vector(matrix, aiming_out, aiming_out); /* dup-args-ok */
+}
+
+/* 0xbbb80 — Teleport a player's unit to an anchor object's position.
+ *
+ * Ejects the unit from any seat it currently occupies (object+0xcc holds the
+ * seat/parent object handle, -1 when none), then defers the actual placement
+ * to FUN_000bb670.
+ *
+ * Returns FUN_000bb670's result (nonzero when the unit was moved), and 0 when
+ * the player has no live unit.  Confirmed from disassembly: the failure path
+ * is XOR CL,CL / MOV AL,CL, while the success path falls straight into the
+ * epilogue with the callee's AL untouched (tail passthrough).
+ *
+ * All three args are cdecl stack params ([EBP+8], [EBP+0xc], [EBP+0x10]) —
+ * the Ghidra decompile saw none of them and reported void(void). */
+bool player_teleport(int player_handle, int anchor_unit_handle,
+                     void *anchor_position)
+{
+  char *player;
+  int unit_handle;
+  char *unit;
+
+  player = (char *)datum_get(player_data, player_handle);
+  unit_handle = *(int *)(player + 0x34);
+  unit = (char *)object_try_and_get_and_verify_type(unit_handle, 1);
+  /* Nested-if (rather than early-return) shape: the original places the
+   * failure epilogue out of line at 0xbbbcf, after the success epilogue, and
+   * hoists its zero into CL above the TEST. */
+  if (unit != NULL) {
+    if (*(int *)(unit + 0xcc) != -1)
+      unit_exit_seat_end(unit_handle);
+    return FUN_000bb670(player_handle, anchor_unit_handle, anchor_position);
+  }
+  return 0;
 }
 
 /* 0xbbbe0 — Choose the best-scoring starting location for a player.
@@ -1517,6 +1603,179 @@ void player_update_weapon_timers(int datum_handle)
   }
 }
 
+/* 0xbc520 — debug visualisation of every local player's "fixed" camera
+ * position.  Gated on the debug toggle at 0x46b6c4.
+ *
+ * For each local player (walked with local_player_get_next, at most two
+ * iterations — see the loop bound below) whose player slot is occupied, the
+ * player's unit handle (player+0x34) is resolved and its camera position is
+ * asked for twice:
+ *   1. biped_get_camera_height_and_offset(unit, &position, &scratch, &scratch)
+ *      seeds `position`; the height/camera-height outputs are thrown away into
+ *      one shared scratch slot (the original passes the SAME pointer for both
+ *      out-parameters — faithful, not a lift bug).
+ *   2. after biped_fix_position accepts the position in-place, the call is
+ *      repeated into a discarded vector3 so that the height offset and camera
+ *      height land in their own slots.
+ * The position's z is then raised by the 'bipd' tag's camera height
+ * (bipd+0x42c), the world-up vector ([0x31fc44]) is scaled by the height
+ * offset, and the resulting segment is collision-tested (FUN_0014e7d0,
+ * flags 0x4029).  The arrow is drawn (FUN_00189860) in the "hit" colour
+ * ([0x2ee6d0]) when the test reports a collision and the "miss" colour
+ * ([0x2ee6d4]) otherwise.
+ *
+ * Confirmed from the disassembly of 0xbc520-0xbc6bf:
+ *  - SUB ESP,0x84; EBX/ESI/EDI saved inside the debug-toggle guard.
+ *  - biped_fix_position gets the SAME buffer for initial and final position
+ *    (in-place fixup) and scale 2.0f; its first argument is the -1 literal and
+ *    the unit handle is the second (kb.json's parameter names are the reverse
+ *    of that, but the push order is unambiguous).
+ *  - `local_14` in Ghidra's output is position[2], not an independent local:
+ *    EBP-0x10 is the third float of the vector at EBP-0x18, so the FADD of
+ *    bipd+0x42c raises the position's z.
+ *  - the collision result buffer at EBP-0x84 is 0x50 bytes.
+ *  - the float at EBP-0x4 (camera height) is pushed as a raw dword via
+ *    MOV ECX,[EBP-0x4]; PUSH ECX for both FUN_0014e7d0 and FUN_00189860 — it
+ *    is a float argument, not an int.
+ *  - the assert tail is display_assert(...,true) then system_exit(-1) at
+ *    0x8e2f0 (Ghidra's thunk_FUN_001029a0 is wrong).
+ *  - the loop counter is compared as a 16-bit value against 2, NOT against
+ *    MAXIMUM_NUMBER_OF_LOCAL_PLAYERS — kept faithful.
+ * Uncertain: whether the inlined slot check + assert came from an inline
+ * accessor in the original source (the assert string is the one used by
+ * local_player_get_player_index) or was written out here.
+ */
+void players_debug_render(void)
+{
+  char collision_result[0x50];
+  vector3_t discarded_position;
+  float height_vec[3];
+  float scratch;
+  vector3_t position;
+  int counter;
+  float height_offset;
+  float camera_height;
+
+  int16_t local_player_index;
+  int player_index;
+  int unit_handle;
+  char *player;
+  int *unit;
+  char *bipd_tag;
+
+  if (*(char *)0x46b6c4 != '\0') {
+    counter = 0;
+    local_player_index = local_player_get_next(NONE);
+    do {
+      if (local_player_index == NONE)
+        return;
+      assert_halt_at("c:\\halo\\SOURCE\\game\\players.c", 0x3ab,
+                     local_player_index >= NONE &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+      if (*(int *)&players_globals->unk_0[4 + local_player_index * 4] != -1) {
+        player_index = local_player_get_player_index(local_player_index);
+        player = (char *)datum_get(player_data, player_index);
+        unit_handle = *(int *)(player + 0x34);
+        if (unit_handle != -1) {
+          unit = (int *)object_get_and_verify_type(unit_handle, 3);
+          biped_get_camera_height_and_offset(unit_handle, &position, &scratch,
+                                             &scratch);
+          if (biped_fix_position(-1, unit_handle, (float *)&position,
+                                 (float *)&position, 2.0f, '\0', '\x01',
+                                 '\x01') != '\0') {
+            bipd_tag = (char *)tag_get(0x62697064, *unit);
+            biped_get_camera_height_and_offset(unit_handle, &discarded_position,
+                                               &height_offset, &camera_height);
+            position.z = position.z + *(float *)(bipd_tag + 0x42c);
+            height_vec[0] = height_offset * global_up_vector_ptr[0];
+            height_vec[1] = height_offset * global_up_vector_ptr[1];
+            height_vec[2] = height_offset * global_up_vector_ptr[2];
+            /* The original branches around two full FUN_00189860 call sites
+             * (MSVC tail-merged the shared `push flag; call` at the join, which
+             * is why Ghidra reconstructed it as one call with a
+             * default-then-override colour variable). */
+            if (FUN_0014e7d0(0x4029, (float *)&position, height_vec,
+                             camera_height, unit_handle,
+                             collision_result) != '\0')
+              FUN_00189860('\0', &position, height_vec, camera_height,
+                           *(void **)0x2ee6d0);
+            else
+              FUN_00189860('\0', &position, height_vec, camera_height,
+                           *(void **)0x2ee6d4);
+          }
+        }
+      }
+      counter = counter + 1;
+      local_player_index = local_player_get_next(local_player_index);
+    } while ((int16_t)counter < 2);
+  }
+}
+
+/* 0xbc6c0 — HaloScript debug command: teleport one local player's unit to
+ * another local player's unit position.
+ *
+ * Both parameters are local-player indices (0..3); the only caller is the HS
+ * macro handler at 0xc1cb0, which sign-extends the first script argument and
+ * zero-extends the second out of the evaluated argument block.  Each index is
+ * resolved to a player index via local_player_get_player_index and then to
+ * that player's unit object handle (player+0x34).  When both units are live,
+ * the second player's unit supplies the destination position (object+0x50)
+ * and the first player is moved there.
+ *
+ * Confirmed from the disassembly of 0xbc6c0-0xbc74f:
+ *  - Both params are read with 32-bit loads (MOV ESI,dword ptr [EBP+8] and
+ *    [EBP+0xc]).  No MOVSX/MOV-word appears, so they are int-width in the
+ *    original source even though local_player_get_player_index's own
+ *    parameter is int16_t (that narrowing costs no instruction on a cdecl
+ *    stack slot).  Ghidra's "short" typing of the slots is its own invention.
+ *  - local_player_get_player_index is called TWICE per operand: once for the
+ *    == -1 test and once again for the value.  This is original codegen, not
+ *    a decompiler artifact; do not hoist it to a single call.
+ *  - The two failure paths are OR EDI,EAX / OR ESI,EAX with EAX known to be
+ *    -1 — the compiler's encoding of a plain "= -1".
+ *  - The frame has no locals at all (PUSH EBP / MOV EBP,ESP / PUSH ESI /
+ *    PUSH EDI, no SUB ESP, no _chkstk), so the destination position must be
+ *    computed inline in the argument list; a named local would have to be
+ *    spilled across the player_index_from_unit_index call.
+ *  - Ghidra dropped the whole tail: it showed object_get_and_verify_type's
+ *    result discarded and FUN_000bb670 called with no arguments.  The real
+ *    tail is ADD EAX,0x50 / PUSH EAX / PUSH ESI / PUSH EDI / CALL 0xba500 /
+ *    ADD ESP,4 / PUSH EAX / CALL 0xbb670 / ADD ESP,0xc — three cdecl stack
+ *    args, no EBX setup.
+ *  - FUN_000bb670's bool result is genuinely discarded here (no TEST/CMP of
+ *    AL before the epilogue), unlike in player_teleport (0xbbb80). */
+void debug_player_teleport(int local_player_a, int local_player_b)
+{
+  int unit_a;
+  int unit_b;
+
+  if (local_player_get_player_index(local_player_a) == NONE) {
+    unit_a = NONE;
+  } else {
+    unit_a =
+      *(int *)((char *)datum_get(
+                 player_data, local_player_get_player_index(local_player_a)) +
+               0x34);
+  }
+
+  if (local_player_get_player_index(local_player_b) == NONE) {
+    unit_b = NONE;
+  } else {
+    unit_b =
+      *(int *)((char *)datum_get(
+                 player_data, local_player_get_player_index(local_player_b)) +
+               0x34);
+  }
+
+  if (unit_a != NONE && unit_b != NONE) {
+    /* Argument order in the binary is right-to-left: the position is computed
+     * and pushed first, then the unit handle, then the nested player-index
+     * lookup for the player being moved. */
+    FUN_000bb670(player_index_from_unit_index(unit_a), unit_b,
+                 (char *)object_get_and_verify_type(unit_b, 3) + 0x50);
+  }
+}
+
 #if defined(__clang__) || defined(__GNUC__)
 __attribute__((noinline))
 #else
@@ -1526,8 +1785,7 @@ static bool
 players_respawn_coop_teleport(int player_handle, int anchor_unit_handle,
                               void *anchor_position)
 {
-  return ((bool (*)(int, int, void *))0xbbb80)(
-    player_handle, anchor_unit_handle, anchor_position);
+  return player_teleport(player_handle, anchor_unit_handle, anchor_position);
 }
 
 /* Attempt to respawn all dead players in co-op by teleporting them to a
@@ -1787,6 +2045,155 @@ static void player_set_spawn_action_result(int player_handle,
   *(int16_t *)(player + 0x28) = action_result_type;
   *(int *)(player + 0x24) = object_handle;
   *(int16_t *)(player + 0x2a) = seat_index;
+}
+
+/* Re-seat every local player into the scenario's pending structure BSP
+ * (0xbca60).
+ *
+ * players_globals+0x2a holds the BSP-switch request (int16, -1 = none) and
+ * players_globals+0x24 a 16-bit state/count that must be > 1 for the switch to
+ * run.  When either gate fails the function only clears every player's
+ * +0x3c field and returns.
+ *
+ * Otherwise it picks a destination position:
+ *   1. scenario+0x39c[bsp_index] (8-byte elements) names a spawn-reference; if
+ *      its +6 field is valid it indexes scenario+0x4e4 (0x5c-byte elements) and
+ *      seeds the position from that element's +0x24 vector3.  The position is
+ *      then raised in 0.05 steps (up to 0.3) while FUN_0014dc30(0x4029, ...)
+ *      still reports a collision; success sets use_camera_height.
+ *   2. It then walks every player looking for one whose unit is already inside
+ *      the target BSP's cluster (FUN_0018ef00) and at a valid location whose
+ *      collision-BSP reference (scenario+0xe0, 0x10-byte elements, +8) is
+ *      valid.  That player's camera position either replaces the seed position
+ *      outright (use_camera_height == 0) or just raises its z.
+ *
+ * With a donor player found, every OTHER local player's unit is re-seated to
+ * that position via players_update_before_game_client and has its +0x3c field
+ * cleared; the BSP request is then retired and all +0x3c fields reset.
+ * No donor -> "no players in the bsp" assert.
+ *
+ * NOTE: the original reuses one stack slot (EBP-0x8) for both the collision
+ * search offset and biped_get_camera_height_and_offset's camera-height output;
+ * `search_offset` below is that shared slot, so the frame stays 0x38 bytes.
+ */
+void players_reconnect_to_structure_bsp(void)
+{
+  data_iter_t iter;
+  vector3_t camera_pos;
+  vector3_t position;
+  float height_offset;
+  int donor_unit_handle;
+  float search_offset;
+  char use_camera_height;
+  char *player;
+  int16_t bsp_index;
+  int16_t spawn_index;
+  int16_t local_player;
+  int player_index;
+  int unit_handle;
+  int location;
+  int bsp_reference;
+  bool found;
+  void *scenario;
+  void *element;
+
+  if (*(int16_t *)((char *)players_globals + 0x2a) != -1 &&
+      *(int16_t *)((char *)players_globals + 0x24) > 1) {
+    scenario = global_scenario_get();
+    element = tag_block_get_element(
+      (char *)scenario + 0x39c,
+      (int)*(int16_t *)((char *)players_globals + 0x2a), 8);
+
+    found = false;
+    donor_unit_handle = -1;
+    use_camera_height = 0;
+
+    spawn_index = *(int16_t *)((char *)element + 6);
+    if (spawn_index != -1) {
+      void *spawn;
+
+      search_offset = 0.0f;
+      spawn =
+        tag_block_get_element((char *)scenario + 0x4e4, (int)spawn_index, 0x5c);
+      position = *(vector3_t *)((char *)spawn + 0x24);
+      do {
+        if (FUN_0014dc30(0x4029, (float *)&position, -1) == 0)
+          break;
+        position.z = position.z + 0.05f;
+        search_offset = search_offset + 0.05f;
+      } while (search_offset < 0.3f);
+      use_camera_height = 1;
+      if (search_offset >= 0.3f)
+        use_camera_height = 0;
+    }
+
+    /* Find a player whose unit is already inside the requested BSP. */
+    data_iterator_new(&iter, player_data);
+    player = (char *)data_iterator_next(&iter);
+    while (player != NULL) {
+      if (found)
+        break;
+      unit_handle = *(int *)(player + 0x34);
+      if (unit_handle != -1) {
+        bsp_index = *(int16_t *)((char *)players_globals + 0x2a);
+        if (bsp_index != -1) {
+          element = tag_block_get_element((char *)global_scenario_get() + 0x39c,
+                                          (int)bsp_index, 8);
+          if (FUN_0018ef00((int)*(uint16_t *)element, unit_handle) != 0) {
+            biped_get_camera_height_and_offset(*(int *)(player + 0x34),
+                                               &camera_pos, &height_offset,
+                                               &search_offset);
+            if (FUN_0018e720((int)&camera_pos) != -1) {
+              /* Deliberately re-evaluated: the original calls twice. */
+              location = FUN_0018e720((int)&camera_pos) & 0x7fffffff;
+              element = tag_block_get_element((char *)scenario_get() + 0xe0,
+                                              location, 0x10);
+              bsp_reference = *(int16_t *)((char *)element + 8);
+              if (bsp_reference != -1) {
+                if (use_camera_height == 0) {
+                  position = camera_pos;
+                } else {
+                  position.z = search_offset + position.z;
+                }
+                donor_unit_handle = *(int *)(player + 0x34);
+                found = true;
+              }
+            }
+          }
+        }
+      }
+      player = (char *)data_iterator_next(&iter);
+    }
+
+    if (!found) {
+      display_assert("no players in the bsp",
+                     "c:\\halo\\SOURCE\\game\\players.c", 0x63a, 1);
+      system_exit(-1);
+    }
+
+    for (local_player = local_player_get_next(-1); local_player != -1;
+         local_player = local_player_get_next(local_player)) {
+      player_index = local_player_get_player_index(local_player);
+      player = (char *)datum_get(player_data, player_index);
+      if (*(int *)(player + 0x34) != -1 &&
+          *(int *)(player + 0x34) != donor_unit_handle) {
+        players_update_before_game_client(player_index, donor_unit_handle,
+                                          &position);
+        player = (char *)datum_get(player_data, player_index);
+        *(int16_t *)(player + 0x3c) = -1;
+      }
+    }
+
+    *(int16_t *)((char *)players_globals + 0x2a) = -1;
+  }
+
+  /* Shared tail: invalidate every player's cached BSP field. */
+  data_iterator_new(&iter, player_data);
+  player = (char *)data_iterator_next(&iter);
+  while (player != NULL) {
+    *(int16_t *)(player + 0x3c) = -1;
+    player = (char *)data_iterator_next(&iter);
+  }
 }
 
 void player_update_nearby_biped(int datum_handle, int object_handle)
@@ -3752,6 +4159,55 @@ void FUN_000be8f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
+/* FUN_000be930 @ 0x000be930
+ *
+ * HaloScript builtin implementation (`object_set_melee_attack_inhibited`).
+ * Byte-shape twin of FUN_000be8f0 directly above -- differs only in the
+ * middle callee (melee instead of ranged). Evaluates the script function via
+ * hs_macro_function_evaluate(function_index, thread_datum, init); on a
+ * non-NULL evaluation record it forwards the record's first dword (the object
+ * handle) and the record's byte at +4 (the inhibit flag) to
+ * object_set_melee_attack_inhibited, then resolves the script thread with
+ * hs_return(thread_datum, 0).
+ *
+ * NOTE: Ghidra names this `player_effect_initialize` -- that name is stale and
+ * wrong; the callee set proves it is an HS macro-function handler.
+ *
+ * cdecl frame (PUSH EBP; MOV EBP,ESP; PUSH ESI -- no locals, no _chkstk):
+ *   function_index  int16_t  [EBP+0x08] -> ECX (evaluate arg 0)
+ *   thread_datum    int      [EBP+0x0c] -> ESI, reused for hs_return arg 0
+ *   init            char     [EBP+0x10] -> EAX (evaluate arg 2)
+ *
+ * Ghidra modeled this as void(void) and hid all three stack args as
+ * in_stack_XXXXXXXX; the kb decl is corrected to (int16_t, int, char) to match
+ * the 0xbdef0/0xbdf40/0xbe8f0 twins.
+ *
+ * The flag argument is a ZERO-EXTENDED single-byte load at record+4
+ * (0xbe94b: XOR EDX,EDX; MOV DL,byte ptr [EAX+0x4]; PUSH EDX), not a dword
+ * read of record[1] -- hence the unsigned char deref below.
+ *
+ * A single ADD ESP,0x10 after the hs_return CALL cleans BOTH trailing calls
+ * (2 + 2 dwords). check_arg_counts therefore reports hs_return as taking 4
+ * stack args -- that is a false positive from adjacent-call cleanup folding;
+ * hs_return really takes 2.
+ *
+ * Callees (all cdecl, in kb.json):
+ *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> int* record
+ *   0x1369b0 = object_set_melee_attack_inhibited(int object_handle, char flag)
+ *   0xcbf80 = hs_return(int thread_handle, int value) */
+void FUN_000be930(int16_t function_index, int thread_datum, char init)
+{
+  int *record;
+
+  record =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (record != NULL) {
+    object_set_melee_attack_inhibited(record[0],
+                                      *((unsigned char *)record + 4));
+    hs_return(thread_datum, 0);
+  }
+}
+
 /* FUN_000be970 @ 0x000be970
  *
  * HaloScript builtin implementation. Dumps the object subsystem's memory
@@ -5382,8 +5838,8 @@ void FUN_000bf3d0(int16_t function_index, int thread_datum, char init)
 {
   void *record;
 
-  record = (void *)hs_macro_function_evaluate(function_index, thread_datum,
-                                              init);
+  record =
+    (void *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     FUN_001a7ad0(*(int *)record, *(float *)((char *)record + 4),
                  *(float *)((char *)record + 8));
@@ -5440,8 +5896,8 @@ void FUN_000bf420(int16_t function_index, int thread_datum, char init)
 {
   void *record;
 
-  record = (void *)hs_macro_function_evaluate(function_index, thread_datum,
-                                              init);
+  record =
+    (void *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     FUN_001a7b50(*(int *)record, *(float *)((char *)record + 4),
                  *(float *)((char *)record + 8));
@@ -10912,9 +11368,8 @@ void FUN_000c0b70(int16_t function_index, int thread_datum, char init)
 {
   unsigned char *record;
 
-  record =
-    (unsigned char *)hs_macro_function_evaluate(function_index, thread_datum,
-                                                init);
+  record = (unsigned char *)hs_macro_function_evaluate(function_index,
+                                                       thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0; zero-extended byte @ +0x4 */
     FUN_00057850(*(unsigned int *)record, record[4]);

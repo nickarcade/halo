@@ -5188,12 +5188,40 @@
       "score": 100.0,
       "source": "src/halo/game/player_control.c"
     },
+    "FUN_000b6bb0": {
+      "score": 100.0,
+      "source": "src/halo/game/player_control.c"
+    },
+    "FUN_000b6bc0": {
+      "score": 100.0,
+      "source": "src/halo/game/player_control.c"
+    },
+    "FUN_000b6dd0": {
+      "score": 100.0,
+      "source": "src/halo/game/player_control.c"
+    },
+    "FUN_000b6e10": {
+      "score": 100.0,
+      "source": "src/halo/game/player_control.c"
+    },
+    "FUN_000b6e60": {
+      "score": 96.6,
+      "source": "src/halo/game/player_control.c"
+    },
     "FUN_000b6ea0": {
       "score": 85.5,
       "source": "src/halo/game/player_control.c"
     },
     "FUN_000b6fc0": {
       "score": 94.3,
+      "source": "src/halo/game/player_control.c"
+    },
+    "FUN_000b7e30": {
+      "score": 96.8,
+      "source": "src/halo/game/player_control.c"
+    },
+    "FUN_000b7f10": {
+      "score": 100.0,
       "source": "src/halo/game/player_control.c"
     },
     "FUN_000b7f40": {
@@ -5589,6 +5617,10 @@
       "source": "src/halo/game/players.c"
     },
     "FUN_000be8f0": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000be930": {
       "score": 100.0,
       "source": "src/halo/game/players.c"
     },
@@ -7621,7 +7653,7 @@
       "source": "src/halo/items/items.c"
     },
     "FUN_000f68b0": {
-      "score": 29.7,
+      "score": 100.0,
       "source": "src/halo/items/items.c"
     },
     "FUN_000f6910": {
@@ -7634,6 +7666,10 @@
     },
     "FUN_000f69c0": {
       "score": 95.2,
+      "source": "src/halo/items/items.c"
+    },
+    "FUN_000f6a60": {
+      "score": 100.0,
       "source": "src/halo/items/items.c"
     },
     "FUN_000f6af0": {
@@ -11616,13 +11652,37 @@
       "score": 95.3,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c"
     },
+    "FUN_0016FDD0": {
+      "score": 94.6,
+      "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+    },
     "FUN_0016eef0": {
       "score": 79.8,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
+    "FUN_0016f500": {
+      "score": 95.4,
+      "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+    },
+    "FUN_0016f610": {
+      "score": 88.4,
+      "source": "src/halo/rasterizer/rasterizer.c"
+    },
+    "FUN_0016f6c0": {
+      "score": 93.3,
+      "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+    },
+    "FUN_0016f730": {
+      "score": 91.1,
+      "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+    },
     "FUN_0016f880": {
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer.c"
+    },
+    "FUN_0016f8a0": {
+      "score": 93.9,
+      "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
     },
     "FUN_0016f910": {
       "score": 93.3,
@@ -11630,6 +11690,18 @@
     },
     "FUN_0016fa40": {
       "score": 95.5,
+      "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+    },
+    "FUN_0016fbd0": {
+      "score": 91.3,
+      "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+    },
+    "FUN_0016fcf0": {
+      "score": 96.3,
+      "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
+    },
+    "FUN_0016fdd0": {
+      "score": 94.6,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_profile.c"
     },
     "FUN_00172590": {
@@ -14884,6 +14956,10 @@
       "score": 77.5,
       "source": "src/halo/cseries/debug_memory.c"
     },
+    "debug_player_teleport": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
     "decal_delete": {
       "score": 96.2,
       "source": "src/halo/effects/decals.c"
@@ -15240,8 +15316,20 @@
       "score": 92.3,
       "source": "src/halo/input/input_xbox.c"
     },
+    "interpolate_scalar": {
+      "score": 96.6,
+      "source": "src/halo/game/player_control.c"
+    },
+    "item_get_position_even_if_in_inventory": {
+      "score": 100.0,
+      "source": "src/halo/items/items.c"
+    },
     "item_new": {
       "score": 100.0,
+      "source": "src/halo/items/items.c"
+    },
+    "item_update": {
+      "score": 90.5,
       "source": "src/halo/items/items.c"
     },
     "items_dispose_from_old_map": {
@@ -15259,6 +15347,10 @@
     "lightning_offset_marker_position": {
       "score": 92.5,
       "source": "src/halo/objects/widgets/lightning.c"
+    },
+    "limit2d": {
+      "score": 100.0,
+      "source": "src/halo/game/player_control.c"
     },
     "load_symbol_table": {
       "score": 29.8,
@@ -16000,6 +16092,10 @@
       "score": 100.0,
       "source": "src/halo/game/player_control.c"
     },
+    "player_control_action_test_look_relative_down": {
+      "score": 100.0,
+      "source": "src/halo/game/player_control.c"
+    },
     "player_control_action_test_look_relative_left": {
       "score": 100.0,
       "source": "src/halo/game/player_control.c"
@@ -16016,8 +16112,16 @@
       "score": 81.7,
       "source": "src/halo/game/player_control.c"
     },
+    "player_control_get_facing_angles": {
+      "score": 96.8,
+      "source": "src/halo/game/player_control.c"
+    },
     "player_control_get_field_of_view": {
       "score": 100.0,
+      "source": "src/halo/game/player_control.c"
+    },
+    "player_control_get_unit_camera_info": {
+      "score": 95.1,
       "source": "src/halo/game/player_control.c"
     },
     "player_control_get_zoom_level": {
@@ -16084,6 +16188,10 @@
       "score": 92.0,
       "source": "src/halo/game/players.c"
     },
+    "player_teleport": {
+      "score": 96.0,
+      "source": "src/halo/game/players.c"
+    },
     "player_try_to_enter_vehicle": {
       "score": 59.2,
       "source": "src/halo/game/players.c"
@@ -16112,12 +16220,24 @@
       "score": 100.0,
       "source": "src/halo/game/players.c"
     },
+    "players_debug_render": {
+      "score": 97.2,
+      "source": "src/halo/game/players.c"
+    },
     "players_get_combined_pvs": {
       "score": 100.0,
       "source": "src/halo/game/players.c"
     },
     "players_get_combined_pvs_local": {
       "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "players_handle_deleted_object": {
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "players_reconnect_to_structure_bsp": {
+      "score": 96.6,
       "source": "src/halo/game/players.c"
     },
     "players_respawn_coop": {
@@ -16187,6 +16307,10 @@
     "rasterizer_draw_dynamic_vertices": {
       "score": 95.3,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c"
+    },
+    "rasterizer_initialize": {
+      "score": 100.0,
+      "source": "src/halo/rasterizer/rasterizer.c"
     },
     "rasterizer_initialize_for_new_map": {
       "score": 89.5,

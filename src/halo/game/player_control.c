@@ -850,6 +850,181 @@ bool player_control_action_test_look_relative_right(void)
   return (bool)((fields[0] >> 10) & 1u);
 }
 
+/* Test whether the "look relative up" action bit is set (lift-learnings 16,
+ * void-EAX implicit return).  kb.json's `void ...(void)` decl was corrected to
+ * a bool return, matching the siblings 0xb6ab0/0xb6ad0/0xb6af0/0xb6b10/0xb6b20/
+ * 0xb6b30/0xb6b40/0xb6b90/0xb6ba0.
+ *
+ * Disassembly (0xb6bb0), 5 instructions, no calls -- the PURE-test shape:
+ *   MOV EAX,[player_control_globals] / MOV EAX,[EAX] / SHR EAX,0x7 /
+ *   AND EAX,0x1 / RET
+ * There are NO `OR` stores into the accumulator dwords at +0x04/+0x08, unlike
+ * the 10-insn members of the family, so the action is not marked as consumed
+ * here.  Adding those ORs would be an invented side effect.
+ * Bit index is 7 (SHR EAX,0x7) -- one of the four bits (7..10) covered by the
+ * 0x780 mask in player_control_action_test_look_relative_all_directions.
+ *
+ * The read is at globals+0x00 -- the GLOBAL action dword -- not the per-player
+ * slot array at +0x10 (stride 0x40), so it must not be indexed by
+ * local_player_index.  player_control_globals_t is opaque (0x110 bytes) with no
+ * named field at +0x00, so raw dword access is used. */
+bool player_control_action_test_look_relative_up(void)
+{
+  uint32_t *fields;
+
+  fields = (uint32_t *)player_control_globals;
+  return (bool)((fields[0] >> 7) & 1u);
+}
+
+/* Test the "look relative down" action bit of the global action dword.
+ * Original (0xb6bc0) is 5 instructions:
+ *   MOV EAX,[0x00457090] / MOV EAX,dword ptr [EAX] / SHR EAX,0x8 /
+ *   AND EAX,0x1 / RET
+ * There are NO `OR` stores into the accumulator dwords at +0x04/+0x08, unlike
+ * the 10-insn members of the family, so the action is not marked as consumed
+ * here.  Adding those ORs would be an invented side effect.
+ * Bit index is 8 (SHR EAX,0x8) -- one of the four bits (7..10) covered by the
+ * 0x780 mask in player_control_action_test_look_relative_all_directions.  Do
+ * not confuse the single-bit 0x100 test with that 0x780 all-directions mask.
+ *
+ * The read is at globals+0x00 -- the GLOBAL action dword -- not the per-player
+ * slot array at +0x10 (stride 0x40), so it must not be indexed by
+ * local_player_index.  player_control_globals_t is opaque (0x110 bytes) with no
+ * named field at +0x00, so raw dword access is used.
+ *
+ * EAX is live at RET; the kb.json `void` decl (and hence Ghidra's empty-body
+ * decompile) was wrong -- corrected to bool (lift-learnings 16, void-EAX). */
+bool player_control_action_test_look_relative_down(void)
+{
+  uint32_t *fields;
+
+  fields = (uint32_t *)player_control_globals;
+  return (bool)((fields[0] >> 8) & 1u);
+}
+
+/* Signed angular difference `param_2 - param_1`, wrapped into (-pi, pi).
+ *
+ * Confirmed from disassembly (0xb6dd0, 12 instructions, plain EBP frame, no
+ * locals, no _chkstk, no CALLs, cdecl with the result in ST(0)):
+ *   FLD  [EBP+0xc]        ; param_2
+ *   FSUB [EBP+0x8]        ; st0 = param_2 - param_1  (NOT param_1 - param_2)
+ *   FCOM [0x00256980]     ; vs pi
+ *   FNSTSW AX / TEST AH,0x1 / JNZ skip   ; C0 set => delta < pi => skip
+ *   FSUB [0x00255a54]     ; delta -= 2*pi  when delta >= pi
+ *   FCOM [0x0026e280]     ; vs -pi
+ *   FNSTSW AX / TEST AH,0x41 / JP skip   ; (C0|C3)==0 => delta > -pi => skip
+ *   FADD [0x00255a54]     ; delta += 2*pi  when delta <= -pi
+ *
+ * Branch-polarity derivation for the second test (the boundary differs from
+ * the first, so it is spelled out rather than assumed).  TEST AH,0x41 keeps
+ * C0 (less) and C3 (equal); JP is taken only on even parity of that result:
+ *   delta <  -pi -> C0=1        -> 0x01 -> PF=0 -> fall through -> add
+ *   delta == -pi -> C3=1        -> 0x40 -> PF=0 -> fall through -> add
+ *   delta >  -pi -> C0=C3=0     -> 0x00 -> PF=1 -> JP taken     -> skip
+ * So the low correction is `delta <= -pi` while the high one is
+ * `delta >= pi`, giving a half-open result range of (-pi, pi).
+ *
+ * Each correction is applied at most once -- the original has no loop, so a
+ * delta outside (-3*pi, 3*pi) is deliberately left unwrapped.  Both `if`s are
+ * evaluated in sequence (the second is not an `else`), matching the fall-
+ * through from the first block into the second FCOM.
+ *
+ * Constants are read as raw-address globals (pi at 0x256980, 2*pi at 0x255a54,
+ * -pi at 0x26e280) to share the original's constant pool; substituting source
+ * literals would change the emitted immediates. */
+float FUN_000b6dd0(float param_1, float param_2)
+{
+  float delta;
+
+  delta = param_2 - param_1;
+  if (delta >= *(float *)0x256980)
+    delta -= *(float *)0x255a54;
+  if (delta <= *(float *)0x26e280)
+    delta += *(float *)0x255a54;
+  return delta;
+}
+
+/* Clamp a 2D vector to a maximum length, in place.
+ *
+ * Returns true when the vector was longer than `max_length` and therefore
+ * rescaled, false when it was left untouched.  The boolean is real: the
+ * original sets AL on the clamped path (MOV AL,1 at 0xb6e3c) and clears it on
+ * the pass-through (XOR AL,AL at 0xb6e51), so a `void` lift would leave EAX
+ * garbage for callers.
+ *
+ * Squared lengths are compared to avoid a square root on the common
+ * (unclamped) path.  The summand order below is the original's FPU load order:
+ * 0xb6e16 loads v[1] before 0xb6e19 loads v[0].  The scale is
+ * `max_length / sqrt(len_sq)` -- 0xb6e3e is FDIVR against [EBP+0xc], which
+ * divides the memory operand by ST0, not the other way round.
+ *
+ * The comparison is written with `len_sq` on the left on purpose.  0xb6e2f is
+ * FLD ST(1) / FCOMPP / TEST AH,0x41 / JNZ, i.e. len_sq is re-pushed above the
+ * squared limit and the branch skips the clamp when C0|C3 (len_sq <= max^2).
+ * Spelling it `max*max < len_sq` instead collapses to FCOMP ST(1) + JP and
+ * loses an instruction. */
+bool limit2d(float *v, float max_length)
+{
+  float len_sq;
+  float scale;
+
+  len_sq = v[1] * v[1] + v[0] * v[0];
+  if (len_sq > max_length * max_length) {
+    scale = max_length / sqrtf(len_sq);
+    v[0] = scale * v[0];
+    v[1] = scale * v[1];
+    return true;
+  }
+  return false;
+}
+
+/* Move `*value` toward `target`, by at most `max_delta` per call.
+ *
+ * Equivalent to `*value += clamp(target - *value, -max_delta, +max_delta)`.
+ *
+ * The delta is assigned back over the `target` parameter on purpose: the
+ * original has no locals at all (PUSH EBP / MOV EBP,ESP with no SUB ESP) and
+ * spills the difference into the incoming parameter slot -- 0xb6e63 is
+ * FLD [EBP+0xc]; FSUB [ECX]; FSTP [EBP+0xc].  Introducing a fresh local here
+ * would grow the frame and shift every subsequent access.
+ *
+ * Subtraction direction is confirmed: FLD target then FSUB of the memory
+ * operand (no FSUBR), i.e. `target - *value`.
+ *
+ * Three separate stores rather than a clamped temporary: the original's three
+ * paths each FLD their own addend (-max_delta is left live in ST1 from the
+ * first comparison at 0xb6e6e, max_delta is reloaded at 0xb6e91, the delta at
+ * 0xb6e97) and tail-merge onto a single FADD [ECX]; FSTP [ECX] at 0xb6e9a.
+ * The addend is on the left of the `+` because it is ST0 and `*value` is the
+ * memory operand of the FADD, not the other way round.
+ *
+ * Written as a nested `if` with the -max_delta case in the trailing `else`,
+ * not as an `if / else if / else` chain.  0xb6e6e is FLD max_delta; FCHS;
+ * FLD delta; FCOMP -- -max_delta is pushed FIRST and stays live as ST1 across
+ * the comparison, so the taken branch at 0xb6e9a already has its addend in
+ * ST0 and the fall-through has to FSTP ST0 to discard it (0xb6e7f).  Testing
+ * `target < -max_delta` instead makes VC71 schedule the negation as ST0 and
+ * compare against memory (FCOMP [EBP+0xc]), losing that reuse.
+ *
+ * TEST AH,0x5 + JNP at 0xb6e79 is "not less", i.e. the fall-through condition
+ * is `delta >= -max_delta` (an unordered/NaN compare sets C0|C2, giving even
+ * parity and therefore falling through as well). */
+void interpolate_scalar(float *value, float target, float max_delta)
+{
+  float neg_max_delta;
+
+  target = target - *value;
+  neg_max_delta = -max_delta;
+  if (target >= neg_max_delta) {
+    if (target > max_delta)
+      *value = max_delta + *value;
+    else
+      *value = target + *value;
+  } else {
+    *value = neg_max_delta + *value;
+  }
+}
+
 /* Set a player control slot's desired facing angles from a 3D direction vector.
  * Converts the direction vector to yaw+pitch via vector_to_angles (atan2-based
  * vector_to_angles), validates both angles for NaN/Inf, and normalizes yaw
@@ -924,6 +1099,92 @@ void player_control_new_unit(uint16_t local_player_index, int player_index)
     pc->desired_grenade_index = (int16_t) * (char *)(unit + 0x2cd);
     pc->desired_zoom_level = (int16_t) * (char *)(unit + 0x2d1);
   }
+}
+
+/* Return a pointer to a local player's desired facing angles (the 2-float
+ * euler_angles2d {yaw, pitch} at player_control_t+0x0c).
+ *
+ * Binary: 0xb7e30 ends with LEA EAX,[ESI+0xc] / POP ESI / POP EBP / RET, so the
+ * function returns &player->desired_angles -- kb.json previously declared it
+ * void(void), which was wrong on both the parameter and the return.
+ *
+ * Two things the original inlines and this lift must inline too, or the codegen
+ * diverges:
+ *   1. player_control_get_data(): the slot arithmetic appears literally here
+ *      (MOV ECX,[player_control_globals]; MOVSX EAX,SI; SHL EAX,6;
+ *      LEA ESI,[EAX+ECX+0x10]) with no CALL to 0xb6380, and it carries that
+ *      helper's own assert line (0xb1).  The helper is defined above under
+ *      #pragma auto_inline(off) -- which is what other callers in this TU
+ *      need -- so it is expanded by hand here instead.
+ *   2. valid_euler_angles2d(): six inline tests, no CALL.  Pitch is validated
+ *      BEFORE yaw.  Each test is a NaN/Inf reject on the raw bits followed by
+ *      an upper (strict <) and lower (>=) bound:
+ *        pitch in [-1.49225652217865, 1.49225652217865)   (0x26e378 / 0x26e37c)
+ *        yaw   in [0.0, 6.2831855)                        (0x2533c0 / 0x255a54)
+ *      The bound values were read out of the XBE (.rdata bit patterns
+ *      0xbfbf0243 / 0x3fbf0243 / 0x00000000 / 0x40c90fdb); no name evidence
+ *      exists for the pitch bounds, so they stay as literals.
+ *
+ * c:\halo\SOURCE\game\player_control.c */
+real *player_control_get_facing_angles(int16_t local_player_index)
+{
+  player_control_t *player;
+
+  /* inlined player_control_get_data() -- keeps that helper's assert line */
+  assert_halt_at("c:\\halo\\SOURCE\\game\\player_control.c", 0xb1,
+                 local_player_index >= 0 &&
+                   local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  player = (player_control_t *)((char *)player_control_globals +
+                                local_player_index * 0x40 + 0x10);
+
+  if (!((*(uint32_t *)&player->desired_angles_pitch & 0x7f800000) !=
+          0x7f800000 &&
+        player->desired_angles_pitch < 1.49225652217865f &&
+        player->desired_angles_pitch >= -1.49225652217865f &&
+        (*(uint32_t *)&player->desired_angles_yaw & 0x7f800000) != 0x7f800000 &&
+        player->desired_angles_yaw < 6.2831855f &&
+        player->desired_angles_yaw >= 0.0f)) {
+    display_assert("valid_euler_angles2d(&player->desired_angles)",
+                   "c:\\halo\\SOURCE\\game\\player_control.c", 0x3c0, 1);
+    system_exit(NONE);
+  }
+  return &player->desired_angles_yaw;
+}
+
+/* Build the this-frame action record for a local player and hand back the
+ * caller's buffer.
+ *
+ * The body is a three-call composition; the interesting part is the MSVC
+ * push-sharing at 0xb7f19..0xb7f36, which the decompiler renders as two
+ * unrelated calls:
+ *
+ *     PUSH ESI / CALL 0xb7e30 / ADD ESP,4     ; angles = get_facing_angles(idx)
+ *     PUSH EAX                                ; -> arg3 of 0xbb560
+ *     PUSH EDI                                ; -> arg2 of 0xbb560
+ *     PUSH ESI / CALL 0xba3c0 / ADD ESP,4     ; local_player_get_player_index
+ *     PUSH EAX                                ; -> arg1 of 0xbb560
+ *     CALL 0xbb560 / ADD ESP,0xC
+ *
+ * The two cleanups are 4 then 0xC (not one 0x10): the angles and out pointers
+ * are pushed into 0xbb560's frame before the inner call runs.  That is just
+ * cdecl right-to-left evaluation, so the nested call expression below emits
+ * the same shape.
+ *
+ * 0xb7f38 is MOV EAX,EDI -- the function returns its own second parameter, an
+ * implicit-EAX return (lift-learnings 16) that the previous kb.json decl
+ * (void(void)) dropped along with both parameters.
+ *
+ * local_player_index is forwarded to both callees straight out of its dword
+ * stack slot (MOV ESI,[EBP+8]); there is no MOVSX, so no widening cast here.
+ *
+ * c:\halo\SOURCE\game\player_control.c */
+real *player_control_get_facing_direction(int16_t local_player_index,
+                                          real *facing_out)
+{
+  player_build_action_update(
+    local_player_get_player_index(local_player_index), facing_out,
+    player_control_get_facing_angles(local_player_index));
+  return facing_out;
 }
 
 /* Set the desired weapon index on a unit's controlling player.
