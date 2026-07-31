@@ -330,6 +330,52 @@ bool virtual_keyboard_set_validation(wchar_t *text_buffer,
   return true;
 }
 
+/* Virtual keyboard cursor move handler: advance the keymap column cursor
+ * rightward (0xf56b0, virtual_keyboard.obj TU).
+ *
+ * Increments the column cursor at 0x46cefa modulo 0xb (11 keymap columns),
+ * skipping columns whose key character (keymap byte at
+ * 0x28a790[col + row*0xb]) equals the character under the pre-move cursor,
+ * so duplicate/merged keys are stepped over in one press. Stores the new
+ * column, plays the UI cursor-move sound (selector 1), and returns 1 (move
+ * accepted -> caller latches last_move_dir/last_move_time). Column analogue
+ * of the row handlers FUN_000f5700/5750; sibling of FUN_000f5660/57a0/5fb0.
+ *
+ * Disasm notes: row (0x46cef8) is MOVSX-loaded and scaled ONCE before the
+ * loop (MOVSX ECX,[0x46cef8]; IMUL ECX,ECX,0xb), so row*0xb is loop-
+ * invariant; col is held in AX for the whole loop (16-bit INC/CMP 0xb/XOR
+ * wrap to 0) and stored to the global once after it. The pre-move key byte
+ * is cached in DL before the loop. MOV AL,1 before RET -> char return;
+ * PUSH 1 is the audio-selector argument.
+ *
+ * VC71 81.8% (22/22 insns -- exact instruction-count parity). The 4 residual
+ * differences are all VC71 register-width choices on the 16-bit local, not
+ * structure: the original emits INC AX / XOR AX,AX where our build emits
+ * incl/xorl %eax, plus one extra zeroing of EAX before the 16-bit load and the
+ * original's loop-entry JMP. Neither `col++` nor `(short)(col + 1)` changes
+ * this -- VC71 promotes to 32-bit either way. Same ceiling as the sibling row
+ * handlers (FUN_000f5700 75.6%, FUN_000f5750 82.6%, FUN_000f57a0 83.0%).
+ * Behaviour is carried by equivalence: 100/100 seeds, 92% coverage. */
+char FUN_000f56b0(void)
+{
+  int row_offset;
+  short col;
+  char original_key;
+
+  row_offset = (int)*(short *)0x46cef8 * 0xb;
+  col = *(short *)0x46cefa;
+  original_key = ((char *)0x28a790)[row_offset + (int)col];
+  do {
+    col = (short)(col + 1);
+    if (col == 0xb) {
+      col = 0;
+    }
+  } while (((char *)0x28a790)[row_offset + (int)col] == original_key);
+  *(short *)0x46cefa = col;
+  ui_play_audio_feedback_sound(1);
+  return 1;
+}
+
 /* Virtual keyboard cursor move handler: advance the keymap row cursor
  * upward (0xf5700, virtual_keyboard.obj TU).
  *
@@ -479,6 +525,12 @@ void FUN_000f5f30(void)
  *   0x46cf07  byte   buffer_dirty     (0 = pristine, 1 = user has typed)
  *   0x46cf08  char*  buffer_base      (edit buffer start)
  *   0x46cf0c  char*  cursor           (edit caret within the buffer)
+ * The edit buffer holds UTF-16, so the caret advances/retreats by 2-byte
+ * cells and its end-of-string test is a 16-bit compare: the original
+ * materialises the stride once (MOV EDX,2 at 0xf642b) and reuses it for both
+ * SUB EAX,EDX (left, 0xf65f6) and ADD EAX,EDX (right, 0xf6625), and tests the
+ * terminator with CMP WORD PTR [ECX],0 at 0xf661d. Matches the 2-byte stepping
+ * in FUN_000f5f30 (backspace) and virtual_keyboard_set_text.
  *   0x46cf10  int    last_move_time   (ms timestamp of last accepted move)
  *   0x46cf58  int    repeat_timer     (ms timestamp gating auto-repeat)
  * Keymap dispatch table at 0x28a790 is a signed byte array indexed
@@ -563,7 +615,7 @@ void virtual_keyboard_process_input(void)
       case 6: /* cursor left */
         if (pressed == 1) {
           if (*(char **)0x46cf08 < *(char **)0x46cf0c)
-            *(char **)0x46cf0c -= 1;
+            *(char **)0x46cf0c -= 2;
         cursor_moved:
           *(unsigned char *)0x46cf07 = 0;
           ui_play_audio_feedback_sound(1);
@@ -572,8 +624,8 @@ void virtual_keyboard_process_input(void)
         break;
       case 7: /* cursor right */
         if (pressed == 1) {
-          if (**(char **)0x46cf0c != 0)
-            *(char **)0x46cf0c += 1;
+          if (**(short **)0x46cf0c != 0)
+            *(char **)0x46cf0c += 2;
           goto cursor_moved;
         }
         break;
@@ -1209,8 +1261,10 @@ void item_set_position(int item_handle, float *position, int flag)
         cross[2] = *(float *)(marker_buf + 0x5c);
       }
 
-      /* Random angle in [-pi/4, pi/4] */
-      scale = FUN_000121e0(-1.5707963f, 1.5707963f);
+      /* Random angle in [-pi/2, pi/2]. The literal must round to the
+       * reference's 0x3fc90fdb / 0xbfc90fdb: 1.5707963f is one ULP low
+       * (0x3fc90fda), which VC71 emits verbatim. */
+      scale = FUN_000121e0(-1.5707964f, 1.5707964f);
       scaled_dir[0] = cross[0] * scale;
       scaled_dir[1] = cross[1] * scale;
       scaled_dir[2] = cross[2] * scale;
@@ -1299,14 +1353,15 @@ typedef struct {
  *   VC7.1 shares between the marker record and the collision result. */
 bool item_update(int item_handle)
 {
-  float new_point[3];      /* EBP-0x0c */
-  float velocity[3];       /* EBP-0x18 */
-  char *item_tag;          /* EBP-0x1c (spilled across the reg-arg calls) */
-  float scale;             /* EBP-0x20 */
-  char *item_obj;          /* EBP-0x24 (spilled) */
-  float *velocity_field;   /* EBP-0x28 (spilled) */
-  float matrix[13];        /* EBP-0x5c: ground matrix / impulse-sound record */
-  char marker_buf[0x6c];   /* EBP-0xc8: marker record, collision result at +0x1c */
+  float new_point[3]; /* EBP-0x0c */
+  float velocity[3]; /* EBP-0x18 */
+  char *item_tag; /* EBP-0x1c (spilled across the reg-arg calls) */
+  float scale; /* EBP-0x20 */
+  char *item_obj; /* EBP-0x24 (spilled) */
+  float *velocity_field; /* EBP-0x28 (spilled) */
+  float matrix[13]; /* EBP-0x5c: ground matrix / impulse-sound record */
+  char
+    marker_buf[0x6c]; /* EBP-0xc8: marker record, collision result at +0x1c */
   float *global_vector;
   float impulse;
   void *node_matrix;
@@ -1334,14 +1389,12 @@ bool item_update(int item_handle)
 
   if ((*(uint32_t *)(item_obj + 0x4) & 0x800) &&
       *(int *)(item_obj + 0xcc) == NONE) {
-
     /* Re-snap the up vector and re-orthonormalize forward. */
     if ((*(uint8_t *)(item_tag + 0x17c) & 1) &&
         fabsf(*(float *)(item_obj + 0x38) - *(float *)0x2533c8) >=
           (float)*(double *)0x2533d0) {
       global_vector = *(float **)0x31fc44;
-      *(item_position3d *)(item_obj + 0x30) =
-        *(item_position3d *)global_vector;
+      *(item_position3d *)(item_obj + 0x30) = *(item_position3d *)global_vector;
       cross_product3d((float *)(item_obj + 0x30), (float *)(item_obj + 0x24),
                       new_point);
       cross_product3d(new_point, (float *)(item_obj + 0x30),
@@ -1371,12 +1424,12 @@ bool item_update(int item_handle)
                        new_point, *(int *)(item_obj + 0x1b0),
                        (int16_t *)(marker_buf + 0x1c))) {
         /* Lift the impact point off the surface along its normal. */
-        new_point[0] = *(float *)(marker_buf + 0x40) * *(float *)0x2533e8 +
-                       new_point[0];
-        new_point[1] = *(float *)(marker_buf + 0x44) * *(float *)0x2533e8 +
-                       new_point[1];
-        new_point[2] = *(float *)(marker_buf + 0x48) * *(float *)0x2533e8 +
-                       new_point[2];
+        new_point[0] =
+          *(float *)(marker_buf + 0x40) * *(float *)0x2533e8 + new_point[0];
+        new_point[1] =
+          *(float *)(marker_buf + 0x44) * *(float *)0x2533e8 + new_point[1];
+        new_point[2] =
+          *(float *)(marker_buf + 0x48) * *(float *)0x2533e8 + new_point[2];
 
         scale = FUN_00012fe0(velocity) / *(float *)0x28aa80;
         if (scale < *(float *)0x2533c0)
@@ -1427,14 +1480,12 @@ bool item_update(int item_handle)
           velocity[2] = 0.0f;
           velocity[1] = 0.0f;
           velocity[0] = 0.0f;
-          FUN_00012fb0((float *)(marker_buf + 0x40),
-                       *(float *)(marker_buf + 0x44) *
-                           *(float *)(item_obj + 0x40) +
-                         *(float *)(marker_buf + 0x48) *
-                           *(float *)(item_obj + 0x44) +
-                         *(float *)(marker_buf + 0x40) *
-                           *(float *)(item_obj + 0x3c),
-                       (float *)(item_obj + 0x3c));
+          FUN_00012fb0(
+            (float *)(marker_buf + 0x40),
+            *(float *)(marker_buf + 0x44) * *(float *)(item_obj + 0x40) +
+              *(float *)(marker_buf + 0x48) * *(float *)(item_obj + 0x44) +
+              *(float *)(marker_buf + 0x40) * *(float *)(item_obj + 0x3c),
+            (float *)(item_obj + 0x3c));
 
           if (!game_engine_running() && *(int *)(item_obj + 0x70) == NONE)
             object_set_garbage_flag(item_handle, 1);
@@ -1470,12 +1521,10 @@ bool item_update(int item_handle)
           *(int *)(item_obj + 0x1b0) = NONE;
         } else {
           /* ---- bounces ---------------------------------------------- */
-          impulse = (*(float *)(marker_buf + 0x40) * velocity[0] *
-                       *(float *)0x25686c -
-                     *(float *)(marker_buf + 0x44) * velocity[1] *
-                       *(float *)0x256870) -
-                    *(float *)(marker_buf + 0x48) * velocity[2] *
-                      *(float *)0x256870;
+          impulse =
+            (*(float *)(marker_buf + 0x40) * velocity[0] * *(float *)0x25686c -
+             *(float *)(marker_buf + 0x44) * velocity[1] * *(float *)0x256870) -
+            *(float *)(marker_buf + 0x48) * velocity[2] * *(float *)0x256870;
           if (*(int16_t *)(marker_buf + 0x1c) != 2 &&
               *(float *)0x2533ec <= impulse)
             impulse = *(float *)0x2533ec;
@@ -1501,8 +1550,8 @@ bool item_update(int item_handle)
       object_translate(item_handle, new_point, marker_buf + 0x28);
     } else if (!(*(uint8_t *)(item_tag + 0x17c) & 0x4)) {
       /* ---- at rest: re-validate the attachment -------------------- */
-      object_get_markers_by_string_id(item_handle, (void *)0x28aa90,
-                                      marker_buf, 1);
+      object_get_markers_by_string_id(item_handle, (void *)0x28aa90, marker_buf,
+                                      1);
 
       if ((*(uint8_t *)(item_obj + 0x1a4) & 0x8) &&
           *(int16_t *)(item_obj + 0x1aa) != (int16_t)NONE &&
@@ -1521,8 +1570,7 @@ bool item_update(int item_handle)
       } else if (*(uint8_t *)(item_obj + 0x1a4) & 0x10) {
         if (object_try_and_get_and_verify_type(*(int *)(item_obj + 0x1b8),
                                                NONE)) {
-          node_matrix =
-            object_get_node_matrix(*(int *)(item_obj + 0x1b8), 0);
+          node_matrix = object_get_node_matrix(*(int *)(item_obj + 0x1b8), 0);
           matrix_transform_point(node_matrix, (float *)(item_obj + 0x1bc),
                                  new_point);
           FUN_000f7110((float *)0, (float *)(item_obj + 0x1c8), item_handle,
@@ -1566,14 +1614,12 @@ bool item_update(int item_handle)
         object_compute_child_marker_position(
           object_get_and_verify_type(item_handle, NONE), marker_buf, matrix);
       } else {
-        rotate_vector3d_by_sincos((float *)(item_obj + 0x24),
-                                  (float *)(item_obj + 0x1c8),
-                                  *(float *)(item_obj + 0x1d4),
-                                  *(float *)(item_obj + 0x1d8));
-        rotate_vector3d_by_sincos((float *)(item_obj + 0x30),
-                                  (float *)(item_obj + 0x1c8),
-                                  *(float *)(item_obj + 0x1d4),
-                                  *(float *)(item_obj + 0x1d8));
+        rotate_vector3d_by_sincos(
+          (float *)(item_obj + 0x24), (float *)(item_obj + 0x1c8),
+          *(float *)(item_obj + 0x1d4), *(float *)(item_obj + 0x1d8));
+        rotate_vector3d_by_sincos(
+          (float *)(item_obj + 0x30), (float *)(item_obj + 0x1c8),
+          *(float *)(item_obj + 0x1d4), *(float *)(item_obj + 0x1d8));
       }
 
       normalize3d((float *)(item_obj + 0x30));
@@ -1590,9 +1636,10 @@ bool item_update(int item_handle)
     countdown = countdown - 1;
     *(int16_t *)(item_obj + 0x1a8) = countdown;
     if (countdown == 0) {
-      FUN_0009ec30(*(int *)(item_tag + 0x304), item_handle,
-                   item_handle, /* dup-args-ok: same handle as source and target */
-                   NONE, 0, 0, 0, 0);
+      FUN_0009ec30(
+        *(int *)(item_tag + 0x304), item_handle,
+        item_handle, /* dup-args-ok: same handle as source and target */
+        NONE, 0, 0, 0, 0);
       object_delete(item_handle);
     }
   }

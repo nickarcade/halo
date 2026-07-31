@@ -8422,6 +8422,62 @@
       "metadata": {
         "source_path": "units/units.c"
       }
+    },
+    {
+      "name": "halo/rasterizer_FUN_00172640",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/rasterizer.c.obj",
+      "base_path": "delinked/rasterizer_FUN_00172640.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/rasterizer.c"
+      }
+    },
+    {
+      "name": "halo/actions_FUN_0001cfa0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/ai/actions.c.obj",
+      "base_path": "delinked/actions_FUN_0001cfa0.obj",
+      "metadata": {
+        "source_path": "src/halo/ai/actions.c"
+      }
+    },
+    {
+      "name": "halo/actions_FUN_0001f6e0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/ai/actions.c.obj",
+      "base_path": "delinked/actions_FUN_0001f6e0.obj",
+      "metadata": {
+        "source_path": "src/halo/ai/actions.c"
+      }
+    },
+    {
+      "name": "halo/rasterizer_FUN_001703f0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/rasterizer.c.obj",
+      "base_path": "delinked/rasterizer_FUN_001703f0.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/rasterizer.c"
+      }
+    },
+    {
+      "name": "halo/rasterizer_FUN_00172650",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/rasterizer.c.obj",
+      "base_path": "delinked/rasterizer_FUN_00172650.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/rasterizer.c"
+      }
+    },
+    {
+      "name": "halo/rasterizer_xbox_screen_effect_FUN_001700d0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/xbox/rasterizer_xbox_screen_effect.c.obj",
+      "base_path": "delinked/rasterizer_xbox_screen_effect_FUN_001700d0.obj",
+      "metadata": {
+        "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_screen_effect.c"
+      }
+    },
+    {
+      "name": "halo/draw_string_FUN_0019c3c0",
+      "target_path": "build/CMakeFiles/halo.dir/src/halo/text/draw_string.c.obj",
+      "base_path": "delinked/draw_string_FUN_0019c3c0.obj",
+      "metadata": {
+        "source_path": "src/halo/text/draw_string.c"
+      }
     }
   ]
 }

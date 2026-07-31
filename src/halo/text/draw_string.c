@@ -23,12 +23,14 @@
  *
  * Re-implemented functions (by XBE address, ascending):
  *   0x130ab0  terminal_string_process_tabs
+ *   0x19b510  draw_string_get_string
  *   0x19b560  draw_string_set_tab_stops
  *   0x19b5d0  draw_string_set_indents
  *   0x19b640  draw_string_set_color
  *   0x19b790  draw_string_get_color
  *   0x19b800  draw_string_set_style_justify_flags
  *   0x19b8b0  draw_string_set_font
+ *   0x19c1b0  FUN_0019c1b0 (glyph clip-and-emit loop)
  */
 
 /* Telnet console globals accessed here (base 0x46eee0). */
@@ -38,6 +40,22 @@
 
 /* Maximum tab stops allowed (asserted in draw_string_set_tab_stops). */
 #define MAXIMUM_NUMBER_OF_TAB_STOPS 16
+
+/* Text-string table bound (asserted in draw_string_get_string, CMP SI,0x1). */
+#define NUMBER_OF_TEXT_STRINGS 1
+
+/* Word offsets into a 4 x int16_t clip rectangle {top, left, bottom, right}. */
+#define RECT2D_TOP 0
+#define RECT2D_LEFT 1
+#define RECT2D_BOTTOM 2
+#define RECT2D_RIGHT 3
+
+/*
+ * The per-glyph emit callback type (draw_string_emit_proc) lives in
+ * src/types.h -- the kb.json declaration generator cannot parse an inline
+ * function-pointer parameter, so it needs a plain type name. FUN_0019b3c0
+ * and FUN_0019b430 below are two of the concrete implementations passed in.
+ */
 
 /*
  * terminal_string_process_tabs — forward rendered text to telnet console.
@@ -189,6 +207,37 @@ void FUN_0019b430(int param_1, int param_2, int param_3, int param_4,
 }
 
 /*
+ * draw_string_get_string — resolve a text-string index to its string data.
+ *
+ * Validates index is in [0, NUMBER_OF_TEXT_STRINGS), then forwards
+ * (index + 7) to the string-table lookup FUN_0019d3c0 along with the
+ * table handle held at 0x4d9b08, returning that lookup's result.
+ *
+ * Confirmed: assert string "index>=0 && index<NUMBER_OF_TEXT_STRINGS" in
+ *            draw_string.c line 0x155; tail is display_assert then the
+ *            -1 exit (merged ADD ESP,0x14 covers both calls), and the
+ *            assert block FALLS THROUGH into the lookup path.
+ * Confirmed: both bounds compares are 16-bit (TEST SI,SI / CMP SI,0x1),
+ *            so the parameter is a short.
+ * Confirmed: NUMBER_OF_TEXT_STRINGS == 1 (from CMP SI,0x1).
+ * Confirmed: no MOV to EAX after the CALL — FUN_0019d3c0's pointer result
+ *            is this function's return value (implicit-EAX return).
+ * Inferred:  the +7 is an index bias into the string table, not an
+ *            address offset (ESI holds the index, never a pointer).
+ * Uncertain: 0x4d9b08 sits just below the 0x4d9b0c draw-string global
+ *            block; it is read as an int handle here but unnamed.
+ */
+char *draw_string_get_string(short index)
+{
+  if (!(index >= 0 && index < NUMBER_OF_TEXT_STRINGS)) {
+    display_assert("index>=0 && index<NUMBER_OF_TEXT_STRINGS",
+                   "c:\\halo\\SOURCE\\text\\draw_string.c", 0x155, 1);
+    system_exit(-1);
+  }
+  return FUN_0019d3c0(*(int *)0x4d9b08, index + 7);
+}
+
+/*
  * draw_string_set_tab_stops — set the tab stop array for subsequent draws.
  *
  * Validates count is in [0, MAXIMUM_NUMBER_OF_TAB_STOPS).  Stores the
@@ -329,6 +378,29 @@ void draw_string_get_color(void *color)
 }
 
 /*
+ * draw_string_set_font_tag — set only the draw-string font tag index.
+ *
+ * The 1-argument subset of the sibling draw_string_set_font (0x19b8b0):
+ * validates that the index names a 'font' tag, then stores the index.
+ *
+ * Confirmed: MOV ESI,[EBP+0x8] — one cdecl stack param, no register args.
+ * Confirmed: PUSH ESI; PUSH 0x666f6e74 ('font'); CALL tag_get (0x1ba140);
+ *            ADD ESP,0x8 => cdecl, 2 stack args, matches tag_get's decl.
+ * Confirmed: tag_get's EAX is never read — the call is a validation-only
+ *            side effect and its result is discarded.
+ * Confirmed: MOV [0x4d9b0c],ESI stores the *parameter*, not tag_get's
+ *            return value.
+ * Confirmed: POP ESI; POP EBP; RET (no immediate) => cdecl, void return.
+ *
+ * 0x19b7e0 / draw_string.obj
+ */
+void draw_string_set_font_tag(int font_tag_index)
+{
+  tag_get(0x666f6e74, font_tag_index); /* validate 'font' tag; result unused */
+  *(int *)0x4d9b0c = font_tag_index;
+}
+
+/*
  * draw_string_set_style_justify_flags — set text style, justification, flags.
  *
  * Validates:
@@ -417,6 +489,193 @@ void draw_string_set_highlight(short param_1, short param_2)
 }
 
 /*
+ * draw_character_software_globals (base 0x4d9ae8) — the software glyph
+ * blitter's target surface.  Only two members are touched here:
+ *   [+0x00] bitmap_data *bitmap                       (0x4d9ae8)
+ *   [+0x04] unsigned char log2(bytes per pixel)       (0x4d9aec)
+ * The pointer is re-read from memory at every use, exactly as the
+ * original does (four separate MOV reg,[0x4d9ae8] per glyph row).
+ */
+#define dcs_bitmap (*(char **)0x4d9ae8)
+#define dcs_pixel_shift (*(unsigned char *)0x4d9aec)
+
+/* bitmap_data members reached through dcs_bitmap (byte offsets). */
+#define dcs_bitmap_width (*(short *)(dcs_bitmap + 0x4))
+#define dcs_bitmap_height (*(short *)(dcs_bitmap + 0x6))
+#define dcs_bitmap_format (*(short *)(dcs_bitmap + 0xc))
+#define dcs_bitmap_pixels (*(char **)(dcs_bitmap + 0x2c))
+
+/*
+ * bitmap_draw_character — software blit of one font glyph into the
+ * draw-character target surface.
+ *
+ * Copies a dx x dy block out of the font's 8-bit coverage bitmap
+ * (character pixels at [sy][sx]) to the target bitmap at (x0, y0),
+ * blending with `color` in one of three ways selected by the target
+ * bitmap format:
+ *   formats 0/1/2 (8 bits/pixel): dst = min(dst, coverage*alpha >> 8)
+ *   format  6     (RGB565):       per-channel lerp towards `color`
+ *   format  0xb   (ARGB8888):     per-channel lerp, alpha = max()
+ * Any other format asserts and then leaves the row untouched.
+ *
+ * Confirmed: 10 cdecl stack slots (EBP+0x8 .. EBP+0x2c); the slot at
+ *            EBP+0x8 is never read.  The previous kb.json declaration
+ *            was `void bitmap_draw_character(void)`, which is wrong;
+ *            corrected as part of this lift.
+ * Confirmed: row pitch is (bits_per_pixel(format) * width) / 8.  The
+ *            CDQ / AND EDX,7 / ADD / SAR 3 sequence in the original is
+ *            just VC71's signed divide-by-8, so the C says "/ 8".
+ * Confirmed: three asserts, each display_assert(...,1) followed by
+ *            PUSH -1; CALL 0x8e2f0 (system_exit), at lines 0x1e6,
+ *            0x1e7 and 0x22c.  Execution continues afterwards (the
+ *            original reloads x0/dx from their slots after the call).
+ * Confirmed: dst advances 1/2/4 bytes per pixel for the 8bpp / 565 /
+ *            8888 cases (INC ESI, ADD ESI,2, ADD ESI,4); src always 1.
+ * Confirmed: the coverage byte is loaded into a 16-bit variable in the
+ *            8bpp and 8888 cases (MOVZX AX,byte / MOVZX CX,byte then
+ *            MOVSX for the multiply) but used directly as a byte in the
+ *            565 case (MOV AL,byte / MOVZX EAX,AL) -- the three case
+ *            bodies are not written identically in the original.
+ * Inferred:  param 2 is the font definition (only +0x94, the coverage
+ *            pixel base, is read) and param 3 the per-character record
+ *            (+0x4 = row stride int16, +0x10 = pixel offset int32).
+ * Uncertain: param 1's purpose -- the slot exists but is never read.
+ * Uncertain: the RGB565 pack masks (color >> 16) with 0xfff8 rather
+ *            than 0xf8, so the alpha bits leak into the red term.
+ *            Harmless (every consumer masks the result back down) but
+ *            reproduced exactly as the original computes it.
+ *
+ * 0x19b910 / draw_string.obj
+ */
+void bitmap_draw_character(int unused_param_1, const char *font_definition,
+                           const char *character, unsigned int color, short x0,
+                           short y0, short sx, short sy, short dx, short dy)
+{
+  const unsigned char *character_pixels;
+  const unsigned char *src;
+  char *dst;
+  short format;
+  short alpha;
+  short row;
+  short col;
+  short coverage;
+  short a;
+  short ia;
+  int color_565;
+  unsigned short dst_pixel16;
+  unsigned int dst_pixel32;
+  unsigned int alpha_out;
+  unsigned char dst_coverage;
+
+  character_pixels = *(const unsigned char *const *)(font_definition + 0x94) +
+                     *(const int *)(character + 0x10);
+  format = dcs_bitmap_format;
+  alpha = (short)(color >> 24);
+  if (format == 6) {
+    color_565 = ((((color >> 16) & 0xfff8) << 5) | ((color >> 8) & 0xfc)) << 3 |
+                ((color >> 3) & 0x1f);
+  }
+
+  for (row = 0; row < dy; row++) {
+    dst = (x0 << dcs_pixel_shift) +
+          y0 * ((bitmap_format_bits_per_pixel(dcs_bitmap_format) *
+                 dcs_bitmap_width) /
+                8) +
+          dcs_bitmap_pixels;
+    src = *(const short *)(character + 0x4) * sy + sx + character_pixels;
+
+    if (y0 < 0 || y0 > dcs_bitmap_height) {
+      display_assert(
+          "y0>=0 && y0<=draw_character_software_globals.bitmap->height",
+          "c:\\halo\\SOURCE\\text\\draw_string.c", 0x1e6, 1);
+      system_exit(-1);
+    }
+    if (x0 < 0 || x0 + dx > dcs_bitmap_width) {
+      display_assert(
+          "x0>=0 && x0+dx<=draw_character_software_globals.bitmap->width",
+          "c:\\halo\\SOURCE\\text\\draw_string.c", 0x1e7, 1);
+      system_exit(-1);
+    }
+
+    switch (format) {
+    case 0:
+    case 1:
+    case 2:
+      /* 8 bits/pixel: keep the darker of the two coverages. */
+      for (col = 0; col < dx; col++) {
+        coverage = *src;
+        if (coverage != 0) {
+          dst_coverage = *(unsigned char *)dst;
+          a = (short)((coverage * alpha) >> 8);
+          if (a > dst_coverage) {
+            a = dst_coverage;
+          }
+          *(unsigned char *)dst = (unsigned char)a;
+        }
+        src++;
+        dst++;
+      }
+      break;
+
+    case 6:
+      /* RGB565: lerp each field towards the pre-packed color. */
+      for (col = 0; col < dx; col++) {
+        if (*src != 0) {
+          dst_pixel16 = *(unsigned short *)dst;
+          a = (short)((*src * alpha) >> 8);
+          ia = (short)(0xff - a);
+          *(unsigned short *)dst = (unsigned short)(
+              ((((color_565 & 0x7ff) * a + (dst_pixel16 & 0x7ff) * ia) >> 8) &
+               0x7e0) |
+              ((((color_565 & 0x1f) * a + (dst_pixel16 & 0x1f) * ia) >> 8) &
+               0x1f) |
+              (((a * (color_565 & 0xffff) + ia * dst_pixel16) >> 8) & 0xf800));
+        }
+        src++;
+        dst += 2;
+      }
+      break;
+
+    case 0xb:
+      /* ARGB8888: lerp each channel, keep the larger alpha. */
+      for (col = 0; col < dx; col++) {
+        coverage = *src;
+        if (coverage != 0) {
+          dst_pixel32 = *(unsigned int *)dst;
+          a = (short)((coverage * alpha) >> 8);
+          ia = (short)(0xff - a);
+          alpha_out = (unsigned int)a;
+          if ((unsigned int)a <= (dst_pixel32 >> 24)) {
+            alpha_out = dst_pixel32 >> 24;
+          }
+          *(unsigned int *)dst =
+              ((((dst_pixel32 >> 16) & 0xff) * ia >> 8) +
+               (((color >> 16) & 0xff) * a >> 8))
+                  << 16 |
+              ((((dst_pixel32 >> 8) & 0xff) * ia >> 8) +
+               (((color >> 8) & 0xff) * a >> 8))
+                  << 8 |
+              (((dst_pixel32 & 0xff) * ia >> 8) + ((color & 0xff) * a >> 8)) |
+              (alpha_out << 24);
+        }
+        src++;
+        dst += 4;
+      }
+      break;
+
+    default:
+      display_assert("### ERROR unsupported bitmap format",
+                     "c:\\halo\\SOURCE\\text\\draw_string.c", 0x22c, 1);
+      system_exit(-1);
+      break;
+    }
+
+    sy++;
+    y0++;
+  }
+}
+
+/*
  * FUN_0019bcc0 — resolve the effective font tag for a given style.
  *
  * If style == -1 (plain): returns tag_get("font", font_index) directly.
@@ -449,6 +708,76 @@ void *FUN_0019bcc0(int16_t style, int font_index)
     tag_handle = font_index;
   }
   return tag_get(0x666f6e74, tag_handle);
+}
+
+/*
+ * FUN_0019bd30 — initialise a draw-string tokenizer/render state block.
+ *
+ * Validates style and justification, fills the state block, packs the four
+ * float colour components into one 8-bit-per-channel word, and resolves the
+ * font table for (style, font_index).
+ *
+ * State block layout (offsets corroborated by FUN_0019c0a0 below, which
+ * consumes the same struct):
+ *   +0x00 int      font_index
+ *   +0x04 void *   font table, from FUN_0019bcc0(style, font_index)
+ *   +0x08 int *    buffer      (the wide-char string; +8 per FUN_0019c0a0)
+ *   +0x0c int16_t  pos = 0     (tokenizer cursor; +0xc per FUN_0019c0a0)
+ *   +0x0e int16_t  style
+ *   +0x10 int16_t  justification
+ *   +0x18 int      packed colour
+ * +0x12 (current_char) and +0x14 (token_type) are deliberately left alone --
+ * FUN_0019c0a0 writes them as it tokenizes.
+ *
+ * ABI: two register params. `style` arrives in AX (@<ax>) -- MOV ESI,EAX
+ * @0019bd34 then CMP SI,-1, so it is read before any write and used 16-bit.
+ * `state` arrives in EBX (@<ebx>) -- MOV [EBX],ECX @0019bda4 writes THROUGH it
+ * with no prior write to EBX. Four cdecl stack params follow. Ghidra typed the
+ * function void(void).
+ *
+ * Assert bounds come from the message strings themselves, so the magic numbers
+ * are evidenced rather than guessed: _text_style_plain is -1 and
+ * NUMBER_OF_TEXT_STYLES is 4 (CMP SI,0x4 @0019bd45);
+ * NUMBER_OF_TEXT_JUSTIFICATIONS is 3 (CMP AX,0x3 @0019bd74). Both assert tails
+ * call system_exit(-1), not halt_and_catch_fire.
+ *
+ * Colour packing is a progressive shift-or, matching the original's
+ * interleaved SHL/OR chain: channel 0 ends up in the high byte, channel 3 in
+ * the low byte. 255.0f is the multiplier at 0x2602c8.
+ *
+ * CALL 0x1d9068 at four sites is the _ftol2 intrinsic, written here as a plain
+ * (int) cast -- never as a call (non-standard ABI, see the intrinsics table).
+ *
+ * 0x19bd30 / draw_string.obj
+ */
+void FUN_0019bd30(int16_t style, void *state, int *buffer, int font_index,
+                  int16_t justification, float *color)
+{
+  int packed;
+
+  if (style != -1 && (style < 0 || style >= 4)) {
+    display_assert(
+      "style==_text_style_plain || (style>=0 && style<NUMBER_OF_TEXT_STYLES)",
+      "c:\\halo\\SOURCE\\text\\draw_string.c", 0x415, 1);
+    system_exit(-1);
+  }
+  if (justification < 0 || justification >= 3) {
+    display_assert(
+      "justification>=0 && justification<NUMBER_OF_TEXT_JUSTIFICATIONS",
+      "c:\\halo\\SOURCE\\text\\draw_string.c", 0x416, 1);
+    system_exit(-1);
+  }
+  *(int *)state = font_index;
+  *(int **)((char *)state + 8) = buffer;
+  *(int16_t *)((char *)state + 0x10) = justification;
+  *(int16_t *)((char *)state + 0xc) = 0;
+  *(int16_t *)((char *)state + 0xe) = style;
+  packed = (int)(color[0] * 255.0f);
+  packed = (packed << 8) | (int)(color[1] * 255.0f);
+  packed = (packed << 8) | (int)(color[2] * 255.0f);
+  packed = (packed << 8) | (int)(color[3] * 255.0f);
+  *(int *)((char *)state + 0x18) = packed;
+  *(void **)((char *)state + 4) = FUN_0019bcc0(style, font_index);
 }
 
 /*
@@ -507,4 +836,297 @@ int16_t FUN_0019c0a0(void *state)
     break;
   }
   return *(volatile int16_t *)(s + 0x14);
+}
+
+/*
+ * FUN_0019c1b0 — clip a character range of a string and emit one glyph at a
+ * time through a caller-supplied blitter.
+ *
+ * Intersects up to two clip rectangles, seeds a tokenizer state block via
+ * FUN_0019bd30, then walks characters [first, last) of the string. For each
+ * character parse_string advances the tokenizer, FUN_0019cff0 resolves the
+ * glyph, and the glyph's destination rectangle is clipped against the
+ * intersection before the blitter is called. Fully clipped-away glyphs still
+ * advance the pen.
+ *
+ * ABI: one register param plus seven cdecl stack params (ADD ESP,0x1C at the
+ * single call site @0019c88c). `clip_a` arrives in EAX (@<eax>): TEST EAX,EAX
+ * @0019c1b6 reads it before any write, MOV CX,[EAX+2] @0019c1d9 dereferences
+ * it, and the caller loads it with LEA EAX,[EBP-0x38] one instruction before
+ * the CALL. Ghidra typed the function void(void).
+ *
+ * State block is the same 0x1c-byte struct FUN_0019bd30 fills; the frame is
+ * SUB ESP,0x38 = 0x1c state + 0x1c of separate locals. Ghidra rendered three
+ * state fields as independent locals (buffer-alias confusion, lift-learnings
+ * §5): local_38 = EBP-0x34 = state+0x04 (font table), local_30 = EBP-0x2c =
+ * state+0x0c (tokenizer pos), and the EBP-0x26 read = state+0x12
+ * (current character). Reading them from `state` is what makes the loop
+ * terminate: nothing here increments the counter -- parse_string advances
+ * state+0x0c, exactly as FUN_0019c0a0 does.
+ *
+ * Confirmed: the clip pairing is (+2 left, +6 right) and (+0 top, +4 bottom) --
+ *            CMP SI,DX @0019c25f and CMP DI,BX @0019c268 test those two pairs
+ *            for an empty rectangle, so +2/+6 and +0/+4 are the opposing edges.
+ * Confirmed: FUN_0019cff0(state->font_table, state->current_char) returns a
+ *            glyph descriptor or NULL; fields read are +2 (pen advance),
+ *            +4 (width), +6 (height), +8 (origin x), +0xa (origin y).
+ * Confirmed: 0x4d9b4a/0x4d9b4c are a half-open *character index* range and the
+ *            effect is a highlight -- CMP AX,[0x4d9b4a] / CMP AX,[0x4d9b4c]
+ *            @0019c2b0 test the tokenizer position and select an XOR 0xFFFFFF
+ *            of the colour. This upgrades the "Uncertain: parameter semantics"
+ *            note on draw_string_set_highlight above to confirmed.
+ * Uncertain: the original reuses the `clip_b` parameter slot as a scratch
+ *            int16_t for the glyph height (MOV [EBP+0x10],DI @0019c311) after
+ *            the rectangle intersection has finished with it, and one later
+ *            read is a full dword (MOV EDI,[EBP+0x10] @0019c369) whose high
+ *            half is stale pointer bits. A separate local is used here: every
+ *            consumer truncates to 16 bits, so this is equivalent, but it
+ *            costs a stack slot the original did not spend.
+ *
+ * 0x19c1b0 / draw_string.obj
+ */
+void FUN_0019c1b0(const uint16_t *clip_a, draw_string_emit_proc emit,
+                  int16_t *pen, const uint16_t *clip_b, int color, int *buffer,
+                  int16_t first, int16_t last)
+{
+  char state[0x1c];
+  int clip_left;
+  int clip_top;
+  int clip_bottom;
+  int clip_right;
+  int edge;
+  int effective_color;
+  int src_x;
+  int src_y;
+  void *glyph;
+  short glyph_height;
+  short pen_x;
+  short dest_x;
+  short dest_y;
+  short width;
+  short height;
+
+  clip_left = -0x8000;
+  clip_top = -0x8000;
+  clip_right = 0x7fff;
+  clip_bottom = 0x7fff;
+
+  if (clip_a != 0) {
+    edge = clip_a[RECT2D_LEFT];
+    if ((short)edge > (short)clip_left)
+      clip_left = edge;
+    edge = clip_a[RECT2D_RIGHT];
+    if ((short)edge < (short)clip_right)
+      clip_right = edge;
+    edge = clip_a[RECT2D_TOP];
+    if ((short)edge > (short)clip_top)
+      clip_top = edge;
+    edge = clip_a[RECT2D_BOTTOM];
+    if ((short)edge < (short)clip_bottom)
+      clip_bottom = edge;
+  }
+  if (clip_b != 0) {
+    edge = clip_b[RECT2D_LEFT];
+    if ((short)edge > (short)clip_left)
+      clip_left = edge;
+    edge = clip_b[RECT2D_RIGHT];
+    if ((short)edge < (short)clip_right)
+      clip_right = edge;
+    edge = clip_b[RECT2D_TOP];
+    if ((short)edge > (short)clip_top)
+      clip_top = edge;
+    edge = clip_b[RECT2D_BOTTOM];
+    if ((short)edge < (short)clip_bottom)
+      clip_bottom = edge;
+  }
+  if ((short)clip_left >= (short)clip_right ||
+      (short)clip_top >= (short)clip_bottom)
+    return;
+
+  FUN_0019bd30(*(short *)0x4d9b14, state, buffer, *(int *)0x4d9b0c,
+               *(short *)0x4d9b16, (float *)0x4d9b18);
+
+  *(int16_t *)(state + 0xc) = first;
+  while (*(int16_t *)(state + 0xc) < last) {
+    if (*(int16_t *)(state + 0xc) >= *(short *)0x4d9b4a &&
+        *(int16_t *)(state + 0xc) < *(short *)0x4d9b4c)
+      effective_color = color ^ 0xffffff;
+    else
+      effective_color = color;
+
+    parse_string(state);
+    glyph = FUN_0019cff0(*(void **)(state + 4),
+                         (uint16_t) * (int16_t *)(state + 0x12));
+    if (glyph == 0)
+      continue;
+
+    pen_x = pen[0];
+    dest_y = (short)(pen[1] - *(int16_t *)((char *)glyph + 0xa));
+    width = *(int16_t *)((char *)glyph + 4);
+    src_x = 0;
+    src_y = 0;
+    glyph_height = *(int16_t *)((char *)glyph + 6);
+    dest_x = (short)(pen_x - *(int16_t *)((char *)glyph + 8));
+    pen[0] = (int16_t)(*(int16_t *)((char *)glyph + 2) + pen_x);
+
+    if (dest_x + width > (short)clip_right)
+      width = clip_right - dest_x;
+    if (dest_x < (short)clip_left) {
+      src_x = clip_left - dest_x;
+      dest_x = (short)clip_left;
+      width = width - src_x;
+    }
+
+    if (dest_y + glyph_height > (short)clip_bottom)
+      height = clip_bottom - dest_y;
+    else
+      height = glyph_height;
+    if (dest_y < (short)clip_top) {
+      src_y = clip_top - dest_y;
+      dest_y = (short)clip_top;
+      height = height - src_y;
+    }
+
+    if ((short)width > 0 && (short)height > 0)
+      emit(state, *(void **)(state + 4), glyph, effective_color, dest_x, dest_y,
+           src_x, src_y, (short)width, (short)height);
+  }
+}
+
+/*
+ * FUN_0019c3c0 — the FUN_0019c0a0-tokenizer twin of FUN_0019c1b0 above.
+ *
+ * Structurally the same glyph clip-and-emit loop, with one single difference:
+ * the per-iteration string advance calls FUN_0019c0a0 (0x19c0a0) instead of
+ * parse_string (0x19be30). Ghidra's callee sets are otherwise identical --
+ * {FUN_0019bd30, FUN_0019cff0, parse_string} for 0x19c1b0 versus
+ * {FUN_0019bd30, FUN_0019cff0, FUN_0019c0a0} here -- and the two bodies match
+ * instruction for instruction around that call. Every offset, clip pairing and
+ * glyph field is therefore the same, and the "Confirmed"/"Uncertain" notes on
+ * FUN_0019c1b0 apply verbatim, including the clip_b parameter-slot reuse
+ * (MOV [EBP+0x10],DI @0019c520 here) that is modelled with a separate local.
+ *
+ * The int16_t result of FUN_0019c0a0 is discarded: CALL @0019c4e5 is followed
+ * immediately by MOV ECX,[EBP-0x26] with no use of EAX. The call is made for
+ * its side effect on the state block's cursor at +0x0c, which is also the
+ * loop variable.
+ *
+ * ABI recovered from the sole call site @0019cc24 in FUN_0019c960 and cross-
+ * checked with check_arg_counts (declared_stack=7, observed push=7,
+ * cleanup=7): `clip_a` arrives in EAX (@<eax>) -- TEST EAX,EAX @0019c3c6
+ * precedes any write, and the caller does LEA EAX,[EBP-0x3c] immediately
+ * before the CALL -- followed by seven cdecl stack params. Ghidra typed the
+ * whole thing void(void) and invented six in_stack_ locals.
+ *
+ * 0x19c3c0 / draw_string.obj
+ */
+void FUN_0019c3c0(const uint16_t *clip_a, draw_string_emit_proc emit,
+                  int16_t *pen, const uint16_t *clip_b, int color, int *buffer,
+                  int16_t first, int16_t last)
+{
+  char state[0x1c];
+  int clip_left;
+  int clip_top;
+  int clip_bottom;
+  int clip_right;
+  int edge;
+  int effective_color;
+  int src_x;
+  int src_y;
+  void *glyph;
+  short glyph_height;
+  short pen_x;
+  short dest_x;
+  short dest_y;
+  short width;
+  short height;
+
+  clip_left = -0x8000;
+  clip_top = -0x8000;
+  clip_right = 0x7fff;
+  clip_bottom = 0x7fff;
+
+  if (clip_a != 0) {
+    edge = clip_a[RECT2D_LEFT];
+    if ((short)edge > (short)clip_left)
+      clip_left = edge;
+    edge = clip_a[RECT2D_RIGHT];
+    if ((short)edge < (short)clip_right)
+      clip_right = edge;
+    edge = clip_a[RECT2D_TOP];
+    if ((short)edge > (short)clip_top)
+      clip_top = edge;
+    edge = clip_a[RECT2D_BOTTOM];
+    if ((short)edge < (short)clip_bottom)
+      clip_bottom = edge;
+  }
+
+  if (clip_b != 0) {
+    edge = clip_b[RECT2D_LEFT];
+    if ((short)clip_left < (short)edge)
+      clip_left = edge;
+    edge = clip_b[RECT2D_RIGHT];
+    if ((short)edge < (short)clip_right)
+      clip_right = edge;
+    edge = clip_b[RECT2D_TOP];
+    if ((short)clip_top < (short)edge)
+      clip_top = edge;
+    edge = clip_b[RECT2D_BOTTOM];
+    if ((short)edge < (short)clip_bottom)
+      clip_bottom = edge;
+  }
+
+  if ((short)clip_left >= (short)clip_right)
+    return;
+  if ((short)clip_top >= (short)clip_bottom)
+    return;
+
+  FUN_0019bd30(*(short *)0x4d9b14, state, buffer, *(int *)0x4d9b0c,
+               *(short *)0x4d9b16, (float *)0x4d9b18);
+
+  *(int16_t *)(state + 0xc) = first;
+  while (*(int16_t *)(state + 0xc) < last) {
+    if (*(int16_t *)(state + 0xc) >= *(short *)0x4d9b4a &&
+        *(int16_t *)(state + 0xc) < *(short *)0x4d9b4c)
+      effective_color = color ^ 0xffffff;
+    else
+      effective_color = color;
+
+    FUN_0019c0a0(state);
+    glyph = FUN_0019cff0(*(void **)(state + 4),
+                         (uint16_t) * (int16_t *)(state + 0x12));
+    if (glyph == 0)
+      continue;
+
+    pen_x = pen[0];
+    dest_y = (short)(pen[1] - *(int16_t *)((char *)glyph + 0xa));
+    width = *(int16_t *)((char *)glyph + 4);
+    src_x = 0;
+    src_y = 0;
+    glyph_height = *(int16_t *)((char *)glyph + 6);
+    dest_x = (short)(pen_x - *(int16_t *)((char *)glyph + 8));
+    pen[0] = (int16_t)(*(int16_t *)((char *)glyph + 2) + pen_x);
+
+    if (dest_x + width > (short)clip_right)
+      width = clip_right - dest_x;
+    if (dest_x < (short)clip_left) {
+      src_x = clip_left - dest_x;
+      dest_x = (short)clip_left;
+      width = width - src_x;
+    }
+
+    if (dest_y + glyph_height > (short)clip_bottom)
+      height = clip_bottom - dest_y;
+    else
+      height = glyph_height;
+    if (dest_y < (short)clip_top) {
+      src_y = clip_top - dest_y;
+      dest_y = (short)clip_top;
+      height = height - src_y;
+    }
+
+    if ((short)width > 0 && (short)height > 0)
+      emit(state, *(void **)(state + 4), glyph, effective_color, dest_x, dest_y,
+           src_x, src_y, (short)width, (short)height);
+  }
 }

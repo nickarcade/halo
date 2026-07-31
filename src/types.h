@@ -59,6 +59,24 @@ typedef uint16_t word;
 typedef uint32_t dword;
 typedef float    real;
 
+/* Bungie's 2D real vector. Lives here rather than in its recovering TU
+ * (rasterizer_xbox_screen_effect.c) because FUN_001700d0 returns it by value,
+ * so the type appears in that function's kb.json decl and therefore in the
+ * generated decl.h, which every TU includes.
+ *
+ * The component names are not guessed: the assert string at 0x1700d0 reads
+ * "v->i!=0.0f && v->j!=0.0f", giving both field names. Size 8 with the
+ * components at +0x00 / +0x04 follows from FLD [ESI] @001700f7 and
+ * FLD [ESI+0x4] @00170106. Returned in EAX:EDX by both MSVC and
+ * clang -target i386-pc-win32. */
+typedef struct {
+  real i;                          ///< offset=0x00
+  real j;                          ///< offset=0x04
+} real_vector2d;
+cs(real_vector2d, 0x8);
+co(real_vector2d, i, 0x0);
+co(real_vector2d, j, 0x4);
+
 #define __int16 short
 #define __int8 char
 
@@ -235,16 +253,6 @@ typedef struct {
   uint32_t unk_416;         ///< offset=0x1A0 .text:00140EF1                 add     eax, 1A0h node matrix reference?
 } object_data_t;
 
-/// size=0xc
-typedef struct {
-  uint16_t unk_0;         ///< offset=0x00
-  uint8_t unk_2;          ///< offset=0x02  see .text:0013FF78                 or      byte ptr [esi+2], 40h  flags
-  uint8_t type;           ///< offset=0x03  see .text:000F68C3                 movzx   ax, byte ptr [eax+3]
-  uint16_t unk_4;         ///< offset=0x04  cluster_index?
-  uint16_t data_size;     ///< offset=0x06  see .text:0013E015                 movsx   eax, word ptr [edi+6]
-  object_data_t* object;  ///< offset=0x08  see .text:0013D80E                 mov     esi, [eax+8]
-} object_header_data_t;
-
 #define MAXIMUM_WEAPONS_PER_UNIT 4
 #define NUMBER_OF_UNIT_GRENADE_TYPES 2
 
@@ -409,72 +417,6 @@ typedef struct {
   uint32_t unk_1056;                  ///< offset=0x420
 } unit_data_t;
 
-// OBJE -> UNIT -> BIPD
-/// size=0x480
-typedef struct {
-  unit_data_t unit;         ///< offset=0x000
-  uint32_t flags;           ///< offset=0x424 .text:001A29F5                 test    byte ptr [esi+424h], 1   ; 1A9BEE shows it's 32-bit
-  uint8_t unk_1064;         ///< offset=0x428 .text:001A0EDF                 mov     byte ptr [esi+428h], 0
-  uint8_t unk_1065;         ///< offset=0x429 .text:001A0EED                 mov     [esi+429h], al
-  uint8_t unk_1066;         ///< offset=0x42A .text:001A2567                 movsx   eax, byte ptr [esi+42Ah]
-  uint8_t unk_1067;         ///< offset=0x42B .text:001A4A37                 mov     byte ptr [esi+42Bh], 0
-  uint32_t unk_1068;        ///< offset=0x42C .text:00095FBE                 mov     edx, [eax+42Ch]
-  uint32_t unk_1072;        ///< offset=0x430 .text:001A0874                 mov     [eax+430h], ecx
-  uint32_t unk_1076;        ///< offset=0x434 .text:001A087A                 mov     [eax+434h], ecx
-  vector3_t unk_1080;       ///< offset=0x438 .text:0003E1D6                 add     eax, 438h
-  uint32_t unk_1092;        ///< offset=0x444 .text:001A1C28                 cmp     eax, [esi+444h]  game time related
-  uint32_t unk_1096;        ///< offset=0x448 .text:001A0880                 mov     [eax+448h], ecx
-  uint32_t unk_1100;        ///< offset=0x44C .text:001A4A0D                 mov     [esi+44Ch], ebx
-  uint32_t unk_1104;        ///< offset=0x450 .text:001A0848                 mov     dword ptr [esi+450h], 0FFFFFFFFh
-  datum_handle_t unk_1108;  ///< offset=0x454 .text:001A0AB9                 cmp     [esi+454h], edi 
-  uint8_t unk_1112;         ///< offset=0x458 .text:001A0B1D                 mov     byte ptr [esi+458h], 0F1h
-  uint8_t unk_1113;         ///< offset=0x459 .text:001A1EE2                 cmp     byte ptr [esi+459h], 1Eh
-  uint8_t unk_1114;         ///< offset=0x45A .text:001A2B28                 mov     al, [esi+45Ah]
-  uint8_t unk_1115;         ///< offset=0x45B .text:001A2576                 mov     byte ptr [esi+45Bh], 1
-  uint8_t unk_1116;         ///< offset=0x45C .text:001A2406                 mov     byte ptr [esi+45Ch], 0
-  uint8_t unk_1117;         ///< offset=0x45D .text:001A66F4                 mov     [esi+45Dh], bl
-  uint8_t unk_1118;         ///< offset=0x45E .text:001A66EE                 mov     [esi+45Eh], dl
-  uint8_t unk_1119;         ///< offset=0x45F
-  uint16_t unk_1120;        ///< offset=0x460 .text:001A0ED6                 mov     [esi+460h], cx 
-  uint16_t unk_1122;        ///< offset=0x462 
-  float unk_1124;           ///< offset=0x464 .text:001A0905                 fmul    dword ptr [edi+464h]
-  float unk_1128;           ///< offset=0x468 .text:001A4586                 fld     dword ptr [esi+468h]
-  vector3_t unk_1132;       ///< offset=0x46C .text:001A0826                 lea     edx, [esi+46Ch]
-  uint32_t unk_1144;        ///< offset=0x478 .text:001A5F90                 mov     [edi+478h], edx
-  uint8_t unk_1148;         ///< offset=0x47C .text:0019FAF7                 mov     dl, [esi+47Ch]
-  uint8_t unk_1149;         ///< offset=0x47D .text:0019FAE0                 mov     cl, [esi+47Dh]
-  char unk_1150[2];         ///< offset=0x47E
-} biped_data_t;
-
-// OBJE -> UNIT -> VEHI
-/// size=0x47C
-typedef struct {
-  unit_data_t unit;       ///< offset=0x000
-  uint16_t unk_1060;      ///< offset=0x424 .text:001B578E                 mov     [esi+424h], bx
-  uint16_t unk_1062;      ///< offset=0x426 .text:001B9819                 cmp     word ptr [ebx+426h], 0
-  uint8_t unk_1064;       ///< offset=0x428 .text:001A2020                 cmp     byte ptr [ebx+428h], 1Eh
-  uint8_t unk_1065;       ///< offset=0x429 .text:001B57A2                 mov     [esi+429h], bl
-  uint8_t unk_1066;       ///< offset=0x42A .text:001B57A8                 mov     [esi+42Ah], bl
-  uint8_t unk_1067;       ///< offset=0x42B .text:001B572C                 mov     al, [esi+42Bh]
-  float unk_1068;         ///< offset=0x42C .text:001B6025                 fld     dword ptr [esi+42Ch]
-  float unk_1072;         ///< offset=0x430 .text:001B7B31                 fld     dword ptr [esi+430h]
-  float unk_1076;         ///< offset=0x434 .text:001B602B                 fsub    dword ptr [esi+434h]
-  float unk_1080;         ///< offset=0x438 .text:001B5BA9                 fld     dword ptr [esi+438h]
-  float unk_1084;         ///< offset=0x43C .text:001B604C                 fadd    dword ptr [esi+43Ch]
-  float unk_1088;         ///< offset=0x440 .text:001B608F                 fadd    dword ptr [esi+440h]
-  float unk_1092;         ///< offset=0x444 .text:0002EAA8                 fld     dword ptr [edi+444h]
-  float unk_1096;         ///< offset=0x448 .text:001B6860                 fcomp   dword ptr [edi+448h]
-  uint8_t unk_1100[8];    ///< offset=0x44C .text:001B5786                 lea     ecx, [esi+44Ch] & .text:001B5C28                 mov     cl, [edi+esi+44Ch]
-  vector3_t unk_1108;     ///< offset=0x454 .text:001B5631                 lea     eax, [esi+454h]
-  float unk_1120;         ///< offset=0x460 .text:0015225F                 fadd    dword ptr [edi+460h]
-  float unk_1124;         ///< offset=0x464 .text:0015226E                 fadd    dword ptr [edi+464h]
-  float unk_1128;         ///< offset=0x468 .text:0015227D                 fadd    dword ptr [edi+468h]
-  float unk_1132;         ///< offset=0x46C .text:0015228C                 fadd    dword ptr [edi+46Ch]
-  float unk_1136;         ///< offset=0x470 .text:0015229B                 fadd    dword ptr [edi+470h]
-  float unk_1140;         ///< offset=0x474 .text:001522AA                 fadd    dword ptr [edi+474h]
-  uint32_t unk_1144;      ///< offset=0x478 .text:001B80DA                 test    [ebx+478h], edx
-} vehicle_data_t;
-
 // OBJE -> ITEM
 /// size=0x1DC
 typedef struct {
@@ -547,113 +489,6 @@ typedef struct {
   uint32_t unk_628;                 ///< offset=0x274 .text:000FBD3A                 mov     dword ptr [edi+274h], 0FFFFFFFFh
   char unk_632[4];                  ///< offset=0x278
 } weapon_data_t;
-
-// OBJE -> ITEM -> EQUI
-/// size=0x1F4
-typedef struct {
-  item_data_t item;       ///< offset=0x000
-  char unk_476[0x18];     ///< offset=0x1DC
-} equipment_data_t;
-
-// OBJE -> ITEM -> GARB
-/// size=0x1F4
-typedef struct {
-  item_data_t item;       ///< offset=0x000
-  uint16_t unk_476;       ///< offset=0x1DC .text:000F6833                 dec     word ptr [eax+1DCh]
-  char unk_478[0x16];     ///< offset=0x1DE
-} garbage_data_t;
-
-// OBJE -> PROJ
-/// size=0x228
-typedef struct {
-  object_data_t object;   ///< offset=0x000
-  char unk_420[0x38];     ///< offset=0x1A4
-  uint32_t unk_476;       ///< offset=0x1DC .text:000F7CBE                 mov     ecx, [eax+1DCh]
-  uint16_t unk_480;       ///< offset=0x1E0 .text:000F7E4B                 cmp     si, [eax+1E0h]   type of some sort, also see projectile_collision
-  uint16_t unk_482;       ///< offset=0x1E2 .text:000F8D84                 mov     [esi+1E2h], bx
-  datum_handle_t unk_484; ///< offset=0x1E4 .text:000F8D90                 mov     [esi+1E4h], eax
-  datum_handle_t unk_488; ///< offset=0x1E8 .text:000F7D44                 mov     [eax+1E8h], ecx
-  uint32_t unk_492;       ///< offset=0x1EC .text:000F9CAC                 mov     eax, [ebx+1ECh]  index into [ebx+eax*4+0FCh]
-  float unk_496;          ///< offset=0x1F0 .text:000F8A91                 fmul    dword ptr [edi+1F0h]
-  float unk_500;          ///< offset=0x1F4 .text:000F8DEC                 fstp    dword ptr [esi+1F4h]
-  float unk_504;          ///< offset=0x1F8 .text:000F9DBD                 fld     dword ptr [ebx+1F8h]
-  float unk_508;          ///< offset=0x1FC .text:000F8E15                 fstp    dword ptr [esi+1FCh]
-  float unk_512;          ///< offset=0x200 .text:000F7F66                 fld     dword ptr [esi+200h]
-  float unk_516;          ///< offset=0x204 .text:000F8702                 mov     dword ptr [esi+204h], 3F800000h
-  float unk_520;          ///< offset=0x208 .text:000F86AB                 fstp    dword ptr [esi+208h]
-  float unk_524;          ///< offset=0x20C .text:000F8677                 fstp    dword ptr [esi+20Ch]
-  float unk_528;          ///< offset=0x210 .text:000FA304                 fcomp   dword ptr [ebx+210h]
-  float unk_532;          ///< offset=0x214 .text:000F85E7                 fstp    dword ptr [ecx+214h]
-  float unk_536;          ///< offset=0x218 .text:000F85F2                 fstp    dword ptr [ecx+218h]
-  float unk_540;          ///< offset=0x21C .text:000F85FB                 fstp    dword ptr [ecx+21Ch]
-  float unk_544;          ///< offset=0x220 .text:000F8605                 fstp    dword ptr [ecx+220h]
-  float unk_548;          ///< offset=0x224 .text:000F860D                 fstp    dword ptr [ecx+224h]
-} projectile_data_t;
-
-// OBJE -> SCEN
-/// size=0x1A8
-typedef struct {
-  object_data_t object;   ///< offset=0x000
-  char unk_420[4];        ///< offset=0x1A4
-} scenery_data_t;
-
-// OBJE -> DEVI
-/// size=0x1C4
-typedef struct {
-  object_data_t object;   ///< offset=0x000
-  uint8_t flags;          ///< offset=0x1A4   .text:00096784                 test    byte ptr [edi+1A4h], 2
-  char unk_421[3];        ///< offset=0x1A5
-  uint16_t unk_424;       ///< offset=0x1A8   .text:000960EB                 mov     [esi+1A8h], ax
-  uint16_t unk_426;       ///< offset=0x1AA
-  float unk_428;          ///< offset=0x1AC   .text:00096182                 fld     dword ptr [edi+1ACh]
-  float unk_432;          ///< offset=0x1B0   .text:0009618D                 fld     dword ptr [edi+1B0h]
-  uint16_t unk_436;       ///< offset=0x1B4   .text:000960E4                 mov     [esi+1B4h], ax
-  uint16_t unk_438;       ///< offset=0x1B6
-  float unk_440;          ///< offset=0x1B8   .text:000961BB                 fld     dword ptr [edi+1B8h]
-  float unk_444;          ///< offset=0x1BC   .text:000961C6                 fld     dword ptr [edi+1BCh]
-  uint16_t unk_448;       ///< offset=0x1C0   .text:000962CD                 movsx   edx, word ptr [edi+1C0h]
-  uint16_t unk_450;       ///< offset=0x1C2
-} device_data_t;
-
-// OBJE -> DEVI -> MACH
-/// size=0x1D8
-typedef struct {
-  device_data_t device;   ///< offset=0x000
-  uint32_t flags;         ///< offset=0x1C4   .text:00096247                 mov     ecx, [esi+1C4h]
-  uint32_t unk_456;       ///< offset=0x1C8   .text:00095EB2                 mov     edx, [esi+1C8h]
-  vector3_t unk_460;      ///< offset=0x1CC   .text:00095F1E                 fsub    dword ptr [esi+1CCh]
-} machine_data_t;
-
-// OBJE -> DEVI -> CTRL
-/// size=0x1CC
-typedef struct {
-  device_data_t device;   ///< offset=0x000
-  uint32_t flags;         ///< offset=0x1C4   .text:0009571F                 or      [esi+1C4h], eax
-  datum_handle_t unk_456; ///< offset=0x1C8   .text:000D06C1                 cmp     word ptr [esi+1C8h], 0FFFFh    datum_handle?
-} control_data_t;
-
-// OBJE -> DEVI -> LIFI
-/// size=0x1DC
-typedef struct {
-  device_data_t device;   ///< offset=0x000
-  char unk_452[0x10];     ///< offset=0x1C4
-  uint32_t unk_468;       ///< offset=0x1D4 .text:00095A08                 mov     [esi+1D4h], ecx
-  uint32_t unk_472;       ///< offset=0x1D8 .text:00095A12                 mov     [esi+1D8h], edx
-} light_fixture_data_t;
-
-// OBJE -> PLAC
-/// size=0x1FC
-typedef struct {
-  object_data_t object;   ///< offset=0x000
-  char unk_420[0x58];     ///< offset=0x1A4
-} placeholder_data_t;
-
-// OBJE -> SSCE
-/// size=0x1A8
-typedef struct {
-  object_data_t object;   ///< offset=0x000
-  char unk_420[4];        ///< offset=0x1A4
-} sound_scenery_data_t;
 
 /// size=0xd4
 typedef struct {
@@ -1030,6 +865,174 @@ co(ai_firing_pos_entry_t, handle_b,  0x20);
 co(ai_firing_pos_entry_t, radius,    0x24);
 
 /* ---------------------------------------------------------------------------
+ * actor_action_type — the discriminant in actor->state.action, an int16 field
+ * at actor+0x6c (MOVSX EDX,word ptr [ESI+0x6c] @0x1d0da proves signed 16-bit).
+ *
+ * Bound: assert "(actor->state.action >= 0) && (actor->state.action <
+ * NUMBER_OF_ACTOR_ACTIONS)" compiles to CMP AX,0xe at 0x1d0b4 and 0x1c325.
+ *
+ * Ordering comes from the action-definition table (stride 0x38, one char*
+ * name per entry) whose names read, in index order: none, sleep, alert,
+ * fight, flee, uncover, guard, search, wait, vehicle, charge, obey, converse,
+ * avoid. Three asserts pin exact values against that order, and all three
+ * agree (a one-stride shift of the table base would break all three):
+ *   "actor->state.action == _actor_action_fight"  -> CMP word [ESI+0x6c],0x3  @0x1ef57
+ *   "actor->state.action == _actor_action_guard"  -> CMP word [ESI+0x6c],0x6  @0x1cf29
+ *   "actor->state.action == _actor_action_charge" -> CMP word [ESI+0x6c],0xa  @0x1eec3
+ *
+ * Values live in an int16_t field, so these are #defines rather than a C89
+ * enum (which is int-width and could widen a load; see lift-learnings §24).
+ * No typedef is declared: a typedef consumes MSVC internal symbol numbers and
+ * perturbs $L label counters in every TU including types.h. Verified inert as
+ * plain #defines (actions.obj .text byte-identical before/after).
+ * ------------------------------------------------------------------------- */
+#define _actor_action_none      0
+#define _actor_action_sleep     1
+#define _actor_action_alert     2
+#define _actor_action_fight     3
+#define _actor_action_flee      4
+#define _actor_action_uncover   5
+#define _actor_action_guard     6
+#define _actor_action_search    7
+#define _actor_action_wait      8
+#define _actor_action_vehicle   9
+#define _actor_action_charge    10
+#define _actor_action_obey      11
+#define _actor_action_converse  12
+#define _actor_action_avoid     13
+#define NUMBER_OF_ACTOR_ACTIONS 14
+
+/* actor->target.target_type is an int16 field at actor+0x268 (MOVSX EAX,word
+ * ptr [ESI+0x268] @0x3033c). Bound from assert "(actor->target.target_type >=
+ * 0) && (actor->target.target_type < NUMBER_OF_ACTOR_TARGET_TYPES)" ->
+ * CMP AX,0xc @0x30316. The individual member names are NOT yet recovered —
+ * only the count is proven. */
+#define NUMBER_OF_ACTOR_TARGET_TYPES 12
+
+/* ---------------------------------------------------------------------------
+ * actor_t — an element of the "actor" data_t pool.
+ *
+ * Size and count are exact, from the pool constructor at 0x3a995:
+ *     push 0x724            ; element size = 1828
+ *     push 0x100            ; maximum_count = 256
+ *     push 0x256d04         ; name = "actor"
+ *     call 0x1bfe10         ; game_state_data_new
+ *     mov  [0x6325a4], eax  ; == ACTOR_TABLE_PTR (tools/equivalence/qmp_capture.py)
+ *
+ * Every named field below is anchored to an assert string in the XBE that spells
+ * the field's full path verbatim (e.g. "realcmp(actor->input.facing_vector.k,
+ * 0.0f)"), with the cited instruction giving offset, width, and signedness.
+ * Widths come from the listing only, never the decompiler (lift-learnings §24).
+ *
+ * The original is NESTED — the assert strings show substructures meta, state,
+ * control, input, output, target, stimuli, emotions, danger_zone and
+ * firing_positions. Their exact start/end boundaries are NOT proven, so this
+ * skeleton is deliberately FLAT with the dotted path flattened into the field
+ * name. Re-nest only when a boundary is evidenced; do not guess one.
+ *
+ * Everything not cited stays `pad_XXX`. Unobserved is not the same as absent:
+ * a pad byte means "never seen accessed", not "padding in the original".
+ * Cross-reference: the prose block above FUN_0003dc20 in halo/ai/actors.c
+ * records further INFERRED offsets (0x158 vehicle_handle, 0x1b0
+ * active_grenade_handle, ...) which are deliberately NOT promoted to fields
+ * here — they lack assert-string evidence. It also notes actor+0x120 is
+ * actor_input_t of size 0xa8 (so 0x120..0x1c7), which contains the three input
+ * vectors below and independently corroborates their offsets.
+ * ------------------------------------------------------------------------- */
+#pragma pack(1)
+typedef struct {
+  int16_t salt;                                       /* +0x000  data_t pool convention: 16-bit datum salt at element +0 */
+  char pad_002[0x26];
+  int32_t meta_swarm_cache_index;                     /* +0x028  CMP dword [ESI+0x28],-1 @0x16d66 (NONE sentinel) */
+  char pad_02c[0x40];
+  int16_t state_action;                               /* +0x06c  CMP word [ESI+0x6c],3/6/0xa @0x1ef57/0x1cf29/0x1eec3 */
+  char pad_06e[0x106];
+  float input_facing_vector[3];                       /* +0x174  FLD [ESI+0x17c] @0x3e4fd = .k, so base 0x174 */
+  float input_aiming_vector[3];                       /* +0x180  FLD [ESI+0x180/184/188] @0x3e411/3e407/3e3ee */
+  float input_looking_vector[3];                      /* +0x18c  FLD [ESI+0x190/194] @0x3e467/0x3e44e */
+  char pad_198[0xd0];
+  int16_t target_target_type;                         /* +0x268  MOVSX EAX,word [ESI+0x268] @0x3033c */
+  char pad_26a[0x6];
+  int32_t target_target_prop_index;                   /* +0x270  CMP dword [ESI+0x270],-1 @0x38535 */
+  char pad_274[0xc];
+  int16_t danger_zone_danger_type;                    /* +0x280  CMP word [ESI+0x280],0 @0x3239c; [EBX+0x280] @0x484e8 */
+  char pad_282[0xa];
+  int32_t danger_zone_object_index;                   /* +0x28c  CMP dword [EBX+0x28c],-1 @0x484f2 */
+  char pad_290[0x78];
+  int16_t stimuli_panic_type;                         /* +0x308  CMP word [ESI+0x308],0 @0x1c61a */
+  char pad_30a[0x2];
+  int32_t stimuli_panic_prop_index;                   /* +0x30c  MOV EAX,[ESI+0x30c] @0x1c624 */
+  char pad_310[0xa8];
+  int16_t firing_positions_current_position_index;    /* +0x3b8  MOVSX EDX,word [ESI+0x3b8] @0x5b463 */
+  char pad_3ba[0x18a];
+  int16_t control_secondary_look_type;                /* +0x544  CMP word [ESI+0x544],0 @0x6443d */
+  char pad_546[0x6];
+  int16_t control_secondary_look_direction_type;      /* +0x54c  CMP word [ESI+0x54c],1 @0x64447 */
+  char pad_54e[0x2];
+  int32_t control_secondary_look_direction_prop_index;/* +0x550  CMP dword [ESI+0x550],EDI @0x64451 */
+  char pad_554[0x8];
+  char control_idle_major_active;                     /* +0x55c  MOV AL,byte [ESI+0x55c] @0x64479, @0x299d7 */
+  char pad_55d[0x2];
+  char control_idle_minor_active;                     /* +0x55f  MOV AL,byte [ESI+0x55f] @0x644b5 */
+  char pad_560[0x4];
+  int32_t control_idle_major_timer;                   /* +0x564  MOV EAX,[ESI+0x564] @0x299e4 */
+  char pad_568[0x4];
+  int16_t control_idle_major_direction_type;          /* +0x56c  CMP word [ESI+0x56c],1 @0x64483 */
+  char pad_56e[0x2];
+  int32_t control_idle_major_direction_prop_index;    /* +0x570  CMP dword [ESI+0x570],EDI @0x6448d */
+  char pad_574[0x8];
+  int16_t control_idle_minor_direction_type;          /* +0x57c  CMP word [ESI+0x57c],1 @0x644bf */
+  char pad_57e[0x2];
+  int32_t control_idle_minor_direction_prop_index;    /* +0x580  CMP dword [ESI+0x580],EDI @0x644c9 */
+  char pad_584[0x20];
+  float control_desired_facing_vector[3];             /* +0x5a4  LEA EDI,[ESI+0x5a4] @0x2906b */
+  float control_desired_aiming_vector[3];             /* +0x5b0  LEA EBX,[ESI+0x5b0] @0x290d8 */
+  float control_desired_looking_vector[3];            /* +0x5bc  LEA EBX,[ESI+0x5bc] @0x2913d */
+  char pad_5c8[0x2a];
+  int16_t control_fire_state;                         /* +0x5f2  MOVSX from word [EBX+0x5f2] @0x237d7, 5-case jump table */
+  char pad_5f4[0x98];
+  float control_burst_aim_vector[3];                  /* +0x68c  LEA EDI,[EBX+0x68c] @0x23d1a */
+  char pad_698[0x64];
+  float output_facing_vector[3];                      /* +0x6fc  LEA EDI,[ESI+0x6fc] @0x2a0c8 */
+  float output_aiming_vector[3];                      /* +0x708  LEA EDI,[ESI+0x708] @0x2a17d */
+  float output_looking_vector[3];                     /* +0x714  LEA EDI,[ESI+0x714] (k/j at 0x71c/0x718 @0x2a1ec) */
+  char pad_720[0x4];
+} actor_t;
+cs(actor_t, 0x724);
+co(actor_t, salt,                                          0x000);
+co(actor_t, meta_swarm_cache_index,                        0x028);
+co(actor_t, state_action,                                  0x06c);
+co(actor_t, input_facing_vector,                           0x174);
+co(actor_t, input_aiming_vector,                           0x180);
+co(actor_t, input_looking_vector,                          0x18c);
+co(actor_t, target_target_type,                            0x268);
+co(actor_t, target_target_prop_index,                      0x270);
+co(actor_t, danger_zone_danger_type,                       0x280);
+co(actor_t, danger_zone_object_index,                      0x28c);
+co(actor_t, stimuli_panic_type,                            0x308);
+co(actor_t, stimuli_panic_prop_index,                      0x30c);
+co(actor_t, firing_positions_current_position_index,       0x3b8);
+co(actor_t, control_secondary_look_type,                   0x544);
+co(actor_t, control_secondary_look_direction_type,         0x54c);
+co(actor_t, control_secondary_look_direction_prop_index,   0x550);
+co(actor_t, control_idle_major_active,                     0x55c);
+co(actor_t, control_idle_minor_active,                     0x55f);
+co(actor_t, control_idle_major_timer,                      0x564);
+co(actor_t, control_idle_major_direction_type,             0x56c);
+co(actor_t, control_idle_major_direction_prop_index,       0x570);
+co(actor_t, control_idle_minor_direction_type,             0x57c);
+co(actor_t, control_idle_minor_direction_prop_index,       0x580);
+co(actor_t, control_desired_facing_vector,                 0x5a4);
+co(actor_t, control_desired_aiming_vector,                 0x5b0);
+co(actor_t, control_desired_looking_vector,                0x5bc);
+co(actor_t, control_fire_state,                            0x5f2);
+co(actor_t, control_burst_aim_vector,                      0x68c);
+co(actor_t, output_facing_vector,                          0x6fc);
+co(actor_t, output_aiming_vector,                          0x708);
+co(actor_t, output_looking_vector,                         0x714);
+#pragma pack()
+
+/* ---------------------------------------------------------------------------
  * tag_block — the engine's ubiquitous tag-data block header: an element count
  * plus a pointer to the element array. Consumed everywhere via
  * tag_block_get_element(block, index, element_size). The 12-byte size is not
@@ -1047,5 +1050,24 @@ typedef struct tag_block {
 cs(tag_block, 0xc);
 co(tag_block, count,   0x00);
 co(tag_block, address, 0x04);
+
+/* -------------------------------------------------------------------------
+ * draw_string_emit_proc — per-glyph blitter passed into the draw-string
+ * clipping loop (FUN_0019c1b0, text/draw_string.c).
+ *
+ * Ten cdecl arguments; ADD ESP,0x28 after CALL [EBP+8] @0019c3a0 fixes the
+ * count, and the two concrete implementations in the same translation unit
+ * (FUN_0019b3c0 / FUN_0019b430) fix the widths: slots 5/6 are the clipped
+ * destination and 9/10 the clipped extent, all int16_t; slots 7/8 are the
+ * source-rectangle offsets produced by the clip, int32_t.
+ *
+ * This lives here rather than in the .c because kb.json declarations are
+ * emitted into build/generated/decl.h and thunks.c, and the generator cannot
+ * parse an inline function-pointer parameter -- it needs a plain type name.
+ * ------------------------------------------------------------------------- */
+typedef void (*draw_string_emit_proc)(void *state, void *font_table,
+                                      void *glyph, int color, short dest_x,
+                                      short dest_y, int src_x, int src_y,
+                                      short width, short height);
 
 #endif /* TYPES_H */
