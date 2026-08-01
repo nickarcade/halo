@@ -189,14 +189,87 @@ def _func_addr(function: str) -> int | None:
     return None
 
 
+def _true_end_offset(addr: int, limit: int) -> int | None:
+    """Byte size of the function at `addr`, read from the pristine XBE.
+
+    A body closes at the first terminator (`ret`, or an unconditional `jmp`
+    that is not an indirect/table dispatch) with NO outstanding branch target
+    at or beyond it.  That second clause is what keeps this from cutting a
+    function short at an interior `ret` when MSVC has placed a tail block out
+    of line: FUN_00174510 looks finished at 0x174622 until you notice the
+    `jl 0x174622` at 0x174608 proving the body continues.
+
+    Returns None when capstone or the XBE is unavailable, or when no
+    terminator is found within `limit` bytes -- callers must treat None as
+    "no opinion" and fall back to the kb.json gap.
+    """
+    try:
+        import capstone
+    except ImportError:
+        return None
+    code = _xbe_read(addr, limit)
+    if not code:
+        return None
+    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    targets: set[int] = set()
+    for ins in md.disasm(code, addr):
+        if ins.mnemonic.startswith("j"):
+            try:
+                t = int(ins.op_str, 16)
+                # Only an in-window target can be a later block of THIS function.
+                # A branch to a distant address is a tail call / external jump and
+                # must not hold the body open (`errors_dispose` is the 5-byte
+                # thunk `jmp 0x92440`; counting its own target as outstanding
+                # made it look like it never terminated).
+                if addr <= t < addr + limit:
+                    targets.add(t)
+            except ValueError:
+                pass  # indirect branch; the guard below just won't fire early
+        end = ins.address + ins.size
+        terminator = ins.mnemonic == "ret" or (
+            ins.mnemonic == "jmp" and not ins.op_str.startswith("dword"))
+        if terminator and not any(t >= end for t in targets):
+            return end - addr
+    return None
+
+
+_func_span_cache: dict[str, int | None] = {}
+
+
 def _func_span(function: str) -> int | None:
-    """Byte span of a function (next function start - its start), or None."""
+    """Byte span of a function, or None when it is not tracked in kb.json.
+
+    kb.json's gap (distance to the next *listed* function) overshoots wherever
+    the listing has a hole -- and kb.json is not a full listing of the binary,
+    so holes are common.  A function followed by an unlisted neighbour gets a
+    span many times its real size, and `_ref_insns_valid` then rejects its
+    CORRECT reference as "truncated" (measured: FUN_0015c2d0, 33 real insns,
+    kb gap 800 bytes for a 102-byte function).
+
+    So: take the binary's answer, capped by the kb gap.  The cap matters
+    because the kb gap is a genuine upper bound (the next listed function is
+    real code that cannot be part of this one), and it also bounds the
+    disassembly window.
+
+    None is preserved for functions absent from kb.json -- callers use that to
+    mean "not a kb.json-tracked function" (helper/thunk/static), which is a
+    different condition from "tracked, size unknown".
+    """
+    if function in _func_span_cache:
+        return _func_span_cache[function]
     addr = _func_addr(function)
     starts = _kb_func_starts()
-    if addr is None or not starts:
-        return None
-    i = bisect.bisect_right(starts, addr)
-    return (starts[i] - addr) if i < len(starts) else None
+    span: int | None = None
+    if addr is not None and starts:
+        i = bisect.bisect_right(starts, addr)
+        kb_gap = (starts[i] - addr) if i < len(starts) else None
+        if kb_gap:
+            true_size = _true_end_offset(addr, kb_gap)
+            span = min(kb_gap, true_size) if true_size else kb_gap
+        else:
+            span = kb_gap
+    _func_span_cache[function] = span
+    return span
 
 
 def _trim_trailing_padding(insns: list[str]) -> list[str]:
@@ -593,12 +666,19 @@ def _get_fastcall_mappable() -> set[str]:
 
     Returns the names of functions whose parameter list is exactly
     [@<ecx>] or [@<ecx>, @<edx>] (byte/word aliases included) with no stack
-    parameters.  For these, compiling as __fastcall makes VC71 read the
-    argument registers directly (no cdecl stack-load prologue) and emit the
-    original's call-site sequence (mov ecx[, edx]; call — no push/add esp).
-    Functions with any stack parameter are excluded: __fastcall would steal
-    the first stack parameter into a register.  @<eax>/@<esi>/etc. cannot be
-    expressed in VC71 at all (known permanent ceiling).
+    parameters, or [@<ecx>, @<edx>, int-stack-params...] — for the latter,
+    __fastcall consumes ecx and edx and pushes the remaining args with
+    callee cleanup, which is exactly the original ABI (e.g.
+    D3DDevice_SetTextureStageState(stage@<ecx>, state@<edx>, value)).
+    For all of these, compiling as __fastcall makes VC71 read the argument
+    registers directly (no cdecl stack-load prologue) and emit the
+    original's call-site sequence (mov ecx[, edx][; push ...]; call).
+    Functions with a single @<ecx> AND stack parameters are excluded:
+    __fastcall would steal the first stack parameter into edx.  Float or
+    double stack parameters are excluded (fastcall push conventions match,
+    but keep parity with _get_regarg_callees' proven-safe subset).
+    @<eax>/@<esi>/etc. cannot be expressed in VC71 at all (known permanent
+    ceiling).
     """
     kb = _load_kb()
     result: set[str] = set()
@@ -617,15 +697,24 @@ def _get_fastcall_mappable() -> set[str]:
             params = [p.strip() for p in params_str.split(",")
                       if p.strip() and p.strip() != "void"]
             regs = []
+            stack_params = 0
+            ok = True
             for p in params:
                 rm = re.search(r"@<(\w+)>", p)
-                if not rm:
-                    regs = None  # stack param present -> not fastcall-mappable
-                    break
-                regs.append(rm.group(1).lower())
-            if regs is None or not regs:
+                if rm:
+                    if stack_params:
+                        ok = False  # reg param after a stack param
+                        break
+                    regs.append(rm.group(1).lower())
+                else:
+                    stack_params += 1
+                    if "float" in p or "double" in p:
+                        ok = False
+                        break
+            if not ok or not regs:
                 continue
-            if (len(regs) == 1 and regs[0] in _FASTCALL_ECX) or (
+            if (len(regs) == 1 and regs[0] in _FASTCALL_ECX
+                    and stack_params == 0) or (
                 len(regs) == 2
                 and regs[0] in _FASTCALL_ECX
                 and regs[1] in _FASTCALL_EDX
@@ -641,6 +730,14 @@ def _fastcall_sig_re(name: str) -> "re.Pattern[str]":
                       re.MULTILINE)
 
 
+def _fastcall_sub(m: "re.Match[str]") -> str:
+    """Rewrite a matched signature to __fastcall, dropping any explicit
+    __stdcall/__cdecl so the keywords don't conflict (both are callee-clean
+    vs __fastcall's callee-clean — the register ABI is what changes)."""
+    prefix = re.sub(r"__(stdcall|cdecl)\b[ \t]*", "", m.group(1))
+    return f"{prefix}__fastcall {m.group(2)}{m.group(3)}"
+
+
 def _preprocess_fastcall_defs(source: Path, names: set[str],
                               orig_source: Path) -> Path:
     """Insert __fastcall into top-level definitions/prototypes of
@@ -650,8 +747,7 @@ def _preprocess_fastcall_defs(source: Path, names: set[str],
     for name in names:
         if name not in text:
             continue
-        new_text, n = _fastcall_sig_re(name).subn(
-            lambda m: f"{m.group(1)}__fastcall {m.group(2)}{m.group(3)}", text)
+        new_text, n = _fastcall_sig_re(name).subn(_fastcall_sub, text)
         if n:
             text = new_text
             changed = True
@@ -674,8 +770,7 @@ def _make_fastcall_decl_shadow(names: set[str]) -> Path | None:
     for name in names:
         if name not in text:
             continue
-        new_text, n = _fastcall_sig_re(name).subn(
-            lambda m: f"{m.group(1)}__fastcall {m.group(2)}{m.group(3)}", text)
+        new_text, n = _fastcall_sig_re(name).subn(_fastcall_sub, text)
         if n:
             text = new_text
             changed = True

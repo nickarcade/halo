@@ -1,3 +1,5 @@
+#include "x87_math.h"
+
 /* MSVC CRT pow(): compiles to the _CIpow intrinsic (0x1d9e70 dispatcher,
  * body at 0x1d9e94 uses fyl2x). Not in decl.h; declared locally as in
  * objects.c so the compiler emits the intrinsic. */
@@ -1189,6 +1191,293 @@ char FUN_00172a30(int param_1, const float *shadow_matrix,
   return 1;
 }
 
+/* 0x173b40 — install the fixed-function / vertex-shader / pixel-shader state
+ * for one screen-space (text / meter) draw pass.
+ *
+ * Original TU: c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_text.c
+ *
+ * `parameters` is a mixed struct; kb.json types it `float *` so every Ghidra
+ * index is a DWORD index (byte offset = 4*N). Byte-offset field map recovered
+ * from the ESI-relative accesses in the disassembly:
+ *
+ *   +0x00 void*    meter_parameters        (assert: mutually exclusive w/
+ * map[1]) +0x04 float*   screen offset pair {x, y} (NULL => both offsets 0)
+ *   +0x08 char     texture-stage 0 colour-op select
+ *   +0x09 char     texture-stage 1 colour-op select
+ *   +0x0a char     texture-stage 2 colour-op select
+ *   +0x0c void*    map[0]                  (required)
+ *   +0x10 void*    map[1]
+ *   +0x14 void*    map[2]
+ *   +0x18..0x1a char   per-map address-mode flag (0 => 3/clamp, else 1/wrap)
+ *   +0x1c float*   2-float pair -> vs_b[10..11] (NULL => 0)
+ *   +0x20 float*   2-float pair -> vs_b[12..13] (NULL => 0)
+ *   +0x24 float*   2-float pair -> vs_b[14..15] (NULL => 0)
+ *   +0x28..0x3c    6 floats     -> vs_b[16..21]
+ *   +0x40,+0x44    2 floats     -> vs_a[16..17] (overwritten in the map[0]
+ * block) +0x48..0x54    6 floats     -> vs_b[0..3] (+0x48,0x4c,0x50,0x54)
+ *   +0x58,+0x5c,+0x60 float*    rgb triples (NULL => *(float**)0x2ee708)
+ *   +0x64          float[4]     packed 4x by FUN_000d1c90
+ *   +0x78,+0x7c,+0x80 float*    alpha scalars (NULL => 1.0f)
+ *   +0x88 uint16   framebuffer blend function (zero-extended)
+ *   +0x8a char     texture filter select (0 => 2, else 1)
+ *
+ * vs_a / vs_b are the two vertex-shader constant blocks uploaded at
+ * registers -0x44 (5 vec4 = 20 floats) and -0x3f (6 vec4 = 24 floats).
+ * In the original frame they are one contiguous 44-float run at EBP-0xb4;
+ * every Ghidra `local_XX` in that range is a field of one of them, NOT an
+ * independent local. vs_a is reused as scratch for the three colour packs
+ * after the upload, which is why the map[0] block rewrites vs_a[8..19].
+ *
+ * Constants read from the XBE .rdata: 0x2533c0 = 0.0f, 0x2533c8 = 1.0f,
+ * 0x25eeac = -2.0f. Written as literals so VC71 emits a relocated pool load
+ * matching the delinked reference instead of an absolute operand.
+ *
+ * Screen extents come from the viewport rect at 0x5a5bf4/0x5a5bf8: the HIGH
+ * shorts differ by the width, the LOW shorts by the height. Both deltas are
+ * 16-bit truncated and sign-extended, then consumed by FIDIV/FILD.
+ */
+void FUN_00173b40(float *parameters)
+{
+  char *p;
+  float *offset;
+  float *color;
+  float *default_color;
+  void *map;
+  short dx;
+  short dy;
+  short i;
+  float x_recip;
+  float y_recip;
+  float vs_a[20];
+  float vs_b[24];
+  float y_offset;
+  float x_offset;
+
+  if (*(int *)0x476ab0 == 0) {
+    display_assert("global_d3d_device",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_text.c",
+                   0xd, 1);
+    system_exit(-1);
+  }
+  /* MOV AL,[0x3256da]; TEST AL,AL — then CMP word ptr [0x5a5bc0],0. Both
+   * jump straight to the epilogue, before the callee-saved pushes. */
+  if (*(char *)0x3256da == 0) {
+    return;
+  }
+  if (*(short *)0x5a5bc0 != 0) {
+    return;
+  }
+
+  p = (char *)parameters;
+
+  if (parameters == 0) {
+    display_assert("parameters",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_text.c",
+                   0x12, 1);
+    system_exit(-1);
+  }
+  if (*(void **)(p + 0xc) == 0) {
+    display_assert("parameters->map[0]",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_text.c",
+                   0x14, 1);
+    system_exit(-1);
+  }
+  if (*(void **)(p + 0x14) != 0 && *(void **)(p + 0x10) == 0) {
+    display_assert("!parameters->map[2] || parameters->map[1]",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_text.c",
+                   0x16, 1);
+    system_exit(-1);
+  }
+  if (*(void **)(p + 0x10) != 0 && *(void **)p != 0) {
+    display_assert("!parameters->map[1] || !parameters->meter_parameters",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_text.c",
+                   0x18, 1);
+    system_exit(-1);
+  }
+
+  D3DDevice_SetRenderState_CullMode(0);
+  D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD,
+                                  NV097_COLOR_MASK_RGB);
+  *(uint32_t *)0x1fb7a4 = 0x10101;
+  D3DDevice_SetRenderState_Simple(0x40304, 1);
+  *(uint32_t *)0x1fb784 = 1;
+  D3DDevice_SetRenderState_ZEnable(0);
+  D3DDevice_SetRenderState_ZBias(0);
+
+  /* XOR EAX,EAX; MOV AX,[ESI+0x88] — zero-extended 16-bit read. */
+  FUN_001580b0((int)*(unsigned short *)(p + 0x88));
+
+  /* MOV AX,[0x5a5bfa]; SUB AX,word[0x5a5bf6]; MOVSX EDI,AX  (16-bit sub)
+   * MOV ECX,[0x5a5bf8]; SUB ECX,[0x5a5bf4]; MOVSX ...,CX    (32-bit sub,
+   *                                                          low word taken) */
+  dx = (short)(*(short *)0x5a5bfa - *(short *)0x5a5bf6);
+  dy = (short)(*(int *)0x5a5bf8 - *(int *)0x5a5bf4);
+
+  offset = *(float **)(p + 4);
+  /* Two separate TEST EDX,EDX in the original — two ternaries, not one
+   * if/else.  FLD [EDX]; FADD ST0,ST0 => the doubling is an add, not *2.0f.
+   * FIDIV takes the integer denominator directly. */
+  x_offset = (offset != 0) ? (offset[0] + offset[0]) / (float)dx : 0.0f;
+  y_offset = (offset != 0) ? (offset[1] * -2.0f) / (float)dy : 0.0f;
+
+  x_recip = 1.0f / (float)dx;
+
+  vs_b[0] = *(float *)(p + 0x48);
+  vs_b[1] = *(float *)(p + 0x4c);
+  vs_b[2] = *(float *)(p + 0x50);
+  vs_b[3] = *(float *)(p + 0x54);
+
+  vs_a[16] = *(float *)(p + 0x40);
+  vs_a[17] = *(float *)(p + 0x44);
+
+  vs_a[1] = 0.0f;
+  vs_a[2] = 0.0f;
+  vs_a[4] = 0.0f;
+  vs_a[6] = 0.0f;
+  vs_a[8] = 0.0f;
+  vs_a[9] = 0.0f;
+  vs_a[10] = 0.0f;
+  vs_a[11] = 0.5f;
+  vs_a[12] = 0.0f;
+  vs_a[13] = 0.0f;
+  vs_a[14] = 0.0f;
+  vs_a[15] = 1.0f;
+  vs_a[18] = 0.0f;
+  vs_a[19] = 1.0f;
+
+  /* FSUBR at 0x173da4: x_offset - (x_recip + 1.0f), NOT the other way round.
+   * Inverting this sign shifts all screen-space geometry. */
+  vs_a[0] = x_recip + x_recip;
+  vs_a[3] = x_offset - (x_recip + 1.0f);
+
+  y_recip = 1.0f / (float)dy;
+  vs_a[5] = -2.0f * y_recip;
+  vs_a[7] = y_recip + y_offset + 1.0f;
+
+  /* The original stores 1.0f to the first slot unconditionally and only
+   * overrides on the false path — the partial-redundancy shape MSVC emits
+   * for two adjacent ternaries on one condition, not an if/else. */
+  vs_b[4] = (p[8] != 0) ? 1.0f : 0.0f;
+  vs_b[5] = (p[8] != 0) ? 0.0f : 1.0f;
+  vs_b[6] = (p[9] != 0) ? 1.0f : 0.0f;
+  vs_b[7] = (p[9] != 0) ? 0.0f : 1.0f;
+  vs_b[8] = (p[0xa] != 0) ? 1.0f : 0.0f;
+  vs_b[9] = (p[0xa] != 0) ? 0.0f : 1.0f;
+
+  color = *(float **)(p + 0x1c);
+  vs_b[10] = (color != 0) ? color[0] : 0.0f;
+  vs_b[11] = (color != 0) ? color[1] : 0.0f;
+  color = *(float **)(p + 0x20);
+  vs_b[12] = (color != 0) ? color[0] : 0.0f;
+  vs_b[13] = (color != 0) ? color[1] : 0.0f;
+  color = *(float **)(p + 0x24);
+  vs_b[14] = (color != 0) ? color[0] : 0.0f;
+  vs_b[15] = (color != 0) ? color[1] : 0.0f;
+
+  vs_b[16] = *(float *)(p + 0x28);
+  vs_b[17] = *(float *)(p + 0x2c);
+  vs_b[18] = *(float *)(p + 0x30);
+  vs_b[19] = *(float *)(p + 0x34);
+  vs_b[20] = *(float *)(p + 0x38);
+  vs_b[21] = *(float *)(p + 0x3c);
+  vs_b[22] = 0.0f;
+  vs_b[23] = 0.0f;
+
+  D3DDevice_SetVertexShaderConstant(-0x44, vs_a, 5);
+  D3DDevice_SetVertexShaderConstant(-0x3f, vs_b, 6);
+
+  /* Loop counter is a short: the original compares CMP BX,3 (16-bit signed)
+   * and sign-extends it with MOVSX for every array index. */
+  for (i = 0; i < 3; i++) {
+    map = *(void **)(p + 0xc + i * 4);
+    if (map == 0) {
+      break;
+    }
+    rasterizer_set_texture_bitmap_data(i, map);
+    /* SETZ + LEA [edx+edx*1+1] => 3 when the flag is clear, 1 when set.
+     * Keep each call on ONE line: the VC71 verify lane's @<ecx>/@<edx>
+     * fastcall rewriter is line-based and compiles a wrapped call as cdecl. */
+    D3DDevice_SetTextureStageState(i, 0xa, (p[0x18 + i] == 0) * 2 + 1);
+    D3DDevice_SetTextureStageState(i, 0xb, (p[0x18 + i] == 0) * 2 + 1);
+    /* SETZ + INC => 2 when clear, 1 when set. */
+    D3DDevice_SetTextureStageState(i, 0xd, (p[0x8a] == 0) + 1);
+    D3DDevice_SetTextureStageState(i, 0xe, (p[0x8a] == 0) + 1);
+    D3DDevice_SetTextureStageState(i, 0xf, (p[0x8a] == 0) + 1);
+  }
+
+  FUN_00178b40(4, 8, 1);
+
+  if (*(void **)(p + 0xc) != 0) {
+    csmemset((void *)0x5a5ac0, 0, 0xf0);
+    /* SETNZ/SHL 5 pair: map[2] and map[1] presence packed above map[0]. */
+    *(uint32_t *)0x5a5b98 = (uint32_t)((((*(void **)(p + 0x14) != 0) << 5) |
+                                        (*(void **)(p + 0x10) != 0))
+                                         << 5 |
+                                       (*(void **)(p + 0xc) != 0));
+
+    /* MOV EDX,[0x2ee708] is hoisted once and reused for all three NULL
+     * fallbacks. */
+    default_color = *(float **)0x2ee708;
+
+    color = *(float **)(p + 0x58);
+    if (color == 0) {
+      color = default_color;
+    }
+    vs_a[9] = color[0];
+    vs_a[10] = color[1];
+    vs_a[11] = color[2];
+
+    color = *(float **)(p + 0x5c);
+    if (color == 0) {
+      color = default_color;
+    }
+    vs_a[13] = color[0];
+    vs_a[14] = color[1];
+    vs_a[15] = color[2];
+
+    color = *(float **)(p + 0x60);
+    if (color == 0) {
+      color = default_color;
+    }
+    vs_a[17] = color[0];
+    vs_a[18] = color[1];
+    vs_a[19] = color[2];
+
+    vs_a[8] = (*(float **)(p + 0x78) != 0) ? **(float **)(p + 0x78) : 1.0f;
+    vs_a[12] = (*(float **)(p + 0x7c) != 0) ? **(float **)(p + 0x7c) : 1.0f;
+    vs_a[16] = (*(float **)(p + 0x80) != 0) ? **(float **)(p + 0x80) : 1.0f;
+
+    *(uint32_t *)0x5a5ae8 = FUN_000d1c90(&vs_a[8]);
+    *(uint32_t *)0x5a5b08 = FUN_000d1c90(&vs_a[12]);
+    *(uint32_t *)0x5a5aec = FUN_000d1c90(&vs_a[16]);
+    /* ADD ESI,0x64 then PUSH ESI four times — the same colour is packed into
+     * four consecutive slots; the repetition is in the original. */
+    *(uint32_t *)0x5a5af8 = FUN_000d1c90((float *)(p + 0x64));
+    *(uint32_t *)0x5a5afc = FUN_000d1c90((float *)(p + 0x64));
+    *(uint32_t *)0x5a5b00 = FUN_000d1c90((float *)(p + 0x64));
+    *(uint32_t *)0x5a5b04 = FUN_000d1c90((float *)(p + 0x64));
+
+    *(uint32_t *)0x5a5b74 = 0x89;
+    *(uint32_t *)0x5a5b28 = 0x89;
+    *(uint32_t *)0x5a5b48 = 0x8010902;
+    *(uint32_t *)0x5a5ac0 = 0x18111912;
+    *(uint32_t *)0x5a5b4c = 0xa010804;
+    *(uint32_t *)0x5a5b78 = 0xac;
+    *(uint32_t *)0x5a5ac4 = 0x1a111814;
+    *(uint32_t *)0x5a5b2c = 0xac;
+    /* MOV dword ptr [0x5a5b94],0x11102 — an immediate, not an address-of
+     * (lift-learnings section 17). */
+    *(uint32_t *)0x5a5b94 = 0x11102;
+    *(uint32_t *)0x5a5ae0 = 0xc;
+    *(uint32_t *)0x5a5ae4 = 0x1c00;
+  }
+
+  rasterizer_set_pixel_shader((void *)0x5a5ac0);
+  D3DDevice_SetRenderState_CullMode(0x901);
+  FUN_00178b40(4, 8, 0);
+  D3DDevice_SetTextureStageState(0, 0x15, 0);
+}
+
 /* 0x1741d0
  *
  * FUN_001741d0 — submit one text quad (4 vertices) to D3D.
@@ -1509,6 +1798,196 @@ void FUN_00174b60(float *a, float *b, float *out)
   out[1] = a[1] - b[1];
   out[2] = a[2] - b[2];
   out[3] = a[3] - b[3];
+}
+
+/* FUN_00174b90: componentwise 4-float scale-and-add, out = a + t * b
+ * (0x174b90). The 4-component twin of the subtract helper at 0x174b60 above,
+ * and like it a real_vector4d / plane / quaternion-shaped operand — do NOT
+ * reduce it to a 3-vector helper.
+ *
+ * Four identical FLD/FMUL m32/FADD m32/FSTP quads at offsets 0/4/8/0xc:
+ *   FLD  [EBP+0x10]  ; the scalar, re-loaded fresh for every component
+ *   FMUL [ECX + i]   ; ECX = [EBP+0xc]  -> the SCALED vector (param 2)
+ *   FADD [EDX + i]   ; EDX = [EBP+0x8]  -> the ADDEND vector (param 1)
+ *   FSTP [EAX + i]   ; EAX = [EBP+0x14] -> out
+ * Argument roles therefore run addend-first: the FIRST stack arg is the term
+ * added un-scaled, the SECOND is the one multiplied by the scalar. Swapping
+ * them is silent and near-invisible to a byte-match, hence the explicit note.
+ * Multiplication is written first in each statement (t * b[i], not b[i] * t)
+ * to keep the FLD-scalar-then-FMUL order.
+ *
+ * The scalar is re-FLD'd per component rather than parked in ST(0), so the
+ * expression is spelled out four times with no loop and no common
+ * subexpression. Each lane is read immediately before being stored, so out
+ * may alias a or b; keep the statement order as written. No FSUB/FDIV, so no
+ * operand-direction hazard. Pure leaf: no CALLs, no branches, no globals. No
+ * naming evidence in the binary for a semantic name, so the mechanical name
+ * is retained. */
+void FUN_00174b90(float *a, float *b, float t, float *out)
+{
+  out[0] = t * b[0] + a[0];
+  out[1] = t * b[1] + a[1];
+  out[2] = t * b[2] + a[2];
+  out[3] = t * b[3] + a[3];
+}
+
+/* 0x174bd0 — allocate and prime the transparent-geometry texcoord stream.
+ *
+ * Creates the 0x4000-byte static vertex buffer at
+ * rasterizer_xbox_transparent_geometry_texcoord_stream (0x47e4bc — the same
+ * global the already-ported D3DDevice_SetStreamSource(1, *(void**)0x47e4bc, 2)
+ * above binds), locks it, and fills it with a repeating 8-byte texcoord
+ * pattern.
+ *
+ * Return is a BOOL in AL (MOV AL,0x1 at 0x174c93 on success, MOV AL,BL at
+ * 0x174cac on the failure tail), not the `int` Ghidra reports — the caller
+ * (rasterizer_text.c, `success = FUN_00174bd0()`) tests it as a flag.
+ *
+ * Ghidra reuses a single `bVar3` for both HRESULT checks; the disassembly
+ * instead re-materializes BL independently after each call (MOV BL,1 /
+ * XOR BL,BL at 0x174bf5/0x174bff for the create, 0x174c2d/0x174c37 for the
+ * lock), so `ok` is written in both arms of both branches here.  The lock's
+ * error branch is gated on `TEST BL,BL; JZ` — i.e. on the PREVIOUS step's
+ * flag, and reports a literal 0 as the HRESULT (D3DVertexBuffer_Lock is void
+ * on Xbox), which is why the report argument is not a real hr.
+ *
+ * Both D3D entry points are __stdcall with kb.json `void(void)` stub decls.
+ * CreateVertexBuffer has a real signature in kb.json; Lock does not, so it is
+ * reached through the raw __stdcall cast idiom used by FUN_0015c650 — do not
+ * "fix" that by calling it by name, which would drop all five arguments.
+ *
+ * 0x325652 is a WORD (MOV word ptr [0x325652],0x2 before the lock, then
+ * MOV word ptr [...],SI with SI==0 after) — a byte store here is a
+ * load-width bug.
+ *
+ * The fill loop runs 0x400 iterations of 8 bytes = 0x2000 bytes into a
+ * 0x4000-byte buffer.  That half-fill is what the binary does; it is NOT a
+ * transcription error and must not be "corrected".  csmemcpy's returned
+ * pointer is discarded (Ghidra smuggles it into the return value via
+ * CONCAT31; the real return is the AL flag). */
+char FUN_00174bd0(void)
+{
+  unsigned char pattern[8]; /* [EBP-0xc] */
+  void *vertices; /* [EBP-0x4] — Lock's out pointer, walked by the fill loop */
+  char ok; /* BL */
+  int hr;
+  int i; /* ESI */
+
+  vertices = (void *)0;
+
+  hr = D3DDevice_CreateVertexBuffer(0x4000, 8, 0, 1, (void **)0x47e4bc);
+  /* success is the FALL-THROUGH arm: the reference branches with JL to an
+   * out-of-line report block (LAB_00174bf9), so the `hr >= 0` arm must be
+   * written first. */
+  if (hr >= 0) {
+    ok = 1;
+  } else {
+    ok = 0;
+    FUN_00167ff0(
+      hr,
+      "IDirect3DDevice8_CreateVertexBuffer(global_d3d_device, "
+      "RASTERIZER_TRANSPARENT_GEOMETRY_TEXCOORD_STREAM_SIZE*(2*sizeof(byte)), "
+      "RASTERIZER_STATIC_BUFFER_USAGE, 0, RASTERIZER_STATIC_BUFFER_POOL, "
+      "&rasterizer_xbox_transparent_geometry_texcoord_stream)");
+  }
+
+  *(short *)0x325652 = 2;
+  /* hazard-ok: fnptr-conv — __stdcall verified: no ADD ESP follows the CALL at
+   * 0x1ef100 and the five pushes (ECX=stream, 0, 0x4000, &vertices, 0) are
+   * cleaned by the callee.  Same idiom as FUN_0015c650. */
+  ((void(__stdcall *)(void *, uint32_t, uint32_t, void **, uint32_t))0x1ef100)(
+    *(void **)0x47e4bc, 0, 0x4000, &vertices, 0);
+  if (ok != 0) {
+    ok = 1;
+  } else {
+    FUN_00167ff0(
+      0,
+      "IDirect3DVertexBuffer8_Lock("
+      "rasterizer_xbox_transparent_geometry_texcoord_stream, 0, "
+      "RASTERIZER_TRANSPARENT_GEOMETRY_TEXCOORD_STREAM_SIZE*(2*sizeof(byte)), "
+      "(unsigned char**)&vertices, 0)");
+    ok = 0;
+  }
+  *(short *)0x325652 = 0;
+
+  if (ok != 0 && vertices != (void *)0) {
+    pattern[0] = 0;
+    pattern[1] = 0;
+    pattern[2] = 0;
+    pattern[3] = 0xff;
+    pattern[4] = 0xff;
+    pattern[5] = 0xff;
+    pattern[6] = 0xff;
+    pattern[7] = 0;
+    i = 0x400;
+    do {
+      csmemcpy(vertices, pattern, 8);
+      vertices = (void *)((char *)vertices + 8);
+      i = i - 1;
+    } while (i != 0);
+    return 1;
+  }
+
+  error(2, "### ERROR failed to allocate texcoord stream");
+  ok = 0;
+  return ok;
+}
+
+/* dispose of rasterizer_xbox_transparent_geometry_texcoord_stream: release the
+ * stream-1 texcoord vertex buffer allocated by FUN_00174bd0 and clear the
+ * global. The D3DResource_Release return value is discarded (the original
+ * never tests EAX after the CALL), and the null-out lives inside the guard
+ * because the JZ at 0x174cc7 skips both the CALL and the store (0x174cc0). */
+void FUN_00174cc0(void)
+{
+  if (*(void **)0x47e4bc != (void *)0x0) {
+    D3DResource_Release(*(void **)0x47e4bc);
+    *(void **)0x47e4bc = (void *)0x0;
+  }
+}
+
+/* begin the per-frame GPU visibility (occlusion) test -- the Begin counterpart
+ * of FUN_001749b0, which ends the test and reports the pixel ratio.
+ *
+ * The two counters are cleared UNCONDITIONALLY, before any branch: the
+ * scheduler interleaved the stores with the CMPs (0x174ce9 / 0x174cef sit
+ * between CMP AL,CL and its JZ), so they run even when the test is skipped.
+ * Their widths differ and must be preserved -- MOV dword [0x47e4b8],ECX vs
+ * MOV byte [0x47e4c0],CL.
+ *
+ * Globals (from the disassembly at 0x174ce0-0x174d0a):
+ *   0x325740  two enable bytes, both must be non-zero (CMP AL,CL; CMP AH,CL)
+ *             -- read as one dword, same as FUN_001749b0
+ *   0x5a5bc2  short  current window index; -1 is the "no window" sentinel and
+ *             suppresses the test (CMP word [0x5a5bc2],-1; JZ to the RET)
+ *   0x47e4b8  int    per-frame counter, cleared here
+ *   0x47e4c0  char   per-frame flag, cleared here (set to 1 at 0x1... see the
+ *                    reader at rasterizer.c:2319)
+ *
+ * D3DDevice_BeginVisibilityTest is reached by a tail JMP to the import thunk
+ * at 0x1e8a40 with nothing pushed, so it genuinely takes no argument here.
+ * The tail call also means EAX holds the D3D HRESULT on the taken path and the
+ * enable pair on the fall-through path -- two different values, so no caller
+ * can be consuming an implicit return; the decl stays void (lift-learnings
+ * S16). */
+void FUN_00174ce0(void)
+{
+  unsigned int enable_flags;
+
+  enable_flags = *(unsigned int *)0x325740;
+  *(int *)0x47e4b8 = 0;
+  *(char *)0x47e4c0 = 0;
+
+  /* the high enable byte is tested in place (CMP AH,CL at 0x174cf7); a
+   * `>> 8` here costs an extra SHR that the original does not have. */
+  if ((char)enable_flags == 0 || (enable_flags & 0xff00) == 0) {
+    return;
+  }
+  if (*(short *)0x5a5bc2 == -1) {
+    return;
+  }
+
+  D3DDevice_BeginVisibilityTest();
 }
 
 /* rasterizer_transparent_geometry_group_draw: draw one sorted transparent
@@ -3541,6 +4020,377 @@ tail:
   if (success == 0) {
     error(2, "### ERROR rasterizer_transparent_geometry_group_draw failed");
   }
+}
+
+/* 0x1792a0 — byte-mode setter for the adjacent global pair at
+ * 0x47e4c8/0x47e4c9. 9 instructions, no calls, no FPU. The disassembly loads
+ * the single stack arg once as a BYTE (MOV AL, byte ptr [EBP+8]), derives a
+ * zero-test flag with SETZ CL stored to 0x47e4c8, then stores the raw byte to
+ * 0x47e4c9. RET has no immediate, so this is cdecl with one stack byte arg --
+ * the kb.json decl of void(void) was wrong (Ghidra reported the arg as
+ * in_stack_00000004). Both globals are unnamed (no string/PDB evidence); the
+ * two stores are kept as separate byte writes, not merged into one 16-bit
+ * store, to match the original.
+ */
+void FUN_001792a0(char mode)
+{
+  *(char *)0x47e4c8 = (char)(mode == 0);
+  *(char *)0x47e4c9 = mode;
+}
+
+/* 0x1792c0 — byte setter for the global at 0x47e4c9, the second of the pair
+ * written by FUN_001792a0 above. Whole body is 5 instructions, no calls, no
+ * FPU, no locals:
+ *   push ebp / mov ebp,esp
+ *   mov al, byte ptr [ebp+0x8]     ; the single stack arg, read as a BYTE
+ *   mov byte ptr [0x0047e4c9], al  ; byte-wide store
+ *   pop ebp / ret                  ; RET has no immediate -> cdecl
+ * Unlike FUN_001792a0 this variant leaves the companion flag at 0x47e4c8
+ * alone, so it overrides only the raw mode byte. The param is byte-wide by
+ * evidence (the load is MOV AL, byte ptr — no MOVSX/MOVZX and no dword read),
+ * matching the sibling's signature; kb.json previously declared it int, which
+ * describes the caller's dword push slot rather than what the callee consumes.
+ * Narrowing is free on a cdecl stack slot. The store must stay byte-wide or
+ * VC71 emits a 32-bit MOV (LOADW). Global 0x47e4c9 is unnamed — no string or
+ * PDB evidence — and the only observed caller is the frame-setup path in
+ * rasterizer_xbox_decals.c, which passes 0.
+ */
+void FUN_001792C0(char mode)
+{
+  *(char *)0x47e4c9 = mode;
+}
+
+/* 0x1792d0 — byte getter for the global at 0x47e4c9, completing the accessor
+ * trio with the two setters above. The entire function is 6 bytes / two
+ * instructions, with no frame at all (no PUSH EBP, no _chkstk):
+ *   001792d0: mov al, byte ptr [0047e4c9h]   ; absolute BYTE load, DIR32 reloc
+ *   001792d5: ret                            ; no immediate -> cdecl, 0 args
+ * kb.json previously declared this void(void), which contradicts the binary:
+ * AL is written and returned, so a void lift would silently drop the value at
+ * every call site (lift-learnings §16, void-EAX / implicit return).
+ *
+ * Return type is byte-wide by evidence: only AL is written -- there is no
+ * MOVZX/MOVSX and no dword read, so the upper 24 bits of EAX are whatever the
+ * caller left there and the caller must be inspecting AL alone. Widening the
+ * return to int would make the compiler emit a full-EAX write and diverge.
+ * `char` is chosen over bool/unsigned char to match the two setters above,
+ * which type this exact global as `char`; no caller-side TEST AL,AL evidence
+ * was available to prefer a boolean reading. Global 0x47e4c9 stays unnamed --
+ * it is an unaligned byte inside a larger globals block with no string or PDB
+ * evidence for a name.
+ */
+char FUN_001792d0(void)
+{
+  return *(char *)0x47e4c9;
+}
+
+/* 0x17ad40 — dead D3D8 inline-wrapper instantiation of
+ * IDirect3DDevice8::SetVertexData4f, byte-identical in shape to the already
+ * ported FUN_0015a4f0 in rasterizer_xbox_decals.c.
+ *
+ * Full body (16 instructions):
+ *   push ebp / mov ebp,esp
+ *   mov eax,[ebp+0x1c] ; mov ecx,[ebp+0x18] ; mov edx,[ebp+0x14]
+ *   push eax ; mov eax,[ebp+0x10] ; push ecx ; mov ecx,[ebp+0xc]
+ *   push edx ; push eax ; push ecx
+ *   call 0x1ed2c0                  ; D3DDevice_SetVertexData4f, __stdcall
+ *   xor eax,eax / pop ebp / ret 0x18
+ *
+ * ABI evidence:
+ *  - RET 0x18 = 24 bytes = six caller-pushed dwords ([ebp+0x8]..[ebp+0x1c]),
+ *    so this is __stdcall, not the cdecl void(void) kb.json previously
+ *    declared. Porting against the old decl would have left 24 bytes of args
+ *    uncleaned -> ESP drift (lift-learnings §30, the 0x158df0 class).
+ *  - [ebp+0x8] is never read: it is the discarded `this`/device argument of
+ *    the inline member instantiation. The parameter is kept because the stack
+ *    size depends on it. Ghidra mislabels the first *used* slot as +0x8.
+ *  - Push order (last PUSH is the first C argument): ecx=[ebp+0xc] -> reg,
+ *    eax=[ebp+0x10] -> a, edx=[ebp+0x14] -> b, ecx=[ebp+0x18] -> c,
+ *    eax=[ebp+0x1c] -> d.
+ *  - The four float arguments are forwarded as raw dwords via plain GPR
+ *    pushes (no FLD/FSTP anywhere), i.e. a pure bit passthrough, so typing
+ *    them `float` is safe and matches the callee's kb.json declaration.
+ *  - XOR EAX,EAX is a real `return 0` (S_OK), not a dead write: lifting this
+ *    as void would be the §16 void-EAX hazard (dropped implicit return).
+ */
+/* 0x17ad40 */
+int __stdcall FUN_0017ad40(void *device, uint32_t reg, float a, float b,
+                           float c, float d)
+{
+  (void)device;
+  D3DDevice_SetVertexData4f(reg, a, b, c, d);
+  return 0;
+}
+
+/* rasterizer_widget_submit_occlusion_test (0x17ba10): submit one screen-space
+ * quad to the Xbox D3D occlusion-query ("visibility test") unit for a HUD
+ * widget / lens-flare style point.
+ *
+ * The function name is binary-proven: the failure tail passes the literal
+ * "### ERROR rasterizer_widget_submit_occlusion_test failed" (0x2ae898) to
+ * error().
+ *
+ * Ghidra lost the whole signature -- it reports `void __cdecl FUN_0017ba10(void)`
+ * with extraout_AL / extraout_EAX. The disassembly proves three cdecl stack
+ * params at [EBP+8] / [EBP+0xC] / [EBP+0x10] and an int return in EAX:
+ *   [EBP+8]    forwarded as arg1 of FUN_0017a8a0  -> float *position
+ *   [EBP+0xC]  forwarded as arg2 of FUN_0017a8a0  -> float radius (kb decl of
+ *              the callee types this slot `float`; it is never touched here,
+ *              only re-pushed, which is why Ghidra could not see the type)
+ *   [EBP+0x10] pushed to D3DDevice_EndVisibilityTest -> visibility-test index
+ *
+ * Return value is EDI, the signed area product, not a bool and not void:
+ *   global 0x3256fc == 0        -> 1  (feature disabled: "test passed")
+ *   FUN_0017a8a0 returned false -> 0  (point not on screen)
+ *   area < 0                    -> 0
+ *   otherwise                   -> area (0 when degenerate, since the D3D
+ *                                        block is skipped and EAX still = EDI)
+ *
+ * FUN_0017a8a0 projects `position` and returns, via a register-passed out
+ * pointer, the screen position and, via a stack out pointer, the half-extent:
+ *   LEA EBX,[EBP-0x28] ; out_screen  (3 floats: x, y, z)  -- @<ebx>
+ *   LEA EAX,[EBP-0x1c] ; out_extent  (2 floats: half_w, half_h)
+ * The z component (screen[2]) is loaded into ESI once and used as the Z of all
+ * four vertices.
+ *
+ * Constants read from the XBE .rdata (verified by reading the raw image):
+ *   0x2533c8 = 1.0f      minimum half-extent
+ *   0x2ae8d4 = -32767.0f clamp low
+ *   0x26a600 =  32767.0f clamp high
+ * They are written as literals here rather than absolute loads so VC71 emits
+ * the same relocated constant-pool `fld` form as the reference.
+ *
+ * §24 narrow-field trap: the four rounded bounds are stored with FISTP *dword*
+ * but read back with MOVSX *word* -- the original deliberately truncates each
+ * bound to 16 bits before the area product and before the FILD that feeds the
+ * vertices. The `(short)` self-assignments below reproduce exactly that
+ * movsx-and-store-back sequence; the later (float) casts then FILD the widened
+ * dword, as the original does.
+ *
+ * `bounds_tmp` is deliberately reused as both the clamp accumulator and the
+ * floor() result slot: the original keeps the subtraction in ST(0) and spills
+ * only the floor result to [EBP-8], and sharing one named float keeps our
+ * frame at the original's exact SUB ESP,0x28.
+ */
+/* 0x17ba10 */
+int rasterizer_widget_submit_occlusion_test(float *position, float radius,
+                                            unsigned int index)
+{
+  float screen[3]; /* [EBP-0x28] FUN_0017a8a0 out_screen (@<ebx>) */
+  float extent[2]; /* [EBP-0x1c] FUN_0017a8a0 out_extent: half_w, half_h */
+  float bounds_tmp; /* [EBP-8] clamp accumulator / floor() result */
+  int x0; /* [EBP-0x14] */
+  int x1; /* [EBP-0x10] */
+  int y0; /* [EBP-0xc] */
+  int y1; /* [EBP-4] */
+  int area;
+  int hr;
+
+  /* Nested-if shape, not early returns: the reference branches FORWARD on the
+   * false side of both tests (je LAB_0017bc79 / je LAB_0017bbbd) and places
+   * the `return 1` epilogue in the LAST block of the function, which is what
+   * MSVC emits for this nesting rather than for inline early returns. */
+  if (*(char *)0x3256fc != 0) {
+    if (FUN_0017a8a0(position, radius, extent, screen)) {
+      /* FLD 1.0f ; FCOMP extent -- the constant is the left operand, so the test
+       * is written 1.0f > extent, not extent < 1.0f, to keep the load order. */
+      if (1.0f > extent[0]) {
+        extent[0] = 1.0f;
+      }
+      if (1.0f > extent[1]) {
+        extent[1] = 1.0f;
+      }
+
+      /* x0 = floor(clamp(screen.x - half_w)) -- FLD screen ; FSUB extent, i.e.
+       * screen MINUS extent (not reversed). */
+      bounds_tmp = screen[0] - extent[0];
+      if (bounds_tmp < -32767.0f) {
+        bounds_tmp = -32767.0f;
+      } else if (bounds_tmp > 32767.0f) {
+        bounds_tmp = 32767.0f;
+      }
+      bounds_tmp = (float)floor(bounds_tmp);
+      x0 = x87_round_to_int(bounds_tmp);
+
+      bounds_tmp = screen[1] - extent[1];
+      if (bounds_tmp < -32767.0f) {
+        bounds_tmp = -32767.0f;
+      } else if (bounds_tmp > 32767.0f) {
+        bounds_tmp = 32767.0f;
+      }
+      bounds_tmp = (float)floor(bounds_tmp);
+      y0 = x87_round_to_int(bounds_tmp);
+
+      bounds_tmp = screen[0] + extent[0];
+      if (bounds_tmp < -32767.0f) {
+        bounds_tmp = -32767.0f;
+      } else if (bounds_tmp > 32767.0f) {
+        bounds_tmp = 32767.0f;
+      }
+      bounds_tmp = (float)floor(bounds_tmp);
+      x1 = x87_round_to_int(bounds_tmp);
+
+      bounds_tmp = screen[1] + extent[1];
+      if (bounds_tmp < -32767.0f) {
+        bounds_tmp = -32767.0f;
+      } else if (bounds_tmp > 32767.0f) {
+        bounds_tmp = 32767.0f;
+      }
+      bounds_tmp = (float)floor(bounds_tmp);
+      y1 = x87_round_to_int(bounds_tmp);
+
+      /* MOVSX word: the bounds are truncated to 16 bits before use. */
+      x0 = (short)x0;
+      y0 = (short)y0;
+      x1 = (short)x1;
+      y1 = (short)y1;
+
+      area = (x1 - x0) * (y1 - y0);
+      if (area >= 0) {
+        if (area > 0) {
+          D3DDevice_BeginVisibilityTest();
+          D3DDevice_Begin(7); /* D3DPT_QUADLIST */
+          D3DDevice_SetVertexData4f(0, (float)x0, (float)y0, screen[2], 1.0f);
+          D3DDevice_SetVertexData4f(0, (float)x1, (float)y0, screen[2], 1.0f);
+          D3DDevice_SetVertexData4f(0, (float)x1, (float)y1, screen[2], 1.0f);
+          D3DDevice_SetVertexData4f(0, (float)x0, (float)y1, screen[2], 1.0f);
+          D3DDevice_End();
+          hr = D3DDevice_EndVisibilityTest(index);
+          if (hr < 0) {
+            FUN_00167ff0(
+                hr, "IDirect3DDevice8_EndVisibilityTest(global_d3d_device, index)");
+            error(2, "### ERROR rasterizer_widget_submit_occlusion_test failed");
+          }
+        }
+        return area;
+      }
+    }
+    return 0;
+  }
+  return 1;
+}
+
+/* shader_transparent_chicago pixel-shader preprocessor (FUN_0017bca0):
+ * build the 0xf0-byte pixel-shader description block for a chicago
+ * transparent shader.  Resolves the shader's type-6 parameter block via
+ * FUN_001906b0, zero-fills the description, then walks the map tag_block
+ * (element stride 0xdc) emitting one combiner colour stage (+0x04+i*4) and
+ * one alpha stage (+0x8c+i*4) per map, with the fixed 0xc00 inputs at
+ * +0x68+i*4 / +0xb4+i*4.  The final map takes the fixed terminator pair
+ * written to +0x00 / +0x88 instead of a table-derived stage.
+ *
+ * Returns 1 on success, 0 when the shader declares no maps.
+ *
+ * Original TU:
+ * c:\halo\SOURCE\rasterizer\xbox\shader_transparent_chicago_preprocessor.c
+ * (__FILE__ string 0x2ae9d0, confirmed by the two assert xrefs below).
+ *
+ * The three int32 lookup tables are addressed absolutely, matching the
+ * original's `mov reg,[idx*4 + 0x2aeXXX]` form:
+ *   0x2ae940  colour-stage base, indexed by map field_2e
+ *   0x2ae974  per-stage stride,  indexed by map field_2e / field_2c
+ *   0x2ae8d8  alpha-stage base, 2x13 table indexed by
+ *             ((map[0] >> 1) & 1) * 13 + field_2c
+ */
+char FUN_0017bca0(void *shader, void *pixel_shader)
+{
+  char result; /* [EBP-1]; the loop keeps the 1 in AL */
+  char *shader_data; /* FUN_001906b0 result, spilled to the dead [EBP+8] */
+  int *maps; /* shader_data + 0x54: map tag_block header */
+  char *desc; /* EDI: the 0xf0-byte output description */
+  int map_count;
+  int counter; /* full-width counter; only its low 16 bits feed the index */
+  int idx; /* ESI: (short)counter */
+  unsigned char *map; /* current map element (stride 0xdc) */
+  int stage; /* map field_2e (int16, sign-extended) */
+  int alpha_stage; /* map field_2c (int16, sign-extended) */
+  int flags; /* map[0] (uint8) */
+
+  result = 1;
+  if (shader == (void *)0) {
+    display_assert("shader",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\shader_transparent_"
+                   "chicago_preprocessor.c",
+                   100, 1);
+    system_exit(-1);
+  }
+  if (pixel_shader == (void *)0) {
+    display_assert("pixel_shader",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\shader_transparent_"
+                   "chicago_preprocessor.c",
+                   101, 1);
+    system_exit(-1);
+  }
+
+  desc = (char *)pixel_shader;
+  shader_data = (char *)FUN_001906b0(shader, 6);
+  csmemset(pixel_shader, 0, 0xf0);
+
+  maps = (int *)(shader_data + 0x54);
+  *(unsigned int *)(desc + 0xd4) = (unsigned int)(*maps + 1) | 0x11000;
+
+  map_count = *maps;
+  if (map_count > 0) {
+    *(unsigned int *)(desc + 0xd8) =
+      ((((unsigned int)(map_count > 3) << 5 | (unsigned int)(map_count > 2))
+          << 5 |
+        (unsigned int)(map_count > 1))
+       << 5) |
+      (unsigned int)((*(short *)(shader_data + 0x2a) != 0) * 2 + 1);
+    counter = 0;
+    if (*maps > 0) {
+      idx = 0;
+      do {
+        map = (unsigned char *)tag_block_get_element(maps, idx, 0xdc);
+        if (idx != *maps - 1) {
+          stage =
+            *(short *)(map + 0x2e) * 4; /* byte offset, shared by both tables */
+          *(int *)(desc + idx * 4 + 4) =
+            *(int *)((char *)0x2ae974 + stage) * (idx + 1) +
+            *(int *)((char *)0x2ae940 + stage);
+          alpha_stage = *(short *)(map + 0x2c);
+          flags = map[0];
+          *(int *)(desc + idx * 4 + 0x8c) =
+            ((int *)0x2ae974)[alpha_stage] * (idx + 1) +
+            ((int *)0x2ae8d8)[((flags >> 1) & 1) * 0xd + alpha_stage];
+        } else {
+          *(unsigned int *)desc = 0x18200000;
+          *(unsigned int *)(desc + 0x88) = 0x8200000;
+        }
+        counter = counter + 1;
+        *(int *)(desc + idx * 4 + 0x68) = 0xc00;
+        *(int *)(desc + idx * 4 + 0xb4) = 0xc00;
+        idx = (short)counter;
+        result = 1;
+      } while (idx < *maps);
+    }
+  } else {
+    error(2, "### ERROR chicago shader has no maps");
+    result = 0;
+  }
+
+  *(int *)(desc + 0x20) = 0xc;
+  *(int *)(desc + 0x24) = 0x1c00;
+  return result;
+}
+
+/* global_rasterizer_model_ambient_reflection_tint (DAT_0047e4d0): 0x10-byte
+ * game-state allocation holding the model ambient reflection tint. Name is
+ * taken verbatim from the assert message at 0x17c7aa (#cond string). */
+#define global_rasterizer_model_ambient_reflection_tint (*(void **)0x47e4d0)
+
+/* rasterizer_window_set_fog (0x17c790): allocate the rasterizer model ambient
+ * reflection tint block from the game-state heap, assert it succeeded, then
+ * tail-call FUN_00157010.
+ * Original TU: c:\halo\SOURCE\rasterizer\rasterizer.c (assert line 0x121)
+ */
+void rasterizer_window_set_fog(void)
+{
+  global_rasterizer_model_ambient_reflection_tint =
+    game_state_malloc("rasterizer model ambient reflection tint", 0, 0x10);
+  assert_halt_at("c:\\halo\\SOURCE\\rasterizer\\rasterizer.c", 0x121,
+                 global_rasterizer_model_ambient_reflection_tint);
+  FUN_00157010();
 }
 
 void rasterizer_frame_begin(float *elapsed)

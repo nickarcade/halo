@@ -12454,22 +12454,22 @@
    "functions": [
     {
      "addr": "0xd8af0",
-     "decl": "void FUN_000d8af0(void);",
+     "decl": "void hud_weapon_initialize(void);",
      "ported": true
     },
     {
      "addr": "0xd8b30",
-     "decl": "void FUN_000d8b30(void);",
+     "decl": "void hud_weapon_initialize_for_new_map(void);",
      "ported": true
     },
     {
      "addr": "0xd8b70",
-     "decl": "void FUN_000d8b70(void);",
+     "decl": "void hud_weapon_dispose_from_old_map(void);",
      "ported": true
     },
     {
      "addr": "0xd8b80",
-     "decl": "void FUN_000d8b80(void);",
+     "decl": "void hud_weapon_dispose(void);",
      "ported": true
     },
     {
@@ -12878,7 +12878,7 @@
     },
     {
      "addr": "0xf5800",
-     "decl": "void FUN_000f5800(void);"
+     "decl": "unsigned short FUN_000f5800(short key@<si>);"
     },
     {
      "addr": "0xf5900",
@@ -12886,7 +12886,7 @@
     },
     {
      "addr": "0xf5f10",
-     "decl": "void object_get_type(void);"
+     "decl": "int FUN_000f5f10(void);"
     },
     {
      "addr": "0xf5f30",
@@ -12903,7 +12903,8 @@
     },
     {
      "addr": "0xf5fb0",
-     "decl": "char FUN_000f5fb0(void);"
+     "decl": "char FUN_000f5fb0(void);",
+     "ported": true
     },
     {
      "addr": "0xf63f0",
@@ -19374,10 +19375,6 @@
      "ported": true
     },
     {
-     "addr": "0x172730",
-     "decl": "void FUN_00172730(void);"
-    },
-    {
      "addr": "0x172a30",
      "decl": "char FUN_00172a30(int param_1, const float *shadow_matrix, const float *shadow_color, float object_bounding_radius, float *out_radius);",
      "ported": true
@@ -19396,6 +19393,7 @@
     },
     {
      "addr": "0x173b40",
+     "ported": true,
      "decl": "void FUN_00173b40(float *params);"
     },
     {
@@ -19428,19 +19426,23 @@
     },
     {
      "addr": "0x174b90",
-     "decl": "void FUN_00174b90(void);"
+     "decl": "void FUN_00174b90(float *a, float *b, float t, float *out);",
+     "ported": true
     },
     {
      "addr": "0x174bd0",
-     "decl": "int FUN_00174bd0(void);"
+     "decl": "char FUN_00174bd0(void);",
+     "ported": true
     },
     {
      "addr": "0x174cc0",
-     "decl": "void FUN_00174cc0(void);"
+     "decl": "void FUN_00174cc0(void);",
+     "ported": true
     },
     {
      "addr": "0x174ce0",
-     "decl": "void FUN_00174ce0(void);"
+     "decl": "void FUN_00174ce0(void);",
+     "ported": true
     },
     {
      "addr": "0x174d10",
@@ -19453,28 +19455,19 @@
      "decl": "void FUN_00178820(void);"
     },
     {
-     "addr": "0x178850",
-     "decl": "void FUN_00178850(void);"
-    },
-    {
-     "addr": "0x178ab0",
-     "decl": "void FUN_00178ab0(void);"
-    },
-    {
-     "addr": "0x178b40",
-     "decl": "void FUN_00178b40(int a1, int a2, int a3);"
-    },
-    {
      "addr": "0x1792a0",
-     "decl": "void FUN_001792a0(void);"
+     "decl": "void FUN_001792a0(char mode);",
+     "ported": true
     },
     {
      "addr": "0x1792c0",
-     "decl": "void FUN_001792C0(int param_1);"
+     "decl": "void FUN_001792C0(char mode);",
+     "ported": true
     },
     {
      "addr": "0x1792d0",
-     "decl": "void FUN_001792d0(void);"
+     "decl": "char FUN_001792d0(void);",
+     "ported": true
     },
     {
      "addr": "0x179570",
@@ -19482,15 +19475,19 @@
     },
     {
      "addr": "0x1795c0",
-     "decl": "void FUN_001795c0(void);"
+     "decl": "void FUN_001795c0(void *shader);",
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_water.c",
+     "ported": true
     },
     {
      "addr": "0x179de0",
-     "decl": "void FUN_00179de0(void *group);"
+     "decl": "void FUN_00179de0(void *group);",
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_water.c",
+     "ported": true
     },
     {
      "addr": "0x17a8a0",
-     "decl": "void FUN_0017a8a0(void);"
+     "decl": "bool FUN_0017a8a0(float *point, float radius, float *out_extent, float *out_screen @<ebx>);"
     },
     {
      "addr": "0x17ad20",
@@ -19498,51 +19495,24 @@
     },
     {
      "addr": "0x17ad40",
-     "decl": "void FUN_0017ad40(void);"
+     "decl": "int __stdcall FUN_0017ad40(void *device, uint32_t reg, float a, float b, float c, float d);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/rasterizer.c"
     },
     {
      "addr": "0x17ad90",
      "decl": "void FUN_0017ad90(void);"
     },
     {
-     "addr": "0x17adc0",
-     "decl": "void FUN_0017adc0(void);"
-    },
-    {
-     "addr": "0x17ae90",
-     "decl": "void FUN_0017ae90(void);"
-    },
-    {
-     "addr": "0x17b000",
-     "decl": "void FUN_0017b000(void);"
-    },
-    {
-     "addr": "0x17b480",
-     "decl": "char FUN_0017b480(int param_1, int param_2, short param_3);"
-    },
-    {
-     "addr": "0x17b540",
-     "decl": "void FUN_0017b540(void);"
-    },
-    {
-     "addr": "0x17b580",
-     "decl": "void FUN_0017b580(void);"
-    },
-    {
-     "addr": "0x17b5c0",
-     "decl": "void FUN_0017b5c0(void);"
-    },
-    {
-     "addr": "0x17b7d0",
-     "decl": "void FUN_0017b7d0(void);"
-    },
-    {
      "addr": "0x17ba10",
-     "decl": "int FUN_0017ba10(float *position, int vis_index, int index);"
+     "decl": "int rasterizer_widget_submit_occlusion_test(float *position, float radius, unsigned int index);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/rasterizer.c"
     },
     {
      "addr": "0x17bca0",
-     "decl": "char FUN_0017bca0(void *shader, void *state);"
+     "decl": "char FUN_0017bca0(void *shader, void *pixel_shader);",
+     "ported": true
     },
     {
      "addr": "0x17be50",
@@ -19570,7 +19540,8 @@
     },
     {
      "addr": "0x17c790",
-     "decl": "void rasterizer_window_set_fog(void);"
+     "decl": "void rasterizer_window_set_fog(void);",
+     "ported": true
     },
     {
      "addr": "0x17c7d0",
@@ -19665,11 +19636,11 @@
     },
     {
      "addr": "0x17c9f0",
-     "decl": "void rasterizer_widget_submit_occlusion_test(int handle);"
+     "decl": "void FUN_0017c9f0(int handle);"
     },
     {
      "addr": "0x17ca00",
-     "decl": "void rasterizer_widget_get_occlusion_test_result(void);"
+     "decl": "void FUN_0017ca00(void);"
     },
     {
      "addr": "0x17ca10",
@@ -19690,6 +19661,33 @@
    ],
    "name": "rasterizer.obj",
    "source": "rasterizer/rasterizer.c"
+  },
+  {
+   "functions": [
+    {
+     "addr": "0x178850",
+     "decl": "bool rasterizer_vertex_shaders_initialize(void);",
+     "ported": true
+    },
+    {
+     "addr": "0x178ab0",
+     "decl": "void rasterizer_vertex_shaders_dispose(void);",
+     "ported": true
+    }
+   ],
+   "name": "rasterizer_xbox_vertex_shaders_initialize.obj",
+   "source": "rasterizer/xbox/rasterizer_xbox_vertex_shaders_initialize.c"
+  },
+  {
+   "functions": [
+    {
+     "addr": "0x178b40",
+     "decl": "void FUN_00178b40(int vertex_shader_index, int vertex_type, int permutation_index);",
+     "ported": true
+    }
+   ],
+   "name": "rasterizer_xbox_vertex_shaders_runtime.obj",
+   "source": "rasterizer/xbox/rasterizer_xbox_vertex_shaders_runtime.c"
   },
   {
    "functions": [
@@ -20130,7 +20128,7 @@
     },
     {
      "addr": "0x1559b0",
-     "decl": "void rasterizer_spin_begin(void);"
+     "decl": "void rasterizer_spin_begin(int spin_reason);"
     },
     {
      "addr": "0x1559c0",
@@ -20178,7 +20176,7 @@
     },
     {
      "addr": "0x155da0",
-     "decl": "void rasterizer_set_texture_direct_non_blocking(void);"
+     "decl": "char rasterizer_set_texture_direct_non_blocking(int stage, int bitmap_tag_index, int frame_index);"
     },
     {
      "addr": "0x155e80",
@@ -20190,7 +20188,7 @@
     },
     {
      "addr": "0x1560a0",
-     "decl": "void rasterizer_set_texture_non_blocking(void);"
+     "decl": "char rasterizer_set_texture_non_blocking(int stage, int a2, int bitmap_type, int bitmap_index, int frame_index);"
     },
     {
      "addr": "0x156250",
@@ -22029,7 +22027,7 @@
     },
     {
      "addr": "0x1c2bf0",
-     "decl": "void saved_game_file_name_unique(void);"
+     "decl": "char saved_game_file_name_unique(const wchar_t *name);"
     },
     {
      "addr": "0x1c2c50",
@@ -28249,7 +28247,8 @@
     },
     {
      "addr": "0x180770",
-     "decl": "unsigned char FUN_00180770(float alpha);"
+     "decl": "unsigned char FUN_00180770(float alpha);",
+     "ported": true
     },
     {
      "addr": "0x1807d0",
@@ -28296,7 +28295,9 @@
     },
     {
      "addr": "0x181180",
-     "decl": "void FUN_00181180(void);"
+     "decl": "void FUN_00181180(void);",
+     "name": "FUN_00181180",
+     "ported": true
     },
     {
      "addr": "0x1812b0",
@@ -28306,7 +28307,9 @@
     },
     {
      "addr": "0x1812c0",
-     "decl": "void FUN_001812c0(void);"
+     "name": "rasterizer_lights_submit",
+     "ported": true,
+     "decl": "int rasterizer_lights_submit(void *parameters);"
     },
     {
      "addr": "0x181410",
@@ -28419,7 +28422,8 @@
     },
     {
      "addr": "0x183120",
-     "decl": "int16_t FUN_00183120(void *bitmap);"
+     "decl": "int16_t FUN_00183120(void *bitmap);",
+     "ported": true
     },
     {
      "addr": "0x183290",
@@ -28830,7 +28834,7 @@
     },
     {
      "addr": "0x17d040",
-     "decl": "void FUN_0017d040(void);"
+     "decl": "int FUN_0017d040(int index);"
     },
     {
      "addr": "0x17d050",
@@ -30962,7 +30966,7 @@
     },
     {
      "addr": "0x19d6e0",
-     "decl": "void align_to_character(void);"
+     "decl": "void align_to_character(wchar_t *dest, const wchar_t *src);"
     },
     {
      "addr": "0x19d760",
@@ -34281,12 +34285,12 @@
    "functions": [
     {
      "addr": "0x114630",
-     "decl": "int FUN_00114630(int s, int z);",
+     "decl": "int inflate_blocks_free(int s, int z);",
      "ported": true
     },
     {
      "addr": "0x114690",
-     "decl": "void FUN_00114690(int s, int d, int n);",
+     "decl": "void inflate_set_dictionary(int s, int d, int n);",
      "ported": true
     },
     {
@@ -34296,17 +34300,17 @@
     },
     {
      "addr": "0x1146e0",
-     "decl": "void *FUN_001146e0(int bl, int bd, int tl, int td, int z);",
+     "decl": "void *inflate_codes_new(int bl, int bd, int tl, int td, int z);",
      "ported": true
     },
     {
      "addr": "0x114740",
-     "decl": "void FUN_00114740(unsigned int param_1, int *param_2, int param_3);",
+     "decl": "void inflate_codes(unsigned int param_1, int *param_2, int param_3);",
      "ported": true
     },
     {
      "addr": "0x114f60",
-     "decl": "void FUN_00114f60(int c, int z);",
+     "decl": "void inflate_codes_free(int c, int z);",
      "ported": true
     },
     {
@@ -34316,7 +34320,7 @@
     },
     {
      "addr": "0x1153c0",
-     "decl": "int FUN_001153c0(int z);",
+     "decl": "int inflateReset(int z);",
      "ported": true
     },
     {
@@ -34331,7 +34335,7 @@
     },
     {
      "addr": "0x1155c0",
-     "decl": "int FUN_001155c0(int z, char *version, int stream_size);",
+     "decl": "int inflateInit_(int z, char *version, int stream_size);",
      "ported": true
     },
     {
@@ -34341,17 +34345,17 @@
     },
     {
      "addr": "0x115a00",
-     "decl": "int FUN_00115a00(int z, int dictionary, unsigned int dictLength);",
+     "decl": "int inflateSetDictionary(int z, int dictionary, unsigned int dictLength);",
      "ported": true
     },
     {
      "addr": "0x115a90",
-     "decl": "int FUN_00115a90(int *z);",
+     "decl": "int inflateSync(int *z);",
      "ported": true
     },
     {
      "addr": "0x115b70",
-     "decl": "int FUN_00115b70(int z);",
+     "decl": "int inflateSyncPoint(int z);",
      "ported": true
     },
     {
@@ -34361,17 +34365,17 @@
     },
     {
      "addr": "0x116010",
-     "decl": "int FUN_00116010(int *c, int *bb, int tl, int td, int z);",
+     "decl": "int inflate_trees_bits(int *c, int *bb, int tl, int td, int z);",
      "ported": true
     },
     {
      "addr": "0x1160c0",
-     "decl": "int FUN_001160c0(unsigned int param_1, int param_2, int param_3, int *param_4, int *param_5, int param_6, int param_7, int param_8, int param_9);",
+     "decl": "int inflate_trees_dynamic(unsigned int param_1, int param_2, int param_3, int *param_4, int *param_5, int param_6, int param_7, int param_8, int param_9);",
      "ported": true
     },
     {
      "addr": "0x116250",
-     "decl": "int FUN_00116250(int *param_1, int *param_2, int **param_3, int **param_4);",
+     "decl": "int inflate_trees_fixed(int *param_1, int *param_2, int **param_3, int **param_4);",
      "ported": true
     },
     {
@@ -34417,7 +34421,7 @@
     },
     {
      "addr": "0x116d10",
-     "decl": "int FUN_00116d10(int param_1, int param_2, int param_3);",
+     "decl": "int _tr_tally(int param_1, int param_2, int param_3);",
      "ported": true
     },
     {
@@ -34447,7 +34451,7 @@
     },
     {
      "addr": "0x117250",
-     "decl": "void FUN_00117250(int param_1);",
+     "decl": "void _tr_init(int param_1);",
      "ported": true
     },
     {
@@ -34472,17 +34476,17 @@
     },
     {
      "addr": "0x1176f0",
-     "decl": "void FUN_001176f0(int param_1);",
+     "decl": "void _tr_align(int param_1);",
      "ported": true
     },
     {
      "addr": "0x1177c0",
-     "decl": "void FUN_001177c0(int param_1, int param_2, int param_3, int param_4);",
+     "decl": "void _tr_flush_block(int param_1, int param_2, int param_3, int param_4);",
      "ported": true
     },
     {
      "addr": "0x1179e0",
-     "decl": "int FUN_001179e0(int p1, unsigned int *p2, unsigned int *p3, unsigned int p4);",
+     "decl": "int uncompress(int p1, unsigned int *p2, unsigned int *p3, unsigned int p4);",
      "ported": true
     },
     {
@@ -34492,7 +34496,7 @@
     },
     {
      "addr": "0x117ab0",
-     "decl": "const char *FUN_00117ab0(int errcode);",
+     "decl": "const char *zError(int errcode);",
      "ported": true
     },
     {
@@ -37150,6 +37154,11 @@
      "ported": true
     },
     {
+     "addr": "0x172730",
+     "decl": "void FUN_00172730(void);",
+     "ported": true
+    },
+    {
      "addr": "0x172de0",
      "decl": "void FUN_00172de0(void *shader, int frame_index, void *triangle_buffer, void *vertex_buffer);",
      "ported": true
@@ -38032,7 +38041,7 @@
     },
     {
      "addr": "0x001eaf70",
-     "decl": "void D3DDevice_CreateVertexShader(void);"
+     "decl": "int __stdcall D3DDevice_CreateVertexShader(unsigned long *declaration, unsigned long *code, unsigned long *handle, unsigned long flags);"
     },
     {
      "addr": "0x001eb0b0",
@@ -38056,7 +38065,7 @@
     },
     {
      "addr": "0x001eb400",
-     "decl": "void D3DDevice_LoadVertexShader(void);"
+     "decl": "void __stdcall D3DDevice_LoadVertexShader(uint32_t handle, uint32_t offset);"
     },
     {
      "addr": "0x001eb460",
@@ -38064,11 +38073,11 @@
     },
     {
      "addr": "0x001eb4d0",
-     "decl": "void D3DDevice_SelectVertexShader(void);"
+     "decl": "void __stdcall D3DDevice_SelectVertexShader(uint32_t handle, uint32_t offset);"
     },
     {
      "addr": "0x001eb540",
-     "decl": "void D3DDevice_GetVertexShaderSize(void);"
+     "decl": "void __stdcall D3DDevice_GetVertexShaderSize(uint32_t handle, uint32_t *size);"
     },
     {
      "addr": "0x001eb560",
@@ -38080,7 +38089,7 @@
     },
     {
      "addr": "0x001eb6d0",
-     "decl": "void D3DDevice_DeleteVertexShader(void);"
+     "decl": "void __stdcall D3DDevice_DeleteVertexShader(unsigned long handle);"
     },
     {
      "addr": "0x001eb8d0",
@@ -39348,6 +39357,51 @@
      "decl": "void FUN_001345b0(int glow_widget@<eax>, int object_handle);",
      "ported": true,
      "source_path": "objects/widgets/glow.c"
+    }
+   ]
+  },
+  {
+   "name": "rasterizer_xbox_widgets.obj",
+   "source": "rasterizer/xbox/rasterizer_xbox_widgets.c",
+   "functions": [
+    {
+     "addr": "0x17adc0",
+     "decl": "unsigned int rasterizer_widget_get_occlusion_test_result(unsigned int index);",
+     "ported": true
+    },
+    {
+     "addr": "0x17ae90",
+     "decl": "void FUN_0017ae90(unsigned int arg_4c, unsigned int arg_50, float *centroid, unsigned int arg_48);",
+     "ported": true
+    },
+    {
+     "addr": "0x17b000",
+     "decl": "void FUN_0017b000(int16_t widget_type, uint16_t flags);",
+     "ported": true
+    },
+    {
+     "addr": "0x17b480",
+     "decl": "char FUN_0017b480(int stage, int bitmap_index, int frame_index);",
+     "ported": true
+    },
+    {
+     "addr": "0x17b540",
+     "decl": "void FUN_0017b540(float value);",
+     "ported": true
+    },
+    {
+     "addr": "0x17b580",
+     "decl": "void FUN_0017b580(bool enable);",
+     "ported": true
+    },
+    {
+     "addr": "0x17b5c0",
+     "decl": "void FUN_0017b5c0(float *point, float radius, float *scale, float *texcoord_repeat, float theta, unsigned int color);",
+     "ported": true
+    },
+    {
+     "addr": "0x17b7d0",
+     "decl": "void FUN_0017b7d0(float *point, float radius, float *scale, float theta, unsigned int color);"
     }
    ]
   }

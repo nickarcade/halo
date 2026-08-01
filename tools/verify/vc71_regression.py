@@ -44,9 +44,26 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+# This module runs two ways: as a script (`python3 tools/verify/vc71_regression.py`,
+# where sys.path[0] IS tools/verify) and imported as `tools.verify.vc71_regression`
+# by tools/recovery/source_recovery.py, where it is not.  _func_span delegates to
+# vc71_verify._func_span; on the imported path that bare import silently raised
+# ImportError and the gate fell back to the kb.json listing gap -- overshooting the
+# span, so a correct short reference read as truncated and the function was reported
+# "invalid delinked reference".  Measured on FUN_000d8b70/FUN_000d8b80: kb gap 16
+# bytes vs a true span of 1, failing a check that passes identically via the CLI.
+_VERIFY_DIR = str(Path(__file__).resolve().parent)
+if _VERIFY_DIR not in sys.path:
+    sys.path.insert(0, _VERIFY_DIR)
 # Floored regression tripwire (committed; consumed by frontier.py, llm_auto_lift.py,
 # batch_equivalence.py and CI's `check`).  Only raised on improvement / lowered
 # deliberately with --force.
+#
+# KEYED BY DELINKED-REFERENCE SYMBOL NAME, not by our C identifier (hence entries
+# like "D3D8::D3DResource_IsBusy").  A symbol-names recovery pass that renames C
+# functions must leave these keys ALONE: they only change when the delinked
+# reference is re-exported.  Hand-renaming them to match the new C names decouples
+# the floor from what is actually measured and breaks `check`.
 BASELINE_PATH = Path(__file__).parent / "vc71_scores.json"
 # Honest current scores (bidirectional, gated on reference validity).  Written by
 # `populate`; preferred by the dashboard so it reflects present truth, not a
@@ -399,7 +416,19 @@ def _expected_ported_functions(src_rel: str) -> list[dict]:
 
 
 def _func_span(fn_name: str):
-    """Byte span of a function (next function start - its start), or None."""
+    """Byte span of a function, or None when it is not tracked in kb.json.
+
+    Delegates to vc71_verify._func_span so this gate and the verifier agree on
+    what a function's size is.  That matters because kb.json's gap (distance to
+    the next *listed* function) overshoots wherever the listing has a hole, and
+    a correct-but-short reference then reads as truncated; see the docstring
+    there.  Falls back to the kb gap if the import is unavailable.
+    """
+    try:
+        from vc71_verify import _func_span as _verify_func_span
+        return _verify_func_span(fn_name)
+    except ImportError:
+        pass
     addrs, name2addr = _kb_maps()
     addr = name2addr.get(fn_name)
     if addr is None:
@@ -428,7 +457,9 @@ def _reference_valid(n_r, span):
     if not n_r:
         return False, "reference symbol empty or absent"
     if span and n_r * 15 < span:
-        return False, f"truncated reference: {n_r} insns cannot span {span} bytes"
+        return False, (f"reference/span inconsistent: {n_r} insns cannot fill "
+                       f"{span} bytes (reference truncated, or the span is "
+                       f"wrong -- check delinked bounds)")
     if span and n_r > span:
         return False, f"bloated reference: {n_r} insns exceed {span} bytes"
     return True, ""

@@ -1,3 +1,5 @@
+#include "x87_math.h"
+
 /* FUN_0017ff50: stub (0x17ff50) */
 void FUN_0017ff50(void)
 {
@@ -403,6 +405,32 @@ void FUN_001806e0(int param_1, float *param_2)
                *(float *)0x2647f4;
 }
 
+/* rasterizer_geometry_z_to_uint8: assert z in [0.0, 1.0] then quantize to an
+ * 8-bit channel via scale 255.0. Two separate x87 compares in the original
+ * (FCOMP against 0.0 then 1.0, both reloading [EBP+8]) implementing the
+ * literal source predicate "z>=0.0f && z<=1.0f". The multiply result is
+ * stored back through the parameter slot (FSTP [EBP+8]) and reloaded before
+ * FISTP, so the scaling is written onto the parameter itself. The original
+ * was built with /QIfist, so the conversion is an inline FISTP using the
+ * current rounding mode (round-to-nearest) — NOT C truncation, which is off
+ * by one for every fractional part >= 0.5 (measured: 7/100 equivalence seeds
+ * diverged with a plain (int) cast, e.g. alpha=0.5 -> 128 vs 127).
+ * x87_round_to_int keeps the original rounding. Return is the low byte of the
+ * 32-bit conversion result (MOV AL). (0x180770) */
+unsigned char FUN_00180770(float alpha)
+{
+  int quantized;
+  if (!(alpha >= 0.0f && alpha <= 1.0f)) {
+    display_assert("z>=0.0f && z<=1.0f",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0x2a,
+                   1);
+    system_exit(-1);
+  }
+  alpha = alpha * 255.0f;
+  quantized = x87_round_to_int(alpha);
+  return (unsigned char)quantized;
+}
+
 extern double floor(double);
 
 /* rasterizer_geometry_float_to_uint8: clamp float [0,1] to byte via scale
@@ -588,10 +616,172 @@ void FUN_00181150(void)
   *(int *)0x4d0480 = 0;
 }
 
+/* rasterizer_lights_update_lens_flare_alphas: end-of-frame pass over the queued
+ * lens flares. For each flare the occlusion query result (FUN_0017d040) is
+ * converted to an 8-bit alpha ratio against the flare's sample count
+ * (element+0x24), then blended into the persistent alpha byte returned by
+ * FUN_00181060. The queue is emptied afterwards. (0x181180)
+ *
+ * TU is rasterizer_lights.c (proven by the __FILE__ assert string at 0x1811e9);
+ * it lives in rasterizer_text.c only because of the kb.json object grouping.
+ *
+ * Globals (from disassembly):
+ *   0x3256d7  char   lens flare subsystem enabled flag
+ *   0x46e008  int16  render pass mode (CMP word ptr)
+ *   0x31fa98  int16  secondary mode counter (CMP word ptr)
+ *   0x4d0480  int    local_lens_flare_count
+ *   0x4c6480  base of the lens flare queue, stride 0x28 (40 bytes)
+ *
+ * Assert tail is display_assert + system_exit(-1) (PUSH -1; CALL 0x8e2f0 at
+ * 0x1811ee), NOT halt_and_catch_fire as Ghidra renders it.
+ *
+ * Blend direction derived from the disassembly (CL = new alpha, AL = old):
+ *   new > old : *p = (old * 3 + new) / 4   (CDQ; AND EDX,3; ADD; SAR 2)
+ *   new < old : *p = (old + new) / 2       (CDQ; SUB EAX,EDX; SAR 1)
+ *   new == old: no store at all
+ */
+void FUN_00181180(void)
+{
+  short i; /* 16-bit loop counter (ESI after MOVSX) */
+  int idx; /* [EBP-4] 32-bit widened counter */
+  char *elem; /* &DAT_004c6480 + idx * 0x28 (EDI) */
+  unsigned char *alpha_ptr; /* return of FUN_00181060 */
+  /* elem[+0x24] sample count is re-read inline, never cached */
+  int quotient; /* (occlusion * 255 + denom/2) / denom, signed IDIV */
+  unsigned char old_alpha; /* *alpha_ptr before the blend (AL) */
+  unsigned char new_alpha; /* clamped alpha ratio (CL) */
+
+  FUN_0016f910(0x18);
+
+  if (*(char *)0x3256d7 != 0 && *(short *)0x46e008 <= 1 &&
+      (*(short *)0x46e008 != 1 || *(short *)0x31fa98 <= 1)) {
+    idx = 0;
+    i = 0;
+    if (*(int *)0x4d0480 > 0) {
+      do {
+        if (i < 0 || idx >= *(int *)0x4d0480) {
+          display_assert(
+            "lens_flare_index>=0 && lens_flare_index<local_lens_flare_count",
+            "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x43, 1);
+          system_exit(-1);
+        }
+
+        elem = (char *)0x4c6480 + idx * 0x28;
+        alpha_ptr = FUN_00181060((void *)elem);
+
+        if (*(int *)(elem + 0x24) <= 0) {
+          *alpha_ptr = 0;
+        } else {
+          /* signed rounding division: (occluded * 255 + count/2) / count.
+           * The count field is re-read rather than cached, matching the two
+           * separate `mov 0x24(%edi)` loads in the original. */
+          quotient = (FUN_0017d040(idx) * 0xff + (*(int *)(elem + 0x24) >> 1)) /
+                     *(int *)(elem + 0x24);
+          if (quotient < 0xff) {
+            new_alpha = (unsigned char)quotient;
+          } else {
+            new_alpha = 0xff;
+          }
+
+          if (new_alpha == 0) {
+            *alpha_ptr = 0;
+          } else {
+            old_alpha = *alpha_ptr;
+            /* CMP CL,AL with CL = new_alpha, AL = old_alpha */
+            if (new_alpha > old_alpha) {
+              *alpha_ptr = (unsigned char)((old_alpha * 3 + new_alpha) / 4);
+            } else if (new_alpha < old_alpha) {
+              *alpha_ptr = (unsigned char)((old_alpha + new_alpha) / 2);
+            }
+          }
+        }
+
+        i = (short)(i + 1);
+        idx = (int)i;
+      } while (idx < *(int *)0x4d0480);
+    }
+    *(int *)0x4d0480 = 0;
+  }
+
+  FUN_0016fa40(0x18);
+}
+
 /* rasterizer_lights_reset_stat: zero stat counter at 0x5a37e0 (0x1812b0) */
 void FUN_001812b0(void)
 {
   *(int *)0x5a37e0 = 0;
+}
+
+/* rasterizer_lights_submit: append one light to the per-window light array and
+ * return its index, or -1 when the array is full (0x1812c0).
+ *
+ * TU is rasterizer_lights.c (proven by the __FILE__ assert string); it lives in
+ * rasterizer_text.c only because that is the kb.json object grouping.
+ *
+ * Globals (from disassembly):
+ *   0x5a37e0  int    light count (capacity 0x80)
+ *   0x5a37e4  base of the light array, stride 0x38 (56 bytes)
+ *   0x3256ba  int16  render mode flag; secondary counter ticks when == 2
+ *   0x5a5548  int    secondary counter
+ *   0x2533c0  0.0f   0x2533c8  1.0f
+ *
+ * The 56-byte element copy is a whole-struct assignment (REP MOVSD of 0xE
+ * dwords in the original). Only color.red/green/blue at +0x28/+0x2c/+0x30 are
+ * identified; the rest of the element is opaque here. */
+int rasterizer_lights_submit(void *parameters)
+{
+  struct rasterizer_light_element {
+    int data[14]; /* 0x38 bytes */
+  };
+  int light_index;
+  int count;
+
+  light_index = -1;
+  if (parameters == 0) {
+    display_assert("parameters",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0xf0,
+                   1);
+    system_exit(-1);
+  }
+  if (!(*(float *)((char *)parameters + 0x28) >= *(float *)0x2533c0 &&
+        *(float *)((char *)parameters + 0x28) <= *(float *)0x2533c8)) {
+    display_assert("parameters->color.red >=0.0f && parameters->color.red "
+                   "<=1.0f",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0xf1,
+                   1);
+    system_exit(-1);
+  }
+  if (!(*(float *)((char *)parameters + 0x2c) >= *(float *)0x2533c0 &&
+        *(float *)((char *)parameters + 0x2c) <= *(float *)0x2533c8)) {
+    display_assert("parameters->color.green>=0.0f && "
+                   "parameters->color.green<=1.0f",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0xf2,
+                   1);
+    system_exit(-1);
+  }
+  if (!(*(float *)((char *)parameters + 0x30) >= *(float *)0x2533c0 &&
+        *(float *)((char *)parameters + 0x30) <= *(float *)0x2533c8)) {
+    display_assert("parameters->color.blue >=0.0f && "
+                   "parameters->color.blue <=1.0f",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0xf3,
+                   1);
+    system_exit(-1);
+  }
+
+  count = *(int *)0x5a37e0;
+  if (count < 0x80) {
+    light_index = count;
+    count = count + 1;
+    *(int *)0x5a37e0 = count;
+    *(struct rasterizer_light_element *)(0x5a37e4 + light_index * 0x38) =
+      *(struct rasterizer_light_element *)parameters;
+    if (*(short *)0x3256ba == 2) {
+      *(int *)0x5a5548 = *(int *)0x5a5548 + 1;
+    }
+  } else {
+    error(2, "### ERROR too many lights submitted to window");
+  }
+  return light_index;
 }
 
 /* FUN_00181410: stub (0x181410) */
@@ -1532,6 +1722,95 @@ void rasterizer_swizzle_interleave_bits(short param_1, short param_2,
   param_7[2] = uVar7;
   *param_7 = local_8;
   param_7[1] = local_c;
+}
+
+/* rasterizer_swizzle_bitmap_mipmap_count (0x183120): number of mipmap levels
+ * that will actually be swizzled for this bitmap.
+ *
+ * Returns 0 unless the bitmap is flagged swizzled (0x1) and not flagged 0x10.
+ * Otherwise the level count is MIN(bitmap->mipmap_count,
+ * FUN_00108db0(MAX(width, MAX(height, depth)))), where FUN_00108db0 maps a
+ * dimension to a level index. For the compressed case (flag 0x2) width and
+ * height are divided by 4 (the DXT block size) but depth is NOT -- that
+ * asymmetry is real in both copies of the block in the original.
+ *
+ * Field widths are all int16 (+0x4 width, +0x6 height, +0x8 depth,
+ * +0x14 mipmap_count, +0xe flags/ushort).
+ *
+ * NOTE: the MAX chain is evaluated twice per branch (once for the compare,
+ * once for the returned value) -- that is the original macro expansion; do
+ * not hoist it into a temporary. */
+short FUN_00183120(void *param_1)
+{
+  unsigned short flags;
+  short result;
+
+  result = 0;
+
+  if (!bitmap_verify(param_1, 0)) {
+    display_assert("bitmap_verify(bitmap, FALSE)",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x1cb,
+                   1);
+    system_exit(-1);
+  }
+
+  flags = *(unsigned short *)((char *)param_1 + 0xe);
+  if ((flags & 1) != 0 && (flags & 0x10) == 0) {
+    if ((flags & 2) != 0) {
+      /* compressed: width and height in 4x4 blocks, depth unscaled */
+      result = *(short *)((char *)param_1 + 0x14);
+      if (FUN_00108db0(
+            (unsigned int)(*(short *)((char *)param_1 + 4) / 4 >
+                               (*(short *)((char *)param_1 + 6) / 4 >
+                                    *(short *)((char *)param_1 + 8) ?
+                                  *(short *)((char *)param_1 + 6) / 4 :
+                                  *(short *)((char *)param_1 + 8)) ?
+                             *(short *)((char *)param_1 + 4) / 4 :
+                             (*(short *)((char *)param_1 + 6) / 4 >
+                                  *(short *)((char *)param_1 + 8) ?
+                                *(short *)((char *)param_1 + 6) / 4 :
+                                *(short *)((char *)param_1 + 8)))) < result) {
+        return FUN_00108db0(
+          (unsigned int)(*(short *)((char *)param_1 + 4) / 4 >
+                             (*(short *)((char *)param_1 + 6) / 4 >
+                                  *(short *)((char *)param_1 + 8) ?
+                                *(short *)((char *)param_1 + 6) / 4 :
+                                *(short *)((char *)param_1 + 8)) ?
+                           *(short *)((char *)param_1 + 4) / 4 :
+                           (*(short *)((char *)param_1 + 6) / 4 >
+                                *(short *)((char *)param_1 + 8) ?
+                              *(short *)((char *)param_1 + 6) / 4 :
+                              *(short *)((char *)param_1 + 8))));
+      }
+    } else {
+      result = *(short *)((char *)param_1 + 0x14);
+      if (FUN_00108db0((unsigned int)(*(short *)((char *)param_1 + 4) >
+                                          (*(short *)((char *)param_1 + 6) >
+                                               *(short *)((char *)param_1 + 8) ?
+                                             *(short *)((char *)param_1 + 6) :
+                                             *(short *)((char *)param_1 + 8)) ?
+                                        *(short *)((char *)param_1 + 4) :
+                                        (*(short *)((char *)param_1 + 6) >
+                                             *(short *)((char *)param_1 + 8) ?
+                                           *(short *)((char *)param_1 + 6) :
+                                           *(short *)((char *)param_1 + 8)))) <
+          result) {
+        return FUN_00108db0(
+          (unsigned int)(*(short *)((char *)param_1 + 4) >
+                             (*(short *)((char *)param_1 + 6) >
+                                  *(short *)((char *)param_1 + 8) ?
+                                *(short *)((char *)param_1 + 6) :
+                                *(short *)((char *)param_1 + 8)) ?
+                           *(short *)((char *)param_1 + 4) :
+                           (*(short *)((char *)param_1 + 6) >
+                                *(short *)((char *)param_1 + 8) ?
+                              *(short *)((char *)param_1 + 6) :
+                              *(short *)((char *)param_1 + 8))));
+      }
+    }
+  }
+
+  return result;
 }
 
 /* rasterizer_swizzle_bitmap_mipmaps: compute total swizzle buffer size

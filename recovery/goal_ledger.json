@@ -1,0 +1,31 @@
+{
+  "objects": {
+    "circular_queue.obj": {
+      "categories_done": [
+        "local-renames",
+        "symbol-names"
+      ],
+      "commits": [
+        "b9bb2343",
+        "61e3019f"
+      ],
+      "finished": "2026-08-01",
+      "reason": null,
+      "started": "2026-08-01",
+      "status": "done"
+    },
+    "hud_weapon.obj": {
+      "categories_done": [
+        "symbol-names"
+      ],
+      "commits": [
+        "34391e8a"
+      ],
+      "finished": "2026-08-01",
+      "reason": null,
+      "started": "2026-08-01",
+      "status": "done"
+    }
+  },
+  "schema": 1
+}
