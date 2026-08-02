@@ -93,6 +93,19 @@ _LINE_RE = re.compile(
 _DROP_RE = re.compile(
     r"DROP\s+(\S+):\s+no valid reference\s+—\s+(.+?)\s+\(span\s+(\d+)\s+bytes\)"
 )
+# Advisory operand-normalized score, appended by vc71_verify to the same status
+# line AFTER the optional reg/fpu/loadw/imm tags:
+#   "PASS FUN_x: 97.8% match (699/698 insns) | opnd 90.3% (operand-normalized)"
+# Kept as its own pattern rather than an optional tail on _LINE_RE so the
+# primary score parse is unchanged and cached lines without the token still
+# parse.  Absent => opnd_percent is None everywhere downstream.
+_OPND_RE = re.compile(r"\|\s*opnd\s+([\d.]+)%")
+# Emitted once per function scored against a reference SYNTHESIZED from the
+# pristine XBE rather than delinked by Ghidra (see tools/verify/xbe_reference.py).
+# Provenance matters because the two are not identical: measured agreement across
+# 1,464 existing chunks is 95.9%.  A score with no delinked reference behind it
+# should be identifiable as such in the baseline, not silently equivalent.
+_SYNTHREF_RE = re.compile(r"^\s*SYNTHREF\s+(\S+)\s*$")
 
 
 # ---------------------------------------------------------------------------
@@ -496,14 +509,21 @@ def run_vc71_verify(source: Path, no_cache: bool = True,
         meta_out["returncode"] = result.returncode
         meta_out["stderr_tail"] = [l for l in combined.strip().splitlines()[-6:]]
     out = {}
+    synth_refs: set[str] = set()
     for line in (result.stdout + result.stderr).splitlines():
         m = _LINE_RE.search(line)
         if m:
+            o = _OPND_RE.search(line)
             out[m.group(1)] = {
                 "score": float(m.group(2)),
                 "n_c": int(m.group(3)),
                 "n_r": int(m.group(4)),
+                "opnd_percent": float(o.group(1)) if o else None,
             }
+            continue
+        s = _SYNTHREF_RE.match(line)
+        if s:
+            synth_refs.add(s.group(1))
             continue
         if drops_out is not None:
             d = _DROP_RE.search(line)
@@ -513,6 +533,20 @@ def run_vc71_verify(source: Path, no_cache: bool = True,
                     "reason": d.group(2).strip(),
                     "span_bytes": int(d.group(3)),
                 })
+    # Tag provenance. Absence of the key means "delinked reference", the normal
+    # case; only the synthesized minority is marked, so existing consumers and
+    # existing baseline entries keep their meaning unchanged.  A score line can
+    # be keyed by the reference's own symbol rather than the source name, so
+    # fall back to the trailing-component match used elsewhere in this file.
+    for fn in synth_refs:
+        if fn in out:
+            out[fn]["ref"] = "synth"
+            continue
+        for k in out:
+            if k.rsplit("::", 1)[-1] == fn:
+                out[k]["ref"] = "synth"
+                break
+
     if meta_out is not None:
         if result.returncode != 0:
             meta_out["status"] = "subprocess_failed"
@@ -603,33 +637,62 @@ def _measure_source(src: Path):
 
         honest_slice[fn_name] = {"score": new_score, "source": src_rel,
                                  "n_c": info.get("n_c"), "n_r": n_r}
+        # Advisory operand-normalized score; omitted entirely when vc71_verify
+        # did not print one (older cached lines), never written as null noise.
+        if info.get("opnd_percent") is not None:
+            honest_slice[fn_name]["opnd_percent"] = info["opnd_percent"]
+        # Reference provenance; only the synthesized minority is tagged, so an
+        # absent key still means "delinked" for every pre-existing entry.
+        if info.get("ref"):
+            honest_slice[fn_name]["ref"] = info["ref"]
         scored.append((fn_name, new_score))
 
     return src_rel, honest_slice, flagged_slice, scored, log
 
 
-def _apply_floor(baseline: dict, src_rel: str, scored: list, force: bool):
+def _apply_floor(baseline: dict, src_rel: str, scored: list, force: bool,
+                 opnd_map: dict = None, ref_map: dict = None):
     """Apply the raise-only floor merge for one TU's scored functions into
     ``baseline`` (in place).  Serial and order-independent for distinct
-    functions.  Returns ``(n_changed, log)``."""
+    functions.  Returns ``(n_changed, log)``.
+
+    ``opnd_map`` optionally supplies the advisory operand-normalized score per
+    function (``{fn_name: pct}``).  It rides along on entries this call already
+    rewrites — it never causes a rewrite of its own, so untouched entries in the
+    committed floor stay byte-identical.
+    """
     n_changed = 0
     log: list = []
+
+    def _entry(fn_name, score):
+        e = {"score": score, "source": src_rel}
+        opnd = (opnd_map or {}).get(fn_name)
+        if opnd is not None:
+            e["opnd_percent"] = opnd
+        # Provenance rides along on entries this call already rewrites, exactly
+        # like opnd_percent: it never triggers a rewrite of its own, so
+        # untouched floor entries stay byte-identical.
+        ref = (ref_map or {}).get(fn_name)
+        if ref:
+            e["ref"] = ref
+        return e
+
     for fn_name, new_score in scored:
         old_entry = baseline.get(fn_name)
         old_score = old_entry["score"] if old_entry else None
 
         if old_score is None:
-            baseline[fn_name] = {"score": new_score, "source": src_rel}
+            baseline[fn_name] = _entry(fn_name, new_score)
             log.append(f"  + {fn_name}: {new_score:.1f}% (new)")
             n_changed += 1
         elif new_score > old_score + 0.1:
             # Improvement: always raise the floor
-            baseline[fn_name] = {"score": new_score, "source": src_rel}
+            baseline[fn_name] = _entry(fn_name, new_score)
             log.append(f"  ↑ {fn_name}: {old_score:.1f}% → {new_score:.1f}%")
             n_changed += 1
         elif new_score < old_score - 0.1:
             if force:
-                baseline[fn_name] = {"score": new_score, "source": src_rel}
+                baseline[fn_name] = _entry(fn_name, new_score)
                 log.append(f"  ↓ {fn_name}: {old_score:.1f}% → {new_score:.1f}% (forced lower)")
                 n_changed += 1
             else:
@@ -648,7 +711,10 @@ def _verify_source(src: Path, baseline: dict, force: bool):
     src_rel, honest_slice, flagged_slice, scored, log = _measure_source(src)
     for l in log:
         print(l)
-    n_changed, floor_log = _apply_floor(baseline, src_rel, scored, force)
+    n_changed, floor_log = _apply_floor(
+        baseline, src_rel, scored, force,
+        opnd_map={k: v.get("opnd_percent") for k, v in honest_slice.items()},
+        ref_map={k: v.get("ref") for k, v in honest_slice.items()})
     for l in floor_log:
         print(l)
     return n_changed, honest_slice, flagged_slice
@@ -970,7 +1036,10 @@ def cmd_populate(args) -> int:
         print(f"Verifying {Path(src_rel)} ...", flush=True)
         for l in log:
             print(l)
-        n, floor_log = _apply_floor(baseline, src_rel, scored, force)
+        n, floor_log = _apply_floor(
+            baseline, src_rel, scored, force,
+            opnd_map={k: v.get("opnd_percent") for k, v in honest_slice.items()},
+        ref_map={k: v.get("ref") for k, v in honest_slice.items()})
         for l in floor_log:
             print(l)
         total_changed += n
@@ -984,11 +1053,29 @@ def cmd_populate(args) -> int:
         }
         n_verified += 1
 
+    # Backfill reference provenance onto floor entries whose score is unchanged.
+    # `_apply_floor` only stamps entries it rewrites, so a function scored from a
+    # synthesized reference before this field existed -- or one whose score has
+    # simply not moved since -- would sit in the COMMITTED floor with no way to
+    # tell it apart from a Ghidra-delinked score.  vc71_current.json is
+    # gitignored, so the floor is the only artifact a reviewer actually sees.
+    # Adds a key only; never touches `score`, so the raise-only guarantee holds.
+    n_prov = 0
+    for fn_name, cur in honest.items():
+        ref = cur.get("ref")
+        entry = baseline.get(fn_name)
+        if ref and entry is not None and entry.get("ref") != ref:
+            entry["ref"] = ref
+            n_prov += 1
+
     save_baseline(baseline)
     if total_changed:
         print(f"\nBaseline updated: {total_changed} function(s) changed → {BASELINE_PATH.name}")
     else:
         print("\nBaseline unchanged.")
+    if n_prov:
+        print(f"Reference provenance stamped on {n_prov} floor entry(ies) "
+              f"(scored against an XBE-synthesized reference).")
 
     # Honest current scores drive the dashboard; the floored baseline stays the
     # CI tripwire.  The validity report is the re-delink work queue.

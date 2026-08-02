@@ -1303,3 +1303,94 @@ The same sweep found three more: `FUN_000acd00` (post-spawn invisibility clear o
 **Rule:** a literal argument is a claim that the original pushes an immediate. Verify it. In Ghidra the two tells are an `in_EAX`-style implicit input in the decompile (register read before write ⇒ the decl is missing an `@<reg>`) and a `MOV <reg>, <param reg>` immediately before the `CALL` in the caller. When fixing one, accept the score drop and record it — the higher number was measuring wrong code.
 
 **Detector caveats (both baselined with a `reason`):** an inlined `csmemset(buf, 0, N)` compiles to `xor edx,edx` plus stores with no push at all; and jump tables let several source sites share one `xor eax,eax` tail block (`game_engine_remap_weapon`: 4 sites → `0xa9888`). Count real argument positions, not a `0\s*[,)]` regex — the regex gives 99 hits (mostly `!= 0)`) against 5 for argument parsing.
+
+## 36. Vendored Open-Source TU Lifted From Ghidra Instead of From Upstream — Wrong Parameter Order, Wrong Expression Form
+
+**Automation:** FULL (advisory) — `check_vendored_source` in `check_lift_hazards.py`. Source-only: it collects the names defined at column 0 in a `.c` file, intersects them with per-library fingerprint sets, and reports a TU as vendored when ≥4 distinct upstream symbols match **and** `FUN_` placeholders remain. Silent once the TU is finished, so it stays quiet as a lift progresses. One finding repo-wide today (`circular_queue.c` = zlib, 19 symbols matched, 39 placeholders left), zero false positives, no change to the scan's exit code. A library qualifies for the table only if its C source is public (so "lift from upstream" is actionable) and its names are distinctive; closed-source middleware such as Bink is deliberately excluded.
+
+**What happened (zlib, 2026-08-01):** `circular_queue.obj` is not a Halo file — it is vendored **zlib**, which the object's own symbols announce (`inflate_blocks_free`, `inflate_trees_bits`, `_tr_flush_block`, `uncompress`, `zError`) and whose *version* is pinned by the debug strings still in the binary (`"inflate:         literal '%c'\n"` — Halo built zlib with `ZLIB_DEBUG` on, so `z_verbose` at `0x320e30` and the `Tracevv` `fprintf` calls are real code, not dead). Two functions had been lifted the usual way — reading Ghidra, renaming variables, chasing the diff — and had stalled:
+
+| Function | Ghidra-shaped lift | Transcribed from upstream |
+|---|---|---|
+| `FUN_00115ba0` = `huft_build` (inftrees.c) | 69.4% → 73.2% after a day of shape levers | **97.1%** (398 vs 397 insns) |
+| `FUN_00114740` = `inflate_codes` (infcodes.c) | 76.9% → 82.4% | **97.8%** (699 vs 698 insns) |
+
+The delinked reference *is* that library compiled by VC71. Matching the source therefore matches the object, and every hour spent reshaping the decompiler's rendering is an hour spent re-deriving something already published.
+
+**Lever 1 — parameter ORDER (the big one).** Ghidra lists register parameters **first**, regardless of where they sit in the real signature. kb.json had `huft_build(m@<eax>, b, n, s, d, e, t, hp, hn, v)`; upstream's order is `(b, n, s, d, e, t, m, hp, hn, v)`, with MSVC choosing EAX for `m` under its private register convention for a file-static helper. In the wrong order every stack parameter is +4 from the reference and *all nine* mismatch; in the right order `b, n, s, d, e, t` land on the reference's own `[ebp+8..0x1c]` and only the three after `m` shift. Moving the `@<reg>` annotation to its true index is **ABI-safe** — the relative order of the stack parameters is unchanged, and `thunks.c` already handles a mid-position register parameter correctly (it skips it in the push sequence and loads EAX). Confirm with `check_arg_counts.py --callee 0x<addr>` (expects the same `declared_stack` at every original call site) and by reading the generated thunk.
+
+**Lever 2 — expression FORM.** Splitting upstream's `*xp++ = (j += *p++);` into `j += *p++; *xp++ = j;` cost **2.8pp**: VC71 emits two pointer inductions where the original strength-reduces to a single byte-offset register (`addl $4,%edi; movl %ecx,-0xc0(%ebp,%edi)`). Same principle for macros — define the real `infutil.h` set (`LOAD` / `UPDATE` / `LEAVE` / `NEEDBITS` / `NEEDOUT` / `FLUSH`) and let VC71 tail-merge the identical expansions itself, instead of hand-sharing them through `goto`, which is what Ghidra shows and what the previous lift had copied.
+
+**Lever 3 — don't copy parameters into locals.** The old `inflate_codes` opened with `s = param_1; z = param_2;`. Those copies keep the parameter home slots live, so `b`/`k` were given fresh slots; the reference enregisters `s`/`z` and **reuses `[ebp+8]`/`[ebp+0xc]` for `b`/`k`**. Using the parameters directly, as upstream does, reproduced that allocation.
+
+**Lever 4 — upstream's array sizes beat Ghidra's guess.** The old lift had `u[14]` / `x[17]` / `c[17]`; zlib declares `u[BMAX]` / `x[BMAX+1]` / `c[BMAX+1]` = 15/16/16. Counting upstream's locals (60 + 64 + 64 bytes of arrays, 15 scalars, plus the 8-byte `inflate_huft r`) predicts `sub esp,0x100` exactly — a frame check you can do before writing a line (the LCS compares operand *text*, so a 4-byte frame delta mismatches every `[ebp-N]` instruction even when instruction selection is already perfect). The recovered `inflate_huft` struct with `unsigned char exop; unsigned char bits;` is what produces the reference's `movb %cl,-0x2c` / `movb %al,-0x2b`, which masked-OR arithmetic can never emit — the same struct that had previously been measured as *negative*, but only because the frame was still misaligned when it was tried.
+
+**Also recovered:** `inflate_codes` was declared `void` in kb.json and relied on the implicit EAX of its tail call (the §31 pattern). Upstream's `LEAVE` is `{UPDATE return inflate_flush(s,z,r);}` — the function returns `int`. Changing the decl is free here because no lifted caller exists yet, and the original caller reads EAX either way.
+
+**Verifying a rewrite this large.** Byte-match is strong evidence but not proof, so differential-test the new implementation against the one it replaces: identical inputs, compare every mutated buffer *and* the callee call sequence with arguments. Results: `huft_build` 300k inputs, `inflate_codes` 400k inputs, **zero divergence** (99.7% of `inflate_codes` iterations produced decoded output; the final-mode histogram covered COPY, LIT, WASH, END, BADCODE and the out-of-range default). Three practical notes:
+
+* The lifted code casts pointers to `int` and reads 4-byte pointer fields at 4-byte spacing, so the harness **must be 32-bit**. With no `libc6-dev-i386` on this box, build freestanding: `-m32 -no-pie -static -nostdlib -nostartfiles -ffreestanding -fno-builtin` plus a ~30-line `_start` / `write` / `memcpy` runtime, and `sys_old_mmap` (syscall 90) to place fixed globals such as `inflate_mask` at `0x320d88`. A 64-bit harness silently faults inside the code under test — `(int)&stack_array` truncates.
+* Renaming the function for the harness **also rewrites string literals inside it**. An assert message that differs only by the renamed prefix reads as a genuine divergence; normalise the literals (or hash the string contents) before comparing.
+* Stubs constrain what the differential proves. A no-op `inflate_fast` stub leaves the `case START` handoff covered by byte-match only, and COPY distances must stay within the window because the lift resolves the wrap with a single adjustment (as the binary does) rather than zlib 1.2's `while` loop. Say so rather than implying full coverage.
+
+**Rule:** before lifting anything in an unfamiliar object, look at the names already recovered in that TU. If they belong to a public library, stop and fetch the upstream source — then transcribe it, including parameter order, declaration order, array bounds, macros and expression form, and let the compiler reproduce the codegen. Treat a low score in such a TU as evidence that the source is wrong, not that a ceiling has been reached.
+
+## 37. 4-Byte Local Passed as a 64-Bit Out-Parameter — Callee's High Dword Clobbers the Neighbouring Local
+
+**Symptom (2026-08-02):** ceiling lamps and other BSP light sources rendered
+their lens flares straight through walls. In the patched build every flare in a
+level drew at full brightness regardless of occlusion; the unpatched build drew
+none of them (correctly occluded). No crash, no assert, no VC71 movement.
+
+**Cause:** `rasterizer_widget_get_occlusion_test_result` (0x17adc0) calls
+`D3DDevice_GetVisibilityTestResult(index, &result, &timestamp)`. The XDK's third
+parameter is a **`ULONGLONG*`** — the 64-bit GPU timestamp — so the callee writes
+**8 bytes** through it. The lift declared the local `unsigned int timestamp;`
+(4 bytes). clang then packed the frame as `sub esp,8` with
+
+```
+[ebp-0x14] timestamp   (4 bytes, declared)
+[ebp-0x10] occlusion_test_result
+```
+
+so the timestamp's high dword landed **on `occlusion_test_result`**. The function
+returned a timestamp fragment instead of the visible-pixel count. Downstream,
+`rasterizer_lights_update_lens_flare_alphas` (0x181180) computes
+
+```c
+quotient = (FUN_0017d040(idx) * 0xff + count/2) / count;   /* count = quad area */
+new_alpha = quotient < 0xff ? quotient : 0xff;
+```
+
+A large garbage numerator saturates the quotient, so every flare's alpha pinned
+to 255 — "fully visible" — and the flare drew over the wall in front of it.
+(Flares are drawn with Z-test off by design; the occlusion **query** is the only
+thing that hides them, which is why corrupting it looks like "light through
+walls" rather than a depth bug.)
+
+**The binary states the size.** The original reserves `SUB ESP,0xc` for exactly
+two locals — the 4-byte result at `[EBP-4]` and the timestamp at `[EBP-0xc]`,
+i.e. an 8-byte slot. The same function shape appears at 0x1749b0 (overdraw
+stats): `pixels` at `[EBP-0x14]`, `timestamp` at `[EBP-0x1c]` — again 8 bytes.
+Both sites had the bug.
+
+**Why nothing caught it:**
+* It never crashes or asserts — a local is corrupted, not a pointer.
+* VC71 byte-match barely moves: the frame is only 4 bytes short.
+* Unicorn equivalence stubs the D3D import, so the oracle never performs the
+  64-bit store that causes the divergence.
+* `check_frame_sizes` needs the original's `SUB ESP,N` written in a source
+  comment and only fires at a gap `>= 8`; this gap is 4.
+
+**Rule:** when a callee writes through a pointer out-parameter, size the local
+from the *callee's* store width, not from the decompiler's local type. Derive
+the width from the original's frame: the gap between consecutive out-param
+slots is the slot size. For a wide slot, declare `unsigned int name[2];` (8
+bytes, 4-aligned — matching MSVC's layout) rather than a 64-bit scalar, which
+can force 8-byte alignment and inflate the frame.
+
+**Automation:** `check_wide_out_params` in `tools/audit/check_lift_hazards.py`
+(`wide_out_params` counter). It carries a table of known wide out-parameters
+(`KNOWN_WIDE_OUT_PARAMS`) and flags any call passing `&local` where `local` is a
+4-byte scalar declared in the same file. Add an entry to that table whenever a
+new callee with a 64-bit out-parameter is lifted.

@@ -36,6 +36,12 @@ BUILD_DIR = REPO_ROOT / "build"
 VC71_OUT_DIR = BUILD_DIR / "vc71"
 DELINKED_DIR = REPO_ROOT / "delinked"
 
+# Fall back to a reference synthesized from the pristine XBE when no delinked
+# reference bounds a function.  Purely additive: it is consulted only where the
+# run would otherwise emit a DROP and produce no score line at all.  Disable
+# with --no-synth-ref.  See tools/verify/xbe_reference.py.
+SYNTH_REFS = True
+
 VC71_CL = r"C:\Program Files (x86)\RXDK\xbox\bin\vc71\CL.Exe"
 VC71_CL_WSL = "/mnt/c/Program Files (x86)/RXDK/xbox/bin/vc71/CL.Exe"
 RXDK_INC = r"C:\Program Files (x86)\RXDK\xbox\include"
@@ -1066,6 +1072,49 @@ def run_compare_cached(
             return None
         return cand if _ref_insns_valid(len(cand), _func_span(fn)) else None
 
+    def _synth_ref(fn: str):
+        """Instruction list from a reference synthesized out of the pristine XBE.
+
+        FALLBACK ONLY.  Consulted where no delinked reference bounds the
+        function -- the case that otherwise emits a DROP and no score at all.
+        It cannot displace a delinked reference, so no existing score moves.
+
+        Why this can stand in for a delinked reference: the scorer consumes
+        instruction TEXT, and `compare_obj.normalize_instruction` already
+        rewrites immediates and displacements before matching, so the symbols
+        and relocations the delinker reconstructs are discarded anyway.
+        Measured agreement against 1,464 existing chunks: 95.9%, and the
+        disagreements are dominated by stale 0x2000-window chunks where the
+        synthesized reference is the correct one.
+
+        Runs the object through the same `co.first_function_insns` used for
+        chunks (shared boundary/padding logic), then applies
+        `normalize_synth_insn` to undo the one asymmetry raw bytes introduce:
+        a delinked object stores cross-references as zeroed fields, so its
+        absolute displacements print as nothing.
+        """
+        if not SYNTH_REFS:
+            return None
+        addr = _func_addr(fn)
+        if addr is None:
+            return None
+        try:
+            import xbe_reference as xr
+            obj = xr.reference_object(addr)
+        except Exception:
+            return None          # capstone/XBE unavailable -- stay silent
+        if obj is None:
+            return None
+        aliases = set(function_aliases(fn)) | {fn, f"FUN_{addr & 0xffffffff:08x}"}
+        try:
+            cand = co.first_function_insns(str(obj), aliases)
+        except Exception:
+            return None
+        if not cand:
+            return None
+        cand = [xr.normalize_synth_insn(i) for i in cand]
+        return cand if _ref_insns_valid(len(cand), _func_span(fn)) else None
+
     _tu_units_cache: list[dict] = []
 
     def _tu_units() -> list[dict]:
@@ -1165,20 +1214,42 @@ def run_compare_cached(
             ref_overrides.add(fn)
 
     # (2) Add candidate functions the whole-object reference dropped entirely.
+    # A synthesized reference is the last resort here, after both the whole
+    # object and the per-function chunk have failed to bound the function.
+    synth_used: set[str] = set()
     for fn in list(compiled_funcs.keys()):
         if fn in matched:
             continue
         cand = _valid_chunk_ref(fn)
+        if cand is None:
+            cand = _synth_ref(fn)
+            if cand is not None:
+                synth_used.add(fn)
         if cand is not None:
             reference_funcs[fn] = cand
             matched.add(fn)
             ref_overrides.add(fn)
 
-    if ref_overrides and not quiet:
-        shown = ", ".join(sorted(ref_overrides)[:6])
-        more = " ..." if len(ref_overrides) > 6 else ""
-        print(f"[ref] {len(ref_overrides)} function(s) scored against per-function "
+    chunk_overrides = ref_overrides - synth_used
+    if chunk_overrides and not quiet:
+        shown = ", ".join(sorted(chunk_overrides)[:6])
+        more = " ..." if len(chunk_overrides) > 6 else ""
+        print(f"[ref] {len(chunk_overrides)} function(s) scored against per-function "
               f"chunk (whole-object reference truncated): {shown}{more}", flush=True)
+    # Always announce a synthesized reference, even under --quiet: it is a
+    # different provenance from a Ghidra-delinked one and a score carrying it
+    # should never look like a delinked-backed score.
+    if synth_used:
+        shown = ", ".join(sorted(synth_used)[:6])
+        more = " ..." if len(synth_used) > 6 else ""
+        print(f"[synth] {len(synth_used)} function(s) scored against a reference "
+              f"synthesized from the pristine XBE (no delinked reference bounds "
+              f"them): {shown}{more}", flush=True)
+        # Machine-parseable, one per function and never truncated, so callers can
+        # record provenance per entry.  The human line above elides after 6.
+        # Same convention as the DROP lines below.
+        for fn in sorted(synth_used):
+            print(f"  SYNTHREF {fn}", flush=True)
 
     # Report compiled, kb.json-tracked functions we could NOT score against any
     # valid reference (whole-object truncated/absent AND no valid per-function
@@ -1290,11 +1361,28 @@ def run_compare_cached(
             reg_tag = f" [struct:{mnem_pct:.1f}%]"
 
         only_mode = fpu_only or loadw_only or imm_only
+
+        # Advisory operand-normalized score.  The primary `pct` above is a
+        # mnemonic-only LCS, which is blind to operand-level bugs (swapped
+        # arguments, wrong memory source, wrong register shape).  Recompute with
+        # reg_normalize=True -- mnemonic + operand shape with canonical
+        # registers -- and surface it alongside.  Pure Python over the already
+        # disassembled listings; nothing is recompiled or re-disassembled.
+        # ADVISORY ONLY: never gates, never cached, never affects the exit code,
+        # and appended AFTER the "NN.N% match" token so existing parsers
+        # (lift_pipeline.parse_match_percent*) still see the primary score first.
+        opnd_tag = ""
+        if not only_mode and not reg_normalize:
+            opnd_pct = co.compare_functions(
+                compiled_funcs[fn], reference_funcs[fn], reg_normalize=True,
+                regdef_params=regdef)[0]
+            opnd_tag = f" | opnd {opnd_pct:.1f}% (operand-normalized)"
+
         if not only_mode:
             if quiet:
-                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}")
+                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{opnd_tag}")
             else:
-                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{cache_tag}")
+                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{opnd_tag}{cache_tag}")
 
         if fpu_warnings:
             any_fpu_warn = True
@@ -1391,7 +1479,14 @@ def main():
                     help="Override @<reg>-DEFINED param modeling for the compared "
                          "function(s): 'idx:reg[,idx:reg]' e.g. '0:eax'. By default "
                          "this is derived per function from kb.json @<reg> annotations.")
+    ap.add_argument("--no-synth-ref", action="store_true",
+                    help="Do not fall back to a reference synthesized from the "
+                         "pristine XBE when no delinked reference bounds a "
+                         "function; report the function as a DROP instead")
     args = ap.parse_args()
+
+    global SYNTH_REFS
+    SYNTH_REFS = not args.no_synth_ref
 
     units = load_units()
 

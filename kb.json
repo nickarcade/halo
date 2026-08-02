@@ -19389,7 +19389,8 @@
     },
     {
      "addr": "0x173af0",
-     "decl": "void FUN_00173af0(void);"
+     "decl": "int __stdcall FUN_00173af0(void *device, uint32_t reg@<edx>, float a, float b);",
+     "ported": true
     },
     {
      "addr": "0x173b40",
@@ -19403,7 +19404,8 @@
     },
     {
      "addr": "0x1744f0",
-     "decl": "void FUN_001744f0(void);"
+     "decl": "int FUN_001744f0(int r1@<eax>, int r2@<ecx>, int r3@<edx>, int s1, int s2, int s3);",
+     "ported": true
     },
     {
      "addr": "0x174510",
@@ -19452,7 +19454,8 @@
     },
     {
      "addr": "0x178820",
-     "decl": "void FUN_00178820(void);"
+     "decl": "int __stdcall FUN_00178820(unsigned long flags@<eax>, unsigned long *handle@<ecx>, unsigned long *code@<edx>, void *unused_arg0, unsigned long *declaration);",
+     "ported": true
     },
     {
      "addr": "0x1792a0",
@@ -19471,7 +19474,8 @@
     },
     {
      "addr": "0x179570",
-     "decl": "void FUN_00179570(void);"
+     "decl": "int __stdcall FUN_00179570(void *device, uint32_t reg@<edx>, float a, float b);",
+     "ported": true
     },
     {
      "addr": "0x1795c0",
@@ -19491,7 +19495,9 @@
     },
     {
      "addr": "0x17ad20",
-     "decl": "void FUN_0017ad20(void);"
+     "decl": "int __stdcall FUN_0017ad20(void *device, uint32_t reg@<edx>, float a, float b);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/rasterizer.c"
     },
     {
      "addr": "0x17ad40",
@@ -19516,11 +19522,15 @@
     },
     {
      "addr": "0x17be50",
-     "decl": "void FUN_0017be50(void);"
+     "source": "src/halo/rasterizer/xbox/shader_transparent_generic_preprocessor.c",
+     "decl": "int FUN_0017be50(int16_t register_index@<si>, int16_t mapping_index@<di>);",
+     "ported": true
     },
     {
      "addr": "0x17bf20",
-     "decl": "void FUN_0017bf20(void);"
+     "source": "src/halo/rasterizer/xbox/shader_transparent_generic_preprocessor.c",
+     "decl": "int FUN_0017bf20(void *stage@<esi>);",
+     "ported": true
     },
     {
      "addr": "0x17c000",
@@ -19532,7 +19542,8 @@
     },
     {
      "addr": "0x17c1b0",
-     "decl": "void FUN_0017c1b0(void);"
+     "decl": "bool FUN_0017c1b0(void *stage@<esi>, int16_t stage_index@<di>);",
+     "ported": true
     },
     {
      "addr": "0x17c2f0",
@@ -28378,7 +28389,9 @@
     },
     {
      "addr": "0x182610",
-     "decl": "void FUN_00182610(void);"
+     "decl": "void FUN_00182610(short param_1 @<esi>, short param_2, short param_3);",
+     "name": "FUN_00182610",
+     "ported": true
     },
     {
      "addr": "0x182690",
@@ -28557,7 +28570,8 @@
     },
     {
      "addr": "0x130b70",
-     "decl": "char FUN_00130b70(void *client@<esi>, const char *data, int count);"
+     "decl": "char FUN_00130b70(void *client@<esi>, const char *data, int count);",
+     "ported": true
     },
     {
      "addr": "0x19b3c0",
@@ -34305,7 +34319,7 @@
     },
     {
      "addr": "0x114740",
-     "decl": "void inflate_codes(unsigned int param_1, int *param_2, int param_3);",
+     "decl": "int inflate_codes(unsigned int s, int *z, int r);",
      "ported": true
     },
     {
@@ -34360,7 +34374,7 @@
     },
     {
      "addr": "0x115ba0",
-     "decl": "int FUN_00115ba0(unsigned int *bb@<eax>, int *param_1, unsigned int param_2, unsigned int param_3, int param_4, int param_5, int *param_6, int param_7, unsigned int *param_8, unsigned int *param_9);",
+     "decl": "int FUN_00115ba0(int *b, unsigned int n, unsigned int s, int *d, int *e, int *t, unsigned int *m@<eax>, int hp, unsigned int *hn, unsigned int *v);",
      "ported": true
     },
     {

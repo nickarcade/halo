@@ -37,6 +37,34 @@ logging.basicConfig(
 
 
 
+def _is_synthesizable(addr) -> bool:
+    """True if vc71_verify could synthesize a reference for this address.
+
+    Lets `Score unit (VC71)` consider a function that no delinked reference
+    names, since vc71_verify now falls back to a reference built from the
+    pristine XBE.  Fails CLOSED: if capstone or the XBE is unavailable the
+    answer is False, which restores the previous (delinked-only) behaviour
+    rather than queueing per-function runs that cannot produce a score."""
+    if not isinstance(addr, str):
+        return False
+    try:
+        addr_int = int(addr, 16)
+    except ValueError:
+        return False
+    try:
+        import sys as _s
+        _vd = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           '..', 'verify')
+        _vd = os.path.abspath(_vd)
+        if _vd not in _s.path:
+            _s.path.insert(0, _vd)
+        import xbe_reference as _xr
+        code, _err = _xr.function_bytes(addr_int)
+        return code is not None
+    except Exception:
+        return False
+
+
 def _recompute_unit_match(unit: dict) -> None:
     """Recompute unit['summary'] match_avg/match_weighted from its function scores in-place."""
     scores = []
@@ -220,8 +248,14 @@ class SSEHandler(SimpleHTTPRequestHandler):
                 logging.info('No objdiff unit for %s; using report/delinked manifest ref',
                              unit_name)
             else:
-                logging.warning('No delinked reference for unit %s (%s)', unit_name, base_path)
-                return None
+                # No delinked reference of any kind.  This used to be fatal, and
+                # was correct while a delinked reference was the ONLY way to
+                # score.  vc71_verify now falls back to a reference synthesized
+                # from the pristine XBE (tools/verify/xbe_reference.py), so the
+                # unit is still scoreable -- bailing here would silently deny
+                # the button exactly the units that need it most.
+                logging.info('No delinked reference for unit %s (%s); relying on '
+                             'XBE-synthesized references', unit_name, base_path)
         else:
             logging.info('Using whole-TU delinked reference for unit %s: %s', unit_name, base_path)
 
@@ -287,15 +321,22 @@ class SSEHandler(SimpleHTTPRequestHandler):
                 haystack = f"{entry.get('name', '')} {entry.get('base_path', '')}".lower()
                 if any(needle and needle in haystack for needle in needles):
                     return True
-            return False
+            # No delinked reference names this function -- but it is still
+            # scoreable if its address lies in a mapped XBE section, because
+            # vc71_verify can synthesize a reference for it.  Checked last so
+            # the cheap delinked paths short-circuit first.
+            return _is_synthesizable(addr)
 
         logging.info('Running vc71_verify for %s ...', source_path_rel)
         t_start = time.time()
         try:
             vc71_results = {}
             fallback_funcs = []
-            if (base_path and os.path.exists(base_path)) or has_report_ref:
-                vc71_results.update(_run_vc71_verify(source_path))
+            # Unconditional: vc71_verify resolves its own reference per function
+            # (whole object -> per-function chunk -> XBE-synthesized), so gating
+            # the whole-unit run on a delinked reference existing here would skip
+            # units that are now perfectly scoreable.
+            vc71_results.update(_run_vc71_verify(source_path))
 
             for func in report_unit.get('functions', []):
                 if not func.get('ported'):
@@ -339,7 +380,17 @@ class SSEHandler(SimpleHTTPRequestHandler):
                 else:
                     logging.info('  %s: %.1f%% -> %.1f%% (baseline raised)',
                                  fn_name, old.get('score', 0.0), new_score)
-                baseline[fn_name] = {'score': new_score, 'source': source_path_rel}
+                entry = {'score': new_score, 'source': source_path_rel}
+                # Advisory operand-normalized score rides along on entries we
+                # are already rewriting; omitted when vc71_verify printed none.
+                if info.get('opnd_percent') is not None:
+                    entry['opnd_percent'] = info['opnd_percent']
+                # Reference provenance: 'synth' when the score came from an
+                # XBE-synthesized reference rather than a Ghidra-delinked one.
+                # Absent means delinked, so pre-existing entries are unchanged.
+                if info.get('ref'):
+                    entry['ref'] = info['ref']
+                baseline[fn_name] = entry
                 baseline_changed = True
         if baseline_changed:
             _save_baseline(baseline)
@@ -348,7 +399,12 @@ class SSEHandler(SimpleHTTPRequestHandler):
         #    first, then by the address-keyed FUN_<addr> alias (vc71_verify records
         #    some functions under their delinked reference name) — identical to the
         #    generator's join so a later regeneration produces the same numbers.
-        def _score_for(func):
+        def _result_for(func):
+            """Return the vc71_results entry for a function, or None.
+
+            Same join order as the report generator (name, FUN_<addr> aliases,
+            then namespace-suffix match) so a later regeneration reproduces it.
+            """
             addr = func.get('address')
             addr_int = None
             if isinstance(addr, str):
@@ -362,21 +418,27 @@ class SSEHandler(SimpleHTTPRequestHandler):
                                f'thunk_FUN_{addr_int:08x}']
             for key in candidates:
                 if key and key in vc71_results:
-                    return vc71_results[key]['score']
+                    return vc71_results[key]
             name = func.get('name')
             for key, info in vc71_results.items():
                 if key.rsplit('::', 1)[-1] == name:
-                    return info['score']
+                    return info
             return None
 
         updated_funcs = {}
+        updated_opnd = {}
         for unit in report.get('units', []):
             if unit['name'] == unit_name:
                 for func in unit.get('functions', []):
-                    score = _score_for(func)
-                    if score is not None:
-                        func['match_percent'] = round(score, 2)
+                    info = _result_for(func)
+                    if info is not None:
+                        func['match_percent'] = round(info['score'], 2)
                         updated_funcs[func.get('name')] = func['match_percent']
+                        # Advisory; tolerated absent on older cached lines.
+                        opnd = info.get('opnd_percent')
+                        if opnd is not None:
+                            func['opnd_percent'] = round(opnd, 2)
+                            updated_opnd[func.get('name')] = func['opnd_percent']
                 break
 
         # Recompute unit summary and global summary.
@@ -400,7 +462,8 @@ class SSEHandler(SimpleHTTPRequestHandler):
         )
         logging.info('VC71-scored unit %s: %d function(s) updated in %.1fs — %s',
                      unit_name, len(updated_funcs), total_elapsed, score_summary or 'none')
-        return {'ok': True, 'unit': unit_name, 'scores': updated_funcs}
+        return {'ok': True, 'unit': unit_name, 'scores': updated_funcs,
+                'opnd_scores': updated_opnd}
 
     def log_message(self, format, *args):
         logging.info("%s - %s", self.client_address[0], format % args)

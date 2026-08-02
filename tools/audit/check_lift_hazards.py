@@ -656,6 +656,102 @@ def check_callee_output_size(filepath, content, lines):
     return errors
 
 
+"""Known callees with a 64-bit (or wider) out-parameter.
+
+Maps callee -> {zero-based arg index: (required_bytes, what it is)}.  The XDK
+D3D visibility-test API takes a ULONGLONG* GPU timestamp; a 4-byte local there
+under-reserves the slot and the callee's high dword lands on whatever the
+compiler placed next to it (lift-learnings SS37).
+"""
+KNOWN_WIDE_OUT_PARAMS = {
+    'D3DDevice_GetVisibilityTestResult': {
+        2: (8, 'ULONGLONG* 64-bit GPU timestamp'),
+    },
+}
+
+# A 4-byte scalar local: `unsigned int x;` / `int x;` / `uint32_t x;` ...
+NARROW_SCALAR_DECL_RE = re.compile(
+    r'^\s*(?:const\s+)?(?:unsigned\s+|signed\s+)?'
+    r'(?:int|long|uint32_t|int32_t|unsigned|DWORD|float)\s+(\w+)\s*(?:=[^;]*)?;'
+)
+
+
+def _split_top_level_args(text):
+    """Split a call's argument text on top-level commas."""
+    args, depth, cur = [], 0, []
+    for ch in text:
+        if ch in '([{':
+            depth += 1
+        elif ch in ')]}':
+            depth -= 1
+        if ch == ',' and depth == 0:
+            args.append(''.join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        args.append(''.join(cur))
+    return args
+
+
+def check_wide_out_params(filepath, content, lines):
+    """Flag a 4-byte local passed where the callee writes 8 bytes.
+
+    lift-learnings SS37 (the lens-flare see-through bug).  The original
+    rasterizer_widget_get_occlusion_test_result reserves SUB ESP,0xc for two
+    locals: the 4-byte visible-pixel result at [EBP-4] and an EIGHT-byte
+    timestamp at [EBP-0xc].  Our lift declared the timestamp `unsigned int`,
+    so clang laid the 4-byte result directly above it and
+    D3DDevice_GetVisibilityTestResult's 64-bit store clobbered the result with
+    the timestamp's high dword.  Every lens flare then read back as fully
+    visible and light sources rendered straight through walls.
+
+    Nothing else catches this: it never crashes, never trips an assert, and
+    VC71 byte-match barely moves (the frame is only 4 bytes short).
+
+    Conservative: only flags when the argument resolves to a scalar local
+    declared in the same file.  Arrays (`unsigned int ts[2];`), 64-bit types
+    and struct/param pointers are accepted.
+    """
+    errors = []
+    if not any(fn in content for fn in KNOWN_WIDE_OUT_PARAMS):
+        return errors
+
+    # scalar locals only: an `x[2]` declaration never matches this pattern
+    narrow_decls = {}
+    for lineno, line in enumerate(lines, 1):
+        m = NARROW_SCALAR_DECL_RE.match(line)
+        if m:
+            narrow_decls.setdefault(m.group(1), lineno)
+
+    for fname, wide_args in KNOWN_WIDE_OUT_PARAMS.items():
+        # tolerate calls split across lines
+        for m in re.finditer(re.escape(fname) + r'\s*\(([^;]*?)\)\s*;', content,
+                             re.DOTALL):
+            args = [a.strip() for a in _split_top_level_args(m.group(1))]
+            lineno = content[:m.start()].count('\n') + 1
+            for idx, (need, what) in wide_args.items():
+                if idx >= len(args):
+                    continue
+                arg = args[idx]
+                if not arg.startswith('&'):
+                    continue          # already a pointer/array: assume sized
+                name = arg[1:].strip()
+                if name in narrow_decls:
+                    relpath = os.path.relpath(filepath, ROOT_DIR)
+                    errors.append(
+                        f'  {relpath}:{lineno}: {fname} arg{idx} is a '
+                        f'{what} — needs {need} bytes, but `{name}` is a '
+                        f'4-byte scalar declared at line {narrow_decls[name]}. '
+                        f'The callee\'s high dword will overwrite the '
+                        f'neighbouring local — declare '
+                        f'`unsigned int {name}[{need // 4}];` and pass '
+                        f'`{name}` (a uint64_t also works but makes clang '
+                        f'realign the frame, deviating from the original)'
+                    )
+    return errors
+
+
 KNOWN_FLOAT_INPUT_ARITY = {
     'FUN_000d1c90': (4, 'real_argb_color_to_pixel32 reads float[4] {a,r,g,b}'),
     'FUN_000d1dd0': (3, 'real_rgb_color_to_pixel32 reads float[3] {r,g,b}'),
@@ -1549,6 +1645,99 @@ def check_raw_fnptr_conv_cast(filepath, content, lines):
     return errors
 
 
+# ---------------------------------------------------------------------------
+# Vendored open-source TU detection (lift-learnings §36)
+# ---------------------------------------------------------------------------
+
+# library -> (distinctive symbol set, upstream hint).  A library belongs here
+# only if (a) its C source is publicly available, so "lift from upstream" is
+# actionable, and (b) its names are distinctive enough that several of them in
+# one TU cannot be coincidence.  Closed-source middleware (Bink) is
+# deliberately absent: there is no source to transcribe.
+_VENDORED_FINGERPRINTS = {
+    'zlib': (
+        frozenset((
+            'inflate', 'inflateInit_', 'inflateInit2_', 'inflateReset',
+            'inflateEnd', 'inflateSync', 'inflateSyncPoint',
+            'inflateSetDictionary', 'inflate_blocks', 'inflate_blocks_free',
+            'inflate_blocks_new', 'inflate_blocks_reset', 'inflate_codes',
+            'inflate_codes_new', 'inflate_codes_free', 'inflate_fast',
+            'inflate_flush', 'inflate_trees_bits', 'inflate_trees_dynamic',
+            'inflate_trees_fixed', 'inflate_set_dictionary', 'huft_build',
+            'deflate', 'deflateInit_', 'deflateEnd', 'deflate_stored',
+            'deflate_fast', 'deflate_slow', 'longest_match', 'fill_window',
+            '_tr_init', '_tr_align', '_tr_tally', '_tr_flush_block',
+            '_tr_stored_block', 'adler32', 'crc32', 'compress', 'compress2',
+            'uncompress', 'zError', 'zlibVersion', 'zcalloc', 'zcfree',
+        )),
+        'zlib 1.1.x (infcodes.c / inftrees.c / infblock.c / trees.c). '
+        'Halo shipped it with ZLIB_DEBUG on, so z_verbose / Tracevv calls '
+        'and the "inflate:         literal" strings are in the binary and '
+        'pin the version.',
+    ),
+}
+_VENDORED_MIN_HITS = 4
+
+
+def _toplevel_defined_names(lines):
+    """Names defined at column 0 in this TU (definitions, not prototypes)."""
+    names = {}
+    for i, line in enumerate(lines):
+        if not line[:1].isalpha() and line[:1] != '_':
+            continue
+        if line.rstrip().endswith(';'):
+            continue
+        paren = line.find('(')
+        if paren <= 0:
+            continue
+        head = line[:paren].rstrip()
+        m = re.search(r'([A-Za-z_][A-Za-z0-9_]*)$', head)
+        if m:
+            names.setdefault(m.group(1), i + 1)
+    return names
+
+
+def check_vendored_source(filepath, content, lines):
+    """Flag a TU that is vendored open-source C but still holds FUN_ stubs.
+
+    When the object is a known library, the delinked reference IS that
+    library's source compiled by VC71 — so the fastest route to a match is to
+    transcribe upstream, not to keep reshaping Ghidra output.  Two things
+    Ghidra gets wrong that upstream fixes for free (lift-learnings §36):
+
+      * Parameter ORDER.  Ghidra lists @<reg> params first regardless of their
+        real source position, which shifts every later [ebp+N] operand.
+      * Expression FORM.  Upstream's `*xp++ = (j += *p++);` and its macro set
+        produce different (matching) codegen from the same logic written out
+        long-hand.
+
+    Advisory only, and silent once the TU has no FUN_ names left.
+    """
+    errors = []
+    relpath = os.path.relpath(filepath, ROOT_DIR)
+    defined = _toplevel_defined_names(lines)
+    if not defined:
+        return errors
+
+    for lib, (fingerprint, hint) in _VENDORED_FINGERPRINTS.items():
+        hits = sorted(set(defined) & fingerprint)
+        if len(hits) < _VENDORED_MIN_HITS:
+            continue
+        stubs = sorted(n for n in defined if n.startswith('FUN_'))
+        if not stubs:
+            continue
+        lineno = min(defined[n] for n in stubs)
+        errors.append(
+            f'  {relpath}:{lineno}: TU is vendored {lib} '
+            f'({len(hits)} upstream symbols: {", ".join(hits[:6])}'
+            f'{"..." if len(hits) > 6 else ""}) with {len(stubs)} FUN_ '
+            f'placeholder(s) left — lift these from the upstream source, not '
+            f'from Ghidra (lift-learnings §36). Upstream: {hint}'
+        )
+    return errors
+
+
+
 def main():
     frame_audit = '--frame-size-audit' in sys.argv
     quiet = '-q' in sys.argv or '--quiet' in sys.argv or os.environ.get('LOG_LEVEL') == 'WARNING'
@@ -1567,6 +1756,7 @@ def main():
     all_alias_errors = []
     all_frame_errors = []
     all_output_size_errors = []
+    all_wide_out_errors = []
     all_packer_arity_errors = []
     all_x87_math_errors = []
     all_concat_errors = []
@@ -1579,6 +1769,7 @@ def main():
     all_nan_guard_errors = []
     all_range_gate_errors = []
     all_fnptr_conv_errors = []
+    all_vendored_errors = []
 
     for fpath in c_files:
         with open(fpath, 'r', errors='replace') as f:
@@ -1591,6 +1782,7 @@ def main():
         all_ptr_float_errors.extend(check_pointer_as_float(fpath, content, lines, params_map))
         all_alias_errors.extend(check_buffer_alias(fpath, content, lines))
         all_output_size_errors.extend(check_callee_output_size(fpath, content, lines))
+        all_wide_out_errors.extend(check_wide_out_params(fpath, content, lines))
         all_packer_arity_errors.extend(check_packer_input_arity(fpath, content, lines))
         all_x87_math_errors.extend(check_x87_math(fpath, content, lines))
         all_concat_errors.extend(check_concat_survival(fpath, content, lines))
@@ -1603,6 +1795,7 @@ def main():
         all_nan_guard_errors.extend(check_nan_blind_guard(fpath, content, lines))
         all_range_gate_errors.extend(check_range_gate_relational(fpath, content, lines))
         all_fnptr_conv_errors.extend(check_raw_fnptr_conv_cast(fpath, content, lines))
+        all_vendored_errors.extend(check_vendored_source(fpath, content, lines))
         if frame_audit:
             all_frame_errors.extend(check_frame_sizes(fpath, content, lines))
 
@@ -1615,6 +1808,7 @@ def main():
             f'pointer_as_float: {len(all_ptr_float_errors)}, '
             f'buffer_alias: {len(all_alias_errors)}, '
             f'callee_output_size: {len(all_output_size_errors)}, '
+            f'wide_out_params: {len(all_wide_out_errors)}, '
             f'packer_arity: {len(all_packer_arity_errors)}, '
             f'x87_math: {len(all_x87_math_errors)}, '
             f'concat_survival: {len(all_concat_errors)}, '
@@ -1626,20 +1820,23 @@ def main():
             f'vec_contiguity: {len(all_contiguity_errors)}, '
             f'nan_guard: {len(all_nan_guard_errors)}, '
             f'range_gate: {len(all_range_gate_errors)}, '
-            f'fnptr_conv: {len(all_fnptr_conv_errors)}'
+            f'fnptr_conv: {len(all_fnptr_conv_errors)}, '
+            f'vendored_src: {len(all_vendored_errors)}'
         )
         if frame_audit:
             counts += f', frame_sizes: {len(all_frame_errors)}'
         total = (len(all_void_eax_errors) + len(all_intrinsic_errors) + len(all_buffer_errors) +
                  len(all_duplicate_errors) + len(all_ptr_float_errors) +
                  len(all_alias_errors) + len(all_frame_errors) +
-                 len(all_output_size_errors) + len(all_packer_arity_errors) +
+                 len(all_output_size_errors) + len(all_wide_out_errors) +
+                 len(all_packer_arity_errors) +
                  len(all_x87_math_errors) +
                  len(all_concat_errors) + len(all_float_smuggle_errors) +
                  len(all_addr_value_add_errors) + len(all_param_loop_errors) +
                  len(all_discard_result_errors) + len(all_inplace_mut_errors) +
                  len(all_contiguity_errors) + len(all_nan_guard_errors) +
-                 len(all_range_gate_errors) + len(all_fnptr_conv_errors))
+                 len(all_range_gate_errors) + len(all_fnptr_conv_errors) +
+                 len(all_vendored_errors))
         if total:
             print(counts, file=sys.stderr)
     else:
@@ -1672,6 +1869,19 @@ def main():
                 file=sys.stderr,
             )
             for e in all_buffer_errors:
+                print(e, file=sys.stderr)
+            print(file=sys.stderr)
+
+        if all_wide_out_errors:
+            print(
+                'ERROR: 4-byte local passed as a 64-bit out-parameter.\n'
+                'The callee writes 8 bytes; the high dword lands on whatever\n'
+                'the compiler placed next to it (lift-learnings SS37 — lens\n'
+                'flares rendered through walls for weeks because the D3D\n'
+                'visibility timestamp clobbered the pixel count):\n',
+                file=sys.stderr,
+            )
+            for e in all_wide_out_errors:
                 print(e, file=sys.stderr)
             print(file=sys.stderr)
 
@@ -1879,6 +2089,20 @@ def main():
                 file=sys.stderr,
             )
             for e in all_fnptr_conv_errors:
+                print(e, file=sys.stderr)
+            print(file=sys.stderr)
+
+        if all_vendored_errors:
+            print(
+                'NOTE: vendored open-source translation unit. The delinked\n'
+                'reference is that library compiled by VC71, so transcribing\n'
+                'the upstream source beats reshaping Ghidra output: parameter\n'
+                'ORDER (Ghidra lists @<reg> params first) and expression FORM\n'
+                'alone moved two zlib functions 73%->97% and 82%->98%\n'
+                '(lift-learnings §36):\n',
+                file=sys.stderr,
+            )
+            for e in all_vendored_errors:
                 print(e, file=sys.stderr)
             print(file=sys.stderr)
 

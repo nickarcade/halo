@@ -1191,6 +1191,38 @@ char FUN_00172a30(int param_1, const float *shadow_matrix,
   return 1;
 }
 
+/* 0x173af0
+ *
+ * FUN_00173af0
+ *
+ * Third instruction-identical instantiation of the SetVertexData2f
+ * forwarder already lifted at 0x1703f0 and 0x172650 -- see the long ABI
+ * note above 0x1703f0 for the derivation. Same 11 instructions, same
+ * ignored device pointer, same EDX-borne register index, same S_OK.
+ *
+ * ABI, read off the disassembly at 00173af0:
+ *   - RET 0xc => __stdcall with three stack args at +8/+0xc/+0x10. The
+ *     first (+8, the device pointer) is never read; it must stay in the
+ *     signature or the callee-cleans immediate would drop to 0x8.
+ *   - PUSH EDX @00173afb with no prior write to EDX => the D3D register
+ *     index is a register argument, annotated @<edx> in kb.json.
+ *   - Stack args 2 and 3 are forwarded as verbatim 32-bit pushes with no
+ *     FLD/FSTP, but they land in the callee's `float a`/`float b`
+ *     parameters, so they are typed float here (an int-typed passthrough
+ *     would make the compiler emit FILD and convert the bit pattern).
+ *   - XOR EAX,EAX @00173b01 => returns S_OK.
+ *
+ * Push sequence at the CALL: PUSH EAX ([EBP+0x10]) then PUSH ECX
+ * ([EBP+0xc]) then PUSH EDX; last push is the first argument, hence
+ * SetVertexData2f(reg, a, b) with a=[EBP+0xc], b=[EBP+0x10].
+ */
+int FUN_00173af0(void *device, uint32_t reg, float a, float b)
+{
+  (void)device;
+  D3DDevice_SetVertexData2f(reg, a, b);
+  return 0;
+}
+
 /* 0x173b40 — install the fixed-function / vertex-shader / pixel-shader state
  * for one screen-space (text / meter) draw pass.
  *
@@ -1570,6 +1602,55 @@ void FUN_001741d0(float *quad)
   }
 }
 
+/*
+ * FUN_001744f0 @ 0x1744f0 — register-convention adapter for
+ * D3DDevice_CreateVertexBuffer, byte-identical in shape to FUN_0015c2b0
+ * (0x15c2b0) and FUN_0015d020 (0x15d020) in rasterizer_xbox_decals.c.
+ *
+ * The whole body is:
+ *     PUSH EBP / MOV EBP,ESP
+ *     PUSH EAX            ; incoming EAX -> callee arg5 (ppVertexBuffer)
+ *     MOV  EAX,[EBP+0x10] ; stack param s3
+ *     PUSH ECX            ; incoming ECX -> callee arg4 (pool)
+ *     MOV  ECX,[EBP+0x0c] ; stack param s2
+ *     PUSH EDX            ; incoming EDX -> callee arg3 (fvf)
+ *     PUSH EAX            ; s3          -> callee arg2 (usage)
+ *     PUSH ECX            ; s2          -> callee arg1 (length)
+ *     CALL D3DDevice_CreateVertexBuffer
+ *     POP  EBP / RET 0xC
+ *
+ * Confirmed:
+ *  - RET 0xC => three stack params.  The first one ([EBP+8], s1) is never
+ *    read; it is the ignored device pointer, mirroring the two decals.c
+ *    siblings.  It must stay declared or the caller's stack cleanup breaks.
+ *  - EAX/ECX/EDX are live *inputs*: they are pushed at 0x1744f3/f7/fb while
+ *    still holding the caller's values, before any MOV overwrites them.
+ *    They are consumed as callee arguments (the stdcall callee pops all
+ *    five), so ESP is back at the saved EBP by the POP — they are not saved
+ *    registers.
+ *  - Push order is right-to-left, so the two stack params feed callee args 1
+ *    and 2 in swapped slot order: length = [EBP+0x0c] (s2),
+ *    usage = [EBP+0x10] (s3).
+ *  - There is no MOV to EAX after the CALL: the callee's HRESULT falls
+ *    through as this function's return value (lift-learnings §16), so this
+ *    is int-returning, not void as Ghidra reports.
+ *
+ * Uncertain: no direct call sites were found, so the ignored s1 slot's
+ * intended meaning is inferred from the sibling adapters only.
+ *
+ * Note: the decl is left without __stdcall (matching both siblings) because
+ * the @<reg> thunk generator owns the callee-side stack cleanup; adding
+ * __stdcall to a register-argument definition is rejected by the generated
+ * decl.h.  Our C body therefore ends in a plain RET where the original has
+ * RET 0xC.
+ */
+/* 0x1744f0 */
+int FUN_001744f0(int r1, int r2, int r3, int s1, int s2, int s3)
+{
+  (void)s1;
+  return D3DDevice_CreateVertexBuffer(s2, s3, r3, r2, (void **)r1);
+}
+
 /* 0x174510
  *
  * FUN_00174510
@@ -1710,7 +1791,14 @@ void FUN_001749b0(void)
   short rect[4]; /* [EBP-0xc] x0, y0, x1, y1 */
   int area; /* [EBP-0x10] viewport area — the FIDIV divisor */
   unsigned int pixels; /* [EBP-0x14] visibility-test result, seeded to -1 */
-  unsigned int timestamp; /* [EBP-0x1c] second out param */
+  /* [EBP-0x1c] second out param — EIGHT bytes, not four.  The third
+   * parameter of D3DDevice_GetVisibilityTestResult is a ULONGLONG* (64-bit
+   * GPU timestamp); the original reserves [EBP-0x1c]..[EBP-0x15] for it,
+   * with `pixels` starting at [EBP-0x14].  A 4-byte local here lets the
+   * callee's high dword overwrite the neighbouring local (lift-learnings
+   * §37).  Spelled as two dwords rather than a 64-bit scalar so the slot
+   * keeps 4-byte alignment and clang does not realign the frame. */
+  unsigned int timestamp[2];
   char text[0x100]; /* [EBP-0x11c] */
   char ok; /* EBX — running success flag */
   int hr;
@@ -1739,7 +1827,7 @@ void FUN_001749b0(void)
   /* the two LEAs and the index push are re-done every iteration in the
    * original (the loop head is the first LEA, not the CALL). */
   do {
-    hr = D3DDevice_GetVisibilityTestResult(0xfff, &pixels, &timestamp);
+    hr = D3DDevice_GetVisibilityTestResult(0xfff, &pixels, timestamp);
   } while (hr == (int)0x88760828);
   if (ok != 0 && hr >= 0) {
     ok = 1;
@@ -4022,6 +4110,42 @@ tail:
   }
 }
 
+/* 0x178820 — __stdcall shim around IDirect3DDevice8::CreateVertexShader.
+ *
+ * Same family as the D3D8 __forceinline wrappers at 0x1703f0 / 0x172650
+ * above: a tiny argument-shuffling thunk that forwards to the real D3D
+ * entry point. Eleven instructions, one CALL, no FPU, no locals.
+ *
+ * ABI (kb.json previously said `void FUN_00178820(void)`, wrong on every
+ * count), read straight off the disassembly:
+ *   - RET 0x8 => __stdcall with TWO stack args at +8 and +0xc. The first
+ *     (+8) is never read anywhere in the body, exactly as the device
+ *     pointer is ignored in the 0x1703f0 variant.
+ *   - THREE arguments arrive in registers with no prior write in the
+ *     function, so they are implicit inputs: EAX @00178823, ECX @00178827,
+ *     EDX @00178828.
+ *   - Push sequence @00178823..00178829 is PUSH EAX (as it arrived),
+ *     PUSH ECX, PUSH EDX, PUSH EAX (reloaded from [EBP+0xc]). Last push is
+ *     the first argument of the stdcall callee, so against the callee decl
+ *     CreateVertexShader(declaration, code, handle, flags) this gives
+ *     declaration=[EBP+0xc], code=EDX, handle=ECX, flags=EAX-on-entry.
+ *   - No MOV EAX after the CALL and no XOR EAX,EAX before the POP/RET, so
+ *     the callee's HRESULT falls through as this function's return value.
+ *     Declaring it void would drop the result (lift-learnings §16).
+ *
+ * As with 0x1703f0 the C impl below is plain cdecl even though kb.json
+ * records the original as __stdcall: knowledge.py strips the convention
+ * from any @<reg> declaration when generating decl.h, and patch.py's
+ * reverse thunk is what honours the callee-cleans RET 0x8 contract.
+ */
+int FUN_00178820(unsigned long flags, unsigned long *handle,
+                 unsigned long *code, void *unused_arg0,
+                 unsigned long *declaration)
+{
+  (void)unused_arg0;
+  return D3DDevice_CreateVertexShader(declaration, code, handle, flags);
+}
+
 /* 0x1792a0 — byte-mode setter for the adjacent global pair at
  * 0x47e4c8/0x47e4c9. 9 instructions, no calls, no FPU. The disassembly loads
  * the single stack arg once as a BYTE (MOV AL, byte ptr [EBP+8]), derives a
@@ -4084,6 +4208,93 @@ char FUN_001792d0(void)
   return *(char *)0x47e4c9;
 }
 
+/* 0x179570 — a third byte-identical instantiation of the D3D8 __forceinline
+ * wrapper around D3DDevice_SetVertexData2f, matching FUN_001703f0 and
+ * FUN_00172650 above instruction for instruction. Disassembled from the
+ * pristine cachebeta.xbe (11 instructions, 0x179570..0x179584):
+ *   push ebp / mov ebp,esp
+ *   mov eax,[ebp+0x10] ; mov ecx,[ebp+0xc]
+ *   push eax ; push ecx ; push edx
+ *   call 0x1ed280                  ; D3DDevice_SetVertexData2f, __stdcall
+ *   xor eax,eax / pop ebp / ret 0xc
+ *
+ * ABI evidence (kb.json previously said `void FUN_00179570(void)`, wrong on
+ * every count):
+ *  - RET 0xc => __stdcall with THREE stack args at +8/+0xc/+0x10. The first
+ *    (+8, the device pointer of the inline member instantiation) is never
+ *    read; it is kept in the signature because the callee-cleanup immediate
+ *    depends on it. Dropping it would shift every caller's ESP.
+ *  - The D3D register index arrives in EDX: PUSH EDX @0017957b with no prior
+ *    write to EDX anywhere in the function, so it is an implicit register
+ *    input (@<edx> in kb.json), not a stack slot.
+ *  - Returns S_OK in EAX: XOR EAX,EAX @00179581. Lifting this as void would
+ *    be the §16 void-EAX hazard (dropped implicit return).
+ *  - Both floats are forwarded as raw dwords through GPRs (no FLD/FSTP), a
+ *    pure bit passthrough, so typing them `float` is safe and matches the
+ *    callee's kb.json declaration; typing them `int` would make VC71 emit a
+ *    spurious FILD conversion.
+ *
+ * Argument order into the callee is from the push sequence -- last push is
+ * the first argument -- so SetVertexData2f(edx, [EBP+0xc], [EBP+0x10]).
+ *
+ * The C impl is cdecl, not __stdcall, even though kb.json records the
+ * original as __stdcall: knowledge.py strips the convention from any @<reg>
+ * declaration when generating decl.h, because the generated thunk presents a
+ * cdecl interface to C, and patch.py's reverse thunk restores the original
+ * RET 0xc contract for the original callers.
+ */
+int FUN_00179570(void *device, uint32_t reg, float a, float b)
+{
+  (void)device;
+  D3DDevice_SetVertexData2f(reg, a, b);
+  return 0;
+}
+
+/* 0x17ad20 — a second, byte-identical instantiation of the same
+ * IDirect3DDevice8::SetVertexData2f inline member wrapper already ported at
+ * FUN_00179570 above. MSVC emitted the inline body once per translation unit
+ * that used it; the linker kept both copies. The two functions are the same
+ * eleven instructions with the same encodings:
+ *
+ *   push ebp / mov ebp,esp
+ *   mov eax,[ebp+0x10]      ; third stack slot -> b
+ *   mov ecx,[ebp+0xc]       ; second stack slot -> a
+ *   push eax / push ecx / push edx
+ *   call 0x1ed280           ; D3DDevice_SetVertexData2f, __stdcall, cleans 12
+ *   xor eax,eax / pop ebp / ret 0xc
+ *
+ * ABI evidence (verified against the pristine cachebeta.xbe, not Ghidra,
+ * which reports this as `void __cdecl FUN_0017ad20(void)`):
+ *  - EDX is PUSHed at 0017ad2b with no prior write anywhere in the function,
+ *    so it is an implicit register input, not a scratch value. It becomes the
+ *    callee's `reg` (vertex-data register index) argument -> @<edx>.
+ *  - RET 0xc = 12 bytes = three caller-pushed dwords at [ebp+0x8], [ebp+0xc]
+ *    and [ebp+0x10], i.e. __stdcall. Dropping a parameter to match the two
+ *    slots actually read would leave 4 bytes uncleaned in every caller
+ *    (lift-learnings §30, the 0x158df0 ESP-drift class).
+ *  - [ebp+0x8] is never read: it is the discarded `this`/device argument of
+ *    the inline member instantiation. It is declared and left unused so the
+ *    stack size stays correct.
+ *  - The two float arguments are forwarded as raw dwords through EAX/ECX with
+ *    no FLD/FSTP anywhere, i.e. a pure bit passthrough. Typing them `float`
+ *    matches the callee's kb.json declaration and avoids the FILD/int
+ *    conversion that an int-typed passthrough would emit (FUN_001a7c70 class).
+ *  - XOR EAX,EAX before the RET is a real `return 0` (S_OK), not a dead
+ *    write; lifting this as void would be the §16 void-EAX hazard.
+ *
+ * As with FUN_00179570, the C impl is written cdecl even though kb.json
+ * records the original as __stdcall: knowledge.py strips the convention from
+ * any @<reg> declaration when generating decl.h, because the generated thunk
+ * presents a cdecl interface to C, and patch.py's reverse thunk restores the
+ * original RET 0xc contract for the original callers.
+ */
+int FUN_0017ad20(void *device, uint32_t reg, float a, float b)
+{
+  (void)device;
+  D3DDevice_SetVertexData2f(reg, a, b);
+  return 0;
+}
+
 /* 0x17ad40 — dead D3D8 inline-wrapper instantiation of
  * IDirect3DDevice8::SetVertexData4f, byte-identical in shape to the already
  * ported FUN_0015a4f0 in rasterizer_xbox_decals.c.
@@ -4130,14 +4341,14 @@ int __stdcall FUN_0017ad40(void *device, uint32_t reg, float a, float b,
  * "### ERROR rasterizer_widget_submit_occlusion_test failed" (0x2ae898) to
  * error().
  *
- * Ghidra lost the whole signature -- it reports `void __cdecl FUN_0017ba10(void)`
- * with extraout_AL / extraout_EAX. The disassembly proves three cdecl stack
- * params at [EBP+8] / [EBP+0xC] / [EBP+0x10] and an int return in EAX:
- *   [EBP+8]    forwarded as arg1 of FUN_0017a8a0  -> float *position
- *   [EBP+0xC]  forwarded as arg2 of FUN_0017a8a0  -> float radius (kb decl of
- *              the callee types this slot `float`; it is never touched here,
- *              only re-pushed, which is why Ghidra could not see the type)
- *   [EBP+0x10] pushed to D3DDevice_EndVisibilityTest -> visibility-test index
+ * Ghidra lost the whole signature -- it reports `void __cdecl
+ * FUN_0017ba10(void)` with extraout_AL / extraout_EAX. The disassembly proves
+ * three cdecl stack params at [EBP+8] / [EBP+0xC] / [EBP+0x10] and an int
+ * return in EAX: [EBP+8]    forwarded as arg1 of FUN_0017a8a0  -> float
+ * *position [EBP+0xC]  forwarded as arg2 of FUN_0017a8a0  -> float radius (kb
+ * decl of the callee types this slot `float`; it is never touched here, only
+ * re-pushed, which is why Ghidra could not see the type) [EBP+0x10] pushed to
+ * D3DDevice_EndVisibilityTest -> visibility-test index
  *
  * Return value is EDI, the signed area product, not a bool and not void:
  *   global 0x3256fc == 0        -> 1  (feature disabled: "test passed")
@@ -4192,8 +4403,9 @@ int rasterizer_widget_submit_occlusion_test(float *position, float radius,
    * MSVC emits for this nesting rather than for inline early returns. */
   if (*(char *)0x3256fc != 0) {
     if (FUN_0017a8a0(position, radius, extent, screen)) {
-      /* FLD 1.0f ; FCOMP extent -- the constant is the left operand, so the test
-       * is written 1.0f > extent, not extent < 1.0f, to keep the load order. */
+      /* FLD 1.0f ; FCOMP extent -- the constant is the left operand, so the
+       * test is written 1.0f > extent, not extent < 1.0f, to keep the load
+       * order. */
       if (1.0f > extent[0]) {
         extent[0] = 1.0f;
       }
@@ -4258,8 +4470,10 @@ int rasterizer_widget_submit_occlusion_test(float *position, float radius,
           hr = D3DDevice_EndVisibilityTest(index);
           if (hr < 0) {
             FUN_00167ff0(
-                hr, "IDirect3DDevice8_EndVisibilityTest(global_d3d_device, index)");
-            error(2, "### ERROR rasterizer_widget_submit_occlusion_test failed");
+              hr,
+              "IDirect3DDevice8_EndVisibilityTest(global_d3d_device, index)");
+            error(2,
+                  "### ERROR rasterizer_widget_submit_occlusion_test failed");
           }
         }
         return area;
