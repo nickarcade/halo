@@ -3123,7 +3123,10 @@ char pill_intersects_rectangle2d(float *pill_center, float *pill_dir,
       return 1;
     result = 0;
   }
-  if (rect[1] < pill_center[0]) {
+  /* `center > edge`, not `edge < center`: the original loads the pill
+   * center and compares the rect field (TEST AH,0x41/JNE guard); the
+   * swapped operand order flips the guard shape ([FCOM-WARN]). */
+  if (pill_center[0] > rect[1]) {
     edge_start[0] = rect[1];
     edge_start[1] = rect[2];
     edge_dir[0] = 0.0f;
@@ -3133,7 +3136,7 @@ char pill_intersects_rectangle2d(float *pill_center, float *pill_dir,
       return 1;
     result = 0;
   }
-  if (rect[3] < pill_center[1]) {
+  if (pill_center[1] > rect[3]) {
     edge_start[0] = rect[0];
     edge_start[1] = rect[3];
     edge_dir[0] = rect[1] - rect[0];
@@ -3670,7 +3673,21 @@ unsigned char quantize_real_to_byte_lower_bound(float min, float max,
   range = max - min;
   test = (unsigned char)(int)((value - min) / range * 255.0f);
 
-  if (!(min - *(float *)0x253f44 < value) || max + *(float *)0x253f44 < value) {
+  /* 0x10fb4f / 0x10fc8f: FCOMP (min-eps) against value / TEST AH,0x41 / JP
+   * assert.  JP is taken only when C0 and C3 are both clear (strictly greater)
+   * or the compare was unordered; equality sets C3 alone and falls through to
+   * the pass path.  So the low bound is INCLUSIVE -- assert when
+   * (min - eps) > value, not when (min - eps) >= value.
+   *
+   * Keep the negated form: JP is ALSO taken when the compare is unordered
+   * (C0 and C3 both set is even parity too), so the predicate must be true for
+   * NaN.  `!(x <= value)` is true for both "greater" and "unordered"; the
+   * positive `x > value` is false on NaN and both loses the NaN reject and
+   * costs ~1pp of VC71 match.  The high bound below is TEST AH,1 / JE pass,
+   * i.e. assert when (max + eps) < value; its unordered case is unreachable
+   * because a NaN would already have been caught above. */
+  if (!(min - *(float *)0x253f44 <= value) ||
+      max + *(float *)0x253f44 < value) {
     csprintf((char *)0x5ab100, "%lf is not between %lf and %lf", (double)value,
              (double)min, (double)max);
     display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\math\\real_math.c",
@@ -3712,7 +3729,21 @@ unsigned char quantize_real_to_byte_upper_bound(float min, float max,
 
   test = (unsigned char)(int)((value - min) / (max - min) * 255.0f);
 
-  if (!(min - *(float *)0x253f44 < value) || max + *(float *)0x253f44 < value) {
+  /* 0x10fb4f / 0x10fc8f: FCOMP (min-eps) against value / TEST AH,0x41 / JP
+   * assert.  JP is taken only when C0 and C3 are both clear (strictly greater)
+   * or the compare was unordered; equality sets C3 alone and falls through to
+   * the pass path.  So the low bound is INCLUSIVE -- assert when
+   * (min - eps) > value, not when (min - eps) >= value.
+   *
+   * Keep the negated form: JP is ALSO taken when the compare is unordered
+   * (C0 and C3 both set is even parity too), so the predicate must be true for
+   * NaN.  `!(x <= value)` is true for both "greater" and "unordered"; the
+   * positive `x > value` is false on NaN and both loses the NaN reject and
+   * costs ~1pp of VC71 match.  The high bound below is TEST AH,1 / JE pass,
+   * i.e. assert when (max + eps) < value; its unordered case is unreachable
+   * because a NaN would already have been caught above. */
+  if (!(min - *(float *)0x253f44 <= value) ||
+      max + *(float *)0x253f44 < value) {
     csprintf((char *)0x5ab100, "%lf is not between %lf and %lf", (double)value,
              (double)min, (double)max);
     display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\math\\real_math.c",
