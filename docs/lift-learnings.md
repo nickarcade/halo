@@ -1453,3 +1453,9 @@ lift-only at an unchanged LCS score), and its first sweep surfaced and fixed
 three latent form divergences (`player_control_update_desired_angles`
 89.8→91.2%, `player_control_get_facing` 81.7→85.7%,
 `pill_intersects_rectangle2d` 96.9→98.4%).
+
+---
+
+## 39. VC71 Byte Accuracy Tuning Playbook
+
+**Automation:** PARTIAL — `vc71_verify.py` provides `--show-diffs`, `--loadw-only`, `--imm-only`, `--fcom-only`, and per-function classification packs in `artifacts/score_context/`; full recipe atlas is now `.claude/skills/lift-score-improve/SKILL.md` (see also `docs/vc71-byte-accuracy-playbook.md`, a stub pointing at the same skill).

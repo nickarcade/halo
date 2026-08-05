@@ -118,6 +118,110 @@ void FUN_00053bf0(void)
 }
 
 
+/* 0x00053c50 — actor debug-line overlay pass (FUN_00053c50).
+ *
+ * Called first thing from the encounters_update dispatcher (0x53da0).  When the
+ * debug mode selector at 0x5abaa2 is positive and a camera exists, draws one
+ * debug line per live actor from a point just in front of the camera to either
+ * the actor's own vec3 (actor+0x120) or, for swarm-style actors, to each
+ * member unit's head position.
+ *
+ * Globals:
+ *   0x5abaa2 (int16, SIGNED) : debug mode selector.  Confirmed narrow:
+ *     `MOV CX,word ptr [0x5abaa2]` + `MOVSX ECX,CX`, and later
+ *     `MOVSX EAX,word ptr [0x5abaa2]` — read as a short at every use site, so
+ *     it is re-read here rather than hoisted into a local.
+ *     1 = actor_action_debug_color, 2 = actor_activation_debug_color,
+ *     anything else = actor skipped.
+ *   actor_data (0x6325a4) : actor pool, indexed by the iterator's handle.
+ *
+ * Camera-offset point: [EAX+0x20/0x24/0x28] * 0.05f + [EAX+0x00/0x04/0x08],
+ * i.e. forward * 0.05 + position.  FMUL then FADD, no subtraction — no
+ * operand-order hazard.  0.05f is the constant at 0x2533e8 (cd cc 4c 3d);
+ * spelled as a literal to avoid an IMM mismatch against a DAT_ reference.
+ *
+ * MSVC frame layout (SUB ESP,0x38):
+ *   [EBP-0x38] iter          0x18 bytes — FUN_00059b50 writes the current
+ *                            actor handle to iter+0x14 (EBP-0x24), so this must
+ *                            be one contiguous buffer, not two locals.
+ *   [EBP-0x1c] head_position 3 floats — out buffer for unit_get_head_position
+ *   [EBP-0x10] point         3 floats — camera-offset point, passed by LEA
+ *   [EBP-0x04] draw_flag     char (only the low byte is stored; the original
+ *                            pushes the whole dword slot)
+ *
+ * Confirmed: `PUSH EAX(flag); PUSH ECX(&iter)` at the 0x59b10 call — cdecl, so
+ * the argument order is (iter, flag).  The `ADD ESP,0xc` there is a merged
+ * cleanup covering that 2-arg call plus the following 1-arg FUN_00059b50; the
+ * second FUN_00059b50 site at 0x53d7e cleans with `ADD ESP,4`, proving the
+ * 1-arg declaration is correct (the argument-count audit's report of 3 args is
+ * a false positive).
+ * Confirmed: the dispatch is a DEC/DEC chain (`MOVSX EAX,[0x5abaa2]; DEC EAX;
+ * JZ; DEC EAX; JNZ`), i.e. a switch lowering, not an if/else-if chain.
+ * Confirmed: in the multi-unit loop the next-link is read from the pointer
+ * returned by object_get_and_verify_type (EDI), NOT from the actor record —
+ * Ghidra reuses one variable for both, which is register-aliasing noise.
+ * Confirmed: `ADD ESP,0x20` after FUN_00189270 in that loop cleans 4 + 2 + 2
+ * stack args (0x189270 + unit_get_head_position + object_get_and_verify_type).
+ */
+void FUN_00053c50(void)
+{
+  char iter[0x18];
+  float head_position[3];
+  float point[3];
+  char draw_flag;
+  short debug_mode;
+  float *camera;
+  char *actor_record;
+  char *object_record;
+  void *color;
+  int object_handle;
+
+  camera = (float *)observer_get_camera(0);
+  debug_mode = *(int16_t *)0x5abaa2;
+  if (debug_mode > 0 && camera != NULL) {
+    draw_flag = 1;
+    if (debug_mode == 2) {
+      draw_flag = 0;
+    }
+
+    point[0] = camera[8] * 0.05f + camera[0];
+    point[1] = camera[9] * 0.05f + camera[1];
+    point[2] = camera[10] * 0.05f + camera[2];
+
+    encounter_iterator_next(iter, draw_flag);
+    while (FUN_00059b50(iter) != 0) {
+      actor_record = (char *)datum_get(actor_data, *(int *)(iter + 0x14));
+
+      switch (*(int16_t *)0x5abaa2) {
+      case 1:
+        color = actor_action_debug_color(*(int *)(iter + 0x14));
+        break;
+      case 2:
+        color = actor_activation_debug_color(*(int *)(iter + 0x14));
+        break;
+      default:
+        continue;
+      }
+
+      if (color != NULL) {
+        if (*(char *)(actor_record + 6) != 0) {
+          object_handle = *(int *)(actor_record + 0x24);
+          while (object_handle != -1) {
+            object_record =
+              (char *)object_get_and_verify_type(object_handle, 3);
+            unit_get_head_position(object_handle, head_position);
+            FUN_00189270(1, point, head_position, color);
+            object_handle = *(int *)(object_record + 0x1ac);
+          }
+        } else {
+          FUN_00189270(1, point, (float *)(actor_record + 0x120), color);
+        }
+      }
+    }
+  }
+}
+
+
 /* 0x00053da0 — encounters_update dispatcher (FUN_00053da0).
  *
  * Master per-frame update tick for the encounter subsystem.  First recomputes
@@ -441,6 +545,210 @@ void FUN_000563c0(int actor_datum, unsigned int encounter_handle,
     if (do_migrate != 0)
       FUN_00036dc0(iVar4, param_3, 0);
   }
+}
+
+/*
+ * FUN_000564b0 — ai_migrate_by_unit: migrate the actors of a unit (and its
+ * child objects) into an encounter.
+ *
+ * Name evidence: the trace format string at 0x25c8f4 is
+ * "%s: ai_migrate_by_unit <some guys> %s".
+ *
+ * If either debug trace flag (0x5aca57 = ai_trace_detail or 0x5aca59 =
+ * ai_trace) is set, formats the destination encounter handle into a 512-byte
+ * scratch buffer via ai_index_to_string and logs it prefixed with the
+ * executing HS thread name.  The `error` call takes 4 dwords (2, fmt,
+ * thread_name, buffer) with a single ADD ESP,0x10 — the buffer pointer is
+ * pushed before the thread-name call (MSVC argument batching), which is why
+ * Ghidra shows a stray `PUSH ECX` ahead of
+ * hs_runtime_get_executing_thread_name.
+ *
+ * Both handles must be valid (-1 rejects) before any work happens.  Iterates
+ * the units of arg0 via FUN_000ce450/FUN_000ce320 (local_8 is the 4-byte
+ * iterator state).  For each biped/vehicle (type mask 3) it calls
+ * FUN_000563c0(handle@<eax>, encounter_handle, 0, 0), then walks that
+ * object's child list (first child at object+0xc8, next sibling at
+ * object+0xc4) and migrates every child whose object type at +0x64 is a
+ * biped/vehicle ((1 << (type & 0x1f)) & 3).
+ *
+ * The child lookup uses object_get_and_verify_type (asserting form, result
+ * NOT null-checked in the original); the outer lookup uses the try-form and
+ * IS null-checked.  Finally refreshes team status and the encounter dirty
+ * flags.
+ *
+ * 0x564b0 / encounters.obj
+ */
+void FUN_000564b0(int arg0, int arg1)
+{
+  char local_208[512];
+  int local_8;
+  scenario_t *uVar1;
+  void *pvVar1;
+  int iVar4;
+
+  if (*(char *)0x5aca57 || *(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    ai_index_to_string(arg1, uVar1, local_208, 0x200);
+    error(2, "%s: ai_migrate_by_unit <some guys> %s",
+          hs_runtime_get_executing_thread_name(), local_208);
+  }
+  if (arg0 != -1 && arg1 != -1) {
+    iVar4 = FUN_000ce450(arg0, &local_8);
+    while (iVar4 != -1) {
+      pvVar1 = object_try_and_get_and_verify_type(iVar4, 3);
+      if (pvVar1 != 0) {
+        FUN_000563c0(iVar4, arg1, '\0', 0);
+        iVar4 = *(int *)((char *)pvVar1 + 0xc8);
+        while (iVar4 != -1) {
+          pvVar1 = object_get_and_verify_type(iVar4, -1);
+          if ((1 << (*(unsigned char *)((char *)pvVar1 + 0x64) & 0x1f) & 3u) !=
+              0) {
+            FUN_000563c0(iVar4, arg1, '\0', 0);
+          }
+          iVar4 = *(int *)((char *)pvVar1 + 0xc4);
+        }
+      }
+      iVar4 = FUN_000ce320(arg0, &local_8);
+    }
+    ai_update_team_status();
+    encounters_update_dirty_status();
+  }
+}
+
+/*
+ * FUN_000565c0 — `ai_migrate_and_speak` HS script command handler.
+ *
+ * Migrates one encounter into another and plays the matching migration
+ * speech.  The third argument selects the speech type by name: "advance"
+ * (flag 1) or "retreat" (flag 0); anything else logs an error and falls
+ * through with the retreat flag, exactly as the original does.
+ *
+ * If either debug trace flag (0x5aca57 = ai_trace_detail or 0x5aca59 =
+ * ai_trace) is set, both encounter handles are formatted into their own
+ * 512-byte scratch buffers via ai_index_to_string and logged prefixed with
+ * the executing HS thread name.  The 5-dword `error` call (single
+ * ADD ESP,0x14) pushes BOTH buffer pointers before the thread-name call
+ * (MSVC argument batching), which is why Ghidra shows stray PUSH EDX/PUSH
+ * EAX ahead of hs_runtime_get_executing_thread_name.  The format string
+ * carries four %s but only three arguments are supplied — that is what the
+ * original binary does and it is not corrected here.
+ *
+ * The speech flag lives at EBP-0x4 and is written as a BYTE but read back as
+ * a full DWORD and pushed whole (Ghidra's CONCAT31), so the upper three
+ * bytes are whatever the frame happened to hold.  Only the low byte is
+ * meaningful to FUN_00055dd0's fourth parameter; it is modelled as a plain
+ * int here (a char local would add a MOVSX at the push that the original
+ * does not have).
+ *
+ * Finally calls FUN_00055dd0(src_encounter@<eax>, dst_encounter, 1, flag).
+ *
+ * 0x565c0 / encounters.obj
+ */
+void FUN_000565c0(unsigned int src_encounter, unsigned int dst_encounter,
+                  const char *speech_type)
+{
+  char buf_src[512];
+  char buf_dst[512];
+  char use_advance;
+
+  if (*(char *)0x5aca57 || *(char *)0x5aca59) {
+    ai_index_to_string(src_encounter, global_scenario_get(), buf_src, 0x200);
+    ai_index_to_string(dst_encounter, global_scenario_get(), buf_dst, 0x200);
+    error(2, "%s: ai_migrate_and_speak %s %s %s",
+          hs_runtime_get_executing_thread_name(), buf_src, buf_dst);
+  }
+  if (crt_stricmp(speech_type, "advance") == 0) {
+    use_advance = 1;
+  } else {
+    if (crt_stricmp(speech_type, "retreat") != 0) {
+      error(2,
+            "ai_migrate_and_speak: unknown speech type '%s' (must be "
+            "'advance' or 'retreat')",
+            speech_type);
+    }
+    use_advance = 0;
+  }
+  FUN_00055dd0(src_encounter, dst_encounter, 1, use_advance);
+}
+
+/*
+ * FUN_000566a0 — `ai_allegiance` HS script command handler.
+ *
+ * Establishes an allegiance between two teams.  If the AI trace flag
+ * (0x5aca59) is set, logs the command.  Both teams must be valid (!= -1).
+ *
+ * Determines the "effective" (non-player) team: team 1 is presumably the
+ * player team, so if either argument is 1 the effective team is the other
+ * one; otherwise -1.  For effective teams 2 and 5 a difficulty-scaled
+ * duration (300/450/1200/2700 ticks) and the constant 5 are supplied, plus
+ * per-argument flags identifying which argument was the effective team.
+ * Otherwise everything degenerates to -1/0.
+ *
+ * Ghidra's nested-assignment form of the effective-team select is
+ * equivalent but obfuscated; the shape below follows the disassembly at
+ * 0x566ea-0x56709 (ESI initialised to -1, then two CMPs against 1).
+ *
+ * 0x566a0 / encounters.obj
+ */
+void FUN_000566a0(int16_t team_a, int16_t team_b)
+{
+  char is_ally;
+  int16_t durations[4];
+  int16_t effective_team;
+  int16_t threshold;
+  int16_t timer;
+  char matched;
+  int is_player;
+  int is_timer;
+
+  if (*(char *)0x5aca59) {
+    error(2, "%s: ai_allegiance %d %d", hs_runtime_get_executing_thread_name(),
+          (int)team_a, (int)team_b);
+  }
+  /* The -1 sentinel is shared with the two guard comparisons (OR ECX,-1). */
+  timer = -1;
+  if (team_a == (int16_t)-1)
+    return;
+  if (team_b == (int16_t)-1)
+    return;
+
+  matched = 0;
+  effective_team = -1;
+  threshold = -1;
+  is_ally = 0;
+  if (team_a == 1) {
+    effective_team = team_b;
+  } else if (team_b == 1) {
+    effective_team = team_a;
+  }
+
+  switch (effective_team) {
+  case 2:
+  case 5:
+    durations[0] = 300;
+    durations[1] = 450;
+    durations[2] = 1200;
+    durations[3] = 2700;
+    matched = 1;
+    threshold = 5;
+    timer = durations[game_difficulty_level_get()];
+    is_ally = (char)(effective_team == 2);
+    break;
+  }
+
+  /* Both flags are `matched && ...` chains: inside the switch case MSVC knows
+   * matched is 1 and tests only the comparison, then tail-merges the false
+   * arms with the not-matched entry and re-tests matched (0x56749-0x5676e).
+   * is_timer (argument 4) is evaluated before is_player (argument 2), matching
+   * cdecl right-to-left argument evaluation. */
+  is_timer = matched && (team_b == effective_team);
+  is_player = matched && (team_a == effective_team);
+
+  /* cdecl push order at 0x56770-0x5677d (last PUSH is the first argument):
+   * EAX=team_a, ESI=is_player, ECX=team_b, EDX=is_timer, EDI=threshold(5|-1),
+   * ECX=timer(duration table), EBX=is_ally.  Positional order preserved. */
+  game_allegiance_create(team_a, is_player, team_b, is_timer, threshold, timer,
+                         is_ally);
 }
 
 /*
@@ -1359,6 +1667,142 @@ void FUN_00057c70(int encounter_handle, char param_2)
 }
 
 /*
+ * FUN_00057d00 (0x57d00) — ai_vehicle_encounter script command.  Binds a unit
+ * (biped/vehicle, object type mask 3) to an encounter+squad by writing the
+ * resolved encounter index to unit+0x2e4 and the squad index to unit+0x2e6
+ * (both int16, -1 = NONE).  Before overwriting, if the unit already carries an
+ * encounter index, every actor of that encounter whose field_0x158 points at
+ * this unit is re-bound via FUN_0003baa0(actor_handle, encounter_index,
+ * squad_index).
+ *
+ * param_2 is a combined ai index: low 16 bits = signed encounter index into
+ * the scenario encounters block (scenario+0x42c, element stride 0xb0), byte 2
+ * = squad *name* index (selector 1) or direct squad index (selector 2), bits
+ * 30..31 = selector.  Selector 0 means "encounter only" (squad 0); selector 3
+ * is unreachable (display_assert at ai_script.c:0xc52 then system_exit(-1)).
+ *
+ * Confirmed: frame is a direct SUB ESP,0x220 (no _chkstk); the trace name
+ * buffer is 512 bytes at EBP-0x220.
+ * Confirmed: element sizes 0xb0 (scenario encounters block) and 0xe8
+ * (encounter_definition->squads) are literal immediates in the original.
+ * Confirmed: [EBP-0x1c] is actor_iter[1] — the actor handle produced by
+ * encounter_actor_iterator_next — NOT an independent local (buffer-alias
+ * hazard); it is re-read on every iteration.
+ * Confirmed: unit+0x2e4/+0x2e6 are 16-bit loads/stores (MOV AX,word / MOV
+ * word,CX); byte 2 of param_2 is a MOVZX byte load compared against the
+ * uint16 at squad+0x22.
+ * 0x57d00 / encounters.obj */
+void FUN_00057d00(int param_1, int param_2)
+{
+  int out_squad;
+  int saved_encounter_index;
+  char *unit;
+  int out_encounter;
+  encounter_definition *encounter_def;
+  int actor_iter[3];
+  char name_buf[512];
+  char *scenario;
+  unsigned int selector;
+  short encounter_index;
+  int squad_index;
+  int i;
+  void *squad;
+  int actor;
+
+  if (*(char *)0x5aca59 != '\0') {
+    ai_index_to_string(param_2, (void *)global_scenario_get(), name_buf, 0x200);
+    error(2, "%s: ai_vehicle_encounter <some unit> %s",
+          hs_runtime_get_executing_thread_name(), name_buf);
+  }
+  if (param_1 == -1) {
+    return;
+  }
+
+  unit = (char *)object_get_and_verify_type(param_1, 3);
+  out_encounter = -1;
+  out_squad = -1;
+  if (param_2 == -1) {
+    goto store_result;
+  }
+
+  scenario = (char *)global_scenario_get();
+  encounter_index = (short)param_2;
+  if (encounter_index < 0) {
+    goto store_result;
+  }
+  saved_encounter_index = (int)encounter_index;
+  if (saved_encounter_index >= *(int *)(scenario + 0x42c)) {
+    goto store_result;
+  }
+
+  squad_index = 0;
+  encounter_def = (encounter_definition *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x42c, (unsigned short)param_2, 0xb0);
+
+  selector = (unsigned int)param_2 >> 0x1e;
+  switch (selector) {
+  case 0:
+    /* Encounter only: squad 0. */
+    break;
+  case 1:
+    /* Byte 2 is a squad *name* index; scan the squads block for the element
+     * whose name index (squad+0x22) matches. */
+    if (encounter_def->squads.count > 0) {
+      i = 0;
+      do {
+        squad = tag_block_get_element(&encounter_def->squads, i, 0xe8);
+        if (*(unsigned short *)((char *)squad + 0x22) ==
+            (unsigned short)*(unsigned char *)((char *)&param_2 + 2)) {
+          break;
+        }
+        squad_index = squad_index + 1;
+        i = (int)(short)squad_index;
+      } while (i < encounter_def->squads.count);
+    }
+    if ((int)(short)squad_index >= encounter_def->squads.count) {
+      /* No match: fall through with squad 0 (matches the original). */
+      squad_index = 0;
+    }
+    break;
+  case 2:
+    /* Byte 2 is a direct squad index. */
+    squad_index = (int)*(unsigned char *)((char *)&param_2 + 2);
+    break;
+  default:
+    display_assert("!\"unreachable\"", "c:\\halo\\SOURCE\\ai\\ai_script.c",
+                   0xc52, 1);
+    system_exit(-1);
+    break;
+  }
+
+  if ((short)squad_index < 0) {
+    goto store_result;
+  }
+  if ((int)(short)squad_index < encounter_def->squads.count) {
+    out_encounter = param_2;
+    out_squad = squad_index;
+    if (encounter_index != -1 && (short)squad_index != -1 &&
+        *(short *)(unit + 0x2e4) != -1) {
+      /* Re-bind the actors of the unit's PREVIOUS encounter that reference
+       * this unit.  actor_iter[1] is the current actor handle. */
+      encounter_actor_iterator_new(actor_iter, (int)*(short *)(unit + 0x2e4));
+      actor = encounter_actor_iterator_next(actor_iter);
+      while (actor != 0) {
+        if (*(int *)(actor + 0x158) == param_1) {
+          FUN_0003baa0(actor_iter[1], saved_encounter_index,
+                       (short)squad_index);
+        }
+        actor = encounter_actor_iterator_next(actor_iter);
+      }
+    }
+  }
+
+store_result:
+  *(short *)(unit + 0x2e4) = (short)out_encounter;
+  *(short *)(unit + 0x2e6) = (short)out_squad;
+}
+
+/*
  * FUN_00057ef0 — find or create an enterable-vehicle entry for param_1.
  * Searches DAT_00632574+0x3b8 array (stride 0x28, count at +0x3b6) for
  * an entry matching param_1. If found, returns its pointer. If not found
@@ -2173,6 +2617,135 @@ void FUN_00058ae0(unsigned int combined_index)
   FUN_00055870(combined_index);
 }
 
+/* One entry of the nearest-first candidate table built on the stack by
+ * FUN_00058af0.  Confirmed from the index math at 0x58b5f
+ * (MOVSX ECX,SI; LEA ECX,[ECX+ECX*2]; SHL ECX,2 => i*12) and the field stores
+ * at +0x0 / +0x4 / +0x8 relative to EBP-0x348. */
+typedef struct {
+  int actor_handle; /* +0x00 */
+  float distance_squared; /* +0x04 */
+  char is_type9; /* +0x08 */
+  char pad_9[3]; /* +0x09 */
+} vehicle_enter_candidate_t;
+
+/* 0x00058af0 — ai_vehicle_enter (script command): order every actor named by
+ * an ai_index into the available seats of a vehicle, nearest actor first.
+ *
+ * Register contract (confirmed from the prologue: PUSH EBP / MOV EBP,ESP /
+ * SUB ESP,0x348 / PUSH EDI / PUSH 3 / PUSH EBX / MOV EDI,EAX).  EAX is read
+ * into EDI before any write, and EBX is pushed as arg0 of
+ * object_try_and_get_and_verify_type with no prior write, so both are implicit
+ * register inputs.  Both call sites (0x58ca4 in FUN_00058c40, 0x58d24 in
+ * FUN_00058cc0) do `PUSH <flag>; PUSH ESI; MOV EAX,EDI; CALL` with the vehicle
+ * handle already live in EBX.
+ *
+ * Frame (SUB ESP,0x348 exactly, 0x300+0x20+0x18+0xc+0x4):
+ *   EBP-0x348 candidates[0x40]  stride 0xc, cap enforced by CMP SI,0x40 / JNC
+ *   EBP-0x048 seat_indices[16]  int16, 0x10 max seats passed to the finder
+ *   EBP-0x028 iter[6]           ai_index actor iterator (iter[4] = actor
+ * handle) EBP-0x010 vehicle_position  vector3 EBP-0x004 seat_count Ghidra's
+ * acStackY_60344[393172] / aiStackY_6034c are fabricated artifacts of
+ * EBP+ESI*1+0xfffffcXX indexing — the real frame is 0x348.
+ *
+ * BUFFER-ALIAS: Ghidra's `local_1c` (EBP-0x18) falls inside the 0x18-byte
+ * iterator at EBP-0x28, i.e. it is iterator field +0x10 (iter[4], the current
+ * actor's datum handle — same slot ai_profile.c reads), not a separate local.
+ *
+ * FPU direction confirmed at 0x58b6e-0x58ba9: FLD [EBP-0x10]; FSUB [EAX+0x12c]
+ * => (vehicle_position - actor_position) for all three components.  The
+ * residual [FPU-WARN] on this function is an x87 stack-depth relabeling only
+ * (insn 7/10 fld %st(2)/%st(3) transposed against the reference, same
+ * mnemonics at the same slots): writing the squared sum as dy*dy+dx*dx+dz*dz
+ * instead of dx*dx+dy*dy+dz*dz was measured to emit a byte-identical
+ * instruction stream (120/116 insns, 97.9% either way), so the source term
+ * order is not the lever and the warning is not a subtraction-order bug.
+ *
+ * The `return` inside the placement loop is a real early exit to the epilogue
+ * (an actor of type 9 blocks the whole order unless the flag allows it); it is
+ * not a `break`. */
+void FUN_00058af0(unsigned int ai_index, int vehicle_handle, int seat_substring,
+                  char allow_type9)
+{
+  vehicle_enter_candidate_t candidates[0x40];
+  int16_t seat_indices[16];
+  int iter[6];
+  vector3_t vehicle_position;
+  int16_t seat_count;
+  void *vehicle;
+  char *actor;
+  unsigned short candidate_count;
+  short i;
+  float dx;
+  float dy;
+  float dz;
+
+  vehicle = object_try_and_get_and_verify_type(vehicle_handle, 3);
+  if (ai_index != 0xffffffff && vehicle != NULL) {
+    candidate_count = 0;
+    object_get_world_position(vehicle_handle, &vehicle_position);
+    seat_count = vehicle_scripting_find_available_seats(
+      vehicle_handle, seat_substring, -1, seat_indices, 0x10);
+    if (seat_count > 0) {
+      ai_index_actor_iterator_new(ai_index, iter);
+      actor = (char *)ai_index_actor_iterator_next(iter);
+      while (actor != NULL) {
+        if (candidate_count < 0x40) {
+          candidates[(short)candidate_count].actor_handle = iter[4];
+          dx = vehicle_position.x - *(float *)(actor + 0x12c);
+          dy = vehicle_position.y - *(float *)(actor + 0x130);
+          dz = vehicle_position.z - *(float *)(actor + 0x134);
+          candidates[(short)candidate_count].distance_squared =
+            dx * dx + dy * dy + dz * dz;
+          candidates[(short)candidate_count].is_type9 =
+            (char)(*(short *)(actor + 0x6c) == 9);
+          candidate_count = candidate_count + 1;
+        }
+        actor = (char *)ai_index_actor_iterator_next(iter);
+      }
+      qsort(candidates, (size_t)(int)(short)candidate_count, 0xc,
+            (int (*)(const void *, const void *))FUN_00056830);
+      for (i = 0; i < (short)candidate_count; i++) {
+        if (candidates[i].is_type9 != '\0' && allow_type9 == '\0') {
+          return;
+        }
+        actor_action_try_to_enter_vehicle(candidates[i].actor_handle,
+                                          vehicle_handle, 0, -1, seat_count,
+                                          seat_indices);
+      }
+    }
+  }
+}
+
+/* 0x00058c40 — ai_go_to_vehicle script command entry point.
+ * Emits a trace line when the AI script-trace flag at 0x5aca59 is set, then
+ * forwards the request to the vehicle-entry order builder FUN_00058af0 with
+ * allow_type9 = 0.
+ *
+ * Parameters come off the stack and are cached in callee-saved registers by
+ * the prologue (confirmed at 0x58c51-0x58c59): EDI = [EBP+8] = ai_index,
+ * EBX = [EBP+0xC] = vehicle_handle, ESI = [EBP+0x10] = seat_substring.
+ * Ghidra typed this function `(void)` and reported bogus in_stack_* slots.
+ *
+ * The error() call pushes SIX stack args (ADD ESP,0x18 at 0x58c9c); Ghidra
+ * dropped the trailing seat_substring vararg.  Only the low 16 bits of the
+ * vehicle handle are logged (MOV ECX,EBX; AND ECX,0xffff at 0x58c79/0x58c7c),
+ * while the full 32-bit handle is forwarded to FUN_00058af0 (EBX still live
+ * at the tail call, 0x58ca4). */
+void FUN_00058c40(unsigned int ai_index, int vehicle_handle,
+                  const char *seat_substring)
+{
+  char local_104[256];
+
+  if (*(char *)0x5aca59 != '\0') {
+    ai_index_to_string(ai_index, (void *)global_scenario_get(), local_104,
+                       0x100);
+    error(2, "%s: ai_go_to_vehicle %s 0x%04X %s",
+          hs_runtime_get_executing_thread_name(), local_104,
+          vehicle_handle & 0xffff, seat_substring);
+  }
+  FUN_00058af0(ai_index, vehicle_handle, (int)seat_substring, 0);
+}
+
 /* 0x00058fa0 — encounter_dispose stub.
  * Called from ai_dispose (0x3f6f0). No teardown needed at this level.
  * Binary: single RET instruction. */
@@ -2193,6 +2766,221 @@ void encounter_compute_activation_cluster_bit_vector(void)
 {
   data_make_invalid(*(data_t **)0x5ab270); /* encounter_data */
   data_make_invalid(*(data_t **)0x5ab26c); /* pursuit_data */
+}
+
+/* 0x00058fd0 — build the cluster bit vector for an encounter's activation set.
+ *
+ * Walks every actor in the encounter (member list rooted at encounter+0x14,
+ * chained through actor+0x2c) and sets one bit in out_cluster_bv per
+ * structure-BSP cluster that the encounter currently occupies:
+ *   - swarm actors (actor+0x6 != 0) contribute the root-parent cluster of
+ *     every child object in their object list (actor+0x24, chained +0x1ac);
+ *   - normal actors contribute the root-parent cluster of their unit
+ *     (actor+0x18), plus (when encounter+0xd is set) the cluster of their
+ *     ai-property datum (actor+0x270 -> prop+0x100).
+ * Normal actors also accumulate firing-position group masks (state 3) and
+ * move-position group masks (state 2), which drive the two tag-block passes
+ * at the end: firing positions (encounter_tag+0x98, stride 0x18) and move
+ * platforms (encounter_tag+0x80, stride 0xe8) with their inner move-position
+ * blocks (platform+0xc4, stride 0x50).
+ *
+ * When flag != 0 each actor's "visible" byte (actor+0x12) is updated: it is
+ * cleared if any contributing cluster is already present in the caller's pvs
+ * bit vector, or if the actor's squad is marked at squad+0x14.
+ *
+ * Confirmed from disassembly:
+ *  - frame SUB ESP,0x14 (5 dword locals), PUSH EBX/ESI/EDI; EBX caches
+ *    out_cluster_bv for the actor loop only.
+ *  - the `visible` flag lives in the dead param_1 slot (EBP+0xB) and the
+ *    move-platform group counter reuses EBP+0x8; both are plain locals here.
+ *  - object_get_and_verify_type(actor->unit_index, 3) at 0x5913c discards its
+ *    result (validation only) and the unit index is re-read for the
+ *    root-parent call.
+ *  - cluster indices are int16_t fields (+0x4c, +0xe, +0x28, +0x100) compared
+ *    16-bit then MOVSX-widened for the bounds test.
+ *  - both tag-block loops use 16-bit counters widened per compare
+ *    (INC EBX; MOVSX EAX,BX; CMP EAX,[block]).
+ *
+ * pvs is passed as an integer address of a parallel cluster bit vector; a
+ * zero value disables the visibility test. */
+void FUN_00058fd0(int encounter_handle, char flag, int bit_vector_size, int pvs,
+                  char *out_cluster_bv)
+{
+  char *structure_bsp;
+  char *encounter;
+  char *encounter_tag;
+  char *firing_position_block;
+  char *move_position_block;
+  char *move_position_inner;
+  char *actor;
+  char *object;
+  char *root;
+  char *prop;
+  char *squad;
+  char *firing_position;
+  char *move_position;
+  int firing_group_mask;
+  int move_group_mask;
+  int actor_index;
+  int object_index;
+  int mask;
+  int16_t cluster_index;
+  int16_t state;
+  int16_t target;
+  int16_t i;
+  int16_t j;
+  int16_t group;
+  char visible;
+
+  structure_bsp = (char *)scenario_get();
+  encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_handle);
+  encounter_tag = (char *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x42c, encounter_handle & 0xffff, 0xb0);
+  firing_group_mask = 0;
+  move_group_mask = 0;
+
+  if (*(int *)(structure_bsp + 0x134) > bit_vector_size) {
+    display_assert("structure_bsp->clusters.count <= bit_vector_size",
+                   "c:\\halo\\SOURCE\\ai\\encounters.c", 0x163, 1);
+    system_exit(-1);
+  }
+  csmemset(out_cluster_bv, 0,
+           ((*(int *)(structure_bsp + 0x134) + 0x1f) >> 5) << 2);
+
+  actor_index = *(int *)(encounter + 0x14);
+  while (actor_index != -1) {
+    actor = (char *)datum_get(*(data_t **)0x6325a4, actor_index);
+    visible = 1;
+    if (*(char *)(actor + 6) != '\0') {
+      object_index = *(int *)(actor + 0x24);
+      while (object_index != -1) {
+        object = (char *)object_get_and_verify_type(object_index, 3);
+        root = (char *)object_get_and_verify_type(
+          object_get_root_parent(object_index), -1);
+        cluster_index = *(int16_t *)(root + 0x4c);
+        if (cluster_index != -1) {
+          if (cluster_index < 0 || (int)cluster_index >= bit_vector_size) {
+            display_assert(
+              "(cluster_index >= 0) && (cluster_index < bit_vector_size)",
+              "c:\\halo\\SOURCE\\ai\\encounters.c", 0x17e, 1);
+            system_exit(-1);
+          }
+          mask = 1 << (cluster_index & 0x1f);
+          ((uint32_t *)out_cluster_bv)[cluster_index >> 5] |= mask;
+          if (pvs != 0 && (((uint32_t *)pvs)[cluster_index >> 5] & mask) != 0)
+            visible = 0;
+        }
+        object_index = *(int *)(object + 0x1ac);
+      }
+    } else {
+      /* validation-only call; result intentionally discarded */
+      object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+      root = (char *)object_get_and_verify_type(
+        object_get_root_parent(*(int *)(actor + 0x18)), -1);
+      cluster_index = *(int16_t *)(root + 0x4c);
+      if (cluster_index != -1) {
+        if (cluster_index < 0 || (int)cluster_index >= bit_vector_size) {
+          display_assert(
+            "(cluster_index >= 0) && (cluster_index < bit_vector_size)",
+            "c:\\halo\\SOURCE\\ai\\encounters.c", 0x198, 1);
+          system_exit(-1);
+        }
+        mask = 1 << (cluster_index & 0x1f);
+        ((uint32_t *)out_cluster_bv)[cluster_index >> 5] |= mask;
+        if (pvs != 0 && (((uint32_t *)pvs)[cluster_index >> 5] & mask) != 0)
+          visible = 0;
+      }
+
+      if (*(char *)(encounter + 0xd) != '\0') {
+        state = *(int16_t *)(actor + 0x6a);
+        if (state == 3) {
+          if (*(int16_t *)(actor + 0x6e) >= 2)
+            firing_group_mask |=
+              actor_get_firing_position_group(actor_index, 5, 1);
+          target = *(int16_t *)(actor + 0x6c);
+          if (target == 6 || target == 4)
+            firing_group_mask |=
+              actor_get_firing_position_group(actor_index, 4, 0);
+          else if (target == 3 || target == 5)
+            firing_group_mask |=
+              actor_get_firing_position_group(actor_index, 0, 0);
+        } else if (state == 2 && *(int16_t *)(actor + 0x9c) != 0) {
+          move_group_mask |= 1 << *(unsigned char *)(actor + 0x3a);
+        }
+
+        if (*(int *)(actor + 0x270) != -1) {
+          prop =
+            (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x270));
+          cluster_index = *(int16_t *)(prop + 0x100);
+          if (cluster_index != -1) {
+            if (cluster_index < 0 || (int)cluster_index >= bit_vector_size) {
+              display_assert(
+                "(cluster_index >= 0) && (cluster_index < bit_vector_size)",
+                "c:\\halo\\SOURCE\\ai\\encounters.c", 0x1c0, 1);
+              system_exit(-1);
+            }
+            mask = 1 << (cluster_index & 0x1f);
+            ((uint32_t *)out_cluster_bv)[cluster_index >> 5] |= mask;
+          }
+        }
+      }
+    }
+
+    if (flag != '\0') {
+      squad = encounter_get_squad(encounter, *(int16_t *)(actor + 0x3a));
+      *(char *)(actor + 0x12) =
+        (*(char *)(squad + 0x14) != '\0') ? '\0' : visible;
+    }
+    actor_index = *(int *)(actor + 0x2c);
+  }
+
+  if (firing_group_mask != 0) {
+    firing_position_block = encounter_tag + 0x98;
+    for (i = 0; i < *(int *)firing_position_block; ++i) {
+      firing_position =
+        (char *)tag_block_get_element(firing_position_block, i, 0x18);
+      if (*(int16_t *)(firing_position + 0xe) != -1 &&
+          (firing_group_mask &
+           (1 << *(unsigned char *)(firing_position + 0xc))) != 0) {
+        if (*(int16_t *)(firing_position + 0xe) < 0 ||
+            (int)*(int16_t *)(firing_position + 0xe) >= bit_vector_size) {
+          display_assert("(firing_position->cluster_index >= 0) && "
+                         "(firing_position->cluster_index < bit_vector_size)",
+                         "c:\\halo\\SOURCE\\ai\\encounters.c", 0x1e7, 1);
+          system_exit(-1);
+        }
+        mask = 1 << (*(int16_t *)(firing_position + 0xe) & 0x1f);
+        ((uint32_t *)
+           out_cluster_bv)[*(int16_t *)(firing_position + 0xe) >> 5] |= mask;
+      }
+    }
+  }
+
+  if (move_group_mask != 0) {
+    move_position_block = encounter_tag + 0x80;
+    for (group = 0; group < *(int *)move_position_block; ++group) {
+      if ((move_group_mask & (1 << group)) == 0)
+        continue;
+      move_position_inner =
+        (char *)tag_block_get_element(move_position_block, group, 0xe8) + 0xc4;
+      for (j = 0; j < *(int *)move_position_inner; ++j) {
+        move_position =
+          (char *)tag_block_get_element(move_position_inner, j, 0x50);
+        if (*(int16_t *)(move_position + 0x28) != -1) {
+          if (*(int16_t *)(move_position + 0x28) < 0 ||
+              (int)*(int16_t *)(move_position + 0x28) >= bit_vector_size) {
+            display_assert("(move_position->cluster_index >= 0) && "
+                           "(move_position->cluster_index < bit_vector_size)",
+                           "c:\\halo\\SOURCE\\ai\\encounters.c", 0x1ff, 1);
+            system_exit(-1);
+          }
+          mask = 1 << (*(int16_t *)(move_position + 0x28) & 0x1f);
+          ((uint32_t *)
+             out_cluster_bv)[*(int16_t *)(move_position + 0x28) >> 5] |= mask;
+        }
+      }
+    }
+  }
 }
 
 /* 0x59480 — Remove actor from encounter membership.
@@ -2782,6 +3570,148 @@ void FUN_00059bf0(int encounter_handle /* @<eax> */)
     *(int *)(encounter + 0x38) = *(int *)(pursuit + 0x24);
     datum_delete(*(data_t **)0x5ab26c, pursuit_handle);
     pursuit_handle = *(int *)(encounter + 0x38);
+  }
+}
+
+/* 0x00059c40 — find (or optionally create) an "examined pursuit position"
+ * record for a key within an encounter's pursuit list, resetting the record
+ * when it is newly created or its cost field has fallen below `threshold`.
+ *
+ * The pursuit records hang off encounter+0x38 as a singly-linked list through
+ * pursuit+0x24 (-1 terminates).  Each record is 0x28 bytes:
+ *   +0x02 int16_t  key            (compared 16-bit against BX)
+ *   +0x04 int      cost/score     (signed; -1 on reset)
+ *   +0x08 int16_t  cleared to 0 on reset
+ *   +0x0a int16_t  cleared to 0 on reset
+ *   +0x0c 0x18 bytes memset to 0xff on reset (6 dwords, likely datum handles)
+ *   +0x24 int      next handle in list
+ *
+ * Confirmed (disassembly 0x59c40-0x59d2b):
+ *   - encounter_handle arrives in EAX (@<eax>); the key arrives in BX
+ *     (@<bx>) and is compared 16-bit: `CMP word ptr [EAX+0x2],BX` @0x59c74.
+ *   - threshold at [EBP+0x8] is a SIGNED compare (JGE @0x59c8a).
+ *   - create_if_missing at [EBP+0xc] is a byte (TEST AL,AL @0x59c98, and
+ *     RELOADED and tested again @0x59d17/0x59d1d after the reset).
+ *   - `CMP ESI,-1 / JNZ 0x59ce5` @0x59c90 is the post-loop "did we find it"
+ *     test; a match therefore skips the create block entirely.
+ *   - data_new_at_index(pursuit_data) @0x59ca3; on failure the pool-overflow
+ *     warning is logged with 0x100 = MAXIMUM_EXAMINED_PURSUIT_POSITIONS_PER_MAP
+ *     (matching the ai-pursuit pool capacity of 0x100).
+ *   - csmemset(pursuit+0xc, -1, 0x18) @0x59d12.  The `ADD ESP,0x14` @0x59d1a
+ *     is the MERGED cleanup for the preceding datum_get (8) plus csmemset (12)
+ *     — csmemset really does take 3 args.
+ *
+ * Return value (three distinct exits — do not collapse):
+ *   MOV EAX,-1 / TEST AL,AL / JZ / MOV EAX,ESI @0x59d1d-0x59d26:
+ *     (a) no reset needed          -> the found handle
+ *     (b) reset done, create != 0  -> the handle
+ *     (c) reset done, create == 0  -> -1
+ *   ESI (and hence the result) is -1 when the search fell off the end and no
+ *   record was created (either create == 0 or the pool was full).
+ */
+int FUN_00059c40(int encounter_handle /* @<eax> */,
+                 short pursuit_key /* @<bx> */, int threshold,
+                 char create_if_missing)
+{
+  char *encounter;
+  char *pursuit;
+  int pursuit_handle;
+  char needs_reset;
+
+  encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_handle);
+  needs_reset = 0;
+  pursuit_handle = *(int *)(encounter + 0x38);
+  while (pursuit_handle != -1) {
+    pursuit = (char *)datum_get(*(data_t **)0x5ab26c, pursuit_handle);
+    if (*(short *)(pursuit + 2) == pursuit_key) {
+      needs_reset = (char)(*(int *)(pursuit + 4) < threshold);
+      break;
+    }
+    pursuit_handle = *(int *)(pursuit + 0x24);
+  }
+
+  if (pursuit_handle == -1 && create_if_missing != 0) {
+    pursuit_handle = data_new_at_index(*(data_t **)0x5ab26c);
+    if (pursuit_handle != -1) {
+      pursuit = (char *)datum_get(*(data_t **)0x5ab26c, pursuit_handle);
+      *(short *)(pursuit + 2) = pursuit_key;
+      *(int *)(pursuit + 0x24) = *(int *)(encounter + 0x38);
+      *(int *)(encounter + 0x38) = pursuit_handle;
+      needs_reset = 1;
+    } else {
+      error(2,
+            "WARNING: too many actors searching, exceeded "
+            "MAXIMUM_EXAMINED_PURSUIT_POSITIONS_PER_MAP (%d)",
+            0x100);
+    }
+  }
+
+  if (needs_reset != 0) {
+    pursuit = (char *)datum_get(*(data_t **)0x5ab26c, pursuit_handle);
+    *(int *)(pursuit + 4) = -1;
+    *(short *)(pursuit + 8) = 0;
+    *(short *)(pursuit + 0xa) = 0;
+    csmemset(pursuit + 0xc, -1, 0x18);
+    if (create_if_missing == 0) {
+      return -1;
+    }
+  }
+  return pursuit_handle;
+}
+
+/* 0x59d30 — encounter_modify_pursuit_desires.
+ * Overrides a set of caller-supplied pursuit/search desire flags according to
+ * the encounter definition's search-behavior mode and the squad's flags.
+ *
+ * Looks up the scenario encounter definition (scenario+0x42c tag_block, element
+ * size 0xb0) by `encounter_index & 0xffff` and the squad definition within it
+ * (enc_def+0x80 tag_block, element size 0xe8).  The mode is the int16 at
+ * enc_def+0x28; squad flag bit 0x2 (squad_def+0x28) forces mode 1.
+ *
+ * Confirmed from disassembly:
+ *   - Frame is `PUSH EBP; MOV EBP,ESP; PUSH ESI` — no stack locals; the
+ *     encounter definition lives in ESI, the mode in SI.
+ *   - Both tag_block_get_element cleanups are coalesced into one
+ *     `ADD ESP,0x18` @0x59d71 (2 calls x 3 args).
+ *   - arg1 is zero-extended (`AND EAX,0xffff`), arg2 is sign-extended
+ *     (`MOVSX ECX, word ptr [EBP+0xc]`).
+ *   - Dispatch is a DEC/DEC chain (`MOVSX EAX,SI; DEC EAX; JZ` @0x59d82,
+ *     `DEC EAX; JNZ` @0x59da8), i.e. if/else-if, not a switch.
+ *   - out_4/out_6/out_7/out_8 are written `MOV word ptr` (int16); out_3 and
+ *     out_5 are written `MOV byte ptr`.
+ */
+void encounter_modify_pursuit_desires(int encounter_index, int squad_index,
+                                      char *out_3, short *out_4, char *out_5,
+                                      short *out_6, short *out_7, short *out_8)
+{
+  char *enc_def;
+  char *squad_def;
+  short mode;
+
+  enc_def =
+    (char *)tag_block_get_element((char *)global_scenario_get() + 0x42c,
+                                  (int)(encounter_index & 0xffff), 0xb0);
+  squad_def = (char *)tag_block_get_element(enc_def + 0x80,
+                                            (int)(short)squad_index, 0xe8);
+
+  mode = *(short *)(enc_def + 0x28);
+  if ((*(unsigned char *)(squad_def + 0x28) & 2) != 0) {
+    mode = 1;
+  }
+
+  switch (mode) {
+  case 1:
+    *out_4 = 1;
+    *out_7 = 2;
+    *out_8 = 2;
+    break;
+  case 2:
+    *out_3 = 1;
+    *out_6 = 0;
+    *out_7 = 0;
+    *out_8 = 0;
+    *out_5 = 0;
+    break;
   }
 }
 
@@ -3600,6 +4530,81 @@ void encounter_stand_down(int encounter_handle)
   }
 }
 
+/* 0x5ac60 — insert a scored entry into a fixed 2-element list kept in
+ * descending key order. Returns 1 if the entry was inserted, 0 otherwise.
+ *
+ * Element stride is 0x10 (four dwords); the sort key lives at element+0x4.
+ * On insertion at slot i the four dwords are written as:
+ *   elem+0x0 = a, elem+0x4 = score (key), elem+0x8 = c, elem+0xc = d.
+ *
+ * Confirmed (delinked 0005ac60.obj):
+ *   - cdecl, five stack args at [EBP+8..+0x18]; no register args, no callees.
+ *   - Frame is `push ebp; mov ebp,esp; push ecx` — exactly one 4-byte local
+ *     at EBP-4, which holds the shift counter (`decl -0x4(%ebp)` at 0x5acb3).
+ *   - ECX walks &elem[i].key: `mov 0x8(%ebp),%ecx; add $0x4,%ecx` at
+ *     0x5ac64/0x5ac6e, then `add $0x10,%ecx` per iteration at 0x5acd2.
+ *   - Compare at 0x5ac71 is `flds 0x10(%ebp); fcomps (%ecx); fnstsw;
+ *     test $0x41,%ah; jne` — the insert path is taken only when
+ *     score > key strictly (CF=0 and ZF=0), so NaN skips.
+ *   - Loop counter is 16-bit: `cmp $0x1,%si` at 0x5ac7d and `cmp $0x2,%si`
+ *     at 0x5acd5.
+ *   - Shift count is zero-extended from 16 bits: `mov $0x1,%edx;
+ *     sub %esi,%edx; movzwl %dx,%edx` at 0x5ac86..0x5ac90. It is only
+ *     reachable when i == 0, so the trip count is always 1.
+ *   - Shift body copies four dwords with integer moves (no FPU) from
+ *     elem[k-1] to elem[k] walking backwards (`lea -0x10(%eax),%edx`).
+ *   - DL is the result flag: `xor %dl,%dl` at 0x5ac69, `mov $0x1,%dl` at
+ *     0x5accf, `mov %dl,%al` before RET at 0x5acdd.
+ *
+ * Uncertain:
+ *   - The element's field meanings. Only the key at +0x4 is used by this
+ *     function; the other three dwords are copied and stored opaquely.
+ *
+ * Codegen note: `count` is declared volatile so it lands in the single
+ * EBP-4 stack slot the original reserves with `push ecx`; without it the
+ * shift counter is register-allocated as an up-counter and the frame shape
+ * diverges (79.2% -> 92.0% VC71). The 16-byte `struct entry` assignment
+ * reproduces the original's interleaved four-dword integer copy (no FPU).
+ */
+bool FUN_0005ac60(void *list, float a, float score, float c, float d)
+{
+  struct entry {
+    int d0;
+    int d1;
+    int d2;
+    int d3;
+  };
+  struct entry *dst;
+  struct entry *src;
+  float *key;
+  volatile unsigned int count;
+  short i;
+  bool inserted;
+
+  inserted = 0;
+  key = (float *)((char *)list + 4);
+  for (i = 0; i < 2; i++) {
+    if (score > *key) {
+      if (i < 1) {
+        dst = (struct entry *)((char *)list + 0x10);
+        count = (unsigned short)(1 - i);
+        do {
+          src = dst - 1;
+          *dst = *src;
+          dst = src;
+        } while (--count != 0);
+      }
+      key[0] = score;
+      key[-1] = a;
+      key[2] = d;
+      key[1] = c;
+      inserted = 1;
+    }
+    key += 4;
+  }
+  return inserted;
+}
+
 /* 0x5acf0 — encounter_update_timers.
  * Updates encounter timers each tick (called every 15 ticks from
  * encounter_update). Three timer groups: +0x50 (int):  incremented by 15 each
@@ -4040,6 +5045,106 @@ void encounters_unit_died(int unit_handle)
   }
 }
 
+/* encounter_pursuit_position_already_examined (0x5b6e0) — Look up the
+ * "examined pursuit position" record for `firing_position_index` inside an
+ * encounter (via FUN_00059c40, non-creating) and report whether `position`
+ * has already been examined by that record.
+ *
+ * The record layout is the one documented on FUN_00059c40 (0x28 bytes):
+ *   +0x02 int16_t  firing_position_index (asserted to match the argument)
+ *   +0x04 int      cost/score            (reported through cost_out)
+ *   +0x08 int16_t  examined count        (reported through count_out)
+ *   +0x0c int[6]   examined positions    (scanned for `position`)
+ *
+ * Confirmed (disassembly 0x5b6e0-0x5b787):
+ *   - Six cdecl stack parameters; the return value is the byte at [EBP-1]
+ *     loaded into AL, i.e. a bool. (The old kb decl `void (void)` was wrong
+ *     on both counts and is what produced Ghidra's `in_stack_*` soup.)
+ *   - FUN_00059c40 receives encounter_handle in EAX (@<eax>) and
+ *     firing_position_index in BX (@<bx>, via EDI->EBX); the two pushes are
+ *     PUSH 0 then PUSH [EBP+0x14], and ADD ESP,0x8 confirms exactly two
+ *     stack args -> (threshold, create_if_missing = 0).  The literal 0 here
+ *     is a genuine declared stack argument, not a stand-in for a register
+ *     parameter.
+ *   - datum_get is called as PUSH EAX (handle) ; PUSH ECX (*0x5ab26c), so
+ *     datum_get(pursuit_data, handle).
+ *   - The count is a 16-bit load into CX (`MOV CX,[ESI+8]`) compared
+ *     `CMP CX,0x7` / JGE: count >= 7 short-circuits straight to "already
+ *     examined" without scanning.  The scan itself is a do-while over a
+ *     16-bit counter sign-extended each iteration (`MOVSWL AX,EDI`;
+ *     `CMP AX,0x6` / JL), hence the `short` loop variable.
+ *   - The loop's match exit and the count >= 7 exit are tail-merged onto the
+ *     single `MOV byte ptr [EBP-1],1` at 0x5b767; the exhausted-loop path
+ *     jumps over it (0x5b765 -> 0x5b76b) and keeps the flag at 0.
+ *   - Both out params are written on EVERY path, including the early-out
+ *     where the record does not exist (count = 0 from XOR ECX,ECX and
+ *     cost = -1 from OR EBX,0xffffffff).  Each is NULL-checked.
+ *   - Assert tail is display_assert(..., halt = 1) followed by
+ *     PUSH -1 / CALL system_exit; the merged ADD ESP,0x14 covers both.
+ *
+ * Call-site verification:
+ *   FUN_00059c40 | EAX = [EBP+0x8]           | encounter_handle       | match
+ *                | BX  = EDI = [EBP+0x10]    | firing_position_index  | match
+ *                | push [EBP+0x14] (2nd push)| threshold              | match
+ *                | push 0          (1st push)| create_if_missing = 0  | match
+ *   datum_get    | push ECX = *0x5ab26c      | pursuit data_t         | match
+ *                | push EAX = FUN_00059c40   | pursuit_handle         | match
+ *   display_assert | pushes msg, file, 0x434, 1                       | match
+ *   system_exit  | push -1                                            | match
+ *
+ * Store-offset table (writes are only through the two out pointers):
+ *   *count_out (int16) | CX  = 0, or pursuit+0x08 | MOV word ptr [EAX],CX
+ *   *cost_out  (int32) | EBX = -1, or pursuit+0x04| MOV dword ptr [EAX],EBX
+ */
+bool encounter_pursuit_position_already_examined(
+  int encounter_handle, int position, short firing_position_index,
+  int threshold, short *count_out, int *cost_out)
+{
+  char *pursuit;
+  int pursuit_handle;
+  int cost;
+  short count;
+  short i;
+  bool already_examined;
+
+  pursuit_handle =
+    FUN_00059c40(encounter_handle /* @<eax> */,
+                 firing_position_index /* @<bx> */, threshold, 0);
+  cost = -1;
+  count = 0;
+  already_examined = 0;
+  if (pursuit_handle != -1) {
+    pursuit = (char *)datum_get(*(data_t **)0x5ab26c, pursuit_handle);
+    if (*(short *)(pursuit + 2) != firing_position_index) {
+      display_assert("pursuit->firing_position_index == firing_position_index",
+                     "c:\\halo\\SOURCE\\ai\\encounters.c", 0x434, 1);
+      system_exit(-1);
+    }
+    count = *(short *)(pursuit + 8);
+    cost = *(int *)(pursuit + 4);
+    if (count < 7) {
+      i = 0;
+      do {
+        if (*(int *)(pursuit + i * 4 + 0xc) == position) {
+          already_examined = 1;
+          break;
+        }
+        i = i + 1;
+      } while (i < 6);
+    } else {
+      already_examined = 1;
+    }
+  }
+
+  if (count_out != (short *)0) {
+    *count_out = count;
+  }
+  if (cost_out != (int *)0) {
+    *cost_out = cost;
+  }
+  return already_examined;
+}
+
 /* encounter_force_activate (0x5ba70) — Force an encounter active by setting
  * the respawn timer to 150 ticks and calling the activation handler. */
 void encounter_force_activate(int encounter_handle)
@@ -4058,6 +5163,170 @@ void encounter_force_deactivate(int encounter_handle)
   encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_handle);
   *(int16_t *)(encounter + 0xe) = 0;
   FUN_0005a640(encounter_handle);
+}
+
+/* encounter_post_combat_select_random_behavior (0x5bad0) — Weighted-random
+ * pick of one post-combat behavior out of a 4-entry candidate array, copying
+ * the winning entry's first 16 bytes to the caller's output slot and returning
+ * its index (-1 when no candidate qualifies).
+ *
+ * Confirmed (0x103 bytes, 0x5bad0-0x5bbd2, EBP frame with SUB ESP,8):
+ *   - EBX is READ at 0x5bae8 (LEA ECX,[EBX+4]) with no prior write -> implicit
+ *     @<ebx> input = base of the candidate array. Both original call sites
+ *     (0x5bec5, 0x5bfbc) set it with LEA EBX,[EBP-0xe4] (0x80 = 4 x 0x20).
+ *   - Single cdecl stack arg at [EBP+8] (0x5bba9) = output pointer; callers
+ *     PUSH a 16-byte frame slot and clean up with ADD ESP,4.
+ *   - Epilogue MOV AX,SI (0x5bbcb) -> implicit short return of the selected
+ *     index. Both callers consume it (MOV word ptr [EBP-0x24],AX at 0x5beca
+ *     and MOV word ptr [EBP-0x22],AX at 0x5bfc4), so the return is real and
+ *     the previous void(void) declaration was wrong on return type and args.
+ *   - Array shape: stride 0x20 (ADD ECX,0x20 / SHL EAX,5), 4 entries
+ *     (CMP DX,4; JL). Only two fields are touched: +0x00 int behavior id
+ *     (-1 = unused slot) and +0x04 float weight.
+ *   - Copy-out moves exactly 4 dwords (0x5bbb4-0x5bbc9), so the destination
+ *     buffer is 0x10 bytes, NOT a whole 0x20-byte element.
+ *   - Every 16-bit compare (CMP DX,4 / CMP DI,1 / CMP SI,-1 / CMP SI,4) plus
+ *     MOVSX ECX,SI proves index, count and selection are shorts.
+ *   - The frame holds exactly two floats: [EBP-4] is seeded 0.0 by
+ *     FLD/FST at 0x5bad6/0x5bade, receives the weight total at 0x5bb18, and
+ *     is then OVERWRITTEN with random * total at 0x5bb37 — one variable, hence
+ *     the reuse of weight_total below (a third float would grow SUB ESP to
+ *     0xC and shift the whole frame). [EBP-8] is the accumulator, zeroed as an
+ *     integer store at 0x5bb1d and kept in ST0 across the second loop.
+ *   - FCOM sense: both float tests are FCOMP/FCOM + TEST AH,0x41 + JNE/JZ,
+ *     i.e. the "<= or unordered" negation of a strict `>`; the weight guard is
+ *     `weight > 0.0f` and the draw test is `accum > random * total`.
+ *   - Assert tail at 0x5bb89 pushes 1, 0xa02, file, reason -> display_assert(
+ *     reason, file, 2562, true) followed by PUSH -1; CALL 0x8e2f0 =
+ *     system_exit(-1) (correct flavor, not halt_and_catch_fire).
+ *
+ * Call-site verification:
+ *   get_global_random_seed_address | no args (CALL 0x10b0d0) | ()      | match
+ *   random_math_real | PUSH EAX = seed address returned above
+ *     -> random_math_real((unsigned int *)get_global_random_seed_address())
+ *     | match (result in ST0, FMUL [EBP-4] follows, ADD ESP,4)
+ *   display_assert | PUSH 1 ; PUSH 0xa02 ; PUSH 0x25d27c ; PUSH 0x25db08
+ *     -> display_assert(reason, file, 0xa02, 1) | match (cdecl reverse order)
+ *   system_exit | PUSH -1 -> system_exit(-1) | match
+ *
+ * Store-offset table (output buffer at [EBP+8], from the disassembly):
+ *   +0x00 | MOV EDX,[ECX+0x00] ; MOV [EAX+0x00],EDX | element dword 0
+ *   +0x04 | MOV EDX,[ECX+0x04] ; MOV [EAX+0x04],EDX | element dword 1
+ *   +0x08 | MOV EDX,[ECX+0x08] ; MOV [EAX+0x08],EDX | element dword 2
+ *   +0x0c | MOV ECX,[ECX+0x0c] ; MOV [EAX+0x0c],ECX | element dword 3
+ *
+ * Uncertain: the element type beyond +0x00/+0x04 is unknown (the copy moves
+ * the first 0x10 bytes opaquely), so the array stays raw pointer arithmetic.
+ */
+short encounter_post_combat_select_random_behavior(void *behaviors,
+                                                   void *selected_behavior_out)
+{
+  char *weight_ptr;
+  char *element;
+  int *src;
+  int *dst;
+  short selected_behavior_index;
+  short qualifying_count;
+  short i;
+  float weight_total;
+  float accumulated_weight;
+
+  selected_behavior_index = -1;
+  qualifying_count = 0;
+  i = 0;
+  weight_total = 0.0f;
+  weight_ptr = (char *)behaviors + 4;
+
+  do {
+    if ((*(float *)weight_ptr > 0.0f) && (*(int *)(weight_ptr - 4) != -1)) {
+      weight_total = weight_total + *(float *)weight_ptr;
+      selected_behavior_index = i;
+      qualifying_count = qualifying_count + 1;
+    }
+    i = i + 1;
+    weight_ptr = weight_ptr + 0x20;
+  } while (i < 4);
+
+  if (qualifying_count > 1) {
+    accumulated_weight = 0.0f;
+    /* [EBP-4] is reused: it now holds random * total, the draw threshold. */
+    weight_total =
+      random_math_real((unsigned int *)get_global_random_seed_address()) *
+      weight_total;
+    i = 0;
+    do {
+      element = (char *)behaviors + i * 0x20;
+      if ((*(float *)(element + 4) > 0.0f) && (*(int *)element != -1)) {
+        accumulated_weight = accumulated_weight + *(float *)(element + 4);
+        if (accumulated_weight > weight_total) {
+          selected_behavior_index = i;
+          break;
+        }
+      }
+      i = i + 1;
+    } while (i < 4);
+  }
+
+  if (selected_behavior_index != -1) {
+    if ((selected_behavior_index < 0) || (selected_behavior_index >= 4)) {
+      display_assert("(selected_behavior_index >= 0) && "
+                     "(selected_behavior_index < "
+                     "NUMBER_OF_POST_COMBAT_BEHAVIOR_TYPES)",
+                     "c:\\halo\\SOURCE\\ai\\encounters.c", 0xa02, 1);
+      system_exit(-1);
+    }
+    src = (int *)((char *)behaviors + selected_behavior_index * 0x20);
+    dst = (int *)selected_behavior_out;
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst[3] = src[3];
+  }
+
+  return selected_behavior_index;
+}
+
+/* encounter_set_respawn (0x5c630) — Set an encounter's respawn flag
+ * (encounter+0x3c) and arm its 0x96-tick respawn timer (encounter+0xe), then
+ * refresh the encounter's activation state. Guarded on ai_active
+ * (ai_globals+1).
+ *
+ * Confirmed (0x46 bytes, plain EBP frame, no locals, no FPU, no _chkstk):
+ *   - cdecl stack args: [EBP+8]=encounter_handle (int), [EBP+0xC]=flag (char,
+ *     read as MOV DL). No implicit @<reg> input to this function.
+ *   - ESI caches encounter_handle across both datum_get calls; the original
+ *     re-resolves the datum a second time before the 16-bit store — that
+ *     duplicate resolve is preserved here.
+ *   - Both CALLs target 0x119320 = datum_get(data, handle). The single
+ *     ADD ESP,0x10 at 0x5c662 cleans up BOTH calls (2 calls x 2 args x 4), so
+ *     an arg-count audit reading it as one 4-arg call is a false positive.
+ *   - Tail call: MOV EAX,ESI; POP ESI; POP EBP; JMP 0x5a4e0 — EAX carries the
+ *     @<eax> register argument of FUN_0005a4e0. Because it is a JMP, that
+ *     callee's char return becomes this function's EAX residue; kb declares
+ *     this function void, so it stays void.
+ *   - encounter+0xe is a 16-bit store (MOV word ptr [EAX+0xe],0x96), not int.
+ *
+ * Call-site verification:
+ *   datum_get #1 | PUSH ESI (handle) ; PUSH ECX (*(data_t **)0x5ab270)
+ *     -> datum_get(*(data_t **)0x5ab270, encounter_handle) | match
+ *   datum_get #2 | PUSH ESI ; PUSH ECX -> same expression | match
+ *   FUN_0005a4e0 | EAX = ESI = encounter_handle (@<eax>) | match
+ *
+ * Store-offset table (encounter record, offsets from the disassembly):
+ *   +0x3c | byte  | DL = flag parameter
+ *   +0x0e | int16 | immediate 0x96 (respawn timer, ticks)
+ */
+void encounter_set_respawn(int encounter_handle, char flag)
+{
+  char *encounter;
+
+  if (*(char *)(*(char **)0x632574 + 1) != '\0') {
+    encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_handle);
+    *(char *)(encounter + 0x3c) = flag;
+    encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_handle);
+    *(int16_t *)(encounter + 0xe) = 0x96;
+    FUN_0005a4e0(encounter_handle /* @<eax> */);
+  }
 }
 
 /* 0x5c940 — encounter_update_platoon_rules.

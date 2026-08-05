@@ -92,6 +92,58 @@ void ai_debug_actor_deleted(int actor_handle)
   }
 }
 
+/* ai_debug_get_newest_path_storage (0x490c0) — scan the 0x20-entry
+ * actor_path_debug_array (base *(char**)0x331f5c, stride 0x1ca7c) for the valid
+ * entry belonging to actor_handle with the largest value at +0x4, and return a
+ * pointer to it.  Returns NULL when no entry matches.
+ *
+ * Record fields used (matching ai_debug_get_path_storage at 0x49120, which
+ * writes them):
+ *   +0x0  int   actor handle key
+ *   +0x4  int   creation stamp from game_time_get() — larger == newer
+ *   +0xc  char  valid flag
+ *
+ * No __FILE__ string, no asserts, no calls (pure leaf, 0x490c0..0x49117).
+ *
+ * Binary shape notes (disassembly is authoritative — Ghidra declared this
+ * void(void) and dropped the EAX return):
+ *   EBX = *(int *)0x331f5c is loaded ONCE before the loop, and the found path
+ *   returns EBX + best_slot * 0x1ca7c, so the base is cached in a local.
+ *   EAX walks the table as a cursor initialised with LEA EAX,[EBX+4], so all
+ *   field accesses are cursor-relative: [EAX-4]=+0x0, [EAX]=+0x4, [EAX+8]=+0xc.
+ *   Score test is CMP EDX,ESI / JLE skip — strict greater-than with the loaded
+ *   value first, so ties keep the FIRST maximum encountered.
+ *   Loop counter (CX) and slot index (DI) are 16-bit: CMP CX,0x20 / CMP DI,-1 /
+ *   MOVSX EAX,DI before IMUL EAX,EAX,0x1ca7c. */
+void *ai_debug_get_newest_path_storage(int actor_handle)
+{
+  char *base;
+  char *cursor;
+  int best_stamp;
+  short best_slot;
+  short i;
+
+  best_slot = -1;
+  best_stamp = -1;
+  i = 0;
+  base = *(char **)0x331f5c;
+  cursor = base + 4;
+  do {
+    if (*(char *)(cursor + 8) != '\0' && *(int *)(cursor - 4) == actor_handle &&
+        *(int *)cursor > best_stamp) {
+      best_stamp = *(int *)cursor;
+      best_slot = i;
+    }
+    i++;
+    cursor += 0x1ca7c;
+  } while (i < 0x20);
+
+  if (best_slot == (short)-1) {
+    return 0;
+  }
+  return base + (int)best_slot * 0x1ca7c;
+}
+
 /* ai_debug_get_path_storage (0x49120) — find or allocate a path debug storage
  * slot for actor_handle. Searches 0x20 entries (stride 0x1ca7c) in the
  * actor_path_debug_array. Returns an exact match, first inactive slot, or
@@ -188,6 +240,78 @@ void ai_debug_select_encounter(int encounter_idx)
   }
 }
 
+/* ai_debug_point3d_set: store three reals into a 3-float point.
+ *
+ * No __FILE__ string, no callees, no locals (the original has no `sub esp`).
+ * 4 cdecl stack args at [EBP+0x8]=dst, +0xc=x, +0x10=y, +0x14=z; caller cleans.
+ *
+ * Store-offset table (derived from disassembly, EAX = [EBP+0x8] = dst):
+ *   +0x00  <- FSTP from FLD [EBP+0xc]   (x)
+ *   +0x04  <- ECX = MOV [EBP+0x10]      (y, moved as a raw dword)
+ *   +0x08  <- EDX = MOV [EBP+0x14]      (z, moved as a raw dword)
+ * Only the first component goes through the x87 stack; y/z are integer moves,
+ * an MSVC scheduling artifact of the natural three-assignment source form.
+ * The interleaved MOV ECX / MOV EDX between the stores is scheduling too.
+ *
+ * Name is descriptive (object-prefixed), not recovered from a string. */
+void ai_debug_point3d_set(float *point, float x, float y, float z)
+{
+  point[0] = x;
+  point[1] = y;
+  point[2] = z;
+}
+
+/* ai_debug_get_last_path (0x493d0): arm the debug line-of-fire ray with a new
+ * pair of endpoints.
+ *
+ * No __FILE__ string, no callees (pure leaf, zero CALLs), no FPU instructions,
+ * and no locals -- the original frame is PUSH EBP / MOV EBP,ESP / ... / POP EBP
+ * / RET with no `sub esp`.  2 cdecl stack args at [EBP+0x8] (loaded into ECX)
+ * and [EBP+0xc] (loaded into EDX); caller cleans.
+ *
+ * Despite the kb name this is a setter: it publishes the two endpoints into the
+ * debug ray block and resets the ray state.  Called from ai.c's line-of-fire
+ * rendering block (guarded by the 0x5aca69 debug flag) with two float[3]s.
+ *
+ * Debug ray block layout (0x5acab8, 0x20 bytes; widths from the disassembly --
+ * only the first two stores are byte-sized, everything from 0x5acabc on is
+ * dword):
+ *   +0x00  0x5acab8  uint8   armed flag        <- 1
+ *   +0x01  0x5acab9  uint8   ray-test success  <- 0   (also written by
+ *                                                     FUN_000494d0)
+ *   +0x02           2 bytes padding
+ *   +0x04  0x5acabc  float[3] endpoint A       <- vec_a[0..2]
+ *   +0x10  0x5acac8  float[3] endpoint B       <- vec_b[0..2]
+ *   +0x1c  0x5acad4  int32    counter/index    <- 0
+ *
+ * Store-offset table (derived from the disassembly, ECX = vec_a, EDX = vec_b):
+ *   0x5acab8 <- MOV byte ptr, 1
+ *   0x5acab9 <- XOR EAX,EAX ; MOV AL           (EAX=0 is kept live)
+ *   0x5acabc <- [ECX+0x0]   dword move, no FLD/FSTP
+ *   0x5acac0 <- [ECX+0x4]   dword move
+ *   0x5acac4 <- [ECX+0x8]   dword move
+ *   0x5acac8 <- [EDX+0x0]   dword move
+ *   0x5acacc <- [EDX+0x4]   dword move
+ *   0x5acad0 <- [EDX+0x8]   dword move
+ *   0x5acad4 <- MOV EAX     dword zero, reusing the XOR-cleared EAX
+ * EDX is reloaded from [EBP+0xc] between the [ECX+8] read and its store --
+ * pure MSVC scheduling, no semantic content.
+ *
+ * Inferred: the two flag bytes are stored inline rather than through
+ * FUN_000494d0 (there is no CALL in this function at all). */
+void ai_debug_get_last_path(float *vec_a, float *vec_b)
+{
+  *(uint8_t *)0x5acab8 = 1;
+  *(uint8_t *)0x5acab9 = 0;
+  *(float *)0x5acabc = vec_a[0];
+  *(float *)0x5acac0 = vec_a[1];
+  *(float *)0x5acac4 = vec_a[2];
+  *(float *)0x5acac8 = vec_b[0];
+  *(float *)0x5acacc = vec_b[1];
+  *(float *)0x5acad0 = vec_b[2];
+  *(int32_t *)0x5acad4 = 0;
+}
+
 /* FUN_000494d0: set debug ray-test success flag.
  *
  * No __FILE__ string. Called from ai_debug_get_last_path (ray setup) and
@@ -195,6 +319,227 @@ void ai_debug_select_encounter(int encounter_idx)
 void FUN_000494d0(char success)
 {
   *(uint8_t *)0x5acab9 = success;
+}
+
+/* FUN_000494e0: render the stored debug line-of-sight ray.
+ *
+ * No __FILE__ string; the name is left as FUN_000494e0.  Behaviour: draws the
+ * stored debug ray as one line, then one sphere per recorded hit.  Does
+ * nothing unless the ray block armed flag (0x5acab8) is set.
+ *
+ * Debug ray block (see ai_debug_set_last_ray and FUN_000494d0 above):
+ *   0x5acab8  uint8    armed flag
+ *   0x5acab9  uint8    ray-test success flag (written by FUN_000494d0)
+ *   0x5acabc  float[3] ray start
+ *   0x5acac8  float[3] ray delta (start + delta = ray end)
+ *   0x5acad4  int32    hit count
+ *   0x5acad8  uint8[]  per-hit flag,    stride 1
+ *   0x5acae8  float[3] per-hit point A, stride 0xc
+ *   0x5acba8  float[3] per-hit point B, stride 0xc  (= point A array + 0xc0)
+ *   0x5acc68  float    per-hit radius,  stride 4
+ * The 0xc0 gap between the two point arrays is 16 entries of stride 0xc, so
+ * the parallel arrays hold 16 hits.  Point B is addressed in the original as
+ * EDI+0xc0 off the same walking pointer (the delinked reference has a single
+ * relocation against 0x5acae8), not as a separate absolute base.
+ *
+ * Call-site verification (both cdecl, caller-cleaned):
+ *   0x49543 FUN_00189270, ADD ESP,0x10 (4 dwords).  Pushes, in reverse order:
+ *     color, LEA EBP-0xc (endpoint), 0x5acabc (start), 1 -> C order
+ *     (1, (float *)0x5acabc, endpoint, color)  [match]
+ *   0x49581 FUN_00189860, ADD ESP,0x14 (5 dwords).  Pushes, in reverse order:
+ *     color, [ESI*4+0x5acc68], EDI+0xc0, EDI, 1 -> C order
+ *     (1, point, point + 0xc0, radius, color)  [match]
+ *   The radius push is a plain dword MOV of a float slot.  Ghidra prints a
+ *   `(float)` cast on an int array there, which would be an FILD conversion;
+ *   the disassembly has no FILD, so it is a raw float load.
+ *
+ * Store-offset table (endpoint is the only buffer: 3 floats at EBP-0xc):
+ *   endpoint+0x0 (EBP-0xc) <- FLD [0x5acabc]; FADD [0x5acac8]
+ *   endpoint+0x4 (EBP-0x8) <- FLD [0x5acac0]; FADD [0x5acacc]
+ *   endpoint+0x8 (EBP-0x4) <- FLD [0x5acac4]; FADD [0x5acad0]
+ *   All three chains are FADD (never FSUB), so there is no operand-order
+ *   hazard.  The FSTPs are interleaved with the colour select purely by MSVC
+ *   scheduling.
+ *
+ * The two colour selects use different pointer-global pairs and opposite
+ * polarity: the line takes [0x2ee6d4] when the success flag is set and
+ * [0x2ee6d0] otherwise, while each sphere takes [0x2ee6d0] when its own hit
+ * flag is set and [0x2ee6d8] otherwise.  All three are pointer globals
+ * (MOV reg,[imm32]), not addresses of colour constants.
+ *
+ * The hit count at 0x5acad4 is re-read from memory on every iteration (two
+ * relocations against it in the delinked reference), so it stays in the loop
+ * condition rather than being cached in a local. */
+void FUN_000494e0(void)
+{
+  float endpoint[3];
+  void *color;
+  float *point;
+  int i;
+
+  if (*(uint8_t *)0x5acab8 != 0) {
+    endpoint[0] = *(float *)0x5acabc + *(float *)0x5acac8;
+    endpoint[1] = *(float *)0x5acac0 + *(float *)0x5acacc;
+    endpoint[2] = *(float *)0x5acac4 + *(float *)0x5acad0;
+    color = *(void **)0x2ee6d4;
+    if (*(uint8_t *)0x5acab9 == 0) {
+      color = *(void **)0x2ee6d0;
+    }
+    FUN_00189270(1, (float *)0x5acabc, endpoint, color);
+    i = 0;
+    if (0 < *(int32_t *)0x5acad4) {
+      point = (float *)0x5acae8;
+      do {
+        color = *(void **)0x2ee6d0;
+        if (((uint8_t *)0x5acad8)[i] == 0) {
+          color = *(void **)0x2ee6d8;
+        }
+        FUN_00189860(1, point, point + 48, ((float *)0x5acc68)[i], color);
+        i++;
+        point += 3;
+      } while (i < *(int32_t *)0x5acad4);
+    }
+  }
+}
+
+/* ai_debug_highlight_cluster (0x496c0): report the debug highlight color for a
+ * BSP cluster.
+ *
+ * Confirmed: __FILE__ = "c:\halo\SOURCE\ai\ai_debug.c", line 0x1025 (4133) —
+ * the "highlight_color" NULL check on the out parameter.
+ *
+ * Returns 0 (and writes nothing) unless the highlight-cluster debug flag
+ * (0x5aca6c) is set and an encounter is selected (0x5ac9f4 != -1).  The
+ * 0x200-byte cluster bit vector at 0x331f18 is rebuilt via FUN_00058fd0
+ * whenever the cached game time (0x2c8e90) or cached encounter index
+ * (0x2c8e8c) is stale.  If the queried cluster's bit is set the color depends
+ * on byte +0xd of the selected encounter datum; otherwise the third color
+ * constant is used.
+ *
+ * Call-site verification (all cdecl, caller-cleaned):
+ *   0x4970a FUN_00058fd0, ADD ESP,0x14 (5 dwords).  Pushes, in reverse order,
+ *     0x331f18, 0, 0x200, 0, EDX(=[0x5ac9f4]) -> C order
+ *     (encounter_index, 0, 0x200, 0, (char *)0x331f18)  [match]
+ *   0x49741 display_assert, no ADD ESP (noreturn).  Pushes 1, 0x1025,
+ *     0x25ab74 (file), 0x25abec (reason)  [match]
+ *   0x49748 system_exit, PUSH -1  [match]
+ *   0x4977b datum_get, ADD ESP,8.  PUSH EDX(=[0x5ac9f4]) then PUSH
+ *     EAX(=[0x5ab270]) -> datum_get(*(data_t **)0x5ab270, [0x5ac9f4]) [match]
+ *   EDX is reloaded from [0x5ac9f4] at 0x49717 after the FUN_00058fd0 call
+ *   (the frame has no `sub esp`, so no stack local exists to spill into), so
+ *   the global is re-read rather than cached across the call.
+ *
+ * Store-offset table (out is a single 4-byte slot, held in ESI):
+ *   out+0x00 <- [0x2ee6e0]   bit set, encounter byte +0xd != 0
+ *   out+0x00 <- [0x2ee6d8]   bit set, encounter byte +0xd == 0
+ *   out+0x00 <- [0x2ee6c8]   bit clear
+ *
+ * Inferred: the early-out path falls into POP EBP at 0x497ae *without* popping
+ * ESI (ESI is pushed at 0x49728, after the rebuild block), so the flag/index
+ * test is a plain early `return 0;` ahead of any use of `out`.  The three
+ * success epilogues (0x49794, 0x497a1, 0x497ad) each MOV AL,1 and POP ESI.
+ *
+ * Bit test (0x4975a-0x49771): MOVSX EAX,word[EBP+8]; ECX=EAX&0x1f;
+ * EDI=1<<CL; SAR EAX,5; TEST dword[EAX*4+0x331f18],EDI — the table is
+ * uint32[] indexed by the *sign-extended* cluster index >> 5 (arithmetic). */
+char ai_debug_highlight_cluster(int16_t cluster_index, void *out)
+{
+  int time;
+  char *encounter;
+
+  if (*(uint8_t *)0x5aca6c == 0 || *(int32_t *)0x5ac9f4 == -1) {
+    return 0;
+  }
+  time = game_time_get();
+  if (*(int32_t *)0x2c8e90 != time ||
+      *(int32_t *)0x2c8e8c != *(int32_t *)0x5ac9f4) {
+    FUN_00058fd0(*(int32_t *)0x5ac9f4, 0, 0x200, 0, (char *)0x331f18);
+    *(int32_t *)0x2c8e90 = game_time_get();
+    *(int32_t *)0x2c8e8c = *(int32_t *)0x5ac9f4;
+  }
+  if (out == NULL) {
+    display_assert("highlight_color", "c:\\halo\\SOURCE\\ai\\ai_debug.c",
+                   0x1025, 1);
+    system_exit(-1);
+  }
+  if ((((uint32_t *)0x331f18)[(int)cluster_index >> 5] &
+       (1u << (cluster_index & 0x1f))) != 0) {
+    encounter = (char *)datum_get(*(data_t **)0x5ab270, *(int32_t *)0x5ac9f4);
+    if (encounter[0xd] != 0) {
+      *(void **)out = *(void **)0x2ee6e0;
+      return 1;
+    }
+    *(void **)out = *(void **)0x2ee6d8;
+    return 1;
+  }
+  *(void **)out = *(void **)0x2ee6c8;
+  return 1;
+}
+
+/* ai_debug_idle_look_clear: reset the idle-look debug block at 0x6323d4 to
+ * track a single actor handle.  Sets the "valid" byte flag from
+ * (actor_handle != -1), stores the handle itself as a dword, and clears the
+ * 16-bit property count.  This is the 1-argument variant of the same three
+ * stores performed by ai_debug_select_actor (0x4b1b0) and
+ * ai_debug_initialize_for_new_map (0x4c0f0).
+ *
+ * No __FILE__ string.  No CALLs, no FPU, no locals.  Called from
+ * actor_looking.c (actor idle-look update) with the actor handle.
+ *
+ * Confirmed: cdecl, 1 stack arg at [EBP+0x8]; caller does the cleanup.
+ *
+ * Store-offset table (absolute addresses, 0x4a6e6..0x4a6fe):
+ *   [0x6323d4] <- (actor_handle != -1)  byte   (CMP EAX,-1 / SETNZ CL /
+ *                                               MOV byte ptr [0x6323d4],CL)
+ *   [0x6323d8] <- EAX (actor_handle)    dword  (MOV [0x6323d8],EAX)
+ *   [0x6323dc] <- 0                     word   (MOV word ptr [0x6323dc],0x0)
+ *
+ * Store widths are load-bearing: 0x6323d4 is a byte and 0x6323dc is a 16-bit
+ * word.  Writing either as a dword would clobber the neighbouring fields. */
+void ai_debug_idle_look_clear(int actor_handle)
+{
+  *(uint8_t *)0x6323d4 = (actor_handle != -1);
+  *(int32_t *)0x6323d8 = actor_handle;
+  *(uint16_t *)0x6323dc = 0;
+}
+
+/* ai_debug_idle_look_addprop: append one (index, score) pair to the idle-look
+ * debug proposal list set up by ai_debug_idle_look_clear (0x4a6e0).  Asserts
+ * the "valid" flag first, then appends only while the count is below the
+ * 0x20-entry capacity (no lower-bound check; the compare is signed JGE).
+ *
+ * __FILE__ assert xref confirms the TU: c:\halo\SOURCE\ai\ai_debug.c, line
+ * 0x13b1 (5041), reason "ai_debug.idle_look_valid".  Assert push order
+ * (last push = first arg): PUSH 1 / PUSH 0x13b1 / PUSH 0x25ab74 (file) /
+ * PUSH 0x25aeac (reason) -> display_assert; then PUSH -1 -> system_exit
+ * (noreturn, no stack cleanup follows).
+ *
+ * Confirmed: cdecl, PUSH EBP / MOV EBP,ESP, no sub esp, no locals.
+ * [EBP+0x8] = int index, [EBP+0xC] = float value (single FLD/FSTP
+ * passthrough, genuinely a float — not a smuggled pointer).
+ *
+ * Store-offset table (absolute addresses):
+ *   [0x6323e0 + count*4] <- index   dword (MOVSX EAX,AX; MOV [..EAX*4],..)
+ *   [0x632460 + count*4] <- value   float (MOVSX EDX,word [0x6323dc] — the
+ *                                   counter is RE-LOADED from memory between
+ *                                   the two stores; FLD [EBP+0xC] / FSTP)
+ *   [0x6323dc]           <- count+1 word  (INC word ptr [0x6323dc])
+ *
+ * Widths are load-bearing: 0x6323d4 is a byte flag and 0x6323dc is a SIGNED
+ * 16-bit count (MOV AX / CMP AX,0x20 / JGE).  0x632460 == 0x6323e0 + 0x80,
+ * i.e. the score array begins exactly one 32-entry dword array later. */
+void ai_debug_idle_look_addprop(int index, float value)
+{
+  if (*(uint8_t *)0x6323d4 == 0) {
+    display_assert("ai_debug.idle_look_valid",
+                   "c:\\halo\\SOURCE\\ai\\ai_debug.c", 0x13b1, 1);
+    system_exit(-1);
+  }
+  if (*(int16_t *)0x6323dc < 0x20) {
+    ((int32_t *)0x6323e0)[*(int16_t *)0x6323dc] = index;
+    ((float *)0x632460)[*(int16_t *)0x6323dc] = value;
+    (*(int16_t *)0x6323dc)++;
+  }
 }
 
 /* ai_debug_update: per-tick AI debug update.  Three independent debug actions:

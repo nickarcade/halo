@@ -32,7 +32,7 @@ rtk python3 $R report  $M
 
 1. **Scope and baseline.** Confirm the exact `.c` path, inspect unrelated worktree
    changes without modifying them, `plan`, then `capture`. `capture` replaces the
-   old `cleanup-baseline` block as machine state; `cleanup-baseline` remains the
+   old `cleanup-report` block as machine state; `cleanup-report` remains the
    reference for *what* a baseline must contain (floors, delinked refs, oracles).
 2. **Debt inventory.** Work small line-numbered items from the manifest. Do not
    treat every numeric literal as an address or infer a semantic name from a
@@ -49,7 +49,7 @@ rtk python3 $R report  $M
 
 | # | Category | Skill | Codegen risk | Gate |
 |---|---|---|---|---|
-| — | (pre) tooling check | `cleanup-gap-audit` | — | gaps → downgrade plan |
+| — | (pre) tooling check | `cleanup-report` | — | gaps → downgrade plan |
 | 1 | `comments` | `re-comment-capture` | none | (a) byte-identical |
 | 2 | `local-renames` | `local-var-cleanup` | none | (a) byte-identical |
 | 3 | `symbol-names` | `naming-confidence` | none | (a) byte-identical |
@@ -126,6 +126,17 @@ one's base, so parallel category agents on one TU collide. Give each agent: the
 manifest path, the target skill name, the category id, and an explicit
 same-worktree instruction (a subagent worktree mismatch has silently discarded
 work before).
+
+### Specialized agent
+
+For batch/multi-TU campaigns (`recover-goal`), category agents run as
+`agentType: 'halo-source-recovery'` — the dedicated readability/source-recovery
+subagent, counterpart to `vc71-match-optimizer` on the score side. It knows
+this ladder, these gates, and the naming-confidence tiers; it never chases
+VC71 score and never touches `@<reg>` annotations. `.claude/workflows/recover-goal.js`
+already wires this. A single-session `/recover-source` invocation may run
+inline instead — delegate to the agent explicitly when scoping more than one
+TU or when running unattended.
 
 ## Fidelity rules
 

@@ -218,6 +218,21 @@ const SCORE_SCHEMA = {
   required: ['vc71_score'],
 }
 
+// SCORE_SCHEMA plus an explicit structural-cap flag, so the match-optimizer
+// escalation (below) can tell "escalation_exhausted" apart from "hit a
+// documented ceiling" without inventing new SCORE_SCHEMA fields.
+const MATCH_OPTIMIZER_SCHEMA = {
+  type: 'object',
+  properties: {
+    vc71_score: { type: 'number' },
+    improved:   { type: 'boolean' },
+    capped:     { type: 'boolean' },
+    cap_reason: { type: 'string' },
+    reason:     { type: 'string' },
+  },
+  required: ['vc71_score'],
+}
+
 const EQUIV_SCHEMA = {
   type: 'object',
   properties: {
@@ -261,14 +276,16 @@ const MECH_GATE_SCHEMA = {
 const NEXT_SCHEMA = {
   type: 'object',
   properties: {
-    found:        { type: 'boolean' },
-    name:         { type: 'string' },
-    addr:         { type: 'string' },
-    obj:          { type: 'string' },
-    source_path:  { type: 'string' },
-    best_score:   { type: 'number' },
-    attempts:     { type: 'number' },
-    tried_models: { type: 'string' },
+    found:         { type: 'boolean' },
+    name:          { type: 'string' },
+    addr:          { type: 'string' },
+    obj:           { type: 'string' },
+    source_path:   { type: 'string' },
+    best_score:    { type: 'number' },
+    attempts:      { type: 'number' },
+    tried_models:  { type: 'string' },
+    last_notes:    { type: 'string' },
+    tried_summary: { type: 'string' },
   },
   required: ['found'],
 }
@@ -417,7 +434,7 @@ gap matches one of these, rather than treating it as a fixable bug):
 - @<reg>-defining function's own prologue: permanent sub-bar (VC71 can't emit it)
 - fucompp vs fcomps / int16 movswl / fcos/fsin spill: permanent ~15pp gap, not a bug`
 
-const liftPrompt = (brief, isEscalation, priorScore, warmStarted) =>
+const liftPrompt = (brief, isEscalation, priorScore, warmStarted, priorNotes) =>
   `${AGENT_RULES}
 
 Lift ${brief.name} at ${brief.addr} from Halo CE Xbox (cachebeta.xbe).
@@ -441,6 +458,10 @@ that were individually measured and are easy to lose by accident.
     the floor: if an edit drops the score, revert THAT edit and try the next
     hypothesis. Never submit below ${priorScore}%.
   - If prior review notes name an exact next step, do that step and nothing else.
+` : ''}${priorNotes && priorNotes.notes ? `
+PRIOR ATTEMPT NOTES (from earlier attempts on this function — read before coding):
+${priorNotes.notes}
+Tried so far: ${priorNotes.tried || 'none'}
 ` : ''}
 CONTEXT — do NOT re-call Ghidra:
   KB:       ${brief.kb_entry}
@@ -448,6 +469,15 @@ CONTEXT — do NOT re-call Ghidra:
   Disasm:   ${brief.disasm_notes || 'none'}
   Callees:  ${brief.callees}
   Hazards:  ${brief.hazards}
+
+SCORE CONTEXT (if a prior VC71 run scored this function, read it FIRST — it is
+already-computed diagnostic data, cheaper than re-deriving the same conclusion
+from the objdiff/disasm yourself):
+  rtk jq '{scores, frame, classification}' artifacts/score_context/${brief.name}.json 2>/dev/null || true
+  classification[].action names the specific fix for each detected pattern
+  (loadw_field_width, frame_mismatch, anchor_collapse, etc.) — apply those
+  actions before trying any other hypothesis. Missing file = no prior run
+  recorded yet; proceed normally.
 
 WORKED EXAMPLES (similar functions already ported, with their VC71 %; match their
 idioms — casts, x87 order, struct-store shape — and expect a comparable score.
@@ -519,6 +549,13 @@ STEPS:
    timeout 150 rtk python3 tools/permuter/run.py -q --target ${brief.name} --attempts 100 2>&1 || echo "[permuter stopped]"
    then re-run the step-6 lift_pipeline command. Never accept a permutation
    that lowers the score. Report permuted=true.
+   Exit 3 = VACUOUS RUN (0 candidate iterations — permuter setup problem, not a
+   real result; treat as if permute did not run). Exit 4 = BASELINE MISMATCH
+   (the permuter's own scoring of the unmodified base disagrees with the
+   pipeline's baseline — do not trust any candidate score from that run).
+   The search is now ranked by mnemonic-LCS against the reference, but every
+   surviving candidate is still a semantic mutation — read the diff before
+   accepting it, same as any other code change.
 
 6d. EQUIVALENCE (only if the FINAL score is in [85,89] — the review gate will
    demand runtime evidence for this band, so produce it now while you still
@@ -591,12 +628,58 @@ Run the decomp-permuter for ${name}, then re-verify (both wrapped — see [STALL
 timeout 150 rtk python3 tools/permuter/run.py -q --target ${name} --attempts 100 2>&1 || echo "[permuter stopped at timeout]"
 timeout 165 rtk python3 tools/lift_pipeline.py --target ${name} --no-metadata-update --verify-policy goal90 2>&1 || echo "[timed-out]"
 
+Exit 3 from run.py = VACUOUS RUN (0 candidate iterations ran — a setup problem,
+not a real negative result; do not count it against the 2-invocation budget,
+fix the cause or give up on permute for this function). Exit 4 = BASELINE
+MISMATCH (run.py's own score of the unmodified base disagrees with the
+pipeline's baseline score — any candidate score from that run is untrustworthy,
+discard it). Candidates are now selected by mnemonic-LCS rank against the
+reference, which favors instruction-order matches — that is not the same as
+correctness, so read the actual diff of any accepted candidate before trusting
+it, same as reviewing any other code change.
+
 BOUNDED PASS — at most 2 permuter invocations total. If a permutation breaks the
 build (e.g. -Werror dead variable), fix it minimally and re-verify once. If the
 score is still <90% after that, STOP and return the best verified score — do not
 keep iterating; the review gate decides acceptance. Never accept a permutation
 that lowers the pre-permute score.
 Return: vc71_score (after permutation), improved (bool), reason.`
+
+// vc71-match-optimizer escalation — replaces the old cold-rewrite lift2 for
+// fail_check_cap (65-84%, classify_cap says NOT capped). The function already
+// builds and is already believed faithful; a full re-lift with a different
+// model throws that away and re-derives it. This instead tunes the EXISTING
+// candidate source one score-recovery lever at a time (recipe atlas in
+// .claude/skills/lift-score-improve/SKILL.md), which is cheaper and can't
+// regress correctness the way a cold rewrite occasionally has.
+const matchOptimizerPrompt = (name, addr, obj, srcFile, priorScore, neighbors) =>
+  `${AGENT_RULES}
+
+Improve the VC71 byte-match score for ${name} at ${addr} (object: ${obj}).
+Source: ${srcFile} | Current score: ${priorScore}%.
+
+This function already builds and is already believed behaviorally faithful —
+your job is ONLY to close the byte-match gap against the delinked MSVC 7.1
+reference. Follow your own protocol: fresh score-context pack first, then one
+lever per iteration from the lift-score-improve recipe atlas, re-measured via
+the fast single-function path, keeping only improvements.
+  rtk python3 tools/verify/vc71_verify.py ${srcFile} -f ${name} --no-cache
+  rtk jq '{scores, frame, classification}' artifacts/score_context/${name}.json
+
+WORKED EXAMPLES (similar already-ported functions with their VC71 %; match
+their idioms — casts, x87 order, struct-store shape — if a lever here mirrors
+one of theirs):
+${neighbors || '  (none — retrieval server was cold)'}
+
+Never submit a score below ${priorScore}%. Respect regarg_structural_ceiling
+and any other documented structural cap — report it, do not chase it.
+Do NOT commit, do NOT run the review gate.
+Return: vc71_score (your final best, from the closing full verify — see your
+protocol), improved (bool, vs ${priorScore}%), capped (bool — true ONLY if you
+hit a documented non-recoverable ceiling like regarg_structural_ceiling, false
+if you simply ran out of applicable levers), cap_reason (the ceiling's rule id
+when capped is true, else empty string), reason (short: which lever(s) you
+kept, and why — capped or not).`
 
 const equivalencePrompt = (name) =>
   `${AGENT_RULES}
@@ -713,12 +796,12 @@ rtk git status --short
 // ledger (tools/lift/park.py), shared with manual /lift and the improve pass.
 // attemptME = the {model,effort} of the lift ATTEMPT (recorded for later
 // exclude-model selection), not the park agent's own model.
-const parkToolPrompt = (name, addr, obj, srcFile, score, attemptME, reason, capHyp) =>
+const parkToolPrompt = (name, addr, obj, srcFile, score, attemptME, reason, capHyp, notes) =>
   `${AGENT_RULES}
 
 Preserve the sub-bar lift of ${name} (${addr}, ${score}% VC71) for a later improve
 pass, then clean the tree. Run exactly this one command:
-rtk python3 tools/lift/park.py park --name ${JSON.stringify(name)} --addr ${JSON.stringify(addr || '')} --obj ${JSON.stringify(obj || '')} --source ${JSON.stringify(srcFile || '')} --score ${score} --model ${JSON.stringify(attemptME.model)} --effort ${JSON.stringify(attemptME.effort)} --reason ${JSON.stringify(reason || '')}${capHyp ? ' --cap-hypothesis ' + JSON.stringify(capHyp) : ''} --revert-tree
+rtk python3 tools/lift/park.py park --name ${JSON.stringify(name)} --addr ${JSON.stringify(addr || '')} --obj ${JSON.stringify(obj || '')} --source ${JSON.stringify(srcFile || '')} --score ${score} --model ${JSON.stringify(attemptME.model)} --effort ${JSON.stringify(attemptME.effort)} --reason ${JSON.stringify(reason || '')}${capHyp ? ' --cap-hypothesis ' + JSON.stringify(capHyp) : ''}${notes ? ' --notes ' + JSON.stringify(String(notes).slice(0, 2000)) : ''} --revert-tree
 park.py saves the git diff to artifacts/parked/, records the attempt (with
 history), and reverts src/ kb.json tools/kb_reg_baseline.json to HEAD. Return the
 tool's "parked ..." stdout line.`
@@ -729,11 +812,16 @@ tool's "parked ..." stdout line.`
 const nextPrompt = (excludeModel) =>
   `Pick the next parked function for the improve pass. Run exactly:
 rtk python3 tools/lift/park.py next --exclude-model ${JSON.stringify(excludeModel)}
-It prints JSON {"found":bool,"record":{...}}.
+It prints JSON {"found":bool,"record":{...}}. The record carries "last_notes"
+(the most recent attempt's notes string, may be empty) and "attempt_history"
+(array of {model, score, notes}).
 - If found=false → return found=false.
 - Else return found=true with the record's name, addr, obj, source_path, best_score,
-  attempts (the length of the attempts array), and tried_models (comma-joined
-  attempts[].model values).`
+  attempts (the length of the attempts array), tried_models (comma-joined
+  attempts[].model values), last_notes (the record's last_notes field verbatim —
+  this is the prior attempt's diagnosis/rationale and must NOT be summarized or
+  dropped), and tried_summary (build a compact "model:score%" list from
+  attempt_history, e.g. "opus:71.8, fable:74.2" — one entry per attempt, in order).`
 
 // Warm-start: restore the parked best patch so the improve model refines real
 // prior work instead of starting cold. A stale patch (HEAD moved past it) fails
@@ -811,6 +899,12 @@ async function reviewThenCommit(brief, score, srcFile, path, phaseTitle, preEqui
     // equiv 100/100 seeds and was re-rejected on the same structural grounds).
     // NEEDS_RUNTIME means "structure is a near-miss, behavior unproven"; a
     // passing equivalence run at moderate+ confidence IS that proof.
+    // MIN_COMMIT gates ONLY this mechanical NEEDS_RUNTIME+equiv acceptance
+    // lane — it intentionally does not gate gateThenCommit's >=90%/>=95%
+    // mechanical fast path above, nor the reviewer's own direct AUTO_ACCEPT
+    // verdict a few lines up. Runtime evidence substituting for byte-match
+    // score is a narrower claim than byte-match score alone, so it gets its
+    // own (lower, configurable) floor instead of inheriting the others'.
     if (eq && eq.passes && score >= MIN_COMMIT && (eq.confidence === 'high' || eq.confidence === 'moderate')) {
       review = { verdict: 'AUTO_ACCEPT', rationale: `mechanical: NEEDS_RUNTIME + equiv passed (confidence=${eq.confidence}, coverage=${eq.coverage != null ? eq.coverage : '?'}%)` }
     } else if (eq && eq.passes) {
@@ -859,9 +953,11 @@ async function gateThenCommit(brief, score, srcFile, path, phaseTitle, preEquiv)
 }
 
 // Preserve a sub-bar built lift (any score) via park.py and revert the tree.
-// attemptME = {model,effort} of the lift attempt being preserved.
-async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phaseTitle) {
-  await agent(parkToolPrompt(brief.name, brief.addr, brief.obj, srcFile, score, attemptME, reason, capHyp),
+// attemptME = {model,effort} of the lift attempt being preserved. notes = free-form
+// diagnostic/rationale text for this attempt (capped 2000 chars in parkToolPrompt),
+// read back by the improve pass via park.py next's last_notes/attempt_history.
+async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phaseTitle, notes) {
+  await agent(parkToolPrompt(brief.name, brief.addr, brief.obj, srcFile, score, attemptME, reason, capHyp, notes),
     { label: `park:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical })
 }
 
@@ -876,6 +972,13 @@ if (IMPROVE) {
   const XM = M.improve.model
   log(`Improve pass: re-lifting up to ${GOAL} parked functions with ${XM}-${M.improve.effort}${DRY_RUN ? ' (dry run — no commits)' : ''}`)
   if (OBJECTS) log(`(object filter not applied in improve mode — park.py next drains globally by score)`)
+
+  // Sync the shared parked ledger before draining it (see Select phase for why).
+  await agent(
+    `Run these two commands and return the last summary line of EACH (two lines total):
+rtk python3 tools/lift/park.py reconcile --apply 2>&1 || true
+rtk python3 tools/lift/park.py migrate --apply 2>&1 || true`,
+    { label: 'ledger-sync', phase: 'Improve', ...M.mechanical })
 
   // Warm retrieval so the improve re-research decompiles get worked-example neighbors.
   await agent(warmRetrievalPrompt(), { label: 'retrieval-warm', phase: 'Improve', ...M.mechanical })
@@ -917,16 +1020,53 @@ rtk python3 tools/lift/park.py promote --name ${JSON.stringify(rec.name)} --comm
     const ap = await agent(applyPrompt(rec.name), { label: `apply:${rec.name}`, phase: 'Improve', ...M.mechanical, schema: APPLY_SCHEMA })
     const warm = !!(ap && ap.applied)
 
+    // 2b. Refresh the score-context pack the re-lift model is about to read
+    // (liftPrompt's SCORE CONTEXT section, `artifacts/score_context/<name>.json`)
+    // now that the warm-started patch is actually on disk. That file may be
+    // whatever an attempt weeks ago last wrote — stale classification points
+    // the improve model at the wrong fix. Cheap mechanical refresh, same
+    // shape as the redelink/permute steps below (mechanical model, no schema
+    // needed — the file on disk is the product, not a structured return).
+    if (warm) {
+      const refreshSrc = brief.source_path || rec.source_path
+      await agent(
+        `Refresh the VC71 score-context pack for ${rec.name} so it reflects the warm-started patch on disk:
+rtk python3 tools/verify/vc71_verify.py ${refreshSrc} -f ${rec.name} --no-cache 2>&1 | tail -5 || true`,
+        { label: `refresh-context:${rec.name}`, phase: 'Improve', ...M.mechanical })
+    }
+
     // 3. Re-lift with the improve model (escalation framing, prior score to beat).
     const liftBrief = { ...brief, obj: brief.obj || rec.obj, source_path: brief.source_path || rec.source_path }
-    const a = await agent(liftPrompt(liftBrief, true, rec.best_score, warm), {
-      label: `improve-lift:${rec.name}`, phase: 'Improve', agentType: 'xbox-halo-re-analyst', ...M.improve, schema: LIFT_RESULT_SCHEMA,
-    })
+    const priorNotes = { notes: nx.last_notes || '', tried: nx.tried_summary || '' }
+
+    // Warm-started AND parked in the pure byte-tuning band (65-84, same band the
+    // Lift-phase escalation gates on) → the on-disk candidate already builds and
+    // was already believed faithful by whoever parked it; try the improve
+    // model's persona on the SAME lever-tuning approach before spending a full
+    // cold re-lift. A cold-start record (no prior patch survived to apply) has
+    // no existing candidate to tune, so it always takes the full path below.
+    let a
+    if (warm && classifyBand(rec.best_score) === 'fail_check_cap') {
+      const mo = await agent(matchOptimizerPrompt(rec.name, rec.addr, liftBrief.obj, liftBrief.source_path, rec.best_score, liftBrief.neighbors), {
+        label: `improve-optimize:${rec.name}`, phase: 'Improve', agentType: 'vc71-match-optimizer', ...M.improve, schema: MATCH_OPTIMIZER_SCHEMA,
+      })
+      if (mo && typeof mo.vc71_score === 'number' && mo.vc71_score > rec.best_score) {
+        a = { status: 'needs_verify', vc71_score: mo.vc71_score, source_file: liftBrief.source_path, reason: mo.reason || '' }
+        log(`  ${rec.name} improve-optimize: ${rec.best_score}% → ${mo.vc71_score}% (skipping full re-lift)`)
+      } else {
+        log(`  ${rec.name} improve-optimize made no improvement over ${rec.best_score}% — falling back to full re-lift (${IMPROVE_MODEL})`)
+      }
+    }
+    if (!a) {
+      a = await agent(liftPrompt(liftBrief, true, rec.best_score, warm, priorNotes), {
+        label: `improve-lift:${rec.name}`, phase: 'Improve', agentType: 'xbox-halo-re-analyst', ...M.improve, schema: LIFT_RESULT_SCHEMA,
+      })
+    }
     if (!a || a.status === 'infra_blocked') { istop = 'infra_blocked'; improved.push({ ...rec, status: 'infra_blocked', reason: 'agent_null' }); break }
     if (a.status !== 'needs_verify') {
       // build_failed / skipped: re-park records the improve-model attempt (so it
       // won't be re-picked) and reverts, preserving the prior best patch.
-      await parkBuilt(liftBrief, a.source_file || liftBrief.source_path, a.vc71_score || 0, M.improve, `improve_${a.status}`, a.cap_reason || '', 'Improve')
+      await parkBuilt(liftBrief, a.source_file || liftBrief.source_path, a.vc71_score || 0, M.improve, `improve_${a.status}`, a.cap_reason || '', 'Improve', a.reason || '')
       noProgress++; improved.push({ ...rec, status: 're_parked', reason: `improve ${a.status}` }); continue
     }
 
@@ -959,7 +1099,7 @@ rtk python3 tools/lift/park.py promote --name ${JSON.stringify(rec.name)} --comm
       // gate held despite passing band → re-park with the improve attempt recorded.
     }
 
-    await parkBuilt(liftBrief, srcFile, score, M.improve, `improve_pass_${band}`, a.cap_reason || '', 'Improve')
+    await parkBuilt(liftBrief, srcFile, score, M.improve, `improve_pass_${band}`, a.cap_reason || '', 'Improve', a.reason || a.equiv_reason || '')
     noProgress++
     improved.push({ ...rec, status: 're_parked', vc71_score: score, reason: `improve→${score}% (${band})` })
     log(`◐ ${rec.name} re-parked at ${score}% (was ${rec.best_score}%)`)
@@ -1001,6 +1141,16 @@ phase('Select')
 log(`Goal: lift ${GOAL} functions at >=90% VC71${DRY_RUN ? ' (dry run — no commits)' : ''}`)
 if (OBJECTS) log(`Object filter (hard): ${OBJECTS.join(', ')}`)
 if (CRITERIA) log(`Extra criteria (soft): ${CRITERIA}`)
+
+// Sync the shared parked ledger before selecting: reconcile drops records for
+// functions that landed via another path since they were parked, and migrate
+// upgrades any pre-shared-root legacy records. Neither is ever invoked
+// automatically otherwise, so the ledger silently accumulates stale entries.
+await agent(
+  `Run these two commands and return the last summary line of EACH (two lines total):
+rtk python3 tools/lift/park.py reconcile --apply 2>&1 || true
+rtk python3 tools/lift/park.py migrate --apply 2>&1 || true`,
+  { label: 'ledger-sync', phase: 'Select', ...M.mechanical })
 
 const BATCH_LIMIT = Math.min(60, Math.max(30, GOAL * 3))
 
@@ -1391,7 +1541,7 @@ while (true) {
       lift  = { ...lift, redelinked: true }
       log(`  ${brief.name} redelink repaired verify → ${score}%`)
     } else {
-      await parkBuilt(brief, srcFile, 0, lastME, 'verify_skipped_no_ref', 'VC71 unmeasured: no delinked reference could be produced; not a lift failure')
+      await parkBuilt(brief, srcFile, 0, lastME, 'verify_skipped_no_ref', 'VC71 unmeasured: no delinked reference could be produced; not a lift failure', 'Lift', a1.reason || '')
       results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: null, reason: 'verify_skipped_no_ref (infrastructure — VC71 never measured; do not treat as below_65pct)' })
       continue
     }
@@ -1430,45 +1580,59 @@ while (true) {
   const treatAsCapped = a1.capped === true
   const capProvenance = a1.cap_confidence === 'high' ? 'deterministic(classify_cap.py)' : 'agent-judgment'
   if (band === 'fail_check_cap' && !treatAsCapped) {
-    log(`  ${brief.name} ${score}% — not a structural cap (${a1.cap_confidence || 'n/a'}), escalating (${IMPROVE_MODEL})`)
-    // Preserve the attempt-1 (Opus) work before escalating: park keeps the
-    // best-scoring attempt's patch across both, and --revert-tree cleans the
-    // tree for the escalation re-lift. Never discard a building lift.
-    await parkBuilt(brief, srcFile, score, M.reason, 'pre_escalation', a1.cap_reason || '')
-    const a2 = await agent(liftPrompt(brief, true, score), {
-      label: `lift2:${brief.name}`, phase: 'Lift', agentType: 'xbox-halo-re-analyst', ...M.improve, schema: LIFT_RESULT_SCHEMA,
+    log(`  ${brief.name} ${score}% — not a structural cap (${a1.cap_confidence || 'n/a'}), escalating to vc71-match-optimizer (${IMPROVE_MODEL})`)
+    // Preserve the attempt-1 work before escalating: park keeps the
+    // best-scoring attempt's patch, so if the optimizer makes things worse
+    // (it shouldn't — it only reverts-on-regression internally, but the
+    // park ledger is the outer safety net) the ledger still has attempt 1.
+    // Unlike the old cold-rewrite escalation, this does NOT hand the
+    // function to a fresh re-lift: attempt 1 already builds and is already
+    // believed faithful, so the optimizer tunes THAT source in place
+    // (one score-recovery lever at a time) instead of re-deriving it.
+    await parkBuilt(brief, srcFile, score, M.reason, 'pre_escalation', a1.cap_reason || '', 'Lift', a1.reason || '')
+    const mo = await agent(matchOptimizerPrompt(brief.name, brief.addr, brief.obj, srcFile, score, brief.neighbors), {
+      label: `match-optimize:${brief.name}`, phase: 'Lift', agentType: 'vc71-match-optimizer', ...M.improve, schema: MATCH_OPTIMIZER_SCHEMA,
     })
-    if (a2 && (a2.status === 'needs_verify')) {
-      lift    = a2
-      score   = a2.vc71_score || score
-      srcFile = a2.source_file || srcFile
-      band    = classifyBand(score)
-      path    = 'escalated' + (a2.redelinked ? '+redelink' : '') + (a2.permuted ? '+permute' : '')
-      lastME  = M.improve
-    } else if (a2 && a2.status === 'build_failed') {
-      consecutiveFails++
-      results.push({ ...a2, obj: brief.obj })
-      continue
+    if (mo && typeof mo.vc71_score === 'number') {
+      // srcFile is unchanged — the optimizer edits the existing file in place,
+      // it does not produce a new one. Never let a lower/garbled number regress
+      // the score the ledger already has for attempt 1.
+      score  = Math.max(score, mo.vc71_score)
+      band   = classifyBand(score)
+      path   = 'escalated+optimize'
+      lastME = M.improve
+      lift    = { ...lift, reason: mo.reason || lift.reason }
+      if (mo.capped === true) {
+        // Match-optimizer hit a documented ceiling itself (its own equivalent
+        // of classify_cap) — treat it exactly like the attempt-1 cap path below.
+        log(`  ${brief.name} ${score}% capped [agent-judgment:optimizer]: ${mo.cap_reason || 'unclassified'} — parked, no further escalation`)
+        await parkBuilt(brief, srcFile, score, lastME, 'structural_cap', mo.cap_reason || 'unclassified', 'Lift', mo.reason || '')
+        consecutiveFails++
+        results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: score, reason: `structural_cap[agent-judgment:optimizer]: ${mo.cap_reason || 'unclassified'}` })
+        continue
+      }
+    } else {
+      log(`  ${brief.name} ${score}% — match-optimizer returned no usable score, keeping attempt-1 result`)
     }
   } else if (band === 'fail_check_cap' && treatAsCapped) {
     // Structural cap — a future model may still beat it, so PARK (with the cap
     // hypothesis) rather than discard. Not confirm-cap: that would end retries.
     log(`  ${brief.name} ${score}% capped [${capProvenance}]: ${a1.cap_reason || 'unclassified'} — parked, no escalation`)
-    await parkBuilt(brief, srcFile, score, M.reason, 'structural_cap', a1.cap_reason || 'unclassified')
+    await parkBuilt(brief, srcFile, score, M.reason, 'structural_cap', a1.cap_reason || 'unclassified', 'Lift', a1.reason || '')
     consecutiveFails++
     results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: score, reason: `structural_cap[${capProvenance}]: ${a1.cap_reason || 'unclassified'}` })
     continue
   }
 
   if (band === 'fail_revert') {
-    await parkBuilt(brief, srcFile, score, lastME, 'below_65pct', '')
+    await parkBuilt(brief, srcFile, score, lastME, 'below_65pct', '', 'Lift', lift.reason || '')
     consecutiveFails++
     results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: score, reason: `below_65pct` })
     continue
   }
   if (band === 'fail_check_cap') {
     // escalation ran and is still in [65,84) — park the best attempt for later.
-    await parkBuilt(brief, srcFile, score, lastME, 'escalation_exhausted', '')
+    await parkBuilt(brief, srcFile, score, lastME, 'escalation_exhausted', '', 'Lift', lift.reason || '')
     consecutiveFails++
     results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: score, reason: 'escalation_exhausted' })
     continue
@@ -1498,13 +1662,13 @@ while (true) {
     // Near-miss: lift is structurally sound, only runtime evidence blocked it.
     // Park (recoverable ledger) and do NOT count toward the consecutive-fail
     // stop — this is a deferred work item, not a failed lift.
-    await parkBuilt(brief, srcFile, score, lastME, `${outcome.verdict}: ${outcome.rationale}`, '')
+    await parkBuilt(brief, srcFile, score, lastME, `${outcome.verdict}: ${outcome.rationale}`, '', 'Lift', lift.reason || '')
     results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: score, source_file: srcFile, reason: `${outcome.verdict}: ${outcome.rationale}` })
     log(`◐ ${brief.name} ${score}% parked (review gate: ${outcome.verdict}; patch in artifacts/parked/)`)
   } else {
     // Below 85 and review-blocked: still preserve the work (a different model
     // may push it over later) rather than checkout-discarding it.
-    await parkBuilt(brief, srcFile, score, lastME, `${outcome.verdict}: ${outcome.rationale}`, '')
+    await parkBuilt(brief, srcFile, score, lastME, `${outcome.verdict}: ${outcome.rationale}`, '', 'Lift', lift.reason || '')
     consecutiveFails++
     results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: score, source_file: srcFile, reason: `review<85: ${outcome.verdict}: ${outcome.rationale}` })
     log(`◐ ${brief.name} ${score}% parked (review gate <85: ${outcome.verdict})`)

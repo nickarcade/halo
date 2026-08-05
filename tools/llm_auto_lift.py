@@ -35,6 +35,7 @@ log = logging.getLogger("auto_lift")
 ROOT = Path(__file__).resolve().parent.parent
 ARTIFACT_ROOT = ROOT / "artifacts" / "auto_lift"
 CONTEXT_CACHE = ARTIFACT_ROOT / "context_cache"
+SCORE_CONTEXT_DIR = ROOT / "artifacts" / "score_context"
 DELINKED_DIR = ROOT / "delinked"
 OBJDIFF_JSON = ROOT / "objdiff.json"
 KB_JSON = ROOT / "kb.json"
@@ -312,6 +313,9 @@ class ContextPack:
     hazards: dict
     delinked_available: bool
     constraints: list[str]
+    score_context: dict = field(default_factory=dict)
+    prior_official_pct: Optional[float] = None
+    shape_donor: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +431,32 @@ def _has_delinked_ref(source_path: str, units: dict[str, dict]) -> bool:
     return (ROOT / base).exists() if base else False
 
 
+def _load_score_context(name: str, addr: str) -> Optional[dict]:
+    """Load artifacts/score_context/<name>.json for a lift target, if present.
+
+    Tries the lifted function name first, then the FUN_<addr:08x> alias
+    (vc71_verify.py writes score-context packs keyed by whichever name was
+    scored, which may still be the decl-literal FUN_ name pre-lift).
+    Tolerates missing or corrupt files by returning None.
+    """
+    candidates = [name]
+    if addr:
+        try:
+            candidates.append(f"FUN_{int(addr, 16):08x}")
+        except ValueError:
+            pass
+
+    for candidate in candidates:
+        path = SCORE_CONTEXT_DIR / f"{candidate}.json"
+        if not path.exists():
+            continue
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return None
+
+
 _PDB_PROPOSALS_CACHE: Optional[set[str]] = None
 
 # ---------------------------------------------------------------------------
@@ -434,45 +464,143 @@ _PDB_PROPOSALS_CACHE: Optional[set[str]] = None
 # ---------------------------------------------------------------------------
 
 _SOURCE_IMPL_CACHE: Optional[dict[str, str]] = None
+_SOURCE_IMPL_BY_NAME: Optional[dict[str, str]] = None
+
+# A C function DEFINITION at column 0: a return type, then the name, then '('.
+# The `^` anchor drops indented call sites, and callers additionally reject
+# lines ending in ';' so prototypes and column-0 calls cannot match.
+_FN_DEF_RE = re.compile(
+    r'^[A-Za-z_][A-Za-z0-9_*\s]+?[\s*]([A-Za-z_][A-Za-z0-9_]*)\s*\('
+)
+
+# Names that are never a real function and must not enter the index.  Both
+# sides of this lookup can degenerate to a bare type keyword -- a source
+# `typedef void (*fn)(...)` captures "void", and a kb.json decl for a function
+# POINTER TABLE (a data symbol, e.g. 0x31e500) also parses to "void".  Two such
+# garbage names collide and would silently exclude a liftable target.
+_NOT_A_FUNCTION_NAME = frozenset({
+    "void", "int", "char", "short", "long", "float", "double", "bool",
+    "unsigned", "signed", "const", "volatile", "static", "extern", "inline",
+    "register", "struct", "union", "enum", "typedef", "return", "sizeof",
+    "if", "else", "while", "for", "do", "switch", "case", "default",
+    "break", "continue", "goto",
+})
 
 
 def _build_source_impl_cache() -> dict[str, str]:
-    """Scan src/ for FUN_<addr> function definitions.
+    """Scan src/ for function definitions, indexed by address AND by name.
 
     Returns a dict mapping normalized address (e.g. '0x5a640') to the first
-    matching 'file:line' location.  Cached for the process lifetime.
+    matching 'file:line' location.  Cached for the process lifetime.  A second
+    index keyed by function name is built in the same pass and exposed through
+    ``_SOURCE_IMPL_BY_NAME``.
+
+    The name index is not a nicety.  Matching `FUN_<addr>` alone made every
+    function that had been given a real name invisible to the guard: the
+    selector looks up by address, the source defines by name, and the two never
+    meet.  `plane_negate` (implemented at geometry.c:15, kb.json ported=false)
+    was dequeued, researched, and skipped 48 separate times; the four
+    `actor_action_*` handlers 50 times each.  Roughly half of every batch's
+    research budget went to rediscovering known-implemented functions.
     """
-    global _SOURCE_IMPL_CACHE
-    if _SOURCE_IMPL_CACHE is not None:
+    global _SOURCE_IMPL_CACHE, _SOURCE_IMPL_BY_NAME
+    if _SOURCE_IMPL_CACHE is not None and _SOURCE_IMPL_BY_NAME is not None:
         return _SOURCE_IMPL_CACHE
 
     cache: dict[str, str] = {}
-    fn_def_re = re.compile(
-        r'^[A-Za-z_][A-Za-z0-9_*\s]+\bFUN_([0-9a-fA-F]{8})\s*\('
-    )
+    by_name: dict[str, str] = {}
     src_dir = ROOT / "src"
     for c_file in src_dir.rglob("*.c"):
         try:
+            rel = str(c_file.relative_to(ROOT))
             for lineno, line in enumerate(
                 c_file.read_text(encoding="utf-8", errors="ignore").splitlines(), 1
             ):
-                m = fn_def_re.match(line)
-                if m:
-                    addr_norm = "0x" + hex(int(m.group(1), 16))[2:]
+                # A trailing ';' means prototype or call, never a definition;
+                # a typedef is a type alias, not an implementation.
+                if line.rstrip().endswith(";") or line.startswith("typedef"):
+                    continue
+                m = _FN_DEF_RE.match(line)
+                if not m:
+                    continue
+                name = m.group(1)
+                if name in _NOT_A_FUNCTION_NAME:
+                    continue
+                loc = f"{rel}:{lineno}"
+                if name not in by_name:
+                    by_name[name] = loc
+                if name.startswith("FUN_"):
+                    try:
+                        addr_norm = "0x" + hex(int(name[4:], 16))[2:]
+                    except ValueError:
+                        continue
                     if addr_norm not in cache:
-                        rel = str(c_file.relative_to(ROOT))
-                        cache[addr_norm] = f"{rel}:{lineno}"
+                        cache[addr_norm] = loc
         except OSError:
             pass
     _SOURCE_IMPL_CACHE = cache
+    _SOURCE_IMPL_BY_NAME = by_name
     return cache
 
 
-def _is_already_in_source(addr: str) -> Optional[str]:
-    """Return 'file:line' if addr has a definition in src/, else None."""
+def _is_already_in_source(addr: str, name: str = "") -> Optional[str]:
+    """Return 'file:line' if addr or name has a definition in src/, else None.
+
+    `name` is optional so existing address-only callers keep working, but pass
+    it whenever kb.json supplies one -- it is the only way a renamed function
+    is seen.
+    """
     cache = _build_source_impl_cache()
     normalized = "0x" + hex(int(addr.lower().removeprefix("0x"), 16))[2:]
-    return cache.get(normalized)
+    hit = cache.get(normalized)
+    if hit:
+        return hit
+    if name and name not in _NOT_A_FUNCTION_NAME and _SOURCE_IMPL_BY_NAME:
+        return _SOURCE_IMPL_BY_NAME.get(name)
+    return None
+
+
+_VC71_SCORES_CACHE: Optional[dict[str, dict]] = None
+
+
+def _load_vc71_scores() -> dict[str, dict]:
+    """Return the committed VC71 byte-match cache, keyed by function name.
+
+    Shape is {"scores": {name: {"score": float, "source": path}}, "version": N}.
+    Empty dict if the file is missing or unreadable -- absence of a prior score
+    must never block selection.
+    """
+    global _VC71_SCORES_CACHE
+    if _VC71_SCORES_CACHE is not None:
+        return _VC71_SCORES_CACHE
+    result: dict[str, dict] = {}
+    path = ROOT / "tools" / "verify" / "vc71_scores.json"
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            raw = data.get("scores", data) if isinstance(data, dict) else {}
+            if isinstance(raw, dict):
+                for k, v in raw.items():
+                    if isinstance(v, dict) and isinstance(v.get("score"), (int, float)):
+                        result[k] = v
+        except (json.JSONDecodeError, OSError):
+            pass
+    _VC71_SCORES_CACHE = result
+    return result
+
+
+def _prior_vc71_score(name: str) -> Optional[float]:
+    """Return this target's last recorded VC71 match %, or None if never scored.
+
+    A target that has already been measured has a known ceiling.  Surfacing it
+    in the selector row lets a consumer route the work correctly up front --
+    permuter band, score-improve, or leave alone -- instead of spending a full
+    research cycle rediscovering a number we already committed to disk.
+    """
+    if not name:
+        return None
+    entry = _load_vc71_scores().get(name)
+    return float(entry["score"]) if entry else None
 
 
 def _load_pdb_proposal_addrs() -> set[str]:
@@ -530,6 +658,39 @@ def _load_leaf_cache() -> dict[str, dict]:
 def _load_pure_leaf_addrs() -> set[str]:
     """Return the set of addresses classified as pure leaves."""
     return {a for a, d in _load_leaf_cache().items() if d.get("class") == "leaf"}
+
+
+_SHAPE_ATLAS_RECIPIENTS: dict[str, dict] | None = None
+
+
+def _load_shape_atlas() -> dict[str, dict]:
+    """Return {addr_lower: {"donor": {...}, "tier": "exact"|"ported"}} for
+    every recipient in tools/shape/shape_atlas.py's transfer groups.
+
+    Scheduling aid only (see tools/shape/shape_atlas.py) -- never grants
+    match credit, just a bonus for targets that already have a proven
+    donor template to instantiate from. Tolerates a missing/corrupt/absent
+    artifacts/shape_atlas.json silently (it is gitignored and built
+    on-demand via `shape_atlas.py build`).
+    """
+    global _SHAPE_ATLAS_RECIPIENTS
+    if _SHAPE_ATLAS_RECIPIENTS is not None:
+        return _SHAPE_ATLAS_RECIPIENTS
+    result: dict[str, dict] = {}
+    atlas_path = ROOT / "artifacts" / "shape_atlas.json"
+    if atlas_path.exists():
+        try:
+            data = json.loads(atlas_path.read_text(encoding="utf-8"))
+            for group in data.get("groups", []):
+                donor = group.get("donor")
+                if not donor:
+                    continue
+                for addr in group.get("recipients", []):
+                    result[addr.lower()] = {"donor": donor, "tier": donor.get("tier")}
+        except (json.JSONDecodeError, OSError):
+            result = {}
+    _SHAPE_ATLAS_RECIPIENTS = result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -689,7 +850,7 @@ class LiftabilityScorer:
                 # Skip functions already implemented in source (kb.json drift).
                 # These have a FUN_<addr> definition in src/ but ported is not
                 # yet set to true — re-selecting them wastes a full lift attempt.
-                src_loc = _is_already_in_source(addr)
+                src_loc = _is_already_in_source(addr, name)
                 if src_loc:
                     log.debug("skip %s (%s): implementation in %s", name, addr, src_loc)
                     continue
@@ -772,6 +933,19 @@ class LiftabilityScorer:
                 if cached_confidence == "high":
                     score += 3
                     details["eq_high_conf"] = 3
+
+                # Shape-atlas donor available (tools/shape/shape_atlas.py) --
+                # this target's shape group already has a proven source
+                # template to instantiate from. Scheduling bonus only; the
+                # lift still goes through the normal pipeline.
+                shape_entry = _load_shape_atlas().get(addr.lower())
+                if shape_entry:
+                    if shape_entry.get("tier") == "exact":
+                        score += 8
+                        details["shape_donor_exact"] = 8
+                    else:
+                        score += 4
+                        details["shape_donor_ported"] = 4
 
                 # Cached Ghidra context available
                 cache_file = CONTEXT_CACHE / f"{name}.json"
@@ -972,6 +1146,9 @@ class ContextPackBuilder:
         ghidra_ctx = self._enrich_ghidra_context(target, ghidra_ctx)
         hazards = self._assess_hazards(target, ghidra_ctx)
         delinked = _has_delinked_ref(target.source_path, self.objdiff_units)
+        score_context = self._gather_score_context(target)
+        prior_official_pct = (score_context.get("scores") or {}).get("official_pct")
+        shape_donor = self._gather_shape_donor(target)
 
         return ContextPack(
             schema_version=1,
@@ -989,7 +1166,51 @@ class ContextPackBuilder:
             hazards=hazards,
             delinked_available=delinked,
             constraints=self._build_constraints(target),
+            score_context=score_context,
+            prior_official_pct=prior_official_pct,
+            shape_donor=shape_donor,
         )
+
+    def _gather_shape_donor(self, target: LiftTarget) -> dict:
+        """If this target is a shape-atlas recipient, surface the donor's
+        name/source_path/tier so the lift agent knows which existing
+        template to open and instantiate from. {} if the target has no
+        shape-atlas entry (including when artifacts/shape_atlas.json is
+        absent -- _load_shape_atlas() tolerates that silently)."""
+        entry = _load_shape_atlas().get(target.addr.lower())
+        if not entry:
+            return {}
+        donor = entry.get("donor") or {}
+        return {
+            "donor_name": donor.get("name"),
+            "donor_source_path": donor.get("source_path"),
+            "tier": donor.get("tier"),
+        }
+
+    def _gather_score_context(self, target: LiftTarget) -> dict:
+        """Load and compact the VC71-verify score-context pack (if any) for
+        this target. Scores/frame/classification are kept in full; warnings
+        are reduced to counts and diff.ops to the first 40 non-equal ops, so
+        the section stays small inside the context pack."""
+        raw = _load_score_context(target.name, target.addr)
+        if not raw:
+            return {}
+
+        warnings = raw.get("warnings", {}) or {}
+        warning_counts = {k: len(v) for k, v in warnings.items() if isinstance(v, list)}
+
+        diff = raw.get("diff", {}) or {}
+        all_ops = diff.get("ops", []) or []
+        non_equal_ops = [op for op in all_ops if op.get("kind") != "equal"]
+
+        return {
+            "scores": raw.get("scores", {}),
+            "frame": raw.get("frame", {}),
+            "classification": raw.get("classification", []),
+            "warning_counts": warning_counts,
+            "diff_ops": non_equal_ops[:40],
+            "diff_truncated": bool(diff.get("truncated")) or len(non_equal_ops) > 40,
+        }
 
     def _gather_kb_context(self, target: LiftTarget) -> dict:
         for obj in self.kb_raw["objects"]:
@@ -1773,6 +1994,12 @@ def cmd_select(args: argparse.Namespace):
             # parked_attempts/parked_best_score to stop re-lifting a target that
             # has already resisted several attempts.
             row.update(_parked_state(item.target.name))
+            # Last recorded byte-match, if this target has ever been scored.
+            # Same reasoning as prior_fail above: without it in --json, every
+            # consumer re-derives a number already on disk. A target sitting at
+            # 87% has a known ceiling and wants the permuter or score-improve,
+            # not a fresh from-scratch lift that will land on 87% again.
+            row["prior_vc71_score"] = _prior_vc71_score(item.target.name)
             out.append(row)
         kw = {"separators": (",", ":")} if args.quiet else {"indent": 2}
         print(json.dumps(out, **kw))
@@ -1787,6 +2014,9 @@ def cmd_select(args: argparse.Namespace):
         miz = "Y" if _find_mizuchi_result(target.name) else "-"
         has_failure = (FAILURES_DIR / f"{target.name}.json").exists()
         skip_marker = " [skip:prior_fail]" if has_failure else ""
+        _pv = _prior_vc71_score(target.name)
+        if _pv is not None:
+            skip_marker += f" [vc71:{_pv:.1f}]"
         print(
             f"{item.total_score:>5}  {item.liftability_score:>4}  {item.frontier_score:>3}  "
             f"{item.lane:<13}  {item.oracle_strength:<7}  {miz:>3}  {target.addr:>10}  {target.object_name:<35}  {target.name:<35}  {reasons}{skip_marker}"
