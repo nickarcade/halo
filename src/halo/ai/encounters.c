@@ -74,7 +74,6 @@ void FUN_00053b80(void)
   FUN_00053800((char *)0x5ab280, 3, column_positions, *(void **)0x2ee6c4);
 }
 
-
 /* 0x00053bf0 — debug overlay row: path-flood / path-find / action-change tally
  * counters (FUN_00053bf0).
  *
@@ -116,7 +115,6 @@ void FUN_00053bf0(void)
   column_positions[2] = 0x1c2; /* 450 */
   FUN_00053800((char *)0x5ab280, 3, column_positions, *(void **)0x2ee6c4);
 }
-
 
 /* 0x00053c50 — actor debug-line overlay pass (FUN_00053c50).
  *
@@ -220,7 +218,6 @@ void FUN_00053c50(void)
     }
   }
 }
-
 
 /* 0x00053da0 — encounters_update dispatcher (FUN_00053da0).
  *
@@ -5045,6 +5042,211 @@ void encounters_unit_died(int unit_handle)
   }
 }
 
+/* 0x5b370 — encounter_verify_firing_position_owner_actor_indices.
+ *
+ * Debug-only consistency check: walks the actor list belonging to
+ * `encounter_handle` (or the global encounterless list when the handle is
+ * NONE) and asserts that no two actors claim the same firing position.
+ *
+ * Algorithm (confirmed from disassembly at 0x5b370):
+ *   1. encounter_definition = tag_block_get_element(scenario+0x42c,
+ *      encounter_handle & 0xffff, 0xb0).
+ *   2. Fill owner_actor_indices[] with NONE for
+ *      encounter_definition->firing_positions.count entries.  The csmemset
+ *      length is `count << 2`, NOT sizeof(buffer).
+ *   3. If ai_globals->ai_active: seed the walk with ai_globals+0x8 (the
+ *      encounterless list head) when the handle is NONE, else with
+ *      encounter+0x14 (first actor of the encounter).
+ *   4. Each iteration re-reads ai_globals and re-tests the active flag
+ *      (0x5b3f0); the pointer load is NOT hoisted in the original.
+ *   5. actor->firing_positions.current_position_index is an int16_t at
+ *      actor+0x3b8; the list cursor advances via actor+0x2c BEFORE the
+ *      index is tested, so actors with a NONE index still advance.
+ *   6. Bound-check the index, assert the slot is unclaimed, then store the
+ *      *current* actor handle (EBX) — not the already-advanced cursor
+ *      (EDI) — into the table.
+ *
+ * Frame: SUB ESP,0x80c.  owner_actor_indices lives at EBP-0x80c and spans
+ * 0x804 bytes (513 ints) up to the cursor slot at EBP-0x8.
+ *
+ * Call-site verification (all cdecl; first PUSH = last C argument):
+ *   global_scenario_get   | no args                                  | match
+ *   tag_block_get_element | PUSH 0xb0 ; PUSH idx ; PUSH scen+0x42c   | match
+ *   csmemset              | PUSH count<<2 ; PUSH -1 ; PUSH LEA buf   | match
+ *                         | ADD ESP,0x18 coalesces all six dwords    | ok
+ *   datum_get             | PUSH handle ; PUSH pool                  | match
+ *   display_assert        | PUSH 1 ; PUSH line ; PUSH file ; PUSH msg| match
+ *   system_exit           | PUSH -1                                  | match
+ *
+ * The original caches the encounter-definition pointer back into the
+ * incoming parameter slot [EBP+8] and re-reads it for the bound check; a
+ * local is used here instead.
+ *
+ * Uncertain: when ai_active is clear the original leaves the cursor slot
+ * uninitialized (0x5b3e4 reads [EBP-4] before any store on that path).  The
+ * loop re-tests the same flag and returns immediately, so the read is dead.
+ * The shape is preserved rather than "fixed" with an initializer.
+ */
+void encounter_verify_firing_position_owner_actor_indices(int encounter_handle)
+{
+  int owner_actor_indices[513];
+  char *encounter_definition;
+  char *actor;
+  int actor_index;
+  int current_actor_index;
+  int16_t position_index;
+
+  encounter_definition = (char *)tag_block_get_element(
+    (void *)((char *)global_scenario_get() + 0x42c),
+    (int)((unsigned int)encounter_handle & 0xffff), 0xb0);
+  csmemset(owner_actor_indices, -1, *(int *)(encounter_definition + 0x98) << 2);
+
+  if (*(char *)(*(int *)0x632574 + 1) != '\0') {
+    if (encounter_handle == -1) {
+      actor_index = *(int *)(*(int *)0x632574 + 8);
+    } else {
+      actor_index =
+        *(int *)((char *)datum_get(*(data_t **)0x5ab270, encounter_handle) +
+                 0x14);
+    }
+  }
+
+  while (*(char *)(*(int *)0x632574 + 1) != '\0' && actor_index != -1) {
+    current_actor_index = actor_index;
+    actor = (char *)datum_get(*(data_t **)0x6325a4, current_actor_index);
+    position_index = *(int16_t *)(actor + 0x3b8);
+    actor_index = *(int *)(actor + 0x2c);
+    if (position_index != -1) {
+      if (position_index < 0 ||
+          (int)position_index >= *(int *)(encounter_definition + 0x98)) {
+        display_assert("actor->firing_positions.current_position_index>=0 && "
+                       "actor->firing_positions.current_position_index < "
+                       "encounter_definition->firing_positions.count",
+                       "c:\\halo\\SOURCE\\ai\\encounters.c", 0x12e, 1);
+        system_exit(-1);
+      }
+      if (owner_actor_indices[position_index] != -1) {
+        display_assert("owner_actor_indices[actor->firing_positions.current_"
+                       "position_index]==NONE",
+                       "c:\\halo\\SOURCE\\ai\\encounters.c", 0x12f, 1);
+        system_exit(-1);
+      }
+      owner_actor_indices[position_index] = current_actor_index;
+    }
+  }
+}
+
+/* 0x5b4b0 — encounter_build_firing_position_owner_actor_indices.
+ *
+ * Fill a caller-supplied table mapping each firing position of an encounter
+ * to the index of the actor currently occupying it (NONE when unoccupied).
+ * Same walk as encounter_verify_firing_position_owner_actor_indices above,
+ * but the table belongs to the caller and is an output rather than a purely
+ * local consistency check.
+ *
+ * Algorithm (confirmed from disassembly at 0x5b4b0-0x5b5dc):
+ *   1. encounter_definition = tag_block_get_element(scenario+0x42c,
+ *      encounter_handle & 0xffff, 0xb0).
+ *   2. csmemset the output table to NONE for
+ *      encounter_definition->firing_positions.count entries.  The length is
+ *      `count << 2` (SHL ECX,0x2 at 0x5b4e2), not sizeof(buffer) — the
+ *      buffer is caller-owned and its true extent is unknown here.
+ *   3. If ai_globals->ai_active: seed the walk with ai_globals+0x8 (the
+ *      encounterless list head) when the handle is NONE, else with
+ *      encounter+0x14 (first actor of the encounter).
+ *   4. Each iteration re-reads ai_globals and re-tests the active flag
+ *      (0x5b521 MOV ECX,[0x00632574]); the load is NOT hoisted.
+ *   5. actor->firing_positions.current_position_index is an int16_t at
+ *      actor+0x3b8 (MOVSX at 0x5b56d/0x5b594/0x5b5c4; the `==NONE` skip is
+ *      the 16-bit CMP AX,0xffff at 0x5b558).  The list cursor advances via
+ *      actor+0x2c (0x5b553) BEFORE the index is tested, so actors with a
+ *      NONE index still advance.
+ *   6. The value stored is EBX, the CURRENT actor handle captured at
+ *      0x5b535 (MOV EBX,EDI) before the advance — not the already-advanced
+ *      cursor.
+ *
+ * The index is re-loaded from [ESI+0x3b8] for each of the two table
+ * subscripts rather than reused from the compare; that shape is preserved.
+ * `encounter_definition->firing_positions.count` at +0x98 is a full int32
+ * (MOV ECX,[EAX+0x98] / MOV EDX,[ECX+0x98]), not an int16.
+ *
+ * Frame: SUB ESP,0xc; PUSH EBX/ESI/EDI; cdecl, caller cleans.  The original
+ * caches the encounter-definition pointer back into the incoming parameter
+ * slot [EBP+8] (0x5b4e9) and re-reads it for the bound check at 0x5b564; a
+ * local is used here instead.
+ *
+ * Call-site verification (all cdecl; first PUSH = last C argument):
+ *   global_scenario_get   | no args (0x5b4cd)                        | match
+ *   tag_block_get_element | PUSH 0xb0 ; PUSH handle&0xffff ;         | match
+ *                         | PUSH scenario+0x42c (0x5b4c3-0x5b4d7)    |
+ *   csmemset              | PUSH count<<2 ; PUSH -1 ; PUSH table     | match
+ *                         | (0x5b4e5-0x5b4ef); ADD ESP,0x18 at       | ok
+ *                         | 0x5b4f9 retires both call groups         |
+ *   datum_get             | PUSH ESI(handle) ; PUSH *0x5ab270        | match
+ *                         | (0x5b50f) — encounter pool               |
+ *   datum_get             | PUSH EDI(handle) ; PUSH *0x6325a4        | match
+ *                         | (0x5b543) — actor pool                   |
+ *   display_assert        | PUSH 1 ; PUSH line ; PUSH file ; PUSH msg| match
+ *                         | (0x5b574 line 0x14c, 0x5b5a4 line 0x14d) |
+ *   system_exit           | PUSH -1 (0x8e2f0)                        | match
+ *
+ * Uncertain: when ai_active is clear the original leaves the cursor slot
+ * uninitialized (0x5b51e reads [EBP-4] before any store on that path).  The
+ * loop re-tests the same flag and returns immediately, so the read is dead.
+ * The shape is preserved rather than "fixed" with an initializer.
+ */
+void encounter_build_firing_position_owner_actor_indices(
+  int encounter_handle, int *firing_position_owner_actor_indices)
+{
+  char *encounter_definition;
+  char *actor;
+  int actor_index;
+  int current_actor_index;
+  int16_t position_index;
+
+  encounter_definition = (char *)tag_block_get_element(
+    (void *)((char *)global_scenario_get() + 0x42c),
+    (int)((unsigned int)encounter_handle & 0xffff), 0xb0);
+  csmemset(firing_position_owner_actor_indices, -1,
+           *(int *)(encounter_definition + 0x98) << 2);
+
+  if (*(char *)(*(int *)0x632574 + 1) != '\0') {
+    if (encounter_handle == -1) {
+      actor_index = *(int *)(*(int *)0x632574 + 8);
+    } else {
+      actor_index =
+        *(int *)((char *)datum_get(*(data_t **)0x5ab270, encounter_handle) +
+                 0x14);
+    }
+  }
+
+  while (*(char *)(*(int *)0x632574 + 1) != '\0' && actor_index != -1) {
+    current_actor_index = actor_index;
+    actor = (char *)datum_get(*(data_t **)0x6325a4, current_actor_index);
+    position_index = *(int16_t *)(actor + 0x3b8);
+    actor_index = *(int *)(actor + 0x2c);
+    if (position_index != -1) {
+      if (position_index < 0 ||
+          (int)position_index >= *(int *)(encounter_definition + 0x98)) {
+        display_assert("actor->firing_positions.current_position_index>=0 && "
+                       "actor->firing_positions.current_position_index < "
+                       "encounter_definition->firing_positions.count",
+                       "c:\\halo\\SOURCE\\ai\\encounters.c", 0x14c, 1);
+        system_exit(-1);
+      }
+      if (firing_position_owner_actor_indices[*(int16_t *)(actor + 0x3b8)] !=
+          -1) {
+        display_assert("firing_position_owner_actor_indices[actor->firing_"
+                       "positions.current_position_index]==NONE",
+                       "c:\\halo\\SOURCE\\ai\\encounters.c", 0x14d, 1);
+        system_exit(-1);
+      }
+      firing_position_owner_actor_indices[*(int16_t *)(actor + 0x3b8)] =
+        current_actor_index;
+    }
+  }
+}
+
 /* encounter_pursuit_position_already_examined (0x5b6e0) — Look up the
  * "examined pursuit position" record for `firing_position_index` inside an
  * encounter (via FUN_00059c40, non-creating) and report whether `position`
@@ -5143,6 +5345,139 @@ bool encounter_pursuit_position_already_examined(
     *cost_out = cost;
   }
   return already_examined;
+}
+
+/* 0x0005b790 — encounter_squad_choose_location: pick a starting-location
+ * index for one squad of an encounter.
+ *
+ * Two passes over squad_definition->starting_locations (element count at
+ * +0xd0):
+ *   pass 1 draws uniformly from squad->first_locations (bit vector at
+ *          squad+0x00).  The chosen bit is cleared from first_locations and
+ *          from unused_locations (squad+0x04), which must already be set.
+ *   pass 2 draws from squad->unused_locations.  When every non-excluded
+ *          location has already been consumed the whole vector is refilled
+ *          with NONE (all bits set) and the tally recomputed.
+ *
+ * excluded_locations is an 8-byte stack bit vector that is zeroed here and
+ * never set, so the exclusion tests never fire; the original still emits them
+ * and they are preserved.
+ *
+ * Returns the chosen location index, or NONE.  The third parameter is pushed
+ * by every caller but never read by the body.
+ *
+ * Asserts (c:\halo\SOURCE\ai\encounters.c):
+ *   line 0x615  BIT_VECTOR_TEST_FLAG(squad->unused_locations, index)
+ *   line 0x623  found_index != NONE   (preferred-location pass)
+ *   line 0x665  found_index != NONE   (unused-location pass)
+ */
+int16_t FUN_0005B790(int encounter_index, int squad_index, int flag)
+{
+  char *encounter;
+  char *encounter_definition;
+  char *squad;
+  char *squad_definition;
+  unsigned long excluded_locations[2];
+  int16_t found_index;
+  int16_t count;
+  int16_t random_index;
+  int16_t index;
+  bool used_any;
+
+  encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_index);
+  encounter_definition = (char *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x42c, encounter_index & 0xffff, 0xb0);
+  squad = encounter_get_squad(encounter, (int16_t)squad_index);
+  squad_definition = (char *)tag_block_get_element(encounter_definition + 0x80,
+                                                   squad_index, 0xe8);
+
+  found_index = NONE;
+  csmemset(excluded_locations, 0, sizeof(excluded_locations));
+
+  /* pass 1: tally, then draw from the preferred ("first") locations. */
+  count = 0;
+  for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
+    if ((*(unsigned long *)(squad + (index >> 5) * 4) &
+         (1 << (index & 0x1f))) != 0 &&
+        (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0)
+      count++;
+  }
+  if (count > 0) {
+    random_index =
+      random_range((unsigned int *)get_global_random_seed_address(), 0, count);
+    for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
+      if ((*(unsigned long *)(squad + (index >> 5) * 4) &
+           (1 << (index & 0x1f))) != 0 &&
+          (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
+        if (random_index == 0) {
+          *(unsigned long *)(squad + (index >> 5) * 4) &=
+            ~(1 << (index & 0x1f));
+          if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
+               (1 << (index & 0x1f))) == 0) {
+            display_assert(
+              "BIT_VECTOR_TEST_FLAG(squad->unused_locations, index)",
+              "c:\\halo\\SOURCE\\ai\\encounters.c", 0x615, 1);
+            system_exit(-1);
+          }
+          *(unsigned long *)(squad + (index >> 5) * 4 + 4) &=
+            ~(1 << (index & 0x1f));
+          found_index = index;
+          break;
+        }
+        random_index--;
+      }
+    }
+    if (found_index == NONE) {
+      display_assert("found_index != NONE",
+                     "c:\\halo\\SOURCE\\ai\\encounters.c", 0x623, 1);
+      system_exit(-1);
+    } else {
+      return found_index;
+    }
+  }
+
+  /* pass 2: tally the unused locations, refilling the vector when every
+   * non-excluded location has been consumed. */
+  for (;;) {
+    used_any = 0;
+    count = 0;
+    for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
+      if ((excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
+        if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
+             (1 << (index & 0x1f))) != 0)
+          count++;
+        else
+          used_any = 1;
+      }
+    }
+    if (!used_any || count != 0)
+      break;
+    csmemset(squad + 4, NONE,
+             ((*(int *)(squad_definition + 0xd0) + 0x1f) >> 5) * 4);
+  }
+  if (count > 0) {
+    random_index =
+      random_range((unsigned int *)get_global_random_seed_address(), 0, count);
+    for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
+      if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
+           (1 << (index & 0x1f))) != 0 &&
+          (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
+        if (random_index == 0) {
+          *(unsigned long *)(squad + (index >> 5) * 4 + 4) &=
+            ~(1 << (index & 0x1f));
+          found_index = index;
+          break;
+        }
+        random_index--;
+      }
+    }
+    if (found_index == NONE) {
+      display_assert("found_index != NONE",
+                     "c:\\halo\\SOURCE\\ai\\encounters.c", 0x665, 1);
+      system_exit(-1);
+    }
+  }
+  return found_index;
 }
 
 /* encounter_force_activate (0x5ba70) — Force an encounter active by setting

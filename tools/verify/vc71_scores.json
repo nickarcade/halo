@@ -1788,7 +1788,9 @@
       "source": "src/halo/ai/ai.c"
     },
     "FUN_000425c0": {
-      "score": 36.1,
+      "opnd_percent": 20.1,
+      "ref": "synth",
+      "score": 40.5,
       "source": "src/halo/ai/ai.c"
     },
     "FUN_00042a30": {
@@ -1850,6 +1852,11 @@
       "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "FUN_00049430": {
+      "opnd_percent": 80.4,
+      "score": 95.7,
+      "source": "src/halo/ai/ai_debug.c"
+    },
     "FUN_000494d0": {
       "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
@@ -1859,9 +1866,69 @@
       "score": 94.9,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "FUN_000495b0": {
+      "opnd_percent": 70.4,
+      "score": 88.9,
+      "source": "src/halo/ai/ai_debug.c"
+    },
     "FUN_000496c0": {
       "opnd_percent": 70.6,
       "score": 91.5,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00049990": {
+      "opnd_percent": 70.7,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00049ac0": {
+      "opnd_percent": 93.3,
+      "score": 95.6,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00049c70": {
+      "opnd_percent": 71.0,
+      "score": 91.1,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00049f60": {
+      "opnd_percent": 94.7,
+      "score": 96.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004a030": {
+      "opnd_percent": 84.2,
+      "score": 91.1,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004a220": {
+      "opnd_percent": 100.0,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004a290": {
+      "opnd_percent": 86.2,
+      "score": 91.9,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004a460": {
+      "opnd_percent": 70.3,
+      "score": 91.5,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004a650": {
+      "opnd_percent": 92.3,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004a680": {
+      "opnd_percent": 92.3,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004a6b0": {
+      "opnd_percent": 92.3,
+      "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
     },
     "FUN_0004a6e0": {
@@ -1874,16 +1941,116 @@
       "score": 86.3,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "FUN_0004a8c0": {
+      "opnd_percent": 81.6,
+      "score": 93.1,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004a9f0": {
+      "opnd_percent": 79.0,
+      "score": 95.4,
+      "source": "src/halo/ai/ai_debug.c"
+    },
     "FUN_0004ab10": {
       "score": 76.9,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004afa0": {
+      "opnd_percent": 87.4,
+      "score": 92.8,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004b0f0": {
+      "opnd_percent": 80.0,
+      "score": 92.4,
       "source": "src/halo/ai/ai_debug.c"
     },
     "FUN_0004b1b0": {
       "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "FUN_0004b2b0": {
+      "opnd_percent": 61.9,
+      "score": 90.5,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004b7a0": {
+      "opnd_percent": 94.6,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
     "FUN_0004c0f0": {
       "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_0004c170": {
+      "opnd_percent": 95.4,
+      "score": 93.5,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_000534d0": {
+      "opnd_percent": 93.3,
+      "score": 94.4,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053620": {
+      "opnd_percent": 85.7,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053650": {
+      "opnd_percent": 83.3,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053680": {
+      "opnd_percent": 79.8,
+      "score": 87.1,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053790": {
+      "opnd_percent": 100.0,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053890": {
+      "opnd_percent": 93.3,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_000538d0": {
+      "opnd_percent": 100.0,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_000538f0": {
+      "opnd_percent": 94.3,
+      "score": 94.3,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053960": {
+      "opnd_percent": 100.0,
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_000539c0": {
+      "opnd_percent": 78.4,
+      "score": 90.2,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053a20": {
+      "opnd_percent": 82.0,
+      "score": 91.8,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053a90": {
+      "opnd_percent": 78.4,
+      "score": 90.2,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "FUN_00053af0": {
+      "opnd_percent": 85.3,
+      "score": 93.3,
       "source": "src/halo/ai/ai_debug.c"
     },
     "FUN_00053b80": {
@@ -6206,7 +6373,8 @@
       "source": "src/halo/game/players.c"
     },
     "FUN_000c06b0": {
-      "score": 94.1,
+      "opnd_percent": 100.0,
+      "score": 100.0,
       "source": "src/halo/game/players.c"
     },
     "FUN_000c06f0": {
@@ -15511,7 +15679,8 @@
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_handle_lost_contact": {
-      "score": 83.0,
+      "opnd_percent": 76.1,
+      "score": 83.4,
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_handle_panic_from_attached_melee_attackers": {
@@ -16294,10 +16463,44 @@
       "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "ai_debug_change_selected_actor": {
+      "opnd_percent": 95.4,
+      "score": 93.5,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_change_selected_encounter": {
+      "opnd_percent": 87.4,
+      "score": 92.8,
+      "source": "src/halo/ai/ai_debug.c"
+    },
     "ai_debug_clear_storage": {
       "opnd_percent": 94.3,
       "ref": "synth",
       "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_communication_focus": {
+      "opnd_percent": 92.3,
+      "ref": "synth",
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_communication_ignore": {
+      "opnd_percent": 92.3,
+      "ref": "synth",
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_communication_suppress": {
+      "opnd_percent": 92.3,
+      "ref": "synth",
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_describe_actor": {
+      "opnd_percent": 90.4,
+      "ref": "synth",
+      "score": 95.6,
       "source": "src/halo/ai/ai_debug.c"
     },
     "ai_debug_dispose": {
@@ -16349,9 +16552,20 @@
       "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "ai_debug_lineoffire_addpill": {
+      "opnd_percent": 80.4,
+      "score": 95.7,
+      "source": "src/halo/ai/ai_debug.c"
+    },
     "ai_debug_point3d_set": {
       "opnd_percent": 95.2,
       "score": 95.2,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_render_points_and_lines": {
+      "opnd_percent": 70.7,
+      "ref": "synth",
+      "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
     },
     "ai_debug_select_actor": {
@@ -16366,10 +16580,39 @@
       "score": 95.8,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "ai_debug_speak": {
+      "opnd_percent": 96.9,
+      "ref": "synth",
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_speak_list": {
+      "opnd_percent": 85.4,
+      "ref": "synth",
+      "score": 91.9,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_teleport_to": {
+      "opnd_percent": 77.2,
+      "ref": "synth",
+      "score": 92.4,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_toggle_flags": {
+      "opnd_percent": 67.3,
+      "ref": "synth",
+      "score": 91.5,
+      "source": "src/halo/ai/ai_debug.c"
+    },
     "ai_debug_update": {
       "opnd_percent": 59.4,
       "ref": "synth",
       "score": 76.9,
+      "source": "src/halo/ai/ai_debug.c"
+    },
+    "ai_debug_vocalize": {
+      "opnd_percent": 94.7,
+      "score": 96.0,
       "source": "src/halo/ai/ai_debug.c"
     },
     "ai_dispose": {
@@ -24295,6 +24538,12 @@
       "ref": "synth",
       "score": 100.0,
       "source": "src/halo/game/game.c"
+    },
+    "set_real_point3d": {
+      "opnd_percent": 71.4,
+      "ref": "synth",
+      "score": 100.0,
+      "source": "src/halo/ai/ai_debug.c"
     },
     "set_real_vector2d": {
       "opnd_percent": 100.0,

@@ -7628,7 +7628,7 @@
         },
         {
           "addr": "0xa7470",
-          "decl": "void FUN_000A7470(void);",
+          "decl": "int16_t FUN_000A7470(void);",
           "ported": false
         },
         {
@@ -10025,99 +10025,127 @@
         },
         {
           "addr": "0xc1780",
-          "decl": "void FUN_000c1780(void);"
+          "decl": "void FUN_000c1780(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc17c0",
-          "decl": "void FUN_000c17c0(void);"
+          "decl": "void FUN_000c17c0(int16_t function_index, int thread_datum, char init);",
+          "ported": true,
+          "source_path": "src/halo/hs/hs.c"
         },
         {
           "addr": "0xc17f0",
-          "decl": "void FUN_000c17f0(void);"
+          "decl": "void FUN_000c17f0(int16_t function_index, int thread_datum, char init);",
+          "ported": true,
+          "source_path": "src/halo/hs/hs.c"
         },
         {
           "addr": "0xc1810",
-          "decl": "void FUN_000c1810(void);"
+          "decl": "void FUN_000c1810(int16_t function_index, int thread_datum, char init);",
+          "ported": true,
+          "source_path": "src/halo/hs/hs.c"
         },
         {
           "addr": "0xc1830",
-          "decl": "void FUN_000c1830(void);"
+          "decl": "void FUN_000c1830(int16_t function_index, int thread_datum, char init);",
+          "ported": true,
+          "source_path": "src/halo/hs/hs.c"
         },
         {
           "addr": "0xc1870",
-          "decl": "void FUN_000c1870(void);"
+          "decl": "void FUN_000c1870(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc18b0",
-          "decl": "void FUN_000c18b0(void);"
+          "decl": "void FUN_000c18b0(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc18d0",
-          "decl": "void FUN_000c18d0(void);"
+          "decl": "void FUN_000c18d0(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1900",
-          "decl": "void FUN_000c1900(void);"
+          "decl": "void FUN_000c1900(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1930",
-          "decl": "void FUN_000c1930(void);"
+          "decl": "void FUN_000c1930(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1950",
-          "decl": "void FUN_000c1950(void);"
+          "decl": "void FUN_000c1950(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1990",
-          "decl": "void FUN_000c1990(void);"
+          "decl": "void FUN_000c1990(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc19e0",
-          "decl": "void FUN_000c19e0(void);"
+          "decl": "void FUN_000c19e0(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1a00",
-          "decl": "void FUN_000c1a00(void);"
+          "decl": "void FUN_000c1a00(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1a30",
-          "decl": "void FUN_000c1a30(void);"
+          "decl": "void FUN_000c1a30(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1a60",
-          "decl": "void FUN_000c1a60(void);"
+          "decl": "void FUN_000c1a60(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1a90",
-          "decl": "void FUN_000c1a90(void);"
+          "decl": "void FUN_000c1a90(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1ac0",
-          "decl": "void FUN_000c1ac0(void);"
+          "decl": "void FUN_000c1ac0(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1af0",
-          "decl": "void FUN_000c1af0(void);"
+          "decl": "void FUN_000c1af0(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1b20",
-          "decl": "void FUN_000c1b20(void);"
+          "decl": "void FUN_000c1b20(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1b50",
-          "decl": "void FUN_000c1b50(void);"
+          "decl": "void FUN_000c1b50(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1b80",
-          "decl": "void FUN_000c1b80(void);"
+          "decl": "void FUN_000c1b80(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1bb0",
-          "decl": "void FUN_000c1bb0(void);"
+          "decl": "void FUN_000c1bb0(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1be0",
-          "decl": "void FUN_000c1be0(void);"
+          "decl": "void FUN_000c1be0(int16_t function_index, int thread_datum, char init);",
+          "ported": true
         },
         {
           "addr": "0xc1c10",
@@ -31924,7 +31952,7 @@
         },
         {
           "addr": "0x42ce0",
-          "decl": "void ai_communication_get_type_by_name(void);"
+          "decl": "int16_t ai_communication_get_type_by_name(const char *name);"
         },
         {
           "addr": "0x42d20",
@@ -32183,7 +32211,9 @@
         },
         {
           "addr": "0x49430",
-          "decl": "void ai_debug_lineoffire_addpill(float *vec_a, float *vec_b, int param_3, char param_4);"
+          "decl": "void ai_debug_lineoffire_addpill(float *vec_a, float *vec_b, float radius, char flag);",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x494d0",
@@ -32197,7 +32227,9 @@
         },
         {
           "addr": "0x495b0",
-          "decl": "void FUN_000495b0(void);"
+          "decl": "void FUN_000495b0(void);",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x496c0",
@@ -32216,15 +32248,23 @@
         },
         {
           "addr": "0x49990",
-          "decl": "void FUN_00049990(void);"
+          "decl": "void ai_debug_render_points_and_lines(void);",
+          "name": "ai_debug_render_points_and_lines",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x49ac0",
-          "decl": "char *ai_debug_describe_actor(int actor_handle, int object_handle, char with_actor, char *buf, int buf_size);"
+          "decl": "char *ai_debug_describe_actor(int actor_handle, int object_handle, char with_actor, char *buf, int buf_size);",
+          "name": "ai_debug_describe_actor",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x49c70",
-          "decl": "void FUN_00049c70(void);"
+          "decl": "int FUN_00049c70(void);",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x49d60",
@@ -32232,35 +32272,58 @@
         },
         {
           "addr": "0x49f60",
-          "decl": "void ai_debug_vocalize(void);"
+          "decl": "void ai_debug_vocalize(const char *vocalization_name, const char *vocalization_type_name);",
+          "name": "ai_debug_vocalize",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a030",
-          "decl": "void FUN_0004a030(void);"
+          "decl": "void FUN_0004a030(void);",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a220",
-          "decl": "void ai_debug_speak(void);"
+          "decl": "void ai_debug_speak(const char *name);",
+          "name": "ai_debug_speak",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a290",
-          "decl": "void ai_debug_speak_list(void);"
+          "decl": "void ai_debug_speak_list(const char *list_name);",
+          "name": "ai_debug_speak_list",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a460",
-          "decl": "void FUN_0004a460(void);"
+          "decl": "void ai_debug_toggle_flags(int count, char **names, int dest_vector, uint32_t vector_size, int16_t (__cdecl *lookup)(const char *));",
+          "name": "ai_debug_toggle_flags",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a650",
-          "decl": "void ai_debug_communication_suppress(void);"
+          "decl": "void ai_debug_communication_suppress(int count, char **names);",
+          "name": "ai_debug_communication_suppress",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a680",
-          "decl": "void ai_debug_communication_ignore(void);"
+          "decl": "void ai_debug_communication_ignore(int count, char **names);",
+          "name": "ai_debug_communication_ignore",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a6b0",
-          "decl": "void ai_debug_communication_focus(void);"
+          "decl": "void ai_debug_communication_focus(int count, char **names);",
+          "name": "ai_debug_communication_focus",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a6e0",
@@ -32282,11 +32345,17 @@
         },
         {
           "addr": "0x4a8c0",
-          "decl": "void FUN_0004a8c0(void);"
+          "decl": "void FUN_0004a8c0(void);",
+          "name": "FUN_0004a8c0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4a9f0",
-          "decl": "void FUN_0004a9f0(void);"
+          "decl": "void FUN_0004a9f0(void);",
+          "name": "FUN_0004a9f0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4ab10",
@@ -32294,11 +32363,16 @@
         },
         {
           "addr": "0x4afa0",
-          "decl": "void ai_debug_change_selected_encounter(int);"
+          "decl": "void ai_debug_change_selected_encounter(int next);",
+          "name": "ai_debug_change_selected_encounter",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4b0f0",
-          "decl": "void ai_debug_teleport_to(void);"
+          "decl": "void ai_debug_teleport_to(int encounter_index);",
+          "name": "ai_debug_teleport_to",
+          "ported": true
         },
         {
           "addr": "0x4b1b0",
@@ -32313,7 +32387,10 @@
         },
         {
           "addr": "0x4b2b0",
-          "decl": "void FUN_0004b2b0(void);"
+          "decl": "float *FUN_0004b2b0(void);",
+          "name": "FUN_0004b2b0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4b320",
@@ -32329,7 +32406,10 @@
         },
         {
           "addr": "0x4b7a0",
-          "decl": "void FUN_0004b7a0(void);"
+          "decl": "void FUN_0004b7a0(void);",
+          "name": "FUN_0004b7a0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4b810",
@@ -32348,7 +32428,9 @@
         },
         {
           "addr": "0x4c170",
-          "decl": "void ai_debug_change_selected_actor(int param);"
+          "decl": "void ai_debug_change_selected_actor(int param);",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x4c2a0",
@@ -32364,7 +32446,7 @@
         },
         {
           "addr": "0x4c920",
-          "decl": "void FUN_0004c920(void);"
+          "decl": "void FUN_0004c920(int actor_handle, int param_2, int param_3);"
         },
         {
           "addr": "0x52ab0",
@@ -32372,19 +32454,25 @@
         },
         {
           "addr": "0x52b60",
-          "decl": "void FUN_00052b60(void);"
+          "decl": "void FUN_00052b60(unsigned char mode @<dl>);"
         },
         {
           "addr": "0x52bb0",
-          "decl": "void FUN_00052bb0(void);"
+          "decl": "void FUN_00052bb0(int encounter_index);"
         },
         {
           "addr": "0x534d0",
-          "decl": "void FUN_000534d0(void);"
+          "decl": "void FUN_000534d0(void);",
+          "name": "FUN_000534d0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53620",
-          "decl": "void set_real_point3d(void);"
+          "decl": "void set_real_point3d(void);",
+          "name": "set_real_point3d",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53640",
@@ -32392,7 +32480,10 @@
         },
         {
           "addr": "0x53650",
-          "decl": "void FUN_00053650(void);"
+          "decl": "void FUN_00053650(void);",
+          "name": "FUN_00053650",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53670",
@@ -32400,11 +32491,17 @@
         },
         {
           "addr": "0x53680",
-          "decl": "void FUN_00053680(void);"
+          "decl": "void FUN_00053680(void);",
+          "name": "FUN_00053680",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53790",
-          "decl": "void FUN_00053790(void);"
+          "decl": "void FUN_00053790(char *buf);",
+          "name": "FUN_00053790",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53800",
@@ -32412,35 +32509,59 @@
         },
         {
           "addr": "0x53890",
-          "decl": "void FUN_00053890(void);"
+          "decl": "int16_t FUN_00053890(void);",
+          "name": "FUN_00053890",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x538d0",
-          "decl": "void FUN_000538d0(void);"
+          "decl": "int16_t FUN_000538d0(void);",
+          "name": "FUN_000538d0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x538f0",
-          "decl": "void FUN_000538f0(void);"
+          "decl": "int16_t FUN_000538f0(void);",
+          "name": "FUN_000538f0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53960",
-          "decl": "void FUN_00053960(void);"
+          "decl": "int16_t FUN_00053960(void);",
+          "name": "FUN_00053960",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x539c0",
-          "decl": "void FUN_000539c0(void);"
+          "decl": "void FUN_000539c0(void);",
+          "name": "FUN_000539c0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53a20",
-          "decl": "void FUN_00053a20(void);"
+          "decl": "void FUN_00053a20(void);",
+          "name": "FUN_00053a20",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53a90",
-          "decl": "void FUN_00053a90(void);"
+          "decl": "void FUN_00053a90(void);",
+          "name": "FUN_00053a90",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         },
         {
           "addr": "0x53af0",
-          "decl": "void FUN_00053af0(void);"
+          "decl": "void FUN_00053af0(void);",
+          "name": "FUN_00053af0",
+          "ported": true,
+          "src": "src/halo/ai/ai_debug.c"
         }
       ],
       "name": "ai_debug.obj",
@@ -33280,11 +33401,13 @@
         },
         {
           "addr": "0x5b370",
-          "decl": "void encounter_verify_firing_position_owner_actor_indices(int encounter_handle);"
+          "decl": "void encounter_verify_firing_position_owner_actor_indices(int encounter_handle);",
+          "ported": true
         },
         {
           "addr": "0x5b4b0",
-          "decl": "void encounter_build_firing_position_owner_actor_indices(int encounter_handle, int *firing_position_owner_actor_indices);"
+          "decl": "void encounter_build_firing_position_owner_actor_indices(int encounter_handle, int *firing_position_owner_actor_indices);",
+          "ported": true
         },
         {
           "addr": "0x5b5e0",
@@ -33297,7 +33420,8 @@
         },
         {
           "addr": "0x5b790",
-          "decl": "bool FUN_0005B790(int encounter_handle, int platoon_index, int flag);"
+          "decl": "int16_t FUN_0005B790(int encounter_index, int squad_index, int flag);",
+          "ported": true
         },
         {
           "addr": "0x5ba70",

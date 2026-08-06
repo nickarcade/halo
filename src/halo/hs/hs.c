@@ -1161,6 +1161,852 @@ void FUN_000c1740(int16_t function_index, int thread_datum, char init)
   }
 }
 
+/* 0xc1780 — HS script function handler: evaluate a macro function and dispatch
+ * the result's first field to FUN_00085110 (switches to first-person camera
+ * mode 3).  The original consumes the result block with a single dword load
+ * (`MOV EDX,[EAX]; PUSH EDX`) — only result[0] is read, unlike the 0xc0d90 /
+ * 0xc0dd0 twins which also read result[1].  On success calls
+ * FUN_00085110(result[0]), then returns void to the HS thread via
+ * hs_return(thread_datum, 0). */
+void FUN_000c1780(int16_t function_index, int thread_datum, char init)
+{
+  int *result;
+
+  result =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    FUN_00085110(result[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc17c0 — HS script function handler (zero-argument built-in): query a
+ * global engine value and commit it to the calling thread.
+ *
+ * Unlike its siblings in this TU this handler takes no script arguments at
+ * all, so it never calls hs_macro_function_evaluate and has no NULL check.
+ * It simply calls FUN_000853a0() (cdecl, no args, result in EAX) and returns
+ * that value to the thread.
+ *
+ * The value is zero-extended from 16 bits: disasm zero-initializes the whole
+ * 4-byte stack local up front (`mov DWORD PTR [ebp-4],0` at the top of the
+ * frame), then overwrites only its low word from AX (`mov WORD PTR
+ * [ebp-4],ax`), then reads the full dword back (`mov eax,[ebp-4]`) for the
+ * hs_return argument — the high 2 bytes stay 0.  A union reproduces this
+ * partial-store / wide-read exactly; a signed `short` cast would emit MOVSX
+ * and diverge.
+ *
+ * The function_index and init parameters are never read (EBP+8 and EBP+0x10
+ * are untouched); they are kept so the stack shape matches the TU's other
+ * script-function handlers.  thread_datum is read from EBP+0xc into ECX and
+ * pushed as the first hs_return argument (cdecl: last PUSH = first arg).
+ *
+ * Callees:
+ *   0x853a0 = FUN_000853a0(void) -> int (low word consumed in AX)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c17c0(int16_t function_index, int thread_datum, char init)
+{
+  union {
+    int i;
+    unsigned short w;
+  } value;
+
+  value.i = 0;
+  value.w = (unsigned short)FUN_000853a0();
+  hs_return(thread_datum, value.i);
+}
+
+/* 0xc17f0 — HS script function handler (zero-argument, void-returning
+ * built-in): save the current director camera, then complete the calling script
+ * thread.
+ *
+ * Like its immediate neighbour 0xc17c0 this handler takes no script arguments,
+ * so it never calls hs_macro_function_evaluate and has no NULL check.  The body
+ * is 8 instructions: plain EBP frame with no locals, a zero-argument call, then
+ * hs_return with a constant 0 result.
+ *
+ * Disassembly (0xc17f0-0xc1806):
+ *   PUSH EBP / MOV EBP,ESP      plain frame, no locals, no _chkstk
+ *   CALL 0x00086360             director_save_camera(), zero args
+ *   MOV EAX,[EBP+0xc]           thread_datum (arg 2)
+ *   PUSH 0x0                    hs_return arg2 = 0 (pushed first => last arg)
+ *   PUSH EAX                    hs_return arg1 = thread_datum
+ *   CALL 0x000cbf80             hs_return(thread_datum, 0)
+ *   ADD ESP,0x8                 cdecl cleanup, 2 args
+ *   POP EBP / RET               cdecl, plain RET
+ *
+ * function_index (EBP+0x8) and init (EBP+0x10) are never read; they are kept
+ * so the stack shape matches this TU's other script-function handlers, which
+ * are all dispatched through the same hs function table with three arguments.
+ *
+ * Callees (both cdecl):
+ *   0x86360 = director_save_camera(void)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c17f0(int16_t function_index, int thread_datum, char init)
+{
+  director_save_camera();
+  hs_return(thread_datum, 0);
+}
+
+/* 0xc1810 — HaloScript script-function handler: load the saved director camera
+ * and immediately commit the calling thread.  Direct twin of FUN_000c17f0
+ * (0xc17f0, director_save_camera); this one dispatches to director_load_camera.
+ * It takes no HS arguments, so it never calls hs_macro_function_evaluate and
+ * has no NULL/pending check — the thread is always committed on this call.
+ *
+ * Disassembly (0xc1810-0xc1827), 10 instructions, plain EBP frame, no locals:
+ *   PUSH EBP / MOV EBP,ESP      plain frame, no locals, no _chkstk
+ *   CALL 0x00086900             director_load_camera(), zero args
+ *   MOV EAX,[EBP+0xc]           thread_datum (arg 2)
+ *   PUSH 0x0                    hs_return arg2 = 0 (pushed first => last arg)
+ *   PUSH EAX                    hs_return arg1 = thread_datum
+ *   CALL 0x000cbf80             hs_return(thread_datum, 0)
+ *   ADD ESP,0x8                 cdecl cleanup, 2 args
+ *   POP EBP / RET               cdecl, plain RET (caller cleans)
+ *
+ * function_index (EBP+0x8) and init (EBP+0x10) are never read; they are kept
+ * so the stack shape matches this TU's other script-function handlers, which
+ * are all dispatched through the same hs function table with three arguments.
+ *
+ * Callees (both cdecl, no register args):
+ *   0x86900 = director_load_camera(void)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c1810(int16_t function_index, int thread_datum, char init)
+{
+  director_load_camera();
+  hs_return(thread_datum, 0);
+}
+
+/* 0xc1830 — HaloScript script-function handler: set the game time speed.
+ * Evaluates the macro arguments through hs_macro_function_evaluate; on a
+ * non-NULL result block the first dword is the new speed, read as a float and
+ * handed to game_time_set_speed, after which the calling thread is committed
+ * with hs_return(thread_datum, 0).  A NULL result means the arguments are
+ * still pending, so the thread is left uncommitted and nothing is applied —
+ * the same evaluate/NULL-check/act/hs_return skeleton as the other handlers
+ * in this TU (see FUN_000c0c30 / FUN_000c0c70).
+ *
+ * Disassembly (0xc1830-0xc1861), plain EBP frame plus a saved ESI, no locals:
+ *   PUSH EBP / MOV EBP,ESP      plain frame, no locals, no _chkstk
+ *   MOV EAX,[EBP+0x10]          init      (arg 3)
+ *   MOV ECX,[EBP+0x8]           function_index (arg 1)
+ *   PUSH ESI / MOV ESI,[EBP+0xc]  thread_datum held in ESI for the whole body
+ *   PUSH EAX / PUSH ESI / PUSH ECX   first PUSH is the LAST cdecl arg, so the
+ *                               call order is (function_index, thread_datum,
+ * init) CALL 0x000cc560             hs_macro_function_evaluate(...) ADD ESP,0xc
+ * cdecl cleanup, 3 args TEST EAX,EAX / JZ           plain NULL check on the
+ * result block pointer MOV EDX,[EAX] / PUSH EDX    result[0] pushed as raw
+ * 32-bit float bits — no FPU instruction appears here, so the value must stay
+ * float-typed in C; an int local would emit FILD and silently change the
+ * argument CALL 0x000b5d00             game_time_set_speed(result[0]) PUSH 0x0
+ * / PUSH ESI         hs_return arg2 = 0, arg1 = thread_datum CALL 0x000cbf80
+ * hs_return(thread_datum, 0) ADD ESP,0xc                 ONE coalesced cleanup
+ * for BOTH calls (1 + 2 pushes); the call-site audit's "cleanup=3 vs decl=2"
+ * note on hs_return is that coalescing, not an argument-count mismatch POP ESI
+ * / POP EBP / RET     cdecl, plain RET (caller cleans)
+ *
+ * Callees (all cdecl, no register args):
+ *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
+ *   0xb5d00 = game_time_set_speed(float)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c1830(int16_t function_index, int thread_datum, char init)
+{
+  float *result;
+
+  result =
+    (float *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    game_time_set_speed(result[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc1870 - HS script function handler: select the multiplayer game variant by
+ * name.  Same three-call shape as FUN_000c0f10 (0xc0f10) and FUN_000c1830
+ * (0xc1830); the only difference is the type of the first dword of the
+ * evaluated result block, which here is a `const char *` variant name.
+ *
+ * Disassembly trace (0xc1870-0xc18a1, 22 instructions):
+ *   PUSH EBP / MOV EBP,ESP / PUSH ESI  no `sub esp` - one local, no spills
+ *   EAX=[EBP+0x10] init, ECX=[EBP+0x08] function_index,
+ *   ESI=[EBP+0x0C] thread_datum (kept live in ESI across the whole body)
+ *   PUSH EAX / PUSH ESI / PUSH ECX     cdecl, first push is the LAST arg, so
+ *                                      the call is (function_index,
+ *                                      thread_datum, init)
+ *   CALL 0x000cc560 / ADD ESP,0xc      hs_macro_function_evaluate, own cleanup
+ *   TEST EAX,EAX / JZ                  plain NULL check on the result block
+ *   MOV EDX,[EAX] / PUSH EDX           the argument is the FIRST DWORD OF THE
+ *                                      BLOCK, dereferenced - *(char **)result,
+ *                                      not the block pointer itself
+ *   CALL 0x000a78e0                    game_set_game_variant_from_name(*result)
+ *   PUSH 0x0 / PUSH ESI                hs_return arg2 = 0, arg1 = thread_datum
+ *   CALL 0x000cbf80                    hs_return(thread_datum, 0)
+ *   ADD ESP,0xc                        ONE coalesced cleanup for BOTH calls
+ *                                      (1 + 2 pushes); the call-site audit's
+ *                                      "cleanup=3 vs decl=2" note on hs_return
+ *                                      is that coalescing, not an
+ * argument-count mismatch POP ESI / POP EBP / RET            cdecl, plain RET
+ * (caller cleans)
+ *
+ * The evaluator's return is declared int in kb.json (0xcc560) but is used here
+ * as a pointer, so it is cast.
+ *
+ * Callees (all cdecl, no register args):
+ *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
+ *   0xa78e0 = game_set_game_variant_from_name(const char *)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c1870(int16_t function_index, int thread_datum, char init)
+{
+  char **result;
+
+  result =
+    (char **)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    game_set_game_variant_from_name(*result);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc18b0 - HS script function handler: return the current game time to the
+ * calling script thread.  A pure forwarder - no `init` gating and no macro
+ * evaluation, because the builtin takes no script arguments.
+ *
+ * Disassembly trace (0xc18b0-0xc18c6, 10 instructions):
+ *   PUSH EBP / MOV EBP,ESP             no `sub esp` - no locals, no spills,
+ *                                      no callee-saved registers pushed
+ *   CALL 0x000b5aa0                    game_time_get(), result in EAX
+ *   PUSH EAX                           first PUSH is the LAST cdecl arg, so
+ *                                      this is hs_return's `value`
+ *   MOV EAX,[EBP+0x0C] / PUSH EAX      thread_datum - the SECOND stack
+ *                                      argument.  Ghidra names this
+ *                                      `in_stack_00000008` (arg 1); the
+ *                                      [EBP+0x0C] displacement proves it is
+ *                                      arg 2, matching the standard
+ *                                      hs-evaluator slot layout
+ *                                      (function_index@+8, thread_datum@+0xC,
+ *                                      init@+0x10).
+ *   CALL 0x000cbf80 / ADD ESP,0x8      hs_return(thread_datum, game_time)
+ *   POP EBP / RET                      cdecl, plain RET (caller cleans)
+ *
+ * The call order in the binary (game_time_get first, then the [EBP+0xC] load)
+ * is exactly MSVC's right-to-left cdecl argument evaluation for the single
+ * expression below; no temporary is needed to reproduce it.
+ *
+ * function_index and init are unused by this body but complete the standard
+ * hs-evaluator signature (same shape as FUN_000c0cb0 at 0xc0cb0).
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb5aa0 = game_time_get(void)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c18b0(int16_t function_index, int thread_datum, char init)
+{
+  hs_return(thread_datum, game_time_get());
+}
+
+/* 0xc18d0 — HaloScript function evaluator that returns the 16-bit result of
+ * the helper at 0xa7470 to the calling script thread.
+ *
+ * Disassembly (0xc18d0-0xc18f7, 15 instructions):
+ *   PUSH EBP / MOV EBP,ESP / PUSH ECX   single 4-byte local at EBP-4
+ *   MOV dword [EBP-4],0                 zero the FULL dword first
+ *   CALL 0x000a7470                     no args pushed -> void-arg helper
+ *   MOV ECX,[EBP+0xc]                   thread_datum (hs-evaluator arg 2)
+ *   MOV word [EBP-4],AX                 store only the LOW WORD of the result
+ *   MOV EAX,[EBP-4]                     reload the (now zero-extended) dword
+ *   PUSH EAX / PUSH ECX                 cdecl: first PUSH is the last arg, so
+ *   CALL 0x000cbf80 / ADD ESP,8         hs_return(thread_datum, value)
+ *   MOV ESP,EBP / POP EBP / RET         cdecl, plain RET (caller cleans)
+ *
+ * The zero-dword-then-word-store is load bearing: the 16-bit helper result is
+ * ZERO-extended into the 32-bit hs_return slot, so the high word is
+ * deliberately 0.  A `(short)` cast would emit MOVSX and produce a different
+ * value for results >= 0x8000 — hence the explicit zeroed slot plus a 16-bit
+ * store rather than a widening assignment.
+ *
+ * [EBP+0x8] (function_index) and [EBP+0x10] (init) are never read by this
+ * body; they complete the standard hs-evaluator signature shared by every
+ * other handler in this TU (same shape as FUN_000c18b0 at 0xc18b0).
+ *
+ * Callees (both cdecl, no register args):
+ *   0xa7470 = FUN_000A7470(void) — returns a 16-bit value in AX (unported;
+ *             its kb decl was widened from void to int16_t so the result is
+ *             not silently discarded)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c18d0(int16_t function_index, int thread_datum, char init)
+{
+  int32_t value;
+
+  value = 0;
+  *(int16_t *)&value = FUN_000A7470();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1900 — HaloScript function evaluator "game_difficulty_get": returns the
+ * current campaign difficulty level to the calling script thread.
+ *
+ * Disassembly (0xc1900-0xc1927, 15 instructions, 0x28 bytes):
+ *   PUSH EBP / MOV EBP,ESP / PUSH ECX   single 4-byte local at EBP-4
+ *   MOV dword [EBP-4],0                 zero the FULL dword first
+ *   CALL 0x000a7460                     game_difficulty_level_get(void) -> AX
+ *   MOV ECX,[EBP+0xc]                   thread_datum (hs-evaluator arg 2)
+ *   MOV word [EBP-4],AX                 store only the LOW WORD of the result
+ *   MOV EAX,[EBP-4]                     reload the (now zero-extended) dword
+ *   PUSH EAX / PUSH ECX                 cdecl: first PUSH is the last arg, so
+ *   CALL 0x000cbf80 / ADD ESP,8         hs_return(thread_datum, value)
+ *   MOV ESP,EBP / POP EBP / RET         cdecl, plain RET (caller cleans)
+ *
+ * Byte-for-byte the same shape as FUN_000c18d0 at 0xc18d0; only the producer
+ * call differs.  The zero-dword-then-word-store is load bearing: the 16-bit
+ * difficulty is ZERO-extended into the 32-bit hs_return slot.  A `(short)`
+ * cast would emit MOVSX instead.
+ *
+ * [EBP+0x8] (function_index) and [EBP+0x10] (init) are never read by this
+ * body; they complete the standard hs-evaluator signature shared by every
+ * other handler in this TU.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xa7460 = game_difficulty_level_get(void) — returns int16_t in AX
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c1900(int16_t function_index, int thread_datum, char init)
+{
+  int32_t value;
+
+  value = 0;
+  *(int16_t *)&value = game_difficulty_level_get();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1930 — HaloScript script command "players_unzoom_all": drop every player's
+ * zoom level back to unzoomed, then commit a void result to the calling script
+ * thread.
+ *
+ * Disassembly (0xc1930-0xc194?, 10 instructions):
+ *   PUSH EBP / MOV EBP,ESP              no locals: no SUB ESP, no PUSH ECX
+ *   CALL 0x000b69d0                     players_unzoom_all(void), no args
+ *   MOV EAX,[EBP+0xc]                   thread_datum (hs-evaluator arg 2)
+ *   PUSH 0x0                            cdecl: first PUSH is the LAST arg
+ *   PUSH EAX                            -> hs_return(thread_datum, 0)
+ *   CALL 0x000cbf80 / ADD ESP,8         cdecl, 2 dword args
+ *   POP EBP / RET                       plain RET (caller cleans) => __cdecl
+ *
+ * The frame is PUSH EBP / MOV EBP,ESP only — the epilogue is POP EBP, not
+ * MOV ESP,EBP / POP EBP — so this body must declare NO local variable, unlike
+ * the int16-result handlers above it.  [EBP+0x8] (function_index) and
+ * [EBP+0x10] (init) are never read; they complete the standard hs-evaluator
+ * signature shared by every other handler in this TU.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb69d0 = players_unzoom_all(void)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c1930(int16_t function_index, int thread_datum, char init)
+{
+  players_unzoom_all();
+  hs_return(thread_datum, 0);
+}
+
+/* 0xc1950 — HS script function handler: enable/disable player input.
+ * Evaluates the macro arguments; on success the result block holds a single
+ * boolean byte at +0x0.  Calls player_input_enable(*(char *)result) then
+ * returns void to the HS thread via hs_return(thread_datum, 0).
+ *
+ * Disassembly notes (0xc1950-0xc1983, 52 bytes):
+ *   PUSH EBP / MOV EBP,ESP / PUSH ESI    no SUB ESP => no stack locals
+ *   PUSH EAX([EBP+0x10]) / PUSH ESI([EBP+0xc]) / PUSH ECX([EBP+0x8])
+ *   CALL 0x000cc560 / ADD ESP,0xc        cdecl: first PUSH is the LAST arg
+ *                                        -> hs_macro_function_evaluate(
+ *                                             function_index, thread_datum,
+ * init) TEST EAX,EAX / JZ end XOR EDX,EDX / MOV DL,byte ptr [EAX] zero-extended
+ * BYTE load at result+0 PUSH EDX / CALL 0x000ba6d0           ->
+ * player_input_enable(*(char *)result) PUSH 0x0 / PUSH ESI / CALL 0x000cbf80
+ *                                        -> hs_return(thread_datum, 0)
+ *   ADD ESP,0xc                          one cleanup covers BOTH calls (4 + 8)
+ *   POP ESI / POP EBP / RET              plain RET (caller cleans) => __cdecl
+ *
+ * The load at +0x0 is a narrow byte read, not an int32 — result is int*, so
+ * the value must be taken through a char* cast.
+ *
+ * Callees (all cdecl, no register args, all ported):
+ *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
+ *   0xba6d0 = player_input_enable(bool)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c1950(int16_t function_index, int thread_datum, char init)
+{
+  int *result;
+
+  result =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    player_input_enable(*(char *)result);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc1990 — HS script function handler: set the scripted-camera-control flag
+ * and echo the flag back to the calling script thread.
+ *
+ * Evaluates the macro arguments; on success the result block holds a single
+ * boolean byte at +0x0.  That byte is handed to
+ * scripted_player_control_set_camera_control() and is ALSO the value returned
+ * to the HS thread (unlike the neighbouring handlers, which return 0).
+ *
+ * Disassembly notes (0xc1990, 20 instructions):
+ *   PUSH EBP / MOV EBP,ESP / PUSH ECX      PUSH ECX => exactly ONE dword local
+ *   PUSH ESI                               ESI holds thread_datum throughout
+ *   MOV dword ptr [EBP-4],0                the local is pre-zeroed as a dword
+ *   PUSH EAX([EBP+0x10]) / PUSH ESI([EBP+0xc]) / PUSH ECX([EBP+0x8])
+ *   CALL 0x000cc560 / ADD ESP,0xc          cdecl: first PUSH is the LAST arg
+ *                                          -> hs_macro_function_evaluate(
+ *                                               function_index, thread_datum,
+ *                                               init)
+ *   TEST EAX,EAX / JZ end                  EAX is a result-record POINTER
+ *   XOR EDX,EDX / MOV DL,byte ptr [EAX]    zero-extended BYTE load at result+0
+ *   PUSH EDX / CALL 0x000b6430             -> set_camera_control(*result)
+ *   MOV byte ptr [EBP-4],AL                only the LOW BYTE of the local is
+ *                                          written; the pre-zero supplies the
+ *                                          upper three bytes
+ *   PUSH dword ptr [EBP-4] / PUSH ESI
+ *   CALL 0x000cbf80                        -> hs_return(thread_datum, value)
+ *   ADD ESP,0xc                            ONE cleanup covers the leftover
+ *                                          PUSH EDX of the 0xb6430 call (4)
+ *                                          plus hs_return's two args (8).
+ *                                          A call-site audit reading this as
+ *                                          "hs_return takes 3 args" is a false
+ *                                          positive.
+ *   POP ESI / MOV ESP,EBP / POP EBP / RET  plain RET (caller cleans) => cdecl
+ *
+ * The AL consumed by `MOV byte ptr [EBP-4],AL` is NOT garbage and NOT a real
+ * return value: 0xb6430's first instruction is `MOV AL,[EBP+8]`, so it leaves
+ * its own argument byte in AL by accident of codegen.  The stored byte is
+ * therefore provably *(unsigned char *)result.  The callee stays void-declared
+ * here; the byte is re-loaded from `result` instead of read out of AL.
+ *
+ * The `*(char *)&value` store reproduces the original's pre-zeroed-dword /
+ * narrow byte-store pair: only [EBP-4]'s low byte is written, and the earlier
+ * `value = 0` supplies the upper three bytes that the later dword PUSH reads.
+ * Re-loading the byte rather than taking it out of AL
+ * costs one extra byte load and keeps `result` live across the 0xb6430 call
+ * (so VC71 parks it in a callee-saved register).  Passing the byte straight out
+ * of the dereference — rather than through the local — is what reproduces the
+ * reference's `XOR EDX,EDX / MOV DL,(reg) / PUSH EDX` argument sequence; it is
+ * the same idiom the 100%-matching sibling at 0xc1950 uses.
+ *
+ * Callees (all cdecl, no register args, all ported):
+ *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
+ *               declared int in kb.json but used as a record pointer
+ *   0xb6430 = scripted_player_control_set_camera_control(bool)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ */
+void FUN_000c1990(int16_t function_index, int thread_datum, char init)
+{
+  int *result;
+  int value;
+
+  value = 0;
+  result =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != (int *)0) {
+    scripted_player_control_set_camera_control(*(char *)result);
+    *(char *)&value = *(char *)result;
+    hs_return(thread_datum, value);
+  }
+}
+
+/* 0xc19e0 — HS script function handler: clears the recorded player control
+ * action-test state, then returns 0 to the calling script thread (a
+ * void-returning script builtin).
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6a90 = player_control_action_test_reset(void)
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc19e0-0xc19f7): cdecl, plain RET, frame
+ * is PUSH EBP / MOV EBP,ESP with no `sub esp` (zero locals).  The body reads
+ * only [EBP+0xc] = thread_datum (arg 2); function_index and init complete the
+ * standard hs-evaluator signature shared by the sibling handlers but are
+ * unused here.  There is no hs_macro_function_evaluate call, so this is the
+ * no-argument variant (same shape as 0xc0cb0). */
+void FUN_000c19e0(int16_t function_index, int thread_datum, char init)
+{
+  player_control_action_test_reset();
+  hs_return(thread_datum, 0);
+}
+
+/* 0xc1a00 — HS script function handler: reports whether the recorded player
+ * control jump action fired, returning the boolean to the calling script
+ * thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6b10 = player_control_action_test_jump(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1a00-0xc1a26): cdecl, plain RET, frame
+ * is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at EBP-0x4).  The
+ * body reads only [EBP+0xc] = thread_datum (arg 2); function_index and init
+ * complete the standard hs-evaluator signature shared by the sibling handlers
+ * but are unused here.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed.  The `*(char *)&value` store
+ * reproduces that pair; a direct call-in-argument or a (unsigned char) widen
+ * would emit MOVZX instead.  This is the same idiom as the sibling at
+ * 0xc1990. */
+void FUN_000c1a00(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_jump();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1a30 — HS script function handler: reports whether the recorded player
+ * control primary-trigger (fire) action fired, returning the boolean to the
+ * calling script thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6b20 = player_control_action_test_primary_trigger(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1a30-0xc1a56, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4).  The body reads only [EBP+0xc] = thread_datum (arg 2);
+ * function_index and init complete the standard hs-evaluator signature shared
+ * by the sibling handlers but are unused here.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.  This
+ * is a BYTE store, unlike the WORD-store siblings at 0xc18d0/0xc1900.  Same
+ * idiom as the adjacent handler at 0xc1a00. */
+void FUN_000c1a30(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_primary_trigger();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1a60 — HS script function handler: reports whether the recorded player
+ * control grenade-trigger action fired, returning the boolean to the calling
+ * script thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6b30 = player_control_action_test_grenade_trigger(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1a60-0xc1a86, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4; no SUB ESP).  The body reads only [EBP+0xc] = thread_datum
+ * (arg 2); function_index and init complete the standard hs-evaluator
+ * signature shared by the sibling handlers but are unused here.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.
+ * Identical idiom to the adjacent handlers at 0xc1a00/0xc1a30. */
+void FUN_000c1a60(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_grenade_trigger();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1a90 — HS script function handler: reports whether the recorded player
+ * control zoom action fired, returning the boolean to the calling script
+ * thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6b40 = player_control_action_test_zoom(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1a90-0xc1ab6, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4).  The body reads only [EBP+0xc] = thread_datum (arg 2);
+ * function_index and init complete the standard hs-evaluator signature shared
+ * by the sibling handlers but are unused here.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.
+ * Identical idiom to the adjacent handlers at 0xc1a00/0xc1a30/0xc1a60. */
+void FUN_000c1a90(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_zoom();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1ac0 — HS script function handler: reports whether the recorded player
+ * control "action" (use/interact) action fired, returning the boolean to the
+ * calling script thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6af0 = player_control_action_test_action(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1ac0-0xc1ae6, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4; no SUB ESP).  The body reads only [EBP+0xc] = thread_datum
+ * (arg 2); function_index and init complete the standard hs-evaluator
+ * signature shared by the sibling handlers but are unused here.  The Ghidra
+ * `void FUN_000c1ac0(void)` prototype is wrong — the frame reads [EBP+0xc],
+ * which Ghidra surfaces as `in_stack_00000008`.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.
+ * Push order at 0xc1ad9 (PUSH EAX ; PUSH ECX, ECX = [EBP+0xc]) confirms
+ * thread_datum is hs_return's first argument.  Identical idiom to the
+ * adjacent handlers at 0xc1a00/0xc1a30/0xc1a60/0xc1a90. */
+void FUN_000c1ac0(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_action();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1af0 — HS script function handler: reports whether the recorded player
+ * control "accept" action fired, returning the boolean to the calling script
+ * thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6ab0 = player_control_action_test_accept(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1af0-0xc1b16, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4; no SUB ESP).  The body reads only [EBP+0xc] = thread_datum
+ * (arg 2); function_index and init complete the standard hs-evaluator
+ * signature shared by the sibling handlers but are unused here.  The Ghidra
+ * `void FUN_000c1af0(void)` prototype is wrong — the frame reads [EBP+0xc],
+ * which Ghidra surfaces as `in_stack_00000008`.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.
+ * Push order at 0xc1b09 (PUSH EAX ; PUSH ECX, ECX = [EBP+0xc]) confirms
+ * thread_datum is hs_return's first argument.  Identical idiom to the
+ * adjacent handlers at 0xc1a00/0xc1a30/0xc1a60/0xc1a90/0xc1ac0. */
+void FUN_000c1af0(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_accept();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1b20 — HS script function handler: reports whether the recorded player
+ * control "back" action fired, returning the boolean to the calling script
+ * thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6ad0 = player_control_action_test_back(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1b20-0xc1b46, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4; no SUB ESP).  The body reads only [EBP+0xc] = thread_datum
+ * (arg 2); function_index and init complete the standard hs-evaluator
+ * signature shared by the sibling handlers but are unused here.  The Ghidra
+ * `void FUN_000c1b20(void)` prototype is wrong — the frame reads [EBP+0xc],
+ * which Ghidra surfaces as `in_stack_00000008`.  No ADD ESP follows the
+ * 0xb6ad0 CALL, confirming player_control_action_test_back takes no args.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0
+ * at 0xc1b24) and then only its low byte is overwritten with AL (MOV byte
+ * [EBP-4],AL at 0xc1b33) before the whole dword is re-read and pushed (MOV
+ * EAX,[EBP-4] / PUSH EAX).  The `*(char *)&value` store reproduces that pair;
+ * a direct call-in-argument or a (unsigned char) widen would emit MOVZX
+ * instead.  Push order at 0xc1b39 (PUSH EAX ; PUSH ECX, ECX = [EBP+0xc])
+ * confirms thread_datum is hs_return's first argument, and the ADD ESP,0x8 at
+ * 0xc1b40 confirms hs_return's two cdecl args.  Identical idiom to the
+ * adjacent handlers at 0xc1a00/0xc1a30/0xc1a60/0xc1a90/0xc1ac0/0xc1af0. */
+void FUN_000c1b20(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_back();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1b50 — HS script function handler: reports whether the recorded player
+ * control "look relative up" action fired, returning the boolean to the
+ * calling script thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6bb0 = player_control_action_test_look_relative_up(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1b50-0xc1b76, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4; no SUB ESP).  The body reads only [EBP+0xc] = thread_datum
+ * (arg 2); function_index and init complete the standard hs-evaluator
+ * signature shared by the sibling handlers but are unused here.  The Ghidra
+ * `void FUN_000c1b50(void)` prototype is wrong — the frame reads [EBP+0xc],
+ * which Ghidra surfaces as `in_stack_00000008`, and Ghidra's `extraout_AL` is
+ * the AL return of the predicate, not a register argument.  No ADD ESP
+ * follows the 0xb6bb0 CALL, confirming the predicate takes no args.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.
+ * Push order (PUSH EAX ; PUSH ECX, ECX = [EBP+0xc]) confirms thread_datum is
+ * hs_return's first argument, and the trailing ADD ESP,0x8 confirms
+ * hs_return's two cdecl args.  Identical idiom to the adjacent handlers at
+ * 0xc1a00/0xc1a30/0xc1a60/0xc1a90/0xc1ac0/0xc1af0/0xc1b20. */
+void FUN_000c1b50(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_look_relative_up();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1b80 — HS script function handler: reports whether the recorded player
+ * control "look relative down" action fired, returning the boolean to the
+ * calling script thread.
+ *
+ * Callees (both cdecl, no register args, both ported):
+ *   0xb6bc0 = player_control_action_test_look_relative_down(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_handle, value)
+ *
+ * ABI (verified against disassembly 0xc1b80-0xc1ba6, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4; no SUB ESP).  The body reads only [EBP+0xc] = thread_datum
+ * (arg 2); function_index and init complete the standard hs-evaluator
+ * signature shared by the sibling handlers but are unused here.  The Ghidra
+ * `void FUN_000c1b80(void)` prototype is wrong — the frame reads [EBP+0xc],
+ * which Ghidra surfaces as `in_stack_00000008`, and Ghidra's `extraout_AL` is
+ * the AL return of the predicate, not a register argument.  No ADD ESP
+ * follows the 0xb6bc0 CALL, confirming the predicate takes no args.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.
+ * Push order (PUSH EAX ; PUSH ECX, ECX = [EBP+0xc]) confirms thread_datum is
+ * hs_return's first argument, and the trailing ADD ESP,0x8 confirms
+ * hs_return's two cdecl args.  Identical idiom to the adjacent handlers at
+ * 0xc1a00/0xc1a30/0xc1a60/0xc1a90/0xc1ac0/0xc1af0/0xc1b20/0xc1b50, completing
+ * the look-relative direction quartet (left/right/up/down). */
+void FUN_000c1b80(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_look_relative_down();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1bb0 - HaloScript evaluator for the "look relative left" control test.
+ * Calls the zero-argument predicate and commits its bool result to the
+ * calling script thread.
+ *
+ *   0xb6b90 = player_control_action_test_look_relative_left(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_datum, value)
+ *
+ * ABI (verified against disassembly 0xc1bb0-0xc1bd6, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4; no SUB ESP).  The body reads only [EBP+0xc] = thread_datum
+ * (arg 2); function_index and init complete the standard hs-evaluator
+ * signature shared by the sibling handlers but are unused here.  The Ghidra
+ * `void FUN_000c1bb0(void)` prototype is wrong — the frame reads [EBP+0xc],
+ * which Ghidra surfaces as `in_stack_00000008`, and Ghidra's `extraout_AL` is
+ * the AL return of the predicate, not a register argument.  No ADD ESP
+ * follows the 0xb6b90 CALL, confirming the predicate takes no args.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.
+ * Push order (PUSH EAX ; PUSH ECX, ECX = [EBP+0xc]) confirms thread_datum is
+ * hs_return's first argument, and the trailing ADD ESP,0x8 confirms
+ * hs_return's two cdecl args.  Unlike most hs evaluators this one has no
+ * hs_macro_function_evaluate call and no NULL-result check — the body
+ * contains exactly two CALLs.  Identical idiom to the adjacent handlers at
+ * 0xc1a00 through 0xc1b80. */
+void FUN_000c1bb0(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_look_relative_left();
+  hs_return(thread_datum, value);
+}
+
+/* 0xc1be0 - HaloScript evaluator for the "look relative right" control test.
+ * Direct twin of 0xc1bb0 (left); differs only in the predicate callee.
+ * Calls the zero-argument predicate and commits its bool result to the
+ * calling script thread.
+ *
+ *   0xb6ba0 = player_control_action_test_look_relative_right(void) -> bool in AL
+ *   0xcbf80 = hs_return(thread_datum, value)
+ *
+ * ABI (verified against disassembly 0xc1be0-0xc1c06, 15 instructions): cdecl,
+ * plain RET, frame is PUSH EBP / MOV EBP,ESP / PUSH ECX (one 4-byte local at
+ * EBP-0x4; no SUB ESP).  The body reads only [EBP+0xc] = thread_datum
+ * (arg 2); function_index and init complete the standard hs-evaluator
+ * signature shared by the sibling handlers but are unused here.  The Ghidra
+ * `void FUN_000c1be0(void)` prototype is wrong — the frame reads [EBP+0xc],
+ * which Ghidra surfaces as `in_stack_00000008`, and Ghidra's `extraout_AL` is
+ * the AL return of the predicate, not a register argument.  No ADD ESP
+ * follows the 0xb6ba0 CALL, confirming the predicate takes no args.
+ *
+ * The result local is zero-initialised as a full dword (MOV dword [EBP-4],0)
+ * and then only its low byte is overwritten with AL (MOV byte [EBP-4],AL)
+ * before the whole dword is re-read and pushed (MOV EAX,[EBP-4] / PUSH EAX).
+ * The `*(char *)&value` store reproduces that pair; a direct
+ * call-in-argument or a (unsigned char) widen would emit MOVZX instead.
+ * Push order (PUSH EAX ; PUSH ECX, ECX = [EBP+0xc]) confirms thread_datum is
+ * hs_return's first argument, and the trailing ADD ESP,0x8 confirms
+ * hs_return's two cdecl args.  Like its 0xc1bb0 twin this handler has no
+ * hs_macro_function_evaluate call and no NULL-result check — the body
+ * contains exactly two CALLs.  Completes the look-relative direction quartet
+ * (left/right/up/down) at 0xc1a00 through 0xc1be0. */
+void FUN_000c1be0(int16_t function_index, int thread_datum, char init)
+{
+  int value;
+
+  value = 0;
+  *(char *)&value = (char)player_control_action_test_look_relative_right();
+  hs_return(thread_datum, value);
+}
+
 /* HaloScript (hs) subsystem — scripting engine init/dispose/update/evaluate. */
 
 /* Allocate and initialize the hs_syntax data table used to store script
