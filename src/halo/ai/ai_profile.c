@@ -330,8 +330,9 @@ void *ai_index_platoon_iterator_next(int *iter)
 
   handle = iter[0];
   if (handle != -1 && iter[1] <= iter[2]) {
-    encounter = (char *)datum_get(*(data_t **)0x5ab270, handle);
-    encounter = FUN_00054020(encounter, (short)(unsigned short)iter[1]);
+    encounter = FUN_00054020(
+      (char *)datum_get(*(data_t **)0x5ab270, handle),
+      (short)(unsigned short)iter[1]);
     iter[1] = iter[1] + 1;
     result = encounter;
   }
@@ -1175,7 +1176,7 @@ int FUN_00055350(unsigned int ai_ref, int *out_min, int *out_handle,
                  int count_type /* @<edi> */)
 {
   int ret_val; /* [ebp-0x4], EAX result */
-  int handle_val; /* [ebp-0x8], flows to *out_handle */
+  volatile int handle_val; /* [ebp-0x8], flows to *out_handle */
   int min_val; /* EBX, flows to *out_min */
   void *scenario;
   void *element;
@@ -1707,13 +1708,12 @@ no_squad_match:
     error(2, (const char *)0x25c654 /* "%s -> %s (no matching squads ...)" */,
           debug_str, dst_sq);
   }
-  goto count_check;
+  goto validate;
 
 validate:
   if ((short)found == (short)0xffff)
     return (int16_t)(short)found;
   if ((short)found >= 0) {
-  count_check:
     if ((int)(short)found < *(int *)dest_squads)
       return (int16_t)(short)found;
   }
