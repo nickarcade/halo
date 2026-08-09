@@ -3405,9 +3405,8 @@ void FUN_000be1d0(int16_t function_index, int thread_datum, char init)
 {
   const char **record;
 
-  record =
-    (const char **)hs_macro_function_evaluate(function_index, thread_datum,
-                                               init);
+  record = (const char **)hs_macro_function_evaluate(function_index,
+                                                     thread_datum, init);
   if (record != 0) {
     FUN_000ca140(*record);
     hs_return(thread_datum, 0);
@@ -3424,7 +3423,8 @@ void FUN_000be1d0(int16_t function_index, int thread_datum, char init)
  * Callees (all in kb.json):
  *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
  *             -> result node ptr in EAX (NULL while evaluation pending)
- *   0xc9bb0 = FUN_000c9bb0() (void, no args)
+ *   0xc9bb0 = FUN_000c9bb0(record->field_0) — MOV EDX,[EAX]; PUSH EDX at
+ *             0xbe22c before the CALL; the callee reads it at [EBP+8].
  *   0xcbf80 = hs_return(thread_datum, 0)
  */
 void FUN_000be210(int16_t function_index, int thread_datum, char init)
@@ -3434,7 +3434,7 @@ void FUN_000be210(int16_t function_index, int thread_datum, char init)
   record =
     (void *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != 0) {
-    FUN_000c9bb0();
+    FUN_000c9bb0(*(int *)record);
     hs_return(thread_datum, 0);
   }
 }
@@ -3771,7 +3771,7 @@ void FUN_000be4c0(int16_t function_index, int thread_datum, char init)
 
   record = hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != 0) {
-    FUN_000c9f30();
+    FUN_000c9f30(*(int *)record, *(int *)(record + 4));
     hs_return(thread_datum, 0);
   }
 }
@@ -6200,10 +6200,10 @@ void FUN_000bf4c0(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1b5400 = FUN_001b5400(int, int) -> uint16_t in AX (unported; lives in
- *              the vehicle-scripting address neighbourhood alongside
- *              0x1b3400/vehicle_* but its own semantics are unproven, so the
- *              mechanical FUN_ name is kept)
+ *   0x1b5400 = FUN_001b5400(int, const char *) -> uint16_t in AX (now ported in
+ *              units/vehicles.c; lives in the vehicle-scripting address
+ *              neighbourhood alongside 0x1b3400/vehicle_* but its own
+ *              semantics are unproven, so the mechanical FUN_ name is kept)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf510(int16_t function_index, int thread_datum, char init)
 {
@@ -6217,7 +6217,7 @@ void FUN_000bf510(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    value.w = FUN_001b5400(record[0], record[1]);
+    value.w = FUN_001b5400(record[0], (const char *)record[1]);
     hs_return(thread_datum, value.i);
   }
 }

@@ -361,8 +361,8 @@ bool ai_handle_unit_approach(int ai_handle, int unit_handle, bool flag)
     if (*(int *)(unit + 0x1c8) != -1) {
       /* game_allegiance_get_team_is_friendly returns true when friendly;
        * we return true (enemy) only when NOT friendly. */
-      if (!game_allegiance_get_team_is_friendly(*(int16_t *)(unit + 0x68),
-                                                ((actor_t *)actor)->field_03e)) {
+      if (!game_allegiance_get_team_is_friendly(
+            *(int16_t *)(unit + 0x68), ((actor_t *)actor)->field_03e)) {
         result = 1;
         if (flag) {
           /* set the approach-active flag at actor+0x2ed */
@@ -1025,8 +1025,6 @@ void ai_update(void)
   bool should_update;
   char schedule_flag;
 
-  schedule_flag = *(char *)0x5abaa1;
-
   /* check AI active and not paused */
   if (*(char *)(*(int *)0x632574 + 1) && !*(char *)0x5abaa0) {
     should_update = 1;
@@ -1034,8 +1032,19 @@ void ai_update(void)
     should_update = 0;
   }
 
-  if (*(bool *)0x449ef1 && *(char *)0x2c8738) {
-    profile_enter_private(*(void **)0x2c8730);
+  /* MATCH-SENSITIVE: the 0x5abaa1 read is duplicated into both arms of the
+   * profile_global_enable test on purpose.  The original loads BL between
+   * `TEST AL,AL` (0x449ef1) and `TEST AL,AL` (0x2c8738) at 0x411a9, right
+   * after PUSH EBX; the split-if is the only C form that reproduces that
+   * ordering.  Hoisting the read above or sinking it below the block costs
+   * 3.2pp and 9.4pp of VC71 match respectively. */
+  if (*(bool *)0x449ef1) {
+    schedule_flag = *(char *)0x5abaa1;
+    if (*(char *)0x2c8738) {
+      profile_enter_private((void *)0x2c8730);
+    }
+  } else {
+    schedule_flag = *(char *)0x5abaa1;
   }
 
   if (should_update) {
@@ -1064,7 +1073,7 @@ void ai_update(void)
   }
 
   if (*(bool *)0x449ef1 && *(char *)0x2c8738) {
-    profile_exit_private(*(void **)0x2c8730);
+    profile_exit_private((void *)0x2c8730);
   }
 }
 
@@ -1321,8 +1330,7 @@ bool ai_test_line_of_fire(int actor_handle, int excluded_handle, float *origin,
     ai_debug_get_last_path(origin, offset);
     for (i = 0; i < count; i++) {
       ai_firing_pos_entry_t *e = &buf[i];
-      ai_debug_lineoffire_addpill(e->vec_a, e->vec_b, e->radius,
-                                  e->occupied);
+      ai_debug_lineoffire_addpill(e->vec_a, e->vec_b, e->radius, e->occupied);
     }
     FUN_000494d0((char)success);
   }
@@ -1424,7 +1432,8 @@ bool ai_clump(char param_1)
         /* squad check: actor->field_0x270 must match iter.datum_handle
          * (iter.datum_handle = EBP-0xc in disassembly, overlaps the
          * decompiler's 'local_10' variable) */
-        if (((actor_t *)actor)->target_target_prop_index == (int)iter.datum_handle) {
+        if (((actor_t *)actor)->target_target_prop_index ==
+            (int)iter.datum_handle) {
           if (state > 1 && state <= 3) {
             return 1;
           }

@@ -1288,8 +1288,7 @@ void projectile_accelerate(int projectile_handle, float *acceleration)
   tag_get(0x70726f6a, *(int *)proj);
   if (!real_vector3d_valid(acc)) {
     csprintf((char *)0x5ab100, "%s: assert_valid_real_vector2d(%f, %f, %f)",
-             "acceleration", (double)acc[0], (double)acc[1],
-             (double)acc[2]);
+             "acceleration", (double)acc[0], (double)acc[1], (double)acc[2]);
     display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\items\\projectiles.c",
                    0x3ef, 1);
     system_exit(-1);
@@ -2087,7 +2086,7 @@ apply_speed_scale:
  *      object_delete.
  *   6. Validates axes; exits profiling section.
  */
-int FUN_000f9c40(int projectile_handle)
+bool FUN_000f9c40(int projectile_handle)
 {
   char *proj; /* object data for the projectile                     */
   char *proj_tag; /* tag data ('proj') for the projectile               */
@@ -2192,7 +2191,7 @@ int FUN_000f9c40(int projectile_handle)
   /* 2. Profiling entry.                                                     */
   /* ----------------------------------------------------------------------- */
   if ((*(char *)0x449ef1 != '\0') && (*(char *)0x31edb0 != '\0')) {
-    profile_enter_private(*(void **)0x31eda8);
+    profile_enter_private((void *)0x31eda8);
   }
 
   /* ----------------------------------------------------------------------- */
@@ -2222,11 +2221,13 @@ int FUN_000f9c40(int projectile_handle)
   {
     uint8_t det_type;
     det_type = 0;
-    if ((*(int16_t *)(proj_tag + 0x180) == 1) ||
-        (*(int16_t *)(proj_tag + 0x180) == 2)) {
-      det_type = (uint8_t)((*(uint32_t *)(proj + 0x1dc) >> 4) & 1);
-    } else {
-      det_type = 1;
+    {
+      int det_kind = *(int16_t *)(proj_tag + 0x180);
+      if (det_kind == 1 || det_kind == 2) {
+        det_type = (uint8_t)((*(uint32_t *)(proj + 0x1dc) >> 4) & 1);
+      } else {
+        det_type = 1;
+      }
     }
     {
       uint32_t flags = *(uint32_t *)(proj + 0x1dc);
@@ -2237,7 +2238,7 @@ int FUN_000f9c40(int projectile_handle)
         {
           float timer_val = *(float *)(proj + 500) + *(float *)(proj + 0x1f0);
           *(float *)(proj + 0x1f0) = timer_val;
-          if (*(float *)0x2533c8 <= timer_val) {
+          if (timer_val >= 1.0f) {
             char *tmp_proj2 =
               (char *)object_get_and_verify_type(projectile_handle, 0x20);
             if (*(int16_t *)(tmp_proj2 + 0x1e0) < 1) {
@@ -2263,8 +2264,8 @@ int FUN_000f9c40(int projectile_handle)
     /* Bail conditions. */
     if ((*(int16_t *)(proj + 0x1e0) != 0) &&
         (((*(int16_t *)(proj + 0x1e0) != 1) ||
-          (*(float *)(proj + 0x1fc) == *(float *)0x2533c0) ||
-          (*(float *)0x2533c8 <= *(float *)(proj + 0x1f8))))) {
+          (*(float *)(proj + 0x1fc) == 0.0f) ||
+          (!(*(float *)(proj + 0x1f8) < 1.0f))))) {
       break;
     }
     if (((*(uint8_t *)(proj + 0x1dc) & 8) != 0) ||
@@ -2291,7 +2292,7 @@ int FUN_000f9c40(int projectile_handle)
     dist_post = speed; /* MSVC local_3c aliases speed; no-decel path reads
                           dist_post before any decel sets it */
 
-    if (!real_vector3d_valid(pfVel)) {
+    if (!(char)real_vector3d_valid(pfVel)) {
       display_assert(csprintf((char *)0x5ab100,
                               "%s: assert_valid_real_vector2d(%f, %f, %f)",
                               "&projectile->object.translational_velocity",
@@ -2305,11 +2306,11 @@ int FUN_000f9c40(int projectile_handle)
     /* 7a. Guided-missile steering.                                          */
     /* -------------------------------------------------------------------- */
     if ((*(int *)(proj + 0x1e8) != -1) &&
-        (*(float *)0x2533c0 < *(float *)(proj_tag + 0x1ec))) {
+        (*(float *)(proj_tag + 0x1ec) > 0.0f)) {
       obj_type_f =
         (int)object_get_and_verify_type(*(int *)(proj + 0x1e8), 0xffffffff);
       steer_turn_rate = *(float *)(proj_tag + 0x1ec) * *(float *)0x2546a4;
-      if (((1u << (*(uint8_t *)(obj_type_f + 100) & 0x1f)) & 3u) != 0) {
+      if (((1u << *(uint8_t *)(obj_type_f + 100)) & 3u) != 0) {
         tmp_int = (int)object_get_and_verify_type(*(int *)(proj + 0x1e8), 3);
         if (*(int *)(tmp_int + 0x1c8) != -1) {
           steer_turn_rate *= (float)FUN_000b5590(0x13);
@@ -2317,11 +2318,11 @@ int FUN_000f9c40(int projectile_handle)
       }
       target_dist = (float)FUN_0001ad60((float *)(obj_type_f + 0x50),
                                         (float *)(proj + 0x50));
-      if (target_dist <= *(float *)0x253f34) {
+      if (!(target_dist > *(float *)0x253f34)) {
         if ((target_dist > *(float *)0x253f40) &&
-            ((steer_frac = (target_dist - *(float *)0x253f40) *
-                           *(float *)0x268ed0) >= *(float *)0x2533c0)) {
-          if (steer_frac > *(float *)0x2533c8) {
+            (!((steer_frac = (target_dist - *(float *)0x253f40) *
+                            *(float *)0x268ed0) < 0.0f))) {
+          if (steer_frac > 1.0f) {
             steer_frac = 1.0f;
           }
         } else {
@@ -2359,8 +2360,8 @@ int FUN_000f9c40(int projectile_handle)
       cross_product3d(pfVel, steer_delta, cross_buf);
       dot = steer_delta[0] * *pfVel + steer_delta[1] * *(float *)(proj + 0x1c) +
             steer_delta[2] * *(float *)(proj + 0x20);
-      if ((*(float *)0x2533c0 < dot) &&
-          ((float)normalize3d(cross_buf) > *(float *)0x2533c0)) {
+      if ((dot > 0.0f) &&
+          ((float)normalize3d(cross_buf) > 0.0f)) {
         float steer_cos, steer_sin;
 #ifdef XDK_BUILD
         __asm {
@@ -2375,11 +2376,11 @@ int FUN_000f9c40(int projectile_handle)
         steer_cos = x87_fcos(steer_turn_rate);
         steer_sin = x87_fsin(steer_turn_rate);
 #endif
-            rotate_vector3d_by_sincos(pfVel, cross_buf, steer_sin, steer_cos);
+        rotate_vector3d_by_sincos(pfVel, cross_buf, steer_sin, steer_cos);
       }
     }
 
-    if (!real_vector3d_valid(vel)) {
+    if (!(char)real_vector3d_valid(vel)) {
       display_assert("projectile velocity is bad after steering.",
                      "c:\\halo\\SOURCE\\items\\projectiles.c", 0x19d, 1);
       system_exit(-1);
@@ -2388,18 +2389,18 @@ int FUN_000f9c40(int projectile_handle)
     /* -------------------------------------------------------------------- */
     /* 7b. Speed clamping / deceleration.                                   */
     /* -------------------------------------------------------------------- */
-    if (*(float *)0x2533c8 <= *(float *)(proj + 0x204)) {
-      if ((speed_prev <= *(float *)(proj_tag + 0x1e8)) ||
-          (*(float *)(proj + 0x20c) == *(float *)0x2533c0)) {
+    if (*(float *)(proj + 0x204) >= 1.0f) {
+      if ((!(speed_prev > *(float *)(proj_tag + 0x1e8))) ||
+          (*(float *)(proj + 0x20c) == 0.0f)) {
         /* Already at or below max speed, or no deceleration. */
-        if (((*(float *)(proj_tag + 0x1c8) != *(float *)0x2533c0) ||
-             ((*(float *)(proj_tag + 0x1c0) != *(float *)0x2533c0) ||
+        if (((*(float *)(proj_tag + 0x1c8) != 0.0f) ||
+             ((*(float *)(proj_tag + 0x1c0) != 0.0f) ||
               !(*(float *)(proj_tag + 0x1c4) <=
                 *(float *)(proj_tag + 0x1e8)))) ||
-            ((*(float *)(proj + 0x20c) == *(float *)0x2533c0) &&
-             (*(float *)(proj + 0x200) < *(float *)(proj + 0x210)))) {
+            ((*(float *)(proj + 0x20c) == 0.0f) &&
+             (!(*(float *)(proj + 0x200) >= *(float *)(proj + 0x210))))) {
           if ((speed_prev < *(float *)(proj_tag + 0x1e8)) &&
-              (*(float *)0x2533c0 < speed_prev)) {
+              (speed_prev > 0.0f)) {
             decel_frac =
               (*(float *)(proj_tag + 0x1e8) / speed_prev) * *(float *)0x28ace8;
             vel[0] *= decel_frac;
@@ -2412,21 +2413,11 @@ int FUN_000f9c40(int projectile_handle)
       } else {
         decel_frac = time_remaining * *(float *)(proj + 0x20c);
         dist_at_hit = speed_prev - decel_frac;
-        if (!(dist_at_hit <= *(float *)(proj_tag + 0x1e8))) {
-          /* Speed stays above min: normal decel. */
-          dist_post = speed_prev - decel_frac * *(float *)0x253398;
-          decel_frac = dist_at_hit / speed_prev;
-          vel[0] *= decel_frac;
-          vel[1] *= decel_frac;
-          vel[2] *= decel_frac;
-          avg_vel[0] = (vel[0] + *pfVel) * *(float *)0x253398;
-          avg_vel[1] = (vel[1] + *(float *)(proj + 0x1c)) * *(float *)0x253398;
-          avg_vel[2] = (vel[2] + *(float *)(proj + 0x20)) * *(float *)0x253398;
-        } else {
+        if (dist_at_hit <= *(float *)(proj_tag + 0x1e8)) {
           /* Speed will cross min: split tick. */
           decel_frac = (speed_prev - *(float *)(proj_tag + 0x1e8)) / decel_frac;
           dist_at_hit = *(float *)(proj_tag + 0x1e8) * *(float *)0x28ace8;
-          tmp_frac = *(float *)0x2533c8 - decel_frac;
+          tmp_frac = 1.0f - decel_frac;
           dist_post =
             tmp_frac * *(float *)(proj_tag + 0x1e8) +
             (dist_at_hit + speed_prev) * decel_frac * *(float *)0x253398;
@@ -2440,11 +2431,21 @@ int FUN_000f9c40(int projectile_handle)
                                              decel_frac * *(float *)0x253398;
           avg_vel[2] = tmp_frac * vel[2] + (vel[2] + *(float *)(proj + 0x20)) *
                                              decel_frac * *(float *)0x253398;
+        } else {
+          /* Speed stays above min: normal decel. */
+          dist_post = speed_prev - decel_frac * *(float *)0x253398;
+          decel_frac = dist_at_hit / speed_prev;
+          vel[0] *= decel_frac;
+          vel[1] *= decel_frac;
+          vel[2] *= decel_frac;
+          avg_vel[0] = (vel[0] + *pfVel) * *(float *)0x253398;
+          avg_vel[1] = (vel[1] + *(float *)(proj + 0x1c)) * *(float *)0x253398;
+          avg_vel[2] = (vel[2] + *(float *)(proj + 0x20)) * *(float *)0x253398;
         }
       }
     }
 
-    if (!real_vector3d_valid(vel)) {
+    if (!(char)real_vector3d_valid(vel)) {
       display_assert("projectile velocity is bad after deceleration.",
                      "c:\\halo\\SOURCE\\items\\projectiles.c", 0x1cd, 1);
       system_exit(-1);
@@ -2462,7 +2463,7 @@ int FUN_000f9c40(int projectile_handle)
     vel[2] -= gravity * time_remaining;
     avg_vel[2] -= gravity * time_remaining * *(float *)0x253398;
 
-    if (!real_vector3d_valid(vel)) {
+    if (!(char)real_vector3d_valid(vel)) {
       display_assert("projectile velocity is bad after gravity.",
                      "c:\\halo\\SOURCE\\items\\projectiles.c", 0x1dc, 1);
       system_exit(-1);
@@ -2471,18 +2472,18 @@ int FUN_000f9c40(int projectile_handle)
     /* -------------------------------------------------------------------- */
     /* 7d. Max-range limit.                                                 */
     /* -------------------------------------------------------------------- */
-    if ((*(float *)(proj_tag + 0x1c8) == *(float *)0x2533c0) ||
-        (dist_post * time_remaining + *(float *)(proj + 0x200) <=
-         *(float *)(proj_tag + 0x1c8))) {
+    if ((*(float *)(proj_tag + 0x1c8) == 0.0f) ||
+        (!(dist_post * time_remaining + *(float *)(proj + 0x200) >
+           *(float *)(proj_tag + 0x1c8)))) {
       range_frac = 1.0f;
     } else {
-      if (dist_post == *(float *)0x2533c0) {
-        range_frac = 0.0f;
-      } else {
+      if (dist_post != 0.0f) {
         range_frac =
           ((*(float *)(proj_tag + 0x1c8) - *(float *)(proj + 0x200)) /
            dist_post) *
           time_remaining;
+      } else {
+        range_frac = 0.0f;
       }
       tmp_int = (int)object_get_and_verify_type(projectile_handle, 0x20);
       if (*(int16_t *)(tmp_int + 0x1e0) < 1) {
@@ -2510,7 +2511,7 @@ int FUN_000f9c40(int projectile_handle)
     /* -------------------------------------------------------------------- */
     /* 7f. Collision depth push.                                            */
     /* -------------------------------------------------------------------- */
-    if (*(int16_t *)0x4761d8 > 0x1f) {
+    if (*(int16_t *)0x4761d8 >= 0x20) {
       display_assert("global_current_collision_user_depth < "
                      "MAXIMUM_COLLISION_USER_STACK_DEPTH",
                      "c:\\halo\\SOURCE\\items\\projectiles.c", 0x1fb, 1);
@@ -2540,9 +2541,9 @@ int FUN_000f9c40(int projectile_handle)
       } else {
         /* After hit: adjust time and post-decel velocity. */
         time_remaining =
-          *(float *)0x2533c8 - *(float *)((char *)collision_result + 0x14);
+          1.0f - *(float *)((char *)collision_result + 0x14);
         vel[2] += gravity * time_remaining;
-        if (dist_at_hit != *(float *)0x2533c0) {
+        if (dist_at_hit != 0.0f) {
           decel_frac = time_remaining * *(float *)(proj + 0x20c) + dist_at_hit;
           if (decel_frac > speed_prev) {
             decel_frac = speed_prev;
@@ -2554,7 +2555,7 @@ int FUN_000f9c40(int projectile_handle)
         }
         /* Set bit 2 if normal angle exceeds threshold. */
         col_normal_z = *(float *)((char *)collision_result + 0x2c);
-        if (*(float *)0x2533e4 < col_normal_z) {
+        if (col_normal_z > *(float *)0x2533e4) {
           *(uint32_t *)(proj + 0x1dc) |= 4;
         }
         *(int *)(proj + 0x1e4) = -1;
@@ -2586,7 +2587,7 @@ int FUN_000f9c40(int projectile_handle)
     if (hit_flag != '\0') {
       /* Accumulate total travel distance. */
       {
-        float dx, dy, dz;
+        volatile float dx, dy, dz;
         dx = new_pos[0] - *(float *)(proj + 0xc);
         dy = new_pos[1] - *(float *)(proj + 0x10);
         dz = new_pos[2] - *(float *)(proj + 0x14);
@@ -2616,7 +2617,7 @@ int FUN_000f9c40(int projectile_handle)
               dot = perp_vec[0] * (new_pos[0] - *(float *)(proj + 0xc)) +
                     perp_vec[1] * (new_pos[1] - *(float *)(proj + 0x10)) +
                     perp_vec[2] * (new_pos[2] - *(float *)(proj + 0x14));
-              if ((*(float *)0x2533c0 <= dot) &&
+              if ((dot >= 0.0f) &&
                   ((float)FUN_00012170(new_pos) > dot)) {
                 mag_sq = (float)FUN_00012170(cross_buf2);
                 if (mag_sq < sound_range * sound_range) {
@@ -2651,9 +2652,9 @@ int FUN_000f9c40(int projectile_handle)
       /* 7j. Orientation update.                                            */
       /* ------------------------------------------------------------------ */
       if (((*(uint8_t *)(proj_tag + 0x17c) & 1) == 0) ||
-          ((*(float *)(proj + 0x18) == *(float *)0x2533c0) &&
-           (*(float *)(proj + 0x1c) == *(float *)0x2533c0) &&
-           (*(float *)(proj + 0x20) == *(float *)0x2533c0))) {
+          ((*(float *)(proj + 0x18) == 0.0f) &&
+           (*(float *)(proj + 0x1c) == 0.0f) &&
+           (*(float *)(proj + 0x20) == 0.0f))) {
         /* Apply stored rotation (sin/cos at proj+0x220/0x224) if flag set.
          * Both fwd and up rotate around the stored angular velocity axis
          * (proj+0x214). After rotation, Gram-Schmidt re-orthogonalizes to
@@ -2680,13 +2681,13 @@ int FUN_000f9c40(int projectile_handle)
           fwd_copy[0] = *(float *)(proj + 0x18);
           fwd_copy[1] = *(float *)(proj + 0x1c);
           fwd_copy[2] = *(float *)(proj + 0x20);
-          if ((float)normalize3d(fwd_copy) > *(float *)0x2533c0) {
+          if ((float)normalize3d(fwd_copy) > 0.0f) {
             fwd[0] = fwd_copy[0];
             fwd[1] = fwd_copy[1];
             fwd[2] = fwd_copy[2];
             cross_product3d(up, fwd, cross_buf2);
             cross_product3d(fwd, cross_buf2, up);
-            if ((float)normalize3d(up) == *(float *)0x2533c0) {
+            if ((float)normalize3d(up) == 0.0f) {
               perpendicular3d(fwd, up);
               normalize3d(up);
             }
@@ -2707,18 +2708,18 @@ int FUN_000f9c40(int projectile_handle)
         *(float *)(proj + 0x18) = vel[0];
         *(float *)(proj + 0x1c) = vel[1];
         *(float *)(proj + 0x20) = vel[2];
-        if ((local_1c_cmp != *(float *)0x2533c0) &&
+        if ((local_1c_cmp != 0.0f) &&
             ((short)bounce_count != 0) && (*(int *)(proj + 0x1ec) != -1) &&
             (*(int *)(proj + 0xfc + *(int *)(proj + 0x1ec) * 4) != -1)) {
           object_compute_node_matrices(projectile_handle);
           contrail_set_state_for_object(
             *(int *)(proj + 0xfc + *(int *)(proj + 0x1ec) * 4), 0,
-            (*(float *)0x2533c8 - time_remaining) * *(float *)0x28ab38);
+            (1.0f - time_remaining) * *(float *)0x28ab38);
         }
       }
     }
 
-    if (!real_vector3d_valid((float *)(proj + 0x18))) {
+    if (!(char)real_vector3d_valid((float *)(proj + 0x18))) {
       display_assert(csprintf((char *)0x5ab100,
                               "%s: assert_valid_real_vector2d(%f, %f, %f)",
                               "&projectile->object.translational_velocity",
@@ -2728,21 +2729,25 @@ int FUN_000f9c40(int projectile_handle)
                      "c:\\halo\\SOURCE\\items\\projectiles.c", 0x2a0, 1);
       system_exit(-1);
     }
-  } while (*(float *)0x2533c0 < time_remaining);
+  } while (time_remaining > 0.0f);
 
   /* ----------------------------------------------------------------------- */
   /* 8. Post-loop detonation dispatch.                                       */
   /* ----------------------------------------------------------------------- */
-  if (*(int16_t *)(proj + 0x1e0) == 1) {
-    float fval = *(float *)(proj + 0x1fc);
-    if (fval == *(float *)0x2533c0 ||
-        *(float *)(proj + 0x1f8) >= *(float *)0x2533c8) {
-      FUN_000f8920(projectile_handle, (char)(bounce_count == 0),
-                   time_remaining);
-      object_delete(projectile_handle);
+  switch (*(int16_t *)(proj + 0x1e0)) {
+    case 1: {
+      float fval = *(float *)(proj + 0x1fc);
+      if (fval == 0.0f ||
+          *(float *)(proj + 0x1f8) >= 1.0f) {
+        FUN_000f8920(projectile_handle, (char)(bounce_count == 0),
+                     time_remaining);
+        object_delete(projectile_handle);
+      }
+      break;
     }
-  } else if (*(int16_t *)(proj + 0x1e0) == 2) {
-    object_delete(projectile_handle);
+    case 2:
+      object_delete(projectile_handle);
+      break;
   }
 
   /* ----------------------------------------------------------------------- */
@@ -2763,7 +2768,7 @@ int FUN_000f9c40(int projectile_handle)
     system_exit(-1);
   }
   if ((*(char *)0x449ef1 != '\0') && (*(char *)0x31edb0 != '\0')) {
-    profile_exit_private(*(void **)0x31eda8);
+    profile_exit_private((void *)0x31eda8);
   }
   return 1;
 }

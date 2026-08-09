@@ -3317,7 +3317,8 @@ void FUN_00139c20(int object_handle, int16_t marker_index, float *position,
   int16_t argmin;
   int16_t cur_count;
   float dx, dy, dz, dist, radius;
-  float brightness, min_weight;
+  float brightness, min_weight, weight;
+  float *wp;
   int slot_offset;
 
   if (*(char *)0x5a8d60 == '\0') {
@@ -3346,37 +3347,41 @@ void FUN_00139c20(int object_handle, int16_t marker_index, float *position,
         dz = position[2] - *(float *)(light + 0x38);
         dist = sqrtf(dx * dx + dy * dy + dz * dz);
         radius = *(float *)(light + 0x54);
-        if (dist < bias + radius) {
+        if (dist < bias + *(float *)(light + 0x54)) {
           attenuation = 1.0f - (dist * dist) / (radius * radius);
           brightness = real_rgb_color_brightness((float *)(light + 0x14));
+          weight = brightness * attenuation;
 
           cur_count = *count;
           if (cur_count < max_count) {
-            *count = cur_count + 1;
             slot = cur_count;
+            cur_count++;
+            *count = cur_count;
           } else {
             min_weight = *(float *)0x2548fc;
             argmin = -1;
             slot = 0;
             if (cur_count > 0) {
               i = 0;
+              wp = out_weights;
               do {
-                if (out_weights[i] < min_weight) {
-                  min_weight = out_weights[i];
+                if (*wp < min_weight) {
+                  min_weight = *wp;
                   argmin = i;
                 }
                 i++;
+                wp++;
               } while (i < *count);
               slot = i; /* slot ends at *count after the search loop */
             }
-            if (min_weight < brightness * attenuation)
+            if (min_weight < weight)
               slot = argmin;
           }
 
           if (slot < max_count) {
             slot_offset = slot * 4;
             *(int *)(out_index_base + slot_offset) = light_index;
-            out_weights[slot] = brightness * attenuation;
+            out_weights[slot] = weight;
             *(float *)(out_atten_base + slot_offset) = attenuation;
           }
         }
@@ -3875,6 +3880,21 @@ void FUN_0013a740(int param_1, int param_2, float *param_3)
   void *local_10;
   int local_c;
   short local_8[2];
+  /*
+   * Marker-light output arrays for the FUN_00139c20 call below. max_count is 2
+   * (PUSH 0x2 at 0x13a8a2), and the accumulation loop at 0x13a915/0x13a934
+   * indexes both bases with EDI stepping by 4 — so all three are 2-element
+   * arrays, not scalars. In the original frame MSVC overlaps them with the
+   * now-dead lightmap locals (indices at EBP-0x1c/-0x18 = local_20/local_1c,
+   * attenuations at EBP-0x24/-0x20 = local_28/local_24, weights at
+   * EBP-0x14/-0x10 = local_18/local_14); Ghidra split every slot into its own
+   * scalar. Reading element 1 through a scalar picked up an adjacent float
+   * (observed handle 0x3f54ebf5) and tripped the "lights index is unused"
+   * datum_get assert.
+   */
+  int light_indices[2];
+  float light_weights[2];
+  float light_attenuations[2];
 
   pfVar3 = param_3;
   puVar2 = *(char **)0x2ee710;
@@ -3920,8 +3940,8 @@ void FUN_0013a740(int param_1, int param_2, float *param_3)
     *(int *)0x5a8d64 = *(int *)0x5a8d64 + 1;
     *(char *)0x5a8d60 = '\x01';
     FUN_00139c20(-1, (int16_t) * (unsigned short *)(param_2 + 4),
-                  (float *)param_1, 0.0f, (int)&local_20, (float *)&local_18,
-                  (int)&local_28, (int16_t *)&param_3, 2);
+                  (float *)param_1, 0.0f, (int)light_indices, light_weights,
+                  (int)light_attenuations, (int16_t *)&param_3, 2);
     if (*(char *)0x5a8d60 == '\0') {
       display_assert("lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x68e, 1);
@@ -3930,19 +3950,22 @@ void FUN_0013a740(int param_1, int param_2, float *param_3)
     *(char *)0x5a8d60 = '\0';
     if (0 < (short)(int)param_3) {
       iVar5 = 0;
-      uVar9 = (unsigned int)param_3 & 0xffff;
+      uVar9 = (unsigned short)(unsigned int)param_3;
       do {
         iVar8 = (int)datum_get(*(void **)0x5a90bc,
-                                *(int *)((char *)&local_20 + iVar5));
+                                *(int *)((char *)light_indices + iVar5));
         if ((*(unsigned char *)(iVar8 + 2) & 1) != 0) {
           *pfVar3 =
-            *(float *)(iVar8 + 0x14) * *(float *)((char *)&local_28 + iVar5) +
+            *(float *)(iVar8 + 0x14) *
+              *(float *)((char *)light_attenuations + iVar5) +
             *pfVar3;
           pfVar3[1] =
-            *(float *)(iVar8 + 0x18) * *(float *)((char *)&local_28 + iVar5) +
+            *(float *)(iVar8 + 0x18) *
+              *(float *)((char *)light_attenuations + iVar5) +
             pfVar3[1];
           pfVar3[2] =
-            *(float *)(iVar8 + 0x1c) * *(float *)((char *)&local_28 + iVar5) +
+            *(float *)(iVar8 + 0x1c) *
+              *(float *)((char *)light_attenuations + iVar5) +
             pfVar3[2];
         }
         iVar5 = iVar5 + 4;
@@ -3952,22 +3975,31 @@ void FUN_0013a740(int param_1, int param_2, float *param_3)
   }
   /* clamp each channel to [0, 1] */
   if (*pfVar3 < *(float *)0x2533c0) {
-    *pfVar3 = *(float *)0x2533c0;
+    fVar1 = *(float *)0x2533c0;
   } else if (*pfVar3 > *(float *)0x2533c8) {
-    *pfVar3 = *(float *)0x2533c8;
+    fVar1 = *(float *)0x2533c8;
+  } else {
+    fVar1 = *pfVar3;
   }
+  *pfVar3 = fVar1;
 
   if (pfVar3[1] < *(float *)0x2533c0) {
-    pfVar3[1] = *(float *)0x2533c0;
+    fVar1 = *(float *)0x2533c0;
   } else if (pfVar3[1] > *(float *)0x2533c8) {
-    pfVar3[1] = *(float *)0x2533c8;
+    fVar1 = *(float *)0x2533c8;
+  } else {
+    fVar1 = pfVar3[1];
   }
+  pfVar3[1] = fVar1;
 
   if (pfVar3[2] < *(float *)0x2533c0) {
-    pfVar3[2] = 0.0f;
+    fVar1 = 0.0f;
   } else if (pfVar3[2] > *(float *)0x2533c8) {
-    pfVar3[2] = 1.0f;
+    fVar1 = 1.0f;
+  } else {
+    fVar1 = pfVar3[2];
   }
+  pfVar3[2] = fVar1;
 }
 
 /* 0x13aa10: gather the light markers that illuminate an object.  Computes the
@@ -6490,13 +6522,23 @@ void *object_iterator_next(void *iter)
       idx++;
       if (entry->unk_0 != 0 &&
           ((entry->unk_2 & (uint8_t)it->flags) == (uint8_t)it->flags) &&
-          (it->type_mask & (1 << (entry->type & 0x1f))) != 0) {
+          (it->type_mask & (1 << entry->type)) != 0) {
         it->last_handle = handle;
         it->current_index = idx;
         return entry->object;
       }
       entry = (object_header_data_t *)((char *)entry + 0xc);
     } while (idx < data->current_count);
+
+    /*
+     * Loop-exhausted epilogue (0x13d7cb): MOV word ptr [EBX+6],DX; XOR EAX,EAX
+     * — the original returns NULL here, NOT the last composite handle still
+     * live in EDI. The separate never-entered-loop epilogue at 0x13d7e5 does
+     * MOV EAX,EDI, but EDI is still the XOR EDI,EDI from function entry, so
+     * that path also returns 0.
+     */
+    it->current_index = idx;
+    return (void *)0;
   }
 
   it->current_index = idx;
@@ -13865,7 +13907,10 @@ void objects_update(void)
   /* --- profiling entry (gated on two flags) --- */
   if ((*(volatile uint8_t *)0x449ef1 != 0) &&
       (*(volatile uint8_t *)0x324640 != 0)) {
-    profile_enter_private(*(void *volatile *)0x324638);
+    /* 0x324638 IS the profile_section struct (PUSH 0x324638 at 0x1451a2), not
+     * a pointer to one.  Its +0x0 field is the name string "objects_update"
+     * and +0x8 is the `active` byte the guard above reads as 0x324640. */
+    profile_enter_private((void *)0x324638);
   }
 
   /* --- double-speed player flag --- */
@@ -14132,7 +14177,7 @@ void objects_update(void)
   /* --- profiling exit --- */
   if ((*(volatile uint8_t *)0x449ef1 != 0) &&
       (*(volatile uint8_t *)0x324640 != 0)) {
-    profile_exit_private(*(void *volatile *)0x324638);
+    profile_exit_private((void *)0x324638);
   }
 }
 
