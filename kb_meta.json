@@ -1735,6 +1735,32 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x58cc0": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Only the low 16 bits of vehicle_handle are logged (MOV ECX,EBX; AND ECX,0xffff at 0x58cff), while the full 32-bit handle is forwarded to FUN_00058af0 via EBX which stays live from the prologue through the tail call at 0x58d24."
+      ],
+      "uncertain": [
+        "The kb.json name ai_scripting_follow_distance disagrees with the binary: the trace format string at 0x25d1d0 reads '%s: ai_go_to_vehicle_override %s 0x%04X %s', and the function is the immediate sibling of ai_go_to_vehicle (0x58c40) forwarding to the same vehicle-entry order builder FUN_00058af0 with allow_type9=1, so the original Bungie name is almost certainly ai_go_to_vehicle_override."
+      ]
+    },
+    "0x58d40": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Actor-record offsets +0x18 (unit object handle, -1 = none) and +0x5c (actor_variant tag index) are inferred from use only; no struct definition backs them.",
+        "Actor_variant tag offsets +0x180 (grenade type, -1 = none), +0x1d0 (count min) and +0x1d2 (count max) are inferred from the random_range call shape; the [min,max+1) half-open range follows from the 16-bit INC AX.",
+        "Unit-object floats +0x88/+0x8c are inferred to be desired-movement scalars because they are binarized into +0x90/+0x94; the semantic role is not proven."
+      ],
+      "uncertain": [
+        "The 24-byte iterator local size is confirmed by ai_index_actor_iterator_new writing iter[0..2] plus a 3-dword embedded encounter iterator at iter+3, but the frame gap between EBP-0x18 and EBP-0x118 leaves room for MSVC to have packed padding, so 24 is the minimum proven size rather than a proven exact size."
+      ]
+    },
+    "0x58eb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x58fa0": {
       "kind": "function",
       "status": "ported"
@@ -3632,6 +3658,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa0800": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Locals were declared in the order that reproduces the original 0x118 frame: intensity_a at EBP-0x04 down to record[0xa4] at EBP-0x118; the four-float color_a/color_b blocks sit at EBP-0x58/EBP-0x48 and the two matrix_transform outputs at EBP-0x64 (point) and EBP-0x74 (vector)."
+      ],
+      "uncertain": [
+        "The second blend pass copies the FIRST state's dword at +0x80 into the SECOND state's shader record (0xa0cf7 MOV ECX,[EBX+0x80] while EBX still holds particle_state_a, stored through record+8 which points at particle_state_b+0xb8); this asymmetry is transcribed verbatim and may be an original-source bug.",
+        "The modulo fixup at 0xa0ad1 writes only the low 16 bits of the sprite-index slot (ADD AX,[EDI+0x34] / MOV [EBP-0xc],AX), leaving the IDIV remainder in the upper half; the lift reproduces this with a 16-bit store through the int local because both consumers (FUN_0018dcf0 / FUN_0018d6e0) read the slot as a 16-bit sprite index.",
+        "The bitmap sequence field at +0x34 is read at three widths in one function: MOVSX word for the random_range bound (0xa0a8c), IDIV dword for the modulo (0xa0ac3) and ADD word for the negative fixup (0xa0ad1); this is consistent with a bitmap_group_sequence sprites tag_block whose first dword is the count, with MSVC narrowing the loads whose results are truncated to 16 bits."
+      ]
+    },
     "0xa0d50": {
       "kind": "function",
       "status": "unknown",
@@ -3647,6 +3685,10 @@
       "status": "ported"
     },
     "0xa10f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa1170": {
       "kind": "function",
       "status": "ported"
     },
@@ -11493,6 +11535,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x17c8e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c8f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x17c900": {
       "kind": "function",
       "status": "ported"
@@ -11505,7 +11555,63 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x17c930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c940": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x17c950": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c970": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c980": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c9a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c9b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c9c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c9d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c9e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17ca10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17ca20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17ca30": {
       "kind": "function",
       "status": "ported"
     },

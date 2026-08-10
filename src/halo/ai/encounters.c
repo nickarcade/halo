@@ -2743,6 +2743,80 @@ void FUN_00058c40(unsigned int ai_index, int vehicle_handle,
   FUN_00058af0(ai_index, vehicle_handle, (int)seat_substring, 0);
 }
 
+/* 0x00058cc0 — exact twin of FUN_00058c40 above, differing only in the trace
+ * format string and in allow_type9 = 1 instead of 0.  Emits a trace line when
+ * the AI script-trace flag at 0x5aca59 is set, then forwards the request to the
+ * vehicle-entry order builder FUN_00058af0.
+ *
+ * NAME CAVEAT: the format string at 0x25d1d0 reads
+ * "%s: ai_go_to_vehicle_override %s 0x%04X %s", so the original Bungie name is
+ * almost certainly ai_go_to_vehicle_override.  The kb.json name
+ * ai_scripting_follow_distance is unrelated to the observed behavior but is
+ * retained here because the build resolves the patch redirect by kb name;
+ * renaming requires kb.json + tools/verify/function_bounds.json to move
+ * together.
+ *
+ * Parameters come off the stack and are cached in callee-saved registers by the
+ * prologue (0x58cd1-0x58cd9): EDI = [EBP+8] = ai_index,
+ * EBX = [EBP+0xC] = vehicle_handle, ESI = [EBP+0x10] = seat_substring.  Ghidra
+ * typed this function `(void)` and reported bogus in_stack_* slots.
+ *
+ * The error() call pushes SIX stack args (ADD ESP,0x18 at 0x58d1c); Ghidra
+ * dropped the trailing seat_substring vararg.  Only the low 16 bits of the
+ * vehicle handle are logged (MOV ECX,EBX; AND ECX,0xffff at 0x58cff/0x58d01),
+ * while the FULL 32-bit handle is forwarded to FUN_00058af0 (EBX still live and
+ * unclobbered at the tail call, 0x58d24). */
+void ai_scripting_follow_distance(unsigned int ai_index, int vehicle_handle,
+                                  const char *seat_substring)
+{
+  char local_104[256];
+
+  if (*(char *)0x5aca59 != '\0') {
+    ai_index_to_string(ai_index, (void *)global_scenario_get(), local_104,
+                       0x100);
+    error(2, "%s: ai_go_to_vehicle_override %s 0x%04X %s",
+          hs_runtime_get_executing_thread_name(), local_104,
+          vehicle_handle & 0xffff, seat_substring);
+  }
+  FUN_00058af0(ai_index, vehicle_handle, (int)seat_substring, 1);
+}
+
+/* 0x00058eb0 — encounters_initialize.
+ *
+ * Allocates the four encounter-system game-state blocks and halts if any
+ * allocation fails.  Straight-line cdecl with NO prologue (no PUSH EBP, no
+ * SUB ESP, no locals): 0x58eb0..0x58f9f, single RET at 0x58f9e.
+ *
+ * Assert file/line recovered from the XBE rather than stamped from our own
+ * __FILE__/__LINE__: all four blocks push 0x25d27c
+ * ("c:\halo\SOURCE\ai\encounters.c") with line immediates
+ * 0x6e/0x71/0x74/0x77 = 110/113/116/119.  The reason strings
+ * (0x25d26c/0x25d258/0x25d240/0x25d224) are the stringized variable names, so
+ * assert_halt_at's #cond reproduces them exactly.
+ *
+ * game_state_malloc is called with the SAME string address pushed twice
+ * (PUSH 0x25d264 twice at the "squad" site, PUSH 0x25d250 twice at the
+ * "platoon" site) — a genuine duplicate argument, not a decompiler artifact.
+ *
+ * Codegen note: the original tests EAX BEFORE storing it
+ * (ADD ESP,0xc / TEST EAX,EAX / MOV [glob],EAX / JNZ), i.e. MSVC scheduled the
+ * global store between the test and the branch.  A plain
+ * `g = f(...); assert_halt_at(..., g);` reproduces that shape. */
+void encounters_initialize(void)
+{
+  encounter_data = game_state_data_new("encounter", 0x80, 0x6c);
+  assert_halt_at("c:\\halo\\SOURCE\\ai\\encounters.c", 110, encounter_data);
+
+  squad_array = game_state_malloc("squad", "squad", 0x8000);
+  assert_halt_at("c:\\halo\\SOURCE\\ai\\encounters.c", 113, squad_array);
+
+  platoon_array = game_state_malloc("platoon", "platoon", 0x1000);
+  assert_halt_at("c:\\halo\\SOURCE\\ai\\encounters.c", 116, platoon_array);
+
+  pursuit_data = game_state_data_new("ai pursuit", 0x100, 0x28);
+  assert_halt_at("c:\\halo\\SOURCE\\ai\\encounters.c", 119, pursuit_data);
+}
+
 /* 0x00058fa0 — encounter_dispose stub.
  * Called from ai_dispose (0x3f6f0). No teardown needed at this level.
  * Binary: single RET instruction. */
@@ -2820,6 +2894,7 @@ void FUN_00058fd0(int encounter_handle, char flag, int bit_vector_size, int pvs,
   int move_group_mask;
   int actor_index;
   int object_index;
+  int root_handle;
   int mask;
   int16_t cluster_index;
   int16_t state;
@@ -2852,8 +2927,8 @@ void FUN_00058fd0(int encounter_handle, char flag, int bit_vector_size, int pvs,
       object_index = *(int *)(actor + 0x24);
       while (object_index != -1) {
         object = (char *)object_get_and_verify_type(object_index, 3);
-        root = (char *)object_get_and_verify_type(
-          object_get_root_parent(object_index), -1);
+        root_handle = object_get_root_parent(object_index);
+        root = (char *)object_get_and_verify_type(root_handle, -1);
         cluster_index = *(int16_t *)(root + 0x4c);
         if (cluster_index != -1) {
           if (cluster_index < 0 || (int)cluster_index >= bit_vector_size) {

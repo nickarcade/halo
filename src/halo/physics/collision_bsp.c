@@ -4,6 +4,26 @@
  * from the generated decl.h via kb.json.
  */
 
+/* 0x147380
+ *
+ * __cdecl adapter over the bsp3d node walker at 0x1470b0. Forwards all seven
+ * caller arguments unchanged and injects 0xffffffff as the callee's third
+ * argument (`flags`); that constant is the only thing the thunk contributes.
+ * The callee's EAX result falls straight through the epilogue (no MOV/XOR
+ * after the CALL), so this thunk returns the callee's value.
+ *
+ * Binary: 8 pushes / ADD ESP,0x20 out, 7 dword params in at EBP+0x08..+0x20,
+ * plain RET (caller cleanup on both sides). Parameter types are taken from the
+ * callee's declaration; +0x18 is the callee's `float epsilon`.
+ */
+int FUN_00147380(
+  int tag_base, uint32_t node_index, float *verts, int counts, float epsilon,
+  void (*callback)(float *, int, unsigned int, unsigned int, void *), void *ctx)
+{
+  return FUN_001470b0(tag_base, node_index, 0xffffffff, verts, counts, epsilon,
+                      callback, ctx);
+}
+
 /* 0x1473b0 - collision_surface_edge_count
  *
  * Counts the edges around one collision-BSP surface by walking its circular
@@ -441,6 +461,123 @@ float collision_surface_area(int bsp, int surface_index)
   return 0.0f;
 }
 
+/* 0x147990 - collision_surface_project_point2d
+ *
+ * Projects a 3D point onto a collision-BSP surface's 2D plane space by looking
+ * up the surface's plane and delegating to project_point2d.
+ *
+ * The collision_bsp tag block headers are 0xc bytes each and sit at fixed
+ * offsets from the bsp base; this function touches two of them:
+ *   +0x0c planes   (stride 0x10): 4 float32 plane equation (nx ny nz d)
+ *   +0x3c surfaces (stride 0x0c): surface[+0] = plane index
+ *
+ * surface[+0] carries a plane-flip flag in bit 31 (`AND EDX,0x7fffffff` at
+ * 0x1479ac), so the index must be masked before indexing the plane block --
+ * without the mask the lookup runs off the end of the block.
+ *
+ * param3/param4 are passed straight through; the original pushes both as full
+ * dwords ([EBP+0x10], [EBP+0x14]) and the callee's int16_t/uint8_t prototype
+ * performs the truncation.
+ *
+ * Returns out_point (MOV EAX,ESI at 0x1479d3, where ESI was reloaded from
+ * [EBP+0x1c] at 0x1479ba) -- the same pointer that was passed in, NOT a status
+ * code (lift-silent-bugs Check 16, void-EAX/wrong-return).
+ *
+ * Note on the frame: ADD ESP,0x2c at 0x1479d0 is a single coalesced cdecl
+ * cleanup for all three calls (3 + 3 + 5 dwords), not evidence of an 11-arg
+ * call (lift-decompiler-traps, cdecl ADD ESP mis-grouping).
+ *
+ * project_point2d writes 3 floats to out_point, so callers must supply a
+ * buffer of at least 12 bytes (projection-output-size, §5).
+ */
+int collision_surface_project_point2d(int bsp, int surface_index, int param3,
+                                      int param4, float *point,
+                                      float *out_point)
+{
+  int *surface;
+  float *plane;
+
+  surface =
+    (int *)tag_block_get_element((void *)(bsp + 0x3c), surface_index, 0xc);
+  plane = (float *)tag_block_get_element((void *)(bsp + 0xc),
+                                         *surface & 0x7fffffff, 0x10);
+  project_point2d(point, plane, param3, param4, out_point);
+  return (int)out_point;
+}
+
+/* 0x1479e0 - collision_surface_test_point2d
+ *
+ * Point-in-surface test in the surface's 2D projection space. Walks the
+ * winged-edge ring of one collision-BSP surface; the point is inside iff it
+ * lies on the non-positive side of every bounding edge.
+ *
+ * Same tag block geometry as collision_surface_polygon:
+ *   bsp+0x3c surfaces (stride 0xc): surface[+4] = first-edge index
+ *   bsp+0x48 edges    (stride 0x18): edge[0]/edge[1] endpoint vertex indices,
+ *                                    edge[2]/edge[3] next-edge links,
+ *                                    edge[5] (+0x14) owning surface index
+ *   bsp+0x54 vertices (stride 0x10)
+ * `side` = (edge[5] == surface_index) selects this surface's half-edge slot,
+ * so the ring is traversed consistently: the leading endpoint is edge[side],
+ * the trailing one edge[!side], and the link forward is edge[2 + side].
+ * The original computes !side as a SECOND `sete` off the same compare
+ * (XOR ECX,ECX / TEST BL,BL / SETE CL at 0x147a41), not as 1 - side.
+ *
+ * Both endpoints are projected to 2D with the caller's projection basis
+ * (param3) and axis sign (param4); FUN_00061df0 writes 2 floats, hence the
+ * float[2] scratch pairs rather than scalars (Ghidra's local_18/local_14 and
+ * local_20/local_1c are NOT in buffer order -- a2d is [EBP-0x14], b2d is
+ * [EBP-0x1c]; lift-decompiler-traps buffer-alias confusion).
+ *
+ * Rejection test, FPU operand order verified instruction-by-instruction at
+ * 0x147a83-0x147aa2 (cross-product operand swap, lift-decompiler-traps
+ * Trap 4 -- swapping the two products negates the test and inverts
+ * inside/outside for every collision surface):
+ *   (point.y - b2d.y) * (point.x - a2d.x) - (point.x - b2d.x) * (point.y -
+ * a2d.y) FCOMP is against the .rdata pooled 0.0f at 0x2533c0, and TEST AH,0x41
+ * / JE takes the C0=C3=0 path (strictly greater) to the XOR AL,AL return, i.e.
+ * `> 0.0f` rejects. Returns are MOV AL,1 / XOR AL,AL -- bool in AL.
+ *
+ * ADD ESP,0x44 at 0x147a88 is one coalesced cdecl cleanup for the four calls
+ * that follow the first (0x18 + 0x10 + 0x10 dwords of args plus the two
+ * projections), not a 17-argument call (lift-decompiler-traps, cdecl ADD ESP
+ * mis-grouping). The hazard scanner's ARG_COUNT warning on 0x147a7e is this.
+ */
+char collision_surface_test_point2d(int bsp, int surface_index, int param3,
+                                    int param4, float *point)
+{
+  void *edges;
+  int side;
+  int first_edge;
+  int edge_index;
+  int *edge;
+  void *va;
+  void *vb;
+  float a2d[2];
+  float b2d[2];
+
+  first_edge = *(int *)((char *)tag_block_get_element((void *)(bsp + 0x3c),
+                                                      surface_index, 0xc) +
+                        4);
+  edges = (void *)(bsp + 0x48);
+  edge_index = first_edge;
+  do {
+    edge = (int *)tag_block_get_element(edges, edge_index, 0x18);
+    side = (edge[5] == surface_index);
+    va = tag_block_get_element((void *)(bsp + 0x54), edge[side], 0x10);
+    vb = tag_block_get_element((void *)(bsp + 0x54), edge[!side], 0x10);
+    FUN_00061df0(va, (short)param3, (unsigned char)param4, a2d);
+    FUN_00061df0(vb, (short)param3, (unsigned char)param4, b2d);
+    if ((point[1] - b2d[1]) * (point[0] - a2d[0]) -
+          (point[0] - b2d[0]) * (point[1] - a2d[1]) >
+        0.0f) {
+      return 0;
+    }
+    edge_index = edge[2 + side];
+  } while (edge_index != first_edge);
+  return 1;
+}
+
 /* 0x147d10 - collision_surface_test_line2d
  *
  * Clips a 2D line (point + direction) against one collision-BSP surface's
@@ -551,4 +688,502 @@ int collision_surface_test_line2d(int bsp, int surface_index, int param3,
     return 1;
   }
   return 0;
+}
+
+/* 0x1486e0
+ *
+ * Recursive descent through a 2D BSP with a two-sided plane epsilon: visits
+ * every node whose splitting line the query point straddles within `epsilon`,
+ * and hands each reached leaf to FUN_00147ed0.
+ *
+ * `state` is the walk context; only four fields are touched here:
+ *   +0x000 pointer to the bsp tag base; the 2D-node tag_block sits at +0x30
+ *   +0x010 float epsilon (used for BOTH the +eps and -eps bound; the original
+ *          re-reads the field for each compare rather than caching it)
+ *   +0x220 float query x
+ *   +0x224 float query y
+ *
+ * Node record is 0x14 bytes:
+ *   +0x00 float i, +0x04 float j  (2D plane normal)
+ *   +0x08 float d                 (plane offset)
+ *   +0x0c int front child, +0x10 int back child
+ * A negative child index is a leaf: bit 31 is the leaf flag, so the index is
+ * masked with 0x7fffffff before it reaches FUN_00147ed0 (which takes its
+ * state pointer in EAX, @<eax>).
+ *
+ * Ordering is load-bearing and is taken from the disassembly, not the
+ * decompile:
+ *  - The sum is built as `j*y` FIRST (`FLD [ESI+4]; FMUL [EDI+0x224]`) and
+ *    `x*i` second (`FLD [EDI+0x220]; FMUL [ESI]`), then FADDP; Ghidra prints
+ *    the addends in the opposite order because it normalises commutative adds.
+ *  - `FSUB dword ptr [ESI+8]` is sum MINUS the plane offset, not the reverse.
+ *  - BOTH comparisons are evaluated before either branch is taken: FCOM
+ *    against +epsilon latches the front flag into CL, then FLD/FCHS/FXCH/
+ *    FCOMPP against -epsilon latches the back flag into BL. The recursive
+ *    call happens after both flags exist, so the flags must be materialised
+ *    into byte-wide locals up front rather than folded into the `if`s.
+ *
+ * The loop is the rotated form MSVC emits for `while`: the entry sign test
+ * jumps straight to the leaf handler, and the bottom `MOV ESI,[ESI+0x10];
+ * JNS` either re-enters the body or falls through to that same leaf handler.
+ */
+void FUN_001486e0(void *state, int node_index)
+{
+  float *node;
+  float d;
+  unsigned char front; /* CL in the original */
+  unsigned char back; /* BL in the original */
+
+  while (node_index >= 0) {
+    node = (float *)tag_block_get_element((void *)(*(int *)state + 0x30),
+                                          node_index, 0x14);
+
+    d = node[1] * *(float *)((char *)state + 0x224) +
+        *(float *)((char *)state + 0x220) * node[0] - node[2];
+
+    front = (unsigned char)(d > *(float *)((char *)state + 0x10));
+    back = (unsigned char)(d < -*(float *)((char *)state + 0x10));
+
+    if (front) {
+      FUN_001486e0(state, ((int *)node)[3]);
+    }
+    if (!back) {
+      return;
+    }
+    node_index = ((int *)node)[4];
+  }
+
+  FUN_00147ed0(state, node_index & 0x7fffffff);
+}
+
+/* 0x148b20 - collision_bsp_test_pill_new
+ *
+ * Packs the eight caller arguments plus three fixed defaults into a 0x2c-byte
+ * bsp3d traversal record on the stack, seeds the caller's distance slot with
+ * +FLT_MAX, and tail-calls the recursive bsp3d walker at 0x148440 over the
+ * whole parametric span [0.0, 1.0].
+ *
+ * Binary: PUSH EBP / MOV EBP,ESP / SUB ESP,0x2c, plain RET, eight dword
+ * parameter slots at EBP+0x08..+0x24 and a four-argument CALL cleaned with
+ * ADD ESP,0x10 - cdecl on both sides. EBP+0x0c is loaded with
+ * `MOV CX, word ptr` and stored with `MOV word ptr [EBP-0x28],CX`: that
+ * parameter is 16-bit, and record bytes +0x06..+0x07 are never written. The
+ * three bytes after the +0x24 byte store are likewise never written; the
+ * record is deliberately NOT zero-initialised, so do not add an initialiser.
+ *
+ * Record field meanings are taken from the reads performed by the callee at
+ * 0x148440: [+0x00] is the bsp3d tag base (tag_blocks at +0x00 and +0x0c),
+ * [+0x0c]/[+0x10] are the two float[3] vectors dotted against each node plane,
+ * [+0x14] is the plane-distance tolerance (the pill radius), [+0x18] is the
+ * float* the walker overwrites with the hit distance, [+0x1c] is the float[3]
+ * the surface normal is copied into, and [+0x28] is the signed plane index the
+ * walker latches (hence the 0xffffffff seed). [+0x04] (the 16-bit parameter),
+ * [+0x08], [+0x20] and [+0x24] are not read by 0x148440 itself - they are
+ * consumed further down the traversal - so they keep mechanical names.
+ *
+ * Return: the function performs no MOV/XOR after the CALL, so the walker's AL
+ * result falls through the epilogue. The single caller (FUN_0014e940 at
+ * 0x14e989) consumes it with TEST AL,AL / JE, so the return type is bool, not
+ * void.
+ */
+typedef struct {
+  int bsp3d; /* 0x00 */
+  short flags; /* 0x04 */
+  short pad_06; /* 0x06 - never written by the builder */
+  int field_08; /* 0x08 */
+  float *origin; /* 0x0c */
+  float *direction; /* 0x10 */
+  float radius; /* 0x14 */
+  float *out_distance; /* 0x18 */
+  float *out_normal; /* 0x1c */
+  int field_20; /* 0x20 */
+  char field_24; /* 0x24 */
+  char pad_25[3]; /* 0x25 - never written by the builder */
+  int field_28; /* 0x28 */
+} bsp3d_pill_test_data;
+
+/* noinline: the sole caller FUN_0014e940 (0x14e940) reaches this through a real
+ * CALL at 0x14e989, so the original build did NOT inline it. Left to its own
+ * devices the compiler folds this body into that caller and hoists the 0x2c
+ * bsp3d_pill_test_data record into the caller's frame (sub esp,0x3c instead of
+ * sub esp,0x10), which is a structural mismatch against the binary. */
+bool __declspec(noinline)
+collision_bsp_test_pill_new(int bsp3d, short flags, int param3, float *origin,
+                            float *direction, float radius, float *out_distance,
+                            float *out_normal)
+{
+  bsp3d_pill_test_data data;
+
+  data.bsp3d = bsp3d;
+  data.flags = flags;
+  data.field_08 = param3;
+  data.origin = origin;
+  data.direction = direction;
+  data.radius = radius;
+  data.out_distance = out_distance;
+  data.out_normal = out_normal;
+  data.field_20 = -1;
+  data.field_24 = 0;
+  data.field_28 = -1;
+
+  *out_distance = 3.4028235e+38f;
+
+  return FUN_00148440(&data, 0, 0.0f, 1.0f);
+}
+
+/* 0x1493b0 - collision_bsp_test_sphere
+ *
+ * Packs the six caller arguments plus a zeroed seventh field into a 0x228-byte
+ * bsp3d sphere-test context on the stack, clears the four result-list counters,
+ * and runs the recursive bsp3d sphere walk from node 0.
+ *
+ * Binary: PUSH EBP / MOV EBP,ESP / SUB ESP,0x228 (no _chkstk), EBX/ESI/EDI
+ * saved, and a single grouped ADD ESP,0x1c at 0x149454 covering ALL FOUR calls
+ * (1 + 1 + 2 + 3 = 7 dwords). The enrichment's "cleanup=7 stack args, decl=3"
+ * report against the collision_log_add_time site is that cdecl mis-grouping,
+ * not a real arg-count mismatch: that call pushes exactly EAX/ECX/EDI at
+ * 0x14944a-0x14944c.
+ *
+ * Only the first 0x1c bytes of the context are written here; the remaining
+ * 0x20c bytes are scratch the recursive walk fills, so the aggregate must stay
+ * 0x228 bytes or the callee overruns the frame.
+ *
+ * ESI is loaded with `bsp` ([EBP+0x8]) early and then RELOADED at 0x1493f9
+ * with `results` ([EBP+0x1c]); the `MOV [ESI+0xc0c],EBX` style stores are
+ * therefore against `results`, not `bsp` (register-aliasing trap).
+ *
+ * EDI = (bsp == *(int *)0x5064dc) + 6, i.e. log id 7 when the bsp is the
+ * structure BSP the scenario installed at 0x5064dc, else 6. The same value is
+ * passed to collision_log_add_call and collision_log_add_time.
+ *
+ * `flags` is stored with `MOV word ptr [EBP-0x224],CX` - 16-bit, so the upper
+ * half of that context dword is never written.
+ *
+ * `results` is indexed with 0x404-byte strides (int indices 0, 0x101, 0x202,
+ * 0x303): four parallel lists, each a count int followed by 0x100 entries. No
+ * struct is recovered for it, so the raw int-index form is kept. Store order
+ * in the binary is +0xc0c, +0x000, +0x404, +0x808 and is preserved here.
+ *
+ * Return: 1 when either of the first two list counters ended up positive (both
+ * compared signed with JG against EBX = 0), else 0. The epilogue is duplicated
+ * on both paths, so there is no shared tail.
+ */
+typedef struct {
+  int bsp; /* 0x00 */
+  short flags; /* 0x04 - 16-bit store */
+  short pad_06; /* 0x06 - never written by the builder */
+  int origin; /* 0x08 */
+  int direction; /* 0x0c */
+  int radius; /* 0x10 */
+  int *results; /* 0x14 */
+  int field_18; /* 0x18 */
+  char scratch[0x228 - 0x1c]; /* 0x1c - filled by the recursive walk */
+} bsp3d_sphere_test_data;
+
+int collision_bsp_test_sphere(int bsp, short flags, int origin, int direction,
+                              int radius, int *results)
+{
+  bsp3d_sphere_test_data data;
+  short log_id;
+
+  log_id = (short)((bsp == *(int *)0x5064dc) + 6);
+  collision_log_add_call(log_id);
+  collision_log_query_counter((void *)0x46f098);
+
+  data.bsp = bsp;
+  data.flags = flags;
+  data.origin = origin;
+  data.direction = direction;
+  data.radius = radius;
+  data.results = results;
+  data.field_18 = 0;
+
+  results[0x303] = 0;
+  results[0] = 0;
+  results[0x101] = 0;
+  results[0x202] = 0;
+
+  bsp3d_test_sphere_recursive(&data, 0);
+
+  collision_log_add_time(log_id, *(unsigned int *)0x46f098, *(int *)0x46f09c);
+
+  /* Both tests are JG against EBX = 0, i.e. `> 0`, and each branch carries its
+   * own copy of the epilogue - Ghidra's `< 1 && < 1 -> return 0` rendition is
+   * the same predicate but compiles to JGE and a shared tail. */
+  if (results[0] > 0 || results[0x101] > 0) {
+    return 1;
+  }
+  return 0;
+}
+
+/* 0x14dc30 - Point-vs-world collision test. If any of the collision-type
+ * flags (0xE0) are set, locate the BSP3D leaf containing `pos`; a leaf of -1
+ * (point outside the BSP) reports a hit. When flag bit 7 (0x80) is set and the
+ * global at 0x4761f8 is clear, walk the collideable object partition of the
+ * leaf's cluster and sphere-test each object list via FUN_0014db10; the first
+ * hit returns 1. Otherwise returns 0.
+ *
+ * Confirmed: cdecl, 3 stack args, char return in AL (XOR AL,AL at 0x14dcc7 /
+ * MOV AL,1 at 0x14dcce). No FPU ops anywhere in the function. Entry test is
+ * TEST BL,0xE0. The original has no locals (no `sub esp`) - the iterator state
+ * is written into the incoming [EBP+8] arg slot, but EBX/EDI/ESI already hold
+ * param_1/pos/param_3 before that happens, so using a separate local here is
+ * behaviourally identical (same idiom as the sibling loops in
+ * collision_usage.c). */
+char FUN_0014dc30(int param_1, float *pos, int param_3)
+{
+  uint32_t leaf;
+  char use_water;
+  void *elem;
+  int16_t cluster_idx;
+  int object_handle;
+  int iter_state;
+
+  if ((param_1 & 0xe0) != 0) {
+    leaf = bsp3d_find_leaf(FUN_0018e420(), 0, pos);
+
+    /* SHR ECX,7 / AND CL,1, then zeroed when the global is set. */
+    use_water = (char)(((uint32_t)param_1 >> 7) & 1);
+    if (*(char *)0x4761f8 != '\0')
+      use_water = 0;
+
+    if (leaf == 0xffffffff)
+      return 1;
+
+    if (use_water != 0) {
+      /* Ghidra cdecl arg mis-grouping (ADD ESP,0x14 covers these pushes plus
+       * the iter_first pushes): block is scenario_get()+0xe0, index is
+       * leaf&0x7fffffff, element size 0x10. Cluster index is MOVSX word
+       * [elem+8] - int16, sign-extended. */
+      elem = tag_block_get_element((char *)scenario_get() + 0xe0,
+                                   leaf & 0x7fffffff, 0x10);
+      cluster_idx = *(int16_t *)((char *)elem + 8);
+
+      object_handle =
+        cluster_partition_object_iter_first(&iter_state, cluster_idx);
+      while (object_handle != -1) {
+        if (FUN_0014db10(object_handle, param_1, (int)pos, param_3)) {
+          return 1;
+        }
+        object_handle = cluster_partition_object_iter_next(&iter_state);
+      }
+    }
+  }
+  return 0;
+}
+
+/* 0x14e7d0
+ *
+ * Casts one ray [point, point+offset_vec] against the STRUCTURE bsp only (the
+ * bsp handed back by global_collision_bsp_get) and fills the caller's 0x50-byte
+ * collision-result record. The walker at 0x149c60 both reports the nearest hit
+ * and accumulates the list of leaves the ray crossed; both are consumed here.
+ *
+ * FRAME (0x14e7d3: SUB ESP,0x420): the whole frame is ONE contiguous 1056-byte
+ * scratch record at EBP-0x420, handed to the walker as its last argument
+ * (0x14e7e8: LEA EAX,[EBP-0x420]). Every "local" Ghidra invents for this
+ * function is a field inside that record (CLAUDE.md buffer-alias pitfall 5):
+ *   +0x00 out distance, +0x04..+0x10 the four dwords copied to result+0x24,
+ *   +0x14 -> result+0x44, +0x1a a 16-bit value copied to result+0x34 AND
+ *   +0x4e, +0x1c the leaf count, +0x20.. the leaf index array. The record must
+ *   stay one object - separate locals do not reproduce the layout and the
+ *   callee writes past them.
+ *
+ * Call at 0x14e80b is cdecl (ADD ESP,0x18 = 6 dwords). Pushed right-to-left:
+ * &scratch, 0x7f7fffff, [EBP+0x14], [EBP+0x10], [EBP+0xc], then the getter's
+ * EAX - i.e. (bsp, point, offset_vec, p4, FLT_MAX, &scratch). Both float args
+ * go out as plain dword pushes (MOV ECX,[EBP+0x14] / PUSH ECX and
+ * PUSH 0x7f7fffff), the usual MSVC form for forwarding a float parameter and
+ * for a float literal - do not convert either value.
+ *
+ * `unit_handle` ([EBP+0x18]) is never referenced by the body; it keeps its
+ * mechanical name. ESI caches the result pointer from [EBP+0x1c] throughout,
+ * and is destroyed (ADD ESI,0xc at 0x14e90c) before the tail call, so the
+ * +0x18 pointer is captured first.
+ *
+ * The +0x24..+0x30 block is copied with integer MOVs (0x14e826..0x14e849), not
+ * FLD/FSTP, so it is written here as dword copies through the raw record
+ * pointer rather than through collision_test_result's float fields - typing
+ * them as floats would emit an x87 copy the original does not have.
+ *
+ * Both cluster lookups read MOVSX EAX,word ptr [elem+8] - a sign-extending
+ * 16-bit load. The -1 path reaches the same store via OR EAX,EAX with EAX
+ * already 0xffffffff, which is the same visible value as cluster = -1.
+ *
+ * result+0x14 is seeded to FLT_MAX at entry, replaced by the walker's distance
+ * on a hit, and forced to 1.0f at 0x14e8f7 when the hit flag never got set.
+ *
+ * Return: MOV AL,BL - the char hit flag.
+ */
+typedef struct {
+  float best_dist; /* 0x00 - out distance written by the walker */
+  int32_t field_04; /* 0x04 - copied verbatim to result+0x24 */
+  int32_t field_08; /* 0x08 - copied verbatim to result+0x28 */
+  int32_t field_0c; /* 0x0c - copied verbatim to result+0x2c */
+  int32_t field_10; /* 0x10 - copied verbatim to result+0x30 */
+  int32_t field_14; /* 0x14 - copied verbatim to result+0x44 */
+  int16_t pad_18; /* 0x18 - never read back */
+  int16_t field_1a; /* 0x1a - 16-bit, copied to result+0x34 and +0x4e */
+  int32_t count; /* 0x1c - number of leaf indices gathered */
+  uint32_t indices[256]; /* 0x20 - leaf indices, [0] first and [count-1] last */
+} collision_bsp_test_vector_scratch;
+
+char FUN_0014e7d0(uint32_t collision_flags, float *point, float *offset_vec,
+                  float p4, int unit_handle, void *result)
+{
+  collision_bsp_test_vector_scratch scratch;
+  char *out;
+  char hit;
+  uint32_t index;
+  int32_t cluster;
+  void *elem;
+  float t;
+
+  out = (char *)result;
+  hit = 0;
+
+  *(int16_t *)out = -1;
+  *(float *)(out + 0x14) = 3.4028235e+38f;
+
+  if (FUN_00149c60((int *)global_collision_bsp_get(), point, offset_vec, p4,
+                   3.4028235e+38f, (float *)&scratch)) {
+    /* Ghidra fuses these two tests into one comma expression; the distance
+     * store at 0x14e81d happens before the 0x20 flag test at 0x14e820 and is
+     * not guarded by it. */
+    *(float *)(out + 0x14) = scratch.best_dist;
+    if ((collision_flags & 0x20) != 0) {
+      *(int32_t *)(out + 0x24) = scratch.field_04;
+      *(int32_t *)(out + 0x28) = scratch.field_08;
+      *(int32_t *)(out + 0x2c) = scratch.field_0c;
+      *(int32_t *)(out + 0x30) = scratch.field_10;
+      out[0x4c] = 0;
+      out[0x4d] = 0;
+      *(int16_t *)out = 2;
+      *(int16_t *)(out + 0x34) = scratch.field_1a;
+      *(int32_t *)(out + 0x44) = scratch.field_14;
+      *(int32_t *)(out + 0x48) = -1;
+      *(int16_t *)(out + 0x4e) = scratch.field_1a;
+      hit = 1;
+    }
+  }
+
+  if (scratch.count > 0) {
+    index = scratch.indices[0];
+    *(uint32_t *)(out + 4) = index;
+    if (index == 0xffffffff) {
+      cluster = -1;
+    } else {
+      elem = tag_block_get_element((char *)scenario_get() + 0xe0,
+                                   index & 0x7fffffff, 0x10);
+      cluster = *(int16_t *)((char *)elem + 8);
+    }
+    *(int16_t *)(out + 8) = (int16_t)cluster;
+
+    index = scratch.indices[scratch.count - 1];
+    *(uint32_t *)(out + 0xc) = index;
+    if (index == 0xffffffff) {
+      cluster = -1;
+    } else {
+      elem = tag_block_get_element((char *)scenario_get() + 0xe0,
+                                   index & 0x7fffffff, 0x10);
+      cluster = *(int16_t *)((char *)elem + 8);
+    }
+    *(int16_t *)(out + 0x10) = (int16_t)cluster;
+  }
+
+  if (hit == 0) {
+    *(float *)(out + 0x14) = 1.0f;
+  }
+
+  /* One FLD of result+0x14 held on the x87 stack and duplicated per component
+   * (0x14e8fe: FLD [ESI+0x14] / FLD ST(0) ...), multiply by offset_vec first
+   * then add point - do not reorder into point + t * offset_vec. */
+  t = *(float *)(out + 0x14);
+  *(float *)(out + 0x18) = t * offset_vec[0] + point[0];
+  *(float *)(out + 0x1c) = t * offset_vec[1] + point[1];
+  *(float *)(out + 0x20) = t * offset_vec[2] + point[2];
+
+  scenario_location_from_point(out + 0xc, out + 0x18);
+
+  return hit;
+}
+
+/* 0x14e940
+ *
+ * Sweeps one pill of radius `radius` along the segment [origin, origin+delta]
+ * against the STRUCTURE bsp only (the bsp handed back by
+ * global_collision_bsp_get - no object or model collision is consulted here)
+ * and fills the caller's 0x50-byte collision-result record.
+ *
+ * Binary: PUSH EBP / MOV EBP,ESP / SUB ESP,0x10, EBX/ESI/EDI saved, plain RET
+ * (cdecl both ways). Six dword parameter slots at EBP+0x08..+0x1c; +0x08 and
+ * +0x18 are never referenced by the body, so they keep mechanical names.
+ * ESI caches the result pointer from EBP+0x1c at 0x14e94e.
+ *
+ * Call site at 0x14e989: eight pushes cleaned by a single ADD ESP,0x20, so
+ * every push belongs to collision_bsp_test_pill_new. In push order they are
+ * &normal, &t, radius, delta, origin, 0, 0, bsp - i.e. reversed into C order:
+ * (bsp, 0, 0, origin, delta, radius, &t, &normal). The bsp pointer is the
+ * LAST push (0x14e988, straight off the getter's EAX) and is therefore the
+ * FIRST argument; the enrichment's "getter swallowed the args" note is the
+ * usual cdecl mis-grouping and does not apply.
+ *
+ * `t` lives in the dead EBP+0x1c parameter slot in the original: the result
+ * pointer is already cached in ESI, so MSVC recycled the incoming slot as the
+ * out-distance scratch and reads the callee-written float back from it at
+ * 0x14e995. Modelled here as an ordinary local, which is behaviourally
+ * identical - the result pointer must NOT be re-read after the call.
+ *
+ * The surface normal is copied into the record at +0x24..+0x2c inside the hit
+ * branch and then unconditionally zeroed again by the tail at 0x14e9fe. That
+ * double write is in the binary (MSVC 7.1 does not eliminate the dead store
+ * across the branch merge); do not collapse it.
+ *
+ * Return: AL. The hit path sets AL=1 directly (0x14e9d1) and the miss path
+ * reloads the byte flag seeded to 0 at 0x14e967, so the frame slot is real
+ * even though the true path never stores through it.
+ */
+bool FUN_0014e940(int param_1, float *origin, float *delta, float radius,
+                  int param_5, collision_test_result *result)
+{
+  float normal[3];
+  float t;
+  float hit_t;
+  bool hit = false;
+
+  result->field_00 = -1;
+  result->field_04 = -1;
+  result->field_08 = -1;
+  result->field_0c = -1;
+  result->field_10 = -1;
+  result->t = 1.0f;
+
+  if (collision_bsp_test_pill_new((int)global_collision_bsp_get(), 0, 0, origin,
+                                  delta, radius, &t, normal)) {
+    result->t = t;
+    result->normal[0] = normal[0];
+    result->normal[1] = normal[1];
+    result->normal[2] = normal[2];
+    result->field_00 = 2;
+    result->field_30 = 3.4028235e+38f;
+    result->field_34 = -1;
+    result->field_44 = -1;
+    result->field_48 = -1;
+    result->field_4c = 0;
+    result->field_4d = 0;
+    result->field_4e = -1;
+    hit = true;
+  }
+
+  /* One FLD of result->t held on the x87 stack and duplicated per component
+   * (0x14e9d8: FLD [ESI+0x14] / FLD ST(0) ...), not three reloads. */
+  hit_t = result->t;
+  result->position[0] = hit_t * delta[0] + origin[0];
+  result->position[1] = hit_t * delta[1] + origin[1];
+  result->position[2] = hit_t * delta[2] + origin[2];
+  result->normal[0] = 0.0f;
+  result->normal[1] = 0.0f;
+  result->normal[2] = 0.0f;
+
+  return hit;
 }
