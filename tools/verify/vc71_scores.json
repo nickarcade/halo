@@ -4716,6 +4716,314 @@
       "score": 100.0,
       "source": "src/halo/ai/props.c"
     },
+    "FUN_00068780": {
+      "addr": "0x68780",
+      "end": "0x68881",
+      "kind": "auto",
+      "n_r": 97,
+      "opnd_percent": 95.9,
+      "ref": "synth",
+      "ref_sha": "70bc8f7c10faa072",
+      "score": 97.9,
+      "source": "src/halo/bitmaps/libtiff/tif_flush.c"
+    },
+    "FUN_00068890": {
+      "addr": "0x68890",
+      "end": "0x6893a",
+      "kind": "auto",
+      "n_r": 67,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "10c8908ea9c79b3c",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_flush.c"
+    },
+    "FUN_00068940": {
+      "addr": "0x68940",
+      "end": "0x68963",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "81a13577f7d2543e",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_flush.c"
+    },
+    "FUN_00068970": {
+      "addr": "0x68970",
+      "end": "0x689b5",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "9a73108a64e7ece2",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_flush.c"
+    },
+    "FUN_000689c0": {
+      "addr": "0x689c0",
+      "end": "0x68a03",
+      "kind": "auto",
+      "n_r": 22,
+      "opnd_percent": 86.4,
+      "ref": "synth",
+      "ref_sha": "3b11c670f33d3e42",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_error.c"
+    },
+    "FUN_00068a10": {
+      "addr": "0x68a10",
+      "end": "0x68a23",
+      "kind": "auto",
+      "n_r": 7,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "ef48138bcc2e39cb",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_error.c"
+    },
+    "FUN_0006c680": {
+      "addr": "0x6c680",
+      "end": "0x6c6d2",
+      "kind": "auto",
+      "n_r": 40,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "e5c7d2d4a1e66c09",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006c6f0": {
+      "addr": "0x6c6f0",
+      "end": "0x6c762",
+      "kind": "auto",
+      "n_r": 44,
+      "opnd_percent": 97.7,
+      "ref": "synth",
+      "ref_sha": "8a001d336e02f7ac",
+      "score": 97.7,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006c860": {
+      "addr": "0x6c860",
+      "end": "0x6c8bb",
+      "kind": "auto",
+      "n_r": 43,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "f220127293198e87",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006c8d0": {
+      "addr": "0x6c8d0",
+      "end": "0x6c942",
+      "kind": "auto",
+      "n_r": 45,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "e9df1133eb011900",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006c960": {
+      "addr": "0x6c960",
+      "end": "0x6ca4d",
+      "kind": "auto",
+      "n_r": 85,
+      "opnd_percent": 37.9,
+      "ref": "synth",
+      "ref_sha": "831958cf5814c98a",
+      "score": 91.1,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006cac0": {
+      "addr": "0x6cac0",
+      "end": "0x6caf1",
+      "kind": "auto",
+      "n_r": 16,
+      "opnd_percent": 93.8,
+      "ref": "synth",
+      "ref_sha": "e341d59df505aa05",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006cb00": {
+      "addr": "0x6cb00",
+      "end": "0x6cce8",
+      "kind": "auto",
+      "n_r": 159,
+      "opnd_percent": 89.2,
+      "ref": "synth",
+      "ref_sha": "dd54d3ee0156fa46",
+      "score": 97.2,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006ccf0": {
+      "addr": "0x6ccf0",
+      "end": "0x6cd36",
+      "kind": "auto",
+      "n_r": 36,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "61ab524641f3dfe8",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006cd40": {
+      "addr": "0x6cd40",
+      "end": "0x6cd98",
+      "kind": "auto",
+      "n_r": 43,
+      "opnd_percent": 97.7,
+      "ref": "synth",
+      "ref_sha": "7b91bf437520cc64",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006cda0": {
+      "addr": "0x6cda0",
+      "end": "0x6cddc",
+      "kind": "auto",
+      "n_r": 23,
+      "opnd_percent": 91.3,
+      "ref": "synth",
+      "ref_sha": "79751f28b5e66047",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006ce60": {
+      "addr": "0x6ce60",
+      "end": "0x6cf9e",
+      "kind": "auto",
+      "n_r": 88,
+      "opnd_percent": 83.3,
+      "ref": "synth",
+      "ref_sha": "997f5a2ba93ea461",
+      "score": 95.6,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d140": {
+      "addr": "0x6d140",
+      "end": "0x6d173",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "863cfae8f2f72afd",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d180": {
+      "addr": "0x6d180",
+      "end": "0x6d1d6",
+      "kind": "auto",
+      "n_r": 39,
+      "opnd_percent": 84.6,
+      "ref": "synth",
+      "ref_sha": "9c8db08a03cb244f",
+      "score": 97.4,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d2d0": {
+      "addr": "0x6d2d0",
+      "end": "0x6d333",
+      "kind": "auto",
+      "n_r": 18,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "0e7f328f981b369c",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d340": {
+      "addr": "0x6d340",
+      "end": "0x6d4ba",
+      "kind": "auto",
+      "n_r": 144,
+      "opnd_percent": 92.4,
+      "ref": "synth",
+      "ref_sha": "376f89f5a49b2c14",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d4d0": {
+      "addr": "0x6d4d0",
+      "end": "0x6d4f4",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "889836aeafda13d9",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d8e0": {
+      "addr": "0x6d8e0",
+      "end": "0x6d974",
+      "kind": "auto",
+      "n_r": 59,
+      "opnd_percent": 93.2,
+      "ref": "synth",
+      "ref_sha": "9f7fe6bf8629e7fa",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d980": {
+      "addr": "0x6d980",
+      "end": "0x6d9bb",
+      "kind": "auto",
+      "n_r": 22,
+      "opnd_percent": 95.5,
+      "ref": "synth",
+      "ref_sha": "2760bb9e3c85f112",
+      "score": 95.5,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d9c0": {
+      "addr": "0x6d9c0",
+      "end": "0x6dbd9",
+      "kind": "auto",
+      "n_r": 175,
+      "opnd_percent": 98.9,
+      "ref": "synth",
+      "ref_sha": "ff727de5a7ff5117",
+      "score": 98.9,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006dbf0": {
+      "addr": "0x6dbf0",
+      "end": "0x6dcf7",
+      "kind": "auto",
+      "n_r": 98,
+      "opnd_percent": 96.9,
+      "ref": "synth",
+      "ref_sha": "f0593ca87202fed8",
+      "score": 99.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006dd00": {
+      "addr": "0x6dd00",
+      "end": "0x6dd50",
+      "kind": "auto",
+      "n_r": 38,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "bf8d65a8b89512ac",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006dd50": {
+      "addr": "0x6dd50",
+      "end": "0x6dd99",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "47b07ee2dccc443a",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
     "FUN_00075380": {
       "addr": "0x75380",
       "end": "0x75610",
@@ -5441,6 +5749,17 @@
       "ref_sha": "804a0d34e9dd533d",
       "score": 30.6,
       "source": "src/halo/cseries/stack_walk_windows.c"
+    },
+    "FUN_00093640": {
+      "addr": "0x93640",
+      "end": "0x93653",
+      "kind": "auto",
+      "n_r": 9,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "7737fb9cb343e6fe",
+      "score": 100.0,
+      "source": "src/halo/cutscene/cinematics.c"
     },
     "FUN_00093660": {
       "addr": "0x93660",
@@ -6332,6 +6651,28 @@
       "ref_sha": "e61f17a1ac9f1c3a",
       "score": 82.5,
       "source": "src/halo/effects/player_effects.c"
+    },
+    "FUN_000a54b0": {
+      "addr": "0xa54b0",
+      "end": "0xa5586",
+      "kind": "auto",
+      "n_r": 67,
+      "opnd_percent": 72.3,
+      "ref": "synth",
+      "ref_sha": "a9796b86adc5941d",
+      "score": 80.9,
+      "source": "src/halo/game/cheats.c"
+    },
+    "FUN_000a6030": {
+      "addr": "0xa6030",
+      "end": "0xa6126",
+      "kind": "auto",
+      "n_r": 91,
+      "opnd_percent": 50.3,
+      "ref": "synth",
+      "ref_sha": "bfa9e37c4ce0a7ff",
+      "score": 81.0,
+      "source": "src/halo/game/cheats.c"
     },
     "FUN_000a67c0": {
       "addr": "0xa67c0",
@@ -18427,15 +18768,37 @@
       "score": 100.0,
       "source": "src/halo/physics/collision_bsp.c"
     },
+    "FUN_00148240": {
+      "addr": "0x148240",
+      "end": "0x148365",
+      "kind": "auto",
+      "n_r": 119,
+      "opnd_percent": 91.0,
+      "ref": "synth",
+      "ref_sha": "3633444f1bf6ecc7",
+      "score": 95.3,
+      "source": "src/halo/physics/collision_bsp.c"
+    },
     "FUN_001486e0": {
       "addr": "0x1486e0",
       "end": "0x148771",
       "kind": "auto",
       "n_r": 62,
-      "opnd_percent": 90.3,
+      "opnd_percent": 93.5,
       "ref": "synth",
       "ref_sha": "bb1d33c6d07ae56d",
-      "score": 91.9,
+      "score": 95.2,
+      "source": "src/halo/physics/collision_bsp.c"
+    },
+    "FUN_00148780": {
+      "addr": "0x148780",
+      "end": "0x148906",
+      "kind": "auto",
+      "n_r": 157,
+      "opnd_percent": 75.8,
+      "ref": "synth",
+      "ref_sha": "026789176944d1ef",
+      "score": 93.6,
       "source": "src/halo/physics/collision_bsp.c"
     },
     "FUN_0014b220": {
@@ -18636,6 +18999,17 @@
       "score": 100.0,
       "source": "src/halo/physics/collision_bsp.c"
     },
+    "FUN_0014dce0": {
+      "addr": "0x14dce0",
+      "end": "0x14df6e",
+      "kind": "auto",
+      "n_r": 203,
+      "opnd_percent": 60.4,
+      "ref": "synth",
+      "ref_sha": "12b1d6bdada751ea",
+      "score": 95.5,
+      "source": "src/halo/physics/collision_bsp.c"
+    },
     "FUN_0014df70": {
       "addr": "0x14df70",
       "end": "0x14e632",
@@ -18667,6 +19041,17 @@
       "ref": "synth",
       "ref_sha": "fa5535cf8b22e256",
       "score": 98.0,
+      "source": "src/halo/physics/collision_bsp.c"
+    },
+    "FUN_0014ea10": {
+      "addr": "0x14ea10",
+      "end": "0x14ec10",
+      "kind": "auto",
+      "n_r": 182,
+      "opnd_percent": 83.1,
+      "ref": "synth",
+      "ref_sha": "0c8ba6219f3d4cb0",
+      "score": 97.8,
       "source": "src/halo/physics/collision_bsp.c"
     },
     "FUN_0014ec30": {
@@ -18722,6 +19107,39 @@
       "ref": "synth",
       "ref_sha": "8f6d60e86f95cb74",
       "score": 100.0,
+      "source": "src/halo/physics/point_physics.c"
+    },
+    "FUN_001546b0": {
+      "addr": "0x1546b0",
+      "end": "0x1546e1",
+      "kind": "auto",
+      "n_r": 25,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "5bc0d84a033e4774",
+      "score": 100.0,
+      "source": "src/halo/physics/point_physics.c"
+    },
+    "FUN_001547d0": {
+      "addr": "0x1547d0",
+      "end": "0x15485e",
+      "kind": "auto",
+      "n_r": 65,
+      "opnd_percent": 64.1,
+      "ref": "synth",
+      "ref_sha": "3620db4e6a8b8f58",
+      "score": 90.1,
+      "source": "src/halo/physics/point_physics.c"
+    },
+    "FUN_00154a20": {
+      "addr": "0x154a20",
+      "end": "0x154a44",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 75.0,
+      "ref": "synth",
+      "ref_sha": "8871e8448345f354",
+      "score": 93.8,
       "source": "src/halo/physics/point_physics.c"
     },
     "FUN_001550c0": {
@@ -24266,6 +24684,127 @@
       "score": 94.5,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox.c"
     },
+    "TIFFCurrentDirectory": {
+      "addr": "0x6d8b0",
+      "end": "0x6d8be",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "a54217669c07123d",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFCurrentRow": {
+      "addr": "0x6d8a0",
+      "end": "0x6d8ae",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "9b900030d491e809",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFCurrentStrip": {
+      "addr": "0x6d8c0",
+      "end": "0x6d8ce",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "29f548c83b5b7abe",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFCurrentTile": {
+      "addr": "0x6d8d0",
+      "end": "0x6d8de",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "9bbbf82aa1cc0dae",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFFileName": {
+      "addr": "0x6d850",
+      "end": "0x6d85a",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "f05985e7da4dbaa5",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFFileno": {
+      "addr": "0x6d860",
+      "end": "0x6d86c",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "8b0dd2b9ebc7aef8",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFGetMode": {
+      "addr": "0x6d870",
+      "end": "0x6d87c",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "edfff960a783f94a",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFIsTiled": {
+      "addr": "0x6d880",
+      "end": "0x6d894",
+      "kind": "auto",
+      "n_r": 8,
+      "opnd_percent": 87.5,
+      "ref": "synth",
+      "ref_sha": "927a3f1ab870c829",
+      "score": 87.5,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFPrintDirectory": {
+      "addr": "0x6dda0",
+      "end": "0x6e713",
+      "kind": "auto",
+      "n_r": 773,
+      "opnd_percent": 93.7,
+      "ref": "synth",
+      "ref_sha": "b7d66ecfec746fe1",
+      "score": 98.7,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFReadRGBAImage": {
+      "addr": "0x6c400",
+      "end": "0x6c5aa",
+      "kind": "auto",
+      "n_r": 134,
+      "opnd_percent": 91.8,
+      "ref": "synth",
+      "ref_sha": "5576959726f2ea88",
+      "score": 98.5,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFScanlineSize": {
+      "addr": "0x6d820",
+      "end": "0x6d844",
+      "kind": "auto",
+      "n_r": 13,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "827e2e95b83a0eff",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
     "XAutoPowerDownResetTimer": {
       "addr": "0x1d771c",
       "end": "0x1d7737",
@@ -26107,6 +26646,17 @@
       "score": 94.6,
       "source": "src/halo/ai/ai_communication.c"
     },
+    "ai_communication_packet_new": {
+      "addr": "0x42d20",
+      "end": "0x42d73",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 80.8,
+      "ref": "synth",
+      "ref_sha": "8465a4371bf92709",
+      "score": 100.0,
+      "source": "src/halo/ai/ai_communication.c"
+    },
     "ai_conversation_advance": {
       "addr": "0x43520",
       "end": "0x435a1",
@@ -26116,6 +26666,17 @@
       "ref": "synth",
       "ref_sha": "648a7313d88f3d9e",
       "score": 100.0,
+      "source": "src/halo/ai/ai_communication.c"
+    },
+    "ai_conversation_line": {
+      "addr": "0x434c0",
+      "end": "0x43519",
+      "kind": "auto",
+      "n_r": 38,
+      "opnd_percent": 90.4,
+      "ref": "synth",
+      "ref_sha": "1ecfae7fcdfa35b7",
+      "score": 93.2,
       "source": "src/halo/ai/ai_communication.c"
     },
     "ai_create_mounted_weapons_for_unit": {
@@ -28525,6 +29086,17 @@
       "ref": "synth",
       "ref_sha": "cc3983b69533dabd",
       "score": 100.0,
+      "source": "src/halo/physics/collision_bsp.c"
+    },
+    "collision_bsp_test_vector": {
+      "addr": "0x149480",
+      "end": "0x14956c",
+      "kind": "auto",
+      "n_r": 84,
+      "opnd_percent": 82.1,
+      "ref": "synth",
+      "ref_sha": "f8d02575b9a3840a",
+      "score": 90.5,
       "source": "src/halo/physics/collision_bsp.c"
     },
     "collision_cylinder_test_point": {
@@ -35066,10 +35638,10 @@
       "end": "0x1145f8",
       "kind": "auto",
       "n_r": 999,
-      "opnd_percent": 89.8,
+      "opnd_percent": 90.3,
       "ref": "synth",
       "ref_sha": "6d3b2ae92c94fe5d",
-      "score": 96.3,
+      "score": 96.7,
       "source": "src/halo/math/real_math.c"
     },
     "inflate_blocks_free": {
@@ -41676,6 +42248,17 @@
       "score": 93.3,
       "source": "src/halo/ai/props.c"
     },
+    "prop_orphan_transition": {
+      "addr": "0x648a0",
+      "end": "0x64962",
+      "kind": "auto",
+      "n_r": 68,
+      "opnd_percent": 94.1,
+      "ref": "synth",
+      "ref_sha": "4718b7346c32279b",
+      "score": 97.1,
+      "source": "src/halo/ai/props.c"
+    },
     "qsort": {
       "addr": "0x1d9260",
       "end": "0x1d94e3",
@@ -43050,6 +43633,17 @@
       "ref_sha": "07c34601c7b38e7c",
       "score": 100.0,
       "source": "src/halo/objects/objects.c"
+    },
+    "recorded_animation_controlling_unit": {
+      "addr": "0x94ff0",
+      "end": "0x9504b",
+      "kind": "auto",
+      "n_r": 41,
+      "opnd_percent": 92.0,
+      "ref": "synth",
+      "ref_sha": "52e2fcc0a266cfe8",
+      "score": 92.0,
+      "source": "src/halo/cutscene/recorded_animations.c"
     },
     "recorded_animations_dispose": {
       "addr": "0x94c30",

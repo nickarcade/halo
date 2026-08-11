@@ -714,6 +714,39 @@
       "seeds": 20,
       "flags": ["--allow-stubs", "--mem-trace"],
       "reason": "Second dllimport-indirection tripwire, different object and global (player_ui_globals @0x46bee0), so the fix is not pinned to one symbol."
+    },
+    {
+      "addr": "0x148240",
+      "name": "FUN_00148240",
+      "obj": "collision_bsp.obj",
+      "seeds": 40,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/snap_collision_bsp_surface_ring.json",
+        "--allow-stubs", "--mem-trace", "--float-tolerance", "16"
+      ],
+      "reason": "Surface edge-ring 2D point test. The snapshot pins valid surface/edge/vertex tag blocks so the semantic tag_block_get_element stub resolves every lookup; without it 2/40 seeds hit ORACLE-CRASH eip=0x0 on an unrelocated oracle target. Observed 40/40 PASS, 83.6% cov, high confidence. Guards the byte-typed side flag (SETZ BL / MOVZX EDI,BL at 0x1482b9) and the cross-product guard sense at 0x14833c."
+    },
+    {
+      "addr": "0x148780",
+      "name": "FUN_00148780",
+      "obj": "collision_bsp.obj",
+      "seeds": 30,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/snap_collision_bsp2d_ref_body.json",
+        "--allow-stubs", "--mem-trace", "--float-tolerance", "16"
+      ],
+      "reason": "bsp2d surface-reference scan, body-reached path (param_8==0). The snapshot seeds tag_block headers inside the bsp parameter content so the reference matches surface_index and the loop body actually runs: axis selection, sign XOR, t*direction+origin, and both external calls. Observed 30/30 PASS, 75.9% cov, high confidence -- versus 15.4% and weak with no snapshot."
+    },
+    {
+      "addr": "0x148780",
+      "name": "FUN_00148780",
+      "obj": "collision_bsp.obj",
+      "seeds": 30,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/snap_collision_bsp2d_ref_nomatch.json",
+        "--allow-stubs", "--mem-trace", "--float-tolerance", "16"
+      ],
+      "reason": "bsp2d surface-reference scan, no-match path: ref[0] != surface_index so the body is skipped and the loop exhausts to the -1 sentinel. Observed 30/30 PASS, 30.8% cov, moderate. Deliberately NOT registered: the param_8!=0 paths that call the now-ported FUN_00148240. There the candidate runs the real sibling while the oracle stubs it, and the oracle ignores that stub's return entirely -- it yields a constant 0x00400f2c whether the stub is told to return 0 or 1, while the lifted side correctly returns -1 and 7. Oracle-side harness defect, not a lift defect; the call arguments are covered by the stub-arg differential (9 calls, 0 mismatches)."
     }
   ]
 }

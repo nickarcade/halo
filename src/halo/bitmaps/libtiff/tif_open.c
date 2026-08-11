@@ -1,0 +1,2901 @@
+/* ===========================================================================
+ * tif_getimage.c -- upstream libtiff RGBA image reader.
+ *
+ * kb.json lumps every vendored libtiff translation unit into a single
+ * tif_open.obj, so this body lives here alongside the tif_predict.c,
+ * tif_lzw.c and tif_open.c neighbours (same arrangement as FUN_0006cac0).
+ * Its own __FILE__ is proven by the string pushed at 0x6c55d / 0x6c576
+ * (VA 0x260264): "c:\halo\SOURCE\bitmaps\libtiff\tif_getimage.c".
+ * ======================================================================== */
+
+#define TIFFTAG_IMAGEWIDTH 256 /* 0x100, pushed at 0x6c4f9 */
+#define TIFFTAG_IMAGELENGTH 257 /* 0x101, pushed at 0x6c508 */
+#define TIFFTAG_BITSPERSAMPLE 258 /* 0x102, pushed at 0x6c40e */
+#define TIFFTAG_PHOTOMETRIC 262 /* 0x106, pushed at 0x6c478 */
+#define TIFFTAG_SAMPLESPERPIXEL 277 /* 0x115, pushed at 0x6c444 */
+
+#define PHOTOMETRIC_MINISBLACK 1 /* stored to 0x3340f4 in the 1-channel arm */
+#define PHOTOMETRIC_RGB 2 /* stored to 0x3340f4 in the 3/4-channel arm */
+
+/* File-static state of the original tif_getimage.c. This build of libtiff
+ * predates the TIFFRGBAImage struct: the decoder state is a block of file
+ * statics that TIFFReadRGBAImage fills in and the gtImage worker (0x6c080,
+ * still unported) reads back, so these must alias the original addresses.
+ *
+ * The three tag values are 16 bit -- every read in the binary is
+ * `movzx reg, word ptr [addr]` (0x6c41d, 0x6c451, 0x6c489) -- while
+ * stoponerr is a dword store (0x6c4f0) and Map/BWmap are pointers.
+ *
+ * Which of the two freed pointers is upstream's `Map` (the 8-bit sample
+ * lookup table) and which is `BWmap` (the bilevel row table) is INFERRED
+ * from upstream's free order, not proven: the binary only shows 0x3340c8
+ * freed at source line 125 and 0x3340c4 at line 127, in that order. */
+#define bitspersample (*(unsigned short *)0x3340fc)
+#define samplesperpixel (*(unsigned short *)0x3340f8)
+#define photometric (*(unsigned short *)0x3340f4)
+#define stoponerr (*(int *)0x3340e0)
+#define Map (*(void **)0x3340c8)
+#define BWmap (*(void **)0x3340c4)
+
+/**
+ * Read a whole TIFF image into a caller-supplied 32-bit RGBA raster.
+ *
+ * Transcribed from the vendored libtiff (tif_getimage.c TIFFReadRGBAImage)
+ * rather than reshaped from the decompiler, which lost every parameter and
+ * reported the body as `void(void)`. The real ABI is recovered from the
+ * frame at 0x6c400: `push ebp / mov ebp,esp / sub esp,8`, five stack
+ * arguments at [ebp+8]..[ebp+0x18], cdecl (all cleanup is caller-side), and
+ * an EAX return -- `xor eax,eax` on all three error exits, `mov eax,esi` on
+ * the success exit where ESI carries gtImage's result across the two frees.
+ *
+ * The bits-per-sample filter really is a jump table in the binary (byte index
+ * at 0x6c5b4, targets at 0x6c5ac, guarded by `cmp ecx,0xf / ja`), so the
+ * upstream switch is kept verbatim rather than folded into comparisons.
+ *
+ * The raster origin is bottom-adjusted before the worker runs:
+ * 0x6c512-0x6c52f computes `raster + (rheight - height) * rwidth` in uint32
+ * elements (`sub edx,eax / imul edx,rwidth / lea ..., [raster+edx*4]`), so a
+ * short image lands at the bottom of a taller destination buffer.
+ *
+ * NOTE on the epilogue: the single `add esp,0x28` at 0x6c553 retires THREE
+ * call frames at once (both 12-byte TIFFGetField frames plus gtImage's
+ * 16-byte frame). It is not a ten-argument call.
+ *
+ * @param tif     TIFF handle (declared void* so decl.h needs no libtiff
+ *                types); held in ESI for the whole body.
+ * @param rwidth  destination raster pitch in pixels.
+ * @param rheight destination raster height in pixels.
+ * @param raster  destination, rwidth*rheight uint32 pixels of caller memory.
+ * @param stop    non-zero to abort on the first decode error; published to
+ *                the worker through the `stoponerr` file static.
+ * @return non-zero on success, 0 if the image cannot be handled or decoded.
+ */
+int TIFFReadRGBAImage(void *tif, unsigned long rwidth, unsigned long rheight,
+                      unsigned long *raster, int stop)
+{
+  int ok;
+  unsigned long width, height;
+  const char *photoname;
+
+  FUN_00064ec0((int)tif, TIFFTAG_BITSPERSAMPLE, &bitspersample);
+  switch (bitspersample) {
+  case 1:
+  case 2:
+  case 4:
+  case 8:
+  case 16:
+    break;
+  default:
+    FUN_00068a30(TIFFFileName(tif), "Sorry, can not handle %d-bit pictures",
+                 bitspersample);
+    return (0);
+  }
+  FUN_00064ec0((int)tif, TIFFTAG_SAMPLESPERPIXEL, &samplesperpixel);
+  switch (samplesperpixel) {
+  case 1:
+  case 3:
+  case 4:
+    break;
+  default:
+    FUN_00068a30(TIFFFileName(tif), "Sorry, can not handle %d-channel images",
+                 samplesperpixel);
+    return (0);
+  }
+  if (!TIFFGetField((int)tif, TIFFTAG_PHOTOMETRIC, &photometric)) {
+    switch (samplesperpixel) {
+    case 1:
+      photometric = PHOTOMETRIC_MINISBLACK;
+      photoname = "min-is-black";
+      break;
+    case 3:
+    case 4:
+      photometric = PHOTOMETRIC_RGB;
+      photoname = "RGB"; /* 0x260408, loaded straight into EAX at 0x6c4d1 */
+      break;
+    default:
+      FUN_00068a30(TIFFFileName(tif),
+                   "Missing needed \"PhotometricInterpretation\" tag");
+      return (0);
+    }
+    /* Upstream selects the name with a
+     * `photometric == PHOTOMETRIC_RGB ? "RGB" : "min-is-black"` ternary at
+     * this point. The binary has no such compare -- each arm materialises its
+     * own string pointer -- so the name is carried out of the switch instead.
+     * Restoring the ternary costs a `cmpw $2, 0x3340f4` plus a branch that
+     * the original does not have. */
+    FUN_00068a30(TIFFFileName(tif),
+                 "No \"PhotometricInterpretation\" tag, assuming %s\n",
+                 photoname);
+  }
+  TIFFGetField((int)tif, TIFFTAG_IMAGEWIDTH, &width);
+  TIFFGetField((int)tif, TIFFTAG_IMAGELENGTH, &height);
+  stoponerr = stop;
+  Map = 0;
+  BWmap = 0;
+  ok = FUN_0006c080(tif, rwidth, height, raster + (rheight - height) * rwidth);
+  /* Line numbers are the original tif_getimage.c __LINE__ stamps (0x7d/0x7f
+   * at 0x6c568 and 0x6c581); this file's own line numbers are meaningless
+   * here, so they are written literally rather than via __LINE__. */
+  if (Map)
+    debug_free(Map, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_getimage.c", 125);
+  if (BWmap)
+    debug_free(BWmap, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_getimage.c",
+               127);
+  return (ok);
+}
+
+/* Horizontal differencing predictor accumulator, 8-bit samples.
+ *
+ * Transcribed from the vendored libtiff (tif_predict.c horAcc8) rather than
+ * reshaped from the decompiler: the switch/fallthrough chain below is the
+ * REPEAT4 Duff-device macro, and the binary reproduces it exactly -- jump
+ * table at 0x6c6d4 with five entries (stride 0..4) plus a `cmp ecx,4 / ja`
+ * bound check that lands on the counted-loop default arm.
+ *
+ * Bungie's copy takes the stride as an explicit third stack argument instead
+ * of fetching it from PredictorState(tif)->stride, so there is no TIFF*
+ * parameter here. Confirmed against 0x6c680-0x6c6d1.
+ */
+
+/* switch(n) with intentional fallthrough -- cases 4..1 emit `op` once each and
+ * fall into the next, so `n` copies of `op` run for n <= 4, and the default
+ * arm covers the remaining n-4 with a counted loop. Do NOT insert `break`. */
+#define REPEAT4(n, op)              \
+  switch (n) {                      \
+  default: {                        \
+    int i;                          \
+    for (i = (n) - 4; i > 0; i--) { \
+      op;                           \
+    }                               \
+  }                                 \
+  case 4:                           \
+    op;                             \
+  case 3:                           \
+    op;                             \
+  case 2:                           \
+    op;                             \
+  case 1:                           \
+    op;                             \
+  case 0:;                          \
+  }
+
+/**
+ * Undo horizontal differencing over a scanline of 8-bit samples in place.
+ *
+ * Each sample is replaced by the sum of itself and the sample `stride` bytes
+ * before it, walking forward so the accumulation carries across the whole row.
+ * The byte add wraps (the binary uses `add byte ptr [eax+ecx], dl`).
+ *
+ * @param cp     scanline base; at least `cc` bytes of caller memory.
+ * @param cc     byte count of the scanline.
+ * @param stride bytes between a sample and its horizontal predecessor
+ *               (samples-per-pixel). Signed compares throughout.
+ */
+void FUN_0006c680(char *cp, int cc, int stride)
+{
+  if (cc > stride) {
+    cc -= stride;
+    do {
+      REPEAT4(stride, cp[stride] = (char)(cp[stride] + *cp); cp++)
+      cc -= stride;
+    } while (cc > 0);
+  }
+}
+
+/**
+ * Undo horizontal differencing over a scanline of 16-bit samples in place.
+ *
+ * The 16-bit twin of FUN_0006c680: same REPEAT4 Duff device (jump table at
+ * 0x6c764, five entries for stride 0..4, reached through `cmp edx,4 / ja`),
+ * but every access is word-wide -- `mov si,[ecx]` / `add [ecx+edx*2], si` /
+ * `add ecx,2` -- so the element type is 16-bit, not int.
+ *
+ * `cc` is a byte count that is halved to a word count before the compare.
+ * The halving is SIGNED in the binary (`cdq / sub eax,edx / sar eax,1`), so
+ * `cc` is a signed int; an unsigned count would emit a bare `shr`.
+ *
+ * The accumulation direction is `wp[stride] += wp[0]` -- the destination is
+ * the FAR element and the source the near one. Reversing it still compiles
+ * and still scores, so it is checked against 0x6c730 explicitly.
+ *
+ * @param wp     scanline base; at least `cc` bytes of caller memory.
+ * @param cc     byte count of the scanline (halved internally to words).
+ * @param stride words between a sample and its horizontal predecessor.
+ */
+void FUN_0006c6f0(unsigned short *wp, int cc, int stride)
+{
+  int wc = cc / 2;
+
+  if (wc > stride) {
+    wc -= stride;
+    do {
+      REPEAT4(stride, wp[stride] += wp[0]; wp++)
+      wc -= stride;
+    } while (wc > 0);
+  }
+}
+
+/**
+ * Apply horizontal differencing over a scanline of 8-bit samples in place.
+ *
+ * The encode-side inverse of FUN_0006c680 (libtiff tif_predict.c horDiff8):
+ * each sample has its horizontal predecessor subtracted from it. Because the
+ * predecessor must still hold its ORIGINAL value when it is read, the walk
+ * runs BACKWARD from the end of the row -- `lea eax,[eax+edi-1]` at 0x6c873
+ * seeds the cursor at cp + (cc - stride) - 1 and every body ends in `dec eax`.
+ * Walking forward here would feed already-differenced bytes back in.
+ *
+ * Bungie's copy omits the upstream stride==3 / stride==4 pipelined arms and
+ * keeps only the generic REPEAT4 tail: the binary goes straight from the LEA
+ * to the `cmp ecx,4 / ja` bound check and the five-entry jump table at
+ * 0x6c8bc. Same Duff device as the accumulate twins above.
+ *
+ * The loop head is the `cmp ecx,4` at 0x6c878, not the switch body, so the
+ * stride dispatch is re-evaluated on every outer pass -- the do/while below
+ * reproduces that. Direction is `cp[stride] -= cp[0]` (`mov dl,[eax]` then
+ * `sub byte ptr [eax+ecx],dl`); the subtraction is NOT reversible. Byte math
+ * wraps, and both compares are signed (`jle` / `jg`), so `cc` and `stride`
+ * stay `int`. stride==0 with cc>0 spins forever here exactly as upstream does.
+ *
+ * @param cp     scanline base; at least `cc` bytes of caller memory.
+ * @param cc     byte count of the scanline.
+ * @param stride bytes between a sample and its horizontal predecessor
+ *               (samples-per-pixel).
+ */
+void FUN_0006c860(char *cp, int cc, int stride)
+{
+  if (cc > stride) {
+    cc -= stride;
+    cp += cc - 1;
+    do {
+      REPEAT4(stride, cp[stride] = (char)(cp[stride] - *cp); cp--)
+      cc -= stride;
+    } while (cc > 0);
+  }
+}
+
+/**
+ * Apply horizontal differencing over a scanline of 16-bit samples in place.
+ *
+ * The 16-bit twin of FUN_0006c860 (libtiff tif_predict.c horDiff16), and the
+ * encode-side inverse of FUN_0006c6f0. Every access is word-wide -- the body
+ * is `mov di,[ecx]` / `sub word ptr [ecx+edx*2],di` / `sub ecx,2` -- so the
+ * element type is 16-bit, not int. A 32-bit element type here is a silent
+ * width bug that still compiles.
+ *
+ * `cc` is a byte count halved to a word count before the compare. The halving
+ * is SIGNED in the binary (`cdq / sub eax,edx / sar eax,1` at 0x6c8d3-0x6c8dc),
+ * so `cc` stays a signed int; an unsigned count would emit a bare `shr`.
+ *
+ * Like the 8-bit differencer the walk runs BACKWARD, because the predecessor
+ * must still hold its ORIGINAL value when it is read: `lea ecx,[ecx+eax*2-2]`
+ * at 0x6c8e8 seeds the cursor at wp + (wc - stride) - 1 words and every body
+ * ends in `sub ecx,2`. Walking forward would feed already-differenced samples
+ * back in, and would still compile and still score.
+ *
+ * Bungie's copy omits the upstream stride==3 / stride==4 pipelined arms and
+ * keeps only the generic REPEAT4 tail: the binary goes from the LEA straight
+ * to the `cmp edx,4 / ja` bound check and the five-entry jump table at
+ * 0x6c944. The loop head is that `cmp edx,4`, not the switch body, so the
+ * stride dispatch is re-evaluated on every outer pass -- the do/while below
+ * reproduces that. Direction is `wp[stride] -= wp[0]`, destination FAR and
+ * source near; the subtraction is NOT reversible. Both compares are signed
+ * (`jle` / `jg`). ESI/EDI are saved only inside the taken branch, which is
+ * the MSVC shape of the guard wrapping the whole body -- a plain `if`, not an
+ * early `return`.
+ *
+ * @param wp     scanline base; at least `cc` bytes of caller memory.
+ * @param cc     byte count of the scanline (halved internally to words).
+ * @param stride words between a sample and its horizontal predecessor.
+ */
+void FUN_0006c8d0(unsigned short *wp, int cc, int stride)
+{
+  int wc = cc / 2;
+
+  if (wc > stride) {
+    wc -= stride;
+    wp += wc - 1;
+    do {
+      REPEAT4(stride, wp[stride] -= wp[0]; wp--)
+      wc -= stride;
+    } while (wc > 0);
+  }
+}
+
+/* Bit masks used by the packer below. Both live in .rdata in the original
+ * image and both are NINE bytes, not eight -- element 8 (0xff) is present at
+ * 0x2ec7d8 and 0x2ec7e4 respectively, each followed by alignment padding.
+ *
+ * tiff_msbmask[n]  = 0x2ec7d0, keeps the LOW n bits of a value.
+ * tiff_leadmask[n] = 0x2ec7dc, keeps the HIGH n bits of a byte, i.e. the bits
+ *                    already written at a sub-byte bit position.
+ *
+ * Declared static rather than imported at their original VAs: they are
+ * read-only constants, and the direct `mov al, table[reg]` addressing form
+ * that a static reproduces is what the original emits (an HDATA import would
+ * add an __imp_ indirection the binary does not have).
+ */
+static const unsigned char tiff_msbmask[9] = { 0x00, 0x01, 0x03, 0x07, 0x0f,
+                                               0x1f, 0x3f, 0x7f, 0xff };
+
+static const unsigned char tiff_leadmask[9] = { 0x00, 0x80, 0xc0, 0xe0, 0xf0,
+                                                0xf8, 0xfc, 0xfe, 0xff };
+
+/* Codec private bit-writer state, reached through TIFF::tif_data.
+ * Only the four offsets below are touched by FUN_0006c960; everything else
+ * is padding as far as the recovery is concerned. Offsets are proven by
+ * 0x6c972 (+0x06 movzx word), 0x6c976 (+0x14 dword), 0x6c979 (+0x18 dword)
+ * and 0x6ca25 (+0x2c dword). +0x00 is proven separately by FUN_0006cda0
+ * (0x6cda9 `mov eax,[esi]`, 0x6cdbc `mov dword ptr [esi],0xffffffff`). */
+typedef struct tiff_bitstate_s {
+  int oldcode; /* 0x00 code matched but not yet emitted, -1 when none pending */
+  char pad_04[2];
+  unsigned short nbits; /* 0x06 bits emitted per call, constant per strip */
+  char pad_08[12];
+  int bitpos; /* 0x14 write cursor, in bits from tif_rawdata */
+  int bitlimit; /* 0x18 capacity of the raw buffer, in bits */
+  char pad_1c[16];
+  int bitcount; /* 0x2c running total of bits emitted */
+} tiff_bitstate_t;
+
+/* The three TIFF fields this function reaches: +0x120 codec private state
+ * (0x6c96c), +0x12c raw buffer base (0x6c991/0x6c9a7/0x6c9bb/0x6c9cc) and
+ * +0x138 raw byte count (0x6c99a/0x6ca40). 0x12c is the buffer BASE, not the
+ * cursor -- see the tif_rawdata comment in tiff_t below, where PackBitsEncode
+ * pins the whole 0x12c..0x138 quartet to upstream's
+ * tif_rawdata/tif_rawdatasize/tif_rawcp/tif_rawcc. */
+/* Codec method pointer types, from upstream libtiff's tiffiop.h. `tif` is
+ * declared void* throughout this TU so the generated header needs no libtiff
+ * types; the six installed stubs already carry exactly these shapes in
+ * kb.json (0x6cb00/0x6cfa0 are (tif, buf, cc, s), 0x6cda0 is (tif) -> int,
+ * 0x6cac0 is (tif) -> void). */
+typedef int (*tiff_bool_method_t)(void *tif);
+typedef int (*tiff_code_method_t)(void *tif, char *buf, int cc, int s);
+typedef void (*tiff_void_method_t)(void *tif);
+
+typedef struct tiff_s {
+  /* UNRESOLVED layout conflict in 0x00-0xef. The td_* fields below were split
+   * out of this range on the inference that Bungie inlined the directory at
+   * the TIFF base (upstream libtiff reaches them through a nested
+   * `TIFFDirectory tif_dir` member), so they carry their upstream td_* names
+   * at their absolute offsets. That inference cannot hold at 0x00 as well:
+   * TIFFFileName (0x6d850) is `mov eax,[ebp+8] / mov eax,[eax]`, i.e. it
+   * returns the dword at offset 0x00 as the file name, which is upstream's
+   * `tif_name` -- the first member of `struct tiff`, not of TIFFDirectory.
+   * Only the offsets TIFFScanlineSize (0x6d820) and TIFFFileName touch are
+   * split out; everything else in this range is still unobserved, and which
+   * of the two readings is right for the rest of it is unproven.
+   * Widths are load-bearing: 0x36/0x44/0x5e are read with `movzx ... word`
+   * (0x6d823, 0x6d836, 0x6d82d) and 0x1c with a dword `imul` operand
+   * (0x6d827). */
+  char *tif_name; /* 0x00 */
+  /* Upstream libtiff declares tif_fd as `int`. This binary reads it with
+   * `movsx eax, word ptr [eax+4]` (TIFFFileno, 0x6d866), i.e. a SIGNED 16-bit
+   * load, so Bungie's field is a short. Declaring it `int` produces a plain
+   * dword MOV and does not match. */
+  short tif_fd; /* 0x04 */
+  /* Upstream libtiff declares tif_mode as `int`, and places it immediately
+   * after tif_fd. This binary reads offset 0x06 with `movsx eax, word ptr
+   * [eax+6]` (TIFFGetMode, 0x6d876) -- a SIGNED 16-bit load at exactly the
+   * offset upstream's field order predicts once tif_fd is 16-bit, so this is
+   * the same `int`-narrowed-to-`short` pattern as tif_fd. Declaring it `int`
+   * produces a plain dword MOV and does not match. */
+  short tif_mode; /* 0x06 */
+  char pad_008[2];
+  /* Flags byte. TIFFIsTiled (0x6d880) reads it with `movsx eax, byte ptr
+   * [eax+0xa]` and tests bit 7 (`and eax,0x80 / shr eax,7`), so this offset IS
+   * accessed and cannot stay padding. The load is a SIGNED byte, hence `char`
+   * and not `unsigned char` -- an unsigned field produces `movzx` and does not
+   * match.
+   *
+   * Upstream libtiff has a single `uint32 tif_flags` here with
+   * TIFF_ISTILED == 0x0400, i.e. bit 10. This binary tests bit 7 of the byte
+   * at 0x0a, which is bit 23 of a dword at 0x08 -- not an upstream flag bit at
+   * all. Either Bungie renumbered the flag word or 0x0a is a separate byte
+   * field; nothing local proves which, so the field keeps a mechanical name
+   * and the surrounding bytes stay padding. Do not import upstream's
+   * TIFF_ISTILED value. */
+  char field_0a; /* 0x0a */
+  char pad_00b[1];
+  /* Byte offset of this directory in the file. TIFFPrintDirectory prints it
+   * in its header line -- `mov eax,[esi+0xc]` at 0x6dda8, a plain dword load
+   * with no widening. Upstream libtiff names the member `toff_t tif_diroff`
+   * on `struct tiff`; the OFFSET is Bungie's. */
+  unsigned long tif_diroff; /* 0x0c */
+  char pad_010[4];
+  /* Two-word "which tags are present" bit array. TIFFPrintDirectory (0x6dda0)
+   * tests both words ~40 times, from 0x6ddbb (word 0) and 0x6de50 (word 1).
+   * Upstream libtiff spells this `unsigned long td_fieldsset[FIELD_SETLONGS]`
+   * inside a nested `TIFFDirectory tif_dir`; this build flattens the directory
+   * into TIFF, so every td_* member below sits at an absolute TIFF offset.
+   *
+   * The bit numbering is NOT stock libtiff's. Word 0 bit 0 is image
+   * dimensions and bit 1 is tile dimensions (0x6de37/0x6de7b), where upstream
+   * numbers those 1 and 2; from bit 3 (resolution) onward the two agree. The
+   * FIELD_* macros below record the binary's numbering, not upstream's. */
+  unsigned long td_fieldsset[2]; /* 0x14 */
+  long td_imagewidth; /* 0x1c */
+  long td_imagelength; /* 0x20 */
+  long td_imagedepth; /* 0x24 */
+  long td_tilewidth; /* 0x28 */
+  long td_tilelength; /* 0x2c */
+  long td_tiledepth; /* 0x30 */
+  /* Upstream types td_subfiletype `uint32`. This binary reads it with
+   * `movzx eax, word ptr [esi+0x34]` (0x6de23) and prints it through a plain
+   * `%u`, so Bungie's field is 16-bit. */
+  unsigned short td_subfiletype; /* 0x34 */
+  unsigned short td_bitspersample; /* 0x36 */
+  unsigned short td_sampleformat; /* 0x38 */
+  unsigned short td_compression; /* 0x3a */
+  unsigned short td_photometric; /* 0x3c */
+  unsigned short td_threshholding; /* 0x3e */
+  unsigned short td_fillorder; /* 0x40 */
+  unsigned short td_orientation; /* 0x42 */
+  unsigned short td_samplesperpixel; /* 0x44 */
+  unsigned short td_predictor; /* 0x46 */
+  unsigned long td_rowsperstrip; /* 0x48 */
+  /* Upstream types the min/max sample values `uint16`. This binary loads both
+   * as full dwords (`mov edx,[esi+0x4c]` at 0x6e412, `mov eax,[esi+0x50]` at
+   * 0x6e42d), so Bungie's fields are 32-bit. */
+  unsigned long td_minsamplevalue; /* 0x4c */
+  unsigned long td_maxsamplevalue; /* 0x50 */
+  float td_xresolution; /* 0x54 */
+  float td_yresolution; /* 0x58 */
+  unsigned short td_resolutionunit; /* 0x5c */
+  unsigned short td_planarconfig; /* 0x5e */
+  float td_xposition; /* 0x60 */
+  float td_yposition; /* 0x64 */
+  unsigned long td_group3options; /* 0x68 */
+  unsigned long td_group4options; /* 0x6c */
+  unsigned short td_pagenumber[2]; /* 0x70 */
+  unsigned short td_matteing; /* 0x74 */
+  unsigned short td_cleanfaxdata; /* 0x76 */
+  /* Bungie's copy swaps upstream's badfaxlines/consecutivebadfaxlines widths
+   * and order: 0x78 is read `movzx eax, word ptr` (0x6e592) for the
+   * CONSECUTIVE counter while 0x7c is a plain dword (0x6e57a) for the plain
+   * one. Upstream declares both `uint32` in the opposite order. */
+  unsigned short td_consecutivebadfaxlines; /* 0x78 */
+  char pad_07a[2];
+  unsigned long td_badfaxlines; /* 0x7c */
+  unsigned short *td_colormap[3]; /* 0x80 */
+  unsigned short td_halftonehints[2]; /* 0x8c */
+  char *td_documentname; /* 0x90 */
+  char *td_artist; /* 0x94 */
+  char *td_datetime; /* 0x98 */
+  char *td_hostcomputer; /* 0x9c */
+  char *td_imagedescription; /* 0xa0 */
+  char *td_make; /* 0xa4 */
+  char *td_model; /* 0xa8 */
+  char *td_software; /* 0xac */
+  char *td_pagename; /* 0xb0 */
+  char pad_0b4[4];
+  unsigned long td_nstrips; /* 0xb8 */
+  unsigned long *td_stripoffset; /* 0xbc */
+  unsigned long *td_stripbytecount; /* 0xc0 */
+  char pad_0c4[0x10];
+  /* Current scanline. TIFFCurrentRow (0x6d8a0) reads it with a plain dword
+   * `mov eax,[eax+0xd4]` -- no MOVSX/MOVZX, so this is a full 32-bit field and
+   * no narrower spelling is admissible. Upstream libtiff types the member
+   * `uint32 tif_row`; the OFFSET is Bungie's, not upstream's (their tif_row
+   * sits far earlier in TIFF), so only the name is transcribed. */
+  unsigned long tif_row; /* 0xd4 */
+  /* Current directory index. TIFFCurrentDirectory (0x6d8b0) reads it with a
+   * plain dword `mov eax,[eax+0xd8]` -- no MOVSX/MOVZX, so this is a full
+   * 32-bit field. Upstream libtiff types the member `tdir_t tif_curdir`, i.e.
+   * a uint16; a 16-bit field here would compile to `movzx eax,word ptr` and
+   * would not match, so only the NAME is transcribed from upstream, not the
+   * width. The OFFSET is Bungie's (upstream places tif_curdir far earlier in
+   * TIFF). Signedness is unobservable from a bare dword load; the field keeps
+   * upstream's unsigned typing, matching tif_row above. */
+  unsigned long tif_curdir; /* 0xd8 */
+  /* Current strip index. TIFFCurrentStrip (0x6d8c0) reads it with a plain
+   * dword `mov eax,[eax+0xdc]` -- no MOVSX/MOVZX, so this is a full 32-bit
+   * field and no narrower spelling is admissible. Upstream libtiff types the
+   * member `tstrip_t tif_curstrip`, i.e. a uint32, which agrees with the
+   * observed width; the OFFSET is Bungie's (upstream places tif_curstrip far
+   * earlier in TIFF), so only the name is transcribed. Signedness is
+   * unobservable from a bare dword load; the field keeps upstream's unsigned
+   * typing, matching tif_row and tif_curdir above. */
+  unsigned long tif_curstrip; /* 0xdc */
+  char pad_0e0[8];
+  /* Current tile index. TIFFCurrentTile (0x6d8d0) reads it with a plain dword
+   * `mov eax,[eax+0xe8]` -- no MOVSX/MOVZX, so this is a full 32-bit field and
+   * no narrower spelling is admissible. Upstream libtiff types the member
+   * `ttile_t tif_curtile`, i.e. a uint32, which agrees with the observed
+   * width; the OFFSET is Bungie's, so only the name is transcribed.
+   * Signedness is unobservable from a bare dword load; the field keeps
+   * upstream's unsigned typing, matching tif_curstrip/tif_curdir/tif_row
+   * above. */
+  unsigned long tif_curtile; /* 0xe8 */
+  char pad_0ec[4];
+  /* Codec vtable, 0xf0-0x11c, installed wholesale by FUN_0006d2d0. Upstream
+   * libtiff orders these setupdecode, predecode, setupencode, preencode,
+   * postencode, then the six code methods, then close/seek/cleanup; Bungie's
+   * copy has no predecode/preencode slot here (nothing writes 0xf0-0x11c
+   * except FUN_0006d2d0, and it writes exactly ten of the twelve dwords).
+   * Identities are proven by the installed stub bodies: 0xf8 gets
+   * FUN_0006cda0, which is upstream LZWPostEncode verbatim, and 0x11c gets
+   * FUN_0006cac0, which is LZWCleanup; 0xf0/0xf4 get the two tif_data
+   * allocators at tif_lzw.c lines 308 and 619, i.e. LZWSetupDecode and
+   * LZWSetupEncode. The row/strip/tile suborder of the six code slots is
+   * INFERRED from upstream's field order -- locally the binary only proves
+   * that 0xfc/0x104/0x10c take the decoder and 0x100/0x108/0x110 the
+   * encoder. */
+  tiff_bool_method_t tif_setupdecode; /* 0xf0 */
+  tiff_bool_method_t tif_setupencode; /* 0xf4 */
+  tiff_bool_method_t tif_postencode; /* 0xf8 */
+  tiff_code_method_t tif_decoderow; /* 0xfc */
+  tiff_code_method_t tif_encoderow; /* 0x100 */
+  tiff_code_method_t tif_decodestrip; /* 0x104 */
+  tiff_code_method_t tif_encodestrip; /* 0x108 */
+  tiff_code_method_t tif_decodetile; /* 0x10c */
+  tiff_code_method_t tif_encodetile; /* 0x110 */
+  char
+    pad_114[8]; /* 0x114/0x118 -- close/seek in upstream; never written here */
+  tiff_void_method_t tif_cleanup; /* 0x11c */
+  tiff_bitstate_t *tif_data; /* 0x120 */
+  /* Cached bytes per decoded scanline. NeXTDecode (0x6d340) loads it once
+   * before its row loop (`mov esi,[ecx+0x124]`, 0x6d36e) and then uses it as
+   * BOTH the `occ` decrement and the `row` advance (0x6d455/0x6d457), i.e. it
+   * is a byte count and not a pixel count. A plain dword load with no
+   * MOVSX/MOVZX, and the `cmp ebx,esi / jl` short-data test at 0x6d47f is
+   * signed, so this is a signed 32-bit field. Upstream libtiff names the
+   * member `tsize_t tif_scanlinesize`; the OFFSET is Bungie's. */
+  long tif_scanlinesize; /* 0x124 */
+  char pad_128[4];
+  /* 0x12c -- raw output buffer BASE, not a cursor. The previous revision of
+   * this struct named it `tif_rawcp` and left the question open; PackBitsEncode
+   * (0x6d9c0) settles it. That function forms the buffer end as
+   * `[tif+0x130] + [tif+0x12c]` (`add ecx,[edx+0x12c]` at 0x6d9d8), so exactly
+   * one of the pair is a pointer and the other a length -- and 0x12c is the
+   * pointer, because the bit writer at 0x6c960 DEREFERENCES it (0x6c9cc, the
+   * partial-byte carry `*tif->tif_rawdata = *op`) while nothing anywhere
+   * dereferences 0x130. The bit writer's `tif_rawdata + (bitpos >> 3)`
+   * addressing and its `tif_rawcc = bitpos >> 3` store are the same
+   * base-relative accounting.
+   *
+   * So the quartet is upstream libtiff 3.5.x's
+   * tif_rawdata / tif_rawdatasize / tif_rawcp / tif_rawcc, in that order.
+   * (libtiff 4.x swaps the first two; this build is from 2001, so 3.5.x.) */
+  unsigned char *tif_rawdata; /* 0x12c */
+  /* 0x130 -- capacity of the raw buffer in bytes. Only ever read, only ever
+   * as the addend that turns tif_rawdata into the end pointer (0x6d9d8). */
+  long tif_rawdatasize;
+  /* 0x134 -- current spot in the raw buffer, used by both directions.
+   * PackBitsDecode (0x6dbf0) loads it at 0x6dc02, walks it one byte at a time
+   * and writes the advanced value back at 0x6dcc8; PackBitsEncode (0x6d9c0)
+   * uses it as the flush watermark, reloads it after every TIFFFlushData1, and
+   * stores the finished `op` through it at 0x6da16. Paired with the byte count
+   * at 0x138 (loaded 0x6dbf9, stored 0x6dcbd). */
+  unsigned char *tif_rawcp;
+  long tif_rawcc; /* 0x138 */
+} tiff_t;
+
+/**
+ * Append `sp->nbits` bits of `value` to the raw output buffer, MSB first,
+ * flushing the buffer first if the write would run past the bit limit.
+ *
+ * The write lands at the current bit cursor and spans one, two or three
+ * bytes: the head byte is merged with the bits already present (preserving
+ * the top `bitpos & 7` of them via tiff_leadmask), an optional whole middle
+ * byte follows, and any residual bits are left-justified into the next byte
+ * through tiff_msbmask. `cp` is advanced past every byte actually stored.
+ *
+ * Flush handling has two shapes, and the difference matters. When the cursor
+ * sits on a byte boundary the buffer is simply flushed. When it does not, the
+ * partially-filled byte must survive: the OLD write pointer plus the whole-
+ * byte offset is captured BEFORE the flush, tif_rawcc is trimmed to the whole
+ * bytes only, and after the flush that saved byte is copied to the front of
+ * the freshly-reset buffer. Reading it after the flush instead would read the
+ * new buffer -- the load at 0x6c9ad uses the pre-call ESI on purpose.
+ *
+ * @param tif   TIFF handle (declared void* so the generated header needs no
+ *              libtiff types); tif->tif_data must be the bit-writer state.
+ * @param value right-justified bit payload. SIGNED: both extractions are
+ *              `sar` (0x6c9ef, 0x6ca03), so the sign bit propagates.
+ */
+void FUN_0006c960(void *tif_, long value)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_bitstate_t *sp = tif->tif_data;
+  int nbits = sp->nbits;
+  int bitpos = sp->bitpos;
+  unsigned char *cp;
+  int shift;
+
+  /* signed compare (`jle` at 0x6c984) */
+  if (nbits + bitpos > sp->bitlimit) {
+    if ((bitpos & 7) == 0) {
+      TIFFFlushData1(tif);
+    } else {
+      unsigned char *op = tif->tif_rawdata + (bitpos >> 3);
+      tif->tif_rawcc = bitpos >> 3;
+      TIFFFlushData1(tif);
+      *tif->tif_rawdata = *op; /* carry the partial byte across the flush */
+    }
+    cp = tif->tif_rawdata;
+    bitpos &= 7;
+    sp->bitpos = bitpos;
+  } else {
+    cp = tif->tif_rawdata + (bitpos >> 3);
+    bitpos &= 7;
+  }
+
+  shift = nbits + bitpos - 8;
+  *cp = (unsigned char)((tiff_leadmask[bitpos] & *cp) | (value >> shift));
+  cp++;
+  if (shift >= 8) {
+    shift -= 8;
+    *cp++ = (unsigned char)(value >> shift);
+  }
+  if (shift != 0) {
+    *cp = (unsigned char)((tiff_msbmask[shift] & value) << (8 - shift));
+  }
+
+  /* Re-read sp->nbits rather than reusing the local: the tail issues a fresh
+   * `movzx eax, word ptr [edi+6]` at 0x6ca21. */
+  sp->bitpos += sp->nbits;
+  sp->bitcount += sp->nbits;
+  tif->tif_rawcc = (sp->bitpos + 7) >> 3;
+}
+
+/**
+ * Release the codec private state hanging off a TIFF handle.
+ *
+ * Upstream libtiff's LZWCleanup: `if (tif->tif_data) {
+ * _TIFFfree(tif->tif_data); tif->tif_data = NULL; }`. Bungie's _TIFFfree
+ * expands to the debug allocator, so the call carries __FILE__/__LINE__ -- and
+ * that __FILE__ is tif_lzw.c, not tif_open.c: kb.json lumps every vendored
+ * libtiff translation unit into a single tif_open.obj, so this body lives here
+ * alongside the tif_predict.c and tif_lzw.c neighbours. Line 925 (0x39d) is the
+ * free site.
+ *
+ * The handle field is loaded once (0x6cac6 `mov eax,[esi+0x120]`) and the same
+ * EAX is both tested and pushed as the free argument, hence the local.
+ * The store-back to 0x120 is inside the taken branch, after the free.
+ *
+ * @param tif_ TIFF handle; may carry a null tif_data, in which case nothing
+ *             happens. The handle pointer itself is never checked.
+ */
+void FUN_0006cac0(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_bitstate_t *sp = tif->tif_data;
+
+  if (sp) {
+    debug_free(sp, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_lzw.c", 0x39d);
+    tif->tif_data = 0;
+  }
+}
+
+/* LZW codec private state, reached through TIFF::tif_data. This is upstream
+ * libtiff's LZWCodecState (tif_lzw.c) with Bungie's own field placement. Every
+ * offset below is proven by an access in FUN_0006cb00:
+ *
+ *   +0x00   0x6cb48 `mov edx,[esi]`, 0x6ccb9 dword store -- the code carried
+ *           across calls (upstream's dec_oldcodep, an index here).
+ *   +0x04   0x6cb15 `test byte ptr [esi+4],1`, 0x6cb3c `and ...,0xfe`,
+ *           0x6cc3f `or ...,1`; bit 1 at 0x6cba3 / 0x6cc8e `test al,2`.
+ *           A byte holding two independent flags.
+ *   +0x06   0x6cbac `mov word ptr [esi+6],9`, 0x6cc6b `inc word ptr`,
+ *           0x6cc74 `cmp word ...,ax` with JBE -- UNSIGNED 16-bit.
+ *   +0x10   0x6cbb2 / 0x6cc91 dword stores, 0x6cc60 load, compared signed.
+ *   +0x1c   0x6cbeb `cmp eax,[esi+0x1c]` JL, 0x6cc46 `cmp eax,0xfff` JGE --
+ *           signed 32-bit.
+ *   +0x20   0x6cc09 `movsx eax, word ptr [esi+eax*2+0x20]` -- SIGNED shorts.
+ *           The walk guard bounds the index to [0x100,0xfff], so 0x1000
+ *           entries; the load being MOVSX and not MOVZX is load-bearing.
+ *   +0x2736 0x6cc00 `mov cl, byte ptr [esi+eax+0x2736]` and 0x6cc16
+ *           `movzx ebx, byte ptr [...]` -- unsigned bytes, index [0,0xfff].
+ *   +0x3736 0x6cb31 / 0x6cc33 `lea ...,[esi+0x3736]`, used only as the
+ *           exclusive lower bound of the reverse-string stack (compared with
+ *           JA, i.e. unsigned pointer comparison).
+ *   +0x3ac4 0x6cb1a load, 0x6cb61 / 0x6ccb3 stores -- the stack cursor.
+ *   +0x3ac8 0x6cb4a load, 0x6ccbb dword store -- last byte emitted, held
+ *           zero-extended in a full dword.
+ *
+ * Two extents are inferred rather than proven. The CODE_CLEAR memset spans
+ * 0x2716 bytes from +0x20 (0x6cb8d), i.e. it stops exactly where the suffix
+ * table starts and deliberately leaves the suffix table intact -- so the
+ * 0x716 bytes between the end of the 0x1000-entry prefix table and +0x2736
+ * are inside the cleared region but are never otherwise touched here, and
+ * stay padding. Likewise the stack at +0x3736 is only bounded from above by
+ * the next proven field. */
+#define LZW_FLAG_RESTART \
+  0x01 /* output was cut short mid-string; resume first */
+#define LZW_FLAG_OLDSTYLE                             \
+  0x02 /* off-by-one maxcode bias (old-style streams) \
+        */
+
+/* 0x08/0x0a/0x0c, 0x14/0x18 and the extent past 0x3acc were split out of the
+ * pad runs by FUN_0006ce60 (LZWPreDecode), which is the allocation site:
+ *
+ *   +0x05   written, never read. 0x6cec2 zeroes 0x04 and 0x05 together with a
+ *           single `mov word ptr [esi+4],bx`. Either `flags` is really a
+ *           16-bit field and every bit op on it (`and byte ptr [esi+4],0xfe`
+ *           and friends, all byte-sized here and in FUN_0006cb00) is MSVC's
+ *           narrowing peephole, or `flags` is the byte it is spelled as and
+ *           0x05 is a separate field zeroed alongside it. UNRESOLVED; the byte
+ *           spelling is kept because it is what the bit ops directly prove.
+ *   +0x08   the predictor sub-state's `stride`, and +0x0a its `rowsize`,
+ *           +0x0c its accumulator -- the same three offsets
+ *           tiff_predictor_state_t above reaches through tif_data. 0x6cec9
+ *           zeroes 0x0a as a word and 0x6cec6 zeroes 0x0c as a dword; 0x6ced9
+ *           then tests 0x0c to decide whether the predictor wrapper methods
+ *           get installed, which is upstream's `predictor != 1` test. So this
+ *           struct and tiff_predictor_state_t are two views of one block:
+ *           Bungie flattened upstream's `TIFFPredictorState predict` member
+ *           into the LZW state instead of nesting it, and the LZW-specific
+ *           0x00-0x07 sits in front of the surviving predictor fields.
+ *   +0x14   read cursor in bits (zeroed at 0x6cf21) and +0x18 the last bit
+ *           position a full BITS_MAX code still fits at, formed as
+ *           `(tif_rawdatasize << 3) - (BITS_MAX-1)` by the LEA at 0x6cf2a.
+ *           Same offsets, same roles and same names as the bit-writer's
+ *           bitpos/bitlimit in tiff_bitstate_t above.
+ *   +0x3acc onwards is unobserved. The extent is not: the allocation at
+ *           0x6ce84 is a bare `push 0x7574` with no addition, so sizeof is
+ *           0x7574 exactly and 0x3aa8 bytes past the decoder's last field are
+ *           unaccounted for. Upstream libtiff of this vintage carries the
+ *           encoder members and its hash table in the same struct, which is
+ *           the obvious candidate, but nothing recovered so far touches them.
+ */
+typedef struct lzw_codec_state_s {
+  int oldcode; /* 0x00 */
+  unsigned char flags; /* 0x04 */
+  unsigned char field_05; /* 0x05 written by the word store at 0x6cec2 */
+  unsigned short nbits; /* 0x06 code width currently being read */
+  unsigned short stride; /* 0x08 predictor: samples between neighbours */
+  unsigned short rowsize; /* 0x0a predictor: bytes per decoded row */
+  void (*pfunc)(char *cp, int cc, int stride); /* 0x0c predictor accumulator */
+  int maxcode; /* 0x10 last code representable in nbits bits */
+  int bitpos; /* 0x14 read cursor, in bits from tif_rawdata */
+  int bitlimit; /* 0x18 last bit position a full BITS_MAX code fits at */
+  int free_ent; /* 0x1c next table slot to hand out */
+  short prefix[0x1000]; /* 0x20 */
+  char pad_2020[0x716];
+  unsigned char suffix[0x1000]; /* 0x2736 */
+  unsigned char stack[0x38e]; /* 0x3736 reverse-string scratch */
+  unsigned char *stackp; /* 0x3ac4 */
+  int finchar; /* 0x3ac8 */
+  char pad_3acc[0x3aa8]; /* 0x3acc unobserved; extent from the 0x7574 alloc */
+} lzw_codec_state_t;
+
+cs(lzw_codec_state_t, 0x7574);
+
+/**
+ * Decode LZW-compressed data into a caller-supplied scanline/strip buffer.
+ *
+ * Upstream libtiff's LZWDecode, in its pre-3.5 stack-based shape: strings are
+ * reconstructed backwards onto a scratch stack and then copied out forwards.
+ * The code reader is out of line here (0x6c780, `mov ecx,[ebp+8]` then CALL,
+ * i.e. a single ECX register argument) rather than the NextCode macro
+ * upstream expands inline.
+ *
+ * When the caller's buffer fills in the middle of a string the remainder is
+ * left on the stack and LZW_FLAG_RESTART is set (0x6cc3f); the next call
+ * flushes it first (0x6cb15..0x6cb3c). Both flush loops are do-while with the
+ * decrement-then-test-negative order the binary uses -- `occ` is signed and
+ * `--occ < 0` is what arms the restart flag, so the order is load-bearing.
+ *
+ * The two flushes differ in what they do when the buffer fills: the entry
+ * flush returns 1 immediately (0x6cb5b) without arming the flag, because the
+ * flag is still set from the previous call; the in-loop flush arms the flag
+ * and falls through into the table update.
+ *
+ * @param tif_ TIFF handle; tif->tif_data must be the LZW codec state.
+ * @param op0  output buffer.
+ * @param occ0 output buffer size in bytes.
+ * @param s    sample number; unused by this codec.
+ * @return 1 when the buffer was filled, 0 when the code stream ran out first
+ *         (an EOI or a short strip), after reporting the shortfall.
+ */
+int FUN_0006cb00(void *tif_, char *op0, int occ0, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  lzw_codec_state_t *sp = (lzw_codec_state_t *)tif->tif_data;
+  unsigned char *op;
+  unsigned char *tp;
+  int occ;
+  int oldcode;
+  int finchar;
+  int code;
+  int incode;
+
+  op = (unsigned char *)op0;
+  occ = occ0;
+  tp = sp->stackp;
+
+  if (sp->flags & LZW_FLAG_RESTART) {
+    do {
+      if (--occ < 0) {
+        sp->stackp = tp;
+        return 1;
+      }
+      *op++ = *--tp;
+    } while (tp > sp->stack);
+    sp->flags &= ~LZW_FLAG_RESTART;
+  }
+
+  oldcode = sp->oldcode;
+  finchar = sp->finchar;
+  while (occ > 0) {
+    code = FUN_0006c780(tif_);
+    if (code == 0x101) { /* CODE_EOI */
+      break;
+    }
+    if (code == 0x100) { /* CODE_CLEAR */
+      /* Stops exactly at the suffix table; the suffix bytes survive a clear. */
+      csmemset(sp->prefix, 0, 0x2716);
+      sp->free_ent = 0x102;
+      sp->nbits = 9;
+      sp->maxcode = 0x1fe;
+      if (sp->flags & LZW_FLAG_OLDSTYLE) {
+        sp->maxcode = 0x1ff;
+      }
+      code = FUN_0006c780(tif_);
+      if (code == 0x101) {
+        break;
+      }
+      *op++ = (unsigned char)code;
+      occ--;
+      finchar = code;
+      oldcode = code;
+      continue;
+    }
+
+    incode = code;
+    if (code >= sp->free_ent) {
+      /* Code not yet in the table: the string is the previous one plus its
+       * own first byte, so seed the stack with that byte and re-walk the
+       * previous code (0x6cbf2 reloads `code` from the oldcode slot). */
+      code = oldcode;
+      *tp++ = (unsigned char)finchar;
+    }
+    while (code >= 0x100) {
+      *tp++ = sp->suffix[code];
+      code = sp->prefix[code];
+    }
+    finchar = sp->suffix[code];
+    *tp++ = (unsigned char)finchar;
+
+    do {
+      if (--occ < 0) {
+        sp->flags |= LZW_FLAG_RESTART;
+        break;
+      }
+      *op++ = *--tp;
+    } while (tp > sp->stack);
+
+    if (sp->free_ent < 0xfff) {
+      /* The prefix table is 16-bit: 0x6cc4d loads only the low word of the
+       * oldcode slot (`mov cx, word ptr [ebp+0x10]`). */
+      sp->prefix[sp->free_ent] = (short)oldcode;
+      sp->suffix[sp->free_ent] = (unsigned char)finchar;
+      sp->free_ent++;
+      if (sp->free_ent > sp->maxcode) {
+        sp->nbits++;
+        if (sp->nbits > 12) {
+          sp->nbits = 12;
+        }
+        sp->maxcode = (1 << sp->nbits) - 2;
+        if (sp->flags & LZW_FLAG_OLDSTYLE) {
+          sp->maxcode++;
+        }
+      }
+    }
+    oldcode = incode;
+  }
+
+  sp->stackp = tp;
+  sp->oldcode = oldcode;
+  sp->finchar = finchar;
+  if (occ > 0) {
+    /* The handle is dereferenced inline here (0x6ccce `mov ecx,[ecx]`), not
+     * routed through TIFFFileName the way the setup paths in this TU are. */
+    FUN_00068a30(tif->tif_name,
+                 "LZWDecode: Not enough data at scanline %d (short %d bytes)",
+                 tif->tif_row, occ);
+    return 0;
+  }
+  return 1;
+}
+
+/* Predictor private state, reached through TIFF::tif_data. Only two offsets
+ * are touched here: +0x08, read as a zero-extended word (0x6cd18
+ * `movzx edx, word ptr [esi+8]`) and handed to the accumulator as its third
+ * argument -- the same slot the already-recovered horizontal accumulators
+ * FUN_0006c680/FUN_0006c6f0 take their `stride` in -- and +0x0c, the
+ * accumulator itself (0x6cd1f `call dword ptr [esi+0xc]`). This is upstream
+ * libtiff's TIFFPredictorState with Bungie's explicit-stride accumulator
+ * signature; everything before +0x08 is unproven from this function.
+ * +0x0a comes from FUN_0006cd40, which reads it as a word at 0x6cd71 and
+ * 0x6cd7f and uses it as both the accumulator's byte count and the stride
+ * by which the tile buffer advances -- upstream's TIFFPredictorState.rowsize
+ * narrowed to 16 bits. Offsets 0x00-0x07 remain unobserved. */
+typedef struct tiff_predictor_state_s {
+  char pad_00[8];
+  unsigned short stride; /* 0x08 samples between a value and its predecessor */
+  unsigned short rowsize; /* 0x0a bytes per decoded row (0x6cd71/0x6cd7f) */
+  void (*pfunc)(char *cp, int cc, int stride); /* 0x0c horizontal accumulator */
+} tiff_predictor_state_t;
+
+/**
+ * Decode one scanline through the predictor: run the parent codec, then undo
+ * the horizontal differencing in place.
+ *
+ * Upstream libtiff's PredictorDecodeRow. Two differences from stock, both
+ * proven by the disassembly: the parent codec row decoder is called directly
+ * (0x6cd0c `call 0x6cb00`) rather than through a coderow slot in the state,
+ * and the accumulator receives the stride as an explicit third argument
+ * instead of fetching it from the state itself.
+ *
+ * The state pointer is loaded from the handle BEFORE the codec call (0x6ccfe,
+ * kept in callee-saved ESI across it) and is never re-read afterwards, so the
+ * accumulator runs against the state as it was on entry.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types); tif->tif_data must be the predictor state.
+ * @param op0  scanline buffer, decoded in place by the codec then accumulated.
+ * @param occ0 byte count of the scanline.
+ * @param s    sample number, passed through to the parent codec untouched.
+ * @return 1 when the parent codec succeeded and the row was accumulated,
+ *         0 when it failed (the accumulator is then not run).
+ */
+int FUN_0006ccf0(void *tif_, char *op0, int occ0, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_predictor_state_t *sp = (tiff_predictor_state_t *)tif->tif_data;
+
+  if (FUN_0006cb00(tif_, op0, occ0, s)) {
+    (*sp->pfunc)(op0, occ0, sp->stride);
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * Decode a whole tile/strip through the predictor: run the parent codec once,
+ * then undo the horizontal differencing one row at a time.
+ *
+ * Upstream libtiff's PredictorDecodeTile, with the same two Bungie deviations
+ * seen in FUN_0006ccf0: the parent codec is called directly (0x6cd5c
+ * `call 0x6cb00`) instead of through a codetile slot, and the accumulator
+ * takes the stride as an explicit third argument.
+ *
+ * The state pointer is loaded from the handle BEFORE the codec call (0x6cd4e,
+ * kept in callee-saved ESI across it), so the loop runs against the state as
+ * it was on entry. Both words are re-read from the state inside the loop --
+ * `stride` at the top of every iteration (0x6cd75) and `rowsize` after every
+ * accumulator call (0x6cd7f), whose value then feeds BOTH the count decrement
+ * and the buffer advance. Hoisting either read out of the loop would change
+ * behaviour if the accumulator mutates the state, and it is not what the
+ * binary does.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types); tif->tif_data must be the predictor state.
+ * @param op0  tile buffer, decoded in place by the codec then accumulated.
+ * @param occ0 byte count of the tile. Signed throughout (`test edi,edi / jg`),
+ *             so a rowsize that overshoots the remainder ends the loop.
+ * @param s    sample number, passed through to the parent codec untouched.
+ * @return 1 when the parent codec succeeded, 0 when it failed (the loop is
+ *         then not run).
+ */
+int FUN_0006cd40(void *tif_, char *op0, int occ0, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_predictor_state_t *sp = (tiff_predictor_state_t *)tif->tif_data;
+
+  if (!FUN_0006cb00(tif_, op0, occ0, s)) {
+    return 0;
+  }
+  while (occ0 > 0) {
+    (*sp->pfunc)(op0, sp->rowsize, sp->stride);
+    occ0 -= sp->rowsize;
+    op0 += sp->rowsize;
+  }
+  return 1;
+}
+
+/* LZW end-of-information code -- upstream libtiff's CODE_EOI (tif_lzw.c).
+ * The binary pushes it as the literal 0x101 at 0x6cdc5. */
+#define CODE_EOI 257
+
+/**
+ * Finish an LZW-encoded strip: flush the pending code, then emit EOI.
+ *
+ * Upstream libtiff's LZWPostEncode. `oldcode` is the last string code the
+ * encoder matched but had not yet written out; the sentinel -1 means there is
+ * none pending, and it is reset to -1 after being flushed so the pending half
+ * of a second call is a no-op.
+ *
+ * The state field is loaded once (0x6cda9 `mov eax,[esi]`) and that same EAX
+ * is both compared against -1 and pushed as the code argument, hence the
+ * local. Bungie's copy keeps the code as a full dword -- the test is
+ * `cmp eax,-1` and the reset is a dword store -- not upstream's u_short
+ * hcode_t.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types); tif->tif_data must be the LZW encoder state.
+ * @return always 1; this stage reports no failure (`mov eax,1` at 0x6cdd4,
+ *         scheduled between the two epilogue pops).
+ */
+int FUN_0006cda0(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_bitstate_t *sp = tif->tif_data;
+  int oldcode = sp->oldcode;
+
+  if (oldcode != -1) {
+    FUN_0006c960(tif_, oldcode);
+    sp->oldcode = -1;
+  }
+  FUN_0006c960(tif_, CODE_EOI);
+  return 1;
+}
+
+/* Code-width bounds and the first assignable string code, from upstream
+ * libtiff's tif_lzw.c. Each one is formed literally by FUN_0006ce60:
+ * BITS_MIN as the `mov word ptr [esi+6],9` at 0x6ceff, CODE_FIRST as the
+ * `0x102` at 0x6cf1a, BITS_MAX-1 as the `-0xb` displacement of the LEA at
+ * 0x6cf2a, and MAXCODE(BITS_MIN)-1 / MAXCODE(BITS_MIN) as the 0x1fe / 0x1ff
+ * pair at 0x6cf84 / 0x6cf8d. CODE_FIRST is 256 literals + CODE_CLEAR +
+ * CODE_EOI. */
+#define BITS_MIN 9
+#define BITS_MAX 12
+#define CODE_FIRST 258
+#define MAXCODE(n) ((1 << (n)) - 1)
+
+/**
+ * Prepare the LZW decoder for a new strip/tile: allocate the codec state on
+ * first use, then reset the code width, the string table and the bit cursor.
+ *
+ * Upstream libtiff's LZWPreDecode, in the pre-3.5 shape that matches the
+ * stack-based FUN_0006cb00 decoder: the string table is the prefix/suffix
+ * pair rather than the later code_t chain, and this function also does the
+ * work upstream split into LZWSetupDecode -- it allocates tif_data itself and
+ * preloads the 256 literal suffixes. __FILE__ is tif_lzw.c (VA 0x2604d8,
+ * pushed at 0x6ce7e) at line 308 (0x134), so this body belongs to the same
+ * translation unit as FUN_0006cb00/FUN_0006cac0 and lives here for the reason
+ * given at the top of this file.
+ *
+ * Two Bungie deviations from stock, both proven by the disassembly:
+ *
+ *   - The predictor is set up through 0x6c5e0, which takes the handle in EAX
+ *     and the two horizontal accumulators (8-bit at 0x6c680, 16-bit at
+ *     0x6c6f0) as stack arguments, instead of upstream's argument-less
+ *     TIFFPredictorInit picking them from a bit-depth switch of its own.
+ *   - "Old-style" (bit-reversed) streams are tracked as bit 1 of sp->flags
+ *     rather than by swapping in a LZWDecodeCompat method, so the only thing
+ *     that changes for them is the off-by-one on maxcode.
+ *
+ * The compat probe reads the first two raw bytes through one cached pointer
+ * (0x6cf50 `mov eax,[edi+0x12c]`, then `cmp byte ptr [eax],bl` and
+ * `test byte ptr [eax+1],1`), and the warning fires only on the transition
+ * into the compat state -- bit 1 already set means the file was diagnosed on
+ * an earlier strip and stays quiet.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types). tif->tif_data may be null on entry, in which
+ *             case it is allocated here; tif->tif_rawdata must hold at least
+ *             two bytes of the compressed stream.
+ * @return 1 once the state is armed, 0 if the state block could not be
+ *         allocated or the predictor refused the directory. Both failure
+ *         paths share the `xor eax,eax` tail at 0x6cead.
+ */
+int FUN_0006ce60(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  lzw_codec_state_t *sp = (lzw_codec_state_t *)tif->tif_data;
+  int code;
+
+  if (sp == 0) {
+    /* The allocation is not zeroed (the flag argument is the same EBX zero the
+     * null tests use, 0x6ce83), so the three fields below are cleared by hand
+     * exactly as upstream does before handing the state to the predictor. */
+    tif->tif_data = (tiff_bitstate_t *)debug_malloc(
+      sizeof(lzw_codec_state_t), 0,
+      "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_lzw.c", 0x134);
+    if (tif->tif_data == 0) {
+      FUN_00068a30("LZWPreDecode", "No space for LZW state block");
+      return 0;
+    }
+    sp = (lzw_codec_state_t *)tif->tif_data;
+    sp->flags = 0;
+    sp->pfunc = 0;
+    sp->rowsize = 0;
+    /* 0x6c5e0's two stack arguments are the horizontal accumulators it may
+     * install: 0x6c680 for 8-bit samples and 0x6c6f0 for 16-bit ones, in that
+     * push order (0x6cebb then 0x6ceb6). kb.json types them void* because the
+     * generated header cannot spell a function-pointer parameter; the real
+     * shapes are tiff_predictor_state_t::pfunc and its unsigned short twin. */
+    if (!FUN_0006c5e0(tif_, (void *)FUN_0006c680, (void *)FUN_0006c6f0)) {
+      return 0;
+    }
+    /* A non-null accumulator is this build's spelling of upstream's
+     * `predictor == 2`: the wrapper methods only go in when the predictor
+     * setup actually chose a differencing function. */
+    if (sp->pfunc != 0) {
+      tif->tif_decoderow = FUN_0006ccf0;
+      tif->tif_decodestrip = FUN_0006cd40;
+      tif->tif_decodetile = FUN_0006cd40;
+    }
+  } else {
+    /* A fresh strip cancels any mid-string restart left by the last one; the
+     * compat bit is deliberately left alone, it is re-derived below. */
+    sp->flags &= ~LZW_FLAG_RESTART;
+  }
+  sp->nbits = BITS_MIN;
+  /* Descending, and signed: the loop guard is `dec eax / jns` (0x6cf17). */
+  for (code = 255; code >= 0; code--) {
+    sp->suffix[code] = (unsigned char)code;
+  }
+  sp->free_ent = CODE_FIRST;
+  sp->bitpos = 0;
+  sp->bitlimit = (tif->tif_rawdatasize << 3) - (BITS_MAX - 1);
+  sp->stackp = sp->stack;
+  sp->oldcode = -1;
+  sp->finchar = -1;
+  if (tif->tif_rawdata[0] == 0 && (tif->tif_rawdata[1] & 0x1)) {
+    if (!(sp->flags & LZW_FLAG_OLDSTYLE)) {
+      FUN_0006f9d0(tif->tif_name, "Old-style LZW codes, convert file");
+    }
+    sp->flags |= LZW_FLAG_OLDSTYLE;
+  } else {
+    sp->flags &= ~LZW_FLAG_OLDSTYLE;
+  }
+  /* Two independent immediate stores, not an increment: the binary writes
+   * 0x1fe at 0x6cf84 and overwrites it with 0x1ff at 0x6cf8d. */
+  sp->maxcode = MAXCODE(BITS_MIN) - 1;
+  if (sp->flags & LZW_FLAG_OLDSTYLE) {
+    sp->maxcode = MAXCODE(BITS_MIN);
+  }
+  return 1;
+}
+
+/**
+ * Encode one scanline through the predictor: apply the horizontal differencing
+ * in place, then hand the differenced row to the parent codec.
+ *
+ * Upstream libtiff's PredictorEncodeRow, and the encode-side mirror of
+ * FUN_0006ccf0. The same two Bungie deviations seen on the decode side hold
+ * here, both proven by the disassembly: the parent codec row encoder is called
+ * directly (0x6d166 `call 0x6cfa0`) rather than through a coderow slot in the
+ * state, and the differencer receives the stride as an explicit third argument
+ * (0x6d151 `movzx ecx, word ptr [eax+8]` -- a zero-extended word, not a dword)
+ * instead of fetching it from the state itself.
+ *
+ * Ordering is the reverse of the decode path: the differencer runs FIRST and
+ * rewrites the caller's buffer in place -- upstream's own comment flags this
+ * as an abuse of user data -- and only then does the codec consume it.
+ *
+ * The state pointer is read once, before the differencer call (0x6d14b), and
+ * is never re-read afterwards.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types); tif->tif_data must be the predictor state.
+ * @param bp0  scanline buffer, differenced in place then encoded.
+ * @param cc0  byte count of the scanline.
+ * @param s    sample number, passed through to the parent codec untouched.
+ * @return the parent codec's status, forwarded untouched -- the binary leaves
+ *         EAX from `call 0x6cfa0` alone through the whole epilogue
+ *         (0x6d16b-0x6d172), so this is a value-returning function despite the
+ *         decompiler typing it void.
+ */
+int FUN_0006d140(void *tif_, char *bp0, int cc0, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_predictor_state_t *sp = (tiff_predictor_state_t *)tif->tif_data;
+
+  /* XXX horizontal differencing alters user's data XXX */
+  (*sp->pfunc)(bp0, cc0, sp->stride);
+  return FUN_0006cfa0(tif_, bp0, cc0, s);
+}
+
+/**
+ * Encode a whole tile/strip through the predictor: apply the horizontal
+ * differencing one row at a time, then hand the whole differenced buffer to
+ * the parent codec.
+ *
+ * Upstream libtiff's PredictorEncodeTile, and the encode-side mirror of
+ * FUN_0006cd40. The same two Bungie deviations hold: the parent codec tile
+ * encoder is called directly (0x6d1c9 `call 0x6cfa0`) instead of through an
+ * encodetile slot in the state, and the differencer receives the stride as an
+ * explicit third argument (0x6d1a0 `movzx ecx, word ptr [esi+8]`).
+ *
+ * The state pointer is loaded once in the prologue (0x6d18b, callee-saved ESI)
+ * and never re-read. Both words ARE re-read from the state inside the loop --
+ * `stride` at the top of every iteration and `rowsize` after every differencer
+ * call (0x6d1aa), whose value then feeds BOTH the count decrement and the
+ * buffer advance. Hoisting either read would change behaviour if the
+ * differencer mutates the state, and it is not what the binary does.
+ *
+ * The loop walks COPIES: the binary keeps the running pointer in EBX and the
+ * running count in EDI, and reloads the untouched originals from the frame for
+ * the codec call (0x6d1b9 `mov edi,[ebp+0x10]`, 0x6d1bf `mov eax,[ebp+0xc]`),
+ * so the codec sees the full buffer and the full byte count, not the loop
+ * residue.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types); tif->tif_data must be the predictor state.
+ * @param bp0  tile buffer, differenced in place then encoded.
+ * @param cc0  byte count of the tile. Signed throughout (`test edi,edi / jle`
+ *             on entry, `jg` on the back edge), so a rowsize that overshoots
+ *             the remainder ends the loop.
+ * @param s    sample number, passed through to the parent codec untouched.
+ * @return the parent codec's status, forwarded untouched -- the binary leaves
+ *         EAX from `call 0x6cfa0` alone through the whole epilogue
+ *         (0x6d1ce-0x6d1d5), so this is a value-returning function despite the
+ *         decompiler typing it void.
+ */
+int FUN_0006d180(void *tif_, char *bp0, int cc0, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_predictor_state_t *sp = (tiff_predictor_state_t *)tif->tif_data;
+  char *bp = bp0;
+  int cc = cc0;
+
+  /* XXX horizontal differencing alters user's data XXX */
+  while (cc > 0) {
+    (*sp->pfunc)(bp, sp->rowsize, sp->stride);
+    cc -= sp->rowsize;
+    bp += sp->rowsize;
+  }
+  return FUN_0006cfa0(tif_, bp0, cc0, s);
+}
+
+/**
+ * Install the LZW codec method table into a TIFF handle.
+ *
+ * The vtable-install half of upstream libtiff's TIFFInitLZW (tif_lzw.c --
+ * confirmed as this TU's __FILE__ at 0x2604d8, which the neighbouring
+ * allocators stamp into their debug-allocator calls). Bungie split the
+ * scheme check, the tif_data reset and the TIFFPredictorInit call out of it:
+ * what is left at 0x6d2d0 is ten stores and `return 1`, with no CALL, no
+ * branch and no locals -- the frame is a bare push-ebp/mov-ebp,esp.
+ *
+ * Two upstream slots are absent from Bungie's copy: tif_predecode and
+ * tif_preencode are never written here, and the two dwords upstream would
+ * place at 0x114/0x118 (close/seek) are likewise untouched. That is
+ * consistent with the rest of this TU, where the predictor wrappers call the
+ * parent codec directly (FUN_0006d140/FUN_0006d180 `call 0x6cfa0`) instead of
+ * dispatching through a coderow slot.
+ *
+ * Store order follows upstream: the decode group first, then the encode
+ * group. That grouping -- not ascending offset -- is what the binary's
+ * scheduling shows, since the three FUN_0006cb00 stores are emitted back to
+ * back off one `mov ecx,0x6cb00`, and the three FUN_0006cfa0 stores back to
+ * back off one `mov ecx,0x6cfa0`, with the three immediate stores hoisted in
+ * between the two ECX loads.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types). Never null-checked.
+ * @return always 1; `mov eax,1` at 0x6d32b, immediately before the epilogue.
+ *         The decompiler types this void because nothing in the cached
+ *         listing consumes EAX (void-EAX hazard).
+ */
+int FUN_0006d2d0(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  tif->tif_setupdecode = FUN_0006ce60;
+  tif->tif_decoderow = FUN_0006cb00;
+  tif->tif_decodestrip = FUN_0006cb00;
+  tif->tif_decodetile = FUN_0006cb00;
+  tif->tif_setupencode = FUN_0006d1e0;
+  tif->tif_postencode = FUN_0006cda0;
+  tif->tif_encoderow = FUN_0006cfa0;
+  tif->tif_encodestrip = FUN_0006cfa0;
+  tif->tif_encodetile = FUN_0006cfa0;
+  tif->tif_cleanup = FUN_0006cac0;
+  return 1;
+}
+
+/* Upstream libtiff tif_next.c spellings. The two run-type codes are the only
+ * values `n` is compared against (0x6d395 `test eax,eax`, 0x6d39d
+ * `cmp eax,0x40`); everything else falls into the run-length arm. */
+#define LITERALROW 0x00
+#define LITERALSPAN 0x40
+
+/* Upstream's SETPIXEL, transcribed verbatim including its reliance on the
+ * caller's `npixels`. The `switch (npixels++ & 3)` is what produces the
+ * four-entry jump table at 0x6d4bc -- which lives in .rdata immediately past
+ * the end of the function (bounds end 0x6d4ba) -- together with the
+ * `cmp eax,3 / ja` range check at 0x6d3c6 that MSVC emits even though the
+ * mask makes the index provably in range. Writing this as an if-chain loses
+ * the table. Only case 3 advances `op`, so a run writes two bits per pixel
+ * MSB-first into each byte. */
+#define SETPIXEL(op, v)                  \
+  {                                      \
+    switch (npixels++ & 3) {             \
+    case 0:                              \
+      op[0] = (unsigned char)((v) << 6); \
+      break;                             \
+    case 1:                              \
+      op[0] |= (v) << 4;                 \
+      break;                             \
+    case 2:                              \
+      op[0] |= (v) << 2;                 \
+      break;                             \
+    case 3:                              \
+      *op++ |= (v);                      \
+      break;                             \
+    }                                    \
+  }
+
+/**
+ * Decode one or more 2-bit-grey NeXT-RLE scanlines into `buf`.
+ *
+ * Upstream libtiff's NeXTDecode (tif_next.c), transcribed rather than
+ * reshaped from the decompiler -- the vendored-source posture this TU already
+ * uses for horAcc8 and PackBitsDecode. Each row starts as a byte code: 0x00
+ * means the whole scanline follows literally, 0x40 means a literal span at a
+ * 16-bit offset, anything else is a run byte <grey:2><count:6> and the row is
+ * decoded as a sequence of such runs until `td_imagewidth` pixels are
+ * produced.
+ *
+ * The 0xff prefill (0x6d353-0x6d364) stays as upstream's
+ * `for (op = buf, cc = occ; cc-- > 0;) *op++ = 0xff;` byte loop even though
+ * the binary carries a `rep stosd`/`rep stosb` pair, for the same reason as
+ * PackBitsDecode above: the `test ecx,ecx / jle 0x6d366` at 0x6d349 is the
+ * loop's entry guard, and an inline memset expansion needs no guard (`rep`
+ * with ECX=0 is already a no-op). The count is shifted LOGICALLY
+ * (`shr ecx,2`) inside the expansion while the guard is signed, which is the
+ * compiler's fill substitution, not something the C says. `memset` is also
+ * not linkable in this build (`-nostdlib -ffreestanding -fno-builtin`).
+ *
+ * `row` has no stack slot of its own: the frame is `sub esp,0xc` and its
+ * three dwords are the inner run counter ([EBP-0x4], 0x6d3bd), the cached
+ * scanline size ([EBP-0x8], 0x6d380) and the cached image width ([EBP-0xc],
+ * 0x6d3a8). MSVC coalesced `row` into the dead `buf` parameter slot -- hence
+ * the `mov [ebp+0xc],edx` at 0x6d383 that seeds it and the `add edx,esi /
+ * mov [ebp+0xc],edx` at 0x6d457 that advances it. The separate `row`
+ * variable is upstream's; the coalescing is the compiler's.
+ *
+ * BYTE INDICES in the LITERALSPAN arm are read straight off the
+ * disassembly, NOT off the decompiler: with EDI already past the `*bp++` at
+ * 0x6d390, 0x6d409-0x6d414 is `movzx esi,[edi+2] / movzx ecx,[edi+3] /
+ * shl esi,8 / add esi,ecx`, i.e. n = bp[2]*256 + bp[3], and 0x6d41d-0x6d431
+ * is the same shape on [edi+0]/[edi+1] for the destination offset. The
+ * decompiler's CONCAT11(pbVar6[3], pbVar6[4]) is shifted one byte by the
+ * pre-increment and is wrong in both indices and width.
+ *
+ * `grey` is extracted with a SIGNED shift (`sar ecx,6`, 0x6d3b2), which is
+ * upstream's `n` being a signed tsize_t rather than the unsigned byte it was
+ * loaded from; an unsigned `n` would emit `shr`.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types). Never null-checked.
+ * @param buf  output scanline buffer. Prefilled with 0xff (white under
+ *             min-is-black) before any decoding.
+ * @param occ  output bytes wanted, consumed `tif_scanlinesize` at a time.
+ *             Signed (`test eax,eax / jle` at 0x6d36c, `jg` at 0x6d461).
+ * @param s    sample number. Upstream's `(void) s;`: the frame slot at
+ *             [EBP+0x14] is never read.
+ * @return 1 once `occ` is exhausted, with the raw cursor/count written back
+ *         (`mov eax,1` at 0x6d475); 0 after reporting a short scanline
+ *         (`xor eax,eax` at 0x6d4b3), leaving them unwritten. The decompiler
+ *         types the body void because it drops both EAX writes (void-EAX
+ *         hazard, lift-learnings SS16); FUN_0006d4d0 storing this address
+ *         into three `tiff_code_method_t` slots settles the shape.
+ */
+int FUN_0006d340(void *tif_, char *buf, int occ, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  unsigned char *bp;
+  unsigned char *op;
+  int cc;
+  unsigned char *row;
+  int scanline;
+  int n;
+
+  (void)s;
+  /*
+   * Each scanline is assumed to start off as all
+   * white (we assume a PhotometricInterpretation
+   * of ``min-is-black'').
+   */
+  for (op = (unsigned char *)buf, cc = occ; cc-- > 0;) {
+    *op++ = 0xff;
+  }
+
+  bp = tif->tif_rawcp;
+  cc = tif->tif_rawcc;
+  scanline = tif->tif_scanlinesize;
+  for (row = (unsigned char *)buf; occ > 0; occ -= scanline, row += scanline) {
+    n = *bp++;
+    cc--;
+    switch (n) {
+    case LITERALROW:
+      /*
+       * The entire scanline is given as literal values.
+       */
+      if (cc < scanline) {
+        goto bad;
+      }
+      csmemcpy(row, bp, scanline);
+      bp += scanline;
+      cc -= scanline;
+      break;
+    case LITERALSPAN: {
+      int off;
+      /*
+       * The scanline has a literal span that begins at some offset.
+       */
+      off = (bp[0] * 256) + bp[1];
+      n = (bp[2] * 256) + bp[3];
+      if (cc < 4 + n) {
+        goto bad;
+      }
+      csmemcpy(row + off, bp + 4, n);
+      bp += 4 + n;
+      cc -= 4 + n;
+      break;
+    }
+    default: {
+      int npixels = 0;
+      int grey;
+      unsigned long imagewidth = tif->td_imagewidth;
+
+      /*
+       * The scanline is composed of a sequence of constant
+       * color ``runs''.  We shift into ``run mode'' and
+       * interpret bytes as codes of the form
+       * <color><npixels> until we've filled the scanline.
+       */
+      op = row;
+      for (;;) {
+        grey = (int)((n >> 6) & 0x3);
+        n &= 0x3f;
+        while (n-- > 0) {
+          SETPIXEL(op, grey);
+        }
+        if (npixels >= (int)imagewidth) {
+          break;
+        }
+        if (cc == 0) {
+          goto bad;
+        }
+        n = *bp++;
+        cc--;
+      }
+      break;
+    }
+    }
+  }
+  tif->tif_rawcp = bp;
+  tif->tif_rawcc = cc;
+  return 1;
+bad:
+  FUN_00068a30(tif->tif_name, "NeXTDecode: Not enough data for scanline %d",
+               tif->tif_row);
+  return 0;
+}
+
+/**
+ * Repoint the three decode slots of the codec vtable at FUN_0006d340.
+ *
+ * Overwrites only tif_decoderow/tif_decodestrip/tif_decodetile (0xfc, 0x104,
+ * 0x10c), leaving the interleaved encode slots at 0x100/0x108/0x110 and the
+ * rest of the vtable installed by FUN_0006d2d0 untouched. The three offsets
+ * are 8 bytes apart, so this is deliberately three independent field stores
+ * and not a run over an array of pointers.
+ *
+ * The whole body is ten instructions at 0x6d4d0-0x6d4f3: `push ebp / mov
+ * ebp,esp` with no `sub esp`, `mov eax,[ebp+8]`, one `mov ecx,0x6d340`, three
+ * stores off that single ECX, `mov eax,1`, `pop ebp / ret`. Keeping the same
+ * expression in all three assignments is what reproduces the single constant
+ * materialisation; introducing a local temp adds a frame the original has not
+ * got.
+ *
+ * FUN_0006d340 is only ever taken by address, never called. Its prototype is
+ * now widened from its OWN body (four [EBP+8..0x14] argument slots, `mov
+ * eax,1` / `xor eax,eax` on the two epilogues) rather than inferred from the
+ * slot it lands in, so it matches `tiff_code_method_t` exactly and the
+ * assignment casts that stood in for the old placeholder are gone.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types). Never null-checked.
+ * @return always 1; `mov eax,1` at 0x6d4ed, after the stores and immediately
+ *         before the epilogue. The decompiler types this void because nothing
+ *         in the cached listing consumes EAX (void-EAX hazard).
+ */
+int FUN_0006d4d0(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  tif->tif_decoderow = FUN_0006d340;
+  tif->tif_decodestrip = FUN_0006d340;
+  tif->tif_decodetile = FUN_0006d340;
+  return 1;
+}
+
+/* Upstream libtiff spellings (tiff.h / tiffiop.h). TIFFhowmany casts to
+ * unsigned before dividing, which is what makes the divide a plain `shr`
+ * rather than the signed power-of-two sequence; the binary ends on
+ * `add eax,7 / shr eax,3` at 0x6d83c-0x6d841, so the unsigned form is the
+ * one Bungie compiled. The alternative `((x)&7)?((x)>>3)+1:((x)>>3)` spelling
+ * of TIFFhowmany8 would emit a test and a branch, and there is none. */
+#define PLANARCONFIG_CONTIG 1
+#define TIFFhowmany(x, y) \
+  ((((unsigned long)(x)) + (((unsigned long)(y)) - 1)) / ((unsigned long)(y)))
+#define TIFFhowmany8(x) (TIFFhowmany((x), 8))
+
+/**
+ * Size in bytes of one decoded scanline of the currently open directory.
+ *
+ * Transcribed from the vendored libtiff (tif_strip.c TIFFScanlineSize) rather
+ * than reshaped from the decompiler -- Ghidra's cached listing has 0x6d820 as
+ * an empty `void(void)` body, so the disassembly at 0x6d820-0x6d843 is the
+ * only usable evidence. It matches upstream instruction for instruction.
+ *
+ * The multiply order is bits-per-sample first: `movzx eax,[ecx+0x36]` then
+ * `imul eax,[ecx+0x1c]`. Swapping the operands changes which one lands in EAX
+ * and therefore the IMUL form.
+ *
+ * @param file TIFF handle. kb.json types this `int` because the caller in
+ *             tiff_file.c holds it as one; it is really a tiff_t*, cast here
+ *             rather than widening the prototype and every call site.
+ * @return bytes per scanline, rounded up to a whole byte. Returned in EAX.
+ */
+/* Not auto-inlinable: the reference at 0x6d992 CALLS this function rather
+ * than expanding it, which is only possible if it lived in its own
+ * translation unit (upstream libtiff has it in tif_strip.c). kb.json lumps
+ * every vendored libtiff object into tif_open.obj, so MSVC 7.1 sees a small
+ * same-TU callee and inlines it, costing 6 instructions at every call site.
+ * The pragma restores the original call. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma auto_inline(off)
+#endif
+int TIFFScanlineSize(int file)
+{
+  tiff_t *tif = (tiff_t *)file;
+  int scanline;
+
+  scanline = tif->td_bitspersample * tif->td_imagewidth;
+  if (tif->td_planarconfig == PLANARCONFIG_CONTIG) {
+    scanline *= tif->td_samplesperpixel;
+  }
+  return (int)TIFFhowmany8(scanline);
+}
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma auto_inline(on)
+#endif
+
+/**
+ * Name of the file backing an open TIFF handle.
+ *
+ * Transcribed from the vendored libtiff (tif_open.c TIFFFileName), whose body
+ * is literally `return tif->tif_name;`. Ghidra's cached listing has 0x6d850 as
+ * an empty `void(void)` body -- a decl artifact, since the disassembly at
+ * 0x6d850-0x6d859 is six instructions with one stack argument and an EAX
+ * return: `push ebp / mov ebp,esp / mov eax,[ebp+8] / mov eax,[eax] / pop ebp
+ * / ret`. cdecl, no callee cleanup, no register arguments.
+ *
+ * The dereference is at struct offset 0x00, which is upstream's `tif_name`;
+ * see the layout note on tiff_t for the conflict this creates with the
+ * directory fields split out of the same range.
+ *
+ * There is no `sub esp` in the original, so no local is introduced here --
+ * the cast happens inside the return expression. A `tiff_t *tif` temp of the
+ * kind the rest of this file uses would cost frame shape on a six-instruction
+ * function.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return the stored file name pointer, returned in EAX.
+ */
+/* Not auto-inlinable, same reason as TIFFScanlineSize below: every reference
+ * in the binary CALLs this (0x6c4b5, 0x6c4e2, 0x6c592 in TIFFReadRGBAImage
+ * above), which is only possible if it lived in its own translation unit --
+ * upstream libtiff has it in tif_open.c and the caller in tif_getimage.c.
+ * kb.json lumps both into tif_open.obj, so MSVC 7.1 sees a two-instruction
+ * same-TU callee and expands it, costing the `push/call/add esp,4` triple at
+ * every call site. The pragma restores the original call. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma auto_inline(off)
+#endif
+char *TIFFFileName(void *tif)
+{
+  return ((tiff_t *)tif)->tif_name;
+}
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma auto_inline(on)
+#endif
+
+/**
+ * File descriptor backing an open TIFF handle.
+ *
+ * Transcribed from the vendored libtiff (tif_open.c TIFFFileno), whose body is
+ * literally `return tif->tif_fd;`. Ghidra's cached listing has 0x6d860 as an
+ * empty `void(void)` body -- the void-EAX artifact (lift-learnings s16), since
+ * nothing in the cached listing consumes the return. The disassembly at
+ * 0x6d860-0x6d86b is six instructions with one stack argument and an EAX
+ * return: `push ebp / mov ebp,esp / mov eax,[ebp+8] / movsx eax,word [eax+4] /
+ * pop ebp / ret`. cdecl, no callee cleanup, no register arguments, no locals
+ * (there is no `sub esp`), so no `tiff_t *tif` temp is introduced here -- the
+ * cast happens inside the return expression, matching TIFFFileName above.
+ *
+ * The load is MOVSX word, not a dword MOV: the field at 0x04 is a signed
+ * 16-bit value in this build even though upstream types tif_fd as `int`. See
+ * the tiff_t layout note.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return the stored descriptor, sign-extended into EAX.
+ */
+int TIFFFileno(void *tif)
+{
+  return ((tiff_t *)tif)->tif_fd;
+}
+
+/**
+ * Open mode (the O_* flags) an open TIFF handle was created with.
+ *
+ * Transcribed from the vendored libtiff (tif_open.c TIFFGetMode), whose body
+ * is literally `return tif->tif_mode;`. Ghidra's cached listing has 0x6d870 as
+ * an empty `void(void)` body -- the void-EAX artifact (lift-learnings s16),
+ * since nothing in the cached listing consumes the return. The XBE bytes at
+ * 0x6d870-0x6d87b are `55 8b ec 8b 45 08 0f bf 40 06 5d c3`, i.e. six
+ * instructions with one stack argument and an EAX return: `push ebp / mov
+ * ebp,esp / mov eax,[ebp+8] / movsx eax,word [eax+6] / pop ebp / ret`. cdecl,
+ * no callee cleanup, no register arguments, no locals (there is no `sub esp`),
+ * so no `tiff_t *tif` temp is introduced here -- the cast happens inside the
+ * return expression, matching TIFFFileName and TIFFFileno above.
+ *
+ * The load is MOVSX word, not a dword MOV: the field at 0x06 is a signed
+ * 16-bit value in this build even though upstream types tif_mode as `int`.
+ * See the tiff_t layout note.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return the stored open mode, sign-extended into EAX.
+ */
+int TIFFGetMode(void *tif)
+{
+  return ((tiff_t *)tif)->tif_mode;
+}
+
+/**
+ * Whether an open TIFF handle describes a tiled image (rather than
+ * strip-based).
+ *
+ * Upstream libtiff exposes TIFFIsTiled as a macro over tif_flags; Bungie's copy
+ * is an out-of-line function, so it is transcribed from the disassembly rather
+ * than from upstream source. Ghidra's cached listing has 0x6d880 as an empty
+ * `void(void)` body -- the void-EAX artifact (lift-learnings s16), since
+ * nothing in the cached listing consumes the return. The eight instructions at
+ * 0x6d880-0x6d893 are `push ebp / mov ebp,esp / mov eax,[ebp+8] / movsx eax,
+ * byte ptr [eax+0xa] / and eax,0x80 / shr eax,7 / pop ebp / ret`: cdecl, one
+ * stack argument, no callee cleanup, no register arguments, no locals (there is
+ * no `sub esp`), so no `tiff_t *tif` temp is introduced here -- the cast
+ * happens inside the return expression, matching TIFFFileName, TIFFFileno and
+ * TIFFGetMode above.
+ *
+ * The returned value is the shifted bit, i.e. literally 0 or 1, NOT a
+ * normalised boolean: the original emits `and`/`shr`, so writing `!= 0` or a
+ * ternary here would generate a setcc/test sequence instead. See the field_0a
+ * note in the tiff_t layout for why bit 7 of the byte at 0x0a (and not
+ * upstream's TIFF_ISTILED == 0x0400) is the tested flag.
+ *
+ * The `u` on the mask is load-bearing, not decoration. With a plain `0x80`
+ * MSVC 7.1 proves the mask redundant against a zero-extended byte load and
+ * folds `movsx`+`and` into a bare `movzx`, dropping the `and` entirely (7
+ * instructions, 80.0%). Forcing the mask into the unsigned domain keeps the
+ * `and` and reproduces the reference's 8-instruction shape (87.5%). Measured,
+ * not assumed: `(int)` casts, a named local, `/ 128`, and a volatile-qualified
+ * read all fold the same way and all score 80.0%.
+ *
+ * The single residual instruction is the load: the reference uses `movsx`, our
+ * VC71 build `movzx`. That is unreachable from source here -- every form that
+ * keeps the signed load also lets MSVC drop the `and`. The reference's
+ * `movsx`+`and 0x80` pair is itself the proof that the field is a SIGNED byte
+ * in Bungie's header (an unsigned field would have been loaded with `movzx`
+ * there too). The alternative reading -- a dword flags word at 0x08 with the
+ * mask 0x00800000 narrowed to a byte access, which would match upstream's
+ * field order -- was tested and disproven: MSVC 7.1 does not narrow it, it
+ * keeps the dword load and scores 75.0% for both signed and unsigned spellings.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return 1 when the handle is tiled, 0 when it is strip-based, in EAX.
+ */
+int TIFFIsTiled(void *tif)
+{
+  return (((tiff_t *)tif)->field_0a & 0x80u) >> 7;
+}
+
+/**
+ * Scanline index the handle's decoder/encoder is currently positioned at.
+ *
+ * Transcribed from the vendored libtiff (tif_open.c TIFFCurrentRow), whose
+ * body is literally `return tif->tif_row;`. Ghidra's cached listing has
+ * 0x6d8a0 as an empty `void(void)` body -- the void-EAX artifact
+ * (lift-learnings s16), since nothing in the cached listing consumes the
+ * return, and kb.json carried the same wrong `void TIFFCurrentRow(void)`
+ * prototype. The XBE bytes at 0x6d8a0-0x6d8ad are six instructions with one
+ * stack argument and an EAX return: `push ebp / mov ebp,esp / mov eax,[ebp+8]
+ * / mov eax,[eax+0xd4] / pop ebp / ret`. cdecl, no callee cleanup (plain
+ * `ret`, not `ret n`), no register arguments, no locals (there is no `sub
+ * esp`), so no `tiff_t *tif` temp is introduced here -- the cast happens
+ * inside the return expression, matching TIFFFileName, TIFFFileno,
+ * TIFFGetMode and TIFFIsTiled above.
+ *
+ * The load is a plain dword MOV, not MOVSX/MOVZX word or byte, so the field at
+ * 0xd4 is a full 32-bit value and there is no width-narrowing hazard here (the
+ * signed 16-bit reads that TIFFFileno and TIFFGetMode perform have no analogue
+ * in this function). Signedness is unobservable from a bare load; the field
+ * keeps upstream's unsigned typing.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return the current scanline index, in EAX.
+ */
+unsigned long TIFFCurrentRow(void *tif)
+{
+  return ((tiff_t *)tif)->tif_row;
+}
+
+/**
+ * Index of the IFD (image file directory) the handle is currently positioned
+ * at.
+ *
+ * Transcribed from the vendored libtiff (tif_open.c TIFFCurrentDirectory),
+ * whose body is literally `return tif->tif_curdir;`. Ghidra's cached listing
+ * has 0x6d8b0 as an empty `void(void)` body -- the void-EAX artifact
+ * (lift-learnings s16), since nothing in the cached listing consumes the
+ * return, and kb.json carried the same wrong `void TIFFCurrentDirectory(void)`
+ * prototype. The XBE bytes at 0x6d8b0-0x6d8bd are six instructions with one
+ * stack argument and an EAX return: `push ebp / mov ebp,esp / mov eax,[ebp+8]
+ * / mov eax,[eax+0xd8] / pop ebp / ret`. cdecl, no callee cleanup (plain
+ * `ret`, not `ret n`), no register arguments, no locals (there is no `sub
+ * esp`), so no `tiff_t *tif` temp is introduced here -- the cast happens
+ * inside the return expression, matching TIFFCurrentRow immediately above and
+ * the four accessors before it.
+ *
+ * The load is a plain dword MOV, not MOVZX word, so the field at 0xd8 is a
+ * full 32-bit value even though upstream's `tdir_t` is 16-bit; see the field
+ * comment on tif_curdir in the tiff_t layout.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return the current directory index, in EAX.
+ */
+unsigned long TIFFCurrentDirectory(void *tif)
+{
+  return ((tiff_t *)tif)->tif_curdir;
+}
+
+/**
+ * Index of the strip the handle's decoder/encoder is currently positioned at.
+ *
+ * Transcribed from the vendored libtiff (tif_open.c TIFFCurrentStrip), whose
+ * body is literally `return tif->tif_curstrip;`. Ghidra's cached listing has
+ * 0x6d8c0 as an empty `void(void)` body -- the void-EAX artifact
+ * (lift-learnings s16), since nothing in the cached listing consumes the
+ * return, and kb.json carried the same wrong `void TIFFCurrentStrip(void)`
+ * prototype. The XBE bytes at 0x6d8c0-0x6d8cd are six instructions with one
+ * stack argument and an EAX return: `push ebp / mov ebp,esp / mov eax,[ebp+8]
+ * / mov eax,[eax+0xdc] / pop ebp / ret`. cdecl, no callee cleanup (plain
+ * `ret`, not `ret n`), no register arguments, no locals (there is no `sub
+ * esp`), so no `tiff_t *tif` temp is introduced here -- the cast happens
+ * inside the return expression, matching TIFFCurrentDirectory and
+ * TIFFCurrentRow immediately above.
+ *
+ * The load is a plain dword MOV, not MOVSX/MOVZX word or byte, so the field at
+ * 0xdc is a full 32-bit value and there is no width-narrowing hazard here.
+ * Signedness is unobservable from a bare load; the field keeps upstream's
+ * unsigned typing.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return the current strip index, in EAX.
+ */
+unsigned long TIFFCurrentStrip(void *tif)
+{
+  return ((tiff_t *)tif)->tif_curstrip;
+}
+
+/**
+ * Index of the tile the handle's decoder/encoder is currently positioned at.
+ *
+ * Transcribed from the vendored libtiff (tif_open.c TIFFCurrentTile), whose
+ * body is literally `return tif->tif_curtile;`. Ghidra's cached listing has
+ * 0x6d8d0 as an empty `void(void)` body -- the void-EAX artifact
+ * (lift-learnings s16), since nothing in the cached listing consumes the
+ * return, and kb.json carried the same wrong `void TIFFCurrentTile(void)`
+ * prototype. The XBE bytes at 0x6d8d0-0x6d8dd are six instructions with one
+ * stack argument and an EAX return: `push ebp / mov ebp,esp / mov eax,[ebp+8]
+ * / mov eax,[eax+0xe8] / pop ebp / ret`. cdecl, no callee cleanup (plain
+ * `ret`, not `ret n`), no register arguments, no locals (there is no `sub
+ * esp`), so no `tiff_t *tif` temp is introduced here -- the cast happens
+ * inside the return expression, matching TIFFCurrentStrip immediately above.
+ *
+ * The load is a plain dword MOV, not MOVSX/MOVZX word or byte, so the field at
+ * 0xe8 is a full 32-bit value and there is no width-narrowing hazard here.
+ * Offset 0xe8 previously sat inside pad_0e0[0x10]; a `pad_` field proven read
+ * is a recovery bug, so the pad is split here without moving any neighbour
+ * (0xe0 + 8 + 4 + 4 == 0xf0, the codec vtable base, unchanged).
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return the current tile index, in EAX.
+ */
+unsigned long TIFFCurrentTile(void *tif)
+{
+  return ((tiff_t *)tif)->tif_curtile;
+}
+
+/* MSVC CRT open() oflag bits, named from the immediates the binary actually
+ * pushes/ORs at 0x6d910-0x6d962. _O_RDONLY is 0, so it never appears as an
+ * operand -- the 'r' arm materialises it with `xor eax,eax`. Guarded because
+ * the CRT's own fcntl.h may already be in scope under some toolchains. */
+#ifndef _O_RDONLY
+#define _O_RDONLY 0x0000
+#endif
+#ifndef _O_RDWR
+#define _O_RDWR 0x0002
+#endif
+#ifndef _O_CREAT
+#define _O_CREAT 0x0100
+#endif
+#ifndef _O_TRUNC
+#define _O_TRUNC 0x0200
+#endif
+#ifndef _O_BINARY
+#define _O_BINARY 0x8000
+#endif
+
+/* pmode passed as open()'s third argument: 0666, pushed literally as 0x1b6. */
+#define TIFF_OPEN_PMODE 0x01b6
+
+/**
+ * Open a TIFF file by path and return a handle, or 0 on failure.
+ *
+ * Transcribed from the vendored libtiff (tif_open.c TIFFOpen) rather than
+ * reshaped from the decompiler, keeping upstream's separate `_TIFFgetMode`
+ * helper above -- which the binary's block layout proves was the real source
+ * shape. Folding the helper's switch directly into this function instead
+ * compiles to the same instructions in a different order and scores 82.6%;
+ * the two-function form scores 100.0% (59/59). Two details give it away:
+ *
+ *  - `_TIFFgetMode` returns a sentinel `m = -1` that upstream's caller tests
+ *    with `if (m == -1) return 0;`. After inlining, that test is statically
+ *    true on the default arm and statically false everywhere else, so MSVC
+ *    deletes it -- which is why no `cmp eax,-1` survives at 0x6d8e0 even
+ *    though the sentinel is what makes the source well-formed.
+ *  - The inlined arms are laid out around the deleted test: the 'r' arm at
+ *    0x6d910 FALLS THROUGH into the shared open() block at 0x6d91f, while the
+ *    'w'/'a' arm is exiled to 0x6d954 (past both error returns) and jumps
+ *    back. Writing the switch inline instead makes both arms jump forward to
+ *    the shared block, costing an extra `jmp` and reversing the placement.
+ *
+ * The rest of the body reads directly off the disassembly:
+ *
+ *  - Upstream's `switch (mode[0])` over 'r' / 'w' / 'a' comes out as an
+ *    ascending compare chain at 0x6d8e7-0x6d8f6 (`cmp cl,0x61` 'a',
+ *    `cmp cl,0x72` 'r', `cmp cl,0x77` 'w'), so the source case order is not
+ *    recoverable from the branch order and upstream's r/w/a is kept.
+ *  - The 'r' arm at 0x6d910 is `xor eax,eax / cmp cl,0x2b / jnz / mov eax,2`,
+ *    i.e. upstream's `m = O_RDONLY; if (mode[1] == '+') m = O_RDWR;`.
+ *  - 'w' and 'a' share ONE tail at 0x6d954 that re-tests mode[0]
+ *    (`cmp cl,0x77 / mov eax,0x102 / jnz / mov eax,0x302`). That is upstream's
+ *    fallthrough `case 'w': case 'a':` arm, with `m |= O_TRUNC` const-folded
+ *    into the 0x302 immediate. Note the '+' suffix is NOT examined for 'w'/'a'
+ *    in this libtiff revision.
+ *  - All three arms converge on the single block at 0x6d91f, so `O_BINARY` is
+ *    OR'd at the call site (`or eax,0x8000` immediately before the push) and
+ *    the open() call is NOT duplicated per case.
+ *
+ * Ghidra's cached listing degrades this into `FID_conflict___open()` with an
+ * `extraout_EAX`, purely because kb.json carried `void __open(void)` and
+ * `void TIFFFdOpen(void)` -- the void-EAX artifact (lift-learnings s16). Both
+ * results are consumed here: open()'s fd is the value tested, and TIFFFdOpen's
+ * EAX is this function's return value, flowing straight through with no `mov`.
+ * Both prototypes are corrected in kb.json alongside this port; no register
+ * arguments are involved anywhere in this function.
+ *
+ * The failure test at 0x6d937 is `test eax,eax / jge`, i.e. a SIGNED `< 0`
+ * check on the descriptor, not a zero check -- open() returns -1 on error.
+ *
+ * @param path file to open, forwarded to open() and to the error message.
+ * @param mode libtiff mode string; only mode[0] (and mode[1] for 'r') is read.
+ * @return the TIFF handle from TIFFFdOpen, or 0 if the mode is bad or the
+ *         file cannot be opened.
+ */
+/* Upstream libtiff's mode-string decoder, kept as its own static function
+ * because that is what the binary's block layout proves the source looked
+ * like -- see the FUN_0006d8e0 comment below. It is inlined into its single
+ * caller at /O2, so it contributes no call of its own. */
+static int _TIFFgetMode(const char *mode, const char *module)
+{
+  int m = -1;
+
+  switch (mode[0]) {
+  case 'r':
+    m = _O_RDONLY;
+    if (mode[1] == '+') {
+      m = _O_RDWR;
+    }
+    break;
+  case 'w':
+  case 'a':
+    m = _O_RDWR | _O_CREAT;
+    if (mode[0] == 'w') {
+      m |= _O_TRUNC;
+    }
+    break;
+  default:
+    FUN_00068a30(module, "\"%s\": Bad mode", mode);
+    break;
+  }
+  return m;
+}
+
+int FUN_0006d8e0(const char *path, const char *mode)
+{
+  static const char module[] = "TIFFOpen";
+  int m;
+  int fd;
+
+  m = _TIFFgetMode(mode, module);
+  if (m == -1) {
+    return 0;
+  }
+  fd = __open(path, m | _O_BINARY, TIFF_OPEN_PMODE);
+  if (fd < 0) {
+    FUN_00068a30(module, "%s: Cannot open", path);
+    return 0;
+  }
+  return TIFFFdOpen(fd, path, mode);
+}
+
+/**
+ * Recompute the handle's cached row size after the directory changes.
+ *
+ * Ghidra's cached listing has 0x6d980 as `void(void)`: both the stack
+ * parameter and the EAX return are the void-EAX / dropped-parameter artifact
+ * (lift-learnings s16), so the disassembly at 0x6d980-0x6d9ba is the only
+ * usable evidence. Eleven instructions per arm, cdecl, one stack argument
+ * (`mov esi,[ebp+8]`), no locals -- there is no `sub esp`, so no `tiff_t *`
+ * temp is introduced, matching TIFFIsTiled and TIFFGetMode above.
+ *
+ * The argument is pushed ONCE at 0x6d98c, before the `jns` at 0x6d98d, and is
+ * shared by whichever CALL runs; each arm then does its own `add esp,4`. That
+ * is a scheduling detail of the original, not two different argument lists --
+ * both callees take the same single `tif` and return their result in EAX.
+ *
+ * The branch is a signed test of the byte at 0x0a (`mov al,[esi+0xa] / test
+ * al,al / jns`), i.e. the same bit-7 flag TIFFIsTiled returns; the sign-set
+ * (tiled) arm falls through to TIFFTileRowSize and the sign-clear arm jumps to
+ * TIFFScanlineSize. Written as `< 0` rather than via TIFFIsTiled because the
+ * original does not call it -- the flag is tested inline.
+ *
+ * 0x6f890 is upstream TIFFTileRowSize: its body at 0x6f890-0x6f8c0 matches
+ * upstream libtiff instruction for instruction (null-check td_tilelength at
+ * 0x2c and td_tilewidth at 0x28, `td_bitspersample * td_tilewidth`, `*=
+ * td_samplesperpixel` when td_planarconfig is PLANARCONFIG_CONTIG, then
+ * howmany8). It lives in tif_write.obj and keeps its mechanical name because
+ * the XBE import library is keyed on it, so only its kb.json prototype is
+ * corrected here; its body is not part of this port.
+ *
+ * UNRESOLVED: the destination offset 0x120 is written here with a byte count,
+ * but the same offset is a freeable pointer everywhere else in this TU --
+ * 0x6cac6 loads it, passes it to _TIFFfree and stores 0 back, and 0x6c96c
+ * dereferences it as the bit-writer state. Both readings are disassembly, not
+ * inference, so one of them is not `tif_data`. Upstream libtiff places
+ * tif_scanlinesize immediately after tif_data, which would put it at 0x124,
+ * not 0x120; nothing local decides between "Bungie reused the slot" and "the
+ * surrounding field boundaries are off by one word". Until that is settled the
+ * store stays an explicit raw-offset write rather than claiming a field name:
+ * spelling it `tif_data` would assert a pointer here, and inventing
+ * `tif_scanlinesize` would contradict the free at 0x6cac6. Codegen is
+ * identical either way (`mov [esi+0x120],eax`).
+ *
+ * The strip arm must be a CALL, not an inlined copy of TIFFScanlineSize. Both
+ * live in tif_open.c here only because kb.json lumps every vendored libtiff
+ * object into tif_open.obj; upstream keeps TIFFScanlineSize in tif_strip.c, and
+ * the reference's `call 0x6d820` proves the original saw it across a TU
+ * boundary. Left to itself MSVC 7.1 expands it (28 candidate instructions
+ * against 22 reference, 72.0%), so its definition is bracketed in
+ * `#pragma auto_inline(off)` -- 95.5% with an exact 22/22 instruction count,
+ * guarded to cl.exe only because clang rejects the pragma under -Werror and
+ * its codegen is not what is scored,
+ * and TIFFScanlineSize's own score is unchanged at 100.0%.
+ *
+ * The single residual instruction is the branch opcode: the reference selects
+ * `jns`, our VC71 build `jge`. Both follow the identical `test al,al` and are
+ * semantically the same edge here (the `test` clears OF), so this is MSVC's
+ * sign-test-versus-signed-relational peephole, not a different condition. The
+ * `< 0` spelling is what produces the matching `mov al` / `test al,al` pair in
+ * the first place; a mask spelling reaches `jns` only by way of a `movsx`+`and`
+ * that costs more than it recovers, the same trade documented on TIFFIsTiled
+ * above.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked, exactly as upstream.
+ * @return always 1; both arms end in `mov eax,1`.
+ */
+int FUN_0006d980(void *tif)
+{
+  if (((tiff_t *)tif)->field_0a < 0) {
+    *(int *)((char *)tif + 0x120) = FUN_0006f890(tif);
+    return 1;
+  }
+  *(int *)((char *)tif + 0x120) = TIFFScanlineSize((int)tif);
+  return 1;
+}
+
+/**
+ * PackBits (RLE) scanline encoder -- upstream libtiff's `PackBitsEncode` from
+ * tif_packbits.c, installed into tif_encoderow (0x100) by FUN_0006dd50 and
+ * called a row at a time by the strip/tile driver FUN_0006dd00.
+ *
+ * Transcribed from upstream rather than reshaped out of the decompiler
+ * (lift-learnings SS36): this TU is public libtiff. It is the OLDER upstream
+ * shape, matching the sibling decoder at 0x6dbf0 -- `char *op, *ep,
+ * *lastliteral` rather than 3.5.x's `tidata_t` (unsigned) trio. The binary
+ * settles that: the two ceiling tests on the literal count are SIGNED
+ * (`cmp cl,0x7e / jge` at 0x6db82, `cmp cl,0x7f` at 0x6dbb7), which an
+ * unsigned char pointer would have compiled to `jae`.
+ *
+ * Frame notes. `sub esp,0xc` buys exactly three DWORD slots -- [EBP-0x4]
+ * state, [EBP-0x8] the current byte, [EBP-0xc] the end pointer. That width
+ * is what pins `b` to upstream's `register int b` and `state` to a plain
+ * (int-sized) enum: byte-wide locals let MSVC pack the two into one slot and
+ * the frame comes out `sub esp,0x8`, which is what a first pass here scored
+ * 87.0% with. Ghidra rendering both as `char` is just narrowing of the
+ * movsx/byte-store traffic. `ep` is computed once at entry
+ * (`add ecx,[edx+0x12c]` at 0x6d9d8) rather than per iteration; `bp` and `cc`
+ * are the parameters themselves, mutated in their own argument slots,
+ * exactly as in FUN_0006dbf0.
+ *
+ * The buffer-space test at 0x6da60 is `lea ecx,[eax+2] / cmp ecx,esi / jc`,
+ * an UNSIGNED compare of `op + 2` against `ep` -- which is what plain C
+ * pointer comparison gives, so no cast is needed to reproduce it.
+ *
+ * The three `n > 128` chunking arms of BASE/LITERAL/RUN are written out
+ * separately here, as upstream has them; MSVC tail-merges them into the one
+ * shared block at 0x6db2f (`cmp ebx,0x80 / jle`, emit 0x81 + b, `sub ebx,0x80`,
+ * back to the space test). Do not hand-merge them in source to chase that.
+ *
+ * The LITERAL_RUN collapse assigns the next state from a comparison result
+ * rather than branching -- `setnz` at 0x6db8f, i.e. `(v != 127)` mapped onto
+ * BASE=0 / LITERAL=1 -- so it is written as a direct assignment, not as
+ * upstream's `== 127 ? BASE : LITERAL` ternary (flag-assign-before-call
+ * lever). The compound assignment's own value is used; the store back through
+ * `lastliteral` is the same instruction that feeds the test.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types). Never null-checked.
+ * @param bp   input scanline, advanced past every byte consumed.
+ * @param cc   input bytes remaining. Signed (`cmp dword ptr [ebp+0x10],1 /
+ *             jl` guards the loop), so a zero-length row falls straight to
+ *             the flush accounting.
+ * @param s    sample number. Upstream's `(void) s;`: the slot at [EBP+0x14]
+ *             is never read. Its presence is proven only by the caller
+ *             FUN_0006dd00 pushing four arguments, not by any read here.
+ * @return 1 on success (`mov eax,1` at 0x6da0d), -1 as soon as a
+ *         TIFFFlushData1 fails (`or eax,-1` at 0x6dbd1). Note this is the old
+ *         upstream convention; 4.x returns 0 there. The decompiler types the
+ *         body void because it drops both EAX writes (void-EAX hazard,
+ *         lift-learnings SS16).
+ */
+int FUN_0006d9c0(void *tif_, char *bp, int cc, int s)
+{
+  enum packbits_state { BASE = 0, LITERAL = 1, RUN = 2, LITERAL_RUN = 3 };
+  tiff_t *tif = (tiff_t *)tif_;
+  char *op;
+  char *ep;
+  char *lastliteral;
+  long n;
+  long slop;
+  int b;
+  enum packbits_state state;
+
+  (void)s;
+  op = (char *)tif->tif_rawcp;
+  ep = (char *)tif->tif_rawdata + tif->tif_rawdatasize;
+  state = BASE;
+  lastliteral = 0;
+  while (cc > 0) {
+    /* Find the longest string of identical bytes. */
+    b = *bp++, cc--, n = 1;
+    for (; cc > 0 && b == *bp; cc--, bp++) {
+      n++;
+    }
+  again:
+    if (op + 2 >= ep) { /* insure space for new data */
+      /* Be careful about writing the last literal: write up to that point,
+       * then copy the partial literal to the front of the freed block. */
+      if (state == LITERAL || state == LITERAL_RUN) {
+        slop = (long)(op - lastliteral);
+        tif->tif_rawcc += lastliteral - (char *)tif->tif_rawcp;
+        if (!TIFFFlushData1(tif)) {
+          return -1;
+        }
+        op = (char *)tif->tif_rawcp;
+        while (slop-- > 0) {
+          *op++ = *lastliteral++;
+        }
+        lastliteral = (char *)tif->tif_rawcp;
+      } else {
+        tif->tif_rawcc += op - (char *)tif->tif_rawcp;
+        if (!TIFFFlushData1(tif)) {
+          return -1;
+        }
+        op = (char *)tif->tif_rawcp;
+      }
+    }
+    switch (state) {
+    case BASE: /* initial state, set run/literal */
+      if (n > 1) {
+        state = RUN;
+        if (n > 128) {
+          *op++ = (char)-127;
+          *op++ = (char)b;
+          n -= 128;
+          goto again;
+        }
+        *op++ = (char)(-(n - 1));
+        *op++ = (char)b;
+      } else {
+        lastliteral = op;
+        *op++ = 0;
+        *op++ = (char)b;
+        state = LITERAL;
+      }
+      break;
+    case LITERAL: /* last object was literal string */
+      if (n > 1) {
+        state = LITERAL_RUN;
+        if (n > 128) {
+          *op++ = (char)-127;
+          *op++ = (char)b;
+          n -= 128;
+          goto again;
+        }
+        *op++ = (char)(-(n - 1)); /* encode run */
+        *op++ = (char)b;
+      } else { /* extend literal */
+        if (++(*lastliteral) == 127) {
+          state = BASE;
+        }
+        *op++ = (char)b;
+      }
+      break;
+    case RUN: /* last object was run */
+      if (n > 1) {
+        if (n > 128) {
+          *op++ = (char)-127;
+          *op++ = (char)b;
+          n -= 128;
+          goto again;
+        }
+        *op++ = (char)(-(n - 1));
+        *op++ = (char)b;
+      } else {
+        lastliteral = op;
+        *op++ = 0;
+        *op++ = (char)b;
+        state = LITERAL;
+      }
+      break;
+    case LITERAL_RUN: /* literal followed by a run */
+      /* If the previous run can be turned back into a literal, collapse
+       * literal-run-literal into a single literal. */
+      if (n == 1 && op[-2] == (char)-1 && *lastliteral < 126) {
+        state = (enum packbits_state)((*lastliteral += 2) != 127);
+        op[-2] = op[-1]; /* replicate */
+      } else {
+        state = RUN;
+      }
+      goto again;
+    }
+  }
+  tif->tif_rawcc += op - (char *)tif->tif_rawcp;
+  tif->tif_rawcp = (unsigned char *)op;
+  return 1;
+}
+
+/**
+ * PackBits (RLE) scanline decoder -- upstream libtiff's `PackBitsDecode`
+ * from tif_packbits.c, installed into tif_decoderow/decodestrip/decodetile
+ * by FUN_0006dd50.
+ *
+ * This is the OLDER upstream shape, not the 3.5.x one. `cc` is decremented
+ * exactly ONCE on the replicate path (`dec eax` at 0x6dc41, ahead of the -128
+ * test) and never again for the replicated data byte, whereas 3.5.x carries a
+ * second `cc--` alongside `b = *bp++`. Transcribing the newer upstream text
+ * here would consume one raw byte too many per run and desynchronise every
+ * following scanline. The literal path folds its two decrements into the
+ * single `sub eax,esi` at 0x6dca2, using the already pre-incremented count.
+ *
+ * The `if (n >= 128) n -= 256;` guard is upstream's defence against compilers
+ * that do not sign-extend `char`. It is dead on this target -- 0x6dc2b is
+ * `movsx esi, byte ptr [ebx]` -- but the compiler cannot know that and emits
+ * it anyway (`cmp esi,0x80 / jl / sub esi,0x100`, 0x6dc2f-0x6dc3a), so it is
+ * kept rather than folded away.
+ *
+ * The replicate fill stays as upstream's `while (n-- > 0) *op++ = b;` byte
+ * loop even though the binary carries a `rep stosd`/`rep stosb` pair, because
+ * both halves of the loop survive around it: the `test edx,edx / jle` at
+ * 0x6dc5d is the while's entry guard, and 0x6dc83 RELOADS `op` from its stack
+ * slot and adds the count rather than reusing the EDI the rep-string pair
+ * already left pointing there -- i.e. the fill was substituted for the loop
+ * body while `op`'s live-out value was still recomputed from source. What
+ * sits between (0x6dc64-0x6dc81: broadcast the byte through BL/BH into EAX,
+ * `shr ecx,2 / rep stosd`, `and ecx,3 / rep stosb`, count shifted LOGICALLY)
+ * is the compiler's fill expansion, not something the C says; writing an
+ * explicit memset call here is not an option either, since this build is
+ * `-nostdlib -ffreestanding -fno-builtin` and has no memset to link against.
+ * EBX (`bp`) is spilled at 0x6dc5f and restored at 0x6dc77 because the byte
+ * broadcast needs BL/BH.
+ *
+ * `op` and `occ` are the parameters themselves, mutated in place: the
+ * original spills them back into their own argument slots ([EBP+0xc] at
+ * 0x6dcad, [EBP+0x10] at 0x6dc56 and 0x6dca4) instead of keeping copies.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types). Never null-checked.
+ * @param op   output scanline buffer, advanced past each decoded run.
+ * @param occ  output bytes still wanted. Signed (`test edx,edx / jle` at
+ *             0x6dc23), and deliberately allowed to go negative -- a run that
+ *             overshoots ends the loop and lands in the error arm.
+ * @param s    sample number. Upstream's `(void) s;`: the frame slot at
+ *             [EBP+0x14] is never read.
+ * @return 1 when `occ` was fully satisfied (`mov eax,1` at 0x6dcee), 0 after
+ *         reporting the short scanline (`xor eax,eax` at 0x6dce8). The
+ *         decompiler types the body void because it drops both EAX writes
+ *         (void-EAX hazard, lift-learnings SS16); FUN_0006dd50 storing this
+ *         address into three `tiff_code_method_t` slots settles the shape.
+ */
+int FUN_0006dbf0(void *tif_, char *op, int occ, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  char *bp;
+  int cc;
+  int n;
+  int b;
+
+  (void)s;
+  bp = (char *)tif->tif_rawcp;
+  cc = tif->tif_rawcc;
+  while (cc > 0 && occ > 0) {
+    n = (int)*bp++;
+    /* Watch out for compilers that don't sign extend chars... */
+    if (n >= 128) {
+      n -= 256;
+    }
+    if (n < 0) { /* replicate next byte -n+1 times */
+      cc--;
+      if (n == -128) { /* nop */
+        continue;
+      }
+      n = -n + 1;
+      occ -= n;
+      b = *bp++;
+      while (n-- > 0) {
+        *op++ = b;
+      }
+    } else { /* copy next n+1 bytes literally */
+      csmemcpy(op, bp, ++n);
+      op += n;
+      occ -= n;
+      bp += n;
+      cc -= n;
+    }
+  }
+  tif->tif_rawcp = (unsigned char *)bp;
+  tif->tif_rawcc = cc;
+  if (occ > 0) {
+    FUN_00068a30(tif->tif_name,
+                 "PackBitsDecode: Not enough data for scanline %d",
+                 tif->tif_row);
+    return 0;
+  }
+  return 1;
+}
+
+/**
+ * Decode a whole strip/tile one row at a time.
+ *
+ * The row size is not recomputed here: it is the dword FUN_0006d980 caches at
+ * `tif + 0x120` (tiled handles get the tile row size, strip handles the
+ * scanline size), read ONCE at 0x6dd0d into callee-saved ESI and reused for
+ * every iteration -- both for the row-decoder argument and for the two
+ * advances. That hoist is the binary's, not ours; upstream libtiff recomputes
+ * the length per call site instead.
+ *
+ * Bungie's copy calls the row decoder directly (0x6dd2a `call 0x6d9c0`)
+ * rather than through a `tif_decoderow` slot, and reports failure with -1
+ * (`or eax,-1` at 0x6dd48) instead of upstream's 0/`cc == 0` convention. The
+ * success arm is `mov eax,1` at 0x6dd3e.
+ *
+ * The buffer advance (`add edi,esi` at 0x6dd38) is absent from the Ghidra
+ * decompilation of this function; it is present in the disassembly and is
+ * load-bearing -- without it every iteration decodes over the same bytes.
+ *
+ * @param tif TIFF handle (declared void* so the generated header needs no
+ *            libtiff types). Never null-checked.
+ * @param bp  strip/tile buffer, advanced one row per iteration.
+ * @param cc  byte count remaining. Signed throughout (`test ebx,ebx / jle`
+ *            guards entry and `jg` closes the loop), so a row size that
+ *            overshoots the remainder ends the loop rather than wrapping.
+ * @param s   sample number, reloaded from the frame each iteration and passed
+ *            through to the row decoder untouched.
+ * @return 1 when every row decoded (including the zero-length case, which
+ *         skips the loop entirely), -1 as soon as one row decoder call
+ *         returns negative.
+ */
+int FUN_0006dd00(void *tif, char *bp, int cc, int s)
+{
+  int rowsize = *(int *)((char *)tif + 0x120);
+
+  while (cc > 0) {
+    if (FUN_0006d9c0(tif, bp, rowsize, s) < 0) {
+      return -1;
+    }
+    cc -= rowsize;
+    bp += rowsize;
+  }
+  return 1;
+}
+
+/**
+ * Install the PackBits codec into the TIFF handle's codec vtable.
+ *
+ * Writes exactly seven of the twelve code slots: the three decode entries
+ * (0xfc/0x104/0x10c) all take FUN_0006dbf0, tif_setupencode (0xf4) takes
+ * FUN_0006d980, tif_encoderow (0x100) takes FUN_0006d9c0, and the two chunk
+ * encoders (0x108/0x110) take FUN_0006dd00. tif_setupdecode (0xf0),
+ * tif_postencode (0xf8) and tif_cleanup (0x11c) are deliberately NOT touched
+ * -- unlike the sibling installer FUN_0006d2d0, which writes ten slots.
+ *
+ * Note the encode side is not uniform: 0x100 gets FUN_0006d9c0 while
+ * 0x108/0x110 get FUN_0006dd00 (the row encoder vs. the strip/tile chunk
+ * encoder that loops over it). Collapsing all three onto one pointer, the way
+ * FUN_0006d2d0 legitimately does, would be wrong here.
+ *
+ * Inferred (not proven by any string in this build): this is upstream
+ * libtiff's TIFFInitPackBits, in a revision predating the tif_postencode
+ * assignment -- FUN_0006dbf0 = PackBitsDecode, FUN_0006d980 =
+ * PackBitsPreEncode, FUN_0006d9c0 = PackBitsEncode, FUN_0006dd00 =
+ * PackBitsEncodeChunk. The store order below is upstream's (decode group,
+ * setupencode, then encode group) and it reproduces the listing 1:1. The one
+ * apparent discrepancy is scheduling only: MSVC CSEs 0x6dbf0 into ECX for the
+ * three decode stores, then hoists the `mov ecx,0x6dd00` reload (0x6dd6d)
+ * above the two single-use immediate stores (0x6dd72, 0x6dd7c) that source
+ * order places before it. Do not reorder the source to chase that.
+ *
+ * The upstream `scheme` argument is absent: the frame reads only [EBP+8], and
+ * the caller-cleanup RET takes no second slot.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types). Never null-checked.
+ * @return always 1; `mov eax,0x1` at 0x6dd92, immediately before the epilogue.
+ *         The decompiler types this void because nothing in the cached
+ *         listing consumes EAX (void-EAX hazard, lift-learnings §16).
+ */
+int FUN_0006dd50(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  tif->tif_decoderow = (tiff_code_method_t)FUN_0006dbf0;
+  tif->tif_decodestrip = (tiff_code_method_t)FUN_0006dbf0;
+  tif->tif_decodetile = (tiff_code_method_t)FUN_0006dbf0;
+  tif->tif_setupencode = FUN_0006d980;
+  tif->tif_encoderow = FUN_0006d9c0;
+  tif->tif_encodestrip = FUN_0006dd00;
+  tif->tif_encodetile = FUN_0006dd00;
+  return 1;
+}
+
+/* ===========================================================================
+ * tif_print.c -- upstream libtiff TIFFPrintDirectory (0x6dda0).
+ *
+ * Transcribed from upstream libtiff 3.4's tif_print.c rather than reshaped
+ * from the decompiler, per the vendored-source rule: this is public library
+ * code, and the block order, the sep/comma accumulators and the two switch
+ * shapes all reproduce upstream verbatim once the directory is flattened into
+ * TIFF (every read here is `[esi+0xNN]`, never `tif->tif_dir.td_NN`).
+ *
+ * Two things are pinned to THIS binary rather than to upstream:
+ *   - the FIELD_* bit numbering (see td_fieldsset above),
+ *   - SAMPLEFORMAT_INT == 1 / SAMPLEFORMAT_UINT == 2, proven by the jump table
+ *     at 0x6e714: index 0 (value 1) lands on 0x6dfae, which pushes
+ *     "signed integer\n". Later libtiff releases swap those two values.
+ *
+ * The per-case `fprintf(fd, "<literal>")` calls in the resolution-unit,
+ * threshholding, fill-order, predictor, planar-config and fax-data switches
+ * are written out one per case, as upstream has them, NOT hoisted into a
+ * `sep = "..."` variable. The binary shows `PUSH <imm>; JMP <shared call>` at
+ * each arm (e.g. 0x6df0e/0x6df15/0x6df1c -> 0x6df21), i.e. MSVC tail-merged
+ * separate calls; a real string variable would have produced `MOV EAX,<imm>;
+ * PUSH EAX` instead -- which is exactly what the genuine sep accumulators at
+ * 0x6ddd9 and 0x6e4c4 do look like.
+ * ======================================================================== */
+
+/* Bit indices into tiff_t::td_fieldsset. Derived from the tests in
+ * TIFFPrintDirectory, not imported from upstream -- see td_fieldsset. */
+#define FIELD_IMAGEDIMENSIONS 0
+#define FIELD_TILEDIMENSIONS 1
+#define FIELD_RESOLUTION 3
+#define FIELD_POSITION 4
+#define FIELD_SUBFILETYPE 5
+#define FIELD_BITSPERSAMPLE 6
+#define FIELD_COMPRESSION 7
+#define FIELD_PHOTOMETRIC 8
+#define FIELD_THRESHHOLDING 9
+#define FIELD_FILLORDER 10
+#define FIELD_DOCUMENTNAME 11
+#define FIELD_IMAGEDESCRIPTION 12
+#define FIELD_MAKE 13
+#define FIELD_MODEL 14
+#define FIELD_ORIENTATION 15
+#define FIELD_SAMPLESPERPIXEL 16
+#define FIELD_ROWSPERSTRIP 17
+#define FIELD_MINSAMPLEVALUE 18
+#define FIELD_MAXSAMPLEVALUE 19
+#define FIELD_PLANARCONFIG 20
+#define FIELD_PAGENAME 21
+#define FIELD_GROUP3OPTIONS 22
+#define FIELD_GROUP4OPTIONS 23
+#define FIELD_RESOLUTIONUNIT 24
+#define FIELD_PAGENUMBER 25
+#define FIELD_STRIPOFFSETS 27
+#define FIELD_COLORMAP 28
+#define FIELD_PREDICTOR 29
+#define FIELD_ARTIST 30
+#define FIELD_DATETIME 31
+#define FIELD_HOSTCOMPUTER 32
+#define FIELD_SOFTWARE 33
+#define FIELD_MATTEING 34
+#define FIELD_BADFAXLINES 35
+#define FIELD_CLEANFAXDATA 36
+#define FIELD_CONSECUTIVEBADFAXLINES 37
+#define FIELD_SAMPLEFORMAT 38
+#define FIELD_IMAGEDEPTH 41
+#define FIELD_TILEDEPTH 42
+#define FIELD_HALFTONEHINTS 43
+
+#define TIFFFieldSet(tif, field) \
+  ((tif)->td_fieldsset[(field) / 32] & (1UL << ((field) % 32)))
+
+/* Caller-selectable detail flags, third parameter. Only two of upstream's
+ * three are read here: bit 0 at 0x6e698 and bit 2 at 0x6e623. */
+#define TIFFPRINT_STRIPS 0x1
+#define TIFFPRINT_COLORMAP 0x4
+
+#define FILETYPE_REDUCEDIMAGE 0x1
+#define FILETYPE_PAGE 0x2
+#define FILETYPE_MASK 0x4
+
+#define GROUP3OPT_2DENCODING 0x1
+#define GROUP3OPT_UNCOMPRESSED 0x2
+#define GROUP3OPT_FILLBITS 0x4
+#define GROUP4OPT_UNCOMPRESSED 0x2
+
+#define RESUNIT_NONE 1
+#define RESUNIT_INCH 2
+#define RESUNIT_CENTIMETER 3
+
+/* Old-style TIFF 5.0 numbering; see the file comment above. */
+#define SAMPLEFORMAT_INT 1
+#define SAMPLEFORMAT_UINT 2
+#define SAMPLEFORMAT_IEEEFP 3
+#define SAMPLEFORMAT_VOID 4
+
+#define COMPRESSION_NONE 1
+#define COMPRESSION_CCITTRLE 2
+#define COMPRESSION_CCITTFAX3 3
+#define COMPRESSION_CCITTFAX4 4
+#define COMPRESSION_LZW 5
+#define COMPRESSION_JPEG 6
+#define COMPRESSION_NEXT 32766
+#define COMPRESSION_CCITTRLEW 32771
+#define COMPRESSION_PACKBITS 32773
+#define COMPRESSION_THUNDERSCAN 32809
+
+#define THRESHHOLD_BILEVEL 1
+#define THRESHHOLD_HALFTONE 2
+#define THRESHHOLD_ERRORDIFFUSE 3
+
+#define FILLORDER_MSB2LSB 1
+#define FILLORDER_LSB2MSB 2
+
+#define PREDICTOR_NONE 1
+#define PREDICTOR_HORIZONTAL 2
+
+#define PLANARCONFIG_CONTIG 1
+#define PLANARCONFIG_SEPARATE 2
+
+#define CLEANFAXDATA_CLEAN 0
+#define CLEANFAXDATA_REGENERATED 1
+#define CLEANFAXDATA_UNCLEAN 2
+
+/* Both tables are nine entries of `const char *` in .rdata, at 0x2eca34 and
+ * 0x2eca58; the strings themselves are 0x2607e4-0x260850 and
+ * 0x26071c-0x2607dc. Indexed directly by the tag value after an unsigned
+ * `< 9` bound check (0x6e117, 0x6e37b). */
+static const char *tiff_photo_names[] = { "min-is-white",
+                                          "min-is-black",
+                                          "RGB color",
+                                          "palette color (RGB from colormap)",
+                                          "transparency mask",
+                                          "separated",
+                                          "YCbCr",
+                                          "7 (0x7)",
+                                          "CIE L*a*b*" };
+#define NPHOTONAMES (sizeof(tiff_photo_names) / sizeof(tiff_photo_names[0]))
+
+static const char *tiff_orient_names[] = { "0 (0x0)",
+                                           "row 0 top, col 0 lhs",
+                                           "row 0 top, col 0 rhs",
+                                           "row 0 bottom, col 0 rhs",
+                                           "row 0 bottom, col 0 lhs",
+                                           "row 0 lhs, col 0 top",
+                                           "row 0 rhs, col 0 top",
+                                           "row 0 rhs, col 0 bottom",
+                                           "row 0 lhs, col 0 bottom" };
+#define NORIENTNAMES (sizeof(tiff_orient_names) / sizeof(tiff_orient_names[0]))
+
+void TIFFPrintDirectory(void *tif_, void *fd, long flags)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  const char *sep;
+  long l;
+  long n;
+  unsigned long s;
+
+  crt_fprintf(fd, "TIFF Directory at offset 0x%x\n", tif->tif_diroff);
+  if (TIFFFieldSet(tif, FIELD_SUBFILETYPE)) {
+    crt_fprintf(fd, "  Subfile Type:");
+    sep = " ";
+    if (tif->td_subfiletype & FILETYPE_REDUCEDIMAGE) {
+      crt_fprintf(fd, "%sreduced-resolution image", sep);
+      sep = "/";
+    }
+    if (tif->td_subfiletype & FILETYPE_PAGE) {
+      crt_fprintf(fd, "%smulti-page document", sep);
+      sep = "/";
+    }
+    if (tif->td_subfiletype & FILETYPE_MASK) {
+      crt_fprintf(fd, "%stransparency mask", sep);
+    }
+    crt_fprintf(fd, " (%u = 0x%x)\n", tif->td_subfiletype, tif->td_subfiletype);
+  }
+  if (TIFFFieldSet(tif, FIELD_IMAGEDIMENSIONS)) {
+    crt_fprintf(fd, "  Image Width: %lu Image Length: %lu", tif->td_imagewidth,
+                tif->td_imagelength);
+    if (TIFFFieldSet(tif, FIELD_IMAGEDEPTH)) {
+      crt_fprintf(fd, " Image Depth: %lu", tif->td_imagedepth);
+    }
+    crt_fprintf(fd, "\n");
+  }
+  if (TIFFFieldSet(tif, FIELD_TILEDIMENSIONS)) {
+    crt_fprintf(fd, "  Tile Width: %lu Tile Length: %lu", tif->td_tilewidth,
+                tif->td_tilelength);
+    if (TIFFFieldSet(tif, FIELD_TILEDEPTH)) {
+      crt_fprintf(fd, " Tile Depth: %lu", tif->td_tiledepth);
+    }
+    crt_fprintf(fd, "\n");
+  }
+  if (TIFFFieldSet(tif, FIELD_RESOLUTION)) {
+    crt_fprintf(fd, "  Resolution: %g, %g", tif->td_xresolution,
+                tif->td_yresolution);
+    if (TIFFFieldSet(tif, FIELD_RESOLUTIONUNIT)) {
+      switch (tif->td_resolutionunit) {
+      case RESUNIT_NONE:
+        crt_fprintf(fd, " (unitless)");
+        break;
+      case RESUNIT_INCH:
+        crt_fprintf(fd, " pixels/inch");
+        break;
+      case RESUNIT_CENTIMETER:
+        crt_fprintf(fd, " pixels/cm");
+        break;
+      default:
+        crt_fprintf(fd, " (unit %u = 0x%x)", tif->td_resolutionunit,
+                    tif->td_resolutionunit);
+        break;
+      }
+    }
+    crt_fprintf(fd, "\n");
+  }
+  if (TIFFFieldSet(tif, FIELD_POSITION)) {
+    crt_fprintf(fd, "  Position: %g, %g\n", tif->td_xposition,
+                tif->td_yposition);
+  }
+  if (TIFFFieldSet(tif, FIELD_BITSPERSAMPLE)) {
+    crt_fprintf(fd, "  Bits/Sample: %u\n", tif->td_bitspersample);
+  }
+  if (TIFFFieldSet(tif, FIELD_SAMPLEFORMAT)) {
+    crt_fprintf(fd, "  Sample Format: ");
+    switch (tif->td_sampleformat) {
+    case SAMPLEFORMAT_VOID:
+      crt_fprintf(fd, "void\n");
+      break;
+    case SAMPLEFORMAT_INT:
+      crt_fprintf(fd, "signed integer\n");
+      break;
+    case SAMPLEFORMAT_UINT:
+      crt_fprintf(fd, "unsigned integer\n");
+      break;
+    case SAMPLEFORMAT_IEEEFP:
+      crt_fprintf(fd, "IEEE floating point\n");
+      break;
+    default:
+      crt_fprintf(fd, "%u (0x%x)\n", tif->td_sampleformat,
+                  tif->td_sampleformat);
+      break;
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_COMPRESSION)) {
+    crt_fprintf(fd, "  Compression Scheme: ");
+    switch (tif->td_compression) {
+    case COMPRESSION_NONE:
+      crt_fprintf(fd, "none\n");
+      break;
+    case COMPRESSION_CCITTRLE:
+      crt_fprintf(fd, "CCITT modified Huffman encoding\n");
+      break;
+    case COMPRESSION_CCITTFAX3:
+      crt_fprintf(fd, "CCITT Group 3 facsimile encoding\n");
+      break;
+    case COMPRESSION_CCITTFAX4:
+      crt_fprintf(fd, "CCITT Group 4 facsimile encoding\n");
+      break;
+    case COMPRESSION_LZW:
+      crt_fprintf(fd, "Lempel-Ziv & Welch encoding\n");
+      break;
+    case COMPRESSION_JPEG:
+      crt_fprintf(fd, "JPEG encoding\n");
+      break;
+    case COMPRESSION_NEXT:
+      crt_fprintf(fd, "NeXT 2-bit encoding\n");
+      break;
+    case COMPRESSION_CCITTRLEW:
+      crt_fprintf(fd, "CCITT modified Huffman encoding %s\n",
+                  "w/ word alignment");
+      break;
+    case COMPRESSION_PACKBITS:
+      crt_fprintf(fd, "Macintosh PackBits encoding\n");
+      break;
+    case COMPRESSION_THUNDERSCAN:
+      crt_fprintf(fd, "ThunderScan 4-bit encoding\n");
+      break;
+    default:
+      crt_fprintf(fd, "%u (0x%x)\n", tif->td_compression, tif->td_compression);
+      break;
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_PHOTOMETRIC)) {
+    crt_fprintf(fd, "  Photometric Interpretation: ");
+    if (tif->td_photometric < NPHOTONAMES) {
+      crt_fprintf(fd, "%s\n", tiff_photo_names[tif->td_photometric]);
+    } else {
+      crt_fprintf(fd, "%u (0x%x)\n", tif->td_photometric, tif->td_photometric);
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_MATTEING)) {
+    crt_fprintf(fd, "  Matteing: %s\n",
+                tif->td_matteing ? "pre-multiplied with alpha channel" :
+                                   "none");
+  }
+  if (TIFFFieldSet(tif, FIELD_THRESHHOLDING)) {
+    crt_fprintf(fd, "  Thresholding: ");
+    switch (tif->td_threshholding) {
+    case THRESHHOLD_BILEVEL:
+      crt_fprintf(fd, "bilevel art scan\n");
+      break;
+    case THRESHHOLD_HALFTONE:
+      crt_fprintf(fd, "halftone or dithered scan\n");
+      break;
+    case THRESHHOLD_ERRORDIFFUSE:
+      crt_fprintf(fd, "error diffused\n");
+      break;
+    default:
+      crt_fprintf(fd, "%u (0x%x)\n", tif->td_threshholding,
+                  tif->td_threshholding);
+      break;
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_FILLORDER)) {
+    crt_fprintf(fd, "  FillOrder: ");
+    switch (tif->td_fillorder) {
+    case FILLORDER_MSB2LSB:
+      crt_fprintf(fd, "msb-to-lsb\n");
+      break;
+    case FILLORDER_LSB2MSB:
+      crt_fprintf(fd, "lsb-to-msb\n");
+      break;
+    default:
+      crt_fprintf(fd, "%u (0x%x)\n", tif->td_fillorder, tif->td_fillorder);
+      break;
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_PREDICTOR)) {
+    crt_fprintf(fd, "  Predictor: ");
+    switch (tif->td_predictor) {
+    case PREDICTOR_NONE:
+      crt_fprintf(fd, "none\n");
+      break;
+    case PREDICTOR_HORIZONTAL:
+      crt_fprintf(fd, "horizontal differencing\n");
+      break;
+    default:
+      crt_fprintf(fd, "%u (0x%x)\n", tif->td_predictor, tif->td_predictor);
+      break;
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_HALFTONEHINTS)) {
+    crt_fprintf(fd, "  Halftone Hints: light %u dark %u\n",
+                tif->td_halftonehints[0], tif->td_halftonehints[1]);
+  }
+  if (TIFFFieldSet(tif, FIELD_ARTIST)) {
+    crt_fprintf(fd, "  Artist: \"%s\"\n", tif->td_artist);
+  }
+  if (TIFFFieldSet(tif, FIELD_DATETIME)) {
+    crt_fprintf(fd, "  Date & Time: \"%s\"\n", tif->td_datetime);
+  }
+  if (TIFFFieldSet(tif, FIELD_HOSTCOMPUTER)) {
+    crt_fprintf(fd, "  Host Computer: \"%s\"\n", tif->td_hostcomputer);
+  }
+  if (TIFFFieldSet(tif, FIELD_SOFTWARE)) {
+    crt_fprintf(fd, "  Software: \"%s\"\n", tif->td_software);
+  }
+  if (TIFFFieldSet(tif, FIELD_DOCUMENTNAME)) {
+    crt_fprintf(fd, "  Document Name: \"%s\"\n", tif->td_documentname);
+  }
+  if (TIFFFieldSet(tif, FIELD_IMAGEDESCRIPTION)) {
+    crt_fprintf(fd, "  Image Description: \"%s\"\n", tif->td_imagedescription);
+  }
+  if (TIFFFieldSet(tif, FIELD_MAKE)) {
+    crt_fprintf(fd, "  Make: \"%s\"\n", tif->td_make);
+  }
+  if (TIFFFieldSet(tif, FIELD_MODEL)) {
+    crt_fprintf(fd, "  Model: \"%s\"\n", tif->td_model);
+  }
+  if (TIFFFieldSet(tif, FIELD_ORIENTATION)) {
+    crt_fprintf(fd, "  Orientation: ");
+    if (tif->td_orientation < NORIENTNAMES) {
+      crt_fprintf(fd, "%s\n", tiff_orient_names[tif->td_orientation]);
+    } else {
+      crt_fprintf(fd, "%u (0x%x)\n", tif->td_orientation, tif->td_orientation);
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_SAMPLESPERPIXEL)) {
+    crt_fprintf(fd, "  Samples/Pixel: %u\n", tif->td_samplesperpixel);
+  }
+  if (TIFFFieldSet(tif, FIELD_ROWSPERSTRIP)) {
+    crt_fprintf(fd, "  Rows/Strip: ");
+    if (tif->td_rowsperstrip == (unsigned long)-1) {
+      crt_fprintf(fd, "(infinite)\n");
+    } else {
+      crt_fprintf(fd, "%u\n", tif->td_rowsperstrip);
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_MINSAMPLEVALUE)) {
+    crt_fprintf(fd, "  Min Sample Value: %u\n", tif->td_minsamplevalue);
+  }
+  if (TIFFFieldSet(tif, FIELD_MAXSAMPLEVALUE)) {
+    crt_fprintf(fd, "  Max Sample Value: %u\n", tif->td_maxsamplevalue);
+  }
+  if (TIFFFieldSet(tif, FIELD_PLANARCONFIG)) {
+    crt_fprintf(fd, "  Planar Configuration: ");
+    switch (tif->td_planarconfig) {
+    case PLANARCONFIG_CONTIG:
+      crt_fprintf(fd, "single image plane\n");
+      break;
+    case PLANARCONFIG_SEPARATE:
+      crt_fprintf(fd, "separate image planes\n");
+      break;
+    default:
+      crt_fprintf(fd, "%u (0x%x)\n", tif->td_planarconfig,
+                  tif->td_planarconfig);
+      break;
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_PAGENAME)) {
+    crt_fprintf(fd, "  Page Name: \"%s\"\n", tif->td_pagename);
+  }
+  if (TIFFFieldSet(tif, FIELD_GROUP3OPTIONS)) {
+    crt_fprintf(fd, "  Group 3 Options:");
+    sep = " ";
+    if (tif->td_group3options & GROUP3OPT_2DENCODING) {
+      crt_fprintf(fd, "%s2-d encoding", sep);
+      sep = "+";
+    }
+    if (tif->td_group3options & GROUP3OPT_FILLBITS) {
+      crt_fprintf(fd, "%sEOL padding", sep);
+      sep = "+";
+    }
+    if (tif->td_group3options & GROUP3OPT_UNCOMPRESSED) {
+      crt_fprintf(fd, "%suncompressed data", sep);
+    }
+    crt_fprintf(fd, " (%u = 0x%x)\n", tif->td_group3options,
+                tif->td_group3options);
+  }
+  if (TIFFFieldSet(tif, FIELD_CLEANFAXDATA)) {
+    crt_fprintf(fd, "  Fax Data: ");
+    switch (tif->td_cleanfaxdata) {
+    case CLEANFAXDATA_CLEAN:
+      crt_fprintf(fd, "clean\n");
+      break;
+    case CLEANFAXDATA_REGENERATED:
+      crt_fprintf(fd, "receiver regenerated\n");
+      break;
+    case CLEANFAXDATA_UNCLEAN:
+      crt_fprintf(fd, "uncorrected errors\n");
+      break;
+    default:
+      crt_fprintf(fd, "(%u = 0x%x)\n", tif->td_cleanfaxdata,
+                  tif->td_cleanfaxdata);
+      break;
+    }
+  }
+  if (TIFFFieldSet(tif, FIELD_BADFAXLINES)) {
+    crt_fprintf(fd, "  Bad Fax Lines: %u\n", tif->td_badfaxlines);
+  }
+  if (TIFFFieldSet(tif, FIELD_CONSECUTIVEBADFAXLINES)) {
+    crt_fprintf(fd, "  Consecutive Bad Fax Lines: %u\n",
+                tif->td_consecutivebadfaxlines);
+  }
+  if (TIFFFieldSet(tif, FIELD_GROUP4OPTIONS)) {
+    crt_fprintf(fd, "  Group 4 Options:");
+    /* No `%s` separator here -- 0x6e5c3 pushes only the format, ADD ESP,8. */
+    if (tif->td_group4options & GROUP4OPT_UNCOMPRESSED) {
+      crt_fprintf(fd, "uncompressed data");
+    }
+    crt_fprintf(fd, " (%u = 0x%x)\n", tif->td_group4options,
+                tif->td_group4options);
+  }
+  if (TIFFFieldSet(tif, FIELD_PAGENUMBER)) {
+    crt_fprintf(fd, "  Page Number: %u-%u\n", tif->td_pagenumber[0],
+                tif->td_pagenumber[1]);
+  }
+  if (TIFFFieldSet(tif, FIELD_COLORMAP)) {
+    crt_fprintf(fd, "  Color Map: ");
+    if (flags & TIFFPRINT_COLORMAP) {
+      crt_fprintf(fd, "\n");
+      n = 1L << tif->td_bitspersample;
+      for (l = 0; l < n; l++) {
+        crt_fprintf(fd, "   %5d: %5u %5u %5u\n", l, tif->td_colormap[0][l],
+                    tif->td_colormap[1][l], tif->td_colormap[2][l]);
+      }
+    } else {
+      crt_fprintf(fd, "(present)\n");
+    }
+  }
+  if ((flags & TIFFPRINT_STRIPS) && TIFFFieldSet(tif, FIELD_STRIPOFFSETS)) {
+    /* `tif->field_0a < 0` and not `& 0x80`: 0x6e6a7 loads the byte and does a
+     * bare `TEST AL,AL / JS`, i.e. a sign test, the same shape TIFFIsTiled
+     * (0x6d880) reads. */
+    crt_fprintf(fd, "  %u %s:\n", tif->td_nstrips,
+                tif->field_0a < 0 ? "Tiles" : "Strips");
+    for (s = 0; s < tif->td_nstrips; s++) {
+      crt_fprintf(fd, "    %3d: [%8u, %8u]\n", s, tif->td_stripoffset[s],
+                  tif->td_stripbytecount[s]);
+    }
+  }
+}

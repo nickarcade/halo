@@ -301,7 +301,7 @@
     },
     {
      "addr": "0x6c080",
-     "decl": "void FUN_0006c080(void);"
+     "decl": "int FUN_0006c080(void *tif, unsigned long rwidth, unsigned long height, unsigned long *raster);"
     },
     {
      "addr": "0x74fb0",
@@ -489,7 +489,7 @@
     },
     {
      "addr": "0x150790",
-     "decl": "void FUN_00150790(void);"
+     "decl": "void FUN_00150790(int param_1, int param_2, float param_3, int param_4, int param_5, int param_6);"
     },
     {
      "addr": "0x150840",
@@ -509,7 +509,7 @@
     },
     {
      "addr": "0x150b60",
-     "decl": "void FUN_00150b60(void);"
+     "decl": "char FUN_00150b60(void *ctx, void *origin, void *direction, void *out);"
     },
     {
      "addr": "0x150c80",
@@ -1850,7 +1850,7 @@
     },
     {
      "addr": "0x1e4eb2",
-     "decl": "void __open(void);"
+     "decl": "int __open(const char *path, int oflag, int pmode);"
     },
     {
      "addr": "0x1e4ef7",
@@ -3305,7 +3305,7 @@
     {
      "addr": "0x15bb0",
      "decl": "void FUN_00015bb0(int actor_handle /* @<eax> */);",
-     "ported": true
+     "ported": false
     },
     {
      "addr": "0x15cf0",
@@ -3714,7 +3714,7 @@
     {
      "addr": "0x28660",
      "decl": "char FUN_00028660(int actor_handle, short *look_spec @<ebx>, float *direction @<edi>);",
-     "ported": true
+     "ported": false
     },
     {
      "addr": "0x28cc0",
@@ -4684,7 +4684,8 @@
    "functions": [
     {
      "addr": "0xa54b0",
-     "decl": "void FUN_000a54b0(void);"
+     "decl": "void FUN_000a54b0(void);",
+     "ported": true
     },
     {
      "addr": "0xa5590",
@@ -4716,7 +4717,8 @@
     },
     {
      "addr": "0xa5830",
-     "decl": "void FUN_000a5830(void);"
+     "decl": "char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4);",
+     "ported": false
     },
     {
      "addr": "0xa5920",
@@ -4736,11 +4738,16 @@
     },
     {
      "addr": "0xa5f00",
-     "decl": "void FUN_000a5f00(void);"
+     "decl": "int16_t FUN_000a5f00(float *cone_spec /* @<edi> */, int16_t starting_cluster, float *point, float *direction, float *arg4, float *arg5, int max_count, void *out_buffer);",
+     "ported": false,
+     "reg_args": {
+      "cone_spec": "edi"
+     }
     },
     {
      "addr": "0xa6030",
-     "decl": "void FUN_000a6030(void);"
+     "decl": "char FUN_000a6030(float *cone_spec, float *point, float *direction, float *arg4, float *arg5, void *out_struct);",
+     "ported": true
     },
     {
      "addr": "0xa6130",
@@ -4906,7 +4913,8 @@
     },
     {
      "addr": "0x93640",
-     "decl": "void FUN_00093640(int value);"
+     "decl": "void FUN_00093640(int value);",
+     "ported": true
     },
     {
      "addr": "0x93660",
@@ -18624,7 +18632,8 @@
     },
     {
      "addr": "0x154540",
-     "decl": "void FUN_00154540(void);"
+     "decl": "void FUN_00154540(float *out_vel, void *accel_data, float accel);",
+     "ported": false
     },
     {
      "addr": "0x154630",
@@ -18632,11 +18641,13 @@
     },
     {
      "addr": "0x1546b0",
-     "decl": "void FUN_001546b0(void);"
+     "decl": "void FUN_001546b0(float *param_1, float *param_2, float *param_3, char param_4, float param_5);",
+     "ported": true
     },
     {
      "addr": "0x1546f0",
-     "decl": "void FUN_001546f0(void);"
+     "decl": "float FUN_001546f0(float pos, float dt, float target_pos, void *point_phys@<ecx>);",
+     "ported": false
     },
     {
      "addr": "0x154750",
@@ -18644,7 +18655,8 @@
     },
     {
      "addr": "0x1547d0",
-     "decl": "void FUN_001547d0(void);"
+     "decl": "char FUN_001547d0(float *out_pos, float *out_vel, void *point_phys, float dt, float target_pos, float accel);",
+     "ported": true
     },
     {
      "addr": "0x154860",
@@ -18667,7 +18679,8 @@
     },
     {
      "addr": "0x154a20",
-     "decl": "void FUN_00154a20(void);"
+     "decl": "void FUN_00154a20(void *obj@<eax>, float *point@<edx>, float val);",
+     "ported": true
     },
     {
      "addr": "0x154a50",
@@ -27959,7 +27972,8 @@
    "functions": [
     {
      "addr": "0xa3e60",
-     "decl": "void FUN_000a3e60(void);"
+     "decl": "void *FUN_000a3e60(int16_t local_player_index@<esi>);",
+     "ported": false
     },
     {
      "addr": "0xa3ea0",
@@ -27991,15 +28005,18 @@
     },
     {
      "addr": "0xa40a0",
-     "decl": "void weather_particle_system_new(void);"
+     "decl": "void FUN_000a40a0(int16_t local_player_index, int particle_system_tag_index, float scale);",
+     "ported": false
     },
     {
      "addr": "0xa4200",
-     "decl": "void weather_particle_system_delete(void);"
+     "decl": "void FUN_000a4200(int16_t local_player_index);",
+     "ported": false
     },
     {
      "addr": "0xa4310",
-     "decl": "void FUN_000a4310(void);"
+     "decl": "void FUN_000a4310(int16_t local_player_index);",
+     "ported": false
     },
     {
      "addr": "0xa45d0",
@@ -29587,7 +29604,7 @@
     },
     {
      "addr": "0x1d9850",
-     "decl": "void FUN_001d9850(void);"
+     "decl": "int FUN_001d9850(void *stream, const char *fmt, char *ap);"
     },
     {
      "addr": "0x1d98a3",
@@ -32206,7 +32223,9 @@
     },
     {
      "addr": "0x434c0",
-     "decl": "int ai_conversation_line(int param_1);"
+     "decl": "int16_t ai_conversation_line(int16_t param_1);",
+     "name": "ai_conversation_line",
+     "ported": true
     },
     {
      "addr": "0x43520",
@@ -33807,7 +33826,7 @@
     },
     {
      "addr": "0x64170",
-     "decl": "void prop_add(void);"
+     "decl": "void prop_add(int unit_handle@<eax>, int actor_handle, int prop_handle);"
     },
     {
      "addr": "0x643d0",
@@ -33819,11 +33838,12 @@
     },
     {
      "addr": "0x647c0",
-     "decl": "void FUN_000647c0(void);"
+     "decl": "void FUN_000647c0(int parent_prop_handle@<eax>, int actor_handle, int orphan_prop_handle);"
     },
     {
      "addr": "0x648a0",
-     "decl": "int prop_orphan_transition(int actor_handle, int prop_handle);"
+     "decl": "int prop_orphan_transition(int actor_handle, int prop_handle);",
+     "ported": true
     },
     {
      "addr": "0x64970",
@@ -34013,35 +34033,47 @@
    "source": "bitmaps/libtiff/tif_dir.c"
   },
   {
+   "functions": [
+    {
+     "addr": "0x689c0",
+     "decl": "void FUN_000689c0(const char *module, const char *fmt, char *ap);",
+     "ported": true
+    },
+    {
+     "addr": "0x68a10",
+     "decl": "void *FUN_00068a10(void *handler);",
+     "ported": true
+    }
+   ],
+   "name": "tif_error.obj",
+   "source": "bitmaps/libtiff/tif_error.c"
+  },
+  {
    "data": [],
    "functions": [
     {
      "addr": "0x68780",
-     "decl": "void FUN_00068780(void);"
+     "decl": "int FUN_00068780(void *tif, char *pp, int cc, int s);",
+     "ported": true
     },
     {
      "addr": "0x68890",
-     "decl": "void FUN_00068890(void);"
+     "decl": "int FUN_00068890(void *tif, unsigned char *buf, int occ, int s);",
+     "ported": true
     },
     {
      "addr": "0x68940",
-     "decl": "void FUN_00068940(void);"
+     "decl": "int FUN_00068940(void *tif, unsigned long nrows);",
+     "ported": true
     },
     {
      "addr": "0x68970",
-     "decl": "void FUN_00068970(void);"
-    },
-    {
-     "addr": "0x689c0",
-     "decl": "void FUN_000689c0(void);"
-    },
-    {
-     "addr": "0x68a10",
-     "decl": "void FUN_00068a10(void);"
+     "decl": "int FUN_00068970(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x68a30",
-     "decl": "void FUN_00068a30(int param_1, const char *format, ...);"
+     "decl": "void FUN_00068a30(const char *module, const char *format, ...);"
     },
     {
      "addr": "0x68a50",
@@ -34252,35 +34284,41 @@
    "functions": [
     {
      "addr": "0x6c400",
-     "decl": "void FUN_0006c400(void);"
+     "decl": "int TIFFReadRGBAImage(void *tif, unsigned long rwidth, unsigned long rheight, unsigned long *raster, int stop);",
+     "ported": true
     },
     {
      "addr": "0x6c5e0",
-     "decl": "void FUN_0006c5e0(void);"
+     "decl": "int FUN_0006c5e0(void *tif@<eax>, void *hordiff8, void *hordiff16);"
     },
     {
      "addr": "0x6c680",
-     "decl": "void FUN_0006c680(void);"
+     "decl": "void FUN_0006c680(char *cp, int cc, int stride);",
+     "ported": true
     },
     {
      "addr": "0x6c6f0",
-     "decl": "void FUN_0006c6f0(void);"
+     "decl": "void FUN_0006c6f0(unsigned short *wp, int cc, int stride);",
+     "ported": true
     },
     {
      "addr": "0x6c780",
-     "decl": "void FUN_0006c780(void);"
+     "decl": "int FUN_0006c780(void *tif@<ecx>);"
     },
     {
      "addr": "0x6c860",
-     "decl": "void FUN_0006c860(void);"
+     "decl": "void FUN_0006c860(char *cp, int cc, int stride);",
+     "ported": true
     },
     {
      "addr": "0x6c8d0",
-     "decl": "void FUN_0006c8d0(void);"
+     "decl": "void FUN_0006c8d0(unsigned short *wp, int cc, int stride);",
+     "ported": true
     },
     {
      "addr": "0x6c960",
-     "decl": "void FUN_0006c960(void);"
+     "decl": "void FUN_0006c960(void *tif, long value);",
+     "ported": true
     },
     {
      "addr": "0x6ca50",
@@ -34288,23 +34326,28 @@
     },
     {
      "addr": "0x6cac0",
-     "decl": "void FUN_0006cac0(void);"
+     "decl": "void FUN_0006cac0(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6cb00",
-     "decl": "void FUN_0006cb00(void);"
+     "decl": "int FUN_0006cb00(void *tif, char *op0, int occ0, int s);",
+     "ported": true
     },
     {
      "addr": "0x6ccf0",
-     "decl": "void FUN_0006ccf0(void);"
+     "decl": "int FUN_0006ccf0(void *tif, char *op0, int occ0, int s);",
+     "ported": true
     },
     {
      "addr": "0x6cd40",
-     "decl": "void FUN_0006cd40(void);"
+     "decl": "int FUN_0006cd40(void *tif, char *op0, int occ0, int s);",
+     "ported": true
     },
     {
      "addr": "0x6cda0",
-     "decl": "void FUN_0006cda0(void);"
+     "decl": "int FUN_0006cda0(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6cde0",
@@ -34312,35 +34355,41 @@
     },
     {
      "addr": "0x6ce60",
-     "decl": "void FUN_0006ce60(void);"
+     "decl": "int FUN_0006ce60(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6cfa0",
-     "decl": "void FUN_0006cfa0(void);"
+     "decl": "int FUN_0006cfa0(void *tif, char *bp0, int cc0, int s);"
     },
     {
      "addr": "0x6d140",
-     "decl": "void FUN_0006d140(void);"
+     "decl": "int FUN_0006d140(void *tif, char *bp0, int cc0, int s);",
+     "ported": true
     },
     {
      "addr": "0x6d180",
-     "decl": "void FUN_0006d180(void);"
+     "decl": "int FUN_0006d180(void *tif_, char *bp0, int cc0, int s);",
+     "ported": true
     },
     {
      "addr": "0x6d1e0",
-     "decl": "void FUN_0006d1e0(void);"
+     "decl": "int FUN_0006d1e0(void *tif);"
     },
     {
      "addr": "0x6d2d0",
-     "decl": "void FUN_0006d2d0(void);"
+     "decl": "int FUN_0006d2d0(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d340",
-     "decl": "void FUN_0006d340(void);"
+     "decl": "int FUN_0006d340(void *tif, char *buf, int occ, int s);",
+     "ported": true
     },
     {
      "addr": "0x6d4d0",
-     "decl": "void FUN_0006d4d0(void);"
+     "decl": "int FUN_0006d4d0(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d500",
@@ -34348,71 +34397,87 @@
     },
     {
      "addr": "0x6d590",
-     "decl": "void TIFFFdOpen(void);"
+     "decl": "int TIFFFdOpen(int fd, const char *name, const char *mode);"
     },
     {
      "addr": "0x6d820",
-     "decl": "int TIFFScanlineSize(int file);"
+     "decl": "int TIFFScanlineSize(int file);",
+     "ported": true
     },
     {
      "addr": "0x6d850",
-     "decl": "void TIFFFileName(void);"
+     "decl": "char * TIFFFileName(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d860",
-     "decl": "void TIFFFileno(void);"
+     "decl": "int TIFFFileno(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d870",
-     "decl": "void TIFFGetMode(void);"
+     "decl": "int TIFFGetMode(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d880",
-     "decl": "void TIFFIsTiled(void);"
+     "decl": "int TIFFIsTiled(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d8a0",
-     "decl": "void TIFFCurrentRow(void);"
+     "decl": "unsigned long TIFFCurrentRow(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d8b0",
-     "decl": "void TIFFCurrentDirectory(void);"
+     "decl": "unsigned long TIFFCurrentDirectory(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d8c0",
-     "decl": "void TIFFCurrentStrip(void);"
+     "decl": "unsigned long TIFFCurrentStrip(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d8d0",
-     "decl": "void TIFFCurrentTile(void);"
+     "decl": "unsigned long TIFFCurrentTile(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d8e0",
-     "decl": "int FUN_0006d8e0(const char *path, const char *mode);"
+     "decl": "int FUN_0006d8e0(const char *path, const char *mode);",
+     "ported": true
     },
     {
      "addr": "0x6d980",
-     "decl": "void FUN_0006d980(void);"
+     "decl": "int FUN_0006d980(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6d9c0",
-     "decl": "void FUN_0006d9c0(void);"
+     "decl": "int FUN_0006d9c0(void *tif, char *bp, int cc, int s);",
+     "ported": true
     },
     {
      "addr": "0x6dbf0",
-     "decl": "void FUN_0006dbf0(void);"
+     "decl": "int FUN_0006dbf0(void *tif, char *op, int occ, int s);",
+     "ported": true
     },
     {
      "addr": "0x6dd00",
-     "decl": "void FUN_0006dd00(void);"
+     "decl": "int FUN_0006dd00(void *tif, char *bp, int cc, int s);",
+     "ported": true
     },
     {
      "addr": "0x6dd50",
-     "decl": "void FUN_0006dd50(void);"
+     "decl": "int FUN_0006dd50(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6dda0",
-     "decl": "void FUN_0006dda0(void);"
+     "decl": "void TIFFPrintDirectory(void *tif_, void *fd, long flags);",
+     "ported": true
     }
    ],
    "name": "tif_open.obj",
@@ -34503,11 +34568,11 @@
     },
     {
      "addr": "0x6f1f0",
-     "decl": "void FUN_0006f1f0(void);"
+     "decl": "void FUN_0006f1f0(void *wp, int n);"
     },
     {
      "addr": "0x6f220",
-     "decl": "void FUN_0006f220(void);"
+     "decl": "void FUN_0006f220(void *lp, int n);"
     },
     {
      "addr": "0x6f260",
@@ -34539,7 +34604,7 @@
     },
     {
      "addr": "0x6f890",
-     "decl": "void FUN_0006f890(void);"
+     "decl": "int FUN_0006f890(void *tif);"
     },
     {
      "addr": "0x6f8d0",
@@ -34559,7 +34624,7 @@
     },
     {
      "addr": "0x6f9d0",
-     "decl": "void FUN_0006f9d0(void);"
+     "decl": "void FUN_0006f9d0(const char *module, const char *format, ...);"
     },
     {
      "addr": "0x6f9f0",
@@ -34583,7 +34648,7 @@
     },
     {
      "addr": "0x6fe10",
-     "decl": "void TIFFFlushData1(void);"
+     "decl": "int TIFFFlushData1(void *tif);"
     },
     {
      "addr": "0x6fea0",
@@ -36339,7 +36404,7 @@
     {
      "addr": "0x137170",
      "decl": "void FUN_00137170(float *incident_direction @<eax>, float *surface_normal @<ecx>, int object_handle @<esi>, int effect_tag_index, short marker_index, float *position);",
-     "ported": true
+     "ported": false
     },
     {
      "addr": "0x137370",
@@ -37163,7 +37228,8 @@
     },
     {
      "addr": "0x148240",
-     "decl": "void FUN_00148240(void);"
+     "decl": "char FUN_00148240(short param_1, unsigned int *bit_vector, int elem_index, short projection, unsigned char sign, float *point2d, void *bsp@<eax>);",
+     "ported": true
     },
     {
      "addr": "0x148370",
@@ -37181,7 +37247,8 @@
     },
     {
      "addr": "0x148780",
-     "decl": "void FUN_00148780(void);"
+     "decl": "int FUN_00148780(void *bsp, short param_2, unsigned int *bit_vector, float *origin, float *direction, int surface_index, float t, char param_8, int node_index@<eax>);",
+     "ported": true
     },
     {
      "addr": "0x148910",
@@ -37199,7 +37266,7 @@
     },
     {
      "addr": "0x148eb0",
-     "decl": "void FUN_00148eb0(void);"
+     "decl": "char FUN_00148eb0(void *data, int node_index, int param_3, float max_t);"
     },
     {
      "addr": "0x1491d0",
@@ -37216,7 +37283,9 @@
     },
     {
      "addr": "0x149480",
-     "decl": "char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin, int direction, int radius, float max_t, float *result);"
+     "decl": "char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin, int direction, int radius, float max_t, float *result);",
+     "name": "collision_bsp_test_vector",
+     "ported": true
     },
     {
      "addr": "0x149570",
@@ -37233,7 +37302,8 @@
     },
     {
      "addr": "0x14dce0",
-     "decl": "char FUN_0014dce0(int object_handle, unsigned int type_mask, int param_3, int origin, int direction, int exclude_handle, void *collision_result);"
+     "decl": "char FUN_0014dce0(int object_handle, unsigned int type_mask, int param_3, int origin, int direction, int exclude_handle, void *collision_result);",
+     "ported": true
     },
     {
      "addr": "0x14e640",
@@ -37251,7 +37321,8 @@
     },
     {
      "addr": "0x14ea10",
-     "decl": "void FUN_0014ea10(unsigned int type_mask, int first_handle, float *origin, float radius, float param_5, float param_6, int exclude_handle, int param_8);"
+     "decl": "void FUN_0014ea10(unsigned int type_mask, int first_handle, float *origin, float radius, float param_5, float param_6, int exclude_handle, int param_8);",
+     "ported": true
     }
    ],
    "name": "collision_bsp.obj",
@@ -40373,5 +40444,68 @@
  },
  "0x11cfd0": {
   "ported": true
+ },
+ "0xa54b0": {
+  "addr": "0xa54b0",
+  "decl": "void FUN_000a54b0(void);",
+  "ported": true
+ },
+ "0xa5830": {
+  "addr": "0xa5830",
+  "decl": "char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4);",
+  "ported": false
+ },
+ "0xa5f00": {
+  "addr": "0xa5f00",
+  "decl": "int16_t FUN_000a5f00(float *cone_spec /* @<edi> */, int16_t starting_cluster, float *point, float *direction, float *arg4, float *arg5, int max_count, void *out_buffer);",
+  "ported": false,
+  "reg_args": {
+   "cone_spec": "edi"
+  }
+ },
+ "0xa6030": {
+  "addr": "0xa6030",
+  "decl": "char FUN_000a6030(float *cone_spec, float *point, float *direction, float *arg4, float *arg5, void *out_struct);",
+  "ported": true
+ },
+ "0x154540": {
+  "addr": "0x154540",
+  "decl": "void FUN_00154540(float *out_vel, void *accel_data, float accel);",
+  "ported": false
+ },
+ "0x1546f0": {
+  "addr": "0x1546f0",
+  "decl": "float FUN_001546f0(float pos, float dt, float target_pos, void *point_phys@<ecx>);",
+  "ported": false
+ },
+ "0x1547d0": {
+  "addr": "0x1547d0",
+  "decl": "char FUN_001547d0(float *out_pos, float *out_vel, void *point_phys, float dt, float target_pos, float accel);",
+  "ported": true
+ },
+ "0x154a20": {
+  "addr": "0x154a20",
+  "decl": "void FUN_00154a20(void *obj@<eax>, float *point@<edx>, float val);",
+  "ported": true
+ },
+ "0xa3e60": {
+  "addr": "0xa3e60",
+  "decl": "void *FUN_000a3e60(int16_t local_player_index@<esi>);",
+  "ported": false
+ },
+ "0xa40a0": {
+  "addr": "0xa40a0",
+  "decl": "void FUN_000a40a0(int16_t local_player_index, int particle_system_tag_index, float scale);",
+  "ported": false
+ },
+ "0xa4200": {
+  "addr": "0xa4200",
+  "decl": "void FUN_000a4200(int16_t local_player_index);",
+  "ported": false
+ },
+ "0xa4310": {
+  "addr": "0xa4310",
+  "decl": "void FUN_000a4310(int16_t local_player_index);",
+  "ported": false
  }
 }

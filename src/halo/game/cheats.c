@@ -1,3 +1,116 @@
+void FUN_000a54b0(void)
+{
+  int16_t local_player_index;
+  char *player_data;
+  int16_t palette_index;
+  int particle_system_tag_index;
+  void *scenario;
+  char *palette_element;
+
+  if (*(char *)0x32574c == '\0' || *(char *)0x2ef7ee == '\0')
+    return;
+
+  local_player_index = *(int16_t *)0x506548;
+  if (local_player_index == -1)
+    return;
+
+  player_data = (char *)FUN_000a3e60(local_player_index);
+  *(int16_t *)(player_data + 0x14) = *(int16_t *)0x506784;
+  *(int *)(player_data + 0x10) = *(int *)0x506780;
+
+  *(char *)(player_data + 0x1a) = (char)FUN_0018f3e0(
+    player_data + 0x10, (void *)0x506550, (int16_t *)(player_data + 0x18));
+
+  palette_index = *(int16_t *)(player_data + 0x18);
+  particle_system_tag_index = -1;
+
+  if (palette_index != -1) {
+    scenario = scenario_get();
+    palette_element = (char *)tag_block_get_element((char *)scenario + 0x1b4,
+                                                    (int)palette_index, 0xf0);
+    particle_system_tag_index = *(int *)(palette_element + 0x2c);
+  }
+
+  if (*(int *)player_data != particle_system_tag_index) {
+    if (*(int *)player_data != -1) {
+      FUN_000a4200(local_player_index);
+    }
+    if (particle_system_tag_index != -1) {
+      FUN_000a40a0(local_player_index, particle_system_tag_index, 1.0f);
+    }
+  }
+
+  if (*(int *)player_data != -1) {
+    FUN_000a4310(local_player_index);
+  }
+}
+
+/* FUN_000a6030 (0xa6030)
+ *
+ * Locate the best candidate record inside the cone described by `cone_spec`,
+ * starting from the structure cluster that contains `point`.
+ *
+ * Confirmed from the disassembly at 0xa6030:
+ *   - param2 ([EBP+0xc], held in EBX) is the point: it is the sole argument to
+ *     bsp3d_find_leaf_point (FUN_0018e720) at 0xa603f/0xa6053, and is
+ *     forwarded unchanged to FUN_000a5f00 (0xa6097) and FUN_000a5830
+ *     (0xa60ea) -- so FUN_000a5830's first parameter is that same point, not
+ *     an object handle.
+ *   - the FIRST stack argument to FUN_000a5f00 is EAX at 0xa6098, i.e. the
+ *     cluster index loaded from the bsp leaf element at 0xa6072
+ *     (MOV AX, word ptr [EAX+8]) and range-checked against -1 at 0xa6079.
+ *     It is NOT param1.
+ *   - param1 ([EBP+8]) is loaded into EDI at 0xa6082 and stays live across the
+ *     CALL at 0xa6099: it is FUN_000a5f00's implicit @<edi> argument.  That
+ *     callee reads four floats from it ([EDI+0]/[EDI+8] = angle,
+ *     [EDI+4]/[EDI+0xc] = distance) and derives the cone length/sine/cosine it
+ *     hands to structure_clusters_in_cone (0x198ad0).  EDI is reloaded with
+ *     the return count at 0xa60a1, which is why the original's live range ends
+ *     at the call.
+ */
+char FUN_000a6030(float *cone_spec, float *point, float *direction,
+                  float *arg4, float *arg5, void *out_struct)
+{
+  void *scenario;
+  void *leaf_element;
+  int leaf_index;
+  int16_t cluster_index;
+  int16_t count;
+  int16_t i;
+  char local_buffer[0xe00];
+  char *elem;
+
+  if (FUN_0018e720((int)point) == -1)
+    return 0;
+
+  leaf_index = FUN_0018e720((int)point) & 0x7fffffff;
+  scenario = scenario_get();
+  leaf_element =
+    tag_block_get_element((char *)scenario + 0xe0, leaf_index, 0x10);
+  cluster_index = *(int16_t *)((char *)leaf_element + 8);
+
+  if (cluster_index == -1)
+    return 0;
+
+  count = (int16_t)FUN_000a5f00(cone_spec, cluster_index, point, direction,
+                                arg4, arg5, 0x40, local_buffer);
+
+  if (count <= 0)
+    return 0;
+
+  qsort(local_buffer, (size_t)count, 0x38, (qsort_compar_proc)0x000a5700);
+
+  for (i = 0; i < count; i++) {
+    elem = local_buffer + (int)i * 0x38;
+    if (FUN_000a5830(point, elem + 4, arg4, *(int *)elem)) {
+      csmemcpy(out_struct, elem, 0x38);
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 void cheats_initialize(void)
 {
   csmemset(cheats_globals, 0, sizeof(cheats_globals));

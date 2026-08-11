@@ -306,6 +306,9 @@ float collision_edge_length(int bsp, int edge_index)
   unsigned int *edge;
   float *vertex_a;
   float *vertex_b;
+  float dx;
+  float dy;
+  float dz;
 
   edge = (unsigned int *)tag_block_get_element((void *)(bsp + 0x48), edge_index,
                                                0x18);
@@ -313,9 +316,17 @@ float collision_edge_length(int bsp, int edge_index)
     (float *)tag_block_get_element((void *)(bsp + 0x54), edge[0], 0x10);
   vertex_b =
     (float *)tag_block_get_element((void *)(bsp + 0x54), edge[1], 0x10);
-  return sqrtf((vertex_b[0] - vertex_a[0]) * (vertex_b[0] - vertex_a[0]) +
-               (vertex_b[1] - vertex_a[1]) * (vertex_b[1] - vertex_a[1]) +
-               (vertex_b[2] - vertex_a[2]) * (vertex_b[2] - vertex_a[2]));
+  /* All three deltas are formed first (0x1476d5..0x1476e7, in x/y/z order) and
+   * only then squared and accumulated, in x, z, y order: 0x1476ec FLD ST(2) /
+   * FMULP ST(3) squares dx, 0x1476f0 FLD ST(0) / FMUL ST(1) squares dz, and
+   * 0x1476f6 FLD ST(1) / FMUL ST(2) squares dy last. x87 addition is not
+   * associative, so the sum must be written in that order to round the same
+   * way; the same pattern appears in collision_surface_perimeter and in
+   * FUN_0014ea10. */
+  dx = vertex_b[0] - vertex_a[0];
+  dy = vertex_b[1] - vertex_a[1];
+  dz = vertex_b[2] - vertex_a[2];
+  return sqrtf(dx * dx + dz * dz + dy * dy);
 }
 
 /* 0x147710 - collision_surface_perimeter
@@ -690,6 +701,83 @@ int collision_surface_test_line2d(int bsp, int surface_index, int param3,
   return 0;
 }
 
+/* 0x148240
+ *
+ * Walk the edge ring of one collision surface and test an already-projected 2D
+ * point against every edge. Returns 1 when the point lies on the inner side of
+ * (or exactly on) all edges, 0 at the first edge it falls outside of.
+ *
+ * Before the ring walk the surface is screened against the breakable-surface
+ * bit vector: when the surface carries flag 0x8 and its breakable index
+ * (surface+9, a byte) is below `param_1`, the matching bit must be set in
+ * `bit_vector` or the surface is rejected outright (0x148260-0x148289).
+ *
+ * `bsp` arrives in EAX (0x148249 MOV EDI,EAX); the six remaining arguments are
+ * ordinary cdecl stack slots -- the call site at 0x1488c9 cleans 0x18. The
+ * return is written to AL only (0x148355 MOV AL,0x1 / 0x14835e XOR AL,AL),
+ * hence char rather than int.
+ *
+ * Each edge is projected through FUN_00061df0 with the caller's projection
+ * axis and sign, then the 2D cross product decides the side. Operand order is
+ * load-order-faithful to 0x148310-0x148330: the four differences are pushed
+ * dx, dy, ex, ey and the products are dx*ey then dy*ex. The guard rejects on
+ * strictly-greater-than-zero (0x14833c TEST AH,0x41 / JZ to the failure tail),
+ * so a NaN cross falls through to the next edge rather than rejecting.
+ */
+char FUN_00148240(short param_1, unsigned int *bit_vector, int elem_index,
+                  short projection, unsigned char sign, float *point2d,
+                  void *bsp)
+{
+  int *surface;
+  int *edge;
+  float *v0;
+  float *v1;
+  unsigned char breakable;
+  int edge_index;
+  /* byte-typed: 0x1482b9 SETZ BL / 0x1482bc MOVZX EDI,BL keeps the side flag
+   * in a byte register and widens it only for the edge[] index. */
+  unsigned char side;
+  float proj0[2];
+  float proj1[2];
+  float dx;
+  float dy;
+  float ex;
+  float ey;
+
+  surface = (int *)tag_block_get_element((char *)bsp + 0x3c, elem_index, 0xc);
+  if ((((unsigned char *)surface)[8] & 8) != 0) {
+    breakable = ((unsigned char *)surface)[9];
+    if (breakable < param_1 &&
+        (bit_vector[breakable >> 5] & (1u << (breakable & 0x1f))) == 0) {
+      return 0;
+    }
+  }
+
+  edge_index = surface[1];
+
+  do {
+    edge = (int *)tag_block_get_element((char *)bsp + 0x48, edge_index, 0x18);
+    side = (edge[5] == elem_index);
+    v0 = (float *)tag_block_get_element((char *)bsp + 0x54, edge[side], 0x10);
+    v1 = (float *)tag_block_get_element((char *)bsp + 0x54, edge[!side], 0x10);
+
+    FUN_00061df0(v0, projection, sign, proj0);
+    FUN_00061df0(v1, projection, sign, proj1);
+
+    dx = point2d[0] - proj0[0];
+    dy = point2d[1] - proj0[1];
+    ex = proj1[0] - proj0[0];
+    ey = proj1[1] - proj0[1];
+    if (dx * ey - dy * ex > 0.0f) {
+      return 0;
+    }
+
+    edge_index = edge[side + 2];
+  } while (edge_index != surface[1]);
+
+  return 1;
+}
+
 /* 0x1486e0
  *
  * Recursive descent through a 2D BSP with a two-sided plane epsilon: visits
@@ -722,6 +810,14 @@ int collision_surface_test_line2d(int bsp, int surface_index, int param3,
  *    FCOMPP against -epsilon latches the back flag into BL. The recursive
  *    call happens after both flags exist, so the flags must be materialised
  *    into byte-wide locals up front rather than folded into the `if`s.
+ *  - Both flag polarities come from PARITY, not zero: 0x14871e is
+ *    `TEST AH,0x41; JP` (not JZ). AH&0x41 has even parity for "greater"
+ *    (0x00) and for "unordered" (0x41), odd for "less" (0x01) and "equal"
+ *    (0x40), so CL = (d <= +eps) and NaN clears it. 0x148734 is
+ *    `TEST AH,0x1; JNZ` on C0 alone, so BL = (d >= -eps). Reading the JP as
+ *    a JZ inverts BOTH descents: points within epsilon of a splitting plane
+ *    then reach no leaf at all and every other point takes the wrong half,
+ *    which drops BSP ground collision entirely.
  *
  * The loop is the rotated form MSVC emits for `while`: the entry sign test
  * jumps straight to the leaf handler, and the bottom `MOV ESI,[ESI+0x10];
@@ -731,8 +827,12 @@ void FUN_001486e0(void *state, int node_index)
 {
   float *node;
   float d;
-  unsigned char front; /* CL in the original */
-  unsigned char back; /* BL in the original */
+  /* Named for the descent condition each flag gates, not for a plane side:
+   * the child at +0x0c is entered when d <= +eps and the child at +0x10 when
+   * d >= -eps, so calling them "front"/"back" would assert a sign convention
+   * the code contradicts. CL and BL in the original. */
+  unsigned char take_le; /* CL in the original */
+  unsigned char take_ge; /* BL in the original */
 
   while (node_index >= 0) {
     node = (float *)tag_block_get_element((void *)(*(int *)state + 0x30),
@@ -741,19 +841,146 @@ void FUN_001486e0(void *state, int node_index)
     d = node[1] * *(float *)((char *)state + 0x224) +
         *(float *)((char *)state + 0x220) * node[0] - node[2];
 
-    front = (unsigned char)(d > *(float *)((char *)state + 0x10));
-    back = (unsigned char)(d < -*(float *)((char *)state + 0x10));
+    take_le = (unsigned char)(d <= *(float *)((char *)state + 0x10));
+    take_ge = (unsigned char)(d >= -*(float *)((char *)state + 0x10));
 
-    if (front) {
+    if (take_le) {
       FUN_001486e0(state, ((int *)node)[3]);
     }
-    if (!back) {
+    if (!take_ge) {
       return;
     }
     node_index = ((int *)node)[4];
   }
 
   FUN_00147ed0(state, node_index & 0x7fffffff);
+}
+
+/* 0x148780
+ *
+ * Scan one bsp2d node's surface-reference run for the surface the ray hit, and
+ * resolve it down to a leaf surface index. Returns that index, or -1 when the
+ * run holds no reference to `surface_index` (0x1488f5 OR EAX,0xffffffff).
+ *
+ * `node_index` arrives in EAX (0x14878e PUSH EAX straight into the first
+ * tag_block_get_element); the eight remaining arguments are cdecl stack slots
+ * and the call site at 0x1490e8 cleans exactly 0x20.
+ *
+ * For each matching reference the surface plane picks a projection axis by
+ * dropping the largest-magnitude component (0x1487e4-0x148828): the three
+ * FABS values are compared as |p2| vs |p1| then |p2| vs |p0|, so axis 2 wins
+ * only when |p2| dominates both. `sign` then XORs the sign of the surviving
+ * plane component against bit 31 of the reference word.
+ *
+ * The byte flag at 0x148860 is stored as a byte and reloaded as a dword at
+ * 0x148866 (Ghidra renders the dead upper bytes as CONCAT31). Every consumer
+ * -- FUN_00061df0 and FUN_00148240 -- declares the parameter `unsigned char`,
+ * so the upper three bytes are provably dead and the CONCAT is not modelled.
+ *
+ * The ray point is formed multiply-then-add (t * direction + origin), matching
+ * the FMUL/FADD order at 0x14886c-0x148885; do not reorder.
+ *
+ * VC71 ceiling: 93.6% match (158 vs 157 insns), operand-normalized 75.8%. The
+ * frame matches exactly (0x20 both sides) and dp-LCS agrees with the official
+ * score, so there is no anchor collapse hiding progress. What remains, all
+ * checked and not source-reachable:
+ *  - The single extra instruction is `MOV EAX,[EBP+0x28]` at entry. node_index
+ *    is @<eax>, so the generated thunk hands it to us in the ninth stack slot
+ *    and our body has to load it; the original already has it in EAX.
+ *  - Register allocation is permuted throughout: axis in ESI (ref EDI), plane
+ *    in EDX (ref ECX), result in EDI (ref ESI), point2d address in ECX (ref
+ *    EAX). That is most of the operand-score gap and it moves nothing in match.
+ *  - 0x14884f NEG/SBB/NEG vs our XOR/TEST/SETNE for `flipped != 0`. Two source
+ *    forms tried and both measured worse: inlining the mask lets VC71 fold it
+ *    to SHR $31 and drop the 0x80000000 constant (93.6 -> 93.2, IMM-WARN);
+ *    forcing the plane compare into a byte local to provoke the reference's
+ *    MOVZBL emits MOVB/XORB for the 0-or-1 and wrecks the point3d schedule
+ *    (93.6 -> 88.9).
+ *  - FMULS/FADDS scheduling around 0x148866-0x14888e, and the epilogue's POP
+ *    EDI position. Both are VC71 scheduling, not expressible in source.
+ *  - `FCOMPS 0x0` vs the reference's pooled `FCOMP [0x2533c0]` is already
+ *    scored equal, so spelling the zero as *(float *)0x2533c0 gains nothing.
+ * The permuter was run (6376 iterations, 4 threads): it reported a better
+ * in-search score only for candidates that truncate `flipped` to 16 or 8 bits
+ * or rewrite `> 0.0f` as `>= 1.0f` - i.e. by breaking the logic - and the run
+ * itself printed BASELINE MISMATCH. Nothing to take from it.
+ */
+int FUN_00148780(void *bsp, short param_2, unsigned int *bit_vector,
+                 float *origin, float *direction, int surface_index, float t,
+                 char param_8, int node_index)
+{
+  int *node;
+  unsigned int *ref;
+  float *plane;
+  int i;
+  /* short: 0x148828 MOVSX EDX,DI sign-extends the axis from 16 bits before
+   * it indexes the plane. */
+  short axis;
+  unsigned char sign;
+  unsigned int flipped;
+  int result;
+  /* Held on the x87 stack, not in frame slots: 0x1487f5 FCOM ST(1) and
+   * 0x1487fe FCOMP ST(2) compare register-to-register, so all three
+   * magnitudes are live simultaneously and none is spilled. */
+  float abs0;
+  float abs1;
+  float abs2;
+  float point3d[3];
+  float point2d[2];
+
+  node = (int *)tag_block_get_element((char *)bsp + 0x18, node_index, 8);
+  i = node[1];
+
+  /* A plain `while`, not guard + do-while: the original has ONE -1 epilogue at
+   * 0x1488f3, entered both by the 0x1487ac JGE that skips an empty run and by
+   * the 0x1488ed JL falling through at the bottom. Splitting the guard out
+   * duplicates the epilogue. The bound is recomputed from `node` at both tests
+   * (0x14879b and 0x1488de each MOVSX the count and re-add node[1]). */
+  while (i < *(short *)((char *)node + 2) + node[1]) {
+    ref = (unsigned int *)tag_block_get_element((char *)bsp + 0x24, i, 8);
+    if ((ref[0] & 0x7fffffff) == (unsigned int)surface_index) {
+      plane =
+        (float *)tag_block_get_element((char *)bsp + 0xc, surface_index, 0x10);
+
+      abs0 = (float)fabs((double)plane[0]);
+      abs1 = (float)fabs((double)plane[1]);
+      abs2 = (float)fabs((double)plane[2]);
+      if (abs2 >= abs1 && abs2 >= abs0) {
+        axis = 2;
+      } else if (abs1 >= abs0) {
+        axis = 1;
+      } else {
+        axis = 0;
+      }
+
+      /* 0x148849 AND ECX,0x80000000 / NEG / SBB / NEG materialises the sign
+       * bit as an explicit 0-or-1 before the compare, so the mask must stay in
+       * a local. Folding it inline as `((ref[0] & 0x80000000u) != 0)` lets
+       * VC71 recognise the sign-bit extraction and collapse the whole sequence
+       * to a single SHR $31, which drops the 0x80000000 constant the original
+       * carries (measured: match 93.6% -> 93.2%, IMM-WARN). */
+      flipped = ref[0] & 0x80000000u;
+      sign = (plane[axis] > 0.0f) != (flipped != 0);
+
+      point3d[0] = t * direction[0] + origin[0];
+      point3d[1] = t * direction[1] + origin[1];
+      point3d[2] = t * direction[2] + origin[2];
+
+      FUN_00061df0(point3d, axis, sign, point2d);
+      result = (int)FUN_00146d40((char *)bsp + 0x30, point2d, (int)ref[1]);
+
+      if (param_8 == 0) {
+        return result;
+      }
+      if (FUN_00148240(param_2, bit_vector, result, axis, sign, point2d, bsp) !=
+          0) {
+        return result;
+      }
+    }
+    i = i + 1;
+  }
+
+  return -1;
 }
 
 /* 0x148b20 - collision_bsp_test_pill_new
@@ -916,6 +1143,89 @@ int collision_bsp_test_sphere(int bsp, short flags, int origin, int direction,
   return 0;
 }
 
+
+/* 0x149480 - Ray/vector-vs-BSP3D test. Thin logging wrapper around the
+ * recursive BSP3D vector walk at 0x148eb0: it builds the 0x28-byte query
+ * context on the stack, seeds the caller's result record, clamps the ray
+ * parameter and hands the whole thing to the walker.
+ *
+ * ESI = (bsp == *(int *)0x5064dc) + 4, i.e. log id 5 when the bsp is the
+ * structure BSP the scenario installed at 0x5064dc, else 4. The same value is
+ * passed to collision_log_add_call and collision_log_add_time.
+ *
+ * `flags` is stored with `MOV word ptr [EBP-0x20],DX` - 16-bit, so the upper
+ * half of that context dword is never written. field_20 is a BYTE store
+ * (`MOV byte ptr [EBP-8],DL`), so the three bytes above it stay untouched.
+ *
+ * The clamp appears twice and the two are NOT the same value:
+ *   0x1494ae  *result   = max_t < 0.0f ? 0.0f : max_t   (FSTP [ECX])
+ *   0x1494fa  walker t  = clamp(max_t, 0.0f, 1.0f)
+ * The first clamp never writes back to the parameter slot - 0x1494fa and
+ * 0x14951d both reload the ORIGINAL [EBP+0x20]. Collapsing them into one
+ * clamped local silently changes the value handed to the walker.
+ *
+ * FCOM parity senses: `TEST AH,5; JP` is taken when NOT strictly less-than
+ * (fallthrough = `max_t < 0.0f`); `FCOMP 1.0f; TEST AH,0x41; JNZ` is taken on
+ * below-or-equal, so the fallthrough arm is the `> 1.0f` case that forces 1.0f.
+ *
+ * Return: MOV BL,AL across the trailing log call, then MOV AL,BL - the char
+ * hit flag produced by the walker.
+ */
+typedef struct {
+  int32_t field_00; /* 0x00 - first caller argument, opaque here */
+  int32_t bsp; /* 0x04 */
+  int16_t flags; /* 0x08 - 16-bit store */
+  int16_t pad_0a; /* 0x0a - never written by the builder */
+  int32_t field_0c; /* 0x0c */
+  int32_t field_10; /* 0x10 - read by the walker as a point (plane distance) */
+  int32_t field_14; /* 0x14 - read by the walker as a point (plane distance) */
+  float *result; /* 0x18 */
+  int32_t field_1c; /* 0x1c - seeded to -1 */
+  char field_20; /* 0x20 - BYTE store, seeded to 0 */
+  char pad_21[3]; /* 0x21 - never written */
+  int32_t field_24; /* 0x24 - seeded to -1 */
+} bsp3d_vector_test_data;
+
+char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin,
+                               int direction, int radius, float max_t,
+                               float *result)
+{
+  bsp3d_vector_test_data data;
+  short log_id;
+  float t;
+  char hit;
+
+  log_id = (short)((bsp == *(int *)0x5064dc) + 4);
+  collision_log_add_call(log_id);
+  collision_log_query_counter((void *)0x46f090);
+
+  data.field_00 = param_1;
+  data.bsp = bsp;
+  data.flags = flags;
+  data.field_0c = origin;
+  data.field_10 = direction;
+  data.field_14 = radius;
+  data.result = result;
+  data.field_1c = -1;
+  data.field_20 = 0;
+  data.field_24 = -1;
+
+  *result = (max_t < 0.0f) ? 0.0f : max_t;
+  result[5] = 0.0f;
+
+  if (max_t < 0.0f) {
+    t = 0.0f;
+  } else if (max_t > 1.0f) {
+    t = 1.0f;
+  } else {
+    t = max_t;
+  }
+
+  hit = FUN_00148eb0(&data, 0, 0, t);
+
+  collision_log_add_time(log_id, *(unsigned int *)0x46f090, *(int *)0x46f094);
+  return hit;
+}
 /* 0x14dc30 - Point-vs-world collision test. If any of the collision-type
  * flags (0xE0) are set, locate the BSP3D leaf containing `pos`; a leaf of -1
  * (point outside the BSP) reports a hit. When flag bit 7 (0x80) is set and the
@@ -970,6 +1280,149 @@ char FUN_0014dc30(int param_1, float *pos, int param_3)
     }
   }
   return 0;
+}
+
+/* 0x14dce0 - Ray-vs-object collision test over one object sibling chain.
+ *
+ * Walks the chain rooted at `object_handle` through object+0xc4 (next sibling)
+ * and recurses into object+0xc8 (first child) for every object that passes the
+ * entry filter. `collision_result` is the same 0x50-byte record the rest of
+ * collision_usage.c fills; the field map documented there applies verbatim
+ * (+0x00 type word, +0x14 hit distance, +0x24..+0x30 plane, +0x34 shader,
+ * +0x38 object handle, +0x3c/+0x3e/+0x40 indices, +0x44/+0x48 dwords,
+ * +0x4c/+0x4d bytes, +0x4e leaf/surface index).
+ *
+ * Confirmed (disassembly 0x14dce0..0x14df6d):
+ *  - cdecl, 7 stack args at EBP+0x08..+0x20, char return in AL from EBP-0x1.
+ *  - Entry filter, in order: handle != exclude_handle; (object+0x4 & 1) == 0;
+ *    type_mask & (1 << (zero-extended word object+0x64 + 8));
+ *    fast_vector_intersects_sphere(origin, direction, object+0x50,
+ *    float object+0x5c). The radius is a push-then-FSTP float arg
+ *    (PUSH ECX / FSTP [ESP] at 0x14dd3c-0x14dd43), not the pushed pointer.
+ *  - Path select: byte object+0x64 shifted (TEST DL,0x2) AND
+ *    type_mask & 0x400000 picks the FUN_001509c0/FUN_00150b60 model path;
+ *    otherwise the collision-bsp path via FUN_0014c8e0/FUN_0014cb00.
+ *  - Both distance guards are `FLD [ESI+0x14]; FCOMP <candidate>;
+ *    TEST AH,0x41; JNZ skip` (0x14ddae and 0x14de51), i.e. the source form is
+ *    `collision_result->distance > candidate`, NOT `candidate < ...`. Writing
+ *    it the other way emits the `TEST AH,5 / JP` shape instead.
+ *  - The -1 sentinel is materialised in ECX by OR ECX,0xffffffff at three
+ *    sites (0x14df19/0x14df20/0x14df53) and compared with CMP; semantically a
+ *    plain `!= -1`.
+ *
+ * Frame (SUB ESP,0x484 = 1156 bytes), derived from the EBP displacements:
+ *   EBP-0x484 (1056)  FUN_0014cb00 output record; only the first 0x1c bytes
+ *                     are read back here, the remaining 0x404 are scratch the
+ *                     callee owns (size inferred from the frame arithmetic,
+ *                     not from a decompiled callee - see Uncertain).
+ *   EBP-0x64  (60)    FUN_001509c0 context
+ *   EBP-0x28  (16)    FUN_0014c8e0 context (+0x4 tag data, +0xc surface base)
+ *   EBP-0x18  (20)    FUN_00150b60 result
+ *   EBP-0x4   (4)     `found`
+ * Ghidra split every field of those four buffers into independent locals
+ * (local_488/local_486/.../local_46e are all one struct at EBP-0x484).
+ *
+ * FUN_0014cb00 output fields actually consumed:
+ *   +0x00 short surface index (also the FUN_0010a1c0 row selector, *0x34)
+ *   +0x02 short  -> +0x3c        +0x04 short  -> +0x40
+ *   +0x08 float  hit distance    +0x0c float* plane to transform
+ *   +0x10 dword  -> +0x44        +0x14 int    -> +0x48, sign selects negate
+ *   +0x18 byte   -> +0x4c        +0x19 byte   -> +0x4d
+ *   +0x1a short  -> +0x4e and the FUN_0014da80 index argument
+ */
+char FUN_0014dce0(int object_handle, unsigned int type_mask, int param_3,
+                  int origin, int direction, int exclude_handle,
+                  void *collision_result)
+{
+  char found;
+  int32_t model_result[5];
+  int32_t bsp_ctx[4];
+  int32_t model_ctx[15];
+  int32_t bsp_result[264];
+  char *obj;
+  char *res;
+  char *bres;
+  int child;
+  int idx;
+
+  found = 0;
+  do {
+    obj = (char *)object_get_and_verify_type(object_handle, -1);
+
+    if (object_handle != exclude_handle &&
+        (*(unsigned char *)(obj + 4) & 1) == 0 &&
+        (type_mask & (1u << (*(uint16_t *)(obj + 0x64) + 8))) != 0 &&
+        fast_vector_intersects_sphere((float *)origin, (float *)direction,
+                                      (float *)(obj + 0x50),
+                                      *(float *)(obj + 0x5c))) {
+      res = (char *)collision_result;
+
+      if (((1 << *(unsigned char *)(obj + 0x64)) & 2) != 0 &&
+          (type_mask & 0x400000) != 0) {
+        if (FUN_001509c0((int *)model_ctx, object_handle) != 0 &&
+            FUN_00150b60(model_ctx, (void *)origin, (void *)direction,
+                         model_result) != 0 &&
+            *(float *)(res + 0x14) > *(float *)model_result) {
+          *(int32_t *)(res + 0x24) = model_result[1];
+          *(int32_t *)(res + 0x14) = model_result[0];
+          *(int32_t *)(res + 0x28) = model_result[2];
+          *(int32_t *)(res + 0x2c) = model_result[3];
+          *(int16_t *)res = 3;
+          *(int32_t *)(res + 0x30) = model_result[4];
+          *(int16_t *)(res + 0x34) = -1;
+          *(int32_t *)(res + 0x38) = object_handle;
+          *(int16_t *)(res + 0x3c) = -1;
+          *(int16_t *)(res + 0x3e) = -1;
+          *(int16_t *)(res + 0x40) = -1;
+          *(int32_t *)(res + 0x44) = -1;
+          *(int32_t *)(res + 0x48) = -1;
+          res[0x4c] = 0;
+          res[0x4d] = 0;
+          *(int16_t *)(res + 0x4e) = -1;
+          found = 1;
+        }
+      } else {
+        bres = (char *)bsp_result;
+        if ((char)FUN_0014c8e0((int *)bsp_ctx, object_handle) != 0 &&
+            FUN_0014cb00((int)bsp_ctx, (void *)param_3, (void *)origin,
+                         (void *)direction, (int16_t *)bres) != 0 &&
+            *(float *)(res + 0x14) > *(float *)(bres + 8)) {
+          /* MOVSX at 0x14de65: the row selector is the signed short at +0x00.
+           */
+          idx = *(int16_t *)bres;
+          *(int16_t *)res = 3;
+          *(int32_t *)(res + 0x14) = *(int32_t *)(bres + 8);
+          FUN_0010a1c0((float *)(bsp_ctx[3] + idx * 0x34),
+                       *(float **)(bres + 0xc), (float *)(res + 0x24));
+          if (*(int32_t *)(bres + 0x14) < 0)
+            plane_negate((float *)(res + 0x24), (float *)(res + 0x24));
+          *(int16_t *)(res + 0x34) =
+            (int16_t)FUN_0014da80(bsp_ctx[1], *(int16_t *)(bres + 0x1a));
+          *(int16_t *)(res + 0x3c) = *(int16_t *)(bres + 2);
+          *(int16_t *)(res + 0x3e) = *(int16_t *)bres;
+          *(int16_t *)(res + 0x40) = *(int16_t *)(bres + 4);
+          *(int32_t *)(res + 0x44) = *(int32_t *)(bres + 0x10);
+          *(int32_t *)(res + 0x48) = *(int32_t *)(bres + 0x14);
+          res[0x4c] = bres[0x18];
+          *(int32_t *)(res + 0x38) = object_handle;
+          res[0x4d] = bres[0x19];
+          *(int16_t *)(res + 0x4e) = *(int16_t *)(bres + 0x1a);
+          found = 1;
+        }
+      }
+
+      child = *(int32_t *)(obj + 0xc8);
+      if (child != -1 &&
+          FUN_0014dce0(child, type_mask, param_3, origin, direction,
+                       exclude_handle, collision_result) != 0) {
+        found = 1;
+      }
+    }
+
+    object_handle = *(int32_t *)(obj + 0xc4);
+  } while (object_handle != -1);
+
+  return found;
 }
 
 /* 0x14e7d0
@@ -1186,4 +1639,130 @@ bool FUN_0014e940(int param_1, float *origin, float *delta, float radius,
   result->normal[2] = 0.0f;
 
   return hit;
+}
+
+/* 0x14ea10 — Walk the object sibling chain starting at first_handle (next at
+ * [obj+0xC4]) and, for every object inside the search sphere, add its
+ * collision features to the caller's feature buffer (param_8). Recurses into
+ * each object's child chain ([obj+0xC8]).
+ *
+ * Confirmed (disassembly 0x14ea10..0x14ec0f):
+ *  - cdecl, 8 stack args at EBP+0x08..+0x24; SUB ESP,0x60 + PUSH EBX/ESI/EDI.
+ *    EBX = param_8, EDI = current handle (live across the whole loop),
+ *    ESI = object pointer from 0x13d680.
+ *  - Reject filter, in order: handle == exclude_handle; [obj+0x04] bit0;
+ *    [obj+0x04] bit24; ([obj+0xB6] & 4) together with a zero type word at
+ *    [obj+0x64].
+ *  - Sphere reject at 0x14ea62: FLD [obj+0x5C]; FADD radius gives r, then
+ *    d = obj_center([obj+0x50..0x58]) - origin (object minus origin — the
+ *    FSUB operand order is object first). The FCOMPP / TEST AH,1 branch
+ *    rejects when d.y*d.y + d.z*d.z + d.x*d.x > r*r; the accumulation order
+ *    is dy, dz, dx (FLD ST2/FMUL ST3 chain) — do not reassociate.
+ *  - Dispatch at 0x14eaa5: MOVSX EAX,word[obj+0x64]; type_mask & (1 <<
+ * (type+8)) gates a real MSVC switch over types 0..8 (index byte table at
+ * 0x14EC1C feeding a jump table at 0x14EC10). Only case 0 and cases 1/6/7/8 do
+ *    work; 2..5 fall to the default at 0x14ebcd.
+ *  - The child recursion at 0x14ebf2 (8 args, ADD ESP,0x20) sits inside the
+ *    sphere test but OUTSIDE the type_mask gate, and passes the CHILD handle
+ *    [obj+0xC8] — not the sibling [obj+0xC4] that drives the do/while.
+ *  - FUN_0014c8e0 returns its result in AL only; EDI (the handle) is never
+ *    reloaded from it. Ghidra's `iVar9 = FUN_0014c8e0(...)` is register
+ *    aliasing and would corrupt the sibling walk.
+ *
+ * Frame (SUB ESP,0x60), derived from the EBP displacements:
+ *   EBP-0x60 (60)  FUN_001509c0 model context
+ *   EBP-0x24 (16)  FUN_0014c8e0 collision-bsp context
+ *   EBP-0x14 (12)  biped camera position (vector3)
+ *   EBP-0x08 (4)   biped camera height
+ *   EBP-0x04 (4)   shift temp for (1 << type)  [Ghidra: `local_c[1] = 1.4e-45`
+ *                  is really `MOV dword ptr [EBP-4],1`, not a float denormal]
+ * MSVC reused the dead `first_handle` parameter slot (EBP+0x0C) as the float
+ * `height_offset` out-parameter of biped_get_camera_height_and_offset; that
+ * reuse is reproduced here so the frame stays 0x60 bytes.
+ *
+ * Note: collision_features_from_point's param_3 is declared `int` in kb.json
+ * but the original stores it with FSTP [ESP+4] — it is a float dword. The
+ * value is forwarded bit-exact (never through a numeric cast). Likewise
+ * FUN_0014cde0/FUN_00150790 params 4 and 5 are raw float dwords. */
+void FUN_0014ea10(unsigned int type_mask, int first_handle, float *origin,
+                  float radius, float param_5, float param_6,
+                  int exclude_handle, int param_8)
+{
+  char *obj;
+  int cur;
+  int child;
+  int type;
+  float r;
+  float dx;
+  float dy;
+  float dz;
+  float camera_height;
+  float camera_pos[3];
+  int bsp_ctx[4];
+  int model_ctx[15];
+
+  cur = first_handle;
+  do {
+    obj = (char *)object_get_and_verify_type(cur, -1);
+
+    if (cur != exclude_handle && (*(unsigned int *)(obj + 4) & 1) == 0 &&
+        (*(unsigned int *)(obj + 4) & 0x1000000) == 0 &&
+        ((*(unsigned char *)(obj + 0xb6) & 4) == 0 ||
+         *(short *)(obj + 0x64) != 0)) {
+      r = *(float *)(obj + 0x5c) + radius;
+      dx = *(float *)(obj + 0x50) - origin[0];
+      dy = *(float *)(obj + 0x54) - origin[1];
+      dz = *(float *)(obj + 0x58) - origin[2];
+
+      if (dx * dx + dz * dz + dy * dy <= r * r) {
+        type = (int)*(short *)(obj + 0x64);
+
+        if ((type_mask & (1u << (type + 8))) != 0) {
+          switch (type) {
+          case 0:
+            if (((type_mask & 0x200000) == 0 ||
+                 (*(unsigned char *)(obj + 0x424) & 0x10) == 0) &&
+                (*(int *)(obj + 0xcc) == -1 || *(short *)(obj + 0x2a0) == -1)) {
+              /* &first_handle is the reused EBP+0x0C slot: the handle has
+               * already been copied into `cur`, so MSVC repurposed it as
+               * the float height_offset out-parameter. */
+              biped_get_camera_height_and_offset(cur, (vector3_t *)camera_pos,
+                                                 (float *)&first_handle,
+                                                 &camera_height);
+              camera_pos[2] = camera_pos[2] + *(float *)&first_handle;
+              camera_height = camera_height + param_6;
+              collision_features_from_point(
+                (int)camera_pos, *(float *)&first_handle + param_5,
+                *(int *)&camera_height, cur, -1, 0, 0xff, -1, (void *)param_8);
+            }
+            break;
+          case 1:
+          case 6:
+          case 7:
+          case 8:
+            if (((1 << type) & 2) != 0 && (type_mask & 0x400000) != 0) {
+              if (FUN_001509c0(model_ctx, cur) != 0) {
+                FUN_00150790((int)model_ctx, (int)origin, radius,
+                             *(int *)&param_5, *(int *)&param_6, param_8);
+              }
+            } else {
+              if ((char)FUN_0014c8e0(bsp_ctx, cur) != 0) {
+                FUN_0014cde0((int)bsp_ctx, (int)origin, radius,
+                             *(int *)&param_5, *(int *)&param_6, param_8);
+              }
+            }
+            break;
+          }
+        }
+
+        child = *(int *)(obj + 0xc8);
+        if (child != -1) {
+          FUN_0014ea10(type_mask, child, origin, radius, param_5, param_6,
+                       exclude_handle, param_8);
+        }
+      }
+    }
+
+    cur = *(int *)(obj + 0xc4);
+  } while (cur != -1);
 }
