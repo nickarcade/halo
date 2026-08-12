@@ -4,6 +4,7 @@
 	halo/ai/actions.c
 	halo/ai/action_vehicle.c
 	halo/ai/actor_combat.c
+halo/ai/actor_firing_position.c
 	halo/ai/actor_moving.c
 	halo/ai/actor_perception.c
 	halo/ai/actor_looking.c
@@ -98,6 +99,7 @@
 	halo/networking/network_messages.c
 	halo/networking/network_server_manager.c
 	halo/networking/network_server_message_handler.c
+	halo/networking/transport_address.c
 	halo/main/console.c
 	halo/main/d3d_intimacy.c
 	halo/main/debug_keys.c
@@ -176,7 +178,9 @@ halo/rasterizer/rasterizer_text.c
 		halo/cache/xbox_texture_cache.c
 	halo/cache/physical_memory_map.c
 	halo/cache/predicted_resources.c
+	halo/cache/xbox_sound_cache.c
 	halo/cache/tags.c
+	halo/cache/cache_files.c
 	)
 
 	if(ENABLE_XDK_HYBRID AND DEFINED XDK_HYBRID_SOURCES)

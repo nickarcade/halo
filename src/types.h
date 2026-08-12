@@ -1281,9 +1281,19 @@ typedef struct {
   char pad_3be[0x2];
   int32_t field_3c0;                                 /* +0x3c0  accessed 1x, meaning unproven */
   int16_t field_3c4;                                 /* +0x3c4  accessed 5x, meaning unproven */
-  char pad_3c6[0x12];
+  int16_t field_3c6;                                 /* +0x3c6  discarded-firing-position ring cursor, MOVSX word @0x24c09/0x24c17/0x24c26 */
+  /* +0x3c8  four-entry discarded-firing-position ring. Stride 4 comes from the
+   * `index += 4` byte walk in actor_clear_discarded_firing_positions and the
+   * `% 4` cursor wrap in FUN_00024be0; the record boundary itself is unproven,
+   * only the two written halves are named. */
+  struct {
+    char field_00;                                   /* +0x00   the param_3 flag stored alongside the index */
+    char pad_01[0x1];
+    int16_t field_02;                                /* +0x02   firing-position index, reset to NONE */
+  } field_3c8[4];
   char field_3d8;                                    /* +0x3d8  accessed 1x, meaning unproven */
-  char pad_3d9[0x3];
+  char field_3d9;                                    /* +0x3d9  latched copy of the ring's param_3 flag */
+  char pad_3da[0x2];
   int32_t field_3dc;                                 /* +0x3dc  accessed 1x, meaning unproven */
   int32_t field_3e0;                                 /* +0x3e0  accessed 1x, meaning unproven */
   int32_t field_3e4;                                 /* +0x3e4  accessed 1x, meaning unproven */
@@ -1592,7 +1602,13 @@ typedef void (*draw_string_emit_proc)(void *state, void *font_table,
  * Widths are taken from the store instructions at 0x14e7f9..0x14e872 and
  * 0x14e8b9..0x14e8ef: +0x00, +0x08, +0x10, +0x34 and +0x4e are 16-bit stores
  * (MOV word ptr), +0x4c/+0x4d are byte stores, everything else is a dword.
- * 0x36..0x43 is never touched by either function, so it stays pad_.
+ *
+ * +0x38..+0x41 are not touched by those two entry points but ARE written by
+ * FUN_0014dce0 (0x14dce0), which fills the same record through a raw char*:
+ * +0x38 dword object handle, +0x3c/+0x3e/+0x40 16-bit indices (all three set
+ * to -1 on the model path at 0x14df19/0x14df20/0x14df53, and copied from the
+ * FUN_0014cb00 output +0x02/+0x00/+0x04 on the bsp path).  Only +0x36 and
+ * +0x42 remain unobserved.
  * ------------------------------------------------------------------------- */
 typedef struct collision_test_result {
     int16_t field_00;      /* +0x00: -1 when no hit, 2 on a bsp surface hit */
@@ -1608,7 +1624,12 @@ typedef struct collision_test_result {
     float   normal[3];     /* +0x24 */
     float   field_30;      /* +0x30 */
     int16_t field_34;      /* +0x34 */
-    char    pad_36[0xe];   /* +0x36 */
+    int16_t pad_36;        /* +0x36 */
+    int32_t field_38;      /* +0x38: object handle (FUN_0014dce0) */
+    int16_t field_3c;      /* +0x3c */
+    int16_t field_3e;      /* +0x3e */
+    int16_t field_40;      /* +0x40 */
+    int16_t pad_42;        /* +0x42 */
     int32_t field_44;      /* +0x44 */
     int32_t field_48;      /* +0x48 */
     char    field_4c;      /* +0x4c */
@@ -1619,10 +1640,58 @@ cs(collision_test_result, 0x50);
 co(collision_test_result, t,        0x14);
 co(collision_test_result, position, 0x18);
 co(collision_test_result, normal,   0x24);
+co(collision_test_result, field_38, 0x38);
+co(collision_test_result, field_3c, 0x3c);
+co(collision_test_result, field_3e, 0x3e);
+co(collision_test_result, field_40, 0x40);
 co(collision_test_result, field_44, 0x44);
 co(collision_test_result, field_4e, 0x4e);
 
 /* CRT qsort/_shortsort comparator: two cdecl record pointers, int result. */
 typedef int(__cdecl *qsort_compar_proc)(const void *, const void *);
+
+/* -------------------------------------------------------------------------
+ * sound_cache_sound -- PARTIAL. Per-sound record managed by the Xbox hardware
+ * sound cache (cache/xbox_sound_cache.c).
+ *
+ * Only +0x2c, +0x30 and +0x34 have been observed, all dword stores in
+ * sound_cache_sound_new (0x1bdf41..0x1bdf4f). +0x30 is named from the assert
+ * text "sound->cache_base_address==NULL" at 0x1bdf2a; +0x2c and +0x34 have no
+ * naming evidence. Total size is UNKNOWN, so there is no cs() assert and
+ * everything below +0x2c is unexamined rather than proven unused.
+ * ------------------------------------------------------------------------- */
+typedef struct sound_cache_sound {
+    char  pad_00[0x2c];        /* +0x00: never observed accessed */
+    int32_t field_2c;          /* +0x2c: set to -1 on new */
+    void *cache_base_address;  /* +0x30: NULL while not resident */
+    void *field_34;            /* +0x34: dword handed in by the creator */
+} sound_cache_sound;
+co(sound_cache_sound, field_2c,           0x2c);
+co(sound_cache_sound, cache_base_address, 0x30);
+co(sound_cache_sound, field_34,           0x34);
+
+/* -------------------------------------------------------------------------
+ * transport_address -- PARTIAL. Bungie.net transport-layer network address
+ * (bungie_net/network/transport_address.c).
+ *
+ * Field names are taken verbatim from the assert text
+ * "IPV4_ADDRESS_LENGTH == a->address_length" at 0x266060 / 0x266034
+ * (transport_address_equivalent, 0x81a90).
+ *
+ * transport_address_equivalent compares the two records with
+ * csmemcmp(a, b, max(a->address_length, b->address_length)) starting at
+ * offset 0, so the address bytes occupy the front of the record; only the
+ * first IPV4_ADDRESS_LENGTH (4) of them are ever compared at runtime. The
+ * 16-byte span is inferred from address_length sitting at +0x10, not proven
+ * as the declared address width. Total size is UNKNOWN, so there is no cs()
+ * assert and everything past +0x14 is unexamined rather than proven unused.
+ * ------------------------------------------------------------------------- */
+typedef struct transport_address {
+    uint8_t  address[0x10];   /* +0x00: address bytes, compared as a block */
+    uint16_t address_length;  /* +0x10: asserted == IPV4_ADDRESS_LENGTH */
+    uint16_t port;            /* +0x12: compared as a 16-bit value */
+} transport_address;
+co(transport_address, address_length, 0x10);
+co(transport_address, port,           0x12);
 
 #endif /* TYPES_H */
