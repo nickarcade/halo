@@ -1618,3 +1618,149 @@ operand order to chase the official metric.
 
 **Related:** §39 (byte-accuracy tuning playbook) and the `lift-score-improve`
 skill's recipe atlas.
+
+## 43. Float Constant Pushed as a Stack Immediate, Lifted as a Pointer Dereference
+
+**Automation:** YES — `check_lift_hazards.py::check_literal_deref_bounds`
+(ERROR-level, blocks): flags `*(T *)0xLITERAL` where the literal falls outside
+the XBE image `[0x10000, 0x800000)` and outside the genuine Xbox windows
+(kernel/RAM `0x80000000-0x84000000`, GPU RAMIN `0xd0000000-0xd1000000`,
+framebuffer/AGP `0xf0000000-0xf4000000`, NV2A/APU/SMC/flash `0xfd000000+`).
+When the literal decodes to a tidy float the message names the value. Suppress
+with a `hazard-ok` comment on the same line.
+
+MSVC does not always source a float constant from `.rdata`. For a stack
+argument it pushes the bit pattern as a raw immediate:
+
+```
+68 000000bf     push   0xbf000000    ; -0.5f
+d9 5d f4        fstp   dword [ebp-0xc]
+```
+
+The Ghidra decompiler renders this correctly as `-0.5`, but the *listing* shows
+only `push 0xbf000000`, and a lift written from the listing (or from a cached
+context that kept the immediate) transcribes the immediate as an address:
+
+```c
+/* wrong — 0xbf000000 is the encoding of -0.5f, not an address */
+vector3d_scale_add(point_out, direction, *(float *)0xbf000000, point_out);
+
+/* right */
+vector3d_scale_add(point_out, direction, -0.5f, point_out);
+```
+
+Two properties make this class expensive:
+
+- **It is latent.** The fault only happens when that code path executes.
+  `FUN_001abd90` (melee lunge collision, `units.obj` batch 25) shipped
+  2026-06-19 and did not fault until a unit actually entered melee lunge state
+  4 with a parent — two months later.
+- **It does not look like a crash.** The XBDM debugger halts the faulting
+  thread and leaves the other three in normal kernel waits, so the CPU sits in
+  `KiIdleLoop` at `0x8001e024` and the console presents as a frozen picture.
+  `isstopped thread=<id>` is what names it:
+  `exception code=0xc0000005 thread=28 address=0x006e8e37 read=0xbf000000`.
+
+The read address in the exception report *is* the constant, so decoding it
+(`struct.unpack('<f', struct.pack('<I', 0xbf000000))` → `-0.5`) identifies the
+bug before any source is opened. Negative float constants between -0.25 and
+-8.0 all encode into the `0xbe000000-0xc1000000` band, which is unmapped on
+Xbox — hence the bounds check rather than a float-shape heuristic.
+
+**Related:** §6 (float bits smuggled through pointer casts), §17 (address
+offset mis-rendered as value addition), and the `lift-silent-bugs` skill.
+
+---
+
+## 44. A Permuter Candidate That Scores Higher Can Be Semantically Wrong
+
+**Automation:** YES — `tools/permuter/audit_candidate.py`, called automatically
+from `tools/permuter/run.py` for every candidate; the verdict lands in
+`lcs_results.txt` as `audit=OK|REJECT|UNKNOWN` and a REJECT count is printed at
+the end of the run.
+
+The permuter optimizes an instruction-similarity metric. Nothing in the search
+loop knows what the C means, so a candidate that changes behaviour is free to
+outscore the faithful base — and does so at a high rate.
+
+**Measured 2026-08-13, `src/halo/units/units.c`, three targets, three
+best-ranked candidates:**
+
+| Target | Claimed | Verdict |
+|---|---|---|
+| `unit_impact_melee_damage` | +4.6pp | safe (one coalesced store) |
+| `unit_get_seat_enter_position` | +1.5pp | **broken** — `LOST_DEF` |
+| `unit_set_seat_state` | +0.7pp | **broken** — `UNDEF_PATH` |
+
+**Class 1 — `LOST_DEF`.** The permuter inlines a load into the comparison that
+consumed it and drops the assignment, leaving every later read on a stale value:
+
+```c
+/* base — faithful */
+mode_index = *(int16_t *)(*(int *)(mode + 0x44) + 0xe);
+if (mode_index == -1) { return 0; }
+mode = tag_block_get_element(antr_tag + 0x74, (int)mode_index, 0xb4);
+
+/* candidate — scores +1.5pp, indexes with the LOOP COUNTER */
+if (*(int16_t *)(*(int *)(mode + 0x44) + 0xe) == -1) { return 0; }
+mode = tag_block_get_element(antr_tag + 0x74, (int)mode_index, 0xb4);
+```
+
+`mode_index` is the `while` counter, so the animation block is indexed with the
+wrong element. Wrong seat-enter position, no crash, no assert.
+
+**Class 2 — `UNDEF_PATH`.** Every assignment to a permuter temporary sits inside
+a branch that returns, but it is dereferenced on paths that therefore cannot
+have set it:
+
+```c
+if (*(int *)(unit + 0x2d8) == -1) {
+  position[0] = *(new_var2 = &(*(float *)(marker_buf + 0x60)));
+  ...
+  return;                 /* the ONLY def, and it leaves the function */
+}
+...
+position[0] = *new_var2;  /* guaranteed uninitialized pointer read */
+```
+
+**Why every existing gate misses this.** The `LOST_DEF` candidate was applied as
+a probe and measured:
+
+| Gate | Result |
+|---|---|
+| VC71 official match | 92.4% → 93.9% (**+1.5pp — rewards the bug**) |
+| VC71 `opnd` | 58.0% → 67.1% (+9.1pp) |
+| `unicorn_diff` equivalence | 60/60 seeds pass, 30.7% coverage, "moderate" |
+| stub-arg differential | 420 calls, 0 mismatches |
+| `clang -Wall -Werror` | clean |
+| `-Wconditional-uninitialized` | clean (`mode_index` *is* initialized) |
+
+The equivalence lane passes because the changed call sits behind a
+`crt_stricmp` match inside a tag-block loop that zero-fill and z3-branch seeds
+never reach — all 60 seeds return `0x00000000` from an early exit, so the
+modified code never executes. A "pass" with sub-60% coverage on a
+guard-chain function is not evidence; see the vacuous-equivalence entry in
+`hub_permuter`.
+
+`-Wconditional-uninitialized` **does** catch class 2 and is worth running (it
+finds 7 pre-existing sites in `units.c`, 7 in `objects.c`), but it is blind to
+class 1 because the variable is initialized — just stale.
+
+**Rule.** Never apply a candidate on score alone. Require `audit=OK` in
+`lcs_results.txt`, then still read the base-vs-candidate diff of the function
+body. Extract just the body for review — the AST round-trip reformats the whole
+file, so a raw `diff` is unreadable:
+
+```bash
+awk -v fn=FUNC '$0 ~ ("^[a-zA-Z_].*"fn"[ ]*\\("){g=1} g{print; if(/^}/) exit}' base.c
+```
+
+And apply only the *structural change* to the real source, never the candidate
+verbatim: the `new_var*` temporaries exist to nudge register allocation, and
+transplanting them carries the hazard without the benefit. Applying only the
+safe coalesced store from the `unit_impact_melee_damage` candidate yielded
+**+0.8pp real** against the +4.6pp the search claimed — consistent with
+`reference_permuter_metric_diverges_from_vc71`.
+
+**Related:** §43 (out-of-image literal deref), the `permuter-campaign` skill
+(Step 3b), and `hub_permuter`.

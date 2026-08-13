@@ -11855,6 +11855,28 @@
       "score": 93.6,
       "source": "src/halo/hs/hs.c"
     },
+    "FUN_000c2810": {
+      "addr": "0xc2810",
+      "end": "0xc2837",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "e9982d888572b1cf",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2840": {
+      "addr": "0xc2840",
+      "end": "0xc287d",
+      "kind": "auto",
+      "n_r": 28,
+      "opnd_percent": 83.6,
+      "ref": "synth",
+      "ref_sha": "fc5d62de3258f3bd",
+      "score": 94.5,
+      "source": "src/halo/hs/hs.c"
+    },
     "FUN_000c2880": {
       "addr": "0xc2880",
       "end": "0xc28b1",
@@ -11863,6 +11885,446 @@
       "opnd_percent": 100.0,
       "ref": "synth",
       "ref_sha": "7303aaf7df8d3881",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c28c0": {
+      "addr": "0xc28c0",
+      "end": "0xc28f2",
+      "kind": "auto",
+      "n_r": 23,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "9ce0d681367b3575",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2900": {
+      "addr": "0xc2900",
+      "end": "0xc2932",
+      "kind": "auto",
+      "n_r": 23,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "710a7e1cb1ec8e99",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2940": {
+      "addr": "0xc2940",
+      "end": "0xc297d",
+      "kind": "auto",
+      "n_r": 28,
+      "opnd_percent": 83.6,
+      "ref": "synth",
+      "ref_sha": "414b8b818f5023a4",
+      "score": 94.5,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2980": {
+      "addr": "0xc2980",
+      "end": "0xc29b2",
+      "kind": "auto",
+      "n_r": 23,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "03f6dc2e50a8b85b",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c29c0": {
+      "addr": "0xc29c0",
+      "end": "0xc29f9",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 86.3,
+      "ref": "synth",
+      "ref_sha": "f74ad00ed0703b48",
+      "score": 94.1,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2a00": {
+      "addr": "0xc2a00",
+      "end": "0xc2a38",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "2270eda9557049cd",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2a40": {
+      "addr": "0xc2a40",
+      "end": "0xc2a78",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "a892496315784d5f",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2ad0": {
+      "addr": "0xc2ad0",
+      "end": "0xc2b09",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 86.3,
+      "ref": "synth",
+      "ref_sha": "be7b10fbe485192d",
+      "score": 94.1,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2b10": {
+      "addr": "0xc2b10",
+      "end": "0xc2b50",
+      "kind": "auto",
+      "n_r": 29,
+      "opnd_percent": 87.7,
+      "ref": "synth",
+      "ref_sha": "30aba16e2b95421b",
+      "score": 91.2,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2b50": {
+      "addr": "0xc2b50",
+      "end": "0xc2b84",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "aaf504afcc9fa7c8",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2b90": {
+      "addr": "0xc2b90",
+      "end": "0xc2bc8",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "c6e23e3121c59d4b",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2bd0": {
+      "addr": "0xc2bd0",
+      "end": "0xc2c13",
+      "kind": "auto",
+      "n_r": 29,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "4a846798575cdff5",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2c20": {
+      "addr": "0xc2c20",
+      "end": "0xc2c63",
+      "kind": "auto",
+      "n_r": 29,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "c9d36628aa8f7b5d",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2c70": {
+      "addr": "0xc2c70",
+      "end": "0xc2ca4",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "c73b6a5f9c09cb94",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2cb0": {
+      "addr": "0xc2cb0",
+      "end": "0xc2cc8",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "38d4aadc7c2e4926",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2cd0": {
+      "addr": "0xc2cd0",
+      "end": "0xc2d17",
+      "kind": "auto",
+      "n_r": 32,
+      "opnd_percent": 77.4,
+      "ref": "synth",
+      "ref_sha": "3f73b4e868d287c8",
+      "score": 90.3,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2d20": {
+      "addr": "0xc2d20",
+      "end": "0xc2d64",
+      "kind": "auto",
+      "n_r": 31,
+      "opnd_percent": 86.7,
+      "ref": "synth",
+      "ref_sha": "e5a2a61976f45304",
+      "score": 90.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2e10": {
+      "addr": "0xc2e10",
+      "end": "0xc2e49",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "07f723b3e2455dc1",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2e50": {
+      "addr": "0xc2e50",
+      "end": "0xc2e86",
+      "kind": "auto",
+      "n_r": 25,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "9a3fc92044300063",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2e90": {
+      "addr": "0xc2e90",
+      "end": "0xc2eca",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "d0b0dfd3df1bde15",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2ed0": {
+      "addr": "0xc2ed0",
+      "end": "0xc2f07",
+      "kind": "auto",
+      "n_r": 25,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "24b4e4b21f3041c5",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2f10": {
+      "addr": "0xc2f10",
+      "end": "0xc2f28",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "61697f9769caf319",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2f30": {
+      "addr": "0xc2f30",
+      "end": "0xc2f64",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "f426cf70e854fd03",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2f70": {
+      "addr": "0xc2f70",
+      "end": "0xc2f88",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "07f5994b60c5e9e1",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3030": {
+      "addr": "0xc3030",
+      "end": "0xc3069",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 86.3,
+      "ref": "synth",
+      "ref_sha": "69243a73328be926",
+      "score": 94.1,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3070": {
+      "addr": "0xc3070",
+      "end": "0xc30a9",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 86.3,
+      "ref": "synth",
+      "ref_sha": "8b2dcc15be6702b2",
+      "score": 94.1,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c30b0": {
+      "addr": "0xc30b0",
+      "end": "0xc30e2",
+      "kind": "auto",
+      "n_r": 23,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "ab9eaded8ff1b01e",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c30f0": {
+      "addr": "0xc30f0",
+      "end": "0xc3124",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "609880ac08687301",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c32b0": {
+      "addr": "0xc32b0",
+      "end": "0xc32c8",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "3ff79bbf312c09d5",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c32d0": {
+      "addr": "0xc32d0",
+      "end": "0xc3305",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "f4b818f872c1a385",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3310": {
+      "addr": "0xc3310",
+      "end": "0xc3345",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "0afb62b50dde750b",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3350": {
+      "addr": "0xc3350",
+      "end": "0xc338a",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "da6c89efcc685110",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3390": {
+      "addr": "0xc3390",
+      "end": "0xc33ca",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "1b07ca39dc5f86d1",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c33d0": {
+      "addr": "0xc33d0",
+      "end": "0xc3413",
+      "kind": "auto",
+      "n_r": 30,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "eba09aec22a4f3f4",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3420": {
+      "addr": "0xc3420",
+      "end": "0xc3454",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "7dd4bc6e891dd832",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3460": {
+      "addr": "0xc3460",
+      "end": "0xc3494",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "6b796d3ac5550c5d",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c34a0": {
+      "addr": "0xc34a0",
+      "end": "0xc34c8",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "00f529656c764065",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c34d0": {
+      "addr": "0xc34d0",
+      "end": "0xc3504",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "28dc91020812fc98",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3510": {
+      "addr": "0xc3510",
+      "end": "0xc3544",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "5641ea7281bd85e5",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3550": {
+      "addr": "0xc3550",
+      "end": "0xc3568",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "e96ffa147f70aca8",
       "score": 100.0,
       "source": "src/halo/hs/hs.c"
     },
@@ -13136,10 +13598,10 @@
       "end": "0xd6cb2",
       "kind": "auto",
       "n_r": 499,
-      "opnd_percent": 51.4,
+      "opnd_percent": 51.8,
       "ref": "synth",
       "ref_sha": "10b9c152d59e121c",
-      "score": 76.6,
+      "score": 77.1,
       "source": "src/halo/interface/hud_messaging.c"
     },
     "FUN_000d6cc0": {
@@ -24445,10 +24907,10 @@
       "end": "0x1ac027",
       "kind": "auto",
       "n_r": 192,
-      "opnd_percent": 57.5,
+      "opnd_percent": 70.6,
       "ref": "synth",
       "ref_sha": "ef8a5bc124a577a4",
-      "score": 81.3,
+      "score": 91.4,
       "source": "src/halo/units/units.c"
     },
     "FUN_001ac680": {
@@ -24836,14 +25298,6 @@
       "score": 100.0,
       "source": "src/halo/cache/cache_files_windows.c"
     },
-    "FUN_001bdb70": {
-      "score": 87.1,
-      "source": "src/halo/cache/physical_memory_map.c"
-    },
-    "FUN_001bdc60": {
-      "score": 87.5,
-      "source": "src/halo/cache/physical_memory_map.c"
-    },
     "FUN_001bdd40": {
       "addr": "0x1bdd40",
       "end": "0x1bdd46",
@@ -24926,10 +25380,10 @@
       "end": "0x1becb7",
       "kind": "auto",
       "n_r": 44,
-      "opnd_percent": 88.9,
+      "opnd_percent": 90.9,
       "ref": "synth",
       "ref_sha": "25d3a377eed434ce",
-      "score": 97.8,
+      "score": 100.0,
       "source": "src/halo/cache/xbox_texture_cache.c"
     },
     "FUN_001bf760": {
@@ -25740,10 +26194,10 @@
       "end": "0x2066f",
       "kind": "auto",
       "n_r": 73,
-      "opnd_percent": 62.1,
+      "opnd_percent": 71.7,
       "ref": "synth",
       "ref_sha": "5feb3142c4dbf087",
-      "score": 75.9,
+      "score": 85.5,
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_handle_initial_action": {
@@ -25762,10 +26216,10 @@
       "end": "0x1f6d2",
       "kind": "auto",
       "n_r": 606,
-      "opnd_percent": 75.1,
+      "opnd_percent": 76.2,
       "ref": "synth",
       "ref_sha": "2a462a6a90ba5ee1",
-      "score": 83.4,
+      "score": 85.5,
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_handle_panic_from_attached_melee_attackers": {
@@ -25828,10 +26282,10 @@
       "end": "0x1de92",
       "kind": "auto",
       "n_r": 109,
-      "opnd_percent": 66.0,
+      "opnd_percent": 69.8,
       "ref": "synth",
       "ref_sha": "fd4d2f8a2930d5ca",
-      "score": 86.4,
+      "score": 89.6,
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_handle_pending_command_list": {
@@ -25938,10 +26392,10 @@
       "end": "0x20120",
       "kind": "auto",
       "n_r": 235,
-      "opnd_percent": 75.2,
+      "opnd_percent": 80.7,
       "ref": "synth",
       "ref_sha": "11ff16911f0784ab",
-      "score": 89.1,
+      "score": 89.5,
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_try_to_enter_vehicle": {
@@ -25960,10 +26414,10 @@
       "end": "0x1fe6b",
       "kind": "auto",
       "n_r": 147,
-      "opnd_percent": 71.8,
+      "opnd_percent": 74.4,
       "ref": "synth",
       "ref_sha": "7aa450bfd4f87a4b",
-      "score": 88.0,
+      "score": 91.0,
       "source": "src/halo/ai/actions.c"
     },
     "actor_action_try_to_panic": {
@@ -28692,10 +29146,10 @@
       "end": "0x1bec27",
       "kind": "auto",
       "n_r": 44,
-      "opnd_percent": 88.9,
+      "opnd_percent": 90.9,
       "ref": "synth",
       "ref_sha": "180cd0e8cb36bb80",
-      "score": 97.8,
+      "score": 100.0,
       "source": "src/halo/cache/xbox_texture_cache.c"
     },
     "bitmap_get_max_mipmap_count": {
@@ -41315,8 +41769,37 @@
       "score": 100.0,
       "source": "src/halo/math/real_math.c"
     },
+    "physical_memory_allocate": {
+      "addr": "0x1bdb70",
+      "end": "0x1bdc58",
+      "kind": "auto",
+      "n_r": 65,
+      "opnd_percent": 86.2,
+      "ref": "synth",
+      "ref_sha": "ce5f6f03a30e5dd3",
+      "score": 100.0,
+      "source": "src/halo/cache/physical_memory_map.c"
+    },
     "physical_memory_deallocate": {
-      "score": 83.3,
+      "addr": "0x1bdd00",
+      "end": "0x1bdd3d",
+      "kind": "auto",
+      "n_r": 21,
+      "opnd_percent": 100.0,
+      "ref": "synth",
+      "ref_sha": "e83607538961bb72",
+      "score": 100.0,
+      "source": "src/halo/cache/physical_memory_map.c"
+    },
+    "physical_memory_map_verify": {
+      "addr": "0x1bdc60",
+      "end": "0x1bdd00",
+      "kind": "auto",
+      "n_r": 46,
+      "opnd_percent": 63.0,
+      "ref": "synth",
+      "ref_sha": "bed0a15147bd62f7",
+      "score": 95.7,
       "source": "src/halo/cache/physical_memory_map.c"
     },
     "pill_intersects_rectangle2d": {
@@ -45614,10 +46097,10 @@
       "end": "0x1cc13a",
       "kind": "auto",
       "n_r": 74,
-      "opnd_percent": 70.7,
+      "opnd_percent": 72.0,
       "ref": "synth",
       "ref_sha": "2e644f52e2c12614",
-      "score": 92.0,
+      "score": 93.3,
       "source": "src/halo/sound/sound_manager.c"
     },
     "sound_check_promotion": {
@@ -46186,10 +46669,10 @@
       "end": "0x1cd18d",
       "kind": "auto",
       "n_r": 167,
-      "opnd_percent": 47.5,
+      "opnd_percent": 48.0,
       "ref": "synth",
       "ref_sha": "7e00aa181f36cf24",
-      "score": 81.4,
+      "score": 81.9,
       "source": "src/halo/sound/sound_manager.c"
     },
     "sound_update_channel_attenuation": {
@@ -46219,10 +46702,10 @@
       "end": "0x1ce17f",
       "kind": "auto",
       "n_r": 419,
-      "opnd_percent": 56.5,
+      "opnd_percent": 56.9,
       "ref": "synth",
       "ref_sha": "46f3ecf45211d830",
-      "score": 83.8,
+      "score": 84.2,
       "source": "src/halo/sound/sound_manager.c"
     },
     "sound_valid_for_channel": {
@@ -48573,10 +49056,10 @@
       "end": "0x1b24c9",
       "kind": "auto",
       "n_r": 196,
-      "opnd_percent": 69.1,
+      "opnd_percent": 68.2,
       "ref": "synth",
       "ref_sha": "47a4fa72f4923916",
-      "score": 90.0,
+      "score": 90.8,
       "source": "src/halo/units/units.c"
     },
     "unit_impulse": {
@@ -50245,10 +50728,10 @@
       "end": "0x1bf75d",
       "kind": "auto",
       "n_r": 162,
-      "opnd_percent": 70.8,
+      "opnd_percent": 89.8,
       "ref": "synth",
       "ref_sha": "fbaae8f25ce472a1",
-      "score": 84.6,
+      "score": 92.3,
       "source": "src/halo/cache/xbox_texture_cache.c"
     },
     "xbox_texture_cache_request": {
@@ -50256,10 +50739,10 @@
       "end": "0x1bf260",
       "kind": "auto",
       "n_r": 85,
-      "opnd_percent": 76.0,
+      "opnd_percent": 85.4,
       "ref": "synth",
       "ref_sha": "1b08ec6e2f64962e",
-      "score": 91.2,
+      "score": 94.2,
       "source": "src/halo/cache/xbox_texture_cache.c"
     },
     "xbox_texture_cache_return_memory": {
@@ -50278,10 +50761,10 @@
       "end": "0x1bef7a",
       "kind": "auto",
       "n_r": 116,
-      "opnd_percent": 46.8,
+      "opnd_percent": 52.8,
       "ref": "synth",
       "ref_sha": "a37c6adff4a35033",
-      "score": 75.4,
+      "score": 80.5,
       "source": "src/halo/cache/xbox_texture_cache.c"
     },
     "xbox_texture_cache_steal_memory": {
@@ -50289,10 +50772,10 @@
       "end": "0x1beb01",
       "kind": "auto",
       "n_r": 69,
-      "opnd_percent": 73.5,
+      "opnd_percent": 85.5,
       "ref": "synth",
       "ref_sha": "ba779cbaf503edd1",
-      "score": 88.2,
+      "score": 98.6,
       "source": "src/halo/cache/xbox_texture_cache.c"
     },
     "zError": {

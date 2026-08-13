@@ -4781,7 +4781,7 @@ void FUN_001a9f20(int unit_handle)
         damage_data_new(damage_params, damage_effect_index);
         *(int *)(damage_params + 0x0c) = unit_handle;
         object_cause_damage(damage_params, player_unit_handle, (short)-1,
-                            (short)-1, (short)-1, 0);
+                            (short)-1, (short)-1, (float *)0);
         did_damage = 1;
       }
     }
@@ -6533,13 +6533,21 @@ void FUN_001abd90(int unit_handle)
   char *unit;
   char *unit_tag_data;
   int parent_handle;
-  char collision_buf[0x4c0 - 0x64]; /* large collision buffer */
-  char collision_result[0x60];
+  /* Frame layout from the original (EBP-0x4bc frame):
+   *   [ebp-0x4bc] collision_result  0x420 bytes
+   *   [ebp-0x9c]  collision_buf     0x10  bytes (collision test context)
+   *   [ebp-0x8c]  damage_params     0x54  bytes
+   *   [ebp-0x38]  normal_out        4 floats
+   *   [ebp-0x28]  surface_out       3 floats
+   *   [ebp-0x1c]  point_out         3 floats
+   *   [ebp-0xc]   direction         3 floats */
+  char collision_buf[0x10];
+  char collision_result[0x420];
   char damage_params[0x54];
   float direction[3];
   float point_out[3];
-  float surface_out[16];
-  float normal_out[16];
+  float surface_out[3];
+  float normal_out[4];
   char hit_found;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
@@ -6574,8 +6582,9 @@ void FUN_001abd90(int unit_handle)
       char coll_result;
 
       coll_depth = *(int16_t *)0x4761d8;
-      *(int16_t *)0x4761d8 = coll_depth + 1;
-      *(int16_t *)(0x5a8c80 + coll_depth * 2) = 8;
+      coll_depth = coll_depth + 1; /* ref: incw %ax on the loaded value */
+      *(int16_t *)0x4761d8 = coll_depth;
+      *(int16_t *)(0x5a8c80 + (coll_depth - 1) * 2) = 8;
 
       /* Set up collision test against parent */
       coll_result = FUN_0014c8e0((int *)collision_buf, parent_handle);
@@ -6588,28 +6597,27 @@ void FUN_001abd90(int unit_handle)
         direction[1] = *(float *)(unit + 0x28) * *(float *)0x2549d4;
         direction[2] = *(float *)(unit + 0x2c) * *(float *)0x2549d4;
 
-        vector3d_scale_add(point_out, direction, *(float *)0xbf000000,
-                           point_out);
+        vector3d_scale_add(point_out, direction, -0.5f, point_out);
 
         coll_result = FUN_0014cb00((int)collision_buf, (void *)3, point_out,
                                    direction, (int16_t *)collision_result);
 
         if (coll_result != 0) {
-          /* Compute hit point */
+          /* Compute hit point (scale from collision_result+0x08) */
           vector3d_scale_add(point_out, direction,
-                             *(float *)(collision_result + 0x0c), surface_out);
+                             *(float *)(collision_result + 0x08), surface_out);
 
           /* Get surface normal */
           {
             int surface_base;
-            surface_base = *(int *)(collision_buf + 0x70 - 0x64);
+            surface_base = *(int *)(collision_buf + 0x0c);
             FUN_0010a1c0(
               (float *)(surface_base + *(int16_t *)collision_result * 0x34),
-              (float *)(collision_result + 0x14), (float *)normal_out);
+              (float *)(collision_result + 0x0c), (float *)normal_out);
           }
 
           /* Negate normal if backfacing */
-          if (*(int *)(collision_result + 0x1c) < 0) {
+          if (*(int *)(collision_result + 0x14) < 0) {
             plane_negate((float *)normal_out, (float *)normal_out);
           }
 
@@ -6618,12 +6626,12 @@ void FUN_001abd90(int unit_handle)
       }
 
       /* Pop collision user depth */
-      if (*(int16_t *)0x4761d8 < 2) {
+      if (*(int16_t *)0x4761d8 <= 1) { /* ref: cmp 1 / jg */
         display_assert("global_current_collision_user_depth > 1",
                        "c:\\halo\\SOURCE\\units\\units.c", 0x22fe, true);
         system_exit(-1);
       }
-      *(int16_t *)0x4761d8 = *(int16_t *)0x4761d8 - 1;
+      --*(int16_t *)0x4761d8; /* ref: single decw */
     }
   }
 
@@ -6634,23 +6642,38 @@ void FUN_001abd90(int unit_handle)
     damage_data_new(damage_params, damage_effect);
   }
 
-  /* Set damage params common fields */
-  *(int *)(damage_params + 0x00) = unit_handle;
-  *(int16_t *)(damage_params + 0x04) = *(int16_t *)(unit + 0x68);
-  *(int *)(damage_params + 0x08) = *(int *)(unit + 0x1c8);
-  *(float *)(damage_params + 0x20) = 0.03333333f; /* 1/30 */
+  /* Set damage params common fields.  +0x00 holds the damage-effect tag index
+   * written by damage_data_new — never overwrite it.
+   * Both sources are loaded before the first store, as in the reference. */
+  {
+    int16_t owner_team;
+    int owner_extra;
+
+    owner_team = *(int16_t *)(unit + 0x68);
+    owner_extra = *(int *)(unit + 0x1c8);
+    *(int *)(damage_params + 0x0c) = unit_handle;
+    *(int16_t *)(damage_params + 0x10) = owner_team;
+    *(int *)(damage_params + 0x08) = owner_extra;
+  }
+  *(float *)(damage_params + 0x40) = 1.0f / 30.0f; /* ref imm 0x3d088889 */
 
   if (hit_found) {
-    /* Copy hit position and forward direction into damage params */
-    *(float *)(damage_params + 0x34) = surface_out[0];
-    *(float *)(damage_params + 0x38) = surface_out[1];
-    *(float *)(damage_params + 0x30) = surface_out[0]; /* duplicate */
-    *(float *)(damage_params + 0x3c) = surface_out[2];
+    /* Hit point is stored twice: once at +0x1c and once at +0x28 */
+    *(float *)(damage_params + 0x1c) = surface_out[0];
+    *(float *)(damage_params + 0x20) = surface_out[1];
+    *(float *)(damage_params + 0x24) = surface_out[2];
+    *(float *)(damage_params + 0x28) = surface_out[0];
+    *(float *)(damage_params + 0x2c) = surface_out[1];
+    *(float *)(damage_params + 0x30) = surface_out[2];
 
-    /* Copy unit forward as damage direction */
-    *(float *)(damage_params + 0x2c) = *(float *)(unit + 0x24);
-    *(float *)(damage_params + 0x28) = *(float *)(unit + 0x28);
-    *(float *)(damage_params + 0x24) = *(float *)(unit + 0x2c);
+    /* Unit forward becomes the damage direction (ref: lea 0x24(%esi)) */
+    {
+      const float *unit_forward = (const float *)(unit + 0x24);
+
+      *(float *)(damage_params + 0x34) = unit_forward[0];
+      *(float *)(damage_params + 0x38) = unit_forward[1];
+      *(float *)(damage_params + 0x3c) = unit_forward[2];
+    }
 
     *(uint32_t *)(damage_params + 0x04) |= 2;
     *(char *)(unit + 0x23a) = 10;
@@ -6658,10 +6681,10 @@ void FUN_001abd90(int unit_handle)
     object_cause_damage(
       damage_params, parent_handle, *(int16_t *)collision_result,
       *(int16_t *)(collision_result + 0x02),
-      *(int16_t *)(collision_result + 0x1a), (unsigned int)normal_out);
+      *(int16_t *)(collision_result + 0x1a), normal_out);
   } else {
     object_cause_damage(damage_params, parent_handle, (short)-1, (short)-1,
-                        (short)-1, 0);
+                        (short)-1, (float *)0);
   }
 
   /* Decrement attack timer */
@@ -6825,7 +6848,7 @@ void unit_flame_to_death(int unit_handle)
       *(int16_t *)(damage_params + 0x10) = *(int16_t *)(parent_obj + 0x68);
     }
 
-    object_cause_damage(damage_params, unit_handle, -1, -1, -1, 0);
+    object_cause_damage(damage_params, unit_handle, -1, -1, -1, (float *)0);
   }
 
   if ((*(uint8_t *)(unit + 0xb6) & 0x4) == 0) {
@@ -9051,7 +9074,8 @@ void unit_handle_deleted_object(int unit_handle, int deleted_handle)
  * If melee_hit is false and the collision result has a valid material type,
  * plays the melee clang sound via FUN_001abd10. */
 void unit_cause_melee_damage(int unit_handle, char melee_hit, int target_handle,
-                             int param_4, int param_5, int param_6, int param_7)
+                             int param_4, int param_5, int param_6,
+                             float *impact_direction)
 {
   char *unit;
   char *unit_tag;
@@ -9170,7 +9194,7 @@ void unit_cause_melee_damage(int unit_handle, char melee_hit, int target_handle,
     FUN_00138e30(damage_params, -1);
   } else {
     object_cause_damage(damage_params, target_handle, (short)param_4,
-                        (short)param_5, (short)param_6, (unsigned int)param_7);
+                        (short)param_5, (short)param_6, impact_direction);
   }
 
   if (melee_hit == 0 && *(int16_t *)(damage_params + 0x4c) != -1) {
@@ -9437,7 +9461,7 @@ got_damage_effect:
 
       hit_type_data = (char *)object_get_and_verify_type(best_object, -1);
       if (*(short *)(hit_type_data + 100) == 0) {
-        object_cause_damage(damage_data, best_object, -1, -1, -1, 0);
+        object_cause_damage(damage_data, best_object, -1, -1, -1, (float *)0);
       }
     }
   }
@@ -9456,7 +9480,7 @@ got_damage_effect:
       *(unsigned int *)(damage_data + 0x20) = unit[0x15];
       *(unsigned int *)(damage_data + 0x24) = unit[0x16];
       *(unsigned int *)(damage_data + 0x04) |= 8;
-      object_cause_damage(damage_data, unit_handle, -1, -1, -1, 0);
+      object_cause_damage(damage_data, unit_handle, -1, -1, -1, (float *)0);
     }
   }
 
@@ -10944,7 +10968,7 @@ short FUN_001b0d90(int unit_handle, char *anim_state)
         case 0x1e:
         case 0x1f:
         case 0x29:
-          unit_cause_melee_damage(unit_handle, 0, -1, -1, -1, -1, 0);
+          unit_cause_melee_damage(unit_handle, 0, -1, -1, -1, -1, (float *)0);
           break;
         case 0x21:
           FUN_001ab110(unit_handle, 0);
@@ -12188,7 +12212,7 @@ void unit_impact_melee_damage(int unit_handle, int param_2, int param_3,
     target_tag = (int)tag_get(0x756e6974, *(int *)target_data);
     if ((*(uint32_t *)(target_tag + 0x17c) & 0x400000) != 0) {
       unit_cause_melee_damage(unit_handle, 1, param_2, param_3, param_4,
-                              param_5, (int)param_7);
+                              param_5, param_7);
       object_deplete_body(unit_handle);
       object_delete(unit_handle);
       return;
@@ -12221,15 +12245,16 @@ void unit_impact_melee_damage(int unit_handle, int param_2, int param_3,
     parent_handle = *(int *)(parent_obj + 0xcc);
   }
 
-  /* Copy global forward vector to unit position (obj+0x18) */
+  /* Copy global forward vector to unit position (obj+0x18) and unit up
+   * (obj+0x3c).  The reference loads the X component once and stores it to
+   * both fields before reloading the global pointer, so the assignment is
+   * chained rather than repeated. */
   fwd_ptr = *(char **)0x0031fc38;
-  *(float *)(unit + 0x18) = *(float *)fwd_ptr;
+  *(float *)(unit + 0x18) = (*(float *)(unit + 0x3c) = *(float *)fwd_ptr);
   *(float *)(unit + 0x1c) = *(float *)(fwd_ptr + 4);
   *(float *)(unit + 0x20) = *(float *)(fwd_ptr + 8);
 
-  /* Copy global forward vector to unit up (obj+0x3c) */
   fwd_ptr = *(char **)0x0031fc38;
-  *(float *)(unit + 0x3c) = *(float *)fwd_ptr;
   *(float *)(unit + 0x40) = *(float *)(fwd_ptr + 4);
   *(float *)(unit + 0x44) = *(float *)(fwd_ptr + 8);
 
