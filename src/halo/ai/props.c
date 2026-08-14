@@ -35,6 +35,53 @@
  * generated decl.h via the kb.json data entries and are visible here
  * through the common.h -> decl.h include chain. No re-declaration needed. */
 
+/* 0x63e30 — thin wrapper over FUN_000639e0 (same scenario/bsp/origin/node/
+ * target parameter family as sibling FUN_00063e90).
+ *
+ * Confirmed from disassembly (0x63e30-0x63e81):
+ *   frame  = PUSH EBP / MOV EBP,ESP / SUB ESP,0x1c -> one 0x1c-byte local
+ *            buffer at EBP-0x1c, passed to the callee as its result_buf.
+ *   guard  = MOV EDI,[EBP+0x14] / CMP EDI,-1 / JE 0x63e7a; the taken branch
+ *            does OR EAX,0xffffffff, i.e. `return -1`.
+ *   call   = single CALL 0x639e0, cdecl, ADD ESP,0x1c (7 dwords / 7 args).
+ *            Push order (last push = first C arg) is
+ *            [EBP+8], [EBP+0xc], [EBP+0x10], EDI, ESI, -1, LEA EBP-0x1c,
+ *            which matches FUN_000639e0's 7-arg kb prototype exactly.
+ *            Note EAX is reused: LEA EAX,[EBP-0x1c] at 0x63e49 is pushed at
+ *            0x63e4c BEFORE MOV EAX,[EBP+8] at 0x63e4d reloads it.
+ *   out    = the three post-call reads are callee outputs inside result_buf,
+ *            not independent locals (buffer-alias hazard):
+ *              [EBP-0x18] = result_buf+0x04 -> target[0]
+ *              [EBP-0x14] = result_buf+0x08 -> target[1]
+ *              [EBP-0x0c] = result_buf+0x10 -> status
+ *            Both target stores are plain 32-bit MOVs (MOV [ESI],ECX /
+ *            MOV [ESI+4],EDX) — no x87 anywhere in this function.
+ *   return = CMP EAX,-1 / JNE 0x63e7d returns EAX (status); the fall-through
+ *            does MOV EAX,EDI, i.e. returns node_handle.
+ *
+ * Ghidra's decompile of this function is misleading in three ways: the stale
+ * void(void) kb prototype turned all five parameters into in_stack_* pseudo-
+ * args, it dropped every return value, and it sized the buffer as char[4]. */
+int FUN_00063e30(int scenario, unsigned char bsp_idx, float *origin,
+                 int node_handle, float *target)
+{
+  char result_buf[0x1c];
+  int status;
+
+  if (node_handle != -1) {
+    FUN_000639e0(scenario, bsp_idx, origin, node_handle, target, -1,
+                 result_buf);
+    target[0] = *(float *)(result_buf + 0x04);
+    target[1] = *(float *)(result_buf + 0x08);
+    status = *(int *)(result_buf + 0x10);
+    if (status == -1) {
+      return node_handle;
+    }
+    return status;
+  }
+  return -1;
+}
+
 /* 0x64100 — props_initialize.
  * Allocates the prop data table. Called from ai_initialize.
  * Asserts (halt=true) if allocation fails, then calls system_exit(-1). */
@@ -67,6 +114,51 @@ void FUN_00064150(void)
 void FUN_00064160(void)
 {
   data_make_invalid(prop_data);
+}
+
+/* 0x643d0 — allocate a prop and attach it to an actor.
+ *
+ * Allocates a slot in prop_data, initialises it via prop_add with no unit
+ * handle (NONE), and returns the new prop handle.  Same head-of-function
+ * idiom as prop_orphan_transition (0x648a0), which does the identical
+ * data_new_at_index / prop_add(-1, actor_handle, new_handle) pair.
+ *
+ * No name is claimed: the binary carries no assert string or __FILE__ line
+ * for this function, so the FUN_ symbol is retained.
+ *
+ * Frame (from disasm 0x643d0-0x643f6, 15 instructions):
+ *   PUSH EBP / MOV EBP,ESP / PUSH ESI — no `sub esp`, so no locals; ESI is
+ *   the only callee-saved register and holds the new prop handle across the
+ *   second call.
+ *
+ * Ghidra's decompile is wrong in three ways and must not be transcribed:
+ * the stale `void FUN_000643d0(void)` kb prototype hid the single [EBP+8]
+ * parameter, the EAX return (via ESI) was dropped, and prop_add appeared
+ * argument-less.  `OR EAX,0xffffffff` before the CALL is prop_add's @<eax>
+ * register argument (unit_handle = NONE), not dead code.
+ *
+ * Call-site verification table:
+ *   CALL 0x119610 data_new_at_index (cdecl, 1 stack arg):
+ *     arg1 | MOV EAX,[0x5ab23c]; PUSH EAX | prop_data     | YES
+ *     ret  | MOV ESI,EAX                  | prop_handle   | YES
+ *   CALL 0x64170 prop_add (@<eax> + 2 stack args):
+ *     arg1 | OR EAX,0xffffffff (@<eax>)   | -1            | YES
+ *     arg2 | PUSH ECX (= MOV ECX,[EBP+8]) | actor_handle  | YES  (last push)
+ *     arg3 | PUSH ESI                     | prop_handle   | YES
+ *   The single `ADD ESP,0xc` after the second CALL is MSVC coalescing the
+ *   cleanup for both calls (1 push + 2 pushes); it is not a 3-stack-arg
+ *   prop_add, so the ARG_COUNT audit warning on 0x64170 is benign.
+ *   return | MOV EAX,ESI | prop_handle | YES
+ *
+ * Store-offset table: none — this function writes no struct or stack buffer.
+ */
+int FUN_000643d0(int actor_handle)
+{
+  int prop_handle;
+
+  prop_handle = data_new_at_index(prop_data);
+  prop_add(-1, actor_handle, prop_handle);
+  return prop_handle;
 }
 
 /* 0x64400 — prop_unlink_from_actor (@eax=actor_handle, @edi=prop_handle).
@@ -245,6 +337,216 @@ int FUN_00064570(int *iter)
   return (int)prop;
 }
 
+/* 0x645a0 — prop_new_unacknowledged.
+ *
+ * Walks the actor's prop chain looking for a prop to (re)use as the actor's
+ * new unacknowledged prop.  Two independent nearest-distance accumulators are
+ * kept, both keyed on the prop's float field at +0x11c (a distance measure,
+ * smaller wins):
+ *
+ *   unacknowledged_index / nearest_unacknowledged  — props that
+ *       actor_perception_desire_prop rejects (returns 0).  Any such prop is
+ *       eligible; the nearest one wins outright.
+ *   acknowledged_index / nearest_acknowledged      — props it accepts
+ *       (returns non-zero).  These only count when the prop's byte flag at
+ *       +0x60 equals the caller's `flag`, and only enter the accumulator when
+ *       the callee also set its out-flag.  Every flag-matching prop is
+ *       counted in candidate_count whether or not the out-flag was set.
+ *
+ * Selection (0x646e0-0x64707):
+ *   the nearest rejected prop wins; otherwise the nearest accepted prop wins
+ *   but only if at least `flag ? 6 : 4` flag-matching candidates were seen;
+ *   otherwise a brand-new prop datum is allocated.  A reused prop is
+ *   unlinked from the actor (FUN_0003b410 + FUN_00064400) and cleared to zero
+ *   except for its datum identifier before being re-added.
+ *
+ * Ghidra's decompile of this function must NOT be transcribed: the stale
+ * `void prop_new_unacknowledged(void)` kb prototype hid all three parameters
+ * ([EBP+8] actor_handle, [EBP+0xc] unit_handle, [EBP+0x10] byte flag) and the
+ * EAX return (MOV EAX,EDI at 0x647b7), and the decompiler dropped four blocks
+ * as "unreachable": the whole acknowledged accumulator (0x6469d-0x646db) and
+ * the candidate_count threshold fallback (0x646f0-0x64707).
+ *
+ * Frame: SUB ESP,0x18 —
+ *   EBP-0x01 bool  desire_out            (address passed to the desire call)
+ *   EBP-0x08 int   candidate_count       (incremented 32-bit, compared as a
+ *                                         signed word at 0x646fe)
+ *   EBP-0x0c float nearest_unacknowledged = 0x7f7fffff
+ *   EBP-0x10 float nearest_acknowledged   = 0x7f7fffff
+ *   EBP-0x14 int   unacknowledged_index   = NONE
+ *   EBP-0x18 int   acknowledged_index     = NONE
+ * Loop registers: EBX = current handle, EDI = next handle, ESI = prop pointer.
+ *
+ * Call-site verification table (arg# | binary source | C expression | match):
+ *   0x645d2 datum_get (2 stack args, ADD ESP,8):
+ *     1 | PUSH ECX = [0x6325a4]          | actor_data     | YES (2nd push)
+ *     2 | PUSH EAX = [EBP+8]             | actor_handle   | YES
+ *   0x645f3 datum_get:
+ *     1 | PUSH EDX = [0x5ab23c]          | prop_data      | YES
+ *     2 | PUSH EDI = current handle      | cur_handle     | YES
+ *   0x6466c actor_perception_desire_prop (ADD ESP,0x34 = 13 stack args;
+ *   pushes listed in binary order, so the first is the LAST C argument):
+ *    13 | PUSH EAX = LEA [EBP-1]          | &desire_out          | YES
+ *    12 | PUSH ECX = movzx word [ESI+0x6a]| (u16)prop+0x6a       | YES
+ *    11 | PUSH ECX + FSTP [ESP]           | prop+0x11c squared   | YES
+ *         (push-then-fstp: the pushed ECX is a dummy; the real value is ST0 =
+ *          FLD [ESI+0x11c]; FLD ST(0); FMUL ST(0),ST(1) — the trailing
+ *          FSTP ST(0) at 0x64645 pops the duplicated copy)
+ *    10 | PUSH EDX = [ESI+0x20]           | *(int *)(prop+0x20)  | YES
+ *     9 | PUSH EAX = movzx word [ESI+0x76]| (u16)prop+0x76       | YES
+ *     8 | PUSH ECX = movzx byte [ESI+0x127]| (u8)prop+0x127      | YES
+ *     7 | PUSH EDX = movzx byte [ESI+0x60]| (u8)prop+0x60        | YES
+ *     6 | PUSH EAX = movzx byte [ESI+0x12e]| (u8)prop+0x12e      | YES
+ *     5 | PUSH ECX = movzx byte [ESI+0x63]| (u8)prop+0x63        | YES
+ *     4 | PUSH EDX = [ESI+0x1c]           | *(int *)(prop+0x1c)  | YES
+ *     3 | PUSH EAX = [ESI+0x18]           | *(int *)(prop+0x18)  | YES
+ *     2 | PUSH -1                         | NONE                 | YES
+ *     1 | PUSH ECX = [EBP+8]              | actor_handle         | YES
+ *     ret| TEST AL,AL at 0x64674          | consumed as bool     | YES
+ *   0x6470f data_new_at_index (1 stack arg, ADD ESP,4):
+ *     1 | PUSH EAX = [0x5ab23c]           | prop_data            | YES
+ *   0x6474b / 0x64771 display_assert (4 args) + PUSH EBX(-1); system_exit.
+ *     The second assert at line 0x9f re-reads [ESI+0xc] (0x64756) — MSVC did
+ *     not treat system_exit as noreturn, so both asserts are emitted.
+ *   0x64785 FUN_0003b410 (3 stack args):
+ *     1 | PUSH EBX (reloaded [EBP+8] at 0x64780) | actor_handle | YES
+ *     2 | PUSH EDI                               | prop_index   | YES
+ *     3 | PUSH EBX (still -1 from OR at 0x64730) | NONE         | YES
+ *     EBX is reused here (NONE, then actor_handle) — a register-aliasing trap.
+ *   0x6478c FUN_00064400 (register args, no pushes):
+ *     1 | MOV EAX,EBX at 0x6478a  | actor_handle @<eax> | YES
+ *     2 | EDI live from selection | prop_index   @<edi> | YES
+ *   0x6479c csmemset (3 stack args; the ADD ESP,0x18 at 0x647a1 is MSVC
+ *   coalescing this call's 3 pushes with FUN_0003b410's 3 — the ARG_COUNT
+ *   audit warning of 6 args is that artifact, not a real mismatch):
+ *     1 | PUSH ESI       | prop  | YES
+ *     2 | PUSH 0         | 0     | YES
+ *     3 | PUSH 0x138     | 0x138 | YES
+ *   0x647af prop_add (register arg + 2 stack args, ADD ESP,8):
+ *     1 | MOV EAX,[EBP+0xc] | unit_handle @<eax> | YES
+ *     2 | PUSH EDX = [EBP+8]| actor_handle       | YES
+ *     3 | PUSH EDI          | prop_index         | YES
+ *
+ * Store-offset table (offsets derived from the raw MOV instructions):
+ *   prop+0x00  : MOV [ESI],BX at 0x647a4 — datum identifier restored after
+ *                the csmemset, saved by MOV BX,[ESI] at 0x64791
+ *   prop+0x08  : read only (next handle)
+ *   prop+0x0c  : read only (asserted == NONE)
+ *   prop+0x11c : read only (float distance measure)
+ *   The 0x138 csmemset length matches the prop datum size used by
+ *   props_initialize (0x64100), so the whole datum is cleared.
+ *
+ * FPU: both comparisons are FLD [ESI+0x11c]; FCOMP <accumulator>; FNSTSW AX;
+ * TEST AH,5; JP <loop top>.  Mask 5 covers C0|C2; for ordered operands JP is
+ * taken when neither is set, i.e. when the prop is NOT nearer, so the
+ * fall-through (the accumulator update) is `prop+0x11c < accumulator`.
+ * Both updates store the index first and the float second (MOV [EBP-0x14],EBX
+ * then MOV [EBP-0xc],EDX) — the decompiler reversed this.
+ *
+ * The prop struct is not modelled in types.h; fields are accessed by verified
+ * offset only.  Observed: +0x00 short identifier, +0x08 int next handle,
+ * +0x0c int orphan/parent prop index, +0x18, +0x1c, +0x20 int, +0x24 short
+ * state, +0x60 u8, +0x63 u8, +0x6a u16, +0x76 u16, +0x11c float, +0x127 u8,
+ * +0x12e u8; total size 0x138. */
+int prop_new_unacknowledged(int actor_handle, int unit_handle, bool flag)
+{
+  bool desire_out;
+  int candidate_count;
+  int none_handle;
+  float nearest_unacknowledged;
+  float nearest_acknowledged;
+  int unacknowledged_index;
+  int acknowledged_index;
+  char *actor;
+  char *prop;
+  int cur_handle;
+  int next_handle;
+  int prop_index;
+  short state;
+  short identifier;
+
+  /* One OR EAX,-1 feeds both slots (MOV [EBP-0x14],EAX then [EBP-0x18],EAX at
+   * 0x645b1/0x645b4), so the two initializers share a single assignment. */
+  none_handle = NONE;
+  acknowledged_index = unacknowledged_index = none_handle;
+  nearest_unacknowledged = 3.4028235e38f;
+  nearest_acknowledged = 3.4028235e38f;
+  candidate_count = 0;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  next_handle = ((actor_t *)actor)->field_050; /* prop chain head */
+
+  while (next_handle != none_handle) {
+    cur_handle = next_handle;
+    prop = (char *)datum_get(prop_data, cur_handle);
+    state = *(short *)(prop + 0x24);
+    next_handle = *(int *)(prop + 8);
+
+    /* Props whose state is in [4, 5] are never reused. */
+    if (state < 4 || state > 5) {
+      if (*(int *)(prop + 0xc) == none_handle) {
+        desire_out = 0;
+        if (!actor_perception_desire_prop(
+              actor_handle, NONE, *(int *)(prop + 0x18), *(int *)(prop + 0x1c),
+              *(unsigned char *)(prop + 0x63), *(unsigned char *)(prop + 0x12e),
+              *(unsigned char *)(prop + 0x60), *(unsigned char *)(prop + 0x127),
+              *(unsigned short *)(prop + 0x76), *(int *)(prop + 0x20),
+              *(float *)(prop + 0x11c) * *(float *)(prop + 0x11c),
+              *(unsigned short *)(prop + 0x6a), &desire_out)) {
+          if (*(float *)(prop + 0x11c) < nearest_unacknowledged) {
+            unacknowledged_index = cur_handle;
+            nearest_unacknowledged = *(float *)(prop + 0x11c);
+          }
+        } else if (*(unsigned char *)(prop + 0x60) == flag) {
+          candidate_count++;
+          if (desire_out) {
+            if (*(float *)(prop + 0x11c) < nearest_acknowledged) {
+              acknowledged_index = cur_handle;
+              nearest_acknowledged = *(float *)(prop + 0x11c);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  prop_index = unacknowledged_index;
+  if (prop_index == none_handle) {
+    /* LEA EDX,[EDX+EDX+4] over SETNE DL — the threshold is 4, or 6 when the
+     * caller's flag is set.  CMP word ptr [EBP-8],DX; JL means the guard is
+     * `>=` with the assignment in the taken arm; the redundant CMP EDI,-1 at
+     * 0x64704 is the enclosing `prop_index == NONE` test re-emitted. */
+    if (acknowledged_index != none_handle &&
+        (short)candidate_count >= (short)(flag ? 6 : 4)) {
+      prop_index = acknowledged_index;
+    }
+  }
+
+  if (prop_index == none_handle) {
+    prop_index = data_new_at_index(prop_data);
+  } else {
+    prop = (char *)datum_get(prop_data, prop_index);
+    if (*(int *)(prop + 0xc) != none_handle) {
+      display_assert("prop->orphan_prop_index == NONE",
+                     "c:\\halo\\SOURCE\\ai\\props.c", 0x9e, 1);
+      system_exit(none_handle);
+    }
+    if (*(int *)(prop + 0xc) != none_handle) {
+      display_assert("prop->parent_prop_index == NONE",
+                     "c:\\halo\\SOURCE\\ai\\props.c", 0x9f, 1);
+      system_exit(none_handle);
+    }
+    FUN_0003b410(actor_handle, prop_index, none_handle);
+    FUN_00064400(actor_handle, prop_index);
+    identifier = *(short *)prop;
+    csmemset(prop, 0, 0x138);
+    *(short *)prop = identifier;
+  }
+
+  prop_add(unit_handle, actor_handle, prop_index);
+  return prop_index;
+}
+
 /* 0x648a0 — prop_orphan_transition.
  *
  * Allocates a new prop with no unit handle, initializes it from prop_handle,
@@ -287,6 +589,73 @@ int prop_orphan_transition(int actor_handle, int prop_handle)
     FUN_000647c0(prop_handle, actor_handle, orphan_handle);
     *(int *)(parent_prop + 0xc) = orphan_handle;
     *(int *)(orphan_prop + 0xc) = prop_handle;
+  }
+  return orphan_handle;
+}
+
+/* 0x64970 — prop_orphan_from_friend.
+ *
+ * Same allocate-and-link idiom as prop_orphan_transition (0x648a0), but the
+ * new orphan is initialized from a *friend* prop rather than from the parent:
+ * FUN_000647c0 receives friend_prop_handle in EAX, and the friend's 16-bit
+ * state field is copied into the new orphan when it falls in [4,5].
+ *
+ * Call-site verification (disasm 0x64970):
+ *   0x6497e data_new_at_index: PUSH [0x5ab23c] -> prop_data; result -> ESI
+ *   0x6498d prop_add:          OR EAX,-1 (@eax unit_handle = -1),
+ *                              PUSH EBX = [EBP+8]  -> actor_handle,
+ *                              PUSH ESI            -> orphan_handle
+ *   0x649aa datum_get:         PUSH EDX = prop_data, PUSH ECX = [EBP+0xc]
+ *                              -> EDI = parent_prop
+ *   0x649b8 datum_get:         PUSH EAX = prop_data, PUSH ESI
+ *                              -> [EBP-4] = orphan_prop
+ *   0x649cb datum_get:         PUSH EDX = prop_data, PUSH ECX = [EBP+0x10]
+ *                              -> [EBP-8] = friend_prop
+ *                              (one coalesced ADD ESP,0x18 covers all three)
+ *   0x64a28 FUN_000647c0:      MOV EAX,[EBP+0x10] (@eax friend_prop_handle),
+ *                              PUSH EBX -> actor_handle, PUSH ESI -> orphan
+ *
+ * Store offsets (from disasm, not the decompiler):
+ *   [EDI+0x0c]      = ESI          parent_prop+0x0c = orphan_handle
+ *   [[EBP-4]+0x0c]  = [EBP+0xc]    orphan_prop+0x0c = prop_handle
+ *   MOV AX,word [[EBP-8]+0x24]; CMP AX,4/JL; CMP AX,5/JG;
+ *   MOV word [[EBP-4]+0x24],AX     orphan_prop+0x24 = friend state (int16)
+ *
+ * Return: MOV EAX,ESI at 0x64a54 — the new orphan handle, shared by both the
+ * taken and the untaken (orphan_handle == -1) paths.
+ */
+int prop_orphan_from_friend(int actor_handle, int prop_handle,
+                            int friend_prop_handle)
+{
+  int orphan_handle;
+  char *parent_prop;
+  char *orphan_prop;
+  char *friend_prop;
+  short state;
+
+  orphan_handle = data_new_at_index(prop_data);
+  prop_add(-1, actor_handle, orphan_handle);
+  if (orphan_handle != -1) {
+    parent_prop = (char *)datum_get(prop_data, prop_handle);
+    orphan_prop = (char *)datum_get(prop_data, orphan_handle);
+    friend_prop = (char *)datum_get(prop_data, friend_prop_handle);
+    if (*(int *)(parent_prop + 4) != actor_handle) {
+      display_assert("parent_prop->owner_actor_index == actor_index",
+                     "c:\\halo\\SOURCE\\ai\\props.c", 0x16d, 1);
+      system_exit(-1);
+    }
+    if (*(int *)(parent_prop + 0xc) != -1) {
+      display_assert("parent_prop->orphan_prop_index == NONE",
+                     "c:\\halo\\SOURCE\\ai\\props.c", 0x16e, 1);
+      system_exit(-1);
+    }
+    FUN_000647c0(friend_prop_handle, actor_handle, orphan_handle);
+    *(int *)(parent_prop + 0xc) = orphan_handle;
+    *(int *)(orphan_prop + 0xc) = prop_handle;
+    state = *(short *)(friend_prop + 0x24);
+    if (state >= 4 && state <= 5) {
+      *(short *)(orphan_prop + 0x24) = state;
+    }
   }
   return orphan_handle;
 }
@@ -387,6 +756,175 @@ int prop_get_active_by_unit_index(int actor_handle, int object_handle)
   }
 }
 
+/* 0x64b40 — FUN_00064b40.
+ *
+ * "Find or create" companion to prop_get_active_by_unit_index (0x64ab0):
+ * searches actor actor_handle's prop chain for a prop referencing
+ * object_handle (directly via prop+0x18, or indirectly via prop+0x1c against
+ * the object's model target at object+0x1a8 / object+0x1a4), and, when the
+ * chain has no match, optionally creates a new unacknowledged prop for it.
+ *
+ * The traversal is the same idiom as 0x64ab0 but WITHOUT the state-[0,1] skip,
+ * and on a hit the prop's orphan index (prop+0x0c) supersedes the prop handle
+ * itself when it is not -1.
+ *
+ * param_2 is an OBJECT handle, not a prop handle: it is passed to
+ * object_get_and_verify_type(param_2, 3) and forwarded to
+ * prop_new_unacknowledged as unit_handle.  (The pre-lift kb prototype named it
+ * `prop_handle`.)  param_3 and param_4 are 1-byte flags (both only ever
+ * byte-tested at [EBP+0x10] / [EBP+0x14]); param_4 is additionally forwarded
+ * whole as arg5 of prop_position_refresh.
+ *
+ * Frame: PUSH EBP / MOV EBP,ESP / SUB ESP,0x4c, single epilogue at 0x64cc2
+ * (MOV ESP,EBP).  EDI is the return accumulator, initialized with
+ * `OR EDI,0xffffffff` before the object_handle == -1 test, so the early -1
+ * return shares the same `MOV EAX,EDI` exit (it merely skips POP EBX) —
+ * written here as one accumulator with a single return.
+ *
+ * Call-site verification table (disasm 0x64b40–0x64cca; first PUSH = last arg):
+ *   0x64b62 datum_get:      PUSH EAX=[0x6325a4] actor_data | actor_data | YES
+ *                           PUSH EBX=[EBP+8]              | actor_handle | YES
+ *                           (result -> [EBP-8] = actor)
+ *   0x64b6d object_get_and_verify_type:
+ *                           PUSH ESI=[EBP+0xc]            | object_handle | YES
+ *                           PUSH 3                         | 3            | YES
+ *                           (result ECX -> [EBP-0xc] = obj;
+ *                            one coalesced ADD ESP,0x10 at 0x64b7a covers
+ *                            both 2-arg calls — not a 4-arg call)
+ *   0x64bae datum_get:      PUSH EAX=[0x6325a4], PUSH EBX  | actor_data,
+ *                           actor_handle | YES  (only +0x50 is consumed)
+ *   0x64bd0 datum_get:      PUSH ECX=[0x5ab23c] prop_data, PUSH ECX=cur_handle
+ *                           | prop_data, cur_handle | YES
+ *   0x64c39 game_allegiance_get_team_is_friendly:
+ *                           PUSH EDX=(XOR EDX,EDX; MOV DX,word [actor+0x3e])
+ *                                                         | actor->field_03e |
+ * YES PUSH ECX=(XOR ECX,ECX; MOV CX,word [obj+0x68]) | obj+0x68 (int16) | YES
+ *   0x64c47 prop_new_unacknowledged:
+ *                           PUSH EBX  | actor_handle  | YES
+ *                           PUSH ESI  | object_handle | YES
+ *                           PUSH EAX  | friendly flag | YES
+ *                           (result EAX -> EDI, i.e. the return value;
+ *                            coalesced ADD ESP,0x14 at 0x64c4e covers the
+ *                            2-arg friendly test plus this 3-arg call)
+ *   0x64c5e datum_get:      PUSH ECX=[0x5ab23c], PUSH EDI | prop_data,
+ *                           new_prop_handle | YES  (result -> ESI = new_prop;
+ *                           ESI is repurposed from object_handle here)
+ *   0x64c71 prop_position_refresh:
+ *                           PUSH EBX | actor_handle    | YES
+ *                           PUSH EDI | new_prop_handle | YES
+ *                           PUSH EAX = LEA [EBP-0x4c] | position_data | YES
+ *                           PUSH 0   | 0               | YES
+ *                           PUSH EDX = [EBP+0x14]      | param_4       | YES
+ *                           (coalesced ADD ESP,0x1c at 0x64c79 covers the
+ *                            2-arg datum_get plus this 5-arg call)
+ *   0x64c93 prop_status_refresh:
+ *                           PUSH EBX, PUSH EDI, PUSH ECX = LEA [EBP-0x4c]
+ *                           | actor_handle, new_prop_handle, position_data |
+ * YES 0x64ca4 actor_expected_acknowledgement: PUSH EBX | actor_handle    | YES
+ *                           PUSH EDI | new_prop_handle | YES
+ *                           MOV byte [EBP+0xc],AL — the result is CONSUMED,
+ *                           so the kb prototype `void (void)` was wrong on
+ *                           both the arity and the return; widened to
+ *                           `bool (int, int)` on this evidence.
+ *   0x64cba actor_perception_acknowledge:
+ *                           PUSH EBX | actor_handle    | YES
+ *                           PUSH EDI | new_prop_handle | YES
+ *                           PUSH 0   | 0               | YES
+ *                           PUSH EDX | the AL result above | YES
+ *
+ * Store-offset table (all on ESI = new_prop, from raw disasm):
+ *   [ESI+0x6a]  = 0x1e  (MOV word,  0x64c7e)
+ *   [ESI+0x126] = 1     (MOV byte,  0x64c84)
+ *   [ESI+0x24]  = 3     (MOV word,  0x64cb4 — emitted after the
+ *                        actor_perception_acknowledge pushes, before the CALL)
+ * Scheduling note: the +0x6a and +0x126 stores sit between `TEST AL,AL`
+ * (0x64c7c) and its `JZ` (0x64c8b), so they are UNCONDITIONAL after
+ * prop_position_refresh — they are not inside the param_4 branch.
+ * Guard at 0x64c9b is `CMP word [ESI+0x30],2 / JL`: a signed int16 read.
+ *
+ * Buffer: LEA [EBP-0x4c] is shared by prop_position_refresh (0x31df0) and
+ * prop_status_refresh (0x33440).  Span EBP-0x4c..EBP-0x15 = 0x38 bytes, which
+ * agrees with the already-lifted callers in actor_perception.c
+ * (`char position_data_a[0x38]`).  The frame reserves 0x4c with a 4-byte hole
+ * at EBP-0x10 that this function never touches. */
+int FUN_00064b40(int actor_handle, int object_handle, bool create_if_missing,
+                 bool acknowledge)
+{
+  int target; /* [EBP-0x04] */
+  char *actor; /* [EBP-0x08] */
+  char *obj; /* [EBP-0x0c] */
+  int cur_handle; /* [EBP-0x14] */
+  char position_data[0x38]; /* [EBP-0x4c] */
+  int result;
+  int next_handle;
+  char *cur_prop;
+  char *new_prop;
+  bool friendly;
+  bool expected;
+
+  result = -1;
+  if (object_handle != -1) {
+    actor = (char *)datum_get(actor_data, actor_handle);
+    obj = (char *)object_get_and_verify_type(object_handle, 3);
+    target = *(int *)(obj + 0x1a8);
+    if (target == -1) {
+      target = *(int *)(obj + 0x1a4);
+    }
+
+    if ((*(short *)(obj + 0x64) == 0) && (target != actor_handle)) {
+      cur_handle = ((actor_t *)datum_get(actor_data, actor_handle))->field_050;
+
+      for (;;) {
+        if (cur_handle == -1) {
+          break; /* chain exhausted — fall through to the creation path */
+        }
+
+        cur_prop = (char *)datum_get(prop_data, cur_handle);
+        next_handle = *(int *)(cur_prop + 8);
+
+        if ((*(int *)(cur_prop + 0x18) == object_handle) ||
+            ((*(char *)(cur_prop + 0x14) != 0) &&
+             (*(int *)(cur_prop + 0x1c) != -1) &&
+             (*(int *)(cur_prop + 0x1c) == target))) {
+          result = cur_handle;
+          if (*(int *)(cur_prop + 0xc) != -1) {
+            result = *(int *)(cur_prop + 0xc); /* orphan prop supersedes */
+          }
+          break;
+        }
+
+        cur_handle = next_handle;
+      }
+
+      if (result == -1) {
+        if ((create_if_missing != 0) && (((actor_t *)actor)->field_008 != 0)) {
+          friendly = game_allegiance_get_team_is_friendly(
+            ((actor_t *)actor)->field_03e, *(short *)(obj + 0x68));
+          result =
+            prop_new_unacknowledged(actor_handle, object_handle, friendly);
+          if (result != -1) {
+            new_prop = (char *)datum_get(prop_data, result);
+            prop_position_refresh(actor_handle, result, position_data, 0,
+                                  acknowledge);
+            *(short *)(new_prop + 0x6a) = 0x1e;
+            *(char *)(new_prop + 0x126) = 1;
+            if (acknowledge != 0) {
+              prop_status_refresh(actor_handle, result, position_data);
+              if (*(short *)(new_prop + 0x30) >= 2) {
+                expected = actor_expected_acknowledgement(actor_handle, result);
+                *(short *)(new_prop + 0x24) = 3;
+                actor_perception_acknowledge(actor_handle, result, 0, expected);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 /* 0x64ee0 — TIFFClose (libtiff 3.x).
  *
  * NOTE: This function is from c:\halo\SOURCE\bitmaps\libtiff\tif_close.c, NOT
@@ -455,4 +993,57 @@ void FUN_00064ee0(int tif_)
 
   /* Free the TIFF object itself. */
   debug_free(tif, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_close.c", 0x3d);
+}
+
+/* FUN_00064f50 (0x64f50) — return the size in bytes of an open file
+ * descriptor, or 0 if the stat call fails.
+ *
+ * NOTE ON OBJECT ATTRIBUTION: kb.json maps this address to props.obj
+ * (ai/props.c), but the body is CRT/libtiff file-IO logic, not AI prop
+ * logic — same situation as FUN_00064ee0 (TIFFClose) above, which is
+ * already hosted here. The shape is byte-for-byte the libtiff
+ * `_tiffSizeProc` idiom (`fstat(fd,&sb) < 0 ? 0 : sb.st_size`), so the
+ * real TU is most likely libtiff's tif_unix.c-equivalent. Left in
+ * props.c to follow the existing kb.json mapping; flagged for the
+ * operator rather than silently relocated.
+ *
+ * Disassembly (7 instructions, 1 CALL, no FPU):
+ *   PUSH EBP / MOV EBP,ESP / SUB ESP,0x24   ; one 0x24-byte struct _stat
+ *   LEA EAX,[EBP-0x24] / PUSH EAX           ; 2nd arg = &st
+ *   MOV ECX,[EBP+0x8]  / PUSH ECX           ; 1st arg = file
+ *   CALL 0x1e65eb (__fstat) / ADD ESP,0x8   ; cdecl, 2 args
+ *   XOR EDX,EDX / TEST EAX,EAX / MOV EAX,[EBP-0x10]
+ *   SETL DL / DEC EDX / AND EAX,EDX         ; st_size & -(rc >= 0)
+ *   MOV ESP,EBP / POP EBP / RET             ; plain cdecl, no RET n
+ *
+ * Call-site verification table (CALL 0x64f5e -> 0x1e65eb):
+ *   arg# | binary source        | C expression | match?
+ *   1    | PUSH ECX <- [EBP+8]  | file         | YES (pushed last => 1st arg)
+ *   2    | PUSH EAX <- LEA EBP-0x24 | stat_buf | YES
+ *   ADD ESP,0x8 confirms exactly 2 stack args; EAX is consumed => int return.
+ *
+ * Store-offset table (the 0x24-byte buffer is written only by the callee;
+ * this function performs one read out of it):
+ *   offset | source                        | notes
+ *   +0x14  | MOV EAX,[EBP-0x10]            | EBP-0x10 == (EBP-0x24)+0x14,
+ *          |                               | i.e. st_size in the MSVC 7.1
+ *          |                               | struct _stat layout, NOT an
+ *          |                               | independent local (buffer-alias
+ *          |                               | trap) => stat_buf[5]
+ *   MSVC 7.1 struct _stat: 0x00 st_dev, 0x04 st_ino, 0x06 st_mode,
+ *   0x08 st_nlink, 0x0a st_uid, 0x0c st_gid, 0x10 st_rdev, 0x14 st_size,
+ *   0x18 st_atime, 0x1c st_mtime, 0x20 st_ctime = 0x24 total (== SUB ESP,0x24).
+ *   No struct _stat typedef exists in this project, so the buffer is a
+ *   raw 9-dword array and the one live field is read by index.
+ *
+ * SETL (signed) means the success predicate is `rc >= 0`, matching CRT
+ * _fstat semantics (0 on success, -1 on failure). The branchless
+ * SETL/DEC/AND sequence is MSVC codegen for the ternary below. */
+int FUN_00064f50(int file)
+{
+  int stat_buf[9]; /* struct _stat, 0x24 bytes */
+  int rc;
+
+  rc = __fstat(file, stat_buf);
+  return (rc < 0) ? 0 : stat_buf[5]; /* stat_buf[5] == +0x14 == st_size */
 }

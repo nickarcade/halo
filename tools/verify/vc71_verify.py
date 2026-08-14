@@ -6,8 +6,9 @@ if _tools_dir not in sys.path:
 
 """Compile a source file with Visual C++ 7.1 and score it against the binary.
 
-Compiles the source with CL.Exe (MSVC 13.10.3077 — the same compiler that built
-cachebeta.xbe) and runs an instruction-level comparison against ONE canonical
+Compiles the source with CL.Exe (MSVC 13.10.3077, used as the closest available
+comparison toolchain; cachebeta.xbe's exact compiler is unconfirmed) and runs
+an instruction-level comparison against ONE canonical
 reference per function, derived from two committed inputs:
 
   * the pristine XBE (halo-patched/cachebeta.xbe), for the bytes;
@@ -253,6 +254,39 @@ def _func_addr(function: str, source: Path | None = None) -> int | None:
         if m:
             return int(m.group(1), 16)
     return None
+
+
+def _decode_relative_jump_target(addr: int, code: bytes) -> int | None:
+    """Decode a direct x86 near/short JMP target, or return no opinion."""
+    if len(code) >= 5 and code[0] == 0xe9:
+        disp = int.from_bytes(code[1:5], "little", signed=True)
+        return addr + 5 + disp
+    if len(code) >= 2 and code[0] == 0xeb:
+        disp = int.from_bytes(code[1:2], "little", signed=True)
+        return addr + 2 + disp
+    return None
+
+
+def _forwarding_target_info(addr: int) -> dict | None:
+    """Describe a direct forwarding target without following or scoring it."""
+    target = _decode_relative_jump_target(addr, _xbe_read(addr, 5) or b"")
+    if target is None:
+        return None
+    name = None
+    try:
+        table = json.loads(
+            (REPO_ROOT / "tools/verify/function_bounds.json").read_text())
+        entry = table.get(f"0x{target:x}")
+        if entry:
+            name = entry.get("name")
+    except (OSError, ValueError, json.JSONDecodeError):
+        pass
+    return {
+        "addr": f"0x{target:08x}",
+        "name": name,
+        "body_score": None,
+        "body_score_reason": "target body is not compiled in this verification lane",
+    }
 
 
 def _true_end_offset(addr: int, limit: int) -> int | None:
@@ -1239,6 +1273,7 @@ def _build_score_context(
     fcom_warnings: list[str],
     source: Path,
     ref_info: dict,
+    regdef_params,
     co,
 ) -> dict:
     """Assemble the machine-readable score-context pack for one function.
@@ -1252,18 +1287,25 @@ def _build_score_context(
     official score itself).
     """
     n_c, n_r = len(compiled_insns), len(reference_insns)
+    scored_insns, n_stripped, preprocessing = co.select_regparam_candidate(
+        compiled_insns, reference_insns, regdef_params, reg_normalize=False)
+
+    raw_mnemonic_pct = co.compare_functions(
+        compiled_insns, reference_insns, reg_normalize=False)[0]
+    abi_modeled_mnemonic_pct = co.compare_functions(
+        scored_insns, reference_insns, reg_normalize=False)[0]
 
     opnd_pct = co.compare_functions(
-        compiled_insns, reference_insns, reg_normalize=True)[0]
+        scored_insns, reference_insns, reg_normalize=True)[0]
 
-    c_seq = co.extract_mnemonic_sequence(compiled_insns)
+    c_seq = co.extract_mnemonic_sequence(scored_insns)
     r_seq = co.extract_mnemonic_sequence(reference_insns)
     dp_pct = co.dp_lcs_ratio(c_seq, r_seq)
     if dp_pct is not None:
         dp_pct *= 100.0
 
-    opcodes = co.mnemonic_diff_opcodes(compiled_insns, reference_insns)
-    diff_ops, truncated = _build_diff_ops(compiled_insns, reference_insns, opcodes)
+    opcodes = co.mnemonic_diff_opcodes(scored_insns, reference_insns)
+    diff_ops, truncated = _build_diff_ops(scored_insns, reference_insns, opcodes)
 
     frame = {
         "cand_frame_bytes": _first_frame_bytes(compiled_insns),
@@ -1274,10 +1316,16 @@ def _build_score_context(
 
     scores = {
         "official_pct": official_pct,
+        "raw_mnemonic_pct": raw_mnemonic_pct,
+        "abi_modeled_mnemonic_pct": abi_modeled_mnemonic_pct,
+        "abi_model": preprocessing,
         "operand_normalized_pct": opnd_pct,
         "dp_lcs_pct": dp_pct,
         "n_cand_insns": n_c,
+        "n_scored_cand_insns": len(scored_insns),
         "n_ref_insns": n_r,
+        "preprocessing": preprocessing,
+        "regparam_loads_stripped": n_stripped,
     }
 
     warnings = {
@@ -1288,6 +1336,13 @@ def _build_score_context(
     }
 
     classification = _classify_score_context(scores, warnings, diff_ops, frame)
+    if ref_info.get("kind") == "thunk" and ref_info.get("n_insns") == 1:
+        classification.insert(0, {
+            "rule": "forwarding_reference",
+            "evidence": "reference is a one-instruction forwarding entry",
+            "action": "Verify the jump target and score forwarding entry and "
+                      "target body separately before editing source.",
+        })
 
     addr = _func_addr(fn)
     try:
@@ -1296,6 +1351,7 @@ def _build_score_context(
         tu = str(source)
 
     return {
+        "schema": 2,
         "name": fn,
         "addr": f"0x{addr:08x}" if addr is not None else None,
         "tu": tu,
@@ -1671,6 +1727,14 @@ def run_compare_cached(
 
         n_c = len(compiled_funcs[fn])
         n_r = len(reference_funcs[fn])
+        metric_insns, abi_model_items, abi_model = co.select_regparam_candidate(
+            compiled_funcs[fn], reference_funcs[fn], regdef,
+            reg_normalize=False)
+        raw_mnemonic_pct = co.compare_functions(
+            compiled_funcs[fn], reference_funcs[fn],
+            reg_normalize=False)[0]
+        abi_modeled_mnemonic_pct = co.compare_functions(
+            metric_insns, reference_funcs[fn], reg_normalize=False)[0]
         status = "PASS" if pct >= threshold else "FAIL"
         fpu_tag = " [FPU-WARN]" if fpu_warnings else ""
         loadw_tag = " [LOADW-WARN]" if loadw_warnings else ""
@@ -1704,15 +1768,22 @@ def run_compare_cached(
         opnd_tag = ""
         if not only_mode and not reg_normalize:
             opnd_pct = co.compare_functions(
-                compiled_funcs[fn], reference_funcs[fn], reg_normalize=True,
-                regdef_params=regdef)[0]
+                metric_insns, reference_funcs[fn], reg_normalize=True)[0]
             opnd_tag = f" | opnd {opnd_pct:.1f}% (operand-normalized)"
+
+        abi_model_tag = ""
+        if abi_model != "raw":
+            abi_model_tag = (
+                f" | raw {raw_mnemonic_pct:.1f}% | abi-modeled "
+                f"{abi_modeled_mnemonic_pct:.1f}% "
+                f"[{abi_model}:{abi_model_items}]"
+            )
 
         if not only_mode:
             if quiet:
-                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{fcom_tag}{kind_tag}{opnd_tag}")
+                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{fcom_tag}{kind_tag}{opnd_tag}{abi_model_tag}")
             else:
-                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{fcom_tag}{kind_tag}{opnd_tag}{cache_tag}")
+                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{fcom_tag}{kind_tag}{opnd_tag}{abi_model_tag}{cache_tag}")
 
         if fpu_warnings:
             any_fpu_warn = True
@@ -1772,11 +1843,13 @@ def run_compare_cached(
                 "kind": m["kind"], "bound_provenance": m["provenance"],
                 "n_insns": m["n_r"], "sha": m["sha"],
             }
+            if m["kind"] == "thunk":
+                ref_info["forwarding_target"] = _forwarding_target_info(m["addr"])
 
             pack = _build_score_context(
                 fn, compiled_funcs[fn], reference_funcs[fn], pct,
                 fpu_warnings, loadw_warnings, imm_warnings, fcom_warnings,
-                source, ref_info, co,
+                source, ref_info, regdef, co,
             )
             ctx_path = _write_score_context(pack)
             if not only_mode and not quiet and pct < 100.0:
@@ -1810,7 +1883,7 @@ def run_compare_cached(
     if any_imm_warn and not fpu_only and not loadw_only and not fcom_only:
         print("\nWARNING: immediate-constant differences detected.")
         print("A large inline constant (float bit-pattern or magic) differs between our lift and the")
-        print("original. Both sides are VC71 codegen, so this is a source-literal mismatch -- verify the")
+        print("original. This is a likely source-literal mismatch -- verify the")
         print("numeric literal against the disassembly immediate. See lift-learnings 'immediate-constant'.")
 
     if any_fcom_warn and not fpu_only and not loadw_only and not imm_only:
