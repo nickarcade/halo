@@ -2945,6 +2945,21 @@
       "score": 100.0,
       "source": "src/halo/ai/ai_debug.c"
     },
+    "FUN_00052ab0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 93.0,
+      "addr": "0x52ab0",
+      "end": "0x52b51",
+      "kind": "auto",
+      "n_r": 56,
+      "opnd_percent": 75.4,
+      "raw_mnemonic_pct": 93.0,
+      "ref": "synth",
+      "ref_sha": "4af14efa6759c453",
+      "score": 93.0,
+      "source": "src/halo/ai/ai_debug.c"
+    },
     "FUN_000534d0": {
       "addr": "0x534d0",
       "end": "0x5361e",
@@ -5112,6 +5127,21 @@
       "score": 100.0,
       "source": "src/halo/bitmaps/libtiff/tif_flush.c"
     },
+    "FUN_0006a070": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 98.4,
+      "addr": "0x6a070",
+      "end": "0x6a182",
+      "kind": "auto",
+      "n_r": 97,
+      "opnd_percent": 85.0,
+      "raw_mnemonic_pct": 98.4,
+      "ref": "synth",
+      "ref_sha": "c8ac5570d8308c67",
+      "score": 98.4,
+      "source": "src/halo/bitmaps/libtiff/tif_flush.c"
+    },
     "FUN_0006a190": {
       "addr": "0x6a190",
       "end": "0x6a20a",
@@ -5440,6 +5470,21 @@
       "ref": "synth",
       "ref_sha": "9c8db08a03cb244f",
       "score": 97.4,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006d1e0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 95.1,
+      "addr": "0x6d1e0",
+      "end": "0x6d2c5",
+      "kind": "auto",
+      "n_r": 60,
+      "opnd_percent": 83.6,
+      "raw_mnemonic_pct": 95.1,
+      "ref": "synth",
+      "ref_sha": "e496696accb9a3e6",
+      "score": 95.1,
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
     "FUN_0006d2d0": {
@@ -9267,6 +9312,66 @@
       "score": 100.0,
       "source": "src/halo/game/players.c"
     },
+    "FUN_000be0d0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbe0d0",
+      "end": "0xbe105",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "9787b485a12b7148",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000be110": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbe110",
+      "end": "0xbe142",
+      "kind": "auto",
+      "n_r": 23,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "df0f1226ecb1154a",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000be150": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbe150",
+      "end": "0xbe185",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "1d27405ccf80b583",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "FUN_000be190": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbe190",
+      "end": "0xbe1c2",
+      "kind": "auto",
+      "n_r": 23,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "5bf996cadc5bd5d3",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
     "FUN_000be1d0": {
       "addr": "0xbe1d0",
       "end": "0xbe202",
@@ -11764,6 +11869,21 @@
       "score": 100.0,
       "source": "src/halo/hs/hs.c"
     },
+    "FUN_000c2100": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc2100",
+      "end": "0xc2113",
+      "kind": "auto",
+      "n_r": 9,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "8507b574ed41c961",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
     "FUN_000c2140": {
       "addr": "0xc2140",
       "end": "0xc2153",
@@ -12391,6 +12511,36 @@
       "score": 90.0,
       "source": "src/halo/hs/hs.c"
     },
+    "FUN_000c2d70": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 85.7,
+      "addr": "0xc2d70",
+      "end": "0xc2dba",
+      "kind": "auto",
+      "n_r": 33,
+      "opnd_percent": 82.5,
+      "raw_mnemonic_pct": 85.7,
+      "ref": "synth",
+      "ref_sha": "923b50504e5ecbe8",
+      "score": 85.7,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c2dc0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 85.2,
+      "addr": "0xc2dc0",
+      "end": "0xc2e07",
+      "kind": "auto",
+      "n_r": 32,
+      "opnd_percent": 82.0,
+      "raw_mnemonic_pct": 85.2,
+      "ref": "synth",
+      "ref_sha": "a2ea7f4e822da799",
+      "score": 85.2,
+      "source": "src/halo/hs/hs.c"
+    },
     "FUN_000c2e10": {
       "addr": "0xc2e10",
       "end": "0xc2e49",
@@ -12553,6 +12703,36 @@
       "opnd_percent": 100.0,
       "ref": "synth",
       "ref_sha": "88f4d4276ca5eb55",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3230": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc3230",
+      "end": "0xc3264",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "9f1f58fb7fbcb792",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3270": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc3270",
+      "end": "0xc32a4",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "aabe90b69a88a739",
       "score": 100.0,
       "source": "src/halo/hs/hs.c"
     },
@@ -12721,6 +12901,21 @@
       "score": 100.0,
       "source": "src/halo/hs/hs.c"
     },
+    "FUN_000c3620": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 88.5,
+      "addr": "0xc3620",
+      "end": "0xc365c",
+      "kind": "auto",
+      "n_r": 27,
+      "opnd_percent": 84.6,
+      "raw_mnemonic_pct": 88.5,
+      "ref": "synth",
+      "ref_sha": "96e0fae1e996be83",
+      "score": 88.5,
+      "source": "src/halo/hs/hs.c"
+    },
     "FUN_000c3660": {
       "addr": "0xc3660",
       "end": "0xc3694",
@@ -12730,6 +12925,21 @@
       "ref": "synth",
       "ref_sha": "a07ddd375223740f",
       "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c37b0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 88.5,
+      "addr": "0xc37b0",
+      "end": "0xc37ec",
+      "kind": "auto",
+      "n_r": 27,
+      "opnd_percent": 84.6,
+      "raw_mnemonic_pct": 88.5,
+      "ref": "synth",
+      "ref_sha": "3b5b085e338a5de0",
+      "score": 88.5,
       "source": "src/halo/hs/hs.c"
     },
     "FUN_000c37f0": {
@@ -12798,6 +13008,141 @@
       "score": 100.0,
       "source": "src/halo/hs/hs.c"
     },
+    "FUN_000c38d0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc38d0",
+      "end": "0xc3904",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "eef46ae0b43525f4",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3910": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc3910",
+      "end": "0xc3937",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "ca0abb4a5b3fb4c2",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3940": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc3940",
+      "end": "0xc3967",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "720869e3a079998b",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3970": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc3970",
+      "end": "0xc39a4",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "e7929c5f4545e68d",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c39b0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc39b0",
+      "end": "0xc39e5",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "7021a5c5c57eaa5c",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c39f0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc39f0",
+      "end": "0xc3a08",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "256e42b05aa3bf0a",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c3a10": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc3a10",
+      "end": "0xc3a42",
+      "kind": "auto",
+      "n_r": 23,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "2062ba44bfe812e8",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c4010": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc4010",
+      "end": "0xc4029",
+      "kind": "auto",
+      "n_r": 12,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "e3cc49ac903c20bb",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c4770": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc4770",
+      "end": "0xc47b7",
+      "kind": "auto",
+      "n_r": 24,
+      "opnd_percent": 95.8,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "6bf8e3a59ab09e75",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
     "FUN_000c4b40": {
       "addr": "0xc4b40",
       "end": "0xc4b5a",
@@ -12818,6 +13163,21 @@
       "ref": "synth",
       "ref_sha": "253e4e90f8ef35d9",
       "score": 90.3,
+      "source": "src/halo/hs/hs.c"
+    },
+    "FUN_000c4bb0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 90.9,
+      "addr": "0xc4bb0",
+      "end": "0xc4c01",
+      "kind": "auto",
+      "n_r": 35,
+      "opnd_percent": 75.8,
+      "raw_mnemonic_pct": 90.9,
+      "ref": "synth",
+      "ref_sha": "e6456d4c6cf749f1",
+      "score": 90.9,
       "source": "src/halo/hs/hs.c"
     },
     "FUN_000c4ff0": {
@@ -20595,14 +20955,18 @@
       "source": "src/halo/physics/collision_usage.c"
     },
     "FUN_0014f2c0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 87.6,
       "addr": "0x14f2c0",
       "end": "0x150537",
       "kind": "auto",
       "n_r": 1409,
-      "opnd_percent": 49.6,
+      "opnd_percent": 56.1,
+      "raw_mnemonic_pct": 87.6,
       "ref": "synth",
       "ref_sha": "7bb10faa899f43f9",
-      "score": 61.8,
+      "score": 87.6,
       "source": "src/halo/physics/collision_usage.c"
     },
     "FUN_001544d0": {
@@ -25703,6 +26067,21 @@
       "score": 93.6,
       "source": "src/halo/cache/cache_files.c"
     },
+    "FUN_001bc280": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 96.8,
+      "addr": "0x1bc280",
+      "end": "0x1bc35e",
+      "kind": "auto",
+      "n_r": 61,
+      "opnd_percent": 90.3,
+      "raw_mnemonic_pct": 96.8,
+      "ref": "synth",
+      "ref_sha": "c57562dba2dee7a0",
+      "score": 96.8,
+      "source": "src/halo/cache/cache_files_windows.c"
+    },
     "FUN_001bc720": {
       "addr": "0x1bc720",
       "end": "0x1bc75a",
@@ -26327,6 +26706,21 @@
       "score": 100.0,
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
+    "TIFFFdOpen": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 89.4,
+      "addr": "0x6d590",
+      "end": "0x6d81e",
+      "kind": "auto",
+      "n_r": 210,
+      "opnd_percent": 49.6,
+      "raw_mnemonic_pct": 89.4,
+      "ref": "synth",
+      "ref_sha": "653ce440b4c3a13b",
+      "score": 89.4,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
     "TIFFFileName": {
       "addr": "0x6d850",
       "end": "0x6d85a",
@@ -26348,6 +26742,21 @@
       "ref_sha": "8b0dd2b9ebc7aef8",
       "score": 100.0,
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "TIFFGetFieldDefaulted": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x64ec0",
+      "end": "0x64ed9",
+      "kind": "auto",
+      "n_r": 12,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "56b558b2fe062e1b",
+      "score": 100.0,
+      "source": "src/halo/bitmaps/libtiff/tif_dir.c"
     },
     "TIFFGetMode": {
       "addr": "0x6d870",
@@ -36179,6 +36588,21 @@
       "score": 100.0,
       "source": "src/halo/scenario/scenario.c"
     },
+    "global_random_get_direction3d": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbb290",
+      "end": "0xbb2a7",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "4ce99e3d3dc2f0ce",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
     "global_scenario_get": {
       "addr": "0x18e380",
       "end": "0x18e3af",
@@ -36388,6 +36812,21 @@
       "score": 91.2,
       "source": "src/halo/hs/hs_runtime.c"
     },
+    "hs_evaluate_by_name": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xc4b00",
+      "end": "0xc4b3f",
+      "kind": "auto",
+      "n_r": 25,
+      "opnd_percent": 92.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "ca70626170844cb9",
+      "score": 100.0,
+      "source": "src/halo/hs/hs.c"
+    },
     "hs_evaluate_debug_string": {
       "addr": "0xcd6c0",
       "end": "0xcd835",
@@ -36540,6 +36979,21 @@
       "ref": "synth",
       "ref_sha": "ba98dd7074e05db2",
       "score": 93.2,
+      "source": "src/halo/hs/hs.c"
+    },
+    "hs_find_tag_reference_by_index": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 95.1,
+      "addr": "0xc3db0",
+      "end": "0xc3e05",
+      "kind": "auto",
+      "n_r": 40,
+      "opnd_percent": 90.2,
+      "raw_mnemonic_pct": 95.1,
+      "ref": "synth",
+      "ref_sha": "e297b581d1c3e885",
+      "score": 95.1,
       "source": "src/halo/hs/hs.c"
     },
     "hs_function_table_get": {
@@ -42559,6 +43013,21 @@
       "score": 100.0,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
     },
+    "placement_data_set_change_color": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbaba0",
+      "end": "0xbac01",
+      "kind": "auto",
+      "n_r": 41,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "ffd6e19cf7c2692a",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
     "plane2d_from_points": {
       "addr": "0x99400",
       "end": "0x99486",
@@ -42822,6 +43291,21 @@
       "ref_sha": "685e11c0b354c113",
       "score": 100.0,
       "source": "src/halo/game/player_control.c"
+    },
+    "player_control_fix_for_loaded_game_state": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xba970",
+      "end": "0xbaa83",
+      "kind": "auto",
+      "n_r": 97,
+      "opnd_percent": 97.9,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "7ccbac51e53bf8c0",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
     },
     "player_control_get_aiming_unit_index": {
       "addr": "0xb65c0",
@@ -43164,6 +43648,51 @@
       "score": 79.3,
       "source": "src/halo/game/players.c"
     },
+    "player_get_starting_location": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbaae0",
+      "end": "0xbab95",
+      "kind": "auto",
+      "n_r": 67,
+      "opnd_percent": 98.5,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "963f5e66fb044864",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "player_get_starting_location_count": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbaa90",
+      "end": "0xbaad6",
+      "kind": "auto",
+      "n_r": 22,
+      "opnd_percent": 90.9,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "cb16f5bcfa9e82ec",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
+    },
+    "player_handle_powerup": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 93.2,
+      "addr": "0xbc320",
+      "end": "0xbc410",
+      "kind": "auto",
+      "n_r": 84,
+      "opnd_percent": 56.8,
+      "raw_mnemonic_pct": 93.2,
+      "ref": "synth",
+      "ref_sha": "458fd9ea23e63e67",
+      "score": 93.2,
+      "source": "src/halo/game/players.c"
+    },
     "player_index_from_unit_index": {
       "addr": "0xba500",
       "end": "0xba550",
@@ -43264,14 +43793,18 @@
       "source": "src/halo/game/players.c"
     },
     "player_set_action_result_for_equipment": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 88.6,
       "addr": "0xbcfb0",
       "end": "0xbd0fe",
       "kind": "auto",
       "n_r": 113,
-      "opnd_percent": 69.9,
+      "opnd_percent": 69.3,
+      "raw_mnemonic_pct": 88.6,
       "ref": "synth",
       "ref_sha": "9eadc95d1de722cb",
-      "score": 88.2,
+      "score": 88.6,
       "source": "src/halo/game/players.c"
     },
     "player_set_respawn_timer": {
@@ -43297,14 +43830,18 @@
       "source": "src/halo/game/players.c"
     },
     "player_spawn": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 92.9,
       "addr": "0xbbcb0",
       "end": "0xbbfd4",
       "kind": "auto",
       "n_r": 255,
-      "opnd_percent": 62.8,
+      "opnd_percent": 67.4,
+      "raw_mnemonic_pct": 92.9,
       "ref": "synth",
       "ref_sha": "5e658738cc5e3f32",
-      "score": 92.0,
+      "score": 92.9,
       "source": "src/halo/game/players.c"
     },
     "player_teleport": {
@@ -43580,6 +44117,21 @@
       "ref": "synth",
       "ref_sha": "a588b8b67e385cd0",
       "score": 91.0,
+      "source": "src/halo/game/players.c"
+    },
+    "players_set_local_player_unit": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 93.4,
+      "addr": "0xba5f0",
+      "end": "0xba6a4",
+      "kind": "auto",
+      "n_r": 62,
+      "opnd_percent": 86.9,
+      "raw_mnemonic_pct": 93.4,
+      "ref": "synth",
+      "ref_sha": "b3c694366de7ceb7",
+      "score": 93.4,
       "source": "src/halo/game/players.c"
     },
     "players_unzoom_all": {
@@ -48521,6 +49073,21 @@
       "score": 69.6,
       "source": "src/halo/interface/terminal.c"
     },
+    "texture_cache_delete": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x1be920",
+      "end": "0x1be93b",
+      "kind": "auto",
+      "n_r": 8,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "0ff1be152e90d803",
+      "score": 100.0,
+      "source": "src/halo/cache/xbox_texture_cache.c"
+    },
     "thread_close": {
       "addr": "0x81770",
       "end": "0x817d7",
@@ -50907,6 +51474,21 @@
       "ref_sha": "6a1819f6f591de43",
       "score": 90.7,
       "source": "src/halo/bitmaps/bitmap_utilities.c"
+    },
+    "valid_real_vector2d": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xbb2b0",
+      "end": "0xbb2ec",
+      "kind": "auto",
+      "n_r": 21,
+      "opnd_percent": 81.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "77e08368c2d68623",
+      "score": 100.0,
+      "source": "src/halo/game/players.c"
     },
     "valid_real_vector3d_axes3": {
       "addr": "0xf6c40",
