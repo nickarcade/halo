@@ -1821,3 +1821,138 @@ slot another site dereferences. Scoped to parameters declared `float *` in
 
 **Related:** §43 (out-of-image literal deref — the *other* bug in this same
 function), and the buffer-alias entry in `lift-decompiler-traps`.
+
+## 46. Float-Arg Lowering Is a Permanent VC71 Cap, Not a Fixable Gap — and the Selector's "Already Tried This" Guard Was Silently Dead
+
+`FUN_000c2a80` (`hs.obj`, an HS macro-function handler forwarding two floats
+read from an evaluator result into `debug_sound_classes_set_distances`) was
+cold-lifted **9 separate times** across sessions (2026-08-15 → 2026-08-16, all
+opus/high), landing byte-for-byte the same 83.6% every time. Each attempt
+independently re-derived the identical multi-paragraph diagnosis, then got
+parked and reverted — 9 near-duplicate high-effort sessions for zero commits.
+
+`shader_environment_texture_animation_evaluate` (`shaders.obj`, 10 attempts,
+86.2%) was **misfiled as this family**. Its score-context has 10 non-equal
+ops, none of them the R4 GPR-vs-x87 substitution: it is the float-`!=`
+assert `fucompp` cap (R5, §47). Do not treat a parked 85–89% score as
+evidence of float-arg lowering.
+
+**The cap itself.** The reference (cl.exe 7.1) marshals a forwarded float
+lvalue argument with the x87 push-then-store idiom:
+
+```
+subl   $0x8, %esp
+fstps  0x4(%esp)
+flds   0x4(%eax)
+fstps  (%esp)
+```
+
+Our clang build lowers the identical C expression as a plain GPR dword copy:
+
+```
+movl   0x4(%eax), %ecx
+pushl  %edx
+movl   (%eax), %edx
+pushl  %ecx
+```
+
+Both forms move the exact same 4 bytes — an IEEE-754 float bit-pattern
+survives a GPR round-trip unchanged — so this is **not a correctness bug**,
+just a toolchain codegen-lowering difference that VC71's LCS scorer still
+penalizes. Cost is one reference instruction per FSTP-slot float, giving a
+fixed, reproducible per-arity ceiling measured across this family: 0 floats =
+100%, 1 float ≈ 94.1%, 2–3 floats ≈ 83.6%. Re-spelling the load (struct field,
+`int *` pun, `volatile` local, `double` round-trip) has been measured at
+**zero movement** — don't re-attempt those; they were tried across multiple
+of the 9 sessions.
+
+**Why re-diagnosis kept happening (two independent, now-fixed bugs).**
+
+1. `tools/analysis/classify_cap.py`'s R2/R3 rules read the **parked ledger**
+   to recognize "we already reached this ceiling." But `load_ledger_record()`
+   opened `Store(ROOT / parked_dir)` — `ROOT` being the *current worktree's*
+   root — while `tools/lift/park.py` writes every record through its shared
+   `ledger_root()` (parent of `git rev-parse --git-common-dir`, i.e. the main
+   checkout, so every linked worktree sees the same history). Any goal-lift
+   run in a linked worktree (e.g. a `halo-bugs` session, not the main `halo`
+   checkout) therefore always read an **empty** ledger and reported
+   `inconclusive`, even on attempt 9. Fixed by routing through
+   `park.store_base()` instead of a raw path join.
+2. The exact same bug existed in `tools/llm_auto_lift.py`'s target-selection
+   pre-screen: `PARKED_DIR = ROOT / "artifacts" / "parked"`, also
+   worktree-local. This feeds `goal-lift.js`'s `skip_parked_repeat` guard
+   (`parked_attempts >= 2` and `parked_best_score < 85` → stop re-serving the
+   target), which — because `parked_attempts` was always read as `0` — never
+   fired for either function, across every worktree that wasn't the exact one
+   `park.py` happened to write to. Fixed by resolving `PARKED_DIR` through
+   `park.ledger_root()` (dynamically imported; note `park.py` uses
+   `@dataclass`, which requires the module be registered in `sys.modules`
+   *before* `exec_module` runs, or class-body processing raises).
+
+**Automation.** `classify_cap.py` gained rule **R4**
+(`float_arg_lowering_verdict`): given a `--score-context` path (a
+`lift_pipeline`/`vc71_verify` score-context JSON, `artifacts/score_context/
+<name>.json`), it parses the structured instruction-diff `ops` and returns
+`capped:true, cap_confidence:"high"` when *every* non-`equal` op is exactly
+this substitution (a lone `insert` of a `flds` line, or a `replace` whose
+reference side is entirely `subl $N,%esp` / `flds` / `fstps` and whose
+candidate side is entirely `movl`/`pushl`). This proves the cap from the
+**current attempt's own diff** — no prior ledger entry required, so it fires
+on a cold first attempt, not just on repeat. Swept against all 4704 on-disk
+`score_context` files in this worktree: fired on exactly 11, all in this same
+handler family (`hs.obj` 0xbf3d0/0xbf420/0xbf470/0xc2840/0xc2940/0xc2a80/
+0xc2f90/0xc2fe0/0xc35b0` plus two siblings elsewhere) — zero false positives
+in the sweep. `goal-lift.js`'s classify-cap step now passes `--score-context`
+when the file exists; `CAP_TABLE` (its agent-judgment fallback for when it
+doesn't) documents the pattern too. Tests: `classify_cap.py --self-test`
+(cases `R4 float-arg-lowering -> high cap`, `R4 fires without any ledger
+history`, `R4 does not misfire on an unrelated replace op`).
+
+**Rule.** A structural VC71 cap discovered once should never need
+re-discovering — either the ledger-based rules must actually see the shared
+ledger (check `PARKED_DIR`/`--parked-dir` resolution against
+`park.py:ledger_root()` whenever adding a new consumer of the parked ledger),
+or the cap should be provable from the current attempt's own evidence (a new
+`classify_cap.py` rule) so a cold first attempt on a sibling function doesn't
+have to re-derive it either.
+
+**Related:** §41 (another "worktree saw a different reality than the writer"
+class of bug, there for `decl.h` staleness rather than a wrong shared-store
+path).
+
+## 47. Float-Equality Assert `fucompp` Is a Permanent VC71 Cap
+
+`assert_halt_msg_at(x != 0.0f)` (and `==`) does not reach 100% under
+`vc71_verify`. Measured on `shader_environment_texture_animation_evaluate`
+(0x190a90, shaders.obj): **86.2%**, two such asserts.
+
+| | reference (XBE) | VC71 candidate |
+|---|---|---|
+| compare | `flds field` ; `fcomps 0x2533c0` | `flds field` ; `flds <0.0f>` ; `fucompp` |
+| branch | `test ah,0x44` ; `jp <skip>` | `jnp` + `mov eax,1` / `xor eax,eax` materialize |
+
+VC71 picks unordered `fucompp` for `==`/`!=`, which has no memory-operand
+form — hence the extra `flds` of the constant — and then materialises the
+comparison into EAX. Relational operators (`>`, `<=`) in the same TU do get
+`fcomps <mem>` (`shader_get_vertex_shader_permutation` 95.8%).
+
+**FCOM-WARN / `fcom_bound_sense` and LOADW-WARN on this pattern are false
+leads.** The polarity is already `!= 0.0f` as the assert string spells it.
+The LOADW is `xor;movw` vs `movzx` on the int16 animation selectors — both
+cast spellings emit `movzx`. Re-spelling `!(x == 0.0f)` is byte-identical.
+Permuter 100 + 60 attempts: equal to baseline.
+
+A second leftover in the same function is `xor;movw` vs `movzx` (1 insn per
+u16). Together these two idioms are the entire 86.2% gap.
+
+**Automation.** `classify_cap.py` rule **R5** (`fucompp_assert_verdict`):
+given `--score-context`, returns `capped:true / high` when every non-equal
+op is this substitution (plus the companion xorl-eax / push-vs-addl-esp
+leftovers) and at least one `fcomps`↔`fucompp` replace is present.
+`goal-lift.js` now hard-skips `capped_confirmed` even in the 85–89 band
+(`skip_confirmed_cap`), because this family sits at 86.2% — above the
+`skip_parked_repeat` 85 wall — and was re-served 10 times.
+
+**Rule.** Do not atlas-chase `fcom_bound_sense` / `loadw_field_width` on a
+function whose only float compares are `!=`/`==` asserts against 0.0f.
+Mark `capped_confirmed` and land at the measured score.

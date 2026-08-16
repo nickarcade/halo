@@ -36,6 +36,25 @@ int16_t network_game_client_get_state(void *server, void *out_param)
   return *(int16_t *)((char *)server + 0xca6);
 }
 
+/* network_game_client_get_machine (0x124c10)
+ *
+ * Returns a pointer to the machine record selected by the client's 16-bit
+ * index at offset 0. The machine array is embedded in the client structure at
+ * offset 0x970 with a stride of 0x44 and an unsigned bound of 4 entries.
+ * Returns NULL for a null client or an out-of-range index.
+ */
+void *network_game_client_get_machine(void *client)
+{
+  unsigned short machine_index;
+
+  if (client != NULL) {
+    machine_index = *(unsigned short *)client;
+    if (machine_index < 4)
+      return (void *)((uint8_t *)client + 0x970 + machine_index * 0x44);
+  }
+  return NULL;
+}
+
 /* FUN_00124c40 (0x124c40)
  *
  * Asserts client is non-null and returns the client's 16-bit value at +0.
@@ -76,6 +95,74 @@ bool FUN_00124d40(void *connection, void *message, unsigned short size,
 {
   return network_connection_write(connection, message, size, dest_address,
                                   reliable);
+}
+
+/* network_game_client_address_matches_server (0x124d50)
+ *
+ * Asserts the client, its connection handle (+0x82c), the address pointer and
+ * that address' first dword are all non-null, then queries the connection's
+ * own address into a 0x18-byte stack buffer and reports whether its first
+ * dword (the IPv4 address) equals the caller-supplied one. Only the first
+ * dword of the filled buffer is read back; the remaining 0x14 bytes are
+ * written by network_connection_get_address and discarded.
+ */
+char network_game_client_address_matches_server(void *client,
+                                                void *source_address)
+{
+  int connection_address[6]; /* EBP-0x18, 0x18 bytes */
+
+  if (client == NULL) {
+    display_assert("client != NULL",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x2d2, true);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)client + 0x82c) == 0) {
+    display_assert("client->connection",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x2d3, true);
+    system_exit(-1);
+  }
+  if (source_address == NULL) {
+    display_assert("address != NULL",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x2d4, true);
+    system_exit(-1);
+  }
+  if (*(int *)source_address == 0) {
+    display_assert("address->address.ipv4_address",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x2d5, true);
+    system_exit(-1);
+  }
+
+  network_connection_get_address(*(int *)((char *)client + 0x82c),
+                                 connection_address, 0);
+  return connection_address[0] == *(int *)source_address;
+}
+
+/* network_game_client_game_out_of_sync (0x124e20)
+ *
+ * One-shot out-of-sync notification. The byte global at 0x46e8b8 gates the
+ * whole body: once it is set nothing happens at all. Otherwise the condition
+ * is logged, and the first time through (client flag byte at +0xcac still
+ * clear) UI error 8 is raised on every local player. The client flag is set
+ * on both paths inside the guard. */
+void network_game_client_game_out_of_sync(void *client)
+{
+  int16_t player_index;
+
+  if (*(char *)0x46e8b8 == '\0') {
+    network_game_log("local machine is out of sync with the server");
+    if (*((char *)client + 0xcac) == '\0') {
+      player_index = local_player_get_next(-1);
+      while (player_index != -1) {
+        ui_widget_display_error(8, player_index, 1, 0);
+        player_index = local_player_get_next(player_index);
+      }
+    }
+    *((char *)client + 0xcac) = 1;
+  }
 }
 
 /* network_client_switch_to_postgame (0x125610)
