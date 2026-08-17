@@ -11516,7 +11516,8 @@
     },
     {
      "addr": "0xc40b0",
-     "decl": "void FUN_000c40b0(void);"
+     "decl": "void FUN_000c40b0(int16_t end_index@<eax>, int16_t start_index@<ecx>, const char **names);",
+     "ported": true
     },
     {
      "addr": "0xc40f0",
@@ -11626,7 +11627,8 @@
     },
     {
      "addr": "0xc4e90",
-     "decl": "void hs_doc(void);"
+     "decl": "void hs_doc(void);",
+     "ported": true
     },
     {
      "addr": "0xc4ff0",
@@ -34849,11 +34851,12 @@
     },
     {
      "addr": "0x69180",
-     "decl": "void FUN_00069180(void);"
+     "decl": "int FUN_00069180(void *tif @<edx>);",
+     "ported": true
     },
     {
      "addr": "0x69200",
-     "decl": "void FUN_00069200(void);"
+     "decl": "void FUN_00069200(int value @<eax>, int param_2);"
     },
     {
      "addr": "0x69310",
@@ -34861,7 +34864,8 @@
     },
     {
      "addr": "0x693b0",
-     "decl": "void FUN_000693b0(void *tif);"
+     "decl": "void FUN_000693b0(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x69420",

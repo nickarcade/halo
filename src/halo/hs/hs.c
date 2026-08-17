@@ -8252,6 +8252,46 @@ void FUN_000c4030(const char *name)
   }
 }
 
+/* 0xc40b0 — Enumerate a half-open range of an array of `char *` names into the
+ * active token enumeration.  A shared inner helper: the bounds arrive in
+ * registers (`CMP CX,AX` before any stack access, so AX and CX are live on
+ * entry and never loaded from the frame) and only the array base is a stack
+ * argument (`MOV ESI,[EBP+8]`).  It has no direct xrefs in the binary — every
+ * reachable caller passes the bounds in EAX/ECX, which is why the two int16
+ * parameters carry @<eax>/@<ecx> in kb.json.
+ *
+ * The range is [CX, AX): `CMP CX,AX` / `JGE` skips the whole body when the
+ * start is not below the end, so an empty or inverted range performs no calls.
+ * The comparison is signed (JGE) but the trip count is taken unsigned:
+ * `SUB EAX,ECX` / `MOVZX EBX,AX` truncates the difference to 16 bits before
+ * widening, so the count is the low 16 bits of (end - start), not a sign-
+ * extended int.
+ *
+ * The walking pointer is built once from the sign-extended start index
+ * (`MOVSX EDX,CX` / `LEA EDI,[ESI+EDX*4]`), and the loop is the same
+ * countdown shape as FUN_000c41b0: `MOV ESI,[EDI]` (the @<esi> argument to
+ * FUN_000c4030) / `CALL` / `ADD EDI,4` / `DEC EBX` / `JNZ`.  There is no NULL
+ * test on the slots — every entry in the range is passed through.
+ *
+ * What the names are, and what the two indices select, is not established by
+ * this function alone; only the half-open range, the 4-byte stride, and that
+ * FUN_000c4030 treats each slot as a NUL-terminated name are proven here. */
+void FUN_000c40b0(int16_t end_index, int16_t start_index, const char **names)
+{
+  const char **name;
+  unsigned int remaining;
+
+  if (start_index < end_index) {
+    name = names + start_index;
+    remaining = (unsigned int)(uint16_t)(end_index - start_index);
+    do {
+      FUN_000c4030(*name);
+      name++;
+      remaining--;
+    } while (remaining != 0);
+  }
+}
+
 /* 0xc4130 — Enumerate one scenario-resident tag_block into the active token
  * enumeration.  One of the per-type enumerator thunks in the table at
  * 0x2f2208 (see hs_tokens_enumerate below); the concrete block is selected by
@@ -8953,6 +8993,60 @@ void hs_dispose_from_old_map(void)
   }
   hs_runtime_dispose_from_old_map();
   hs_runtime_dispose();
+}
+
+/* 0xc4e90 — Dump every hs built-in function's signature and documentation
+ * text to "hs_doc.txt".
+ *
+ * Two records are written per table entry: the calling signature produced by
+ * FUN_000c4a40 (index in EAX, buffer in ESI — `MOV EAX,EDI` /
+ * `LEA ESI,[EBP-0x804]` at 000c4ef2/000c4eec), then the descriptor's
+ * field_10 string copied with csstrcpy.  Both go through the same 2048-byte
+ * stack buffer (frame is SUB ESP,0x804 = the buffer plus the 4-byte table
+ * cursor MSVC keeps at [EBP-4]).
+ *
+ * hs_function_table_get (0xc3d00) is inlined TWICE per iteration: its assert
+ * text, file and line (0x20a) appear verbatim at 000c4ecc and 000c4f1a.  The
+ * first inlined copy's table load is dead-code-eliminated — only its bounds
+ * test survives, ahead of the FUN_000c4a40 call; the second one's load feeds
+ * the csstrcpy source (`MOV ECX,[ESI]` / `MOV EDX,[ECX+0x10]`).  MSVC
+ * strength-reduces the indexing into the walking cursor (`ADD ESI,4`).
+ *
+ * The index is int16 throughout — `TEST DI,DI` / `CMP DI,0x1a2`, never the
+ * full EDI.  The ADD ESP,0x14 at 000c4f61 is one combined cdecl cleanup for
+ * csstrcpy (0x8) plus the second crt_fprintf (0xc), and csstrcpy's char*
+ * return is discarded.  crt_fopen's result is used unchecked. */
+void hs_doc(void)
+{
+  void *file;
+  int16_t function_index;
+  char buffer[2048];
+
+  file = crt_fopen("hs_doc.txt", "w");
+
+  for (function_index = 0; function_index < 0x1a2; function_index++) {
+    if (function_index < 0 || function_index >= 0x1a2) {
+      display_assert(
+        "function_index>=0 && function_index<hs_function_table_count",
+        "c:\\halo\\SOURCE\\hs\\hs.c", 0x20a, 1);
+      system_exit(-1);
+    }
+    FUN_000c4a40(function_index, buffer);
+    crt_fprintf(file, "%s\r\n", buffer);
+
+    if (function_index < 0 || function_index >= 0x1a2) {
+      display_assert(
+        "function_index>=0 && function_index<hs_function_table_count",
+        "c:\\halo\\SOURCE\\hs\\hs.c", 0x20a, 1);
+      system_exit(-1);
+    }
+    csstrcpy(
+      buffer,
+      *(const char **)((char *)((void **)0x2f1588)[function_index] + 0x10));
+    crt_fprintf(file, "%s\r\n\r\n", buffer);
+  }
+
+  crt_fclose(file);
 }
 
 /* 0xc4ff0 — HS console command handler: print documentation.
