@@ -4978,6 +4978,23 @@ void FUN_000c2a40(int16_t function_index, int thread_datum, char init)
   }
 }
 
+/* 0xc2a80 — HS macro handler: forward a sound-class pattern and two raw
+ * float arguments. EAX result record layout is { char *pattern; float a;
+ * float b; }; the FLD/FSTP pairs at 0xc29c/0xc2a8 prove +4/+8 are floats. */
+void FUN_000c2a80(int16_t function_index, int thread_datum, char init)
+{
+  int *result;
+
+  result =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    debug_sound_classes_set_distances((char *)result[0],
+                                      *(float *)((char *)result + 4),
+                                      *(float *)((char *)result + 8));
+    hs_return(thread_datum, 0);
+  }
+}
+
 /* 0xc2ad0 — HS script function handler: set the wet (reverb send) level for
  * the sound classes matching a name pattern.  Evaluates the macro arguments;
  * on success the result block holds a char* pattern string at +0x0 and a
@@ -5764,6 +5781,39 @@ void FUN_000c2f70(int16_t function_index, int thread_datum, char init)
 {
   FUN_001954d0();
   hs_return(thread_datum, 0);
+}
+
+/* 0xc2f90 — HS macro handler: forward { int, float, float } to the
+ * scripted-player translation consumer. The float values are raw record
+ * fields (+4 and +8), proven by the two push-then-FSTP argument slots. */
+void FUN_000c2f90(int16_t function_index, int thread_datum, char init)
+{
+  int *result;
+
+  result =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    scripted_player_effect_set_translation(result[0],
+                                           *(float *)((char *)result + 4),
+                                           *(float *)((char *)result + 8));
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc2fe0 — HS macro handler: forward { int, float, float } to the
+ * scripted-player rotation consumer. */
+void FUN_000c2fe0(int16_t function_index, int thread_datum, char init)
+{
+  int *result;
+
+  result =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    scripted_player_effect_set_rotation(result[0],
+                                        *(float *)((char *)result + 4),
+                                        *(float *)((char *)result + 8));
+    hs_return(thread_datum, 0);
+  }
 }
 
 /* 0xc3030 — HaloScript macro-function handler that forwards an evaluated
@@ -7089,6 +7139,23 @@ void FUN_000c3590(int16_t function_index, int thread_datum, char init)
   hs_return(thread_datum, 0);
 }
 
+/* 0xc35b0 — HS macro handler: forward { int, float, float, float } to
+ * 0x16b270. Disassembly reads the three float dwords at +4/+8/+c with
+ * FLD/FSTP, so these must not be numerically converted from int. */
+void FUN_000c35b0(int16_t function_index, int thread_datum, char init)
+{
+  int *result;
+
+  result =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    FUN_0016b270(result[0], *(float *)((char *)result + 4),
+                 *(float *)((char *)result + 8),
+                 *(float *)((char *)result + 12));
+    hs_return(thread_datum, 0);
+  }
+}
+
 /* 0xc3600 — HaloScript function handler: invoke the 0x181150 dispatch target.
  *
  * Same one-shot handler shape as the 0xc3550/0xc3570/0xc3590 siblings above:
@@ -7271,6 +7338,237 @@ void FUN_000c3660(int16_t function_index, int thread_datum, char init)
                                                        thread_datum, init);
   if (result != 0) {
     FUN_0017da00(result[0]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc36a0 — HaloScript function handler for the script builtin
+ * "cinematic_screen_effect_set_convolution" ("sets the convolution effect").
+ * Same evaluate-then-dispatch skeleton as the 0xc3620/0xc3660 siblings above:
+ * drive hs_macro_function_evaluate over this call's argument expressions and,
+ * on a non-NULL evaluation record, forward five evaluated values to the
+ * rasterizer_sprites routine at 0x17da40 before completing the script thread
+ * with a 0 result.
+ *
+ * Builtin identity is binary-backed, not guessed: the HS function-descriptor
+ * table entry at 0x27259c holds return type 4 (void), name pointer 0x2725a0 ->
+ * "cinematic_screen_effect_set_convolution", evaluate pointer 0x2725a8 ->
+ * 0xc36a0 (the only reference to this function anywhere in the XBE — there is
+ * no direct CALL), doc pointer -> "sets the convolution effect", parameter
+ * count 5 and formal type list [7, 7, 6, 6, 6] = short, short, real, real,
+ * real.  That formal list is what proves the argument widths below; the
+ * dispatch target itself is left as FUN_0017da40 because nothing in the binary
+ * names it.
+ *
+ * Frame is EBP-based with no locals and no _chkstk (PUSH EBP / MOV EBP,ESP /
+ * PUSH ESI); ESI carries thread_datum across the body.  Real frame offsets:
+ *   [EBP+0x08] -> ECX -> arg1 int16_t function_index
+ *   [EBP+0x0C] -> ESI -> arg2 int     thread_datum
+ *   [EBP+0x10] -> EAX -> arg3 char    init
+ * Push order at the 0xcc560 call is PUSH EAX / PUSH ESI / PUSH ECX, i.e. the C
+ * argument order (function_index, thread_datum, init).
+ *
+ * Evaluation-record field widths, read off the disassembly (not the
+ * decompiler) at 0xc36bc-0xc36dd, each one load-bearing:
+ *   +0x00  MOVSX EAX, word ptr [EAX]          ; SIGN-extended int16
+ *   +0x04  XOR EDX,EDX / MOV DX, [EAX+4]      ; ZERO-extended uint16
+ *   +0x08  FLD dword ptr [EAX+8]  -> FSTP [ESP]
+ *   +0x0C  FLD dword ptr [EAX+0xC]-> FSTP [ESP+4]
+ *   +0x10  FLD dword ptr [EAX+0x10]-> FSTP [ESP+8]
+ * The three floats are passed by their raw IEEE-754 bits via MSVC's
+ * SUB ESP,0xc + FSTP [ESP+n] idiom (the reserved-slot form of push-then-fstp);
+ * reading them through an int would FILD-convert and silently change the
+ * value, and reading +0x00 unsigned or +0x04 signed would be silent
+ * LOADW-class bugs.
+ *
+ * Ghidra mis-prototypes the dispatch target as `void FUN_0017da40(void)` and
+ * therefore DROPS all five arguments at the call site.  The callee's own
+ * prologue in the pristine XBE (0x17da40) proves the five cdecl stack slots
+ * and their widths:
+ *   MOV CX, word ptr [EBP+0x08]  -> word  -> stored to global[0x00]
+ *   MOV DX, word ptr [EBP+0x0C]  -> word  -> stored to global[0x02]
+ *   MOV ECX,dword ptr [EBP+0x10] -> dword -> stored to global[0x3c]
+ *   MOV EDX,dword ptr [EBP+0x14] -> dword -> stored to global[0x40]
+ *   FADD dword ptr [EBP+0x18]    -> float -> combined into global[0x48]
+ * so the kb decl is widened to
+ * `void FUN_0017da40(int16_t, uint16_t, float, float, float)`.  Signedness of
+ * the first two comes from this caller (MOVSX vs XOR/MOV), the float-ness of
+ * the last three from both this caller's FLD/FSTP and the callee's FADD, and
+ * all five agree with the descriptor's [7,7,6,6,6] formal list.  The callee is
+ * cdecl with a plain RET and this caller cleans, so widening cannot drift ESP;
+ * 0xc36de is its ONLY caller in the XBE (verified by a whole-image E8/E9/abs
+ * reference sweep), so no other call site can be affected.
+ *
+ * The callee takes NO register arguments: ECX at 0x17da49 is XOR-zeroed before
+ * any read, EAX is loaded from the global at 0x47e4d4, EDX is first written
+ * from [EBP+0x0C], and EBX/ESI/EDI are untouched.  No @<reg> annotation is
+ * warranted or added.
+ *
+ * ADD ESP,0x1c at 0xc36eb is a single merged cleanup for the three reserved
+ * float slots (0xc) plus BOTH trailing calls (2 pushes for FUN_0017da40 + 2
+ * for hs_return); it is a cdecl merge, not a wider hs_return.
+ *
+ * Callees (all cdecl, in kb.json, no register arguments):
+ *   0xcc560  = hs_macro_function_evaluate(fn_index, thread_datum, init)
+ *   0x17da40 = FUN_0017da40(int16_t, uint16_t, float, float, float)
+ *   0xcbf80  = hs_return(thread_handle, value)
+ */
+struct hs_convolution_result {
+  int16_t field_00; /* +0x00 HS short, read MOVSX (signed) */
+  int16_t pad_02;   /* +0x02 upper half of the 4-byte HS value slot */
+  uint16_t field_04; /* +0x04 HS short, read XOR/MOV (zero-extended) */
+  uint16_t pad_06;  /* +0x06 upper half of the 4-byte HS value slot */
+  float field_08;   /* +0x08 HS real */
+  float field_0c;   /* +0x0c HS real */
+  float field_10;   /* +0x10 HS real */
+};
+
+void FUN_000c36a0(int16_t function_index, int thread_datum, char init)
+{
+  struct hs_convolution_result *result;
+
+  result = (struct hs_convolution_result *)hs_macro_function_evaluate(
+    function_index, thread_datum, init);
+  if (result != 0) {
+    FUN_0017da40(result->field_00, result->field_04, result->field_08,
+                 result->field_0c, result->field_10);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc3700 — HaloScript function handler for the script builtin
+ * "cinematic_screen_effect_set_filter" ("sets the filter effect").
+ *
+ * Script-function table record at 0x2725c4 (its +0x0c evaluate slot at
+ * 0x2725d0 is the only xref to this function):
+ *   +0x00 return_type = 4 (void)
+ *   +0x04 name        = 0x272bd4 "cinematic_screen_effect_set_filter"
+ *   +0x08 parse       = 0xc7e50   (the shared generic parser)
+ *   +0x0c evaluate    = 0xc3700   <- this function
+ *   +0x10 help        = 0x272bbc "sets the filter effect"
+ *   +0x18 num_params  = 6
+ *   +0x1a param_types = (6, 6, 6, 6, 5, 6) = (real, real, real, real,
+ *                                             boolean, real)
+ * (record layout cross-checked against the documented "fade_out" record at
+ * 0x271ac0, whose (4; 6,6,6,7) header decodes the same way).
+ *
+ * Same evaluate-then-forward shape as the siblings in this TU: drive
+ * hs_macro_function_evaluate over the script argument expressions and, on a
+ * non-NULL evaluated-argument block, forward six values to FUN_0017dab0
+ * before completing the thread with a 0 result.
+ *
+ * Ghidra mis-prototypes this as `void FUN_000c3700(void)` and surfaces the
+ * three cdecl stack slots as in_stack_00000004/8/c — the tell for dropped
+ * cdecl stack params, not for register arguments; this function takes none.
+ * Real frame offsets:
+ *   [EBP+0x08] -> ECX -> arg1 int16_t function_index
+ *   [EBP+0x0C] -> ESI -> arg2 int     thread_datum   (ESI across the body)
+ *   [EBP+0x10] -> EAX -> arg3 char    init
+ *
+ * Ghidra also DROPPED all six arguments of the 0x17dab0 call (rendering it
+ * `FUN_0017dab0()`), because kb declared the callee `void (void)` and four of
+ * the six arguments are hidden behind MSVC's push-then-FSTP float idiom.  The
+ * argument slots are therefore derived from the raw disassembly, not the
+ * decompiler.  Reconstructing the frame from 0xc3724 (ESP0 = ESP before the
+ * first PUSH ECX):
+ *   PUSH ECX ; FSTP [ESP]      ESP0-0x04 <- float [EAX+0x14]   => arg 6
+ *   PUSH EDX                   ESP0-0x08 <- zero-extended byte [EAX+0x10]
+ *                                                              => arg 5
+ *   SUB ESP,0xc
+ *   FSTP [ESP+0x8]             ESP0-0x0c <- float [EAX+0x0c]   => arg 4
+ *   FSTP [ESP+0x4]             ESP0-0x10 <- float [EAX+0x08]   => arg 3
+ *   FSTP [ESP]                 ESP0-0x14 <- float [EAX+0x04]   => arg 2
+ *   PUSH EAX                   ESP0-0x18 <- dword [EAX+0x00]   => arg 1
+ * so the C-level order is (block+0x00, +0x04, +0x08, +0x0c, +0x10, +0x14) even
+ * though the FLDs execute in the reverse order (+0x14, +0x0c, +0x08, +0x04) —
+ * that is MSVC's right-to-left argument evaluation, not a different order.
+ * The `MOV EAX,[EAX]` for arg 1 is deliberately last: it destroys the block
+ * pointer, so it cannot precede the FLDs.
+ *
+ * Evaluated-argument block layout (six 4-byte slots, widths taken from the
+ * loads, and cross-checked against the table's param_types above):
+ *   +0x00  real, consumed as a raw dword  ; MOV EAX,[EAX]        (see below)
+ *   +0x04  float                          ; FLD dword [EAX+0x4]
+ *   +0x08  float                          ; FLD dword [EAX+0x8]
+ *   +0x0c  float                          ; FLD dword [EAX+0xc]
+ *   +0x10  boolean, ZERO-extended byte    ; XOR EDX,EDX; MOV DL,[EAX+0x10]
+ *   +0x14  float                          ; FLD dword [EAX+0x14]
+ * Reading +0x10 through an `int *` would emit a dword load and through a
+ * signed `char *` a MOVSX; both are silent LOADW-class bugs, so it is read
+ * through `unsigned char *`.  The four float slots are pure IEEE-754
+ * passthroughs — reading them as int would FILD-convert and change the value.
+ *
+ * Slot +0x00 is typed `real` by the script table yet the original copies it
+ * with an integer MOV/PUSH rather than FLD/FSTP.  The identical split appears
+ * in the fade_in/fade_out handlers at 0xc22a0/0xc22f0 (first real MOV'd, the
+ * later reals FLD'd), whose callees are likewise declared with an int first
+ * parameter, so this lift follows that precedent: the value is a bit-exact
+ * dword passthrough either way (FUN_0017dab0 re-stores it with a plain
+ * `MOV [EAX+0x4c],ECX`), and `int` is what reproduces the original's MOV.
+ *
+ * Callee prototype recovered independently from FUN_0017dab0's own body in the
+ * pristine XBE (0x17dab0-0x17db1c), not from this call site:
+ *   [EBP+0x08] MOV ECX -> MOV [EAX+0x4c],ECX      dword store
+ *   [EBP+0x0c] MOV EDX -> MOV [EAX+0x50],EDX      dword store
+ *   [EBP+0x10] MOV ECX -> MOV [EAX+0x54],ECX      dword store
+ *   [EBP+0x14] MOV EDX -> MOV [EAX+0x58],EDX      dword store
+ *   [EBP+0x18] MOV CL, byte ptr -> MOV [EAX+0x20],CL   1-BYTE load and store
+ *   [EBP+0x1c] FADD dword ptr [EBP+0x1c]          true float operand
+ * The fifth parameter is therefore a single byte (not an int): the callee
+ * never touches the upper three bytes of that stack slot, and the script
+ * table types it `boolean` (5).  kb.json has no `bool`/`uint8_t` spelling, so
+ * it is declared `char`, matching the sibling FUN_0017da00(char).  The sixth
+ * is unambiguously float (FADD).  The callee leaves no meaningful value in
+ * EAX at its RET and this caller ignores EAX, so it stays `void`.
+ * FUN_0017dab0 reads no register arguments (EAX/EBX/ECX/EDX are all written
+ * before being read), so no @<reg> annotation is involved.
+ *
+ * This call site at 0xc3743 is the ONLY xref to FUN_0017dab0 in the image, so
+ * widening its kb decl from `void (void)` cannot disturb another caller; the
+ * callee is cdecl and this caller cleans, so widening cannot drift ESP.
+ * FUN_0017dab0 stays unported and keeps its FUN_ name — the script-table
+ * string names the HaloScript builtin, not proven to be the callee's own
+ * symbol name.
+ *
+ * ADD ESP,0x20 at 0xc3750 is a single merged cleanup for BOTH trailing calls
+ * (0x18 bytes for the six-argument FUN_0017dab0 + 8 for hs_return); any
+ * "hs_return ARG_COUNT cleanup=8, decl=2" finding is that cdecl merge, not a
+ * wider hs_return.
+ *
+ * Frame is EBP-based with no locals and no _chkstk (PUSH EBP / MOV EBP,ESP /
+ * PUSH ESI); ESI carries thread_datum across the body.  No FPU arithmetic (the
+ * floats are load/store passthroughs), no struct writes, no buffers, no loops,
+ * no branches beyond the single NULL test.
+ *
+ * Callees (all cdecl, in kb.json, no register arguments):
+ *   0xcc560  = hs_macro_function_evaluate(function_index, thread_datum, init)
+ *   0x17dab0 = FUN_0017dab0(int, float, float, float, char, float)
+ *   0xcbf80  = hs_return(thread_handle, value)
+ */
+void FUN_000c3700(int16_t function_index, int thread_datum, char init)
+{
+  volatile float *result;
+
+  result = (volatile float *)hs_macro_function_evaluate(function_index,
+                                                        thread_datum, init);
+  if (result != NULL) {
+    FUN_0017dab0(*(int *)result, result[1], result[2], result[3],
+                 *(unsigned char *)(result + 4), result[5]);
+    hs_return(thread_datum, 0);
+  }
+}
+
+/* 0xc3760 — HS macro handler: forward { int, float, float } to 0x17db20.
+ * Both scalar fields are raw IEEE-754 record dwords (+4/+8). */
+void FUN_000c3760(int16_t function_index, int thread_datum, char init)
+{
+  int *result;
+
+  result =
+    (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
+  if (result != NULL) {
+    FUN_0017db20(result[0], *(float *)((char *)result + 4),
+                 *(float *)((char *)result + 8));
     hs_return(thread_datum, 0);
   }
 }
@@ -8292,6 +8590,18 @@ void FUN_000c40b0(int16_t end_index, int16_t start_index, const char **names)
   }
 }
 
+/* 0xc40f0 — Enumerate names embedded in a tag block. */
+void FUN_000c40f0(void *block, int16_t name_offset, int element_size)
+{
+  int16_t index;
+  const char *name;
+
+  for (index = 0; (int)index < *(int *)block; index++) {
+    name = (const char *)tag_block_get_element(block, (int)index, element_size);
+    FUN_000c4030(name + name_offset);
+  }
+}
+
 /* 0xc4130 — Enumerate one scenario-resident tag_block into the active token
  * enumeration.  One of the per-type enumerator thunks in the table at
  * 0x2f2208 (see hs_tokens_enumerate below); the concrete block is selected by
@@ -8323,6 +8633,31 @@ void FUN_000c4130(int16_t block_offset, int16_t name_offset, int element_size)
     block = (char *)global_scenario_get() + block_offset;
     FUN_000c40f0(block, name_offset, element_size);
   }
+}
+
+/* 0xc4160 — Add the two fixed command names to the active token enumeration.
+ * Each literal is loaded directly into ESI before calling FUN_000c4030. */
+void FUN_000c4160(void)
+{
+  FUN_000c4030((const char *)0x25bb40);
+  FUN_000c4030((const char *)0x27b978);
+}
+
+/* 0xc4180 — Add all five name pointers in the fixed table at 0x2f156c.
+ * The original walks the table with EDI and counts down EBX; no slot is
+ * skipped or tested for NULL. */
+void FUN_000c4180(void)
+{
+  const char **name;
+  int remaining;
+
+  name = (const char **)0x2f156c;
+  remaining = 5;
+  do {
+    FUN_000c4030(*name);
+    name++;
+    remaining--;
+  } while (remaining != 0);
 }
 
 /* 0xc41b0 — Enumerate a fixed 0x2d-entry table of `char *` names at 0x2f14b8
@@ -8995,6 +9330,24 @@ void hs_dispose_from_old_map(void)
   hs_runtime_dispose();
 }
 
+/* 0xc4e20 — Print a built-in function's usage and descriptor field_10 text.
+ * The 0x800-byte stack buffer is used for both console lines. */
+void hs_help(const char *name)
+{
+  int16_t function_index;
+  char *function;
+  char buffer[0x800];
+
+  function_index = hs_find_function_by_name(name);
+  if (function_index != -1) {
+    FUN_000c4a40(function_index, buffer);
+    console_printf(0, buffer);
+    function = (char *)hs_function_table_get(function_index);
+    csstrcpy(buffer, *(const char **)(function + 0x10));
+    console_printf(0, buffer);
+  }
+}
+
 /* 0xc4e90 — Dump every hs built-in function's signature and documentation
  * text to "hs_doc.txt".
  *
@@ -9069,7 +9422,7 @@ void FUN_000c5010(int16_t function_index, int thread_datum, char init)
 
   result = hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != 0) {
-    hs_help(*(int *)result);
+    hs_help((const char *)(uintptr_t)*(int *)result);
     hs_return(thread_datum, 0);
   }
 }
@@ -9373,6 +9726,43 @@ int FUN_000c5310(int source_node, int arg_node)
   }
 
   return NONE;
+}
+
+/* 0xc55d0 — Validate a function call's argument chain.
+ *
+ * ABI confirmed from all five callers: `function_name` and
+ * `argument_nodes` are stack arguments; `syntax_node` is EDI and
+ * `expected_count` is BX.  SI/BX are intentionally int16_t because the
+ * original uses `CMP SI,BX` and `MOVSX ECX,SI` for the output index.
+ */
+bool FUN_000c55d0(const char *function_name, int *argument_nodes,
+                  int syntax_node, int16_t expected_count)
+{
+  char *node;
+  int argument_node;
+  int16_t argument_count;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, syntax_node);
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+  argument_node = *(int *)(node + 8);
+  argument_count = 0;
+
+  while (argument_node != NONE && argument_count < expected_count) {
+    argument_nodes[argument_count] = argument_node;
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_node);
+    argument_node = *(int *)(node + 8);
+    argument_count++;
+  }
+
+  if (argument_count == expected_count && argument_node == NONE)
+    return true;
+
+  crt_sprintf((char *)0x46b704, "the %s call requires %d arguments.",
+              function_name, (int)expected_count);
+  *(const char **)0x46b6fc = (const char *)0x46b704;
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, syntax_node);
+  *(int *)0x46b700 = *(int *)(node + 0xc);
+  return false;
 }
 
 /* Reset the HaloScript compile state.  Asserts that the compiler is not

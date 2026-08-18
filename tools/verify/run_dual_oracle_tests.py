@@ -14,7 +14,7 @@ from pathlib import Path
 
 from run_golden_tests import (DEBUG_TXT_PATH, ROOT, deploy_variant,
                               extract_harness_lines, parse_structured_lines,
-                              restore_harness_off, run_command)
+                              restore_harness_off, run_command, target_host)
 
 
 ARTIFACT_ROOT = ROOT / "artifacts" / "runtime_dual_oracle"
@@ -59,6 +59,9 @@ def build_dual_oracle(target: str, overlay: Path, artifact_dir: Path,
 
 def capture_output(args: argparse.Namespace, artifact_dir: Path) -> dict:
     fetch_cmd = [sys.executable, "tools/xbox/xbdm_debug_txt.py"]
+    host = target_host(args)
+    if host:
+        fetch_cmd.extend(["--host", host])
     deadline = time.time() + args.timeout
     last_output = ""
 
@@ -105,6 +108,12 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Reuse currently deployed XBE")
     parser.add_argument("--skip-restore", action="store_true",
                         help="Do not restore HALO_TEST_HARNESS=OFF after the run")
+    parser.add_argument("--xbox-host", "--host", default="", dest="xbox_host",
+                        help="XBDM host/IP for deployment.")
+    parser.add_argument("--xemu", action="store_true",
+                        help="Shortcut for deploying to local xemu.")
+    parser.add_argument("--backend", choices=("xbdm", "xemu"), default="xbdm",
+                        help=argparse.SUPPRESS)
     return parser
 
 
@@ -128,7 +137,7 @@ def main() -> int:
 
     try:
         build_dual_oracle(args.target, overlay, artifact_dir, args.skip_build)
-        deploy_variant("dual_oracle", artifact_dir, args.skip_deploy)
+        deploy_variant("dual_oracle", artifact_dir, args)
         result = capture_output(args, artifact_dir)
         assertion_counts = result["parsed"]["assertions"]
         summary.update({
@@ -150,7 +159,7 @@ def main() -> int:
             }
         else:
             summary["restore_harness_off"] = restore_harness_off(
-                artifact_dir, args.skip_build, args.skip_deploy)
+                artifact_dir, args.skip_build, args.skip_deploy, target_host(args))
 
     summary_path = artifact_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2) + "\n",

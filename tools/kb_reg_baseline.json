@@ -758,10 +758,28 @@
     "0x224904": "int __stdcall connect(void *xnet@<ecx>, unsigned int socket, const void *name, int namelen);",
     "0x225021": "int __stdcall socket(void *xnet@<ecx>, int af, int type, int protocol);",
     "0x2256bb": "int __stdcall recv(void *xnet@<ecx>, unsigned int socket, char *buf, int len, int flags);",
-    "0x2258a4": "int __stdcall send(void *xnet@<ecx>, unsigned int socket, const char *buf, int len, int flags);"
+    "0x2258a4": "int __stdcall send(void *xnet@<ecx>, unsigned int socket, const char *buf, int len, int flags);",
+    "0x68f60": "int FUN_00068f60(void *tif @<edi>);",
+    "0x69600": "int FUN_00069600(int bs @<ecx>, int be @<edx>, const unsigned char *runs @<ebx>, unsigned char **pbp);",
+    "0x6a2a0": "int FUN_0006a2a0(int n @<eax>, unsigned short *r @<ecx>, unsigned short *g, unsigned short *b @<edx>);",
+    "0x6a3b0": "int FUN_0006a3b0(unsigned char *map @<esi>);",
+    "0x6b8e0": "int FUN_0006b8e0(void *tif, unsigned long *raster, void *img, unsigned long w @<edi>, unsigned long h);",
+    "0x95330": "char recorded_animation_play_internal(int actor@<eax>, short anim_idx, short flags);",
+    "0xdb0b0": "void *FUN_000db0b0(short local_player_index@<si>);",
+    "0xdb1e0": "void FUN_000db1e0(int *reference@<esi>, int param_2, bool param_3, short param_4);",
+    "0xdbcb0": "void FUN_000dbcb0(short *pt@<eax>, int local_player_index@<ecx>, int param_3);",
+    "0x68eb0": "int FUN_00068eb0(void *tif @<edi>);",
+    "0xc55d0": "bool FUN_000c55d0(const char *function_name, int *argument_nodes, int syntax_node@<edi>, int16_t expected_count@<bx>);",
+    "0xc6a30": "int16_t FUN_000c6a30(const char *name, const char **entries@<ebx>, int16_t count@<edi>);",
+    "0xc9b10": "void hs_object_iterate_names_containing(hs_object_name_iterator_t iterator, const char *substring @<ebx>);",
+    "0x148370": "char FUN_00148370(float *center@<ecx>, float *origin@<eax>, float *delta@<edx>, float *out_t@<esi>, float radius);"
   },
   "0x6cde0": "void FUN_0006cde0(void *tif@<edi>);",
   "0xc4a40": "void FUN_000c4a40(int16_t function_index@<eax>, char *buffer@<esi>);",
   "0xc4ae0": "void FUN_000c4ae0(int16_t function_index@<eax>, char *buffer);",
-  "0x69180": "int FUN_00069180(void *tif @<edx>);"
+  "0x69180": "int FUN_00069180(void *tif @<edx>);",
+  "0x6a3b0": "int FUN_0006a3b0(unsigned char *map @<esi>);",
+  "0x6b8e0": "int FUN_0006b8e0(void *tif, unsigned long *raster, void *img, unsigned long w @<edi>, unsigned long h);",
+  "0xdb1e0": "void FUN_000db1e0(int *reference@<esi>, int param_2, bool param_3, short param_4);",
+  "0xdbcb0": "void FUN_000dbcb0(short *pt@<eax>, int local_player_index@<ecx>, int param_3);"
 }
