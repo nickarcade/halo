@@ -1263,7 +1263,7 @@ Original call-site args (from the pristine body): case 0 pushes 0 (disable); cas
 
 ## 32. @reg-DEFINED Prologue Ceiling (Phantom-Slot Loads) — Modeled by the Comparator
 
-**Automation:** FULL — `compare_obj.py::strip_regparam_loads` + `parse_regdef_from_decl`, applied automatically by `vc71_verify.py` for every function whose own kb.json decl carries `@<reg>` params (`_regdef_params_for`); proven by `compare_obj.py --self-test` cases RP1–RP9. Output tags the modeling, and score artifacts preserve `raw_mnemonic_pct`, `abi_modeled_mnemonic_pct`, `abi_model`, and the adjustment count. A modeled 100% is not byte identity.
+**Automation:** FULL — `compare_obj.py::strip_regparam_loads` + `parse_regdef_from_decl`, applied automatically by `vc71_verify.py` for every function whose own kb.json decl carries `@<reg>` params (`_regdef_params_for`); proven by `compare_obj.py --self-test` cases RP1–RP13. Output tags the modeling, and score artifacts preserve `raw_mnemonic_pct`, `abi_modeled_mnemonic_pct`, `abi_model`, and the adjustment count. A modeled 100% is not byte identity.
 
 **What happens:** cl.exe cannot express a function whose own params arrive in `@<eax>/@<ebx>/@<esi>/@<edi>/@<ax>` (only `@<ecx>[,@<edx>]`-only maps onto `__fastcall`, which `compile_vc71` already rewrites). The candidate compiles those params as stack args and must emit mov-family loads from the phantom caller-arg slot `disp(%ebp)`, `disp = 8 + 4*param_idx` — instructions the true reg-convention reference can never have. Each is an unmatched mnemonic in the LCS, capping a byte-faithful lift below the bar (the DEFINING-function analogue of the reg-arg caller ceiling; see §18 for the runtime mirror of the same `+4·N_regparams` slot arithmetic).
 
@@ -1272,6 +1272,8 @@ Original call-site args (from the pristine body): case 0 pushes 0 (disable); cas
 2. Only loads FROM the exact phantom slot INTO the annotated register's own family are eligible: wrong-slot reads (RP7), loads into a different register (RP4b — their `mov` mnemonic already aligns with the reference's reg-to-reg move), and SIB/indexed sources (RP8) are never stripped.
 3. A lift that never loads the param has nothing to strip — the score cannot be inflated; genuinely wrong bodies still fail (RP5); reg-alloc cascade (extra spills, differing `sub esp,N`) survives untouched (RP2).
 4. Monotonic: reported = `max(raw, stripped)` — in mnemonic space a phantom `movl` may have aligned against an unrelated reference `movl`, so stripping can shift alignment down a fraction; the model removes a known convention penalty and never introduces one (RP9).
+
+**Second pass — the callee-saved save/restore pair.** The phantom slot load is only half the artifact. A register that ARRIVES as a parameter is the caller's to preserve, so the reg-convention reference never saves it; cl.exe, modelling the param as a stack arg, treats the register as scratch and emits a `push %reg` … `pop %reg` pair — and on a multi-epilogue function that is one surplus `pop` per return path (`hs_load_source_file` has four). `strip_regparam_loads(..., strip_saves=True)` removes those, under the same invariants: candidate-surplus only, count-aware against the reference so an argument `push %ebx` the reference also makes survives (RP11), and restricted to `ebx/esi/edi` because `eax/ecx/edx` are caller-saved and have no pair (RP12). `select_regparam_candidate` now scores three candidates — raw, load-stripped, load+saves-stripped — and reports the best, so the pass is monotonic by construction (RP13); the tag becomes `regparam_stripped_saves`. Measured on 401 functions across `hs.c`/`hs_runtime.c`/`hs_compile.c`: mean +0.05/+0.27/+0.24pp, 20 functions up (best `FUN_000cada0` 82.2 → 89.9), zero down.
 
 **Calibration (2026-07-20):** the phantom load is worth ~0.2–1.6pp on real functions (unit_verify_vectors 95.1→96.1, object_postprocess_node_matrices 95.2→96.8, FUN_0013e1a0 89.3→90.9). A @reg function stuck at 60–75% is NOT capped by the prologue artifact — that gap is register-allocation cascade, a stale/bloated reference, or a genuinely divergent body. Check the delinked ref quality first, then permute; do not blame the convention.
 
@@ -1869,7 +1871,63 @@ pushl  %ecx
 Both forms move the exact same 4 bytes — an IEEE-754 float bit-pattern
 survives a GPR round-trip unchanged — so this is **not a correctness bug**,
 just a toolchain codegen-lowering difference that VC71's LCS scorer still
-penalizes. Cost is one reference instruction per FSTP-slot float, giving a
+penalizes.
+
+**The switch is `/Os` vs `/Ot`, and it is not usable (measured 2026-08-19).**
+The candidate side of this cap is cl.exe 7.1, not clang — both sides of the
+VC71 lane are cl.exe, so the lowering is selectable by flag, and it is worth
+knowing exactly which one so nobody re-opens the question. Compiling a 5-shape
+scratch file (pointer deref, struct field, plain local, `volatile` local,
+5-arg mixed int16/float) through
+`/mnt/c/Program Files (x86)/RXDK/xbox/bin/vc71/CL.Exe`:
+
+| flags | float-arg lowering |
+|---|---|
+| `/O2`, `/O2 /Ot`, `/O2 /Ob1`, `/O2 /Gs`, `/O2 /Op` | `mov r,m32` / `push r` |
+| `/O2 /Os`, `/Og /Os`, `/O1` | `flds` / `sub esp,N` / `fstps [esp+k]` — the reference's *idiom* |
+
+So it is the size-vs-speed heuristic (`/O2` implies `/Ot`), *not* "MSVC avoids
+the x87 unless the argument involves active computation" — the form is
+identical for a deref, a struct field, and a local, which is why re-spelling
+the load measures zero movement.
+
+> **Correction (2026-08-19).** An earlier revision said `/Os` reproduces the
+> reference "byte-for-byte … including `sub esp,0xc` + three `fstps` slots". It
+> does not, and two independent audits caught it. The reference at `0xc2a9c`
+> reserves with `sub esp,8` and pushes an int arg with `mov edx,[eax]` + `push
+> edx`; `/Os` reserves with `push ecx; push ecx` and pushes with `push [eax]`.
+> Consequence: `/Os` *lowers* the very functions the cap was diagnosed on —
+> `FUN_000c2a80` 83.6 → **82.4**, `FUN_000c2940` 94.5 → **85.7**. The
+> flag-attribution above survives; the "byte-for-byte" proof did not.
+
+**But `/Os` cannot be adopted, TU-wide or per-function.** `hs.c` at `/O2`
+scores mean **97.17** (187 of 255 at 100%); at `/O2 /Os` and at `/O1` it scores
+mean **78.55, 1 at 100%, 250 of 255 sub-90** — identical numbers for both,
+because `/O1` implies `/Os`. `hs_update` alone goes 97.6 → 35.0. The original
+TU is `/Ot`-like *everywhere except the float-argument sites*, which no single
+VC71 flag set produces — itself evidence the original compiler is not VC7.1.
+(cachebeta.xbe's compiler remains unconfirmed; VC6 is **not** a candidate and
+that lane is closed — confirmed by the project owner, VC6 was never used for
+Halo CE. A `/mnt/c/MSVC600` install exists on the dev box and is a leftover.)
+Per-function `#pragma optimize("s", on)` is expressible but would be fitting
+the metric rather than recovering the source, so treat the cap as permanent
+and let R4 park it.
+
+> **Scope correction (2026-08-19).** Do not read the 97.17-vs-78.55 pair as "the
+> size of this ceiling". It is what the TU would *lose* by switching flags, and it
+> is dominated by the 249 functions `/Os` makes worse, not by the float sites. An
+> audit censused `hs.c` at `/O2` by reference-vs-candidate `fstp` count and found
+> the genuine float divergence in **24 functions** (75.8–94.5%); closing all 24 to
+> 100% would move the TU mean by ≈ **+1.2pp**. Two further cautions from the same
+> audit: (a) the largest `/Os` beneficiary, `FUN_000c4160`, is not a float case at
+> all — its reference passes `@<esi>` to `FUN_000c4030`, so its 61.5% is the
+> separate `@<esi>`-inexpressible ceiling, and `/Os` helps only by accidentally
+> hoisting immediates into a register; (b) at `/O2 /Os`, `FUN_000c35b0` gains the
+> reference's `sub esp` + `flds`/`fstps` lowering but **loses the EBP frame**
+> (24 of 30 insns, no `push %ebp` / `mov %esp,%ebp` / `pop %ebp`). Since neither
+> flag setting reproduces the original, "permanent, not a fixable lift defect" is
+> **not** established for this family — a source-level cause remains unexcluded.
+> Park it as an unexplained cap, not a proven ceiling. Cost is one reference instruction per FSTP-slot float, giving a
 fixed, reproducible per-arity ceiling measured across this family: 0 floats =
 100%, 1 float ≈ 94.1%, 2–3 floats ≈ 83.6%. Re-spelling the load (struct field,
 `int *` pun, `volatile` local, `double` round-trip) has been measured at
@@ -2014,3 +2072,513 @@ did. Copy `points[0..2]` into later slots when the binary does.
 verified site with `/* hazard-ok: marker-buf */` on the call. Tests:
 `tools/audit/tests/test_effect_marker_buffers.py`, which also pins the
 `FUN_000f8920` `pos[6]` copy.
+
+
+## 49. A Call-Count Delta on a Small Function Is a Dropped Call, Not a Codegen Story
+
+`hs_dispose` (`0xc3c30`, `hs.obj`) sat at **66.7%** and the ready explanation
+was "cl.exe `/O2` tail-jumps a trailing void call while the reference does
+`call; ret`". That explanation is wrong in both directions. The reference is 10
+bytes:
+
+```
+0xc3c30: e8 cb6b0000   call 0xca800
+0xc3c35: e9 76a50000   jmp  0xce1b0
+```
+
+It *already* tail-jumps. The real defect: the lift emitted **one** call where
+the reference has two. Its single call was `hs_runtime_dispose_from_old_map()`,
+which kb.json maps to `0xca800` — the *correct* first callee. What was missing
+was the tail `JMP 0xce1b0`, and the reason it was missing is that `0xce1b0` had
+no kb.json entry at all: a real 16-byte-aligned function, padded with `nop` on
+both sides, whose whole body is a single `RET`, reached only by this tail `JMP`
+(found by a whole-image E8/E9 scan). Declaring it and restoring the second call
+took the function to **100.0%**.
+
+> **Correction (2026-08-19).** An earlier revision of this section, and the
+> commit message for `a8e2c2908`, claimed the lift's one call was "aimed at
+> `0xce1e0` … instead of `0xca800`". That is wrong: `a8e2c2908^` shows
+> `hs_dispose` calling `hs_runtime_dispose_from_old_map`, and `a8e2c2908^`'s
+> kb.json maps that name to `0xca800`. Only the *count* was wrong, never the
+> aim. Caught by an independent audit — the lesson holds (count the E8/E9
+> targets), but "the callee is also wrong" was an unchecked embellishment on
+> top of a correct diagnosis, which is exactly the kind of detail a later
+> reader would take as established fact.
+
+**Why the score invites a compiler story.** The official metric is
+`2*LCS/(n_cand + n_ref)`. With `n_ref` in the single digits the score *is* the
+instruction count: a 1-instruction candidate against a 2-instruction reference
+is exactly `2*1/(1+2) = 66.7%` — a plausible-looking number attached to a
+one-line body, which is precisely the shape that makes a reader reach for
+"tail-call elimination" instead of counting calls. The `--show-diffs` printer
+makes it worse: the official LCS is **mnemonic-only**, so the candidate's `jmp`
+matched the reference's `jmp` and the missing `call` printed as a lone
+`insert`, reading like a scheduling artifact.
+
+**Rule.** Before accepting any tail-call / inlining / scheduling explanation
+for a short function, decode the reference bytes and count the E8/E9 targets:
+
+```python
+import sys; sys.path.insert(0, "tools")
+from verify import xbe_reference as xr
+b, _ = xr.function_bytes(0xc3c30)          # b'\xe8\xcbk\x00\x00\xe9v\xa5\x00\x00'
+# walk 0xe8 (call) / 0xe9 (jmp): target = addr + off + 5 + rel32
+```
+
+Resolve every target in kb.json. A target with **no** kb entry is a function to
+declare, not a stub to skip — and check whether it is a bare `RET` before
+assuming it is unimplemented. Cross-check `score_context`'s `n_cand_insns` vs
+`n_ref_insns`: a gap of 1–2 on a small body is a dropped or extra call.
+
+**Automation.** FULL — `compare_obj.py::compare_shape` counts `call`-family
+instructions on both sides and emits a `SHAPE` warning on any delta, surfaced
+as `[SHAPE-WARN]` on the `vc71_verify.py` status line with details under
+`--shape-only` (both tools). Targets cannot be compared (the candidate's are
+unrelocated), but the count can. The warning text names the three
+known-legitimate causes so a reader can triage without re-deriving them:
+(a) the reference calls a CRT helper we write as a C idiom
+(`_ftol2`/`_allmul`/`_chkstk`), (b) cl.exe `/Ob2` inlined a same-TU helper the
+original called (`hs_console_evaluate` inlines `hs_syntax_reset`, +2 calls),
+(c) the direction is reversed and we call out to something the original
+inlined. Advisory by design, like LOADW and IMM — but on a function with
+`n_ref` under ~12 the delta is nearly always real. Cached alongside the other
+warning classes (`vc71_cache.py` column `shape_warnings`). Tests:
+`compare_obj.py --self-test` cases SH1–SH3.
+
+**Related:** §24 (LOADW, the same presence-census detector shape), and the
+`reference_vc71_scorer_anchor_collapse` note on mnemonic-only LCS hiding
+operand and identity differences.
+
+
+## 50. A Reference Store to a Positive `disp(%ebp)` Means the Original Reassigned a Parameter
+
+`hs_console_evaluate` (`0xc50c0`, `hs.obj`) writes `[EBP+8]` **exactly once**
+in the whole function:
+
+```
+0xc51e4: add  esp, 0xc
+0xc51e7: mov  dword ptr [ebp+8], edx     ; edx = &wrapped
+0xc51ea: lea  eax, [ebp-8]
+...
+0xc51ee: mov  eax, dword ptr [ebp+8]     ; reloaded as the compile input
+```
+
+A positive `%ebp` displacement is an **incoming argument slot**, and a
+source-level assignment to the parameter is one reason to write it. Here it is
+the reason: the original is `command = wrapped;` inside the wrapping cases, and
+the value handed to `hs_compile` is the *parameter*. Because the slot is written
+exactly once, on the `mode == 0` pass-through path `[EBP+8]` still holds the
+**caller's original string** — not the `csstrncpy`'d, comment-stripped,
+`0x3ff`-truncated local copy, and not the whitespace-skipped walker.
+
+The lift had introduced a separate `const char *source` local initialised to
+`copy`, so on that path it compiled the sanitised copy instead. A command with
+leading whitespace, or longer than `0x3ff` bytes, compiled different text than
+the original engine. **Nothing else catches this**: it is not a crash, not an
+assert, not a load-width or immediate difference, and the aggregate LCS moved
+by only a few instructions (82.0% → 88.4% once fixed, together with two other
+corrections in the same function).
+
+**It is evidence, not proof — measured.** cl.exe reuses a live param slot as
+scratch too. `arccosine` (`0x2a530`, `actor_moving.obj`) is a two-line
+`return acosf(x);` — there is no assignment in the source to make — and the
+candidate still emits `movl %eax, 0x8(%ebp)` for the `float`→`double`
+conversion. So the census is deliberately **one-directional**: over a 9-TU AI
+sample the candidate-only direction fired 20 times against the reference-only
+direction's 15, and its actionable reading ("we assign to a parameter the
+original left alone") is weak, so it is not reported at all. Unaligned offsets
+are dropped for the same reason — argument slots are 4-byte aligned, so a store
+at `0xb`/`0xf`/`0x13` is a by-value struct field or scratch, never a
+whole-parameter assignment.
+
+**Rule.** Treat a reference-only store into a 4-byte-aligned positive
+`disp(%ebp)` as a lead worth confirming, not as reg-alloc noise to ignore and
+not as proof. Confirm against the disassembly that the slot is read *after* the
+store on the paths that matter, and that some path *skips* the store — that
+combination is what makes it behavioural. Then lift it as an assignment to the
+parameter variable, not a new local: a local silently changes which object the
+skipping paths pass on. Negative displacements are locals and mean nothing (a
+spill is reg-alloc noise); `0x4(%ebp)` is the return address and `0x0(%ebp)` the
+saved EBP, so the first argument slot is `0x8`.
+
+**Automation.** FULL — `compare_obj.py::param_slot_stores` +
+`compare_shape` census the set of positive-`disp(%ebp)` mov-family store
+targets on each side and warn on the **reference-only** direction for
+4-byte-aligned slots. Set-based, not count-based, for the same reason LOADW is:
+the same slot is legitimately written a different number of times by two builds.
+SIB/indexed forms are excluded by requiring `)` immediately after `%ebp`.
+Surfaced as `[SHAPE-WARN]`, details under `--shape-only`. Tests:
+`compare_obj.py --self-test` cases SH4–SH6, which pin the dropped
+candidate-only direction and the dropped unaligned offset as *intended*
+silence, so a later widening has to change a test on purpose.
+
+**Related:** §49 (same detector, call-count half), §32 (phantom `@<reg>` arg
+slots — another benign source of a candidate-only param-slot store, and the
+reason the candidate-only direction would be noisy even without the scratch
+reuse).
+
+
+## 51. The Candidate Was Being Truncated at Its First RET — MSVC's Cold Arms Have the Thunk Shape
+
+`ai_debug_dispose_from_old_map` (`0x48fa0`, `ai_debug.obj`) is **byte-identical
+to its reference** and scored **88.4%**. Not a codegen difference, not an ABI
+cap — a measurement bug in the candidate-side parser.
+
+The function has the ordinary MSVC two-arm layout: the hot path returns, and the
+cold arm is outlined *after* that RET with no padding between them.
+
+```
+  38: add    $0x18,%esp
+  3b: movb   $0x0,0x5ac9f1
+  42: ret                        <-- hot path returns
+  43: push   $0x25386f           <-- cold arm: csstrcpy(name, "")
+  48: push   $0x5ac9d2
+  4d: call   csstrcpy
+  52: add    $0x8,%esp
+  55: ret
+```
+
+`compare_obj.py::_trim_trailing_thunks` scanned forward to the first RET and, if
+everything after it was `[push+call+ret]+`, declared the remainder to be
+neighbouring thunk stubs and cut it. That arm is `push`/`push`/`call`/`add`/`ret`
+— **exactly** the thunk shape. So the candidate was compared as 19 instructions
+against the reference's 24, all 19 matching, giving `2*19/(19+24)` = 88.4%.
+
+Two things made it invisible:
+
+1. **Asymmetry.** The reference side never goes through `disassemble()` — it is
+   parsed by `xbe_reference.objdump_insns` — so only the candidate lost
+   instructions. The reference count was right, the candidate count was short,
+   and the gap read as "our lift is missing code."
+2. **The shape is everywhere.** Every outlined error/assert arm looks like this:
+   `push <string>; push <line>; call error; add esp,N; ret`. The trim's own
+   docstring described the *delinked reference* problem it was written for; it
+   was silently doing something else to the candidate.
+
+**The fix.** Require padding (`nop`/`int3`) between the RET and the first trailing
+"thunk": no padding means the block is the same function's out-of-line code.
+`ai_debug_dispose_from_old_map` goes 88.4% → **100.0%**.
+
+> **Correction (2026-08-19).** This fix was originally justified by "MSVC pads
+> (`nop`/`int3`) only *between* functions, never mid-body", said to be an
+> invariant `disassemble()` already relies on for `FUN_`-label folding. **The
+> invariant is false in the target binary.** `csstr_tolower` (`0x8d9a0`) has a
+> `nop` at offset `0xf`, mid-body, aligning the loop top onto `0x8d9b0`:
+>
+> ```
+>    d: je     0x26
+>    f: nop                  <-- mid-body alignment pad
+>   10: movzbl (%esi), %eax  <-- loop top, 16-byte aligned
+> ```
+>
+> The *rule as implemented* is narrower than the justification — it requires the
+> padding to follow a `RET` — and that narrower form still holds up here. But a
+> mid-body `RET` followed by an alignment `nop` before an outlined arm would
+> defeat it, and `disassemble()`'s `had_padding` label-folding leans on the same
+> bad invariant. An audit measured that the new trim now removes **zero**
+> instructions across all 214 built objects, i.e. it is currently dead code whose
+> docstring still justifies itself by a reference-side problem that no longer
+> routes through it. Two related asymmetries remain open: the candidate is also
+> put through `_trim_unlabeled_bleed` (RET+3-NOP and RET+2-NOP/>40% rules) with no
+> reference-side counterpart, so one of three trims was fixed, not all three.
+
+**Rule.** When a candidate's instruction count is *lower* than the reference's
+and the diff shows a contiguous ref-only block at the end, suspect the parser
+before the lift. Check `len(co.disassemble(obj)[fn])` against the objdump listing
+directly — the two disagreeing is the whole signal, and it takes one command:
+
+```python
+import sys; sys.path.insert(0, "tools/verify")
+import compare_obj as co
+print(len(co.disassemble("build/vc71/<tu>.obj")["<fn>"]))   # vs llvm-objdump -d
+```
+
+More generally: every heuristic that *removes* instructions to fix one object
+class must state which class it applies to and be gated on evidence that the
+object is in it. This one had no gate, so it applied to everything.
+
+**The bug is bidirectional, and mostly it DEFLATED.** It is tempting to file this
+as "the scorer was handing out free credit", and the headline example refutes that:
+`ai_debug_dispose_from_old_map` was *robbed* of 11.6pp. Truncating `k` matching
+tail instructions off an otherwise byte-identical candidate gives
+`2(n−k)/(2n−k) < 1` — a deflation. Inflation happens only when the cut block
+matched *worse* than the rest, i.e. when `m/k` is below the overall match rate.
+Measured over all 214 built objects with the old trim re-injected: **45 functions
+change length, 35 score higher after the fix, 8 lower.** So re-baseline in both
+directions — the drops are truer numbers, not regressions, but they trip the
+`vc71_scores.json` floor gate. `ui_widget_set_focus` 87.3% → 82.0% (candidate
+24 → 30 instructions) is the clearest inflation case.
+
+Do not attribute a whole re-baseline to this change without checking. The same
+commit also added the `regparam_stripped_saves` candidate, and **265 of the 344
+score increases carry that tag** versus 35 functions the trim touched at all — the
+regparam pass, not the trim, is what moved the ledger. `FUN_0013ab20` 86.1 → 82.3
+was attributed to the trim in the commit message and is not: its trimmed length is
+348 both before and after, so its old 86.1 was a *header-race* corruption.
+
+**Attributing a drop to a scorer change, without swapping files.** Load the
+pre-change and post-change `compare_obj` side by side under different module
+names and diff the candidate length on the same `.obj` — no recompile, no window
+where a concurrent gate reads a half-reverted tree:
+
+```python
+import importlib.util, sys
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    m = importlib.util.module_from_spec(spec); sys.modules[name] = m
+    spec.loader.exec_module(m); return m
+cur, old = load("co_cur", "tools/verify/compare_obj.py"), load("co_old", "/tmp/before.py")
+print(len(cur.disassemble(obj)[fn]), len(old.disassemble(obj)[fn]))
+```
+
+Equal lengths mean the drop is **not** yours. The score is a pure function of
+(candidate, reference, regdef); with the candidate identical, the reference sha
+unchanged, and the regdef modeling monotonic, a drop has to come from elsewhere.
+That is how `FUN_0013ab20` (348/348) and `actor_action_handle_lost_contact`
+(608/608) were cleared as pre-existing — another session's kb/source edits, first
+measured by this run.
+
+**Automation.** FULL — `compare_obj.py --self-test` cases **TT1/TT2**. TT1 pins
+the real `ai_debug_dispose_from_old_map` body (all 24 instructions) as surviving
+the trim; TT2 pins that a *padded* neighbouring thunk is still trimmed, with
+`nop` and `int3` padding both accepted. A future widening of the trim has to
+break a test that carries the measured case, not just a synthetic one.
+
+**Related:** §49 (the SHAPE call-count census is what surfaced this — the
+warning read "ours 3 vs reference 4" because the trimmed arm contained the
+fourth call), and the `reference_vc71_reference_truncation_bugs` note, which
+recorded the same class of bug on the *reference* side.
+
+
+## 52. The Parallel Regression Gate Was Racing on `decl.h` — Nondeterministic Regressions, Then Memoized
+
+`vc71_regression.py check` fans out up to 8 `vc71_verify.py` subprocesses. Each
+one regenerates `build/generated/decl.h` on startup — that regeneration is
+deliberate and load-bearing (§41: it is what stops a widened kb.json prototype
+from being compiled against a stale header). Serially it is harmless. In
+parallel, **eight processes rewrite the same header while their siblings compile
+against it**, and a worker that reads a half-written header produces a
+wrong-but-plausible score for a whole TU.
+
+**How it presented.** Two runs of the same command on the same tree, memo
+bypassed:
+
+| run | regressions | TUs affected |
+|---|---|---|
+| 1 | 24 | contrails, rasterizer, observer, terminal, ui_widget, objects, network_client_message_handler, debug_keys |
+| 2 | 26 | particle_systems, network_client_manager, rasterizer_text, actions, ui_widget, terminal, objects |
+
+**Only 3 of those findings were common to both runs**, and the improvement count
+moved too (195 vs 206). The magnitudes are the giveaway once you know to look:
+`FUN_00124d40: 100.0% → 30.0%`, `FUN_00126db0: 71.5% → 23.2%`,
+`FUN_000a0080: 97.2% → 60.6%` — a real lift regression does not lose 70 points
+without a source change, and none of these TUs had one.
+
+**Why it survived.** `run_vc71_verify` memoizes whole-TU results in
+`artifacts/audit/vc71_measure_cache.json`, keyed by `_measure_key` = tool epoch +
+source bytes + this TU's slice of `decl.h`. The key is computed from the header
+**after** the run, i.e. the intact one — so a score produced against a torn
+header is stored under a perfectly valid-looking key and served back to every
+later run, including serial ones. That is what made it look reproducible: a
+serial `check --source src/halo/effects/contrails.c` reported the same 7
+regressions as the parallel run, and only `VC71_NO_MEASURE_MEMO=1` revealed
+`OK — no regressions`. The memo is not the bug, but it is what turned a transient
+race into a persistent wrong answer, shared across every agent in the checkout.
+
+**Fix, in two parts.** `_pin_decl_header()` regenerates the header once in the
+parent, before either `ThreadPoolExecutor` (the `check` measure loop and the
+`update` re-verify loop), and `run_vc71_verify` gained `skip_decl_regen` so
+workers pass `--skip-decl-regen`. If the pin fails it returns False and the
+workers keep regenerating — slower and racy, but never silently compiled against
+a header nobody refreshed. The 595 memo entries written during the racy runs were
+discarded.
+
+That took the regression count from 24/26 to 4/5, but **one function still
+flipped between runs** (`FUN_00171bc0` 92.9% vs 80.3%), because `decl.h` was not
+the only shared header. `_make_fastcall_decl_shadow` writes
+`build/vc71/fastcall_inc/decl.h` — one shared path, plain `write_text`, called by
+every `compile_vc71` — so the same reader/writer overlap existed one level down.
+Its content is identical across workers (derived from the now-pinned `decl.h`
+plus kb.json), so a temp-file + `os.replace` is sufficient: a reader sees either
+the previous complete file or the new complete file, never a truncated one.
+
+**Both shared headers had to be found.** Pinning the obvious one cut the noise by
+80% and left a single flake, which is exactly the state in which a race gets
+written off as "flaky gate" and stops being investigated. The residual rate is
+the signal that there is another shared write, not that the fix was good enough.
+
+**There were TWO shared generated headers, and the second one is worse.**
+After pinning `build/generated/decl.h`, two consecutive `check` runs produced
+byte-identical regression lists but 207 vs 205 improvements — six functions
+across three TUs flipping between "improved" and "exactly the baseline", i.e.
+whole TUs compiling two different ways. That residual was first blamed on another
+agent session in the same checkout, and written up as an irreducible ~1% flip
+floor. It was not irreducible. The second shared header is the **fastcall
+shadow** `build/vc71/fastcall_inc/decl.h`, written by
+`_make_fastcall_decl_shadow` with a plain `Path.write_text()` — truncate, then
+write — on a path all 8 workers share. A sibling `cl.exe` opening it mid-write
+sees a truncated or zero-length header. Two shared writes, one visible symptom:
+fixing only the first one dropped the flip rate to a single function and made the
+remainder look like ambient flake.
+
+> **Correction (2026-08-19).** An earlier revision of this section claimed the
+> shadow's content is **per-TU** ("`decl.h` with `__fastcall` spliced onto only
+> *this* TU's mappable prototypes"), and therefore that a shared path lets one
+> worker pick up another TU's prototypes even when every write completes. That is
+> **false**, and two independent audits refuted it the same way:
+> `_get_fastcall_mappable()` takes no source argument (`() -> set[str]`) and
+> derives its 22 names from `kb.json` alone, and `_make_fastcall_decl_shadow`
+> reads only `decl.h`. Both inputs are TU-independent, so there is exactly one
+> canonical shadow text per tree state (sha `87cb9cdc9c057bb3`, stable across four
+> `PYTHONHASHSEED` values — set-iteration order does not leak either). The
+> per-process fix is still right; the hazard it removes is the torn read and the
+> `PermissionError` below, **not** cross-TU prototype leakage.
+
+**Do not "fix" a shared path with an atomic rename on `/mnt/g`.** The obvious
+patch — write a `pid`-suffixed temp file and `os.replace` it onto the shared
+name — is correct on ext4 and fails on drvfs: `os.replace` onto a path another
+process holds open raises `PermissionError: [Errno 13]`. Under a 16-worker
+`populate --rebaseline` that killed TUs outright (`vc71
+compile/score failed (rc=1)`), and because a rebaseline preserves unmeasured
+rows, the run reported success with part of its work silently missing. Scope,
+re-measured: of that run's 15 `✗` TUs, **7 TUs / 124 functions** carry an
+`os.replace` traceback, and only **6 TUs / 123 functions** are attributable to it
+*uniquely* (`structure_runtime_decals.c` fails to compile for its own reasons).
+The other 8 TUs / 48 functions are the pre-existing never-compiling set. The
+"16 TUs / 174 functions" first written here was the run's *whole* attention queue,
+which conflates the two populations — and the log's own summary (174/16) does not
+reconcile with its own per-TU lines (172/15). The fix is **not sharing the path**:
+`fastcall_inc/p<pid>/decl.h`, removed by `atexit`. Each TU is verified in its own
+subprocess, so the pid is a per-worker key. After that, two consecutive full
+gates agreed exactly (`4892 of 4892`, 0 regressions, byte-identical output).
+
+**Rule.** Any parallel fan-out over `vc71_verify` must pin `decl.h` first and
+pass `--skip-decl-regen` — this applies to `batch_verify`, sharded campaign
+runners, and anything new that spawns more than one verify at a time. And any
+generated file whose content depends on *which TU is being compiled* must live on
+a per-process path, never a shared one made "safe" with a rename. And when a
+gate reports a regression with no corresponding source change, **run it twice
+before believing it**: a set of findings that does not reproduce is a harness
+bug, not a lift bug. `VC71_NO_MEASURE_MEMO=1` is the switch that separates "the
+measurement is wrong" from "the memo is serving an old wrong measurement".
+
+**Signals.**
+- A regression list dominated by double-digit drops in TUs you did not touch.
+- Two runs disagreeing on *which* functions regressed.
+- A whole TU moving at once (a header is consumed per-TU, so the blast radius
+  of one torn read is a whole TU).
+- Serial and parallel disagreeing — with the memo on, they will agree, wrongly.
+- A *reduced but nonzero* flip rate after a race fix: that is a second shared
+  write, not the acceptable floor. Enumerate every generated path the compile
+  reads (here: `build/generated/decl.h` **and** `build/vc71/fastcall_inc/decl.h`).
+- A gate/populate reporting `rc=1` per TU under high worker counts but passing
+  when run on one TU by hand — look for `PermissionError` on a shared path.
+
+**Automation.** Not mechanically detectable from a single run by construction —
+the poisoned output is well-formed, and the only evidence is non-reproducibility
+across runs. What ships instead is the removal of the race itself
+(`_pin_decl_header`, called before both executors) plus this section's rule for
+future fan-outs. A determinism check would have to run the whole gate twice
+(~2×N compiles) and is not worth wiring into the hook; run it by hand
+(`VC71_NO_MEASURE_MEMO=1 … check` twice, diff the ✗ lists) whenever a gate
+reports regressions you cannot attribute to a source change.
+
+**Related:** §41 (why the regeneration exists at all — removing it is not the
+fix), §51 (the other measurement bug found in the same session; that one was
+deterministic, which is exactly why it had gone unnoticed for so long instead of
+being dismissed as flake).
+
+
+## 53. 51 Ported Functions Had NEVER Been Byte-Scored — the Gate Cannot Fail On What It Never Measured
+
+`vc71_regression.py check` printed `OK — no regressions (4892 of 4892 functions
+measured)` for months while **51 `ported: true` functions across 10 TUs had zero
+rows in `vc71_scores.json` and had never had any** — no byte-match evidence at
+all, in lifts dating to April 2026. The denominator is the baseline, so a function
+that was never scored is not a failure; it is absent. Silence read as coverage.
+
+Every one of the 10 TUs failed to **compile under VC71**, for three causes:
+
+**1. GCC-style `asm volatile` (cl.exe 13.10 cannot parse it).** `error C2065:
+'asm' : undeclared identifier`. Each case was a register-arg callee reached by
+hand-rolled asm, when kb.json's `@<reg>` annotation is the sanctioned mechanism
+and `build/generated/thunks.c` already emits the marshalling thunk. `tags.c` had
+*both* forms in one TU: two asm blocks, and one plain
+`tag_instance_resolve(tag_index)` call three functions later. Affected:
+`tags.c`, `telnet_console.c`, `input_abstraction.c`, `saved games/saved_game_files.c`,
+and `director.c` — the last one via `camera_internal.h`, which matters: grepping
+`director.c` itself for `asm` returns nothing, and an auditor used exactly that to
+wrongly clear it. **Grep the includes.**
+
+Two of these were also *unsound*, not merely unportable. `input_abstraction.c` did
+
+```c
+int _player = local_18;
+asm volatile("" : "+a"(_player));      /* "pin it in EAX" */
+cVar6 = ((char (*)(void))0xce8c0)();   /* ...separate statement */
+```
+
+An empty `asm` with an `"+a"` constraint does not keep the value in EAX *across* to
+a later call instruction — nothing stops the compiler emitting anything in between.
+And `camera_internal.h`'s comment claimed EBX could not be an input constraint
+("Clang reserves it for PIC"), which is why the mode table and count were baked in
+as string-pasted immediates — a macro, not a function.
+
+Recovering a `void FUN_x(void)` callee's real signature from the reference:
+
+| disassembly at entry | means |
+|---|---|
+| `movl %eax, %esi` then `testw %si,%si` / `cmpw $4,%si` | param 0 in `@<eax>`, used as a 16-bit index |
+| `movw %ax, %si` | `@<ax>` (sub-register — audit warns it shares scratch parent) |
+| `testb %bl,%bl` with no prior write to BL | param in `@<bl>` |
+| `movswl (%ebx,%edx,2), %eax` | `@<ebx>` is an `int16_t *` table |
+| `movswl 0x8(%ebp), %ecx` | one 16-bit-signed **stack** param |
+| `movb %bl,%al` / `movb $1,%al` before `ret` | returns `char`, not `void` |
+
+Adding any new `@<reg>` decl also needs an entry in `tools/kb_reg_baseline.json`
+or `patch.py` refuses the whole build (`is missing N current @<reg> function(s)`).
+
+**2. C99 mixed declarations** — the project is C89-only, and this is not caught by
+the clang build (`-std=gnu90` permits them). `edit_text.c`, `render_cameras.c`,
+`structure_runtime_decals.c`, `progress_bar.c`. Also `static inline`: cl.exe 13.10
+wants `static __inline`, the form the rest of the repo already uses. Watch the
+error text — `C2275: 'int16_t' : illegal use of this type as an expression` and
+`C2143: syntax error : missing ';' before 'type'` are both "declaration after a
+statement", not a type problem.
+
+**3. A stale per-function `source_path`.** `lightning_offset_marker_position`
+(`0x135420`) carried `"source_path": "objects/widgets/lightning.c"` — a **0-byte
+placeholder file** — while the implementation was still in `objects.c`. The scorer
+compiled the empty file, found nothing, and reported "No functions could be scored
+in this translation unit". Deleting the override scored it at **96.1%**. An
+auditor called this a phantom row on an empty file and missed the override
+entirely: check per-*function* `source_path`, not only the object's `source`.
+
+**Result:** 178 TUs scored (was 169), 4942 baselined functions (was 4892), gate
+green. Several newly visible scores are genuinely bad and were simply never
+measurable: `render_camera_build_frustum` **43.5%** (1742 candidate vs 1074
+reference instructions), `input_abstraction_update` **15.2%**,
+`telnet_console_initialize` **49.6%**, `progress_bar_set_quad_texcoords` **53.5%**.
+
+**A `--source` list with a space in a path silently vanishes.** The retry pass was
+invoked as `--source $(jq -r ... | tr '\n' ' ')`, and unquoted expansion split
+`src/halo/saved games/saved_game_files.c` into two nonexistent paths — both printed
+as `SKIP … (not a scoreable TU)`, which reads like a deliberate exclusion. That
+alone hid one TU. The message now distinguishes `NO SUCH PATH` from
+`not a scoreable TU`.
+
+**Automation.** `cmd_check` now ends with `_report_unbaselined_ported()`, which
+diffs kb.json's `ported: true` function names against the baseline keys and names
+every TU with a gap. It cannot *fail* the gate — that would block every
+in-progress lift — but it must report, because the absence of a report is what the
+last four months of `OK` lines actually meant. Match names on both spellings: the
+ledger keys off the COFF symbol with leading underscores stripped, so kb.json's
+`_tr_align` is stored as `tr_align`, and a naive comparison reports 11 false
+positives on the underscore-prefixed CRT/zlib functions (see
+`reference_vc71_underscore_names_never_scored`).
+
+**Related:** §41 (`decl.h` staleness — the *other* way a whole TU scores zero),
+§52 (a torn `decl.h` produces the same "TU scored nothing" symptom from a race,
+not from source), and the rule "a verify run that scores ZERO functions in a TU is
+a compile failure until proven otherwise" in `CLAUDE.md` — which was already
+written down, and which nothing was checking across the whole repo at once.

@@ -54,14 +54,14 @@ const ESCALATION_BUDGET_FLOOR = (args && args.escalationBudgetFloor) || 120000
 // Override with --maxEscalations.
 const MAX_ESCALATIONS = (args && args.maxEscalations != null) ? args.maxEscalations : 3
 const M = {
-  mechanical: { model: 'haiku', effort: 'low'  },  // tool-run + parse
+  mechanical: { model: 'haiku', effort: 'high'  },  // tool-run + parse
   // Selection and one-shot score levers still need constrained judgment.
   // Per-target research is mechanical and routes through M.mechanical below.
   extract:    { model: 'opus',  effort: 'low'  },  // select + classified score lever
   // Commit runs a fixed 6-command script whose only judgement is "does the
   // build log contain an error: line" -- the same shape as the 19 sites already
   // on `mechanical`. Measured 31 agents / ~4% of session spend on opus for it.
-  commit:     { model: 'haiku', effort: 'low'  },  // runs the clean-build gate
+  commit:     { model: 'haiku', effort: 'high'  },  // runs the clean-build gate
   reason:     { model: 'opus',  effort: 'high' },  // lift, review
   improve:    { model: IMPROVE_MODEL, effort: IMPROVE_EFFORTS[0] },  // improve-pass base rung
 }
@@ -344,6 +344,23 @@ const APPLY_SCHEMA = {
     reason:  { type: 'string' },
   },
   required: ['applied'],
+}
+
+const SQUASH_SCHEMA = {
+  type: 'object',
+  properties: {
+    ok:       { type: 'boolean' },
+    squashed: { type: 'number' },   // count of object-stretches actually collapsed
+    shas:     { type: 'array', items: { type: 'string' } },
+    reason:   { type: 'string' },   // set when ok=false
+  },
+  required: ['ok'],
+}
+
+const SHA_SCHEMA = {
+  type: 'object',
+  properties: { sha: { type: 'string' } },
+  required: ['sha'],
 }
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
@@ -999,6 +1016,83 @@ async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phase
     { label: `park:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical })
 }
 
+// Collapse this run's consecutive same-object commits into one, reworded
+// "Port N functions (obj)" — the shape a hand-run single-object session
+// already produces (9f904e851 "Port xbox_texture_cache.obj", 9 fns/1 commit).
+// goal-lift still commits per-function AS IT GOES (the real safety
+// checkpoint: a crash mid-object loses nothing) — this only runs once, at the
+// end, to tidy history.
+//
+// Only CONTIGUOUS same-object runs collapse. The default selector ranks by
+// global score across all objects, so commits often interleave objects; kb.json
+// and kb_meta.json are single shared files every commit touches, so splitting
+// an already-squashed multi-object diff back apart is the kb.json hand-merge
+// hazard this repo explicitly bans. `git reset --soft` only ever rewrites the
+// TOP of history, so squashing pure same-object stretches needs no splitting —
+// stretches are processed newest-to-oldest so an earlier reset never touches a
+// later stretch that is still separate commits.
+async function squashByObject(committedResults, runStartSha, phaseTitle) {
+  if (DRY_RUN || !runStartSha || committedResults.length < 2) return { squashed: 0 }
+
+  const stretches = []
+  for (const r of committedResults) {
+    const last = stretches[stretches.length - 1]
+    if (last && last.obj === r.obj) last.items.push(r)
+    else stretches.push({ obj: r.obj, items: [r] })
+  }
+  const multi = stretches.filter(s => s.items.length >= 2)
+  if (!multi.length) return { squashed: 0 }
+
+  const plan = await agent(
+    `${AGENT_RULES}
+Squash this run's per-function commits into per-object commits. SERIAL, one
+git-mutating command at a time — do not run two at once.
+
+1. rtk git rev-list --reverse ${runStartSha}..HEAD
+   Count the lines. It MUST equal ${committedResults.length} (this run's
+   committed-function count, listed below in commit order, oldest first). If
+   the count does NOT match, something else committed to this branch during
+   the run — STOP, do not touch history, return
+   {"ok":false,"reason":"commit_count_mismatch"}.
+2. Those SHAs map 1:1 onto this list, in this order (index 0 = oldest):
+${committedResults.map((r, i) => `   [${i}] ${r.name} (${r.obj})`).join('\n')}
+3. Squash ONLY these stretches of consecutive same-object commits, and
+   PROCESS THEM LAST-TO-FIRST (never first-to-last — resetting an earlier
+   stretch first would discard later stretches that are still separate
+   commits sitting above it):
+${multi.map((s, si) => `   stretch ${si}: [${s.items.map(i => i.name).join(', ')}] — object "${s.obj}", ${s.items.length} commits`).join('\n')}
+
+   For each stretch, in that order:
+   a. beforeSha = the SHA of the commit immediately before this stretch's
+      FIRST item in the numbered list from step 2 (i.e. the previous
+      stretch's last commit, or ${runStartSha} if this is the very first
+      stretch in the whole run).
+   b. rtk git reset --soft <beforeSha>
+   c. MSG=$(mktemp /tmp/halo-commit-msg.XXXXXX)
+      rtk python3 tools/audit/generate_lift_commit.py --batch-name "<N> functions from <obj>" > "$MSG"
+      (N = this stretch's commit count, obj = this stretch's object, e.g.
+      "9 functions from xbox_texture_cache.obj")
+      rtk git commit -F "$MSG" && rm -f "$MSG"
+   d. rtk git rev-parse --short HEAD — record this as the stretch's new sha.
+   Do NOT amend, force-push, or touch any commit outside the numbered list.
+4. rtk git log --oneline ${runStartSha}..HEAD and sanity-check: every stretch
+   above is now exactly one line, every function NOT in any stretch (a
+   singleton, different object than its neighbors) is still its own unchanged
+   commit. If anything looks wrong, report it in "reason" — do not force
+   further changes to fix it.
+
+Return {"ok":true,"squashed":<stretches actually collapsed>,"shas":[<new sha per squashed stretch, in the order you squashed them>]}
+or {"ok":false,"reason":"<what went wrong, and current git log --oneline ${runStartSha}..HEAD>"}.`,
+    { label: 'squash-by-object', phase: phaseTitle, ...M.commit, schema: SQUASH_SCHEMA })
+
+  if (!plan || !plan.ok) {
+    log(`⚠ squash-by-object skipped: ${plan ? plan.reason : 'agent_null'} — per-function commits stand as-is`)
+    return { squashed: 0 }
+  }
+  log(`Squashed ${plan.squashed} object-stretch(es) of commits into one each`)
+  return plan
+}
+
 // ── Improve pass ────────────────────────────────────────────────────────────
 // Drain the parked ledger: for each parked sub-bar function the improve model
 // hasn't tried, re-research (context is lost across the agent boundary),
@@ -1010,6 +1104,12 @@ if (IMPROVE) {
   const XM = M.improve.model
   log(`Improve pass: re-lifting up to ${GOAL} parked functions with ${XM}-${M.improve.effort}${DRY_RUN ? ' (dry run — no commits)' : ''}`)
   if (OBJECTS) log(`(object filter not applied in improve mode — park.py next drains globally by score)`)
+
+  // Squash boundary: only commits made from here on are ours to collapse.
+  const runStartShaResult = DRY_RUN ? null : await agent(
+    'Run: rtk git rev-parse HEAD — return {"sha":"<the full 40-char hash, nothing else>"}',
+    { label: 'run-start-sha', phase: 'Improve', ...M.mechanical, schema: SHA_SCHEMA })
+  const runStartSha = runStartShaResult ? runStartShaResult.sha : null
 
   // Sync the shared parked ledger before draining it (see Select phase for why).
   await agent(
@@ -1154,6 +1254,8 @@ rtk python3 tools/verify/vc71_verify.py ${refreshSrc} -f ${rec.name} --no-cache 
   log(`Already landed: ${improved.filter(r => r.status === 'already_landed').length}`)
   if (budget.total) log(`Budget remaining: ~${Math.round(budget.remaining() / 1000)}k tokens`)
 
+  const sq = await squashByObject(proms, runStartSha, 'Report')
+
   await agent(
     `Append an improve-pass summary to artifacts/auto_lift/goal_progress.md (create if missing).
 
@@ -1173,6 +1275,7 @@ ${improved.map(r => `| ${r.name} | ${r.addr || '-'} | ${r.best_score ?? '-'} | $
     would_promote: improved.filter(r => r.status === 'would_promote').length,
     re_parked: improved.filter(r => r.status === 're_parked').length,
     already_landed: improved.filter(r => r.status === 'already_landed').length,
+    commits_squashed: sq.squashed || 0,
     phase_token_deltas: phaseTokens,
     cache: cacheMetrics,
     ghidra_builds: cacheMetrics.ghidra_builds,
@@ -1188,6 +1291,12 @@ phase('Select')
 log(`Goal: lift ${GOAL} functions at >=90% VC71${DRY_RUN ? ' (dry run — no commits)' : ''}`)
 if (OBJECTS) log(`Object filter (hard): ${OBJECTS.join(', ')}`)
 if (CRITERIA) log(`Extra criteria (soft): ${CRITERIA}`)
+
+// Squash boundary: only commits made from here on are ours to collapse.
+const runStartShaResult = DRY_RUN ? null : await agent(
+  'Run: rtk git rev-parse HEAD — return {"sha":"<the full 40-char hash, nothing else>"}',
+  { label: 'run-start-sha', phase: 'Select', ...M.mechanical, schema: SHA_SCHEMA })
+const runStartSha = runStartShaResult ? runStartShaResult.sha : null
 
 // Sync the shared parked ledger before selecting: reconcile drops records for
 // functions that landed via another path since they were parked, and migrate
@@ -1314,7 +1423,7 @@ if (ADDRS) {
     return { committed: 0, goal: GOAL, reached_goal: false, skipped: 0, reverted: 0, reason: 'empty_queue_after_filter' }
   }
 }
-log(`Selected ${targets.length} candidates across ${new Set(targets.map(t => t.obj)).size} objects`)
+log(`Selected ${targets.length} candidates across ${new Set(targets.map(t => t.obj)).size} objects: ${[...new Set(targets.map(t => t.obj))].join(', ')}`)
 
 // ── Code-side pre-screen — drop targets the SELECTOR already proved unsuitable,
 // using authoritative facts (has_reg_args / lane / addr) rather than re-deriving
@@ -1797,6 +1906,9 @@ if (outcomeRows.length) {
     }).join('\n')}`,
     { label: 'retrieval-outcomes', phase: 'Report', ...M.mechanical })
 }
+
+const sq = await squashByObject(committed, runStartSha, 'Report')
+
 phaseTokens.report = Math.max(0, budget.spent() - reportTokenStart)
 
 return {
@@ -1808,6 +1920,7 @@ return {
   skipped: skipped.length,
   reverted_verify: revertedVerify.length,
   reverted_review: revertedReview.length,
+  commits_squashed: sq.squashed || 0,
   parked: parked.length,
   infra_blocked: infra.length,
   phase_token_deltas: phaseTokens,

@@ -1,4 +1,3 @@
-
 /* Validate the syntax tree after loading a scenario. Iterates all syntax
  * nodes and checks for consistency: valid types, valid source offsets,
  * valid script indices, and correct function references. If any node fails
@@ -232,6 +231,405 @@ bool hs_validate_syntax(char **error_info, char **error_text)
   return ok;
 }
 
+/* 0xc8720 — Compile-time argument type-checker for the HaloScript arithmetic
+ * calls (`+', `-', `*', `/', min, max).
+ *
+ * ABI — the kb.json placeholder `void FUN_000c8720(void)' was WRONG; both
+ * stack slots are read and a byte is returned:
+ *   - [EBP+0x8] is loaded at 0xc8748 and compared as SI (CMP SI,0x7 at
+ *     0xc8751, CMP SI,0xc at 0xc8757), so argument 1 is the 16-bit
+ *     function_index.  It is reloaded from [EBP+0x8] at 0xc8818 on every
+ *     iteration and pushed to hs_function_table_get at 0xc8860.
+ *   - [EBP+0xc] is loaded at 0xc8724 and again at 0xc887c, both times handed
+ *     to datum_get, so argument 2 is the expression datum index.
+ *   - Both exits return a byte in AL (MOV AL,BL at 0xc8846 for the accept
+ *     tail, XOR AL,AL at 0xc88a3 for the arity-error tail), so the return
+ *     type is bool.  Plain RET with the caller doing the cleanup => __cdecl.
+ *   - Installed six times in the function-definition table (data xrefs at
+ *     0x26f514/0x26f530/0x26f54c/0x26f568/0x26f584/0x26f5a0, stride 0x1c),
+ *     exactly the six indices 7..0xc that the assert admits.
+ *
+ * hs_type_check is INLINED here rather than called (as in FUN_000c85b0 and
+ * FUN_000c8f40): the body carries its own copy of the
+ * !hs_compile_globals.error assert (hs_compile.c line 0x48e) and dispatches
+ * straight to FUN_000c73a0 (@EDI, constant-flag nodes, which also get
+ * constant_type=6 at +0x2) or FUN_000c74c0 (@EBX).  Note EBX is loaded with
+ * the literal 6 at 0xc87d1 purely to feed the two word stores — the MOV
+ * EBX,EDI at 0xc87fd is what supplies FUN_000c74c0's register argument, and
+ * FUN_000c73a0 needs no move because EDI already holds the argument index.
+ * Arguments that already carry a type (+0x4 != 0) are skipped and leave the
+ * running result untouched; BL is re-seeded to true at the top of every
+ * iteration (0xc8795), so only the LAST argument's outcome can end the walk.
+ *
+ * Arity: all six calls need at least two arguments (CMP word [EBP-0x4],0x2 /
+ * JL at 0xc8830); `/' (index 0xa) needs exactly two, so it additionally
+ * rejects more than two (CMP word [EBP-0x4],0x2 / JG at 0xc883d).  The
+ * qualifier spliced into "the %s call requires %s2 arguments." (0x27cfac) is
+ * the pooled empty literal at 0x25386f for `/' and "at least " (0x27cfd0,
+ * trailing space) for the other five.
+ *
+ * Globals:
+ *   0x5aa6c8 = hs_syntax_data (data_t *)
+ *   0x46b6fc = hs_compile_globals.error_message
+ *   0x46b700 = hs_compile_globals.error_offset
+ *   0x46b704 = hs_compile_globals.error_message buffer
+ *
+ * The name stays FUN_000c8720: the assert string proves which function
+ * indices reach this callback, not the callback's own symbol name. */
+bool FUN_000c8720(int16_t function_index, int expression_index)
+{
+  bool valid;
+  char *node;
+  char *argument;
+  int argument_index;
+  /* Held in a dword slot and incremented 32-bit (MOV ECX,[EBP-0x4] / INC ECX
+   * at 0xc8812/0xc881e) but every compare against it is 16-bit, hence the
+   * int16_t casts below rather than an int16_t local. */
+  int argument_count;
+  const char *qualifier;
+
+  valid = true;
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+  argument_index = *(int *)(node + 0x8);
+
+  if (function_index < 7 || function_index > 0xc) {
+    display_assert("function_index>=_hs_function_plus && "
+                   "function_index<=_hs_function_max",
+                   "c:\\halo\\source\\hs\\hs_library_internal_compile.h", 0x17d,
+                   true);
+    system_exit(-1);
+  }
+
+  argument_count = 0;
+  while (argument_index != -1) {
+    valid = true;
+    argument = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+
+    if (*(int *)0x46b6fc != 0) {
+      display_assert("!hs_compile_globals.error",
+                     "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x48e, true);
+      system_exit(-1);
+    }
+
+    if (*(int16_t *)(argument + 0x4) == 0) {
+      *(int16_t *)(argument + 0x4) = 6; /* _hs_type_real */
+      node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+      if (*(uint8_t *)(node + 0x6) & 1) {
+        *(int16_t *)(argument + 0x2) = 6;
+        valid = FUN_000c73a0(argument_index);
+      } else {
+        valid = FUN_000c74c0(argument_index);
+      }
+    }
+
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+    argument_index = *(int *)(node + 0x8);
+    argument_count++;
+    if (!valid)
+      break;
+  }
+
+  /* One `||' test, not an if/else-if chain: the reference emits the accept
+   * tail (POP EDI/POP ESI/MOV AL,BL at 0xc8844) BETWEEN the too-many test at
+   * 0xc883d and the qualifier selection at 0xc884d, which is exactly the
+   * short-circuit layout.  The !valid loop exit at 0xc8824 jumps past the
+   * too-few test straight to the 0xc8837 too-many test, reproduced by the
+   * inner && short-circuit; and JG 0xc8853 skipping the CMP SI,0xa is the
+   * compiler threading the ternary on the path where SI is already 0xa. */
+  if ((valid && (int16_t)argument_count < 2) ||
+      (function_index == 0xa && (int16_t)argument_count > 2)) {
+    qualifier = (function_index == 0xa) ? "" : "at least ";
+    node = (char *)hs_function_table_get(function_index);
+    crt_sprintf((char *)0x46b704, "the %s call requires %s2 arguments.",
+                *(char **)(node + 0x4), qualifier);
+    *(const char **)0x46b6fc = (const char *)0x46b704;
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+    *(int *)0x46b700 = *(int *)(node + 0xc);
+    return false;
+  }
+
+  return valid;
+}
+
+/* 0xc88b0 — Compile-time argument type-checker for the HaloScript comparison
+ * calls `=' and `!='.
+ *
+ * Binary evidence (0xc88b0..0xc89b3):
+ *   - CMP SI,0xd / CMP SI,0xe guard the assert built from the literals at
+ *     0x27d028 ("function_index==_hs_function_equal || "
+ *     "function_index==_hs_function_not_equal") and 0x27cdc0
+ *     ("c:\halo\source\hs\hs_library_internal_compile.h", line 0x1bc), so the
+ *     only legal function indices are 0xd and 0xe.
+ *   - 0xc88f1 calls hs_function_table_get with the incoming dword parameter
+ *     (compared as SI), and [EAX+4] of the returned definition is the function
+ *     name pointer passed as FUN_000c55d0's first argument.
+ *   - LEA EAX,[EBP-0xc]; PUSH EAX at 0xc88ec passes a two-element local array
+ *     as FUN_000c55d0's argument_nodes, with EDI = [EBP+0xc] (the expression
+ *     node) and EBX = 2 (two expected arguments).  ADD ESP,8 + POP EBX at
+ *     0xc890a/0xc890f confirm two stack arguments plus the EBX register
+ *     argument.
+ *   - The two collected argument handles are reloaded from [EBP-0xc] (left)
+ *     and [EBP-0x8] (right).  Whichever side is still untyped (type 0) has its
+ *     partner's node type (int16 at node+0x4, MOVSX at 0xc8935/0xc8970) used as
+ *     the required type for the other side; if neither side is typed both must
+ *     be reals.  Each guarded retry only runs while
+ *     hs_compile_globals.error is still clear (TEST of [0x46b6fc] at 0xc8948
+ *     and 0xc8980).
+ *   - AL is loaded from the [EBP-1] flag byte (initialised to 0 at 0xc88bf) on
+ *     every exit; the three accept sites cross-jump into the shared
+ *     TEST AL,AL / MOV byte [EBP-1],1 tail at 0xc89a3.
+ *
+ * Globals: 0x5aa6c8 = hs_syntax_data (data_t *), 0x46b6fc =
+ * hs_compile_globals.error_message.
+ *
+ * The name stays FUN_000c88b0: the assert string proves which function indices
+ * reach this callback (it is installed twice, from the table entries at
+ * 0x26f5bc and 0x26f5d8), not the callback's own symbol name. */
+bool FUN_000c88b0(int function_index, int expression_index)
+{
+  char *node;
+  int argument_nodes[2];
+  /* The reference keeps the accept flag in the frame byte at [EBP-1] (0 stored
+   * at 0xc88bf, 1 at 0xc89a7, reloaded into AL at 0xc89ab), which is what makes
+   * the frame 0xc bytes rather than 8; volatile pins it there instead of
+   * letting it live in BL. */
+  volatile bool success;
+
+  success = false;
+
+  if ((int16_t)function_index != 0xd && /* _hs_function_equal */
+      (int16_t)function_index != 0xe) { /* _hs_function_not_equal */
+    display_assert("function_index==_hs_function_equal || "
+                   "function_index==_hs_function_not_equal",
+                   "c:\\halo\\source\\hs\\hs_library_internal_compile.h", 0x1bc,
+                   true);
+    system_exit(-1);
+  }
+
+  if (FUN_000c55d0(*(const char **)((char *)hs_function_table_get((int16_t)function_index) + 4),
+                   argument_nodes, expression_index, 2)) {
+    if (hs_type_check(argument_nodes[0], 0)) { /* _hs_type_unparsed */
+      node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_nodes[0]);
+      if (hs_type_check(argument_nodes[1], *(int16_t *)(node + 4))) {
+        success = true;
+      }
+    } else if (*(int *)0x46b6fc == 0) {
+      if (hs_type_check(argument_nodes[1], 0)) { /* _hs_type_unparsed */
+        node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_nodes[1]);
+        if (hs_type_check(argument_nodes[0], *(int16_t *)(node + 4))) {
+          success = true;
+        }
+      } else if (*(int *)0x46b6fc == 0) {
+        /* 6 sits between boolean (5) and short (7) in the hs type enum. */
+        if (hs_type_check(argument_nodes[0], 6)) { /* _hs_type_real */
+          if (hs_type_check(argument_nodes[1], 6)) {
+            success = true;
+          }
+        }
+      }
+    }
+  }
+
+  return success;
+}
+
+/* Type-check the argument list of an ordered-comparison call (`>', `<', `>=',
+ * `<=').  This is the ordered sibling of FUN_000c88b0 above (equal/not_equal,
+ * indices 0xd/0xe): both collect exactly two arguments and unify the operand
+ * types, but this one additionally requires the donor type to fall inside one
+ * of two accepted ranges before it is propagated to the partner operand.
+ *
+ * ABI recovered from the disassembly.  The kb.json placeholder was
+ * `void FUN_000c89c0(void)', which was wrong on every count:
+ *   - Two cdecl stack arguments, matching every other parse callback in the
+ *     table: [EBP+0x8] function_index (loaded as a dword at 0xc89c8, then
+ *     compared as SI at 0xc89cb/0xc89d6) and [EBP+0xc] expression_index
+ *     (0xc8a09).  The RET at 0xc8b85 carries no immediate.
+ *   - Returns bool in AL: the accept flag byte at [EBP-1] is zeroed at
+ *     0xc89d0, set to 1 at 0xc8b78, and reloaded into AL at 0xc8b7c.
+ *
+ * Argument collection: FUN_000c55d0 takes the callee name and the output
+ * array on the stack, the expression index in EDI, and the expected count in
+ * BX (2, set at 0xc8a10).  The two stack pushes straddle the
+ * hs_function_table_get call — the output pointer is pushed at 0xc89ff and
+ * only the name push is reclaimed by the ADD ESP,0x4 at 0xc8a0c — so the
+ * output is one contiguous int[2] based at [EBP-0xc], not two separate
+ * locals.  FUN_000c55d0 indexes it as argument_nodes[0..1].
+ *
+ * Type unification: whichever operand is already typed donates its type to
+ * the other, but only when that type is in an accepted range.  Each retry
+ * runs only while hs_compile_globals.error is still clear (TEST of
+ * [0x46b6fc] at 0xc8abf and 0xc8b56).  If neither operand donates, both
+ * operands must be reals.
+ *
+ * Globals: 0x5aa6c8 = hs_syntax_data (data_t *), 0x46b6fc =
+ * hs_compile_globals.error_message.
+ *
+ * The name stays FUN_000c89c0: the assert string proves which function
+ * indices reach this callback, not the callback's own symbol name. */
+
+/* The reference re-calls datum_get for every single comparison of the node
+ * type — four times per operand (0xc8a44/0xc8a59/0xc8a70/0xc8a87 for the left
+ * operand, 0xc8ae0/0xc8af6/0xc8b0d/0xc8b23 for the right) — which is what an
+ * accessor macro in hs_library_internal_compile.h expands to.  Macros rather
+ * than a static helper so the expansion does not depend on an inlining
+ * decision. */
+#define HS_SYNTAX_NODE_TYPE(node_index) \
+  (*(int16_t *)((char *)datum_get(*(data_t **)0x5aa6c8, (node_index)) + 4))
+
+/* The range comparisons above read the type field signed (`cmpw'/`jl'/`jle'
+ * against a 16-bit memory operand), but where the donor type is handed to
+ * hs_type_check the reference widens it *unsigned* -- XOR EDX,EDX / MOV DX,
+ * word [EAX+4] at 0xc8aa5 and 0xc8b3f -- so that argument is read through an
+ * unsigned alias.  All hs type values are small and positive, so the two
+ * reads cannot disagree at runtime. */
+#define HS_SYNTAX_NODE_TYPE_UNSIGNED(node_index) \
+  (*(uint16_t *)((char *)datum_get(*(data_t **)0x5aa6c8, (node_index)) + 4))
+
+/* "Comparable" is behaviour-derived, not proven: these are simply the two
+ * contiguous type ranges this callback accepts as a donor type.  [6,8] is
+ * real/short/long (6 sits between boolean 5 and short 7 in the hs type enum).
+ * The [0x20,0x24] range is unidentified. */
+#define HS_TYPE_IS_COMPARABLE(node_index)              \
+  ((HS_SYNTAX_NODE_TYPE(node_index) >= 0x20 &&         \
+    HS_SYNTAX_NODE_TYPE(node_index) <= 0x24) ||        \
+   (HS_SYNTAX_NODE_TYPE(node_index) >= 6 &&            \
+    HS_SYNTAX_NODE_TYPE(node_index) <= 8))
+
+bool FUN_000c89c0(int function_index, int expression_index)
+{
+  int argument_nodes[2];
+  /* As in FUN_000c88b0, the reference keeps the accept flag in the frame byte
+   * at [EBP-1] rather than in a register, which is what makes the frame 0xc
+   * bytes (int[2] plus the flag) rather than 8; volatile pins it there. */
+  volatile bool success;
+
+  success = false;
+
+  if ((int16_t)function_index < 0xf ||     /* _hs_function_gt */
+      (int16_t)function_index > 0x12) {    /* _hs_function_lte */
+    display_assert("function_index>=_hs_function_gt && "
+                   "function_index<=_hs_function_lte",
+                   "c:\\halo\\source\\hs\\hs_library_internal_compile.h", 0x1e3,
+                   true);
+    system_exit(-1);
+  }
+
+  if (FUN_000c55d0(*(const char **)((char *)hs_function_table_get((int16_t)function_index) + 4),
+                   argument_nodes, expression_index, 2)) {
+    if (hs_type_check(argument_nodes[0], 0) &&      /* _hs_type_unparsed */
+        HS_TYPE_IS_COMPARABLE(argument_nodes[0])) {
+      if (hs_type_check(argument_nodes[1],
+                        HS_SYNTAX_NODE_TYPE_UNSIGNED(argument_nodes[0]))) {
+        success = true;
+      }
+    } else if (*(int *)0x46b6fc == 0) {
+      if (hs_type_check(argument_nodes[1], 0) &&    /* _hs_type_unparsed */
+          HS_TYPE_IS_COMPARABLE(argument_nodes[1])) {
+        if (hs_type_check(argument_nodes[0],
+                          HS_SYNTAX_NODE_TYPE_UNSIGNED(argument_nodes[1]))) {
+          success = true;
+        }
+      } else if (*(int *)0x46b6fc == 0) {
+        if (hs_type_check(argument_nodes[0], 6)) {  /* _hs_type_real */
+          if (hs_type_check(argument_nodes[1], 6)) {
+            success = true;
+          }
+        }
+      }
+    }
+  }
+
+  return success;
+}
+
+#undef HS_TYPE_IS_COMPARABLE
+#undef HS_SYNTAX_NODE_TYPE_UNSIGNED
+#undef HS_SYNTAX_NODE_TYPE
+
+/* 0xc8b90 — Type-check the argument list of a `sleep' call.
+ *
+ * sleep takes a short tick count and, optionally, a script name to run when
+ * the sleep expires.  The syntax node at expression_index is the function-call
+ * node; +0x10 is the index of its function-name node, whose +0x8 (next) is the
+ * first argument.
+ *
+ * Binary evidence (0xc8b90..0xc8c4e):
+ *   - Two stack parameters, so the generic parameterless placeholder shape this
+ *     entry carried in kb.json was wrong -- it was never proven, just
+ *     unanalysed: CMP word ptr [EBP+8],0x13 reads a 16-bit function index, and
+ *     MOV EDI,[EBP+0xc] is the expression node index.  Return is AL
+ *     (MOV AL,1 / MOV AL,BL with BL zeroed by XOR BL,BL at 0xc8ba0), and the
+ *     RET takes no immediate, so plain cdecl.  This matches the sibling
+ *     hs_parse_* family exactly (hs_sleep_until_parse at 0xc8c50).
+ *   - CMP word ptr [EBP+8],0x13 guards an assert built from the literals at
+ *     0x27d0fc ("function_index==_hs_function_sleep") and 0x27cdc0
+ *     ("c:\halo\source\hs\hs_library_internal_compile.h", line 0x20e), so the
+ *     only legal function index is 0x13.
+ *   - The two datum_get calls at 0xc8ba2/0xc8bb2 are emitted *before* the
+ *     assert compare at 0xc8bbd, and MSVC does not hoist calls across a
+ *     branch, so the source really evaluates the nodes first.  This differs
+ *     from hs_sleep_until_parse below, which asserts first; the order is
+ *     preserved here rather than normalised.
+ *   - The second datum_get at 0xc8bff happens only after
+ *     hs_type_check(time_index, 7) passes (TEST AL,AL; JZ at 0xc8bf4), again
+ *     unlike the sibling, which fetches the next node before checking.
+ *
+ * Syntax node offsets (raw, matching the rest of this TU):
+ *   +0x08 = next node index (NONE == -1)
+ *   +0x0c = source offset
+ *   +0x10 = long value / first child node index
+ *
+ * Globals:
+ *   0x5aa6c8 = hs_syntax_data (data_t*)
+ *   0x46b6fc = hs_compile_globals.error_message
+ *   0x46b700 = hs_compile_globals.error_offset
+ */
+bool hs_sleep_parse(int16_t function_index, int expression_index)
+{
+  char *node;
+  int time_index;
+  int script_index;
+  bool success;
+
+  success = false;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+  time_index = *(int *)(node + 0x8);
+
+  if (function_index != 0x13) { /* _hs_function_sleep */
+    display_assert("function_index==_hs_function_sleep",
+                   "c:\\halo\\source\\hs\\hs_library_internal_compile.h", 0x20e,
+                   true);
+    system_exit(-1);
+  }
+
+  if (time_index != -1) {
+    if (hs_type_check(time_index, 7)) { /* _hs_type_short */
+      node = (char *)datum_get(*(data_t **)0x5aa6c8, time_index);
+      script_index = *(int *)(node + 0x8);
+
+      /* The reference branches on the type-check result (TEST AL,AL; JZ; then
+       * a shared MOV AL,1 at 0xc8c1e) rather than returning it directly, so
+       * this is an `else if' setting the flag, not `success = hs_type_check'. */
+      if (script_index == -1) {
+        success = true;
+      } else if (hs_type_check(script_index, 10)) { /* _hs_type_script */
+        success = true;
+      }
+    }
+  } else {
+    *(const char **)0x46b6fc =
+      "the sleep call requires a time and, optionally, a script name.";
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+    *(int *)0x46b700 = *(int *)(node + 0xc);
+  }
+
+  return success;
+}
+
 /* Type-check the argument list of a `sleep_until' call.
  *
  * sleep_until takes a boolean condition and, optionally, a short tick
@@ -328,26 +726,25 @@ bool hs_sleep_until_parse(int16_t function_index, int expression_index)
  * that reaches this callback, not the callback's own symbol name. */
 bool FUN_000c8d30(int function_index, int script_node)
 {
-  const char *function_name;
   char *node;
   char *script;
   bool success;
+  int fn_idx;
 
+  fn_idx = function_index;
   success = false;
 
-  if ((int16_t)function_index != 0x15) { /* _hs_function_wake */
+  if ((int16_t)fn_idx != 0x15) { /* _hs_function_wake */
     display_assert("function_index==_hs_function_wake",
                    "c:\\halo\\source\\hs\\hs_library_internal_compile.h", 0x25d,
                    true);
     system_exit(-1);
   }
 
-  function_name = *(
-    const char **)((char *)hs_function_table_get((int16_t)function_index) + 4);
-
   /* &function_index is the one-element argument_nodes array: the callee
    * overwrites the incoming first parameter slot with the argument handle. */
-  if (FUN_000c55d0(function_name, &function_index, script_node, 1)) {
+  if (FUN_000c55d0(*(const char **)((char *)hs_function_table_get((int16_t)fn_idx) + 4),
+                   &function_index, script_node, 1)) {
     node = (char *)datum_get(*(data_t **)0x5aa6c8, function_index);
 
     if (hs_type_check(function_index, 10)) { /* _hs_type_script */
@@ -457,109 +854,87 @@ bool FUN_000c8f40(int16_t function_index, int expression_index)
 int hs_compile(int source_length, const char *source, int *error_info,
                char **error_text)
 {
-  int base_offset;
+  bool ok;
+  void *node1_ptr;
   int expr_datum;
-  char *src_cursor;
+  int node1;
+  int node2;
+  void *node2_ptr;
+  void *expr_ptr;
+  int base_offset;
+  char *cursor;
 
-  if (source_length >= 0x400)
-    return -1;
-
-  if (*(int *)0x326a08 == -1) {
-    /* No scenario loaded — allocate temporary buffer. */
-    base_offset = 0;
-    *(int *)0x46b6e8 = (int)debug_malloc(
-      source_length + 1, 0, "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xaf);
-    *(uint8_t *)0x46b804 = 1;
-    if (*(int *)0x46b6e8 == 0) {
-      display_assert("hs_compile_globals.compiled_source",
-                     "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xb2, true);
-      system_exit(-1);
-    }
-  } else {
-    /* Scenario loaded — use string constants area. */
-    char *scenario = (char *)global_scenario_get();
-    if (*(int *)(scenario + 0x488) < 0x400) {
-      display_assert("global_scenario_get()->hs_string_constants.size>="
-                     "HS_MAXIMUM_DYNAMIC_SOURCE_DATA_BYTES",
-                     "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xa6, true);
-      system_exit(-1);
-    }
-    scenario = (char *)global_scenario_get();
-    base_offset = *(int *)(scenario + 0x488) - 0x400;
-    scenario = (char *)global_scenario_get();
-    *(int *)0x46b6e8 = *(int *)(scenario + 0x494);
-  }
-
-  /* Copy source into compiled source buffer at the base offset. */
-  csmemcpy((void *)(*(int *)0x46b6e8 + base_offset), (void *)source,
-           source_length);
-  *(int *)0x46b6e4 = base_offset + source_length;
-  *(uint8_t *)(*(int *)0x46b6e4 + *(int *)0x46b6e8) = 0;
-
-  /* Initialize parse state. */
-  src_cursor = (char *)(*(int *)0x46b6e8 + base_offset);
-  *(int *)0x46b6fc = 0;
-  *(int *)error_info = 0;
-  *(int *)error_text = 0;
-  *(int *)0x46b700 = -1;
-
-  FUN_000c72b0(&src_cursor);
-
-  if (*src_cursor == '\0')
-    return -1;
-
-  expr_datum = FUN_000c7be0(&src_cursor);
-
-  if (*(int *)0x46b6fc != 0)
-    goto compile_error;
-
-  /* Allocate two new syntax nodes to wrap the expression. */
-  {
-    int node1 = data_new_at_index(*(data_t **)0x5aa6c8);
-    int node2 = data_new_at_index(*(data_t **)0x5aa6c8);
-
-    if (node1 != -1 && node2 != -1) {
-      char *n1 = (char *)datum_get(*(data_t **)0x5aa6c8, node1);
-      char *n2 = (char *)datum_get(*(data_t **)0x5aa6c8, node2);
-
-      *(int *)(n1 + 0x10) = node2;
-      *(int *)(n1 + 0x8) = -1;
-
-      /* Copy source offset from the parsed expression node. */
-      {
-        char *expr_node = (char *)datum_get(*(data_t **)0x5aa6c8, expr_datum);
-        *(int *)(n1 + 0xc) = *(int *)(expr_node + 0xc);
+  if (source_length < 0x400) {
+    if (*(int *)0x326a08 == -1) {
+      base_offset = 0;
+      *(void **)0x46b6e8 = debug_malloc(source_length + 1, false,
+                                        "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xaf);
+      *(uint8_t *)0x46b804 = 1;
+      if (*(void **)0x46b6e8 == NULL) {
+        display_assert("hs_compile_globals.compiled_source",
+                       "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xb2, true);
+        system_exit(-1);
       }
-
-      *(int16_t *)(n1 + 0x6) = 0;
-      *(int *)(n2 + 0x8) = expr_datum;
-      *(int *)(n2 + 0xc) = -1;
-      *(int16_t *)(n2 + 0x2) = 0x16; /* hs_type_void */
-      *(int16_t *)(n2 + 0x6) = 1;
-      *(int16_t *)(n2 + 0x4) = 2; /* hs_node_type_function_call */
-
-      /* hs_type_check: 2 stack args (datum_index, check_type). */
-      {
-        bool ok = hs_type_check(node1, 4);
-        if (ok)
-          return node1;
+    } else {
+      void *scenario = global_scenario_get();
+      if (*(int *)((char *)scenario + 0x488) < 0x400) {
+        display_assert("global_scenario_get()->hs_string_constants.size>="
+                       "HS_MAXIMUM_DYNAMIC_SOURCE_DATA_BYTES",
+                       "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xa6, true);
+        system_exit(-1);
+      }
+      scenario = global_scenario_get();
+      base_offset = *(int *)((char *)scenario + 0x488) - 0x400;
+      scenario = global_scenario_get();
+      *(void **)0x46b6e8 = *(void **)((char *)scenario + 0x494);
+    }
+    csmemcpy((void *)((int)*(void **)0x46b6e8 + base_offset), (void *)source, source_length);
+    *(int *)0x46b6e4 = base_offset + source_length;
+    *(uint8_t *)(*(int *)0x46b6e4 + (int)*(void **)0x46b6e8) = 0;
+    node1_ptr = *(void **)0x46b6e8;
+    *(int *)0x46b6fc = 0;
+    *error_info = 0;
+    *error_text = NULL;
+    cursor = (char *)((int)node1_ptr + base_offset);
+    *(int *)0x46b700 = -1;
+    FUN_000c72b0(&cursor);
+    if (*cursor != '\0') {
+      expr_datum = FUN_000c7be0(&cursor);
+      if (*(int *)0x46b6fc == 0) {
+        node1 = data_new_at_index(*(data_t **)0x5aa6c8);
+        node2 = data_new_at_index(*(data_t **)0x5aa6c8);
+        if (node1 != -1 && node2 != -1) {
+          node1_ptr = datum_get(*(data_t **)0x5aa6c8, node1);
+          node2_ptr = datum_get(*(data_t **)0x5aa6c8, node2);
+          *(int *)((char *)node1_ptr + 0x10) = node2;
+          *(int *)((char *)node1_ptr + 8) = -1;
+          expr_ptr = datum_get(*(data_t **)0x5aa6c8, expr_datum);
+          *(int *)((char *)node1_ptr + 0xc) = *(int *)((char *)expr_ptr + 0xc);
+          *(int16_t *)((char *)node1_ptr + 6) = 0;
+          *(int *)((char *)node2_ptr + 8) = expr_datum;
+          *(int *)((char *)node2_ptr + 0xc) = -1;
+          *(int16_t *)((char *)node2_ptr + 2) = 0x16;
+          *(int16_t *)((char *)node2_ptr + 6) = 1;
+          *(int16_t *)((char *)node2_ptr + 4) = 2;
+          ok = hs_type_check(node1, 4);
+          if (ok) {
+            return node1;
+          }
+        }
+      }
+      *error_info = *(int *)0x46b6fc;
+      if (*(int *)0x46b700 != -1) {
+        *(int *)0x46b700 = *(int *)0x46b700 - base_offset;
+        if (*(int *)0x46b700 < 0 || *(int *)0x46b700 >= source_length) {
+          display_assert("hs_compile_globals.error_offset>=0 && "
+                         "hs_compile_globals.error_offset<source_size",
+                         "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xeb, true);
+          system_exit(-1);
+        }
+        *error_text = (char *)source + *(int *)0x46b700;
       }
     }
   }
-
-compile_error:
-  *(int *)error_info = *(int *)0x46b6fc;
-  if (*(int *)0x46b700 != -1) {
-    *(int *)0x46b700 = *(int *)0x46b700 - base_offset;
-    if (*(int *)0x46b700 < 0 || *(int *)0x46b700 >= source_length) {
-      display_assert("hs_compile_globals.error_offset>=0 && "
-                     "hs_compile_globals.error_offset<source_size",
-                     "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xeb, true);
-      system_exit(-1);
-    }
-    *error_text = (char *)(*(int *)0x46b700 + (int)source);
-  }
-
   return -1;
 }
 
@@ -582,42 +957,38 @@ bool hs_compile_source(int source_file_size, void *source_ptr,
   cursor = hs_compile_initialize(source_file_size, source_ptr);
 
   if (cursor == NULL) {
-    *(int *)error_info = (int)"couldn't allocate memory for compiled source.";
+    *error_info = "couldn't allocate memory for compiled source.";
     return false;
   }
 
-  *(int *)0x46b6fc = 0;
-  *(int *)error_info = 0;
-  *(int *)error_text = 0;
-  ok = true;
+  *(char **)0x46b6fc = NULL;
+  *error_info = NULL;
+  *error_text = NULL;
   *(int *)0x46b700 = -1;
 
   FUN_000c72b0(&cursor);
 
-  while (*cursor != '\0') {
+  do {
+    if (*cursor == '\0')
+      return true;
+
     expr_datum = FUN_000c7be0(&cursor);
     FUN_000c72b0(&cursor);
 
-    if (*(int *)0x46b6fc != 0)
-      goto parse_error;
+    if (*(char **)0x46b6fc != NULL)
+      break;
 
     ok = hs_type_check(expr_datum, 1);
-    if (!ok)
-      goto parse_error;
-  }
+  } while (ok);
 
-  if (ok)
-    return true;
-
-parse_error:
-  if (*(int *)0x46b6fc == 0) {
+  if (*(char **)0x46b6fc == NULL) {
     display_assert("tell matt that somebody failed to correctly report a "
                    "parsing error.",
                    "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x131, true);
     system_exit(-1);
   }
 
-  *error_info = (char *)*(int *)0x46b6fc;
+  *error_info = *(char **)0x46b6fc;
   *(uint8_t *)0x46b6f8 = 1;
 
   if (*(int *)0x46b700 != -1) {
@@ -768,22 +1139,240 @@ int FUN_000c95f0(void)
   return result;
 }
 
+/* 0xc9650 — Walk an HS object list looking for the first member whose
+ * FUN_0018ef00 predicate disagrees with the incoming flag byte, then commit the
+ * resulting boolean into the 256-bit vector at 0x5aa6a0 at bit `bit_index`.
+ *
+ * Binary evidence (0xc9650..0xc96f5, cdecl, EBP frame, no `sub esp`,
+ * EBX/ESI/EDI saved):
+ *
+ *   MOV BL,byte ptr [EBP+0x10]  ; the flag state starts as the LOW BYTE of the
+ *                               ;   third argument slot
+ *   MOV ESI,[EBP+0xc]           ; object-list handle, held across both iterator
+ *                               ;   calls (0xc9660, 0xc968f)
+ *   LEA EAX,[EBP+0x10] / PUSH EAX / PUSH ESI / CALL 0xce450
+ *   MOV EDI,[EBP+0x8]           ; full dword slot copy; pushed unchanged into
+ *                               ;   FUN_0018ef00 at 0xc9672
+ *
+ *   The iterator state passed to 0xce450/0xce320 is `LEA [EBP+0x10]` — the
+ * third argument's own slot — and the frame has no `sub esp`, so that slot is
+ * the dword the iterators write. It is therefore declared as an `int` here
+ * whose low byte seeds the flag. Whether the original source declared one dword
+ *   parameter used both ways, or a byte parameter whose dead home slot MSVC
+ *   reused for a local, is not decidable from this function alone; the
+ * observable behaviour (low byte read before the first call, dword written
+ * afterwards) is identical either way, and the only caller (0xca0f0) passes a
+ * literal 0.
+ *
+ *   Loop body at 0xc9671..0xc969b:
+ *     CALL 0x18ef00 / TEST AL,AL
+ *     predicate nonzero and BL == 0  -> MOV BL,1  and jump to the set-bit block
+ *     predicate zero    and BL != 0  -> XOR BL,BL and fall into the clear block
+ *     otherwise                      -> advance with 0xce320 and retest
+ *   Falling out of the loop (0xc969d) keeps BL and picks the block by TEST
+ * BL,BL, so an exhausted list leaves the incoming flag byte untouched — which
+ * is why the return is the flag variable and not a literal 1/0 on that path.
+ *
+ *   Both exits are separate tail-duplicated blocks (0xc96a1 and 0xc96c9) and
+ * both end `MOV AL,BL`, so the byte return value is the committed flag state.
+ *
+ *   Bit addressing, identical in both blocks: MOVSX ECX,DI selects the dword at
+ *   0x5aa6a0 + 4*((int16_t)bit_index >> 5) and the shift count is the low five
+ *   bits; the set block ORs 1<<n in, the clear block ANDs ~(1<<n).
+ *
+ * 0x5aa6a0 is the 0x20-byte (256-bit) block cleared by
+ * hs_runtime_initialize_for_new_map; the older "return values buffer" label on
+ * it elsewhere in this file is unproven prose, and the meaning of the
+ * individual bits is likewise unproven, so every name here stays mechanical. */
+unsigned char FUN_000c9650(int16_t bit_index, int object_list, int state)
+{
+  char flag;
+  int object_index;
+  int shift;
+  int word_offset;
+  uint32_t *word_ptr;
+
+  flag = (char)state;
+  object_index = FUN_000ce450(object_list, &state);
+  while (object_index != -1) {
+    if (FUN_0018ef00(bit_index, object_index)) {
+      if (flag == 0) {
+        flag = 1;
+        goto set_bit;
+      }
+    } else if (flag != 0) {
+      flag = 0;
+      goto clear_bit;
+    }
+    object_index = FUN_000ce320(object_list, &state);
+  }
+
+  if (flag != 0) {
+set_bit:
+    shift = (int)bit_index;
+    word_offset = shift >> 5;
+    word_ptr = (uint32_t *)((char *)0x5aa6a0 + word_offset * 4);
+    *word_ptr |= 1u << (shift & 0x1f);
+    return (unsigned char)flag;
+  }
+
+clear_bit:
+  shift = (int)bit_index;
+  word_offset = shift >> 5;
+  word_ptr = (uint32_t *)((char *)0x5aa6a0 + word_offset * 4);
+  *word_ptr &= ~(1u << (shift & 0x1f));
+  return (unsigned char)flag;
+}
+
 /* 0xc9700 — Locate the object's head position when it is a unit; otherwise
  * copy the position at +0x50, then test param_1 against that point and the
  * supplied angle scaled by the global at 0x253d4c. The parameter roles beyond
  * these mechanically observed uses are unproven. */
-void FUN_000c9700(int param_1, int param_2, float param_3)
+char FUN_000c9700(int param_1, int param_2, float param_3)
 {
   vector3_t position;
+  char result;
 
+  result = 0;
   if (param_2 != -1) {
     if (object_try_and_get_and_verify_type(param_2, 3) != NULL)
       unit_get_head_position(param_2, (float *)&position);
     else
       position =
         *(vector3_t *)((char *)object_get_and_verify_type(param_2, -1) + 0x50);
-    FUN_001aa430(param_1, (float *)&position, param_3 * *(float *)0x253d4c);
+    result =
+      FUN_001aa430(param_1, (float *)&position, param_3 * *(float *)0x253d4c);
   }
+  return result;
+}
+
+/* 0xc9770 — Report whether any unit in arg0's object list can see object arg1
+ * within the angle arg2.  Iterates arg0's children and returns true on the
+ * first child that is a unit and for which FUN_000c9700 reports true.
+ *
+ * Binary evidence (0xc9770..0xc97e3, cdecl, three stack args):
+ *
+ *   [EBP+8] -> EDI at 0xc9777 is the list handle for both iterator calls
+ *   (PUSH EAX=&[EBP-4] / PUSH EDI / CALL 0xce450 at 0xc9781, and the same pair
+ *   at 0xc97b9 -> 0xce320), so the single 4-byte local at [EBP-4] (reserved by
+ *   the PUSH ECX at 0xc9773) is the iterator state.
+ *
+ *   [EBP+0x10] -> EBX at 0xc9790 is loaded ONCE, before the loop head at
+ *   0xc9793; [EBP+0xc] -> ECX at 0xc97a2 is reloaded every iteration.  The
+ *   call at 0xc97a8 pushes EBX, then ECX, then ESI, so in cdecl order it is
+ *   FUN_000c9700(child_handle, arg1, arg2) — the child handle is the FIRST
+ *   argument (the seeing unit), matching FUN_000c9700 passing its param_1
+ *   straight to FUN_001aa430 as the unit handle and resolving its param_2 as
+ *   the object whose position is tested.  ADD ESP,0xc confirms three args; the
+ *   artifact's §7_GETTER_SWALLOWED hazard was against a stale void(void) decl
+ *   for 0xc9700 and does not apply.
+ *
+ *   PUSH 3 / PUSH ESI / CALL 0x13d640 at 0xc9796 is
+ *   object_try_and_get_and_verify_type(child, 3); a NULL result skips straight
+ *   to the iterator advance at 0xc97b4, so non-unit children are ignored
+ *   without calling FUN_000c9700.
+ *
+ *   Three distinct returns: XOR BL,BL at 0xc977f feeds MOV AL,BL at 0xc97dc
+ *   for the "list was empty" exit (value 0), MOV AL,0x1 at 0xc97d3 for a hit,
+ *   and XOR AL,AL at 0xc97ca for a fully-walked list — so the byte return is a
+ *   boolean and the two zero exits are the same value.
+ *
+ *   arg2 is a float only because it is forwarded to FUN_000c9700's float
+ *   param_3; this function itself never touches the FPU (it copies the dword
+ *   through EBX), so the role of the value is unproven beyond that forward.
+ *
+ * Callees (all cdecl, all in kb.json, none with @<reg> args):
+ *   0xce450  = FUN_000ce450(list_handle, int *iter_state)  — first child
+ *   0xce320  = FUN_000ce320(list_handle, int *iter_state)  — next child
+ *   0x13d640 = object_try_and_get_and_verify_type(handle, type_mask)
+ *   0xc9700  = FUN_000c9700(unit_handle, object_handle, angle)
+ *
+ * No callers in the binary (xrefs_to is empty), so the parameter names stay
+ * mechanical. */
+unsigned char FUN_000c9770(int arg0, int arg1, float arg2)
+{
+  int child;
+  int iter_state;
+
+  child = FUN_000ce450(arg0, &iter_state);
+  while (child != -1) {
+    if (object_try_and_get_and_verify_type(child, 3) != NULL &&
+        FUN_000c9700(child, arg1, arg2) != 0)
+      return 1;
+    child = FUN_000ce320(arg0, &iter_state);
+  }
+  return 0;
+}
+
+/* 0xc9840 — Report whether any unit in arg0's object list can see the cutscene
+ * flag arg1 within the angle arg2.  Same walk as FUN_000c9770 above, but the
+ * tested point comes from the scenario's 0x4e4 block instead of another object.
+ *
+ * Binary evidence (0xc9840..0xc98d2, cdecl, three stack args):
+ *
+ *   [EBP+8] -> EBX at 0xc9845 is the list handle for both iterator calls
+ *   (LEA EAX,[EBP-4] / PUSH EAX / PUSH EBX / CALL 0xce450 at 0xc984f, and
+ *   PUSH EDX=&[EBP-4] / PUSH EBX / CALL 0xce320 at 0xc98b2), so the single
+ *   4-byte local reserved by PUSH ECX at 0xc9843 is the iterator state.
+ *
+ *   MOV DI,word ptr [EBP+0xc] at 0xc985e is a 16-bit load hoisted ABOVE the
+ *   loop head at 0xc9862, and MOVSX ECX,DI at 0xc9880 sign-extends it before
+ *   it is pushed as the tag_block_get_element index — so the second parameter
+ *   is a short, matching FUN_000c9de0's flag_index for the same block.
+ *   TEST DI,DI / JZ 0xc98ad skips the visibility test (but NOT the iterator
+ *   advance) when it is zero.
+ *
+ *   PUSH 0x5c / PUSH ECX at 0xc9886 happen BEFORE CALL global_scenario_get,
+ *   which takes no arguments — the artifact's FPU_ARG/arg-grouping hazard on
+ *   0x18e380 is that mis-grouping.  They belong to
+ *   tag_block_get_element(scenario+0x4e4, flag_index, 0x5c) (ADD EAX,0x4e4 at
+ *   0xc988e forms the block pointer, ADD ESP,0xc at 0xc9899 retires 3 args),
+ *   and ADD EAX,0x24 at 0xc989c takes the element's +0x24 vector3 — the same
+ *   field FUN_000c9de0 and players.c use for this block.
+ *
+ *   The float arg is the FIRST push of the FUN_001aa430 call, not of
+ *   tag_block_get_element: PUSH ECX at 0xc9879 only reserves the slot and
+ *   FSTP float ptr [ESP] at 0xc9883 fills it with FLD [EBP+0x10] * [0x253d4c].
+ *   PUSH EAX (the +0x24 point) / PUSH ESI (the child handle) follow, and
+ *   ADD ESP,0xc at 0xc98a6 retires all three — so in cdecl order it is
+ *   FUN_001aa430(child_handle, flag_position, angle * *(float *)0x253d4c),
+ *   identical to the forward in FUN_000c9700.
+ *
+ *   Two exits: MOV AL,0x1 at 0xc98cc on a hit, XOR AL,AL at 0xc98c3 when the
+ *   list is walked out (which is also the empty-list exit), so the byte return
+ *   is a boolean.
+ *
+ * Callees (all cdecl, all in kb.json, none with @<reg> args):
+ *   0xce450  = FUN_000ce450(list_handle, int *iter_state)  — first child
+ *   0xce320  = FUN_000ce320(list_handle, int *iter_state)  — next child
+ *   0x13d640 = object_try_and_get_and_verify_type(handle, type_mask)
+ *   0x18e380 = global_scenario_get(void)
+ *   0x19b210 = tag_block_get_element(block, index, element_size)
+ *   0x1aa430 = FUN_001aa430(unit_handle, point, half_angle)
+ *
+ * No callers in the binary (xrefs_to is empty), so the parameter names stay
+ * mechanical; the role of arg2 beyond being scaled by 0x253d4c and forwarded
+ * is unproven. */
+unsigned char FUN_000c9840(int arg0, short flag_index, float arg2)
+{
+  int child;
+  int iter_state;
+
+  child = FUN_000ce450(arg0, &iter_state);
+  while (child != -1) {
+    if (object_try_and_get_and_verify_type(child, 3) != NULL &&
+        flag_index != 0) {
+      if (FUN_001aa430(child,
+                       (float *)((char *)tag_block_get_element(
+                                   (char *)global_scenario_get() + 0x4e4,
+                                   flag_index, 0x5c) +
+                                 0x24),
+                       arg2 * *(float *)0x253d4c) != 0)
+        return 1;
+    }
+    child = FUN_000ce320(arg0, &iter_state);
+  }
+  return 0;
 }
 
 /* 0xc98e0 — Report whether this object, any object in its child chain, or any
@@ -872,7 +1461,47 @@ bool FUN_000c98e0(int object_handle)
   return is_player;
 }
 
-/* Reject deletion of a player or its linked object; otherwise delete datum. */
+/* 0xc9990 — object-name iterator callback for the `object_create` script
+ * function: create the named scenario object unless it already exists.
+ *
+ * Binary evidence (0xc9990..0xc99df, cdecl, one stack arg).
+ *   MOV ESI,dword ptr [EBP+8] / CMP SI,-0x1 loads the argument as a dword but
+ *   only ever tests/passes its low word, which is what keeps the kb.json decl
+ *   at int16_t: PUSH ESI at 0xc999d and 0xc99d4 feeds two int16_t-taking
+ *   callees (0x140720 object_name_list_get_handle, 0x144940
+ *   object_new_by_name), while the int-taking tag_block index at 0xc99ab is
+ *   sign-extended first (MOVSX EAX,SI).  The int16_t parameter type is also
+ *   forced by the caller 0xc9b10, which hands the callback a 16-bit loop
+ *   counter.
+ *
+ *   PUSH 0x24 / PUSH EAX at 0xc99ae..0xc99b0 happen BEFORE CALL 0x18e380
+ *   (global_scenario_get), so the block pointer is tag_block_get_element's
+ *   first argument and the scenario call is the right-to-left last-evaluated
+ *   one: tag_block_get_element(global_scenario_get() + 0x204, index, 0x24).
+ *   The 0x204 block with 0x24-byte elements is the scenario object-names block
+ *   already established by hs_object_iterate_names_containing above.
+ *
+ *   The single ADD ESP,0x18 at 0xc99ce folds tag_block_get_element's 3 pushes
+ *   and error's 3 (this is the ARG_COUNT audit note — error still takes 3
+ *   stack args, not 6).  PUSH 0x2 is error's severity, matching the other
+ *   script-warning sites in this TU.
+ *
+ *   Control flow: the handle!=-1 case is the fall-through with its own
+ *   POP ESI/POP EBP/RET at 0xc99d1, and JZ 0xc99d4 skips to the create call,
+ *   i.e. an early return out of the already-exists branch. */
+void FUN_000c9990(int16_t index)
+{
+  if (index != -1) {
+    if (object_name_list_get_handle(index) != -1) {
+      error(2, "WARNING: object_create - '%s' already exists",
+            (const char *)tag_block_get_element(
+              (char *)global_scenario_get() + 0x204, index, 0x24));
+      return;
+    }
+    object_new_by_name(index);
+  }
+}
+
 void FUN_000c99e0(int datum)
 {
   if (datum != -1) {
@@ -882,6 +1511,113 @@ void FUN_000c99e0(int datum)
     }
     error(2, "### ERROR a script tried to delete the player (or the horse he "
              "rode in on, or his six-shooter)");
+  }
+}
+
+/* 0xc9a20 — object-name iterator callback that deletes the named scenario
+ * object if it currently exists.  Same body as the sibling callback 0xca110
+ * minus its trailing re-create call, so this is the plain delete variant that
+ * FUN_000c9bb0 hands to hs_object_iterate_names_containing.
+ *
+ * Binary evidence (0xc9a20..0xc9a44, cdecl, EBP frame, no saved registers):
+ *
+ *   MOV EAX,[EBP+0x8] / CMP AX,0xffff / JZ 0xc9a43
+ *     The one stack argument is loaded as a dword but only its low word is
+ *     tested, and only the low word is ever consumed by the callee, which is
+ *     what keeps the kb.json decl at int16_t.  The caller at 0xc9bb0 confirms
+ *     the width: it PUSHes this address as the callback for 0xc9b10, whose
+ *     loop counter is the 16-bit MOVSWL EAX,DI value.
+ *
+ *   PUSH EAX / CALL 0x140720 / ADD ESP,0x4 / CMP EAX,-0x1 / JZ 0xc9a43
+ *     object_name_list_get_handle(index); EAX is the object handle, so the -1
+ *     test means "no such object right now".
+ *
+ *   PUSH EAX / CALL 0xc99e0 / ADD ESP,0x4
+ *     The handle — the CALL's own EAX result, not the name index — is
+ *     forwarded to FUN_000c99e0, the int-taking player-guarded delete used by
+ *     `object_destroy`.  A local holds it so the C form does not re-invoke the
+ *     lookup.  Both ADD ESP,0x4 cleanups are separate, one per call.
+ *
+ * No string reference names the owning script function, so the FUN_ name and
+ * the mechanical parameter name stand. */
+void FUN_000c9a20(int16_t index)
+{
+  int object_handle;
+
+  if (index != -1) {
+    object_handle = object_name_list_get_handle(index);
+    if (object_handle != -1)
+      FUN_000c99e0(object_handle);
+  }
+}
+
+/* 0xc9a50 — Two-phase script-object cleanup: first eject every player whose
+ * unit is currently parented to something else, then delete every unparented
+ * object that is not player-related.
+ *
+ * Binary evidence (0xc9a50..0xc9b08, cdecl, no args, SUB ESP,0x10):
+ *
+ *   MOV EAX,[0x005aa6d4] / PUSH EAX / LEA ECX,[EBP-0x10] / PUSH ECX /
+ *   CALL 0x1197b0 — data_iterator_new(&iter, *(data_t **)0x5aa6d4), the player
+ *   data pool (same global as the player walks in encounters.c/ai_debug.c).
+ *   ADD ESP,0xc at 0xc9a6f folds those 2 pushes and the first
+ *   data_iterator_next's 1.
+ *
+ *   OR EDI,0xffffffff at 0xc9a72 materialises NONE once; EDI is the -1 both
+ *   loops compare against, and the PUSH EDI/POP EDI pair at 0xc9a5b/0xc9b04
+ *   is only its callee-saved slot, not an argument.
+ *
+ *   MOV ECX,[EAX+0x34] / CMP ECX,EDI — the player element's +0x34 unit handle,
+ *   the same raw offset ai_debug.c and encounters.c use for this pool.  Then
+ *   PUSH ESI(handle) / CALL 0x13d7f0 / CMP EAX,ESI: the eject only happens when
+ *   object_get_root_parent(unit_handle) != unit_handle, i.e. the unit is riding
+ *   something.  Each ADD ESP,0x4 is a separate one-arg cleanup.
+ *
+ *   The second walk reuses the same 0x10 stack slot as an object_iter_t
+ *   (PUSH 0 / PUSH EDI / PUSH ECX / CALL 0x13d6f0 = object_iterator_new(&iter,
+ *   -1, 0), all object types), so the two iterators live in disjoint scopes
+ *   here rather than in two frames.  ADD ESP,0x10 at 0xc9ac5 folds
+ *   object_iterator_new's 3 pushes and the first object_iterator_next's 1.
+ *
+ *   CMP [EAX+0xcc],EDI is object_data_t.parent_object_index (0xcc) against
+ *   NONE — only root objects are considered.  MOV EAX,[EBP-0x8] is NOT a
+ *   separate local: [EBP-0x8] is iter+0x8, object_iter_t.last_handle (the
+ *   buffer-alias trap, same as in FUN_000c9d80 below).  That handle is pushed
+ *   to FUN_000c98e0, whose TEST AL,AL / JNZ skips the delete when the object is
+ *   player-related, so the delete runs only on !FUN_000c98e0(handle).
+ *
+ * No string in this function names the script it backs, so the FUN_ name
+ * stands. */
+void FUN_000c9a50(void)
+{
+  {
+    data_iter_t player_iter;
+    char *player;
+    int unit_handle;
+
+    data_iterator_new(&player_iter, *(data_t **)0x5aa6d4);
+    player = (char *)data_iterator_next(&player_iter);
+    while (player != NULL) {
+      unit_handle = *(int *)(player + 0x34);
+      if (unit_handle != -1 &&
+          object_get_root_parent(unit_handle) != unit_handle)
+        unit_exit_seat_end(unit_handle);
+      player = (char *)data_iterator_next(&player_iter);
+    }
+  }
+
+  {
+    object_iter_t iterator;
+    object_data_t *object;
+
+    object_iterator_new(&iterator, -1, 0);
+    object = (object_data_t *)object_iterator_next(&iterator);
+    while (object != NULL) {
+      if (object->parent_object_index.value == -1 &&
+          !FUN_000c98e0(iterator.last_handle))
+        object_delete(iterator.last_handle);
+      object = (object_data_t *)object_iterator_next(&iterator);
+    }
   }
 }
 
@@ -925,8 +1661,8 @@ void FUN_000c99e0(int datum)
 void hs_object_iterate_names_containing(hs_object_name_iterator_t iterator,
                                         const char *substring)
 {
-  char   *scenario;
-  char   *object_names;
+  char *scenario;
+  char *object_names;
   int16_t index;
 
   scenario = (char *)global_scenario_get();
@@ -938,9 +1674,9 @@ void hs_object_iterate_names_containing(hs_object_name_iterator_t iterator,
 
   object_names = scenario + 0x204;
   for (index = 0; index < *(int *)object_names; index++) {
-    if (crt_strstr((const char *)tag_block_get_element(object_names, index,
-                                                       0x24),
-                   substring) != NULL)
+    if (crt_strstr(
+          (const char *)tag_block_get_element(object_names, index, 0x24),
+          substring) != NULL)
       iterator(index);
   }
 }
@@ -989,8 +1725,8 @@ void FUN_000c9bb0(int substring)
  *   return — the caller at 0xbe39b consumes it with PUSH EAX into hs_return. */
 int FUN_000c9bd0(int object_list, short index)
 {
-  int   iterator;
-  int   object_handle;
+  int iterator;
+  int object_handle;
   short remaining;
 
   object_handle = FUN_000ce450(object_list, &iterator);
@@ -1081,7 +1817,7 @@ void FUN_000c9c80(int object_handle, int region_name, int permutation_name)
   char *object_tag;
   char *model_tag;
   char *regions;
-  int   model_index;
+  int model_index;
   short region_index;
   short i;
 
@@ -1163,7 +1899,7 @@ void FUN_000c9d40(int object_list)
  * cs(object_iter_t, 0x10) — exactly the original SUB ESP,0x10. */
 void FUN_000c9d80(int tag_index)
 {
-  object_iter_t  iterator;
+  object_iter_t iterator;
   object_data_t *object;
 
   object_iterator_new(&iterator, -1, 0);
@@ -1203,15 +1939,14 @@ void FUN_000c9d80(int tag_index)
 void FUN_000c9de0(int effect_tag_index, short flag_index)
 {
   vector3_t forward;
-  char     *flag;
+  char *flag;
 
   flag = (char *)tag_block_get_element((char *)global_scenario_get() + 0x4e4,
                                        flag_index, 0x5c);
   angles_to_vector((float *)&forward, (float *)(flag + 0x30));
-  effect_new_unattached_from_markers(effect_tag_index, -1,
-                                     global_zero_vector_ptr, 1, NULL,
-                                     (float *)(flag + 0x24), (float *)&forward,
-                                     1.0f, 1.0f, 0.0f, 0.0f, 1);
+  effect_new_unattached_from_markers(
+    effect_tag_index, -1, global_zero_vector_ptr, 1, NULL,
+    (float *)(flag + 0x24), (float *)&forward, 1.0f, 1.0f, 0.0f, 0.0f, 1);
 }
 
 /* 0xc9e50 — Spawn an effect attached to a named marker on an object.
@@ -1279,7 +2014,7 @@ void FUN_000c9e50(int effect_tag_index, int object_handle, int marker_name)
  *   (2), scenario_location_from_point (2) and FUN_00138e30 (2). */
 void FUN_000c9ec0(int damage_effect_tag_index, short flag_index)
 {
-  char  damage_params[0x54];
+  char damage_params[0x54];
   char *flag;
 
   flag = (char *)tag_block_get_element((char *)global_scenario_get() + 0x4e4,
@@ -1316,77 +2051,717 @@ void FUN_000c9f30(int damage_effect_tag_index, int object_handle)
     damage_data_new(damage_params, damage_effect_tag_index);
     object_get_world_position(object_handle,
                               (vector3_t *)(damage_params + 0x1c));
-    *(vector3_t *)(damage_params + 0x28) =
-      *(vector3_t *)(damage_params + 0x1c);
+    *(vector3_t *)(damage_params + 0x28) = *(vector3_t *)(damage_params + 0x1c);
     scenario_location_from_point(damage_params + 0x14, damage_params + 0x1c);
     object_cause_damage(damage_params, object_handle, -1, -1, -1, NULL);
   }
 }
 
+/* 0xc9f90 — Resolve a script sound name to its playback-parameter block,
+ * preferring a plain sound tag and falling back to a looping sound's first
+ * block element.
+ *
+ * Binary evidence (0xc9f90..0xca006).  The routine has NO prologue at all — no
+ * PUSH EBP, no SUB ESP, no locals — and its first instruction is PUSH ESI at
+ * 0xc9f90, feeding tag_loaded's `name` argument.  ESI is never written anywhere
+ * in the body, so the name arrives in ESI as a register argument; it is PUSHed
+ * again unchanged at 0xc9fb5 (second tag_loaded) and at 0xc9ff4 (the %s of the
+ * error message).  kb.json's placeholder `void (void)` is corrected here to
+ * `void *FUN_000c9f90(const char *sound_name @<esi>)`; the three RET sites all
+ * leave a value in EAX (ADD EAX,0x28 / ADD EAX,0x4 / XOR EAX,EAX), so the
+ * return is a pointer and not void.
+ *
+ *   0xc9f91 PUSH 0x736e6421 ('snd!') then CALL 0x1b9930 (tag_loaded) with
+ *   ADD ESP,0x8 — two arguments only, even though tag_loaded is varargs.
+ *   CMP EAX,-0x1 / JZ is the NONE test.  On the found path tag_get('snd!',
+ *   index) is called and its result is offset by ADD EAX,0x28 at 0xc9fb1; the
+ *   sum, not the tag base, is what RET returns.  The decompiler drops that
+ *   ADD and shows tag_get's value as discarded.
+ *
+ *   The 'lsnd' path (0x6c736e64) repeats the same tag_loaded/tag_get pair, then
+ *   MOV ECX,[EAX+0x3c] reads the block count BEFORE ADD EAX,0x3c rebases EAX
+ *   onto the block header, so both the TEST ECX,ECX / JLE guard and
+ *   tag_block_get_element's first argument come from the same +0x3c block.
+ *   Element size is PUSH 0xa0 and the index is PUSH 0x0 (first element only);
+ *   ADD EAX,0x4 at 0xc9ff0 offsets the returned element.  ADD ESP,0xc folds
+ *   tag_block_get_element's three pushes.
+ *
+ *   Both failure paths fall through to 0xc9ff4: PUSH ESI / PUSH 0x280430 /
+ *   PUSH 0x0 / CALL 0xff4d0 (console_printf), i.e. channel 0 and the name as
+ *   the format's single %s, followed by XOR EAX,EAX — the not-found result is a
+ *   null pointer.  Note the count-guard failure joins this path too: a loaded
+ *   but empty 'lsnd' reports the same "does not exist" message.
+ *
+ * The meaning of the returned +0x28 / +0x4 sub-structures is unproven, so the
+ * offsets are kept raw and the function keeps its FUN_ name. */
+void *FUN_000c9f90(const char *sound_name)
+{
+  int tag_index;
+  char *looping_sound;
+
+  tag_index = tag_loaded(0x736e6421 /* 'snd!' */, sound_name);
+  if (tag_index != -1) {
+    return (char *)tag_get(0x736e6421, tag_index) + 0x28;
+  }
+
+  tag_index = tag_loaded(0x6c736e64 /* 'lsnd' */, sound_name);
+  if (tag_index != -1) {
+    looping_sound = (char *)tag_get(0x6c736e64, tag_index);
+    if (*(int *)(looping_sound + 0x3c) > 0) {
+      return (char *)tag_block_get_element(looping_sound + 0x3c, 0, 0xa0) + 4;
+    }
+  }
+
+  console_printf(0, "the sound '%s' does not exist", sound_name);
+  return NULL;
+}
+
+/* 0xca050 — Walk an HS object list and require the FUN_0018ef00 predicate to
+ * hold for EVERY member; commit the resulting boolean into the same 256-bit
+ * vector at 0x5aa6a0 that 0xc9650 writes, at bit `bit_index`.
+ *
+ * Binary evidence (0xca050..0xca0e7, cdecl, EBP frame, EBX/ESI/EDI saved):
+ *
+ *   PUSH ECX                    ; MSVC's one-dword frame reserve — the iterator
+ *                               ;   state is a LOCAL here ([EBP-0x4]), unlike
+ *                               ;   0xc9650 where it lives in an argument slot
+ *   MOV EDI,[EBP+0xc]           ; object-list handle, held across both iterator
+ *                               ;   calls (0xca061, 0xca084)
+ *   MOV BL,0x1                  ; flag initialised to 1 and never re-set to 1
+ *   LEA EAX,[EBP-0x4] / PUSH EAX / PUSH EDI / CALL 0xce450
+ *   MOV ESI,[EBP+0x8]           ; bit_index; only ever used via MOVSX ECX,SI
+ *
+ *   Loop body at 0xca071..0xca08f:
+ *     PUSH EAX / PUSH ESI / CALL 0x18ef00 / TEST AL,AL
+ *     predicate zero    -> JZ 0xca0b9 (clear block), so the walk stops on the
+ *                          first member that fails
+ *     predicate nonzero -> advance with 0xce320 and retest while EAX != -1
+ *   An exhausted list (either iterator returning -1) falls to 0xca091, the
+ *   set block.
+ *
+ *   The two exits are tail-duplicated: 0xca091 ends `MOV AL,BL` (flag still
+ * live in BL, provably non-zero but not provably 1, hence the register copy),
+ * and 0xca0b9 ends `XOR AL,AL` (that block is only reachable with flag == 0).
+ * Both are consistent with a single `flag` variable that starts at 1, is
+ * cleared by the failing member, and is both the branch selector and the
+ * return value.
+ *
+ *   Bit addressing, identical in both blocks and identical to 0xc9650:
+ *   MOVSX ECX,SI selects the dword at 0x5aa6a0 + 4*((int16_t)bit_index >> 5)
+ *   and the shift count is the low five bits; the set block ORs 1<<n in, the
+ *   clear block ANDs ~(1<<n).
+ *
+ * 0x5aa6a0 is the 0x20-byte (256-bit) block cleared by
+ * hs_runtime_initialize_for_new_map; the meaning of the individual bits, of
+ * the object list, and of the predicate are all unproven, so every name here
+ * stays mechanical. The only caller is 0xbe0ac in FUN_000be080. */
+unsigned char FUN_000ca050(int16_t bit_index, int object_list)
+{
+  char flag;
+  int object_index;
+  int iter_state;
+
+  flag = 1;
+  for (object_index = FUN_000ce450(object_list, &iter_state);
+       object_index != -1;
+       object_index = FUN_000ce320(object_list, &iter_state)) {
+    if (FUN_0018ef00(bit_index, object_index) == 0) {
+      flag = 0;
+      break;
+    }
+  }
+
+  if (flag != 0) {
+    ((uint32_t *)0x5aa6a0)[bit_index >> 5] |= 1u << (bit_index & 0x1f);
+  } else {
+    ((uint32_t *)0x5aa6a0)[bit_index >> 5] &= ~(1u << (bit_index & 0x1f));
+  }
+  return (unsigned char)flag;
+}
+
+/* 0xca0f0 — Two-argument forwarding wrapper onto FUN_000c9650 with the third
+ * argument forced to zero.
+ *
+ * Binary evidence (0xca0f0..0xca106, cdecl, EBP frame, no locals):
+ *
+ *   PUSH EBP / MOV EBP,ESP
+ *   MOV EAX,[EBP+0xc]     ; arg 2 loaded first
+ *   MOV ECX,[EBP+0x8]     ; arg 1 — full dword slot copy, no MOVSX, because
+ *                         ;   both this parameter and the callee's are int16_t
+ *   PUSH 0 / PUSH EAX / PUSH ECX
+ *   CALL 0xc9650 / ADD ESP,0xc / POP EBP / RET
+ *
+ *   The wrapper never writes EAX/AL, so the byte result the caller at 0xbe030
+ *   zero-extends is FUN_000c9650's own return value. That callee ends with
+ *   `MOV AL,BL` on both exit paths (0xc96c2, 0xc96f1), which is why its kb.json
+ *   decl is corrected here from the placeholder `void (void)` to a three-stack-
+ *   argument `unsigned char` function: [EBP+0x8] is MOVSX'd from DI (int16_t),
+ *   [EBP+0xc] is a dword handed to the object-list iterators 0xce450/0xce320,
+ *   and [EBP+0x10] is read as a byte into BL (char flag).
+ *
+ * The meaning of the forwarded arguments and of the zero flag is unproven, so
+ * both functions keep their FUN_ names and mechanical parameter names. */
+unsigned char FUN_000ca0f0(int16_t param_1, int param_2)
+{
+  return FUN_000c9650(param_1, param_2, 0);
+}
+
+/* 0xca110 — object-name iterator callback for the `object_create_anew` script
+ * function: delete the named scenario object if it currently exists, then run
+ * the plain create callback (0xc9990) on the same name.
+ *
+ * Binary evidence (0xca110..0xca13f, cdecl, EBP frame, one stack arg, ESI
+ * saved/restored):
+ *
+ *   MOV ESI,[EBP+0x8] / CMP SI,-0x1 / JZ 0xca13d
+ *     Argument loaded as a dword but only its low word is ever tested or
+ *     passed, which keeps the kb.json decl at int16_t — the same shape as the
+ *     sibling callback 0xc9990.  The caller at 0xca140 confirms it: it does
+ *     MOV EBX,[EBP+8] / PUSH offset 0xca110 / CALL 0xc9b10, i.e. this is the
+ *     callback hs_object_iterate_names_containing hands a 16-bit loop counter.
+ *
+ *   PUSH ESI / CALL 0x140720 / ADD ESP,0x4 / CMP EAX,-0x1 / JZ 0xca134
+ *     object_name_list_get_handle(index); EAX is the object handle, so the
+ *     -1 test is "no such object right now".
+ *
+ *   PUSH EAX / CALL 0xc99e0 / ADD ESP,0x4
+ *     The handle (not the name index) is forwarded to FUN_000c99e0, whose
+ *     kb.json decl is the int-taking player-guarded delete used by
+ *     `object_destroy`.  The value pushed is the CALL's own EAX result, held
+ *     in a local here because the C form must not re-invoke the lookup.
+ *
+ *   0xca134: PUSH ESI / CALL 0xc9990 / ADD ESP,0x4
+ *     The JZ at 0xca129 skips only the delete, so the create callback runs on
+ *     both paths of the handle test — it is unconditional inside the
+ *     index != -1 guard, not an else branch.  It receives ESI (the name
+ *     index) again, not the handle.
+ *
+ * The script-function name is not proven from a string reference here, so the
+ * function keeps its FUN_ name and mechanical parameter name. */
+void FUN_000ca110(int16_t index)
+{
+  int object_handle;
+
+  if (index != -1) {
+    object_handle = object_name_list_get_handle(index);
+    if (object_handle != -1)
+      FUN_000c99e0(object_handle);
+    FUN_000c9990(index);
+  }
+}
+
+/* 0xca3f0 — Two-argument forwarder onto 0xca160 with both trailing byte
+ * flags pinned to 1.
+ *
+ * Binary evidence (0xca3f0..0xca409, cdecl, EBP frame, EBX saved):
+ *
+ *   PUSH EBP / MOV EBP,ESP
+ *   MOV EAX,dword ptr [EBP+0xc]   ; second parameter, forwarded as a full
+ *                                 ;   dword (0xca160 narrows it itself with
+ *                                 ;   MOVSX EAX,word ptr [EBP+0x8])
+ *   PUSH EBX
+ *   MOV EBX,dword ptr [EBP+0x8]   ; first parameter -> EBX register argument;
+ *                                 ;   0xca160 opens with `CMP EBX,-0x1`
+ *                                 ;   before defining EBX (same ABI the
+ *                                 ;   0xca430 site below relies on)
+ *   PUSH 0x1 / PUSH 0x1 / PUSH EAX / CALL 0xca160 / ADD ESP,0xc
+ *                                 ; cdecl: first PUSH is the LAST argument,
+ *                                 ;   so the stack args are ([EBP+0xc], 1, 1)
+ *   POP EBX / POP EBP / RET
+ *
+ * There is no branch, no local, and no other side effect. The sibling
+ * forwarder at 0xca410 has the same shape with different constants. The
+ * meaning of both parameters and of 0xca160 is unproven, so the names stay
+ * mechanical. */
+void FUN_000ca3f0(int a, int b)
+{
+  FUN_000ca160(a, b, 1, 1);
+}
+
+/* 0xca430 — Walk every player datum; for each player whose unit handle at
+ * +0x34 is valid but which FUN_0018ef00 says is NOT associated with
+ * `cluster_index`, invoke 0xca160 on that unit.
+ *
+ * Binary evidence (0xca430..0xca4a9, cdecl, EBP frame, EBX/ESI/EDI saved):
+ *
+ *   MOV EAX,[0x5aa6d4] / PUSH -0x1 / PUSH EAX / CALL 0x1198f0
+ *                               ; data_next_index(player_data, -1); the global
+ *                               ;   is re-loaded before each of the three
+ *                               ;   table calls (0xca433, 0xca450, 0xca48e),
+ *                               ;   so it is re-read, never cached
+ *   MOV EDI,EAX / CMP EDI,-0x1 / JZ 0xca4a7      ; empty table -> return
+ *
+ *   Loop body at 0xca450..0xca4a3:
+ *     PUSH EDI / PUSH ECX / CALL 0x119320        ; datum_get(player_data, idx)
+ *     MOV ESI,EAX
+ *     MOV EAX,[ESI+0x34] / CMP EAX,-0x1 / JZ 0xca48e
+ *                               ; one load feeds both the -0x1 test (0xca465)
+ *                               ;   and the PUSH at 0xca46d — same basic block,
+ *                               ;   no intervening call, so MSVC reused it
+ *     MOV EDX,[EBP+0x8] / PUSH EAX / PUSH EDX / CALL 0x18ef00
+ *                               ; FUN_0018ef00(cluster_index, unit_handle);
+ *                               ;   param_1 is pushed as a full dword
+ *     TEST AL,AL / JNZ 0xca48e  ; predicate TRUE -> skip this player
+ *     MOV EAX,[EBP+0xc] / MOV EBX,[ESI+0x34]
+ *                               ; the unit handle is RE-loaded here (EAX was
+ *                               ;   clobbered by the call), which is why the
+ *                               ;   field is spelled out again below rather
+ *                               ;   than held in a local
+ *     PUSH 0x1 / PUSH 0x1 / PUSH EAX / CALL 0xca160 / ADD ESP,0xc
+ *                               ; cdecl: first PUSH is the LAST argument, so
+ *                               ;   the stack args are ([EBP+0xc], 1, 1) and
+ *                               ;   EBX carries the unit handle as a register
+ *                               ;   argument -- 0xca160 opens with
+ *                               ;   `CMP EBX,-0x1` before defining EBX, and
+ *                               ;   passes it to object_get_and_verify_type
+ *                               ;   (0xca174) with type mask -1.
+ *
+ * 0xca160 reads its first stack slot with `MOVSX EAX,word ptr [EBP+0x8]`
+ * (a signed 16-bit index into the 0x5c-byte scenario block at scenario+0x4e4)
+ * and its other two slots with `MOV AL,byte ptr [EBP+0xc]` / `[EBP+0x10]`.
+ * This site forwards the caller's dword unchanged, so `param_2` stays `int`.
+ *
+ * 0x5aa6d4 is the player data_t (same table as 0x119320 users elsewhere), and
+ * +0x34 is the player's unit object handle. The meanings of `cluster_index`,
+ * of `param_2`, and of 0xca160 itself are unproven, so the names stay
+ * mechanical. */
+void FUN_000ca430(int cluster_index, int param_2)
+{
+  int player_index;
+  char *player;
+
+  for (player_index = data_next_index(*(data_t **)0x5aa6d4, -1);
+       player_index != -1;
+       player_index = data_next_index(*(data_t **)0x5aa6d4, player_index)) {
+    player = (char *)datum_get(*(data_t **)0x5aa6d4, player_index);
+    if (*(int *)(player + 0x34) != -1 &&
+        FUN_0018ef00(cluster_index, *(int *)(player + 0x34)) == 0) {
+      FUN_000ca160(*(int *)(player + 0x34), param_2, 1, 1);
+    }
+  }
+}
+
+/* 0xca4e0 — HS boolean inspect handler: slot 5 (_hs_type_boolean) of the
+ * type-inspect table at 0x2f3df8.  Its only reference is the table entry at
+ * 0x2f3e0c (= 0x2f3df8 + 5*4, DATA xref, no direct callers), so it is reached
+ * only through the indirect call in hs_evaluate_inspect (0xcd4a0), which calls
+ * through `void (*)(int16_t type, int value, char *buffer)`.
+ *
+ * Binary evidence (0xca4e0..0xca52e, cdecl, EBP frame, no callee-saved regs):
+ *   CMP word ptr [EBP+0x8],0x5 / JZ 0xca50a
+ *                              ; the type slot is compared as a 16-bit value
+ *                              ;   (no MOVSX), matching the table's int16_t
+ *                              ;   first parameter
+ *   PUSH 0x1 / PUSH 0x241 / PUSH 0x280478 / PUSH 0x280460
+ *   CALL 0x8d9f0               ; display_assert("type==_hs_type_boolean",
+ *                              ;   hs_library_internal_runtime.h, 577, 1)
+ *   PUSH -0x1 / CALL 0x8e2f0   ; system_exit(-1); noreturn, so no ADD ESP
+ *   MOV AL,byte ptr [EBP+0xc] / TEST AL,AL
+ *                              ; only the LOW BYTE of the 4-byte value slot is
+ *                              ;   read — the caller forwards the dword result
+ *                              ;   value, this handler takes it as a boolean
+ *   MOV EAX,0x25cb44 ("true") / JNZ 0xca51b / MOV EAX,0x25cb3c ("false")
+ *                              ; "true" is loaded unconditionally and replaced
+ *                              ;   on the zero path => ternary, not if/else
+ *   PUSH EAX / MOV EAX,[EBP+0x10] / PUSH 0x257984 ("%s") / PUSH EAX
+ *   CALL 0x1d90f0 / ADD ESP,0xc
+ *                              ; cdecl sprintf, first PUSH is the last
+ *                              ;   argument: (buffer, "%s", text)
+ *
+ * The buffer is the caller's local (1024 bytes at 0xcd4a0), so no bound is
+ * applied here — the original does not pass or check a size. */
+void FUN_000ca4e0(int16_t type, bool value, char *buffer)
+{
+  if (type != 5) {
+    display_assert("type==_hs_type_boolean",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x241,
+                   1);
+    system_exit(-1);
+  }
+  crt_sprintf(buffer, "%s", value ? "true" : "false");
+}
+
+/* 0xca530 — HS real inspect handler: slot 6 (_hs_type_real) of the
+ * type-inspect table at 0x2f3df8 (entry at 0x2f3e10 = 0x2f3df8 + 6*4).  Like
+ * the boolean handler above it has no direct callers, so it is reached only
+ * through the indirect call in hs_evaluate_inspect (0xcd4a0), which calls
+ * through `void (*)(int16_t type, int value, char *buffer)`.
+ *
+ * Binary evidence (0xca530..0xca575, cdecl, EBP frame, no callee-saved regs):
+ *   CMP word ptr [EBP+0x8],0x6 / JZ 0xca55a
+ *                              ; the type slot is compared as a 16-bit value
+ *                              ;   (no MOVSX), matching the table's int16_t
+ *                              ;   first parameter
+ *   PUSH 0x1 / PUSH 0x24c / PUSH 0x280478 / PUSH 0x2804ac
+ *   CALL 0x8d9f0               ; display_assert("type==_hs_type_real",
+ *                              ;   hs_library_internal_runtime.h, 588, 1)
+ *   PUSH -0x1 / CALL 0x8e2f0   ; system_exit(-1); noreturn, so no ADD ESP
+ *   FLD float ptr [EBP+0xc]    ; the caller forwards the dword result value;
+ *                              ;   this handler reinterprets it as a float
+ *   MOV EAX,dword ptr [EBP+0x10]
+ *   SUB ESP,0x8 / FSTP double ptr [ESP]
+ *                              ; default argument promotion of the float to
+ *                              ;   double for the variadic sprintf — one
+ *                              ;   8-byte argument slot, not two
+ *   PUSH 0x2804a8 ("%f") / PUSH EAX
+ *   CALL 0x1d90f0 / ADD ESP,0x10
+ *                              ; cdecl sprintf, first PUSH is the last
+ *                              ;   argument: (buffer, "%f", (double)value);
+ *                              ;   0x10 = 4 (buffer) + 4 (format) + 8 (double)
+ *
+ * The buffer is the caller's local (1024 bytes at 0xcd4a0), so no bound is
+ * applied here — the original does not pass or check a size. */
+void FUN_000ca530(int16_t type, float value, char *buffer)
+{
+  if (type != 6) {
+    display_assert("type==_hs_type_real",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x24c,
+                   1);
+    system_exit(-1);
+  }
+  crt_sprintf(buffer, "%f", value);
+}
+
+/* 0xca580 — HS short-integer inspect handler: slot 7 (_hs_type_short_integer)
+ * of the type-inspect table at 0x2f3df8 (entry at 0x2f3e14 = 0x2f3df8 + 7*4).
+ * Like the boolean/real handlers above it has no direct callers, so it is
+ * reached only through the indirect call in hs_evaluate_inspect (0xcd4a0),
+ * which calls through `void (*)(int16_t type, int value, char *buffer)`.
+ *
+ * Binary evidence (0xca580..0xca5c1, cdecl, EBP frame, no callee-saved regs):
+ *   CMP word ptr [EBP+0x8],0x7 / JZ 0xca5aa
+ *                              ; the type slot is compared as a 16-bit value
+ *                              ;   (no MOVSX), matching the table's int16_t
+ *                              ;   first parameter
+ *   PUSH 0x1 / PUSH 0x257 / PUSH 0x280478 / PUSH 0x2804c0
+ *   CALL 0x8d9f0               ; display_assert(
+ *                              ;   "type==_hs_type_short_integer",
+ *                              ;   hs_library_internal_runtime.h, 599, 1)
+ *   PUSH -0x1 / CALL 0x8e2f0   ; system_exit(-1); noreturn, so no ADD ESP
+ *   MOVSX EAX,word ptr [EBP+0xc]
+ *                              ; only the LOW WORD of the 4-byte value slot is
+ *                              ;   read, sign-extended — the caller forwards
+ *                              ;   the dword result value, this handler takes
+ *                              ;   it as a signed short.  The MOVSX is the
+ *                              ;   default argument promotion of int16_t to
+ *                              ;   int for the variadic sprintf.
+ *   MOV ECX,dword ptr [EBP+0x10]
+ *   PUSH EAX / PUSH 0x25acb8 ("%d") / PUSH ECX
+ *   CALL 0x1d90f0 / ADD ESP,0xc
+ *                              ; cdecl sprintf, first PUSH is the last
+ *                              ;   argument: (buffer, "%d", (int)value)
+ *
+ * The buffer is the caller's local (1024 bytes at 0xcd4a0), so no bound is
+ * applied here — the original does not pass or check a size. */
+void FUN_000ca580(int16_t type, int16_t value, char *buffer)
+{
+  if (type != 7) {
+    display_assert("type==_hs_type_short_integer",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x257,
+                   1);
+    system_exit(-1);
+  }
+  crt_sprintf(buffer, "%d", value);
+}
+
+/* 0xca5d0 — HS long-integer inspect handler: slot 8 (_hs_type_long_integer)
+ * of the type-inspect table at 0x2f3df8 (entry at 0x2f3e18 = 0x2f3df8 + 8*4).
+ * Like the boolean/real/short handlers above it has no direct callers, so it is
+ * reached only through the indirect call in hs_evaluate_inspect (0xcd4a0),
+ * which calls through `void (*)(int16_t type, int value, char *buffer)`.
+ *
+ * Binary evidence (0xca5d0..0xca610, cdecl, EBP frame, no callee-saved regs):
+ *   CMP word ptr [EBP+0x8],0x8 / JZ 0xca5fa
+ *                              ; the type slot is compared as a 16-bit value
+ *                              ;   (no MOVSX), matching the table's int16_t
+ *                              ;   first parameter
+ *   PUSH 0x1 / PUSH 0x262 / PUSH 0x280478 / PUSH 0x2804e4
+ *   CALL 0x8d9f0               ; display_assert(
+ *                              ;   "type==_hs_type_long_integer",
+ *                              ;   hs_library_internal_runtime.h, 610, 1)
+ *   PUSH -0x1 / CALL 0x8e2f0   ; system_exit(-1); noreturn, so no ADD ESP
+ *   MOV EAX,dword ptr [EBP+0xc]
+ *                              ; the FULL dword of the value slot is read with
+ *                              ;   no sign/zero extension — this handler takes
+ *                              ;   the forwarded result value as a 32-bit long
+ *   MOV ECX,dword ptr [EBP+0x10]
+ *   PUSH EAX / PUSH 0x2804e0 ("%ld") / PUSH ECX
+ *   CALL 0x1d90f0 / ADD ESP,0xc
+ *                              ; cdecl sprintf, first PUSH is the last
+ *                              ;   argument: (buffer, "%ld", value)
+ *
+ * The buffer is the caller's local (1024 bytes at 0xcd4a0), so no bound is
+ * applied here — the original does not pass or check a size. */
+void FUN_000ca5d0(int16_t type, long value, char *buffer)
+{
+  if (type != 8) {
+    display_assert("type==_hs_type_long_integer",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x262,
+                   1);
+    system_exit(-1);
+  }
+  crt_sprintf(buffer, "%ld", value);
+}
+
+/* 0xca620 — hs_library_internal_runtime.h:0x26d handler for _hs_type_string.
+ *
+ * Disassembly evidence (0xca620..0xca660):
+ *   CMP word ptr [EBP+0x8],0x9  ; 16-bit compare of the type slot vs
+ *                               ;   _hs_type_string (9)
+ *   JZ 0xca64a
+ *   PUSH 0x1 / PUSH 0x26d / PUSH 0x280478 / PUSH 0x280500
+ *   CALL 0x8d9f0                ; display_assert("type==_hs_type_string",
+ *                               ;   "...hs_library_internal_runtime.h",
+ *                               ;   0x26d, true)
+ *   PUSH -0x1 / CALL 0x8e2f0    ; system_exit(-1); noreturn, no ADD ESP
+ *   MOV EAX,dword ptr [EBP+0xc] ; full dword of the value slot, no
+ *                               ;   sign/zero extension — the forwarded
+ *                               ;   result value is a 32-bit string pointer
+ *   MOV ECX,dword ptr [EBP+0x10]
+ *   PUSH EAX / PUSH 0x257984 ("%s") / PUSH ECX
+ *   CALL 0x1d90f0 / ADD ESP,0xc
+ *                               ; cdecl sprintf, first PUSH is the last
+ *                               ;   argument: (buffer, "%s", value)
+ *
+ * As with the sibling handlers, the destination is the caller's local buffer
+ * and the original applies no length bound. */
+void FUN_000ca620(int16_t type, const char *value, char *buffer)
+{
+  if (type != 9) {
+    display_assert("type==_hs_type_string",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x26d,
+                   1);
+    system_exit(-1);
+  }
+  crt_sprintf(buffer, "%s", value);
+}
+
+/* 0xca670 — hs_library_internal_runtime.h:0x27b/0x27c handler for the HS enum
+ * types (_hs_type_ai..., slots 0x20..0x24 of the type-inspect table). Formats
+ * the enum value's name string into the caller's buffer.
+ *
+ * Disassembly evidence (0xca670..0xca6fa, cdecl, EBP frame, ESI/EDI saved):
+ *   MOV AX,word ptr [EBP+0x8]  ; 16-bit type slot
+ *   CMP AX,0x20
+ *   MOVSX ESI,AX
+ *   LEA ESI,[ESI*0x8 + 0x2726b4]
+ *                              ; enum_definition = &enum_table[type], stride 8
+ *                              ;   (same table hs_parse_enum walks at 0xc5f60:
+ *                              ;    short count at +0, char **names at +4).
+ *                              ;   MSVC scheduled the local's initializer above
+ *                              ;   the range assert, as in hs_parse_enum.
+ *   JL 0xca68f / CMP AX,0x24 / JLE 0xca6af
+ *                              ; signed 16-bit range test type in [0x20,0x24]
+ *   PUSH 0x1 / PUSH 0x27b / PUSH 0x280478 / PUSH 0x28054c
+ *   CALL 0x8d9f0               ; display_assert("HS_TYPE_IS_ENUM(type)",
+ *                              ;   hs_library_internal_runtime.h, 0x27b, true)
+ *   PUSH -0x1 / CALL 0x8e2f0   ; system_exit(-1); noreturn, so no ADD ESP
+ *   MOV EDI,dword ptr [EBP+0xc]
+ *   TEST DI,DI / JL 0xca6bc    ; enum_value < 0 (16-bit signed)
+ *   CMP DI,word ptr [ESI] / JL 0xca6dc
+ *                              ; enum_value >= enum_definition->count, the
+ *                              ;   16-bit count at offset 0
+ *   PUSH 0x1 / PUSH 0x27c / PUSH 0x280478 / PUSH 0x280518
+ *   CALL 0x8d9f0               ; display_assert(
+ *                              ;   "enum_value>=0 && enum_value<"
+ *                              ;   "enum_definition->count", ..., 0x27c, true)
+ *   PUSH -0x1 / CALL 0x8e2f0
+ *   MOV ECX,dword ptr [ESI + 0x4]
+ *                              ; enum_definition->names (char **)
+ *   MOVSX EAX,DI               ; sign-extended 16-bit index
+ *   MOV EDX,dword ptr [ECX + EAX*0x4]
+ *   MOV EAX,dword ptr [EBP+0x10]
+ *   PUSH EDX / PUSH 0x257984 ("%s") / PUSH EAX
+ *   CALL 0x1d90f0 / ADD ESP,0xc
+ *                              ; cdecl sprintf, first PUSH is the last
+ *                              ;   argument: (buffer, "%s", names[enum_value])
+ *
+ * As with the sibling handlers, the destination is the caller's local buffer
+ * and the original applies no length bound. */
+void FUN_000ca670(int16_t type, int16_t enum_value, char *buffer)
+{
+  char *enum_definition;
+
+  enum_definition = (char *)(0x2726b4 + (int)type * 8);
+
+  if (type < 0x20 || type > 0x24) {
+    display_assert("HS_TYPE_IS_ENUM(type)",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x27b,
+                   1);
+    system_exit(-1);
+  }
+
+  if (enum_value < 0 || enum_value >= *(int16_t *)enum_definition) {
+    display_assert("enum_value>=0 && enum_value<enum_definition->count",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x27c,
+                   1);
+    system_exit(-1);
+  }
+
+  crt_sprintf(buffer, "%s",
+              (*(const char ***)(enum_definition + 0x4))[enum_value]);
+}
+
 /* HaloScript runtime — thread management and script execution. */
+
+/* 0xca700 — allocate the HaloScript runtime game-state data arrays and
+ * pre-create one datum per external (engine-declared) HS global.
+ *
+ * Globals (binary evidence, disassembly 0xca700..0xca7f9):
+ *   0x5aa6c4 = hs thread data  (data_t *) — stored from the first call
+ *   0x5aa6c0 = hs globals data (data_t *) — stored from the second call
+ *   0x27d504 = external HS global count (int16_t), same global read by
+ *              hs_runtime_dispose_from_old_map / _initialize_for_new_map
+ *
+ * cdecl, no EBP frame; ESI holds the int16 loop counter. Both
+ * game_state_data_new calls share a single ADD ESP,0x18 cleanup (the
+ * ARG_COUNT hazard on the second call site is that coalescing, not a
+ * six-argument call). The 0x27d504*2 bound check is MOVSX + SHL 1 +
+ * CMP 0x400 + JL, i.e. assert when count*2 >= 0x400. */
+void FUN_000CA700(void)
+{
+  int16_t global_index;
+
+  *(data_t **)0x5aa6c4 = game_state_data_new("hs thread", 0x100, 0x218);
+  *(data_t **)0x5aa6c0 = game_state_data_new("hs globals", 0x400, 8);
+
+  if (*(data_t **)0x5aa6c4 == NULL || *(data_t **)0x5aa6c0 == NULL) {
+    error(0, "couldn't allocate scripting globals.");
+  } else {
+    if ((int)*(int16_t *)0x27d504 * 2 >= 0x400) {
+      display_assert("raise MAXIMUM_NUMBER_OF_HS_GLOBALS.",
+                     "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0xa9, true);
+      system_exit(-1);
+    }
+
+    data_delete_all(*(data_t **)0x5aa6c0);
+
+    for (global_index = 0; global_index < *(int16_t *)0x27d504;
+         global_index++) {
+      if (data_new_datum(*(data_t **)0x5aa6c0,
+                         (int)global_index | 0xaced0000) == -1) {
+        display_assert("index!=NONE", "c:\\halo\\SOURCE\\hs\\hs_runtime.c",
+                       0xb1, true);
+        system_exit(-1);
+      }
+    }
+  }
+}
 
 /* Dispose runtime state from old map: invalidate thread data and
  * clean up any allocated script globals. */
 void hs_runtime_dispose_from_old_map(void)
 {
   int16_t idx;
-  char *data;
+  int datum;
 
   data_make_invalid(*(data_t **)0x5aa6c4);
 
   idx = *(int16_t *)0x27d504;
-  data = *(char **)0x5aa6c0;
-  while (idx < *(int16_t *)(data + 0x2e)) {
-    if (datum_absolute_index_to_index((data_t *)data, (int)idx) != 0)
-      datum_delete((data_t *)data, (int)idx);
-    idx++;
-    data = *(char **)0x5aa6c0;
+  if (idx < (*(data_t **)0x5aa6c0)->current_count) {
+    do {
+      datum = datum_absolute_index_to_index(*(data_t **)0x5aa6c0, (int)idx);
+      if (datum != 0) {
+        datum_delete(*(data_t **)0x5aa6c0, (int)idx);
+      }
+      idx++;
+    } while (idx < (*(data_t **)0x5aa6c0)->current_count);
   }
 
   *(uint8_t *)0x46b810 = 0;
 }
 
-/* 0xca940 */
-static int hs_thread_new(int script_index, int type)
+/* 0xca890 — Resolve the printable name of the expression a thread is currently
+ * evaluating (used by the script error/report path).
+ *
+ * Register ABI (binary evidence): expression_index arrives in EAX (read at
+ * 000ca892 `MOV EDI,EAX` before any def) and thread_index in EBX (read at
+ * 000ca8a6 `PUSH EBX` before any def).
+ *
+ * hs syntax node fields touched here:
+ *   +0x02 (int16_t) : script index when flag bit 0x2 is set, otherwise the
+ *                     hs function-table index
+ *   +0x06 (uint8_t) : flag byte; bit 0x2 marks a script invocation
+ * hs thread fields: +0x10 = current stack frame. Frame +0x04 is the
+ * expression index that pushed the frame and frame +0x0e is the first dword
+ * of the frame's data area (data starts at +0xe, see hs_thread_stack_alloc).
+ *
+ * While the node is a bare node (function index 0) that owns the current
+ * frame, walk to the expression recorded in the frame data; NONE there means
+ * the thread has run off the end of the script.
+ */
+const char *FUN_000ca890(int expression_index, int thread_index)
+{
+  char *node;
+  char *thread;
+  char *frame;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
+
+  while ((*(uint8_t *)(node + 0x6) & 2) == 0) {
+    if (*(int16_t *)(node + 0x2) != 0)
+      goto function_name;
+    frame = *(char **)(thread + 0x10);
+    if (expression_index != *(int32_t *)(frame + 0x4))
+      goto function_name;
+    expression_index = *(int32_t *)(frame + 0xe);
+    if (expression_index == -1)
+      return "(end of script)";
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+    thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
+  }
+
+  /* scenario scripts tag block at scenario+0x49c, 0x5c-byte elements; the
+   * element pointer is the name (name is the block element's first field). */
+  return (const char *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x49c, (int)*(int16_t *)(node + 0x2), 0x5c);
+
+function_name:
+  return *(
+    const char **)((char *)hs_function_table_get(*(int16_t *)(node + 0x2)) +
+                   0x4);
+}
+
+int hs_thread_new(int script_index, int type)
 {
   int thread_index;
   char *thread;
-  char *stack;
   char *script;
 
-  if (type < 0 || type >= 3) {
+  thread_index = data_new_at_index(*(data_t **)0x5aa6c4);
+
+  if ((int16_t)type < 0 || (int16_t)type > 2) {
     display_assert("type>=0 && type<NUMBER_OF_HS_THREAD_TYPES",
                    "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x26f, true);
     system_exit(-1);
   }
 
-  if (type == 0 && script_index == -1) {
+  if ((int16_t)type == 0 && script_index == -1) {
     display_assert("type!=_hs_thread_type_script || script_index!=NONE",
                    "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x270, true);
     system_exit(-1);
   }
 
-  thread_index = data_new_at_index(*(data_t **)0x5aa6c4);
   if (thread_index != -1) {
     thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
-    stack = thread + 0x18;
-    *(char **)(thread + 0x10) = stack;
-    *(int32_t *)stack = 0;
+    *(char **)(thread + 0x10) = thread + 0x18;
+    *(uint32_t *)(thread + 0x18) = 0;
     *(int16_t *)(*(char **)(thread + 0x10) + 0xc) = 0;
-    *(int32_t *)(*(char **)(thread + 0x10) + 0x4) = -1;
-    *(uint8_t *)(thread + 0x2) = (uint8_t)type;
-    *(int32_t *)(thread + 0x4) = script_index;
-    *(uint8_t *)(thread + 0x3) = 0;
+    *(int *)(*(char **)(thread + 0x10) + 4) = -1;
+    *(uint8_t *)(thread + 2) = (uint8_t)type;
+    *(int *)(thread + 4) = script_index;
+    *(uint8_t *)(thread + 3) = 0;
 
     if (script_index != -1) {
       script = (char *)tag_block_get_element(
         (char *)global_scenario_get() + 0x49c, script_index, 0x5c);
       if (*(int16_t *)(script + 0x20) == 1) {
-        *(int32_t *)(thread + 0x8) = -2;
+        *(int *)(thread + 8) = -2;
         return thread_index;
       }
     }
-    *(int32_t *)(thread + 0x8) = 0;
+    *(int *)(thread + 8) = 0;
   }
   return thread_index;
 }
@@ -1395,7 +2770,7 @@ static int hs_thread_new(int script_index, int type)
  * not _hs_thread_type_script (type==0) before deleting. Called when a
  * console-command thread (type==2) finishes execution in FUN_000cd840.
  */
-static void FUN_000caa30(int thread_handle)
+void FUN_000caa30(int thread_handle)
 {
   char *thread;
 
@@ -1409,37 +2784,32 @@ static void FUN_000caa30(int thread_handle)
 }
 
 /* 0xcaa80 */
-static char *hs_get_thread_script_name(int thread_index)
+char *hs_get_thread_script_name(int thread_index)
 {
   char *thread;
   uint8_t type;
-  int script_index;
-  char *scenario;
-  char *script_entry;
 
   thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
   type = *(uint8_t *)(thread + 0x2);
 
-  if (type == 0) {
-    thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
-    script_index = *(int32_t *)(thread + 0x4);
-    scenario = (char *)global_scenario_get();
-    script_entry = (char *)tag_block_get_element((char *)scenario + 0x49c,
-                                                 script_index, 0x5c);
-    return script_entry;
-  }
+  switch (type) {
+  case 0:
+    return (char *)tag_block_get_element(
+      (char *)global_scenario_get() + 0x49c,
+      *(int32_t *)((char *)datum_get(*(data_t **)0x5aa6c4, thread_index) + 0x4),
+      0x5c);
 
-  if (type == 1) {
+  case 1:
     return "[global initialize]";
-  }
 
-  if (type == 2) {
+  case 2:
     return "[console command]";
-  }
 
-  display_assert(NULL, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x2a9, true);
-  system_exit(-1);
-  return NULL;
+  default:
+    display_assert(NULL, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x2a9, true);
+    system_exit(-1);
+    return NULL;
+  }
 }
 
 /* 0xcab00 — Push a new frame onto the HaloScript thread's stack.
@@ -1455,34 +2825,50 @@ static char *hs_get_thread_script_name(int thread_index)
  *
  * Stack overflow is fatal: formats a message and halts via display_assert.
  */
-static void hs_thread_push_frame(int thread_handle)
+void hs_thread_push_frame(int thread_handle)
 {
   char *thread;
-  char *cur_frame;
-  char *new_frame;
+  uint32_t *new_frame;
 
   thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
-  cur_frame = *(char **)(thread + 0x10);
+  new_frame = (uint32_t *)
+    (*(int *)(thread + 0x10) + *(int16_t *)(*(int *)(thread + 0x10) + 0xc) + 0x10);
 
-  /* new_frame = cur_frame + cur_frame->size + 0x10 */
-  new_frame = cur_frame + (int)*(int16_t *)(cur_frame + 0xc) + 0x10;
-
-  /* Overflow check: (new_frame + 0x10) must be below thread+0x218 */
-  if ((unsigned int)(new_frame + 0x10) >= (unsigned int)(thread + 0x218)) {
-    const char *script_name = hs_get_thread_script_name(thread_handle);
-    const char *msg = csprintf(
-      (char *)0x5ab100,
-      "a problem occurred while executing the script %s: %s (%s)", script_name,
-      "stack overflow.",
-      "(byte *) (new_frame+1)<thread->stack_data+HS_THREAD_STACK_SIZE");
-    display_assert(msg, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x35e, true);
+  if ((char *)new_frame + 0x10 >= thread + 0x218) {
+    display_assert(
+      csprintf((char *)0x5ab100,
+               "a problem occurred while executing the script %s: %s (%s)",
+               hs_get_thread_script_name(thread_handle),
+               "stack overflow.",
+               "(byte *) (new_frame+1)<thread->stack_data+HS_THREAD_STACK_SIZE"),
+      "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x35e, true);
     system_exit(-1);
   }
 
-  /* Link new frame and advance stack pointer */
-  *(char **)(new_frame + 0x0) = cur_frame;
-  *(char **)(thread + 0x10) = new_frame;
-  *(int16_t *)(new_frame + 0xc) = 0;
+  *new_frame = *(uint32_t *)(thread + 0x10);
+  *(uint32_t **)(thread + 0x10) = new_frame;
+  *(int16_t *)(new_frame + 3) = 0;
+}
+
+/* 0xcab80 — Pop the current frame off the HaloScript thread's stack.
+ *
+ * The inverse of hs_thread_push_frame (0xcab00): restores thread->stack_ptr
+ * (thread+0x10) from the current frame's back-link, which push_frame stored
+ * at frame+0x00. No bounds check and no other side effects.
+ *
+ * Binary evidence (0xcab80..0xcab98):
+ *   MOV ECX,[0x5aa6c4] ; PUSH EAX ; PUSH ECX ; CALL datum_get
+ *   MOV EDX,[EAX+0x10] ; MOV ECX,[EDX] ; MOV [EAX+0x10],ECX ; RET
+ *
+ * ABI: thread_handle@<eax> (EAX is read before any definition and pushed as
+ * datum_get's second argument); no stack parameters, no return value.
+ */
+void hs_thread_pop_frame(int thread_handle)
+{
+  char *thread;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
+  *(uint32_t *)(thread + 0x10) = **(uint32_t **)(thread + 0x10);
 }
 
 /* 0xcaba0 — Allocate `size` bytes from the current HaloScript thread stack
@@ -1511,8 +2897,6 @@ static void *hs_thread_stack_alloc(int thread_handle, int size)
   char *thread;
   char *frame;
   int16_t old_size;
-  const char *script_name;
-  const char *msg;
 
   hs_threads = *(data_t **)0x5aa6c4;
   thread = (char *)datum_get(hs_threads, thread_handle);
@@ -1530,34 +2914,36 @@ static void *hs_thread_stack_alloc(int thread_handle, int size)
       (unsigned int)frame >= (unsigned int)(thread + 0x218) ||
       (unsigned int)(frame + (int)*(int16_t *)(frame + 0xc) + 0xe) >
         (unsigned int)(thread + 0x218)) {
-    script_name = hs_get_thread_script_name(thread_handle);
-    msg = csprintf((char *)0x5ab100,
-                   "a problem occurred while executing the script %s: %s (%s)",
-                   script_name, "valid_thread(thread)", "corrupted stack.");
-    display_assert(msg, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x37d, true);
+    display_assert(
+      csprintf((char *)0x5ab100,
+               "a problem occurred while executing the script %s: %s (%s)",
+               hs_get_thread_script_name(thread_handle),
+               "corrupted stack.", "valid_thread(thread)"),
+      "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x37d, true);
     system_exit(-1);
   }
 
   if (size == 0) {
-    script_name = hs_get_thread_script_name(thread_handle);
-    msg = csprintf((char *)0x5ab100,
-                   "a problem occurred while executing the script %s: %s (%s)",
-                   script_name,
-                   "attempt to allocate zero space from the stack.", "size");
-    display_assert(msg, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x37e, true);
+    display_assert(
+      csprintf((char *)0x5ab100,
+               "a problem occurred while executing the script %s: %s (%s)",
+               hs_get_thread_script_name(thread_handle),
+               "attempt to allocate zero space from the stack.", ""),
+      "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x37e, true);
     system_exit(-1);
   }
 
   /* frame->data + frame->size + size <= thread + HS_THREAD_STACK_SIZE */
   if ((unsigned int)(frame + (int)*(int16_t *)(frame + 0xc) + 0xe + size) >
       (unsigned int)(thread + 0x218)) {
-    script_name = hs_get_thread_script_name(thread_handle);
-    msg = csprintf(
-      (char *)0x5ab100,
-      "a problem occurred while executing the script %s: %s (%s)", script_name,
-      "stack overflow.",
-      "frame->data+frame->size+size<=thread->stack_data+HS_THREAD_STACK_SIZE");
-    display_assert(msg, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x37f, true);
+    display_assert(
+      csprintf(
+        (char *)0x5ab100,
+        "a problem occurred while executing the script %s: %s (%s)",
+        hs_get_thread_script_name(thread_handle),
+        "stack overflow.",
+        "frame->data+frame->size+size<=thread->stack_data+HS_THREAD_STACK_SIZE"),
+      "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x37f, true);
     system_exit(-1);
   }
 
@@ -1571,13 +2957,53 @@ static void *hs_thread_stack_alloc(int thread_handle, int size)
 int FUN_000cada0(int16_t script_index)
 {
   int datum_index;
+  char *thread;
 
   datum_index = data_next_index(*(data_t **)0x5aa6c4, -1);
-  while (datum_index != -1) {
-    char *thread = (char *)datum_get(*(data_t **)0x5aa6c4, datum_index);
-    if (*(int *)(thread + 0x4) == (int)script_index)
-      return datum_index;
-    datum_index = data_next_index(*(data_t **)0x5aa6c4, datum_index);
+  if (datum_index != -1) {
+    do {
+      thread = (char *)datum_get(*(data_t **)0x5aa6c4, datum_index);
+      if (*(int *)(thread + 4) == (int)script_index)
+        return datum_index;
+      datum_index = data_next_index(*(data_t **)0x5aa6c4, datum_index);
+    } while (datum_index != -1);
+  }
+  return -1;
+}
+
+/* 0xcafc0 — Register a single object handle with the FUN_000ce200 resource and
+ * return that resource handle, or -1 when the incoming handle is NONE.
+ *
+ * Binary evidence (0xcafc0..0xcafe6, cdecl, EBP frame, no `sub esp`, EDI/ESI
+ * saved):
+ *
+ *   MOV EDI,dword ptr [EBP+0x8]  ; one stack argument
+ *   OR  EAX,0xffffffff           ; EAX = -1 is the default return value
+ *   CMP EDI,-0x1 / JZ 0xcafe4    ; NONE handle -> fall straight to the epilog
+ *   CALL 0xce200 / MOV ESI,EAX
+ *   PUSH EDI / PUSH ESI / CALL 0xce2b0 / ADD ESP,0x8
+ *   MOV EAX,ESI                  ; return the FUN_000ce200 result
+ *
+ * The kb.json decl said `void FUN_000cafc0(void)` and Ghidra reported the
+ * argument as `in_stack_00000004` with no return; the disassembly above proves
+ * both the single dword parameter and the EAX return, so the decl is corrected
+ * to `int FUN_000cafc0(int)`. The push order at 0xcafd7/0xcafd8 puts the
+ * FUN_000ce200 result first and our own argument second, matching the
+ * FUN_000ce2b0(result, handle) shape already lifted at 0xc95f0 and 0x547c0.
+ *
+ * Only data references reach this address (0x2f50e4..0x2f50f4, five slots of an
+ * HS function table), so no ported caller constrains the signature. The roles
+ * of FUN_000ce200/FUN_000ce2b0 stay unproven and keep their FUN_ names; the
+ * parameter is named for the NONE test plus the two ported call sites that feed
+ * object handles into the same FUN_000ce2b0 slot. */
+int FUN_000cafc0(int object_handle)
+{
+  int result;
+
+  if (object_handle != -1) {
+    result = FUN_000ce200();
+    FUN_000ce2b0(result, object_handle);
+    return result;
   }
   return -1;
 }
@@ -1993,29 +3419,28 @@ static void FUN_000cb230(int loop_var)
  * Reverse of FUN_000cb230: datum_ptr+4 → *ext_ptr+8. Only writes if the
  * backing pointer (ext_ptr+8) is non-NULL.
  */
-static void FUN_000cb7b0(int loop_var)
+void FUN_000cb7b0(int loop_var)
 {
   char *datum_ptr;
   char *ext_ptr;
-  int16_t type;
+  void *dst;
 
-  if ((loop_var & 0x8000) == 0)
+  if ((int16_t)loop_var >= 0)
     return;
 
   datum_ptr = (char *)datum_get(*(data_t **)0x5aa6c0, loop_var & 0x7fff);
   ext_ptr = (char *)hs_external_global_get((int16_t)(loop_var & 0x7fff));
-  type = hs_global_get_type((uint16_t)loop_var);
 
-  switch (type) {
+  switch (hs_global_get_type((uint16_t)loop_var)) {
   case 5:
-    if (*(uint8_t **)(ext_ptr + 8) != NULL) {
-      **(uint8_t **)(ext_ptr + 8) = *(uint8_t *)(datum_ptr + 4);
-    }
+    dst = *(void **)(ext_ptr + 8);
+    if (dst != NULL)
+      *(uint8_t *)dst = *(uint8_t *)(datum_ptr + 4);
     return;
   case 6:
-    if (*(float **)(ext_ptr + 8) != NULL) {
-      **(float **)(ext_ptr + 8) = *(float *)(datum_ptr + 4);
-    }
+    dst = *(void **)(ext_ptr + 8);
+    if (dst != NULL)
+      *(float *)dst = *(float *)(datum_ptr + 4);
     return;
   case 7:
   case 10:
@@ -2025,9 +3450,9 @@ static void FUN_000cb7b0(int loop_var)
   case 0x16:
   case 0x22:
   case 0x2b:
-    if (*(int16_t **)(ext_ptr + 8) != NULL) {
-      **(int16_t **)(ext_ptr + 8) = *(int16_t *)(datum_ptr + 4);
-    }
+    dst = *(void **)(ext_ptr + 8);
+    if (dst != NULL)
+      *(int16_t *)dst = *(int16_t *)(datum_ptr + 4);
     return;
   case 8:
   case 0x11:
@@ -2036,9 +3461,9 @@ static void FUN_000cb7b0(int loop_var)
   case 0x1d:
   case 0x26:
   case 0x29:
-    if (*(int32_t **)(ext_ptr + 8) != NULL) {
-      **(int32_t **)(ext_ptr + 8) = *(int32_t *)(datum_ptr + 4);
-    }
+    dst = *(void **)(ext_ptr + 8);
+    if (dst != NULL)
+      *(int32_t *)dst = *(int32_t *)(datum_ptr + 4);
     return;
   case 9:
   case 0x18:
@@ -2046,18 +3471,18 @@ static void FUN_000cb7b0(int loop_var)
   case 0x1e:
   case 0x27:
   case 0x2a:
-    if (*(int32_t **)(ext_ptr + 8) != NULL) {
-      **(int32_t **)(ext_ptr + 8) = *(int32_t *)(datum_ptr + 4);
-    }
+    dst = *(void **)(ext_ptr + 8);
+    if (dst != NULL)
+      *(int32_t *)dst = *(int32_t *)(datum_ptr + 4);
     return;
   case 0xb:
   case 0xe:
   case 0x14:
   case 0x20:
   case 0x23:
-    if (*(int16_t **)(ext_ptr + 8) != NULL) {
-      **(int16_t **)(ext_ptr + 8) = *(int16_t *)(datum_ptr + 4);
-    }
+    dst = *(void **)(ext_ptr + 8);
+    if (dst != NULL)
+      *(int16_t *)dst = *(int16_t *)(datum_ptr + 4);
     return;
   case 0xc:
   case 0xf:
@@ -2065,21 +3490,21 @@ static void FUN_000cb7b0(int loop_var)
   case 0x15:
   case 0x21:
   case 0x24:
-    if (*(int16_t **)(ext_ptr + 8) != NULL) {
-      **(int16_t **)(ext_ptr + 8) = *(int16_t *)(datum_ptr + 4);
-    }
+    dst = *(void **)(ext_ptr + 8);
+    if (dst != NULL)
+      *(int16_t *)dst = *(int16_t *)(datum_ptr + 4);
     return;
   case 0x19:
   case 0x1c:
   case 0x1f:
   case 0x25:
   case 0x28:
-    if (*(int32_t **)(ext_ptr + 8) != NULL) {
-      **(int32_t **)(ext_ptr + 8) = *(int32_t *)(datum_ptr + 4);
-    }
+    dst = *(void **)(ext_ptr + 8);
+    if (dst != NULL)
+      *(int32_t *)dst = *(int32_t *)(datum_ptr + 4);
     return;
   default:
-    display_assert(NULL, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x671, true);
+    display_assert(0, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x671, true);
     system_exit(-1);
     return;
   }
@@ -2098,18 +3523,49 @@ static void FUN_000cb7b0(int loop_var)
  */
 const char *hs_runtime_get_executing_thread_name(void)
 {
-  int16_t current_thread;
   const char *name;
 
-  current_thread = *(int16_t *)0x46b812;
-  if (current_thread == -1) {
-    return "[unknown]";
+  if (*(int16_t *)0x46b812 != -1) {
+    name = (const char *)hs_get_thread_script_name((int)*(int16_t *)0x46b812);
+    if (name != NULL)
+      return name;
   }
-  name = (const char *)hs_get_thread_script_name((int)current_thread);
-  if (name == NULL) {
-    return "[unknown]";
+  return "[unknown]";
+}
+
+/* 0xcb9a0 — Wake the running HS thread whose script matches `script_name`.
+ *
+ * The by-name counterpart of hs_evaluate_wake (0xcc0e0), which resolves its
+ * target by script *index* via FUN_000cada0.  Here FUN_000cae00 walks the
+ * hs_thread datum pool, and for every thread with a valid script index
+ * (thread+4 != -1) resolves that script's name from the scenario scripts
+ * block (scenario+0x49c, stride 0x5c, name at +0) and _stricmp's it against
+ * `script_name`, returning the matching thread handle or -1.  On a hit,
+ * FUN_000cacf0 wakes the thread; the return value reports whether one was
+ * found.
+ *
+ * `script_name` is a plain string pointer, not a block-element handle: the
+ * sole caller (actor_looking.c, HS atom 0xc) passes a scenario tag-block
+ * element (scenario+0x450, stride 0x28) whose first field is the name, and
+ * FUN_000cae00 consumes the pointer directly as _stricmp's second argument.
+ *
+ * ABI: FUN_000cae00 takes its argument in EDI (MOV EDI,[EBP+8] before the
+ * CALL) and returns the handle in EAX; FUN_000cacf0 likewise reads EDI, which
+ * still holds that handle at its call site.  Only AL is set on return
+ * (XOR AL,AL / MOV AL,0x1), hence the char result.
+ */
+char hs_wake_by_name(const char *script_name)
+{
+  int target_thread;
+  char result;
+
+  target_thread = FUN_000cae00(script_name);
+  result = 0;
+  if (target_thread != -1) {
+    FUN_000cacf0(target_thread);
+    result = 1;
   }
-  return name;
+  return result;
 }
 
 /* 0xcbf80 — Execute a pending script-call expression on an HS thread.
@@ -2209,13 +3665,76 @@ int FUN_000cc0a0(int16_t global_ref)
   char *datum_ptr;
 
   FUN_000cb230((int)global_ref);
-  if (global_ref & 0x8000) {
-    index = global_ref & 0x7fff;
-  } else {
+  if ((global_ref & 0x8000) == 0) {
     index = (global_ref & 0x7fff) + (int)*(int16_t *)0x27d504;
+  } else {
+    index = global_ref & 0x7fff;
   }
   datum_ptr = (char *)datum_get(*(data_t **)0x5aa6c0, index);
   return *(int *)(datum_ptr + 4);
+}
+
+/* 0xcc0e0 — HS 'wake' evaluator. Wakes the thread that is currently running
+ * the named script.
+ *
+ * Walks the current stack frame's expression down to the script-name argument
+ * node: thread->stack_frame (+0x10) -> frame+4 = expression index -> node+0x10
+ * = first child -> child+8 = next sibling. That node holds the script index at
+ * +0x10 (int16). FUN_000cada0 maps script index -> running thread handle; when
+ * a thread is found, FUN_000cacf0 wakes it (clears its sleep_until / restores
+ * the backed-up value). Always returns 0 to the calling thread.
+ *
+ * `init` is unreferenced: wake has no deferred-evaluation phase.
+ *
+ * Asserts (hs_library_internal_runtime.h lines 0x22c-0x22e):
+ *   function_index == 0x15 (_hs_function_wake)
+ *   script_name_node->flags & 1 (_hs_syntax_node_primitive_bit)
+ *   script_name_node->type == 10 (_hs_type_script)
+ *
+ * Globals: 0x5aa6c4 = hs_thread_data, 0x5aa6c8 = hs_syntax_data.
+ */
+void hs_evaluate_wake(int16_t function_index, int thread_datum, char init)
+{
+  char *thread;
+  char *node;
+  char *child;
+  char *script_name_node;
+  int target_thread;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_datum);
+  node = (char *)datum_get(*(data_t **)0x5aa6c8,
+                           *(int *)(*(int *)(thread + 0x10) + 4));
+  child = (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+  script_name_node =
+    (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(child + 8));
+
+  if (function_index != 0x15) {
+    display_assert("function_index==_hs_function_wake",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x22c,
+                   1);
+    system_exit(-1);
+  }
+
+  if ((*(uint8_t *)(script_name_node + 6) & 1) == 0) {
+    display_assert(
+      "TEST_FLAG(script_name_node->flags, _hs_syntax_node_primitive_bit)",
+      "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x22d, 1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)(script_name_node + 4) != 10) {
+    display_assert("script_name_node->type==_hs_type_script",
+                   "c:\\halo\\source\\hs\\hs_library_internal_runtime.h", 0x22e,
+                   1);
+    system_exit(-1);
+  }
+
+  target_thread = FUN_000cada0(*(int16_t *)(script_name_node + 0x10));
+  if (target_thread != -1) {
+    FUN_000cacf0(target_thread);
+  }
+
+  hs_return(thread_datum, 0);
 }
 
 /* 0xcc1d0 — Evaluate an HS expression and store the result at dest_ptr.
@@ -2229,13 +3748,12 @@ int FUN_000cc0a0(int16_t global_ref)
  *
  * Validates thread integrity (stack bounds) and asserts dest_ptr != NULL.
  */
-static void FUN_000cc1d0(int thread_handle, int expression_index,
-                         void *dest_ptr)
+void FUN_000cc1d0(int thread_handle, int expression_index,
+                    void *dest_ptr)
 {
   char *thread;
   char *expr;
   char *expr2;
-  char *stack_ptr;
   data_t *thread_data;
 
   thread_data = *(data_t **)0x5aa6c4;
@@ -2255,12 +3773,12 @@ static void FUN_000cc1d0(int thread_handle, int expression_index,
 
     if (thr < pool_base || thr >= pool_end || sp < stack_base ||
         sp >= stack_end || sp + (int)*(int16_t *)(sp + 0xc) + 0xe > stack_end) {
-      char *script_name = hs_get_thread_script_name(thread_handle);
-      char *msg =
+      display_assert(
         csprintf((char *)0x5ab100,
                  "a problem occurred while executing the script %s: %s (%s)",
-                 script_name, "corrupted stack.", "valid_thread(thread)");
-      display_assert(msg, "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x2ff, true);
+                 hs_get_thread_script_name(thread_handle),
+                 "corrupted stack.", "valid_thread(thread)"),
+        "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x2ff, true);
       system_exit(-1);
     }
   }
@@ -2291,11 +3809,10 @@ static void FUN_000cc1d0(int thread_handle, int expression_index,
   }
 
   /* Non-constant expression — set up stack frame for deferred evaluation */
-  stack_ptr = *(char **)(thread + 0x10);
-  *(void **)(stack_ptr + 0x8) = dest_ptr;
+  *(void **)(*(int *)(thread + 0x10) + 8) = dest_ptr;
   hs_thread_push_frame(thread_handle);
   *(uint8_t *)(thread + 0x3) |= 1;
-  *(int *)(*(char **)(thread + 0x10) + 0x4) = expression_index;
+  *(int *)(*(int *)(thread + 0x10) + 0x4) = expression_index;
 }
 
 /* 0xcc340 — Evaluate a script-reference call. Gets the script element from
@@ -2568,149 +4085,89 @@ done:
  *   0x5aa6c0 = hs_globals_data (data_t*)
  *   0x5aa6c8 = hs_syntax_data (data_t*)
  *   0x46b810 = hs_runtime_globals.executing (uint8_t)
- *   0x46b812 = hs_runtime_globals.current_thread (int16_t)
- *   0x27d504 = hs_globals_start_index (int16_t)
- *   0x326a08 = global_scenario_index (int)
- *   0x5aa6a0 = hs_runtime return values buffer (0x20 bytes)
  */
 void hs_runtime_initialize_for_new_map(void)
 {
+  short script_loop;
   int thread_index;
+  void *scenario;
   char *internal_thread;
-  char *scenario;
   char *script_element;
+  uint32_t datum_idx;
   char *datum_ptr;
-  char *stack_frame;
-  short loop_var;
-  int loop_idx;
+  uint32_t raw_idx;
+  uint32_t loop_var;
 
-  /* Phase 1: wipe all thread data, mark runtime as executing. */
   data_delete_all(*(data_t **)0x5aa6c4);
   *(uint8_t *)0x46b810 = 1;
   *(int16_t *)0x46b812 = -1;
 
-  /* Phase 2: allocate the internal initialization thread. */
   thread_index = data_new_at_index(*(data_t **)0x5aa6c4);
   if (thread_index != -1) {
     internal_thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
-    *(int *)(internal_thread + 0x10) = (int)(internal_thread + 0x18);
+    *(void **)(internal_thread + 0x10) = (char *)internal_thread + 0x18;
     *(int *)(internal_thread + 0x18) = 0;
-    stack_frame = *(char **)(internal_thread + 0x10);
-    *(int16_t *)(stack_frame + 0xc) = 0;
-    *(int *)(stack_frame + 0x4) = -1;
-    *(uint8_t *)(internal_thread + 0x2) = 1;
-    *(int *)(internal_thread + 0x4) = -1;
-    *(uint8_t *)(internal_thread + 0x3) = 0;
-    *(int *)(internal_thread + 0x8) = 0;
+    *(int16_t *)(*(int *)(internal_thread + 0x10) + 0xc) = 0;
+    *(int *)(*(int *)(internal_thread + 0x10) + 4) = -1;
+    *(uint8_t *)(internal_thread + 2) = 1;
+    *(int *)(internal_thread + 4) = -1;
+    *(uint8_t *)(internal_thread + 3) = 0;
+    *(int *)(internal_thread + 8) = 0;
   }
 
-  /* Phase 3: run global initialization scripts if a scenario is loaded. */
   if (*(int *)0x326a08 != -1) {
-    scenario = (char *)global_scenario_get();
+    scenario = global_scenario_get();
     internal_thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
-
     loop_var = 0;
-    if (*(int *)(scenario + 0x4a8) > 0) {
-      loop_idx = 0;
+    if (*(int *)((char *)scenario + 0x4a8) > 0) {
+      raw_idx = 0;
       do {
-        /* Get the current script element from the scripts block. */
-        {
-          char *block_base = (char *)global_scenario_get();
-          block_base += 0x4a8;
-          script_element =
-            (char *)tag_block_get_element(block_base, loop_idx, 0x5c);
+        script_element = (char *)tag_block_get_element(
+          (char *)global_scenario_get() + 0x4a8, raw_idx, 0x5c);
+        raw_idx = raw_idx & 0x7fff;
+        datum_idx = raw_idx;
+        if ((loop_var & 0x8000) == 0) {
+          datum_idx = (int)*(int16_t *)0x27d504 + raw_idx;
         }
-
-        /* Compute the global datum index: if bit 15 set on loop_var, use
-         * raw index; otherwise add hs_globals_start_index. */
-        {
-          int raw_idx = loop_idx & 0x7fff;
-          int datum_idx;
-          if (loop_var & (int16_t)0x8000)
-            datum_idx = raw_idx;
-          else
-            datum_idx = (int)*(int16_t *)0x27d504 + raw_idx;
-
-          data_new_datum(*(data_t **)0x5aa6c0, (int)(datum_idx | 0xaced0000));
-
-          /* Re-derive datum_idx (same logic, needed after the call). */
-          if (loop_var & (int16_t)0x8000)
-            datum_idx = raw_idx;
-          else
-            datum_idx = (int)*(int16_t *)0x27d504 + raw_idx;
-
-          datum_ptr = (char *)datum_get(*(data_t **)0x5aa6c0, datum_idx);
+        data_new_datum(*(data_t **)0x5aa6c0, (int)(datum_idx | 0xaced0000));
+        datum_idx = raw_idx;
+        if ((loop_var & 0x8000) == 0) {
+          datum_idx = (int)*(int16_t *)0x27d504 + raw_idx;
         }
-
-        /* Reset internal thread state and call hs_default_value.
-         * hs_default_value (0xcc1d0) takes EAX=thread_index,
-         * stack args: (hs_type, dest_ptr). */
-        *(int *)(internal_thread + 0x4) = -1;
-        {
-          char *sf = *(char **)(internal_thread + 0x10);
-          *(int16_t *)(sf + 0xc) = 0;
-        }
+        datum_ptr = (char *)datum_get(*(data_t **)0x5aa6c0, datum_idx);
+        *(int *)(internal_thread + 4) = -1;
+        *(int16_t *)(*(int *)(internal_thread + 0x10) + 0xc) = 0;
         FUN_000cc1d0(thread_index, *(int *)(script_element + 0x28),
                      (void *)(datum_ptr + 4));
-
-        /* If the script was successfully parsed (bit 0 of byte +3),
-         * execute it. */
-        if (*(uint8_t *)(internal_thread + 0x3) & 1) {
+        if (*(uint8_t *)(internal_thread + 3) & 1) {
           FUN_000cd840(thread_index);
-
-          /* If this is a global initialization script (type == 0x17),
-           * store the result back into the globals. */
           if (*(int16_t *)(script_element + 0x20) == 0x17) {
             FUN_000cb230((int)loop_var);
-
-            /* Re-derive datum pointer and evaluate the expression.
-             * The original code re-calls datum_get here because EDI
-             * (internal_thread) was clobbered by cb230. */
-            {
-              int raw_idx = loop_idx & 0x7fff;
-              int datum_idx;
-              if (loop_var & (int16_t)0x8000)
-                datum_idx = raw_idx;
-              else
-                datum_idx = (int)*(int16_t *)0x27d504 + raw_idx;
-
-              datum_ptr = (char *)datum_get(*(data_t **)0x5aa6c0, datum_idx);
-              FUN_000ce350(*(int *)(datum_ptr + 0x4));
+            if ((loop_var & 0x8000) == 0) {
+              raw_idx = (int)*(int16_t *)0x27d504 + raw_idx;
             }
-            /* Restore internal_thread (original saved in [EBP-0x10],
-             * we re-derive via datum_get). */
-            internal_thread =
-              (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
+            script_element = (char *)datum_get(*(data_t **)0x5aa6c0, raw_idx);
+            FUN_000ce350(*(int *)(script_element + 4));
           }
-
-          /* Assert: global init scripts must not sleep.
-           * hs_get_thread_script_name (0xcaa80) takes ESI=thread_index
-           * as register arg and returns the script name string. */
-          if (*(int *)(internal_thread + 0x8) != 0) {
-            char *script_name = hs_get_thread_script_name(thread_index);
+          if (*(int *)(internal_thread + 8) != 0) {
             display_assert(
-              csprintf(error_string_buffer,
-                       "a problem occurred while executing the script "
-                       "%s: %s (%s)",
-                       script_name,
+              csprintf((char *)0x5ab100,
+                       "a problem occurred while executing the script %s: %s (%s)",
+                       hs_get_thread_script_name(thread_index),
                        "a global initialization attempted to sleep.",
                        "internal_thread->sleep_until==0"),
               "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0xe7, true);
             system_exit(-1);
           }
         }
-
         FUN_000cb7b0((int)loop_var);
-
         loop_var++;
-        loop_idx = (int)(int16_t)loop_var;
-        scenario = (char *)global_scenario_get();
-      } while (loop_idx < *(int *)(scenario + 0x4a8));
+        raw_idx = (uint32_t)(short)loop_var;
+      } while ((int)raw_idx < *(int *)((char *)scenario + 0x4a8));
     }
 
-    /* Verify internal thread type and delete it. */
     internal_thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_index);
-    if (*(uint8_t *)(internal_thread + 0x2) == 0) {
+    if (*(uint8_t *)(internal_thread + 2) == 0) {
       display_assert(
         "hs_thread_get(thread_index)->type!=_hs_thread_type_script",
         "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x290, true);
@@ -2718,35 +4175,88 @@ void hs_runtime_initialize_for_new_map(void)
     }
     datum_delete(*(data_t **)0x5aa6c4, thread_index);
 
-    /* Phase 4: start script threads for non-static/startup scripts.
-     * Iterates the scenario globals block (offset 0x49c). Scripts with
-     * type 3 (static) or 4 (startup) are skipped; others get a new
-     * hs thread via ca940 which takes EBX=script_index as register arg
-     * and one stack arg (type=0). */
-    {
-      short script_loop = 0;
-      int script_idx = 0;
-      char *scripts_block = scenario + 0x49c;
-      if (*(int *)scripts_block > 0) {
-        do {
-          char *script =
-            (char *)tag_block_get_element(scripts_block, script_idx, 0x5c);
-          int16_t script_type = *(int16_t *)(script + 0x20);
-          if (script_type != 3 && script_type != 4) {
-            int result = hs_thread_new(script_idx, 0);
-            if (result == -1) {
-              error(0, "ran out of script threads.");
-            }
+    script_loop = 0;
+    if (*(int *)((char *)scenario + 0x49c) > 0) {
+      thread_index = 0;
+      do {
+        internal_thread = (char *)tag_block_get_element(
+          (char *)scenario + 0x49c, thread_index, 0x5c);
+        if (*(int16_t *)(internal_thread + 0x20) != 3 &&
+            *(int16_t *)(internal_thread + 0x20) != 4) {
+          thread_index = hs_thread_new(thread_index, 0);
+          if (thread_index == -1) {
+            error(0, "ran out of script threads.");
           }
-          script_loop++;
-          script_idx = (int)(int16_t)script_loop;
-        } while (script_idx < *(int *)scripts_block);
-      }
+        }
+        script_loop++;
+        thread_index = (int)script_loop;
+      } while (thread_index < *(int *)((char *)scenario + 0x49c));
     }
   }
 
-  /* Phase 5: clear the return values buffer. */
   csmemset((void *)0x5aa6a0, 0, 0x20);
+}
+
+/* 0x000cde00 — hs_runtime_update
+ *
+ * Per-tick HaloScript thread service. Confirmed from 0xcde00-0xcdea4:
+ *   - early-out when hs_runtime_globals.executing (0x46b810) is clear
+ *     (MOV AL,[0x46b810]; TEST AL,AL; JZ 0xcdea4 — before the prologue push).
+ *   - game_time_get() is latched into EDI once (0xcde10) and used as the
+ *     wake-time deadline for the whole sweep.
+ *   - the thread pool (0x5aa6c4) is walked with data_next_index starting at
+ *     -1; the pool pointer is reloaded from the global before every call
+ *     (0xcde17, 0xcde39, 0xcde65), hence the volatile-qualified reads.
+ *   - loop condition is re-tested in this order every iteration: executing
+ *     flag first (0xcde28/0xcde74), then index != -1 (0xcde34).
+ *   - thread+0x2 == 2 (runtime/console thread type, same tag written by
+ *     hs_runtime_execute) latches BL; thread+0x8 is the wake time — when it
+ *     is non-negative and has not passed current time, the thread is run via
+ *     FUN_000cd840 (@EAX = thread index, MOV EAX,ESI at 0xcde5e).
+ *   - after the sweep FUN_000ce3c0() runs unconditionally (0xcde80).
+ *   - if no type-2 thread was seen, game_time_get() is sampled again and the
+ *     MSVC signed-modulo idiom AND 0x8000000f / JNS / DEC / OR 0xfffffff0 /
+ *     INC (0xcde91-0xcde9c) tests time % 16 == 0 before tail-calling
+ *     hs_scripts_dispose (JMP 0xc3ca0 at 0xcde9f).
+ *
+ * 0xcd840 = FUN_000cd840 (@EAX = thread_handle)
+ *
+ * Globals:
+ *   0x46b810 = hs_runtime_globals.executing (uint8_t)
+ *   0x5aa6c4 = hs_thread_data (data_t*)
+ */
+void hs_runtime_update(void)
+{
+  int current_time;
+  int thread_index;
+  char *thread;
+  int wake_time;
+  bool saw_runtime_thread;
+
+  if (*(uint8_t *)0x46b810 == 0)
+    return;
+
+  current_time = game_time_get();
+  saw_runtime_thread = false;
+
+  for (thread_index = data_next_index(*(data_t *volatile *)0x5aa6c4, -1);
+       *(uint8_t *)0x46b810 != 0 && thread_index != -1;
+       thread_index =
+         data_next_index(*(data_t *volatile *)0x5aa6c4, thread_index)) {
+    thread = (char *)datum_get(*(data_t *volatile *)0x5aa6c4, thread_index);
+
+    if (*(uint8_t *)(thread + 0x2) == 2)
+      saw_runtime_thread = true;
+
+    wake_time = *(int *)(thread + 0x8);
+    if (wake_time >= 0 && wake_time <= current_time)
+      FUN_000cd840(thread_index);
+  }
+
+  FUN_000ce3c0();
+
+  if (!saw_runtime_thread && game_time_get() % 16 == 0)
+    hs_scripts_dispose();
 }
 
 /* Execute a HaloScript expression at runtime. Allocates a new thread,
@@ -2768,44 +4278,87 @@ int hs_runtime_execute(int thread_index)
   int thread_handle;
   char *thread_ptr;
 
-  if (*(uint8_t *)0x46b810 == 0 || thread_index == -1)
-    return -1;
-
-  thread_handle = data_new_at_index(*(data_t *volatile *)0x5aa6c4);
-
-  if (thread_handle == -1) {
+  if (*(uint8_t *)0x46b810 != 0 && thread_index != -1) {
+    thread_handle = data_new_at_index(*(data_t **)0x5aa6c4);
+    if (thread_handle != -1) {
+      thread_ptr = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
+      *(char **)(thread_ptr + 0x10) = thread_ptr + 0x18;
+      *(int *)(thread_ptr + 0x18) = 0;
+      *(int16_t *)(*(char **)(thread_ptr + 0x10) + 0xc) = 0;
+      *(int *)(*(char **)(thread_ptr + 0x10) + 0x4) = -1;
+      *(uint8_t *)(thread_ptr + 0x2) = 2;
+      *(int *)(thread_ptr + 0x4) = -1;
+      *(uint8_t *)(thread_ptr + 0x3) = 0;
+      *(int *)(thread_ptr + 0x8) = 0;
+      thread_ptr = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
+      FUN_000cc1d0(thread_handle, thread_index, (int *)(thread_ptr + 0x14));
+      if (*(uint8_t *)(thread_ptr + 0x3) & 1) {
+        FUN_000cd840(thread_handle);
+        return -1;
+      }
+      return *(int *)(thread_ptr + 0x14);
+    }
     error(2, "there are not enough threads to execute that command.");
-    return -1;
   }
+  return -1;
+}
 
-  thread_ptr = (char *)datum_get(*(data_t *volatile *)0x5aa6c4, thread_handle);
+/* 0x000cdf70 — byte-swap the scenario HS syntax-data block in place.
+ *
+ * TU per the assert __FILE__ string is
+ * c:\halo\SOURCE\hs\hs_scenario_definitions.c (kb.json maps the address to
+ * hs_runtime.obj).
+ *
+ * Confirmed from 0xcdf70-0xce047:
+ *   param_1 ([EBP+0x8]) is never read by this function — shape only.
+ *   address ([EBP+0xc] -> EDI), size ([EBP+0x10] -> ESI).
+ *   TEST ESI,ESI / JZ 0xce045 — a zero size does nothing at all.
+ *   CMP ESI,0x38 / JNC — UNSIGNED compare (the original compares against
+ *   sizeof(struct data_array), a size_t, which promotes the signed size).
+ *   The later data_size tests are signed (TEST/JL) plus unsigned DIV by 0x14,
+ *   which is why data_size is a signed long but both %/ are unsigned.
+ *
+ * The 12-byte constant at 0x280e38 is c,s,i,r,t,p,n,' ',0,e,d,o (verified in
+ * the pristine XBE .rdata) — the byte-swapped image of "script node", i.e.
+ * data that has ALREADY been swapped. Meaning of that early-out is unproven,
+ * so it is transcribed literally.
+ *
+ * 0x2f664c = data_array_header byte-swap definition
+ * 0x2f6688 = syntax_node byte-swap definition
+ * 0x38     = sizeof(struct data_array)
+ * 0x14     = sizeof(struct hs_syntax_node)
+ */
+void FUN_000cdf70(void *param_1, void *address, long size)
+{
+  long data_size;
 
-  /* Initialize thread structure. */
-  *(int *)(thread_ptr + 0x10) = (int)(thread_ptr + 0x18);
-  *(int *)(thread_ptr + 0x18) = 0;
-  {
-    char *sf = *(char **)(thread_ptr + 0x10);
-    *(int16_t *)(sf + 0xc) = 0;
-    *(int *)(sf + 0x4) = -1;
+  (void)param_1;
+
+  if (size != 0) {
+    if ((unsigned long)size < 0x38u) {
+      display_assert("size>=sizeof(struct data_array)",
+                     "c:\\halo\\SOURCE\\hs\\hs_scenario_definitions.c", 0x6d,
+                     1);
+      system_exit(-1);
+    }
+    if (csmemcmp(address, "csirtpn \0edo", 0xc) == 0) {
+      FUN_00118be0((void *)0x2f664c, address, 1);
+      FUN_00118be0((void *)0x2f6688, address, 0x4000);
+      return;
+    }
+    data_size = size - 0x38;
+    if ((data_size < 0) || ((unsigned long)data_size % 0x14u != 0)) {
+      display_assert(
+        "data_size>=0 && (data_size%sizeof(struct hs_syntax_node))==0",
+        "c:\\halo\\SOURCE\\hs\\hs_scenario_definitions.c", 0x79, 1);
+      system_exit(-1);
+    }
+    if ((data_size >= 0) && ((unsigned long)data_size % 0x14u == 0)) {
+      FUN_00118be0((void *)0x2f664c, address, 1);
+      FUN_00118be0((void *)0x2f6688, (void *)((char *)address + 0x38),
+                   (int)((unsigned long)data_size / 0x14u));
+    }
   }
-  *(uint8_t *)(thread_ptr + 0x2) = 2; /* runtime thread */
-  *(int *)(thread_ptr + 0x4) = -1;
-  *(uint8_t *)(thread_ptr + 0x3) = 0;
-  *(int *)(thread_ptr + 0x8) = 0;
-
-  /* Re-derive thread pointer (original does a second datum_get). */
-  thread_ptr = (char *)datum_get(*(data_t *volatile *)0x5aa6c4, thread_handle);
-
-  FUN_000cc1d0(thread_handle, thread_index, (void *)(thread_ptr + 0x14));
-
-  if (*(uint8_t *)(thread_ptr + 0x3) & 1) {
-    /* Thread needs execution — run it. */
-    FUN_000cd840(thread_handle);
-    return -1;
-  }
-
-  /* Return the result value stored at thread+0x14. */
-  return *(int *)(thread_ptr + 0x14);
 }
 
 /* Initialize HaloScript runtime data structures. Calls data_delete_all

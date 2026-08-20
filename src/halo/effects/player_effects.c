@@ -28,6 +28,142 @@ void player_effect_dispose_from_old_map(void)
 {
 }
 
+/* Forward the two script-supplied motor values to the rumble system.
+ *
+ * Disassembly (0xa2920..0xa2929, 9 bytes):
+ *   55            PUSH EBP
+ *   8B EC         MOV  EBP,ESP
+ *   5D            POP  EBP
+ *   E9 57 72 01 00  JMP 0xb9b80   ; rumble_player_set_scripted_values
+ *
+ * A pure identical-forward tail call: no argument reload, no `add esp`, and
+ * — decisively — no FILD/FSTP conversion code.  MSVC only collapses a wrapper
+ * to that bare JMP when the parameter list matches the callee's exactly, so
+ * both parameters are `float`, like rumble_player_set_scripted_values(float,
+ * float) at 0xb9b80.  The kb decl previously read `(int param_1, float
+ * param_2)`, inferred from the HaloScript caller at 0xc3030 where argument 1
+ * is pushed with `MOV EDX,[EAX]; PUSH EDX` while argument 2 uses the
+ * `PUSH ECX; FSTP [ESP]` float idiom.  That mixed shape is MSVC scheduling,
+ * not a type signal — the callee proves it: 0xb9b80 stores BOTH parameters
+ * into float slots yet marshals the first with `FLD [EBP+8]; FSTP
+ * [EAX+0x820]` and the second with a plain dword `MOV ECX,[EBP+0xc];
+ * MOV [EAX+0x824],ECX`.  The 0xc3030 call site was corrected to read its
+ * first argument as a float lvalue so the dword is still forwarded verbatim
+ * instead of being run through an int-to-float conversion.
+ *
+ * 0xa2920 / player_effects.obj */
+void scripted_player_effect_set_rumble(float left_motor, float right_motor)
+{
+  rumble_player_set_scripted_values(left_motor, right_motor);
+}
+
+/* player_telefrag_effect_stop -- silence the telefragged player's rumble.
+ *
+ * Confirmed (0xa2930..0xa2965, 54 bytes):
+ *   - MOV EAX,[EBP+8] / MOV ECX,[0x5aa6d4] / PUSH EAX / PUSH ECX /
+ *     CALL 0x119320: the function takes ONE stack argument (a player datum
+ *     handle) even though the kb decl previously read `(void)`.  Argument
+ *     order is datum_get(g_players_data, player_handle), the same shape as
+ *     the other player lookups in this TU.
+ *   - MOVSX ESI,word ptr [EAX+2]: the local-player index is a signed 16-bit
+ *     field at player+2, sign-extended before the CMP ESI,-1 / JZ guard.
+ *     The C local must therefore be a 32-bit `int` holding the widened value,
+ *     not an `int16_t`; declaring it int16_t makes the compiler emit
+ *     `xor esi,esi / mov si,[eax+2]` plus a 16-bit `cmp si,-1` instead of the
+ *     single MOVSX and 32-bit CMP.  Both calls receive the full dword in ESI.
+ *   - PUSH ESI / CALL 0xa2690 (player_effect_get) with its return value
+ *     unused, then PUSH 0 / PUSH 0 / PUSH ESI / CALL 0xb9da0.  The single
+ *     ADD ESP,0x10 at 0xa2960 cleans up BOTH calls (1 + 3 dwords) -- this is
+ *     why the call-site audit reports cleanup=4 against a 3-parameter decl
+ *     for rumble_set_direct_motors; it is not a fourth argument.
+ *
+ * The discarded player_effect_get result is preserved because the call is a
+ * real side-effecting step in the original instruction stream (it carries the
+ * bounds asserts at 0xa2690); its return value is genuinely dead.
+ *
+ * 0xa2930 / player_effects.obj */
+void player_telefrag_effect_stop(int player_handle)
+{
+  char *player;
+  int local_player_index;
+
+  player = (char *)datum_get(*(data_t **)0x5aa6d4, player_handle);
+  local_player_index = *(int16_t *)(player + 2);
+
+  if (local_player_index != -1) {
+    player_effect_get((int16_t)local_player_index);
+    rumble_set_direct_motors((short)local_player_index, 0, 0);
+  }
+}
+
+/* player_effect_get_damage_indicators -- copy the local player's four damage
+ * indicator bytes to `out`, then age each live indicator by the elapsed game
+ * time, saturating at 0xff.
+ *
+ * Confirmed (0xa2a10..0xa2a6f):
+ *   - PUSH [EBP+8] / CALL 0xa2690: the raw dword is forwarded to
+ *     player_effect_get(int16_t).
+ *   - LEA ESI,[EAX+0xe4]: the indicator array lives at effect+0xe4 and is
+ *     4 bytes wide (PUSH 0x4 / PUSH ESI / PUSH ECX / CALL csmemcpy, ADD
+ * ESP,0x10). The same +0xe4/4 window is cleared in player_effect_update.
+ *   - The copy happens BEFORE the aging pass, so `out` receives the previous
+ *     tick's values.
+ *   - Loop is a 4-iteration countdown (MOV EDI,4 / INC ESI / DEC EDI / JNZ)
+ *     that skips zero entries (CMP byte ptr [ESI],0x0 / JZ).
+ *   - Saturation test is signed on the widened sum: MOVSX EDX,AX (int16_t
+ *     game_time_get_elapsed) + MOVZX EAX,byte ptr [ESI], CMP EDX,0xff,
+ *     JGE -> 0xff.
+ *   - game_time_get_elapsed() is called a SECOND time on the non-saturating
+ *     path (CALL 0x000b5ae0 at 0xa2a3d and again at 0xa2a52); the sum is
+ *     recomputed rather than reused, so both calls are preserved here.
+ *
+ * 0xa2a10 / player_effects.obj */
+void player_effect_get_damage_indicators(int player_index, void *out)
+{
+  unsigned char *indicators;
+  int count;
+  int aged;
+
+  indicators =
+    (unsigned char *)(player_effect_get((int16_t)player_index) + 0xe4);
+  csmemcpy(out, indicators, 4);
+  count = 4;
+  do {
+    if (*indicators != 0) {
+      if ((int)game_time_get_elapsed() + (int)*indicators < 0xff) {
+        aged = game_time_get_elapsed() + *indicators;
+      } else {
+        aged = 0xff;
+      }
+      *indicators = (unsigned char)aged;
+    }
+    indicators++;
+    count--;
+  } while (count != 0);
+}
+
+/* player_effect_clear_damage_indicators -- zero the local player's four damage
+ * indicator bytes.
+ *
+ * Confirmed (0xa2a70..0xa2a8f):
+ *   - MOV EAX,[EBP+8] / PUSH EAX / CALL 0xa2690: the raw dword is forwarded to
+ *     player_effect_get(int16_t), same shape as 0xa2a10.
+ *   - ADD EAX,0xe4: the same 4-byte indicator array at effect+0xe4 that
+ *     player_effect_get_damage_indicators copies out of.
+ *   - PUSH 0x4 / PUSH 0x0 / PUSH EAX / CALL 0x8db80 -> csmemset(buf, 0, 4).
+ *   - The single ADD ESP,0x10 retires the callee argument of
+ *     player_effect_get together with csmemset's three; it is not a 4-argument
+ *     csmemset call.
+ *
+ * 0xa2a70 / player_effects.obj */
+void player_effect_clear_damage_indicators(int player_index)
+{
+  char *effect;
+
+  effect = player_effect_get((int16_t)player_index);
+  csmemset(effect + 0xe4, 0, 4);
+}
+
 void player_effect_update(void)
 {
   int16_t local_player_index;
@@ -52,6 +188,35 @@ void player_effect_update(void)
     rumble_clear_for_local_player(local_player_index);
     local_player_index = (int16_t)local_player_get_next(local_player_index);
   }
+}
+
+/* scripted_player_effect_set_translation -- store the three script-supplied
+ * translation components into the shared player-effect globals.
+ *
+ * Confirmed (0xa2dc0..0xa2de4, 37 bytes): the globals pointer at 0x4557ec
+ * (player_effect_globals, the 0x3ec-byte block allocated at 0xa2700) is loaded
+ * once into EAX, then the three incoming stack dwords [EBP+8], [EBP+0xc] and
+ * [EBP+0x10] are written verbatim to +0x3c4, +0x3c8 and +0x3cc.  There is no
+ * FILD/FSTP conversion and no arithmetic on any of them, so each argument slot
+ * is forwarded bit-exact; the dword MOV shape is MSVC scheduling and carries no
+ * type signal either way (same caveat as 0xa2920).
+ *
+ * Unknown: the globals' field types at +0x3c4..+0x3cc.  The kb decl's
+ * int/float/float split is inherited from the HaloScript call site at 0xc2f90
+ * and is preserved here, so each parameter is stored through a pointer of its
+ * own declared type; MSVC copies the float parameters with plain dword MOVs
+ * (no FLD/FSTP), reproducing the reference exactly.
+ *
+ * 0xa2dc0 / player_effects.obj */
+void scripted_player_effect_set_translation(int param_1, float param_2,
+                                            float param_3)
+{
+  char *globals;
+
+  globals = player_effect_globals;
+  *(int *)(globals + 0x3c4) = param_1;
+  *(float *)(globals + 0x3c8) = param_2;
+  *(float *)(globals + 0x3cc) = param_3;
 }
 
 /* player_effect_set_from_descriptor -- apply an effect descriptor to a player's
@@ -128,6 +293,106 @@ void player_effect_apply(int player_handle, void *effect_descriptor,
   effect = player_effect_get(unit_index);
   player_effect_set_from_descriptor(unit_index, effect, intensity,
                                     intensity * 30.0f, effect_descriptor);
+}
+
+/* player_telefrag_effect_start -- start the white full-screen flash and
+ * full-strength rumble on a player who has just been telefragged.
+ *
+ * The function builds a synthetic player-effect descriptor on the stack
+ * instead of reading one out of a jpt! tag, then runs it through the same two
+ * helpers the damage path uses (player_effect_set_from_descriptor at 0xa2ab0
+ * and FUN_000a2ba0).
+ *
+ * Confirmed (0xa2ed0..0xa2fbc, 237 bytes):
+ *   - The kb decl previously read `(void)`; the body reads [EBP+8] (a player
+ *     datum handle) and [EBP+0xc] (a float), so there are two stack params.
+ *   - SUB ESP,0x84 covers exactly three memory locals, and 0x4 + 0x38 + 0x48
+ *     is exactly 0x84: the effect pointer at EBP-0x4 (spilled across the
+ *     0xa2ab0 call because that call site reuses EBX), the 0x38-byte
+ *     descriptor at EBP-0x3c, and the 0x48-byte effect-data block at
+ *     EBP-0x84.  Both aggregates are zeroed by MSVC's `= {0}` expansion,
+ *     which stores the first element explicitly and REP STOSes the rest --
+ *     the width of that first store gives the element type:
+ *       descriptor : MOV word [EBP-0x3c],0 / ECX=0xd / REP STOSD / STOSW
+ *                    = 2 + 52 + 2 bytes  -> int16_t[28]
+ *       effect_data: MOV dword [EBP-0x84],0 / ECX=0x11 / REP STOSD
+ *                    = 4 + 68 bytes      -> float[18]
+ *     The descriptor is zeroed first, so it is declared first.
+ *   - datum_get(player_data, player_handle) then MOVSX ESI,word ptr [EAX+2]:
+ *     the local-player index is sign-extended to 32 bits before CMP ESI,-1,
+ *     so the C local is `int`, exactly as in player_telefrag_effect_stop.
+ *   - Descriptor stores (offsets from EBP-0x3c; field meanings come from
+ *     player_effect_set_from_descriptor, which csmemcpy's all 0x38 bytes into
+ *     effect+0x18):
+ *       +0x00 word 1     effect type
+ *       +0x02 word 2     priority
+ *       +0x10 1.0f       duration
+ *       +0x20 intensity  maximum
+ *       +0x24 0.0f       minimum
+ *       +0x28..+0x37     16 bytes copied through *(float **)0x2ee6c4, the
+ *                        pointer to the all-ones colour {1,1,1,1} at
+ *                        0x267700 -- the same global ai_debug.c and actors.c
+ *                        read as a colour.  Loaded once into EAX
+ *                        (MOV EAX,[0x2ee6c4]) and copied as four dwords.
+ *   - effect_data stores: [0] = 1.0f and [2] = intensity * 0.01.  The
+ *     multiply is FLD float [EBP+0xc] / FMUL *double* ptr [0x26aed0] / FSTP
+ *     float [EBP-0x7c], and 0x26aed0 holds the double 0.01, so the literal is
+ *     unsuffixed and the product is narrowed on the store.
+ *   - PUSH EDI / PUSH EDI with EDI = dword ptr [EBP+0xc]: both rumble motor
+ *     values are the raw dword of the float parameter and there is no
+ *     FISTP/_ftol anywhere in the function.  rumble_set_direct_motors is
+ *     declared with int motor params because 0xb9da0 stores both through
+ *     `*(int *)`, so the dword must be forwarded by value; the punned
+ *     `*(int *)&intensity` reproduces the plain MOV/PUSH pair instead of an
+ *     int conversion.
+ *   - The single ADD ESP,0x2c at 0xa2fb3 cleans up all four cdecl calls
+ *     (1 + 3 + 4 + 3 dwords).  That is why the call-site audit reports
+ *     cleanup=11 against FUN_000a2ba0's three stack params; it is not
+ *     evidence of extra arguments.
+ *   - 0xa2ab0 receives the descriptor in EBX (LEA EBX,[EBP-0x3c] immediately
+ *     before the CALL) and 0xa2ba0 receives the effect-data block in EAX and
+ *     the effect pointer in EBX.  The descriptor is passed as an ordinary
+ *     fifth argument here because 0xa2ab0 is file-local in this TU, matching
+ *     the other two call sites.
+ *
+ * 0xa2ed0 / player_effects.obj */
+void player_telefrag_effect_start(int player_handle, float intensity)
+{
+  char *effect;
+  int16_t descriptor[28] = { 0 };
+  float effect_data[18] = { 0 };
+  char *player;
+  int local_player_index;
+  float *flash_color;
+
+  player = (char *)datum_get(player_data, player_handle);
+  local_player_index = *(int16_t *)(player + 2);
+
+  if (local_player_index != -1) {
+    effect = player_effect_get((int16_t)local_player_index);
+
+    effect_data[2] = (float)(intensity * 0.01);
+
+    flash_color = *(float **)0x2ee6c4;
+    *(float *)((char *)descriptor + 0x28) = flash_color[0];
+    *(float *)((char *)descriptor + 0x2c) = flash_color[1];
+    *(float *)((char *)descriptor + 0x30) = flash_color[2];
+    *(float *)((char *)descriptor + 0x34) = flash_color[3];
+
+    effect_data[0] = 1.0f;
+    descriptor[0] = 1;
+    descriptor[1] = 2;
+    *(float *)((char *)descriptor + 0x10) = 1.0f;
+    *(float *)((char *)descriptor + 0x20) = intensity;
+    *(float *)((char *)descriptor + 0x24) = 0.0f;
+
+    rumble_set_direct_motors((short)local_player_index, *(int *)&intensity,
+                             *(int *)&intensity);
+    player_effect_set_from_descriptor(local_player_index, effect, intensity,
+                                      1.0f, descriptor);
+    FUN_000a2ba0(local_player_index, intensity, 1.0f, effect_data /* @<eax> */,
+                 (void *)effect /* @<ebx> */);
+  }
 }
 
 /* player_effect_apply_damage (0xa3b80) — Apply damage-related effects to a
