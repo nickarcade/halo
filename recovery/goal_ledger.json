@@ -44,8 +44,24 @@
     "devices.obj": {
       "categories_done": [],
       "commits": [],
+      "finished": null,
+      "reason": null,
+      "reopened": [
+        {
+          "parked_on": "2026-08-20",
+          "parked_reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 33 FUN_ unnamed/abs-addr non-neutral; offset-to-field 85 no co() for device/devi/unit)",
+          "reopened_because": "no_applicable_items was a tooling gap, now fixed: absolute-address derefs were filed into symbol-names (whose checker structurally rejects them) and struct-define had no detector so offset-to-field could never find an asserted struct. New global-names category + struct_bases detector.",
+          "reopened_on": "2026-08-21"
+        }
+      ],
+      "started": "2026-08-20",
+      "status": "untaken"
+    },
+    "editor_stubs.obj": {
+      "categories_done": [],
+      "commits": [],
       "finished": "2026-08-20",
-      "reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 33 FUN_ unnamed/abs-addr non-neutral; offset-to-field 85 no co() for device/devi/unit)",
+      "reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 3 FUN_ T4 no_name_evidence)",
       "started": "2026-08-20",
       "status": "parked"
     },
@@ -77,13 +93,45 @@
       "started": "2026-08-20",
       "status": "done"
     },
+    "game_engine.obj": {
+      "categories_done": [
+        "comments",
+        "local-renames",
+        "symbol-names",
+        "global-names",
+        "const-enum",
+        "struct-define",
+        "offset-to-field"
+      ],
+      "commits": [
+        "a621fa00a",
+        "81258b35c",
+        "9e2cf04d3",
+        "5633420be",
+        "5f3b4149e",
+        "35254b8a6",
+        "5d3d535cd"
+      ],
+      "finished": "2026-08-21",
+      "reason": null,
+      "started": "2026-08-21",
+      "status": "done"
+    },
     "hs.obj": {
       "categories_done": [],
       "commits": [],
-      "finished": "2026-08-20",
-      "reason": "no_applicable_items: every ladder category was skipped or fully parked (local-renames 12 comment-only breadcrumbs; symbol-names 672 FUN_ unnamed/abs-addr/fnptr; offset-to-field 29 no asserted hs_syntax_node/scenario/element structs)",
+      "finished": null,
+      "reason": null,
+      "reopened": [
+        {
+          "parked_on": "2026-08-20",
+          "parked_reason": "no_applicable_items: every ladder category was skipped or fully parked (local-renames 12 comment-only breadcrumbs; symbol-names 672 FUN_ unnamed/abs-addr/fnptr; offset-to-field 29 no asserted hs_syntax_node/scenario/element structs)",
+          "reopened_because": "no_applicable_items was a tooling gap, now fixed: absolute-address derefs were filed into symbol-names (whose checker structurally rejects them) and struct-define had no detector so offset-to-field could never find an asserted struct. New global-names category + struct_bases detector.",
+          "reopened_on": "2026-08-21"
+        }
+      ],
       "started": "2026-08-20",
-      "status": "parked"
+      "status": "untaken"
     },
     "hud.obj": {
       "categories_done": [
@@ -130,18 +178,34 @@
     "memory_pool.obj": {
       "categories_done": [],
       "commits": [],
-      "finished": "2026-08-20",
-      "reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 10 FUN_ still unnamed; offset-to-field 48 no asserted memory_pool/block-header struct)",
+      "finished": null,
+      "reason": null,
+      "reopened": [
+        {
+          "parked_on": "2026-08-20",
+          "parked_reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 10 FUN_ still unnamed; offset-to-field 48 no asserted memory_pool/block-header struct)",
+          "reopened_because": "no_applicable_items was a tooling gap, now fixed: absolute-address derefs were filed into symbol-names (whose checker structurally rejects them) and struct-define had no detector so offset-to-field could never find an asserted struct. New global-names category + struct_bases detector.",
+          "reopened_on": "2026-08-21"
+        }
+      ],
       "started": "2026-08-20",
-      "status": "parked"
+      "status": "untaken"
     },
     "network_client_message_handler.obj": {
       "categories_done": [],
       "commits": [],
-      "finished": "2026-08-20",
-      "reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 35 FUN_ still unnamed; offset-to-field 1 no asserted struct for decoded+0x20)",
+      "finished": null,
+      "reason": null,
+      "reopened": [
+        {
+          "parked_on": "2026-08-20",
+          "parked_reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 35 FUN_ still unnamed; offset-to-field 1 no asserted struct for decoded+0x20)",
+          "reopened_because": "no_applicable_items was a tooling gap, now fixed: absolute-address derefs were filed into symbol-names (whose checker structurally rejects them) and struct-define had no detector so offset-to-field could never find an asserted struct. New global-names category + struct_bases detector.",
+          "reopened_on": "2026-08-21"
+        }
+      ],
       "started": "2026-08-20",
-      "status": "parked"
+      "status": "untaken"
     },
     "network_connection.obj": {
       "categories_done": [
@@ -175,26 +239,66 @@
     "network_messages.obj": {
       "categories_done": [],
       "commits": [],
-      "finished": "2026-08-20",
-      "reason": "capture: coff_candidate_guard rejected clang object (.bss section 3 SizeOfRawData=1540 PointerToRawData=0)",
+      "finished": null,
+      "reason": null,
+      "reopened": [
+        {
+          "parked_on": "2026-08-20",
+          "parked_reason": "capture: coff_candidate_guard rejected clang object (.bss section 3 SizeOfRawData=1540 PointerToRawData=0)",
+          "reopened_because": "capture park was a coff_candidate_guard bug: .bss (SizeOfRawData set, PointerToRawData=0) read as truncation. Fixed + regression-tested.",
+          "reopened_on": "2026-08-21"
+        }
+      ],
       "started": "2026-08-20",
-      "status": "parked"
+      "status": "untaken"
     },
     "particle_systems.obj": {
       "categories_done": [],
       "commits": [],
-      "finished": "2026-08-20",
-      "reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 47 FUN_ unnamed/abs-addr non-neutral; offset-to-field 340 no asserted structs)",
+      "finished": null,
+      "reason": null,
+      "reopened": [
+        {
+          "parked_on": "2026-08-20",
+          "parked_reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 47 FUN_ unnamed/abs-addr non-neutral; offset-to-field 340 no asserted structs)",
+          "reopened_because": "no_applicable_items was a tooling gap, now fixed: absolute-address derefs were filed into symbol-names (whose checker structurally rejects them) and struct-define had no detector so offset-to-field could never find an asserted struct. New global-names category + struct_bases detector.",
+          "reopened_on": "2026-08-21"
+        }
+      ],
       "started": "2026-08-20",
-      "status": "parked"
+      "status": "untaken"
+    },
+    "player_queues_new.obj": {
+      "categories_done": [],
+      "commits": [],
+      "finished": null,
+      "reason": null,
+      "reopened": [
+        {
+          "parked_on": "2026-08-20",
+          "parked_reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 72 no named globals/T4 FUN_; offset-to-field 39 no_asserted_struct/width_mismatch)",
+          "reopened_because": "no_applicable_items was a tooling gap, now fixed: absolute-address derefs were filed into symbol-names (whose checker structurally rejects them) and struct-define had no detector so offset-to-field could never find an asserted struct. New global-names category + struct_bases detector.",
+          "reopened_on": "2026-08-21"
+        }
+      ],
+      "started": "2026-08-20",
+      "status": "untaken"
     },
     "player_rumble.obj": {
       "categories_done": [],
       "commits": [],
-      "finished": "2026-08-20",
-      "reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 19 abs-addr float-pool non-neutral; offset-to-field 34 no co() for rumble_globals/slot)",
+      "finished": null,
+      "reason": null,
+      "reopened": [
+        {
+          "parked_on": "2026-08-20",
+          "parked_reason": "no_applicable_items: every ladder category was skipped or fully parked (symbol-names 19 abs-addr float-pool non-neutral; offset-to-field 34 no co() for rumble_globals/slot)",
+          "reopened_because": "no_applicable_items was a tooling gap, now fixed: absolute-address derefs were filed into symbol-names (whose checker structurally rejects them) and struct-define had no detector so offset-to-field could never find an asserted struct. New global-names category + struct_bases detector.",
+          "reopened_on": "2026-08-21"
+        }
+      ],
       "started": "2026-08-20",
-      "status": "parked"
+      "status": "untaken"
     },
     "projectiles.obj": {
       "categories_done": [
@@ -204,6 +308,21 @@
         "620fdad4e",
         "7895f5e4e",
         "6febc883f"
+      ],
+      "finished": "2026-08-20",
+      "reason": null,
+      "started": "2026-08-20",
+      "status": "done"
+    },
+    "tag_groups.obj": {
+      "categories_done": [
+        "local-renames",
+        "symbol-names"
+      ],
+      "commits": [
+        "7f80c2bd0c7a03debc9d18f15b1b7787f7e88f0d",
+        "e7ad5dc7dd0dc96aa069d62e7c71b046b794c7a0",
+        "eaf8ab73d8a724c2c720e124c0964e1062a27129"
       ],
       "finished": "2026-08-20",
       "reason": null,

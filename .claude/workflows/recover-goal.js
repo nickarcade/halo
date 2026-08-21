@@ -53,8 +53,13 @@ const LADDER = [
   { id: 'comments',        skill: 're-comment-capture' },
   { id: 'local-renames',   skill: 'local-var-cleanup' },
   { id: 'symbol-names',    skill: 'naming-confidence' },
+  // Naming an absolute-address deref is NOT a symbol-names edit: it replaces a
+  // multi-token cast-deref, and a kb.json HDATA extern would compile to a load
+  // through [__imp__X]. The neutral form is the tree's existing convention,
+  // `#define NAME (*(T *)0xADDR)`, checked by the global-names purity checker.
+  { id: 'global-names',    skill: 'naming-confidence' },
   { id: 'const-enum',      skill: 'const-enum-recovery' },
-  // Rungs 5/6 have a deterministic path: tools/recovery/structize.py does the
+  // Rungs 6/7 have a deterministic path: tools/recovery/structize.py does the
   // transcription and refuses where a human would guess. The leaf skill stays
   // listed because the tool's REFUSALS are that skill's actual work.
   { id: 'struct-define',   skill: 'struct-recovery + struct-assert', mech: 'split' },
@@ -66,6 +71,85 @@ const LADDER = [
   { id: 'control-flow',    skill: 'control-flow-cleanup', risky: true },
 ]
 const CATEGORIES = LADDER.filter(c => ALLOW_RISKY || !c.risky)
+
+// Adding a LINE to a .c is not free. Measured 2026-08-21 on
+// particle_systems.c: two `#define` lines at the top of the file moved every
+// assert below them (line 1572 -> 1574), and the COFF gate correctly reported
+// "code bytes changed". The same 15 substitutions with the defines in an
+// already-included header came out byte-identical.
+const LINE_SHIFT_WARNING = `Asserts expand \`__FILE__\` and \`__LINE__\`, so ANY line added to the .c above an
+assert changes .text and fails the COFF gate. It is not the substitution that
+breaks — it is the line. Put the definitions in a header the TU ALREADY
+includes, below that header's last assert-bearing inline function. Adding a
+fresh \`#include\` line to the .c has exactly the same problem as adding the
+defines directly, unless the file's asserts carry hardcoded line numbers rather
+than \`__LINE__\` (some lifted TUs do — check before assuming).`
+
+// Per-category levers. Each exists in the tools but is not obvious from the
+// leaf skill, and its absence showed up as a recurring hand-written park.
+const LEVERS = {
+  'symbol-names': `
+
+LEVER — renaming a symbol that .text relocations point at.
+A rename changes the COFF symbol NAME, so a plain \`check\` reports "relocations
+changed". That is what \`--rename-map\` is for:
+  \`source_recovery.py check <manifest> --object <obj> --rename-map '{"FUN_00123456":"new_name"}'\`
+It excuses the symbol NAME only — offset, type, target section, target value, the
+.text bytes and the assertion metadata must still match exactly, so a relocation
+aimed at a genuinely different symbol still fails. Supply the map you verified
+against the staged diff, never a whole-file map. "Renaming it changes the
+relocation" is NOT a valid park reason; a missing kb.json name or absent T1/T2
+evidence is.
+A rename that also lands in kb.json needs the vc71_scores.json floor key re-keyed
+from the old name to the new one, in the same commit.`,
+
+  'global-names': `
+
+PLACEMENT — read this before you add a single line.
+${LINE_SHIFT_WARNING}
+
+LEVER — the only neutral way to name an absolute-address dereference.
+Use the convention already in the tree (\`src/common.h\`, 82 sites):
+  \`#define update_client_globals_initialized (*(uint8_t *)0x45b1d0)\`
+then substitute the identifier at every site. The macro body must be EXACTLY the
+token run it replaces — same cast type, same address — because that is what makes
+it codegen-neutral, and \`check_category_purity.py global-names --staged\` verifies
+precisely that.
+
+Do NOT reach for a kb.json \`objects.data\` extern: those are emitted \`HDATA\` =
+\`__declspec(dllimport)\`, so the reference compiles to a load through
+\`[__imp__X]\`. That is real codegen movement, not a too-strict gate, and it fails
+the COFF check for a good reason.
+
+Evidence still governs the NAME (\`naming-confidence\` tiers): a \`data_new()\` tag
+string, an assert string, or an existing kb.json \`objects.data\` entry at that
+address is T1/T2. With no evidence, park the item — do not invent a name. Putting
+the defines in a recovered header is fine; if the header already exists and this
+diff does not touch it, pass it with \`--macro-source <header>\`.`,
+
+  'const-enum': `
+
+LEVER — \`magic_fourcc:<literal>\` items are the only literals this rung
+proposes, and the evidence is inside the value: \`0x61637472\` spells 'actr'.
+Name it, define it once, substitute every site. Matching literals against the
+\`#define\`s already in \`src/**.h\` was measured and is useless (\`6\` matches
+\`_actor_action_guard\` at 192 sites), and frequency is no better — the most
+repeated literals in a TU are \`0.0f\`, \`1.0f\`, and struct offsets that belong
+to \`offset-to-field\`. Do not name a literal this detector did not propose.
+
+PLACEMENT — read this before you add a single line.
+${LINE_SHIFT_WARNING}`,
+
+  'struct-define': `
+
+LEVER — \`struct_bases:<name>\` items are CLUSTERS, not sites.
+Each one names a base variable, every offset the file reads off it, and the
+widths used. That set is the evidence for one struct. Bind it in
+recovery/bindings.json and let \`structize.py\` do the transcription; a cluster
+whose widths disagree is a \`verify_conflict.py\` question, not a guess.
+This rung exists so \`offset-to-field\` has a co()/cs()-asserted struct to bind to.
+"No asserted struct" is the *reason this category runs*, not a park reason for it.`,
+}
 
 // Infra failures (API 529 killing an agent, a broken build we did not cause) are
 // transient and must not read as "no work left". Bounded retries across the whole
@@ -103,12 +187,25 @@ const AGENT_RULES =
   `OPERATING RULES (read first):
 [WORKTREE] Do ALL work in your CWD with RELATIVE paths. NEVER \`cd\` to another
 checkout; never run git mutations against any repo but this one.
-[STALL] Any single shell command that can run >2 min (full build, vc71 verify)
+[STALL] Any single RE-RUNNABLE long command (full build, vc71 verify, equivalence)
 MUST be wrapped so it cannot run silently past 180s and trip the harness stall
 detector that kills the whole run:
   timeout 150 <cmd> 2>&1 || echo "[timed-out]"
 A timeout is NOT a verdict — re-run the wrapped command; never record it as a
 failure while the work may still have completed.
+[STALL EXCEPTION — \`git commit\`] NEVER wrap \`git commit\` in \`timeout 150\`, and
+never leave it on the default 120s Bash timeout. The pre-commit chain on a large
+TU costs ~270s (measured 2026-08-21 on game_engine.c, 237 fns): regression-test
+159s + lift-audit 63s + vc71-regression 44s + 12 smaller hooks ~22s. Any ceiling
+under that kills the commit mid-hook, every time, forever — it is not a hang and
+retrying at the same ceiling cannot succeed. Instead pass the Bash tool's own
+\`timeout: 600000\` on the commit call and let it run in the FOREGROUND.
+A killed commit is NOT harmless: \`pre-commit-vc71-regression.sh\` auto-stages a
+refreshed vc71_scores.json partway through, so a mid-chain kill can leave the
+index mutated with no commit. After ANY commit that times out or reports nothing,
+read real state before touching anything: \`git log --oneline -1\` (did HEAD move?)
+then \`git status --short\` (what is staged now?). Re-stage from that state; never
+blind-retry.
 [SERIAL] Work in the FOREGROUND, one command at a time. Never drive commits from
 background scripts, chained Monitors, or parallel "group drivers", and never run
 two git-index-mutating commands at once. Concurrent git add/commit race for
@@ -120,6 +217,10 @@ minutes polling for events from Monitors it had killed itself. Per unit:
 stage -> gate -> commit -> confirm HEAD moved -> next. If you are ever waiting on
 a Monitor or a background task, stop waiting and check real state directly
 (git log --oneline -1, git status --short, pgrep).
+The answer to a SLOW commit is a longer tool timeout (see [STALL EXCEPTION]), not
+backgrounding it. \`setsid nohup git commit &\` + a poll loop does eventually land
+the commit, but it violates this rule, races the index, and cost one agent 13
+minutes on 2026-08-21 before it worked.
 [TOKENS] Never re-read a file after a successful edit (Edit confirms it); never
 paste large tool output back into your reasoning — extract the one number you need.
 `
@@ -324,8 +425,9 @@ look like \` 1 comments  re-comment-capture  pending=12 applied=0 parked=0\`. Su
 \`pending=\` per category ACROSS all manifests.
 
 Return {ok:true, manifest:"<first manifest>", manifests:["recovery/<stem>.c.json", ...],
-        categories:{comments:<n>, "local-renames":<n>, "symbol-names":<n>, "const-enum":<n>,
-                    "struct-define":<n>, "offset-to-field":<n>, "expr-simplify":<n>,
+        categories:{comments:<n>, "local-renames":<n>, "symbol-names":<n>,
+                    "global-names":<n>, "const-enum":<n>, "struct-define":<n>,
+                    "offset-to-field":<n>, "expr-simplify":<n>,
                     "control-flow":<n>}}  (omit or 0 when a category has no pending items).`,
     { label: `baseline:${stem}`, phase: 'Recover', ...MECH, schema: BASELINE_SCHEMA })
 
@@ -386,7 +488,7 @@ Return {ok:true, manifest:"<first manifest>", manifests:["recovery/<stem>.c.json
       continue
     }
 
-    // Rungs 5/6: put the deterministic path in front of the agent, so it spends
+    // Rungs 6/7: put the deterministic path in front of the agent, so it spends
     // its reasoning on the tool's refusals rather than on retyping offsets.
     const mechBlock = !cat.mech ? '' : `
 
@@ -436,10 +538,15 @@ reason and move on — do not chase them, and never relax the gate.`}
 After resolving conflicts, re-run \`structize.py run\` — resolved offsets
 convert automatically, and a stale census hides them.`
 
+    // Category levers that exist in the tools but were being re-derived (and
+    // usually mis-derived) by every agent. Each answers a park reason that
+    // recurred across many objects in recovery/goal_ledger.json.
+    const leverBlock = LEVERS[cat.id] || ''
+
     const res = await agent(
       `${AGENT_RULES}
 
-You are the \`${cat.id}\` category agent for source recovery of ${object}.${mechBlock}
+You are the \`${cat.id}\` category agent for source recovery of ${object}.${mechBlock}${leverBlock}
 
 READ FIRST, before touching anything:
   1. \`.claude/skills/source-recovery/SKILL.md\` — the ladder, gate table, measurement
@@ -453,6 +560,19 @@ Source file(s): ${sourceFiles.join(' ')}
 Items in OTHER categories belong to other agents: do not touch them, do not "fix
 them while you're here". Enumerate yours with \`source_recovery.py ladder <manifest>\`
 plus the manifest JSON (per-item ids and line numbers).
+
+ONE ITEM IS ONE DECISION, NOT ONE LINE. An item carrying \`occurrences\` (with
+\`occurrence_count\` > 1) and a \`key\` covers EVERY site listed in it: a global
+address, a FUN_ symbol, or a (base, offset) pair used in 19 places is one naming
+decision applied to all 19. Rewrite every occurrence in that item, then set its
+status ONCE. Applying only the first site leaves the file half-renamed and the
+purity checker will reject the split; deciding the same key twice is the waste
+grouping exists to remove. Items without \`occurrences\` are per-site as before
+(decompiler locals are deliberately ungrouped: Ghidra reuses \`local_c\` for
+unrelated variables, so one name is several independent decisions).
+Prefer \`key\` over \`line\` when locating work — earlier categories in this same
+ladder shift line numbers under the manifest (the 2026-08-21 comments commit
+moved them by up to +66), but a key stays valid.
 
 PROCEDURE — small units, gate after EACH, per source-recovery:
   • one small change → that category's gate at the level the gate table specifies
@@ -469,6 +589,9 @@ COMMIT — exactly one, for this category only:
     staged diff contains changes outside this category's edit shape → split the commit
     or revert the stray change. NEVER bypass it and never \`--no-verify\`.
   \`rtk git commit -m "recover(${stem}): ${cat.id} — <short summary>"\` → report the short sha.
+    Pass \`timeout: 600000\` on this Bash call — the hook chain costs ~270s on a large
+    TU and the 120s default kills it mid-hook. See [STALL EXCEPTION] above; do NOT
+    wrap it in \`timeout 150\` and do NOT background it.
 
 HARD BANS — these are *lift* work, not recovery. If one is needed, park and say so:
 \`@<reg>\` annotations, \`ported\` flags, kb.json signatures, build config, \`--no-verify\`,

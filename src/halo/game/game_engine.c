@@ -63,7 +63,7 @@ void game_engine_evaluate_game_complexity(void)
         i = 0;
         do {
           seat_elem = (int)tag_block_get_element(seat_block, i, 0x94);
-          if (*(int16_t *)(seat_elem + 0x10) == 4)
+          if (((netgame_flag *)seat_elem)->type == 4)
             seat_count++;
           si++;
           i = (int)si;
@@ -217,8 +217,8 @@ void FUN_000a84f0(int text, int color, int16_t row_index)
 
   rect[0] = *(int *)0x506584;
   rect[1] = *(int *)0x506588;
-  rect2d_offset((int16_t *)rect, -(*(int16_t *)0x50657e),
-                -(*(int16_t *)0x50657c));
+  rect2d_offset((int16_t *)rect, -(screen_bounds_left),
+                -(screen_bounds_top));
   *(int16_t *)rect = row_index * 0x12;
   *(int16_t *)((char *)rect + 4) = row_index * 0x12 + 0x1a;
   draw_string_set_style_justify_flags(-1, (short)color, 0);
@@ -373,7 +373,7 @@ void game_engine_spawn_equipment(void)
     obj = (char *)object_get_and_verify_type(handle, 0x1c);
 
     if ((*(uint8_t *)(obj + 0x1a4) & 1) == 0) {
-      tag_data = (char *)tag_get(0x6974656d, *(int *)obj);
+      tag_data = (char *)tag_get(TAG_GROUP_ITEM, *(int *)obj);
       scale = *(float *)(tag_data + 0x184);
       if (scale == 0.0f)
         scale = *(float *)0x2533c8;
@@ -733,7 +733,7 @@ int FUN_000a8ec0(int location_ptr, int player_handle)
   int16_t i;
   int obj;
   char local_c[8];
-  int local_4c[16];
+  int object_handles[16];
 
   datum_get(player_data, player_handle);
   scenario_location_from_point(local_c, (void *)location_ptr);
@@ -744,19 +744,19 @@ int FUN_000a8ec0(int location_ptr, int player_handle)
     } u;
     u.i = 0x3dcccccd;
     count = object_find_in_radius(0, 0x11f, local_c, (float *)location_ptr, u.f,
-                                  local_4c, 0x10);
+                                  object_handles, 0x10);
   }
   i = 0;
   if (0 < count) {
     do {
-      obj = (int)object_get_and_verify_type(local_4c[i], -1);
+      obj = (int)object_get_and_verify_type(object_handles[i], -1);
       if (obj == 0) {
         display_assert("object", "c:\\halo\\SOURCE\\game\\game_engine.c", 0xe63,
                        1);
         system_exit(-1);
       }
       if (*(int16_t *)(obj + 100) == 1) {
-        obj = (int)object_get_and_verify_type(local_4c[i], 2);
+        obj = (int)object_get_and_verify_type(object_handles[i], 2);
         if (obj != 0)
           return 1;
         display_assert("vehicle", "c:\\halo\\SOURCE\\game\\game_engine.c",
@@ -794,7 +794,7 @@ void game_engine_rasterize_message(int text, float alpha)
   color[1] = 0.459f;
   color[2] = 0.729f;
   color[3] = 1.0f;
-  rect2d_offset((int16_t *)rect, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+  rect2d_offset((int16_t *)rect, -screen_bounds_left, -screen_bounds_top);
   {
     long long product =
       (long long)((int16_t)rect[0] * 5 + (int)(int16_t)rect[1]) * 0x2aaaaaab;
@@ -951,7 +951,7 @@ int get_flag_definition_index(void)
   global_scenario_get();
   block = (char *)game_globals_get() + 0x164;
   element = (char *)tag_block_get_element(block, 0, 0xa0);
-  return *(int *)(element + 0xc);
+  return ((game_globals_multiplayer_element *)element)->flag_definition_index;
 }
 
 /* get_ball_definition_index (0xa92e0)
@@ -967,7 +967,7 @@ int get_ball_definition_index(void)
   global_scenario_get();
   block = (char *)game_globals_get() + 0x164;
   element = (char *)tag_block_get_element(block, 0, 0xa0);
-  return *(int *)(element + 0x58);
+  return ((game_globals_multiplayer_element *)element)->ball_definition_index;
 }
 
 /* game_engine_switch_to_postgame (0xa9310)
@@ -1013,16 +1013,16 @@ char game_engine_get_goal_in_use(short param_1)
  * value as the position pointer. */
 int *game_engine_get_goal_position(int *param_1, short param_2)
 {
-  int iVar1;
+  int index;
   char *src;
 
-  iVar1 = (int)param_2;
-  if (*(char *)(0x456704 + iVar1 * 0x20) == '\0') {
+  index = (int)param_2;
+  if (*(char *)(0x456704 + index * 0x20) == '\0') {
     display_assert("global_goal[index].in_use",
                    "c:\\halo\\SOURCE\\game\\game_engine.c", 0xf5c, true);
     system_exit(-1);
   }
-  src = (char *)(0x4566f8 + iVar1 * 0x20);
+  src = (char *)(0x4566f8 + index * 0x20);
   *param_1 = *(int *)src;
   param_1[1] = *(int *)(src + 4);
   param_1[2] = *(int *)(src + 8);
@@ -1066,24 +1066,24 @@ void game_engine_render_nav_points(int param_1)
   int player;
   int player_saved;
   int *flag_ptr;
-  char local_18[12];
-  int local_c;
+  char head_position[12];
+  int player_index;
 
   if (current_game_engine && *(int *)0x456b1c == 1 && (int16_t)param_1 != -1) {
-    local_c = local_player_get_player_index(param_1);
-    if (local_c != -1) {
-      player = (int)datum_get(player_data, local_c);
+    player_index = local_player_get_player_index(param_1);
+    if (player_index != -1) {
+      player = (int)datum_get(player_data, player_index);
       if (*(int *)(player + 0x34) != -1) {
         player_saved = player;
-        unit_get_head_position(*(int *)(player + 0x34), (float *)local_18);
+        unit_get_head_position(*(int *)(player + 0x34), (float *)head_position);
         flag_ptr = (int *)0x4566f8;
         do {
           if (FUN_000a9190(player,
                            (int)((char *)flag_ptr - (char *)0x4566f8) / 0x20,
-                           local_c)) {
+                           player_index)) {
             {
               int dist = ((int (*)(int, void *, int *, int))FUN_000d6550)(
-                param_1, local_18, flag_ptr, -1);
+                param_1, head_position, flag_ptr, -1);
               ((void (*)(int, int *, int16_t, int))FUN_000d6660)(
                 param_1, flag_ptr, *(int16_t *)((char *)flag_ptr + 0x1c), dist);
             }
@@ -1252,11 +1252,11 @@ int game_engine_remap_vehicle(int param_1)
 
   elem2 = (int)tag_block_get_element((int *)block, 2, 0x10);
 
-  if (param_1 != *(int *)(elem0 + 0xc) &&
+  if (param_1 != ((tag_reference *)elem0)->tag_index &&
 
-      param_1 != *(int *)(elem1 + 0xc) &&
+      param_1 != ((tag_reference *)elem1)->tag_index &&
 
-      param_1 != *(int *)(elem2 + 0xc))
+      param_1 != ((tag_reference *)elem2)->tag_index)
 
     param_1 = -1;
 
@@ -1273,7 +1273,7 @@ int game_engine_remap_vehicle(int param_1)
 
     elem0 = (int)tag_block_get_element((int *)block, 0, 0x10);
 
-    if (*(int *)(elem0 + 0xc) != param_1)
+    if (((tag_reference *)elem0)->tag_index != param_1)
 
       param_1 = -1;
 
@@ -1283,7 +1283,7 @@ int game_engine_remap_vehicle(int param_1)
 
     elem0 = (int)tag_block_get_element((int *)block, 1, 0x10);
 
-    if (*(int *)(elem0 + 0xc) != param_1)
+    if (((tag_reference *)elem0)->tag_index != param_1)
 
       param_1 = -1;
 
@@ -1293,7 +1293,7 @@ int game_engine_remap_vehicle(int param_1)
 
     elem0 = (int)tag_block_get_element((int *)block, 2, 0x10);
 
-    if (*(int *)(elem0 + 0xc) != param_1)
+    if (((tag_reference *)elem0)->tag_index != param_1)
 
       param_1 = -1;
 
@@ -1819,15 +1819,15 @@ void FUN_000aa010(short param_1, const char *param_2)
     outer_next = 1;
     do {
       elem_i = (char *)tag_block_get_element(flags_block, i, 0x94);
-      if (param_1 == *(short *)(elem_i + 0x10)) {
+      if (param_1 == ((netgame_flag *)elem_i)->type) {
         j = (int)outer_next;
         inner_idx = outer_next;
         if (j < *flags_block) {
           do {
             elem_j = (char *)tag_block_get_element(flags_block, j, 0x94);
-            if (param_1 == *(short *)(elem_j + 0x10) &&
-                *(short *)(elem_j + 0x12) == *(short *)(elem_i + 0x12)) {
-              error(2, param_2, (int)*(short *)(elem_j + 0x12));
+            if (param_1 == ((netgame_flag *)elem_j)->type &&
+                ((netgame_flag *)elem_j)->team_index == ((netgame_flag *)elem_i)->team_index) {
+              error(2, param_2, (int)((netgame_flag *)elem_j)->team_index);
             }
             inner_idx = inner_idx + 1;
             j = (int)inner_idx;
@@ -1857,8 +1857,8 @@ void FUN_000aa0b0(int16_t param_1, int16_t param_2, int param_3,
   if (0 < *flag_block) {
     do {
       elem = (int)tag_block_get_element(flag_block, (int)i, 0x94);
-      if (game_type == *(int16_t *)(elem + 0x10)) {
-        seq = *(int16_t *)(elem + 0x12);
+      if (game_type == ((netgame_flag *)elem)->type) {
+        seq = ((netgame_flag *)elem)->team_index;
         if (seq < param_1 || param_2 < seq)
           error(2, (char *)param_3, (int)seq);
       }
@@ -1875,7 +1875,7 @@ void FUN_000aa0b0(int16_t param_1, int16_t param_2, int param_3,
 void game_engine_playlist_next(int game_variant_type, int param_2, int param_3)
 {
   char *map_name;
-  char local_6c[104];
+  char variant_buf[104];
   (void)game_variant_type;
   (void)param_2;
   (void)param_3;
@@ -1886,8 +1886,8 @@ void game_engine_playlist_next(int game_variant_type, int param_2, int param_3)
     csstrncpy((char *)0x5aa760, map_name, 0x3f);
     *(char *)0x5aa79f = 0;
   }
-  if (((char (*)(void *))player_ui_game_variant_specified)(local_6c))
-    csmemcpy((void *)0x5aa7a0, local_6c, 0x68);
+  if (((char (*)(void *))player_ui_game_variant_specified)(variant_buf))
+    csmemcpy((void *)0x5aa7a0, variant_buf, 0x68);
 }
 
 /* game_engine_slayer_default (0xaa190)
@@ -2731,9 +2731,9 @@ void FUN_000ab090(int text, char highlight, int row, int state)
   } else {
     draw_string_set_tab_stops(tabs, 3);
   }
-  rect2d_offset((int16_t *)rect, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+  rect2d_offset((int16_t *)rect, -screen_bounds_left, -screen_bounds_top);
   if (font_tag != -1) {
-    tag_data = (int)tag_get(0x666f6e74, font_tag);
+    tag_data = (int)tag_get(TAG_GROUP_FONT, font_tag);
     char_height = *(int16_t *)(tag_data + 8);
     if (split < 2)
       char_height = char_height + *(int16_t *)(tag_data + 6);
@@ -2798,7 +2798,7 @@ int FUN_000ab290(int param_1)
   weapon_obj = (int)object_get_and_verify_type(weapon_handle, 4);
   if (*(int *)weapon_obj == -1)
     return 0;
-  weapon_tag = (int)tag_get(0x77656170, *(int *)weapon_obj);
+  weapon_tag = (int)tag_get(TAG_GROUP_WEAP, *(int *)weapon_obj);
   return (*(uint32_t *)(weapon_tag + 0x308) >> 13) & 1;
 }
 
@@ -2828,7 +2828,7 @@ void game_engine_weapon_fired(int param_1)
   if (!FUN_000ab290(param_1)) {
     if (weapon_handle != -1) {
       weapon = (int)object_get_and_verify_type(weapon_handle, 4);
-      weapon_tag = (int)tag_get(0x77656170, *(int *)weapon);
+      weapon_tag = (int)tag_get(TAG_GROUP_WEAP, *(int *)weapon);
       if (0.0f != *(float *)(weapon_tag + 0x4cc)) {
         decay = *(float *)(weapon_tag + 0x4cc);
         goto apply;
@@ -3443,7 +3443,8 @@ int FUN_000abd20(int *param_1, int param_2, char param_3)
 }
 
 /* One postgame stat entry: 7 dwords (0x1c bytes), 16-entry array on the
- * stack of FUN_000abf50 (SUB ESP,0x1c0). Struct assignment reproduces the
+ * stack of FUN_000abf50 (0xabf50, SUB ESP,0x1c0 — 16 * 0x1c = 0x1c0 exactly,
+ * which is what fixes the entry count). Struct assignment reproduces the
  * original's REP MOVSD (ECX=7) copy-out. */
 typedef struct {
   int32_t w[7];
@@ -3505,13 +3506,13 @@ int FUN_000abfd0(int param_1, int param_2, int param_3)
   int place;
   int *entry;
   int i;
-  int local_1c4[112];
+  int entries[112];
 
-  count = FUN_000abd20(local_1c4, param_2, param_3);
+  count = FUN_000abd20(entries, param_2, param_3);
   place = 0;
-  if (local_1c4[0] != param_1 && count > 1) {
+  if (entries[0] != param_1 && count > 1) {
     i = 1;
-    entry = local_1c4 + 7;
+    entry = entries + 7;
     do {
       if (entry[-7] != *entry)
         place++;
@@ -3630,12 +3631,13 @@ int FUN_000ac220(int param_1)
   float dx;
   float dy;
   float dz;
-  int local_c8[32];
-  char local_48[12];
-  char local_3c[12];
-  char local_30[12];
-  char local_24[4];
-  /* Position vec3 filled by unit_set_seat_state (a 12-byte write to local_20).
+  int found_objects[32];
+  char out0[12];
+  char out1[12];
+  char facing[12];
+  char out2[4];
+  /* keep: this must stay a 3-float array, not three scalars.
+   * Position vec3 filled by unit_set_seat_state (a 12-byte write to position).
    * MUST be one contiguous 3-float buffer. The original keeps `player` in EDI
    * (a register untouched by callees), but our clang lift spills `player` to
    * the stack at EBP-0x10 -- 4 bytes after this buffer at EBP-0x14. Declaring
@@ -3643,7 +3645,7 @@ int FUN_000ac220(int param_1)
    * position.y onto `player`, turning it into a float; the later *(player+0x34)
    * deref then page-faulted (float-as-pointer). A real array keeps the write
    * self-contained. */
-  float local_20[3];
+  float position[3];
   int num_found;
   float local_10;
   float local_c;
@@ -3660,31 +3662,31 @@ int FUN_000ac220(int param_1)
     }
   }
   ((void (*)(int, float *))unit_set_seat_state)(*(int *)(player + 0x34),
-                                                local_20);
+                                                position);
   ((void (*)(int16_t, float *))player_control_get_facing_direction)(
-    *(int16_t *)(player + 2), (float *)local_30);
+    *(int16_t *)(player + 2), (float *)facing);
   num_found = ((int (*)(float *, float *, void *, int *, int,
                         int *))find_objects_from_point_vector)(
-    local_20, (float *)local_30, FUN_000a85d0, &param_1, 0x20, local_c8);
+    position, (float *)facing, FUN_000a85d0, &param_1, 0x20, found_objects);
   i = 0;
   if (0 < num_found) {
     do {
-      obj = local_c8[i];
+      obj = found_objects[i];
       biped = (int)object_get_and_verify_type(obj, 3);
-      dx = *(float *)(biped + 0xc) - local_20[0];
-      dy = *(float *)(biped + 0x10) - local_20[1];
-      dz = *(float *)(biped + 0x14) - local_20[2];
+      dx = *(float *)(biped + 0xc) - position[0];
+      dy = *(float *)(biped + 0x10) - position[1];
+      dz = *(float *)(biped + 0x14) - position[2];
       local_c = dy * dy + dx * dx + dz * dz;
       if ((*(float *)(biped + 0x32c) < 1.0f ||
            (player_idx = player_index_from_unit_index(obj),
             *(int *)(player + 0x7c) == player_idx)) &&
           ((char (*)(int, float *, float *, int, char *, char *, char *,
                      float *))FUN_000a5c60)(
-            local_c8[i], local_20, (float *)local_30, *(int *)(player + 0x34),
-            local_48, local_3c, local_24, &local_10) &&
+            found_objects[i], position, (float *)facing, *(int *)(player + 0x34),
+            out0, out1, out2, &local_10) &&
           (local_10 > -*(float *)0x26c228 && local_10 < *(float *)0x26c228) &&
           local_c < *(float *)0x254f90 && local_c < *(float *)0x254e00) {
-        best = local_c8[i];
+        best = found_objects[i];
       }
       i++;
     } while (i < num_found);
@@ -3752,6 +3754,39 @@ void FUN_000ac3e0(int player_handle)
  *
  * Register args: buffer in EDI, buffer_capacity in ESI.
  */
+
+/* main_switch format strings (VAs into .rdata, original XBE literals).
+ * Verbatim text confirmed via Ghidra memory read of cachebeta.xbe. Kept as
+ * address casts, not re-embedded literals, so the compiler emits the same
+ * immediate-address push the VC71 reference has. */
+#define MSG_WELCOME             ((const wchar_t *)0x26c63c) /* "Welcome %s" */
+#define MSG_PLAYER_DIED         ((const wchar_t *)0x26c62c) /* "%s died" */
+#define MSG_KILLED_BY_GUARDIANS ((const wchar_t *)0x26c5ec) /* "%s was killed by the guardians" */
+#define MSG_KILLED_BY_VEHICLE   ((const wchar_t *)0x26c5b4) /* "%s was killed by a vehicle" */
+#define MSG_KILLED_BY           ((const wchar_t *)0x26c58c) /* "%s was killed by %s" */
+#define MSG_BETRAYED_BY         ((const wchar_t *)0x26c560) /* "%s was betrayed by %s" */
+#define MSG_SUICIDE             ((const wchar_t *)0x26c524) /* "%s committed suicide" */
+#define MSG_DOUBLE_KILL         ((const wchar_t *)0x26c4b0) /* "Double Kill!" */
+#define MSG_YOU_KILLED          ((const wchar_t *)0x26c440) /* "You killed %s" */
+#define MSG_TRIPLE_KILL         ((const wchar_t *)0x26c4cc) /* "Triple Kill!" */
+#define MSG_KILLTACULAR         ((const wchar_t *)0x26c4e8) /* "Killtacular!" */
+#define MSG_KILLING_SPREE       ((const wchar_t *)0x26c45c) /* "You are on a killing spree!" */
+#define MSG_RUNNING_RIOT        ((const wchar_t *)0x26c494) /* "Running Riot!" */
+#define MSG_YOU_BETRAYED        ((const wchar_t *)0x26c504) /* "You betrayed %s" */
+#define MSG_KILLTACULAR_SCORE   ((const wchar_t *)0x26c41c) /* "Killtacular! (%d)" */
+#define MSG_TRIPLE_KILL_SCORE   ((const wchar_t *)0x26c3f8) /* "Triple Kill! (%d)" */
+#define MSG_DOUBLE_KILL_SCORE   ((const wchar_t *)0x26c3d4) /* "Double Kill! (%d)" */
+#define MSG_RUNNING_RIOT_SCORE  ((const wchar_t *)0x26c3ac) /* "Running Riot! (%d)" */
+#define MSG_KILLING_SPREE_SCORE ((const wchar_t *)0x26c368) /* "You are on a killing spree! (%d)" */
+#define MSG_YOU_KILLED_SCORE    ((const wchar_t *)0x26c33c) /* "You killed %s (%d)" */
+#define MSG_ODD_MAN_OUT         ((const wchar_t *)0x26c30c) /* "You are the odd man out" */
+#define MSG_OUT_OF_LIVES        ((const wchar_t *)0x26c2e0) /* "You are out of lives" */
+#define MSG_REJOIN_IN           ((const wchar_t *)0x26c2c4) /* "Rejoin in %d" */
+#define MSG_WAITING_FOR_SPACE   ((const wchar_t *)0x26c28c) /* "Waiting for space to clear" */
+#define MSG_YOU_QUIT            ((const wchar_t *)0x26c258) /* "You quit out of the game" */
+#define MSG_PLAYER_QUIT         ((const wchar_t *)0x26c550) /* "%s quit" */
+#define MSG_HOLD_BACK_FOR_SCORE ((const wchar_t *)0x26c230) /* "Hold BACK for score" */
+
 bool game_engine_get_score_hud_text(int player_handle, int param_2,
                                     int hud_player, wchar_t *buffer,
                                     int buffer_capacity)
@@ -3801,114 +3836,114 @@ bool game_engine_get_score_hud_text(int player_handle, int param_2,
 main_switch:
   switch (param_2) {
   case 0:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c63c,
+    unicode_sprintf(buffer, buffer_capacity, MSG_WELCOME,
                     player_datum + 4);
     break;
   case 1:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c62c,
+    unicode_sprintf(buffer, buffer_capacity, MSG_PLAYER_DIED,
                     player_datum + 4);
     break;
   case 2:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c5ec,
+    unicode_sprintf(buffer, buffer_capacity, MSG_KILLED_BY_GUARDIANS,
                     player_datum + 4);
     break;
   case 3:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c5b4,
+    unicode_sprintf(buffer, buffer_capacity, MSG_KILLED_BY_VEHICLE,
                     player_datum + 4);
     break;
   case 4:
     other = (char *)datum_get(player_data, hud_player);
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c58c,
+    unicode_sprintf(buffer, buffer_capacity, MSG_KILLED_BY,
                     player_datum + 4, other + 4);
     break;
   case 5:
     other = (char *)datum_get(player_data, hud_player);
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c560,
+    unicode_sprintf(buffer, buffer_capacity, MSG_BETRAYED_BY,
                     player_datum + 4, other + 4);
     break;
   case 6:
     datum_get(player_data, hud_player);
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c524,
+    unicode_sprintf(buffer, buffer_capacity, MSG_SUICIDE,
                     player_datum + 4);
     break;
   case 7:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c4b0);
+    unicode_sprintf(buffer, buffer_capacity, MSG_DOUBLE_KILL);
     game_engine_post_event(0xe);
     break;
   case 8:
     other = (char *)datum_get(player_data, hud_player);
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c440,
+    unicode_sprintf(buffer, buffer_capacity, MSG_YOU_KILLED,
                     other + 4);
     break;
   case 9:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c4cc);
+    unicode_sprintf(buffer, buffer_capacity, MSG_TRIPLE_KILL);
     game_engine_post_event(0xf);
     break;
   case 10:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c4e8);
+    unicode_sprintf(buffer, buffer_capacity, MSG_KILLTACULAR);
     game_engine_post_event(0x10);
     break;
   case 11:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c45c);
+    unicode_sprintf(buffer, buffer_capacity, MSG_KILLING_SPREE);
     game_engine_post_event(0x12);
     break;
   case 12:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c494);
+    unicode_sprintf(buffer, buffer_capacity, MSG_RUNNING_RIOT);
     game_engine_post_event(0x11);
     break;
   case 13:
     other = (char *)datum_get(player_data, hud_player);
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c504,
+    unicode_sprintf(buffer, buffer_capacity, MSG_YOU_BETRAYED,
                     other + 4);
     break;
   case 14:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c41c, score);
+    unicode_sprintf(buffer, buffer_capacity, MSG_KILLTACULAR_SCORE, score);
     game_engine_post_event(0x10);
     break;
   case 15:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c3f8, score);
+    unicode_sprintf(buffer, buffer_capacity, MSG_TRIPLE_KILL_SCORE, score);
     game_engine_post_event(0xf);
     break;
   case 16:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c3d4, score);
+    unicode_sprintf(buffer, buffer_capacity, MSG_DOUBLE_KILL_SCORE, score);
     game_engine_post_event(0xe);
     break;
   case 17:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c3ac, score);
+    unicode_sprintf(buffer, buffer_capacity, MSG_RUNNING_RIOT_SCORE, score);
     game_engine_post_event(0x11);
     break;
   case 18:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c368, score);
+    unicode_sprintf(buffer, buffer_capacity, MSG_KILLING_SPREE_SCORE, score);
     game_engine_post_event(0x12);
     break;
   case 19:
     other = (char *)datum_get(player_data, hud_player);
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c33c,
+    unicode_sprintf(buffer, buffer_capacity, MSG_YOU_KILLED_SCORE,
                     other + 4, score);
     break;
   case 23:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c30c);
+    unicode_sprintf(buffer, buffer_capacity, MSG_ODD_MAN_OUT);
     break;
   case 24:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c2e0);
+    unicode_sprintf(buffer, buffer_capacity, MSG_OUT_OF_LIVES);
     break;
   case 25:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c2c4,
+    unicode_sprintf(buffer, buffer_capacity, MSG_REJOIN_IN,
                     hud_player);
     break;
   case 26:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c28c);
+    unicode_sprintf(buffer, buffer_capacity, MSG_WAITING_FOR_SPACE);
     break;
   case 27:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c258);
+    unicode_sprintf(buffer, buffer_capacity, MSG_YOU_QUIT);
     break;
   case 28:
     other = (char *)datum_get(player_data, hud_player);
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c550,
+    unicode_sprintf(buffer, buffer_capacity, MSG_PLAYER_QUIT,
                     other + 4);
     break;
   case 29:
-    unicode_sprintf(buffer, buffer_capacity, (const wchar_t *)0x26c230);
+    unicode_sprintf(buffer, buffer_capacity, MSG_HOLD_BACK_FOR_SCORE);
     break;
   default:
     result = false;
@@ -3933,7 +3968,7 @@ int FUN_000aca70(int item_collection_tag)
    * then subtract each entry's weight (float at +0x20); the first entry that
    * drives the accumulator negative is chosen, returning its item tag at +0x30.
    * Returns -1 if the collection is empty. */
-  tag = (int *)tag_get(0x69746d63, item_collection_tag);
+  tag = (int *)tag_get(TAG_GROUP_ITMC, item_collection_tag);
   count = *tag;
   seed = (unsigned int *)get_global_random_seed_address();
   accum = random_range(seed, 0, FUN_000a8970(tag));
@@ -4028,7 +4063,7 @@ void game_engine_periodic_equipment_spawn(void)
       if (period_seconds == 0) {
         int collection_tag = *(int *)(entry + 0x5c);
         if (collection_tag != -1) {
-          char *collection_data = (char *)tag_get(0x69746d63, collection_tag);
+          char *collection_data = (char *)tag_get(TAG_GROUP_ITMC, collection_tag);
           period_seconds = *(int16_t *)(collection_data + 0xc);
           if (period_seconds != 0) {
             spawn_period = (int)period_seconds * 30;
@@ -4200,7 +4235,8 @@ void game_engine_update_non_deterministic(float dt)
  *
  * RETURNS the "text was produced" flag in AL (original 0xacec0..0xaceed: the
  * vtable handler's AL if nonzero, else game_engine_get_score_hud_text's AL).
- * FUN_000ae110 propagates this to FUN_000d04d0 (unported), which only draws
+ * FUN_000ae110 (0xae110) propagates this to FUN_000d04d0 (0xd04d0, unported),
+ * which only draws
  * the HUD text when AL != 0 ("test al,al; je" at 0xd0931). Declaring this
  * void (and returning 0 from ae110) suppressed all live-player game-engine
  * HUD text ("Hold BACK for score", KotH "winning (X seconds)"). */
@@ -4480,7 +4516,7 @@ void FUN_000ad2b0(int param_1, int *param_2, int *param_3)
   int i;
   int flag;
   int variant_type;
-  char local_94[136];
+  char placement[136];
   int obj_handle;
   char first;
   int *equip_ptr;
@@ -4507,8 +4543,8 @@ void FUN_000ad2b0(int param_1, int *param_2, int *param_3)
     do {
       if (*equip_ptr != -1) {
         obj_handle = FUN_000aca70(*equip_ptr);
-        object_placement_data_new(local_94, obj_handle, -1);
-        obj_handle = (int)object_new(local_94);
+        object_placement_data_new(placement, obj_handle, -1);
+        obj_handle = (int)object_new(placement);
         if (obj_handle != -1) {
           int *obj = (int *)object_get_and_verify_type(obj_handle, 0x1c);
           if (!first) {
@@ -4624,15 +4660,15 @@ void game_engine_postspawn_player_update(int param_1)
 /* 0xad530 */
 float game_engine_get_damage_multiplier(int player_a, int player_b)
 {
-  float local_8;
-  char cVar1;
+  float multiplier;
+  char ok;
   int engine;
   int (*fn)(int, int);
   float engine_float;
   float clamped;
 
   engine = *(int *)0x456b60;
-  local_8 = *(float *)0x2533c8;
+  multiplier = *(float *)0x2533c8;
   if (engine != 0) {
     engine_float = *(float *)0x456b34;
     if (engine_float < *(float *)0x25337c) {
@@ -4642,28 +4678,28 @@ float game_engine_get_damage_multiplier(int player_a, int player_b)
     } else {
       clamped = engine_float;
     }
-    local_8 = *(float *)0x2533c8 / clamped;
+    multiplier = *(float *)0x2533c8 / clamped;
   }
   if (player_a != -1 && player_b != -1 && engine != 0) {
     fn = (int (*)(int, int))(*(int *)(engine + 0x80));
     if (fn != 0) {
-      cVar1 = (char)fn(player_a, 2);
+      ok = (char)fn(player_a, 2);
       engine = *(int *)0x456b60;
-      if (cVar1 != '\0') {
-        local_8 = local_8 * *(float *)0x2533ec;
+      if (ok != '\0') {
+        multiplier = multiplier * *(float *)0x2533ec;
       }
     }
     if (engine != 0) {
       fn = (int (*)(int, int))(*(int *)(engine + 0x80));
       if (fn != 0) {
-        cVar1 = (char)fn(player_b, 3);
-        if (cVar1 != '\0') {
-          return local_8 * *(float *)0x253398;
+        ok = (char)fn(player_b, 3);
+        if (ok != '\0') {
+          return multiplier * *(float *)0x253398;
         }
       }
     }
   }
-  return local_8;
+  return multiplier;
 }
 
 /* game_engine_player_update_netgame_flag (0xad600)
@@ -4725,12 +4761,12 @@ void game_engine_player_update_netgame_flag(int player_handle)
 
   next_goal_index = -1;
   /* netgame_flag_find_nearest: find paired type-7 flag by team index */
-  find_netgame_flags(0, 0.0f, 0.0f, 7, *(short *)(goal_entry + 0x12), 1,
+  find_netgame_flags(0, 0.0f, 0.0f, 7, ((netgame_flag *)goal_entry)->team_index, 1,
                      &next_goal_index);
 
   if (next_goal_index == -1) {
     console_printf(0, (const char *)0x26c66c,
-                   (int)*(short *)(goal_entry + 0x12));
+                   (int)((netgame_flag *)goal_entry)->team_index);
     return;
   }
 
@@ -4750,9 +4786,9 @@ void game_engine_player_update_netgame_flag(int player_handle)
 
   {
     float candidate_pos[3];
-    candidate_pos[0] = *(float *)(next_goal_entry + 0x0);
-    candidate_pos[1] = *(float *)(next_goal_entry + 0x4);
-    candidate_pos[2] = *(float *)(next_goal_entry + 0x8);
+    candidate_pos[0] = ((netgame_flag *)next_goal_entry)->position_x;
+    candidate_pos[1] = ((netgame_flag *)next_goal_entry)->position_y;
+    candidate_pos[2] = ((netgame_flag *)next_goal_entry)->position_z;
 
     if (FUN_0014ec30(0x200380, candidate_pos, distance_a * 2.0f + distance_b,
                      distance_b, distance_a, -1, los_scratch) &&
@@ -4810,8 +4846,8 @@ void game_engine_player_update_netgame_flag(int player_handle)
 
   {
     float angle = (float)atan2(unit_pos[1], unit_pos[0]);
-    float adjusted = angle + *(float *)(next_goal_entry + 0x0c) -
-                     *(float *)(goal_entry + 0x0c);
+    float adjusted = angle + ((netgame_flag *)next_goal_entry)->facing -
+                     ((netgame_flag *)goal_entry)->facing;
     unit_pos[0] = x87_fcos(adjusted);
     unit_pos[1] = x87_fsin(adjusted);
     normalize3d(unit_pos);
@@ -5593,7 +5629,7 @@ void FUN_000ae920(wchar_t *title_buf, int player_handle)
       local_stats = *(postgame_stat_block_t *)FUN_000abf50((int *)&local_stats,
                                                            player_handle);
       /* Original 0xaeb58: PUSH EBX (= player_handle), NOT a constant 0.
-       * Slot 0x4c formats ONE player's score (KOTH: FUN_000b1de0 reads the
+       * Slot 0x4c formats ONE player's score (KOTH: king_get_player_score_string reads the
        * hill ticks at player+0xc0), so passing 0 made the FFA title line
        * "In %s place with %s" always report player slot 0's score. */
       ((void (*)(int, wchar_t *))((int *)current_game_engine)[0x4c / 4])(
@@ -5619,19 +5655,19 @@ void FUN_000ae920(wchar_t *title_buf, int player_handle)
 /* Post-game scoreboard renderer (aebd0). */
 void game_engine_post_rasterize_post_game(void)
 {
-  int iVar5;
-  int iVar6;
+  int tmp;
+  int hud_globals;
   int player_count;
   int row;
   int team_idx;
   int player;
   uint32_t player_handle;
   uint32_t *entry;
-  void *puVar9;
+  void *row_color;
   uint32_t scoreboard_buf[84];
-  wchar_t local_4b0[256];
-  wchar_t local_2b0[256];
-  float local_b0[16];
+  wchar_t text_buf[256];
+  wchar_t line_buf[256];
+  float color_table[16];
   int16_t tab_stops[6];
   float color[4];
   int16_t rect[4];
@@ -5653,26 +5689,26 @@ void game_engine_post_rasterize_post_game(void)
   color[2] = 0.729f;
   color[3] = 1.0f;
   color[0] = 1.0f;
-  local_b0[9] = 1.0f;
-  local_b0[10] = 1.0f;
-  local_b0[11] = 0.0f;
-  local_b0[8] = 1.0f;
-  local_b0[13] = 0.98f;
-  local_b0[14] = 0.96f;
-  local_b0[15] = 0.96f;
-  local_b0[12] = 1.0f;
+  color_table[9] = 1.0f;
+  color_table[10] = 1.0f;
+  color_table[11] = 0.0f;
+  color_table[8] = 1.0f;
+  color_table[13] = 0.98f;
+  color_table[14] = 0.96f;
+  color_table[15] = 0.96f;
+  color_table[12] = 1.0f;
   draw_string_set_font(*(int *)(*(int *)0x46bd0c + 0x54), -1, 2, 8, color);
   draw_string_set_color(color);
   draw_string_set_style_justify_flags(-1, 0, 0);
-  iVar5 = interface_get_tag_index(6);
-  iVar6 = (int)tag_get(0x68756467, iVar5);
+  tmp = interface_get_tag_index(6);
+  hud_globals = (int)tag_get(TAG_GROUP_HUDG, tmp);
   rect[0] = 0;
   rect[1] = 0;
   rect[2] = 0x1e0; /* 480 */
   rect[3] = 0x280; /* 640 */
-  iVar5 = (int)FUN_00076ff0(*(int *)(iVar6 + 0x3d4), 0);
-  if (iVar5 != 0) {
-    draw_bitmap_in_rect((int)FUN_00076ff0(*(int *)(iVar6 + 0x3d4), 0), rect,
+  tmp = (int)FUN_00076ff0(*(int *)(hud_globals + 0x3d4), 0);
+  if (tmp != 0) {
+    draw_bitmap_in_rect((int)FUN_00076ff0(*(int *)(hud_globals + 0x3d4), 0), rect,
                         rect, (int16_t *)0, -1, 0, 1);
   }
   if (*(char *)0x456b14 != 0) {
@@ -5686,8 +5722,8 @@ void game_engine_post_rasterize_post_game(void)
     team_order[1] = 1;
     team_fmts[0] = L"\tRed Team\t%s";
     team_fmts[1] = L"\tBlue Team\t%s";
-    iVar5 = FUN_000ae340(0);
-    if (iVar5 == 0) {
+    tmp = FUN_000ae340(0);
+    if (tmp == 0) {
       team_order[0] = 1;
       team_order[1] = 0;
     }
@@ -5696,18 +5732,18 @@ void game_engine_post_rasterize_post_game(void)
     do {
       {
         int idx = team_order[team_idx];
-        (*(void (**)(int, wchar_t *))(*(int *)0x456b60 + 0x54))(idx, local_4b0);
-        usprintf(local_2b0, team_fmts[idx], local_4b0);
-        FUN_000a84f0((int)local_2b0, 0, (int16_t)(team_idx + 4));
+        (*(void (**)(int, wchar_t *))(*(int *)0x456b60 + 0x54))(idx, text_buf);
+        usprintf(line_buf, team_fmts[idx], text_buf);
+        FUN_000a84f0((int)line_buf, 0, (int16_t)(team_idx + 4));
       }
       team_idx++;
     } while (team_idx < 2);
   }
-  (*(void (**)(wchar_t *))(*(int *)0x456b60 + 0x50))(local_4b0);
-  usprintf(local_2b0, L"\t%s\t%s\t%s\t%s\t%s\t%s", L"Place", L"Name", local_4b0,
+  (*(void (**)(wchar_t *))(*(int *)0x456b60 + 0x50))(text_buf);
+  usprintf(line_buf, L"\t%s\t%s\t%s\t%s\t%s\t%s", L"Place", L"Name", text_buf,
            L"Kills", L"Assists", L"Deaths");
   draw_string_set_tab_stops(tab_stops, 6);
-  FUN_000a84f0((int)local_2b0, 0, 7);
+  FUN_000a84f0((int)line_buf, 0, 7);
   player_count = FUN_000ac030(0, -1, scoreboard_buf, 12);
   if (0 < player_count) {
     entry = scoreboard_buf + 6;
@@ -5716,12 +5752,12 @@ void game_engine_post_rasterize_post_game(void)
       player_handle = entry[-6];
       player = (int)datum_get(player_data, player_handle);
       if (*(int16_t *)(player + 2) == -1)
-        puVar9 = color;
+        row_color = color;
       else
-        puVar9 = &local_b0[8];
-      draw_string_set_color(puVar9);
+        row_color = &color_table[8];
+      draw_string_set_color(row_color);
       draw_string_set_tab_stops(tab_stops, 6);
-      usprintf(local_2b0, L" \t%s",
+      usprintf(line_buf, L" \t%s",
                *(wchar_t **)(0x2efe28 + (*entry & 0x7f) * 4));
       {
         int16_t sy = (int16_t)row * 0x12;
@@ -5730,104 +5766,104 @@ void game_engine_post_rasterize_post_game(void)
         rect2[1] = *(int16_t *)0x506586;
         rect2[2] = *(int16_t *)0x506588;
         rect2[3] = *(int16_t *)0x50658a;
-        rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+        rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
         draw_string_set_style_justify_flags(-1, 0, 0);
-        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)line_buf);
         draw_string_set_color(color);
 
         if (*(char *)0x456b14 != 0) {
-          iVar5 = *(int *)(player + 0x20);
-          local_b0[1] = 0.8f;
-          local_b0[2] = 0.4f;
-          local_b0[3] = 0.4f;
-          local_b0[0] = 1.0f;
-          local_b0[5] = 0.4f;
-          local_b0[6] = 0.4f;
-          local_b0[7] = 0.8f;
-          local_b0[4] = 1.0f;
-          if (iVar5 < 0)
-            iVar5 = 0;
-          else if (1 < iVar5)
-            iVar5 = 1;
-          draw_string_set_color(&local_b0[iVar5 * 4]);
+          tmp = *(int *)(player + 0x20);
+          color_table[1] = 0.8f;
+          color_table[2] = 0.4f;
+          color_table[3] = 0.4f;
+          color_table[0] = 1.0f;
+          color_table[5] = 0.4f;
+          color_table[6] = 0.4f;
+          color_table[7] = 0.8f;
+          color_table[4] = 1.0f;
+          if (tmp < 0)
+            tmp = 0;
+          else if (1 < tmp)
+            tmp = 1;
+          draw_string_set_color(&color_table[tmp * 4]);
         }
-        usprintf(local_2b0, L" \t \t%s", (wchar_t *)(player + 4));
+        usprintf(line_buf, L" \t \t%s", (wchar_t *)(player + 4));
         rect2[0] = *(int16_t *)0x506584;
         rect2[1] = *(int16_t *)0x506586;
         rect2[2] = *(int16_t *)0x506588;
         rect2[3] = *(int16_t *)0x50658a;
-        rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+        rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
         draw_string_set_style_justify_flags(-1, 0, 0);
-        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)line_buf);
         draw_string_set_color(color);
 
-        iVar5 = FUN_000abfd0(player_handle, 1, 0);
-        if (iVar5 == 0)
-          draw_string_set_color(&local_b0[12]);
+        tmp = FUN_000abfd0(player_handle, 1, 0);
+        if (tmp == 0)
+          draw_string_set_color(&color_table[12]);
         (*(void (**)(uint32_t, wchar_t *))(*(int *)0x456b60 + 0x4c))(
-          player_handle, local_4b0);
-        usprintf(local_2b0, L" \t \t \t%s", local_4b0);
+          player_handle, text_buf);
+        usprintf(line_buf, L" \t \t \t%s", text_buf);
         rect2[0] = *(int16_t *)0x506584;
         rect2[1] = *(int16_t *)0x506586;
         rect2[2] = *(int16_t *)0x506588;
         rect2[3] = *(int16_t *)0x50658a;
-        rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+        rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
         draw_string_set_style_justify_flags(-1, 0, 0);
-        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)line_buf);
         draw_string_set_color(color);
 
-        iVar5 = FUN_000abfd0(player_handle, 2, 0);
-        if (iVar5 == 0)
-          draw_string_set_color(&local_b0[12]);
-        usprintf(local_2b0, L" \t \t \t \t%d",
+        tmp = FUN_000abfd0(player_handle, 2, 0);
+        if (tmp == 0)
+          draw_string_set_color(&color_table[12]);
+        usprintf(line_buf, L" \t \t \t \t%d",
                  (int)*(int16_t *)(player + 0x98));
         rect2[0] = *(int16_t *)0x506584;
         rect2[1] = *(int16_t *)0x506586;
         rect2[2] = *(int16_t *)0x506588;
         rect2[3] = *(int16_t *)0x50658a;
-        rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+        rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
         draw_string_set_style_justify_flags(-1, 0, 0);
-        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)line_buf);
         draw_string_set_color(color);
 
-        iVar5 = FUN_000abfd0(player_handle, 3, 0);
-        if (iVar5 == 0)
-          draw_string_set_color(&local_b0[12]);
-        usprintf(local_2b0, L" \t \t \t \t \t%d",
+        tmp = FUN_000abfd0(player_handle, 3, 0);
+        if (tmp == 0)
+          draw_string_set_color(&color_table[12]);
+        usprintf(line_buf, L" \t \t \t \t \t%d",
                  (int)*(int16_t *)(player + 0xa0));
         rect2[0] = *(int16_t *)0x506584;
         rect2[1] = *(int16_t *)0x506586;
         rect2[2] = *(int16_t *)0x506588;
         rect2[3] = *(int16_t *)0x50658a;
-        rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+        rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
         draw_string_set_style_justify_flags(-1, 0, 0);
-        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)line_buf);
         draw_string_set_color(color);
 
-        iVar5 = FUN_000abfd0(player_handle, 4, 0);
-        if (iVar5 == 0)
-          draw_string_set_color(&local_b0[12]);
-        usprintf(local_2b0, L" \t \t \t \t \t \t%d",
+        tmp = FUN_000abfd0(player_handle, 4, 0);
+        if (tmp == 0)
+          draw_string_set_color(&color_table[12]);
+        usprintf(line_buf, L" \t \t \t \t \t \t%d",
                  (int)*(int16_t *)(player + 0xaa));
         rect2[0] = *(int16_t *)0x506584;
         rect2[1] = *(int16_t *)0x506586;
         rect2[2] = *(int16_t *)0x506588;
         rect2[3] = *(int16_t *)0x50658a;
-        rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+        rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
         draw_string_set_style_justify_flags(-1, 0, 0);
-        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)local_2b0);
+        rasterizer_draw_string(rect2, 0, 0, 0, (wchar_t *)line_buf);
         draw_string_set_tab_stops(tab_stops, 6);
       }
       entry += 7;
@@ -5845,11 +5881,11 @@ void game_engine_post_rasterize_post_game(void)
     rect2[1] = 0x46; /* y = 70 */
     rect2[2] = 0x1e0; /* clip bottom = 480 */
     rect2[3] = 0x280; /* clip right = 640 */
-    rect2d_offset(rect2, -*(int16_t *)0x50657e, -*(int16_t *)0x50657c);
+    rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
     draw_string_set_tab_stops(0, 0);
     draw_string_set_color(bottom_color);
-    iVar5 = (int)network_game_server_get();
-    if (iVar5 != 0) {
+    tmp = (int)network_game_server_get();
+    if (tmp != 0) {
       rect2[1] = 0x17c;
       draw_string_and_hack_in_icons(
         rect2, 0, 0, 0, L"\t%b-button =quit    %a-button =pick game", 0);
@@ -6017,6 +6053,12 @@ void game_engine_update(void)
 #define HUD_EVENT_QUIT_NOTIFY 0x1c
 #define HUD_EVENT_BETRAYAL 0xd
 
+/* object_data_t.type values for an unattributed kill_object_handle's killer
+ * object, distinguishing the map's invisible out-of-bounds "guardian" biped
+ * from a vehicle splatter; pairs 1:1 with KILL_EVENT_GUARDIANS/VEHICLE below. */
+#define OBJECT_TYPE_BIPED 0
+#define OBJECT_TYPE_VEHICLE 1
+
 /* game_engine_player_killed (0xaf660)
  *
  * Called when a player dies in multiplayer. Records time of death, notifies
@@ -6036,7 +6078,7 @@ void game_engine_player_killed(int killer_handle, int kill_object_handle,
   int respawn_ticks;
   int kill_event_type;
   data_iter_t iter;
-  void *obj_data;
+  object_data_t *obj_data;
   short multi_kill;
   short kill_streak;
 
@@ -6122,13 +6164,14 @@ apply_clamp:
     if (kill_object_handle == NONE) {
       kill_event_type = KILL_EVENT_ENVIRONMENT;
     } else {
-      obj_data = object_get_and_verify_type(kill_object_handle, 0xffffffff);
+      obj_data = (object_data_t *)object_get_and_verify_type(kill_object_handle,
+                                                             0xffffffff);
       object_try_and_get_and_verify_type(kill_object_handle, 3);
-      switch (*(short *)((char *)obj_data + 0x64)) {
-      case 0:
+      switch (obj_data->type) {
+      case OBJECT_TYPE_BIPED:
         kill_event_type = KILL_EVENT_GUARDIANS;
         break;
-      case 1:
+      case OBJECT_TYPE_VEHICLE:
         kill_event_type = KILL_EVENT_VEHICLE;
         break;
       default:
@@ -6200,7 +6243,13 @@ apply_clamp:
  * Called during post-rasterize. For game types 2 (post-game scoreboard)
  * and 3 (post-game delay), renders post-game UI widgets across all four
  * local player slots and clears rumble for each.
- * Game types 0 and 1 are no-ops; any other value asserts unreachable. */
+ * Game types 0 and 1 are no-ops; any other value asserts unreachable.
+ *
+ * Evidence: the game-type dispatch and the unreachable arm come from the
+ * display_assert literal below (game_engine.c:0xdb5, T1). Unlike the
+ * FUN_000b0xxx helpers further down, 0xaf9a0 appears nowhere as a dword in
+ * cachebeta.xbe, so it is NOT a game-engine record slot — it is reached by a
+ * direct call from an unlifted post-rasterize caller. */
 void FUN_000af9a0(void)
 {
   int i;
@@ -6242,11 +6291,11 @@ void FUN_000afa40(int param_1, float param_2)
   uint32_t player_handle;
   uint32_t *entry;
   wchar_t *status;
-  wchar_t local_59c[256];
-  wchar_t local_39c[256];
+  wchar_t row_buf[256];
+  wchar_t score_text[256];
   uint32_t scoreboard[42];
-  wchar_t local_f4[80];
-  float local_54[4];
+  wchar_t title_buf[80];
+  float text_color[4];
   float color_teams[2][4];
   float color_a[4];
   char has_teams;
@@ -6256,20 +6305,20 @@ void FUN_000afa40(int param_1, float param_2)
   if (current_game_engine)
     has_teams = *(char *)0x456b14;
   (void)has_teams;
-  FUN_000ae920(local_f4, param_1);
+  FUN_000ae920(title_buf, param_1);
   player_count = FUN_000ac030(0, param_1, scoreboard, 6);
   color_a[0] = param_2;
   color_a[1] = 0.7f;
   color_a[2] = 0.7f;
   color_a[3] = 0.7f;
-  FUN_000ab090((int)local_f4, 0, 0, (int)color_a);
+  FUN_000ab090((int)title_buf, 0, 0, (int)color_a);
   color_a[1] = 0.5f;
   color_a[2] = 0.5f;
   color_a[3] = 0.5f;
   color_a[0] = param_2;
-  ((void (*)(wchar_t *))((int *)current_game_engine)[0x50 / 4])(local_39c);
-  usprintf(local_59c, L"\t%s\t%s\t%s", L"Place", L"Name", local_39c);
-  FUN_000ab090((int)local_59c, 0, 1, (int)color_a);
+  ((void (*)(wchar_t *))((int *)current_game_engine)[0x50 / 4])(score_text);
+  usprintf(row_buf, L"\t%s\t%s\t%s", L"Place", L"Name", score_text);
+  FUN_000ab090((int)row_buf, 0, 1, (int)color_a);
   i = 0;
   if (0 < player_count) {
     entry = scoreboard + 6;
@@ -6279,11 +6328,11 @@ void FUN_000afa40(int param_1, float param_2)
       player_handle = entry[-6];
       is_self = (param_1 == (int)player_handle);
       if (datum_absolute_index_to_index(player_data, player_handle)) {
-        hud_get_text_color((int *)local_54);
-        color_a[0] = local_54[0];
-        color_a[1] = local_54[1];
-        color_a[2] = local_54[2];
-        color_a[3] = local_54[3];
+        hud_get_text_color((int *)text_color);
+        color_a[0] = text_color[0];
+        color_a[1] = text_color[1];
+        color_a[2] = text_color[2];
+        color_a[3] = text_color[3];
         player = (int)datum_get(player_data, player_handle);
         color_teams[0][0] = param_2;
         color_teams[0][1] = 0.6f;
@@ -6295,16 +6344,16 @@ void FUN_000afa40(int param_1, float param_2)
         color_teams[1][3] = 0.6f;
         color_a[0] = param_2;
         ((void (*)(int, wchar_t *))((int *)current_game_engine)[0x4c / 4])(
-          player_handle, local_39c);
+          player_handle, score_text);
         if (*(int *)0x456b30 < 1 || *(int *)(player + 0x34) != -1 ||
             *(int16_t *)(player + 0xaa) < *(int *)0x456b30) {
           status = L"Quit";
           if (*(char *)(player + 0xd1) == 0)
-            status = local_39c;
+            status = score_text;
         } else {
           status = L"Dead";
         }
-        usprintf(local_59c, L"\t%s\t%s\t%s",
+        usprintf(row_buf, L"\t%s\t%s\t%s",
                  *(wchar_t **)(0x2efe28 + (*entry & 0x7f) * 4),
                  (wchar_t *)(player + 4), status);
         if (has_teams) {
@@ -6317,7 +6366,7 @@ void FUN_000afa40(int param_1, float param_2)
         } else {
           sel_color = color_a;
         }
-        FUN_000ab090((int)local_59c, is_self, i + 2, (int)sel_color);
+        FUN_000ab090((int)row_buf, is_self, i + 2, (int)sel_color);
       }
       i++;
       entry += 7;
@@ -6410,9 +6459,9 @@ int FUN_000afe50(float *position)
 
   tag_idx = get_flag_definition_index();
   object_placement_data_new(placement, tag_idx, -1);
-  *(float *)(placement + 0x18) = position[0];
-  *(float *)(placement + 0x1c) = position[1];
-  *(float *)(placement + 0x20) = position[2];
+  ((object_placement_data *)placement)->position_x = position[0];
+  ((object_placement_data *)placement)->position_y = position[1];
+  ((object_placement_data *)placement)->position_z = position[2];
   handle = object_new(placement);
   object_set_automatic_deactivation(handle, 0);
   /* OutputDebugStringA("created a flag"); — debug only */
@@ -6440,7 +6489,7 @@ void FUN_000aff20(int team)
 
 /* Validate a player handle (datum_get). */
 
-void FUN_000aff70(int param_1)
+void ctf_player_added(int param_1)
 
 {
   datum_get(player_data, param_1);
@@ -6500,7 +6549,7 @@ void FUN_000b00c0(int player_handle)
 }
 
 /* Find a player whose biped is carrying weapon_handle.
- * weapon_handle passed via @<edi> — set by FUN_000b0c10 before the call. */
+ * weapon_handle passed via @<edi> — set by ctf_spawn_equipment before the call. */
 int FUN_000b0100(int weapon_handle /* @<edi> */)
 {
   data_iter_t iter;
@@ -6524,7 +6573,7 @@ int FUN_000b0100(int weapon_handle /* @<edi> */)
 
 /* Check if a weapon at param_2 belongs to the opposing team of param_1. */
 
-int FUN_000b0170(int param_1, int param_2)
+int ctf_allow_weapon_pick_up(int param_1, int param_2)
 
 {
   int seat_index;
@@ -6559,7 +6608,7 @@ int FUN_000b0170(int param_1, int param_2)
 
 /* CTF message formatter (b0210). */
 
-int FUN_000b0210(int param_1, int param_2, int param_3, wchar_t *param_4,
+int ctf_get_score_hud_text(int param_1, int param_2, int param_3, wchar_t *param_4,
                  int param_5)
 
 {
@@ -6699,11 +6748,51 @@ int FUN_000b0210(int param_1, int param_2, int param_3, wchar_t *param_4,
   return 1;
 }
 
-/* FUN_000b04a0 (0xb04a0) — game_engine_ctf.c:0x3f5
+/* ---------------------------------------------------------------------------
+ * Game-engine variant records — the only xref for the FUN_000b0xxx /
+ * FUN_000b1xxx helpers below.
+ *
+ * Evidence: scanning cachebeta.xbe for each helper's address yields exactly
+ * one hit apiece, and every hit lands in one of two records of stride 0x88:
+ *
+ *   record 0x2efe88: +0x00 -> 0x26c6d4 = "ctf",  +0x04 = engine index 1
+ *   record 0x2eff10: +0x00 -> 0x26c6c4 = "king", +0x04 = engine index 4
+ *
+ * Slots used by the helpers in this file (same slot = same role in both):
+ *
+ *   +0x30  per-engine 3D marker render   ctf 0xafff0 / king FUN_000b2010
+ *   +0x40  assert weapon-is-flag         ctf FUN_000b04a0
+ *   +0x48  score lookup (player|team)    ctf ctf_get_player_score / king king_get_player_score
+ *   +0x4c  format one player's score     ctf ctf_get_player_score_string / king king_get_player_score_string
+ *   +0x50  static column label           ctf ctf_get_score_header_string / king king_get_score_header_string
+ *   +0x54  format one team's score       ctf ctf_get_team_score_string / king king_get_team_score_string
+ *   +0x78  player-not-on-hill predicate            king FUN_000b1e70
+ *   +0x7c  predicate on the int arg      ctf FUN_000b0520
+ *
+ * 0x2eff88 (king +0x78) holding FUN_000b1e70 — the "is this player off the
+ * hill" test — is what pins record 0x2eff10 to King of the Hill rather than
+ * to any other engine sharing the "king" string.
+ *
+ * Corroborated from the other side: `current_game_engine` is a pointer to one
+ * of these records, and the already-lifted code in this file calls the same
+ * offsets through it — e.g. `((int *)current_game_engine)[0x50 / 4]` is
+ * invoked with a wchar_t* to produce the scoreboard column label, matching
+ * +0x50 above, and slot +0x48 is called as int(*)(int, int) exactly like
+ * ctf_get_player_score's signature. Grep `current_game_engine)[0x` for the full set.
+ *
+ * The original dispatches through the record, so none of these has an
+ * in-source caller and none can be grep-traced by name. The slot proves the
+ * ROLE, not the Bungie symbol, so the names stay FUN_ (T3 per
+ * naming-confidence).
+ * -------------------------------------------------------------------------- */
+
+/* FUN_000b04a0 (0xb04a0) — game_engine_ctf.c:0x3f5, "ctf" record slot +0x40
  *
  * Assert that the given weapon index refers to a flag weapon.
  * Source file is game_engine_ctf.c but the function is linked into
  * game_engine.obj.
+ *
+ * Evidence: T1 __FILE__/__LINE__ anchor in the display_assert literal below.
  */
 void FUN_000b04a0(int weapon_index)
 {
@@ -6714,13 +6803,14 @@ void FUN_000b04a0(int weapon_index)
   }
 }
 
-/* FUN_000b04e0 (0xb04e0) — CTF/game-engine score lookup
+/* ctf_get_player_score (0xb04e0) — "ctf" record slot +0x48: score lookup
  *
  * Returns the player's individual score or team score depending on param_2.
  * If param_2 == 0, returns the int16 score at player+0xc4.
  * Otherwise, returns the team score from the 0x456b84 array indexed by
- * the player's team field at player+0x20. */
-int FUN_000b04e0(int player_handle, int param_2)
+ * the player's team field at player+0x20.
+ * KotH counterpart: king_get_player_score (int16 at player+0xc0, array 0x456ba8). */
+int ctf_get_player_score(int player_handle, int param_2)
 {
   char *player;
 
@@ -6731,7 +6821,14 @@ int FUN_000b04e0(int player_handle, int param_2)
   return ((int *)0x456b84)[*(int *)(player + 0x20)];
 }
 
-/* FUN_000b0520 (0xb0520) — check game state == 0 */
+/* FUN_000b0520 (0xb0520) — "ctf" record slot +0x7c: returns arg == 0.
+ *
+ * unknown purpose: param_1's meaning is not proven. What is proven — slot
+ * +0x7c is dispatched in this file as a predicate taking one int, called with
+ * 1 (gating a score lookup) and with 0 (gating spawn rating), and the "king"
+ * record leaves the slot NULL (0x2eff8c holds 0), which is why every call site
+ * NULL-checks it first. The earlier "check game state == 0" reading of param_1
+ * was a guess and is dropped rather than kept as a plausible-sounding name. */
 bool FUN_000b0520(int param_1)
 {
   bool result;
@@ -6742,11 +6839,14 @@ bool FUN_000b0520(int param_1)
   return result;
 }
 
-/* FUN_000b0530 (0xb0530) — CTF/game-engine score format by player
+/* ctf_get_player_score_string (0xb0530) — "ctf" record slot +0x4c: format player score
  *
  * Formats the player's score (int16 at player+0xc4) into a wide string
- * buffer using the format string pointer at 0x26c118. */
-wchar_t *FUN_000b0530(int player_handle, wchar_t *dst)
+ * buffer using the format string pointer at 0x26c118.
+ * 0x26c118 = L"%d" (25 00 64 00 00 00, read out of cachebeta.xbe) — a plain
+ * integer, which is why the KotH counterpart king_get_player_score_string needs a different
+ * formatter (ticks_to_unicode_time_string) instead of this one. */
+wchar_t *ctf_get_player_score_string(int player_handle, wchar_t *dst)
 {
   char *player;
 
@@ -6755,20 +6855,23 @@ wchar_t *FUN_000b0530(int player_handle, wchar_t *dst)
   return dst;
 }
 
-/* FUN_000b0570 (0xb0570) — CTF/game-engine score header "Score"
+/* ctf_get_score_header_string (0xb0570) — "ctf" record slot +0x50: static column label
  *
- * Formats the static header string L"Score" into the destination buffer. */
-wchar_t *FUN_000b0570(wchar_t *dst)
+ * Formats the static header string L"Score" into the destination buffer.
+ * KotH counterpart king_get_score_header_string occupies the same slot and emits L"Time". */
+wchar_t *ctf_get_score_header_string(wchar_t *dst)
 {
   usprintf(dst, L"Score");
   return dst;
 }
 
-/* FUN_000b0590 (0xb0590) — CTF/game-engine team score format
+/* ctf_get_team_score_string (0xb0590) — "ctf" record slot +0x54: format team score
  *
  * Formats a team score from the 0x456b84 array, indexed by param_1,
- * into a wide string buffer using the format string at 0x26c118. */
-wchar_t *FUN_000b0590(int param_1, wchar_t *dst)
+ * into a wide string buffer using the format string at 0x26c118 (= L"%d").
+ * param_1 is a team index, not a player handle: the +0x48 lookup reaches the
+ * same 0x456b84 array through player+0x20 (the player's team field). */
+wchar_t *ctf_get_team_score_string(int param_1, wchar_t *dst)
 {
   usprintf(dst, (const wchar_t *)0x26c118, ((int *)0x456b84)[param_1]);
   return dst;
@@ -6776,7 +6879,7 @@ wchar_t *FUN_000b0590(int param_1, wchar_t *dst)
 
 /* CTF: initialize CTF game mode — find flags, create weapons, validate (b05c0).
  */
-int FUN_000b05c0(void)
+int ctf_initialize_for_new_map(void)
 {
   int variant;
   int scenario;
@@ -7061,7 +7164,7 @@ void FUN_000b0ac0(int param_1)
 /* CTF: find player carrying enemy flag (b0100 already above). */
 
 /* CTF: per-tick flag weapon status update (b0c10). */
-void FUN_000b0c10(int weapon_handle, int weapon_obj)
+void ctf_spawn_equipment(int weapon_handle, int weapon_obj)
 {
   int16_t flag_team;
   int flag_carrier;
@@ -7149,7 +7252,7 @@ void FUN_000b0c10(int weapon_handle, int weapon_obj)
 }
 
 /* CTF: handle a player picking up or returning a flag weapon (b0ed0). */
-int FUN_000b0ed0(int weapon_handle, int player_handle)
+int ctf_unit_can_enter_seat(int weapon_handle, int player_handle)
 {
   int weapon;
   int player;
@@ -7212,7 +7315,7 @@ int FUN_000b0ed0(int weapon_handle, int player_handle)
 }
 
 /* CTF: compute spawn rating based on distance to enemy flag (b1030). */
-float FUN_000b1030(int param_1, float *param_2)
+float ctf_get_starting_location_rating(int param_1, float *param_2)
 {
   float *flag_pos;
   int variant;
@@ -7381,7 +7484,7 @@ void FUN_000b1180(void)
 
 /* Validate a player handle for post-spawn (datum_get). */
 
-void FUN_000b14e0(int param_1)
+void king_player_added(int param_1)
 
 {
   datum_get(player_data, param_1);
@@ -7577,7 +7680,7 @@ update:
 
 /* King of the Hill message formatter (b1940). */
 
-int FUN_000b1940(int param_1, int param_2, int param_3, wchar_t *param_4,
+int king_get_score_hud_text(int param_1, int param_2, int param_3, wchar_t *param_4,
                  int param_5)
 
 {
@@ -7631,13 +7734,16 @@ int FUN_000b1940(int param_1, int param_2, int param_3, wchar_t *param_4,
   return 1;
 }
 
-/* FUN_000b1a60 (0xb1a60) — game-engine score lookup (time-based variant)
+/* king_get_player_score (0xb1a60) — "king" record slot +0x48: score lookup
  *
  * Returns the player's individual tick-count score or team score depending
  * on param_2. If param_2 == 0, returns the int16 tick count at player+0xc0.
  * Otherwise, returns the team score from the 0x456ba8 array indexed by the
- * player's team field at player+0x20. */
-int FUN_000b1a60(int player_handle, int param_2)
+ * player's team field at player+0x20.
+ * NOTE: this is King of the Hill, not CTF — the sole xref is slot +0x48 of
+ * the record at 0x2eff10 whose name pointer is 0x26c6c4 = "king". The CTF
+ * counterpart is ctf_get_player_score (player+0xc4, array 0x456b84). */
+int king_get_player_score(int player_handle, int param_2)
 {
   char *player;
 
@@ -7684,25 +7790,25 @@ void FUN_000b1aa0(void)
 void FUN_000b1b30(float *param_1, int param_2, void *param_3, void *param_4,
                   float param_5, float param_6)
 {
-  int iVar2;
-  int iVar4;
+  int widget_a;
+  int shader;
   int iVar5;
   int16_t *ppoint_count;
-  void *puVar6;
+  void *dst;
   char render_state[0xcc];
   float centroid[3];
   int local_c;
   int local_8;
 
   *(int16_t *)0x325652 = 9;
-  iVar2 = rasterizer_widget_submit(2);
+  widget_a = rasterizer_widget_submit(2);
   local_8 = rasterizer_widget_set_zbuffer_enable(5, 4);
-  if (iVar2 == -1 || local_8 == -1) {
+  if (widget_a == -1 || local_8 == -1) {
     *(int16_t *)0x325652 = 0;
     return;
   }
   local_c = rasterizer_widget_draw_sprite3d(local_8);
-  ppoint_count = (int16_t *)rasterizer_widget_begin(iVar2);
+  ppoint_count = (int16_t *)rasterizer_widget_begin(widget_a);
   FUN_00180d10(4, 4, local_c, 0x80, param_1, 0x110);
   ppoint_count[0] = 0;
   ppoint_count[1] = 1;
@@ -7710,16 +7816,16 @@ void FUN_000b1b30(float *param_1, int param_2, void *param_3, void *param_4,
   ppoint_count[3] = 2;
   ppoint_count[4] = 3;
   ppoint_count[5] = 0;
-  rasterizer_widget_set_texture(iVar2);
+  rasterizer_widget_set_texture(widget_a);
   rasterizer_widget_end(local_8);
-  iVar4 = (int)tag_get(0x73686472, param_2);
+  shader = (int)tag_get(TAG_GROUP_SHDR, param_2);
   centroid[0] = (param_1[0x33] + param_1[0x22] + param_1[0x11] + param_1[0]) *
                 *(float *)0x25337c;
   centroid[1] = (param_1[0x34] + param_1[0x23] + param_1[0x12] + param_1[1]) *
                 *(float *)0x25337c;
   centroid[2] = (param_1[0x35] + param_1[0x24] + param_1[0x13] + param_1[2]) *
                 *(float *)0x25337c;
-  local_c = iVar4;
+  local_c = shader;
   csmemset(render_state, 0, 0xcc);
   *(int *)(render_state + 4) = 1;
   *(int16_t *)(render_state + 0xc) = 1;
@@ -7741,15 +7847,15 @@ void FUN_000b1b30(float *param_1, int param_2, void *param_3, void *param_4,
     *(int *)(render_state + 0x7c) = *(int *)(*(int *)0x2ee710 + 4);
     *(int *)(render_state + 0x80) = *(int *)(*(int *)0x2ee710 + 8);
   } else {
-    puVar6 = render_state + 0x10;
+    dst = render_state + 0x10;
     iVar5 = 0x1d;
     do {
-      *(int *)puVar6 = *(int *)param_3;
+      *(int *)dst = *(int *)param_3;
       param_3 = (char *)param_3 + 4;
-      puVar6 = (char *)puVar6 + 4;
+      dst = (char *)dst + 4;
       iVar5--;
     } while (iVar5 != 0);
-    iVar4 = local_c;
+    shader = local_c;
   }
   if (param_4 == NULL) {
     *(int *)(render_state + 0x84) = 0;
@@ -7768,25 +7874,27 @@ void FUN_000b1b30(float *param_1, int param_2, void *param_3, void *param_4,
   FUN_0017cbb0(render_state, 1);
   {
     char is_transparent =
-      shader_type_is_transparent(*(int16_t *)(iVar4 + 0x24));
+      shader_type_is_transparent(*(int16_t *)(shader + 0x24));
     if (is_transparent == 0)
-      FUN_0017cbc0(iVar4, 0, 0, iVar2, 2, 0, local_8);
+      FUN_0017cbc0(shader, 0, 0, widget_a, 2, 0, local_8);
     else
-      FUN_0017cbd0(iVar4, 0, 0, iVar2, 2, 0, local_8, centroid, 0);
+      FUN_0017cbd0(shader, 0, 0, widget_a, 2, 0, local_8, centroid, 0);
   }
   FUN_0016b1c0();
   FUN_0016b240();
   rasterizer_psuedo_dynamic_screen_quad_draw(1);
-  rasterizer_widget_set_tint_factor(iVar2);
+  rasterizer_widget_set_tint_factor(widget_a);
   FUN_0017c9f0(local_8);
   *(int16_t *)0x325652 = 0;
 }
 
-/* FUN_000b1de0 (0xb1de0) — CTF/game-engine time-based score format
+/* king_get_player_score_string (0xb1de0) — "king" record slot +0x4c: format player score
  *
  * Reads the player's tick count at player+0xc0 and formats it as a
- * unicode time string using ticks_to_unicode_time_string. */
-wchar_t *FUN_000b1de0(int player_handle, wchar_t *dst)
+ * unicode time string using ticks_to_unicode_time_string.
+ * NOT CTF: the slot belongs to record 0x2eff10 ("king"). The CTF counterpart
+ * ctf_get_player_score_string formats the same slot with L"%d" instead. */
+wchar_t *king_get_player_score_string(int player_handle, wchar_t *dst)
 {
   char *player;
 
@@ -7795,20 +7903,22 @@ wchar_t *FUN_000b1de0(int player_handle, wchar_t *dst)
   return dst;
 }
 
-/* FUN_000b1e20 (0xb1e20) — game-engine score header "Time"
+/* king_get_score_header_string (0xb1e20) — "king" record slot +0x50: static column label
  *
- * Formats the static header string L"Time" into the destination buffer. */
-wchar_t *FUN_000b1e20(wchar_t *dst)
+ * Formats the static header string L"Time" into the destination buffer.
+ * CTF counterpart ctf_get_score_header_string occupies the same slot and emits L"Score". */
+wchar_t *king_get_score_header_string(wchar_t *dst)
 {
   usprintf(dst, L"Time");
   return dst;
 }
 
-/* FUN_000b1e40 (0xb1e40) — game-engine team time score format
+/* king_get_team_score_string (0xb1e40) — "king" record slot +0x54: format team score
  *
  * Formats a team's time-based score from the 0x456ba8 array, indexed by
- * team_index, into a wide string buffer using ticks_to_unicode_time_string. */
-wchar_t *FUN_000b1e40(int team_index, wchar_t *dst)
+ * team_index, into a wide string buffer using ticks_to_unicode_time_string.
+ * CTF counterpart is ctf_get_team_score_string (array 0x456b84, format L"%d"). */
+wchar_t *king_get_team_score_string(int team_index, wchar_t *dst)
 {
   ticks_to_unicode_time_string(((int *)0x456ba8)[team_index], 0x100, dst);
   return dst;
@@ -7846,7 +7956,7 @@ int FUN_000b1e90(int param_1, int param_2)
 }
 
 /* King of the Hill: initialization (b1f00). */
-int FUN_000b1f00(void)
+int king_initialize_for_new_map(void)
 {
   int scenario;
   int16_t i;
@@ -7861,11 +7971,11 @@ int FUN_000b1f00(void)
     do {
       elem =
         (int)tag_block_get_element((int *)(scenario + 0x378), (int)i, 0x94);
-      if (*(int16_t *)(elem + 0x10) == 8) {
+      if (((netgame_flag *)elem)->type == 8) {
         j = 0;
         if (0 < *(int16_t *)0x456d54) {
           do {
-            if (*(int16_t *)(0x456d58 + j * 2) == *(int16_t *)(elem + 0x12))
+            if (*(int16_t *)(0x456d58 + j * 2) == ((netgame_flag *)elem)->team_index)
               goto next_flag;
             j++;
           } while (j < *(int16_t *)0x456d54);
@@ -7873,7 +7983,7 @@ int FUN_000b1f00(void)
         {
           int idx = (int)*(int16_t *)0x456d54;
           *(int16_t *)0x456d54 = *(int16_t *)0x456d54 + 1;
-          *(int16_t *)(0x456d58 + idx * 2) = *(int16_t *)(elem + 0x12);
+          *(int16_t *)(0x456d58 + idx * 2) = ((netgame_flag *)elem)->team_index;
         }
       }
     next_flag:
@@ -7894,19 +8004,30 @@ int FUN_000b1f00(void)
   return 1;
 }
 
-/* Render race path 3D markers along waypoint segments (b2010).
- * Buffer base is local_158 = EBP-0x154.
- * Index: buf[(0x158-NN)/4] for Ghidra local_NN. */
+/* Render 3D markers along the segments of the point set at 0x456c3c (b2010).
+ *
+ * unverified: an earlier comment called this the "race path". Two facts point
+ * at King of the Hill instead — (1) the only xref to 0xb2010 in cachebeta.xbe
+ * is slot +0x30 of the game-engine record at 0x2eff10, whose name pointer
+ * 0x26c6c4 reads "king" (see the record table above FUN_000b04a0); (2) the
+ * vec3 array at 0x456c3c with its count at 0x456c38 is written by the convex
+ * hull of the flag positions built earlier in this file, i.e. a hill
+ * boundary polygon, not an ordered track. Neither proves the engine's
+ * user-facing name, so no semantic rename is made here.
+ *
+ * Ghidra map (the local_NN tokens below are decompile cross-references, not
+ * stale variable names): buffer base is local_158 = EBP-0x154, so Ghidra's
+ * local_NN is buf[(0x158-NN)/4]. */
 extern double floor(double);
 void FUN_000b2010(void)
 {
   int iVar4;
   uint32_t point_count;
-  uint32_t uVar5;
-  uint32_t uVar6;
-  uint32_t uVar8;
-  float *pfVar7;
-  float fVar2;
+  uint32_t wrap_index;
+  uint32_t next_index;
+  uint32_t counter;
+  float *point;
+  float inv_mag;
   float total_distance;
   float t_per_distance;
   float distance_scale;
@@ -7928,63 +8049,68 @@ void FUN_000b2010(void)
   iVar4 = (int)tag_block_get_element((int *)(iVar4 + 0x164), 0, 0xa0);
   point_count = *(uint32_t *)0x456c38;
   total_distance = *(float *)0x2533c0;
-  shader_tag = *(int *)(iVar4 + 0x38);
+  shader_tag = ((game_globals_multiplayer_element *)iVar4)->field_38;
   if (0 < (int)point_count) {
-    uVar6 = 1;
-    pfVar7 = (float *)0x456c44;
-    uVar8 = point_count;
+    next_index = 1;
+    point = (float *)0x456c44;
+    counter = point_count;
     do {
-      uVar5 = ((uVar6 == point_count) - 1) & uVar6;
-      uVar6++;
-      uVar8--;
+      wrap_index = ((next_index == point_count) - 1) & next_index;
+      next_index++;
+      counter--;
       {
-        float ddx = ((float *)0x456c3c)[uVar5 * 3] - pfVar7[-2];
-        float ddy = ((float *)0x456c40)[uVar5 * 3] - pfVar7[-1];
-        float ddz = ((float *)0x456c44)[uVar5 * 3] - *pfVar7;
+        float ddx = ((float *)0x456c3c)[wrap_index * 3] - point[-2];
+        float ddy = ((float *)0x456c40)[wrap_index * 3] - point[-1];
+        float ddz = ((float *)0x456c44)[wrap_index * 3] - *point;
         total_distance += xbox_sqrtf(ddx * ddx + ddy * ddy + ddz * ddz);
       }
-      pfVar7 += 3;
-    } while (uVar8 != 0);
+      point += 3;
+    } while (counter != 0);
   }
   {
-    double fVar9 = floor((double)(total_distance + *(float *)0x253398));
+    double floored = floor((double)(total_distance + *(float *)0x253398));
     t_accum = 0.0f;
-    t_per_distance = (float)(*(double *)0x2573d8 / fVar9);
+    t_per_distance = (float)(*(double *)0x2573d8 / floored);
     distance_scale = *(float *)0x2533c8 / (t_per_distance * total_distance);
     total_distance = 0.0f;
   }
   if (0 < (int)point_count) {
-    uVar8 = 1;
+    counter = 1;
     texture_scale = *(float *)0x2533c8 / t_per_distance;
-    pfVar7 = (float *)0x456c3c;
+    point = (float *)0x456c3c;
     loop_count = point_count;
     do {
-      uVar6 = (uVar8 == point_count) ? 0 : uVar8;
+      next_index = (counter == point_count) ? 0 : counter;
       {
-        float ddx = ((float *)0x456c3c)[uVar6 * 3] - pfVar7[0];
-        float ddy = ((float *)0x456c40)[uVar6 * 3] - pfVar7[1];
-        float ddz = ((float *)0x456c44)[uVar6 * 3] - pfVar7[2];
+        float ddx = ((float *)0x456c3c)[next_index * 3] - point[0];
+        float ddy = ((float *)0x456c40)[next_index * 3] - point[1];
+        float ddz = ((float *)0x456c44)[next_index * 3] - point[2];
         total_distance += xbox_sqrtf(ddx * ddx + ddy * ddy + ddz * ddz);
       }
       t_value = total_distance * distance_scale;
       csmemset(render_buf, 0, 0x110);
-      /* local_114/110/10c → buf[0x11/0x12/0x13]: current pos + z_offset */
-      render_buf[0x11] = pfVar7[0];
-      render_buf[0x12] = pfVar7[1];
-      render_buf[0x13] = pfVar7[2] + *(float *)0x2533f0;
-      /* local_158/154/150 → buf[0x00/0x01/0x02]: current pos raw */
-      render_buf[0x00] = pfVar7[0];
-      render_buf[0x01] = pfVar7[1];
-      render_buf[0x02] = pfVar7[2];
+      /* Ghidra map: local_114/110/10c → buf[0x11/0x12/0x13]: current pos,
+       * z raised by *(float *)0x2533f0 = 0.8f (cdcc4c3f in cachebeta.xbe). */
+      render_buf[0x11] = point[0];
+      render_buf[0x12] = point[1];
+      render_buf[0x13] = point[2] + *(float *)0x2533f0;
+      /* Ghidra map: local_158/154/150 → buf[0x00/0x01/0x02]: current pos raw */
+      render_buf[0x00] = point[0];
+      render_buf[0x01] = point[1];
+      render_buf[0x02] = point[2];
       {
-        float nx_x = ((float *)0x456c3c)[uVar6 * 3];
-        float nx_y = ((float *)0x456c40)[uVar6 * 3];
-        float nx_z = ((float *)0x456c44)[uVar6 * 3];
-        /* local_8c/88/84 → buf[0x33/0x34/0x35] */
+        float nx_x = ((float *)0x456c3c)[next_index * 3];
+        float nx_y = ((float *)0x456c40)[next_index * 3];
+        float nx_z = ((float *)0x456c44)[next_index * 3];
+        /* Ghidra map: local_8c/88/84 → buf[0x33/0x34/0x35] */
         render_buf[0x33] = nx_x;
         render_buf[0x34] = nx_y;
         render_buf[0x35] = nx_z;
-        /* local_d0/cc/c8 → buf[0x22/0x23/0x24]: next pos + z_offset */
+        /* Ghidra map: local_d0/cc/c8 → buf[0x22/0x23/0x24]: next pos, z
+         * raised by the same 0.8f at 0x2533f0.
+         * keep: the 0x24-before-0x23 store order is deliberate, mirroring the
+         * original's FSTP scheduling. It is not a typo — re-measure VC71
+         * before "tidying" it into 0x22/0x23/0x24 order. */
         render_buf[0x22] = nx_x;
         render_buf[0x24] = nx_z + *(float *)0x2533f0;
         render_buf[0x23] = nx_y;
@@ -8002,10 +8128,10 @@ void FUN_000b2010(void)
       mag =
         xbox_sqrtf(cross_x * cross_x + cross_y * cross_y + cross_z * cross_z);
       if (*(double *)0x2533d0 <= (mag < 0 ? -mag : mag)) {
-        fVar2 = *(float *)0x2533c8 / mag;
-        cross_x *= fVar2;
-        cross_y *= fVar2;
-        cross_z *= fVar2;
+        inv_mag = *(float *)0x2533c8 / mag;
+        cross_x *= inv_mag;
+        cross_y *= inv_mag;
+        cross_z *= inv_mag;
       }
       {
         float u0 = t_accum * t_per_distance;
@@ -8033,8 +8159,8 @@ void FUN_000b2010(void)
         render_buf[0x3f] = u1;
       }
       FUN_000b1b30(render_buf, shader_tag, 0, 0, texture_scale, 1.0f);
-      pfVar7 += 3;
-      uVar8++;
+      point += 3;
+      counter++;
       loop_count--;
     } while (loop_count != 0);
   }
@@ -8155,7 +8281,7 @@ int game_engine_get_score_sound_duration(int event_index /* @<esi> */)
     if (entry != NULL) {
       tag_index = *(int *)((char *)entry + 0xc);
       if (tag_index != -1) {
-        tag_data = tag_get(0x736e6421, tag_index);
+        tag_data = tag_get(TAG_GROUP_SND, tag_index);
         return (*(int *)((char *)tag_data + 0x84) * 30) / 1000;
       }
     }
@@ -8202,7 +8328,7 @@ void game_engine_score_reset(void)
 
 /* Validate a player handle for oddball (datum_get). */
 
-void FUN_000b26b0(int param_1)
+void oddball_player_added(int param_1)
 
 {
   datum_get(player_data, param_1);
@@ -8305,7 +8431,7 @@ int FUN_000b28c0(void)
 
 /* Oddball message formatter (b2900). */
 
-char FUN_000b2900(int param_1, int param_2, int param_3, wchar_t *param_4,
+char oddball_get_score_hud_text(int param_1, int param_2, int param_3, wchar_t *param_4,
                   int param_5)
 
 {
@@ -8422,7 +8548,7 @@ void FUN_000b2b00(int param_1)
 
 /* Return the score for a player (team or individual mode). */
 
-int FUN_000b2b40(int param_1, int param_2)
+int oddball_get_player_score(int param_1, int param_2)
 
 {
   int player;
@@ -8506,7 +8632,7 @@ char FUN_000b2c00(int param_1, int param_2)
 
 /* Format an individual player's score as a number or time string. */
 
-wchar_t *FUN_000b2c50(int param_1, wchar_t *param_2)
+wchar_t *oddball_get_player_score_string(int param_1, wchar_t *param_2)
 
 {
   int score;
@@ -8532,7 +8658,7 @@ wchar_t *FUN_000b2c50(int param_1, wchar_t *param_2)
 
 /* Return the score column header string ("Score" or "Time"). */
 
-wchar_t *FUN_000b2ca0(wchar_t *param_1)
+wchar_t *oddball_get_score_header_string(wchar_t *param_1)
 
 {
   int variant;
@@ -8553,7 +8679,7 @@ wchar_t *FUN_000b2ca0(wchar_t *param_1)
 
 /* Format a team's score as a number or time string. */
 
-wchar_t *FUN_000b2ce0(int param_1, wchar_t *param_2)
+wchar_t *oddball_get_team_score_string(int param_1, wchar_t *param_2)
 
 {
   int score;
@@ -8611,7 +8737,7 @@ void FUN_000b2d30(int *param_1, int param_2)
   if (0 < *flag_block) {
     do {
       elem = (int)tag_block_get_element(flag_block, (int)i, 0x94);
-      if (*(int16_t *)(elem + 0x10) == 2)
+      if (((netgame_flag *)elem)->type == 2)
         flag_count++;
       i++;
     } while ((int)i < *flag_block);
@@ -8624,7 +8750,7 @@ void FUN_000b2d30(int *param_1, int param_2)
       if (0 < *flag_block) {
         do {
           elem = (int)tag_block_get_element(flag_block, (int)i, 0x94);
-          if (*(int16_t *)(elem + 0x10) == 2) {
+          if (((netgame_flag *)elem)->type == 2) {
             if (rng_pick == 0) {
               flag_elem = (int *)tag_block_get_element(
                 (int *)(scenario + 0x378), (int)i, 0x94);
@@ -8652,7 +8778,7 @@ output:
   param_1[2] = local_c;
 }
 
-/* Oddball: create a ball object at a random spawn position. DI = team/slot
+/* Oddball: create a ball object at a random spawn local_10. DI = team/slot
  * index. */
 void FUN_000b2e70(int16_t slot_index)
 {
@@ -8806,7 +8932,7 @@ int FUN_000b3120(int param_1)
 }
 
 /* Oddball: per-tick weapon status update (b32e0). */
-void FUN_000b32e0(int weapon_handle, int weapon_obj)
+void oddball_spawn_equipment(int weapon_handle, int weapon_obj)
 {
   int tick;
   float local_10[3];
@@ -8918,9 +9044,12 @@ find_slot:
     }
   }
 clear_dead:
-  /* Note: game_show_score_you_ally_enemy above suppresses the self message
-   * (-1) in team mode and uses 0x21 in FFA: the decompile's
-   * (-(uint)bVar1 & 0xffffffde) + 0x21 is -1 when bVar1==1, 0x21 when 0. */
+  /* Ghidra idiom, for the game_show_score_you_ally_enemy call above (the
+   * `is_team_mode ? -1 : 0x21` argument): the decompile writes that branchless
+   * select as (-(uint)bVar1 & 0xffffffde) + 0x21, where bVar1 is its name for
+   * is_team_mode. -(uint)1 = 0xffffffff, so the mask yields 0xffffffde and the
+   * sum is -1; -(uint)0 = 0 masks to 0 and the sum is 0x21. The ternary is
+   * therefore an exact transcription, not a simplification. */
   i = 0;
   if (0 < num_balls) {
     do {
@@ -8932,7 +9061,7 @@ clear_dead:
 }
 
 /* Oddball: weapon pickup handler (b3630). */
-char FUN_000b3630(int weapon_handle, int player_handle)
+char oddball_unit_can_enter_seat(int weapon_handle, int player_handle)
 {
   int weapon;
   int variant;
@@ -9043,15 +9172,15 @@ int FUN_000b3770(int param_1)
 
     if (param_1 == 0)
 
-      return *(int *)(elem0 + 0xc);
+      return ((tag_reference *)elem0)->tag_index;
 
     if (param_1 == 1)
 
-      return *(int *)(elem2 + 0xc);
+      return ((tag_reference *)elem2)->tag_index;
 
     if (param_1 < 6)
 
-      return *(int *)(elem1 + 0xc);
+      return ((tag_reference *)elem1)->tag_index;
 
     break;
 
@@ -9059,7 +9188,7 @@ int FUN_000b3770(int param_1)
 
     if (param_1 < 4)
 
-      return *(int *)(elem0 + 0xc);
+      return ((tag_reference *)elem0)->tag_index;
 
     break;
 
@@ -9067,7 +9196,7 @@ int FUN_000b3770(int param_1)
 
     if (param_1 < 8)
 
-      return *(int *)(elem1 + 0xc);
+      return ((tag_reference *)elem1)->tag_index;
 
     break;
 
@@ -9075,7 +9204,7 @@ int FUN_000b3770(int param_1)
 
     if (param_1 < 4)
 
-      return *(int *)(elem2 + 0xc);
+      return ((tag_reference *)elem2)->tag_index;
 
     break;
   }
@@ -9115,12 +9244,12 @@ void FUN_000b3860(void)
     do {
       elem = (int)tag_block_get_element(flag_block, (int)i, 0x94);
 
-      if (*(int16_t *)(elem + 0x10) == 3 &&
+      if (((netgame_flag *)elem)->type == 3 &&
 
-          *(int16_t *)(elem + 0x12) >= 0 &&
+          ((netgame_flag *)elem)->team_index >= 0 &&
 
-          *(int16_t *)(elem + 0x12) < 0x20) {
-        seq = *(int16_t *)(elem + 0x12);
+          ((netgame_flag *)elem)->team_index < 0x20) {
+        seq = ((netgame_flag *)elem)->team_index;
 
         if ((used_mask & (1u << ((uint8_t)seq & 0x1f))) == 0) {
           used_mask |= (1u << ((uint8_t)seq & 0x1f));
@@ -9130,7 +9259,7 @@ void FUN_000b3860(void)
             if ((used_mask & (1u << ((uint8_t)j & 0x1f))) == 0) {
               used_mask |= (1u << ((uint8_t)seq & 0x1f));
 
-              *(int16_t *)(elem + 0x12) = (int16_t)j;
+              ((netgame_flag *)elem)->team_index = (int16_t)j;
 
               break;
             }
@@ -9138,7 +9267,7 @@ void FUN_000b3860(void)
 
           if (j >= 0x20)
 
-            *(int16_t *)(elem + 0x12) = (int16_t)j;
+            ((netgame_flag *)elem)->team_index = (int16_t)j;
         }
       }
 
@@ -9150,7 +9279,7 @@ void FUN_000b3860(void)
 
 /* Reset a player's race timer field. */
 
-void FUN_000b3900(int param_1)
+void race_player_added(int param_1)
 
 {
   int player;

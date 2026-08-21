@@ -52,12 +52,96 @@ rtk python3 $R report  $M
 | — | (pre) tooling check | `cleanup-report` | — | gaps → downgrade plan |
 | 1 | `comments` | `re-comment-capture` | none | (a) byte-identical |
 | 2 | `local-renames` | `name-cleanup` | none | (a) byte-identical |
-| 3 | `symbol-names` | `naming-confidence` | none | (a) byte-identical |
-| 4 | `const-enum` | `name-cleanup` | near-zero | (b) + no new `[IMM-WARN]` |
-| 5 | `struct-define` | `struct-recovery` → `struct-recovery` (Phase 2) | none (defs only) | (a) + build passes (cs/co) |
-| 6 | `offset-to-field` | `offset-to-struct` | low | (b) + hazard scan |
-| 7 | `expr-simplify` | `expr-simplify` | medium | (c) — **opt-in** |
-| 8 | `control-flow` | `control-flow-cleanup` | high | (c) — **opt-in** |
+| 3 | `symbol-names` | `naming-confidence` | none | (a) byte-identical (`--rename-map` for reloc targets) |
+| 4 | `global-names` | `naming-confidence` | none | (a) byte-identical |
+| 5 | `const-enum` | `name-cleanup` | near-zero | (b) + no new `[IMM-WARN]` |
+| 6 | `struct-define` | `struct-recovery` → `struct-recovery` (Phase 2) | none (defs only) | (a) + build passes (cs/co) |
+| 7 | `offset-to-field` | `offset-to-struct` | low | (b) + hazard scan |
+| 8 | `expr-simplify` | `expr-simplify` | medium | (c) — **opt-in** |
+| 9 | `control-flow` | `control-flow-cleanup` | high | (c) — **opt-in** |
+
+### 3 vs 4 — the two naming categories are not interchangeable
+
+`symbol-names` is **identifier → identifier**: `FUN_001b9b30` → `tag_file_get_path`.
+Its checker rejects anything else, so an absolute-address dereference can never
+pass under it. That single misfiling accounted for the largest block of parked
+items in `recovery/goal_ledger.json`.
+
+`global-names` names an absolute-address dereference, and the only neutral form
+is the convention already in the tree (`src/common.h`, 82 sites):
+
+```c
+#define update_client_globals_initialized (*(uint8_t *)0x45b1d0)
+```
+
+The macro body must be **exactly** the token run it replaces — same cast type,
+same address. That is what makes it codegen-neutral, and
+`check_category_purity.py global-names --staged` verifies precisely that (it
+builds the macro table across the whole staged change set, so the `#define` may
+live in a header; `--macro-source <header>` covers a header the diff does not
+touch).
+
+A kb.json `objects.data` extern is **not** an alternative: those are emitted
+`HDATA` = `__declspec(dllimport)` (`tools/analysis/knowledge.py`), so the
+reference compiles to a load through `[__imp__X]`. That is genuine codegen
+movement — the COFF gate is right to fail it.
+
+Evidence still governs the NAME per `naming-confidence`: a `data_new()` tag
+string, an assert string, or an existing kb.json `objects.data` entry at that
+address is T1/T2. No evidence → park. Never invent a name to clear an item.
+
+### Adding a line to a `.c` is not free
+
+Asserts expand `__FILE__` and `__LINE__`, so **any** line added above an assert
+changes `.text` and fails the byte-identical gate. This bites `global-names` and
+`const-enum`, whose definitions have to appear before their first use.
+
+Measured on `particle_systems.c` (2026-08-21): two `#define` lines at the top of
+the file moved every assert below them (1572 → 1574) and the COFF check reported
+`code bytes changed in .text#0`. The same 15 substitutions, with the defines
+appended to an already-included header instead, came out byte-identical.
+
+So put definitions in a header the TU **already includes**, below that header's
+last assert-bearing inline function. Adding a fresh `#include` line to the `.c`
+has the same problem as adding the defines directly. The exception is a TU whose
+asserts carry hardcoded line numbers rather than `__LINE__` — several lifted TUs
+do, and those tolerate added lines. Check before assuming; the gate will tell you
+either way, but knowing which case you are in saves a revert.
+
+### `const-enum` names exactly one kind of literal
+
+`plan` emits `magic_fourcc:<literal>` items: 32-bit hex whose four bytes are all
+printable ASCII, so the literal carries its own name evidence (`0x61637472` spells
+`'actr'`). 48 distinct codes across 326 sites in the current recovery TUs.
+
+Nothing else is proposed, and that is deliberate. Two alternatives were measured
+and rejected:
+
+- **Matching literals against existing `#define`s in `src/**.h`.** Small integers
+  collide with everything: `6` matched `_actor_action_guard` at 192 sites.
+- **Frequency.** The most repeated literals in a TU are `0.0f`, `1.0f`, and
+  struct offsets, which belong to `offset-to-field`.
+
+Do not name a literal the detector did not propose. An unnamed magic number is
+honest; a wrongly named one is a false claim in the source.
+
+### Renaming a symbol that relocations point at
+
+A rename changes the COFF symbol NAME, so a plain `check` reports "relocations
+changed in .text#0". `--rename-map` is what covers it:
+
+```bash
+rtk python3 $R check $M --object <obj> \
+    --rename-map '{"FUN_00123456":"new_name"}'
+```
+
+It excuses the symbol **name** only: offset, type, target section, target value,
+the `.text` bytes, and the assertion metadata must still match exactly, so a
+relocation aimed at a genuinely different symbol still fails. Pass the map you
+verified against the staged diff, never a whole-file one. **"Renaming it changes
+the relocation" is not a valid park reason.** A missing kb.json name or absent
+T1/T2 evidence is. A rename that lands in kb.json must also re-key the
+`vc71_scores.json` floor from the old name to the new one, in the same commit.
 
 Header placement (`header-recovery`) rides along with 3/5: recovered types,
 constants, and inline helpers go in the proven Bungie header, not a catch-all.
@@ -69,7 +153,7 @@ has pending items; the warning is advisory (a category may not apply) but an
 unexplained warning means you skipped a step. Without `--allow-risky` on the
 manifest, `set-status ... applied` on a risky item is refused and `check` fails.
 
-## Mechanical path for rungs 5 and 6 (`structize.py`)
+## Mechanical path for rungs 6 and 7 (`structize.py`)
 
 `struct-define` and `offset-to-field` are **transcription, not judgement** once
 the struct exists. Do them with the tool, not by hand — hand-editing hundreds of
@@ -97,6 +181,15 @@ rtk python3 tools/recovery/structize.py run --binding actor_t \
 Bindings are registered in `recovery/bindings.json` — each maps a struct name
 to the base variable name(s) used in source and a glob constraining the search.
 
+`plan` emits one `struct_bases:<name>` item per **cluster**: a base variable plus
+every offset the file reads off it and the widths used. That set is the evidence
+for one struct, and it is what rung 7 consumes. Before this detector existed the
+category had no items at all, was skipped every run, and rung 7 then parked every
+item on "no asserted struct" — a precondition the ladder could not produce. So:
+**"no asserted struct" is the reason this category runs, not a park reason for
+it.** A cluster whose widths disagree is a `verify_conflict.py` question, never a
+guess.
+
 **The LLM automation loop:**
 1. `campaign --binding X` → get JSON with `next_actions`
 2. Resolve the top conflict (Ghidra MCP query → edit `types.h`)
@@ -115,9 +208,9 @@ The individual steps remain available for inspection or partial work:
 S=tools/recovery/structize.py
 rtk python3 $S layout actor_t                                     # authoritative offsets (from clang)
 rtk python3 $S census --source <f.c> --base actor --struct actor_t -o recovery/census/<f>.json
-rtk python3 $S split    --census recovery/census/<f>.json --apply  # rung 5: pad_ -> field_XX
+rtk python3 $S split    --census recovery/census/<f>.json --apply  # rung 6: pad_ -> field_XX
 rtk python3 $S census   ... -o recovery/census/<f>.json            # re-census (run does this for you)
-rtk python3 $S converge --census recovery/census/<f>.json          # rung 6: rewrite what stays neutral
+rtk python3 $S converge --census recovery/census/<f>.json          # rung 7: rewrite what stays neutral
 ```
 
 `converge` is the one command worth remembering: it rewrites every eligible
@@ -133,7 +226,7 @@ the census, never a guess:
 |---|---|
 | cast kind ≠ field kind | `*(float*)` over an `int32_t` field is a pun; rewriting changes codegen |
 | width or signedness mismatch | MOVSX vs MOVZX are different instructions |
-| offset lands in a `pad_` run | rung 5 must split it first (that is what `split` is for) |
+| offset lands in a `pad_` run | rung 6 must split it first (that is what `split` is for) |
 | offset ≥ `sizeof(struct)` | the **binding is wrong** — stop, do not rewrite |
 | `volatile` access | the qualifier must survive |
 | whole-struct cast (`*(vector3_t*)`) | a multi-field copy, not a field access |

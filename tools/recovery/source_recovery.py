@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-TOOL_VERSION = "source-recovery/1"
+TOOL_VERSION = "source-recovery/2"
 SCHEMA = 1
 NOISY_PARTS = {"build", "build_debug", "node_modules", ".git", "halo-patched", "__pycache__", "dist"}
 
@@ -29,6 +29,7 @@ LADDER = (
     "comments",
     "local-renames",
     "symbol-names",
+    "global-names",
     "const-enum",
     "struct-define",
     "offset-to-field",
@@ -45,6 +46,7 @@ LADDER_SKILLS = {
     "comments": "re-comment-capture",
     "local-renames": "local-var-cleanup",
     "symbol-names": "naming-confidence",
+    "global-names": "naming-confidence",
     "const-enum": "const-enum-recovery",
     "struct-define": "struct-recovery+struct-assert",
     "offset-to-field": "offset-to-struct",
@@ -59,11 +61,23 @@ DETECTOR_CATEGORY = {
     "raw_function_pointer_address_casts": "symbol-names",
     "xcall_uses": "symbol-names",
     "fun_calls": "symbol-names",
-    "absolute_address_dereferences": "symbol-names",
+    "absolute_address_dereferences": "global-names",
     "raw_base_offset_dereferences": "offset-to-field",
+    "struct_bases": "struct-define",
+    "magic_fourcc": "const-enum",
     "decompiler_style_locals": "local-renames",
     "inline_asm": UNCATEGORIZED,
 }
+
+# Detectors whose match still counts as debt when it lands inside a comment.
+# Only decompiler-generated NAMES qualify: `FUN_00123456` or `local_1c` in
+# prose is a readability artifact the ladder is meant to remove.  A raw address
+# or a byte offset mentioned in prose is documentation, not debt.
+COMMENT_DEBT_DETECTORS = frozenset({"fun_calls", "decompiler_style_locals"})
+
+# Detectors that are NOT a line regex in PATTERNS: they are derived from a
+# whole-file pass because the debt is a cluster, not an occurrence.
+DERIVED_DETECTORS = frozenset({"struct_bases", "magic_fourcc"})
 
 PATTERNS = {
     "raw_function_pointer_address_casts": re.compile(r"\(\(.*\(\*\).*\)0x[0-9a-fA-F]+"),
@@ -84,6 +98,53 @@ PATTERNS = {
 
 class RecoveryError(Exception):
     """Expected, fail-closed workflow error."""
+
+
+# A rename is one decision per SYMBOL, not per occurrence.  `plan` used to file
+# one item per regex hit, so an address used 19 times became 19 items and the
+# category agent re-ran the same evidence hunt 19 times to reach the same
+# verdict.  Measured on game_engine.c (2026-08-21): global-names 547 items over
+# 154 distinct addresses, of which 527 parks covered 152 addresses -- 84
+# addresses parked more than once, 67 of those with byte-identical reasons, 375
+# redundant decisions.  offset-to-field was 529 items over 169 (base, offset)
+# pairs, with `(player, 0x20)` alone appearing 46 times.
+#
+# Grouping is per DECISION TARGET, so it is only correct where the edit is
+# inherently file-wide: you cannot rename one occurrence of a global and leave
+# the other 18.  `decompiler_style_locals` is deliberately NOT grouped -- Ghidra
+# reuses `local_c` for unrelated variables in different functions (5 distinct
+# roles in game_engine.c), so one name is several independent decisions and
+# check_category_purity requires a single injective map per file.
+_ADDR_RE = re.compile(r"0x[0-9A-Fa-f]+")
+_FUN_RE = re.compile(r"FUN_[0-9A-Fa-f]{4,}")
+_BASE_OFFSET_RE = re.compile(
+    r"\*\(\s*[A-Za-z_][\w ]*\*\)\(\s*([A-Za-z_]\w*)\s*\+\s*(0x[0-9A-Fa-f]+)\)")
+
+
+def _key_address(text: str) -> str | None:
+    found = _ADDR_RE.search(text)
+    return found.group(0).lower() if found else None
+
+
+def _key_fun(text: str) -> str | None:
+    found = _FUN_RE.search(text)
+    return ("FUN_" + found.group(0)[4:].lower()) if found else None
+
+
+def _key_base_offset(text: str) -> str | None:
+    found = _BASE_OFFSET_RE.search(text)
+    return "%s+%s" % (found.group(1), found.group(2).lower()) if found else None
+
+
+# detector -> key extractor over the MATCHED TEXT.  A detector absent here, or an
+# extractor returning None, keeps the per-occurrence item: a decision target we
+# cannot name reliably must not be silently merged with a different one.
+GROUP_KEY = {
+    "absolute_address_dereferences": _key_address,
+    "raw_function_pointer_address_casts": _key_address,
+    "fun_calls": _key_fun,
+    "raw_base_offset_dereferences": _key_base_offset,
+}
 
 
 def _category_of(item: dict[str, Any]) -> str:
@@ -200,25 +261,247 @@ def _git_head() -> str:
     return result.stdout.strip()
 
 
-def _inventory(source: Path) -> dict[str, list[dict[str, Any]]]:
+# The base of a raw `*(T *)(base + 0xNN)` deref, and the offset it reads.  A
+# struct cannot be proposed from one site: the debt is the whole (base, offset
+# set) cluster, which is what `struct-define` has to cover before
+# `offset-to-field` can rewrite anything against it.
+_BASE_OFFSET = re.compile(
+    r"\*\((?P<type>[A-Za-z_][\w ]*)\*\)\((?P<base>[A-Za-z_]\w*)\s+\+\s+"
+    r"(?P<offset>0x[0-9A-Fa-f]+)\)"
+)
+
+
+def _comment_mask(text: str) -> list[bool]:
+    """One flag per character: True inside a comment or a string literal.
+
+    Detectors are line regexes, so without this a `FUN_00123456()` written in
+    an explanatory comment is filed as live call-site debt in `symbol-names`,
+    where it can never be applied -- renaming it is a `comments` edit.  Strings
+    are masked for the same reason: an address inside a message is not a
+    dereference."""
+    mask = [False] * len(text)
+    index = 0
+    total = len(text)
+    while index < total:
+        char = text[index]
+        if text.startswith("//", index):
+            end = text.find("\n", index)
+            end = total if end < 0 else end
+            for position in range(index, end):
+                mask[position] = True
+            index = end
+            continue
+        if text.startswith("/*", index):
+            end = text.find("*/", index + 2)
+            end = total if end < 0 else end + 2
+            for position in range(index, end):
+                mask[position] = True
+            index = end
+            continue
+        if char in ('"', "'"):
+            end = index + 1
+            while end < total and text[end] != char:
+                end += 2 if text[end] == "\\" else 1
+            end = min(end + 1, total)
+            for position in range(index, end):
+                mask[position] = True
+            index = end
+            continue
+        index += 1
+    return mask
+
+
+_FOURCC = re.compile(r"(?<![\w.])0[xX]([0-9a-fA-F]{8})(?![\w.])")
+
+
+def _fourcc_text(digits: str) -> str | None:
+    """Decode a 32-bit hex literal as four printable ASCII bytes, or None.
+
+    A tag group, a signature, or a fill pattern is written in the binary as
+    its characters (`0x61637472` is 'actr'), so the literal carries its own
+    name evidence -- T1 under naming-confidence, with nothing to infer.  A
+    Halo virtual address cannot collide: they live below 0x00600000, so the
+    high byte is 0x00 and fails the printable test.
+    """
     try:
-        lines = source.read_text(encoding="utf-8", errors="replace").splitlines()
+        raw = bytes.fromhex(digits)
+    except ValueError:
+        return None
+    if len(raw) != 4 or any(byte < 0x20 or byte > 0x7e for byte in raw):
+        return None
+    return raw.decode("ascii")
+
+
+def _magic_fourcc_items(lines: list[str], masks: list[list[bool]]) -> list[dict[str, Any]]:
+    """One `const-enum` item per distinct four-character-code literal.
+
+    This is the ONLY numeric literal the ladder proposes naming, and the
+    restriction is deliberate.  Matching literals against the `#define`s
+    already in `src/**.h` was measured and is worthless: small integers
+    collide with everything (`6` matched `_actor_action_guard` at 192 sites).
+    Frequency alone is no better -- the most repeated literals in a TU are
+    `0.0f`, `1.0f`, and struct offsets that belong to `offset-to-field`.  A
+    fourcc is different because the evidence is inside the value.
+
+    Clustered like `struct_bases`: one `#define` plus N substitutions is one
+    edit, so it is one item.
+    """
+    clusters: dict[str, dict[str, Any]] = {}
+    for line_number, line in enumerate(lines, 1):
+        mask = masks[line_number - 1]
+        for match in _FOURCC.finditer(line):
+            if mask[match.start()]:
+                continue
+            decoded = _fourcc_text(match.group(1))
+            if decoded is None:
+                continue
+            literal = "0x%s" % match.group(1).lower()
+            cluster = clusters.setdefault(literal, {
+                "line": line_number,
+                "decoded": decoded,
+                "sites": 0,
+            })
+            cluster["sites"] += 1
+    items = []
+    for literal in sorted(clusters):
+        cluster = clusters[literal]
+        items.append({
+            "id": "magic_fourcc:%s" % literal,
+            "line": cluster["line"],
+            "column": 1,
+            "text": "%s spells %r at %d site(s)"
+                    % (literal, cluster["decoded"], cluster["sites"]),
+            "status": "pending",
+            "category": DETECTOR_CATEGORY["magic_fourcc"],
+        })
+    return items
+
+
+def _struct_base_items(lines: list[str], masks: list[list[bool]]) -> list[dict[str, Any]]:
+    """One `struct-define` item per (base identifier, observed offset set).
+
+    Without this the ladder cannot reach `struct-define` at all: no detector
+    proposed it, so its pending count was always 0, the workflow skipped it,
+    and every `offset-to-field` item then parked on `no_asserted_struct` -- the
+    ladder could not produce the precondition its own next rung requires."""
+    clusters: dict[str, dict[str, Any]] = {}
+    for line_number, line in enumerate(lines, 1):
+        mask = masks[line_number - 1]
+        for match in _BASE_OFFSET.finditer(line):
+            if mask[match.start()]:
+                continue
+            cluster = clusters.setdefault(match.group("base"), {
+                "line": line_number,
+                "offsets": set(),
+                "types": set(),
+                "sites": 0,
+            })
+            cluster["offsets"].add(int(match.group("offset"), 16))
+            cluster["types"].add(match.group("type").strip())
+            cluster["sites"] += 1
+    items = []
+    for base in sorted(clusters):
+        cluster = clusters[base]
+        offsets = sorted(cluster["offsets"])
+        shown = ", ".join("0x%02x" % offset for offset in offsets[:12])
+        if len(offsets) > 12:
+            shown += ", ..."
+        items.append({
+            "id": "struct_bases:%s" % base,
+            "line": cluster["line"],
+            "column": 1,
+            "text": "%s: %d site(s), %d distinct offset(s) [%s] as %s"
+                    % (base, cluster["sites"], len(offsets), shown,
+                       "/".join(sorted(cluster["types"]))),
+            "status": "pending",
+            "category": DETECTOR_CATEGORY["struct_bases"],
+        })
+    return items
+
+
+def _inventory(source: Path) -> tuple[dict[str, list[dict[str, Any]]], dict[str, int]]:
+    try:
+        text = source.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         raise RecoveryError("unable to read source: %s" % exc)
+    # One mask over the WHOLE file, then sliced per line: a block comment
+    # spanning several lines is only visible to a whole-file scan.  Split on
+    # "\n" rather than splitlines() so the offset arithmetic stays exact on
+    # CRLF files (splitlines() also cuts on \f, \v and U+2028).
+    mask = _comment_mask(text)
+    raw_lines = text.split("\n")
+    masks: list[list[bool]] = []
+    offset = 0
+    for raw in raw_lines:
+        masks.append(mask[offset:offset + len(raw)])
+        offset += len(raw) + 1
+    lines = [raw.rstrip("\r") for raw in raw_lines]
     inventory: dict[str, list[dict[str, Any]]] = {name: [] for name in PATTERNS}
+    inventory["struct_bases"] = _struct_base_items(lines, masks)
+    inventory["magic_fourcc"] = _magic_fourcc_items(lines, masks)
+    skipped: dict[str, int] = {}
+    # (detector, ladder, key) -> item, for the grouped detectors only.
+    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
     for line_number, line in enumerate(lines, 1):
+        mask = masks[line_number - 1]
         for category, pattern in PATTERNS.items():
             for occurrence, match in enumerate(pattern.finditer(line), 1):
-                item_id = "%s:%d:%d" % (category, line_number, occurrence)
-                inventory[category].append({
-                    "id": item_id,
+                in_comment = mask[match.start()]
+                if in_comment and category not in COMMENT_DEBT_DETECTORS:
+                    # Prose is not code debt.  An address or an offset written
+                    # inside an explanatory comment cannot be rewritten by ANY
+                    # category, and filing it anyway is what produced hundreds
+                    # of hand-written parks that all say the same thing.
+                    skipped[category] = skipped.get(category, 0) + 1
+                    continue
+                # A decompiler name surviving in prose IS debt -- removing
+                # `FUN_00123456` from the source is the point of the ladder --
+                # but the edit is a comment edit, not the rename its detector
+                # proposes.
+                ladder = ("comments" if in_comment
+                          else DETECTOR_CATEGORY.get(category, UNCATEGORIZED))
+                site = {
                     "line": line_number,
                     "column": match.start() + 1,
                     "text": line.strip(),
-                    "status": "pending",
-                    "category": DETECTOR_CATEGORY.get(category, UNCATEGORIZED),
-                })
-    return inventory
+                }
+                # A comment hit and a code hit on the same address are different
+                # edits in different ladder categories, so `ladder` is part of
+                # the grouping key and never folds them together.
+                key = GROUP_KEY.get(category, lambda _text: None)(match.group(0))
+                if key is not None:
+                    existing = grouped.get((category, ladder, key))
+                    if existing is not None:
+                        existing["occurrences"].append(site)
+                        existing["occurrence_count"] = len(existing["occurrences"])
+                        continue
+                    # The ladder is part of the id, not just the grouping key: a
+                    # FUN_ named in BOTH a comment and live code is two items in
+                    # two categories, and without the suffix both claimed
+                    # `<detector>:<key>` and _validate_manifest rejected the
+                    # manifest as having a duplicate item id.
+                    item = {
+                        "id": "%s:%s%s" % (category, key,
+                                           "@comment" if in_comment else ""),
+                        "key": key,
+                        "status": "pending",
+                        "category": ladder,
+                        "occurrences": [site],
+                        "occurrence_count": 1,
+                        **site,
+                    }
+                    grouped[(category, ladder, key)] = item
+                else:
+                    item = {
+                        "id": "%s:%d:%d" % (category, line_number, occurrence),
+                        "status": "pending",
+                        "category": ladder,
+                        **site,
+                    }
+                if in_comment:
+                    item["in_comment"] = True
+                inventory[category].append(item)
+    return inventory, skipped
 
 
 def _items(inventory: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
@@ -227,7 +510,7 @@ def _items(inventory: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
 
 def _plan(source_arg: str, allow_risky: bool = False) -> dict[str, Any]:
     source = _repo_path(source_arg, ".c")
-    inventory = _inventory(source)
+    inventory, prose_dropped = _inventory(source)
     return {
         "schema": SCHEMA,
         "kind": "source-recovery-manifest",
@@ -237,6 +520,10 @@ def _plan(source_arg: str, allow_risky: bool = False) -> dict[str, Any]:
         "source_sha256": _sha256(source),
         "allow_risky": bool(allow_risky),
         "inventory": inventory,
+        # Detector hits that landed inside a comment or a string literal and
+        # are therefore not code debt.  Reported, not filed: an item nobody can
+        # apply is a park waiting to happen.
+        "prose_matches_dropped": prose_dropped,
         "items": _items(inventory),
         "baseline": {"captured": False},
         "checks": [],
@@ -276,6 +563,19 @@ def _validate_manifest(manifest: Any) -> dict[str, Any]:
             raise RecoveryError("malformed manifest: invalid item line")
         if "category" in item and item["category"] not in CATEGORIES:
             raise RecoveryError("malformed manifest: invalid item category")
+        # Grouped items are optional: a manifest planned before decision-target
+        # grouping has neither key, and must still load.
+        if "occurrences" in item:
+            sites = item["occurrences"]
+            if not isinstance(sites, list) or not sites:
+                raise RecoveryError("malformed manifest: invalid item occurrences")
+            for site in sites:
+                if not isinstance(site, dict) or not isinstance(site.get("line"), int) or site["line"] < 1:
+                    raise RecoveryError("malformed manifest: invalid occurrence line")
+            if item.get("occurrence_count") != len(sites):
+                raise RecoveryError("malformed manifest: occurrence_count disagrees with occurrences")
+            if not isinstance(item.get("key"), str) or not item["key"]:
+                raise RecoveryError("malformed manifest: grouped item needs a key")
     inventory_by_id = {item.get("id"): item for item in inventory_items}
     if set(inventory_by_id) != seen:
         raise RecoveryError("malformed manifest: inventory/items ids differ")
@@ -524,6 +824,64 @@ def _set_status(path: Path, manifest: dict[str, Any], item_id: str, status: str,
     _write_atomic(path, manifest)
 
 
+def _selftest_comment_routing() -> bool:
+    """A FUN_ name in prose routes to `comments`; a prose address is dropped."""
+    source = (
+        "/* mirrors FUN_00123456() and reads *(int *)0x45b1d0 */\n"
+        "int f(void) { return *(int *)0x45b1d0; }\n"
+    )
+    with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+        path = Path(directory) / "sample.c"
+        path.write_text(source, encoding="ascii")
+        inventory, dropped = _inventory(path)
+    comment_items = [item for items in inventory.values() for item in items
+                     if item.get("in_comment")]
+    live = [item for items in inventory.values() for item in items
+            if not item.get("in_comment")]
+    return (len(comment_items) == 1
+            and comment_items[0]["category"] == "comments"
+            and dropped.get("absolute_address_dereferences") == 1
+            and [item["category"] for item in live] == ["global-names"])
+
+
+def _selftest_magic_fourcc() -> bool:
+    """A printable 4-byte literal is proposed; a plain magic number is not."""
+    source = (
+        "int f(void) {\n"
+        "  tag_get(0x61637472, 0);\n"
+        "  tag_get(0x61637472, 1);\n"
+        "  return 0x0045b1d0 + 4096;\n"   # an address and a round number
+        "}\n"
+    )
+    with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+        path = Path(directory) / "sample.c"
+        path.write_text(source, encoding="ascii")
+        inventory, _dropped = _inventory(path)
+    items = inventory["magic_fourcc"]
+    return (len(items) == 1
+            and items[0]["id"] == "magic_fourcc:0x61637472"
+            and items[0]["category"] == "const-enum"
+            and "'actr'" in items[0]["text"]
+            and "2 site(s)" in items[0]["text"])
+
+
+def _selftest_struct_bases() -> bool:
+    """Two offsets off one base make ONE struct-define item, not two."""
+    source = (
+        "int f(char *p) {\n"
+        "  return *(int *)(p + 0x10) + *(int *)(p + 0x14);\n"
+        "}\n"
+    )
+    with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+        path = Path(directory) / "sample.c"
+        path.write_text(source, encoding="ascii")
+        inventory, _dropped = _inventory(path)
+    bases = inventory["struct_bases"]
+    return (len(bases) == 1 and bases[0]["id"] == "struct_bases:p"
+            and bases[0]["category"] == "struct-define"
+            and len(inventory["raw_base_offset_dereferences"]) == 2)
+
+
 def _self_test() -> int:
     from tools.recovery import assert_metadata_guard, coff_candidate_guard
 
@@ -547,8 +905,13 @@ def _self_test() -> int:
         (TOOL_VERSION.startswith("source-recovery/"), "versioned tool"),
         (assert_metadata_guard is not None and coff_candidate_guard is not None,
          "recovery guard imports"),
-        (set(DETECTOR_CATEGORY) == set(PATTERNS) and set(DETECTOR_CATEGORY.values()) <= set(CATEGORIES),
+        (set(DETECTOR_CATEGORY) == set(PATTERNS) | DERIVED_DETECTORS
+         and set(DETECTOR_CATEGORY.values()) <= set(CATEGORIES),
          "every detector maps to a ladder category"),
+        (_selftest_comment_routing(), "comment-only FUN_ is comments work, "
+                                      "prose addresses are not debt"),
+        (_selftest_struct_bases(), "struct-define items cluster by base"),
+        (_selftest_magic_fourcc(), "const-enum proposes fourcc literals only"),
         (RISKY_CATEGORIES <= set(LADDER) and set(LADDER_SKILLS) == set(CATEGORIES),
          "ladder vocabulary is consistent"),
         (not _ladder_warnings(legacy) and not _risky_failures(legacy),
