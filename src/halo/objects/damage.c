@@ -1841,17 +1841,17 @@ void FUN_00138e30(void *damage_params, int target_index)
   char *tag;
   int16_t count;
   int results[64];
-  uint16_t i;
+  int16_t i;
 
   (void)target_index;
   tag = (char *)tag_get(0x6a707421, *(int *)damage_params);
   count = object_find_in_radius(0, 0, (char *)damage_params + 0x14,
                                 (float *)((char *)damage_params + 0x1c),
                                 *(float *)(tag + 4), results, 0x40);
-  if (count > 0) {
-    for (i = 0; i < (uint16_t)count; i++)
-      FUN_00138900(damage_params, results[i], 0);
-  }
+  /* The reference has ONE signed guard (`test ax,ax; jle`) into a down-counting
+   * do-while; a separate `if (count > 0)` plus an unsigned index adds a `jbe`. */
+  for (i = 0; i < count; i++)
+    FUN_00138900(damage_params, results[i], 0);
   FUN_00146be0(damage_params);
 }
 
@@ -1949,6 +1949,6 @@ void FUN_001390d0(int material, int bitmap_ref, uint16_t *indices, float bary_u,
   uv[0] = v0[0] + (v1[0] - v0[0]) * bary_u + (v2[0] - v0[0]) * bary_v;
   uv[1] = v0[1] + (v1[1] - v0[1]) * bary_u + (v2[1] - v0[1]) * bary_v;
 
-  pixel32_to_real_rgb_color(bitmap_2d_get_pixel(bitmap_ref, uv, 0.3f, out_rgb),
+  pixel32_to_real_rgb_color(bitmap_2d_get_pixel((void *)bitmap_ref, uv, 0.3f),
                             out_rgb);
 }

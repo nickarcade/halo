@@ -1658,6 +1658,10 @@ _CONFIDENCE_RANK = {"none": -1, "weak": 0, "moderate": 1, "high": 2}
 # evidence behind it reads downstream exactly like a verdict with evidence.
 COVERAGE_FLOOR_PCT = 10.0
 
+# Minimum passing seeds before "every seed observed the same behaviour" counts
+# as evidence of a vacuous run rather than a deliberately pinned input.
+VACUOUS_OUTPUT_MIN_SEEDS = 5
+
 
 def _classify_confidence(coverage_pct: float, output_varied: bool,
                          passed: int) -> str:
@@ -1790,6 +1794,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     snapshot_overrides = None
     snapshot_arg_overrides = {}
     snapshot_stub_returns = {}
+    snapshot_stub_writes = {}
 
     def log(msg: str = ""):
         print(msg)
@@ -2102,9 +2107,12 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         # addresses and (b) _build_globals_seeds can seed the remaining slots
         # from real game-state data.  Snapshot regions are {addr: bytes}.
         if state_snapshot:
-            from state_snapshot import load_snapshot
+            from state_snapshot import load_snapshot, load_stub_writes
             snapshot_overrides, snapshot_arg_overrides, snapshot_stub_returns = \
                 load_snapshot(str(state_snapshot))
+            snapshot_stub_writes = load_stub_writes(str(state_snapshot))
+            if snapshot_stub_writes:
+                info(f"  stub writes: {list(snapshot_stub_writes.keys())}")
             info(f"  snapshot: {len(snapshot_overrides)} region(s) from {state_snapshot.name}")
             if snapshot_arg_overrides:
                 info(f"  arg overrides: {list(snapshot_arg_overrides.keys())}")
@@ -2311,6 +2319,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         if combined_stub_map:
             stub_mgr = StubManager(KB_JSON, DELINKED_DIR)
             stub_mgr.stub_return_overrides = snapshot_stub_returns
+            stub_mgr.stub_write_overrides = snapshot_stub_writes
             # Allocate callee globals slots past the caller's own oracle+lifted
             # slots so they never overlap.
             callee_globals_base = lft_globals_base + len(lft_data_slots) * 256
@@ -3080,6 +3089,38 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         return finish("fail", True, "divergence", 1, **extra)
     if errors > 0 and passed == 0:
         return finish("error", True, "emulation_error", 2, **extra)
+
+    # A run that never entered the function body, or that observed exactly one
+    # behaviour across every seed, has not compared anything -- both sides
+    # agreed because neither side did any work. Reporting that as "pass" is
+    # worse than reporting nothing: FUN_001c6900 printed "100 passed" at 5.7%
+    # coverage with every seed bailing out of the same guard, and that line
+    # reads downstream exactly like a differential that found no divergence.
+    # Emit a distinct status/exit code so callers can tell "no divergence" from
+    # "no evidence". A bare RET is exempt: there is no body to cover and byte
+    # match already settles it.
+    vacuous_reason = None
+    if passed > 0 and oracle_func_size > 2:
+        if coverage_pct < COVERAGE_FLOOR_PCT:
+            vacuous_reason = (f"vacuous_coverage: {coverage_pct:.1f}% < "
+                              f"{COVERAGE_FLOOR_PCT:.0f}% floor")
+        elif not output_varied and passed >= VACUOUS_OUTPUT_MIN_SEEDS:
+            # Only meaningful with a real sample. A pinned single-input probe
+            # (test_player_control_angle_endpoint drives one hand-built seed at
+            # a specific endpoint) is SUPPOSED to observe exactly one
+            # behaviour; flagging that as vacuous would be a false positive.
+            vacuous_reason = (f"vacuous_output: {unique_returns} unique "
+                              f"return(s), no scratch or memory variation "
+                              f"across {passed} seeds")
+    if vacuous_reason:
+        log("")
+        log(f"  INCONCLUSIVE: {vacuous_reason}")
+        log("      Every seed agreed because the differential never observed "
+            "differing behaviour -- this is NOT evidence of equivalence.")
+        log("      Drive the real paths with --state-snapshot (see the "
+            "lift-synthetic-equivalence skill) before trusting this target.")
+        return finish("inconclusive", True, vacuous_reason, 3, **extra)
+
     return finish("pass", True, None, 0, **extra)
 
 

@@ -92,6 +92,7 @@ halo/ai/actor_firing_position.c
 	halo/units/bipeds.c
 	halo/units/units.c
 	halo/units/vehicles.c
+	halo/networking/data_packet_groups.c
 	halo/networking/network_client_manager.c
 	halo/networking/network_client_message_handler.c
 	halo/networking/network_connection.c
@@ -131,10 +132,12 @@ halo/ai/actor_firing_position.c
 halo/rasterizer/rasterizer_text.c
 	halo/rasterizer/common/rasterizer_common.c
 	halo/rasterizer/xbox/rasterizer_xbox.c
+	halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c
 	halo/rasterizer/xbox/d3d_resource.c
 	halo/rasterizer/xbox/rasterizer_xbox_decals.c
 	halo/rasterizer/xbox/rasterizer_xbox_shadows.c
 	halo/rasterizer/xbox/rasterizer_xbox_water.c
+	halo/rasterizer/xbox/rasterizer_xbox_models.c
 	halo/rasterizer/xbox/rasterizer_xbox_profile.c
 	halo/rasterizer/xbox/rasterizer_xbox_screen_effect.c
 	halo/rasterizer/xbox/rasterizer_xbox_vertex_shaders_initialize.c
@@ -167,6 +170,7 @@ halo/rasterizer/rasterizer_text.c
 	halo/sound/sound_manager.c
 	halo/objects/damage.c
 	halo/objects/objects.c
+	halo/objects/object_lights.c
 	halo/objects/widgets/widgets.c
 	halo/objects/widgets/glow.c
 	halo/objects/widgets/lightning.c

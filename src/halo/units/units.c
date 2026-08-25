@@ -719,9 +719,10 @@ void FUN_00123560(int model_tag, int permutation_data, int *node_matrices,
 
                       env_slot = (int)(short)env_count;
                       FUN_0017cbd0(
-                        shader_tag, (int)actual_detail, (int)(part + 0x44), -1,
-                        *(int *)(part + 0x48), (int)(part + 0x54), -1,
-                        transformed_centroid, (int)&env_data[env_slot * 16]);
+                        (void *)shader_tag, (short)actual_detail,
+                        (int)(part + 0x44), -1, *(int *)(part + 0x48),
+                        (int)(part + 0x54), -1, transformed_centroid,
+                        (void *)&env_data[env_slot * 16]);
 
                       if ((short)env_count < 0x20 &&
                           *(short *)&env_data[env_slot * 16 + 8] != -1 &&
@@ -943,7 +944,8 @@ char FUN_001a6350(int unit_handle)
         unit_try_and_exit_seat(unit_handle);
       }
 
-      if (*(char *)0x0032d1c8 != 0 && *(float *)(vehicle + 0x38) < 0.0f &&
+      if (*(char *)0x0032d1c8 != 0 &&
+          *(float *)(vehicle + 0x38) < *(const float *)0x002533c0 &&
           (*(unsigned char *)(vehicle + 0x4) & 0x2) != 0) {
         unit_exit_seat_end(unit_handle);
       }
@@ -999,19 +1001,23 @@ char FUN_001a6350(int unit_handle)
     }
 
     /* Melee counter at +0x459 (primary) */
-    if ((*(int *)((char *)biped + 0x424) & 1) == 0) {
+    if ((*(int *)((char *)biped + 0x424) & 1) != 0) {
+      if (*(signed char *)((char *)biped + 0x459) < 0x7f) {
+        *(unsigned char *)((char *)biped + 0x459) =
+          *(unsigned char *)((char *)biped + 0x459) + 1;
+      }
+    } else {
       *(unsigned char *)((char *)biped + 0x459) = 0;
-    } else if (*(signed char *)((char *)biped + 0x459) < 0x7f) {
-      *(unsigned char *)((char *)biped + 0x459) =
-        *(unsigned char *)((char *)biped + 0x459) + 1;
     }
 
     /* Melee counter at +0x45a (secondary) */
-    if ((*(int *)((char *)biped + 0x424) & 2) == 0) {
+    if ((*(int *)((char *)biped + 0x424) & 2) != 0) {
+      if (*(signed char *)((char *)biped + 0x45a) < 0x7f) {
+        *(unsigned char *)((char *)biped + 0x45a) =
+          *(unsigned char *)((char *)biped + 0x45a) + 1;
+      }
+    } else {
       *(unsigned char *)((char *)biped + 0x45a) = 0;
-    } else if (*(signed char *)((char *)biped + 0x45a) < 0x7f) {
-      *(unsigned char *)((char *)biped + 0x45a) =
-        *(unsigned char *)((char *)biped + 0x45a) + 1;
     }
 
     state_pair[0] = 0;
@@ -7994,6 +8000,9 @@ resolve_weapon_idle: {
                       unit_mode, mode_block, wn);
     }
 
+    /* XBE 0x1ad66e: force speed 6 on weapon-idle class change, before was_none. */
+    transition_speed = 6;
+
     if (was_none) {
       /* Resolve base weapon overlay (index 9) */
       if (*(int *)(unit_mode + 0x40) > 9) {
@@ -8012,8 +8021,6 @@ resolve_weapon_idle: {
                         tag_name_strip_path(*(const char **)(unit_tag + 0x3c)),
                         unit_mode, oln);
       }
-
-      transition_speed = 6;
     }
   } else if (did_change == 0) {
     goto skip_transition;
@@ -10945,7 +10952,7 @@ short FUN_001b0d90(int unit_handle, char *anim_state)
       base_seat = 5;
     }
 
-    if (*(char *)((int)unit + 599) != (char)base_seat) {
+    if ((int16_t) *(int8_t *)((int)unit + 0x257) != base_seat) {
       char can_change;
       can_change = FUN_001a86b0((void *)((int)unit + 0x248), desired_state);
       if (can_change != 0) {
