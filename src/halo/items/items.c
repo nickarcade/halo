@@ -262,15 +262,16 @@ bool virtual_keyboard_initialize(void)
  *   +0x01 u8   (cleared)
  *   +0x02 u8   (cleared)
  *   +0x03 u8   (cleared)
- *   +0x04 u32  readiness gate (read-only here)
- *   +0x06 u8   (cleared)
- *   +0x07 u8   set to 1
+ *   +0x04 ptr  keyboard ('vcky' tag definition; read-only here -- do NOT
+ *              byte-write into +0x06/+0x07, they are the top half of this
+ *              pointer)
  *   +0x08 u16  cursor/selection lo (cleared)
  *   +0x0a u16  cursor/selection hi (cleared)
  *   +0x0c u16  buffer_size, clamped <= 0x40 (unsigned)
  *   +0x0e u16  0xffff sentinel
  *   +0x14 u16  caption_index
- *   +0x16 u8   (cleared)
+ *   +0x16 u8   done flag (cleared)
+ *   +0x17 u8   pristine flag (set to 1)
  *   +0x18 ptr  text_buffer
  *   +0x1c ptr  text_buffer end = base + ustrlen(base) (wchar_t* arithmetic)
  *   +0x20 u32  FUN_001d0581() result
@@ -298,7 +299,7 @@ bool virtual_keyboard_set_validation(wchar_t *text_buffer,
                     !*(uint8_t *)0x46cef0,
                   "text_buffer && buffer_size && !(buffer_size&1) && "
                   "!virtual_keyboard_globals.active");
-  assert_halt_msg((caption_index > 7) && (caption_index < 0xb),
+  assert_halt_msg((caption_index >= 8) && (caption_index < 0xb),
                   "(caption_index>=FIRST_VIRTUAL_KEYBOARD_CAPTION_STRING_INDEX)"
                   " && (caption_index<NUMBER_OF_VIRTUAL_KEYBOARD_STRINGS)");
 
@@ -322,10 +323,10 @@ bool virtual_keyboard_set_validation(wchar_t *text_buffer,
   *(uint8_t *)0x46cef1 = 0;
   *(uint8_t *)0x46cef2 = 0;
   *(uint8_t *)0x46cef3 = 0;
-  *(uint8_t *)0x46cef7 = 1;
+  *(uint8_t *)0x46cf07 = 1;
   ustrncpy((wchar_t *)0x46cf18, text_buffer, 0x20);
   *(uint16_t *)0x46cf56 = 0;
-  *(uint8_t *)0x46cef6 = 0;
+  *(uint8_t *)0x46cf06 = 0;
   ui_play_audio_feedback_sound(2);
   return true;
 }
@@ -352,6 +353,28 @@ bool virtual_keyboard_set_validation(wchar_t *text_buffer,
 bool FUN_000f5640(void)
 {
   return *(uint8_t *)0x46cef0;
+}
+
+/* Virtual keyboard "done" predicate (0xf5650, virtual_keyboard.obj TU).
+ *
+ * Two instructions in the binary:
+ *     000f5650: MOV AL,[0x0046cf06]
+ *     000f5655: RET
+ *
+ * 0x46cf06 is the byte-wide "done" flag documented alongside the other
+ * virtual_keyboard_globals fields in this file (cleared by
+ * FUN_000f57a0/edit-buffer commit and the ACCEPT key path's error arms,
+ * latched by FUN_000f5fb0's ACCEPT key path). Same shape as FUN_000f5640
+ * (active predicate): the flag byte is returned raw in AL with no
+ * TEST/SETNE normalization, so the C form is a direct byte load into the
+ * unsigned-char `bool`, not a `!= 0` comparison.
+ *
+ * No callees. Single caller (UNCONDITIONAL_CALL, from xrefs): FUN_000f04c0
+ * @0xf04db. Name kept mechanical: behaviour is clear but there is no
+ * string/PDB evidence for a symbol. */
+bool FUN_000f5650(void)
+{
+  return *(uint8_t *)0x46cf06;
 }
 
 /* Virtual keyboard cursor move handler: advance the keymap column cursor
@@ -501,6 +524,18 @@ char FUN_000f57a0(void)
   return 1;
 }
 
+/* Virtual keyboard free-room check (0xf5f10).
+ * Returns the number of free bytes remaining in the edit buffer: buffer
+ * capacity (0x46cefc, unsigned 16-bit, loaded via MOVZX) minus the byte
+ * length of the current string including its NUL terminator
+ * (ustrlen(base) * 2 + 2). Called from FUN_000f5fb0's SPACE handler
+ * (0x2b) to gate insertion: result < 2 rejects with selector 4. */
+int FUN_000f5f10(void)
+{
+  return (int)*(unsigned short *)0x46cefc -
+         (ustrlen(*(const unsigned short **)0x46cf08) * 2 + 2);
+}
+
 /* Virtual keyboard backspace / delete-char handler (0xf5f30).
  * Deletes the wide-char (UTF-16) immediately before the cursor from the
  * edit buffer. If the cursor (0x46cf0c) is past the buffer base (0x46cf08),
@@ -531,7 +566,6 @@ void FUN_000f5f30(void)
   }
   ui_play_audio_feedback_sound(1);
 }
-
 
 /* Virtual keyboard action-key handler (0xf5fb0).
  * TU: c:\halo\SOURCE\interface\virtual_keyboard.c (__FILE__ assert @0x28a854,
@@ -730,6 +764,7 @@ char FUN_000f5fb0(void)
     *(char *)0x46cef1 = 0;
   return 1;
 }
+
 /* Virtual on-screen keyboard input pump (virtual_keyboard.obj).
  * TU: c:\halo\SOURCE\interface\virtual_keyboard.c (__FILE__ assert
  * @0x28a790..).
@@ -982,7 +1017,6 @@ void FUN_000f6750(int object_datum, void *definition)
       *(float *)((char *)obj + 0x14) + *(float *)0x2533e8;
   }
 }
-
 
 /* Activate the pickup sound effect for an equipment item.
  * Looks up the equipment tag definition ('eqip') and plays the

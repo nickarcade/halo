@@ -888,26 +888,27 @@ bool game_engine_unit_can_enter_seat(int unit_handle, int seat_object_handle)
  * EDI=player_handle. */
 char FUN_000a9190(int param_1, int flag_index, int player_handle)
 {
-  int idx;
+  char *ent;
+  char result;
 
-  if (current_game_engine == 0)
-    return 0;
-  idx = flag_index * 0x20;
-  if (((void (**)(void))current_game_engine)[0x78 / 4] != NULL) {
-    if (*(char *)(0x456704 + idx) != 0)
-      return ((char (*)(int, int))((void **)current_game_engine)[0x78 / 4])(
-        player_handle, flag_index);
-    return 0;
+  result = 0;
+  if (current_game_engine != 0) {
+    ent = (char *)(0x4566f8 + flag_index * 0x20);
+    if (((void (**)(void))current_game_engine)[0x78 / 4] != NULL) {
+      if (*(char *)(ent + 0xc) != 0)
+        result = ((char (*)(int, int))((void **)current_game_engine)[0x78 / 4])(
+          player_handle, flag_index);
+    } else if (*(char *)(ent + 0xc) != 0 &&
+               (*(int *)(ent + 0x10) == -1 ||
+                player_handle == *(int *)(ent + 0x10)) &&
+               (*(int16_t *)(ent + 0x14) == -1 ||
+                *(int *)(param_1 + 0x20) == (int)*(int16_t *)(ent + 0x14)) &&
+               (*(int *)(ent + 0x18) == -1 ||
+                player_handle != *(int *)(ent + 0x18))) {
+      result = 1;
+    }
   }
-  if (*(char *)(0x456704 + idx) != 0 &&
-      (*(int *)(0x456708 + idx) == -1 ||
-       player_handle == *(int *)(0x456708 + idx)) &&
-      (*(int16_t *)(0x45670c + idx) == -1 ||
-       *(int *)(param_1 + 0x20) == (int)*(int16_t *)(0x45670c + idx)) &&
-      (*(int *)(0x456710 + idx) == -1 ||
-       player_handle != *(int *)(0x456710 + idx)))
-    return 1;
-  return 0;
+  return result;
 }
 
 /* Get custom motion sensor positions for a player (a9210). */
@@ -3357,14 +3358,14 @@ int FUN_000abd20(int *param_1, int param_2, char param_3)
   player = (int)data_iterator_next(&iter);
   entry = param_1;
   while (player != 0) {
-    if (count < 0x10) {
-      *entry = iter.datum_handle;
-      count++;
-      entry += 7;
-    } else {
+    if (count >= 0x10) {
       display_assert("player_count < MULTIPLAYER_MAXIMUM_PLAYERS",
                      "c:\\halo\\SOURCE\\game\\game_engine.c", 0x2c7, 1);
       system_exit(-1);
+    } else {
+      *entry = iter.datum_handle;
+      count++;
+      entry += 7;
     }
     player = (int)data_iterator_next(&iter);
   }
@@ -3415,9 +3416,11 @@ int FUN_000abd20(int *param_1, int param_2, char param_3)
       i--;
     } while (i != 0);
   }
-  qsort(param_1, count, 0x1c,
-        (param_2 == 0) ?
-          (int (*)(const void *, const void *))FUN_000a8470 :
+  if (param_2 == 0)
+    qsort(param_1, count, 0x1c,
+          (int (*)(const void *, const void *))FUN_000a8470);
+  else
+    qsort(param_1, count, 0x1c,
           (int (*)(const void *, const void *))sort_statistic_buffer);
   i = 0;
   if (0 < count) {
@@ -5736,10 +5739,8 @@ void game_engine_post_rasterize_post_game(void)
       {
         int16_t sy = (int16_t)row * 0x12;
         int16_t ey = (int16_t)row * 0x12 + 0x1a;
-        rect2[0] = *(int16_t *)0x506584;
-        rect2[1] = *(int16_t *)0x506586;
-        rect2[2] = *(int16_t *)0x506588;
-        rect2[3] = *(int16_t *)0x50658a;
+        *(int *)&rect2[0] = *(int *)0x506584;
+        *(int *)&rect2[2] = *(int *)0x506588;
         rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
@@ -5764,10 +5765,8 @@ void game_engine_post_rasterize_post_game(void)
           draw_string_set_color(&color_table[tmp * 4]);
         }
         usprintf(line_buf, L" \t \t%s", (wchar_t *)(player + 4));
-        rect2[0] = *(int16_t *)0x506584;
-        rect2[1] = *(int16_t *)0x506586;
-        rect2[2] = *(int16_t *)0x506588;
-        rect2[3] = *(int16_t *)0x50658a;
+        *(int *)&rect2[0] = *(int *)0x506584;
+        *(int *)&rect2[2] = *(int *)0x506588;
         rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
@@ -5781,10 +5780,8 @@ void game_engine_post_rasterize_post_game(void)
         (*(void (**)(uint32_t, wchar_t *))(*(int *)0x456b60 + 0x4c))(
           player_handle, text_buf);
         usprintf(line_buf, L" \t \t \t%s", text_buf);
-        rect2[0] = *(int16_t *)0x506584;
-        rect2[1] = *(int16_t *)0x506586;
-        rect2[2] = *(int16_t *)0x506588;
-        rect2[3] = *(int16_t *)0x50658a;
+        *(int *)&rect2[0] = *(int *)0x506584;
+        *(int *)&rect2[2] = *(int *)0x506588;
         rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
@@ -5797,10 +5794,8 @@ void game_engine_post_rasterize_post_game(void)
           draw_string_set_color(&color_table[12]);
         usprintf(line_buf, L" \t \t \t \t%d",
                  (int)*(int16_t *)(player + 0x98));
-        rect2[0] = *(int16_t *)0x506584;
-        rect2[1] = *(int16_t *)0x506586;
-        rect2[2] = *(int16_t *)0x506588;
-        rect2[3] = *(int16_t *)0x50658a;
+        *(int *)&rect2[0] = *(int *)0x506584;
+        *(int *)&rect2[2] = *(int *)0x506588;
         rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
@@ -5813,10 +5808,8 @@ void game_engine_post_rasterize_post_game(void)
           draw_string_set_color(&color_table[12]);
         usprintf(line_buf, L" \t \t \t \t \t%d",
                  (int)*(int16_t *)(player + 0xa0));
-        rect2[0] = *(int16_t *)0x506584;
-        rect2[1] = *(int16_t *)0x506586;
-        rect2[2] = *(int16_t *)0x506588;
-        rect2[3] = *(int16_t *)0x50658a;
+        *(int *)&rect2[0] = *(int *)0x506584;
+        *(int *)&rect2[2] = *(int *)0x506588;
         rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
@@ -5829,10 +5822,8 @@ void game_engine_post_rasterize_post_game(void)
           draw_string_set_color(&color_table[12]);
         usprintf(line_buf, L" \t \t \t \t \t \t%d",
                  (int)*(int16_t *)(player + 0xaa));
-        rect2[0] = *(int16_t *)0x506584;
-        rect2[1] = *(int16_t *)0x506586;
-        rect2[2] = *(int16_t *)0x506588;
-        rect2[3] = *(int16_t *)0x50658a;
+        *(int *)&rect2[0] = *(int *)0x506584;
+        *(int *)&rect2[2] = *(int *)0x506588;
         rect2d_offset(rect2, -screen_bounds_left, -screen_bounds_top);
         rect2[0] = sy;
         rect2[2] = ey;
@@ -7121,7 +7112,7 @@ void FUN_000b0ac0(int param_1)
                  *(int *)(variant + 0x50) != 0) ||
                 (weapon = (int)object_get_and_verify_type(
                    *(int *)(0x456b7c + *(int *)(player + 0x20) * 4), 4),
-                 (~*(uint8_t *)(weapon + 0x1dc) >> 6 & 1) != 0)) {
+                 (*(int *)(weapon + 0x1dc) >> 6 & 1) == 0)) {
               FUN_000b0000(param_1, *(int *)(player + 0x20), weapon_handle);
               FUN_000b09e0(param_1, weapon_handle);
               game_engine_get_variant();
@@ -7341,8 +7332,6 @@ void FUN_000b1180(void)
   int num_flags;
   float *flag_pos;
   int i;
-  float x0;
-  float y0;
   float points_2d[48];
   int16_t hull_indices[12];
   int16_t hull_count;
@@ -7374,21 +7363,24 @@ void FUN_000b1180(void)
       dst += 3;
     } while (i < num_flags);
   }
-  x0 = positions[0];
-  y0 = positions[1];
   if (num_flags == 1) {
-    positions[0] = x0 - 1.0f;
-    positions[1] = y0 - 1.0f;
-    positions[3] = x0 + 1.0f;
-    positions[4] = y0 - 1.0f;
-    positions[6] = x0 - 1.0f;
-    positions[7] = y0 + 1.0f;
-    positions[9] = x0 + 1.0f;
-    positions[10] = y0 + 1.0f;
-    /* z coords copied from first flag */
-    positions[5] = positions[2];
-    positions[8] = positions[2];
-    positions[11] = positions[2];
+    ((int *)positions)[3] = ((int *)positions)[0];
+    ((int *)positions)[4] = ((int *)positions)[1];
+    ((int *)positions)[5] = ((int *)positions)[2];
+    ((int *)positions)[6] = ((int *)positions)[0];
+    ((int *)positions)[7] = ((int *)positions)[1];
+    ((int *)positions)[8] = ((int *)positions)[2];
+    ((int *)positions)[9] = ((int *)positions)[0];
+    ((int *)positions)[10] = ((int *)positions)[1];
+    ((int *)positions)[11] = ((int *)positions)[2];
+    positions[0] = positions[0] - 1.0f;
+    positions[1] = positions[1] - 1.0f;
+    positions[3] = positions[3] + 1.0f;
+    positions[4] = positions[4] - 1.0f;
+    positions[6] = positions[6] - 1.0f;
+    positions[7] = positions[7] + 1.0f;
+    positions[9] = positions[9] + 1.0f;
+    positions[10] = positions[10] + 1.0f;
     num_flags = 4;
   }
   /* Build 2D convex hull from x,y coordinates */
@@ -7423,38 +7415,39 @@ void FUN_000b1180(void)
   }
   /* Compute bounding box center and vertical bounds */
   {
-    float minx, miny, minz, maxx, maxy, maxz;
-    minx = *(float *)0x456c3c;
-    miny = *(float *)0x456c40;
-    minz = *(float *)0x456c44;
-    maxx = minx;
-    maxy = miny;
-    maxz = minz;
+    float minv[3];
+    float maxv[3];
+    ((int *)minv)[0] = *(int *)0x456c3c;
+    ((int *)minv)[1] = *(int *)0x456c40;
+    ((int *)minv)[2] = *(int *)0x456c44;
+    ((int *)maxv)[0] = ((int *)minv)[0];
+    ((int *)maxv)[1] = ((int *)minv)[1];
+    ((int *)maxv)[2] = ((int *)minv)[2];
     if (0 < *(int *)0x456c38) {
       float *p = (float *)0x456c40;
       int count = *(int *)0x456c38;
       do {
-        if (p[-1] < minx)
-          minx = p[-1];
-        if (*p < miny)
-          miny = *p;
-        if (p[1] < minz)
-          minz = p[1];
-        if (maxx <= p[-1])
-          maxx = p[-1];
-        if (maxy <= *p)
-          maxy = *p;
-        if (maxz <= p[1])
-          maxz = p[1];
+        if (minv[0] > p[-1])
+          minv[0] = p[-1];
+        if (minv[1] > *p)
+          minv[1] = *p;
+        if (minv[2] > p[1])
+          minv[2] = p[1];
+        if (maxv[0] <= p[-1])
+          maxv[0] = p[-1];
+        if (maxv[1] <= *p)
+          maxv[1] = *p;
+        if (maxv[2] <= p[1])
+          maxv[2] = p[1];
         p += 3;
         count--;
       } while (count != 0);
     }
-    *(float *)0x456d48 = minz - *(float *)0x25496c;
-    *(float *)0x456d44 = maxz + *(float *)0x2533f0;
-    *(float *)0x456d2c = (maxx + minx) * 0.5f;
-    *(float *)0x456d30 = (maxy + miny) * 0.5f;
-    *(float *)0x456d34 = (maxz + minz) * 0.5f;
+    *(float *)0x456d48 = minv[2] - *(float *)0x25496c;
+    *(float *)0x456d44 = maxv[2] + *(float *)0x2533f0;
+    *(float *)0x456d2c = (maxv[0] + minv[0]) * 0.5f;
+    *(float *)0x456d30 = (maxv[1] + minv[1]) * 0.5f;
+    *(float *)0x456d34 = (maxv[2] + minv[2]) * 0.5f;
   }
 }
 

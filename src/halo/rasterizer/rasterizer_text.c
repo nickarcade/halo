@@ -904,8 +904,10 @@ void FUN_00181900(short param_1)
   int lf_mark_base; /* scenario->lens_flare_marker_block ptr */
   int entry; /* current light_marker_block entry ptr */
   int lf_instance; /* lens_flare_instance element ptr */
-  int loop_end; /* count of light_marker entries */
   int i; /* loop counter */
+  int dir_x; /* signed byte at entry+0xc */
+  int dir_y; /* signed byte at entry+0xd */
+  int dir_z; /* signed byte at entry+0xe */
   /* params struct for FUN_00181670: 0x28-byte contiguous buffer.
    * Layout (confirmed from disassembly at 0x181a2c..0x181a67):
    *   +0x00: tag_get('lens', def->tag_index) result
@@ -940,8 +942,7 @@ void FUN_00181900(short param_1)
   /* tag_block_get_element(scenario+0x134, param_1, 0x68) */
   light_block =
     (int)tag_block_get_element((void *)(scenario + 0x134), (int)param_1, 0x68);
-  loop_end = (int)*(short *)(light_block + 0x42);
-  if (loop_end <= 0) {
+  if (*(unsigned short *)(light_block + 0x42) == 0) {
     return;
   }
 
@@ -959,9 +960,12 @@ void FUN_00181900(short param_1)
       (void *)lf_block_base, (int)*(unsigned char *)(entry + 0xf), 0x10);
 
     /* Extract signed bytes from entry for direction vector */
-    dir[0] = (float)(int)*(signed char *)(entry + 0xc) * *(float *)0x2820c0;
-    dir[1] = (float)(int)*(signed char *)(entry + 0xd) * *(float *)0x2820c0;
-    dir[2] = (float)(int)*(signed char *)(entry + 0xe) * *(float *)0x2820c0;
+    dir_x = (int)*(signed char *)(entry + 0xc);
+    dir_y = (int)*(signed char *)(entry + 0xd);
+    dir_z = (int)*(signed char *)(entry + 0xe);
+    dir[0] = (float)dir_x * *(float *)0x2820c0;
+    dir[1] = (float)dir_y * *(float *)0x2820c0;
+    dir[2] = (float)dir_z * *(float *)0x2820c0;
 
     /* Compute perpendicular and normalize both */
     perpendicular3d(dir, perp);
@@ -986,7 +990,7 @@ void FUN_00181900(short param_1)
     FUN_00181670(params);
 
     i++;
-  } while (i < loop_end);
+  } while (i < (int)*(unsigned short *)(light_block + 0x42));
 }
 
 /* lens_flare_occlusion_submit: for each queued lens flare entry, compute the
@@ -997,7 +1001,7 @@ void FUN_00181a90(void)
   int *entry; /* pointer to queued lens flare slot (from FUN_00181020) */
   int definition; /* *entry = definition tag ptr */
   float *dir_result; /* return of FUN_0017ffc0 (3-float direction vec) */
-  short occlusion_dir; /* *(short *)(definition + 0x14) */
+  int occlusion_dir; /* *(short *)(definition + 0x14) */
   int vis_param; /* *(int *)(definition + 0x10) as int (passes to thunk) */
   int lf_count; /* DAT_004d0480 */
   int i; /* loop index */
@@ -1056,25 +1060,30 @@ void FUN_00181a90(void)
         occlusion_dir = *(short *)(definition + 0x14);
         vis_param = *(int *)(definition + 0x10);
 
-        if (occlusion_dir == 0) {
+        switch (occlusion_dir) {
+        case 0:
           /* Negate scale; use global forward direction (0x5a5bd4) */
           vector3d_scale_add((float *)(entry + 1), (float *)0x5a5bd4,
                              -*(float *)(definition + 0x10), pos);
-        } else if (occlusion_dir == 1) {
+          break;
+        case 1:
           /* Scale along dir[] by definition field * constant */
           vector3d_scale_add((float *)(entry + 1), dir,
                              *(float *)(definition + 0x10) * *(float *)0x254e68,
                              pos);
-        } else if (occlusion_dir == 2) {
+          break;
+        case 2:
           /* Use object/light position directly */
           pos[0] = *(float *)(entry + 1);
           pos[1] = *(float *)(entry + 2);
           pos[2] = *(float *)(entry + 3);
-        } else {
+          break;
+        default:
           display_assert(
             "### ERROR unsupported lens flare occlusion offset direction",
             "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x1e2, 1);
           system_exit(-1);
+          break;
         }
 
         entry[9] = FUN_0017d030(pos, vis_param, i);
@@ -2785,87 +2794,88 @@ int FUN_00183390(int param_1)
   }
   swizzle_buf = (int)debug_malloc(
     total_size, 0, "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x228);
-  if (swizzle_buf == 0) {
-    error(2, "### ERROR rasterizer_xbox_bitmap_rebuild_hardware_format "
-             "failed (out of memory)");
-    return 0;
+  if (swizzle_buf != 0) {
+    FUN_00182e00(param_1);
+    face_index = 0;
+    if (local_1c > 0) {
+      do {
+        sVar2 = FUN_00183120((void *)param_1);
+        if (sVar2 >= 0) {
+          local_c = 0;
+          local_20 = (int)sVar2;
+          do {
+            mip_src = (int)bitmap_mipmap_address((void *)param_1, local_c);
+            mip_size =
+              bitmap_mipmap_get_pixel_data_size((void *)param_1, local_c);
+            if (*(short *)(param_1 + 10) == 2) {
+              mip_size = mip_size / 6;
+            }
+            adjusted_face_index = *(short *)((int)0x2b0860 + (int)face_index * 2);
+            if ((*(unsigned char *)(param_1 + 0xe) & 0x10) == 0) {
+              /* non-swizzled: copy face mipmap data */
+              csmemcpy((void *)(swizzle_buf + iVar8),
+                       (void *)((int)adjusted_face_index * mip_size + mip_src),
+                       (unsigned int)mip_size);
+              iVar8 = iVar8 + mip_size;
+            } else {
+              /* swizzled/tiled: must be face 0, mip 0 */
+              if ((face_index != 0) || (adjusted_face_index != 0)) {
+                display_assert(
+                  "face_index==0 && adjusted_face_index==0",
+                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24c, 1);
+                system_exit(-1);
+              }
+              if ((short)local_c != 0) {
+                display_assert(
+                  "mipmap_index==0",
+                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24d, 1);
+                system_exit(-1);
+              }
+              if ((*(unsigned char *)(param_1 + 0xe) & 2) != 0) {
+                display_assert(
+                  "!TEST_FLAG(bitmap->flags, _bitmap_compressed_bit)",
+                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24e, 1);
+                system_exit(-1);
+              }
+              row_pitch = bitmap_mipmap_get_row_pitch((void *)param_1, local_c);
+              sVar3 = 0;
+              if (0 < *(short *)(param_1 + 6)) {
+                do {
+                  csmemcpy((void *)(swizzle_buf + iVar8), (void *)mip_src,
+                           (unsigned int)row_pitch);
+                  csmemset((void *)(swizzle_buf + iVar8 + row_pitch), 0,
+                           (unsigned int)(-row_pitch & 0x3f));
+                  mip_src = mip_src + row_pitch;
+                  iVar8 = iVar8 + row_pitch + (-row_pitch & 0x3f);
+                  sVar3 = sVar3 + 1;
+                } while (sVar3 < *(short *)(param_1 + 6));
+              }
+            }
+            local_c = local_c + 1;
+          } while ((short)local_c <= (short)local_20);
+        }
+        /* align offset to 128 bytes at end of each face */
+        csmemset((void *)(swizzle_buf + iVar8), 0, (unsigned int)(-iVar8 & 0x7f));
+        iVar8 = iVar8 + (-iVar8 & 0x7f);
+        face_index = face_index + 1;
+      } while (face_index < local_1c);
+    }
+    if (iVar8 != total_size) {
+      display_assert("offset==size",
+                     "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x271,
+                     1);
+      system_exit(-1);
+    }
+    csmemcpy(*(void **)(param_1 + 0x2c), (void *)swizzle_buf,
+             (unsigned int)total_size);
+    debug_free((void *)swizzle_buf,
+               "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x275);
+    return 1;
   }
-  FUN_00182e00(param_1);
-  face_index = 0;
-  if (local_1c > 0) {
-    do {
-      sVar2 = FUN_00183120((void *)param_1);
-      if (-1 < (int)sVar2) {
-        local_c = 0;
-        local_20 = (int)sVar2;
-        do {
-          mip_src = (int)bitmap_mipmap_address((void *)param_1, local_c);
-          mip_size =
-            bitmap_mipmap_get_pixel_data_size((void *)param_1, local_c);
-          if (*(short *)(param_1 + 10) == 2) {
-            mip_size = mip_size / 6;
-          }
-          adjusted_face_index = *(short *)((int)0x2b0860 + (int)face_index * 2);
-          if ((*(unsigned char *)(param_1 + 0xe) & 0x10) == 0) {
-            /* non-swizzled: copy face mipmap data */
-            csmemcpy((void *)(swizzle_buf + iVar8),
-                     (void *)((int)adjusted_face_index * mip_size + mip_src),
-                     (unsigned int)mip_size);
-            iVar8 = iVar8 + mip_size;
-          } else {
-            /* swizzled/tiled: must be face 0, mip 0 */
-            if ((face_index != 0) || (adjusted_face_index != 0)) {
-              display_assert(
-                "face_index==0 && adjusted_face_index==0",
-                "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24c, 1);
-              system_exit(-1);
-            }
-            if ((short)local_c != 0) {
-              display_assert(
-                "mipmap_index==0",
-                "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24d, 1);
-              system_exit(-1);
-            }
-            if ((*(unsigned char *)(param_1 + 0xe) & 2) != 0) {
-              display_assert(
-                "!TEST_FLAG(bitmap->flags, _bitmap_compressed_bit)",
-                "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24e, 1);
-              system_exit(-1);
-            }
-            row_pitch = bitmap_mipmap_get_row_pitch((void *)param_1, local_c);
-            sVar3 = 0;
-            if (0 < *(short *)(param_1 + 6)) {
-              do {
-                csmemcpy((void *)(swizzle_buf + iVar8), (void *)mip_src,
-                         (unsigned int)row_pitch);
-                csmemset((void *)(swizzle_buf + iVar8 + row_pitch), 0,
-                         (unsigned int)(-row_pitch & 0x3f));
-                mip_src = mip_src + row_pitch;
-                iVar8 = iVar8 + row_pitch + (-row_pitch & 0x3f);
-                sVar3 = sVar3 + 1;
-              } while (sVar3 < *(short *)(param_1 + 6));
-            }
-          }
-          local_c = local_c + 1;
-        } while ((short)local_c <= (short)local_20);
-      }
-      /* align offset to 128 bytes at end of each face */
-      csmemset((void *)(swizzle_buf + iVar8), 0, (unsigned int)(-iVar8 & 0x7f));
-      iVar8 = iVar8 + (-iVar8 & 0x7f);
-      face_index = face_index + 1;
-    } while (face_index < local_1c);
-  }
-  if (iVar8 != total_size) {
-    display_assert("offset==size",
-                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x271,
-                   1);
-    system_exit(-1);
-  }
-  csmemcpy(*(void **)(param_1 + 0x2c), (void *)swizzle_buf,
-           (unsigned int)total_size);
-  debug_free((void *)swizzle_buf,
-             "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x275);
-  return 1;
+
+  error(2, "### ERROR rasterizer_xbox_bitmap_rebuild_hardware_format "
+           "failed (out of memory)");
+  return 0;
 }
 
 /* rasterizer_text_cache_initialize: init hardware text cache (0x183650) */
@@ -3353,7 +3363,7 @@ void rasterizer_text_draw(void *screen_pos, short *bounds, const void *color,
       draw_bounds[0] = *(int *)0x506584;
       draw_bounds[1] = *(int *)0x506588;
       rect2d_offset((short *)draw_bounds, (short)(-*(short *)0x50657e),
-                    (short)(-*(short *)0x50657c));
+                    (short)(-*(int *)0x50657c));
     } else {
       draw_bounds[0] = *(int *)screen_pos;
       draw_bounds[1] = *(int *)((char *)screen_pos + 4);
@@ -3363,7 +3373,7 @@ void rasterizer_text_draw(void *screen_pos, short *bounds, const void *color,
       clip_bounds[0] = *(int *)0x50657c;
       clip_bounds[1] = *(int *)0x506580;
       rect2d_offset((short *)clip_bounds, (short)(-*(short *)0x50657e),
-                    (short)(-*(short *)0x50657c));
+                    (short)(-clip_bounds[0]));
     } else {
       max_width = (int)bounds[2];
       if ((int)(*(short *)0x506580 - *(short *)0x50657c) <= (int)bounds[2]) {
@@ -3441,7 +3451,7 @@ void rasterizer_draw_string(void *screen_pos, short *bounds, const void *color,
       draw_bounds[0] = *(int *)0x506584;
       draw_bounds[1] = *(int *)0x506588;
       rect2d_offset((short *)draw_bounds, (short)(-*(short *)0x50657e),
-                    (short)(-*(short *)0x50657c));
+                    (short)(-*(int *)0x50657c));
     } else {
       draw_bounds[0] = *(int *)screen_pos;
       draw_bounds[1] = *(int *)((char *)screen_pos + 4);
@@ -3451,7 +3461,7 @@ void rasterizer_draw_string(void *screen_pos, short *bounds, const void *color,
       clip_bounds[0] = *(int *)0x50657c;
       clip_bounds[1] = *(int *)0x506580;
       rect2d_offset((short *)clip_bounds, (short)(-*(short *)0x50657e),
-                    (short)(-*(short *)0x50657c));
+                    (short)(-clip_bounds[0]));
     } else {
       max_width = (int)bounds[2];
       if ((int)(*(short *)0x506580 - *(short *)0x50657c) <= (int)bounds[2]) {
