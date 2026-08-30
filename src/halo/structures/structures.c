@@ -1561,12 +1561,10 @@ void FUN_00105610(float *point, float radius, float *color)
     system_exit(-1);
   }
   if (FUN_00103d30()) {
-    float *c;
     box[0] = point[0] - radius;
-    c = color + 1;
-    col[1] = c[0];
-    col[2] = c[1];
-    col[3] = c[2];
+    col[1] = color[1];
+    col[2] = color[2];
+    col[3] = color[3];
     box[1] = radius + point[0];
     box[2] = point[1] - radius;
     box[3] = radius + point[1];
@@ -2358,8 +2356,8 @@ float FUN_00106330(int16_t count, float *points)
 
   area = 0.0f; /* FLOAT_002533c0 seed */
   if (count > 2) {
-    n = (uint16_t)(count - 2);
     p = points + 2;
+    n = (uint16_t)(count - 2);
     do {
       area += ((p[2] - points[0]) * (p[1] - points[1]) -
                (p[3] - points[1]) * (p[0] - points[0])) *
@@ -2776,19 +2774,20 @@ void cluster_partition_remove_object(void *partition, int object_handle,
 int cluster_partition_iter_first(void *partition, int *state,
                                  int16_t cluster_idx)
 {
+  void *data;
+
   if (cluster_idx < 0 ||
       cluster_idx >= *(int *)((char *)scenario_get() + 0x134)) {
     display_assert("cluster_index>=0 && "
                    "cluster_index<global_structure_bsp_get()->clusters.count",
                    "c:\\halo\\SOURCE\\structures\\cluster_partitions.c", 0xd5,
-                   true);
+                   1);
     system_exit(-1);
   }
-
   *state = *(int *)(*(int *)partition + cluster_idx * 4);
+  data = *(void **)((char *)partition + 4);
   if (*state != -1) {
-    char *cluster_reference =
-      datum_get(*(void **)((char *)partition + 4), *state);
+    char *cluster_reference = datum_get(data, *state);
     *state = *(int *)(cluster_reference + 8);
     return *(int *)(cluster_reference + 4);
   }
@@ -4727,10 +4726,11 @@ void FUN_001954d0(void)
  */
 char FUN_00195530(int param_1, int param_2)
 {
+  int result = param_2 < param_1;
   if (param_2 > param_1) {
     return 0;
   }
-  return param_2 < param_1;
+  return result;
 }
 
 /* 0x195550 - gather structure surfaces selected by a per-32-surface bitmask.
@@ -6988,52 +6988,43 @@ char structure_render_surface_from_point_and_leaf(
 int32_t structure_get_planar_fog_definition_index(void *structure_bsp,
                                                   int16_t index, char flag)
 {
-  int16_t fog_ref; /* AX-resident through every gate in the original */
+  int16_t fog_ref;
   char *element;
-  int32_t result = -1; /* EDI; all failure paths share the sunk return */
+  int32_t result = -1;
 
-  if (index == -1) {
-    return result;
-  }
-
-  element =
-    tag_block_get_element((char *)structure_bsp + 0x134, (int)index, 0x68);
-
-  /* flag != 0 arm falls through first in the original; the cluster path is
-   * the sunk arm at 0x198781 */
-  if (flag != '\0') {
-    element = FUN_0018e7d0(0);
-    if (element == 0) {
-      goto fail;
+  if (index != -1) {
+    element =
+      tag_block_get_element((char *)structure_bsp + 0x134, (int)index, 0x68);
+    fog_ref = flag;
+    if (fog_ref) {
+      element = FUN_0018e7d0(0);
+      if (element != 0) {
+        return *(int32_t *)(element + 0xa4);
+      }
+    } else {
+      fog_ref = *(int16_t *)(element + 2);
+      if (fog_ref != -1) {
+        if (fog_ref < 0) {
+          element = tag_block_get_element((char *)structure_bsp + 0x178,
+                                          fog_ref & 0x7fff, 0x20);
+          fog_ref = *(int16_t *)element;
+        } else {
+          fog_ref &= 0x7fff;
+        }
+        if (fog_ref != -1) {
+          element = tag_block_get_element((char *)structure_bsp + 0x184,
+                                          (int)fog_ref, 0x28);
+          fog_ref = *(int16_t *)(element + 0x24);
+          if (fog_ref != -1) {
+            element = tag_block_get_element((char *)structure_bsp + 0x190,
+                                            (int)fog_ref, 0x88);
+            return *(int32_t *)(element + 0x2c);
+          }
+        }
+      }
     }
-    return *(int32_t *)(element + 0xa4);
   }
 
-  fog_ref = *(int16_t *)(element + 2);
-  if (fog_ref == -1) {
-    goto fail;
-  }
-  if (fog_ref < 0) {
-    element = tag_block_get_element((char *)structure_bsp + 0x178,
-                                    fog_ref & 0x7fff, 0x20);
-    fog_ref = *(int16_t *)element;
-  } else {
-    fog_ref = (int16_t)(fog_ref & 0x7fff);
-  }
-  if (fog_ref == -1) {
-    goto fail;
-  }
-  element =
-    tag_block_get_element((char *)structure_bsp + 0x184, (int)fog_ref, 0x28);
-  fog_ref = *(int16_t *)(element + 0x24);
-  if (fog_ref == -1) {
-    goto fail;
-  }
-  element =
-    tag_block_get_element((char *)structure_bsp + 0x190, (int)fog_ref, 0x88);
-  return *(int32_t *)(element + 0x2c);
-
-fail:
   return result;
 }
 

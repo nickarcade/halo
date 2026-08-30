@@ -5452,7 +5452,7 @@ int16_t unit_set_grenade_count(int unit_handle, int16_t grenade_type,
     system_exit(-1);
   }
 
-  if ((grenade_type < 0) || (grenade_type > 1)) {
+  if ((grenade_type < 0) || (grenade_type >= 2)) {
     display_assert(
       "(grenade_type >= 0) && (grenade_type < NUMBER_OF_UNIT_GRENADE_TYPES)",
       "c:\\halo\\SOURCE\\units\\units.c", 0x1c8e, 1);
@@ -7073,7 +7073,8 @@ void FUN_001ac680(float initial_p, float initial_v, float max_v, float max_a,
       /* sq holds (diff * coasting_vel) so the volatile coasting
        * velocity is loaded once, doubled on the FPU stack (FADD ST,ST0)
        * as in the original. */
-      sq = (initial_v - initial_p) * f1;
+      sq = initial_v - initial_p;
+      sq = sq * f1;
       scratch =
         (sq + sq) - (initial_v - initial_p) * (initial_v - initial_p) * max_a;
       if (!(f1 < 0.0f)) {
@@ -8577,10 +8578,10 @@ void units_set_desired_flashlight_state(int object_list, char desired)
     unit = (char *)object_try_and_get_and_verify_type(child, 3);
     if (unit != NULL && child != -1) {
       unit = (char *)object_get_and_verify_type(child, 3);
-      if (desired == '\0') {
-        flags = *(uint32_t *)(unit + 0x1b4) | 0x20000000;
-      } else {
+      if (desired) {
         flags = *(uint32_t *)(unit + 0x1b4) | 0x10000000;
+      } else {
+        flags = *(uint32_t *)(unit + 0x1b4) | 0x20000000;
       }
       *(uint32_t *)(unit + 0x1b4) = flags;
     }

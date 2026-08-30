@@ -9,6 +9,7 @@ void players_initialize(void)
   *(_WORD *)&players_globals->unk_0[36] = 0;
   player_control_globals = (player_control_globals_t *)game_state_malloc(
     "player control globals", 0, sizeof(player_control_globals_t));
+  player_control_initialize();
 }
 
 void players_initialize_for_new_map(void)
@@ -192,7 +193,7 @@ __int16 local_player_get_next(__int16 local_player_index)
   result = -1;
   for (i = 0; i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS; i++) {
     if (*(int *)&players_globals->unk_0[4 + i * 4] != -1 &&
-        local_player_index < i) {
+        i > local_player_index) {
       if (i < result || result == -1)
         result = i;
     }
@@ -1010,9 +1011,9 @@ void player_apply_health_effect(int player_handle)
   csmemset(&effect, 0, sizeof(effect));
   effect.type = 6;
   effect.unk_02 = 2;
-  effect.field_10 = 2.0f;
   effect.field_14 = 1;
   effect.field_20 = 0.5f;
+  effect.field_10 = 2.0f;
   effect.field_24 = 0;
   effect.field_28 = 1.0f;
   effect.field_2c = 0.917647f;
@@ -1403,9 +1404,6 @@ bool player_teleport(int player_handle, int anchor_unit_handle,
   player = (char *)datum_get(player_data, player_handle);
   unit_handle = *(int *)(player + 0x34);
   unit = (char *)object_try_and_get_and_verify_type(unit_handle, 1);
-  /* Nested-if (rather than early-return) shape: the original places the
-   * failure epilogue out of line at 0xbbbcf, after the success epilogue, and
-   * hoists its zero into CL above the TEST. */
   if (unit != NULL) {
     if (*(int *)(unit + 0xcc) != -1)
       unit_exit_seat_end(unit_handle);
@@ -1952,16 +1950,13 @@ void player_update_weapon_timers(int datum_handle)
   char *unit;
   int16_t *timer;
   int i;
-  int16_t val;
 
   player = (char *)datum_get(player_data, datum_handle);
   timer = (int16_t *)(player + 0x68);
-  for (i = 0; i < 2; i++) {
-    val = timer[i];
-    if (val > 0) {
-      val--;
-      timer[i] = val;
-      if (val == 0) {
+  for (i = 0; i < 2; i++, timer++) {
+    if (*timer > 0) {
+      (*timer)--;
+      if (*timer == 0) {
         player = (char *)datum_get(player_data, datum_handle);
         unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
         if (i == 0)
@@ -4285,13 +4280,14 @@ void FUN_000be370(int16_t function_index, int thread_datum, char init)
 void FUN_000be3b0(int16_t function_index, int thread_datum, char init)
 {
   int *result;
-  unsigned int value;
+  int value;
 
+  value = 0;
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    value = (uint16_t)FUN_000ce420(*result);
-    hs_return(thread_datum, (int)value);
+    *(int16_t *)&value = FUN_000ce420(*result);
+    hs_return(thread_datum, value);
   }
 }
 
@@ -4464,12 +4460,14 @@ void FUN_000be4c0(int16_t function_index, int thread_datum, char init)
 void FUN_000be500(int16_t function_index, int thread_datum, char init)
 {
   int *result;
-  unsigned char value;
+  int value;
 
+  value = 0;
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    value = FUN_000c9770(result[0], result[1], *(float *)((char *)result + 8));
+    *(char *)&value =
+      FUN_000c9770(result[0], result[1], *(float *)((char *)result + 8));
     hs_return(thread_datum, value);
   }
 }
@@ -5635,13 +5633,14 @@ void FUN_000bec90(int16_t function_index, int thread_datum, char init)
 void FUN_000becd0(int16_t function_index, int thread_datum, char init)
 {
   unsigned char *result;
-  unsigned int value;
+  int value;
 
+  value = 0;
   result = (unsigned char *)hs_macro_function_evaluate(function_index,
                                                        thread_datum, init);
   if (result != NULL) {
-    value = lights_enable(*result);
-    hs_return(thread_datum, (int)value);
+    *(char *)&value = lights_enable(*result);
+    hs_return(thread_datum, value);
   }
 }
 
@@ -5675,13 +5674,14 @@ void FUN_000becd0(int16_t function_index, int thread_datum, char init)
 void FUN_000bed20(int16_t function_index, int thread_datum, char init)
 {
   int *result;
-  unsigned int value;
+  int value;
 
+  value = 0;
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    value = (uint16_t)FUN_00145740(*result);
-    hs_return(thread_datum, (int)value);
+    *(int16_t *)&value = FUN_00145740(*result);
+    hs_return(thread_datum, value);
   }
 }
 

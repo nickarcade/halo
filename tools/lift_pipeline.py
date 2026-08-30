@@ -615,12 +615,19 @@ def run_pipeline(args: argparse.Namespace) -> int:
     stages.append(StageResult("buffer_alias", ran=False, ok=True,
                               details="skipped (no source path)"))
 
-  # --- frame-map check (opt-in: --frame-map-check; requires cached disasm context) ---
-  if getattr(args, 'frame_map_check', False) and target.source_path:
-    cache_dir = ROOT / "artifacts" / "auto_lift" / "context_cache"
-    addr_key = target.addr.lstrip('0x').lstrip('0') or '0' if target.addr else ''
+  # --- frame-map check (automatic when a fingerprinted Ghidra artifact is supplied) ---
+  frame_map_requested = bool(getattr(args, "frame_map_check", False) or
+                             getattr(args, "ghidra_context", ""))
+  if frame_map_requested and target.source_path:
+    context_arg = getattr(args, "ghidra_context", "")
     func_name = target.name or f"FUN_{int(target.addr, 16):08x}"
-    cache_file = cache_dir / f"{func_name}.json"
+    if context_arg:
+      cache_file = Path(context_arg)
+      context_label = "fingerprinted context artifact"
+    else:
+      cache_dir = ROOT / "artifacts" / "auto_lift" / "context_cache"
+      cache_file = cache_dir / f"{func_name}.json"
+      context_label = "legacy local context cache"
     if cache_file.exists():
       fm_json = artifact_dir / "frame_map.json"
       fm_cmd = [
@@ -632,7 +639,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
       ]
       fm_proc = run_command(fm_cmd, cwd=ROOT, log_path=artifact_dir / "frame_map.log")
       fm_ok = fm_proc.returncode == 0
-      fm_detail = "clean" if fm_ok else "frame-map validation errors detected"
+      fm_detail = (f"clean ({context_label})" if fm_ok
+                   else f"frame-map validation errors detected ({context_label})")
       stages.append(StageResult("frame_map", ran=True, ok=fm_ok, details=fm_detail))
       if not fm_ok:
         # frame-map failures are advisory in default mode; only fail under strict
@@ -640,8 +648,8 @@ def run_pipeline(args: argparse.Namespace) -> int:
           return finalize(summary, stages, artifact_dir, ok=False, quiet=args.quiet)
     else:
       stages.append(StageResult("frame_map", ran=False, ok=True,
-                                details="skipped (no cached context)"))
-  elif getattr(args, 'frame_map_check', False):
+                                details=f"skipped ({context_label} unavailable)"))
+  elif frame_map_requested:
     stages.append(StageResult("frame_map", ran=False, ok=True,
                               details="skipped (no source path)"))
 
@@ -897,6 +905,28 @@ def run_pipeline(args: argparse.Namespace) -> int:
   else:
     stages.append(StageResult("vc71_verify", ran=False, ok=True,
                               details="skipped" + (" (--skip-vc71-verify)" if args.skip_vc71_verify else "")))
+
+  # Always publish a deterministic, provider-neutral next action after a
+  # measured score.  This is advisory: a routing-tool failure must never hide a
+  # valid verification result or turn a lift into a false failure.
+  if vc71_match_pct is not None:
+    score_context = ROOT / "artifacts" / "score_context" / f"{target.name}.json"
+    route_cmd = [
+      "python3", "tools/lift/route_attempt.py", "--score",
+      f"{vc71_match_pct:.6f}", "--score-context", str(score_context), "--json",
+    ]
+    route_proc = run_command(route_cmd, cwd=ROOT, log_path=artifact_dir / "route_attempt.log")
+    try:
+      routing = json.loads(route_proc.stdout)
+      route = str(routing["route"])
+      reason = str(routing["reason"])
+      detail = f"{route}: {reason}"
+    except (json.JSONDecodeError, KeyError, TypeError):
+      detail = "routing unavailable (see route_attempt.log)"
+    stages.append(StageResult("route_attempt", ran=True, ok=True, details=detail))
+  else:
+    stages.append(StageResult("route_attempt", ran=False, ok=True,
+                              details="skipped (no attributed VC71 score)"))
 
   # Optional last-mile permuter pass (informational; never auto-applies).
   if args.permute:
@@ -1430,10 +1460,13 @@ def build_parser() -> argparse.ArgumentParser:
                   help="Do not update kb_meta status.")
 
   ap.add_argument("--frame-map-check", action="store_true",
-                  help="Opt-in: derive MSVC frame map from cached disasm and validate that "
+                  help="Derive an MSVC frame map from cached disasm and validate that "
                        "all addr-taken slot regions are covered by a single C local "
                        "(§2 stack-aliasing contract check, tools/lift/frame_map.py). "
                        "Requires a cached context pack; WARN under auto, FAIL under strict.")
+  ap.add_argument("--ghidra-context", default="", metavar="JSON",
+                  help="Fingerprint-validated Ghidra context artifact from research_bundle; "
+                       "automatically enables the frame-map check.")
   ap.add_argument("--permute", action="store_true",
                   help="When VC71 match falls in [85, 98], spawn a permuter "
                        "pass via tools/permuter/run.py. Reports best score; "

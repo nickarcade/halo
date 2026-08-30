@@ -1310,12 +1310,8 @@ int game_engine_remap_vehicle(int param_1)
  * type. */
 
 int game_engine_remap_weapon(int param_1)
-
 {
   int index;
-
-  int result;
-
 
   index = weapon_definition_index_to_list_index(param_1);
 
@@ -1344,97 +1340,61 @@ int game_engine_remap_weapon(int param_1)
     }
 
   case 2:
-
-    /* Original (T2 @0xa98d4 + JA 0xa9888): every index OUTSIDE {3,4,6,7}
-     * — including 5 and out-of-range — maps to list index 0. */
     switch (index) {
     case 3:
     case 4:
     case 6:
     case 7:
-
       return list_index_to_weapon_definition_index(6);
     }
-
-    return list_index_to_weapon_definition_index(0);
+    index = 0;
+    break;
 
   case 3:
-
-    if (index > 2 && index < 6)
-
-      return list_index_to_weapon_definition_index(5);
-
-    return list_index_to_weapon_definition_index(6);
+    if (index < 3 || index > 5)
+      return list_index_to_weapon_definition_index(6);
+    return list_index_to_weapon_definition_index(5);
 
   case 4:
-
     if (index != 4 && index != 9)
-
       return list_index_to_weapon_definition_index(9);
-
     break;
 
   case 5:
-
-    /* Original (0xa9836): index 4 -> JZ 0xa9888 (XOR EAX) = list 0. */
     if (index == 4)
-
-      return list_index_to_weapon_definition_index(0);
-
-    if (index == 9)
-
+      index = 0;
+    else if (index == 9)
       return list_index_to_weapon_definition_index(8);
-
     break;
 
   case 6:
-
     return list_index_to_weapon_definition_index(7);
 
   case 7:
-
     return list_index_to_weapon_definition_index(8);
 
   case 8:
-
     switch (index) {
     case 0:
     case 3:
     case 4:
     case 9:
-
       return list_index_to_weapon_definition_index(8);
     }
-
     break;
 
   case 9:
-
-    /* Original (0xa9875): index 3 -> list 0 (JZ 0xa9888); index 5 ->
-     * list 4 (0xa97cb); index 6 -> list 0 (fallthrough to 0xa9888);
-     * everything else passes through. */
-    if (index == 3)
-
-      return list_index_to_weapon_definition_index(0);
-
-    if (index == 5)
-
+    if (index == 3 || index == 6)
+      index = 0;
+    else if (index == 5)
       return list_index_to_weapon_definition_index(4);
-
-    if (index == 6)
-
-      return list_index_to_weapon_definition_index(0);
-
     break;
 
   default:
-
     break;
   }
 
-  result = list_index_to_weapon_definition_index(index);
-
-  return result;
+  return list_index_to_weapon_definition_index(index);
 }
 
 /* game_engine_man_out (0xa9900)
@@ -1900,12 +1860,7 @@ void game_engine_playlist_next(int game_variant_type, int param_2, int param_3)
  * 1.0 speed. */
 game_variant_t *game_engine_slayer_default(game_variant_t *variant)
 {
-  /* Original builds the variant in a local ({0} zeroing = word store +
-   * REP STOSD from +2), read-modify-writes the +0x20 flag word with an
-   * AND/OR mask, re-stores several fields to zero explicitly, then
-   * block-copies 0x1a dwords to the out pointer (REP MOVSD). */
   game_variant_t v = { 0 };
-  *(int32_t *)((char *)&v + 0x18) = 2;
   *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
@@ -1919,6 +1874,7 @@ game_variant_t *game_engine_slayer_default(game_variant_t *variant)
   *(int32_t *)((char *)&v + 0x34) = 0x12c;
   *(uint8_t *)((char *)&v + 0x1c) = 0;
   *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int32_t *)((char *)&v + 0x18) = 2;
   *(uint8_t *)((char *)&v + 0x4c) = 0;
   *(uint8_t *)((char *)&v + 0x4d) = 0;
   *(uint8_t *)((char *)&v + 0x4e) = 0;
@@ -1960,15 +1916,12 @@ game_variant_t *FUN_000aa220(game_variant_t *out)
  * 1 round, 25 lives, 2 weapon sets, 1.0 speed. */
 game_variant_t *game_engine_elimination_default(game_variant_t *variant)
 {
-  /* Builds the variant in a zeroed local (word store + REP STOSD),
-   * read-modify-writes the +0x20 flag dword with an AND/OR mask,
-   * then block-copies 0x1a dwords to the out pointer (REP MOVSD). */
   game_variant_t v = { 0 };
+  *(int32_t *)((char *)&v + 0x18) = 2;
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x38) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x18) = 2;
   *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x24) = 0;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
@@ -2107,9 +2060,9 @@ game_variant_t *game_engine_team_slayer_default(game_variant_t *variant)
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x30) = 0x12c;
   *(int32_t *)((char *)&v + 0x34) = 0x12c;
+  *(int32_t *)((char *)&v + 0x18) = 2;
   *(uint8_t *)((char *)&v + 0x1c) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x18) = 2;
   *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x24) = 0;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
@@ -2139,10 +2092,10 @@ game_variant_t *game_engine_oddball_default(game_variant_t *variant)
   *(int32_t *)((char *)&v + 0x24) = 1;
   *(int32_t *)((char *)&v + 0x48) = 1;
   *(int32_t *)((char *)&v + 0x60) = 1;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
   *(uint8_t *)((char *)&v + 0x4d) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x30) = 0x96;
-  *(int32_t *)((char *)&v + 0x34) = 0x96;
   *(int32_t *)((char *)&v + 0x18) = 3;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
@@ -2311,10 +2264,10 @@ game_variant_t *game_engine_stalker_default(game_variant_t *variant)
   *(int32_t *)((char *)&v + 0x30) = 0x96;
   *(int32_t *)((char *)&v + 0x34) = 0x96;
   *(int32_t *)((char *)&v + 0x60) = 1;
-  *(int32_t *)((char *)&v + 0x54) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x18) = 3;
   *(int32_t *)((char *)&v + 0x58) = 3;
+  *(int32_t *)((char *)&v + 0x54) = 1;
   *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x5c) = 2;
   *(int32_t *)((char *)&v + 0x50) = 2;
@@ -2368,10 +2321,10 @@ game_variant_t *FUN_000aaa20(game_variant_t *out)
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
-  *(int32_t *)((char *)&v + 0x40) = 2;
-  *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int32_t *)((char *)&v + 0x40) = 2;
   *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x18) = 4;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
@@ -2395,8 +2348,8 @@ game_variant_t *FUN_000aaab0(game_variant_t *out)
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x24) = 1;
   *(uint8_t *)((char *)&v + 0x4c) = 1;
-  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x40) = 2;
+  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x18) = 4;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
@@ -2426,8 +2379,8 @@ game_variant_t *game_engine_team_king_default(game_variant_t *variant)
   *(int32_t *)((char *)&v + 0x24) = 1;
   *(uint8_t *)((char *)&v + 0x1c) = 1;
   *(uint8_t *)((char *)&v + 0x4c) = 1;
-  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x40) = 2;
+  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x18) = 4;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
@@ -2452,11 +2405,11 @@ game_variant_t *game_engine_ctf_default(game_variant_t *variant)
    * then REP MOVSD 0x1a dwords to the out pointer. */
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x18) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+    (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x24) = 1;
   *(uint8_t *)((char *)&v + 0x1c) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x20) =
-    (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
   *(uint8_t *)((char *)&v + 0x28) = 0;
@@ -2481,12 +2434,12 @@ game_variant_t *FUN_000aac50(game_variant_t *out)
   /* Assault variant: zeroed local, +0x20 RMW, REP MOVSD out. */
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x18) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+    (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
   *(int32_t *)((char *)&v + 0x24) = 1;
   *(uint8_t *)((char *)&v + 0x1c) = 1;
   *(uint8_t *)((char *)&v + 0x4f) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x20) =
-    (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
   *(uint8_t *)((char *)&v + 0x28) = 0;
@@ -2510,12 +2463,12 @@ game_variant_t *FUN_000aace0(game_variant_t *out)
   /* Assault variant (alt): zeroed local, +0x20 RMW, REP MOVSD out. */
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x18) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+    (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x24) = 1;
   *(uint8_t *)((char *)&v + 0x1c) = 1;
   *(uint8_t *)((char *)&v + 0x4c) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x20) =
-    (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 5;
   *(uint8_t *)((char *)&v + 0x28) = 0;
@@ -2544,12 +2497,12 @@ game_variant_t *game_engine_ironctf_default(game_variant_t *variant)
    * then REP MOVSD 0x1a dwords to the out pointer. */
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x18) = 1;
+  *(int32_t *)((char *)&v + 0x20) =
+    (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x24) = 1;
   *(uint8_t *)((char *)&v + 0x1c) = 1;
   *(uint8_t *)((char *)&v + 0x4e) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x20) =
-    (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
   *(int32_t *)((char *)&v + 0x3c) = 0x40000000;
   *(int32_t *)((char *)&v + 0x38) = 0;
   *(uint8_t *)((char *)&v + 0x28) = 0;
@@ -2893,13 +2846,10 @@ void ticks_to_unicode_time_string(int param_1, int param_2, wchar_t *param_3)
 
     unicode_sprintf(min_buf, 0x40, (wchar_t *)0x26c118, minutes);
 
-  if (seconds < 10)
-
-    unicode_sprintf(sec_buf, 0x40, (wchar_t *)0x26c110, seconds);
-
-  else
-
+  if (seconds >= 10)
     unicode_sprintf(sec_buf, 0x40, (wchar_t *)0x26c118, seconds);
+  else
+    unicode_sprintf(sec_buf, 0x40, (wchar_t *)0x26c110, seconds);
 
   unicode_sprintf(param_3, param_2, L"%s:%s", min_buf, sec_buf);
 }
@@ -5159,6 +5109,7 @@ void FUN_000ae3c0(int param_1, int param_2, int16_t team)
  * redundant `count = i`: 85.1%) both scored worse and were reverted. */
 void FUN_000ae400(int16_t param_1, int param_2, int16_t param_3, int param_4)
 {
+  int16_t param_1_copy;
   int16_t total_flags;
   int flag_elem;
   int count;
@@ -5167,11 +5118,12 @@ void FUN_000ae400(int16_t param_1, int param_2, int16_t param_3, int param_4)
   total_flags = player_get_starting_location_count();
   count = 0;
   i = 0;
+  param_1_copy = param_1;
   if (0 < total_flags) {
     count = i;
     do {
       flag_elem = ((int (*)(int))player_get_starting_location)(i);
-      if (match_game_type((int)param_1, 4, (int16_t *)(flag_elem + 0x14)))
+      if (match_game_type((int)param_1_copy, 4, (int16_t *)(flag_elem + 0x14)))
         count++;
       i++;
     } while (((int16_t)i) < total_flags);
@@ -7243,11 +7195,7 @@ int ctf_unit_can_enter_seat(int weapon_handle, int player_handle)
             *(int16_t *)(player + 0xc2) = *(int16_t *)(player + 0xc2) + 1;
             game_show_score_you_ally_enemy(player_handle, 0x23, 0x28, 0x26,
                                            player_handle);
-            {
-              char event =
-                (-(uint32_t)(*(int *)(player + 0x20) != 0) & 0xfffffffd) + 0xc;
-              game_engine_post_event(event);
-            }
+            game_engine_post_event(*(int *)(player + 0x20) ? 9 : 12);
           }
         }
         cheats_apply(weapon_handle);
@@ -7262,11 +7210,7 @@ int ctf_unit_can_enter_seat(int weapon_handle, int player_handle)
         *(int16_t *)(player + 0xc0) = *(int16_t *)(player + 0xc0) + 1;
         variant = (int)game_engine_get_variant();
         if (*(char *)(variant + 0x4c) == 0) {
-          {
-            char event =
-              (-(uint32_t)(*(int *)(player + 0x20) != 0) & 0xfffffffd) + 0xb;
-            game_engine_post_event(event);
-          }
+          game_engine_post_event(*(int *)(player + 0x20) ? 8 : 11);
           *(char *)(0x456b90 + flag_team) = 1;
           *(int *)(0x456b94 + flag_team * 4) = 0;
           game_show_score_you_ally_enemy(player_handle, -1, 0x27, 0x24,
@@ -7284,9 +7228,6 @@ float ctf_get_starting_location_rating(int param_1, float *param_2)
 {
   float rating;
   float dist_sq;
-  float dx;
-  float dy;
-  float dz;
   float *flag_pos;
   int player;
   int other_team;
@@ -7296,10 +7237,9 @@ float ctf_get_starting_location_rating(int param_1, float *param_2)
     player = (int)datum_get(player_data, param_1);
     other_team = (*(int *)(player + 0x20) + 1) % 2;
     flag_pos = (float *)*(int *)(0x456b74 + other_team * 4);
-    dx = flag_pos[0] - param_2[0];
-    dy = flag_pos[1] - param_2[1];
-    dz = flag_pos[2] - param_2[2];
-    dist_sq = dx * dx + dy * dy + dz * dz;
+    dist_sq = (flag_pos[0] - param_2[0]) * (flag_pos[0] - param_2[0]) +
+              (flag_pos[1] - param_2[1]) * (flag_pos[1] - param_2[1]) +
+              (flag_pos[2] - param_2[2]) * (flag_pos[2] - param_2[2]);
     if (dist_sq <= *(float *)0x253398) {
       dist_sq = 0.5f;
     } else if (*(float *)0x253f34 < dist_sq) {
@@ -8615,14 +8555,10 @@ wchar_t *oddball_get_player_score_string(int param_1, wchar_t *param_2)
   variant = (int)game_engine_get_variant();
 
   if (*(int *)(variant + 0x5c) == 2) {
-    usprintf(param_2, (wchar_t *)0x26c118,
-             score); /* 0x26c118 IS L"%d" (addr), not a ptr */
-
-    return param_2;
+    usprintf(param_2, (wchar_t *)0x26c118, score);
+  } else {
+    ticks_to_unicode_time_string(score, 0x100, param_2);
   }
-
-  ticks_to_unicode_time_string(score, 0x100, param_2);
-
   return param_2;
 }
 
@@ -8890,11 +8826,14 @@ int FUN_000b3120(int param_1)
     if (*(int16_t *)(biped + 0x2a2) != -1) {
       weapon_handle = *(int *)(biped + 0x2a8 + *(int16_t *)(biped + 0x2a2) * 4);
       if (weapon_handle != -1 && weapon_is_flag(weapon_handle)) {
-        score = *(int *)(0x456e4c + (param_1 & 0xffff) * 4);
+        int index = param_1 & 0xffff;
+        int time_sec;
+        score = *(int *)(0x456e4c + index * 4);
+        time_sec = score / 30;
         weapon = (int)object_get_and_verify_type(weapon_handle, 4);
         if (0 < score && score % 0x96 == 0 && score < *(int *)0x456e08)
           game_engine_post_event(0x2a);
-        *(int16_t *)(weapon + 0x260) = (int16_t)(score / 30);
+        *(int16_t *)(weapon + 0x260) = (int16_t)time_sec;
       }
     }
   }
@@ -9185,29 +9124,18 @@ int FUN_000b3770(int param_1)
 /* Fix duplicate netgame flag sequence indices by reassigning conflicts. */
 
 void FUN_000b3860(void)
-
 {
   int *flag_block;
-
   int16_t i;
-
   int elem;
-
   int16_t seq;
-
   uint32_t used_mask;
-
   int j;
-
   int scenario;
 
-
   scenario = (int)global_scenario_get();
-
   flag_block = (int *)(scenario + 0x378);
-
   used_mask = 0;
-
   i = 0;
 
   if (0 < *flag_block) {
@@ -9215,34 +9143,27 @@ void FUN_000b3860(void)
       elem = (int)tag_block_get_element(flag_block, (int)i, 0x94);
 
       if (((netgame_flag *)elem)->type == 3 &&
-
           ((netgame_flag *)elem)->team_index >= 0 &&
-
           ((netgame_flag *)elem)->team_index < 0x20) {
         seq = ((netgame_flag *)elem)->team_index;
 
-        if ((used_mask & (1u << ((uint8_t)seq & 0x1f))) == 0) {
-          used_mask |= (1u << ((uint8_t)seq & 0x1f));
-
-        } else {
+        if ((used_mask & (1 << seq)) != 0) {
           for (j = 0; j < 0x20; j++) {
-            if ((used_mask & (1u << ((uint8_t)j & 0x1f))) == 0) {
-              used_mask |= (1u << ((uint8_t)seq & 0x1f));
-
+            if ((used_mask & (1 << j)) == 0) {
+              used_mask |= (1 << seq);
               ((netgame_flag *)elem)->team_index = (int16_t)j;
-
               break;
             }
           }
 
           if (j >= 0x20)
-
             ((netgame_flag *)elem)->team_index = (int16_t)j;
+        } else {
+          used_mask |= (1 << seq);
         }
       }
 
       i++;
-
     } while ((int)i < *flag_block);
   }
 }

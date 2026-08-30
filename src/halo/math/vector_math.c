@@ -240,10 +240,10 @@ bool FUN_00012e50(int actor_handle)
   char *actor;
   bool result;
 
-  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle) + 0x9c;
   result = false;
-  if (*(short *)(actor + 0xa0) == 3 && *(char *)(actor + 0xa7) != '\0') {
-    result = *(int *)(actor + 0xac) + 0x1e >= game_time_get();
+  if (*(short *)(actor + 4) == 3 && *(char *)(actor + 0xb) != '\0') {
+    result = *(int *)(actor + 0x10) + 0x1e >= game_time_get();
   }
   return result;
 }
@@ -283,7 +283,7 @@ float magnitude3d(float *v)
   float scale;
 
   mag = sqrtf(v[0] * v[0] + v[1] * v[1]);
-  if (fabsf(mag) >= *(double *)0x2533d0) {
+  if (!(x87_fabs(mag) < *(double *)0x2533d0)) {
     scale = 1.0f / mag;
     v[0] = v[0] * scale;
     v[1] = v[1] * scale;

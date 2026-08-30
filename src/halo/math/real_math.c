@@ -298,9 +298,10 @@ void matrix4x3_identity_with_position(float *out, float *position)
   out[7] = 0.0f;
   out[8] = 0.0f;
   out[9] = 1.0f;
-  out[10] = position[0];
-  out[11] = position[1];
-  out[12] = position[2];
+  out += 10;
+  out[0] = position[0];
+  out[1] = position[1];
+  out[2] = position[2];
 }
 
 void FUN_001092d0(float *out_matrix, float *axis, float sine, float cosine)
@@ -1546,8 +1547,8 @@ void perpendicular3d(float *in, float *out)
     out[1] = in[2];
     out[2] = -in[1];
   } else if (abs_y <= abs_z) {
-    out[1] = 0.0f;
     out[0] = -in[2];
+    out[1] = 0.0f;
     out[2] = in[0];
   } else {
     out[0] = in[1];
@@ -1629,16 +1630,16 @@ void scalars_interpolate(float a, float b, float blend, float *out)
 }
 
 /* 0x10b840 — Interpolate two scalars and clamp result to [0, 1]. */
+static __inline float pin(float val, float min_val, float max_val)
+{
+  if (val < min_val) return min_val;
+  if (val > max_val) return max_val;
+  return val;
+}
+
 void scalars_interpolate_and_clamp_0_to_1(float a, float b, float t, float *out)
 {
-  float result = b * t + (1.0f - t) * a;
-  if (result < *(float *)0x2533c0) {
-    *out = 0.0f;
-  } else if (result > *(float *)0x2533c8) {
-    *out = 1.0f;
-  } else {
-    *out = result;
-  }
+  *out = pin((1.0f - t) * a + b * t, 0.0f, 1.0f);
 }
 
 /* 0x10b8a0 — Project a vector onto an axis: parallel = dot(v,axis)*axis,
@@ -3181,10 +3182,7 @@ char FUN_0010e8a0(float *point, float radius, float *rect)
   } else {
     dy = point[1] - rect[3];
   }
-  if (dx * dx + dy * dy <= radius * radius) {
-    return 1;
-  }
-  return 0;
+  return dx * dx + dy * dy <= radius * radius;
 }
 
 /* 0x10e930 — 3D point-to-AABB distance test.
@@ -3218,10 +3216,7 @@ char FUN_0010e930(float *point, float radius, float *aabb)
   } else {
     dz = point[2] - aabb[5];
   }
-  if (dx * dx + dy * dy + dz * dz < radius * radius) {
-    return 1;
-  }
-  return 0;
+  return dx * dx + dy * dy + dz * dz <= radius * radius;
 }
 
 /* 0x10e9f0 — 2D triangle vs circle test. Tests the 3 edges (cw winding)
@@ -3960,22 +3955,23 @@ unsigned char quantize_real_to_byte_lower_bound(float min, float max,
    * because a NaN would already have been caught above. */
   if (!(min - *(float *)0x253f44 <= value) ||
       !(max + *(float *)0x253f44 >= value)) {
-    csprintf((char *)0x5ab100, "%lf is not between %lf and %lf", (double)value,
-             (double)min, (double)max);
-    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\math\\real_math.c",
-                   0xaf3, 1);
+    display_assert(csprintf((char *)0x5ab100,
+                            "%lf is not between %lf and %lf", (double)value,
+                            (double)min, (double)max),
+                   "c:\\halo\\SOURCE\\math\\real_math.c", 0xaf3, 1);
     system_exit(-1);
   }
 
-  for (; test > 0; test--) {
-    if (test == 0xff)
-      dequant = max;
-    else
-      dequant = (float)test * (1.0f / 255.0f) * range + min;
-    /* ref: fld value; fcomp st(1); test ah,5; jp -> break on
-     * !(value < dequant), NaN breaks */
-    if (!(value < dequant))
-      break;
+  if (test > 0) {
+    do {
+      if (test == 0xff)
+        dequant = max;
+      else
+        dequant = (float)test * (1.0f / 255.0f) * range + min;
+      if (!(value < dequant))
+        break;
+      test--;
+    } while (test != 0);
   }
 
   if (test == 0xff)
@@ -4431,7 +4427,8 @@ void FUN_00110730(int *param_1, short param_2, int param_3, int param_4,
                    0x2d, 1);
     system_exit(-1);
   }
-  if (param_2 < 1) {
+  if (param_2 > 0) {
+  } else {
     display_assert("component_count>0", "c:\\halo\\SOURCE\\math\\vector_tree.c",
                    0x2e, 1);
     system_exit(-1);
@@ -6011,8 +6008,8 @@ int FUN_00112260(int strm)
   *(int *)(s + 0x10) = *(int *)(s + 8);
   *(int *)(s + 0x14) = 0;
   if (*(int *)(s + 0x18) < 0)
-    *(int *)(s + 0x18) = 0;
-  *(int *)(s + 4) = (-(int)(*(int *)(s + 0x18) != 0) & 0x47) + 0x2a;
+    *(int *)(s + 0x18) = -*(int *)(s + 0x18);
+  *(int *)(s + 4) = *(int *)(s + 0x18) ? 42 : 113;
   *(int *)(strm + 0x30) = 1;
   *(int *)(s + 0x20) = 0;
   _tr_init(s);

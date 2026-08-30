@@ -1,3 +1,34 @@
+#include "x87_math.h"
+
+/* event_controller_index_compatible_with_widget (0xe3b80) — true if the
+ * widget accepts input from any controller (local_player_index == -1, at
+ * widget+8) or if the widget's local_player_index matches the event's
+ * controller_index (at event+2). Same check is inlined below as
+ * "allowed_player" in ui_widget_process_event. */
+bool event_controller_index_compatible_with_widget(void *event, void *widget)
+{
+  if (*(int16_t *)((char *)widget + 8) != -1 &&
+      *(int16_t *)((char *)widget + 8) != *(int16_t *)((char *)event + 2)) {
+    return false;
+  }
+  return true;
+}
+
+/* set_ui_plasma_effect_color (0xe3bb0) — stores four caller-supplied dword
+ * values into four consecutive UI plasma-effect-color globals at
+ * 0x5aa460-0x5aa46c. No callers found in the binary (xrefs empty) and no
+ * callees; the values are copied verbatim via plain MOV (no FPU/other
+ * interpretation), so whether they are int or float components is not
+ * proven by this evidence — kept as raw dwords. */
+void set_ui_plasma_effect_color(uint32_t component_0, uint32_t component_1,
+                                uint32_t component_2, uint32_t component_3)
+{
+  *(uint32_t *)0x5aa460 = component_0;
+  *(uint32_t *)0x5aa464 = component_1;
+  *(uint32_t *)0x5aa468 = component_2;
+  *(uint32_t *)0x5aa46c = component_3;
+}
+
 /* ui_widgets_initialize — sets up the UI widget subsystem. Allocates a
  * 0x4000-byte block via debug_malloc for the stack memory pool at
  * [0x31e04c], initializes the pool, zeroes the 0x68-byte static widget
@@ -65,6 +96,34 @@ void ui_widget_debug_show_path(unsigned char value)
   *(uint8_t *)0x46cc84 = value;
 }
 
+/* widget_instance_get_nth_child — walks the first_child linked list of
+ * widget (offset +0x34) following next_sibling (+0x2c) n times, returning
+ * the widget reached (or NULL if the chain runs out before n steps).
+ * n <= 0 returns first_child unchanged. Asserts widget is non-NULL. */
+void *widget_instance_get_nth_child(void *widget, int n)
+{
+  void *child;
+  int i;
+
+  if (widget == NULL) {
+    display_assert("widget", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x41a,
+                   true);
+    system_exit(-1);
+  }
+
+  child = *(void **)((char *)widget + 0x34);
+  i = 0;
+  if (0 < n) {
+    do {
+      if (child == NULL)
+        return child;
+      child = *(void **)((char *)child + 0x2c);
+      i = i + 1;
+    } while (i < n);
+  }
+  return child;
+}
+
 /* ui_widget_realloc — thin wrapper around stack_memory_pool_realloc.
  * Passes the global widget stack memory pool at [0x31e04c] as the
  * first argument, forwarding the caller's block pointer, new size,
@@ -74,6 +133,44 @@ void *ui_widget_realloc(int a1, unsigned short a2, const char *a3,
                         unsigned int a4)
 {
   return stack_memory_pool_realloc(*(void **)0x31e04c, a1, a2, a3, a4);
+}
+
+/* widget_free — releases a widget node back to the global widget stack
+ * memory pool at [0x31e04c]. Thin wrapper around
+ * stack_memory_pool_deallocate, same pool used by ui_widget_realloc above
+ * and the other stack_memory_pool_deallocate call sites in this file. */
+void widget_free(void *widget)
+{
+  stack_memory_pool_deallocate(*(void **)0x31e04c, widget);
+}
+
+/* ui_widgets_active — reports whether the widget subsystem is initialized
+ * (0x46cc82) and at least one of the 4 widget root stack slots
+ * (0x46cc20..0x46cc2c, same slots as main_screen_shell_begin_fade and the
+ * other 0x46cc20[] scans in this file) holds a non-NULL root widget.
+ * Returns false immediately if the subsystem hasn't been initialized;
+ * otherwise scans the root slots and returns true on the first non-zero
+ * slot, false if all 4 are zero.
+ * 0xe3d70: MOV CL,[0x46cc82]; TEST CL,CL; JZ ret-false; loop: CMP
+ * dword[ECX],0; JNZ ret-true (AL=1); ADD ECX,4; CMP ECX,0x46cc30;
+ * JL loop; else fall through to RET with AL still 0 from the entry
+ * XOR AL,AL. */
+bool ui_widgets_active(void)
+{
+  int *root_slots;
+
+  if (*(uint8_t *)0x46cc82 == 0) {
+    return false;
+  }
+
+  root_slots = (int *)0x46cc20;
+  while (*root_slots == 0) {
+    root_slots++;
+    if ((int)root_slots >= 0x46cc30) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /* ui_widget_set_events_suppressed — sets or clears the events-suppressed
@@ -609,6 +706,189 @@ void main_screen_shell_begin_fade(int duration_ms)
     }
     root_slots++;
   } while ((int)root_slots < 0x46cc30);
+}
+
+/* render_text_box_widget (0xe6140) — refreshes and draws a text-box widget.
+ *
+ * Register ABI confirmed from the prologue: MOV ESI,EAX / MOV EBX,ECX, so
+ * EAX carries the widget *definition* (tag data: offsets 0x24..0x132) and
+ * ECX the runtime *widget* instance (offsets 0x10, 0x3c, 0x40 and the
+ * parent chain at 0x30).  Three cdecl stack params follow.
+ *
+ * Two error strings anchor the name and the two validity checks:
+ *   0x2839c8 "failed to render text box widget because the justification
+ *             was invalid"
+ *   0x283a10 "failed to render text box widget because the font tag was
+ *             invalid"
+ *
+ * Sequence:
+ *  1. If the definition names a string-list tag (+0xf8 != NONE), fetch the
+ *     string (widget's own index at +0x40 overrides definition +0x12e),
+ *     realloc the widget's cached text block (+0x3c) out of the UI stack
+ *     memory pool and copy it in.  On allocation failure the cached
+ *     pointer is pointed at the literal L"<out of memory>" (0x283a54).
+ *  2. Run every text search-and-replace function block (count +0x60,
+ *     base +0x64, stride 0x22: 0x20-byte ascii name + uint16 function
+ *     index) over the cached text.
+ *  3. Validate font tag and justification, then draw.
+ *
+ * The colour is the definition's real_argb quad at +0x10c.  It is replaced
+ * by the global UI "white" colour when the caller asks for it or when the
+ * definition's RGB is exactly (1,1,1); the alpha is always the definition's
+ * alpha scaled by the widget's inherited opacity (the product of field_24 up
+ * the parent chain, computed by FUN_000e4960 and returned in ST0 — the
+ * original keeps it live on the x87 stack across the whole colour selection,
+ * which is not expressible in C).  Flag 0x4 at +0x11e adds a cosine pulse
+ * driven by the UI millisecond clock at 0x46cc40 (FILD plus a negative fixup
+ * of 4294967296.0f, i.e. the clock is unsigned).
+ *
+ * Note the asymmetry between the two rects, which is what the binary does:
+ * the drawn position rect always starts from the definition's bounds
+ * (+0x24/+0x28), while the clip/bounds rect passed as the second draw
+ * argument honours position_override when it is non-NULL.  position_offset
+ * is a packed {int16 x; int16 y} pair; x shifts left/right, y shifts
+ * top/bottom, and the top-left corner additionally picks up the definition's
+ * text offsets at +0x132 (y) and +0x130 (x). */
+void render_text_box_widget(void *definition, void *widget,
+                            const int32_t *position_override,
+                            int32_t position_offset, bool use_white_color)
+{
+  const int16_t *offset;
+  volatile int32_t offset_pair;
+  wchar_t name[32];
+  float white_temp[4];
+  float color[4];
+  int16_t bounds[4];
+  int16_t position[4];
+  const float *definition_color;
+  const float *white;
+  wchar_t **text;
+  const wchar_t *source_text;
+  const char *function_name;
+  void *block;
+  float opacity;
+  int string_tag;
+  int16_t string_index;
+  int length;
+  int i;
+  int function_offset;
+  int font_tag;
+  int16_t justification;
+
+  string_tag = *(int *)((char *)definition + 0xf8);
+  if (string_tag != -1) {
+    string_index = *(int16_t *)((char *)widget + 0x40);
+    if (string_index == -1) {
+      string_index = *(int16_t *)((char *)definition + 0x12e);
+    }
+    source_text = (const wchar_t *)FUN_0019d420(string_tag, string_index);
+    length = ustrlen((const unsigned short *)source_text) * 2;
+    block = stack_memory_pool_realloc(
+      *(void **)0x31e04c, (int)*(void **)((char *)widget + 0x3c),
+      (unsigned short)(length + 2), "c:\\halo\\SOURCE\\interface\\ui_widget.c",
+      0x1145);
+    *(void **)((char *)widget + 0x3c) = block;
+    if (block != NULL) {
+      csmemcpy(block, (void *)source_text, (size_t)length);
+      *(wchar_t *)((char *)*(void **)((char *)widget + 0x3c) + length) = 0;
+    } else {
+      *(const wchar_t **)((char *)widget + 0x3c) = L"<out of memory>";
+    }
+  }
+
+  text = (wchar_t **)((char *)widget + 0x3c);
+  if (*text == NULL || **text == 0) {
+    return;
+  }
+
+  function_offset = 0;
+  for (i = 0; i < *(int *)((char *)definition + 0x60); i++) {
+    function_name =
+      *(const char **)((char *)definition + 0x64) + function_offset;
+    if (function_name != NULL && *function_name != '\0') {
+      FUN_000e5180(ascii_to_wide(function_name, name, 0x40),
+                   ui_widget_text_search_and_replace_function_invoke(
+                     widget, *(const uint16_t *)(function_name + 0x20)),
+                   text);
+    }
+    function_offset += 0x22;
+  }
+
+  font_tag = *(int *)((char *)definition + 0x108);
+  if (font_tag == -1) {
+    error(2,
+          "failed to render text box widget because the font tag was invalid");
+    return;
+  }
+
+  justification = *(int16_t *)((char *)definition + 0x11c);
+  if (justification < 0 || justification >= 3) {
+    error(
+      2,
+      "failed to render text box widget because the justification was invalid");
+    return;
+  }
+
+  if (*(uint8_t *)((char *)widget + 0x10) == 0) {
+    return;
+  }
+
+  opacity = FUN_000e4960(widget);
+
+  *(int32_t *)&position[0] = *(int32_t *)((char *)definition + 0x24);
+  *(int32_t *)&position[2] = *(int32_t *)((char *)definition + 0x28);
+  if (position_override != NULL) {
+    *(int32_t *)&bounds[0] = position_override[0];
+    *(int32_t *)&bounds[2] = position_override[1];
+  } else {
+    *(int32_t *)&bounds[0] = *(int32_t *)((char *)definition + 0x24);
+    *(int32_t *)&bounds[2] = *(int32_t *)((char *)definition + 0x28);
+  }
+
+  /* offset[0] = x (low half), offset[1] = y (high half) */
+  offset_pair = position_offset;
+  offset = (const int16_t *)&offset_pair;
+  position[0] = (int16_t)(position[0] + offset[1] +
+                          *(int16_t *)((char *)definition + 0x132));
+  position[1] = (int16_t)(position[1] + offset[0] +
+                          *(int16_t *)((char *)definition + 0x130));
+  position[2] = (int16_t)(position[2] + offset[1]);
+  position[3] = (int16_t)(position[3] + offset[0]);
+
+  definition_color = (const float *)((char *)definition + 0x10c);
+  if (use_white_color) {
+    white = get_ui_argb_white(white_temp);
+    color[0] = white[0];
+    color[1] = white[1];
+    color[2] = white[2];
+    color[3] = white[3];
+  } else {
+    color[0] = definition_color[0];
+    color[1] = definition_color[1];
+    color[2] = definition_color[2];
+    color[3] = definition_color[3];
+    if (color[1] == 1.0f && color[2] == 1.0f && color[3] == 1.0f) {
+      white = get_ui_argb_white(white_temp);
+      color[0] = white[0];
+      color[1] = white[1];
+      color[2] = white[2];
+      color[3] = white[3];
+    }
+  }
+  color[0] = definition_color[0] * opacity;
+
+  if ((*(uint8_t *)((char *)definition + 0x11e) & 4) != 0) {
+    color[0] = (x87_fcos((float)*(uint32_t *)0x46cc40 * 0.001f * 3.0f) + 1.5f) *
+               0.4f * color[0];
+  }
+
+  draw_string_set_font(font_tag, -1, justification, 0, color);
+
+  if (FUN_000e4ce0(*text)) {
+    draw_string_and_hack_in_icons(position, (int)bounds, 0, 0, *text, 0);
+  } else {
+    rasterizer_draw_string(position, bounds, NULL, 0, (unsigned short *)*text);
+  }
 }
 
 /* ui_widget_set_focus — walks up the parent chain (field_0x30) from the given
@@ -2018,6 +2298,7 @@ void ui_widget_clear_last_error_index(void)
 {
   *(int *)0x31e4c0 = -1;
 }
+
 /* dispose sp level list (event handler table index 7, 0x0e9a60) — clears the
  * 0x50-byte single-player level list scratch block at 0x46cce8 and drops the
  * widget's cached list pointer/count at +0x40/+0x44. */
@@ -2028,6 +2309,68 @@ bool ui_widget_dispose_single_player_level_list(void *widget, void *event_data,
   *(int *)((char *)widget + 0x40) = 0;
   *(int16_t *)((char *)widget + 0x44) = 0;
   return true;
+}
+
+/* start network game server if not already advertised (event handler table
+ * index 17, 0x0e9d40) — disposes any existing server, clears the cached
+ * multiplayer variant UI text, and re-enables incoming connections. If no
+ * server is currently advertised, initializes the game engine playlist and
+ * attempts to start hosting (FUN_0012a890); on success, fetches the fresh
+ * server handle, pauses its countdown, begins the playlist, and switches
+ * the local game connection state to 2 (host). Once past that gate (or if
+ * a server was already up), checks for a local client and, if none,
+ * re-derives the result via FUN_0012a250. On any failure the server and
+ * client are torn down, "accept connections" is cleared, the multiplayer
+ * variant text is re-cleared, and error 2 "failed to initiate a
+ * multiplayer game server" is reported. widget/event_data/widget_deleted
+ * are unused — the original never establishes a stack frame and never
+ * touches its incoming event-handler params. Called both through the
+ * dispatch table above and directly (tail-propagated) by
+ * ui_widget_start_server_if_none_advertised (0x0f01d0). */
+bool FUN_000E9D40(void *widget, void *event_data, bool *widget_deleted)
+{
+  bool result;
+  void *server;
+  void *client;
+
+  (void)widget;
+  (void)event_data;
+  (void)widget_deleted;
+
+  result = true;
+  dispose_global_network_game_server();
+  player_ui_clear_multiplayer_variant();
+  network_game_set_accept_remote_connections(1);
+  server = network_game_server_get();
+  if (server == NULL) {
+    game_engine_playlist_initialize();
+    result = FUN_0012a890();
+    if (result) {
+      server = network_game_server_get();
+      network_game_server_pause_countdown(server, 1);
+      game_engine_playlist_begin();
+      set_game_connection(2);
+    }
+    if (!result) {
+      goto fail;
+    }
+  }
+
+  client = network_game_client_get();
+  if (client == NULL) {
+    result = FUN_0012a250();
+  }
+  if (result) {
+    return result;
+  }
+
+fail:
+  dispose_global_network_game_client();
+  dispose_global_network_game_server();
+  network_game_set_accept_remote_connections(0);
+  player_ui_clear_multiplayer_variant();
+  error(2, "failed to initiate a multiplayer game server");
+  return result;
 }
 
 /* dispose net game server list (event handler table index 18, 0x0e9fd0) —

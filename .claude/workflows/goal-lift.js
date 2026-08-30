@@ -41,7 +41,14 @@ const IMPROVE      = !!(args && args.improve)
 //   with a +14.7pp mean score gain over 16 improve handoffs, vs 52% for
 //   opus-high (2026-08-07) — so opus/fable are worth requesting for the
 //   hardest parked targets that stall on Sonnet.
-const IMPROVE_MODEL = (args && args.improveModel) || 'sonnet'
+// Provider/model names are intentionally opaque workflow arguments.  A quota
+// exhaustion should be a routing change, not a forked workflow or lost attempt
+// history.  Example: --reasonModel gpt-5.6-terra --mechanicalModel gpt-5.6-luna.
+const MECHANICAL_MODEL = (args && args.mechanicalModel) || 'haiku'
+const EXTRACT_MODEL = (args && args.extractModel) || 'sonnet'
+const REASON_MODEL = (args && args.reasonModel) || 'sonnet'
+const COMMIT_MODEL = (args && args.commitModel) || MECHANICAL_MODEL
+const IMPROVE_MODEL = (args && args.improveModel) || REASON_MODEL
 // Effort ladder for the in-place score tune. Each rung re-runs the optimizer at
 // a higher effort, but only for a target still below the pass bar, not capped,
 // and while budget remains. Override as a comma list, e.g. --improveEfforts
@@ -58,15 +65,15 @@ const ESCALATION_BUDGET_FLOOR = (args && args.escalationBudgetFloor) || 120000
 // Override with --maxEscalations.
 const MAX_ESCALATIONS = (args && args.maxEscalations != null) ? args.maxEscalations : 3
 const M = {
-  mechanical: { model: 'haiku', effort: 'high'  },  // tool-run + parse
+  mechanical: { model: MECHANICAL_MODEL, effort: 'high'  },  // tool-run + parse
   // Selection and one-shot score levers still need constrained judgment.
   // Per-target research is mechanical and routes through M.mechanical below.
-  extract:    { model: 'sonnet', effort: 'low'  },  // select + classified score lever
+  extract:    { model: EXTRACT_MODEL, effort: 'low'  },  // select + classified score lever
   // Commit runs a fixed 6-command script whose only judgement is "does the
   // build log contain an error: line" -- the same shape as the 19 sites already
   // on `mechanical`. Measured 31 agents / ~4% of session spend on opus for it.
-  commit:     { model: 'haiku', effort: 'high'  },  // runs the clean-build gate
-  reason:     { model: 'sonnet', effort: 'high' },  // lift, review
+  commit:     { model: COMMIT_MODEL, effort: 'high'  },  // runs the clean-build gate
+  reason:     { model: REASON_MODEL, effort: 'high' },  // lift, review
   improve:    { model: IMPROVE_MODEL, effort: IMPROVE_EFFORTS[0] },  // improve-pass base rung
 }
 // --reviewEffort: A/B lever for reviewer cost (docs/plans/agent-model-routing-2026-08.md
@@ -579,7 +586,7 @@ STEPS:
    workflow re-spawns a FRESH escalation agent rather than extending this one (this
    agent's whole context is re-read every turn, so a long agent costs quadratically
    in tokens — a short one is linear).
-   timeout 165 rtk python3 tools/lift_pipeline.py --target ${brief.name} --no-metadata-update --verify-policy goal90 2>&1 || echo "[lift_pipeline timed-out]"
+   timeout 165 rtk python3 tools/lift_pipeline.py --target ${brief.name} --no-metadata-update --verify-policy goal90${brief.artifact_paths && brief.artifact_paths.ghidra ? ` --ghidra-context ${JSON.stringify(brief.artifact_paths.ghidra)}` : ''} 2>&1 || echo "[lift_pipeline timed-out]"
    Parse the VC71 % line and build pass/fail ONLY. Do NOT paste the full objdiff or
    build log into your reasoning — quoting large tool output back inflates every
    following turn's re-read. If it timed out, status="needs_review", vc71_score=0.
@@ -888,14 +895,19 @@ rtk git status --short
 // ledger (tools/lift/park.py), shared with manual /lift and the improve pass.
 // attemptME = the {model,effort} of the lift ATTEMPT (recorded for later
 // exclude-model selection), not the park agent's own model.
-const parkToolPrompt = (name, addr, obj, srcFile, score, attemptME, reason, capHyp, notes, fingerprint, artifacts) =>
+// keepTree = checkpoint-only park: save the patch + record the attempt but LEAVE
+// the working tree alone. Used for the pre-escalation checkpoint, whose whole
+// point is that the ladder keeps tuning the very source on disk (a --revert-tree
+// there wiped the candidate out from under the optimizer — the empty-patch
+// "escalation_exhausted" records with "no C implementation to apply a lever to").
+const parkToolPrompt = (name, addr, obj, srcFile, score, attemptME, reason, capHyp, notes, fingerprint, artifacts, keepTree) =>
   `${AGENT_RULES}
 
 Preserve the sub-bar lift of ${name} (${addr}, ${score}% VC71) for a later improve
-pass, then clean the tree. Run exactly this one command:
-rtk python3 tools/lift/park.py park --name ${JSON.stringify(name)} --addr ${JSON.stringify(addr || '')} --obj ${JSON.stringify(obj || '')} --source ${JSON.stringify(srcFile || '')} --score ${score} --model ${JSON.stringify(attemptME.model)} --effort ${JSON.stringify(attemptME.effort)} --reason ${JSON.stringify(reason || '')} --outcome parked${fingerprint ? ' --fingerprint ' + JSON.stringify(fingerprint) : ''}${Object.values(artifacts || {}).filter(Boolean).map(id => ' --evidence ' + JSON.stringify(id)).join('')}${capHyp ? ' --cap-hypothesis ' + JSON.stringify(capHyp) : ''}${notes ? ' --notes ' + JSON.stringify(String(notes).slice(0, 2000)) : ''} --revert-tree
-park.py saves the git diff to artifacts/parked/, records the attempt (with
-history), and reverts src/ kb.json tools/kb_reg_baseline.json to HEAD. Return the
+pass${keepTree ? '' : ', then clean the tree'}. Run exactly this one command:
+rtk python3 tools/lift/park.py park --name ${JSON.stringify(name)} --addr ${JSON.stringify(addr || '')} --obj ${JSON.stringify(obj || '')} --source ${JSON.stringify(srcFile || '')} --score ${score} --model ${JSON.stringify(attemptME.model)} --effort ${JSON.stringify(attemptME.effort)} --reason ${JSON.stringify(reason || '')} --outcome parked${fingerprint ? ' --fingerprint ' + JSON.stringify(fingerprint) : ''}${Object.values(artifacts || {}).filter(Boolean).map(id => ' --evidence ' + JSON.stringify(id)).join('')}${capHyp ? ' --cap-hypothesis ' + JSON.stringify(capHyp) : ''}${notes ? ' --notes ' + JSON.stringify(String(notes).slice(0, 2000)) : ''}${keepTree ? '' : ' --revert-tree'}
+park.py saves the git diff to artifacts/parked/ and records the attempt (with
+history)${keepTree ? '. This is a CHECKPOINT: do NOT revert, reset or checkout anything — the working tree must stay exactly as it is' : ', then reverts src/ kb.json tools/kb_reg_baseline.json to HEAD'}. Return the
 tool's "parked ..." stdout line.`
 
 // Improve pass — pick the closest-to-bar parked function the improve model has
@@ -1049,13 +1061,14 @@ async function gateThenCommit(brief, score, srcFile, path, phaseTitle, preEquiv)
 // attemptME = {model,effort} of the lift attempt being preserved. notes = free-form
 // diagnostic/rationale text for this attempt (capped 2000 chars in parkToolPrompt),
 // read back by the improve pass via park.py next's last_notes/attempt_history.
-async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phaseTitle, notes) {
+// keepTree = record the attempt WITHOUT reverting (checkpoint park); see parkToolPrompt.
+async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phaseTitle, notes, keepTree) {
   const refreshed = await agent(bundlePrompt(brief, true), {
     label: `publish-score:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical, schema: BUNDLE_SCHEMA,
   })
   const evidence = refreshed || brief
   await agent(parkToolPrompt(brief.name, brief.addr, brief.obj, srcFile, score, attemptME, reason, capHyp, notes,
-    evidence.attempt_fingerprint || evidence.fingerprint, evidence.artifacts),
+    evidence.attempt_fingerprint || evidence.fingerprint, evidence.artifacts, keepTree),
     { label: `park:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical })
 }
 
@@ -1786,7 +1799,13 @@ while (true) {
     // internally). Unlike the old cold-rewrite escalation this does NOT re-lift
     // — attempt 1 already builds and is believed faithful, so the optimizer
     // tunes THAT source in place, one score-recovery lever at a time.
-    await parkBuilt(brief, srcFile, score, M.reason, 'pre_escalation', a1.cap_reason || '', 'Lift', a1.reason || '')
+    // CHECKPOINT ONLY (keepTree): the patch is saved and the attempt recorded,
+    // but the tree is NOT reverted — every rung below edits srcFile in place and
+    // the commit gate at the end commits from that same live tree. Reverting
+    // here deleted the candidate before the first optimizer rung ever read it.
+    // The terminal parks (structural_cap / escalation_exhausted / review-blocked
+    // below) still revert, so a ladder that never clears the bar leaves a clean tree.
+    await parkBuilt(brief, srcFile, score, M.reason, 'pre_escalation', a1.cap_reason || '', 'Lift', a1.reason || '', true)
 
     // Effort ladder (Opus, NOT Fable): start at the cheap rung and step up to
     // xhigh/max ONLY for a target still below the 85% pass bar, not documented-
@@ -1945,7 +1964,8 @@ if (outcomeRows.length) {
     `Record retrieval experiment outcomes. Run each command exactly; these are metrics only:\n${outcomeRows.map(r => {
       const outcome = (r.status === 'reverted_review' || String(r.reason || '').includes('REJECT'))
         ? 'reviewer_rejected' : (String(r.reason || '').includes('runtime_failed') ? 'runtime_failed' : r.status)
-      return `rtk python3 tools/lift/research_bundle.py record-outcome --target ${JSON.stringify(r.addr)} --cohort ${r.retrieval_cohort} --outcome ${JSON.stringify(outcome)} --tokens ${perTargetTokens} --fingerprint ${JSON.stringify(r.fingerprint || '')} --json`
+      const routeModel = IMPROVE ? M.improve : M.reason
+      return `rtk python3 tools/lift/research_bundle.py record-outcome --target ${JSON.stringify(r.addr)} --cohort ${r.retrieval_cohort} --outcome ${JSON.stringify(outcome)} --tokens ${perTargetTokens} --fingerprint ${JSON.stringify(r.fingerprint || '')} --model-id ${JSON.stringify(routeModel.model)} --effort ${JSON.stringify(routeModel.effort)} --route ${JSON.stringify(IMPROVE ? 'improve' : 'goal_lift')} --json`
     }).join('\n')}`,
     { label: 'retrieval-outcomes', phase: 'Report', ...M.mechanical })
 }

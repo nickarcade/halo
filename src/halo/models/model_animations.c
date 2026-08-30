@@ -72,6 +72,87 @@ int FUN_00120250(void *page, short width, short height, bool immediate)
   return -1;
 }
 
+/* FUN_00120340 (0x120340) — Reclaim unsorted texture-page entries and
+ * trigger a resort.
+ *
+ * kb.json maps this address into model_animations.obj by link-time object
+ * grouping; the assert's __FILE__ string
+ * ("c:\halo\SOURCE\memory\texture_page.c") confirms the real source TU is the
+ * texture-page allocator, same as FUN_00120250/FUN_00120400 above/below.
+ *
+ * Confirmed: cdecl, 1 arg (page ptr, matches [EBP+8] loaded once into ESI at
+ * 0x120345). Confirmed: void return (plain RET at 0x1203f2).
+ * Confirmed: calls FUN_0011fd50() unconditionally first, same as
+ * FUN_00120250/FUN_00120400.
+ * Confirmed: asserts page->contains_unsorted_textures (pg+0x0, byte) is
+ * nonzero — display_assert("texture_page->contains_unsorted_textures",
+ * "c:\halo\SOURCE\memory\texture_page.c", 0x8a, true) then system_exit(-1) on
+ * failure (0x12034e-0x12036b), same message text as FUN_00120400's guard but
+ * a different line number (0x8a vs 0xaa) since it's a different call site in
+ * the same source file.
+ * Confirmed: walks the 12-byte-stride entry array at
+ * *(int*)(pg+0x18)+0x34, count *(short*)(*(int*)(pg+0x18)+0x2e) — the same
+ * table/entry layout as FUN_00120250/FUN_00120400 (entry+0x0 salt, entry+0x2
+ * bool, entry+0x8/+0xa width/height). The count/table pointer is reloaded
+ * from *(pg+0x18) at the bottom of each iteration (0x1203b1-0x1203b8),
+ * matching FUN_00120400's precedent of not trusting the table pointer across
+ * loop iterations.
+ * Confirmed: for every entry whose salt (entry+0x0) is nonzero AND whose
+ * bool flag (entry+0x2) is zero (i.e. an allocated-but-unsorted entry),
+ * subtracts that entry's area (height*width, read as entry+0xa * entry+0x8
+ * per the decompiled expression order which mirrors the ECX=width/EAX=height
+ * load order at 0x12038e-0x120396) from the page's used-area accumulator
+ * (pg+0x10) and deletes the datum via datum_delete(*(data_t**)(pg+0x18),
+ * (int)i) — the loop index i is sign-extended (MOVSX EDX,BX at 0x12039c)
+ * before being passed as the handle, and the delete uses the *current*
+ * (pre-increment) index (0x120399-0x1203ae).
+ * Confirmed: after the loop, clears *pg = 0 (0x1203bf), then calls
+ * FUN_0011ff70(pg) (bool result in AL, same corrected decl as
+ * FUN_00120250/FUN_00120400) and asserts the result is nonzero —
+ * display_assert("resort_succeeded",
+ * "c:\halo\SOURCE\memory\texture_page.c", 0x9d, true) then system_exit(-1)
+ * on failure (0x1203cf-0x1203e9).
+ */
+void FUN_00120340(void *page)
+{
+  char *pg;
+  short *entry;
+  short count;
+  short i;
+
+  pg = (char *)page;
+
+  FUN_0011fd50();
+
+  if (*pg == 0) {
+    display_assert("texture_page->contains_unsorted_textures",
+                   "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x8a, 1);
+    system_exit(-1);
+  }
+
+  entry = *(short **)(*(int *)(pg + 0x18) + 0x34);
+  count = *(short *)(*(int *)(pg + 0x18) + 0x2e);
+  i = 0;
+  if (0 < count) {
+    do {
+      if (*entry != 0 && *((char *)entry + 2) == 0) {
+        *(int *)(pg + 0x10) -= (int)entry[5] * (int)entry[4];
+        datum_delete(*(data_t **)(pg + 0x18), (int)i);
+      }
+      i = i + 1;
+      entry = entry + 6;
+      count = *(short *)(*(int *)(pg + 0x18) + 0x2e);
+    } while (i < count);
+  }
+  *pg = 0;
+
+  if (!FUN_0011ff70(pg)) {
+    display_assert("resort_succeeded",
+                   "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x9d, 1);
+    system_exit(-1);
+  }
+}
+
 /* FUN_00120400 (0x120400) — Flush a texture page's unsorted-entry marks and
  * clear the page-level dirty flag.
  *
@@ -175,6 +256,59 @@ void FUN_00120470(void *page, int handle)
   FUN_0011ff70(pg);
 }
 
+/* FUN_001204a0 (0x1204a0) — Try to resize a texture page to new dimensions,
+ * rolling back on failure to commit.
+ *
+ * kb.json maps this address into model_animations.obj by link-time object
+ * grouping; same texture-page allocator TU as FUN_00120250/FUN_00120340/
+ * FUN_00120400/FUN_00120470 immediately above (unconditional FUN_0011fd50()
+ * first, and FUN_0011ff70(page) to commit — same corrected bool-returning
+ * decl already used by those functions).
+ *
+ * Confirmed: cdecl, 3 args (page ptr at [EBP+8]->ESI, new width int16 at
+ * [EBP+0xc], new height int16 at [EBP+0x10]). Confirmed: returns bool in AL
+ * (MOV AL,1 at 0x1204d5 vs XOR AL,AL at 0x1204ed).
+ * Confirmed: page+0x8/+0xa = page width/height (int16), same offsets
+ * FUN_00120250 compares against.
+ * Confirmed: saves the old width/height (MOV DI,[ESI+8] / MOV BX,[ESI+0xa]
+ * at 0x1204b6/0x1204ba) before overwriting them with the new values
+ * (0x1204bf/0x1204c3), then calls FUN_0011ff70(page) to attempt to commit
+ * the new size (0x1204c7). If that succeeds (TEST AL,AL / JZ 0x1204d1
+ * not taken), returns true with the new dimensions left in place.
+ * Confirmed: on failure (JZ 0x1204d1 taken), restores the saved old
+ * width/height (0x1204db/0x1204df) and calls FUN_0011ff70(page) again to
+ * re-commit the reverted size (0x1204e3), discarding that second call's
+ * result (no TEST/branch on it — matches FUN_00120470's precedent of an
+ * unchecked FUN_0011ff70 return), then returns false.
+ */
+bool FUN_001204a0(void *page, short width, short height)
+{
+  char *pg;
+  short old_width;
+  short old_height;
+
+  pg = (char *)page;
+
+  FUN_0011fd50();
+
+  old_width = *(short *)(pg + 8);
+  old_height = *(short *)(pg + 0xa);
+
+  *(short *)(pg + 8) = width;
+  *(short *)(pg + 0xa) = height;
+
+  if (FUN_0011ff70(pg)) {
+    return true;
+  }
+
+  *(short *)(pg + 8) = old_width;
+  *(short *)(pg + 0xa) = old_height;
+
+  FUN_0011ff70(pg);
+
+  return false;
+}
+
 /* FUN_00120500 (0x120500) — Get a pointer to a specific animation frame's data.
  *
  * Given an animation structure and a frame index, returns a pointer to the
@@ -229,9 +363,15 @@ void *FUN_00120500(void *animation, short frame_index)
  * Given an animation structure pointer, a frame_index, and the per-frame
  * stride (frame_size), bounds-checks frame_index against animation->frame_count
  * (int16 at +0x22), then calls tag_data_get_pointer on the tag_data block at
- * animation+0x48 with offset = frame_index * frame_size and size = frame_size.
- * The return value of tag_data_get_pointer is discarded; the call is for its
- * side effect of resolving the tag_data reference.
+ * animation+0x48 with offset = frame_index * frame_size and size = frame_size,
+ * returning that pointer to the caller.
+ *
+ * Confirmed void-EAX-return (lift-silent-bugs §16): the original leaves
+ * tag_data_get_pointer's result in EAX across the epilogue (no instruction
+ * between the CALL at 0x1205d7 and RET touches EAX) and its only caller,
+ * animation_frame_get_xy_translation (0x120ee0), reads EAX immediately after
+ * `CALL 0x00120590` (MOV EDX,[EAX] / MOV EAX,[EAX+4] at 0x120ef9/0x120f00) as
+ * the returned frame-data pointer. Must NOT be declared void.
  *
  * Confirmed: cdecl, 3 args (animation ptr, frame_index short, frame_size
  * short). Confirmed: assert "frame_index>=0 &&
@@ -241,7 +381,7 @@ void *FUN_00120500(void *animation, short frame_index)
  * Source: c:\halo\SOURCE\models\model_animation_definitions.c, line 0x48e
  * (1166).
  */
-void FUN_00120590(void *animation, short frame_index, short frame_size)
+void *FUN_00120590(void *animation, short frame_index, short frame_size)
 {
   char *anim;
   int offset;
@@ -258,7 +398,7 @@ void FUN_00120590(void *animation, short frame_index, short frame_size)
 
   size = (int)frame_size;
   offset = (int)frame_index * size;
-  tag_data_get_pointer(anim + 0x48, offset, size);
+  return tag_data_get_pointer(anim + 0x48, offset, size);
 }
 
 /* FUN_001205f0 (0x1205f0) — look up a string in an indexed string table.
@@ -273,6 +413,72 @@ const char *FUN_001205f0(void *string_table, int16_t index)
     result = "#<invalid>";
   }
   return result;
+}
+
+/* animation_set_frame_size (0x120790) — Compute and store the per-frame byte
+ * stride for a compressed animation from its per-node data-presence flags.
+ *
+ * If animation is NULL, calls display_assert("animation", ...) then
+ * system_exit(-1) (does not return). Otherwise, if animation->node_count
+ * (int16 at +0x2c) is positive, walks node_count bits, indexed by
+ * word = bit_index >> 5 across three per-node flag bitmaps stored as 32-bit
+ * words at +0x6c, +0x5c, +0x7c: each set bit in the +0x6c bitmap adds 8
+ * (compressed rotation), each set bit in +0x5c adds 12 (compressed
+ * translation), each set bit in +0x7c adds 4 (compressed scale). The
+ * accumulated total is stored to animation->frame_size (int16 at +0x24).
+ *
+ * Confirmed: cdecl, 1 arg (animation ptr) via [EBP+0x8] (ESI).
+ * Confirmed: NULL check at 0x12079c (TEST ESI,ESI / JNZ); CALL display_assert
+ * ("animation","c:\halo\SOURCE\models\model_animations.c",0x7b,true) at
+ * 0x1207ac, then CALL system_exit(-1) at 0x1207b3 (no return).
+ * Confirmed: loop guard is signed `0 < *(short *)(anim+0x2c)` at 0x1207bb-
+ * 0x1207c0; loop count MOVZX'd (unsigned) into EBX at 0x1207c3.
+ * Confirmed: accumulator (EDI) is a 32-bit register, zeroed once in the
+ * prologue (XOR EDI,EDI at 0x120798) before the NULL check, added to via
+ * 32-bit ADD (0x1207e7/0x1207f0/0x1207f9), and only narrowed to int16 at the
+ * final store (MOV word ptr [ESI+0x24],DI at 0x120801).
+ * Confirmed: per-iteration bit test order in disassembly is +0x6c (+8), then
+ * +0x5c (+0xc), then +0x7c (+4) (0x1207e1-0x1207f9).
+ */
+void animation_set_frame_size(void *animation)
+{
+  char *anim;
+  int frame_size;
+  int node_count;
+  int i;
+  int word_index;
+  unsigned int bit;
+
+  anim = (char *)animation;
+  frame_size = 0;
+
+  if (anim == NULL) {
+    display_assert("animation", "c:\\halo\\SOURCE\\models\\model_animations.c",
+                   0x7b, 1);
+    system_exit(-1);
+  }
+
+  if (0 < *(short *)(anim + 0x2c)) {
+    node_count = (int)*(unsigned short *)(anim + 0x2c);
+    i = 0;
+    do {
+      bit = 1u << (i & 0x1f);
+      word_index = i >> 5;
+      if ((*(unsigned int *)(anim + 0x6c + word_index * 4) & bit) != 0) {
+        frame_size = frame_size + 8;
+      }
+      if ((*(unsigned int *)(anim + 0x5c + word_index * 4) & bit) != 0) {
+        frame_size = frame_size + 0xc;
+      }
+      if ((*(unsigned int *)(anim + 0x7c + word_index * 4) & bit) != 0) {
+        frame_size = frame_size + 4;
+      }
+      i = i + 1;
+      node_count = node_count - 1;
+    } while (node_count != 0);
+  }
+
+  *(short *)(anim + 0x24) = (short)frame_size;
 }
 
 /* quaternion_decompress_8byte (0x120810) — Convert 4 packed int16 values to
@@ -332,6 +538,29 @@ void quaternion_decompress_6byte(void *compressed_data, float *dest)
   dest[1] = (float)(int)s1 * (1.0f / 32767.0f);
   dest[2] = (float)(int)s2 * (1.0f / 32767.0f);
   dest[3] = (float)(int)s3 * (1.0f / 32767.0f);
+}
+
+/* quaternion_decompress_6byte_renormalized (0x120930) — Decompress 3 packed
+ * uint16s into 4 floats via quaternion_decompress_6byte, then renormalize
+ * dest in place via sphere_intersects_rectangle3d (misnamed at 0x10ca30 —
+ * see its kb.json decl `float *quaternion`; it is the same renormalize call
+ * inlined right after quaternion_decompress_6byte at 0x121e89/0x121e8f in
+ * FUN_00121d60).
+ *
+ * Confirmed: cdecl, 2 args (compressed_data ptr, dest float ptr), void
+ * return, leaf wrapper (no locals beyond saved ESI).
+ * Confirmed: CALL quaternion_decompress_6byte at 0x12093c — PUSH ESI(dest)
+ * then PUSH EAX(compressed_data), matching the callee's (compressed_data,
+ * dest) parameter order.
+ * Confirmed: CALL sphere_intersects_rectangle3d at 0x120942 — PUSH ESI(dest).
+ * The single ADD ESP,0xc at 0x120947 is the combined cleanup for both calls
+ * (8 bytes + 4 bytes), not a 3-arg call.
+ */
+void quaternion_decompress_6byte_renormalized(void *compressed_data,
+                                              float *dest)
+{
+  quaternion_decompress_6byte(compressed_data, dest);
+  sphere_intersects_rectangle3d(dest);
 }
 
 /* FUN_00120cb0 (0x120cb0) — Look up an animation by name in an 'antr'
@@ -484,6 +713,41 @@ short FUN_00120d10(unsigned short *keyframe_frame_indices,
   }
 
   return (short)kf_idx;
+}
+
+/* animation_frame_get_xy_translation (0x120ee0) — Fetch a frame's XY
+ * translation offset, for animation types whose translation is applied via
+ * this path (discriminator == 1), else return (0, 0).
+ *
+ * If *(short *)(animation+0x26) == 1, resolves the frame's raw data block
+ * via FUN_00120590(animation, frame_index, 8) and copies the block's first
+ * two dwords (x, y) into *out_translation. FUN_00120590 returns that pointer
+ * in EAX (see its confirmed void-EAX-return note above); the two MOVs here
+ * are a straight dword bit-copy, not FPU math, matching the original's plain
+ * MOV/MOV pair. Otherwise zero-fills *out_translation.
+ *
+ * Confirmed: cdecl, 3 args (animation ptr [EBP+8], frame_index short
+ * [EBP+0xc], out_translation float* [EBP+0x10]). Confirmed: CMP word ptr
+ * [EAX+0x26],0x1 / JNZ 0x00120f0b at 0x120ee6-0x120eeb. Confirmed: frame_size
+ * literal 8 pushed at 0x120ef0 (PUSH 0x8). Confirmed: taken path copies
+ * dword [ret_ptr] -> out[0] and dword [ret_ptr+4] -> out[1] at
+ * 0x120ef9-0x120f06. Confirmed: not-taken path stores dword 0 to both output
+ * slots at 0x120f0e and 0x120f14.
+ */
+void animation_frame_get_xy_translation(void *animation, short frame_index,
+                                        float *out_translation)
+{
+  char *anim = (char *)animation;
+  void *frame_data;
+
+  if (*(short *)(anim + 0x26) == 1) {
+    frame_data = FUN_00120590(animation, frame_index, 8);
+    out_translation[0] = *(float *)frame_data;
+    out_translation[1] = *(float *)((char *)frame_data + 4);
+    return;
+  }
+  out_translation[0] = 0.0f;
+  out_translation[1] = 0.0f;
 }
 
 /* model_animation_choose_random (0x120f20) — Choose a weighted random
@@ -1181,4 +1445,68 @@ void FUN_00123aa0(void *mode_tag, void *out_node_data)
       iVar4 = (int)sVar1;
     } while (iVar4 < *(int *)(param_1 + 0xb8));
   }
+}
+
+/* animation_get_root_matrix (0x123e20) — Get a node's default matrix from a
+ * model mode tag.
+ *
+ * Confirmed: cdecl, 2 args (mode_tag ptr, node_index short).
+ * Confirmed: CALL tag_block_get_element(mode_tag+0xb8, node_index, 0x9c) at
+ * 0x123e37 — same tag block/element-size pair as FUN_00123aa0 above, so
+ * element+0x68 is a field of that same 0x9c-byte node structure (past the
+ * element+0x28 translation and element+0x34 rotation already confirmed
+ * there). Confirmed: MOVSX at 0x123e23 sign-extends node_index before the
+ * PUSH. Confirmed: return value is element+0x68 (ADD EAX,0x68 at 0x123e3f) —
+ * no dereference, so this returns a pointer, not a copied value.
+ */
+float *animation_get_root_matrix(void *mode_tag, short node_index)
+{
+  char *element;
+
+  element = (char *)tag_block_get_element((void *)((char *)mode_tag + 0xb8),
+                                          (int)node_index, 0x9c);
+  return (float *)(element + 0x68);
+}
+
+/* FUN_00123e50 (0x123e50) — Find a mode-tag node's index by name.
+ *
+ * Confirmed: cdecl, 2 args (tag_index int, name char*). Confirmed: early-out
+ * returns -1 without calling tag_get when tag_index == -1 (JZ at 0x123e5c).
+ * Confirmed: CALL tag_get(0x6d6f6465 ('mode'), tag_index) at 0x123e64.
+ * Confirmed: tag block at mode_tag+0xb8 — same tag block/element-size pair
+ * (0x9c) as FUN_00123aa0 and animation_get_root_matrix above, so this walks
+ * the mode tag's node array. Confirmed: CALL
+ * tag_block_get_element(nodes, index, 0x9c) at 0x123e87. Confirmed: CALL
+ * csstrcmp(element, name) at 0x123e8e — the element pointer itself is passed
+ * as the string, so the node name field is at offset 0x0 of the 0x9c-byte
+ * node struct. Confirmed: loop index is a short — MOVSX EAX,DI at 0x123e9d
+ * re-sign-extends it from DI before the count comparison, matching a
+ * `short` C loop variable stored in a 32-bit register. Confirmed: on a
+ * csstrcmp match (== 0) the function returns the index via MOV AX,DI at
+ * 0x123ead; the tag_index==-1, empty-block, and no-match paths all fall
+ * through to OR AX,0xffff at 0x123ea6 and return -1.
+ */
+short FUN_00123e50(int tag_index, const char *name)
+{
+  void *mode_tag;
+  char *element;
+  short index;
+  int count;
+
+  if (tag_index != -1) {
+    mode_tag = tag_get(0x6d6f6465, tag_index); /* 'mode' */
+    count = *(int *)((char *)mode_tag + 0xb8);
+    index = 0;
+    if (0 < count) {
+      do {
+        element = (char *)tag_block_get_element(
+          (void *)((char *)mode_tag + 0xb8), (int)index, 0x9c);
+        if (csstrcmp(element, name) == 0) {
+          return index;
+        }
+        index = index + 1;
+      } while ((int)index < count);
+    }
+  }
+  return -1;
 }

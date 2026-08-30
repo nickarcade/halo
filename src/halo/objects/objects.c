@@ -5298,7 +5298,7 @@ void *FUN_0013c100(int16_t object_type)
 {
   int iVar1;
 
-  if ((object_type < 0) || (0xb < object_type)) {
+  if ((object_type < 0) || (object_type >= 0xc)) {
     display_assert(csprintf((char *)0x5ab100,
                             "#%d isn't a valid object type in [#0,#%d)",
                             (int)object_type, 0xc),
@@ -5335,7 +5335,7 @@ short FUN_0013c1b0(short param_1)
 {
   int iVar1;
 
-  if (param_1 < 0 || 0xb < param_1) {
+  if (param_1 < 0 || param_1 >= 0xc) {
     display_assert(csprintf((char *)0x5ab100,
                             "#%d isn't a valid object type in [#0,#%d)",
                             (int)param_1, 0xc),
@@ -5356,7 +5356,7 @@ void *FUN_0013c250(int16_t param_1)
 {
   int iVar1;
 
-  if (param_1 < 0 || 0xb < param_1) {
+  if (param_1 < 0 || param_1 >= 0xc) {
     display_assert(csprintf((char *)0x5ab100,
                             "#%d isn't a valid object type in [#0,#%d)",
                             (int)param_1, 0xc),
@@ -11276,10 +11276,9 @@ void FUN_00141900(void)
 
   data_verify(*(data_t **)0x5a8d50);
 
-  it.type_mask = -1;
+  it.last_handle = (it.type_mask = -1);
   it.flags = 0;
   it.current_index = 0;
-  it.last_handle = -1;
   it.cookie = 0x86868686;
 
   obj = (object_data_t *)object_iterator_next(&it);

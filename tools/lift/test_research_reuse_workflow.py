@@ -11,10 +11,10 @@ ROOT = Path(__file__).resolve().parents[2]
 class WorkflowCutoverTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.goal = (ROOT / ".claude" / "workflows" / "goal-lift.js").read_text()
-        cls.auto_session = (ROOT / ".claude" / "workflows" / "auto-session.js").read_text()
-        cls.analyst = (ROOT / ".claude" / "agents" / "auto-lift-analyst.md").read_text()
-        cls.reviewer = (ROOT / ".claude" / "agents" / "auto-lift-reviewer.md").read_text()
+        cls.goal = (ROOT / ".claude" / "workflows" / "goal-lift.js").read_text(encoding="utf-8")
+        cls.auto_session = (ROOT / ".claude" / "workflows" / "auto-session.js").read_text(encoding="utf-8")
+        cls.analyst = (ROOT / ".claude" / "agents" / "auto-lift-analyst.md").read_text(encoding="utf-8")
+        cls.reviewer = (ROOT / ".claude" / "agents" / "auto-lift-reviewer.md").read_text(encoding="utf-8")
 
     def test_no_unconditional_force_or_opus_research_call(self):
         self.assertNotIn("cache-context --target ${t.addr} --force", self.goal)
@@ -45,6 +45,11 @@ class WorkflowCutoverTests(unittest.TestCase):
                          "lift_pipeline.py", "vc71_score", "gateThenCommit"):
             self.assertIn(required, self.goal, required)
         self.assertIn("auto_reintegrate.py", self.auto_session)
+
+    def test_pipeline_publishes_deterministic_route_after_scoring(self):
+        pipeline = (ROOT / "tools" / "lift_pipeline.py").read_text(encoding="utf-8")
+        self.assertIn("tools/lift/route_attempt.py", pipeline)
+        self.assertIn('StageResult("route_attempt"', pipeline)
 
 
 if __name__ == "__main__":

@@ -49,6 +49,7 @@ short collision_surface_edge_count(int bsp, int surface_index)
   int first_edge;
   int edge_index;
   int *edge;
+  bool side;
 
   edge_count = 0;
   first_edge = *(int *)((char *)tag_block_get_element((void *)(bsp + 0x3c),
@@ -58,7 +59,8 @@ short collision_surface_edge_count(int bsp, int surface_index)
   do {
     edge = (int *)tag_block_get_element((void *)(bsp + 0x48), edge_index, 0x18);
     edge_count = (short)(edge_count + 1);
-    edge_index = edge[2 + (edge[5] == surface_index)];
+    side = (edge[5] == surface_index);
+    edge_index = edge[2 + side];
   } while (edge_index != first_edge);
   return edge_count;
 }
@@ -357,7 +359,9 @@ float collision_surface_perimeter(int bsp, int surface_index)
   int edge_index;
   unsigned char side;
   float total;
-  float dx, dy, dz;
+  float dx;
+  float dy;
+  float dz;
 
   total = 0.0f;
   first_edge = *(int *)((char *)tag_block_get_element((void *)(bsp + 0x3c),
@@ -365,7 +369,8 @@ float collision_surface_perimeter(int bsp, int surface_index)
                         4);
   edge_index = first_edge;
   do {
-    edge = (int *)tag_block_get_element((void *)(bsp + 0x48), edge_index, 0x18);
+    dz = 0x18;
+    edge = (int *)tag_block_get_element((void *)(bsp + 0x48), edge_index, (int)dz);
     side = (edge[5] == surface_index);
     vertex_a =
       (float *)tag_block_get_element((void *)(bsp + 0x54), edge[side], 0x10);
@@ -374,7 +379,7 @@ float collision_surface_perimeter(int bsp, int surface_index)
     dy = vertex_b[1] - vertex_a[1];
     dz = vertex_b[2] - vertex_a[2];
     dx = vertex_b[0] - vertex_a[0];
-    total = sqrtf(dy * dy + dz * dz + dx * dx) + total;
+    total = sqrtf(((dy * dy) + (dz * dz)) + (dx * dx)) + total;
     edge_index = edge[2 + side];
   } while (edge_index != first_edge);
   return total;
