@@ -1666,11 +1666,14 @@ void *actor_action_debug_color(int actor_handle)
   return (void *)0x6328e0;
 }
 
-/* actor_action_try_to_panic (0x1d6d0) — actor_get_action_priority_flag
+/* actor_get_action_priority_flag (0x1d6d0)
  *
  * Returns the priority flag (short) for the actor's current action from the
  * action_definitions table. A non-zero value indicates the action raises the
  * actor's priority to the high-priority tier (>= 3); zero means normal (< 3).
+ *
+ * NOTE: kb name 'actor_get_action_priority_flag' was a misnomer for this function
+ * — it doesn't touch panic state at all, it reads a priority flag.
  *
  * Confirmed: datum_get(actor_data, actor_handle) at 0x1d6df.
  * Confirmed: actor+0x6c = action index (short), asserted in [0, 14).
@@ -1679,7 +1682,7 @@ void *actor_action_debug_color(int actor_handle)
  *   base 0x253fa0, same field used in actor_set_action at 0x1d030+0x79).
  * Confirmed: assert line 0xe98, __FILE__ "c:\halo\SOURCE\ai\actions.c".
  */
-int16_t actor_action_try_to_panic(int actor_handle)
+int16_t actor_get_action_priority_flag(int actor_handle)
 {
   char *actor;
   int16_t action;
@@ -1726,10 +1729,10 @@ void set_real_vector3d(float *out, float x, float y, float z)
 /* 0x1d7a0 (point_to_line_distance3d) — Distance from a point to a 3D line
  * segment. cdecl, 3 pointer args (p1=point, p2=segment start, p3=segment
  * direction). Thin wrapper: passes args straight through to the squared
- * point-to-segment helper FUN_0010cd40, then applies FSQRT (sqrtf). */
+ * point-to-segment helper point_to_line_distance_squared3d, then applies FSQRT (sqrtf). */
 float point_to_line_distance3d(float *p1, float *p2, float *p3)
 {
-  return sqrtf(FUN_0010cd40(p1, p2, p3));
+  return sqrtf(point_to_line_distance_squared3d(p1, p2, p3));
 }
 
 /* actor_action_set_default_state (0x1d7c0) — Transition an actor to a default
@@ -1851,7 +1854,7 @@ char actor_action_set_default_state(int actor_handle, short state)
     }
     break;
   case 10:
-    if (actor_action_try_to_panic(actor_handle) != 3) {
+    if (actor_get_action_priority_flag(actor_handle) != 3) {
       ((actor_t *)actor)->field_06a = 3;
       ((actor_t *)actor)->field_072 = 2;
       ((actor_t *)actor)->field_06e = 2;
@@ -2065,7 +2068,7 @@ char actor_action_handle_panic_transition(int actor_handle, short param_2,
 
   panic_level = actor->stimuli_panic_type;
   result = 0;
-  if (param_2 <= panic_level && actor->field_160 == '\0') {
+  if (panic_level >= param_2 && actor->field_160 == '\0') {
     if (actor->state_action == _actor_action_flee &&
         (shield_value = actor->field_0a8, shield_value > 0)) {
       if (panic_level < shield_value) {
@@ -2350,7 +2353,7 @@ commit:
 /* actor_action_handle_active_cover_seeking (0x1e700) — When the actor's
  * active-cover gate flag (actor+0x4c) is set, evaluate whether the actor should
  * panic and seek cover. If the actor's stress field (actor+0x1bc) is at or
- * below the 'actr' tag threshold (tag+0x2dc), call actor_action_try_to_panic;
+ * below the 'actr' tag threshold (tag+0x2dc), call actor_get_action_priority_flag;
  * for a panic result of 3 or 4 with the suppress flag (actor+0x378) clear and
  * the action counter (actor+0x6e) greater than 1, throttle on a 0x1e-tick
  * cooldown (actor+0x370). On a fresh cooldown, gate on
@@ -2363,7 +2366,7 @@ commit:
  * (handle&0xffff)*0x657c) fields +0xb8/+0xba/+0xbc/+0xc0 are debug telemetry
  * only; they do not affect control flow. Confirmed: datum_get(actor_data,
  * actor_handle); tag_get(0x61637472, actor+0x58); game_time_get();
- * actor_action_try_to_panic(actor_handle);
+ * actor_get_action_priority_flag(actor_handle);
  * actor_action_allow_cover_seeking(actor_handle, 0);
  * actor_action_try_to_seek_cover(actor_handle, 1, 0);
  * FUN_0001d3c0(actor_handle, 4, actor+0x270, param3). FPU: FLD actor+0x1bc;
@@ -2395,7 +2398,7 @@ char actor_action_handle_active_cover_seeking(int actor_handle, char param2,
     *(int16_t *)(trace + 0xbc) = (int16_t)elapsed;
     *(int *)(trace + 0xc0) = *(int *)(actor + 0x1bc);
     if (*(float *)(actor + 0x1bc) <= *(float *)(actr_tag + 0x2dc)) {
-      panic = actor_action_try_to_panic(actor_handle);
+      panic = actor_get_action_priority_flag(actor_handle);
       *(int16_t *)(trace + 0xba) = 0;
       if (((actor_t *)actor)->field_378 == '\0' && (panic == 4 || panic == 3)) {
         *(int16_t *)(trace + 0xba) = 1;
@@ -2810,7 +2813,7 @@ char actor_action_handle_lost_contact(int actor_handle)
       ((actor_t *)actor)->field_074 == 0)
     flag_a = 1;
   if (((actor_t *)actor)->field_06a < 3) {
-    if (actor_action_try_to_panic(actor_handle) == 0) {
+    if (actor_get_action_priority_flag(actor_handle) == 0) {
       result = 1;
       return result;
     }
@@ -3015,7 +3018,7 @@ char actor_action_handle_lost_contact(int actor_handle)
     }
   }
 
-  if (actor_action_try_to_panic(actor_handle) == 1)
+  if (actor_get_action_priority_flag(actor_handle) == 1)
     goto assert_handled;
   delay = 0;
   action = ((actor_t *)actor)->state_action;
@@ -3033,7 +3036,7 @@ change_to_done:
   return result;
 
 assert_handled:
-  if (actor_action_try_to_panic(actor_handle) != 1) {
+  if (actor_get_action_priority_flag(actor_handle) != 1) {
     display_assert("handled || (actor_action_class(actor_index) == "
                    "_action_class_passive)",
                    "c:\\halo\\SOURCE\\ai\\actions.c", 0xa67, 1);
@@ -3071,7 +3074,7 @@ char actor_action_handle_done_fleeing(int actor_handle)
 }
 
 /* actor_action_handle_combat_status (0x1f770) — Central "should the actor
- * change action?" arbiter. Asks actor_action_try_to_panic (0x1d6d0) for a
+ * change action?" arbiter. Asks actor_get_action_priority_flag (0x1d6d0) for a
  * panic/urgency code in [0,4] and dispatches through a 5-entry jump table
  * (table at 0x1f900); anything outside that range trips the actions.c:2841
  * assert.
@@ -3098,7 +3101,7 @@ char actor_action_handle_combat_status(int actor_handle, int param2, int param3)
   char gate;
 
   actor = (char *)datum_get(actor_data, actor_handle);
-  panic_code = actor_action_try_to_panic(actor_handle);
+  panic_code = actor_get_action_priority_flag(actor_handle);
   result = 0;
   gate = ((char)param3 != 0) ? (char)1 : (char)param2;
 
@@ -3188,9 +3191,11 @@ no_transition:
 char actor_action_handle_combat_failure(int actor_handle)
 {
   char *actor;
+  char result;
   short sVar2;
 
   actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
   if (((actor_t *)actor)->state_action == _actor_action_charge) {
     sVar2 = *(short *)(actor + 0xa0);
     if ((sVar2 == 2) || (sVar2 == 3)) {
@@ -3198,14 +3203,14 @@ char actor_action_handle_combat_failure(int actor_handle)
           (*(char *)(actor + 0xa4) != '\0'))
         goto do_combat_selection;
     } else if ((sVar2 != 4) && (sVar2 != 5)) {
-      return 0;
+      return result;
     }
     if (((actor_t *)actor)->field_0c5 != '\0') {
     do_combat_selection:
-      return actor_action_handle_combat_selection(actor_handle);
+      result = actor_action_handle_combat_selection(actor_handle);
     }
   }
-  return 0;
+  return result;
 }
 
 /* actor_action_handle_exit_pursuit (0x1f9a0) — Handles exit from pursuit-type
@@ -3783,20 +3788,21 @@ int actor_pursuit_find_nearby_actors(int actor_handle, char flag)
 char actor_action_handle_berserk_transition(int actor_handle, short param_2)
 {
   char *actor;
+  char result;
 
   actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
   if (((actor_t *)actor)->field_310 < param_2 ||
-      ((actor_t *)actor)->field_378 != '\0') {
+      ((actor_t *)actor)->field_378 != result) {
     ((actor_t *)actor)->field_310 = 0;
-    return 0;
+    return result;
   }
   actor_berserk(actor_handle, 1);
-  if (((actor_t *)actor)->field_06e > 3) {
-    ((actor_t *)actor)->field_310 = 0;
-    return actor_action_handle_combat_selection(actor_handle);
+  if (((actor_t *)actor)->field_06e >= 4) {
+    result = actor_action_handle_combat_selection(actor_handle);
   }
   ((actor_t *)actor)->field_310 = 0;
-  return 0;
+  return result;
 }
 
 /* actor_action_handle_combat_transition (0x204f0) — Handles transition into
@@ -3826,7 +3832,7 @@ char actor_action_handle_combat_transition(int actor_handle)
   }
   if (((actor_t *)actor)->field_06a == 3 &&
       ((actor_t *)actor)->field_06e == 0) {
-    actor_action_try_to_panic(actor_handle);
+    actor_get_action_priority_flag(actor_handle);
   }
   return 0;
 }
@@ -3836,7 +3842,7 @@ char actor_action_handle_combat_transition(int actor_handle)
  * action 4 with positive count at 0xa8, clears the grenade flag (0x6a0) and
  * returns 0. Otherwise, checks the actor's tag definition (actv) grenade type
  * at offset 0x184: type 1 requires action priority >= 5; type 2 requires the
- * prop flag at 0x14 to be set (or action 4 with nonzero 0xa8). If conditions
+ * prop flag at 0x14 to be set (or action 4 with zero 0xa8). If conditions
  * pass, calls actor_action_consider_grenade. Finally, if the grenade flag
  * (0x6a0) is set, calls actor_action_try_to_throw_grenade. */
 char actor_action_handle_grenade_throwing(int actor_handle)
@@ -3851,28 +3857,27 @@ char actor_action_handle_grenade_throwing(int actor_handle)
   if (actor->target_target_type < 5 ||
       (actor->state_action == _actor_action_flee && actor->field_0a8 > 0)) {
     actor->field_6a0 = 0;
-    return 0;
-  }
+  } else {
+    prop = (char *)datum_get(prop_data, actor->target_target_prop_index);
+    mode = *(short *)(actv_tag + 0x184);
 
-  prop = (char *)datum_get(prop_data, actor->target_target_prop_index);
-  mode = *(short *)(actv_tag + 0x184);
-
-  switch (mode) {
-  case 1:
-    if (actor->field_06e >= 5) {
-      result = actor_action_consider_grenade(actor_handle);
+    switch (mode) {
+    case 1:
+      if (actor->field_06e >= 5) {
+        result = actor_action_consider_grenade(actor_handle);
+      }
+      break;
+    case 2:
+      if (*(char *)(prop + 0x14) != '\0' ||
+          (actor->state_action == _actor_action_flee && actor->field_0a8 == 0)) {
+        result = actor_action_consider_grenade(actor_handle);
+      }
+      break;
     }
-    break;
-  case 2:
-    if (*(char *)(prop + 0x14) != '\0' ||
-        (actor->state_action == _actor_action_flee && actor->field_0a8 != 0)) {
-      result = actor_action_consider_grenade(actor_handle);
-    }
-    break;
-  }
 
-  if (actor->field_6a0 != '\0') {
-    actor_action_try_to_throw_grenade(actor_handle, 0);
+    if (actor->field_6a0 != '\0') {
+      actor_action_try_to_throw_grenade(actor_handle, 0);
+    }
   }
   return result;
 }

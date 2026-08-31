@@ -888,7 +888,7 @@ void FUN_001a6280(int unit_handle, char *state_out)
  *   - melee damage timer at +0x45d/+0x45e
  *   - FUN_001a2440, FUN_001a1e70, FUN_001a0b30: footstep/marker events
  * If seated in a vehicle (parent +0xCC != -1), handles ejection and exit.
- * FUN_001b0d90 runs at the end in both cases; tracks suspension ticks at +0x6C.
+ * unit_update_animation runs at the end in both cases; tracks suspension ticks at +0x6C.
  * Always returns 1 (via CONCAT31).
  * Confirmed: cdecl, 1 stack param, returns char. */
 char FUN_001a6350(int unit_handle)
@@ -1087,7 +1087,7 @@ char FUN_001a6350(int unit_handle)
   }
 
   /* Post-section: animation state update */
-  anim_result = FUN_001b0d90(unit_handle, (char *)state_pair);
+  anim_result = unit_update_animation(unit_handle, (char *)state_pair);
   if (anim_result == 1) {
     FUN_001a2290(unit_handle);
   }
@@ -1741,7 +1741,7 @@ void FUN_001a70d0(int unit_handle, int sound_tag, int sound_handle)
   *(int *)(unit + 0x3b0) = sound_handle;
   *(uint8_t *)(unit + 0x3a4) = 1;
   *(int16_t *)(unit + 0x3a8) = 0;
-  FUN_00044fd0(unit_handle, 6, 0xffff, unit + 0x348);
+  ai_communication_started(unit_handle, 6, 0xffff, unit + 0x348);
 }
 
 /* FUN_001a71c0 (0x1a71c0) — unit_dialogue_activation
@@ -2037,21 +2037,19 @@ char FUN_001a74d0(int unit_handle, int scream_type)
 int FUN_001a7650(void *tag_data, int dialogue_type)
 {
   int *block;
-  int count;
-  int match_count;
+  int16_t match_count;
   int16_t match_indices[16];
-  int i;
+  int16_t i;
   short *element;
   int16_t chosen;
   int chosen_element;
   int dialogue_tag_index;
 
   block = (int *)((char *)tag_data + 0x2b4);
-  count = *block;
   match_count = 0;
 
-  if (count > 0) {
-    for (i = 0; i < count; i++) {
+  if (*block > 0) {
+    for (i = 0; i < *block; i++) {
       element = (short *)tag_block_get_element(block, i, 0x18);
       if ((int16_t)dialogue_type == -1 || *element == (int16_t)dialogue_type) {
         match_indices[match_count] = (int16_t)i;
@@ -2183,7 +2181,7 @@ void FUN_001a7790(int param_1)
             param_1, *(int *)(unit + 0x33c), *(int16_t *)marker_buf, position,
             forward, 1.0f);
         }
-        FUN_00044fd0(param_1, *(uint16_t *)(unit + 0x338),
+        ai_communication_started(param_1, *(uint16_t *)(unit + 0x338),
                      *(uint16_t *)(unit + 0x33a), unit + 0x348);
         *(uint8_t *)(unit + 0x3a4) = 1;
       }
@@ -2203,7 +2201,7 @@ void FUN_001a7790(int param_1)
         }
       } else {
         if (*(uint8_t *)(unit + 0x3a6) == 0) {
-          FUN_00046530(param_1, *(uint16_t *)(unit + 0x338),
+          ai_communication_finished(param_1, *(uint16_t *)(unit + 0x338),
                        *(uint16_t *)(unit + 0x33a), 0, -1, unit + 0x348);
           *(uint8_t *)(unit + 0x3a6) = 1;
         }
@@ -2218,7 +2216,7 @@ void FUN_001a7790(int param_1)
   }
 
   if (*(int16_t *)(unit + 0x3ac) == 0 && *(uint8_t *)(unit + 0x3a5) == 0) {
-    FUN_00045290(param_1, *(uint16_t *)(unit + 0x338),
+    ai_communication_notify(param_1, *(uint16_t *)(unit + 0x338),
                  *(uint16_t *)(unit + 0x33a), unit + 0x348);
     *(uint8_t *)(unit + 0x3a5) = 1;
   }
@@ -2754,7 +2752,7 @@ char unit_get_melee_range_and_ticks(int unit_handle, char is_secondary,
   }
   anim_tag =
     (char *)tag_block_get_element((int *)(anim_tag + 0x74), (int)anim_id, 0xb4);
-  FUN_00120710((int)anim_tag, (int)out_attack_time, (int)out_damage_time);
+  animation_get_x_offsets((int)anim_tag, (int)out_attack_time, (int)out_damage_time);
   if (out_tick_count != NULL) {
     *out_tick_count = (int)*(int16_t *)(anim_tag + 0x34);
   }
@@ -2809,62 +2807,72 @@ int unit_get_animation_frames_remaining(int unit_handle,
 char FUN_001a8550(void *plan, float delta_time, float position,
                   float *out_position, float velocity, float *out_velocity)
 {
-  char done;
-  float t;
-  float vel;
+  char result;
+  float current_position;
+  float current_velocity;
+  float time;
+  float remaining_time;
 
-  done = *(char *)plan;
-  vel = velocity;
+  result = *(char *)plan;
+  current_position = position;
+  current_velocity = velocity;
 
-  if (done != 0 || !(*(float *)0x2533c0 < delta_time))
-    goto store_out;
+  if (result)
+    goto store_result;
 
-  /* Phase 1: acceleration */
-  if (*(float *)0x2533c0 < *(float *)((char *)plan + 0x10)) {
-    t = delta_time;
-    if (*(float *)((char *)plan + 0x10) < delta_time)
-      t = *(float *)((char *)plan + 0x10);
-    position = (t * *(float *)((char *)plan + 0xc) * 0.5f + vel) * t + position;
-    vel = t * *(float *)((char *)plan + 0xc) + vel;
-    delta_time = delta_time - t;
+  remaining_time = delta_time;
+  if (!(remaining_time > 0.f))
+    goto store_result;
+
+  /* Phase 1: acceleration. Compare sense is remaining > 0 / remaining > dur
+   * (not 0 < remaining) so VC71 emits FCOMP mem-const with TEST AH,0x41. */
+  if (*(float *)((char *)plan + 0x10) > 0.f) {
+    if (remaining_time > *(float *)((char *)plan + 0x10))
+      time = *(float *)((char *)plan + 0x10);
+    else
+      time = remaining_time;
+    current_position +=
+      (time * *(float *)((char *)plan + 0xc) * 0.5f + current_velocity) * time;
+    current_velocity += time * *(float *)((char *)plan + 0xc);
+    remaining_time -= time;
   }
 
-  if (!(*(float *)0x2533c0 < delta_time))
-    goto store_out;
+  if (!(remaining_time > 0.f))
+    goto store_result;
 
   /* Phase 2: coast */
-  if (*(float *)0x2533c0 < *(float *)((char *)plan + 0x14)) {
-    t = delta_time;
-    if (*(float *)((char *)plan + 0x14) < delta_time)
-      t = *(float *)((char *)plan + 0x14);
-    position = vel * t + position;
-    delta_time = delta_time - t;
+  if (*(float *)((char *)plan + 0x14) > 0.f) {
+    if (remaining_time > *(float *)((char *)plan + 0x14))
+      time = *(float *)((char *)plan + 0x14);
+    else
+      time = remaining_time;
+    current_position += current_velocity * time;
+    remaining_time -= time;
   }
 
-  if (!(*(float *)0x2533c0 < delta_time))
-    goto store_out;
+  if (!(remaining_time > 0.f))
+    goto store_result;
 
-  /* Phase 3: deceleration */
-  if (*(float *)0x2533c0 < *(float *)((char *)plan + 0x1c)) {
-    t = delta_time;
-    if (*(float *)((char *)plan + 0x1c) < delta_time)
-      t = *(float *)((char *)plan + 0x1c);
-    position =
-      (0.5f * t * *(float *)((char *)plan + 0x18) + vel) * t + position;
-    vel = t * *(float *)((char *)plan + 0x18) + vel;
-    delta_time = delta_time - t;
+  /* Phase 3: deceleration. 0.5f is the left operand here (accel phase
+   * multiplies time*accel*0.5f) -- matches 0x1a8550 FLD/FMUL order. */
+  if (*(float *)((char *)plan + 0x1c) > 0.f) {
+    if (remaining_time > *(float *)((char *)plan + 0x1c))
+      time = *(float *)((char *)plan + 0x1c);
+    else
+      time = remaining_time;
+    current_position +=
+      (0.5f * time * *(float *)((char *)plan + 0x18) + current_velocity) * time;
+    current_velocity += time * *(float *)((char *)plan + 0x18);
+    remaining_time -= time;
   }
 
-  if (*(float *)0x2533c0 < delta_time) {
-    *out_position = position;
-    *out_velocity = vel;
-    return 1;
-  }
+  if (remaining_time > 0.f)
+    result = 1;
 
-store_out:
-  *out_position = position;
-  *out_velocity = vel;
-  return done;
+store_result:
+  *out_position = current_position;
+  *out_velocity = current_velocity;
+  return result;
 }
 
 /* unit_get_zoom_level (0x1a8690)
@@ -3197,6 +3205,7 @@ void unit_animation_start_action(int object_handle, int16_t state)
   char *sub_element;
   char *weapon_element;
   int16_t animation_index;
+  int16_t interpolation_frame_count;
   int anim_kind_idx;
   int anim_sub_idx;
 
@@ -3260,9 +3269,12 @@ void unit_animation_start_action(int object_handle, int16_t state)
     break;
   }
 
+  /* PAL: interpolation_frame_count = action==7 ? 0 : 6. NTSC: SETE/DEC/AND 6. */
+  interpolation_frame_count = (int16_t)((state == 7) ? 0 : 6);
+
   if (animation_index != (int16_t)-1) {
-    if (state != 7)
-      object_set_region_count(object_handle, 6);
+    if (interpolation_frame_count > 0)
+      object_set_region_count(object_handle, interpolation_frame_count);
     unit->unk_602 = (int16_t)model_animation_choose_random(
       1, *(int *)(unit_tag + 0x44), animation_index);
     unit->unk_604 = 0;
@@ -4336,51 +4348,39 @@ int16_t unit_inventory_next_grenade(int unit_handle, int current_index,
                                     int16_t direction)
 {
   char *unit;
-  int16_t start;
-  int16_t saved;
-  int idx;
+  int16_t next_index;
+  int16_t index;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
-  saved = -1;
-  start = (int16_t)current_index;
-  if (start == -1) {
+  next_index = (int16_t)-1;
+
+  if ((int16_t)current_index == (int16_t)-1) {
     current_index = 0;
-    idx = current_index;
   } else {
-    idx = current_index;
-    if (start < 0 || 1 < start) {
+    if ((int16_t)current_index < 0 || (int16_t)current_index >= 2) {
       display_assert(
         "current_index>=0 && current_index<NUMBER_OF_UNIT_GRENADE_TYPES",
         "c:\\halo\\SOURCE\\units\\units.c", 0x163e, 1);
       system_exit(-1);
     }
   }
+
+  index = (int16_t)current_index;
   do {
-    start = (int16_t)current_index;
-    if (*(char *)((int)start + 0x2ce + (int)unit) > '\0') {
-      if (start != (int16_t)idx) {
-        return start;
-      }
-      saved = (int16_t)current_index;
-      if (direction == 0) {
-        return start;
-      }
+    if (*(char *)(unit + index + 0x2ce) > 0) {
+      next_index = index;
+      if (index != (int16_t)current_index || direction == 0)
+        break;
     }
+
     if (direction < 0) {
-      if (start == 0) {
-        current_index = 1;
-      } else {
-        current_index = (int)start - 1;
-      }
-    } else if (start == 1) {
-      current_index = 0;
+      index = (index == 0) ? 1 : (int16_t)(index - 1);
     } else {
-      current_index = (int)start + 1;
+      index = (index == 1) ? 0 : (int16_t)(index + 1);
     }
-    if ((int16_t)current_index == (int16_t)idx) {
-      return saved;
-    }
-  } while (1);
+  } while (index != (int16_t)current_index);
+
+  return next_index;
 }
 
 /* unit_is_alive (0x1a9a30)
@@ -4463,7 +4463,7 @@ void unit_scripting_set_emotion_animation(int unit_index,
 
   if (unit_index != -1) {
     unit = (char *)object_get_and_verify_type(unit_index, 3);
-    anim = FUN_00120cb0(*(int *)(unit + 0x7c), animation_name);
+    anim = animation_graph_get_animation_by_name(*(int *)(unit + 0x7c), animation_name);
     if (anim != -1) {
       *(int16_t *)(unit + 0x1ce) = anim;
       return;
@@ -4537,7 +4537,7 @@ void unit_scripting_doesnt_drop_items(int object_list)
   }
 }
 
-/* FUN_001a9c90 (0x1a9c90) — unit_scripting_vehicle_test_seat_list
+/* unit_scripting_vehicle_test_seat_list (0x1a9c90) — unit_scripting_vehicle_test_seat_list
  *
  * Checks whether any unit occupying a named seat in the given vehicle
  * (unit_handle) is present in the object_list. Iterates seats from the
@@ -4554,7 +4554,7 @@ void unit_scripting_doesnt_drop_items(int object_list)
  * Confirmed: object iterator at EBP-0x18 (16 bytes), datum handle at iter+0x08.
  * Confirmed: child iter state at EBP-0x8 (single int).
  */
-char FUN_001a9c90(int unit_handle, const char *seat_name, int object_list)
+char unit_scripting_vehicle_test_seat_list(int unit_handle, const char *seat_name, int object_list)
 {
   char *unit_data;
   char *unit_tag;
@@ -4717,7 +4717,7 @@ int FUN_001a9ef0(int unit_handle)
   return -1;
 }
 
-/* FUN_001a9f20 (0x1a9f20) — unit_shield_sapping_update
+/* unit_shield_sapping_update (0x1a9f20) — unit_shield_sapping_update
  *
  * Called each tick for units in the shield-sapping state (unit+0x253 == 0x2a
  * = '*'). Checks whether the unit's current seat index (+0x80) exceeds the
@@ -4737,7 +4737,7 @@ int FUN_001a9ef0(int unit_handle)
  * Confirmed: attacker handle stored at damage_params+0x0c = [EBP-0x5c].
  * Confirmed: 0x254e74 = 16.0f (squared distance threshold).
  */
-void FUN_001a9f20(int unit_handle)
+void unit_shield_sapping_update(int unit_handle)
 {
   char *unit;
   char *unit_tag;
@@ -4949,7 +4949,7 @@ void unit_debug_ninja_rope(int unit_handle)
   global_current_collision_user_depth -= 1;
 }
 
-/* FUN_001aa360 (0x1aa360) — unit_set_user_animation
+/* unit_set_user_animation (0x1aa360) — unit_set_user_animation
  *
  * Validates a user animation index against the range
  * [0, NUMBER_OF_UNIT_USER_ANIMATIONS). The function resolves the unit tag
@@ -4962,7 +4962,7 @@ void unit_debug_ninja_rope(int unit_handle)
  * Confirmed: NUMBER_OF_UNIT_USER_ANIMATIONS == 2 (CMP AX,0x2).
  * Confirmed: returns AL=0 (XOR AL,AL at 001aa3bb).
  */
-char FUN_001aa360(int unit_handle, int param_2, int16_t index)
+char unit_set_user_animation(int unit_handle, int param_2, int16_t index)
 {
   char *unit;
   int unit_tag_index;
@@ -5017,7 +5017,7 @@ bool any_unit_is_dangerous(void)
   return false;
 }
 
-/* FUN_001aa430 (0x1aa430) — unit_can_see_point
+/* unit_can_see_point (0x1aa430) — unit_can_see_point
  *
  * Returns true if the given point is within the unit's field of view.
  * Computes a direction vector from the unit's head marker to the target
@@ -5034,7 +5034,7 @@ bool any_unit_is_dangerous(void)
  * Confirmed: FCOS + FCOMPP comparison: dot > cos(angle) → return 1.
  * Confirmed: normalize3d return (magnitude) discarded via FSTP ST0.
  */
-char FUN_001aa430(int unit_handle, float *point, float half_angle)
+char unit_can_see_point(int unit_handle, float *point, float half_angle)
 {
   char *unit;
   char marker_buf[0x78];
@@ -5073,9 +5073,9 @@ char FUN_001aa430(int unit_handle, float *point, float half_angle)
   return 0;
 }
 
-/* FUN_001aa4d0 (0x1aa4d0) — unit_driven_by_ai
+/* unit_driven_by_ai (0x1aa4d0) — unit_driven_by_ai
  * Returns true if the unit (or its driver) has an AI actor. */
-char FUN_001aa4d0(int unit_handle)
+char unit_driven_by_ai(int unit_handle)
 {
   char *unit;
 
@@ -5086,9 +5086,9 @@ char FUN_001aa4d0(int unit_handle)
   return *(int *)(unit + 0x1a4) != -1;
 }
 
-/* FUN_001aa510 (0x1aa510) — unit_gunned_by_ai
+/* unit_gunned_by_ai (0x1aa510) — unit_gunned_by_ai
  * Returns true if the unit (or its gunner) has an AI actor. */
-char FUN_001aa510(int unit_handle)
+char unit_gunned_by_ai(int unit_handle)
 {
   char *unit;
 
@@ -5378,15 +5378,19 @@ bool unit_try_add_grenade(int unit_handle, int equipment_handle)
   char *equipment_tag;
   char *unit;
   int16_t grenade_type;
-  int16_t max_count;
-  char *game_globals;
+  char *grenade;
   char current_count;
-  int player_index;
+  int local_player_index;
   char *player;
 
   equipment_obj = (int *)object_get_and_verify_type(equipment_handle, 8);
   equipment_tag = (char *)tag_get(0x65716970, *equipment_obj);
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
+
+  /* NTSC looks up the grenade globals element before the powerup assert. */
+  grenade_type = *(int16_t *)(equipment_tag + 0x30a);
+  grenade = (char *)tag_block_get_element(
+    (char *)game_globals_get() + 0x128, grenade_type, 0x44);
 
   if (*(int16_t *)(equipment_tag + 0x308) != 6) {
     display_assert("equipment_definition->equipment.powerup_type==_equipment_"
@@ -5395,29 +5399,29 @@ bool unit_try_add_grenade(int unit_handle, int equipment_handle)
     system_exit(-1);
   }
 
-  grenade_type = *(int16_t *)(equipment_tag + 0x30a);
-  game_globals = (char *)game_globals_get();
-  max_count =
-    *(int16_t *)tag_block_get_element(game_globals + 0x128, grenade_type, 0x44);
+  if (grenade) {
+    current_count = *(char *)(unit + grenade_type + 0x2ce);
+    if ((int16_t)current_count < *(int16_t *)grenade) {
+      *(char *)(unit + grenade_type + 0x2ce) = current_count + 1;
 
-  if (max_count == 0)
-    return false;
+      /* PAL calls player_index_from_unit_index twice (NTSC 0x1aaa33 and 0x1aaa41). */
+      if (player_index_from_unit_index(unit_handle) == -1) {
+        local_player_index = -1;
+      } else {
+        player = (char *)datum_get(
+          player_data, player_index_from_unit_index(unit_handle));
+        local_player_index = *(int16_t *)(player + 2);
+      }
 
-  current_count = *(char *)(unit + grenade_type + 0x2ce);
-  if ((int16_t)current_count >= max_count)
-    return false;
+      if (local_player_index != -1)
+        item_activate_equipment_effect(equipment_handle);
 
-  *(char *)(unit + grenade_type + 0x2ce) = current_count + 1;
-
-  player_index = player_index_from_unit_index(unit_handle);
-  if (player_index != -1) {
-    player = (char *)datum_get(player_data, player_index);
-    if (*(int16_t *)(player + 2) != -1)
-      item_activate_equipment_effect(equipment_handle);
+      object_delete(equipment_handle);
+      return true;
+    }
   }
 
-  object_delete(equipment_handle);
-  return true;
+  return false;
 }
 
 /* unit_set_grenade_count (0x1aaa90)
@@ -5766,13 +5770,13 @@ int16_t unit_get_current_grenade_type(int unit_handle)
   return (int16_t)(signed char)*(char *)(unit + 0x2cc);
 }
 
-/* FUN_001aaf40 (0x1aaf40) — grenade throw initiation
+/* unit_throw_grenade_move_to_hand (0x1aaf40) — grenade throw initiation
  * Decrements grenade count (unless infinite), creates a grenade placement
  * from the unit's forward vector and marker position, spawns the grenade
  * object, and attaches it to the unit.
  * Register args: @edi = unit_handle. No stack params.
  * Called from the grenade throw state (state=1) in the unit update switch. */
-void FUN_001aaf40(int unit_handle)
+void unit_throw_grenade_move_to_hand(int unit_handle)
 {
   char *unit;
   char *globals_entry;
@@ -5799,7 +5803,7 @@ void FUN_001aaf40(int unit_handle)
     if (*(char *)0x5aa892 != 0) {
       goto skip_decrement;
     }
-    if (FUN_000a9570(*(int *)(unit + 0x1c8)) != 0) {
+    if (game_engine_infinite_grenades(*(int *)(unit + 0x1c8)) != 0) {
       goto skip_decrement;
     }
   }
@@ -5867,7 +5871,7 @@ skip_decrement:
   *(uint8_t *)(unit + 0x23d) = 3;
 }
 
-/* FUN_001ab110 (0x1ab110)
+/* unit_throw_grenade_release (0x1ab110)
  * Grenade throw release. Detaches the held grenade from the unit, computes
  * its throw velocity using the unit's forward vector and tag throw speed,
  * optionally applies random spread if the throw animation was cut short,
@@ -5875,7 +5879,7 @@ skip_decrement:
  * attempts to place it.
  * cdecl: 2 stack params (unit_handle, flag).
  * Confirmed from callers 0x1ad260, 0x1b0d90, 0x1b1400, 0x1b3690. */
-void FUN_001ab110(int unit_handle, char flag)
+void unit_throw_grenade_release(int unit_handle, char flag)
 {
   char *unit;
   char *unit_tag;
@@ -5978,7 +5982,7 @@ void FUN_001ab110(int unit_handle, char flag)
     ratio_val = (float)throw_timer / (float)throw_total;
     if (ratio_val < 1.0f) {
       rand_val =
-        random_real_range(get_global_random_seed_address(), 0.02f, 0.046875f);
+        random_real_range(get_global_random_seed_address(), 0.02f, 0.046666667f);
       rand_x = rand_val * *(float *)(unit + 0x1ec);
       rand_y = rand_val * *(float *)(unit + 0x1f0);
       rand_z = rand_val * *(float *)(unit + 0x1f4);
@@ -6144,11 +6148,11 @@ const char *FUN_001ab6e0(int16_t base_seat_index)
   return *(const char **)(0x32e484 + (int)base_seat_index * 4);
 }
 
-/* FUN_001ab730 (0x1ab730)
+/* seat_label_to_base_seat_index (0x1ab730)
  * Searches the base seat name table for a matching name (case-insensitive).
  * Returns the index [0..5] if found, or -1 if no match.
  * @edi = seat_name string to search for. */
-int16_t FUN_001ab730(const char *seat_name)
+int16_t seat_label_to_base_seat_index(const char *seat_name)
 {
   int16_t i;
 
@@ -6160,11 +6164,11 @@ int16_t FUN_001ab730(const char *seat_name)
   return -1;
 }
 
-/* FUN_001ab770 (0x1ab770)
+/* base_weapon_label_get (0x1ab770)
  * Returns a pointer to the base weapon name string given a base_weapon_index.
  * Asserts that the index is in [0, NUMBER_OF_UNIT_BASE_WEAPONS).
  * The weapon name table is a local array containing just "unarmed". */
-const char *FUN_001ab770(int16_t base_weapon_index)
+const char *base_weapon_label_get(int16_t base_weapon_index)
 {
   const char *weapon_names[1];
 
@@ -6246,13 +6250,13 @@ int16_t FUN_001ab870(void *animation_state, int animation_graph_tag_index,
   return result;
 }
 
-/* FUN_001ab8c0 (0x1ab8c0)
+/* unit_refresh_illumination (0x1ab8c0)
  * Computes or copies lighting data for a unit.
  * If the unit has a parent unit (at +0xcc), copies the parent's lighting
  * values from +0x290 and +0x294. Otherwise, computes an ambient RGB color
  * brightness and self-illumination value from the unit's position and
  * orientation. */
-void FUN_001ab8c0(int unit_handle)
+void unit_refresh_illumination(int unit_handle)
 {
   char *unit;
   void *parent;
@@ -6360,7 +6364,7 @@ void unit_detach_weapon(int unit_handle, int weapon_handle)
 
   /* Scale direction by random amount */
   seed = get_global_random_seed_address();
-  scale = random_real_range(seed, 0.02666667f, 0.04f);
+  scale = random_real_range(seed, 0.026666667f, 0.04f);
   direction[0] *= scale;
   direction[1] *= scale;
   direction[2] *= scale;
@@ -6792,7 +6796,7 @@ void unit_start_running_blindly(int unit_handle)
 
   if (has_blind_vector) {
     *(float *)(unit + 0x3c4) = 0.0f;
-    spread = 0.4363323f;
+    spread = 0.43633232f;
   } else {
     vector_to_angles(angles, (float *)(unit + 0x24));
     base_angle = angles[0];
@@ -7254,10 +7258,10 @@ void unit_adjust_plan_overlap(void *plan_a_ptr, void *plan_b_ptr, int dummy,
   }
 }
 
-/* FUN_001acd70 (0x1acd70) — unit_try_animation_state
+/* unit_set_or_test_seat_and_weapon_label (0x1acd70) — unit_try_animation_state
  * Searches the unit's animation graph for a matching seat/weapon animation
  * mode. Register arg: unit_handle in EAX. */
-char FUN_001acd70(int unit_handle, const char *seat_label,
+char unit_set_or_test_seat_and_weapon_label(int unit_handle, const char *seat_label,
                   const char *weapon_name, char apply_state)
 {
   char *unit;
@@ -7688,7 +7692,7 @@ bool unit_try_animation_state(int unit_handle, int seat_label, int weapon_label,
   return found;
 }
 
-/* FUN_001ad260 (0x1ad260) — unit animation state transition
+/* unit_animation_set_state (0x1ad260) — unit animation state transition
  *
  * Sets the unit's animation state (unk_595 at offset 0x253). Looks up the
  * correct animation from the unit tag's animation graph hierarchy based on
@@ -7716,7 +7720,7 @@ bool unit_try_animation_state(int unit_handle, int seat_label, int weapon_label,
  * Confirmed: 0x322308 = mode anim name table, 0x322450 = overlay anim name
  * table.
  */
-char FUN_001ad260(int unit_handle, int16_t anim_state)
+char unit_animation_set_state(int unit_handle, int16_t anim_state)
 {
   int *unit;
   char *unit_tag;
@@ -7758,7 +7762,7 @@ char FUN_001ad260(int unit_handle, int16_t anim_state)
   overlay_index = -1;
 
   if (old_state_byte == 0x21) {
-    FUN_001ab110(unit_handle, 1);
+    unit_throw_grenade_release(unit_handle, 1);
   }
 
   if ((int)anim_state > 0x2b)
@@ -8036,10 +8040,10 @@ skip_transition:
 }
 
 /* unit_abort_animation (0x1ad7e0)
- * Aborts the current animation by calling FUN_001ad260 with state 0. */
+ * Aborts the current animation by calling unit_animation_set_state with state 0. */
 void unit_abort_animation(int unit_handle)
 {
-  FUN_001ad260(unit_handle, 0);
+  unit_animation_set_state(unit_handle, 0);
 }
 
 /* unit_find_best_enter_seat (0x1ad800)
@@ -8515,7 +8519,7 @@ int16_t vehicle_scripting_find_available_seats(int unit_handle,
 void unit_open(int unit_handle)
 {
   if (unit_handle != -1) {
-    FUN_001ad260(unit_handle, 0x25);
+    unit_animation_set_state(unit_handle, 0x25);
   }
 }
 
@@ -8524,7 +8528,7 @@ void unit_open(int unit_handle)
 void unit_close(int unit_handle)
 {
   if (unit_handle != -1) {
-    FUN_001ad260(unit_handle, 0x26);
+    unit_animation_set_state(unit_handle, 0x26);
   }
 }
 
@@ -8540,17 +8544,11 @@ bool unit_current_weapon_is_busy(int unit_handle)
 {
   char *unit;
   int weapon_handle;
-  char *weapon;
 
   unit = object_get_and_verify_type(unit_handle, 3);
   weapon_handle = unit_get_weapon(unit_handle, *(int16_t *)(unit + 0x2a2));
-  if (weapon_handle == -1)
-    return false;
-
-  weapon = object_get_and_verify_type(weapon_handle, 4);
-  if (*(char *)(weapon + 0x211) == 2 || *(char *)(weapon + 0x211) == 3)
-    return true;
-
+  if (weapon_handle != -1)
+    return weapon_overcharged(weapon_handle);
   return false;
 }
 
@@ -8561,7 +8559,7 @@ char unit_set_seat(int unit_handle, int seat_name)
   /* `!!` triggers VC71's branchless neg/sbb/neg bool-normalize (matching the
    * original at 0x1ae1f8) rather than a test/setne branch. Runtime-identical.
    */
-  return (char)!!FUN_001acd70(unit_handle, (const char *)seat_name, 0, 1);
+  return (char)!!unit_set_or_test_seat_and_weapon_label(unit_handle, (const char *)seat_name, 0, 1);
 }
 
 /* units_set_desired_flashlight_state (0x1ae210)
@@ -8710,9 +8708,10 @@ bool unit_should_swap_weapon(int unit_handle, int weapon_handle)
   int *weapon_obj;
   int weapon_tag;
   int current_weapon;
-  int seat_index;
-  int *weapon_slot;
-  bool should_swap;
+  int inventory_index;
+  int inventory_weapon_index;
+  int *inventory_weapon;
+  bool approved;
 
   unit = object_get_and_verify_type(unit_handle, 3);
   weapon_obj = (int *)object_get_and_verify_type(weapon_handle, 4);
@@ -8720,42 +8719,37 @@ bool unit_should_swap_weapon(int unit_handle, int weapon_handle)
 
   tag_get(0x77656170, weapon_tag);
 
-  current_weapon = unit_get_weapon(unit_handle, *(int16_t *)(unit + 0x2a2));
+  approved = true;
+  /* PAL unit_get_current_weapon_index is unit_get + inventory_get_weapon.
+   * NTSC emits that extra unit_get (0x1ae3fa) before 0x1adeb0. */
+  current_weapon = unit_get_weapon(
+    unit_handle,
+    *(int16_t *)((char *)object_get_and_verify_type(unit_handle, 3) + 0x2a2));
   if (current_weapon == -1)
     return false;
 
-  should_swap = true;
-  seat_index = 0;
-  weapon_slot = (int *)(unit + 0x2a8);
-
-  do {
-    int slot_weapon = *weapon_slot;
-    if (slot_weapon != -1) {
-      int *slot_weapon_obj = (int *)object_get_and_verify_type(slot_weapon, 4);
-      if (weapon_tag == *slot_weapon_obj) {
-        if (seat_index == *(int16_t *)(unit + 0x2a2)) {
-          float slot_ammo = *(float *)((char *)slot_weapon_obj + 0x1f0);
-          if (slot_ammo > *(float *)0x2533c0) {
-            float new_ammo = *(float *)((char *)weapon_obj + 0x1f0);
-            if (new_ammo < slot_ammo)
-              goto next_seat;
-          }
-        }
-        should_swap = false;
+  for (inventory_index = 0; inventory_index < 4; inventory_index++) {
+    inventory_weapon_index = ((int *)(unit + 0x2a8))[inventory_index];
+    if (inventory_weapon_index != -1) {
+      inventory_weapon =
+        (int *)object_get_and_verify_type(inventory_weapon_index, 4);
+      if (weapon_tag == *inventory_weapon &&
+          (inventory_index != *(int16_t *)(unit + 0x2a2) ||
+           !(*(float *)((char *)inventory_weapon + 0x1f0) > 0.f) ||
+           !(*(float *)((char *)weapon_obj + 0x1f0) <
+             *(float *)((char *)inventory_weapon + 0x1f0)))) {
+        approved = false;
       }
     }
-  next_seat:
-    seat_index++;
-    weapon_slot++;
-  } while (seat_index < 4);
+  }
 
-  return should_swap;
+  return approved;
 }
 
-/* FUN_001ae490 (0x1ae490) — unit_next_weapon_index
+/* unit_weapon_next_index (0x1ae490) — unit_next_weapon_index
  * Scans weapon slots circularly for the next valid weapon.
  * Register arg: unit_handle in EBX. */
-int16_t FUN_001ae490(int unit_handle, int16_t current_index, int16_t direction)
+int16_t unit_weapon_next_index(int unit_handle, int16_t current_index, int16_t direction)
 {
   char *unit;
   int iter_index;
@@ -8766,7 +8760,8 @@ int16_t FUN_001ae490(int unit_handle, int16_t current_index, int16_t direction)
   char usable;
   char readied;
   int best_index;
-  int current;
+  volatile int16_t current;
+  int16_t best_si;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   best_index = -1;
@@ -8791,27 +8786,30 @@ int16_t FUN_001ae490(int unit_handle, int16_t current_index, int16_t direction)
 
       seat_label = unit_get_seat_label(unit_handle);
       weapon_label = (char *)weapon_get_label(weapon_handle);
-      can_use = FUN_001acd70(unit_handle, (const char *)seat_label,
+      can_use = unit_set_or_test_seat_and_weapon_label(unit_handle, (const char *)seat_label,
                              (const char *)weapon_label, 0);
 
       if (can_use != 0) {
         usable =
           (char)game_engine_allow_weapon_pick_up(unit_handle, weapon_handle);
         if (usable != 0) {
+          best_si = (int16_t)best_index;
           if (direction != 0) {
-            best_index = current;
+            best_si = current;
+            best_index = best_si;
           } else {
             if ((int16_t)best_index == (int16_t)-1 ||
                 *(int *)(unit + 0x2b8 + (int)(int16_t)best_index * 4) <
                   *(int *)(unit + 0x2b8 + iter_index * 4)) {
-              best_index = current;
+              best_si = current;
+              best_index = best_si;
             }
           }
 
           readied = (char)weapon_must_be_readied(
             *(int *)(unit + 0x2a8 + iter_index * 4));
           if (readied != 0)
-            return (int16_t)best_index;
+            return best_si;
 
           if ((int16_t)current != current_index)
             return (int16_t)best_index;
@@ -8948,7 +8946,7 @@ int16_t unit_next_weapon_index(int unit_handle, int16_t weapon_index,
  * Steps:
  * 1. Gets the unit tag definition via tag_get("unit", unit->tag_index).
  * 2. Looks up the current weapon handle via unit_get_weapon.
- * 3. Calls FUN_001ae490 to compute the next weapon index.
+ * 3. Calls unit_weapon_next_index to compute the next weapon index.
  * 4. Skips if weapon is NONE, or if next index equals current and flag is
  * false.
  * 5. Checks the weapon object's flags byte (bit 0 must be clear).
@@ -9021,7 +9019,7 @@ char *unit_get_weapon_name(int unit_handle, int unused)
  * Sets the global magic base seat from a seat name string. */
 void scripting_set_magic_base_seat(const char *param_1)
 {
-  *(int16_t *)0x32de80 = FUN_001ab730(param_1);
+  *(int16_t *)0x32de80 = seat_label_to_base_seat_index(param_1);
 }
 
 /* unit_scripting_set_seat (0x1ae750)
@@ -9033,7 +9031,7 @@ void unit_scripting_set_seat(int unit_handle, const char *seat_name)
 
   if (unit_handle != -1) {
     unit = (char *)object_get_and_verify_type(unit_handle, 3);
-    seat = (char)FUN_001ab730(seat_name);
+    seat = (char)seat_label_to_base_seat_index(seat_name);
     *(char *)(unit + 0x1bf) = seat;
   }
 }
@@ -9072,7 +9070,7 @@ void unit_handle_deleted_object(int unit_handle, int deleted_handle)
     weapon_slot++;
   } while (i < 4);
   if (*(int16_t *)(unit + 0x2a2) == -1) {
-    *(int16_t *)(unit + 0x2a4) = FUN_001ae490(unit_handle, -1, 0);
+    *(int16_t *)(unit + 0x2a4) = unit_weapon_next_index(unit_handle, -1, 0);
   }
   if (*(int *)(unit + 0x2c8) == deleted_handle) {
     *(int *)(unit + 0x2c8) = -1;
@@ -9512,7 +9510,7 @@ void unit_stop_custom_animation(int unit_handle)
   if (unit_handle != -1) {
     unit = (char *)object_get_and_verify_type(unit_handle, 3);
     if (*(char *)(unit + 0x253) == '\x1c') {
-      FUN_001ad260(unit_handle, 0);
+      unit_animation_set_state(unit_handle, 0);
     }
   }
 }
@@ -9575,41 +9573,45 @@ void unit_apply_alignment_vector(int unit_handle, float *alignment_vector)
 
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
 
-  /* Only apply if the unit is a top-level object (no parent). */
-  if (unit->object.parent_object_index.value != -1)
-    return;
+  /* PAL/NTSC: body is inside parent==NONE, not an early return. Assert fail
+   * paths call csprintf into the temporary then display_assert (9 calls). */
+  if (unit->object.parent_object_index.value == -1) {
+    if (!valid_real_normal2d(alignment_vector)) {
+      display_assert(
+        csprintf(error_string_buffer,
+                 "%s: assert_valid_real_normal2d(%f, %f)",
+                 "alignment_vector", (double)alignment_vector[0],
+                 (double)alignment_vector[1]),
+        "c:\\halo\\SOURCE\\units\\units.c", 0x2482, 1);
+      system_exit(-1);
+    }
 
-  /* Assert the 2D alignment vector is a valid normal (valid_real_normal2d). */
-  if (!valid_real_normal2d(alignment_vector)) {
-    display_assert("assert_valid_real_normal2d(alignment_vector)",
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x2482, 1);
-    system_exit(-1);
-  }
+    /* Inlined set_real_vector3d: NTSC stores y via FSTP then x via MOV. */
+    *(float *)((char *)unit + 0x24) = alignment_vector[0];
+    *(float *)((char *)unit + 0x28) = alignment_vector[1];
+    *(float *)((char *)unit + 0x2c) = 0.0f;
 
-  /* Copy 2D alignment direction into object forward vector (zero z).
-   * Confirmed: MOV ECX,[EBX]; FSTP [ESI+0x28]; MOV [ESI+0x24],ECX; MOV
-   * [ESI+0x2c],0. Note: store order in binary is y first (FSTP [ESI+0x28]) then
-   * x (MOV [ESI+0x24]). Both reads from [EBX] are sourced before any store, so
-   * no aliasing concern. */
-  *(float *)((char *)unit + 0x24) = alignment_vector[0];
-  *(float *)((char *)unit + 0x28) = alignment_vector[1];
-  *(float *)((char *)unit + 0x2c) = 0.0f;
+    up_vector = *(float **)0x31fc44;
+    *(float *)((char *)unit + 0x30) = up_vector[0];
+    *(float *)((char *)unit + 0x34) = up_vector[1];
+    *(float *)((char *)unit + 0x38) = up_vector[2];
 
-  /* Copy the canonical up vector (world up) from the global at 0x31fc44.
-   * Confirmed: MOV EDX,[0x31fc44]; copies 3 dwords to [ESI+0x30,+0x34,+0x38].
-   */
-  up_vector = *(float **)0x31fc44;
-  *(float *)((char *)unit + 0x30) = up_vector[0];
-  *(float *)((char *)unit + 0x34) = up_vector[1];
-  *(float *)((char *)unit + 0x38) = up_vector[2];
-
-  /* Assert forward/up are valid orthogonal axes
-   * (valid_real_normal3d_perpendicular). */
-  if (!valid_real_normal3d_perpendicular((float *)((char *)unit + 0x24),
-                                         (float *)((char *)unit + 0x30))) {
-    display_assert("assert_valid_real_vector3d_axes2(forward, up)",
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x2486, 1);
-    system_exit(-1);
+    if (!valid_real_normal3d_perpendicular((float *)((char *)unit + 0x24),
+                                           (float *)((char *)unit + 0x30))) {
+      display_assert(
+        csprintf(
+          error_string_buffer,
+          "%s, %s: assert_valid_real_vector3d_axes2(%f, %f, %f / %f, %f, %f)",
+          "&unit->object.forward", "&unit->object.up",
+          (double)*(float *)((char *)unit + 0x24),
+          (double)*(float *)((char *)unit + 0x28),
+          (double)*(float *)((char *)unit + 0x2c),
+          (double)*(float *)((char *)unit + 0x30),
+          (double)*(float *)((char *)unit + 0x34),
+          (double)*(float *)((char *)unit + 0x38)),
+        "c:\\halo\\SOURCE\\units\\units.c", 0x2486, 1);
+      system_exit(-1);
+    }
   }
 }
 
@@ -10491,7 +10493,7 @@ void FUN_001b04b0(int unit_handle, int node_matrices)
         idx = 0;
         do {
           ik_point = (int)tag_block_get_element(ik_block, idx, 0x40);
-          FUN_001414e0(unit_handle, ik_point, *(int *)((int)unit_data + 0xcc),
+          object_inverse_kinematics(unit_handle, ik_point, *(int *)((int)unit_data + 0xcc),
                        ik_point + 0x20, node_matrices);
           ik_index = ik_index + 1;
           idx = (int)ik_index;
@@ -10515,7 +10517,7 @@ void FUN_001b04b0(int unit_handle, int node_matrices)
             (unsigned int *)object_get_and_verify_type(unit_handle, 3);
           weapon_handle = unit_get_weapon(
             unit_handle, (short)*(unsigned short *)((int)unit_data2 + 0x2a2));
-          FUN_001414e0(unit_handle, weapon_ik_point, weapon_handle,
+          object_inverse_kinematics(unit_handle, weapon_ik_point, weapon_handle,
                        weapon_ik_point + 0x20, node_matrices);
           ik_index = ik_index + 1;
           idx = (int)ik_index;
@@ -10845,7 +10847,7 @@ char unit_has_animation_to_enter_seat(int unit_handle, int vehicle_handle,
       if (*(int16_t *)(unit_data + 0x64) != 1) {
         seat_entry = (char *)tag_block_get_element((int *)(unit_tag + 0x2e4),
                                                    (int)seat_index, 0x11c);
-        if (!FUN_001acd70(unit_handle, (const char *)(seat_entry + 4), 0, 0)) {
+        if (!unit_set_or_test_seat_and_weapon_label(unit_handle, (const char *)(seat_entry + 4), 0, 0)) {
           return 0;
         }
       }
@@ -10855,13 +10857,13 @@ char unit_has_animation_to_enter_seat(int unit_handle, int vehicle_handle,
   return 0;
 }
 
-/* FUN_001b0d90 (0x1b0d90) — animation state update
+/* unit_update_animation (0x1b0d90) — animation state update
  *
  * Evaluates the current unit animation state and applies transitions.
  * Confirmed: cdecl, 2 stack params.
  * Returns: int16_t (animation flags bitmask).
  */
-short FUN_001b0d90(int unit_handle, char *anim_state)
+short unit_update_animation(int unit_handle, char *anim_state)
 {
   unsigned int *unit;
   int unit_tag_data;
@@ -10961,7 +10963,7 @@ short FUN_001b0d90(int unit_handle, char *anim_state)
         const char *seat_label;
         weapon_name = unit_get_weapon_name(unit_handle, 1);
         seat_label = FUN_001ab6e0(base_seat);
-        FUN_001acd70(unit_handle, seat_label, weapon_name, 1);
+        unit_set_or_test_seat_and_weapon_label(unit_handle, seat_label, weapon_name, 1);
       }
     }
   }
@@ -10987,7 +10989,7 @@ short FUN_001b0d90(int unit_handle, char *anim_state)
           unit_cause_melee_damage(unit_handle, 0, -1, -1, -1, -1, (float *)0);
           break;
         case 0x21:
-          FUN_001ab110(unit_handle, 0);
+          unit_throw_grenade_release(unit_handle, 0);
           break;
         default:
           break;
@@ -11110,7 +11112,7 @@ short FUN_001b0d90(int unit_handle, char *anim_state)
         goto done;
     }
   }
-  FUN_001ad260(unit_handle, desired_state);
+  unit_animation_set_state(unit_handle, desired_state);
 
 done:
   return (short)(result & 0xffff);
@@ -11165,13 +11167,15 @@ float unit_get_zoom_magnification(int unit_handle, int zoom_level)
 {
   char *unit;
   int weapon;
+  float result;
 
+  result = 1.0f;
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   weapon = unit_get_weapon(unit_handle, (int)*(int16_t *)(unit + 0x2a2));
   if (weapon != -1) {
-    return weapon_get_zoom_magnification(weapon, zoom_level);
+    result = weapon_get_zoom_magnification(weapon, zoom_level);
   }
-  return 1.0f;
+  return result;
 }
 
 /* unit_has_night_vision_weapon (0x1b13a0)
@@ -11185,24 +11189,23 @@ char unit_has_night_vision_weapon(int unit_handle)
   int weapon_handle;
   char *weapon_data;
   int tag_data;
-  char result;
+  char active;
 
-  result = 0;
+  active = 0;
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
-  if (*(uint8_t *)(unit + 0x2d0) == 0xff) {
-    return result;
+  if (*(uint8_t *)(unit + 0x2d0) != 0xff) {
+    /* PAL unit_get_current_weapon_index = unit_get + inventory_get_weapon */
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    weapon_handle = unit_get_weapon(unit_handle, *(int16_t *)(unit + 0x2a2));
+    if (weapon_handle != -1) {
+      weapon_data = (char *)object_get_and_verify_type(weapon_handle, 4);
+      tag_data = (int)tag_get(0x77656170, *(int *)weapon_data);
+      if (*(uint32_t *)(tag_data + 0x308) & 0x4000)
+        active = 1;
+    }
   }
-  unit = (char *)object_get_and_verify_type(unit_handle, 3);
-  weapon_handle = unit_get_weapon(unit_handle, *(int16_t *)(unit + 0x2a2));
-  if (weapon_handle == -1) {
-    return result;
-  }
-  weapon_data = (char *)object_get_and_verify_type(weapon_handle, 4);
-  tag_data = (int)tag_get(0x77656170, *(int *)weapon_data);
-  if (*(uint32_t *)(tag_data + 0x308) & 0x4000) {
-    return 1;
-  }
-  return result;
+
+  return active;
 }
 
 /* FUN_001b1400 (0x1b1400) — animation impulse
@@ -11367,7 +11370,7 @@ check_ping:
   if (is_melee != 0) {
     char *weapon_name;
     weapon_name = unit_get_weapon_name(unit_handle, 1);
-    FUN_001acd70(unit_handle, *(char **)0x32e48c, weapon_name, 0);
+    unit_set_or_test_seat_and_weapon_label(unit_handle, *(char **)0x32e48c, weapon_name, 0);
   }
 
   if ((short)anim_state == 0x19 && *(short *)(unit + 0x19) == 0) {
@@ -11377,7 +11380,7 @@ check_ping:
         (*(unsigned int *)(biped_tag + 0x2f4) & 0x400) == 0) {
       char transition_ok;
       anim_state = 0x18;
-      transition_ok = FUN_001ad260(unit_handle, 0x18);
+      transition_ok = unit_animation_set_state(unit_handle, 0x18);
       if (transition_ok != 0)
         goto alignment_section;
     }
@@ -11406,7 +11409,7 @@ check_ping:
     }
   } else {
     if (*(char *)((int)unit + 0x253) == 0x21) {
-      FUN_001ab110(unit_handle, 1);
+      unit_throw_grenade_release(unit_handle, 1);
     }
     object_set_region_count(unit_handle, 3);
     *(char *)((int)unit + 0x253) = anim_state;
@@ -11568,18 +11571,14 @@ bool unit_apply_animation_impulse(int unit_handle, int anim_index,
   int16_t update_kind;
   int16_t chosen_anim;
   int antr_tag_index;
+  char result;
 
+  result = 0;
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
 
-  /* Check if the unit's animation state allows applying an impulse.
-   * unit_animation_state_allows_impulse takes @<eax>=unit_handle,
-   * @<edi>=impulse_index (leaked). Confirmed disassembly: MOV EDI,[EBP+0xc] at
-   * 0x1a34, MOV EAX,EBX at 0x1a3c, CALL 0x1a96f0 at 0x1a42 — EDI = anim_index
-   * at call time.
-   */
-  if (!unit_animation_state_allows_impulse(unit_handle, anim_index))
-    return false;
-
+  /* PAL result=FALSE; if (allows) { ... result=TRUE }. NTSC stores 0 at
+   * [ebp-1] and the fail epilogue reloads it. */
+  if (unit_animation_state_allows_impulse(unit_handle, anim_index)) {
   unit_tag = (char *)tag_get(0x756e6974, *(int *)unit);
   antr_tag = (char *)tag_get(0x616e7472, *(int *)(unit_tag + 0x44));
 
@@ -11601,55 +11600,40 @@ bool unit_apply_animation_impulse(int unit_handle, int anim_index,
   kind_anim_index =
     unit_impulse_to_animation_kind((int16_t)anim_index, &update_kind);
 
-  /* Bounds-check the kind index against the sub-anim's kind table. */
-  if (kind_anim_index < 0)
-    return false;
-  if ((int)kind_anim_index >= *(int *)(sub_anim + 0x98))
-    return false;
+  if (kind_anim_index >= 0 &&
+      (int)kind_anim_index < *(int *)(sub_anim + 0x98)) {
+    kind_anim_index =
+      *(int16_t *)(*(int *)(sub_anim + 0x9c) + (int)kind_anim_index * 2);
+    if (kind_anim_index != (int16_t)-1) {
+      object_set_region_count(unit_handle, update_kind);
 
-  /* Index the kind->animation table (int16[] at sub_anim+0x9c). */
-  kind_anim_index =
-    *(int16_t *)(*(int *)(sub_anim + 0x9c) + (int)kind_anim_index * 2);
-  if (kind_anim_index == -1)
-    return false;
+      antr_tag_index = *(int *)(unit_tag + 0x44);
+      chosen_anim = (int16_t)model_animation_choose_random(
+        1, antr_tag_index, kind_anim_index);
 
-  /* Set interpolation mode and choose a random animation variant. */
-  object_set_region_count(unit_handle, update_kind);
+      unit_set_animation(unit_handle, antr_tag_index, chosen_anim);
 
-  antr_tag_index = *(int *)(unit_tag + 0x44);
-  chosen_anim =
-    (int16_t)model_animation_choose_random(1, antr_tag_index, kind_anim_index);
+      unit->unk_584 |= 0x1;
+      unit->unk_595 = 0x1d;
 
-  /* Apply the chosen animation to the unit.
-   * unit_set_animation: @<eax>=unit_handle, @<edi>=antr_tag_index,
-   * @<bx>=chosen_anim. Confirmed: MOV EDI,[EDI+0x44]; MOV EAX,[EBP+0x8]; CALL
-   * 0x1ab7c0.
-   */
-  unit_set_animation(unit_handle, antr_tag_index, chosen_anim);
+      if (anim_data != NULL && unit->object.type == 0 &&
+          unit->object.parent_object_index.value == -1) {
+        unit_apply_alignment_vector(unit_handle, (float *)anim_data);
+      }
 
-  /* Mark animation impulse as active and set state to 0x1d. */
-  unit->unk_584 |= 0x1;
-  unit->unk_595 = 0x1d;
-
-  /* If anim_data is provided and this is a top-level biped (type==0, no
-   * parent), apply the facing alignment vector. unit_apply_alignment_vector
-   * takes unit_handle
-   * @<eax>, anim_data @<ecx>. Confirmed: TEST ECX,ECX (param_3); CMP
-   * [ESI+0x64],0; CMP [ESI+0xcc],-1.
-   */
-  if (anim_data != NULL && unit->object.type == 0 &&
-      unit->object.parent_object_index.value == -1) {
-    unit_apply_alignment_vector(unit_handle, (float *)anim_data);
+      result = 1;
+    }
+  }
   }
 
-  return true;
+  return result;
 }
 
 /* unit_inventory_next_weapon (0x1b1b40)
  * Advances to the next weapon in the inventory. */
 int unit_inventory_next_weapon(int unit_handle, int slot, int direction)
 {
-  return FUN_001ae490(unit_handle, slot, direction);
+  return unit_weapon_next_index(unit_handle, slot, direction);
 }
 
 /* unit_melee_attack_begin (0x1b1b60) — begin a melee attack animation.
@@ -11658,7 +11642,7 @@ int unit_inventory_next_weapon(int unit_handle, int slot, int direction)
  * of the dying/dead/special states (0x17-0x23,0x27,0x29), the attack is
  * blocked. Otherwise, determines the target animation state based on
  * param_2 (forced hit), melee readiness, and unit flags. Requests the
- * animation via FUN_001ad260. On success (or forced), sets melee flags
+ * animation via unit_animation_set_state. On success (or forced), sets melee flags
  * and optionally applies alignment vector.
  *
  * param_2: if non-zero, force melee hit (animation state 0x20, type=4).
@@ -11716,7 +11700,7 @@ char unit_melee_attack_begin(int unit_handle, char param_2, int param_3)
       }
     }
 
-    anim_ok = FUN_001ad260(unit_handle, new_state);
+    anim_ok = unit_animation_set_state(unit_handle, new_state);
 
     if (anim_ok != '\0' || param_2 != '\0') {
       /* Check unit tag flag bit 8 at offset 0x17c */
@@ -11755,10 +11739,10 @@ char unit_leap_begin(int unit_handle, float *forward)
 {
   char *unit;
   char result;
-  char anim_ok;
+  char biped_limping;
 
-  unit = (char *)object_get_and_verify_type(unit_handle, 3);
   result = 0;
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
 
   switch (*(uint8_t *)(unit + 0x253)) {
   case 0x17:
@@ -11775,20 +11759,19 @@ char unit_leap_begin(int unit_handle, float *forward)
   case 0x23:
   case 0x27:
   case 0x29:
-    /* These states block leaping */
     break;
   default:
-    if (*(short *)(unit + 0x64) != 0 || (*(uint8_t *)(unit + 0x424) & 1) == 0) {
-      anim_ok = FUN_001ad260(unit_handle, 0x27);
-      if (anim_ok != '\0') {
-        if (forward != 0) {
-          unit_apply_alignment_vector(unit_handle, forward);
-        }
-        result = 1;
-      }
+    biped_limping = 0;
+    if (*(short *)(unit + 0x64) == 0)
+      biped_limping = (char)(*(uint8_t *)(unit + 0x424) & 1);
+    if (!biped_limping && unit_animation_set_state(unit_handle, 0x27)) {
+      if (forward != 0)
+        unit_apply_alignment_vector(unit_handle, forward);
+      result = 1;
     }
     break;
   }
+
   return result;
 }
 
@@ -11822,35 +11805,29 @@ char unit_unsuspecting(int object_handle, void *position)
   float dy;
   float dz;
   float dot;
-  int seat_label;
   float *pos;
 
   unit = (unit_data_t *)object_try_and_get_and_verify_type(object_handle, 3);
-  if (unit == NULL)
-    return 0;
-  if (unit->object.type != 0)
-    return 0;
+  if (unit != NULL && unit->object.type == 0) {
+    unit_tag = (char *)tag_get(0x756e6974, *(int *)unit);
+    if ((*(int *)(unit_tag + 0x17c) & 0x10000) == 0) {
+      pos = (float *)position;
+      dx = unit->object.unk_80 - pos[0];
+      dy = unit->object.unk_84 - pos[1];
+      dz = unit->object.unk_88 - pos[2];
+      dot = dx * unit->unk_528.x + dy * unit->unk_528.y + dz * unit->unk_528.z;
 
-  unit_tag = (char *)tag_get(0x756e6974, *(int *)unit);
-  if (*(int *)(unit_tag + 0x17c) & 0x10000)
-    return 0;
+      /* NTSC: FCOMP 0.0; TEST AH,0x41; JE true. PAL: looking·dir > 0.f */
+      if (dot > 0.f)
+        return 1;
 
-  pos = (float *)position;
-  dx = unit->object.unk_80 - pos[0];
-  dy = unit->object.unk_84 - pos[1];
-  dz = unit->object.unk_88 - pos[2];
+      if (csstrcmp(*(const char **)0x32e484,
+                   (const char *)unit_get_seat_label(object_handle)) == 0)
+        return 1;
+    }
+  }
 
-  dot = dx * unit->unk_528.x + dy * unit->unk_528.y + dz * unit->unk_528.z;
-
-  if (dot > *(float *)0x2533c0)
-    return 1;
-
-  /* Dot product <= 0: only allow if unit is asleep */
-  seat_label = unit_get_seat_label(object_handle);
-  if (csstrcmp(*(const char **)0x32e484, (const char *)seat_label) != 0)
-    return 0;
-
-  return 1;
+  return 0;
 }
 
 /* unit_enter_seat (0x1b1db0)
@@ -12129,7 +12106,7 @@ char unit_throw_grenade_begin(int unit_handle, float *alignment_vector)
   *(int16_t *)(unit + 0x25a) = -1;
 
   /* Request grenade throw animation */
-  anim_ok = FUN_001ad260(unit_handle, 0x21);
+  anim_ok = unit_animation_set_state(unit_handle, 0x21);
   if (anim_ok == '\0') {
     return result;
   }
@@ -12399,29 +12376,24 @@ void unit_place(int unit_handle, void *placement)
  * valid unit, and that unit's current weapon has the night-vision flag. */
 char unit_solo_player_integrated_night_vision_is_active(void)
 {
-  int16_t count;
-  int16_t local_idx;
+  char active;
   int player_index;
   char *player;
   int unit_handle;
-  char result;
 
-  result = 0;
-  count = local_player_count();
-  if (count != 1) {
-    return result;
+  active = 0;
+  if (local_player_count() == 1) {
+    player_index =
+      local_player_get_player_index(local_player_get_next(-1));
+    if (player_index != -1) {
+      player = (char *)datum_get(player_data, player_index);
+      unit_handle = *(int *)(player + 0x34);
+      if (unit_handle != -1)
+        active = unit_has_night_vision_weapon(unit_handle);
+    }
   }
-  local_idx = local_player_get_next(-1);
-  player_index = local_player_get_player_index(local_idx);
-  if (player_index == -1) {
-    return result;
-  }
-  player = (char *)datum_get(player_data, player_index);
-  unit_handle = *(int *)(player + 0x34);
-  if (unit_handle == -1) {
-    return result;
-  }
-  return unit_has_night_vision_weapon(unit_handle);
+
+  return active;
 }
 
 /* unit_create_initial_weapons (0x1b2660) — create initial weapons for a unit.
@@ -12507,7 +12479,7 @@ void unit_select_weapon_after_vehicle_exit(int unit_handle)
   unit_update_weapon_readiness(unit_handle, 1);
 }
 
-/* FUN_001b2780 / unit_new (0x1b2780)
+/* unit_new (0x1b2780)
  *
  * Unit creation/initialization. Called when a new unit object is created.
  * Sets default values for all unit-specific fields: weapons, seats,
@@ -12519,7 +12491,7 @@ void unit_select_weapon_after_vehicle_exit(int unit_handle)
  *
  * Confirmed: 1 cdecl param (unit_handle), returns char (0 or 1).
  */
-char FUN_001b2780(int unit_handle)
+char unit_new(int unit_handle)
 {
   char *unit;
   char *unit_tag;
@@ -12907,7 +12879,7 @@ void unit_exit_seat_end(int unit_handle)
   /* Notify parent driver if this unit was the driver */
   if (*(int *)(parent_unit + 0x2d4) == unit_handle &&
       *(char *)(parent_unit + 0x253) != 0x25 && *(int *)(unit + 0xcc) != -1) {
-    FUN_001ad260(*(int *)(unit + 0xcc), 0x25);
+    unit_animation_set_state(*(int *)(unit + 0xcc), 0x25);
   }
 
   /* Record exit info */
@@ -12974,7 +12946,7 @@ void unit_exit_seat_end(int unit_handle)
     uint8_t anim_data[2];
     anim_data[0] = 0x14;
     anim_data[1] = 0x00;
-    FUN_001b0d90(unit_handle, (char *)anim_data);
+    unit_update_animation(unit_handle, (char *)anim_data);
   }
 
   /* Create object header block reference for exit velocity */
@@ -13197,7 +13169,7 @@ void unit_scripting_enter_vehicle(int unit_handle, int vehicle_handle,
         if (seat_filled == '\0') {
           /* Seat is available - check type compatibility */
           if (*(short *)(unit_data + 0x64) == 1 ||
-              FUN_001acd70(unit_handle, (const char *)(seat_element + 4), 0,
+              unit_set_or_test_seat_and_weapon_label(unit_handle, (const char *)(seat_element + 4), 0,
                            0) != '\0') {
             /* Compatible - board the vehicle */
             unit_board_vehicle(unit_handle, vehicle_handle, (int16_t)seat_idx);
@@ -13276,7 +13248,7 @@ uint16_t vehicle_scripting_load_magic(int vehicle_handle, int seat_substring,
 
             /* Check seat type compatibility */
             if (*(short *)(child_data + 0x64) != 1) {
-              seat_type_ok = FUN_001acd70(
+              seat_type_ok = unit_set_or_test_seat_and_weapon_label(
                 child_handle, (const char *)(seat_element + 4), 0, 0);
               if (seat_type_ok == '\0') {
                 goto next_seat;
@@ -13492,7 +13464,7 @@ char FUN_001b3690(int unit_handle)
   l_7 = 0;
   l_5 = 0;
   l_8 = 0;
-  l_9 = FUN_000ab9e0();
+  l_9 = game_engine_allow_integrated_lights();
 
   /* [1] Debug trace enter */
   if (*(char *)0x449ef1 != 0 && *(char *)0x32de90 != 0) {
@@ -13730,7 +13702,7 @@ char FUN_001b3690(int unit_handle)
             anim_byte = *(unsigned char *)((char *)unit + 0x248);
             unit_set_actively_controlled(unit_handle, 1);
             unit_try_animation_state(unit_handle, (int)*(int **)0x32e48c, 0, 1);
-            FUN_001ad260(unit_handle,
+            unit_animation_set_state(unit_handle,
                          (int16_t)((~(anim_byte >> 3) & 1) | 0x22));
             *(unsigned char *)((char *)unit + 0x248) =
               *(unsigned char *)((char *)unit + 0x248) & 0xfb;
@@ -13973,13 +13945,13 @@ char FUN_001b3690(int unit_handle)
         break;
       case 1:
         if (*(short *)((char *)unit + 0x82) > 1) {
-          FUN_001aaf40(unit_handle);
+          unit_throw_grenade_move_to_hand(unit_handle);
         }
         break;
       case 2:
         *(short *)((char *)unit + 0x23e) = *(short *)((char *)unit + 0x23e) + 1;
         if (*(char *)((char *)unit + 0x253) != 0x21) {
-          FUN_001ab110(unit_handle, 1);
+          unit_throw_grenade_release(unit_handle, 1);
         }
         break;
       case 3:
@@ -14165,7 +14137,7 @@ char FUN_001b3690(int unit_handle)
 
   /* Weapon alert sound */
   if ((l_7 != 0 || unit[0x72] != -1) &&
-      (FUN_001ab8c0(unit_handle), *(char *)0x5054fa != 0) && unit[0x72] != -1) {
+      (unit_refresh_illumination(unit_handle), *(char *)0x5054fa != 0) && unit[0x72] != -1) {
     i10 = game_time_get();
     if (i10 >= *(int *)0x32e480 + 0x1e) {
       ((void (*)(int, const char *, ...))0x8f390)(

@@ -628,136 +628,142 @@ __attribute__((target("sse")))
 #endif
 void matrix4x3_multiply(float *a, float *b, float *out)
 {
-  /* All __m128 declarations hoisted to the top for C89 (MSVC 7.1)
-   * compatibility. */
-  float *volatile a_rows_slot = a + 1;
-  float *volatile b_rows_slot = b + 1;
-  float *volatile out_rows_slot = out + 1;
-  float *a_rows; /* &a[1] */
-  float *b_rows; /* &b[1] */
-  float *out_rows; /* &out[1] */
-  __m128 row0, row1, row2;
-  __m128 xmm3, xmm4, xmm5, xmm6, xmm7;
-  __m128 t3, t4, t5, a_trans, scale_v;
+  float *a_rot = a + 1;
+  float *b_rot = b + 1;
+  float *out_rot = out + 1;
 
-  /* The reference computes all three row pointers, spills them to stack slots
-   * (`leal 0x4(...)` x3 ; `movl` into -0x8/-0x4(%ebp) and the param homes) and
-   * then reloads them once into the registers it uses for the body
-   * (`movl -0x8(%ebp),%ecx` etc.).  The volatile staging reproduces that. */
-  a_rows = a_rows_slot;
-  b_rows = b_rows_slot;
-  out_rows = out_rows_slot;
+#if defined(_MSC_VER) && !defined(__clang__)
+  __asm {
+    mov DWORD PTR [ebp+8], esi
+    mov ecx, a_rot
+    mov edx, b_rot
+    mov eax, out_rot
 
-  /* Load a's 3 rotation rows into XMM registers.
-   * Pattern: MOVSS loads first component to lane 0 (lanes 1-3 zeroed),
-   * MOVHPS loads 2nd and 3rd components to lanes 2 and 3. Layout: [x,0,y,z].
-   *
-   * XMM0 = row0 (forward): [a[1], 0, a[2], a[3]]
-   * XMM1 = row1 (left):    [a[4], 0, a[5], a[6]]
-   * XMM2 = row2 (up):      loaded reversed, then SHUFPS 0x36 to
-   * [a[7],0,a[8],a[9]] */
+    movss xmm2, DWORD PTR [ecx + 0x20]
+    movhps xmm2, QWORD PTR [ecx + 0x18]
+    movss xmm3, DWORD PTR [edx]
+    movss xmm4, DWORD PTR [edx + 4]
+    movss xmm0, DWORD PTR [ecx]
+    movhps xmm0, QWORD PTR [ecx + 4]
+    shufps xmm2, xmm2, 0x36
+    shufps xmm3, xmm3, 0
+    movss xmm1, DWORD PTR [ecx + 0xc]
+    movhps xmm1, QWORD PTR [ecx + 0x10]
+    shufps xmm4, xmm4, 0
+    mulps xmm3, xmm0
+    movss xmm5, DWORD PTR [edx + 8]
+    movss xmm6, DWORD PTR [edx + 0xc]
+    mulps xmm4, xmm1
+    shufps xmm5, xmm5, 0
+    mulps xmm5, xmm2
+    shufps xmm6, xmm6, 0
+    mulps xmm6, xmm0
+    addps xmm3, xmm4
+    movss xmm7, DWORD PTR [edx + 0x10]
+    movss xmm4, DWORD PTR [edx + 0x1c]
+    shufps xmm7, xmm7, 0
+    addps xmm3, xmm5
+    mulps xmm7, xmm1
+    shufps xmm4, xmm4, 0
+    movss xmm5, DWORD PTR [edx + 0x14]
+    shufps xmm5, xmm5, 0
+    mulps xmm4, xmm1
+    mulps xmm5, xmm2
+    addps xmm6, xmm7
+    movss xmm7, DWORD PTR [edx + 0x18]
+    movss DWORD PTR [eax], xmm3
+    movhps QWORD PTR [eax + 4], xmm3
+    addps xmm6, xmm5
+    shufps xmm7, xmm7, 0
+    movss xmm5, DWORD PTR [edx + 0x20]
+    mulps xmm7, xmm0
+    shufps xmm5, xmm5, 0
+    movss DWORD PTR [eax + 0xc], xmm6
+    mulps xmm5, xmm2
+    addps xmm7, xmm4
+    movhps QWORD PTR [eax + 0x10], xmm6
+    addps xmm7, xmm5
+    shufps xmm7, xmm7, 0x8f
+    movhps QWORD PTR [eax + 0x18], xmm7
+    movss DWORD PTR [eax + 0x20], xmm7
 
-  /* XMM0: MOVSS a[1] → lane0; MOVHPS a[2],a[3] → lanes 2,3 */
-  row0 = _mm_load_ss(&a_rows[0]);
-  row0 = _mm_loadh_pi(row0, (const __m64 *)&a_rows[1]);
-  /* row0 = [a[1], 0, a[2], a[3]] */
+    movss xmm3, DWORD PTR [edx + 0x24]
+    movss xmm4, DWORD PTR [edx + 0x28]
+    movss xmm5, DWORD PTR [edx + 0x2c]
+    shufps xmm3, xmm3, 0
+    shufps xmm4, xmm4, 0
+    shufps xmm5, xmm5, 0
+    mulps xmm3, xmm0
+    mulps xmm4, xmm1
+    mulps xmm5, xmm2
+    movss xmm6, DWORD PTR [ecx + 0x24]
+    addps xmm3, xmm4
+    movhps xmm6, QWORD PTR [ecx + 0x28]
+    addps xmm3, xmm5
+    mov ecx, a
+    movss xmm5, DWORD PTR [ecx]
+    shufps xmm5, xmm5, 0
+    mulps xmm3, xmm5
+    addps xmm3, xmm6
+    movss DWORD PTR [eax + 0x24], xmm3
+    movhps QWORD PTR [eax + 0x28], xmm3
+  }
+#else
+  __m128 r0, r1, r2;
+  __m128 o0, o1, o2, t;
 
-  /* XMM1: MOVSS a[4] → lane0; MOVHPS a[5],a[6] → lanes 2,3 */
-  row1 = _mm_load_ss(&a_rows[3]);
-  row1 = _mm_loadh_pi(row1, (const __m64 *)&a_rows[4]);
-  /* row1 = [a[4], 0, a[5], a[6]] */
+  r2 = _mm_load_ss(&a_rot[8]);
+  r2 = _mm_loadh_pi(r2, (const __m64 *)&a_rot[6]);
+  r2 = _mm_shuffle_ps(r2, r2, 0x36);
 
-  /* XMM2: MOVSS a[9] → lane0; MOVHPS a[7],a[8] → lanes 2,3; then SHUFPS 0x36.
-   * SHUFPS 0x36 = 0b00_11_01_10: result[0]=src[2], result[1]=src[1],
-   *                               result[2]=src[3], result[3]=src[0].
-   * Before shuffle: [a[9], 0, a[7], a[8]].
-   * After  shuffle: [a[7], 0, a[8], a[9]]  (matches row0/row1 layout). */
-  row2 = _mm_load_ss(&a_rows[8]);
-  row2 = _mm_loadh_pi(row2, (const __m64 *)&a_rows[6]);
-  row2 = _mm_shuffle_ps(row2, row2, 0x36);
-  /* row2 = [a[7], 0, a[8], a[9]] */
+  r0 = _mm_load_ss(&a_rot[0]);
+  r0 = _mm_loadh_pi(r0, (const __m64 *)&a_rot[1]);
 
-  /* Compute output row 0: b[1]*row0 + b[2]*row1 + b[3]*row2.
-   * Each b scalar is broadcast to all 4 lanes via SHUFPS imm=0. */
-  xmm3 = _mm_shuffle_ps(_mm_load_ss(&b_rows[0]), _mm_load_ss(&b_rows[0]), 0);
-  xmm4 = _mm_shuffle_ps(_mm_load_ss(&b_rows[1]), _mm_load_ss(&b_rows[1]), 0);
-  xmm5 = _mm_shuffle_ps(_mm_load_ss(&b_rows[2]), _mm_load_ss(&b_rows[2]), 0);
-  xmm3 = _mm_mul_ps(xmm3, row0); /* b[1]*row0 */
-  xmm4 = _mm_mul_ps(xmm4, row1); /* b[2]*row1 */
-  xmm5 = _mm_mul_ps(xmm5, row2); /* b[3]*row2 */
-  xmm3 = _mm_add_ps(xmm3, xmm4);
-  xmm3 = _mm_add_ps(xmm3, xmm5);
-  /* xmm3 = out_row0 = [out[1], 0, out[2], out[3]] */
+  r1 = _mm_load_ss(&a_rot[3]);
+  r1 = _mm_loadh_pi(r1, (const __m64 *)&a_rot[4]);
 
-  /* Store output row 0: MOVSS → out[1]; MOVHPS → out[2],out[3]. */
-  _mm_store_ss(&out_rows[0], xmm3);
-  _mm_storeh_pi((__m64 *)&out_rows[1], xmm3);
+  o0 = _mm_add_ps(
+    _mm_add_ps(
+      _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[0]), _mm_load_ss(&b_rot[0]), 0), r0),
+      _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[1]), _mm_load_ss(&b_rot[1]), 0), r1)),
+    _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[2]), _mm_load_ss(&b_rot[2]), 0), r2));
 
-  /* Compute output row 1: b[4]*row0 + b[5]*row1 + b[6]*row2. */
-  xmm6 = _mm_shuffle_ps(_mm_load_ss(&b_rows[3]), _mm_load_ss(&b_rows[3]), 0);
-  xmm7 = _mm_shuffle_ps(_mm_load_ss(&b_rows[4]), _mm_load_ss(&b_rows[4]), 0);
-  xmm5 = _mm_shuffle_ps(_mm_load_ss(&b_rows[5]), _mm_load_ss(&b_rows[5]), 0);
-  xmm6 = _mm_mul_ps(xmm6, row0); /* b[4]*row0 */
-  xmm7 = _mm_mul_ps(xmm7, row1); /* b[5]*row1 */
-  xmm5 = _mm_mul_ps(xmm5, row2); /* b[6]*row2 */
-  xmm6 = _mm_add_ps(xmm6, xmm7);
-  xmm6 = _mm_add_ps(xmm6, xmm5);
-  /* xmm6 = out_row1 = [out[4], 0, out[5], out[6]] */
+  o1 = _mm_add_ps(
+    _mm_add_ps(
+      _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[3]), _mm_load_ss(&b_rot[3]), 0), r0),
+      _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[4]), _mm_load_ss(&b_rot[4]), 0), r1)),
+    _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[5]), _mm_load_ss(&b_rot[5]), 0), r2));
 
-  /* Compute output row 2: b[7]*row0 + b[8]*row1 + b[9]*row2. */
-  xmm7 = _mm_shuffle_ps(_mm_load_ss(&b_rows[6]), _mm_load_ss(&b_rows[6]), 0);
-  xmm4 = _mm_shuffle_ps(_mm_load_ss(&b_rows[7]), _mm_load_ss(&b_rows[7]), 0);
-  xmm5 = _mm_shuffle_ps(_mm_load_ss(&b_rows[8]), _mm_load_ss(&b_rows[8]), 0);
-  xmm7 = _mm_mul_ps(xmm7, row0); /* b[7]*row0 */
-  xmm4 = _mm_mul_ps(xmm4, row1); /* b[8]*row1 */
-  xmm5 = _mm_mul_ps(xmm5, row2); /* b[9]*row2 */
-  xmm7 = _mm_add_ps(xmm7, xmm4);
-  xmm7 = _mm_add_ps(xmm7, xmm5);
-  /* xmm7 = out_row2 = [out[7], 0, out[8], out[9]] before shuffle */
+  o2 = _mm_add_ps(
+    _mm_add_ps(
+      _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[6]), _mm_load_ss(&b_rot[6]), 0), r0),
+      _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[7]), _mm_load_ss(&b_rot[7]), 0), r1)),
+    _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[8]), _mm_load_ss(&b_rot[8]), 0), r2));
 
-  /* Store output row 1: MOVSS → out[4]; MOVHPS → out[5],out[6]. */
-  _mm_store_ss(&out_rows[3], xmm6);
-  _mm_storeh_pi((__m64 *)&out_rows[4], xmm6);
+  _mm_store_ss(&out_rot[0], o0);
+  _mm_storeh_pi((__m64 *)&out_rot[1], o0);
 
-  /* SHUFPS 0x8f reorders row2 result for MOVHPS/MOVSS output layout.
-   * 0x8f = 0b10_00_11_11: result[0]=src[3], result[1]=src[3], result[2]=src[0],
-   * result[3]=src[2]. Before: [out[7], 0, out[8], out[9]]. After:  [out[9],
-   * out[9], out[7], out[8]]. MOVHPS stores lanes [2,3] → out[7],out[8]; MOVSS
-   * stores lane [0] → out[9]. */
-  xmm7 = _mm_shuffle_ps(xmm7, xmm7, 0x8f);
+  _mm_store_ss(&out_rot[3], o1);
+  _mm_storeh_pi((__m64 *)&out_rot[4], o1);
 
-  /* Store output row 2: MOVHPS → out[7],out[8]; MOVSS → out[9]. */
-  _mm_storeh_pi((__m64 *)&out_rows[6], xmm7);
-  _mm_store_ss(&out_rows[8], xmm7);
+  o2 = _mm_shuffle_ps(o2, o2, 0x8f);
+  _mm_storeh_pi((__m64 *)&out_rot[6], o2);
+  _mm_store_ss(&out_rot[8], o2);
 
-  /* Translation row: (b_translation * a_rotation) * a_scale + a_translation.
-   * b[10..12] each broadcast and multiplied against the 3 rotation rows. */
-  t3 = _mm_shuffle_ps(_mm_load_ss(&b[10]), _mm_load_ss(&b[10]), 0);
-  t4 = _mm_shuffle_ps(_mm_load_ss(&b[11]), _mm_load_ss(&b[11]), 0);
-  t5 = _mm_shuffle_ps(_mm_load_ss(&b[12]), _mm_load_ss(&b[12]), 0);
-  t3 = _mm_mul_ps(t3, row0); /* b[10]*row0 */
-  t4 = _mm_mul_ps(t4, row1); /* b[11]*row1 */
-  t5 = _mm_mul_ps(t5, row2); /* b[12]*row2 */
-  t3 = _mm_add_ps(t3, t4);
-  t3 = _mm_add_ps(t3, t5);
-  /* t3 = b_trans * a_rot = [tx, 0, ty, tz] */
+  t = _mm_add_ps(
+    _mm_add_ps(
+      _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[9]), _mm_load_ss(&b_rot[9]), 0), r0),
+      _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[10]), _mm_load_ss(&b_rot[10]), 0), r1)),
+    _mm_mul_ps(_mm_shuffle_ps(_mm_load_ss(&b_rot[11]), _mm_load_ss(&b_rot[11]), 0), r2));
 
-  /* Load a_translation via MOVSS+MOVHPS pattern. */
-  a_trans = _mm_load_ss(&a[10]);
-  a_trans = _mm_loadh_pi(a_trans, (const __m64 *)&a[11]);
-  /* a_trans = [a[10], 0, a[11], a[12]] */
+  t = _mm_add_ps(
+    _mm_mul_ps(t, _mm_shuffle_ps(_mm_load_ss(&a[0]), _mm_load_ss(&a[0]), 0)),
+    _mm_loadh_pi(_mm_load_ss(&a_rot[9]), (const __m64 *)&a_rot[10]));
 
-  /* Broadcast a_scale, multiply into t3, then add a_translation. */
-  scale_v = _mm_shuffle_ps(_mm_load_ss(&a[0]), _mm_load_ss(&a[0]), 0);
-  t3 = _mm_mul_ps(t3, scale_v);
-  t3 = _mm_add_ps(t3, a_trans);
-  /* t3 = [out[10], 0, out[11], out[12]] */
+  _mm_store_ss(&out_rot[9], t);
+  _mm_storeh_pi((__m64 *)&out_rot[10], t);
+#endif
 
-  /* Store translation: MOVSS → out[10]; MOVHPS → out[11],out[12]. */
-  _mm_store_ss(&out[10], t3);
-  _mm_storeh_pi((__m64 *)&out[11], t3);
-
-  /* Scale: out[0] = a[0] * b[0] via x87 FLD/FMUL/FSTP (matches original). */
   out[0] = a[0] * b[0];
 }
 
@@ -1018,30 +1024,18 @@ void FUN_00109e90(float *out, float yaw, float pitch, float roll)
  * 1/cos divisions are kept explicit to preserve the original codegen. */
 void FUN_00109f40(float *matrix, float *euler)
 {
-  float pitch;
-  float cos_pitch;
-  float inv_neg; /* -1.0 / cos_pitch  (FLD [0x255e94] / cos) */
-  float inv_pos; /*  1.0 / cos_pitch  (FLD [0x2533c8] / cos) */
+  float cosine_pitch;
 
-  pitch = -(float)asin((double)matrix[7]);
-  euler[1] = pitch;
-  cos_pitch = x87_fcos(pitch);
+  euler[1] = -(float)asin(matrix[7]);
+  cosine_pitch = x87_fcos(euler[1]);
 
-  /* CORRECTNESS: 0x28c728 is a *double* (0.0001) -- the reference compares it
-   * with `fcompl` (FCOM m64).  Reading it as a float yields -1.889e+26, which
-   * made the gimbal-lock guard always take the normal branch.  Operand order
-   * follows the reference (ST0 = cos_pitch, memory operand = the epsilon:
-   * `testb $0x41,%ah / jne` = the `!(x > b)` fail-branch). */
-  if (cos_pitch > *(double *)0x28c728) {
-    inv_neg = *(float *)0x255e94 / cos_pitch;
-    inv_pos = *(float *)0x2533c8 / cos_pitch;
-    euler[2] = x87_fatan2f(inv_neg * matrix[8], inv_pos * matrix[9]);
-    euler[0] = x87_fatan2f(inv_neg * matrix[4], inv_pos * matrix[1]);
-    return;
+  if (cosine_pitch > 0.0001) {
+    euler[2] = x87_fatan2f(-matrix[8] / cosine_pitch, matrix[9] / cosine_pitch);
+    euler[0] = x87_fatan2f(-matrix[4] / cosine_pitch, matrix[1] / cosine_pitch);
+  } else {
+    euler[2] = 0.0f;
+    euler[0] = x87_fatan2f(matrix[2], matrix[5]);
   }
-
-  euler[2] = 0.0f;
-  euler[0] = x87_fatan2f(matrix[2], matrix[5]);
 }
 
 /* Convert a 4x3 matrix rotation part to a unit quaternion (Shepperd's method).
@@ -1753,7 +1747,7 @@ bool fast_vector_intersects_sphere(float *line_start, float *line_end,
 }
 
 /* 0x10bd70 — Point-in-rectangle test (2D, fully inclusive). */
-int FUN_0010bd70(float *point, float *rect)
+int point_in_rectangle2d(float *point, float *rect)
 {
   if (rect[0] <= point[0] && point[0] <= rect[1] && rect[2] <= point[1] &&
       point[1] <= rect[3]) {
@@ -1763,7 +1757,7 @@ int FUN_0010bd70(float *point, float *rect)
 }
 
 /* 0x10bdc0 — Point-in-3D-box test (inclusive on both ends). */
-int FUN_0010bdc0(float *point, float *box)
+int point_in_rectangle3d(float *point, float *box)
 {
   if (box[0] <= point[0] && point[0] <= box[1] && box[2] <= point[1] &&
       point[1] <= box[3] && box[4] <= point[2] && point[2] <= box[5]) {
@@ -1775,7 +1769,7 @@ int FUN_0010bdc0(float *point, float *box)
 /* 0x10be20 — 2D ray vs AABB intersection (slab method).
  * ray_origin=p1, ray_dir=p2, aabb=p3 (xmin,xmax,ymin,ymax).
  * Returns 1 if ray intersects with t in [0,1]. */
-char FUN_0010be20(float *ray_origin, float *ray_dir, float *aabb)
+char vector_intersects_rectangle2d(float *ray_origin, float *ray_dir, float *aabb)
 {
   float tmin = -3.4028235e+38f;
   float tmax = 3.4028235e+38f;
@@ -1971,7 +1965,7 @@ float angle_between_normals3d(float *a, float *b)
 
 /* 0x10c690 — Update v1 = scale1 * cross(axis, v1) + scale2 * v1.
  * Uses temporaries for aliasing safety. */
-void FUN_0010c690(float *v1, float *axis, float scale1, float scale2)
+void yaw_vectors(float *v1, float *axis, float scale1, float scale2)
 {
   float cross0;
   float cross1;
@@ -2029,7 +2023,7 @@ void sphere_intersects_rectangle3d(float *quaternion)
 
 /* 0x10cab0 — Build a quaternion from an axis and angle.
  * out = (axis * sin(angle/2), cos(angle/2)). */
-void FUN_0010cab0(float *out, float angle, float *axis)
+void quaternion_from_angle_and_vector(float *out, float angle, float *axis)
 {
   float h;
   float s;
@@ -2144,7 +2138,7 @@ void vector3d_from_angle(float *out, float angle)
 
 /* 0x10cc90 — Test if a 2D circle intersects a line segment.
  * p1=point, p2=line start, p3=line direction, r=radius². */
-int FUN_0010cc90(float *p1, float *p2, float *p3, float r)
+int point_in_pill2d(float *p1, float *p2, float *p3, float r)
 {
   float d0 = p1[0] - p2[0];
   float d1 = p1[1] - p2[1];
@@ -2172,7 +2166,7 @@ int FUN_0010cc90(float *p1, float *p2, float *p3, float r)
 /* 0x10cd40 — Squared distance from a 3D point to a line segment.
  * p1=point, p2=segment start, p3=segment direction.
  * Returns dot(closest - point, closest - point). */
-float FUN_0010cd40(float *p1, float *p2, float *p3)
+float point_to_line_distance_squared3d(float *p1, float *p2, float *p3)
 {
   volatile float t_unclamped = ((p1[2] - p2[2]) * p3[2] + (p1[1] - p2[1]) * p3[1] +
                        (p1[0] - p2[0]) * p3[0]) /
@@ -2201,7 +2195,7 @@ float FUN_0010cd40(float *p1, float *p2, float *p3)
  *     via projection + clamp-midpoint, then fall through to the distance.
  *   Non-parallel: scalar-triple-product params s,t; if either is out of [0,1]
  *     the closest approach is at an endpoint -> clamp it onto its line and take
- *     the min of point-vs-segment squared distances via FUN_0010cd40 (asserting
+ *     the min of point-vs-segment squared distances via point_to_line_distance_squared3d (asserting
  *     at least one is finite); else both in [0,1] (asserted) -> fall through.
  * Constants: 0x2533c0=0.0f, 0x2533c8=1.0f, 0x253398=0.5f, 0x253f44=len eps,
  * 0x2533d0=double parallel eps, 0x2548fc=REAL_MAX (FLT_MAX). */
@@ -2255,7 +2249,7 @@ float vector_to_line_distance_squared3d(float *p1, float *p2, float *p3,
         closest_a[0] = clamped_s * p2[0] + p1[0];
         closest_a[1] = clamped_s * p2[1] + p1[1];
         closest_a[2] = clamped_s * p2[2] + p1[2];
-        d0 = FUN_0010cd40(closest_a, p3, p4);
+        d0 = point_to_line_distance_squared3d(closest_a, p3, p4);
       }
       if (t_oob) {
         clamped_t =
@@ -2264,8 +2258,8 @@ float vector_to_line_distance_squared3d(float *p1, float *p2, float *p3,
         closest_b[1] = clamped_t * p4[1] + p3[1];
         closest_b[2] = clamped_t * p4[2] + p3[2];
         /* 2nd arg is start_a (p1): decompile shows extraout_EDX, but
-         * FUN_0010cd40 preserves EDX which still holds p1 from entry. */
-        d1 = FUN_0010cd40(closest_b, p1, p2);
+         * point_to_line_distance_squared3d preserves EDX which still holds p1 from entry. */
+        d1 = point_to_line_distance_squared3d(closest_b, p1, p2);
       }
       if (!(d0 < *(float *)0x2548fc) && !(d1 < *(float *)0x2548fc)) {
         display_assert("(d0 < REAL_MAX) || (d1 < REAL_MAX)",
@@ -2342,7 +2336,7 @@ float vector_to_line_distance_squared3d(float *p1, float *p2, float *p3,
 /* 0x10d380 — Ray-sphere intersection.
  * p1=ray_origin, p2=sphere_radius, p3=sphere_center, p4=ray_direction.
  * Returns 1 if intersect, sets *out_t and *out_normal. */
-__declspec(noinline) char FUN_0010d380(float *p1, float p2, float *p3,
+__declspec(noinline) char sphere_test_vector3d(float *p1, float p2, float *p3,
                                        float *p4, float *out_t,
                                        float *out_normal)
 {
@@ -2385,7 +2379,7 @@ __declspec(noinline) char FUN_0010d380(float *p1, float p2, float *p3,
 /* 0x10d4c0 — Ray vs cylinder intersection (cylinder along z-axis).
  * p1=ray_origin, p2=cylinder_height, p3=cylinder_radius, p4=cylinder_center,
  * p5=ray_direction, p6=out_t, p7=out_normal. */
-char FUN_0010d4c0(float *p1, float p2, float p3, float *p4, float *p5,
+char pill_test_vector3d(float *p1, float p2, float p3, float *p4, float *p5,
                   float *p6, float *p7)
 {
   float local_origin[3];
@@ -2424,7 +2418,7 @@ char FUN_0010d4c0(float *p1, float p2, float p3, float *p4, float *p5,
    *   `flds bp ; fcomps 0.0f ; testb $0x5,%ah ; jp` = fail-branch of `bp < 0.0f`
    *   `fcomps 0.0f ; testb $0x41,%ah ; jne` = fail-branch of `dot > 0.0f` */
   if (c2 < 0.0f) {
-    hit = FUN_0010d380(p1, p3, p4, p5, p6, p7);
+    hit = sphere_test_vector3d(p1, p3, p4, p5, p6, p7);
   } else if (!(c2 > 1.0f)) {
     if (!(bp < 0.0f))
       return 0;
@@ -2438,7 +2432,7 @@ char FUN_0010d4c0(float *p1, float p2, float p3, float *p4, float *p5,
     local_origin[0] = p1[0];
     local_origin[1] = p1[1];
     local_origin[2] = p2 + p1[2];
-    hit = FUN_0010d380(local_origin, p3, p4, p5, p6, p7);
+    hit = sphere_test_vector3d(local_origin, p3, p4, p5, p6, p7);
   }
   if (hit == 0)
     return 0;
@@ -2452,7 +2446,7 @@ check:
 /* 0x10d680 — Ray vs sphere distance.
  * Returns t along ray where ray hits sphere, or REAL_MAX if no hit.
  * Returns 0 if ray origin is inside sphere. */
-float FUN_0010d680(float *ray_origin, float *ray_dir, float *sphere_center,
+float fast_vector_intersection_with_sphere(float *ray_origin, float *ray_dir, float *sphere_center,
                    float radius)
 {
   float dx = ray_origin[0] - sphere_center[0];
@@ -2501,7 +2495,7 @@ float FUN_0010d680(float *ray_origin, float *ray_dir, float *sphere_center,
  * Tests if point p1 is inside triangle (p2, p3, p4) and computes
  * barycentric coords. Returns 1 if inside, 0 if outside.
  * Returns char to match MSVC's MOV AL,0x1 (preserves upper EAX bytes). */
-char FUN_0010d770(float *p1, float *p2, float *p3, float *p4, float *out_u,
+char point_in_triangle2d(float *p1, float *p2, float *p3, float *p4, float *out_u,
                   float *out_v)
 {
   float e0 = p3[0] - p2[0];
@@ -2530,7 +2524,7 @@ char FUN_0010d770(float *p1, float *p2, float *p3, float *p4, float *out_u,
 
 /* 0x10d830 — 3D triangle barycentric coordinates: project to dominant
  * axis and compute barycentric (u,v). p1=point, p2,p3,p4=triangle vertices. */
-char FUN_0010d830(float *p1, float *p2, float *p3, float *p4, float *out_u,
+char point_in_triangle3d(float *p1, float *p2, float *p3, float *p4, float *out_u,
                   float *out_v)
 {
   float v3[3], v1[3], v2[3];
@@ -2583,7 +2577,7 @@ char FUN_0010d830(float *p1, float *p2, float *p3, float *p4, float *out_u,
 /* 0x10d9e0 — 2D point in cone test.
  * Returns 1 if point in 2D cone (apex=p2, axis=p3, max length=cone_radius,
  * half-angle whose cos=cosine). */
-char FUN_0010d9e0(float *p1, float *p2, float *p3, float cone_radius,
+char point_in_cone2d(float *p1, float *p2, float *p3, float cone_radius,
                   float cosine)
 {
   float dx, dy;
@@ -2615,7 +2609,7 @@ char FUN_0010d9e0(float *p1, float *p2, float *p3, float cone_radius,
 /* 0x10da90 — 3D cone vs sphere test.
  * Tests if sphere(center=p1, radius=cone_radius*cosine) is intersected
  * by the cone with apex=p2, axis=p3, half-angle whose cos=cosine. */
-char FUN_0010da90(float *p1, float *p2, float *p3, float cone_radius,
+char point_in_cone3d(float *p1, float *p2, float *p3, float cone_radius,
                   float cosine)
 {
   float dx, dy, dz;
@@ -2642,14 +2636,14 @@ char FUN_0010da90(float *p1, float *p2, float *p3, float cone_radius,
   dist_sq = (dz * dz + dx * dx + dy * dy) * cosine * cosine;
   /* ref fcompp has dist_sq in ST0: return 0 when dist_sq > rsq (or NaN) —
    * i.e. inside requires rsq >= dist_sq. The old !(rsq <= dist_sq) form was
-   * INVERTED (same bug family as FUN_0010db50/dbf0/d9e0). */
+   * INVERTED (same bug family as point_in_sector2d/dbf0/d9e0). */
   if (rsq >= dist_sq)
     return 1;
   return 0;
 }
 
 /* 0x10db50 — 2D cone vs circle test. */
-__declspec(noinline) char FUN_0010db50(float *p1, float *p2, float *p3,
+__declspec(noinline) char point_in_sector2d(float *p1, float *p2, float *p3,
                                        float cone_radius, float cosine)
 {
   float dx, dy;
@@ -2678,7 +2672,7 @@ __declspec(noinline) char FUN_0010db50(float *p1, float *p2, float *p3,
 }
 
 /* 0x10dbf0 — 3D cone vs sphere test (variant). */
-__declspec(noinline) char FUN_0010dbf0(float *p1, float *p2, float *p3,
+__declspec(noinline) char point_in_sector3d(float *p1, float *p2, float *p3,
                                        float cone_radius, float cosine)
 {
   float dx, dy, dz;
@@ -2715,7 +2709,7 @@ __declspec(noinline) char FUN_0010dbf0(float *p1, float *p2, float *p3,
  *     projection + clamp-midpoint, then one distance check.
  *   Non-parallel case: 2D line-intersection params s,t; if both in [0,1] the
  *     segments cross; otherwise clamp the out-of-range endpoint onto its line
- *     and delegate to FUN_0010cc90 (point vs segment within radius).
+ *     and delegate to point_in_pill2d (point vs segment within radius).
  * Constants: 0x2533c0=0.0f, 0x2533c8=1.0f, 0x253398=0.5f, 0x253f44=len epsilon,
  * 0x2533d0=double cross-parallel epsilon. */
 char vector_intersects_pill2d(float *line_start, float *line_dir,
@@ -2774,9 +2768,9 @@ char vector_intersects_pill2d(float *line_start, float *line_dir,
 
   point_segment_checks:
     if ((!s_oob ||
-         FUN_0010cc90(&closest_a_x, pill_center, pill_dir, pill_radius) == 0) &&
+         point_in_pill2d(&closest_a_x, pill_center, pill_dir, pill_radius) == 0) &&
         (!t_oob ||
-         FUN_0010cc90(&closest_b_x, line_start, line_dir, pill_radius) == 0))
+         point_in_pill2d(&closest_b_x, line_start, line_dir, pill_radius) == 0))
       return 0;
     return 1;
   }
@@ -3015,7 +3009,7 @@ distance_check:
  * dir   : 2-element direction array [x,y]
  * v0,v1,v2 : triangle vertices, each 2-element [x,y]
  * Returns 1 if intersection, 0 otherwise. */
-char FUN_0010e4d0(float *point, float *dir, float *v0, float *v1, float *v2)
+char vector_intersects_triangle2d(float *point, float *dir, float *v0, float *v1, float *v2)
 {
   float tmin, tmax;
   volatile float e_x;
@@ -3107,7 +3101,7 @@ char FUN_0010e4d0(float *point, float *dir, float *v0, float *v1, float *v2)
 /* 0x10e6f0 — 3D ray vs triangle intersection (Möller–Trumbore-like).
  * p1=ray_origin, p2=ray_direction, p3,p4,p5=triangle vertices,
  * p6=out_t. Returns 1 if ray hits triangle. */
-char FUN_0010e6f0(float *p1, float *p2, float *p3, float *p4, float *p5,
+char vector_intersects_triangle3d(float *p1, float *p2, float *p3, float *p4, float *p5,
                   float *p6)
 {
   float e1[3], e2[3];
@@ -3162,7 +3156,7 @@ char FUN_0010e6f0(float *p1, float *p2, float *p3, float *p4, float *p5,
 
 /* 0x10e8a0 — 2D point-to-rectangle distance test.
  * Returns 1 if point is within radius of rectangle. */
-char FUN_0010e8a0(float *point, float radius, float *rect)
+char circle_intersects_rectangle2d(float *point, float radius, float *rect)
 {
   float dx, dy;
 
@@ -3220,9 +3214,9 @@ char FUN_0010e930(float *point, float radius, float *aabb)
 }
 
 /* 0x10e9f0 — 2D triangle vs circle test. Tests the 3 edges (cw winding)
- * with FUN_0010cc90 (point-segment intersect). Returns 1 if any edge or
+ * with point_in_pill2d (point-segment intersect). Returns 1 if any edge or
  * point intersects. */
-char FUN_0010e9f0(float *circle_center, float radius, float *p3, float *p4,
+char circle_intersects_triangle2d(float *circle_center, float radius, float *p3, float *p4,
                   float *p5)
 {
   float seg[2];
@@ -3232,7 +3226,7 @@ char FUN_0010e9f0(float *circle_center, float radius, float *p3, float *p4,
   seg[1] = p4[1] - p3[1];
   if (0.0f < seg[1] * (circle_center[0] - p3[0]) -
                seg[0] * (circle_center[1] - p3[1])) {
-    if ((char)FUN_0010cc90(circle_center, p3, seg, radius)) {
+    if ((char)point_in_pill2d(circle_center, p3, seg, radius)) {
       return 1;
     }
     result = 0;
@@ -3242,7 +3236,7 @@ char FUN_0010e9f0(float *circle_center, float radius, float *p3, float *p4,
   if (seg[1] * (circle_center[0] - p4[0]) -
         seg[0] * (circle_center[1] - p4[1]) <
       0.0f) {
-    if ((char)FUN_0010cc90(circle_center, p4, seg, radius)) {
+    if ((char)point_in_pill2d(circle_center, p4, seg, radius)) {
       return 1;
     }
     result = 0;
@@ -3251,7 +3245,7 @@ char FUN_0010e9f0(float *circle_center, float radius, float *p3, float *p4,
   seg[1] = p3[1] - p5[1];
   if (0.0f < seg[1] * (circle_center[0] - p5[0]) -
                seg[0] * (circle_center[1] - p5[1])) {
-    if ((char)FUN_0010cc90(circle_center, p5, seg, radius)) {
+    if ((char)point_in_pill2d(circle_center, p5, seg, radius)) {
       return 1;
     }
     result = 0;
@@ -3430,123 +3424,149 @@ int pill_intersects_triangle3d(float *pill_start, float *pill_dir,
                                float pill_radius, float *v0, float *v1,
                                float *v2)
 {
-  float e01[3], e12[3], n[3];
-  float e20[3], cp[3];
+  float edge01[3], edge12[3], edge20[3];
+  float normal[3];
+  float offset[3];
+  float cross[3];
   float proj[3];
-  float t, closest_x, closest_y;
-  volatile char outside;
+  float t;
+  float closest_t;
+  float plane_distance;
+  char outside;
 
-  e01[0] = v1[0] - v0[0];
+  edge01[0] = v1[0] - v0[0];
+  edge01[1] = v1[1] - v0[1];
+  edge01[2] = v1[2] - v0[2];
   outside = 0;
-  e01[1] = v1[1] - v0[1];
-  e01[2] = v1[2] - v0[2];
-  e12[0] = v2[0] - v1[0];
-  e12[1] = v2[1] - v1[1];
-  e12[2] = v2[2] - v1[2];
 
-  n[0] = e12[2] * e01[1] - e12[1] * e01[2];
-  n[1] = e01[2] * e12[0] - e12[2] * e01[0];
-  n[2] = e12[1] * e01[0] - e01[1] * e12[0];
+  edge12[0] = v2[0] - v1[0];
+  edge12[1] = v2[1] - v1[1];
+  edge12[2] = v2[2] - v1[2];
 
-  t = (n[0] * (v0[0] - pill_start[0]) + n[1] * (v0[1] - pill_start[1]) +
-       n[2] * (v0[2] - pill_start[2])) /
-      (n[1] * pill_dir[1] + n[2] * pill_dir[2] + n[0] * pill_dir[0]);
+  offset[0] = v0[0] - pill_start[0];
+  offset[1] = v0[1] - pill_start[1];
+  offset[2] = v0[2] - pill_start[2];
 
-  if (t < 0.0f) {
-    closest_x = 0.0f;
-  } else if (t > 1.0f) {
-    closest_x = 1.0f;
-  } else {
-    closest_x = t;
+  normal[0] = edge01[1] * edge12[2] - edge01[2] * edge12[1];
+  normal[1] = edge01[2] * edge12[0] - edge01[0] * edge12[2];
+  normal[2] = edge01[0] * edge12[1] - edge01[1] * edge12[0];
+
+  t = (normal[0] * offset[0] + normal[1] * offset[1] + normal[2] * offset[2]) /
+      (normal[0] * pill_dir[0] + normal[1] * pill_dir[1] + normal[2] * pill_dir[2]);
+
+  if (t < 0.0f)
+    closest_t = 0.0f;
+  else if (t > 1.0f)
+    closest_t = 1.0f;
+  else
+    closest_t = t;
+
+  proj[0] = closest_t * pill_dir[0] + pill_start[0];
+  proj[1] = closest_t * pill_dir[1] + pill_start[1];
+  proj[2] = closest_t * pill_dir[2] + pill_start[2];
+
+  offset[0] = proj[0] - v0[0];
+  offset[1] = proj[1] - v0[1];
+  offset[2] = proj[2] - v0[2];
+
+  cross[0] = edge01[1] * offset[2] - edge01[2] * offset[1];
+  cross[1] = edge01[2] * offset[0] - edge01[0] * offset[2];
+  cross[2] = edge01[0] * offset[1] - edge01[1] * offset[0];
+
+  if (cross[0] * normal[0] + cross[1] * normal[1] + cross[2] * normal[2] < 0.0f) {
+    if (vector_intersects_pill3d(v0, edge01, pill_start, pill_dir, pill_radius)) {
+return_true:
+      return 1;
+    }
+    outside = 1;
   }
-  proj[0] = closest_x * pill_dir[0] + pill_start[0];
-  proj[1] = closest_x * pill_dir[1] + pill_start[1];
-  proj[2] = closest_x * pill_dir[2] + pill_start[2];
 
-  if ((e01[1] * (proj[2] - v0[2]) - (proj[1] - v0[1]) * e01[2]) * n[0] +
-        (e01[2] * (proj[0] - v0[0]) - (proj[2] - v0[2]) * e01[0]) * n[1] +
-        n[2] * ((proj[1] - v0[1]) * e01[0] - (proj[0] - v0[0]) * e01[1]) <
-      0.0f) {
-    if (vector_intersects_pill3d(v0, e01, pill_start, pill_dir, pill_radius))
+  offset[0] = proj[0] - v1[0];
+  offset[1] = proj[1] - v1[1];
+  offset[2] = proj[2] - v1[2];
+
+  cross[0] = edge12[1] * offset[2] - edge12[2] * offset[1];
+  cross[1] = edge12[2] * offset[0] - edge12[0] * offset[2];
+  cross[2] = edge12[0] * offset[1] - edge12[1] * offset[0];
+
+  if (cross[0] * normal[0] + cross[1] * normal[1] + cross[2] * normal[2] < 0.0f) {
+    if (vector_intersects_pill3d(v1, edge12, pill_start, pill_dir, pill_radius))
       return 1;
     outside = 1;
   }
 
-  if (outside == 0) {
-    if ((e12[1] * (proj[2] - v1[2]) - (proj[1] - v1[1]) * e12[2]) * n[0] +
-          (e12[2] * (proj[0] - v1[0]) - (proj[2] - v1[2]) * e12[0]) * n[1] +
-          n[2] * ((proj[1] - v1[1]) * e12[0] - e12[1] * (proj[0] - v1[0])) <
-        0.0f) {
-      if (vector_intersects_pill3d(v1, e12, pill_start, pill_dir, pill_radius))
-        return 1;
-      outside = 1;
-    }
-  } else {
-    if (vector_intersects_pill3d(v1, e12, pill_start, pill_dir, pill_radius))
-      return 1;
-  }
+  edge20[0] = v0[0] - v2[0];
+  edge20[1] = v0[1] - v2[1];
+  edge20[2] = v0[2] - v2[2];
 
-  e20[0] = v0[0] - v2[0];
-  e20[1] = v0[1] - v2[1];
-  e20[2] = v0[2] - v2[2];
-  cp[0] = proj[0] - v2[0];
-  cp[1] = proj[1] - v2[1];
-  cp[2] = proj[2] - v2[2];
+  offset[0] = proj[0] - v2[0];
+  offset[1] = proj[1] - v2[1];
+  offset[2] = proj[2] - v2[2];
 
-  if ((e20[1] * cp[2] - e20[2] * cp[1]) * n[0] +
-        (e20[2] * cp[0] - e20[0] * cp[2]) * n[1] +
-        n[2] * (e20[0] * cp[1] - e20[1] * cp[0]) <
-      0.0f) {
-    if (vector_intersects_pill3d(v2, e20, pill_start, pill_dir, pill_radius))
+  cross[0] = edge20[1] * offset[2] - edge20[2] * offset[1];
+  cross[1] = edge20[2] * offset[0] - edge20[0] * offset[2];
+  cross[2] = edge20[0] * offset[1] - edge20[1] * offset[0];
+
+  if (cross[0] * normal[0] + cross[1] * normal[1] + cross[2] * normal[2] < 0.0f) {
+    if (vector_intersects_pill3d(v2, edge20, pill_start, pill_dir, pill_radius))
       return 1;
     return 0;
   }
-  if (outside != 0)
+
+  if (outside)
     return 0;
-  if (0.0f < t && t < 1.0f)
-    return 1;
-  closest_y = n[0] * cp[0] + n[1] * cp[1] + n[2] * cp[2];
-  if (closest_y * closest_y <=
-      (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]) * pill_radius * pill_radius)
-    return 1;
-  return 0;
+
+  if (t > 0.0f && t < 1.0f)
+    goto return_true;
+
+  plane_distance = normal[0] * offset[0] + normal[1] * offset[1] + normal[2] * offset[2];
+  return plane_distance * plane_distance <=
+         (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]) *
+         pill_radius * pill_radius;
 }
 
 /* 0x10f310 — Intersect three planes (homogeneous): solve for the point
  * that lies on all three planes. Returns 0 if planes are parallel/degenerate.
  */
-char FUN_0010f310(float *p1, float *p2, float *p3, float *out)
+char point_from_planes3d(float *p1, float *p2, float *p3, float *out)
 {
-  float det;
-  /* The reference keeps the plane-distance scalar and the 1/det reciprocal in
-   * stack slots (dead param homes) and re-reads them as float memory operands
-   * at each use (`fmuls 0x8(%ebp)` / `fmuls 0xc(%ebp)`); volatile reproduces
-   * that store-once / reload-per-use shape. */
-  volatile float d0;
-  volatile float inv_det;
+  float cross[3];
+  float determinant;
+  float distance;
 
-  det = (p2[2] * p1[1] - p1[2] * p2[1]) * p3[0] +
-        (p1[2] * p2[0] - p1[0] * p2[2]) * p3[1] +
-        (p1[0] * p2[1] - p2[0] * p1[1]) * p3[2];
-  /* Negated guard: the reference's `testb $0x5,%ah ; jnp` sinks the degenerate
-   * `return 0` past the solve, keeping the solve as the fallthrough.  `!(x <
-   * eps)` preserves the original's NaN path (NaN -> solve). */
-  if (!(real_math_fabs_double_from_float(det) < *(double *)0x2533d0)) {
-    d0 = p1[3];
-    out[0] = (p3[2] * p2[1] - p3[1] * p2[2]) * d0;
-    out[1] = (p2[2] * p3[0] - p3[2] * p2[0]) * d0;
-    out[2] = (p3[1] * p2[0] - p3[0] * p2[1]) * d0;
+  cross[0] = p1[1] * p2[2] - p1[2] * p2[1];
+  cross[1] = p1[2] * p2[0] - p1[0] * p2[2];
+  cross[2] = p1[0] * p2[1] - p1[1] * p2[0];
 
-    d0 = p2[3];
-    out[0] = (p1[2] * p3[1] - p3[2] * p1[1]) * d0 + out[0];
-    out[1] = (p3[2] * p1[0] - p1[2] * p3[0]) * d0 + out[1];
-    out[2] = (p3[0] * p1[1] - p3[1] * p1[0]) * d0 + out[2];
+  determinant = cross[0] * p3[0] + cross[1] * p3[1] + cross[2] * p3[2];
+  if (!(real_math_fabs_double_from_float(determinant) < *(double *)0x2533d0)) {
+    cross[0] = p2[1] * p3[2] - p2[2] * p3[1];
+    cross[1] = p2[2] * p3[0] - p2[0] * p3[2];
+    cross[2] = p2[0] * p3[1] - p2[1] * p3[0];
 
-    d0 = p3[3];
-    inv_det = 1.0f / det;
-    out[0] = ((p2[2] * p1[1] - p1[2] * p2[1]) * d0 + out[0]) * inv_det;
-    out[1] = ((p1[2] * p2[0] - p1[0] * p2[2]) * d0 + out[1]) * inv_det;
-    out[2] = ((p1[0] * p2[1] - p2[0] * p1[1]) * d0 + out[2]) * inv_det;
+    distance = p1[3];
+    out[0] = cross[0] * distance;
+    out[1] = cross[1] * distance;
+    out[2] = cross[2] * distance;
+
+    cross[0] = p3[1] * p1[2] - p3[2] * p1[1];
+    cross[1] = p3[2] * p1[0] - p3[0] * p1[2];
+    cross[2] = p3[0] * p1[1] - p3[1] * p1[0];
+
+    distance = p2[3];
+    out[0] = cross[0] * distance + out[0];
+    out[1] = cross[1] * distance + out[1];
+    out[2] = cross[2] * distance + out[2];
+
+    cross[0] = p1[1] * p2[2] - p1[2] * p2[1];
+    cross[1] = p1[2] * p2[0] - p1[0] * p2[2];
+    cross[2] = p1[0] * p2[1] - p1[1] * p2[0];
+
+    distance = p3[3];
+    determinant = 1.0f / determinant;
+    out[0] = (cross[0] * distance + out[0]) * determinant;
+    out[1] = (cross[1] * distance + out[1]) * determinant;
+    out[2] = (cross[2] * distance + out[2]) * determinant;
     return 1;
   }
   return 0;
@@ -3555,39 +3575,37 @@ char FUN_0010f310(float *p1, float *p2, float *p3, float *out)
 /* 0x10f480 — Intersect a line (described by two planes p1, p2) with a third
  * plane to get the point. param_3 receives the line-direction cross,
  * param_4 receives the cross of the input planes. */
-char FUN_0010f480(float *p1, float *p2, float *out, float *cross_out)
+char line_from_planes3d(float *p1, float *p2, float *out, float *cross_out)
 {
-  float cy, cz, z;
-  /* The reference spills det and reloads it for the fabs guard
-   * (`fstps 0x8(%ebp)` ; `flds 0x8(%ebp)` ; `fabs` ; `fcompl 0x2533d0`). */
-  volatile float det;
-  float inv_det;
-  float d;
+  float local_direction[3];
+  float determinant;
+  float inverse_determinant;
+  float distance;
 
-  z = p1[0] * p2[1] - p1[1] * p2[0];
-  cy = p2[0] * p1[2] - p1[0] * p2[2];
-  cz = p1[1] * p2[2] - p1[2] * p2[1];
-  cross_out[2] = z;
-  cross_out[0] = cz;
-  cross_out[1] = cy;
-  det = cross_out[0] * cross_out[0] + cross_out[1] * cross_out[1] + z * z;
-  /* Negated guard: the reference's `fabs ; fcompl 0x2533d0 ; testb $0x5,%ah ;
-   * jnp` sinks the degenerate `return 0` past the solve.  `!(x < eps)` keeps
-   * the original's NaN path (NaN -> solve). */
-  if (!(fabsf(det) < *(double *)0x2533d0)) {
-    d = p1[3];
-    out[0] = (z * p2[1] - cy * p2[2]) * d;
-    out[1] = (p2[2] * cross_out[0] - z * p2[0]) * d;
-    out[2] = (cy * p2[0] - cross_out[0] * p2[1]) * d;
+  cross_out[0] = p1[1] * p2[2] - p1[2] * p2[1];
+  cross_out[1] = p1[2] * p2[0] - p1[0] * p2[2];
+  cross_out[2] = p1[0] * p2[1] - p1[1] * p2[0];
 
-    d = p2[3];
-    inv_det = 1.0f / det;
-    out[0] =
-      ((cross_out[1] * p1[2] - p1[1] * cross_out[2]) * d + out[0]) * inv_det;
-    out[1] =
-      ((p1[0] * cross_out[2] - p1[2] * cross_out[0]) * d + out[1]) * inv_det;
-    out[2] =
-      ((cross_out[0] * p1[1] - cross_out[1] * p1[0]) * d + out[2]) * inv_det;
+  determinant = cross_out[0] * cross_out[0] + cross_out[1] * cross_out[1] + cross_out[2] * cross_out[2];
+  if (!(real_math_fabs_double_from_float(determinant) < *(double *)0x2533d0)) {
+    local_direction[0] = p2[1] * cross_out[2] - p2[2] * cross_out[1];
+    local_direction[1] = p2[2] * cross_out[0] - p2[0] * cross_out[2];
+    local_direction[2] = p2[0] * cross_out[1] - p2[1] * cross_out[0];
+
+    distance = p1[3];
+    out[0] = local_direction[0] * distance;
+    out[1] = local_direction[1] * distance;
+    out[2] = local_direction[2] * distance;
+
+    local_direction[0] = cross_out[1] * p1[2] - cross_out[2] * p1[1];
+    local_direction[1] = cross_out[2] * p1[0] - cross_out[0] * p1[2];
+    local_direction[2] = cross_out[0] * p1[1] - cross_out[1] * p1[0];
+
+    distance = p2[3];
+    inverse_determinant = 1.0f / determinant;
+    out[0] = (local_direction[0] * distance + out[0]) * inverse_determinant;
+    out[1] = (local_direction[1] * distance + out[1]) * inverse_determinant;
+    out[2] = (local_direction[2] * distance + out[2]) * inverse_determinant;
     return 1;
   }
   return 0;
@@ -3849,7 +3867,7 @@ void angular_accelerate_to_position(float *facing, float *target_facing,
    max_length; if it clamped (returns nonzero), advances param_1 by the clamped
    delta and returns 0 (not arrived); otherwise snaps param_1 to param_2 and
    returns 1 (arrived). */
-char FUN_0010f9b0(float *param_1, float *param_2, float max_length)
+char accelerate_to_velocity3d(float *param_1, float *param_2, float max_length)
 {
   float delta[3];
 
@@ -3884,12 +3902,12 @@ char FUN_0010f9b0(float *param_1, float *param_2, float max_length)
  * delta = target - pos; mag = |delta| (normalize3d normalizes delta in place).
  * When mag == 0 the delta is zeroed; otherwise delta is scaled by
  * sqrt(2*mag*max_length) (a braking curve that reaches the target with zero
- * residual speed).  FUN_0010f9b0 clamps the desired move (`vel`, `delta`,
+ * residual speed).  accelerate_to_velocity3d clamps the desired move (`vel`, `delta`,
  * max_length): if it reports arrival AND the original distance was already 0,
  * pos snaps to target and returns 1.  Otherwise pos += vel and returns 0.
  *
  * `delta` is a contiguous float[3] because its address is passed to both
- * normalize3d and FUN_0010f9b0 (both read v[0..2]).
+ * normalize3d and accelerate_to_velocity3d (both read v[0..2]).
  * Constant: 0x2533c0 = 0.0f. */
 char accerate_to_position3d(float *pos, float *vel, float *target, int unused,
                             float max_length)
@@ -3914,7 +3932,7 @@ char accerate_to_position3d(float *pos, float *vel, float *target, int unused,
     delta[2] = delta[2] * scale;
   }
 
-  if (FUN_0010f9b0(vel, delta, max_length) != 0) {
+  if (accelerate_to_velocity3d(vel, delta, max_length) != 0) {
     if (mag == *(float *)0x2533c0) {
       pos[0] = target[0];
       pos[1] = target[1];
@@ -4082,7 +4100,7 @@ unsigned char *quantize_real_to_byte_rectangle3d(float *bounds, int *rect,
 }
 
 /* 0x10fe80 — Validate 2D normal: x²+y² close to 1.0 and not NaN/Inf. */
-int FUN_0010fe80(float x, float y)
+int valid_real_sine_cosine(float x, float y)
 {
   float diff = (x * x + y * y) - 1.0f;
   if ((*(unsigned int *)&diff & 0x7f800000) != 0x7f800000 &&
@@ -4240,7 +4258,7 @@ char FUN_00110210(float *p1, float p2, float *p3, float *p4, float p5,
   return 0;
 }
 
-/* 0x110380 — 2D capsule vs cone test (calls FUN_0010db50 for cone test). */
+/* 0x110380 — 2D capsule vs cone test (calls point_in_sector2d for cone test). */
 char FUN_00110380(float *p1, float p2, float *p3, float *p4, float p5,
                   float sine, float cosine)
 {
@@ -4278,7 +4296,7 @@ char FUN_00110380(float *p1, float p2, float *p3, float *p4, float p5,
       neg_offset = -radius_offset;
       apex[0] = neg_offset * p4[0] + p3[0];
       apex[1] = neg_offset * p4[1] + p3[1];
-      if (FUN_0010db50(p1, apex, p4, radius_offset + p2 + p5, cosine)) {
+      if (point_in_sector2d(p1, apex, p4, radius_offset + p2 + p5, cosine)) {
         return 1;
       }
     }
@@ -4286,7 +4304,7 @@ char FUN_00110380(float *p1, float p2, float *p3, float *p4, float p5,
   return 0;
 }
 
-/* 0x1104e0 — 3D capsule vs cone test (calls FUN_0010dbf0 for cone test). */
+/* 0x1104e0 — 3D capsule vs cone test (calls point_in_sector3d for cone test). */
 char FUN_001104e0(float *p1, float p2, float *p3, float *p4, float p5,
                   float sine, float cosine)
 {
@@ -4323,7 +4341,7 @@ char FUN_001104e0(float *p1, float p2, float *p3, float *p4, float p5,
       apex[0] = neg_offset * p4[0] + p3[0];
       apex[1] = neg_offset * p4[1] + p3[1];
       apex[2] = neg_offset * p4[2] + p3[2];
-      if (FUN_0010dbf0(p1, apex, p4, radius_offset + p2 + p5, cosine)) {
+      if (point_in_sector3d(p1, apex, p4, radius_offset + p2 + p5, cosine)) {
         return 1;
       }
     }

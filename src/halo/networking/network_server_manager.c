@@ -336,7 +336,7 @@ void FUN_0012c1c0(int server, int client)
  * a type-8 message with a zero payload and broadcasts that too.  On
  * success sets server+0x4b9 (loading flag) to 1.  Always clears
  * server+0x47c and always returns true regardless of success or failure. */
-__declspec(noinline) bool FUN_0012c290(void *server)
+__declspec(noinline) bool network_game_server_start_network_game(void *server)
 {
   int data;
   void *msg;
@@ -463,8 +463,8 @@ bool network_game_server_graceful_shutdown(void *server)
 /* Check if a machine is marked as valid/active on this server (0x12c500).
  * Asserts both server and machine are non-null, then returns bit 1 of the
  * flags byte at machine+0xe (shifted right by 1, masked to a bool). */
-bool network_game_server_client_machine_is_joined_to_game(int server,
-                                                          int machine)
+__declspec(noinline) bool
+network_game_server_client_machine_is_joined_to_game(int server, int machine)
 {
   if (!server) {
     display_assert("server",
@@ -1247,7 +1247,8 @@ int network_game_server_get_connection(void *server)
 
 /* Return the connection handle from a machine struct (0x12d3b0).
  * Returns the first dword at machine+0, or 0 if machine is NULL. */
-int network_game_server_adjust_machine_settings(void *machine)
+__declspec(noinline) int
+network_game_server_adjust_machine_settings(void *machine)
 {
   if (machine != NULL)
     return *(int *)machine;
@@ -1287,8 +1288,8 @@ int network_game_server_get_machine_connection(int server, int machine)
 /* Get a pointer to the machine entry at the given index (0x12d450).
  * Asserts server is non-null and index < MAXIMUM_NETWORK_MACHINE_COUNT (4).
  * Each machine entry is 0x10 bytes, starting at server+0x43c. */
-int network_game_server_get_client_machine_at_index(int server,
-                                                    int machine_index)
+__declspec(noinline) int
+network_game_server_get_client_machine_at_index(int server, int machine_index)
 {
   if (!server || machine_index >= 4) {
     display_assert("server && (index<MAXIMUM_NETWORK_MACHINE_COUNT)",
@@ -1360,7 +1361,7 @@ int network_game_server_get_game(void *server)
 /* Return the smallest last-update tick across all 4 machine slots that are
  * joined and have a valid update tick. Returns 0xffffffff if none qualify.
  * 0x12d5b0 / network_server_manager.obj */
-unsigned int FUN_0012d5b0(int param_1)
+unsigned int network_game_server_get_oldest_client_update_received(int param_1)
 {
   unsigned int uVar1;
 
@@ -2296,7 +2297,7 @@ bool FUN_0012e750(int server)
       if (timer_ms == 0) {
         if (FUN_0012dbb0(server) && *(char *)(s + 0x495) == 0) {
           network_game_server_close_game((void *)server);
-          result = FUN_0012c290((void *)server);
+          result = network_game_server_start_network_game((void *)server);
           if (result == 1)
             return true;
           network_game_log("network_game_server_start_network_game() failed");
@@ -2780,6 +2781,11 @@ bool FUN_0012f170(int server, int machine, void *message_data, int message_size)
 }
 
 /* Handle add-player request ingame (0x12f200). */
+#if defined(_MSC_VER) && !defined(__clang__)
+/* The reference calls network_game_server_get_state and compares AX; keep
+ * VC71 from inlining its server+4 field load into this handler. */
+#pragma inline_depth(0)
+#endif
 bool FUN_0012f200(int server, int machine, void *message_data, int message_size)
 {
   char decoded_buf[32];
@@ -2805,6 +2811,9 @@ bool FUN_0012f200(int server, int machine, void *message_data, int message_size)
     "packet");
   return true;
 }
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth()
+#endif
 
 /* Handle remove-player request postgame (0x12f290). */
 bool FUN_0012f290(int server, int machine, void *message_data, int message_size)
@@ -2836,11 +2845,14 @@ bool FUN_0012f290(int server, int machine, void *message_data, int message_size)
 }
 
 /* Handle client switch-to-pregame request (0x12f330). */
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth(0)
+#endif
 char FUN_0012f330(int server, int machine, void *message_data, int message_size)
 {
   char decoded_buf[4];
-  short packet_type;
-  short packet_version;
+  int packet_type;
+  int packet_version;
   char result;
 
   result = 1;
@@ -2849,7 +2861,8 @@ char FUN_0012f330(int server, int machine, void *message_data, int message_size)
     packet_type = 0x21;
     packet_version = 1;
     if (FUN_0012bce0((int)decoded_buf, (int)((char *)message_data + 2),
-                     (short *)&message_size, &packet_type, &packet_version,
+                     (short *)&message_size, (short *)&packet_type,
+                     (short *)&packet_version,
                      7)) {
       result =
         (char)network_game_server_switch_machine_from_postgame_to_pregame(
@@ -2873,6 +2886,9 @@ char FUN_0012f330(int server, int machine, void *message_data, int message_size)
   }
   return result;
 }
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth()
+#endif
 
 /* Fastcall wrapper: write message via network_connection_write (0x12f3d0).
  * dest_address @<ecx>, size @<edx>, reliable @<eax>, stack: connection,
