@@ -1800,7 +1800,7 @@ char FUN_000159d0(int actor_handle, short *state_data)
       *(float *)((char *)state_data + 0x38) = 1.5f;
       break;
     default:
-      return 1;
+      goto done_success;
     }
     actor_perception_find_prop_pathfinding_location(
       actor_handle, ((actor_t *)actor)->field_1e8);
@@ -1810,6 +1810,7 @@ char FUN_000159d0(int actor_handle, short *state_data)
     *(int *)((char *)state_data + 0x30) = *(int *)(prop + 0xf8);
     *(int *)((char *)state_data + 0x34) = *(int *)(prop + 0xec);
   }
+done_success:
   return 1;
 }
 
@@ -1859,7 +1860,6 @@ void FUN_00015cf0(int actor_handle)
 {
   char *actor;
   short decval;
-  int uVar3;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   if ((((actor_t *)actor)->field_013 == '\0') &&
@@ -1900,7 +1900,7 @@ void FUN_00015cf0(int actor_handle)
     }
     goto wake;
   }
-  if (((actor_t *)actor)->field_0a8 < 1) {
+  if (((actor_t *)actor)->field_0a8 <= 0) {
     return;
   }
   decval = ((actor_t *)actor)->field_0a8 - 1;
@@ -1916,8 +1916,8 @@ wake:
   ((actor_t *)actor)->field_0a8 = 0;
   if (((actor_t *)actor)->field_06e >= 2 &&
       ((actor_t *)actor)->field_018 != -1) {
-    uVar3 = actor_target_unit_index(actor_handle);
-    FUN_00046f10(0x23, ((actor_t *)actor)->field_018, uVar3, -1, -1, -1, 0);
+    FUN_00046f10(0x23, ((actor_t *)actor)->field_018,
+                 actor_target_unit_index(actor_handle), -1, -1, -1, 0);
   }
   FUN_00024be0(actor_handle, *(short *)(actor + 0xc4), 0);
   ((actor_t *)actor)->firing_positions_current_position_index = -1;
@@ -4794,6 +4794,7 @@ void FUN_00019940(int actor_handle)
   char *actor;
   char *tag_data;
   char *prop;
+  short tag_type;
   int remain;
 
   actor = (char *)datum_get(actor_data, actor_handle);
@@ -4801,14 +4802,15 @@ void FUN_00019940(int actor_handle)
     return;
   }
   tag_data = (char *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
+  tag_type = *(short *)(tag_data + 0x2f8);
   ((actor_t *)actor)->field_09f = 0;
-  if ((*(short *)(tag_data + 0x2f8) == 4) ||
+  if ((tag_type == 4) ||
       ((*(tag_data) & 2) != 0 && *(short *)(actor + 0xa4) == 0 &&
        ((actor_t *)actor)->target_target_type == 5)) {
     if (*(short *)(tag_data + 0x2f8) != 4) {
       prop = (char *)datum_get(prop_data,
                                ((actor_t *)actor)->target_target_prop_index);
-      if (*(char *)(prop + 0x121) >= 3) {
+      if (*(char *)(prop + 0x121) > 2) {
         goto skip_flag;
       }
     }
@@ -4844,7 +4846,7 @@ skip_flag:
     if ((((actor_t *)actor)->field_504 == '\0') &&
         (*(char *)(actor + 6) == '\0')) {
       *(int *)(actor + 0xc4) = *(int *)(actor + 0xc4) + 1;
-      if (*(int *)(actor + 0xc4) >= 0x78) {
+      if (*(int *)(actor + 0xc4) > 0x77) {
         ((actor_t *)actor)->field_09d = 1;
         *(char *)(actor + 0x9c) = 1;
       }
@@ -5482,10 +5484,11 @@ void FUN_0001a600(int actor_handle, int *param_2)
     param_2[3] = *(int *)(src + 0xc);
     return;
   }
-  *param_2 = *(int *)*(char **)0x2ee6ec;
-  param_2[1] = *(int *)(*(char **)0x2ee6ec + 4);
-  param_2[2] = *(int *)(*(char **)0x2ee6ec + 8);
-  param_2[3] = *(int *)(*(char **)0x2ee6ec + 0xc);
+  looking = (*(char **)0x2ee6ec) + 8;
+  *param_2 = *(int *)(*(char **)0x2ee6ec);
+  param_2[1] = *(int *)((*(char **)0x2ee6ec) + 4);
+  param_2[2] = *(int *)looking;
+  param_2[3] = *(int *)((*(char **)0x2ee6ec) + 0xc);
 }
 
 /* FUN_0001a670 (0x1a670)
@@ -7731,9 +7734,9 @@ void FUN_00027870(int actor_handle)
       ai_debug_describe_actor(actor_handle, -1, 0, error_string_buffer, 0x100);
     console_printf(0, "%s: look-stop", desc);
   }
-  ((actor_t *)actor)->field_546 = 0;
+  ((actor_t *)actor)->secondary_look_priority = 0;
   ((actor_t *)actor)->control_secondary_look_type = 0;
-  ((actor_t *)actor)->field_548 = 0;
+  ((actor_t *)actor)->secondary_look_timer = 0;
 }
 
 /* FUN_000278e0 (0x278e0)
@@ -8026,8 +8029,8 @@ after_prop_check:
   }
 
   /* Write look spec to actor */
-  ((actor_t *)actor)->field_546 = priority;
-  ((actor_t *)actor)->field_548 = (short)tick_count;
+  ((actor_t *)actor)->secondary_look_priority = priority;
+  ((actor_t *)actor)->secondary_look_timer = (short)tick_count;
   ((actor_t *)actor)->control_secondary_look_type = look_type;
   *(int *)(actor + 0x54c) = *(int *)look_buf;
   ((actor_t *)actor)->control_secondary_look_direction_prop_index =
@@ -8683,10 +8686,10 @@ void actor_look_update(int actor_handle)
   /* Secondary look mode */
   secondary_mode = 0;
   if (((actor_t *)actor)->control_secondary_look_type >= 0 &&
-      ((actor_t *)actor)->field_548 > 0) {
+      ((actor_t *)actor)->secondary_look_timer > 0) {
     if (look_spec_28660_safe(actor_handle, actor, (short *)(actor + 0x54c),
                              secondary_vec)) {
-      secondary_mode = ((actor_t *)actor)->field_546;
+      secondary_mode = ((actor_t *)actor)->secondary_look_priority;
     }
   }
 
@@ -8720,9 +8723,9 @@ void actor_look_update(int actor_handle)
   }
 
   /* Decrement look timer */
-  if (((actor_t *)actor)->field_548 > 0) {
-    sVar8 = ((actor_t *)actor)->field_548 - 1;
-    ((actor_t *)actor)->field_548 = sVar8;
+  if (((actor_t *)actor)->secondary_look_timer > 0) {
+    sVar8 = ((actor_t *)actor)->secondary_look_timer - 1;
+    ((actor_t *)actor)->secondary_look_timer = sVar8;
     if (sVar8 == 0) {
       if (*(char *)0x5aca5d) {
         console_printf(0, "%s: look timer expire",
@@ -8730,7 +8733,7 @@ void actor_look_update(int actor_handle)
                                                (char *)0x5ab100, 0x100));
       }
       ((actor_t *)actor)->control_secondary_look_type = 0;
-      ((actor_t *)actor)->field_546 = 0;
+      ((actor_t *)actor)->secondary_look_priority = 0;
     }
   }
 

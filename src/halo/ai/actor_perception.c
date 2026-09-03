@@ -169,7 +169,7 @@ int FUN_0002f5b0(int param_1, int param_2)
   f2 = *(float *)(param_2 + 8);
   if (f1 < f2)
     return -1;
-  if (f2 < f1)
+  if (f1 > f2)
     return 1;
   return 0;
 }
@@ -731,10 +731,10 @@ void FUN_000355f0(int actor_handle)
 
   if (((actor_t *)actor)->field_284 == 0) {
     if (((actor_t *)actor)->control_secondary_look_type == 0xc) {
-      remaining = ((actor_t *)actor)->field_546;
+      remaining = ((actor_t *)actor)->secondary_look_priority;
       if (remaining > 5)
         remaining = 5;
-      ((actor_t *)actor)->field_546 = remaining;
+      ((actor_t *)actor)->secondary_look_priority = remaining;
     }
     if (((actor_t *)actor)->field_28a != 0) {
       ((actor_t *)actor)->field_287 = 1;

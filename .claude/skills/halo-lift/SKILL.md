@@ -76,7 +76,18 @@ All edits target **that path**, not a hardcoded `/mnt/g/dev/halo`.
 2. Resolve target by name or address in `kb.json` and Ghidra.
 3. **Gather context & recover literals.** Callers, callees, globals, strings,
    imports, existing declarations. Recover string/constant literals pushed by
-   address from `cachebeta.xbe`.
+   address from `cachebeta.xbe`. If the target has a name- or address-resolvable
+   match in the Halo CEA (Anniversary, Xbox 360) decompiled corpus, run
+   `rtk python3 tools/analysis/cea_body.py <target>` to read that source beside
+   the Ghidra decompile — advisory context only. It does not change step 4:
+   disassembly verification against `cachebeta.xbe` is still mandatory and still
+   the only authority. Per `naming-confidence`, CEA names and struct layouts are
+   capped by `name_source`: `halocea` is T2, `halocea-guess` is T3, and only
+   `halocea+assert` (corroborated by our own 2276 assert/format string) reaches
+   T1 — the T2 cap is the default, not a ceiling that overrides a `+assert`
+   corroboration. Files flagged `owner_divergence` in the CEA
+   index are the port author's own back-ports to 2276, not independent Xbox 360
+   evidence — the tool calls this out loudly when it applies.
 4. **Cross-check decompilation against raw disassembly.** Mandatory call-site
    verification: for every CALL, trace each PUSH backward. Watch for register
    aliasing, push-then-fstp, struct field rotation. Use `lift-decompiler-traps`
@@ -120,6 +131,7 @@ If it fails, stop and tell the user.
 
 - `rtk python3 tools/analysis/kb_meta.py list --object <obj>` for scoped symbols
 - `rtk python3 tools/lift_pipeline.py --target <name_or_addr> ...` for staged verify
+- `rtk python3 tools/analysis/cea_body.py <name_or_addr>` for CEA-360 source, advisory only (T2 max)
 - `rtk python3 tools/llm_auto_lift.py select --limit 20` for target selection
 - Keep MCP passes staged: resolve → decompile → callers/callees → disassembly only if needed
 - One target per run; summarize evidence minimally
@@ -167,3 +179,21 @@ Proposed code, Proposed kb deltas, Validation, Open questions.
 | Prototype inference | `docs/references/prototype-inference.md` |
 | kb.json update rules | `docs/references/kb-update-policy.md` |
 | Output schema | `docs/references/output-schema.md` |
+
+## Commit Message File Safety (moved from CLAUDE.md, 2026-09-02)
+
+The standard recipe is:
+
+```bash
+MSG=$(mktemp /tmp/halo-commit-msg.XXXXXX)
+rtk python3 tools/audit/generate_lift_commit.py --batch-name "<short description>" > "$MSG"
+rtk git commit -F "$MSG" && rm -f "$MSG"
+```
+
+**Never use a fixed path such as `/tmp/commit_msg.txt`.** It is shared by every
+concurrent agent, cron job, and worktree on the box, and they all follow this
+same recipe. A second actor overwriting the file between your write and your
+`git commit -F` silently commits YOUR staged changes under THEIR message — no
+hook catches it, and the commit looks legitimate. Observed 2026-07-31: commit
+d6caee6b landed a `game_engine.c` fix titled "Port draw_string_get_string
+(draw_string.obj)". Always `mktemp`.

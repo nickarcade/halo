@@ -434,7 +434,7 @@ short FUN_001bc5c0(void)
   do {
     request_index = 0;
     do {
-      if (request_index < 0 || request_index > 0x1ff) {
+      if (request_index < 0 || request_index >= 0x200) {
         display_assert("request_index>=0 && "
                        "request_index<MAXIMUM_SIMULTANEOUS_CACHE_REQUESTS",
                        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x260,
@@ -526,7 +526,7 @@ void cache_files_precache_map_queue_end(void)
                    "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x3cb, 1);
     system_exit(-1);
   }
-  ((void (*)(void))0x1ba5d0)();
+  FUN_001ba5d0();
 }
 
 /* Cache file slot accessor helpers. All take map_file_index in @<si>.

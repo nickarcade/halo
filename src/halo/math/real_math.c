@@ -4,6 +4,68 @@
 typedef void *(*zlib_zalloc_fn)(void *, int, int);
 typedef void (*zlib_zfree_fn)(void *, void *);
 
+/* periodic_functions.c selectors.
+ *
+ * Bounds are binary-proven from THIS build: FUN_0010a5e0 rejects
+ * function_type >= 0xc against "function_type>=0 &&
+ * function_type<NUMBER_OF_PERIODIC_FUNCTIONS", transition_function_evaluate
+ * rejects >= 6 against the NUMBER_OF_TRANSITION_FUNCTIONS assert, and
+ * periodic_functions_dispose (0x10a570) frees 12 periodic + 6 transition
+ * tables.
+ *
+ * name_source for the BOUND identifiers: halocea+assert — the names are stamped
+ * verbatim into our own 2276 assert strings, so both name and value are proven
+ * here.
+ *
+ * name_source for the periodic MEMBER names: halocea-guess. The halocea corpus
+ * (RE-derived from the 2011 HCEA prototype, Blam! 01.00.01.0563) marks
+ * periodic_function.h explicitly as a reconciliation with no ground-truth
+ * compiled enum behind it — the DB types the selector as a plain __int16. Two
+ * slots are independently corroborated against 2276 and are the more solid
+ * ones: _periodic_function_one, because FUN_0010a5e0 short-circuits type 0 to
+ * the 1.0f constant at 0x2533c8; and the slide pair, because the 0xc0 mask
+ * below selects exactly types 6 and 7 for the sawtooth wraparound fixup (v0
+ * high and v1 low across the discontinuity => add 1.0), which no non-sawtooth
+ * curve needs. The remaining member names are plausible, not proven — treat a
+ * disagreement with 2276 behaviour as our binary winning.
+ *
+ * name_source for the transition MEMBER names: halocea. That corpus reports
+ * transition_function.h as carried verbatim by a compiled enum in the 0563
+ * binary, so the names are cited rather than reconciled — but the citation is
+ * from a different build. _transition_function_linear is corroborated here:
+ * transition_function_evaluate returns the clamped t unchanged for type 0.
+ */
+enum periodic_function {
+  _periodic_function_one = 0x0,
+  _periodic_function_zero = 0x1,
+  _periodic_function_cosine = 0x2,
+  _periodic_function_cosine_with_random_period = 0x3,
+  _periodic_function_diagonal_wave = 0x4,
+  _periodic_function_diagonal_wave_with_random_period = 0x5,
+  _periodic_function_slide = 0x6,
+  _periodic_function_slide_with_random_period = 0x7,
+  _periodic_function_noise = 0x8,
+  _periodic_function_jitter = 0x9,
+  _periodic_function_wander = 0xA,
+  _periodic_function_spark = 0xB,
+  NUMBER_OF_PERIODIC_FUNCTIONS = 0xC
+};
+
+/* The two sawtooth curves, as a bit set over periodic_function. Folds to the
+ * 0xc0 immediate the original tests. */
+#define PERIODIC_FUNCTION_SLIDE_MASK \
+  ((1 << _periodic_function_slide) | (1 << _periodic_function_slide_with_random_period))
+
+enum transition_function {
+  _transition_function_linear = 0,
+  _transition_function_early = 1,
+  _transition_function_very_early = 2,
+  _transition_function_late = 3,
+  _transition_function_very_late = 4,
+  _transition_function_cosine = 5,
+  NUMBER_OF_TRANSITION_FUNCTIONS = 6
+};
+
 /* 0x1acb0 — 2D scale-add: out = base + scale * dir. */
 void FUN_0001acb0(float *base, float *dir, float scale, float *out)
 {
@@ -257,7 +319,7 @@ void matrix_inverse(float *src, float *dst)
 /* 0x109240 — Initialize a scaled 4x3 identity matrix. */
 void FUN_00109240(float *out, float scale)
 {
-  *(uint32_t *)&out[0] = *(uint32_t *)&scale;
+  out[0] = scale;
   ((uint32_t *)out)[1] = 0x3f800000;
   ((uint32_t *)out)[2] = 0;
   ((uint32_t *)out)[3] = 0;
@@ -1295,11 +1357,11 @@ float FUN_0010a5e0(int16_t function_type, float input)
   float v1;
   float result;
 
-  if (function_type == 0) {
+  if (function_type == _periodic_function_one) {
     return *(float *)0x2533c8;
   }
 
-  if (function_type < 0 || function_type >= 0xc) {
+  if (function_type < 0 || function_type >= NUMBER_OF_PERIODIC_FUNCTIONS) {
     display_assert(
       "function_type>=0 && function_type<NUMBER_OF_PERIODIC_FUNCTIONS",
       "c:\\halo\\SOURCE\\math\\periodic_functions.c", 0x9d, 1);
@@ -1319,7 +1381,7 @@ float FUN_0010a5e0(int16_t function_type, float input)
     v0 = (float)table[idx] * *(float *)0x261518;
     v1 = (float)table[(idx + 1) & 0x3ff] * *(float *)0x261518;
 
-    if ((1 << function_type & 0xc0) != 0) {
+    if ((1 << function_type & PERIODIC_FUNCTION_SLIDE_MASK) != 0) {
       if (v0 > *(float *)0x25afcc && v1 < *(float *)0x25337c) {
         v1 = v1 + *(float *)0x2533c8;
       }
@@ -1368,11 +1430,11 @@ float transition_function_evaluate(short function_type, float t)
     t = 1.0f;
   }
 
-  if (function_type == 0) {
+  if (function_type == _transition_function_linear) {
     return t;
   }
 
-  if (function_type < 0 || function_type >= 6) {
+  if (function_type < 0 || function_type >= NUMBER_OF_TRANSITION_FUNCTIONS) {
     display_assert(
       "function_type>=0 && function_type<NUMBER_OF_TRANSITION_FUNCTIONS",
       "c:\\halo\\SOURCE\\math\\periodic_functions.c", 0xd8, 1);
@@ -1975,24 +2037,26 @@ void yaw_vectors(float *v1, float *axis, float scale1, float scale2)
   cross1 = v1[0] * axis[2] - axis[0] * v1[2];
   cross2 = v1[1] * axis[0] - v1[0] * axis[1];
   v1[0] = cross0 * scale1 + scale2 * v1[0];
-  v1[1] = cross1 * scale1 + scale2 * v1[1];
   v1[2] = cross2 * scale1 + scale2 * v1[2];
+  v1[1] = cross1 * scale1 + scale2 * v1[1];
 }
 
 /* 0x10c700 — Rotate two 3D vectors around an axis: rotate v1 toward v2 and v2
  * away from v1 by (scale1, scale2). Uses temporaries to allow aliasing. */
 void FUN_0010c700(float *v1, float *v2, float scale1, float scale2)
 {
-  float a = -v1[0];
-  float b = -v1[1];
-  float c = -v1[2];
+  float temp[3];
+
+  temp[0] = -v1[0];
+  temp[1] = -v1[1];
+  temp[2] = -v1[2];
 
   v1[0] = scale2 * v1[0] + scale1 * v2[0];
   v1[1] = scale2 * v1[1] + scale1 * v2[1];
   v1[2] = scale2 * v1[2] + scale1 * v2[2];
-  v2[0] = scale2 * v2[0] + a * scale1;
-  v2[1] = b * scale1 + scale2 * v2[1];
-  v2[2] = scale2 * v2[2] + c * scale1;
+  v2[0] = scale2 * v2[0] + temp[0] * scale1;
+  v2[1] = temp[1] * scale1 + scale2 * v2[1];
+  v2[2] = scale2 * v2[2] + temp[2] * scale1;
 }
 
 /* Normalize a quaternion [x,y,z,w] in place.
@@ -3874,7 +3938,7 @@ char accelerate_to_velocity3d(float *param_1, float *param_2, float max_length)
   delta[0] = param_2[0] - param_1[0];
   delta[1] = param_2[1] - param_1[1];
   delta[2] = param_2[2] - param_1[2];
-  if (FUN_000a57b0(delta, max_length) != 0) {
+  if ((char)FUN_000a57b0(delta, max_length) != 0) {
     param_1[0] = delta[0] + param_1[0];
     param_1[1] = delta[1] + param_1[1];
     param_1[2] = delta[2] + param_1[2];
@@ -6207,7 +6271,7 @@ int FUN_00112590(int param_1, int param_2, int param_3, int param_4,
   int w_size;
   int lit_bufsize;
 
-  if (param_7 == (char *)0 || *param_7 != **(char **)0x31fc70 ||
+  if (param_7 == (char *)0 || **(char **)0x31fc70 != *param_7 ||
       param_8 != 0x38)
     return -6;
   if (param_1 == 0)

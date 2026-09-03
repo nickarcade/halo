@@ -19,9 +19,12 @@ void game_time_initialize_for_new_map(void)
 
 void game_time_dispose_from_old_map(void)
 {
-  if (game_time_globals) {
-    game_time_globals->initialized = false;
-    game_time_globals->active = false;
+  game_time_globals_t *globals;
+
+  globals = game_time_globals;
+  if (globals) {
+    globals->initialized = false;
+    globals->active = false;
   }
 }
 
@@ -201,12 +204,15 @@ void game_time_statistics_frame(int16_t a, int16_t b, int16_t c)
 
 void game_time_start(void)
 {
+  game_time_globals_t *globals;
+
   assert_halt(game_time_globals && game_time_globals->initialized);
   assert_halt(!game_time_globals->active);
   assert_halt(game_time_globals);
-  game_time_globals->speed = 1.0;
-  game_time_globals->leftover_dt = 0;
-  game_time_globals->active = 1;
+  globals = game_time_globals;
+  globals->speed = 1.0;
+  globals->leftover_dt = 0;
+  globals->active = 1;
   byte_457069 = 1;
   byte_457068 = 0;
   switch (game_connection()) {
