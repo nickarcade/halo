@@ -1169,13 +1169,6 @@
     "since": "2026-06-21"
   },
   {
-    "addr": "0x10a5e0",
-    "name": "FUN_0010a5e0",
-    "object": "real_math.obj",
-    "reason": "unverified: equiv vacuous (table-init early-exit); VC71 70.7% x87 stack-chaining; disasm-reviewed correct; pending curve-table state snapshot",
-    "since": "2026-06-21"
-  },
-  {
     "addr": "0x18bf80",
     "name": "FUN_0018bf80",
     "object": "scenario.obj",

@@ -78,11 +78,12 @@ float arccosine(float x)
 
 /* midpoint3d (0x2a540) — Compute the midpoint of two 3D vectors.
  * out[i] = (a[i] + b[i]) * 0.5f for i in {0,1,2}. */
-void midpoint3d(float *a, float *b, float *out)
+float *midpoint3d(float *a, float *b, float *out)
 {
-  out[0] = (a[0] + b[0]) * 0.5f;
-  out[1] = (a[1] + b[1]) * 0.5f;
-  out[2] = (a[2] + b[2]) * 0.5f;
+  out[0] = (a[0] + b[0]) * *(const float *)0x253398;
+  out[1] = (a[1] + b[1]) * *(const float *)0x253398;
+  out[2] = (a[2] + b[2]) * *(const float *)0x253398;
+  return out;
 }
 
 /* actor_test_destination (0x2a580) — check whether an actor has reached its
@@ -4027,7 +4028,7 @@ seed_fallback:
       }
     }
     actor_move_animation_impulse(actor_handle, 0, (int *)forward);
-    FUN_00046f10(0x2a, ((actor_t *)actor)->field_018, handle, 3, -1, -1, 0);
+    ai_communication_event(0x2a, ((actor_t *)actor)->field_018, handle, 3, -1, -1, 0);
     ((actor_t *)actor)->field_379 = 1;
   }
 
@@ -4061,7 +4062,7 @@ seed_fallback:
     if (unit_leap_begin(((actor_t *)actor)->field_018, forward) == '\0') {
       actor_unit_control_jump(actor_handle);
     } else {
-      FUN_00046f10(0x2f, ((actor_t *)actor)->field_018, -1, -1, -1, -1, 0);
+      ai_communication_event(0x2f, ((actor_t *)actor)->field_018, -1, -1, -1, -1, 0);
     }
   }
   if (((actor_t *)actor)->field_442 != '\0') {

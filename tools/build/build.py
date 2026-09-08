@@ -10,6 +10,7 @@ Usage:
     python3 tools/build/build.py                    # default: build all targets
     python3 tools/build/build.py --target halo      # build specific target
     python3 tools/build/build.py -q --target halo   # warnings/errors only
+    python3 tools/build/build.py --rng-trace        # + RNG draw trace
 """
 
 import argparse
@@ -24,10 +25,22 @@ ROOT_DIR = os.path.abspath(
 BUILD_DIR = os.path.join(ROOT_DIR, "build")
 
 
+def _build_jobs() -> int:
+    """Recipes to run concurrently. Override with HALO_BUILD_JOBS."""
+    override = os.environ.get("HALO_BUILD_JOBS")
+    if override:
+        try:
+            return max(1, int(override))
+        except ValueError:
+            pass
+    return os.cpu_count() or 1
+
+
 def _run_cmake_build(target: str = "", quiet: bool = False) -> int:
     command = ["cmake", "--build", BUILD_DIR]
     if target:
         command += ["--target", target]
+    command += ["--parallel", str(_build_jobs())]
     if quiet:
         command += ["--", "--quiet"]
 
@@ -100,7 +113,7 @@ def _env_flag(name: str) -> bool:
 
 
 def build(target: str = "", quiet: bool = False, test_harness: bool = False,
-          retail64: bool | None = None) -> int:
+          retail64: bool | None = None, rng_trace: bool = False) -> int:
     if not os.path.isdir(BUILD_DIR):
         print(
             f"error: build directory not found: {BUILD_DIR}\n"
@@ -110,6 +123,9 @@ def build(target: str = "", quiet: bool = False, test_harness: bool = False,
         return 1
 
     configure_args = ["-DHALO_TEST_HARNESS=" + ("ON" if test_harness else "OFF")]
+    # Always pass both states: a cache that kept ON would silently leave
+    # tracing live in a "flag off" build.
+    configure_args.append("-DHALO_RNG_TRACE=" + ("ON" if rng_trace else "OFF"))
     if retail64 is not None:
         configure_args.append("-DHALO_RETAIL64=" + ("ON" if retail64 else "OFF"))
     cfg_result = _run_cmake_configure(extra_args=configure_args, quiet=quiet)
@@ -150,6 +166,12 @@ def main() -> int:
         action="store_true",
         help="Build with the in-engine test harness enabled (HALO_TEST_HARNESS=ON).",
     )
+    parser.add_argument(
+        "--rng-trace",
+        action="store_true",
+        help="Build with the diagnostic RNG draw trace enabled "
+             "(HALO_RNG_TRACE=ON). See docs/rng-trace.md.",
+    )
     retail64_group = parser.add_mutually_exclusive_group()
     retail64_group.add_argument(
         "--retail64",
@@ -166,7 +188,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     return build(target=args.target, quiet=args.quiet, test_harness=args.test,
-                 retail64=args.retail64)
+                 retail64=args.retail64, rng_trace=args.rng_trace)
 
 
 if __name__ == "__main__":

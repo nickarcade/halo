@@ -178,7 +178,7 @@ typedef struct render_model_effect {
  * shadow pass (non-zero); render_data->lighting (+4) is the cluster lighting.
  *
  * NOTE: each of the two model-submit sites is a single 13-argument cdecl call
- * to FUN_00123ed0 (add $0x34 = 13 dwords of stack cleanup). MSVC evaluates the
+ * to render_model (add $0x34 = 13 dwords of stack cleanup). MSVC evaluates the
  * cdecl arguments right-to-left, so object_get_node_matrices (0x13fe70), which
  * supplies arg 3, is called in the middle of the push sequence — after args
  * 4..13 and before args 1..2. Passing only three of these arguments would feed
@@ -325,7 +325,7 @@ void FUN_0018b190(void *render_data, void *parent_model_effect,
            * right-to-left, so the object_get_node_matrices call (arg 3) is
            * emitted after the trailing ten pushes and before the first two —
            * matching the interleaved getter call in the original. */
-          FUN_00123ed0(*(int *)(obje + 0x34), dist,
+          render_model(*(int *)(obje + 0x34), dist,
                        object_get_node_matrices(object_handle), obj + 0x130,
                        obj + 0x168, obj + 0xe4, *(int *)(rd + 4), obj + 0x50,
                        *(int *)(obj + 0x5c), &record, object_handle,
@@ -336,7 +336,7 @@ void FUN_0018b190(void *render_data, void *parent_model_effect,
           }
         } else {
           /* Shadow pass: no record built (arg10 NULL, arg13 constant 2). */
-          FUN_00123ed0(*(int *)(obje + 0x34), dist * *(float *)0x2533e4,
+          render_model(*(int *)(obje + 0x34), dist * *(float *)0x2533e4,
                        object_get_node_matrices(object_handle), obj + 0x130,
                        obj + 0x168, obj + 0xe4, *(int *)(rd + 4), obj + 0x50,
                        *(int *)(obj + 0x5c), 0, object_handle,
@@ -1130,7 +1130,7 @@ typedef struct particle_sort_record {
  * hold {datum, definition tag index (+0x4), sort key (+0x2c), fp flag}.
  * Pass 2 qsorts (CRT qsort, comparator FUN_0018c580) and run-length encodes
  * runs of identical (tag, sort, fp) into up to 0x200 counts. Pass 3 builds
- * one sprite batch per run: FUN_0018d2c0 begin (shader from 'part' tag+0x10,
+ * one sprite batch per run: build_sprites_begin begin (shader from 'part' tag+0x10,
  * geometry tag+0xb0, flags 2 for first-person), per particle resolve the
  * world position/direction — already-detached particles (+0x8 == -1) copy
  * +0x30/+0x3c directly (with the original's redundant -1 self-store);
@@ -1241,7 +1241,7 @@ void FUN_0018c5b0(void)
             tag = (char *)tag_get(0x70617274, (int)rec->tag_index);
             radius_accum = 0.0f;
             emitted = 0;
-            FUN_0018d2c0((uint32_t *)record, *runp, *(uint32_t *)(tag + 0x10),
+            build_sprites_begin((uint32_t *)record, *runp, *(uint32_t *)(tag + 0x10),
                          (int)(tag + 0xb0), rec->first_person != 0 ? 2u : 0u);
             if (*runp > 0) {
               inner = (int)(uint16_t)*runp;
@@ -1349,11 +1349,11 @@ void FUN_0018c5b0(void)
  * (0x2b1b50) facing back (perpendicular basis), FUN_00139b40. Finally the
  * node matrices are pulled into a scaled view space (scale 2^-10, position
  * * 0x2b1b4c), FUN_0017d1a0(1) selects the sky rasterizer mode, and the
- * model is drawn with unit region scales via the 13-arg FUN_00123ed0,
+ * model is drawn with unit region scales via the 13-arg render_model,
  * flushed through FUN_0016b240 (the 0x17cbf0 thunk's target, matching the
  * scenario_test_pvs reloc lesson). cdecl, void(void), 0x1658-byte frame via
  * _chkstk. */
-void FUN_0018ca40(void)
+void render_sky(void)
 {
   float node_matrices[832]; /* EBP-0x1658: 64 x 0x34-byte node matrices */
   float node_buf[512]; /* EBP-0x958: 64 x 0x20-byte node transforms */
@@ -1504,7 +1504,7 @@ void FUN_0018ca40(void)
       *(int32_t *)record = *(int32_t *)defcol;
       *(int32_t *)(record + 4) = *(int32_t *)(defcol + 1);
       *(int32_t *)(record + 8) = *(int32_t *)(defcol + 2);
-      FUN_00123ed0(*(int *)(rec + 0xc), 0.0f, node_matrices, 0, 0, scales,
+      render_model(*(int *)(rec + 0xc), 0.0f, node_matrices, 0, 0, scales,
                    (int)record, (void *)0x506550, 0, 0, 0, 0, 1);
       FUN_0016b240();
     }
@@ -1720,7 +1720,7 @@ int16_t FUN_0018d140(void *data, int bitmap)
  * +0x14..+0x1c, and finally re-sets +0x10 to flags | _build_sprites_valid_bit.
  * The +0x10 store happens twice (param_5 then param_5|4), matching the
  * original. cdecl. */
-void FUN_0018d2c0(uint32_t *param_1, int16_t param_2, uint32_t param_3,
+void build_sprites_begin(uint32_t *param_1, int16_t param_2, uint32_t param_3,
                   int param_4, uint32_t param_5)
 {
   uint32_t *view;
@@ -1913,17 +1913,17 @@ void FUN_0018d490(float *basis, void *data, float *direction,
 float FUN_0018d670(short mode, float *v1, float *v2)
 {
   float result;
-
   result = *(float *)0x2533c8;
   if (mode != 0) {
 #if defined(_MSC_VER) && !defined(__clang__)
+    float magnitude;
     /* VC71 /Oi inlines fabs((double)x) as the x87 FABS instruction, matching
      * the original's inline FABS on ST. clang (shipped build) takes the #else
      * branch below, so the binary is unchanged. Analog of lift-score-improve
      * technique 1 (cos/sin intrinsification) applied to fabsf. */
-    result = (float)fabs(
-      (double)((v1[0] * v2[0] + v2[1] * v1[1] + v2[2] * v1[2]) /
-               sqrtf(v1[2] * v1[2] + v1[1] * v1[1] + v1[0] * v1[0])));
+    result = v2[2] * v1[2] + v2[1] * v1[1] + v1[0] * v2[0];
+    magnitude = sqrtf(v1[2] * v1[2] + v1[1] * v1[1] + v1[0] * v1[0]);
+    result = (float)fabs((double)(result / magnitude));
 #else
     result = fabsf((v1[0] * v2[0] + v2[1] * v1[1] + v2[2] * v1[2]) /
                    sqrtf(v1[2] * v1[2] + v1[1] * v1[1] + v1[0] * v1[0]));

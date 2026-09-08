@@ -32,6 +32,19 @@ from analysis.knowledge import Function, KnowledgeBase
 
 
 log = logging.getLogger(__name__)
+
+# EXE exports that exist only for host-side tooling (their runtime VA is
+# resolved from the appended PE export table).  They are not re-implementations
+# of anything in the original XBE, so patch.py must not try to redirect them.
+#   halo_rng_trace  ring buffer read by tools/xbox/rng_trace_dump.py
+#   halo_probe_cave scratch page that tools/xbox/patch_fork_probes.py fills with
+#                   trampolines for probes inside UNPORTED functions
+#   rng_trace_note  the logger those trampolines call
+# Only halo_rng_trace ships in a normal build; the other two come from
+# --rng-trace.  They must be listed unconditionally because patch.py never sees
+# the build flag -- it only sees whichever exports the linker produced.
+DIAGNOSTIC_DATA_EXPORTS = frozenset({
+    'halo_rng_trace', 'halo_probe_cave', 'rng_trace_note'})
 root_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 KB_REG_BASELINE_PATH = os.path.join(root_dir, 'tools', 'kb_reg_baseline.json')
 KB_OVERLAY_ENV = 'HALO_KB_OVERLAY'
@@ -1531,8 +1544,13 @@ def main():
     xbe.header.entry_addr = entry_addr ^ (Xbe.ENTRY_DEBUG if xbe.is_debug else Xbe.ENTRY_RETAIL)
     special_exports['_start'] = entry_addr
 
-    # Hook all functions in the XBE that have been re-implemented
-    patch_functions = [n for n in export_name_to_addr if n not in special_exports]
+    # Hook all functions in the XBE that have been re-implemented.
+    # DIAGNOSTIC_DATA_EXPORTS are exported only so host tools can resolve their
+    # runtime VA (see tools/xbox/symbolize_exception.py); they have no original
+    # XBE counterpart and are never patch targets.
+    patch_functions = [n for n in export_name_to_addr
+                       if n not in special_exports
+                       and n not in DIAGNOSTIC_DATA_EXPORTS]
 
     # Map from (possibly decorated) export name to kb.json symbol name
     export_to_kb_name = {n: strip_stdcall_decoration(n) for n in patch_functions}

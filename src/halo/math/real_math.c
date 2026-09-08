@@ -1,6 +1,21 @@
 #include "x87_math.h"
 #include <xmmintrin.h>
 
+/* matrix_inverse reads each column entry back out of `dst` after storing it
+ * (reference 0x1091da-0x109212: `fmul DWORD PTR [eax+N]`).  clang forwards its
+ * own FPU stores instead of reloading, which pins the forwarded copies in x87
+ * registers and leaves it short of stack slots, so it spills `ty` to a 32-bit
+ * slot (`fstp DWORD PTR [ebp-0x4]`) -- narrowing to single precision a value
+ * the reference keeps at 80 bits from 0x109198 all the way to 0x109212.
+ * Reading through `volatile` restores the reference's memory reloads.  MSVC
+ * (the VC71 scoring lane) already emits those reloads unaided and loses 8.5pp
+ * of match when the qualifier is present, so it is clang-only. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#define MATRIX_INVERSE_COL(p) (*(float *)(p))
+#else
+#define MATRIX_INVERSE_COL(p) (*(volatile float *)(p))
+#endif
+
 typedef void *(*zlib_zalloc_fn)(void *, int, int);
 typedef void (*zlib_zfree_fn)(void *, void *);
 
@@ -109,10 +124,16 @@ extern double __cdecl fabs(double);
  * Confirmed: cdecl, 2 pointer args. Pure FPU leaf (FSUB/FMUL/FADD/FSQRT). */
 float FUN_0001ad60(float *a, float *b)
 {
-  float dx = a[0] - b[0];
-  float dy = a[1] - b[1];
-  float dz = a[2] - b[2];
-  return sqrtf(dx * dx + dy * dy + dz * dz);
+  float delta[3];
+  float sum;
+
+  delta[0] = b[0] - a[0];
+  delta[1] = b[1] - a[1];
+  delta[2] = b[2] - a[2];
+  sum = delta[0] * delta[0];
+  sum += delta[1] * delta[1];
+  sum += delta[2] * delta[2];
+  return sqrtf(sum);
 }
 
 /* 0x1ada0 — vehicle-action qualification.  actor_handle and vehicle_handle
@@ -249,71 +270,77 @@ void matrix_inverse(float *src, float *dst)
 {
   float tx, ty, tz;
 
-  if (*(float *)((char *)src + 0x00) == 0.0f) {
-    csmemset(dst, 0, 0x34);
-    return;
-  }
+  /* Negated form: the reference tests the scale for zero at 0x109156-0x109163
+   * and jumps to a sunk `csmemset` tail at 0x10921f, so the zero case is the
+   * else block, not an early return. */
+  if (*(float *)((char *)src + 0x00) != 0.0f) {
+    tx = -*(float *)((char *)src + 0x28);
+    ty = -*(float *)((char *)src + 0x2c);
+    tz = -*(float *)((char *)src + 0x30);
 
-  tx = -*(float *)((char *)src + 0x28);
-  ty = -*(float *)((char *)src + 0x2c);
-  tz = -*(float *)((char *)src + 0x30);
+    /* Negated form: the reference's `cmpl $0x3f800000,%eax ; je` puts the
+     * scale-is-1 store in the sunk else block, with the reciprocal path as the
+     * fallthrough. */
+    if (*(int *)src != 0x3f800000) {
+      float inv_scale = 1.0f / *(float *)((char *)src + 0x00);
+      *(float *)((char *)dst + 0x00) = inv_scale;
+      tx = inv_scale * tx;
+      ty = inv_scale * ty;
+      tz = inv_scale * tz;
+    } else {
+      *(int *)dst = 0x3f800000;
+    }
 
-  /* Negated form: the reference's `cmpl $0x3f800000,%eax ; je` puts the
-   * scale-is-1 store in the sunk else block, with the reciprocal path as the
-   * fallthrough. */
-  if (*(int *)src != 0x3f800000) {
-    float inv_scale = 1.0f / *(float *)((char *)src + 0x00);
-    *(float *)((char *)dst + 0x00) = inv_scale;
-    tx = inv_scale * tx;
-    ty = inv_scale * ty;
-    tz = inv_scale * tz;
+    /* Reference 0x1091a2-0x1091b3 copies these three diagonal entries with GPR
+     * dword moves (`mov edx,[ecx+N]` / `mov [eax+N],edx`), not through the FPU,
+     * so a bit copy is the faithful form (an FPU load/store would quiet a
+     * signalling NaN). */
+    *(uint32_t *)((char *)dst + 0x04) = *(uint32_t *)((char *)src + 0x04);
+    *(uint32_t *)((char *)dst + 0x14) = *(uint32_t *)((char *)src + 0x14);
+    *(uint32_t *)((char *)dst + 0x24) = *(uint32_t *)((char *)src + 0x24);
+
+    /* Load both sides before writing either — the original uses FPU+GPR
+     * pairs so both values are live simultaneously.  Without this, in-place
+     * inversion (src==dst) corrupts the second read. */
+    /* The reference moves one side of each swap through the FPU (flds/fstps of
+     * the HIGH offset) and the other through a GPR (movl of the LOW offset); a
+     * bit copy is also the faithful choice for the GPR side, since an FPU
+     * load/store would quiet a signalling NaN. */
+    {
+      uint32_t s2 = *(uint32_t *)((char *)src + 0x08);
+      float s4 = *(float *)((char *)src + 0x10);
+      *(float *)((char *)dst + 0x08) = s4;
+      *(uint32_t *)((char *)dst + 0x10) = s2;
+    }
+    {
+      uint32_t s3 = *(uint32_t *)((char *)src + 0x0c);
+      float s7 = *(float *)((char *)src + 0x1c);
+      *(float *)((char *)dst + 0x0c) = s7;
+      *(uint32_t *)((char *)dst + 0x1c) = s3;
+    }
+    {
+      uint32_t s6 = *(uint32_t *)((char *)src + 0x18);
+      float s8 = *(float *)((char *)src + 0x20);
+      *(uint32_t *)((char *)dst + 0x20) = s6;
+      *(float *)((char *)dst + 0x18) = s8;
+    }
+
+    /* Original MSVC evaluation order: (tx*col + tz*col) + ty*col */
+    *(float *)((char *)dst + 0x28) =
+      (tx * MATRIX_INVERSE_COL((char *)dst + 0x04) +
+       tz * MATRIX_INVERSE_COL((char *)dst + 0x1c)) +
+      ty * MATRIX_INVERSE_COL((char *)dst + 0x10);
+    *(float *)((char *)dst + 0x2c) =
+      (tx * MATRIX_INVERSE_COL((char *)dst + 0x08) +
+       tz * MATRIX_INVERSE_COL((char *)dst + 0x20)) +
+      ty * MATRIX_INVERSE_COL((char *)dst + 0x14);
+    *(float *)((char *)dst + 0x30) =
+      (tx * MATRIX_INVERSE_COL((char *)dst + 0x0c) +
+       tz * MATRIX_INVERSE_COL((char *)dst + 0x24)) +
+      ty * MATRIX_INVERSE_COL((char *)dst + 0x18);
   } else {
-    *(int *)dst = 0x3f800000;
+    csmemset(dst, 0, 0x34);
   }
-
-  *(float *)((char *)dst + 0x04) = *(float *)((char *)src + 0x04);
-  *(float *)((char *)dst + 0x14) = *(float *)((char *)src + 0x14);
-  *(float *)((char *)dst + 0x24) = *(float *)((char *)src + 0x24);
-
-  /* Load both sides before writing either — the original uses FPU+GPR
-   * pairs so both values are live simultaneously.  Without this, in-place
-   * inversion (src==dst) corrupts the second read. */
-  /* The reference moves one side of each swap through the FPU (flds/fstps of
-   * the HIGH offset) and the other through a GPR (movl of the LOW offset); a
-   * bit copy is also the faithful choice for the GPR side, since an FPU
-   * load/store would quiet a signalling NaN. */
-  {
-    uint32_t s2 = *(uint32_t *)((char *)src + 0x08);
-    float s4 = *(float *)((char *)src + 0x10);
-    *(float *)((char *)dst + 0x08) = s4;
-    *(uint32_t *)((char *)dst + 0x10) = s2;
-  }
-  {
-    uint32_t s3 = *(uint32_t *)((char *)src + 0x0c);
-    float s7 = *(float *)((char *)src + 0x1c);
-    *(float *)((char *)dst + 0x0c) = s7;
-    *(uint32_t *)((char *)dst + 0x1c) = s3;
-  }
-  {
-    uint32_t s6 = *(uint32_t *)((char *)src + 0x18);
-    float s8 = *(float *)((char *)src + 0x20);
-    *(uint32_t *)((char *)dst + 0x20) = s6;
-    *(float *)((char *)dst + 0x18) = s8;
-  }
-
-  /* Original MSVC evaluation order: (tx*col + tz*col) + ty*col */
-  *(float *)((char *)dst + 0x28) =
-    (tx * *(float *)((char *)dst + 0x04) +
-     tz * *(float *)((char *)dst + 0x1c)) +
-    ty * *(float *)((char *)dst + 0x10);
-  *(float *)((char *)dst + 0x2c) =
-    (tx * *(float *)((char *)dst + 0x08) +
-     tz * *(float *)((char *)dst + 0x20)) +
-    ty * *(float *)((char *)dst + 0x14);
-  *(float *)((char *)dst + 0x30) =
-    (tx * *(float *)((char *)dst + 0x0c) +
-     tz * *(float *)((char *)dst + 0x24)) +
-    ty * *(float *)((char *)dst + 0x18);
 }
 
 /* 0x109240 — Initialize a scaled 4x3 identity matrix. */
@@ -502,7 +529,7 @@ __declspec(noinline) void matrix4x3_decompose(float *matrix, float *out_pos,
  * out = rotation * (scale * in) + translation.
  * Matrix layout: [scale +0x00][3x3 rotation +0x04..+0x24][translation
  * +0x28..+0x30]. */
-void matrix_transform_point(float *matrix, float *in, float *out)
+float *matrix_transform_point(float *matrix, float *in, float *out)
 {
   float x = in[0];
   float y = in[1];
@@ -526,6 +553,7 @@ void matrix_transform_point(float *matrix, float *in, float *out)
            y * *(float *)((char *)matrix + 0x18) +
            z * *(float *)((char *)matrix + 0x24) +
            *(float *)((char *)matrix + 0x30);
+  return out;
 }
 
 /* 0x109610 — Scale-transform a vector by a 4x3 matrix.
@@ -549,7 +577,7 @@ void matrix_scale_transform_vector(float *matrix, float *in, float *out)
 /* Transform a 3D vector by a 3x3 rotation matrix (stored at matrix+0x4).
  * out[i] = dot(in, column_i of matrix).
  * The matrix layout is: [scale(4 bytes)][3x3 floats row-major at +0x4]. */
-void matrix_transform_vector(float *matrix, float *in, float *out)
+float *matrix_transform_vector(float *matrix, float *in, float *out)
 {
   float x = in[0];
   float y = in[1];
@@ -564,6 +592,7 @@ void matrix_transform_vector(float *matrix, float *in, float *out)
   out[2] = x * *(float *)((char *)matrix + 0x0c) +
            y * *(float *)((char *)matrix + 0x18) +
            z * *(float *)((char *)matrix + 0x24);
+  return out;
 }
 
 /* real_matrix3x3_transform_point (0x1096e0)
@@ -614,7 +643,7 @@ void real_matrix3x3_transform_point(void *matrix, float *point, float *out)
  * Transform a direction or velocity vector by the rotation part of a
  * 4x3 matrix, normalizing by scale. No translation subtraction —
  * use real_matrix3x3_transform_point (0x1096e0) for positions. */
-void real_matrix3x3_transform_vector(void *matrix, vector3_t *vec,
+vector3_t *real_matrix3x3_transform_vector(void *matrix, vector3_t *vec,
                                      vector3_t *out)
 {
   float *m = (float *)matrix;
@@ -638,6 +667,7 @@ void real_matrix3x3_transform_vector(void *matrix, vector3_t *vec,
   out->z = x * *(float *)((char *)matrix + 0x1c) +
            y * *(float *)((char *)matrix + 0x20) +
            z * *(float *)((char *)matrix + 0x24);
+  return out;
 }
 
 /* Transform a 3D point by the rotation part of a 4x3 matrix (no scale
@@ -645,7 +675,7 @@ void real_matrix3x3_transform_vector(void *matrix, vector3_t *vec,
  *   out[i] = dot(point, column_i of 3x3 rotation at matrix+0x04).
  * Matrix layout: [scale +0x00][3x3 rotation +0x04..+0x24][translation
  * +0x28..+0x30]. Only the 3x3 rotation is used. */
-void real_matrix4x3_transform_point(void *matrix, void *point, void *out)
+void *real_matrix4x3_transform_point(void *matrix, void *point, void *out)
 {
   float *p = (float *)point;
   float *o = (float *)out;
@@ -662,6 +692,7 @@ void real_matrix4x3_transform_point(void *matrix, void *point, void *out)
   o[2] = x * *(float *)((char *)matrix + 0x1c) +
          y * *(float *)((char *)matrix + 0x20) +
          z * *(float *)((char *)matrix + 0x24);
+  return out;
 }
 
 /* Multiply two 4x3 matrices: out = b * a.
@@ -1180,17 +1211,20 @@ void quaternion_to_angle_and_vector(float *mat0, float *mat1, float *out_vec3)
  * part, and the distance (in_plane[3]) is recomputed from the original
  * distance scaled by matrix[0] plus the dot product of the transformed normal
  * with the matrix's translation (matrix[10..12]). */
-void FUN_0010a1c0(float *matrix, float *in_plane, float *out_plane)
+float *FUN_0010a1c0(float *matrix, float *in_plane, float *out_plane)
 {
   float nx = in_plane[0];
   float ny = in_plane[1];
   float nz = in_plane[2];
 
   out_plane[0] = nx * matrix[1] + ny * matrix[4] + nz * matrix[7];
+  HALO_FLT_ROUNDTRIP(out_plane[0]);
   out_plane[1] = nx * matrix[2] + ny * matrix[5] + nz * matrix[8];
+  HALO_FLT_ROUNDTRIP(out_plane[1]);
   out_plane[2] = nx * matrix[3] + ny * matrix[6] + nz * matrix[9];
   out_plane[3] = in_plane[3] * matrix[0] + matrix[10] * out_plane[0] +
                  matrix[11] * out_plane[1] + matrix[12] * out_plane[2];
+  return out_plane;
 }
 
 /* Transform a plane by a matrix. Computes new plane distance and normal. */
@@ -1351,7 +1385,9 @@ float FUN_0010a5e0(int16_t function_type, float input)
 #endif
   unsigned char *table;
   float scaled;
+  float scaled_narrow;
   float weight;
+  float integer_part;
   unsigned int idx;
   float v0;
   float v1;
@@ -1370,12 +1406,29 @@ float FUN_0010a5e0(int16_t function_type, float input)
 
   if (*(char *)0x46e39c != '\0') {
     scaled = input * *(float *)0x28c838;
+    /* Narrowing follows the original store/reload pattern exactly, because
+     * clang -mno-sse would otherwise keep every intermediate in ST at 64-bit
+     * significand while cl.exe rounds through 32-bit stack slots:
+     *   0x10a639 FST  dword [ebp+0xc]  -- a narrowed COPY of scaled; ST(0)
+     *                                     stays wide and is what fmod gets
+     *   0x10a647 FSTP dword [ebp+8]    -- weight narrowed before every use
+     *   0x10a64a FLD  dword [ebp+0xc]  -- the subtraction reloads the COPY
+     *   0x10a650 FSTP dword [ebp-4]    -- difference narrowed before FISTP
+     * idx is masked and used as a table index, so a sub-ULP difference at an
+     * integer boundary selects a different entry rather than a nearby value.
+     * cl.exe narrows on its own, so the barriers cost nothing in the VC71
+     * lane. */
+    scaled_narrow = scaled;
+    HALO_FLT_ROUNDTRIP(scaled_narrow);
 #if defined(_MSC_VER) && !defined(__clang__)
     weight = (float)fmod((double)scaled, *(double *)0x2573d8);
 #else
     weight = x87_fmod(scaled, *(double *)0x2573d8);
 #endif
-    idx = (unsigned int)x87_round_to_int(scaled - weight) & 0x3ff;
+    HALO_FLT_ROUNDTRIP(weight);
+    integer_part = scaled_narrow - weight;
+    HALO_FLT_ROUNDTRIP(integer_part);
+    idx = (unsigned int)x87_round_to_int(integer_part) & 0x3ff;
 
     table = ((unsigned char **)0x46e3b8)[function_type];
     v0 = (float)table[idx] * *(float *)0x261518;
@@ -1768,11 +1821,24 @@ bool fast_vector_intersects_sphere(float *line_start, float *line_end,
                                    float *sphere_center, float sphere_radius)
 {
   float dx, dy, dz, c;
-  float dir_x;
+  volatile float dir_x;
   volatile float dir_y;
   volatile float dir_z;
   volatile float b;
   float a, disc, t_check;
+  /* `fst DWORD PTR [ebp+8]` at 0x10bca4 and 0x10bd23 keeps the accumulator in
+   * ST(0) at 80 bits for the comparison that follows it, but leaves a
+   * single-precision copy behind that is what the *later* arithmetic reads
+   * (`fmul DWORD PTR [ebp+8]` at 0x10bd1e, `fcomp DWORD PTR [ebp+8]` at
+   * 0x10bd55).  clang -mno-sse otherwise keeps both values in x87 registers
+   * end to end, so the narrowing has to be forced. */
+#if defined(_MSC_VER) && !defined(__clang__)
+  float c_narrow;
+  float disc_narrow;
+#else
+  volatile float c_narrow;
+  volatile float disc_narrow;
+#endif
 
   dx = line_start[0] - sphere_center[0];
   dy = line_start[1] - sphere_center[1];
@@ -1780,32 +1846,36 @@ bool fast_vector_intersects_sphere(float *line_start, float *line_end,
   /* reference accumulates all three dot products z-first (MSVC never
    * reassociates FP adds — z-first in the binary proves z-first source) */
   c = dz * dz + dy * dy + dx * dx - sphere_radius * sphere_radius;
+  c_narrow = c;
 
-  if (!(c < *(float *)0x2533c0)) {
-    dir_x = line_end[0];
-    dir_y = line_end[1];
-    dir_z = line_end[2];
-    b = dir_z * dz + dir_y * dy + dir_x * dx;
+  /* Reference 0x10bca7-0x10bcb2 falls through to the `mov al,1` return and
+   * branches (`jp`) into the body, so the inside-the-sphere case is an early
+   * return, not the else arm. */
+  if (c < *(float *)0x2533c0)
+    return true;
 
-    if (!(b >= *(float *)0x2533c0)) {
-      a = dir_z * dir_z + dir_y * dir_y + dir_x * dir_x;
-      disc = b * b - a * c;
+  dir_x = line_end[0];
+  dir_y = line_end[1];
+  dir_z = line_end[2];
+  b = dir_z * dz + dir_y * dy + dir_x * dx;
 
-      if (disc <= 0.0f)
-        return false;
+  if (!(b >= *(float *)0x2533c0)) {
+    a = dir_z * dir_z + dir_y * dir_y + dir_x * dir_x;
+    disc = b * b - a * c_narrow;
+    disc_narrow = disc;
 
-      t_check = -a - b;
-      if (t_check < 0.0f)
-        return true;
+    if (disc <= 0.0f)
+      return false;
 
-      if (t_check * t_check < disc)
-        return true;
-    }
+    t_check = -a - b;
+    if (t_check < 0.0f)
+      return true;
 
-    return false;
+    if (t_check * t_check < disc_narrow)
+      return true;
   }
 
-  return true;
+  return false;
 }
 
 /* 0x10bd70 — Point-in-rectangle test (2D, fully inclusive). */

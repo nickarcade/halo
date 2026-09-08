@@ -6,10 +6,17 @@ set(CMAKE_C_STANDARD 90)
 
 option(ENABLE_XDK_HYBRID "Compile select TUs with XDK MSVC 7.1 for matching FPU codegen" OFF)
 option(HALO_TEST_HARNESS "Build with in-engine test harness enabled" OFF)
+option(HALO_RNG_TRACE "Build with the diagnostic RNG draw trace enabled (docs/rng-trace.md)" OFF)
 set(HALO_DUAL_ORACLE_TARGET "" CACHE STRING "Build one in-engine dual-oracle harness target")
 option(HALO_RETAIL64 "Build experimental 64MB retail-compatible runtime profile" OFF)
 
 find_package(Python3 COMPONENTS Interpreter)
+
+find_program(CCACHE_EXECUTABLE ccache)
+if(CCACHE_EXECUTABLE)
+	set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_EXECUTABLE}")
+	set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_EXECUTABLE}")
+endif()
 
 set(gen_dir "${PROJECT_BINARY_DIR}/generated")
 add_custom_target(create_gen_dir ALL
@@ -21,6 +28,8 @@ add_custom_command(
 		--gen-header "${gen_dir}/decl.h"
 		--gen-def "${gen_dir}/halo.xbe.def"
 		--gen-thunks "${gen_dir}/thunks.c"
+	COMMAND "${CMAKE_COMMAND}" -E touch_nocreate
+		"${gen_dir}/decl.h" "${gen_dir}/halo.xbe.def" "${gen_dir}/thunks.c"
 	DEPENDS "${CMAKE_CURRENT_LIST_DIR}/tools/analysis/knowledge.py" "${CMAKE_CURRENT_LIST_DIR}/kb.json" create_gen_dir
 	VERBATIM
 )
@@ -157,6 +166,10 @@ target_sources(halo PRIVATE
 if(HALO_TEST_HARNESS)
 	target_compile_definitions(halo PRIVATE TEST_HARNESS=1)
 	target_sources(halo PRIVATE src/halo/test_harness.c)
+endif()
+
+if(HALO_RNG_TRACE)
+	target_compile_definitions(halo PRIVATE HALO_RNG_TRACE=1)
 endif()
 
 if(HALO_DUAL_ORACLE_TARGET)

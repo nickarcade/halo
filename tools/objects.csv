@@ -149,8 +149,8 @@ actor_perception.obj,true,0x0002F1A0-0x000357F0,45
 ai_communication.obj,true,0x00042A30-0x00049090,48
 ai_debug.obj,true,0x00048F50-0x00053CF0,73
 ai_profile.obj,true,0x000540B0-0x00055FD0,46
-ai_script.obj,true,0x00058CC0-0x00058F40,2
-encounters.obj,true,0x00053B80-0x0005E1B0,140
+ai_script.obj,true,0x00057330-0x00058F40,4
+encounters.obj,true,0x00053B80-0x0005E1B0,138
 props.obj,true,0x00063E30-0x000653A0,30
 tif_dir.obj,true,0x00064CD0-0x00067070,31
 tif_error.obj,true,0x000689C0-0x00068C10,2
@@ -164,7 +164,7 @@ network_connection.obj,true,0x001282F0-0x00129C30,18
 network_game_manager.obj,true,0x0012A960-0x0012B8B0,20
 bsp3d.obj,true,0x00146BE0-0x001472B0,5
 collision_features.obj,true,0x0014AD40-0x0014C6B0,18
-rasterizer_xbox_dynavobgeom.obj,true,0x0015F1F0-0x0015FAE0,7
+rasterizer_xbox_dynavobgeom.obj,true,0x0015F1F0-0x0015FAE0,8
 cache_files.obj,true,0x001B9890-0x001BA070,8
 sound_definitions.obj,true,0x001C8D90-0x001C8F90,1
 actor_firing_position.obj,true,0x00024000-0x00024DE0,15

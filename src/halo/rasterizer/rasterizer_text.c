@@ -52,7 +52,7 @@ float *FUN_0017ffc0(float *param_1, unsigned int param_2)
 
 /* rasterizer_geometry_vertex_type_to_stride: return vertex stride for type,
  * assert valid range (0x180050) */
-int FUN_00180050(short param_1)
+int rasterizer_geometry_get_vertex_size(short param_1)
 {
   if (param_1 < 0 || param_1 >= 12) {
     display_assert("type>=0 && type<NUMBER_OF_RASTERIZER_VERTEX_TYPES",
@@ -2745,7 +2745,7 @@ int FUN_00183290(void *param_1)
 /* rasterizer_swizzle_bitmap_all: rebuild hardware format for a bitmap by
  * allocating a swizzle buffer and copying/padding all face mipmaps
  * (0x183390). Returns 1 on success, 0 on out-of-memory. */
-int FUN_00183390(int param_1)
+int rasterizer_xbox_bitmap_rebuild_hardware_format(int param_1)
 {
   int total_size;
   int iVar8;
@@ -3387,7 +3387,7 @@ void rasterizer_text_draw(void *screen_pos, short *bounds, const void *color,
     widget_params[17] = texel_height;
 
     FUN_00173b40(widget_params);
-    FUN_0019c5d0(rasterizer_text_draw_cached_chars, draw_bounds, color,
+    draw_string(rasterizer_text_draw_cached_chars, draw_bounds, color,
                  clip_bounds, flags, (char *)text);
     FUN_00173ae0();
   }

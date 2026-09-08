@@ -1,3 +1,7 @@
+#ifdef HALO_RNG_TRACE
+#include "halo/math/rng_trace.h"
+#endif
+#line 1
 /* units.c — unit lifecycle and query helpers.
  *
  * Corresponds to units.obj. Functions sorted by XBE address.
@@ -863,7 +867,7 @@ void FUN_00123560(int model_tag, int permutation_data, int *node_matrices,
                         FUN_0017cbc0(
                           shader_tag, (int)actual_detail, (int)(part + 0x44),
                           -1, *(int *)(part + 0x48), (int)(part + 0x54), -1);
-                        ((void (*)(int, int *, unsigned char *))FUN_0017d2b0)(
+                        ((void (*)(int, int *, unsigned char *))rasterizer_debug_model_vertices)(
                           render_data, node_matrices, part);
                       } else {
                         actual_detail = detail_level;
@@ -1118,6 +1122,29 @@ char FUN_001a6350(int unit_handle)
     FUN_001a2800(unit_handle, "pre-turning");
 
     if ((*(unsigned char *)((char *)biped + 0xb6) & 0x4) == 0) {
+#ifdef HALO_RNG_TRACE
+      /* The two vectors FUN_001a4c50 dots, read here rather than reconstructed.
+       * The x component alone separates "equal" from "different"; the paired
+       * capture already showed the dot is a bit-exact constant, so this only
+       * has to say WHICH of the two is standing still.  +0x1b4 goes out whole
+       * because bit 0 selects FUN_001b3690's static arm, which writes the
+       * current facing into the desired-facing slot. */
+      RNG_TRACE_EX(RNG_TRACE_KIND_DESIRED_X,
+                   *(unsigned int *)((char *)biped + 0x1d4), unit_handle);
+      RNG_TRACE_EX(RNG_TRACE_KIND_CURRENT_X,
+                   *(unsigned int *)((char *)biped + 0x24), unit_handle);
+      RNG_TRACE_EX(RNG_TRACE_KIND_UNIT_FLAGS,
+                   *(unsigned int *)((char *)biped + 0x1b4), unit_handle);
+      RNG_TRACE_EX(RNG_TRACE_KIND_TURN_GATES,
+                   (unsigned int)*(unsigned char *)((char *)biped + 0x42a) |
+                     ((unsigned int)*(unsigned char *)((char *)biped + 0x257)
+                      << 8) |
+                     ((*(unsigned int *)((char *)biped + 0x1b4) & 0x4000u)
+                      << 2) |
+                     ((*(unsigned int *)((char *)biped + 0x1b8) & 0x100u) << 9),
+                   unit_handle);
+#endif
+#line 1124
       FUN_001a4c50(unit_handle, state_pair);
       FUN_001a2800(unit_handle, "post-turning");
     }
@@ -4249,8 +4276,9 @@ bool unit_animation_state_allows_impulse(int unit_handle, int impulse_index)
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
   state = (int)(int8_t)unit->unk_595;
 
-  /* Switch on state - 0x17 for values in [0x17, 0x29] */
-  if ((unsigned)(state - 0x17) <= 0x12) {
+  /* Jump table at 0x1a97a0/0x1a97a8: MSVC normalises to state - 0x17 and
+   * range-checks with CMP 0x12 / JA itself -- do not add an outer guard. */
+  {
     switch (state) {
     case 0x17:
     case 0x18:
@@ -4294,7 +4322,7 @@ bool unit_animation_state_allows_impulse(int unit_handle, int impulse_index)
     if ((int16_t)impulse_index < 0xc || (int16_t)impulse_index > 0xd)
       return false;
 
-    return (bool)((seat_anim[0] >> 8) & 1);
+    return (bool)(((uint32_t)seat_anim[0] >> 8) & 1);
   }
 
   /* No parent: impulses 0xc and 0xd are blocked */
@@ -6340,8 +6368,22 @@ int16_t FUN_001ab870(void *animation_state, int animation_graph_tag_index,
   int16_t result;
   int sound_index;
 
+#ifdef HALO_RNG_TRACE
+  RNG_TRACE_EX(RNG_TRACE_KIND_ANIM_UPDATE_IN,
+               (unsigned int)*(uint16_t *)animation_state |
+                 ((unsigned int)*((uint16_t *)animation_state + 1) << 16),
+               unit_handle);
+#endif
+#line 6344
   result = (int16_t)animation_update_internal(
     1, animation_graph_tag_index, (short *)animation_state, &sound_index);
+#ifdef HALO_RNG_TRACE
+  RNG_TRACE_EX(RNG_TRACE_KIND_ANIM_UPDATE_OUT,
+               (unsigned int)(uint16_t)result |
+                 ((unsigned int)*(uint16_t *)animation_state << 16),
+               unit_handle);
+#endif
+#line 6346
   if (sound_index != -1) {
     object_impulse_sound_new(unit_handle, sound_index, 0, *(float **)0x31fc1c,
                              *(float **)0x31fc3c, 1.0f);
@@ -6463,7 +6505,7 @@ void unit_detach_weapon(int unit_handle, int weapon_handle)
 
   /* Scale direction by random amount */
   seed = get_global_random_seed_address();
-  scale = random_real_range(seed, 0.026666667f, 0.04f);
+  scale = random_real_range(seed, 0.026666667f, 0.040000003f); /* 0x3d23d70b, not 0.04f (0x3d23d70a) */
   direction[0] *= scale;
   direction[1] *= scale;
   direction[2] *= scale;
@@ -7826,7 +7868,6 @@ char unit_animation_set_state(int unit_handle, int16_t anim_state)
   char *antr_tag;
   char *unit_mode;
   char *mode_block;
-  int anim_graph_tag_index;
   int16_t mode_anim_index;
   int16_t overlay_index;
   int16_t anim_index;
@@ -7839,8 +7880,7 @@ char unit_animation_set_state(int unit_handle, int16_t anim_state)
 
   unit = (int *)object_get_and_verify_type(unit_handle, 3);
   unit_tag = (char *)tag_get(0x756e6974, *unit);
-  anim_graph_tag_index = *(int *)(unit_tag + 0x44);
-  antr_tag = (char *)tag_get(0x616e7472, anim_graph_tag_index);
+  antr_tag = (char *)tag_get(0x616e7472, *(int *)(unit_tag + 0x44));
 
   unit_mode = (char *)tag_block_get_element(
     antr_tag + 0xc, (int)*(signed char *)((char *)unit + 0x250), 100);
@@ -7853,6 +7893,13 @@ char unit_animation_set_state(int unit_handle, int16_t anim_state)
   old_state = (int16_t)old_state_byte;
   was_none = (old_state_byte == -1);
   did_change = 0;
+#ifdef HALO_RNG_TRACE
+  RNG_TRACE_EX(RNG_TRACE_KIND_UNIT_STATE,
+               ((unsigned int)(uint16_t)anim_state << 8) |
+                 ((unsigned int)old_state_byte & 0xffu),
+               unit_handle);
+#endif
+#line 7857
 
   if (!was_none && anim_state == old_state)
     goto resolve_weapon_idle;
@@ -8060,8 +8107,8 @@ check_early_return:
 
 apply_animation:
   anim_index =
-    (int16_t)model_animation_choose_random(1, anim_graph_tag_index, anim_index);
-  unit_set_animation(unit_handle, anim_graph_tag_index, anim_index);
+    (int16_t)model_animation_choose_random(1, *(int *)(unit_tag + 0x44), anim_index);
+  unit_set_animation(unit_handle, *(int *)(unit_tag + 0x44), anim_index);
 
   old_state = (int16_t)(signed char)*((char *)unit + 0x253);
 
@@ -8093,7 +8140,7 @@ resolve_weapon_idle: {
     }
 
     weapon_idle_anim = (int16_t)model_animation_choose_random(
-      1, anim_graph_tag_index, weapon_idle_anim);
+      1, *(int *)(unit_tag + 0x44), weapon_idle_anim);
     *(int16_t *)((char *)unit + 0x24a) = weapon_idle_anim;
 
     if (*(uint8_t *)0x5054fb != 0 && *(int16_t *)((char *)unit + 0x64) == 0 &&
@@ -8115,7 +8162,7 @@ resolve_weapon_idle: {
         weapon_idle_anim = -1;
       }
       weapon_idle_anim = (int16_t)model_animation_choose_random(
-        1, anim_graph_tag_index, weapon_idle_anim);
+        1, *(int *)(unit_tag + 0x44), weapon_idle_anim);
       *(int16_t *)((char *)unit + 0x24c) = weapon_idle_anim;
 
       if (*(uint8_t *)0x5054fb != 0 && *(int16_t *)((char *)unit + 0x64) == 0 &&
@@ -9791,14 +9838,15 @@ void unit_update_running_blind(int unit_handle, float *run_vector)
     float fwd_range;
     float bwd_range;
 
-    fwd_range =
-      (*(float *)0x254a58 - *(float *)(unit + 0x3c4)) * *(float *)0x2b7258;
-    bwd_range =
-      (*(float *)(unit + 0x3c4) + *(float *)0x254a58) * *(float *)0x2b7258;
-
+    /* 0x1af3f3-0x1af448: form both raw ranges first, then scale and
+     * clamp each one. This keeps the paired values in the same x87 shape. */
+    fwd_range = *(float *)0x254a58 - *(float *)(unit + 0x3c4);
+    bwd_range = *(float *)(unit + 0x3c4) + *(float *)0x254a58;
+    fwd_range *= *(float *)0x2b7258;
     if (fwd_range < *(float *)0x2533c8) {
       local_val = fwd_range;
     }
+    bwd_range *= *(float *)0x2b7258;
     if (bwd_range < *(float *)0x2533c8) {
       max_left = bwd_range;
     }
@@ -9823,18 +9871,7 @@ void unit_update_running_blind(int unit_handle, float *run_vector)
   }
 
   /* Determine random angle delta */
-  if (max_left > local_val) {
-    /* Right turn dominant */
-    if (max_left < *(float *)0x255e94) {
-      angle_delta = *(float *)0x2b7248;
-      goto apply_angle;
-    }
-    if (max_left >= *(float *)0x2533c8) {
-      max_left = *(float *)0x2533c8;
-    }
-    max_left = max_left * *(float *)0x2b724c;
-    local_val = 0.02094395f;
-  } else {
+  if (local_val < max_left) {
     /* Left turn dominant */
     if (local_val < *(float *)0x255e94) {
       angle_delta = *(float *)0x2b724c;
@@ -9846,6 +9883,17 @@ void unit_update_running_blind(int unit_handle, float *run_vector)
       local_val = local_val * *(float *)0x2b7248;
     }
     max_left = -0.02094395f;
+  } else {
+    /* Right turn dominant */
+    if (max_left < *(float *)0x255e94) {
+      angle_delta = *(float *)0x2b7248;
+      goto apply_angle;
+    }
+    if (max_left >= *(float *)0x2533c8) {
+      max_left = *(float *)0x2533c8;
+    }
+    max_left = max_left * *(float *)0x2b724c;
+    local_val = 0.02094395f;
   }
 
   {
@@ -10971,7 +11019,7 @@ short unit_update_animation(int unit_handle, char *anim_state)
   short anim_status;
   unsigned short result;
   char apply_flag;
-  short global_seat;
+  int global_seat; /* 0x1b0e74: dword load, word comparisons */
   char unit_anim_byte;
   unsigned int *vehicle_unit;
   int vehicle_tag;
@@ -10981,7 +11029,6 @@ short unit_update_animation(int unit_handle, char *anim_state)
   int anim_element;
   float delta[3];
   char out_matrix[52];
-  void *world_matrix;
   int biped_data;
   int biped_tag;
 
@@ -11000,7 +11047,7 @@ short unit_update_animation(int unit_handle, char *anim_state)
   base_seat = -1;
   if (unit[0x33] == (unsigned int)-1 &&
       (*(unsigned char *)((int)unit + 0xb6) & 4) == 0) {
-    switch (*(unsigned char *)((int)unit + 0x256)) {
+    switch ((int)*(signed char *)((int)unit + 0x256)) {
     case 0:
       base_seat = 0;
       break;
@@ -11031,14 +11078,14 @@ short unit_update_animation(int unit_handle, char *anim_state)
     }
 
     if (unit[0x72] != (unsigned int)-1) {
-      global_seat = *(short *)0x32de80;
-      if (global_seat != -1) {
-        if (global_seat < 0) {
+      global_seat = *(int *)0x32de80;
+      if ((short)global_seat != -1) {
+        if ((short)global_seat < 0) {
           base_seat = 0;
         } else {
           base_seat = 6;
-          if (global_seat < 7) {
-            base_seat = global_seat;
+          if ((short)global_seat < 7) {
+            base_seat = (short)global_seat;
           }
         }
       }
@@ -11080,19 +11127,17 @@ short unit_update_animation(int unit_handle, char *anim_state)
       FUN_001ab870((void *)((int)unit + 0x80), (int)unit[0x1f], unit_handle);
     if (anim_status == 1) {
       unit_anim_byte = *(char *)((int)unit + 0x253);
-      if (unit_anim_byte >= 0x1e && unit_anim_byte <= 0x29) {
-        switch (unit_anim_byte) {
-        case 0x1e:
-        case 0x1f:
-        case 0x29:
-          unit_cause_melee_damage(unit_handle, 0, -1, -1, -1, -1, (float *)0);
-          break;
-        case 0x21:
-          unit_throw_grenade_release(unit_handle, 0);
-          break;
-        default:
-          break;
-        }
+      switch (unit_anim_byte) {
+      case 0x1e:
+      case 0x1f:
+      case 0x29:
+        unit_cause_melee_damage(unit_handle, 0, -1, -1, -1, -1, (float *)0);
+        break;
+      case 0x21:
+        unit_throw_grenade_release(unit_handle, 0);
+        break;
+      default:
+        break;
       }
     } else if (anim_status == 2) {
       unit_anim_byte = *(char *)((int)unit + 0x253);
@@ -11126,6 +11171,20 @@ short unit_update_animation(int unit_handle, char *anim_state)
         *(short *)((int)unit + 0x82) = *(short *)((int)unit + 0x82) - 1;
         break;
 
+      case 0x1b:
+        mode_tag =
+          (int)tag_get(0x6d6f6465, *(unsigned int *)(unit_tag_data + 0x34));
+        anim_graph = (int)tag_get(0x616e7472, unit[0x1f]);
+        anim_element = (int)tag_block_get_element(
+          (void *)(anim_graph + 0x74), (int)*(short *)(unit + 0x20), 0xb4);
+        FUN_001234b0((void *)mode_tag, (void *)anim_element,
+                     *(unsigned short *)((int)unit + 0x82), delta);
+        matrix_scale_transform_vector(
+          (float *)object_get_world_matrix(unit_handle, out_matrix), delta, delta);
+        unit_exit_seat_end(unit_handle);
+        vector3d_add((float *)(unit + 6), delta, (float *)(unit + 6));
+        break;
+
       case 0x1a:
         vehicle_unit =
           (unsigned int *)object_get_and_verify_type(unit[0x33], 3);
@@ -11136,20 +11195,6 @@ short unit_update_animation(int unit_handle, char *anim_state)
         if (vehicle_unit[0xb5] == (unsigned int)unit_handle) {
           unit_close((int)unit[0x33]);
         }
-        break;
-
-      case 0x1b:
-        mode_tag =
-          (int)tag_get(0x6d6f6465, *(unsigned int *)(unit_tag_data + 0x34));
-        anim_graph = (int)tag_get(0x616e7472, unit[0x1f]);
-        anim_element = (int)tag_block_get_element(
-          (void *)(anim_graph + 0x74), (int)*(short *)(unit + 0x20), 0xb4);
-        FUN_001234b0((void *)mode_tag, (void *)anim_element,
-                     *(unsigned short *)((int)unit + 0x82), delta);
-        world_matrix = (void *)object_get_world_matrix(unit_handle, out_matrix);
-        matrix_scale_transform_vector((float *)world_matrix, delta, delta);
-        unit_exit_seat_end(unit_handle);
-        vector3d_add((float *)(unit + 6), delta, (float *)(unit + 6));
         break;
 
       case 0x25:
@@ -11189,9 +11234,10 @@ short unit_update_animation(int unit_handle, char *anim_state)
   }
 
   if (*(short *)((int)unit + 0x25e) != -1) {
-    anim_status = FUN_001ab870((void *)((int)unit + 0x25e),
+    int anim_status_wide;
+    anim_status_wide = FUN_001ab870((void *)((int)unit + 0x25e),
                                *(int *)(unit_tag_data + 0x44), unit_handle);
-    if (anim_status == 2 || anim_status == 4) {
+    if (anim_status_wide == 2 || anim_status_wide == 4) {
       unit_anim_byte = *(char *)((int)unit + 0x253);
       if (unit_anim_byte < 3 || unit_anim_byte > 4) {
         *(char *)((int)unit + 0x255) = 0;
@@ -11326,9 +11372,9 @@ void FUN_001b1400(int unit_handle, char is_melee, char is_throw,
   char engine_running;
   short anim_idx;
   short chosen_anim;
-  int16_t anim_entry_idx;
-  char anim_state;
-  char movement_type;
+  int anim_entry_idx; /* 0x1b15ef: movsx ecx,word / or ecx,-1 */
+  int anim_state; /* 0x1b1635: dword slot -0xc; cmpw/movb reads */
+  int movement_type; /* 0x1b164b: dword slot -0x14 */
   char must_apply;
   int biped_data;
   int biped_tag;
@@ -11343,24 +11389,29 @@ void FUN_001b1400(int unit_handle, char is_melee, char is_throw,
   if (is_melee != 0) {
     is_throw = 0;
     moving = 1;
-    if (*(float *)(unit_tag + 0x228) <= 0.0f ||
-        (float)unit[0x27] <= *(float *)(unit_tag + 0x228)) {
-      fast_moving = 0;
-    } else {
+    /* 0x1b143c/0x1b1457: fcomp; test $0x41; jne -- jump-when-false of a
+     * strict '>' (jne, not the jnp a '<=' spelling gives). */
+    if (*(float *)(unit_tag + 0x228) > 0.0f &&
+        *(float *)((char *)unit + 0x9c) > *(float *)(unit_tag + 0x228)) {
       fast_moving = 1;
       goto check_ping;
+    } else {
+      fast_moving = 0;
     }
   } else if (is_throw != 0) {
     is_melee = 1;
     moving = 1;
   } else {
-    if ((float)unit[0x27] >= *(float *)(unit_tag + 0x218) ||
-        (float)unit[0x26] >= *(float *)(unit_tag + 0x218)) {
+    /* 0x1b147b/0x1b148e: flds 0x9c/0x98(%ebx); fcomps 0x218; test $0x41 -- strict
+     * '>' on FLOAT fields (an int-typed read here FILDs the float bits). */
+    if (*(float *)((char *)unit + 0x9c) > *(float *)(unit_tag + 0x218) ||
+        *(float *)((char *)unit + 0x98) > *(float *)(unit_tag + 0x218)) {
       moving = 1;
     } else {
       moving = 0;
     }
-    fast_moving = (float)unit[0x27] >= *(float *)(unit_tag + 0x220);
+    /* 0x1b14a9: flds 0x9c(%ebx); fcomps 0x220; test $0x41; je -- strict '>'. */
+    fast_moving = *(float *)((char *)unit + 0x9c) > *(float *)(unit_tag + 0x220);
 
     if (is_ground == 0 && *(char *)(unit + 0x6d) >= 0) {
       goto check_ping;
@@ -11380,9 +11431,9 @@ check_ping:
 
   {
     float abs_throttle;
-    abs_throttle = throttle_magnitude;
-    if (abs_throttle < 0.0f)
-      abs_throttle = -abs_throttle;
+    /* 0x1b14f2: fld [ebp+0x20]; fabs -- the inline FABS intrinsic, not a
+     * compare-and-negate. */
+    abs_throttle = (float)fabs(throttle_magnitude);
 
     if ((double)abs_throttle < *(double *)0x25b3f0) {
       throttle_dir = 3;
@@ -11390,7 +11441,9 @@ check_ping:
       throttle_dir = 0;
     } else {
       throttle_dir = 1;
-      if (throttle_magnitude <= 0.0f) {
+      /* 0x1b1530: fcomp 0.0; test $0x41; je -- skip-when-'>' (je), not the
+       * jp a '<=' spelling gives. */
+      if (!(throttle_magnitude > 0.0f)) {
         throttle_dir = 2;
       }
     }
@@ -11414,8 +11467,7 @@ check_ping:
         *(short *)(unit + 0x99) <= *(short *)(unit_tag + 0x2c8)) {
       return;
     }
-    anim_idx =
-      ((short (*)(int, short, int))0x120670)(0, throttle_dir, weapon_class);
+    anim_idx = build_damage_animation_index(0, throttle_dir, weapon_class);
     if (anim_idx < 0 || anim_idx >= *(int *)(anim_graph + 0x3c)) {
       anim_entry_idx = -1;
     } else {
@@ -11443,7 +11495,7 @@ check_ping:
     }
     must_apply = 0;
   } else {
-    movement_type = fast_moving + 2;
+    movement_type = (fast_moving != 0) + 2; /* 0x1b1645: setne dl; add edx,2 */
   force_apply:
     must_apply = 1;
   }
@@ -11485,8 +11537,7 @@ check_ping:
     }
   }
 
-  anim_idx = ((short (*)(int, short, int))0x120670)((int)movement_type,
-                                                    throttle_dir, weapon_class);
+  anim_idx = build_damage_animation_index(movement_type, throttle_dir, weapon_class);
   if (anim_idx < 0 || anim_idx >= *(int *)(anim_graph + 0x3c)) {
     anim_entry_idx = -1;
   } else {
@@ -11511,7 +11562,7 @@ check_ping:
       unit_throw_grenade_release(unit_handle, 1);
     }
     object_set_region_count(unit_handle, 3);
-    *(char *)((int)unit + 0x253) = anim_state;
+    *(char *)((int)unit + 0x253) = (char)anim_state;
     unit_set_animation(unit_handle, *(unsigned int *)(unit_tag + 0x44),
                        chosen_anim);
     *(unsigned char *)((int)unit + 0x248) =
@@ -11537,17 +11588,18 @@ check_ping:
     }
 
     if (throttle_dir != 0) {
-      short standing_idx;
       short standing_ref;
       anim_element = (int)tag_block_get_element((void *)(anim_graph + 0x74),
                                                 (int)chosen_anim, 0xb4);
-      standing_idx = ((short (*)(int, short, int))0x120670)((int)movement_type,
-                                                            0, weapon_class);
-      if (standing_idx < 0 || standing_idx >= *(int *)(anim_graph + 0x3c)) {
+      /* 0x1b185d/0x1b186e/0x1b1884: the original evaluates the index helper
+       * three times (inlined accessor macro); the callee is pure. */
+      if (build_damage_animation_index(movement_type, 0, weapon_class) < 0 ||
+          build_damage_animation_index(movement_type, 0, weapon_class) >=
+            *(int *)(anim_graph + 0x3c)) {
         standing_ref = -1;
       } else {
-        standing_ref =
-          *(short *)(*(int *)(anim_graph + 0x40) + standing_idx * 2);
+        standing_ref = *(short *)(*(int *)(anim_graph + 0x40) +
+          build_damage_animation_index(movement_type, 0, weapon_class) * 2);
       }
       if (*(short *)(anim_element + 0x42) == standing_ref) {
         throttle_dir = 0;
@@ -11596,8 +11648,9 @@ alignment_section:
     default:
       display_assert(0, "c:\\halo\\SOURCE\\units\\units.c", 0x11d2, 1);
       system_exit(-1);
-      align_out[0] = avec[0];
-      align_out[1] = avec[1];
+      /* 0x1b1a04: unreachable after system_exit; the original calls with
+       * align_out unassigned, and assigning here lets cl.exe tail-merge this
+       * arm with case 3 (dropped call in the shape audit). */
       unit_apply_alignment_vector(unit_handle, align_out);
       return;
     }
@@ -12795,7 +12848,7 @@ bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
   void *anim_tag;
   void *anim_entry;
   int16_t boarding_anim_index;
-  int anim_result;
+  int16_t anim_result;
 
   if (!unit_find_nearby_seat(unit_handle, vehicle_handle, seat_index, 0))
     return false;
@@ -12886,8 +12939,7 @@ bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
                                                   boarding_anim_index);
 
       /* Set unit animation graph, index, and reset frame counter */
-      unit_set_animation(unit_handle, anim_graph_tag_index,
-                         (int16_t)anim_result);
+      unit_set_animation(unit_handle, anim_graph_tag_index, anim_result);
 
       /* Set animation state byte */
       *((uint8_t *)unit + 0x253) = 0x1a;

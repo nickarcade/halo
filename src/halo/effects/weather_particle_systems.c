@@ -453,7 +453,7 @@ void FUN_000a4610(int16_t type_index /* @<eax> */,
   particle_seed = (unsigned int)(int)particle_index;
   position = (float *)(particle + 4);
 
-  FUN_00154a50(flags,
+  point_physics_update(flags,
                (int)tag_get(0x70706879, *(int *)((char *)type_element + 0xb8)),
                (int *)(weather_particle_system + 0x10),
                (int)*(uint16_t *)(weather_particle_system + 0x18), position,
@@ -896,7 +896,7 @@ void weather_particle_system_render(int16_t local_player_index /* @<eax> */)
       }
     }
 
-    FUN_0018d2c0((uint32_t *)sprite_data, *(int16_t *)(particle_type + 8),
+    build_sprites_begin((uint32_t *)sprite_data, *(int16_t *)(particle_type + 8),
                  (uint32_t) * (int *)(type_element + 0x1a0),
                  (int)(size_t)(type_element + 0x1a8), 0);
 

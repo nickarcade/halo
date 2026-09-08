@@ -24,17 +24,17 @@ In practice, that means:
 Game Code Progress
 ------------------
 <!-- GAME_CODE_PROGRESS_START -->
-[![Decompilation Progress](https://img.shields.io/badge/decompilation-79.02%25-green.svg)](https://stianeklund.github.io/halo/)
-[![Ported Functions](https://img.shields.io/badge/functions-5,377%2F6,805-blue.svg)](https://stianeklund.github.io/halo/)
+[![Decompilation Progress](https://img.shields.io/badge/decompilation-80.31%25-green.svg)](https://stianeklund.github.io/halo/)
+[![Ported Functions](https://img.shields.io/badge/functions-5,466%2F6,806-blue.svg)](https://stianeklund.github.io/halo/)
 
 Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):
 
-* **Ported Functions:** `5,377 / 6,805` (`79.02%`)
-  `[████████████████████████████████░░░░░░░░] 79.02%`
-* **Ported Code Bytes:** `1,134,954 / 1,729,387` (`65.63%`)
-  `[██████████████████████████░░░░░░░░░░░░░░] 65.63%`
-* **Average VC71 Match Accuracy:** `92.80%` (`5,357` scored functions, weighted: `88.00%`)
-* **Equivalence Verified:** `4,552` functions tested (`1,151` high confidence)
+* **Ported Functions:** `5,466 / 6,806` (`80.31%`)
+  `[████████████████████████████████░░░░░░░░] 80.31%`
+* **Ported Code Bytes:** `1,159,443 / 1,729,403` (`67.04%`)
+  `[███████████████████████████░░░░░░░░░░░░░] 67.04%`
+* **Average VC71 Match Accuracy:** `93.00%` (`5,452` scored functions, weighted: `88.30%`)
+* **Equivalence Verified:** `4,588` functions tested (`1,167` high confidence)
 * **Translation Units:** `189` source units (`39` platform/SDK buckets tracked separately)
 
 > Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
@@ -100,7 +100,7 @@ cmake -Bbuild -S. -DCMAKE_TOOLCHAIN_FILE=$PWD/toolchains/llvm.cmake
 cmake --build build
 ```
 
-When the build is complete, the original game with re-implementation patched in will be at `halo-patched/default.xbe`. To build and deploy to xemu in one step: `./tools/xbox/build_deploy_run.sh -q`. For real Xbox hardware: `./tools/xbox/build_deploy_run_real_hw.sh -q`.
+When the build is complete, the original game with re-implementation patched in will be at `halo-patched/default.xbe`. To build and deploy to xemu in one step: `./tools/xbox/build_deploy_run.sh -q`. For xemu guests on a bridged adapter, use `./tools/xbox/build_deploy_run.sh --xemu-bridged --xbox <guest-ip> -q`; this keeps XBDM on WSL's reachable network path. For real Xbox hardware: `./tools/xbox/build_deploy_run_real_hw.sh -q`.
 
 You'll want to set up a debug environment.
 

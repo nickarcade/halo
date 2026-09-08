@@ -1,3 +1,7 @@
+#ifdef HALO_RNG_TRACE
+#include "halo/math/rng_trace.h"
+#endif
+#line 1
 /* FUN_00120250 (0x120250) — Allocate a rectangle in a texture page's packed
  * bitmap layout.
  *
@@ -850,8 +854,9 @@ void animation_frame_get_xy_translation(void *animation, short frame_index,
  * Confirmed: tag_block_get_element(antr_tag+0x74, index, 0xb4) at 0x120f9e.
  * Confirmed: FCOMP [ECX+0x44] + JNP loop exit at 0x120fab-0x120fb3.
  * Confirmed: next animation at element+0x38 (int16_t) at 0x120fb5.
+ * Confirmed: returns the signed 16-bit index in AX at 0x120fc0.
  */
-int model_animation_choose_random(int update_kind,
+int16_t model_animation_choose_random(int update_kind,
                                   int animation_graph_tag_index,
                                   int16_t animation_index)
 {
@@ -859,6 +864,12 @@ int model_animation_choose_random(int update_kind,
   float random_value;
   char *element;
 
+#ifdef HALO_RNG_TRACE
+  if (update_kind == 1)
+    RNG_TRACE_EX(RNG_TRACE_KIND_ANIM_CHOOSE, (unsigned int)(unsigned short)animation_index,
+                 __builtin_return_address(0));
+#endif
+#line 862
   antr_tag = (char *)tag_get(0x616e7472, animation_graph_tag_index);
   if (update_kind == 1) {
     random_value =
@@ -878,7 +889,7 @@ int model_animation_choose_random(int update_kind,
       break;
     animation_index = *(int16_t *)(element + 0x38);
   }
-  return (int)animation_index;
+  return animation_index;
 }
 
 /* floor: the original calls MSVC CRT floor (0x1d9c2b).

@@ -337,15 +337,13 @@ void project_point2d(float *point_2d, float *plane, int16_t projection,
  * p, q, r. Returns a float. */
 float triple_product3d(float *p, float *q, float *r)
 {
-  float cross_x;
-  float cross_y;
-  float cross_z;
+  float cross[3];
 
-  cross_x = p[1] * q[2] - p[2] * q[1];
-  cross_y = p[2] * q[0] - p[0] * q[2];
-  cross_z = p[0] * q[1] - q[0] * p[1];
+  cross[0] = p[1] * q[2] - p[2] * q[1];
+  cross[1] = p[2] * q[0] - p[0] * q[2];
+  cross[2] = p[0] * q[1] - q[0] * p[1];
 
-  return cross_x * r[0] + cross_y * r[1] + cross_z * r[2];
+  return cross[0] * r[0] + cross[1] * r[1] + cross[2] * r[2];
 }
 
 /* plane2d_from_points (0x99400)
@@ -2600,7 +2598,8 @@ void FUN_0017cc10(int param_1)
 void FUN_0017cc20(int param_1, int param_2, int param_3, int param_4,
                   int param_5, int param_6)
 {
-  FUN_00160f50(param_1, param_2, param_3, param_4, param_5, param_6);
+  FUN_00160f50((void *)param_1, param_2, param_3, param_4, param_5,
+               (void *)param_6);
 }
 
 /* Tail-call thunk to rasterizer_xbox_environment gel-light setup
@@ -2623,7 +2622,8 @@ void FUN_0017cc60(int light_index)
 void FUN_0017cc70(int param_1, int param_2, int param_3, int param_4,
                   int param_5, int param_6)
 {
-  FUN_00162560(param_1, param_2, param_3, param_4, param_5, param_6);
+  FUN_00162560((void *)param_1, param_2, param_3, param_4, param_5,
+               (void *)param_6);
 }
 
 /* Tail-call thunk to rasterizer shadow-pass begin (FUN_00172a30).
