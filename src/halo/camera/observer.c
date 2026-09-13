@@ -1353,7 +1353,7 @@ void observer_update_positions(int16_t local_player_index)
 
     for (i = 5; i != 0; i--) {
       val = *timers - *(float *)0x335718;
-      if (val <= *(float *)0x2533c0) {
+      if (!(val > *(float *)0x2533c0)) {
         val = *(float *)0x2533c0;
       }
       *timers = val;
