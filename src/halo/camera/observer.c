@@ -97,7 +97,7 @@ void *observer_get_camera(unsigned __int16 local_player_index)
   if (idx == -1)
     return 0;
 
-  assert_halt(idx >= 0 && idx < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt(((idx >= 0) & 0xFFFFu) && idx < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   entry = (char *)0x33571c + (int)idx * 0x29c;
 
@@ -798,7 +798,9 @@ void FUN_0008c030(float *forward1, float *result_angular, float *forward0,
                   float *up0, float *up1)
 {
   float mat0[13]; /* 3x4 matrix (13 floats, padded to 52 bytes) */
+  float new_var;
   float mat1[13];
+  float new_var2;
 
   if (!valid_real_normal3d_perpendicular(forward0, up0)) {
     csprintf(
@@ -810,12 +812,14 @@ void FUN_0008c030(float *forward1, float *result_angular, float *forward0,
                    0x382, 1);
     system_exit(-1);
   }
+  new_var2 = forward1[2];
   if (!valid_real_normal3d_perpendicular(forward1, up1)) {
+    new_var = up1[2];
     csprintf(
       (char *)0x5ab100,
       "%s, %s: assert_valid_real_vector3d_axes2(%f, %f, %f / %f, %f, %f)",
       "forward1", (char *)0x267488, (double)forward1[0], (double)forward1[1],
-      (double)forward1[2], (double)up1[0], (double)up1[1], (double)up1[2]);
+      (double)new_var2, (double)up1[0], (double)up1[1], (double)new_var);
     display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\camera\\observer.c",
                    0x383, 1);
     system_exit(-1);

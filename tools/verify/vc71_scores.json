@@ -74551,16 +74551,16 @@
     "observer_get_camera": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 86.0,
+      "abi_modeled_mnemonic_pct": 89.4,
       "addr": "0x8a4e0",
       "end": "0x8a56f",
       "kind": "auto",
       "n_r": 43,
-      "opnd_percent": 79.1,
-      "raw_mnemonic_pct": 86.0,
+      "opnd_percent": 82.4,
+      "raw_mnemonic_pct": 89.4,
       "ref": "synth",
       "ref_sha": "8c83bfbbe719219b",
-      "score": 86.0,
+      "score": 89.4,
       "source": "src/halo/camera/observer.c"
     },
     "observer_initialize": {
