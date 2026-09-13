@@ -587,18 +587,25 @@ float normalize3d(float *v)
   return 0.0f;
 }
 
-/* FUN_00013070 (0x13070) — Dot product of two 3D vectors.
- * Confirmed: cdecl, 2 pointer args. Pure FPU leaf.
- * Confirmed: computes a.z*b.z + a.y*b.y + a.x*b.x (accumulation order). */
+/* FUN_00013070 (0x13070) — Calculate the dot product of two 3D vectors.
+ * Confirmed: cdecl calling convention with two pointer arguments.
+ * Confirmed: FPU leaf function.
+ * The calculation order is a.z*b.z + a.y*b.y + a.x*b.x. */
 float FUN_00013070(float *a, float *b)
 {
-  /* Addend association is load-bearing for lockstep determinism, not style.
-     The original (0x13070) accumulates ((z*z' + y*y') + x*x'): FLD z/FMUL,
-     FLD y/FMUL, FADDP, FLD x/FMUL, FADDP.  Written as x+y+z, clang emits
-     ((x+y)+z), which rounds differently and drifts every dot product in the
-     engine by a ULP -- enough to flip movement/facing threshold branches a
-     tick early and desync a system-link game.  cl.exe reassociates to match
-     the original, so the VC71 lane cannot see this; clang is what ships. */
+  /* Keep this calculation order. It is necessary for lockstep determinism.
+     The original function at 0x13070 calculates ((z*z' + y*y') + x*x').
+     The instruction sequence is: FLD z, FMUL, FLD y, FMUL, FADDP,
+     FLD x, FMUL, FADDP.
+
+     Do not write the expression as x+y+z. Clang can then calculate
+     ((x+y)+z). This can produce a different floating-point rounding result.
+     A difference of one ULP can change a movement or facing threshold on a
+     different tick. This can cause a system-link game to lose synchronization.
+
+     cl.exe reassociates the expression and matches the original instruction
+     order. Therefore, this problem is not visible in the VC71 build.
+     The shipped build uses Clang, so the explicit order is necessary. */
   return a[2] * b[2] + a[1] * b[1] + a[0] * b[0];
 }
 
@@ -676,6 +683,79 @@ void vector3d_add(float *a, float *b, float *out)
 int FUN_00021410(uint32_t bits)
 {
   return (bits & 0x7f800000) != 0x7f800000;
+}
+
+/* 0x21e50 — Build and validate a grenade throwing solution for an actor.
+ *
+ * Confirmed: PUSH EAX([EBP+8]) / PUSH ECX(*0x6325a4) / CALL 0x119320
+ *   -> datum_get(actors_data, actor_handle); actor kept in ESI.
+ * Confirmed: PUSH EDX([ESI+0x5c]) / PUSH 0x61637476 ('actv') / CALL 0x1ba140
+ *   -> tag_get('actv', actor+0x5c); the definition pointer stays in EAX and is
+ *   read at +0x180 (MOVSX word) and +0x190.
+ * Confirmed: LEA ECX,[ESI+0x120] then three MOV dword copies into [EBP-0x18].
+ * Confirmed: CALL 0x218d0 takes 9 stack args plus two register args:
+ *   EAX = &position ([EBP-0x18]) and EBX = &aim_direction ([EBP-0x24]).
+ *   The grouped ADD ESP,0x34 also cleans the datum_get/tag_get arg slots
+ *   (9 + 2 + 2 = 13 dwords), so it is not a 13-argument call.
+ * Confirmed: the last pushed argument is LEA EDX,[EBP+0x10] — the address of
+ *   the param_3 parameter slot. The callee overwrites that slot, and the new
+ *   value is re-read at 0x21ed7/0x21eeb and passed as the `accel` argument of
+ *   ai_test_ballistic_line_of_fire (same argument position as the sibling
+ *   0x21710, which passes a ballistic acceleration there). The incoming
+ *   pointer value is cached in EDI before the call and is what the final
+ *   stores dereference, so both uses are reproduced explicitly here.
+ * Confirmed: SETNZ CL from CMP [ESI+0x158],-1 is the last argument of
+ *   ai_test_ballistic_line_of_fire.
+ * Confirmed: on success the three dwords at [EDI] land at actor+0x6a8..0x6b0,
+ *   param_4 at +0x6b4, param_5 (EBX from [EBP+0x18]) at +0x6b8, the callee's
+ *   aim direction at +0x6bc..0x6c4, the callee's scalar at +0x6c8, and
+ *   byte [ESI+0x6a1] is cleared; AL = 1. Both failure exits return the
+ *   [EBP-0x1] byte, which is only ever set to 0.
+ * Unknown: param_2 ([EBP+0xc]) is never read by this function. */
+char FUN_00021e50(volatile int actor_handle, short param_2, float *param_3,
+                  int param_4, int param_5)
+{
+  char *actor;
+  char *definition;
+  float impact_point[3];
+  float aim_direction[3];
+  float position[3];
+  float speed;
+  int target;
+  char result;
+  float *point;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  definition = (char *)tag_get(0x61637476 /* 'actv' */, *(int *)(actor + 0x5c));
+  point = param_3;
+  *(uint32_t *)&position[0] = *(uint32_t *)(actor + 0x120);
+  *(uint32_t *)&position[1] = *(uint32_t *)(actor + 0x124);
+  *(uint32_t *)&position[2] = *(uint32_t *)(actor + 0x128);
+  result = 0;
+
+  if (actor_combat_build_grenade_trajectory(
+        position, aim_direction, (int)*(short *)(definition + 0x180),
+        *(int *)(definition + 0x190), param_3, 0, 0, &speed, &target,
+        impact_point, (float *)&param_3) != '\0') {
+    /* param_3's stack slot now holds the scalar written by the callee; the
+     * original pointer survives in `point`. */
+    if (ai_test_ballistic_line_of_fire(
+          actor_handle, (int)position, target, impact_point, *(float *)&param_3,
+          param_5, (char)(*(int *)(actor + 0x158) != -1)) != '\0') {
+      *(uint32_t *)(actor + 0x6a8) = *(uint32_t *)&point[0];
+      *(uint32_t *)(actor + 0x6ac) = *(uint32_t *)&point[1];
+      *(uint32_t *)(actor + 0x6b0) = *(uint32_t *)&point[2];
+      *(int *)(actor + 0x6b4) = param_4;
+      *(uint32_t *)(actor + 0x6bc) = *(uint32_t *)&aim_direction[0];
+      *(uint32_t *)(actor + 0x6c0) = *(uint32_t *)&aim_direction[1];
+      *(int *)(actor + 0x6b8) = param_5;
+      *(uint32_t *)(actor + 0x6c8) = *(uint32_t *)&speed;
+      *(unsigned char *)(actor + 0x6a1) = 0;
+      *(uint32_t *)(actor + 0x6c4) = *(uint32_t *)&aim_direction[2];
+      return 1;
+    }
+  }
+  return result;
 }
 
 /* 0x21f70 — Float approximate equality check within epsilon. */

@@ -798,6 +798,10 @@
         "The prop field at +0x118 compared against actor field +0x15d may be a team or faction index."
       ]
     },
+    "0x300b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x302b0": {
       "kind": "function",
       "status": "ported"
@@ -1299,6 +1303,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x3f900": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x3f970": {
       "kind": "function",
       "status": "ported"
@@ -1308,6 +1316,14 @@
       "status": "ported"
     },
     "0x3fb00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3fb40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3fc90": {
       "kind": "function",
       "status": "ported"
     },
@@ -1337,6 +1353,10 @@
         "0x5ab270 (extended actor iterator data) and 0x5ab23c (clump data_t) are not yet in kb.json; used via raw pointer access."
       ]
     },
+    "0x40150": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x40280": {
       "kind": "function",
       "status": "ported"
@@ -1345,11 +1365,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x40460": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x40570": {
       "kind": "function",
       "status": "ported"
     },
     "0x40690": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x40860": {
       "kind": "function",
       "status": "ported"
     },
@@ -2287,6 +2315,10 @@
       "status": "ported"
     },
     "0x5b4b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5b5e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -4208,6 +4240,10 @@
       "status": "ported"
     },
     "0x8fac0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x901d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -6334,6 +6370,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb4e20": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb54e0": {
       "kind": "function",
       "status": "ported",
@@ -7098,6 +7138,20 @@
     "0xbbcb0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0xbbfe0": {
+      "kind": "function",
+      "status": "ported",
+      "name": "player_set_spawn_action_result",
+      "name_confidence": "medium",
+      "inferred": [
+        "The target consumes player_handle from EAX and action_result_type, object_handle, and seat_index from cdecl stack slots at [EBP+0x8], [EBP+0xc], and [EBP+0x10], respectively; operand sizes establish the two int16_t arguments.",
+        "The helper rejects lower-priority action results and, for equal priority, rejects candidates whose object distance from the player's unit is not strictly smaller."
+      ],
+      "uncertain": [
+        "The semantic name is supported by adjacent player-interaction call sites but has no direct 2276 string or CEA match.",
+        "The player datum field meanings at offsets 0x24, 0x28, 0x2a, and 0x34 remain source-level interpretations; player_data_t stays opaque."
+      ]
     },
     "0xbc0d0": {
       "kind": "function",
@@ -9445,11 +9499,19 @@
         "The 16-byte local buffer is a 4-float ARGB color filled by interface_get_color and passed to draw_string_set_font."
       ]
     },
+    "0xdf350": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xdfdc0": {
       "kind": "function",
       "status": "ported"
     },
     "0xdfea0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdff70": {
       "kind": "function",
       "status": "ported"
     },
@@ -9646,6 +9708,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe2220": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe2470": {
       "kind": "function",
       "status": "ported"
@@ -9666,6 +9732,10 @@
       "status": "ported"
     },
     "0xe26c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe28e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -12450,6 +12520,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1251e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x125380": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x125510": {
       "kind": "function",
       "status": "ported"
@@ -12486,6 +12564,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1258a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x125a90": {
       "kind": "function",
       "status": "ported"
@@ -12499,6 +12581,14 @@
       "status": "ported"
     },
     "0x125cb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x126140": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1263a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -12518,7 +12608,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1268a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x126f40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1273a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -13058,6 +13156,54 @@
       ]
     },
     "0x130d60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x130ec0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x130ef0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x130f00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x130f10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x130f30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x131130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x131150": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x131280": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1313f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x131700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x131790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1318f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14268,6 +14414,14 @@
         "Resolved from void(void) to a 10-arg cdecl collision/line-of-sight query returning a u16 result count in AX; arg9 is the max-result count (0x10) and arg10 is the base of a 16-entry 0x2c-byte result array; arg4 is a float field pushed as physics[0x15]."
       ]
     },
+    "0x150c80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x152350": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1546b0": {
       "kind": "function",
       "status": "ported",
@@ -14550,6 +14704,32 @@
     "0x15d5b0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x169200": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "FUN_00169200 is the shape twin of the already-ported FUN_0017a8a0 (rasterizer.c): it takes point, radius and out_extent on the stack and out_screen in EBX (LEA EBX,[EBP-0x10] at 0x16a1c2, first written by FSTP [EBX] at 0x16933d) and returns bool in AL."
+      ]
+    },
+    "0x169fd0": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "The original Bungie name is rasterizer_sun_glow_draw, from the tail failure string at 0x2a30d4 and the per-call debug strings that name locals bounds.x0/x1/y0/y1, r, pass and brightness; the symbol is deliberately left as FUN_00169fd0 to match sibling FUN_00169a50.",
+        "The sun entry (0x28-stride array at 0x4c6480) is read here only at +0x00 (definition pointer), +0x04/+0x08/+0x0c (float position) and +0x10 (packed direction passed to FUN_0017ffc0); the definition is read only at +0x10 (float glow radius, used both as the FMUL scale at 0x16a1b0 and as the raw radius dword pushed at 0x16a1e1)."
+      ],
+      "uncertain": [
+        "The lift splits three MSVC-coalesced stack regions ([EBP-0x34] FUN_0017ffc0 output, [EBP-0x30] FUN_00169200 out_extent, and screen_bounds[1..3]) into separate C locals, so our frame is larger than the original 0x98; this is a deliberate correctness-over-frame-size choice and is the most likely source of any VC71 frame_mismatch.",
+        "cone is declared double because the original never spills the FCOS result to memory (it lives in ST1 across FXCH/FSUB/FSUB at 0x16a05e-0x16a06a); a float declaration would introduce a narrowing the binary does not perform, but a double still narrows 80-bit to 64-bit."
+      ]
+    },
+    "0x16bed0": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Cull-plane dot product in the C source is written as (0x5a5dc8-term + 0x5a5dcc-term + 0x5a5dd0-term) left-to-right, but the disassembly computes it as (0x5a5dd0-term + 0x5a5dcc-term) first, then + 0x5a5dc8-term (FLD 0x5a5dd0 first). Verified the FCOMP/FNSTSW/TEST AH,0x5/JP branch sense is still correct (matches binary exactly) despite the differing floating-point summation order; this is an FP-association deviation only, not a logic bug, and does not affect the visual-regression investigation (this dot product feeds a boolean cull flag DAT_0047e003, not a color)."
+      ]
     },
     "0x16f500": {
       "kind": "function",
@@ -14907,9 +15087,36 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x17d910": {
+    "0x17d080": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Signature void FUN_0017d080(float *point, float radius, float *color) recovered from disassembly: three [ESI+0/4/8] float reads, a 0.5 multiply on the radius written back into the [EBP+0xc] parameter slot, and EDI landing in both the color0 and color1 slots of the callee FUN_0015a7f0 (kb decl void FUN_0015a7f0(float *p0, float *p1, float *color0, float *color1)).",
+        "Body draws three axis-aligned segments: for each of X, Y and Z it builds a point-minus and a point-plus endpoint offset by radius*0.5, then calls FUN_0015a7f0; the three calls share one combined ADD ESP,0x30."
+      ],
+      "uncertain": [
+        "get_xrefs_to returns nothing for 0x17d080, so the function is unreachable dead code; the auto-lift selector's struct_hard flag is therefore on a function no caller exercises.",
+        "With no call sites there is no evidence for what the three segments represent, so the name stays FUN_0017d080 (behaviour-only, tier T3/T4)."
+      ]
+    },
+    "0x17d2b0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x17d910": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The three-argument cdecl prototype (render_data, skinning, part) is inferred from the three [EBP+8/0xc/0x10] reads, the assert strings naming 'part' and 'skinning->node_matrix_count', and the sole caller FUN_00123560's already-lifted call site; Ghidra recovered no signature at all (in_stack_00000004/8/c).",
+        "The 0x40-byte record layout (float position[3] at +0x00, short index_list[12] at +0x0c, short vertex_list[12] at +0x24, uchar index_count at +0x3c, uchar vertex_count at +0x3d) is derived from the raw MOV destinations plus the ADD ECX/EBX 0x40 strides and the CMP AL,0xc caps; Ghidra types the cursor undefined2* and halves every offset.",
+        "index_list is short and vertex_list is short compared against an unsigned short vertex index: the index membership test is a plain 16-bit CMP while the vertex test widens both sides (MOVSX word vs MOVZX word), which only happens when the operands differ in signedness.",
+        "The constant at 0x290dd8 (0x38000100) is 1.0f/32767.0f, so [vertex+0x1e] is an int16 node weight normalised to 0..1; 0x2533d0 is the double promotion of 1e-4f, which is why the FABS compare is spelled with fabs() rather than fabsf()."
+      ],
+      "uncertain": [
+        "The local at [EBP-0x2c] used as best_distance is read at 0x17d746 and 0x17d753 but never initialised anywhere in the function; the only write is the update at 0x17d769, so the original reads uninitialised stack on the first iteration and the '== -1.0f' test looks like a sentinel that was never stored. The lift reproduces this rather than initialising it.",
+        "The assert __FILE__ is c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\rasterizer.c, which does not match this function's kb object rasterizer_sprites.obj, so the object membership is probably wrong. Not investigated.",
+        "The residual ~10 percent VC71 gap is clang emitting fucompi/fucomp for every float compare where the reference uses FCOMP plus FNSTSW/TEST AH; this is a fixed codegen difference, not a recoverable structural one."
+      ]
     },
     "0x17da40": {
       "kind": "function",
@@ -14924,6 +15131,41 @@
     "0x17db40": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x17dc70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17e800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17ed70": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Body is mov ax,[ebp+8] / cmp ax,[ebp+0xc] / jbe / mov al,1, i.e. return (uint16_t)a > (uint16_t)b with an unsigned compare; return type is char because the sole consumer FUN_00091da0 loads the result into a byte register and branches on != 0.",
+        "Named rasterizer_frame_statistics_sort_index_compare: FUN_00091da0 is an explicit-stack quicksort over 16-bit elements driven by a caller-supplied char (*)(uint16_t, uint16_t) predicate, and the array being sorted is rasterizer_frame_statistics_temp_buffer (T1 assert-expression string) at *(void **)0x47ec40, which holds u16 vertex indices."
+      ],
+      "uncertain": [
+        "The name deliberately omits the comparison polarity: the proven semantics are a > b unsigned, but whether that reads as ascending or descending depends on FUN_00091da0's internal convention, which was inferred rather than proven."
+      ]
+    },
+    "0x17edd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17ef00": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Named rasterizer_frame_statistics_update from T1 format strings in its body: a framerate/min/max pane, a vertices/triangles/primitives pane, a GPU-profile pane driven by a 0x1d-iteration loop over the profile table calling FUN_0016fb80 (name), FUN_0016fbd0 (time, float) and FUN_0016fcf0 (data bytes, int) with a \"|t%s|t%.2f|t%d\" style format, an allocation/memory-usage pane, and \"### ERROR failed to open rasterizer profile log (%s)\" for the d:\\r_prof.txt writer.",
+        "Chose _update over _render/_draw because the function does two separable things: it draws the on-screen panes gated on DAT_003256ba in {1,2,3,4}, and it appends to the d:\\r_prof.txt profile log gated on DAT_00325704; a _render/_draw name would describe only the first.",
+        "void(void) confirmed: the original call site at 0x158f90 (FUN_0017ef00();) pushes nothing and performs no stack cleanup."
+      ],
+      "uncertain": [
+        "kb.json places 0x17ed70, 0x17edd0 and 0x17ef00 in rasterizer_sprites.obj with source rasterizer/rasterizer_sprites.c, but the single __FILE__ string \"c:\\halo\\SOURCE\\rasterizer\\rasterizer_frame_statistics.c\" at 0x2af728 is xref'd from 0x17eb53, 0x17ee17, 0x17ee40 and 0x17ff6e, bracketing all three; the true translation unit is rasterizer_frame_statistics.c, which may cap a future lift's VC71 score."
+      ]
     },
     "0x180050": {
       "kind": "function",
@@ -15612,7 +15854,31 @@
         "Residual VC71 gap at 90.2 percent is three dominant-axis guards where the reference encodes the same less-than predicate as TEST AH,0x1 plus JNE while our lift emits TEST AH,0x5 plus JNP; the predicate is equivalent for ordered operands and the instruction counts are equal, so this is an encoding-form lever and not a bound-sense bug."
       ]
     },
+    "0x192a50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x192da0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x192f80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x193420": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x193550": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1935f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1937a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -17418,6 +17684,22 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1ba660": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ba6c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ba7c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bab60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1bb5a0": {
       "kind": "function",
       "status": "ported"
@@ -17801,6 +18083,10 @@
       "status": "ported"
     },
     "0x1bffd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c0070": {
       "kind": "function",
       "status": "ported"
     },
@@ -18558,6 +18844,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1cce80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ccf80": {
       "kind": "function",
       "status": "ported"
@@ -18575,6 +18865,14 @@
       ]
     },
     "0x1cd450": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cd4d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cd540": {
       "kind": "function",
       "status": "ported"
     },

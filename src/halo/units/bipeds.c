@@ -6,6 +6,7 @@
 
 #include "../../common.h"
 #include "../../x87_math.h"
+#include "halo/math/rng_trace.h"
 
 /* FUN_001a01d0 (0x1a01d0)
  *
@@ -2885,15 +2886,22 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
   int best_index; /* local_3c */
   int tval;
   float r, t, fdist;
+  float z_delta;
+  x87_wide_t planar_scale;
   void *obj;
   void *tag;
-  float proj_seg[3]; /* scale_add scratch in the LOS gate */
   float los_dir2[3]; /* local_18: second LOS out point */
   unsigned int isnan_tmp;
   char material_local; /* [EBP-0x31]: (flags>>9)&1 material flag */
   physics = (float *)physics_arg;
   velocity = physics + 0xb; /* +0x2c */
   position = physics + 2; /* +0x08 */
+
+#ifdef HALO_RNG_TRACE
+  RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_PHYSICS_ENTRY,
+               *(unsigned short *)((char *)physics + 4),
+               *(unsigned int *)physics);
+#endif
 
   gx = 0.0f; /* local_5c = 0.0 (prologue) */
   gy = 0.0f; /* local_60 = 0.0 (prologue) */
@@ -2988,12 +2996,17 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
     float tang[3];
     float c0, c1;
     float raw0, raw1;
+    float dc0; /* damp*c0: 0x1a31c5 FSTP dword [ebp-0x44] narrows it and
+                * 0x1a31ce reloads it; damp*c1 (0x1a31c8..0x1a31e2) stays
+                * in ST(0). */
 
     c0 = physics[0xf] * physics[5] - physics[6] * physics[0x10];
     c1 = physics[0xf] * physics[6] + physics[0x10] * physics[5];
     damp = *(float *)0x2533c8 - physics[0x12];
 
-    raw0 = damp * c0 - velocity[0];
+    dc0 = damp * c0;
+    HALO_FLT_ROUNDTRIP(dc0);
+    raw0 = dc0 - velocity[0];
     raw1 = damp * c1 - physics[0xc];
     tang[0] = raw0;
     tang[1] = raw1;
@@ -3028,9 +3041,9 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
     float vecA[3]; /* local_30/2c/28 */
     float vecB[3]; /* local_24/20/1c */
     float d[3]; /* local_18/14/10: must be contiguous for normalize3d(&d[0]) */
-    float curve_scale; /* fVar1: slope-response result */
-    float damp2;
-    char curve_flag; /* local_1: secondary state byte */
+      float curve_scale; /* fVar1: slope-response result */
+      float damp2;
+      char curve_flag; /* local_1: secondary state byte */
     float *gp; /* EDI = physics + 0x20 ground-plane normal */
 
     magnitude =
@@ -3045,9 +3058,9 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
       vecB[1] = physics[9];
       vecB[2] = physics[10];
       cross_product3d(gp, vecB, vecA);
-      if (normalize3d(vecA) == *(float *)0x2533c0) {
+      if (normalize3d(vecA) == 0.0f) {
         cross_product3d(gp, (float *)(*(int *)0x31fc44), vecA);
-        if (normalize3d(vecA) == *(float *)0x2533c0) {
+        if (normalize3d(vecA) == 0.0f) {
           cross_product3d(gp, (float *)(*(int *)0x31fc3c), vecA);
           normalize3d(vecA);
         }
@@ -3128,18 +3141,16 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
              (physics[0x1b] - physics[0x1a]) +
            *(float *)0x2533c8) *
           magnitude;
-      } else if (d[2] < physics[0x1e]) {
-        if (d[2] <= physics[0x1d]) {
-          curve_scale = magnitude;
-        } else {
-          curve_scale =
-            ((physics[0x1f] - *(float *)0x2533c8) * (d[2] - physics[0x1d]) /
-               (physics[0x1e] - physics[0x1d]) +
-             *(float *)0x2533c8) *
-            magnitude;
-        }
-      } else {
+      } else if (d[2] >= physics[0x1e]) {
         curve_scale = magnitude * physics[0x1f];
+      } else if (d[2] <= physics[0x1d]) {
+        curve_scale = magnitude;
+      } else {
+        curve_scale =
+          ((physics[0x1f] - *(float *)0x2533c8) * (d[2] - physics[0x1d]) /
+             (physics[0x1e] - physics[0x1d]) +
+           *(float *)0x2533c8) *
+          magnitude;
       }
 
       damp2 = (*(float *)0x2533c8 - physics[0x12]) * curve_scale;
@@ -3158,7 +3169,7 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
       vecB[2] = d[2] * damp2 - physics[0xd];
       disp[2] = vecB[2];
       length3 = normalize3d(disp); /* 0x1a35e2; ST0 -> compare */
-      if (length3 < physics[0x13] || length3 == physics[0x13]) {
+      if (length3 <= physics[0x13]) {
         /* 0x1a361f: keep raw (pre-normalize) disp -> restore saved vecB */
         disp[0] = vecB[0];
         disp[1] = vecB[1];
@@ -3184,7 +3195,13 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
         (unsigned short)(-(unsigned short)(curve_flag != 0) & 2); /* 0x1a364d */
       physics[0x2e] = (disp[0] - r) + velocity[0]; /* 0x1a3672 */
       physics[0x2f] = (disp[1] - t) + physics[0xc]; /* 0x1a3676 */
-      physics[0x30] = (disp[2] - fdist) + physics[0xd]; /* 0x1a3681 */
+      z_delta = disp[2] - fdist; /* 0x1a366d: FSTP dword [ebp-0x28] */
+      HALO_FLT_ROUNDTRIP(z_delta);
+      physics[0x30] = z_delta + physics[0xd]; /* 0x1a3681 */
+#ifdef HALO_RNG_TRACE
+      RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_PRE_QUERY_Y,
+                   RNG_TRACE_BITS(physics[0x2f]), *(unsigned int *)physics);
+#endif
       if ((*(unsigned char *)((char *)physics + 0xa0) & 2) == 0) {
         goto LAB_001a36a4;
       }
@@ -3220,10 +3237,26 @@ LAB_001a36a4:
      * 0x1a37ce..0x1a37f6 (last push = first C arg):
      *   draw_color, &pos_world, &new_pos, physics[0x15], physics[0x16],
      *   physics[0], &los_dir2, &los_dir, 0x10, results. */
+#ifdef HALO_RNG_TRACE
+    RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_QUERY_POS_WORLD_XY,
+                 RNG_TRACE_BITS(pos_world[0]), RNG_TRACE_BITS(pos_world[1]));
+    RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_QUERY_POS_WORLD_Z_NEW_POS_X,
+                 RNG_TRACE_BITS(pos_world[2]), RNG_TRACE_BITS(new_pos[0]));
+    RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_QUERY_NEW_POS_YZ,
+                 RNG_TRACE_BITS(new_pos[1]), RNG_TRACE_BITS(new_pos[2]));
+#endif
     result_count = FUN_00150550((void *)draw_color, pos_world, new_pos,
                                 *(int *)&physics[0x15], *(int *)&physics[0x16],
                                 *(int *)&physics[0], &los_dir2[0], &los_dir[0],
                                 0x10, results);
+#ifdef HALO_RNG_TRACE
+    RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_QUERY_OUT_Y,
+                 RNG_TRACE_BITS(los_dir2[1]), *(unsigned int *)physics);
+    RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_QUERY_OUT_XY,
+                 RNG_TRACE_BITS(los_dir2[0]), RNG_TRACE_BITS(los_dir2[1]));
+    RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_QUERY_OUT_Z_HANDLE,
+                 RNG_TRACE_BITS(los_dir2[2]), *(unsigned int *)physics);
+#endif
   } else {
     /* debug-draw line record (0x1a3721..0x1a37cc): no query runs, count stays
      * 1. Builds results[0] (point/normal/plane_d/handles) from the position
@@ -3365,7 +3398,7 @@ LAB_001a36a4:
                                                *(int *)edge, 0x10);
               void *v1 = tag_block_get_element(
                 (void *)(surf_block + 0x54), *(int *)((char *)edge + 4), 0x10);
-              float ev[3], t2;
+              float ev[3], t2, dist;
               pa = (float *)v0;
               pb = (float *)v1;
               ev[0] = pb[0] - pa[0];
@@ -3385,8 +3418,9 @@ LAB_001a36a4:
                 planeN[1] = pb[1];
                 planeN[2] = pb[2];
               }
-              if (distance_squared3d(proj, planeN) < best_dist) {
-                best_dist = distance_squared3d(proj, planeN);
+              dist = distance_squared3d(proj, planeN);
+              if (dist < best_dist) {
+                best_dist = dist;
                 best_edge = sel_edge;
                 bestN[0] = plane0[0];
                 bestN[1] = plane0[1];
@@ -3414,7 +3448,7 @@ LAB_001a36a4:
           float face = bestN[0] * los_dir[0] + bestN[2] * los_dir[2] +
                        bestN[1] * los_dir[1];
           /* push-out de-penetrates los_dir2 (-> new_position), disasm 0xcec */
-          float pushv = -depth;
+          float pushv = -best_dist;
           los_dir2[0] = bestN[0] * pushv + los_dir2[0];
           los_dir2[1] = bestN[1] * pushv + los_dir2[1];
           los_dir2[2] = bestN[2] * pushv + los_dir2[2];
@@ -3465,9 +3499,9 @@ LAB_001a36a4:
   /* ---- planar-normal clamp (0x1a3d34..0x1a3d69) ---- */
   r = gx * gx + gy * gy;
   if (*(float *)0x2b5098 < r) {
-    r = (float)(*(double *)0x2573d8 / sqrtf(r));
-    gy = gy * r;
-    gx = r * gx;
+    planar_scale = *(double *)0x2573d8 / sqrtf(r);
+    gy = gy * planar_scale;
+    gx = planar_scale * gx;
   }
 
   /* ---- result-array refinement (0x1a3d69..) ---- */
@@ -3560,8 +3594,10 @@ LAB_001a36a4:
            * (mask & (1 << (type & 0x1f))) test, but adds salt/generation
            * validation so a stale handle returns NULL instead of dereferencing
            * a freed datum slot. */
-          if (object_try_and_get_and_verify_type(e->object_handle, 0x40) !=
-              (void *)0) {
+          if (e->object_handle == -1) {
+            goto loopA_nomark;
+          }
+          if (((1 << ((char *)datum_get(*(data_t **)0x5a8d50, e->object_handle))[3]) & 0x40) != 0) {
             goto loopA_nomark;
           }
         }
@@ -3574,8 +3610,9 @@ LAB_001a36a4:
     }
     e = &results[(short)best_index];
     /* selected entry: compute the result normal dot (local_3c) */
-    best_t = -(e->normal[0] * new_pos[0] + e->normal[2] * new_pos[2] +
-               e->normal[1] * new_pos[1]);
+    /* 0x1a3ef6-0x1a3f24: (n1*p1 + n2*p2) + n0*p0 */
+    best_t = -(e->normal[1] * new_pos[1] + e->normal[2] * new_pos[2] +
+               e->normal[0] * new_pos[0]);
     if (loop_flag9 == 0 && loop_flag1 == 0) {
       /* 0x1a3ff8: flds -0x48(%ebp) = loop_best (the selected entry's normal[2],
        * Z/up), compared against physics[0x19] (stand-on-slope threshold). */
@@ -3584,16 +3621,15 @@ LAB_001a36a4:
       }
       if ((*(unsigned short *)((char *)physics + 4) & 1) != 0 &&
           physics[0x17] < *(float *)0x2548fc) {
-        float seg[3], slen;
-        vector3d_scale_add(&new_pos[0], &e->normal[0], best_t, proj_seg);
-        slen = FUN_00012170(proj_seg);
+        float slen;
+        vector3d_scale_add(&new_pos[0], &e->normal[0], best_t, surf);
+        slen = FUN_00012170(surf);
         if (physics[0x17] * physics[0x17] < slen) {
           float md = FUN_00012fe0(&new_pos[0]);
           if (best_t / md < physics[0x18]) {
             goto LAB_001a401e;
           }
         }
-        (void)seg;
         (void)slen;
       }
     }
@@ -3626,9 +3662,10 @@ LAB_001a36a4:
        * physics[0x20+i] (i.e. +0x80+4i). The prior lift swapped x/y
        * (new_pos[0]*[0x21] + new_pos[1]*[0x20]), corrupting the +0xc4 signed
        * plane distance used by downstream positioning. */
+      /* 0x1a3ff6-0x1a4012: (p1*n1 + p2*n2) + p0*n0 */
       physics[0x31] =
-        -(new_pos[0] * physics[0x20] + new_pos[1] * physics[0x21] +
-          new_pos[2] * physics[0x22]);
+        -(new_pos[1] * physics[0x21] + new_pos[2] * physics[0x22] +
+          new_pos[0] * physics[0x20]);
       goto LAB_001a4062;
     }
   }
@@ -3674,16 +3711,19 @@ LAB_001a4062_done:
           ddy = *(float *)((char *)o + 0x1c) - los_dir[1];
           ddz = *(float *)((char *)o + 0x20) - los_dir[2];
           d2 = ddx * ddx + ddy * ddy + ddz * ddz;
-          if (near_obj != -1) {
-            if ((short)near_type == 1) {
-              if (*(short *)((char *)o + 0x64) != 1)
-                goto loopB_next;
-            } else if (*(short *)((char *)o + 0x64) == 1) {
-              goto loopB_take;
-            }
-            if (d2 <= near_dist)
-              goto loopB_next;
+          if (near_obj == -1) {
+            goto loopB_take;
           }
+          if ((short)near_type == 1) {
+            if (*(short *)((char *)o + 0x64) != 1)
+              goto loopB_next;
+          } else if (*(short *)((char *)o + 0x64) == 1) {
+            goto loopB_take;
+          }
+          if (d2 < near_dist) {
+            goto loopB_take;
+          }
+          goto loopB_next;
         loopB_take:
           near_dist = d2;
           near_obj = *eh;
@@ -3741,7 +3781,12 @@ LAB_001a4062_done:
     *(int *)&physics[0x2e] = *(int *)&los_dir[0]; /* +0xb8 new_velocity */
     *(int *)&physics[0x2f] = *(int *)&los_dir[1];
     *(int *)&physics[0x30] = *(int *)&los_dir[2];
-    physics[0x32] = sqrtf(d0 * d0 + d1 * d1 + d2 * d2); /* +0xc8 step */
+#ifdef HALO_RNG_TRACE
+    RNG_TRACE_EX(RNG_TRACE_KIND_BIPED_WRITEBACK_Y,
+                 RNG_TRACE_BITS(physics[0x2c]), *(unsigned int *)physics);
+#endif
+    /* 0x1a4194-0x1a41bf: (d2*d2 + d1*d1) + d0*d0 */
+    physics[0x32] = sqrtf(d2 * d2 + d1 * d1 + d0 * d0); /* +0xc8 step */
   }
   physics[0x30] = physics[0x30] - physics[0xe];
 

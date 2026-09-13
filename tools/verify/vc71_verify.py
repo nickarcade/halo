@@ -1480,12 +1480,24 @@ _PER_FUNCTION_OPT: dict[str, dict[str, str]] = {
     # get_ui_argb_white: reference keeps a 0x10-byte frame and spills the
     # struct-copy temps to EBP slots before overwriting 3 of them with the
     # RGB constants -- classic /Od codegen. 65.1% (/O2) -> 82.4% (/Od).
-    "halo/interface/ui_widget.c": {"get_ui_argb_white": "/Od"},
+    "halo/interface/ui_widget.c": {
+        "get_ui_argb_white": "/Od",
+        "ui_widget_load_error_screen": "/O2 /Ob1",
+    },
     # crt_tolower/crt_toupper: reference has NO EBP frame at all (leaf CRT
     # helper); default /Oy- forces one. crt_localtime in the same TU scores
     # 100% at /Oy- so this must stay per-function, not a TU-wide flip.
     # 83.7% (/O1 /Oy-) -> ~90% (/O1 /Oy).
     "cseries/xbox_crt.c": {"crt_tolower": "/O1 /Oy", "crt_toupper": "/O1 /Oy"},
+    # FUN_000dc800: leaf switch table with register parameter; reference has NO EBP frame.
+    "halo/interface/event_manager.c": {"FUN_000dc800": "/O2 /Oy"},
+    # D3D resource/texture functions in XDK D3D; compiled with /Oy (no EBP frame).
+    "rasterizer/xbox/d3d_resource.c": {
+        "D3DTexture_GetLevelDesc": "/O2 /Oy",
+        "D3DTexture_LockRect": "/O2 /Oy",
+        "D3DResource_Register": "/O2 /Oy",
+        "D3DResource_Release": "/O2 /Oy",
+    },
 }
 
 
@@ -2153,7 +2165,12 @@ def main():
     # game TUs.  Verified: FUN_0013c030 56.1% (/Ob2) -> 100.0% (/Ob1);
     # game_engine.c mean 84.9 -> 86.4 with 22 functions gaining >5pp vs
     # 4 dropping <7pp.
-    _OB1_TUS = ("game/game_engine.c", "objects/objects.c", "units/units.c")
+    _OB1_TUS = (
+        "game/game_engine.c",
+        "objects/objects.c",
+        "units/units.c",
+        "game/player_queues_new.c",
+    )
     if args.opt == "/O2" and any(str(source).replace("\\", "/").endswith(t) for t in _OB1_TUS):
         args.opt = "/O2 /Ob1"
         if not args.quiet:

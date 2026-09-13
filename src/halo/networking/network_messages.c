@@ -24,11 +24,11 @@
 
 #define csstrcpy ((char *(*)(char *, const char *))0x8dff0)
 
-#define array_get_element ((int (*)(int *, int, int))0x117ee0)
+#define array_get_element FUN_00117ee0
 
-#define array_reset ((void (*)(int *, int))0x117b20)
+#define array_reset array_new
 
-#define array_dispose ((void (*)(int *))0x117cf0)
+#define array_dispose FUN_00117cf0
 
 /* packet_header byte-swap definition at 0x3220c0 */
 #define packet_header_bs_def ((void *)0x3220c0)
@@ -824,15 +824,16 @@ void hashtable_set_user_data(void *table, int user_data)
  *   t+0x20  int     capacity field inside array header (checked when
  *                   slot_index != -1)
  */
+#define hashtable_valid(t) \
+  ((t) != (void *)0 && *(t) > 0 && (t)[1] > 0 && \
+   *(float *)((t) + 4) > 0.0f && *(float *)((t) + 4) <= 1.0f && \
+   ((t)[3] == -1 || (1 << (t)[3]) == *(int *)((t) + 16)))
+
 void hashtable_dispose(short *table)
 {
   char *t;
 
-  if (table == NULL || *table < 1 || table[1] < 1 ||
-      !(*(float *)((char *)table + 0x08) > 0.0f &&
-        *(float *)((char *)table + 0x08) <= 1.0f) ||
-      (table[3] != -1 && (1 << ((unsigned char)table[3] & 0x1f)) !=
-                           *(int *)((char *)table + 0x20))) {
+  if (!hashtable_valid(table)) {
     display_assert("hashtable_valid(table)",
                    "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x6e, 1);
     system_exit(-1);
@@ -893,7 +894,7 @@ int FUN_0011ba50(short *table, void *key, unsigned short *slot_index_out)
   slot = (short)((unsigned short)(table[0x10] - 1) & hash_val);
   while (1) {
     if ((*(unsigned int *)(*(int *)(table + 0xc) + ((int)slot >> 5) * 4) &
-         (1 << ((unsigned char)slot & 0x1f))) == 0) {
+         (1 << (slot & 0x1f))) == 0) {
       *slot_index_out = (unsigned short)slot;
       return 0;
     }
@@ -929,16 +930,14 @@ int FUN_0011bb70(short *table, void *key)
   char found;
   int element_ptr;
   short slot;
+  int result = 0;
 
-  psVar1 = table;
-  if ((((table == NULL) || (*table < 1)) || (table[1] < 1)) ||
-      (((*(float *)(table + 4) <= 0.0f) || (*(float *)(table + 4) > 1.0f)) ||
-       ((table[3] != -1 && ((1 << ((unsigned char)table[3] & 0x1f)) !=
-                            *(int *)(table + 0x10)))))) {
+  if (!hashtable_valid(table)) {
     display_assert("hashtable_valid(table)",
                    "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x4d, 1);
     system_exit(-1);
   }
+  psVar1 = table;
   if (psVar1[2] != 0) {
     found = (char)FUN_0011ba50(psVar1, key, (unsigned short *)&slot);
     if (found != '\0') {
@@ -947,7 +946,7 @@ int FUN_0011bb70(short *table, void *key)
       return element_ptr + *psVar1;
     }
   }
-  return 0;
+  return result;
 }
 
 /* hashtable_remove — remove a key using backward-shift deletion (0x11bc20).
@@ -964,79 +963,76 @@ void FUN_0011bc20(short *table, void *key)
   short removed_slot;
   int cur_pos;
 
-  psVar3 = table;
-  if (((((table == NULL) || (*table < 1)) || (table[1] < 1)) ||
-       ((*(float *)(table + 4) <= 0.0f) || (*(float *)(table + 4) > 1.0f))) ||
-      ((table[3] != -1 && ((1 << ((unsigned short)table[3] & 0x1f)) !=
-                           *(int *)(table + 0x10))))) {
+  if (!hashtable_valid(table)) {
     display_assert("hashtable_valid(table)",
                    "c:\\halo\\SOURCE\\memory\\hashtable.c", 0xc3, 1);
     system_exit(-1);
   }
+  psVar3 = table;
   if (key == NULL) {
     display_assert("key", "c:\\halo\\SOURCE\\memory\\hashtable.c", 0xc4, 1);
     system_exit(-1);
   }
   found = (char)FUN_0011ba50(psVar3, key, (unsigned short *)&removed_slot);
-  if (found == '\0') {
-    display_assert("removing key not in hashtable",
-                   "c:\\halo\\SOURCE\\memory\\hashtable.c", 0xe1, 1);
-    system_exit(-1);
-    return;
-  }
-  next_slot = (unsigned short)((int)(removed_slot + 1) &
-                               (int)(unsigned short)(psVar3[0x10] - 1));
-  cur_pos = (int)(short)next_slot;
-  bit_mask = *(unsigned int *)(*(int *)(psVar3 + 0xc) + (cur_pos >> 5) * 4) &
-             (1 << ((unsigned char)next_slot & 0x1f));
-  while (bit_mask != 0) {
-    next_element =
-      array_get_element((int *)(psVar3 + 0xe), cur_pos, (int)psVar3[1]);
-    if (*(int *)(psVar3 + 8) == 0) {
-      key_hash = (unsigned short)FUN_0011ba00((unsigned char *)next_element,
-                                              (unsigned int)*psVar3);
-    } else {
-      key_hash = (unsigned short)(*(int (**)(int, int))(psVar3 + 8))(
-        *(int *)(psVar3 + 6), next_element);
-    }
-    key_hash = (unsigned short)(psVar3[0x10] - 1) & key_hash;
-    if ((short)key_hash < (short)next_slot) {
-      if ((short)removed_slot < (short)key_hash) {
-        goto no_shift;
-      }
-      if ((short)removed_slot < (short)next_slot) {
-        goto do_shift;
-      }
-    } else if ((short)key_hash > (short)next_slot) {
-      if ((short)removed_slot >= (short)key_hash) {
-        goto do_shift;
-      }
-      if ((short)removed_slot < (short)next_slot) {
-        goto do_shift;
-      }
-    }
-    goto no_shift;
-  do_shift: {
-    int src_element;
-    int dst_element;
-    src_element =
-      array_get_element((int *)(psVar3 + 0xe), cur_pos, (int)psVar3[1]);
-    dst_element = array_get_element((int *)(psVar3 + 0xe), (int)removed_slot,
-                                    (int)psVar3[1]);
-    csmemcpy((void *)dst_element, (void *)src_element, *(int *)(psVar3 + 0xe));
-    removed_slot = (short)next_slot;
-  }
-  no_shift:
-    (void)0;
-    next_slot = (unsigned short)((int)(next_slot + 1) &
+  if (found != '\0') {
+    next_slot = (unsigned short)((int)(removed_slot + 1) &
                                  (int)(unsigned short)(psVar3[0x10] - 1));
     cur_pos = (int)(short)next_slot;
     bit_mask = *(unsigned int *)(*(int *)(psVar3 + 0xc) + (cur_pos >> 5) * 4) &
-               (1 << ((unsigned char)next_slot & 0x1f));
+               (1 << (next_slot & 0x1f));
+    while (bit_mask != 0) {
+      next_element =
+        array_get_element((int *)(psVar3 + 0xe), cur_pos, (int)psVar3[1]);
+      if (*(int *)(psVar3 + 8) == 0) {
+        key_hash = (unsigned short)FUN_0011ba00((unsigned char *)next_element,
+                                                (unsigned int)*psVar3);
+      } else {
+        key_hash = (unsigned short)(*(int (**)(int, int))(psVar3 + 8))(
+          *(int *)(psVar3 + 6), next_element);
+      }
+      key_hash = (unsigned short)(psVar3[0x10] - 1) & key_hash;
+      if ((short)key_hash < (short)next_slot) {
+        if ((short)removed_slot < (short)key_hash) {
+          goto no_shift;
+        }
+        if ((short)removed_slot < (short)next_slot) {
+          goto do_shift;
+        }
+      } else if ((short)key_hash > (short)next_slot) {
+        if ((short)removed_slot >= (short)key_hash) {
+          goto do_shift;
+        }
+        if ((short)removed_slot < (short)next_slot) {
+          goto do_shift;
+        }
+      }
+      goto no_shift;
+    do_shift: {
+      int src_element;
+      int dst_element;
+      src_element =
+        array_get_element((int *)(psVar3 + 0xe), cur_pos, (int)psVar3[1]);
+      dst_element = array_get_element((int *)(psVar3 + 0xe), (int)removed_slot,
+                                      (int)psVar3[1]);
+      csmemcpy((void *)dst_element, (void *)src_element, *(int *)(psVar3 + 0xe));
+      removed_slot = (short)next_slot;
+    }
+    no_shift:
+      (void)0;
+      next_slot = (unsigned short)((int)(next_slot + 1) &
+                                   (int)(unsigned short)(psVar3[0x10] - 1));
+      cur_pos = (int)(short)next_slot;
+      bit_mask = *(unsigned int *)(*(int *)(psVar3 + 0xc) + (cur_pos >> 5) * 4) &
+                 (1 << (next_slot & 0x1f));
+    }
+    bitmap_word =
+      (unsigned int *)(*(int *)(psVar3 + 0xc) + ((int)removed_slot >> 5) * 4);
+    *bitmap_word = *bitmap_word & ~(1 << (removed_slot & 0x1f));
+  } else {
+    display_assert("removing key not in hashtable",
+                   "c:\\halo\\SOURCE\\memory\\hashtable.c", 0xe1, 1);
+    system_exit(-1);
   }
-  bitmap_word =
-    (unsigned int *)(*(int *)(psVar3 + 0xc) + ((int)removed_slot >> 5) * 4);
-  *bitmap_word = *bitmap_word & ~(1 << ((unsigned char)removed_slot & 0x1f));
 }
 
 /* hashtable_put — insert a key into a slot (0x11be10).
@@ -1066,16 +1062,15 @@ int FUN_0011be10(short *table, void *key)
 
 /* hashtable_grow — resize the hashtable by adding capacity bits (0x11beb0).
  * Source: hashtable.c lines 0x86-0xb0. */
-int FUN_0011beb0(short *table, short growth_bits)
+bool FUN_0011beb0(short *table, short growth_bits)
 {
   short *array_hdr;
-  unsigned short old_capacity_bits;
+  int old_capacity_bits;
   short old_count;
   int old_bitmap;
-  int old_array_data;
-  int old_array_capacity;
-  int old_array_p2;
+  int old_array[3];
   int new_capacity;
+  short *new_var;
   int bitmap_bytes;
   int new_bitmap;
   int i;
@@ -1086,32 +1081,29 @@ int FUN_0011beb0(short *table, short growth_bits)
   old_count = table[2];
   old_bitmap = *(int *)(table + 0xc);
   array_hdr = table + 0xe;
-  old_capacity_bits = (unsigned short)table[3];
-  old_array_data = *(int *)array_hdr;
-  old_array_capacity = *(int *)(table + 0x10);
-  old_array_p2 = *(int *)(table + 0x12);
-  if (((*table < 1) || (table[1] < 1)) ||
-      ((*(float *)(table + 4) <= 0.0f) || (*(float *)(table + 4) > 1.0f) ||
-       ((old_capacity_bits != 0xffff &&
-         ((1 << ((unsigned char)old_capacity_bits & 0x1f)) !=
-          *(int *)(table + 0x10)))))) {
+  old_capacity_bits = (int)table[3];
+  new_var = table + 0x10;
+  old_array[0] = *(int *)array_hdr;
+  old_array[1] = *(int *)new_var;
+  old_array[2] = *(int *)(table + 0x12);
+  if (!hashtable_valid(table)) {
     display_assert("hashtable_valid(table)",
                    "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x86, 1);
     system_exit(-1);
   }
-  if (growth_bits < 1) {
+  if (growth_bits <= 0) {
     display_assert("growth_bits>0", "c:\\halo\\SOURCE\\memory\\hashtable.c",
                    0x87, 1);
     system_exit(-1);
   }
-  if ((int)growth_bits + (int)table[3] > 0xf) {
+  if (table[3] + growth_bits >= 16) {
     display_assert("table->capacity_bits+growth_bits<SHORT_BITS",
                    "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x88, 1);
     system_exit(-1);
   }
-  table[3] = table[3] + growth_bits;
-  new_capacity = (int)(short)(1 << ((unsigned char)table[3] & 0x1f));
-  bitmap_bytes = ((new_capacity + 0x1f) >> 5) << 2;
+  table[3] += growth_bits;
+  new_capacity = (short)(1 << table[3]);
+  bitmap_bytes = ((new_capacity + 31) >> 5) * 4;
   table[2] = 0;
   new_bitmap = (int)debug_malloc(bitmap_bytes, 0,
                                  "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x8f);
@@ -1120,26 +1112,26 @@ int FUN_0011beb0(short *table, short growth_bits)
     array_reset((int *)array_hdr, *(int *)array_hdr);
     if (array_resize((int *)array_hdr, new_capacity)) {
       csmemset((void *)*(int *)(table + 0xc), 0, bitmap_bytes);
-      if (0 < old_array_capacity) {
+      if (0 < old_array[1]) {
         idx = 0;
         i = 0;
         do {
           if ((*(unsigned int *)(old_bitmap + (i >> 5) * 4) &
-               (1 << ((unsigned char)i & 0x1f))) != 0) {
-            element_ptr = array_get_element(&old_array_data, i, old_array_data);
+               (1 << (i & 0x1f))) != 0) {
+            element_ptr = array_get_element(old_array, i, old_array[0]);
             dest_ptr = FUN_0011be10(table, (void *)element_ptr);
             csmemcpy((void *)dest_ptr, (void *)(element_ptr + *table),
                      (int)table[1]);
           }
           idx = idx + 1;
           i = (int)idx;
-        } while (i < old_array_capacity);
+        } while (i < old_array[1]);
       }
       if (old_bitmap != 0) {
         debug_free((void *)old_bitmap, "c:\\halo\\SOURCE\\memory\\hashtable.c",
                    0xa8);
       }
-      array_dispose(&old_array_data);
+      array_dispose(old_array);
       return 1;
     }
     debug_free((void *)*(int *)(table + 0xc),
@@ -1148,9 +1140,9 @@ int FUN_0011beb0(short *table, short growth_bits)
   table[3] = (short)old_capacity_bits;
   table[2] = old_count;
   *(int *)(table + 0xc) = old_bitmap;
-  *(int *)array_hdr = old_array_data;
-  *(int *)(table + 0x10) = old_array_capacity;
-  *(int *)(table + 0x12) = old_array_p2;
+  *(int *)array_hdr = old_array[0];
+  *(int *)new_var = old_array[1];
+  *(int *)(table + 0x12) = old_array[2];
   return 0;
 }
 
@@ -1161,17 +1153,14 @@ int FUN_0011c0f0(short *table, void *key)
   char grew;
   int result;
 
-  if (((((table == NULL) || (*table < 1)) || (table[1] < 1)) ||
-       ((*(float *)(table + 4) <= 0.0f) || (*(float *)(table + 4) > 1.0f))) ||
-      ((table[3] != -1 &&
-        ((1 << ((unsigned char)table[3] & 0x1f)) != *(int *)(table + 0x10))))) {
+  if (!hashtable_valid(table)) {
     display_assert("hashtable_valid(table)",
                    "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x5d, 1);
     system_exit(-1);
   }
   if ((table[3] == -1) ||
-      ((float)*(int *)(table + 0x10) * *(float *)(table + 4) <=
-       (float)(int)table[2])) {
+      ((float)(int)table[2] >=
+       (float)*(int *)(table + 0x10) * *(float *)(table + 4))) {
     grew = (char)FUN_0011beb0(table, (short)((table[3] == -1) + 1));
     if (grew == '\0') {
       return 0;
@@ -1413,251 +1402,94 @@ void *encode_network_game_message(int type, void *data,
 {
   char encoded_buf[0x600];
   int32_t encoded_size;
-  const char *assertion;
-  int assertion_line;
 
   encoded_size = 0x600;
 
+#define CHECK_MSG_SIZE(sz, msg_str, line) \
+  if (message_struct_size != (sz)) { \
+    display_assert((msg_str), "c:\\halo\\SOURCE\\networking\\network_messages.c", (line), 1); \
+    system_exit(-1); \
+  } break
+
   switch ((int16_t)type) {
   case 0:
-    if (message_struct_size == 0xc)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_broadcast_game_search)";
-    assertion_line = 0xa0;
-    break;
+    CHECK_MSG_SIZE(0xc, "message_struct_size==sizeof(message_client_broadcast_game_search)", 0xa0);
   case 1:
-    if (message_struct_size == 8)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_ping)";
-    assertion_line = 0xa1;
-    break;
+    CHECK_MSG_SIZE(8, "message_struct_size==sizeof(message_client_ping)", 0xa1);
   case 2:
-    if (message_struct_size == 0x114)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_game_advertise)";
-    assertion_line = 0xa4;
-    break;
+    CHECK_MSG_SIZE(0x114, "message_struct_size==sizeof(message_server_game_advertise)", 0xa4);
   case 3:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_pong)";
-    assertion_line = 0xa5;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_server_pong)", 0xa5);
   case 4:
-    if (message_struct_size == 8)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_machine_accepted)";
-    assertion_line = 0xa8;
-    break;
+    CHECK_MSG_SIZE(8, "message_struct_size==sizeof(message_server_machine_accepted)", 0xa8);
   case 5:
-    if (message_struct_size == 2)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_machine_rejected)";
-    assertion_line = 0xa9;
-    break;
+    CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_server_machine_rejected)", 0xa9);
   case 6:
-    if (message_struct_size == 0x434)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_server_game_settings_update)";
-    assertion_line = 0xaa;
-    break;
+    CHECK_MSG_SIZE(0x434, "message_struct_size==sizeof(message_server_game_settings_update)", 0xaa);
   case 7:
-    if (message_struct_size == 2)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_pregame_countdown)";
-    assertion_line = 0xab;
-    break;
+    CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_server_pregame_countdown)", 0xab);
   case 8:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_begin_game)";
-    assertion_line = 0xad;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_server_begin_game)", 0xad);
   case 9:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_server_graceful_game_exit_pregame)";
-    assertion_line = 0xae;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_server_graceful_game_exit_pregame)", 0xae);
   case 10:
-    if (message_struct_size == 2)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_server_pregame_keep_alive)";
-    assertion_line = 0xac;
-    break;
+    CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_server_pregame_keep_alive)", 0xac);
   case 11:
-    if (message_struct_size == 2)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_server_postgame_keep_alive)";
-    assertion_line = 0xb1;
-    break;
+    CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_server_postgame_keep_alive)", 0xb1);
   case 12:
-    if (message_struct_size == 0x50)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_join_game_request)";
-    assertion_line = 0xb4;
-    break;
+    CHECK_MSG_SIZE(0x50, "message_struct_size==sizeof(message_client_join_game_request)", 0xb4);
   case 13:
-    if (message_struct_size == 0x20)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_add_player_request_pregame)";
-    assertion_line = 0xb5;
-    break;
+    CHECK_MSG_SIZE(0x20, "message_struct_size==sizeof(message_client_add_player_request_pregame)", 0xb5);
   case 14:
-    if (message_struct_size == 0x20)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_remove_player_"
-                "request_pregame)";
-    assertion_line = 0xb6;
-    break;
+    CHECK_MSG_SIZE(0x20, "message_struct_size==sizeof(message_client_remove_player_request_pregame)", 0xb6);
   case 15:
-    if (message_struct_size == 0x44)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_settings_request)";
-    assertion_line = 0xb7;
-    break;
+    CHECK_MSG_SIZE(0x44, "message_struct_size==sizeof(message_client_settings_request)", 0xb7);
   case 16:
-    if (message_struct_size == 0x20)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_player_settings_request)";
-    assertion_line = 0xb8;
-    break;
+    CHECK_MSG_SIZE(0x20, "message_struct_size==sizeof(message_client_player_settings_request)", 0xb8);
   case 17:
-    if (message_struct_size == 2)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_game_start_request)";
-    assertion_line = 0xb9;
-    break;
+    CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_client_game_start_request)", 0xb9);
   case 18:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_graceful_game_exit_pregame)";
-    assertion_line = 0xba;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_client_graceful_game_exit_pregame)", 0xba);
   case 19:
-    if (message_struct_size == 0x100)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_map_is_precached_pregame)";
-    assertion_line = 0xbb;
-    break;
+    CHECK_MSG_SIZE(0x100, "message_struct_size==sizeof(message_client_map_is_precached_pregame)", 0xbb);
   case 20:
-    if (message_struct_size == 0x210)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_game_update)";
-    assertion_line = 0xbe;
-    break;
+    CHECK_MSG_SIZE(0x210, "message_struct_size==sizeof(message_server_game_update)", 0xbe);
   case 21:
-    if (message_struct_size == 0x20)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_add_player_ingame)";
-    assertion_line = 0xbf;
-    break;
+    CHECK_MSG_SIZE(0x20, "message_struct_size==sizeof(message_server_add_player_ingame)", 0xbf);
   case 22:
-    if (message_struct_size == 0x24)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_server_remove_player_ingame)";
-    assertion_line = 0xc0;
-    break;
+    CHECK_MSG_SIZE(0x24, "message_struct_size==sizeof(message_server_remove_player_ingame)", 0xc0);
   case 23:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_game_over)";
-    assertion_line = 0xc1;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_server_game_over)", 0xc1);
   case 24:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_loaded)";
-    assertion_line = 0xc4;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_client_loaded)", 0xc4);
   case 25:
-    if (message_struct_size == 0x88)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_game_update)";
-    assertion_line = 0xc5;
-    break;
+    CHECK_MSG_SIZE(0x88, "message_struct_size==sizeof(message_client_game_update)", 0xc5);
   case 26:
-    if (message_struct_size == 0x20)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_add_player_request_ingame)";
-    assertion_line = 0xc6;
-    break;
+    CHECK_MSG_SIZE(0x20, "message_struct_size==sizeof(message_client_add_player_request_ingame)", 0xc6);
   case 27:
-    if (message_struct_size == 0x20)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_remove_player_"
-                "request_ingame)";
-    assertion_line = 0xc7;
-    break;
+    CHECK_MSG_SIZE(0x20, "message_struct_size==sizeof(message_client_remove_player_request_ingame)", 0xc7);
   case 28:
-    if (message_struct_size == 0x10)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_host_crashed_cry_for_help)";
-    assertion_line = 0xc9;
-    break;
+    CHECK_MSG_SIZE(0x10, "message_struct_size==sizeof(message_client_host_crashed_cry_for_help)", 0xc9);
   case 29:
-    if (message_struct_size == 0x10)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_join_new_host)";
-    assertion_line = 0xca;
-    break;
+    CHECK_MSG_SIZE(0x10, "message_struct_size==sizeof(message_client_join_new_host)", 0xca);
   case 30:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_server_switch_to_pregame)";
-    assertion_line = 0xcd;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_server_switch_to_pregame)", 0xcd);
   case 31:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_server_graceful_game_exit_postgame)";
-    assertion_line = 0xce;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_server_graceful_game_exit_postgame)", 0xce);
   case 32:
-    if (message_struct_size == 0x20)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_remove_player_"
-                "request_postgame)";
-    assertion_line = 0xd1;
-    break;
+    CHECK_MSG_SIZE(0x20, "message_struct_size==sizeof(message_client_remove_player_request_postgame)", 0xd1);
   case 33:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion = "message_struct_size==sizeof(message_client_switch_to_pregame)";
-    assertion_line = 0xd2;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_client_switch_to_pregame)", 0xd2);
   case 34:
-    if (message_struct_size == 4)
-      goto size_ok;
-    assertion =
-      "message_struct_size==sizeof(message_client_graceful_game_exit_postgame)";
-    assertion_line = 0xd3;
-    break;
+    CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_client_graceful_game_exit_postgame)", 0xd3);
   default:
-    assertion = "unknown network game message structure type";
-    assertion_line = 0xd5;
+    display_assert("unknown network game message structure type",
+                   "c:\\halo\\SOURCE\\networking\\network_messages.c",
+                   0xd5, 1);
+    system_exit(-1);
     break;
   }
-
-  display_assert(assertion, "c:\\halo\\SOURCE\\networking\\network_messages.c",
-                 assertion_line, 1);
-  system_exit(-1);
-
-size_ok:
+#undef CHECK_MSG_SIZE
   if (data == NULL || (int16_t)encoded_size < 1) {
     display_assert("message_struct && encoded_message && encoded_message_size "
                    "&& (*encoded_message_size>0)",

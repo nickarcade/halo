@@ -32,7 +32,7 @@ on:
 env:
   VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
   DELINKED_DIR: /mnt/g/dev/halo/delinked
-  BUILD_DIR: /mnt/g/dev/halo/build
+  XBE_DIR: /mnt/g/dev/halo/halo-patched
   # Directory holding the (host-only, never-committed) .halorec recordings.
   # build_host_snapshots.py reads this; if absent, snapshot-dependent targets SKIP.
   HALO_HALOREC_DIR: /mnt/g/dev/halo-memory-viewer
@@ -41,14 +41,23 @@ jobs:
   regression:
     name: Unicorn regression (quick)
     runs-on: self-hosted
-    timeout-minutes: 5
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
       - name: Link local assets
         run: |
+          # delinked/ contains tracked reference objects, so replace the
+          # checkout directory rather than nesting a delinked/delinked link.
+          rm -rf -- delinked halo-patched
           ln -sf ${{ env.DELINKED_DIR }} delinked
-          ln -sf ${{ env.BUILD_DIR }} build
+          ln -sf ${{ env.XBE_DIR }} halo-patched
+
+      - name: Build PR candidate
+        run: |
+          cmake -Bbuild -S. -DCMAKE_TOOLCHAIN_FILE=toolchains/llvm.cmake
+          ${{ env.VENV_PYTHON }} tools/build/build.py -q --target halo
+        timeout-minutes: 20
 
       - name: Build host snapshots (copyrighted game memory stays host-only)
         run: ${{ env.VENV_PYTHON }} tools/equivalence/build_host_snapshots.py
@@ -57,7 +66,8 @@ jobs:
         run: |
           ${{ env.VENV_PYTHON }} -c "import unicorn, capstone; print('ok')"
           test -d delinked
-          test -d build
+          test -f halo-patched/cachebeta.xbe
+          test -f build/halo
 
       - name: Run regression tests
         run: |
@@ -85,15 +95,25 @@ jobs:
 
       - name: Link local assets
         run: |
+          # See the regression job: a directory target would otherwise create
+          # a nested symlink instead of exposing the host-only references.
+          rm -rf -- delinked halo-patched
           ln -sf ${{ env.DELINKED_DIR }} delinked
-          ln -sf ${{ env.BUILD_DIR }} build
+          ln -sf ${{ env.XBE_DIR }} halo-patched
+
+      - name: Build PR candidate
+        run: |
+          cmake -Bbuild -S. -DCMAKE_TOOLCHAIN_FILE=toolchains/llvm.cmake
+          ${{ env.VENV_PYTHON }} tools/build/build.py -q --target halo
+        timeout-minutes: 20
 
       - name: Verify prerequisites
         run: |
           ${{ env.VENV_PYTHON }} -c "import unicorn, capstone, z3; print('ok')"
           which llvm-objdump
           test -d delinked
-          test -d build
+          test -f halo-patched/cachebeta.xbe
+          test -f build/halo
 
       - name: Determine mode
         id: mode
@@ -143,9 +163,9 @@ jobs:
       # all, so the nightly reported green through any regression.
       - name: Run batch verification
         env:
-          # 4 workers on the 15 GB self-hosted box: cap per-child RSS at 3 GB so
-          # aggregate peak (jobs * limit = 12 GB) leaves headroom and never OOMs
-          # the host (the failure mode that caused GitHub to cancel the nightly).
+          # 3 workers on the 15 GB self-hosted box: cap per-child RSS at 3 GB so
+          # aggregate peak (jobs * limit = 9 GB) leaves headroom for the runner,
+          # build tools, and desktop agents instead of exhausting the host.
           HALO_EQUIV_MEM_LIMIT_GB: "3"
         run: |
           # timeout 120 (not lower): --jobs parallelism alone brings a cold run to
@@ -156,7 +176,7 @@ jobs:
           ${{ env.VENV_PYTHON }} tools/equivalence/batch_verify.py \
             --seeds 50 \
             --timeout 120 \
-            --jobs 4 \
+            --jobs 3 \
             --max-wall-minutes 105 \
             --csv \
             --skip-existing \

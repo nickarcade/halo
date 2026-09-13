@@ -548,7 +548,9 @@ void obstacles_get_discs_in_sphere(int16_t *obstacle_set, float *center,
 short FUN_00062410(void *obstacles, short disc_index_skip, float *position_xy,
                    float radius)
 {
+  char *new_var2;
   char *base;
+  float new_var;
   short i;
   short disc_count;
   char *disc;
@@ -571,12 +573,14 @@ short FUN_00062410(void *obstacles, short disc_index_skip, float *position_xy,
         disc = base + 8 + i * 0x18;
         sum_radius = *(float *)(disc + 0x10) + radius;
         dx = *(float *)(disc + 8) - position_xy[0];
-        dy = *(float *)(disc + 0xc) - position_xy[1];
-        if (!(sum_radius * sum_radius < dy * dy + dx * dx)) {
+        new_var = position_xy[1];
+        dy = *(float *)(disc + 0xc) - new_var;
+        if (!((dy * dy + dx * dx) > (sum_radius * sum_radius))) {
           return i;
         }
       }
-      disc_count = *(short *)(base + 2);
+      new_var2 = base;
+      disc_count = *(short *)(new_var2 + 2);
       i = i + 1;
     } while (i < disc_count);
   }
@@ -1752,7 +1756,6 @@ void FUN_00105980(float *matrix, short *out_vertex_count,
   float fVar9, fVar10, fVar11, fVar12, fVar_sin;
   int iVar5;
   float *pfVar6;
-  float *pfVar7;
   short sVar8;
   /* normal[0]=local_38, normal[1]=local_34, normal[2]=local_30; the three
    * must be contiguous+ascending because &normal[0] is passed as the axis
@@ -1775,99 +1778,93 @@ void FUN_00105980(float *matrix, short *out_vertex_count,
     system_exit(-1);
   }
   local_10 = 0;
-  if (ring_segment_count < 0) {
-    *out_vertex_count = 0;
-    *out_index_run_count = 0;
-    return;
-  }
-  local_20 = (int)ring_segment_count;
-  local_18 = 0;
-  local_24 = (float)local_20;
-  pfVar6 = *(float **)0x0031fc44;
-  pfVar7 = out_texcoords;
-  do {
-    fVar9 = (float)local_18 / local_24;
-    angle = *(float *)0x00255a54 * fVar9;
-    fVar10 = x87_fcos(angle);
-    fVar1 = fVar10 * param_8;
-    fVar11 = x87_fsin(angle);
-    fVar2 = param_8 * fVar11;
-    /* ring normal = (fVar1, fVar2, 0) x axis[]; 0x2533c0 == 0.0f.
-     * normal[2]=A, normal[1]=B, normal[0]=C; length sum is (C^2+B^2)+A^2 to
-     * match the original's x87 add order. */
-    normal[2] = fVar1 * pfVar6[1] - fVar2 * pfVar6[0];
-    normal[1] = pfVar6[0] * *(float *)0x002533c0 - fVar1 * pfVar6[2];
-    normal[0] = fVar2 * pfVar6[2] - pfVar6[1] * *(float *)0x002533c0;
-    fVar4 = sqrtf(normal[0] * normal[0] + normal[1] * normal[1] +
-                  normal[2] * normal[2]);
-    if (fabsf(fVar4) >= (float)*(double *)0x002533d0) {
-      fVar4 = *(float *)0x002533c8 / fVar4;
-      normal[0] = normal[0] * fVar4;
-      normal[1] = normal[1] * fVar4;
-      normal[2] = fVar4 * normal[2];
-    }
-    sVar8 = 0;
-    if (-1 < (short)cylinder_segment_count) {
-      local_c = (int)(short)cylinder_segment_count;
-      local_14 = (local_8 - cylinder_segment_count) + -1;
-      local_28 = (float)(fVar9 + fVar9);
-      do {
-        pfVar7[1] = local_28;
-        if (0 < (short)local_10) {
-          if (sVar8 == 0) {
-            *out_indices = (short)cylinder_segment_count * 2 + 2;
-            out_indices = out_indices + 1;
-            local_1c = local_1c + 1;
+  if (ring_segment_count >= 0) {
+    local_20 = (int)ring_segment_count;
+    local_18 = 0;
+    local_24 = (float)local_20;
+    pfVar6 = *(float **)0x0031fc44;
+    do {
+      fVar9 = (float)local_18 / local_24;
+      angle = *(float *)0x00255a54 * fVar9;
+      fVar10 = x87_fcos(angle);
+      fVar1 = fVar10 * param_8;
+      fVar11 = x87_fsin(angle);
+      fVar2 = param_8 * fVar11;
+      /* ring normal = (fVar1, fVar2, 0) x axis[]; 0x2533c0 == 0.0f.
+       * normal[2]=A, normal[1]=B, normal[0]=C; length sum is (C^2+B^2)+A^2 to
+       * match the original's x87 add order. */
+      normal[2] = fVar1 * pfVar6[1] - fVar2 * pfVar6[0];
+      normal[1] = pfVar6[0] * *(float *)0x002533c0 - fVar1 * pfVar6[2];
+      normal[0] = fVar2 * pfVar6[2] - pfVar6[1] * *(float *)0x002533c0;
+      fVar4 = sqrtf(normal[0] * normal[0] + normal[1] * normal[1] +
+                    normal[2] * normal[2]);
+      if (!(x87_fabs(fVar4) < *(double *)0x002533d0)) {
+        fVar4 = *(float *)0x002533c8 / fVar4;
+        normal[0] = normal[0] * fVar4;
+        normal[1] = normal[1] * fVar4;
+        normal[2] = fVar4 * normal[2];
+      }
+      sVar8 = 0;
+      if (-1 < (short)cylinder_segment_count) {
+        local_c = (int)(short)cylinder_segment_count;
+        local_14 = (local_8 - cylinder_segment_count) + -1;
+        local_28 = (float)(fVar9 + fVar9);
+        do {
+          out_texcoords[1] = local_28;
+          if (0 < (short)local_10) {
+            if (sVar8 == 0) {
+              *out_indices = (short)cylinder_segment_count * 2 + 2;
+              out_indices = out_indices + 1;
+              local_1c = local_1c + 1;
+            }
+            *out_indices = (short)local_8;
+            out_indices[1] = (short)local_14;
+            out_indices = out_indices + 2;
           }
-          *out_indices = (short)local_8;
-          out_indices[1] = (short)local_14;
-          out_indices = out_indices + 2;
-        }
-        if ((short)local_10 == ring_segment_count) {
-          /* last ring: copy the vertex/texcoord from the first ring */
-          iVar5 = (local_c + 1) * local_20;
-          pfVar6 = out_positions + iVar5 * -3;
-          *out_positions = *pfVar6;
-          out_positions[1] = pfVar6[1];
-          out_positions[2] = pfVar6[2];
-          *out_texcoords = out_texcoords[iVar5 * -2];
-          pfVar7 = out_texcoords;
-        } else {
-          local_2c = (int)sVar8;
-          fVar9 = (float)local_2c / (float)local_c;
-          *pfVar7 = (float)(fVar9 + fVar9);
-          if (sVar8 == (short)cylinder_segment_count) {
-            /* seam: copy from the start of this ring */
-            pfVar6 = out_positions + local_c * -3;
+          if ((short)local_10 == ring_segment_count) {
+            /* last ring: copy the vertex/texcoord from the first ring */
+            iVar5 = (local_c + 1) * local_20;
+            pfVar6 = out_positions + iVar5 * -3;
             *out_positions = *pfVar6;
             out_positions[1] = pfVar6[1];
             out_positions[2] = pfVar6[2];
+            *out_texcoords = out_texcoords[iVar5 * -2];
           } else {
-            angle = *(float *)0x00255a54 * fVar9;
-            fVar12 = x87_fcos(angle);
-            *out_positions = fVar10 * param_10;
-            out_positions[1] = fVar11 * param_10;
-            out_positions[2] = 0.0f;
-            fVar_sin = x87_fsin(angle);
-            rotate_vector3d_by_sincos(out_positions, normal, fVar_sin, fVar12);
-            *out_positions = fVar1 + *out_positions;
-            out_positions[2] = out_positions[2];
-            out_positions[1] = fVar2 + out_positions[1];
-            matrix_transform_point(matrix, out_positions, out_positions);
+            local_2c = (int)sVar8;
+            fVar9 = (float)local_2c / (float)local_c;
+            *out_texcoords = (float)(fVar9 + fVar9);
+            if (sVar8 == (short)cylinder_segment_count) {
+              /* seam: copy from the start of this ring */
+              pfVar6 = out_positions + local_c * -3;
+              *out_positions = *pfVar6;
+              out_positions[1] = pfVar6[1];
+              out_positions[2] = pfVar6[2];
+            } else {
+              angle = *(float *)0x00255a54 * fVar9;
+              fVar12 = x87_fcos(angle);
+              *out_positions = fVar10 * param_10;
+              out_positions[1] = fVar11 * param_10;
+              out_positions[2] = 0.0f;
+              fVar_sin = x87_fsin(angle);
+              rotate_vector3d_by_sincos(out_positions, normal, fVar_sin, fVar12);
+              *out_positions = fVar1 + *out_positions;
+              out_positions[2] = out_positions[2];
+              out_positions[1] = fVar2 + out_positions[1];
+              matrix_transform_point(matrix, out_positions, out_positions);
+            }
           }
-        }
-        pfVar7 = pfVar7 + 2;
-        out_positions = out_positions + 3;
-        local_8 = local_8 + 1;
-        local_14 = local_14 + 1;
-        sVar8 = sVar8 + 1;
-        pfVar6 = *(float **)0x0031fc44;
-        out_texcoords = pfVar7;
-      } while (sVar8 <= (short)cylinder_segment_count);
-    }
-    local_10 = local_10 + 1;
-    local_18 = local_18 + 1;
-  } while ((short)local_10 <= ring_segment_count);
+          out_texcoords = out_texcoords + 2;
+          out_positions = out_positions + 3;
+          local_8 = local_8 + 1;
+          local_14 = local_14 + 1;
+          sVar8 = sVar8 + 1;
+          pfVar6 = *(float **)0x0031fc44;
+        } while (sVar8 <= (short)cylinder_segment_count);
+      }
+      local_10 = local_10 + 1;
+      local_18 = local_18 + 1;
+    } while ((short)local_10 <= ring_segment_count);
+  }
   *out_vertex_count = (short)local_8;
   *out_index_run_count = (short)local_1c;
 }
@@ -5612,7 +5609,7 @@ void FUN_00196060(int object_handle, float *position, float radius,
 }
 
 /*
- * FUN_00196190 (0x196190) — structures.obj
+ * render_structure_shadows (0x196190) — structures.obj
  *
  * render_structure_shadows: structure shadow render entry.  Sibling of
  * FUN_00196060 (diffuse lights) / FUN_00195f30 (specular): identical shape, but
@@ -5643,8 +5640,8 @@ void FUN_00196060(int object_handle, float *position, float radius,
  *   - center/bounds/planes are pointers passed through as dwords; radius is a
  *     float by value.  All calls cdecl, args pushed right-to-left.
  */
-void FUN_00196190(float *center, float radius_x4, float *bounds6, int count,
-                  float *planes6)
+void render_structure_shadows(float *center, float radius_x4, float *bounds6, int count,
+                              float *planes6)
 {
   char buffer[0x4000];
   short surface_count;
@@ -6138,8 +6135,13 @@ char FUN_00197570(float *records, int16_t count, float threshold)
       delta[0] = rec[0] - *(float *)0x506550;
       delta[1] = rec[1] - *(float *)0x506554;
       delta[2] = rec[2] - *(float *)0x506558;
-      d = *(float *)0x50655c * delta[0] + *(float *)0x506560 * delta[1] +
-          *(float *)0x506564 * delta[2];
+      /* Association order is the original's, NOT the natural x,y,z: the
+       * disasm at 0x1975a3 builds (n.z*dz + n.y*dy) + n.x*dx.  Float add is
+       * not associative, so writing x+y+z shifts `d` by an ULP and flips the
+       * `d <= threshold` test at the boundary -- which makes FUN_00197b00
+       * skip a whole neighbour cluster. */
+      d = *(float *)0x506564 * delta[2] + *(float *)0x506560 * delta[1] +
+          *(float *)0x50655c * delta[0];
       if (d <= threshold) {
         return 1;
       }
@@ -7585,8 +7587,8 @@ void render_debug_fog_planes(void)
         vert_b[2] = fVar1 * *(float *)(iVar2 + 0xc) + pfVar5[2];
         FUN_0017eb10(pfVar4, pfVar5, *(int *)0x2ee6c4);
         FUN_0017eb10(vert_a, vert_b, *(int *)0x2ee6cc);
-        FUN_0017e5b0(pfVar4, vert_a, *(int *)0x2ee6c4, *(int *)0x2ee6cc);
-        FUN_0017e5b0(pfVar5, vert_b, *(int *)0x2ee6c4, *(int *)0x2ee6cc);
+        FUN_0017e5b0(pfVar4, vert_a, *(float **)0x2ee6c4, *(float **)0x2ee6cc);
+        FUN_0017e5b0(pfVar5, vert_b, *(float **)0x2ee6c4, *(float **)0x2ee6cc);
         local_c = *(int *)(iVar2 + 0x14);
         local_8 = local_8 + 1;
         iVar3 = (int)(short)local_8;
@@ -7660,12 +7662,15 @@ int16_t structure_find_in_cluster(uint16_t cluster_count, float *position,
  */
 void set_file_location_volume_name(int16_t location, const char *volume_name)
 {
-  if (location < 1 || location > 1) {
+  int new_var;
+
+  if (1 > location || location > 1) {
     display_assert("location>0 && location<NUMBER_OF_FILE_REFERENCE_LOCATIONS",
                    "c:\\halo\\SOURCE\\tag_files\\files.c", 0x4b, true);
     system_exit(-1);
   }
-  if (csstrlen(file_location_volume_names + location * 0x100) != 0) {
+  new_var = location * 0x100;
+  if (csstrlen(file_location_volume_names + new_var) != 0) {
     display_assert("strlen(file_location_volume_names[location])==0",
                    "c:\\halo\\SOURCE\\tag_files\\files.c", 0x4c, true);
     system_exit(-1);
@@ -7675,6 +7680,6 @@ void set_file_location_volume_name(int16_t location, const char *volume_name)
                    "c:\\halo\\SOURCE\\tag_files\\files.c", 0x4d, true);
     system_exit(-1);
   }
-  csstrncpy(file_location_volume_names + location * 0x100, volume_name, 0xff);
-  file_location_volume_names[location * 0x100 + 0xff] = '\0';
+  csstrncpy(file_location_volume_names + new_var, volume_name, 0xff);
+  file_location_volume_names[new_var + 0xff] = '\0';
 }

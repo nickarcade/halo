@@ -504,7 +504,7 @@ void FUN_0018b930(float *plane, float *flipped, float *normal, float *point)
  *
  * The ECX descriptor holds three axis vectors A (+0x10), B (+0x1c) and a
  * direction axis C (+0x28), a center point P (+0x34) and a scalar extent r
- * (+0x40). Two products are produced and forwarded to FUN_00196190:
+ * (+0x40). Two products are produced and forwarded to render_structure_shadows:
  *   - a 6-plane array {nx,ny,nz,d} (24 floats): +C/-C (asymmetric extents
  *     r*0.5 in front, r*4.0 behind), +A/-A and +B/-B (extent r each). d is the
  *     signed plane offset dot(axis,P) - extent.
@@ -613,7 +613,7 @@ void FUN_0018b990(void *volume)
   scalars[4] = (Cv[2] * 4.0f + -(bz + az)) * r + P[2];
   scalars[5] = ((bz + az) - Cv[2] * 0.5f) * r + P[2];
 
-  FUN_00196190(P, r4, scalars, 6, planes);
+  render_structure_shadows(P, r4, scalars, 6, planes);
   FUN_0017cd00();
 }
 
@@ -2886,18 +2886,26 @@ valid:
  * bool. */
 bool scenario_location_potentially_visible(void *location)
 {
+  int new_var2;
   int16_t cluster_index;
   void *pvs;
+  void **new_var;
+  void *new_var3;
+  volatile unsigned int new_var4;
 
-  if (*(int16_t *)((char *)location + 4) >= 0) {
+  new_var = &location;
+  new_var3 = *new_var;
+  if (*(int16_t *)((char *)new_var3 + 4) >= 0) {
     if (!global_structure_bsp) {
+      new_var2 = -1;
       display_assert("global_structure_bsp",
                      "c:\\halo\\SOURCE\\scenario\\scenario.c", 0xc5, 1);
-      system_exit(-1);
+      system_exit(new_var2);
     }
     if ((int)*(int16_t *)((char *)location + 4) <
-        *(int *)((char *)global_structure_bsp + 0x134))
+        *(int *)((char *)global_structure_bsp + 0x134)) {
       goto valid;
+    }
   }
   display_assert(
     "location->cluster_index>=0 && "
@@ -2907,8 +2915,12 @@ bool scenario_location_potentially_visible(void *location)
 
 valid:
   cluster_index = *(int16_t *)((char *)location + 4);
-  pvs = players_get_combined_pvs();
-  return (*(uint32_t *)((char *)pvs + ((int)cluster_index >> 5) * 4) &
+#ifdef __clang__
+  (void)pvs;
+  (void)new_var4;
+#endif
+  return (*(uint32_t *)((char *)players_get_combined_pvs() +
+          ((((int)cluster_index >> 1) >> 4) * 4)) &
           (1u << (cluster_index & 0x1f))) != 0;
 }
 

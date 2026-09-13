@@ -72,8 +72,14 @@ void network_game_client_keep_alive(void *client)
 
 /* 0x124a30 — Returns the connection state (int16_t at offset 0xca6) and
  * optionally writes elapsed-time percentage into out_param. The time
- * calculation divides (current_ms - stored_ms) * 100 by 120000. */
-int16_t network_game_client_get_state(void *server, void *out_param)
+ * calculation divides (current_ms - stored_ms) * 100 by 120000.
+ *
+ * noinline (VC71 verification only): small enough for clang -O3 to inline
+ * at some call sites (confirmed at FUN_00127260, 0x127260), producing an
+ * inlined NULL-check + assert_halt in the caller where the reference makes
+ * a real CALL. */
+__declspec(noinline) int16_t network_game_client_get_state(void *server,
+                                                           void *out_param)
 {
   unsigned int diff;
 
@@ -337,7 +343,7 @@ char network_game_client_address_matches_server(void *client,
  * is logged, and the first time through (client flag byte at +0xcac still
  * clear) UI error 8 is raised on every local player. The client flag is set
  * on both paths inside the guard. */
-void network_game_client_game_out_of_sync(void *client)
+__declspec(noinline) void network_game_client_game_out_of_sync(void *client)
 {
   int16_t player_index;
 
@@ -351,6 +357,48 @@ void network_game_client_game_out_of_sync(void *client)
       }
     }
     *((char *)client + 0xcac) = 1;
+  }
+}
+
+/* network_game_client_ponged (0x124e90)
+ *
+ * Handles a received pong reply. Asserts client and source_address are
+ * non-null. Ignores the pong unless the client is actively pinging
+ * (flag byte at +0x82a set) and the reply's source machine id (int at
+ * *source_address) matches the client's expected ping target (int at
+ * +0x808). If echo_time (the timestamp echoed back by the remote) is in
+ * the future relative to system_milliseconds(), logs and ignores it
+ * (clock skew / bad data). Otherwise updates a running average round-trip
+ * time at +0x828 (ushort) using the running sample count at +0x826
+ * (ushort, incremented every call): new_avg = (old_avg*old_count -
+ * echo_time + now) / (old_count+1). */
+void network_game_client_ponged(void *client, void *source_address,
+                                unsigned int echo_time)
+{
+  unsigned int now;
+  unsigned short count;
+
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                 0x307, client && source_address);
+
+  if (*(char *)((char *)client + 0x82a) != 0 &&
+      *(int *)((char *)client + 0x808) == *(int *)source_address) {
+    now = system_milliseconds();
+    if (echo_time <= now) {
+      count = *(unsigned short *)((char *)client + 0x826);
+      *(unsigned short *)((char *)client + 0x828) =
+        (unsigned short)((((unsigned int)*(unsigned short *)((char *)client +
+                                                             0x828) *
+                             (unsigned int)count -
+                           echo_time) +
+                          now) /
+                         (count + 1));
+      *(unsigned short *)((char *)client + 0x826) = count + 1;
+    } else {
+      network_game_log("received a pong from the future");
+    }
+  } else {
+    network_game_log("received a pong from a system we aren't interested in");
   }
 }
 
@@ -527,6 +575,219 @@ int unstrip_player_index(int player_index)
   return NONE;
 }
 
+/* network_game_client_game_has_started (0x1251e0)
+ *
+ * Asserts client && client->state == _network_game_client_state_pregame
+ * (line 0x3b0), marks +0xca4 = 0xffff, keeps the connection alive, then loads
+ * the game objects (network_game_create_game_objects(client+0x85c)) — on
+ * failure logs and returns early.
+ *
+ * On success, scans the client's 16-entry 0x20-byte player table
+ * (base client+i*0x20, i=0..15) for the first entry whose byte at +0xa9e
+ * equals the target ushort at client+0. If found, walks the singly-linked
+ * chain of matching entries (each entry's +0xabe byte, when equal to the
+ * (re-read) target, points to the next entry 0x20 bytes further): for each
+ * live entry (network_player_is_valid(entry+0xa82)) it resolves the full
+ * player handle (unstrip_player_index(entry+0xaa1)) and binds it to the
+ * local player slot (local_player_set_player_index(entry+0xa9f, handle)).
+ *
+ * Confirmed from disassembly (0x1251e0-0x12537a):
+ *  - the second push to local_player_set_player_index reuses EAX's high 16
+ *    bits left over from the unstrip_player_index call (MOVSX AX only sets
+ *    the low half) — garbage in the original, harmless here since the
+ *    parameter is declared unsigned __int16 and only the low 16 bits are
+ *    ever read.
+ *  - the two calls' stack cleanup is batched into one `ADD ESP,0xc` after
+ *    both return, not one push/cleanup pair per call — a coalescing
+ *    artifact, not a 3-argument call.
+ *
+ * Keeps the connection alive again, then encodes and sends an empty (4-byte
+ * zeroed) message_client_loaded (type 0x18). On write success: logs, sets
+ * state = _network_game_client_state_ingame (3), clears +0xc98/+0xc9c/+0xcad,
+ * closes all UI widgets, and starts the game clock/pulse
+ * (game_time_start/game_initial_pulse). Every exit path (assert aside)
+ * returns `client->state == _network_game_client_state_ingame`. */
+char network_game_client_game_has_started(void *client)
+{
+  char *c;
+  int target;
+  int i;
+  char *entry;
+  unsigned short *packet;
+  signed char next;
+
+  c = (char *)client;
+  if (client == NULL || *(int16_t *)(c + 0xca6) != 2) {
+    display_assert(
+      "client && (client->state == _network_game_client_state_pregame)",
+      "c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0x3b0, 1);
+    system_exit(-1);
+  }
+
+  *(int16_t *)(c + 0xca4) = -1;
+  network_connection_keep_alive(*(int *)(c + 0x82c));
+
+  if (network_game_create_game_objects(c + 0x85c)) {
+    target = (int)*(uint16_t *)c;
+    i = 0;
+    entry = c + 0xa9e;
+    do {
+      if ((int)*(signed char *)entry == target)
+        goto found_player;
+      i++;
+      entry += 0x20;
+    } while (i < 16);
+    goto skip_players;
+
+  found_player:
+    entry = c + (i << 5);
+    if ((int)*(signed char *)(entry + 0xa9e) == target) {
+      do {
+        if (!network_player_is_valid(entry + 0xa82))
+          break;
+        local_player_set_player_index(
+          (signed char)*(entry + 0xa9f),
+          unstrip_player_index(*(signed char *)(entry + 0xaa1)));
+        next = *(signed char *)(entry + 0xabe);
+        target = (int)*(uint16_t *)c;
+        entry += 0x20;
+      } while ((int)next == target);
+    }
+
+  skip_players:
+
+    network_connection_keep_alive(*(int *)(c + 0x82c));
+    client = 0;
+    packet = (unsigned short *)encode_network_game_message(0x18, &client, 4);
+    if (packet != NULL) {
+      if (network_connection_write(*(void **)(c + 0x82c), packet, *packet >> 4,
+                                   0, true)) {
+        network_game_log("local machine is loaded & ready to play");
+        *(int16_t *)(c + 0xca6) = 3;
+        *(int *)(c + 0xc98) = 0;
+        *(int *)(c + 0xc9c) = 0;
+        *(char *)(c + 0xcad) = 0;
+        ui_widgets_close_all();
+        game_time_start();
+        game_initial_pulse();
+        return *(int16_t *)(c + 0xca6) == 3;
+      }
+      network_game_log("network_game_client_write() failed while sending a "
+                       "message_client_loaded message");
+    } else {
+      network_game_log("failed to create a message_client_loaded message");
+    }
+  } else {
+    network_game_log("failed to load the necessary game data");
+  }
+
+  return *(int16_t *)(c + 0xca6) == 3;
+}
+
+/* network_game_client_handle_game_update (0x125380)
+ *
+ * Asserts client && message_packet (line 0x40d). If the packet's slot count
+ * (int16 at message+0xe) is smaller than the client's current slot count
+ * (int16 at client+0xa80), zero-fills the packet's slot array from that
+ * point on (message+0x10 + old_count*0x20, for (new_count-old_count)*0x20
+ * bytes) and bumps the packet's count up to match — growing the packet's
+ * slot table in place before it is copied out below.
+ *
+ * If the packet's sequence number (uint at message+0) matches the client's
+ * expected update counter (client+0xc98) and we are not also hosting
+ * (network_game_server_get() == NULL), runs three independent sanity checks
+ * against game_time_get()/get_random_seed() and logs (never fatal) on:
+ *  - a time/update-number mismatch that isn't itself a bug (log only).
+ *  - a client/server random seed mismatch when game_time_get() lines up with
+ *    the packet's game-time field (message+8) — also calls
+ *    network_game_client_game_out_of_sync(client).
+ *  - falling behind by a multiple of 30 game ticks (log only).
+ * If the sequence number does NOT match the expected counter, logs a single
+ * "missed a server update" message and calls
+ * network_game_client_game_out_of_sync(client) unconditionally.
+ *
+ * Regardless of the above, copies the packet into the client action
+ * ring-buffer via FUN_000b97b0(&{count,data}, sequence_number):
+ * FUN_000b97b0 does `csmemcpy(slot, data, 0x204)`, i.e. it reads a full
+ * contiguous 0x204-byte {int16 count; int16 pad; uint8 data[512];} region
+ * starting at its `data` argument — the original's two adjacent locals
+ * (count at EBP-0x204, the 512-byte data buffer immediately after at
+ * EBP-0x200) form that region only because MSVC happened to place them
+ * back-to-back; clang gives no such guarantee for two separate locals, so
+ * they are combined into one `update_buf` array here to keep the same
+ * memory shape FUN_000b97b0 depends on (buffer-alias hazard, not a
+ * cosmetic merge — see lift-decompiler-traps §5).
+ *
+ * Finally increments client->0xc98 and stamps client->0xc9c with
+ * system_milliseconds() (Ghidra's decompile misrenders this call site as
+ * `thunk_FUN_001d0581()`; disassembly at 0x1254f8 shows a direct
+ * `CALL 0x0008e370`, which is system_milliseconds). Always returns true. */
+char network_game_client_handle_game_update(void *client, void *message)
+{
+  char *c;
+  char *m;
+  int16_t msg_count;
+  int16_t client_count;
+  unsigned int seq;
+  unsigned char update_buf[0x204];
+
+  c = (char *)client;
+  m = (char *)message;
+  if (client == NULL || message == NULL) {
+    display_assert("client && message_packet",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x40d, 1);
+    system_exit(-1);
+  }
+
+  msg_count = *(int16_t *)(m + 0xe);
+  client_count = *(int16_t *)(c + 0xa80);
+  if (msg_count < client_count) {
+    csmemset(m + msg_count * 0x20 + 0x10, 0, (client_count - msg_count) * 0x20);
+    *(int16_t *)(m + 0xe) = client_count;
+  }
+
+  if (*(int *)m == *(int *)(c + 0xc98)) {
+    if (network_game_server_get() == NULL) {
+      if (game_time_get() == *(int *)m && game_time_get() != *(int *)(m + 8)) {
+        network_game_log("not a bug, but update %d time %d our time %d",
+                         *(int *)m, *(int *)(m + 8), game_time_get());
+      }
+      if (game_time_get() == *(int *)(m + 8)) {
+        if (*(unsigned int *)(m + 4) != get_random_seed()) {
+          network_game_log(
+            "out of sync: client/server random seed mismatch, update= "
+            "#%ld, game time= #%ld (%ld) (#%lx/#%lx)",
+            *(int *)m, game_time_get(), *(int *)(m + 8), get_random_seed(),
+            *(unsigned int *)(m + 4));
+          network_game_client_game_out_of_sync(client);
+        }
+      }
+      if (*(unsigned int *)m % 30 == 0) {
+        network_game_log(
+          "client is lagging behind the server by #%d game ticks",
+          *(int *)m - game_time_get());
+      }
+    }
+  } else {
+    network_game_log(
+      "out of sync: missed a server update (expected #%ld, got #%ld)",
+      *(int *)(c + 0xc98), *(int *)m);
+    network_game_client_game_out_of_sync(client);
+  }
+
+  seq = *(unsigned int *)m;
+  msg_count = *(int16_t *)(m + 0xe);
+  *(uint16_t *)update_buf = (uint16_t)msg_count;
+  csmemcpy(update_buf + 4, m + 0x10, (unsigned int)msg_count << 5);
+  FUN_000b97b0(update_buf, seq);
+
+  *(int *)(c + 0xc98) = *(int *)(c + 0xc98) + 1;
+  *(int *)(c + 0xc9c) = system_milliseconds();
+
+  return 1;
+}
+
 /* network_game_client_add_player_to_game (0x125510)
  *
  * Asserts both the client and the incoming player message are non-null, then
@@ -559,36 +820,34 @@ char network_game_client_add_player_to_game(void *client, void *message)
     system_exit(-1);
   }
 
-  if (!network_player_is_valid(player)) {
-    return added;
+  if (network_player_is_valid(player)) {
+    added = network_game_add_player((char *)client + 0x85c, player);
+    if (added) {
+      if (*(int16_t *)((char *)client + 0xca6) == 3) {
+        player =
+          (char *)client + 0xa62 + (*(int16_t *)((char *)client + 0xa80) << 5);
+        added = network_game_spawn_player(player);
+        if (!added) {
+          return added;
+        }
+        player_handle = unstrip_player_index((signed char)player[0x1f]);
+        if ((int)(signed char)player[0x1c] == (int)*(uint16_t *)client) {
+          local_player_set_player_index(
+            (unsigned short)(signed char)player[0x1d], player_handle);
+        }
+        client = (void *)player_handle;
+        update_client_add_player((int)client);
+        if (network_game_server_get() != NULL) {
+          update_server_add_player((int)client);
+        }
+      }
+
+      network_game_log(
+        "added new player to the game (machine #%d / controller #%d)",
+        (int)(signed char)player[0x1c], (int)(signed char)player[0x1d]);
+    }
   }
 
-  added = network_game_add_player((char *)client + 0x85c, player);
-  if (!added) {
-    return added;
-  }
-
-  if (*(int16_t *)((char *)client + 0xca6) == 3) {
-    player =
-      (char *)client + 0xa62 + (*(int16_t *)((char *)client + 0xa80) << 5);
-    added = network_game_spawn_player(player);
-    if (!added) {
-      return added;
-    }
-    player_handle = unstrip_player_index((signed char)player[0x1f]);
-    if ((int)(signed char)player[0x1c] == (int)*(uint16_t *)client) {
-      local_player_set_player_index((unsigned short)(signed char)player[0x1d],
-                                    player_handle);
-    }
-    update_client_add_player(player_handle);
-    if (network_game_server_get() != NULL) {
-      update_server_add_player(player_handle);
-    }
-  }
-
-  network_game_log(
-    "added new player to the game (machine #%d / controller #%d)",
-    (int)(signed char)player[0x1c], (int)(signed char)player[0x1d]);
   return added;
 }
 
@@ -709,6 +968,121 @@ bool network_client_get_oos(void *server)
 {
   assert_halt(server);
   return *(char *)((char *)server + 0xcac);
+}
+
+/* network_game_client_add_player (0x1258a0)
+ *
+ * Validates client/player_index (display_assert + system_exit(-1) on
+ * failure, matching network_game_client_request_remove_player's assert
+ * shape). Fetches the local player's profile via
+ * player_ui_get_active_player_profile((int16_t)player_index, profile) —
+ * the callee's own stack frame proves the profile buffer is 0x30 bytes
+ * (SUB ESP,0x70 splits 0x30 profile + 0x20 staging buf + 0x20 record).
+ *
+ * Builds a 0x20-byte player-identifier record: ustrncpy(record,
+ * (wchar_t*)profile, 0xb) copies profile's leading wide name (record+0x00,
+ * 11 wchar_t = 0x16 bytes); record+0x16 = 0; record+0x18 = profile+0x18
+ * (word, unproven meaning); record+0x1a = 0xffff; record+0x1c =
+ * client's first byte; record+0x1d = (unsigned char)player_index;
+ * record+0x1e/+0x1f = 0xff/0xff.
+ *
+ * network_game_log's controller-index arg is MOVSX from record+0x1d
+ * (signed-char widen), matching request_remove_player's own log call.
+ *
+ * switch(*(int16_t*)(client+0xca6)): case 0/1 log+return false; case 2
+ * (pregame, type 0xd) / case 3 (ingame, type 0x1a) each csmemcpy the
+ * record into a fresh staging buffer, encode_network_game_message, and on
+ * NULL packet log-and-return **true** — unlike
+ * network_game_client_request_remove_player, which returns false on an
+ * encode failure, this function's `ok`-preset BL is never cleared on that
+ * path (disasm-confirmed at 0x125983 JZ 0x1259c2 / 0x1259c2 falls straight
+ * to `MOV AL,BL` with BL untouched since the 0x1258ad `MOV BL,1` prologue
+ * store). On a successful encode, network_connection_write's own bool
+ * result becomes the return value. case 4 (postgame) only logs and
+ * returns false — no message is sent, unlike remove_player's case 4.
+ * default (state > 4, reached via the bounds check before the jump table,
+ * not a table entry) logs and returns true.
+ */
+bool network_game_client_add_player(void *client, uint16_t player_index)
+{
+  char *c;
+  bool result;
+  unsigned char profile[0x30];
+  unsigned char buf[0x20];
+  unsigned char record[0x20];
+  unsigned short *packet;
+
+  result = true;
+  c = (char *)client;
+
+  if (client == NULL || (int16_t)player_index < 0 ||
+      (int16_t)player_index >= 4) {
+    display_assert("client && (local_player_index>=0) && "
+                   "(local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS)",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x530, true);
+    system_exit(-1);
+  }
+
+  player_ui_get_active_player_profile((int16_t)player_index, profile);
+
+  record[0x1c] = *(unsigned char *)c;
+  record[0x1d] = (unsigned char)player_index;
+  ustrncpy((wchar_t *)record, (wchar_t *)profile, 0xb);
+  *(uint16_t *)(record + 0x16) = 0;
+  *(uint16_t *)(record + 0x18) = *(uint16_t *)(profile + 0x18);
+  *(uint16_t *)(record + 0x1a) = 0xffff;
+  record[0x1e] = 0xff;
+  record[0x1f] = 0xff;
+
+  network_game_log("requesting a player addition (controller index #%d)",
+                   (signed char)record[0x1d]);
+
+  switch (*(uint16_t *)(c + 0xca6)) {
+  case 0:
+  case 1:
+    network_game_log(
+      "can't add players to a game until after a game is joined");
+    return false;
+  case 2:
+    csmemcpy(buf, record, 0x20);
+    packet = (unsigned short *)encode_network_game_message(0xd, buf, 0x20);
+    if (packet != NULL) {
+      result = network_connection_write(*(void **)(c + 0x82c), packet,
+                                        (unsigned short)(*packet >> 4), 0, true);
+      if (!result) {
+        network_game_log("network_game_client_write() failed while sending a "
+                         "message_client_add_player_request_pregame message");
+      }
+    } else {
+      network_game_log(
+        "failed to create a message_client_add_player_request_pregame message");
+    }
+    return result;
+  case 3:
+    csmemcpy(buf, record, 0x20);
+    packet = (unsigned short *)encode_network_game_message(0x1a, buf, 0x20);
+    if (packet != NULL) {
+      result = network_connection_write(*(void **)(c + 0x82c), packet,
+                                        (unsigned short)(*packet >> 4), 0, true);
+      if (!result) {
+        network_game_log("network_game_client_write() failed while sending a "
+                         "message_client_add_player_request_ingame message");
+      }
+    } else {
+      network_game_log(
+        "failed to create a message_client_add_player_request_ingame message");
+    }
+    return result;
+  case 4:
+    network_game_log("client tried to add a new player in post-game");
+    return false;
+  default:
+    network_game_log("client is in an unknown state");
+    break;
+  }
+
+  return result;
 }
 
 /* network_game_client_update_local_player_data (0x125a90)
@@ -894,6 +1268,180 @@ bool network_game_client_advertised_game_is_valid(void *advertised_game)
   return valid;
 }
 
+/* FUN_00125ce0 (0x125ce0)
+ *
+ * message_packet is an @<edi> register argument (see
+ * network_game_client_new_advertised_game's evidence comment above — this
+ * was the source of a runtime crash, see
+ * project_system_link_search_crash_125ce0 memory: caller passed it correctly,
+ * but kb.json's decl once lacked
+ * @<edi> and clang left EDI unset). advertised_games is a genuine cdecl
+ * stack argument: a 9-entry array of the 0xe4-byte record
+ * network_game_client_advertised_game_is_valid (0x125cb0) reads (+0xe1 =
+ * occupied, +0x2c = last-refresh timestamp).
+ *
+ * local_open computes whether the advertised game still has room: message+
+ * 0x102 bit 1 set AND message+0xfa (player count) < 4.
+ *
+ * Pass 1: any entry whose +0xe1 byte is 0 (unoccupied) or whose +0x2c
+ * timestamp is >6000ms stale gets zeroed (matches
+ * network_game_client_advertised_game_is_valid's own validity window).
+ *
+ * Pass 2: transport_nonce_is_equal(entry+0x24, message+8) against every
+ * entry — the +0x24 field is this record's own 8-byte nonce, filled from
+ * message+8 the same way in pass 4 below, so this identifies "we already
+ * have a record for this exact game" and reuses that slot directly.
+ *
+ * Pass 3 (no match in pass 2): the first entry with +0xe1 == 0 (unoccupied,
+ * including ones pass 1 just cleared) is claimed.
+ *
+ * Pass 4 (all 9 occupied, no match): only runs if local_open is true —
+ * closed/full advertisements do not evict anything. Scans for the first
+ * occupied entry whose +0xe0 (open) byte is 0 (a closed game) and reclaims
+ * it. display_assert("current->valid", ...) fires if an unoccupied (+0xe1
+ * == 0) entry turns up here — pass 3 already established all 9 are
+ * occupied, so finding one otherwise is a broken invariant, not a normal
+ * path.
+ *
+ * If neither pass 3 nor pass 4 claims a slot (closed game with all 9 slots
+ * full and occupied, or an open game with all 9 full of other open games),
+ * logs "not fatal, but we have to many active network games cannot add
+ * more to the list" and returns — AL is 0 on this path (disassembly), but
+ * kb.json declares this void(void) message_packet/advertised_games, and
+ * the sole caller (network_game_client_new_advertised_game) discards the
+ * result, so the void return is kept as declared.
+ *
+ * Fill-in (claimed slot at `entry`): sets +0xe1 = 1 (occupied), copies
+ * message+0x18..0x28 to entry+8..0x18 (4 dwords), message+0x10..0x18 to
+ * entry+0..8 (2 dwords), message+0x28..0x34 to entry+0x18..0x24 (3 dwords),
+ * message+8 (8-byte nonce) to entry+0x24, stamps entry+0x2c with
+ * system_milliseconds(), copies message+0x38 (platform) to entry+0xde,
+ * copies message+0x3a (a wide machine-name string, or the "<no name>"
+ * literal at 0x292468 if empty) into entry+0x30 via ustrncpy(...,15),
+ * zeros entry+0x4e/+0x4f, copies message+0xf8/+0xfa/+0xfc/+0xfe/+0x100
+ * (5 words) to entry+0xd4/+0xd6/+0xd8/+0xda/+0xdc, stores local_open to
+ * entry+0xe0, message+0x102 bit 2 to entry+0xe2, and
+ * (entry+0xd4==3 && message+0x102 bit 3) to entry+0xe3. Logs "there is %s
+ * %s net game with %d players and %d machines" (open/closed, platform
+ * name, entry+0xd8, entry+0xd6) and returns. */
+void FUN_00125ce0(void *message_packet, void *advertised_games)
+{
+  char *m;
+  char *g;
+  char *entry;
+  char *p;
+  bool local_open;
+  int i;
+  const char *platform_str;
+  const char *open_str;
+
+  local_open =
+    (*(unsigned char *)((char *)message_packet + 0x102) & 2) != 0 &&
+    *(int16_t *)((char *)message_packet + 0xfa) < 4;
+
+  m = (char *)message_packet;
+  g = (char *)advertised_games;
+
+  entry = g;
+  for (i = 0; i < 9; i++) {
+    if (*(unsigned char *)(entry + 0xe1) == 0 ||
+        (int)system_milliseconds() - *(int *)(entry + 0x2c) > 6000) {
+      csmemset(entry, 0, 0xe4);
+    }
+    entry += 0xe4;
+  }
+
+  entry = NULL;
+  p = g;
+  for (i = 0; i < 9; i++) {
+    if (transport_nonce_is_equal(p + 0x24, m + 8)) {
+      entry = p;
+      break;
+    }
+    p += 0xe4;
+  }
+  if (entry != NULL) {
+    goto fill_in;
+  }
+
+  for (p = g, i = 0; i < 9; i++) {
+    if (*(unsigned char *)(p + 0xe1) == 0) {
+      entry = p;
+      goto fill_in;
+    }
+    p += 0xe4;
+  }
+
+  if (local_open) {
+    p = g + 0xe0;
+    for (i = 0; i < 9; i++) {
+      if (p[1] == 0) {
+        display_assert("current->valid",
+                       "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                       0x61f, true);
+        system_exit(-1);
+      }
+      if (*p == 0) {
+        entry = p - 0xe0;
+        csmemset(entry, 0, 0xe4);
+        goto fill_in;
+      }
+      p += 0xe4;
+    }
+  }
+
+  error(2,
+        "not fatal, but we have to many active network games cannot add more "
+        "to the list");
+  return;
+
+fill_in:
+  *(unsigned char *)(entry + 0xe1) = 1;
+  *(unsigned int *)(entry + 8) = *(unsigned int *)(m + 0x18);
+  *(unsigned int *)(entry + 0xc) = *(unsigned int *)(m + 0x1c);
+  *(unsigned int *)(entry + 0x10) = *(unsigned int *)(m + 0x20);
+  *(unsigned int *)(entry + 0x14) = *(unsigned int *)(m + 0x24);
+  *(unsigned int *)entry = *(unsigned int *)(m + 0x10);
+  *(unsigned int *)(entry + 4) = *(unsigned int *)(m + 0x14);
+  *(unsigned int *)(entry + 0x18) = *(unsigned int *)(m + 0x28);
+  *(unsigned int *)(entry + 0x1c) = *(unsigned int *)(m + 0x2c);
+  *(unsigned int *)(entry + 0x20) = *(unsigned int *)(m + 0x30);
+  csmemcpy(entry + 0x24, m + 8, 8);
+  *(int *)(entry + 0x2c) = system_milliseconds();
+  *(uint16_t *)(entry + 0xde) = *(uint16_t *)(m + 0x38);
+  if (*(uint16_t *)(m + 0x3a) == 0) {
+    ustrncpy((wchar_t *)(entry + 0x30), (wchar_t *)0x292468, 0xf);
+  } else {
+    ustrncpy((wchar_t *)(entry + 0x30), (wchar_t *)(m + 0x3a), 0xf);
+  }
+  *(uint16_t *)(entry + 0x4e) = 0;
+  *(uint16_t *)(entry + 0xd4) = *(uint16_t *)(m + 0xf8);
+  csmemcpy(entry + 0x50, m + 0x74, 0x84);
+  *(uint16_t *)(entry + 0xd6) = *(uint16_t *)(m + 0xfa);
+  *(uint16_t *)(entry + 0xd8) = *(uint16_t *)(m + 0xfc);
+  *(uint16_t *)(entry + 0xda) = *(uint16_t *)(m + 0xfe);
+  *(uint16_t *)(entry + 0xdc) = *(uint16_t *)(m + 0x100);
+  *(unsigned char *)(entry + 0xe0) = (unsigned char)local_open;
+  *(unsigned char *)(entry + 0xe2) = (*(unsigned char *)(m + 0x102) >> 2) & 1;
+  *(unsigned char *)(entry + 0xe3) =
+    (*(int16_t *)(entry + 0xd4) == 3 &&
+     (*(unsigned char *)(m + 0x102) & 8) != 0) ?
+      1 :
+      0;
+
+  if (*(uint16_t *)(entry + 0xde) == 0) {
+    platform_str = "XBox";
+  } else if (*(uint16_t *)(entry + 0xde) == 1) {
+    platform_str = "PC";
+  } else {
+    platform_str = "<unknown platform>";
+  }
+  open_str = local_open ? "an open" : "a closed";
+  network_game_log("there is %s %s net game with %d players and %d machines",
+                   open_str, platform_str, *(uint16_t *)(entry + 0xd8),
+                   *(uint16_t *)(entry + 0xd6));
+}
+
 /* FUN_00125fb0 (0x125fb0)
  *
  * Records a client leave/shutdown reason in the 16-bit field at client+0xca8 —
@@ -934,6 +1482,14 @@ void FUN_00125fb0(unsigned short reason, void *client)
     *(int16_t *)((char *)client + 0xca8) = (int16_t)reason;
 }
 
+#if defined(_MSC_VER) && !defined(__clang__)
+extern void *__cdecl memset(void *, int, unsigned int);
+#pragma intrinsic(memset)
+#define client_zero_bytes(p, n) memset((p), 0, (n))
+#else
+#define client_zero_bytes(p, n) csmemset((p), 0, (n))
+#endif
+
 /* FUN_00126000 (0x126000) — network_game_client_send_graceful_exit_pregame
  *
  * Periodically (every 1000ms) encodes and sends a
@@ -952,7 +1508,7 @@ void FUN_00126000(void *server)
     map_name = main_get_multiplayer_map_name();
     *(int *)((char *)server + 0xca0) = now;
     if (cache_files_give_time_to_precache(map_name)) {
-      csmemset(buf, 0, sizeof(buf));
+      client_zero_bytes(buf, sizeof(buf));
       csstrncpy(buf, map_name, 0x100);
       encoded = (unsigned short *)encode_network_game_message(0x13, buf, 0x100);
       if (encoded != NULL) {
@@ -994,6 +1550,251 @@ bool FUN_001260c0(void *server)
   return result;
 }
 
+/* network_game_client_leave_game (0x126140)
+ *
+ * Asserts client && client->connection (line 0x179), logs "leaving network
+ * game", then dispatches on the client's state (int16 at +0xca6, 0..4) to
+ * gracefully tear down the connection:
+ *  0: asserts the connection is NOT connected (line 0x180) — nothing else to
+ *     do, falls straight through.
+ *  1 (joining): frees/clears the transport handle at +0x830 if set, then
+ *     disconnects if still connected.
+ *  2 (pregame): if connected, sends a
+ *     message_client_graceful_game_exit_pregame (type 0x12, empty 4-byte
+ *     body), logging on either encode or write failure, then disconnects.
+ *  3 (ingame): disconnects if connected.
+ *  4 (postgame): if connected, sends a
+ *     message_client_graceful_game_exit_postgame (type 0x22, empty 4-byte
+ *     body), logging only on write failure (unlike case 2, an encode failure
+ *     here is silent), then disconnects.
+ *  default: logs "client is in an unknown state".
+ * Any non-goto case that falls out of the switch (disconnect not attempted,
+ * or disconnect failed) logs an error string first. All paths converge to
+ * invalidate the embedded game state (network_game_invalidate on client+0x85c)
+ * and reset the state to 0.
+ *
+ * Return value: the result of the state-1/2/3/4 disconnect check (bool in
+ * BL), matching disassembly (0x126140-0x126386) exactly, including that BL is
+ * never initialized before the case-0 "already disconnected" fast path or the
+ * case-1..4 "not connected" fast paths — those return whatever value the
+ * caller's EBX happened to hold, an uninitialized-read quirk in the original
+ * binary, not introduced here.
+ *
+ * kb.json previously recorded this as `void(void)` (an unanalyzed/unreferenced
+ * stub guess — Ghidra finds no callers or xrefs to 0x126140, so the ABI is
+ * confirmed only from the function's own prologue/epilogue, not caller
+ * evidence): the real signature takes one stack param (client) and returns
+ * bool. Corrected below. */
+bool network_game_client_leave_game(void *client)
+{
+  /* Disasm shows BL (this function's return) genuinely unset on the "nothing
+   * to disconnect" fast paths (case 0, and each case's own not-connected
+   * check) — it returns whatever the caller's EBX held. No caller/xref was
+   * found to confirm the value is ever read; -Werror forces a deterministic
+   * initializer here, so `true` (already in the desired disconnected state)
+   * is used as the least-wrong default rather than reproducing the garbage
+   * read. */
+  bool result = true;
+  int16_t state;
+  const char *msg;
+  unsigned short *packet;
+  int scratch;
+
+  if (client == NULL || *(int *)((char *)client + 0x82c) == 0) {
+    display_assert("client && client->connection",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x179, 1);
+    system_exit(-1);
+  }
+
+  network_game_log("leaving network game");
+
+  state = *(int16_t *)((char *)client + 0xca6);
+  switch (state) {
+  case 0:
+    if (network_connection_connected(*(int *)((char *)client + 0x82c))) {
+      display_assert("!network_connection_connected(client->connection)",
+                     "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                     0x180, 1);
+      system_exit(-1);
+    }
+    goto done;
+
+  case 1:
+    if (*(int *)((char *)client + 0x830) != 0) {
+      transport_server_terminate((int *)*(int *)((char *)client + 0x830));
+      *(int *)((char *)client + 0x830) = 0;
+    }
+    if (!network_connection_connected(*(int *)((char *)client + 0x82c)))
+      goto done;
+    result = FUN_00129980(*(int *)((char *)client + 0x82c));
+    if (result)
+      goto done;
+    msg = "network_connection_disconnect() failed "
+          "_network_game_client_state_joining";
+    break;
+
+  case 2:
+    if (!network_connection_connected(*(int *)((char *)client + 0x82c)))
+      goto done;
+    scratch = 0;
+    packet = (unsigned short *)encode_network_game_message(0x12, &scratch, 4);
+    if (packet == NULL) {
+      msg = "failed to create a message_client_graceful_game_exit_pregame "
+            "message";
+      network_game_log(msg);
+    } else if (!network_connection_write(*(void **)((char *)client + 0x82c),
+                                         packet, *packet >> 4, 0, true)) {
+      msg = "network_game_client_write() failed while sending a "
+            "message_client_graceful_game_exit_pregame message";
+      network_game_log(msg);
+    }
+    result = FUN_00129980(*(int *)((char *)client + 0x82c));
+    if (result)
+      goto done;
+    msg = "network_connection_disconnect() failed "
+          "_network_game_client_state_pregame";
+    break;
+
+  case 3:
+    if (!network_connection_connected(*(int *)((char *)client + 0x82c)))
+      goto done;
+    result = FUN_00129980(*(int *)((char *)client + 0x82c));
+    if (result)
+      goto done;
+    msg = "network_connection_disconnect() failed "
+          "_network_game_client_state_ingame";
+    break;
+
+  case 4:
+    if (!network_connection_connected(*(int *)((char *)client + 0x82c)))
+      goto done;
+    scratch = 0;
+    packet = (unsigned short *)encode_network_game_message(0x22, &scratch, 4);
+    if (packet != NULL &&
+        !network_connection_write(*(void **)((char *)client + 0x82c), packet,
+                                  *packet >> 4, 0, true)) {
+      network_game_log("network_game_client_write() failed while sending a "
+                       "message_client_graceful_game_exit_postgame message");
+    }
+    result = FUN_00129980(*(int *)((char *)client + 0x82c));
+    if (result)
+      goto done;
+    msg = "network_connection_disconnect() failed "
+          "_network_game_client_state_postgame";
+    break;
+
+  default:
+    msg = "client is in an unknown state";
+    break;
+  }
+
+  network_game_log(msg);
+
+done:
+  network_game_invalidate((char *)client + 0x85c);
+  *(int16_t *)((char *)client + 0xca6) = 0;
+  return result;
+}
+
+/* network_game_client_request_remove_player (0x1263a0)
+ *
+ * Asserts client non-null and network_player_is_valid(record) (line 0x208),
+ * then asserts the requesting machine owns the player: client's own machine
+ * record (base +0x9b0, stride 0x44, indexed by the client's own uint16 at
+ * +0) byte 0 must equal record+0x1c (line 0x209). Logs the request
+ * ("requesting a player removal (controller index #%d)", record+0x1d, a
+ * signed controller index).
+ *
+ * Dispatches on client state (+0xca6) via a 5-entry jump table (cases 0-4,
+ * default for state > 4):
+ *  - 0, 1 (pregame states before a game is joined): logs and returns false.
+ *  - 2, 3, 4: copies the 0x20-byte record into a local, encodes it as
+ *    message_client_remove_player_request_{pregame,ingame,postgame}
+ *    (types 0xe, 0x1b, 0x20) — encode failure logs and returns false.
+ *  - default: logs "client is in an unknown state" and returns true.
+ *
+ * Every non-early-return case (2, 3, 4, and the default's *encoded* message)
+ * falls through to one shared network_connection_write(connection, message,
+ * size, 0, true) at the tail, EXCEPT case 4, which the reference inlines its
+ * own copy of that same write (identical operands) rather than falling
+ * through — a MSVC jump-table layout artifact, not a behavioral difference. */
+char network_game_client_request_remove_player(void *client, void *record)
+{
+  uint16_t state;
+  char result;
+  unsigned char buf[0x20];
+  unsigned short *packet;
+
+  result = 1;
+  if (client == NULL || !network_player_is_valid(record)) {
+    display_assert("client && network_player_is_valid(player)",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x208, true);
+    system_exit(-1);
+  }
+  if (*(char *)((char *)client + 0x9b0 + (*(uint16_t *)client) * 0x44) != *(char *)((char *)record + 0x1c)) {
+    display_assert("client's can only remove players from their own machines",
+                   "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
+                   0x209, true);
+    system_exit(-1);
+  }
+
+  network_game_log("requesting a player removal (controller index #%d)",
+                   *(signed char *)((char *)record + 0x1d));
+
+  state = *(uint16_t *)((char *)client + 0xca6);
+  switch (state) {
+  case 0:
+  case 1:
+    network_game_log(
+      "can't remove players from a game until after a game is joined");
+    return 0;
+  case 2:
+    csmemcpy(buf, record, 0x20);
+    packet = (unsigned short *)encode_network_game_message(0xe, buf, 0x20);
+    if (packet != NULL) {
+      goto send_packet;
+    }
+    network_game_log(
+      "failed to create a message_client_remove_player_request_pregame "
+      "mesage");
+    return 0;
+  case 3:
+    csmemcpy(buf, record, 0x20);
+    packet = (unsigned short *)encode_network_game_message(0x1b, buf, 0x20);
+    if (packet == NULL) {
+      network_game_log(
+        "failed to create a message_client_remove_player_request_ingame "
+        "message");
+      return 0;
+    }
+send_packet:
+    return network_connection_write(*(void **)((char *)client + 0x82c), packet,
+                                    (unsigned short)(*packet >> 4), 0, true);
+  case 4:
+    csmemcpy(buf, record, 0x20);
+    packet = (unsigned short *)encode_network_game_message(0x20, buf, 0x20);
+    if (packet == NULL) {
+      network_game_log(
+        "failed to create a message_client_remove_player_request_postgame "
+        "message");
+      return 0;
+    }
+    result = network_connection_write(*(void **)((char *)client + 0x82c), packet,
+                                      (unsigned short)(*packet >> 4), 0, true);
+    if (!result) {
+      network_game_log("network_game_client_write() failed while sending a "
+                       "message_client_remove_player_request_postgame message");
+    }
+    break;
+  default:
+    network_game_log("client is in an unknown state");
+    break;
+  }
+
+  return result;
+}
 
 /* network_game_client_remove_player (0x126590)
  *
@@ -1215,6 +2016,168 @@ __declspec(noinline) void network_game_client_reset(void *client,
   *(int16_t *)((char *)client + 0xca4) = -1;
 }
 
+/* network_game_client_idle_searching (0x1268a0)
+ *
+ * Called from the client idle dispatch (FUN_00127070) when state == 0
+ * (searching). All own-string names below are taken verbatim from this
+ * function's log calls.
+ *
+ * Connectivity gate: unless splitscreen-local, checks
+ * transport_network_available(); on failure logs "network connection went
+ * down!" and calls display_error_when_main_menu_loaded(6), then returns
+ * false — identical to FUN_00126b60's own gate immediately below.
+ *
+ * If network_game_server_get() returns non-null (this machine is also
+ * hosting), builds a loopback join request and self-joins: a zeroed 0xE4-byte
+ * "game" record (transport_get_nonce fills 8 bytes at +0x24; the platform
+ * field the callee checks, +0xde, stays 0 from the zero-fill — matching
+ * network_game_client_initiate_join_game's own comment that the platform
+ * check folds to a literal 0), a 0x22-byte "join_parameters" record (only
+ * bytes 2-3 = 0 and bytes 0x12-0x21 = network_game_generate_join_game_token's
+ * 16-byte token are ever written — bytes 0-1 and 4-0x11 are genuine
+ * uninitialized stack content in the original, faithfully left uninitialized
+ * here too), and a transport_address of 127.0.0.1:0x141e (only the first 4
+ * address bytes, address_length, and port are set — bytes 4-15 of the
+ * 16-byte address field are likewise genuinely uninitialized in the
+ * original).
+ *
+ * Otherwise (still searching): network_connection_idle(connection, 5000,
+ * NULL), then FUN_001260c0(server) (process incoming messages) — either
+ * failing logs and returns false. Then, if more than 2000ms elapsed since
+ * the last broadcast (+0xc94), and no server has appeared meanwhile,
+ * broadcasts a message_client_broadcast_game_search (type 0, 12 bytes: word
+ * 0x141f, word 1, 8-byte nonce) to 255.255.255.255:0x141e and stamps +0xc94.
+ * Otherwise (within the 2000ms window), if the "have a ping target" flag at
+ * +0x82a is set and more than 1000ms elapsed since the last ping (+0x820),
+ * sends a message_client_ping (type 1, 8 bytes: dword now_time, word 0x141f,
+ * 2 bytes genuinely uninitialized) to the cached target address at +0x808
+ * and stamps +0x820 — a failed ping write still returns true (only the
+ * broadcast path treats a write failure as fatal). */
+bool network_game_client_idle_searching(void *server)
+{
+  char *s;
+  unsigned int now_time;
+  bool ok;
+  void *found_server;
+
+  s = (char *)server;
+  now_time = system_milliseconds();
+  network_connection_keep_alive(*(int *)(s + 0x82c));
+
+  ok = true;
+  if (!network_game_is_splitscreen_local()) {
+    ok = transport_network_available();
+    if (!ok) {
+      error(2, "network connection went down!");
+      display_error_when_main_menu_loaded(6);
+    }
+  }
+  if (!ok) {
+    return ok;
+  }
+
+  found_server = network_game_server_get();
+  if (found_server != NULL) {
+    unsigned char game_buf[0xe4];
+    unsigned char join_params[0x22];
+    transport_address addr;
+    unsigned int *p;
+    int i;
+
+    p = (unsigned int *)game_buf;
+    for (i = 0; i < 0x39; i++) {
+      p[i] = 0;
+    }
+    transport_get_nonce(game_buf + 0x24, 8);
+    *(uint16_t *)(join_params + 2) = 0;
+    network_game_generate_join_game_token(join_params + 0x12);
+    *(unsigned int *)addr.address = 0x7f000001;
+    addr.address_length = 4;
+    addr.port = 0x141e;
+
+    if (!network_game_client_initiate_join_game(server, game_buf, join_params,
+                                                &addr)) {
+      display_error_when_main_menu_loaded(7);
+      network_game_log("network_game_client_initiate_join_game() failed");
+      return false;
+    }
+    return ok;
+  }
+
+  if (!FUN_00129cf0(*(int *)(s + 0x82c), 5000, NULL)) {
+    display_error_when_main_menu_loaded(7);
+    network_game_log("network_connection_idle() failed in "
+                     "network_game_client_idle_searching()");
+    return false;
+  }
+  if (!FUN_001260c0(server)) {
+    network_game_log(
+      "network_game_client_process_incoming_messages() failed in "
+      "network_game_client_idle_searching()");
+    return false;
+  }
+
+  if (now_time - *(unsigned int *)(s + 0xc94) > 2000) {
+    unsigned char msg[0xc];
+    unsigned short *packet;
+    transport_address dest;
+
+    if (network_game_server_get() != NULL) {
+      return ok;
+    }
+
+    *(uint16_t *)msg = 0x141f;
+    *(uint16_t *)(msg + 2) = 1;
+    transport_get_nonce(msg + 4, 8);
+    *(unsigned int *)dest.address = 0xffffffff;
+    dest.address_length = 4;
+    dest.port = 0x141e;
+
+    packet = (unsigned short *)encode_network_game_message(0, msg, 0xc);
+    if (packet == NULL) {
+      network_game_log(
+        "failed to create a message_client_broadcast_game_search message");
+      return ok;
+    }
+    if (network_connection_write(*(void **)(s + 0x82c), packet,
+                                 (unsigned short)(*packet >> 4), (int)&dest,
+                                 false)) {
+      network_game_log("sent out a broadcast game search packet");
+      *(unsigned int *)(s + 0xc94) = now_time;
+      return ok;
+    }
+    network_game_log("network_game_client_write() failed while sending a "
+                     "message_client_broadcast_game_search message");
+    return false;
+  }
+
+  if (*(unsigned char *)(s + 0x82a) == 1 &&
+      now_time - *(unsigned int *)(s + 0x820) > 1000) {
+    unsigned char ping[8];
+    unsigned short *packet;
+
+    *(unsigned int *)ping = now_time;
+    *(uint16_t *)(ping + 4) = 0x141f;
+
+    packet = (unsigned short *)encode_network_game_message(1, ping, 8);
+    if (packet == NULL) {
+      network_game_log("failed to create a message_client_ping message");
+      return ok;
+    }
+    if (network_connection_write(*(void **)(s + 0x82c), packet,
+                                 (unsigned short)(*packet >> 4),
+                                 (int)(s + 0x808), false)) {
+      *(unsigned int *)(s + 0x820) = now_time;
+      return ok;
+    }
+    network_game_log("network_game_client_write() failed while sending a "
+                     "message_client_ping message");
+    return ok;
+  }
+
+  return ok;
+}
+
 /* FUN_00126b60 (0x126b60) — network_game_client_idle_joining
  *
  * Called from the client idle dispatch (FUN_00127070) when state == 1
@@ -1223,13 +2186,13 @@ __declspec(noinline) void network_game_client_reset(void *client,
  * if connection drops, join request fails, or connection times out. */
 bool FUN_00126b60(void *server)
 {
-  bool connected;
+  char connected;
   unsigned char join_payload[0x50];
   unsigned short *encoded;
   int now_ms;
   int connect_handle;
 
-  connected = true;
+  connected = 1;
   if (!network_game_is_splitscreen_local()) {
     connected = transport_network_available();
     if (!connected) {
@@ -1237,57 +2200,58 @@ bool FUN_00126b60(void *server)
       display_error_when_main_menu_loaded(6);
     }
   }
-  if (connected != true)
-    return connected;
 
-  if (network_connection_connected(*(int *)((char *)server + 0x82c))) {
-    if ((*(unsigned char *)((char *)server + 0xcaa) & 2) == 0) {
-      csmemset(join_payload, 0, 0x50);
-      network_game_generate_local_machine_name(join_payload);
-      csmemcpy(&join_payload[0x40], (char *)server + 0x84a, 0x10);
-      encoded =
-        (unsigned short *)encode_network_game_message(0xc, join_payload, 0x50);
-      if (encoded == NULL) {
-        network_game_log(
-          "failed to create a message_client_join_game_request message");
-      } else if (network_connection_write(
-                   (void *)*(int *)((char *)server + 0x82c), encoded,
-                   (unsigned short)(*encoded >> 4), 0, 1)) {
-        *(unsigned char *)((char *)server + 0xcaa) =
-          *(unsigned char *)((char *)server + 0xcaa) | 2;
-      } else {
-        network_game_log("network_game_client_write() failed to send a "
-                         "message_client_join_game_request message");
+  if (connected) {
+    if (network_connection_connected(*(int *)((char *)server + 0x82c))) {
+      if ((*(unsigned char *)((char *)server + 0xcaa) & 2) == 0) {
+        csmemset(join_payload, 0, 0x50);
+        network_game_generate_local_machine_name(join_payload);
+        csmemcpy(&join_payload[0x40], (char *)server + 0x84a, 0x10);
+        encoded = (unsigned short *)encode_network_game_message(
+          0xc, join_payload, 0x50);
+        if (encoded == NULL) {
+          network_game_log(
+            "failed to create a message_client_join_game_request message");
+        } else if (network_connection_write(
+                     (void *)*(int *)((char *)server + 0x82c), encoded,
+                     (unsigned short)(*encoded >> 4), 0, 1)) {
+          *(unsigned char *)((char *)server + 0xcaa) =
+            *(unsigned char *)((char *)server + 0xcaa) | 2;
+        } else {
+          network_game_log("network_game_client_write() failed to send a "
+                           "message_client_join_game_request message");
+        }
+      }
+      *(int *)((char *)server + 0x830) = 0;
+    } else {
+      connect_handle = *(int *)((char *)server + 0x830);
+      if (connect_handle != 0) {
+        now_ms = (int)system_milliseconds();
+        if ((unsigned int)(now_ms - *(int *)((char *)server + 0x834)) >
+            120000) {
+          network_game_log(
+            "client connection process has timed out; aborting connection "
+            "attempt");
+          transport_server_terminate(*(int **)((char *)server + 0x830));
+          *(int *)((char *)server + 0x830) = 0;
+          return 0;
+        }
       }
     }
-    *(int *)((char *)server + 0x830) = 0;
-  } else {
-    connect_handle = *(int *)((char *)server + 0x830);
-    if (connect_handle != 0) {
-      now_ms = (int)system_milliseconds();
-      if ((unsigned int)(now_ms - *(int *)((char *)server + 0x834)) > 120000) {
-        network_game_log(
-          "client connection process has timed out; aborting connection "
-          "attempt");
-        transport_server_terminate((int *)((char *)server + 0x830));
-        *(int *)((char *)server + 0x830) = 0;
-        return false;
-      }
-    }
-  }
 
-  connected = FUN_00129cf0(*(int *)((char *)server + 0x82c), 5000, 0);
-  if (!connected) {
-    network_game_log("network_connection_idle() failed in "
-                     "network_game_client_idle_joining()");
-    return false;
-  }
-  connected = FUN_001260c0(server);
-  if (!connected) {
-    network_game_log(
-      "network_game_client_process_incoming_messages() failed in "
-      "network_game_client_idle_joining()");
-    return false;
+    connected = FUN_00129cf0(*(int *)((char *)server + 0x82c), 5000, 0);
+    if (connected) {
+      connected = FUN_001260c0(server);
+      if (!connected) {
+        network_game_log(
+          "network_game_client_process_incoming_messages() failed in "
+          "network_game_client_idle_joining()");
+        return 0;
+      }
+    } else {
+      network_game_log("network_connection_idle() failed in "
+                       "network_game_client_idle_joining()");
+    }
   }
   return connected;
 }
@@ -1300,49 +2264,43 @@ bool FUN_00126b60(void *server)
  */
 bool FUN_00126ce0(void *server)
 {
-  bool result;
+  bool connected;
 
-  result = true;
-  if (network_game_is_splitscreen_local())
-    goto check_result;
-  result = transport_network_available();
-  if (result)
-    goto main_body;
-  error(2, "network connection went down!");
-  display_error_when_main_menu_loaded(6);
-
-check_result:
-  if (!result)
-    goto tail_check;
-
-main_body:
-  if (!network_connection_active(*(int *)((char *)server + 0x82c)))
-    goto fail;
-  if (!network_connection_connected(*(int *)((char *)server + 0x82c)))
-    goto fail;
-  FUN_00126000(server);
-  result = FUN_00129cf0(*(int *)((char *)server + 0x82c), 15000, 0);
-  if (!result) {
-    network_game_log("network_connection_idle() failed in "
-                     "network_game_client_idle_pregame()");
-    goto tail_check;
+  connected = true;
+  if (!network_game_is_splitscreen_local()) {
+    connected = transport_network_available();
+    if (!connected) {
+      error(2, "network connection went down!");
+      display_error_when_main_menu_loaded(6);
+    }
   }
-  result = FUN_001260c0(server);
-  if (result)
-    return result;
-  network_game_log("network_game_client_process_incoming_messages() failed in "
-                   "network_game_client_idle_pregame()");
-  goto tail_check;
 
-fail:
-  result = false;
+  if (connected) {
+    if (network_connection_active(*(int *)((char *)server + 0x82c)) &&
+        network_connection_connected(*(int *)((char *)server + 0x82c))) {
+      FUN_00126000(server);
+      connected = FUN_00129cf0(*(int *)((char *)server + 0x82c), 15000, 0);
+      if (connected) {
+        connected = FUN_001260c0(server);
+        if (connected)
+          return true;
+        network_game_log(
+          "network_game_client_process_incoming_messages() failed in "
+          "network_game_client_idle_pregame()");
+      } else {
+        network_game_log("network_connection_idle() failed in "
+                         "network_game_client_idle_pregame()");
+      }
+    } else {
+      connected = false;
+    }
+  }
 
-tail_check:
   if (!network_connection_active(*(int *)((char *)server + 0x82c))) {
     display_error_when_main_menu_loaded(4);
     return false;
   }
-  return result;
+  return connected;
 }
 
 /* FUN_00126db0 (0x126db0) — network_game_client_idle_ingame
@@ -1357,67 +2315,64 @@ tail_check:
  */
 bool FUN_00126db0(void *server)
 {
+  char valid;
+  char is_silent;
+  char result;
   int connection;
-  bool result;
-  bool is_silent;
-  __int16 player_idx;
 
-  result = true;
   connection = *(int *)((char *)server + 0x82c);
-  if (!network_connection_active(connection))
-    goto abort;
-  if (!network_connection_connected(connection))
-    goto abort;
+  if (!network_connection_active(connection) ||
+      !network_connection_connected(connection)) {
+    error(2, "new idle in game abort hit");
+    display_error_when_main_menu_loaded(4);
+    return 0;
+  }
 
   if (!network_game_is_splitscreen_local()) {
-    is_silent = network_connection_going_stale(connection);
+    valid = 1;
+    is_silent =
+      network_connection_going_stale(*(int *)((char *)server + 0x82c));
     if (!transport_network_available()) {
-      error(2, "network connection went down (idle in game)!");
       display_error_when_main_menu_loaded(6);
       network_game_log("network connection went down (idle in game)!");
-      result = false;
-      goto write_flag;
-    }
-    if (is_silent && !*(char *)((char *)server + 0xcad)) {
+      valid = 0;
+    } else if (is_silent && !*(char *)((char *)server + 0xcad)) {
+      __int16 player_idx;
       player_idx = local_player_get_next(-1);
       while (player_idx != (__int16)-1) {
         ui_widget_display_error(9, player_idx, 0, 0);
         player_idx = local_player_get_next(player_idx);
       }
       network_game_log(
-        "network client connection has been silent for a dangerously long"
-        " amount of time");
+        "network client connection has been silent for a dangerously long "
+        "amount of time");
     }
-  write_flag:
-    *(char *)((char *)server + 0xcad) = (char)is_silent;
-    if (!result)
-      return result;
+    *(char *)((char *)server + 0xcad) = is_silent;
+    if (valid != 1)
+      return valid;
   }
 
-  connection = *(int *)((char *)server + 0x82c);
-  result = FUN_00129cf0(connection, 15000, 0);
-  if (!result) {
+  result = FUN_00129cf0(*(int *)((char *)server + 0x82c), 15000, 0);
+  if (result) {
+    result = FUN_001260c0(server);
+    if (!result) {
+      network_game_log(
+        "network_game_client_process_incoming_messages() failed in "
+        "network_game_client_idle_ingame()");
+      return result;
+    }
+  } else {
     connection = *(int *)((char *)server + 0x82c);
     if (!network_connection_active(connection) ||
         !network_connection_connected(connection)) {
       error(2, "new2 idle in game abort hit");
       display_error_when_main_menu_loaded(4);
-      result = false;
+      result = 0;
     }
     network_game_log(
       "network_connection_idle() failed in network_game_client_idle_ingame()");
-    return result;
   }
-  result = FUN_001260c0(server);
-  if (!result)
-    network_game_log("network_game_client_process_incoming_messages() failed in"
-                     " network_game_client_idle_ingame()");
   return result;
-
-abort:
-  error(2, "new idle in game abort hit");
-  display_error_when_main_menu_loaded(4);
-  return false;
 }
 
 /* network_game_client_idle (0x126f40) — network_game_client_idle_postgame
@@ -1520,38 +2475,38 @@ bool FUN_00127070(void *server)
   assert_halt(server);
   switch (*(unsigned short *)((char *)server + 0xca6)) {
   case 0:
-    result = FUN_001268a0(server);
+    result = network_game_client_idle_searching(server);
     if (!result) {
       network_game_log("network_game_client_idle_searching() failed");
-      return 0;
+      return result;
     }
     break;
   case 1:
     result = FUN_00126b60(server);
     if (!result) {
       network_game_log("network_game_client_idle_joining() failed");
-      return 0;
+      return result;
     }
     break;
   case 2:
     result = FUN_00126ce0(server);
     if (!result) {
       network_game_log("network_game_client_idle_pregame() failed");
-      return 0;
+      return result;
     }
     break;
   case 3:
     result = FUN_00126db0(server);
     if (!result) {
       network_game_log("network_game_client_idle_ingame() failed");
-      return 0;
+      return result;
     }
     break;
   case 4:
     result = network_game_client_idle(server);
     if (!result) {
       network_game_log("network_game_client_idle_postgame() failed");
-      return 0;
+      return result;
     }
     break;
   default:
@@ -1612,4 +2567,320 @@ void FUN_001271a0(void *client, void *source_address, uint16_t rejection_code)
   network_game_log("unable to join game: reason= #%d/%s", rejection_code,
                    reason);
   network_game_client_reset(client, 1);
+}
+
+/* ------------------------------------------------------------------------
+ * FUN_00127260 — handle message_server_game_advertise (type 2).
+ * (client @esi, message, message_size, source_address) -> char.
+ * source_address is never read. Ignores the advertisement unless the client
+ * is actively looking for new games (get_state() == 0). Decodes the packet
+ * (type 2, version 1, flag 1) into a 276-byte stack buffer via
+ * decode_network_game_message() (FUN_0012bce0), then checks the leading
+ * 8 bytes of the decoded buffer against the global transport nonce
+ * (transport_nonce_is_equal_to_global) before forwarding to
+ * network_game_client_new_advertised_game(). Every path returns 1.
+ * Confirmed via disassembly (0x127260-0x127308): PUSH 0x0/PUSH ESI into
+ * get_state(); local dword at EBP-0x8 (=1) and EBP-0x4 (=2) are adjacent,
+ * forming the decompiler's "local_c[4]" — &EBP-0x4 is the type slot,
+ * &EBP-0x8 the version slot, matching sibling decode call sites in this
+ * TU. message_size is decremented and reused in place (no separate local).
+ * ---------------------------------------------------------------------- */
+char FUN_00127260(void *client, void *message, int message_size,
+                  void *source_address)
+{
+  char decoded[276];
+  int packet_type;
+  int packet_version;
+
+  if (network_game_client_get_state(client, (void *)0) == 0) {
+    message_size -= 2;
+    packet_type = 2;
+    packet_version = 1;
+    if (FUN_0012bce0((int)decoded, (int)message + 2, (short *)&message_size,
+                     (short *)&packet_type, (short *)&packet_version, 1)) {
+      if (transport_nonce_is_equal_to_global(decoded, 8)) {
+        network_game_client_new_advertised_game(client, decoded);
+      }
+    } else {
+      network_game_log(
+        "failed to decode a message_server_game_advertise packet");
+    }
+  } else {
+    network_game_log(
+      "ignoring an advertised game because we are not looking for new games");
+  }
+  return 1;
+}
+
+/* ------------------------------------------------------------------------
+ * FUN_00127310 — handle message_server_pong (type 3).
+ * (client @esi, message, message_size, source_address) -> char.
+ * Ignores the pong unless the client is actively listening for them
+ * (get_state() == 0). Decodes the packet (type 3, version 1, flag 1) into
+ * a 4-byte stack buffer (the echoed send timestamp) and forwards it to
+ * network_game_client_ponged() along with source_address. Every path
+ * returns 1.
+ * ---------------------------------------------------------------------- */
+char FUN_00127310(void *client, void *message, int message_size,
+                  void *source_address)
+{
+  char decoded[4];
+  int packet_type;
+  int packet_version;
+
+  if (network_game_client_get_state(client, (void *)0) == 0) {
+    message_size -= 2;
+    packet_type = 3;
+    packet_version = 1;
+    if (FUN_0012bce0((int)decoded, (int)message + 2, (short *)&message_size,
+                     (short *)&packet_type, (short *)&packet_version, 1)) {
+      network_game_client_ponged(client, source_address,
+                                 *(unsigned int *)decoded);
+    } else {
+      network_game_log("failed to decode a message_server_pong packet");
+    }
+  } else {
+    network_game_log(
+      "ignoring a pong message because we are not listening for them");
+  }
+  return 1;
+}
+
+/* ------------------------------------------------------------------------
+ * FUN_001273a0 — handle message_server_machine_accepted (type 4).
+ * (client @esi, source_address @edi, message, message_size) -> char.
+ * Ignores the message unless source_address matches the server we're
+ * addressing (network_game_client_address_matches_server) AND we are
+ * actively awaiting acceptance (get_state() == 1). Decodes the packet
+ * (type 4, version 1, flag 2) into an 8-byte stack buffer (seed dword +
+ * assigned machine index) and forwards it to
+ * network_game_client_accepted_into_game(). Returns 1 only on the accepted
+ * path; every rejection/failure path returns 0.
+ * ---------------------------------------------------------------------- */
+char FUN_001273a0(void *client, void *source_address, void *message,
+                  int message_size)
+{
+  char decoded[8];
+  int packet_type;
+  int packet_version;
+  char result;
+
+  result = 1;
+  if (network_game_client_address_matches_server(client, source_address) &&
+      network_game_client_get_state(client, (void *)0) == 1) {
+    message_size -= 2;
+    packet_type = 4;
+    packet_version = 1;
+    if (FUN_0012bce0((int)decoded, (int)message + 2, (short *)&message_size,
+                     (short *)&packet_type, (short *)&packet_version, 2)) {
+      network_game_client_accepted_into_game(client, source_address, decoded);
+    } else {
+      network_game_log(
+        "failed to decode a message_server_machine_accepted packet");
+      result = 0;
+    }
+  } else {
+    network_game_log(
+      "ignoring a message_server_machine_accepted message; either a bad "
+      "machine or we aren't joining");
+    result = 0;
+  }
+  return result;
+}
+
+/* ------------------------------------------------------------------------
+ * FUN_00127440 — handle message_server_machine_rejected (type 5).
+ * (client @esi, source_address @edi, message, message_size) -> char.
+ * Ignores the message unless source_address matches the server AND we are
+ * actively awaiting acceptance (get_state() == 1). Decodes the packet
+ * (type 5, version 1, flag 2) into a 4-byte stack buffer (rejection code)
+ * and forwards it to FUN_001271a0(). Returns 1 only on the accepted
+ * decode path; every rejection/failure path returns 0.
+ * ---------------------------------------------------------------------- */
+char FUN_00127440(void *client, void *source_address, void *message,
+                  int message_size)
+{
+  char decoded[4];
+  int packet_type;
+  int packet_version;
+  char result;
+
+  result = 1;
+  if (network_game_client_address_matches_server(client, source_address) &&
+      network_game_client_get_state(client, (void *)0) == 1) {
+    message_size -= 2;
+    packet_type = 5;
+    packet_version = 1;
+    if (FUN_0012bce0((int)decoded, (int)message + 2, (short *)&message_size,
+                     (short *)&packet_type, (short *)&packet_version, 2)) {
+      FUN_001271a0(client, source_address, *(unsigned int *)decoded);
+    } else {
+      network_game_log(
+        "failed to decode a message_server_machine_rejected packet");
+      result = 0;
+    }
+  } else {
+    network_game_log(
+      "ignoring a message_server_machine_rejected message; either a bad "
+      "machine or we aren't joining");
+    result = 0;
+  }
+  return result;
+}
+
+/* ------------------------------------------------------------------------
+ * FUN_001274E0 — handle message_server_game_settings_update (type 6).
+ * (client @esi, source_address @eax, message, message_size) -> char.
+ * Asserts client and source_address are non-null (original assert strings
+ * recovered from network_client_message_handler.c, lines 0x169/0x16a —
+ * this handler's asm frame layout doesn't match that TU's other functions,
+ * so it stays here). Ignores the message (returns 1, logged) unless
+ * source_address matches the server AND we are in the pregame state
+ * (get_state() == 2). Decodes the packet (type 6, version 1, flag 2) into
+ * a 1076-byte stack buffer and forwards it to
+ * network_game_client_game_settings_updated(), whose bool result becomes
+ * the return value (logged on failure).
+ * ---------------------------------------------------------------------- */
+char FUN_001274E0(void *client, void *source_address, void *message,
+                  int message_size)
+{
+  char decoded[1076];
+  int packet_type;
+  int packet_version;
+  char result;
+
+  result = 0;
+  assert_halt_at(
+    "c:\\halo\\SOURCE\\networking\\network_client_message_handler.c", 0x169,
+    client != NULL);
+  assert_halt_at(
+    "c:\\halo\\SOURCE\\networking\\network_client_message_handler.c", 0x16a,
+    source_address != NULL);
+
+  if (network_game_client_address_matches_server(client, source_address)) {
+    if (network_game_client_get_state(client, (void *)0) == 2) {
+      message_size -= 2;
+      packet_type = 6;
+      packet_version = 1;
+      if (FUN_0012bce0((int)decoded, (int)message + 2, (short *)&message_size,
+                       (short *)&packet_type, (short *)&packet_version, 2)) {
+        result = network_game_client_game_settings_updated(client, decoded);
+        if (result == 0) {
+          network_game_log(
+            "network_game_client_game_settings_updated() failed");
+        }
+        return result;
+      }
+      network_game_log(
+        "failed to decode a message_server_game_settings_update packet");
+      return result;
+    }
+    network_game_log(
+      "failed to handle a message_server_game_settings_update message; "
+      "not in pregame state");
+    return 1;
+  }
+  network_game_log(
+    "ignoring a message_server_game_settings_update; came from a bad "
+    "machine");
+  return 1;
+}
+
+/* ------------------------------------------------------------------------
+ * FUN_00127610 — handle message_server_pregame_countdown (type 7).
+ * (client @esi, source_address @eax, message, message_size) -> char.
+ * Asserts client and source_address are non-null (original assert strings
+ * recovered from network_client_message_handler.c, lines 0x19b/0x19c).
+ * Ignores the message (logged) unless source_address matches the server
+ * AND we are in the pregame state (get_state() == 2). Decodes the packet
+ * (type 7, version 1, flag 2) into a 4-byte stack buffer (the countdown
+ * value) and forwards it to network_game_client_countdown_timer_update().
+ * Every path returns 1.
+ * ---------------------------------------------------------------------- */
+char FUN_00127610(void *client, void *source_address, void *message,
+                  int message_size)
+{
+  char decoded[4];
+  int packet_type;
+  int packet_version;
+
+  assert_halt_at(
+    "c:\\halo\\SOURCE\\networking\\network_client_message_handler.c", 0x19b,
+    client != NULL);
+  assert_halt_at(
+    "c:\\halo\\SOURCE\\networking\\network_client_message_handler.c", 0x19c,
+    source_address != NULL);
+
+  if (network_game_client_address_matches_server(client, source_address)) {
+    if (network_game_client_get_state(client, (void *)0) == 2) {
+      message_size -= 2;
+      packet_type = 7;
+      packet_version = 1;
+      if (FUN_0012bce0((int)decoded, (int)message + 2, (short *)&message_size,
+                       (short *)&packet_type, (short *)&packet_version, 2)) {
+        network_game_client_countdown_timer_update(client,
+                                                   *(unsigned int *)decoded);
+      } else {
+        network_game_log(
+          "failed to decode a message_server_pregame_countdown packet");
+      }
+    } else {
+      network_game_log(
+        "failed to handle a message_server_pregame_countdown message; not "
+        "in pregame state");
+    }
+  } else {
+    network_game_log(
+      "ignoring a message_server_pregame_countdown; came from a bad "
+      "machine");
+  }
+  return 1;
+}
+
+/* ------------------------------------------------------------------------
+ * FUN_00127710 — handle message_server_pregame_keep_alive (type 10).
+ * (client @esi, source_address @edi, message, message_size) -> char.
+ * Asserts client and source_address are non-null (original assert strings
+ * recovered from network_client_message_handler.c, lines 0x1c4/0x1c5).
+ * Ignores the message (logged) unless source_address matches the server
+ * AND we are in the pregame state (get_state() == 2). Decodes the packet
+ * (type 10, version 1, flag 2) into a 4-byte stack buffer that is not
+ * otherwise used — this is a keep-alive ping, the decode call itself is
+ * the only side effect. Every path returns 1.
+ * ---------------------------------------------------------------------- */
+char FUN_00127710(void *client, void *source_address, void *message,
+                  int message_size)
+{
+  char decoded[4];
+  int packet_type;
+  int packet_version;
+
+  assert_halt_at(
+    "c:\\halo\\SOURCE\\networking\\network_client_message_handler.c", 0x1c4,
+    client != NULL);
+  assert_halt_at(
+    "c:\\halo\\SOURCE\\networking\\network_client_message_handler.c", 0x1c5,
+    source_address != NULL);
+
+  if (network_game_client_address_matches_server(client, source_address)) {
+    if (network_game_client_get_state(client, (void *)0) == 2) {
+      message_size -= 2;
+      packet_type = 10;
+      packet_version = 1;
+      if (!FUN_0012bce0((int)decoded, (int)message + 2, (short *)&message_size,
+                        (short *)&packet_type, (short *)&packet_version, 2)) {
+        network_game_log(
+          "failed to decode a message_server_pregame_keep_alive packet");
+      }
+    } else {
+      network_game_log(
+        "failed to handle a message_server_pregame_keep_alive message; not "
+        "in pregame state");
+    }
+  } else {
+    network_game_log(
+      "ignoring a message_server_pregame_keep_alive; came from a bad "
+      "machine");
+  }
+  return 1;
 }

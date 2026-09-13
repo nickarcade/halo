@@ -370,14 +370,14 @@ bool network_game_player_is_local(void *player)
     return false;
   }
 
-  if (game_connection() != 3) {
-    return true;
+  if (game_connection() == 3) {
+    assert_halt_at("c:\\halo\\SOURCE\\networking\\network_game_globals.c", 0x9b,
+                   player);
+
+    return *(char *)((char *)player + 0x1c) == '\0';
   }
 
-  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_game_globals.c", 0x9b,
-                 player);
-
-  return *(char *)((char *)player + 0x1c) == '\0';
+  return true;
 }
 
 /* network_game_set_accept_remote_connections (0x12a150)
@@ -448,8 +448,10 @@ void *network_game_server_get(void)
  */
 void dispose_global_network_game_client(void)
 {
-  if (*(void **)0x46e8bc != NULL) {
-    network_game_client_dispose(*(void **)0x46e8bc);
+  void *client = *(void **)0x46e8bc;
+
+  if (client != NULL) {
+    network_game_client_dispose(client);
     *(void **)0x46e8bc = NULL;
     *(uint8_t *)0x46e8c5 = 0;
   }
@@ -606,7 +608,6 @@ bool network_game_client_end_frame(void)
 {
   int16_t state;
   int now;
-  int last_send;
   bool result;
   uint32_t flags;
   uint16_t *msg;
@@ -623,13 +624,11 @@ bool network_game_client_end_frame(void)
   }
 
   state = network_game_client_get_state(*(void **)0x46e8c0, NULL);
-  last_send = *(int *)0x46e8c8;
 
   if (state == 3) {
     now = system_milliseconds();
-    last_send = *(int *)0x46e8c8;
 
-    if ((unsigned int)(now - *(int *)0x46e8c8) > 0xf &&
+    if ((unsigned int)(now - *(int *)0x46e8c8) >= 0x10 &&
         network_game_client_get_available_games(*(void **)0x46e8c0)) {
       network_game_client_get_error(*(void **)0x46e8c0);
       network_game_client_get_machine_index(*(void **)0x46e8c0);
@@ -646,15 +645,20 @@ bool network_game_client_end_frame(void)
       msg_buf[0] = flags;
       csmemcpy((char *)msg_buf + 8, out_buf, 0x80);
       *(uint16_t *)((char *)msg_buf + 6) = (uint16_t)local_player_count();
+#ifdef HALO_RNG_TRACE
+      RNG_TRACE_EX(RNG_TRACE_KIND_NET_UPDATE_FLAGS, flags,
+                   (unsigned int)*(uint16_t *)((char *)msg_buf + 6));
+      RNG_TRACE_EX(RNG_TRACE_KIND_NET_UPDATE_BUTTONS_01,
+                   *(uint32_t *)(out_buf + 0x00),
+                   *(uint32_t *)(out_buf + 0x20));
+      RNG_TRACE_EX(RNG_TRACE_KIND_NET_UPDATE_BUTTONS_23,
+                   *(uint32_t *)(out_buf + 0x40),
+                   *(uint32_t *)(out_buf + 0x60));
+#endif
 
       msg = (uint16_t *)encode_network_game_message(0x19, msg_buf, 0x88);
-      last_send = now;
 
-      if (msg == NULL) {
-        network_game_log(
-          "failed to create a _message_type_client_game_update message");
-        result = false;
-      } else {
+      if (msg != NULL) {
         network_game_client_switch_to_postgame(*(void **)0x46e8c0, addr_buf);
         /* arg1 is the client's connection handle at +0x82c, fetched via the
          * 0x125710 getter (its kb name is a misnomer; it returns
@@ -670,11 +674,15 @@ bool network_game_client_end_frame(void)
           *(int *)0x46e8c8 = now;
           return false;
         }
+      } else {
+        network_game_log(
+          "failed to create a _message_type_client_game_update message");
+        result = false;
       }
+      *(int *)0x46e8c8 = now;
     }
   }
 
-  *(int *)0x46e8c8 = last_send;
   return result;
 }
 

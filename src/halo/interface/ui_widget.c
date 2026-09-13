@@ -182,20 +182,19 @@ void widget_free(void *widget)
  * XOR AL,AL. */
 bool ui_widgets_active(void)
 {
-  int *root_slots;
+  int *slot;
+  bool active;
 
-  if (*(uint8_t *)0x46cc82 == 0) {
-    return false;
-  }
-
-  root_slots = (int *)0x46cc20;
-  while (*root_slots == 0) {
-    root_slots++;
-    if ((int)root_slots >= 0x46cc30) {
-      return false;
+  active = false;
+  if (*(uint8_t *)0x46cc82 != 0) {
+    for (slot = (int *)0x46cc20; (int)slot < 0x46cc30; slot++) {
+      if (*slot != 0) {
+        return true;
+      }
     }
   }
-  return true;
+
+  return active;
 }
 
 /* ui_widget_set_events_suppressed — sets or clears the events-suppressed
@@ -274,16 +273,16 @@ bool ui_widget_is_main_menu_loaded(void)
 {
   int root_widget;
 
-  if (*(uint8_t *)0x46cc88 != 1) {
-    return false;
+  if (*(uint8_t *)0x46cc88 == 1) {
+    root_widget = *(int *)0x46cc20;
+    if (root_widget != 0) {
+      if (csstrcmp(*(const char **)(root_widget + 4), "the_main_menu") == 0) {
+        return true;
+      }
+    }
   }
 
-  root_widget = *(int *)0x46cc20;
-  if (root_widget == 0) {
-    return false;
-  }
-
-  return csstrcmp(*(const char **)(root_widget + 4), "the_main_menu") == 0;
+  return false;
 }
 
 /* ui_widget_load_progress_widget — stub that fires a priority-2 error
@@ -388,7 +387,7 @@ void ui_widget_stop_attract_mode(void)
 
 bool ui_widget_get_attract_mode_flag(void)
 {
-  return *(uint8_t *)0x46cc86 != 0;
+  return *(bool *)0x46cc86;
 }
 
 void ui_widgets_disable_pause_game(int duration_ticks)
@@ -1983,7 +1982,7 @@ after_local_handling:
   *handled_out = (uint8_t)widget_deleted;
 }
 
-void *ui_widget_load_by_name_or_tag(const char *name, int tag_index, int a3,
+__declspec(noinline) void *ui_widget_load_by_name_or_tag(const char *name, int tag_index, int a3,
                                     int widget_stack, int parent_tag_index,
                                     int a6, int a7)
 {
@@ -2151,7 +2150,7 @@ void main_screen_shell_load(void)
   ui_widget_clear_last_error_index();
 
 done:
-  if (!((bool (*)(void))0xf53a0)()) {
+  if (!virtual_keyboard_initialize()) {
     error(2, "failed to initialize the virtual keyboard");
   }
   *(uint8_t *)0x31e050 = 0;
@@ -2286,14 +2285,14 @@ void ui_widget_display_error(int16_t error_handle, int local_player_index,
       error(2,
             "there is already an error message displayed for this local player"
             " index");
-      error(2, "failed to display error message");
-      return;
+      goto error_failed;
     }
   }
 
   widget = (int)ui_widget_load_by_name_or_tag(widget_name, -1, 0, stack_index,
                                               root_tag_index, -1, -1);
   if (widget == 0) {
+  error_failed:
     error(2, "failed to display error message");
     return;
   }
@@ -2343,15 +2342,18 @@ void ui_widget_display_error(int16_t error_handle, int local_player_index,
     }
   }
 
-  if (error_handle == 0xd) {
+  switch (error_handle) {
+  case 0xd:
     *(uint8_t *)(widget + 0x16) = 1;
-  } else if (error_handle != 0xc) {
+    /* fallthrough */
+  case 0xc:
+    *(int *)(widget + 0x1c) = 0;
+    *(int *)(widget + 0x20) = 0;
+    break;
+  default:
     *(uint8_t *)(widget + 0x16) = 0;
-    return;
+    break;
   }
-
-  *(int *)(widget + 0x1c) = 0;
-  *(int *)(widget + 0x20) = 0;
 }
 
 /* ui_widget_load_error_screen — displays a fatal/abort error overlay that
@@ -2367,13 +2369,14 @@ void ui_widget_load_error_screen(int16_t error_handle, int allow_abort)
 {
   const char *widget_name;
   void *widget;
+  bool abort = *(bool *)&allow_abort;
 
-  if (allow_abort == 1) {
+  if (abort == 1) {
     widget_name = "ui\\shell\\error\\error_abort_to_dashboard";
   } else {
     widget_name =
       "ui\\shell\\error\\error_abort_to_dashboard_you_have_no_choice";
-    if (allow_abort == 0) {
+    if (abort == 0) {
       ui_widgets_close_all();
     }
   }
@@ -2876,7 +2879,7 @@ void process_ui_widgets(void)
  * The global at 0x31e4c0 tracks which error was most recently displayed
  * by the UI widget error system.
  */
-void ui_widget_clear_last_error_index(void)
+__declspec(noinline) void ui_widget_clear_last_error_index(void)
 {
   *(int *)0x31e4c0 = -1;
 }

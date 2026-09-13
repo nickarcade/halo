@@ -83,16 +83,16 @@ void game_engine_evaluate_game_complexity(void)
   }
 
   /* Set complexity flags at 0x5aa720 */
-  if ((player_count > 8 && seat_count > 1) || player_count > 12)
+  if ((player_count >= 9 && seat_count >= 2) || player_count >= 13)
     *(uint32_t *)0x5aa720 |= 1;
 
-  if (player_count > 4 || seat_count > 3 || (*(uint32_t *)0x5aa720 & 1) != 0)
+  if (player_count >= 5 || seat_count >= 4 || (*(uint32_t *)0x5aa720 & 1) != 0)
     *(uint32_t *)0x5aa720 |= 2;
 
-  if (player_count > 4)
+  if (player_count >= 5)
     *(uint32_t *)0x5aa720 |= 4;
 
-  if (player_count > 8)
+  if (player_count >= 9)
     *(uint32_t *)0x5aa720 |= 8;
 }
 
@@ -643,12 +643,14 @@ check_tick:
  */
 unsigned int game_engine_player_get_team_index(int player_handle)
 {
+  void **players_table;
   char *player;
   unsigned int team;
 
+  players_table = (void **)0x5aa6d4;
   assert_halt_msg(current_game_engine, "game_engine");
   if (*(int *)((char *)current_game_engine + 0x74) == 0) {
-    player = (char *)datum_get(*(void **)0x5aa6d4, player_handle);
+    player = (char *)datum_get(*players_table, player_handle);
     team = (int)*(short *)(player + 2) % 2;
     return team;
   }
@@ -1029,6 +1031,7 @@ int *game_engine_get_goal_position(int *param_1, short param_2)
   *param_1 = *(int *)src;
   param_1[1] = *(int *)(src + 4);
   param_1[2] = *(int *)(src + 8);
+  param_1[2] = *(int *)(src + 8);
   return param_1;
 }
 
@@ -1143,12 +1146,12 @@ char game_engine_display_team_indicators(void)
  *
  * Returns true (1) if the game engine is inactive or player_index is NONE.
  * Otherwise returns bit 3 of the engine flags (0x456b18), inverted. */
-char game_engine_has_shield(int param_1)
+char game_engine_has_shield(int player_index)
 {
   char result;
 
   result = 1;
-  if (*(int *)0x456b60 != 0 && param_1 != -1) {
+  if (*(int *)0x456b60 != 0 && player_index != -1) {
     result = (~(*(unsigned int *)0x456b18 >> 3)) & 1;
   }
   return result;
@@ -1678,7 +1681,7 @@ int game_engine_get_place(int param_1, int param_2)
         if (!is_same) {
           if (param_2 == 1) {
             uint32_t team_bit = 1u
-                                << ((uint8_t) * (int *)(other + 0x20) & 0x1f);
+                                << (*(int *)(other + 0x20) & 0x1f);
             if ((team_bit & team_mask) != 0)
               goto next;
             team_mask |= team_bit;
@@ -4399,9 +4402,7 @@ int find_netgame_flags(float *position, float radius, float height,
         }
         /* Height check: skip if height <= 0.0f */
         if (!(height <= 0.0f)) {
-          float abs_dz = entry[2] - position[2];
-          if (abs_dz < 0.0f)
-            abs_dz = -abs_dz;
+          float abs_dz = x87_fabs(entry[2] - position[2]);
           if (abs_dz > height)
             goto next;
         }
@@ -4807,16 +4808,21 @@ float game_engine_get_distance_rating_for_spawn(int param_1, float *param_2)
 
   float dz;
 
-  float dist_sq;
+  float dist;
 
   float result;
 
   char has_teams;
 
+  uint8_t team_check;
+
   data_iter_t iter;
 
 
   has_teams = current_game_engine == 0;
+
+  /* 0xad9c0..0xad9d7: SETE bl; DEC bl; AND bl,[0x456b14] -- hoisted out of the loop. */
+  team_check = (uint8_t)((has_teams - 1) & *(uint8_t *)0x456b14);
 
   player = (int)datum_get(player_data, param_1);
 
@@ -4838,31 +4844,39 @@ float game_engine_get_distance_rating_for_spawn(int param_1, float *param_2)
 
       dz = param_2[2] - pos[2];
 
-      dist_sq = dx * dx + dy * dy + dz * dz;
+      /* 0xada3d..0xada4f: FSQRT then FSTP dword [ebp-8] -- the ORIGINAL
+       * compares the DISTANCE, not the squared distance, against every
+       * threshold below (0.25 / 1.0 / 2.0 / 5.0) and feeds it into the
+       * (dist - 2) ramp.  The previous lift dropped the FSQRT, which
+       * changed the spawn-point ratings and hence the spawn chosen by
+       * find_best_starting_location_index whenever another unit was
+       * alive (system-link desync at tick 2, unit 0xe2740005).  The
+       * round trip mirrors the dword store so the compares see a
+       * float32 value, as MSVC did. */
+      dist = xbox_sqrtf(dx * dx + dy * dy + dz * dz);
+      HALO_FLT_ROUNDTRIP(dist);
 
-      if (((has_teams - 1) & *(uint8_t *)0x456b14) == 0 ||
+      if (team_check == 0 ||
 
           *(int *)(biped + 0x20) != *(int *)(player + 0x20) ||
 
-          dist_sq <= *(float *)0x25337c) {
-        if (*(float *)0x25337c <= dist_sq) {
-          if (dist_sq < *(float *)0x2533c8)
-
-            result = result * *(float *)0x25496c;
-
-        } else {
+          !(dist > *(float *)0x25337c)) {
+        /* 0xada79..0xadaae: fcomp 0.25 / test ah,5 / jp -> result = 0 on
+         * dist < 0.25 (cold arm first), else fcomp 1.0 -> scale by 0.1. */
+        if (dist < *(float *)0x25337c) {
           result = 0.0f;
+        } else if (dist < *(float *)0x2533c8) {
+          result = result * *(float *)0x25496c;
         }
 
         if (*(int *)(biped + 0x20) != *(int *)(player + 0x20)) {
-          if (*(float *)0x253f40 <= dist_sq) {
-            if (dist_sq <= *(float *)0x254cc4)
-
-              result =
-                (dist_sq - *(float *)0x253f40) * result * *(float *)0x259ec0;
-
-          } else {
+          /* 0xadab9..0xadaf7: fcomp 2.0 / test ah,5 / jp -> result = 0 on
+           * dist < 2.0; fcomp 5.0 / test ah,0x41 / je skips on dist > 5.0. */
+          if (dist < *(float *)0x253f40) {
             result = 0.0f;
+          } else if (!(dist > *(float *)0x254cc4)) {
+            result = (dist - *(float *)0x253f40) * result;
+            result = result * *(float *)0x259ec0;
           }
         }
       }
@@ -4906,10 +4920,21 @@ float FUN_000adb20(int spawn_pos, int player_handle)
                        (position[0] - pos[0]) * (position[0] - pos[0]) +
                        (position[2] - pos[2]) * (position[2] - pos[2]);
             dist = xbox_sqrtf(d2);
+            /* 0xadba9: FSTP dword [ebp-8] narrows dist before every use. */
+            HALO_FLT_ROUNDTRIP(dist);
           }
-          if (1.0f <= dist && dist < *(float *)0x254640) {
-            rating =
-              (float)x87_fmod((double)dist, *(double *)0x26b678) + rating;
+          /* 0xadbb2..0xadbf5.  Second guard is FCOMP 6.0 / TEST AH,0x41 / JP:
+           * continue on dist <= 6.0 (equality included).  Body:
+           *   FLD dist; FSUB 1.0; FMUL 0.2 [0x2549d4]; FSUBR 1.0;
+           *   FLD double 0.6 [0x26c6b0]; CALL _CIpow; FADD rating; FSTP rating
+           * i.e. rating += pow(1.0 - (dist - 1.0) * 0.2, 0.6).  The previous
+           * lift wrote fmod(dist, 1.9) here -- wrong helper AND wrong constant
+           * (0x26b678 is an unrelated double) -- so same-team spawn ratings
+           * diverged from the original. */
+          if (1.0f <= dist && dist <= *(float *)0x254640) {
+            rating = (float)(pow((double)(1.0f - (dist - 1.0f) * *(float *)0x2549d4),
+                                 *(double *)0x26c6b0) +
+                             rating);
           }
         }
         player = (int)data_iterator_next(&iter);
@@ -5859,17 +5884,17 @@ void game_engine_update(void)
       if (((*(uint32_t *)0x456b18 & 0x10) != 0 ||
            (vtable[32] &&
             ((char (*)(int, int))vtable[32])(player_handle, 1))) &&
-          *(int *)((char *)datum_get(player_data, player_handle) + 0x34) !=
+          *(int *)((char *)datum_get(player_data, iter.datum_handle) + 0x34) !=
             NONE) {
-        player_set_respawn_timer(player_handle, 0, 0xf);
+        player_set_respawn_timer(iter.datum_handle, 0, 0xf);
       }
     }
 
-    game_engine_player_update_netgame_flag(player_handle);
+    game_engine_player_update_netgame_flag(iter.datum_handle);
 
     vtable = (void (**)(void))current_game_engine;
     if (vtable[13])
-      ((void (*)(int))vtable[13])(player_handle);
+      ((void (*)(int))vtable[13])(iter.datum_handle);
   }
 
   vtable = (void (**)(void))current_game_engine;
@@ -7410,7 +7435,7 @@ char FUN_000b1570(int player_handle)
     player = (int)datum_get(player_data, player_handle);
     if (*(int *)(player + 0x34) != -1) {
       biped = (int)object_get_and_verify_type(*(int *)(player + 0x34), 3);
-      if (*(float *)(0x456d48) <= *(float *)(biped + 0x58)) {
+      if (*(float *)(biped + 0x58) >= *(float *)(0x456d48)) {
         if (*(float *)(biped + 0x58) < *(float *)(0x456d44)) {
           float pos[2];
           pos[0] = *(float *)(biped + 0x50);
@@ -7686,8 +7711,8 @@ void FUN_000b1aa0(void)
   *(int *)0x5aa700 = src[2];
 
   *(int *)0x5aa704 = src[0];
-  *(int *)0x5aa708 = src[1];
-  *(int *)0x5aa70c = src[2];
+  *(int *)0x5aa708 = (*(int **)0x2ee708)[1];
+  *(int *)0x5aa70c = (*(int **)0x2ee708)[2];
 
   *(int *)0x5aa710 = 0;
   *(int *)0x5aa714 = 0;

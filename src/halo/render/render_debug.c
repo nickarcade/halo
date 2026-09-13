@@ -9,6 +9,8 @@
  * its draw routine, then clears the cache when the game frame advances.
  */
 
+#include <stdarg.h>
+
 #include "x87_math.h"
 
 /* Per-frame debug primitive cache record (0x38 bytes, array based at 0x4d1220).
@@ -36,6 +38,21 @@ typedef struct debug_primitive {
 
 typedef char
   debug_primitive_size_check[sizeof(debug_primitive) == 0x38 ? 1 : -1];
+
+/* Payload copy shapes used by the cache writer (0x188ec0). The reference codes
+ * every 3- and 4-float payload store as a whole-aggregate assignment -- it
+ * materializes the destination with `lea <off>(<rec>), <reg>` and then stores
+ * at 0/4/8(/0xc) of that register. Element-wise float stores instead compile to
+ * direct-displacement stores off the record base, so the payload copies are
+ * written as aggregate assignments here. 1- and 2-dword payloads stay scalar;
+ * the reference keeps those in direct-displacement form too. */
+typedef struct debug_float3 {
+  float v[3];
+} debug_float3;
+
+typedef struct debug_float4 {
+  float v[4];
+} debug_float4;
 
 #define debug_primitives ((debug_primitive *)0x4d1220)
 #define debug_primitive_count (*(short *)0x4d8224)
@@ -347,177 +364,147 @@ void FUN_00188d00(float *buffer1, float *buffer2, float *center,
  * store. When the game frame advances the cache is reset; when it fills (0x200
  * records) a one-shot overflow warning is emitted and the record is dropped.
  *
- * The trailing arguments are read positionally through `args` (the stack slot
- * just past `type`), matching the original's fixed [ebp+N] accesses. Several
- * layouts share the two trailing copy tails: tail_c5/tail_d8 copy a 3-vector
- * then a 4-vector (shared blocks 0x1890c5/0x1890d8), tail_v4 copies a single
- * 4-vector (shared block 0x189060). */
-void FUN_00188ec0(short type, ...)
+ * The trailing arguments MUST be read with <stdarg.h> va_arg, not by taking
+ * the address of `type` and walking past it: the original's raw
+ * `[ebp+N]`-relative reads happen to work because MSVC's unoptimized cdecl
+ * layout keeps a named parameter at its real incoming stack slot, but clang
+ * gives `type` its own local storage, so `&type + 4` does not reliably land on
+ * the caller's next pushed argument. Under clang this silently read whatever
+ * scratch stack data happened to sit next to `type`'s local copy: harmless for
+ * the float/int cases (wrong-looking debug geometry at worst), but for the
+ * string cases (8/9) it fed a garbage pointer straight into `FUN_00188b20` ->
+ * `csstrncpy`, which faulted -- this was the `debug_sprites true`
+ * crash/freeze.
+ *
+ * case 0's final `offset` field (rec+0x34) matches the original: the push-side
+ * call site (FUN_0018a860) never actually passes an `offset` argument, so both
+ * the original binary and this port read one double past the real argument
+ * list there. That field is never read back meaningfully; preserved as-is
+ * rather than inventing a value the original never had. */
+void FUN_00188ec0(int type, ...)
 {
-  int *args;
+  va_list ap;
   char *rec;
   float *p1;
   float *p2;
-  float *q;
-  float *dst3;
-  float *dst6;
-  float *src6;
-  float *dst;
-  float *src;
-  float tmp;
+  float *color;
   char *interned;
   short frame;
+  short count;
   int i;
+  int ival;
+  double dval;
 
   frame = (short)game_time_get();
   if (debug_primitive_frame != frame) {
     debug_primitive_frame = (short)game_time_get();
-    debug_primitive_count = 0;
     debug_string_pool_count = 0;
     debug_string_pool[0] = 0;
-  } else if (debug_primitive_count >= 0x200) {
-    if (cache_overflow_warned == 0) {
-      error(2, "render debug cache overflow.");
-      cache_overflow_warned = 1;
+    count = 0;
+  } else {
+    count = debug_primitive_count;
+    if (count >= 0x200) {
+      if (cache_overflow_warned == 0) {
+        error(2, "render debug cache overflow.");
+        cache_overflow_warned = 1;
+      }
+      return;
     }
-    return;
   }
 
-  rec = (char *)&debug_primitives[debug_primitive_count];
-  debug_primitive_count = debug_primitive_count + 1;
+  rec = (char *)&debug_primitives[count];
+  debug_primitive_count = count + 1;
   *(short *)rec = type;
 
-  args = (int *)((char *)&type + 4);
+  va_start(ap, type);
   switch (type) {
   case 0:
-    p1 = (float *)args[0];
-    q = (float *)(rec + 0x04);
-    q[0] = p1[0];
-    q[1] = p1[1];
-    q[2] = p1[2];
-    q[3] = p1[3];
-    *(short *)(rec + 0x14) = *(short *)&args[1];
-    *(char *)(rec + 0x16) = *(char *)&args[2];
-    p2 = (float *)args[3];
+    p1 = va_arg(ap, float *);
+    *(debug_float4 *)(rec + 0x04) = *(debug_float4 *)p1;
+    ival = va_arg(ap, int);
+    *(short *)(rec + 0x14) = (short)ival;
+    ival = va_arg(ap, int);
+    *(unsigned char *)(rec + 0x16) = (unsigned char)ival;
+    p2 = va_arg(ap, float *);
     *(float *)(rec + 0x18) = p2[0];
     *(float *)(rec + 0x1c) = p2[1];
-    *(float *)(rec + 0x20) = (float)*(double *)&args[4];
-    p1 = (float *)args[6];
-    q = (float *)(rec + 0x24);
-    q[0] = p1[0];
-    q[1] = p1[1];
-    q[2] = p1[2];
-    q[3] = p1[3];
-    *(float *)(rec + 0x34) = (float)*(double *)&args[7];
-    goto done;
+    dval = va_arg(ap, double);
+    *(float *)(rec + 0x20) = (float)dval;
+    color = va_arg(ap, float *);
+    *(debug_float4 *)(rec + 0x24) = *(debug_float4 *)color;
+    dval = va_arg(ap, double); /* past the real args; see comment above */
+    *(float *)(rec + 0x34) = (float)dval;
+    break;
   case 1:
   case 3:
-    p1 = (float *)args[0];
-    q = (float *)(rec + 0x04);
-    q[0] = p1[0];
-    q[1] = p1[1];
-    q[2] = p1[2];
-    *(float *)(rec + 0x10) = (float)*(double *)&args[1];
-    p2 = (float *)args[3];
-    q = (float *)(rec + 0x14);
-    q[0] = p2[0];
-    q[1] = p2[1];
-    q[2] = p2[2];
-    q[3] = p2[3];
-    goto done;
+    p1 = va_arg(ap, float *);
+    *(debug_float3 *)(rec + 0x04) = *(debug_float3 *)p1;
+    dval = va_arg(ap, double);
+    *(float *)(rec + 0x10) = (float)dval;
+    color = va_arg(ap, float *);
+    *(debug_float4 *)(rec + 0x14) = *(debug_float4 *)color;
+    break;
   case 2:
-    p1 = (float *)args[0];
-    q = (float *)(rec + 0x04);
-    q[0] = p1[0];
-    q[1] = p1[1];
-    q[2] = p1[2];
-    dst3 = (float *)(rec + 0x10);
-    dst6 = (float *)(rec + 0x1c);
-    goto tail_c5;
+    p1 = va_arg(ap, float *);
+    *(debug_float3 *)(rec + 0x04) = *(debug_float3 *)p1;
+    p2 = va_arg(ap, float *);
+    *(debug_float3 *)(rec + 0x10) = *(debug_float3 *)p2;
+    color = va_arg(ap, float *);
+    *(debug_float4 *)(rec + 0x1c) = *(debug_float4 *)color;
+    break;
   case 4:
-    p1 = (float *)args[0];
-    q = (float *)(rec + 0x04);
-    q[0] = p1[0];
-    q[1] = p1[1];
-    q[2] = p1[2];
-    p2 = (float *)args[1];
-    dst3 = (float *)(rec + 0x10);
-    dst3[0] = p2[0];
-    dst3[1] = p2[1];
-    tmp = p2[2];
-    *(float *)(rec + 0x1c) = (float)*(double *)&args[2];
-    dst6 = (float *)(rec + 0x20);
-    src6 = (float *)args[4];
-    goto tail_d8;
+    p1 = va_arg(ap, float *);
+    *(debug_float3 *)(rec + 0x04) = *(debug_float3 *)p1;
+    p2 = va_arg(ap, float *);
+    *(debug_float3 *)(rec + 0x10) = *(debug_float3 *)p2;
+    dval = va_arg(ap, double);
+    *(float *)(rec + 0x1c) = (float)dval;
+    color = va_arg(ap, float *);
+    *(debug_float4 *)(rec + 0x20) = *(debug_float4 *)color;
+    break;
   case 5:
-    p1 = (float *)args[0];
-    q = (float *)(rec + 0x04);
-    q[0] = p1[0];
-    q[1] = p1[1];
-    q[2] = p1[2];
-    p2 = (float *)args[1];
-    q = (float *)(rec + 0x10);
-    q[0] = p2[0];
-    q[1] = p2[1];
-    *(float *)(rec + 0x1c) = (float)*(double *)&args[2];
-    q[2] = p2[2];
-    dst = (float *)(rec + 0x20);
-    src = (float *)args[4];
-    goto tail_v4;
+    p1 = va_arg(ap, float *);
+    *(debug_float3 *)(rec + 0x04) = *(debug_float3 *)p1;
+    p2 = va_arg(ap, float *);
+    *(debug_float3 *)(rec + 0x10) = *(debug_float3 *)p2;
+    dval = va_arg(ap, double);
+    *(float *)(rec + 0x1c) = (float)dval;
+    color = va_arg(ap, float *);
+    *(debug_float4 *)(rec + 0x20) = *(debug_float4 *)color;
+    break;
   case 6:
   case 7:
-    p1 = (float *)args[0];
-    dst = (float *)(rec + 0x04);
-    for (i = 6; i != 0; i--) {
-      *dst = *p1;
-      p1++;
-      dst++;
+    p1 = va_arg(ap, float *);
+    for (i = 0; i < 6; i++) {
+      *(float *)(rec + 0x04 + i * 4) = p1[i];
     }
-    dst = (float *)(rec + 0x1c);
-    src = (float *)args[1];
-    goto tail_v4;
+    color = va_arg(ap, float *);
+    *(debug_float4 *)(rec + 0x1c) = *(debug_float4 *)color;
+    break;
   case 8:
-    interned = FUN_00188b20((char *)args[0]);
+    interned = FUN_00188b20(va_arg(ap, char *));
     if (interned != 0) {
       *(char **)(rec + 0x04) = interned;
     } else {
       debug_primitive_count = debug_primitive_count - 1;
     }
-    goto done;
+    break;
   case 9:
-    interned = FUN_00188b20((char *)args[0]);
+    interned = FUN_00188b20(va_arg(ap, char *));
     if (interned == 0) {
       debug_primitive_count = debug_primitive_count - 1;
-      goto done;
+      break;
     }
     *(char **)(rec + 0x04) = interned;
-    dst3 = (float *)(rec + 0x08);
-    dst6 = (float *)(rec + 0x14);
-    goto tail_c5;
+    p1 = va_arg(ap, float *);
+    *(debug_float3 *)(rec + 0x08) = *(debug_float3 *)p1;
+    color = va_arg(ap, float *);
+    *(debug_float4 *)(rec + 0x14) = *(debug_float4 *)color;
+    break;
   default:
-    goto done;
+    break;
   }
-
-tail_c5:
-  src = (float *)args[1];
-  dst3[0] = src[0];
-  dst3[1] = src[1];
-  tmp = src[2];
-  src6 = (float *)args[2];
-tail_d8:
-  dst3[2] = tmp;
-  dst6[0] = src6[0];
-  dst6[1] = src6[1];
-  dst6[2] = src6[2];
-  dst6[3] = src6[3];
-  goto done;
-tail_v4:
-  dst[0] = src[0];
-  dst[1] = src[1];
-  dst[2] = src[2];
-  dst[3] = src[3];
-done:
-  return;
+  va_end(ap);
 }
 
 /* Draw or cache a debug point marker (0x189150). type 1. With flag set, render
@@ -580,7 +567,7 @@ void FUN_00189150(char flag, float *position, float scale, void *color)
 /* Draw or cache a debug line (0x189270). type 2. With flag set, render the line
  * segment point_a->point_b immediately; otherwise submit a type-2 primitive
  * (point_a, point_b, color) to the per-frame cache. */
-void FUN_00189270(char flag, float *point_a, float *point_b, void *color)
+__declspec(noinline) void FUN_00189270(char flag, float *point_a, float *point_b, void *color)
 {
   if (point_a == 0) {
     display_assert("point0", "c:\\halo\\SOURCE\\render\\render_debug.c", 0x16b,
@@ -765,6 +752,8 @@ void FUN_001896d0(char flag, void *center, void *height_vec, float radius,
 {
   float buffers[102]; /* buf1 = [0..50], buf2 = [51..101]; 17 vertices each */
   int i;
+  float *p1;
+  float *p2;
 
   if (center == 0) {
     display_assert("base", "c:\\halo\\SOURCE\\render\\render_debug.c", 0x285,
@@ -786,16 +775,31 @@ void FUN_001896d0(char flag, void *center, void *height_vec, float radius,
     return;
   }
   FUN_00188d00(buffers, buffers + 51, center, height_vec, radius, 0, 0, 0, 0);
-  for (i = 0; i < 16; i++) {
-    FUN_0017eb10(&buffers[i * 3], &buffers[i * 3 + 3], (int)color);
-    FUN_0017eb10(&buffers[i * 3 + 51], &buffers[i * 3 + 54], (int)color);
+
+  p1 = buffers;
+  p2 = buffers + 51;
+  for (i = 16; i > 0; i--) {
+    FUN_0017eb10(p1, p1 + 3, (int)color);
+    FUN_0017eb10(p2, p2 + 3, (int)color);
+    p1 += 3;
+    p2 += 3;
   }
-  for (i = 0; i < 4; i++) {
-    FUN_0017eb10(&buffers[i * 12], &buffers[i * 12 + 51], (int)color);
+
+  p1 = buffers;
+  p2 = buffers + 51;
+  for (i = 4; i > 0; i--) {
+    FUN_0017eb10(p1, p2, (int)color);
+    p1 += 12;
+    p2 += 12;
   }
-  for (i = 0; i < 2; i++) {
-    FUN_0017eb10(&buffers[i * 12], &buffers[i * 12 + 24], (int)color);
-    FUN_0017eb10(&buffers[i * 12 + 51], &buffers[i * 12 + 75], (int)color);
+
+  p1 = buffers;
+  p2 = buffers + 51;
+  for (i = 2; i > 0; i--) {
+    FUN_0017eb10(p1, p1 + 24, (int)color);
+    FUN_0017eb10(p2, p2 + 24, (int)color);
+    p1 += 12;
+    p2 += 12;
   }
 }
 

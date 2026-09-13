@@ -28,7 +28,7 @@ on:
 env:
   VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
   DELINKED_DIR: /mnt/g/dev/halo/delinked
-  BUILD_DIR: /mnt/g/dev/halo/build
+  XBE_DIR: /mnt/g/dev/halo/halo-patched
   # Host-only CI snapshot (raw game memory - never committed).
   CI_DIR: /mnt/g/dev/halo/ci
 
@@ -40,8 +40,11 @@ jobs:
 
       - name: Link local assets
         run: |
+          # delinked/ contains a few tracked reference objects. ln -sfn into
+          # that directory creates delinked/delinked rather than replacing it.
+          rm -rf -- delinked halo-patched ci
           ln -sfn ${{ env.DELINKED_DIR }} delinked
-          ln -sfn ${{ env.BUILD_DIR }} build
+          ln -sfn ${{ env.XBE_DIR }} halo-patched
           ln -sfn ${{ env.CI_DIR }} ci
 
       - name: Verify prerequisites
@@ -49,10 +52,13 @@ jobs:
           ${{ env.VENV_PYTHON }} -c "import unicorn, capstone; print('deps ok')"
           test -d delinked
           test -f delinked/game_state.obj
+          test -f halo-patched/cachebeta.xbe
           test -f ci/snapshot.json
 
       - name: Build
-        run: ${{ env.VENV_PYTHON }} tools/build/build.py -q --target halo
+        run: |
+          cmake -Bbuild -S. -DCMAKE_TOOLCHAIN_FILE=toolchains/llvm.cmake
+          ${{ env.VENV_PYTHON }} tools/build/build.py -q --target halo
         timeout-minutes: 20
 
       - name: Run snapshot verification
@@ -76,6 +82,10 @@ jobs:
       - name: Report results
         if: always()
         run: |
+          if [ ! -f artifacts/equivalence/ci_results.json ]; then
+            echo "Snapshot verification produced no results; see the earlier failed step."
+            exit 0
+          fi
           ${{ env.VENV_PYTHON }} -c "
           import json
           with open('artifacts/equivalence/ci_results.json') as f:

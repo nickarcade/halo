@@ -101,6 +101,72 @@ KINDS = {
     28: ("probe:desired_x", "info"),
     29: ("probe:current_x", "info"),
     30: ("probe:unit_flags", "info"),
+    31: ("probe:damage_target", "info"),
+    32: ("probe:radius_hit", "info"),
+    33: ("probe:los_result", "info"),
+    34: ("probe:damage_origin", "info"),
+    36: ("probe:sweep_pos", "info"),
+    37: ("probe:projectile_accel_x", "info"),
+    38: ("probe:projectile_accel_yz", "info"),
+    39: ("probe:sweep_new_y_handle", "info"),
+    40: ("probe:sweep_pos_xy", "info"),
+    41: ("probe:sweep_pos_z_vel_x", "info"),
+    42: ("probe:sweep_vel_yz", "info"),
+    43: ("probe:net_update_flags", "info"),
+    44: ("probe:net_update_buttons_01", "info"),
+    45: ("probe:net_update_buttons_23", "info"),
+    46: ("probe:throw_unit_xy", "info"),
+    47: ("probe:throw_unit_z_handle", "info"),
+    48: ("probe:throw_seat_xy", "info"),
+    49: ("probe:throw_seat_z_handle", "info"),
+    50: ("probe:throw_final_xy", "info"),
+    51: ("probe:throw_final_z_handle", "info"),
+    52: ("probe:response_hit_xy", "info"),
+    53: ("probe:response_hit_z_handle", "info"),
+    54: ("probe:response_vel_xy", "info"),
+    55: ("probe:response_vel_z_type", "info"),
+    56: ("probe:response_normal_xy", "info"),
+    57: ("probe:response_normal_z_t", "info"),
+    58: ("probe:response_object_meta", "info"),
+    59: ("probe:try_place_in_pos_xy", "info"),
+    60: ("probe:try_place_in_pos_z_handle", "info"),
+    61: ("probe:try_place_target_xy", "info"),
+    62: ("probe:try_place_target_z_handle", "info"),
+    63: ("probe:try_place_out_pos_xy", "info"),
+    64: ("probe:try_place_out_pos_z_result", "info"),
+    65: ("probe:try_place_collision_type_t", "info"),
+    66: ("probe:try_place_collision_object_surface", "info"),
+    67: ("probe:local_ray_origin_xy", "info"),
+    68: ("probe:local_ray_origin_z_dir_x", "info"),
+    69: ("probe:local_ray_dir_yz", "info"),
+    70: ("probe:local_ray_source_translation_xy", "info"),
+    71: ("probe:local_ray_source_translation_z_scale", "info"),
+    72: ("probe:local_ray_inverse_translation_xy", "info"),
+    73: ("probe:local_ray_inverse_translation_z_scale", "info"),
+    74: ("probe:local_ray_matrix_hashes", "info"),
+    75: ("probe:local_ray_object_node", "info"),
+    76: ("probe:local_ray_animation_state", "info"),
+    77: ("probe:local_ray_root_pose_hashes", "info"),
+    78: ("probe:local_ray_node7_pose_quaternion_xy", "info"),
+    79: ("probe:local_ray_node7_pose_quaternion_zw", "info"),
+    80: ("probe:local_ray_node7_pose_position_xy", "info"),
+    81: ("probe:local_ray_node7_pose_position_z_scale", "info"),
+    82: ("probe:local_ray_node7_matrix_hash", "info"),
+    83: ("probe:object_translate_pos_xy", "info"),
+    84: ("probe:object_translate_pos_z_handle", "info"),
+    85: ("probe:object_translate_pre_connect_xy", "info"),
+    86: ("probe:object_translate_pre_connect_z_handle", "info"),
+    87: ("probe:object_translate_exit_xy", "info"),
+    88: ("probe:object_translate_exit_z_handle", "info"),
+    89: ("probe:biped_physics_entry", "info"),
+    90: ("probe:biped_pre_query_y", "info"),
+    91: ("probe:biped_query_out_y", "info"),
+    92: ("probe:biped_writeback_y", "info"),
+    93: ("probe:biped_query_pos_world_xy", "info"),
+    94: ("probe:biped_query_pos_world_z_new_pos_x", "info"),
+    95: ("probe:biped_query_new_pos_yz", "info"),
+    96: ("probe:biped_query_out_xy", "info"),
+    97: ("probe:biped_query_out_z_handle", "info"),
 }
 
 
@@ -321,13 +387,25 @@ def capture(args) -> int:
     print(f"runtime_base = 0x{runtime_base:x} ({base_source})", file=sys.stderr)
     print(f"{TRACE_SYMBOL} VA = 0x{buffer_va:x}", file=sys.stderr)
 
+    hmp = None
+    sock = None
     try:
-        sock = xbdm_connect(args.host, args.port, args.timeout)
-    except XbdmError as exc:
+        if args.hmp_port:
+            from lockstep_datum_diff import HMP
+            hmp = HMP("127.0.0.1", args.hmp_port, timeout=max(args.timeout, 20.0))
+
+            def _read(addr, length):
+                return hmp.read_mem(addr, length)
+        else:
+            sock = xbdm_connect(args.host, args.port, args.timeout)
+
+            def _read(addr, length):
+                return getmem(sock, addr, length, args.chunk)
+    except (XbdmError, OSError, TimeoutError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     try:
-        header = getmem(sock, buffer_va, HEADER_SIZE, args.chunk)
+        header = _read(buffer_va, HEADER_SIZE)
         magic, version, capacity, write_index = struct.unpack("<IIII", header)
         if magic != TRACE_MAGIC:
             print(f"error: magic mismatch at 0x{buffer_va:x}: read 0x{magic:08x}, "
@@ -347,15 +425,18 @@ def capture(args) -> int:
         span = capacity * RECORD_SIZE if write_index >= capacity else count * RECORD_SIZE
         print(f"version={version} capacity={capacity} write_index={write_index} "
               f"records={count} (reading {span} bytes)", file=sys.stderr)
-        blob = getmem(sock, buffer_va + HEADER_SIZE, span, args.chunk)
+        blob = _read(buffer_va + HEADER_SIZE, span)
         # The game keeps running while we read (no XBDM halt: a halted title
         # does not resume cleanly on this box).  Re-read the header and drop
         # every slot the ring may have touched meanwhile, so the decoded
         # records are all from one generation.
-        header_after = getmem(sock, buffer_va, HEADER_SIZE, args.chunk)
+        header_after = _read(buffer_va, HEADER_SIZE)
         write_index_after = struct.unpack("<IIII", header_after)[3]
     finally:
-        sock.close()
+        if sock is not None:
+            sock.close()
+        if hmp is not None:
+            hmp.close()
 
     torn = write_index_after - write_index
     if torn < 0 or torn >= capacity:
@@ -427,7 +508,11 @@ def probes(path: str) -> int:
         val = f32(bits)
         flag = ""
         shown = f"{val!r:>16} (0x{bits:08x})"
-        if kind in ("probe:body_after", "probe:body_before"):
+        if kind == "probe:net_update_flags":
+            shown = f"flags=0x{bits:08x} players=0x{rec['caller2_addr']:08x}"
+        elif kind in ("probe:net_update_buttons_01", "probe:net_update_buttons_23"):
+            shown = f"buttons=0x{bits:08x} pair=0x{rec['caller2_addr']:08x}"
+        elif kind in ("probe:body_after", "probe:body_before"):
             if bits & 0x80000000 or bits == 0:
                 flag = "  <== DEAD (body <= 0)"
             elif ulps_from_zero(bits) < 0x33D6BF95:  # < 1e-7
@@ -458,6 +543,18 @@ def _key(rec: dict) -> tuple:
 
 def _fmt(rec: dict) -> str:
     if rec["kind"].startswith("probe:"):
+        if rec["kind"] == "probe:net_update_flags":
+            return ("  [{index:6d}] tick={tick:<8d} {kind:<28s} "
+                    "flags=0x{bits:08x} players={extra:d} {caller}+0x{off:x}").format(
+                index=rec["index"], tick=rec["tick"], kind=rec["kind"],
+                bits=rec["seed_before"], extra=rec["caller2_addr"],
+                caller=rec["caller"] or "?", off=rec["caller_offset"])
+        if rec["kind"] in ("probe:net_update_buttons_01", "probe:net_update_buttons_23"):
+            return ("  [{index:6d}] tick={tick:<8d} {kind:<28s} "
+                    "buttons=0x{bits:08x}/0x{extra:08x} {caller}+0x{off:x}").format(
+                index=rec["index"], tick=rec["tick"], kind=rec["kind"],
+                bits=rec["seed_before"], extra=rec["caller2_addr"],
+                caller=rec["caller"] or "?", off=rec["caller_offset"])
         import struct
         val = struct.unpack("<f", struct.pack("<I", rec["seed_before"]))[0]
         return ("  [{index:6d}] tick={tick:<8d} {kind:<28s} value={val!r} "
@@ -531,6 +628,8 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="127.0.0.1", help="XBDM host")
     ap.add_argument("--port", type=int, default=XBDM_PORT)
+    ap.add_argument("--hmp-port", type=int, default=None,
+                    help="dump via xemu HMP on 127.0.0.1:PORT instead of XBDM")
     ap.add_argument("--timeout", type=float, default=15.0)
     ap.add_argument("--chunk", type=int, default=4096,
                     help="getmem chunk size in bytes (default 4096)")

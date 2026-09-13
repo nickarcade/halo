@@ -70,12 +70,14 @@ void player_register_machine(unsigned __int16 local_player_index,
   for (i = 0; i < 4; i++) {
     if (slots[i] == -1) {
       slots[i] = player_handle;
-      return;
+      break;
     }
   }
-  display_assert("failed to create a player",
-                 "c:\\halo\\SOURCE\\game\\players.c", 0xef, 1);
-  system_exit(-1);
+  if (i == 4) {
+    display_assert("failed to create a player",
+                   "c:\\halo\\SOURCE\\game\\players.c", 0xef, 1);
+    system_exit(-1);
+  }
 }
 
 bool local_player_exists(int16_t local_player_index)
@@ -1276,6 +1278,7 @@ void player_add_equipment(int unit_handle, int16_t equipment_index,
   char *unit;
   char *equip_def;
   int weapon;
+  char *scenario;
   char *dst;
   char *src;
   int count;
@@ -1283,8 +1286,9 @@ void player_add_equipment(int unit_handle, int16_t equipment_index,
   if ((unit_handle != -1) && (equipment_index != -1) &&
       (unit = (char *)object_try_and_get_and_verify_type(unit_handle, 3),
        *(int *)(unit + 0x1c8) != -1)) {
+    scenario = (char *)global_scenario_get();
     equip_def = (char *)tag_block_get_element(
-      (char *)global_scenario_get() + 0x348, (int)equipment_index, 0x68);
+      scenario + 0x348, (int)equipment_index, 0x68);
 
     if (reset_flag != '\0') {
       unit_clear_weapons(unit_handle);
@@ -2357,11 +2361,15 @@ void players_update_before_game_client(int player_index /* @<ebx> */,
   *((char *)players_globals + 0x2e) = (moved == 0);
 }
 
-/* Priority-filtered pending action-result update (matches 0xbbfe0). */
-static void player_set_spawn_action_result(int player_handle,
-                                           int16_t action_result_type,
-                                           int object_handle,
-                                           int16_t seat_index)
+/* 0xbbfe0: update a player's pending action-result fields.
+ *
+ * player_handle arrives in EAX; the remaining three arguments are cdecl stack
+ * arguments.  The equal-priority path keeps the existing result unless the
+ * candidate object is strictly closer to the player's unit. */
+__declspec(noinline)
+void player_set_spawn_action_result(int player_handle /* @<eax> */,
+                                    int16_t action_result_type,
+                                    int object_handle, int16_t seat_index)
 {
   char *player;
 

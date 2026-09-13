@@ -1,24 +1,28 @@
+void FUN_000dc790(void);
+void FUN_000dc7f0(void);
 /* UI/HUD interface subsystem init/dispose. */
 
 void interface_initialize(void)
 {
-  ((void (*)(void))0xe33a0)();
-  ((void (*)(void))0xd02f0)();
-  ((void (*)(void))0x19b320)();
-  ((void (*)(void))0xdc750)();
+  FUN_000e33a0();
+  hud_new();
+  FUN_0019b320();
+  FUN_000dc750();
 }
 
 void interface_dispose_from_old_map(void)
 {
-  ((void (*)(void))0x19b3a0)();
-  ((void (*)(void))0xd03e0)();
+  FUN_0019b3a0();
+  hud_dispose_from_old_map();
+  FUN_000dc7f0();
 }
 
 void interface_dispose(void)
 {
-  ((void (*)(void))0x19b3b0)();
-  ((void (*)(void))0xe33e0)();
-  ((void (*)(void))0xd0340)();
+  FUN_0019b3b0();
+  FUN_000e33e0();
+  hud_dispose();
+  FUN_000dc790();
 }
 
 #define NUMBER_OF_INTERFACE_TAGS 16
@@ -32,18 +36,18 @@ int interface_get_tag_index(int interface_tag_index)
 {
   char *globals;
   char *element;
+  int16_t index = (int16_t)interface_tag_index;
 
-  assert_halt(interface_tag_index >= 0 &&
-              interface_tag_index < NUMBER_OF_INTERFACE_TAGS);
+  assert_halt(index >= 0 && index < NUMBER_OF_INTERFACE_TAGS);
 
   globals = (char *)game_globals_get();
   if (*(int *)(globals + 0x140) != 0) {
-    globals = (char *)game_globals_get();
-    element = (char *)tag_block_get_element(globals + 0x140, 0, 0x130);
-    return *(int *)(element + interface_tag_index * 0x10 + 0xc);
+    element = (char *)tag_block_get_element((char *)game_globals_get() + 0x140,
+                                            0, 0x130);
+    return *(int *)(element + index * 0x10 + 0xc);
   }
 
-  return *(int *)((char *)0 + interface_tag_index * 0x10 + 0xc);
+  return *(int *)((char *)0 + index * 0x10 + 0xc);
 }
 
 /* Look up an ARGB float color from a color_table ('colo') tag.
@@ -58,7 +62,7 @@ void *interface_get_color(int interface_tag_index, short color_index,
   int tag_idx;
   int *color_tag;
   int count;
-  char *entry;
+  float *color_entry;
   float *out = (float *)out_color;
 
   tag_idx = interface_get_tag_index(interface_tag_index);
@@ -72,12 +76,13 @@ void *interface_get_color(int interface_tag_index, short color_index,
     color_tag = (int *)tag_get(0x636f6c6f, tag_idx);
     count = *color_tag;
     if (count != 0) {
-      entry = (char *)tag_block_get_element(color_tag,
-                                            (short)(color_index % count), 0x30);
-      out[0] = *(float *)(entry + 0x20);
-      out[1] = *(float *)(entry + 0x24);
-      out[2] = *(float *)(entry + 0x28);
-      out[3] = *(float *)(entry + 0x2c);
+      color_entry = (float *)((char *)tag_block_get_element(
+                                color_tag, (short)(color_index % count), 0x30) +
+                              0x20);
+      out[0] = color_entry[0];
+      out[1] = color_entry[1];
+      out[2] = color_entry[2];
+      out[3] = color_entry[3];
     }
   }
 
@@ -97,6 +102,23 @@ void interface_draw_text(int font_index, int style, int justify, int flags,
   tag_index = interface_get_tag_index(font_index);
   interface_get_color(color_tag_index, color_index, color);
   draw_string_set_font(tag_index, style, justify, flags, color);
+}
+
+/* 0xdf350 */
+void profile_graph_toggle(const char *value_name)
+{
+  int16_t index;
+  char *entry;
+
+  index = 0;
+  while (index < *(int16_t *)0x306d20) {
+    entry = (char *)0x306d28 + (int)index * 0x20c;
+    if (crt_stricmp(entry, value_name) == 0 ||
+        crt_stricmp(entry + 0x100, value_name) == 0) {
+      entry[0x209] = entry[0x209] == 0;
+    }
+    ++index;
+  }
 }
 
 /* Draw black divider bars between split-screen viewports.
@@ -166,18 +188,27 @@ void interface_initialize_for_new_map(void)
   char *globals;
   char *element;
 
-  ((void (*)(void))0xd0360)();
-  ((void (*)(void))0x19b330)();
-  ((void (*)(void))0xdc7a0)();
+  hud_initialize_for_new_map();
+  FUN_0019B330();
+  FUN_000dc7a0();
 
   globals = (char *)game_globals_get();
-  if (*(int *)(globals + 0x140) == 0) {
-    element = 0;
+  if (*(int *)(globals + 0x140) != 0) {
+    element = (char *)tag_block_get_element((char *)game_globals_get() + 0x140,
+                                            0, 0x130);
   } else {
-    globals = (char *)game_globals_get();
-    element = (char *)tag_block_get_element(globals + 0x140, 0, 0x130);
+    element = 0;
   }
 
-  ((void (*)(int, int, int, int, void *))0x19b8b0)(*(int *)(element + 0x1c), -1,
-                                                   0, 0, *(void **)0x2ee6c4);
+  draw_string_set_font(*(int *)(element + 0x1c), -1, 0, 0, *(void **)0x2ee6c4);
+}
+
+void interface_draw_fullscreen_overlays(void)
+{
+  cinematic_render();
+  interface_draw_splitscreen_dividers();
+  hud_render_timer();
+  terminal_draw();
+  main_framerate_render();
+  FUN_000df4e0();
 }

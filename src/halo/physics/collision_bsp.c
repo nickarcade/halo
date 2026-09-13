@@ -423,6 +423,7 @@ float collision_surface_area(int bsp, int surface_index)
   float pa_x, pa_y, pa_z; /* edge[side] vertex - anchor */
   volatile float qa_x, qa_y; /* edge[!side] vertex - anchor */
   float qa_z;
+  float new_var;
   float *anchor;
   float *v0;
   float *v1;
@@ -449,12 +450,13 @@ float collision_surface_area(int bsp, int surface_index)
   is_owner = (*(int *)(edge + 0x14) == surface_index);
   side = is_owner;
   if (*(int *)(edge + 8 + side * 4) != surface[1]) {
+    new_var = anchor[0];
     do {
       v1 = (float *)tag_block_get_element((void *)verts_block,
                                           *(int *)(edge + side * 4), 0x10);
       v0 = (float *)tag_block_get_element(
         (void *)verts_block, *(int *)(edge + (!is_owner) * 4), 0x10);
-      pa_x = v1[0] - anchor[0];
+      pa_x = v1[0] - new_var;
       pa_y = v1[1] - anchor[1];
       pa_z = v1[2] - anchor[2];
       qa_x = v0[0] - anchor[0];
@@ -644,8 +646,10 @@ int collision_surface_test_line2d(int bsp, int surface_index, int param3,
                                 to the out_result param home slot and
                                 reloads it 3x (==0 test, divide, sign) */
   float pt_cross;
-  float ex, ey; /* v1 - v0 (edge vector), kept ST-resident */
-  float cx, cy; /* point - v0, kept ST-resident */
+  float ex;
+  float ey; /* v1 - v0 (edge vector), kept ST-resident */
+  float cx;
+  float cy; /* point - v0, kept ST-resident */
   int *out_i;
 
   out_i = (int *)out_result;
@@ -688,13 +692,17 @@ int collision_surface_test_line2d(int bsp, int surface_index, int param3,
         out_i[4] = edge_index;
         out_i[5] = edge[!side + 4];
       }
-    } else if ((pt_cross < 0.0f) != side) {
-      out_result[0] = 3.4028235e+38f;
-      out_i[1] = edge_index;
-      out_i[2] = edge[!side + 4];
-      out_result[3] = -3.4028235e+38f;
-      out_i[4] = edge_index;
-      out_i[5] = edge[!side + 4];
+    } else {
+      if (edge_cross) {
+      }
+      if ((pt_cross < 0.0f) != side) {
+        out_result[0] = 3.4028235e+38f;
+        out_i[1] = edge_index;
+        out_i[2] = edge[!side + 4];
+        out_result[3] = -3.4028235e+38f;
+        out_i[4] = edge_index;
+        out_i[5] = edge[!side + 4];
+      }
     }
 
     edge_index = edge[side + 2];
@@ -731,6 +739,7 @@ void FUN_00147ed0(void *state, int surface_index)
   unsigned char hit;
   float radius2;
   float dist2;
+  float sq;
   float delta[3];
   float pa[2];
   float pb[2];
@@ -758,7 +767,46 @@ void FUN_00147ed0(void *state, int surface_index)
       vertex = (float *)tag_block_get_element((void *)(*(int *)state + 0x54),
                                               vertex_index, 0x10);
       point = *(float **)((char *)state + 0xc);
-      dist2 = distance_squared3d(vertex, point);
+      /* 0x147f82-0x147faf: the original inlines the distance with SSE1
+       * (movss/movhps, subps, mulps, addss): every operation rounds to
+       * float32 and the squares are summed x, y, z.  The x87 helper
+       * distance_squared3d accumulates at 64-bit significand and compares
+       * wide, which flips the boundary test; round after each op instead. */
+#if defined(_MSC_VER) && !defined(__clang__)
+      __asm {
+        mov eax, vertex
+        mov ecx, point
+        movss xmm0, dword ptr [eax]
+        movhps xmm0, qword ptr [eax + 4]
+        movss xmm1, dword ptr [ecx]
+        movhps xmm1, qword ptr [ecx + 4]
+        subps xmm0, xmm1
+        mulps xmm0, xmm0
+        movss xmm2, xmm0
+        shufps xmm0, xmm0, 0xe
+        addss xmm2, xmm0
+        shufps xmm0, xmm0, 0x39
+        addss xmm2, xmm0
+        movss dist2, xmm2
+      }
+#else
+      delta[0] = vertex[0] - point[0];
+      HALO_FLT_ROUNDTRIP(delta[0]);
+      delta[1] = vertex[1] - point[1];
+      HALO_FLT_ROUNDTRIP(delta[1]);
+      delta[2] = vertex[2] - point[2];
+      HALO_FLT_ROUNDTRIP(delta[2]);
+      dist2 = delta[0] * delta[0];
+      HALO_FLT_ROUNDTRIP(dist2);
+      sq = delta[1] * delta[1];
+      HALO_FLT_ROUNDTRIP(sq);
+      dist2 = dist2 + sq;
+      HALO_FLT_ROUNDTRIP(dist2);
+      sq = delta[2] * delta[2];
+      HALO_FLT_ROUNDTRIP(sq);
+      dist2 = dist2 + sq;
+      HALO_FLT_ROUNDTRIP(dist2);
+#endif
       if (dist2 <= radius2) {
         results = *(int **)((char *)state + 0x14);
         for (i = 0; i < results[0x202]; i++) {
@@ -974,6 +1022,7 @@ char FUN_00148370(float *center, float *origin, float *delta, float *out_t,
   dz = center[2] - origin[2];
 
   q = (dz * dz + dx * dx) + (dy * dy - radius * radius);
+  HALO_FLT_ROUNDTRIP(q); /* 0x14839c FST dword [EBP-4]; 0x148404 reloads it */
   if (q <= 0.0f) {
     *out_t = 0.0f;
     return 1;
@@ -981,6 +1030,8 @@ char FUN_00148370(float *center, float *origin, float *delta, float *out_t,
 
   /* The dot product lives in the radius slot -- see the frame note above. */
   radius = dx * delta[0] + dz * delta[2] + dy * delta[1];
+  HALO_FLT_ROUNDTRIP(radius); /* 0x1483ce FST dword [EBP+8]; reloaded at
+                                 0x1483fc, 0x1483ff and 0x148418 */
   if (radius > 0.0f) {
     a = (delta[0] * delta[0] + delta[2] * delta[2]) + delta[1] * delta[1];
     disc = radius * radius - a * q;
@@ -1295,7 +1346,7 @@ void bsp3d_test_sphere_recursive(void *data, int node_index)
   float *center;
   int *results;
   float d;
-  float t;
+  x87_wide_t t; /* 0x148d91 FCHS: the original keeps t in ST(0), never narrowed */
   int leaf_index;
   short k;
   short projection;
@@ -1382,11 +1433,15 @@ void bsp3d_test_sphere_recursive(void *data, int node_index)
                                                ref[0] & 0x7fffffff, 0x10);
         center = *(float **)((char *)data + 0xc);
 
-        t = -(plane[1] * center[1] + plane[2] * center[2] +
-              plane[0] * center[0] - plane[3]);
-        point[0] = t * plane[0] + center[0];
-        point[1] = t * plane[1] + center[1];
-        point[2] = t * plane[2] + center[2];
+        /* 0x148d77-0x148d91: the whole accumulation stays in ST(0).  Without
+         * the x87_wide_t promotion clang spills the p2*c2 + p1*c1 partial to
+         * a dword under register pressure and re-rounds it to 24 bits. */
+        t = -((x87_wide_t)plane[1] * center[1] +
+              (x87_wide_t)plane[2] * center[2] +
+              (x87_wide_t)plane[0] * center[0] - plane[3]);
+        point[0] = HALO_NARROW(t * plane[0] + center[0]);
+        point[1] = HALO_NARROW(t * plane[1] + center[1]);
+        point[2] = HALO_NARROW(t * plane[2] + center[2]);
 
         {
           float ax = (float)fabs((double)plane[0]);

@@ -1528,7 +1528,7 @@ typedef struct {
   char pad_688[0x4];
   float control_burst_aim_vector[3];                  /* +0x68c  LEA EDI,[EBX+0x68c] @0x23d1a */
   float field_698;                                   /* +0x698  accessed 2x, meaning unproven */
-  char pad_69c[0x4];
+  float field_69c;                                   /* +0x69c  FLD [EDX+0x69c] @0x3f92c/0x3f93f, meaning unproven */
   char field_6a0;                                    /* +0x6a0  accessed 1x, meaning unproven */
   uint8_t field_6a1;                                 /* +0x6a1  accessed 1x, meaning unproven */
   char pad_6a2[0x2];
@@ -1745,8 +1745,14 @@ typedef void (*draw_string_emit_proc)(void *state, void *font_table,
                                       short dest_y, int src_x, int src_y,
                                       short width, short height);
 
-typedef int (*profile_sort16_compare_proc)(uint16_t a, uint16_t b);
-typedef int (*profile_sort32_compare_proc)(int32_t a, int32_t b);
+/* Both selection sorts test the comparator result with TEST AL,AL -- one byte,
+ * not a full dword (0x91d22 in FUN_00091cf0, 0x91d7c in FUN_00091d50). The
+ * return type must therefore be byte-wide: declaring `int` makes clang emit
+ * TEST EAX,EAX, which also sees whatever the callee left in the upper 24 bits
+ * of EAX and flips the "is greater" decision, silently reordering the sorted
+ * array. */
+typedef bool (*profile_sort16_compare_proc)(uint16_t a, uint16_t b);
+typedef bool (*profile_sort32_compare_proc)(int32_t a, int32_t b);
 
 /* -------------------------------------------------------------------------
  * collision_test_result -- 0x50-byte record filled by the world collision

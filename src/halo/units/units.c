@@ -112,6 +112,7 @@ char *FUN_0008dc30(char *destination, const char *source)
   const char *source_cursor;
   char *destination_cursor;
   unsigned int source_size;
+  char c;
 
   if (destination == NULL || source == NULL) {
     display_assert("s1 && s2", "c:\\halo\\SOURCE\\cseries\\cseries.c", 0x122,
@@ -120,33 +121,17 @@ char *FUN_0008dc30(char *destination, const char *source)
   }
 
   source_cursor = source;
-  while (*source_cursor != '\0') {
-    source_cursor += 1;
-  }
-  source_size = (unsigned int)(source_cursor - source) + 1;
+  do {
+    c = *source_cursor++;
+  } while (c != '\0');
+  source_size = (unsigned int)(source_cursor - source);
 
   destination_cursor = destination - 1;
   do {
     destination_cursor += 1;
   } while (*destination_cursor != '\0');
 
-  {
-    unsigned int i;
-    for (i = source_size >> 2; i != 0; i -= 1) {
-      *(uint32_t *)destination_cursor = *(const uint32_t *)source;
-      source += 4;
-      destination_cursor += 4;
-    }
-  }
-
-  {
-    unsigned int i;
-    for (i = source_size & 3; i != 0; i -= 1) {
-      *destination_cursor = *source;
-      source += 1;
-      destination_cursor += 1;
-    }
-  }
+  memcpy(destination_cursor, source, source_size);
 
   return destination;
 }
@@ -193,12 +178,16 @@ void FUN_00122a50(int animation, float frame_pos, float blend_weight,
   int temp_scale_b;
 
   weight_complement = *(float *)0x2533c8 - blend_weight;
-  frac = (float)x87_fmod(frame_pos, 1.0);
+#if defined(_MSC_VER) && !defined(__clang__)
+  frac = (float)fmod((double)frame_pos, *(const double *)0x2573d8);
+#else
+  frac = (float)x87_fmod(frame_pos, *(const double *)0x2573d8);
+#endif
   floor_val = (float)floor((double)frame_pos);
-  frame_idx_int = (int)floor_val;
+  frame_idx_int = x87_round_to_int(floor_val);
 
   if (frame_pos < *(float *)0x2533c0 ||
-      frame_pos > (float)(int)*(short *)(animation + 0x22)) {
+      (float)*(short *)(animation + 0x22) < frame_pos) {
     error(
       2,
       "### ERROR animation frame index out of bounds B(%f,%x) -- tell Bernie!!",
@@ -255,16 +244,16 @@ void FUN_00122a50(int animation, float frame_pos, float blend_weight,
                          interp_rot);
             rotation_counter = rotation_counter + 1;
           } else {
-            rot_a[0] = (float)(int)data[0] * *(float *)0x290dd8;
-            rot_a[1] = (float)(int)data[1] * *(float *)0x290dd8;
-            rot_a[2] = (float)(int)data[2] * *(float *)0x290dd8;
-            rot_a[3] = (float)(int)data[3] * *(float *)0x290dd8;
-            rot_b[0] = (float)(int)next_data[0] * *(float *)0x290dd8;
-            rot_b[1] = (float)(int)next_data[1] * *(float *)0x290dd8;
-            rot_b[2] = (float)(int)next_data[2] * *(float *)0x290dd8;
-            rot_b[3] = (float)(int)next_data[3] * *(float *)0x290dd8;
-            data = data + 4;
-            next_data = next_data + 4;
+            rot_a[0] = (float)data[0] * *(float *)0x290dd8;
+            rot_a[1] = (float)data[1] * *(float *)0x290dd8;
+            rot_a[2] = (float)data[2] * *(float *)0x290dd8;
+            rot_a[3] = (float)data[3] * *(float *)0x290dd8;
+            data += 4;
+            rot_b[0] = (float)next_data[0] * *(float *)0x290dd8;
+            rot_b[1] = (float)next_data[1] * *(float *)0x290dd8;
+            rot_b[2] = (float)next_data[2] * *(float *)0x290dd8;
+            rot_b[3] = (float)next_data[3] * *(float *)0x290dd8;
+            next_data += 4;
             quaternions_interpolate_and_normalize(rot_a, rot_b, frac,
                                                   interp_rot);
           }
@@ -388,8 +377,8 @@ void FUN_00122e50(int animation, float *blend_params, float direction,
   unsigned int has_translation;
   unsigned int has_rotation;
   int translation_counter;
-  float dir_complement;
-  float thr_complement;
+  volatile float dir_complement;
+  volatile float thr_complement;
   float rot_00[4];
   float rot_10[4];
   float rot_01[4];
@@ -435,7 +424,11 @@ void FUN_00122e50(int animation, float *blend_params, float direction,
   }
 
   dir_frame = (int)ratio;
+  /* 0x122ed8: ratio is narrowed before fmod and frame conversion. */
+  HALO_FLT_ROUNDTRIP(ratio);
   dir_frac = (float)x87_fmod(ratio, 1.0);
+  /* 0x122ef5 stores before the negative check; later uses reload float32. */
+  HALO_FLT_ROUNDTRIP(dir_frac);
   if (dir_frac < *(float *)0x2533c0) {
     dir_frame = dir_frame - 1;
     dir_frac = dir_frac + *(float *)0x2533c8;
@@ -477,7 +470,11 @@ void FUN_00122e50(int animation, float *blend_params, float direction,
   }
 
   thr_frame = (int)ratio;
+  /* 0x122ff0: ratio is narrowed before fmod and frame conversion. */
+  HALO_FLT_ROUNDTRIP(ratio);
   thr_frac = (float)x87_fmod(ratio, 1.0);
+  /* 0x12300e stores before the negative check; later uses reload float32. */
+  HALO_FLT_ROUNDTRIP(thr_frac);
   if (thr_frac < *(float *)0x2533c0) {
     thr_frame = thr_frame - 1;
     thr_frac = thr_frac + *(float *)0x2533c8;
@@ -583,7 +580,9 @@ void FUN_00122e50(int animation, float *blend_params, float direction,
 
       if ((has_translation & 1) != 0) {
         dir_complement = *(float *)0x2533c8 - dir_frac;
+        /* 0x1232d0: blend weight is reloaded after a float32 store. */
         thr_complement = *(float *)0x2533c8 - thr_frac;
+        /* 0x1232dc: blend weight is reloaded after a float32 store. */
 
         if (is_compressed != '\0') {
           temp_int = (int)(short)frame_00;
@@ -867,8 +866,8 @@ void FUN_00123560(int model_tag, int permutation_data, int *node_matrices,
                         FUN_0017cbc0(
                           shader_tag, (int)actual_detail, (int)(part + 0x44),
                           -1, *(int *)(part + 0x48), (int)(part + 0x54), -1);
-                        ((void (*)(int, int *, unsigned char *))rasterizer_debug_model_vertices)(
-                          render_data, node_matrices, part);
+                        rasterizer_debug_model_vertices(render_data,
+                                                        node_matrices, part);
                       } else {
                         actual_detail = detail_level;
                         if (detail_level == 0) {
@@ -2424,7 +2423,7 @@ void FUN_001a7b50(int datum_handle, float body_damage, float shield_damage)
 {
   float shield_ratio;
   char *obj;
-  float body_ratio;
+  volatile float body_ratio;
 
   if (datum_handle == -1) {
     return;
@@ -2940,6 +2939,7 @@ char FUN_001a8550(void *plan, float delta_time, float position,
   float current_velocity;
   float time;
   float remaining_time;
+  volatile float acceleration_delta;
 
   result = *(char *)plan;
   current_position = position;
@@ -2959,9 +2959,11 @@ char FUN_001a8550(void *plan, float delta_time, float position,
       time = *(float *)((char *)plan + 0x10);
     else
       time = remaining_time;
+    /* 0x1a85b2: retain the narrowed acceleration delta for both uses. */
+    acceleration_delta = time * *(float *)((char *)plan + 0xc);
     current_position +=
-      (time * *(float *)((char *)plan + 0xc) * 0.5f + current_velocity) * time;
-    current_velocity += time * *(float *)((char *)plan + 0xc);
+      (acceleration_delta * 0.5f + current_velocity) * time;
+    current_velocity += acceleration_delta;
     remaining_time -= time;
   }
 
@@ -3940,7 +3942,6 @@ void unit_set_seat_state(int unit_handle, float *position)
   char *seat_object;
   char *parent_unit;
   char *seat_def;
-  int16_t seat_def_index;
   uint8_t seat_type;
   uint32_t type_mask;
   char marker_buf[0x6c];
@@ -3965,22 +3966,18 @@ void unit_set_seat_state(int unit_handle, float *position)
       /* No related unit — find "head" marker on this unit */
       object_get_markers_by_string_id(unit_handle, (void *)0x2909e4, marker_buf,
                                       1);
-      position[0] = *(float *)(marker_buf + 0x60);
-      position[1] = *(float *)(marker_buf + 0x64);
-      position[2] = *(float *)(marker_buf + 0x68);
+      memcpy(position, marker_buf + 0x60, 3 * sizeof(float));
       return;
     }
 
     /* Related unit exists — get its seat definition */
     parent_unit = (char *)object_get_and_verify_type(*(int *)(unit + 0x2d8), 3);
-    seat_def_index = *(int16_t *)(parent_unit + 0x2a0);
     seat_def = (char *)tag_block_get_element(unit_tag + 0x2e4,
-                                             (int)seat_def_index, 0x11c);
+                                             (int)*(int16_t *)(parent_unit + 0x2a0),
+                                             0x11c);
     object_get_markers_by_string_id(unit_handle, seat_def + 0x24, marker_buf,
                                     1);
-    position[0] = *(float *)(marker_buf + 0x60);
-    position[1] = *(float *)(marker_buf + 0x64);
-    position[2] = *(float *)(marker_buf + 0x68);
+    memcpy(position, marker_buf + 0x60, 3 * sizeof(float));
     return;
   }
 
@@ -3988,9 +3985,7 @@ void unit_set_seat_state(int unit_handle, float *position)
   seat_object = (char *)object_get_and_verify_type(seat_index, -1);
 
   /* Copy seat object's world position */
-  position[0] = *(float *)(seat_object + 0x0c);
-  position[1] = *(float *)(seat_object + 0x10);
-  position[2] = *(float *)(seat_object + 0x14);
+  memcpy(position, seat_object + 0x0c, 3 * sizeof(float));
 
   /* Check if seat type is biped (0) or vehicle (1) */
   seat_type = *(uint8_t *)(seat_object + 0x64);
@@ -4004,9 +3999,9 @@ void unit_set_seat_state(int unit_handle, float *position)
 
   /* Get the seat definition from the parent's unit tag */
   unit_tag = (char *)tag_get(0x756e6974, *(int *)seat_object);
-  seat_def_index = *(int16_t *)(unit + 0x2a0);
   seat_def =
-    (char *)tag_block_get_element(unit_tag + 0x2e4, (int)seat_def_index, 0x11c);
+    (char *)tag_block_get_element(unit_tag + 0x2e4,
+                                  (int)*(int16_t *)(unit + 0x2a0), 0x11c);
 
   /* For seat type 1 (vehicle), skip if marker name at +0x84 is empty */
   if (*(int16_t *)(seat_object + 0x64) == 1) {
@@ -4061,6 +4056,7 @@ void unit_estimate_position(int unit_handle, int16_t estimate_mode,
   int parent_handle;
   int result;
   vector3_t local_body_pos;
+  volatile float delta_z;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
 
@@ -4107,7 +4103,9 @@ apply_delta:
   /* Add (body_position - local_body_pos) delta to out_position */
   out_position->x += body_position->x - local_body_pos.x;
   out_position->y += body_position->y - local_body_pos.y;
-  out_position->z += body_position->z - local_body_pos.z;
+  /* 0x1a94f6: the Z delta is narrowed before it is added. */
+  delta_z = body_position->z - local_body_pos.z;
+  out_position->z += delta_z;
 }
 
 /* unit_impulse_to_animation_kind (0x1a9560)
@@ -4557,9 +4555,12 @@ void unit_set_possessed(int unit_handle, char possessed)
 /* Check if a unit is in a vehicle seat based on seat state byte at +0x253. */
 bool unit_is_busy(int unit_handle)
 {
-  char *unit = (char *)object_get_and_verify_type(unit_handle, 3);
-  int seat_state = *(signed char *)(unit + 0x253);
-  switch (seat_state) {
+  char *unit;
+  bool is_busy;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  is_busy = false;
+  switch (*(signed char *)(unit + 0x253)) {
   case 0x17:
   case 0x18:
   case 0x19:
@@ -4574,10 +4575,10 @@ bool unit_is_busy(int unit_handle)
   case 0x23:
   case 0x27:
   case 0x29:
-    return true;
-  default:
-    return false;
+    is_busy = true;
+    break;
   }
+  return is_busy;
 }
 
 /* unit_scripting_set_emotion_animation (0x1a9b30)
@@ -5247,12 +5248,13 @@ void unit_set_desired_flashlight_state(int unit_handle, char desired)
 char unit_get_current_flashlight_state(int unit_handle)
 {
   char *unit;
+  char state = 0;
 
   if (unit_handle != -1) {
     unit = (char *)object_get_and_verify_type(unit_handle, 3);
-    return (*(uint32_t *)(unit + 0x1b4) >> 0x13) & 1;
+    state = (char)((*(uint32_t *)(unit + 0x1b4) >> 0x13) & 1);
   }
-  return 0;
+  return state;
 }
 
 /* unit_detach_from_parent (0x1aa5c0)
@@ -5323,26 +5325,21 @@ void unit_detach_from_parent(int object_handle)
   object_compute_node_matrices(object_handle);
 }
 
-/* unit_seat_filled (0x1aa700)
- * Returns true if any unit is sitting in the specified seat. */
 char unit_seat_filled(int unit_handle, int16_t seat_index)
 {
   char *i1;
   char l_14[16];
+  char result = 0;
 
   object_iterator_new(l_14, 3, 0);
-  i1 = (char *)object_iterator_next(l_14);
-  while (1) {
-    if (i1 == NULL) {
-      return 0;
-    }
+  for (i1 = (char *)object_iterator_next(l_14); i1 != NULL;
+       i1 = (char *)object_iterator_next(l_14)) {
     if (*(int *)(i1 + 0xcc) == unit_handle &&
         *(int16_t *)(i1 + 0x2a0) == seat_index) {
-      break;
+      return 1;
     }
-    i1 = (char *)object_iterator_next(l_14);
   }
-  return 1;
+  return result;
 }
 
 /* unit_seat_is_driver (0x1aa770)
@@ -5853,17 +5850,17 @@ int16_t unit_get_grenade_count(int unit_handle, int16_t grenade_type)
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
 
-  if (grenade_type == -1)
-    return 0;
-
-  if ((grenade_type < 0) || (grenade_type > 1)) {
-    display_assert("grenade_type==NONE || (grenade_type>=0 && "
-                   "grenade_type<NUMBER_OF_UNIT_GRENADE_TYPES)",
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x1ea7, 1);
-    system_exit(-1);
+  if (grenade_type != -1) {
+    if (grenade_type < 0 || grenade_type >= 2) {
+      display_assert("grenade_type==NONE || (grenade_type>=0 && "
+                     "grenade_type<NUMBER_OF_UNIT_GRENADE_TYPES)",
+                     "c:\\halo\\SOURCE\\units\\units.c", 0x1ea7, 1);
+      system_exit(-1);
+    }
+    return (int16_t)unit[grenade_type + 0x2ce];
   }
 
-  return (int16_t)unit[grenade_type + 0x2ce];
+  return 0;
 }
 
 /* unit_get_current_grenade_type (0x1aaee0)
@@ -6018,16 +6015,21 @@ void unit_throw_grenade_release(int unit_handle, char flag)
   float cross2[3];
   float velocity[3];
   float seat_pos[3];
+  char *grenade_data;
   float ratio_val;
   float throw_speed;
   float rand_val;
   float rand_x;
-  float rand_y;
-  float rand_z;
-  float one_minus;
-  char *grenade_data;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
+#ifdef HALO_RNG_TRACE
+  RNG_TRACE_EX(RNG_TRACE_KIND_THROW_UNIT_XY,
+               RNG_TRACE_BITS(*(float *)(unit + 0x0c)),
+               RNG_TRACE_BITS(*(float *)(unit + 0x10)));
+  RNG_TRACE_EX(RNG_TRACE_KIND_THROW_UNIT_Z_HANDLE,
+               RNG_TRACE_BITS(*(float *)(unit + 0x14)),
+               (unsigned int)unit_handle);
+#endif
   unit_tag = (char *)tag_get(0x756e6974, *(int *)unit);
 
   if (*(uint8_t *)(unit + 0x23d) != 2) {
@@ -6050,25 +6052,19 @@ void unit_throw_grenade_release(int unit_handle, char flag)
   } else {
     if (*(int *)(unit + 0x1c8) != ebx) {
       /* Player-controlled with weapon: compute velocity from marker */
-      char *globals;
-      globals = (char *)game_globals_get();
-      throw_params = (char *)tag_block_get_element(globals + 0x170, 0, 0xf4);
+      throw_params = (char *)tag_block_get_element(
+        (char *)game_globals_get() + 0x170, 0, 0xf4);
 
       /* Get unit's forward vector */
-      forward[0] = *(float *)(unit + 0x1ec);
-      forward[1] = *(float *)(unit + 0x1f0);
-      forward[2] = *(float *)(unit + 0x1f4);
+      memcpy(forward, unit + 0x1ec, sizeof(forward));
 
-      {
-        float *up_ptr = *(float **)0x31fc44;
-        float mag;
-        cross_product3d(up_ptr, forward, cross_fwd);
-        mag = normalize3d(cross_fwd);
-        if (mag == 0.0f) {
-          cross_fwd[0] = up_ptr[0];
-          cross_fwd[1] = up_ptr[1];
-          cross_fwd[2] = up_ptr[2];
-        }
+      cross_product3d(*(float **)0x31fc44, forward, cross_fwd);
+      if (normalize3d(cross_fwd) == 0.0f) {
+        float *up;
+        up = *(float **)0x31fc44;
+        cross_fwd[0] = up[0];
+        cross_fwd[1] = up[1];
+        cross_fwd[2] = up[2];
       }
 
       cross_product3d(forward, cross_fwd, cross2);
@@ -6076,21 +6072,38 @@ void unit_throw_grenade_release(int unit_handle, char flag)
 
       /* Get the unit's seat/marker position */
       unit_set_seat_state(unit_handle, seat_pos);
+#ifdef HALO_RNG_TRACE
+      RNG_TRACE_EX(RNG_TRACE_KIND_THROW_SEAT_XY, RNG_TRACE_BITS(seat_pos[0]),
+                   RNG_TRACE_BITS(seat_pos[1]));
+      RNG_TRACE_EX(RNG_TRACE_KIND_THROW_SEAT_Z_HANDLE,
+                   RNG_TRACE_BITS(seat_pos[2]), (unsigned int)unit_handle);
+#endif
 
-      /* Apply throw direction offsets from throw params */
+      /* Apply throw direction offsets from throw params.
+       * One scale temp, assigned per axis group, so VC71 does
+       * FLD scale / FMUL ST(1) x3 / FSTP / next — not preload-all. */
       {
-        float fwd_s = *(float *)(throw_params + 0x68);
-        float right_s = *(float *)(throw_params + 0x6c);
-        float up_s = *(float *)(throw_params + 0x70);
-
-        seat_pos[0] +=
-          forward[0] * fwd_s + cross_fwd[0] * right_s + cross2[0] * up_s;
-        seat_pos[1] +=
-          forward[1] * fwd_s + cross_fwd[1] * right_s + cross2[1] * up_s;
-        seat_pos[2] +=
-          forward[2] * fwd_s + cross_fwd[2] * right_s + cross2[2] * up_s;
+        float s;
+        s = *(float *)(throw_params + 0x68);
+        seat_pos[0] += forward[0] * s;
+        seat_pos[1] += forward[1] * s;
+        seat_pos[2] += forward[2] * s;
+        s = *(float *)(throw_params + 0x6c);
+        seat_pos[0] += cross_fwd[0] * s;
+        seat_pos[1] += cross_fwd[1] * s;
+        seat_pos[2] += cross_fwd[2] * s;
+        s = *(float *)(throw_params + 0x70);
+        seat_pos[0] += cross2[0] * s;
+        seat_pos[1] += cross2[1] * s;
+        seat_pos[2] += cross2[2] * s;
       }
 
+#ifdef HALO_RNG_TRACE
+      RNG_TRACE_EX(RNG_TRACE_KIND_THROW_FINAL_XY, RNG_TRACE_BITS(seat_pos[0]),
+                   RNG_TRACE_BITS(seat_pos[1]));
+      RNG_TRACE_EX(RNG_TRACE_KIND_THROW_FINAL_Z_HANDLE,
+                   RNG_TRACE_BITS(seat_pos[2]), (unsigned int)unit_handle);
+#endif
       object_translate(grenade_handle, seat_pos, 0);
       ebx = -1;
     }
@@ -6109,27 +6122,31 @@ void unit_throw_grenade_release(int unit_handle, char flag)
     ratio_val = (float)throw_timer / (float)throw_total;
     if (ratio_val < 1.0f) {
       rand_val =
-        random_real_range(get_global_random_seed_address(), 0.02f, 0.046666667f);
+        random_real_range(get_global_random_seed_address(), 0.020000001f, 0.046666667f);
       rand_x = rand_val * *(float *)(unit + 0x1ec);
-      rand_y = rand_val * *(float *)(unit + 0x1f0);
-      rand_z = rand_val * *(float *)(unit + 0x1f4);
+      cross2[1] = rand_val * *(float *)(unit + 0x1f0);
+      cross2[2] = rand_val * *(float *)(unit + 0x1f4);
 
       velocity[0] = velocity[0] * ratio_val;
       velocity[1] = velocity[1] * ratio_val;
       velocity[2] = velocity[2] * ratio_val;
 
-      one_minus = 1.0f - ratio_val;
-      velocity[0] = rand_x * one_minus + velocity[0];
-      velocity[1] = rand_y * one_minus + velocity[1];
-      velocity[2] = rand_z * one_minus + velocity[2];
+      ratio_val = 1.0f - ratio_val;
+      HALO_FLT_ROUNDTRIP(ratio_val);
+      velocity[0] = rand_x * ratio_val + velocity[0];
+      velocity[1] = cross2[1] * ratio_val + velocity[1];
+      velocity[2] = cross2[2] * ratio_val + velocity[2];
     }
   }
 
   /* Subtract grenade's current world position to get relative velocity */
   grenade_data = (char *)object_get_and_verify_type(grenade_handle, ebx);
-  velocity[0] -= *(float *)(grenade_data + 0x18);
-  velocity[1] -= *(float *)(grenade_data + 0x1c);
-  velocity[2] -= *(float *)(grenade_data + 0x20);
+  {
+    float *gv = (float *)(grenade_data + 0x18);
+    velocity[0] -= gv[0];
+    velocity[1] -= gv[1];
+    velocity[2] -= gv[2];
+  }
 
   projectile_accelerate(grenade_handle, velocity);
 
@@ -6544,8 +6561,8 @@ void unit_drop_grenades_on_death(int unit_handle)
 {
   char *unit;
   char *grenade_count_ptr;
+  int count;
   int grenade_type;
-  int globals;
   int grenade_tag;
   int new_handle;
   char placement[136];
@@ -6553,15 +6570,12 @@ void unit_drop_grenades_on_death(int unit_handle)
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   grenade_count_ptr = unit + 0x2ce;
 
-  /* The binary uses a negative-offset trick to compute the grenade type index:
-   * ESI = 0xFFFFFD32 - unit_addr; index = ESI + grenade_count_ptr
-   * Since 0xFFFFFD32 + 0x2CE = 0 (mod 2^32), this yields index = type (0 or 1).
-   * We compute the type directly. */
-  for (grenade_type = 0; grenade_type < NUMBER_OF_UNIT_GRENADE_TYPES;
-       grenade_type++) {
-    globals = (int)game_globals_get();
+  count = 2;
+  do {
+    grenade_type = (int)(grenade_count_ptr - (unit + 0x2ce));
     grenade_tag =
-      (int)tag_block_get_element((void *)(globals + 0x128), grenade_type, 0x44);
+      (int)tag_block_get_element((void *)((char *)game_globals_get() + 0x128),
+                                 grenade_type, 0x44);
 
     while (*grenade_count_ptr > 0) {
       object_placement_data_new(placement, *(int *)(grenade_tag + 0x30),
@@ -6571,10 +6585,11 @@ void unit_drop_grenades_on_death(int unit_handle)
         object_disconnect_from_map(new_handle);
         unit_detach_weapon(unit_handle, new_handle);
       }
-      *grenade_count_ptr = *grenade_count_ptr - 1;
+      (*grenade_count_ptr)--;
     }
     grenade_count_ptr++;
-  }
+    count--;
+  } while (count != 0);
 }
 
 /* unit_drop_weapons_on_death (0x1abbd0)
@@ -7307,6 +7322,9 @@ void unit_adjust_plan_overlap(void *plan_a_ptr, void *plan_b_ptr, int dummy,
             *(float *)(plan_a + 0x10);
   total_b = *(float *)(plan_b + 0x1c) + *(float *)(plan_b + 0x14) +
             *(float *)(plan_b + 0x10);
+  /* Original 0x1acb94/0x1acba0 stores and 0x1acbb3/0x1acbb6 reloads. */
+  HALO_FLT_ROUNDTRIP(total_a);
+  HALO_FLT_ROUNDTRIP(total_b);
 
   /* Determine which plan to adjust */
   if (*(float *)(plan_a + 0x10) > 0.0f && total_b > total_a) {
@@ -8215,8 +8233,8 @@ uint16_t unit_find_best_enter_seat(int unit_handle, int target_unit_handle,
   int best_seat;
   uint16_t best_state;
   float best_distance;
-  float distance;
-  float distance2;
+  volatile float distance;
+  volatile float distance2;
   float pos_a[3];
   float pos_b[3];
   uint8_t found_flag;
@@ -8660,6 +8678,28 @@ int16_t vehicle_scripting_find_available_seats(int unit_handle,
   return found_count;
 }
 
+/* Return first weapon slot requiring a ready transition (0x1ac350). */
+int16_t unit_find_weapon_to_ready(int unit_handle)
+{
+  char *unit;
+  int weapon_handle;
+  short index;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  index = 0;
+  do {
+    weapon_handle = *(int *)(unit + index * 4 + 0x2a8);
+    if (weapon_handle != -1) {
+      if ((char)weapon_must_be_readied(weapon_handle) != 0) {
+        return index;
+      }
+    }
+    index++;
+  } while (index < 4);
+
+  return -1;
+}
+
 /* unit_open (0x1ae160)
  * Opens a unit by transitioning to animation state 0x25. */
 void unit_open(int unit_handle)
@@ -8702,10 +8742,12 @@ bool unit_current_weapon_is_busy(int unit_handle)
  * Attempts to set the unit's seat via animation lookup. */
 char unit_set_seat(int unit_handle, int seat_name)
 {
-  /* `!!` triggers VC71's branchless neg/sbb/neg bool-normalize (matching the
-   * original at 0x1ae1f8) rather than a test/setne branch. Runtime-identical.
-   */
-  return (char)!!unit_set_or_test_seat_and_weapon_label(unit_handle, (const char *)seat_name, 0, 1);
+  char result = false;
+
+  if (unit_set_or_test_seat_and_weapon_label(unit_handle, (const char *)seat_name, 0, 1)) {
+    result = true;
+  }
+  return result;
 }
 
 /* units_set_desired_flashlight_state (0x1ae210)
@@ -9103,39 +9145,38 @@ int16_t unit_next_weapon_index(int unit_handle, int16_t weapon_index,
  */
 bool unit_set_in_vehicle(int unit_handle, bool flag)
 {
-  unit_data_t *unit;
+  char *unit;
   int weapon_handle;
   int16_t new_index;
-  object_data_t *weapon_obj;
+  char *weapon_obj;
   int16_t cur_index;
 
-  unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
   tag_get(0x756e6974, *(int *)unit);
-  (void)object_get_and_verify_type(unit_handle, 3);
-  weapon_handle = unit_get_weapon(unit_handle, unit->unk_674);
-  new_index = unit_next_weapon_index(unit_handle, unit->unk_674, 1);
+  object_get_and_verify_type(unit_handle, 3);
+  weapon_handle = unit_get_weapon(unit_handle, *(int16_t *)(unit + 0x2a2));
+  new_index = unit_next_weapon_index(unit_handle, *(int16_t *)(unit + 0x2a2), 1);
 
   if (weapon_handle == -1)
     return false;
-  if (new_index == unit->unk_674 && !flag)
+  if (new_index == *(int16_t *)(unit + 0x2a2) && !flag)
     return false;
 
-  weapon_obj = (object_data_t *)object_get_and_verify_type(weapon_handle, -1);
-  if (weapon_obj->flags & 1)
+  weapon_obj = (char *)object_get_and_verify_type(weapon_handle, -1);
+  if (*(uint32_t *)(weapon_obj + 4) & 1)
     return false;
 
-  if (!((bool (*)(int, bool))0xfd360)(weapon_handle, flag))
+  if (!weapon_try_place(weapon_handle, flag))
     return false;
 
   first_person_weapon_message_from_unit(unit_handle, 0xd);
 
   unit_detach_weapon(unit_handle, weapon_handle);
 
-  cur_index = (int16_t)unit->unk_674;
-  unit->unk_680[cur_index].value = -1;
-  unit->unk_674 = (uint16_t)-1;
-  new_index = unit_next_weapon_index(unit_handle, -1, 0);
-  unit->unk_676 = (uint16_t)new_index;
+  cur_index = *(int16_t *)(unit + 0x2a2);
+  *(int *)(unit + (int)cur_index * 4 + 0x2a8) = -1;
+  *(int16_t *)(unit + 0x2a2) = -1;
+  *(int16_t *)(unit + 0x2a4) = unit_next_weapon_index(unit_handle, -1, 0);
 
   if (!weapon_can_be_fired(weapon_handle))
     object_delete(weapon_handle);
@@ -9412,6 +9453,7 @@ void unit_cause_player_melee_damage(int unit_handle)
   int globals;
   char *globals_element_ptr;
   float dot_product;
+  x87_wide_t dot_product_wide;
   float melee_scale;
   float kick_vec[3];
   int16_t hit_material;
@@ -9597,12 +9639,16 @@ got_damage_effect:
 
       dot_product = 0.0f;
       if (0.0f < *(float *)(globals_element_ptr + 0x34)) {
-        dot_product = (*(float *)&unit[9] * *(float *)&unit[6] +
-                       *(float *)&unit[10] * *(float *)&unit[7] +
-                       *(float *)&unit[0xb] * *(float *)&unit[8]) *
-                      30.0f;
-        dot_product = dot_product / *(float *)(globals_element_ptr + 0x34);
-        if (dot_product < 0.0f) {
+        dot_product_wide =
+          ((x87_wide_t)*(float *)&unit[9] * *(float *)&unit[6] +
+           (x87_wide_t)*(float *)&unit[10] * *(float *)&unit[7] +
+           (x87_wide_t)*(float *)&unit[0xb] * *(float *)&unit[8]) * 30.0f;
+        dot_product_wide =
+          dot_product_wide / *(float *)(globals_element_ptr + 0x34);
+        /* 0x1aef85 keeps the quotient wide for the zero comparison while
+         * storing a float32 copy reloaded at 0x1aef9e for the one comparison. */
+        dot_product = HALO_NARROW(dot_product_wide);
+        if (dot_product_wide < 0.0f) {
           dot_product = 0.0f;
         } else if (dot_product > 1.0f) {
           dot_product = 1.0f;
@@ -12304,12 +12350,7 @@ char unit_throw_grenade_begin(int unit_handle, float *alignment_vector)
  * unit handle from player_data, then calls unit_melee_attack_begin. */
 void scripting_magic_melee_attack(void)
 {
-  char *player;
-  int unit_handle;
-
-  player = (char *)datum_get(player_data, 0);
-  unit_handle = *(int *)(player + 0x34);
-  unit_melee_attack_begin(unit_handle, 0, 0);
+  unit_melee_attack_begin(*(int *)((char *)datum_get(player_data, 0) + 0x34), 0, 0);
 }
 
 /* unit_impact_melee_damage (0x1b2290) — apply melee damage at impact point.
@@ -12405,10 +12446,10 @@ void unit_impact_melee_damage(int unit_handle, int param_2, int param_3,
 
   /* Copy and negate damage direction as the impact vector (obj+0x24) */
   impact_dir = (float *)(unit + 0x24);
-  impact_dir[0] = param_7[0];
-  impact_dir[1] = param_7[1];
-  impact_dir[2] = param_7[2];
-  impact_dir[0] = -impact_dir[0];
+  ((float *)(unit + 0x24))[0] = param_7[0];
+  ((float *)(unit + 0x24))[1] = param_7[1];
+  ((float *)(unit + 0x24))[2] = param_7[2];
+  ((float *)(unit + 0x24))[0] = -impact_dir[0];
   impact_dir[1] = -impact_dir[1];
   impact_dir[2] = -impact_dir[2];
 
@@ -12458,14 +12499,15 @@ void unit_impact_melee_damage(int unit_handle, int param_2, int param_3,
  */
 void unit_place(int unit_handle, void *placement)
 {
+  float *place;
   char *unit;
   int unit_tag;
+  char *new_var;
   int antr_tag;
   int anim_element;
   int death_frame;
   int flags;
   int obj_flags;
-  float *place;
 
   place = (float *)placement;
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
@@ -12485,6 +12527,7 @@ void unit_place(int unit_handle, void *placement)
       /* Clear weapons and grenade state */
       unit_clear_weapons(unit_handle);
       csmemset((void *)(unit + 0x2ce), 0, 2);
+      new_var = unit + 0x4;
 
       /* Delete weapon object if one exists */
       if (*(int *)(unit + 0x2c8) != NONE) {
@@ -12501,7 +12544,7 @@ void unit_place(int unit_handle, void *placement)
       /* Mark as dead: set object flag bits */
       *(uint8_t *)(unit + 0xb6) = *(uint8_t *)(unit + 0xb6) | 4;
       obj_flags = *(int *)(unit + 0x4);
-      *(int *)(unit + 0x4) = obj_flags | 0x20000;
+      *(int *)new_var = obj_flags | 0x20000;
 
       /* Clamp death frame to >= 0 (branchless: mask with sign) */
       *(uint16_t *)(unit + 0x82) =
@@ -13136,7 +13179,28 @@ void unit_died(int unit_handle, char param_2)
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
 
-  if (param_2 == 0) {
+  if (param_2 != 0) {
+    /* Feign death */
+    if (*(int16_t *)(unit + 0x3d0) <= 0) {
+      display_assert("unit->unit.feign_death_timer > 0",
+                     "c:\\halo\\SOURCE\\units\\units.c", 0x13eb, true);
+      system_exit(-1);
+    }
+
+    unit_tag = (char *)tag_get(0x756e6974, *(int *)unit);
+
+    {
+      int *seed;
+      float rnd;
+      seed = get_global_random_seed_address();
+      rnd = random_math_real((unsigned int *)seed);
+      if (rnd < *(float *)(unit_tag + 0x248)) {
+        *(uint32_t *)(unit + 0x1b4) |= 0x2000;
+      } else {
+        *(uint32_t *)(unit + 0x1b4) &= ~0x2000u;
+      }
+    }
+  } else {
     /* Real death */
     *(int16_t *)(unit + 0x3d0) = 0;
     object_set_garbage_flag(unit_handle, 1);
@@ -13169,27 +13233,6 @@ void unit_died(int unit_handle, char param_2)
 
     /* Record time of death */
     *(int *)(unit + 0x3cc) = game_time_get();
-  } else {
-    /* Feign death */
-    if (*(int16_t *)(unit + 0x3d0) < 1) {
-      display_assert("unit->unit.feign_death_timer > 0",
-                     "c:\\halo\\SOURCE\\units\\units.c", 0x13eb, true);
-      system_exit(-1);
-    }
-
-    unit_tag = (char *)tag_get(0x756e6974, *(int *)unit);
-
-    {
-      int *seed;
-      float rnd;
-      seed = get_global_random_seed_address();
-      rnd = random_math_real((unsigned int *)seed);
-      if (rnd < *(float *)(unit_tag + 0x248)) {
-        *(uint32_t *)(unit + 0x1b4) |= 0x2000;
-      } else {
-        *(uint32_t *)(unit + 0x1b4) &= ~0x2000u;
-      }
-    }
   }
 
   /* Common death cleanup */
@@ -13215,10 +13258,10 @@ void unit_died(int unit_handle, char param_2)
 
   /* Detach from parent (vehicle seat exit) */
   if (*(int *)(unit + 0xcc) != -1) {
-    if (*(int16_t *)(unit + 0x2a0) == -1) {
-      unit_detach_from_parent(unit_handle);
-    } else {
+    if (*(int16_t *)(unit + 0x2a0) != -1) {
       unit_exit_seat_end(unit_handle);
+    } else {
+      unit_detach_from_parent(unit_handle);
     }
   }
 

@@ -1,6 +1,15 @@
 #ifdef HALO_RNG_TRACE
 #include "halo/math/rng_trace.h"
 #endif
+
+/* memset as a compiler intrinsic (not the csmemset helper): the 0xb4490
+ * reference fills flag_indices with an inline store sequence, not a call. */
+extern void *__cdecl memset(void *, int, unsigned int);
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma intrinsic(memset)
+#else
+#define memset __builtin_memset
+#endif
 #line 1
 void FUN_000a6a80(void)
 {
@@ -484,70 +493,60 @@ void game_set_game_engine_index(void)
 
 bool game_all_quiet(void)
 {
-  return !dangerous_projectiles_near_player() &&
-         !dangerous_items_near_player() && !dangerous_effects_near_player() &&
-         !any_unit_is_dangerous() && !ai_enemies_can_see_player();
+  return (char)!(dangerous_projectiles_near_player() ||
+                 dangerous_items_near_player() ||
+                 dangerous_effects_near_player() ||
+                 any_unit_is_dangerous() ||
+                 ai_enemies_can_see_player());
 }
 
 bool game_safe_to_save(void)
 {
+  bool safe = true;
+
   if (ai_enemies_can_see_player()) {
     if (debug_game_save) {
       console_warning("not safe to save: ai_enemies_can_see_player");
     }
-    return false;
-  }
-
-  if (dangerous_projectiles_near_player()) {
+    safe = false;
+  } else if (dangerous_projectiles_near_player()) {
     if (debug_game_save) {
       console_warning("not safe to save: dangerous_projectiles_near_player");
     }
-    return false;
-  }
-
-  if (dangerous_items_near_player()) {
+    safe = false;
+  } else if (dangerous_items_near_player()) {
     if (debug_game_save) {
       console_warning("not safe to save: dangerous_items_near_player");
     }
-    return false;
-  }
-
-  if (dangerous_effects_near_player()) {
+    safe = false;
+  } else if (dangerous_effects_near_player()) {
     if (debug_game_save) {
       console_warning("not safe to save: dangerous_effects_near_player");
     }
-    return false;
-  }
-
-  if (any_unit_is_dangerous()) {
+    safe = false;
+  } else if (any_unit_is_dangerous()) {
     if (debug_game_save) {
       console_warning("not safe to save: any_unit_is_dangerous");
     }
-    return false;
-  }
-
-  if (any_player_is_in_the_air()) {
+    safe = false;
+  } else if (any_player_is_in_the_air()) {
     if (debug_game_save) {
       console_warning("not safe to save: any_player_is_in_the_air");
     }
-    return false;
-  }
-
-  if (any_player_is_dead()) {
+    safe = false;
+  } else if (any_player_is_dead()) {
     if (debug_game_save) {
       console_warning("not safe to save: any_player_is_dead");
     }
-    return false;
-  }
-
-  if (vehicle_moving_near_any_player()) {
+    safe = false;
+  } else if (vehicle_moving_near_any_player()) {
     if (debug_game_save) {
       console_warning("not safe to save: vehicle_moving_near_any_player");
     }
-    return false;
+    safe = false;
   }
 
-  return true;
+  return safe;
 }
 
 bool game_safe_to_speak(void)
@@ -755,6 +754,88 @@ wchar_t *FUN_000b42d0(int param_1, wchar_t *dst)
   return dst;
 }
 
+/* FUN_000b4490 (0xb4490) — race engine: place the race flag objects.
+ *
+ * Walks the player table (0x5aa6d4). For each player it fetches the player's
+ * unit (player+0x34, type mask 3) and asks FUN_000b43b0 for the next race
+ * flag index, passing the unit's position (unit+0xc) or NULL and the array of
+ * flags already chosen in this pass. Collection stops after 8 entries or when
+ * FUN_000b43b0 returns -1. Each collected index then names a netgame flag in
+ * the scenario block at scenario+0x378 (0x94-byte elements), and a flag object
+ * is spawned at that flag's position with a facing vector built from the
+ * flag's facing angle. 0x456fdc (cleared by FUN_000b4960) is set to 1 for
+ * every object actually created.
+ *
+ * FUN_000b43b0 signature: two stack pushes at 0xb44f7/0xb4501 (position-or-
+ * NULL, then &flag_indices) and the result is compared against -1 at 0xb450f.
+ *
+ * Source: c:\halo\SOURCE\game\game_engine_race.c */
+void FUN_000b4490(void)
+{
+  char *scenario;
+  char *player;
+  char *unit;
+  char *volatile flags_block;
+  netgame_flag *flag;
+  data_iter_t iter;
+  char placement[0x88];
+  int flag_indices[8];
+  int count;
+  int flag_index;
+  int tag_index;
+  int i;
+
+  scenario = (char *)global_scenario_get();
+
+  flag_indices[0] = -1;
+  memset(&flag_indices[1], 0, 7 * sizeof(int));
+
+  count = 0;
+  data_iterator_new(&iter, player_data);
+  player = (char *)data_iterator_next(&iter);
+  while (player != NULL) {
+    if (*(int *)(player + 0x34) != -1)
+      unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+    else
+      unit = (char *)0;
+
+    if (count == 8)
+      break;
+
+    if (unit != (char *)0)
+      flag_index = FUN_000b43b0(unit + 0xc, flag_indices);
+    else
+      flag_index = FUN_000b43b0((void *)0, flag_indices);
+
+    if (flag_index == -1)
+      break;
+
+    flag_indices[count] = flag_index;
+    count++;
+    player = (char *)data_iterator_next(&iter);
+  }
+
+  i = 0;
+  if (count > 0) {
+    flags_block = scenario + 0x378;
+    do {
+      flag = (netgame_flag *)tag_block_get_element(flags_block, flag_indices[i],
+                                                   0x94);
+      tag_index = FUN_000b3770(i);
+      if (tag_index != -1) {
+        object_placement_data_new(placement, tag_index, -1);
+        *(int *)(placement + 0x18) = *(int *)&flag->position_x;
+        *(int *)(placement + 0x1c) = *(int *)&flag->position_y;
+        *(int *)(placement + 0x20) = *(int *)&flag->position_z;
+        vector3d_from_angle((float *)(placement + 0x34), flag->facing);
+        object_new(placement);
+        *(char *)0x456fdc = 1;
+      }
+      i++;
+    } while (i < count);
+  }
+}
+
 /* FUN_000b45c0 (0xb45c0) — race engine: pick random flag.
  *
  * Counts the number of valid race flags from the bitmask at 0x456f10.
@@ -887,13 +968,13 @@ int FUN_000b4960(void)
   short sVar1;
   int iVar2;
   int iVar3;
-  int iVar4;
+  int min_flag;
   int *piVar5;
 
-  iVar4 = 0x20;
+  min_flag = 0x20;
   iVar2 = (int)global_scenario_get();
   FUN_000b3860();
-  *(int *)0x456fdc = 0;
+  *(char *)0x456fdc = 0;
   csmemset((void *)0x456f10, 0, 0xd0);
   piVar5 = (int *)(iVar2 + 0x378);
   *(int *)0x5aa744 = 0x1e;
@@ -903,20 +984,18 @@ int FUN_000b4960(void)
       iVar3 = (int)tag_block_get_element(piVar5, iVar2, 0x94);
       if (*(short *)(iVar3 + 0x10) == 3) {
         sVar1 = *(short *)(iVar3 + 0x12);
-        if (sVar1 < 0x20) {
-          if (sVar1 < iVar4) {
-            iVar4 = (int)sVar1;
-          }
-          *(int *)0x456f10 =
-            *(int *)0x456f10 | (1 << ((unsigned char)sVar1 & 0x1f));
-          game_engine_set_goal_position((int)*(short *)(iVar3 + 0x12),
-                                        (void *)iVar3, 0, "flag_blue", -1, -1,
-                                        -1);
-        } else {
+        if (sVar1 >= 0x20) {
           error(2,
                 "one of the netgameflags that defines the track was out of "
                 "the legal range 0..%d",
                 0x20);
+        } else {
+          if (min_flag > (int)sVar1) {
+            min_flag = (int)sVar1;
+          }
+          *(int *)0x456f10 |= (1 << ((unsigned char)sVar1 & 0x1f));
+          game_engine_set_goal_position((int)sVar1, (void *)iVar3, 0.0f,
+                                        "flag_blue", -1, -1, -1);
         }
       }
       iVar2 = iVar2 + 1;
@@ -928,20 +1007,20 @@ int FUN_000b4960(void)
     return 1;
   }
   iVar2 = (int)game_engine_get_variant();
-  piVar5 = (int *)0x456f14;
-  iVar3 = 0x10;
-  if (*(int *)(iVar2 + 0x4c) != 0) {
-    for (; iVar3 != 0; iVar3 = iVar3 + -1) {
-      *piVar5 = -1;
-      piVar5 = piVar5 + 1;
+  {
+    int *dest = (int *)0x456f14;
+    int count = 16;
+    if (*(int *)(iVar2 + 0x4c) == 0) {
+      while (count--) {
+        *dest++ = min_flag;
+      }
+      return 1;
     }
-    return (int)0xffffff01u;
+    while (count--) {
+      *dest++ = -1;
+    }
+    return 1;
   }
-  for (; iVar3 != 0; iVar3 = iVar3 + -1) {
-    *piVar5 = iVar4;
-    piVar5 = piVar5 + 1;
-  }
-  return 1;
 }
 
 /* FUN_000b4b10 (0xb4b10) — invalidate a player's race timestamp
@@ -1019,6 +1098,215 @@ wchar_t *FUN_000b4df0(int index, wchar_t *dst)
   return dst;
 }
 
+/* 0xb4e20 — find_next_target
+ *
+ * Slayer/oddball "next target" selection: counts the eligible players
+ * (not us, not our previous target, different team, alive), picks a random
+ * one of them with random_range(seed, 0, count), then walks the player data
+ * again to find that Nth eligible player and reports it.
+ *
+ * Register arg: @EDI = player datum handle (read uninitialized at 0xb4e2b
+ * PUSH EDI, never written inside the function).
+ *
+ * Source file: c:\halo\SOURCE\game\game_engine_slayer.c, assert line 0xc2.
+ *
+ * Confirmed 0xb4e7b: PUSH EDI / PUSH g_players_data / CALL datum_get -> EBX
+ *   (self), then PUSH ESI(iterator handle) / PUSH g_players_data ->
+ *   EAX (other); the +0x20 team compare is other vs self, and the +0x34
+ *   != -1 aliveness test is on `other`.
+ * Confirmed 0xb4ec8: PUSH EAX(count) / PUSH 0x0 / CALL
+ *   get_global_random_seed_address / PUSH EAX -> random_range(seed, 0, count).
+ * Confirmed 0xb4f56: on count exhaustion the chosen handle is re-read from
+ *   the iterator ([EBP-0x18] == data_iter_t.datum_handle) and the assert
+ *   fires when it is NONE.
+ */
+void find_next_target(int player_index)
+{
+  data_iter_t iterator;
+  void *player;
+  void *self;
+  void *other;
+  int last_target;
+  int next_target;
+  int count;
+  unsigned int handle;
+
+  player = datum_get(player_data, player_index);
+  last_target = *(int *)((char *)player + 0x88);
+  next_target = -1;
+  count = 0;
+  data_iterator_new(&iterator, player_data);
+  if (data_iterator_next(&iterator) != 0) {
+    do {
+      handle = iterator.datum_handle;
+      self = datum_get(player_data, player_index);
+      other = datum_get(player_data, (int)handle);
+      if (handle != (unsigned int)player_index &&
+          handle != (unsigned int)last_target &&
+          *(int *)((char *)other + 0x20) != *(int *)((char *)self + 0x20) &&
+          *(int *)((char *)other + 0x34) != -1) {
+        count = count + 1;
+      }
+    } while (data_iterator_next(&iterator) != 0);
+    if (count > 0) {
+      count = random_range((unsigned int *)get_global_random_seed_address(), 0,
+                           (int16_t)count);
+      data_iterator_new(&iterator, player_data);
+      while (data_iterator_next(&iterator) != 0) {
+        handle = iterator.datum_handle;
+        self = datum_get(player_data, player_index);
+        other = datum_get(player_data, (int)handle);
+        if (handle != (unsigned int)player_index &&
+            handle != (unsigned int)last_target &&
+            *(int *)((char *)other + 0x20) != *(int *)((char *)self + 0x20) &&
+            *(int *)((char *)other + 0x34) != -1) {
+          if (count == 0) {
+            next_target = (int)iterator.datum_handle;
+            if (next_target != -1)
+              goto have_target;
+            break;
+          }
+          count = count - 1;
+        }
+      }
+      display_assert("next_target != NONE",
+                     "c:\\halo\\SOURCE\\game\\game_engine_slayer.c", 0xc2, 1);
+      system_exit(-1);
+    }
+  }
+have_target:
+  *(int *)((char *)player + 0x88) = next_target;
+  if (next_target != -1) {
+    game_engine_player_event(player_index, 0x1e, next_target);
+  }
+}
+
+/* 0xb5040 — FUN_000b5040 — player-event message formatter
+ *
+ * Formats the
+ * HUD/status message for a player event.  Referenced only as
+ * data from the
+ * handler table at 0x2f015c (no code callers), so the cdecl
+ * signature comes
+ * from the frame: [EBP+0x8] player handle, [EBP+0xc] event
+ * type, [EBP+0x10]
+ * target player handle, [EBP+0x14] destination buffer,
+ * [EBP+0x18] buffer
+ * size (wchar count).  Returns AL (MOV BL,1 at 0xb5056,
+ * MOV AL,BL on every
+ * formatted exit; XOR AL,AL on the unhandled-event exit).
+ *
+ * Confirmed
+ * 0xb5049/0xb5058: MOV EAX,[0x5aa6d4] / PUSH ESI / PUSH EAX /
+ *   CALL
+ * 0x119320 — datum_get(player_data, player_handle), result discarded.
+ *
+ * Confirmed 0xb5065: CMP ECX,0x1e / JNZ 0xb512e, then 0xb512e CMP ECX,0x16 /
+ *
+ * JZ, CMP ECX,0x1e / JZ (the second 0x1e compare is unreachable), else
+ *   XOR
+ * AL,AL / RET.
+ * Confirmed 0xb506e/0xb5073: CALL 0xa9350
+ * (game_engine_get_variant) /
+ *   MOV CL,[EAX+0x1c] selects the team-scoring
+ * spelling.
+ * Confirmed 0xb508f: MOV EDI,[EDX*4+0x456fe0] with EDX =
+ * player+0x20 (team),
+ *   and 0xb50a4: MOV ECX,[ESI*4+0x457020] with ESI =
+ * handle & 0xffff — the
+ *   same two score tables FUN_000b4da0 /
+ * FUN_000b4df0 read.
+ * Confirmed 0xb50bd: PUSH EDI / PUSH ECX / PUSH 0x26dd64
+ * / PUSH 0x80 /
+ *   PUSH EDX(local buffer) / CALL 0x19e9f0, ADD ESP,0x24; the
+ * 128-wchar
+ * local (SUB ESP,0x100) is formatted but never read afterwards —
+ * kept
+ * because the call order and side effects must be preserved.
+ *
+ * Confirmed 0xb50f1: the variant+0x1c == 0 arm uses the shared format at
+ *
+ * 0x26c118 with only the 0x457020 score.
+ * Confirmed 0xb5104/0xb511d:
+ * datum_get(player_data, target_handle), then
+ *   PUSH EAX+4 / PUSH 0x26dd48 /
+ * PUSH size / PUSH buffer — the target name
+ *   lives at +4 in the player
+ * datum.
+ * Confirmed 0xb5150/0xb5156: PUSH 0x1 / PUSH ESI / CALL 0xa9e20
+ *
+ * (game_engine_get_place(handle, 1)) then CALL 0xa9af0
+ *
+ * (game_engine_place_to_string).
+ * Confirmed 0xb51ad: PUSH EDX(variant+0x40) /
+ * PUSH EAX(0x456fe0 team score) /
+ *   PUSH ESI(0x457020 player score) / PUSH
+ * EDI(place string) / PUSH 0x26dd14 /
+ *   PUSH size / PUSH buffer, ADD
+ * ESP,0x38.
+ * Confirmed 0xb51f9: the non-team arm pushes variant+0x40, the
+ * 0x456fe0 team
+ *   score and the place string with the format at 0x26dcf0,
+ * ADD ESP,0x2c.
+ */
+bool FUN_000b5040(unsigned int player_handle, int event_type, int target_handle,
+                  wchar_t *buffer, int buffer_size)
+{
+  wchar_t local_buffer[128];
+  void *variant;
+  void *player;
+  void *target;
+  wchar_t *place_string;
+  int table_score;
+  int player_score;
+
+  datum_get(player_data, player_handle);
+  if (event_type == 0x1e) {
+    variant = game_engine_get_variant();
+    if (*((char *)variant + 0x1c) != 0) {
+      player = datum_get(player_data, player_handle);
+      table_score = *(int *)(0x456fe0 + *(int *)((char *)player + 0x20) * 4);
+      datum_get(player_data, player_handle);
+      unicode_sprintf(local_buffer, 0x80, L"%d team %d",
+                      *(int *)(0x457020 + (player_handle & 0xffff) * 4),
+                      table_score);
+    } else {
+      datum_get(player_data, player_handle);
+      unicode_sprintf(local_buffer, 0x80, (const wchar_t *)0x26c118,
+                      *(int *)(0x457020 + (player_handle & 0xffff) * 4));
+    }
+    target = datum_get(player_data, target_handle);
+    unicode_sprintf(buffer, buffer_size, L"New Target %s",
+                    (wchar_t *)((char *)target + 4));
+    return true;
+  }
+  if (event_type == 0x16) {
+    variant = game_engine_get_variant();
+    if (*((char *)variant + 0x1c) != 0) {
+      place_string =
+        game_engine_place_to_string(game_engine_get_place(player_handle, 1));
+      player = datum_get(player_data, player_handle);
+      table_score = *(int *)(0x456fe0 + *(int *)((char *)player + 0x20) * 4);
+      datum_get(player_data, player_handle);
+      player_score = *(int *)(0x457020 + (player_handle & 0xffff) * 4);
+      variant = game_engine_get_variant();
+      unicode_sprintf(buffer, buffer_size, L"%s kills %d team %d of %d",
+                      place_string, player_score, table_score,
+                      *(int *)((char *)variant + 0x40));
+      return true;
+    }
+    place_string =
+      game_engine_place_to_string(game_engine_get_place(player_handle, 1));
+    player = datum_get(player_data, player_handle);
+    table_score = *(int *)(0x456fe0 + *(int *)((char *)player + 0x20) * 4);
+    variant = game_engine_get_variant();
+    unicode_sprintf(buffer, buffer_size, L"%s kills %d of %d", place_string,
+                    table_score, *(int *)((char *)variant + 0x40));
+    return true;
+  }
+  return false;
+}
+
 /* 0xb5490 — FUN_000b5490
  *
  * Returns the name string for a given material type index.
@@ -1072,7 +1360,7 @@ const char *FUN_000b5490(short material_type)
  *   then FLD [EAX+EDX*4] for the raw (DI<0) path at 0xb554b.
  * Confirmed: CMP DI,3 / MOV ECX,3 / JG / MOV ECX,EDI clamping at 0xb555e.
  */
-float game_globals_difficulty_scale(int16_t value_type, int16_t difficulty)
+__declspec(noinline) float game_globals_difficulty_scale(int16_t value_type, int16_t difficulty)
 {
   float default_val = 1.0f;
   void *globals;

@@ -540,7 +540,6 @@ void FUN_00136f40(int object_handle, void *damage_data, unsigned int flags,
   float scale;
   float direction[3];
   float velocity[3];
-  char game_active;
   int player_handle;
 
   dd = (char *)damage_data;
@@ -554,9 +553,8 @@ void FUN_00136f40(int object_handle, void *damage_data, unsigned int flags,
   jpt_tag = (char *)tag_get(0x6a707421, *(int *)dd);
 
   if (*(float *)(obje_tag + 0x20) > 0.0001f) {
-    direction[2] = *(float *)(dd + 0x3c) + 0.45f;
-    direction[0] = *(float *)(dd + 0x34);
-    direction[1] = *(float *)(dd + 0x38);
+    *(vector3_t *)direction = *(vector3_t *)(dd + 0x34);
+    direction[2] += 0.45f;
     normalize3d(direction);
 
     scale =
@@ -567,6 +565,19 @@ void FUN_00136f40(int object_handle, void *damage_data, unsigned int flags,
     velocity[2] = direction[2] * scale;
 
     switch (obj_type) {
+    case 5:
+      projectile_accelerate(object_handle, velocity);
+      break;
+    case 2:
+    case 3:
+    case 4:
+      if (*(float *)(dd + 0x40) > 0.5f &&
+          (*(unsigned char *)(jpt_tag + 0x1c8) & 0x20) != 0) {
+        item_set_position(object_handle, velocity, 1);
+      } else {
+        item_set_position(object_handle, velocity, 0);
+      }
+      break;
     case 0:
     case 1:
       if (*(float *)(jpt_tag + 0x1f4) > 0.0001f &&
@@ -583,26 +594,12 @@ void FUN_00136f40(int object_handle, void *damage_data, unsigned int flags,
         }
       }
       break;
-    case 2:
-    case 3:
-    case 4:
-      if (*(float *)(dd + 0x40) > 0.5f &&
-          (*(unsigned char *)(jpt_tag + 0x1c8) & 0x20) != 0) {
-        item_set_position(object_handle, velocity, 1);
-      } else {
-        item_set_position(object_handle, velocity, 0);
-      }
-      break;
-    case 5:
-      projectile_accelerate(object_handle, velocity);
-      break;
     default:
       break;
     }
   }
 
-  game_active = game_engine_can_score();
-  if (game_active != 0 && *(signed char *)(dd + 0x4) >= 0) {
+  if (game_engine_can_score() && *(signed char *)(dd + 0x4) >= 0) {
     game_statistics_record_damage(
       object_handle, body_vitality + shield_vitality, *(int *)(dd + 0x8),
       *(int *)(dd + 0xc), (int)*(unsigned short *)(dd + 0x10));
@@ -610,14 +607,11 @@ void FUN_00136f40(int object_handle, void *damage_data, unsigned int flags,
       FUN_000b56f0(object_handle, *(int *)(dd + 0x8), *(int *)(dd + 0xc),
                    (int)*(unsigned short *)(dd + 0x10));
     }
-  } else {
-    game_active = game_engine_can_score();
-    if (game_active != 0) {
-      player_handle = player_index_from_unit_index(object_handle);
-      game_engine_player_killed(
-        player_handle, object_handle, player_handle,
-        1); /* dup-args-ok: confirmed PUSH EAX,EBX,EAX */
-    }
+  } else if (game_engine_can_score()) {
+    player_handle = player_index_from_unit_index(object_handle);
+    game_engine_player_killed(
+      player_handle, object_handle, player_handle,
+      1); /* dup-args-ok: confirmed PUSH EAX,EBX,EAX */
   }
 
   if ((1 << (*(unsigned char *)((char *)obj + 0x64) & 0x1f)) & 3) {
@@ -1064,6 +1058,11 @@ void object_cause_damage(void *damage_params, int object_handle,
   int obj_tag;
   int coll_ref;
 
+#ifdef HALO_RNG_TRACE
+  RNG_TRACE_EX(RNG_TRACE_KIND_DAMAGE_TARGET, *(unsigned int *)damage_params,
+               object_handle);
+#endif
+#line 1067
   dp = (unsigned int *)damage_params;
 
   /* Get damage effect tag data */
@@ -1864,6 +1863,12 @@ void FUN_00138e30(void *damage_params, int target_index)
   int16_t i;
 
   (void)target_index;
+#ifdef HALO_RNG_TRACE
+  RNG_TRACE_EX(RNG_TRACE_KIND_DAMAGE_ORIGIN,
+               *(unsigned int *)((char *)damage_params + 0x28),
+               *(unsigned int *)((char *)damage_params + 0x2c));
+#endif
+#line 1872
   tag = (char *)tag_get(0x6a707421, *(int *)damage_params);
   count = object_find_in_radius(0, 0, (char *)damage_params + 0x14,
                                 (float *)((char *)damage_params + 0x1c),
