@@ -7710,8 +7710,8 @@ void FUN_000b1aa0(void)
   *(int *)0x5aa700 = src[2];
 
   *(int *)0x5aa704 = src[0];
-  *(int *)0x5aa708 = src[1];
-  *(int *)0x5aa70c = src[2];
+  *(int *)0x5aa708 = (*(int **)0x2ee708)[1];
+  *(int *)0x5aa70c = (*(int **)0x2ee708)[2];
 
   *(int *)0x5aa710 = 0;
   *(int *)0x5aa714 = 0;
