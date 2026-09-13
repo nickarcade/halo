@@ -291,7 +291,7 @@ bool FUN_0008ab90(float *out_fraction, bool indoor, float *ray_origin,
 
   if (FUN_0014df70(flags, ray_origin, direction, -1,
                    (int16_t *)collision_result)) {
-    *out_fraction = *(float *)(collision_result + 0x14);
+    *(int *)out_fraction = *(int *)(collision_result + 0x14);
     result = true;
   }
 
