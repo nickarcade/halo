@@ -62401,16 +62401,16 @@
     "game_engine_get_goal_position": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 94.5,
+      "abi_modeled_mnemonic_pct": 98.2,
       "addr": "0xa9380",
       "end": "0xa93d5",
       "kind": "auto",
       "n_r": 29,
-      "opnd_percent": 65.5,
-      "raw_mnemonic_pct": 94.5,
+      "opnd_percent": 63.2,
+      "raw_mnemonic_pct": 98.2,
       "ref": "synth",
       "ref_sha": "c26fa33e43400ce5",
-      "score": 94.5,
+      "score": 98.2,
       "source": "src/halo/game/game_engine.c"
     },
     "game_engine_get_place": {
@@ -63541,16 +63541,16 @@
     "game_engine_update": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 93.8,
+      "abi_modeled_mnemonic_pct": 94.5,
       "addr": "0xaf370",
       "end": "0xaf64e",
       "kind": "auto",
       "n_r": 227,
-      "opnd_percent": 87.1,
-      "raw_mnemonic_pct": 93.8,
+      "opnd_percent": 76.7,
+      "raw_mnemonic_pct": 94.5,
       "ref": "synth",
       "ref_sha": "c116337aae270913",
-      "score": 93.8,
+      "score": 94.5,
       "source": "src/halo/game/game_engine.c"
     },
     "game_engine_update_flag_state": {

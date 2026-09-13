@@ -1031,6 +1031,7 @@ int *game_engine_get_goal_position(int *param_1, short param_2)
   *param_1 = *(int *)src;
   param_1[1] = *(int *)(src + 4);
   param_1[2] = *(int *)(src + 8);
+  param_1[2] = *(int *)(src + 8);
   return param_1;
 }
 
@@ -5883,17 +5884,17 @@ void game_engine_update(void)
       if (((*(uint32_t *)0x456b18 & 0x10) != 0 ||
            (vtable[32] &&
             ((char (*)(int, int))vtable[32])(player_handle, 1))) &&
-          *(int *)((char *)datum_get(player_data, player_handle) + 0x34) !=
+          *(int *)((char *)datum_get(player_data, iter.datum_handle) + 0x34) !=
             NONE) {
-        player_set_respawn_timer(player_handle, 0, 0xf);
+        player_set_respawn_timer(iter.datum_handle, 0, 0xf);
       }
     }
 
-    game_engine_player_update_netgame_flag(player_handle);
+    game_engine_player_update_netgame_flag(iter.datum_handle);
 
     vtable = (void (**)(void))current_game_engine;
     if (vtable[13])
-      ((void (*)(int))vtable[13])(player_handle);
+      ((void (*)(int))vtable[13])(iter.datum_handle);
   }
 
   vtable = (void (**)(void))current_game_engine;
