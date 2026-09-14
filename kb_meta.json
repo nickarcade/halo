@@ -3248,10 +3248,6 @@
         "The upstream libtiff identity of this entry point and the meaning of bit 0 of the byte at tif+0x9 are both UNKNOWN; in particular it is unproven whether that byte is byte 1 of an upstream uint32 tif_flags based at 0x08, so the bit is set with a literal 1 and cleared with 0xfe rather than a named TIFF_ macro."
       ]
     },
-    "0x68c40": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x68e20": {
       "kind": "function",
       "status": "ported"
@@ -4297,10 +4293,6 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x82c90": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x82d30": {
       "kind": "function",
       "status": "ported"
@@ -4483,22 +4475,6 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x89270": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x89330": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x89850": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x898b0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x8a340": {
       "kind": "function",
       "status": "ported"
@@ -4519,23 +4495,11 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x8a570": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x8a5f0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x8a660": {
       "kind": "function",
       "status": "ported"
     },
     "0x8a830": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x8aa30": {
       "kind": "function",
       "status": "ported"
     },
@@ -4587,10 +4551,6 @@
       "comments": {
         "summary": "Per-tick update for all local-player observers: records delta_time, validates header/trailer signatures and updated_for_frame, then dispatches three unported sub-updates (0x8b060 input, 0x8cd40 integration when dt changed, 0x8c4b0 post) via inline asm passing index in EAX."
       }
-    },
-    "0x8d3a0": {
-      "kind": "function",
-      "status": "ported"
     },
     "0x8d410": {
       "kind": "function",
@@ -6962,10 +6922,6 @@
       "kind": "function",
       "status": "ported"
     },
-    "0xb4a70": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0xb4d00": {
       "kind": "function",
       "status": "ported"
@@ -6987,10 +6943,6 @@
       "status": "ported"
     },
     "0xb4e20": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xb4fb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -7883,14 +7835,14 @@
     },
     "0xbe1d0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "uncertain": [
         "FUN_000ca140() is an unknown zero-argument side-effecting step invoked only when hs_macro_function_evaluate returns a non-NULL record; its exact effect is not yet identified."
       ]
     },
     "0xbe2f0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Second arg to FUN_000c9c10 is a float loaded from result+4 via MSVC push-then-fstp (PUSH ECX; FSTP [ESP]); Ghidra decomp dropped both args as void/void, corrected from disasm.",
         "Fixed sibling callee FUN_000c9c10 kb decl from void(void) to void(int, float); it is the only caller and takes (dword@result+0, float@result+4) cdecl."
@@ -7902,14 +7854,14 @@
     },
     "0xbe480": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "FUN_000c9ec0 recovered as 2-arg cdecl from this call site: arg1 = record[0] (dword), arg2 = zero-extended uint16_t at record+0x4 (XOR EDX,EDX; MOV DX,[EAX+4]); Ghidra had modeled it void(void) and dropped both args."
       ]
     },
     "0xbe4c0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "3-arg cdecl signature (int16_t function_index, int thread_datum, char init) recovered from the hs_macro_function_evaluate call site; Ghidra modeled this as void(void) and dropped all three stack args."
       ]
@@ -9916,7 +9868,7 @@
     },
     "0xc8720": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The kb.json placeholder decl void FUN_000c8720(void) was wrong: [EBP+0x8] is read at 0xc8748 and compared as SI (CMP SI,0x7 / CMP SI,0xc), [EBP+0xc] is read at 0xc8724 and 0xc887c and passed to datum_get, and both exits return a byte in AL (MOV AL,BL at 0xc8846, XOR AL,AL at 0xc88a3), giving bool FUN_000c8720(int16_t function_index, int expression_index) as a plain cdecl with no register arguments.",
         "The two arity tests are one if with a || rather than an if/else-if chain: the reference emits the accept tail (POP EDI/POP ESI/MOV AL,BL at 0xc8844) physically between the too-many test at 0xc883d and the qualifier selection at 0xc884d, which only the short-circuit layout reproduces, and rewriting the if/else-if chain into that single || form raised the VC71 match from 82.6 to 85.8 percent with no regression elsewhere in the TU.",
@@ -9974,10 +9926,6 @@
         "The hs_type_check false branch was not exercised by the runtime dual oracle because reaching it requires the constant/function-call type machinery rather than a pre-typed argument node, so that one branch rests on instruction-level review alone.",
         "Script types 3 and 4 are rejected as static scripts by the literal at 0x27d194, but the canonical enumeration of the scenario script-type field at element offset 0x20 remains unproven."
       ]
-    },
-    "0xc8e00": {
-      "kind": "function",
-      "status": "ported"
     },
     "0xc9050": {
       "kind": "function",
@@ -10039,14 +9987,6 @@
       "kind": "function",
       "status": "ported"
     },
-    "0xcaec0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xcaef0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0xcaf70": {
       "kind": "function",
       "status": "ported"
@@ -10075,10 +10015,6 @@
       "status": "ported"
     },
     "0xcb7b0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xcb940": {
       "kind": "function",
       "status": "ported"
     },
@@ -10784,10 +10720,6 @@
       "kind": "function",
       "status": "ported"
     },
-    "0xde3f0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0xdeb60": {
       "kind": "function",
       "status": "ported"
@@ -11304,10 +11236,6 @@
         "summary": "Depth-first search over a widget subtree for the first node whose tag handle (+0x0) equals tag_handle. Checks current node, then recurses into each child (+0x34) following next_sibling (+0x2c)."
       }
     },
-    "0xe4a40": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0xe4a80": {
       "kind": "function",
       "status": "unknown"
@@ -11595,31 +11523,11 @@
       "kind": "function",
       "status": "ported"
     },
-    "0xeaba0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xead60": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xeb4f0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0xecd50": {
       "kind": "function",
       "status": "ported"
     },
     "0xece10": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xed240": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xee810": {
       "kind": "function",
       "status": "ported"
     },
@@ -11635,23 +11543,7 @@
       "kind": "function",
       "status": "ported"
     },
-    "0xeef30": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xef3f0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0xef900": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xefa80": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xefc60": {
       "kind": "function",
       "status": "ported"
     },
@@ -11719,15 +11611,7 @@
       "kind": "function",
       "status": "ported"
     },
-    "0xf3010": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0xf3320": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xf3400": {
       "kind": "function",
       "status": "ported"
     },
@@ -12032,14 +11916,6 @@
       "kind": "function",
       "status": "ported"
     },
-    "0xfb990": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xfba00": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0xfba20": {
       "kind": "function",
       "status": "ported"
@@ -12112,10 +11988,6 @@
       ]
     },
     "0xfd510": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xfd520": {
       "kind": "function",
       "status": "ported"
     },
@@ -13946,10 +13818,6 @@
       "comments": {
         "summary": "Seat-enter matrix bridge: decodes one animation node into an 0x800-byte stack buffer via FUN_00121d60, then converts the decoded basis+position slice into an output matrix via FUN_001094d0."
       }
-    },
-    "0x123b30": {
-      "kind": "function",
-      "status": "ported"
     },
     "0x123e20": {
       "kind": "function",
@@ -16221,22 +16089,6 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x168cd0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x168e40": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x168e70": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x168fd0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x169200": {
       "kind": "function",
       "status": "unknown",
@@ -16921,14 +16773,6 @@
         "The kb.json name for callee 0x17c9c0 (rasterizer_widget_draw_sprite2d) does not fit this use, where its single stack arg is the group's dynamic-vertex-buffer index and its short result is returned as a vertex index; the name may be misattributed.",
         "kb.json assigns 0x184610 to render.obj but the assert __FILE__ string is c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\rasterizer_transparent_geometry.c, so render.c is a mixed-TU aggregate for this address cluster."
       ]
-    },
-    "0x184710": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x184750": {
-      "kind": "function",
-      "status": "ported"
     },
     "0x1848d0": {
       "kind": "function",
@@ -19320,15 +19164,7 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x1bb640": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x1bb7d0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1bb970": {
       "kind": "function",
       "status": "ported"
     },
@@ -19388,14 +19224,6 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x1bcc10": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1bcc30": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x1bcc50": {
       "kind": "function",
       "status": "ported"
@@ -19425,10 +19253,6 @@
       "status": "ported"
     },
     "0x1bcfb0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1bd020": {
       "kind": "function",
       "status": "ported"
     },
@@ -19782,175 +19606,11 @@
       "kind": "function",
       "status": "ported"
     },
-    "0x1c1b00": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c1ba0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c1bc0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c1dc0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c1fa0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2110": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2550": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c26f0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2750": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c27f0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x1c2840": {
       "kind": "function",
       "status": "ported"
     },
-    "0x1c2890": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c29a0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c29b0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c29c0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2af0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2b10": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2b20": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2bf0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2c50": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2d20": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2e00": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2ed0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c2fb0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3080": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3160": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3250": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3320": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c33b0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3430": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3500": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c35a0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3610": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3710": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x1c3750": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c38d0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3a30": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3c40": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c3e40": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c4030": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c4210": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c4600": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c46c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -20525,10 +20185,6 @@
         "The two float parameters cached at channel+0x44 and channel+0x48 are named scalar_44/scalar_48 because their meaning is unproven; sound_dsound_channel_update_3d consumes both as 1.0-value gain sends, so they are plausibly obstruction and occlusion, but nothing in the binary names them."
       ]
     },
-    "0x1cb1d0": {
-      "kind": "function",
-      "status": "ported"
-    },
     "0x1cb790": {
       "kind": "function",
       "status": "ported"
@@ -20988,6 +20644,654 @@
     },
     "0x5065a4": {
       "kind": "data",
+      "status": "ported"
+    },
+    "0xbdef0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbdf40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbdf80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbdfa0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe030": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe0d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe150": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe190": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe270": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe2b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe370": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe440": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe500": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe550": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe5a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe5e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe620": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbeb70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc6130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc6230": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc62a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc6310": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc6380": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc63f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc6460": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc6580": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc65f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc6660": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc68b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc88b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc8f40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc95c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc95d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc95f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9650": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9770": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9840": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc99e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9a20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9a50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9b90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9bb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9bd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9c10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9c80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9d40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9d80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9de0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9e50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9ec0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9f30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc9f90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca050": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca0f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca3f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca4e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca530": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca580": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca5d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca620": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca670": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xca700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcae80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaea0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaf20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaf80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcafc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x68c40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x82c90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x89270": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x89330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x89850": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x898b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8a570": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8a5f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8aa30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8d3a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb4a70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb4fb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc8e00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaec0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaef0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcb940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xde3f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe4a40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeaba0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xead60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeb4f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xed240": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xee810": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeef30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xef3f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefa80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefc60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf3010": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf3400": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfb990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfba00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfd520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x123b30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x168cd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x168e40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x168e70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x168fd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x184710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x184750": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bb640": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bb970": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bcc10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bcc30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bd020": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c1b00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c1ba0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c1bc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c1dc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c1fa0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2550": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c26f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2750": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c27f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2890": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c29a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c29b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c29c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2af0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2b10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2b20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2bf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2c50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2d20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2e00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2ed0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c2fb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3160": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3320": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c33b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3500": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c35a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3610": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c38d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3a30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3c40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c3e40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c4030": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c4210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c4600": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c46c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cb1d0": {
+      "kind": "function",
       "status": "ported"
     }
   }
