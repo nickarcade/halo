@@ -47657,7 +47657,8 @@
     },
     {
      "addr": "0x167ff0",
-     "decl": "void FUN_00167ff0(int a1, const char *call_text);"
+     "decl": "void rasterizer_error(int a1, const char *call_text);",
+     "name": "rasterizer_error"
     }
    ]
   },
