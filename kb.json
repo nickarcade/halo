@@ -24326,13 +24326,8 @@
     },
     {
      "addr": "0x1c4850",
-<<<<<<< HEAD
      "decl": "bool enumerate_memory_units_test(file_ref_t *file_info, int32_t saved_game_file_index);",
      "comment": "[NAME: enumerate_memory_units_test — CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]"
-=======
-     "decl": "void enumerate_memory_units_test(void);",
-     "comment": "[NAME: enumerate_memory_units_test \u2014 CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]"
->>>>>>> c678ace1b (Update Batch 1.1: Recover 112 authentic HaloScript function names (3 objects))
     },
     {
      "addr": "0x1c4990",
@@ -31051,7 +31046,7 @@
     {
      "addr": "0x17ffc0",
      "decl": "float *uncompress_int32_to_real_vector3d(float *param_1, unsigned int param_2);",
-     "ported": false,
+     "ported": true,
      "name": "uncompress_int32_to_real_vector3d"
     },
     {
