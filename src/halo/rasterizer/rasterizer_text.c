@@ -598,7 +598,7 @@ unsigned int FUN_001808f0(float *param_1)
  * [-1.0, 1.0] then pack to 11-11-10 uint. Same encoding as FUN_001808f0 but
  * silently clamps out-of-range values. Verifies round-trip via uncompress_int32_to_real_vector3d.
  * layout: bits[10:0]=i, bits[21:11]=j, bits[31:22]=k (10-bit). (0x180b10) */
-unsigned int FUN_00180b10(float *param_1)
+unsigned int compress_real_vector3d_to_int32_clamp(float *param_1)
 {
   float ci;
   float cj;
@@ -614,7 +614,7 @@ unsigned int FUN_00180b10(float *param_1)
   float local_buf[3];
 
   if (param_1 == 0) {
-    display_assert("parameters",
+    display_assert("v",
                    "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0x68,
                    1);
     system_exit(-1);
@@ -924,8 +924,8 @@ void FUN_00181900(short param_1)
    *   +0x04: entry->xyz[0] (float, from puVar2[0..2])
    *   +0x08: entry->xyz[1]
    *   +0x0c: entry->xyz[2]
-   *   +0x10: FUN_00180b10(&dir_vec) = compressed normal of direction
-   *   +0x14: FUN_00180b10(&perp_vec) = compressed normal of perpendicular
+   *   +0x10: compress_real_vector3d_to_int32_clamp(&dir_vec) = compressed normal of direction
+   *   +0x14: compress_real_vector3d_to_int32_clamp(&perp_vec) = compressed normal of perpendicular
    *   +0x18: 0xffffffff (color/alpha = -1)
    *   +0x1c: 0xffff word (light_index = -1 -> scenery path)
    *   +0x1e: entry_index >> 16 (hi word of scenery marker index)
@@ -988,8 +988,8 @@ void FUN_00181900(short param_1)
     *(int *)((char *)params + 0x04) = *(int *)(entry + 0x00);
     *(int *)((char *)params + 0x08) = *(int *)(entry + 0x04);
     *(int *)((char *)params + 0x0c) = *(int *)(entry + 0x08);
-    *(unsigned int *)((char *)params + 0x10) = (unsigned int)FUN_00180b10(dir);
-    *(unsigned int *)((char *)params + 0x14) = (unsigned int)FUN_00180b10(perp);
+    *(unsigned int *)((char *)params + 0x10) = (unsigned int)compress_real_vector3d_to_int32_clamp(dir);
+    *(unsigned int *)((char *)params + 0x14) = (unsigned int)compress_real_vector3d_to_int32_clamp(perp);
     *(int *)((char *)params + 0x18) = -1;
     *(short *)((char *)params + 0x1c) = -1;
     *(short *)((char *)params + 0x1e) = (short)(entry_idx >> 16);
