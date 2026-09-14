@@ -2459,7 +2459,7 @@ bool FUN_000f9c40(int projectile_handle)
       } else {
         steer_frac = 1.0f;
       }
-      FUN_001a9520(*(int *)(proj + 0x1e8), &target_pos_x);
+      unit_get_center_of_mass(*(int *)(proj + 0x1e8), &target_pos_x);
       time_tick = game_time_get();
       tmp_int = (time_tick + (projectile_handle >> 16) * 7) & 0xffff;
       {

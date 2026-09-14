@@ -16257,111 +16257,129 @@
     },
     {
      "addr": "0x84ae0",
-     "decl": "void FUN_00084ae0(int *param_1, unsigned short *param_2, unsigned char *param_3);",
+     "decl": "void bored_camera_update(int *param_1, unsigned short *param_2, unsigned char *param_3);",
      "ported": true,
-     "source": "src/halo/objects/objects.c"
+     "source": "src/halo/objects/objects.c",
+     "name": "bored_camera_update"
     },
     {
      "addr": "0x84fe0",
-     "decl": "void FUN_00084fe0(unsigned char param_1);",
+     "decl": "void scripted_camera_enable(unsigned char param_1);",
      "ported": true,
-     "source_path": "camera/bored_camera.c"
+     "source_path": "camera/bored_camera.c",
+     "name": "scripted_camera_enable"
     },
     {
      "addr": "0x85000",
-     "decl": "void FUN_00085000(int param_1, const char *param_2);",
-     "ported": true
+     "decl": "void scripted_camera_set_animation(int param_1, const char *param_2);",
+     "ported": true,
+     "name": "scripted_camera_set_animation"
     },
     {
      "addr": "0x850d0",
-     "decl": "void FUN_000850d0(int param_1);",
+     "decl": "void scripted_camera_set_first_person(int param_1);",
      "ported": true,
-     "source_path": "camera/bored_camera.c"
+     "source_path": "camera/bored_camera.c",
+     "name": "scripted_camera_set_first_person"
     },
     {
      "addr": "0x85110",
-     "decl": "void FUN_00085110(int param_1);",
+     "decl": "void scripted_camera_set_dead(int param_1);",
      "ported": true,
-     "source_path": "camera/bored_camera.c"
+     "source_path": "camera/bored_camera.c",
+     "name": "scripted_camera_set_dead"
     },
     {
      "addr": "0x85150",
-     "decl": "int FUN_00085150(int param_1);",
+     "decl": "int scripted_camera_object_is_first_person_camera(int param_1);",
      "ported": true,
-     "source_path": "camera/bored_camera.c"
+     "source_path": "camera/bored_camera.c",
+     "name": "scripted_camera_object_is_first_person_camera"
     },
     {
      "addr": "0x85180",
-     "decl": "void FUN_00085180(short param_1, short param_2, int param_3);",
+     "decl": "void scripted_camera_set(short param_1, short param_2, int param_3);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "scripted_camera_set"
     },
     {
      "addr": "0x85260",
-     "decl": "void FUN_00085260(short param_1, short param_2);",
+     "decl": "void scripted_camera_set_absolute(short param_1, short param_2);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "scripted_camera_set_absolute"
     },
     {
      "addr": "0x85280",
-     "decl": "void FUN_00085280(float *param_1, float *param_2, float *param_3, float param_4, short param_5, int param_6);",
+     "decl": "void scripted_camera_set_camera_point_relative(float *param_1, float *param_2, float *param_3, float param_4, short param_5, int param_6);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "scripted_camera_set_camera_point_relative"
     },
     {
      "addr": "0x85350",
-     "decl": "void FUN_00085350(float *param_1, float *param_2, float *param_3, float param_4, short param_5);",
+     "decl": "void scripted_camera_set_camera_point_absolute(float *param_1, float *param_2, float *param_3, float param_4, short param_5);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "scripted_camera_set_camera_point_absolute"
     },
     {
      "addr": "0x853a0",
-     "decl": "int FUN_000853a0(void);",
+     "decl": "int scripted_camera_time(void);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "scripted_camera_time"
     },
     {
      "addr": "0x853c0",
-     "decl": "void FUN_000853c0(int param_1, unsigned short *param_2, unsigned int *param_3);",
+     "decl": "void scripted_camera_update(int param_1, unsigned short *param_2, unsigned int *param_3);",
      "ported": true,
-     "source": "src/halo/objects/objects.c"
+     "source": "src/halo/objects/objects.c",
+     "name": "scripted_camera_update"
     },
     {
      "addr": "0x9eb40",
-     "decl": "int FUN_0009eb40(int param_1, int param_2, short param_3, short param_4, short param_5);",
+     "decl": "int effect_new_looping(int param_1, int param_2, short param_3, short param_4, short param_5);",
      "ported": true,
-     "source_path": "effects/effects.c"
+     "source_path": "effects/effects.c",
+     "name": "effect_new_looping"
     },
     {
      "addr": "0x9ec30",
-     "decl": "int FUN_0009ec30(int param_1, int param_2, int param_3, short param_4, float param_5, float param_6, int param_7, int param_8);",
+     "decl": "int effect_new_from_object(int param_1, int param_2, int param_3, short param_4, float param_5, float param_6, int param_7, int param_8);",
      "ported": true,
-     "src": "src/halo/effects/effects.c"
+     "src": "src/halo/effects/effects.c",
+     "name": "effect_new_from_object"
     },
     {
      "addr": "0xadf70",
-     "decl": "int FUN_000adf70(int tag_index);",
+     "decl": "int game_engine_remap_equipment(int tag_index);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "game_engine_remap_equipment"
     },
     {
      "addr": "0xae0a0",
-     "decl": "int FUN_000ae0a0(int tag_index);",
+     "decl": "int game_engine_remap_object_definition(int tag_index);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "game_engine_remap_object_definition"
     },
     {
      "addr": "0xae110",
-     "decl": "char FUN_000ae110(int param_1, int param_2, int param_3);",
+     "decl": "char game_engine_get_state_message(int param_1, int param_2, int param_3);",
      "ported": true,
      "source_path": "objects/objects.c",
-     "src": "src/halo/objects/objects.c"
+     "src": "src/halo/objects/objects.c",
+     "name": "game_engine_get_state_message"
     },
     {
      "addr": "0xae250",
-     "decl": "int FUN_000ae250(int param_1);",
+     "decl": "int game_engine_did_player_win_default(int param_1);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "game_engine_did_player_win_default"
     },
     {
      "addr": "0x132fb0",
@@ -16370,9 +16388,10 @@
     },
     {
      "addr": "0x1330a0",
-     "decl": "void FUN_001330a0(int widget_datum);",
+     "decl": "void glow_delete(int widget_datum);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "glow_delete"
     },
     {
      "addr": "0x1330f0",
@@ -16403,8 +16422,9 @@
     },
     {
      "addr": "0x133520",
-     "decl": "void FUN_00133520(int object_handle, int widget_datum);",
-     "ported": true
+     "decl": "void glow_render(int object_handle, int widget_datum);",
+     "ported": true,
+     "name": "glow_render"
     },
     {
      "addr": "0x1335e0",
@@ -16412,9 +16432,10 @@
     },
     {
      "addr": "0x1336a0",
-     "decl": "void FUN_001336a0(float *out_xyz, float *pt_a, float *pt_b, float *pt_c, float *pt_d, float w_a, float w_b, float w_c, float w_d, float w_e);",
+     "decl": "void nonuniform_cubic_spline_vector3d(float *out_xyz, float *pt_a, float *pt_b, float *pt_c, float *pt_d, float w_a, float w_b, float w_c, float w_d, float w_e);",
      "ported": true,
-     "source_path": "src/halo/objects/objects.c"
+     "source_path": "src/halo/objects/objects.c",
+     "name": "nonuniform_cubic_spline_vector3d"
     },
     {
      "addr": "0x1337c0",
@@ -16428,15 +16449,17 @@
     },
     {
      "addr": "0x134070",
-     "decl": "void FUN_00134070(int particle_ptr@<esi>, int glow_widget_ptr@<edi>, int object_handle, float delta, float ratio);",
+     "decl": "void glow_normal_particle_update_position(int particle_ptr@<esi>, int glow_widget_ptr@<edi>, int object_handle, float delta, float ratio);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "glow_normal_particle_update_position"
     },
     {
      "addr": "0x1342a0",
-     "decl": "void FUN_001342a0(int glow_widget_ptr@<esi>);",
+     "decl": "void glow_particles_initialize(int glow_widget_ptr@<esi>);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "glow_particles_initialize"
     },
     {
      "addr": "0x134350",
@@ -16446,51 +16469,59 @@
     },
     {
      "addr": "0x134ae0",
-     "decl": "void FUN_00134ae0(int object_handle, int widget_datum);",
-     "name": null,
+     "decl": "void glow_submit(int object_handle, int widget_datum);",
+     "name": "glow_submit",
      "ported": true
     },
     {
      "addr": "0x134be0",
-     "decl": "int FUN_00134be0(int param_1);",
-     "ported": true
+     "decl": "int light_volume_new(int param_1);",
+     "ported": true,
+     "name": "light_volume_new"
     },
     {
      "addr": "0x134c20",
-     "decl": "void FUN_00134c20(int param_1);",
-     "ported": true
+     "decl": "void light_volume_delete(int param_1);",
+     "ported": true,
+     "name": "light_volume_delete"
     },
     {
      "addr": "0x134c40",
-     "decl": "void *FUN_00134c40(int definition_ptr@<ebx>, int object_handle);",
+     "decl": "void *light_volume_interpolate_frames(int definition_ptr@<ebx>, int object_handle);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "light_volume_interpolate_frames"
     },
     {
      "addr": "0x134e50",
-     "decl": "float FUN_00134e50(float param_1, float param_2);",
+     "decl": "float pow1(float param_1, float param_2);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "pow1"
     },
     {
      "addr": "0x134e80",
-     "decl": "void FUN_00134e80(int object_handle, int light_volume_datum);",
-     "ported": true
+     "decl": "void light_volume_render(int object_handle, int light_volume_datum);",
+     "ported": true,
+     "name": "light_volume_render"
     },
     {
      "addr": "0x135210",
-     "decl": "void FUN_00135210(int object_handle, int light_volume_datum, int param_3, int param_4);",
-     "ported": true
+     "decl": "void light_volume_submit(int object_handle, int light_volume_datum, int param_3, int param_4);",
+     "ported": true,
+     "name": "light_volume_submit"
     },
     {
      "addr": "0x1353b0",
-     "decl": "int FUN_001353b0(int param_1);",
-     "ported": true
+     "decl": "int lightning_new(int param_1);",
+     "ported": true,
+     "name": "lightning_new"
     },
     {
      "addr": "0x1353f0",
-     "decl": "void FUN_001353f0(int param_1);",
-     "ported": true
+     "decl": "void lightning_delete(int param_1);",
+     "ported": true,
+     "name": "lightning_delete"
     },
     {
      "addr": "0x135420",
@@ -16499,63 +16530,71 @@
     },
     {
      "addr": "0x135510",
-     "decl": "void FUN_00135510(int *param_1, int param_2, int param_3, int *param_4);",
+     "decl": "void lightning_submit(int *param_1, int param_2, int param_3, int *param_4);",
      "ported": true,
-     "source": "src/halo/objects/objects.c"
+     "source": "src/halo/objects/objects.c",
+     "name": "lightning_submit"
     },
     {
      "addr": "0x135f20",
-     "decl": "short FUN_00135f20(int group_tag);",
-     "name": "FUN_00135f20",
+     "decl": "short tag_group_to_widget_type(int group_tag);",
+     "name": "tag_group_to_widget_type",
      "ported": true
     },
     {
      "addr": "0x135f90",
-     "decl": "void FUN_00135f90(void);",
-     "ported": true
+     "decl": "void widgets_initialize(void);",
+     "ported": true,
+     "name": "widgets_initialize"
     },
     {
      "addr": "0x136040",
-     "decl": "void FUN_00136040(void);",
-     "ported": true
+     "decl": "void widgets_initialize_for_new_map(void);",
+     "ported": true,
+     "name": "widgets_initialize_for_new_map"
     },
     {
      "addr": "0x1360a0",
-     "decl": "void FUN_001360a0(void);",
-     "ported": true
+     "decl": "void widgets_dispose_from_old_map(void);",
+     "ported": true,
+     "name": "widgets_dispose_from_old_map"
     },
     {
      "addr": "0x136100",
-     "decl": "void FUN_00136100(void);",
-     "ported": true
+     "decl": "void widgets_dispose(void);",
+     "ported": true,
+     "name": "widgets_dispose"
     },
     {
      "addr": "0x136150",
-     "decl": "void FUN_00136150(int object_handle);",
-     "ported": true
+     "decl": "void widgets_new(int object_handle);",
+     "ported": true,
+     "name": "widgets_new"
     },
     {
      "addr": "0x1362d0",
-     "decl": "void FUN_001362d0(int object_handle);",
-     "ported": true
+     "decl": "void widgets_delete(int object_handle);",
+     "ported": true,
+     "name": "widgets_delete"
     },
     {
      "addr": "0x1363d0",
-     "decl": "int FUN_001363d0(int param_1);",
-     "name": "FUN_001363d0",
+     "decl": "int widgets_need_lighting(int param_1);",
+     "name": "widgets_need_lighting",
      "ported": true
     },
     {
      "addr": "0x1365d0",
-     "decl": "void FUN_001365d0(int object_handle, float *body_vitality_override, float *shield_vitality_override);",
-     "name": "FUN_001365d0",
+     "decl": "void object_initialize_vitality(int object_handle, float *body_vitality_override, float *shield_vitality_override);",
+     "name": "object_initialize_vitality",
      "ported": true
     },
     {
      "addr": "0x1366b0",
-     "decl": "float FUN_001366b0(int object_handle, char use_raw_max);",
+     "decl": "float object_get_maximum_body_vitality(int object_handle, char use_raw_max);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "object_get_maximum_body_vitality"
     },
     {
      "addr": "0x1396e0",
@@ -16564,110 +16603,125 @@
     },
     {
      "addr": "0x1397f0",
-     "decl": "float FUN_001397f0(float param_1, float param_2);",
-     "name": "FUN_001397f0",
+     "decl": "float light_attenuation(float param_1, float param_2);",
+     "name": "light_attenuation",
      "ported": true
     },
     {
      "addr": "0x139810",
-     "decl": "void FUN_00139810(float *color@<ecx>, float scale);",
+     "decl": "void brighten_real_rgb_color(float *color@<ecx>, float scale);",
      "ported": true,
      "reg_args": {
       "color": "ecx"
-     }
+     },
+     "name": "brighten_real_rgb_color"
     },
     {
      "addr": "0x1398b0",
-     "decl": "void FUN_001398b0(int *param_1, int param_2);",
-     "ported": true
+     "decl": "void cluster_get_first_light(int *param_1, int param_2);",
+     "ported": true,
+     "name": "cluster_get_first_light"
     },
     {
      "addr": "0x1398d0",
-     "decl": "void FUN_001398d0(int *param_1);",
-     "ported": true
+     "decl": "void cluster_get_next_light(int *param_1);",
+     "ported": true,
+     "name": "cluster_get_next_light"
     },
     {
      "addr": "0x139930",
-     "decl": "int FUN_00139930(int param_1);",
-     "name": "FUN_00139930",
+     "decl": "int light_unmarked(int param_1);",
+     "name": "light_unmarked",
      "ported": true
     },
     {
      "addr": "0x139990",
-     "decl": "int FUN_00139990(int param_1);",
-     "ported": true
+     "decl": "int light_mark(int param_1);",
+     "ported": true,
+     "name": "light_mark"
     },
     {
      "addr": "0x139a30",
-     "decl": "void FUN_00139a30(int param_1);",
+     "decl": "void render_debug_light(int param_1);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "render_debug_light"
     },
     {
      "addr": "0x139b40",
-     "decl": "void FUN_00139b40(int param_1, int *param_2, int param_3, int param_4, float *param_5, float param_6);",
+     "decl": "void lights_queue_lens_flare(int param_1, int *param_2, int param_3, int param_4, float *param_5, float param_6);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "lights_queue_lens_flare"
     },
     {
      "addr": "0x139c20",
-     "decl": "void FUN_00139c20(int object_handle, int16_t marker_index, float *position, float bias, int out_index_base, float *out_weights, int out_atten_base, int16_t *count, int16_t max_count);",
-     "ported": true
+     "decl": "void find_point_lights_for_object_in_cluster(int object_handle, int16_t marker_index, float *position, float bias, int out_index_base, float *out_weights, int out_atten_base, int16_t *count, int16_t max_count);",
+     "ported": true,
+     "name": "find_point_lights_for_object_in_cluster"
     },
     {
      "addr": "0x139e50",
-     "decl": "void FUN_00139e50(unsigned int param_1, float *param_2, float *param_3, float param_4, float *color_ptr@<ebx>, float *output_ptr@<esi>, float *intensity_ptr@<edi>);",
+     "decl": "void build_distant_lights(unsigned int param_1, float *param_2, float *param_3, float param_4, float *color_ptr@<ebx>, float *output_ptr@<esi>, float *intensity_ptr@<edi>);",
      "ported": true,
      "reg_args": {
       "color_ptr": "ebx",
       "intensity_ptr": "edi",
       "output_ptr": "esi"
      },
-     "source": "src/halo/objects/objects.c"
+     "source": "src/halo/objects/objects.c",
+     "name": "build_distant_lights"
     },
     {
      "addr": "0x13a250",
-     "decl": "void FUN_0013a250(int light_handle@<eax>, float *out_position@<edi>, float *out_radius@<ebx>, char param_1, char param_2, char param_3);",
+     "decl": "void light_compute_bounding_sphere(int light_handle@<eax>, float *out_position@<edi>, float *out_radius@<ebx>, char param_1, char param_2, char param_3);",
      "ported": true,
      "reg_args": {
       "light_handle": "eax",
       "out_position": "edi",
       "out_radius": "ebx"
-     }
+     },
+     "name": "light_compute_bounding_sphere"
     },
     {
      "addr": "0x13a340",
-     "decl": "void FUN_0013a340(int param_1, float *param_2, float *param_3);",
+     "decl": "void light_get_bounding_sphere(int param_1, float *param_2, float *param_3);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "light_get_bounding_sphere"
     },
     {
      "addr": "0x13a420",
-     "decl": "void FUN_0013a420(void);",
-     "ported": true
+     "decl": "void lights_render_diffuse(void);",
+     "ported": true,
+     "name": "lights_render_diffuse"
     },
     {
      "addr": "0x13a5f0",
-     "decl": "void FUN_0013a5f0(void);",
-     "ported": true
+     "decl": "void lights_render_specular(void);",
+     "ported": true,
+     "name": "lights_render_specular"
     },
     {
      "addr": "0x13a740",
-     "decl": "void FUN_0013a740(int param_1, int param_2, float *param_3);",
+     "decl": "void lights_illumination_at_point(int param_1, int param_2, float *param_3);",
      "ported": true,
-     "source": "src/halo/objects/objects.c"
+     "source": "src/halo/objects/objects.c",
+     "name": "lights_illumination_at_point"
     },
     {
      "addr": "0x13aa10",
-     "decl": "void FUN_0013aa10(int param_1, int param_2);",
+     "decl": "void lights_prepare_for_object_dynamic(int param_1, int param_2);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "lights_prepare_for_object_dynamic"
     },
     {
      "addr": "0x13ab20",
-     "decl": "char FUN_0013ab20(unsigned int param_1, int param_2, int *param_3);",
+     "decl": "char lights_distant_lighting_at_point(unsigned int param_1, int param_2, int *param_3);",
      "ported": true,
-     "source": "src/halo/objects/objects.c"
+     "source": "src/halo/objects/objects.c",
+     "name": "lights_distant_lighting_at_point"
     },
     {
      "addr": "0x13aed0",
@@ -16676,199 +16730,236 @@
     },
     {
      "addr": "0x13b150",
-     "decl": "void FUN_0013b150(void);",
+     "decl": "void lights_reconnect_to_structure_bsp(void);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "lights_reconnect_to_structure_bsp"
     },
     {
      "addr": "0x13b1b0",
-     "decl": "int FUN_0013b1b0(int tag_index, int object_handle, short attachment_index, short marker_index, short secondary_marker_index);",
+     "decl": "int light_new(int tag_index, int object_handle, short attachment_index, short marker_index, short secondary_marker_index);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "light_new"
     },
     {
      "addr": "0x13b290",
-     "decl": "int FUN_0013b290(int tag_index, int object_handle, int16_t marker, float *position, float *forward, int unknown);",
-     "ported": true
+     "decl": "int light_new_unattached(int tag_index, int object_handle, int16_t marker, float *position, float *forward, int unknown);",
+     "ported": true,
+     "name": "light_new_unattached"
     },
     {
      "addr": "0x13b380",
-     "decl": "void FUN_0013b380(void);",
+     "decl": "void lights_preprocess_scene(void);",
      "ported": true,
-     "source": "src/halo/objects/objects.c"
+     "source": "src/halo/objects/objects.c",
+     "name": "lights_preprocess_scene"
     },
     {
      "addr": "0x13bce0",
-     "decl": "void FUN_0013bce0(int object_handle, float *lighting);",
-     "ported": true
+     "decl": "void lights_prepare_for_object_static(int object_handle, float *lighting);",
+     "ported": true,
+     "name": "lights_prepare_for_object_static"
     },
     {
      "addr": "0x13c030",
-     "decl": "void FUN_0013c030(int param_1, int param_2, int param_3);",
+     "decl": "void build_family_shadow(int param_1, int param_2, int param_3);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "build_family_shadow"
     },
     {
      "addr": "0x13c080",
-     "decl": "char FUN_0013c080(int param_1, int param_2, int *param_3);",
+     "decl": "char object_build_shadow(int param_1, int param_2, int *param_3);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "object_build_shadow"
     },
     {
      "addr": "0x13c100",
-     "decl": "void *FUN_0013c100(int16_t object_type);",
+     "decl": "void *object_type_definition_get(int16_t object_type);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "object_type_definition_get"
     },
     {
      "addr": "0x13c1b0",
-     "decl": "short FUN_0013c1b0(short param_1);",
+     "decl": "short object_type_get_datum_size(short param_1);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "object_type_get_datum_size"
     },
     {
      "addr": "0x13c250",
-     "decl": "void *FUN_0013c250(int16_t param_1);",
-     "ported": true
+     "decl": "void *object_type_get_name(int16_t param_1);",
+     "ported": true,
+     "name": "object_type_get_name"
     },
     {
      "addr": "0x13c2e0",
-     "decl": "void FUN_0013c2e0(void);",
-     "ported": true
+     "decl": "void object_types_initialize(void);",
+     "ported": true,
+     "name": "object_types_initialize"
     },
     {
      "addr": "0x13c3a0",
-     "decl": "void FUN_0013c3a0(void);",
-     "ported": true
+     "decl": "void object_types_dispose(void);",
+     "ported": true,
+     "name": "object_types_dispose"
     },
     {
      "addr": "0x13c3d0",
-     "decl": "void FUN_0013c3d0(void);",
-     "ported": true
+     "decl": "void object_types_initialize_for_new_map(void);",
+     "ported": true,
+     "name": "object_types_initialize_for_new_map"
     },
     {
      "addr": "0x13c400",
-     "decl": "void FUN_0013c400(void);",
-     "ported": true
+     "decl": "void object_types_dispose_from_old_map(void);",
+     "ported": true,
+     "name": "object_types_dispose_from_old_map"
     },
     {
      "addr": "0x13c430",
-     "decl": "void FUN_0013c430(int param_1, void *param_2);",
-     "ported": true
+     "decl": "void object_type_adjust_placement(int param_1, void *param_2);",
+     "ported": true,
+     "name": "object_type_adjust_placement"
     },
     {
      "addr": "0x13c490",
-     "decl": "char FUN_0013c490(int object_handle);",
-     "ported": true
+     "decl": "char object_type_new(int object_handle);",
+     "ported": true,
+     "name": "object_type_new"
     },
     {
      "addr": "0x13c500",
-     "decl": "void FUN_0013c500(int param_1, int param_2);",
-     "ported": true
+     "decl": "void object_type_place(int param_1, int param_2);",
+     "ported": true,
+     "name": "object_type_place"
     },
     {
      "addr": "0x13c560",
-     "decl": "void FUN_0013c560(int param_1);",
-     "ported": true
+     "decl": "void object_type_delete(int param_1);",
+     "ported": true,
+     "name": "object_type_delete"
     },
     {
      "addr": "0x13c5c0",
-     "decl": "int FUN_0013c5c0(int param_1);",
-     "ported": true
+     "decl": "int object_type_update(int param_1);",
+     "ported": true,
+     "name": "object_type_update"
     },
     {
      "addr": "0x13c620",
-     "decl": "void FUN_0013c620(int param_1);",
-     "ported": true
+     "decl": "void object_type_export_function_values(int param_1);",
+     "ported": true,
+     "name": "object_type_export_function_values"
     },
     {
      "addr": "0x13c680",
-     "decl": "void FUN_0013c680(int param_1, int param_2);",
-     "ported": true
+     "decl": "void object_type_handle_deleted_object(int param_1, int param_2);",
+     "ported": true,
+     "name": "object_type_handle_deleted_object"
     },
     {
      "addr": "0x13c6e0",
-     "decl": "void FUN_0013c6e0(int object_handle, int region_index, unsigned int flags);",
-     "ported": true
+     "decl": "void object_type_handle_region_destroyed(int object_handle, int region_index, unsigned int flags);",
+     "ported": true,
+     "name": "object_type_handle_region_destroyed"
     },
     {
      "addr": "0x13c740",
-     "decl": "char FUN_0013c740(int object_handle);",
-     "ported": true
+     "decl": "char object_type_handle_parent_destroyed(int object_handle);",
+     "ported": true,
+     "name": "object_type_handle_parent_destroyed"
     },
     {
      "addr": "0x13c7a0",
-     "decl": "void FUN_0013c7a0(int param_1, int param_2);",
-     "ported": true
+     "decl": "void object_type_preprocess_node_orientations(int param_1, int param_2);",
+     "ported": true,
+     "name": "object_type_preprocess_node_orientations"
     },
     {
      "addr": "0x13c800",
-     "decl": "void FUN_0013c800(int object_handle, void *block_data);",
-     "ported": true
+     "decl": "void object_type_postprocess_node_matrices(int object_handle, void *block_data);",
+     "ported": true,
+     "name": "object_type_postprocess_node_matrices"
     },
     {
      "addr": "0x13c860",
-     "decl": "void FUN_0013c860(int object_handle);",
-     "ported": true
+     "decl": "void object_type_reset(int object_handle);",
+     "ported": true,
+     "name": "object_type_reset"
     },
     {
      "addr": "0x13c8c0",
-     "decl": "void FUN_0013c8c0(int param_1);",
-     "ported": true
+     "decl": "void object_type_disconnect_from_structure_bsp(int param_1);",
+     "ported": true,
+     "name": "object_type_disconnect_from_structure_bsp"
     },
     {
      "addr": "0x13c920",
-     "decl": "void FUN_0013c920(int param_1);",
-     "ported": true
+     "decl": "void object_type_render_debug(int param_1);",
+     "ported": true,
+     "name": "object_type_render_debug"
     },
     {
      "addr": "0x13c980",
-     "decl": "void FUN_0013c980(int param_1, int param_2, int param_3);",
-     "ported": true
+     "decl": "void object_type_notify_impulse_sound(int param_1, int param_2, int param_3);",
+     "ported": true,
+     "name": "object_type_notify_impulse_sound"
     },
     {
      "addr": "0x13c9e0",
-     "decl": "unsigned short FUN_0013c9e0(int tag_index);",
+     "decl": "unsigned short object_definition_index_to_object_type(int tag_index);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "object_definition_index_to_object_type"
     },
     {
      "addr": "0x13ca30",
-     "decl": "int FUN_0013ca30(int param_1, int param_2, int *param_3);",
-     "ported": true
+     "decl": "int scenario_get_object_type_scenario_datums(int param_1, int param_2, int *param_3);",
+     "ported": true,
+     "name": "scenario_get_object_type_scenario_datums"
     },
     {
      "addr": "0x13cab0",
-     "decl": "int FUN_0013cab0(int param_1, int param_2);",
-     "ported": true
+     "decl": "int scenario_get_object_type_scenario_palette(int param_1, int param_2);",
+     "ported": true,
+     "name": "scenario_get_object_type_scenario_palette"
     },
     {
      "addr": "0x13cb30",
-     "decl": "void FUN_0013cb30(void);",
+     "decl": "void object_types_disconnect_from_structure_bsp(void);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "object_types_disconnect_from_structure_bsp"
     },
     {
      "addr": "0x13cb80",
-     "decl": "void FUN_0013cb80(int param_1);",
-     "ported": true
+     "decl": "void object_types_place_objects(int param_1);",
+     "ported": true,
+     "name": "object_types_place_objects"
     },
     {
      "addr": "0x13cdd0",
-     "decl": "void FUN_0013cdd0(int scenario);",
-     "ported": true
+     "decl": "void object_types_place_all(int scenario);",
+     "ported": true,
+     "name": "object_types_place_all"
     },
     {
      "addr": "0x13ce90",
-     "decl": "void FUN_0013ce90(int scenario, char editor_flag);",
+     "decl": "void object_names_postprocess(int scenario, char editor_flag);",
      "ported": true,
-     "source_path": "objects/objects.c"
+     "source_path": "objects/objects.c",
+     "name": "object_names_postprocess"
     },
     {
      "addr": "0x13cf50",
-     "decl": "int FUN_0013cf50(int param_1, short *param_2, int param_3, short param_4, short param_5);",
+     "decl": "int object_type_synchronize(int param_1, short *param_2, int param_3, short param_4, short param_5);",
      "ported": true,
-     "source": "src/halo/objects/objects.c"
+     "source": "src/halo/objects/objects.c",
+     "name": "object_type_synchronize"
     },
     {
      "addr": "0x13d570",
@@ -17001,11 +17092,12 @@
     },
     {
      "addr": "0x13df70",
-     "decl": "void object_postprocess_node_matrices(data_t *data, int object_handle@<ebx>);",
+     "decl": "void object_header_delete(data_t *data, int object_handle@<ebx>);",
      "ported": true,
      "reg_args": {
       "object_handle": "ebx"
-     }
+     },
+     "name": "object_header_delete"
     },
     {
      "addr": "0x13dfc0",
@@ -17020,8 +17112,9 @@
     },
     {
      "addr": "0x13e1a0",
-     "decl": "void FUN_0013e1a0(int object_handle@<edi>);",
-     "ported": true
+     "decl": "void object_postprocess_node_matrices(int object_handle@<edi>);",
+     "ported": true,
+     "name": "object_postprocess_node_matrices"
     },
     {
      "addr": "0x13e1f0",
@@ -17387,15 +17480,15 @@
     },
     {
      "addr": "0x141900",
-     "decl": "void FUN_00141900(void);",
-     "name": "FUN_00141900",
+     "decl": "void objects_paparazzi(void);",
+     "name": "objects_paparazzi",
      "ported": true,
      "source_path": "objects/objects.c"
     },
     {
      "addr": "0x141970",
-     "decl": "void FUN_00141970(int param_1);",
-     "name": "FUN_00141970",
+     "decl": "void object_export_function_values(int param_1);",
+     "name": "object_export_function_values",
      "ported": true,
      "source_path": "objects/objects.c"
     },
@@ -17503,13 +17596,15 @@
     },
     {
      "addr": "0x145490",
-     "decl": "void FUN_00145490(void);",
-     "ported": true
+     "decl": "void objects_memory_compact(void);",
+     "ported": true,
+     "name": "objects_memory_compact"
     },
     {
      "addr": "0x1a9520",
-     "decl": "void FUN_001a9520(int object_handle, float *out_position);",
-     "ported": true
+     "decl": "void unit_get_center_of_mass(int object_handle, float *out_position);",
+     "ported": true,
+     "name": "unit_get_center_of_mass"
     }
    ],
    "name": "objects.obj",
@@ -30354,21 +30449,24 @@
     },
     {
      "addr": "0x136580",
-     "decl": "void widgets_initialize_for_new_map(void);",
+     "decl": "void damage_initialize(void);",
      "ported": true,
-     "source_path": "objects/widgets/widgets.c"
+     "source_path": "objects/widgets/widgets.c",
+     "name": "damage_initialize"
     },
     {
      "addr": "0x1365a0",
-     "decl": "void widgets_dispose(void);",
+     "decl": "void damage_initialize_for_new_map(void);",
      "ported": true,
-     "source_path": "objects/widgets/widgets.c"
+     "source_path": "objects/widgets/widgets.c",
+     "name": "damage_initialize_for_new_map"
     },
     {
      "addr": "0x1365b0",
-     "decl": "void widgets_dispose_from_old_map(void);",
+     "decl": "void damage_dispose_from_old_map(void);",
      "ported": true,
-     "source_path": "objects/widgets/widgets.c"
+     "source_path": "objects/widgets/widgets.c",
+     "name": "damage_dispose_from_old_map"
     }
    ],
    "name": "widgets.obj",
@@ -38851,8 +38949,9 @@
     },
     {
      "addr": "0x136930",
-     "decl": "void object_get_maximum_body_vitality(int player_handle);",
-     "ported": true
+     "decl": "void object_cannot_take_damage(int player_handle);",
+     "ported": true,
+     "name": "object_cannot_take_damage"
     },
     {
      "addr": "0x136980",
@@ -39004,8 +39103,9 @@
     },
     {
      "addr": "0x139480",
-     "decl": "void FUN_00139480(void *position, void *tint_color, void *out_color, char use_lightmap);",
-     "ported": true
+     "decl": "void light_particle(void *position, void *tint_color, void *out_color, char use_lightmap);",
+     "ported": true,
+     "name": "light_particle"
     },
     {
      "addr": "0x1391e0",
@@ -39034,13 +39134,14 @@
     },
     {
      "addr": "0x139350",
-     "decl": "int16_t FUN_00139350(int light_handle@<eax>, int16_t *out_buffer@<ebx>, int16_t max_count@<di>);",
+     "decl": "int16_t light_build_cluster_array(int light_handle@<eax>, int16_t *out_buffer@<ebx>, int16_t max_count@<di>);",
      "reg_args": {
       "light_handle": "eax",
       "max_count": "di",
       "out_buffer": "ebx"
      },
-     "ported": true
+     "ported": true,
+     "name": "light_build_cluster_array"
     },
     {
      "addr": "0x1393b0",

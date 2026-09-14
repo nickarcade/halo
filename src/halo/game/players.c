@@ -5344,7 +5344,7 @@ void FUN_000bea90(int16_t function_index, int thread_datum, char init)
  * callee. Evaluates the script function via hs_macro_function_evaluate(
  * function_index, thread_datum, init), which returns a pointer to an evaluation
  * record. On a non-NULL record it forwards the first dword (*record, MOV
- * EDX,[EAX]) to object_get_maximum_body_vitality, then completes the calling
+ * EDX,[EAX]) to object_cannot_take_damage, then completes the calling
  * script thread with hs_return(thread_datum, 0).
  *
  * cdecl frame (PUSH EBP; MOV EBP,ESP; PUSH ESI):
@@ -5353,7 +5353,7 @@ void FUN_000bea90(int16_t function_index, int thread_datum, char init)
  *                                           hs_return arg1
  *   init            char     [EBP+0x10]  -> arg3
  *
- * The lone PUSH EDX for object_get_maximum_body_vitality is not cleaned
+ * The lone PUSH EDX for object_cannot_take_damage is not cleaned
  * immediately; its 4-byte cleanup is folded into the ADD ESP,0xc after
  * hs_return (0xc = 8 for hs_return's two cdecl args + 4 for the single-arg
  * call). Ghidra modeled this void(void) with the three cdecl params read as
@@ -5365,7 +5365,7 @@ void FUN_000beab0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    object_get_maximum_body_vitality(*record);
+    object_cannot_take_damage(*record);
     hs_return(thread_datum, 0);
   }
 }
