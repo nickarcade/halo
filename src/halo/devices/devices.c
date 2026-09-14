@@ -642,7 +642,7 @@ void FUN_000967a0(int object_handle, int tag_index)
      * MOV EAX,[EDI+0x1b8]; PUSH EDX; PUSH EAX), never the x87 stack, so the
      * push order -- not the load order -- fixes the arguments: +0x1b8 is
      * param_5 and +0x1ac is param_6. */
-    FUN_0009ec30(tag_index, object_handle, object_handle, -1,
+    effect_new_from_object(tag_index, object_handle, object_handle, -1,
                  *(float *)(device + 0x1b8), *(float *)(device + 0x1ac), 0, 0);
   }
 }
