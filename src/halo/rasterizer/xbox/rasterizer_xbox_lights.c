@@ -401,65 +401,65 @@ int FUN_00169a50(int primary_target, int secondary_target, short iterations)
       D3DDevice_Begin(7);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_Begin(global_d3d_device, D3DPT_TRIANGLEFAN)");
       }
       D3DDevice_SetVertexData2s(4, 0, 0);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, 4, 0, 0)");
       }
       D3DDevice_SetVertexData2f(0, -1.015625f, 1.015625f);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_SetVertexData2f(global_d3d_device, VSDE_VERTEX, "
              "scale - 1.0f + mysterious_horizontal_offset, scale + 1.0f)");
       }
       D3DDevice_SetVertexData2s(4, 1, 0);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, 4, 1, 0)");
       }
       D3DDevice_SetVertexData2f(0, 0.984375f, 1.015625f);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_SetVertexData2f(global_d3d_device, VSDE_VERTEX, "
              "scale + 1.0f + mysterious_horizontal_offset, scale + 1.0f)");
       }
       D3DDevice_SetVertexData2s(4, 1, 1);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, 4, 1, 1)");
       }
       D3DDevice_SetVertexData2f(0, 0.984375f, -0.984375f);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_SetVertexData2f(global_d3d_device, VSDE_VERTEX, "
              "scale + 1.0f + mysterious_horizontal_offset, scale - 1.0f)");
       }
       D3DDevice_SetVertexData2s(4, 0, 1);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, 4, 0, 1)");
       }
       D3DDevice_SetVertexData2f(0, -1.015625f, -0.984375f);
       if (!success) {
         success = 0;
-        FUN_00167ff0(
+        rasterizer_error(
           0, "IDirect3DDevice8_SetVertexData2f(global_d3d_device, VSDE_VERTEX, "
              "scale - 1.0f + mysterious_horizontal_offset, scale - 1.0f)");
       }
       D3DDevice_End();
       if (!success) {
         success = 0;
-        FUN_00167ff0(0, "IDirect3DDevice8_End(global_d3d_device)");
+        rasterizer_error(0, "IDirect3DDevice8_End(global_d3d_device)");
       }
     }
 
@@ -773,7 +773,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_Begin(global_d3d_device, D3DPT_TRIANGLEFAN)");
     }
 
@@ -783,7 +783,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData4f(global_d3d_device, 9, 0.0f, 0.0f, "
            "0.0f, brightness/(real)(pass + 1))");
     }
@@ -793,7 +793,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, 4, 0, 0)");
     }
 
@@ -804,7 +804,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData2f(global_d3d_device, VSDE_VERTEX, "
            "bounds.x0 - r, bounds.y0 - r)");
     }
@@ -814,7 +814,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, 4, 1, 0)");
     }
 
@@ -824,7 +824,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData2f(global_d3d_device, VSDE_VERTEX, "
            "bounds.x1 + r, bounds.y0 - r)");
     }
@@ -834,7 +834,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, 4, 1, 1)");
     }
 
@@ -844,7 +844,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData2f(global_d3d_device, VSDE_VERTEX, "
            "bounds.x1 + r, bounds.y1 + r)");
     }
@@ -854,7 +854,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, 4, 0, 1)");
     }
 
@@ -863,7 +863,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(
+      rasterizer_error(
         0, "IDirect3DDevice8_SetVertexData2f(global_d3d_device, VSDE_VERTEX, "
            "bounds.x0 - r, bounds.y1 + r)");
     }
@@ -873,7 +873,7 @@ void FUN_00169fd0(int *sun_entry)
       success = 1;
     } else {
       success = 0;
-      FUN_00167ff0(0, "IDirect3DDevice8_End(global_d3d_device)");
+      rasterizer_error(0, "IDirect3DDevice8_End(global_d3d_device)");
     }
   }
 
