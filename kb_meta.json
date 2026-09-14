@@ -16159,6 +16159,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x180b10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x181020": {
       "kind": "function",
       "status": "unknown",
