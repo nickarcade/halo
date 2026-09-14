@@ -16147,6 +16147,10 @@
         "kb.json places 0x17ed70, 0x17edd0 and 0x17ef00 in rasterizer_sprites.obj with source rasterizer/rasterizer_sprites.c, but the single __FILE__ string \"c:\\halo\\SOURCE\\rasterizer\\rasterizer_frame_statistics.c\" at 0x2af728 is xref'd from 0x17eb53, 0x17ee17, 0x17ee40 and 0x17ff6e, bracketing all three; the true translation unit is rasterizer_frame_statistics.c, which may cap a future lift's VC71 score."
       ]
     },
+    "0x17ffc0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x180050": {
       "kind": "function",
       "status": "ported"

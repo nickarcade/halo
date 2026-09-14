@@ -489,7 +489,7 @@ int FUN_00169a50(int primary_target, int secondary_target, short iterations)
  *   +0x04  float   position x
  *   +0x08  float   position y
  *   +0x0c  float   position z
- *   +0x10  uint32  packed direction, unpacked by FUN_0017ffc0
+ *   +0x10  uint32  packed direction, unpacked by uncompress_int32_to_real_vector3d
  * On the definition:
  *   +0x10  float   glow radius — used both as the FMUL scale at 0x16a1b0 and
  *                  as the raw `radius` dword pushed to FUN_00169200 @0x16a1e1
@@ -506,7 +506,7 @@ int FUN_00169a50(int primary_target, int secondary_target, short iterations)
  *               vectors, and role (b)'s last read (0x16a1d6) precedes the call
  *               at 0x16a1eb that writes role (c).  scratch[2] then survives as
  *               the projected depth handed to SetVertexData4f.
- *   [EBP-0x34]  FUN_0017ffc0 out buffer -> screen_bounds[1..3]
+ *   [EBP-0x34]  uncompress_int32_to_real_vector3d out buffer -> screen_bounds[1..3]
  *   [EBP-0x30]  FUN_00169200 out_extent -> screen_bounds[2]
  *               Split (different sizes; merging would need pointer arithmetic
  *               into the middle of an array).  out_extent is written by the
@@ -536,7 +536,7 @@ void FUN_00169fd0(int *sun_entry)
   float vs[20]; /* EBP-0x98, uploaded whole by constant -0x44 */
   float world_point[3]; /* EBP-0x48 */
   float screen_bounds[4]; /* EBP-0x38: {left+x0, left+x1, top+y0, top+y1} */
-  float dir[3]; /* EBP-0x34: FUN_0017ffc0 output buffer */
+  float dir[3]; /* EBP-0x34: uncompress_int32_to_real_vector3d output buffer */
   float glow_extent[2]; /* EBP-0x30: FUN_00169200 out_extent, never read */
   float bounds[4]; /* EBP-0x24: {x0, x1, y0, y1} — names from strings */
   float scratch[3]; /* EBP-0x10: see slot-reuse note above */
@@ -620,7 +620,7 @@ void FUN_00169fd0(int *sun_entry)
   vs[19] = 1.0f;
   D3DDevice_SetVertexShaderConstant(-0x44, vs, 5);
 
-  unpacked = FUN_0017ffc0(dir, (unsigned int)sun_entry[4]);
+  unpacked = uncompress_int32_to_real_vector3d(dir, (unsigned int)sun_entry[4]);
   scratch[0] = unpacked[0];
   scratch[1] = unpacked[1];
   scratch[2] = unpacked[2];

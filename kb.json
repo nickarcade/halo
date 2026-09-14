@@ -30338,8 +30338,9 @@
     },
     {
      "addr": "0x17ffc0",
-     "decl": "float *FUN_0017ffc0(float *param_1, unsigned int param_2);",
-     "ported": false
+     "decl": "float *uncompress_int32_to_real_vector3d(float *param_1, unsigned int param_2);",
+     "ported": true,
+     "name": "uncompress_int32_to_real_vector3d"
     },
     {
      "addr": "0x180050",
