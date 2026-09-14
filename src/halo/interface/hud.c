@@ -306,7 +306,7 @@ void FUN_000d04d0(int local_player_index)
     return;
 
   default:
-    if (FUN_000ae110(local_player_index, (int)wchar_buf, 0x400)) {
+    if (game_engine_get_state_message(local_player_index, (int)wchar_buf, 0x400)) {
       hud_enable_custom_state_message(*(short *)0x506548, 1);
       hud_set_state_text(*(short *)0x506548, wchar_buf);
       return;

@@ -179,7 +179,7 @@ void FUN_001345b0(int glow_widget, int object_handle)
         }
       }
 
-      FUN_001342a0(glow_widget);
+      glow_particles_initialize(glow_widget);
       *(short *)(w + 0x258) = 0;
       *(char *)(w + 2) = 1;
       return;
@@ -219,7 +219,7 @@ void FUN_001345b0(int glow_widget, int object_handle)
     for (particle = *(int *)(w + 0x250); particle != 0;
          particle = *(int *)(particle + 0x5c)) {
       if ((*(unsigned char *)(particle + 0x54) & 2) == 0) {
-        FUN_00134070(particle, glow_widget, object_handle,
+        glow_normal_particle_update_position(particle, glow_widget, object_handle,
                      *(float *)0x50654c * scale_b, ratio);
         /* FUN_00133300 recomputes the particle RGB colour from the glow tag,
          * which it reaches via glow_widget passed in EBX (@<ebx>).  The
