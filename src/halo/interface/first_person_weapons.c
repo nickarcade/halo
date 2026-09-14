@@ -700,7 +700,7 @@ void FUN_000dde80(int param_1)
     char *unit_obj = (char *)object_get_and_verify_type(*(int *)(fp + 4), 3);
     int16_t weapon_index = *(int16_t *)(unit_obj + 0x2a2);
 
-    weapon_handle = unit_get_weapon(*(int *)(fp + 4), weapon_index);
+    weapon_handle = unit_inventory_get_weapon(*(int *)(fp + 4), weapon_index);
     if (weapon_handle == -1)
       goto done;
 

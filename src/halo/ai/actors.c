@@ -4083,7 +4083,7 @@ bool actor_is_leaping(int actor_handle)
  *
  * Confirmed: datum_get(actor_data, actor_handle) at 0x3b280.
  * Confirmed: object_get_and_verify_type with type_mask 3 at 0x3b2a5, 0x3b2ee.
- * Confirmed: unit_get_weapon at 0x3b2bb, 0x3b2ff.
+ * Confirmed: unit_inventory_get_weapon at 0x3b2bb, 0x3b2ff.
  * Confirmed: tag_get(0x61637476, actor+0x5c) at 0x3b2d9.
  * Confirmed: first path uses XOR EDX,EDX; MOV DX (zero-extend) for
  * weapon_index. Confirmed: second path uses MOVSX (sign-extend) for
@@ -4100,7 +4100,7 @@ int actor_attacking_target(int actor_handle)
   if (((actor_t *)actor)->field_161 != 0 &&
       ((actor_t *)actor)->field_158 != -1) {
     unit = (char *)object_get_and_verify_type(((actor_t *)actor)->field_158, 3);
-    result = unit_get_weapon(((actor_t *)actor)->field_158,
+    result = unit_inventory_get_weapon(((actor_t *)actor)->field_158,
                              (int)(uint16_t)(*(int16_t *)(unit + 0x2a2)));
     if (result != -1) {
       return result;
@@ -4112,7 +4112,7 @@ int actor_attacking_target(int actor_handle)
     if ((*(unsigned char *)actv & 0x40) == 0) {
       unit =
         (char *)object_get_and_verify_type(((actor_t *)actor)->field_018, 3);
-      return unit_get_weapon(((actor_t *)actor)->field_018,
+      return unit_inventory_get_weapon(((actor_t *)actor)->field_018,
                              (int)(*(int16_t *)(unit + 0x2a2)));
     }
   }
@@ -4532,9 +4532,9 @@ void FUN_0003b7e0(int actor_handle, int unit_handle /* @<esi> */)
   *(float *)(control + 0x14) = global_origin[2];
 
   /* Fill facing, aiming, looking vectors from unit's current state */
-  units_debug_get_closest_unit(unit_handle, control + 0x1c);
-  unit_scripting_unit_driver(unit_handle, control + 0x28);
-  unit_scripting_unit_gunner(unit_handle, control + 0x34);
+  unit_get_facing_vector(unit_handle, control + 0x1c);
+  unit_get_aiming_vector(unit_handle, control + 0x28);
+  unit_get_looking_vector(unit_handle, control + 0x34);
 
   /* Apply the control and update weapon state */
   unit_set_control(unit_handle, control);
@@ -4633,7 +4633,7 @@ void FUN_0003b940(int actor_handle, int unit_object_index /* @<esi> */)
   *(float *)(control + 0x14) = global_forward[2];
 
   /* Get unit's current facing vector */
-  units_debug_get_closest_unit(unit_object_index, control + 0x1c);
+  unit_get_facing_vector(unit_object_index, control + 0x1c);
 
   /* Rotate facing 30 degrees around the up axis */
   up_axis = *(float **)0x31fc44;
@@ -5117,13 +5117,13 @@ void FUN_0003be90(int actor_handle)
     do {
       if (v14[i] != (short)-1) {
         action_name = (const char *)actor_action_name(v14[i]);
-        FUN_0008dc30(out_buf, action_name);
-        FUN_0008dc30(out_buf, (const char *)0x256ec8);
+        csstrcat(out_buf, action_name);
+        csstrcat(out_buf, (const char *)0x256ec8);
       }
       i = (i + 1) % 5;
     } while (i != edi);
     crt_sprintf((char *)0x5ab100, " infinite decision loop (%s)", name_buf);
-    FUN_0008dc30(out_buf, (const char *)0x5ab100);
+    csstrcat(out_buf, (const char *)0x5ab100);
   }
 
   display_assert(out_buf, "c:\\halo\\SOURCE\\ai\\actors.c", 0xd6c, 0);
@@ -6115,7 +6115,7 @@ delete_actor:
  * Confirmed: actor+0x6a == 3 and actor+0x6e > 1 condition at 0x3d021-0x3d034.
  * Confirmed: object_get_and_verify_type(actor+0x18, 3) at 0x3d040, 0x3d064.
  * Confirmed: unit_is_alive(actor+0x18) at 0x3d04e.
- * Confirmed: unit_get_weapon(actor+0x18, unit+0x2a2) at 0x3d077.
+ * Confirmed: unit_inventory_get_weapon(actor+0x18, unit+0x2a2) at 0x3d077.
  * Confirmed: accuracy clamping to [0.1f, 0.6f] at 0x3d096-0x3d0d7.
  * Confirmed: accuracy boost by 1.5x under certain conditions at
  * 0x3d0fe-0x3d12d. Confirmed: random check against accuracy at 0x3d12f-0x3d145.
@@ -6153,7 +6153,7 @@ void actor_died(int actor_handle)
       char *unit2 =
         (char *)object_get_and_verify_type(((actor_t *)actor)->field_018, 3);
       weapon_handle =
-        unit_get_weapon(((actor_t *)actor)->field_018,
+        unit_inventory_get_weapon(((actor_t *)actor)->field_018,
                         (int)(uint16_t)(*(int16_t *)(unit2 + 0x2a2)));
 
       if (weapon_handle != -1 && *(char *)(unit + 0x23c) > 0) {
@@ -6212,7 +6212,7 @@ void actor_died(int actor_handle)
   random_val = random_math_real((unsigned int *)seed);
 
   unit2 = (char *)object_get_and_verify_type(((actor_t *)actor)->field_018, 3);
-  weapon_handle = unit_get_weapon(((actor_t *)actor)->field_018,
+  weapon_handle = unit_inventory_get_weapon(((actor_t *)actor)->field_018,
                                   (int)(*(int16_t *)(unit2 + 0x2a2)));
 
   /* Check global flag for clearing weapon state */
@@ -7308,7 +7308,7 @@ LAB_3e02c:
 
   /* Facing vector: from vehicle if riding, otherwise from own biped.
    * Confirmed: CMP word[ESI+0x15e],0 at 0x3e1f7; if >= 1 use actor+0x158,
-   *   else use actor+0x18. units_debug_get_closest_unit(handle, actor+0x174) at
+   *   else use actor+0x18. unit_get_facing_vector(handle, actor+0x174) at
    * 0x3e215. */
   {
     int facing_src;
@@ -7317,7 +7317,7 @@ LAB_3e02c:
     } else {
       facing_src = ((actor_t *)actor)->field_018;
     }
-    units_debug_get_closest_unit(facing_src, actor + 0x174);
+    unit_get_facing_vector(facing_src, actor + 0x174);
   }
 
   /* On foot: if facing vector is zero-length, use default forward vector.
@@ -7342,7 +7342,7 @@ LAB_3e02c:
    * Confirmed: object_get_and_verify_type(actor+0x158, 2) at 0x3e277.
    * Confirmed: tag_get('vehi', vehicle[0]) for flag check at 0x3e280/0x3e286.
    * Confirmed: flag bit 0x100 at tag+0x2f0 → if set, use
-   * units_debug_get_closest_unit for aiming from own position; else copy
+   * unit_get_facing_vector for aiming from own position; else copy
    * vehicle+0x1ec..0x1f4. Confirmed: biped+0x1ec..0x1f4 for on-foot path
    * (0x3e2ae/0x3e2c6). Confirmed: biped+500 (0x1f4) used as int (500 == 0x1f4).
    */
@@ -7361,8 +7361,8 @@ LAB_3e02c:
       *(int *)(actor + 0x184) = *(int *)(vehi_obj + 0x1f0);
       *(int *)(actor + 0x188) = *(int *)(vehi_obj + 0x1f4);
     } else {
-      units_debug_get_closest_unit(((actor_t *)actor)->field_018,
-                                   actor + 0x180);
+      unit_get_facing_vector(((actor_t *)actor)->field_018,
+                             actor + 0x180);
     }
   }
 
