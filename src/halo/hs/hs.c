@@ -9282,19 +9282,19 @@ void hs_function_format_usage(int16_t function_index, char *buffer)
   usage = *(const char **)(desc + 0x14);
   if (usage != NULL) {
     crt_sprintf(buffer + csstrlen(buffer), " %s", usage);
-    FUN_0008dc30(buffer, ")");
+    csstrcat(buffer, ")");
     return;
   }
 
   for (i = 0; i < *(int16_t *)(desc + 0x18); i++) {
-    FUN_0008dc30(buffer, " <");
-    FUN_0008dc30(
+    csstrcat(buffer, " <");
+    csstrcat(
       buffer,
       ((const char **)0x2f14a8)[(int)*(int16_t *)(desc + (int)i * 2 + 0x1a)]);
-    FUN_0008dc30(buffer, ">");
+    csstrcat(buffer, ">");
   }
 
-  FUN_0008dc30(buffer, ")");
+  csstrcat(buffer, ")");
   return;
 }
 

@@ -1604,7 +1604,7 @@ skip_mark_unable:
   look_anim = *(int16_t *)(state + 0xc);
   if (look_anim >= 9 && look_anim <= 12) {
     if (((actor_t *)actor)->field_018 != -1) {
-      if ((char)FUN_001a6bc0(((actor_t *)actor)->field_018) == 0) {
+      if ((char)unit_is_speaking(((actor_t *)actor)->field_018) == 0) {
         *(char *)(state + 0x10) = 0;
       }
     }
@@ -1624,9 +1624,9 @@ skip_mark_unable:
   /* Dispatch flee vocal/sound based on look_anim type */
   look_anim = *(int16_t *)(state + 0xc);
   if (look_anim == 0xc || look_anim == 0xb) {
-    FUN_001a74d0(((actor_t *)actor)->field_018, 2);
+    unit_scream(((actor_t *)actor)->field_018, 2);
   } else if (look_anim == 9 || look_anim == 0xa) {
-    FUN_001a74d0(((actor_t *)actor)->field_018, 1);
+    unit_scream(((actor_t *)actor)->field_018, 1);
   } else {
     /* Encounter-based flee sound */
     enc_val = -1;
@@ -3084,7 +3084,7 @@ void action_obey_describe_command(void *scenario_data, short *cmd, char *out_buf
     return;
   }
   case 16:
-    snprintf(out_buf, out_size, "vocalize %s", FUN_001a67b0(sub_type, 0));
+    snprintf(out_buf, out_size, "vocalize %s", dialogue_get_vocalization_name(sub_type, 0));
     return;
   case 17: {
     const char *toggle_names[2] = { "enable", "disable" };
@@ -3232,7 +3232,7 @@ void action_obey_directmovement_update_facing(char *state_data, int actor_handle
     facing[1] = ((actor_t *)actor)->input_facing_vector[1];
     facing[2] = ((actor_t *)actor)->input_facing_vector[2];
   } else {
-    units_debug_get_closest_unit(object_handle, &facing[0]);
+    unit_get_facing_vector(object_handle, &facing[0]);
   }
 
   switch (*(short *)(state_data + 8)) {
@@ -3922,7 +3922,7 @@ bool action_obey_command_begin(int actor_handle, short scenario_idx, char *state
     seat_slot = *(unsigned short *)(atom + 1);
     unit_out = -1;
     seat_count =
-      FUN_001a68d0(unit_handle, 6, 1, 1, 0, (short *)&seat_slot, &unit_out);
+      unit_test_speech(unit_handle, 6, 1, 1, 0, (short *)&seat_slot, &unit_out);
     if (seat_count < 1) {
       break;
     }
@@ -3931,7 +3931,7 @@ bool action_obey_command_begin(int actor_handle, short scenario_idx, char *state
     *(int *)(comm + 4) = unit_out;
     *(short *)comm = 6;
     ai_communication_packet_new(comm + 0x10);
-    FUN_001a6ef0(unit_handle, seat_count, comm);
+    unit_speak(unit_handle, seat_count, comm);
     result = 1;
     break;
 
@@ -3944,7 +3944,7 @@ bool action_obey_command_begin(int actor_handle, short scenario_idx, char *state
       break;
     }
     elem = (int *)tag_block_get_element(cmd_list + 0x3c, (int)mode, 0x14);
-    units_debug_get_closest_unit(unit_handle, pos);
+    unit_get_facing_vector(unit_handle, pos);
     mode = atom[7];
     if (mode >= 0 && (int)mode < *(int *)(cmd_list + 0x3c)) {
       elem2 = (int *)tag_block_get_element(cmd_list + 0x3c, (int)mode, 0x14);
@@ -3967,11 +3967,11 @@ bool action_obey_command_begin(int actor_handle, short scenario_idx, char *state
          * ("unit-preprocess-nodes"). */
         pos[2] = 0.0f;
         if (magnitude3d(pos) == *(float *)0x2533c0) {
-          units_debug_get_closest_unit(unit_handle, pos);
+          unit_get_facing_vector(unit_handle, pos);
         }
       } else {
         if (normalize3d(pos) == *(float *)0x2533c0) {
-          units_debug_get_closest_unit(unit_handle, pos);
+          unit_get_facing_vector(unit_handle, pos);
         }
       }
     }
@@ -6925,7 +6925,7 @@ short actor_select_firing_position(int actor_handle, void *eval_ctx, int *out_re
               *(short *)(ctx + *(short *)(ctx + 0x254) * 0x1c + 0x25c) = 2;
               *(vector3_t *)(ctx + *(short *)(ctx + 0x254) * 0x1c + 0x260) =
                 *(vector3_t *)(it + 0xbc);
-              unit_scripting_unit_driver(
+              unit_get_aiming_vector(
                 aim, ctx + *(short *)(ctx + 0x254) * 0x1c + 0x26c);
               *(short *)(ctx + 0x254) = *(short *)(ctx + 0x254) + 1;
               *(short *)(ctx + 0x258) = *(short *)(ctx + 0x258) + 1;
