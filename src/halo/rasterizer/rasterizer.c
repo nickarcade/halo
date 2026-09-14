@@ -5315,7 +5315,7 @@ bool FUN_0017a8a0(float *point, float radius, float *out_extent,
  *  - The two float arguments are forwarded as raw dwords through EAX/ECX with
  *    no FLD/FSTP anywhere, i.e. a pure bit passthrough. Typing them `float`
  *    matches the callee's kb.json declaration and avoids the FILD/int
- *    conversion that an int-typed passthrough would emit (FUN_001a7c70 class).
+ *    conversion that an int-typed passthrough would emit (units_scripting_set_current_vitality class).
  *  - XOR EAX,EAX before the RET is a real `return 0` (S_OK), not a dead
  *    write; lifting this as void would be the §16 void-EAX hazard.
  *

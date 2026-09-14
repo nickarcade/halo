@@ -5696,8 +5696,9 @@
     },
     {
      "addr": "0x8dd30",
-     "decl": "char *csstrcat(char *destination, const char *source, size_t max_size);",
-     "ported": true
+     "decl": "char *csstrncat(char *destination, const char *source, size_t max_size);",
+     "ported": true,
+     "name": "csstrncat"
     },
     {
      "addr": "0x8de70",
@@ -28348,18 +28349,21 @@
    "functions": [
     {
      "addr": "0x1a01d0",
-     "decl": "void FUN_001a01d0(float *forward, float *left, float *up);",
-     "ported": true
+     "decl": "void validate_real_vector3d_axes3(float *forward, float *left, float *up);",
+     "ported": true,
+     "name": "validate_real_vector3d_axes3"
     },
     {
      "addr": "0x1a03c0",
-     "decl": "void FUN_001a03c0(int unit_handle@<eax>, int node_count, float *positions, void *nodes@<edi>);",
-     "ported": true
+     "decl": "void biped_limp_noodle_adjust_orientations(int unit_handle@<eax>, int node_count, float *positions, void *nodes@<edi>);",
+     "ported": true,
+     "name": "biped_limp_noodle_adjust_orientations"
     },
     {
      "addr": "0x1a0680",
-     "decl": "char FUN_001a0680(int unit_handle);",
-     "ported": true
+     "decl": "char biped_limp_noodle_relax_nodes_onto_environment(int unit_handle);",
+     "ported": true,
+     "name": "biped_limp_noodle_relax_nodes_onto_environment"
     },
     {
      "addr": "0x1a07c0",
@@ -28398,8 +28402,9 @@
     },
     {
      "addr": "0x1a0a40",
-     "decl": "void FUN_001a0a40(int contact_handle@<edi>, int unit_handle@<ebx>, float *velocity_ptr);",
-     "ported": true
+     "decl": "void biped_bumped_object(int contact_handle@<edi>, int unit_handle@<ebx>, float *velocity_ptr);",
+     "ported": true,
+     "name": "biped_bumped_object"
     },
     {
      "addr": "0x1a0b30",
@@ -28408,8 +28413,9 @@
     },
     {
      "addr": "0x1a0be0",
-     "decl": "void FUN_001a0be0(float vertical_speed, int unit_handle@<edi>);",
-     "ported": true
+     "decl": "void biped_falling_damage(float vertical_speed, int unit_handle@<edi>);",
+     "ported": true,
+     "name": "biped_falling_damage"
     },
     {
      "addr": "0x1a0db0",
@@ -28418,13 +28424,15 @@
     },
     {
      "addr": "0x1a0e00",
-     "decl": "void FUN_001a0e00(float threshold, int unit_handle@<eax>);",
-     "ported": true
+     "decl": "void biped_start_landing(float threshold, int unit_handle@<eax>);",
+     "ported": true,
+     "name": "biped_start_landing"
     },
     {
      "addr": "0x1a0f10",
-     "decl": "void FUN_001a0f10(int unit_handle, int param_2, short index@<bx>);",
-     "ported": true
+     "decl": "void biped_make_footstep(int unit_handle, int param_2, short index@<bx>);",
+     "ported": true,
+     "name": "biped_make_footstep"
     },
     {
      "addr": "0x1a1020",
@@ -28459,8 +28467,9 @@
     },
     {
      "addr": "0x1a1a10",
-     "decl": "int FUN_001a1a10(float scale, float *out_point, void *out_vec, float *direction@<eax>, int unit_handle@<edi>);",
-     "ported": true
+     "decl": "int biped_find_ground_surface(float scale, float *out_point, void *out_vec, float *direction@<eax>, int unit_handle@<edi>);",
+     "ported": true,
+     "name": "biped_find_ground_surface"
     },
     {
      "addr": "0x1a1b90",
@@ -28484,8 +28493,9 @@
     },
     {
      "addr": "0x1a1fb0",
-     "decl": "void FUN_001a1fb0(int unit_handle@<eax>);",
-     "ported": true
+     "decl": "void biped_vehicle_speech(int unit_handle@<eax>);",
+     "ported": true,
+     "name": "biped_vehicle_speech"
     },
     {
      "addr": "0x1a2160",
@@ -28494,13 +28504,15 @@
     },
     {
      "addr": "0x1a2290",
-     "decl": "char FUN_001a2290(int unit_handle@<edi>);",
-     "ported": true
+     "decl": "char biped_jump(int unit_handle@<edi>);",
+     "ported": true,
+     "name": "biped_jump"
     },
     {
      "addr": "0x1a2440",
-     "decl": "void FUN_001a2440(int unit_handle@<edi>);",
-     "ported": true
+     "decl": "void biped_try_to_make_footsteps(int unit_handle@<edi>);",
+     "ported": true,
+     "name": "biped_try_to_make_footsteps"
     },
     {
      "addr": "0x1a25e0",
@@ -28509,18 +28521,21 @@
     },
     {
      "addr": "0x1a2800",
-     "decl": "void FUN_001a2800(int unit_handle@<eax>, const char *failure_kind);",
-     "ported": true
+     "decl": "void biped_verify_object_vectors(int unit_handle@<eax>, const char *failure_kind);",
+     "ported": true,
+     "name": "biped_verify_object_vectors"
     },
     {
      "addr": "0x1a2900",
-     "decl": "void FUN_001a2900(int unit_handle, char *state);",
-     "ported": true
+     "decl": "void biped_update_airborne(int unit_handle, char *state);",
+     "ported": true,
+     "name": "biped_update_airborne"
     },
     {
      "addr": "0x1a2a60",
-     "decl": "void FUN_001a2a60(int unit_handle@<edi>, char *state);",
-     "ported": true
+     "decl": "void biped_update_landing(int unit_handle@<edi>, char *state);",
+     "ported": true,
+     "name": "biped_update_landing"
     },
     {
      "addr": "0x1a2b10",
@@ -28529,8 +28544,9 @@
     },
     {
      "addr": "0x1a2b90",
-     "decl": "void FUN_001a2b90(int unit_handle@<eax>);",
-     "ported": true
+     "decl": "void biped_update_jumping(int unit_handle@<eax>);",
+     "ported": true,
+     "name": "biped_update_jumping"
     },
     {
      "addr": "0x1a2d90",
@@ -28548,13 +28564,15 @@
     },
     {
      "addr": "0x1a4990",
-     "decl": "char FUN_001a4990(int unit_handle);",
-     "ported": true
+     "decl": "char biped_new(int unit_handle);",
+     "ported": true,
+     "name": "biped_new"
     },
     {
      "addr": "0x1a4a50",
-     "decl": "void FUN_001a4a50(int unit_handle);",
-     "ported": true
+     "decl": "void biped_preprocess_node_orientations(int unit_handle);",
+     "ported": true,
+     "name": "biped_preprocess_node_orientations"
     },
     {
      "addr": "0x1a4a70",
@@ -28576,196 +28594,232 @@
    "functions": [
     {
      "addr": "0x8dc30",
-     "decl": "char *FUN_0008dc30(char *destination, const char *source);",
-     "ported": true
+     "decl": "char *csstrcat(char *destination, const char *source);",
+     "ported": true,
+     "name": "csstrcat"
     },
     {
      "addr": "0x122a50",
-     "decl": "void FUN_00122a50(int animation, float frame_pos, float blend_weight, int node_output);",
-     "ported": true
+     "decl": "void overlay_animation_apply_continuous_scaled(int animation, float frame_pos, float blend_weight, int node_output);",
+     "ported": true,
+     "name": "overlay_animation_apply_continuous_scaled"
     },
     {
      "addr": "0x122e50",
-     "decl": "void FUN_00122e50(int animation, float *blend_params, float direction, float throttle, int node_output);",
-     "ported": true
+     "decl": "void aiming_screen_apply(int animation, float *blend_params, float direction, float throttle, int node_output);",
+     "ported": true,
+     "name": "aiming_screen_apply"
     },
     {
      "addr": "0x123470",
-     "decl": "void FUN_00123470(void *mode_tag, void *animation, int animation_index, void *out_matrix);",
-     "ported": true
+     "decl": "void animation_get_root_matrix(void *mode_tag, void *animation, int animation_index, void *out_matrix);",
+     "ported": true,
+     "name": "animation_get_root_matrix"
     },
     {
      "addr": "0x1234b0",
-     "decl": "void FUN_001234b0(void *mode_tag, void *animation, int frame_index, float *out_delta);",
-     "ported": true
+     "decl": "void animation_get_root_velocity(void *mode_tag, void *animation, int frame_index, float *out_delta);",
+     "ported": true,
+     "name": "animation_get_root_velocity"
     },
     {
      "addr": "0x123560",
-     "decl": "void FUN_00123560(int model_tag, int permutation_data, int *node_matrices, int render_data, short shader_permutation, short detail_level, unsigned char flags);",
-     "ported": true
+     "decl": "void render_model_parts(int model_tag, int permutation_data, int *node_matrices, int render_data, short shader_permutation, short detail_level, unsigned char flags);",
+     "ported": true,
+     "name": "render_model_parts"
     },
     {
      "addr": "0x1a6280",
-     "decl": "void FUN_001a6280(int unit_handle@<edi>, char *state_out@<ebx>);",
-     "ported": true
+     "decl": "void biped_update_dead(int unit_handle@<edi>, char *state_out@<ebx>);",
+     "ported": true,
+     "name": "biped_update_dead"
     },
     {
      "addr": "0x1a6350",
-     "decl": "char FUN_001a6350(int unit_handle);",
-     "ported": true
+     "decl": "char biped_update(int unit_handle);",
+     "ported": true,
+     "name": "biped_update"
     },
     {
      "addr": "0x1a67b0",
-     "decl": "char *FUN_001a67b0(short param_1, unsigned char param_2);",
+     "decl": "char *dialogue_get_vocalization_name(short param_1, unsigned char param_2);",
      "ported": true,
-     "source_path": "units/units.c"
+     "source_path": "units/units.c",
+     "name": "dialogue_get_vocalization_name"
     },
     {
      "addr": "0x1a67e0",
-     "decl": "short FUN_001a67e0(const char *param_1);",
+     "decl": "short dialogue_get_vocalization_type_by_name(const char *param_1);",
      "ported": true,
-     "source_path": "units/units.c"
+     "source_path": "units/units.c",
+     "name": "dialogue_get_vocalization_type_by_name"
     },
     {
      "addr": "0x1a6820",
-     "decl": "int FUN_001a6820(int param_1, char param_2);",
+     "decl": "int unit_definition_get_active_hud_index(int param_1, char param_2);",
      "ported": true,
-     "source_path": "units/units.c"
+     "source_path": "units/units.c",
+     "name": "unit_definition_get_active_hud_index"
     },
     {
      "addr": "0x1a6870",
-     "decl": "int FUN_001a6870(int param_1, short param_2, char param_3);",
+     "decl": "int unit_definition_get_seat_active_hud_index(int param_1, short param_2, char param_3);",
      "ported": true,
-     "source_path": "units/units.c"
+     "source_path": "units/units.c",
+     "name": "unit_definition_get_seat_active_hud_index"
     },
     {
      "addr": "0x1a68d0",
-     "decl": "short FUN_001a68d0(int unit_handle, short priority, char param_3, char param_4, int *param_5, short *vocalization_type_ref, int *sound_definition_index_ref);",
-     "name": "FUN_001a68d0",
+     "decl": "short unit_test_speech(int unit_handle, short priority, char param_3, char param_4, int *param_5, short *vocalization_type_ref, int *sound_definition_index_ref);",
+     "name": "unit_test_speech",
      "ported": true
     },
     {
      "addr": "0x1a6bc0",
-     "decl": "int FUN_001a6bc0(int param_1);",
+     "decl": "int unit_is_speaking(int param_1);",
      "ported": true,
-     "source_path": "units/units.c"
+     "source_path": "units/units.c",
+     "name": "unit_is_speaking"
     },
     {
      "addr": "0x1a6bf0",
-     "decl": "void FUN_001a6bf0(int unit_handle);",
-     "ported": true
+     "decl": "void unit_dialogue_determine_variant(int unit_handle);",
+     "ported": true,
+     "name": "unit_dialogue_determine_variant"
     },
     {
      "addr": "0x1a6ca0",
-     "decl": "char *FUN_001a6ca0(short param_1);",
+     "decl": "char *unit_get_speech_priority_name(short param_1);",
      "ported": true,
-     "source_path": "units/units.c"
+     "source_path": "units/units.c",
+     "name": "unit_get_speech_priority_name"
     },
     {
      "addr": "0x1a6cd0",
-     "decl": "short FUN_001a6cd0(const char *param_1);",
+     "decl": "short unit_get_speech_priority_by_name(const char *param_1);",
      "ported": true,
-     "source_path": "units/units.c"
+     "source_path": "units/units.c",
+     "name": "unit_get_speech_priority_by_name"
     },
     {
      "addr": "0x1a6d10",
-     "decl": "char *FUN_001a6d10(int unit_handle, char full_path, int16_t max_len, char *output);",
-     "ported": true
+     "decl": "char *unit_describe_speech(int unit_handle, char full_path, int16_t max_len, char *output);",
+     "ported": true,
+     "name": "unit_describe_speech"
     },
     {
      "addr": "0x1a6e20",
-     "decl": "void FUN_001a6e20(int unit_handle@<eax>, void *speech_item@<ecx>, short priority);",
-     "ported": true
+     "decl": "void unit_lose_speech(int unit_handle@<eax>, void *speech_item@<ecx>, short priority);",
+     "ported": true,
+     "name": "unit_lose_speech"
     },
     {
      "addr": "0x1a6ef0",
-     "decl": "void FUN_001a6ef0(int actor, short count, void *comm_buf);",
-     "ported": true
+     "decl": "void unit_speak(int actor, short count, void *comm_buf);",
+     "ported": true,
+     "name": "unit_speak"
     },
     {
      "addr": "0x1a70d0",
-     "decl": "void FUN_001a70d0(int unit_handle, int sound_tag, int sound_handle);",
-     "ported": true
+     "decl": "void unit_notify_impulse_sound(int unit_handle, int sound_tag, int sound_handle);",
+     "ported": true,
+     "name": "unit_notify_impulse_sound"
     },
     {
      "addr": "0x1a71c0",
-     "decl": "char FUN_001a71c0(int unit_handle, int *param_2, char param_3, char param_4, float param_5);",
-     "ported": true
+     "decl": "char unit_make_damage_sound(int unit_handle, int *param_2, char param_3, char param_4, float param_5);",
+     "ported": true,
+     "name": "unit_make_damage_sound"
     },
     {
      "addr": "0x1a74d0",
-     "decl": "char FUN_001a74d0(int unit_handle, int scream_type);",
-     "ported": true
+     "decl": "char unit_scream(int unit_handle, int scream_type);",
+     "ported": true,
+     "name": "unit_scream"
     },
     {
      "addr": "0x1a7650",
-     "decl": "int FUN_001a7650(void *tag_data@<ecx>, int dialogue_type);",
-     "ported": true
+     "decl": "int unit_find_dialogue_variant(void *tag_data@<ecx>, int dialogue_type);",
+     "ported": true,
+     "name": "unit_find_dialogue_variant"
     },
     {
      "addr": "0x1a7730",
-     "decl": "void FUN_001a7730(int unit_handle@<eax>);",
-     "ported": true
+     "decl": "void unit_dialogue_setup(int unit_handle@<eax>);",
+     "ported": true,
+     "name": "unit_dialogue_setup"
     },
     {
      "addr": "0x1a7790",
-     "decl": "void FUN_001a7790(int unit_handle);",
-     "ported": true
+     "decl": "void unit_dialogue_update(int unit_handle);",
+     "ported": true,
+     "name": "unit_dialogue_update"
     },
     {
      "addr": "0x1a7a90",
-     "decl": "void FUN_001a7a90(int param_1, float body_dmg, float shield_dmg);",
-     "ported": true
+     "decl": "void unit_scripting_set_maximum_vitality(int param_1, float body_dmg, float shield_dmg);",
+     "ported": true,
+     "name": "unit_scripting_set_maximum_vitality"
     },
     {
      "addr": "0x1a7ad0",
-     "decl": "void FUN_001a7ad0(int parent_handle, float param_2, float param_3);",
-     "ported": true
+     "decl": "void units_scripting_set_maximum_vitality(int parent_handle, float param_2, float param_3);",
+     "ported": true,
+     "name": "units_scripting_set_maximum_vitality"
     },
     {
      "addr": "0x1a7b50",
-     "decl": "void FUN_001a7b50(int datum_handle, float body_damage, float shield_damage);",
-     "ported": true
+     "decl": "void unit_scripting_set_current_vitality(int datum_handle, float body_damage, float shield_damage);",
+     "ported": true,
+     "name": "unit_scripting_set_current_vitality"
     },
     {
      "addr": "0x1a7c70",
-     "decl": "void FUN_001a7c70(int parent_handle, float body_damage, float shield_damage);",
-     "ported": true
+     "decl": "void units_scripting_set_current_vitality(int parent_handle, float body_damage, float shield_damage);",
+     "ported": true,
+     "name": "units_scripting_set_current_vitality"
     },
     {
      "addr": "0x1a7cc0",
-     "decl": "float FUN_001a7cc0(int datum_handle);",
-     "ported": true
+     "decl": "float unit_scripting_get_health(int datum_handle);",
+     "ported": true,
+     "name": "unit_scripting_get_health"
     },
     {
      "addr": "0x1a7d00",
-     "decl": "float FUN_001a7d00(int datum_handle);",
-     "ported": true
+     "decl": "float unit_scripting_get_shield(int datum_handle);",
+     "ported": true,
+     "name": "unit_scripting_get_shield"
     },
     {
      "addr": "0x1a7d40",
-     "decl": "int FUN_001a7d40(int datum_handle);",
-     "ported": true
+     "decl": "int unit_scripting_get_grenade_count(int datum_handle);",
+     "ported": true,
+     "name": "unit_scripting_get_grenade_count"
     },
     {
      "addr": "0x1a7d80",
-     "decl": "void FUN_001a7d80(int datum_handle, char flag);",
-     "ported": true
+     "decl": "void unit_scripting_impervious(int datum_handle, char flag);",
+     "ported": true,
+     "name": "unit_scripting_impervious"
     },
     {
      "addr": "0x1a7df0",
-     "decl": "char FUN_001a7df0(int datum_handle, int param_2, int param_3, int param_4);",
-     "ported": true
+     "decl": "char unit_scripting_start_user_animation_list(int datum_handle, int param_2, int param_3, int param_4);",
+     "ported": true,
+     "name": "unit_scripting_start_user_animation_list"
     },
     {
      "addr": "0x1a7e70",
-     "decl": "char FUN_001a7e70(int unit_handle, int definition_index);",
-     "ported": true
+     "decl": "char unit_scripting_has_weapon(int unit_handle, int definition_index);",
+     "ported": true,
+     "name": "unit_scripting_has_weapon"
     },
     {
      "addr": "0x1a7ea0",
-     "decl": "char FUN_001a7ea0(int unit_handle, int weapon_def_tag);",
-     "ported": true
+     "decl": "char unit_scripting_has_weapon_readied(int unit_handle, int weapon_def_tag);",
+     "ported": true,
+     "name": "unit_scripting_has_weapon_readied"
     },
     {
      "addr": "0x1a7f80",
@@ -28814,8 +28868,9 @@
     },
     {
      "addr": "0x1a8550",
-     "decl": "char FUN_001a8550(void *plan@<ecx>, float delta_time, float position, float *out_position, float velocity, float *out_velocity);",
-     "ported": true
+     "decl": "char unit_euler_axis_doplan(void *plan@<ecx>, float delta_time, float position, float *out_position, float velocity, float *out_velocity);",
+     "ported": true,
+     "name": "unit_euler_axis_doplan"
     },
     {
      "addr": "0x1a8690",
@@ -28824,33 +28879,39 @@
     },
     {
      "addr": "0x1a86b0",
-     "decl": "char FUN_001a86b0(void *anim_state@<ecx>, int16_t target_state@<edx>);",
-     "ported": true
+     "decl": "char unit_animation_state_interruptable(void *anim_state@<ecx>, int16_t target_state@<edx>);",
+     "ported": true,
+     "name": "unit_animation_state_interruptable"
     },
     {
      "addr": "0x1a8730",
-     "decl": "char FUN_001a8730(void *anim_state@<ecx>);",
-     "ported": true
+     "decl": "char unit_animation_busy(void *anim_state@<ecx>);",
+     "ported": true,
+     "name": "unit_animation_busy"
     },
     {
      "addr": "0x1a8790",
-     "decl": "char FUN_001a8790(void *anim_state@<ecx>);",
-     "ported": true
+     "decl": "char unit_animation_state_loops(void *anim_state@<ecx>);",
+     "ported": true,
+     "name": "unit_animation_state_loops"
     },
     {
      "addr": "0x1a87f0",
-     "decl": "char FUN_001a87f0(void *anim_state@<ecx>);",
-     "ported": true
+     "decl": "char unit_animation_weapon_ik(void *anim_state@<ecx>);",
+     "ported": true,
+     "name": "unit_animation_weapon_ik"
     },
     {
      "addr": "0x1a8850",
-     "decl": "char FUN_001a8850(void *anim_state@<ecx>);",
-     "ported": true
+     "decl": "char unit_animation_vehicle_ik(void *anim_state@<ecx>);",
+     "ported": true,
+     "name": "unit_animation_vehicle_ik"
     },
     {
      "addr": "0x1a88b0",
-     "decl": "int FUN_001a88b0(int16_t anim_state@<ecx>);",
-     "ported": true
+     "decl": "int unit_animation_state_get_aiming_screen_index(int16_t anim_state@<ecx>);",
+     "ported": true,
+     "name": "unit_animation_state_get_aiming_screen_index"
     },
     {
      "addr": "0x1a8990",
@@ -28859,8 +28920,9 @@
     },
     {
      "addr": "0x1a8b20",
-     "decl": "void FUN_001a8b20(int object_handle @<eax>, int16_t state);",
-     "ported": true
+     "decl": "void unit_animation_start_overlay_action(int object_handle @<eax>, int16_t state);",
+     "ported": true,
+     "name": "unit_animation_start_overlay_action"
     },
     {
      "addr": "0x1a8ce0",
@@ -28930,18 +28992,21 @@
     },
     {
      "addr": "0x1a9900",
-     "decl": "void unit_scripting_unit_driver(int unit_handle, void *out_aiming);",
-     "ported": true
+     "decl": "void unit_get_aiming_vector(int unit_handle, void *out_aiming);",
+     "ported": true,
+     "name": "unit_get_aiming_vector"
     },
     {
      "addr": "0x1a9930",
-     "decl": "void unit_scripting_unit_gunner(int unit_handle, void *out_looking);",
-     "ported": true
+     "decl": "void unit_get_looking_vector(int unit_handle, void *out_looking);",
+     "ported": true,
+     "name": "unit_get_looking_vector"
     },
     {
      "addr": "0x1a9960",
-     "decl": "void units_debug_get_closest_unit(int unit_handle, void *out_facing);",
-     "ported": true
+     "decl": "void unit_get_facing_vector(int unit_handle, void *out_facing);",
+     "ported": true,
+     "name": "unit_get_facing_vector"
     },
     {
      "addr": "0x1a9980",
@@ -29005,13 +29070,15 @@
     },
     {
      "addr": "0x1a9ec0",
-     "decl": "int FUN_001a9ec0(int unit_handle);",
-     "ported": true
+     "decl": "int unit_scripting_unit_driver(int unit_handle);",
+     "ported": true,
+     "name": "unit_scripting_unit_driver"
     },
     {
      "addr": "0x1a9ef0",
-     "decl": "int FUN_001a9ef0(int unit_handle);",
-     "ported": true
+     "decl": "int unit_scripting_unit_gunner(int unit_handle);",
+     "ported": true,
+     "name": "unit_scripting_unit_gunner"
     },
     {
      "addr": "0x1a9f20",
@@ -29025,8 +29092,9 @@
     },
     {
      "addr": "0x1aa170",
-     "decl": "int FUN_001AA170(int unit_handle);",
-     "ported": true
+     "decl": "int units_debug_get_closest_unit(int unit_handle);",
+     "ported": true,
+     "name": "units_debug_get_closest_unit"
     },
     {
      "addr": "0x1aa240",
@@ -29178,8 +29246,9 @@
     },
     {
      "addr": "0x1ab6e0",
-     "decl": "const char *FUN_001ab6e0(int16_t base_seat_index@<si>);",
-     "ported": true
+     "decl": "const char *base_seat_label_get(int16_t base_seat_index@<si>);",
+     "ported": true,
+     "name": "base_seat_label_get"
     },
     {
      "addr": "0x1ab730",
@@ -29198,8 +29267,9 @@
     },
     {
      "addr": "0x1ab870",
-     "decl": "int16_t FUN_001ab870(void *animation_state@<ecx>, int animation_graph_tag_index@<edx>, int unit_handle);",
-     "ported": true
+     "decl": "int16_t unit_animation_update(void *animation_state@<ecx>, int animation_graph_tag_index@<edx>, int unit_handle);",
+     "ported": true,
+     "name": "unit_animation_update"
     },
     {
      "addr": "0x1ab8c0",
@@ -29208,8 +29278,9 @@
     },
     {
      "addr": "0x1ab940",
-     "decl": "int FUN_001ab940(int16_t weapon_index@<si>, char *unit_data);",
-     "ported": true
+     "decl": "int unit_get_weapon(int16_t weapon_index@<si>, char *unit_data);",
+     "ported": true,
+     "name": "unit_get_weapon"
     },
     {
      "addr": "0x1ab990",
@@ -29237,13 +29308,14 @@
     },
     {
      "addr": "0x1abd10",
-     "decl": "void FUN_001abd10(int16_t material_type@<eax>, int unit_handle@<esi>, int weapon_tag_index@<edi>);",
-     "ported": true
+     "decl": "void unit_melee_sound(int16_t material_type@<eax>, int unit_handle@<esi>, int weapon_tag_index@<edi>);",
+     "ported": true,
+     "name": "unit_melee_sound"
     },
     {
      "addr": "0x1abd90",
-     "decl": "void FUN_001abd90(int unit_handle@<edi>);",
-     "name": "FUN_001abd90",
+     "decl": "void unit_cause_continuous_melee_damage(int unit_handle@<edi>);",
+     "name": "unit_cause_continuous_melee_damage",
      "ported": true
     },
     {
@@ -29273,8 +29345,8 @@
     },
     {
      "addr": "0x1ac680",
-     "decl": "void FUN_001ac680(float initial_p, float initial_v, float max_v, float max_a, int plan);",
-     "name": "FUN_001ac680",
+     "decl": "void unit_euler_axis_buildplan(float initial_p, float initial_v, float max_v, float max_a, int plan);",
+     "name": "unit_euler_axis_buildplan",
      "ported": true
     },
     {
@@ -29322,8 +29394,9 @@
     },
     {
      "addr": "0x1adeb0",
-     "decl": "int unit_get_weapon(int unit_handle, int16_t weapon_index);",
-     "ported": true
+     "decl": "int unit_inventory_get_weapon(int unit_handle, int16_t weapon_index);",
+     "ported": true,
+     "name": "unit_inventory_get_weapon"
     },
     {
      "addr": "0x1adf10",
@@ -29468,18 +29541,21 @@
     },
     {
      "addr": "0x1afd30",
-     "decl": "void FUN_001afd30(int unit_handle, int node_output);",
-     "ported": true
+     "decl": "void unit_preprocess_node_orientations(int unit_handle, int node_output);",
+     "ported": true,
+     "name": "unit_preprocess_node_orientations"
     },
     {
      "addr": "0x1b04b0",
-     "decl": "void FUN_001b04b0(int unit_handle, int node_matrices);",
-     "ported": true
+     "decl": "void unit_postprocess_node_matrices(int unit_handle, int node_matrices);",
+     "ported": true,
+     "name": "unit_postprocess_node_matrices"
     },
     {
      "addr": "0x1b0630",
-     "decl": "void FUN_001b0630(int transform_matrix, float *aiming_vector, float *desired_vector, float *angular_velocity, float *aiming_bounds, float angular_velocity_limit, float angular_acceleration_limit);",
-     "ported": true
+     "decl": "void unit_euler_aiming_update(int transform_matrix, float *aiming_vector, float *desired_vector, float *angular_velocity, float *aiming_bounds, float angular_velocity_limit, float angular_acceleration_limit);",
+     "ported": true,
+     "name": "unit_euler_aiming_update"
     },
     {
      "addr": "0x1b0d00",
@@ -29511,8 +29587,9 @@
     },
     {
      "addr": "0x1b1400",
-     "decl": "void FUN_001b1400(int unit_handle, char is_melee, char is_throw, char is_airborne, char is_ground, char is_ping, float throttle_magnitude, int weapon_class, int alignment_vector);",
-     "ported": true
+     "decl": "void unit_ping_animation(int unit_handle, char is_melee, char is_throw, char is_airborne, char is_ground, char is_ping, float throttle_magnitude, int weapon_class, int alignment_vector);",
+     "ported": true,
+     "name": "unit_ping_animation"
     },
     {
      "addr": "0x1b1a20",
@@ -29644,28 +29721,33 @@
     },
     {
      "addr": "0x1b3690",
-     "decl": "char FUN_001b3690(int unit_handle);",
-     "ported": true
+     "decl": "char unit_update(int unit_handle);",
+     "ported": true,
+     "name": "unit_update"
     },
     {
      "addr": "0x1a8770",
-     "decl": "char FUN_001a8770(void *anim_state@<ecx>);",
-     "ported": true
+     "decl": "char unit_animation_overlay_action_loops(void *anim_state@<ecx>);",
+     "ported": true,
+     "name": "unit_animation_overlay_action_loops"
     },
     {
      "addr": "0x1a8890",
-     "decl": "char FUN_001a8890(void *anim_state@<ecx>);",
-     "ported": true
+     "decl": "char unit_animation_aiming_screen(void *anim_state@<ecx>);",
+     "ported": true,
+     "name": "unit_animation_aiming_screen"
     },
     {
      "addr": "0x1a8910",
-     "decl": "char FUN_001a8910(int16_t anim_state@<ecx>);",
-     "ported": true
+     "decl": "char unit_animation_state_can_be_entered_without_animation(int16_t anim_state@<ecx>);",
+     "ported": true,
+     "name": "unit_animation_state_can_be_entered_without_animation"
     },
     {
      "addr": "0x1a8950",
-     "decl": "int FUN_001a8950(int16_t anim_state@<ecx>, int16_t target_state@<edx>);",
-     "ported": true
+     "decl": "int unit_animation_compute_interpolation_frame_count(int16_t anim_state@<ecx>, int16_t target_state@<edx>);",
+     "ported": true,
+     "name": "unit_animation_compute_interpolation_frame_count"
     }
    ],
    "name": "units.obj",
@@ -37561,8 +37643,9 @@
     },
     {
      "addr": "0x121940",
-     "decl": "void overlay_animation_apply_continuous_scaled(void *animation, float frame, unsigned short scale_count, short node_index, void *out_scale);",
-     "ported": true
+     "decl": "void animation_get_keyframe_scale(void *animation, float frame, unsigned short scale_count, short node_index, void *out_scale);",
+     "ported": true,
+     "name": "animation_get_keyframe_scale"
     },
     {
      "addr": "0x121c30",
@@ -37612,8 +37695,9 @@
     },
     {
      "addr": "0x123e20",
-     "decl": "float *animation_get_root_matrix(void *mode_tag, short node_index);",
-     "ported": true
+     "decl": "float *model_get_default_inverse_matrix(void *mode_tag, short node_index);",
+     "ported": true,
+     "name": "model_get_default_inverse_matrix"
     },
     {
      "addr": "0x123e50",
