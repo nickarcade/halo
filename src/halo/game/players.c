@@ -444,7 +444,7 @@ void FUN_000ba890(int player_index, int param_2)
     object = (char *)object_get_and_verify_type(object_handle, 3);
     object2 = (char *)object_get_and_verify_type(object_handle, 3);
     weapon_handle =
-      unit_get_weapon(object_handle, *(int16_t *)(object2 + 0x2a2));
+      unit_inventory_get_weapon(object_handle, *(int16_t *)(object2 + 0x2a2));
     *(int *)(object + 0x1c8) = NONE;
     object_deactivate(object_handle);
     object_set_garbage(object_handle, 0);
@@ -1554,7 +1554,7 @@ void player_spawn(int player_handle)
   if (!game_engine_running() && saved_unit != NONE) {
     /* --- Reuse cached unit path. --- */
     unit_data = (char *)object_get_and_verify_type(saved_unit, 3);
-    prev_weapon = unit_get_weapon(saved_unit, *(int16_t *)(unit_data + 0x2a2));
+    prev_weapon = unit_inventory_get_weapon(saved_unit, *(int16_t *)(unit_data + 0x2a2));
     if (*(int16_t *)(player + 2) == NONE) {
       display_assert("player->local_player_index!=NONE",
                      "c:\\halo\\SOURCE\\game\\players.c", 0x736, 1);
@@ -2962,7 +2962,7 @@ void players_update_before_game(void)
        *
        * Re-fetches unit data (compiler re-fetched the pointer after the
        * intervening writes above), reads the currently-selected weapon slot
-       * index from unit+0x2a2 (sign-extended), then calls unit_get_weapon to
+       * index from unit+0x2a2 (sign-extended), then calls unit_inventory_get_weapon to
        * get the weapon's datum handle.  If valid and the weapon can zoom,
        * propagate scope change (bits 0x1800) to the unit, then sync the
        * active weapon index into the action's desired_weapon_index. */
@@ -2973,7 +2973,7 @@ void players_update_before_game(void)
 
         udata2 = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
         active_wi = *(int16_t *)(udata2 + 0x2a2);
-        wep_handle = unit_get_weapon(*(int *)(player + 0x34), active_wi);
+        wep_handle = unit_inventory_get_weapon(*(int *)(player + 0x34), active_wi);
 
         if (wep_handle != -1 && ((bool (*)(int))0xfb090)(wep_handle)) {
           /* Weapon can zoom. If scope-change bits set, call FUN_1ae600. */
@@ -3214,7 +3214,7 @@ void player_update_nearby_vehicle(int datum_handle, int object_handle)
   in_vehicle_scope_state = (*(unsigned int *)(unit + 0x1b8) & 0x1800) != 0;
   unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
   current_weapon_handle =
-    unit_get_weapon(*(int *)(player + 0x34), *(int16_t *)(unit + 0x2a2));
+    unit_inventory_get_weapon(*(int *)(player + 0x34), *(int16_t *)(unit + 0x2a2));
   nearby_weapon_count = unit_count_weapons(*(int *)(player + 0x34));
 
   current_is_special = false;
@@ -6222,11 +6222,11 @@ void FUN_000bf010(int16_t function_index, int thread_datum, char init)
  *
  * HaloScript builtin dispatcher, immediate structural twin of FUN_000bf010
  * above: same cdecl frame, same pre-zeroed result dword, same four evaluated
- * arguments -- only the middle callee differs (FUN_001A7DF0 instead of
+ * arguments -- only the middle callee differs (unit_scripting_start_user_animation_list instead of
  * FUN_001AC180). Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); on a
  * non-NULL evaluation record it reads four fields out of the caller-owned
- * argument block, passes them to FUN_001A7DF0, and forwards that call's 8-bit
+ * argument block, passes them to unit_scripting_start_user_animation_list, and forwards that call's 8-bit
  * result (AL) to hs_return.
  *
  * cdecl frame 0xbf060-0xbf0ae, 30 insns (PUSH EBP; MOV EBP,ESP; PUSH ECX for
@@ -6262,7 +6262,7 @@ void FUN_000bf010(int16_t function_index, int thread_datum, char init)
  *   char (same shape as FUN_000bf010's slot above).
  *   CALL 0xcbf80 @0xbf0a2 pushes ECX(result dword) then ESI ->
  *   hs_return(thread_datum, result).
- *   ONE combined ADD ESP,0x18 at 0xbf0a7 folds FUN_001A7DF0's 4 dwords with
+ *   ONE combined ADD ESP,0x18 at 0xbf0a7 folds unit_scripting_start_user_animation_list's 4 dwords with
  *   hs_return's 2; the ARG_COUNT enrichment warning on 0xcbf80
  *   ("cleanup=6 stack args vs decl=2") is that merge -- hs_return really
  *   takes 2 args, do NOT "fix" its decl.
@@ -6272,7 +6272,7 @@ void FUN_000bf010(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, in kb.json):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7df0 = FUN_001a7df0(int datum_handle, int, int, int) -> char in AL
+ *   0x1a7df0 = unit_scripting_start_user_animation_list(int datum_handle, int, int, int) -> char in AL
  *              (semantics of the returned flag are UNKNOWN)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf060(int16_t function_index, int thread_datum, char init)
@@ -6285,7 +6285,7 @@ void FUN_000bf060(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    result_slot = (unsigned char)FUN_001a7df0(
+    result_slot = (unsigned char)unit_scripting_start_user_animation_list(
       record[0], record[1], record[2], (int)*(unsigned char *)(record + 3));
     result = (unsigned int)result_slot;
     hs_return(thread_datum, result);
@@ -7073,7 +7073,7 @@ void FUN_000bf380(int16_t function_index, int thread_datum, char init)
  * identical 3-parameter cdecl shape and the identical evaluate / NULL-check
  * / worker / hs_return skeleton, with the "worker return discarded, script
  * gets a CONSTANT 0" tail.  The record here is THREE fields and the worker
- * is FUN_001a7ad0 (apply damage to every child object).
+ * is units_scripting_set_maximum_vitality (apply damage to every child object).
  *
  * cdecl frame, 0xbf3d0-0xbf411: PUSH EBP; MOV EBP,ESP; PUSH ESI.  No local
  * dword, no _chkstk, no SEH, no local buffers.  RET carries no immediate.
@@ -7100,14 +7100,14 @@ void FUN_000bf380(int16_t function_index, int thread_datum, char init)
  *     +0x04 float  first damage scalar  (FLD  float ptr [EAX+0x4] @0xbf3f8)
  *     +0x08 float  second damage scalar (FLD  float ptr [EAX+0x8] @0xbf3ec)
  *   The two floats go out via the MSVC float-argument push (SUB ESP,0x8 /
- *   FSTP [ESP+0x4] / FSTP [ESP]) rather than PUSH, which is why FUN_001a7ad0
+ *   FSTP [ESP+0x4] / FSTP [ESP]) rather than PUSH, which is why units_scripting_set_maximum_vitality
  *   must be declared (int, float, float); see its note in units.c.  The
  *   +0x8 load runs first because the stack slots are filled top-down.
  *
  *   CALL 0xcbf80 @0xbf407 pushes the immediate 0x0 then ESI ->
  *   hs_return(thread_datum, 0); the script return value is the CONSTANT 0,
  *   there is no result slot.  ONE combined ADD ESP,0x14 @0xbf40c folds
- *   FUN_001a7ad0's 3 dwords with hs_return's 2 -- any ARG_COUNT warning on
+ *   units_scripting_set_maximum_vitality's 3 dwords with hs_return's 2 -- any ARG_COUNT warning on
  *   0xcbf80 ("cleanup=5 vs decl=2") is that merged cleanup, hs_return really
  *   takes 2 args, do NOT "fix" its decl.
  *
@@ -7118,7 +7118,7 @@ void FUN_000bf380(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7ad0 = FUN_001a7ad0(int parent_handle, float, float) -- void
+ *   0x1a7ad0 = units_scripting_set_maximum_vitality(int parent_handle, float, float) -- void
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf3d0(int16_t function_index, int thread_datum, char init)
 {
@@ -7127,7 +7127,7 @@ void FUN_000bf3d0(int16_t function_index, int thread_datum, char init)
   record =
     (void *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_001a7ad0(*(int *)record, *(float *)((char *)record + 4),
+    units_scripting_set_maximum_vitality(*(int *)record, *(float *)((char *)record + 4),
                  *(float *)((char *)record + 8));
     hs_return(thread_datum, 0);
   }
@@ -7175,7 +7175,7 @@ void FUN_000bf3d0(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7b50 = FUN_001a7b50(int datum_handle, float body_damage,
+ *   0x1a7b50 = unit_scripting_set_current_vitality(int datum_handle, float body_damage,
  *              float shield_damage) -- void
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf420(int16_t function_index, int thread_datum, char init)
@@ -7185,7 +7185,7 @@ void FUN_000bf420(int16_t function_index, int thread_datum, char init)
   record =
     (void *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_001a7b50(*(int *)record, *(float *)((char *)record + 4),
+    unit_scripting_set_current_vitality(*(int *)record, *(float *)((char *)record + 4),
                  *(float *)((char *)record + 8));
     hs_return(thread_datum, 0);
   }
@@ -7228,11 +7228,11 @@ void FUN_000bf420(int16_t function_index, int thread_datum, char init)
  *   kb.json's decl was corrected from `void(void)` to the 3-arg cdecl form.
  *   Lifting this also exposed that 0x1a7c70's own decl had params 2 and 3 as
  *   int when they are floats; that is fixed in the same change (see the
- *   comment on FUN_001a7c70 in units.c).
+ *   comment on units_scripting_set_current_vitality in units.c).
  *
  * Callees (all cdecl, in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7c70 = FUN_001a7c70(int parent_handle, float body_damage,
+ *   0x1a7c70 = units_scripting_set_current_vitality(int parent_handle, float body_damage,
  *              float shield_damage) -- void, damages every child object
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf470(int16_t function_index, int thread_datum, char init)
@@ -7242,7 +7242,7 @@ void FUN_000bf470(int16_t function_index, int thread_datum, char init)
   record =
     (void *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_001a7c70(*(int *)record, *(float *)((char *)record + 4),
+    units_scripting_set_current_vitality(*(int *)record, *(float *)((char *)record + 4),
                  *(float *)((char *)record + 8));
     hs_return(thread_datum, 0);
   }
@@ -7644,12 +7644,12 @@ void FUN_000bf600(int16_t function_index, int thread_datum, char init)
  *   One stack arg, cleaned by the merged ADD ESP below.
  *
  *   CALL 0xcbf80 @0xbf666 -- PUSH EAX / PUSH ESI. The pushed EAX is
- *   FUN_001a9ec0's return register, with no zero/sign-extend and no temp
+ *   unit_scripting_unit_driver's return register, with no zero/sign-extend and no temp
  *   spill, so the second argument of hs_return is that value, NOT an
  *   immediate 0 as in the void-valued twins (0xbf1a0 / 0xbf1e0). Do not
  *   discard it (dropped-arg trap). thread_datum comes from ESI ([EBP+0xc]),
  *   not from the record.
- *   ONE combined ADD ESP,0xc at 0xbf66b folds FUN_001a9ec0's single dword with
+ *   ONE combined ADD ESP,0xc at 0xbf66b folds unit_scripting_unit_driver's single dword with
  *   hs_return's two (4 + 8 = 12); the ARG_COUNT warning on 0xcbf80
  *   ("cleanup=3 stack args vs decl=2") is that merge -- hs_return really takes
  *   2 args, do NOT "fix" its decl. Same pattern as FUN_000bf600.
@@ -7660,7 +7660,7 @@ void FUN_000bf600(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a9ec0 = FUN_001a9ec0(int unit_handle) -> int  (unnamed in kb.json;
+ *   0x1a9ec0 = unit_scripting_unit_driver(int unit_handle) -> int  (unnamed in kb.json;
  *              the parameter name is kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf640(int16_t function_index, int thread_datum, char init)
@@ -7670,7 +7670,7 @@ void FUN_000bf640(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    hs_return(thread_datum, FUN_001a9ec0(record[0]));
+    hs_return(thread_datum, unit_scripting_unit_driver(record[0]));
   }
 }
 
@@ -7716,11 +7716,11 @@ void FUN_000bf640(int16_t function_index, int thread_datum, char init)
  *   One stack arg, cleaned by the merged ADD ESP below.
  *
  *   CALL 0xcbf80 @0xbf6a6 -- PUSH EAX / PUSH ESI. The pushed EAX is
- *   FUN_001a9ef0's return register, with no zero/sign-extend and no temp
+ *   unit_scripting_unit_gunner's return register, with no zero/sign-extend and no temp
  *   spill, so the second argument of hs_return is that value, NOT an
  *   immediate 0 as in the void-valued twins. Do not discard it (dropped-arg
  *   trap). thread_datum comes from ESI ([EBP+0xc]), not from the record.
- *   ONE combined ADD ESP,0xc at 0xbf6ab folds FUN_001a9ef0's single dword with
+ *   ONE combined ADD ESP,0xc at 0xbf6ab folds unit_scripting_unit_gunner's single dword with
  *   hs_return's two (4 + 8 = 12); the ARG_COUNT warning on 0xcbf80
  *   ("cleanup=3 stack args vs decl=2") is that merge -- hs_return really takes
  *   2 args, do NOT "fix" its decl. Same pattern as FUN_000bf640/0xbf600.
@@ -7731,7 +7731,7 @@ void FUN_000bf640(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, all ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a9ef0 = FUN_001a9ef0(int unit_handle) -> int  (unnamed in kb.json;
+ *   0x1a9ef0 = unit_scripting_unit_gunner(int unit_handle) -> int  (unnamed in kb.json;
  *              the parameter name is kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf680(int16_t function_index, int thread_datum, char init)
@@ -7741,7 +7741,7 @@ void FUN_000bf680(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    hs_return(thread_datum, FUN_001a9ef0(record[0]));
+    hs_return(thread_datum, unit_scripting_unit_gunner(record[0]));
   }
 }
 
@@ -7801,7 +7801,7 @@ void FUN_000bf680(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, all ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7cc0 = FUN_001a7cc0(int datum_handle) -> float  (unnamed in kb.json,
+ *   0x1a7cc0 = unit_scripting_get_health(int datum_handle) -> float  (unnamed in kb.json,
  *              implemented in src/halo/units/units.c; the parameter name is
  *              kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
@@ -7813,7 +7813,7 @@ void FUN_000bf6c0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    value = FUN_001a7cc0(record[0]);
+    value = unit_scripting_get_health(record[0]);
     hs_return(thread_datum, *(int *)&value);
   }
 }
@@ -7870,7 +7870,7 @@ void FUN_000bf6c0(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7d00 = FUN_001a7d00(int datum_handle) -> float  (unnamed in kb.json;
+ *   0x1a7d00 = unit_scripting_get_shield(int datum_handle) -> float  (unnamed in kb.json;
  *              the parameter name is kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf700(int16_t function_index, int thread_datum, char init)
@@ -7881,7 +7881,7 @@ void FUN_000bf700(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    value = FUN_001a7d00(record[0]);
+    value = unit_scripting_get_shield(record[0]);
     hs_return(thread_datum, *(int *)&value);
   }
 }
@@ -7953,7 +7953,7 @@ void FUN_000bf700(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7d40 = FUN_001a7d40(int datum_handle) -> int  (unnamed in kb.json;
+ *   0x1a7d40 = unit_scripting_get_grenade_count(int datum_handle) -> int  (unnamed in kb.json;
  *              the parameter name is kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000bf740(int16_t function_index, int thread_datum, char init)
@@ -7968,7 +7968,7 @@ void FUN_000bf740(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    value.w = (unsigned short)FUN_001a7d40(record[0]);
+    value.w = (unsigned short)unit_scripting_get_grenade_count(record[0]);
     hs_return(thread_datum, value.i);
   }
 }
@@ -8023,7 +8023,7 @@ void FUN_000bf740(int16_t function_index, int thread_datum, char init)
  *   MOV ECX,dword ptr [EBP-0x4] / PUSH ECX stores only AL into that pre-zeroed
  *   dword and reloads the whole dword.  Net effect is a zero-extension of the
  *   byte (uint8 -> int), NOT the sign-extension a plain
- *   `int value = FUN_001a7e70(...)` would produce from the `char` return, so
+ *   `int value = unit_scripting_has_weapon(...)` would produce from the `char` return, so
  *   the union width-pun below is required for both correctness and codegen
  *   (same idiom as FUN_000bf260 / FUN_000bf2b0 above).
  *
@@ -8038,7 +8038,7 @@ void FUN_000bf740(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7e70 = FUN_001a7e70(int unit_handle, int definition_index) -> char
+ *   0x1a7e70 = unit_scripting_has_weapon(int unit_handle, int definition_index) -> char
  *              (unnamed in kb.json; parameter names are kb's, the semantics
  *              are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
@@ -8054,7 +8054,7 @@ void FUN_000bf790(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    value.b = FUN_001a7e70(record[0], record[1]);
+    value.b = unit_scripting_has_weapon(record[0], record[1]);
     hs_return(thread_datum, value.i);
   }
 }
@@ -8110,7 +8110,7 @@ void FUN_000bf790(int16_t function_index, int thread_datum, char init)
  *   MOV ECX,dword ptr [EBP-0x4] / PUSH ECX stores only AL into the pre-zeroed
  *   dword and reloads the whole dword.  Net effect is a zero-extension of the
  *   byte (uint8 -> int), NOT the sign-extension a plain
- *   `int value = FUN_001a7ea0(...)` would produce from the `char` return, so
+ *   `int value = unit_scripting_has_weapon_readied(...)` would produce from the `char` return, so
  *   the union width-pun below is required for both correctness and codegen,
  *   and the `value.i = 0` pre-zero is load-bearing.
  *
@@ -8125,7 +8125,7 @@ void FUN_000bf790(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7ea0 = FUN_001a7ea0(int unit_handle, int weapon_def_tag) -> char
+ *   0x1a7ea0 = unit_scripting_has_weapon_readied(int unit_handle, int weapon_def_tag) -> char
  *              (unnamed in kb.json; parameter names are kb's, the semantics
  *              are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value)
@@ -8144,7 +8144,7 @@ void FUN_000bf7e0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    value.b = FUN_001a7ea0(record[0], record[1]);
+    value.b = unit_scripting_has_weapon_readied(record[0], record[1]);
     hs_return(thread_datum, value.i);
   }
 }
@@ -8261,7 +8261,7 @@ void FUN_000bf830(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, all ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7d80 = FUN_001a7d80(int datum_handle, char flag) -> void
+ *   0x1a7d80 = unit_scripting_impervious(int datum_handle, char flag) -> void
  *              (units.obj, lifted in src/halo/units/units.c; parameter names
  *              are kb.json's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value)
@@ -8275,7 +8275,7 @@ void FUN_000bf870(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_001a7d80(record[0], (char)*(unsigned char *)((char *)record + 4));
+    unit_scripting_impervious(record[0], (char)*(unsigned char *)((char *)record + 4));
     hs_return(thread_datum, 0);
   }
 }

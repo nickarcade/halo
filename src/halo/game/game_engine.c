@@ -2768,7 +2768,7 @@ void game_engine_weapon_fired(int param_1)
     return;
   biped = (int)object_get_and_verify_type(player, 3);
   biped2 = (int)object_get_and_verify_type(player, 3);
-  weapon_handle = (int)unit_get_weapon(player, *(int16_t *)(biped2 + 0x2a2));
+  weapon_handle = (int)unit_inventory_get_weapon(player, *(int16_t *)(biped2 + 0x2a2));
   decay = 0.1f;
   if (game_engine_player_has_stealth_weapon(param_1)) {
     decay = 0.0f;
