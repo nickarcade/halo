@@ -1130,14 +1130,14 @@ void hs_evaluate_camera_control(int16_t function_index, int thread_datum, char i
 
 /* 0xc1680 — HS macro-function evaluator that forwards two 16-bit fields.
  * Evaluates the macro function for this HS function_index. If it produced a
- * result record (returned as a short* in EAX), invokes FUN_00085260 with the
+ * result record (returned as a short* in EAX), invokes scripted_camera_set_absolute with the
  * signed short at offset 0 and the unsigned short at offset 4 of that record,
  * then commits a 0 result to the thread. Does nothing if the macro returned
  * NULL.
  *
  * Callees:
  *   0xcc560 = hs_macro_function_evaluate (short, int, char) -> short* (EAX)
- *   0x85260 = FUN_00085260 (short arg0, short arg1)
+ *   0x85260 = scripted_camera_set_absolute (short arg0, short arg1)
  *   0xcbf80 = hs_return (int thread_datum, int value)
  */
 void hs_evaluate_camera_set(int16_t function_index, int thread_datum, char init)
@@ -1149,13 +1149,13 @@ void hs_evaluate_camera_set(int16_t function_index, int thread_datum, char init)
   if (result != NULL) {
     /* offset 0 read as signed short (MOVSX), offset 4 read as unsigned
      * short (XOR/MOV DX) per disassembly. */
-    FUN_00085260(result[0], ((unsigned short *)result)[2]);
+    scripted_camera_set_absolute(result[0], ((unsigned short *)result)[2]);
     hs_return(thread_datum, 0);
   }
 }
 
 /* 0xc16c0 — HS script function handler: evaluate a macro function and dispatch
- * its result to FUN_00085180. Twin of the 0xc0c30 evaluate-then-dispatch
+ * its result to scripted_camera_set. Twin of the 0xc0c30 evaluate-then-dispatch
  * family. Evaluates the call via hs_macro_function_evaluate; when it returns a
  * non-NULL result block, reads three fields and dispatches, then commits 0 to
  * the calling HS thread via hs_return(thread_datum, 0).
@@ -1163,13 +1163,13 @@ void hs_evaluate_camera_set(int16_t function_index, int thread_datum, char init)
  * Field widths (verified against disassembly 0xc16c0-...): after the NULL
  * check, the +0x0 and +0x4 fields are loaded as zero-extended 16-bit values
  * (XOR reg,reg; MOV DX,[EAX] and MOV CX,[EAX+4]), and the +0x8 field is a full
- * 32-bit load (MOV EDX,[EAX+8]). Matches FUN_00085180(short, short, int).
+ * 32-bit load (MOV EDX,[EAX+8]). Matches scripted_camera_set(short, short, int).
  * A single ADD ESP,0x14 cleans the two trailing calls' pushes.
  *
  * Callees (all cdecl):
  *   0xcc560 = hs_macro_function_evaluate(int16 function_index, int
  * thread_datum, char init) -> result pointer
- *   0x85180 = FUN_00085180(short +0x0, short +0x4, int +0x8)
+ *   0x85180 = scripted_camera_set(short +0x0, short +0x4, int +0x8)
  *   0xcbf80 = hs_return(int thread_datum, int value)
  */
 void hs_evaluate_camera_set_relative(int16_t function_index, int thread_datum, char init)
@@ -1179,14 +1179,14 @@ void hs_evaluate_camera_set_relative(int16_t function_index, int thread_datum, c
   result = (unsigned short *)hs_macro_function_evaluate(function_index,
                                                         thread_datum, init);
   if (result != NULL) {
-    FUN_00085180(result[0], result[2], *(int *)(result + 4));
+    scripted_camera_set(result[0], result[2], *(int *)(result + 4));
     hs_return(thread_datum, 0);
   }
 }
 
 /* 0xc1700 — HS script function handler. Evaluates the macro arguments; on
  * success the result block holds an int at +0x0 (result[0]) and a char*
- * string pointer at +0x4 (result[1]). Calls FUN_00085000(int, const char*)
+ * string pointer at +0x4 (result[1]). Calls scripted_camera_set_animation(int, const char*)
  * with those two fields, then returns void to the HS thread via
  * hs_return(thread_datum, 0). Matches the byte pattern of the sibling HS
  * handlers in this TU. */
@@ -1197,14 +1197,14 @@ void hs_evaluate_camera_set_animation(int16_t function_index, int thread_datum, 
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_00085000(result[0], (const char *)result[1]);
+    scripted_camera_set_animation(result[0], (const char *)result[1]);
     hs_return(thread_datum, 0);
   }
 }
 
 /* 0xc1740 — HS script function handler: evaluate a macro function and dispatch
- * the result's first field to FUN_000850d0. On success the result block holds
- * an int at +0x0 (result[0]); calls FUN_000850d0(result[0]), then returns void
+ * the result's first field to scripted_camera_set_first_person. On success the result block holds
+ * an int at +0x0 (result[0]); calls scripted_camera_set_first_person(result[0]), then returns void
  * to the HS thread via hs_return(thread_datum, 0). Matches the byte pattern of
  * the sibling HS handlers in this TU. */
 void hs_evaluate_camera_set_first_person(int16_t function_index, int thread_datum, char init)
@@ -1214,17 +1214,17 @@ void hs_evaluate_camera_set_first_person(int16_t function_index, int thread_datu
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000850d0(result[0]);
+    scripted_camera_set_first_person(result[0]);
     hs_return(thread_datum, 0);
   }
 }
 
 /* 0xc1780 — HS script function handler: evaluate a macro function and dispatch
- * the result's first field to FUN_00085110 (switches to first-person camera
+ * the result's first field to scripted_camera_set_dead (switches to first-person camera
  * mode 3).  The original consumes the result block with a single dword load
  * (`MOV EDX,[EAX]; PUSH EDX`) — only result[0] is read, unlike the 0xc0d90 /
  * 0xc0dd0 twins which also read result[1].  On success calls
- * FUN_00085110(result[0]), then returns void to the HS thread via
+ * scripted_camera_set_dead(result[0]), then returns void to the HS thread via
  * hs_return(thread_datum, 0). */
 void hs_evaluate_camera_set_dead(int16_t function_index, int thread_datum, char init)
 {
@@ -1233,7 +1233,7 @@ void hs_evaluate_camera_set_dead(int16_t function_index, int thread_datum, char 
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_00085110(result[0]);
+    scripted_camera_set_dead(result[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -1243,7 +1243,7 @@ void hs_evaluate_camera_set_dead(int16_t function_index, int thread_datum, char 
  *
  * Unlike its siblings in this TU this handler takes no script arguments at
  * all, so it never calls hs_macro_function_evaluate and has no NULL check.
- * It simply calls FUN_000853a0() (cdecl, no args, result in EAX) and returns
+ * It simply calls scripted_camera_time() (cdecl, no args, result in EAX) and returns
  * that value to the thread.
  *
  * The value is zero-extended from 16 bits: disasm zero-initializes the whole
@@ -1260,7 +1260,7 @@ void hs_evaluate_camera_set_dead(int16_t function_index, int thread_datum, char 
  * pushed as the first hs_return argument (cdecl: last PUSH = first arg).
  *
  * Callees:
- *   0x853a0 = FUN_000853a0(void) -> int (low word consumed in AX)
+ *   0x853a0 = scripted_camera_time(void) -> int (low word consumed in AX)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_camera_time(int16_t function_index, int thread_datum, char init)
@@ -1271,7 +1271,7 @@ void hs_evaluate_camera_time(int16_t function_index, int thread_datum, char init
   } value;
 
   value.i = 0;
-  value.w = (unsigned short)FUN_000853a0();
+  value.w = (unsigned short)scripted_camera_time();
   hs_return(thread_datum, value.i);
 }
 

@@ -2366,7 +2366,7 @@ void FUN_001a7790(int param_1)
  * body_dmg/shield_dmg are passed BY VALUE. The original (delinked) takes three
  * 4-byte stack args at [ebp+8]/[ebp+0xc]/[ebp+0x10] and does
  *   lea ecx,[ebp+0xc]  (&body_dmg) / lea eax,[ebp+0x10] (&shield_dmg)
- * to box the by-value floats into the pointers FUN_001365d0 expects (1365d0
+ * to box the by-value floats into the pointers object_initialize_vitality expects (1365d0
  * dereferences arg2/arg3). Declaring them as float* and forwarding the pointers
  * reinterprets the float bit-pattern (1.0f == 0x3f800000) as an address and
  * dereferences it — an infinite page-fault storm that froze PoA after the intro
@@ -2378,7 +2378,7 @@ void FUN_001a7a90(int param_1, float body_dmg, float shield_dmg)
   if (param_1 != -1) {
     obj = (char *)object_get_and_verify_type(param_1, -1);
     if ((*(uint8_t *)(obj + 0xb6) & 4) == 0) {
-      FUN_001365d0(param_1, &body_dmg, &shield_dmg);
+      object_initialize_vitality(param_1, &body_dmg, &shield_dmg);
     }
   }
 }
@@ -2409,7 +2409,7 @@ void FUN_001a7ad0(int parent_handle, float param_2, float param_3)
     if (child != -1) {
       obj = (char *)object_get_and_verify_type(child, -1);
       if ((*(uint8_t *)(obj + 0xb6) & 4) == 0) {
-        FUN_001365d0(child, &l_c, &l_8);
+        object_initialize_vitality(child, &l_c, &l_8);
       }
     }
     child = FUN_000ce320(parent_handle, &iter_state);
@@ -3899,7 +3899,7 @@ void unit_destroy(int unit_handle)
 /* 0x1a9200 — get world-space position of the "head" marker on a unit.
  * Thin wrapper: calls object_get_markers_by_string_id for the string at
  * 0x2909e4 ("head"), then extracts XYZ from offset 0x60 in the marker
- * output record. Identical pattern to FUN_001a9520 ("body" marker). */
+ * output record. Identical pattern to unit_get_center_of_mass ("body" marker). */
 void unit_get_head_position(int object_handle, float *out_position)
 {
   char marker_buf[0x6c];
@@ -6423,7 +6423,7 @@ void unit_refresh_illumination(int unit_handle)
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   parent = object_try_and_get_and_verify_type(*(int *)(unit + 0xcc), 3);
   if (parent == NULL) {
-    FUN_0013a740((int)(unit + 0xc), (int)(unit + 0x48), color);
+    lights_illumination_at_point((int)(unit + 0xc), (int)(unit + 0x48), color);
     *(float *)(unit + 0x290) = real_rgb_color_brightness(color);
     *(float *)(unit + 0x294) = object_get_self_illumination(unit_handle);
     return;
@@ -12339,7 +12339,7 @@ char unit_throw_grenade_begin(int unit_handle, float *alignment_vector)
                                           (int)*(int8_t *)(unit + 0x2cc), 0x44);
   effect_tag = *(int *)(gg_element + 0x10);
   if (effect_tag != NONE) {
-    FUN_0009ec30(effect_tag, unit_handle, unit_handle, (short)-1, 0.0f, 0.0f, 0,
+    effect_new_from_object(effect_tag, unit_handle, unit_handle, (short)-1, 0.0f, 0.0f, 0,
                  0);
   }
   return 1;
@@ -14410,7 +14410,7 @@ char FUN_001b3690(int unit_handle)
             i10 = *(int *)(fp_iface + 0x64);
           }
           if (i10 != -1) {
-            FUN_0009ec30(i10, unit_handle, unit_handle, -1, 0.0f, 0.0f, 0,
+            effect_new_from_object(i10, unit_handle, unit_handle, -1, 0.0f, 0.0f, 0,
                          0);
           }
           unit[0x6d] = unit[0x6d] ^ 0x4000000;
@@ -14424,7 +14424,7 @@ char FUN_001b3690(int unit_handle)
     if (((unit[0x6d] & 0x80000) != 0 ||
          *(float *)((char *)unit + 0x2f4) > *(float *)0x2549d4) &&
         unit[0x33] == -1) {
-      FUN_0009ec30(*(int *)(tag_data + 0x194), unit_handle, unit_handle, -1,
+      effect_new_from_object(*(int *)(tag_data + 0x194), unit_handle, unit_handle, -1,
                    0.0f, 0.0f, 0, 0);
       unit[0x6d] = unit[0x6d] ^ 0x80000;
     }

@@ -1165,7 +1165,7 @@ void FUN_0009dcf0(float *position, void *effect, void *location, void *part,
     uint16_t loc_node = *(uint16_t *)(loc + 2);
     int marker = (loc_node == 0xffff) ? -1 : (int)(loc_node & 0x7fff);
 
-    FUN_0013b290(*(int *)(loc_entry + 0x24), *(int *)(ef + 0x3c), marker,
+    light_new_unattached(*(int *)(loc_entry + 0x24), *(int *)(ef + 0x3c), marker,
                  (float *)(loc + 0x30), (float *)(loc + 0xc), scale);
     break;
   }
