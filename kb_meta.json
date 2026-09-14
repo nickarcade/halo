@@ -3867,6 +3867,54 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x84ae0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x84fe0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x85000": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x850d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x85110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x85150": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x85180": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x85260": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x85280": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x85350": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x853a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x853c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x861a0": {
       "kind": "function",
       "status": "ported"
@@ -5069,6 +5117,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x9eb40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x9ec30": {
       "kind": "function",
       "status": "ported"
@@ -6156,7 +6208,19 @@
         "String addresses in disassembly (0x26c73c=race, 0x26c730=team_race, etc.) verified against XBE .rdata section via manual VA-to-file-offset mapping; Ghidra flat-read of the file showed wrong values but the XBE section table confirms race/team_race etc."
       ]
     },
+    "0xadf70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xae0a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xae110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xae250": {
       "kind": "function",
       "status": "ported"
     },
@@ -14187,7 +14251,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1330a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x133520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1336a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1337c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x134070": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1342a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14222,7 +14306,63 @@
         "The function is a glow-widget initializer for an object (widget tag 0x676c7721 = 'glw!'), but the exact subsystem name is unconfirmed so the FUN_ name is retained rather than a speculative object_glow_initialize."
       ]
     },
+    "0x134be0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x134c20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x134c40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x134e50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x134e80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x135210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1353b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1353f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x135420": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x135510": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x135f20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x135f90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x136040": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1360a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x136100": {
       "kind": "function",
       "status": "ported"
     },
@@ -14231,6 +14371,10 @@
       "status": "ported"
     },
     "0x1362d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1363d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14255,6 +14399,10 @@
       "status": "ported"
     },
     "0x1365d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1366b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14417,7 +14565,71 @@
         "The light data table lives at 0x5a90bc; the cluster partition at 0x5a90b0."
       ]
     },
+    "0x1397f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x139810": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1398b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1398d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x139930": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x139990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x139a30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x139b40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x139c20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x139e50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13a250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13a340": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13a420": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13a5f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13a740": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13aa10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13ab20": {
       "kind": "function",
       "status": "ported"
     },
@@ -14433,11 +14645,59 @@
         "Tag offsets 0x14 (falloff_angle), 0x18 (cutoff), 0x20 (forward_modifier), 0x24 (gel_modifier), 0x28 (tertiary_modifier) are named by function, not confirmed by tag definitions."
       ]
     },
+    "0x13b150": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13b1b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13b290": {
       "kind": "function",
       "status": "ported"
     },
+    "0x13b380": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13bce0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c030": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c080": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13c100": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c1b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c2e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c3a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c3d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c400": {
       "kind": "function",
       "status": "ported"
     },
@@ -14449,11 +14709,87 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x13c500": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13c560": {
       "kind": "function",
       "status": "ported"
     },
+    "0x13c5c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13c620": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c680": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c6e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c740": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c7a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c860": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c8c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c980": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13c9e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13ca30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13cab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13cb30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13cb80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13cdd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13ce90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13cf50": {
       "kind": "function",
       "status": "ported"
     },
@@ -14899,6 +15235,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x141900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x141970": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x141b70": {
       "kind": "function",
       "status": "ported",
@@ -14997,6 +15341,10 @@
       "status": "ported",
       "name": "objects_update",
       "name_confidence": "high"
+    },
+    "0x145490": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1457f0": {
       "kind": "function",

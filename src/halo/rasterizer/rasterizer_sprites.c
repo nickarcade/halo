@@ -458,7 +458,7 @@ void rasterizer_sprites_render(void *render_data, void *vertices)
  * the entry guard and group+0x48; the kb decl's semantic parameter names
  * (object_handle / datum / callback) are unproven by any string or PDB
  * evidence and are kept only for prototype agreement.
- * The bundle records one caller (0x13530e in FUN_00135210), not lifted, so no
+ * The bundle records one caller (0x13530e in light_volume_submit), not lifted, so no
  * caller-derived typing or naming is available.  The wrapper's own name is
  * likewise unproven, so the mechanical name is kept. */
 void FUN_0017cfb0(int object_handle, int datum, float *position, int callback)

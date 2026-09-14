@@ -1227,7 +1227,7 @@ void item_detonate(int item_handle)
   item_tag = (char *)tag_get(0x6974656d, *(int *)item_obj);
 
   if (*(int16_t *)(item_obj + 0x1a8) == 0) {
-    FUN_0009ec30(
+    effect_new_from_object(
       *(int *)(item_tag + 0x2f4), item_handle,
       item_handle, /* dup-args-ok: same handle as source and target */
       NONE, 0, 0, 0, 0);
@@ -1892,7 +1892,7 @@ bool item_update(int item_handle)
     countdown = countdown - 1;
     *(int16_t *)(item_obj + 0x1a8) = countdown;
     if (countdown == 0) {
-      FUN_0009ec30(
+      effect_new_from_object(
         *(int *)(item_tag + 0x304), item_handle,
         item_handle, /* dup-args-ok: same handle as source and target */
         NONE, 0, 0, 0, 0);

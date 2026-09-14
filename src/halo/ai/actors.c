@@ -5566,7 +5566,7 @@ void actor_customize_unit(int actv_tag_index, int unit_index)
 
   if (*(float *)(actv_data + 0x200) > 0.0f ||
       *(float *)(actv_data + 0x204) > 0.0f) {
-    FUN_001365d0(unit_index, (float *)(actv_data + 0x200),
+    object_initialize_vitality(unit_index, (float *)(actv_data + 0x200),
                  (float *)(actv_data + 0x204));
   }
 
@@ -6919,7 +6919,7 @@ char FUN_0003d9f0(int actor_handle)
  *   1. object_get_and_verify_type(actor+0x18, 3) to get the biped object.
  *   2. Check biped+0xcc for parent object handle.
  *   3. FUN_0003bde0 to populate actor+0x120 block.
- *   4. FUN_001a9520 to get biped world position into local_pos[3].
+ *   4. unit_get_center_of_mass to get biped world position into local_pos[3].
  *   5. FUN_0018f3e0 to resolve BSP location; result → actor+0x15d.
  *   6. Extract player-proximity flag from tag: (tag[0] >> 0x15) & 1 →
  * actor+0x99.
@@ -7109,12 +7109,12 @@ void FUN_0003dc20(int actor_handle)
   FUN_0003bde0(actor_handle, ((actor_t *)actor)->field_018, actor + 0x120);
 
   /* Get world position of the biped into local stack buffer (12 bytes).
-   * FUN_001a9520(unit_handle, out_pos[3]) writes 3 floats to local_pos.
+   * unit_get_center_of_mass(unit_handle, out_pos[3]) writes 3 floats to local_pos.
    * FUN_0018f3e0(actor+0x144, local_pos, NULL) = scenario_location_from_point:
    *   returns byte outdoor flag; cluster stored at actor+0x15d. */
   {
     float local_pos[3];
-    FUN_001a9520(((actor_t *)actor)->field_018, local_pos);
+    unit_get_center_of_mass(((actor_t *)actor)->field_018, local_pos);
     ((actor_t *)actor)->field_15d =
       FUN_0018f3e0(actor + 0x144, (void *)local_pos, (int16_t *)0);
   }

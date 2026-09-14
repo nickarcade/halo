@@ -1,6 +1,6 @@
 /* Allocate a new particle system header and initialize it (0xa1210).
  * Copies position, velocity, and tint/orientation data into the datum,
- * resolves lighting color via FUN_00139480, then runs setup (FUN_000a0fd0).
+ * resolves lighting color via light_particle, then runs setup (FUN_000a0fd0).
  * Returns the datum handle, or -1 on failure. */
 int FUN_000a1210(int tag_index, float *position, float *velocity,
                  void *ext_data, float scale)
@@ -33,7 +33,7 @@ int FUN_000a1210(int tag_index, float *position, float *velocity,
     *(float *)(datum + 0x14) = scale;
     *(uint32_t *)(datum + 0x04) |= 1;
 
-    FUN_00139480((void *)(datum + 0x20), (void *)(datum + 0x48), local_buf, 0);
+    light_particle((void *)(datum + 0x20), (void *)(datum + 0x48), local_buf, 0);
 
     if (!FUN_000a0fd0(handle)) {
       datum_delete(particle_system_header_data, handle);
@@ -924,7 +924,7 @@ void particle_new(void *spawn_params)
 
   /* sample lighting and apply to color channels */
   if ((*tag & 0x200) == 0 || (*tag & 0x40) != 0) {
-    FUN_00139480(local_position, light, diffuse, 0);
+    light_particle(local_position, light, diffuse, 0);
 
     if (!valid_real_rgb_color(light)) {
       csprintf((char *)0x5ab100, "%s: assert_valid_real_rgb_color(%f, %f, %f)",

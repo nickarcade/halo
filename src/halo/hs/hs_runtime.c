@@ -1883,7 +1883,7 @@ void hs_objects_predict(int object_list)
 }
 
 /* 0xc9d80 — Delete every live object whose definition tag index matches the
- * caller's, then run FUN_00145490.
+ * caller's, then run objects_memory_compact.
  *
  * Binary evidence (0xc9d80..0xc9dc0, cdecl, one stack arg, 0x10 bytes of
  * locals):
@@ -1921,7 +1921,7 @@ void hs_objects_delete_by_definition(int tag_index)
       object_delete(iterator.last_handle);
     object = (object_data_t *)object_iterator_next(&iterator);
   }
-  FUN_00145490();
+  objects_memory_compact();
 }
 
 /* 0xc9de0 — Spawn an unattached effect at a scenario cutscene-flag: the flag's
