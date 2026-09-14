@@ -12852,12 +12852,28 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x122a50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x122e50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x123470": {
       "kind": "function",
       "status": "ported",
       "comments": {
         "summary": "Seat-enter matrix bridge: decodes one animation node into an 0x800-byte stack buffer via FUN_00121d60, then converts the decoded basis+position slice into an output matrix via FUN_001094d0."
       }
+    },
+    "0x1234b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x123560": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x123e20": {
       "kind": "function",
@@ -17053,6 +17069,18 @@
         "The binary does not expose callers for this function, so its public semantic name and the complete allocation extent of the buffer at 0x4d9be8 remain unproven."
       ]
     },
+    "0x1a01d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a03c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a0680": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a07c0": {
       "kind": "function",
       "status": "ported"
@@ -17081,13 +17109,25 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1a0a40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a0be0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a0db0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a0e00": {
       "kind": "function",
       "status": "ported"
     },
     "0x1a0f10": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Spawns a biped contact/footstep effect: 'bipd' tag contact-point block element at tag+0x4e8[BX] supplies a marker name (element+0x20); the effect tag reference at tag+0x398 is spawned at that marker's world position."
       ],
@@ -17126,6 +17166,10 @@
         "Signature is void biped_render_debug(int unit_handle); debug visualization of biped camera height/offset (gated by global 0x5054fe) and autoaim pill (gated by 0x5054fd), rendering points (FUN_00189540) or arrows (FUN_00189860) with render contexts from 0x2ee6c4 and 0x2ee6d0."
       ]
     },
+    "0x1a1a10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a1b90": {
       "kind": "function",
       "status": "ported"
@@ -17146,7 +17190,7 @@
     },
     "0x1a1fb0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "DAT_2b4ee4 is a velocity scalar and DAT_2b4ee0/DAT_32512c form a gravity bias applied to the z component of the scaled vehicle velocity before the second collision probe."
       ],
@@ -17154,9 +17198,13 @@
         "Eject reason codes 0x26, 0x27, 0x28 passed to FUN_00046f10 are distinct outcomes (probe-miss/velocity-too-small, default, and angle-check-fail) but their exact gameplay meaning is unconfirmed."
       ]
     },
+    "0x1a2290": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a2440": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Footstep/animation-marker event step: states 2,3 are walking, 4-7 are fast-moving (velocity-squared at object+0x228 vs threshold 0x25337c); marker frames at antr element+0x40/+0x41 gate the single fast-path event. The 'footstep' semantics are inferred from the antr animation-graph lookup and the slip/recovery counter at object+0x45b."
       ]
@@ -17174,21 +17222,21 @@
     },
     "0x1a2800": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Signature is void FUN_001a2800(int unit_handle @eax, const char *failure_kind) confirmed by the caller doing MOV EAX,[EBP+8] then PUSH str with a single ADD ESP,4; it is the biped vector-failure assert that validates unit+0x24 and unit+0x30 are perpendicular via valid_real_normal3d_perpendicular and on failure formats a diagnostic and calls display_assert at bipeds.c:0x55d."
       ]
     },
     "0x1a2900": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The post-airborne perturbation applies a small random pitch in [3deg,5deg] to the biped aim and a random or computed yaw; the 'aiming control' semantics of tag+0x2f4 bit 8 (0x100) and the *state output codes 0x28/0x14 are inferred from surrounding biped update code, not from symbol names."
       ]
     },
     "0x1a2a60": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Post-landing step: increments landing-frame counter object+0x428; clears landing index object+0x460 to NONE once the counter reaches the frame count object+0x429; fires two collision-user events (param_2=5, indices 0,1) when no cinematic runs and landing just began (counter==2) or is a one-frame landing; writes landing-sound id 0x16/0x15 to *state."
       ],
@@ -17208,7 +17256,7 @@
     },
     "0x1a2b90": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "uncertain": [
         "VC71 reports a benign FPU operand-order difference in the aim dot-product: MSVC assigns the FLD vs FMUL operand of each commutative product inconsistently, but a*b == b*a is bit-identical so the result is unaffected. The 0x3c-byte rumble definition fields (1.0, 0.3, type 3) and global 0x2b4fbc (a tiny denormal blend factor) are confirmed from disassembly."
       ]
@@ -17232,6 +17280,138 @@
         "In the mode-0x01 branch the original passes local_44/40/3c to magnitude3d but never writes local_3c (tang[2]) first, reading a stale stack slot; this is fixed to 0.0f in the lift since it affects only the clamp length test, not an output field.",
         "new_position writeback (+0xac) representation: original at 0x1a4160 integer-copies a per-mode carried stack vector rather than recomputing los_dir-los_dir2; current source recomputes (float). Whether the VALUE diverges is unresolved (fn dormant, no equivalence run); flagged as latent-bug risk in the back-half writeback."
       ]
+    },
+    "0x1a4990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a4a50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6280": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6350": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a67b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a67e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6820": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6870": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a68d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6bc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6bf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6ca0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6cd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6d10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6e20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a6ef0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a70d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a71c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a74d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7650": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7730": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7a90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7ad0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7b50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7c70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7cc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7d00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7d40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7d80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7df0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7e70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7ea0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1a7f80": {
       "kind": "function",
@@ -17278,16 +17458,56 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1a8550": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a8690": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a86b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a8730": {
       "kind": "function",
       "status": "ported"
     },
     "0x1a8770": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Predicate is a signed-byte range test on anim_state+0xb: returns 1 iff the state value is in the inclusive range [3,4], else 0; signedness is proven by the CMP/JL and CMP/JG pair, and the field width by the byte-sized MOV CL,[ECX+0xb]."
       ]
+    },
+    "0x1a8790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a87f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a8850": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a8890": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a88b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a8910": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a8950": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1a8990": {
       "kind": "function",
@@ -17435,11 +17655,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1a9ec0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a9ef0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a9f20": {
       "kind": "function",
       "status": "ported"
     },
     "0x1aa080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1aa170": {
       "kind": "function",
       "status": "ported"
     },
@@ -17585,6 +17817,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1ab6e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ab730": {
       "kind": "function",
       "status": "ported"
@@ -17604,7 +17840,15 @@
         "The debug globals at 0x5054fc (debug animation logging flag) and 0x5ac9f8 (debug unit filter handle) are accessed as hardcoded addresses; their struct membership and exact semantics are not fully confirmed."
       ]
     },
+    "0x1ab870": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ab8c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ab940": {
       "kind": "function",
       "status": "ported"
     },
@@ -17631,6 +17875,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1abd10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1abd90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ac2f0": {
       "kind": "function",
       "status": "ported"
@@ -17652,6 +17904,10 @@
       "status": "ported"
     },
     "0x1ac650": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ac680": {
       "kind": "function",
       "status": "ported"
     },
@@ -17847,6 +18103,18 @@
         "FUN_0x21fb0 is assert_valid_real_normal3d (validates unit vector). FUN_0x1af6b0 is a profiling/trace function accepting a string label."
       ]
     },
+    "0x1afd30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b04b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b0630": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b0d00": {
       "kind": "function",
       "status": "ported"
@@ -17868,6 +18136,10 @@
       "status": "ported"
     },
     "0x1b13a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b1400": {
       "kind": "function",
       "status": "ported"
     },
@@ -17972,6 +18244,10 @@
       "status": "ported"
     },
     "0x1b3580": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b3690": {
       "kind": "function",
       "status": "ported"
     },

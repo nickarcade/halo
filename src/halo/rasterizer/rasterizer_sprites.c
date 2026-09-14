@@ -916,7 +916,7 @@ void FUN_0017d1a0(bool param_1)
  *              [+4] is an int16 count, named `skinning->node_matrix_count` by
  *              the asserts at lines 0x36e/0x36f;
  *   [EBP+0x10] `part`, named by the assert string at line 0x33e.
- * The sole caller (units.c, inside FUN_00123560's opaque pass) already passed
+ * The sole caller (units.c, inside render_model_parts's opaque pass) already passed
  * three arguments through a raw function-pointer cast; correcting the kb decl
  * lets that cast go away.
  *
@@ -1173,13 +1173,13 @@ void rasterizer_debug_model_vertices(int render_data, int *skinning,
         for (k = 0; k < points[j].index_count; k++) {
           crt_sprintf(index_text, "%d%c", points[j].index_list[k],
                       k != points[j].index_count - 1 ? ',' : ' ');
-          FUN_0008dc30((char *)0x5ab100, index_text);
+          csstrcat((char *)0x5ab100, index_text);
         }
-        FUN_0008dc30((char *)0x5ab100, "\nV=");
+        csstrcat((char *)0x5ab100, "\nV=");
         for (k = 0; k < points[j].vertex_count; k++) {
           crt_sprintf(vertex_text, "%d%c", points[j].vertex_list[k],
                       k != points[j].vertex_count - 1 ? ',' : ' ');
-          FUN_0008dc30((char *)0x5ab100, vertex_text);
+          csstrcat((char *)0x5ab100, vertex_text);
         }
         FUN_00189150(0, points[j].position, 0.03125f, *(void **)0x2ee6d0);
         FUN_00189cb0(0, points[j].position, (void *)0x5ab100, *(int *)0x2ee6e0);

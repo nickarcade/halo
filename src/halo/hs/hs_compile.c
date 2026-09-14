@@ -461,19 +461,19 @@ bool hs_parse_enum(int datum_index)
               ((const char **)0x2f14a8)[(int)*(int16_t *)(node + 0x4)]);
 
   for (i = 0; i < *(int16_t *)enum_definition - 1; i++) {
-    FUN_0008dc30((char *)0x46b704, "\"");
-    FUN_0008dc30((char *)0x46b704,
+    csstrcat((char *)0x46b704, "\"");
+    csstrcat((char *)0x46b704,
                  (*(const char ***)(enum_definition + 0x4))[i]);
-    FUN_0008dc30((char *)0x46b704, "\", ");
+    csstrcat((char *)0x46b704, "\", ");
   }
 
   if (*(int16_t *)enum_definition > 1) {
-    FUN_0008dc30((char *)0x46b704, "or ");
+    csstrcat((char *)0x46b704, "or ");
   }
 
-  FUN_0008dc30((char *)0x46b704, "\"");
-  FUN_0008dc30((char *)0x46b704, (*(const char ***)(enum_definition + 0x4))[i]);
-  FUN_0008dc30((char *)0x46b704, "\".");
+  csstrcat((char *)0x46b704, "\"");
+  csstrcat((char *)0x46b704, (*(const char ***)(enum_definition + 0x4))[i]);
+  csstrcat((char *)0x46b704, "\".");
 
   *(const char **)0x46b6fc = (const char *)0x46b704;
   *(int *)0x46b700 = *(int *)(node + 0xc);

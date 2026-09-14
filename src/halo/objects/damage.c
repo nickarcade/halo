@@ -433,7 +433,7 @@ float object_get_actual_shield_vitality(int object_handle, char param_2)
  * transition for the pool tracked by obj+0x94.
  *
  * Name is INFERRED, not string-proven: this is the paired sibling of the
- * confirmed object_deplete_body (0x137540). FUN_001a7b50 (units.c) contains two
+ * confirmed object_deplete_body (0x137540). unit_scripting_set_current_vitality (units.c) contains two
  * adjacent, structurally identical blocks — one calls 0x136b40 when the
  * obj+0x94 ratio transitions to zero, the other calls object_deplete_body when
  * the obj+0x90 ratio does. The two functions differ only in which flag bit they
@@ -1005,7 +1005,7 @@ void FUN_00137690(int object_handle, short region_index)
  * BUG5-FIX: FUN_00136f40 last two args: (int)effect_ptr, material_index.
  */
 /* impact_direction is a POINTER, not a bitmask.  Callers pass either a surface
- * plane's normal (FUN_001abd90 melee lunge, via FUN_0010a1c0 + plane_negate) or
+ * plane's normal (unit_cause_continuous_melee_damage melee lunge, via FUN_0010a1c0 + plane_negate) or
  * a normalized velocity (projectiles.c area damage, col_result+0x24), and NULL
  * when there is no impact direction to report.  It is forwarded untouched to
  * FUN_001377d0 and ends up as the damage effect's forward vector, which
