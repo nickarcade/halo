@@ -31087,8 +31087,9 @@
     },
     {
      "addr": "0x180b10",
-     "decl": "unsigned int FUN_00180b10(float *param_1);",
-     "ported": false
+     "decl": "unsigned int compress_real_vector3d_to_int32_clamp(float *param_1);",
+     "ported": true,
+     "name": "compress_real_vector3d_to_int32_clamp"
     },
     {
      "addr": "0x180d10",
