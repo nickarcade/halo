@@ -9090,7 +9090,7 @@
  "0x1677d0": "void FUN_001677d0(void);",
  "0x167920": "void FUN_00167920(void);",
  "0x167ee0": "bool FUN_00167ee0(void *param_1);",
- "0x167ff0": "void FUN_00167ff0(int a1, const char *call_text);",
+ "0x167ff0": "void rasterizer_error(int a1, const char *call_text);",
  "0x168280": "void FUN_00168280(void);",
  "0x168340": "void FUN_00168340(void);",
  "0x168370": "char FUN_00168370(void *bitmap);",
