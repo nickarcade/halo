@@ -16278,8 +16278,9 @@
     },
     {
      "addr": "0x132fb0",
-     "decl": "void glow_new(void);",
-     "comment": "[NAME: glow_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void glow_new(int tag_index);",
+     "comment": "[NAME: glow_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1330a0",

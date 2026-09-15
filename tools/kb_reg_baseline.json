@@ -3418,7 +3418,7 @@
  "0xae0a0": "int FUN_000ae0a0(int tag_index);",
  "0xae110": "char FUN_000ae110(int param_1, int param_2, int param_3);",
  "0xae250": "int FUN_000ae250(int param_1);",
- "0x132fb0": "void FUN_00132fb0(void);",
+ "0x132fb0": "void glow_new(int tag_index);",
  "0x1330a0": "void FUN_001330a0(int widget_datum);",
  "0x133170": "void FUN_00133170(void);",
  "0x133260": "void FUN_00133260(void);",
