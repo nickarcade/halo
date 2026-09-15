@@ -7830,38 +7830,45 @@
     },
     {
      "addr": "0xdc7a0",
-     "decl": "void FUN_000dc7a0(void);",
-     "ported": true
+     "decl": "void first_person_weapons_initialize_for_new_map(void);",
+     "ported": true,
+     "name": "first_person_weapons_initialize_for_new_map"
     },
     {
      "addr": "0xdc8c0",
-     "decl": "int16_t FUN_000dc8c0(int16_t state@<eax>);",
-     "ported": true
+     "decl": "int16_t first_person_animation_type_from_weapon_state(int16_t state@<eax>);",
+     "ported": true,
+     "name": "first_person_animation_type_from_weapon_state"
     },
     {
      "addr": "0xdc9d0",
-     "decl": "void FUN_000dc9d0(int param_2@<eax>, int object_handle@<ebx>);",
-     "ported": true
+     "decl": "void weapon_play_first_person_weapon_sound(int param_2@<eax>, int object_handle@<ebx>);",
+     "ported": true,
+     "name": "weapon_play_first_person_weapon_sound"
     },
     {
      "addr": "0xdcb30",
-     "decl": "void FUN_000dcb30(int16_t local_player_index@<di>, uint8_t activate@<bl>);",
-     "ported": true
+     "decl": "void first_person_weapon_set_visibility(int16_t local_player_index@<di>, uint8_t activate@<bl>);",
+     "ported": true,
+     "name": "first_person_weapon_set_visibility"
     },
     {
      "addr": "0xdcc80",
-     "decl": "uint8_t FUN_000dcc80(int mode_tag_index@<eax>, int antr_tag_index, int16_t *output);",
-     "ported": true
+     "decl": "uint8_t model_build_remapping_table_for_animation_graph(int mode_tag_index@<eax>, int antr_tag_index, int16_t *output);",
+     "ported": true,
+     "name": "model_build_remapping_table_for_animation_graph"
     },
     {
      "addr": "0xdcd60",
-     "decl": "int16_t FUN_000dcd60(int object_handle@<edi>);",
-     "ported": true
+     "decl": "int16_t first_person_weapon_index_from_weapon_index(int object_handle@<edi>);",
+     "ported": true,
+     "name": "first_person_weapon_index_from_weapon_index"
     },
     {
      "addr": "0xdce00",
-     "decl": "void FUN_000dce00(int16_t local_player_index@<ax>);",
-     "ported": true
+     "decl": "void first_person_weapon_predict(int16_t local_player_index@<ax>);",
+     "ported": true,
+     "name": "first_person_weapon_predict"
     },
     {
      "addr": "0xdd410",
@@ -7870,23 +7877,27 @@
     },
     {
      "addr": "0xdd4d0",
-     "decl": "void FUN_000dd4d0(int16_t local_player_index@<ax>, int16_t blend_ticks@<di>);",
-     "ported": true
+     "decl": "void first_person_weapon_start_interpolation(int16_t local_player_index@<ax>, int16_t blend_ticks@<di>);",
+     "ported": true,
+     "name": "first_person_weapon_start_interpolation"
     },
     {
      "addr": "0xddbd0",
-     "decl": "void FUN_000ddbd0(int local_player_index, int state, int param_3);",
-     "ported": true
+     "decl": "void first_person_weapon_set_state(int local_player_index, int state, int param_3);",
+     "ported": true,
+     "name": "first_person_weapon_set_state"
     },
     {
      "addr": "0xdde80",
-     "decl": "void FUN_000dde80(int local_player_index);",
-     "ported": true
+     "decl": "void first_person_weapon_switch_weapons(int local_player_index);",
+     "ported": true,
+     "name": "first_person_weapon_switch_weapons"
     },
     {
      "addr": "0xde140",
-     "decl": "void FUN_000de140(int param_1, int param_2);",
-     "ported": true
+     "decl": "void first_person_weapon_message(int param_1, int param_2);",
+     "ported": true,
+     "name": "first_person_weapon_message"
     },
     {
      "addr": "0xde3b0",
@@ -7900,16 +7911,19 @@
     },
     {
      "addr": "0xdcaf0",
-     "decl": "void FUN_000dcaf0(void);"
+     "decl": "void first_person_weapon_get(void);",
+     "name": "first_person_weapon_get"
     },
     {
      "addr": "0xdcbd0",
-     "decl": "void fp_anim_apply_node_remap(int mode_tag_index @<eax>, int fp_nodes, int antr_tag_index, int anim_nodes, int16_t *node_remap);",
-     "ported": true
+     "decl": "void model_remap_node_matrices_to_match_animation_graph(int mode_tag_index @<eax>, int fp_nodes, int antr_tag_index, int anim_nodes, int16_t *node_remap);",
+     "ported": true,
+     "name": "model_remap_node_matrices_to_match_animation_graph"
     },
     {
      "addr": "0xdcdc0",
-     "decl": "void FUN_000dcdc0(void);"
+     "decl": "void first_person_weapon_index_from_unit_index(void);",
+     "name": "first_person_weapon_index_from_unit_index"
     },
     {
      "addr": "0xdce80",
@@ -7936,7 +7950,8 @@
     },
     {
      "addr": "0xdd580",
-     "decl": "void first_person_weapon_update(void);"
+     "decl": "void first_person_weapon_build_node_matrices(void);",
+     "name": "first_person_weapon_build_node_matrices"
     },
     {
      "addr": "0xddae0",
@@ -7948,7 +7963,8 @@
     },
     {
      "addr": "0xde0e0",
-     "decl": "void FUN_000de0e0(void);"
+     "decl": "void first_person_weapon_new_unit(void);",
+     "name": "first_person_weapon_new_unit"
     },
     {
      "addr": "0xde360",
@@ -7956,11 +7972,13 @@
     },
     {
      "addr": "0xde3f0",
-     "decl": "void FUN_000de3f0(void);"
+     "decl": "void first_person_weapon_next_state(void);",
+     "name": "first_person_weapon_next_state"
     },
     {
      "addr": "0xde560",
-     "decl": "void FUN_000de560(void);"
+     "decl": "void first_person_weapon_update(void);",
+     "name": "first_person_weapon_update"
     }
    ],
    "name": "first_person_weapons.obj",
@@ -13910,126 +13928,142 @@
     },
     {
      "addr": "0xf5500",
-     "decl": "bool virtual_keyboard_set_validation(wchar_t *text_buffer, unsigned short buffer_size, short caption_index);",
-     "ported": true
+     "decl": "bool virtual_keyboard_launch(wchar_t *text_buffer, unsigned short buffer_size, short caption_index);",
+     "ported": true,
+     "name": "virtual_keyboard_launch"
     },
     {
      "addr": "0xf5640",
-     "decl": "bool FUN_000f5640(void);",
-     "ported": true
+     "decl": "bool virtual_keyboard_active(void);",
+     "ported": true,
+     "name": "virtual_keyboard_active"
     },
     {
      "addr": "0xf5650",
-     "decl": "bool FUN_000f5650(void);",
-     "ported": true
+     "decl": "bool virtual_keyboard_last_exit_saved_text(void);",
+     "ported": true,
+     "name": "virtual_keyboard_last_exit_saved_text"
     },
     {
      "addr": "0xf5660",
-     "decl": "char FUN_000f5660(void);"
+     "decl": "char virtual_keyboard_tab_left(void);",
+     "name": "virtual_keyboard_tab_left"
     },
     {
      "addr": "0xf56b0",
-     "decl": "char FUN_000f56b0(void);",
-     "ported": true
+     "decl": "char virtual_keyboard_tab_right(void);",
+     "ported": true,
+     "name": "virtual_keyboard_tab_right"
     },
     {
      "addr": "0xf5700",
-     "decl": "char FUN_000f5700(void);",
-     "ported": true
+     "decl": "char virtual_keyboard_tab_up(void);",
+     "ported": true,
+     "name": "virtual_keyboard_tab_up"
     },
     {
      "addr": "0xf5750",
-     "decl": "char FUN_000f5750(void);",
-     "name": "FUN_000f5750",
+     "decl": "char virtual_keyboard_tab_down(void);",
+     "name": "virtual_keyboard_tab_down",
      "ported": true
     },
     {
      "addr": "0xf57a0",
-     "decl": "char FUN_000f57a0(void);",
-     "ported": true
+     "decl": "char virtual_keyboard_cancel(void);",
+     "ported": true,
+     "name": "virtual_keyboard_cancel"
     },
     {
      "addr": "0xf5800",
-     "decl": "unsigned short FUN_000f5800(short key@<si>);"
+     "decl": "unsigned short virtual_keyboard_get_character(short key@<si>);",
+     "name": "virtual_keyboard_get_character"
     },
     {
      "addr": "0xf5900",
-     "decl": "void virtual_keyboard_tab_left(void);",
-     "comment": "[NAME: virtual_keyboard_tab_left \u2014 CEA PDB line-containment (probable), cea-deferred 2026-09-03]"
+     "decl": "void virtual_keyboard_render_internal(void);",
+     "comment": "[NAME: virtual_keyboard_tab_left \u2014 CEA PDB line-containment (probable), cea-deferred 2026-09-03]",
+     "name": "virtual_keyboard_render_internal"
     },
     {
      "addr": "0xf5f10",
-     "decl": "int FUN_000f5f10(void);",
-     "ported": true
+     "decl": "int virtual_keyboard_free_space_in_text_buffer(void);",
+     "ported": true,
+     "name": "virtual_keyboard_free_space_in_text_buffer"
     },
     {
      "addr": "0xf5f30",
-     "decl": "void FUN_000f5f30(void);",
-     "ported": true
+     "decl": "void virtual_keyboard_backspace(void);",
+     "ported": true,
+     "name": "virtual_keyboard_backspace"
     },
     {
      "addr": "0xf5f90",
-     "decl": "void items_initialize(void);"
+     "decl": "void virtual_keyboard_close(void);",
+     "name": "virtual_keyboard_close"
     },
     {
      "addr": "0xf5fa0",
-     "decl": "void items_initialize_for_new_map(void);"
+     "decl": "void virtual_keyboard_render(void);",
+     "name": "virtual_keyboard_render"
     },
     {
      "addr": "0xf5fb0",
-     "decl": "char FUN_000f5fb0(void);",
-     "ported": true
+     "decl": "char virtual_keyboard_select(void);",
+     "ported": true,
+     "name": "virtual_keyboard_select"
     },
     {
      "addr": "0xf63f0",
-     "decl": "void virtual_keyboard_process_input(void);",
-     "name": "virtual_keyboard_process_input",
+     "decl": "void virtual_keyboard_process_internal(void);",
+     "name": "virtual_keyboard_process_internal",
      "ported": true
     },
     {
      "addr": "0xf6740",
-     "decl": "void items_dispose_from_old_map(void);",
-     "name": "items_dispose_from_old_map",
+     "decl": "void virtual_keyboard_process(void);",
+     "name": "virtual_keyboard_process",
      "ported": true
     },
     {
      "addr": "0xf6750",
-     "decl": "void FUN_000f6750(int object_datum, void *definition);",
-     "name": "FUN_000f6750",
+     "decl": "void equipment_place(int object_datum, void *definition);",
+     "name": "equipment_place",
      "ported": true
     },
     {
      "addr": "0xf67b0",
-     "decl": "void item_activate_equipment_effect(int equipment_handle);",
-     "ported": true
+     "decl": "void equipment_handle_pickup(int equipment_handle);",
+     "ported": true,
+     "name": "equipment_handle_pickup"
     },
     {
      "addr": "0xf67f0",
-     "decl": "void FUN_000f67f0(int equipment_tag_index);",
-     "ported": true
+     "decl": "void equipment_definition_handle_pickup(int equipment_tag_index);",
+     "ported": true,
+     "name": "equipment_definition_handle_pickup"
     },
     {
      "addr": "0xf6820",
-     "decl": "char item_new(int object_handle);",
-     "name": "item_new",
+     "decl": "char garbage_update(int object_handle);",
+     "name": "garbage_update",
      "ported": true
     },
     {
      "addr": "0xf6860",
-     "decl": "bool item_begin_garbage_collection(int item_handle);",
-     "name": "item_begin_garbage_collection",
+     "decl": "bool garbage_new(int item_handle);",
+     "name": "garbage_new",
      "ported": true
     },
     {
      "addr": "0xf68b0",
-     "decl": "short FUN_000f68b0(int item_handle);",
-     "name": "FUN_000f68b0",
+     "decl": "short object_get_type(int item_handle);",
+     "name": "object_get_type",
      "ported": true
     },
     {
      "addr": "0xf6910",
-     "decl": "char item_activate(int item_handle);",
-     "name": "item_activate",
+     "decl": "char item_new(int item_handle);",
+     "name": "item_new",
      "ported": true
     },
     {
@@ -14039,8 +14073,9 @@
     },
     {
      "addr": "0xf69c0",
-     "decl": "void item_attach_to_unit(int item_handle, int unit_handle);",
-     "ported": true
+     "decl": "void item_in_unit_inventory(int item_handle, int unit_handle);",
+     "ported": true,
+     "name": "item_in_unit_inventory"
     },
     {
      "addr": "0xf6a60",
@@ -14054,8 +14089,9 @@
     },
     {
      "addr": "0xf6b80",
-     "decl": "void FUN_000f6b80(int item_handle@<eax>);",
-     "ported": true
+     "decl": "void item_adjust_for_angular_velocity_change(int item_handle@<eax>);",
+     "ported": true,
+     "name": "item_adjust_for_angular_velocity_change"
     },
     {
      "addr": "0xf6c40",
@@ -14070,12 +14106,14 @@
     },
     {
      "addr": "0xf6d60",
-     "decl": "void item_set_position(int item_handle, float *position, int flag);",
-     "ported": true
+     "decl": "void item_accelerate(int item_handle, float *position, int flag);",
+     "ported": true,
+     "name": "item_accelerate"
     },
     {
      "addr": "0xf7110",
-     "decl": "void FUN_000f7110(float *out_point@<eax>, float *normal@<esi>, int item_handle@<ebx>, float *point);"
+     "decl": "void item_align_to_normal_and_point(float *out_point@<eax>, float *normal@<esi>, int item_handle@<ebx>, float *point);",
+     "name": "item_align_to_normal_and_point"
     },
     {
      "addr": "0xf7340",
@@ -20398,13 +20436,15 @@
     },
     {
      "addr": "0xf7e40",
-     "decl": "void FUN_000f7e40(int projectile_handle@<eax>, int16_t state@<esi>);",
-     "ported": true
+     "decl": "void projectile_set_action(int projectile_handle@<eax>, int16_t state@<esi>);",
+     "ported": true,
+     "name": "projectile_set_action"
     },
     {
      "addr": "0xf7e60",
-     "decl": "void FUN_000f7e60(int effect_tag_index, int object_index, void *tag_def, float *marker_points, float *marker_forwards, float scale_a, float scale_b);",
-     "ported": true
+     "decl": "void projectile_effect_new(int effect_tag_index, int object_index, void *tag_def, float *marker_points, float *marker_forwards, float scale_a, float scale_b);",
+     "ported": true,
+     "name": "projectile_effect_new"
     },
     {
      "addr": "0xf7ec0",
@@ -20413,8 +20453,9 @@
     },
     {
      "addr": "0xf7fa0",
-     "decl": "float FUN_000f7fa0(void *tag@<ecx>, float range_begin, float range_end);",
-     "ported": true
+     "decl": "float projectile_calculate_deceleration_from_distances(void *tag@<ecx>, float range_begin, float range_end);",
+     "ported": true,
+     "name": "projectile_calculate_deceleration_from_distances"
     },
     {
      "addr": "0xf8000",
@@ -20444,23 +20485,27 @@
     },
     {
      "addr": "0xf8590",
-     "decl": "void FUN_000f8590(int projectile_handle@<eax>);",
-     "ported": true
+     "decl": "void projectile_adjust_for_angular_velocity_change(int projectile_handle@<eax>);",
+     "ported": true,
+     "name": "projectile_adjust_for_angular_velocity_change"
     },
     {
      "addr": "0xf8640",
-     "decl": "void FUN_000f8640(int projectile_handle@<eax>);",
-     "ported": true
+     "decl": "void projectile_calculate_deceleration(int projectile_handle@<eax>);",
+     "ported": true,
+     "name": "projectile_calculate_deceleration"
     },
     {
      "addr": "0xf8720",
-     "decl": "bool FUN_000f8720(int projectile_handle@<eax>, float *new_pos@<edi>, int16_t *collision_result);",
-     "ported": true
+     "decl": "bool projectile_collision_test_line(int projectile_handle@<eax>, float *new_pos@<edi>, int16_t *collision_result);",
+     "ported": true,
+     "name": "projectile_collision_test_line"
     },
     {
      "addr": "0xf8920",
-     "decl": "void FUN_000f8920(int projectile_handle, char has_hit_count, float current_time);",
-     "ported": true
+     "decl": "void projectile_detonate(int projectile_handle, char has_hit_count, float current_time);",
+     "ported": true,
+     "name": "projectile_detonate"
     },
     {
      "addr": "0xf8d30",
@@ -20474,28 +20519,33 @@
     },
     {
      "addr": "0xf90d0",
-     "decl": "void FUN_000f90d0(int projectile_handle, float *hit_pos, float param_3, float *velocity@<eax>, int16_t *col_result@<esi>);",
-     "ported": true
+     "decl": "void projectile_collision(int projectile_handle, float *hit_pos, float param_3, float *velocity@<eax>, int16_t *col_result@<esi>);",
+     "ported": true,
+     "name": "projectile_collision"
     },
     {
      "addr": "0xf9c40",
-     "decl": "bool FUN_000f9c40(int projectile_handle);",
-     "ported": true
+     "decl": "bool projectile_update(int projectile_handle);",
+     "ported": true,
+     "name": "projectile_update"
     },
     {
      "addr": "0xfac20",
-     "decl": "float FUN_000fac20(int weapon_tag_index, float *out_field8);",
-     "ported": true
+     "decl": "float weapon_definition_get_damage_potential(int weapon_tag_index, float *out_field8);",
+     "ported": true,
+     "name": "weapon_definition_get_damage_potential"
     },
     {
      "addr": "0xface0",
-     "decl": "void FUN_000face0(int animation_graph_tag_index, short *state, int *out_sound);",
-     "ported": true
+     "decl": "void animation_update(int animation_graph_tag_index, short *state, int *out_sound);",
+     "ported": true,
+     "name": "animation_update"
     },
     {
      "addr": "0xfad00",
-     "decl": "int16_t FUN_000fad00(int animation_graph_tag_index, int16_t animation_index);",
-     "ported": true
+     "decl": "int16_t animation_choose_random_permutation(int animation_graph_tag_index, int16_t animation_index);",
+     "ported": true,
+     "name": "animation_choose_random_permutation"
     }
    ],
    "name": "projectiles.obj",
@@ -33618,9 +33668,10 @@
     },
     {
      "addr": "0xfb140",
-     "decl": "int16_t weapon_get_animation_frame(int weapon_handle, int16_t param_2, int16_t param_3, int16_t param_4);",
+     "decl": "int16_t weapon_get_first_person_animation_time(int weapon_handle, int16_t param_2, int16_t param_3, int16_t param_4);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_get_first_person_animation_time"
     },
     {
      "addr": "0xfb2f0",
@@ -33631,63 +33682,76 @@
     },
     {
      "addr": "0xfb320",
-     "decl": "void FUN_000fb320(void);"
+     "decl": "void weapon_trigger_get(void);",
+     "name": "weapon_trigger_get"
     },
     {
      "addr": "0xfb370",
-     "decl": "void *FUN_000fb370(void *weapon_obj@<edi>, int16_t magazine_index@<si>);",
+     "decl": "void *weapon_magazine_get(void *weapon_obj@<edi>, int16_t magazine_index@<si>);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_magazine_get"
     },
     {
      "addr": "0xfb3c0",
-     "decl": "bool weapon_has_activity(int weapon_handle @<eax>);",
+     "decl": "bool weapon_busy(int weapon_handle @<eax>);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_busy"
     },
     {
      "addr": "0xfb510",
-     "decl": "void FUN_000fb510(void);"
+     "decl": "void weapon_trigger_get_charged_fraction(void);",
+     "name": "weapon_trigger_get_charged_fraction"
     },
     {
      "addr": "0xfb5a0",
-     "decl": "void FUN_000fb5a0(void);"
+     "decl": "void weapon_trigger_can_fire_again(void);",
+     "name": "weapon_trigger_can_fire_again"
     },
     {
      "addr": "0xfb690",
-     "decl": "void FUN_000fb690(void);"
+     "decl": "void weapon_magazine_idle(void);",
+     "name": "weapon_magazine_idle"
     },
     {
      "addr": "0xfb6e0",
-     "decl": "int weapon_start_effect(int trigger_effect, float scale, float param_3, int weapon_handle @<eax>);",
+     "decl": "int weapon_effect_new(int trigger_effect, float scale, float param_3, int weapon_handle @<eax>);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_effect_new"
     },
     {
      "addr": "0xfb7d0",
-     "decl": "void FUN_000fb7d0(void);"
+     "decl": "void weapon_effect_looping_new(void);",
+     "name": "weapon_effect_looping_new"
     },
     {
      "addr": "0xfb880",
-     "decl": "void weapon_trigger_release_charge(void);"
+     "decl": "void weapon_trigger_change_state(void);",
+     "name": "weapon_trigger_change_state"
     },
     {
      "addr": "0xfb910",
-     "decl": "void FUN_000fb910(void);"
+     "decl": "void weapon_trigger_start_ejection_port(void);",
+     "name": "weapon_trigger_start_ejection_port"
     },
     {
      "addr": "0xfb990",
-     "decl": "void FUN_000fb990(void);"
+     "decl": "void weapon_state_key_frame(void);",
+     "name": "weapon_state_key_frame"
     },
     {
      "addr": "0xfba00",
-     "decl": "void FUN_000fba00(void);"
+     "decl": "void weapon_state_interruptable(void);",
+     "name": "weapon_state_interruptable"
     },
     {
      "addr": "0xfba20",
-     "decl": "int weapon_set_animation_state(int weapon_handle, char param_2, int16_t state @<bx>);",
+     "decl": "int weapon_set_state(int weapon_handle, char param_2, int16_t state @<bx>);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_set_state"
     },
     {
      "addr": "0xfbbd0",
@@ -33697,7 +33761,8 @@
     },
     {
      "addr": "0xfbcf0",
-     "decl": "void FUN_000fbcf0(void);"
+     "decl": "void power(void);",
+     "name": "power"
     },
     {
      "addr": "0xfbd10",
@@ -33747,53 +33812,64 @@
     },
     {
      "addr": "0xfc990",
-     "decl": "void FUN_000fc990(int16_t magazine_index@<ax>, int weapon_handle, int param_2);",
+     "decl": "void weapon_magazine_start_reload(int16_t magazine_index@<ax>, int weapon_handle, int param_2);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_magazine_start_reload"
     },
     {
      "addr": "0xfcaf0",
-     "decl": "void FUN_000fcaf0(int weapon_handle, int magazine_index);",
+     "decl": "void weapon_magazine_finish_reload(int weapon_handle, int magazine_index);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_magazine_finish_reload"
     },
     {
      "addr": "0xfcbd0",
-     "decl": "void FUN_000fcbd0(void);"
+     "decl": "void weapon_magazine_start_chamber(void);",
+     "name": "weapon_magazine_start_chamber"
     },
     {
      "addr": "0xfcc90",
-     "decl": "void FUN_000fcc90(void);"
+     "decl": "void weapon_magazine_finish_chamber(void);",
+     "name": "weapon_magazine_finish_chamber"
     },
     {
      "addr": "0xfcd10",
-     "decl": "void FUN_000fcd10(void);"
+     "decl": "void weapon_trigger_fully_charged(void);",
+     "name": "weapon_trigger_fully_charged"
     },
     {
      "addr": "0xfcdd0",
-     "decl": "void FUN_000fcdd0(void);"
+     "decl": "void weapon_trigger_idle(void);",
+     "name": "weapon_trigger_idle"
     },
     {
      "addr": "0xfce60",
-     "decl": "void FUN_000fce60(void);"
+     "decl": "void weapon_trigger_locked(void);",
+     "name": "weapon_trigger_locked"
     },
     {
      "addr": "0xfcec0",
-     "decl": "void FUN_000fcec0(void);"
+     "decl": "void weapon_trigger_recover(void);",
+     "name": "weapon_trigger_recover"
     },
     {
      "addr": "0xfcf20",
-     "decl": "void weapon_reset_state(int weapon_handle);",
+     "decl": "void weapon_reset(int weapon_handle);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_reset"
     },
     {
      "addr": "0xfd0b0",
-     "decl": "void FUN_000fd0b0(void);"
+     "decl": "void projectile_distribute(void);",
+     "name": "projectile_distribute"
     },
     {
      "addr": "0xfd150",
-     "decl": "void FUN_000fd150(void);"
+     "decl": "void weapon_state_next(void);",
+     "name": "weapon_state_next"
     },
     {
      "addr": "0xfd180",
@@ -33804,16 +33880,18 @@
     {
      "addr": "0xfd2e0",
      "comment": "Initialize a weapon after it becomes the active weapon for a unit.",
-     "decl": "void weapon_activate(int weapon_handle);",
+     "decl": "void weapon_ready(int weapon_handle);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_ready"
     },
     {
      "addr": "0xfd360",
      "comment": "Attempt to put away a weapon; returns false if the weapon has active triggers.",
-     "decl": "bool weapon_try_place(int weapon_handle, int flag);",
+     "decl": "bool weapon_put_away(int weapon_handle, int flag);",
      "ported": true,
-     "source_path": "halo/items/weapons.c"
+     "source_path": "halo/items/weapons.c",
+     "name": "weapon_put_away"
     },
     {
      "addr": "0xfd400",
@@ -33828,31 +33906,38 @@
     },
     {
      "addr": "0xfd520",
-     "decl": "void FUN_000fd520(void);"
+     "decl": "void weapon_trigger_finish_tracking(void);",
+     "name": "weapon_trigger_finish_tracking"
     },
     {
      "addr": "0xfd570",
-     "decl": "void FUN_000fd570(void);"
+     "decl": "void trigger_create_projectiles(void);",
+     "name": "trigger_create_projectiles"
     },
     {
      "addr": "0xfdc90",
-     "decl": "void FUN_000fdc90(void);"
+     "decl": "void weapon_trigger_fire(void);",
+     "name": "weapon_trigger_fire"
     },
     {
      "addr": "0xfe450",
-     "decl": "void FUN_000fe450(void);"
+     "decl": "void weapon_trigger_begin_firing(void);",
+     "name": "weapon_trigger_begin_firing"
     },
     {
      "addr": "0xfe6c0",
-     "decl": "void FUN_000fe6c0(void);"
+     "decl": "void weapon_trigger_overload(void);",
+     "name": "weapon_trigger_overload"
     },
     {
      "addr": "0xfe790",
-     "decl": "void FUN_000fe790(void);"
+     "decl": "void weapon_trigger_release_charge(void);",
+     "name": "weapon_trigger_release_charge"
     },
     {
      "addr": "0xfe890",
-     "decl": "void FUN_000fe890(void);"
+     "decl": "void weapon_trigger_overcharged(void);",
+     "name": "weapon_trigger_overcharged"
     },
     {
      "addr": "0xfe910",
@@ -39200,8 +39285,9 @@
     },
     {
      "addr": "0x966d0",
-     "decl": "void device_group_set_real(int device_group_handle, int unit_handle);",
-     "ported": true
+     "decl": "void device_touched(int device_group_handle, int unit_handle);",
+     "ported": true,
+     "name": "device_touched"
     },
     {
      "addr": "0x96720",
@@ -39210,13 +39296,15 @@
     },
     {
      "addr": "0x967a0",
-     "decl": "void FUN_000967a0(int object_handle, int tag_index);",
-     "ported": true
+     "decl": "void device_effect_new(int object_handle, int tag_index);",
+     "ported": true,
+     "name": "device_effect_new"
     },
     {
      "addr": "0x96850",
-     "decl": "short device_effect_new(float initial_value, short flags);",
-     "ported": true
+     "decl": "short device_group_new(float initial_value, short flags);",
+     "ported": true,
+     "name": "device_group_new"
     },
     {
      "addr": "0x96900",

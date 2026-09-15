@@ -499,7 +499,7 @@ void object_deplete_shield(int object_handle)
  *   case 0 (biped):   calls FUN_001a4a70 (biped acceleration)
  *   case 1 (vehicle): optionally doubles velocity if jpt+0x1c8 flag set,
  *                     calls vehicle_accelerate (vehicle acceleration)
- *   case 2,3,4 (items): calls item_set_position with flag based on
+ *   case 2,3,4 (items): calls item_accelerate with flag based on
  *                       damage_data+0x40 > 0.5f && jpt+0x1c8 flag
  *   case 5 (projectile): calls projectile_accelerate (projectile acceleration)
  *
@@ -573,9 +573,9 @@ void FUN_00136f40(int object_handle, void *damage_data, unsigned int flags,
     case 4:
       if (*(float *)(dd + 0x40) > 0.5f &&
           (*(unsigned char *)(jpt_tag + 0x1c8) & 0x20) != 0) {
-        item_set_position(object_handle, velocity, 1);
+        item_accelerate(object_handle, velocity, 1);
       } else {
-        item_set_position(object_handle, velocity, 0);
+        item_accelerate(object_handle, velocity, 0);
       }
       break;
     case 0:
