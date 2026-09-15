@@ -4954,6 +4954,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x97ae0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x97c80": {
       "kind": "function",
       "status": "ported"
@@ -4970,6 +4974,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x97db0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x97e40": {
       "kind": "function",
       "status": "ported",
@@ -4980,7 +4988,7 @@
     },
     "0x98200": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "VC71 match is 81.9% (297/299 insns) \u2014 structural ceiling due to MSVC FPU scheduler reordering datum_scale loads and generating fcomps/fucompp vs fcomp for the while-loop decay_rate != 0.0f check; no semantic errors detected (--fpu-only clean).",
         "Sole caller is FUN_00098750 (0x98750): PUSH ECX (delta_time float bits from [EBP+8]) then PUSH EBX (contrail_handle from data_next_index result), ADD ESP,8 after; confirms cdecl signature (int contrail_handle, float delta_time)."
@@ -5062,6 +5070,10 @@
       "inferred": [
         "Computes a normalized 2D line equation from two points; returns NULL on degenerate input."
       ]
+    },
+    "0x99490": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x994d0": {
       "kind": "function",
@@ -5152,6 +5164,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x9c700": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x9c750": {
       "kind": "function",
       "status": "ported"
@@ -5161,6 +5177,14 @@
       "status": "ported"
     },
     "0x9c910": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9c9a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x9c9f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5289,9 +5313,13 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x9f430": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x9f570": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "param_4 is a float, not an int: the original loads [EBP+0x14] as a raw dword and pushes it unchanged into FUN_0009f430's float param_7, with no FILD or other conversion, so the kb decl was retyped from int to float.",
         "The surface index selected at 0x9f620-0x9f627 is 32-bit: the original emits MOV EAX,0x1c and MOV EAX,dword [EBP-0x34] with no MOVSX, so collision_result+0x34 is read as an int even though FUN_0009f430 reads its third parameter as a 16-bit value."
@@ -5341,7 +5369,7 @@
     },
     "0x9fa60": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Parameter 2 is a float: the original copies [EBP+0xc] as a raw dword (MOV ECX,[EBP+0xc]; PUSH ECX) with no FPU instructions anywhere in the function, and it lands in slot 11 of FUN_00154a50, whose kb declaration types that slot as 'float delta_time'.",
         "Offset 0x44 in the 'ptcl' (0x7063746c) tag data is a physics tag index: it is compared against -1 and then passed as the tag_index argument to tag_get(0x70706879 'pphy')."
@@ -5353,7 +5381,7 @@
     },
     "0x9fad0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Signature widened from the wrong 'void FUN_0009fad0(void)' kb declaration to four cdecl pointer slots, proven by the loads at [EBP+0x8], [EBP+0x10] and [EBP+0x14] and the plain RET (caller-cleaned stack)."
       ],
@@ -5364,7 +5392,7 @@
     },
     "0x9fb10": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Prototype (void *particle_system, int16_t type_index, float delta_time, void *particle) is inferred from the frame: [EBP+0x8] and [EBP+0xc] are read once each at 0x9fb17/0x9fb2a and then reused by MSVC as float scratch for the scale and interpolation-factor locals, so Ghidra renders them as in_stack_* rather than parameters.",
         "Register aliasing at 0x9fbf9/0x9fc01 was resolved from the raw disassembly: EBX holds the state-block element for particle+0x8 and ECX the element for particle+0xa, so the lerp is (1-t)*state_at_particle_0xa + t*state_at_particle_0x8."
@@ -5375,7 +5403,7 @@
     },
     "0x9fca0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The discarded tag_get('ltcp', particle->field_08) result is preserved because tag_get validates the index and asserts on a bad one; the original ignores EAX entirely."
       ],
@@ -5401,7 +5429,7 @@
     },
     "0xa0800": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Locals were declared in the order that reproduces the original 0x118 frame: intensity_a at EBP-0x04 down to record[0xa4] at EBP-0x118; the four-float color_a/color_b blocks sit at EBP-0x58/EBP-0x48 and the two matrix_transform outputs at EBP-0x64 (point) and EBP-0x74 (vector)."
       ],
@@ -5413,13 +5441,17 @@
     },
     "0xa0d50": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Parameter 2 is a 16-bit short: the prologue does MOVSX ECX, word ptr [EBP+0xc] at 0xa0d68, so declaring it int would change codegen at the tag_block_get_element call."
       ],
       "uncertain": [
         "Field meanings of state+0x1c/0x20/0x24 (world position), state+0x34/0x38 (copied direction later rotated), state+0x3c (cleared int) and origin+0x60..0x68 are unproven; only the raw offsets are confirmed from the disassembly."
       ]
+    },
+    "0xa0e60": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xa0fd0": {
       "kind": "function",
@@ -5434,6 +5466,10 @@
       "status": "ported"
     },
     "0xa1210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa12e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5458,6 +5494,10 @@
       "status": "ported"
     },
     "0xa1510": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa1590": {
       "kind": "function",
       "status": "ported"
     },
@@ -5486,6 +5526,14 @@
       "status": "ported"
     },
     "0xa1a90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa1b60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa1c30": {
       "kind": "function",
       "status": "ported"
     },
@@ -5556,6 +5604,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa3e60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa3ea0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa3ef0": {
       "kind": "function",
       "status": "ported"
@@ -5572,6 +5628,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa4000": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa40a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa4200": {
       "kind": "function",
       "status": "ported",
@@ -5581,6 +5645,22 @@
       "uncertain": [
         "The type-definition layout at offset 0x24 and particle datum next-handle field at offset 0x50 remain raw offsets because no complete project struct proves those layouts."
       ]
+    },
+    "0xa4310": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa45d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa4610": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa48c0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xa4a00": {
       "kind": "function",
@@ -5592,6 +5672,14 @@
       "uncertain": [
         "Canonical semantic names for the four weather-polyhedron element floats and the camera position globals at 0x506550, 0x506554, and 0x506558 remain unproven, so the lift keeps raw offsets and existing camera storage."
       ]
+    },
+    "0xa4ab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa4be0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xa4e20": {
       "kind": "function",
@@ -13943,7 +14031,7 @@
     },
     "0x1345b0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "GLOW_MARKER_MAX=5 inferred from the +0x22a ordering table capacity (0x234-0x22a = 10 bytes = 5 int16 slots) and the object_get_markers_by_string_id max_count arg.",
         "g_glow_particle_data datum pool pointer lives at VA 0x5a90cc, extracted from the pristine XBE datum_delete call site operand."
@@ -16322,6 +16410,10 @@
       "status": "ported"
     },
     "0x18f600": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x18ff00": {
       "kind": "function",
       "status": "ported"
     },

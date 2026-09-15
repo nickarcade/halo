@@ -982,22 +982,22 @@ void biped_start_landing(float threshold, int unit_handle)
  * (line 0xf60). If the requested contact index (register BX) is in range of the
  * tag's contact-point block at tag+0x4e8 AND the effect tag reference at
  * tag+0x398 is valid (!= -1), and the object's animation/contact gate
- * FUN_0009f3b0(object+0x50) passes, it fetches contact-point element BX
+ * material_effect_visible(object+0x50) passes, it fetches contact-point element BX
  * (element size 0x40), resolves the named marker (name at element+0x20) on the
  * object via object_get_markers_by_string_id (one marker, into a 108-byte
  * result buffer), and on success spawns the effect (tag+0x398) at the marker's
- * world position (buffer+0x60) via FUN_0009f570.
+ * world position (buffer+0x60) via material_effect_new_from_point.
  *
  * Confirmed (disasm): cdecl, 2 stack params [EBP+8]=unit_handle, [EBP+0xc];
  *   index is register-passed in BX (MOVSX EBX,BX at 0x1a0f73 reads BX before
  *   any write; callers 0x1a2440 load EBX immediately before each CALL). void
  *   return. The marker-result buffer is one contiguous region: Ghidra split it
  *   into local_74[96]+local_14[12], but object_get_markers_by_string_id writes
- *   to offset 0x6c (108 bytes) and FUN_0009f570 reads the position at +0x60
+ *   to offset 0x6c (108 bytes) and material_effect_new_from_point reads the position at +0x60
  *   (LEA [EBP-0x70] vs LEA [EBP-0x10] differ by exactly 0x60).
  * Inferred: 'bipd' contact-point footstep-effect spawn semantics from the
  *   tag-block index + effect-tag + marker-position spawn shape.
- * Uncertain: precise meaning of param_2 (forwarded unchanged to FUN_0009f570);
+ * Uncertain: precise meaning of param_2 (forwarded unchanged to material_effect_new_from_point);
  *   callers pass 3 or 4 (region/permutation selector). Layout of the 108-byte
  *   marker-result buffer beyond "transform copy at +0x38..0x6c, position at
  *   +0x60" is opaque (no named struct in headers yet).
@@ -1009,7 +1009,7 @@ void biped_make_footstep(int unit_handle, int param_2, short index /* @bx */)
   int depth;
   void *contact_elem;
   /* One contiguous marker-result buffer. object_get_markers_by_string_id
-   * writes up to offset 0x6c (108 bytes); FUN_0009f570 reads the marker
+   * writes up to offset 0x6c (108 bytes); material_effect_new_from_point reads the marker
    * world position at +0x60. Sized so the MSVC frame totals 0x70 with the
    * 4-byte object pointer (do not split into separate locals). */
   char marker_buf[0x6c];
@@ -1029,12 +1029,12 @@ void biped_make_footstep(int unit_handle, int param_2, short index /* @bx */)
 
   if (((int)index < *(int *)(biped_tag + 0x4e8)) &&
       (*(int *)(biped_tag + 0x398) != -1)) {
-    if (FUN_0009f3b0((char *)object + 0x50) != false) {
+    if (material_effect_visible((char *)object + 0x50) != false) {
       contact_elem =
         tag_block_get_element((void *)(biped_tag + 0x4e8), (int)index, 0x40);
       if (object_get_markers_by_string_id(
             unit_handle, (char *)contact_elem + 0x20, marker_buf, 1) != 0) {
-        FUN_0009f570(*(int *)(biped_tag + 0x398), param_2, marker_buf + 0x60,
+        material_effect_new_from_point(*(int *)(biped_tag + 0x398), param_2, marker_buf + 0x60,
                      0);
       }
     }
