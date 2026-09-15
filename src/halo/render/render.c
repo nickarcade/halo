@@ -133,7 +133,7 @@ void FUN_00184690(void)
 /* render_effects (0x184b60)
  *
  * Broadcasts a single cdecl byte argument (the record's first byte, per the
- * caller FUN_000bee00 at 0xbee00) to four adjacent global enable bytes:
+ * caller render_effects_evaluate at 0xbee00) to four adjacent global enable bytes:
  * 0x32574a, 0x32574b, 0x32574c, 0x32574d. All four are set to the same
  * incoming value (000184b63 MOV AL,[EBP+8]; four MOV [addr],AL stores, no
  * branch). 0x32574c is read elsewhere as the particle-system-update gate

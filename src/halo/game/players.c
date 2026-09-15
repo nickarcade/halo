@@ -59,7 +59,7 @@ void *machine_get_player_list(int16_t machine_index)
  *   local_player_network_indices[local_player_index & 0xffff][0..3]
  * and writes player_handle into the first slot that is -1 (unused).
  * Asserts if no free slot is found ("failed to create a player"). */
-void player_register_machine(unsigned __int16 local_player_index,
+void machine_add_player(unsigned __int16 local_player_index,
                              int player_handle)
 {
   int i;
@@ -400,7 +400,7 @@ bool any_player_is_dead(void)
  * The record's first 16-bit field (record[0], zero-extended) is passed as
  * FUN_0018ef00's first argument. Returns a normalized bool: 1 when index is
  * valid and FUN_0018ef00 returns nonzero, otherwise 0. */
-char FUN_000ba850(int16_t index /* @<ax> */, int object_handle)
+char is_player_in_trigger(int16_t index /* @<ax> */, int object_handle)
 {
   void *scenario;
   unsigned short *element;
@@ -422,7 +422,7 @@ char FUN_000ba850(int16_t index /* @<ax> */, int object_handle)
  * arg1 (player_index) is passed in EAX; param_2 is a cdecl stack arg whose
  * meaning is uncertain (stored to player+0x38 when != NONE).
  */
-void FUN_000ba890(int player_index, int param_2)
+void player_pseudo_kill(int player_index, int param_2)
 {
   char *player;
   int slot;
@@ -463,8 +463,8 @@ void FUN_000ba890(int player_index, int param_2)
  * case, and the map was loaded with player_spawn_count == 1, scan the local
  * player slots for the one that DOES own a player record and migrate that
  * player onto the controller: clear the old slot, hand its unit
- * (player+0x34) to the controller, then fix up the HUD (FUN_000d98c0, in
- * interface/hud_weapon.c) and FUN_000d7780.
+ * (player+0x34) to the controller, then fix up the HUD (hud_fix_weapon_data, in
+ * interface/hud_weapon.c) and hud_fix_unit_data.
  *
  * Structure notes derived from the disassembly at 0xba970:
  *  - the slot read inside the loop is the INLINED body of
@@ -472,7 +472,7 @@ void FUN_000ba890(int player_index, int param_2)
  *    out-of-line call is not used here, so the idiom is written out.
  *  - a single `ADD ESP,0x40` at 0xbaa4c is the MERGED cdecl cleanup for all
  *    eight calls in the loop body.  Ghidra attributes it to the last call and
- *    invents four varargs on the `error` call and none on FUN_000d98c0; the
+ *    invents four varargs on the `error` call and none on hud_fix_weapon_data; the
  *    disassembly (PUSH EDI / PUSH ESI at 0xbaa32) is authoritative.
  *  - at 0xbaa1e EDI still holds player_index and is pushed as the second
  *    argument, then reloaded from [EBP-4] at 0xbaa1f for the first argument;
@@ -505,8 +505,8 @@ void player_control_fix_for_loaded_game_state(void)
             player_control_new_unit(local_player_index, NONE);
             local_player_set_player_index(new_local_player, player_index);
             player_control_new_unit(new_local_player, *(int *)(player + 0x34));
-            FUN_000d98c0(local_player_index, new_local_player);
-            FUN_000d7780(local_player_index, new_local_player);
+            hud_fix_weapon_data(local_player_index, new_local_player);
+            hud_fix_unit_data(local_player_index, new_local_player);
             error(2, "corrected player control for restored saved game");
             break;
           }
@@ -646,8 +646,8 @@ void placement_data_set_change_color(void *placement_data, float *color)
  * copies record+0x12 -> object+0x25E and record+0x10 -> object+0x260 (note the
  * crossed source offsets; matches the original store order). Returns the new
  * object handle, or NONE on early-out / failed creation. Structurally faithful
- * lift of FUN_000bac10; EAX return is materialized as -1 at entry. */
-int FUN_000bac10(void *record, int parent_handle)
+ * lift of create_weapon; EAX return is materialized as -1 at entry. */
+int create_weapon(void *record, int parent_handle)
 {
   int object_index;
   void *object;
@@ -697,9 +697,8 @@ int FUN_000bac10(void *record, int parent_handle)
  *       - if player+0x3C is valid, OR that cluster's visibility row into
  *         combined_pvs.
  *   - Then OR in the cluster returned by 0x13DCC0 (the "currently focused
- *     parent object" cluster -- see objects.c
- * objects_get_activating_cluster_index) when valid. */
-void players_update_pvs(void *combined_pvs /* @<edi> */, bool local_player_only)
+ *     parent object" cluster -- see objects.c objects_get_activating_cluster_index) when valid. */
+void players_compute_combined_pvs(void *combined_pvs /* @<edi> */, bool local_player_only)
 {
   void *structure_bsp;
   data_iter_t iter;
@@ -815,7 +814,7 @@ int players_compute_local_player_count(void)
  *   2. Checking unit weapon counts (0x1aad90, 0x1aae00)
  *   3. Checking game engine running state
  *   4. Checking unit_can_pick_up_weapon (0xaba00) as fallback */
-bool player_examine_nearby_unit(int player_unit_handle, int nearby_unit_handle)
+bool unit_should_autopick_weapon(int player_unit_handle, int nearby_unit_handle)
 {
   int *nearby_obj;
   char *weap_tag;
@@ -870,7 +869,7 @@ void player_reset_action_result(int player_handle /* @<eax> */)
  *
  * The action result object (player+0x24) is the vehicle or seat object
  * the player is interacting with. */
-bool player_try_to_enter_vehicle(int player_handle /* @<eax> */)
+bool player_handle_weapon_swap(int player_handle /* @<eax> */)
 {
   char *player;
   int *vehicle_obj;
@@ -886,8 +885,8 @@ bool player_try_to_enter_vehicle(int player_handle /* @<eax> */)
     if (unit_enter_seat(*(int *)(player + 0x34), *(int *)(player + 0x24), 1)) {
       vehicle_obj =
         (int *)object_get_and_verify_type(*(int *)(player + 0x24), 4);
-      hud_player_set_vehicle(*(unsigned short *)(player + 0x2), *vehicle_obj);
-      player_clear_aim_assist(*(int *)(player + 0x34));
+      hud_picked_up_weapon(*(unsigned short *)(player + 0x2), *vehicle_obj);
+      player_control_unzoom(*(int *)(player + 0x34));
     }
     return true;
   case 1:
@@ -895,7 +894,7 @@ bool player_try_to_enter_vehicle(int player_handle /* @<eax> */)
     if (unit_enter_seat(*(int *)(player + 0x34), *(int *)(player + 0x24), 1)) {
       vehicle_obj =
         (int *)object_get_and_verify_type(*(int *)(player + 0x24), 4);
-      hud_player_set_vehicle(*(unsigned short *)(player + 0x2), *vehicle_obj);
+      hud_picked_up_weapon(*(unsigned short *)(player + 0x2), *vehicle_obj);
     }
     break;
   default:
@@ -906,8 +905,8 @@ bool player_try_to_enter_vehicle(int player_handle /* @<eax> */)
 
 /* Apply the overshield powerup effect to the player.
  * Builds a player-effect descriptor struct with the overshield parameters
- * and submits it via player_effect_apply. ESI = player_handle. */
-void player_apply_overshield_effect(int player_handle)
+ * and submits it via player_effect_screen_flash. ESI = player_handle. */
+void player_over_shield_screen_effect(int player_handle)
 {
   char *player;
   struct {
@@ -943,12 +942,12 @@ void player_apply_overshield_effect(int player_handle)
   effect.field_2c = *(float *)0x2f1488;
   effect.field_30 = *(float *)0x46b6b4;
   effect.field_34 = *(float *)0x2f148c;
-  player_effect_apply(player_handle, &effect, 1.0f);
+  player_effect_screen_flash(player_handle, &effect, 1.0f);
 }
 
 /* Notify the game that active camo was activated (triggers a location-based
  * player effect notification). ESI = player_handle. */
-void player_apply_camo_notification(int player_handle)
+void player_active_camo_screen_effect(int player_handle)
 {
   char *player;
   struct {
@@ -984,13 +983,13 @@ void player_apply_camo_notification(int player_handle)
   effect.field_2c = *(float *)0x2f149c;
   effect.field_30 = *(float *)0x2f14a0;
   effect.field_34 = *(float *)0x46b6c0;
-  player_effect_apply(player_handle, &effect, 1.0f);
+  player_effect_screen_flash(player_handle, &effect, 1.0f);
 }
 
 /* Apply the health powerup effect to the player.
  * Unlike overshield/camo, this uses entirely inline constants
  * rather than loading from global addresses. ESI = player_handle. */
-void player_apply_health_effect(int player_handle)
+void player_health_pack_screen_effect(int player_handle)
 {
   char *player;
   struct {
@@ -1026,7 +1025,7 @@ void player_apply_health_effect(int player_handle)
   effect.field_2c = 0.917647f;
   effect.field_30 = 0.917647f;
   effect.field_34 = 0.917647f;
-  player_effect_apply(player_handle, &effect, 1.0f);
+  player_effect_screen_flash(player_handle, &effect, 1.0f);
 }
 
 /* Mark the player's unit with the camo-active flag.
@@ -1034,15 +1033,15 @@ void player_apply_health_effect(int player_handle)
  * player_handle (@eax) -- player datum handle.
  * powerup_index         -- powerup slot; only index 0 is acted on, mirroring
  *                          the powerup_idx==0 branch of
- * player_set_respawn_timer.
+ * player_handle_powerup_minor.
  *
  * Looks up the player datum, fetches its unit object handle (player+0x34) and
  * verifies it is a unit (object type mask 3, biped/vehicle family).  When
  * powerup_index is 0, sets bit 0x10 in the unit flags at +0x1b4 (the
- * camo-active flag, per player_set_respawn_timer) and clears the powerup-type
+ * camo-active flag, per player_handle_powerup_minor) and clears the powerup-type
  * field at unit+0x3d2.  object_get_and_verify_type is called unconditionally,
  * before the branch, matching the original. */
-void player_set_unit_camo_flag(int player_handle /* @<eax> */,
+void player_powerup_on(int player_handle /* @<eax> */,
                                int16_t powerup_index)
 {
   char *player;
@@ -1058,13 +1057,13 @@ void player_set_unit_camo_flag(int player_handle /* @<eax> */,
 
 /* Set a unit object flag bit (0x20) at unit+0x1b4 for a player's unit.
  *
- * Sibling of player_set_unit_camo_flag (0xbb180); another powerup branch of
- * player_set_respawn_timer.  Looks up the player datum, fetches its unit
+ * Sibling of player_powerup_on (0xbb180); another powerup branch of
+ * player_handle_powerup_minor.  Looks up the player datum, fetches its unit
  * object handle (player+0x34) and verifies it is a unit (object type mask 3,
  * biped/vehicle family).  When param2 is 0, ORs bit 0x20 into the unit flags
  * at +0x1b4.  object_get_and_verify_type is called unconditionally, before the
  * branch, matching the original. */
-void FUN_000bb1c0(int player_index /* @<eax> */, int16_t param2)
+void player_powerup_additional(int player_index /* @<eax> */, int16_t param2)
 {
   char *player;
   char *unit_obj;
@@ -1076,13 +1075,13 @@ void FUN_000bb1c0(int player_index /* @<eax> */, int16_t param2)
   }
 }
 
-/* Sibling of FUN_000bb1c0 (0xbb1c0); another powerup branch of
- * player_set_respawn_timer.  Looks up the player datum, fetches its unit
+/* Sibling of player_powerup_additional (0xbb1c0); another powerup branch of
+ * player_handle_powerup_minor.  Looks up the player datum, fetches its unit
  * object handle (player+0x34) and verifies it is a unit (object type mask 3,
  * biped/vehicle family).  object_get_and_verify_type is called
  * unconditionally, before the branch, matching the original.  When param2 is
  * 0, clears bit 0x10 of the unit flags dword at +0x1b4. */
-void FUN_000bb1f0(int player_index /* @<eax> */, int16_t param2)
+void player_powerup_off(int player_index /* @<eax> */, int16_t param2)
 {
   char *player;
   char *unit_obj;
@@ -1136,7 +1135,7 @@ void players_handle_deleted_object(int object_handle)
  * call reproduces that order exactly.  The seed accessor is declared as
  * `int *` in kb.json while the consumer takes `unsigned int *`, hence the
  * cast; no value is transformed. */
-void global_random_get_direction3d(float *out)
+void random_direction3d(float *out)
 {
   random_seed_get_direction3d((unsigned int *)get_global_random_seed_address(),
                               out);
@@ -1256,7 +1255,7 @@ int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4)
   }
 
   /* Register the player handle in the machine-local slot table. */
-  player_register_machine(a1, player_handle);
+  machine_add_player(a1, player_handle);
   return player_handle;
 }
 
@@ -1271,7 +1270,7 @@ int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4)
  *                     mark the first attached weapon as the initial weapon.
  *
  * Each of the two weapon slots (equip_def+0x34 / +0x48 tag refs) that is set
- * spawns a weapon object via FUN_000bac10 (record ptr in EDI: equip_def+0x28
+ * spawns a weapon object via create_weapon (record ptr in EDI: equip_def+0x28
  * for slot 1, equip_def+0x3c for slot 2) parented to the unit, then attaches
  * it via unit_enter_seat. On attach failure the weapon is deleted and an
  * error is logged. Finally the definition's two float powerups (+0x24 -> unit
@@ -1303,7 +1302,7 @@ void player_add_equipment(int unit_handle, int16_t equipment_index,
     }
 
     if ((*(int *)(equip_def + 0x34) != -1) &&
-        (weapon = FUN_000bac10(equip_def + 0x28, unit_handle), weapon != -1) &&
+        (weapon = create_weapon(equip_def + 0x28, unit_handle), weapon != -1) &&
         !unit_enter_seat(unit_handle, weapon,
                          (int16_t)(uint16_t)(reset_flag != '\0'))) {
       error(2, "Could not attach starting weapon to player");
@@ -1311,7 +1310,7 @@ void player_add_equipment(int unit_handle, int16_t equipment_index,
     }
 
     if ((*(int *)(equip_def + 0x48) != -1) &&
-        (weapon = FUN_000bac10(equip_def + 0x3c, unit_handle), weapon != -1) &&
+        (weapon = create_weapon(equip_def + 0x3c, unit_handle), weapon != -1) &&
         !unit_enter_seat(unit_handle, weapon, 0)) {
       error(2, "Could not attach starting weapon to player");
       object_delete(weapon);
@@ -1346,7 +1345,7 @@ void player_add_equipment(int unit_handle, int16_t equipment_index,
  * datum_handle   -- player datum handle
  * aiming_out     -- [in/out] 3-float aiming direction (yaw/pitch converted)
  * desired_facing -- 2-float desired facing angles (yaw, pitch) */
-void player_build_action_update(int datum_handle, float *aiming_out,
+void player_aiming_vector_from_facing(int datum_handle, float *aiming_out,
                                 float *desired_facing)
 {
   char *player;
@@ -1394,9 +1393,9 @@ void player_build_action_update(int datum_handle, float *aiming_out,
  *
  * Ejects the unit from any seat it currently occupies (object+0xcc holds the
  * seat/parent object handle, -1 when none), then defers the actual placement
- * to FUN_000bb670.
+ * to player_teleport_internal.
  *
- * Returns FUN_000bb670's result (nonzero when the unit was moved), and 0 when
+ * Returns player_teleport_internal's result (nonzero when the unit was moved), and 0 when
  * the player has no live unit.  Confirmed from disassembly: the failure path
  * is XOR CL,CL / MOV AL,CL, while the success path falls straight into the
  * epilogue with the callee's AL untouched (tail passthrough).
@@ -1416,7 +1415,7 @@ bool player_teleport(int player_handle, int anchor_unit_handle,
   if (unit != NULL) {
     if (*(int *)(unit + 0xcc) != -1)
       unit_exit_seat_end(unit_handle);
-    return FUN_000bb670(player_handle, anchor_unit_handle, anchor_position);
+    return player_teleport_internal(player_handle, anchor_unit_handle, anchor_position);
   }
   return 0;
 }
@@ -1725,7 +1724,7 @@ player_set_spawn_action_result(int player_handle /* @<eax> */,
  *   6,7 = default: return false
  *
  * Returns true on success, false otherwise. */
-bool player_try_to_spawn_in_vehicle(int player_handle /* @<eax> */)
+bool player_handle_action(int player_handle /* @<eax> */)
 {
   char *player;
   char *unit;
@@ -1752,7 +1751,7 @@ bool player_try_to_spawn_in_vehicle(int player_handle /* @<eax> */)
                               0)) {
       vehicle_obj =
         (int *)object_get_and_verify_type(*(int *)(player + 0x24), 8);
-      hud_player_set_vehicle_seat(*(unsigned short *)(player + 0x2),
+      hud_picked_up_powerup(*(unsigned short *)(player + 0x2),
                                   *vehicle_obj);
       return true;
     }
@@ -1867,7 +1866,7 @@ typedef struct {
   float looking_z; /* +0x3c */
 } unit_control_t;
 
-/* player_action_t layout as filled by player_control_get_current_actions:
+/* player_action_t layout as filled by update_client_dequeue:
  *   +0x00  buttons (uint32 flags, bit 6 = binoculars, bit 14 = zoom, bit 7 =
  * alt_attack) +0x04  desired_facing_yaw (float) +0x08  desired_facing_pitch
  * (float) +0x0c  throttle_x (float) +0x10  throttle_y (float) +0x14
@@ -1894,7 +1893,7 @@ typedef struct {
  * to the timer accumulation).  Both flag updates converge on a single dword
  * store at unit+0x1b4, matching the shared `mov [eax+0x1b4],ecx` at 0xbc3fa.
  *
- * Sibling of player_set_respawn_timer (0xbc410), which stores max(cur, ticks)
+ * Sibling of player_handle_powerup_minor (0xbc410), which stores max(cur, ticks)
  * where this one accumulates with +=.
  *
  * Offsets are unproven raw offsets: player+0x34 unit handle, player+0x68
@@ -1972,7 +1971,7 @@ accumulate:
  *
  * The timer is only ever raised, never lowered: stored = max(current, ticks).
  */
-void player_set_respawn_timer(int player_handle, int16_t respawn_type,
+void player_handle_powerup_minor(int player_handle, int16_t respawn_type,
                               int16_t respawn_ticks)
 {
   char *player;
@@ -2010,7 +2009,7 @@ void player_set_respawn_timer(int player_handle, int16_t respawn_type,
  * 2 x int16_t).  When a timer reaches zero the corresponding flag bit
  * is cleared on the unit object (bit 0x10 at unit+0x1b4).
  * EBX = datum_handle (register arg). */
-void player_update_weapon_timers(int datum_handle)
+void player_update_powerups(int datum_handle)
 {
   char *player;
   char *unit;
@@ -2167,11 +2166,11 @@ void players_debug_render(void)
  *    computed inline in the argument list; a named local would have to be
  *    spilled across the player_index_from_unit_index call.
  *  - Ghidra dropped the whole tail: it showed object_get_and_verify_type's
- *    result discarded and FUN_000bb670 called with no arguments.  The real
+ *    result discarded and player_teleport_internal called with no arguments.  The real
  *    tail is ADD EAX,0x50 / PUSH EAX / PUSH ESI / PUSH EDI / CALL 0xba500 /
  *    ADD ESP,4 / PUSH EAX / CALL 0xbb670 / ADD ESP,0xc — three cdecl stack
  *    args, no EBX setup.
- *  - FUN_000bb670's bool result is genuinely discarded here (no TEST/CMP of
+ *  - player_teleport_internal's bool result is genuinely discarded here (no TEST/CMP of
  *    AL before the epilogue), unlike in player_teleport (0xbbb80). */
 void debug_player_teleport(int local_player_a, int local_player_b)
 {
@@ -2200,7 +2199,7 @@ void debug_player_teleport(int local_player_a, int local_player_b)
     /* Argument order in the binary is right-to-left: the position is computed
      * and pushed first, then the unit handle, then the nested player-index
      * lookup for the player being moved. */
-    FUN_000bb670(player_index_from_unit_index(unit_a), unit_b,
+    player_teleport_internal(player_index_from_unit_index(unit_a), unit_b,
                  (char *)object_get_and_verify_type(unit_b, 3) + 0x50);
   }
 }
@@ -2361,10 +2360,10 @@ bool players_respawn_coop(void)
  *   - If the unit holds a seat handle (+0xcc) that differs from the passed
  *     object's seat, exit the seat; if it still holds one, clear the
  *     pending-flag (players_globals+0x2e) and return.
- *   - Otherwise defer to FUN_000bb670 and record its bool result inverted
+ *   - Otherwise defer to player_teleport_internal and record its bool result inverted
  *     into players_globals+0x2e.
  */
-void players_update_before_game_client(int player_index /* @<ebx> */,
+void player_teleport_on_bsp_switch(int player_index /* @<ebx> */,
                                        int object_handle, void *position)
 {
   char *player;
@@ -2419,8 +2418,65 @@ void players_update_before_game_client(int player_index /* @<ebx> */,
     }
   }
 
-  moved = FUN_000bb670(player_index, object_handle, position);
+  moved = player_teleport_internal(player_index, object_handle, position);
   *((char *)players_globals + 0x2e) = (moved == 0);
+}
+
+/* 0xbbfe0: update a player's pending action-result fields.
+ *
+ * player_handle arrives in EAX; the remaining three arguments are cdecl stack
+ * arguments.  The equal-priority path keeps the existing result unless the
+ * candidate object is strictly closer to the player's unit. */
+__declspec(noinline)
+void player_set_action_result(int player_handle /* @<eax> */,
+                                    int16_t action_result_type,
+                                    int object_handle, int16_t seat_index)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  if (action_result_type != 11) {
+    int16_t current_type = *(int16_t *)(player + 0x28);
+    if (action_result_type == current_type) {
+      char *unit_obj;
+      char *cur_obj;
+      char *new_obj;
+      float cur_dx;
+      float cur_dy;
+      float cur_dz;
+      float new_dx;
+      float new_dy;
+      float new_dz;
+      float cur_dist;
+      float new_dist;
+
+      unit_obj =
+        (char *)object_get_and_verify_type(*(int *)(player + 0x34), -1);
+      cur_obj = (char *)object_get_and_verify_type(*(int *)(player + 0x24), -1);
+      new_obj = (char *)object_get_and_verify_type(object_handle, -1);
+
+      cur_dx = *(float *)(cur_obj + 0xc) - *(float *)(unit_obj + 0xc);
+      cur_dy = *(float *)(cur_obj + 0x10) - *(float *)(unit_obj + 0x10);
+      cur_dz = *(float *)(cur_obj + 0x14) - *(float *)(unit_obj + 0x14);
+
+      new_dx = *(float *)(new_obj + 0xc) - *(float *)(unit_obj + 0xc);
+      new_dy = *(float *)(new_obj + 0x10) - *(float *)(unit_obj + 0x10);
+      new_dz = *(float *)(new_obj + 0x14) - *(float *)(unit_obj + 0x14);
+
+      cur_dist =
+        xbox_sqrtf(cur_dx * cur_dx + cur_dy * cur_dy + cur_dz * cur_dz);
+      new_dist =
+        xbox_sqrtf(new_dx * new_dx + new_dy * new_dy + new_dz * new_dz);
+      if (cur_dist <= new_dist)
+        return;
+    } else if (action_result_type <= current_type) {
+      return;
+    }
+  }
+
+  *(int16_t *)(player + 0x28) = action_result_type;
+  *(int *)(player + 0x24) = object_handle;
+  *(int16_t *)(player + 0x2a) = seat_index;
 }
 
 /* Re-seat every local player into the scenario's pending structure BSP
@@ -2444,7 +2500,7 @@ void players_update_before_game_client(int player_index /* @<ebx> */,
  *      outright (use_camera_height == 0) or just raises its z.
  *
  * With a donor player found, every OTHER local player's unit is re-seated to
- * that position via players_update_before_game_client and has its +0x3c field
+ * that position via player_teleport_on_bsp_switch and has its +0x3c field
  * cleared; the BSP request is then retired and all +0x3c fields reset.
  * No donor -> "no players in the bsp" assert.
  *
@@ -2553,7 +2609,7 @@ void players_reconnect_to_structure_bsp(void)
       player = (char *)datum_get(player_data, player_index);
       if (*(int *)(player + 0x34) != -1 &&
           *(int *)(player + 0x34) != donor_unit_handle) {
-        players_update_before_game_client(player_index, donor_unit_handle,
+        player_teleport_on_bsp_switch(player_index, donor_unit_handle,
                                           &position);
         player = (char *)datum_get(player_data, player_index);
         *(int16_t *)(player + 0x3c) = -1;
@@ -2572,7 +2628,7 @@ void players_reconnect_to_structure_bsp(void)
   }
 }
 
-void player_update_nearby_biped(int datum_handle, int object_handle)
+void player_examine_nearby_vehicle(int datum_handle, int object_handle)
 {
   char *player;
   char *nearby_biped;
@@ -2597,7 +2653,7 @@ void player_update_nearby_biped(int datum_handle, int object_handle)
   if (*(float *)(nearby_biped + 0x38) <= xbox_cosf(angle_delta)) {
     if ((*(unsigned char *)(nearby_biped + 0x424) & 0x10) == 0 &&
         *(int *)(nearby_biped + 0x2d4) == -1) {
-      player_set_spawn_action_result(datum_handle, 11, object_handle, -1);
+      player_set_action_result(datum_handle, 11, object_handle, -1);
     }
   } else {
     if (unit_current_weapon_is_busy(*(int *)(player + 0x34)))
@@ -2624,7 +2680,7 @@ void player_update_nearby_biped(int datum_handle, int object_handle)
                        "c:\\halo\\SOURCE\\game\\players.c", 0x838, 1);
         system_exit(-1);
       }
-      player_set_spawn_action_result(datum_handle, 8, object_handle,
+      player_set_action_result(datum_handle, 8, object_handle,
                                      seat_index);
       return;
     }
@@ -2634,14 +2690,14 @@ void player_update_nearby_biped(int datum_handle, int object_handle)
                        "c:\\halo\\SOURCE\\game\\players.c", 0x83d, 1);
         system_exit(-1);
       }
-      player_set_spawn_action_result(datum_handle, 9, object_handle,
+      player_set_action_result(datum_handle, 9, object_handle,
                                      seat_index);
       return;
     }
   }
 }
 
-void player_update_nearby_weapon(int datum_handle, int object_handle)
+void player_examine_nearby_device(int datum_handle, int object_handle)
 {
   char *player;
   char *unit;
@@ -2662,7 +2718,7 @@ void player_update_nearby_weapon(int datum_handle, int object_handle)
   if (!device_can_change_position(object_handle))
     return;
 
-  player_set_spawn_action_result(datum_handle, 10, object_handle, -1);
+  player_set_action_result(datum_handle, 10, object_handle, -1);
 }
 
 /* Handle the result of a player interacting with an equipment (powerup) object.
@@ -2677,7 +2733,7 @@ void player_update_nearby_weapon(int datum_handle, int object_handle)
  *   4 = full-spectrum — powerup index 1, calls player_try_to_apply_powerup
  * On success, notifies the scoring system, plays the equipment pickup
  * sound, and deactivates the equipment object. */
-void player_set_action_result_for_equipment(int player_handle,
+void player_handle_powerup_equipment(int player_handle,
                                             int equipment_handle)
 {
   char *player;
@@ -2706,12 +2762,12 @@ void player_set_action_result_for_equipment(int player_handle,
     /* Overshield: check if unit can receive it. */
     if (!object_double_charge_shield(*(int *)(player + 0x34)))
       return;
-    player_apply_overshield_effect(player_handle);
+    player_over_shield_screen_effect(player_handle);
   } else if (powerup_type == _equipment_powerup_health) {
     /* Health: check if unit can receive it. */
     if (!object_restore_body(*(int *)(player + 0x34)))
       return;
-    player_apply_health_effect(player_handle);
+    player_health_pack_screen_effect(player_handle);
   } else {
     /* Active camo (3) or full-spectrum vision (4). */
     if (powerup_type == _equipment_powerup_active_camouflage) {
@@ -2727,7 +2783,7 @@ void player_set_action_result_for_equipment(int player_handle,
       return;
     /* Active camo (index 0) triggers a location notification. */
     if ((int16_t)powerup_index == _player_powerup_active_camouflage) {
-      player_apply_camo_notification(player_handle);
+      player_active_camo_screen_effect(player_handle);
     }
   }
 
@@ -2780,7 +2836,7 @@ void players_update_before_game(void)
   /* Collect current player actions from the controller subsystem.
    * action_buf receives up to 16 entries (one per network player slot),
    * each 0x20 bytes. Returns false if the action queue is not ready. */
-  if (!player_control_get_current_actions(action_buf)) {
+  if (!update_client_dequeue(action_buf)) {
     display_assert(NULL, "c:\\halo\\SOURCE\\game\\players.c", 0x30a, 1);
     system_exit(-1);
   }
@@ -2933,7 +2989,7 @@ void players_update_before_game(void)
        * weapon-seat tag (unit+0xcc == -1) and the game is not in a
        * "no-binoculars" state, set binoculars-pending flag (bit 10). */
       if ((action->buttons & 0x40u) != 0 && *(int *)(unit_data + 0xcc) == -1 &&
-          !player_try_to_spawn_in_vehicle(datum_handle)) {
+          !player_handle_action(datum_handle)) {
         action->buttons |= 0x400u;
       }
 
@@ -2945,7 +3001,7 @@ void players_update_before_game(void)
         *(char *)(player + 0x3e) = 0;
       } else if (*(char *)(player + 0x3e) == 0) {
         *(char *)(player + 0x3e) =
-          (char)player_try_to_enter_vehicle(datum_handle);
+          (char)player_handle_weapon_swap(datum_handle);
       }
 
       /* Alt-attack / throw-weapon (sign bit of action->buttons byte 0):
@@ -2953,7 +3009,7 @@ void players_update_before_game(void)
        * invoke the vehicle-action result handler and clear the seat tag. */
       if ((*(char *)&action->buttons & 0x80) != 0 &&
           *(int *)(unit_data + 0x2c8) != -1) {
-        player_set_action_result_for_equipment(datum_handle,
+        player_handle_powerup_equipment(datum_handle,
                                                *(int *)(unit_data + 0x2c8));
         unit_clear_seat_tag(*(int *)(player + 0x34));
       }
@@ -2986,7 +3042,7 @@ void players_update_before_game(void)
       }
 
       /* Build the unit_control_t from the player action.
-       * player_build_action_update writes three floats via
+       * player_aiming_vector_from_facing writes three floats via
        * internal helper 0x10cc40 at offsets +0/+4/+8 relative to
        * arg2, so arg2 must point at the aiming vector slot
        * (ctl+0x28 = &ctl.aiming_x), NOT at the ctl header.
@@ -2996,11 +3052,11 @@ void players_update_before_game(void)
        * (yaw/pitch float pair). */
       csmemset(&ctl, 0, sizeof(ctl));
       ctl.control_flags = (int16_t)action->buttons;
-      player_build_action_update(datum_handle, &ctl.aiming_x,
+      player_aiming_vector_from_facing(datum_handle, &ctl.aiming_x,
                                  &action->desired_facing_yaw);
 
       /* Original 0xbd57a-0xbd58f copies aiming into both facing
-       * (ctl+0x1c) and looking (ctl+0x34). player_build_action_update
+       * (ctl+0x1c) and looking (ctl+0x34). player_aiming_vector_from_facing
        * only writes aiming; the caller is responsible for mirroring
        * it into the other two vectors so unit_set_control's unit-vector
        * validation doesn't see zero-length facing/looking. */
@@ -3011,7 +3067,7 @@ void players_update_before_game(void)
       ctl.looking_y = ctl.aiming_y;
       ctl.looking_z = ctl.aiming_z;
 
-      /* Copy action scalars into control (player_build_action_update fills
+      /* Copy action scalars into control (player_aiming_vector_from_facing fills
        * facing/aiming/looking vectors but leaves these untouched). */
       ctl.throttle_x = action->throttle_x;
       ctl.weapon_index = action->desired_weapon_index;
@@ -3110,11 +3166,11 @@ void players_update_before_game(void)
 
   /* Update potential visibility sets:
    * local players first (pass 1), then all players (pass 0).
-   * players_update_pvs takes combined_pvs via EDI; original 0xbd100
+   * players_compute_combined_pvs takes combined_pvs via EDI; original 0xbd100
    * reloads players_globals and offsets by 0x70 then 0x30 before
    * each call. */
-  players_update_pvs(players_get_combined_pvs_local(), 1);
-  players_update_pvs(players_get_combined_pvs(), 0);
+  players_compute_combined_pvs(players_get_combined_pvs_local(), 1);
+  players_compute_combined_pvs(players_get_combined_pvs(), 0);
 
   /* Recount local players: walk the 4 player-handle slots at
    * players_globals+0x4..0x10 and count non-NONE entries.
@@ -3138,7 +3194,7 @@ void players_update_before_game(void)
     profile_exit_private((void *)0x2f0890);
 }
 
-void player_update_nearby_vehicle(int datum_handle, int object_handle)
+void player_examine_nearby_item(int datum_handle, int object_handle)
 {
   char *player;
   char *unit;
@@ -3175,7 +3231,7 @@ void player_update_nearby_vehicle(int datum_handle, int object_handle)
                                  (uint16_t)local_player_index, &seat_index)) {
       if (seat_index > 0) {
         equipment_obj = (int *)object_get_and_verify_type(seat_occupant, 4);
-        hud_player_enter_vehicle((uint16_t)local_player_index, *equipment_obj,
+        hud_picked_up_ammunition((uint16_t)local_player_index, *equipment_obj,
                                  seat_index);
       }
       break;
@@ -3187,18 +3243,18 @@ void player_update_nearby_vehicle(int datum_handle, int object_handle)
     equipment_tag = (char *)tag_get(0x65716970, *equipment_obj);
     if (*(int16_t *)(equipment_tag + 0x308) == 6) {
       if (unit_try_add_grenade(*(int *)(player + 0x34), object_handle)) {
-        hud_player_set_equipment((uint16_t)local_player_index, *equipment_obj);
+        hud_picked_up_grenade((uint16_t)local_player_index, *equipment_obj);
       }
     } else if (*(int16_t *)(equipment_tag + 0x308) != 0) {
       seat_occupant = unit_get_equipment(*(int *)(player + 0x34));
       if (seat_occupant == -1) {
-        player_set_action_result_for_equipment(datum_handle, object_handle);
+        player_handle_powerup_equipment(datum_handle, object_handle);
       } else {
         object_get_and_verify_type(seat_occupant, 8);
         current_weapon_tag = (char *)tag_get(0x65716970, *equipment_obj);
         if (*(int16_t *)(equipment_tag + 0x308) !=
             *(int16_t *)(current_weapon_tag + 0x308)) {
-          player_set_spawn_action_result(datum_handle, 5, object_handle, -1);
+          player_set_action_result(datum_handle, 5, object_handle, -1);
         }
       }
     }
@@ -3232,11 +3288,11 @@ void player_update_nearby_vehicle(int datum_handle, int object_handle)
       (*(unsigned char *)(nearby_weapon_tag + 0x308) & 8) != 0)
     return;
 
-  if (player_examine_nearby_unit(*(int *)(player + 0x34), object_handle)) {
+  if (unit_should_autopick_weapon(*(int *)(player + 0x34), object_handle)) {
     if (unit_enter_seat(*(int *)(player + 0x34), object_handle, 1)) {
       nearby_weapon_obj = (int *)object_get_and_verify_type(object_handle, 4);
-      hud_player_set_vehicle((uint16_t)local_player_index, *nearby_weapon_obj);
-      player_clear_aim_assist(*(int *)(player + 0x34));
+      hud_picked_up_weapon((uint16_t)local_player_index, *nearby_weapon_obj);
+      player_control_unzoom(*(int *)(player + 0x34));
       return;
     }
   } else {
@@ -3246,10 +3302,10 @@ void player_update_nearby_vehicle(int datum_handle, int object_handle)
         (int *)object_try_and_get_and_verify_type(current_weapon_handle, 4);
       if (nearby_weapon_count == 1 && current_weapon_obj != NULL &&
           *current_weapon_obj != *nearby_weapon_obj) {
-        player_set_spawn_action_result(datum_handle, 7, object_handle, -1);
+        player_set_action_result(datum_handle, 7, object_handle, -1);
         return;
       }
-      player_set_spawn_action_result(datum_handle, 6, object_handle, -1);
+      player_set_action_result(datum_handle, 6, object_handle, -1);
     }
   }
 }
@@ -3258,7 +3314,7 @@ void player_update_nearby_vehicle(int datum_handle, int object_handle)
  * For each object found within the unit's bounding sphere, switch on the
  * object type to call the appropriate handler.
  * EBX = datum_handle (register arg). */
-void player_update_spawn_state(int datum_handle)
+void player_examine_nearby_objects(int datum_handle)
 {
   char *player;
   char *unit;
@@ -3286,14 +3342,14 @@ void player_update_spawn_state(int datum_handle)
     obj_type = *(int16_t *)(obj + 0x64);
     switch (obj_type) {
     case 1:
-      player_update_nearby_biped(datum_handle, handles[i]);
+      player_examine_nearby_vehicle(datum_handle, handles[i]);
       break;
     case 2:
     case 3:
-      player_update_nearby_vehicle(datum_handle, handles[i]);
+      player_examine_nearby_item(datum_handle, handles[i]);
       break;
     case 8:
-      player_update_nearby_weapon(datum_handle, handles[i]);
+      player_examine_nearby_device(datum_handle, handles[i]);
       break;
     }
   }
@@ -3314,7 +3370,7 @@ void player_update_spawn_state(int datum_handle)
  *           HUD message, stop the effect (FUN_a2930), and mark the unit for
  *           deletion (FUN_1a7f80 sets bit 0x20 at unit+0xb6).
  *        c. Clear the telefrag-pending flag.
- *        d. Advance the player's short weapon/vehicle timers via FUN_bc4b0
+ *        d. Advance the player's short weapon/vehicle timers via player_update_powerups
  *
  * (EBX = datum_handle register arg). Binary comparison shows this
  * helper
@@ -3325,7 +3381,7 @@ void player_update_spawn_state(int datum_handle)
  * object-type flags don't include 0x200000, scan scenario trigger volumes (tag
  * block at scenario+0x39c) for BSP-switch triggers that contain the player's
  * unit, and fire the BSP switch if found. f. Reset the player's pending-action
- * fields and call the per-player post-update helper FUN_bdb00 (EBX =
+ * fields and call the per-player post-update helper player_examine_nearby_objects (EBX =
  * datum_handle).
  *   3. Advance the BSP-transition nibble counter packed into
  *      players_globals+0x2f (high nibble = counter, low nibble = bsp index).
@@ -3402,9 +3458,9 @@ void players_update_after_game(void)
 
     /* Advance the player's short weapon/vehicle timers.
      * Original CALL to
-     * FUN_bc4b0 with EBX = datum_handle (register arg). */
+     * player_update_powerups with EBX = datum_handle (register arg). */
     if (*(int *)(player + 0x34) != -1) {
-      player_update_weapon_timers(datum_handle);
+      player_update_powerups(datum_handle);
     }
 
     /* BSP-switch trigger volume scan. */
@@ -3469,7 +3525,7 @@ void players_update_after_game(void)
       *(int16_t *)(pdatum + 0x28) = 0;
       *(int *)(pdatum + 0x24) = -1;
     }
-    player_update_spawn_state(datum_handle);
+    player_examine_nearby_objects(datum_handle);
 
     player = (char *)data_iterator_next(&iter);
   }
@@ -3666,7 +3722,7 @@ void hs_teleport_players_not_in_trigger_volume_evaluate(int16_t function_index, 
  *             char init) -> int* (result record, NULL on failure)
  *   0x18ef00 = FUN_0018ef00(int cluster_index, int object_handle) -> char
  *   0xcbf80 = hs_return(int thread_handle, int value) */
-void FUN_000bdfe0(int16_t function_index, int thread_datum, char init)
+void scenario_trigger_volume_test_object_evaluate(int16_t function_index, int thread_datum, char init)
 {
   short *result;
   unsigned char eval_result;
@@ -4292,7 +4348,7 @@ void hs_object_list_get_element_evaluate(int16_t function_index, int thread_datu
  * (returns a 16-bit value in AX, zero-extended by the original into the
  * result slot) and committed with hs_return. Standard evaluator ABI
  * (function_index, thread_datum, init). */
-void FUN_000be3b0(int16_t function_index, int thread_datum, char init)
+void object_list_count_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
   int value;
@@ -4306,7 +4362,7 @@ void FUN_000be3b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* player_rumble_initialize @ 0x000be400
+/* hs_effect_new_evaluate @ 0x000be400
  *
  * HaloScript function-evaluator wrapper. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_handle, init); on a
@@ -4323,7 +4379,7 @@ void FUN_000be3b0(int16_t function_index, int thread_datum, char init)
  * MOVZX (zero-extended) 16-bit field, then pushes them right-to-left
  * (PUSH EDX=+0x04; PUSH EAX_val=+0x00). hs_effect_new's 2-arg cdecl signature is
  * recovered from this call site (its kb decl was previously void(void)). */
-void player_rumble_initialize(int16_t function_index, int thread_handle,
+void hs_effect_new_evaluate(int16_t function_index, int thread_handle,
                               char init)
 {
   int record;
@@ -4337,7 +4393,7 @@ void player_rumble_initialize(int16_t function_index, int thread_handle,
 
 /* hs_effect_new_from_object_marker_evaluate @ 0x000be440
  *
- * HaloScript function-evaluator wrapper, sibling of player_rumble_initialize
+ * HaloScript function-evaluator wrapper, sibling of hs_effect_new_evaluate
  * above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
  * returns NULL the evaluation is still pending and nothing is committed. Once
@@ -4653,7 +4709,7 @@ void hs_sound_get_gain_evaluate(int16_t function_index, int thread_handle, char 
   }
 }
 
-/* FUN_000be660 @ 0x000be660
+/* numeric_countdown_timer_set_evaluate @ 0x000be660
  *
  * HaloScript function-evaluator wrapper (countdown-timer setter variant).
  * Evaluates the script function via hs_macro_function_evaluate(function_index,
@@ -4681,7 +4737,7 @@ void hs_sound_get_gain_evaluate(int16_t function_index, int thread_handle, char 
  * Callees (all cdecl, ported): 0xcc560 hs_macro_function_evaluate (declared
  * returning int in kb.json, used here as a record pointer), 0x190be0
  * numeric_countdown_timer_set, 0xcbf80 hs_return. */
-void FUN_000be660(int16_t function_index, int thread_datum, char init)
+void numeric_countdown_timer_set_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -4693,7 +4749,7 @@ void FUN_000be660(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be6a0 @ 0x000be6a0
+/* numeric_countdown_timer_get_evaluate @ 0x000be6a0
  *
  * HaloScript function-evaluator wrapper (short-valued variant). Evaluates the
  * script function via hs_macro_function_evaluate(function_index, thread_datum,
@@ -4710,7 +4766,7 @@ void FUN_000be660(int16_t function_index, int thread_datum, char init)
  * field is dereferenced as uint16 (*(ushort *)record) then zero-extended to
  * uint before the countdown-timer lookup; the getter's return is masked
  * &0xffff before hs_return. kb decl was previously void(void). */
-void FUN_000be6a0(int16_t function_index, int thread_datum, char init)
+void numeric_countdown_timer_get_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned short *record;
   int value;
@@ -4724,7 +4780,7 @@ void FUN_000be6a0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be6f0 @ 0x000be6f0
+/* numeric_countdown_timer_stop_evaluate @ 0x000be6f0
  *
  * HaloScript builtin implementation. Unlike the surrounding function-evaluator
  * wrappers this does not call hs_macro_function_evaluate: it stops the numeric
@@ -4740,15 +4796,15 @@ void FUN_000be6a0(int16_t function_index, int thread_datum, char init)
  * constant 0 is pushed as hs_return's value (PUSH 0; PUSH EAX; CALL; ADD
  * ESP,8). Ghidra modeled this void(void); the [EBP+0xc] read of the second
  * cdecl param is unmodeled there (kb decl was previously void(void)). */
-void FUN_000be6f0(int16_t function_index, int thread_handle)
+void numeric_countdown_timer_stop_evaluate(int16_t function_index, int thread_handle)
 {
   numeric_countdown_timer_stop();
   hs_return(thread_handle, 0);
 }
 
-/* FUN_000be710 @ 0x000be710
+/* numeric_countdown_timer_restart_evaluate @ 0x000be710
  *
- * HaloScript builtin implementation (restart variant of FUN_000be6f0). Like its
+ * HaloScript builtin implementation (restart variant of numeric_countdown_timer_stop_evaluate). Like its
  * neighbor it does not call hs_macro_function_evaluate: it restarts the numeric
  * countdown timer directly, then completes the calling script thread with
  * hs_return(thread_handle, 0).
@@ -4762,13 +4818,13 @@ void FUN_000be6f0(int16_t function_index, int thread_handle)
  * constant 0 is pushed as hs_return's value (PUSH 0; PUSH EAX; CALL; ADD
  * ESP,8). Ghidra modeled this void(void) and read only in_stack_00000008 (the
  * second cdecl param); kb decl was previously void(void). */
-void FUN_000be710(int16_t function_index, int thread_handle)
+void numeric_countdown_timer_restart_evaluate(int16_t function_index, int thread_handle)
 {
   numeric_countdown_timer_restart();
   hs_return(thread_handle, 0);
 }
 
-/* FUN_000be730 @ 0x000be730
+/* breakable_surfaces_enable_evaluate @ 0x000be730
  *
  * HaloScript builtin implementation (breakable-surfaces toggle). Evaluates the
  * script function via hs_macro_function_evaluate(function_index, thread_datum,
@@ -4788,7 +4844,7 @@ void FUN_000be710(int16_t function_index, int thread_handle)
  * ESP,8). Ghidra modeled this void(void); the three cdecl stack params
  * (in_stack_00000004/08/0c) are unmodeled there (kb decl was previously
  * void(void)). */
-void FUN_000be730(int16_t function_index, int thread_datum, char init)
+void breakable_surfaces_enable_evaluate(int16_t function_index, int thread_datum, char init)
 {
   char *record;
 
@@ -4800,7 +4856,7 @@ void FUN_000be730(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* player_rumble_set_effect @ 0x000be770
+/* recorded_animation_play_evaluate @ 0x000be770
  *
  * Misnomer: this is NOT controller rumble. It is a HaloScript builtin
  * dispatcher (recorded-animation playback) with the same shape as the
@@ -4825,7 +4881,7 @@ void FUN_000be730(int16_t function_index, int thread_datum, char init)
  * into the pre-zeroed dword slot, so the full value forwarded is the
  * zero-extended byte, and hs_return(thread_datum, (uint)result) completes the
  * thread (PUSH result; PUSH thread_datum; CALL; combined ADD ESP cleanup). */
-void player_rumble_set_effect(int16_t function_index, int thread_datum,
+void recorded_animation_play_evaluate(int16_t function_index, int thread_datum,
                               char init)
 {
   volatile unsigned short result_slot;
@@ -4846,7 +4902,7 @@ void player_rumble_set_effect(int16_t function_index, int thread_datum,
 }
 
 /* 0xbe7c0 — HS script function handler (recorded-animation play/delete
- * dispatcher), structurally identical to FUN_000be810. Evaluates the macro
+ * dispatcher), structurally identical to recorded_animation_play_and_hover_evaluate. Evaluates the macro
  * arguments via hs_macro_function_evaluate(function_index, thread_datum,
  * init); on a non-NULL evaluation record it reads two record fields, calls the
  * byte-returning worker recorded_animation_play_and_delete, and completes the
@@ -4874,7 +4930,7 @@ void player_rumble_set_effect(int16_t function_index, int thread_datum,
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record*
  *   0x95660 = recorded_animation_play_and_delete(int, short) -> char (AL)
  *   0xcbf80 = hs_return(int thread_handle, int value) */
-void FUN_000be7c0(int16_t function_index, int thread_datum, char init)
+void recorded_animation_play_and_delete_evaluate(int16_t function_index, int thread_datum, char init)
 {
   volatile unsigned short result_slot;
   int *record;
@@ -4893,10 +4949,10 @@ void FUN_000be7c0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be810 @ 0x000be810
+/* recorded_animation_play_and_hover_evaluate @ 0x000be810
  *
  * HaloScript builtin dispatcher, structurally identical to the recorded-
- * animation builtin (player_rumble_set_effect) above. Evaluates the script
+ * animation builtin (recorded_animation_play_evaluate) above. Evaluates the script
  * function via hs_macro_function_evaluate(function_index, thread_datum, init);
  * on a non-NULL evaluation record it reads two record fields, calls a byte-
  * returning worker, and completes the calling script thread with
@@ -4919,7 +4975,7 @@ void FUN_000be7c0(int16_t function_index, int thread_datum, char init)
  * into the pre-zeroed dword slot (MOV [EBP-4],AL), reloaded (MOV ECX,[EBP-4]),
  * and the zero-extended value forwarded to hs_return(thread_datum, result)
  * (PUSH value; PUSH thread_datum; CALL; ADD ESP,0x10). */
-void FUN_000be810(int16_t function_index, int thread_datum, char init)
+void recorded_animation_play_and_hover_evaluate(int16_t function_index, int thread_datum, char init)
 {
   volatile unsigned short result_slot;
   int *record;
@@ -4938,10 +4994,10 @@ void FUN_000be810(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be860 @ 0x000be860
+/* recorded_animation_kill_evaluate @ 0x000be860
  *
  * HaloScript builtin dispatcher for the recorded-animation *kill* command, in
- * the same family as FUN_000be810 / FUN_000be7c0 above but with a void worker
+ * the same family as recorded_animation_play_and_hover_evaluate / recorded_animation_play_and_delete_evaluate above but with a void worker
  * and a constant script return. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); on a non-NULL
  * evaluation record it reads one record field, calls the void worker, and
@@ -4977,7 +5033,7 @@ void FUN_000be810(int16_t function_index, int thread_datum, char init)
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record*
  *   0x952d0 = recorded_animation_kill(int unit_handle) -> void
  *   0xcbf80 = hs_return(int thread_handle, int value) */
-void FUN_000be860(int16_t function_index, int thread_datum, char init)
+void recorded_animation_kill_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -4989,10 +5045,10 @@ void FUN_000be860(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be8a0 @ 0x000be8a0
+/* recorded_animation_get_time_left_evaluate @ 0x000be8a0
  *
  * HaloScript builtin dispatcher for the recorded-animation *time left* query,
- * same family as FUN_000be810 / FUN_000be860 above but with a word-returning
+ * same family as recorded_animation_play_and_hover_evaluate / recorded_animation_kill_evaluate above but with a word-returning
  * worker. Evaluates the script function via hs_macro_function_evaluate(
  * function_index, thread_datum, init); on a non-NULL evaluation record it reads
  * one record field, calls the worker, and completes the calling script thread
@@ -5025,7 +5081,7 @@ void FUN_000be860(int16_t function_index, int thread_datum, char init)
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record*
  *   0x955b0 = recorded_animation_get_time_left(int unit_handle) -> int16_t
  *   0xcbf80 = hs_return(int thread_handle, int value) */
-void FUN_000be8a0(int16_t function_index, int thread_datum, char init)
+void recorded_animation_get_time_left_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   int value;
@@ -5040,7 +5096,7 @@ void FUN_000be8a0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be8f0 @ 0x000be8f0
+/* object_set_ranged_attack_inhibited_evaluate @ 0x000be8f0
  *
  * HaloScript macro-function trampoline (object ranged-attack-inhibited setter),
  * structurally simpler than the byte-returning dispatchers above. Evaluates the
@@ -5060,7 +5116,7 @@ void FUN_000be8a0(int16_t function_index, int thread_datum, char init)
  *   record[1]  int   (offset 0x04)  inhibit flag, truncated to char
  * -> object_set_ranged_attack_inhibited(record[0], (char)record[1]).
  * The script thread is then resolved with hs_return(thread_datum, 0). */
-void FUN_000be8f0(int16_t function_index, int thread_datum, char init)
+void object_set_ranged_attack_inhibited_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5072,10 +5128,10 @@ void FUN_000be8f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be930 @ 0x000be930
+/* object_set_melee_attack_inhibited_evaluate @ 0x000be930
  *
  * HaloScript builtin implementation (`object_set_melee_attack_inhibited`).
- * Byte-shape twin of FUN_000be8f0 directly above -- differs only in the
+ * Byte-shape twin of object_set_ranged_attack_inhibited_evaluate directly above -- differs only in the
  * middle callee (melee instead of ranged). Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); on a
  * non-NULL evaluation record it forwards the record's first dword (the object
@@ -5108,7 +5164,7 @@ void FUN_000be8f0(int16_t function_index, int thread_datum, char init)
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> int* record
  *   0x1369b0 = object_set_melee_attack_inhibited(int object_handle, char flag)
  *   0xcbf80 = hs_return(int thread_handle, int value) */
-void FUN_000be930(int16_t function_index, int thread_datum, char init)
+void object_set_melee_attack_inhibited_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5121,7 +5177,7 @@ void FUN_000be930(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be970 @ 0x000be970
+/* objects_dump_memory_evaluate @ 0x000be970
  *
  * HaloScript builtin implementation. Dumps the object subsystem's memory
  * state via objects_dump_memory(), then completes the calling script thread
@@ -5136,16 +5192,16 @@ void FUN_000be930(int16_t function_index, int thread_datum, char init)
  * is pushed as hs_return's value (PUSH 0; PUSH EAX; CALL; ADD ESP,8). Ghidra
  * modeled this void(void) and read only in_stack_00000008 (the second cdecl
  * param); kb decl was previously void(void). */
-void FUN_000be970(int16_t function_index, int thread_handle)
+void objects_dump_memory_evaluate(int16_t function_index, int thread_handle)
 {
   objects_dump_memory();
   hs_return(thread_handle, 0);
 }
 
-/* FUN_000be990 @ 0x000be990
+/* object_scripting_set_collideable_evaluate @ 0x000be990
  *
  * HaloScript builtin implementation (`object_set_collideable`). Byte-shape twin
- * of FUN_000be930 above -- differs only in the middle callee. Evaluates the
+ * of object_set_melee_attack_inhibited_evaluate above -- differs only in the middle callee. Evaluates the
  * script function via hs_macro_function_evaluate(function_index, thread_datum,
  * init); on a non-NULL evaluation record it forwards the record's first dword
  * (the object handle) and the record's byte at +4 (the collideable flag) to
@@ -5178,7 +5234,7 @@ void FUN_000be970(int16_t function_index, int thread_handle)
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> int* record
  *   0x13eb30 = object_scripting_set_collideable(int object_handle, char flag)
  *   0xcbf80 = hs_return(int thread_handle, int value) */
-void FUN_000be990(int16_t function_index, int thread_datum, char init)
+void object_scripting_set_collideable_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5190,10 +5246,10 @@ void FUN_000be990(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000be9d0 @ 0x000be9d0
+/* objects_scripting_set_scale_evaluate @ 0x000be9d0
  *
  * HaloScript macro-function trampoline (object scripting set-scale). Byte-shape
- * sibling of FUN_000be990/FUN_000bea10 above -- differs only in the middle
+ * sibling of object_scripting_set_collideable_evaluate/objects_scripting_attach_evaluate above -- differs only in the middle
  * callee and in the record fields it forwards. Evaluates the script function
  * via hs_macro_function_evaluate(function_index, thread_datum, init); on a
  * non-NULL evaluation record it forwards record[0] (object handle), the dword
@@ -5234,7 +5290,7 @@ void FUN_000be990(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> int* record
  *   0x140b80 = objects_scripting_set_scale(int handle, int scale, int16_t)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000be9d0(int16_t function_index, int thread_datum, char init)
+void objects_scripting_set_scale_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5247,7 +5303,7 @@ void FUN_000be9d0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bea10 @ 0x000bea10
+/* objects_scripting_attach_evaluate @ 0x000bea10
  *
  * HaloScript macro-function trampoline (object scripting-attach). Evaluates the
  * script function via hs_macro_function_evaluate(function_index, thread_datum,
@@ -5269,7 +5325,7 @@ void FUN_000be9d0(int16_t function_index, int thread_datum, char init)
  * ADD ESP,0x18 combines the 16-byte attach cleanup and 8-byte hs_return
  * cleanup. Ghidra modeled this void(void) and read the three cdecl params as
  * in_stack_*. */
-void FUN_000bea10(int16_t function_index, int thread_datum, char init)
+void objects_scripting_attach_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5281,10 +5337,10 @@ void FUN_000bea10(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bea50 @ 0x000bea50
+/* objects_scripting_detach_evaluate @ 0x000bea50
  *
  * HaloScript macro-function trampoline (object scripting-detach). Direct
- * sibling of FUN_000bea10 above, differing only in the middle callee and its
+ * sibling of objects_scripting_attach_evaluate above, differing only in the middle callee and its
  * argument count. Evaluates the script function via hs_macro_function_evaluate(
  * function_index, thread_datum, init), which returns a pointer to an evaluation
  * record. On a non-NULL record it forwards the first two dwords to
@@ -5304,7 +5360,7 @@ void FUN_000bea10(int16_t function_index, int thread_datum, char init)
  * artifact's "cleanup=4 stack args" hazard on hs_return is that merged
  * cleanup, not a 4-argument call. Ghidra modeled this void(void) and read the
  * three cdecl params as in_stack_*. */
-void FUN_000bea50(int16_t function_index, int thread_datum, char init)
+void objects_scripting_detach_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5331,16 +5387,16 @@ void FUN_000bea50(int16_t function_index, int thread_datum, char init)
  * Callees (both cdecl, in kb.json):
  *   0x13db50 = garbage_collect_now(void)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bea90(int16_t function_index, int thread_datum, char init)
+void garbage_collect_now_evaluate(int16_t function_index, int thread_datum, char init)
 {
   garbage_collect_now();
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000beab0 @ 0x000beab0
+/* object_cannot_take_damage_evaluate @ 0x000beab0
  *
  * HaloScript macro-function trampoline (object body-vitality query). A direct
- * sibling of FUN_000bea10 above, differing only in the single-argument middle
+ * sibling of objects_scripting_attach_evaluate above, differing only in the single-argument middle
  * callee. Evaluates the script function via hs_macro_function_evaluate(
  * function_index, thread_datum, init), which returns a pointer to an evaluation
  * record. On a non-NULL record it forwards the first dword (*record, MOV
@@ -5358,7 +5414,7 @@ void FUN_000bea90(int16_t function_index, int thread_datum, char init)
  * hs_return (0xc = 8 for hs_return's two cdecl args + 4 for the single-arg
  * call). Ghidra modeled this void(void) with the three cdecl params read as
  * in_stack_*. */
-void FUN_000beab0(int16_t function_index, int thread_datum, char init)
+void object_cannot_take_damage_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5370,10 +5426,10 @@ void FUN_000beab0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000beaf0 @ 0x000beaf0
+/* object_can_take_damage_evaluate @ 0x000beaf0
  *
  * HaloScript macro-function trampoline (object damage-eligibility query). A
- * direct sibling of FUN_000beab0 above, differing only in the single-argument
+ * direct sibling of object_cannot_take_damage_evaluate above, differing only in the single-argument
  * middle callee. Evaluates the script function via hs_macro_function_evaluate(
  * function_index, thread_datum, init), which returns a pointer to an evaluation
  * record. On a non-NULL record it forwards the first dword (*record, MOV
@@ -5390,7 +5446,7 @@ void FUN_000beab0(int16_t function_index, int thread_datum, char init)
  * 4-byte cleanup is folded into the ADD ESP,0xc after hs_return (0xc = 8 for
  * hs_return's two cdecl args + 4 for the single-arg call). Ghidra modeled this
  * void(void) with the three cdecl params read as in_stack_*. */
-void FUN_000beaf0(int16_t function_index, int thread_datum, char init)
+void object_can_take_damage_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5402,10 +5458,10 @@ void FUN_000beaf0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000beb30 @ 0x000beb30
+/* object_beautify_evaluate @ 0x000beb30
  *
  * HaloScript macro-function trampoline (object "beautify" command). A direct
- * sibling of FUN_000beab0/FUN_000beaf0 above, differing in the middle callee
+ * sibling of object_cannot_take_damage_evaluate/object_can_take_damage_evaluate above, differing in the middle callee
  * taking two arguments. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init), which returns
  * a pointer to an evaluation record. On a non-NULL record it forwards the first
@@ -5420,7 +5476,7 @@ void FUN_000beaf0(int16_t function_index, int thread_datum, char init)
  *
  * Ghidra modeled this void(void) with the three cdecl params read as
  * in_stack_*; the correct prototype is the 3-arg cdecl below. */
-void FUN_000beb30(int16_t function_index, int thread_datum, char init)
+void object_beautify_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5435,7 +5491,7 @@ void FUN_000beb30(int16_t function_index, int thread_datum, char init)
 /* hs_objects_predict_evaluate @ 0x000beb70
  *
  * HaloScript macro-function trampoline (object-list side-effect variant). A
- * direct sibling of the FUN_000bebb0 family above. Evaluates the script
+ * direct sibling of the object_definition_predict_evaluate family above. Evaluates the script
  * function via hs_macro_function_evaluate(function_index, thread_datum, init),
  * which returns a pointer to an evaluation record. On a non-NULL record it
  * forwards the first dword (*record, MOV EDX,[EAX]) to hs_objects_predict, then
@@ -5467,10 +5523,10 @@ void hs_objects_predict_evaluate(int16_t function_index, int thread_datum, char 
   }
 }
 
-/* FUN_000bebb0 @ 0x000bebb0
+/* object_definition_predict_evaluate @ 0x000bebb0
  *
  * HaloScript macro-function trampoline (object-definition predict variant). A
- * direct sibling of the FUN_000bea10/FUN_000beab0 family above. Evaluates the
+ * direct sibling of the objects_scripting_attach_evaluate/object_cannot_take_damage_evaluate family above. Evaluates the
  * script function via hs_macro_function_evaluate(function_index, thread_datum,
  * init), which returns a pointer to an evaluation record. On a non-NULL record
  * it forwards the first dword (*record, MOV EAX,[EAX]) to
@@ -5485,7 +5541,7 @@ void hs_objects_predict_evaluate(int16_t function_index, int thread_datum, char 
  * Ghidra modeled this void(void) with the three cdecl params read as
  * in_stack_*; the correct prototype is the 3-arg cdecl below. kb decl corrected
  * from void(void) so callers pass all three arguments. */
-void FUN_000bebb0(int16_t function_index, int thread_datum, char init)
+void object_definition_predict_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5497,9 +5553,9 @@ void FUN_000bebb0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bebf0 @ 0x000bebf0
+/* object_pvs_set_object_evaluate @ 0x000bebf0
  *
- * HaloScript macro-function trampoline, a direct sibling of FUN_000bebb0
+ * HaloScript macro-function trampoline, a direct sibling of object_definition_predict_evaluate
  * above. Evaluates the script function via hs_macro_function_evaluate(
  * function_index, thread_datum, init), which returns a pointer to an
  * evaluation record. On a non-NULL record it forwards the first dword
@@ -5514,7 +5570,7 @@ void FUN_000bebb0(int16_t function_index, int thread_datum, char init)
  * Ghidra modeled this void(void) with the three cdecl params read as
  * in_stack_*; the correct prototype is the 3-arg cdecl below. kb decl
  * corrected from void(void) so callers pass all three arguments. */
-void FUN_000bebf0(int16_t function_index, int thread_datum, char init)
+void object_pvs_set_object_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5526,10 +5582,10 @@ void FUN_000bebf0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bec30 @ 0x000bec30
+/* object_pvs_set_camera_point_evaluate @ 0x000bec30
  *
  * HaloScript macro-function evaluator wrapper, a direct sibling of
- * FUN_000bebf0 above. Evaluates the script function via
+ * object_pvs_set_object_evaluate above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
  * returns NULL the evaluation is still pending and nothing is committed. Once a
  * non-NULL evaluation record is returned, its first field is loaded as a 16-bit
@@ -5543,12 +5599,12 @@ void FUN_000bebf0(int16_t function_index, int thread_datum, char init)
  *
  * hs_macro_function_evaluate returns the record pointer in EAX. On non-NULL the
  * original loads its first field as a 16-bit value (word load) and passes it to
- * object_pvs_set_camera_point (which takes a short camera_point_index), then
- * commits the thread with hs_return(thread_datum, 0). Ghidra modeled this
- * void(void) with the three cdecl params read as in_stack_*; the correct
- * prototype is the 3-arg cdecl below. kb decl corrected from void(void) so
- * callers pass all three arguments. */
-void FUN_000bec30(int16_t function_index, int thread_datum, char init)
+ * object_pvs_set_camera_point (which takes a short camera_point_index), then commits the
+ * thread with hs_return(thread_datum, 0). Ghidra modeled this void(void) with
+ * the three cdecl params read as in_stack_*; the correct prototype is the 3-arg
+ * cdecl below. kb decl corrected from void(void) so callers pass all three
+ * arguments. */
+void object_pvs_set_camera_point_evaluate(int16_t function_index, int thread_datum, char init)
 {
   short *record;
 
@@ -5560,10 +5616,10 @@ void FUN_000bec30(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bec70 @ 0x000bec70
+/* object_pvs_clear_evaluate @ 0x000bec70
  *
  * HaloScript builtin implementation, a direct sibling of the numeric-countdown
- * wrappers above (FUN_000be6f0 / FUN_000be710). It does not call
+ * wrappers above (numeric_countdown_timer_stop_evaluate / numeric_countdown_timer_restart_evaluate). It does not call
  * hs_macro_function_evaluate: it invokes the void/void helper object_pvs_clear
  * directly, then completes the calling script thread with
  * hs_return(thread_handle, 0).
@@ -5572,22 +5628,22 @@ void FUN_000bec30(int16_t function_index, int thread_datum, char init)
  *   function_index  int16_t  [EBP+0x08]  (unused -- never loaded)
  *   thread_handle   int      [EBP+0x0c]  -> hs_return arg1
  *
- * object_pvs_clear() takes no args and is called first. The second stack param
- * is then loaded (MOV EAX,[EBP+0xc]) and pushed as hs_return's thread_handle;
- * the constant 0 is pushed as hs_return's value (PUSH 0; PUSH EAX; CALL
- * hs_return; ADD ESP,8 cleans the two cdecl args). Ghidra modeled this
- * void(void) and read the second cdecl param as in_stack_00000008 (mislabeled
- * -- it is [EBP+0xc]); kb decl was previously void(void). */
-void FUN_000bec70(int16_t function_index, int thread_handle)
+ * object_pvs_clear() takes no args and is called first. The second stack param is
+ * then loaded (MOV EAX,[EBP+0xc]) and pushed as hs_return's thread_handle; the
+ * constant 0 is pushed as hs_return's value (PUSH 0; PUSH EAX; CALL hs_return;
+ * ADD ESP,8 cleans the two cdecl args). Ghidra modeled this void(void) and read
+ * the second cdecl param as in_stack_00000008 (mislabeled -- it is [EBP+0xc]);
+ * kb decl was previously void(void). */
+void object_pvs_clear_evaluate(int16_t function_index, int thread_handle)
 {
   object_pvs_clear();
   hs_return(thread_handle, 0);
 }
 
-/* FUN_000bec90 @ 0x000bec90
+/* object_pvs_activate_evaluate @ 0x000bec90
  *
  * HaloScript macro-function evaluator wrapper, a direct sibling of
- * FUN_000be3b0 / FUN_000bed20 above. Evaluates the script function via
+ * object_list_count_evaluate / scenery_get_animation_time_evaluate above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
  * returns NULL the evaluation is still pending and nothing is committed. Once a
  * non-NULL evaluation record is returned, its first dword (*record) is passed
@@ -5604,7 +5660,7 @@ void FUN_000bec70(int16_t function_index, int thread_handle)
  * object_pvs_activate, then pushes 0 and thread_datum for hs_return. Ghidra
  * modeled this void(void); the three cdecl params were unmodeled (in_stack_*).
  * kb decl for this function was previously void(void). */
-void FUN_000bec90(int16_t function_index, int thread_datum, char init)
+void object_pvs_activate_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
 
@@ -5616,10 +5672,10 @@ void FUN_000bec90(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000becd0 @ 0x000becd0
+/* lights_enable_evaluate @ 0x000becd0
  *
  * HaloScript macro-function evaluator wrapper (byte-valued variant), a direct
- * sibling of FUN_000bec90 / FUN_000bed20 above. Evaluates the script function
+ * sibling of object_pvs_activate_evaluate / scenery_get_animation_time_evaluate above. Evaluates the script function
  * via hs_macro_function_evaluate(function_index, thread_datum, init); while
  * that returns NULL the evaluation is still pending and nothing is committed.
  * Once a non-NULL evaluation record is returned, its first byte is passed
@@ -5645,7 +5701,7 @@ void FUN_000bec90(int16_t function_index, int thread_datum, char init)
  * argument/return were mis-declared void(void) (kb decl for both was
  * previously void(void)). lights_enable's true name is uncertain; it behaves
  * as a boolean toggle/setter returning a state byte. */
-void FUN_000becd0(int16_t function_index, int thread_datum, char init)
+void lights_enable_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned char *result;
   int value;
@@ -5659,10 +5715,10 @@ void FUN_000becd0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bed20 @ 0x000bed20
+/* scenery_get_animation_time_evaluate @ 0x000bed20
  *
  * HaloScript macro-function evaluator wrapper (16-bit-valued variant), a direct
- * sibling of FUN_000be3b0 above. Evaluates the script function via
+ * sibling of object_list_count_evaluate above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
  * returns NULL the evaluation is still pending and nothing is committed. Once a
  * non-NULL evaluation record is returned, its first dword is converted through
@@ -5686,7 +5742,7 @@ void FUN_000becd0(int16_t function_index, int thread_datum, char init)
  * Ghidra modeled this void(void); the three cdecl params were unmodeled
  * (in_stack_*) and FUN_00145740's argument/return were mis-declared void(void)
  * (kb decl for both was previously void(void)). */
-void FUN_000bed20(int16_t function_index, int thread_datum, char init)
+void scenery_get_animation_time_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
   int value;
@@ -5700,10 +5756,10 @@ void FUN_000bed20(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bed70 @ 0x000bed70
+/* scenery_animation_start_evaluate @ 0x000bed70
  *
  * HaloScript macro-function evaluator wrapper (animation-set variant), a direct
- * sibling of FUN_000bed20 above. Evaluates the script function via
+ * sibling of scenery_get_animation_time_evaluate above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
  * returns NULL the evaluation is still pending and nothing is committed. Once a
  * non-NULL evaluation record is returned, its first three dwords are forwarded
@@ -5726,7 +5782,7 @@ void FUN_000bed20(int16_t function_index, int thread_datum, char init)
  * void(void); the three cdecl params were unmodeled (in_stack_*) and
  * FUN_001457b0's arguments were mis-declared void(void) (kb decl was previously
  * void(void) for both this function and FUN_001457b0). */
-void FUN_000bed70(int16_t function_index, int thread_datum, char init)
+void scenery_animation_start_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
 
@@ -5738,10 +5794,10 @@ void FUN_000bed70(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bedb0 @ 0x000bedb0
+/* scenery_animation_start_at_frame_evaluate @ 0x000bedb0
  *
  * HaloScript macro-function evaluator wrapper (animation-state variant), a
- * direct sibling of FUN_000bed70 above. Evaluates the script function via
+ * direct sibling of scenery_animation_start_evaluate above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
  * returns NULL the evaluation is still pending and nothing is committed. Once a
  * non-NULL evaluation record is returned, its fields are forwarded to the
@@ -5767,7 +5823,7 @@ void FUN_000bed70(int16_t function_index, int thread_datum, char init)
  * hs_return's 2-dword cleanup (0x08), confirming both are cdecl. Ghidra modeled
  * this void(void): the three cdecl params were unmodeled (in_stack_*) and
  * FUN_001457d0's arguments were hidden because its kb decl was void(void). */
-void FUN_000bedb0(int16_t function_index, int thread_datum, char init)
+void scenery_animation_start_at_frame_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5780,10 +5836,10 @@ void FUN_000bedb0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bee00 @ 0x000bee00
+/* render_effects_evaluate @ 0x000bee00
  *
  * HaloScript macro-function evaluator wrapper (byte-dispatch variant), a direct
- * sibling of FUN_000bedb0 above. Evaluates the script function via
+ * sibling of scenery_animation_start_at_frame_evaluate above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
  * returns NULL the evaluation is still pending and nothing is committed. On a
  * non-NULL evaluation record the zero-extended first byte of the record is
@@ -5806,7 +5862,7 @@ void FUN_000bedb0(int16_t function_index, int thread_datum, char init)
  * unmodeled (in_stack_*) and 0x184b60's argument was hidden because its kb decl
  * was void render_effects(void). The 0x184b60=render_effects attribution is
  * unverified; only its 1-arg cdecl shape is proven at this call site. */
-void FUN_000bee00(int16_t function_index, int thread_datum, char init)
+void render_effects_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned char *record;
 
@@ -5818,10 +5874,10 @@ void FUN_000bee00(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bee40 @ 0x000bee40
+/* unit_scripting_can_blink_evaluate @ 0x000bee40
  *
  * HaloScript macro-function evaluator wrapper (unit blink-enable variant), a
- * direct sibling of FUN_000bee00 above. Evaluates the script function via
+ * direct sibling of render_effects_evaluate above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
  * returns NULL the evaluation is still pending and nothing is committed. On a
  * non-NULL evaluation record the record's first dword (a unit handle) and the
@@ -5853,7 +5909,7 @@ void FUN_000bee00(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x1a9c00 = unit_scripting_can_blink(int unit_handle, char can_blink)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bee40(int16_t function_index, int thread_datum, char init)
+void unit_scripting_can_blink_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5865,10 +5921,10 @@ void FUN_000bee40(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bee80 @ 0x000bee80
+/* unit_open_evaluate @ 0x000bee80
  *
  * HaloScript macro-function evaluator wrapper (unit "open" variant), a direct
- * sibling of FUN_000bee40 above and structurally identical to hs_objects_predict_evaluate.
+ * sibling of unit_scripting_can_blink_evaluate above and structurally identical to hs_objects_predict_evaluate.
  * Evaluates the script function via hs_macro_function_evaluate(function_index,
  * thread_datum, init); while that returns NULL the evaluation is still pending
  * and nothing is committed. On a non-NULL evaluation record the record's first
@@ -5900,7 +5956,7 @@ void FUN_000bee40(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x1ae160 = unit_open(int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bee80(int16_t function_index, int thread_datum, char init)
+void unit_open_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5912,10 +5968,10 @@ void FUN_000bee80(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000beec0 @ 0x000beec0
+/* unit_close_evaluate @ 0x000beec0
  *
  * HaloScript macro-function evaluator wrapper (unit "close" variant), the
- * direct sibling of FUN_000bee80 above: byte-identical in shape, differing
+ * direct sibling of unit_open_evaluate above: byte-identical in shape, differing
  * only in which record-first-dword consumer it calls (unit_close 0x1ae180
  * instead of unit_open 0x1ae160). Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); while that
@@ -5950,7 +6006,7 @@ void FUN_000bee80(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x1ae180 = unit_close(int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000beec0(int16_t function_index, int thread_datum, char init)
+void unit_close_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -5963,7 +6019,7 @@ void FUN_000beec0(int16_t function_index, int thread_datum, char init)
 }
 
 /* 0xbef00 — HS script function handler: set a unit's actively-controlled flag.
- * Structural twin of FUN_000beec0 above; only the middle callee differs
+ * Structural twin of unit_close_evaluate above; only the middle callee differs
  * (unit_set_actively_controlled_flag @0x1a7f80 instead of unit_close
  * @0x1ae180). 13 instructions, standard EBP frame, ESI is the one
  * callee-saved register and holds thread_datum live across the evaluate call
@@ -5989,7 +6045,7 @@ void FUN_000beec0(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x1a7f80 = unit_set_actively_controlled_flag(int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bef00(int16_t function_index, int thread_datum, char init)
+void unit_kill_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -6002,7 +6058,7 @@ void FUN_000bef00(int16_t function_index, int thread_datum, char init)
 }
 
 /* 0xbef40 — HS script function handler: kill a unit. Structural twin of
- * FUN_000beec0 above; only the middle callee differs (unit_kill @0x1a7fa0
+ * unit_close_evaluate above; only the middle callee differs (unit_kill @0x1a7fa0
  * instead of unit_close @0x1ae180). 13 instructions, standard EBP frame, ESI
  * is the one callee-saved register and holds thread_datum live across the
  * evaluate call — which is why the SAME value feeds both
@@ -6028,7 +6084,7 @@ void FUN_000bef00(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x1a7fa0 = unit_kill(int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bef40(int16_t function_index, int thread_datum, char init)
+void unit_kill_silent_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -6040,14 +6096,14 @@ void FUN_000bef40(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bef80 @ 0x000bef80
+/* unit_get_custom_animation_time_evaluate @ 0x000bef80
  *
- * HaloScript builtin dispatcher, same family as hs_not_evaluate / FUN_000bef40
+ * HaloScript builtin dispatcher, same family as hs_not_evaluate / unit_kill_silent_evaluate
  * above. Evaluates the script function via
  * hs_macro_function_evaluate(function_index, thread_datum, init); on a
  * non-NULL evaluation record it loads the record's FIRST DWORD (a full 32-bit
  * load: MOV EDX,[EAX]; PUSH EDX -- a unit/object handle, exactly as
- * FUN_000bef40 does for unit_kill) and passes it to FUN_001AC0E0, whose
+ * unit_kill_silent_evaluate does for unit_kill) and passes it to FUN_001AC0E0, whose
  * 16-bit result (AX) is forwarded to hs_return.
  *
  * cdecl frame (PUSH EBP; MOV EBP,ESP; PUSH ECX for one dword local;
@@ -6083,7 +6139,7 @@ void FUN_000bef40(int16_t function_index, int thread_datum, char init)
  *              from Ghidra's void(void); semantics of the returned 16-bit
  *              value are UNKNOWN)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bef80(int16_t function_index, int thread_datum, char init)
+void unit_get_custom_animation_time_evaluate(int16_t function_index, int thread_datum, char init)
 {
   volatile unsigned int result_slot;
   int *record;
@@ -6137,7 +6193,7 @@ void FUN_000bef80(int16_t function_index, int thread_datum, char init)
  * lift directive as the twin: players.c does not compile under VC71 (clang-only
  * __attribute__ / raw fnptr casts), so it would be permanently unmeasurable
  * there. */
-void FUN_000befd0(int16_t function_index, int thread_datum, char init)
+void unit_stop_custom_animation_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
 
@@ -6149,9 +6205,9 @@ void FUN_000befd0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf010 @ 0x000bf010
+/* unit_start_user_animation_evaluate @ 0x000bf010
  *
- * HaloScript builtin dispatcher, same family as FUN_000bef40 / FUN_000bef80
+ * HaloScript builtin dispatcher, same family as unit_kill_silent_evaluate / unit_get_custom_animation_time_evaluate
  * above, but forwarding FOUR evaluated arguments instead of one. Evaluates the
  * script function via hs_macro_function_evaluate(function_index, thread_datum,
  * init); on a non-NULL evaluation record it reads four fields out of the
@@ -6186,7 +6242,7 @@ void FUN_000befd0(int16_t function_index, int thread_datum, char init)
  *   taken branch MOV byte [EBP-0x4],AL writes only the low 8 bits and
  *   MOV ECX,dword [EBP-0x4] reads all 32 -- a zero-extended 8-bit result,
  *   which is why the slot is modelled as a volatile dword rather than a plain
- *   char (same shape as FUN_000bef80's 16-bit slot above).
+ *   char (same shape as unit_get_custom_animation_time_evaluate's 16-bit slot above).
  *   ONE combined ADD ESP,0x18 at 0xbf057 folds FUN_001AC180's 4 dwords with
  *   hs_return's 2; the ARG_COUNT enrichment warning on 0xcbf80
  *   ("cleanup=6 vs decl=2") is that merge -- hs_return really takes 2 args,
@@ -6200,7 +6256,7 @@ void FUN_000befd0(int16_t function_index, int thread_datum, char init)
  *   0x1ac180 = FUN_001ac180(int actor, int anim_tag, void *entry, int do_flag)
  *              -> char in AL (semantics of the returned flag are UNKNOWN)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf010(int16_t function_index, int thread_datum, char init)
+void unit_start_user_animation_evaluate(int16_t function_index, int thread_datum, char init)
 {
   volatile unsigned int result_slot;
   int *record;
@@ -6218,9 +6274,9 @@ void FUN_000bf010(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf060 @ 0x000bf060
+/* unit_scripting_start_user_animation_list_evaluate @ 0x000bf060
  *
- * HaloScript builtin dispatcher, immediate structural twin of FUN_000bf010
+ * HaloScript builtin dispatcher, immediate structural twin of unit_start_user_animation_evaluate
  * above: same cdecl frame, same pre-zeroed result dword, same four evaluated
  * arguments -- only the middle callee differs (unit_scripting_start_user_animation_list instead of
  * FUN_001AC180). Evaluates the script function via
@@ -6259,7 +6315,7 @@ void FUN_000bf010(int16_t function_index, int thread_datum, char init)
  *   At 0xbf09a only MOV byte [EBP-0x4],AL writes the low 8 bits; at 0xbf09d
  *   MOV ECX,dword [EBP-0x4] reads all 32 -- a zero-extended 8-bit result,
  *   which is why the slot is modelled as a volatile dword rather than a plain
- *   char (same shape as FUN_000bf010's slot above).
+ *   char (same shape as unit_start_user_animation_evaluate's slot above).
  *   CALL 0xcbf80 @0xbf0a2 pushes ECX(result dword) then ESI ->
  *   hs_return(thread_datum, result).
  *   ONE combined ADD ESP,0x18 at 0xbf0a7 folds unit_scripting_start_user_animation_list's 4 dwords with
@@ -6275,7 +6331,7 @@ void FUN_000bf010(int16_t function_index, int thread_datum, char init)
  *   0x1a7df0 = unit_scripting_start_user_animation_list(int datum_handle, int, int, int) -> char in AL
  *              (semantics of the returned flag are UNKNOWN)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf060(int16_t function_index, int thread_datum, char init)
+void unit_scripting_start_user_animation_list_evaluate(int16_t function_index, int thread_datum, char init)
 {
   volatile unsigned int result_slot;
   int *record;
@@ -6292,10 +6348,10 @@ void FUN_000bf060(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf0b0 @ 0x000bf0b0
+/* unit_custom_animation_at_frame_evaluate @ 0x000bf0b0
  *
- * HaloScript builtin dispatcher, third structural twin of FUN_000bf010 /
- * FUN_000bf060 above: same cdecl frame, same pre-zeroed result dword, same
+ * HaloScript builtin dispatcher, third structural twin of unit_start_user_animation_evaluate /
+ * unit_scripting_start_user_animation_list_evaluate above: same cdecl frame, same pre-zeroed result dword, same
  * evaluate -> worker -> hs_return skeleton. The only differences are the
  * worker (unit_custom_animation_at_frame) and one extra evaluated argument
  * (five fields instead of four).
@@ -6346,7 +6402,7 @@ void FUN_000bf060(int16_t function_index, int thread_datum, char init)
  *   0x1af100 = unit_custom_animation_at_frame(int unit_handle, int, int, int,
  *              int16_t frame) -> char in AL
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf0b0(int16_t function_index, int thread_datum, char init)
+void unit_custom_animation_at_frame_evaluate(int16_t function_index, int thread_datum, char init)
 {
   volatile unsigned int result_slot;
   int *record;
@@ -6418,7 +6474,7 @@ void FUN_000bf0b0(int16_t function_index, int thread_datum, char init)
  * unmeasurable there. NOTE: a global `maintain.py` run will try to move this
  * function (and the 0xbefd0 twin) into players.c — that move must be rejected.
  */
-void FUN_000bf110(int16_t function_index, int thread_datum, char init)
+void unit_is_playing_custom_animation_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
   union {
@@ -6435,12 +6491,12 @@ void FUN_000bf110(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf160 @ 0x000bf160
+/* unit_aim_without_turning_evaluate @ 0x000bf160
  *
  * HaloScript builtin dispatcher, the simplest member of the family above:
  * evaluate the script arguments, and on a non-NULL argument record call one
  * sound_manager worker with two of its fields, then return a CONSTANT 0 to the
- * script thread. Unlike FUN_000bf010 / FUN_000bf060 / FUN_000bf0b0 there is no
+ * script thread. Unlike unit_start_user_animation_evaluate / unit_scripting_start_user_animation_list_evaluate / unit_custom_animation_at_frame_evaluate there is no
  * result slot at all -- the worker's return value is discarded (nothing reads
  * EAX after CALL 0x1ac0a0) and hs_return's second argument is an immediate
  * PUSH 0x0.
@@ -6489,7 +6545,7 @@ void FUN_000bf110(int16_t function_index, int thread_datum, char init)
  *   0x1ac0a0 = FUN_001AC0A0(int, int) -- sound_manager.obj, UNPORTED, semantics
  *              UNKNOWN; return value discarded here
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf160(int16_t function_index, int thread_datum, char init)
+void unit_aim_without_turning_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -6501,9 +6557,9 @@ void FUN_000bf160(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf1a0 @ 0x000bf1a0
+/* unit_set_emotion_evaluate @ 0x000bf1a0
  *
- * HaloScript builtin dispatcher, the immediate twin of FUN_000bf160 above:
+ * HaloScript builtin dispatcher, the immediate twin of unit_aim_without_turning_evaluate above:
  * same 3-parameter cdecl shape, same evaluate/NULL-check/hs_return skeleton,
  * same "worker return value discarded, script gets a CONSTANT 0" tail. The two
  * differences from the twin are the worker (0x1ac070 instead of 0x1ac0a0) and
@@ -6530,7 +6586,7 @@ void FUN_000bf160(int16_t function_index, int thread_datum, char init)
  *     +0x04 WORD  ZERO-extended (XOR EDX,EDX; MOV DX,word [EAX+0x4]) -- a
  *                 MOVZX-shaped load; do NOT widen it to a dword read and do
  *                 NOT let it sign-extend via a signed `short` (lift-learnings
- *                 24, LOADW). This is the ONLY divergence from FUN_000bf160,
+ *                 24, LOADW). This is the ONLY divergence from unit_aim_without_turning_evaluate,
  *                 whose same-slot field is a byte.
  *   Note the load order: the +0x4 word is fetched BEFORE the +0x0 dword,
  *   because the dword load overwrites EAX (the record pointer itself). MSVC's
@@ -6558,7 +6614,7 @@ void FUN_000bf160(int16_t function_index, int thread_datum, char init)
  *   0x1ac070 = FUN_001AC070(int, int) -- sound_manager.obj neighbour of
  *              0x1ac0a0, UNPORTED, semantics UNKNOWN; return value discarded
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf1a0(int16_t function_index, int thread_datum, char init)
+void unit_set_emotion_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -6570,13 +6626,13 @@ void FUN_000bf1a0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf1e0 @ 0x000bf1e0
+/* unit_set_enterable_by_player_evaluate @ 0x000bf1e0
  *
  * HaloScript builtin dispatcher, third in the 0xbf110/0xbf160/0xbf1a0 family
  * above: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / worker / hs_return skeleton, identical "worker return
  * value discarded, script gets a CONSTANT 0" tail. The two differences from
- * FUN_000bf1a0 are the worker (0x1ac030 instead of 0x1ac070) and the width of
+ * unit_set_emotion_evaluate are the worker (0x1ac030 instead of 0x1ac070) and the width of
  * the record's second field: a BYTE here, a WORD in the twin.
  *
  * cdecl frame, PUSH EBP; MOV EBP,ESP; PUSH ESI. No local dword, no _chkstk,
@@ -6601,7 +6657,7 @@ void FUN_000bf1a0(int16_t function_index, int thread_datum, char init)
  *
  *   Record deref: XOR EDX,EDX; MOV DL,byte ptr [EAX+0x4] -> zero-extended
  *   BYTE at record+4 (NOT a word -- this is where this function differs from
- *   FUN_000bf1a0); MOV EAX,dword ptr [EAX] -> DWORD at record+0.
+ *   unit_set_emotion_evaluate); MOV EAX,dword ptr [EAX] -> DWORD at record+0.
  *
  *   CALL 0x1ac030 @0xbf205 pushes EDX (the zero-extended byte) then EAX (the
  *   dword) = cdecl reverse -> C order (record[0], byte at record+4).
@@ -6619,7 +6675,7 @@ void FUN_000bf1a0(int16_t function_index, int thread_datum, char init)
  *              discarded. kb.json decl corrected from void(void) to (int,int)
  *              per the two pushes in the disassembly.
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf1e0(int16_t function_index, int thread_datum, char init)
+void unit_set_enterable_by_player_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -6631,7 +6687,7 @@ void FUN_000bf1e0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf220 @ 0x000bf220
+/* unit_scripting_enter_vehicle_evaluate @ 0x000bf220
  *
  * HaloScript builtin dispatcher, next in the 0xbf110/0xbf160/0xbf1a0/0xbf1e0
  * family above: identical 3-parameter cdecl shape, identical
@@ -6640,7 +6696,7 @@ void FUN_000bf1e0(int16_t function_index, int thread_datum, char init)
  * twins are the worker (unit_scripting_enter_vehicle at 0x1b32d0, which takes
  * THREE args instead of two) and the record layout: all three fields here are
  * full 32-bit dwords, with no MOVZX/MOVSX anywhere in the frame -- so, unlike
- * FUN_000bf1a0 (word) and FUN_000bf1e0 (byte), there is no narrowing load to
+ * unit_set_emotion_evaluate (word) and unit_set_enterable_by_player_evaluate (byte), there is no narrowing load to
  * reproduce (lift-learnings 24 / LOADW).
  *
  * cdecl frame, PUSH EBP; MOV EBP,ESP; PUSH ESI. No local dword, no _chkstk,
@@ -6693,7 +6749,7 @@ void FUN_000bf1e0(int16_t function_index, int thread_datum, char init)
  *              int vehicle_handle, char *seat_name) -- void, already carries
  *              a correct 3-arg decl in kb.json
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf220(int16_t function_index, int thread_datum, char init)
+void unit_scripting_enter_vehicle_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -6705,9 +6761,9 @@ void FUN_000bf220(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf260 @ 0x000bf260
+/* unit_scripting_vehicle_test_seat_list_evaluate @ 0x000bf260
  *
- * HaloScript builtin dispatcher, same family as FUN_000bf160/0xbf1a0/0xbf1e0/
+ * HaloScript builtin dispatcher, same family as unit_aim_without_turning_evaluate/0xbf1a0/0xbf1e0/
  * 0xbf220 above: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / worker / hs_return skeleton. The difference from the
  * neighbours is that this one's worker RETURNS A BYTE PREDICATE that is handed
@@ -6759,10 +6815,10 @@ void FUN_000bf220(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, in kb.json):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a9c90 = unit_scripting_vehicle_test_seat_list(int unit_handle, const
- * char *seat_name, int object_list) -> char predicate in AL 0xcbf80  =
- * hs_return(int thread_handle, int value) */
-void FUN_000bf260(int16_t function_index, int thread_datum, char init)
+ *   0x1a9c90 = unit_scripting_vehicle_test_seat_list(int unit_handle, const char *seat_name,
+ *              int object_list) -> char predicate in AL
+ *   0xcbf80  = hs_return(int thread_handle, int value) */
+void unit_scripting_vehicle_test_seat_list_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -6780,9 +6836,9 @@ void FUN_000bf260(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf2b0 @ 0x000bf2b0
+/* unit_scripting_vehicle_test_seat_evaluate @ 0x000bf2b0
  *
- * HaloScript builtin dispatcher, the immediate twin of FUN_000bf260 above:
+ * HaloScript builtin dispatcher, the immediate twin of unit_scripting_vehicle_test_seat_list_evaluate above:
  * identical 3-parameter cdecl shape, identical evaluate / NULL-check / worker /
  * hs_return skeleton, identical byte-predicate-into-pre-zeroed-dword result
  * marshalling. The ONLY difference from the twin is the worker called
@@ -6809,8 +6865,8 @@ void FUN_000bf260(int16_t function_index, int thread_datum, char init)
  *   kb.json declares 0xcc560 as returning `int` -- cast at the call site, as
  *   every twin in this family does.
  *   The record is the evaluated-argument block, 3 dwords. All three loads are
- *   FULL DWORD MOVs -- no movzx/movsx, so unlike FUN_000bf1a0 (word field) and
- *   FUN_000bf1e0 (byte field) there is no narrowing load here:
+ *   FULL DWORD MOVs -- no movzx/movsx, so unlike unit_set_emotion_evaluate (word field) and
+ *   unit_set_enterable_by_player_evaluate (byte field) there is no narrowing load here:
  *     +0x00 int    vehicle index (MOV EDX,[EAX])
  *     +0x04 char * seat name     (MOV ECX,[EAX+4])
  *     +0x08 int    unit index    (MOV EDX,[EAX+8])
@@ -6839,7 +6895,7 @@ void FUN_000bf260(int16_t function_index, int thread_datum, char init)
  *   0x1a9da0 = unit_scripting_vehicle_test_seat(int vehicle_index,
  *              const char *seat_name, int unit_index) -> char predicate in AL
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf2b0(int16_t function_index, int thread_datum, char init)
+void unit_scripting_vehicle_test_seat_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -6857,9 +6913,9 @@ void FUN_000bf2b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf300 @ 0x000bf300
+/* unit_scripting_set_emotion_animation_evaluate @ 0x000bf300
  *
- * HaloScript builtin dispatcher, same family as FUN_000bf110/0xbf160/0xbf1a0/
+ * HaloScript builtin dispatcher, same family as unit_is_playing_custom_animation_evaluate/0xbf160/0xbf1a0/
  * 0xbf1e0/0xbf2b0 above: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / worker / hs_return skeleton, and the "worker return
  * discarded, script gets a CONSTANT 0" tail (like 0xbf160/0xbf1a0/0xbf1e0,
@@ -6887,8 +6943,8 @@ void FUN_000bf2b0(int16_t function_index, int thread_datum, char init)
  *   this family does; the kb decl is left alone.
  *
  *   Record deref, TWO fields, BOTH FULL DWORD MOVs -- there is no MOVZX/MOVSX
- *   anywhere in the function, so unlike FUN_000bf1a0 (word field) and
- *   FUN_000bf1e0 (byte field) neither field is narrowed:
+ *   anywhere in the function, so unlike unit_set_emotion_evaluate (word field) and
+ *   unit_set_enterable_by_player_evaluate (byte field) neither field is narrowed:
  *     +0x00 int    unit index      (MOV EAX,dword ptr [EAX]     @0xbf31f)
  *     +0x04 char * animation name  (MOV EDX,dword ptr [EAX+0x4] @0xbf31c)
  *   The +0x4 load runs BEFORE the +0x0 load because the +0x0 load overwrites
@@ -6916,7 +6972,7 @@ void FUN_000bf2b0(int16_t function_index, int thread_datum, char init)
  *   0x1a9b30 = unit_scripting_set_emotion_animation(int unit_index,
  *              const char *animation_name) -- void, result discarded
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf300(int16_t function_index, int thread_datum, char init)
+void unit_scripting_set_emotion_animation_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -6928,9 +6984,9 @@ void FUN_000bf300(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf340 @ 0x000bf340
+/* unit_scripting_exit_vehicle_evaluate @ 0x000bf340
  *
- * HaloScript builtin dispatcher, same family as FUN_000bf110/0xbf160/0xbf1a0/
+ * HaloScript builtin dispatcher, same family as unit_is_playing_custom_animation_evaluate/0xbf160/0xbf1a0/
  * 0xbf1e0/0xbf2b0/0xbf300 above: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / worker / hs_return skeleton, and the "worker return
  * discarded, script gets a CONSTANT 0" tail. The record here is a SINGLE dword
@@ -6957,8 +7013,8 @@ void FUN_000bf300(int16_t function_index, int thread_datum, char init)
  *   this family does; the kb decl is left alone.
  *
  *   Record deref, ONE field, a FULL DWORD MOV -- there is no MOVZX/MOVSX
- *   anywhere in the function, so unlike FUN_000bf1a0 (word field) and
- *   FUN_000bf1e0 (byte field) the field is not narrowed:
+ *   anywhere in the function, so unlike unit_set_emotion_evaluate (word field) and
+ *   unit_set_enterable_by_player_evaluate (byte field) the field is not narrowed:
  *     +0x00 int   (MOV EDX,dword ptr [EAX] @0xbf35c)
  *
  *   CALL 0x1b5500 @0xbf35f is preceded by exactly one PUSH (EDX = record+0)
@@ -6985,7 +7041,7 @@ void FUN_000bf300(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x1b5500 = FUN_001b5500(int) -- UNPORTED, void, result discarded
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf340(int16_t function_index, int thread_datum, char init)
+void unit_scripting_exit_vehicle_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -6997,10 +7053,10 @@ void FUN_000bf340(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf380 @ 0x000bf380
+/* unit_scripting_set_maximum_vitality_evaluate @ 0x000bf380
  *
  * HaloScript builtin dispatcher, same family as 0xbf300/0xbf340 above and the
- * structural twin of FUN_000bf3d0 below: identical 3-parameter cdecl shape,
+ * structural twin of units_scripting_set_maximum_vitality_evaluate below: identical 3-parameter cdecl shape,
  * identical evaluate / NULL-check / worker / hs_return skeleton, and the
  * "worker return discarded, script gets a CONSTANT 0" tail.  The record is
  * THREE fields (int, float, float) and the worker is FUN_001a7a90.
@@ -7054,7 +7110,7 @@ void FUN_000bf340(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x1a7a90 = FUN_001a7a90(int object_handle, float, float) -- void
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf380(int16_t function_index, int thread_datum, char init)
+void unit_scripting_set_maximum_vitality_evaluate(int16_t function_index, int thread_datum, char init)
 {
   void *record;
 
@@ -7067,7 +7123,7 @@ void FUN_000bf380(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf3d0 @ 0x000bf3d0
+/* units_scripting_set_maximum_vitality_evaluate @ 0x000bf3d0
  *
  * HaloScript builtin dispatcher, same family as 0xbf300/0xbf340 above:
  * identical 3-parameter cdecl shape and the identical evaluate / NULL-check
@@ -7120,7 +7176,7 @@ void FUN_000bf380(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x1a7ad0 = units_scripting_set_maximum_vitality(int parent_handle, float, float) -- void
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf3d0(int16_t function_index, int thread_datum, char init)
+void units_scripting_set_maximum_vitality_evaluate(int16_t function_index, int thread_datum, char init)
 {
   void *record;
 
@@ -7133,9 +7189,9 @@ void FUN_000bf3d0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf420 @ 0x000bf420
+/* unit_scripting_set_current_vitality_evaluate @ 0x000bf420
  *
- * HaloScript builtin dispatcher, the exact twin of FUN_000bf3d0 above: same
+ * HaloScript builtin dispatcher, the exact twin of units_scripting_set_maximum_vitality_evaluate above: same
  * 3-parameter cdecl shape, same evaluate / NULL-check / worker / hs_return
  * skeleton, same THREE-field record (int, float, float), same "worker return
  * discarded, script gets a CONSTANT 0" tail.  The two differ only in the
@@ -7178,7 +7234,7 @@ void FUN_000bf3d0(int16_t function_index, int thread_datum, char init)
  *   0x1a7b50 = unit_scripting_set_current_vitality(int datum_handle, float body_damage,
  *              float shield_damage) -- void
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf420(int16_t function_index, int thread_datum, char init)
+void unit_scripting_set_current_vitality_evaluate(int16_t function_index, int thread_datum, char init)
 {
   void *record;
 
@@ -7191,10 +7247,10 @@ void FUN_000bf420(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf470 @ 0x000bf470
+/* units_scripting_set_current_vitality_evaluate @ 0x000bf470
  *
- * HaloScript builtin dispatcher, the third member of the FUN_000bf3d0 /
- * FUN_000bf420 pair above: same 3-parameter cdecl shape, same evaluate /
+ * HaloScript builtin dispatcher, the third member of the units_scripting_set_maximum_vitality_evaluate /
+ * unit_scripting_set_current_vitality_evaluate pair above: same 3-parameter cdecl shape, same evaluate /
  * NULL-check / worker / hs_return skeleton, same THREE-field record
  * (int, float, float), same "worker return discarded, script gets a CONSTANT
  * 0" tail.  Differs only in the worker: 0xbf3d0 calls 0x1a7ad0, 0xbf420 calls
@@ -7235,7 +7291,7 @@ void FUN_000bf420(int16_t function_index, int thread_datum, char init)
  *   0x1a7c70 = units_scripting_set_current_vitality(int parent_handle, float body_damage,
  *              float shield_damage) -- void, damages every child object
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf470(int16_t function_index, int thread_datum, char init)
+void units_scripting_set_current_vitality_evaluate(int16_t function_index, int thread_datum, char init)
 {
   void *record;
 
@@ -7248,9 +7304,9 @@ void FUN_000bf470(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf4c0 @ 0x000bf4c0
+/* vehicle_scripting_load_magic_evaluate @ 0x000bf4c0
  *
- * HaloScript builtin dispatcher, same family as FUN_000bf260/0xbf2b0/0xbf300/
+ * HaloScript builtin dispatcher, same family as unit_scripting_vehicle_test_seat_list_evaluate/0xbf2b0/0xbf300/
  * 0xbf340 above: identical 3-parameter cdecl shape, identical evaluate /
  * NULL-check / worker / hs_return skeleton. The worker here is the already
  * ported vehicle_scripting_load_magic (0x1b3400) and its 16-bit AX result is
@@ -7278,7 +7334,7 @@ void FUN_000bf470(int16_t function_index, int thread_datum, char init)
  *   -- cast at the call site, as every twin in this family does.
  *   The record is the evaluated-argument block, 3 dwords, all read with plain
  *   full-width MOVs (there is NO MOVZX/MOVSX anywhere on the record, unlike
- *   FUN_000bf1a0's word field or FUN_000bf1e0's byte field):
+ *   unit_set_emotion_evaluate's word field or unit_set_enterable_by_player_evaluate's byte field):
  *     +0x00 int  (MOV EDX,dword ptr [EAX])
  *     +0x04 int  (MOV ECX,dword ptr [EAX+0x4])
  *     +0x08 int  (MOV EDX,dword ptr [EAX+0x8])
@@ -7308,7 +7364,7 @@ void FUN_000bf470(int16_t function_index, int thread_datum, char init)
  *   0x1b3400 = vehicle_scripting_load_magic(int vehicle_handle,
  *              int seat_substring, int group_handle) -> uint16_t in AX
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf4c0(int16_t function_index, int thread_datum, char init)
+void vehicle_scripting_load_magic_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -7325,8 +7381,8 @@ void FUN_000bf4c0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf510 @ 0xbf510 -- HS macro-function wrapper (2-argument variant).
- * Same idiom as FUN_000bf4c0 directly above, one record field narrower.
+/* vehicle_scripting_unload_evaluate @ 0xbf510 -- HS macro-function wrapper (2-argument variant).
+ * Same idiom as vehicle_scripting_load_magic_evaluate directly above, one record field narrower.
  *
  * Binary evidence (cachebeta.xbe, 0xbf510..0xbf555):
  *   Frame: PUSH EBP; MOV EBP,ESP; PUSH ECX (one dword local at EBP-4);
@@ -7370,7 +7426,7 @@ void FUN_000bf4c0(int16_t function_index, int thread_datum, char init)
  *              neighbourhood alongside 0x1b3400/vehicle_* but its own
  *              semantics are unproven, so the mechanical FUN_ name is kept)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf510(int16_t function_index, int thread_datum, char init)
+void vehicle_scripting_unload_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -7387,8 +7443,8 @@ void FUN_000bf510(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf560 @ 0xbf560 -- HS macro-function wrapper, single-string-argument
- * variant. Structurally the same skeleton as FUN_000bf160 above: evaluate the
+/* scripting_set_magic_base_seat_evaluate @ 0xbf560 -- HS macro-function wrapper, single-string-argument
+ * variant. Structurally the same skeleton as unit_aim_without_turning_evaluate above: evaluate the
  * script arguments, and on a non-NULL argument record pass ONE record field to
  * a worker, then return a CONSTANT 0 to the script thread. There is no result
  * slot -- the worker returns void and hs_return's second argument is an
@@ -7396,7 +7452,7 @@ void FUN_000bf510(int16_t function_index, int thread_datum, char init)
  *
  * Binary evidence (cachebeta.xbe, 0xbf560..0xbf591, 22 instructions):
  *   Frame: PUSH EBP; MOV EBP,ESP; PUSH ESI. NO local dword (no `PUSH ECX` in
- *   the prologue, unlike FUN_000bf4c0/FUN_000bf510), no _chkstk, no FPU, no
+ *   the prologue, unlike vehicle_scripting_load_magic_evaluate/vehicle_scripting_unload_evaluate), no _chkstk, no FPU, no
  *   SEH, no local buffers. ESI is the only callee-saved register and it holds
  *   thread_datum live across the evaluate call. RET carries no immediate
  *   (cdecl, caller-cleaned).
@@ -7411,8 +7467,8 @@ void FUN_000bf510(int16_t function_index, int thread_datum, char init)
  *   on a NULL record, so EAX is an evaluation-record POINTER, not a value.
  *   Record deref is a SINGLE field: MOV EDX,dword ptr [EAX] -> record+0, a
  *   full 32-bit dword. There is no movzx/movsx anywhere, so unlike
- *   FUN_000bf1a0 (word field) and FUN_000bf1e0 (byte field) there is no
- *   narrowing load here, and unlike the FUN_000bf160 twin there is no second
+ *   unit_set_emotion_evaluate (word field) and unit_set_enterable_by_player_evaluate (byte field) there is no
+ *   narrowing load here, and unlike the unit_aim_without_turning_evaluate twin there is no second
  *   (+0x4 byte) field either.
  *   PUSH EDX; CALL 0x1ae730 -> scripting_set_magic_base_seat(record[0]) with
  *   ONE argument; the callee's kb decl proves the parameter is a `const char *`
@@ -7436,7 +7492,7 @@ void FUN_000bf510(int16_t function_index, int thread_datum, char init)
  *              cast at the call site, as every twin above does)
  *   0x1ae730 = scripting_set_magic_base_seat(const char *)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf560(int16_t function_index, int thread_datum, char init)
+void scripting_set_magic_base_seat_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -7448,8 +7504,8 @@ void FUN_000bf560(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf5a0 @ 0xbf5a0 -- HS macro-function wrapper, two-argument
- * (unit + seat-name) variant. Same skeleton as FUN_000bf560 above: evaluate
+/* unit_scripting_set_seat_evaluate @ 0xbf5a0 -- HS macro-function wrapper, two-argument
+ * (unit + seat-name) variant. Same skeleton as scripting_set_magic_base_seat_evaluate above: evaluate
  * the script arguments, and on a non-NULL argument record hand TWO record
  * fields to a worker, then return a CONSTANT 0 to the script thread. The
  * worker returns void, so hs_return's second argument is an immediate PUSH
@@ -7472,7 +7528,7 @@ void FUN_000bf560(int16_t function_index, int thread_datum, char init)
  *   skips BOTH remaining calls on a NULL record, so EAX is an
  *   evaluation-record POINTER, not a value.
  *   Record deref is TWO FULL DWORD MOVs -- no movzx/movsx anywhere, so unlike
- *   FUN_000bf1a0 (word field) and FUN_000bf1e0 (byte field) there is no
+ *   unit_set_emotion_evaluate (word field) and unit_set_enterable_by_player_evaluate (byte field) there is no
  *   narrowing load here:
  *     MOV EDX,dword ptr [EAX+0x4]   -> record+4 (loaded FIRST)
  *     MOV EAX,dword ptr [EAX]       -> record+0
@@ -7499,7 +7555,7 @@ void FUN_000bf560(int16_t function_index, int thread_datum, char init)
  *              cast at the call site, as every twin above does)
  *   0x1ae750 = unit_scripting_set_seat(int unit_handle, const char *seat_name)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf5a0(int16_t function_index, int thread_datum, char init)
+void unit_scripting_set_seat_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -7511,7 +7567,7 @@ void FUN_000bf5a0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf5e0 @ 0xbf5e0 -- HS script-function wrapper, zero-argument variant
+/* scripting_magic_melee_attack_evaluate @ 0xbf5e0 -- HS script-function wrapper, zero-argument variant
  *   (10 instructions, bare EBP frame, no SUB ESP, no locals, no FPU).
  *
  * Signature (Confirmed by disassembly + family shape): the hs script function
@@ -7535,7 +7591,7 @@ void FUN_000bf5a0(int16_t function_index, int thread_datum, char init)
  * Callees (both cdecl, in kb.json, no @<reg> args):
  *   0x1b2260 = scripting_magic_melee_attack(void)  -- no args, no ADD ESP
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf5e0(int16_t function_index, int thread_datum, char init)
+void scripting_magic_melee_attack_evaluate(int16_t function_index, int thread_datum, char init)
 {
   (void)function_index;
   (void)init;
@@ -7544,7 +7600,7 @@ void FUN_000bf5e0(int16_t function_index, int thread_datum, char init)
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000bf600 @ 0xbf600 -- HS script-function wrapper, one-argument variant
+/* unit_scripting_unit_riders_evaluate @ 0xbf600 -- HS script-function wrapper, one-argument variant
  *   that RETURNS the callee's value (25 instructions; PUSH EBP / MOV EBP,ESP /
  *   PUSH ESI frame, no _chkstk, no SUB ESP, no locals, no FPU, no memory
  *   writes; POP ESI / POP EBP / RET with no immediate => plain cdecl).
@@ -7568,7 +7624,7 @@ void FUN_000bf5e0(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0x1a9e40 @0xbf61f -- MOV EDX,[EAX] then PUSH EDX, i.e. the FULL DWORD
  *   at record+0. There is no MOVSX/MOVZX anywhere in the function, so unlike
- *   FUN_000bf1a0 (word field) and FUN_000bf1e0 (byte field) this argument is a
+ *   unit_set_emotion_evaluate (word field) and unit_set_enterable_by_player_evaluate (byte field) this argument is a
  *   plain int32 unit handle. One stack arg, cleaned by the merged ADD ESP
  * below.
  *
@@ -7581,7 +7637,7 @@ void FUN_000bf5e0(int16_t function_index, int thread_datum, char init)
  * single dword with hs_return's two (4 + 8 = 12); any ARG_COUNT warning on
  * 0xcbf80
  *   ("cleanup=3 stack args vs decl=2") is that merge -- hs_return really takes
- *   2 args, do NOT "fix" its decl. Same pattern as FUN_000bf1a0.
+ *   2 args, do NOT "fix" its decl. Same pattern as unit_set_emotion_evaluate.
  *
  * Nesting the riders call inside hs_return's argument list reproduces the
  * original order: MSVC evaluates/pushes right-to-left, so the inner CALL runs
@@ -7594,7 +7650,7 @@ void FUN_000bf5e0(int16_t function_index, int thread_datum, char init)
  *              cast at the call site, as every twin above does)
  *   0x1a9e40 = unit_scripting_unit_riders(int unit_handle) -> int
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf600(int16_t function_index, int thread_datum, char init)
+void unit_scripting_unit_riders_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -7605,13 +7661,13 @@ void FUN_000bf600(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf640 @ 0xbf640 -- HS script-function wrapper, one-argument variant
+/* unit_scripting_unit_driver_evaluate @ 0xbf640 -- HS script-function wrapper, one-argument variant
  *   that RETURNS the worker's value (23 instructions, 0xbf640-0xbf670;
  *   PUSH EBP / MOV EBP,ESP / PUSH ESI frame, no _chkstk, no SUB ESP, no
  *   locals, no FPU, no SEH, no memory writes; RET with no immediate =>
  *   plain cdecl, caller cleans).
  *
- * Structurally identical to FUN_000bf600 directly above; the only difference
+ * Structurally identical to unit_scripting_unit_riders_evaluate directly above; the only difference
  * is the worker called on the record's first dword (0x1a9ec0 here instead of
  * 0x1a9e40).
  *
@@ -7639,7 +7695,7 @@ void FUN_000bf600(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0x1a9ec0 @0xbf65f -- MOV EDX,dword ptr [EAX] then PUSH EDX, i.e. the
  *   FULL DWORD at record+0. There is no MOVSX/MOVZX anywhere in the function,
- *   so unlike FUN_000bf1a0 (word field) and FUN_000bf1e0 (byte field) this
+ *   so unlike unit_set_emotion_evaluate (word field) and unit_set_enterable_by_player_evaluate (byte field) this
  *   argument is a plain int32 handle, and only that single field is read.
  *   One stack arg, cleaned by the merged ADD ESP below.
  *
@@ -7652,7 +7708,7 @@ void FUN_000bf600(int16_t function_index, int thread_datum, char init)
  *   ONE combined ADD ESP,0xc at 0xbf66b folds unit_scripting_unit_driver's single dword with
  *   hs_return's two (4 + 8 = 12); the ARG_COUNT warning on 0xcbf80
  *   ("cleanup=3 stack args vs decl=2") is that merge -- hs_return really takes
- *   2 args, do NOT "fix" its decl. Same pattern as FUN_000bf600.
+ *   2 args, do NOT "fix" its decl. Same pattern as unit_scripting_unit_riders_evaluate.
  *
  * Nesting the worker call inside hs_return's argument list reproduces the
  * original order: MSVC evaluates/pushes right-to-left, so the inner CALL runs
@@ -7663,7 +7719,7 @@ void FUN_000bf600(int16_t function_index, int thread_datum, char init)
  *   0x1a9ec0 = unit_scripting_unit_driver(int unit_handle) -> int  (unnamed in kb.json;
  *              the parameter name is kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf640(int16_t function_index, int thread_datum, char init)
+void unit_scripting_unit_driver_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -7674,13 +7730,13 @@ void FUN_000bf640(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf680 @ 0xbf680 -- HS script-function wrapper, one-argument variant
+/* unit_scripting_unit_gunner_evaluate @ 0xbf680 -- HS script-function wrapper, one-argument variant
  *   that RETURNS the worker's value (23 instructions, 0xbf680-0xbf6b0;
  *   PUSH EBP / MOV EBP,ESP / PUSH ESI frame, no _chkstk, no SUB ESP, no
  *   locals, no FPU, no SEH, no memory writes; RET with no immediate =>
  *   plain cdecl, caller cleans).
  *
- * Structurally identical to FUN_000bf640 directly above; the only difference
+ * Structurally identical to unit_scripting_unit_driver_evaluate directly above; the only difference
  * is the worker called on the record's first dword (0x1a9ef0 here instead of
  * 0x1a9ec0). Do NOT copy the `hs_return(thread_datum, 0)` tail of the
  * void-valued twins (0xbf1a0 / 0xbf1e0) -- this variant forwards the worker's
@@ -7710,7 +7766,7 @@ void FUN_000bf640(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0x1a9ef0 @0xbf69e -- MOV EDX,dword ptr [EAX] then PUSH EDX, i.e. the
  *   FULL DWORD at record+0. There is no MOVSX/MOVZX anywhere in the function,
- *   so unlike FUN_000bf1a0 (word field) and FUN_000bf1e0 (byte field) this
+ *   so unlike unit_set_emotion_evaluate (word field) and unit_set_enterable_by_player_evaluate (byte field) this
  *   argument is a plain int32 handle, and only that single field is read (no
  *   buffer-alias risk -- a single deref of one offset).
  *   One stack arg, cleaned by the merged ADD ESP below.
@@ -7723,7 +7779,7 @@ void FUN_000bf640(int16_t function_index, int thread_datum, char init)
  *   ONE combined ADD ESP,0xc at 0xbf6ab folds unit_scripting_unit_gunner's single dword with
  *   hs_return's two (4 + 8 = 12); the ARG_COUNT warning on 0xcbf80
  *   ("cleanup=3 stack args vs decl=2") is that merge -- hs_return really takes
- *   2 args, do NOT "fix" its decl. Same pattern as FUN_000bf640/0xbf600.
+ *   2 args, do NOT "fix" its decl. Same pattern as unit_scripting_unit_driver_evaluate/0xbf600.
  *
  * Nesting the worker call inside hs_return's argument list reproduces the
  * original order: MSVC evaluates/pushes right-to-left, so the inner CALL runs
@@ -7734,7 +7790,7 @@ void FUN_000bf640(int16_t function_index, int thread_datum, char init)
  *   0x1a9ef0 = unit_scripting_unit_gunner(int unit_handle) -> int  (unnamed in kb.json;
  *              the parameter name is kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf680(int16_t function_index, int thread_datum, char init)
+void unit_scripting_unit_gunner_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -7745,7 +7801,7 @@ void FUN_000bf680(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf6c0 @ 0xbf6c0 -- HS script-function wrapper, one-argument variant
+/* unit_scripting_get_health_evaluate @ 0xbf6c0 -- HS script-function wrapper, one-argument variant
  *   whose worker returns a FLOAT (26 instructions, 0xbf6c0-0xbf6f8; PUSH EBP /
  *   MOV EBP,ESP / PUSH ECX / PUSH ESI frame, no _chkstk, no SUB ESP, no SEH;
  *   POP ESI / MOV ESP,EBP / POP EBP / RET with no immediate => plain cdecl,
@@ -7783,7 +7839,7 @@ void FUN_000bf680(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0x1a7cc0 @0xbf6de -- MOV EDX,dword ptr [EAX] then PUSH EDX, i.e. the
  *   FULL DWORD at record+0.  There is no MOVSX/MOVZX anywhere in the function,
- *   so unlike FUN_000bf1a0 (word field) and FUN_000bf1e0 (byte field) this
+ *   so unlike unit_set_emotion_evaluate (word field) and unit_set_enterable_by_player_evaluate (byte field) this
  *   argument is a plain int32 handle, and only that ONE field of the record is
  *   read (single deref of one offset -- no buffer-alias risk).
  *
@@ -7805,7 +7861,7 @@ void FUN_000bf680(int16_t function_index, int thread_datum, char init)
  *              implemented in src/halo/units/units.c; the parameter name is
  *              kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf6c0(int16_t function_index, int thread_datum, char init)
+void unit_scripting_get_health_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   float value;
@@ -7818,8 +7874,8 @@ void FUN_000bf6c0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf700 @ 0xbf700 -- HS script-function wrapper, one-argument variant
- *   whose worker returns a FLOAT.  Structurally identical to FUN_000bf6c0
+/* unit_scripting_get_shield_evaluate @ 0xbf700 -- HS script-function wrapper, one-argument variant
+ *   whose worker returns a FLOAT.  Structurally identical to unit_scripting_get_health_evaluate
  *   directly above; the ONLY difference is the worker address (0x1a7d00 here
  *   vs 0x1a7cc0 there).  Frame: PUSH EBP / MOV EBP,ESP / PUSH ECX / PUSH ESI,
  *   no _chkstk, no SUB ESP, no SEH; plain RET with no immediate => cdecl,
@@ -7851,7 +7907,7 @@ void FUN_000bf6c0(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0x1a7d00 @0xbf720 -- MOV EDX,dword ptr [EAX] then PUSH EDX, i.e. the
  *   FULL DWORD at record+0.  There is no MOVSX/MOVZX anywhere in the function,
- *   so unlike FUN_000bf1a0 (word field) and FUN_000bf1e0 (byte field) this
+ *   so unlike unit_set_emotion_evaluate (word field) and unit_set_enterable_by_player_evaluate (byte field) this
  *   argument is a plain int32 handle, and only that ONE field of the record is
  *   read (single deref of one offset -- no buffer-alias risk).
  *
@@ -7873,7 +7929,7 @@ void FUN_000bf6c0(int16_t function_index, int thread_datum, char init)
  *   0x1a7d00 = unit_scripting_get_shield(int datum_handle) -> float  (unnamed in kb.json;
  *              the parameter name is kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf700(int16_t function_index, int thread_datum, char init)
+void unit_scripting_get_shield_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   float value;
@@ -7886,11 +7942,11 @@ void FUN_000bf700(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf740 @ 0x000bf740 -- HS script-function wrapper, one-argument
+/* unit_scripting_get_grenade_count_evaluate @ 0x000bf740 -- HS script-function wrapper, one-argument
  *   variant that returns the worker's value truncated to 16 bits
  *   (0xbf740-0xbf781, 66 bytes, 3 CALLs, zero FPU).
  *
- * Structurally the same three-call family shape as FUN_000bf700 directly
+ * Structurally the same three-call family shape as unit_scripting_get_shield_evaluate directly
  * above, with two differences: the worker at 0x1a7d40 returns an INTEGER in
  * EAX (not a float in ST(0)), and only its low 16 bits reach hs_return.
  *
@@ -7922,7 +7978,7 @@ void FUN_000bf700(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0x1a7d40 @0xbf767 -- MOV EDX,dword ptr [EAX] then PUSH EDX, i.e. the
  *   FULL DWORD at record+0.  There is no MOVSX/MOVZX anywhere in the function,
- *   so unlike FUN_000bf1a0 (word field) and FUN_000bf1e0 (byte field) this
+ *   so unlike unit_set_emotion_evaluate (word field) and unit_set_enterable_by_player_evaluate (byte field) this
  *   argument is a plain int32 handle, and only that ONE field of the record is
  *   read (single deref of one offset -- no buffer-alias risk).
  *
@@ -7933,7 +7989,7 @@ void FUN_000bf700(int16_t function_index, int thread_datum, char init)
  *   whole dword.  Net effect is a zero-extension of the low 16 bits.  That
  *   narrow-store-into-pre-zeroed-dword shape is a UNION in the original source,
  *   not a mask: writing it as the flat `value = value & 0xffff;` of
- *   FUN_000be6a0 collapses all three memory accesses into a single
+ *   numeric_countdown_timer_get_evaluate collapses all three memory accesses into a single
  *   `AND EAX,0xffff` and scores 88.5% (24/28 insns), whereas the union below
  *   reproduces the zero / word-store / dword-reload triple exactly and scores
  *   100.0% (28/28).  Both forms are bit-identical at runtime; only the union
@@ -7941,7 +7997,7 @@ void FUN_000bf700(int16_t function_index, int thread_datum, char init)
  *
  *   This is an INTEGER path -- kb declares 0x1a7d40 as returning `int`, the
  *   value arrives in AX/EAX, and there is no FSTP anywhere, so it is NOT the
- *   float bit-smuggling case that FUN_000bf700 directly above has
+ *   float bit-smuggling case that unit_scripting_get_shield_evaluate directly above has
  *   (lift-learnings 6); the union here is a width pun, not a type pun.
  *
  *   CALL 0xcbf80 @0xbf775 -- PUSH EAX (masked value) / PUSH ESI
@@ -7956,7 +8012,7 @@ void FUN_000bf700(int16_t function_index, int thread_datum, char init)
  *   0x1a7d40 = unit_scripting_get_grenade_count(int datum_handle) -> int  (unnamed in kb.json;
  *              the parameter name is kb's, the semantics are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf740(int16_t function_index, int thread_datum, char init)
+void unit_scripting_get_grenade_count_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -7973,7 +8029,7 @@ void FUN_000bf740(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf790 @ 0x000bf790 -- HS script-function wrapper, two-argument
+/* unit_scripting_has_weapon_evaluate @ 0x000bf790 -- HS script-function wrapper, two-argument
  *   predicate variant that returns the worker's byte result to the script
  *   engine.
  *
@@ -8013,8 +8069,8 @@ void FUN_000bf740(int16_t function_index, int thread_datum, char init)
  *   PUSH EAX => the C order is (record[0], record[1]).  MSVC's right-to-left
  *   cdecl argument evaluation reproduces that +0x4-then-+0x0 load order from
  *   the source form below.  BOTH fields are full dwords -- there is no
- *   MOVZX/MOVSX anywhere in the function, so unlike FUN_000bf1a0 (word field)
- *   and FUN_000bf1e0 (byte field) neither argument is narrowed
+ *   MOVZX/MOVSX anywhere in the function, so unlike unit_set_emotion_evaluate (word field)
+ *   and unit_set_enterable_by_player_evaluate (byte field) neither argument is narrowed
  *   (lift-learnings 24 LOADW).  Only offsets +0x0 and +0x4 of the record are
  *   touched, both via a single deref each -- no buffer-alias risk.
  *
@@ -8025,7 +8081,7 @@ void FUN_000bf740(int16_t function_index, int thread_datum, char init)
  *   byte (uint8 -> int), NOT the sign-extension a plain
  *   `int value = unit_scripting_has_weapon(...)` would produce from the `char` return, so
  *   the union width-pun below is required for both correctness and codegen
- *   (same idiom as FUN_000bf260 / FUN_000bf2b0 above).
+ *   (same idiom as unit_scripting_vehicle_test_seat_list_evaluate / unit_scripting_vehicle_test_seat_evaluate above).
  *
  *   CALL 0xcbf80 -- PUSH ECX (the zero-extended value) / PUSH ESI
  *   (thread_datum) => hs_return(thread_datum, value).  hs_return's first
@@ -8042,7 +8098,7 @@ void FUN_000bf740(int16_t function_index, int thread_datum, char init)
  *              (unnamed in kb.json; parameter names are kb's, the semantics
  *              are Uncertain)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000bf790(int16_t function_index, int thread_datum, char init)
+void unit_scripting_has_weapon_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -8059,9 +8115,9 @@ void FUN_000bf790(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf7e0 @ 0x000bf7e0 -- HS script-function wrapper, two-argument
+/* unit_scripting_has_weapon_readied_evaluate @ 0x000bf7e0 -- HS script-function wrapper, two-argument
  *   predicate variant that returns the worker's byte result to the script
- *   engine.  Instruction-for-instruction the same shape as FUN_000bf790
+ *   engine.  Instruction-for-instruction the same shape as unit_scripting_has_weapon_evaluate
  *   directly above; the ONLY difference is the worker called (0x1a7ea0
  *   instead of 0x1a7e70).
  *
@@ -8100,8 +8156,8 @@ void FUN_000bf790(int16_t function_index, int thread_datum, char init)
  *   PUSH EAX => the C order is (record[0], record[1]).  MSVC's right-to-left
  *   cdecl argument evaluation reproduces that +0x4-then-+0x0 load order from
  *   the source form below.  BOTH fields are full dwords -- no MOVZX/MOVSX
- *   appears anywhere in the function, so unlike FUN_000bf1a0 (word field) and
- *   FUN_000bf1e0 (byte field) neither argument is narrowed; in particular
+ *   appears anywhere in the function, so unlike unit_set_emotion_evaluate (word field) and
+ *   unit_set_enterable_by_player_evaluate (byte field) neither argument is narrowed; in particular
  *   record[0] must NOT be read as *(int16_t *)record the way hs_trigger_volume_test_objects_all_evaluate
  *   does (lift-learnings 24 LOADW).  Only offsets +0x0 and +0x4 of the record
  *   are touched, one deref each -- no buffer-alias risk.
@@ -8132,7 +8188,7 @@ void FUN_000bf790(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bf7e0(int16_t function_index, int thread_datum, char init)
+void unit_scripting_has_weapon_readied_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -8152,7 +8208,7 @@ void FUN_000bf7e0(int16_t function_index, int thread_datum, char init)
 /* 0xbf830 — HS script function handler: mark a unit as scripted so it does not
  * drop its items.
  *
- * Byte-shape twin of FUN_000befd0 above; the ONLY difference is the middle
+ * Byte-shape twin of unit_stop_custom_animation_evaluate above; the ONLY difference is the middle
  * callee (0x1a9c40 instead of 0x1af0d0). cdecl frame: PUSH EBP; MOV EBP,ESP;
  * PUSH ESI; ... POP ESI; POP EBP; RET (no RET immediate — caller cleans). No
  * locals, no _chkstk, no FPU ops anywhere in the body.
@@ -8194,7 +8250,7 @@ void FUN_000bf7e0(int16_t function_index, int thread_datum, char init)
  * (clang-only
  * __attribute__ / raw fnptr casts), so it would be permanently unmeasurable
  * there. */
-void FUN_000bf830(int16_t function_index, int thread_datum, char init)
+void unit_scripting_doesnt_drop_items_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
 
@@ -8206,13 +8262,13 @@ void FUN_000bf830(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf870 @ 0x000bf870
+/* unit_scripting_impervious_evaluate @ 0x000bf870
  *
  * HaloScript builtin dispatcher, structurally the SAME function as
- * FUN_000bf1e0 above: identical 3-parameter cdecl shape, identical
+ * unit_set_enterable_by_player_evaluate above: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / worker / hs_return skeleton, identical
  * "worker takes (dword @ record+0, zero-extended BYTE @ record+4) and the
- * script gets a CONSTANT 0" tail. The only difference from FUN_000bf1e0 is
+ * script gets a CONSTANT 0" tail. The only difference from unit_set_enterable_by_player_evaluate is
  * the worker called: 0x1a7d80 (units.obj) instead of 0x1ac030.
  *
  * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI. No local dword, no _chkstk,
@@ -8227,7 +8283,7 @@ void FUN_000bf830(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_00000004/8/c pseudo-locals (off by 4); they are STACK args, not
  * @<reg> -- no unaff_/in_EAX/in_ECX appears (lift-learnings 31 void-decl
- * trap). kb.json's stale `void FUN_000bf870(void);` decl was corrected to the
+ * trap). kb.json's stale `void unit_scripting_impervious_evaluate(void);` decl was corrected to the
  * 3-arg cdecl form as part of this lift; leaving a (void) decl over a
  * stack-arg callee is the ESP-drift class of bug from 0x158df0.
  *
@@ -8268,7 +8324,7 @@ void FUN_000bf830(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bf870(int16_t function_index, int thread_datum, char init)
+void unit_scripting_impervious_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -8280,14 +8336,14 @@ void FUN_000bf870(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf8b0 @ 0x000bf8b0
+/* unit_scripting_suspended_evaluate @ 0x000bf8b0
  *
- * HaloScript builtin dispatcher, byte-shape twin of FUN_000bf870 directly
- * above (and of FUN_000bf160 / FUN_000bf1e0): identical 3-parameter cdecl
+ * HaloScript builtin dispatcher, byte-shape twin of unit_scripting_impervious_evaluate directly
+ * above (and of unit_aim_without_turning_evaluate / unit_set_enterable_by_player_evaluate): identical 3-parameter cdecl
  * shape, identical evaluate / NULL-check / worker / hs_return skeleton,
  * identical "worker takes (dword @ record+0, zero-extended BYTE @ record+4)
  * and the script gets a CONSTANT 0" tail. The only difference from
- * FUN_000bf870 is the worker called: 0x1a9b80 unit_scripting_suspended
+ * unit_scripting_impervious_evaluate is the worker called: 0x1a9b80 unit_scripting_suspended
  * (units.obj) instead of 0x1a7d80.
  *
  * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI. 24 instructions total
@@ -8304,7 +8360,7 @@ void FUN_000bf870(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_00000004/8/c pseudo-locals (off by 4); they are STACK args, not
  * @<reg> -- no unaff_/in_EAX/in_ECX appears (lift-learnings 31 void-decl
- * trap). kb.json's stale `void FUN_000bf8b0(void);` decl was corrected to
+ * trap). kb.json's stale `void unit_scripting_suspended_evaluate(void);` decl was corrected to
  * the 3-arg cdecl form as part of this lift; leaving a (void) decl over a
  * stack-arg callee is the ESP-drift class of bug from 0x158df0.
  *
@@ -8351,7 +8407,7 @@ void FUN_000bf870(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bf8b0(int16_t function_index, int thread_datum, char init)
+void unit_scripting_suspended_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -8364,11 +8420,11 @@ void FUN_000bf8b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf8f0 @ 0x000bf8f0
+/* unit_solo_player_integrated_night_vision_is_active_evaluate @ 0x000bf8f0
  *
  * HaloScript builtin dispatcher for the solo-player integrated night-vision
- * query. Same 3-parameter cdecl shape as the twins above (FUN_000bf870 /
- * FUN_000bf8b0 / FUN_000bf740), but with two structural differences that are
+ * query. Same 3-parameter cdecl shape as the twins above (unit_scripting_impervious_evaluate /
+ * unit_scripting_suspended_evaluate / unit_scripting_get_grenade_count_evaluate), but with two structural differences that are
  * confirmed in the disassembly and must NOT be "normalised" to match them:
  *   1. There is NO hs_macro_function_evaluate call and NO NULL check. The
  *      worker is called unconditionally and its result is always committed.
@@ -8386,7 +8442,7 @@ void FUN_000bf8b0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the params surfaced as
  * in_stack_00000008 pseudo-locals (off by 4); they are STACK args, not
  * @<reg> -- no unaff_/in_EAX/in_ECX appears (lift-learnings 31 void-decl
- * trap). kb.json's stale `void FUN_000bf8f0(void);` decl was corrected to the
+ * trap). kb.json's stale `void unit_solo_player_integrated_night_vision_is_active_evaluate(void);` decl was corrected to the
  * 3-arg cdecl form as part of this lift; leaving a (void) decl over a
  * stack-arg callee is the ESP-drift class of bug from 0x158df0. The two unused
  * parameters are deliberately KEPT in the declaration: the caller is the
@@ -8418,7 +8474,7 @@ void FUN_000bf8b0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bf8f0(int16_t function_index, int thread_datum, char init)
+void unit_solo_player_integrated_night_vision_is_active_evaluate(int16_t function_index, int thread_datum, char init)
 {
   union {
     unsigned char b;
@@ -8430,9 +8486,9 @@ void FUN_000bf8f0(int16_t function_index, int thread_datum, char init)
   hs_return(thread_datum, value.i);
 }
 
-/* FUN_000bf920 @ 0x000bf920
+/* units_set_desired_flashlight_state_evaluate @ 0x000bf920
  *
- * HaloScript builtin dispatcher, byte-shape twin of FUN_000bf8b0 above:
+ * HaloScript builtin dispatcher, byte-shape twin of unit_scripting_suspended_evaluate above:
  * identical 3-parameter cdecl shape and identical evaluate / NULL-check /
  * worker / hs_return skeleton, including the same "worker takes (dword @
  * record+0, zero-extended BYTE @ record+4) and the script gets a CONSTANT 0"
@@ -8449,7 +8505,7 @@ void FUN_000bf8f0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bf920(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void units_set_desired_flashlight_state_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
  * bug from 0x158df0.
  *
@@ -8493,7 +8549,7 @@ void FUN_000bf8f0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bf920(int16_t function_index, int thread_datum, char init)
+void units_set_desired_flashlight_state_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -8506,9 +8562,9 @@ void FUN_000bf920(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf960 @ 0x000bf960
+/* unit_set_desired_flashlight_state_evaluate @ 0x000bf960
  *
- * HaloScript builtin dispatcher, byte-shape twin of FUN_000bf920 above:
+ * HaloScript builtin dispatcher, byte-shape twin of units_set_desired_flashlight_state_evaluate above:
  * identical 3-parameter cdecl shape and identical evaluate / NULL-check /
  * worker / hs_return skeleton, including the same "worker takes (dword @
  * record+0, zero-extended BYTE @ record+4) and the script gets a CONSTANT 0"
@@ -8526,7 +8582,7 @@ void FUN_000bf920(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bf960(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void unit_set_desired_flashlight_state_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
  * bug from 0x158df0.
  *
@@ -8566,7 +8622,7 @@ void FUN_000bf920(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bf960(int16_t function_index, int thread_datum, char init)
+void unit_set_desired_flashlight_state_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -8579,10 +8635,10 @@ void FUN_000bf960(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf9a0 @ 0x000bf9a0
+/* unit_get_current_flashlight_state_evaluate @ 0x000bf9a0
  *
- * HaloScript builtin dispatcher; the READ-side twin of FUN_000bf920 /
- * FUN_000bf960 above. Same 3-parameter cdecl shape and the same evaluate /
+ * HaloScript builtin dispatcher; the READ-side twin of units_set_desired_flashlight_state_evaluate /
+ * unit_set_desired_flashlight_state_evaluate above. Same 3-parameter cdecl shape and the same evaluate /
  * NULL-check / worker / hs_return skeleton, but this one QUERIES the unit's
  * current flashlight state (0x1aa590) and hands the byte back to the script
  * through hs_return -- unlike the two setters, whose hs_return argument is a
@@ -8599,7 +8655,7 @@ void FUN_000bf960(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bf9a0(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void unit_get_current_flashlight_state_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
  * bug from 0x158df0.
  *
@@ -8626,7 +8682,7 @@ void FUN_000bf960(int16_t function_index, int thread_datum, char init)
  *   That is a pre-zeroed dword with only its low byte overwritten and read back
  *   as an int -- NOT a MOVZX and NOT a sign-extending (int)(char) cast
  *   (lift-learnings 24 LOADW). The union below reproduces exactly that store
- *   pair; it is the same idiom that scored 100% on FUN_000bf8f0.
+ *   pair; it is the same idiom that scored 100% on unit_solo_player_integrated_night_vision_is_active_evaluate.
  *
  *   CALL 0xcbf80 pushes EAX (the widened byte) then ESI = cdecl reverse ->
  *   hs_return(thread_datum, value). ONE combined ADD ESP,0xc cleans these 2
@@ -8642,7 +8698,7 @@ void FUN_000bf960(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bf9a0(int16_t function_index, int thread_datum, char init)
+void unit_get_current_flashlight_state_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -8659,9 +8715,9 @@ void FUN_000bf9a0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bf9f0 @ 0x000bf9f0
+/* device_set_never_appears_locked_evaluate @ 0x000bf9f0
  *
- * HaloScript builtin dispatcher; setter-shaped twin of FUN_000bf960 above --
+ * HaloScript builtin dispatcher; setter-shaped twin of unit_set_desired_flashlight_state_evaluate above --
  * identical 3-parameter cdecl shape and identical evaluate / NULL-check /
  * worker / hs_return skeleton. The only delta is the worker: 0x964d0
  * device_set_never_appears_locked instead of the flashlight setter.
@@ -8676,7 +8732,7 @@ void FUN_000bf9a0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bf9f0(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void device_set_never_appears_locked_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
  * bug from 0x158df0.
  *
@@ -8717,7 +8773,7 @@ void FUN_000bf9a0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bf9f0(int16_t function_index, int thread_datum, char init)
+void device_set_never_appears_locked_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -8730,10 +8786,10 @@ void FUN_000bf9f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfa30 @ 0x000bfa30
+/* device_set_power_evaluate @ 0x000bfa30
  *
- * HaloScript builtin dispatcher; byte-shape twin of FUN_000bf920 /
- * FUN_000bf960 / FUN_000bf8b0 above -- identical 3-parameter cdecl shape and
+ * HaloScript builtin dispatcher; byte-shape twin of units_set_desired_flashlight_state_evaluate /
+ * unit_set_desired_flashlight_state_evaluate / unit_scripting_suspended_evaluate above -- identical 3-parameter cdecl shape and
  * identical evaluate / NULL-check / worker / hs_return skeleton. The delta is
  * the worker (0x97260) and, more importantly, the WIDTH of the second record
  * field: this one is a FLOAT (FLD dword), not the zero-extended BYTE the
@@ -8749,7 +8805,7 @@ void FUN_000bf9f0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bfa30(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void device_set_power_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift, as was the callee 0x97260's equally stale `void
  * FUN_00097260(void);`; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
@@ -8794,7 +8850,7 @@ void FUN_000bf9f0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfa30(int16_t function_index, int thread_datum, char init)
+void device_set_power_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -8806,10 +8862,10 @@ void FUN_000bfa30(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfa70 @ 0x000bfa70
+/* device_get_power_evaluate @ 0x000bfa70
  *
  * HaloScript builtin dispatcher; the same evaluate / NULL-check / accessor /
- * hs_return skeleton as the FUN_000bf9xx / FUN_000bfa30 twins above and as
+ * hs_return skeleton as the FUN_000bf9xx / device_set_power_evaluate twins above and as
  * FUN_000c1350 / FUN_000c1390 in hs.c. The delta here is the accessor: it
  * reads a device object handle out of the result record and returns the
  * device's power as a FLOAT.
@@ -8825,7 +8881,7 @@ void FUN_000bfa30(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bfa70(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void device_get_power_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift.
  *
  * Binary evidence (traced backward from each CALL):
@@ -8871,7 +8927,7 @@ void FUN_000bfa30(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfa70(int16_t function_index, int thread_datum, char init)
+void device_get_power_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -8887,12 +8943,12 @@ void FUN_000bfa70(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfab0 @ 0x000bfab0
+/* device_set_desired_position_evaluate @ 0x000bfab0
  *
  * HaloScript builtin dispatcher; the QUERY-side hybrid of the two twins that
- * bracket it. It shares the FLOAT second record field of FUN_000bfa30 (FLD
+ * bracket it. It shares the FLOAT second record field of device_set_power_evaluate (FLD
  * dword ptr [EAX+0x4]) with the pre-zeroed-dword / low-byte-store result
- * widening of FUN_000bf8f0 / FUN_000bf9a0 -- i.e. the worker's boolean AL
+ * widening of unit_solo_player_integrated_night_vision_is_active_evaluate / unit_get_current_flashlight_state_evaluate -- i.e. the worker's boolean AL
  * result is what goes back to the script, not the constant 0 the setters use.
  *
  * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ECX (one 4-byte local at EBP-0x4);
@@ -8907,7 +8963,7 @@ void FUN_000bfa70(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bfab0(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void device_set_desired_position_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift, as was the callee 0x97220's equally stale `void
  * FUN_00097220(void);`; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
@@ -8926,7 +8982,7 @@ void FUN_000bfa70(int16_t function_index, int thread_datum, char init)
  *     FLD dword ptr [EAX+0x4]  -> FLOAT at record+4
  *     MOV EDX,dword ptr [EAX]  -> DWORD at record+0
  *   The FLD is a 4-byte x87 float load, NOT an integer load. The flashlight
- *   twins (FUN_000bf920 / FUN_000bf960) carry a zero-extended BYTE at this
+ *   twins (units_set_desired_flashlight_state_evaluate / unit_set_desired_flashlight_state_evaluate) carry a zero-extended BYTE at this
  *   same +0x4 offset, so the width is taken from THIS function's disassembly
  *   and NOT copied from them (lift-learnings 24 LOADW).
  *
@@ -8946,7 +9002,7 @@ void FUN_000bfa70(int16_t function_index, int thread_datum, char init)
  *   and read back as an int -- NOT a MOVZX and NOT a sign-extending
  *   (int)(char) cast (lift-learnings 24 LOADW). The worker's return is
  *   therefore a BYTE in AL, zero-extended. The union below reproduces exactly
- *   that store pair; it is the same idiom that scored 100% on FUN_000bf8f0.
+ *   that store pair; it is the same idiom that scored 100% on unit_solo_player_integrated_night_vision_is_active_evaluate.
  *
  *   CALL 0xcbf80 pushes EAX (the widened byte) then ESI = cdecl reverse ->
  *   hs_return(thread_datum, value.i). ONE combined ADD ESP,0x10 cleans the 4
@@ -8957,14 +9013,14 @@ void FUN_000bfa70(int16_t function_index, int thread_datum, char init)
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x97220  = FUN_00097220(int, float) -> char in AL  (unnamed worker; the
- *              immediate neighbour of FUN_00097260 used by FUN_000bfa30, so
+ *              immediate neighbour of FUN_00097260 used by device_set_power_evaluate, so
  *              the two are almost certainly a setter/query pair, but nothing
  *              in this function names either -- left as FUN_)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfab0(int16_t function_index, int thread_datum, char init)
+void device_set_desired_position_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -8982,10 +9038,10 @@ void FUN_000bfab0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfb00 @ 0x000bfb00
+/* device_get_position_evaluate @ 0x000bfb00
  *
  * HaloScript builtin dispatcher, float-return twin of the byte/int dispatchers
- * above (FUN_000bf920 / FUN_000bfab0): identical 3-parameter cdecl shape and
+ * above (units_set_desired_flashlight_state_evaluate / device_set_desired_position_evaluate): identical 3-parameter cdecl shape and
  * identical evaluate / NULL-check / worker / hs_return skeleton. The only
  * difference is that the worker returns a FLOAT and its raw 32-bit pattern is
  * handed straight to hs_return.
@@ -9000,7 +9056,7 @@ void FUN_000bfab0(int16_t function_index, int thread_datum, char init)
  *   init            char     [EBP+0x10]  -> EAX
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> (lift-learnings 31
- * void-decl trap). kb.json's stale `void FUN_000bfb00(void);` decl was
+ * void-decl trap). kb.json's stale `void device_get_position_evaluate(void);` decl was
  * corrected to the 3-arg cdecl form as part of this lift.
  *
  * Binary evidence (traced backward from each CALL):
@@ -9046,7 +9102,7 @@ void FUN_000bfab0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfb00(int16_t function_index, int thread_datum, char init)
+void device_get_position_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
   union {
@@ -9062,14 +9118,14 @@ void FUN_000bfb00(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfb40 @ 0x000bfb40
+/* device_set_actual_position_evaluate @ 0x000bfb40
  *
- * HaloScript builtin dispatcher; a SETTER twin of FUN_000bf920 /
- * FUN_000bf960 with a FLOAT payload instead of a byte one. Identical
+ * HaloScript builtin dispatcher; a SETTER twin of units_set_desired_flashlight_state_evaluate /
+ * unit_set_desired_flashlight_state_evaluate with a FLOAT payload instead of a byte one. Identical
  * 3-parameter cdecl shape and the same evaluate / NULL-check / worker /
  * hs_return skeleton. The worker's result is discarded and the script gets a
  * CONSTANT 0 back (PUSH 0x0), which is what distinguishes this from the
- * query-side twin FUN_000bfab0 that shares the same (int, float) worker ABI.
+ * query-side twin device_set_desired_position_evaluate that shares the same (int, float) worker ABI.
  *
  * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
  * Body spans 0xbfb40-0xbfb78. NO local slot at all (no PUSH ECX / SUB ESP),
@@ -9082,7 +9138,7 @@ void FUN_000bfb00(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bfb40(void);` decl was corrected to the 3-arg cdecl form as
+ * `void device_set_actual_position_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift, as was the callee 0x97040's equally stale `void
  * FUN_00097040(void);`; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
@@ -9116,12 +9172,12 @@ void FUN_000bfb00(int16_t function_index, int thread_datum, char init)
  * Callees (raw CALL targets):
  *   0xcc560  = hs_macro_function_evaluate  (returns the record pointer)
  *   0x97040  = FUN_00097040(int, float) -> void  (unnamed worker; the setter
- *              counterpart of 0x97220, whose result FUN_000bfab0 returns)
+ *              counterpart of 0x97220, whose result device_set_desired_position_evaluate returns)
  *   0xcbf80  = hs_return
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfb40(int16_t function_index, int thread_datum, char init)
+void device_set_actual_position_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -9133,10 +9189,10 @@ void FUN_000bfb40(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfb80 @ 0x000bfb80
+/* device_group_get_value_evaluate @ 0x000bfb80
  *
  * HaloScript builtin dispatcher; the device-GROUP counterpart of the
- * device-OBJECT reader FUN_000bfb00. Same 3-parameter cdecl shape and the
+ * device-OBJECT reader device_get_position_evaluate. Same 3-parameter cdecl shape and the
  * same evaluate / NULL-check / worker / hs_return skeleton as every twin in
  * this run; what distinguishes it is that the record's first field is an
  * UNSIGNED 16-bit device-group index (MOVZX idiom) rather than a dword
@@ -9154,7 +9210,7 @@ void FUN_000bfb40(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bfb80(void);` decl was corrected to the 3-arg cdecl form as
+ * `void device_group_get_value_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift, as was the callee 0x966b0's equally stale
  * `void device_group_get_value(void);` -- see below.
  *
@@ -9167,7 +9223,7 @@ void FUN_000bfb40(int16_t function_index, int thread_datum, char init)
  *   returning int (same as every twin; the cast is local, kb decl untouched).
  *   Exactly ONE record field is read: XOR EDX,EDX; MOV DX, word ptr [EAX].
  *   That is the MOVZX idiom -- an UNSIGNED 16-bit load at record+0x0, unlike
- *   the signed-short siblings FUN_000bdfe0 / hs_trigger_volume_test_objects_any_evaluate. Lifted as
+ *   the signed-short siblings scenario_trigger_volume_test_object_evaluate / hs_trigger_volume_test_objects_any_evaluate. Lifted as
  *   `unsigned short *` so the widening is zero-extension, not sign-extension.
  *   CALL 0x966b0 takes the zero-extended index as its ONE dword stack arg
  *   (PUSH EDX) and returns a float in ST0 -- FSTP dword ptr [EBP-4] lands
@@ -9195,7 +9251,7 @@ void FUN_000bfb40(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfb80(int16_t function_index, int thread_datum, char init)
+void device_group_get_value_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned short *record;
   union {
@@ -9211,13 +9267,13 @@ void FUN_000bfb80(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfbc0 @ 0x000bfbc0
+/* device_group_set_desired_value_evaluate @ 0x000bfbc0
  *
- * HaloScript builtin dispatcher; a near-exact twin of FUN_000bfab0 above --
+ * HaloScript builtin dispatcher; a near-exact twin of device_set_desired_position_evaluate above --
  * same 3-parameter cdecl shape, same evaluate / NULL-check / worker /
  * hs_return skeleton, and the same "pre-zeroed dword whose low BYTE is
  * overwritten by the worker's AL" result-widening tail.  The two differences
- * from FUN_000bfab0 are the record's first field (an UNSIGNED 16-bit index
+ * from device_set_desired_position_evaluate are the record's first field (an UNSIGNED 16-bit index
  * loaded with the MOVZX idiom rather than a dword object handle) and the
  * worker called (0x96f20 rather than 0x97220).
  *
@@ -9232,7 +9288,7 @@ void FUN_000bfb80(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap).  kb.json's stale
- * `void FUN_000bfbc0(void);` decl was corrected to the 3-arg cdecl form as
+ * `void device_group_set_desired_value_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift, as was the callee 0x96f20's equally stale
  * `void FUN_00096f20(void);` -- see below.
  *
@@ -9265,8 +9321,8 @@ void FUN_000bfb80(int16_t function_index, int thread_datum, char init)
  *   [EBP-0x4]; PUSH EAX.  A pre-zeroed dword with only its low byte
  *   overwritten and read back as an int -- NOT a MOVZX and NOT a
  *   sign-extending (int)(char) cast.  The union below reproduces exactly that
- *   store pair; it is the same idiom that scored 100% on FUN_000bf8f0 and
- *   FUN_000bfab0.
+ *   store pair; it is the same idiom that scored 100% on unit_solo_player_integrated_night_vision_is_active_evaluate and
+ *   device_set_desired_position_evaluate.
  *   CALL 0xcbf80 pushes EAX (the widened byte) then ESI = cdecl reverse ->
  *   hs_return(thread_datum, value.i).  ONE combined ADD ESP,0x10 at 0xbfc03
  *   cleans the 2 pushes of 0x96f20 plus hs_return's 2 -- the ARG_COUNT hazard
@@ -9281,7 +9337,7 @@ void FUN_000bfb80(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfbc0(int16_t function_index, int thread_datum, char init)
+void device_group_set_desired_value_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned short *record;
   union {
@@ -9299,11 +9355,11 @@ void FUN_000bfbc0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfc10 @ 0x000bfc10
+/* device_group_set_actual_value_evaluate @ 0x000bfc10
  *
  * HaloScript builtin dispatcher; the device-GROUP SETTER twin of the
- * device-group reader FUN_000bfb80 above and of the (dword, float) setter
- * FUN_000bfb40. Identical 3-parameter cdecl shape and the same evaluate /
+ * device-group reader device_group_get_value_evaluate above and of the (dword, float) setter
+ * device_set_actual_position_evaluate. Identical 3-parameter cdecl shape and the same evaluate /
  * NULL-check / worker / hs_return skeleton as every twin in this run. What
  * distinguishes it: the record's first field is an UNSIGNED 16-bit
  * device-group index (the XOR/MOV-DX zero-extend idiom) and the second is a
@@ -9322,7 +9378,7 @@ void FUN_000bfbc0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bfc10(void);` decl was corrected to the 3-arg cdecl form as
+ * `void device_group_set_actual_value_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift, as was the callee 0x96510's equally stale `void
  * device_group_set_actual_value(void);`; a (void) decl over a stack-arg
  * callee is the ESP-drift class of bug from 0x158df0.
@@ -9340,7 +9396,7 @@ void FUN_000bfbc0(int16_t function_index, int thread_datum, char init)
  *   hides entirely) and XOR EDX,EDX / MOV DX,word ptr [EAX]. That second
  *   read is a zero-extended UNSIGNED 16-bit load, NOT an int (lift-learnings
  *   24 LOADW) -- hence the `unsigned short *` record type, matching the
- *   device-group reader twin FUN_000bfb80.
+ *   device-group reader twin device_group_get_value_evaluate.
  *   CALL 0x96510 is the push-then-fstp float-argument idiom (lift-learnings
  *   hazard 2): PUSH ECX is a DUMMY slot reservation immediately overwritten
  *   by FSTP dword ptr [ESP], then PUSH EDX. Entry stack is therefore
@@ -9377,11 +9433,11 @@ void FUN_000bfbc0(int16_t function_index, int thread_datum, char init)
  * restores `flds 0x4(%eax) ... push %ecx; fstps (%esp)`. The qualifier is a
  * pure codegen lever: the field is read exactly once either way, so the
  * observable behaviour is unchanged. The same fold silently costs the twin
- * FUN_000bfb40 above the same two instructions (not touched here).
+ * device_set_actual_position_evaluate above the same two instructions (not touched here).
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfc10(int16_t function_index, int thread_datum, char init)
+void device_group_set_actual_value_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned short *record;
 
@@ -9394,9 +9450,9 @@ void FUN_000bfc10(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfc50 @ 0x000bfc50
+/* device_one_sided_set_evaluate @ 0x000bfc50
  *
- * HaloScript builtin dispatcher; byte-shape twin of FUN_000bf920 above:
+ * HaloScript builtin dispatcher; byte-shape twin of units_set_desired_flashlight_state_evaluate above:
  * identical 3-parameter cdecl shape and identical evaluate / NULL-check /
  * worker / hs_return skeleton, including the same "worker takes (dword @
  * record+0, zero-extended BYTE @ record+4) and the script gets a CONSTANT 0"
@@ -9413,7 +9469,7 @@ void FUN_000bfc10(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bfc50(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void device_one_sided_set_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
  * bug from 0x158df0.
  *
@@ -9462,7 +9518,7 @@ void FUN_000bfc10(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfc50(int16_t function_index, int thread_datum, char init)
+void device_one_sided_set_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -9475,20 +9531,20 @@ void FUN_000bfc50(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfc90 @ 0x000bfc90
+/* device_operates_automatically_set_evaluate @ 0x000bfc90
  *
- * HaloScript builtin dispatcher, byte-shape twin of FUN_000bfc50 directly
- * above and of FUN_000bf8b0 / FUN_000bf8f0 / FUN_000bf920 earlier in this TU:
+ * HaloScript builtin dispatcher, byte-shape twin of device_one_sided_set_evaluate directly
+ * above and of unit_scripting_suspended_evaluate / unit_solo_player_integrated_night_vision_is_active_evaluate / units_set_desired_flashlight_state_evaluate earlier in this TU:
  * identical 3-parameter cdecl shape and identical evaluate / NULL-check /
  * worker / hs_return skeleton, including the same "worker takes (dword @
  * record+0, zero-extended BYTE @ record+4) and the script gets a CONSTANT 0"
- * tail. The only difference from FUN_000bfc50 is the worker called: 0x96630
+ * tail. The only difference from device_one_sided_set_evaluate is the worker called: 0x96630
  * device_operates_automatically_set instead of 0x965f0 device_one_sided_set.
  *
  * Ghidra modelled the function as void(void), so all three cdecl STACK
  * parameters surfaced as in_stack_* pseudo-locals and the 0x96630 call lost
  * BOTH of its arguments (kb.json also declared that callee void(void)). The
- * `void FUN_000bfc90(void);` decl was corrected to the 3-arg cdecl form as
+ * `void device_operates_automatically_set_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -9536,7 +9592,7 @@ void FUN_000bfc50(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfc90(int16_t function_index, int thread_datum, char init)
+void device_operates_automatically_set_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -9549,14 +9605,14 @@ void FUN_000bfc90(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfcd0 @ 0x000bfcd0
+/* device_group_change_only_once_more_set_evaluate @ 0x000bfcd0
  *
- * HaloScript builtin dispatcher, the immediate neighbour of FUN_000bfc90
+ * HaloScript builtin dispatcher, the immediate neighbour of device_operates_automatically_set_evaluate
  * above and the same skeleton as every twin earlier in this TU: evaluate the
  * argument record, NULL-check it, invoke one device worker with two fields of
  * that record, then hand the script a CONSTANT 0.
  *
- * The ONE structural difference from FUN_000bfc90 / FUN_000bfc50 is the WIDTH
+ * The ONE structural difference from device_operates_automatically_set_evaluate / device_one_sided_set_evaluate is the WIDTH
  * of the first record field: those twins load a full DWORD (MOV EAX,[EAX]),
  * this one loads a SIGNED WORD (MOVSX EAX, word ptr [EAX]). That is
  * lift-learnings 24 (LOADW) territory -- taking Ghidra's `int` rendering would
@@ -9567,7 +9623,7 @@ void FUN_000bfc90(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled the function as void(void), so all three cdecl STACK
  * parameters surfaced as in_stack_* pseudo-locals and the 0x96670 call lost
  * BOTH of its arguments (kb.json also declared that callee void(void)). The
- * `void FUN_000bfcd0(void);` decl was corrected to the 3-arg cdecl form as
+ * `void device_group_change_only_once_more_set_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -9628,7 +9684,7 @@ void FUN_000bfc90(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfcd0(int16_t function_index, int thread_datum, char init)
+void device_group_change_only_once_more_set_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -9641,21 +9697,21 @@ void FUN_000bfcd0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfd10 @ 0x000bfd10
+/* breakable_surfaces_reset_evaluate @ 0x000bfd10
  *
  * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function, the
- * immediate neighbour of FUN_000bfcd0 above. It is the DEGENERATE member of
+ * immediate neighbour of device_group_change_only_once_more_set_evaluate above. It is the DEGENERATE member of
  * the handler family that fills the tail of this TU: because the script
  * builtin takes no arguments there is no argument record to evaluate, so the
  * hs_macro_function_evaluate call and its NULL check -- present in every twin
- * from FUN_000bf870 through FUN_000bfcd0 -- are simply absent. What remains is
+ * from unit_scripting_impervious_evaluate through device_group_change_only_once_more_set_evaluate -- are simply absent. What remains is
  * the worker call followed by the constant script return.
  *
  * Ghidra modelled the function as void(void), so the cdecl STACK parameters
  * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
  * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears
  * anywhere in the decompile, and the body has no register-defining prologue.
- * The stale `void FUN_000bfd10(void);` kb.json decl was corrected to the 3-arg
+ * The stale `void breakable_surfaces_reset_evaluate(void);` kb.json decl was corrected to the 3-arg
  * cdecl form as part of this lift; a (void) decl over a stack-arg callee is
  * the ESP-drift class of bug from 0x158df0.
  *
@@ -9700,27 +9756,27 @@ void FUN_000bfcd0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfd10(int16_t function_index, int thread_datum, char init)
+void breakable_surfaces_reset_evaluate(int16_t function_index, int thread_datum, char init)
 {
   breakable_surfaces_reset();
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000bfd30 @ 0x000bfd30
+/* cheat_all_powerups_evaluate @ 0x000bfd30
  *
  * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function; the exact
- * byte-shape twin of FUN_000bfd10 above and FUN_000bfd50 below, differing only
+ * byte-shape twin of breakable_surfaces_reset_evaluate above and cheat_all_weapons_evaluate below, differing only
  * in the worker it calls (0xa6b50 instead of breakable_surfaces_reset /
  * 0xa6a80). The builtin takes no script arguments, so the
  * hs_macro_function_evaluate call and its NULL check -- present in the twins
- * from FUN_000bf870 through FUN_000bfcd0 -- are absent; what remains is the
+ * from unit_scripting_impervious_evaluate through device_group_change_only_once_more_set_evaluate -- are absent; what remains is the
  * worker call followed by the constant script return.
  *
  * Ghidra modelled the function as void(void), so the cdecl STACK parameters
  * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
  * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears in
  * the decompile and the body has no register-defining prologue. The stale
- * `void FUN_000bfd30(void);` kb.json decl was corrected to the 3-arg cdecl
+ * `void cheat_all_powerups_evaluate(void);` kb.json decl was corrected to the 3-arg cdecl
  * form as part of this lift; a (void) decl over a stack-arg callee is the
  * ESP-drift class of bug from 0x158df0.
  *
@@ -9764,18 +9820,18 @@ void FUN_000bfd10(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfd30(int16_t function_index, int thread_datum, char init)
+void cheat_all_powerups_evaluate(int16_t function_index, int thread_datum, char init)
 {
   FUN_000a6b50();
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000bfd50 @ 0x000bfd50
+/* cheat_all_weapons_evaluate @ 0x000bfd50
  *
  * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function, the exact
- * byte-shape twin of FUN_000bfd10 above with a different worker: the builtin
+ * byte-shape twin of breakable_surfaces_reset_evaluate above with a different worker: the builtin
  * takes no script arguments, so the hs_macro_function_evaluate call and its
- * NULL check -- present in every twin from FUN_000bf870 through FUN_000bfcd0 --
+ * NULL check -- present in every twin from unit_scripting_impervious_evaluate through device_group_change_only_once_more_set_evaluate --
  * are simply absent. What remains is the worker call followed by the constant
  * script return.
  *
@@ -9783,7 +9839,7 @@ void FUN_000bfd30(int16_t function_index, int thread_datum, char init)
  * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
  * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears
  * anywhere in the decompile, and the body has no register-defining prologue.
- * The stale `void FUN_000bfd50(void);` kb.json decl was corrected to the 3-arg
+ * The stale `void cheat_all_weapons_evaluate(void);` kb.json decl was corrected to the 3-arg
  * cdecl form as part of this lift; a (void) decl over a stack-arg callee is
  * the ESP-drift class of bug from 0x158df0.
  *
@@ -9832,16 +9888,16 @@ void FUN_000bfd30(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfd50(int16_t function_index, int thread_datum, char init)
+void cheat_all_weapons_evaluate(int16_t function_index, int thread_datum, char init)
 {
   FUN_000a6a80();
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000bfd70 @ 0x000bfd70
+/* cheat_all_vehicles_evaluate @ 0x000bfd70
  *
  * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function; the exact
- * byte-shape twin of FUN_000bfd50 directly above and FUN_000bfd90 directly
+ * byte-shape twin of cheat_all_weapons_evaluate directly above and cheat_teleport_to_camera_evaluate directly
  * below, differing only in the worker it calls (here FUN_000a6ba0, the
  * game-globals block 0x164 helper in game.c). The builtin takes no script
  * arguments, so there is no hs_macro_function_evaluate call and no NULL check
@@ -9879,26 +9935,26 @@ void FUN_000bfd50(int16_t function_index, int thread_datum, char init)
  * stack offset 0 being the return address) and it mislabelled that read as the
  * FIRST parameter. These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX
  * appears in the decompile and the body has no register-defining prologue. The
- * stale `void FUN_000bfd70(void);` kb.json decl was corrected to the 3-arg
+ * stale `void cheat_all_vehicles_evaluate(void);` kb.json decl was corrected to the 3-arg
  * cdecl form as part of this lift -- a (void) decl over a stack-arg callee is
  * the ESP-drift class of bug from 0x158df0. The 3-parameter arity is proven by
  * the HaloScript dispatcher itself (hs_runtime.c 0xcd2c0 region:
  * `evaluate(func_idx, thread_handle, (int)eval_flag)`), which calls every
  * builtin evaluate slot with three cdecl arguments; this handler simply never
  * loads the first and third. */
-void FUN_000bfd70(int16_t function_index, int thread_datum, char init)
+void cheat_all_vehicles_evaluate(int16_t function_index, int thread_datum, char init)
 {
   FUN_000a6ba0();
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000bfd90 @ 0x000bfd90
+/* cheat_teleport_to_camera_evaluate @ 0x000bfd90
  *
  * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function; the exact
- * byte-shape twin of FUN_000bfd50 directly above, differing only in the worker
+ * byte-shape twin of cheat_all_weapons_evaluate directly above, differing only in the worker
  * it calls. The builtin takes no script arguments, so the
  * hs_macro_function_evaluate call and its NULL check -- present in the twins
- * from FUN_000bf870 through FUN_000bfcd0 -- are simply absent. What remains is
+ * from unit_scripting_impervious_evaluate through device_group_change_only_once_more_set_evaluate -- are simply absent. What remains is
  * the worker call followed by the constant script return. Do NOT "normalise"
  * this handler to the evaluate/NULL-check shape: there is no evaluate call and
  * no branch anywhere in the body.
@@ -9907,7 +9963,7 @@ void FUN_000bfd70(int16_t function_index, int thread_datum, char init)
  * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
  * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears in
  * the decompile, and the body has no register-defining prologue. The stale
- * `void FUN_000bfd90(void);` kb.json decl was corrected to the 3-arg cdecl form
+ * `void cheat_teleport_to_camera_evaluate(void);` kb.json decl was corrected to the 3-arg cdecl form
  * as part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -9954,19 +10010,19 @@ void FUN_000bfd70(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfd90(int16_t function_index, int thread_datum, char init)
+void cheat_teleport_to_camera_evaluate(int16_t function_index, int thread_datum, char init)
 {
   cheat_teleport_to_camera();
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000bfdb0 @ 0x000bfdb0
+/* cheat_active_camouflage_evaluate @ 0x000bfdb0
  *
  * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function; the exact
- * byte-shape twin of FUN_000bfd90 directly above, differing only in the worker
+ * byte-shape twin of cheat_teleport_to_camera_evaluate directly above, differing only in the worker
  * it calls. The builtin takes no script arguments, so the
  * hs_macro_function_evaluate call and its NULL check -- present in the twins
- * from FUN_000bf870 through FUN_000bfcd0 -- are simply absent. What remains is
+ * from unit_scripting_impervious_evaluate through device_group_change_only_once_more_set_evaluate -- are simply absent. What remains is
  * the worker call followed by the constant script return. Do NOT "normalise"
  * this handler to the evaluate/NULL-check shape: there is no evaluate call and
  * no branch anywhere in the body.
@@ -9975,7 +10031,7 @@ void FUN_000bfd90(int16_t function_index, int thread_datum, char init)
  * surfaced as an `in_stack_00000008` pseudo-local (lift-learnings 31 void-decl
  * trap). These are STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears in
  * the decompile, and the body has no register-defining prologue. The stale
- * `void FUN_000bfdb0(void);` kb.json decl was corrected to the 3-arg cdecl form
+ * `void cheat_active_camouflage_evaluate(void);` kb.json decl was corrected to the 3-arg cdecl form
  * as part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -10022,27 +10078,27 @@ void FUN_000bfd90(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfdb0(int16_t function_index, int thread_datum, char init)
+void cheat_active_camouflage_evaluate(int16_t function_index, int thread_datum, char init)
 {
   cheat_all_powerups();
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000bfdd0 @ 0x000bfdd0
+/* cheat_active_camouflage_local_player_evaluate @ 0x000bfdd0
  *
  * HaloScript builtin dispatcher for a ONE-ARGUMENT script function; the
- * evaluate/NULL-check twin of FUN_000bf870 / FUN_000bf8b0 / FUN_000bf8f0 /
- * FUN_000bf920 and the rest of the family above. It evaluates the script's
+ * evaluate/NULL-check twin of unit_scripting_impervious_evaluate / unit_scripting_suspended_evaluate / unit_solo_player_integrated_night_vision_is_active_evaluate /
+ * units_set_desired_flashlight_state_evaluate and the rest of the family above. It evaluates the script's
  * argument list, and only if the evaluation produced a record does it invoke
  * the worker and return to the script. Unlike the zero-argument twins
- * immediately above (FUN_000bfd90 / FUN_000bfdb0) the evaluate call and its
+ * immediately above (cheat_teleport_to_camera_evaluate / cheat_active_camouflage_evaluate) the evaluate call and its
  * NULL check ARE present here, so do not "normalise" this one to their shape.
  *
  * Ghidra modelled the function as void(void), so the cdecl STACK parameters
  * surfaced as `in_stack_00000004` / `in_stack_00000008` / `in_stack_0000000c`
  * pseudo-locals (lift-learnings 31 void-decl trap). These are STACK args, not
  * @<reg>: no unaff_/in_EAX/in_ECX appears in the decompile, and the body has no
- * register-defining prologue. The stale `void FUN_000bfdd0(void);` kb.json decl
+ * register-defining prologue. The stale `void cheat_active_camouflage_local_player_evaluate(void);` kb.json decl
  * was corrected to the 3-arg cdecl form as part of this lift; a (void) decl
  * over a stack-arg callee is the ESP-drift class of bug from 0x158df0.
  *
@@ -10075,7 +10131,7 @@ void FUN_000bfdb0(int16_t function_index, int thread_datum, char init)
  *   XOR EDX,EDX / MOV DX,word ptr [EAX] -> the record's ONLY field is a
  *   ZERO-EXTENDED 16-bit value at offset +0. The width is load-bearing
  *   (lift-learnings 24 LOADW): this is NOT the dword `record[0]` form used by
- *   the FUN_000bf920 twin, and the XOR+MOV DX pairing (rather than MOVSX)
+ *   the units_set_desired_flashlight_state_evaluate twin, and the XOR+MOV DX pairing (rather than MOVSX)
  *   proves it is UNSIGNED. Hence `uint16_t *record` and a plain deref.
  *
  *   VC71 match note: this two-instruction zero-extend is the ENTIRE residual
@@ -10103,7 +10159,7 @@ void FUN_000bfdb0(int16_t function_index, int thread_datum, char init)
  *   reports an ARG_COUNT finding "cleanup=3 stack args, decl=2" against
  *   hs_return: that is this combined-cleanup artifact, NOT a 3-arg callee. Do
  *   NOT "fix" hs_return's decl -- its arity is independently confirmed by the
- *   clean ADD ESP,0x8 in the single-call twin FUN_000bfdb0 directly above.
+ *   clean ADD ESP,0x8 in the single-call twin cheat_active_camouflage_evaluate directly above.
  *
  * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
  * to the evaluate call; nothing else in the body consumes them.
@@ -10116,7 +10172,7 @@ void FUN_000bfdb0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfdd0(int16_t function_index, int thread_datum, char init)
+void cheat_active_camouflage_local_player_evaluate(int16_t function_index, int thread_datum, char init)
 {
   uint16_t *record;
 
@@ -10128,13 +10184,13 @@ void FUN_000bfdd0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfe10 @ 0x000bfe10
+/* cheats_load_evaluate @ 0x000bfe10
  *
  * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function: it
  * unconditionally invokes the worker (reload the cheat table from file) and
  * then commits the calling script thread with a literal 0 result. This is a
- * byte-shape twin of FUN_000bfdb0 / FUN_000bfd90 above, differing ONLY in the
- * worker address; unlike FUN_000bfdd0 there is no argument-list evaluate call
+ * byte-shape twin of cheat_active_camouflage_evaluate / cheat_teleport_to_camera_evaluate above, differing ONLY in the
+ * worker address; unlike cheat_active_camouflage_local_player_evaluate there is no argument-list evaluate call
  * and no NULL check, so do not "normalise" this one to that shape.
  *
  * Ghidra modelled the function as void(void), so the cdecl STACK parameter
@@ -10143,7 +10199,7 @@ void FUN_000bfdd0(int16_t function_index, int thread_datum, char init)
  * disassembly reads [EBP+0x0c], i.e. the SECOND cdecl stack slot. These are
  * STACK args, not @<reg>: no unaff_/in_EAX/in_ECX appears in the decompile and
  * the body has no register-defining prologue. The stale
- * `void FUN_000bfe10(void);` kb.json decl was corrected to the 3-arg cdecl form
+ * `void cheats_load_evaluate(void);` kb.json decl was corrected to the 3-arg cdecl form
  * as part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -10173,7 +10229,7 @@ void FUN_000bfdd0(int16_t function_index, int thread_datum, char init)
  *
  *   ADD ESP,0x8 at 0xbfe23 cleans exactly hs_return's two pushes -- a clean,
  *   uncombined cleanup that independently re-confirms hs_return's arity of 2
- *   (unlike the combined ADD ESP,0xc in FUN_000bfdd0, which produces a
+ *   (unlike the combined ADD ESP,0xc in cheat_active_camouflage_local_player_evaluate, which produces a
  *   spurious ARG_COUNT hazard finding).
  *
  * Callees (both cdecl, both in kb.json, both ported, no @<reg> args anywhere):
@@ -10182,22 +10238,22 @@ void FUN_000bfdd0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfe10(int16_t function_index, int thread_datum, char init)
+void cheats_load_evaluate(int16_t function_index, int thread_datum, char init)
 {
   cheats_load_from_file();
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000bfe30 @ 0x000bfe30
+/* ai_globals_ai_active_evaluate @ 0x000bfe30
  *
  * HaloScript builtin dispatcher for a ONE-ARGUMENT script function: it
  * evaluates the script's argument list and, only if the evaluation produced a
  * record, forwards the record's single byte field to the worker
  * (ai_globals_ai_active) and commits the calling script thread with a literal 0
  * result. This is the evaluate/NULL-check shape of the family -- the twin of
- * FUN_000bfdd0 above, differing only in the worker address and in the WIDTH of
+ * cheat_active_camouflage_local_player_evaluate above, differing only in the worker address and in the WIDTH of
  * the record field it reads. Do NOT "normalise" it to the zero-argument shape
- * of FUN_000bfe10 / FUN_000bfdb0 directly above: the evaluate call and its
+ * of cheats_load_evaluate / cheat_active_camouflage_evaluate directly above: the evaluate call and its
  * forward branch are both present here.
  *
  * Ghidra modelled the function as void(void), so the cdecl STACK parameters
@@ -10205,7 +10261,7 @@ void FUN_000bfe10(int16_t function_index, int thread_datum, char init)
  * pseudo-locals (lift-learnings 31 void-decl trap). Those names are relative to
  * the POST-prologue frame and are NOT register args: no unaff_/in_EAX/in_ECX
  * appears in the decompile, and the body has no register-defining prologue, so
- * this is not a skip_reg_args case. The stale `void FUN_000bfe30(void);`
+ * this is not a skip_reg_args case. The stale `void ai_globals_ai_active_evaluate(void);`
  * kb.json decl was corrected to the 3-arg cdecl form as part of this lift; a
  * (void) decl over a stack-arg callee is the ESP-drift class of bug from
  * 0x158df0.
@@ -10241,7 +10297,7 @@ void FUN_000bfe10(int16_t function_index, int thread_datum, char init)
  *   XOR EDX,EDX / MOV DL,byte ptr [EAX] -> the record's ONLY field is a
  *   ZERO-EXTENDED 8-bit value at offset +0. The width is load-bearing
  *   (lift-learnings 24 LOADW): this is neither the dword `record[0]` form of
- *   the FUN_000bf920 twin nor the 16-bit MOV DX form of FUN_000bfdd0, and the
+ *   the units_set_desired_flashlight_state_evaluate twin nor the 16-bit MOV DX form of cheat_active_camouflage_local_player_evaluate, and the
  *   XOR+MOV DL pairing (rather than MOVSX) proves it is UNSIGNED. Hence
  *   `uint8_t *record` and a plain deref; reading it as an int would be a
  *   LOADW-class bug.
@@ -10262,7 +10318,7 @@ void FUN_000bfe10(int16_t function_index, int thread_datum, char init)
  *   that is this MERGED-cleanup artifact (MSVC folds consecutive cdecl
  *   cleanups), NOT a 3-arg callee. Do NOT "fix" hs_return's decl -- its arity
  *   of 2 is independently confirmed by the clean, uncombined ADD ESP,0x8 in the
- *   single-call twins FUN_000bfe10 / FUN_000bfdb0 directly above.
+ *   single-call twins cheats_load_evaluate / cheat_active_camouflage_evaluate directly above.
  *
  * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
  * to the evaluate call; nothing else in the body consumes them.
@@ -10275,7 +10331,7 @@ void FUN_000bfe10(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfe30(int16_t function_index, int thread_datum, char init)
+void ai_globals_ai_active_evaluate(int16_t function_index, int thread_datum, char init)
 {
   uint8_t *record;
 
@@ -10287,9 +10343,9 @@ void FUN_000bfe30(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfe70 @ 0x000bfe70
+/* ai_globals_dialogue_triggers_enabled_evaluate @ 0x000bfe70
  *
- * HaloScript builtin dispatcher; byte-shape twin of FUN_000bfe30 directly
+ * HaloScript builtin dispatcher; byte-shape twin of ai_globals_ai_active_evaluate directly
  * above -- same three-call skeleton, differing ONLY in the middle worker
  * (0x3f7b0 ai_globals_dialogue_triggers_enabled instead of 0x3f770
  * ai_globals_ai_active).
@@ -10297,7 +10353,7 @@ void FUN_000bfe30(int16_t function_index, int thread_datum, char init)
  * ABI: PUSH EBP / MOV EBP,ESP / PUSH ESI, no _chkstk and no locals, RET with
  * no immediate -> plain cdecl over three incoming stack slots. Ghidra reported
  * them as `in_stack_00000004/8/c` because the stale kb.json decl said
- * `void FUN_000bfe70(void);`; the decl is corrected here to the 3-arg cdecl
+ * `void ai_globals_dialogue_triggers_enabled_evaluate(void);`; the decl is corrected here to the 3-arg cdecl
  * form used by every twin in this cluster.
  *
  *   [EBP+0x08] -> ECX  int16_t function_index
@@ -10321,7 +10377,7 @@ void FUN_000bfe30(int16_t function_index, int thread_datum, char init)
  *   XOR EDX,EDX / MOV DL,byte ptr [EAX] -- the record's only consumed field is
  *   a ZERO-EXTENDED 8-bit value at offset +0. The width and signedness are
  *   load-bearing (lift-learnings 24 LOADW): this is NOT the dword `record[0]`
- *   form of FUN_000bf920 (offset +4) nor a 16-bit MOV DX, and the XOR+MOV DL
+ *   form of units_set_desired_flashlight_state_evaluate (offset +4) nor a 16-bit MOV DX, and the XOR+MOV DL
  *   pairing rather than MOVSX proves UNSIGNED. Hence `uint8_t *record` and a
  *   plain deref; reading it as an int would be a LOADW-class bug.
  *
@@ -10342,7 +10398,7 @@ void FUN_000bfe30(int16_t function_index, int thread_datum, char init)
  *   that is this MERGED-cleanup artifact (MSVC folds consecutive cdecl
  *   cleanups), NOT a 3-arg callee. Do NOT "fix" hs_return's decl -- its arity
  *   of 2 is independently confirmed by the clean, uncombined ADD ESP,0x8 in the
- *   single-call twins FUN_000bfe10 / FUN_000bfdb0 above.
+ *   single-call twins cheats_load_evaluate / cheat_active_camouflage_evaluate above.
  *
  * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
  * to the evaluate call; nothing else in the body consumes them. No FPU ops, no
@@ -10356,7 +10412,7 @@ void FUN_000bfe30(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfe70(int16_t function_index, int thread_datum, char init)
+void ai_globals_dialogue_triggers_enabled_evaluate(int16_t function_index, int thread_datum, char init)
 {
   uint8_t *record;
 
@@ -10368,9 +10424,9 @@ void FUN_000bfe70(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfeb0 @ 0x000bfeb0
+/* ai_globals_grenades_enabled_evaluate @ 0x000bfeb0
  *
- * HaloScript builtin dispatcher; byte-shape twin of FUN_000bfe70 directly
+ * HaloScript builtin dispatcher; byte-shape twin of ai_globals_dialogue_triggers_enabled_evaluate directly
  * above -- same three-call skeleton, differing ONLY in the middle worker
  * (0x3f800 ai_globals_grenades_enabled instead of 0x3f7b0
  * ai_globals_dialogue_triggers_enabled).
@@ -10378,7 +10434,7 @@ void FUN_000bfe70(int16_t function_index, int thread_datum, char init)
  * ABI: PUSH EBP / MOV EBP,ESP / PUSH ESI, no _chkstk, no SUB ESP, no locals,
  * RET with no immediate -> plain cdecl over three incoming stack slots. Ghidra
  * reported them as `in_stack_00000004/8/c` because the stale kb.json decl said
- * `void FUN_000bfeb0(void);` (lift-learnings 31 void-decl trap); no unaff_/
+ * `void ai_globals_grenades_enabled_evaluate(void);` (lift-learnings 31 void-decl trap); no unaff_/
  * in_EAX/in_ECX pseudo-parameter appears, so these are STACK args, not @<reg>.
  * The decl is corrected to the 3-arg cdecl form used by every twin here.
  *
@@ -10422,7 +10478,7 @@ void FUN_000bfe70(int16_t function_index, int thread_datum, char init)
  *   that is this MERGED-cleanup artifact (MSVC folds consecutive cdecl
  *   cleanups), NOT a 3-arg callee. Do NOT "fix" hs_return's decl -- its arity
  *   of 2 is independently confirmed by the clean, uncombined ADD ESP,0x8 in the
- *   single-call twins FUN_000bfe10 / FUN_000bfdb0 above.
+ *   single-call twins cheats_load_evaluate / cheat_active_camouflage_evaluate above.
  *
  * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
  * to the evaluate call; nothing else in the body consumes them. No FPU ops, no
@@ -10436,7 +10492,7 @@ void FUN_000bfe70(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfeb0(int16_t function_index, int thread_datum, char init)
+void ai_globals_grenades_enabled_evaluate(int16_t function_index, int thread_datum, char init)
 {
   uint8_t *record;
 
@@ -10448,10 +10504,10 @@ void FUN_000bfeb0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfef0 @ 0x000bfef0
+/* ai_scripting_free_evaluate @ 0x000bfef0
  *
- * HaloScript builtin dispatcher; structural twin of FUN_000bfe70 /
- * FUN_000bfeb0 directly above -- same evaluate / NULL-check / one-argument
+ * HaloScript builtin dispatcher; structural twin of ai_globals_dialogue_triggers_enabled_evaluate /
+ * ai_globals_grenades_enabled_evaluate directly above -- same evaluate / NULL-check / one-argument
  * worker / hs_return skeleton. Two differences from those twins: the worker is
  * 0x575d0 (encounter free/detach) instead of an ai_globals setter, and the
  * consumed record field is a FULL DWORD, not a zero-extended byte.
@@ -10459,7 +10515,7 @@ void FUN_000bfeb0(int16_t function_index, int thread_datum, char init)
  * ABI: PUSH EBP / MOV EBP,ESP / PUSH ESI, no _chkstk, no SUB ESP, no locals,
  * RET with no immediate -> plain cdecl over three incoming stack slots. Ghidra
  * reported them as `in_stack_00000004/8/c` because the stale kb.json decl said
- * `void FUN_000bfef0(void);` (lift-learnings 31 void-decl trap); no unaff_/
+ * `void ai_scripting_free_evaluate(void);` (lift-learnings 31 void-decl trap); no unaff_/
  * in_EAX/in_ECX pseudo-parameter appears, so these are STACK args, not @<reg>.
  * The decl is corrected to the 3-arg cdecl form used by every twin here.
  *
@@ -10484,7 +10540,7 @@ void FUN_000bfeb0(int16_t function_index, int thread_datum, char init)
  *   MOV EDX,dword ptr [EAX] -- the record's only consumed field is the FULL
  *   32-bit value at offset +0. Width is load-bearing (lift-learnings 24 LOADW):
  *   a plain dword MOV, not the XOR EDX,EDX / MOV DL byte form of the
- *   FUN_000bfe70 / FUN_000bfeb0 twins. Hence `int *record` and `*record`.
+ *   ai_globals_dialogue_triggers_enabled_evaluate / ai_globals_grenades_enabled_evaluate twins. Hence `int *record` and `*record`.
  *
  *   PUSH EDX / CALL 0x575d0 -- one argument, that dword, i.e.
  *   ai_scripting_free(<encounter handle>) (encounters.c: free/detach all actors from
@@ -10502,7 +10558,7 @@ void FUN_000bfeb0(int16_t function_index, int thread_datum, char init)
  *   that is this MERGED-cleanup artifact (MSVC folds consecutive cdecl
  *   cleanups), NOT a 3-arg callee. Do NOT "fix" hs_return's decl -- its arity
  *   of 2 is independently confirmed by the clean, uncombined ADD ESP,0x8 in the
- *   single-call twins FUN_000bfe10 / FUN_000bfdb0 above.
+ *   single-call twins cheats_load_evaluate / cheat_active_camouflage_evaluate above.
  *
  * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
  * to the evaluate call; nothing else in the body consumes them. No FPU ops, no
@@ -10516,7 +10572,7 @@ void FUN_000bfeb0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_free_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -10528,9 +10584,9 @@ void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bff30 @ 0x000bff30
+/* ai_scripting_free_units_evaluate @ 0x000bff30
  *
- * HaloScript builtin dispatcher; byte-shape twin of FUN_000bfef0 directly above
+ * HaloScript builtin dispatcher; byte-shape twin of ai_scripting_free_evaluate directly above
  * -- same evaluate / NULL-check / one-DWORD-argument worker / hs_return
  * skeleton. The only difference from that twin is the worker it dispatches to:
  * 0x576a0 instead of 0x575d0.
@@ -10538,7 +10594,7 @@ void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
  * ABI: PUSH EBP / MOV EBP,ESP / PUSH ESI, no _chkstk, no SUB ESP, no locals,
  * RET with no immediate -> plain cdecl over three incoming stack slots. Ghidra
  * reported them as `in_stack_00000004/8/c` because the stale kb.json decl said
- * `void FUN_000bff30(void);` (lift-learnings 31 void-decl trap); no unaff_/
+ * `void ai_scripting_free_units_evaluate(void);` (lift-learnings 31 void-decl trap); no unaff_/
  * in_EAX/in_ECX pseudo-parameter appears, so these are STACK args, not @<reg>.
  * The decl is corrected to the 3-arg cdecl form used by every twin here; a
  * (void) decl over a stack-arg callee is the ESP-drift bug class from 0x158df0.
@@ -10564,7 +10620,7 @@ void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
  *   MOV EDX,dword ptr [EAX] (0xbff4c) -- the record's only consumed field is
  *   the FULL 32-bit value at offset +0. Width is load-bearing (lift-learnings
  *   24 LOADW): a plain dword MOV, not the XOR EDX,EDX / MOV DL byte form of the
- *   FUN_000bfe70 / FUN_000bfeb0 twins. Hence `int *record` and `*record`.
+ *   ai_globals_dialogue_triggers_enabled_evaluate / ai_globals_grenades_enabled_evaluate twins. Hence `int *record` and `*record`.
  *
  *   PUSH EDX / CALL 0x576a0 -- one argument, that dword, i.e.
  *   ai_scripting_free_units(<handle>). Its kb decl parameter type is already `int`, so no
@@ -10582,7 +10638,7 @@ void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
  *   is this MERGED-cleanup artifact (MSVC folds consecutive cdecl cleanups),
  *   NOT a 3-arg callee. Do NOT "fix" hs_return's decl -- its arity of 2 is
  *   independently confirmed by the clean, uncombined ADD ESP,0x8 in the
- *   single-call twins FUN_000bfe10 / FUN_000bfdb0 above.
+ *   single-call twins cheats_load_evaluate / cheat_active_camouflage_evaluate above.
  *
  * [EBP+0x08] function_index and [EBP+0x10] init are read only to be forwarded
  * to the evaluate call; nothing else in the body consumes them. No FPU ops, no
@@ -10596,7 +10652,7 @@ void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bff30(int16_t function_index, int thread_datum, char init)
+void ai_scripting_free_units_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -10608,10 +10664,10 @@ void FUN_000bff30(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bff70 @ 0x000bff70
+/* ai_scripting_attach_unit_evaluate @ 0x000bff70
  *
- * HaloScript builtin dispatcher, byte-shape twin of FUN_000bf920 /
- * FUN_000bf960 above: identical 3-parameter cdecl shape and the same evaluate /
+ * HaloScript builtin dispatcher, byte-shape twin of units_set_desired_flashlight_state_evaluate /
+ * unit_set_desired_flashlight_state_evaluate above: identical 3-parameter cdecl shape and the same evaluate /
  * NULL-check / two-argument worker / hs_return skeleton. The only structural
  * difference from those two twins is the WIDTH of the second record field --
  * this one reads two FULL DWORDs, not a dword plus a zero-extended byte.
@@ -10626,7 +10682,7 @@ void FUN_000bff30(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bff70(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void ai_scripting_attach_unit_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
  * bug from 0x158df0.
  *
@@ -10670,7 +10726,7 @@ void FUN_000bff30(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bff70(int16_t function_index, int thread_datum, char init)
+void ai_scripting_attach_unit_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -10682,9 +10738,9 @@ void FUN_000bff70(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bffb0 @ 0x000bffb0
+/* ai_scripting_attach_units_evaluate @ 0x000bffb0
  *
- * HaloScript builtin dispatcher, byte-shape twin of FUN_000bff70 directly
+ * HaloScript builtin dispatcher, byte-shape twin of ai_scripting_attach_unit_evaluate directly
  * above: identical 3-parameter cdecl shape, identical evaluate / NULL-check /
  * two-full-dword worker call / hs_return skeleton. The ONLY difference is the
  * worker it dispatches to -- 0x54a80 here vs 0x54860 there.
@@ -10699,7 +10755,7 @@ void FUN_000bff70(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bffb0(void);` decl was corrected to the 3-arg cdecl form as part
+ * `void ai_scripting_attach_units_evaluate(void);` decl was corrected to the 3-arg cdecl form as part
  * of this lift; a (void) decl over a stack-arg callee is the ESP-drift class of
  * bug from 0x158df0.
  *
@@ -10739,7 +10795,7 @@ void FUN_000bff70(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bffb0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_attach_units_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -10751,12 +10807,12 @@ void FUN_000bffb0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000bfff0 @ 0x000bfff0
+/* ai_scripting_attach_free_evaluate @ 0x000bfff0
  *
- * HaloScript builtin dispatcher, structural twin of FUN_000bff70 /
- * FUN_000bf920 above: identical 3-parameter cdecl shape and the same
+ * HaloScript builtin dispatcher, structural twin of ai_scripting_attach_unit_evaluate /
+ * units_set_desired_flashlight_state_evaluate above: identical 3-parameter cdecl shape and the same
  * evaluate / NULL-check / two-argument worker / hs_return skeleton. The only
- * difference from FUN_000bff70 is the worker it dispatches to -- here the
+ * difference from ai_scripting_attach_unit_evaluate is the worker it dispatches to -- here the
  * encounters-side ai_attach_free helper ai_scripting_attach_free rather than
  * ai_scripting_attach_unit.
  *
@@ -10773,7 +10829,7 @@ void FUN_000bffb0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000bfff0(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_attach_free_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -10820,7 +10876,7 @@ void FUN_000bffb0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_attach_free_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -10832,10 +10888,10 @@ void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0030 @ 0x000c0030
+/* ai_scripting_detach_unit_evaluate @ 0x000c0030
  *
- * HaloScript builtin dispatcher, structural twin of FUN_000bfff0 /
- * FUN_000bff70 / FUN_000bf920 above: identical 3-parameter cdecl shape and
+ * HaloScript builtin dispatcher, structural twin of ai_scripting_attach_free_evaluate /
+ * ai_scripting_attach_unit_evaluate / units_set_desired_flashlight_state_evaluate above: identical 3-parameter cdecl shape and
  * the same evaluate / NULL-check / worker / hs_return skeleton. It differs
  * from the twins only in the worker it dispatches to (ai_scripting_detach_unit) and in
  * the worker's arity -- ONE argument here, not two.
@@ -10854,7 +10910,7 @@ void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c0030(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_detach_unit_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -10902,7 +10958,7 @@ void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c0030(int16_t function_index, int thread_datum, char init)
+void ai_scripting_detach_unit_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -10914,9 +10970,9 @@ void FUN_000c0030(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0070 @ 0x000c0070
+/* ai_scripting_detach_units_evaluate @ 0x000c0070
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c0030
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_detach_unit_evaluate
  * immediately above: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / worker / hs_return skeleton, and the same
  * one-argument worker arity. The ONLY difference between the two functions
@@ -10935,7 +10991,7 @@ void FUN_000c0030(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c0070(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_detach_units_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -10976,7 +11032,7 @@ void FUN_000c0030(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c0070(int16_t function_index, int thread_datum, char init)
+void ai_scripting_detach_units_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -10988,9 +11044,9 @@ void FUN_000c0070(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c00b0 @ 0x000c00b0
+/* ai_scripting_place_evaluate @ 0x000c00b0
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c0070
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_detach_units_evaluate
  * immediately above: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / worker / hs_return skeleton, and the same
  * one-argument worker arity. The ONLY difference between the two functions
@@ -11009,7 +11065,7 @@ void FUN_000c0070(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c00b0(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_place_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -11030,7 +11086,7 @@ void FUN_000c0070(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c00b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_place_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned int *record;
 
@@ -11042,12 +11098,12 @@ void FUN_000c00b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c00f0 @ 0x000c00f0
+/* ai_scripting_kill_evaluate @ 0x000c00f0
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c0030 /
- * FUN_000c0070 / FUN_000c00b0 above: identical 3-parameter cdecl shape,
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_detach_unit_evaluate /
+ * ai_scripting_detach_units_evaluate / ai_scripting_place_evaluate above: identical 3-parameter cdecl shape,
  * identical evaluate / NULL-check / worker / hs_return skeleton, and the same
- * one-argument worker arity. The ONLY difference from FUN_000c00b0 is the
+ * one-argument worker arity. The ONLY difference from ai_scripting_place_evaluate is the
  * worker dispatched to -- 0x54ca0 here vs 0x54bb0 there.
  *
  * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
@@ -11065,7 +11121,7 @@ void FUN_000c00b0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c00f0(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_kill_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -11105,7 +11161,7 @@ void FUN_000c00b0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c00f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_kill_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned int *record;
 
@@ -11117,11 +11173,11 @@ void FUN_000c00f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0130 @ 0x000c0130
+/* ai_scripting_kill_silent_evaluate @ 0x000c0130
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c00f0
- * immediately above (and of FUN_000c0070 / FUN_000c0030 / FUN_000bfff0 /
- * FUN_000bff70 before it): identical 3-parameter cdecl shape, identical
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_kill_evaluate
+ * immediately above (and of ai_scripting_detach_units_evaluate / ai_scripting_detach_unit_evaluate / ai_scripting_attach_free_evaluate /
+ * ai_scripting_attach_unit_evaluate before it): identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / worker / hs_return skeleton, and the same
  * one-argument worker arity. The ONLY difference from the 0xc00f0 twin is
  * the worker dispatched to -- 0x54d00 here vs 0x54ca0 there.
@@ -11140,7 +11196,7 @@ void FUN_000c00f0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c0130(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_kill_silent_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -11192,7 +11248,7 @@ void FUN_000c00f0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c0130(int16_t function_index, int thread_datum, char init)
+void ai_scripting_kill_silent_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned int *record;
 
@@ -11204,10 +11260,10 @@ void FUN_000c0130(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0170 @ 0x000c0170
+/* ai_scripting_erase_evaluate @ 0x000c0170
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c0130
- * immediately above (and of FUN_000c00f0 / FUN_000c0070 / FUN_000c0030 before
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_kill_silent_evaluate
+ * immediately above (and of ai_scripting_kill_evaluate / ai_scripting_detach_units_evaluate / ai_scripting_detach_unit_evaluate before
  * it): identical 3-parameter cdecl shape, identical evaluate / NULL-check /
  * worker / hs_return skeleton, and the same one-argument worker arity. The ONLY
  * difference from the 0xc0130 twin is the worker dispatched to -- 0x54d60 here
@@ -11227,7 +11283,7 @@ void FUN_000c0130(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c0170(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_erase_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -11273,7 +11329,7 @@ void FUN_000c0130(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c0170(int16_t function_index, int thread_datum, char init)
+void ai_scripting_erase_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned int *record;
 
@@ -11285,10 +11341,10 @@ void FUN_000c0170(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c01b0 @ 0x000c01b0
+/* ai_scripting_erase_all_evaluate @ 0x000c01b0
  *
  * HaloScript builtin implementation, same 2-parameter shape as the ported
- * hs_players_evaluate / FUN_000be6f0 family in this TU: invoke a no-argument worker,
+ * hs_players_evaluate / numeric_countdown_timer_stop_evaluate family in this TU: invoke a no-argument worker,
  * then complete the calling script thread with hs_return(thread_handle, 0).
  * Unlike the 3-parameter dispatcher twins (0xc0130 / 0xc0230) it never reads
  * [EBP+0x10], so no `init` parameter is declared -- narrowest form the body
@@ -11327,24 +11383,24 @@ void FUN_000c0170(int16_t function_index, int thread_datum, char init)
  * offset 0 being the return address) and it mislabelled the read as the FIRST
  * parameter. They are STACK args, not @<reg> -- no unaff_/in_EAX/in_ECX
  * appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c01b0(void);` decl was corrected to the 2-arg cdecl form as
+ * `void ai_scripting_erase_all_evaluate(void);` decl was corrected to the 2-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0. No direct CALL imm32 site exists in the XBE
  * (dump_caller_regsetup.py: 0 call sites) -- like every handler in this
  * family it is reached only through the HaloScript builtin table, so the
  * arity is established by the body's own [EBP+N] reads, not by an
  * ADD ESP at a call site. */
-void FUN_000c01b0(int16_t function_index, int thread_handle)
+void ai_scripting_erase_all_evaluate(int16_t function_index, int thread_handle)
 {
   ai_scripting_erase_all();
   hs_return(thread_handle, 0);
 }
 
-/* FUN_000c01d0 @ 0x000c01d0
+/* ai_scripting_select_evaluate @ 0x000c01d0
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c0230 /
- * FUN_000c0130 / FUN_000c00f0 / FUN_000c0070 / FUN_000c0030 / FUN_000bfff0 /
- * FUN_000bff70: identical 3-parameter cdecl shape, identical evaluate /
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_spawn_actor_evaluate /
+ * ai_scripting_kill_silent_evaluate / ai_scripting_kill_evaluate / ai_scripting_detach_units_evaluate / ai_scripting_detach_unit_evaluate / ai_scripting_attach_free_evaluate /
+ * ai_scripting_attach_unit_evaluate: identical 3-parameter cdecl shape, identical evaluate /
  * NULL-check / worker / hs_return skeleton, and the same one-argument worker
  * arity. The ONLY difference from the 0xc0230 twin is the worker dispatched
  * to -- 0x54e40 here vs 0x54e80 there.
@@ -11365,7 +11421,7 @@ void FUN_000c01b0(int16_t function_index, int thread_handle)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c01d0(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_select_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -11418,7 +11474,7 @@ void FUN_000c01b0(int16_t function_index, int thread_handle)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c01d0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_select_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -11430,14 +11486,14 @@ void FUN_000c01d0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0210 @ 0x000c0210
+/* ai_scripting_deselect_evaluate @ 0x000c0210
  *
  * HaloScript builtin dispatcher for a ZERO-ARGUMENT script function -- the
  * degenerate member of the twin family above (0xc01d0 / 0xc0130 / 0xc00f0 /
  * 0xc0070 / 0xc0030 / 0xbfff0 / 0xbff70). Because the builtin takes no script
  * arguments, there is no hs_macro_function_evaluate call, no returned record,
  * and therefore no NULL check: the body is just the worker followed by
- * hs_return. Ghidra's `void FUN_000c0210(void);` decl was corrected to the
+ * hs_return. Ghidra's `void ai_scripting_deselect_evaluate(void);` decl was corrected to the
  * same 3-argument cdecl form as the twins (the HS dispatcher-table ABI);
  * function_index and init are genuinely unread by this variant, but the
  * parameter list is the shared table signature and must not be trimmed.
@@ -11464,7 +11520,7 @@ void FUN_000c01d0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c0210(int16_t function_index, int thread_datum, char init)
+void ai_scripting_deselect_evaluate(int16_t function_index, int thread_datum, char init)
 {
   (void)function_index;
   (void)init;
@@ -11473,10 +11529,10 @@ void FUN_000c0210(int16_t function_index, int thread_datum, char init)
   hs_return(thread_datum, 0);
 }
 
-/* FUN_000c0230 @ 0x000c0230
+/* ai_scripting_spawn_actor_evaluate @ 0x000c0230
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c0130 /
- * FUN_000c00f0 / FUN_000c0070 / FUN_000c0030 / FUN_000bfff0 / FUN_000bff70
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_kill_silent_evaluate /
+ * ai_scripting_kill_evaluate / ai_scripting_detach_units_evaluate / ai_scripting_detach_unit_evaluate / ai_scripting_attach_free_evaluate / ai_scripting_attach_unit_evaluate
  * above: identical 3-parameter cdecl shape, identical evaluate / NULL-check /
  * worker / hs_return skeleton, and the same one-argument worker arity. The
  * ONLY difference from the 0xc0130 twin is the worker dispatched to --
@@ -11496,7 +11552,7 @@ void FUN_000c0210(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c0230(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_spawn_actor_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -11547,7 +11603,7 @@ void FUN_000c0210(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c0230(int16_t function_index, int thread_datum, char init)
+void ai_scripting_spawn_actor_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned int *record;
 
@@ -11559,11 +11615,11 @@ void FUN_000c0230(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0270 @ 0x000c0270
+/* ai_scripting_set_respawn_evaluate @ 0x000c0270
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c02b0 just
- * below and of FUN_000c0230 / FUN_000c0130 / FUN_000c00f0 / FUN_000c0070 /
- * FUN_000c0030 / FUN_000bfff0 / FUN_000bff70 above: identical 3-parameter
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_set_deaf_evaluate just
+ * below and of ai_scripting_spawn_actor_evaluate / ai_scripting_kill_silent_evaluate / ai_scripting_kill_evaluate / ai_scripting_detach_units_evaluate /
+ * ai_scripting_detach_unit_evaluate / ai_scripting_attach_free_evaluate / ai_scripting_attach_unit_evaluate above: identical 3-parameter
  * cdecl shape and the same evaluate / NULL-check / worker / hs_return
  * skeleton. Like the 0xc02b0 twin -- and UNLIKE the 0xc0230 / 0xc0130 group
  * -- the worker here takes TWO arguments, so the evaluated argument record is
@@ -11587,7 +11643,7 @@ void FUN_000c0230(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c0270(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_set_respawn_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -11652,7 +11708,7 @@ void FUN_000c0230(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all functions out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c0270(int16_t function_index, int thread_datum, char init)
+void ai_scripting_set_respawn_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned char *record;
 
@@ -11664,11 +11720,11 @@ void FUN_000c0270(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c02b0 @ 0x000c02b0
+/* ai_scripting_set_deaf_evaluate @ 0x000c02b0
  *
  * HaloScript builtin dispatcher for ai_set_deaf, direct structural twin of
- * FUN_000c0230 / FUN_000c0130 / FUN_000c00f0 / FUN_000c0070 / FUN_000c0030 /
- * FUN_000bfff0 / FUN_000bff70 above: identical 3-parameter cdecl shape and
+ * ai_scripting_spawn_actor_evaluate / ai_scripting_kill_silent_evaluate / ai_scripting_kill_evaluate / ai_scripting_detach_units_evaluate / ai_scripting_detach_unit_evaluate /
+ * ai_scripting_attach_free_evaluate / ai_scripting_attach_unit_evaluate above: identical 3-parameter cdecl shape and
  * the same evaluate / NULL-check / worker / hs_return skeleton. It differs
  * from those twins in exactly ONE respect -- the worker takes TWO arguments
  * here, not one, so the evaluated argument record is read at two offsets of
@@ -11690,7 +11746,7 @@ void FUN_000c0270(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c02b0(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_set_deaf_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0. The RET carries no immediate, so the corrected
  * decl stays cdecl.
@@ -11750,7 +11806,7 @@ void FUN_000c0270(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all 111 functions out to the same relative path,
  * and leaves players.c empty (observed 2026-07-26). */
-void FUN_000c02b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_set_deaf_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned char *record;
 
@@ -11762,9 +11818,9 @@ void FUN_000c02b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c02f0 @ 0x000c02f0
+/* ai_scripting_set_blind_evaluate @ 0x000c02f0
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c02b0
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_set_deaf_evaluate
  * immediately above (ai_set_deaf). Identical 3-parameter cdecl shape,
  * identical evaluate / NULL-check / two-argument-worker / hs_return skeleton,
  * and the same MIXED-width two-field record read. The ONLY difference from
@@ -11786,7 +11842,7 @@ void FUN_000c02b0(int16_t function_index, int thread_datum, char init)
  * Ghidra modelled this void(void), so the three cdecl params surfaced as
  * in_stack_* pseudo-locals; they are STACK args, not @<reg> -- no unaff_/
  * in_EAX/in_ECX appears (lift-learnings 31 void-decl trap). kb.json's stale
- * `void FUN_000c02f0(void);` decl was corrected to the 3-arg cdecl form as
+ * `void ai_scripting_set_blind_evaluate(void);` decl was corrected to the 3-arg cdecl form as
  * part of this lift; a (void) decl over a stack-arg callee is the ESP-drift
  * class of bug from 0x158df0.
  *
@@ -11842,7 +11898,7 @@ void FUN_000c02b0(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" every function out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c02f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_set_blind_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned char *record;
 
@@ -11854,9 +11910,9 @@ void FUN_000c02f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0330 @ 0x000c0330
+/* ai_scripting_magically_see_encounter_evaluate @ 0x000c0330
  *
- * HaloScript builtin dispatcher, structural twin of FUN_000c02f0 and the rest
+ * HaloScript builtin dispatcher, structural twin of ai_scripting_set_blind_evaluate and the rest
  * of this family: evaluates the call's argument expressions via
  * hs_macro_function_evaluate; while arguments are still being evaluated the
  * return is NULL and nothing is dispatched this tick. Once the evaluated
@@ -11867,8 +11923,8 @@ void FUN_000c02f0(int16_t function_index, int thread_datum, char init)
  * Confirmed (0xc0330 disassembly):
  *   - Three cdecl stack params at [EBP+8] (int16 function_index),
  *     [EBP+0xc] (int thread_datum), [EBP+0x10] (char init). Ghidra models the
- *     function as `void __cdecl FUN_000c0330(void)` with in_stack_* reads, so
- *     the stale kb.json decl `void FUN_000c0330(void);` was corrected to the
+ *     function as `void __cdecl ai_scripting_magically_see_encounter_evaluate(void)` with in_stack_* reads, so
+ *     the stale kb.json decl `void ai_scripting_magically_see_encounter_evaluate(void);` was corrected to the
  *     3-arg cdecl form used by every sibling in this family.
  *   - PUSH EAX([EBP+0x10]) / PUSH ESI([EBP+0xc]) / PUSH ECX([EBP+8]) then
  *     CALL 0xcc560, ADD ESP,0xc => hs_macro_function_evaluate(function_index,
@@ -11883,7 +11939,7 @@ void FUN_000c02f0(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, ported): 0xcc560 hs_macro_function_evaluate,
  * 0x58970 ai_magically_see_encounter, 0xcbf80 hs_return. */
-void FUN_000c0330(int16_t function_index, int thread_datum, char init)
+void ai_scripting_magically_see_encounter_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
 
@@ -11895,22 +11951,22 @@ void FUN_000c0330(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0370 @ 0x000c0370
+/* ai_scripting_magically_see_players_evaluate @ 0x000c0370
  *
- * HaloScript builtin dispatcher, structural twin of FUN_000c0330 immediately
+ * HaloScript builtin dispatcher, structural twin of ai_scripting_magically_see_encounter_evaluate immediately
  * above: evaluates the call's argument expressions via
  * hs_macro_function_evaluate; while arguments are still being evaluated the
  * return is NULL and nothing is dispatched this tick. Once the evaluated
  * values array is ready, forwards its first dword to
  * ai_scripting_magically_see_players (FUN_00058a40) and commits a zero result to the
- * calling thread via hs_return. The only difference from FUN_000c0330 is the
+ * calling thread via hs_return. The only difference from ai_scripting_magically_see_encounter_evaluate is the
  * worker (0x58a40 vs 0x58970) and its one-argument arity.
  *
  * Confirmed (0xc0370 disassembly):
  *   - Three cdecl stack params at [EBP+8] (int16 function_index),
  *     [EBP+0xc] (int thread_datum), [EBP+0x10] (char init). Ghidra models the
- *     function as `void __cdecl FUN_000c0370(void)` with in_stack_* reads, so
- *     the stale kb.json decl `void FUN_000c0370(void);` was corrected to the
+ *     function as `void __cdecl ai_scripting_magically_see_players_evaluate(void)` with in_stack_* reads, so
+ *     the stale kb.json decl `void ai_scripting_magically_see_players_evaluate(void);` was corrected to the
  *     3-arg cdecl form used by every sibling in this family.
  *   - PUSH EAX([EBP+0x10]) / PUSH ESI([EBP+0xc]) / PUSH ECX([EBP+8]) then
  *     CALL 0xcc560, ADD ESP,0xc => hs_macro_function_evaluate(function_index,
@@ -11925,7 +11981,7 @@ void FUN_000c0330(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, ported): 0xcc560 hs_macro_function_evaluate,
  * 0x58a40 ai_scripting_magically_see_players, 0xcbf80 hs_return. */
-void FUN_000c0370(int16_t function_index, int thread_datum, char init)
+void ai_scripting_magically_see_players_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
 
@@ -11937,9 +11993,9 @@ void FUN_000c0370(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c03b0 @ 0x000c03b0
+/* ai_scripting_magically_see_unit_evaluate @ 0x000c03b0
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c03f0
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_magically_see_units_evaluate
  * immediately below: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / two-dword worker / hs_return skeleton. The only
  * difference from 0xc03f0 is the worker address (0x55110 here vs 0x551e0).
@@ -11951,7 +12007,7 @@ void FUN_000c0370(int16_t function_index, int thread_datum, char init)
  * intrinsics. ESI is the only callee-saved register pushed; it holds
  * thread_datum live across the evaluate call, which is why it is saved.
  *
- * Ghidra models this as `void __cdecl FUN_000c03b0(void)`, so the three cdecl
+ * Ghidra models this as `void __cdecl ai_scripting_magically_see_unit_evaluate(void)`, so the three cdecl
  * params surface as in_stack_00000004/8/c pseudo-locals. Per lift-learnings 31
  * that is the void-decl trap, NOT a register-argument signal -- the
  * disassembly loads all three from the frame:
@@ -11959,7 +12015,7 @@ void FUN_000c0370(int16_t function_index, int thread_datum, char init)
  *   MOV ECX,[EBP+0x08] -> function_index (int16_t; pushed as a full dword,
  *                                         the narrowing lives in the callee)
  *   MOV ESI,[EBP+0x0c] -> thread_datum   (int), reused as hs_return arg1
- * The stale kb.json decl `void FUN_000c03b0(void);` was corrected to the
+ * The stale kb.json decl `void ai_scripting_magically_see_unit_evaluate(void);` was corrected to the
  * 3-arg cdecl form as part of this lift; a (void) decl over a callee that
  * consumes three stack dwords is precisely the 0x158df0 ESP-drift crash class.
  *
@@ -12001,7 +12057,7 @@ void FUN_000c0370(int16_t function_index, int thread_datum, char init)
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
  *   0x55110  = ai_scripting_magically_see_unit(unsigned int combined_handle, int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
-void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_magically_see_unit_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12013,10 +12069,10 @@ void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c03f0 @ 0x000c03f0
+/* ai_scripting_magically_see_units_evaluate @ 0x000c03f0
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c02f0 /
- * FUN_000c02b0 / FUN_000c0030 and the rest of this family: identical
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_set_blind_evaluate /
+ * ai_scripting_set_deaf_evaluate / ai_scripting_detach_unit_evaluate and the rest of this family: identical
  * 3-parameter cdecl shape, identical evaluate / NULL-check / worker /
  * hs_return skeleton. The differences from 0xc02f0 are the worker address
  * (0x551e0 here) and the record field widths (see LOAD WIDTH below).
@@ -12029,7 +12085,7 @@ void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
  * thread_datum live across the evaluate call, which is exactly why it is
  * saved.
  *
- * Ghidra models this as `void __cdecl FUN_000c03f0(void)`, so the three cdecl
+ * Ghidra models this as `void __cdecl ai_scripting_magically_see_units_evaluate(void)`, so the three cdecl
  * params surface as in_stack_00000004/8/c pseudo-locals. Per lift-learnings 31
  * that is the void-decl trap, NOT a register-argument signal -- the
  * disassembly loads all three from the frame:
@@ -12037,7 +12093,7 @@ void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
  *   MOV ECX,[EBP+0x08] -> function_index (int16_t; pushed as a full dword,
  *                                         the narrowing lives in the callee)
  *   MOV ESI,[EBP+0x0c] -> thread_datum   (int), reused as hs_return arg1
- * The stale kb.json decl `void FUN_000c03f0(void);` was corrected to the
+ * The stale kb.json decl `void ai_scripting_magically_see_units_evaluate(void);` was corrected to the
  * 3-arg cdecl form as part of this lift; a (void) decl over a callee that
  * consumes three stack dwords is precisely the 0x158df0 ESP-drift crash class.
  *
@@ -12085,7 +12141,7 @@ void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all functions out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_magically_see_units_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12097,13 +12153,13 @@ void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0430 @ 0x000c0430
+/* ai_scripting_timer_start_evaluate @ 0x000c0430
  *
- * HaloScript builtin dispatcher, exact structural twin of FUN_000c0570 below
- * and of FUN_000c0030 / FUN_000c0070 / FUN_000bfff0 / FUN_000bff70 /
- * FUN_000bfe70 above: identical 3-parameter cdecl shape, identical
+ * HaloScript builtin dispatcher, exact structural twin of ai_scripting_maneuver_evaluate below
+ * and of ai_scripting_detach_unit_evaluate / ai_scripting_detach_units_evaluate / ai_scripting_attach_free_evaluate / ai_scripting_attach_unit_evaluate /
+ * ai_globals_dialogue_triggers_enabled_evaluate above: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
- * difference from FUN_000c0570 is the worker address (0x55220 here vs
+ * difference from ai_scripting_maneuver_evaluate is the worker address (0x55220 here vs
  * 0x55870 there).
  *
  * Frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET with NO
@@ -12113,7 +12169,7 @@ void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
  * pointer, no FPU, no SEH, no stack buffers, no struct stores, no CONCAT, no
  * MSVC intrinsics.
  *
- * Ghidra models this as `void __cdecl FUN_000c0430(void)` with the three
+ * Ghidra models this as `void __cdecl ai_scripting_timer_start_evaluate(void)` with the three
  * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
  * lift-learnings 31 that is the void-decl trap, NOT a register-argument
  * signal: the disassembly loads all three from the frame --
@@ -12121,7 +12177,7 @@ void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
  *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
  *   MOV EAX,[EBP+0x10] -> init           (char)
  * so these are ordinary STACK args. The stale kb.json decl
- * `void FUN_000c0430(void);` was corrected to the 3-arg cdecl form; leaving a
+ * `void ai_scripting_timer_start_evaluate(void);` was corrected to the 3-arg cdecl form; leaving a
  * (void) decl over a callee that consumes three stack dwords is precisely the
  * 0x158df0 ESP-drift boot-crash class.
  *
@@ -12164,7 +12220,7 @@ void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all functions out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c0430(int16_t function_index, int thread_datum, char init)
+void ai_scripting_timer_start_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12176,12 +12232,12 @@ void FUN_000c0430(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0470 @ 0x000c0470
+/* ai_scripting_timer_expire_evaluate @ 0x000c0470
  *
- * HaloScript builtin dispatcher, exact structural twin of FUN_000c0430 above
- * and FUN_000c0570 below: identical 3-parameter cdecl shape, identical
+ * HaloScript builtin dispatcher, exact structural twin of ai_scripting_timer_start_evaluate above
+ * and ai_scripting_maneuver_evaluate below: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
- * difference from FUN_000c0430 is the worker address (0x552b0 here vs
+ * difference from ai_scripting_timer_start_evaluate is the worker address (0x552b0 here vs
  * 0x55220 there).
  *
  * Frame (0xc0470-0xc04a1, 0x32 bytes): PUSH EBP; MOV EBP,ESP; PUSH ESI; ...
@@ -12191,7 +12247,7 @@ void FUN_000c0430(int16_t function_index, int thread_datum, char init)
  * ESP, no locals beyond the record pointer, no FPU, no SEH, no stack buffers,
  * no struct stores, no CONCAT, no MSVC intrinsics.
  *
- * Ghidra models this as `void __cdecl FUN_000c0470(void)` with the three
+ * Ghidra models this as `void __cdecl ai_scripting_timer_expire_evaluate(void)` with the three
  * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
  * lift-learnings 31 that is the void-decl trap, NOT a register-argument
  * signal: the disassembly loads all three from the frame --
@@ -12199,7 +12255,7 @@ void FUN_000c0430(int16_t function_index, int thread_datum, char init)
  *   MOV ECX,[EBP+0x08] -> function_index (int16_t, pushed as a full dword)
  *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
  * so these are ordinary STACK args. The stale kb.json decl
- * `void FUN_000c0470(void);` was corrected to the 3-arg cdecl form; leaving a
+ * `void ai_scripting_timer_expire_evaluate(void);` was corrected to the 3-arg cdecl form; leaving a
  * (void) decl over a callee that consumes three stack dwords is precisely the
  * 0x158df0 ESP-drift boot-crash class.
  *
@@ -12241,7 +12297,7 @@ void FUN_000c0430(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all functions out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c0470(int16_t function_index, int thread_datum, char init)
+void ai_scripting_timer_expire_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12253,12 +12309,12 @@ void FUN_000c0470(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c04b0 @ 0x000c04b0
+/* ai_scripting_attack_evaluate @ 0x000c04b0
  *
- * HaloScript builtin dispatcher, exact structural twin of FUN_000c0470 above
- * and FUN_000c0570 below: identical 3-parameter cdecl shape, identical
+ * HaloScript builtin dispatcher, exact structural twin of ai_scripting_timer_expire_evaluate above
+ * and ai_scripting_maneuver_evaluate below: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
- * difference from FUN_000c0470 is the worker address (0x55750 here vs
+ * difference from ai_scripting_timer_expire_evaluate is the worker address (0x55750 here vs
  * 0x552b0 there).
  *
  * Frame (0xc04b0-0xc04e1, 0x32 bytes): PUSH EBP; MOV EBP,ESP; PUSH ESI; ...
@@ -12268,7 +12324,7 @@ void FUN_000c0470(int16_t function_index, int thread_datum, char init)
  * ESP, no locals beyond the record pointer, no FPU, no SEH, no stack buffers,
  * no struct stores, no CONCAT, no MSVC intrinsics.
  *
- * Ghidra models this as `void __cdecl FUN_000c04b0(void)` with the three
+ * Ghidra models this as `void __cdecl ai_scripting_attack_evaluate(void)` with the three
  * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
  * lift-learnings 31 that is the void-decl trap, NOT a register-argument
  * signal: the disassembly loads all three from the frame --
@@ -12276,7 +12332,7 @@ void FUN_000c0470(int16_t function_index, int thread_datum, char init)
  *   MOV ECX,[EBP+0x08] -> function_index (int16_t, pushed as a full dword)
  *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
  * so these are ordinary STACK args. The stale kb.json decl
- * `void FUN_000c04b0(void);` was corrected to the 3-arg cdecl form; leaving a
+ * `void ai_scripting_attack_evaluate(void);` was corrected to the 3-arg cdecl form; leaving a
  * (void) decl over a callee that consumes three stack dwords is precisely the
  * 0x158df0 ESP-drift boot-crash class.
  *
@@ -12320,7 +12376,7 @@ void FUN_000c0470(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all functions out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_attack_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12332,12 +12388,12 @@ void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c04f0 @ 0x000c04f0
+/* ai_scripting_defend_evaluate @ 0x000c04f0
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c04b0 above
- * and FUN_000c0530 below: identical 3-parameter cdecl shape, identical
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_attack_evaluate above
+ * and ai_scripting_retreat_evaluate below: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
- * difference from FUN_000c04b0 is the worker address (0x557e0 here vs
+ * difference from ai_scripting_attack_evaluate is the worker address (0x557e0 here vs
  * 0x55750 there).
  *
  * Frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET with NO
@@ -12347,7 +12403,7 @@ void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
  * pointer, no FPU, no SEH, no stack buffers, no struct stores, no CONCAT, no
  * MSVC intrinsics.
  *
- * Ghidra models this as `void __cdecl FUN_000c04f0(void)` with the three
+ * Ghidra models this as `void __cdecl ai_scripting_defend_evaluate(void)` with the three
  * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
  * lift-learnings 31 that is the void-decl trap, NOT a register-argument
  * signal: the disassembly loads all three from the frame --
@@ -12355,7 +12411,7 @@ void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
  *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
  *   MOV EAX,[EBP+0x10] -> init           (char)
  * so these are ordinary STACK args. The stale kb.json decl
- * `void FUN_000c04f0(void);` is corrected to the 3-arg cdecl form; leaving a
+ * `void ai_scripting_defend_evaluate(void);` is corrected to the 3-arg cdecl form; leaving a
  * (void) decl over a callee that consumes three stack dwords is precisely the
  * 0x158df0 ESP-drift boot-crash class.
  *
@@ -12402,7 +12458,7 @@ void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all functions out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c04f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_defend_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12414,13 +12470,13 @@ void FUN_000c04f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0530 @ 0x000c0530
+/* ai_scripting_retreat_evaluate @ 0x000c0530
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c04b0 above
- * and FUN_000c0570 below, and of FUN_000c0430 / FUN_000c0030 / FUN_000bfff0 /
- * FUN_000bff70 / FUN_000bfe70: identical 3-parameter cdecl shape, identical
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_attack_evaluate above
+ * and ai_scripting_maneuver_evaluate below, and of ai_scripting_timer_start_evaluate / ai_scripting_detach_unit_evaluate / ai_scripting_attach_free_evaluate /
+ * ai_scripting_attach_unit_evaluate / ai_globals_dialogue_triggers_enabled_evaluate: identical 3-parameter cdecl shape, identical
  * evaluate / NULL-check / one-argument worker / hs_return skeleton. The only
- * difference from FUN_000c0570 is the worker address (0x58ae0 here vs
+ * difference from ai_scripting_maneuver_evaluate is the worker address (0x58ae0 here vs
  * 0x55870 there).
  *
  * Frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET with NO
@@ -12430,7 +12486,7 @@ void FUN_000c04f0(int16_t function_index, int thread_datum, char init)
  * pointer, no FPU, no SEH, no stack buffers, no struct stores, no CONCAT, no
  * MSVC intrinsics.
  *
- * Ghidra models this as `void __cdecl FUN_000c0530(void)` with the three
+ * Ghidra models this as `void __cdecl ai_scripting_retreat_evaluate(void)` with the three
  * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
  * lift-learnings 31 that is the void-decl trap, NOT a register-argument
  * signal: the disassembly loads all three from the frame --
@@ -12438,7 +12494,7 @@ void FUN_000c04f0(int16_t function_index, int thread_datum, char init)
  *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
  *   MOV EAX,[EBP+0x10] -> init           (char)
  * so these are ordinary STACK args. The stale kb.json decl
- * `void FUN_000c0530(void);` was corrected to the 3-arg cdecl form; leaving a
+ * `void ai_scripting_retreat_evaluate(void);` was corrected to the 3-arg cdecl form; leaving a
  * (void) decl over a callee that consumes three stack dwords is precisely the
  * 0x158df0 ESP-drift boot-crash class.
  *
@@ -12480,7 +12536,7 @@ void FUN_000c04f0(int16_t function_index, int thread_datum, char init)
  * Placement: kept here beside its twins deliberately. NOTE: do NOT run
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file as
  * a foreign TU and empties players.c (observed 2026-07-26). */
-void FUN_000c0530(int16_t function_index, int thread_datum, char init)
+void ai_scripting_retreat_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12492,13 +12548,13 @@ void FUN_000c0530(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0570 @ 0x000c0570
+/* ai_scripting_maneuver_evaluate @ 0x000c0570
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c0030 /
- * FUN_000c0070 / FUN_000bfff0 / FUN_000bff70 / FUN_000bfe70 above: identical
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_detach_unit_evaluate /
+ * ai_scripting_detach_units_evaluate / ai_scripting_attach_free_evaluate / ai_scripting_attach_unit_evaluate / ai_globals_dialogue_triggers_enabled_evaluate above: identical
  * 3-parameter cdecl shape, identical evaluate / NULL-check / worker /
  * hs_return skeleton, and the same one-argument worker arity. The only
- * difference from FUN_000c0030 is the worker address (0x55870 here vs
+ * difference from ai_scripting_detach_unit_evaluate is the worker address (0x55870 here vs
  * 0x54ac0 there).
  *
  * Frame (0xc0570-0xc05a1, 50 bytes): PUSH EBP; MOV EBP,ESP; PUSH ESI; ...
@@ -12506,7 +12562,7 @@ void FUN_000c0530(int16_t function_index, int thread_datum, char init)
  * ESI is the only callee-saved register pushed; it holds thread_datum live
  * across the evaluate call, which is exactly why it is saved.
  *
- * Ghidra models this as `void __cdecl FUN_000c0570(void)` with the three
+ * Ghidra models this as `void __cdecl ai_scripting_maneuver_evaluate(void)` with the three
  * arguments surfacing as `in_stack_00000004/8/c` pseudo-locals. Per
  * lift-learnings 31 that is the void-decl trap, NOT a register-argument
  * signal: the disassembly loads all three from the frame --
@@ -12514,7 +12570,7 @@ void FUN_000c0530(int16_t function_index, int thread_datum, char init)
  *   MOV ESI,[EBP+0x0c] -> thread_datum   (int)
  *   MOV EAX,[EBP+0x10] -> init           (char)
  * so these are ordinary STACK args. The stale kb.json decl
- * `void FUN_000c0570(void);` was corrected to the 3-arg cdecl form; leaving a
+ * `void ai_scripting_maneuver_evaluate(void);` was corrected to the 3-arg cdecl form; leaving a
  * (void) decl over a callee that consumes three stack dwords is precisely the
  * 0x158df0 ESP-drift boot-crash class.
  *
@@ -12556,7 +12612,7 @@ void FUN_000c0530(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all functions out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c0570(int16_t function_index, int thread_datum, char init)
+void ai_scripting_maneuver_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12568,18 +12624,18 @@ void FUN_000c0570(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c05b0 @ 0x000c05b0
+/* ai_scripting_maneuver_enable_evaluate @ 0x000c05b0
  *
- * HaloScript builtin dispatcher, direct structural twin of FUN_000c0570 /
- * FUN_000c0130 / FUN_000c0030 and the rest of this family. The ONLY structural
+ * HaloScript builtin dispatcher, direct structural twin of ai_scripting_maneuver_evaluate /
+ * ai_scripting_kill_silent_evaluate / ai_scripting_detach_unit_evaluate and the rest of this family. The ONLY structural
  * difference is that its worker takes TWO arguments instead of one.
  *
  * 27 instructions, cdecl. Frame is PUSH EBP; MOV EBP,ESP; PUSH ESI; ...;
  * POP ESI; POP EBP; RET with NO immediate => caller cleans, cdecl.
  *
- * The Ghidra decompile rendered this as `void FUN_000c05b0(void)` with three
+ * The Ghidra decompile rendered this as `void ai_scripting_maneuver_enable_evaluate(void)` with three
  * `in_stack_*` pseudo-locals, and the kb.json decl was the matching stale
- * `void FUN_000c05b0(void);`. Those in_stack_* values are ordinary STACK
+ * `void ai_scripting_maneuver_enable_evaluate(void);`. Those in_stack_* values are ordinary STACK
  * arguments, not @<reg> args -- per lift-learnings 31 (void-decl trap) a
  * (void) decl over a 3-stack-arg callee is the 0x158df0 ESP-drift bug class,
  * so the decl was corrected to the 3-arg cdecl form shared by every sibling:
@@ -12637,7 +12693,7 @@ void FUN_000c0570(int16_t function_index, int thread_datum, char init)
  * maintain.py on this file with an ABSOLUTE path -- it then treats the file
  * as a foreign TU, "moves" all functions out to the same relative path, and
  * leaves players.c empty (observed 2026-07-26). */
-void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_maneuver_enable_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12649,10 +12705,10 @@ void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c05f0 @ 0x000c05f0
+/* ai_scripting_migrate_evaluate @ 0x000c05f0
  *
- * hs (HaloScript) macro-function handler, same family as FUN_000c05b0 above
- * and FUN_000c0670 below.  Evaluates the script argument record for
+ * hs (HaloScript) macro-function handler, same family as ai_scripting_maneuver_enable_evaluate above
+ * and ai_scripting_migrate_by_unit_evaluate below.  Evaluates the script argument record for
  * `function_index` on script thread `thread_datum`; on a non-NULL record it
  * forwards two dwords out of that record to the worker at 0x00056320, then
  * returns a constant 0 to the script thread.  A NULL record skips BOTH tail
@@ -12662,8 +12718,8 @@ void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
  * PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET with NO
  * immediate => cdecl, caller cleans.  No SUB ESP and no _chkstk => zero stack
  * locals beyond the record pointer.  Ghidra rendered this as
- * `void __cdecl FUN_000c05f0(void)` with three `in_stack_*` pseudo-locals,
- * and kb.json carried the matching stale `void FUN_000c05f0(void);`.  Those
+ * `void __cdecl ai_scripting_migrate_evaluate(void)` with three `in_stack_*` pseudo-locals,
+ * and kb.json carried the matching stale `void ai_scripting_migrate_evaluate(void);`.  Those
  * in_stack_* values are ordinary STACK arguments, not @<reg> args -- per
  * lift-learnings 31 (void-decl trap) a `(void)` decl over a 3-stack-arg
  * function is the 0x158df0 ESP-drift bug class, so the decl was corrected to
@@ -12693,8 +12749,8 @@ void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
  * LOAD WIDTH (lift-learnings 24): both record loads are plain
  * `MOV r32, dword ptr [...]` with NO MOVSX/MOVZX, so both fields are FULL
  * 32-bit dwords and must not be narrowed.  This differs from the twin
- * FUN_000c05b0 (zero-extended BYTE at record+4) and from FUN_000c06b0
- * (two 16-bit fields with different extension); it matches FUN_000c0670.
+ * ai_scripting_maneuver_enable_evaluate (zero-extended BYTE at record+4) and from ai_scripting_allegiance_evaluate
+ * (two 16-bit fields with different extension); it matches ai_scripting_migrate_by_unit_evaluate.
  *
  * NULL guard implies POINTER: TEST EAX,EAX; JZ skips both tail calls and the
  * result is dereferenced at +0x0 and +0x4, so the 0xcc560 return value is a
@@ -12725,7 +12781,7 @@ void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c05f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_migrate_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12737,10 +12793,10 @@ void FUN_000c05f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0630 @ 0x000c0630
+/* ai_scripting_migrate_and_speak_evaluate @ 0x000c0630
  *
- * hs (HaloScript) macro-function handler, same family as FUN_000c05f0 above
- * and FUN_000c0670 below.  Evaluates the script argument record for
+ * hs (HaloScript) macro-function handler, same family as ai_scripting_migrate_evaluate above
+ * and ai_scripting_migrate_by_unit_evaluate below.  Evaluates the script argument record for
  * `function_index` on script thread `thread_datum`; on a non-NULL record it
  * forwards THREE dwords out of that record to the worker at 0x000565c0, then
  * returns void (0) to the script thread.
@@ -12749,7 +12805,7 @@ void FUN_000c05f0(int16_t function_index, int thread_datum, char init)
  * POP ESI; POP EBP; RET (no immediate) => cdecl, caller cleans.  No SUB ESP
  * and no _chkstk => zero stack locals.  The three args are ordinary STACK
  * args at [EBP+8]/[EBP+0xc]/[EBP+0x10]; the Ghidra decompile rendered them as
- * `in_stack_*` pseudo-locals over a `void FUN_000c0630(void)` signature and
+ * `in_stack_*` pseudo-locals over a `void ai_scripting_migrate_and_speak_evaluate(void)` signature and
  * kb.json carried the matching stale `(void)` decl.  Per lift-learnings 31
  * (void-decl trap, the 0x158df0 ESP-drift bug class) the decl is corrected
  * here to the 3-arg cdecl form shared by every sibling in this family.
@@ -12780,7 +12836,7 @@ void FUN_000c05f0(int16_t function_index, int thread_datum, char init)
  * order.  ai_scripting_migrate_and_speak returns void, so nothing is discarded.
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE (identical to
- * the ones documented on FUN_000c05f0 and FUN_000c0670): the single
+ * the ones documented on ai_scripting_migrate_evaluate and ai_scripting_migrate_by_unit_evaluate): the single
  * `ADD ESP,0x14` at 0x000c0664 is a MERGED cdecl cleanup for BOTH tail calls
  * -- 3 dwords for ai_scripting_migrate_and_speak (0xc) plus 2 dwords for hs_return (0x8) = 0x14.
  * MSVC combined the two cdecl cleanups; both decls are correct as written.
@@ -12797,7 +12853,7 @@ void FUN_000c05f0(int16_t function_index, int thread_datum, char init)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
  * static in this TU; revert any maintain.py relocation. */
-void FUN_000c0630(int16_t function_index, int thread_datum, char init)
+void ai_scripting_migrate_and_speak_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12810,10 +12866,10 @@ void FUN_000c0630(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0670 @ 0x000c0670
+/* ai_scripting_migrate_by_unit_evaluate @ 0x000c0670
  *
- * hs (HaloScript) macro-function handler, same family as FUN_000c0570 and
- * FUN_000c05b0 immediately above.  Evaluates the script argument record for
+ * hs (HaloScript) macro-function handler, same family as ai_scripting_maneuver_evaluate and
+ * ai_scripting_maneuver_enable_evaluate immediately above.  Evaluates the script argument record for
  * `function_index` on script thread `thread_datum`, and on a non-NULL record
  * forwards two dwords out of it to the worker at 0x000564b0, then returns
  * void (0) to the script thread.
@@ -12822,7 +12878,7 @@ void FUN_000c0630(int16_t function_index, int thread_datum, char init)
  * immediate) => cdecl, caller cleans.  No SUB ESP / no _chkstk => zero stack
  * locals.  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/[EBP+0x10]; the
  * Ghidra decompile rendered them as `in_stack_*` pseudo-locals over a
- * `void FUN_000c0670(void)` signature, and kb.json carried the matching stale
+ * `void ai_scripting_migrate_by_unit_evaluate(void)` signature, and kb.json carried the matching stale
  * `(void)` decl.  Per lift-learnings 31 (void-decl trap) that is the
  * 0x158df0 ESP-drift bug class, so the decl was corrected to the 3-arg cdecl
  * form shared by every sibling in this family.
@@ -12833,7 +12889,7 @@ void FUN_000c0630(int16_t function_index, int thread_datum, char init)
  *   MOV EAX, dword ptr [EAX+0x0]   ; record[0]
  * EAX is only overwritten by its own [EAX+0] load AFTER EDX has been taken,
  * so both reads are off the original record base (no aliasing subtlety).
- * Unlike the twin FUN_000c05b0, which loads its second worker arg as a BYTE,
+ * Unlike the twin ai_scripting_maneuver_enable_evaluate, which loads its second worker arg as a BYTE,
  * this one loads a full dword -- hence `record[1]` (int), not a char.
  *
  * ai_scripting_migrate_by_unit's kb decl was also the stale `void ai_scripting_migrate_by_unit(void);`; the
@@ -12843,14 +12899,14 @@ void FUN_000c0630(int16_t function_index, int thread_datum, char init)
  * cdecl, confirmed with check_stdcall_ret.py --addr 0x564b0).
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE (identical to
- * the one documented on FUN_000c05b0): the single `ADD ESP,0x10` at
+ * the one documented on ai_scripting_maneuver_enable_evaluate): the single `ADD ESP,0x10` at
  * 0x000c06a0 is a MERGED cdecl cleanup for BOTH tail calls -- 2 dwords for
  * ai_scripting_migrate_by_unit plus 2 dwords for hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions at all, no struct stores, no memset, and no buffer
  * pointers passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0670(int16_t function_index, int thread_datum, char init)
+void ai_scripting_migrate_by_unit_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -12876,7 +12932,7 @@ void FUN_000c0670(int16_t function_index, int thread_datum, char init)
  * then PUSH EDX; PUSH EAX (first PUSH = last C arg) => the signed word at +0x0
  * is arg 1 and the unsigned word at +0x4 is arg 2.  Do not swap them, and do
  * not widen the +0x4 field to int -- the zero-extension is load-width evidence
- * (lift-learnings 24), unlike the sibling FUN_000c0670 whose record fields are
+ * (lift-learnings 24), unlike the sibling ai_scripting_migrate_by_unit_evaluate whose record fields are
  * full dwords.  ai_scripting_allegiance's EAX is never tested or reused (the next
  * instruction pushes an immediate), so its result is discarded.
  *
@@ -12885,7 +12941,7 @@ void FUN_000c0670(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and reused for the hs_return call.
  * Ghidra rendered them as `in_stack_*` pseudo-locals over a
- * `void FUN_000c06b0(void)` signature and kb.json carried the matching stale
+ * `void ai_scripting_allegiance_evaluate(void)` signature and kb.json carried the matching stale
  * `(void)` decl -- the 0x158df0 ESP-drift trap of lift-learnings 31 -- so the
  * decl was corrected to the 3-arg cdecl form shared by every sibling here.
  *
@@ -12910,7 +12966,7 @@ void FUN_000c0670(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_allegiance_evaluate(int16_t function_index, int thread_datum, char init)
 {
   short *record;
 
@@ -12923,9 +12979,9 @@ void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c06f0 @ 0x000c06f0
+/* ai_scripting_allegiance_remove_evaluate @ 0x000c06f0
  * HS script function handler.  Structurally identical to the sibling
- * FUN_000c06b0 directly above; the ONLY difference is the worker it forwards
+ * ai_scripting_allegiance_evaluate directly above; the ONLY difference is the worker it forwards
  * to (ai_scripting_allegiance_remove @ 0x56790 here vs ai_scripting_allegiance @ 0x566a0 there).
  *
  * Evaluates the macro function's arguments via hs_macro_function_evaluate
@@ -12951,7 +13007,7 @@ void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and reused for the hs_return call.
  * Ghidra rendered them as `in_stack_*` pseudo-locals over a
- * `void FUN_000c06f0(void)` signature and kb.json carried the matching stale
+ * `void ai_scripting_allegiance_remove_evaluate(void)` signature and kb.json carried the matching stale
  * `(void)` decl -- the 0x158df0 ESP-drift trap of lift-learnings 31 -- so the
  * decl was corrected to the 3-arg cdecl form shared by every sibling here.
  *
@@ -12966,7 +13022,7 @@ void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c06f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_allegiance_remove_evaluate(int16_t function_index, int thread_datum, char init)
 {
   short *record;
 
@@ -12979,7 +13035,7 @@ void FUN_000c06f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0730 @ 0x000c0730
+/* ai_scripting_go_to_vehicle_evaluate @ 0x000c0730
  * HS script function handler.  Same evaluate / forward / hs_return shape as
  * every sibling in this run, but this one forwards THREE full 32-bit fields of
  * the evaluated-argument record instead of narrow 16-bit ones.
@@ -13025,7 +13081,7 @@ void FUN_000c06f0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a `void FUN_000c0730(void)` signature and dropped all
+ * pseudo-locals over a `void ai_scripting_go_to_vehicle_evaluate(void)` signature and dropped all
  * three arguments of the ai_scripting_go_to_vehicle call entirely.
  *
  * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
@@ -13039,7 +13095,7 @@ void FUN_000c06f0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0730(int16_t function_index, int thread_datum, char init)
+void ai_scripting_go_to_vehicle_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13052,9 +13108,9 @@ void FUN_000c0730(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0770 @ 0x000c0770
+/* ai_scripting_go_to_vehicle_override_evaluate @ 0x000c0770
  * HS script function handler.  Byte-for-byte structural twin of the preceding
- * FUN_000c0730, differing only in the forwarded worker (0x58cc0 instead of
+ * ai_scripting_go_to_vehicle_evaluate, differing only in the forwarded worker (0x58cc0 instead of
  * 0x58c40): evaluate the macro function's arguments, forward three full 32-bit
  * fields of the evaluated-argument record, then hand a literal 0 back to the
  * script thread.
@@ -13102,7 +13158,7 @@ void FUN_000c0730(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a `void FUN_000c0770(void)` signature and dropped all
+ * pseudo-locals over a `void ai_scripting_go_to_vehicle_override_evaluate(void)` signature and dropped all
  * three arguments of the 0x58cc0 call entirely.
  *
  * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
@@ -13116,7 +13172,7 @@ void FUN_000c0730(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0770(int16_t function_index, int thread_datum, char init)
+void ai_scripting_go_to_vehicle_override_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13130,7 +13186,7 @@ void FUN_000c0770(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c07b0 @ 0x000c07b0
+/* ai_scripting_exit_vehicle_evaluate @ 0x000c07b0
  * HS script function handler.  Same evaluate / forward / hs_return shape as the
  * neighbouring handlers, but forwards only ONE dword of the evaluated-argument
  * record to the worker at 0x568e0.
@@ -13170,13 +13226,13 @@ void FUN_000c0770(int16_t function_index, int thread_datum, char init)
  * Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/[EBP+0x10]; thread_datum is
  * cached in ESI and re-used as hs_return's first argument at the tail.  Ghidra
  * rendered the parameters as `in_stack_*` pseudo-locals over a
- * `void FUN_000c07b0(void)` signature; kb.json carried that same stale
+ * `void ai_scripting_exit_vehicle_evaluate(void)` signature; kb.json carried that same stale
  * zero-argument decl and it is widened here to the three real stack params.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c07b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_exit_vehicle_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13188,7 +13244,7 @@ void FUN_000c07b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c07f0 @ 0x000c07f0
+/* ai_scripting_braindead_evaluate @ 0x000c07f0
  * HS script function handler.  Same evaluate / forward / hs_return shape as
  * every sibling in this run; this one forwards ONE full 32-bit field plus ONE
  * zero-extended BYTE field of the evaluated-argument record.
@@ -13222,7 +13278,7 @@ void FUN_000c07b0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH, no FPU).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a `void FUN_000c07f0(void)` signature and kb.json carried
+ * pseudo-locals over a `void ai_scripting_braindead_evaluate(void)` signature and kb.json carried
  * the matching stale `(void)` decl -- the 0x158df0 ESP-drift trap of
  * lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl form shared
  * by every sibling here.
@@ -13238,7 +13294,7 @@ void FUN_000c07b0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c07f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_braindead_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13251,8 +13307,8 @@ void FUN_000c07f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0830 @ 0x000c0830
- * HS script function handler.  Structural twin of FUN_000c07f0 directly above;
+/* ai_scripting_braindead_by_unit_evaluate @ 0x000c0830
+ * HS script function handler.  Structural twin of ai_scripting_braindead_evaluate directly above;
  * the ONLY difference is the worker it forwards to (ai_scripting_braindead_by_unit @ 0x56a20
  * here vs ai_scripting_braindead @ 0x56980 there).  Evaluate the macro function's
  * arguments, forward one full 32-bit field plus one zero-extended byte field
@@ -13288,7 +13344,7 @@ void FUN_000c07f0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI across the whole body and re-used
  * as hs_return's first argument at the tail.  Ghidra rendered the parameters as
- * `in_stack_*` pseudo-locals over a `void FUN_000c0830(void)` signature and
+ * `in_stack_*` pseudo-locals over a `void ai_scripting_braindead_by_unit_evaluate(void)` signature and
  * kb.json carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift
  * trap of lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl
  * form shared by every sibling here.
@@ -13304,7 +13360,7 @@ void FUN_000c07f0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0830(int16_t function_index, int thread_datum, char init)
+void ai_scripting_braindead_by_unit_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13317,9 +13373,9 @@ void FUN_000c0830(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0870 @ 0x000c0870
+/* ai_scripting_ignore_evaluate @ 0x000c0870
  * HS script function handler.  Byte-for-byte structural twin of
- * FUN_000c0830 directly above (and of FUN_000c07f0 above that); the ONLY
+ * ai_scripting_braindead_by_unit_evaluate directly above (and of ai_scripting_braindead_evaluate above that); the ONLY
  * difference is the worker it forwards to (ai_scripting_ignore @ 0x56b20 here vs
  * ai_scripting_braindead_by_unit @ 0x56a20 / ai_scripting_braindead @ 0x56980).  Evaluate the macro
  * function's arguments, forward one full 32-bit field plus one zero-extended
@@ -13354,7 +13410,7 @@ void FUN_000c0830(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI across the whole body and re-used
  * as hs_return's first argument at the tail.  Ghidra rendered the parameters as
- * `in_stack_*` pseudo-locals over a `void FUN_000c0870(void)` signature and
+ * `in_stack_*` pseudo-locals over a `void ai_scripting_ignore_evaluate(void)` signature and
  * kb.json carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift
  * trap of lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl
  * form shared by every sibling here.
@@ -13370,7 +13426,7 @@ void FUN_000c0830(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0870(int16_t function_index, int thread_datum, char init)
+void ai_scripting_ignore_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13383,9 +13439,9 @@ void FUN_000c0870(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c08b0 @ 0x000c08b0
- * HS script function handler.  Structural twin of FUN_000c0870 directly above
- * (and of FUN_000c0830 / FUN_000c07f0 above that); the ONLY difference is the
+/* ai_scripting_prefer_target_evaluate @ 0x000c08b0
+ * HS script function handler.  Structural twin of ai_scripting_ignore_evaluate directly above
+ * (and of ai_scripting_braindead_by_unit_evaluate / ai_scripting_braindead_evaluate above that); the ONLY difference is the
  * worker it forwards to (ai_scripting_prefer_target @ 0x56bc0 here).  Evaluate the macro
  * function's arguments, forward one full 32-bit field plus one zero-extended
  * byte field of the evaluated-argument record, then hand a literal 0 back to
@@ -13420,7 +13476,7 @@ void FUN_000c0870(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH), ESI the only callee-saved register.  Args are ordinary
  * STACK args at [EBP+8]/[EBP+0xc]/[EBP+0x10]; thread_datum is cached in ESI
  * and reused for the hs_return call.  Ghidra rendered them as `in_stack_*`
- * pseudo-locals over a `void FUN_000c08b0(void)` signature and kb.json carried
+ * pseudo-locals over a `void ai_scripting_prefer_target_evaluate(void)` signature and kb.json carried
  * the matching stale `(void)` decl -- the 0x158df0 ESP-drift trap of
  * lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl form
  * shared by every sibling here.
@@ -13430,7 +13486,7 @@ void FUN_000c0870(int16_t function_index, int thread_datum, char init)
  * -- 2 dwords for ai_scripting_prefer_target plus 2 dwords for hs_return.  Do NOT "fix"
  * either decl.
  */
-void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_prefer_target_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13443,7 +13499,7 @@ void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c08f0 @ 0x000c08f0
+/* ai_scripting_teleport_starting_location_evaluate @ 0x000c08f0
  * HS script function handler.  Structural twin of the preceding sibling
  * handlers: evaluate the macro function's arguments, forward one full 32-bit
  * field of the evaluated-argument record to a worker, then hand a literal 0
@@ -13464,7 +13520,7 @@ void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
  *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
  *   PUSH EDX                   ; narrow-field load-width concern
  *                              ; (lift-learnings 24) -- do NOT narrow it.
- * Unlike the sibling FUN_000c06f0, which loads 16-bit fields via MOVSX/MOVZX,
+ * Unlike the sibling ai_scripting_allegiance_remove_evaluate, which loads 16-bit fields via MOVSX/MOVZX,
  * this record is typed `int *`.  ai_scripting_teleport_starting_location's return value in EAX is never
  * tested or reused (the next instruction pushes an immediate), so discarding
  * it is faithful to the original.
@@ -13474,7 +13530,7 @@ void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a `void FUN_000c08f0(void)` signature, and kb.json
+ * pseudo-locals over a `void ai_scripting_teleport_starting_location_evaluate(void)` signature, and kb.json
  * carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift trap of
  * lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl form
  * shared by every sibling here.
@@ -13490,7 +13546,7 @@ void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_teleport_starting_location_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13503,9 +13559,9 @@ void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0930 @ 0x000c0930
+/* ai_scripting_teleport_starting_location_if_unsupported_evaluate @ 0x000c0930
  * HS script function handler.  Structural twin of the immediately preceding
- * sibling FUN_000c08f0, differing only in the forwarded worker (0x56d80
+ * sibling ai_scripting_teleport_starting_location_evaluate, differing only in the forwarded worker (0x56d80
  * instead of 0x56de0): evaluate the macro function's arguments, forward one
  * full 32-bit field of the evaluated-argument record to a worker, then hand a
  * literal 0 back to the script thread.
@@ -13526,7 +13582,7 @@ void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
  *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
  *   PUSH EDX                   ; narrow-field load-width concern
  *                              ; (lift-learnings 24) -- do NOT narrow it.
- * Unlike the sibling FUN_000c06f0, which loads 16-bit fields via MOVSX/MOVZX,
+ * Unlike the sibling ai_scripting_allegiance_remove_evaluate, which loads 16-bit fields via MOVSX/MOVZX,
  * this record is typed `int *`.  ai_scripting_teleport_starting_location_if_unsupported's return value in EAX is never
  * tested or reused (the next instruction pushes an immediate), so discarding
  * it is faithful to the original.
@@ -13536,7 +13592,7 @@ void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI at 0x000c0938 and re-used as
  * hs_return's first argument at the tail.  Ghidra rendered the parameters as
- * `in_stack_*` pseudo-locals over a `void FUN_000c0930(void)` signature, and
+ * `in_stack_*` pseudo-locals over a `void ai_scripting_teleport_starting_location_if_unsupported_evaluate(void)` signature, and
  * kb.json carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift
  * trap of lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl
  * form shared by every sibling here.
@@ -13554,7 +13610,7 @@ void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
  * reference carries exactly three DISP32 relocations -- FUN_000cc560,
  * ai_scripting_teleport_starting_location_if_unsupported, FUN_000cbf80, one each -- matching the three calls below.
  */
-void FUN_000c0930(int16_t function_index, int thread_datum, char init)
+void ai_scripting_teleport_starting_location_if_unsupported_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13570,7 +13626,7 @@ void FUN_000c0930(int16_t function_index, int thread_datum, char init)
 /* 0xc0970 — HS script function handler: dispatch the result record's first
  * dword to FUN_00058d40, then return void to the calling HS thread.
  *
- * Byte-shape twin of FUN_000befd0 / FUN_000bf830 above; the ONLY difference is
+ * Byte-shape twin of unit_stop_custom_animation_evaluate / unit_scripting_doesnt_drop_items_evaluate above; the ONLY difference is
  * the middle callee. cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI;
  * POP EBP; RET (no RET immediate — caller cleans). No _chkstk, no locals.
  *
@@ -13613,7 +13669,7 @@ void FUN_000c0930(int16_t function_index, int thread_datum, char init)
  * (clang-only
  * __attribute__ / raw fnptr casts), so it would be permanently unmeasurable
  * there. */
-void FUN_000c0970(int16_t function_index, int thread_datum, char init)
+void ai_scripting_renew_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *result;
 
@@ -13625,9 +13681,9 @@ void FUN_000c0970(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c09b0 @ 0x000c09b0
+/* ai_scripting_try_to_fight_nothing_evaluate @ 0x000c09b0
  * HS script function handler.  Exact structural twin of the preceding sibling
- * FUN_000c0930, differing only in the forwarded worker (0x56e40 instead of
+ * ai_scripting_teleport_starting_location_if_unsupported_evaluate, differing only in the forwarded worker (0x56e40 instead of
  * 0x56d80) and the branch target: evaluate the macro function's arguments,
  * forward one full 32-bit field of the evaluated-argument record to a worker,
  * then hand a literal 0 back to the script thread.
@@ -13656,7 +13712,7 @@ void FUN_000c0970(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI at 0x000c09ba and re-used as
  * hs_return's first argument at the tail.  Ghidra rendered the parameters as
- * `in_stack_*` pseudo-locals over a `void FUN_000c09b0(void)` signature, and
+ * `in_stack_*` pseudo-locals over a `void ai_scripting_try_to_fight_nothing_evaluate(void)` signature, and
  * kb.json carried the matching stale `(void)` decl -- the 0x158df0 ESP-drift
  * trap of lift-learnings 31 -- so the decl was corrected to the 3-arg cdecl
  * form shared by every sibling here.
@@ -13672,7 +13728,7 @@ void FUN_000c0970(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c09b0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_try_to_fight_nothing_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13685,7 +13741,7 @@ void FUN_000c09b0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c09f0 @ 0x000c09f0
+/* ai_scripting_try_to_fight_evaluate @ 0x000c09f0
  * HS script function handler.  Same evaluate / forward / hs_return shape as
  * every sibling in this run; this is the TWO-field variant, forwarding the
  * first two full 32-bit fields of the evaluated-argument record to 0x56ed0.
@@ -13719,7 +13775,7 @@ void FUN_000c09b0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a stale `void FUN_000c09f0(void)` signature, which
+ * pseudo-locals over a stale `void ai_scripting_try_to_fight_evaluate(void)` signature, which
  * kb.json also carried -- the ESP-drift trap of lift-learnings 31; the decl
  * was widened to the three cdecl params before lifting.
  *
@@ -13734,7 +13790,7 @@ void FUN_000c09b0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c09f0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_try_to_fight_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13747,7 +13803,7 @@ void FUN_000c09f0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0a30 @ 0x000c0a30
+/* ai_scripting_try_to_fight_player_evaluate @ 0x000c0a30
  * HS script function handler.  Same evaluate / forward / hs_return shape as
  * every sibling in this run; this is the ONE-field variant, forwarding a single
  * full 32-bit field of the evaluated-argument record to 0x56fa0.
@@ -13781,7 +13837,7 @@ void FUN_000c09f0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a stale `void FUN_000c0a30(void)` signature, which kb.json
+ * pseudo-locals over a stale `void ai_scripting_try_to_fight_player_evaluate(void)` signature, which kb.json
  * also carried -- the ESP-drift trap of lift-learnings §31; the decl was
  * widened to the three cdecl params before lifting.
  *
@@ -13800,7 +13856,7 @@ void FUN_000c09f0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0a30(int16_t function_index, int thread_datum, char init)
+void ai_scripting_try_to_fight_player_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13813,7 +13869,7 @@ void FUN_000c0a30(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0a70 @ 0x000c0a70
+/* ai_scripting_command_list_evaluate @ 0x000c0a70
  * HS script function handler ("ai_command_list" family).  Same evaluate /
  * forward / hs_return shape as every sibling in this run; this is the TWO-field
  * variant, forwarding the evaluated-argument record's first dword and its
@@ -13851,7 +13907,7 @@ void FUN_000c0a30(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a stale `void FUN_000c0a70(void)` signature, which kb.json
+ * pseudo-locals over a stale `void ai_scripting_command_list_evaluate(void)` signature, which kb.json
  * also carried -- the ESP-drift trap of lift-learnings §31; the decl was
  * widened to the three cdecl params before lifting.
  *
@@ -13866,7 +13922,7 @@ void FUN_000c0a30(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0a70(int16_t function_index, int thread_datum, char init)
+void ai_scripting_command_list_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13879,7 +13935,7 @@ void FUN_000c0a70(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0ab0 @ 0x000c0ab0
+/* ai_scripting_command_list_by_unit_evaluate @ 0x000c0ab0
  * HS script function handler.  Same evaluate / forward / hs_return shape as the
  * 0xc0a70 sibling directly above: two-field variant forwarding a full 32-bit
  * field and a zero-extended 16-bit field to 0x57190.
@@ -13906,7 +13962,7 @@ void FUN_000c0a70(int16_t function_index, int thread_datum, char init)
  * Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/[EBP+0x10]; thread_datum is
  * cached in ESI and re-used as hs_return's first argument at the tail.  Ghidra
  * rendered the parameters as `in_stack_*` pseudo-locals over a stale
- * `void FUN_000c0ab0(void)` signature that kb.json also carried (§31 ESP-drift
+ * `void ai_scripting_command_list_by_unit_evaluate(void)` signature that kb.json also carried (§31 ESP-drift
  * trap); the decl is widened to the three cdecl params here.
  *
  * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
@@ -13920,7 +13976,7 @@ void FUN_000c0a70(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0ab0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_command_list_by_unit_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13933,7 +13989,7 @@ void FUN_000c0ab0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0af0 @ 0x000c0af0
+/* ai_scripting_command_list_advance_evaluate @ 0x000c0af0
  * HS script function handler.  Same evaluate / forward / hs_return shape as
  * every sibling in this run; this is the ONE-field variant, forwarding a single
  * full 32-bit field of the evaluated-argument record to 0x57230.
@@ -13965,7 +14021,7 @@ void FUN_000c0ab0(int16_t function_index, int thread_datum, char init)
  * _chkstk, no SEH).  Args are ordinary STACK args at [EBP+8]/[EBP+0xc]/
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a stale `void FUN_000c0af0(void)` signature, which kb.json
+ * pseudo-locals over a stale `void ai_scripting_command_list_advance_evaluate(void)` signature, which kb.json
  * also carried -- the ESP-drift trap of lift-learnings §31; the decl was
  * widened to the three cdecl params before lifting.
  *
@@ -13980,7 +14036,7 @@ void FUN_000c0ab0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0af0(int16_t function_index, int thread_datum, char init)
+void ai_scripting_command_list_advance_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -13993,9 +14049,9 @@ void FUN_000c0af0(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0b30 @ 0x000c0b30
+/* ai_scripting_command_list_advance_by_unit_evaluate @ 0x000c0b30
  * HS script function handler.  Structurally IDENTICAL to the immediately
- * preceding sibling FUN_000c0af0 (0x000c0af0); the ONLY difference is the
+ * preceding sibling ai_scripting_command_list_advance_evaluate (0x000c0af0); the ONLY difference is the
  * forwarding worker address (0x572c0 here vs 0x57230 there).  One-field
  * variant: forwards a single full 32-bit field of the evaluated-argument
  * record.
@@ -14027,7 +14083,7 @@ void FUN_000c0af0(int16_t function_index, int thread_datum, char init)
  * [EBP+0x10]; thread_datum is cached in ESI across the evaluate call and
  * re-used as hs_return's first argument at the tail -- it is the SAME value,
  * not a separate local.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a stale `void FUN_000c0b30(void)` signature, which
+ * pseudo-locals over a stale `void ai_scripting_command_list_advance_by_unit_evaluate(void)` signature, which
  * kb.json also carried -- the ESP-drift trap of lift-learnings S31; the decl
  * was widened to the three cdecl params before lifting.
  *
@@ -14042,7 +14098,7 @@ void FUN_000c0af0(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
+void ai_scripting_command_list_advance_by_unit_evaluate(int16_t function_index, int thread_datum, char init)
 {
   int *record;
 
@@ -14055,9 +14111,9 @@ void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
   }
 }
 
-/* FUN_000c0b70 @ 0x000c0b70
+/* ai_scripting_force_active_evaluate @ 0x000c0b70
  * HS script function handler.  Same family as the preceding siblings
- * FUN_000c0af0 / FUN_000c0b30: evaluate the script arguments, then forward
+ * ai_scripting_command_list_advance_evaluate / ai_scripting_command_list_advance_by_unit_evaluate: evaluate the script arguments, then forward
  * fields of the evaluated-argument record to one worker and hand a literal 0
  * back to the calling thread.  Two-field variant, mixed widths.
  *
@@ -14082,7 +14138,7 @@ void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
  *   PUSH EAX   ; second push => C arg 1
  * so the call is ai_scripting_force_active(dword@+0x0, byte@+0x4).  The +0x4 field is an
  * 8-bit ZERO-extended load and must NOT be widened to short/int (S24
- * load-width); this is where the function differs from sibling FUN_000c06f0,
+ * load-width); this is where the function differs from sibling ai_scripting_allegiance_remove_evaluate,
  * which reads a zero-extended WORD at the same offset.  Ghidra rendered the
  * field as `puVar1[1]` on a `uint *`, which would emit a dword load -- a
  * decompiler artifact, not the binary.  ai_scripting_force_active (ai_force_active) is
@@ -14095,7 +14151,7 @@ void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
  * [EBP+0x10]; thread_datum is cached in ESI across the evaluate call and
  * re-used as hs_return's first argument at the tail -- it is the SAME value,
  * not a separate local.  Ghidra rendered the parameters as `in_stack_*`
- * pseudo-locals over a stale `void FUN_000c0b70(void)` signature, which
+ * pseudo-locals over a stale `void ai_scripting_force_active_evaluate(void)` signature, which
  * kb.json also carried -- the ESP-drift trap of lift-learnings S31; the decl
  * was widened to the three cdecl params before lifting.
  *
@@ -14110,7 +14166,7 @@ void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.
  */
-void FUN_000c0b70(int16_t function_index, int thread_datum, char init)
+void ai_scripting_force_active_evaluate(int16_t function_index, int thread_datum, char init)
 {
   unsigned char *record;
 

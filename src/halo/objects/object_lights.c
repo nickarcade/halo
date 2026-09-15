@@ -97,7 +97,7 @@ void lights_dispose_from_old_map(void)
  *
  * Confirmed: MOV AL,byte ptr [EBP+0x8]; MOV ECX,[0x46f074];
  *            RET, so the byte return value is the value just written. The
- *            sole ported caller (FUN_000becd0 in players.c) consumes AL.
+ *            sole ported caller (lights_enable_evaluate in players.c) consumes AL.
  */
 unsigned char lights_enable(unsigned char value)
 {

@@ -539,7 +539,7 @@ void *FUN_001c1950(void *param_1, int param_2)
 
 /* 0x1c19c0
  * Returns a random value in [0, 0x11] (0-17 inclusive) using the local
- * random seed. Single caller: FUN_0012c750.
+ * random seed. Single caller: get_unique_random_color.
  */
 int FUN_001c19c0(void)
 {
