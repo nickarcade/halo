@@ -186,7 +186,7 @@ void weapon_play_first_person_weapon_sound(int param_2, int object_handle)
 /* Toggle the first-person weapon activation state for a local player (0xdcb30).
  * When activating (activate != 0): asserts weapon_index != NONE, then calls
  * effects_start_on_first_person_weapon to start effects. When deactivating:
- * calls effects_stop_on_first_person_weapon to stop effects and FUN_000a1510 to
+ * calls effects_stop_on_first_person_weapon to stop effects and particles_stop_on_first_person_weapon to
  * stop sounds. Only acts if the state changes. */
 void first_person_weapon_set_visibility(int16_t local_player_index, uint8_t activate)
 {
@@ -206,7 +206,7 @@ void first_person_weapon_set_visibility(int16_t local_player_index, uint8_t acti
       return;
     }
     effects_stop_on_first_person_weapon((int)local_player_index);
-    FUN_000a1510((int)local_player_index);
+    particles_stop_on_first_person_weapon((int)local_player_index);
     *(uint8_t *)fp = 0;
   }
 }
@@ -632,7 +632,7 @@ void first_person_weapon_switch_weapons(int param_1)
       char *fp2 = (char *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
       if (*(uint8_t *)fp2 != 0) {
         effects_stop_on_first_person_weapon(param_1);
-        FUN_000a1510(param_1);
+        particles_stop_on_first_person_weapon(param_1);
         *(uint8_t *)fp2 = 0;
       }
     }
