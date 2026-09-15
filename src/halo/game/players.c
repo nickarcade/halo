@@ -1781,7 +1781,7 @@ bool player_try_to_spawn_in_vehicle(int player_handle /* @<eax> */)
 
   case 10:
     /* Device group interaction */
-    device_group_set_real(*(int *)(player + 0x24), *(int *)(player + 0x34));
+    device_touched(*(int *)(player + 0x24), *(int *)(player + 0x34));
     return true;
 
   case 11: {
@@ -2741,7 +2741,7 @@ void player_set_action_result_for_equipment(int player_handle,
                                   *(int *)eqip_obj);
   }
   if (*(int16_t *)(player + 2) != -1) {
-    item_activate_equipment_effect(equipment_handle);
+    equipment_handle_pickup(equipment_handle);
   }
   object_delete(equipment_handle);
 }

@@ -667,7 +667,7 @@ void actor_start_burst(int actor_handle)
     weapon_handle = actor_get_weapon(actor_handle);
     if (weapon_handle != -1) {
       weapon_obj = (int *)object_get_and_verify_type(weapon_handle, 4);
-      projectile_damage = FUN_000fac20(*weapon_obj, &max_range);
+      projectile_damage = weapon_definition_get_damage_potential(*weapon_obj, &max_range);
       if (*(float *)(actv + 0x78) > *(float *)0x2533c0 &&
           max_range > *(float *)(actv + 0x78)) {
         max_range = *(float *)(actv + 0x78);
