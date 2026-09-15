@@ -1,9 +1,7 @@
 #include "x87_math.h"
 
-extern double floor(double);
-
 /*
- * FUN_00098970 — consistency check for a doubly-linked decal entry.
+ * decal_check — consistency check for a doubly-linked decal entry.
  * Verifies that the decal's prev (0x30) and next (0x34) neighbors share the
  * same cluster_index (+4) and, if layer_check is true, the same layer (+6).
  * Calls datum_get twice per neighbor to read each field independently,
@@ -11,47 +9,43 @@ extern double floor(double);
  *
  * 0x98970 / decals.obj
  */
-void FUN_00098970(int handle, bool layer_check)
+void decal_check(int handle, bool layer_check)
 {
-  decal_datum_t *decal;
-  decal_datum_t *other;
+  void *decal;
+  void *other;
   int16_t cluster;
   int16_t lyr;
 
-  decal = (decal_datum_t *)datum_get(global_decal_data, handle);
+  decal = datum_get(global_decal_data, handle);
 
-  if (decal->previous_decal_index != NONE) {
-    other = (decal_datum_t *)datum_get(global_decal_data,
-                                       decal->previous_decal_index);
-    cluster = other->cluster_index;
-    other = (decal_datum_t *)datum_get(global_decal_data,
-                                       decal->previous_decal_index);
-    lyr = other->layer;
-    if (cluster != decal->cluster_index) {
+  if (*(int *)((char *)decal + 0x30) != -1) {
+    other = datum_get(global_decal_data, *(int *)((char *)decal + 0x30));
+    cluster = *(int16_t *)((char *)other + 4);
+    other = datum_get(global_decal_data, *(int *)((char *)decal + 0x30));
+    lyr = *(int16_t *)((char *)other + 6);
+    if (cluster != *(int16_t *)((char *)decal + 4)) {
       display_assert("cluster_index==decal->cluster_index",
                      "c:\\halo\\SOURCE\\effects\\decals.c", 0xc2, 1);
       system_exit(-1);
     }
-    if (layer_check && lyr != decal->layer) {
+    if (layer_check && lyr != *(int16_t *)((char *)decal + 6)) {
       display_assert("!layer_check || layer==decal->layer",
                      "c:\\halo\\SOURCE\\effects\\decals.c", 0xc3, 1);
       system_exit(-1);
     }
   }
 
-  if (decal->next_decal_index != NONE) {
-    other = (decal_datum_t *)datum_get(global_decal_data,
-                                       decal->next_decal_index);
-    cluster = other->cluster_index;
-    other = (decal_datum_t *)datum_get(global_decal_data,
-                                       decal->next_decal_index);
-    lyr = other->layer;
-    if (cluster != decal->cluster_index) {
+  if (*(int *)((char *)decal + 0x34) != -1) {
+    other = datum_get(global_decal_data, *(int *)((char *)decal + 0x34));
+    cluster = *(int16_t *)((char *)other + 4);
+    other = datum_get(global_decal_data, *(int *)((char *)decal + 0x34));
+    lyr = *(int16_t *)((char *)other + 6);
+    if (cluster != *(int16_t *)((char *)decal + 4)) {
       display_assert("cluster_index==decal->cluster_index",
                      "c:\\halo\\SOURCE\\effects\\decals.c", 0xcb, 1);
       system_exit(-1);
     }
-    if (layer_check && lyr != decal->layer) {
+    if (layer_check && lyr != *(int16_t *)((char *)decal + 6)) {
       display_assert("!layer_check || layer==decal->layer",
                      "c:\\halo\\SOURCE\\effects\\decals.c", 0xcc, 1);
       system_exit(-1);
@@ -60,30 +54,31 @@ void FUN_00098970(int handle, bool layer_check)
 }
 
 /*
- * FUN_00098aa0 — set the first decal datum index for a cluster/layer slot.
+ * decal_set_first_decal_index — set the first decal datum index for a cluster/layer slot.
  * Validates cluster_index in [0, 512) and layer in [0, 5), then writes
  * param_1 into decal_globals at [layer * 512 + cluster_index].
- * Counterpart to FUN_00098fe0 (getter). Takes cluster_index in SI, layer in DI.
+ * Counterpart to decal_get_first_decal_index (getter). Takes cluster_index in SI, layer in DI.
  *
  * 0x98aa0 / decals.obj
  */
-void FUN_00098aa0(int16_t cluster_index, int16_t layer, int param_1)
+void decal_set_first_decal_index(int16_t cluster_index, int16_t layer, int param_1)
 {
-  if (cluster_index < 0 || cluster_index >= MAXIMUM_CLUSTERS_PER_STRUCTURE) {
+  if (cluster_index < 0 || cluster_index >= 0x200) {
     display_assert(
       "cluster_index>=0 && cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
       "c:\\halo\\SOURCE\\effects\\decals.c", 0xd8, 1);
     system_exit(-1);
   }
-  if (layer < 0 || layer >= NUMBER_OF_DECAL_LAYERS) {
+  if (layer < 0 || layer >= 5) {
     display_assert("layer>=0 && layer<NUMBER_OF_DECAL_LAYERS",
                    "c:\\halo\\SOURCE\\effects\\decals.c", 0xd9, 1);
     system_exit(-1);
   }
-  decal_globals->first_decal_index[layer][cluster_index] = param_1;
+  *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4) =
+    param_1;
 }
 
-void FUN_00098b20(float *sprite_bounds, void *definition,
+void decal_sprite_get_bounds(float *sprite_bounds, void *definition,
                   int16_t sequence_index, int16_t sprite_index, float extent,
                   float *out_extent)
 {
@@ -117,7 +112,7 @@ void FUN_00098b20(float *sprite_bounds, void *definition,
 
   definition_data = (char *)definition;
 
-  bitmap_tag = (char *)tag_get(TAG_GROUP_BITM, *(int *)(definition_data + 0xe4));
+  bitmap_tag = (char *)tag_get(0x6269746d, *(int *)(definition_data + 0xe4));
   sequence =
     (char *)tag_block_get_element(bitmap_tag + 0x54, (int)sequence_index, 0x40);
   sprite =
@@ -153,12 +148,10 @@ void FUN_00098b20(float *sprite_bounds, void *definition,
 
 void decals_initialize(void)
 {
-  global_decal_data = game_state_data_new("decals", MAXIMUM_DECALS,
-                                         sizeof(decal_datum_t));
+  global_decal_data = game_state_data_new("decals", 0x800, 0x38);
   assert_halt(global_decal_data);
   global_decal_data->identifier_zero_invalid = 1;
-  decal_globals = (decal_globals_t *)game_state_malloc(
-    "decal globals", 0, sizeof(decal_globals_t));
+  decal_globals = (char *)game_state_malloc("decal globals", 0, 0x280c);
   assert_halt(decal_globals);
   rasterizer_decals_initialize();
   decal_counts_0 = 0;
@@ -169,11 +162,10 @@ void decals_initialize_for_new_map(void)
 {
   assert_halt(global_decal_data);
   assert_halt(decal_globals);
-  csmemset(decal_globals->first_decal_index, 0xFF,
-           sizeof(decal_globals->first_decal_index));
-  decal_globals->first_disconnected_decal_index = NONE;
-  decal_globals->locked_count = 0;
-  decal_globals->permanent_count = 0;
+  csmemset(decal_globals, 0xFF, 0x2800);
+  *(_DWORD *)(decal_globals + 0x2800) = -1;
+  *(_DWORD *)(decal_globals + 0x2804) = 0;
+  *(_DWORD *)(decal_globals + 0x2808) = 0;
   data_delete_all(global_decal_data);
   rasterizer_decals_initialize_for_new_map();
   decal_counts_0 = 0;
@@ -194,7 +186,7 @@ void decals_dispose(void)
   rasterizer_decals_dispose();
 }
 
-/* decals_update_for_new_map (0x98e70)
+/* decals_unlock (0x98e70)
  *
  * Scans every live decal entry and clears transient-lifetime flags:
  *   bit 0 (0x1) = "locked"   — always cleared, decrements locked count
@@ -209,55 +201,59 @@ void decals_dispose(void)
  * The bit fields are in the uint16_t at decal_entry+0x2; the counts
  * live in decal_globals+0x2804 (locked) and decal_globals+0x2808 (permanent).
  */
-void decals_update_for_new_map(bool full_reset)
+void decals_unlock(bool full_reset)
 {
   data_iter_t iter;
-  decal_datum_t *decal;
+  int16_t *entry;
+  char *dg;
 
   assert_halt(global_decal_data);
 
-  if (global_decal_data->valid) {
+  if (*(uint8_t *)((char *)global_decal_data + 0x24) != 0) {
     assert_halt(decal_globals);
 
     data_iterator_new(&iter, global_decal_data);
-    while ((decal = (decal_datum_t *)data_iterator_next(&iter)) != NULL) {
-      if (decal->flags & 1) {
+    entry = (int16_t *)data_iterator_next(&iter);
+    while (entry != NULL) {
+      dg = decal_globals;
+      if (entry[1] & 1) {
         /* Clear locked flag and decrement locked count. */
-        decal->flags &= ~1;
-        decal_globals->locked_count--;
+        entry[1] = (int16_t)(entry[1] & ~1);
+        *(int *)(dg + 0x2804) -= 1;
       }
-      if (full_reset && (decal->flags & 2)) {
+      if (full_reset && (entry[1] & 2)) {
         /* Clear permanent flag and decrement permanent count. */
-        decal->flags &= ~2;
-        decal_globals->permanent_count--;
+        entry[1] = (int16_t)(entry[1] & ~2);
+        *(int *)(dg + 0x2808) -= 1;
       }
+      entry = (int16_t *)data_iterator_next(&iter);
+      dg = decal_globals;
     }
 
-    /* Sanity-check locked count.
-     * Original uses absolute BSS bytes at 0x4557de/0x4557df (function-static
-     * latches). Named kb.json symbols compile through a reloc and drop VC71. */
-    if (decal_globals->locked_count != 0) {
+    dg = decal_globals;
+
+    /* Sanity-check locked count. */
+    if (*(int *)(dg + 0x2804) != 0) {
       if (*(uint8_t *)0x4557de == 0) {
         error(
           2, "### ERROR decals: locked count is invalid (#%d) -- tell Bernie!!",
-          decal_globals->locked_count);
+          *(int *)(dg + 0x2804));
         *(uint8_t *)0x4557de = 1;
       }
-      decal_globals->locked_count = 0;
+      *(int *)(decal_globals + 0x2804) = 0;
     }
 
     /* Sanity-check permanent count (only meaningful on full reset). */
-    if (full_reset) {
-      if (decal_globals->permanent_count != 0) {
-        if (*(uint8_t *)0x4557df == 0) {
-          error(
-            2,
-            "### ERROR decals: permanent count is invalid (#%d) -- tell Bernie!!",
-            decal_globals->permanent_count);
-          *(uint8_t *)0x4557df = 1;
-        }
-        decal_globals->permanent_count = 0;
+    if (full_reset && *(int *)(dg + 0x2808) != 0) {
+      if (*(uint8_t *)0x4557df == 0) {
+        error(
+          2,
+          "### ERROR decals: permanent count is invalid (#%d) -- tell Bernie!!",
+          *(int *)(dg + 0x2808));
+        *(uint8_t *)0x4557df = 1;
+        dg = decal_globals;
       }
+      *(int *)(dg + 0x2808) = 0;
     }
   }
 
@@ -270,13 +266,13 @@ void decals_update_for_new_map(bool full_reset)
  * Returns the first decal datum index for the given cluster and layer.
  * Validates that cluster_index is in [0, 512) and layer is in [0, 5).
  * Indexes into the decal_globals array: [layer * 512 + cluster_index]. */
-int FUN_00098fe0(int16_t cluster_index, int16_t layer)
+int decal_get_first_decal_index(int16_t cluster_index, int16_t layer)
 {
-  assert_halt(cluster_index >= 0 &&
-              cluster_index < MAXIMUM_CLUSTERS_PER_STRUCTURE);
-  assert_halt(layer >= 0 && layer < NUMBER_OF_DECAL_LAYERS);
+  assert_halt(cluster_index >= 0 && cluster_index < 0x200);
+  assert_halt(layer >= 0 && layer < 5);
 
-  return decal_globals->first_decal_index[layer][cluster_index];
+  return *(int *)(decal_globals +
+                  ((int)layer * 0x200 + (int)cluster_index) * 4);
 }
 
 /* Projection axis remapping table at 0x28cb10. */
@@ -361,7 +357,7 @@ float triple_product3d(float *p, float *q, float *r)
  */
 float *plane2d_from_points(float *out_line, float *point_a, float *point_b)
 {
-  double length;
+  float length;
   float inv_length;
   float norm_a;
   float norm_b;
@@ -369,16 +365,16 @@ float *plane2d_from_points(float *out_line, float *point_a, float *point_b)
   out_line[0] = point_b[1] - point_a[1];
   out_line[1] = point_a[0] - point_b[0];
 
-  length = x87_sqrtd(out_line[0] * out_line[0] + out_line[1] * out_line[1]);
+  length = x87_sqrt(out_line[0] * out_line[0] + out_line[1] * out_line[1]);
 
-  if (!(fabs(length) < *(double *)0x2533d0)) {
-    inv_length = *(float *)0x2533c8 / (float)length;
+  if (!(x87_fabs(length) < *(double *)0x2533d0)) {
+    inv_length = *(float *)0x2533c8 / length;
     norm_a = inv_length * out_line[0];
     out_line[0] = norm_a;
     norm_b = inv_length * out_line[1];
     out_line[1] = norm_b;
 
-    if ((float)length != *(float *)0x2533c0) {
+    if (length != *(float *)0x2533c0) {
       out_line[2] = norm_a * point_a[0] + norm_b * point_a[1];
       return out_line;
     }
@@ -389,7 +385,7 @@ float *plane2d_from_points(float *out_line, float *point_a, float *point_b)
 }
 
 /*
- * FUN_00099490 — build a 3D plane from a point on the plane and its normal.
+ * plane3d_from_point_and_normal — build a 3D plane from a point on the plane and its normal.
  *
  * plane_out[0..2] = normal[0..2] (copied via integer moves in the original,
  * which is what VC71 emits for plain float assignment), and
@@ -404,11 +400,16 @@ float *plane2d_from_points(float *out_line, float *point_a, float *point_b)
  *
  * 0x99490 / decals.obj
  */
-void FUN_00099490(float *plane_out, float *point, float *normal)
+void plane3d_from_point_and_normal(float *plane_out, float *point, float *normal)
 {
-  *(vector3_t *)plane_out = *(vector3_t *)normal;
+  float *plane_normal;
+
+  plane_normal = plane_out;
+  plane_normal[0] = normal[0];
+  plane_normal[1] = normal[1];
+  plane_normal[2] = normal[2];
   plane_out[3] =
-    ((plane_out[2] * point[2] + plane_out[1] * point[1]) + plane_out[0] * point[0]);
+    plane_out[0] * point[0] + plane_out[1] * point[1] + plane_out[2] * point[2];
 }
 
 /* Signed distance from a point to a plane (normal·point - d). */
@@ -421,8 +422,10 @@ float plane3d_distance_to_point(float *plane, float *point)
 uint32_t real_a_rgb_color_to_pixel32(float alpha, float *color)
 {
   volatile float scale;
-  long temp;
-  long pixel;
+  uint32_t b;
+  uint32_t g;
+  uint32_t r;
+  uint32_t a;
 
   scale = 255.0f;
   if (!(alpha >= 0.0f && alpha <= 1.0f)) {
@@ -432,33 +435,19 @@ uint32_t real_a_rgb_color_to_pixel32(float alpha, float *color)
   }
 
   if (!valid_real_rgb_color(color)) {
-    display_assert(
-      csprintf(error_string_buffer,
-               "%s: assert_valid_real_rgb_color(%f, %f, %f)", "color",
-               (double)color[0], (double)color[1], (double)color[2]),
-      "..\\bitmaps\\bitmaps_inlines.h", 0xf4, true);
+    csprintf((char *)0x5ab100, "%s: assert_valid_real_rgb_color(%f, %f, %f)",
+             "color", (double)color[0], (double)color[1], (double)color[2]);
+    display_assert((const char *)0x5ab100,
+                   "..\\bitmaps\\bitmaps_inlines.h", 0xf4, true);
     system_exit(-1);
   }
 
-  temp = x87_round_to_int(color[2] * scale);
-  temp &= 0xff;
-  pixel = temp;
+  b = (uint32_t)(int)(color[2] * scale) & 0xff;
+  g = (uint32_t)(int)(color[1] * scale) & 0xff;
+  r = (uint32_t)(int)(color[0] * scale) & 0xff;
+  a = (uint32_t)(int)(alpha * scale);
 
-  temp = x87_round_to_int(color[1] * scale);
-  temp &= 0xff;
-  temp <<= 8;
-  pixel |= temp;
-
-  temp = x87_round_to_int(color[0] * scale);
-  temp &= 0xff;
-  temp <<= 16;
-  pixel |= temp;
-
-  temp = x87_round_to_int(alpha * scale);
-  temp <<= 24;
-  pixel |= temp;
-
-  return (uint32_t)pixel;
+  return b | (g << 8) | (r << 0x10) | (a << 0x18);
 }
 
 /* bsp3d_get_plane_from_designator (0x99640)
@@ -472,19 +461,21 @@ uint32_t real_a_rgb_color_to_pixel32(float alpha, float *color)
 void bsp3d_get_plane_from_designator(int structure_bsp,
                                      uint32_t plane_reference, float *out_plane)
 {
-  real_plane3d *plane_data;
+  float *plane_data;
 
-  plane_data = (real_plane3d *)tag_block_get_element(
-    (char *)&((collision_bsp_t *)structure_bsp)->planes,
-    (int)(plane_reference & 0x7fffffff), 0x10);
+  plane_data = (float *)tag_block_get_element(
+    (char *)structure_bsp + 0xc, (int)(plane_reference & 0x7fffffff), 0x10);
 
-  if (plane_reference & 0x80000000) {
-    out_plane[0] = -plane_data->normal[0];
-    out_plane[1] = -plane_data->normal[1];
-    out_plane[2] = -plane_data->normal[2];
-    out_plane[3] = -plane_data->d;
+  if ((int)plane_reference < 0) {
+    out_plane[0] = -plane_data[0];
+    out_plane[1] = -plane_data[1];
+    out_plane[2] = -plane_data[2];
+    out_plane[3] = -plane_data[3];
   } else {
-    *(real_plane3d *)out_plane = *plane_data;
+    out_plane[0] = plane_data[0];
+    out_plane[1] = plane_data[1];
+    out_plane[2] = plane_data[2];
+    out_plane[3] = plane_data[3];
   }
 }
 
@@ -498,7 +489,7 @@ void bsp3d_get_plane_from_designator(int structure_bsp,
  * Retirement releases the decal's claim on the locked-decal budget if it held
  * one (flag bit 0), then calls the rasterizer-side free FUN_0017cb10. The
  * "tell Bernie" underflow warning is the same one-shot pattern as in
- * decals_update_for_new_map above, with its own latch byte (0x4557dc here,
+ * decals_unlock above, with its own latch byte (0x4557dc here,
  * 0x4557dd there) so the two sites report independently.
  *
  * Decal fields used:
@@ -549,202 +540,216 @@ void bsp3d_get_plane_from_designator(int structure_bsp,
  */
 void decal_update(int decal_index)
 {
-  decal_datum_t *decal;
+  char *decal;
   int16_t flags;
   float age;
   float f;
 
-  decal = (decal_datum_t *)datum_get(global_decal_data, decal_index);
-  age = (float)(game_time_get() - decal->birth_time) * 0.033333335f;
+  decal = (char *)datum_get(global_decal_data, decal_index);
+  age = (float)(game_time_get() - *(int *)(decal + 0x14)) * 0.033333335f;
 
-  if (decal->definition_index == NONE) {
+  if (*(int *)(decal + 0x2c) == NONE) {
     display_assert("decal->definition_index!=NONE",
                    "c:\\halo\\SOURCE\\effects\\decals.c", 0x133, true);
     system_exit(-1);
   }
-  tag_get(TAG_GROUP_DECAL, decal->definition_index);
+  tag_get(0x64656361 /* 'deca' */, *(int *)(decal + 0x2c));
 
-  flags = decal->flags;
-  decal->alpha = 0xff;
-  if ((flags & (1 << _decal_permanent_bit)) != 0)
+  flags = *(int16_t *)(decal + 2);
+  *(uint8_t *)(decal + 0x28) = 0xff;
+  if ((flags & 2) != 0)
     return;
 
-  if (decal->lifetime != 0.0f && age >= decal->lifetime) {
-    if ((flags & (1 << _decal_locked_bit)) != 0) {
-      decal->flags = (int16_t)(flags & 0xfffe);
-      decal_globals->locked_count -= 1;
-      if (decal_globals->locked_count < 0 &&
-          decals_reported_locked_count_update == 0) {
+  if (*(float *)(decal + 0x1c) != 0.0f && age >= *(float *)(decal + 0x1c)) {
+    if ((flags & 1) != 0) {
+      *(int16_t *)(decal + 2) = (int16_t)(flags & 0xfffe);
+      *(int *)(decal_globals + 0x2804) -= 1;
+      if (*(int *)(decal_globals + 0x2804) < 0 && *(uint8_t *)0x4557dc == 0) {
         error(
           2, "### ERROR decals: locked count is invalid (#%d) -- tell Bernie!!",
-          decal_globals->locked_count);
-        decals_reported_locked_count_update = 1;
+          *(int *)(decal_globals + 0x2804));
+        *(uint8_t *)0x4557dc = 1;
       }
     }
     FUN_0017cb10(decal_index);
     return;
   }
 
-  if (decal->lifetime <= 0.0f)
+  if (*(float *)(decal + 0x1c) <= 0.0f)
     return;
-  if (decal->decay_time <= 0.0f)
+  if (*(float *)(decal + 0x20) <= 0.0f)
     return;
-  if (decal->lifetime - age >= decal->decay_time)
+  if (*(float *)(decal + 0x1c) - age >= *(float *)(decal + 0x20))
     return;
 
-  f = (decal->lifetime - age) / decal->decay_time;
+  f = (*(float *)(decal + 0x1c) - age) / *(float *)(decal + 0x20);
   if (!(f >= 0.0f && f <= 1.0f)) {
     display_assert("f>=0.0f && f<=1.0f", "c:\\halo\\SOURCE\\effects\\decals.c",
                    0x142, true);
     system_exit(-1);
   }
-  decal->alpha = (uint8_t)x87_round_to_int(f * 255.0f);
+  *(uint8_t *)(decal + 0x28) = (uint8_t)x87_round_to_int(f * 255.0f);
 }
 
 /*
- * FUN_00099840 — prepend a decal to the cluster/layer linked list.
+ * decal_reinsert — prepend a decal to the cluster/layer linked list.
  *
- * Reads the current list head via FUN_00098fe0, then initialises the decal's
+ * Reads the current list head via decal_get_first_decal_index, then initialises the decal's
  * link fields (prev=-1, next=old_head, cluster_index, layer) via datum_get on
  * global_decal_data. If the old head exists it back-links its prev to the new
- * decal. Finally calls FUN_00098aa0 to update the list head.
+ * decal. Finally calls decal_set_first_decal_index to update the list head.
  *
  * cluster_index@<ecx>, layer@<ax> are register args; decal_handle is on the
  * stack. ESI=cluster_index, EDI=layer are preserved throughout for the
- * FUN_00098aa0 call.
+ * decal_set_first_decal_index call.
  *
  * 0x99840 / decals.obj
  */
-void FUN_00099840(int16_t cluster_index, int16_t layer, int decal_handle)
+void decal_reinsert(int16_t cluster_index, int16_t layer, int decal_handle)
 {
   int old_head;
-  decal_datum_t *decal;
-  decal_datum_t *old_head_decal;
+  char *decal;
+  char *old_head_decal;
 
-  old_head = FUN_00098fe0(cluster_index, layer);
-  decal = (decal_datum_t *)datum_get(global_decal_data, decal_handle);
-  decal->previous_decal_index = NONE;
-  decal->next_decal_index = old_head;
-  decal->cluster_index = cluster_index;
-  decal->layer = layer;
-  if (old_head != NONE) {
-    old_head_decal = (decal_datum_t *)datum_get(global_decal_data, old_head);
-    old_head_decal->previous_decal_index = decal_handle;
+  old_head = decal_get_first_decal_index(cluster_index, layer);
+  decal = (char *)datum_get(global_decal_data, decal_handle);
+  *(int *)(decal + 0x30) = -1;
+  *(int *)(decal + 0x34) = old_head;
+  *(int16_t *)(decal + 4) = cluster_index;
+  *(int16_t *)(decal + 6) = layer;
+  if (old_head != -1) {
+    old_head_decal = (char *)datum_get(global_decal_data, old_head);
+    *(int *)(old_head_decal + 0x30) = decal_handle;
   }
-  FUN_00098aa0(cluster_index, layer, decal_handle);
+  decal_set_first_decal_index(cluster_index, layer, decal_handle);
 }
 
 static void decals_log_invalid_decal_type_once(
   int16_t decal_type, int decal_tag_index, const char *decal_name,
   int bitmap_tag_index, const char *bitmap_name, const char *context);
 
-int FUN_000998b0(int new_index_hint, int16_t cluster_index, int16_t layer,
+int decal_insert(int new_index_hint, int16_t cluster_index, int16_t layer,
                  int old_index, bool randomize)
 {
   int decal_index;
-  decal_datum_t *decal;
+  int decal;
   int previous_index;
-  decal_datum_t *previous_decal;
-  decal_datum_t *existing_decal;
-  int random_scaled;
-  int16_t unlock_passes;
+  int previous_decal;
+  int existing_decal;
+  uint32_t random_scaled;
+  int unlock_passes;
   data_iter_t iter;
-  decal_datum_t *candidate;
+  char *candidate;
 
   decal_index = data_new_datum(global_decal_data, new_index_hint);
   unlock_passes = 0;
 
-  if (cluster_index < 0 || cluster_index >= MAXIMUM_CLUSTERS_PER_STRUCTURE) {
+  if (cluster_index < 0 || cluster_index >= 0x200) {
     display_assert(
       "cluster_index>=0 && cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
       "c:\\halo\\SOURCE\\effects\\decals.c", 0x1df, true);
     system_exit(-1);
   }
 
-  if (layer < 0 || layer >= NUMBER_OF_DECAL_LAYERS) {
+  if (layer < 0 || layer >= 5) {
     display_assert("layer>=0 && layer<NUMBER_OF_DECAL_LAYERS",
                    "c:\\halo\\SOURCE\\effects\\decals.c", 0x1e0, true);
     system_exit(-1);
   }
 
-  if (decal_index != NONE) {
-    decal = (decal_datum_t *)datum_get(global_decal_data, decal_index);
+  if (decal_index == -1) {
+    error(2, "### ERROR failed to insert decal");
+    return -1;
+  }
 
-    if (randomize) {
-      decal->flags = (int16_t)(1 << _decal_permanent_bit);
-      decal_globals->permanent_count += 1;
-    } else {
-      random_scaled = (int)random_seed_step(random_math_get_local_seed_address()) * 100;
+  decal = (int)datum_get(global_decal_data, decal_index);
 
-      if (random_scaled < 0x9fff6) {
-        decal->flags = (int16_t)(1 << _decal_locked_bit);
-        decal_globals->locked_count += 1;
+  if (randomize) {
+    *(int16_t *)(decal + 2) = 2;
+    *(int *)(decal_globals + 0x2808) += 1;
+  } else {
+    random_scaled = (uint32_t)random_seed_step(random_math_get_local_seed_address()) * 100;
 
-        if (decal_globals->locked_count > MAXIMUM_CLUSTERS_PER_STRUCTURE) {
-          data_iterator_new(&iter, global_decal_data);
+    if (random_scaled < 0x9fff6) {
+      *(int16_t *)(decal + 2) = 1;
+      *(int *)(decal_globals + 0x2804) += 1;
 
-          while (decal_globals->locked_count > 0x100) {
-            candidate = (decal_datum_t *)data_iterator_next(&iter);
-            if (candidate == NULL) {
-              data_iterator_new(&iter, global_decal_data);
-              unlock_passes += 1;
-              if (unlock_passes >= 100) {
-                error(2, "### ERROR decals: failed to unlock decals during "
-                         "insert -- tell Bernie!!");
-                return NONE;
-              }
-            } else if ((candidate->flags & (1 << _decal_locked_bit)) != 0) {
-              random_scaled = (int)random_seed_step(random_math_get_local_seed_address()) * 100;
+      if (*(int *)(decal_globals + 0x2804) > 0x200) {
+        data_iterator_new(&iter, global_decal_data);
 
-              if (random_scaled < 0x28ffd7 || candidate->cluster_index == NONE) {
-                *(uint8_t *)&candidate->flags &= (uint8_t)~(1 << _decal_locked_bit);
-                decal_globals->locked_count -= 1;
-              }
+        while (*(int *)(decal_globals + 0x2804) > 0x100) {
+          candidate = (char *)data_iterator_next(&iter);
+          if (candidate == NULL) {
+            data_iterator_new(&iter, global_decal_data);
+            unlock_passes += 1;
+            if (unlock_passes >= 100) {
+              error(2, "### ERROR decals: failed to unlock decals during "
+                       "insert -- tell Bernie!!");
+              return -1;
+            }
+          } else if ((*(uint8_t *)(candidate + 2) & 1) != 0) {
+            random_scaled = (uint32_t)random_seed_step(random_math_get_local_seed_address()) * 100;
+
+            if (random_scaled < 0x28ffd7 || *(int16_t *)(candidate + 4) == -1) {
+              *(uint8_t *)(candidate + 2) &= 0xfe;
+              *(int *)(decal_globals + 0x2804) -= 1;
             }
           }
-
-          if (decal_globals->locked_count < 0 &&
-              decals_reported_locked_count_insert == 0) {
-            error(
-              2,
-              "### ERROR decals: locked count is invalid (#%d) -- tell Bernie!!",
-              decal_globals->locked_count);
-            decals_reported_locked_count_insert = 1;
-          }
         }
-      } else {
-        decal->flags = 0;
-      }
-    }
 
-    if (old_index != NONE) {
-      existing_decal = (decal_datum_t *)datum_get(global_decal_data, old_index);
-      if (existing_decal->cluster_index != cluster_index) {
-        display_assert("next->cluster_index==cluster_index",
-                       "c:\\halo\\SOURCE\\effects\\decals.c", 0x22c, true);
-        system_exit(-1);
+        if (*(int *)(decal_globals + 0x2804) < 0 && *(uint8_t *)0x4557dd == 0) {
+          error(
+            2,
+            "### ERROR decals: locked count is invalid (#%d) -- tell Bernie!!",
+            *(int *)(decal_globals + 0x2804));
+          *(uint8_t *)0x4557dd = 1;
+        }
       }
-
-      previous_index = existing_decal->previous_decal_index;
-      if (previous_index != NONE) {
-        previous_decal =
-          (decal_datum_t *)datum_get(global_decal_data, previous_index);
-        previous_decal->next_decal_index = decal_index;
-      } else {
-        FUN_00098aa0(cluster_index, layer, decal_index);
-      }
-
-      existing_decal->previous_decal_index = decal_index;
-      decal->previous_decal_index = decal_index;
-      decal->layer = layer;
-      decal->next_decal_index = old_index;
-      decal->cluster_index = cluster_index;
     } else {
-      FUN_00099840(cluster_index, layer, decal_index);
+      *(int16_t *)(decal + 2) = 0;
     }
-  } else {
-    error(2, "### ERROR failed to insert decal");
   }
+
+  if (old_index != -1) {
+    existing_decal = (int)datum_get(global_decal_data, old_index);
+    if (*(int16_t *)(existing_decal + 4) != cluster_index) {
+      display_assert("next->cluster_index==cluster_index",
+                     "c:\\halo\\SOURCE\\effects\\decals.c", 0x22c, true);
+      system_exit(-1);
+    }
+
+    previous_index = *(int *)(existing_decal + 0x30);
+    if (previous_index == -1) {
+      *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4) =
+        decal_index;
+    } else {
+      previous_decal = (int)datum_get(global_decal_data, previous_index);
+      *(int *)(previous_decal + 0x34) = decal_index;
+    }
+
+    *(int *)(existing_decal + 0x30) = decal_index;
+    *(int *)(decal + 0x30) = decal_index;
+    *(int16_t *)(decal + 6) = layer;
+    *(int *)(decal + 0x34) = old_index;
+    *(int16_t *)(decal + 4) = cluster_index;
+    return decal_index;
+  }
+
+  previous_index =
+    *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4);
+
+  *(int *)(decal + 0x30) = -1;
+  *(int *)(decal + 0x34) = previous_index;
+  *(int16_t *)(decal + 4) = cluster_index;
+  *(int16_t *)(decal + 6) = layer;
+
+  if (previous_index != -1) {
+    previous_decal = (int)datum_get(global_decal_data, previous_index);
+    *(int *)(previous_decal + 0x30) = decal_index;
+  }
+
+  *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4) =
+    decal_index;
 
   return decal_index;
 }
@@ -754,11 +759,11 @@ int FUN_000998b0(int new_index_hint, int16_t cluster_index, int16_t layer,
  * (decal_globals->first_disconnected_decal_index at +0x2800) and reattach
  * each decal to its structure-BSP cluster. For every decal on the list the
  * next handle (+0x34) is cached BEFORE any relinking, the decal is
- * consistency-checked (FUN_00098970), its cluster is resolved from the decal
+ * consistency-checked (decal_check), its cluster is resolved from the decal
  * position (+8) via scenario_location_from_point, and when a valid cluster
  * is found the decal is unlinked from the disconnected list (repairing
  * neighbour prev/next at +0x30/+0x34, or the list head at +0x2800 when it is
- * the first entry) and prepended to the cluster/layer list via FUN_00099840.
+ * the first entry) and prepended to the cluster/layer list via decal_reinsert.
  * A post-incremented guard counter aborts with an error after 0x801
  * iterations.
  *
@@ -770,8 +775,8 @@ void decals_reconnect_to_structure_bsp(void)
   int location[2]; /* scenario_location, 6 bytes; cluster_index at +4 */
   int decal_index;
   int next;
-  decal_datum_t *decal;
-  decal_datum_t *other;
+  char *decal;
+  char *other;
 
   if (global_decal_data == NULL) {
     display_assert("global_decal_data", "c:\\halo\\SOURCE\\effects\\decals.c",
@@ -786,55 +791,54 @@ void decals_reconnect_to_structure_bsp(void)
                      0x281, true);
       system_exit(-1);
     }
-    decal_index = decal_globals->first_disconnected_decal_index;
-    if (decal_index != NONE) {
+    decal_index = *(int *)(decal_globals + 0x2800);
+    if (decal_index != -1) {
       do {
-        decal = (decal_datum_t *)datum_get(global_decal_data, decal_index);
+        decal = (char *)datum_get(global_decal_data, decal_index);
         /* cache next BEFORE the unlink below rewrites neighbour links */
-        next = decal->next_decal_index;
-        if (guard++ > MAXIMUM_DECALS) {
+        next = *(int *)(decal + 0x34);
+        if (guard++ > 0x800) {
           error(2, "### ERROR decals: infinite loop -- tell Bernie!!");
           break;
         }
-        if (decal->cluster_index != NONE) {
+        if (*(int16_t *)(decal + 4) != -1) {
           display_assert("decal->cluster_index==NONE",
                          "c:\\halo\\SOURCE\\effects\\decals.c", 0x294, true);
           system_exit(-1);
         }
-        if (decal->layer < 0 || decal->layer >= NUMBER_OF_DECAL_LAYERS) {
+        if (*(int16_t *)(decal + 6) < 0 || *(int16_t *)(decal + 6) >= 5) {
           display_assert(
             "decal->layer>=0 && decal->layer<NUMBER_OF_DECAL_LAYERS",
             "c:\\halo\\SOURCE\\effects\\decals.c", 0x295, true);
           system_exit(-1);
         }
-        FUN_00098970(decal_index, false);
-        scenario_location_from_point(location, decal->position);
-        if (*(int16_t *)((char *)location + 4) != NONE) {
-          if (decal->next_decal_index != NONE) {
-            other = (decal_datum_t *)datum_get(global_decal_data,
-                                               decal->next_decal_index);
-            other->previous_decal_index = decal->previous_decal_index;
+        decal_check(decal_index, false);
+        scenario_location_from_point(location, decal + 8);
+        if (*(int16_t *)((char *)location + 4) != -1) {
+          if (*(int *)(decal + 0x34) != -1) {
+            other =
+              (char *)datum_get(global_decal_data, *(int *)(decal + 0x34));
+            *(int *)(other + 0x30) = *(int *)(decal + 0x30);
           }
-          if (decal->previous_decal_index != NONE) {
-            other = (decal_datum_t *)datum_get(global_decal_data,
-                                               decal->previous_decal_index);
-            other->next_decal_index = decal->next_decal_index;
+          if (*(int *)(decal + 0x30) != -1) {
+            other =
+              (char *)datum_get(global_decal_data, *(int *)(decal + 0x30));
+            *(int *)(other + 0x34) = *(int *)(decal + 0x34);
           } else {
-            if (decal_globals->first_disconnected_decal_index != decal_index) {
+            if (*(int *)(decal_globals + 0x2800) != decal_index) {
               display_assert(
                 "decal_globals->first_disconnected_decal_index==decal_index",
                 "c:\\halo\\SOURCE\\effects\\decals.c", 0x2aa, true);
               system_exit(-1);
             }
-            decal_globals->first_disconnected_decal_index =
-              decal->next_decal_index;
+            *(int *)(decal_globals + 0x2800) = *(int *)(decal + 0x34);
           }
-          FUN_00099840(*(int16_t *)((char *)location + 4), decal->layer,
-                       decal_index);
+          decal_reinsert(*(int16_t *)((char *)location + 4),
+                       *(int16_t *)(decal + 6), decal_index);
         }
-        FUN_00098970(decal_index, false);
+        decal_check(decal_index, false);
         decal_index = next;
-      } while (next != NONE);
+      } while (next != -1);
     }
   }
 }
@@ -849,7 +853,7 @@ void decals_reconnect_to_structure_bsp(void)
  * onto the front of the disconnected list: the tail's next takes the old
  * disconnected head (decal_globals + 0x2800), that old head's prev (+0x30) is
  * repaired to point at the tail, the disconnected head becomes the list's
- * ORIGINAL first index (the FUN_00098fe0 result, not the current node), and
+ * ORIGINAL first index (the decal_get_first_decal_index result, not the current node), and
  * the [layer][cluster] slot is cleared to NONE. The trailing bound asserts
  * (source lines 0xd8/0xd9) come from decal_set_first_decal_index being inlined
  * here. A post-incremented guard aborts a list after 0x801 iterations.
@@ -864,8 +868,8 @@ void decals_disconnect_from_structure_bsp(void)
   int guard;
   int decal_index;
   int current;
-  decal_datum_t *decal;
-  decal_datum_t *other;
+  char *decal;
+  char *other;
 
   if (global_decal_data == NULL) {
     display_assert("global_decal_data", "c:\\halo\\SOURCE\\effects\\decals.c",
@@ -880,55 +884,52 @@ void decals_disconnect_from_structure_bsp(void)
       system_exit(-1);
     }
 
-    for (cluster_index = 0; cluster_index < MAXIMUM_CLUSTERS_PER_STRUCTURE;
-         ++cluster_index) {
-      for (layer = 0; layer < NUMBER_OF_DECAL_LAYERS; ++layer) {
-        first = FUN_00098fe0(cluster_index, layer);
+    for (cluster_index = 0; cluster_index < 0x200; ++cluster_index) {
+      for (layer = 0; layer < 5; ++layer) {
+        first = decal_get_first_decal_index(cluster_index, layer);
         guard = 0;
         decal_index = first;
 
-        while (decal_index != NONE) {
+        while (decal_index != -1) {
           current = decal_index;
-          decal = (decal_datum_t *)datum_get(global_decal_data, current);
-          /* latch next BEFORE the splice below rewrites next_decal_index */
-          decal_index = decal->next_decal_index;
+          decal = (char *)datum_get(global_decal_data, current);
+          /* latch next BEFORE the splice below rewrites +0x34 */
+          decal_index = *(int *)(decal + 0x34);
 
-          if (guard++ > MAXIMUM_DECALS) {
+          if (guard++ > 0x800) {
             error(2, "### ERROR decals: infinite loop -- tell Bernie!!");
             break;
           }
 
-          if (decal->cluster_index != cluster_index) {
+          if (*(int16_t *)(decal + 4) != cluster_index) {
             display_assert("decal->cluster_index==cluster_index",
                            "c:\\halo\\SOURCE\\effects\\decals.c", 0x2ea, true);
             system_exit(-1);
           }
-          decal->cluster_index = (int16_t)NONE;
+          *(int16_t *)(decal + 4) = -1;
 
-          if (decal->next_decal_index == NONE) {
-            decal->next_decal_index =
-              decal_globals->first_disconnected_decal_index;
-            if (decal_globals->first_disconnected_decal_index != NONE) {
-              other = (decal_datum_t *)datum_get(
-                global_decal_data,
-                decal_globals->first_disconnected_decal_index);
-              other->previous_decal_index = current;
+          if (*(int *)(decal + 0x34) == -1) {
+            *(int *)(decal + 0x34) = *(int *)(decal_globals + 0x2800);
+            if (*(int *)(decal_globals + 0x2800) != -1) {
+              other = (char *)datum_get(global_decal_data,
+                                        *(int *)(decal_globals + 0x2800));
+              *(int *)(other + 0x30) = current;
             }
-            decal_globals->first_disconnected_decal_index = first;
+            *(int *)(decal_globals + 0x2800) = first;
 
-            if (cluster_index < 0 ||
-                cluster_index >= MAXIMUM_CLUSTERS_PER_STRUCTURE) {
+            if (cluster_index < 0 || cluster_index >= 0x200) {
               display_assert("cluster_index>=0 && "
                              "cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
                              "c:\\halo\\SOURCE\\effects\\decals.c", 0xd8, true);
               system_exit(-1);
             }
-            if (layer < 0 || layer >= NUMBER_OF_DECAL_LAYERS) {
+            if (layer < 0 || layer >= 5) {
               display_assert("layer>=0 && layer<NUMBER_OF_DECAL_LAYERS",
                              "c:\\halo\\SOURCE\\effects\\decals.c", 0xd9, true);
               system_exit(-1);
             }
-            decal_globals->first_decal_index[layer][cluster_index] = NONE;
+            *(int *)(decal_globals +
+                     ((int)layer * 0x200 + (int)cluster_index) * 4) = -1;
           }
         }
       }
@@ -942,7 +943,7 @@ void decals_disconnect_from_structure_bsp(void)
  * Walks the decal pool with the standard data_iterator pair and calls
  * decal_update for each element. The whole pass is skipped when the pool's
  * "valid" byte at +0x24 is clear (pool not initialised for the current map),
- * matching decals_update_for_new_map above -- but note there is no
+ * matching decals_unlock above -- but note there is no
  * assert_halt on the pool pointer here: the original loads [0x005aa8b8]
  * straight into EAX @00099f86 and dereferences +0x24 with no null check.
  *
@@ -974,7 +975,7 @@ void decals_update(void)
 
 void decals_delete_permanent_from_cluster(int16_t cluster_index)
 {
-  if (cluster_index < 0 || cluster_index >= MAXIMUM_CLUSTERS_PER_STRUCTURE) {
+  if (cluster_index < 0 || cluster_index >= 0x200) {
     display_assert(
       "cluster_index>=0 && cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
       "c:\\halo\\SOURCE\\effects\\decals.c", 0x377, true);
@@ -990,35 +991,34 @@ void decals_delete_permanent_from_cluster(int16_t cluster_index)
       system_exit(-1);
     }
 
-    for (layer = 0; layer < NUMBER_OF_DECAL_LAYERS; ++layer) {
-      int decal_index = NONE;
+    for (layer = 0; layer < 5; ++layer) {
+      int decal_index = -1;
 
-      if (cluster_index == NONE) {
+      if (cluster_index == -1) {
         if (layer == 0) {
-          decal_index = decal_globals->first_disconnected_decal_index;
+          decal_index = *(int *)(decal_globals + 0x2800);
         }
       } else {
-        decal_index = decal_globals->first_decal_index[layer][cluster_index];
+        decal_index =
+          *(int *)(decal_globals + (layer * 0x200 + (int)cluster_index) * 4);
       }
 
-      while (decal_index != NONE) {
+      while (decal_index != -1) {
         int current_decal_index = decal_index;
-        decal_datum_t *decal =
-          (decal_datum_t *)datum_get(global_decal_data, current_decal_index);
-        decal_index = decal->next_decal_index;
+        char *decal = (char *)datum_get(global_decal_data, current_decal_index);
+        decal_index = *(int *)(decal + 0x34);
 
-        if (decal->cluster_index != cluster_index) {
+        if (*(int16_t *)(decal + 4) != cluster_index) {
           display_assert("decal->cluster_index==cluster_index",
                          "c:\\halo\\SOURCE\\effects\\decals.c", 0x398, true);
           system_exit(-1);
         }
 
-        if ((*(uint16_t *)&decal->flags & (1 << _decal_permanent_bit)) != 0) {
-          *(uint16_t *)&decal->flags &=
-            (uint16_t) ~(1 << _decal_permanent_bit);
-          decal_globals->permanent_count -= 1;
+        if ((*(uint16_t *)(decal + 2) & 2) != 0) {
+          *(uint16_t *)(decal + 2) &= (uint16_t)~2;
+          *(int *)(decal_globals + 0x2808) -= 1;
 
-          if ((*(uint8_t *)&decal->flags & (1 << _decal_locked_bit)) != 0) {
+          if ((*(uint8_t *)(decal + 2) & 1) != 0) {
             display_assert("!TEST_FLAG(decal->flags, _decal_locked_bit)",
                            "c:\\halo\\SOURCE\\effects\\decals.c", 0x39f, true);
             system_exit(-1);
@@ -1029,7 +1029,7 @@ void decals_delete_permanent_from_cluster(int16_t cluster_index)
       }
     }
 
-    if (decal_globals->permanent_count < 0) {
+    if (*(int *)(decal_globals + 0x2808) < 0) {
       display_assert("decal_globals->permanent_count>=0",
                      "c:\\halo\\SOURCE\\effects\\decals.c", 0x3a8, true);
       system_exit(-1);
@@ -1045,30 +1045,30 @@ void decals_delete_permanent_from_cluster(int16_t cluster_index)
  * doubly-linked neighbours (prev at +0x30, next at +0x34), then updates the
  * list head: decal_globals->first_disconnected_decal_index (+0x2800) when
  * cluster_index (+4) is -1, otherwise the [layer][cluster] slot via
- * FUN_00098aa0. Every path ends in datum_delete.
+ * decal_set_first_decal_index. Every path ends in datum_delete.
  *
  * 0x9a160 / decals.obj
  */
 void decal_delete(int decal_index)
 {
-  decal_datum_t *decal;
-  decal_datum_t *other;
+  void *decal;
+  void *other;
   int first;
 
-  decal = (decal_datum_t *)datum_get(global_decal_data, decal_index);
+  decal = datum_get(global_decal_data, decal_index);
   if (decal == NULL) {
     display_assert("decal", "c:\\halo\\SOURCE\\effects\\decals.c", 0x3b3, true);
     system_exit(-1);
   }
 
-  if ((*(uint8_t *)&decal->flags & (1 << _decal_locked_bit)) != 0 &&
+  if ((*(uint8_t *)((char *)decal + 2) & 1) != 0 &&
       decals_reported_locked_delete == 0) {
     error(2, "### ERROR decals: deleting locked decal (#%d) -- tell Bernie!!",
           decal_index);
     decals_reported_locked_delete = 1;
   }
 
-  if ((*(uint8_t *)&decal->flags & (1 << _decal_permanent_bit)) != 0 &&
+  if ((*(uint8_t *)((char *)decal + 2) & 2) != 0 &&
       decals_reported_permanent_delete == 0) {
     error(2,
           "### ERROR decals: deleting permanent decal (#%d) -- tell Bernie!!",
@@ -1076,33 +1076,32 @@ void decal_delete(int decal_index)
     decals_reported_permanent_delete = 1;
   }
 
-  if (decal->next_decal_index != NONE) {
-    other = (decal_datum_t *)datum_get(global_decal_data,
-                                       decal->next_decal_index);
-    other->previous_decal_index = decal->previous_decal_index;
+  if (*(int *)((char *)decal + 0x34) != -1) {
+    other = datum_get(global_decal_data, *(int *)((char *)decal + 0x34));
+    *(int *)((char *)other + 0x30) = *(int *)((char *)decal + 0x30);
   }
 
-  if (decal->previous_decal_index != NONE) {
-    other = (decal_datum_t *)datum_get(global_decal_data,
-                                       decal->previous_decal_index);
-    other->next_decal_index = decal->next_decal_index;
+  if (*(int *)((char *)decal + 0x30) != -1) {
+    other = datum_get(global_decal_data, *(int *)((char *)decal + 0x30));
+    *(int *)((char *)other + 0x34) = *(int *)((char *)decal + 0x34);
     datum_delete(global_decal_data, decal_index);
     return;
   }
 
-  if (decal->cluster_index == NONE) {
-    if (decal_globals->first_disconnected_decal_index != decal_index) {
+  if (*(int16_t *)((char *)decal + 4) == -1) {
+    if (*(int *)(decal_globals + 0x2800) != decal_index) {
       display_assert(
         "decal_globals->first_disconnected_decal_index==decal_index",
         "c:\\halo\\SOURCE\\effects\\decals.c", 0x3db, true);
       system_exit(-1);
     }
-    decal_globals->first_disconnected_decal_index = decal->next_decal_index;
+    *(int *)(decal_globals + 0x2800) = *(int *)((char *)decal + 0x34);
     datum_delete(global_decal_data, decal_index);
     return;
   }
 
-  first = FUN_00098fe0(decal->cluster_index, decal->layer);
+  first = decal_get_first_decal_index(*(int16_t *)((char *)decal + 4),
+                       *(int16_t *)((char *)decal + 6));
   if (first != decal_index) {
     display_assert(
       "decal_get_first_decal_index(decal->cluster_index, decal->layer)"
@@ -1111,17 +1110,14 @@ void decal_delete(int decal_index)
     system_exit(-1);
   }
 
-  FUN_00098aa0(decal->cluster_index, decal->layer, decal->next_decal_index);
+  decal_set_first_decal_index(*(int16_t *)((char *)decal + 4), *(int16_t *)((char *)decal + 6),
+               *(int *)((char *)decal + 0x34));
   datum_delete(global_decal_data, decal_index);
 }
 
-void FUN_0009a300(float *bounds, float *projection, float *basis)
+void decal_projection_create(float *bounds, float *projection, float *basis)
 {
-  decal_projection_t *proj;
-  float *normal;
   float projected[3];
-  float nx, ny, nz;
-  int16_t axis;
 
   if (basis == NULL) {
     display_assert("basis", "c:\\halo\\SOURCE\\effects\\decals.c", 0x410, true);
@@ -1134,66 +1130,70 @@ void FUN_0009a300(float *bounds, float *projection, float *basis)
     system_exit(-1);
   }
 
-  proj = (decal_projection_t *)projection;
+  qmemcpy(projection, basis, 13 * sizeof(float));
 
-  qmemcpy(proj->basis, basis, sizeof(proj->basis));
+  projection[0xd] = bounds[0];
+  projection[0xe] = bounds[1];
+  projection[0xf] = bounds[2];
+  projection[0x10] = bounds[3];
 
-  *(real_plane3d *)proj->bounds = *(real_plane3d *)bounds;
+  projection[0x11] = basis[7];
+  projection[0x12] = basis[8];
+  projection[0x13] = basis[9];
+  projection[0x14] = projection[0x13] * basis[12] +
+                     projection[0x12] * basis[11] +
+                     projection[0x11] * basis[10];
 
-  normal = proj->normal;
-  *(vector3_t *)normal = *(vector3_t *)&basis[7];
-  proj->field_50 = (normal[2] * basis[12] + normal[1] * basis[11]) +
-                   normal[0] * basis[10];
-
-  nx = (float)fabs(normal[0]);
-  ny = (float)fabs(normal[1]);
-  nz = (float)fabs(normal[2]);
-
-  if (nz >= ny && nz >= nx) {
-    axis = 2;
-  } else if (ny >= nx) {
-    axis = 1;
+  if (x87_fabs(projection[0x13]) >= x87_fabs(projection[0x12]) &&
+      x87_fabs(projection[0x13]) >= x87_fabs(projection[0x11])) {
+    *(int16_t *)((char *)projection + 0x54) = 2;
+  } else if (x87_fabs(projection[0x12]) >= x87_fabs(projection[0x11])) {
+    *(int16_t *)((char *)projection + 0x54) = 1;
   } else {
-    axis = 0;
+    *(int16_t *)((char *)projection + 0x54) = 0;
   }
 
-  proj->projection = axis;
-  proj->sign = (uint8_t)FUN_00099270(normal, axis);
+  *(uint8_t *)((char *)projection + 0x56) = (uint8_t)FUN_00099270(
+      projection + 0x11, *(int16_t *)((char *)projection + 0x54));
 
   projected[0] = bounds[0] * basis[1] + bounds[2] * basis[4] + basis[10];
-  projected[1] = basis[5] * bounds[2] + basis[2] * bounds[0] + basis[11];
-  projected[2] = basis[6] * bounds[2] + basis[3] * bounds[0] + basis[12];
-  FUN_00061df0(projected, proj->projection, proj->sign, proj->corner[0]);
+  projected[1] = bounds[2] * basis[5] + bounds[0] * basis[2] + basis[11];
+  projected[2] = bounds[2] * basis[6] + bounds[0] * basis[3] + basis[12];
+  FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
+               *(uint8_t *)((char *)projection + 0x56), projection + 0x16);
 
   projected[0] = bounds[1] * basis[1] + bounds[2] * basis[4] + basis[10];
-  projected[1] = basis[5] * bounds[2] + basis[2] * bounds[1] + basis[11];
-  projected[2] = basis[6] * bounds[2] + basis[3] * bounds[1] + basis[12];
-  FUN_00061df0(projected, proj->projection, proj->sign, proj->corner[1]);
+  projected[1] = bounds[2] * basis[5] + bounds[1] * basis[2] + basis[11];
+  projected[2] = bounds[2] * basis[6] + bounds[1] * basis[3] + basis[12];
+  FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
+               *(uint8_t *)((char *)projection + 0x56), projection + 0x18);
 
   projected[0] = bounds[1] * basis[1] + bounds[3] * basis[4] + basis[10];
-  projected[1] = bounds[3] * basis[5] + basis[2] * bounds[1] + basis[11];
-  projected[2] = basis[3] * bounds[1] + basis[6] * bounds[3] + basis[12];
-  FUN_00061df0(projected, proj->projection, proj->sign, proj->corner[2]);
+  projected[1] = bounds[3] * basis[5] + bounds[1] * basis[2] + basis[11];
+  projected[2] = bounds[1] * basis[3] + bounds[3] * basis[6] + basis[12];
+  FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
+               *(uint8_t *)((char *)projection + 0x56), projection + 0x1a);
 
   projected[0] = bounds[3] * basis[4] + bounds[0] * basis[1] + basis[10];
-  projected[1] = bounds[3] * basis[5] + basis[2] * bounds[0] + basis[11];
-  projected[2] = basis[6] * bounds[3] + basis[3] * bounds[0] + basis[12];
-  FUN_00061df0(projected, proj->projection, proj->sign, proj->corner[3]);
+  projected[1] = bounds[3] * basis[5] + bounds[0] * basis[2] + basis[11];
+  projected[2] = bounds[3] * basis[6] + bounds[0] * basis[3] + basis[12];
+  FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
+               *(uint8_t *)((char *)projection + 0x56), projection + 0x1c);
 
-  proj->field_78 = proj->corner[1][0] - proj->corner[0][0];
-  proj->field_7c = proj->corner[1][1] - proj->corner[0][1];
-  proj->field_80 = proj->corner[3][0] - proj->corner[0][0];
-  proj->field_84 = proj->corner[3][1] - proj->corner[0][1];
-  proj->field_88 = 1.0f / (proj->field_84 * proj->field_78 -
-                           proj->field_7c * proj->field_80);
+  projection[0x1e] = projection[0x18] - projection[0x16];
+  projection[0x1f] = projection[0x19] - projection[0x17];
+  projection[0x20] = projection[0x1c] - projection[0x16];
+  projection[0x21] = projection[0x1d] - projection[0x17];
+  projection[0x22] = *(float *)0x2533c8 / (projection[0x21] * projection[0x1e] -
+                                           projection[0x1f] * projection[0x20]);
 }
 
-void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
+void decal_clip_to_surface(void *geometry, float *projection, int surface_index,
                   bool allow_deviants, float scale, int16_t type,
                   int *surface_queue, int16_t *surface_queue_write_index,
                   int *deviant_surface_list, int16_t *deviant_surface_count)
 {
-  decal_geometry_scratch_t *geom;
+  char *geometry_data;
   int structure_bsp;
   int *surface;
   int edges_block;
@@ -1203,40 +1203,11 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
   float angle;
   int16_t queue_write_index;
   int16_t deviant_count;
-  int vertex_iteration;
-  int16_t clipped_count;
-  uint32_t clipped_mask;
-  float *input_points;
-  float *output_points;
-  float projected_previous[2];
-  float projected_current[2];
-  float line[3];
-  uint8_t clipped;
-  int *edge;
-  bool surface_match;
-  int remote_vertex_index;
-  float *remote_vertex;
-  int first_vertex_index;
-  float *first_vertex;
-  int current_vertex_index;
-  float *current_vertex;
-  float segment[3];
-  int candidate_surface;
-  int16_t i;
-  int16_t surface_count;
-  float *point;
-  float dx;
-  float dy;
-  int16_t geometry_vertex_index;
-  decal_geometry_vertex_t *geometry_vertex;
-  uint32_t bit;
 
-  geom = (decal_geometry_scratch_t *)geometry;
-
-  if (!(type >= 0 && type < NUMBER_OF_DECAL_TYPES)) {
-    display_assert("type>=0 && type<NUMBER_OF_DECAL_TYPES",
-                   "c:\\halo\\SOURCE\\effects\\decals.c", 0x47b, true);
-    system_exit(-1);
+  if (type < 0 || type >= 4) {
+    decals_log_invalid_decal_type_once(type, -1, NULL, -1, NULL,
+                                       "decal_surface_add");
+    return;
   }
 
   if (surface_index == -1) {
@@ -1259,6 +1230,10 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
     system_exit(-1);
   }
 
+  geometry_data = (char *)geometry;
+
+  queue_write_index = 0;
+  deviant_count = 0;
   if (allow_deviants) {
     if (surface_queue == NULL) {
       display_assert("surface_queue", "c:\\halo\\SOURCE\\effects\\decals.c",
@@ -1298,7 +1273,17 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
   angle = angle_between_normals3d(plane, projection + 0x11);
 
   if (!allow_deviants ||
-      angle <= g_decal_type_parameters[type].field_00 * *(float *)0x253d4c) {
+      angle <= *(float *)(0x269d80 + type * 0x10) * *(float *)0x253d4c) {
+    int vertex_iteration;
+    int16_t clipped_count;
+    uint32_t clipped_mask;
+    float *input_points;
+    float *output_points;
+    float projected_previous[2];
+    float projected_current[2];
+    float line[3];
+    uint8_t clipped;
+
     edge_index = surface[1];
     edges_block = structure_bsp + 0x48;
     vertices_block = structure_bsp + 0x54;
@@ -1310,16 +1295,17 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
     projected_previous[1] = 0.0f;
 
     do {
-      edge = (int *)tag_block_get_element((char *)edges_block, edge_index, 0x18);
-      surface_match = edge[5] == surface_index;
-      remote_vertex_index = edge[surface_match ? 0 : 1];
-      remote_vertex = (float *)tag_block_get_element(
+      int *edge =
+        (int *)tag_block_get_element((char *)edges_block, edge_index, 0x18);
+      bool surface_match = edge[5] == surface_index;
+      int remote_vertex_index = edge[surface_match ? 0 : 1];
+      float *remote_vertex = (float *)tag_block_get_element(
         (char *)vertices_block, remote_vertex_index, 0x10);
 
-      output_points = g_decal_clip_buffers[vertex_iteration & 1];
+      output_points = (float *)(0x44df10 + (vertex_iteration & 1) * 0x60);
       if (vertex_iteration == 0) {
-        first_vertex_index = edge[surface_match ? 1 : 0];
-        first_vertex = (float *)tag_block_get_element(
+        int first_vertex_index = edge[surface_match ? 1 : 0];
+        float *first_vertex = (float *)tag_block_get_element(
           (char *)vertices_block, first_vertex_index, 0x10);
         FUN_00061df0(first_vertex, *(int16_t *)((char *)projection + 0x54),
                      *(uint8_t *)((char *)projection + 0x56),
@@ -1338,18 +1324,19 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
           &clipped, 0.0f);
 
         if (allow_deviants && clipped != 0 && queue_write_index < 0x400) {
-          current_vertex_index = edge[surface_match ? 1 : 0];
-          current_vertex = (float *)tag_block_get_element(
+          int current_vertex_index = edge[surface_match ? 1 : 0];
+          float *current_vertex = (float *)tag_block_get_element(
             (char *)vertices_block, current_vertex_index, 0x10);
+          float segment[3];
 
           segment[0] = current_vertex[0] - remote_vertex[0];
           segment[1] = current_vertex[1] - remote_vertex[1];
           segment[2] = current_vertex[2] - remote_vertex[2];
           if (fast_vector_intersects_sphere(
                 remote_vertex, segment, projection + 0xa,
-                scale * g_decal_type_parameters[type].field_08)) {
-            candidate_surface = edge[surface_match ? 4 : 5];
-            i = 0;
+                scale * *(float *)(0x269d88 + type * 0x10))) {
+            int candidate_surface = edge[surface_match ? 4 : 5];
+            int16_t i = 0;
 
             while (candidate_surface != -1) {
               if (queue_write_index <= i) {
@@ -1376,9 +1363,11 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
     } while (edge_index != surface[1] && clipped_count > 0);
 
     if (clipped_count > 2 &&
-        clipped_count <= MAXIMUM_DECAL_SURFACE_QUEUE_SIZE - geom->vertex_count &&
+        clipped_count <= 0x400 - *(int16_t *)(geometry_data + 0x6000) &&
         ((*(uint8_t *)(surface + 2) & 0xb) == 0)) {
-      if (geom->decal_surface_count > MAXIMUM_DECAL_SURFACE_QUEUE_SIZE - 1) {
+      int16_t surface_count;
+
+      if (*(int16_t *)(geometry_data + 0x6802) > 0x3ff) {
         display_assert(
           "geometry->decal_surface_count<MAXIMUM_DECAL_SURFACE_QUEU"
           "E_SIZE",
@@ -1386,39 +1375,41 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
         system_exit(-1);
       }
 
-      surface_count = geom->decal_surface_count;
-      geom->surfaces[(int)surface_count] = surface_index;
-      geom->surface_vertex_counts[(int)surface_count] = clipped_count;
-      geom->decal_surface_count = (int16_t)(surface_count + 1);
+      surface_count = *(int16_t *)(geometry_data + 0x6802);
+      *(int *)(geometry_data + (int)surface_count * 4 + 0x6804) = surface_index;
+      *(int16_t *)(geometry_data + (int)surface_count * 2 + 0x6002) =
+        clipped_count;
+      *(int16_t *)(geometry_data + 0x6802) = surface_count + 1;
 
       if (clipped_count > 0) {
-        point = output_points;
+        float *point = output_points;
+        int i;
 
         for (i = 0; i < clipped_count; ++i) {
-          dx = point[0] - projection[0x16];
-          dy = point[1] - projection[0x17];
-          geometry_vertex_index = geom->vertex_count;
-          geometry_vertex =
-            &geom->vertices[(int)geometry_vertex_index];
-          bit = 1u << (i & 0x1f);
+          float dx = point[0] - projection[0x16];
+          float dy = point[1] - projection[0x17];
+          int16_t geometry_vertex_index = *(int16_t *)(geometry_data + 0x6000);
+          char *geometry_vertex =
+            geometry_data + (int)geometry_vertex_index * 0x18;
+          uint32_t bit = 1u << (i & 0x1f);
 
-          geometry_vertex->uv[0] =
+          *(float *)(geometry_vertex + 0xc) =
             (dx * projection[0x21] - dy * projection[0x20]) * projection[0x22];
-          geometry_vertex->uv[1] = -(
+          *(float *)(geometry_vertex + 0x10) = -(
             (dx * projection[0x1f] - dy * projection[0x1e]) * projection[0x22]);
-          geometry_vertex->clipped = (boolean)((clipped_mask & bit) != 0);
+          *(bool *)(geometry_vertex + 0x14) = (clipped_mask & bit) != 0;
 
           project_point2d(point, plane, *(int16_t *)((char *)projection + 0x54),
                           *(uint8_t *)((char *)projection + 0x56),
-                          geometry_vertex->position);
+                          (float *)geometry_vertex);
 
           if ((clipped_mask & bit) == 0) {
-            geometry_vertex->position[0] += plane[0] * rasterizer_zoffset;
-            geometry_vertex->position[1] += plane[1] * rasterizer_zoffset;
-            geometry_vertex->position[2] += plane[2] * rasterizer_zoffset;
+            *(float *)(geometry_vertex + 0) += plane[0] * *(float *)0x325710;
+            *(float *)(geometry_vertex + 4) += plane[1] * *(float *)0x325710;
+            *(float *)(geometry_vertex + 8) += plane[2] * *(float *)0x325710;
           }
 
-          geom->vertex_count = (int16_t)(geometry_vertex_index + 1);
+          *(int16_t *)(geometry_data + 0x6000) = geometry_vertex_index + 1;
           point += 2;
         }
       }
@@ -1429,14 +1420,16 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
     vertices_block = structure_bsp + 0x54;
 
     do {
-      edge = (int *)tag_block_get_element((char *)edges_block, edge_index, 0x18);
-      surface_match = edge[5] == surface_index;
-      remote_vertex = (float *)tag_block_get_element(
+      int *edge =
+        (int *)tag_block_get_element((char *)edges_block, edge_index, 0x18);
+      bool surface_match = edge[5] == surface_index;
+      float *remote_vertex = (float *)tag_block_get_element(
         (char *)vertices_block, edge[surface_match ? 0 : 1], 0x10);
 
       if (queue_write_index < 0x400) {
-        current_vertex = (float *)tag_block_get_element(
+        float *current_vertex = (float *)tag_block_get_element(
           (char *)vertices_block, edge[surface_match ? 1 : 0], 0x10);
+        float segment[3];
 
         segment[0] = current_vertex[0] - remote_vertex[0];
         segment[1] = current_vertex[1] - remote_vertex[1];
@@ -1444,9 +1437,9 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
 
         if (fast_vector_intersects_sphere(
               remote_vertex, segment, projection + 0xa,
-              scale * g_decal_type_parameters[type].field_08)) {
-          candidate_surface = edge[surface_match ? 4 : 5];
-          i = 0;
+              scale * *(float *)(0x269d88 + type * 0x10))) {
+          int candidate_surface = edge[surface_match ? 4 : 5];
+          int16_t i = 0;
 
           while (candidate_surface != -1) {
             if (queue_write_index <= i) {
@@ -1467,7 +1460,7 @@ void FUN_0009a5a0(void *geometry, float *projection, int surface_index,
       edge_index = edge[surface_match ? 3 : 2];
     } while (edge_index != surface[1]);
 
-    if (angle <= g_decal_type_parameters[type].field_04 * *(float *)0x253d4c &&
+    if (angle <= *(float *)(0x269d84 + type * 0x10) * *(float *)0x253d4c &&
         deviant_count < 0x400) {
       deviant_surface_list[(int)deviant_count] = surface_index;
       deviant_count += 1;
@@ -1486,31 +1479,31 @@ static void decals_assert_or_exit(const char *condition, int line)
   system_exit(-1);
 }
 
-static __inline float decals_dot3(const float *a, const float *b)
+static float decals_dot3(const float *a, const float *b)
 {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
-static __inline void decals_cross3(float *out, const float *a, const float *b)
+static void decals_cross3(float *out, const float *a, const float *b)
 {
   out[0] = a[1] * b[2] - a[2] * b[1];
   out[1] = a[2] * b[0] - a[0] * b[2];
   out[2] = a[0] * b[1] - a[1] * b[0];
 }
 
-static __inline float decals_random_real(float min, float max)
+static float decals_random_real(float min, float max)
 {
   return random_real_range((int *)random_math_get_local_seed_address(), min,
                            max);
 }
 
-static __inline int16_t decals_random_short(int16_t min, int16_t max)
+static int16_t decals_random_short(int16_t min, int16_t max)
 {
   return random_range(random_math_get_local_seed_address(), min, max);
 }
 
-static __inline void decals_get_signed_plane(int structure_bsp, int plane_reference,
-                                            float *out_plane)
+static void decals_get_signed_plane(int structure_bsp, int plane_reference,
+                                    float *out_plane)
 {
   bsp3d_get_plane_from_designator(
     structure_bsp, (uint32_t)plane_reference & 0x7fffffff, out_plane);
@@ -1523,8 +1516,8 @@ static __inline void decals_get_signed_plane(int structure_bsp, int plane_refere
   }
 }
 
-static __inline void decals_build_axis(float *axis_vector, uint32_t basis, float sign,
-                                      int assert_line)
+static void decals_build_axis(float *axis_vector, uint32_t basis, float sign,
+                              int assert_line)
 {
   axis_vector[0] = 0.0f;
   axis_vector[1] = 0.0f;
@@ -1565,7 +1558,31 @@ decals_log_invalid_decal_type_once(int16_t decal_type, int decal_tag_index,
         bitmap_name ? tag_name_strip_path((char *)bitmap_name) : "<null>");
 }
 
-static decal_staged_vertex_t g_decal_staged_vertices[MAXIMUM_DECAL_SURFACE_QUEUE_SIZE];
+typedef struct s_decal_geometry_vertex {
+  float position[3];
+  float uv[2];
+  uint8_t clipped;
+  uint8_t pad[3];
+} s_decal_geometry_vertex;
+
+typedef struct s_decal_geometry_scratch {
+  s_decal_geometry_vertex vertices[0x400];
+  int16_t vertex_count;
+  int16_t surface_vertex_counts[0x400];
+  int16_t surface_count;
+  int surfaces[0x400];
+} s_decal_geometry_scratch;
+
+typedef struct s_decal_staged_vertex {
+  float position[3];
+  int16_t uv[2];
+} s_decal_staged_vertex;
+
+typedef struct s_decal_cached_quad {
+  s_decal_staged_vertex vertices[4];
+} s_decal_cached_quad;
+
+static s_decal_staged_vertex g_decal_staged_vertices[0x400];
 static int g_decal_grouped_surfaces[0x400];
 static int g_decal_deviant_surfaces[0x400];
 static int g_decal_surface_queue[0x400];
@@ -1579,8 +1596,8 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
                               int16_t color_index, int flags)
 {
   int structure_bsp;
-  decal_geometry_scratch_t *geometry;
-  decal_staged_vertex_t *staged_vertices;
+  s_decal_geometry_scratch *geometry;
+  s_decal_staged_vertex *staged_vertices;
   int *grouped_surfaces;
   int *deviant_surfaces;
   int *surface_queue;
@@ -1604,7 +1621,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
   float tiny_squared;
 
   structure_bsp = (int)global_collision_bsp_get();
-  geometry = &g_decal_geometry;
+  geometry = (s_decal_geometry_scratch *)0x44dfd8;
   staged_vertices = g_decal_staged_vertices;
   grouped_surfaces = g_decal_grouped_surfaces;
   deviant_surfaces = g_decal_deviant_surfaces;
@@ -1620,14 +1637,14 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
   tiny_squared = *(float *)0x253f44;
 
   if (collision_result == NULL) {
-    decals_assert_or_exit((char *)0x26a844, 0x7f1);
+    decals_assert_or_exit("collision_result", 0x7f1);
   }
 
   if (direction == NULL) {
-    decals_assert_or_exit((char *)0x26a838, 0x7f2);
+    decals_assert_or_exit("direction", 0x7f2);
   }
 
-  if (rasterizer_environment_decals == 0) {
+  if (*(uint8_t *)0x2eebd0 == 0) {
     decals_assert_or_exit((char *)0x26a828, 0x7f3);
   }
 
@@ -1647,12 +1664,12 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
     int16_t primitive_count;
     int cache_index;
     int decal_index;
-    decal_datum_t *decal;
-    decal_cached_quad_t *cache_quads;
+    int decal;
+    s_decal_cached_quad *cache_quads;
     int i;
 
-    decal_tag = (char *)tag_get(TAG_GROUP_DECAL, decal_tag_index);
-    bitmap_tag = (char *)tag_get(TAG_GROUP_BITM, *(int *)(decal_tag + 0xe4));
+    decal_tag = (char *)tag_get(0x64656361, decal_tag_index);
+    bitmap_tag = (char *)tag_get(0x6269746d, *(int *)(decal_tag + 0xe4));
     direction3 = (float *)direction;
     normal = (float *)(collision_result + 0x12);
     decal_type = *(int16_t *)(decal_tag + 2);
@@ -1679,8 +1696,15 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
       float tangent_length;
       float bitangent_length;
 
-      if (((*(uint16_t *)decal_tag & 8) != 0) &&
-          (decals_dot3(direction3, normal) < *(float *)0x26a810)) {
+      if (((*(uint16_t *)decal_tag & 8) == 0) ||
+          (*(float *)0x26a810 <= decals_dot3(direction3, normal))) {
+        float angle = decals_random_real(0.0f, 6.2831855f);
+
+        rotation_cos = x87_fcos(angle);
+        rotation_sin = x87_fsin(angle);
+        perpendicular3d(normal, tangent);
+        decals_cross3(bitangent, normal, tangent);
+      } else {
         rotation_cos = -1.0f;
         rotation_sin = 0.0f;
 
@@ -1691,18 +1715,18 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
           float axis_vector[3];
           int16_t axis = (int16_t)FUN_00099220(direction3);
           float axis_sign =
-            (bool)FUN_00099270(direction3, (uint16_t)axis) ? -1.0f : 1.0f;
+            FUN_00099270(direction3, (uint16_t)axis) ? 1.0f : -1.0f;
 
           decals_build_axis(axis_vector, (uint16_t)axis, axis_sign, 0x848);
 
-          if (decals_dot3(axis_vector, normal) > *(float *)0x2533c0) {
-            axis_vector[0] += normal[0];
-            axis_vector[1] += normal[1];
-            axis_vector[2] += normal[2];
-          } else {
+          if (decals_dot3(axis_vector, normal) <= *(float *)0x2533c0) {
             axis_vector[0] -= normal[0];
             axis_vector[1] -= normal[1];
             axis_vector[2] -= normal[2];
+          } else {
+            axis_vector[0] += normal[0];
+            axis_vector[1] += normal[1];
+            axis_vector[2] += normal[2];
           }
 
           normalize3d(axis_vector);
@@ -1720,17 +1744,17 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
             reflected[2] = reflected_scale * normal[2] + direction3[2];
 
             axis = (int16_t)FUN_00099220(reflected);
-            axis_sign = (bool)FUN_00099270(reflected, (uint16_t)axis) ? -1.0f : 1.0f;
+            axis_sign = FUN_00099270(reflected, (uint16_t)axis) ? 1.0f : -1.0f;
             decals_build_axis(axis_vector, (uint16_t)axis, axis_sign, 0x868);
 
-            if (decals_dot3(axis_vector, normal) > *(float *)0x2533c0) {
-              axis_vector[0] += normal[0];
-              axis_vector[1] += normal[1];
-              axis_vector[2] += normal[2];
-            } else {
+            if (decals_dot3(axis_vector, normal) <= *(float *)0x2533c0) {
               axis_vector[0] -= normal[0];
               axis_vector[1] -= normal[1];
               axis_vector[2] -= normal[2];
+            } else {
+              axis_vector[0] += normal[0];
+              axis_vector[1] += normal[1];
+              axis_vector[2] += normal[2];
             }
 
             normalize3d(axis_vector);
@@ -1738,18 +1762,11 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
             decals_cross3(bitangent, normal, tangent);
           }
         }
-      } else {
-        float angle = decals_random_real(0.0f, 6.2831855f);
-
-        rotation_cos = x87_fcos(angle);
-        rotation_sin = x87_fsin(angle);
-        perpendicular3d(normal, tangent);
-        decals_cross3(bitangent, normal, tangent);
       }
 
       tangent_length = sqrtf(tangent[0] * tangent[0] + tangent[1] * tangent[1] +
                              tangent[2] * tangent[2]);
-      if (!(x87_fabs(tangent_length) < *(double *)0x2533d0)) {
+      if (tiny <= fabsf(tangent_length)) {
         float inv_tangent_length = 1.0f / tangent_length;
         tangent[0] *= inv_tangent_length;
         tangent[1] *= inv_tangent_length;
@@ -1759,7 +1776,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
       bitangent_length =
         sqrtf(bitangent[0] * bitangent[0] + bitangent[1] * bitangent[1] +
               bitangent[2] * bitangent[2]);
-      if (!(x87_fabs(bitangent_length) < *(double *)0x2533d0)) {
+      if (tiny <= fabsf(bitangent_length)) {
         float inv_bitangent_length = 1.0f / bitangent_length;
         bitangent[0] *= inv_bitangent_length;
         bitangent[1] *= inv_bitangent_length;
@@ -1815,7 +1832,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
         (int16_t *)tag_block_get_element(sequence + 0x34, sequence_index, 0x20);
 
       sprite_index = sprite[0];
-      FUN_00098b20(uv_bounds, decal_tag, selected_color, sequence_index, size,
+      decal_sprite_get_bounds(uv_bounds, decal_tag, selected_color, sequence_index, size,
                    bounds);
     } else {
       float aspect = 1.0f;
@@ -1850,7 +1867,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
       }
     }
 
-    FUN_0009a300(bounds, projection, basis);
+    decal_projection_create(bounds, projection, basis);
 
     min_normal[0] = basis[7];
     max_normal[0] = basis[7];
@@ -1859,7 +1876,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
     min_normal[2] = basis[9];
     max_normal[2] = basis[9];
 
-    geometry->decal_surface_count = 0;
+    geometry->surface_count = 0;
     geometry->vertex_count = 0;
 
     surface_queue[0] = *(int *)((char *)collision_result + 0x44);
@@ -1876,13 +1893,13 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
         decals_assert_or_exit((char *)0x26a710, 0x932);
       }
 
-      FUN_0009a5a0(geometry, projection, surface_queue[queue_read_index], true,
+      decal_clip_to_surface(geometry, projection, surface_queue[queue_read_index], true,
                    size, decal_type, surface_queue, &queue_write_index,
                    deviant_surfaces, &deviant_surface_count);
       queue_read_index += 1;
     }
 
-    if (g_decal_type_parameters[(int)decal_type].field_0c != 0) {
+    if (*(uint8_t *)(0x269d8c + ((int)decal_type << 4)) != 0) {
       int16_t remaining = deviant_surface_count;
 
       while (remaining > 0) {
@@ -1947,7 +1964,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
                                         seed_plane);
 
                 angle = angle_between_normals3d(seed_plane, candidate_plane);
-                if (angle <= g_decal_type_parameters[(int)decal_type].field_00 *
+                if (angle < *(float *)(0x269d80 + ((int)decal_type << 4)) *
                               *(float *)0x253d4c) {
                   if (grouped_count >= 0x400) {
                     decals_assert_or_exit((char *)0x26a6d4, 0x976);
@@ -1979,10 +1996,10 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
                 float *end = (float *)tag_block_get_element(
                   (char *)structure_bsp + 0x54, edge[surface_match ? 1 : 0],
                   0x10);
-                float start_distance = (float)fabs(decals_dot3(basis + 7, start) -
+                float start_distance = fabsf(decals_dot3(basis + 7, start) -
                                              collision_plane_distance);
                 float end_distance =
-                  (float)fabs(decals_dot3(basis + 7, end) - collision_plane_distance);
+                  fabsf(decals_dot3(basis + 7, end) - collision_plane_distance);
                 float near_distance =
                   start_distance < end_distance ? start_distance : end_distance;
                 float far_distance =
@@ -2024,7 +2041,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
               axis_length = sqrtf(axis[0] * axis[0] + axis[1] * axis[1] +
                                   axis[2] * axis[2]);
 
-              if ((float)fabs(axis_length) < tiny) {
+              if (fabsf(axis_length) < tiny) {
                 error(2, (char *)0x26a670);
               } else {
                 float handedness;
@@ -2048,7 +2065,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
                     (basis[8] * best_plane[0] - best_plane[1] * basis[7]) *
                       axis[2];
 
-                  if (handedness > *(float *)0x2533c0) {
+                  if (*(float *)0x2533c0 <= handedness) {
                     sign = -1.0f;
                   }
 
@@ -2077,24 +2094,24 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
                   rotated_basis[11] = rotated_origin[1] + best_start[1];
                   rotated_basis[12] = rotated_origin[2] + best_start[2];
 
-                  FUN_0009a300(bounds, transformed_projection, rotated_basis);
+                  decal_projection_create(bounds, transformed_projection, rotated_basis);
 
-                  if (!(rotated_basis[7] > min_normal[0])) {
+                  if (rotated_basis[7] < min_normal[0]) {
                     min_normal[0] = rotated_basis[7];
                   }
-                  if (rotated_basis[7] > max_normal[0]) {
+                  if (max_normal[0] < rotated_basis[7]) {
                     max_normal[0] = rotated_basis[7];
                   }
-                  if (!(rotated_basis[8] > min_normal[1])) {
+                  if (rotated_basis[8] < min_normal[1]) {
                     min_normal[1] = rotated_basis[8];
                   }
-                  if (rotated_basis[8] > max_normal[1]) {
+                  if (max_normal[1] < rotated_basis[8]) {
                     max_normal[1] = rotated_basis[8];
                   }
-                  if (!(rotated_basis[9] > min_normal[2])) {
+                  if (rotated_basis[9] < min_normal[2]) {
                     min_normal[2] = rotated_basis[9];
                   }
-                  if (rotated_basis[9] > max_normal[2]) {
+                  if (max_normal[2] < rotated_basis[9]) {
                     max_normal[2] = rotated_basis[9];
                   }
                 }
@@ -2102,7 +2119,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
             }
 
             for (i = 0; i < grouped_count; ++i) {
-              FUN_0009a5a0(geometry, transformed_projection,
+              decal_clip_to_surface(geometry, transformed_projection,
                            grouped_surfaces[i], false, size, decal_type, NULL,
                            NULL, NULL, NULL);
             }
@@ -2119,7 +2136,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
       }
     }
 
-    if (geometry->decal_surface_count < 1 || geometry->vertex_count < 1) {
+    if (geometry->surface_count < 1 || geometry->vertex_count < 1) {
       return;
     }
 
@@ -2144,13 +2161,13 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
       center_offset[1] = min_normal[1] + max_normal[1];
       center_offset[2] = min_normal[2] + max_normal[2];
       normalize3d(center_offset);
-      center_offset[0] *= rasterizer_zoffset;
-      center_offset[1] *= rasterizer_zoffset;
-      center_offset[2] *= rasterizer_zoffset;
+      center_offset[0] *= *(float *)0x325710;
+      center_offset[1] *= *(float *)0x325710;
+      center_offset[2] *= *(float *)0x325710;
     }
 
     primitive_count = 0;
-    for (i = 0; i < geometry->decal_surface_count; ++i) {
+    for (i = 0; i < geometry->surface_count; ++i) {
       int16_t surface_vertex_count = geometry->surface_vertex_counts[i];
 
       if (surface_vertex_count < 3) {
@@ -2175,12 +2192,12 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
         return;
       }
 
-      error(2, (char *)0x26a498, decal_globals->locked_count,
-            decal_globals->permanent_count);
+      error(2, (char *)0x26a498, *(int *)(decal_globals + 0x2804),
+            *(int *)(decal_globals + 0x2808));
       return;
     }
 
-    decal_index = FUN_000998b0(cache_index, collision_result[8],
+    decal_index = decal_insert(cache_index, collision_result[8],
                                *(int16_t *)(decal_tag + 4), -1, randomize);
     if (decal_index == -1) {
       FUN_0017cb10(cache_index);
@@ -2189,13 +2206,13 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
         return;
       }
 
-      error(2, (char *)0x26a4e0, decal_globals->locked_count,
-            decal_globals->permanent_count);
+      error(2, (char *)0x26a4e0, *(int *)(decal_globals + 0x2804),
+            *(int *)(decal_globals + 0x2808));
       return;
     }
 
-    decal = (decal_datum_t *)datum_get(global_decal_data, decal_index);
-    cache_quads = (decal_cached_quad_t *)FUN_0017caf0(
+    decal = (int)datum_get(global_decal_data, decal_index);
+    cache_quads = (s_decal_cached_quad *)FUN_0017caf0(
       cache_index, (uint32_t)primitive_count << 6);
 
     if (cache_quads == NULL) {
@@ -2214,7 +2231,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
       float v_range = uv_bounds[3] - uv_bounds[2];
 
       for (i = 0; i < geometry->vertex_count; ++i) {
-        decal_geometry_vertex_t *vertex = &geometry->vertices[i];
+        s_decal_geometry_vertex *vertex = &geometry->vertices[i];
         float u = u_range * vertex->uv[0] + uv_bounds[0];
         float v = v_range * vertex->uv[1] + uv_bounds[2];
         int32_t packed_u;
@@ -2246,8 +2263,8 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
           v = *(float *)0x26a600;
         }
 
-        packed_u = (int32_t)floor((double)(u + *(float *)0x253398));
-        packed_v = (int32_t)floor((double)(v + *(float *)0x253398));
+        packed_u = (int32_t)(u + *(float *)0x253398);
+        packed_v = (int32_t)(v + *(float *)0x253398);
 
         if (((packed_u & 0x8000) != 0) || ((packed_v & 0x8000) != 0)) {
           decals_assert_or_exit((char *)0x26a5e0, 0xa88);
@@ -2261,35 +2278,35 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
       }
     }
 
-    decal->position[0] = *(float *)(collision_result + 0xc);
-    decal->position[1] = *(float *)(collision_result + 0xe);
-    decal->position[2] = *(float *)(collision_result + 0x10);
-    decal->birth_time = game_time_get();
-    decal->sprite_index = (uint8_t)sprite_index;
-    decal->color_index = (uint8_t)selected_color;
-    decal->field_1a = 0;
-    decal->lifetime = decals_random_real(*(float *)(decal_tag + 0x78),
-                                         *(float *)(decal_tag + 0x7c));
-    decal->definition_index = decal_tag_index;
-    decal->primitive_count = primitive_count;
-    decal->decay_time = decals_random_real(*(float *)(decal_tag + 0x80),
-                                           *(float *)(decal_tag + 0x84));
+    *(float *)(decal + 8) = *(float *)(collision_result + 0xc);
+    *(float *)(decal + 0xc) = *(float *)(collision_result + 0xe);
+    *(float *)(decal + 0x10) = *(float *)(collision_result + 0x10);
+    *(int *)(decal + 0x14) = game_time_get();
+    *(uint8_t *)(decal + 0x1b) = (uint8_t)sprite_index;
+    *(uint8_t *)(decal + 0x18) = (uint8_t)selected_color;
+    *(uint8_t *)(decal + 0x1a) = 0;
+    *(float *)(decal + 0x1c) = decals_random_real(*(float *)(decal_tag + 0x78),
+                                                  *(float *)(decal_tag + 0x7c));
+    *(int *)(decal + 0x2c) = decal_tag_index;
+    *(int16_t *)(decal + 0x2a) = primitive_count;
+    *(float *)(decal + 0x20) = decals_random_real(*(float *)(decal_tag + 0x80),
+                                                  *(float *)(decal_tag + 0x84));
 
     FUN_0007c270(color, (*(uint8_t *)decal_tag >> 1) & 3,
                  (float *)(decal_tag + 0x34), (float *)(decal_tag + 0x40),
                  decals_random_real(0.0f, 1.0f));
-    decal->color = real_a_rgb_color_to_pixel32(
+    *(uint32_t *)(decal + 0x24) = real_a_rgb_color_to_pixel32(
       decals_random_real(*(float *)(decal_tag + 0x2c),
                          *(float *)(decal_tag + 0x30)),
       color);
-    decal->alpha = 0xff;
+    *(uint8_t *)(decal + 0x28) = 0xff;
 
     {
       int16_t produced_quads = 0;
       int16_t vertex_cursor = 0;
       int i;
 
-      for (i = 0; i < geometry->decal_surface_count; ++i) {
+      for (i = 0; i < geometry->surface_count; ++i) {
         int16_t surface_vertex_count = geometry->surface_vertex_counts[i];
 
         if (surface_vertex_count < 3) {
@@ -2302,7 +2319,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
             int anchor = (step + 2 < surface_vertex_count) ?
                            vertex_cursor + step + 2 :
                            vertex_cursor;
-            decal_cached_quad_t *quad;
+            s_decal_cached_quad *quad;
 
             if (produced_quads >= primitive_count) {
               if (!g_warned_decal_quad_overflow) {
@@ -2316,10 +2333,6 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
             }
 
             quad = &cache_quads[produced_quads];
-
-            if (step + 1 >= surface_vertex_count) {
-              decals_assert_or_exit((char *)0x26a56c, 0xabc);
-            }
 
             quad->vertices[0] = staged_vertices[vertex_cursor];
             quad->vertices[1] = staged_vertices[vertex_cursor + step];
@@ -2344,10 +2357,10 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
   }
 }
 
-void FUN_0009c4b0(int decal_tag_index, void *origin, void *direction,
+void decal_new(int decal_tag_index, void *origin, void *direction,
                   float scale, bool randomize, int16_t color_index, int flags)
 {
-  if (rasterizer_environment_decals != 0) {
+  if (*(uint8_t *)0x2eebd0 != 0) {
     uint32_t *local_random_seed_address = random_math_get_local_seed_address();
     uint32_t local_seed = 0;
     int16_t collision_result[40];
@@ -2387,7 +2400,7 @@ void FUN_0009c4b0(int decal_tag_index, void *origin, void *direction,
     if (FUN_0014df70(0x100061, (float *)origin, (float *)direction, -1,
                      collision_result) &&
         collision_result[0] != 0 && collision_result[0] == 2) {
-      uint8_t *decal_tag = (uint8_t *)tag_get(TAG_GROUP_DECAL, decal_tag_index);
+      uint8_t *decal_tag = (uint8_t *)tag_get(0x64656361, decal_tag_index);
       if ((decal_tag[0] & 0x10) == 0) {
         decal_new_from_collision(decal_tag_index, collision_result, direction,
                                  scale, randomize, color_index, flags);
@@ -2542,14 +2555,6 @@ void FUN_0017cb90(void *decal)
   FUN_00170c90(decal);
 }
 
-/* Tail-call thunk to rasterizer_xbox_screen_effect (FUN_00171bc0).
- * 0x17cba0: JMP 0x171bc0 — 0 stack args (no ADD ESP at sole caller
- * 0x185236; target frame sub esp,0x74 with no [EBP+N>=8]). */
-void rasterizer_screen_flash(void)
-{
-  FUN_00171bc0();
-}
-
 /* Tail-call thunk to dynamic vertex geometry decal flush (FUN_0016bed0). */
 void FUN_0017cbb0(void *param_1, int param_2)
 {
@@ -2573,28 +2578,6 @@ void FUN_0017cbd0(void *shader, short p2, int p3, int widget_handle, int p5,
                p9);
 }
 
-/* Tail-call thunk to rasterizer_xbox_models end (FUN_0016b1c0).
- * 0x17cbe0: JMP 0x16b1c0 — 0 stack args (callers 0xb1d95 / 0x1246f5 /
- * 0x132c48 / 0x159d9a have no ADD ESP). */
-void rasterizer_model_end(void)
-{
-  FUN_0016b1c0();
-}
-
-/* Tail-call thunk to rasterizer_xbox_models (FUN_0016b240).
- * 0x17cbf0: JMP 0x16b240 — 0 stack args. */
-void FUN_0017cbf0(void)
-{
-  FUN_0016b240();
-}
-
-/* Tail-call thunk to rasterizer_xbox_environment (FUN_00160c30).
- * 0x17cc00: JMP 0x160c30 — 0 stack args (caller 0x195b5d). */
-void FUN_0017cc00(void)
-{
-  FUN_00160c30();
-}
-
 /* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00160dc0).
  */
 void FUN_0017cc10(int param_1)
@@ -2609,20 +2592,6 @@ void FUN_0017cc20(int param_1, int param_2, int param_3, int param_4,
 {
   FUN_00160f50((void *)param_1, param_2, param_3, param_4, param_5,
                (void *)param_6);
-}
-
-/* Tail-call thunk to _rasterizer_environment_lightmaps_end (0x160920).
- * 0x17cc40: JMP 0x160920 — 0 stack args (caller 0x195b90). */
-void FUN_0017cc40(void)
-{
-  _rasterizer_environment_lightmaps_end();
-}
-
-/* Tail-call thunk to rasterizer_xbox_environment (FUN_00161f00).
- * 0x17cc50: JMP 0x161f00 — 0 stack args (caller 0x13a429). */
-void FUN_0017cc50(void)
-{
-  FUN_00161f00();
 }
 
 /* Tail-call thunk to rasterizer_xbox_environment gel-light setup
@@ -2647,28 +2616,6 @@ void FUN_0017cc70(int param_1, int param_2, int param_3, int param_4,
 {
   FUN_00162560((void *)param_1, param_2, param_3, param_4, param_5,
                (void *)param_6);
-}
-
-/* Tail-call thunk to _rasterizer_environment_diffuse_light_end (0x160930).
- * 0x17cc80: JMP 0x160930 — 0 stack args (caller 0x196141). Target is a
- * lone RET. */
-void rasterizer_environment_diffuse_light_end(void)
-{
-  _rasterizer_environment_diffuse_light_end();
-}
-
-/* Tail-call thunk to _rasterizer_hud_begin (0x160940).
- * 0x17cc90: JMP 0x160940 — 0 stack args (caller 0x13a5df). */
-void FUN_0017cc90(void)
-{
-  _rasterizer_hud_begin();
-}
-
-/* Tail-call thunk to rasterizer (FUN_00172520).
- * 0x17cca0: JMP 0x172520 — 0 stack args (caller 0x18c48e). */
-void FUN_0017cca0(void)
-{
-  FUN_00172520();
 }
 
 /* Tail-call thunk to rasterizer shadow-pass begin (FUN_00172a30).
@@ -2704,13 +2651,6 @@ void FUN_0017ccd0(void *decal, int param_2, void *param_3, void *param_4)
   FUN_00172de0(decal, param_2, param_3, param_4);
 }
 
-/* Tail-call thunk to rasterizer (FUN_00172640).
- * 0x17cce0: JMP 0x172640 — 0 stack args (caller 0x1246ee). */
-void rasterizer_environment_shadow_model_end(void)
-{
-  FUN_00172640();
-}
-
 /* Tail-call thunk to rasterizer decal rendering (FUN_00173090). */
 void FUN_0017ccf0(void *shader, int param_2, int vertices_per_primitive, int a2,
                   int triangle_count, void *vertex_buffer)
@@ -2719,45 +2659,10 @@ void FUN_0017ccf0(void *shader, int param_2, int vertices_per_primitive, int a2,
                vertex_buffer);
 }
 
-/* Tail-call thunk to rasterizer (FUN_001726a0).
- * 0x17cd00: JMP 0x1726a0 — 0 stack args (caller 0x18bc4e). */
-void FUN_0017cd00(void)
-{
-  FUN_001726a0();
-}
-
-/* Tail-call thunk to rasterizer_window_get_fog (0x172720).
- * 0x17cd10: JMP 0x172720 — 0 stack args (caller 0x18c49f). */
-void FUN_0017cd10(void)
-{
-  rasterizer_window_get_fog();
-}
-
-/* Tail-call thunk to rasterizer_xbox_environment (FUN_00162790).
- * 0x17cd20: JMP 0x162790 — 0 stack args (caller 0x195be8). */
-void rasterizer_environment_diffuse_textures_begin(void)
-{
-  FUN_00162790();
-}
-
 /* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00162920).
  */
 void FUN_0017cd30(int param_1, int param_2, int param_3, int param_4,
                   int param_5, int param_6)
 {
   FUN_00162920(param_1, param_2, param_3, param_4, param_5, param_6);
-}
-
-/* Tail-call thunk to _rasterizer_environment_diffuse_textures_end (0x160950).
- * 0x17cd40: JMP 0x160950 — 0 stack args (caller 0x195c15). */
-void rasterizer_environment_diffuse_textures_end(void)
-{
-  _rasterizer_environment_diffuse_textures_end();
-}
-
-/* Tail-call thunk to rasterizer_xbox_environment (FUN_00162f90).
- * 0x17cd50: JMP 0x162f90 — 0 stack args (caller 0x13a5f9). */
-void FUN_0017cd50(void)
-{
-  FUN_00162f90();
 }

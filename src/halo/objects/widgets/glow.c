@@ -3,7 +3,7 @@
  * TU: c:\halo\SOURCE\objects\widgets\glow.c  (confirmed via __FILE__ assert
  * string "c:\halo\SOURCE\objects\widgets\glow.c" referenced at 0x1345b0+0x50c).
  *
- * FUN_001345b0 (0x1345b0) — per-frame glow widget update.  ABI (immutable, from
+ * glow_update (0x1345b0) — per-frame glow widget update.  ABI (immutable, from
  * kb.json): param_1 glow_widget in EAX; param_2 object_handle on stack; cdecl,
  * void return.  Prologue moves EAX->EBX and keeps the widget there throughout,
  * the glow tag block ('glw!') in ESI, and object_handle ([ebp+8]) in EDI.
@@ -55,7 +55,7 @@
  * = 10 bytes = 5 int16 slots) and the object_get_markers_by_string_id max. */
 #define GLOW_MARKER_MAX 5
 
-void FUN_001345b0(int glow_widget, int object_handle)
+void glow_update(int glow_widget, int object_handle)
 {
   float *glow_tag;
   short marker_count;

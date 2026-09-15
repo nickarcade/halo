@@ -1098,12 +1098,12 @@ void projectile_detonate(int projectile_handle, char has_hit_count, float curren
       (*(int *)(proj + 0xfc + *(int *)(proj + 0x1ec) * 4) != -1)) {
     object_compute_node_matrices(projectile_handle);
 
-    /* contrail_set_state_for_object(contrail_handle, reset_points, dt):
+    /* contrail_owner_collision(contrail_handle, reset_points, dt):
      * dt = (DAT_0028ab38) * (*(float*)0x2533c8 - current_time).
      * Binary: FLD 0x2533c8; FSUB [EBP+0x10]; FMUL 0x28ab38;
      *         FSTP [ESP]; PUSH 0; PUSH ECX; CALL 0x986d0.
      * This is the push-then-fstp float argument pattern. */
-    contrail_set_state_for_object(
+    contrail_owner_collision(
       *(int *)(proj + 0xfc + *(int *)(proj + 0x1ec) * 4), 0,
       (*(float *)0x2533c8u - current_time) * *(float *)0x28ab38u);
   }
@@ -2885,7 +2885,7 @@ bool projectile_update(int projectile_handle)
             ((short)bounce_count != 0) && (*(int *)(proj + 0x1ec) != -1) &&
             (*(int *)(proj + 0xfc + *(int *)(proj + 0x1ec) * 4) != -1)) {
           object_compute_node_matrices(projectile_handle);
-          contrail_set_state_for_object(
+          contrail_owner_collision(
             *(int *)(proj + 0xfc + *(int *)(proj + 0x1ec) * 4), 0,
             (1.0f - time_remaining) * *(float *)0x28ab38);
         }

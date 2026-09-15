@@ -768,7 +768,7 @@ void scripted_camera_update(int param_1, unsigned short *param_2, unsigned int *
 
 /* 0x9eb40 / effects.obj
  * Create a new effect linked to an object. Allocates an effect datum via
- * FUN_0009d2d0, stores object handle, marker indices, and optionally
+ * effect_allocate, stores object handle, marker indices, and optionally
  * copies the default scale vector from **(float**)0x2ee708. Runs the
  * marker-resolve callback and optionally the first-person weapon marker
  * callback, then fires the initial effect_update tick. */
@@ -784,7 +784,7 @@ int effect_new_looping(int definition_index, int object_index, short marker_inde
     system_exit(-1);
   }
 
-  iVar3 = FUN_0009d2d0(definition_index, object_index, 1);
+  iVar3 = effect_allocate(definition_index, object_index, 1);
   if (iVar3 != -1) {
     iVar4 = (char *)datum_get(*(data_t **)0x5aa8b0, iVar3);
     *(int *)(iVar4 + 0x3c) = object_index;
@@ -800,9 +800,9 @@ int effect_new_looping(int definition_index, int object_index, short marker_inde
     }
     *(uint8_t *)(iVar4 + 2) |= 2;
     csmemset(iVar4 + 0x5c, -1, 0x80);
-    FUN_0009d4e0((int)iVar4, (void *)&object_get_markers_by_string_id);
+    effect_build_locations((int)iVar4, (void *)&object_get_markers_by_string_id);
     if (*(short *)(iVar4 + 0x4c) != -1) {
-      FUN_0009d4e0((int)iVar4, (void *)0xdd190);
+      effect_build_locations((int)iVar4, (void *)0xdd190);
     }
     effect_update(iVar3, 0.0f);
   }
@@ -811,9 +811,9 @@ int effect_new_looping(int definition_index, int object_index, short marker_inde
 
 /* effect_new_from_object / effects.obj — create a scaled effect attached to an object.
  * Validates that object_index is not NONE and that both scale values are in
- * [0,1]. Allocates an effect datum, applies scale/colour via FUN_0009d430,
+ * [0,1]. Allocates an effect datum, applies scale/colour via impulse_effect_initialize,
  * stores the attached object handle and first-person-weapon index, optionally
- * marks as "violent" (via FUN_0009c700), performs debug logging if enabled,
+ * marks as "violent" (via effects_object_is_corpse), performs debug logging if enabled,
  * memsets the per-event slot array, runs marker-resolve callbacks, and fires
  * the initial effect_update tick. Returns the new datum index or NONE (-1).
  *
@@ -850,17 +850,17 @@ int effect_new_from_object(int param_1, int param_2, int param_3, short param_4,
     system_exit(-1);
   }
 
-  iVar3 = FUN_0009d2d0(param_1, param_2, 1);
+  iVar3 = effect_allocate(param_1, param_2, 1);
   if (iVar3 != -1) {
     iVar4 = (char *)datum_get(*(data_t **)0x5aa8b0, iVar3);
-    FUN_0009d430((int)iVar4, param_7, param_8, param_5, param_6);
+    impulse_effect_initialize((int)iVar4, param_7, param_8, param_5, param_6);
     *(int *)(iVar4 + 0x3c) = param_3;
     fpw_index = (short)first_person_weapon_get_local_index(param_3);
     *(short *)(iVar4 + 0x4c) = fpw_index;
 
     violent_flag = 0x40;
     if (*(char *)0x2eebe0 != '\0') {
-      if (FUN_0009c700(*(int *)(iVar4 + 0x3c))) {
+      if (effects_object_is_corpse(*(int *)(iVar4 + 0x3c))) {
         *(unsigned short *)(iVar4 + 2) |= (short)violent_flag;
       }
     }
@@ -890,9 +890,9 @@ int effect_new_from_object(int param_1, int param_2, int param_3, short param_4,
     }
 
     csmemset(iVar4 + 0x5c, -1, 0x80);
-    FUN_0009d4e0((int)iVar4, (void *)&object_get_markers_by_string_id);
+    effect_build_locations((int)iVar4, (void *)&object_get_markers_by_string_id);
     if (*(short *)(iVar4 + 0x4c) != -1) {
-      FUN_0009d4e0((int)iVar4, (void *)0xdd190);
+      effect_build_locations((int)iVar4, (void *)0xdd190);
     }
     if (param_4 != -1) {
       *(short *)(iVar4 + 0x4c) = param_4;
@@ -1265,7 +1265,7 @@ void glow_delete(int widget_datum)
  *   untransformed_direction = glow_widget + variant*0x6c + 0x44, variant =
  *                             *(int16_t*)(particle+2) (MOVSX at 0x133589) --
  *                             the same per-marker basis-row table
- *                             FUN_001345b0 indexes as basis_i[-0xb..-9]
+ *                             glow_update indexes as basis_i[-0xb..-9]
  *                             relative to its own +0x70 basis pointer
  *                             (0x70-0x2c == 0x44).
  *   angle                   = 0.0f (constant)
@@ -1828,7 +1828,7 @@ int glow_trailing_particle_new(int glow_widget /* @<ebx> */)
  *
  * Given an object handle and a widget datum handle, looks up the object datum,
  * resolves the glow-widget tag ('glw!' = 0x676c7721) referenced at
- * object+0x224, then runs the glow-widget initialization (FUN_001345b0) on the
+ * object+0x224, then runs the glow-widget initialization (glow_update) on the
  * object datum, builds the object's marker set for the widget tag
  * (object_get_markers_by_string_id), and refreshes the widget render batch
  * (glow_render).
@@ -1836,7 +1836,7 @@ int glow_trailing_particle_new(int glow_widget /* @<ebx> */)
  * Confirmed: 2 cdecl args (object_handle @ [EBP+0x8], widget_datum @
  * [EBP+0xc]), early-out if either is -1. Confirmed: first
  * datum_get(*(data_t**)0x5a90c8, widget_datum) -> object datum; widget tag =
- * tag_get(0x676c7721, *(object_datum+0x224)). Confirmed: FUN_001345b0 is
+ * tag_get(0x676c7721, *(object_datum+0x224)). Confirmed: glow_update is
  * register-arg — glow_widget@<eax> receives the second datum_get's return
  * (object datum ptr); object_handle pushed (the EDI push at 0x134b1f) is its
  * single cdecl stack arg. The trailing ADD ESP,0x1c batch-cleans this push plus
@@ -1853,7 +1853,7 @@ void glow_submit(int object_handle, int widget_datum)
   if ((object_handle != -1) && (widget_datum != -1)) {
     object_datum = (int)datum_get(*(data_t **)0x5a90c8, widget_datum);
     widget_tag = tag_get(0x676c7721, *(int *)(object_datum + 0x224));
-    FUN_001345b0((int)datum_get(*(data_t **)0x5a90c8, widget_datum),
+    glow_update((int)datum_get(*(data_t **)0x5a90c8, widget_datum),
                  object_handle);
     object_get_markers_by_string_id((int)object_handle, widget_tag, local_buf,
                                     1);
@@ -8246,7 +8246,7 @@ int object_mark(int object_handle)
  * light_new  (light)        ; sets object flag 0x100 type 1 'lsnd' ->
  * game_looping_sound_new       ; sets object flag 0x400 type 2 'effe' ->
  * effect_new_looping  (effect) type 3 'cont' -> contrail_new type 4 'pctl' ->
- * FUN_000a12e0  (particle) The attachment type byte is stored at object+0xf4+i
+ * particle_system_new_attached  (particle) The attachment type byte is stored at object+0xf4+i
  * and the created handle at object+0xfc+i*4. Marker indices passed to creators
  * are element fields minus 1 (element+0x30/+0x32/+0x34 -> marker / secondary /
  * tertiary).
@@ -8332,7 +8332,7 @@ void attachments_new(int object_handle)
         handle = contrail_new((int)def, object_handle, i);
         break;
       case 4:
-        handle = FUN_000a12e0((int)def, object_handle, i);
+        handle = particle_system_new_attached((int)def, object_handle, i);
         break;
       default:
         break;
@@ -12679,8 +12679,8 @@ void object_render_debug(int param_1)
  *   Type 0: light_delete (effect cleanup)
  *   Type 1: game_looping_sound_delete (sound cleanup)
  *   Type 2: effect_delete (decal cleanup)
- *   Type 3: object_compute_node_matrices + contrail_set_state_for_object (light
- * cleanup) Type 4: FUN_0009f6e0 (contrail cleanup)
+ *   Type 3: object_compute_node_matrices + contrail_owner_collision (light
+ * cleanup) Type 4: particle_system_orphan (contrail cleanup)
  *
  * Object attachment structure:
  *   obj+0xf4 to obj+0xf4+count: attachment type bytes (-1 = empty)
@@ -12724,10 +12724,10 @@ void attachments_delete(int object_handle)
       object_compute_node_matrices(object_handle);
       /* Force a post-call reload; EAX is clobbered by the matrices call. */
       attachment_handle = *(int *)((char *)obj + 0xfc + (int)i * 4);
-      contrail_set_state_for_object(attachment_handle, 1, 0);
+      contrail_owner_collision(attachment_handle, 1, 0);
       break;
     case 4:
-      FUN_0009f6e0(attachment_handle);
+      particle_system_orphan(attachment_handle);
       break;
     }
   }

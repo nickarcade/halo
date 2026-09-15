@@ -2378,7 +2378,7 @@ void rasterizer_decals_initialize_for_new_map(void)
  * rasterizer_decals_dispose_from_old_map
  *
  * Asserts the LRUV vertex cache exists, then clears all per-map decal state:
- *   1. Calls decals_update_for_new_map(true) to strip lock/permanent flags
+ *   1. Calls decals_unlock(true) to strip lock/permanent flags
  *      from every live decal datum and reset the global lock/permanent counts.
  *   2. Calls lruv_cache_dispose_all() to evict all cached vertex entries.
  */
@@ -2390,7 +2390,7 @@ void rasterizer_decals_dispose_from_old_map(void)
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_decals.c", 0x83, 1);
     system_exit(-1);
   }
-  decals_update_for_new_map(1);
+  decals_unlock(1);
   lruv_cache_dispose_all(*(void **)0x476adc);
 }
 
@@ -2409,7 +2409,7 @@ void FUN_0015b1e0(void)
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_decals.c", 0x8e, 1);
     system_exit(-1);
   }
-  decals_update_for_new_map(0);
+  decals_unlock(0);
   lruv_cache_dispose_all(*(void **)0x476adc);
 }
 
@@ -2876,7 +2876,7 @@ LAB_0015bb9c:
 /*
  * FUN_0015bc40 — render every decal in one cluster/layer chain.
  *
- * Fetches the decal list head via FUN_00098fe0(cluster_index, current_layer),
+ * Fetches the decal list head via decal_get_first_decal_index(cluster_index, current_layer),
  * then walks the singly-linked list (link at decal+0x34, -1 terminates). For
  * each decal it re-programs the framebuffer blend function + texture-combiner
  * state and rebinds the decal bitmap only when they change from the cached
@@ -2920,7 +2920,7 @@ void FUN_0015bc40(int rendered_cluster_data)
 
   if (*(uint16_t *)0x3256bc == 0 && *(uint8_t *)0x3256cd != 0) {
     decal_index =
-      FUN_00098fe0((int16_t)rendered_cluster_data, *(int16_t *)0x476ac8);
+      decal_get_first_decal_index((int16_t)rendered_cluster_data, *(int16_t *)0x476ac8);
     while (decal_index != -1) {
       char *decal;
       char *tag;
