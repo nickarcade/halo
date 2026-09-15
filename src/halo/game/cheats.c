@@ -394,7 +394,7 @@ void cheat_teleport_to_camera(void)
     object_set_position(object_handle, (float *)camera, NULL, NULL);
     return;
   }
-  ((terminal_output_2_t)terminal_output)(
+  ((terminal_output_2_t)terminal_printf)(
     *(void **)0x2ee6f0,
     "Camera is outside BSP... cannot initiate teleportation...");
 }

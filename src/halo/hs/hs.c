@@ -5396,7 +5396,7 @@ void hs_evaluate_hud_help_flash_restart(int16_t function_index, int thread_datum
  *
  * Structural twin of the other four-argument handlers in this file: evaluate
  * the script arguments, and when the evaluator hands back a completed argument
- * block, forward the four fields to FUN_000d6490 (0xd6490, "set object nav
+ * block, forward the four fields to hud_unit_activate_nav_point_with_flag (0xd6490, "set object nav
  * point for a unit's player") and return 0 to the calling script thread.
  * While arguments are still being evaluated the return is NULL and nothing is
  * dispatched this tick.
@@ -5445,7 +5445,7 @@ void hs_evaluate_hud_help_flash_restart(int16_t function_index, int thread_datum
  *
  * Callees (all cdecl, no register args):
  *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
- *   0xd6490 = FUN_000d6490(nav_type_value, unit_handle, object_handle, real)
+ *   0xd6490 = hud_unit_activate_nav_point_with_flag(nav_type_value, unit_handle, object_handle, real)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_activate_nav_point_flag(int16_t function_index, int thread_datum, char init)
@@ -5455,7 +5455,7 @@ void hs_evaluate_activate_nav_point_flag(int16_t function_index, int thread_datu
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000d6490(*(uint16_t *)result, result[1], *(uint16_t *)(result + 2),
+    hud_unit_activate_nav_point_with_flag(*(uint16_t *)result, result[1], *(uint16_t *)(result + 2),
                  *(float *)(result + 3));
     hs_return(thread_datum, 0);
   }
@@ -5466,7 +5466,7 @@ void hs_evaluate_activate_nav_point_flag(int16_t function_index, int thread_datu
  * a unit's player.  The enemy-side counterpart of 0xc2cd0 immediately above,
  * and its structural twin: evaluate the script arguments, and when the
  * evaluator hands back a completed argument block, forward the four fields to
- * FUN_000d64c0 (0xd64c0, "set enemy nav point for a unit's player") and return
+ * hud_unit_activate_nav_point_with_object (0xd64c0, "set enemy nav point for a unit's player") and return
  * 0 to the calling script thread.  While arguments are still being evaluated
  * the return is NULL and nothing is dispatched this tick.
  *
@@ -5521,7 +5521,7 @@ void hs_evaluate_activate_nav_point_flag(int16_t function_index, int thread_datu
  *
  * Callees (all cdecl, no register args):
  *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
- *   0xd64c0 = FUN_000d64c0(nav_type_value, unit_handle, param_3, real)
+ *   0xd64c0 = hud_unit_activate_nav_point_with_object(nav_type_value, unit_handle, param_3, real)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_activate_nav_point_object(int16_t function_index, int thread_datum, char init)
@@ -5531,7 +5531,7 @@ void hs_evaluate_activate_nav_point_object(int16_t function_index, int thread_da
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000d64c0(*(uint16_t *)result, result[1], result[2],
+    hud_unit_activate_nav_point_with_object(*(uint16_t *)result, result[1], result[2],
                  *(float *)(result + 3));
     hs_return(thread_datum, 0);
   }
@@ -5542,12 +5542,12 @@ void hs_evaluate_activate_nav_point_object(int16_t function_index, int thread_da
  * (script-function record at 0x2720c4: name="activate_team_nav_point_flag",
  * return_type=4 (void), num_params=4, param_types=(21, 33, 12, 6)).
  * Evaluate the macro arguments and forward the resulting nav-point record to
- * FUN_000d6220, then commit a void (0) return to the calling thread.
+ * hud_activate_team_nav_point_with_flag, then commit a void (0) return to the calling thread.
  *
  * Exact twin of hs_evaluate_activate_team_nav_point_object (`activate_team_nav_point_object`) below; the
  * only difference is the +0x08 field, which the flag variant reads as a
  * zero-extended 16-bit cutscene-flag index instead of a full 32-bit object
- * handle — matching FUN_000d6220's `short` 3rd parameter.
+ * handle — matching hud_activate_team_nav_point_with_flag's `short` 3rd parameter.
  *
  * Result-record layout (derived from the disassembly at 000c2d8c..000c2da7,
  * NOT from the decompiler's ushort* index arithmetic):
@@ -5573,12 +5573,12 @@ void hs_evaluate_activate_nav_point_object(int16_t function_index, int thread_da
  * Callees (all cdecl, all ported):
  *   0xcc560 = hs_macro_function_evaluate(int16 function_index,
  *                                        int thread_datum, char init)
- *   0xd6220 = FUN_000d6220(int type_value, int team, short object_handle,
+ *   0xd6220 = hud_activate_team_nav_point_with_flag(int type_value, int team, short object_handle,
  *                          int extra)
  *   0xcbf80 = hs_return(int thread_datum, int value)
  *
  * The single `ADD ESP,0x18` at 000c2db4 cleans up BOTH the 4 pushes for
- * FUN_000d6220 and the 2 pushes for hs_return; hs_return still takes 2 args
+ * hud_activate_team_nav_point_with_flag and the 2 pushes for hs_return; hs_return still takes 2 args
  * (the ARG_COUNT "cleanup=6" hazard is that merged cleanup, a false
  * positive).
  */
@@ -5589,7 +5589,7 @@ void hs_evaluate_activate_team_nav_point_flag(int16_t function_index, int thread
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000d6220(*(uint16_t *)result, *(uint16_t *)(result + 1),
+    hud_activate_team_nav_point_with_flag(*(uint16_t *)result, *(uint16_t *)(result + 1),
                  *(uint16_t *)(result + 2), result[3]);
     hs_return(thread_datum, 0);
   }
@@ -5597,7 +5597,7 @@ void hs_evaluate_activate_team_nav_point_flag(int16_t function_index, int thread
 }
 
 /* 0xc2dc0 — HS script function handler: evaluate the macro arguments and
- * forward the resulting nav-point record to FUN_000d6250 (set enemy nav point
+ * forward the resulting nav-point record to hud_activate_team_nav_point_with_object (set enemy nav point
  * for all players on a team), then commit a void (0) return to the calling
  * thread.
  *
@@ -5613,10 +5613,10 @@ void hs_evaluate_activate_team_nav_point_flag(int16_t function_index, int thread
  * The +0x0c slot is materialised through the FPU (FLD/FSTP [ESP]), i.e. the
  * value is semantically a float.  It is nevertheless carried as an opaque
  * dword the whole way down the chain (0xd6250 -> 0xd6180 -> 0xd6030, where
- * FUN_000d6030's 5th parameter is `int` and existing callers bit-pun floats
+ * hud_activate_nav_point's 5th parameter is `int` and existing callers bit-pun floats
  * into it), so it is forwarded here as the raw dword.  A numeric
  * `(int)*(float *)` cast would truncate the value instead of preserving the
- * bit pattern the original pushes.  Declaring FUN_000d6250's 4th parameter
+ * bit pattern the original pushes.  Declaring hud_activate_team_nav_point_with_object's 4th parameter
  * `float` and passing `*(float *)(result + 3)` was measured: MSVC71 lowers a
  * float lvalue copy to the same `MOV`/`PUSH` pair, so it is 0.00pp on both
  * this function and 0xd6250 — the reference's FLD/FSTP form is not reachable
@@ -5625,12 +5625,12 @@ void hs_evaluate_activate_team_nav_point_flag(int16_t function_index, int thread
  * Callees (all cdecl, all ported):
  *   0xcc560 = hs_macro_function_evaluate(int16 function_index,
  *                                        int thread_datum, char init)
- *   0xd6250 = FUN_000d6250(int type_value, int team, int object_handle,
+ *   0xd6250 = hud_activate_team_nav_point_with_object(int type_value, int team, int object_handle,
  *                          int extra)
  *   0xcbf80 = hs_return(int thread_datum, int value)
  *
  * The single `ADD ESP,0x18` at 000c2e01 cleans up BOTH the 4 pushes for
- * FUN_000d6250 and the 2 pushes for hs_return; hs_return still takes 2 args.
+ * hud_activate_team_nav_point_with_object and the 2 pushes for hs_return; hs_return still takes 2 args.
  */
 void hs_evaluate_activate_team_nav_point_object(int16_t function_index, int thread_datum, char init)
 {
@@ -5639,7 +5639,7 @@ void hs_evaluate_activate_team_nav_point_object(int16_t function_index, int thre
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000d6250(*(uint16_t *)result, *(uint16_t *)(result + 1), result[2],
+    hud_activate_team_nav_point_with_object(*(uint16_t *)result, *(uint16_t *)(result + 1), result[2],
                  result[3]);
     hs_return(thread_datum, 0);
   }
@@ -5647,14 +5647,14 @@ void hs_evaluate_activate_team_nav_point_object(int16_t function_index, int thre
 }
 
 /* 0xc2e10 — HS script function handler: evaluate the macro arguments and
- * forward a (dword, uint16) pair from the result block to FUN_000d64f0.
+ * forward a (dword, uint16) pair from the result block to hud_unit_deactivate_nav_point_with_flag.
  *
  * Same skeleton as the rest of this family: evaluate, bail on NULL, dispatch,
  * then commit a void (0) return to the calling thread.
  *
  * Result-block layout (from disassembly at 000c2e2c..000c2e34):
- *   +0x00  dword   -> FUN_000d64f0 arg 1  (MOV EAX, [EAX])
- *   +0x04  uint16  -> FUN_000d64f0 arg 2  (XOR EDX,EDX; MOV DX, [EAX+4])
+ *   +0x00  dword   -> hud_unit_deactivate_nav_point_with_flag arg 1  (MOV EAX, [EAX])
+ *   +0x04  uint16  -> hud_unit_deactivate_nav_point_with_flag arg 2  (XOR EDX,EDX; MOV DX, [EAX+4])
  * The +0x04 load is zero-extending, so the field is unsigned 16-bit even
  * though the callee's parameter is declared `short`; read through uint16_t so
  * the narrowing happens at the call rather than emitting a MOVSX.
@@ -5662,11 +5662,11 @@ void hs_evaluate_activate_team_nav_point_object(int16_t function_index, int thre
  * Callees (all ported):
  *   0xcc560 = hs_macro_function_evaluate(int16 function_index,
  *                                        int thread_datum, char init)
- *   0xd64f0 = FUN_000d64f0(int, short)
+ *   0xd64f0 = hud_unit_deactivate_nav_point_with_flag(int, short)
  *   0xcbf80 = hs_return(int thread_datum, int value)
  *
  * Note: the single `ADD ESP,0x10` at 000c2e43 cleans up BOTH the 2 pushes for
- * FUN_000d64f0 and the 2 pushes for hs_return — hs_return really takes 2 args.
+ * hud_unit_deactivate_nav_point_with_flag and the 2 pushes for hs_return — hs_return really takes 2 args.
  */
 void hs_evaluate_deactivate_nav_point_flag(int16_t function_index, int thread_datum, char init)
 {
@@ -5675,7 +5675,7 @@ void hs_evaluate_deactivate_nav_point_flag(int16_t function_index, int thread_da
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000d64f0(result[0], *(uint16_t *)(result + 1));
+    hud_unit_deactivate_nav_point_with_flag(result[0], *(uint16_t *)(result + 1));
     hs_return(thread_datum, 0);
   }
   return;
@@ -5687,22 +5687,22 @@ void hs_evaluate_deactivate_nav_point_flag(int16_t function_index, int thread_da
  * return to the calling thread.
  *
  * Result-block layout (from disassembly at 000c2e6d..000c2e70):
- *   +0x00  dword -> FUN_000d6520 arg 1  (MOV EAX, [EAX])
- *   +0x04  dword -> FUN_000d6520 arg 2  (MOV EDX, [EAX+4])
+ *   +0x00  dword -> hud_unit_deactivate_nav_point_with_object arg 1  (MOV EAX, [EAX])
+ *   +0x04  dword -> hud_unit_deactivate_nav_point_with_object arg 2  (MOV EDX, [EAX+4])
  * Both loads are full 32-bit dwords — unlike siblings 0xc0c30 (int16) and
  * 0xc0c70 (char), there is no narrowing here.
  *
  * Callees (all cdecl, ported):
  *   0xcc560 = hs_macro_function_evaluate(int16 function_index,
  *                                        int thread_datum, char init)
- *   0xd6520 = FUN_000d6520(int, int)
+ *   0xd6520 = hud_unit_deactivate_nav_point_with_object(int, int)
  *   0xcbf80 = hs_return(int thread_datum, int value)
  *
  * ABI (verified against disassembly 0xc2e50-0xc2e86): plain RET, no locals,
  * no _chkstk; ESI caches thread_datum across the body.  `function_index` and
  * `init` are only forwarded to hs_macro_function_evaluate.  The single
  * `ADD ESP,0x10` at 000c2e80 is shared cleanup for BOTH 2-arg calls
- * (FUN_000d6520 and hs_return) — hs_return really takes 2 args.
+ * (hud_unit_deactivate_nav_point_with_object and hs_return) — hs_return really takes 2 args.
  */
 void hs_evaluate_deactivate_nav_point_object(int16_t function_index, int thread_datum, char init)
 {
@@ -5711,14 +5711,14 @@ void hs_evaluate_deactivate_nav_point_object(int16_t function_index, int thread_
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000d6520(result[0], result[1]);
+    hud_unit_deactivate_nav_point_with_object(result[0], result[1]);
     hs_return(thread_datum, 0);
   }
   return;
 }
 
 /* 0xc2e90 — HS script function handler: evaluate the macro arguments and
- * forward an (int16, uint16) pair from the result block to FUN_000d6450.
+ * forward an (int16, uint16) pair from the result block to hud_deactivate_team_nav_point_with_flag.
  *
  * Same skeleton as immediate neighbours 0xc2e10 / 0xc2e50: evaluate, bail on a
  * NULL result block, dispatch, then commit a void (0) return to the calling
@@ -5727,8 +5727,8 @@ void hs_evaluate_deactivate_nav_point_object(int16_t function_index, int thread_
  * Result-block layout (from disassembly at 000c2eaa..000c2eb6) — note the
  * width/sign asymmetry, which is what distinguishes this handler from its
  * neighbours:
- *   +0x00  int16   -> FUN_000d6450 arg 1  (MOVSX EAX, word ptr [EAX])
- *   +0x04  uint16  -> FUN_000d6450 arg 2  (XOR EDX,EDX; MOV DX, [EAX+4])
+ *   +0x00  int16   -> hud_deactivate_team_nav_point_with_flag arg 1  (MOVSX EAX, word ptr [EAX])
+ *   +0x04  uint16  -> hud_deactivate_team_nav_point_with_flag arg 2  (XOR EDX,EDX; MOV DX, [EAX+4])
  * +0x00 is SIGN-extended (MOVSX) so it must be read through a signed short;
  * +0x04 is ZERO-extended so it must be read through uint16_t.  Widening +0x04
  * to a dword (as sibling 0xc2e50 does) or sign-extending it would be wrong.
@@ -5736,15 +5736,15 @@ void hs_evaluate_deactivate_nav_point_object(int16_t function_index, int thread_
  * Callees (all cdecl, ported):
  *   0xcc560 = hs_macro_function_evaluate(int16 function_index,
  *                                        int thread_datum, char init)
- *   0xd6450 = FUN_000d6450(int, short)
+ *   0xd6450 = hud_deactivate_team_nav_point_with_flag(int, short)
  *   0xcbf80 = hs_return(int thread_datum, int value)
  *
  * ABI (verified against disassembly 0xc2e90-0xc2eca): plain RET, no locals, no
  * _chkstk, no SEH; ESI caches thread_datum across the body.  `function_index`
  * and `init` are only forwarded to hs_macro_function_evaluate.  The single
  * `ADD ESP,0x10` at 000c2ec4 is shared cleanup for BOTH 2-arg calls
- * (FUN_000d6450 and hs_return) — hs_return really takes 2 args, and the second
- * one is the literal 0, not a forwarded result (FUN_000d6450 returns void).
+ * (hud_deactivate_team_nav_point_with_flag and hs_return) — hs_return really takes 2 args, and the second
+ * one is the literal 0, not a forwarded result (hud_deactivate_team_nav_point_with_flag returns void).
  */
 void hs_evaluate_deactivate_team_nav_point_flag(int16_t function_index, int thread_datum, char init)
 {
@@ -5753,14 +5753,14 @@ void hs_evaluate_deactivate_team_nav_point_flag(int16_t function_index, int thre
   result =
     (short *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000d6450((int)*result, *(uint16_t *)(result + 2));
+    hud_deactivate_team_nav_point_with_flag((int)*result, *(uint16_t *)(result + 2));
     hs_return(thread_datum, 0);
   }
   return;
 }
 
 /* 0xc2ed0 — HS script function handler: evaluate the macro arguments and
- * forward an (int16, int32) pair from the result block to FUN_000d6470.
+ * forward an (int16, int32) pair from the result block to hud_deactivate_team_nav_point_with_object.
  *
  * Same skeleton as immediate neighbours 0xc2e10 / 0xc2e50 / 0xc2e90:
  * evaluate, bail on a NULL result block, dispatch, then commit a void (0)
@@ -5768,8 +5768,8 @@ void hs_evaluate_deactivate_team_nav_point_flag(int16_t function_index, int thre
  *
  * Result-block layout (from disassembly at 000c2eea..000c2ef3) — note the
  * width asymmetry, which is what distinguishes this handler from 0xc2e90:
- *   +0x00  int16 -> FUN_000d6470 arg 1  (MOVSX EAX, word ptr [EAX])
- *   +0x04  int32 -> FUN_000d6470 arg 2  (MOV EDX, dword ptr [EAX + 0x4])
+ *   +0x00  int16 -> hud_deactivate_team_nav_point_with_object arg 1  (MOVSX EAX, word ptr [EAX])
+ *   +0x04  int32 -> hud_deactivate_team_nav_point_with_object arg 2  (MOV EDX, dword ptr [EAX + 0x4])
  * +0x00 is SIGN-extended (MOVSX) so it must be read through a signed short.
  * +0x04 is a FULL dword read here, not the zero-extended 16-bit read sibling
  * 0xc2e90 performs; narrowing it to uint16_t would be wrong.  `result + 2` is
@@ -5778,16 +5778,16 @@ void hs_evaluate_deactivate_team_nav_point_flag(int16_t function_index, int thre
  * Callees (all cdecl, ported):
  *   0xcc560 = hs_macro_function_evaluate(int16 function_index,
  *                                        int thread_datum, char init)
- *   0xd6470 = FUN_000d6470(int, int)
+ *   0xd6470 = hud_deactivate_team_nav_point_with_object(int, int)
  *   0xcbf80 = hs_return(int thread_datum, int value)
  *
  * ABI (verified against disassembly 0xc2ed0-0xc2f06): PUSH EBP / MOV EBP,ESP /
  * PUSH ESI, no `sub esp` (zero locals), no _chkstk, no SEH; plain RET.  ESI
  * caches thread_datum across the whole body.  `function_index` and `init` are
  * only forwarded to hs_macro_function_evaluate.  The single `ADD ESP,0x10` at
- * 000c2f01 is shared cleanup for BOTH 2-arg calls (FUN_000d6470 and hs_return)
+ * 000c2f01 is shared cleanup for BOTH 2-arg calls (hud_deactivate_team_nav_point_with_object and hs_return)
  * — hs_return really takes 2 args, and the second one is the literal 0, not a
- * forwarded result (FUN_000d6470 returns void).
+ * forwarded result (hud_deactivate_team_nav_point_with_object returns void).
  */
 void hs_evaluate_deactivate_team_nav_point_object(int16_t function_index, int thread_datum, char init)
 {
@@ -5796,7 +5796,7 @@ void hs_evaluate_deactivate_team_nav_point_object(int16_t function_index, int th
   result =
     (short *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_000d6470((int)*result, *(int *)(result + 2));
+    hud_deactivate_team_nav_point_with_object((int)*result, *(int *)(result + 2));
     hs_return(thread_datum, 0);
   }
   return;
@@ -5807,7 +5807,7 @@ void hs_evaluate_deactivate_team_nav_point_object(int16_t function_index, int th
  *
  * Disassembly (whole body, 0xc2f10-0xc2f28, 10 instructions):
  *   PUSH EBP; MOV EBP,ESP   ; bare frame — no SUB ESP, no _chkstk → NO locals
- *   CALL 0xe34a0            ; terminal_show(); no args pushed before it and no
+ *   CALL 0xe34a0            ; terminal_clear(); no args pushed before it and no
  *                           ; cleanup after → confirms void(void)
  *   MOV EAX,[EBP+0xc]       ; thread_datum (2nd cdecl param), NOT [EBP+0x8]
  *   PUSH 0x0                ; hs_return arg2 = value
@@ -5816,7 +5816,7 @@ void hs_evaluate_deactivate_team_nav_point_object(int16_t function_index, int th
  *                           ; C argument: hs_return(thread_datum, 0)
  *   CALL 0xcbf80            ; hs_return
  *   ADD ESP,0x8             ; un-merged cdecl cleanup, 2 dwords → 2 args, all
- *                           ; belonging to hs_return (terminal_show takes none)
+ *                           ; belonging to hs_return (terminal_clear takes none)
  *   POP EBP; RET            ; plain RET, no RET n → cdecl
  *
  * No FPU ops, no struct access, no locals, no buffers.  [EBP+0x8]
@@ -5831,12 +5831,12 @@ void hs_evaluate_deactivate_team_nav_point_object(int16_t function_index, int th
  * with this lift.
  *
  * Callees (both cdecl, ported, no register args):
- *   0xe34a0 = terminal_show(void)
+ *   0xe34a0 = terminal_clear(void)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_cls(int16_t function_index, int thread_datum, char init)
 {
-  terminal_show();
+  terminal_clear();
   hs_return(thread_datum, 0);
   return;
 }
@@ -6170,7 +6170,7 @@ void hs_evaluate_player_effect_stop(int16_t function_index, int thread_datum, ch
 /* 0xc30f0 — HaloScript function handler: toggle HUD health visibility.
  *
  * Evaluates the macro's single argument; on success the result block holds a
- * boolean BYTE at +0x0, which is handed to FUN_000d7440 (show_hud), then the
+ * boolean BYTE at +0x0, which is handed to scripted_hud_show_health (show_hud), then the
  * thread is resumed with hs_return(thread_datum, 0).
  *
  * Ghidra mis-prototypes this as `void(void)` and reports the three
@@ -6207,7 +6207,7 @@ void hs_evaluate_player_effect_stop(int16_t function_index, int thread_datum, ch
  *                                    ; record pointer itself), unlike the
  *                                    ; 0xc0c30 family which reads +0x4.
  *   PUSH EDX                         ; ...the show_hud call's ONE argument
- *   CALL 0xd7440                     ; FUN_000d7440 (show_hud)
+ *   CALL 0xd7440                     ; scripted_hud_show_health (show_hud)
  *   PUSH 0x0; PUSH ESI
  *   CALL 0xcbf80                     ; hs_return(thread_datum, 0)
  *   ADD  ESP,0xc                     ; COMBINED cleanup for BOTH calls
@@ -6215,7 +6215,7 @@ void hs_evaluate_player_effect_stop(int16_t function_index, int thread_datum, ch
  *                                    ; `ADD ESP,4` after CALL 0xd7440 — do not
  *                                    ; misread the single 0xc as a
  *                                    ; three-argument hs_return; hs_return's
- *                                    ; decl stays (2) and FUN_000d7440's
+ *                                    ; decl stays (2) and scripted_hud_show_health's
  *                                    ; stays (1).
  *   POP ESI; POP EBP; RET            ; no `RET n` — cdecl, caller cleans
  *
@@ -6225,7 +6225,7 @@ void hs_evaluate_player_effect_stop(int16_t function_index, int thread_datum, ch
  * Callees (all cdecl, in kb.json, no register arguments):
  *   0xcc560 = hs_macro_function_evaluate(fn_index, thread_datum, init)
  *             (declared `int`; EAX is dereferenced as a record pointer)
- *   0xd7440 = FUN_000d7440(char)  — show_hud
+ *   0xd7440 = scripted_hud_show_health(char)  — show_hud
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_hud_show_health(int16_t function_index, int thread_datum, char init)
@@ -6235,7 +6235,7 @@ void hs_evaluate_hud_show_health(int16_t function_index, int thread_datum, char 
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != 0) {
-    FUN_000d7440(*(unsigned char *)result);
+    scripted_hud_show_health(*(unsigned char *)result);
     hs_return(thread_datum, 0);
   }
   return;
@@ -6243,7 +6243,7 @@ void hs_evaluate_hud_show_health(int16_t function_index, int thread_datum, char 
 
 /* 0xc3130 — HaloScript function evaluator wrapper.  Evaluates the call's
  * argument expressions via hs_macro_function_evaluate; when that returns a
- * non-NULL record pointer, feeds the record's first BYTE to FUN_000d7470 and
+ * non-NULL record pointer, feeds the record's first BYTE to scripted_hud_blink_health and
  * commits a 0 result to the calling script thread.  Structurally identical to
  * hs_evaluate_hud_show_health at 0xc30f0 with the consumer swapped from 0xd7440 to 0xd7470.
  *
@@ -6276,7 +6276,7 @@ void hs_evaluate_hud_show_health(int16_t function_index, int thread_datum, char 
  * Callees (all cdecl, in kb.json, no register arguments):
  *   0xcc560 = hs_macro_function_evaluate(fn_index, thread_datum, init)
  *             (declared `int`; EAX is dereferenced as a record pointer)
- *   0xd7470 = FUN_000d7470(char)
+ *   0xd7470 = scripted_hud_blink_health(char)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_hud_blink_health(int16_t function_index, int thread_datum, char init)
@@ -6286,7 +6286,7 @@ void hs_evaluate_hud_blink_health(int16_t function_index, int thread_datum, char
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != 0) {
-    FUN_000d7470(*(unsigned char *)result);
+    scripted_hud_blink_health(*(unsigned char *)result);
     hs_return(thread_datum, 0);
   }
   return;
@@ -6294,10 +6294,10 @@ void hs_evaluate_hud_blink_health(int16_t function_index, int thread_datum, char
 
 /* 0xc3170 — HaloScript function evaluator taking a single byte-wide argument.
  * Evaluates the macro argument block; on success the block holds one byte at
- * +0x0, which is handed to FUN_000d74a0, then a 0 result is committed to the
+ * +0x0, which is handed to scripted_hud_show_shield, then a 0 result is committed to the
  * calling script thread (a void-returning script builtin).  Structurally
  * identical to hs_evaluate_hud_blink_health at 0xc3130 with the side-effect callee swapped
- * from FUN_000d7470 to FUN_000d74a0.
+ * from scripted_hud_blink_health to scripted_hud_show_shield.
  *
  * Disassembly (0xc3170-0xc31a3, 24 instructions):
  *   PUSH EBP; MOV EBP,ESP; PUSH ESI  ; no `SUB ESP` — one register-resident
@@ -6334,7 +6334,7 @@ void hs_evaluate_hud_blink_health(int16_t function_index, int thread_datum, char
  * Callees (all cdecl, in kb.json, no register arguments):
  *   0xcc560 = hs_macro_function_evaluate(fn_index, thread_datum, init)
  *             (declared `int`; EAX is dereferenced as a record pointer)
- *   0xd74a0 = FUN_000d74a0(char)
+ *   0xd74a0 = scripted_hud_show_shield(char)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_hud_show_shield(int16_t function_index, int thread_datum, char init)
@@ -6344,7 +6344,7 @@ void hs_evaluate_hud_show_shield(int16_t function_index, int thread_datum, char 
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != 0) {
-    FUN_000d74a0(*(unsigned char *)result);
+    scripted_hud_show_shield(*(unsigned char *)result);
     hs_return(thread_datum, 0);
   }
   return;
@@ -6352,7 +6352,7 @@ void hs_evaluate_hud_show_shield(int16_t function_index, int thread_datum, char 
 
 /* 0xc31b0 — HaloScript function handler in the scripted-HUD family.  Evaluates
  * its macro argument; on success the returned result block holds a single
- * boolean/byte in its first HS argument slot, which is handed to FUN_000d74d0,
+ * boolean/byte in its first HS argument slot, which is handed to scripted_hud_blink_shield,
  * then the script thread is completed with hs_return(thread_datum, 0).
  * Structural twin of hs_evaluate_time_code_show at 0xc34d0 with the action callee swapped.
  *
@@ -6372,11 +6372,11 @@ void hs_evaluate_hud_show_shield(int16_t function_index, int thread_datum, char 
  *                                    ;   LOADW-class width bugs, so the result
  *                                    ;   pointer is typed `unsigned char *`
  *   PUSH EDX
- *   CALL 0xd74d0                     ; FUN_000d74d0(result[0])
+ *   CALL 0xd74d0                     ; scripted_hud_blink_shield(result[0])
  *   PUSH 0x0                         ; hs_return arg 2 = value = 0
  *   PUSH ESI                         ; hs_return arg 1 = thread_datum
  *   CALL 0xcbf80                     ; hs_return
- *   ADD ESP,0xc                      ; COMBINED cleanup for FUN_000d74d0's 1
+ *   ADD ESP,0xc                      ; COMBINED cleanup for scripted_hud_blink_shield's 1
  *                                    ; arg + hs_return's 2 args (cdecl ADD ESP
  *                                    ; mis-grouping); the call-site audit's
  *                                    ; "hs_return ARG_COUNT cleanup=3 vs
@@ -6397,7 +6397,7 @@ void hs_evaluate_hud_show_shield(int16_t function_index, int thread_datum, char 
  *
  * Callees (all cdecl, in kb.json, no register arguments):
  *   0xcc560 = hs_macro_function_evaluate(fn_index, thread_datum, init)
- *   0xd74d0 = FUN_000d74d0(char)
+ *   0xd74d0 = scripted_hud_blink_shield(char)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_hud_blink_shield(int16_t function_index, int thread_datum, char init)
@@ -6407,19 +6407,19 @@ void hs_evaluate_hud_blink_shield(int16_t function_index, int thread_datum, char
   result = (unsigned char *)hs_macro_function_evaluate(function_index,
                                                        thread_datum, init);
   if (result != 0) {
-    FUN_000d74d0(result[0]);
+    scripted_hud_blink_shield(result[0]);
     hs_return(thread_datum, 0);
   }
   return;
 }
 
 /* 0xc31f0 — HaloScript function handler: evaluate the macro argument and hand
- * its single-byte result to FUN_000d7500, then complete the script thread.
+ * its single-byte result to scripted_hud_show_motion_sensor, then complete the script thread.
  *
  * Byte-shape twin of the immediately preceding hs_evaluate_hud_blink_shield at 0xc31b0 (same
  * frame, same three-callee sequence); only the dispatch target differs
  * (0xd74d0 -> 0xd7500).  0xd7500 has no binary-backed semantic name yet, so it
- * stays FUN_000d7500 per naming-confidence.
+ * stays scripted_hud_show_motion_sensor per naming-confidence.
  *
  * Ghidra mis-prototypes this as `void(void)` and surfaces the
  * three stack arguments as `in_stack_00000004/8/c`.  Those labels are
@@ -6438,14 +6438,14 @@ void hs_evaluate_hud_blink_shield(int16_t function_index, int thread_datum, char
  *   ADD ESP,0xc                        ; cleanup for the 3-arg call ONLY
  *   TEST EAX,EAX; JZ 0xc3221           ; NULL-result early exit
  *   XOR EDX,EDX; MOV DL,byte ptr [EAX] ; ZERO-extended byte load of result[0]
- *   PUSH EDX; CALL 0xd7500             ; FUN_000d7500(result[0])
+ *   PUSH EDX; CALL 0xd7500             ; scripted_hud_show_motion_sensor(result[0])
  *   PUSH 0x0; PUSH ESI; CALL 0xcbf80   ; hs_return(thread_datum, 0)
  *   ADD ESP,0xc                        ; MERGED cleanup: 1 slot + 2 slots
  *   POP ESI; POP EBP; RET              ; plain RET — cdecl, caller cleans
  *
  * Two decoding hazards, both already documented by the siblings in this TU:
  *   - The trailing ADD ESP,0xc is a single merged cleanup for TWO adjacent
- *     calls (1 push for FUN_000d7500 + 2 for hs_return).  The "hs_return
+ *     calls (1 push for scripted_hud_show_motion_sensor + 2 for hs_return).  The "hs_return
  *     ARG_COUNT cleanup=3, decl=2" finding is that cdecl merge, not a wider
  *     hs_return.
  *   - XOR EDX,EDX / MOV DL is a ZERO-extending byte load, so the result block
@@ -6459,7 +6459,7 @@ void hs_evaluate_hud_blink_shield(int16_t function_index, int thread_datum, char
  *
  * Callees (all cdecl, in kb.json, no register arguments):
  *   0xcc560 = hs_macro_function_evaluate(fn_index, thread_datum, init)
- *   0xd7500 = FUN_000d7500(char)
+ *   0xd7500 = scripted_hud_show_motion_sensor(char)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_hud_show_motion_sensor(int16_t function_index, int thread_datum, char init)
@@ -6469,16 +6469,16 @@ void hs_evaluate_hud_show_motion_sensor(int16_t function_index, int thread_datum
   result = (unsigned char *)hs_macro_function_evaluate(function_index,
                                                        thread_datum, init);
   if (result != 0) {
-    FUN_000d7500(result[0]);
+    scripted_hud_show_motion_sensor(result[0]);
     hs_return(thread_datum, 0);
   }
   return;
 }
 
 /* 0xc3230 — HaloScript function handler: forward one byte-wide argument to
- * FUN_000d7530 (hud_messaging.c).  Evaluates the macro-function arguments, and
+ * scripted_hud_blink_motion_sensor (hud_messaging.c).  Evaluates the macro-function arguments, and
  * on success reads a single zero-extended BYTE from the result block at +0x0,
- * hands it to FUN_000d7530, then commits a 0 result to the calling script
+ * hands it to scripted_hud_blink_motion_sensor, then commits a 0 result to the calling script
  * thread.  Instruction-for-instruction the twin of hs_evaluate_hud_blink_health at 0xc3130
  * above; only the side-effect callee differs (0xd7470 -> 0xd7530).
  *
@@ -6494,7 +6494,7 @@ void hs_evaluate_hud_show_motion_sensor(int16_t function_index, int thread_datum
  *   XOR EDX,EDX; MOV DL,[EAX]        ; zero-extended BYTE at result+0x0 (NOT
  *                                    ; +0x4 as in the neighbouring handlers,
  *                                    ; and NOT a dword)
- *   PUSH EDX; CALL 0xd7530           ; FUN_000d7530(byte)
+ *   PUSH EDX; CALL 0xd7530           ; scripted_hud_blink_motion_sensor(byte)
  *   PUSH 0x0; PUSH ESI               ; hs_return(thread_datum, 0)
  *   CALL 0xcbf80
  *   ADD ESP,0xc                      ; COMBINED cleanup for 0xd7530's 1 arg +
@@ -6512,7 +6512,7 @@ void hs_evaluate_hud_show_motion_sensor(int16_t function_index, int thread_datum
  * Callees (all cdecl, in kb.json, no register arguments):
  *   0xcc560 = hs_macro_function_evaluate(fn_index, thread_datum, init)
  *             (declared `int`; EAX is dereferenced as a record pointer)
- *   0xd7530 = FUN_000d7530(char)
+ *   0xd7530 = scripted_hud_blink_motion_sensor(char)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_hud_blink_motion_sensor(int16_t function_index, int thread_datum, char init)
@@ -6522,7 +6522,7 @@ void hs_evaluate_hud_blink_motion_sensor(int16_t function_index, int thread_datu
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != 0) {
-    FUN_000d7530(*(unsigned char *)result);
+    scripted_hud_blink_motion_sensor(*(unsigned char *)result);
     hs_return(thread_datum, 0);
   }
   return;
@@ -6530,7 +6530,7 @@ void hs_evaluate_hud_blink_motion_sensor(int16_t function_index, int thread_datu
 
 /* 0xc3270 — HaloScript function evaluator wrapper.  Evaluates the call's
  * argument expressions via hs_macro_function_evaluate; when that returns a
- * non-NULL record pointer, feeds the record's first BYTE to FUN_000d8b90 and
+ * non-NULL record pointer, feeds the record's first BYTE to scripted_hud_show_crosshair and
  * commits a 0 result to the calling script thread.  Structural twin of
  * hs_evaluate_hud_show_health at 0xc30f0 with the consumer swapped from 0xd7440 to 0xd8b90.
  *
@@ -6562,15 +6562,15 @@ void hs_evaluate_hud_blink_motion_sensor(int16_t function_index, int thread_datu
  *                                    ; WORD at this same +0x0 — do not copy
  *                                    ; that variant here.
  *   PUSH EDX                         ; ...the consumer call's ONE argument
- *   CALL 0xd8b90                     ; FUN_000d8b90(char)
+ *   CALL 0xd8b90                     ; scripted_hud_show_crosshair(char)
  *   PUSH 0x0; PUSH ESI
  *   CALL 0xcbf80                     ; hs_return(thread_datum, 0)
  *   ADD  ESP,0xc                     ; COMBINED cleanup for BOTH calls
- *                                    ; (FUN_000d8b90 4 + hs_return 8).  There
+ *                                    ; (scripted_hud_show_crosshair 4 + hs_return 8).  There
  *                                    ; is NO `ADD ESP,4` after CALL 0xd8b90 —
  *                                    ; do not misread the single 0xc as a
  *                                    ; three-argument hs_return; hs_return's
- *                                    ; decl stays (2) and FUN_000d8b90's
+ *                                    ; decl stays (2) and scripted_hud_show_crosshair's
  *                                    ; stays (1).  call_site_audit reports
  *                                    ; "ARG_COUNT: hs_return cleanup=3 stack
  *                                    ; args" here; that is a false positive.
@@ -6586,7 +6586,7 @@ void hs_evaluate_hud_blink_motion_sensor(int16_t function_index, int thread_datu
  * Callees (all cdecl, in kb.json, no register arguments):
  *   0xcc560 = hs_macro_function_evaluate(fn_index, thread_datum, init)
  *             (declared `int`; EAX is dereferenced as a record pointer)
- *   0xd8b90 = FUN_000d8b90(char)
+ *   0xd8b90 = scripted_hud_show_crosshair(char)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_hud_show_crosshair(int16_t function_index, int thread_datum, char init)
@@ -6596,7 +6596,7 @@ void hs_evaluate_hud_show_crosshair(int16_t function_index, int thread_datum, ch
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != 0) {
-    FUN_000d8b90(*(unsigned char *)result);
+    scripted_hud_show_crosshair(*(unsigned char *)result);
     hs_return(thread_datum, 0);
   }
   return;
@@ -8105,25 +8105,25 @@ void hs_evaluate_profile_unlock_solo_levels(int16_t function_index, int thread_d
  * byte-deref sibling at 0xc23c0.
  *
  * The single `ADD ESP,0xC` after the hs_return call is a MERGED cleanup for
- * FUN_000e1770's one push plus hs_return's two.  check_lift_hazards.py reports
+ * player0_look_invert_pitch's one push plus hs_return's two.  check_lift_hazards.py reports
  * ARG_COUNT "cleanup=3 vs decl=2" against hs_return (0xcbf80) for this — it is
  * a false positive; hs_return really takes two arguments.  Do not widen it.
  *
- * FUN_000e1770's kb.json declaration was `void FUN_000e1770(void)`, which is
+ * player0_look_invert_pitch's kb.json declaration was `void player0_look_invert_pitch(void)`, which is
  * an under-declaration: the caller does `PUSH EDX` before the CALL with no
  * cleanup of its own, so the callee consumes one stack argument.  A cdecl
  * parameter the callee ignores is byte-identical to no parameter at all, so
  * the callee body is not evidence against it — only this PUSH is.  Widened to
- * `void FUN_000e1770(char invert)` (the boolean from the table above); the
+ * `void player0_look_invert_pitch(char invert)` (the boolean from the table above); the
  * symbol is deliberately NOT renamed, and it has no other callers in src/.
  *
  * function_index ([EBP+0x08]) and init ([EBP+0x10]) are forwarded to the
- * evaluator only.  Side-effect order is load-bearing: FUN_000e1770 runs BEFORE
+ * evaluator only.  Side-effect order is load-bearing: player0_look_invert_pitch runs BEFORE
  * hs_return.  No FPU ops, no narrow loads, no struct stores, no SEH.
  *
  * Callees (all cdecl, in kb.json, no register arguments):
  *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
- *   0xe1770 = FUN_000e1770(invert)
+ *   0xe1770 = player0_look_invert_pitch(invert)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_player0_look_invert_pitch(int16_t function_index, int thread_datum, char init)
@@ -8133,7 +8133,7 @@ void hs_evaluate_player0_look_invert_pitch(int16_t function_index, int thread_da
   result =
     (char *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != (char *)0) {
-    FUN_000e1770(*result);
+    player0_look_invert_pitch(*result);
     hs_return(thread_datum, 0);
   }
   return;
@@ -8200,12 +8200,12 @@ void hs_evaluate_player0_look_pitch_is_inverted(int16_t function_index, int thre
  * calls the byte-returning accessor at 0xe1060 and commits the result to the
  * calling script thread.
  *
- * kb.json declared 0xe1060 as `void FUN_000e1060(void);`, which is an
+ * kb.json declared 0xe1060 as `void player0_joystick_set_is_normal(void);`, which is an
  * under-declaration: the callee is
  *   MOV AL,byte ptr [0x46bf09] / TEST AL,AL / JE .t / CMP AL,1 / JE .t /
  *   XOR EAX,EAX / RET   .t: MOV EAX,1 / RET
  * i.e. it yields 1 when the setting byte is 0 or 1, else 0, and 0xc3953
- * consumes AL immediately.  Widened to `unsigned char FUN_000e1060(void)`,
+ * consumes AL immediately.  Widened to `unsigned char player0_joystick_set_is_normal(void)`,
  * matching the 0xe1050 precedent in the same accessor cluster.
  *
  * The result local at [EBP-0x4] is zero-initialized as a dword
@@ -8216,7 +8216,7 @@ void hs_evaluate_player0_look_pitch_is_inverted(int16_t function_index, int thre
  * No FPU ops, no narrow loads, no struct stores, no branches, no SEH.
  *
  * Callees (both cdecl, in kb.json, no register arguments):
- *   0xe1060 = FUN_000e1060(void) -> bool in AL
+ *   0xe1060 = player0_joystick_set_is_normal(void) -> bool in AL
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_player0_joystick_set_is_normal(int16_t function_index, int thread_datum, char init)
@@ -8224,7 +8224,7 @@ void hs_evaluate_player0_joystick_set_is_normal(int16_t function_index, int thre
   int result;
 
   result = 0;
-  *(unsigned char *)&result = FUN_000e1060();
+  *(unsigned char *)&result = player0_joystick_set_is_normal();
   hs_return(thread_datum, result);
   return;
 }
@@ -8311,7 +8311,7 @@ void hs_evaluate_display_scenario_help(int16_t function_index, int thread_datum,
  * locals and no `sub esp`. */
 void hs_evaluate_network_game_start_now(int16_t function_index, int thread_datum, char init)
 {
-  FUN_0012a7a0();
+  network_game_client_request_immediate_start();
   hs_return(thread_datum, 0);
   return;
 }

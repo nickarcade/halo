@@ -760,7 +760,7 @@ void first_person_weapon_message(int param_1, int param_2)
     break;
   case 9:
   case 10:
-    player_clear_aim_assist(*(int *)(fp + 4));
+    player_control_unzoom(*(int *)(fp + 4));
     break;
   case 0xc:
     first_person_weapon_switch_weapons(param_1);

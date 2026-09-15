@@ -1445,7 +1445,7 @@ void render_sky(void)
             if (csstrlen(elem + 0x10) == 0) {
               angles_to_vector(delta, (float *)(elem + 0x68));
             } else {
-              if (FUN_00124730(*(int *)(rec + 0xc), elem + 0x10, 0, 0, -1,
+              if (model_get_marker_by_name(*(int *)(rec + 0xc), elem + 0x10, 0, 0, -1,
                                node_matrices, 0, marker, 1) == 0)
                 goto next_light;
               delta[0] = *(float *)(marker + 0x60) - *(float *)0x506550;
@@ -2057,7 +2057,7 @@ void FUN_0018d6e0(void *data, int16_t mode, int16_t sequence_index,
                                        transformed_origin, basis + 7) *
                           intensity;
             }
-            pixel = FUN_000d1c90(color);
+            pixel = real_argb_color_to_pixel32(color);
             anim = (char *)*(int *)((char *)data + 8);
             if (anim != NULL && *(int16_t *)(anim + 0x2a) != 0 &&
                 (*(uint8_t *)(anim + 0x28) & 2) == 0) {

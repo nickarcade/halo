@@ -1046,7 +1046,7 @@ int game_engine_remap_object_definition(int tag_index)
 
 /* game_engine_get_state_message / objects.obj -- determine respawn state for a player.
  * Returns the "HUD text was produced" flag in AL (original only ever sets AL;
- * see xor al,al at 0xae23e). FUN_000d04d0 (unported) draws the buffer only
+ * see xor al,al at 0xae23e). hud_show_action_response (unported) draws the buffer only
  * when this returns nonzero. */
 char game_engine_get_state_message(int param_1, int param_2, int param_3)
 {
@@ -1103,7 +1103,7 @@ char game_engine_get_state_message(int param_1, int param_2, int param_3)
 
   /* Live player: both aceb0 paths RETURN the dispatcher's AL ("text was
    * produced"), per original 0xae205-0xae21c and 0xae21d-0xae23d -- there is
-   * no xor al,al before those rets. The unported caller FUN_000d04d0 only
+   * no xor al,al before those rets. The unported caller hud_show_action_response only
    * draws the buffer when this returns nonzero (test al,al at 0xd0931). */
   time = game_time_get();
   if (time < 0x1c2) {
@@ -2011,7 +2011,7 @@ void light_volume_render(int object_handle, int light_volume_datum)
   float out_pos[3]; /* local_1c..: world position for sprite */
   float color2[4]; /* local_38..: per-segment ARGB. [0]=alpha (intensity),
                       [1..3]=RGB (FUN_0007c270 out at EBP-0x34); packed as a
-                      4-float a_rgb by FUN_000d1c90 (EBP-0x38). */
+                      4-float a_rgb by real_argb_color_to_pixel32 (EBP-0x38). */
   float interp_a, interp_b; /* local_2c / local_28 */
   unsigned char zfn;
   float fn_val;
@@ -2123,7 +2123,7 @@ void light_volume_render(int object_handle, int light_volume_datum)
                          (*(float *)0x2533c8 - fn_val) *
                            *(float *)(marker_state + 0x68)) *
                         depth_factor;
-            color_argb = FUN_000d1c90(color2);
+            color_argb = real_argb_color_to_pixel32(color2);
             FUN_0017d010(out_pos, interp_a, (float *)0, 0.0f, color_argb);
 
             i = (short)(i + 1);
@@ -2672,7 +2672,7 @@ void lightning_submit(int *param_1, int param_2, int param_3, int *param_4)
                   color[1] = cur->attr[2] * color_ptr[0];
                   color[2] = cur->attr[3] * color_ptr[1];
                   color[3] = cur->attr[4] * color_ptr[2];
-                  argb = FUN_000d1c90(color);
+                  argb = real_argb_color_to_pixel32(color);
                   vp[0].x = vtx_perp[0] * width + cur->position[0];
                   vp[0].y = vtx_perp[1] * width + cur->position[1];
                   vp[0].z = vtx_perp[2] * width + cur->position[2];

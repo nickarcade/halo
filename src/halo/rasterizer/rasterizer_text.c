@@ -1502,7 +1502,7 @@ void FUN_00181c20(void)
                     anim_color[3] = anim_color[3] * anim_rgb[2];
                   }
 
-                  color = FUN_000d1c90(anim_color);
+                  color = real_argb_color_to_pixel32(anim_color);
                   tex_flags = *(unsigned int *)((char *)refl + 0x40);
                 }
 

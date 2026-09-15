@@ -369,7 +369,7 @@ bool virtual_keyboard_active(void)
  * TEST/SETNE normalization, so the C form is a direct byte load into the
  * unsigned-char `bool`, not a `!= 0` comparison.
  *
- * No callees. Single caller (UNCONDITIONAL_CALL, from xrefs): FUN_000f04c0
+ * No callees. Single caller (UNCONDITIONAL_CALL, from xrefs): new_campaign_decision
  * @0xf04db. Name kept mechanical: behaviour is clear but there is no
  * string/PDB evidence for a symbol. */
 bool virtual_keyboard_last_exit_saved_text(void)
@@ -628,12 +628,12 @@ char virtual_keyboard_select(void)
     if (ustrcmp((const wchar_t *)0x46cf18, *(const wchar_t **)0x46cf08) == 0) {
       *(char *)0x46cf06 = 1;
     } else if (**(short **)0x46cf08 == 0) {
-      ui_widget_display_error(0x1d, -1, 1, 0);
+      display_error(0x1d, -1, 1, 0);
       virtual_keyboard_cancel();
     } else if (saved_game_file_name_unique(*(const wchar_t **)0x46cf08) != 0) {
       *(char *)0x46cf06 = 1;
     } else {
-      ui_widget_display_error(0x1b, -1, 1, 0);
+      display_error(0x1b, -1, 1, 0);
       virtual_keyboard_cancel();
     }
     ui_play_audio_feedback_sound(3);

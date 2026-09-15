@@ -1040,7 +1040,7 @@ void FUN_00158df0(unsigned short *parameters)
   if (*(short *)0x3256bc == 1) {
     color_pixel = 0;
   } else {
-    color_pixel = FUN_000d1dd0((float *)0x5a5dac);
+    color_pixel = real_rgb_color_to_pixel32((float *)0x5a5dac);
   }
 
   if (*parameters == 0 || *parameters == 1) {
@@ -2083,7 +2083,7 @@ void FUN_0015aa40(void)
  *
  *   p0     - short[2] screen coords of the first endpoint  (x, y)
  *   p1     - short[2] screen coords of the second endpoint (x, y)
- *   color0 - real_rgb_color for p0 (packed to 0x00RRGGBB by FUN_000d1dd0)
+ *   color0 - real_rgb_color for p0 (packed to 0x00RRGGBB by real_rgb_color_to_pixel32)
  *   color1 - optional real_rgb_color for p1; if NULL, p0's color is reused
  *
  * D3D primitive: Begin(4 = D3DPT_LINELIST). Vertex register 9 =
@@ -2110,9 +2110,9 @@ void FUN_0015abe0(short *p0, short *p1, float *color0, float *color1)
     system_exit(-1);
   }
 
-  packed0 = FUN_000d1dd0(color0);
+  packed0 = real_rgb_color_to_pixel32(color0);
   if (color1 != 0) {
-    packed1 = FUN_000d1dd0(color1);
+    packed1 = real_rgb_color_to_pixel32(color1);
   }
 
   D3DDevice_Begin(4);
@@ -2142,7 +2142,7 @@ void FUN_0015abe0(short *p0, short *p1, float *color0, float *color1)
  *
  *   points      - array of short[2] screen coords (x, y), stride 4 bytes/point
  *   point_count - number of points; must be > 1 (asserted, line 0xf9)
- *   color       - real_rgb_color, packed to 0x00RRGGBB by FUN_000d1dd0
+ *   color       - real_rgb_color, packed to 0x00RRGGBB by real_rgb_color_to_pixel32
  *
  * D3D primitive: Begin(4 = D3DPT_LINELIST). Vertex register 9 = D3DVSDE_DIFFUSE
  * (color, set once), register 0 = D3DVSDE_VERTEX (position via SetVertexData2s,
@@ -2184,7 +2184,7 @@ void FUN_0015acc0(short *points, int16_t point_count, float *color)
     system_exit(-1);
   }
 
-  packed = FUN_000d1dd0(color);
+  packed = real_rgb_color_to_pixel32(color);
   D3DDevice_Begin(4);
   D3DDevice_SetVertexDataColor(9, packed);
   success = 1;

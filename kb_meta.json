@@ -6500,6 +6500,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa3b80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa3e60": {
       "kind": "function",
       "status": "ported"
@@ -7867,6 +7871,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb6bd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb6dd0": {
       "kind": "function",
       "status": "ported"
@@ -7927,7 +7935,7 @@
     },
     "0xb8cf0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "delta[0] is the yaw delta and delta[1] the pitch delta, inferred from the push order at the player_control_update_desired_angles (0xb7f90) call site: PUSH [ESI+4] precedes PUSH [ESI], so the first-pushed dword is the last C argument (pitch_delta)."
       ],
@@ -8223,6 +8231,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xba850": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xba890": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xba970": {
       "kind": "function",
       "status": "ported"
@@ -8236,6 +8252,10 @@
       "status": "ported"
     },
     "0xbaba0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbac10": {
       "kind": "function",
       "status": "ported"
     },
@@ -8280,6 +8300,14 @@
       "status": "ported"
     },
     "0xbb180": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbb1c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbb1f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -8473,6 +8501,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xbdfe0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbe030": {
       "kind": "function",
       "status": "ported"
@@ -8536,6 +8568,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xbe3b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbe400": {
       "kind": "function",
       "status": "ported"
@@ -8578,13 +8614,33 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xbe660": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe6a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe6f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe730": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbe770": {
       "kind": "function",
       "status": "ported"
     },
     "0xbe7c0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Callee 0x95660 recorded_animation_play_and_delete was mis-declared void(void) in kb.json; corrected to char(int,short) from be7c0 call-site disasm (2 cdecl pushes EAX=record[0], EDX=zero-ext word@record+4; AL byte return stored to pre-zeroed [EBP-4] slot)."
       ],
@@ -8592,13 +8648,113 @@
         "The 2nd param of 0x95660 is declared short to mirror sibling worker 0x95680 and reproduce the caller XOR EDX,EDX zero-extend load; the callee body was not decompiled, so its true param signedness (short vs unsigned short/uint16) is unconfirmed."
       ]
     },
+    "0xbe810": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe860": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe8a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe8f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe970": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbe9d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbea10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbea50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbea90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbeab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbeaf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbeb30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbeb70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbebb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbebf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbec30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbec70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbec90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbecd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbed20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbed70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbedb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbee00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbee40": {
       "kind": "function",
       "status": "ported"
     },
     "0xbee80": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) is declared int in kb.json but 0xbee80 dereferences its return at offset 0 (MOV EDX,[EAX]) to obtain the unit handle passed to unit_open, so the return is really a pointer to an HS evaluation record; cast at the call site rather than widening the callee decl."
       ],
@@ -8608,7 +8764,7 @@
     },
     "0xbeec0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The kb decl for hs_macro_function_evaluate (0xcc560) returns int but the value is really a record pointer: the original does MOV EDX,[EAX] after TEST EAX,EAX, so the return is cast to int* at this call site rather than widening the callee decl."
       ],
@@ -8616,16 +8772,20 @@
         "The record's first dword is treated as a unit handle solely because it is forwarded to unit_close (0x1ae180); the evaluation-record layout beyond offset 0 is unknown and no other field is read here."
       ]
     },
+    "0xbef00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbef40": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "HS built-in wrapper that kills a unit: hs_macro_function_evaluate returns a record pointer whose first dword is the unit handle, passed to unit_kill (0x1a7fa0); real Bungie name still TBD so the FUN_000bef40 placeholder is retained."
       ]
     },
     "0xbef80": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "FUN_001AC0E0 (0x1ac0e0) is called with the evaluation record's first dword, which in the sibling handler FUN_000bef40 is a unit handle passed to unit_kill; the argument is therefore inferred to be a unit/object handle."
       ],
@@ -8635,7 +8795,7 @@
     },
     "0xbefd0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Parameter list (int16_t function_index, int thread_datum, char init) is inferred from the EBP+0x08/+0x0c/+0x10 reads feeding the ECX/ESI/EAX pushes into hs_macro_function_evaluate (0xcc560), whose kb.json declaration fixes the widths; Ghidra modeled this function as void(void) and dropped all three stack params.",
         "The call-site audit finding 'hs_return cleanup=3 vs decl=2' is a false positive caused by adjacent-call cleanup merging: the single ADD ESP,0xc at 0xbeffc cleans the 1 argument of unit_stop_custom_animation plus the 2 arguments of hs_return, and the disassembly shows exactly two pushes (PUSH 0x0; PUSH ESI) for hs_return."
@@ -8646,7 +8806,7 @@
     },
     "0xbf010": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The EBP-4 slot is modelled as a volatile unsigned int because the original pre-zeroes the full dword at 0xbf021, stores only AL, then re-reads all 32 bits; this mirrors sibling FUN_000bef80's 16-bit slot in the same TU and reproduces the zero-extension without a movzx."
       ],
@@ -8656,21 +8816,57 @@
     },
     "0xbf060": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "uncertain": [
         "The semantics of FUN_001a7df0's char/AL return value are unknown; it is zero-extended into a pre-cleared dword and forwarded verbatim to hs_return, so only the width (8 bits) is binary-confirmed."
       ]
     },
     "0xbf0b0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Field +0x10 of the hs evaluated-argument block is loaded ZERO-extended (XOR EDX,EDX; MOV DX,[EAX+0x10]) even though unit_custom_animation_at_frame's kb decl types the parameter int16_t; the lift passes *(unsigned short *)(record + 4) to reproduce the movzx-shaped load."
       ]
     },
+    "0xbf110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf160": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf1a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf1e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf220": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf260": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf2b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf300": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf340": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbf3d0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "kb.json decl was void(void); disassembly proves 3 cdecl stack args (ECX=[EBP+8] int16 function_index, ESI=[EBP+0xc] thread_datum, EAX=[EBP+0x10] char init) with ADD ESP,0xc after CALL 0xcc560, so the decl was corrected to (int16_t, int, char) matching every twin in this HS-dispatcher family.",
         "The 0xcc560 hs_macro_function_evaluate return is declared int in kb.json but is dereferenced as a pointer to a {int handle; float; float} record here (FLD dword [EAX+4] and FLD dword [EAX+8] prove the two trailing fields are floats, not dwords); the return type of 0xcc560 was left alone and the pointer cast applied at the use site, as all sibling dispatchers do.",
@@ -8685,7 +8881,7 @@
     },
     "0xbf420": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "VC71 capped at 83.6% (high confidence, ledger): the entire residual is the two-float push-then-fstp call setup for FUN_001a7b50 which our VC71 lane compiles as integer movl+push; same fixed residual appears on every shipped float-passing sibling (FUN_000bfa30/bfab0/bfb40/bfbc0 at 90-95%), costing ~16pp here because this 28-insn function passes two floats.",
         "Record returned by hs_macro_function_evaluate is a 12-byte struct {int handle; float; float}: field widths proven by MOV dword [EAX] plus FLD dword [EAX+0x4] and FLD dword [EAX+0x8]; no MOVZX/MOVSX anywhere, so no field is narrowed.",
@@ -8701,7 +8897,7 @@
     },
     "0xbf470": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Result record of hs_macro_function_evaluate for this handler is { int32 object_handle @0x0; float @0x4; float @0x8 }; the two floats are proven by FLD [EAX+8]/FSTP [ESP+4] and FLD [EAX+4]/FSTP [ESP] at 0xbf48c-0xbf49b, so Ghidra's piVar1[1]/piVar1[2] int reads are a push-then-fstp misread.",
         "kb decl for FUN_001a7c70 (0x1a7c70) was corrected from (int,int,int) to (int, float, float): 0xbf49f is its only call site in the XBE per dump_caller_regsetup, and its impl forwards both values verbatim to FUN_001a7b50(int, float, float), so the old int decl forced a spurious numeric int-to-float conversion on the forward.",
@@ -8716,16 +8912,32 @@
         "The specific HaloScript builtin this dispatcher serves is unknown; function_index is passed straight through to hs_macro_function_evaluate and no name string was recovered."
       ]
     },
+    "0xbf4c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf510": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf560": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf5a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbf5e0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "FUN_000bf5e0 is a zero-argument hs script-function wrapper: only [EBP+0xc] (thread_datum) is read, so function_index and init are inferred from the 3-arg cdecl dispatch-table shape shared by its 14 already-ported twins in players.obj rather than from any read in this body."
       ]
     },
     "0xbf600": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Prototype void(int16_t function_index, int thread_datum, char init) is inferred from the hs script-function dispatch-table family shape plus the ADD ESP,0xc after CALL 0xcc560; kb.json's original void(void) decl made all three cdecl stack args surface as in_stack_ pseudo-locals."
       ],
@@ -8735,7 +8947,7 @@
     },
     "0xbf640": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The 3-arg cdecl signature void(int16_t function_index, int thread_datum, char init) is inferred from the hs script-function dispatch ABI shared with the 0xbf110/0xbf160/0xbf1a0/0xbf1e0/0xbf5e0/0xbf600 siblings; kb.json previously declared void(void), which made the stack args surface as Ghidra in_stack_ pseudo-locals.",
         "hs_macro_function_evaluate (0xcc560) is declared as returning int in kb.json but the result is dereferenced here (MOV EDX,[EAX]), so it is a pointer to an argument record; the cast is applied locally rather than changing the shared kb declaration."
@@ -8744,9 +8956,69 @@
         "The semantics of the worker FUN_001a9ec0 are unknown; it is unnamed in kb.json and only its int return value is observed, forwarded verbatim as the hs_return script result."
       ]
     },
+    "0xbf680": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf6c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf740": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf7e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf830": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf870": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf8b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf8f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf9a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf9f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfa30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbfa70": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The 0xcc560 return is dereferenced as a pointer to a result record even though kb.json declares it as returning int; the cast is local to this lift and the kb decl is left unchanged, matching every sibling HS dispatcher."
       ],
@@ -8754,9 +9026,17 @@
         "The semantic meaning of the result record beyond its first dword (a device object handle passed to device_get_power) is unknown; only offset 0 is read by this function."
       ]
     },
+    "0xbfab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfb00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbfb40": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "CALL 0x97040 uses the MSVC push-then-fstp float-argument idiom (PUSH ECX dummy overwritten by FSTP dword ptr [ESP], then PUSH EDX), so its real cdecl shape is void FUN_00097040(int, float); its stale kb.json (void) decl was corrected as part of this lift."
       ],
@@ -8764,9 +9044,17 @@
         "The 1-instruction VC71 gap (25/26, 94.1%) matches the same idiom-level ceiling seen on the identical-worker twin FUN_000bfab0 at 95.1%, so it is presumed a scheduling nuance around the record+4 float load rather than a semantic difference."
       ]
     },
+    "0xbfb80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfbc0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbfc10": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Callee 0x96510 device_group_set_actual_value's first parameter is declared int to match the zero-extended PUSH EDX at the call site and the sibling decls 0x966b0/0x96f20; the underlying field is a 16-bit device-group index (XOR EDX,EDX; MOV DX,word ptr [EAX]).",
         "The record layout at the hs_macro_function_evaluate return is inferred from two reads only: an unsigned 16-bit device-group index at +0 and a float value at +4; nothing proves the record has no other fields."
@@ -8776,9 +9064,21 @@
         "device_group_set_actual_value's first parameter is typed int to mirror its reader sibling device_group_get_value(int); the binary only proves a 32-bit push of a zero-extended word, so an int16_t parameter is equally consistent."
       ]
     },
+    "0xbfc50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfc90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfcd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbfd10": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The first and third cdecl parameters (function_index at [EBP+0x08] and init at [EBP+0x10]) are never read by the body; they are inferred from the fixed 3-argument HS builtin handler shape shared by every twin in this TU and from the dispatch table pushing three arguments, not from any load in this function."
       ],
@@ -8786,16 +9086,32 @@
         "The parameter names function_index, thread_datum and init are mechanical, carried over from the sibling handlers in this TU rather than proven from a string or PDB symbol for this specific builtin; only the [EBP+0x0c] thread_datum slot is confirmed by a load in the body."
       ]
     },
+    "0xbfd30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfd50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfd70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfd90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbfdb0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The function_index ([EBP+0x08]) and init ([EBP+0x10]) parameters are never read by the body; the 3-arg cdecl shape is inferred from the shared HaloScript builtin dispatch-table convention used by every twin from FUN_000bf870 through FUN_000bfd90 in this TU, and is required to avoid the 0x158df0-class ESP-drift hazard the stale void(void) decl carried."
       ]
     },
     "0xbfdd0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate's kb-declared int return is really a pointer to the evaluated-argument record: TEST EAX,EAX/JZ guards both tail calls and EAX is then dereferenced with MOV DX,word ptr [EAX]. Cast locally; the shared kb decl is deliberately left as int, matching every twin in this HS-builtin cluster."
       ],
@@ -8803,9 +9119,13 @@
         "The evaluated-argument record's layout beyond the zero-extended uint16 at offset +0 is unknown; this handler reads exactly one WORD field and nothing else, so no wider struct can be inferred from this function alone."
       ]
     },
+    "0xbfe10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbfe30": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The int return of hs_macro_function_evaluate (0xcc560) is really a pointer to the evaluated-argument record: TEST EAX,EAX guards a subsequent MOV DL,byte ptr [EAX] deref, so it is cast to uint8_t* locally while the shared kb.json decl stays int, as on every twin in this cluster."
       ],
@@ -8815,14 +9135,26 @@
     },
     "0xbfe70": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate's kb-declared int return is really a pointer to the evaluated-argument record; FUN_000bfe70 dereferences it as a zero-extended unsigned byte at offset +0 (XOR EDX,EDX / MOV DL,[EAX]), and the cast is kept local so the shared decl stays consistent across the hs twin cluster."
       ]
     },
+    "0xbfeb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbfef0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbff30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbff70": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) returns a POINTER to a script-argument record; kb.json declares int, so the lift casts locally to int* and leaves the kb decl alone (same precedent as the 0xbf920/0xbf960 twins)."
       ],
@@ -8830,9 +9162,13 @@
         "The record fields are two full DWORDs at +0x0 and +0x4 passed to FUN_00054860 as (unit_handle, ai_ref); the semantic meaning of the +0x4 dword is unnamed because FUN_00054860 itself is still an unnamed FUN_ symbol."
       ]
     },
+    "0xbffb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xbfff0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The kb.json decl arrived as void FUN_000bfff0(void) and was corrected to the 3-arg cdecl form (int16_t function_index, int thread_datum, char init) from the EBP+0x8/+0xc/+0x10 loads; the third param is loaded as a full dword but is declared char to match the identical twins FUN_000bf920 and FUN_000bff70 and the hs_macro_function_evaluate decl."
       ],
@@ -8842,7 +9178,7 @@
     },
     "0xc0030": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The 0xcc560 return value is dereferenced (MOV EDX,[EAX]) after a NULL test, so it is a record pointer even though kb.json declares hs_macro_function_evaluate as returning int; only field +0x0 is read and it is read as a full dword, so record[0] must not be narrowed to int16 as it is in the FUN_000bf920/FUN_000bf960 twins."
       ],
@@ -8850,23 +9186,39 @@
         "The single ADD ESP,0xc at 0xc005f cleans the 1 push of FUN_00054ac0 plus the 2 pushes of hs_return, so the call_site_audit ARG_COUNT warning claiming hs_return takes 3 stack args is a false positive and hs_return's 2-arg decl must not be changed."
       ]
     },
+    "0xc0070": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc00b0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The single ADD ESP,0xc at 0xc00dc is the shared cdecl cleanup for three pushes spanning two calls (1 arg to FUN_00054bb0 plus 2 args to hs_return), so call_site_audit's ARG_COUNT warning claiming hs_return takes 3 stack args is a false positive and both callee decls were left unchanged."
       ]
     },
     "0xc00f0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The single ADD ESP,0xc at 0xc011c is the shared cdecl cleanup for three pushes spanning two calls (1 arg to FUN_00054ca0 plus 2 args to hs_return), so call_site_audit's ARG_COUNT warning claiming hs_return takes 3 stack args is a false positive and both callee decls were left unchanged."
       ]
     },
+    "0xc0130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0170": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc01b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc01d0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) is declared in kb.json as returning int, but 0xc01d0 tests EAX for NULL and then dereferences it (MOV EDX,[EAX] at 0xc01ec), so the return value is really a pointer to the evaluated argument record; the cast is kept local to this lift and the kb decl was deliberately left unchanged, matching every committed twin.",
         "The third parameter is loaded as a full dword (MOV EAX,[EBP+0x10]) but is typed char to match hs_macro_function_evaluate's kb declaration and the rest of the dispatcher family; the narrowing is not observable in this function."
@@ -8875,9 +9227,13 @@
         "The call_site_audit ARG_COUNT finding on hs_return at 0xc01f7 (cleanup=3 stack args vs decl=2) is a false positive: the single ADD ESP,0xc at 0xc01fc is the merged cleanup for FUN_00054e40's one push plus hs_return's two pushes, so hs_return's two-parameter declaration is correct and was left unchanged."
       ]
     },
+    "0xc0210": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc0230": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) is declared returning int in kb.json but its result is TEST-ed for NULL and dereferenced at +0x0, so the return is really a record pointer; the cast is local to this lift and the callee decl was deliberately left unchanged, matching the committed twins 0xc0130/0xc00f0/0xc0070/0xc0030."
       ],
@@ -8885,9 +9241,17 @@
         "The record pointer is typed unsigned int * solely because the single consumed field record[0] is passed to FUN_00054e80(unsigned int ai_ref); the record struct's full layout is unknown since only offset 0x0 is read here."
       ]
     },
+    "0xc0270": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc02b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc02f0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) is declared as returning int in kb.json but its result is dereferenced here as a pointer to an 8-byte argument record (+0x0 dword, +0x4 byte); the pointer cast is kept local and the kb decl was left unchanged, matching every twin in this dispatcher family."
       ],
@@ -8895,9 +9259,29 @@
         "The ARG_COUNT finding on hs_return (cleanup=4 stack args vs decl=2) is a false positive: the single ADD ESP,0x10 at 0xc0322 cleans the two pushes of the FUN_00055090 call plus the two pushes of the hs_return call, so hs_return really takes two stack arguments."
       ]
     },
+    "0xc0330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0370": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc03b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc03f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0430": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc0470": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) returns a record POINTER here (TEST EAX,EAX; MOV EDX,[EAX]) even though its shared kb.json decl types the return as int; the pointer cast is kept local to FUN_000c0470 rather than changing the family-wide decl."
       ],
@@ -8905,9 +9289,41 @@
         "The meaning of record[0] passed to FUN_000552b0 is unknown beyond being a full 32-bit field at record+0 (no MOVSX/MOVZX narrowing); the parameter is named combined_index only by the existing kb.json decl for 0x552b0, not by independent evidence at this call site."
       ]
     },
+    "0xc04b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc04f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0530": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0570": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc05b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc05f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0630": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0670": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc06b0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "FUN_000566a0 (0x566a0) takes two dword cdecl stack args, inferred from the PUSH EDX; PUSH EAX pair at 0xc06d7 covered by the merged ADD ESP,0x10; its stale kb decl was void encounters_initialize(void) which would have dropped both args."
       ],
@@ -8915,9 +9331,13 @@
         "The name encounters_initialize for 0x566a0 is unproven and inconsistent with a two-value consumer, so it was reverted to the FUN_000566a0 placeholder; the real parameter widths of that callee are unknown and only the caller-side extensions (signed int16 at record+0x0, unsigned int16 at record+0x4) are binary-evidenced."
       ]
     },
+    "0xc06f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc0730": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The three dword fields at record+0x0/+0x4/+0x8 forwarded to FUN_00058c40 are typed int because the binary only proves 32-bit GPR copies; a float typing would make MSVC emit FLD/FSTP instead of the original MOV/PUSH pairs."
       ],
@@ -8927,7 +9347,7 @@
     },
     "0xc0770": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) returns a POINTER to the evaluated-argument record, not a boolean; the binary only ever tests it with TEST EAX,EAX, so the pointer typing is inferred from the three [EAX+N] dword loads that follow."
       ],
@@ -8935,9 +9355,13 @@
         "The three forwarded record fields at +0x0/+0x4/+0x8 are typed int only because the binary proves 32-bit dword-through-GPR copies (MOV/PUSH, no MOVSX/MOVZX, no FLD/FSTP); their true semantic types depend on ai_scripting_follow_distance (0x58cc0), which is not yet lifted."
       ]
     },
+    "0xc07b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc07f0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The evaluated-argument record returned in EAX by hs_macro_function_evaluate (0xcc560) is a pointer, not a boolean, even though the original only tests it with TEST EAX,EAX; kb.json still types that return as int so the lift casts it to int*."
       ],
@@ -8947,14 +9371,14 @@
     },
     "0xc0830": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) returns a POINTER to the evaluated-argument record, not the int its kb.json decl declares; the lift casts EAX to int* to read the dword at +0x0 and the zero-extended byte at +0x4."
       ]
     },
     "0xc0870": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Parameter names function_index/thread_datum/init are inferred by structural analogy with the identical siblings FUN_000c07f0 and FUN_000c0830 and with hs_macro_function_evaluate's kb.json declaration, not from any string or PDB evidence at 0xc0870 itself."
       ],
@@ -8962,23 +9386,55 @@
         "The semantics of the forwarded worker FUN_00056b20 and of the evaluated-argument record fields at +0x0 (dword) and +0x4 (zero-extended byte) are unknown; only their widths and argument order are binary-confirmed."
       ]
     },
+    "0xc08b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc08f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc0930": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The 32-bit MOV EDX,[EAX] at 0x000c0956 is a full-width dword load with no MOVSX/MOVZX, so the evaluated-argument record's first field is typed int rather than a narrow int16_t/char field."
       ]
     },
+    "0xc0970": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc09b0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate returns a POINTER to the evaluated-argument record; the original only TESTs EAX for NULL, so the pointer type is inferred from the subsequent MOV EDX,[EAX] dereference rather than from a typed use."
       ]
     },
+    "0xc09f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0a30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0a70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0ab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xc0af0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc0b30": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "hs_macro_function_evaluate (0xcc560) is declared as returning int in kb.json but the return value is dereferenced (MOV EDX,[EAX]) on the non-NULL path, so it is really a pointer to an evaluated-argument record; the lift casts it to int * at the call site.",
         "The single ADD ESP,0xc at 0x000c0b5c is a MERGED cdecl cleanup covering both tail calls (1 dword for FUN_000572c0 plus 2 dwords for hs_return), so the ARG_COUNT hazard reporting hs_return as taking 3 stack args is a false positive and neither decl should be widened."
@@ -8986,6 +9442,10 @@
       "uncertain": [
         "The semantic meaning of the record[0] field forwarded to FUN_000572c0 is unknown; it is read as a full 32-bit dword at offset +0x0 with no sign or zero extension, and FUN_000572c0 remains an unnamed FUN_ placeholder."
       ]
+    },
+    "0xc0b70": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xc0bb0": {
       "kind": "function",
@@ -11238,6 +11698,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xd02c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xd02f0": {
       "kind": "function",
       "status": "ported"
@@ -11263,6 +11727,14 @@
       "status": "ported"
     },
     "0xd0440": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd04a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd04d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -11307,7 +11779,59 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xd0e90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd0ff0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1400": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1540": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1550": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1580": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xd1690": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd16a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1890": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1a70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1c50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1c90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd1dd0": {
       "kind": "function",
       "status": "ported"
     },
@@ -11315,7 +11839,75 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xd1f40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd2300": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd2320": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd2580": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd27a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd3080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd3200": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd3340": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd3860": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd3fa0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd3fe0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd4260": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd4470": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd44f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xd4680": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd46a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd46d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd46e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -11439,6 +12031,14 @@
         "The internal helper 0xd5070 uses ESI as a register arg for vehicle tag matching; not yet in kb.json to avoid thunk recursion."
       ]
     },
+    "0xd52e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd5350": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xd5ec0": {
       "kind": "function",
       "status": "ported"
@@ -11463,6 +12063,190 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xd6030": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6120": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6140": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6160": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6180": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd61f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6220": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6280": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd62f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6320": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6390": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd63b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd63d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd63f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6450": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6470": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6490": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd64c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd64f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6550": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6660": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6cc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd6e50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd70b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7240": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7280": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd72f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7420": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7440": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7470": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd74a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd74d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7500": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7530": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7560": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7780": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7a20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7cd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7d10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd7d40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xd8af0": {
       "kind": "function",
       "status": "ported"
@@ -11476,6 +12260,34 @@
       "status": "ported"
     },
     "0xd8b80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd8b90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd8bc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd8c30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd8ca0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd8cf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd8fd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xd8ff0": {
       "kind": "function",
       "status": "ported"
     },
@@ -11699,6 +12511,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe0620": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe0700": {
       "kind": "function",
       "status": "ported"
@@ -11811,7 +12627,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe1000": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe1050": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe1060": {
       "kind": "function",
       "status": "ported"
     },
@@ -11832,6 +12656,10 @@
       "status": "ported"
     },
     "0xe1760": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe1770": {
       "kind": "function",
       "status": "ported"
     },
@@ -11920,6 +12748,14 @@
       "status": "ported"
     },
     "0xe3300": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe33a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe33e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -12144,9 +12980,25 @@
         "summary": "Depth-first search over a widget subtree for the first node whose tag handle (+0x0) equals tag_handle. Checks current node, then recurses into each child (+0x34) following next_sibling (+0x2c)."
       }
     },
+    "0xe4980": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe4a80": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
+    },
+    "0xe4c70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe4ce0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe4d40": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xe4da0": {
       "kind": "function",
@@ -12183,6 +13035,10 @@
       "status": "ported"
     },
     "0xe5530": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe5590": {
       "kind": "function",
       "status": "ported"
     },
@@ -12275,6 +13131,10 @@
       "status": "ported"
     },
     "0xe6ed0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe76b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -12395,7 +13255,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe9d40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe9fd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xea010": {
       "kind": "function",
       "status": "ported"
     },
@@ -12407,7 +13275,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xea540": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xea810": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xea900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeab70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeb020": {
       "kind": "function",
       "status": "ported"
     },
@@ -12427,11 +13311,47 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xeed10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeeeb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xef900": {
       "kind": "function",
       "status": "ported"
     },
+    "0xef970": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefde0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefed0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeff70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf0070": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf00b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0100": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0170": {
       "kind": "function",
       "status": "ported"
     },
@@ -12443,7 +13363,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf03d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf0430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf04c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -12459,7 +13387,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf0aa0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0bb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0c60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf0d10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0d90": {
       "kind": "function",
       "status": "ported"
     },
@@ -12472,6 +13416,34 @@
       "status": "ported"
     },
     "0xf2560": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf2690": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf2720": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf28e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf2b90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf2e60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf2f60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf3280": {
       "kind": "function",
       "status": "ported"
     },
@@ -12489,7 +13461,7 @@
     },
     "0xf46e0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Profile record table at 0x5aa3c0 has 3 entries of stride 0x34 (pointer bound 0x5aa45c); field map inferred from access widths: +0x00 int id, +0x04 wchar_t name[12], +0x1c short controller-setup index, +0x1e ushort flags (bit0 = use-default-name, bits 8..15 = ustr string index), +0x2c/+0x2d byte description indices."
       ],
@@ -14318,7 +15290,55 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x11a230": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a2d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a340": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a560": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a5d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a650": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a6d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a770": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11a8e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x11a930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11aa40": {
       "kind": "function",
       "status": "ported"
     },
@@ -14357,7 +15377,19 @@
         "In the version-skipped switch (jump table at 0x11b274) field types 1, 2, 3, 4 and 8 all reach one merged block at 0x11b1a8 that calls FUN_00119cc0(state, NULL, field->count, 1), so the zero-fill is field->count BYTES even for the 2/4/8-byte element types - it is not scaled by element size the way the in-range arms are."
       ]
     },
+    "0x11b2a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x11b540": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11b650": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11b750": {
       "kind": "function",
       "status": "ported"
     },
@@ -14370,6 +15402,70 @@
       "status": "ported"
     },
     "0x11b960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11ba00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11ba50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11bb70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11bc20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11be10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11beb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c0f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c1b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c1d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c1e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c290": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c310": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c480": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11c4d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14735,6 +15831,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x124900": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1249b0": {
       "kind": "function",
       "status": "ported"
@@ -14766,7 +15866,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x124c80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x124cc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x124d00": {
       "kind": "function",
       "status": "ported"
     },
@@ -14868,6 +15976,22 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x125ce0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x125fb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x126000": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1260c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x126140": {
       "kind": "function",
       "status": "ported"
@@ -14896,11 +16020,99 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x126b60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x126ce0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x126db0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x126f40": {
       "kind": "function",
       "status": "ported"
     },
+    "0x126fe0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127070": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1271a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127260": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127310": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1273a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127440": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1274e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127610": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1277f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1278d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1279a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127a50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127b10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127bd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127c90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127d30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127df0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x127ea0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14980,6 +16192,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x129980": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x129a30": {
       "kind": "function",
       "status": "ported"
@@ -15020,6 +16236,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12a190": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12a1a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12a1d0": {
       "kind": "function",
       "status": "ported"
@@ -15033,6 +16257,10 @@
       "status": "ported"
     },
     "0x12a240": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12a250": {
       "kind": "function",
       "status": "ported"
     },
@@ -15064,7 +16292,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12a7a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12a830": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12a890": {
       "kind": "function",
       "status": "ported"
     },
@@ -15105,6 +16341,10 @@
       "status": "ported"
     },
     "0x12ad60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12af00": {
       "kind": "function",
       "status": "ported"
     },
@@ -15153,6 +16393,10 @@
       "status": "ported"
     },
     "0x12b700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12bce0": {
       "kind": "function",
       "status": "ported"
     },
@@ -15228,11 +16472,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12c690": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12c6d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12c750": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12c7e0": {
       "kind": "function",
       "status": "ported"
     },
     "0x12c920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12ca00": {
       "kind": "function",
       "status": "ported"
     },
@@ -15355,6 +16615,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12da90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12db30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12db60": {
       "kind": "function",
       "status": "ported"
@@ -15411,7 +16679,47 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12eef0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f040": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f0d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f170": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f200": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f290": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f3d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f3f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12f430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f540": {
       "kind": "function",
       "status": "ported"
     },
@@ -15420,6 +16728,46 @@
       "status": "ported"
     },
     "0x12f690": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f8d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12f990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12fd80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12fe40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12ff00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x12ffe0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1300b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x130180": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x130270": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x130580": {
       "kind": "function",
       "status": "ported"
     },
