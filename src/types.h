@@ -65,7 +65,7 @@ typedef uint32_t dword;
 typedef float    real;
 
 /* Bungie's 2D real vector. Lives here rather than in its recovering TU
- * (rasterizer_xbox_screen_effect.c) because FUN_001700d0 returns it by value,
+ * (rasterizer_xbox_screen_effect.c) because __reciprocal_vector2d returns it by value,
  * so the type appears in that function's kb.json decl and therefore in the
  * generated decl.h, which every TU includes.
  *
