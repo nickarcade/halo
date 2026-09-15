@@ -421,7 +421,7 @@ void actor_set_prop_if_match(int actor_handle, int old_prop, int new_prop)
 /* FUN_00014540 (0x14540)
  * Initialize actor looking state from the scripted look target at activation.
  *
- * Called during actor activation (FUN_0003ec80) after prop and movement init.
+ * Called during actor activation (actor_update) after prop and movement init.
  * Reads the actor's scripted-look target handle at actor+0x1dc.  If set (not
  * -1) and the actor also has a secondary-look object handle at actor+0x1e0,
  * it attempts to find an existing look-at entry for that object via
@@ -2417,7 +2417,7 @@ void FUN_00016590(int actor_handle)
       prop = (char *)datum_get(prop_data, *(int *)(actor + 0xac));
       ((actor_t *)actor)->field_0ab = 0;
       *(int *)(actor + 0xac) = -1;
-      FUN_000369c0(actor_handle, 2, 600);
+      actor_stimulus_suspicion(actor_handle, 2, 600);
       ai_communication_event(7, ((actor_t *)actor)->field_018, *(int *)(prop + 0x18), -1,
                    -1, 2, 0);
     }
@@ -3979,7 +3979,7 @@ bool FUN_00017ab0(int actor_handle, short scenario_idx, char *state_data,
     object_reset(unit_handle);
     object_update_children_recursive(unit_handle);
     if (unit_handle == ((actor_t *)actor)->field_018) {
-      FUN_0003bde0(actor_handle, ((actor_t *)actor)->field_018, actor + 0x120);
+      actor_input_sample_position(actor_handle, ((actor_t *)actor)->field_018, actor + 0x120);
       FUN_0002f1a0(actor_handle);
     }
     result = 1;
@@ -4493,7 +4493,7 @@ LAB_done:
  *
  * Post-initialization:
  *   - Copies field_c8 to 426/427, field_ca to 42c.
- *   - If field_f8 is set and FUN_0002a360 passes: dispatches
+ *   - If field_f8 is set and actor_move_animation_busy passes: dispatches
  *     actor_move_animation_impulse and ai_communication_event for firing-position
  * targets.
  *   - field_a9&1: copies field_b0/ac to 430-43c.
@@ -4599,7 +4599,7 @@ LAB_done:
   ((actor_t *)actor)->field_42c = ((actor_t *)actor)->field_0ca;
 
   if (((actor_t *)actor)->field_0f8 != '\0' &&
-      (char)FUN_0002a360(actor_handle) == '\0') {
+      (char)actor_move_animation_busy(actor_handle) == '\0') {
     animation_impulse = ((actor_t *)actor)->field_0fa;
     if (animation_impulse != -1) {
       tmp_v[1] = ((actor_t *)actor)->control_desired_facing_vector[1];
@@ -7619,7 +7619,7 @@ void FUN_00027410(int actor_handle, void *ctx, unsigned short fp_count,
           if (preferred_range_min <= *(float *)((char *)ctx + 0x658))
             preferred_range_min = *(float *)((char *)ctx + 0x658);
 
-          combat = FUN_000210f0(actor_handle);
+          combat = actor_get_weapon_definition(actor_handle);
           if (combat != 0 && 0.0f < *(float *)(combat + 0x40c) &&
               preferred_range_min <= *(float *)(combat + 0x40c))
             preferred_range_min = *(float *)(combat + 0x40c);
@@ -8637,7 +8637,7 @@ void actor_look_update(int actor_handle)
   if (((actor_t *)actor)->field_161) {
     is_attacking = 1;
   } else if (look_type == 0 || look_type == 2) {
-    iVar10 = actor_attacking_target(actor_handle);
+    iVar10 = actor_get_weapon(actor_handle);
     is_attacking = (char)(iVar10 != -1);
   } else {
     is_attacking = 0;
@@ -8661,7 +8661,7 @@ void actor_look_update(int actor_handle)
     cos_angles[1] = x87_fcos(*(float *)(tag_data + 0xb8));
   }
   /* Determine primary look mode */
-  if (FUN_000210b0(actor_handle) && !((actor_t *)actor)->field_456) {
+  if (actor_combat_currently_firing_burst(actor_handle) && !((actor_t *)actor)->field_456) {
     look_spec_type = 2;
     if (look_spec_28660_safe(actor_handle, actor, &look_spec_type,
                              primary_vec)) {
@@ -9260,7 +9260,7 @@ LAB_00029e6d:
          * `je` fires when C0=C3=0, i.e. dot > snap_cos -- the snap is KEPT
          * while the vector is still inside the cone. This lift had the
          * test inverted (dot <= snap_cos), clearing actor+0x590 and
-         * calling FUN_00036e50 exactly when it should have been left. */
+         * calling actor_stimulus_abandon_stationary_facing exactly when it should have been left. */
         if (dot4 > snap_cos)
           goto LAB_0002a0c3;
       }
@@ -9289,7 +9289,7 @@ LAB_00029e6d:
     }
   LAB_0002a0a7:
     ((actor_t *)actor)->field_590 = 0;
-    FUN_00036e50(actor_handle);
+    actor_stimulus_abandon_stationary_facing(actor_handle);
   }
 
 LAB_0002a0c3:

@@ -302,6 +302,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1d3c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1d420": {
       "kind": "function",
       "status": "ported"
@@ -318,6 +322,10 @@
         "VC71 caps at 76.9% (19/20 insns) due to an MSVC branch-scheduling idiom: original hoists XOR EDX,EDX before a JNE to the pointer block and returns 0 via MOV EAX,EDX on fall-through, which clang will not reproduce from clean C; behavior verified equivalent (100/100 seeds).",
         "The returned pointer type is unproven; actor+0xa4 is likely a real_point3d pursuit location based on the symbol name, but this function supplies no typed evidence, so the return stays void *."
       ]
+    },
+    "0x1d530": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1d5c0": {
       "kind": "function",
@@ -494,6 +502,22 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x21010": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x21040": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x21080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x210b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x210f0": {
       "kind": "function",
       "status": "ported"
@@ -507,6 +531,10 @@
       "status": "ported"
     },
     "0x21270": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x21350": {
       "kind": "function",
       "status": "ported"
     },
@@ -535,6 +563,10 @@
       "status": "ported"
     },
     "0x22010": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x22390": {
       "kind": "function",
       "status": "ported"
     },
@@ -635,6 +667,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2a360": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2a3a0": {
       "kind": "function",
       "status": "ported"
@@ -683,6 +719,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2ade0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2b020": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2b310": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2b400": {
       "kind": "function",
       "status": "ported"
@@ -705,9 +753,17 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2b830": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2bab0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2bd80": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Actor handle arrives in ECX; the sole caller actor_move_update at 0x2e70e does MOV ECX,EDI and the callee prologue copies ECX into ESI before datum_get.",
         "Null checks are on stack args EBP+0xC and EBP+0x10 (vel_out and speed_out), not on facing at EBP+0x8, despite the assert string avoidance_rotation && emergency_amount.",
@@ -842,6 +898,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x36890": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x36960": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x369c0": {
       "kind": "function",
       "status": "ported"
@@ -852,23 +916,31 @@
     },
     "0x36a90": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "FUN_00036890 call: position_a=&prop[0xf0] (LEA ECX), priority=2 (EDX), position_b=NULL (XOR EBX), param5=prop[0xec], param6=0x3fc00000, param7=90, param8=prop_handle, param9=90, param10=1. Ghidra decompiler reported wrong priority (0x5a) and position values due to missing register-arg tracking."
       ]
     },
     "0x36b10": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "datum_get result is NOT discarded: EAX feeds LEA EBX,[EAX+0xe0] which becomes position_b @<ebx> for FUN_00036890. Ghidra decompilation incorrectly showed datum_get result as unused and actor_handle as -1; the -1 is param5 on the stack (PUSH at 0x36b39), actor_handle is param_1 from [EBP+0x8]."
       ]
+    },
+    "0x36b50": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x36bd0": {
       "kind": "function",
       "status": "ported"
     },
     "0x36c00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x36c50": {
       "kind": "function",
       "status": "ported"
     },
@@ -892,11 +964,47 @@
         "The byte at actor+0x2ed is inferred to be an approach-active flag based on the calling context in ai_handle_unit_approach."
       ]
     },
+    "0x36e50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x36f20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x37240": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x373b0": {
       "kind": "function",
       "status": "ported"
     },
+    "0x374f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x37630": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x377d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x378e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x379f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x37b50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x37d50": {
       "kind": "function",
       "status": "ported"
     },
@@ -912,7 +1020,55 @@
         "actor_action_handle_grenade_throwing, actor_action_handle_evasion, FUN_00020990 are declared void(void) in kb.json but disassembly shows PUSH ESI before each CALL; signatures are stale."
       ]
     },
+    "0x38200": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x38370": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x38880": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x38b10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x38c70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x38da0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x38e00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x38e60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x39c80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x39f30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a190": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x3a3b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a480": {
       "kind": "function",
       "status": "ported"
     },
@@ -928,11 +1084,43 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x3a770": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a7b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a7d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a7f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a810": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x3a840": {
       "kind": "function",
       "status": "ported"
     },
     "0x3a8a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3a920": {
       "kind": "function",
       "status": "ported"
     },
@@ -1160,6 +1348,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x3cb50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x3cbc0": {
       "kind": "function",
       "status": "ported"
@@ -1258,6 +1450,10 @@
       ]
     },
     "0x3edc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x3f030": {
       "kind": "function",
       "status": "ported"
     },
@@ -1386,6 +1582,10 @@
       "status": "ported"
     },
     "0x409e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x40a40": {
       "kind": "function",
       "status": "ported"
     },
