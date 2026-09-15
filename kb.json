@@ -2911,299 +2911,352 @@
    "functions": [
     {
      "addr": "0x2a360",
-     "decl": "int FUN_0002a360(int actor_handle);",
-     "ported": true
+     "decl": "int actor_move_animation_busy(int actor_handle);",
+     "ported": true,
+     "name": "actor_move_animation_busy"
     },
     {
      "addr": "0x36860",
-     "decl": "void FUN_00036860(int actor_handle);",
-     "ported": true
+     "decl": "void actor_stimulus_clear(int actor_handle);",
+     "ported": true,
+     "name": "actor_stimulus_clear"
     },
     {
      "addr": "0x36890",
-     "decl": "void FUN_00036890(int actor_handle /* @<eax> */, int *position_a /* @<ecx> */, short priority /* @<edx> */, int *position_b /* @<ebx> */, int param5, int param6, int param7, int param8, int param9, char param10);",
+     "decl": "void actor_stimulus_combat(int actor_handle /* @<eax> */, int *position_a /* @<ecx> */, short priority /* @<edx> */, int *position_b /* @<ebx> */, int param5, int param6, int param7, int param8, int param9, char param10);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "actor_stimulus_combat"
     },
     {
      "addr": "0x36960",
-     "decl": "void FUN_00036960(int actor_handle, short priority, int param3, int *direction);",
-     "ported": true
+     "decl": "void actor_stimulus_surprise(int actor_handle, short priority, int param3, int *direction);",
+     "ported": true,
+     "name": "actor_stimulus_surprise"
     },
     {
      "addr": "0x369c0",
-     "decl": "void FUN_000369c0(int actor_handle, short priority, int value);",
-     "ported": true
+     "decl": "void actor_stimulus_suspicion(int actor_handle, short priority, int value);",
+     "ported": true,
+     "name": "actor_stimulus_suspicion"
     },
     {
      "addr": "0x36a20",
-     "decl": "void FUN_00036a20(int actor_handle, int encounter_handle, char param_3);",
-     "ported": true
+     "decl": "void actor_stimulus_prop_sighted(int actor_handle, int encounter_handle, char param_3);",
+     "ported": true,
+     "name": "actor_stimulus_prop_sighted"
     },
     {
      "addr": "0x36a90",
-     "decl": "void FUN_00036a90(int actor_handle, int prop_handle);",
+     "decl": "void actor_stimulus_enter_combat_found_body(int actor_handle, int prop_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "actor_stimulus_enter_combat_found_body"
     },
     {
      "addr": "0x36b10",
-     "decl": "void FUN_00036b10(int actor_handle, int prop_handle);",
+     "decl": "void actor_stimulus_enter_combat_perceived_enemy(int actor_handle, int prop_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "actor_stimulus_enter_combat_perceived_enemy"
     },
     {
      "addr": "0x36b50",
-     "decl": "void FUN_00036b50(int param_1, int param_2);",
-     "ported": true
+     "decl": "void actor_stimulus_enter_combat_friend_in_combat(int param_1, int param_2);",
+     "ported": true,
+     "name": "actor_stimulus_enter_combat_friend_in_combat"
     },
     {
      "addr": "0x36bd0",
-     "decl": "void FUN_00036bd0(int actor_handle, int param_2);",
-     "ported": true
+     "decl": "void actor_stimulus_bumped(int actor_handle, int param_2);",
+     "ported": true,
+     "name": "actor_stimulus_bumped"
     },
     {
      "addr": "0x36c00",
-     "decl": "void FUN_00036c00(int actor_handle, int object_handle, float *position, short count);",
-     "ported": true
+     "decl": "void actor_stimulus_environmental_noise(int actor_handle, int object_handle, float *position, short count);",
+     "ported": true,
+     "name": "actor_stimulus_environmental_noise"
     },
     {
      "addr": "0x36c50",
-     "decl": "void FUN_00036c50(int actor_handle, int prop_handle);",
+     "decl": "void actor_stimulus_heard_shooting(int actor_handle, int prop_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "actor_stimulus_heard_shooting"
     },
     {
      "addr": "0x36da0",
-     "decl": "void FUN_00036da0(int actor_handle);",
-     "ported": true
+     "decl": "void actor_stimulus_was_surprised(int actor_handle);",
+     "ported": true,
+     "name": "actor_stimulus_was_surprised"
     },
     {
      "addr": "0x36dc0",
-     "decl": "void FUN_00036dc0(int actor_handle, char flags_bit1, char flags_bit0);",
+     "decl": "void actor_stimulus_maneuvering(int actor_handle, char flags_bit1, char flags_bit0);",
      "ported": true,
      "src": "src/halo/ai/actors.c",
-     "status": "ported"
+     "status": "ported",
+     "name": "actor_stimulus_maneuvering"
     },
     {
      "addr": "0x36e30",
-     "decl": "void FUN_00036e30(int ai_handle);",
-     "ported": true
+     "decl": "void actor_stimulus_vehicle_eviction(int ai_handle);",
+     "ported": true,
+     "name": "actor_stimulus_vehicle_eviction"
     },
     {
      "addr": "0x36e50",
-     "decl": "void FUN_00036e50(int actor_handle);",
-     "ported": true
+     "decl": "void actor_stimulus_abandon_stationary_facing(int actor_handle);",
+     "ported": true,
+     "name": "actor_stimulus_abandon_stationary_facing"
     },
     {
      "addr": "0x36f20",
-     "decl": "void FUN_00036f20(int actor_handle, int prop_handle, int param_3, char param_4);",
+     "decl": "void actor_stimulus_prop_acknowledged(int actor_handle, int prop_handle, int param_3, char param_4);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "actor_stimulus_prop_acknowledged"
     },
     {
      "addr": "0x37240",
-     "decl": "void FUN_00037240(int actor_handle, int prop_handle, int unused_param_3, float *position);",
+     "decl": "void actor_stimulus_damage(int actor_handle, int prop_handle, int unused_param_3, float *position);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "actor_stimulus_damage"
     },
     {
      "addr": "0x373b0",
-     "decl": "void FUN_000373b0(int actor_handle, int object_handle, float *position, short count);",
-     "ported": true
+     "decl": "void actor_stimulus_weapon_impact(int actor_handle, int object_handle, float *position, short count);",
+     "ported": true,
+     "name": "actor_stimulus_weapon_impact"
     },
     {
      "addr": "0x374f0",
-     "decl": "void FUN_000374f0(int actor_handle, int object_handle, float *position, short count);",
-     "ported": true
+     "decl": "void actor_stimulus_weapon_detonation(int actor_handle, int object_handle, float *position, short count);",
+     "ported": true,
+     "name": "actor_stimulus_weapon_detonation"
     },
     {
      "addr": "0x37630",
-     "decl": "void FUN_00037630(int actor_handle, int prop_handle);",
+     "decl": "void actor_stimulus_prop_just_killed(int actor_handle, int prop_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "actor_stimulus_prop_just_killed"
     },
     {
      "addr": "0x377d0",
-     "decl": "void FUN_000377d0(int actor_handle, int prop_handle);",
-     "ported": true
+     "decl": "void actor_stimulus_prop_fleeing(int actor_handle, int prop_handle);",
+     "ported": true,
+     "name": "actor_stimulus_prop_fleeing"
     },
     {
      "addr": "0x378e0",
-     "decl": "void FUN_000378e0(int actor_handle, short param_2, short param_3, int param_4, float *param_5);",
+     "decl": "void actor_stimulus_noticed_danger_zone(int actor_handle, short param_2, short param_3, int param_4, float *param_5);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "actor_stimulus_noticed_danger_zone"
     },
     {
      "addr": "0x379f0",
-     "decl": "void FUN_000379f0(int actor_handle);",
+     "decl": "void carrier_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "carrier_decide_action"
     },
     {
      "addr": "0x37b50",
-     "decl": "void FUN_00037b50(int actor_handle);",
+     "decl": "void crew_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "crew_decide_action"
     },
     {
      "addr": "0x37d50",
-     "decl": "void FUN_00037d50(int actor_handle);",
+     "decl": "void elite_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "elite_decide_action"
     },
     {
      "addr": "0x38000",
-     "decl": "void FUN_00038000(int actor_handle);",
+     "decl": "void engineer_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "engineer_decide_action"
     },
     {
      "addr": "0x38200",
-     "decl": "void FUN_00038200(int actor_handle);",
+     "decl": "void flood_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c"
+     "source_path": "src/halo/ai/actors.c",
+     "name": "flood_decide_action"
     },
     {
      "addr": "0x38370",
-     "decl": "char FUN_00038370(int actor_handle);",
+     "decl": "char actor_type_flood_desire_shamble(int actor_handle);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "actor_type_flood_desire_shamble"
     },
     {
      "addr": "0x38880",
-     "decl": "void FUN_00038880(int actor_handle);",
+     "decl": "void grunt_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "grunt_decide_action"
     },
     {
      "addr": "0x38b10",
-     "decl": "void FUN_00038b10(int actor_handle);",
+     "decl": "void hunter_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "hunter_decide_action"
     },
     {
      "addr": "0x38c70",
-     "decl": "void FUN_00038c70(int actor_handle);",
+     "decl": "void infection_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "infection_decide_action"
     },
     {
      "addr": "0x38da0",
-     "decl": "int FUN_00038da0(short unit_effect /* @<eax> */);",
+     "decl": "int infection_wander_pause_time(short unit_effect /* @<eax> */);",
      "ported": true,
      "reg_args": {
       "unit_effect": "eax"
      },
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "infection_wander_pause_time"
     },
     {
      "addr": "0x38e00",
-     "decl": "int FUN_00038e00(short unit_effect @<eax>);",
+     "decl": "int infection_wander_move_time(short unit_effect @<eax>);",
      "ported": true,
      "reg_args": {
       "unit_effect": "eax"
      },
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "infection_wander_move_time"
     },
     {
      "addr": "0x38e60",
-     "decl": "void FUN_00038e60(int actor_handle);",
-     "ported": true
+     "decl": "void infection_swarm_control(int actor_handle);",
+     "ported": true,
+     "name": "infection_swarm_control"
     },
     {
      "addr": "0x39c80",
-     "decl": "void FUN_00039c80(int actor_handle, int object_handle, float speed, float *out_velocity);",
-     "ported": true
+     "decl": "void infection_swarm_aim_jump(int actor_handle, int object_handle, float speed, float *out_velocity);",
+     "ported": true,
+     "name": "infection_swarm_aim_jump"
     },
     {
      "addr": "0x39f30",
-     "decl": "void FUN_00039f30(int actor_handle);",
+     "decl": "void jackal_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "jackal_decide_action"
     },
     {
      "addr": "0x3a190",
-     "decl": "void FUN_0003a190(int actor_handle);",
+     "decl": "void marine_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "marine_decide_action"
     },
     {
      "addr": "0x3a3b0",
-     "decl": "void FUN_0003a3b0(int actor_handle);",
-     "ported": true
+     "decl": "void mounted_weapon_decide_action(int actor_handle);",
+     "ported": true,
+     "name": "mounted_weapon_decide_action"
     },
     {
      "addr": "0x3a480",
-     "decl": "void FUN_0003a480(int actor_handle);",
+     "decl": "void sentinel_decide_action(int actor_handle);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "sentinel_decide_action"
     },
     {
      "addr": "0x3a600",
-     "decl": "void *FUN_0003a600(int16_t actor_type @<ax>);",
-     "ported": true
+     "decl": "void *actor_type_definition_get(int16_t actor_type @<ax>);",
+     "ported": true,
+     "name": "actor_type_definition_get"
     },
     {
      "addr": "0x3a740",
-     "decl": "void FUN_0003a740(void);",
-     "ported": true
+     "decl": "void actor_types_initialize(void);",
+     "ported": true,
+     "name": "actor_types_initialize"
     },
     {
      "addr": "0x3a760",
-     "decl": "const char *FUN_0003a760(int16_t actor_type);",
-     "ported": true
+     "decl": "const char *actor_type_get_name(int16_t actor_type);",
+     "ported": true,
+     "name": "actor_type_get_name"
     },
     {
      "addr": "0x3a770",
-     "decl": "int16_t FUN_0003a770(int16_t actor_type);",
-     "ported": true
+     "decl": "int16_t actor_type_get_race(int16_t actor_type);",
+     "ported": true,
+     "name": "actor_type_get_race"
     },
     {
      "addr": "0x3a790",
-     "decl": "int16_t FUN_0003a790(int16_t actor_type);",
-     "ported": true
+     "decl": "int16_t actor_type_get_when_to_search_at_target(int16_t actor_type);",
+     "ported": true,
+     "name": "actor_type_get_when_to_search_at_target"
     },
     {
      "addr": "0x3a7b0",
-     "decl": "int16_t FUN_0003a7b0(int16_t actor_type);",
-     "ported": true
+     "decl": "int16_t actor_type_get_when_to_pursue(int16_t actor_type);",
+     "ported": true,
+     "name": "actor_type_get_when_to_pursue"
     },
     {
      "addr": "0x3a7d0",
-     "decl": "int16_t FUN_0003a7d0(int16_t actor_type);",
-     "ported": true
+     "decl": "int16_t actor_type_get_when_to_search_pursuit(int16_t actor_type);",
+     "ported": true,
+     "name": "actor_type_get_when_to_search_pursuit"
     },
     {
      "addr": "0x3a7f0",
-     "decl": "unsigned char FUN_0003a7f0(int16_t actor_type);",
-     "ported": true
+     "decl": "unsigned char actor_type_get_pursuit_controller(int16_t actor_type);",
+     "ported": true,
+     "name": "actor_type_get_pursuit_controller"
     },
     {
      "addr": "0x3a800",
-     "decl": "char FUN_0003a800(int16_t actor_type);",
-     "ported": true
+     "decl": "char actor_type_get_swarm(int16_t actor_type);",
+     "ported": true,
+     "name": "actor_type_get_swarm"
     },
     {
      "addr": "0x3a810",
-     "decl": "void FUN_0003a810(int actor_handle);",
-     "ported": true
+     "decl": "void actor_type_initialize(int actor_handle);",
+     "ported": true,
+     "name": "actor_type_initialize"
     },
     {
      "addr": "0x3a840",
-     "decl": "void FUN_0003a840(int actor_handle);",
-     "ported": true
+     "decl": "void actor_type_decide_action(int actor_handle);",
+     "ported": true,
+     "name": "actor_type_decide_action"
     },
     {
      "addr": "0x3a8a0",
-     "decl": "void FUN_0003a8a0(int actor_handle);",
-     "ported": true
+     "decl": "void actor_type_swarm_control(int actor_handle);",
+     "ported": true,
+     "name": "actor_type_swarm_control"
     },
     {
      "addr": "0x3a920",
-     "decl": "void FUN_0003a920(int actor_handle, int a2, float a3, float *a4);",
+     "decl": "void actor_type_swarm_aim_jump(int actor_handle, int a2, float a3, float *a4);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "actor_type_swarm_aim_jump"
     },
     {
      "addr": "0x3a990",
@@ -3217,8 +3270,9 @@
     },
     {
      "addr": "0x3aa60",
-     "decl": "void actor_in_combat(void);",
-     "ported": true
+     "decl": "void actors_initialize_for_new_map(void);",
+     "ported": true,
+     "name": "actors_initialize_for_new_map"
     },
     {
      "addr": "0x3aa90",
@@ -3237,8 +3291,9 @@
     },
     {
      "addr": "0x3ac20",
-     "decl": "void FUN_0003ac20(int actor_handle, const char *reason, int obj_handle @<eax>);",
-     "ported": true
+     "decl": "void actor_verify_unit_activation(int actor_handle, const char *reason, int obj_handle @<eax>);",
+     "ported": true,
+     "name": "actor_verify_unit_activation"
     },
     {
      "addr": "0x3aca0",
@@ -3262,8 +3317,9 @@
     },
     {
      "addr": "0x3b0b0",
-     "decl": "void actor_switch_props(int unit_handle, int swarm_component_handle);",
-     "ported": true
+     "decl": "void actor_swarm_component_refresh(int unit_handle, int swarm_component_handle);",
+     "ported": true,
+     "name": "actor_swarm_component_refresh"
     },
     {
      "addr": "0x3b100",
@@ -3272,8 +3328,9 @@
     },
     {
      "addr": "0x3b120",
-     "decl": "char FUN_0003b120(int actor_handle);",
-     "ported": true
+     "decl": "char actor_in_combat(int actor_handle);",
+     "ported": true,
+     "name": "actor_in_combat"
     },
     {
      "addr": "0x3b150",
@@ -3282,8 +3339,9 @@
     },
     {
      "addr": "0x3b190",
-     "decl": "int FUN_0003b190(int actor_handle, int *attack_vector_out);",
-     "ported": true
+     "decl": "int actor_attacking_target(int actor_handle, int *attack_vector_out);",
+     "ported": true,
+     "name": "actor_attacking_target"
     },
     {
      "addr": "0x3b240",
@@ -3292,8 +3350,9 @@
     },
     {
      "addr": "0x3b270",
-     "decl": "int actor_attacking_target(int actor_handle);",
-     "ported": true
+     "decl": "int actor_get_weapon(int actor_handle);",
+     "ported": true,
+     "name": "actor_get_weapon"
     },
     {
      "addr": "0x3b320",
@@ -3312,8 +3371,9 @@
     },
     {
      "addr": "0x3b410",
-     "decl": "void FUN_0003b410(int actor_handle, int old_prop, int new_prop);",
-     "ported": true
+     "decl": "void actor_switch_props(int actor_handle, int old_prop, int new_prop);",
+     "ported": true,
+     "name": "actor_switch_props"
     },
     {
      "addr": "0x3b5e0",
@@ -3337,13 +3397,15 @@
     },
     {
      "addr": "0x3b7e0",
-     "decl": "void FUN_0003b7e0(int actor_handle, int unit_handle@<esi>);",
-     "ported": true
+     "decl": "void actor_freeze_unit(int actor_handle, int unit_handle@<esi>);",
+     "ported": true,
+     "name": "actor_freeze_unit"
     },
     {
      "addr": "0x3b860",
-     "decl": "void FUN_0003b860(int actor_handle);",
-     "ported": true
+     "decl": "void actor_freeze(int actor_handle);",
+     "ported": true,
+     "name": "actor_freeze"
     },
     {
      "addr": "0x3b900",
@@ -3352,8 +3414,9 @@
     },
     {
      "addr": "0x3b940",
-     "decl": "void FUN_0003b940(int actor_handle, int unit_object_index@<esi>);",
-     "ported": true
+     "decl": "void actor_randomly_control_unit(int actor_handle, int unit_object_index@<esi>);",
+     "ported": true,
+     "name": "actor_randomly_control_unit"
     },
     {
      "addr": "0x3ba00",
@@ -3362,20 +3425,23 @@
     },
     {
      "addr": "0x3baa0",
-     "decl": "void FUN_0003baa0(int actor_handle, int encounter_handle, int16_t squad_index);",
-     "ported": true
+     "decl": "void actor_change_encounter(int actor_handle, int encounter_handle, int16_t squad_index);",
+     "ported": true,
+     "name": "actor_change_encounter"
     },
     {
      "addr": "0x3bb50",
-     "decl": "void FUN_0003bb50(int actor_handle@<eax>);",
-     "ported": true
+     "decl": "void actor_get_timeslice(int actor_handle@<eax>);",
+     "ported": true,
+     "name": "actor_get_timeslice"
     },
     {
      "addr": "0x3bbf0",
-     "decl": "void FUN_0003bbf0(int actor_handle /* @<eax> */);",
+     "decl": "void actor_clear_output(int actor_handle /* @<eax> */);",
      "ported": true,
      "src": "src/halo/ai/actors.c",
-     "status": "ported"
+     "status": "ported",
+     "name": "actor_clear_output"
     },
     {
      "addr": "0x3bc90",
@@ -3390,13 +3456,15 @@
     },
     {
      "addr": "0x3bde0",
-     "decl": "void FUN_0003bde0(int actor_handle, int unit_handle, char *input_block);",
-     "ported": true
+     "decl": "void actor_input_sample_position(int actor_handle, int unit_handle, char *input_block);",
+     "ported": true,
+     "name": "actor_input_sample_position"
     },
     {
      "addr": "0x3be90",
-     "decl": "void FUN_0003be90(int actor_handle);",
-     "ported": true
+     "decl": "void actor_decision_loop(int actor_handle);",
+     "ported": true,
+     "name": "actor_decision_loop"
     },
     {
      "addr": "0x3c0c0",
@@ -3405,8 +3473,9 @@
     },
     {
      "addr": "0x3c1c0",
-     "decl": "void FUN_0003c1c0(int param_1, int param_2, int param_3);",
-     "ported": true
+     "decl": "void actor_handle_communication(int param_1, int param_2, int param_3);",
+     "ported": true,
+     "name": "actor_handle_communication"
     },
     {
      "addr": "0x3c260",
@@ -3430,8 +3499,9 @@
     },
     {
      "addr": "0x3c370",
-     "decl": "void actor_handle_communication(int actor_handle);",
-     "ported": true
+     "decl": "void actor_unit_control_throw_grenade(int actor_handle);",
+     "ported": true,
+     "name": "actor_unit_control_throw_grenade"
     },
     {
      "addr": "0x3c3a0",
@@ -3460,9 +3530,10 @@
     },
     {
      "addr": "0x3cb50",
-     "decl": "void FUN_0003cb50(int swarm_handle @<eax>, int swarm_component_handle @<edi>, int unit_index @<ebx>);",
+     "decl": "void actor_swarm_component_setup(int swarm_handle @<eax>, int swarm_component_handle @<edi>, int unit_index @<ebx>);",
      "ported": true,
-     "source_path": "halo/ai/actors.c"
+     "source_path": "halo/ai/actors.c",
+     "name": "actor_swarm_component_setup"
     },
     {
      "addr": "0x3cbc0",
@@ -3528,13 +3599,15 @@
     },
     {
      "addr": "0x3d9f0",
-     "decl": "char FUN_0003d9f0(int actor_handle);",
-     "ported": true
+     "decl": "char actor_general_update(int actor_handle);",
+     "ported": true,
+     "name": "actor_general_update"
     },
     {
      "addr": "0x3dc20",
-     "decl": "void FUN_0003dc20(int actor_handle);",
-     "ported": true
+     "decl": "void actor_input_update(int actor_handle);",
+     "ported": true,
+     "name": "actor_input_update"
     },
     {
      "addr": "0x3e570",
@@ -3543,8 +3616,9 @@
     },
     {
      "addr": "0x3e7a0",
-     "decl": "void FUN_0003e7a0(int actor_handle /* @<eax> */);",
-     "ported": true
+     "decl": "void actor_unit_control(int actor_handle /* @<eax> */);",
+     "ported": true,
+     "name": "actor_unit_control"
     },
     {
      "addr": "0x3eab0",
@@ -3553,8 +3627,9 @@
     },
     {
      "addr": "0x3ec80",
-     "decl": "void FUN_0003ec80(int actor_handle@<esi>);",
-     "ported": true
+     "decl": "void actor_update(int actor_handle@<esi>);",
+     "ported": true,
+     "name": "actor_update"
     },
     {
      "addr": "0x3edc0",
@@ -3563,8 +3638,9 @@
     },
     {
      "addr": "0x3f030",
-     "decl": "int FUN_0003f030(int actv_tag_index, int encounter_index, int squad_index, void *starting_location, char use_major_variant, int16_t team);",
-     "ported": true
+     "decl": "int actor_place(int actv_tag_index, int encounter_index, int squad_index, void *starting_location, char use_major_variant, int16_t team);",
+     "ported": true,
+     "name": "actor_place"
     }
    ],
    "name": "actors.obj",
@@ -4317,8 +4393,9 @@
    "functions": [
     {
      "addr": "0x3f5f0",
-     "decl": "void FUN_0003f5f0(void);",
-     "ported": true
+     "decl": "void actors_update(void);",
+     "ported": true,
+     "name": "actors_update"
     },
     {
      "addr": "0x3f670",
@@ -4357,8 +4434,9 @@
     },
     {
      "addr": "0x40570",
-     "decl": "void FUN_00040570(void);",
-     "ported": true
+     "decl": "void ai_place_pending_mounted_weapons(void);",
+     "ported": true,
+     "name": "ai_place_pending_mounted_weapons"
     },
     {
      "addr": "0x409a0",
@@ -4407,13 +4485,15 @@
     },
     {
      "addr": "0x413c0",
-     "decl": "void FUN_000413c0(ai_firing_pos_entry_t *entry@<esi>, int unit_handle@<edi>, int actor_handle);",
-     "ported": true
+     "decl": "void ai_generate_line_of_fire_pill(ai_firing_pos_entry_t *entry@<esi>, int unit_handle@<edi>, int actor_handle);",
+     "ported": true,
+     "name": "ai_generate_line_of_fire_pill"
     },
     {
      "addr": "0x41420",
-     "decl": "int16_t FUN_00041420(int actor_handle, int16_t max_count, ai_firing_pos_entry_t *buf);",
-     "ported": true
+     "decl": "int16_t ai_find_line_of_fire_friend_pills(int actor_handle, int16_t max_count, ai_firing_pos_entry_t *buf);",
+     "ported": true,
+     "name": "ai_find_line_of_fire_friend_pills"
     },
     {
      "addr": "0x3f900",
@@ -4456,8 +4536,9 @@
     },
     {
      "addr": "0x3fb00",
-     "decl": "int FUN_0003fb00(unsigned char *param_1, unsigned char *param_2);",
-     "ported": true
+     "decl": "int sub_3FB00(unsigned char *param_1, unsigned char *param_2);",
+     "ported": true,
+     "name": "sub_3FB00"
     },
     {
      "addr": "0x3fb40",
@@ -4521,8 +4602,9 @@
     },
     {
      "addr": "0x40a40",
-     "decl": "void FUN_00040a40(void);",
-     "ported": true
+     "decl": "void ai_flush_spatial_effects(void);",
+     "ported": true,
+     "name": "ai_flush_spatial_effects"
     },
     {
      "addr": "0x40a80",
@@ -34723,8 +34805,8 @@
     },
     {
      "addr": "0x2a3a0",
-     "decl": "void FUN_0002a3a0(int actor_handle);",
-     "name": "FUN_0002a3a0",
+     "decl": "void actor_path_clear(int actor_handle);",
+     "name": "actor_path_clear",
      "ported": true
     },
     {
@@ -34753,8 +34835,8 @@
     },
     {
      "addr": "0x2bd80",
-     "decl": "void FUN_0002bd80(int actor_handle /* @<ecx> */, float *facing, float *vel_out, float *speed_out);",
-     "name": "FUN_0002bd80",
+     "decl": "void actor_move_vector_avoidance(int actor_handle /* @<ecx> */, float *facing, float *vel_out, float *speed_out);",
+     "name": "actor_move_vector_avoidance",
      "ported": true
     },
     {
@@ -34808,20 +34890,20 @@
     },
     {
      "addr": "0x2ade0",
-     "decl": "void FUN_0002ade0(int actor_handle);",
-     "name": "FUN_0002ade0",
+     "decl": "void actor_move_avoidance_setup(int actor_handle);",
+     "name": "actor_move_avoidance_setup",
      "ported": true
     },
     {
      "addr": "0x2b020",
-     "decl": "short FUN_0002b020(float *avoidance_ray, float *ray_origin, int avoidance_data, float *ray_direction, float *collision_t, char *param_3);",
-     "name": "FUN_0002b020",
+     "decl": "short actor_move_test_avoidance_vector(float *avoidance_ray, float *ray_origin, int avoidance_data, float *ray_direction, float *collision_t, char *param_3);",
+     "name": "actor_move_test_avoidance_vector",
      "ported": true
     },
     {
      "addr": "0x2b310",
-     "decl": "char FUN_0002b310(float *direction, short count, int records, float *values, float *out_index, float *out_value);",
-     "name": "FUN_0002b310",
+     "decl": "char actor_move_vector_avoidance_find_direction(float *direction, short count, int records, float *values, float *out_index, float *out_value);",
+     "name": "actor_move_vector_avoidance_find_direction",
      "ported": true
     },
     {
@@ -34838,14 +34920,14 @@
     },
     {
      "addr": "0x2b830",
-     "decl": "void FUN_0002b830(float *facing_basis , char use_3d, float *out_vector, short *out_index, float *in_vec , float *weight_vec);",
-     "name": "FUN_0002b830",
+     "decl": "void actor_move_calculate_controlled_by_aiming(float *facing_basis , char use_3d, float *out_vector, short *out_index, float *in_vec , float *weight_vec);",
+     "name": "actor_move_calculate_controlled_by_aiming",
      "ported": true
     },
     {
      "addr": "0x2bab0",
-     "decl": "void FUN_0002bab0(char use_3d , float *movement_direction , float *facing_direction , float *out);",
-     "name": "FUN_0002bab0",
+     "decl": "void actor_move_calculate_free(char use_3d , float *movement_direction , float *facing_direction , float *out);",
+     "name": "actor_move_calculate_free",
      "ported": true
     },
     {

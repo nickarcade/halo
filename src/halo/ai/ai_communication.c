@@ -677,7 +677,7 @@ short ai_communication_consider_speech(int *sound_definition_index_reference,
  * team from its actor-type definition flags. Confirmed via disasm
  * 0x43270-0x432ac: datum_get(actor_data, actor_handle) resolves the actor
  * record (no -1 guard on actor_handle, unlike FUN_00043050); the actor's
- * field_004 (int16_t, "meaning unproven") is passed to FUN_0003a770
+ * field_004 (int16_t, "meaning unproven") is passed to actor_type_get_race
  * (actor_type_definitions[actor_type]->+0x4 flags word, already ported in
  * actors.c). Bit 0x2 of that flags word (TEST AL,0x2) returns 0; bit 0x4
  * (TEST AL,0x4) returns 1; otherwise returns -1 (OR ECX,0xffffffff / MOV
@@ -693,7 +693,7 @@ int16_t actor_communication_team(int actor_handle)
   int16_t result;
 
   actor = (actor_t *)datum_get(actor_data, actor_handle);
-  flags = FUN_0003a770(actor->field_004);
+  flags = actor_type_get_race(actor->field_004);
   result = -1;
   if ((flags & 2) != 0) {
     return 0;
@@ -1280,7 +1280,7 @@ bool ai_conversation_line_begin(int conversation_handle)
  *     (cleanup=7 vs decl=3) is a false positive.
  *   - MOV EDI,EAX; TEST DI,DI; JLE — the communication count is a signed
  *     16-bit `> 0` test.
- * Inferred: FUN_0003b120 (returns char, +0x6cc is a byte) is the actor
+ * Inferred: actor_in_combat (returns char, +0x6cc is a byte) is the actor
  *   "is fighting" predicate; the vocalization type passed to unit_test_speech is
  *   just that flag widened, and vocalization index 1 is a literal at this
  *   call site.
@@ -1297,7 +1297,7 @@ void actor_communication_update(int actor_handle)
 
   actor = (actor_t *)datum_get(*(data_t **)0x6325a4, actor_handle);
   if (actor->field_06a >= 2 && *(char *)(*(char **)0x632574 + 0x10) != '\0') {
-    fighting = FUN_0003b120(actor_handle);
+    fighting = actor_in_combat(actor_handle);
     if (actor->field_6ce == 0 || actor->field_6cc != fighting) {
       FUN_00043ce0(actor_handle);
     }
@@ -1344,7 +1344,7 @@ void actor_communication_update(int actor_handle)
  *     SETL DL; DEC EDX; AND EAX,EDX — a branchless max(0, field-0x2d).
  *   - XOR ECX,ECX; MOV CX,word ptr [EAX+4] — the actor field at +0x4 is
  *     zero-extended, so it is read through an unsigned short.
- *   - TEST AL,0x2 / TEST AL,0x4 on FUN_0003a770's result select team index 0
+ *   - TEST AL,0x2 / TEST AL,0x4 on actor_type_get_race's result select team index 0
  *     and 1 respectively; neither bit set returns without touching anything.
  *   - The AI globals pointer at 0x632574 is re-loaded for each of the three
  *     high-water updates (0x43fe1, 0x43ffb, 0x44015), and EBP-0x4 is
@@ -1364,7 +1364,7 @@ void actor_communication_update(int actor_handle)
  *     scale — so it is read from memory twice rather than cached.
  *   - FLD f; FMUL [0x253394]; FIADD dword ptr [EBP-0xc]; _ftol2 is
  *     (int)(f * scale + ticks); _ftol2 is written as a plain cast.
- *   - Hazard ARG_COUNT on FUN_0003a770 (cleanup=3, decl=1) is a false
+ *   - Hazard ARG_COUNT on actor_type_get_race (cleanup=3, decl=1) is a false
  *     positive: the ADD ESP,0xc at 0x43fb1 is MSVC coalescing datum_get's
  *     two pushes with this call's single push.
  *   - Hazard ARG_COUNT on error (cleanup=8, decl=3) is likewise expected:
@@ -1409,7 +1409,7 @@ void ai_communication_update_speech_timers(int unit_handle, int16_t param_2,
     FUN_00043ce0(*(int32_t *)(unit + 0x1a4));
     actor = datum_get(*(data_t **)0x6325a4, *(int32_t *)(unit + 0x1a4));
     communication_flags =
-      FUN_0003a770((int16_t) * (uint16_t *)((char *)actor + 4));
+      actor_type_get_race((int16_t) * (uint16_t *)((char *)actor + 4));
     if ((communication_flags & 2) == 0) {
       if ((communication_flags & 4) == 0) {
         return;
