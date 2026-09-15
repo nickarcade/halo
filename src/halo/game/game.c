@@ -495,8 +495,7 @@ bool game_all_quiet(void)
 {
   return (char)!(dangerous_projectiles_near_player() ||
                  dangerous_items_near_player() ||
-                 dangerous_effects_near_player() ||
-                 any_unit_is_dangerous() ||
+                 dangerous_effects_near_player() || any_unit_is_dangerous() ||
                  ai_enemies_can_see_player());
 }
 
@@ -1041,6 +1040,28 @@ void FUN_000b4b10(unsigned int player_handle)
   *(int *)(player + 0x88) = -1;
 }
 
+/* slayer_engine_adjust_score (0xb4d00) — add a delta to a player's two score
+ * counters (register args: player handle in EAX, delta in EDI).
+ *
+ * The write-side counterpart of FUN_000b4d50 below: the same two tables are
+ * bumped by the same delta — the 0x456fe0 table indexed by the player's int at
+ * offset 0x20 (team-ish index), and the 0x457020 table indexed by the player
+ * handle's low 16 bits.
+ *
+ * Disassembly (0xb4d00): PUSH ESI; MOV ESI,EAX; MOV EAX,[0x5aa6d4];
+ * PUSH ESI; PUSH EAX; CALL datum_get (0x119320);
+ * MOV EAX,[EAX+0x20]; ADD [EAX*4+0x456fe0],EDI;
+ * AND ESI,0xffff; MOV ECX,[ESI*4+0x457020]; LEA EAX,[ESI*4+0x457020];
+ * ADD ESP,8; ADD ECX,EDI; MOV [EAX],ECX; POP ESI; RET. */
+void slayer_engine_adjust_score(unsigned int player_handle, int score_delta)
+{
+  char *player;
+
+  player = (char *)datum_get(player_data, player_handle);
+  *(int *)(0x456fe0 + *(int *)(player + 0x20) * 4) += score_delta;
+  *(int *)(0x457020 + (player_handle & 0xffff) * 4) += score_delta;
+}
+
 /* FUN_000b4d50 (0xb4d50) — race score lookup
  *
  * Looks up a player's race score value. If param_2 == 1, reads score from
@@ -1307,6 +1328,109 @@ bool FUN_000b5040(unsigned int player_handle, int event_type, int target_handle,
   return false;
 }
 
+/* 0xb5210 — slayer_engine_display_score
+ *
+ * Per-player slayer-engine update: fades the player's score-display alpha
+ * toward 1.0, maintains the "target" goal marker when the variant enables
+ * it, and starts the game over once the team/player score reaches the
+ * variant's score-to-win (variant+0x40).
+ *
+ * Source file: c:\halo\SOURCE\game\game_engine_slayer.c (assert at 0x1f5).
+ *
+ * Confirmed 0xb5213/0xb521d: PUSH EDI([EBP+8]) / PUSH g_players_data /
+ *   CALL datum_get -> ESI (the player record used by every +0x6c / +0x34 /
+ *   +0x88 access below).
+ * Confirmed 0xb5235: FLD [ESI+0x6c] / FCOMP [0x2533c8] / TEST AH,0x41 /
+ *   JNZ — the guard runs only when +0x6c is strictly greater than 1.0f
+ *   (0x2533c8 is the 1.0f pool constant).
+ * Confirmed 0xb5248: FSUB [0x26ddb8] then FST [ESI+0x6c] BEFORE the clamp,
+ *   and FSTP [ESI+0x6c] after it — the field is stored twice.
+ * Confirmed 0xb5278: FCOMP / TEST AH,0x5 / JP — parity of C0 alone, so the
+ *   second arm runs when +0x6c is strictly less than 1.0f, and adds
+ *   [0x26ddb4] with the same store-clamp-store shape.
+ * Confirmed 0xb52b9: TEST DI,DI / CMP DI,0x10 — the bounds assert is on the
+ *   16-bit player index.
+ * Confirmed 0xb5318: PUSH -1 / PUSH -1 / PUSH EDI / PUSH 0x26d8b8 /
+ *   PUSH 0x0 / PUSH EAX(object+0x50) / PUSH EDI — so the call is
+ *   game_engine_set_goal_position(player_index, object+0x50, 0.0f,
+ *   "target_blue", player_index, -1, -1). The ADD ESP,0x24 also retires the
+ *   two object_get_and_verify_type args pushed at 0xb5310.
+ * Confirmed 0xb5345: MOV ESI,[ESI+0x88] — the player pointer is clobbered by
+ *   the target handle before the man-out test.
+ * Confirmed 0xb538b: JMP 0xa8b00 — tail call to game_engine_start_over.
+ */
+void slayer_engine_display_score(int player_index)
+{
+  void *player;
+  void *variant;
+  void *target;
+  void *object;
+  float fade;
+  int target_handle;
+  int table_score;
+
+  player = datum_get(player_data, player_index);
+
+  variant = game_engine_get_variant();
+  if (*(char *)((char *)variant + 0x4d) != 0 &&
+      *(float *)((char *)player + 0x6c) > *(const float *)0x2533c8) {
+    fade = *(float *)((char *)player + 0x6c) - *(const float *)0x26ddb8;
+    *(float *)((char *)player + 0x6c) = fade;
+    if (fade <= *(const float *)0x2533c8) {
+      fade = *(const float *)0x2533c8;
+    }
+    *(float *)((char *)player + 0x6c) = fade;
+  }
+
+  variant = game_engine_get_variant();
+  if (*(char *)((char *)variant + 0x4c) != 0 &&
+      *(float *)((char *)player + 0x6c) < *(const float *)0x2533c8) {
+    fade = *(float *)((char *)player + 0x6c) + *(const float *)0x26ddb4;
+    *(float *)((char *)player + 0x6c) = fade;
+    if (fade > *(const float *)0x2533c8) {
+      fade = *(const float *)0x2533c8;
+    }
+    *(float *)((char *)player + 0x6c) = fade;
+  }
+
+  variant = game_engine_get_variant();
+  if (*(char *)((char *)variant + 0x4e) != 0) {
+    if ((short)player_index < 0 || (short)player_index >= 16) {
+      display_assert("(index >= 0) && (index < MULTIPLAYER_MAXIMUM_PLAYERS)",
+                     "c:\\halo\\SOURCE\\game\\game_engine_slayer.c", 0x1f5, 1);
+      system_exit(-1);
+    }
+    game_engine_clear_goal_position((short)player_index);
+
+    if (*(int *)((char *)player + 0x88) != -1) {
+      target = datum_get(player_data, *(int *)((char *)player + 0x88));
+      if (*(int *)((char *)target + 0x34) != -1) {
+        object = object_get_and_verify_type(*(int *)((char *)target + 0x34), 3);
+        game_engine_set_goal_position(player_index,
+                                      (int *)((char *)object + 0x50), 0.0f,
+                                      "target_blue", player_index, -1, -1);
+      }
+    }
+
+    if (*(int *)((char *)player + 0x34) != -1 &&
+        *(int *)((char *)player + 0x88) == -1) {
+      find_next_target(player_index);
+    }
+
+    target_handle = *(int *)((char *)player + 0x88);
+    if (target_handle != -1 && game_engine_man_out(target_handle) != 0) {
+      find_next_target(player_index);
+    }
+  }
+
+  player = datum_get(player_data, player_index);
+  table_score = *(int *)(0x456fe0 + *(int *)((char *)player + 0x20) * 4);
+  variant = game_engine_get_variant();
+  if (table_score >= *(int *)((char *)variant + 0x40)) {
+    game_engine_start_over();
+  }
+}
+
 /* 0xb5490 — FUN_000b5490
  *
  * Returns the name string for a given material type index.
@@ -1360,7 +1484,8 @@ const char *FUN_000b5490(short material_type)
  *   then FLD [EAX+EDX*4] for the raw (DI<0) path at 0xb554b.
  * Confirmed: CMP DI,3 / MOV ECX,3 / JG / MOV ECX,EDI clamping at 0xb555e.
  */
-__declspec(noinline) float game_globals_difficulty_scale(int16_t value_type, int16_t difficulty)
+__declspec(noinline) float game_globals_difficulty_scale(int16_t value_type,
+                                                         int16_t difficulty)
 {
   float default_val = 1.0f;
   void *globals;

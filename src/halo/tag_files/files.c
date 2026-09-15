@@ -21,21 +21,19 @@
  *   _has_filename_bit           files.c:0x8a and files_windows.c:0x225 assert
  *                               !TEST_FLAG(info->flags, _has_filename_bit)
  *                               against `& 1`                       => bit 0
- *   _name_directory_bit         0xbc asserts flags != (FLAG(_name_directory_bit)
- *   _name_extension_bit         | FLAG(_name_extension_bit)) against `== 9`,
- *                               so the pair is bits 0 and 3; 0xbd asserts
- *                               _name_directory_bit vs _name_parent_directory_bit
- *                               against `(flags&1) && (flags&2)`, fixing
- *                               directory=0, so extension=3.
- *   _name_parent_directory_bit  from the same 0xbd pair                => bit 1
- *   _name_filename_bit          T1 BY EXHAUSTION: bits 0, 1 and 3 are each named
- *                               verbatim above and NUMBER_OF_NAME_FLAGS is 4
- *                               (proven by the 0xfff0 reject), so bit 2 is
- *                               forced. Both halves are needed for this to be
- *                               T1 rather than a guess.
- *   _permission_read_bit        0x135 asserts flags & (FLAG(_permission_read_bit)
- *   _permission_write_bit       | FLAG(_permission_write_bit)) against `& 3`;
- *                               0x136 asserts _permission_write_bit against
+ *   _name_directory_bit         0xbc asserts flags !=
+ * (FLAG(_name_directory_bit) _name_extension_bit         |
+ * FLAG(_name_extension_bit)) against `== 9`, so the pair is bits 0 and 3; 0xbd
+ * asserts _name_directory_bit vs _name_parent_directory_bit against `(flags&1)
+ * && (flags&2)`, fixing directory=0, so extension=3. _name_parent_directory_bit
+ * from the same 0xbd pair                => bit 1 _name_filename_bit T1 BY
+ * EXHAUSTION: bits 0, 1 and 3 are each named verbatim above and
+ * NUMBER_OF_NAME_FLAGS is 4 (proven by the 0xfff0 reject), so bit 2 is forced.
+ * Both halves are needed for this to be T1 rather than a guess.
+ *   _permission_read_bit        0x135 asserts flags &
+ * (FLAG(_permission_read_bit) _permission_write_bit       |
+ * FLAG(_permission_write_bit)) against `& 3`; 0x136 asserts
+ * _permission_write_bit against
  *                               `& 2`, so write=1 and read=0.
  *   _permission_append_bit      named at 0x136 against `& 4`           => bit 2
  *                               Corroborated below: bit 0 maps to GENERIC_READ,
@@ -108,14 +106,34 @@ typedef bool(__stdcall *set_file_attributes_fn)(const char *path,
 typedef bool(__stdcall *delete_file_fn)(const char *path);
 typedef bool(__stdcall *move_file_fn)(const char *existing_path,
                                       const char *new_path);
+/* 0x1d0ee1: stdcall (no ADD ESP after the 3 pushes at 0x19ad94); the caller
+ * tests the full EAX (TEST EAX,EAX), so the return is int, not bool. */
+typedef int(__stdcall *get_file_attributes_ex_fn)(const char *path,
+                                                  int info_level, void *data);
 
-#define XFindFirstFile ((find_first_file_fn)0x1d3576)
-#define XFindNextFile ((find_next_file_fn)0x1d3683)
+/* WIN32_FILE_ATTRIBUTE_DATA, 0x24 bytes (frame slot EBP-0x24..EBP at
+ * 0x19ad30); last_write_time is at +0x14 (EBP-0x10 at the memcpy site). */
+typedef struct file_attribute_data_s {
+  uint32_t attributes; /* 0x00 */
+  uint32_t creation_time[2]; /* 0x04 */
+  uint32_t last_access_time[2]; /* 0x0c */
+  uint32_t last_write_time[2]; /* 0x14 */
+  uint32_t file_size_high; /* 0x1c */
+  uint32_t file_size_low; /* 0x20 */
+} file_attribute_data_t;
+
+#define XFindFirstFile \
+  ((find_first_file_fn)0x1d3576) /* hazard-ok: fnptr-conv */
+#define XFindNextFile                                    \
+  ((find_next_file_fn)0x1d3683) /* hazard-ok: fnptr-conv \
+                                 */
 #define XCloseHandle CloseHandle
 #define XCreateFile CreateFileA
 #define XSetFilePointer SetFilePointer
 #define XGetFileSize GetFileSize
 #define XReadFile ReadFile
+#define XWriteFile WriteFile
+#define XSetEndOfFile SetEndOfFile
 #define IntlStringPrevChar ((intl_string_prev_char_fn)0x19d240)
 #define XIsAlpha ((is_alpha_fn)0x1daaaa)
 #define DEBUG_LOG error
@@ -126,6 +144,8 @@ typedef bool(__stdcall *move_file_fn)(const char *existing_path,
 #define XSetFileAttributes FUN_001d0df0
 #define XDeleteFile DeleteFileA
 #define XMoveFile MoveFileA
+#define XGetFileAttributesEx \
+  ((get_file_attributes_ex_fn)0x1d0ee1) /* hazard-ok: fnptr-conv */
 
 #if defined(_MSC_VER) && !defined(__clang__)
 extern void *__cdecl memset(void *, int, unsigned int);
@@ -140,6 +160,36 @@ static int16_t g_find_files_location;
 static char g_find_files_path[260];
 static int g_find_file_handles[8] = { -1, -1, -1, -1, -1, -1, -1, -1 };
 static unsigned char g_find_file_data[0x148];
+
+/**
+ * file_reference_create - initialize a file reference in place.
+ *
+ * Asserts the destination is non-NULL and that location is in
+ * [NONE, NUMBER_OF_FILE_REFERENCE_LOCATIONS) == [-1, 2), then zeroes
+ * the whole 0x10C-byte structure, stores the location and finally the
+ * FILE_REFERENCE_SIGNATURE magic. Store order (location before magic)
+ * follows the binary (MOV [ESI+6],DI at 0x199486 then MOV [ESI],imm32
+ * at 0x19948b).
+ *
+ * Returns the initialized reference (MOV EAX,ESI at 0x199491).
+ */
+file_ref_t *file_reference_create(file_ref_t *info, int16_t location)
+{
+  if (info == NULL) {
+    display_assert("info", "c:\\halo\\SOURCE\\tag_files\\files.c", 0x5b, true);
+    system_exit(-1);
+  }
+  if (location < -1 || location >= 2) {
+    display_assert("location>=NONE && "
+                   "location<NUMBER_OF_FILE_REFERENCE_LOCATIONS",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x5c, true);
+    system_exit(-1);
+  }
+  csmemset(info, 0, 0x10c);
+  info->unk_6 = location;
+  info->magic = FILE_REF_MAGIC;
+  return info;
+}
 
 /**
  * find_files - enumerate files matching a directory reference.
@@ -208,6 +258,31 @@ void *file_read_into_buffer(file_ref_t *file_ref, int *size_out)
 }
 
 /**
+ * file_printf (0x1995c0) - format a string and append it to an open file.
+ *
+ * Formats into a 1024-byte stack buffer with vsprintf, writes csstrlen(buffer)
+ * bytes to the file, then truncates the file at the new position (the
+ * file_get_position result is the second argument to file_set_eof). Does
+ * nothing when the format string is NULL ([EBP+0xc] TEST/JZ at 0x1995cc).
+ *
+ * [EBP+8] = info (kept in ESI), [EBP+0xc] = format, [EBP+0x10] = first vararg,
+ * so the arglist is (char *)&format + 4 (LEA ECX,[EBP+0x10] at 0x1995d1).
+ * Return values of file_write and file_set_eof are discarded.
+ */
+void file_printf(file_ref_t *info, const char *format, ...)
+{
+  char buffer[1024];
+  char *arglist;
+
+  if (format != NULL) {
+    arglist = (char *)&format + 4;
+    vsprintf(buffer, format, arglist);
+    file_write(info, csstrlen(buffer), buffer);
+    file_set_eof(info, file_get_position(info));
+  }
+}
+
+/**
  * file_reference_verify - validate a file_ref_t pointer.
  *
  * Checks that the pointer is non-NULL, the magic signature matches
@@ -240,6 +315,25 @@ file_ref_t *file_reference_verify(file_ref_t *info)
     system_exit(-1);
   }
   return info;
+}
+
+/**
+ * file_reference_copy - copy a validated file reference.
+ *
+ * Verifies the source reference (return value discarded; the assert side
+ * effects are the point), then copies 0x108 bytes from source to
+ * destination. Note the copy size is 0x108, not sizeof(file_ref_t)
+ * (0x10C) — the binary uses the literal, so the trailing 4 bytes of the
+ * destination are left untouched.
+ *
+ * Returns the destination pointer (MOV EAX,ESI at 0x1996ef, where ESI
+ * was reloaded from [EBP+8]).
+ */
+file_ref_t *file_reference_copy(file_ref_t *destination, file_ref_t *source)
+{
+  file_reference_verify(source);
+  csmemcpy(destination, source, 0x108);
+  return destination;
 }
 
 /**
@@ -435,6 +529,288 @@ file_ref_t *file_reference_create_from_path(file_ref_t *info,
   return info;
 }
 
+/**
+ * directory_create_or_delete_contents - ensure a directory exists and is empty.
+ *
+ * Builds a file reference for the directory (inlined create-from-path with
+ * a3=true). If the directory already exists, enumerates its contents and
+ * deletes every entry; otherwise creates it.
+ */
+void directory_create_or_delete_contents(const char *directory_name)
+{
+  file_ref_t entry;
+  file_ref_t info;
+
+  csmemset(&info, 0, sizeof(info));
+  info.magic = FILE_REF_MAGIC;
+  info.unk_6 = -1;
+  file_reference_add_directory(&info, directory_name);
+
+  if (file_exists(&info)) {
+    find_files_begin(0, &info);
+    if (find_files_next(&entry, 0)) {
+      do {
+        file_delete(&entry);
+      } while (find_files_next(&entry, 0));
+    }
+  } else {
+    file_create(&info);
+  }
+}
+
+/* Data-store record layout, from the assert strings at 0x199bd4/0x199c04:
+ *   DATASTORE_MAX_DATA_SIZE and DATASTORE_MAX_FIELD_NAME_SIZE are both 255
+ *   (the compares are against 0xff). The record stride 0x1fe and the total
+ *   file size 0x18e70 are read from the binary; the field count 200 (0xc8) is
+ *   the loop bound at 0x199ced and satisfies 200 * 0x1fe == 0x18e70.
+ * Each record is [field_name: 255 bytes][data: 255 bytes]; the data starts at
+ * +0xff, which is the offset used by the csmemcpy at 0x199d0d. */
+#define DATASTORE_MAX_FIELD_NAME_SIZE 255
+#define DATASTORE_MAX_DATA_SIZE 255
+#define DATASTORE_FIELD_COUNT 200
+#define DATASTORE_RECORD_SIZE \
+  (DATASTORE_MAX_FIELD_NAME_SIZE + DATASTORE_MAX_DATA_SIZE)
+#define DATASTORE_FILE_SIZE (DATASTORE_FIELD_COUNT * DATASTORE_RECORD_SIZE)
+
+/**
+ * datastore_read_field (0x199b20) - read one named field out of a data-store
+ * file into the caller's buffer.
+ *
+ * Reads the whole file, rejects it unless it is exactly DATASTORE_FILE_SIZE
+ * bytes, then scans up to DATASTORE_FIELD_COUNT fixed-size records for one
+ * whose name matches field_name, stopping early at the first record with an
+ * empty name. On a hit it copies `length` bytes of that record's data area to
+ * `buffer` and reports true.
+ *
+ * Parameter names are from the assert strings (file_name, field_name,
+ * length); the function name itself has no string evidence and is derived
+ * from the DATASTORE_* assert macros.
+ *
+ * Divergence note: the original keeps its result flag in the (dead) high byte
+ * of the field_name parameter slot at [EBP+0xf] and only ever stores to it on
+ * the hit path at 0x199d15 — the not-found and bad-size exits return whatever
+ * that byte held, i.e. the high byte of the field_name pointer, which is 0 for
+ * every reachable string address in this build. We initialize the flag to
+ * false, which reproduces the observed behavior without relying on that
+ * aliasing. There are no callers in this build (no xrefs to 0x199b20).
+ */
+bool datastore_read_field(const char *file_name, const char *field_name,
+                          int length, void *buffer)
+{
+  file_ref_t info;
+  char *data;
+  char *cursor;
+  int index;
+  int size;
+  bool found;
+
+  size = 0;
+  found = false;
+
+  if (file_name == NULL) {
+    display_assert("NULL != file_name", "c:\\halo\\SOURCE\\tag_files\\files.c",
+                   0x171, true);
+    system_exit(-1);
+  }
+  if (field_name == NULL) {
+    display_assert("NULL != field_name", "c:\\halo\\SOURCE\\tag_files\\files.c",
+                   0x172, true);
+    system_exit(-1);
+  }
+  if (file_name[0] == '\0') {
+    display_assert("'\\0' != file_name[0]",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x173, true);
+    system_exit(-1);
+  }
+  if (field_name[0] == '\0') {
+    display_assert("'\\0' != field_name[0]",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x174, true);
+    system_exit(-1);
+  }
+  if (length >= DATASTORE_MAX_DATA_SIZE) {
+    display_assert("length < DATASTORE_MAX_DATA_SIZE",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x175, true);
+    system_exit(-1);
+  }
+  if ((unsigned int)csstrlen(field_name) >= DATASTORE_MAX_FIELD_NAME_SIZE) {
+    display_assert("strlen(field_name) < DATASTORE_MAX_FIELD_NAME_SIZE",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x176, true);
+    system_exit(-1);
+  }
+
+  csmemset(&info, 0, sizeof(info));
+  info.magic = FILE_REF_MAGIC;
+  info.unk_6 = -1;
+  file_reference_set_name(&info, file_name);
+
+  if (file_exists(&info)) {
+    data = (char *)file_read_into_buffer(&info, &size);
+    if (data == NULL) {
+      file_delete(&info);
+    }
+    if (size != DATASTORE_FILE_SIZE) {
+      debug_free(data, "c:\\halo\\SOURCE\\tag_files\\files.c", 0x185);
+      file_delete(&info);
+      return found;
+    }
+    if (data != NULL) {
+      for (index = 0, cursor = data; index < DATASTORE_FIELD_COUNT;
+           index++, cursor += DATASTORE_RECORD_SIZE) {
+        if (csstrcmp(cursor, field_name) == 0) {
+          csmemcpy(buffer,
+                   data + index * DATASTORE_RECORD_SIZE +
+                     DATASTORE_MAX_FIELD_NAME_SIZE,
+                   length);
+          found = true;
+          break;
+        }
+        if (*cursor == '\0') {
+          break;
+        }
+      }
+      debug_free(data, "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1a0);
+    }
+  }
+
+  return found;
+}
+
+/**
+ * datastore_read (0x199d40) - store one named field into a data-store file.
+ *
+ * Despite the kb.json name (CEA PDB line-containment, marked probable), the
+ * binary body writes: it loads or creates the DATASTORE_FILE_SIZE record file,
+ * finds the first record whose name matches field_name or whose name is empty,
+ * copies field_name and `length` bytes of `buffer` into that record, then
+ * re-creates/opens the file, writes the whole buffer back and closes it. The
+ * name is therefore UNVERIFIED for this address; the behavior below is taken
+ * from the disassembly at 0x199d40-0x19a00f only.
+ *
+ * Parameter names come from the assert strings (file_name, field_name,
+ * length); `buffer` is the [EBP+0x14] slot passed as the csmemcpy source at
+ * 0x199f68. The final `success` assert at 0x1ef halts when no free or matching
+ * record was found. There are no callers in this build (no xrefs to 0x199d40).
+ */
+bool datastore_read(const char *file_name, const char *field_name, int length,
+                    void *buffer)
+{
+  file_ref_t info;
+  char *data;
+  char *cursor;
+  int index;
+  int size;
+  bool success;
+
+  success = false;
+  size = 0;
+
+  if (file_name == NULL) {
+    display_assert("NULL != file_name", "c:\\halo\\SOURCE\\tag_files\\files.c",
+                   0x1AE, true);
+    system_exit(-1);
+  }
+  if (field_name == NULL) {
+    display_assert("NULL != field_name", "c:\\halo\\SOURCE\\tag_files\\files.c",
+                   0x1AF, true);
+    system_exit(-1);
+  }
+  if (file_name[0] == '\0') {
+    display_assert("'\\0' != file_name[0]",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1B0, true);
+    system_exit(-1);
+  }
+  if (field_name[0] == '\0') {
+    display_assert("'\\0' != field_name[0]",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1B1, true);
+    system_exit(-1);
+  }
+  if (length >= DATASTORE_MAX_DATA_SIZE) {
+    display_assert("length < DATASTORE_MAX_DATA_SIZE",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1B2, true);
+    system_exit(-1);
+  }
+  if ((unsigned int)csstrlen(field_name) >= DATASTORE_MAX_FIELD_NAME_SIZE) {
+    display_assert("strlen(field_name) < DATASTORE_MAX_FIELD_NAME_SIZE",
+                   "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1B3, true);
+    system_exit(-1);
+  }
+
+  csmemset(&info, 0, sizeof(info));
+  info.magic = FILE_REF_MAGIC;
+  info.unk_6 = -1;
+  file_reference_set_name(&info, file_name);
+
+  data = NULL;
+  if (file_exists(&info)) {
+    data = (char *)file_read_into_buffer(&info, &size);
+    if (data == NULL) {
+      file_delete(&info);
+    }
+    if (size != DATASTORE_FILE_SIZE) {
+      debug_free(data, "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1C2);
+      file_delete(&info);
+      data = NULL;
+    }
+  }
+  if (data == NULL) {
+    data = (char *)debug_malloc(DATASTORE_FILE_SIZE, false,
+                                "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1CD);
+    if (data == NULL) {
+      goto failure; /* 0x199f00: shares the final "success" assert arm */
+    }
+    csmemset(data, 0, DATASTORE_FILE_SIZE);
+  }
+
+  index = 0;
+  cursor = data;
+  do {
+    if (*cursor == '\0' || csstrcmp(cursor, field_name) == 0) {
+      csstrcpy(data + index * DATASTORE_RECORD_SIZE, field_name);
+      csmemcpy(data + index * DATASTORE_RECORD_SIZE +
+                 DATASTORE_MAX_FIELD_NAME_SIZE,
+               buffer, length);
+      success = true;
+      break;
+    }
+    index++;
+    cursor += DATASTORE_RECORD_SIZE;
+  } while (index < DATASTORE_FIELD_COUNT);
+
+  if (!file_exists(&info)) {
+    file_create(&info);
+  }
+  if (file_open(&info, 2)) {
+    file_write(&info, DATASTORE_FILE_SIZE, data);
+    file_close(&info);
+  }
+  debug_free(data, "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1EC);
+
+  if (success) {
+    return success;
+  }
+
+failure:
+  display_assert("success", "c:\\halo\\SOURCE\\tag_files\\files.c", 0x1EF,
+                 true);
+  system_exit(-1);
+  return false;
+}
+
+/* 0x19a020 — compare the 8-byte last-modification timestamps of two files.
+ *
+ * Confirmed from disassembly: MOV EAX,[EBP+0xc] (date2); MOV ECX,[EBP+8]
+ * (date1); PUSH 0x8; PUSH EAX; PUSH ECX; CALL 0x8da40 (csmemcmp, cdecl
+ * `int csmemcmp(const void *a, const void *b, int size)`); ADD ESP,0xc;
+ * POP EBP; RET. No EAX fixup after the call, so csmemcmp's result is this
+ * function's return value.
+ *
+ * Unknown: the exact timestamp type behind the 8 bytes (FILETIME-shaped);
+ * no callers are present in this build, so the parameters stay void *. */
+int file_compare_last_modification_dates(const void *date1, const void *date2)
+{
+  return csmemcmp(date1, date2, 8);
+}
+
 void find_files_begin(int flags, file_ref_t *dir)
 {
   file_ref_t *ref;
@@ -610,6 +986,49 @@ void path_from_file_reference(int16_t location, const char *path, char *out)
   csstrcpy(out + csstrlen(out), path);
 }
 
+/**
+ * file_read_only - report whether the referenced file has the read-only
+ * attribute set.
+ *
+ * 0x19a400: builds the full path from the verified file reference (no memset
+ * of the 256-byte buffer here, unlike file_exists), then calls
+ * file_get_full_attributes. CMP EAX,-1 / JZ returns false on failure;
+ * TEST AL,0x1 returns true only when FILE_ATTRIBUTE_READONLY is set.
+ */
+bool file_read_only(file_ref_t *info)
+{
+  file_ref_t *ref;
+  char path[256];
+  int attributes;
+  bool result;
+
+  ref = file_reference_verify(info);
+
+  /* Score lever (79.3% -> 100.0%): the zero-init + goto-shared-tail spelling is
+   * what makes cl.exe emit the reference's XOR BL,BL early / MOV AL,1 / JNE /
+   * MOV AL,BL / POP EBX tail. A short-circuit `return a != -1 && (a & 1);`
+   * instead emits two JE sites with separate MOV EAX,1 and XOR EAX,EAX
+   * epilogues. The placement of `result = 0` *after* file_reference_verify is
+   * also load-bearing: it is what schedules the XOR BL,BL into the reference's
+   * slot. Do not "simplify". */
+  result = 0;
+
+  path_from_file_reference(ref->unk_6, ref->unk_8, path);
+
+  attributes = file_get_full_attributes(path);
+
+  if (attributes == -1) {
+    goto done;
+  }
+
+  if ((attributes & 1) != 0) {
+    result = 1;
+  }
+
+done:
+  return result;
+}
+
 /* 0x19a450: PUSH EAX (info) at entry — EAX is passed directly to
  * file_reference_verify (0x199620); [EBP+8] = function_name (only stack arg).
  * info is a register arg @<eax>; kb.json decl updated accordingly. */
@@ -749,8 +1168,10 @@ bool file_rename(file_ref_t *info, const char *new_name)
   char dst_path[256];
 
   ref = file_reference_verify(info);
-  memset(src_path, 0, sizeof(src_path));
-  memset(dst_path, 0, sizeof(dst_path));
+  src_path[0] = 0;
+  memset(src_path + 1, 0, sizeof(src_path) - 1);
+  dst_path[0] = 0;
+  memset(dst_path + 1, 0, sizeof(dst_path) - 1);
   path_from_file_reference(ref->unk_6, ref->unk_8, src_path);
   csstrcpy(dst_path, src_path);
   path_remove_filename(dst_path);
@@ -893,6 +1314,30 @@ int file_get_eof(file_ref_t *info)
   return eof;
 }
 
+/* 0x19aad0 — truncate/extend the open file to 'offset'. Seeks there with
+ * file_set_position, then calls SetEndOfFile on the handle at unk_8[256]
+ * (+0x108). Returns true on success; on either failure re-verifies the
+ * reference and logs the error inline (MSVC inlined file_error here), then
+ * clears the last-error code and returns false. */
+bool file_set_eof(file_ref_t *info, int offset)
+{
+  file_ref_t *ref;
+  unsigned int err;
+
+  ref = file_reference_verify(info);
+  if (file_set_position(info, offset)) {
+    if (XSetEndOfFile(*(int *)&ref->unk_8[256])) {
+      return true;
+    }
+  }
+
+  ref = file_reference_verify(info);
+  err = XGetLastError();
+  error(2, "%s('%s') error 0x%08x", "file_set_eof", ref->unk_8, err);
+  XSetLastError(0);
+  return false;
+}
+
 bool file_read(file_ref_t *info, int size, void *buffer)
 {
   file_ref_t *ref;
@@ -917,6 +1362,38 @@ bool file_read(file_ref_t *info, int size, void *buffer)
   return false;
 }
 
+/* 0x19ac00 — write 'size' bytes from 'buffer' to the open file handle at
+ * ref->unk_8[256] (+0x108). Asserts buffer is non-NULL, then WriteFile;
+ * success requires both a non-zero return and a full byte count. On failure
+ * re-verifies the reference and logs the error inline (MSVC inlined
+ * file_error here), clears the last-error code and returns false. */
+bool file_write(file_ref_t *info, int size, const void *buffer)
+{
+  file_ref_t *ref;
+  unsigned int err;
+  uint32_t bytes_written;
+
+  ref = file_reference_verify(info);
+  if (buffer == NULL) {
+    display_assert("buffer", "c:\\halo\\SOURCE\\tag_files\\files_windows.c",
+                   0x1c3, true);
+    system_exit(-1);
+  }
+
+  if (XWriteFile(*(int *)&ref->unk_8[256], (void *)buffer, (uint32_t)size,
+                 &bytes_written, NULL)) {
+    if (bytes_written == (uint32_t)size) {
+      return true;
+    }
+  }
+
+  ref = file_reference_verify(info);
+  err = XGetLastError();
+  error(2, "%s('%s') error 0x%08x", "file_write", ref->unk_8, err);
+  XSetLastError(0);
+  return false;
+}
+
 /* 0x19acb0 — seek to 'offset' then read 'size' bytes into 'buffer'.
  * Combines file_set_position and file_read; returns true only if both
  * succeed, false otherwise. */
@@ -933,6 +1410,113 @@ bool file_read_from_position(file_ref_t *info, int offset, int size,
       return 1;
     }
   }
+  return 0;
+}
+
+/* 0x19acf0 — seek to 'offset' then write 'size' bytes from 'buffer'.
+ * Combines file_set_position and file_write; returns true only if both
+ * succeed, false otherwise. */
+bool file_write_to_position(file_ref_t *info, int offset, int size,
+                            const void *buffer)
+{
+  char ok_pos;
+  char ok_write;
+
+  ok_pos = file_set_position(info, offset);
+  if (ok_pos != '\0') {
+    ok_write = file_write(info, size, buffer);
+    if (ok_write != '\0') {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * file_get_last_modification_date - 0x19ad30.
+ *
+ * Zero-fills the 8-byte out parameter, builds the full path from the verified
+ * file reference and queries GetFileAttributesExA (info level 0 =
+ * GetFileExInfoStandard). On success copies the 8-byte last-write time out of
+ * the WIN32_FILE_ATTRIBUTE_DATA (+0x14). On failure logs the error and clears
+ * it, leaving 'date' zeroed.
+ *
+ * Note: both epilogues are MOV AL,0x1 — the function returns true even on the
+ * failure path. Preserved as-is from the binary.
+ */
+bool file_get_last_modification_date(file_ref_t *info, void *date)
+{
+  file_ref_t *ref;
+  char path[256];
+  file_attribute_data_t attribute_data;
+
+  ref = file_reference_verify(info);
+
+  /* Reference zeroes path[0] with a byte store then REP STOSD over the
+   * remaining 255 bytes — the MSVC 7.1 `char path[256] = ""` shape. Spelled
+   * explicitly because clang lowers the initializer to a _memset libcall that
+   * does not exist in this freestanding build; the guarded macro above routes
+   * that lane to csmemset. */
+  path[0] = '\0';
+  memset(path + 1, 0, sizeof(path) - 1);
+
+  csmemset(date, 0, 8);
+
+  path_from_file_reference(ref->unk_6, ref->unk_8, path);
+
+  if (XGetFileAttributesEx(path, 0, &attribute_data) != 0) {
+    csmemcpy(date, attribute_data.last_write_time, 8);
+    return 1;
+  }
+
+  ref = file_reference_verify(info);
+  DEBUG_LOG(2, "%s('%s') error 0x%08x", "file_get_last_modification_date",
+            ref->unk_8, XGetLastError());
+  XSetLastError(0);
+  return 1;
+}
+
+/**
+ * file_get_size - 0x19adf0.
+ *
+ * Verifies the file reference, zero-fills the 256-byte path buffer, asserts
+ * the out parameter is non-NULL, builds the full path and queries
+ * GetFileAttributesExA (info level 0 = GetFileExInfoStandard). On success
+ * stores nFileSizeLow (+0x20 of the WIN32_FILE_ATTRIBUTE_DATA, read at
+ * EBP-0x4 against the EBP-0x24 frame slot) through 'size' and returns true
+ * (MOV AL,0x1). On failure re-verifies the reference, logs the error, clears
+ * the last-error code and returns false (XOR AL,AL).
+ */
+bool file_get_size(file_ref_t *info, uint32_t *size)
+{
+  file_ref_t *ref;
+  char path[256];
+  file_attribute_data_t attribute_data;
+
+  ref = file_reference_verify(info);
+
+  /* Byte store of path[0] then REP STOSD/STOSW/STOSB over the remaining 255
+   * bytes — the MSVC 7.1 `char path[256] = ""` shape (0x19ae09..0x19ae1f). */
+  path[0] = '\0';
+  memset(path + 1, 0, sizeof(path) - 1);
+
+  if (size == NULL) {
+    display_assert("size", "c:\\halo\\SOURCE\\tag_files\\files_windows.c",
+                   0x20c, true);
+    system_exit(-1);
+  }
+
+  path_from_file_reference(ref->unk_6, ref->unk_8, path);
+
+  if (XGetFileAttributesEx(path, 0, &attribute_data) != 0) {
+    *size = attribute_data.file_size_low;
+    return 1;
+  }
+
+  ref = file_reference_verify(info);
+  DEBUG_LOG(2, "%s('%s') error 0x%08x", "file_get_size", ref->unk_8,
+            XGetLastError());
+  XSetLastError(0);
   return 0;
 }
 

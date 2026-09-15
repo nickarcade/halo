@@ -795,6 +795,109 @@ LAB_0005ef13:
   return *(char *)nav_state_out;
 }
 
+/* 0x005f240 — build_path_edges_for_surface
+ * Walks the edge ring of one collision-BSP surface and fills an output array
+ * of up to 0x40 edge records (0x20 bytes each). Returns the number written.
+ *
+ * Register-arg: structure_bsp in EAX (used at entry with no stack load:
+ * `MOV ECX,[EAX+0x1e8]` / `ADD EAX,0xb0` at 0x5f246-0x5f251). surface_index
+ * is [EBP+8], edges_out is [EBP+0xc].
+ *
+ * Same tag_block chain as FUN_0005e700 above:
+ *   tag_block_get_element(structure_bsp + 0xb0, 0, 0x60)     -> bsp
+ *   tag_block_get_element(bsp + 0x3c, surface_index, 0xc)    -> surface
+ *   tag_block_get_element(bsp + 0x48, edge_index, 0x18)      -> edge
+ *   tag_block_get_element(bsp + 0x54, vertex_index, 0x10)    -> vertex
+ * [structure_bsp+0x1e8] is a per-surface byte array; its element indexed by
+ * the adjacent surface index is stored at out+0x4. Meaning unproven.
+ *
+ * Edge layout (0x18, offsets disassembly-derived only):
+ *   +0x00 int vertex_a, +0x04 int vertex_b,
+ *   +0x08/+0x0c int next_edge (selected by which surface we came from),
+ *   +0x10/+0x14 int surface_a / surface_b.
+ * `is_right` = (surface_index == edge[5]); the adjacent surface is the OTHER
+ * of the two (0x5f2dc SETZ AL / 0x5f2ec SETZ DL selects edge[4 + !is_right]),
+ * while the ring walk continues through edge[2 + is_right] (0x5f39c).
+ *
+ * Output record (0x20):
+ *   +0x00 int adjacent_surface_index
+ *   +0x04 byte  structure_bsp[0x1e8][adjacent_surface_index]
+ *   +0x08 float[3] vertex_a position (copied as three dwords, 0x5f35a-0x5f36a)
+ *   +0x14 float[3] vertex_b - vertex_a (FLD [v1]; FSUB [v0]; FSTP,
+ *                  0x5f370-0x5f390 — v1 minus v0, not the reverse)
+ *
+ * Return is 16-bit: the loop counter lives in BX (MOVSX ESI,BX at 0x5f2df)
+ * and the fall-through exit reloads only AX (`MOV AX,word ptr [EBP-8]` at
+ * 0x5f3a9), so the upper half of EAX is not part of the result.
+ */
+short build_path_edges_for_surface(void *structure_bsp, int surface_index,
+                                   char *edges_out)
+{
+  unsigned char *surface_flags;
+  char *bsp;
+  int *surface;
+  int *edge;
+  float *v0;
+  float *v1;
+  char *out;
+  int edge_index;
+  int adjacent;
+  int is_right;
+  short edge_count;
+
+  surface_flags = *(unsigned char **)((char *)structure_bsp + 0x1e8);
+  bsp = (char *)tag_block_get_element((char *)structure_bsp + 0xb0, 0, 0x60);
+  edge_count = 0;
+
+  if (surface_index < 0 || surface_index >= *(int *)(bsp + 0x3c)) {
+    display_assert(
+      "(surface_index >= 0) && (surface_index < bsp->surfaces.count)",
+      "c:\\halo\\SOURCE\\ai\\path.c", 0x5d8, 1);
+    system_exit(-1);
+  }
+
+  surface = (int *)tag_block_get_element(bsp + 0x3c, surface_index, 0xc);
+  edge_index = surface[1];
+
+  for (;;) {
+    edge = (int *)tag_block_get_element(bsp + 0x48, edge_index, 0x18);
+    is_right = (surface_index == edge[5]);
+    out = edges_out + edge_count * 0x20;
+    edge_count++;
+
+    adjacent = edge[4 + (is_right == 0)];
+    *(int *)out = adjacent;
+    if (adjacent != -1 && (adjacent < 0 || adjacent >= *(int *)(bsp + 0x3c))) {
+      display_assert("(edge->adjacent_surface_index >= 0) && "
+                     "(edge->adjacent_surface_index < bsp->surfaces.count)",
+                     "c:\\halo\\SOURCE\\ai\\path.c", 0x5ee, 1);
+      system_exit(-1);
+    }
+
+    out[4] = (char)surface_flags[*(int *)out];
+
+    v0 = (float *)tag_block_get_element(bsp + 0x54, edge[0], 0x10);
+    v1 = (float *)tag_block_get_element(bsp + 0x54, edge[1], 0x10);
+
+    *(int *)(out + 0x8) = ((int *)v0)[0];
+    *(int *)(out + 0xc) = ((int *)v0)[1];
+    *(int *)(out + 0x10) = ((int *)v0)[2];
+    *(float *)(out + 0x14) = v1[0] - v0[0];
+    *(float *)(out + 0x18) = v1[1] - v0[1];
+    *(float *)(out + 0x1c) = v1[2] - v0[2];
+
+    if (edge_count == 0x40) {
+      break;
+    }
+    edge_index = edge[2 + is_right];
+    if (edge_index == surface[1]) {
+      break;
+    }
+  }
+
+  return edge_count;
+}
+
 /* 0x005ff70 — path traverse and debug snapshot
  * Initializes a path traverse operation on a path buffer, then optionally
  * copies the resulting state into a debug record.
@@ -802,9 +905,9 @@ LAB_0005ef13:
  * Increments one of two global 16-bit counters depending on a flag at +0x4c
  * (obstacle_valid). Clears the node list, resets distance fields, calls
  * FUN_0005ef80 (@edi) to set up the initial path node. If that succeeds,
- * calls path_state_traverse to perform the full traverse. If a debug record exists
- * at +0x48, copies the entire path buffer into it, stores the BSP index, and
- * asserts the traverse result is non-zero (not _path_traverse_result_none).
+ * calls path_state_traverse to perform the full traverse. If a debug record
+ * exists at +0x48, copies the entire path buffer into it, stores the BSP index,
+ * and asserts the traverse result is non-zero (not _path_traverse_result_none).
  * If the result is not 5, marks the debug record as needing attention.
  *
  * Returns: char (0 = failed/skipped, nonzero = traverse result from
@@ -1248,6 +1351,106 @@ float FUN_00060200(void *path, int16_t param_2)
     system_exit(-1);
   }
   return *(float *)(base + ((int)step_index + 2) * 40);
+}
+
+/* 0x00060260 — error_heap: dump the obstacle-avoidance step heap to the
+ * error log, one line per heap entry.
+ *
+ * Evidence: fingerprinted Ghidra bundle
+ * b5b3bf171119dc3ac77aeab5d0640ad97949fa404a2242658cfbdd4b54a63da2
+ * (decompile + disassembly + call-site audit), bounded 0x60260-0x60328 per
+ * the committed function_bounds.json entry (end 0x60329).
+ *
+ * ABI (disassembly-confirmed): the function never loads EBX — it reads
+ * [EBX+0x1430], [EBX+0x2c] and [EBX+EAX*8] directly at entry, so the `path`
+ * pointer is an implicit EBX register argument (kb.json decl carries
+ * @<ebx>). One ordinary cdecl stack argument at [EBP+8] (MOV EDX,[EBP+0x8])
+ * is forwarded unchanged as the first argument of error(), whose kb.json
+ * decl types it `unsigned __int16` — the error severity/type code.
+ *
+ * Disassembly-confirmed body:
+ *   MOV AX,[EBX+0x1430]        ; path->heap_count
+ *   XOR ESI,ESI                ; heap_index = 0
+ *   TEST AX,AX; JLE end        ; hoisted first test of the for-condition
+ * loop:
+ *   TEST SI,SI; JL fail1
+ *   CMP SI,AX; JGE fail1
+ *   CMP AX,0x80; JLE ok1       ; inlined heap accessor bounds assert
+ * fail1: PUSH 1; PUSH 0x31; PUSH 0x25ea14; PUSH 0x25ea40
+ *   CALL display_assert; PUSH -1; CALL system_exit
+ * ok1:
+ *   MOVSX EAX,SI; MOV DI,[EBX+EAX*2+0x1432]   ; step_index = path->heap[i]
+ *   TEST DI,DI; JL fail2
+ *   MOV AX,[EBX+0x2c]; CMP DI,AX; JGE fail2
+ *   CMP AX,0x80; JLE ok2       ; inlined step accessor bounds assert
+ * fail2: PUSH 1; PUSH 0x28; PUSH 0x25ea14; PUSH 0x25e9b0
+ *   CALL display_assert; PUSH -1; CALL system_exit
+ * ok2:
+ *   MOV EDX,[EBP+0x8]
+ *   MOVSX EAX,DI; ADD EAX,2; LEA EAX,[EAX+EAX*4]
+ *   FLD dword [EBX+EAX*8]      ; == path + (step_index+2)*40
+ *   MOVSX EAX,SI
+ *   FSTP dword [EBP-0x4]       ; narrow to a float local
+ *   MOV ECX,[EBP-0x4]          ; the SAME float's raw bits
+ *   FLD dword [EBP-0x4]
+ *   PUSH ECX                   ; last vararg -> "%x"
+ *   SUB ESP,8; FSTP qword [ESP] ; float promoted to double -> "%.12g"
+ *   PUSH EAX                   ; heap_index -> "%3d"
+ *   PUSH 0x25eab4              ; "%3d. %.12g (%x)"
+ *   PUSH EDX                   ; error type
+ *   CALL error; MOV AX,[EBX+0x1430]; ADD ESP,0x18
+ *   INC ESI; CMP SI,AX; JL loop
+ *
+ * Both inlined accessors are the same two bounds checks already lifted
+ * standalone in this TU (FUN_00060140 at line 0x31 and FUN_000600f0 /
+ * FUN_00060200 at line 0x28, same __FILE__ 0x25ea14 and same reason strings
+ * 0x25ea40 / 0x25e9b0). They are written inline here, NOT as calls to those
+ * helpers, because the reference contains no CALL to either — inlining that
+ * the original compiler performed must be preserved, not re-outlined.
+ *
+ * The float read is path + (step_index+2)*40 == path+0x30+step_index*0x28
+ * +0x20, i.e. the same float at +0x20 of the 40-byte step record that
+ * FUN_00060200 reads; the field has no independently established name.
+ *
+ * The third vararg is the dword of that float, not a second float: ECX is
+ * loaded from the narrowed [EBP-0x4] slot with an integer MOV and pushed as
+ * a plain dword (the "%x" conversion), while the separate FLD/FSTP qword of
+ * the same slot supplies the "%.12g" double. This is the standard Bungie
+ * float-debug-print idiom (value plus its hex bit pattern).
+ */
+void error_heap(void *path, unsigned short type)
+{
+  char *base;
+  short heap_index;
+  short heap_count;
+  short step_index;
+  short step_count;
+  float value;
+
+  base = (char *)path;
+  for (heap_index = 0; heap_index < *(short *)(base + 0x1430); heap_index++) {
+    heap_count = *(short *)(base + 0x1430);
+    if (heap_index < 0 || heap_count <= heap_index || heap_count > 0x80) {
+      display_assert("heap_index>=0 && heap_index<path->heap_count && "
+                     "path->heap_count<=MAXIMUM_OBSTACLE_AVOIDANCE_STEPS",
+                     "c:\\halo\\SOURCE\\ai\\path_obstacle_avoidance.c", 0x31,
+                     1);
+      system_exit(-1);
+    }
+
+    step_index = *(short *)(base + 0x1432 + (int)heap_index * 2);
+    step_count = *(short *)(base + 0x2c);
+    if (step_index < 0 || step_count <= step_index || step_count > 0x80) {
+      display_assert("step_index>=0 && step_index<path->step_count && "
+                     "path->step_count<=MAXIMUM_OBSTACLE_AVOIDANCE_STEPS",
+                     "c:\\halo\\SOURCE\\ai\\path_obstacle_avoidance.c", 0x28,
+                     1);
+      system_exit(-1);
+    }
+
+    value = *(float *)(base + ((int)step_index + 2) * 40);
+    error(type, "%3d. %.12g (%x)", (int)heap_index, value, *(uint32_t *)&value);
+  }
 }
 
 /* 0x00060910 — bounded push onto a fixed-size 16-bit value list

@@ -933,6 +933,71 @@ int FUN_00068d80(void *tif_)
 }
 
 /**
+ * Set `count` consecutive bits to 1 in the bitmap row `cp`, starting at bit
+ * index `x`. Bits run MSB-first inside each byte, so bit `x` lives in byte
+ * `x >> 3` at shift `x & 7`.
+ *
+ * All three parameters arrive in registers -- `cp` in EAX, `x` in ECX,
+ * `count` in EDX (0x68e27 `mov esi,eax`, 0x68e2b `mov eax,ecx`, 0x68e24
+ * `test edx,edx`). Every count test the reference makes is SIGNED (`jle` at
+ * 0x68e29, `jge` at 0x68e41, `jl` at 0x68e6c), so `count` is a signed int and
+ * a non-positive count paints nothing.
+ *
+ * The mask table is the nine bytes at 0x2ec378 -- 00 80 c0 e0 f0 f8 fc fe ff
+ * -- indexed by a bit count in 0..8, read as `mov dl,byte ptr [edx+0x2ec378]`
+ * at 0x68e43 and 0x68e96. It sits immediately before the "Fax3" string in
+ * .rdata, i.e. it is file-local rodata, so it is reproduced here as a
+ * function-local static rather than given a kb.json address.
+ *
+ * The whole-byte run is expanded inline by the reference as
+ * `shr ecx,2 / rep stosd` then `and ecx,3 / rep stosb` (0x68e78-0x68e88) with
+ * EAX = -1. That is the compiler's fill substitution for a memset, not
+ * something the C says; it is written here as the same plain byte loop
+ * FUN_00069420 uses, because a variable-length `memset` is not linkable in
+ * this build (`-nostdlib -ffreestanding -fno-builtin`).
+ *
+ * @param cp    first byte of the bitmap row.
+ * @param x     starting bit index within the row.
+ * @param count number of bits to set.
+ */
+void fillspan(char *cp /* @<eax> */, int x /* @<ecx> */, int count /* @<edx> */)
+{
+  static const unsigned char masks[9] = { 0x00, 0x80, 0xc0, 0xe0, 0xf0,
+                                          0xf8, 0xfc, 0xfe, 0xff };
+  int whole_bytes;
+  int n;
+
+  if (count <= 0)
+    return;
+
+  cp += x >> 3;
+  x &= 7;
+  if (x != 0) {
+    /* Not enough bits to reach the next byte boundary: one masked OR. */
+    if (count < 8 - x) {
+      *cp |= masks[count] >> x;
+      return;
+    }
+    *cp |= 0xff >> x;
+    cp++;
+    count -= 8 - x;
+  }
+
+  if (count >= 8) {
+    whole_bytes = (int)((unsigned int)count >> 3);
+    n = whole_bytes;
+    while (n > 0) {
+      *cp = (char)0xff;
+      cp++;
+      n--;
+    }
+    count -= whole_bytes << 3;
+  }
+
+  *cp |= masks[count];
+}
+
+/**
  * Decode one complete fax run length out of the raw byte stream.
  *
  * EDI carries the TIFF handle (0x68eb0 opens with `mov edx,[edi+0x120]` before
@@ -1493,7 +1558,7 @@ void FUN_000695c0(void *tif_)
  *             scan stopped.
  * @return the number of like-valued bits found, never more than `be - bs`.
  */
-int FUN_00069600(int bs /* @<ecx> */, int be /* @<edx> */,
+__declspec(noinline) int FUN_00069600(int bs /* @<ecx> */, int be /* @<edx> */,
                  const unsigned char *runs /* @<ebx> */, unsigned char **pbp)
 {
   unsigned char *bp = *pbp;
@@ -1551,6 +1616,67 @@ int FUN_00069600(int bs /* @<ecx> */, int be /* @<edx> */,
 
   *pbp = bp;
   return span;
+}
+
+/**
+ * Find the next colour change, in bits, starting at bit `bs`.
+ *
+ * Upstream libtiff tif_fax3.c spells this as the macro
+ * `finddiff(_cp,_bs,_be,_color) (_bs + (_color ? find1span(...) :
+ * find0span(...)))`; Bungie's build has it out of line, and the 2276 symbol
+ * dump names this address `finddiff`. The body is exactly that expression: bias
+ * the byte cursor by `bs>>3` (`mov eax,esi / sar eax,3 / add ecx,eax` at
+ * 0x69696-0x0006969b -- the shift is arithmetic, so `bs` is signed), select
+ * the run table, call the shared span scanner, and add `bs` back to its
+ * result (`add eax,esi` at 0x696c0).
+ *
+ * The polarity of the table select is pinned by the branch at
+ * 0x696a6-0x696ad: EBX is loaded with 0x2ec4c8 unconditionally and only
+ * rewritten to 0x2ec3c8 on the fall-through when `color` is zero. So a
+ * non-zero `color` scans with 0x2ec4c8 (upstream `oneruns`, the `find1span`
+ * arm) and zero scans with 0x2ec3c8 (upstream `zeroruns`, `find0span`),
+ * matching the upstream macro.
+ *
+ * ABI recovered from the frame at 0x69690: `push ebp / mov ebp,esp` with no
+ * `sub esp`, one `push ebx` (EBX is written here, so it is saved -- it is an
+ * outgoing register argument to FUN_00069600, not an incoming one), and two
+ * cdecl stack arguments at [ebp+8] and [ebp+0xc]. ESI is read at 0x69696
+ * before any write in this frame and is the value added back at 0x696c0, so
+ * it is the incoming `bs`; EDX is never touched here at all yet the callee
+ * takes `be` in EDX, so `be` is an incoming register argument forwarded
+ * untouched. Ghidra reported `void(void)` and dropped the whole body because
+ * kb.json carried a stale `(void)` prototype -- the same defect already
+ * recorded for FUN_00068940, FUN_00069600 and FUN_0006a070 in this TU.
+ *
+ * The byte cursor is passed to the scanner BY REFERENCE out of its own
+ * parameter slot: the biased pointer is stored back to [ebp+8] at 0x696a3 and
+ * `lea ecx,[ebp+8] / push ecx` at 0x696b2 hands that slot to the callee,
+ * which is why the caller-side bias upstream does inside find0span/find1span
+ * lives here instead. The updated cursor is therefore visible only to this
+ * frame -- `cp` is by value, and finddiff discards it on return.
+ *
+ * @param cp    byte cursor for the scanline, unbiased.
+ * @param bs    bit index to start scanning from.
+ * @param be    one past the last bit index available to scan.
+ * @param color non-zero to scan a run of set bits, zero for clear bits.
+ * @return the bit index of the next colour change, at most `be`.
+ */
+int finddiff(unsigned char *cp, int bs /* @<esi> */, int be /* @<edx> */,
+             int color)
+{
+  const unsigned char *runs;
+
+  cp += bs >> 3;
+  /* Spelled as pre-store + inverted test, not `color ? ONE : ZERO`, to match
+   * the reference's `test eax,eax / mov ebx,0x2ec4c8 / jne / mov ebx,0x2ec3c8`
+   * at 0x696a6-0x696ad. The ternary makes clang select branchlessly
+   * (neg/sbb/and 0x100/add), which is a different shape. Do not "simplify". */
+  runs = TIFF_FAX_ONERUNS;
+  if (!color) {
+    runs = TIFF_FAX_ZERORUNS;
+  }
+
+  return bs + FUN_00069600(bs, be, runs, &cp);
 }
 
 /**
@@ -1938,7 +2064,7 @@ int FUN_0006a260(void *tif_)
      * TIFFWriteDirectory jumps there too. Only the taken-and-failed path falls
      * through into `xor eax,eax`, which is exactly what the short-circuit
      * form expresses. */
-    if ((tif->field_0a.b & 2) && !FUN_000680a0(tif)) {
+    if ((tif->field_0a.b & 2) && !TIFFWriteDirectory(tif)) {
       return 0;
     }
   }
@@ -2198,7 +2324,7 @@ unsigned long FUN_0006a310(void *tif, unsigned long h)
  * up immediately before the CALL with no pushes at all:
  *   0x6c1c7  mov esi, dword ptr [ebp-0x10]
  *   0x6c1ca  call 0x6a3b0
- * (FUN_0006c080, the only xref.) The `*1` scale makes it a byte pointer, i.e.
+ * (gt, the only xref.) The `*1` scale makes it a byte pointer, i.e.
  * upstream's `TIFFRGBValue *Map` -- the greyscale ramp, spelled `map` here to
  * match FUN_0006af80's parameter and to stay clear of this TU's `Map` macro,
  * which is a DIFFERENT object (0x3340c8, upstream's BWmap, the table this
@@ -2351,7 +2477,7 @@ int FUN_0006a5d0(unsigned char *r, unsigned char *g,
 {
   int nsamples;
   int i;
-  int idx;
+  unsigned char idx;
   unsigned long *p;
 
   /* 0x6a5d4-0x6a5e1: signed `mov eax,8; cdq; idiv ecx` on the file-static

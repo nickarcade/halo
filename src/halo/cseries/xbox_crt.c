@@ -192,21 +192,20 @@ int __stdcall FUN_001d7817(const char *a, const char *b)
   int result;
 
   result = xCompareStringA(1, a, -1, b, -1);
-  if (result != 0) {
-    return result - 2;
-  }
+  if (result == 0) {
+    if (a == 0) {
+      if (b != 0)
+        return -1;
+      return 0;
+    }
 
-  if (a == 0) {
-    if (b != 0)
-      return -1;
-    return 0;
-  }
+    if (b == 0) {
+      return 1;
+    }
 
-  if (b == 0) {
-    return 1;
+    return crt_stricmp(a, b);
   }
-
-  return crt_stricmp(a, b);
+  return result - 2;
 }
 
 /*
@@ -427,18 +426,20 @@ int crt_toupper(int c)
  * to the standard (case-insensitive) stricmp. */
 int crt_stricmp(const char *a, const char *b)
 {
-  unsigned char c1;
-  unsigned char c2;
+  int c1;
+  int c2;
+
+  if (*(int *)0x4fc25c == 0)
+    return __ascii_stricmp(a, b);
 
   for (;;) {
-    c1 = (unsigned char)crt_tolower((unsigned char)*a);
-    c2 = (unsigned char)crt_tolower((unsigned char)*b);
-    if (c1 != c2)
-      return c1 < c2 ? -1 : 1;
-    if (c1 == '\0')
-      return 0;
-    a++;
-    b++;
+    c1 = crt_tolower((unsigned char)*a++);
+    c2 = crt_tolower((unsigned char)*b++);
+    if (c1 != '\0') {
+      if (c1 == c2)
+        continue;
+    }
+    return c1 - c2;
   }
 }
 
@@ -703,7 +704,7 @@ double fabs(double x)
  * bare `ret` here left the frame UNALLOCATED, so a function's locals/spills
  * aliased live ESP and were clobbered by the next argument push — manifested as
  * a NULL+0x99 fault in actor_has_accessible_firing_position (0x25a00) and as
- * corrupted firing-position records driving AI aim in FUN_00025c10 (0x25c10).
+ * corrupted firing-position records driving AI aim in actor_select_firing_position (0x25c10).
  * Byte-faithful to 0x1d90e0; Xbox fully commits the thread stack, so no
  * page-probing is needed. */
 #if !defined(_MSC_VER) || defined(__clang__)

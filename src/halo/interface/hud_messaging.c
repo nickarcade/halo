@@ -1540,7 +1540,7 @@ short hud_find_nav_point_by_name(const char *param_1)
 
 /* hud_get_nav_point_data (0xd5f40)
  * Returns pointer to a player's nav point data (0x30 bytes per player). */
-int hud_get_nav_point_data(short param_1)
+__declspec(noinline) int hud_get_nav_point_data(short param_1)
 {
   if (param_1 < 0 || param_1 >= 4) {
     display_assert("local_player_index>=0&&local_player_index<MAXIMUM_NUMBER_"
@@ -2205,7 +2205,7 @@ void FUN_000d6cc0(int param_1)
   float position[3];
   /* Save the local_player_index up front (original: u1 = param_1 @0xd6cc6).
    * The case-1 (object waypoint) branch below reuses param_1's stack slot as a
-   * throwaway scratch for FUN_0001aae0's radius out-param, so param_1 itself is
+   * throwaway scratch for object_get_bounding_sphere's radius out-param, so param_1 itself is
    * clobbered. The original keeps the real index in u1 and uses it for
    * FUN_000d6660 and game_engine_render_nav_points; the prior lift dropped that
    * save and reused the clobbered param_1, tripping the players.c#133
@@ -2246,7 +2246,7 @@ void FUN_000d6cc0(int param_1)
         i2 = (int)object_try_and_get_and_verify_type(*(int *)pu6, -1);
         if (i2 == 0)
           goto skip;
-        FUN_0001aae0(*(int *)pu6, position, (float *)&param_1);
+        object_get_bounding_sphere(*(int *)pu6, position, (float *)&param_1);
         break;
       case 2:
         game_engine_get_goal_position((int *)position, (short)*(int *)pu6);
@@ -2335,7 +2335,7 @@ void FUN_000d6e50(int param_1)
           pu6[-1] = 0xffff;
           goto next;
         }
-        FUN_0001aae0(obj_handle, target_pos, l_1c);
+        object_get_bounding_sphere(obj_handle, target_pos, l_1c);
         break;
       case 2:
         game_engine_get_goal_position((int *)target_pos,
@@ -2480,7 +2480,7 @@ void FUN_000d7240(int slot)
 /* unit_hud_get_slot (0xd7280)
  * Returns pointer to a player's unit HUD slot.
  * ABI: @esi=local_player_index */
-int FUN_000d7280(short local_player_index)
+__declspec(noinline) int FUN_000d7280(short local_player_index)
 {
   if (local_player_index < 0 || local_player_index >= 4) {
     display_assert("local_player_index>=0 && "

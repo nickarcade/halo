@@ -837,7 +837,8 @@ def regen_decl_header(quiet: bool = False) -> bool:
     DECL_H.parent.mkdir(parents=True, exist_ok=True)
     try:
         r = subprocess.run(
-            [sys.executable, str(KNOWLEDGE_PY), "--gen-header", str(DECL_H)],
+            [sys.executable, str(KNOWLEDGE_PY), "--gen-header", str(DECL_H),
+             "--gen-stamp", str(DECL_H.parent / ".kb.sha256")],
             capture_output=True, text=True, cwd=REPO_ROOT)
     except OSError as e:
         print(f"  ⚠ could not regenerate decl.h ({e}); using existing header",
@@ -1492,11 +1493,20 @@ _PER_FUNCTION_OPT: dict[str, dict[str, str]] = {
     # FUN_000dc800: leaf switch table with register parameter; reference has NO EBP frame.
     "halo/interface/event_manager.c": {"FUN_000dc800": "/O2 /Oy"},
     # D3D resource/texture functions in XDK D3D; compiled with /Oy (no EBP frame).
+    # D3DResource_BlockUntilNotBusy: bare JMP thunk (0x1ed620); D3DResource_IsBusy:
+    # ESP-relative addressing throughout (0x1ed980) -- both prove /Oy.
+    # D3D_BlockOnResource (0x1efd80) and FUN_001ed870 (0x1ed870): both use
+    # ESP-relative addressing from entry (`mov ecx,[esp+4]` / `push esi; mov
+    # esi,[esp+8]`), no EBP setup anywhere -- also /Oy.
     "rasterizer/xbox/d3d_resource.c": {
+        "D3DResource_BlockUntilNotBusy": "/O2 /Oy",
         "D3DTexture_GetLevelDesc": "/O2 /Oy",
         "D3DTexture_LockRect": "/O2 /Oy",
         "D3DResource_Register": "/O2 /Oy",
         "D3DResource_Release": "/O2 /Oy",
+        "D3DResource_IsBusy": "/O2 /Oy",
+        "D3D_BlockOnResource": "/O2 /Oy",
+        "FUN_001ed870": "/O2 /Oy",
     },
 }
 

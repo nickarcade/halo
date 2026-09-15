@@ -20,9 +20,13 @@ import json
 import math
 import os
 import re
+import atexit
 import signal
+import socket
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -52,6 +56,13 @@ def _child_rss_bytes(pid: int) -> int:
             return int(fh.read().split()[1]) * _PAGE_SIZE
     except (OSError, ValueError, IndexError):
         return 0
+
+#: Wall-clock seconds one target took, recorded on every result. A sweep
+#: without it is unattributable after the fact: the 12.1-hour run of 2026-09-13
+#: could not say whether its time went to a handful of pathological targets or
+#: was spread evenly, and those call for different fixes. Excluded from the
+#: reuse fingerprint -- it describes the run, not the inputs.
+WALL_FIELD = "_batch_wall_seconds"
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 KB_JSON = ROOT / "kb.json"
@@ -107,14 +118,21 @@ def input_fingerprint() -> str:
     return digest.hexdigest()
 
 
-def candidate_fingerprint(base_fingerprint: str, candidate: dict) -> str:
-    """Add the target identity to the shared source/build fingerprint."""
+def candidate_fingerprint(base_fingerprint: str, candidate: dict,
+                          oracle: str = "xbe") -> str:
+    """Add the target identity to the shared source/build fingerprint.
+
+    The oracle is part of the identity, not of the target: a verdict produced
+    against a delinked COFF is not evidence about the raw-XBE oracle, or the
+    reverse, so `--skip-existing` must not carry one forward as the other.
+    """
     identity = {
         "addr": candidate.get("addr", ""),
         "name": candidate.get("name", ""),
         "class": candidate.get("class", ""),
         "obj": candidate.get("obj", ""),
         "decl": candidate.get("decl", ""),
+        "oracle": oracle,
     }
     payload = json.dumps(identity, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256((base_fingerprint + "\0" + payload).encode("utf-8")).hexdigest()
@@ -176,6 +194,42 @@ def reusable_results(output_dir: Path, fingerprints: dict[str, str],
 
 
 DELINKED_DIR = ROOT / "delinked"
+FUNCTION_BOUNDS = ROOT / "tools" / "verify" / "function_bounds.json"
+
+_BOUNDS_ADDRS = None
+
+
+def _bounds_addrs() -> set:
+    """Addresses `function_bounds.json` gives a COMMITTED bound for.
+
+    This is the raw-XBE oracle's availability question, and it is a different
+    question from the delinked one below.  A delinked oracle had to be
+    exported, per object, by a Ghidra session on one developer's machine; a
+    raw-XBE oracle needs only a committed bound and the pristine image, both of
+    which every checkout has.  That is why the discovery corpus grows from
+    ~20 functions to ~8000 with this change, and why `--max-new-per-run`
+    exists.
+
+    Entries whose bound was COMPUTED at run time rather than recorded are
+    excluded by construction: only what is in the file counts, and the file is
+    the authority (`_meta.xbe_md5` ties it to this exact binary).
+    """
+    global _BOUNDS_ADDRS
+    if _BOUNDS_ADDRS is None:
+        addrs = set()
+        try:
+            raw = json.loads(FUNCTION_BOUNDS.read_text(encoding="utf-8"))
+        except Exception:
+            raw = {}
+        for k in raw:
+            if k.startswith("_"):
+                continue
+            try:
+                addrs.add(int(k, 16))
+            except ValueError:
+                continue
+        _BOUNDS_ADDRS = addrs
+    return _BOUNDS_ADDRS
 
 
 def _has_delinked_ref(addr_str: str, obj_name: str) -> bool:
@@ -209,14 +263,31 @@ def _has_delinked_ref(addr_str: str, obj_name: str) -> bool:
     return False
 
 
+def _has_oracle_ref(addr_str: str, obj_name: str, oracle: str = "xbe") -> bool:
+    """Whether an oracle of the given kind can be built for this address.
+
+    Kept as one function over both lanes rather than swapped wholesale,
+    because discovery has to answer for whichever oracle the run will actually
+    use.  Under `xbe` a delinked export is irrelevant and its absence must not
+    skip a target; under `delinked` a committed bound is irrelevant and its
+    presence must not queue a target that cannot be run.
+    """
+    if oracle == "delinked":
+        return _has_delinked_ref(addr_str, obj_name)
+    try:
+        return int(addr_str, 16) in _bounds_addrs()
+    except ValueError:
+        return False
+
+
 def load_candidates(leaf_only: bool = False, classes: set = None,
-                    discover: bool = False):
+                    discover: bool = False, oracle: str = "xbe"):
     """Find ported functions that can be verified.
 
     Default mode: only functions already in leaf_cache.json.
-    Discovery mode (--discover): all ported functions with a delinked oracle,
-    regardless of leaf_cache presence.  Cached entries still get their class
-    label; uncached ones are tagged 'uncached'.
+    Discovery mode (--discover): all ported functions for which an oracle of
+    kind `oracle` can be built, regardless of leaf_cache presence.  Cached
+    entries still get their class label; uncached ones are tagged 'uncached'.
     """
     if classes is None:
         classes = {"leaf", "data_only", "stubbable"}
@@ -252,7 +323,8 @@ def load_candidates(leaf_only: bool = False, classes: set = None,
             entry = cache_by_int.get(addr_int)
 
             if discover:
-                if not entry and not _has_delinked_ref(addr_str, obj_name):
+                if not entry and not _has_oracle_ref(addr_str, obj_name,
+                                                     oracle):
                     continue
                 cls = (entry.get("class", "uncached") if isinstance(entry, dict)
                        else entry) if entry else "uncached"
@@ -320,7 +392,27 @@ def load_targets(path: Path):
     return addr_rank, name_rank
 
 
-def load_allowlist(path: Path) -> dict[str, set[str]]:
+def load_allowlist(path: Path, oracle: str = "") -> dict[str, set[str]]:
+    """Allowlist entries that apply to `oracle` (all of them when unset).
+
+    An entry may carry `"oracle": "delinked"` to say its excuse belongs to one
+    lane.  Most of this file does: 245 `oracle-unmappable` rows say the
+    reference crashed on an unmapped callee page or a relocation that resolved
+    to nothing, and 71 `oracle_extract_failed` rows say there was no delinked
+    object to build an oracle from.  Neither can happen with the pristine
+    image mapped at real VAs, so under `--oracle=xbe` those entries excuse
+    nothing and the target must be re-run.
+
+    An entry with no `oracle` key applies to every oracle -- that is the
+    back-compatible reading and the right default for the timeout,
+    `deflate_state*` seed-domain and `lifted_extract_failed` categories, which
+    are oracle-independent.
+
+    Scoping is what makes retirement reviewable: the entry stays in the file
+    with its written reason and its lane, rather than being deleted on the
+    theory that the migration must have fixed it.  See
+    tools/equivalence/retry_allowlisted.py for the evidence side.
+    """
     if not path:
         return {}
     raw = load_json(path)
@@ -340,6 +432,9 @@ def load_allowlist(path: Path) -> dict[str, set[str]]:
         elif isinstance(value, list):
             allowlist[name] = {str(item) for item in value}
         elif isinstance(value, dict):
+            scope = value.get("oracle")
+            if oracle and scope and scope != oracle:
+                continue
             allowlist[name] = set(values(value.get("statuses", [])))
             allowlist[name].update(values(value.get("reasons", [])))
         else:
@@ -379,10 +474,142 @@ def summarize_by_object(rows: list[dict]) -> dict:
     return {obj: dict(counts) for obj, counts in sorted(by_object.items())}
 
 
+# ---------------------------------------------------------------------------
+# Pre-warmed fork server (see tools/equivalence/forkserver.py).
+#
+# Spawning `python unicorn_diff.py` per target costs ~1.5 s of imports and
+# data parsing before a single instruction is emulated -- on a 4000-target
+# sweep, over an hour of pure startup. The fork server pays it once and forks
+# a pristine child per target instead. Same isolation (own session, own
+# address space), same watchdogs; only the startup is shared.
+# ---------------------------------------------------------------------------
+# One server PER WORKER THREAD, not one shared. A server handles a connection
+# to completion -- fork, then `waitpid` -- before accepting the next, so a
+# single shared one serializes every `--jobs` worker behind it (measured: 80
+# targets at -j3 went from 123 s to 303 s). It cannot simply accept
+# concurrently either: it has to stay thread-free, because `fork()` from a
+# multithreaded process copies whatever locks the other threads were holding.
+# One single-threaded server per worker keeps both properties.
+_FORKSERVERS = threading.local()
+_FORKSERVER_REGISTRY = []
+_FORKSERVER_LOCK = threading.Lock()
+
+
+class _ForkServer:
+    """Client handle for one warmed `forkserver.py` process."""
+
+    def __init__(self):
+        self._dir = tempfile.mkdtemp(prefix="halo-equiv-fs-")
+        self.sock_path = os.path.join(self._dir, "fs.sock")
+        self.proc = subprocess.Popen(
+            [sys.executable, str(ROOT / "tools" / "equivalence" / "forkserver.py"),
+             self.sock_path],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            cwd=str(ROOT), text=True, start_new_session=True)
+        line = self.proc.stdout.readline()
+        if line.strip() != "READY":
+            self.close()
+            raise RuntimeError("fork server failed to start")
+
+    def submit(self, argv):
+        """Fork one child for `argv`. Returns `(pid, connection)`.
+
+        The caller owns the watchdog loop and reads the exit status off the
+        connection, so a timeout kill and a clean exit take the same path.
+        """
+        conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn.settimeout(30)
+        conn.connect(self.sock_path)
+        conn.sendall((json.dumps({"argv": list(argv)}) + "\n").encode("utf-8"))
+        hello = _recv_line(conn)
+        if "pid" not in hello:
+            conn.close()
+            raise RuntimeError(hello.get("error", "fork server refused the request"))
+        return hello["pid"], conn
+
+    def close(self):
+        try:
+            self.proc.terminate()
+            self.proc.wait(timeout=5)
+        except Exception:
+            try:
+                self.proc.kill()
+            except Exception:
+                pass
+        for path in (self.sock_path, self._dir):
+            try:
+                os.unlink(path) if path == self.sock_path else os.rmdir(path)
+            except OSError:
+                pass
+
+
+def _recv_line(conn) -> dict:
+    """Read one newline-delimited JSON object from `conn`."""
+    buf = b""
+    while b"\n" not in buf:
+        chunk = conn.recv(65536)
+        if not chunk:
+            return {}
+        buf += chunk
+    return json.loads(buf.split(b"\n", 1)[0].decode("utf-8"))
+
+
+def _get_forkserver():
+    """This thread's fork server, started on first use.
+
+    Returns None if it cannot start, in which case the caller falls back to a
+    plain subprocess -- a slower batch, never a wrong one.
+    """
+    server = getattr(_FORKSERVERS, "server", None)
+    if server is None:
+        try:
+            server = _ForkServer()
+            with _FORKSERVER_LOCK:
+                _FORKSERVER_REGISTRY.append(server)
+        except Exception:
+            server = False
+        _FORKSERVERS.server = server
+    return server or None
+
+
+@atexit.register
+def _close_forkservers():
+    with _FORKSERVER_LOCK:
+        servers, _FORKSERVER_REGISTRY[:] = list(_FORKSERVER_REGISTRY), []
+    for server in servers:
+        server.close()
+
+
+def _prior_useless_concolic_key(result_json: Path) -> str:
+    """The memo key from a previous run whose concolic phase gained nothing.
+
+    Returns "" whenever the previous result is missing, unreadable, predates
+    the memo, or recorded a phase that DID help -- in every one of those cases
+    the phase must run, so the safe answer is the one that runs it.
+
+    Only meaningful because 17f9a1365 replaced the solvers' wall-clock timeouts
+    with deterministic rlimit budgets. Under the old budgets "gained nothing"
+    could just mean the box was busy that night, and carrying that verdict
+    forward would suppress a phase that would have succeeded.
+    """
+    try:
+        prior = json.loads(result_json.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    key = prior.get("_concolic_memo_key")
+    gain = prior.get("_concolic_gain_pct")
+    if not isinstance(key, str) or not key:
+        return ""
+    # None means the phase never ran, so nothing was learned about it.
+    if not isinstance(gain, (int, float)) or gain > 0.05:
+        return ""
+    return key
+
+
 def run_verify(name: str, output_dir: Path, seeds: int = 50, timeout: int = 60,
                float_tolerance: int = 0, skip_esp: bool = False,
                update_leaf_cache: bool = False,
-               input_fingerprint: str = "") -> dict:
+               input_fingerprint: str = "", oracle: str = "xbe") -> dict:
     """Run unicorn_diff on a single function. Returns structured result.
 
     update_leaf_cache: when True, let unicorn_diff persist its class/confidence/
@@ -390,6 +617,15 @@ def run_verify(name: str, output_dir: Path, seeds: int = 50, timeout: int = 60,
     default keeps the regression-batch behavior of NOT touching the cache.
     """
     result_json = output_dir / f"{name}.json"
+    # Read the previous verdict BEFORE unlinking it: if the concolic phase ran
+    # on these exact oracle+lifted bytes and gained no coverage, tell
+    # unicorn_diff to skip it this time. The bytes are identified by
+    # _concolic_memo_key, which is narrow (this target only) where the reuse
+    # fingerprint below is global -- a commit anywhere busts the fingerprint
+    # and forces a re-run, but it does not change whether concolic helps THIS
+    # function. Corpus-wide the phase runs on 4% of targets and gains nothing
+    # on 92% of those, while costing most of their wall clock.
+    concolic_skip_key = _prior_useless_concolic_key(result_json)
     try:
         result_json.unlink()
     except FileNotFoundError:
@@ -401,8 +637,11 @@ def run_verify(name: str, output_dir: Path, seeds: int = 50, timeout: int = 60,
         "--z3-equiv",
         "--allow-stubs",
         "--mem-trace",
+        "--oracle", oracle,
         "--output-json", str(result_json),
     ]
+    if concolic_skip_key:
+        cmd.extend(["--concolic-skip-key", concolic_skip_key])
     if not update_leaf_cache:
         cmd.append("--no-leaf-cache")
     if float_tolerance > 0:
@@ -421,42 +660,101 @@ def run_verify(name: str, output_dir: Path, seeds: int = 50, timeout: int = 60,
         except Exception:
             pass
 
+    t_start = time.time()
     try:
         # Own process group so we can kill the whole child tree; output is
         # discarded (batch reads result_json), so DEVNULL avoids a pipe stall.
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL, cwd=str(ROOT),
-                                start_new_session=True)
-        deadline = time.time() + timeout
-        reason = None
-        while True:
-            try:
-                proc.wait(timeout=0.5)
-                break
-            except subprocess.TimeoutExpired:
-                pass
-            if time.time() > deadline:
-                _kill(proc)
-                reason = "timeout"
-                break
-            if limit_bytes and _child_rss_bytes(proc.pid) > limit_bytes:
-                _kill(proc)
-                reason = "mem-limit"
-                break
+        server = None if os.environ.get("HALO_EQUIV_NO_FORKSERVER") else _get_forkserver()
+        if server is not None:
+            reason, returncode = _wait_forked(server, cmd[2:], timeout, limit_bytes)
+        else:
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, cwd=str(ROOT),
+                                    start_new_session=True)
+            deadline = time.time() + timeout
+            reason = None
+            while True:
+                try:
+                    proc.wait(timeout=0.5)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+                if time.time() > deadline:
+                    _kill(proc)
+                    reason = "timeout"
+                    break
+                if limit_bytes and _child_rss_bytes(proc.pid) > limit_bytes:
+                    _kill(proc)
+                    reason = "mem-limit"
+                    break
+            returncode = proc.returncode
         if reason:
-            return {"status": "error", "reason": reason, "target": name}
+            return {"status": "error", "reason": reason, "target": name,
+                    WALL_FIELD: round(time.time() - t_start, 3)}
         if result_json.exists():
             result = json.loads(result_json.read_text(encoding="utf-8"))
             result[CACHE_SCHEMA_FIELD] = CACHE_SCHEMA
             result[FINGERPRINT_FIELD] = input_fingerprint
             result[VERIFIED_AT_FIELD] = time.time()
+            result[WALL_FIELD] = round(time.time() - t_start, 3)
             result_json.write_text(json.dumps(result, indent=2) + "\n",
                                    encoding="utf-8")
             return result
-        return {"status": "error", "reason": f"exit={proc.returncode}",
-                "target": name}
+        return {"status": "error", "reason": f"exit={returncode}",
+                "target": name, WALL_FIELD: round(time.time() - t_start, 3)}
     except Exception as e:
-        return {"status": "error", "reason": str(e), "target": name}
+        return {"status": "error", "reason": str(e), "target": name,
+                WALL_FIELD: round(time.time() - t_start, 3)}
+
+
+def _wait_forked(server, argv, timeout: int, limit_bytes: int):
+    """Run one target on the fork server under the same watchdogs as a Popen.
+
+    Returns `(reason, returncode)`; `reason` is None on a normal exit. The
+    child is a grandchild of this process, so it cannot be `waitpid`-ed here
+    -- the server does that and sends the status back. Killing still works
+    directly: the child called `setsid`, so its pgid is its pid.
+    """
+    pid, conn = server.submit(argv)
+    deadline = time.time() + timeout
+    reason = None
+    # The status line is accumulated ACROSS poll timeouts: a short recv that
+    # returned half of it must not be thrown away on the next tick.
+    buf = b""
+    try:
+        conn.settimeout(0.5)
+        while True:
+            try:
+                chunk = conn.recv(65536)
+                if not chunk:
+                    return reason, 1       # server died mid-run
+                buf += chunk
+                if b"\n" in buf:
+                    done = json.loads(buf.split(b"\n", 1)[0].decode("utf-8"))
+                    return reason, done.get("exit", 1)
+            except socket.timeout:
+                pass
+            if reason is None and time.time() > deadline:
+                reason = "timeout"
+                _killpg(pid)
+            elif reason is None and limit_bytes and _child_rss_bytes(pid) > limit_bytes:
+                reason = "mem-limit"
+                _killpg(pid)
+    finally:
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def _killpg(pid: int):
+    try:
+        os.killpg(os.getpgid(pid), signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            pass
 
 
 def main():
@@ -509,7 +807,25 @@ def main():
                         help=("Maximum age for reusable results in hours "
                               f"(default: {DEFAULT_MAX_AGE_HOURS:g}; 0 disables age limit)"))
     parser.add_argument("--discover", action="store_true",
-                        help="Test all ported functions with delinked refs, not just leaf_cache entries")
+                        help="Test all ported functions an oracle can be built "
+                             "for, not just leaf_cache entries. Under the "
+                             "default --oracle=xbe that is every address with "
+                             "a committed bound in function_bounds.json "
+                             "(~8000), not the handful of locally delinked "
+                             "objects, so pair it with --max-new-per-run")
+    parser.add_argument("--oracle", choices=("delinked", "xbe"), default="xbe",
+                        help="Reference side for every target in the run "
+                             "(default: xbe). Also selects what --discover "
+                             "counts as an available oracle, and takes part "
+                             "in the result fingerprint.")
+    parser.add_argument("--max-new-per-run", type=int, default=0, metavar="N",
+                        help="Execute at most N targets that have no reusable "
+                             "result (0 = unlimited). Reused results are "
+                             "never counted against it. Use with "
+                             "--skip-existing to grow the corpus at a "
+                             "controlled rate instead of dispatching "
+                             "thousands of newly discovered targets into a "
+                             "fixed wall-clock budget.")
     parser.add_argument("--targets", type=Path, default=None,
                         help="JSON list of function names/addresses to restrict to "
                              "(runs in file order; implies --discover so uncached targets are included)")
@@ -522,7 +838,7 @@ def main():
     # An explicit target list may include uncached functions, so force discovery.
     discover = args.discover or bool(args.targets)
     candidates = load_candidates(leaf_only=args.leaf_only, classes=classes,
-                                 discover=discover)
+                                 discover=discover, oracle=args.oracle)
 
     if args.targets:
         addr_rank, name_rank = load_targets(args.targets)
@@ -542,7 +858,7 @@ def main():
             (rc for rc in ranked if rc[1] is not None), key=lambda rc: rc[1])]
 
     if args.skip_allowlisted and args.allowlist:
-        allowlist = load_allowlist(args.allowlist)
+        allowlist = load_allowlist(args.allowlist, args.oracle)
         before = len(candidates)
         candidates = [c for c in candidates
                       if c["name"] not in allowlist and c["addr"] not in allowlist]
@@ -566,7 +882,7 @@ def main():
 
     base_fingerprint = input_fingerprint()
     fingerprints = {
-        c["name"]: candidate_fingerprint(base_fingerprint, c)
+        c["name"]: candidate_fingerprint(base_fingerprint, c, args.oracle)
         for c in candidates
     }
     discovered_candidates = sum(1 for c in candidates if c.get("discovered"))
@@ -584,11 +900,35 @@ def main():
                   f"{len(existing)} reused")
     if discovered_candidates:
         print(f"Discovered {discovered_candidates} newly ported candidate(s) "
-              "with delinked references")
+              f"with an available {args.oracle} oracle")
+
+    if args.max_new_per_run > 0:
+        # Rationing FRESH work, not candidates: a target with a reusable
+        # result costs nothing to keep, and dropping it would throw away the
+        # reuse --skip-existing exists to get.  Order is the candidate order,
+        # so successive runs walk forward through the corpus rather than
+        # re-attempting the same prefix.
+        kept, fresh = [], 0
+        for c in candidates:
+            if c["name"] in existing:
+                kept.append(c)
+                continue
+            if fresh < args.max_new_per_run:
+                kept.append(c)
+                fresh += 1
+        deferred = len(candidates) - len(kept)
+        if deferred:
+            print(f"--max-new-per-run {args.max_new_per_run}: executing "
+                  f"{fresh} new target(s), deferring {deferred} to a later run")
+        candidates = kept
+        fingerprints = {c["name"]: fingerprints[c["name"]] for c in candidates}
+        discovered_candidates = sum(1 for c in candidates
+                                    if c.get("discovered"))
 
     csv_rows = []
     results = {"pass": 0, "fail": 0, "error": 0, "not_applicable": 0,
-               "z3_proven": 0, "total": len(candidates)}
+               "z3_proven": 0, "total": len(candidates),
+               "oracle": args.oracle}
     failures = []
     error_failures = []
     proven = []
@@ -600,7 +940,7 @@ def main():
     def _write_summary():
         elapsed = time.time() - t0
         fresh_executions = len(rows) - skipped
-        allowlist = load_allowlist(args.allowlist)
+        allowlist = load_allowlist(args.allowlist, args.oracle)
         allowlisted = [row for row in rows if is_allowlisted(row, allowlist)]
         current_failure_rows = [row for row in rows
                                 if row["status"] in FAIL_STATUSES
@@ -695,6 +1035,7 @@ def main():
                               float_tolerance=args.float_tolerance,
                               skip_esp=args.skip_esp,
                               update_leaf_cache=args.update_leaf_cache,
+                    oracle=args.oracle,
                               input_fingerprint=fingerprints[c["name"]]): (i, c)
                     for i, c in compute
                 }

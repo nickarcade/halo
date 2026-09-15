@@ -537,7 +537,7 @@ float actor_compute_prop_target_weight(int actor_handle, int clump_item_handle)
       }
     } else {
       /* Actor has a weapon in hand */
-      char *weapon_tag = FUN_000210f0(actor_handle);
+      char *weapon_tag = actor_get_weapon_definition(actor_handle);
       char *actv_tag2 =
         actor_combat_get_firing_variant_definition(actor_handle);
 
@@ -696,7 +696,7 @@ void actor_situation_update_target_status(int actor_handle)
     } else if (*(short *)(prop + 0x38) != 0 && *(short *)(prop + 0x38) != 1) {
       status = 7;
     } else if (*(char *)(prop + 0x122) > 2 ||
-               *(float *)(prop + 0x11c) >= *(float *)0x254640) {
+               !(*(float *)(prop + 0x11c) < *(float *)0x254640)) {
       status = 8;
     } else {
       status = 9;
