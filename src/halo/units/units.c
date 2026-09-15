@@ -1188,8 +1188,8 @@ char biped_update(int unit_handle)
           weapon_stop_reload(weapon_handle_saved);
           first_person_weapon_message_from_unit(unit_handle, 4);
 
-          result1 = weapon_get_animation_frame(weapon_handle_saved, 0, 0xd, -1);
-          result2 = weapon_get_animation_frame(weapon_handle_saved, 1, 0xd, -1);
+          result1 = weapon_get_first_person_animation_time(weapon_handle_saved, 0, 0xd, -1);
+          result2 = weapon_get_first_person_animation_time(weapon_handle_saved, 1, 0xd, -1);
 
           shifted = (signed char)result1 >> 2;
           *(signed char *)((char *)biped + 0x45d) = result1 - shifted;
@@ -5538,7 +5538,7 @@ bool unit_try_add_grenade(int unit_handle, int equipment_handle)
       }
 
       if (local_player_index != -1)
-        item_activate_equipment_effect(equipment_handle);
+        equipment_handle_pickup(equipment_handle);
 
       object_delete(equipment_handle);
       return true;
@@ -5644,12 +5644,12 @@ bool unit_pickup_equipment(int unit_handle, int equipment_handle, short flag)
       player_handle = player_index_from_unit_index(unit_handle);
       player = (char *)datum_get(player_data, player_handle);
       if (*(short *)(player + 0x2) != NONE) {
-        item_activate_equipment_effect(equipment_handle);
+        equipment_handle_pickup(equipment_handle);
       }
     }
 
     /* attach equipment to unit */
-    item_attach_to_unit(equipment_handle, unit_handle);
+    item_in_unit_inventory(equipment_handle, unit_handle);
     *(int *)(unit_obj + 0x2c8) = equipment_handle;
     return true;
   }
@@ -6466,7 +6466,7 @@ int unit_get_weapon(int16_t weapon_index, char *unit_data)
  * Confirmed: PUSH 0x1c / PUSH ESI -> object_get_and_verify_type(weapon, 0x1c).
  * Confirmed: parent check at [EBX+0xCC] against -1 and EDI.
  * Confirmed: object_attach_to_marker(edi, "left hand", esi, "").
- * Confirmed: item_attach_to_unit(esi, -1) to detach.
+ * Confirmed: item_in_unit_inventory(esi, -1) to detach.
  * Confirmed: global zero vector copied from [0x31fc38].
  * Confirmed: assert "item->object.parent_object_index==unit_index" at 0x20c5.
  * Confirmed: random_direction3d with angle 0x3ec90fdb, scale range [0x3cda740e,
@@ -6501,7 +6501,7 @@ void unit_detach_weapon(int unit_handle, int weapon_handle)
   }
 
   /* Detach weapon from unit and parent */
-  item_attach_to_unit(weapon_handle, -1);
+  item_in_unit_inventory(weapon_handle, -1);
   object_detach_from_parent(weapon_handle);
 
   /* Zero the weapon's velocity fields at +0x18 and +0x3c */
@@ -6537,7 +6537,7 @@ void unit_detach_weapon(int unit_handle, int weapon_handle)
   *(int *)(weapon + 0x1b0) = unit_handle;
 
   /* Set weapon position and try to place it */
-  item_set_position(weapon_handle, direction, 0);
+  item_accelerate(weapon_handle, direction, 0);
   unit_set_seat_state(unit_handle, position);
 
   if (!object_try_place(weapon_handle, position)) {
@@ -8524,7 +8524,7 @@ int unit_inventory_get_weapon(int unit_handle, int16_t weapon_index)
  * Otherwise:
  *   - Clears bit 0 and bit 6 in unk_436
  *
- * Then iterates all 4 weapon slots and calls item_attach_to_unit for each
+ * Then iterates all 4 weapon slots and calls item_in_unit_inventory for each
  * valid weapon handle, and finally tail-calls unit_update_seat_occupancy.
  */
 void unit_set_actively_controlled(int unit_handle, char param_2)
@@ -8557,7 +8557,7 @@ void unit_set_actively_controlled(int unit_handle, char param_2)
   weapon_slots = (int *)(unit + 0x2a8);
   for (i = 4; i != 0; i--) {
     if (*weapon_slots != -1) {
-      item_attach_to_unit(*weapon_slots, unit_handle);
+      item_in_unit_inventory(*weapon_slots, unit_handle);
     }
     weapon_slots++;
   }
@@ -9137,7 +9137,7 @@ int16_t unit_next_weapon_index(int unit_handle, int16_t weapon_index,
  * 4. Skips if weapon is NONE, or if next index equals current and flag is
  * false.
  * 5. Checks the weapon object's flags byte (bit 0 must be clear).
- * 6. Calls weapon_try_place(weapon_handle, flag) to attempt the placement.
+ * 6. Calls weapon_put_away(weapon_handle, flag) to attempt the placement.
  * 7. On success: fires unit event 0xd, calls unit_detach_weapon, clears the
  * weapon slot, resets current/next weapon indices, and optionally deletes the
  *    weapon object if weapon_can_be_fired returns false.
@@ -9165,7 +9165,7 @@ bool unit_set_in_vehicle(int unit_handle, bool flag)
   if (*(uint32_t *)(weapon_obj + 4) & 1)
     return false;
 
-  if (!weapon_try_place(weapon_handle, flag))
+  if (!weapon_put_away(weapon_handle, flag))
     return false;
 
   first_person_weapon_message_from_unit(unit_handle, 0xd);
@@ -12077,7 +12077,7 @@ bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag)
 
   object_disconnect_from_map(seat_object_handle);
   object_set_garbage(seat_object_handle, 0);
-  item_attach_to_unit(seat_object_handle, unit_handle);
+  item_in_unit_inventory(seat_object_handle, unit_handle);
 
   unit->unk_680[(int16_t)seat_index].value = seat_object_handle;
   unit->unk_696[(int16_t)seat_index].value = 0;
@@ -12102,10 +12102,10 @@ bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag)
  *
  * Transitions the unit's active weapon based on its "next weapon" index
  * (unk_676, offset 0x2A4). If the unit currently holds a weapon (unk_674,
- * offset 0x2A2), attempts to place/stow it via weapon_try_place. On
+ * offset 0x2A2), attempts to place/stow it via weapon_put_away. On
  * success, detaches the current weapon from the parent, disconnects it
  * from the map, marks it as garbage, re-attaches it to the unit via
- * item_attach_to_unit, and clears unk_674.
+ * item_in_unit_inventory, and clears unk_674.
  *
  * When unk_674 becomes -1 (no active weapon), looks up the "next" weapon
  * (EBX). If a next weapon exists, resolves its label, looks up the
@@ -12121,13 +12121,13 @@ bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag)
  * Confirmed: PUSH 0x3 / PUSH ESI -> object_get_and_verify_type.
  * Confirmed: XOR ECX,ECX; MOV CX,[EAX+0x2a4] — unk_676.
  * Confirmed: XOR EDX,EDX; MOV DX,[EAX+0x2a2] — unk_674.
- * Confirmed: weapon_try_place at 0xfd360, object_detach_from_parent at
+ * Confirmed: weapon_put_away at 0xfd360, object_detach_from_parent at
  * 0x1411c0. Confirmed: object_disconnect_from_map at 0x13fd00, FUN_0x13fb30 at
- * 0x13fb30. Confirmed: object_set_garbage at 0x13ffc0, item_attach_to_unit at
+ * 0x13fb30. Confirmed: object_set_garbage at 0x13ffc0, item_in_unit_inventory at
  * 0xf69c0. Confirmed: weapon_get_label at 0xfae80, unit_get_seat_label at
  * 0x1ae290. Confirmed: unit_try_animation_state at 0x1acd70. Confirmed:
  * object_connect_to_map at 0x140ce0, object_attach_to_marker at 0x144860.
- * Confirmed: weapon_activate at 0xfd2e0, unit_reset_weapon_state at 0x1b1290.
+ * Confirmed: weapon_ready at 0xfd2e0, unit_reset_weapon_state at 0x1b1290.
  * Confirmed: game_time_get at 0xb5aa0.
  * Confirmed: "unarmed" string at 0x2b6e68.
  */
@@ -12162,12 +12162,12 @@ void unit_update_weapon_readiness(int unit_handle, int flag)
 
   /* Try to place/stow the current weapon */
   if (cur_weapon_handle != -1) {
-    if (weapon_try_place(cur_weapon_handle, flag)) {
+    if (weapon_put_away(cur_weapon_handle, flag)) {
       object_detach_from_parent(cur_weapon_handle);
       object_disconnect_from_map(cur_weapon_handle);
       object_activate(cur_weapon_handle);
       object_set_garbage(cur_weapon_handle, 0);
-      item_attach_to_unit(cur_weapon_handle, unit_handle);
+      item_in_unit_inventory(cur_weapon_handle, unit_handle);
       *(uint16_t *)(unit + 0x2a2) = (uint16_t)-1;
     }
   }
@@ -12202,7 +12202,7 @@ void unit_update_weapon_readiness(int unit_handle, int flag)
         }
       }
 
-      weapon_activate(next_weapon_handle);
+      weapon_ready(next_weapon_handle);
       unit_reset_weapon_state(unit_handle);
       return;
     }
@@ -13548,9 +13548,9 @@ char unit_try_and_exit_seat(int unit_handle)
     unit_open(vehicle_handle);
   }
 
-  /* Start exit animation: look up via FUN_000fad00, then set */
+  /* Start exit animation: look up via animation_choose_random_permutation, then set */
   anim_graph_tag_index = *(int *)(unit_tag + 0x44);
-  animation_index = FUN_000fad00(anim_graph_tag_index, exit_anim);
+  animation_index = animation_choose_random_permutation(anim_graph_tag_index, exit_anim);
   unit_set_animation(unit_handle, anim_graph_tag_index, animation_index);
 
   /* Mark unit as garbage and set exit animation state */
