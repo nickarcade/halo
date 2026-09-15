@@ -1877,8 +1877,8 @@ bool item_update(int item_handle)
           scale = 1.0f;
 
         if (*(int *)(item_tag + 0x254) != NONE &&
-            FUN_0009f3b0(marker_buf + 0x34)) {
-          FUN_0009f430(*(int *)(item_tag + 0x254), 8,
+            material_effect_visible(marker_buf + 0x34)) {
+          material_effect_new(*(int *)(item_tag + 0x254), 8,
                        *(int16_t *)(marker_buf + 0x50), marker_buf + 0x34,
                        marker_buf + 0x40, marker_buf + 0x28, scale);
         }
