@@ -12,7 +12,7 @@
  * Copies ai_globals[6..7] (int16_t) into ai_globals[4..5], then clears
  * both ai_globals[6..7] and the byte flag at ai_globals[3].
  * Iterates all active player-actors (flag=1) via
- * encounter_iterator_next/actor_iterator_next. For each actor record:
+ * actor_iterator_new/actor_iterator_next. For each actor record:
  *   - if record+0xb is nonzero: calls actor_erase(actor_handle, 0)
  *     to delete/dispose the actor entry.
  *   - if record+0xb is zero and record+0x6a > 0: calls actor_update(@esi)
@@ -37,7 +37,7 @@ void actors_update(void)
   *(char *)(g + 3) = 0;
 
   /* iterate over all active player-actors */
-  encounter_iterator_next(iter, 1);
+  actor_iterator_new(iter, 1);
   record = (char *)actor_iterator_next(iter);
   while (record != 0) {
     if (*(char *)(record + 0xb) != 0) {
@@ -70,8 +70,8 @@ void ai_initialize(void)
   }
   csmemset(*(void **)0x632574, 0, 0x8dc);
   ai_debug_initialize();
-  set_real_point3d();
-  FUN_0005df80();
+  ai_profile_initialize();
+  paths_initialize();
   actors_initialize();
   props_initialize();
   encounters_initialize();
@@ -88,10 +88,10 @@ void ai_dispose(void)
   ai_communication_dispose();
   ai_script_dispose();
   encounters_dispose();
-  FUN_00064140();
+  props_dispose();
   actors_dispose();
-  FUN_0005df90();
-  ai_debug_lineoffire_success();
+  paths_dispose();
+  ai_profile_dispose();
   ai_debug_dispose();
 }
 
@@ -104,11 +104,11 @@ void ai_dispose_from_old_map(void)
 {
   ai_communication_dispose_from_old_map();
   ai_script_dispose_from_old_map();
-  encounter_compute_activation_cluster_bit_vector();
-  FUN_00064160();
+  encounters_dispose_from_old_map();
+  props_dispose_from_old_map();
   actors_dispose_from_old_map();
-  FUN_0005dfb0();
-  ai_debug_lineofsight_reset();
+  paths_dispose_from_old_map();
+  ai_profile_dispose_from_old_map();
   ai_debug_dispose_from_old_map();
   /* clear the AI active flag (offset 1 in the AI globals block) */
   *(char *)(*(int *)0x632574 + 1) = 0;
@@ -255,7 +255,7 @@ bool ai_adjust_damage(int actor_handle, void *damage_params, float *scale)
 /* ai_erase: erase AI actors matching an encounter/squad/squad-group filter.
  * Guards on AI globals active flag (*(char*)(ai_globals+1) != 0).
  * If param_1 == -1 (all encounters): iterates all actors via
- *   encounter_iterator_next (flag=0) + actor_iterator_next; erases each via
+ *   actor_iterator_new (flag=0) + actor_iterator_next; erases each via
  *   actor_erase(iter+0x14 handle, param_4).
  * Else: initialises a per-encounter actor iterator via
  *   encounter_actor_iterator_new(&iter, param_1) +
@@ -270,7 +270,7 @@ bool ai_adjust_damage(int actor_handle, void *damage_params, float *scale)
  * single-branch) [EBP-0x08]:           actor_iter[1] (actor handle, 4 bytes
  * into actor_iter)
  *
- * Confirmed: PUSH 0x0 at 0x3f992 → encounter_iterator_next flag=0.
+ * Confirmed: PUSH 0x0 at 0x3f992 → actor_iterator_new flag=0.
  * Confirmed: MOVSX+CMP for short fields at actor+0x3c (param_2) and
  *            actor+0x3a (param_3).
  * Confirmed: actor_erase args: PUSH param_4, PUSH actor_handle (cdecl). */
@@ -287,7 +287,7 @@ void ai_erase(int param_1, int param_2, int param_3, int param_4)
 
   if (param_1 == -1) {
     /* iterate all actors across all encounters */
-    encounter_iterator_next(enc_iter, 0);
+    actor_iterator_new(enc_iter, 0);
     has_more = actor_iterator_next(enc_iter);
     while (has_more != 0) {
       actor_erase(*(int *)(enc_iter + 0x14), (char)param_4);
@@ -310,7 +310,7 @@ void ai_erase(int param_1, int param_2, int param_3, int param_4)
 /* ai_release_inactive_swarms: count and erase swarm units, format a result
  * description.
  *
- * Iterates all AI actors via encounter_iterator_next (flag=0) +
+ * Iterates all AI actors via actor_iterator_new (flag=0) +
  * actor_iterator_next. For each actor record where: record[6] != 0  (actor is
  * active/alive) record[8] == 0  (not in some suppressed state)
  *   *(int*)(record+0xc) != -1  (has a valid reference)
@@ -327,7 +327,7 @@ void ai_erase(int param_1, int param_2, int param_3, int param_4)
  * for swarm_count/SI)
  *
  * Confirmed: assert string "result_description && more_to_release", line
- * 0x1f7=503. Confirmed: encounter_iterator_next flag=0 (PUSH 0x0 at 0x3fa81).
+ * 0x1f7=503. Confirmed: actor_iterator_new flag=0 (PUSH 0x0 at 0x3fa81).
  * Confirmed: MOV EDX,[EBP-0xc]; PUSH EDX as actor_erase first arg (handle at
  * iter+0x14). Confirmed: ADD SI,word[EAX+0x1e] accumulates short field at
  * record+0x1e. Confirmed: MOVSX ECX,SI; PUSH ECX; PUSH fmt; PUSH EDI →
@@ -348,7 +348,7 @@ int ai_release_inactive_swarms(int result_description, char *more_to_release)
     system_exit(-1);
   }
 
-  encounter_iterator_next(iter, 0);
+  actor_iterator_new(iter, 0);
   record = actor_iterator_next(iter);
   while (record != 0) {
     if ((*(char *)(record + 6) != '\0') && (*(char *)(record + 8) == '\0') &&
@@ -424,7 +424,7 @@ int sub_3FB00(unsigned char *param_1, unsigned char *param_2)
  *   0x3fbf4  PUSH 0 / PUSH ECX(LEA [EBP-0x18])
  *            -> encounter_iterator_new((int)encounter_iter, 0)         [match]
  *   0x3fbfd / 0x3fc59  PUSH LEA [EBP-0x18] ->
- * FUN_000599c0((int)encounter_iter). ADD ESP,0xc at 0x3fc02 again folds the
+ * encounter_iterator_next((int)encounter_iter). ADD ESP,0xc at 0x3fc02 again folds the
  * preceding new(2)+next(1). 0x3fc7c  PUSH 0x3fb00 / PUSH 0xc / PUSH MOVSX
  * EDX,AX(count) / PUSH ESI+4 -> qsort(records, count, 12, sub_3FB00) [match]
  *
@@ -464,7 +464,7 @@ void ai_find_inactive_encounters(void *working_memory,
   }
 
   encounter_iterator_new((int)encounter_iter, 0);
-  encounter = FUN_000599c0((int)encounter_iter);
+  encounter = encounter_iterator_next((int)encounter_iter);
   while ((encounter != (void *)0x0) && (storage[0] < 0x100)) {
     if ((*((char *)encounter + 0xd) == '\0') &&
         (*(short *)((char *)encounter + 0x2a) > 0) &&
@@ -475,7 +475,7 @@ void ai_find_inactive_encounters(void *working_memory,
         *(int *)((char *)encounter + 0x10);
       storage[0] = (short)(storage[0] + 1);
     }
-    encounter = FUN_000599c0((int)encounter_iter);
+    encounter = encounter_iterator_next((int)encounter_iter);
   }
 
   if (storage[0] > 0) {
@@ -782,9 +782,9 @@ char ai_handle_killing_spree(int unit_handle, short killing_spree_count)
 /* game_allegiance_apply_change: apply an allegiance change between two
  * teams, updating all matching actor records in the AI actor iterator.
  * Iterates over all active player-actors via
- * encounter_iterator_next/actor_iterator_next; for each actor whose team
+ * actor_iterator_new/actor_iterator_next; for each actor whose team
  * matches team_a or team_b, walks the actor's clump items via
- * FUN_00064540/FUN_00064570 and applies the friendship and force flags.
+ * prop_iterator_new/prop_iterator_next and applies the friendship and force flags.
  * Confirmed: 4 args via PUSH count
  * + ADD ESP,0x18 cleanup at 0x40068. Operand sizes confirmed: team_a/team_b as
  * int16_t (MOVSX + CMP AX,DI); friendship/force as char (MOV byte ptr).
@@ -798,7 +798,7 @@ char ai_handle_killing_spree(int unit_handle, short killing_spree_count)
 void game_allegiance_apply_change(int16_t team_a, int16_t team_b,
                                   char friendship, char force)
 {
-  char iter[0x1c]; /* extended AI actor iterator; see encounter_iterator_next */
+  char iter[0x1c]; /* extended AI actor iterator; see actor_iterator_new */
   int clump_iter[2]; /* clump-item walk: [0]=current handle, [1]=next */
   int16_t matched_team;
   int actor;
@@ -814,7 +814,7 @@ void game_allegiance_apply_change(int16_t team_a, int16_t team_b,
   }
 
   /* initialise iterator over all active player-actors (flag=1) */
-  encounter_iterator_next(iter, 1);
+  actor_iterator_new(iter, 1);
   actor = actor_iterator_next(iter);
   while (actor != 0) {
     /* check if this actor belongs to team_a or team_b */
@@ -831,8 +831,8 @@ void game_allegiance_apply_change(int16_t team_a, int16_t team_b,
     }
 
     /* walk this actor's clump items, using actor handle from iter.field_0x14 */
-    FUN_00064540(clump_iter, *(int *)(iter + 0x14));
-    clump_item = FUN_00064570(clump_iter);
+    prop_iterator_new(clump_iter, *(int *)(iter + 0x14));
+    clump_item = prop_iterator_next(clump_iter);
     while (clump_item != 0) {
       if (*(int16_t *)(clump_item + 0x12) == matched_team) {
         if (!force) {
@@ -842,13 +842,13 @@ void game_allegiance_apply_change(int16_t team_a, int16_t team_b,
         }
         if (!friendship || force) {
           *(char *)(clump_item + 0x60) = friendship;
-          *(char *)(clump_item + 0xa4) = actor_get_perception_knowledge(
+          *(char *)(clump_item + 0xa4) = actor_compute_prop_unopposable(
             *(int *)(iter + 0x14), clump_iter[0]);
           *(float *)(clump_item + 0x50) = actor_compute_prop_target_weight(
             *(int *)(iter + 0x14), clump_iter[0]);
         }
       }
-      clump_item = FUN_00064570(clump_iter);
+      clump_item = prop_iterator_next(clump_iter);
     }
 
   next_actor:
@@ -885,7 +885,7 @@ void game_allegiance_apply_change(int16_t team_a, int16_t team_b,
  * *other* team, and -1 skips the actor.
  *
  * Inner stores (0x40206): +0x61 = 1, +0x62 = 0 (BL, the zero register),
- * +0x60 = broken, +0xa4 = actor_get_perception_knowledge (byte from AL),
+ * +0x60 = broken, +0xa4 = actor_compute_prop_unopposable (byte from AL),
  * +0x50 = actor_compute_prop_target_weight (FSTP float).  Both calls take
  * (actor handle from iter+0x14, clump_iter[0]) — PUSH ECX([EBP-0x8]) then
  * PUSH EDX([EBP-0x10]), so the handle is the first argument.
@@ -895,7 +895,7 @@ void game_allegiance_apply_change(int16_t team_a, int16_t team_b,
 void ai_handle_allegiance_broken_notification(int16_t team_a, int16_t team_b,
                                               char broken)
 {
-  char iter[0x1c]; /* extended AI actor iterator; see encounter_iterator_next */
+  char iter[0x1c]; /* extended AI actor iterator; see actor_iterator_new */
   int clump_iter[2]; /* clump-item walk: [0]=current handle, [1]=next */
   int16_t matched_team;
   int actor;
@@ -910,7 +910,7 @@ void ai_handle_allegiance_broken_notification(int16_t team_a, int16_t team_b,
   }
 
   /* initialise iterator over all active player-actors (flag=1) */
-  encounter_iterator_next(iter, 1);
+  actor_iterator_new(iter, 1);
   actor = actor_iterator_next(iter);
   while (actor != 0) {
     /* matched_team is the opposite team of the one this actor belongs to */
@@ -927,19 +927,19 @@ void ai_handle_allegiance_broken_notification(int16_t team_a, int16_t team_b,
     }
 
     /* walk this actor's clump items, using actor handle from iter.field_0x14 */
-    FUN_00064540(clump_iter, *(int *)(iter + 0x14));
-    clump_item = FUN_00064570(clump_iter);
+    prop_iterator_new(clump_iter, *(int *)(iter + 0x14));
+    clump_item = prop_iterator_next(clump_iter);
     while (clump_item != 0) {
       if (*(int16_t *)(clump_item + 0x12) == matched_team) {
         *(char *)(clump_item + 0x61) = 1;
         *(char *)(clump_item + 0x62) = 0;
         *(char *)(clump_item + 0x60) = broken;
         *(char *)(clump_item + 0xa4) =
-          actor_get_perception_knowledge(*(int *)(iter + 0x14), clump_iter[0]);
+          actor_compute_prop_unopposable(*(int *)(iter + 0x14), clump_iter[0]);
         *(float *)(clump_item + 0x50) = actor_compute_prop_target_weight(
           *(int *)(iter + 0x14), clump_iter[0]);
       }
-      clump_item = FUN_00064570(clump_iter);
+      clump_item = prop_iterator_next(clump_iter);
     }
 
   next_actor:
@@ -962,11 +962,11 @@ void ai_update_team_status(void)
   int unit;
   short team;
 
-  encounter_iterator_next(iter, 1);
+  actor_iterator_new(iter, 1);
   actor = actor_iterator_next(iter);
   while (actor != 0) {
-    FUN_00064540(clump_iter, *(int *)(iter + 0x14));
-    clump_item = FUN_00064570(clump_iter);
+    prop_iterator_new(clump_iter, *(int *)(iter + 0x14));
+    clump_item = prop_iterator_next(clump_iter);
     while (clump_item != 0) {
       unit = (int)object_get_and_verify_type(*(int *)(clump_item + 0x18), 3);
       team = *(short *)(unit + 0x68);
@@ -976,10 +976,10 @@ void ai_update_team_status(void)
       *(char *)(clump_item + 0x61) = game_team_is_ally(
         ((actor_t *)actor)->field_03e, *(short *)(clump_item + 0x12));
       *(char *)(clump_item + 0xa4) =
-        actor_get_perception_knowledge(*(int *)(iter + 0x14), clump_iter[0]);
+        actor_compute_prop_unopposable(*(int *)(iter + 0x14), clump_iter[0]);
       *(float *)(clump_item + 0x50) =
         actor_compute_prop_target_weight(*(int *)(iter + 0x14), clump_iter[0]);
-      clump_item = FUN_00064570(clump_iter);
+      clump_item = prop_iterator_next(clump_iter);
     }
     actor = actor_iterator_next(iter);
   }
@@ -999,7 +999,7 @@ void ai_update_team_status(void)
  * -1.
  *   - word at (resolved_unit + 0x64) != 0.
  *
- * When all conditions pass, calls FUN_00064b40 to look up the slot index,
+ * When all conditions pass, calls prop_get_base_by_unit_index to look up the slot index,
  * then actor_handle_unit_effect(encounter_handle, slot_index, 0) on both
  * directions (param_1's encounter vs param_2, and param_2's encounter vs
  * param_1).
@@ -1046,7 +1046,7 @@ void ai_handle_bump(int param_1, int param_2, float *velocity_ptr)
   obj1 = object_get_and_verify_type(param_1, 3);
   enc = *(int *)((char *)obj1 + 0x1a4);
   if (enc != -1) {
-    slot = FUN_00064b40(enc, param_2, 1, 0);
+    slot = prop_get_base_by_unit_index(enc, param_2, 1, 0);
     if (slot != -1) {
       actor_handle_unit_effect(*(int *)((char *)obj1 + 0x1a4), slot, 0);
     }
@@ -1055,7 +1055,7 @@ void ai_handle_bump(int param_1, int param_2, float *velocity_ptr)
   /* remove param_2's encounter entry for param_1 */
   enc = *(int *)((char *)obj2 + 0x1a4);
   if (enc != -1) {
-    slot = FUN_00064b40(enc, param_1, 1, 0);
+    slot = prop_get_base_by_unit_index(enc, param_1, 1, 0);
     if (slot != -1) {
       actor_handle_unit_effect(*(int *)((char *)obj2 + 0x1a4), slot, 0);
     }
@@ -1496,10 +1496,10 @@ void ai_initialize_for_new_map(void)
   csmemset((char *)g + 0x24, -1, 8);
 
   ai_debug_initialize_for_new_map();
-  FUN_00053650();
-  FUN_0005dfa0();
+  ai_profile_initialize_for_new_map();
+  paths_initialize_for_new_map();
   actors_initialize_for_new_map();
-  FUN_00064150();
+  props_initialize_for_new_map();
   encounters_initialize_for_new_map();
   ai_script_initialize_for_new_map();
   ai_communication_initialize_for_new_map();
@@ -1552,7 +1552,7 @@ void ai_update(void)
 
   if (should_update) {
     ai_debug_update();
-    FUN_00053680();
+    ai_profile_update();
     ai_place_pending_mounted_weapons();
     if (schedule_flag) {
       /* scripted/scheduled actor branch */
@@ -1562,7 +1562,7 @@ void ai_update(void)
       if (*(char *)*(int *)0x632574) {
         /* first-frame / map-load branch */
         ai_conversation_update();
-        FUN_0005de80();
+        encounters_update();
         actors_update();
         *(char *)(*(int *)0x632574 + 2) = 1;
       } else {
@@ -1652,7 +1652,7 @@ void ai_generate_line_of_fire_pill(ai_firing_pos_entry_t *entry, int unit_handle
  * member_object_handle) to get a staging handle, then ai_generate_line_of_fire_pill(@esi=entry,
  * @edi=object_handle, actor_handle_from_64ab0) to fill the slot.
  *
- *   2. A secondary prop/enemy list (via FUN_00064540/FUN_00064570).
+ *   2. A secondary prop/enemy list (via prop_iterator_new/prop_iterator_next).
  *      For each entry:
  *        - skip if entry+0x60 is nonzero (flag)
  *        - skip if entry+0x127 is nonzero (flag)
@@ -1724,8 +1724,8 @@ int16_t ai_find_line_of_fire_friend_pills(int actor_handle, int16_t max_count,
   }
 
   /* --- loop 2: prop / enemy list --- */
-  FUN_00064540(local_10, actor_handle);
-  prop = (char *)FUN_00064570(local_10);
+  prop_iterator_new(local_10, actor_handle);
+  prop = (char *)prop_iterator_next(local_10);
   while (prop) {
     if (*(char *)(prop + 0x60) == 0 && *(char *)(prop + 0x127) == 0 &&
         *(int16_t *)(prop + 0x24) == 3 && *(int *)(prop + 0x110) == -1) {
@@ -1746,7 +1746,7 @@ int16_t ai_find_line_of_fire_friend_pills(int actor_handle, int16_t max_count,
         }
       }
     }
-    prop = (char *)FUN_00064570(local_10);
+    prop = (char *)prop_iterator_next(local_10);
   }
 
   return count;
@@ -1830,12 +1830,12 @@ bool ai_test_line_of_fire(int actor_handle, int excluded_handle, float *origin,
 
   /* ai_debug lineoffire rendering */
   if (*(char *)0x5aca69) {
-    ai_debug_get_last_path(origin, offset);
+    ai_debug_lineoffire_new(origin, offset);
     for (i = 0; i < count; i++) {
       ai_firing_pos_entry_t *e = &buf[i];
       ai_debug_lineoffire_addpill(e->vec_a, e->vec_b, e->radius, e->occupied);
     }
-    FUN_000494d0((char)success);
+    ai_debug_lineoffire_success((char)success);
   }
 
   if (result_out) {

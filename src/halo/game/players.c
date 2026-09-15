@@ -10411,12 +10411,12 @@ void FUN_000bfeb0(int16_t function_index, int thread_datum, char init)
  *   FUN_000bfe70 / FUN_000bfeb0 twins. Hence `int *record` and `*record`.
  *
  *   PUSH EDX / CALL 0x575d0 -- one argument, that dword, i.e.
- *   FUN_000575d0(<encounter handle>) (encounters.c: free/detach all actors from
+ *   ai_scripting_free(<encounter handle>) (encounters.c: free/detach all actors from
  *   an encounter). Its kb decl parameter type is already `int`, so no cast.
  *
  *   PUSH 0x0 / PUSH ESI / CALL 0xcbf80 -- cdecl reverse order gives
  *   hs_return(thread_datum, 0). The script return value is the LITERAL 0 from
- *   PUSH 0x0, not the worker's result: FUN_000575d0 is void and its EAX is
+ *   PUSH 0x0, not the worker's result: ai_scripting_free is void and its EAX is
  *   never read, so lift-silent-bugs check 4 (void-EAX implicit return,
  *   lift-learnings 16) does not apply.
  *
@@ -10435,7 +10435,7 @@ void FUN_000bfeb0(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all three cdecl, all in kb.json, all ported):
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record pointer
- *   0x575d0 = FUN_000575d0(int encounter)
+ *   0x575d0 = ai_scripting_free(int encounter)
  *   0xcbf80 = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -10447,7 +10447,7 @@ void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_000575d0(*record);
+    ai_scripting_free(*record);
     hs_return(thread_datum, 0);
   }
 }
@@ -10491,12 +10491,12 @@ void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
  *   FUN_000bfe70 / FUN_000bfeb0 twins. Hence `int *record` and `*record`.
  *
  *   PUSH EDX / CALL 0x576a0 -- one argument, that dword, i.e.
- *   FUN_000576a0(<handle>). Its kb decl parameter type is already `int`, so no
+ *   ai_scripting_free_units(<handle>). Its kb decl parameter type is already `int`, so no
  *   cast is applied.
  *
  *   PUSH 0x0 / PUSH ESI / CALL 0xcbf80 -- cdecl reverse order gives
  *   hs_return(thread_datum, 0). The script return value is the LITERAL 0 from
- *   PUSH 0x0, not the worker's result: FUN_000576a0 is void and its EAX is
+ *   PUSH 0x0, not the worker's result: ai_scripting_free_units is void and its EAX is
  *   never read, so lift-silent-bugs check 4 (void-EAX implicit return,
  *   lift-learnings 16) does not apply.
  *
@@ -10515,7 +10515,7 @@ void FUN_000bfef0(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all three cdecl, all in kb.json, all ported):
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record pointer
- *   0x576a0 = FUN_000576a0(int param_1)
+ *   0x576a0 = ai_scripting_free_units(int param_1)
  *   0xcbf80 = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -10527,7 +10527,7 @@ void FUN_000bff30(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_000576a0(*record);
+    ai_scripting_free_units(*record);
     hs_return(thread_datum, 0);
   }
 }
@@ -10577,19 +10577,19 @@ void FUN_000bff30(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0xcbf80 (0xbff9b) pushes 0x0 then ESI -> hs_return(thread_datum, 0).
  *   The script return value is the CONSTANT 0, not the record and not the
- *   worker's result (FUN_00054860 is void); the entire observable effect is the
+ *   worker's result (ai_scripting_attach_unit is void); the entire observable effect is the
  *   0x54860 side effect. ONE combined ADD ESP,0x10 at 0xbffa0 cleans the 4
  *   pushes of both 2-arg calls -- the ARG_COUNT hazard on hs_return
  *   ("cleanup=4 vs decl=2") is that same FALSE POSITIVE documented on the
  *   twins; hs_return really takes 2 args, do NOT "fix" its decl.
  *
  * Reloc audit of delinked/functions/000bff70.obj: exactly 3 DISP32 targets in
- * this function's range -- FUN_000cc560, FUN_00054860, FUN_000cbf80 --
+ * this function's range -- FUN_000cc560, ai_scripting_attach_unit, FUN_000cbf80 --
  * matching the three calls below with no extra global or string reference.
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54860  = FUN_00054860(int unit_handle, unsigned int ai_ref)
+ *   0x54860  = ai_scripting_attach_unit(int unit_handle, unsigned int ai_ref)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -10601,7 +10601,7 @@ void FUN_000bff70(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00054860(record[0], (unsigned int)record[1]);
+    ai_scripting_attach_unit(record[0], (unsigned int)record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -10650,7 +10650,7 @@ void FUN_000bff70(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0xcbf80 (0xbffdb) pushes 0x0 then ESI -> hs_return(thread_datum, 0).
  *   The script return value is the CONSTANT 0, not the record and not the
- *   worker's result (FUN_00054a80 is void); the entire observable effect is the
+ *   worker's result (ai_scripting_attach_units is void); the entire observable effect is the
  *   0x54a80 side effect. ONE combined ADD ESP,0x10 at 0xbffe0 cleans the 4
  *   pushes of both 2-arg calls -- the artifact's ARG_COUNT hazard on hs_return
  *   ("cleanup=4 vs decl=2") is that same FALSE POSITIVE documented on the
@@ -10658,7 +10658,7 @@ void FUN_000bff70(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, all ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54a80  = FUN_00054a80(int parent_handle, unsigned int ai_ref)
+ *   0x54a80  = ai_scripting_attach_units(int parent_handle, unsigned int ai_ref)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -10670,7 +10670,7 @@ void FUN_000bffb0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00054a80(record[0], (unsigned int)record[1]);
+    ai_scripting_attach_units(record[0], (unsigned int)record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -10681,8 +10681,8 @@ void FUN_000bffb0(int16_t function_index, int thread_datum, char init)
  * FUN_000bf920 above: identical 3-parameter cdecl shape and the same
  * evaluate / NULL-check / two-argument worker / hs_return skeleton. The only
  * difference from FUN_000bff70 is the worker it dispatches to -- here the
- * encounters-side ai_attach_free helper FUN_00057770 rather than
- * FUN_00054860.
+ * encounters-side ai_attach_free helper ai_scripting_attach_free rather than
+ * ai_scripting_attach_unit.
  *
  * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
  * Body spans 0xbfff0-0xc0025. No locals, no _chkstk, no SUB ESP, no FPU, no
@@ -10720,26 +10720,26 @@ void FUN_000bffb0(int16_t function_index, int thread_datum, char init)
  *
  *   CALL 0x57770 (0xc0013) pushes EDX (record+4) then EAX (record+0) = cdecl
  *   reverse -> C order (record[0], record[1]). Two distinct reloads, NOT a
- *   duplicated argument. FUN_00057770 is ai_attach_free(unit_handle,
+ *   duplicated argument. ai_scripting_attach_free is ai_attach_free(unit_handle,
  *   actv_tag_index): param 1 is `unsigned int` per its kb decl, matching the
  *   untruncated dword load, so record[0] is cast rather than narrowed.
  *
  *   CALL 0xcbf80 (0xc001b) pushes 0x0 then ESI -> hs_return(thread_datum, 0).
  *   The script return value is the literal CONSTANT 0, not a record field and
- *   not the worker's result (FUN_00057770 is void); the entire observable
+ *   not the worker's result (ai_scripting_attach_free is void); the entire observable
  *   effect is the 0x57770 side effect. ONE combined ADD ESP,0x10 at 0xc0020
  *   cleans the 4 pushes of both 2-arg calls -- the ARG_COUNT hazard on
  *   hs_return ("cleanup=4 vs decl=2") is that same FALSE POSITIVE documented
  *   on the twins; hs_return really takes 2 args, do NOT "fix" its decl.
  *
  * Reloc audit of delinked/functions/000bfff0.obj: exactly 3 DISP32 targets in
- * this function's range -- FUN_000cc560 (+0x11), FUN_00057770 (+0x24),
+ * this function's range -- FUN_000cc560 (+0x11), ai_scripting_attach_free (+0x24),
  * FUN_000cbf80 (+0x2c) -- matching the three calls below with no extra global
  * or string reference.
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x57770  = FUN_00057770(unsigned int unit_handle, int actv_tag_index)
+ *   0x57770  = ai_scripting_attach_free(unsigned int unit_handle, int actv_tag_index)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -10751,7 +10751,7 @@ void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00057770((unsigned int)record[0], record[1]);
+    ai_scripting_attach_free((unsigned int)record[0], record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -10761,7 +10761,7 @@ void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
  * HaloScript builtin dispatcher, structural twin of FUN_000bfff0 /
  * FUN_000bff70 / FUN_000bf920 above: identical 3-parameter cdecl shape and
  * the same evaluate / NULL-check / worker / hs_return skeleton. It differs
- * from the twins only in the worker it dispatches to (FUN_00054ac0) and in
+ * from the twins only in the worker it dispatches to (ai_scripting_detach_unit) and in
  * the worker's arity -- ONE argument here, not two.
  *
  * cdecl frame: PUSH EBP; MOV EBP,ESP; PUSH ESI; ... POP ESI; POP EBP; RET.
@@ -10802,12 +10802,12 @@ void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
  *   reverse). Only +0x0 is touched, one deref, no buffer-alias risk.
  *
  *   CALL 0x54ac0 (0xc0054) is preceded by a single PUSH EDX = ONE argument,
- *   record[0], matching FUN_00054ac0(int unit_handle).
+ *   record[0], matching ai_scripting_detach_unit(int unit_handle).
  *
  *   CALL 0xcbf80 (0xc005a) is preceded by PUSH 0x0 then PUSH ESI = cdecl
  *   reverse -> hs_return(thread_datum, 0). The script return value is the
  *   literal CONSTANT 0, not a record field and not the worker's result
- *   (FUN_00054ac0 is void); the entire observable effect is the 0x54ac0 side
+ *   (ai_scripting_detach_unit is void); the entire observable effect is the 0x54ac0 side
  *   effect. ONE combined ADD ESP,0xc at 0xc005f cleans the 1 push of the
  *   0x54ac0 call plus the 2 pushes of the hs_return call -- the ARG_COUNT
  *   hazard on hs_return ("cleanup=3 vs decl=2") is the same FALSE POSITIVE
@@ -10815,13 +10815,13 @@ void FUN_000bfff0(int16_t function_index, int thread_datum, char init)
  *   decl.
  *
  * Reloc audit of delinked/functions/000c0030.obj: exactly 3 DISP32 targets in
- * this function's range -- FUN_000cc560 (+0x11), FUN_00054ac0 (+0x20),
+ * this function's range -- FUN_000cc560 (+0x11), ai_scripting_detach_unit (+0x20),
  * FUN_000cbf80 (+0x28) -- matching the three calls below with no extra global
  * or string reference.
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54ac0  = FUN_00054ac0(int unit_handle)
+ *   0x54ac0  = ai_scripting_detach_unit(int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -10833,7 +10833,7 @@ void FUN_000c0030(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00054ac0(record[0]);
+    ai_scripting_detach_unit(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -10882,12 +10882,12 @@ void FUN_000c0030(int16_t function_index, int thread_datum, char init)
  *   one deref, no buffer-alias risk.
  *
  *   CALL 0x54b20 (0xc008f) is preceded by a single PUSH EDX = ONE argument,
- *   record[0], matching FUN_00054b20(int parent_handle).
+ *   record[0], matching ai_scripting_detach_units(int parent_handle).
  *
  *   CALL 0xcbf80 (0xc0097) is preceded by PUSH 0x0 then PUSH ESI = cdecl
  *   reverse -> hs_return(thread_datum, 0). The script return value is the
  *   literal CONSTANT 0, not a record field and not the worker's result
- *   (FUN_00054b20 is void). ONE combined ADD ESP,0xc at 0xc009c cleans the
+ *   (ai_scripting_detach_units is void). ONE combined ADD ESP,0xc at 0xc009c cleans the
  *   1 push of the 0x54b20 call plus the 2 pushes of the hs_return call --
  *   the ARG_COUNT hazard on hs_return ("cleanup=3 vs decl=2") is the same
  *   FALSE POSITIVE documented on the twins; hs_return really takes 2 args,
@@ -10895,7 +10895,7 @@ void FUN_000c0030(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54b20  = FUN_00054b20(int parent_handle)
+ *   0x54b20  = ai_scripting_detach_units(int parent_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -10907,7 +10907,7 @@ void FUN_000c0070(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00054b20(record[0]);
+    ai_scripting_detach_units(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -10945,7 +10945,7 @@ void FUN_000c0070(int16_t function_index, int thread_datum, char init)
  *   0xc00cc MOV EDX,dword ptr [EAX] is a FULL 32-bit load from record+0 --
  *   NOT the MOVSX word seen at +0 in the hs_teleport_players_not_in_trigger_volume_evaluate-family handlers -- so
  *   the handle is kept 32-bit wide and passed unnarrowed to 0x54bb0, whose
- *   kb decl is `void FUN_00054bb0(unsigned int ai_ref)`.
+ *   kb decl is `void ai_scripting_place(unsigned int ai_ref)`.
  *   0xc00ce PUSH EDX; CALL 0x54bb0. 0xc00d4 PUSH 0 / PUSH ESI;
  *   CALL 0xcbf80 (hs_return). The single 0xc00dc ADD ESP,0xc is the SHARED
  *   cleanup for all three pushes across those two calls (1 + 2 = 3 dwords);
@@ -10961,7 +10961,7 @@ void FUN_000c00b0(int16_t function_index, int thread_datum, char init)
   record = (unsigned int *)hs_macro_function_evaluate(function_index,
                                                       thread_datum, init);
   if (record != NULL) {
-    FUN_00054bb0(record[0]);
+    ai_scripting_place(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11012,7 +11012,7 @@ void FUN_000c00b0(int16_t function_index, int thread_datum, char init)
  *   touched, one deref, no buffer-alias risk.
  *
  *   CALL 0x54ca0 (0xc010f) is preceded by a single PUSH EDX = ONE argument,
- *   record[0], matching FUN_00054ca0(unsigned int ai_ref) -- note the
+ *   record[0], matching ai_scripting_kill(unsigned int ai_ref) -- note the
  *   unsigned param here (Ghidra also typed the record as uint*), unlike the
  *   int worker in the 0xc0030 twin.
  *
@@ -11036,7 +11036,7 @@ void FUN_000c00f0(int16_t function_index, int thread_datum, char init)
   record = (unsigned int *)hs_macro_function_evaluate(function_index,
                                                       thread_datum, init);
   if (record != NULL) {
-    FUN_00054ca0(record[0]);
+    ai_scripting_kill(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11088,7 +11088,7 @@ void FUN_000c00f0(int16_t function_index, int thread_datum, char init)
  *   touched, one deref, no buffer-alias risk.
  *
  *   CALL 0x54d00 (0xc014f) is preceded by a single PUSH EDX = ONE argument,
- *   record[0], matching FUN_00054d00(unsigned int ai_ref) -- the unsigned
+ *   record[0], matching ai_scripting_kill_silent(unsigned int ai_ref) -- the unsigned
  *   param is why the record pointer is typed unsigned int * here, as in the
  *   0xc00f0 twin rather than the int * of the 0xc0030 twin.
  *
@@ -11105,13 +11105,13 @@ void FUN_000c00f0(int16_t function_index, int thread_datum, char init)
  *
  * Reloc audit of delinked/functions/000c0130.obj: exactly 3 DISP32 targets in
  * this function's range (offsets 0x11 / 0x20 / 0x28) -- FUN_000cc560,
- * FUN_00054d00, FUN_000cbf80 -- matching the three calls below with no extra
+ * ai_scripting_kill_silent, FUN_000cbf80 -- matching the three calls below with no extra
  * global or string reference. (The refs at 0x51/0x60/0x68 belong to the next
  * function in the exported range, 0xc0170.)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54d00  = FUN_00054d00(unsigned int ai_ref)
+ *   0x54d00  = ai_scripting_kill_silent(unsigned int ai_ref)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -11123,7 +11123,7 @@ void FUN_000c0130(int16_t function_index, int thread_datum, char init)
   record = (unsigned int *)hs_macro_function_evaluate(function_index,
                                                       thread_datum, init);
   if (record != NULL) {
-    FUN_00054d00(record[0]);
+    ai_scripting_kill_silent(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11175,7 +11175,7 @@ void FUN_000c0130(int16_t function_index, int thread_datum, char init)
  *   touched, one deref, no buffer-alias risk.
  *
  *   CALL 0x54d60 (0xc018f) is preceded by a single PUSH EDX = ONE argument,
- *   record[0], matching FUN_00054d60(unsigned int ai_ref) -- the unsigned param
+ *   record[0], matching ai_scripting_erase(unsigned int ai_ref) -- the unsigned param
  *   is why the record pointer is typed unsigned int * here, as in the 0xc0130
  *   and 0xc00f0 twins.
  *
@@ -11192,7 +11192,7 @@ void FUN_000c0130(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54d60  = FUN_00054d60(unsigned int ai_ref)
+ *   0x54d60  = ai_scripting_erase(unsigned int ai_ref)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -11204,7 +11204,7 @@ void FUN_000c0170(int16_t function_index, int thread_datum, char init)
   record = (unsigned int *)hs_macro_function_evaluate(function_index,
                                                       thread_datum, init);
   if (record != NULL) {
-    FUN_00054d60(record[0]);
+    ai_scripting_erase(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11230,7 +11230,7 @@ void FUN_000c0170(int16_t function_index, int thread_datum, char init)
  *   0xc01b3  CALL 0x54df0   -- zero args pushed, no ESP cleanup after it, and
  *                              its EAX return is never consumed (the next
  *                              instruction overwrites EAX from the stack), so
- *                              this is a bare `FUN_00054df0();` statement.
+ *                              this is a bare `ai_scripting_erase_all();` statement.
  *                              kb.json declares it void(void); do not invent
  *                              args or a result for it.
  *   0xc01b8  MOV EAX,[EBP+0xc]   -- second cdecl param
@@ -11260,7 +11260,7 @@ void FUN_000c0170(int16_t function_index, int thread_datum, char init)
  * ADD ESP at a call site. */
 void FUN_000c01b0(int16_t function_index, int thread_handle)
 {
-  FUN_00054df0();
+  ai_scripting_erase_all();
   hs_return(thread_handle, 0);
 }
 
@@ -11314,7 +11314,7 @@ void FUN_000c01b0(int16_t function_index, int thread_handle)
  *   not). Only +0x0 is touched, one deref, no buffer-alias risk.
  *
  *   CALL 0x54e40 (0xc01ef) is preceded by a single PUSH EDX = ONE argument,
- *   record[0], matching FUN_00054e40(int encounter_ref) -- the signed int
+ *   record[0], matching ai_scripting_select(int encounter_ref) -- the signed int
  *   param is why the record pointer is typed int * here (as in the 0xc0030
  *   twin) rather than the unsigned int * of the 0xc0230 twin.
  *
@@ -11332,12 +11332,12 @@ void FUN_000c01b0(int16_t function_index, int thread_handle)
  *
  * Reloc audit of delinked/functions/000c01d0.obj: the three DISP32 targets at
  * offsets 0x11 / 0x20 / 0x28 (i.e. within this function's 0x32 bytes) are
- * FUN_000cc560, FUN_00054e40, FUN_000cbf80 -- matching the three calls below
+ * FUN_000cc560, ai_scripting_select, FUN_000cbf80 -- matching the three calls below
  * exactly, with no extra global, constant, or string reference.
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54e40  = FUN_00054e40(int encounter_ref)
+ *   0x54e40  = ai_scripting_select(int encounter_ref)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -11349,7 +11349,7 @@ void FUN_000c01d0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00054e40(record[0]);
+    ai_scripting_select(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11368,22 +11368,22 @@ void FUN_000c01d0(int16_t function_index, int thread_datum, char init)
  *
  * Full body from disassembly, 10 instructions, 0xc0210-0xc0227:
  *   PUSH EBP; MOV EBP,ESP
- *   CALL 0x54e20                 ; no pushes -> FUN_00054e20(void)
+ *   CALL 0x54e20                 ; no pushes -> ai_scripting_deselect(void)
  *   MOV EAX,[EBP+0xc]            ; SECOND cdecl stack arg = thread_datum
  *   PUSH 0x0; PUSH EAX; CALL 0xcbf80; ADD ESP,0x8
  *   POP EBP; RET
  * cdecl push order: last PUSH (EAX) is arg1 = thread_handle, first PUSH (0)
  * is arg2 = value -- so hs_return(thread_datum, 0), and the 0 is a literal
- * constant, not a result (FUN_00054e20 is void). No FPU ops, no locals, no
+ * constant, not a result (ai_scripting_deselect is void). No FPU ops, no locals, no
  * _chkstk, no struct stores, no buffers; the frame has no PUSH ESI/EDI,
  * unlike the twins that call hs_macro_function_evaluate.
  *
  * Reloc audit of delinked/functions/000c0210.obj: exactly two DISP32 targets
- * inside this function's 0x18 bytes, at offsets 0x4 and 0xf -> FUN_00054e20
+ * inside this function's 0x18 bytes, at offsets 0x4 and 0xf -> ai_scripting_deselect
  * and FUN_000cbf80. No global, constant, or string reference.
  *
  * Callees (both cdecl, both in kb.json, no @<reg> args):
- *   0x54e20  = FUN_00054e20(void)                       -- the worker
+ *   0x54e20  = ai_scripting_deselect(void)                       -- the worker
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -11393,7 +11393,7 @@ void FUN_000c0210(int16_t function_index, int thread_datum, char init)
   (void)function_index;
   (void)init;
 
-  FUN_00054e20();
+  ai_scripting_deselect();
   hs_return(thread_datum, 0);
 }
 
@@ -11444,7 +11444,7 @@ void FUN_000c0210(int16_t function_index, int thread_datum, char init)
  *   touched, one deref, no buffer-alias risk.
  *
  *   CALL 0x54e80 (0xc024f) is preceded by a single PUSH EDX = ONE argument,
- *   record[0], matching FUN_00054e80(unsigned int ai_ref) -- the unsigned
+ *   record[0], matching ai_scripting_spawn_actor(unsigned int ai_ref) -- the unsigned
  *   param is why the record pointer is typed unsigned int * here, as in the
  *   0xc0130 twin rather than the int * of the 0xc0030 twin.
  *
@@ -11461,12 +11461,12 @@ void FUN_000c0210(int16_t function_index, int thread_datum, char init)
  *   0xc0030).
  *
  * Reloc audit of delinked/functions/0000c0230.obj: exactly 3 DISP32 targets
- * (offsets 0x11 / 0x20 / 0x28) -- FUN_000cc560, FUN_00054e80, FUN_000cbf80 --
+ * (offsets 0x11 / 0x20 / 0x28) -- FUN_000cc560, ai_scripting_spawn_actor, FUN_000cbf80 --
  * matching the three calls below with no extra global or string reference.
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54e80  = FUN_00054e80(unsigned int ai_ref)
+ *   0x54e80  = ai_scripting_spawn_actor(unsigned int ai_ref)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -11478,7 +11478,7 @@ void FUN_000c0230(int16_t function_index, int thread_datum, char init)
   record = (unsigned int *)hs_macro_function_evaluate(function_index,
                                                       thread_datum, init);
   if (record != NULL) {
-    FUN_00054e80(record[0]);
+    ai_scripting_spawn_actor(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11546,14 +11546,14 @@ void FUN_000c0230(int16_t function_index, int thread_datum, char init)
  *   disassembly.
  *
  *   CALL 0x54f90 (0xc0295) is preceded by PUSH EDX then PUSH EAX = cdecl
- *   reverse -> FUN_00054f90(record+0x0, record+0x4), matching
- *   FUN_00054f90(unsigned int combined_index, char flag). This two-argument
+ *   reverse -> ai_scripting_set_respawn(record+0x0, record+0x4), matching
+ *   ai_scripting_set_respawn(unsigned int combined_index, char flag). This two-argument
  *   worker is the ONLY divergence from the 0xc0230 twin.
  *
  *   CALL 0xcbf80 (0xc029d) is preceded by PUSH 0x0 then PUSH ESI = cdecl
  *   reverse -> hs_return(thread_datum, 0). The script return value is the
  *   literal CONSTANT 0, not a record field and not the worker's result
- *   (FUN_00054f90 is void); the entire observable effect is the worker's side
+ *   (ai_scripting_set_respawn is void); the entire observable effect is the worker's side
  *   effect.
  *
  *   ONE combined ADD ESP,0x10 at 0xc02a2 cleans the 2 pushes of the 0x54f90
@@ -11568,7 +11568,7 @@ void FUN_000c0230(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x54f90  = FUN_00054f90(unsigned int combined_index, char flag)
+ *   0x54f90  = ai_scripting_set_respawn(unsigned int combined_index, char flag)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -11583,7 +11583,7 @@ void FUN_000c0270(int16_t function_index, int thread_datum, char init)
   record = (unsigned char *)hs_macro_function_evaluate(function_index,
                                                        thread_datum, init);
   if (record != NULL) {
-    FUN_00054f90(*(unsigned int *)record, (char)record[4]);
+    ai_scripting_set_respawn(*(unsigned int *)record, (char)record[4]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11648,14 +11648,14 @@ void FUN_000c0270(int16_t function_index, int thread_datum, char init)
  *   offsets are unambiguous in the raw disassembly.
  *
  *   CALL 0x55010 (+0x25) is preceded by PUSH EDX then PUSH EAX = cdecl
- *   reverse -> FUN_00055010(record+0x0, record+0x4), matching
- *   FUN_00055010(unsigned int combined_index, char flag) = ai_set_deaf. This
+ *   reverse -> ai_scripting_set_deaf(record+0x0, record+0x4), matching
+ *   ai_scripting_set_deaf(unsigned int combined_index, char flag) = ai_set_deaf. This
  *   two-argument worker is the ONLY divergence from the 0xc0230 twin.
  *
  *   CALL 0xcbf80 (+0x2d) is preceded by PUSH 0x0 then PUSH ESI = cdecl
  *   reverse -> hs_return(thread_datum, 0). The script return value is the
  *   literal CONSTANT 0, not a record field and not the worker's result
- *   (FUN_00055010 is void); the entire observable effect is the ai_set_deaf
+ *   (ai_scripting_set_deaf is void); the entire observable effect is the ai_set_deaf
  *   side effect.
  *
  *   ONE combined ADD ESP,0x10 at +0x32 cleans the 2 pushes of the 0x55010
@@ -11666,7 +11666,7 @@ void FUN_000c0270(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x55010  = FUN_00055010(unsigned int combined_index, char flag)
+ *   0x55010  = ai_scripting_set_deaf(unsigned int combined_index, char flag)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -11681,7 +11681,7 @@ void FUN_000c02b0(int16_t function_index, int thread_datum, char init)
   record = (unsigned char *)hs_macro_function_evaluate(function_index,
                                                        thread_datum, init);
   if (record != NULL) {
-    FUN_00055010(*(unsigned int *)record, (char)record[4]);
+    ai_scripting_set_deaf(*(unsigned int *)record, (char)record[4]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11741,13 +11741,13 @@ void FUN_000c02b0(int16_t function_index, int thread_datum, char init)
  *   struct-field rotation (decompiler-traps 3).
  *
  *   CALL 0x55090 (0xc0315) is preceded by PUSH EDX then PUSH EAX = cdecl
- *   reverse -> FUN_00055090(record+0x0, record+0x4), matching
- *   FUN_00055090(unsigned int combined_index, char flag) = ai_set_blind.
+ *   reverse -> ai_scripting_set_blind(record+0x0, record+0x4), matching
+ *   ai_scripting_set_blind(unsigned int combined_index, char flag) = ai_set_blind.
  *
  *   CALL 0xcbf80 (0xc031d) is preceded by PUSH 0x0 then PUSH ESI = cdecl
  *   reverse -> hs_return(thread_datum, 0). The script return value is the
  *   literal CONSTANT 0, not a record field and not the worker's result
- *   (FUN_00055090 is void); the whole observable effect is the ai_set_blind
+ *   (ai_scripting_set_blind is void); the whole observable effect is the ai_set_blind
  *   side effect. Nothing computed is discarded.
  *
  *   ONE combined ADD ESP,0x10 at 0xc0322 cleans the 2 pushes of the 0x55090
@@ -11758,7 +11758,7 @@ void FUN_000c02b0(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x55090  = FUN_00055090(unsigned int combined_index, char flag)
+ *   0x55090  = ai_scripting_set_blind(unsigned int combined_index, char flag)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -11773,7 +11773,7 @@ void FUN_000c02f0(int16_t function_index, int thread_datum, char init)
   record = (unsigned char *)hs_macro_function_evaluate(function_index,
                                                        thread_datum, init);
   if (record != NULL) {
-    FUN_00055090(*(unsigned int *)record, (char)record[4]);
+    ai_scripting_set_blind(*(unsigned int *)record, (char)record[4]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11785,7 +11785,7 @@ void FUN_000c02f0(int16_t function_index, int thread_datum, char init)
  * hs_macro_function_evaluate; while arguments are still being evaluated the
  * return is NULL and nothing is dispatched this tick. Once the evaluated
  * values array is ready, forwards its first two dwords to
- * ai_magically_see_encounter (FUN_00058970) and commits a zero result to the
+ * ai_magically_see_encounter (ai_scripting_magically_see_encounter) and commits a zero result to the
  * calling thread via hs_return.
  *
  * Confirmed (0xc0330 disassembly):
@@ -11798,7 +11798,7 @@ void FUN_000c02f0(int16_t function_index, int thread_datum, char init)
  *     CALL 0xcc560, ADD ESP,0xc => hs_macro_function_evaluate(function_index,
  *     thread_datum, init).
  *   - MOV EDX,[EAX+4]; MOV EAX,[EAX]; PUSH EDX; PUSH EAX; CALL 0x58970 =>
- *     FUN_00058970(result[0], result[1]) -- both full dwords (encounter
+ *     ai_scripting_magically_see_encounter(result[0], result[1]) -- both full dwords (encounter
  *     handles), not narrow fields.
  *   - PUSH 0; PUSH ESI; CALL 0xcbf80 => hs_return(thread_datum, 0).
  *   - The single ADD ESP,0x10 at 0xc0360 is the shared cdecl cleanup for both
@@ -11814,7 +11814,7 @@ void FUN_000c0330(int16_t function_index, int thread_datum, char init)
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_00058970(result[0], result[1]);
+    ai_scripting_magically_see_encounter(result[0], result[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11826,7 +11826,7 @@ void FUN_000c0330(int16_t function_index, int thread_datum, char init)
  * hs_macro_function_evaluate; while arguments are still being evaluated the
  * return is NULL and nothing is dispatched this tick. Once the evaluated
  * values array is ready, forwards its first dword to
- * ai_magically_see_players (FUN_00058a40) and commits a zero result to the
+ * ai_scripting_magically_see_players (FUN_00058a40) and commits a zero result to the
  * calling thread via hs_return. The only difference from FUN_000c0330 is the
  * worker (0x58a40 vs 0x58970) and its one-argument arity.
  *
@@ -11848,7 +11848,7 @@ void FUN_000c0330(int16_t function_index, int thread_datum, char init)
  *     is that coalesced cleanup, not a 3-arg call.
  *
  * Callees (all cdecl, ported): 0xcc560 hs_macro_function_evaluate,
- * 0x58a40 ai_magically_see_players, 0xcbf80 hs_return. */
+ * 0x58a40 ai_scripting_magically_see_players, 0xcbf80 hs_return. */
 void FUN_000c0370(int16_t function_index, int thread_datum, char init)
 {
   int *result;
@@ -11856,7 +11856,7 @@ void FUN_000c0370(int16_t function_index, int thread_datum, char init)
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    FUN_00058a40(result[0]);
+    ai_scripting_magically_see_players(result[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11899,7 +11899,7 @@ void FUN_000c0370(int16_t function_index, int thread_datum, char init)
  *     PUSH EAX => C order (record[0], record[1]). The [EAX+4] load is issued
  *     BEFORE the [EAX] load (MSVC scheduling), but the push order fixes the
  *     mapping: first-pushed EDX is the LAST argument. This matches
- *     FUN_00055110's decl (unsigned int combined_handle, int unit_handle).
+ *     ai_scripting_magically_see_unit's decl (unsigned int combined_handle, int unit_handle).
  *   CALL 0xc03db -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
  *
  * LOAD WIDTH (lift-learnings 24): unlike the 0xc02b0/0xc02f0/0xc05b0 twins,
@@ -11916,14 +11916,14 @@ void FUN_000c0370(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0x10` at 0xc03e0 is a MERGED cleanup for BOTH tail calls -- 2
- * dwords for FUN_00055110 (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return
+ * dwords for ai_scripting_magically_see_unit (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return
  * (PUSH 0; PUSH ESI) = 4 dwords. MSVC combined the two cdecl cleanups;
- * hs_return's 2-arg decl and FUN_00055110's 2-arg decl are both correct. Do
+ * hs_return's 2-arg decl and ai_scripting_magically_see_unit's 2-arg decl are both correct. Do
  * NOT "fix" either decl.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x55110  = FUN_00055110(unsigned int combined_handle, int unit_handle)
+ *   0x55110  = ai_scripting_magically_see_unit(unsigned int combined_handle, int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
 {
@@ -11932,7 +11932,7 @@ void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00055110((unsigned int)record[0], record[1]);
+    ai_scripting_magically_see_unit((unsigned int)record[0], record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -11977,7 +11977,7 @@ void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
  *     PUSH EAX => C order (record[0], record[1]). The [EAX+4] load is issued
  *     BEFORE the [EAX] load (MSVC scheduling), but the push order fixes the
  *     mapping: first-pushed EDX is the LAST argument. This matches
- *     FUN_000551e0's decl (unsigned int combined_handle, int unit_group).
+ *     ai_scripting_magically_see_units's decl (unsigned int combined_handle, int unit_group).
  *   CALL 0xc041b -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
  *
  * LOAD WIDTH (lift-learnings 24): unlike the 0xc02b0/0xc02f0/0xc05b0 twins,
@@ -11994,14 +11994,14 @@ void FUN_000c03b0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0x10` at 0xc0420 is a MERGED cleanup for BOTH tail calls -- 2
- * dwords for FUN_000551e0 (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return
+ * dwords for ai_scripting_magically_see_units (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return
  * (PUSH 0; PUSH ESI) = 4 dwords. MSVC combined the two cdecl cleanups;
- * hs_return's 2-arg decl and FUN_000551e0's 2-arg decl are both correct. Do
+ * hs_return's 2-arg decl and ai_scripting_magically_see_units's 2-arg decl are both correct. Do
  * NOT "fix" either decl.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x551e0  = FUN_000551e0(unsigned int combined_handle, int unit_group)
+ *   0x551e0  = ai_scripting_magically_see_units(unsigned int combined_handle, int unit_group)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -12016,7 +12016,7 @@ void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_000551e0((unsigned int)record[0], record[1]);
+    ai_scripting_magically_see_units((unsigned int)record[0], record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12057,7 +12057,7 @@ void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
  *     trap (decompiler-traps 1) cannot apply to the later PUSH ESI.
  *   CALL 0xc044f -> 0x55220: PUSH EDX only => 1 argument, record[0].
  *   CALL 0xc0457 -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
- *     The 0 is an immediate, NOT the FUN_00055220 result -- that worker
+ *     The 0 is an immediate, NOT the ai_scripting_timer_start result -- that worker
  *     returns void. This is the "record as evaluation-complete predicate"
  *     shape of hs_object_create_anew_containing_evaluate.
  *
@@ -12074,13 +12074,13 @@ void FUN_000c03f0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0xc` at 0xc045c is a MERGED cleanup for BOTH tail calls -- 1 dword
- * for FUN_00055220 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * for ai_scripting_timer_start (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
  * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
- * FUN_00055220's 1-arg decl are both correct. Do NOT "fix" either decl.
+ * ai_scripting_timer_start's 1-arg decl are both correct. Do NOT "fix" either decl.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x55220  = FUN_00055220(unsigned int combined_index)
+ *   0x55220  = ai_scripting_timer_start(unsigned int combined_index)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -12095,7 +12095,7 @@ void FUN_000c0430(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00055220((unsigned int)record[0]);
+    ai_scripting_timer_start((unsigned int)record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12135,7 +12135,7 @@ void FUN_000c0430(int16_t function_index, int thread_datum, char init)
  *     trap (decompiler-traps 1) cannot apply to the later PUSH ESI.
  *   CALL 0x552b0: PUSH EDX only => 1 argument, record[0].
  *   CALL 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0). The 0 is
- *     an immediate, NOT the FUN_000552b0 result -- that worker returns void.
+ *     an immediate, NOT the ai_scripting_timer_expire result -- that worker returns void.
  *
  * NULL guard: TEST EAX,EAX; JZ 0xc049f skips BOTH tail calls, so the 0xcc560
  * return value is dereferenced as a POINTER even though kb.json types it as
@@ -12151,13 +12151,13 @@ void FUN_000c0430(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0xc` at 0xc049c is a MERGED cleanup for BOTH tail calls -- 1 dword
- * for FUN_000552b0 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * for ai_scripting_timer_expire (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
  * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
- * FUN_000552b0's 1-arg decl are both correct. Do NOT "fix" either decl.
+ * ai_scripting_timer_expire's 1-arg decl are both correct. Do NOT "fix" either decl.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x552b0  = FUN_000552b0(unsigned int combined_index)
+ *   0x552b0  = ai_scripting_timer_expire(unsigned int combined_index)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -12172,7 +12172,7 @@ void FUN_000c0470(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_000552b0((unsigned int)record[0]);
+    ai_scripting_timer_expire((unsigned int)record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12212,7 +12212,7 @@ void FUN_000c0470(int16_t function_index, int thread_datum, char init)
  *     trap (decompiler-traps 1) cannot apply to the later PUSH ESI.
  *   CALL 0x55750 @0xc04cf: PUSH EDX only => 1 argument, record[0].
  *   CALL 0xcbf80 @0xc04d7: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
- *     The 0 is an immediate, NOT the FUN_00055750 result -- that worker
+ *     The 0 is an immediate, NOT the ai_scripting_attack result -- that worker
  *     returns void, so the whole observable effect of this dispatcher is the
  *     0x55750 side effect.
  *
@@ -12230,13 +12230,13 @@ void FUN_000c0470(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0xc` at 0xc04dc is a MERGED cleanup for BOTH tail calls -- 1 dword
- * for FUN_00055750 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * for ai_scripting_attack (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
  * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
- * FUN_00055750's 1-arg decl are both correct. Do NOT "fix" either decl.
+ * ai_scripting_attack's 1-arg decl are both correct. Do NOT "fix" either decl.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x55750  = FUN_00055750(unsigned int combined_index)
+ *   0x55750  = ai_scripting_attack(unsigned int combined_index)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -12251,7 +12251,7 @@ void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00055750((unsigned int)record[0]);
+    ai_scripting_attack((unsigned int)record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12293,7 +12293,7 @@ void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
  *     record[0]. The argument is the DEREFERENCED first dword of the record,
  *     not the record pointer itself.
  *   CALL 0xcbf80 @0xc0517: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0).
- *     The 0 is an immediate, NOT the FUN_000557e0 result -- that worker
+ *     The 0 is an immediate, NOT the ai_scripting_defend result -- that worker
  *     returns void, so the whole observable effect of this dispatcher is the
  *     0x557e0 side effect.
  *
@@ -12312,13 +12312,13 @@ void FUN_000c04b0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0xc` at 0xc051c is a MERGED cleanup for BOTH tail calls -- 1 dword
- * for FUN_000557e0 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * for ai_scripting_defend (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
  * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
- * FUN_000557e0's 1-arg decl are both correct. Do NOT "fix" either decl.
+ * ai_scripting_defend's 1-arg decl are both correct. Do NOT "fix" either decl.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x557e0  = FUN_000557e0(unsigned int combined_index)
+ *   0x557e0  = ai_scripting_defend(unsigned int combined_index)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately -- the hs helpers are
@@ -12333,7 +12333,7 @@ void FUN_000c04f0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_000557e0((unsigned int)record[0]);
+    ai_scripting_defend((unsigned int)record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12376,7 +12376,7 @@ void FUN_000c04f0(int16_t function_index, int thread_datum, char init)
  *     The argument is the DEREFERENCED first dword of the record, not the
  *     record pointer itself.
  *   CALL -> 0xcbf80: PUSH 0x0; PUSH ESI => hs_return(thread_datum, 0). The 0
- *     is an immediate, NOT the FUN_00058ae0 result -- that worker returns void.
+ *     is an immediate, NOT the ai_scripting_retreat result -- that worker returns void.
  *
  * NULL guard: TEST EAX,EAX; JZ skips BOTH tail calls, so the guard is
  * `record != NULL` (not inverted), and the 0xcc560 return value is
@@ -12392,13 +12392,13 @@ void FUN_000c04f0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0xc` at 0xc055c is a MERGED cleanup for BOTH tail calls -- 1 dword
- * for FUN_00058ae0 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * for ai_scripting_retreat (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
  * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
- * FUN_00058ae0's 1-arg decl are both correct. Do NOT "fix" hs_return's decl.
+ * ai_scripting_retreat's 1-arg decl are both correct. Do NOT "fix" hs_return's decl.
  *
  * Callees (all cdecl, all in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x58ae0  = FUN_00058ae0(unsigned int combined_index)  [not yet ported]
+ *   0x58ae0  = ai_scripting_retreat(unsigned int combined_index)  [not yet ported]
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * Placement: kept here beside its twins deliberately. NOTE: do NOT run
@@ -12411,7 +12411,7 @@ void FUN_000c0530(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00058ae0((unsigned int)record[0]);
+    ai_scripting_retreat((unsigned int)record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12463,13 +12463,13 @@ void FUN_000c0530(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0xc` at 0xc059c is a MERGED cleanup for BOTH tail calls -- 1 dword
- * for FUN_00055870 (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
+ * for ai_scripting_maneuver (PUSH EDX) plus 2 dwords for hs_return (PUSH 0; PUSH ESI)
  * = 3 dwords. MSVC combined the two cdecl cleanups; hs_return's 2-arg decl and
- * FUN_00055870's 1-arg decl are both correct.
+ * ai_scripting_maneuver's 1-arg decl are both correct.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x55870  = FUN_00055870(unsigned int combined_index)
+ *   0x55870  = ai_scripting_maneuver(unsigned int combined_index)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * No FPU, no _chkstk/SUB ESP, no locals beyond the record pointer, no stack
@@ -12487,7 +12487,7 @@ void FUN_000c0570(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00055870(record[0]);
+    ai_scripting_maneuver(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12531,7 +12531,7 @@ void FUN_000c0570(int16_t function_index, int thread_datum, char init)
  * `(char)puVar1[1]`, i.e. a DWORD at record+4. The disassembly is
  * `XOR EDX,EDX; MOV DL, byte ptr [EAX+0x4]` -- a ZERO-EXTENDED single BYTE.
  * Reading it as a dword would pass garbage in the upper bits to
- * FUN_00055900's `flag`, so it is read here as
+ * ai_scripting_maneuver_enable's `flag`, so it is read here as
  * *((unsigned char *)record + 4). The record+0 load is
  * `MOV EAX,dword ptr [EAX]` -- a FULL 32-bit load with no MOVSX/MOVZX, so it
  * must NOT be narrowed.
@@ -12543,14 +12543,14 @@ void FUN_000c0570(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0x10` at 0xc05e2 is a MERGED cleanup for BOTH tail calls -- 2
- * dwords for FUN_00055900 (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return
+ * dwords for ai_scripting_maneuver_enable (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return
  * (PUSH 0; PUSH ESI) = 4 dwords. MSVC combined the two cdecl cleanups;
- * hs_return's 2-arg decl and FUN_00055900's 2-arg decl are both correct. Do
+ * hs_return's 2-arg decl and ai_scripting_maneuver_enable's 2-arg decl are both correct. Do
  * NOT "fix" either decl.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x55900  = FUN_00055900(unsigned int combined_index, char flag)
+ *   0x55900  = ai_scripting_maneuver_enable(unsigned int combined_index, char flag)
  *   0xcbf80  = hs_return(int thread_handle, int value)
  *
  * No FPU, no _chkstk/SUB ESP, no locals beyond the record pointer, no stack
@@ -12568,7 +12568,7 @@ void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00055900((unsigned int)record[0], (char)*((unsigned char *)record + 4));
+    ai_scripting_maneuver_enable((unsigned int)record[0], (char)*((unsigned char *)record + 4));
     hs_return(thread_datum, 0);
   }
 }
@@ -12610,7 +12610,7 @@ void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
  *   TEST EAX,EAX; JZ 0xc0623 => NULL guard around both tail calls.
  *   CALL 0xc0613 -> 0x56320: MOV EDX,dword ptr [EAX+0x4];
  *     MOV EAX,dword ptr [EAX]; PUSH EDX; PUSH EAX => C order
- *     FUN_00056320(record[0], record[1]).
+ *     ai_scripting_migrate(record[0], record[1]).
  *   CALL 0xc061b -> 0xcbf80: PUSH 0x0; PUSH ESI =>
  *     hs_return(thread_datum, 0).
  *
@@ -12628,11 +12628,11 @@ void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
  * Apparent arg-count hazard on hs_return (audit reported cleanup=4 dwords vs
  * a 2-param decl) is a FALSE POSITIVE: the single `ADD ESP,0x10` at 0xc0620
  * is a MERGED cdecl cleanup for BOTH tail calls -- 2 dwords for
- * FUN_00056320 (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return (PUSH 0;
+ * ai_scripting_migrate (PUSH EDX; PUSH EAX) plus 2 dwords for hs_return (PUSH 0;
  * PUSH ESI) = 4 dwords.  MSVC combined the two cdecl cleanups; both 2-arg
  * decls are correct.  Do NOT "fix" either decl.
  *
- * FUN_00056320's return value is never tested or reused -- the next
+ * ai_scripting_migrate's return value is never tested or reused -- the next
  * instruction pushes an immediate -- so its result is discarded.  Its
  * parameter names (encounter_handle_1/2) come from its own kb decl and are
  * not re-derived here; what this call site proves is only that two full
@@ -12640,7 +12640,7 @@ void FUN_000c05b0(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x56320 = FUN_00056320(int, int)
+ *   0x56320 = ai_scripting_migrate(int, int)
  *   0xcbf80 = hs_return(int thread_handle, int value)
  *
  * No FPU instructions, no struct stores, no memset, no buffer pointers passed
@@ -12656,7 +12656,7 @@ void FUN_000c05f0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_00056320(record[0], record[1]);
+    ai_scripting_migrate(record[0], record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12697,22 +12697,22 @@ void FUN_000c05f0(int16_t function_index, int thread_datum, char init)
  * width to preserve), and both +0x8 and +0x4 are taken BEFORE EAX is
  * overwritten by its own [EAX+0] load, so every read is off the original
  * record base.  First PUSH = last C arg, so record[0] is arg 1, record[1] is
- * arg 2 and record[2] is arg 3 -- matching FUN_000565c0's kb decl
+ * arg 2 and record[2] is arg 3 -- matching ai_scripting_migrate_and_speak's kb decl
  * (unsigned int, unsigned int, const char *).  The casts here follow that
  * decl; the parameter names are its own and are not re-derived at this call
  * site, which proves only that three full dwords are forwarded in record
- * order.  FUN_000565c0 returns void, so nothing is discarded.
+ * order.  ai_scripting_migrate_and_speak returns void, so nothing is discarded.
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE (identical to
  * the ones documented on FUN_000c05f0 and FUN_000c0670): the single
  * `ADD ESP,0x14` at 0x000c0664 is a MERGED cdecl cleanup for BOTH tail calls
- * -- 3 dwords for FUN_000565c0 (0xc) plus 2 dwords for hs_return (0x8) = 0x14.
+ * -- 3 dwords for ai_scripting_migrate_and_speak (0xc) plus 2 dwords for hs_return (0x8) = 0x14.
  * MSVC combined the two cdecl cleanups; both decls are correct as written.
  * Do NOT "fix" either decl.
  *
  * Callees (all cdecl, all in kb.json, ported, no @<reg> args anywhere):
  *   0xcc560 = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x565c0 = FUN_000565c0(unsigned int, unsigned int, const char *)
+ *   0x565c0 = ai_scripting_migrate_and_speak(unsigned int, unsigned int, const char *)
  *   0xcbf80 = hs_return(int thread_handle, int value)
  *
  * No FPU instructions, no struct stores, no memset, no buffer pointers passed
@@ -12728,7 +12728,7 @@ void FUN_000c0630(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_000565c0((unsigned int)record[0], (unsigned int)record[1],
+    ai_scripting_migrate_and_speak((unsigned int)record[0], (unsigned int)record[1],
                  (const char *)record[2]);
     hs_return(thread_datum, 0);
   }
@@ -12760,16 +12760,16 @@ void FUN_000c0630(int16_t function_index, int thread_datum, char init)
  * Unlike the twin FUN_000c05b0, which loads its second worker arg as a BYTE,
  * this one loads a full dword -- hence `record[1]` (int), not a char.
  *
- * FUN_000564b0's kb decl was also the stale `void FUN_000564b0(void);`; the
+ * ai_scripting_migrate_by_unit's kb decl was also the stale `void ai_scripting_migrate_by_unit(void);`; the
  * push sequence (PUSH EDX; PUSH EAX; first PUSH = last C arg) proves two
  * dword stack args, so it was corrected to
- * `void FUN_000564b0(int arg0, int arg1);` (RET carries no immediate =>
+ * `void ai_scripting_migrate_by_unit(int arg0, int arg1);` (RET carries no immediate =>
  * cdecl, confirmed with check_stdcall_ret.py --addr 0x564b0).
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE (identical to
  * the one documented on FUN_000c05b0): the single `ADD ESP,0x10` at
  * 0x000c06a0 is a MERGED cdecl cleanup for BOTH tail calls -- 2 dwords for
- * FUN_000564b0 plus 2 dwords for hs_return.  Do NOT "fix" either decl.
+ * ai_scripting_migrate_by_unit plus 2 dwords for hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions at all, no struct stores, no memset, and no buffer
  * pointers passed anywhere, so no operand-order or buffer-alias concerns.
@@ -12781,13 +12781,13 @@ void FUN_000c0670(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_000564b0(record[0], record[1]);
+    ai_scripting_migrate_by_unit(record[0], record[1]);
     hs_return(thread_datum, 0);
   }
 }
 
 /* 0xc06b0 -- HS script function handler: evaluate a macro function's arguments
- * and, on success, forward a 2-field record to FUN_000566a0 before returning a
+ * and, on success, forward a 2-field record to ai_scripting_allegiance before returning a
  * constant 0 to the calling HS thread.
  *
  * Behavior (from disassembly at 0x000c06b0): calls
@@ -12801,7 +12801,7 @@ void FUN_000c0670(int16_t function_index, int thread_datum, char init)
  * is arg 1 and the unsigned word at +0x4 is arg 2.  Do not swap them, and do
  * not widen the +0x4 field to int -- the zero-extension is load-width evidence
  * (lift-learnings 24), unlike the sibling FUN_000c0670 whose record fields are
- * full dwords.  FUN_000566a0's EAX is never tested or reused (the next
+ * full dwords.  ai_scripting_allegiance's EAX is never tested or reused (the next
  * instruction pushes an immediate), so its result is discarded.
  *
  * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
@@ -12813,7 +12813,7 @@ void FUN_000c0670(int16_t function_index, int thread_datum, char init)
  * `(void)` decl -- the 0x158df0 ESP-drift trap of lift-learnings 31 -- so the
  * decl was corrected to the 3-arg cdecl form shared by every sibling here.
  *
- * FUN_000566a0's kb decl was likewise stale AND misnamed: it read
+ * ai_scripting_allegiance's kb decl was likewise stale AND misnamed: it read
  * `void encounters_initialize(void);` while the call site pushes two dword
  * stack slots.  Calling it as `(void)` is the a10 dropped-arg crash class, so
  * the decl was corrected to two dword args; RET carries no immediate (cdecl,
@@ -12828,7 +12828,7 @@ void FUN_000c0670(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0x10` at 0x000c06e4 is a MERGED cdecl cleanup for BOTH tail calls
- * -- 2 dwords for FUN_000566a0 plus 2 dwords for hs_return.  Do NOT "fix"
+ * -- 2 dwords for ai_scripting_allegiance plus 2 dwords for hs_return.  Do NOT "fix"
  * either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -12842,7 +12842,7 @@ void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
     (short *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* record[0] = signed int16 @ +0x0; record[2] = unsigned int16 @ +0x4 */
-    FUN_000566a0(record[0], (unsigned short)record[2]);
+    ai_scripting_allegiance(record[0], (unsigned short)record[2]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12850,7 +12850,7 @@ void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
 /* FUN_000c06f0 @ 0x000c06f0
  * HS script function handler.  Structurally identical to the sibling
  * FUN_000c06b0 directly above; the ONLY difference is the worker it forwards
- * to (FUN_00056790 @ 0x56790 here vs FUN_000566a0 @ 0x566a0 there).
+ * to (ai_scripting_allegiance_remove @ 0x56790 here vs ai_scripting_allegiance @ 0x566a0 there).
  *
  * Evaluates the macro function's arguments via hs_macro_function_evaluate
  * (0xcc560): PUSH EAX([EBP+0x10]); PUSH ESI([EBP+0xc]); PUSH ECX([EBP+8]);
@@ -12867,7 +12867,7 @@ void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
  * then PUSH EDX; PUSH EAX (first PUSH = last C arg) => the signed word at +0x0
  * is arg 1 and the unsigned word at +0x4 is arg 2.  Do not swap them, and do
  * not widen the +0x4 field -- the zero-extension is load-width evidence
- * (lift-learnings 24).  FUN_00056790's EAX is never tested or reused (the next
+ * (lift-learnings 24).  ai_scripting_allegiance_remove's EAX is never tested or reused (the next
  * instruction pushes an immediate), so its result is discarded.
  *
  * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
@@ -12884,7 +12884,7 @@ void FUN_000c06b0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0x10` at 0x000c0724 is a MERGED cdecl cleanup for BOTH tail calls
- * -- 2 dwords for FUN_00056790 plus 2 dwords for hs_return.  Do NOT "fix"
+ * -- 2 dwords for ai_scripting_allegiance_remove plus 2 dwords for hs_return.  Do NOT "fix"
  * either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -12898,7 +12898,7 @@ void FUN_000c06f0(int16_t function_index, int thread_datum, char init)
     (short *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* record[0] = signed int16 @ +0x0; record[2] = unsigned int16 @ +0x4 */
-    FUN_00056790(record[0], (unsigned short)record[2]);
+    ai_scripting_allegiance_remove(record[0], (unsigned short)record[2]);
     hs_return(thread_datum, 0);
   }
 }
@@ -12928,13 +12928,13 @@ void FUN_000c06f0(int16_t function_index, int thread_datum, char init)
  *   0x000c0753: MOV EDX, dword ptr [EAX+0x0]  ; reloads EDX AFTER it was pushed
  *   0x000c0755: PUSH ECX                      ;             => C arg 2 (+0x4)
  *   0x000c0756: PUSH EDX                      ; last push   => C arg 1 (+0x0)
- * so the call is FUN_00058c40(record[0], record[1], record[2]).  All three
+ * so the call is ai_scripting_go_to_vehicle(record[0], record[1], record[2]).  All three
  * loads are taken off the ORIGINAL EAX base before EAX is clobbered, so there
  * is no aliasing subtlety; the EDX reuse at 0xc0753 is a scheduling artifact,
- * not a second value for arg 3.  FUN_00058c40's EAX is never tested or reused
+ * not a second value for arg 3.  ai_scripting_go_to_vehicle's EAX is never tested or reused
  * (the next instruction pushes an immediate), so its result is discarded.
  *
- * kb.json carried a stale `void FUN_00058c40(void);` decl for that worker while
+ * kb.json carried a stale `void ai_scripting_go_to_vehicle(void);` decl for that worker while
  * the single call site here pushes 3 dwords -- the ESP-drift trap of
  * lift-learnings 31.  Lifting against the stale decl would silently drop 12
  * bytes of arguments, so the decl was widened to 3 cdecl int params first.
@@ -12950,14 +12950,14 @@ void FUN_000c06f0(int16_t function_index, int thread_datum, char init)
  * [EBP+0x10]; thread_datum is cached in ESI and re-used as hs_return's first
  * argument at the tail.  Ghidra rendered the parameters as `in_stack_*`
  * pseudo-locals over a `void FUN_000c0730(void)` signature and dropped all
- * three arguments of the FUN_00058c40 call entirely.
+ * three arguments of the ai_scripting_go_to_vehicle call entirely.
  *
  * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
  * PUSH ESI), not a computed result.
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 5 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0x14` at the tail is a MERGED cdecl
- * cleanup for BOTH calls -- 3 dwords for FUN_00058c40 plus 2 dwords for
+ * cleanup for BOTH calls -- 3 dwords for ai_scripting_go_to_vehicle plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -12971,7 +12971,7 @@ void FUN_000c0730(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dwords @ +0x0 / +0x4 / +0x8, in C argument order */
-    FUN_00058c40(record[0], record[1], (const char *)record[2]);
+    ai_scripting_go_to_vehicle(record[0], record[1], (const char *)record[2]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13004,14 +13004,14 @@ void FUN_000c0730(int16_t function_index, int thread_datum, char init)
  *   0x000c0795: PUSH ECX                      ;             => C arg 2 (+0x4)
  *   0x000c0796: PUSH EDX                      ; last push   => C arg 1 (+0x0)
  * so the call at 0x000c0797 is
- * ai_scripting_follow_distance(record[0], record[1], record[2]).  All three
+ * ai_scripting_go_to_vehicle_override(record[0], record[1], record[2]).  All three
  * loads are taken off the ORIGINAL EAX base before EAX is clobbered, so there
  * is no aliasing subtlety; the EDX reuse at 0x000c0793 is a scheduling
  * artifact, not a second value for arg 3.  That callee's EAX is never tested or
  * reused (the next instruction pushes an immediate), so its result is
  * discarded.
  *
- * kb.json carried a stale `void ai_scripting_follow_distance(void);` decl for
+ * kb.json carried a stale `void ai_scripting_go_to_vehicle_override(void);` decl for
  * that worker while the single call site here pushes 3 dwords -- the ESP-drift
  * trap of lift-learnings 31.  Lifting against the stale decl would silently
  * drop 12 bytes of arguments, so the decl was widened to 3 cdecl int params
@@ -13034,7 +13034,7 @@ void FUN_000c0730(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 5 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0x14` at 0x000c07a4 is a MERGED cdecl
- * cleanup for BOTH tail calls -- 3 dwords for ai_scripting_follow_distance plus
+ * cleanup for BOTH tail calls -- 3 dwords for ai_scripting_go_to_vehicle_override plus
  * 2 dwords for hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13048,7 +13048,7 @@ void FUN_000c0770(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dwords @ +0x0 / +0x4 / +0x8, in C argument order */
-    ai_scripting_follow_distance((unsigned int)record[0], record[1],
+    ai_scripting_go_to_vehicle_override((unsigned int)record[0], record[1],
                                  (const char *)record[2]);
     hs_return(thread_datum, 0);
   }
@@ -13078,7 +13078,7 @@ void FUN_000c0770(int16_t function_index, int thread_datum, char init)
  *                                         ; so no narrow-field width concern
  *   0x000c07ce: PUSH EDX
  *   0x000c07cf: CALL 0x000568e0
- * => FUN_000568e0(record[0]).  Its EAX is never tested or reused (the next
+ * => ai_scripting_exit_vehicle(record[0]).  Its EAX is never tested or reused (the next
  * instruction pushes an immediate), so any result is discarded.
  *
  * The value handed back to the thread is a hardcoded literal 0 (PUSH 0x0;
@@ -13086,7 +13086,7 @@ void FUN_000c0770(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c07dc is a MERGED cdecl
- * cleanup for BOTH tail calls -- 1 dword for FUN_000568e0 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 1 dword for ai_scripting_exit_vehicle plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * ABI: PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no immediate)
@@ -13107,7 +13107,7 @@ void FUN_000c07b0(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_000568e0(record[0]); /* dword @ +0x0 */
+    ai_scripting_exit_vehicle(record[0]); /* dword @ +0x0 */
     hs_return(thread_datum, 0);
   }
 }
@@ -13134,11 +13134,11 @@ void FUN_000c07b0(int16_t function_index, int thread_datum, char init)
  *   MOV EAX, dword ptr [EAX+0x0]             ; full dword @ +0x0
  *   PUSH EDX                                 ; first push  => C arg 2 (+0x4)
  *   PUSH EAX                                 ; last push   => C arg 1 (+0x0)
- * so the call is FUN_00056980(record[0], byte@+0x4).  The +0x4 field is an
+ * so the call is ai_scripting_braindead(record[0], byte@+0x4).  The +0x4 field is an
  * 8-bit ZERO-extended load, not a dword and not a sign-extended byte -- it is
  * cast through `unsigned char` here so VC71 emits the same zero extension
  * (lift-learnings 24, narrow-field load width).  Do not widen it and do not
- * swap the two arguments.  FUN_00056980's EAX is never tested or reused (the
+ * swap the two arguments.  ai_scripting_braindead's EAX is never tested or reused (the
  * next instruction pushes an immediate), so its result is discarded.
  *
  * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
@@ -13156,7 +13156,7 @@ void FUN_000c07b0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0x10` at the tail is a MERGED cdecl
- * cleanup for BOTH calls -- 2 dwords for FUN_00056980 plus 2 dwords for
+ * cleanup for BOTH calls -- 2 dwords for ai_scripting_braindead plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13170,15 +13170,15 @@ void FUN_000c07f0(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0, then the zero-extended byte @ +0x4 */
-    FUN_00056980(record[0], (unsigned char)record[1]);
+    ai_scripting_braindead(record[0], (unsigned char)record[1]);
     hs_return(thread_datum, 0);
   }
 }
 
 /* FUN_000c0830 @ 0x000c0830
  * HS script function handler.  Structural twin of FUN_000c07f0 directly above;
- * the ONLY difference is the worker it forwards to (FUN_00056a20 @ 0x56a20
- * here vs FUN_00056980 @ 0x56980 there).  Evaluate the macro function's
+ * the ONLY difference is the worker it forwards to (ai_scripting_braindead_by_unit @ 0x56a20
+ * here vs ai_scripting_braindead @ 0x56980 there).  Evaluate the macro function's
  * arguments, forward one full 32-bit field plus one zero-extended byte field
  * of the evaluated-argument record, then hand a literal 0 back to the script
  * thread.
@@ -13204,7 +13204,7 @@ void FUN_000c07f0(int16_t function_index, int thread_datum, char init)
  * not widen the +0x4 field -- the byte load with explicit zero-extension is
  * load-width evidence (lift-learnings 24).  Unlike the int16 siblings at
  * 0xc06b0/0xc06f0 the +0x0 load here is a plain full-width MOV, not MOVSX.
- * FUN_00056a20's EAX is never tested or reused (the next instruction pushes an
+ * ai_scripting_braindead_by_unit's EAX is never tested or reused (the next instruction pushes an
  * immediate), so its result is discarded.
  *
  * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
@@ -13222,7 +13222,7 @@ void FUN_000c07f0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c0862 is a MERGED cdecl
- * cleanup for BOTH tail calls -- 2 dwords for FUN_00056a20 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 2 dwords for ai_scripting_braindead_by_unit plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13236,7 +13236,7 @@ void FUN_000c0830(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0, then the zero-extended byte @ +0x4 */
-    FUN_00056a20(record[0], (unsigned char)record[1]);
+    ai_scripting_braindead_by_unit(record[0], (unsigned char)record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13244,8 +13244,8 @@ void FUN_000c0830(int16_t function_index, int thread_datum, char init)
 /* FUN_000c0870 @ 0x000c0870
  * HS script function handler.  Byte-for-byte structural twin of
  * FUN_000c0830 directly above (and of FUN_000c07f0 above that); the ONLY
- * difference is the worker it forwards to (FUN_00056b20 @ 0x56b20 here vs
- * FUN_00056a20 @ 0x56a20 / FUN_00056980 @ 0x56980).  Evaluate the macro
+ * difference is the worker it forwards to (ai_scripting_ignore @ 0x56b20 here vs
+ * ai_scripting_braindead_by_unit @ 0x56a20 / ai_scripting_braindead @ 0x56980).  Evaluate the macro
  * function's arguments, forward one full 32-bit field plus one zero-extended
  * byte field of the evaluated-argument record, then hand a literal 0 back to
  * the script thread.
@@ -13269,7 +13269,7 @@ void FUN_000c0830(int16_t function_index, int thread_datum, char init)
  * then PUSH EDX; PUSH EAX (first PUSH = last C arg) => the dword at +0x0 is
  * arg 1 and the zero-extended byte at +0x4 is arg 2.  Do not swap them and do
  * not widen the +0x4 field -- the byte load with explicit zero-extension is
- * load-width evidence (lift-learnings 24).  FUN_00056b20's EAX is never tested
+ * load-width evidence (lift-learnings 24).  ai_scripting_ignore's EAX is never tested
  * or reused (the next instruction pushes an immediate), so its result is
  * discarded.
  *
@@ -13288,7 +13288,7 @@ void FUN_000c0830(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c08a2 is a MERGED cdecl
- * cleanup for BOTH tail calls -- 2 dwords for FUN_00056b20 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 2 dwords for ai_scripting_ignore plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13302,7 +13302,7 @@ void FUN_000c0870(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0, then the zero-extended byte @ +0x4 */
-    FUN_00056b20(record[0], (unsigned char)record[1]);
+    ai_scripting_ignore(record[0], (unsigned char)record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13310,7 +13310,7 @@ void FUN_000c0870(int16_t function_index, int thread_datum, char init)
 /* FUN_000c08b0 @ 0x000c08b0
  * HS script function handler.  Structural twin of FUN_000c0870 directly above
  * (and of FUN_000c0830 / FUN_000c07f0 above that); the ONLY difference is the
- * worker it forwards to (FUN_00056bc0 @ 0x56bc0 here).  Evaluate the macro
+ * worker it forwards to (ai_scripting_prefer_target @ 0x56bc0 here).  Evaluate the macro
  * function's arguments, forward one full 32-bit field plus one zero-extended
  * byte field of the evaluated-argument record, then hand a literal 0 back to
  * the script thread.
@@ -13334,7 +13334,7 @@ void FUN_000c0870(int16_t function_index, int thread_datum, char init)
  * The byte width at +0x4 is binary evidence (lift-learnings 24); Ghidra's
  * `(char)piVar1[1]` hides it behind a truncated dword load.  PUSH EDX; PUSH
  * EAX at the call means first PUSH is the last C arg, i.e.
- * FUN_00056bc0(dword@+0x0, byte@+0x4) -- do NOT swap.  Its EAX result is never
+ * ai_scripting_prefer_target(dword@+0x0, byte@+0x4) -- do NOT swap.  Its EAX result is never
  * tested or reused (the next instruction pushes an immediate), so it is
  * discarded; the value handed back to the script thread is a hardcoded
  * literal 0, not a computed result.
@@ -13351,7 +13351,7 @@ void FUN_000c0870(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0x10` at 0x000c08e2 is a MERGED cdecl cleanup for BOTH tail calls
- * -- 2 dwords for FUN_00056bc0 plus 2 dwords for hs_return.  Do NOT "fix"
+ * -- 2 dwords for ai_scripting_prefer_target plus 2 dwords for hs_return.  Do NOT "fix"
  * either decl.
  */
 void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
@@ -13362,7 +13362,7 @@ void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0, then the zero-extended byte @ +0x4 */
-    FUN_00056bc0(record[0], (unsigned char)record[1]);
+    ai_scripting_prefer_target(record[0], (unsigned char)record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13389,7 +13389,7 @@ void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
  *   PUSH EDX                   ; narrow-field load-width concern
  *                              ; (lift-learnings 24) -- do NOT narrow it.
  * Unlike the sibling FUN_000c06f0, which loads 16-bit fields via MOVSX/MOVZX,
- * this record is typed `int *`.  FUN_00056de0's return value in EAX is never
+ * this record is typed `int *`.  ai_scripting_teleport_starting_location's return value in EAX is never
  * tested or reused (the next instruction pushes an immediate), so discarding
  * it is faithful to the original.
  *
@@ -13408,7 +13408,7 @@ void FUN_000c08b0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return is a FALSE POSITIVE: the single
  * `ADD ESP,0xc` at 0x000c091c is a MERGED cdecl cleanup for BOTH tail calls
- * -- 1 dword for FUN_00056de0 plus 2 dwords for hs_return.  Do NOT "fix"
+ * -- 1 dword for ai_scripting_teleport_starting_location plus 2 dwords for hs_return.  Do NOT "fix"
  * either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13422,7 +13422,7 @@ void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0 */
-    FUN_00056de0(record[0]);
+    ai_scripting_teleport_starting_location(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13451,7 +13451,7 @@ void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
  *   PUSH EDX                   ; narrow-field load-width concern
  *                              ; (lift-learnings 24) -- do NOT narrow it.
  * Unlike the sibling FUN_000c06f0, which loads 16-bit fields via MOVSX/MOVZX,
- * this record is typed `int *`.  FUN_00056d80's return value in EAX is never
+ * this record is typed `int *`.  ai_scripting_teleport_starting_location_if_unsupported's return value in EAX is never
  * tested or reused (the next instruction pushes an immediate), so discarding
  * it is faithful to the original.
  *
@@ -13470,13 +13470,13 @@ void FUN_000c08f0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c095c is a MERGED cdecl
- * cleanup for BOTH tail calls -- 1 dword for FUN_00056d80 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 1 dword for ai_scripting_teleport_starting_location_if_unsupported plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
  * passed anywhere, so no operand-order or buffer-alias concerns.  The delinked
  * reference carries exactly three DISP32 relocations -- FUN_000cc560,
- * FUN_00056d80, FUN_000cbf80, one each -- matching the three calls below.
+ * ai_scripting_teleport_starting_location_if_unsupported, FUN_000cbf80, one each -- matching the three calls below.
  */
 void FUN_000c0930(int16_t function_index, int thread_datum, char init)
 {
@@ -13486,7 +13486,7 @@ void FUN_000c0930(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0 */
-    FUN_00056d80(record[0]);
+    ai_scripting_teleport_starting_location_if_unsupported(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13544,7 +13544,7 @@ void FUN_000c0970(int16_t function_index, int thread_datum, char init)
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    ai_renew(result[0]);
+    ai_scripting_renew(result[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13571,7 +13571,7 @@ void FUN_000c0970(int16_t function_index, int thread_datum, char init)
  *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
  *   PUSH EDX                   ; narrow-field load-width concern
  *                              ; (lift-learnings 24) -- do NOT narrow it.
- * FUN_00056e40's return value in EAX is never tested or reused (the next
+ * ai_scripting_try_to_fight_nothing's return value in EAX is never tested or reused (the next
  * instruction pushes an immediate), so discarding it is faithful to the
  * original and is not a void-EAX bug (lift-learnings 16).
  *
@@ -13590,7 +13590,7 @@ void FUN_000c0970(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c09dc is a MERGED cdecl
- * cleanup for BOTH tail calls -- 1 dword for FUN_00056e40 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 1 dword for ai_scripting_try_to_fight_nothing plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13604,7 +13604,7 @@ void FUN_000c09b0(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0 */
-    FUN_00056e40(record[0]);
+    ai_scripting_try_to_fight_nothing(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13634,7 +13634,7 @@ void FUN_000c09b0(int16_t function_index, int thread_datum, char init)
  *   MOV EAX, dword ptr [EAX]         ; full 32-bit MOV
  *   PUSH EDX                         ; first PUSH => LAST C arg  (+0x4)
  *   PUSH EAX                         ; second PUSH => first C arg (+0x0)
- * so the call is FUN_00056ed0(record[0], record[1]).  Its result is never
+ * so the call is ai_scripting_try_to_fight(record[0], record[1]).  Its result is never
  * tested or reused (the next instruction pushes an immediate), so it is
  * discarded.
  *
@@ -13652,7 +13652,7 @@ void FUN_000c09b0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is
  * a FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c0a20 is a MERGED cdecl
- * cleanup for BOTH tail calls -- 2 dwords for FUN_00056ed0 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 2 dwords for ai_scripting_try_to_fight plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13666,7 +13666,7 @@ void FUN_000c09f0(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0, dword @ +0x4 */
-    FUN_00056ed0(record[0], record[1]);
+    ai_scripting_try_to_fight(record[0], record[1]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13695,7 +13695,7 @@ void FUN_000c09f0(int16_t function_index, int thread_datum, char init)
  *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
  *                              ; narrow-field load-width concern (§24)
  *   PUSH EDX                   ; the only push => C arg 1 (+0x0)
- * so the call is FUN_00056fa0(record[0]).  That callee's EAX is never tested or
+ * so the call is ai_scripting_try_to_fight_player(record[0]).  That callee's EAX is never tested or
  * reused (the next instruction pushes an immediate), so its result is
  * discarded; its kb.json decl is already `void`, taking one int param, so no
  * ESP-drift decl widening was needed for it.
@@ -13714,7 +13714,7 @@ void FUN_000c09f0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c0a5c is a MERGED cdecl
- * cleanup for BOTH tail calls -- 1 dword for FUN_00056fa0 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 1 dword for ai_scripting_try_to_fight_player plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * Only xref is a DATA reference from 0x00270d94 (the HS function dispatch
@@ -13732,7 +13732,7 @@ void FUN_000c0a30(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0 */
-    FUN_00056fa0(record[0]);
+    ai_scripting_try_to_fight_player(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13741,7 +13741,7 @@ void FUN_000c0a30(int16_t function_index, int thread_datum, char init)
  * HS script function handler ("ai_command_list" family).  Same evaluate /
  * forward / hs_return shape as every sibling in this run; this is the TWO-field
  * variant, forwarding the evaluated-argument record's first dword and its
- * zero-extended 16-bit field at +0x4 to FUN_000570d0 (0x570d0,
+ * zero-extended 16-bit field at +0x4 to ai_scripting_command_list (0x570d0,
  * encounters.obj — assign a command list to every actor in an encounter).
  *
  * Argument evaluation via hs_macro_function_evaluate (0xcc560):
@@ -13762,12 +13762,12 @@ void FUN_000c0a30(int16_t function_index, int thread_datum, char init)
  *   XOR EDX,EDX; MOV DX,word ptr [EAX + 0x4]  ; UNSIGNED 16-bit load (movzx)
  *   MOV EAX,dword ptr [EAX]                   ; full 32-bit load
  *   PUSH EDX; PUSH EAX                        ; first PUSH = last C arg
- * so the call is FUN_000570d0(record[0], (unsigned short)record->field_04).
+ * so the call is ai_scripting_command_list(record[0], (unsigned short)record->field_04).
  * The +0x4 read is a NARROW zero-extended int16 (§24 load-width): it must be
  * spelled as an `unsigned short` load, not `record[1]`, or the 32-bit dword
- * would be forwarded instead.  FUN_000570d0's kb.json decl already carries
+ * would be forwarded instead.  ai_scripting_command_list's kb.json decl already carries
  * (int, int16_t) — its param_2 is the AI command-list index it logs with
- * "%s: ai_command_list %s %d" and hands to FUN_00016e70 — so no decl widening
+ * "%s: ai_command_list %s %d" and hands to action_obey_command_list_setup — so no decl widening
  * was needed for it.
  *
  * ABI: frame is PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no
@@ -13784,7 +13784,7 @@ void FUN_000c0a30(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c0aa3 is a MERGED cdecl
- * cleanup for BOTH tail calls -- 2 dwords for FUN_000570d0 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 2 dwords for ai_scripting_command_list plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13798,7 +13798,7 @@ void FUN_000c0a70(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0, zero-extended int16 @ +0x4 */
-    FUN_000570d0(record[0], *(unsigned short *)((char *)record + 4));
+    ai_scripting_command_list(record[0], *(unsigned short *)((char *)record + 4));
     hs_return(thread_datum, 0);
   }
 }
@@ -13823,7 +13823,7 @@ void FUN_000c0a70(int16_t function_index, int thread_datum, char init)
  *   XOR EDX,EDX; MOV DX,word ptr [EAX+0x4]  ; zero-extended 16-bit @ +0x4
  *   MOV EAX,dword ptr [EAX]                 ; full 32-bit @ +0x0
  *   PUSH EDX; PUSH EAX                      ; first PUSH = last C arg
- * so the call is FUN_00057190(record[0], *(unsigned short *)(record+4)).
+ * so the call is ai_scripting_command_list_by_unit(record[0], *(unsigned short *)(record+4)).
  *
  * ABI: PUSH EBP; MOV EBP,ESP; PUSH ESI ... POP ESI; POP EBP; RET (no immediate)
  * => cdecl, caller cleans, no stack locals (no SUB ESP, no _chkstk, no SEH).
@@ -13838,7 +13838,7 @@ void FUN_000c0a70(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c0ae3 is a MERGED cdecl
- * cleanup for BOTH tail calls -- 2 dwords for FUN_00057190 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 2 dwords for ai_scripting_command_list_by_unit plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13852,7 +13852,7 @@ void FUN_000c0ab0(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0, zero-extended int16 @ +0x4 */
-    FUN_00057190(record[0], *(unsigned short *)((char *)record + 4));
+    ai_scripting_command_list_by_unit(record[0], *(unsigned short *)((char *)record + 4));
     hs_return(thread_datum, 0);
   }
 }
@@ -13878,7 +13878,7 @@ void FUN_000c0ab0(int16_t function_index, int thread_datum, char init)
  *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
  *                              ; narrow-field load-width concern (§24)
  *   PUSH EDX                   ; the only push => C arg 1 (+0x0)
- * so the call is FUN_00057230(record[0]).  That callee's EAX is never tested or
+ * so the call is ai_scripting_command_list_advance(record[0]).  That callee's EAX is never tested or
  * reused (the next instruction pushes an immediate), so its result is
  * discarded.  Its kb.json decl already carried its single int param, so no
  * ESP-drift decl widening was needed for it (unlike the 0x58c40 / 0x58cc0
@@ -13898,7 +13898,7 @@ void FUN_000c0ab0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is a
  * FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c0b1c is a MERGED cdecl
- * cleanup for BOTH tail calls -- 1 dword for FUN_00057230 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 1 dword for ai_scripting_command_list_advance plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13912,7 +13912,7 @@ void FUN_000c0af0(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0 */
-    FUN_00057230(record[0]);
+    ai_scripting_command_list_advance(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -13941,7 +13941,7 @@ void FUN_000c0af0(int16_t function_index, int thread_datum, char init)
  *   MOV EDX, dword ptr [EAX]   ; full 32-bit MOV, no MOVSX/MOVZX, so no
  *                              ; narrow-field load-width concern (S24)
  *   PUSH EDX                   ; the only push => C arg 1 (+0x0)
- * so the call is FUN_000572c0(record[0]).  That callee is declared void and
+ * so the call is ai_scripting_command_list_advance_by_unit(record[0]).  That callee is declared void and
  * its EAX is never tested or reused (the next instruction pushes an
  * immediate), so no result is consumed.
  *
@@ -13960,7 +13960,7 @@ void FUN_000c0af0(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 3 stack args) is
  * a FALSE POSITIVE: the single `ADD ESP,0xc` at 0x000c0b5c is a MERGED cdecl
- * cleanup for BOTH tail calls -- 1 dword for FUN_000572c0 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 1 dword for ai_scripting_command_list_advance_by_unit plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -13974,7 +13974,7 @@ void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0 */
-    FUN_000572c0(record[0]);
+    ai_scripting_command_list_advance_by_unit(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -14004,12 +14004,12 @@ void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
  *   0x000c0b91: MOV EAX, dword ptr [EAX]                 ; full DWORD @ +0x0
  *   PUSH EDX   ; first push  => C arg 2
  *   PUSH EAX   ; second push => C arg 1
- * so the call is FUN_00057850(dword@+0x0, byte@+0x4).  The +0x4 field is an
+ * so the call is ai_scripting_force_active(dword@+0x0, byte@+0x4).  The +0x4 field is an
  * 8-bit ZERO-extended load and must NOT be widened to short/int (S24
  * load-width); this is where the function differs from sibling FUN_000c06f0,
  * which reads a zero-extended WORD at the same offset.  Ghidra rendered the
  * field as `puVar1[1]` on a `uint *`, which would emit a dword load -- a
- * decompiler artifact, not the binary.  FUN_00057850 (ai_force_active) is
+ * decompiler artifact, not the binary.  ai_scripting_force_active (ai_force_active) is
  * declared void and its EAX is never tested or reused (the next instruction
  * pushes an immediate), so no result is consumed.
  *
@@ -14028,7 +14028,7 @@ void FUN_000c0b30(int16_t function_index, int thread_datum, char init)
  *
  * Apparent arg-count hazard on hs_return (reported cleanup = 4 stack args) is
  * a FALSE POSITIVE: the single `ADD ESP,0x10` at 0x000c0ba2 is a MERGED cdecl
- * cleanup for BOTH tail calls -- 2 dwords for FUN_00057850 plus 2 dwords for
+ * cleanup for BOTH tail calls -- 2 dwords for ai_scripting_force_active plus 2 dwords for
  * hs_return.  Do NOT "fix" either decl.
  *
  * No FPU instructions, no struct stores, no memset, and no buffer pointers
@@ -14042,7 +14042,7 @@ void FUN_000c0b70(int16_t function_index, int thread_datum, char init)
                                                        thread_datum, init);
   if (record != NULL) {
     /* dword @ +0x0; zero-extended byte @ +0x4 */
-    FUN_00057850(*(unsigned int *)record, record[4]);
+    ai_scripting_force_active(*(unsigned int *)record, record[4]);
     hs_return(thread_datum, 0);
   }
 }

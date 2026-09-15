@@ -407,7 +407,7 @@ void event_manager_tab_process(void)
   attract_files[2] = "d:\\bink\\attract3.bik";
 
   do {
-    idx = random_range(random_math_get_local_seed_address(), 0, 3);
+    idx = seed_random_range(random_math_get_local_seed_address(), 0, 3);
     if (idx < 0)
       idx = 0;
     else if (idx > 2)

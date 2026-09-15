@@ -4233,7 +4233,7 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
 }
 
 /* 0x13aa10: gather the light markers that illuminate an object.  Computes the
- * object's bounding sphere (center local_2c, radius local_8) via FUN_0001aae0,
+ * object's bounding sphere (center local_2c, radius local_8) via object_get_bounding_sphere,
  * then iterates the object's cluster set (object_get_first_cluster /
  * object_get_next_cluster over iter_state local_10).  For each cluster it calls
  * find_point_lights_for_object_in_cluster to select the strongest point lights into the caller's marker
@@ -4253,7 +4253,7 @@ void lights_prepare_for_object_dynamic(int param_1, int param_2)
   short i;
   int light;
 
-  FUN_0001aae0(param_1, center, &radius);
+  object_get_bounding_sphere(param_1, center, &radius);
   count = (short *)(param_2 + 0x40);
   *count = 0;
 
@@ -10220,7 +10220,7 @@ void object_pvs_activate(int param_1)
  * Confirmed: tag_block at model_tag+0xc4, element size 0x4c.
  * Confirmed: calls object_find_region_permutations_available_with_variant.
  * Confirmed: if count==0, tries variant=0 as fallback.
- * Confirmed: random_range(get_global_random_seed_address(), 0, count). */
+ * Confirmed: seed_random_range(get_global_random_seed_address(), 0, count). */
 char object_select_random_region_permutations_by_variant(
   int object_handle /* @<eax> */, void *model_tag, int16_t variant)
 {
@@ -10260,7 +10260,7 @@ char object_select_random_region_permutations_by_variant(
           chosen = 0;
         } else {
           int *seed = get_global_random_seed_address();
-          chosen = random_range((unsigned int *)seed, 0, count);
+          chosen = seed_random_range((unsigned int *)seed, 0, count);
         }
         *(unsigned char *)(obj + 0x130 + (int)region_count) =
           (unsigned char)*(unsigned char *)((char *)avail_buf + chosen * 2);

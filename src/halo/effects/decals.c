@@ -1499,7 +1499,7 @@ static float decals_random_real(float min, float max)
 
 static int16_t decals_random_short(int16_t min, int16_t max)
 {
-  return random_range(random_math_get_local_seed_address(), min, max);
+  return seed_random_range(random_math_get_local_seed_address(), min, max);
 }
 
 static void decals_get_signed_plane(int structure_bsp, int plane_reference,

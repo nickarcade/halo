@@ -28,7 +28,7 @@
 #define RNG_TRACE_KIND_REAL          0u /* random_math_real            steps 1 */
 #define RNG_TRACE_KIND_REAL_RANGE    1u /* random_real_range           steps 1 */
 #define RNG_TRACE_KIND_SEED_STEP     2u /* random_seed_step            steps 1 */
-#define RNG_TRACE_KIND_RANGE         3u /* random_range                steps 1 */
+#define RNG_TRACE_KIND_RANGE         3u /* seed_random_range                steps 1 */
 #define RNG_TRACE_KIND_DIRECTION3D   4u /* random_seed_get_direction3d steps 1 */
 #define RNG_TRACE_KIND_ORIENTATION   5u /* seed_random_orientation     steps 3 */
 #define RNG_TRACE_KIND_DIR3D_INLINE  6u /* random_direction3d          steps 1 */

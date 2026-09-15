@@ -1082,7 +1082,7 @@ bool garbage_new(int item_handle)
   flags = *(unsigned int *)(item_obj + 0x4);
   *(unsigned int *)(item_obj + 0x4) = flags | 0xc0000;
   seed = (unsigned int *)get_global_random_seed_address();
-  *(int16_t *)(item_obj + 0x1dc) = random_range(seed, 300, 600);
+  *(int16_t *)(item_obj + 0x1dc) = seed_random_range(seed, 300, 600);
   return 1;
 }
 

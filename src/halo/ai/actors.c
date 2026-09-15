@@ -234,14 +234,14 @@ void actor_stimulus_enter_combat_friend_in_combat(int param_1, int param_2)
 
 /* 0x36bd0 — Post an object-look stimulus (type 5, priority 1) to an actor.
  * Builds a look_buf with word 0x1 and passes param_2 (object handle) adjacent
- * so FUN_00027a60 can read it as part of the buffer. */
+ * so actor_look_secondary can read it as part of the buffer. */
 void actor_stimulus_bumped(int actor_handle, int param_2)
 {
   short look_buf[4]; /* [0]=1, [2..3]=param_2 as int overlay */
 
   look_buf[0] = 1;
   *(int *)(&look_buf[2]) = param_2;
-  FUN_00027a60(actor_handle, 5, 1, look_buf);
+  actor_look_secondary(actor_handle, 5, 1, look_buf);
 }
 
 /* actor_stimulus_environmental_noise (0x36c00) — flee/scatter look reaction.
@@ -249,7 +249,7 @@ void actor_stimulus_bumped(int actor_handle, int param_2)
  * Resolves the actor record via datum_get(actor_data, actor_handle).
  * If actor+0x6a (short state) != 1, posts a position-look directive to the
  * actor by building a 16-byte look buffer { type=3, pad, float pos[3] } from
- * the caller's position vector and dispatching it through FUN_00027a60
+ * the caller's position vector and dispatching it through actor_look_secondary
  * (actor_handle, 1, 1, look_buf).
  *
  * The object_handle and count parameters are present in the calling
@@ -258,10 +258,10 @@ void actor_stimulus_bumped(int actor_handle, int param_2)
  *
  * Confirmed: 4 cdecl args (caller passes actor_handle, object_handle,
  *   position, count); ADD ESP,0x8 after datum_get; ADD ESP,0x10 after
- *   FUN_00027a60.
+ *   actor_look_secondary.
  * Confirmed: state field check is CMP word ptr [EAX+0x6a],0x1 / JZ skip.
  * Confirmed: look_buf layout — word 0x3 at +0x00, position[0..2] at +0x04.
- * Confirmed: FUN_00027a60(actor_handle, 1, 1, look_buf) — look_type=1,
+ * Confirmed: actor_look_secondary(actor_handle, 1, 1, look_buf) — look_type=1,
  *   priority=1. */
 void actor_stimulus_environmental_noise(int actor_handle, int object_handle, float *position,
                   short count)
@@ -278,7 +278,7 @@ void actor_stimulus_environmental_noise(int actor_handle, int object_handle, flo
     *(float *)&look_buf[2] = position[0];
     *(float *)&look_buf[4] = position[1];
     *(float *)&look_buf[6] = position[2];
-    FUN_00027a60(actor_handle, 1, 1, look_buf);
+    actor_look_secondary(actor_handle, 1, 1, look_buf);
   }
 }
 
@@ -286,7 +286,7 @@ void actor_stimulus_environmental_noise(int actor_handle, int object_handle, flo
  * != 0), post priority-6 stimulus to prop+0xe0. Otherwise call actor_stimulus_enter_combat_friend_in_combat,
  * then check linked player/actor handles for perception and team-friendliness.
  * Always finishes with a look-at-prop stimulus (type 7, priority 1) via
- * FUN_00027a60. */
+ * actor_look_secondary. */
 void actor_stimulus_heard_shooting(int actor_handle, int prop_handle)
 {
   char *prop;
@@ -335,7 +335,7 @@ void actor_stimulus_heard_shooting(int actor_handle, int prop_handle)
 exit_look:
   look_buf[0] = 1;
   *(int *)&look_buf[2] = prop_handle;
-  FUN_00027a60(actor_handle, 7, 1, look_buf);
+  actor_look_secondary(actor_handle, 7, 1, look_buf);
 }
 
 /* 0x36da0 — Set actor stimulus-received flag at offset +0x2f0 to 1. */
@@ -479,7 +479,7 @@ void actor_stimulus_prop_acknowledged(int actor_handle, int prop_handle, int par
     goto exit_fun;
   look_buf[0] = 1;
   *(int *)&look_buf[2] = prop_handle;
-  FUN_00027a60(actor_handle, 4, 1, look_buf);
+  actor_look_secondary(actor_handle, 4, 1, look_buf);
   if (*(char *)(prop + 0x60) == '\0')
     goto exit_fun;
 
@@ -579,7 +579,7 @@ exit_fun:
  *   calls actor_stimulus_surprise(actor, 5, prop_handle, position_b)
  *   calls actor_stimulus_combat(actor, NULL, 5, position_b,
  * -1,0,0x5a,prop_handle,0x96,0) Then builds a type-1 (prop) or type-4
- * (direction) look buf and calls FUN_00027a60(actor, 0xb, 1, buf). Source:
+ * (direction) look buf and calls actor_look_secondary(actor, 0xb, 1, buf). Source:
  * c:\halo\SOURCE\ai\actor_stimulus.c line ~0x154. */
 void actor_stimulus_damage(int actor_handle, int prop_handle, int unused_param_3,
                   float *position)
@@ -642,7 +642,7 @@ void actor_stimulus_damage(int actor_handle, int prop_handle, int unused_param_3
     *(unsigned int *)((char *)local_buf + 12) = *(unsigned int *)&local_dir[2];
   }
 
-  FUN_00027a60(actor_handle, 0xb, 1, local_buf);
+  actor_look_secondary(actor_handle, 0xb, 1, local_buf);
 }
 
 /* actor_stimulus_weapon_impact (0x373b0) — charge effect dispatch (audible AI broadcast).
@@ -675,7 +675,7 @@ void actor_stimulus_damage(int actor_handle, int prop_handle, int unused_param_3
  *
  * Finally, write a 16-byte look_buf { word 3, float pos[3] } from the raw
  * broadcast position and dispatch it as a look directive via
- * FUN_00027a60(actor_handle, 3, 1, look_buf) — look_type=3, priority=1.
+ * actor_look_secondary(actor_handle, 3, 1, look_buf) — look_type=3, priority=1.
  *
  * Confirmed: ADD ESP,0x10 cleans datum_get(2) + tag_get(2). Tag id 'actr'.
  * Confirmed: 4-arg cdecl signature at caller (actors_handle_spatial_effect
@@ -733,7 +733,7 @@ void actor_stimulus_weapon_impact(int actor_handle, int object_handle, float *po
   *(float *)&look_buf[2] = position[0];
   *(float *)&look_buf[4] = position[1];
   *(float *)&look_buf[6] = position[2];
-  FUN_00027a60(actor_handle, 3, 1, look_buf);
+  actor_look_secondary(actor_handle, 3, 1, look_buf);
 }
 
 /* actor_stimulus_weapon_detonation (0x374f0) — cover/take-cover look reaction.
@@ -753,13 +753,13 @@ void actor_stimulus_weapon_impact(int actor_handle, int object_handle, float *po
  * friendliness via game_allegiance_get_team_is_friendly(actor+0x3e,
  * obj+0x68); when friendly, posts actor_stimulus_suspicion(actor_handle, 2, 900).
  * Finally posts a position-look at priority-1, look_type=6 with the
- * original input position via FUN_00027a60.
+ * original input position via actor_look_secondary.
  *
  * Confirmed: 4 cdecl args matching dispatch in actors_handle_spatial_effect;
  * ESP cleanup ADD ESP,0x14 after datum_get+tag_get; ADD ESP,0x10 after
  * actor_stimulus_surprise; ADD ESP,0x18 after actor_stimulus_combat; ADD ESP,0x10 after
  * game_allegiance_get_team_is_friendly; ADD ESP,0xc after actor_stimulus_suspicion; ADD
- * ESP,0x10 after FUN_00027a60. Confirmed: actor_stimulus_combat reg ABI — @ecx=vec1,
+ * ESP,0x10 after actor_look_secondary. Confirmed: actor_stimulus_combat reg ABI — @ecx=vec1,
  * @eax=actor,
  * @edx=priority,
  *   @ebx=vec2; verified against sibling actor_stimulus_weapon_impact call site at 0x374b4.
@@ -805,7 +805,7 @@ void actor_stimulus_weapon_detonation(int actor_handle, int object_handle, float
   *(float *)&look_buf[2] = position[0];
   *(float *)&look_buf[4] = position[1];
   *(float *)&look_buf[6] = position[2];
-  FUN_00027a60(actor_handle, 6, 1, look_buf);
+  actor_look_secondary(actor_handle, 6, 1, look_buf);
 }
 
 /* actor_stimulus_prop_just_killed (0x37630) — actor surprise-encounter update.
@@ -821,7 +821,7 @@ void actor_stimulus_weapon_detonation(int actor_handle, int object_handle, float
  * (killer_prop->field_60 == 0): bail.
  *
  * If killer_prop->field_32 > 0 and field_122 <= 2: optionally gates via
- * game_time_get() > actor->field_39c + tag bit5, then calls FUN_00030d10
+ * game_time_get() > actor->field_39c + tag bit5, then calls actor_emotion_flee_with_friends
  * (chance scaler). Falls back to a random roll vs the (possibly scaled)
  * chance. On success, sets emotion priority to 3 with killer prop handle.
  *
@@ -868,7 +868,7 @@ void actor_stimulus_prop_just_killed(int actor_handle, int prop_handle)
     chance = *(float *)(tag + 0x2a0);
     if ((*(unsigned char *)(tag + 4) & 0x20) &&
         game_time_get() > ((actor_t *)actor)->field_39c) {
-      if (FUN_00030d10(actor_handle, &chance))
+      if (actor_emotion_flee_with_friends(actor_handle, &chance))
         goto set_alert;
     }
     if (chance <=
@@ -893,7 +893,7 @@ lab_a2:
  * (param_1) and a prop handle (param_2), checks whether the actor's tag
  * permits this reaction (actor_tag+0x4 bit 5) and that the prop has not been
  * consumed (prop+0x60 == 0). If still in cooldown (game_time_get() <=
- * actor+0x39c), bail. Computes a chance roll via FUN_00030d10 which may
+ * actor+0x39c), bail. Computes a chance roll via actor_emotion_flee_with_friends which may
  * scale the per-tag chance (actor_tag+0x2a0) in-place; if it returns false,
  * roll a random float and bail when random >= scaled_chance. If the actor's
  * current emotion priority at +0x308 is below 3, set the new emotion to 2
@@ -907,7 +907,7 @@ lab_a2:
  *   actor+0x58) -> EBX (actor_tag); datum_get(prop_data, param_2) -> EDI.
  * Confirmed: TEST byte [EBX+4],0x20 (0x37819); CMP EAX,[ESI+0x39c] after
  *   game_time_get (0x37828).
- * Confirmed: FUN_00030d10(actor_handle, &local_8) cdecl, local_8 seeded
+ * Confirmed: actor_emotion_flee_with_friends(actor_handle, &local_8) cdecl, local_8 seeded
  *   with *(actor_tag+0x2a0).
  * Confirmed: FCOMP [EBP-4]; FNSTSW AX; TEST AH,5; JP -> ret when
  *   random >= local_8 (continues only when random < local_8).
@@ -942,7 +942,7 @@ void actor_stimulus_prop_fleeing(int actor_handle, int prop_handle)
     return;
 
   chance = *(float *)(actor_tag + 0x2a0);
-  preempt = (char)FUN_00030d10(actor_handle, &chance);
+  preempt = (char)actor_emotion_flee_with_friends(actor_handle, &chance);
   if (preempt == 0) {
     if (chance <=
         random_math_real((unsigned int *)get_global_random_seed_address())) {
@@ -1600,7 +1600,7 @@ char actor_type_flood_desire_shamble(int actor_handle)
 
   /* Early exit: actor is busy or in flood-specific suppressed state */
   if (unit_is_busy(((actor_t *)actor)->field_018) ||
-      FUN_0002a3d0(actor_handle) || ((actor_t *)actor)->field_06a < 3) {
+      actor_path_has_path(actor_handle) || ((actor_t *)actor)->field_06a < 3) {
   exit_1:
     ((actor_t *)actor)->field_362 = 0;
     return 1;
@@ -1682,8 +1682,8 @@ char actor_type_flood_desire_shamble(int actor_handle)
       /* Count standing vs. crouching allies */
       stand_count = 0;
       crouching_count = 0;
-      FUN_00064540(iter, actor_handle);
-      ally = FUN_00064570(iter);
+      prop_iterator_new(iter, actor_handle);
+      ally = prop_iterator_next(iter);
       while (ally != 0) {
         /* Filter: prop type 2 or 3, not dead, not jinking, has actor */
         if (*(short *)(ally + 0x24) >= 2 && *(short *)(ally + 0x24) <= 3 &&
@@ -1700,7 +1700,7 @@ char actor_type_flood_desire_shamble(int actor_handle)
             }
           }
         }
-        ally = FUN_00064570(iter);
+        ally = prop_iterator_next(iter);
       }
       /* Adjust probability:
        * base_prob -= ((-base_prob * stand) +
@@ -1746,8 +1746,8 @@ char actor_type_flood_desire_shamble(int actor_handle)
       behind_count = 0;
       lateral_count = 0;
 
-      FUN_00064540(iter, actor_handle);
-      ally = FUN_00064570(iter);
+      prop_iterator_new(iter, actor_handle);
+      ally = prop_iterator_next(iter);
       while (ally != 0) {
         if (*(short *)(ally + 0x24) >= 2 && *(short *)(ally + 0x24) <= 3 &&
             *(char *)(ally + 0x60) == 0 && *(char *)(ally + 0x127) == 0 &&
@@ -1769,7 +1769,7 @@ char actor_type_flood_desire_shamble(int actor_handle)
             }
           }
         }
-        ally = FUN_00064570(iter);
+        ally = prop_iterator_next(iter);
       }
 
       should_crouch = ((actor_t *)actor)->field_363;
@@ -1843,7 +1843,7 @@ return_current:
  * (surprise, damage, attached projectiles, melee, burning), panic_transition
  * (actor_handle,1,cVar_203,7), combat_transition, vehicle_entry/exit,
  * grenade_throwing, FUN_00020990. Switch cases 3/10, 4, 5/7/8, 6, 9, 11, 12,
- * 13. Case 4 checks bVar_247 and actor+0xa8 before FUN_00015020(a8); case 9
+ * 13. Case 4 checks bVar_247 and actor+0xa8 before action_flee_blind_panic(a8); case 9
  * checks actor+0xa5/0xa6. Cases 12/13 share evasion/converging tail. */
 void grunt_decide_action(int actor_handle)
 {
@@ -1896,7 +1896,7 @@ void grunt_decide_action(int actor_handle)
     if (bVar_247 != '\0') {
       tmp = (int)(short)((actor_t *)actor)->field_0a8;
       if (tmp > 0) {
-        cVar1 = FUN_00015020(tmp);
+        cVar1 = action_flee_blind_panic(tmp);
         if (cVar1 == '\0') {
           actor[0xab] = 1;
         }
@@ -2262,7 +2262,7 @@ void infection_swarm_control(int actor_handle)
       if (cooldown <= *(float *)0x254640)
         cooldown = *(float *)0x254640;
       *(short *)(swarm + 8) = (short)(int)cooldown;
-      special_index = random_range(
+      special_index = seed_random_range(
         (unsigned int *)get_global_random_seed_address(), 0, count);
     }
   } else {
@@ -2306,8 +2306,8 @@ void infection_swarm_control(int actor_handle)
     best_handle = -1;
     best_score = 0.0f;
     best_dist = 0.0f;
-    FUN_00064540(iter, actor_handle);
-    encounter = (char *)FUN_00064570(iter);
+    prop_iterator_new(iter, actor_handle);
+    encounter = (char *)prop_iterator_next(iter);
     while (encounter != 0) {
       if (*(float *)(encounter + 0x50) > *(float *)0x2533c0) {
         dx = *(float *)(component + 4) - *(float *)(encounter + 0xbc);
@@ -2334,7 +2334,7 @@ void infection_swarm_control(int actor_handle)
           best_dist = dist;
         }
       }
-      encounter = (char *)FUN_00064570(iter);
+      encounter = (char *)prop_iterator_next(iter);
     }
     *(int *)(component + 0x14) = best_handle;
     if (((best_handle != -1) && (best_dist < *(float *)(actor_tag + 0x160))) &&
@@ -4289,7 +4289,7 @@ void actor_switch_props(int actor_handle, int old_prop, int new_prop)
   actor_action_replace_prop(actor_handle, old_prop, new_prop);
 }
 
-/* actor_flush_position_indices (0x3b5e0) — actor_reset_action_state
+/* actor_flush_position_indices (0x3b5e0) — action_guard_flush_position_indices
  *
  * Resets the actor's action-related state and dispatches to the current
  * action's update function. Unconditionally clears the word at actor+0x3b8
@@ -4415,7 +4415,7 @@ bool actor_has_unlimited_grenades(void)
  * actor_stimulus_damage (actor_stimulus) with the resolved prop handle.
  *
  * 1. If prop_handle == -1, do nothing (early return after tail call).
- * 2. Calls FUN_00064b40(param_1, prop_handle, 1, 1) → prop_handle2.
+ * 2. Calls prop_get_base_by_unit_index(param_1, prop_handle, 1, 1) → prop_handle2.
  * 3. If prop_handle2 != -1:
  *    a. datum_get(prop_data, prop_handle2) → prop record.
  *    b. prop+0x70 += param_3  (accumulated time)
@@ -4457,7 +4457,7 @@ void actor_handle_damage(int param_1, int prop_handle, float param_3,
   int16_t state;
 
   if (prop_handle != -1) {
-    prop_handle2 = FUN_00064b40(param_1, prop_handle, 1, 1);
+    prop_handle2 = prop_get_base_by_unit_index(param_1, prop_handle, 1, 1);
     if (prop_handle2 != -1) {
       prop = (char *)datum_get(prop_data, prop_handle2);
       *(float *)(prop + 0x70) = param_3 + *(float *)(prop + 0x70);
@@ -4572,7 +4572,7 @@ void actor_freeze(int actor_handle)
 void actors_freeze(void)
 {
   char iter[0x1c];
-  encounter_iterator_next(iter, 1);
+  actor_iterator_new(iter, 1);
   while (actor_iterator_next(iter)) {
     actor_freeze(*(int *)(iter + 0x14));
   }
@@ -4655,7 +4655,7 @@ void actor_randomly_control_unit(int actor_handle, int unit_object_index /* @<es
 /* actors_move_randomly (0x3ba00) — actors_idle_update
  *
  * Iterates all active actors via the standard iterator
- * (encounter_iterator_next/actor_iterator_next). For each actor record:
+ * (actor_iterator_new/actor_iterator_next). For each actor record:
  *   - If record->field_6 == 0 (non-swarm): calls actor_randomly_control_unit once with the
  *     actor's unit object index from record->field_18.
  *   - If record->field_6 != 0 and record->field_28 (swarm handle) is valid:
@@ -4676,7 +4676,7 @@ void actors_move_randomly(void)
   char *record;
   int actor_handle;
 
-  encounter_iterator_next(iter, 1);
+  actor_iterator_new(iter, 1);
   record = (char *)actor_iterator_next(iter);
   while (record != NULL) {
     actor_handle = *(int *)(iter + 0x14);
@@ -5164,7 +5164,7 @@ void actors_handle_spatial_effect(int object_handle, short effect_type,
   short audibility;
 
   scenario_location_from_point(location, position);
-  encounter_iterator_next(iter, 1);
+  actor_iterator_new(iter, 1);
   actor_record = (char *)actor_iterator_next(iter);
   while (actor_record != NULL) {
     actor_handle = *(int *)(iter + 0x14);
@@ -5605,7 +5605,7 @@ void actor_customize_unit(int actv_tag_index, int unit_index)
   if (*(short *)(actv_data + 0x180) != -1) {
     seed = get_global_random_seed_address();
     unit_set_grenade_count(unit_index, *(short *)(actv_data + 0x180),
-                           random_range((unsigned int *)seed,
+                           seed_random_range((unsigned int *)seed,
                                         *(short *)(actv_data + 0x1d0),
                                         *(short *)(actv_data + 0x1d2) + 1));
   }
@@ -5754,13 +5754,13 @@ void actor_swarm_component_setup(int swarm_handle, int swarm_component_handle, i
 /* actor_delete_props (0x3cbc0) — actor_clean_props
  *
  * Clean up all props associated with an actor. Iterates actor+0x50 linked list,
- * calling actor_switch_props to clear prop references and prop_iterator_next to
+ * calling actor_switch_props to clear prop references and prop_delete to
  * delete each prop, until the list is empty.
  *
  * Confirmed: datum_get(actor_data, actor_handle) at 0x3cbcf.
  * Confirmed: actor+0x50 (prop list head) checked against -1 at 0x3cbdc.
  * Confirmed: actor_switch_props(actor_handle, prop, -1) at 0x3cbe5.
- * Confirmed: prop_iterator_next(actor_handle, actor+0x50) at 0x3cbef.
+ * Confirmed: prop_delete(actor_handle, actor+0x50) at 0x3cbef.
  * Confirmed: loop continues while actor+0x50 != -1 at 0x3cbfd. */
 void actor_delete_props(int actor_handle)
 {
@@ -5772,7 +5772,7 @@ void actor_delete_props(int actor_handle)
 
   while (prop_handle != -1) {
     actor_switch_props(actor_handle, prop_handle, -1);
-    prop_iterator_next(actor_handle, ((actor_t *)actor)->field_050);
+    prop_delete(actor_handle, ((actor_t *)actor)->field_050);
     prop_handle = ((actor_t *)actor)->field_050;
   }
 }
@@ -6228,7 +6228,7 @@ void actor_died(int actor_handle)
     if (*(short *)(tag + 0x1e0) > 0 || *(short *)(tag + 0x1e2) > 0) {
       int16_t rounds = 0;
       seed = get_global_random_seed_address();
-      rounds = random_range((unsigned int *)seed, *(short *)(tag + 0x1e0),
+      rounds = seed_random_range((unsigned int *)seed, *(short *)(tag + 0x1e0),
                             *(short *)(tag + 0x1e2) + 1);
       weapon_set_total_rounds(weapon_handle, &rounds);
     }
@@ -6323,7 +6323,7 @@ void actor_swarm_unit_died(int actor_handle, int unit_handle)
  *       if valid encounter and action type in [2,3] → return 1;
  *       if action type in [4,5] and actor_get_action_priority_flag returned 3 →
  * return 1.
- *   - FUN_0002a3d0(actor_handle) checks byte at actor+0x4a8 (non-zero =
+ *   - actor_path_has_path(actor_handle) checks byte at actor+0x4a8 (non-zero =
  * vehicle?): if mode==3 and actor+0x6c==6 and biped+0x62==1 → return 1. if
  * mode==5 and encounter+0x12e!=0 → return 1.
  *   - Increment word[actor+0x14] (idle ticks); if > 0x3b (59): deactivate and
@@ -6343,7 +6343,7 @@ void actor_swarm_unit_died(int actor_handle, int unit_handle)
  * Confirmed: actor_set_dormant(actor_handle, flag) cdecl 2 args — ADD ESP,0x8.
  * Confirmed: actor_get_action_priority_flag(actor_handle) cdecl 1 arg → short action
  * type in AX. Return stored in DI; compared as 16-bit (CMP DI,0x2 / CMP
- * DI,0x3). Confirmed: FUN_0002a3d0(actor_handle) cdecl 1 arg → byte at
+ * DI,0x3). Confirmed: actor_path_has_path(actor_handle) cdecl 1 arg → byte at
  * actor+0x4a8. Confirmed: mode==3 path: CMP word[ESI+0x6c],6; CMP
  * word[EBX+0x62],1 (biped rec). EBX = DAT_005ab270 datum_get result (biped
  * record), set at 0x3daf7. Confirmed: mode==5 path: datum_get(DAT_005ab23c,
@@ -6361,7 +6361,7 @@ void actor_swarm_unit_died(int actor_handle, int unit_handle)
  * handle (int). Inferred: encounter+0x12e = scripted flag (char);
  * encounter+0x60 = active (char); encounter+0x127 = some exclusion flag (char);
  * encounter+0x24 = type/state short. Inferred: actor+0x4a8 = in-vehicle or
- * mounted flag (byte, read by FUN_0002a3d0). Inferred: actor+0x46c = activation
+ * mounted flag (byte, read by actor_path_has_path). Inferred: actor+0x46c = activation
  * mode (short); 3=biped-ride, 5=encounter-board. Inferred: actor+0x470 =
  * secondary encounter handle (int) used with mode==5. */
 /* 0x3d3d0 — Set or restore actor dormancy state and fields +0x6a/+0x6c.
@@ -6868,7 +6868,7 @@ char actor_general_update(int actor_handle)
   }
 
   /* Check in-vehicle / mounted flag */
-  in_vehicle = FUN_0002a3d0(actor_handle);
+  in_vehicle = actor_path_has_path(actor_handle);
   if (in_vehicle != 0) {
     if (((actor_t *)actor)->field_46c == 3) {
       /* Biped-ride mode: check biped action state */
@@ -7541,7 +7541,7 @@ void actors_handle_unit_effect(int unit_handle, short unit_effect, int param_3)
     } while (cur < *(int *)(scenario + 0x134));
   }
   object_get_world_position(unit_handle, (vector3_t *)position);
-  encounter_iterator_next(encounter_iter, 1);
+  actor_iterator_new(encounter_iter, 1);
   cur = actor_iterator_next(encounter_iter);
   while (cur != 0) {
     encounter_actor = *(int *)((char *)encounter_iter + 0x14);
@@ -7554,7 +7554,7 @@ void actors_handle_unit_effect(int unit_handle, short unit_effect, int param_3)
         result = actor_audibility_at_point(encounter_actor, sense_block,
                                           position, node, param_3, 1.0f, 0);
         if (result >= 2) {
-          prop_handle = FUN_00064b40(encounter_actor, unit_handle, 1, 1);
+          prop_handle = prop_get_base_by_unit_index(encounter_actor, unit_handle, 1, 1);
           if (prop_handle != -1) {
             prop = (char *)datum_get(prop_data, prop_handle);
             result = actor_audibility_at_point(
@@ -7991,9 +7991,9 @@ void actor_update(int actor_handle /* @<esi> */)
   actor_clear_output(actor_handle);
   actor_action_control(actor_handle);
   actor_communication_update(actor_handle);
-  FUN_00014540(actor_handle);
+  actor_conversation_control(actor_handle);
   actor_destination_update(actor_handle);
-  FUN_0002a2b0(actor_handle);
+  actor_look_affect_movement(actor_handle);
   actor_move_update(actor_handle);
   actor_look_update(actor_handle);
   actor_combat_update(actor_handle);

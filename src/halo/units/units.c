@@ -2188,7 +2188,7 @@ int unit_find_dialogue_variant(void *tag_data, int dialogue_type)
       if ((int16_t)match_count == 1) {
         chosen = match_indices[0];
       } else {
-        chosen = random_range((unsigned int *)get_global_random_seed_address(),
+        chosen = seed_random_range((unsigned int *)get_global_random_seed_address(),
                               0, (int16_t)match_count);
         chosen = match_indices[chosen];
       }
@@ -3875,7 +3875,7 @@ uint32_t unit_test_spawning(int unit_handle)
     unit_tag = (char *)tag_get(0x756e6974, *unit);
     if (*(int *)(unit_tag + 0x258) != -1) {
       seed = get_global_random_seed_address();
-      count = random_range((unsigned int *)seed, *(int16_t *)(unit_tag + 0x25c),
+      count = seed_random_range((unsigned int *)seed, *(int16_t *)(unit_tag + 0x25c),
                            (int16_t)(*(int16_t *)(unit_tag + 0x25e) + 1));
       if (count > 0) {
         FUN_0003f350(unit_handle, *(int *)(unit_tag + 0x258), count,
@@ -9820,7 +9820,7 @@ void unit_start_flaming_to_death(int unit_handle, int param_2)
   *(uint16_t *)(unit + 0xb6) = (*(uint16_t *)(unit + 0xb6) & ~0x4u) | 0x800;
   if (*(char *)(unit + 0x23b) == '\0') {
     seed = get_global_random_seed_address();
-    ticks = random_range((unsigned int *)seed, 0x3c, 0x96);
+    ticks = seed_random_range((unsigned int *)seed, 0x3c, 0x96);
     if (ticks < 1) {
       ticks = 1;
     } else if (ticks > 0xff) {
@@ -11621,7 +11621,7 @@ check_ping:
         frame_count = *(short *)(anim_element + 0x22);
         quarter = frame_count >> 2;
         half = (frame_count >> 1) + quarter;
-        random_frame = FUN_00017940(quarter, half);
+        random_frame = random_range(quarter, half);
         *(char *)((int)unit + 0x23c) = (char)random_frame;
         if ((char)random_frame < 2) {
           *(char *)((int)unit + 0x23c) = 1;

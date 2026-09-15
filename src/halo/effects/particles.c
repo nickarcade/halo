@@ -401,7 +401,7 @@ bool particle_next_sequence(int datum_handle)
   if (*(char *)(datum + 0x0e) == 0) {
     if (*(int16_t *)(tag + 0x9a) > 0) {
       seed = random_math_get_local_seed_address();
-      rval = random_range(seed, 0, *(int16_t *)(tag + 0x9a));
+      rval = seed_random_range(seed, 0, *(int16_t *)(tag + 0x9a));
       *(int16_t *)(datum + 0x24) = *(int16_t *)(tag + 0x98) + rval;
     }
     (*(char *)(datum + 0x0e))++;
@@ -420,7 +420,7 @@ bool particle_next_sequence(int datum_handle)
     (*(char *)(datum + 0x0e))++;
   } else {
     seed = random_math_get_local_seed_address();
-    rval = random_range(seed, 0, *(int16_t *)(tag + 0x9c));
+    rval = seed_random_range(seed, 0, *(int16_t *)(tag + 0x9c));
     *(int16_t *)(datum + 0x24) =
       *(int16_t *)(tag + 0x9a) + *(int16_t *)(tag + 0x98) + rval;
   }
@@ -430,7 +430,7 @@ skip_phase2:
   if (*(int16_t *)(datum + 0x24) == -1 && *(char *)(datum + 0x0e) == 3) {
     if (*(int16_t *)(tag + 0x9e) > 0) {
       seed = random_math_get_local_seed_address();
-      rval = random_range(seed, 0, *(int16_t *)(tag + 0x9e));
+      rval = seed_random_range(seed, 0, *(int16_t *)(tag + 0x9e));
       *(int16_t *)(datum + 0x24) = *(int16_t *)(tag + 0x9c) +
                                    *(int16_t *)(tag + 0x9a) +
                                    *(int16_t *)(tag + 0x98) + rval;
