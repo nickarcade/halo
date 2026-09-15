@@ -36726,7 +36726,10 @@
     },
     {
      "addr": "0x68c40",
-     "decl": "void bset(void);",
+     "decl": "void bset(int count @<ecx>, void *dest @<edx>, int value);",
+     "ported": true,
+     "source_path": "src/halo/bitmaps/libtiff/tif_flush.c",
+     "object": "tif_flush.obj",
      "comment": "[NAME: bset — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {

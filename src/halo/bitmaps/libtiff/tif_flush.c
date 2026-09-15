@@ -806,6 +806,33 @@ int FUN_00068bd0(void *tif_ /* @<eax> */)
   return result;
 }
 
+/*
+ * Fill `count` bytes at `dest` with the low byte of `value`.
+ *
+ * The binary receives `count` in ECX, `dest` in EDX, and `value` in the sole
+ * cdecl stack slot. Its positive-count path makes one dword with all four
+ * bytes equal to `(unsigned char)value`, fills `count >> 2` dwords, and then
+ * fills `count & 3` trailing bytes. Non-positive counts make no stores.
+ */
+void bset(int count /* @<ecx> */, void *dest /* @<edx> */, int value)
+{
+  unsigned char *out;
+  unsigned char byte_value;
+  int i;
+
+  if (count <= 0)
+    return;
+
+  out = (unsigned char *)dest;
+  byte_value = (unsigned char)value;
+  i = count;
+  while (i > 0) {
+    *out = byte_value;
+    out++;
+    i--;
+  }
+}
+
 /**
  * Allocate and initialize the private Group 3/4 fax codec state.
  *
@@ -1559,7 +1586,8 @@ void FUN_000695c0(void *tif_)
  * @return the number of like-valued bits found, never more than `be - bs`.
  */
 __declspec(noinline) int FUN_00069600(int bs /* @<ecx> */, int be /* @<edx> */,
-                 const unsigned char *runs /* @<ebx> */, unsigned char **pbp)
+                                      const unsigned char *runs /* @<ebx> */,
+                                      unsigned char **pbp)
 {
   unsigned char *bp = *pbp;
   int bits = be - bs;
