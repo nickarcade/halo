@@ -8444,8 +8444,9 @@
     },
     {
      "addr": "0xb4a70",
-     "decl": "void target_is_valid(void);",
-     "comment": "[NAME: target_is_valid — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool target_is_valid(int candidate_handle@<eax>, int player_handle@<edi>, int excluded_handle);",
+     "comment": "[NAME: target_is_valid — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xb4b10",
@@ -8454,7 +8455,7 @@
     },
     {
      "addr": "0xb4bf0",
-     "decl": "void update_speed_for_score(void);",
+     "decl": "void update_speed_for_score(int param_1, int param_2);",
      "comment": "[NAME: update_speed_for_score — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -8497,8 +8498,9 @@
     },
     {
      "addr": "0xb4fb0",
-     "decl": "void slayer_engine_player_killed_player(void);",
-     "comment": "[NAME: slayer_engine_player_killed_player — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void slayer_engine_player_killed_player(int param_1, int param_2, int param_3, bool param_4);",
+     "comment": "[NAME: slayer_engine_player_killed_player — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xb5040",
@@ -27481,8 +27483,9 @@
     },
     {
      "addr": "0xe4a40",
-     "decl": "void widget_instance_text_box_is_focused(void);",
-     "comment": "[NAME: widget_instance_text_box_is_focused — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "char widget_instance_text_box_is_focused(void *widget@<eax>);",
+     "comment": "[NAME: widget_instance_text_box_is_focused — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xe4a80",

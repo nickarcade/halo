@@ -1022,6 +1022,32 @@ int FUN_000b4960(void)
   }
 }
 
+/* target_is_valid (0xb4a70)
+ *
+ * Confirmed 0xb4a76..0xb4a91: EAX (candidate) is preserved in ESI and EDI
+ * (player) is passed to the first datum_get; the third handle is at [EBP+8].
+ * The candidate is valid only when it differs from both handles, belongs to a
+ * different team (+0x20), and has a unit handle at +0x34.
+ */
+bool target_is_valid(int candidate_handle, int player_handle,
+                     int excluded_handle)
+{
+  char *player;
+  char *candidate;
+  bool result;
+
+  result = false;
+  player = (char *)datum_get(player_data, player_handle);
+  candidate = (char *)datum_get(player_data, candidate_handle);
+  if (candidate_handle != player_handle &&
+      candidate_handle != excluded_handle &&
+      *(int *)(candidate + 0x20) != *(int *)(player + 0x20) &&
+      *(int *)(candidate + 0x34) != -1) {
+    result = true;
+  }
+  return result;
+}
+
 /* FUN_000b4b10 (0xb4b10) — invalidate a player's race timestamp
  *
  * Looks up the player record for the given handle and stores -1 into the
@@ -1199,6 +1225,32 @@ have_target:
   *(int *)((char *)player + 0x88) = next_target;
   if (next_target != -1) {
     game_engine_player_event(player_index, 0x1e, next_target);
+  }
+}
+
+/* slayer_engine_player_killed_player (0xb4fb0) */
+void slayer_engine_player_killed_player(int param_1, int param_2, int param_3,
+                                        bool param_4)
+{
+  player_data_t *player;
+  void *variant;
+
+  player = (player_data_t *)datum_get(player_data, param_3);
+  if (*(char *)((char *)player + 0xd1) == 0 && param_1 != -1) {
+    player = (player_data_t *)datum_get(player_data, param_1);
+    if (param_4 == 0) {
+      update_speed_for_score(param_3, param_1);
+      variant = game_engine_get_variant();
+      if (*(char *)((char *)variant + 0x4e) != 0) {
+        if (*(int *)((char *)player + 0x88) != param_3) {
+          return;
+        }
+        find_next_target(param_1);
+      }
+      slayer_engine_adjust_score(param_1, 1);
+      return;
+    }
+    slayer_engine_adjust_score(param_1, -1);
   }
 }
 

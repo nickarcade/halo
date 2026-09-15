@@ -548,6 +548,41 @@ bool FUN_000e4980(void *widget)
   return result;
 }
 
+/* widget_instance_text_box_is_focused (0xe4a40) — validates the parent
+ * chain, then returns whether its top-most widget is type 2 or 3. The widget
+ * argument and byte return use EAX/AL. */
+char widget_instance_text_box_is_focused(void *widget)
+{
+  void *parent;
+  void *next_parent;
+  char focused;
+
+  parent = *(void **)((char *)widget + 0x30);
+  if (parent == NULL) {
+    return 1;
+  }
+
+  focused = (char)(*(void **)((char *)parent + 0x38) == widget);
+  if (focused != 0) {
+    return focused;
+  }
+
+  do {
+    next_parent = *(void **)((char *)parent + 0x30);
+    if (next_parent == NULL) {
+      return focused;
+    }
+    if (*(void **)((char *)next_parent + 0x38) != parent) {
+      return focused;
+    }
+    focused = (char)((*(uint16_t *)((char *)next_parent + 0x0e) == 2) ||
+                     (*(uint16_t *)((char *)next_parent + 0x0e) == 3));
+    parent = next_parent;
+  } while (parent != NULL);
+
+  return focused;
+}
+
 /* FUN_000e4a80 (0xe4a80) — linear case-insensitive search of the 0x28-entry
  * (40) wide-string table at 0x31e098 (Ghidra label PTR_u_a_button_0031e098)
  * for an entry matching the implicit @<ebx> argument. Comparison is

@@ -84118,6 +84118,21 @@
       "score": 95.2,
       "source": "src/halo/game/game.c"
     },
+    "slayer_engine_player_killed_player": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 86.5,
+      "addr": "0xb4fb0",
+      "end": "0xb5038",
+      "kind": "auto",
+      "n_r": 54,
+      "opnd_percent": 82.9,
+      "raw_mnemonic_pct": 86.5,
+      "ref": "synth",
+      "ref_sha": "5a7192c74f562ea1",
+      "score": 86.5,
+      "source": "src/halo/game/game.c"
+    },
     "sort_desired_local_player_controllers": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -86623,6 +86638,21 @@
       "score": 100.0,
       "source": "src/halo/bitmaps/targa_file.c"
     },
+    "target_is_valid": {
+      "abi_model": "regparam_stripped_saves",
+      "abi_model_items": 3,
+      "abi_modeled_mnemonic_pct": 87.9,
+      "addr": "0xb4a70",
+      "end": "0xb4abd",
+      "kind": "auto",
+      "n_r": 34,
+      "opnd_percent": 84.8,
+      "raw_mnemonic_pct": 84.1,
+      "ref": "synth",
+      "ref_sha": "c1f2a4a9f5a3dca0",
+      "score": 87.9,
+      "source": "src/halo/game/game.c"
+    },
     "tea_decrypt": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -87763,6 +87793,21 @@
       "score": 26.7,
       "source": "src/halo/unported_thunks.c"
     },
+    "ui_widget_add_child": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 93.2,
+      "addr": "0xe4800",
+      "end": "0xe4888",
+      "kind": "auto",
+      "n_r": 52,
+      "opnd_percent": 60.2,
+      "raw_mnemonic_pct": 93.2,
+      "ref": "synth",
+      "ref_sha": "944f2cbbdd61b4c4",
+      "score": 93.2,
+      "source": "src/halo/interface/ui_widget.c"
+    },
     "ui_widget_apply_focus": {
       "abi_model": "regparam_stripped",
       "abi_model_items": 1,
@@ -88366,16 +88411,16 @@
     "ui_widget_process_event": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 70.8,
+      "abi_modeled_mnemonic_pct": 71.0,
       "addr": "0xe7d00",
       "end": "0xe84a2",
       "kind": "auto",
       "n_r": 640,
-      "opnd_percent": 52.0,
-      "raw_mnemonic_pct": 70.8,
+      "opnd_percent": 52.6,
+      "raw_mnemonic_pct": 71.0,
       "ref": "synth",
       "ref_sha": "f6fbd5baa76fd43c",
-      "score": 70.8,
+      "score": 71.0,
       "source": "src/halo/interface/ui_widget.c"
     },
     "ui_widget_realloc": {
@@ -93206,6 +93251,21 @@
       "ref": "synth",
       "ref_sha": "02b6d1010e6667a7",
       "score": 100.0,
+      "source": "src/halo/interface/ui_widget.c"
+    },
+    "widget_instance_text_box_is_focused": {
+      "abi_model": "regparam_stripped",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 65.5,
+      "addr": "0xe4a40",
+      "end": "0xe4a7d",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 65.5,
+      "raw_mnemonic_pct": 64.4,
+      "ref": "synth",
+      "ref_sha": "a73e90e92ff2eed8",
+      "score": 65.5,
       "source": "src/halo/interface/ui_widget.c"
     },
     "widgets_dispose": {
