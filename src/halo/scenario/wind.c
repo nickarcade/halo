@@ -132,7 +132,7 @@ void wind_update(void)
     wind = (float *)tag_get(0x77696e64 /* 'wind' */, *(int *)(elem + 0x8c));
 
     seed = random_math_get_local_seed_address();
-    delta = (random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
+    delta = (seed_random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
     {
       float val_t = rec->t + delta;
       rec->t = val_t;
@@ -144,7 +144,7 @@ void wind_update(void)
     }
 
     seed = random_math_get_local_seed_address();
-    delta = (random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
+    delta = (seed_random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
     {
       float val_yaw = rec->yaw_perturbation + delta;
       rec->yaw_perturbation = val_yaw;
@@ -156,7 +156,7 @@ void wind_update(void)
     }
 
     seed = random_math_get_local_seed_address();
-    delta = (random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
+    delta = (seed_random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
     {
       float val_pitch = rec->pitch_perturbation + delta;
       rec->pitch_perturbation = val_pitch;

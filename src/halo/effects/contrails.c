@@ -308,7 +308,7 @@ void contrail_verify(int contrail_handle /* @<eax> */)
  */
 int16_t local_random_range(int16_t min, int16_t max)
 {
-  return random_range(random_math_get_local_seed_address(), min, max);
+  return seed_random_range(random_math_get_local_seed_address(), min, max);
 }
 
 /* 0x97ca0 — Generate a random direction within a cone using the module-local
@@ -401,7 +401,7 @@ pick_random:
   seq_min = *(int16_t *)(tag + 0x40);
   seq_max = seq_min + *(int16_t *)(tag + 0x42);
   *(int16_t *)(datum + 0x14) =
-    random_range(random_math_get_local_seed_address(), seq_min, seq_max);
+    seed_random_range(random_math_get_local_seed_address(), seq_min, seq_max);
   *(int16_t *)(datum + 0x16) = 0;
 }
 

@@ -61,7 +61,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x13dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13ef0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x142a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x14360": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14460": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14480": {
       "kind": "function",
       "status": "ported"
     },
@@ -73,7 +93,107 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x145c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x145f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14620": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14680": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x146f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14770": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14b40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14b70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14ba0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14c10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14e90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14ff0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15020": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15040": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15150": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x151b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x153e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15880": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x159d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15b30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x15b70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15bb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15cf0": {
       "kind": "function",
       "status": "ported"
     },
@@ -85,7 +205,35 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x15f60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x16000": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16050": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x163d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16590": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x169a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -93,7 +241,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x16c40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16c80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16cd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16cf0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x16d40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16e70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x16ff0": {
       "kind": "function",
       "status": "ported"
     },
@@ -101,7 +273,39 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x17090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x170c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x170f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17120": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x178b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x178d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17910": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17960": {
       "kind": "function",
       "status": "ported"
     },
@@ -118,7 +322,119 @@
         "Remaining ~10% VC71 gap is register allocation around the @<eax>/@<ecx> register-arg prologue and callee-saved register choice; no behavioral divergence found in the instruction diff."
       ]
     },
+    "0x18b90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19230": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19280": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x192b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19370": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19750": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x197d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x198d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19ac0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19af0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19b20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x19c70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x19d00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a050": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a100": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a200": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a420": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a590": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a5d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a600": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a670": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1aae0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ab70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1abd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1ac00": {
       "kind": "function",
       "status": "ported"
     },
@@ -585,6 +901,18 @@
         "The eval_state field at +0x18 is used both as the ramp cutoff and (halved) as the full-credit radius, but its own identity is unproven, so it stays a raw offset rather than a named field."
       ]
     },
+    "0x24130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x24370": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x24450": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x245d0": {
       "kind": "function",
       "status": "ported",
@@ -606,6 +934,10 @@
       "uncertain": [
         "The +0x600 float on eval_state is treated as a distance and +0x2c on the firing position as a squared acceptance radius purely from the dist-minus-7.5f / dist-squared comparison shape; neither field identity is otherwise proven."
       ]
+    },
+    "0x24770": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x24950": {
       "kind": "function",
@@ -639,6 +971,34 @@
         "The 4-entry stride-4 table walked from actor_t+0x3ca has an unproven record boundary: a 4-byte-record array based at +0x3ca would extend to +0x3d9 and collide with the proven chars at +0x3d8/+0x3d9, so the storage is declared as the exact 14-byte int16 region it is observed to occupy (field_3ca[7], elements 0/2/4/6 written) and walked by explicit byte stride."
       ]
     },
+    "0x24be0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x24ca0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x24cf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x25340": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x25510": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x257a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x25970": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x25a00": {
       "kind": "function",
       "status": "ported"
@@ -655,7 +1015,63 @@
         "Remaining ~13% VC71 gap is x87 scheduling (FMULP/FXCH distance-sum patterns VC71 will not reproduce from any tried source form) plus minor register-choice and spill-slot differences; a 420s permuter pass found only a +0.4pp candidate that relied on an uninitialized-pointer UB transform (alias of ctx+0x50 assigned inside a gated block but read unconditionally) and was rejected; the safe equivalent of that transform scores equal to baseline."
       ]
     },
+    "0x27090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x272d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x27410": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x27870": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x278e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x27a10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x27a60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x27dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x27e50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x27f40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x27ff0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x28610": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x28660": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x28cc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x28ed0": {
       "kind": "function",
       "status": "ported"
     },
@@ -664,6 +1080,10 @@
       "status": "ported"
     },
     "0x2a2b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2a330": {
       "kind": "function",
       "status": "ported"
     },
@@ -676,6 +1096,14 @@
       "status": "ported"
     },
     "0x2a3d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2a3f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2a430": {
       "kind": "function",
       "status": "ported"
     },
@@ -805,7 +1233,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2f1a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2f230": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2f2b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2f380": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2f5b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2f5f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -863,6 +1311,10 @@
       "status": "ported"
     },
     "0x308e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x30e60": {
       "kind": "function",
       "status": "ported"
     },
@@ -1730,6 +2182,10 @@
         "The actor comparison fields remain mechanically named field_034 and field_03c because this function does not prove higher-level semantic names."
       ]
     },
+    "0x42f40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x42f60": {
       "kind": "function",
       "status": "ported",
@@ -1751,6 +2207,10 @@
         "The semantic meaning of prop-record offset +0x18 is unproven because types.h has no recovered prop structure."
       ]
     },
+    "0x43050": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x43090": {
       "kind": "function",
       "status": "ported",
@@ -1771,6 +2231,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x432b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x43360": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x434c0": {
       "kind": "function",
       "status": "ported",
@@ -1787,6 +2255,10 @@
       "status": "ported"
     },
     "0x435b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x43740": {
       "kind": "function",
       "status": "ported"
     },
@@ -1884,6 +2356,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x49280": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x49300": {
       "kind": "function",
       "status": "ported"
@@ -1914,9 +2390,13 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x494d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x494e0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "FUN_000494e0 renders the stored debug line-of-sight ray as one line (FUN_00189270) plus one sphere per recorded hit (FUN_00189860); the name is left as FUN_000494e0 because the function contains no __FILE__ string.",
         "The per-hit debug arrays are parallel and hold 16 entries: uint8 flag at 0x5acad8 stride 1, float[3] point A at 0x5acae8 stride 0xc, float[3] point B at 0x5acba8 stride 0xc, float radius at 0x5acc68 stride 4; the 16-entry capacity is deduced from the 0xc0 byte gap between the two point arrays, which the original addresses as EDI+0xc0 off a single walking pointer."
@@ -1928,7 +2408,7 @@
     },
     "0x495b0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The point arrays at 0x5f8cd4 and 0x5f8d94 have a 12-byte (vec3) stride, derived from 'lea (%eax,%eax,2),%ecx; shl $0x2,%ecx' in the delinked reference; Ghidra's undefined-byte pointer arithmetic misleadingly rendered this as a stride of 3.",
         "Both loop counters are int16 held in SI and widened by 'movswl %si,%eax' before each bound compare, so they are transcribed as a 'short counter' with an 'int i' copy rather than a plain int induction variable."
@@ -1966,7 +2446,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x49c70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x49f60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x4a030": {
       "kind": "function",
       "status": "ported"
     },
@@ -2005,6 +2493,14 @@
       ]
     },
     "0x4a710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x4a8c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x4a9f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -2052,6 +2548,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x4b7a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x4c0f0": {
       "kind": "function",
       "status": "ported"
@@ -2060,9 +2560,21 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x4c560": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x4c890": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x4c920": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x52ab0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The 32-entry table at 0x331f5c (stride 0x1ca7c) is left as raw byte offsets: only +0x00 (int actor handle), +0x0c and +0x0d (enable bytes) and +0x28/+0x2c/+0x30 (float position) are observed, which is too little evidence to justify a struct for a 0x1ca7c-byte record.",
         "The residual VC71 gap (58 candidate vs 56 reference instructions, 93.0%) is entirely the comment-form @<reg> thunk shape cost at the two register-argument call sites (0x4b220 @<eax>, 0x4c560 @<esi>), where our C emits PUSH plus stack cleanup and the original emits a bare register load."
@@ -2073,7 +2585,7 @@
     },
     "0x534d0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The kb declarations for FUN_00052bb0 (1 stack arg), FUN_0004c920 (3 stack args) and FUN_00052b60 (byte in DL) were corrected from void(void) based on the call sites at 0x53575, 0x53588 and 0x535c8; the parameter names are inferred from the globals feeding them, not from the callees."
       ],
@@ -2085,9 +2597,13 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x53650": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x53680": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "TU attribution: both asserts reference c:\\\\halo\\\\SOURCE\\\\ai\\\\ai_profile.c (VA 0x25c0ac, xrefed only from 0x536a6 and 0x536ee), so the real ai_profile.c source file lives at 0x536xx; the function is nonetheless kept in ai_debug.obj because that is its kb object membership and delinked/ai_debug.obj already bounds it tightly.",
         "Inferred: the definition table base is 0x2c8e98 with stride 8 ({short meter_id; short pad; short (*sample_fn)(void);}); EBX is biased +4 into the entry so the disassembly shows 0x2c8e9c.",
@@ -2095,9 +2611,21 @@
         "Uncertain: history_sum is only ever decremented here (the evicted sample is subtracted) and the newly stored sample is never added back; transcribed faithfully from the binary."
       ]
     },
+    "0x53790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x53890": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x538d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x538f0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The ternary form (single ADD ESI,EAX after both arms materialise the addend in EAX at the 0x53925 join) was chosen over two accumulating if/else branches because a plain 'total += 1' arm would lower to ADD ESI,1 rather than the observed MOV EAX,1."
       ],
@@ -2105,9 +2633,33 @@
         "The int16_t field at actor record +0x1e is treated as a per-actor entity count but is left unnamed; actors_move_randomly reads swarm component counts from the swarm datum (+0x28 handle, count at swarm+2) rather than from this field, so the two are not proven to be the same quantity."
       ]
     },
+    "0x53960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x539c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x53a20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x53a90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x53af0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x53b80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x53bf0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The single ADD ESP,0x20 at the end of FUN_00053bf0 is a merged cleanup for both CALLs (5 dwords for crt_sprintf + 3 for FUN_00053800), so the call-site argument-count audit's ARG_COUNT finding of cleanup=8 vs decl=3 for FUN_00053800 is a false positive.",
         "The three tally globals 0x5ac76e, 0x5ac7f6 and 0x5ac87e are signed 16-bit counters: all three are loaded with MOVSX WORD PTR before the varargs sprintf, so reading them as int would be a load-width bug."
@@ -2115,7 +2667,7 @@
     },
     "0x53c50": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The 0x18-byte iterator buffer at EBP-0x38 carries the current actor datum handle at +0x14, written by FUN_00059b50 through the pointer; it must be one contiguous local, not two separate variables."
       ],
@@ -2123,9 +2675,17 @@
         "The multi-unit next-link at object_record+0x1ac is read from the pointer returned by object_get_and_verify_type rather than from the actor record, which is confirmed by the EDI dataflow but the field's meaning (next unit in swarm list) is only inferred from its use as the loop induction handle."
       ]
     },
+    "0x53da0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x53e20": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x53e80": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Parameter 1 is named ai_profile_element only by analogy with the sibling FUN_00053e20 (scenario+0x42c); the binary proves only that a tag_block header lives at +0x80 with a 0xe8-byte element stride, not which tag the record belongs to."
       ],
@@ -2135,10 +2695,14 @@
     },
     "0x53ee0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Element stride 0xac and sub-block offset +0x8c are confirmed from the disassembly pushes; the element layout beyond the leading char name[0x20] field is unverified."
       ]
+    },
+    "0x53f40": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x54020": {
       "kind": "function",
@@ -2192,11 +2756,171 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x547c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54860": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x54a80": {
       "kind": "function",
       "status": "ported"
     },
+    "0x54ac0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54b20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54bb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54c40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54ca0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54d00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54d60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54df0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54e20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54e40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54e80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x54f90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55010": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x551e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55220": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x552b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55350": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55620": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55640": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55660": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55680": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x556c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x556f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55750": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x557e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55870": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x559a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x55dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x56320": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x563c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x564b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x565c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x566a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x56790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x567e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x56830": {
       "kind": "function",
       "status": "ported"
     },
@@ -2208,7 +2932,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x56980": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x56a20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x56b20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x56bc0": {
       "kind": "function",
       "status": "ported"
     },
@@ -2228,7 +2964,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x56ed0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x56fa0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x57030": {
       "kind": "function",
       "status": "ported"
     },
@@ -2272,6 +3016,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x57850": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x57900": {
       "kind": "function",
       "status": "ported"
@@ -2284,7 +3032,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x57bc0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x57c60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x57c70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x57d00": {
       "kind": "function",
       "status": "ported"
     },
@@ -2308,11 +3068,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x58110": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x581b0": {
       "kind": "function",
       "status": "ported"
     },
     "0x58220": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x58270": {
       "kind": "function",
       "status": "ported"
     },
@@ -2348,6 +3116,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x58700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x58710": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x58720": {
       "kind": "function",
       "status": "ported"
@@ -2356,11 +3132,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x58860": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x588d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x58970": {
       "kind": "function",
       "status": "ported"
     },
     "0x58a40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x58ae0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x58af0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x58c40": {
       "kind": "function",
       "status": "ported"
     },
@@ -2400,6 +3196,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x58fd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x59480": {
       "kind": "function",
       "status": "ported"
@@ -2421,6 +3221,10 @@
       "status": "ported"
     },
     "0x59990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x599c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -2448,7 +3252,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x59c40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x59d30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5a050": {
       "kind": "function",
       "status": "ported"
     },
@@ -2464,7 +3276,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x5a4e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x5a5a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5a640": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5a6e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -2474,7 +3298,7 @@
     },
     "0x5ac60": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Return type is bool, not Ghidra's void: DL is zeroed at 0x5ac69, set to 1 on any insertion at 0x5accf, and moved to AL at 0x5acdd immediately before RET."
       ],
@@ -2495,6 +3319,10 @@
       "status": "ported"
     },
     "0x5adc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5ae70": {
       "kind": "function",
       "status": "ported"
     },
@@ -2526,6 +3354,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x5b790": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x5ba70": {
       "kind": "function",
       "status": "ported"
@@ -2551,6 +3383,10 @@
       "status": "ported"
     },
     "0x5c630": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5c680": {
       "kind": "function",
       "status": "ported"
     },
@@ -2581,7 +3417,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x5dc00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x5ddc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5de80": {
       "kind": "function",
       "status": "ported"
     },
@@ -2694,7 +3538,7 @@
     },
     "0x63e30": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Return type widened from the stale void(void) kb prototype to int on the basis of three distinct EAX writes: OR EAX,0xffffffff on the node_handle==-1 guard, MOV EAX,EDI on the fall-through, and the raw callee status in EAX on the JNE arm.",
         "Parameter names (scenario, bsp_idx, origin, node_handle, target) are carried over from the already-established kb prototype of sibling FUN_00063e90 at 0x63e90, which takes the same leading parameter family.",
@@ -2724,7 +3568,7 @@
     },
     "0x643d0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The OR EAX,0xffffffff immediately before CALL 0x64170 is prop_add's @<eax> unit_handle argument set to NONE (-1), inferred from prop_add's registered register-argument declaration and from the identical idiom in sibling prop_orphan_transition at 0x648a0.",
         "VC71 scores 94.1% with the single mismatching instruction being candidate pushl $-0x1 against reference orl $-0x1,%eax, which is the known @<reg> call-site thunking artifact because decl.h always presents prop_add as plain cdecl; this is a structural one-instruction ceiling rather than a lift defect."
@@ -2784,7 +3628,7 @@
     },
     "0x64b40": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "param_3 and param_4 are 1-byte flag types: both are only ever read with a byte load and TEST (MOV AL,[EBP+0x10] at 0x64c0f, MOV AL,[EBP+0x14] at 0x64c76), and param_4 is additionally forwarded as a whole dword to prop_position_refresh's char param at 0x64c63, so the kb decl was narrowed from int to bool.",
         "actor_expected_acknowledgement (0x32940) really has the signature bool(int actor_handle, int prop_handle): the call site at 0x64ca4 pushes EBX and EDI and stores the AL result into the dead [EBP+0xc] param slot before forwarding it as actor_perception_acknowledge's last argument, so its kb prototype was corrected from void(void)."
@@ -2821,7 +3665,7 @@
     },
     "0x64f50": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "The body is the libtiff _tiffSizeProc idiom (fstat(fd,&sb) < 0 ? 0 : sb.st_size), so kb.json's props.obj attribution for 0x64f50 is likely wrong and the real TU is a libtiff/CRT file-IO source; it was hosted in ai/props.c only to follow the existing object mapping, matching FUN_00064ee0 (TIFFClose) which already lives there."
       ],

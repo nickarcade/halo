@@ -10221,7 +10221,7 @@ void object_pvs_activate(int param_1)
  * Confirmed: tag_block at model_tag+0xc4, element size 0x4c.
  * Confirmed: calls object_find_region_permutations_available_with_variant.
  * Confirmed: if count==0, tries variant=0 as fallback.
- * Confirmed: random_range(get_global_random_seed_address(), 0, count). */
+ * Confirmed: seed_random_range(get_global_random_seed_address(), 0, count). */
 char object_select_random_region_permutations_by_variant(
   int object_handle /* @<eax> */, void *model_tag, int16_t variant)
 {
@@ -10261,7 +10261,7 @@ char object_select_random_region_permutations_by_variant(
           chosen = 0;
         } else {
           int *seed = get_global_random_seed_address();
-          chosen = random_range((unsigned int *)seed, 0, count);
+          chosen = seed_random_range((unsigned int *)seed, 0, count);
         }
         *(unsigned char *)(obj + 0x130 + (int)region_count) =
           (unsigned char)*(unsigned char *)((char *)avail_buf + chosen * 2);

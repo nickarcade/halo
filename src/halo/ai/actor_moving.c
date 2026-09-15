@@ -293,7 +293,7 @@ bool actor_move_force_stop(int actor_handle)
  *   param_4        = EBP+0x14 distance/threshold control (>= 0.0)
  *   out_flag       = EBP+0x18 optional char* out (set to local_5)
  *   result         = EBP+0x1c >=28-byte collision/path result buffer
- *                    (asserted non-NULL; FUN_00063e90 fills 7 dwords)
+ *                    (asserted non-NULL; structure_test_pill2d fills 7 dwords)
  *
  * Returns BL (char): 1 if a usable move/evasion vector was found, else 0.
  *
@@ -305,7 +305,7 @@ bool actor_move_force_stop(int actor_handle)
  * Confirmed: target point local[0]=scale*evasion[0]+actor[0x12c],
  * local[1]=scale*evasion[1]+actor[0x130] at 0x2a963-0x2a981 (2 floats).
  * Confirmed: actor_find_pathfinding_location(actor_handle) at 0x2a984.
- * Confirmed: 9-arg FUN_00063e90(scenario_get(), (u8)actor[0x376],
+ * Confirmed: 9-arg structure_test_pill2d(scenario_get(), (u8)actor[0x376],
  * (float*)actor[0x168], actor[0x164], &local_target, -1, actr_tag[0x8c], 0,
  * result) at 0x2a9bf — Ghidra mis-grouped the 8 pushes onto the inner
  * zero-arg scenario_get(); cleanup ADD ESP,0x24=36=9 cdecl args proves it.
@@ -356,7 +356,7 @@ char actor_move_try_evasion_vector(int actor_handle, float *evasion_vector,
     local_target[0] = scale * evasion_vector[0] + ((actor_t *)actor)->field_12c;
     local_target[1] = scale * evasion_vector[1] + ((actor_t *)actor)->field_130;
     actor_find_pathfinding_location(actor_handle);
-    if (FUN_00063e90((int)scenario_get(), ((actor_t *)actor)->field_376,
+    if (structure_test_pill2d((int)scenario_get(), ((actor_t *)actor)->field_376,
                      (float *)(actor + 0x168), ((actor_t *)actor)->field_164,
                      local_target, 0xffffffff, *(float *)(actr_tag + 0x8c), 0,
                      (unsigned int *)result) == '\0') {
@@ -964,7 +964,7 @@ char actor_move_vector_avoidance_find_direction(float *direction, short count, i
  * from the dereferenced pointer at *0x31fc38 (translation at +0x0/+0x4/+0x8).
  *
  * cdecl, all stack args (confirmed: PUSH EBP / RET, no RET N; caller
- * FUN_0004c920 @ 0x4d39c-0x4d39d pushes EAX=[EDI+0x1a0] last).
+ * ai_debug_render_actor @ 0x4d39c-0x4d39d pushes EAX=[EDI+0x1a0] last).
  *   matrix   : per-instance struct, 3x3 rotation rows at +0x18..+0x38
  *   in_vec   : float[3] local-space direction
  *   out_vec  : float[3] world-space output
@@ -1013,7 +1013,7 @@ void actor_move_transform_avoidance_vector(int matrix, float *in_vec,
  * actor_move_transform_avoidance_vector.
  *
  * cdecl, all stack args (confirmed: PUSH EBP / RET, no RET N; caller
- * FUN_0004c920 @ 0x4d26a-0x4d26b and 0x4d2d7-0x4d2d8).
+ * ai_debug_render_actor @ 0x4d26a-0x4d26b and 0x4d2d7-0x4d2d8).
  *   matrix      : per-instance struct (passed through to the transform)
  *   dir_index   : float fractional sector index in [0,8)
  *   out_vec     : float[3] world-space output
@@ -2454,7 +2454,7 @@ LAB_check_dest:
      * Normal on-foot pathfinding pipeline:
      *  1. actor_path_input_new(actor_handle, local_nav): initialize nav-state
      * struct (actor position, facing, vehicle info, etc.).
-     *  2. paths_dispose(local_nav, actor[0x480]): if ignore_object!=-1,
+     *  2. path_input_set_target_object(local_nav, actor[0x480]): if ignore_object!=-1,
      *     store it at local_nav+0xc.
      *  3. (Optional) path_input_set_attractor: encode movement-constraint
      * orders into local_nav when actor has standing orders (actor[0x280]>0,
@@ -2476,7 +2476,7 @@ LAB_check_dest:
     actor_path_input_new(actor_handle, local_nav);
     if (((actor_t *)actor)
           ->control_path_destination_orders_ignore_target_object_index != -1) {
-      paths_dispose(
+      path_input_set_target_object(
         local_nav,
         ((actor_t *)actor)
           ->control_path_destination_orders_ignore_target_object_index);

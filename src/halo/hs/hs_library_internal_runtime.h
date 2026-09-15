@@ -83,7 +83,7 @@ void hs_evaluate_begin(int16_t function_index, int thread_datum, char init)
  *   4 bytes  — uint32_t used_bits[]  (one bit per argument, up to 32)
  *   4 bytes  — int       result_value
  *
- * Random selection: random_range(get_global_random_seed_address(), 0,
+ * Random selection: seed_random_range(get_global_random_seed_address(), 0,
  *   argument_count) gives a starting offset sVar2; then we try
  *   (i + sVar2) % argument_count for i = 0, 1, ... until we find an
  *   unset bit.
@@ -146,7 +146,7 @@ void hs_evaluate_begin_random(int16_t function_index, int thread_datum,
   }
 
   /* Pick a random starting offset in [0, argument_count). */
-  sVar2 = random_range((unsigned int *)get_global_random_seed_address(), 0,
+  sVar2 = seed_random_range((unsigned int *)get_global_random_seed_address(), 0,
                        *argument_count);
 
   sVar10 = 0;
