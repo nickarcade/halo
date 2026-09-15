@@ -4869,7 +4869,7 @@
     },
     "0x967a0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Global 0x31fc1c is a float* to a global origin/zero point passed as the position argument to object_impulse_sound_new; it is absent from kb.json and is dereferenced raw, matching the existing idiom in observer.c, first_person_weapons.c and actors.c.",
         "The Bungie name is unrecovered so FUN_000967a0 is retained; the neighbouring 0x96850 already carries device_effect_new and no symbol or string evidence names this one."
@@ -10056,6 +10056,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xdc7a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xdc800": {
       "kind": "function",
       "status": "ported"
@@ -11006,6 +11010,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf5640": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf5650": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf5660": {
       "kind": "function",
       "status": "unknown",
@@ -11020,7 +11032,7 @@
     },
     "0xf56b0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Column-cursor semantics (0x46cefa moves mod 0xb across 11 keymap columns, row at 0x46cef8 fixed) inferred from the keymap stride 0xb and the three sibling row-movers at 0xf5700/0xf5750/0xf57a0; the keymap-byte equality loop skips duplicate/merged keys.",
         "Semantics inferred from the sibling row handlers at 0xf5700/0xf5750 plus the caller at items.c:629: this is the COLUMN-axis cursor-move handler for the virtual keyboard, advancing 0x46cefa rightward modulo 0xb (11 keymap columns) while skipping columns whose keymap character equals the pre-move character, so duplicate/merged keys are stepped over in a single press.",
@@ -11038,11 +11050,39 @@
         "The skip-while-equal loop can spin forever if every column in the current row holds the same keymap byte; the original has no iteration guard either, so the lift reproduces that unguarded do/while faithfully rather than adding a bound."
       ]
     },
+    "0xf5700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf5750": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf57a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf5f10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf5f30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf5fb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf63f0": {
       "kind": "function",
       "status": "ported"
     },
     "0xf6740": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf6750": {
       "kind": "function",
       "status": "ported"
     },
@@ -11059,6 +11099,10 @@
       "status": "ported"
     },
     "0xf6860": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf68b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -11177,7 +11221,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf7e40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf7e60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf7ec0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf7fa0": {
       "kind": "function",
       "status": "ported"
     },
@@ -11201,11 +11257,47 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf8590": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf8640": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf8720": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf8920": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf8d30": {
       "kind": "function",
       "status": "ported"
     },
     "0xf8ee0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf90d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf9c40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfac20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xface0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfad00": {
       "kind": "function",
       "status": "ported"
     },

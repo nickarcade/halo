@@ -753,7 +753,7 @@ bool ui_widget_new_campaign_chosen(void *widget, void *event_data,
   *(uint16_t *)0x31e4fc =
     *(uint16_t *)((char *)event_data + 2); /* DAT_0031e4fc */
 
-  keyboard_ok = virtual_keyboard_set_validation((wchar_t *)0x46ccd0, 0x18, 8);
+  keyboard_ok = virtual_keyboard_launch((wchar_t *)0x46ccd0, 0x18, 8);
   if (!keyboard_ok) {
     error(2, "failed to invoke the virtual keyboard for a new campaign profile "
              "name");
@@ -774,7 +774,7 @@ void FUN_000f04c0(void)
   bool profile_created;
 
   if (*(short *)0x31e4fc != -1) {
-    if (FUN_000f5650()) {
+    if (virtual_keyboard_last_exit_saved_text()) {
       if (*(wchar_t *)0x46ccd0 != L'\0') {
         player_ui_set_single_player_local_player_controller(0,
                                                             *(short *)0x31e4fc);
