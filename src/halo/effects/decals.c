@@ -153,7 +153,7 @@ void decals_initialize(void)
   global_decal_data->identifier_zero_invalid = 1;
   decal_globals = (char *)game_state_malloc("decal globals", 0, 0x280c);
   assert_halt(decal_globals);
-  rasterizer_decals_initialize();
+  _rasterizer_decals_initialize();
   decal_counts_0 = 0;
   decal_counts_1 = 0;
 }
@@ -167,7 +167,7 @@ void decals_initialize_for_new_map(void)
   *(_DWORD *)(decal_globals + 0x2804) = 0;
   *(_DWORD *)(decal_globals + 0x2808) = 0;
   data_delete_all(global_decal_data);
-  rasterizer_decals_initialize_for_new_map();
+  _rasterizer_decals_initialize_for_new_map();
   decal_counts_0 = 0;
   decal_counts_1 = 0;
 }
@@ -176,7 +176,7 @@ void decals_dispose_from_old_map(void)
 {
   assert_halt(global_decal_data);
   assert_halt(decal_globals);
-  rasterizer_decals_dispose_from_old_map();
+  _rasterizer_decals_dispose_from_old_map();
   data_make_invalid(global_decal_data);
 }
 
@@ -1153,31 +1153,31 @@ void decal_projection_create(float *bounds, float *projection, float *basis)
     *(int16_t *)((char *)projection + 0x54) = 0;
   }
 
-  *(uint8_t *)((char *)projection + 0x56) = (uint8_t)FUN_00099270(
+  *(uint8_t *)((char *)projection + 0x56) = (uint8_t)projection_sign_from_vector3d(
       projection + 0x11, *(int16_t *)((char *)projection + 0x54));
 
   projected[0] = bounds[0] * basis[1] + bounds[2] * basis[4] + basis[10];
   projected[1] = bounds[2] * basis[5] + bounds[0] * basis[2] + basis[11];
   projected[2] = bounds[2] * basis[6] + bounds[0] * basis[3] + basis[12];
-  FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
+  project_point3d(projected, *(int16_t *)((char *)projection + 0x54),
                *(uint8_t *)((char *)projection + 0x56), projection + 0x16);
 
   projected[0] = bounds[1] * basis[1] + bounds[2] * basis[4] + basis[10];
   projected[1] = bounds[2] * basis[5] + bounds[1] * basis[2] + basis[11];
   projected[2] = bounds[2] * basis[6] + bounds[1] * basis[3] + basis[12];
-  FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
+  project_point3d(projected, *(int16_t *)((char *)projection + 0x54),
                *(uint8_t *)((char *)projection + 0x56), projection + 0x18);
 
   projected[0] = bounds[1] * basis[1] + bounds[3] * basis[4] + basis[10];
   projected[1] = bounds[3] * basis[5] + bounds[1] * basis[2] + basis[11];
   projected[2] = bounds[1] * basis[3] + bounds[3] * basis[6] + basis[12];
-  FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
+  project_point3d(projected, *(int16_t *)((char *)projection + 0x54),
                *(uint8_t *)((char *)projection + 0x56), projection + 0x1a);
 
   projected[0] = bounds[3] * basis[4] + bounds[0] * basis[1] + basis[10];
   projected[1] = bounds[3] * basis[5] + bounds[0] * basis[2] + basis[11];
   projected[2] = bounds[3] * basis[6] + bounds[0] * basis[3] + basis[12];
-  FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
+  project_point3d(projected, *(int16_t *)((char *)projection + 0x54),
                *(uint8_t *)((char *)projection + 0x56), projection + 0x1c);
 
   projection[0x1e] = projection[0x18] - projection[0x16];
@@ -1307,12 +1307,12 @@ void decal_clip_to_surface(void *geometry, float *projection, int surface_index,
         int first_vertex_index = edge[surface_match ? 1 : 0];
         float *first_vertex = (float *)tag_block_get_element(
           (char *)vertices_block, first_vertex_index, 0x10);
-        FUN_00061df0(first_vertex, *(int16_t *)((char *)projection + 0x54),
+        project_point3d(first_vertex, *(int16_t *)((char *)projection + 0x54),
                      *(uint8_t *)((char *)projection + 0x56),
                      projected_previous);
       }
 
-      FUN_00061df0(remote_vertex, *(int16_t *)((char *)projection + 0x54),
+      project_point3d(remote_vertex, *(int16_t *)((char *)projection + 0x54),
                    *(uint8_t *)((char *)projection + 0x56), projected_current);
       if (plane2d_from_points(line, projected_current, projected_previous) ==
           NULL) {
@@ -1713,9 +1713,9 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
           decals_cross3(bitangent, normal, tangent);
         } else {
           float axis_vector[3];
-          int16_t axis = (int16_t)FUN_00099220(direction3);
+          int16_t axis = (int16_t)projection_from_vector3d(direction3);
           float axis_sign =
-            FUN_00099270(direction3, (uint16_t)axis) ? 1.0f : -1.0f;
+            projection_sign_from_vector3d(direction3, (uint16_t)axis) ? 1.0f : -1.0f;
 
           decals_build_axis(axis_vector, (uint16_t)axis, axis_sign, 0x848);
 
@@ -1743,8 +1743,8 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
             reflected[1] = reflected_scale * normal[1] + direction3[1];
             reflected[2] = reflected_scale * normal[2] + direction3[2];
 
-            axis = (int16_t)FUN_00099220(reflected);
-            axis_sign = FUN_00099270(reflected, (uint16_t)axis) ? 1.0f : -1.0f;
+            axis = (int16_t)projection_from_vector3d(reflected);
+            axis_sign = projection_sign_from_vector3d(reflected, (uint16_t)axis) ? 1.0f : -1.0f;
             decals_build_axis(axis_vector, (uint16_t)axis, axis_sign, 0x868);
 
             if (decals_dot3(axis_vector, normal) <= *(float *)0x2533c0) {
@@ -2292,7 +2292,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
     *(float *)(decal + 0x20) = decals_random_real(*(float *)(decal_tag + 0x80),
                                                   *(float *)(decal_tag + 0x84));
 
-    FUN_0007c270(color, (*(uint8_t *)decal_tag >> 1) & 3,
+    rgb_colors_interpolate(color, (*(uint8_t *)decal_tag >> 1) & 3,
                  (float *)(decal_tag + 0x34), (float *)(decal_tag + 0x40),
                  decals_random_real(0.0f, 1.0f));
     *(uint32_t *)(decal + 0x24) = real_a_rgb_color_to_pixel32(
@@ -2427,50 +2427,50 @@ void decal_new(int decal_tag_index, void *origin, void *direction,
   }
 }
 
-/* Tail-call thunk to rasterizer decal initialization (FUN_0015abe0).
+/* Tail-call thunk to rasterizer decal initialization (_rasterizer_debug_immediate_line_screenspace).
  * Inherits the caller's pushed args and forwards them unchanged (cdecl). */
 void FUN_0017ca50(short *p0, short *p1, float *color0, float *color1)
 {
-  FUN_0015abe0(p0, p1, color0, color1);
+  _rasterizer_debug_immediate_line_screenspace(p0, p1, color0, color1);
 }
 
-/* Tail-call thunk to rasterizer debug 2D polyline drawer (FUN_0015acc0).
+/* Tail-call thunk to rasterizer debug 2D polyline drawer (_rasterizer_debug_immediate_linestrip_screenspace).
  * 0x17ca60: PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x15acc0 — forwards 3 stack
  * args: [EBP+8]=points (short[2] array), [EBP+C]=point_count (int16_t),
  * [EBP+10]=color (real_rgb_color *). */
 void FUN_0017ca60(short *points, int16_t point_count, float *color)
 {
-  FUN_0015acc0(points, point_count, color);
+  _rasterizer_debug_immediate_linestrip_screenspace(points, point_count, color);
 }
 
-/* Tail-call thunk to rasterizer decal setup (FUN_0015a4e0). */
+/* Tail-call thunk to rasterizer decal setup (_rasterizer_debug_immediate_end_screenspace). */
 void FUN_0017ca70(void)
 {
-  FUN_0015a4e0();
+  _rasterizer_debug_immediate_end_screenspace();
 }
 
-/* Tail-call thunk to rasterizer_decals_initialize (0x15b6d0). */
+/* Tail-call thunk to _rasterizer_decals_initialize (0x15b6d0). */
 void thunk_rasterizer_decals_initialize(void)
 {
-  rasterizer_decals_initialize();
+  _rasterizer_decals_initialize();
 }
 
-/* Tail-call thunk to rasterizer_decals_initialize_for_new_map (0x15b190). */
+/* Tail-call thunk to _rasterizer_decals_initialize_for_new_map (0x15b190). */
 void thunk_rasterizer_decals_initialize_for_new_map(void)
 {
-  rasterizer_decals_initialize_for_new_map();
+  _rasterizer_decals_initialize_for_new_map();
 }
 
-/* Tail-call thunk to rasterizer_decals_dispose_from_old_map (0x15b1a0). */
+/* Tail-call thunk to _rasterizer_decals_dispose_from_old_map (0x15b1a0). */
 void thunk_rasterizer_decals_dispose_from_old_map(void)
 {
-  rasterizer_decals_dispose_from_old_map();
+  _rasterizer_decals_dispose_from_old_map();
 }
 
-/* Tail-call thunk to rasterizer decal (FUN_0015b1e0). */
+/* Tail-call thunk to rasterizer decal (_rasterizer_decals_flush). */
 void FUN_0017cac0(void)
 {
-  FUN_0015b1e0();
+  _rasterizer_decals_flush();
 }
 
 /* Tail-call thunk to rasterizer_decals_dispose (0x15b7e0). */
@@ -2481,188 +2481,188 @@ void thunk_rasterizer_decals_dispose(void)
 
 int FUN_0017cae0(uint32_t cache_size)
 {
-  return FUN_0015b460(cache_size);
+  return _rasterizer_decal_vertices_new(cache_size);
 }
 
 void *FUN_0017caf0(int cache_index, uint32_t cache_size)
 {
-  return FUN_0015b890(cache_index, cache_size);
+  return _rasterizer_decal_vertices_lock(cache_index, cache_size);
 }
 
 void thunk_FUN_0015b960(void)
 {
-  FUN_0015b960();
+  _rasterizer_decal_vertices_unlock();
 }
 
 void FUN_0017cb10(int decal_index)
 {
-  FUN_0015b530(decal_index);
+  _rasterizer_decal_vertices_delete(decal_index);
 }
 
-/* Tail-call thunk to decal rendering pass setup (FUN_0015b970).
+/* Tail-call thunk to decal rendering pass setup (_rasterizer_decals_begin).
  * pass_index selects the rendering pass type. */
 void FUN_0017cb20(short pass_index)
 {
-  FUN_0015b970(pass_index);
+  _rasterizer_decals_begin(pass_index);
 }
 
-/* Tail-call thunk to per-cluster decal rendering (FUN_0015bc40).
+/* Tail-call thunk to per-cluster decal rendering (_rasterizer_decals_draw).
  * rendered_cluster_data is a pointer to the cluster render data. */
 void FUN_0017cb30(int rendered_cluster_data)
 {
-  FUN_0015bc40(rendered_cluster_data);
+  _rasterizer_decals_draw(rendered_cluster_data);
 }
 
-/* Tail-call thunk to rasterizer decal geometry (FUN_0015b5e0). */
+/* Tail-call thunk to rasterizer decal geometry (_rasterizer_decals_end). */
 void FUN_0017cb40(void)
 {
-  FUN_0015b5e0();
+  _rasterizer_decals_end();
 }
 
-/* Tail-call thunk to rasterizer decal geometry (FUN_0015c6f0). */
+/* Tail-call thunk to rasterizer decal geometry (_rasterizer_detail_objects_begin). */
 void FUN_0017cb50(void)
 {
-  FUN_0015c6f0();
+  _rasterizer_detail_objects_begin();
 }
 
-/* Tail-call thunk to rasterizer decal geometry initialization (FUN_0015c980).
+/* Tail-call thunk to rasterizer decal geometry initialization (_rasterizer_detail_objects_rebuild_vertices).
  * 0x17cb60: PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x15c980 — forwards 1 stack
  * arg: [EBP+8]=decal_group ptr (MOV ESI,[EBP+8] at 0x15c9aa). */
 void FUN_0017cb60(void *decal_group)
 {
-  FUN_0015c980(decal_group);
+  _rasterizer_detail_objects_rebuild_vertices(decal_group);
 }
 
-/* Tail-call thunk to rasterizer decal geometry disposal (FUN_0015cbb0).
+/* Tail-call thunk to rasterizer decal geometry disposal (_rasterizer_detail_objects_draw).
  * 0x17cb70: PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x15cbb0 — forwards 1 stack
  * arg: [EBP+8]=decal_group ptr (MOV ESI,[EBP+8] at 0x15cbe1). */
 void FUN_0017cb70(void *decal_group)
 {
-  FUN_0015cbb0(decal_group);
+  _rasterizer_detail_objects_draw(decal_group);
 }
 
-/* Tail-call thunk to rasterizer decal geometry (FUN_0015c5f0). */
+/* Tail-call thunk to rasterizer decal geometry (_rasterizer_detail_objects_end). */
 void FUN_0017cb80(void)
 {
-  FUN_0015c5f0();
+  _rasterizer_detail_objects_end();
 }
 
-/* Tail-call thunk to rasterizer decal rendering (FUN_00170c90).
+/* Tail-call thunk to rasterizer decal rendering (_rasterizer_screen_effect).
  * 0x17cb90: PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x170c90 — forwards 1 stack
  * arg: [EBP+8]=decal ptr (MOV EAX,[EBP+8] at 0x170ccb; passed to 0x17dc70). */
 void FUN_0017cb90(void *decal)
 {
-  FUN_00170c90(decal);
+  _rasterizer_screen_effect(decal);
 }
 
-/* Tail-call thunk to dynamic vertex geometry decal flush (FUN_0016bed0). */
+/* Tail-call thunk to dynamic vertex geometry decal flush (_rasterizer_model_begin). */
 void FUN_0017cbb0(void *param_1, int param_2)
 {
-  FUN_0016bed0(param_1, param_2);
+  _rasterizer_model_begin(param_1, param_2);
 }
 
-/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_0016c5a0).
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (_rasterizer_model_draw).
  */
 void FUN_0017cbc0(int shader, int p2, int p3, int widget_handle, int p5, int p6,
                   int zbuf_handle)
 {
-  FUN_0016c5a0(shader, p2, p3, widget_handle, p5, p6, zbuf_handle);
+  _rasterizer_model_draw(shader, p2, p3, widget_handle, p5, p6, zbuf_handle);
 }
 
-/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_0016c090).
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (_rasterizer_model_transparent_geometry_submit).
  */
 void FUN_0017cbd0(void *shader, short p2, int p3, int widget_handle, int p5,
                   int p6, int zbuf_handle, float *position, void *p9)
 {
-  FUN_0016c090(shader, p2, p3, widget_handle, p5, p6, zbuf_handle, position,
+  _rasterizer_model_transparent_geometry_submit(shader, p2, p3, widget_handle, p5, p6, zbuf_handle, position,
                p9);
 }
 
-/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00160dc0).
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (_rasterizer_environment_lightmap_begin).
  */
 void FUN_0017cc10(int param_1)
 {
-  FUN_00160dc0(param_1);
+  _rasterizer_environment_lightmap_begin(param_1);
 }
 
-/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00160f50).
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (_rasterizer_environment_lightmap_draw).
  */
 void FUN_0017cc20(int param_1, int param_2, int param_3, int param_4,
                   int param_5, int param_6)
 {
-  FUN_00160f50((void *)param_1, param_2, param_3, param_4, param_5,
+  _rasterizer_environment_lightmap_draw((void *)param_1, param_2, param_3, param_4, param_5,
                (void *)param_6);
 }
 
 /* Tail-call thunk to rasterizer_xbox_environment gel-light setup
- * (FUN_001621c0).
+ * (_rasterizer_environment_diffuse_light_begin).
  * 0x17cc60: PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x1621c0 — ESP is unchanged
  * at the JMP, so the caller's single pushed dword stays in place and becomes
- * FUN_001621c0's first cdecl argument ([ESP+4] / in_stack_00000004). That
+ * _rasterizer_environment_diffuse_light_begin's first cdecl argument ([ESP+4] / in_stack_00000004). That
  * callee asserts on it with
  * "light_index>=0 && light_index<rasterizer_lights.light_count"
  * (rasterizer_xbox_environment.c:0x2d9) and indexes rasterizer_lights with
  * light_index*0x38, so the forwarded dword is a light index, not a handle.
- * Sole XBE caller: FUN_00196060 @0x196117. */
+ * Sole XBE caller: structure_render_diffuse_light @0x196117. */
 void FUN_0017cc60(int light_index)
 {
-  FUN_001621c0(light_index);
+  _rasterizer_environment_diffuse_light_begin(light_index);
 }
 
-/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00162560).
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (_rasterizer_environment_diffuse_light_draw).
  */
 void FUN_0017cc70(int param_1, int param_2, int param_3, int param_4,
                   int param_5, int param_6)
 {
-  FUN_00162560((void *)param_1, param_2, param_3, param_4, param_5,
+  _rasterizer_environment_diffuse_light_draw((void *)param_1, param_2, param_3, param_4, param_5,
                (void *)param_6);
 }
 
-/* Tail-call thunk to rasterizer shadow-pass begin (FUN_00172a30).
+/* Tail-call thunk to rasterizer shadow-pass begin (_rasterizer_environment_shadow_begin).
  * 0x17ccb0: PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x172a30 — forwards 5 stack
  * args (ADD ESP,0x14 at 0x18b928): [EBP+8]=param_1 (unused), [EBP+C]=shadow
  * matrix ptr (MOV ESI,[EBP+C] at 0x172a81), [EBP+10]=shadow color ptr
  * (MOV EBX,[EBP+10]), [EBP+14]=object_bounding_radius (FLD [EBP+14] at
- * 0x172b88), [EBP+18]=out_radius. Returns FUN_00172a30's char (drawn/visible
+ * 0x172b88), [EBP+18]=out_radius. Returns _rasterizer_environment_shadow_begin's char (drawn/visible
  * flag) — the caller chain FUN_0018b830 -> FUN_0018c100 tests AL after the
  * call (implicit-EAX propagation in the original; made explicit here). */
 char FUN_0017ccb0(int param_1, const float *shadow_matrix,
                   const float *shadow_color, float object_bounding_radius,
                   float *out_radius)
 {
-  return FUN_00172a30(param_1, shadow_matrix, shadow_color,
+  return _rasterizer_environment_shadow_begin(param_1, shadow_matrix, shadow_color,
                       object_bounding_radius, out_radius);
 }
 
-/* Tail-call thunk to rasterizer decal rendering (FUN_00172590).
+/* Tail-call thunk to rasterizer decal rendering (_rasterizer_environment_shadow_model_begin).
  * Inherits the caller's pushed arg and forwards it unchanged (cdecl). */
 void FUN_0017ccc0(int param_1)
 {
-  FUN_00172590(param_1);
+  _rasterizer_environment_shadow_model_begin(param_1);
 }
 
-/* Tail-call thunk to rasterizer decal rendering (FUN_00172de0).
+/* Tail-call thunk to rasterizer decal rendering (_rasterizer_environment_shadow_model_draw).
  * 0x17ccd0: PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x172de0 — forwards 4 stack
  * args (ADD ESP,0x10 at 0x173041): [EBP+8]=decal ptr (MOV ESI,[EBP+8]),
  * [EBP+C]=param_2 (pushed @0x172f20), [EBP+10]=param_3 (MOV EBX,[EBP+10]),
  * [EBP+14]=param_4 (MOV EDI,[EBP+14]). */
 void FUN_0017ccd0(void *decal, int param_2, void *param_3, void *param_4)
 {
-  FUN_00172de0(decal, param_2, param_3, param_4);
+  _rasterizer_environment_shadow_model_draw(decal, param_2, param_3, param_4);
 }
 
-/* Tail-call thunk to rasterizer decal rendering (FUN_00173090). */
+/* Tail-call thunk to rasterizer decal rendering (_rasterizer_environment_shadow_draw). */
 void FUN_0017ccf0(void *shader, int param_2, int vertices_per_primitive, int a2,
                   int triangle_count, void *vertex_buffer)
 {
-  FUN_00173090(shader, param_2, vertices_per_primitive, a2, triangle_count,
+  _rasterizer_environment_shadow_draw(shader, param_2, vertices_per_primitive, a2, triangle_count,
                vertex_buffer);
 }
 
-/* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00162920).
+/* Tail-call thunk to rasterizer dynamic vertex geometry decal (_rasterizer_environment_diffuse_texture_draw).
  */
 void FUN_0017cd30(int param_1, int param_2, int param_3, int param_4,
                   int param_5, int param_6)
 {
-  FUN_00162920(param_1, param_2, param_3, param_4, param_5, param_6);
+  _rasterizer_environment_diffuse_texture_draw(param_1, param_2, param_3, param_4, param_5, param_6);
 }
