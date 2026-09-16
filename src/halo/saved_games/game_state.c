@@ -148,9 +148,8 @@ bool game_state_reverted(void)
  * Validates a core save header against the current game state expectations.
  * If fatal is true, validation failures trigger a halt.
  *
- * The original binary had a format string bug where build_version and
- * scenario_name string pointers were printed with %d instead of %s.
- * This lift fixes those format specifiers.
+ * The original binary has a format string bug where build_version and
+ * scenario_name string pointers are printed with %d instead of %s.
  */
 bool game_state_validate_core_header(char *header, bool fatal)
 {
