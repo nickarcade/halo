@@ -38126,8 +38126,9 @@
     },
     {
      "addr": "0x123b30",
-     "decl": "void model_get_node_matrices(void);",
-     "comment": "[NAME: model_get_node_matrices — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void model_get_node_matrices(void *mode_tag, float *node_matrices, float *position, float *forward, float *up);",
+     "comment": "[NAME: model_get_node_matrices — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x123c70",
