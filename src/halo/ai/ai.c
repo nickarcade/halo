@@ -1295,7 +1295,7 @@ void ai_handle_deleted_object(int object_handle)
   prop = (char *)data_iterator_next(&iter);
   while (prop != (char *)0) {
     if (*(int *)(prop + 0x18) == object_handle) {
-      FUN_0003b410(*(int *)(prop + 4), (int)iter.datum_handle, -1);
+      actor_switch_props(*(int *)(prop + 4), (int)iter.datum_handle, -1);
       prop_iterator_next(*(int *)(prop + 4), (int)iter.datum_handle);
     } else if (*(int *)(prop + 0x110) == object_handle) {
       *(int *)(prop + 0x110) = -1;

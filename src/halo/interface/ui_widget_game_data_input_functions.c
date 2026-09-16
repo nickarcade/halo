@@ -496,7 +496,7 @@ bool FUN_000efde0(void *widget, void *event_data, bool *widget_deleted)
 
   ustrncpy((wchar_t *)edit_name, untitled_name, 0xb);
   ((wchar_t *)edit_name)[0xb] = L'\0';
-  validated = virtual_keyboard_set_validation((wchar_t *)edit_name, 0x18, 8);
+  validated = virtual_keyboard_launch((wchar_t *)edit_name, 0x18, 8);
 failure:
   if (!validated) {
     display_error_deferred(0x25, -1, true, false);

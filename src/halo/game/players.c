@@ -7062,7 +7062,7 @@ void FUN_000bf380(int16_t function_index, int thread_datum, char init)
   record =
     (void *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_001a7a90(*(int *)record, *(float *)((char *)record + 4),
+    unit_scripting_set_maximum_vitality(*(int *)record, *(float *)((char *)record + 4),
                  *(float *)((char *)record + 8));
     hs_return(thread_datum, 0);
   }

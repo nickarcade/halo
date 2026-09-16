@@ -609,7 +609,7 @@ int FUN_000fb7d0(int param_1, int weapon_handle)
     }
 
     if (parent_handle != -1) {
-      return FUN_0009eb40(param_1, parent_handle, -1, -1, -1);
+      return effect_new_looping(param_1, parent_handle, -1, -1, -1);
     }
   }
 
@@ -639,7 +639,7 @@ int FUN_000fb7d0(int param_1, int weapon_handle)
  *   the trigger's charge/tick field; raw offsets retained to match the
  *   sibling accessors.
  */
-void weapon_trigger_release_charge(int16_t charge_ticks, int weapon_handle,
+void weapon_trigger_change_state(int16_t charge_ticks, int weapon_handle,
                                    int16_t trigger_index, int16_t new_state)
 {
   char *weapon_data;
@@ -1464,7 +1464,7 @@ void FUN_000fcbd0(int16_t magazine_index, int weapon_handle)
   int state;
 
   weapon_obj = (char *)object_get_and_verify_type(weapon_handle, 4);
-  magazine_state = (int16_t *)FUN_000fb370((void *)weapon_obj, magazine_index);
+  magazine_state = (int16_t *)weapon_magazine_get((void *)weapon_obj, magazine_index);
 
   state = *magazine_state;
   switch (state) {
@@ -1477,9 +1477,9 @@ void FUN_000fcbd0(int16_t magazine_index, int weapon_handle)
       tag_data = (char *)tag_get(0x77656170, *(int *)weapon_obj);
       mag_def = (char *)tag_block_get_element(tag_data + 0x4f0,
                                               (int)magazine_index, 0x70);
-      weapon_set_animation_state(weapon_handle, 0,
+      weapon_set_state(weapon_handle, 0,
                                  (int16_t)(magazine_index + 3));
-      weapon_start_effect(*(int *)(mag_def + 0x54), 0, 0, weapon_handle);
+      weapon_effect_new(*(int *)(mag_def + 0x54), 0, 0, weapon_handle);
       *magazine_state = 3;
       magazine_state[1] =
         (int16_t)(int)(*(float *)(mag_def + 0x1c) * TICKS_PER_SECOND);
@@ -1552,7 +1552,7 @@ void FUN_000fcd10(int16_t trigger_index, int weapon_handle)
   *(char *)(trigger_entry + 1) = 3;
   *(int16_t *)(trigger_entry + 2) = (int16_t)counter;
 
-  weapon_set_animation_state(weapon_handle, 1, animation_state);
+  weapon_set_state(weapon_handle, 1, animation_state);
   first_person_weapon_message_from_weapon(weapon_handle, 0xe);
 }
 
@@ -1764,7 +1764,7 @@ void FUN_000fd150(int weapon_handle)
 
   if ((animation_state < 7) ||
       ((animation_state > 8) && (animation_state != 10))) {
-    weapon_set_animation_state(weapon_handle, 1, 0);
+    weapon_set_state(weapon_handle, 1, 0);
   }
 }
 
@@ -1993,7 +1993,7 @@ bool weapon_aim(int weapon_handle, int16_t trigger_index, void *param_3,
  */
 void weapon_stop_reload(int weapon_handle)
 {
-  weapon_reset_state(weapon_handle);
+  weapon_reset(weapon_handle);
 }
 
 /* 0xfe6c0 — weapon trigger charge start (raw offsets retained)
@@ -2053,7 +2053,7 @@ void FUN_000fe6c0(int trigger_index, int weapon_handle)
                                                trigger_index, 0x114);
 
   if (trigger_index + 1 < *(int *)(weapon_defn + 0x4fc)) {
-    FUN_000fdc90(weapon_handle, trigger_index + 1);
+    weapon_trigger_fire(weapon_handle, trigger_index + 1);
   }
 
   charge_ticks =
@@ -2154,8 +2154,8 @@ void FUN_000fe790(int trigger_index, int weapon_handle)
   }
 
   if (*(int *)(weapon_defn + 0x4fc) > 1) {
-    FUN_000fdc90(weapon_handle, 1);
+    weapon_trigger_fire(weapon_handle, 1);
   }
-  FUN_000fcec0(trigger_index, weapon_handle);
+  weapon_trigger_recover(trigger_index, weapon_handle);
   *(int *)(trigger + 0x10) = 0;
 }

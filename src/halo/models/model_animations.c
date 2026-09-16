@@ -1721,7 +1721,7 @@ void replacement_animation_apply(void *animation, short frame_index,
 
           if ((scale_flags & 1) != 0) {
             if (compressed != 0) {
-              overlay_animation_apply_continuous_scaled(
+              animation_get_keyframe_scale(
                 animation, (float)(int)frame_index, (unsigned short)scale_count,
                 node_index, (void *)(out_node + 0x1c));
               scale_count = scale_count + 1;

@@ -186,7 +186,7 @@ void weapon_play_first_person_weapon_sound(int param_2, int object_handle)
 /* Return the first-person weapon state block for a local player (0xdcaf0).
  * local_player_index arrives in SI (register argument); the result is returned
  * in EAX as fp_base + local_player_index * 0x1ea0. */
-void *FUN_000dcaf0(int16_t local_player_index)
+void *first_person_weapon_get(int16_t local_player_index)
 {
   assert_halt(local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
@@ -368,7 +368,7 @@ int16_t first_person_weapon_index_from_weapon_index(int object_handle)
  * unit object handle (0xdcdc0). Iterates all local players, resolves each
  * player datum, and compares the player's controlled-unit handle at +0x34
  * against the handle passed in EDI. Returns the local player index or -1. */
-int16_t FUN_000dcdc0(int unit_handle)
+int16_t first_person_weapon_index_from_unit_index(int unit_handle)
 {
   int16_t i;
 
@@ -503,7 +503,7 @@ int16_t first_person_weapon_get_marker_by_name_render(int object_handle,
                                                       void *out_markers,
                                                       int max_count)
 {
-  if (*(int16_t *)0x506548 == FUN_000dcd60(object_handle)) {
+  if (*(int16_t *)0x506548 == first_person_weapon_index_from_weapon_index(object_handle)) {
     return first_person_weapon_get_marker_by_name(object_handle, marker_name,
                                                   out_markers, max_count);
   }
@@ -794,7 +794,7 @@ done:
  * stack and is stored at fp+4 (the value later passed to
  * player_clear_aim_assist by FUN_000de140). Clears the byte at fp+0x50, then
  * runs the weapon-state reset in FUN_000dde80. */
-void FUN_000de0e0(int local_player_index, int param_2)
+void first_person_weapon_new_unit(int local_player_index, int param_2)
 {
   char *fp;
 
@@ -806,7 +806,7 @@ void FUN_000de0e0(int local_player_index, int param_2)
   *(uint8_t *)(fp + 0x50) = 0;
   *(int *)(fp + 4) = param_2;
 
-  FUN_000dde80(local_player_index);
+  first_person_weapon_switch_weapons(local_player_index);
 }
 
 /* Process a weapon event for a local player's first-person weapon (0xde140).
@@ -927,8 +927,8 @@ void first_person_weapon_message_from_unit(int unit_handle, int message_type)
 {
   int16_t local_player;
 
-  local_player = FUN_000dcdc0(unit_handle);
-  FUN_000de140(local_player, message_type);
+  local_player = first_person_weapon_index_from_unit_index(unit_handle);
+  first_person_weapon_message(local_player, message_type);
   if (local_player == -1) {
     char *unit;
     int16_t weapon_index;
@@ -936,7 +936,7 @@ void first_person_weapon_message_from_unit(int unit_handle, int message_type)
     unit = (char *)object_get_and_verify_type(unit_handle, 3);
     weapon_index = *(int16_t *)(unit + 0x2a2);
     if (weapon_index != -1) {
-      FUN_000dc9d0(message_type, (int)weapon_index);
+      weapon_play_first_person_weapon_sound(message_type, (int)weapon_index);
     }
   }
 }
