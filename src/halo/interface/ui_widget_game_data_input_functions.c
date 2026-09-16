@@ -237,6 +237,124 @@ bool FUN_000eeeb0(void *widget, void *event_data, bool *widget_deleted)
   return result;
 }
 
+/* change controller settings (0x0ef3f0, table xref 0x31e270) — walks the
+ * controller settings column list (widget+0xe must be type 3) for its
+ * 'joystick config' list item (widget+0x34) and the 'button config' item
+ * that follows it (+0x2c), finds the spinner sub-widget (type 2) inside
+ * each child chain, and stores the selected option index (+0x3c) into the
+ * player profile being edited: joystick config to profile+0x29, button
+ * config to profile+0x28. An unavailable editable profile reports an error
+ * and returns false; a malformed widget hierarchy halts. Out-of-range
+ * option indices are reported and leave the profile field unchanged. */
+bool player_profile_change_controller_settings(void *widget, void *event_data,
+                                               bool *widget_deleted)
+{
+  char *profile;
+  char *item;
+  char *spinner;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  profile = (char *)player_ui_get_edit_player_profile();
+
+  if (*(short *)((char *)widget + 0xe) != 3) {
+    display_assert(
+      "expected column list for controller settings widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xf5d,
+      1);
+    system_exit(-1);
+  }
+
+  if (profile == NULL) {
+    error(2, "failed to retrieve editable player profile");
+    return false;
+  }
+
+  item = *(char **)((char *)widget + 0x34);
+  if (item == NULL) {
+    display_assert(
+      "expected 'joystick config' list item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xf65,
+      1);
+    system_exit(-1);
+  }
+
+  spinner = *(char **)(item + 0x34);
+  while (spinner != NULL && *(short *)(spinner + 0xe) != 2) {
+    spinner = *(char **)(spinner + 0x2c);
+  }
+
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'joystick config' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xf67,
+      1);
+    system_exit(-1);
+  }
+
+  switch (*(short *)(spinner + 0x3c)) {
+  case 0:
+    profile[0x29] = 0;
+    break;
+  case 1:
+    profile[0x29] = 1;
+    break;
+  case 2:
+    profile[0x29] = 2;
+    break;
+  case 3:
+    profile[0x29] = 3;
+    break;
+  default:
+    error(2, "unknown option selected for joystick config");
+    break;
+  }
+
+  item = *(char **)(item + 0x2c);
+  if (item == NULL) {
+    display_assert(
+      "expected 'button config' list item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xf72,
+      1);
+    system_exit(-1);
+  }
+
+  spinner = *(char **)(item + 0x34);
+  while (spinner != NULL && *(short *)(spinner + 0xe) != 2) {
+    spinner = *(char **)(spinner + 0x2c);
+  }
+
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'button config' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xf74,
+      1);
+    system_exit(-1);
+  }
+
+  switch (*(short *)(spinner + 0x3c)) {
+  case 0:
+    profile[0x28] = 0;
+    return true;
+  case 1:
+    profile[0x28] = 1;
+    return true;
+  case 2:
+    profile[0x28] = 2;
+    return true;
+  case 3:
+    profile[0x28] = 3;
+    return true;
+  case 4:
+    profile[0x28] = 4;
+    return true;
+  default:
+    error(2, "unknown button config option selected");
+    return true;
+  }
+}
+
 /* remove local player from network game (0x0ef900, table xref 0x31e278) —
  * validates that the event's controller index (event_data+0x2) is in [0,4)
  * and, if so, quits that local player from the current network game. A NULL
@@ -1872,6 +1990,104 @@ void FUN_000f2f60(void *widget)
       *(unsigned short *)((char *)widget + 0x40) = 0x18;
       break;
     }
+  } else {
+    error(2, "no network game");
+  }
+}
+
+/* solo_game_objective_text (0xf3010, table xref 0x31e580)
+ * Selects the multiplayer map index for the "mp game settings bitmap"
+ * container widget. Requires the widget to be a container (type == 0 at
+ * +0xe); otherwise asserts + exits (reference PUSH immediates at
+ * 0xf301f/0xf3021/0xf3026/0xf302b). Fetches the active network game via
+ * network_game_get_game(); with no active game it reports error(2, "no
+ * network game") and leaves the widget untouched (reference 0xf31bc).
+ * Otherwise it substring-matches the game's map name (game + 0x24) against
+ * the stock multiplayer map scenario names in a fixed order and stores the
+ * matching index into the widget's word at +0x50. The final test is emitted
+ * as NEG/SBB/ADD 0xd (0xf31ad-0xf31b4): 12 when "longest" matches, 13
+ * otherwise. Evidence: reference disassembly at 0xf3010-0xf31ce. */
+void solo_game_objective_text(void *widget)
+{
+  int game;
+  const char *map_name;
+  char *found;
+
+  if (*(short *)((char *)widget + 0xe) != 0) {
+    display_assert(
+      "expected container widget for mp game settings bitmap",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xb09, 1);
+    system_exit(-1);
+  }
+
+  game = network_game_get_game();
+  if (game != 0) {
+    map_name = (const char *)(game + 0x24);
+
+    found = crt_strstr(map_name, "beavercreek");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 0;
+      return;
+    }
+    found = crt_strstr(map_name, "sidewinder");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 1;
+      return;
+    }
+    found = crt_strstr(map_name, "damnation");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 2;
+      return;
+    }
+    found = crt_strstr(map_name, "ratrace");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 3;
+      return;
+    }
+    found = crt_strstr(map_name, "prisoner");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 4;
+      return;
+    }
+    found = crt_strstr(map_name, "hangemhigh");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 5;
+      return;
+    }
+    found = crt_strstr(map_name, "chillout");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 6;
+      return;
+    }
+    found = crt_strstr(map_name, "carousel");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 7;
+      return;
+    }
+    found = crt_strstr(map_name, "boardingaction");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 8;
+      return;
+    }
+    found = crt_strstr(map_name, "bloodgulch");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 9;
+      return;
+    }
+    found = crt_strstr(map_name, "wizard");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 10;
+      return;
+    }
+    found = crt_strstr(map_name, "putput");
+    if (found != NULL) {
+      *(unsigned short *)((char *)widget + 0x50) = 11;
+      return;
+    }
+    found = crt_strstr(map_name, "longest");
+    *(unsigned short *)((char *)widget + 0x50) =
+      (unsigned short)(0xd - (found != NULL));
   } else {
     error(2, "no network game");
   }
