@@ -172,6 +172,57 @@ float weapon_estimate_time_to_target(int weapon_handle, int16_t trigger_index,
   return result;
 }
 
+/* 0xfaf50 — weapon_can_be_fired
+ *
+ * Returns 0 when the weapon is at/over full heat, or (in a running game
+ * engine) when the first trigger's field at +0xa is positive while both
+ * ammo-ish counters at obj+0x260 and obj+0x25e are zero. Otherwise 1.
+ *
+ * Confirmed: cdecl, 1 stack arg [EBP+0x8].
+ * Confirmed: PUSH 0x4 / PUSH EAX → object_get_and_verify_type at 0xfaf5b.
+ * Confirmed: MOV ECX,[ESI] / PUSH ECX / PUSH 0x77656170 → tag_get at 0xfaf6a;
+ * ADD ESP,0x10 at 0xfaf7d cleans both cdecl calls (2 + 2 args), so tag_get
+ * takes 2 args.
+ * Confirmed: tag_get is called before the heat gate, even though its result
+ * is only consumed on the second path.
+ * Confirmed: FLD [ESI+0x1f0] / FCOMP [0x2533c8] / FNSTSW / TEST AH,0x1 / JNZ
+ * at 0xfaf6f–0xfaf85 — C0 set (heat < 1.0f) continues, otherwise XOR AL,AL.
+ * Confirmed: CALL 0x000a8e30 (game_engine_running) / TEST AL,AL at 0xfaf8d.
+ * Confirmed: MOV ECX,[EDI+0x4f0] / TEST ECX,ECX / JLE — signed count > 0.
+ * Confirmed: LEA EAX,[EDI+0x4f0] / PUSH 0x70 / PUSH 0x0 / PUSH EAX →
+ * tag_block_get_element(block, 0, 0x70) at 0xfafab; ADD ESP,0xc.
+ * Confirmed: CMP word ptr [EAX+0xa],0x0 / JLE — signed int16 > 0.
+ * Confirmed: CMP word ptr [ESI+0x260],0x0 / JNZ then CMP word ptr
+ * [ESI+0x25e],0x0 / JZ — offset 0x260 tested first.
+ */
+char weapon_can_be_fired(int weapon_handle)
+{
+  int *obj;
+  void *weap_tag;
+  void *trigger;
+
+  obj = (int *)object_get_and_verify_type(weapon_handle, 4);
+  weap_tag = tag_get(0x77656170, obj[0]);
+
+  if (*(float *)((char *)obj + 0x1f0) >= 1.0f) {
+    return 0;
+  }
+
+  if (game_engine_running() && *(int *)((char *)weap_tag + 0x4f0) > 0) {
+    trigger = tag_block_get_element((char *)weap_tag + 0x4f0, 0, 0x70);
+    if (*(int16_t *)((char *)trigger + 0xa) > 0 &&
+        *(int16_t *)((char *)obj + 0x260) == 0 &&
+        *(int16_t *)((char *)obj + 0x25e) == 0) {
+      return 0;
+    }
+  }
+
+  return 1;
+  if (weap_tag)
+  {
+  }
+}
+
 /* 0xfb090 — weapon_must_be_readied
  *
  * Returns non-zero if the weapon's 'must be readied' flag is set
@@ -675,6 +726,40 @@ void FUN_000fb910(char param_1, int weapon_handle, int16_t trigger_index)
       *(float *)(trigger + 0x14) = 1.0f;
     }
   }
+}
+
+/* 0xfba00 — weapon_state_interruptable
+ *
+ * Leaf predicate (no calls). Decides whether a weapon animation state may
+ * be interrupted by comparing it against a second state value.
+ *
+ * Confirmed: register arg — state arrives in DX (MOVSX ECX,DX at 0xfba03);
+ *   one 16-bit stack arg at [EBP+8] (CMP word ptr [EBP+8],DX at 0xfba13).
+ *   Plain RET (no imm) => cdecl, caller cleans the stack arg.
+ * Confirmed: byte return in AL — XOR AL,AL at 0xfba06, MOV AL,1 at
+ *   0xfba1c, SETGE AL at 0xfba17.
+ * Confirmed: branch order TEST ECX,ECX / JZ (state == 0 => return 1),
+ *   JLE (state < 0 => return 0), CMP ECX,2 / JG (state > 2 => return 0),
+ *   otherwise SETGE on the signed 16-bit compare [EBP+8] - DX, i.e.
+ *   return param_1 >= state.
+ * Unknown: the weapon animation-state enumeration behind the 0..2 range
+ *   and the meaning of the stack operand relative to the DX operand; both
+ *   parameters are only proven to be signed 16-bit state values.
+ */
+boolean weapon_state_interruptable(int16_t param_1, int16_t state)
+{
+  int state_value;
+
+  /* MOVSX ECX,DX at 0xfba03: the state tests run sign-extended to 32 bits,
+   * while the final compare stays 16-bit (CMP word ptr [EBP+8],DX). */
+  state_value = state;
+  if (state_value != 0) {
+    if (state_value > 0 && state_value <= 2) {
+      return (boolean)(param_1 >= state);
+    }
+    return 0;
+  }
+  return 1;
 }
 
 /* 0xfba20 — weapon_set_animation_state

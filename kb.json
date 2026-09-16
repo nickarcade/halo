@@ -33795,7 +33795,9 @@
     },
     {
      "addr": "0xfaf50",
-     "decl": "char weapon_can_be_fired(int weapon_handle);"
+     "decl": "char weapon_can_be_fired(int weapon_handle);",
+     "ported": true,
+     "source_path": "src/halo/items/weapons.c"
     },
     {
      "addr": "0xfafe0",
@@ -33902,8 +33904,9 @@
     },
     {
      "addr": "0xfba00",
-     "decl": "void weapon_state_interruptable(void);",
-     "comment": "[NAME: weapon_state_interruptable — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "boolean weapon_state_interruptable(int16_t param_1, int16_t state @<dx>);",
+     "comment": "[NAME: weapon_state_interruptable — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xfba20",
