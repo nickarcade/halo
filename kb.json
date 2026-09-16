@@ -22599,6 +22599,11 @@
           "ported": true
         },
         {
+          "decl": "void hs_recompile(void);",
+          "addr": "0xc3c40",
+          "ported": false
+        },
+        {
           "decl": "void hs_update(void);",
           "addr": "0xc3c50",
           "ported": true
@@ -22694,6 +22699,76 @@
           "ported": true
         },
         {
+          "decl": "void hs_enumerate_script_names(void);",
+          "addr": "0xc4240",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_variable_names(void);",
+          "addr": "0xc4270",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_ai_names(void);",
+          "addr": "0xc4320",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_ai_command_list_names(void);",
+          "addr": "0xc4350",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_starting_profile_names(void);",
+          "addr": "0xc4380",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_conversation_names(void);",
+          "addr": "0xc43b0",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_object_names(void);",
+          "addr": "0xc43e0",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_trigger_volume_names(void);",
+          "addr": "0xc4410",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_cutscene_flag_names(void);",
+          "addr": "0xc4440",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_cutscene_camera_point_names(void);",
+          "addr": "0xc4470",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_cutscene_title_names(void);",
+          "addr": "0xc44a0",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_cutscene_recording_names(void);",
+          "addr": "0xc44d0",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_navpoints(void);",
+          "addr": "0xc4500",
+          "ported": false
+        },
+        {
+          "decl": "void hs_enumerate_hud_messages(void);",
+          "addr": "0xc4540",
+          "ported": false
+        },
+        {
           "decl": "int16_t hs_tokens_enumerate(const char *prefix, uint32_t type_mask, char **tokens, int16_t max_tokens);",
           "addr": "0xc4580",
           "ported": true
@@ -22777,6 +22852,11 @@
           "decl": "void hs_doc(void);",
           "addr": "0xc4e90",
           "ported": true
+        },
+        {
+          "decl": "void hs_hack(void);",
+          "addr": "0xc4f90",
+          "ported": false
         },
         {
           "decl": "void hs_evaluate_script_doc(int16_t function_index, int thread_datum, char init);",
@@ -23298,6 +23378,11 @@
           "ported": true
         },
         {
+          "decl": "int hs_syntax_nth(int node_index@<eax>, int16_t count@<cx>);",
+          "addr": "0xca4b0",
+          "ported": false
+        },
+        {
           "decl": "void hs_inspect_boolean(int16_t type, bool value, char *buffer);",
           "addr": "0xca4e0",
           "ported": true
@@ -23336,6 +23421,11 @@
           "decl": "void hs_runtime_dispose_from_old_map(void);",
           "addr": "0xca800",
           "ported": true
+        },
+        {
+          "decl": "void hs_runtime_dispose(void);",
+          "addr": "0xca880",
+          "ported": false
         },
         {
           "decl": "const char *FUN_000ca890(int expression_index@<eax>, int thread_index@<ebx>);",
@@ -23398,6 +23488,11 @@
         {
           "decl": "void FUN_000caec0(void);",
           "addr": "0xcaec0"
+        },
+        {
+          "decl": "void hs_data_to_void(void);",
+          "addr": "0xcaee0",
+          "ported": false
         },
         {
           "decl": "void FUN_000caef0(void);",
