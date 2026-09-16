@@ -54,22 +54,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Link local assets
-        run: |
-          # Replace the checkout directories rather than nesting a
-          # delinked/delinked link.  halo-patched is REQUIRED (it carries the
-          # pristine cachebeta.xbe the oracle reads); delinked is optional
-          # since the default oracle became the raw XBE, and is linked only so
-          # an explicit --oracle=delinked run can still reproduce a
-          # pre-migration verdict.
-          rm -rf -- delinked halo-patched
-          ln -sf ${{ env.XBE_DIR }} halo-patched
-          if [ -d "${{ env.DELINKED_DIR }}" ]; then
-            ln -sf ${{ env.DELINKED_DIR }} delinked
-          else
-            echo "::notice::no delinked/ on this runner; the raw-XBE oracle "\
-                 "does not need it"
-          fi
+      # halo-patched is REQUIRED (it carries the pristine cachebeta.xbe the
+      # oracle reads); delinked is optional since the default oracle became the
+      # raw XBE, and is staged only so an explicit --oracle=delinked run can
+      # still reproduce a pre-migration verdict.
+      - name: Stage local assets
+        uses: ./.github/actions/stage-local-assets
+        with:
+          xbe: "true"
+          delinked: "true"
+          required: halo-patched/cachebeta.xbe
 
       - name: Build PR candidate
         run: |
@@ -126,15 +120,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Link local assets
-        run: |
-          # See the regression job: a directory target would otherwise create
-          # a nested symlink instead of exposing the host-only references.
-          rm -rf -- delinked halo-patched
-          ln -sf ${{ env.XBE_DIR }} halo-patched
-          if [ -d "${{ env.DELINKED_DIR }}" ]; then
-            ln -sf ${{ env.DELINKED_DIR }} delinked
-          fi
+      - name: Stage local assets
+        uses: ./.github/actions/stage-local-assets
+        with:
+          xbe: "true"
+          delinked: "true"
+          required: halo-patched/cachebeta.xbe
 
       - name: Build PR candidate
         run: |

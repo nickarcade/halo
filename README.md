@@ -34,7 +34,7 @@ Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklu
 * **Ported Code Bytes:** `1,225,954 / 1,737,867` (`70.54%`)
   `[████████████████████████████░░░░░░░░░░░░] 70.54%`
 * **Average VC71 Match Accuracy:** `93.30%` (`5,742` scored functions, weighted: `89.00%`)
-* **Equivalence Verified:** `4,289` functions tested (`1,081` high confidence)
+* **Equivalence Verified:** `4,290` functions tested (`1,101` high confidence)
 * **Translation Units:** `189` source units (`39` platform/SDK buckets tracked separately)
 
 > Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
@@ -42,7 +42,7 @@ Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklu
 
 Community
 ---------
-The homepage for this project is: https://blam.info/
+The homepage for this project is: https://stianeklund.github.io/halo/
 
 Current State
 -------------
@@ -51,7 +51,7 @@ Current State
 * Several more functions are implemented
 * Long way to go...
 
-The [Progress Report](https://blam.info/progress/) details what functionality has been re-implemented.
+The [Progress Report](https://stianeklund.github.io/halo/) details what functionality has been re-implemented.
 
 Build
 -----
@@ -120,7 +120,7 @@ The process of adding re-implemented functions is mostly automated and relativel
 * The build system will compile and patch the XBE with redirects from the original implementations to the re-implementations.
 * Naturally, your new code will call some function in the original binary that has not yet been re-implemented. These functions will also be automatically linked correctly, provided the definitions of data and called functions are in `kb.json`.
 
-See the [Progress Report](https://blam.info/progress/) to interactively explore the call graph, familiarize yourself with the code base, and examine the project frontier.
+See the [Progress Report](https://stianeklund.github.io/halo/) to interactively explore the call graph, familiarize yourself with the code base, and examine the project frontier.
 
 Low-risk reverse engineering workflow metadata can be stored in `kb_meta.json`.
 Unlike `kb.json`, it does not affect code generation or linking. Use

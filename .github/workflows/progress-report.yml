@@ -33,6 +33,7 @@ jobs:
       BUILD_DIR: /mnt/g/dev/halo/build
       ARTIFACTS_DIR: /mnt/g/dev/halo/artifacts
       DELINKED_DIR: /mnt/g/dev/halo/delinked
+      XBE_DIR: /mnt/g/dev/halo/halo-patched
     
     steps:
       - name: Clone Repository
@@ -40,20 +41,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Link Report Data
+      # NOTE: scoring no longer needs delinked/.  VC71 references are derived
+      # from the pristine XBE + the committed tools/verify/function_bounds.json
+      # (tools/verify/xbe_reference.py), so populate scores with or without it.
+      # It is still staged because the equivalence/objdiff artifacts the report
+      # surfaces are produced against those objects.  Safe to drop once nothing
+      # in this job reads delinked/.
+      - name: Stage Report Assets
+        uses: ./.github/actions/stage-local-assets
+        with:
+          xbe: "true"
+          delinked: "true"
+          required: halo-patched/cachebeta.xbe
+
+      # build/ (44M) and the four result directories (215M) stay symlinks --
+      # copying them per run is not worth it, and unlike the assets above they
+      # are all ignored as whole paths, so the checkout clean removes the link
+      # and never looks inside.  Link Safety below is what keeps that true.
+      - name: Link Bulk Report Data
         run: |
           if [ ! -e build ] && [ -d "$BUILD_DIR" ]; then
             ln -s "$BUILD_DIR" build
-          fi
-          # NOTE: scoring no longer needs this.  VC71 references are derived from
-          # the pristine XBE + the committed tools/verify/function_bounds.json
-          # (tools/verify/xbe_reference.py), so populate scores with or without
-          # delinked/.  The symlink is kept because delinked/ is gitignored and
-          # wiped by the clean checkout, and the equivalence/objdiff artifacts the
-          # report surfaces are still produced against those objects.  Safe to drop
-          # once nothing in this job reads delinked/.
-          if [ ! -e delinked ] && [ -d "$DELINKED_DIR" ]; then
-            ln -s "$DELINKED_DIR" delinked
           fi
           mkdir -p artifacts
           for dir in batch_verify equivalence runtime_oracle runtime_oracle_batch; do
@@ -61,6 +69,9 @@ jobs:
               ln -s "$ARTIFACTS_DIR/$dir" "artifacts/$dir"
             fi
           done
+
+      - name: Link Safety
+        run: bash tools/ci/check_workspace_links.sh
 
       - name: Refresh VC71 Scores
         run: |
@@ -163,7 +174,7 @@ jobs:
             
             **Translation Units:** ${report.units.length}${velocityInfo}
             
-            [View Full Dashboard](https://blam.info/progress/)
+            [View Full Dashboard](https://stianeklund.github.io/halo/)
             
             <sub>Generated at ${report.meta.timestamp}</sub>
             `;

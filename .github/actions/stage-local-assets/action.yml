@@ -1,0 +1,107 @@
+name: Stage host-only assets
+description: >
+  Copy the original-XBE-derived assets a self-hosted job needs into the runner
+  workspace. These are never committed, so every job has to get them from the
+  host somehow.
+
+# WHY A COPY AND NOT A SYMLINK
+#
+# Every job used to do `ln -s /mnt/g/dev/halo/<dir> <dir>`, which put a path
+# inside the runner workspace pointing at the live development tree. That is
+# only safe while git can be relied on never to descend through the link, and
+# on 2026-09-16 it stopped being safe: delinked/ held 8 tracked .obj files, so
+# git could not treat it as an ignored path, followed the symlink during the
+# checkout clean, and deleted every untracked object in the real directory.
+# The 8 tracked ones survived, which is how the mechanism was identified.
+#
+# Untracking those objects closed that specific hole, but the design stayed one
+# .gitignore edit -- or one `ln -sf` without -n, which resolves an existing link
+# and writes INSIDE the live directory -- away from doing it again. CI hygiene
+# (`git clean -ffdx` on every checkout) is supposed to be destructive; the fix
+# is to make sure it can only ever destroy things the runner owns.
+#
+# So: nothing in the workspace points outside it. The assets are 3.3 MB total,
+# which is far cheaper than another afternoon of recovery.
+
+inputs:
+  xbe:
+    description: Stage halo-patched/ (the pristine cachebeta.xbe oracle).
+    required: false
+    default: "true"
+  delinked:
+    description: Stage delinked/ (COFF reference objects; optional for scoring).
+    required: false
+    default: "false"
+  ci:
+    description: Stage ci/ (converted live RAM capture).
+    required: false
+    default: "false"
+  required:
+    description: >
+      Space-separated workspace-relative files that must exist afterwards.
+      Missing ones fail the step instead of surfacing later as a confusing
+      zero-region or no-reference result.
+    required: false
+    default: ""
+  source-root:
+    description: Host directory the assets are copied from.
+    required: false
+    default: /mnt/g/dev/halo
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SRC_ROOT: ${{ inputs.source-root }}
+        WANT_XBE: ${{ inputs.xbe }}
+        WANT_DELINKED: ${{ inputs.delinked }}
+        WANT_CI: ${{ inputs.ci }}
+        REQUIRED: ${{ inputs.required }}
+      run: |
+        set -euo pipefail
+
+        # Refuse to run anywhere but a runner workspace. Without this a
+        # mis-set working-directory would have the copy overwrite the source.
+        case "$PWD" in
+          "$SRC_ROOT"|"$SRC_ROOT"/*)
+            echo "::error::refusing to stage assets into the source tree itself ($PWD)"
+            exit 1
+            ;;
+        esac
+
+        stage() {
+          name="$1"
+          src="$SRC_ROOT/$name"
+
+          # A leftover symlink from the pre-copy design is the one thing that
+          # makes the following rm dangerous, so unlink it explicitly first:
+          # `rm -rf` on a symlink removes the link, but only as long as the
+          # argument carries no trailing slash.
+          [ -L "$name" ] && rm -f -- "$name"
+          rm -rf -- "$name"
+
+          if [ ! -d "$src" ]; then
+            echo "::warning::no $src on this runner; skipping $name"
+            return 0
+          fi
+
+          mkdir -p -- "$name"
+          cp -aL -- "$src"/. "$name"/
+          echo "staged $name ($(du -sh -- "$name" | cut -f1))"
+        }
+
+        [ "$WANT_XBE" = "true" ]      && stage halo-patched
+        [ "$WANT_DELINKED" = "true" ] && stage delinked
+        [ "$WANT_CI" = "true" ]       && stage ci
+
+        fail=0
+        for f in $REQUIRED; do
+          if [ -e "$f" ]; then
+            echo "ok: $f"
+          else
+            echo "::error::missing prerequisite: $f"
+            fail=1
+          fi
+        done
+        exit "$fail"
