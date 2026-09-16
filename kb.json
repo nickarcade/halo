@@ -38408,12 +38408,12 @@
     {
      "addr": "0x14ad60",
      "decl": "void render_debug_collision_sphere(void *sphere, void *color);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x14ad80",
      "decl": "void render_debug_collision_cylinder(void *cylinder, void *color);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x14adb0",
@@ -47605,6 +47605,9 @@
   }
  ],
  "0x184980": {
+  "ported": true
+ },
+ "0x14ad80": {
   "ported": true
  }
 }
