@@ -130,6 +130,13 @@ void FUN_00184690(void)
   *(int *)0x4d0cf4 = 0;
 }
 
+/* rasterizer_transparent_geometry_stop (0x184710): resets stencil rendering
+ * to mode 0 after transparent-geometry rendering. */
+void rasterizer_transparent_geometry_stop(void)
+{
+  FUN_00158ae0(0);
+}
+
 /* render_effects (0x184b60)
  *
  * Broadcasts a single cdecl byte argument (the record's first byte, per the
@@ -139,6 +146,85 @@ void FUN_00184690(void)
  * branch). 0x32574c is read elsewhere as the particle-system-update gate
  * (particle_system_update, 0xa1170) and 0x32574b as the scenario particles
  * gate; the other two bytes' readers are not evidenced in this bundle. */
+/* 0x184980 — draw transparent geometry groups in presorted order.  The
+ * group-table record is 0xa0 bytes: byte +0 selects the first-person frustum
+ * path and pointer +0xc supplies the shader used for the water-decal filter.
+ * The index list and the current index are 16-bit; preserve both signed word
+ * accesses when walking the table. */
+void FUN_00184980(char param_1)
+{
+  char first_person_flag;
+  char *group;
+  int group_index;
+  int profile;
+  void *shader;
+
+  profile = param_1 != 0 ? 0x13 : 0x16;
+  FUN_0016f910(profile);
+  if (*(int *)0x4d0cf4 > 0) {
+    first_person_flag = 0;
+    if (param_1 != 0) {
+      rasterizer_sort_internal();
+      *(short *)0x4d0cb8 = 0;
+      if (*(short *)0x5a5bc2 != -1) {
+        *(char *)0x325740 = 1;
+      }
+    }
+    FUN_00174ce0();
+    *(char *)0x325740 = 0;
+    while ((int)*(short *)0x4d0cb8 < *(int *)0x4d0cf4) {
+      group_index = *(short *)(*(int *)0x4d0cfc + (int)*(short *)0x4d0cb8 * 2);
+      group = (char *)(group_index * 0xa0 + *(int *)0x4d0cec);
+      if (param_1 != 0) {
+        shader = *(void **)(group + 0xc);
+        if (shader == 0 || (*(short *)((char *)shader + 0x24) != 7 &&
+                            shader_is_water_decal(shader) == 0)) {
+          break;
+        }
+      }
+      if (*(signed char *)group < 0) {
+        if (param_1 != 0) {
+          display_assert(
+            "!water",
+            "c:\\halo\\SOURCE\\rasterizer\\rasterizer_transparent_geometry.c",
+            0x154, 1);
+          system_exit(-1);
+        }
+        if (*(short *)0x5a5bc0 != 0) {
+          display_assert(
+            "global_window_parameters.rasterizer_target==_rasterizer_target_"
+            "render_primary",
+            "c:\\halo\\SOURCE\\rasterizer\\rasterizer_transparent_geometry.c",
+            0x155, 1);
+          system_exit(-1);
+        }
+        if (first_person_flag == 0) {
+          FUN_00158ae0(0);
+          rasterizer_set_frustum_z(*(float *)0x32569c, *(float *)0x3256a0);
+          first_person_flag = 1;
+        }
+      } else if (first_person_flag != 0) {
+        display_assert(
+          "!first_person_flag",
+          "c:\\halo\\SOURCE\\rasterizer\\rasterizer_transparent_geometry.c",
+          0x163, 1);
+        system_exit(-1);
+      }
+      rasterizer_transparent_geometry_group_draw(group, 0);
+      *(short *)0x4d0cb8 = *(short *)0x4d0cb8 + 1;
+    }
+    if (param_1 == 0 && *(short *)0x5a5bc2 != -1) {
+      *(char *)0x325740 = 1;
+    }
+    FUN_001749b0();
+    *(char *)0x325740 = 0;
+    if (first_person_flag != 0) {
+      rasterizer_set_frustum_z(0.0f, 0.0f);
+    }
+  }
+  FUN_0016fa40(profile);
+}
+
 void render_effects(int a)
 {
   *(char *)0x32574d = (char)a;
