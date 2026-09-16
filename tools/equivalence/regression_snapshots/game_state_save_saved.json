@@ -1,0 +1,11 @@
+{
+  "description": "game_state_save records a successful write to the saved flag at 0x4ea9a5",
+  "build_label": "halo-debug-2276-synthetic",
+  "verified": true,
+  "regions": {
+    "0x004ea9a5": "0000000000000000"
+  },
+  "stub_returns": {
+    "game_state_write_to_file": 1
+  }
+}

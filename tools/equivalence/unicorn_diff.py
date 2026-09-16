@@ -3665,6 +3665,14 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     oracle_returns = set()
     oracle_scratch_digests = set()
     oracle_write_digests = set()
+    # Per-seed digest of the oracle's stub call SEQUENCE (callee names + arg
+    # values).  For a void function that writes nothing and only dispatches --
+    # game_state_revert picks main_reset_map or the 13-callback loop, the whole
+    # observable difference between its two branches -- the call sequence is the
+    # only output there is, and it is already compared per seed by
+    # compare_stub_arg_traces.  Without this the run is scored vacuous at 100%
+    # coverage even though the differential genuinely observed two behaviours.
+    oracle_call_digests = set()
     merged_global_reads = {}
     merged_auto_mapped_pages = set()
     # The oracle's code lives at its real VA under --oracle=xbe, so every
@@ -3816,6 +3824,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             oracle_write_digests.add(
                 hash(tuple(sorted((w.address, w.size, w.value)
                                   for w in oracle_state.mem_writes))))
+        if oracle_tracer is not None and oracle_tracer.records:
+            oracle_call_digests.add(hash(tuple(
+                (r.callee_name, tuple(r.args))
+                for r in oracle_tracer.records)))
         for addr, val in oracle_state.global_reads.items():
             if addr not in merged_global_reads:
                 merged_global_reads[addr] = val
@@ -3933,7 +3945,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     monotonic_return = unique_returns <= 1 and not abi['ret_void'] and passed > 0
     output_varied = (unique_returns > 1
                      or len(oracle_scratch_digests) > 1
-                     or len(oracle_write_digests) > 1)
+                     or len(oracle_write_digests) > 1
+                     or len(oracle_call_digests) > 1)
 
     confidence = _classify_confidence(coverage_pct, output_varied, passed)
 
@@ -4148,7 +4161,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                         and not abi['ret_void'] and passed > 0)
                     output_varied = (unique_returns > 1
                                      or len(oracle_scratch_digests) > 1
-                                     or len(oracle_write_digests) > 1)
+                                     or len(oracle_write_digests) > 1
+                                     or len(oracle_call_digests) > 1)
 
                     confidence = _classify_confidence(coverage_pct,
                                                       output_varied, passed)

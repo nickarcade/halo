@@ -102,12 +102,24 @@ def run_unicorn_diff(func_name: str, snapshot_path: str,
             except Exception:
                 pass
 
+        # --state-snapshot turns --real-callees OFF by default, which also
+        # turns defined-sibling resolution off.  A same-TU callee (e.g.
+        # game_state_data_new -> game_state_malloc) is then left as an
+        # unpatched rel32 `call $+5` on the candidate while the raw-XBE oracle
+        # intercepts it at its entry VA, so each call leaks 4 bytes until the
+        # epilogue RETs into a stack value (eip=0x80ffffc, reported as
+        # emulation_error at 0% coverage).  Resolving the sibling to the same
+        # shared sentinel the oracle uses makes the two sides symmetric.
+        child_env = dict(os.environ)
+        child_env["BIPED_SIBLING_RESOLVE"] = "1"
+
         try:
             # Own process group + discarded output (result read from JSON);
             # poll RSS so a runaway --mem-trace child is killed, not OOM'd.
             proc = subprocess.Popen(
                 cmd, cwd=str(ROOT), stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, start_new_session=True,
+                env=child_env,
             )
             deadline = time.time() + timeout
             reason = None

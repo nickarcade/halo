@@ -1,0 +1,12 @@
+{
+  "description": "single-player map type reverts then writes the header to persistent storage",
+  "build_label": "halo-debug-2276-synthetic",
+  "verified": true,
+  "regions": {
+    "0x0031fa94": "0100000000000000",
+    "0x004ea9a5": "0100000000000000",
+    "0x005054e8": "0000000000000000",
+    "0x004ea994": "0010068000000000",
+    "0x004ea9ac": "0000700000000000"
+  }
+}

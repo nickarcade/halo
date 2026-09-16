@@ -1,0 +1,11 @@
+{
+  "description": "the verified tick equals the current game time, so the state counts as reverted",
+  "build_label": "halo-debug-2276-synthetic",
+  "verified": true,
+  "regions": {
+    "0x004ea9a8": "3412000000000000"
+  },
+  "stub_returns": {
+    "game_time_get": 4660
+  }
+}
