@@ -17456,7 +17456,8 @@
     },
     {
      "addr": "0x89330",
-     "decl": "void flying_camera_new(void);",
+     "decl": "void flying_camera_new(void *flying_camera);",
+     "ported": true,
      "comment": "[NAME: flying_camera_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -17635,8 +17636,9 @@
     },
     {
      "addr": "0x8d3a0",
-     "decl": "void static_camera_new(void);",
-     "comment": "[NAME: static_camera_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void static_camera_new(void *camera, const vector3_t *position, uint32_t field_0c, const vector3_t *forward, const vector3_t *up, float field_of_view, int32_t duration_ticks, uint32_t flags);",
+     "comment": "[NAME: static_camera_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     }
    ],
    "name": "observer.obj",
@@ -23937,7 +23939,8 @@
     },
     {
      "addr": "0x1c29a0",
-     "decl": "unsigned short saved_game_file_get_type(int saved_game_file_index);"
+     "decl": "unsigned short saved_game_file_get_type(int saved_game_file_index);",
+     "ported": true
     },
     {
      "addr": "0x1c29b0",
@@ -27429,7 +27432,8 @@
     },
     {
      "addr": "0xe4500",
-     "decl": "void display_error_deferred(int error_code, int player_index, bool a3, bool a4);"
+     "decl": "void display_error_deferred(int error_code, int player_index, bool a3, bool a4);",
+     "ported": true
     },
     {
      "addr": "0xe4590",
@@ -27987,8 +27991,9 @@
     },
     {
      "addr": "0xef3f0",
-     "decl": "void player_profile_change_controller_settings(void);",
-     "comment": "[NAME: player_profile_change_controller_settings — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool player_profile_change_controller_settings(void *widget, void *event_data, bool *widget_deleted);",
+     "comment": "[NAME: player_profile_change_controller_settings — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xef5c0",
@@ -28221,7 +28226,9 @@
     },
     {
      "addr": "0xf3010",
-     "decl": "void solo_game_objective_text(void);"
+     "decl": "void solo_game_objective_text(void *widget);",
+     "ported": true,
+     "src": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     {
      "addr": "0xf31d0",

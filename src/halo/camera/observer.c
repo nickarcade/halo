@@ -2,6 +2,135 @@
 
 /* Camera observer — tracks camera position/orientation per player. */
 
+/* Per-tick update for the first-person camera mode (0x89270).
+ * [TU: c:\halo\SOURCE\camera\first_person_camera.c — __FILE__ assert xref]
+ * param_2 points at a block whose leading int16_t is the local player index
+ * (the only field this function touches); the rest of its meaning is unproven.
+ * The camera block's leading float is the previously-applied field of view: on
+ * any change the result block is told to blend (0x3e3851ec == 0.18f at +0x60,
+ * flag byte at +0x4f) and the new value is written back. */
+void first_person_camera_update(void *camera, void *param_2, void *result)
+{
+  float forward[3];
+  int32_t unit_index;
+  float field_of_view;
+
+  unit_index = player_control_get_unit_index(*(int16_t *)param_2);
+  if (camera == NULL) {
+    display_assert("camera", "c:\\halo\\SOURCE\\camera\\first_person_camera.c",
+                   0x9d, 1);
+    system_exit(-1);
+  }
+  if (result == NULL) {
+    display_assert("result", "c:\\halo\\SOURCE\\camera\\first_person_camera.c",
+                   0x9e, 1);
+    system_exit(-1);
+  }
+
+  player_control_get_facing_direction(*(int16_t *)param_2, forward);
+  first_person_camera_for_unit_and_vector(forward, unit_index);
+  field_of_view = player_control_get_field_of_view(*(int16_t *)param_2);
+
+  *(float *)((char *)result + 0x20) = field_of_view;
+  if (field_of_view != *(float *)camera) {
+    *(int *)((char *)result + 0x60) = 0x3e3851ec;
+    *(uint8_t *)((char *)result + 0x4f) = 1;
+    *(float *)camera = field_of_view;
+  }
+}
+
+/* Reset a flying-camera state block to defaults (0x89330). Zeroes the two
+ * leading dwords and the three dwords at +0xc..+0x14, then stores the default
+ * field of view (0x3f9c61aa == 1.22173047f, 70 degrees) at +0x18. The dword at
+ * +0x8 is deliberately left untouched by the original. */
+void flying_camera_new(void *flying_camera)
+{
+  char *camera = (char *)flying_camera;
+
+  *(int *)(camera + 0x4) = 0;
+  *(int *)(camera + 0x0) = 0;
+  *(int *)(camera + 0xc) = 0;
+  *(int *)(camera + 0x10) = 0;
+  *(int *)(camera + 0x14) = 0;
+  *(float *)(camera + 0x18) = 1.22173047f;
+}
+
+/* Initialize flying camera data from a position and forward vector (0x89350).
+ * The position occupies +0x0..+0x8; vector_to_angles writes the angle pair at
+ * +0xc. The zeros at +0x10..+0x14 and default field of view at +0x18 are
+ * preserved from the binary store order. */
+void FUN_00089350(void *camera_data, float *position, float *forward)
+{
+  char *camera = (char *)camera_data;
+
+  *(int *)(camera + 0x4) = 0;
+  *(int *)(camera + 0x0) = 0;
+  *(int *)(camera + 0x10) = 0;
+  *(int *)(camera + 0x14) = 0;
+  *(int *)(camera + 0xc) = 0;
+  *(float *)(camera + 0x18) = 1.22173047f;
+  *(int *)(camera + 0x0) = *(int *)(position + 0);
+  *(int *)(camera + 0x4) = *(int *)(position + 1);
+  *(int *)(camera + 0x8) = *(int *)(position + 2);
+  vector_to_angles((float *)(camera + 0xc), forward);
+}
+
+/* Initialize following-camera state (0x89850). The independently accessed
+ * fields remain mechanical because the state layout has not been recovered. */
+void following_camera_new(void *camera_data)
+{
+  char *camera;
+
+  if (camera_data == NULL) {
+    display_assert("camera", "c:\\halo\\SOURCE\\camera\\following_camera.c",
+                   0x13, 1);
+    system_exit(-1);
+  }
+
+  camera = (char *)camera_data;
+  camera[0] = 0;
+  camera[1] = 0;
+  camera[2] = 0;
+  camera[3] = 0;
+  *(int16_t *)(camera + 0x4) = 0;
+  *(int *)(camera + 0x14) = 0;
+  *(int *)(camera + 0x10) = 0;
+  *(int *)(camera + 0x8) = -1;
+  *(int16_t *)(camera + 0xc) = -1;
+  *(float *)(camera + 0x18) = 1.0f;
+}
+
+/* Resolve the active camera tag data for a unit (0x898b0). The unit handle
+ * arrives in EAX. A vehicle-associated unit returns its vehicle tag seat data
+ * when the selected seat flags include any of 0x15; otherwise it returns the
+ * unit tag data. The +0xcc and +0x2a0 unit offsets remain mechanical. */
+void unit_camera_get(int unit_handle /* @eax */)
+{
+  uint8_t *tag_element;
+  void *unit;
+  void *vehicle;
+  void *tag_data;
+
+  unit = object_get_and_verify_type(unit_handle, 3);
+  if (*(int *)((char *)unit + 0xcc) != -1) {
+    vehicle =
+      object_try_and_get_and_verify_type(*(int *)((char *)unit + 0xcc), 2);
+    if (vehicle != NULL) {
+      tag_data = tag_get(0x76656869, *(int *)vehicle);
+      tag_element = (uint8_t *)tag_block_get_element(
+        (char *)tag_data + 0x2e4, (int)*(int16_t *)((char *)unit + 0x2a0),
+        0x11c);
+      if ((tag_element[0] & 0x15) != 0) {
+        tag_element = (uint8_t *)((uintptr_t)tag_element + 0x84);
+        if (tag_element != NULL) {
+          return;
+        }
+      }
+    }
+  }
+  tag_get(0x756e6974, *(int *)unit);
+}
+
 /* Evaluate the scalar interpolator uniform_cubic_spline once per component of a
  * 3-vector (0x89a20). The four input pointers supply the four control values
  * y0..y3 for each component; t0/h/t are shared scalars forwarded unchanged to
@@ -124,6 +253,50 @@ void *observer_get_camera(unsigned __int16 local_player_index)
   }
 
   return (void *)(entry + 0x74);
+}
+
+/* Return true when the observer has no active command timer. */
+boolean observer_command_has_finished(int16_t local_player_index)
+{
+  char *observer;
+  int16_t component_index;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+  if (*(float *)(observer + 0x50) != 0.0f)
+    return 0;
+
+  for (component_index = 0; component_index < 5; component_index++) {
+    if (*(float *)(observer + 0x5c + (int)component_index * 4) != 0.0f)
+      return 0;
+  }
+
+  return 1;
+}
+
+void observer_reconnect_to_structure_bsp(void)
+{
+  int16_t local_player_index;
+  char *observer;
+
+  local_player_index = 0;
+  observer = (char *)0x33579c;
+  do {
+    if (local_player_get_player_index(local_player_index) != -1) {
+      if (local_player_index < 0 ||
+          local_player_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS) {
+        display_assert("local_player_index>=0 && "
+                       "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                       "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, 1);
+        system_exit(-1);
+      }
+      scenario_location_from_point(observer, observer - 0xc);
+    }
+    local_player_index++;
+    observer += 0x29c;
+  } while (local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 }
 
 /* Apply spring acceleration to observer state (0x8a660).
@@ -264,6 +437,20 @@ void observer_integrate(int16_t local_player_index)
     byte_flags++;
     sizes++;
   }
+}
+
+/* Reset a local player's observer result to its default state (0x8aa30).
+ * Observer array base 0x33571c, stride 0x29c. */
+void observer_obsolete_position(int16_t local_player_index)
+{
+  if (local_player_index < 0 ||
+      local_player_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS) {
+    display_assert("local_player_index>=0 && "
+                   "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                   "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, 1);
+    system_exit(-1);
+  }
+  observer_result_initialize((char *)0x33571c + local_player_index * 0x29c);
 }
 
 /* Cast a collision ray for the observer camera (0x8ab90).
@@ -1440,4 +1627,35 @@ void observer_update(float delta_time)
       system_exit(-1);
     }
   }
+}
+
+/* Fill in a static (scripted) camera command block (0x8d3a0).
+ * Pure stores, no calls. Field meanings are taken from the consumer at
+ * 0x8d410 (static_camera.c), which copies this block into a camera-command
+ * result and asserts ranges on it:
+ *   +0x00 position       -> result+0x04 ("P:")
+ *   +0x0c unknown dword  -- never read by 0x8d410; left as an explicit unknown
+ *   +0x10 forward        -> result+0x24 ("F:")
+ *   +0x1c up             -> result+0x30 ("U:")
+ *   +0x28 field of view  -> result+0x20, asserted in [0.001, 1.57079637]
+ *   +0x2c duration       -> read as *(int *) and converted to float ("T:")
+ *   +0x30 command flags  -> result[0] | 1
+ *   +0x34 applied flag   -> cleared here, set to 1 by 0x8d410 after use
+ * The three vectors are copied as whole 12-byte structs, matching the
+ * reference's three dword MOV pairs per vector. */
+void static_camera_new(void *camera, const vector3_t *position,
+                       uint32_t field_0c, const vector3_t *forward,
+                       const vector3_t *up, float field_of_view,
+                       int32_t duration_ticks, uint32_t flags)
+{
+  char *block = (char *)camera;
+
+  *(vector3_t *)(block + 0x00) = *position;
+  *(uint32_t *)(block + 0x0c) = field_0c;
+  *(vector3_t *)(block + 0x10) = *forward;
+  *(vector3_t *)(block + 0x1c) = *up;
+  *(float *)(block + 0x28) = field_of_view;
+  *(int32_t *)(block + 0x2c) = duration_ticks;
+  *(uint32_t *)(block + 0x30) = flags;
+  *(uint8_t *)(block + 0x34) = 0;
 }
