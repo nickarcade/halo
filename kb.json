@@ -4981,8 +4981,9 @@
     },
     {
      "addr": "0x1bb640",
-     "decl": "void cache_copy_issue_write(void);",
-     "comment": "[NAME: cache_copy_issue_write — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void cache_copy_issue_write(short write_buffer_index /* @<eax> */, char *self /* @<ecx> */);",
+     "comment": "[NAME: cache_copy_issue_write — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1bb7d0",
@@ -4996,8 +4997,9 @@
     },
     {
      "addr": "0x1bb970",
-     "decl": "void cache_copy_update_write_buffers(void);",
-     "comment": "[NAME: cache_copy_update_write_buffers — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void cache_copy_update_write_buffers(char *self /* @<esi> */);",
+     "comment": "[NAME: cache_copy_update_write_buffers — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1bbb60",

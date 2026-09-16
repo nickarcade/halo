@@ -142,6 +142,74 @@ void acquire_read_request(char *self, short *request)
   FUN_001bb430(self, request, (short)read_buffer_index);
 }
 
+/* cache_copy_issue_write — issue the current write buffer, then advance the
+ * write window. The index and state-block pointer are @<eax> and @<ecx>.
+ * State offsets are accessed but their meanings remain unproven. */
+void cache_copy_issue_write(short write_buffer_index, char *self)
+{
+  void *buffer;
+  unsigned int write_size;
+  unsigned int current_write_offset;
+
+  if (write_buffer_index < 0 || write_buffer_index >= 1) {
+    display_assert(
+      "write_buffer_index>=0 && write_buffer_index<NUMBER_OF_WRITE_BUFFERS",
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x661, 1);
+    system_exit(-1);
+  }
+
+  buffer = *(void **)(self + 0x984 + write_buffer_index * 4);
+
+  if (write_buffer_index < 0 || write_buffer_index >= 1) {
+    display_assert(
+      "write_buffer_index>=0 && write_buffer_index<NUMBER_OF_WRITE_BUFFERS",
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x66a, 1);
+    system_exit(-1);
+  }
+
+  write_size = *(unsigned int *)(self + 0xa9c);
+  if (write_size >= 0x400000) {
+    if (write_buffer_index < 0 || write_buffer_index >= 1) {
+      display_assert(
+        "write_buffer_index>=0 && write_buffer_index<NUMBER_OF_WRITE_BUFFERS",
+        "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x66a, 1);
+      system_exit(-1);
+    }
+    write_size = 0x400000;
+  }
+
+  if (write_buffer_index < 0 || write_buffer_index >= 1) {
+    display_assert(
+      "write_buffer_index>=0 && write_buffer_index<NUMBER_OF_WRITE_BUFFERS",
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x676, 1);
+    system_exit(-1);
+  }
+
+  physical_memory_protect(buffer, 0x400000, 2);
+
+  if (write_buffer_index < 0 || write_buffer_index >= 1) {
+    display_assert(
+      "write_buffer_index>=0 && write_buffer_index<NUMBER_OF_WRITE_BUFFERS",
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x661, 1);
+    system_exit(-1);
+  }
+
+  FUN_001bb2d0(self, buffer, write_size, *(int *)(self + 0xaa4),
+               write_buffer_index);
+
+  current_write_offset = *(unsigned int *)(self + 0xaa4) + write_size;
+  *(unsigned int *)(self + 0xaa4) = current_write_offset;
+  *(unsigned int *)(self + 0xa9c) =
+    *(unsigned int *)(self + 0xa9c) - write_size;
+
+  if (current_write_offset > *(unsigned int *)(self + 0x10c)) {
+    display_assert("self->current_write_offset<=self->header.size",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c",
+                   0x682, 1);
+    system_exit(-1);
+  }
+}
+
 /* cache_copy_initialize_read_data — prime the very first synchronous chunk
  * of a map's decompression read data into the per-file read-state block's
  * primary buffer (self+0x104, 0x800 bytes), then hand off to the async
@@ -327,6 +395,92 @@ void FUN_001bb8a0(char *self)
     overlapped_index = overlapped_index + 1;
     request = request + 1;
   } while (read_buffer_index < 8);
+}
+
+/* cache_copy_update_write_buffers — retire a completed async write, issue a
+ * pending write when its sequence becomes current, and allocate the sole write
+ * buffer when idle. self is passed in ESI; all state offsets remain mechanical
+ * except where an assert supplies a source name. */
+void cache_copy_update_write_buffers(char *self /* @<esi> */)
+{
+  int16_t current_write_buffer_index;
+  int16_t write_buffer_index;
+
+  if (*(int *)(self + 0xab4) > 0 && *(int *)(self + 0xab0) != 0 &&
+      (*(unsigned int *)(self + 0x998) & 0x200) != 0) {
+    *(int16_t *)(self + 0xa88) = -1;
+    *(unsigned int *)(self + 0x998) =
+      *(unsigned int *)(self + 0x998) & 0xfffffdff;
+    *(int *)(self + 0xab4) = *(int *)(self + 0xab4) - 1;
+    *(int *)(self + 0xab0) = 0;
+
+    if (*(int *)(self + 0xab4) < 0) {
+      display_assert(
+        "self->write_requests_pending>=0",
+        "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x433, 1);
+      system_exit(-1);
+    }
+  }
+
+  if (*(int *)(self + 0xa9c) != 0 && *(int *)(self + 0xab0) == 0 &&
+      *(int *)(self + 0xab4) > 0) {
+    current_write_buffer_index = *(int16_t *)(self + 0xabc);
+    if (current_write_buffer_index == -1 ||
+        *(int16_t *)(self + 0xabe) <
+          *(int16_t *)(self + 0xa88 + current_write_buffer_index * 2)) {
+      write_buffer_index = 0;
+      do {
+        if (current_write_buffer_index != write_buffer_index &&
+            *(int16_t *)(self + 0xa88 + write_buffer_index * 2) ==
+              *(int16_t *)(self + 0xabe)) {
+          *(int *)(self + 0xab0) = (int)(self + 0xa88 + write_buffer_index * 2);
+          cache_copy_issue_write(write_buffer_index, self);
+          *(int16_t *)(self + 0xabe) = *(int16_t *)(self + 0xabe) + 1;
+          break;
+        }
+        write_buffer_index = write_buffer_index + 1;
+      } while (write_buffer_index < 1);
+    }
+  }
+
+  if (*(int16_t *)(self + 0xabc) == -1 && *(int *)(self + 0xab4) < 1) {
+    write_buffer_index = 0;
+    do {
+      if (*(int16_t *)(self + 0xa88 + write_buffer_index * 2) == -1) {
+        *(int16_t *)(self + 0xa88 + write_buffer_index * 2) =
+          *(int16_t *)(self + 0xac0);
+        *(int16_t *)(self + 0xac0) = *(int16_t *)(self + 0xac0) + 1;
+        *(int *)(self + 0xab4) = *(int *)(self + 0xab4) + 1;
+        *(int16_t *)(self + 0xabc) = write_buffer_index;
+        physical_memory_protect(
+          *(void **)(self + 0x984 + write_buffer_index * 4), 0x400000, 4);
+        break;
+      }
+      write_buffer_index = write_buffer_index + 1;
+    } while (write_buffer_index < 1);
+
+    if (*(int16_t *)(self + 0xabc) == -1) {
+      display_assert(
+        "self->current_write_buffer_index!=NONE",
+        "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x464, 1);
+      system_exit(-1);
+    }
+    if (*(int *)(self + 0xab4) > 1) {
+      display_assert(
+        "self->write_requests_pending<=NUMBER_OF_WRITE_BUFFERS",
+        "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x465, 1);
+      system_exit(-1);
+    }
+    current_write_buffer_index = *(int16_t *)(self + 0xabc);
+    if (*(int16_t *)(self + 0xa88 + current_write_buffer_index * 2) + 1 !=
+        *(int16_t *)(self + 0xac0)) {
+      display_assert(
+        "self->write_requests[self->current_write_buffer_index].write_sequence_"
+        "index+1==self->next_write_sequence_index",
+        "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x466, 1);
+      system_exit(-1);
+    }
+  }
 }
 
 /* LARGE_INTEGER as the original source spelled it — the assert text at

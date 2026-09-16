@@ -55213,6 +55213,36 @@
       "score": 85.2,
       "source": "src/halo/cache/cache_files_windows.c"
     },
+    "cache_copy_issue_write": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 91.7,
+      "addr": "0x1bb640",
+      "end": "0x1bb7c4",
+      "kind": "auto",
+      "n_r": 115,
+      "opnd_percent": 60.3,
+      "raw_mnemonic_pct": 91.7,
+      "ref": "synth",
+      "ref_sha": "e34e77075613b29a",
+      "score": 91.7,
+      "source": "src/halo/cache/cache_files_windows.c"
+    },
+    "cache_copy_update_write_buffers": {
+      "abi_model": "regparam_stripped_saves",
+      "abi_model_items": 4,
+      "abi_modeled_mnemonic_pct": 92.2,
+      "addr": "0x1bb970",
+      "end": "0x1bbb54",
+      "kind": "auto",
+      "n_r": 118,
+      "opnd_percent": 89.7,
+      "raw_mnemonic_pct": 90.7,
+      "ref": "synth",
+      "ref_sha": "d29cc0dd1fd5a59c",
+      "score": 92.2,
+      "source": "src/halo/cache/cache_files_windows.c"
+    },
     "cache_file_block_until_not_busy": {
       "abi_model": "raw",
       "abi_model_items": 0,
