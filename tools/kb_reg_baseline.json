@@ -9491,6 +9491,7 @@
     "0xcaff0": "bool hs_object_types_compatible(int16_t actual_offset@<ax>, int16_t desired_offset@<si>);",
     "0xcb230": "void FUN_000cb230(int loop_var@<edi>);",
     "0xcb7b0": "void FUN_000cb7b0(int loop_var@<ebx>);",
+    "0xcb940": "boolean script_error(int thread_index@<eax>, const char *reason@<edi>, const char *expression);",
     "0xcc0a0": "int FUN_000cc0a0(int16_t global_ref@<eax>);",
     "0xcc1d0": "void FUN_000cc1d0(int thread_handle@<eax>, int expression_index, void *dest_ptr);",
     "0xcc340": "void FUN_000cc340(int16_t script_index@<ax>, int thread_handle@<esi>, char init);",

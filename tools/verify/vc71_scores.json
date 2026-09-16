@@ -66553,6 +66553,21 @@
       "score": 94.0,
       "source": "src/halo/hs/hs_compile.c"
     },
+    "hs_parse_inspect": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 93.9,
+      "addr": "0xc8e00",
+      "end": "0xc8ebf",
+      "kind": "auto",
+      "n_r": 73,
+      "opnd_percent": 77.6,
+      "raw_mnemonic_pct": 93.9,
+      "ref": "synth",
+      "ref_sha": "61c062c1e02aa4dc",
+      "score": 93.9,
+      "source": "src/halo/hs/hs_runtime.c"
+    },
     "hs_parse_set": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -66748,6 +66763,21 @@
       "score": 96.2,
       "source": "src/halo/hs/hs.c"
     },
+    "hs_short_to_real": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xcaef0",
+      "end": "0xcaf05",
+      "kind": "auto",
+      "n_r": 9,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "0fd54ed97bff38ef",
+      "score": 100.0,
+      "source": "src/halo/hs/hs_runtime.c"
+    },
     "hs_sleep_parse": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -66792,6 +66822,21 @@
       "ref_sha": "eca42ad26634408a",
       "score": 100.0,
       "source": "src/halo/hs/hs.c"
+    },
+    "hs_string_to_boolean": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xcaec0",
+      "end": "0xcaee0",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "8e1630f2479f5650",
+      "score": 100.0,
+      "source": "src/halo/hs/hs_runtime.c"
     },
     "hs_syntax_reset": {
       "abi_model": "raw",
@@ -83172,6 +83217,21 @@
       "ref_sha": "de6f47f8c55e2790",
       "score": 68.4,
       "source": "src/halo/main/main.c"
+    },
+    "script_error": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 85.2,
+      "addr": "0xcb940",
+      "end": "0xcb97f",
+      "kind": "auto",
+      "n_r": 26,
+      "opnd_percent": 81.5,
+      "raw_mnemonic_pct": 85.2,
+      "ref": "synth",
+      "ref_sha": "eb7623168ca7612a",
+      "score": 85.2,
+      "source": "src/halo/hs/hs_runtime.c"
     },
     "scripted_foley_predict": {
       "abi_model": "raw",

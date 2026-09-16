@@ -365,9 +365,9 @@ bool FUN_000c8720(int16_t function_index, int expression_index)
  *     (compared as SI), and [EAX+4] of the returned definition is the function
  *     name pointer passed as hs_syntax_get_arguments's first argument.
  *   - LEA EAX,[EBP-0xc]; PUSH EAX at 0xc88ec passes a two-element local array
- *     as hs_syntax_get_arguments's argument_nodes, with EDI = [EBP+0xc] (the expression
- *     node) and EBX = 2 (two expected arguments).  ADD ESP,8 + POP EBX at
- *     0xc890a/0xc890f confirm two stack arguments plus the EBX register
+ *     as hs_syntax_get_arguments's argument_nodes, with EDI = [EBP+0xc] (the
+ * expression node) and EBX = 2 (two expected arguments).  ADD ESP,8 + POP EBX
+ * at 0xc890a/0xc890f confirm two stack arguments plus the EBX register
  *     argument.
  *   - The two collected argument handles are reloaded from [EBP-0xc] (left)
  *     and [EBP-0x8] (right).  Whichever side is still untyped (type 0) has its
@@ -408,9 +408,9 @@ bool FUN_000c88b0(int function_index, int expression_index)
   }
 
   if (hs_syntax_get_arguments(*(const char **)((char *)hs_function_table_get(
-                                      (int16_t)function_index) +
-                                    4),
-                   argument_nodes, expression_index, 2)) {
+                                                 (int16_t)function_index) +
+                                               4),
+                              argument_nodes, expression_index, 2)) {
     if (hs_type_check(argument_nodes[0], 0)) { /* _hs_type_unparsed */
       node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_nodes[0]);
       if (hs_type_check(argument_nodes[1], *(int16_t *)(node + 4))) {
@@ -451,9 +451,9 @@ bool FUN_000c88b0(int function_index, int expression_index)
  *   - Returns bool in AL: the accept flag byte at [EBP-1] is zeroed at
  *     0xc89d0, set to 1 at 0xc8b78, and reloaded into AL at 0xc8b7c.
  *
- * Argument collection: hs_syntax_get_arguments takes the callee name and the output
- * array on the stack, the expression index in EDI, and the expected count in
- * BX (2, set at 0xc8a10).  The two stack pushes straddle the
+ * Argument collection: hs_syntax_get_arguments takes the callee name and the
+ * output array on the stack, the expression index in EDI, and the expected
+ * count in BX (2, set at 0xc8a10).  The two stack pushes straddle the
  * hs_function_table_get call — the output pointer is pushed at 0xc89ff and
  * only the name push is reclaimed by the ADD ESP,0x4 at 0xc8a0c — so the
  * output is one contiguous int[2] based at [EBP-0xc], not two separate
@@ -521,9 +521,9 @@ bool FUN_000c89c0(int function_index, int expression_index)
   }
 
   if (hs_syntax_get_arguments(*(const char **)((char *)hs_function_table_get(
-                                      (int16_t)function_index) +
-                                    4),
-                   argument_nodes, expression_index, 2)) {
+                                                 (int16_t)function_index) +
+                                               4),
+                              argument_nodes, expression_index, 2)) {
     left_node = argument_nodes[0];
     if (hs_type_check(left_node, 0) && /* _hs_type_unparsed */
         HS_TYPE_IS_COMPARABLE(left_node)) {
@@ -715,12 +715,12 @@ bool hs_sleep_until_parse(int16_t function_index, int expression_index)
  *     ("c:\halo\source\hs\hs_library_internal_compile.h", line 0x25d), so the
  *     only legal function index is 0x15.
  *   - LEA EAX,[EBP+8]; PUSH EAX at 0xc8d64 passes the address of the *first
- *     stack parameter* as the argument_nodes array of hs_syntax_get_arguments, with
- *     EDI = [EBP+0xc] (the expression node) and EBX = 1 (one expected
- *     argument).  hs_syntax_get_arguments writes the argument node handle over that
- *     slot, which is why 0xc8d8a reloads [EBP+8] as the argument handle
- *     rather than as the function index.  The full 32-bit datum handle
- *     (salt<<16 | index) is what is stored and reloaded.
+ *     stack parameter* as the argument_nodes array of hs_syntax_get_arguments,
+ * with EDI = [EBP+0xc] (the expression node) and EBX = 1 (one expected
+ *     argument).  hs_syntax_get_arguments writes the argument node handle over
+ * that slot, which is why 0xc8d8a reloads [EBP+8] as the argument handle rather
+ * than as the function index.  The full 32-bit datum handle (salt<<16 | index)
+ * is what is stored and reloaded.
  *   - The argument must pass hs_type_check(handle, 10); the node's int16 at
  *     +0x10 indexes the scenario scripts tag_block (scenario+0x49c, element
  *     size 0x5c), and the script's int16 at +0x20 is its script type.  Types
@@ -772,6 +772,82 @@ bool FUN_000c8d30(int function_index, int script_node)
   }
 
   return success;
+}
+
+/* 0xc8e00 — Compile-time checker for the HaloScript "inspect" call.
+ *
+ * Binary evidence (0xc8e00..0xc8ebe):
+ *   - 0xc8e0b..0xc8e10 call datum_get(hs_syntax_data, [EBP+0xc]) and discard
+ *     EAX (ADD ESP,8 at 0xc8e18, no use of the result), so the expression node
+ *     is fetched for a disabled-assert/no-op use before the index check.
+ *   - CMP SI,0x16 guards an assert built from the literals at 0x27d228
+ *     ("function_index==_hs_function_inspect") and 0x27cdc0
+ *     ("c:\halo\source\hs\hs_library_internal_compile.h", line 0x27f), so the
+ *     only legal function index is 0x16.
+ *   - LEA ECX,[EBP+8]; PUSH ECX at 0xc8e46/0xc8e49 passes the address of the
+ *     *first stack parameter* as the argument_nodes array of
+ *     hs_syntax_get_arguments, with EDI = [EBP+0xc] (the expression node) and
+ *     EBX = 1 (one expected argument).  PUSH EBX at 0xc8e45 / POP EBX at
+ *     0xc8e66 are the callee-save pair, not an argument.  The callee
+ *     overwrites the slot, which is why 0xc8e69 reloads [EBP+8] as the
+ *     argument handle rather than as the function index.
+ *   - The argument must pass hs_type_check(handle, 0); the combined
+ *     ADD ESP,0x10 at 0xc8e82 covers both the datum_get and hs_type_check
+ *     pushes.  On success 0xc8e8a returns AL=1.
+ *   - On a failed type check the error is donated only when
+ *     hs_compile_globals.error_message is still clear (TEST of [0x46b6fc] at
+ *     0xc8e96); the literal is at 0x27d1e0 and the offset comes from the
+ *     argument node's +0xc.
+ *   - AL is loaded from the [EBP-1] flag byte (initialised to 0 at 0xc8e1f)
+ *     on every exit except the accept path.
+ *
+ * Globals: 0x5aa6c8 = hs_syntax_data (data_t *), 0x46b6fc =
+ * hs_compile_globals.error_message, 0x46b700 = hs_compile_globals.error_offset.
+ *
+ * Type 0 is the check_type constant in the binary; its enum name is unknown. */
+bool hs_parse_inspect(int function_index, int expression_index)
+{
+  char *node;
+  bool success;
+  bool result;
+  int fn_idx;
+
+  datum_get(*(data_t **)0x5aa6c8, expression_index);
+
+  fn_idx = function_index;
+  success = false;
+
+  if ((int16_t)fn_idx != 0x16) { /* _hs_function_inspect */
+    display_assert("function_index==_hs_function_inspect",
+                   "c:\\halo\\source\\hs\\hs_library_internal_compile.h", 0x27f,
+                   true);
+    system_exit(-1);
+  }
+
+  /* &function_index is the one-element argument_nodes array: the callee
+   * overwrites the incoming first parameter slot with the argument handle. */
+  if (hs_syntax_get_arguments(
+        *(const char **)((char *)hs_function_table_get((int16_t)fn_idx) + 4),
+        &function_index, expression_index, 1)) {
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, function_index);
+
+    if (hs_type_check(function_index, 0)) {
+      return true;
+    }
+
+    result = *(volatile bool *)&success;
+
+    if (*(const char **)0x46b6fc == 0) {
+      *(const char **)0x46b6fc =
+        "this is not a global variable reference, function call, or script "
+        "call.";
+      *(int *)0x46b700 = *(int *)(node + 0xc);
+    }
+
+    return result;
+  }
+
+  return *(volatile bool *)&success;
 }
 
 /* 0xc8f40 — Type-check the arguments of a debug-string function call.
@@ -3057,6 +3133,66 @@ int FUN_000caea0(int param_1)
   return param_1;
 }
 
+/* 0xcaec0 — Return whether a string is empty, boxed through the same
+ * byte-store/dword-reload idiom as the two functions above, except the scratch
+ * slot here is a fresh 4-byte local (`PUSH ECX`) rather than the argument slot.
+ *
+ * Binary evidence (0xcaec0..0xcaedf, cdecl, EBP frame, `PUSH ECX` local):
+ *
+ *   MOV  EAX,dword ptr [EBP+0x8]   ; the one stack argument (the string)
+ *   PUSH EAX                       ; cdecl, single argument
+ *   CALL 0x0008df60                ; csstrlen(string)
+ *   ADD  ESP,0x4
+ *   NEG  EAX / SBB AL,AL / INC AL  ; AL = (csstrlen(string) == 0) ? 1 : 0
+ *   MOV  byte ptr [EBP + -0x4],AL  ; store only the low byte of the local
+ *   MOV  EAX,dword ptr [EBP + -0x4]; reload the FULL dword local for the return
+ *
+ * The callee at 0x8df60 is kb.json's `csstrlen(const char *)`, so the argument
+ * is a string pointer and the tested quantity is its length. The kb.json decl
+ * said `void hs_string_to_boolean(void)` and Ghidra's decompiler emitted only
+ * `FUN_0008df60(in_stack_00000004)` with no return; the disassembly above
+ * proves one dword argument and an EAX-carried return, so the decl is
+ * corrected to `int hs_string_to_boolean(const char *)`.
+ *
+ * Only the low byte of the 4-byte local is ever written, and the return
+ * reloads all four bytes, so the upper three bytes of the returned dword are
+ * whatever the stack held on entry. That partial store is preserved exactly
+ * (not simplified to `return csstrlen(string) == 0;`) because the wider
+ * reload is what the binary does. */
+int hs_string_to_boolean(const char *string)
+{
+  int result;
+  unsigned char *low_byte;
+
+  low_byte = (unsigned char *)&result;
+  *low_byte = (unsigned char)(csstrlen(string) == 0);
+  return result;
+}
+
+/* 0xcaef0 — Convert a signed 16-bit script value to a real and return its
+ * IEEE-754 single-precision bit pattern in EAX. This generic HS function-table
+ * entry re-boxes the real through its argument slot rather than returning ST0.
+ *
+ * Binary evidence (0xcaef0..0xcaf04, cdecl, EBP frame, no `sub esp`):
+ *
+ *   MOVSX EAX, word ptr [EBP+0x8]  ; sign-extend incoming int16 argument
+ *   MOV   dword ptr [EBP+0x8], EAX ; reuse argument slot as int32 scratch
+ *   FILD  dword ptr [EBP+0x8]      ; convert signed int32 to x87 real
+ *   FSTP  float ptr [EBP+0x8]      ; round/store float32 in the same slot
+ *   MOV   EAX, dword ptr [EBP+0x8] ; return the float bit pattern in EAX
+ *
+ * The function has no code callers; only table dispatch reaches it. The C
+ * signature uses int because the binary result is EAX-carried float bits. */
+int hs_short_to_real(int16_t param_1)
+{
+  int local_1;
+  real local_2;
+
+  local_1 = (int)param_1;
+  local_2 = (real)local_1;
+  return *(int *)&local_2;
+}
+
 /* 0xcaf20 — Increment a 16-bit value and return it re-boxed as a 32-bit float
  * bit-pattern in EAX (not ST0).
  *
@@ -3679,6 +3815,25 @@ void FUN_000cb7b0(int loop_var)
     system_exit(-1);
     return;
   }
+}
+
+/* 0xcb940 — Report that a script needs recompiling, naming the offending
+ * thread's script plus a reason and the failing expression text.
+ *
+ * thread_index arrives in EAX and reason in EDI (MSVC enregistered this
+ * helper); the failing-expression string is the single stack parameter.
+ * The discarded datum_get is the original's thread-handle validation.
+ * A NULL reason is replaced at the push site ("no reason given.").
+ * Always returns false (XOR AL,AL) so callers can `return script_error(...)`.
+ */
+boolean script_error(int thread_index, const char *reason,
+                     const char *expression)
+{
+  datum_get(*(data_t **)0x5aa6c4, thread_index);
+  error(2, "script %s needs to be recompiled. (%s: %s)",
+        hs_get_thread_script_name(thread_index),
+        reason != NULL ? reason : "no reason given.", expression);
+  return false;
 }
 
 /* 0xcb980 — Return the script name of the currently executing HS thread,
