@@ -2769,7 +2769,7 @@
           "addr": "0x201a9f"
         },
         {
-          "decl": "void __stdcall FUN_00201c48(int a0, int a1, int a2);",
+          "decl": "int __stdcall FUN_00201c48(int a0, int a1, int a2);",
           "addr": "0x201c48"
         },
         {
@@ -12970,7 +12970,8 @@
         },
         {
           "decl": "void FUN_00053800(char *text, int column_count, short *column_positions, void *context @<eax>);",
-          "addr": "0x53800"
+          "addr": "0x53800",
+          "ported": true
         },
         {
           "decl": "int16_t FUN_00053890(void);",
@@ -22218,6 +22219,11 @@
         {
           "decl": "bool FUN_00106f50(int16_t point_count, float *points, int16_t vertices_capacity, char *vertices, int16_t edges_capacity, char *edges, int16_t surfaces_capacity, char *surfaces);",
           "addr": "0x106f50",
+          "ported": true
+        },
+        {
+          "decl": "short FUN_00108060(int16_t p_count, const float *p, int16_t q_count, const float *q, int16_t maximum_count, float *result, float epsilon);",
+          "addr": "0x108060",
           "ported": true
         }
       ]
@@ -36108,7 +36114,7 @@
         {
           "decl": "float *FUN_0017ffc0(float *param_1, unsigned int param_2);",
           "addr": "0x17ffc0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "int rasterizer_geometry_get_vertex_size(short param_1);",
@@ -36183,7 +36189,7 @@
         {
           "decl": "unsigned int FUN_00180b10(float *param_1);",
           "addr": "0x180b10",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void FUN_00180d10(short type, int count, int compressed_out, int compressed_size, void *uncompressed, int uncompressed_size);",
@@ -37306,8 +37312,9 @@
           "addr": "0x167ee0"
         },
         {
-          "decl": "void FUN_00167ff0(int a1, const char *call_text);",
-          "addr": "0x167ff0"
+          "decl": "void FUN_00167ff0(int hr, const char *format, ...);",
+          "addr": "0x167ff0",
+          "ported": true
         }
       ]
     },
@@ -38995,10 +39002,6 @@
         {
           "decl": "void get_edge_vertex(void);",
           "addr": "0x107ec0"
-        },
-        {
-          "decl": "short FUN_00108060(int16_t count, void *records, int a3, uint16_t *scratch, int max_count, uint16_t *out_list, uint32_t seed);",
-          "addr": "0x108060"
         },
         {
           "decl": "void get_face_vertex(void);",
