@@ -728,6 +728,46 @@
       "reason": "auto: batch pass 20/20 seeds"
     },
     {
+      "addr": "0x16960",
+      "name": "vehicle_possibility_qsort",
+      "obj": "actor_looking.obj",
+      "seeds": 20,
+      "flags": [
+        "--allow-stubs"
+      ],
+      "reason": "manual: Z3 proven; Unicorn 20/20, high confidence (71% coverage)"
+    },
+    {
+      "addr": "0x1d760",
+      "name": "set_real_vector2d",
+      "obj": "actions.obj",
+      "seeds": 20,
+      "flags": [
+        "--allow-stubs"
+      ],
+      "reason": "manual: Unicorn 20/20, high confidence (100% coverage)"
+    },
+    {
+      "addr": "0x1d780",
+      "name": "set_real_vector3d",
+      "obj": "actions.obj",
+      "seeds": 20,
+      "flags": [
+        "--allow-stubs"
+      ],
+      "reason": "manual: Unicorn 20/20, high confidence (100% coverage)"
+    },
+    {
+      "addr": "0x2a540",
+      "name": "midpoint3d",
+      "obj": "actor_moving.obj",
+      "seeds": 20,
+      "flags": [
+        "--allow-stubs"
+      ],
+      "reason": "manual: Unicorn 20/20, high confidence (100% coverage)"
+    },
+    {
       "addr": "0x3aac0",
       "name": "actor_set_team",
       "obj": "actors.obj",
