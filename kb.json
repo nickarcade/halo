@@ -1,4 +1,572 @@
 {
+ "0x113930": {
+  "decl": "void FUN_00113930(int s, int param_2, int last);",
+  "name": "FUN_00113930",
+  "obj": "real_math.obj",
+  "ported": true
+ },
+ "0x1139d0": {
+  "decl": "void *FUN_001139d0(int z, int adler_fn, int wsize);",
+  "name": "FUN_001139d0",
+  "obj": "real_math.obj",
+  "ported": true
+ },
+ "0x11cfd0": {
+  "ported": true
+ },
+ "0x12ad0": {
+  "decl": "float FUN_00012ad0(int actor_handle@<ebx>, int action_type@<esi>, void *charge_state);",
+  "name": "FUN_00012ad0",
+  "obj": "actors.obj",
+  "ported": false
+ },
+ "0x12fd80": {
+  "addr": "0x12fd80",
+  "decl": "char FUN_0012fd80(int server@<esi>, int machine, void *message_data, int message_size);",
+  "name": "FUN_0012fd80",
+  "ported": true,
+  "source_path": "src/halo/networking/network_server_message_handler.c"
+ },
+ "0x12fe40": {
+  "addr": "0x12fe40",
+  "decl": "char FUN_0012fe40(int server@<esi>, int machine, void *message_data, int message_size);",
+  "name": "FUN_0012fe40",
+  "ported": true,
+  "source_path": "src/halo/networking/network_server_message_handler.c"
+ },
+ "0x12ff00": {
+  "addr": "0x12ff00",
+  "decl": "char FUN_0012ff00(int server@<esi>, int machine, void *message_data, int message_size);",
+  "name": "FUN_0012ff00",
+  "ported": true,
+  "source_path": "src/halo/networking/network_server_message_handler.c"
+ },
+ "0x12ffe0": {
+  "addr": "0x12ffe0",
+  "decl": "char FUN_0012ffe0(int server@<esi>, int machine, void *message_data, int message_size);",
+  "name": "FUN_0012ffe0",
+  "ported": true,
+  "source_path": "src/halo/networking/network_server_message_handler.c"
+ },
+ "0x1300b0": {
+  "addr": "0x1300b0",
+  "decl": "char FUN_001300b0(int server@<esi>, int machine, void *message_data, int message_size);",
+  "name": "FUN_001300b0",
+  "ported": true,
+  "source_path": "src/halo/networking/network_server_message_handler.c"
+ },
+ "0x130180": {
+  "addr": "0x130180",
+  "decl": "char FUN_00130180(int server@<eax>, int machine, void *message_data, int message_size);",
+  "name": "FUN_00130180",
+  "ported": true,
+  "source_path": "src/halo/networking/network_server_message_handler.c"
+ },
+ "0x130270": {
+  "addr": "0x130270",
+  "decl": "bool FUN_00130270(void *server, void *buffer, int size, void *addr);",
+  "name": "FUN_00130270",
+  "ported": true,
+  "source_path": "src/halo/networking/network_server_message_handler.c"
+ },
+ "0x130580": {
+  "addr": "0x130580",
+  "decl": "bool FUN_00130580(void *server, void *machine, void *buffer, int size);",
+  "name": "FUN_00130580",
+  "ported": true,
+  "source_path": "src/halo/networking/network_server_message_handler.c"
+ },
+ "0x13dd0": {
+  "decl": "int action_charge_valid_melee_destination(int actor_handle@<eax>, float *source_pos@<esi>);",
+  "name": "action_charge_valid_melee_destination",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_charge_valid_melee_destination \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x13ef0": {
+  "decl": "char action_charge_setup(int actor_handle, int action_type, void *charge_state);",
+  "name": "action_charge_setup",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_charge_setup \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x14480": {
+  "decl": "void action_converse_control(int actor_handle);",
+  "name": "action_converse_control",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_converse_control \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x14540": {
+  "decl": "void actor_conversation_control(int actor_handle);",
+  "name": "actor_conversation_control",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: actor_conversation_control \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x14620": {
+  "decl": "char action_fight_setup(int actor_handle, void *state_data);",
+  "name": "action_fight_setup",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_fight_setup \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x14ba0": {
+  "decl": "void action_flee_modify_color(int actor_handle, int *param_2);",
+  "name": "action_flee_modify_color",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_flee_modify_color \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x14e90": {
+  "decl": "char action_flee_current_position_exposed(int actor_handle@<eax>, char *state_data);",
+  "name": "action_flee_current_position_exposed",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_flee_current_position_exposed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x15040": {
+  "decl": "char action_flee_setup(int actor_handle, short param_2, int param_3, char param_4, char *state_data);",
+  "name": "action_flee_setup",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_flee_setup \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x153e0": {
+  "decl": "bool action_flee_at_flee_position(int actor_handle@<ebx>);",
+  "name": "action_flee_at_flee_position",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_flee_at_flee_position \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x154540": {
+  "addr": "0x154540",
+  "decl": "void FUN_00154540(float *out_vel, void *accel_data, float accel);",
+  "ported": false
+ },
+ "0x1546f0": {
+  "addr": "0x1546f0",
+  "decl": "float FUN_001546f0(float pos, float dt, float target_pos, void *point_phys@<ecx>);",
+  "ported": false
+ },
+ "0x1547d0": {
+  "addr": "0x1547d0",
+  "decl": "char FUN_001547d0(float *out_pos, float *out_vel, void *point_phys, float dt, float target_pos, float accel);",
+  "ported": true
+ },
+ "0x154a20": {
+  "addr": "0x154a20",
+  "decl": "void FUN_00154a20(void *obj@<eax>, float *point@<edx>, float val);",
+  "ported": true
+ },
+ "0x15520": {
+  "decl": "int action_flee_perform(int actor_handle);",
+  "name": "action_flee_perform",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_flee_perform \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x15880": {
+  "decl": "int action_guard_setup_current_position(int actor_handle, char *state_data);",
+  "name": "action_guard_setup_current_position",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_guard_setup_current_position \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x15900": {
+  "decl": "int action_guard_setup_find_position(int actor_handle, int param_2, char *state_data);",
+  "name": "action_guard_setup_find_position",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_guard_setup_find_position \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x159d0": {
+  "decl": "char action_guard_setup_postcombat(int actor_handle, short *state_data);",
+  "name": "action_guard_setup_postcombat",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_guard_setup_postcombat \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x15cf0": {
+  "decl": "void action_guard_update(int actor_handle);",
+  "name": "action_guard_update",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_guard_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x15f60": {
+  "decl": "void action_guard_modify_color(int actor_handle, int *param_2);",
+  "name": "action_guard_modify_color",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_guard_modify_color \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x16050": {
+  "decl": "int action_guard_setup_from_combat_transition(int actor_handle, short *param_2);",
+  "name": "action_guard_setup_from_combat_transition",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_guard_setup_from_combat_transition \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x16210": {
+  "decl": "char action_guard_setup_from_fleeing(int actor_handle, int param_2, short *param_3);",
+  "name": "action_guard_setup_from_fleeing",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_guard_setup_from_fleeing \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x16590": {
+  "decl": "void action_guard_control(int actor_handle);",
+  "name": "action_guard_control",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_guard_control \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x169a0": {
+  "decl": "void action_obey_command_end(int actor_handle, int unit_handle, short scenario_idx, int param_4, char *out_index, void *state_ptr@<esi>);",
+  "name": "action_obey_command_end",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_obey_command_end \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x16bd0": {
+  "decl": "void actor_look_secondary_stop(int param_1, int param_2, int param_3, char *param_4, int param_5, char *param_6);",
+  "name": "actor_look_secondary_stop",
+  "obj": "actor_looking.obj",
+  "ported": true
+ },
+ "0x16cf0": {
+  "decl": "void action_obey_individual_end(int param_1, int param_2, short param_3, int param_4, int param_5);",
+  "name": "action_obey_individual_end",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_obey_individual_end \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x16d40": {
+  "decl": "void actor_look_compute_prop_interest(int actor_handle, int param_2, short *param_3, void (*callback)(void), int param_5);",
+  "name": "actor_look_compute_prop_interest",
+  "obj": "actor_looking.obj",
+  "ported": true
+ },
+ "0x16ff0": {
+  "decl": "void action_obey_flush_command_indices(int actor_handle);",
+  "name": "action_obey_flush_command_indices",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_obey_flush_command_indices \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x17060": {
+  "addr": "0x17060",
+  "decl": "void actor_clear_aim_target(int actor_handle);",
+  "name": "actor_clear_aim_target",
+  "ported": true
+ },
+ "0x18ff00": {
+  "addr": "0x18ff00",
+  "decl": "void FUN_0018ff00(float *out@<eax>, float *position@<edx>, float scale, float magnitude);",
+  "name": "FUN_0018ff00",
+  "ported": true,
+  "source_path": "src/halo/scenario/wind.c"
+ },
+ "0x18ffe0": {
+  "addr": "0x18ffe0",
+  "decl": "void wind_update(void);",
+  "name": "wind_update",
+  "ported": true,
+  "source_path": "src/halo/scenario/wind.c"
+ },
+ "0x192b0": {
+  "decl": "int action_obey_perform(int actor_handle);",
+  "name": "action_obey_perform",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_obey_perform \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x197d0": {
+  "decl": "int action_search_setup_pursuit(int actor_handle, short param_2, char param_3, char *state_data);",
+  "name": "action_search_setup_pursuit",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_search_setup_pursuit \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x19940": {
+  "decl": "void action_search_update(int actor_handle);",
+  "name": "action_search_update",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_search_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x19b20": {
+  "decl": "void action_search_control(int actor_handle);",
+  "name": "action_search_control",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_search_control \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x19c70": {
+  "decl": "void action_search_begin(int actor_handle);",
+  "name": "action_search_begin",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_search_begin \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x1a080": {
+  "decl": "int action_uncover_setup_target(int actor_handle, char param_2, char *state_data);",
+  "name": "action_uncover_setup_target",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_uncover_setup_target \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x1a420": {
+  "decl": "void action_uncover_control(int actor_handle);",
+  "name": "action_uncover_control",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_uncover_control \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x1a600": {
+  "decl": "void action_uncover_modify_color(int actor_handle, int *param_2);",
+  "name": "action_uncover_modify_color",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_uncover_modify_color \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x1a670": {
+  "decl": "void action_uncover_begin(int actor_handle);",
+  "name": "action_uncover_begin",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_uncover_begin \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x1a7e0": {
+  "decl": "void action_uncover_update(int actor_handle);",
+  "name": "action_uncover_update",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_uncover_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x1ab70": {
+  "addr": "0x1ab70",
+  "decl": "void action_vehicle_begin(int actor_handle);",
+  "ported": null,
+  "comment": "[NAME: action_vehicle_begin \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x1abd0": {
+  "addr": "0x1abd0",
+  "decl": "void action_vehicle_flush_structure_indices(int actor_handle);",
+  "ported": true,
+  "comment": "[NAME: action_vehicle_flush_structure_indices \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x1ac00": {
+  "decl": "void action_vehicle_control(int actor_handle);",
+  "name": "action_vehicle_control",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: action_vehicle_control \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x222de0": {
+  "addr": "0x222de0",
+  "decl": "int __stdcall FUN_00222de0(void *param_1, void *param_2);",
+  "name": "FUN_00222de0"
+ },
+ "0x222df7": {
+  "addr": "0x222df7",
+  "decl": "void __stdcall FUN_00222df7(void *param_1);",
+  "name": "FUN_00222df7"
+ },
+ "0x24ca0": {
+  "decl": "char actor_firing_position_discarded(int actor_handle, short param_2);",
+  "name": "actor_firing_position_discarded",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: actor_firing_position_discarded \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x272d0": {
+  "decl": "short actor_change_firing_position(int actor_handle, short param_2, void *param_3, int param_4, unsigned int param_5, char param_6);",
+  "name": "actor_change_firing_position",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: actor_change_firing_position \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x278e0": {
+  "decl": "float FUN_000278e0(int actor_handle, int prop_handle);",
+  "name": "FUN_000278e0",
+  "obj": "actor_looking.obj",
+  "ported": true
+ },
+ "0x27a10": {
+  "decl": "int actor_look_get_looking_definition(int actor_handle);",
+  "name": "actor_look_get_looking_definition",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: actor_look_get_looking_definition \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x27a60": {
+  "decl": "int FUN_00027a60(int actor_handle, short look_type, short priority, short *look_buf);",
+  "name": "FUN_00027a60",
+  "obj": "actor_looking.obj",
+  "ported": true
+ },
+ "0x29040": {
+  "decl": "void actor_look_update(int actor_handle);",
+  "name": "actor_look_update",
+  "obj": "actor_looking.obj",
+  "ported": true
+ },
+ "0x2a2b0": {
+  "decl": "void actor_look_affect_movement(int actor_handle);",
+  "name": "actor_look_affect_movement",
+  "obj": "actor_looking.obj",
+  "ported": true,
+  "comment": "[NAME: actor_look_affect_movement \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+ },
+ "0x300b0": {
+  "decl": "void FUN_000300b0(int actor_handle);",
+  "name": "FUN_000300b0",
+  "obj": "actor_perception.obj",
+  "ported": true
+ },
+ "0x302b0": {
+  "decl": "void FUN_000302b0(int actor_handle);",
+  "name": "FUN_000302b0",
+  "obj": "actor_perception.obj",
+  "ported": false
+ },
+ "0x46f10": {
+  "decl": "void ai_communication_event(int mode, int unit_handle, int target_handle, int a4, int a5, int a6, int a7);",
+  "name": "ai_communication_event",
+  "obj": "ai.obj",
+  "ported": false,
+  "comment": "[NAME: FUN_00046f10 \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03] [NAME: ai_communication_event \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+ },
+ "0x803d0": {
+  "addr": "0x803d0",
+  "decl": "unsigned short *key_agreement_build_message(short type, void *data, int buffer, unsigned short buffer_size);",
+  "name": "key_agreement_build_message",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80530": {
+  "addr": "0x80530",
+  "decl": "int key_agreement_peek_packet_type(unsigned char *msgptr, unsigned short msg_size, unsigned char *packet_type);",
+  "name": "key_agreement_peek_packet_type",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x807d0": {
+  "addr": "0x807d0",
+  "decl": "void key_message_xor_keystream(int msg, int len, int keystream, int key_len);",
+  "name": "key_message_xor_keystream",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80820": {
+  "addr": "0x80820",
+  "decl": "void tea_encrypt(unsigned int *v, unsigned int *w, int *key);",
+  "name": "tea_encrypt",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x808b0": {
+  "addr": "0x808b0",
+  "decl": "void tea_decrypt(unsigned int *v, unsigned int *w, int *key);",
+  "name": "tea_decrypt",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80940": {
+  "addr": "0x80940",
+  "decl": "void message_encrypt(unsigned short *msgptr, unsigned int *key);",
+  "name": "message_encrypt",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80a40": {
+  "addr": "0x80a40",
+  "decl": "void message_decrypt(unsigned short *msgptr, unsigned int *key);",
+  "name": "message_decrypt",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80b40": {
+  "addr": "0x80b40",
+  "decl": "void build_message_header(unsigned short *header, unsigned short length, unsigned char type, unsigned char flags);",
+  "name": "build_message_header",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80c20": {
+  "addr": "0x80c20",
+  "decl": "void byte_swap_message_header(unsigned short *header, int byte_order);",
+  "name": "byte_swap_message_header",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80ca0": {
+  "addr": "0x80ca0",
+  "decl": "int create_message(int type, int payload, unsigned int payload_len, int buffer, unsigned short buffer_size);",
+  "name": "create_message",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80d30": {
+  "addr": "0x80d30",
+  "decl": "int prime_compare(unsigned int *a, unsigned int *b);",
+  "name": "prime_compare",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0x80d50": {
+  "addr": "0x80d50",
+  "decl": "unsigned int *sieve_of_eratosthenes(unsigned int limit, unsigned int *num_primes);",
+  "name": "sieve_of_eratosthenes",
+  "ported": true,
+  "source_path": "src/halo/networking/message_header.c"
+ },
+ "0xa3e60": {
+  "addr": "0xa3e60",
+  "decl": "void *FUN_000a3e60(int16_t local_player_index@<esi>);",
+  "ported": true
+ },
+ "0xa40a0": {
+  "addr": "0xa40a0",
+  "decl": "void FUN_000a40a0(int16_t local_player_index, int particle_system_tag_index, float scale);",
+  "ported": true
+ },
+ "0xa4200": {
+  "addr": "0xa4200",
+  "decl": "void FUN_000a4200(int16_t local_player_index);",
+  "ported": true
+ },
+ "0xa4310": {
+  "addr": "0xa4310",
+  "decl": "int FUN_000a4310(int16_t type_index@<eax>, int16_t local_player_index@<ecx>);",
+  "ported": false
+ },
+ "0xa54b0": {
+  "addr": "0xa54b0",
+  "decl": "void FUN_000a54b0(void);",
+  "ported": true
+ },
+ "0xa5830": {
+  "addr": "0xa5830",
+  "decl": "char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4);",
+  "ported": false
+ },
+ "0xa5f00": {
+  "addr": "0xa5f00",
+  "decl": "int16_t FUN_000a5f00(float *cone_spec /*@<edi> */, int16_t starting_cluster, float *point, float *direction, float *arg4, float *arg5, int max_count, void *out_buffer);",
+  "ported": false,
+  "reg_args": {
+   "cone_spec": "edi"
+  }
+ },
+ "0xa6030": {
+  "addr": "0xa6030",
+  "decl": "char FUN_000a6030(float *cone_spec, float *point, float *direction, float *arg4, float *arg5, void *out_struct);",
+  "ported": true
+ },
+ "md5": "c7869590a1c64ad034e49a5ee0c02465",
  "objects": [
   {
    "data": [
