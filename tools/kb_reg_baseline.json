@@ -1650,8 +1650,8 @@
   "0x1bc9c0": "void cache_file_close(void);",
   "0x1bc9e0": "short cache_file_read(int param_1, int offset, unsigned int size, int buffer, char *completion_flag, char async_flag);",
   "0x1bcb30": "void cache_files_io_request_enable(int16_t request_index);",
-  "0x1bcc10": "void FUN_001bcc10(void);",
-  "0x1bcc30": "void FUN_001bcc30(void);",
+  "0x1bcc10": "void cached_map_issue_async_read(char *completion_flag /* @<eax> */, int offset /* @<ecx> */, unsigned int size /* @<edx> */, void *overlapped /* @<esi> */, void *completion_routine /* @<ebx> */, unsigned int handle, int buffer);",
+  "0x1bcc30": "void cached_map_issue_async_write(char *completion_flag /* @<eax> */, int offset /* @<ecx> */, unsigned int size /* @<edx> */, void *overlapped /* @<esi> */, void *completion_routine /* @<ebx> */, unsigned int handle, int buffer);",
   "0x1bcc50": "void cache_file_block_until_not_busy(void);",
   "0x1bccb0": "void tags_header_register_vertex_and_index_buffers(void *block);",
   "0x1bcd10": "void tags_header_deregister_vertex_and_index_buffers(void *block);",
@@ -9556,6 +9556,7 @@
     "0xe4890": "void ui_widget_close_children(void *widget@<eax>);",
     "0xe4960": "float FUN_000e4960(void *widget@<eax>);",
     "0xe4980": "bool FUN_000e4980(void *widget@<eax>);",
+    "0xe4a40": "char widget_instance_text_box_is_focused(void *widget@<eax>);",
     "0xe4a80": "int16_t FUN_000e4a80(const wchar_t *name@<ebx>);",
     "0xe4c70": "void FUN_000e4c70(short *dst_rect @<ebx>, void *text, short *src_rect @<edi>);",
     "0xe4ce0": "bool FUN_000e4ce0(const wchar_t *text@<eax>);",
@@ -9980,6 +9981,8 @@
     "0x1bc7e0": "int FUN_001bc7e0(short map_file_index@<si>);",
     "0x1bc830": "void FUN_001bc830(char *buffer@<ecx>, int index@<eax>);",
     "0x1bcb80": "bool FUN_001bcb80(const char *map_name@<eax>, void *header_buf@<edi>);",
+    "0x1bcc10": "void cached_map_issue_async_read(char *completion_flag /*@<eax> */, int offset /*@<ecx> */, unsigned int size /*@<edx> */, void *overlapped /*@<esi> */, void *completion_routine /*@<ebx> */, unsigned int handle, int buffer);",
+    "0x1bcc30": "void cached_map_issue_async_write(char *completion_flag /*@<eax> */, int offset /*@<ecx> */, unsigned int size /*@<edx> */, void *overlapped /*@<esi> */, void *completion_routine /*@<ebx> */, unsigned int handle, int buffer);",
     "0x1bcea0": "void FUN_001bcea0(short map_file_index@<ax>);",
     "0x1bcfb0": "void FUN_001bcfb0(short map_file_index@<ax>);",
     "0x1bd1b0": "int16_t FUN_001bd1b0(const char *map_name@<edi>);",
@@ -10042,8 +10045,7 @@
     "0x2256bb": "int __stdcall recv(void *xnet@<ecx>, unsigned int socket, char *buf, int len, int flags);",
     "0x002256bb": "int __stdcall recv(void *xnet@<ecx>, unsigned int socket, char *buf, int len, int flags);",
     "0x2258a4": "int __stdcall send(void *xnet@<ecx>, unsigned int socket, const char *buf, int len, int flags);",
-    "0x002258a4": "int __stdcall send(void *xnet@<ecx>, unsigned int socket, const char *buf, int len, int flags);",
-    "0xe4a40": "char widget_instance_text_box_is_focused(void *widget@<eax>);"
+    "0x002258a4": "int __stdcall send(void *xnet@<ecx>, unsigned int socket, const char *buf, int len, int flags);"
   },
   "0x57330": "short ai_scripting_command_list_status_internal(int16_t scenario_index@<eax>, void *record@<esi>, int field_1a8_val, int child_handle, int reserved);",
   "0x1631d0": "void FUN_001631d0(void);"

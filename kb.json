@@ -5130,13 +5130,15 @@
     },
     {
      "addr": "0x1bcc10",
-     "decl": "void cached_map_issue_async_read(void);",
-     "comment": "[NAME: cached_map_issue_async_read \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void cached_map_issue_async_read(char *completion_flag /* @<eax> */, int offset /* @<ecx> */, unsigned int size /* @<edx> */, void *overlapped /* @<esi> */, void *completion_routine /* @<ebx> */, unsigned int handle, int buffer);",
+     "comment": "[NAME: cached_map_issue_async_read \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1bcc30",
-     "decl": "void cached_map_issue_async_write(void);",
-     "comment": "[NAME: cached_map_issue_async_write \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void cached_map_issue_async_write(char *completion_flag /* @<eax> */, int offset /* @<ecx> */, unsigned int size /* @<edx> */, void *overlapped /* @<esi> */, void *completion_routine /* @<ebx> */, unsigned int handle, int buffer);",
+     "comment": "[NAME: cached_map_issue_async_write \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1bcc50",

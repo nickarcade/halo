@@ -55483,6 +55483,36 @@
       "score": 100.0,
       "source": "src/halo/cache/cache_files_windows.c"
     },
+    "cached_map_issue_async_read": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 75.7,
+      "addr": "0x1bcc10",
+      "end": "0x1bcc2f",
+      "kind": "auto",
+      "n_r": 16,
+      "opnd_percent": 70.3,
+      "raw_mnemonic_pct": 75.7,
+      "ref": "synth",
+      "ref_sha": "7e780db7f894ded6",
+      "score": 75.7,
+      "source": "src/halo/cache/cache_files_windows.c"
+    },
+    "cached_map_issue_async_write": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 75.7,
+      "addr": "0x1bcc30",
+      "end": "0x1bcc4f",
+      "kind": "auto",
+      "n_r": 16,
+      "opnd_percent": 70.3,
+      "raw_mnemonic_pct": 75.7,
+      "ref": "synth",
+      "ref_sha": "810e28d54ee234bb",
+      "score": 75.7,
+      "source": "src/halo/cache/cache_files_windows.c"
+    },
     "calculate_vertex": {
       "abi_model": "regparam_stripped_saves",
       "abi_model_items": 6,

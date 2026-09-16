@@ -779,6 +779,36 @@ bool FUN_001bcb80(const char *map_name /* @<eax> */,
   return ok;
 }
 
+/* cached_map_issue_async_read (0x1bcc10) — forwards a cache read through
+ * FUN_001bc3b0.  EDI is the fixed async request routine; ESI and EBX are
+ * intentionally forwarded untouched as the overlapped and completion routine.
+ */
+void cached_map_issue_async_read(char *completion_flag /* @<eax> */,
+                                 int offset /* @<ecx> */,
+                                 unsigned int size /* @<edx> */,
+                                 void *overlapped /* @<esi> */,
+                                 void *completion_routine /* @<ebx> */,
+                                 unsigned int handle, int buffer)
+{
+  FUN_001bc3b0((void *)0x1d19e7, overlapped, handle, buffer, size, offset,
+               completion_flag, completion_routine);
+}
+
+/* cached_map_issue_async_write (0x1bcc30) — forwards a cache write through
+ * FUN_001bc3b0.  EDI is the fixed async request routine; ESI and EBX are
+ * intentionally forwarded untouched as the overlapped and completion routine.
+ */
+void cached_map_issue_async_write(char *completion_flag /* @<eax> */,
+                                  int offset /* @<ecx> */,
+                                  unsigned int size /* @<edx> */,
+                                  void *overlapped /* @<esi> */,
+                                  void *completion_routine /* @<ebx> */,
+                                  unsigned int handle, int buffer)
+{
+  FUN_001bc3b0((void *)0x1d1a38, overlapped, handle, buffer, size, offset,
+               completion_flag, completion_routine);
+}
+
 /* cache_file_block_until_not_busy — spin-wait until all 512 cache IO request
  * slots are idle. Loops: sleeps 1ms (SleepEx(0,1)), then scans all slots
  * checking the active byte at +0x1d. If any slot is still active, repeat.
