@@ -21119,9 +21119,9 @@
           "ported": false
         },
         {
-          "decl": "void point3d_to_point2d(void);",
+          "decl": "void point3d_to_point2d(const float *points3d@<ecx>, float *points2d@<edx>, int count@<esi>);",
           "addr": "0xb1160",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void FUN_000b1180(void);",
@@ -24204,12 +24204,14 @@
           "ported": false
         },
         {
-          "decl": "void hs_short_to_real(void);",
-          "addr": "0xcaef0"
+          "decl": "int hs_short_to_real(int16_t value);",
+          "addr": "0xcaef0",
+          "ported": true
         },
         {
-          "decl": "void FUN_000caf10(void);",
-          "addr": "0xcaf10"
+          "decl": "int hs_long_to_real(int32_t value);",
+          "addr": "0xcaf10",
+          "ported": true
         },
         {
           "decl": "int FUN_000caf20(int16_t param_1);",
@@ -24217,12 +24219,14 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000caf40(void);",
-          "addr": "0xcaf40"
+          "decl": "int hs_real_to_short(int value);",
+          "addr": "0xcaf40",
+          "ported": true
         },
         {
-          "decl": "void hs_real_to_long(void);",
-          "addr": "0xcaf60"
+          "decl": "int hs_real_to_long(int value);",
+          "addr": "0xcaf60",
+          "ported": true
         },
         {
           "decl": "void hs_long_to_short(void);",
@@ -39013,24 +39017,29 @@
           "addr": "0x1089a0"
         },
         {
-          "decl": "void set_point2d(void);",
-          "addr": "0x1089d0"
+          "decl": "void set_point2d(int16_t *point, int16_t x, int16_t y);",
+          "addr": "0x1089d0",
+          "ported": true
         },
         {
-          "decl": "void offset_point2d(void);",
-          "addr": "0x1089f0"
+          "decl": "void offset_point2d(int16_t *point, int16_t dx, int16_t dy);",
+          "addr": "0x1089f0",
+          "ported": true
         },
         {
-          "decl": "int FUN_00108a10(const int16_t *rect);",
-          "addr": "0x108a10"
+          "decl": "int rectangle2d_width(const int16_t *rect);",
+          "addr": "0x108a10",
+          "ported": true
         },
         {
-          "decl": "int FUN_00108a30(const int16_t *rect);",
-          "addr": "0x108a30"
+          "decl": "int rectangle2d_height(const int16_t *rect);",
+          "addr": "0x108a30",
+          "ported": true
         },
         {
-          "decl": "void inset_rectangle2d(void);",
-          "addr": "0x108a50"
+          "decl": "void inset_rectangle2d(int16_t *rect, int16_t dx, int16_t dy);",
+          "addr": "0x108a50",
+          "ported": true
         },
         {
           "decl": "void rect2d_offset(int16_t *rect, int16_t dx, int16_t dy);",
@@ -47024,9 +47033,9 @@
           "ported": true
         },
         {
-          "decl": "void real_random(void);",
+          "decl": "float real_random(void);",
           "addr": "0x130c0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "bool FUN_000130d0(uint32_t collision_flags, float *point_a, float *point_b, int max_distance, int16_t *collision_result);",
