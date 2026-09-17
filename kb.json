@@ -14897,7 +14897,7 @@
           "addr": "0xa6130"
         },
         {
-          "decl": "void local_player_aim_assist(void);",
+          "decl": "int local_player_aim_assist(short local_player_index, real *autoaim_level, real *field_0x30, void *lead_vector, void *arg5);",
           "addr": "0xa6470"
         },
         {
@@ -30971,12 +30971,12 @@
         {
           "decl": "void player_control_dispose_from_old_map(void);",
           "addr": "0xb6400",
-          "ported": false
+          "ported": true
         },
         {
-          "decl": "void player_control_camera_control_is_active(void);",
+          "decl": "bool player_control_camera_control_is_active(void);",
           "addr": "0xb6410",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void scripted_player_control_set_camera_control(bool camera_control);",
@@ -30994,9 +30994,9 @@
           "ported": true
         },
         {
-          "decl": "void clear_input_blob(void);",
+          "decl": "void clear_input_blob(void *blob);",
           "addr": "0xb65b0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "int32_t player_control_get_aiming_unit_index(int16_t local_player_index);",
@@ -31155,7 +31155,8 @@
         },
         {
           "decl": "void get_local_player_input_blob(void *action@<ebx>, short local_player_index, real delta_time);",
-          "addr": "0xb70b0"
+          "addr": "0xb70b0",
+          "ported": true
         },
         {
           "decl": "real * player_control_get_facing_angles(int16_t local_player_index);",
@@ -31351,7 +31352,7 @@
         {
           "decl": "void update_client_delete(void);",
           "addr": "0xb8e00",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void update_client_start(void);",
@@ -31394,9 +31395,9 @@
           "ported": true
         },
         {
-          "decl": "void update_client_get_update(void);",
+          "decl": "void *update_client_get_update(int sequence_index);",
           "addr": "0xb90a0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "bool update_server_new(void);",
@@ -31441,7 +31442,7 @@
         {
           "decl": "void update_queues_reset_and_fill_with_lies(void);",
           "addr": "0xb9880",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void update_server_create_snapshot(void);",
@@ -31928,7 +31929,7 @@
         {
           "decl": "void player_examine_nearby_unit_bae10(void);",
           "addr": "0xbae10",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "bool player_examine_nearby_unit(int player_unit_handle, int nearby_unit_handle);",
@@ -32007,7 +32008,8 @@
         },
         {
           "decl": "char FUN_000bb670(int player_index, int object_handle, void *position);",
-          "addr": "0xbb670"
+          "addr": "0xbb670",
+          "ported": true
         },
         {
           "decl": "bool player_teleport(int player_handle, int anchor_unit_handle, void *anchor_position);",
