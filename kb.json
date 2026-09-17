@@ -17443,7 +17443,7 @@
    "functions": [
     {
      "addr": "0x88d50",
-     "decl": "void first_person_camera_for_unit_and_vector(float *vector @<eax>, int32_t unit_index @<ecx>);"
+     "decl": "void first_person_camera_for_unit_and_vector(float *vector @<eax>, int32_t unit_index @<ecx>, void *result @<esi>);"
     },
     {
      "addr": "0x89240",

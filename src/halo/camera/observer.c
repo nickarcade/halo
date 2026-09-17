@@ -28,7 +28,7 @@ void first_person_camera_update(void *camera, void *param_2, void *result)
   }
 
   player_control_get_facing_direction(*(int16_t *)param_2, forward);
-  first_person_camera_for_unit_and_vector(forward, unit_index);
+  first_person_camera_for_unit_and_vector(forward, unit_index, result);
   field_of_view = player_control_get_field_of_view(*(int16_t *)param_2);
 
   *(float *)((char *)result + 0x20) = field_of_view;
