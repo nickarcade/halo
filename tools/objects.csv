@@ -121,7 +121,7 @@ weather_particle_systems.obj,true,0x000A3E60-0x000A5020,17
 widgets.obj,true,0x00136450-0x001367B0,5
 bink.obj,true,0x0022DF80-0x00231690,11
 xbox_texture_cache.obj,true,0x001BE920-0x001BF770,21
-d3d_resource.obj,true,0x001ED620-0x001EDE70,6
+d3d_resource.obj,true,0x001ED620-0x001EFF80,8
 rasterizer_text.obj,true,0x0017FF50-0x001846B0,68
 draw_string.obj,true,0x00130AB0-0x0019C5C0,20
 rasterizer_sprites.obj,true,0x0017CD60-0x0017F100,87
@@ -187,7 +187,7 @@ static_camera.obj,true,0x0008D410-0x0008D610,1
 rasterizer_xbox_screen_effect.obj,true,0x001700D0-0x00171DC0,2
 rasterizer_xbox_shadows.obj,true,0x00172590-0x00173290,4
 rasterizer_xbox_profile.obj,true,0x0016F910-0x0016FC40,2
-<xdk_stubs>,true,0x001CFB73-0x00252FF4,1648
+<xdk_stubs>,true,0x001CFB73-0x00252FF4,1646
 wind.obj,true,0x0018FF00-0x00190700,3
 action_vehicle.obj,true,0x0001AEB0-0x0001BAA0,4
 glow.obj,true,0x001345B0-0x001347B0,1
