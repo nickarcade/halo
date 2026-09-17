@@ -13277,7 +13277,8 @@
       "functions": [
         {
           "decl": "short ai_scripting_command_list_status_internal(int16_t scenario_index@<eax>, void *record@<esi>, int field_1a8_val, int child_handle, int reserved);",
-          "addr": "0x57330"
+          "addr": "0x57330",
+          "ported": true
         },
         {
           "decl": "short ai_scripting_command_list_status(int ai_index);",
@@ -15116,7 +15117,8 @@
         },
         {
           "decl": "void FUN_00093be0(short *angles @<eax>, float *out_vector);",
-          "addr": "0x93be0"
+          "addr": "0x93be0",
+          "ported": true
         },
         {
           "decl": "void FUN_00093c20(short *angles, unsigned char *control, unsigned char *header, unsigned char **stream);",
@@ -15986,7 +15988,7 @@
         {
           "decl": "void console_open(void);",
           "addr": "0xff470",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void console_flush(void);",
@@ -16067,7 +16069,7 @@
         {
           "decl": "void contrails_disconnect_from_structure_bsp(void);",
           "addr": "0x97970",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void contrails_reconnect_to_structure_bsp(void);",
@@ -19202,9 +19204,9 @@
           "ported": true
         },
         {
-          "decl": "void file_location_is_valid(void);",
+          "decl": "bool file_location_is_valid(void);",
           "addr": "0x19a010",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "int file_compare_last_modification_dates(const void *date1, const void *date2);",
@@ -26976,9 +26978,9 @@
           "ported": true
         },
         {
-          "decl": "void memory_pool_block_compute_actual_size(void);",
+          "decl": "int memory_pool_block_compute_actual_size(int size);",
           "addr": "0x11e3f0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "unsigned int FUN_0011e400(void *pool @<eax>, int size);",
@@ -27376,9 +27378,9 @@
           "ported": true
         },
         {
-          "decl": "void check_networking_and_generate_error(void);",
+          "decl": "bool check_networking_and_generate_error(void);",
           "addr": "0x124970",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void network_game_server_dispose(void *server);",
@@ -27735,7 +27737,7 @@
         {
           "decl": "void network_connection_initialize(void);",
           "addr": "0x1282e0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void network_server_allow_client_connections(int connection, bool open);",
@@ -27969,9 +27971,9 @@
           "ported": true
         },
         {
-          "decl": "void network_game_get_number_of_games_played_12a7d0(void);",
+          "decl": "int network_game_get_number_of_games_played_12a7d0(void);",
           "addr": "0x12a7d0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "int network_game_get_number_of_games_played(void);",
@@ -28027,7 +28029,7 @@
         {
           "decl": "void network_game_assign_players_to_team(void);",
           "addr": "0x12ac70",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "bool network_player_is_valid(void *client);",
@@ -28801,9 +28803,9 @@
       ],
       "functions": [
         {
-          "decl": "void should_render_lights(void);",
+          "decl": "bool should_render_lights(void);",
           "addr": "0x1391c0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void lights_initialize(void);",
@@ -30413,7 +30415,7 @@
         {
           "decl": "void particle_systems_disconnect_from_structure_bsp(void);",
           "addr": "0x9f7d0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void particle_systems_reconnect_to_structure_bsp(void);",
@@ -40436,9 +40438,9 @@
           "ported": true
         },
         {
-          "decl": "void shell_running_import_tool(void);",
+          "decl": "bool shell_running_import_tool(void);",
           "addr": "0x1911a0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "bool FUN_001911b0(void);",
@@ -42817,9 +42819,9 @@
           "ported": true
         },
         {
-          "decl": "void terminal_gets_active(void);",
+          "decl": "bool terminal_gets_active(void);",
           "addr": "0xe34d0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "bool terminal_open(void *terminal);",
@@ -42893,9 +42895,9 @@
           "ported": true
         },
         {
-          "decl": "void get_thread_from_pool(void);",
+          "decl": "int get_thread_from_pool(void);",
           "addr": "0x815c0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void *FUN_000815f0(void);",
