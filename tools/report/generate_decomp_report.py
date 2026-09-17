@@ -289,6 +289,8 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
             'reason': data.get('reason'),
             'confidence': data.get('confidence'),
             'coverage_pct': data.get('coverage_pct'),
+            'divergence_summary': data.get('divergence_summary'),
+            'log_path': data.get('log_path'),
         }
     return verdicts
 
@@ -560,6 +562,8 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
             equiv_status = ev.get('status') if ev else None
             equiv_proven = bool(ev.get('z3_proven')) if ev else False
             equiv_reason = ev.get('reason') if ev else None
+            equiv_divergence = ev.get('divergence_summary') if ev else None
+            equiv_log_path = ev.get('log_path') if ev else None
             # When a verdict exists, its confidence/coverage are paired with the
             # status (same run) and are more accurate than the leaf_cache snapshot,
             # so prefer them for the verified-gating decision and the display.
@@ -603,6 +607,8 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'equiv_status': equiv_status,
                 'equiv_proven': equiv_proven,
                 'equiv_reason': equiv_reason,
+                'equiv_divergence': equiv_divergence,
+                'equiv_log_path': equiv_log_path,
                 'snapshot_passed': snapshot_passed,
                 'snapshot_coverage': snapshot_coverage,
                 'snapshot_confidence': snapshot_confidence,
@@ -1777,7 +1783,35 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             ]);
         }
 
-        /* ===== SCORE BUTTON ===== */
+        /* ===== SCORE / EQUIVALENCE BUTTONS ===== */
+        function rerunEquivalence(btn) {
+            var functionName = btn.getAttribute('data-function');
+            var address = btn.getAttribute('data-address');
+            if (!functionName || !address) return;
+            btn.disabled = true;
+            btn.classList.remove('error');
+            btn.textContent = '⏳ Equiv…';
+            fetch('/api/equivalence', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({function: functionName, address: address})
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.ok) {
+                    hydrateLiveSnapshot().finally(function() { router(); });
+                } else {
+                    btn.disabled = false;
+                    btn.classList.add('error');
+                    btn.textContent = '⚠ Equiv error';
+                    btn.title = d.error || 'Equivalence run failed';
+                }
+            }).catch(function() {
+                btn.disabled = false;
+                btn.classList.add('error');
+                btn.textContent = '⚠ Server offline';
+                btn.title = 'progress_server.py is not running';
+            });
+        }
+
         function scoreFunction(btn) {
             var unit = btn.getAttribute('data-unit');
             if (!unit) return;
@@ -3082,8 +3116,18 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     // Equivalence FAIL — behaviorally differs from the original. A bug
                     // CANDIDATE (some are harness artifacts), not a confirmed bug.
                     var dtip = 'Equivalence divergence (' + (f.equiv_reason || 'diverged') + ') — investigate.\\n';
+                    var why = f.equiv_divergence;
+                    if (why && why.message) dtip += why.message + '\\n';
+                    if (why && why.oracle_calls && why.candidate_calls) {
+                        dtip += 'Oracle calls: ' + (why.oracle_calls.join(', ') || '(none)') + '\\n';
+                        dtip += 'Candidate calls: ' + (why.candidate_calls.join(', ') || '(none)') + '\\n';
+                    }
+                    if (f.equiv_log_path) dtip += 'Full log: ' + f.equiv_log_path + '\\n';
                     dtip += 'Behaves differently from the original under differential testing.';
-                    vStatus = '<span class="func-status" style="background:#da363322;color:#f85149;border-color:#f85149" title="' + escHtml(dtip) + '">✗ Divergent</span>';
+                    var whyText = why && why.message ? escHtml(why.message) : 'See equivalence log';
+                    vStatus = '<span class="func-status" style="background:#da363322;color:#f85149;border-color:#f85149" title="' + escHtml(dtip) + '">✗ Divergent</span> ' +
+                        '<span class="pct-none" title="' + escHtml(dtip) + '">Why: ' + whyText + '</span> ' +
+                        '<button class="score-btn" data-function="' + jsEsc(f.name) + '" data-address="' + jsEsc(f.address) + '" onclick="rerunEquivalence(this)" title="Re-run 50-seed differential equivalence against the raw pristine XBE">↻ Re-run equiv</button>';
                 } else if (isVerified(f)) {
                     var reasons = [];
                     if (f.equiv_proven) reasons.push('Z3-proven');
