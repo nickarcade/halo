@@ -23311,7 +23311,7 @@
         {
           "decl": "void hs_recompile(void);",
           "addr": "0xc3c40",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_update(void);",
@@ -23411,72 +23411,72 @@
         {
           "decl": "void hs_enumerate_script_names(void);",
           "addr": "0xc4240",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_variable_names(void);",
           "addr": "0xc4270",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_ai_names(void);",
           "addr": "0xc4320",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_ai_command_list_names(void);",
           "addr": "0xc4350",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_starting_profile_names(void);",
           "addr": "0xc4380",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_conversation_names(void);",
           "addr": "0xc43b0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_object_names(void);",
           "addr": "0xc43e0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_trigger_volume_names(void);",
           "addr": "0xc4410",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_cutscene_flag_names(void);",
           "addr": "0xc4440",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_cutscene_camera_point_names(void);",
           "addr": "0xc4470",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_cutscene_title_names(void);",
           "addr": "0xc44a0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_cutscene_recording_names(void);",
           "addr": "0xc44d0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_navpoints(void);",
           "addr": "0xc4500",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_enumerate_hud_messages(void);",
           "addr": "0xc4540",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "int16_t hs_tokens_enumerate(const char *prefix, uint32_t type_mask, char **tokens, int16_t max_tokens);",
@@ -23566,7 +23566,7 @@
         {
           "decl": "void hs_hack(void);",
           "addr": "0xc4f90",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void hs_evaluate_script_doc(int16_t function_index, int thread_datum, char init);",
@@ -23625,9 +23625,9 @@
           "ported": true
         },
         {
-          "decl": "void character_in_list(void);",
+          "decl": "boolean character_in_list(char c, const char *list, int16_t count);",
           "addr": "0xc5820",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "bool FUN_000c5840(int datum_index @<eax>);",
@@ -23891,12 +23891,14 @@
           "ported": true
         },
         {
-          "decl": "void hs_parse_inspect(void);",
-          "addr": "0xc8e00"
+          "decl": "bool hs_parse_inspect(int function_index, int expression_index);",
+          "addr": "0xc8e00",
+          "ported": true
         },
         {
-          "decl": "void hs_parse_object_cast_up(void);",
-          "addr": "0xc8ec0"
+          "decl": "bool hs_parse_object_cast_up(int function_index, int expression_index);",
+          "addr": "0xc8ec0",
+          "ported": true
         },
         {
           "decl": "bool FUN_000c8f40(int16_t function_index, int expression_index);",
@@ -23949,8 +23951,9 @@
           "ported": true
         },
         {
-          "decl": "void hs_unit_can_see_flag(void);",
-          "addr": "0xc97f0"
+          "decl": "boolean hs_unit_can_see_flag(int unit_handle, int16_t flag_index, real angle);",
+          "addr": "0xc97f0",
+          "ported": true
         },
         {
           "decl": "unsigned char FUN_000c9840(int arg0, short flag_index, float arg2);",
@@ -24048,12 +24051,14 @@
           "ported": true
         },
         {
-          "decl": "float FUN_000ca010(int);",
-          "addr": "0xca010"
+          "decl": "real FUN_000ca010(const char *sound_name);",
+          "addr": "0xca010",
+          "ported": true
         },
         {
-          "decl": "void FUN_000ca030(int param_1, float param_2);",
-          "addr": "0xca030"
+          "decl": "void FUN_000ca030(const char *sound_name, real value);",
+          "addr": "0xca030",
+          "ported": true
         },
         {
           "decl": "unsigned char FUN_000ca050(int16_t bit_index, int object_list);",
@@ -24072,11 +24077,13 @@
         },
         {
           "decl": "void FUN_000ca140(const char *substring);",
-          "addr": "0xca140"
+          "addr": "0xca140",
+          "ported": true
         },
         {
           "decl": "void FUN_000ca160(int object_handle@<ebx>, int param_2, char param_3, char param_4);",
-          "addr": "0xca160"
+          "addr": "0xca160",
+          "ported": true
         },
         {
           "decl": "void FUN_000ca3f0(int a, int b);",
@@ -24085,7 +24092,8 @@
         },
         {
           "decl": "void FUN_000ca410(int a, int b);",
-          "addr": "0xca410"
+          "addr": "0xca410",
+          "ported": true
         },
         {
           "decl": "void FUN_000ca430(int cluster_index, int param_2);",
@@ -24095,7 +24103,7 @@
         {
           "decl": "int hs_syntax_nth(int node_index@<eax>, int16_t count@<cx>);",
           "addr": "0xca4b0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void FUN_000ca4e0(int16_t type, bool value, char *buffer);",
@@ -24140,7 +24148,7 @@
         {
           "decl": "void hs_runtime_dispose(void);",
           "addr": "0xca880",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "const char *FUN_000ca890(int expression_index@<eax>, int thread_index@<ebx>);",
@@ -24179,7 +24187,8 @@
         },
         {
           "decl": "void FUN_000cacf0(int thread_handle@<edi>);",
-          "addr": "0xcacf0"
+          "addr": "0xcacf0",
+          "ported": true
         },
         {
           "decl": "int FUN_000cada0(int16_t script_index@<edi>);",
@@ -24188,7 +24197,8 @@
         },
         {
           "decl": "int FUN_000cae00(const char *script_name@<edi>);",
-          "addr": "0xcae00"
+          "addr": "0xcae00",
+          "ported": true
         },
         {
           "decl": "int FUN_000cae80(int param_1);",
@@ -24201,13 +24211,14 @@
           "ported": true
         },
         {
-          "decl": "void hs_string_to_boolean(void);",
-          "addr": "0xcaec0"
+          "decl": "int hs_string_to_boolean(const char *string);",
+          "addr": "0xcaec0",
+          "ported": true
         },
         {
-          "decl": "void hs_data_to_void(void);",
+          "decl": "int hs_data_to_void(void);",
           "addr": "0xcaee0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "int hs_short_to_real(int16_t value);",
@@ -24235,8 +24246,9 @@
           "ported": true
         },
         {
-          "decl": "void hs_long_to_short(void);",
-          "addr": "0xcaf70"
+          "decl": "int hs_long_to_short(int value);",
+          "addr": "0xcaf70",
+          "ported": true
         },
         {
           "decl": "int FUN_000caf80(int16_t index);",
@@ -24274,8 +24286,9 @@
           "ported": true
         },
         {
-          "decl": "void script_error(void);",
-          "addr": "0xcb940"
+          "decl": "boolean script_error(int thread_handle, const char *reason, const char *details);",
+          "addr": "0xcb940",
+          "ported": true
         },
         {
           "decl": "const char *hs_runtime_get_executing_thread_name(void);",
@@ -24289,11 +24302,13 @@
         },
         {
           "decl": "void render_debug_scripting(void);",
-          "addr": "0xcb9c0"
+          "addr": "0xcb9c0",
+          "ported": true
         },
         {
           "decl": "void render_debug_trigger_volumes(void);",
-          "addr": "0xcbb40"
+          "addr": "0xcbb40",
+          "ported": true
         },
         {
           "decl": "void hs_return(int thread_handle, int value);",
@@ -24447,7 +24462,8 @@
         },
         {
           "decl": "void FUN_000ce1b0(void);",
-          "addr": "0xce1b0"
+          "addr": "0xce1b0",
+          "ported": true
         },
         {
           "decl": "void hs_runtime_initialize(void);",
