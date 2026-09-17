@@ -5675,8 +5675,10 @@ void render_structure_shadows(float *center, float radius_x4, float *bounds6, in
 
 __declspec(noinline) void structure_runtime_decals_initialize(void)
 {
-  *(void **)0x4d8ec8 = game_state_malloc("structure decals", 0, 4);
-  if (*(void **)0x4d8ec8 == NULL) {
+  structure_decals_globals =
+    (structure_decals_globals_t *)game_state_malloc(
+      "structure decals", 0, sizeof(structure_decals_globals_t));
+  if (structure_decals_globals == NULL) {
     display_assert("structure_decals_globals",
                    "c:\\halo\\SOURCE\\structures\\structure_runtime_decals.c",
                    0x1c, true);
@@ -5689,14 +5691,14 @@ __declspec(noinline) void structure_runtime_decals_initialize(void)
  * keep that shape under VC71 /O2. */
 __declspec(noinline) void structure_runtime_decals_initialize_for_new_map(void)
 {
-  if (*(uint8_t **)0x4d8ec8 == NULL) {
+  if (structure_decals_globals == NULL) {
     display_assert("structure_decals_globals",
                    "c:\\halo\\SOURCE\\structures\\structure_runtime_decals.c",
                    0x24, true);
     system_exit(-1);
   }
 
-  **(uint8_t **)0x4d8ec8 = 0;
+  structure_decals_globals->field_00 = 0;
 }
 
 /*

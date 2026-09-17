@@ -1663,6 +1663,53 @@ cs(tag_block, 0xc);
 co(tag_block, count,   0x00);
 co(tag_block, address, 0x04);
 
+/// size=0x68
+/* Structure-BSP cluster element. Only the runtime-decal range is proven. */
+typedef struct {
+  char    pad_00[0x0c];
+  int16_t field_0c;
+  uint16_t field_0e;
+  char    pad_10[0x58];
+} structure_bsp_cluster_t;
+cs(structure_bsp_cluster_t, 0x68);
+co(structure_bsp_cluster_t, field_0c, 0x0c);
+co(structure_bsp_cluster_t, field_0e, 0x0e);
+
+/// size=0x10
+/* Structure runtime-decal element. */
+typedef struct {
+  char   pad_00[0x0c];
+  uint8_t field_0c;
+  int8_t pad_0d;
+  int8_t field_0e;
+  int8_t field_0f;
+} structure_runtime_decal_t;
+cs(structure_runtime_decal_t, 0x10);
+co(structure_runtime_decal_t, field_0c, 0x0c);
+co(structure_runtime_decal_t, field_0e, 0x0e);
+co(structure_runtime_decal_t, field_0f, 0x0f);
+
+/// size=0x264
+/* Runtime structure-BSP tag blocks used by structure_decals_update. */
+typedef struct {
+  char pad_00[0x134];
+  tag_block clusters;
+  char pad_140[0x118];
+  tag_block runtime_decals;
+} structure_bsp_t;
+cs(structure_bsp_t, 0x264);
+co(structure_bsp_t, clusters, 0x134);
+co(structure_bsp_t, runtime_decals, 0x258);
+
+/// size=0x04
+/* Global structure decal runtime state allocated at 0x4d8ec8. */
+typedef struct {
+  uint8_t field_00;
+  char    pad_01[3];
+} structure_decals_globals_t;
+cs(structure_decals_globals_t, 0x04);
+co(structure_decals_globals_t, field_00, 0x00);
+
 /* -------------------------------------------------------------------------
  * tag_reference -- 0x10-byte element of a tag-reference tag block.
  *
@@ -1680,6 +1727,15 @@ typedef struct {
 } tag_reference;
 cs(tag_reference, 0x10);
 co(tag_reference, tag_index, 0x0c);
+
+/// size=0x3C0
+/* Scenario overlay for the structure-BSP tag block used by runtime decals. */
+typedef struct {
+  char pad_00[0x3b4];
+  tag_block structure_bsps;
+} scenario_structure_bsps_t;
+cs(scenario_structure_bsps_t, 0x3c0);
+co(scenario_structure_bsps_t, structure_bsps, 0x3b4);
 
 /* -------------------------------------------------------------------------
  * netgame_flag -- 0x94-byte element of the scenario netgame-flags tag block

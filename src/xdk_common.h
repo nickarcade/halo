@@ -83,6 +83,7 @@ static const int _scenario_type_main_menu = 2;
  * Defined in the two force-included headers (clang -include src/common.h,
  * VC71 /FI src/xdk_common.h) rather than in a .c: a definition added above an
  * assert_halt would shift __FILE__/__LINE__ and move .text. */
+#define TAG_GROUP_DECAL 0x64656361 /* 'deca' */
 #define TAG_GROUP_FONT 0x666f6e74 /* 'font' */
 #define TAG_GROUP_HUDG 0x68756467 /* 'hudg' */
 #define TAG_GROUP_ITEM 0x6974656d /* 'item' */
@@ -96,6 +97,7 @@ static const int _scenario_type_main_menu = 2;
  * this header is the one the VC71 compare lane force-includes. */
 #define screen_bounds_top (*(int16_t *)0x50657c)
 #define screen_bounds_left (*(int16_t *)0x50657e)
+#define structure_decals_globals (*(structure_decals_globals_t **)0x4d8ec8)
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert (see common.h). */
 #define assert_halt_at(file, line, cond)                       \
