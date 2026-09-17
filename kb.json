@@ -21122,7 +21122,7 @@
         {
           "decl": "void point3d_to_point2d(const float *points3d@<ecx>, float *points2d@<edx>, int count@<esi>);",
           "addr": "0xb1160",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void FUN_000b1180(void);",
@@ -36114,7 +36114,7 @@
         {
           "decl": "float *FUN_0017ffc0(float *param_1, unsigned int param_2);",
           "addr": "0x17ffc0",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "int rasterizer_geometry_get_vertex_size(short param_1);",
@@ -36189,7 +36189,7 @@
         {
           "decl": "unsigned int FUN_00180b10(float *param_1);",
           "addr": "0x180b10",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void FUN_00180d10(short type, int count, int compressed_out, int compressed_size, void *uncompressed, int uncompressed_size);",
@@ -37314,7 +37314,7 @@
         {
           "decl": "void FUN_00167ff0(int hr, const char *format, ...);",
           "addr": "0x167ff0",
-          "ported": true
+          "ported": false
         }
       ]
     },
@@ -39022,27 +39022,27 @@
         {
           "decl": "void set_point2d(int16_t *point, int16_t x, int16_t y);",
           "addr": "0x1089d0",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void offset_point2d(int16_t *point, int16_t dx, int16_t dy);",
           "addr": "0x1089f0",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "int rectangle2d_width(const int16_t *rect);",
           "addr": "0x108a10",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "int rectangle2d_height(const int16_t *rect);",
           "addr": "0x108a30",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void inset_rectangle2d(int16_t *rect, int16_t dx, int16_t dy);",
           "addr": "0x108a50",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void rect2d_offset(int16_t *rect, int16_t dx, int16_t dy);",
@@ -47038,7 +47038,7 @@
         {
           "decl": "float real_random(void);",
           "addr": "0x130c0",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "bool FUN_000130d0(uint32_t collision_flags, float *point_a, float *point_b, int max_distance, int16_t *collision_result);",
