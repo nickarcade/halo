@@ -22034,7 +22034,7 @@
           "addr": "0x1c1720"
         },
         {
-          "decl": "bool player_profile_new(int profile_index, wchar_t *name);",
+          "decl": "bool player_profile_new(int profile_index, void *profile);",
           "addr": "0x1c18f0"
         },
         {
@@ -31231,12 +31231,14 @@
           "ported": true
         },
         {
-          "decl": "void player_effect_add_continuous_effect(void);",
-          "addr": "0xa27a0"
+          "decl": "void player_effect_add_continuous_effect(short player_index, uint32_t tag_index, float current_distance);",
+          "addr": "0xa27a0",
+          "ported": true
         },
         {
-          "decl": "void scripted_player_effect_set_rotation(int param_1, float param_2, float param_3);",
-          "addr": "0xa28e0"
+          "decl": "void scripted_player_effect_set_rotation(float pitch, float yaw, float roll);",
+          "addr": "0xa28e0",
+          "ported": true
         },
         {
           "decl": "void scripted_player_effect_set_rumble(float left_motor, float right_motor);",
@@ -31249,12 +31251,14 @@
           "ported": true
         },
         {
-          "decl": "void player_effect_screen_fade_in(int effect_definition, float scale_a, float scale_b, uint16_t flags_or_index);",
-          "addr": "0xa2970"
+          "decl": "void player_effect_screen_fade_in(float target_intensity, int transition_ticks, int hold_ticks, short color_index);",
+          "addr": "0xa2970",
+          "ported": true
         },
         {
-          "decl": "void player_effect_screen_fade_out(int effect_definition, float scale_a, float scale_b, uint16_t flags_or_index);",
-          "addr": "0xa29c0"
+          "decl": "void player_effect_screen_fade_out(float target_intensity, int transition_ticks, int hold_ticks, short color_index);",
+          "addr": "0xa29c0",
+          "ported": true
         },
         {
           "decl": "void player_effect_get_damage_indicators(int player_index, void *out);",
@@ -31267,20 +31271,24 @@
           "ported": true
         },
         {
-          "decl": "void effect_scale_factor(void);",
-          "addr": "0xa2a90"
+          "decl": "float effect_scale_factor(float min_value, float scale);",
+          "addr": "0xa2a90",
+          "ported": true
         },
         {
           "decl": "void player_effect_update_screen_flash(void);",
-          "addr": "0xa2ab0"
+          "addr": "0xa2ab0",
+          "ported": true
         },
         {
           "decl": "void FUN_000a2ba0(int unit_index, float damage_amount, float scale, float *effect_data@<eax>, void *effect@<ebx>);",
-          "addr": "0xa2ba0"
+          "addr": "0xa2ba0",
+          "ported": true
         },
         {
-          "decl": "void effect_scale_value(void);",
-          "addr": "0xa2c70"
+          "decl": "float effect_scale_value(int function_index, float scale, float current, float duration);",
+          "addr": "0xa2c70",
+          "ported": true
         },
         {
           "decl": "void player_effect_update(void);",
@@ -31288,8 +31296,9 @@
           "ported": true
         },
         {
-          "decl": "void player_effect_continuous_refresh(void);",
-          "addr": "0xa2d30"
+          "decl": "void player_effect_continuous_refresh(uint32_t tag_index, void *position);",
+          "addr": "0xa2d30",
+          "ported": true
         },
         {
           "decl": "void scripted_player_effect_set_translation(int param_1, float param_2, float param_3);",
@@ -31297,12 +31306,14 @@
           "ported": true
         },
         {
-          "decl": "void scripted_player_effect_start(int param_1, float param_2);",
-          "addr": "0xa2df0"
+          "decl": "void scripted_player_effect_start(uint32_t tag_index, float transition_seconds);",
+          "addr": "0xa2df0",
+          "ported": true
         },
         {
-          "decl": "void scripted_player_effect_stop(int param_1);",
-          "addr": "0xa2e40"
+          "decl": "void scripted_player_effect_stop(float transition_seconds);",
+          "addr": "0xa2e40",
+          "ported": true
         },
         {
           "decl": "void player_effect_apply(int player_handle, void *effect_descriptor, float intensity);",
@@ -31315,24 +31326,29 @@
           "ported": true
         },
         {
-          "decl": "void player_effect_get_screen_flash(void);",
-          "addr": "0xa2fc0"
+          "decl": "void player_effect_get_screen_flash(short local_player_index, void *flash_out);",
+          "addr": "0xa2fc0",
+          "ported": true
         },
         {
-          "decl": "void get_shake_matrix(void);",
-          "addr": "0xa32e0"
+          "decl": "void get_shake_matrix(float shake_trans, float shake_rot, void *matrix);",
+          "addr": "0xa32e0",
+          "ported": true
         },
         {
-          "decl": "void player_effect_get_camera_effect_matrix(void);",
-          "addr": "0xa3370"
+          "decl": "void player_effect_get_camera_effect_matrix(short local_player_index, void *matrix_out);",
+          "addr": "0xa3370",
+          "ported": true
         },
         {
           "decl": "void FUN_000a3890(int unit_index, float *rumble_def, void *direction, float damage_amount, float scale, float *effect@<eax>);",
-          "addr": "0xa3890"
+          "addr": "0xa3890",
+          "ported": true
         },
         {
-          "decl": "void FUN_000a3b80(int player_index, void *damage_params, void *position, float damage_amount, float scale);",
-          "addr": "0xa3b80"
+          "decl": "void FUN_000a3b80(int player_handle, void *damage_params, void *direction, float damage_amount, float scale);",
+          "addr": "0xa3b80",
+          "ported": true
         }
       ]
     },
@@ -31530,17 +31546,17 @@
         {
           "decl": "void overhead_map_initialize(void);",
           "addr": "0xe05f0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void overhead_map_initialize_for_new_map(void);",
           "addr": "0xe0600",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void overhead_map_dispose_from_old_map(void);",
           "addr": "0xe0610",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void FUN_000e0620(int unknown0, int unknown1, float *position);",
@@ -31569,7 +31585,8 @@
         },
         {
           "decl": "int player_ui_get_single_player_local_player_from_controller(short local_player_index);",
-          "addr": "0xe0810"
+          "addr": "0xe0810",
+          "ported": true
         },
         {
           "decl": "void player_ui_local_player_joined_multiplayer_game(short local_player_index);",
@@ -31653,7 +31670,8 @@
         },
         {
           "decl": "bool player_ui_edit_profile_is_default_profile(void);",
-          "addr": "0xe0d80"
+          "addr": "0xe0d80",
+          "ported": true
         },
         {
           "decl": "bool player_ui_edit_profile_name_is_dirty(void);",
@@ -31677,7 +31695,8 @@
         },
         {
           "decl": "bool player_ui_edit_profile_is_dirty(void);",
-          "addr": "0xe0ee0"
+          "addr": "0xe0ee0",
+          "ported": true
         },
         {
           "decl": "void player_ui_activate_all_solo_levels(void);",
@@ -31700,23 +31719,24 @@
           "ported": true
         },
         {
-          "decl": "void generate_default_player_profile(void);",
+          "decl": "void generate_default_player_profile(void *profile);",
           "addr": "0xe1080",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void FUN_000e10c0(short local_player_index@<edi>);",
-          "addr": "0xe10c0"
+          "addr": "0xe10c0",
+          "ported": true
         },
         {
           "decl": "void clear_profile_edit_data(void);",
           "addr": "0xe12d0",
-          "ported": false
+          "ported": true
         },
         {
-          "decl": "void reset_local_player_profile(void);",
+          "decl": "void reset_local_player_profile(short local_player_index);",
           "addr": "0xe12e0",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void player_ui_initialize(void);",
@@ -31735,11 +31755,13 @@
         },
         {
           "decl": "void player_ui_begin_editing_profile(int a1);",
-          "addr": "0xe1500"
+          "addr": "0xe1500",
+          "ported": true
         },
         {
           "decl": "bool player_ui_save_profile(void);",
-          "addr": "0xe15b0"
+          "addr": "0xe15b0",
+          "ported": true
         },
         {
           "decl": "void player_ui_end_editing_profile(void);",
@@ -31754,7 +31776,7 @@
         {
           "decl": "void D3DDevice_SetRenderState_17(void);",
           "addr": "0xe17b0",
-          "ported": false
+          "ported": true
         }
       ]
     },
@@ -34239,7 +34261,7 @@
           "ported": true
         },
         {
-          "decl": "void signed_angle_between_vectors2d(void);",
+          "decl": "float signed_angle_between_vectors2d(float *v1, float *v2);",
           "addr": "0x10c3c0"
         },
         {
@@ -39559,7 +39581,7 @@
           "addr": "0x1c1ba0"
         },
         {
-          "decl": "void player_profile_get_from_path(int profile_index, void *profile);",
+          "decl": "void player_profile_save(int profile_index, void *profile);",
           "addr": "0x1c1bc0"
         },
         {
@@ -39579,7 +39601,7 @@
           "addr": "0x1c1dc0"
         },
         {
-          "decl": "void playlist_profile_new(void);",
+          "decl": "int playlist_profile_new(int unk, void *profile);",
           "addr": "0x1c1e20"
         },
         {
@@ -39587,7 +39609,7 @@
           "addr": "0x1c1f70"
         },
         {
-          "decl": "void playlist_profile_get(void);",
+          "decl": "void playlist_profile_get_from_path(void);",
           "addr": "0x1c1fa0"
         },
         {
@@ -39615,7 +39637,7 @@
           "addr": "0x1c26b0"
         },
         {
-          "decl": "void playlist_profile_delete(void);",
+          "decl": "bool playlist_profile_get(int profile_index, void *profile);",
           "addr": "0x1c26f0"
         },
         {
@@ -39623,7 +39645,7 @@
           "addr": "0x1c2750"
         },
         {
-          "decl": "void playlist_profile_get_display_name(void);",
+          "decl": "void playlist_profile_save(int profile_index, void *profile);",
           "addr": "0x1c27f0"
         },
         {
@@ -39664,15 +39686,15 @@
           "addr": "0x1c2bf0"
         },
         {
-          "decl": "void saved_game_file_remember_player1_last_used_profile_directory(void);",
+          "decl": "void saved_game_file_remember_player1_last_used_profile_directory(void *);",
           "addr": "0x1c2c50"
         },
         {
-          "decl": "bool saved_game_file_retrieve_player1_last_used_profile_directory(char *directory_path);",
+          "decl": "bool saved_game_file_retrieve_player1_last_used_profile_directory(char *path);",
           "addr": "0x1c2d20"
         },
         {
-          "decl": "void saved_game_file_remember_last_used_multiplayer_variant_directory(void);",
+          "decl": "void saved_game_file_remember_last_used_multiplayer_variant_directory(char *path);",
           "addr": "0x1c2e00"
         },
         {
@@ -39743,7 +39765,7 @@
           "ported": true
         },
         {
-          "decl": "int saved_game_file_find_profile_index_for_directory_path(char *directory_path, int unknown);",
+          "decl": "int saved_game_file_find_profile_index_for_directory_path(char *path, int unk);",
           "addr": "0x1c38d0"
         },
         {
@@ -39787,7 +39809,7 @@
           "addr": "0x1c4990"
         },
         {
-          "decl": "void saved_game_file_get_path_to_enclosing_directory(void);",
+          "decl": "bool saved_game_file_get_path_to_enclosing_directory(int profile_index, char *path);",
           "addr": "0x1c4da0"
         },
         {
