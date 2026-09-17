@@ -1172,7 +1172,7 @@
     "addr": "0x135210",
     "name": "FUN_00135210",
     "object": "objects.obj",
-    "reason": "Faithful lift kept dormant: VC71 80.7% (FPU view-depth dot product computed/kept on the x87 stack across a branch then conditionally discarded — clang single-expression cannot reproduce the FSTP ST0 cleanup; marker-buffer/float-local overlap). x87 temps-across-branch ceiling. References FUN_00134e80 (also dormant) as render callback. Equivalence vacuous (zero-fill early-exits tag gate; unported FUN_0017cfb0).",
+    "reason": "Faithful lift kept dormant: VC71 80.7% (FPU view-depth dot product computed/kept on the x87 stack across a branch then conditionally discarded \u2014 clang single-expression cannot reproduce the FSTP ST0 cleanup; marker-buffer/float-local overlap). x87 temps-across-branch ceiling. References FUN_00134e80 (also dormant) as render callback. Equivalence vacuous (zero-fill early-exits tag gate; unported FUN_0017cfb0).",
     "since": "2026-06-22"
   },
   {
@@ -1186,14 +1186,14 @@
     "addr": "0x13cb80",
     "name": "FUN_0013cb80",
     "object": "objects.obj",
-    "reason": "Faithful lift kept dormant by Gate B cluster coupling (NOT a score failure: VC71 86.7%). Calls object_new_from_scenario (0x144770) and objects_garbage_collect_tick (0x144b50) — both GC/lifecycle cluster members — and mutates streaming state (DAT_0046f078 BSP-loaded mask + per-placement flags element+0x20). Scenario object spawner for a BSP slot; piecemeal cluster activation is unsafe. Activate only as part of a coordinated object-lifecycle cluster activation.",
+    "reason": "Faithful lift kept dormant by Gate B cluster coupling (NOT a score failure: VC71 86.7%). Calls object_new_from_scenario (0x144770) and objects_garbage_collect_tick (0x144b50) \u2014 both GC/lifecycle cluster members \u2014 and mutates streaming state (DAT_0046f078 BSP-loaded mask + per-placement flags element+0x20). Scenario object spawner for a BSP slot; piecemeal cluster activation is unsafe. Activate only as part of a coordinated object-lifecycle cluster activation.",
     "since": "2026-06-22"
   },
   {
     "addr": "0x13ecb0",
     "name": "attachments_new",
     "object": "objects.obj",
-    "reason": "Faithful lift kept dormant by Gate B cluster coupling (NOT a score failure: VC71 92.1% vs fresh per-function ref delinked/functions/0013ecb0.obj — note vc71_verify auto-selects a stale chunk 0013dda0.obj giving a false 42.6%). Caller edge from object_new (0x143c80, lifecycle cluster member) at 0x144147, AND object-lifecycle mutation: fills the object attachment table (object+0xf4 type bytes, object+0xfc handles) and sets creation flags (object+0x4 |= 0x100/0x400). Part of the object creation path; activate only with the lifecycle cluster.",
+    "reason": "Faithful lift kept dormant by Gate B cluster coupling (NOT a score failure: VC71 92.1% vs fresh per-function ref delinked/functions/0013ecb0.obj \u2014 note vc71_verify auto-selects a stale chunk 0013dda0.obj giving a false 42.6%). Caller edge from object_new (0x143c80, lifecycle cluster member) at 0x144147, AND object-lifecycle mutation: fills the object attachment table (object+0xf4 type bytes, object+0xfc handles) and sets creation flags (object+0x4 |= 0x100/0x400). Part of the object creation path; activate only with the lifecycle cluster.",
     "since": "2026-06-22"
   },
   {
@@ -1580,5 +1580,369 @@
     "object": "ai_communication.obj",
     "reason": "pre-existing ported:false with no source_path; the only detected \"impl\" is the raw-address forwarding thunk added in src/halo/unported_thunks.c (build-fix), which behaves identically to the ported:false patch.py fallback (calls the original address either way) -- not a new/active bisection",
     "since": "2026-08-27"
+  },
+  {
+    "addr": "0x19be30",
+    "name": "parse_string",
+    "object": "draw_string.obj",
+    "reason": "VC71 byte accuracy (4.8%) is below 90.0% threshold; parked pending permuter/optimization",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0x188ec0",
+    "name": "FUN_00188ec0",
+    "object": "render_debug.obj",
+    "reason": "VC71 byte accuracy (65.3%) is below 90.0% threshold; parked pending permuter/optimization",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe0490",
+    "name": "IDirect3DDevice8_PersistDisplay",
+    "object": "marketing_and_strategic_business_development.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0x178840",
+    "name": "IDirect3DDevice8_DeleteVertexShader",
+    "object": "rasterizer_xbox_vertex_shaders_initialize.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xed240",
+    "name": "ui_widget_multiplayer_profile_init_koth_rules",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xed470",
+    "name": "playlist_profile_initialize_slayer_rules",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xed7c0",
+    "name": "playlist_profile_initialize_oddball_rules",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xedcd0",
+    "name": "playlist_profile_initialize_racing_rules",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xedfb0",
+    "name": "playlist_profile_initialize_player_options",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xee500",
+    "name": "playlist_profile_change_item_options",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xee810",
+    "name": "playlist_profile_change_indicator_options",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeead0",
+    "name": "ui_widget_color_picker_menu_initialize",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeee40",
+    "name": "player_profile_end_editing",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeee60",
+    "name": "player_profile_change_name",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeef30",
+    "name": "player_profile_initialize_controller_settings",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xef110",
+    "name": "player_profile_initialize_advanced_controller_settings",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xef3f0",
+    "name": "player_profile_change_controller_settings",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xef5c0",
+    "name": "ui_widget_player_profile_save_advanced_controller_settings",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xef950",
+    "name": "switch_from_main_menu_to_single_player",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xefa80",
+    "name": "delete_playlist_profile_request",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xefbc0",
+    "name": "delete_player_profile_final",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xefc10",
+    "name": "delete_playlist_profile_final",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xefc50",
+    "name": "cancel_profile_delete",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xefc60",
+    "name": "create_and_begin_editing_new_gametype_profile",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0010",
+    "name": "network_game_server_accept_connections",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0030",
+    "name": "network_game_server_defer_game_start",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0050",
+    "name": "network_game_server_allow_game_start",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0090",
+    "name": "run_xdemos",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf00a0",
+    "name": "single_player_reset_controller_choices",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0420",
+    "name": "exit_to_xbox_dashboard",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0720",
+    "name": "begin_music_fade_out",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0790",
+    "name": "solo_level_initialize_list_single_player",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0a90",
+    "name": "widget_function_null",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf0f30",
+    "name": "FUN_000f0f30",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf1710",
+    "name": "FUN_000f1710",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf1ed0",
+    "name": "network_pregame_status_screen_update",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf24b0",
+    "name": "mutliplayer_settings_select_list_update_displayed_items",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf2990",
+    "name": "FUN_000f2990",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf2a40",
+    "name": "FUN_000f2a40",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf2d50",
+    "name": "FUN_000f2d50",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3010",
+    "name": "solo_game_objective_text",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf31d0",
+    "name": "color_picker_get_string",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf33d0",
+    "name": "system_link_status_check",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3400",
+    "name": "game_options_menu_update_pic_desc",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3540",
+    "name": "mp_level_select_list_update_displayed_items",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3690",
+    "name": "FUN_000f3690",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3740",
+    "name": "multiplayer_game_set_text_box_for_game_ruleset",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3850",
+    "name": "multiplayer_game_set_text_box_for_teams_noteams",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3960",
+    "name": "FUN_000f3960",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3990",
+    "name": "filter_invalid_list_indices",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf39c0",
+    "name": "solo_level_select_list_update_displayed_items",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xf3c80",
+    "name": "FUN_000f3c80",
+    "object": "ui_widget_game_data_input_functions.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
   }
 ]

@@ -9710,7 +9710,7 @@
         {
           "decl": "int __stdcall XapiFormatFATVolume(void *device_path);",
           "addr": "0x1d8368",
-          "ported": true
+          "ported": false
         }
       ]
     },
@@ -17715,7 +17715,7 @@
         {
           "decl": "int16_t parse_string(void *state);",
           "addr": "0x19be30",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "int16_t FUN_0019c0a0(void *state@<eax>);",
@@ -26947,7 +26947,7 @@
         {
           "decl": "void __stdcall IDirect3DDevice8_PersistDisplay(void *device);",
           "addr": "0xe0490",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void clean_up_for_image_launch(void);",
@@ -37786,7 +37786,7 @@
         {
           "decl": "unsigned int IDirect3DDevice8_DeleteVertexShader(unsigned int handle);",
           "addr": "0x178840",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "bool rasterizer_vertex_shaders_initialize(void);",
@@ -39441,7 +39441,7 @@
         {
           "decl": "void FUN_00188ec0(int type, ...);",
           "addr": "0x188ec0",
-          "ported": true
+          "ported": false
         },
         {
           "decl": "void FUN_00189150(char flag, float *position, float scale, void *color);",
@@ -39622,7 +39622,7 @@
           "addr": "0x1c1e20"
         },
         {
-          "decl": "void FUN_001c1f70(void);",
+          "decl": "void FUN_001c1f70(int profile_index);",
           "addr": "0x1c1f70"
         },
         {
@@ -45066,31 +45066,38 @@
       "functions": [
         {
           "decl": "bool ui_widget_multiplayer_profile_init_koth_rules(void *widget, void *event_data, bool *widget_deleted);",
-          "addr": "0xed240"
+          "addr": "0xed240",
+          "ported": false
         },
         {
-          "decl": "void playlist_profile_initialize_slayer_rules(void);",
-          "addr": "0xed470"
+          "decl": "bool playlist_profile_initialize_slayer_rules(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xed470",
+          "ported": false
         },
         {
-          "decl": "void playlist_profile_initialize_oddball_rules(void);",
-          "addr": "0xed7c0"
+          "decl": "bool playlist_profile_initialize_oddball_rules(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xed7c0",
+          "ported": false
         },
         {
-          "decl": "void playlist_profile_initialize_racing_rules(void);",
-          "addr": "0xedcd0"
+          "decl": "bool playlist_profile_initialize_racing_rules(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xedcd0",
+          "ported": false
         },
         {
-          "decl": "void playlist_profile_initialize_player_options(void);",
-          "addr": "0xedfb0"
+          "decl": "bool playlist_profile_initialize_player_options(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xedfb0",
+          "ported": false
         },
         {
-          "decl": "void playlist_profile_change_item_options(void);",
-          "addr": "0xee500"
+          "decl": "bool playlist_profile_change_item_options(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xee500",
+          "ported": false
         },
         {
-          "decl": "void playlist_profile_change_indicator_options(void);",
-          "addr": "0xee810"
+          "decl": "bool playlist_profile_change_indicator_options(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xee810",
+          "ported": false
         },
         {
           "decl": "bool ui_widget_multiplayer_profile_save_changes(void *widget, void *event_data, bool *widget_deleted);",
@@ -45099,7 +45106,8 @@
         },
         {
           "decl": "bool ui_widget_color_picker_menu_initialize(void *widget, void *event_data, bool *widget_deleted);",
-          "addr": "0xeead0"
+          "addr": "0xeead0",
+          "ported": false
         },
         {
           "decl": "bool ui_widget_color_picker_menu_dispose(void *widget, void *event_data, bool *widget_deleted);",
@@ -45117,12 +45125,12 @@
           "ported": true
         },
         {
-          "decl": "void player_profile_end_editing(void);",
+          "decl": "bool player_profile_end_editing(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xeee40",
           "ported": false
         },
         {
-          "decl": "void player_profile_change_name(void);",
+          "decl": "bool player_profile_change_name(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xeee60",
           "ported": false
         },
@@ -45132,20 +45140,24 @@
           "ported": true
         },
         {
-          "decl": "void player_profile_initialize_controller_settings(void);",
-          "addr": "0xeef30"
+          "decl": "bool player_profile_initialize_controller_settings(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xeef30",
+          "ported": false
         },
         {
-          "decl": "void player_profile_initialize_advanced_controller_settings(void);",
-          "addr": "0xef110"
+          "decl": "bool player_profile_initialize_advanced_controller_settings(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xef110",
+          "ported": false
         },
         {
-          "decl": "void player_profile_change_controller_settings(void);",
-          "addr": "0xef3f0"
+          "decl": "bool player_profile_change_controller_settings(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xef3f0",
+          "ported": false
         },
         {
           "decl": "bool ui_widget_player_profile_save_advanced_controller_settings(void *widget, void *event_data, bool *widget_deleted);",
-          "addr": "0xef5c0"
+          "addr": "0xef5c0",
+          "ported": false
         },
         {
           "decl": "bool ui_widget_remove_local_player_from_network_game(void *widget, void *event_data, bool *widget_deleted);",
@@ -45153,7 +45165,7 @@
           "ported": true
         },
         {
-          "decl": "void switch_from_main_menu_to_single_player(void);",
+          "decl": "bool switch_from_main_menu_to_single_player(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xef950",
           "ported": false
         },
@@ -45163,27 +45175,29 @@
           "ported": true
         },
         {
-          "decl": "void delete_playlist_profile_request(void);",
-          "addr": "0xefa80"
+          "decl": "bool delete_playlist_profile_request(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xefa80",
+          "ported": false
         },
         {
-          "decl": "void delete_player_profile_final(void);",
+          "decl": "bool delete_player_profile_final(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xefbc0",
           "ported": false
         },
         {
-          "decl": "void delete_playlist_profile_final(void);",
+          "decl": "bool delete_playlist_profile_final(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xefc10",
           "ported": false
         },
         {
-          "decl": "void cancel_profile_delete(void);",
+          "decl": "bool cancel_profile_delete(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xefc50",
           "ported": false
         },
         {
-          "decl": "void create_and_begin_editing_new_gametype_profile(void);",
-          "addr": "0xefc60"
+          "decl": "bool create_and_begin_editing_new_gametype_profile(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xefc60",
+          "ported": false
         },
         {
           "decl": "bool FUN_000efde0(void *widget, void *event_data, bool *widget_deleted);",
@@ -45201,17 +45215,17 @@
           "ported": true
         },
         {
-          "decl": "void network_game_server_accept_connections(void);",
+          "decl": "bool network_game_server_accept_connections(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xf0010",
           "ported": false
         },
         {
-          "decl": "void network_game_server_defer_game_start(void);",
+          "decl": "bool network_game_server_defer_game_start(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xf0030",
           "ported": false
         },
         {
-          "decl": "void network_game_server_allow_game_start(void);",
+          "decl": "bool network_game_server_allow_game_start(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xf0050",
           "ported": false
         },
@@ -45221,12 +45235,12 @@
           "ported": true
         },
         {
-          "decl": "void run_xdemos(void);",
+          "decl": "bool run_xdemos(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xf0090",
           "ported": false
         },
         {
-          "decl": "void single_player_reset_controller_choices(void);",
+          "decl": "bool single_player_reset_controller_choices(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xf00a0",
           "ported": false
         },
@@ -45261,7 +45275,7 @@
           "ported": true
         },
         {
-          "decl": "void exit_to_xbox_dashboard(void);",
+          "decl": "bool exit_to_xbox_dashboard(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xf0420",
           "ported": false
         },
@@ -45286,7 +45300,7 @@
           "ported": true
         },
         {
-          "decl": "void begin_music_fade_out(void);",
+          "decl": "bool begin_music_fade_out(void *widget, void *event_data, bool *widget_deleted);",
           "addr": "0xf0720",
           "ported": false
         },
@@ -45296,8 +45310,9 @@
           "ported": true
         },
         {
-          "decl": "void solo_level_initialize_list_single_player(void);",
-          "addr": "0xf0790"
+          "decl": "bool solo_level_initialize_list_single_player(void *widget, void *event_data, bool *widget_deleted);",
+          "addr": "0xf0790",
+          "ported": false
         },
         {
           "decl": "void ui_widget_game_data_function_invoke(void *widget, unsigned short game_data_input_reference_function);",
@@ -45305,7 +45320,7 @@
           "ported": true
         },
         {
-          "decl": "void widget_function_null(void);",
+          "decl": "void widget_function_null(void *widget);",
           "addr": "0xf0a90",
           "ported": false
         },
@@ -45340,16 +45355,19 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000f0f30(void);",
-          "addr": "0xf0f30"
+          "decl": "void FUN_000f0f30(void *widget);",
+          "addr": "0xf0f30",
+          "ported": false
         },
         {
-          "decl": "void FUN_000f1710(void);",
-          "addr": "0xf1710"
+          "decl": "void FUN_000f1710(void *widget);",
+          "addr": "0xf1710",
+          "ported": false
         },
         {
-          "decl": "void network_pregame_status_screen_update(void);",
-          "addr": "0xf1ed0"
+          "decl": "void network_pregame_status_screen_update(void *widget);",
+          "addr": "0xf1ed0",
+          "ported": false
         },
         {
           "decl": "void netgame_prejoin_players(void);",
@@ -45357,8 +45375,9 @@
           "ported": true
         },
         {
-          "decl": "void mutliplayer_settings_select_list_update_displayed_items(void);",
-          "addr": "0xf24b0"
+          "decl": "void mutliplayer_settings_select_list_update_displayed_items(void *widget);",
+          "addr": "0xf24b0",
+          "ported": false
         },
         {
           "decl": "void player_profile_3wide_list_update(void *widget);",
@@ -45386,12 +45405,14 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000f2990(void);",
-          "addr": "0xf2990"
+          "decl": "void FUN_000f2990(void *widget);",
+          "addr": "0xf2990",
+          "ported": false
         },
         {
-          "decl": "void FUN_000f2a40(void);",
-          "addr": "0xf2a40"
+          "decl": "void FUN_000f2a40(void *widget);",
+          "addr": "0xf2a40",
+          "ported": false
         },
         {
           "decl": "void get_active_player_profile_color_index(void *widget);",
@@ -45404,8 +45425,9 @@
           "ported": true
         },
         {
-          "decl": "void FUN_000f2d50(void);",
-          "addr": "0xf2d50"
+          "decl": "void FUN_000f2d50(void *widget);",
+          "addr": "0xf2d50",
+          "ported": false
         },
         {
           "decl": "void FUN_000f2e60(void *widget);",
@@ -45423,12 +45445,14 @@
           "ported": true
         },
         {
-          "decl": "void solo_game_objective_text(void);",
-          "addr": "0xf3010"
+          "decl": "void solo_game_objective_text(void *widget);",
+          "addr": "0xf3010",
+          "ported": false
         },
         {
-          "decl": "void color_picker_get_string(void);",
-          "addr": "0xf31d0"
+          "decl": "void color_picker_get_string(void *widget);",
+          "addr": "0xf31d0",
+          "ported": false
         },
         {
           "decl": "void FUN_000f3280(void *widget);",
@@ -45441,17 +45465,19 @@
           "ported": true
         },
         {
-          "decl": "void system_link_status_check(void);",
+          "decl": "void system_link_status_check(void *widget);",
           "addr": "0xf33d0",
           "ported": false
         },
         {
-          "decl": "void game_options_menu_update_pic_desc(void);",
-          "addr": "0xf3400"
+          "decl": "void game_options_menu_update_pic_desc(void *widget);",
+          "addr": "0xf3400",
+          "ported": false
         },
         {
-          "decl": "void mp_level_select_list_update_displayed_items(void);",
-          "addr": "0xf3540"
+          "decl": "void mp_level_select_list_update_displayed_items(void *widget);",
+          "addr": "0xf3540",
+          "ported": false
         },
         {
           "decl": "void get_editable_player_profile_display_name(void *widget);",
@@ -45465,19 +45491,23 @@
         },
         {
           "decl": "void FUN_000f3690(int *out_indices@<eax>, void *widget@<ecx>);",
-          "addr": "0xf3690"
+          "addr": "0xf3690",
+          "ported": false
         },
         {
           "decl": "void multiplayer_game_set_text_box_for_game_ruleset(int *ids, int count);",
-          "addr": "0xf3740"
+          "addr": "0xf3740",
+          "ported": false
         },
         {
-          "decl": "void multiplayer_game_set_text_box_for_teams_noteams(void);",
-          "addr": "0xf3850"
+          "decl": "void multiplayer_game_set_text_box_for_teams_noteams(int *ids, int count);",
+          "addr": "0xf3850",
+          "ported": false
         },
         {
           "decl": "int __cdecl FUN_000f3960(const void *a, const void *b);",
-          "addr": "0xf3960"
+          "addr": "0xf3960",
+          "ported": false
         },
         {
           "decl": "void filter_invalid_list_indices(void);",
@@ -45485,12 +45515,14 @@
           "ported": false
         },
         {
-          "decl": "void solo_level_select_list_update_displayed_items(void);",
-          "addr": "0xf39c0"
+          "decl": "void solo_level_select_list_update_displayed_items(void *widget);",
+          "addr": "0xf39c0",
+          "ported": false
         },
         {
-          "decl": "void FUN_000f3c80(void);",
-          "addr": "0xf3c80"
+          "decl": "void FUN_000f3c80(void *widget);",
+          "addr": "0xf3c80",
+          "ported": false
         },
         {
           "decl": "void FUN_000f46e0(int *widget);",
