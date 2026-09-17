@@ -9710,7 +9710,7 @@
         {
           "decl": "int __stdcall XapiFormatFATVolume(void *device_path);",
           "addr": "0x1d8368",
-          "ported": false
+          "ported": true
         }
       ]
     },
@@ -17713,8 +17713,9 @@
           "ported": true
         },
         {
-          "decl": "void parse_string(void *state);",
-          "addr": "0x19be30"
+          "decl": "int16_t parse_string(void *state);",
+          "addr": "0x19be30",
+          "ported": true
         },
         {
           "decl": "int16_t FUN_0019c0a0(void *state@<eax>);",
@@ -26927,9 +26928,9 @@
           "ported": true
         },
         {
-          "decl": "void IDirect3DDevice8_PersistDisplay(void);",
+          "decl": "void __stdcall IDirect3DDevice8_PersistDisplay(void *device);",
           "addr": "0xe0490",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "void clean_up_for_image_launch(void);",
@@ -37744,9 +37745,9 @@
       "source": "rasterizer/xbox/rasterizer_xbox_vertex_shaders_initialize.c",
       "functions": [
         {
-          "decl": "void IDirect3DDevice8_DeleteVertexShader(void);",
+          "decl": "unsigned int IDirect3DDevice8_DeleteVertexShader(unsigned int handle);",
           "addr": "0x178840",
-          "ported": false
+          "ported": true
         },
         {
           "decl": "bool rasterizer_vertex_shaders_initialize(void);",
@@ -39400,7 +39401,8 @@
         },
         {
           "decl": "void FUN_00188ec0(int type, ...);",
-          "addr": "0x188ec0"
+          "addr": "0x188ec0",
+          "ported": true
         },
         {
           "decl": "void FUN_00189150(char flag, float *position, float scale, void *color);",
