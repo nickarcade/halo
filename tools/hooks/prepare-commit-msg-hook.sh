@@ -9,10 +9,20 @@
 COMMIT_MSG_FILE=$1
 COMMIT_SOURCE=$2
 
+# When squashing, auto-consolidate lift commits into the repo standard format
+if [ "$COMMIT_SOURCE" = "squash" ]; then
+    if [ -x "$(command -v python3)" ] && [ -f "tools/audit/consolidate_squash_msg.py" ]; then
+        if python3 tools/audit/consolidate_squash_msg.py --check "$COMMIT_MSG_FILE" 2>/dev/null; then
+            python3 tools/audit/consolidate_squash_msg.py --in-place "$COMMIT_MSG_FILE" 2>/dev/null
+        fi
+    fi
+    exit 0
+fi
+
 # Only prepopulate when the user is about to get an EDITOR with no message:
 # COMMIT_SOURCE is empty for plain `git commit`, and set for every explicit
 # source — "message" (-m/-F), "commit" (--amend/-c/-C), "template" (-t),
-# "merge", "squash". Overwriting an explicit -m/-F message silently replaced
+# "merge". Overwriting an explicit -m/-F message silently replaced
 # real cleanup/maintenance messages with generated lift messages (2026-07-08).
 if [ -n "$COMMIT_SOURCE" ]; then
     exit 0

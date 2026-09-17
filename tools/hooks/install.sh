@@ -27,12 +27,13 @@ CHECK_ONLY=0
 
 # Hook name -> target basename under tools/hooks/. The symlink value is relative
 # (../../tools/hooks/<file>) so it resolves correctly from .git/hooks/.
-SYMLINK_NAMES="pre-commit post-commit prepare-commit-msg"
+SYMLINK_NAMES="pre-commit post-commit prepare-commit-msg commit-msg"
 symlink_target() {
     case "$1" in
         pre-commit)         echo "../../tools/hooks/pre-commit.sh" ;;
         post-commit)        echo "../../tools/hooks/post-commit.sh" ;;
         prepare-commit-msg) echo "../../tools/hooks/prepare-commit-msg-hook.sh" ;;
+        commit-msg)         echo "../../tools/hooks/commit-msg.sh" ;;
     esac
 }
 
@@ -69,7 +70,7 @@ fi
 # Back up whatever is currently installed, once, before touching anything.
 BACKUP_DIR="$HOOKS_DIR/.backup-$(date +%Y%m%d-%H%M%S)"
 backed_up=0
-for name in pre-commit post-commit post-checkout post-merge prepare-commit-msg; do
+for name in pre-commit post-commit post-checkout post-merge prepare-commit-msg commit-msg; do
     src="$HOOKS_DIR/$name"
     if [ -e "$src" ] || [ -L "$src" ]; then
         [ "$backed_up" = 0 ] && mkdir -p "$BACKUP_DIR" && backed_up=1

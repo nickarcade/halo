@@ -101,7 +101,9 @@ apply, resolve per Step 3 and `git -c core.hooksPath=/dev/null rebase --continue
 patch (fine when disjoint; painful when they collide). For a single resolution +
 linear history, squash first:
 `git switch -c tmp <tip>; git reset --soft $(git merge-base main HEAD); \
- git -c core.hooksPath=/dev/null commit -C <tip>` then
+ MSG=$(mktemp /tmp/halo-squash-msg.XXXXXX); \
+ python3 tools/audit/generate_lift_commit.py --since $(git merge-base main HEAD) > "$MSG"; \
+ git -c core.hooksPath=/dev/null commit -F "$MSG" && rm -f "$MSG"` then
 `git -c core.hooksPath=/dev/null rebase --onto main $(git merge-base main HEAD) tmp`.
 
 ## Step 5 — Gates (ALL must pass before main advances)

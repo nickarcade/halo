@@ -150,8 +150,9 @@ rtk python3 tools/lift_pipeline.py --target FUNCNAME --no-metadata-update --veri
 
 ```bash
 rtk git add -- <source_file> kb.json tools/kb_reg_baseline.json
-rtk python3 tools/audit/generate_lift_commit.py --batch-name "FUNCNAME" > /tmp/commit_msg.txt
-rtk git commit -F /tmp/commit_msg.txt
+MSG=$(mktemp /tmp/halo-commit-msg.XXXXXX)
+rtk python3 tools/audit/generate_lift_commit.py --batch-name "FUNCNAME" > "$MSG"
+rtk git commit -F "$MSG" && rm -f "$MSG"
 ```
 
 ## Revert procedure
