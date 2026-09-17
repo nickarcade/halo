@@ -1,0 +1,82 @@
+name: VC71 Byte-Accuracy Regression
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'kb.json'
+      - 'tools/verify/function_bounds.json'
+      - 'tools/verify/vc71_regression.py'
+      - 'tools/verify/vc71_verify.py'
+      - 'tools/verify/xbe_reference.py'
+      - '.github/workflows/vc71-regression.yml'
+
+jobs:
+  vc71-regression:
+    name: VC71 byte-accuracy regression
+    runs-on: self-hosted
+    timeout-minutes: 45
+    env:
+      VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Stage pristine XBE
+        uses: ./.github/actions/stage-local-assets
+        with:
+          xbe: "true"
+          required: halo-patched/cachebeta.xbe
+
+      - name: Check VC71 score floors
+        shell: bash
+        run: |
+          set -o pipefail
+          PY="$VENV_PYTHON"
+          [ -x "$PY" ] || PY=python3
+          BASE='${{ github.event.pull_request.base.sha }}'
+          HEAD='${{ github.event.pull_request.head.sha }}'
+          mapfile -t CHANGED < <(git diff --name-only "$BASE" "$HEAD")
+          mapfile -t CHANGED_SOURCES < <(printf '%s\n' "${CHANGED[@]}" | grep -E '^src/.*\.c$' || true)
+          # A new source file can have no VC71 floor yet. `check` handles
+          # that case and validates every existing baselined function it can
+          # measure; the lift pipeline/commit hook establishes new floors.
+          SOURCES=("${CHANGED_SOURCES[@]}")
+
+          FULL_CHECK=0
+          for path in "${CHANGED[@]}"; do
+            case "$path" in
+              kb.json|tools/verify/function_bounds.json|tools/verify/vc71_regression.py|tools/verify/vc71_verify.py|tools/verify/xbe_reference.py)
+                FULL_CHECK=1
+                ;;
+              src/*.h|src/*.hh|src/*.hpp|src/*.hxx)
+                FULL_CHECK=1
+                ;;
+            esac
+          done
+
+          if [ "$FULL_CHECK" -eq 1 ]; then
+            ARGS=(check --strict)
+            SCOPE='all baselined translation units (shared code, declarations, or reference tooling changed)'
+          elif [ "${#SOURCES[@]}" -gt 0 ]; then
+            ARGS=(check --strict --source "${SOURCES[@]}")
+            SCOPE="${#SOURCES[@]} changed C source file(s)"
+          else
+            echo 'No source or score-authority changes found; nothing to measure.'
+            exit 0
+          fi
+
+          echo "VC71 scope: $SCOPE"
+          set +e
+          OUTPUT=$("$PY" tools/verify/vc71_regression.py "${ARGS[@]}" 2>&1)
+          RC=$?
+          set -e
+          echo "$OUTPUT"
+          if [ "$RC" -ne 0 ]; then
+            printf '## ❌ VC71 Byte-Accuracy Regression\n\nScope: %s\n\n```\n%s\n```\n' "$SCOPE" "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            SUMMARY=$(printf '%s\n' "$OUTPUT" | grep '^OK — no regressions' | tail -1)
+            printf '## ✅ VC71 Byte-Accuracy Regression\n\nScope: %s\n\n%s\n' "$SCOPE" "${SUMMARY:-VC71 score floors passed.}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$RC"
