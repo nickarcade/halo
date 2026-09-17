@@ -40,6 +40,7 @@ jobs:
 
       - name: Regenerate decl.h
         run: |
+          mkdir -p build/generated
           PY="${{ env.VENV_PYTHON }}"
           [ -x "$PY" ] || PY=python3
           "$PY" tools/analysis/knowledge.py --gen-header build/generated/decl.h
