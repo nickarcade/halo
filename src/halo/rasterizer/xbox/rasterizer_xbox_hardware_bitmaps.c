@@ -19,8 +19,8 @@ void FUN_00168230(int r1, int r2, int r3, int s1, int s2, int s3, int s4,
  * IDirect3DDevice8::CreateVolumeTexture: format/pool/ppVolumeTexture in
  * EDX/ECX/EAX, device (s1) ignored, width/height/depth/levels/usage
  * (s2-s6) on the stack. EAX passes through from the callee (no explicit
- * return). No direct call sites; RET 0x18. Duplicate template
- * instantiation of FUN_001553a0 (rasterizer_xbox.c) in this object.
+ * return). No direct call sites; RET 0x18. Duplicate template instantiation
+ * of FUN_001553a0 (rasterizer_xbox.c) in this object.
  */
 /* 0x168250 */
 void FUN_00168250(int r1, int r2, int r3, int s1, int s2, int s3, int s4,
@@ -28,6 +28,21 @@ void FUN_00168250(int r1, int r2, int r3, int s1, int s2, int s3, int s4,
 {
   (void)s1;
   D3DDevice_CreateVolumeTexture(s2, s3, s4, s5, s6, r3, r2, (void *)r1);
+}
+
+/*
+ * FUN_00168280 @ 0x168280 — dead D3D8 inline-wrapper instantiation of
+ * IDirect3DDevice8::CreateCubeTexture: format/pool/ppCubeTexture arrive in
+ * EDX/ECX/EAX, device (s1) ignored, edge_length/levels/usage (s2-s4) on
+ * the stack. EAX passes through from the callee. No direct call sites;
+ * RET 0x10. Duplicate template instantiation of FUN_001553d0
+ * (rasterizer_xbox.c) in this object.
+ */
+/* 0x168280 */
+void FUN_00168280(int r1, int r2, int r3, int s1, int s2, int s3, int s4)
+{
+  (void)s1;
+  D3DDevice_CreateCubeTexture(s2, s3, s4, r3, r2, (void *)r1);
 }
 
 /*
@@ -57,6 +72,81 @@ int FUN_00168300(int r1, int r2, int r3, int s1, int s2)
 {
   D3DVolumeTexture_LockBox((void *)s1, s2, (void *)r3, (void *)r2, r1);
   return 0;
+}
+
+/*
+ * FUN_00168340 @ 0x168340 — dead D3D8 inline-wrapper instantiation of
+ * IDirect3DCubeTexture8::LockRect: cube texture, face, and level are stack
+ * arguments; pLockedRect, pRect, and flags arrive in EDX, ECX, and EAX.
+ * Returns S_OK. No direct call sites; RET 0xc. Duplicate template
+ * instantiation of FUN_00156070 (rasterizer_xbox.c) in this object.
+ */
+/* 0x168340 */
+int FUN_00168340(int r1, int r2, int r3, int s1, int s2, int s3)
+{
+  D3DCubeTexture_LockRect((void *)s1, s2, s3, (void *)r3, (void *)r2, r1);
+  return 0;
+}
+
+/* 0x168370 */
+char FUN_00168370(void *bitmap)
+{
+  char *bm;
+  char success;
+  int hr;
+  int format;
+  int mipmap_count;
+
+  bm = (char *)bitmap;
+  success = 1;
+  if (bitmap == NULL) {
+    display_assert("bitmap", "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c", 0x33, true);
+    system_exit(-1);
+  }
+  if ((*(uint8_t *)(bm + 0xe) & 1) == 0) {
+    display_assert("TEST_FLAG(bitmap->flags, _bitmap_has_power_of_two_dimensions_bit)", "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c", 0x34, true);
+    system_exit(-1);
+  }
+  mipmap_count = FUN_00183120(bitmap);
+  *(int16_t *)(bm + 0x14) = (int16_t)mipmap_count;
+  if (*(void **)0x476ab0 != NULL) {
+    format = *(int16_t *)(bm + 0xc);
+    switch (*(int16_t *)(bm + 0xa)) {
+    case 0:
+      hr = D3DDevice_CreateTexture(*(int16_t *)(bm + 4), *(int16_t *)(bm + 6), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
+      if (hr < 0) {
+        success = 0;
+        FUN_00167ff0(hr, "IDirect3DDevice8_CreateTexture(global_d3d_device, bitmap->width, bitmap->height, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DTexture8*)bitmap->hardware_format)");
+      }
+      break;
+    case 1:
+      hr = D3DDevice_CreateVolumeTexture(*(int16_t *)(bm + 4), *(int16_t *)(bm + 6), *(int16_t *)(bm + 8), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
+      if (hr < 0) {
+        success = 0;
+        FUN_00167ff0(hr, "IDirect3DDevice8_CreateVolumeTexture(global_d3d_device, bitmap->width, bitmap->height, bitmap->depth, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DVolumeTexture8*)bitmap->hardware_format)");
+      }
+      break;
+    case 2:
+      hr = D3DDevice_CreateCubeTexture(*(int16_t *)(bm + 4), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
+      if (hr < 0) {
+        success = 0;
+        FUN_00167ff0(hr, "IDirect3DDevice8_CreateCubeTexture(global_d3d_device, bitmap->width, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DCubeTexture8*)bitmap->hardware_format)");
+      }
+      break;
+    default:
+      display_assert("### ERROR unsupported bitmap type", "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c", 0x5b, true);
+      system_exit(-1);
+      break;
+    }
+    if (*(void **)(bm + 0x28) == NULL || success == 0) {
+      *(void **)(bm + 0x28) = NULL;
+      error(2, "### ERROR failed to create bitmap hardware format");
+      return 0;
+    }
+  } else {
+    *(void **)(bm + 0x28) = NULL;
+  }
+  return success;
 }
 
 /*
@@ -90,4 +180,41 @@ void FUN_00168ae0(void *bitmap)
     D3DResource_Release(*(void **)((char *)bitmap + 0x28));
     *(void **)((char *)bitmap + 0x28) = NULL;
   }
+}
+
+/*
+ * FUN_00168bc0 @ 0x168bc0 — dead D3D8 inline-wrapper instantiation of
+ * D3DDevice_CreateVertexBuffer: fvf/pool/ppVertexBuffer arrive in
+ * EDX/ECX/EAX, the device argument (s1) is ignored, and length/usage
+ * (s2/s3) are on the stack. The callee HRESULT passes through in EAX;
+ * no direct call sites; RET 0xC. Duplicate template instantiation of
+ * FUN_0015c2b0 (rasterizer_xbox_decals.c).
+ */
+/* 0x168bc0 */
+int FUN_00168bc0(int r1, int r2, int r3, int s1, int s2, int s3)
+{
+  (void)s1;
+  return D3DDevice_CreateVertexBuffer(s2, s3, r3, r2, (void **)r1);
+}
+
+/* 0x168be0 */
+int FUN_00168be0(int r1, int r2, int r3, int s1, int s2, int s3)
+{
+  (void)s1;
+  return D3DDevice_CreateIndexBuffer(s2, s3, r3, r2, (void **)r1);
+}
+
+/* 0x168c40 */
+void FUN_00168c40(int r1, int r2, int r3, int s1, int s2)
+{
+  D3DVertexBuffer_Lock((void *)s1, (uint32_t)s2, (uint32_t)r3, (void **)r2,
+                       (uint32_t)r1);
+}
+
+/* 0x168c70 */
+void FUN_00168c70(int base, int *result, int offset, int unused_1, int unused_2)
+{
+  (void)unused_1;
+  (void)unused_2;
+  *result = *(int *)(base + 4) + offset;
 }
