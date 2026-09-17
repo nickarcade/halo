@@ -155,6 +155,19 @@
           }
         ]
       }
+    ],
+    "WorktreeCreate": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/tools/hooks/claude-worktree-create.sh\"",
+            "timeout": 60,
+            "statusMessage": "Staging pristine XBE for worktree verification"
+          }
+        ]
+      }
     ]
   }
 }
