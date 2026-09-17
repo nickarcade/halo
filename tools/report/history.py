@@ -47,11 +47,24 @@ class HistoryManager:
         }
     
     def save(self):
-        """Save history to disk."""
+        """Save history to disk atomically.
+
+        A plain `open(path, 'w')` truncates the canonical history in place, so a
+        process killed (or a concurrent reader/run) mid-dump leaves a partial,
+        unparseable history.json -- which silently blanks the dashboard's
+        time-series charts because the runtime history fetch rejects. Write to a
+        sibling temp file, flush+fsync, then os.replace() so readers only ever
+        see a complete file.
+        """
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         self.data['metadata']['last_updated'] = datetime.now().astimezone().isoformat()
-        with open(self.history_path, 'w') as f:
+        tmp_path = self.history_path.with_name(
+            f'.{self.history_path.name}.{os.getpid()}.tmp')
+        with open(tmp_path, 'w') as f:
             json.dump(self.data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, self.history_path)
     
     def add_snapshot(self, report: dict, commit: Optional[str] = None) -> bool:
         """Add a new snapshot from a report. Returns True if added, False if duplicate."""
