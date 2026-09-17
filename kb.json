@@ -47603,7 +47603,7 @@
           "ported": true
         },
         {
-          "decl": "void weapon_magazine_finish_chamber(int16_t magazine_index, int weapon_handle);",
+    "decl": "void weapon_magazine_finish_chamber(int16_t magazine_index @<eax>, int weapon_handle);",
           "addr": "0xfcc90",
           "ported": true
         },
@@ -47633,7 +47633,7 @@
           "ported": true
         },
         {
-          "decl": "void projectile_distribute(int index, float *out_forward, float *out_up, int16_t count, float angle_spread, char distribution_type);",
+    "decl": "void projectile_distribute(int index @<eax>, float *out_forward, float *out_up, int16_t count, float angle_spread, char distribution_type);",
           "addr": "0xfd0b0",
           "ported": true
         },
