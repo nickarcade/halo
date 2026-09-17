@@ -9556,6 +9556,7 @@
     "0xe4890": "void ui_widget_close_children(void *widget@<eax>);",
     "0xe4960": "float FUN_000e4960(void *widget@<eax>);",
     "0xe4980": "bool FUN_000e4980(void *widget@<eax>);",
+    "0xe4a40": "bool widget_instance_text_box_is_focused(void *widget@<eax>);",
     "0xe4a80": "int16_t FUN_000e4a80(const wchar_t *name@<ebx>);",
     "0xe4c70": "void FUN_000e4c70(short *dst_rect @<ebx>, void *text, short *src_rect @<edi>);",
     "0xe4ce0": "bool FUN_000e4ce0(const wchar_t *text@<eax>);",
