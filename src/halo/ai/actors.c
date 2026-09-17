@@ -3344,7 +3344,7 @@ void FUN_0003a840(int actor_handle)
   (*(void (**)(int))((char *)type_def + 0x14))(actor_handle);
 }
 
-/* FUN_0003a8a0 (0x3a8a0) — actor_swarm_control_dispatch
+/* FUN_0003a8a0 (0x3a8a0) — FUN_0003a920_dispatch
  *
  * Dispatch the actor-type-specific swarm control function for a given actor.
  * Retrieves the actor datum, reads its actor_type (int16_t at offset 4),

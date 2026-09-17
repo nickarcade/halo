@@ -15,14 +15,14 @@ usage() {
     echo "dashboard refresh no longer needs to re-verify anything.  Opt in with"
     echo "--vc71 / --full-vc71 when you explicitly want to recompute scores."
     echo ""
-    echo "  --batch       Run batch equivalence tests first (slow)."
+    echo "  --batch       Run batch equivalence tests first (slow; skips existing results)."
     echo "  --vc71        Refresh VC71 scores incrementally before rendering"
     echo "               (only TUs whose inputs changed are re-verified)."
     echo "  --full-vc71   Refresh VC71 scores, re-verifying every TU (full pass)."
     echo "  --skip-vc71   Accepted for back-compat; now the default (no-op)."
     echo "  --run-id NAME Tag the snapshot with a custom run label."
     echo "               Default: 'local-<timestamp>'"
-    echo "  --help        This message."
+    echo "  --help        This message. --batch combines with --vc71 or --full-vc71."
     exit 0
 }
 

@@ -10,6 +10,7 @@ import sys
 import os
 import json
 import argparse
+import hashlib
 from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
@@ -29,6 +30,118 @@ def load_function_sizes(cache_path: str) -> dict:
         return {}
     with open(cache_path) as f:
         return json.load(f)
+
+
+def _file_hash(path: str, algorithm: str) -> str | None:
+    """Return a content hash without loading a report input into memory at once."""
+    digest = hashlib.new(algorithm)
+    try:
+        with open(path, 'rb') as f:
+            while True:
+                chunk = f.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
+def _input_file_identity(path: str, root_dir: str, include_md5: bool = False) -> dict:
+    """Describe a report input with repo-relative path and content hash."""
+    exists = os.path.isfile(path)
+    identity = {
+        'path': os.path.relpath(path, root_dir),
+        'exists': exists,
+        'size_bytes': None,
+        'sha256': None,
+    }
+    if include_md5:
+        identity['md5'] = None
+    if not exists:
+        return identity
+    try:
+        identity['size_bytes'] = os.path.getsize(path)
+    except OSError:
+        return identity
+    identity['sha256'] = _file_hash(path, 'sha256')
+    if include_md5:
+        identity['md5'] = _file_hash(path, 'md5')
+    return identity
+
+
+def _score_input_provenance(path: str, root_dir: str, document: dict) -> dict:
+    """Add score count and writer provenance to a score-file identity."""
+    identity = _input_file_identity(path, root_dir)
+    scores = document.get('scores') if isinstance(document, dict) else None
+    provenance = document.get('provenance') if isinstance(document, dict) else None
+    identity['score_count'] = len(scores) if isinstance(scores, dict) else 0
+    identity['provenance'] = provenance if isinstance(provenance, dict) else None
+    return identity
+
+
+def _reference_validity_summary(document: dict) -> dict:
+    """Summarize the VC71 attention queue without exposing every row twice."""
+    flagged = document.get('flagged') if isinstance(document, dict) else None
+    flagged = flagged if isinstance(flagged, list) else []
+    by_state = {}
+    for entry in flagged:
+        state = entry.get('state') if isinstance(entry, dict) else None
+        state = state if isinstance(state, str) and state else 'unknown'
+        by_state[state] = by_state.get(state, 0) + 1
+    return {
+        'flagged_count': len(flagged),
+        'by_state': dict(sorted(by_state.items())),
+    }
+
+
+def _equivalence_evidence_summary(verdicts: dict) -> dict:
+    """Count latest equivalence verdicts and credible divergence findings."""
+    records = [record for record in verdicts.values()
+               if isinstance(record, dict)] if isinstance(verdicts, dict) else []
+    return {
+        'evidence_count': len(records),
+        'divergence_count': sum(
+            1 for record in records
+            if record.get('status') == 'fail' and record.get('reason') == 'divergence'
+        ),
+    }
+
+
+def build_report_provenance(root_dir: str, raw_xbe_path: str,
+                            bounds_path: str, bounds_doc: dict,
+                            floor_path: str, floor_doc: dict,
+                            current_path: str, current_doc: dict,
+                            validity_path: str, validity_doc: dict,
+                            equiv_verdicts: dict) -> dict:
+    """Build stable report metadata for all byte-match evidence inputs."""
+    bounds = _input_file_identity(bounds_path, root_dir)
+    bounds_meta = bounds_doc.get('_meta') if isinstance(bounds_doc, dict) else None
+    bounds['recorded_xbe_md5'] = (
+        bounds_meta.get('xbe_md5') if isinstance(bounds_meta, dict) else None
+    )
+    bounds['record_count'] = sum(
+        1 for key in bounds_doc
+        if key != '_meta'
+    ) if isinstance(bounds_doc, dict) else 0
+
+    validity = _input_file_identity(validity_path, root_dir)
+    validity.update(_reference_validity_summary(validity_doc))
+
+    return {
+        'schema_version': 1,
+        'inputs': {
+            'raw_xbe': _input_file_identity(raw_xbe_path, root_dir,
+                                             include_md5=True),
+            'function_bounds': bounds,
+            'vc71_floor': _score_input_provenance(floor_path, root_dir,
+                                                   floor_doc),
+            'vc71_current': _score_input_provenance(current_path, root_dir,
+                                                     current_doc),
+            'reference_validity': validity,
+            'equivalence': _equivalence_evidence_summary(equiv_verdicts),
+        },
+    }
 
 
 def _estimate_missing_sizes(funcs: list) -> dict[int, int]:
@@ -736,7 +849,10 @@ def generate_report(output_path: str) -> dict:
     # where it measured, floor covers everything it did not.
     vc71_current = os.path.join(root_dir, 'tools', 'verify', 'vc71_current.json')
     vc71_floor = os.path.join(root_dir, 'tools', 'verify', 'vc71_scores.json')
+    bounds_path = os.path.join(root_dir, 'tools', 'verify', 'function_bounds.json')
     leaf_cache_path = os.path.join(root_dir, 'tools', 'equivalence', 'leaf_cache.json')
+    validity_path = os.path.join(root_dir, 'artifacts', 'audit', 'reference_validity.json')
+    raw_xbe_path = os.path.join(root_dir, 'halo-patched', 'cachebeta.xbe')
     
     # Load knowledge base
     kb = KnowledgeBase.deserialize()
@@ -747,9 +863,10 @@ def generate_report(output_path: str) -> dict:
     function_cache = load_function_sizes(cache_path)
     
     # Load VC71 match scores: floor first, current layered over it (see above).
+    floor_doc = _load_vc71_doc(vc71_floor)
+    current_doc = _load_vc71_doc(vc71_current)
     vc71_scores = merge_vc71_scores(
-        _load_vc71_doc(vc71_floor), _load_vc71_doc(vc71_current),
-        current_exists=os.path.exists(vc71_current))
+        floor_doc, current_doc, current_exists=os.path.exists(vc71_current))
 
     # Load equivalence leaf cache
     leaf_cache = {}
@@ -775,7 +892,6 @@ def generate_report(output_path: str) -> dict:
     # (compile_failed | no_reference).  Lets the dashboard show a distinct badge
     # instead of a blank "—" that is indistinguishable from "not yet run".
     validity_data = {}
-    validity_path = os.path.join(root_dir, 'artifacts', 'audit', 'reference_validity.json')
     if os.path.exists(validity_path):
         try:
             with open(validity_path) as f:
@@ -804,6 +920,7 @@ def generate_report(output_path: str) -> dict:
     
     # Get git info
     commit = 'unknown'
+    commit_sha = 'unknown'
     branch = 'unknown'
     try:
         import subprocess
@@ -811,12 +928,30 @@ def generate_report(output_path: str) -> dict:
                               capture_output=True, text=True, cwd=root_dir)
         if result.returncode == 0:
             commit = result.stdout.strip()
+        result = subprocess.run(['git', 'rev-parse', 'HEAD'],
+                              capture_output=True, text=True, cwd=root_dir)
+        if result.returncode == 0:
+            commit_sha = result.stdout.strip()
         result = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
                               capture_output=True, text=True, cwd=root_dir)
         if result.returncode == 0:
             branch = result.stdout.strip()
     except:
         pass
+
+    report_provenance = build_report_provenance(
+        root_dir,
+        raw_xbe_path,
+        bounds_path,
+        _load_vc71_doc(bounds_path),
+        vc71_floor,
+        floor_doc,
+        vc71_current,
+        current_doc,
+        validity_path,
+        validity_data,
+        equiv_verdicts,
+    )
     
     report = {
         'project': {
@@ -854,9 +989,11 @@ def generate_report(output_path: str) -> dict:
         'meta': {
             'timestamp': datetime.now().astimezone().isoformat(),
             'commit': commit,
+            'commit_sha': commit_sha,
             'branch': branch,
             'tool_version': '1.0.0'
         },
+        'provenance': report_provenance,
         'consistency': {
             'ported_source_of_truth': 'kb.json',
             'kb_ported_missing_meta': drift['kb_ported_missing_meta'],

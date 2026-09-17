@@ -249,13 +249,24 @@ phase('Guard')
 log(`Recover-goal: finish ${GOAL} object(s) (min-funcs ${MIN_FUNCS}${MIN_SCORE !== null ? `, min-score ${MIN_SCORE}` : ''})` +
     `${ALLOW_RISKY ? ', risky ladder opted in' : ''}${DRY_RUN ? ' — DRY RUN (no ledger writes, no commits)' : ''}`)
 
+// A subagent in an isolated worktree cannot invoke `rtk git ...`: the
+// worktree-isolation guard cannot prove its checkout and refuses before Git
+// starts.  Python inherits the agent's CWD and invokes Git without crossing the
+// tool boundary, so the read stays in that specific worktree.
 const guard = await agent(
-  `Run \`rtk git status --short\` and \`rtk git branch --show-current\` (read-only) and
-report as JSON. Modify nothing.
+  `Report the current branch and every modified/staged/untracked path as JSON.
+Use this exact read-only command; do not run \`rtk git\` directly:
+  \`rtk python3 -c 'import subprocess; print(subprocess.run(["git", "status", "--short"], text=True, capture_output=True).stdout, end=""); print(subprocess.run(["git", "branch", "--show-current"], text=True, capture_output=True).stdout, end="")'\`
+Modify nothing.
 
 ok=false, and list the offending lines in \`dirty\`, if ANY modified/staged/untracked
 path is under \`src/\`, \`tools/\`, \`.claude/\`, \`recovery/\`, or is \`kb.json\` — a
 recovery commit must not pick up someone else's in-flight lift.
+
+Exception: this run explicitly targets \`${FIRST_OBJECT || '(none)'}\`. If and only if
+\`recovery/goal_ledger.json\` is the sole otherwise-blocking path and its entry for
+that exact object has \`status: "in_progress"\`, tolerate it as a resumable recovery
+lease. Report no other path as tolerated.
 
 TOLERATE (never fail on): \`README.md\`, anything under \`artifacts/\`, and untracked
 files OUTSIDE those trees. This repo has a post-commit dashboard hook that rewrites
@@ -324,13 +335,15 @@ while (finished < GOAL) {
   const minScoreFlag = MIN_SCORE !== null ? ` --min-score ${MIN_SCORE}` : ''
   const TAKE = DRY_RUN
     ? 'This is a DRY RUN: do NOT run `recovery_goal.py start` — leave the ledger untouched.'
-    : `Then take it: \`rtk python3 tools/recovery/recovery_goal.py start <object.obj>\`. If it reports the object is already in progress or done, return {ok:false, reason:"ledger: <message>"} — do NOT pass --force.`
+    : explicitObject
+      ? `Take it with \`rtk python3 tools/recovery/recovery_goal.py start <object.obj>\`. If it reports this exact object is already in_progress, verify \`recovery/goal_ledger.json\` records it as in_progress and return success without \`--force\`; it is this run's resumable lease. A done or parked entry remains an error.`
+      : `Then take it: \`rtk python3 tools/recovery/recovery_goal.py start <object.obj>\`. If it reports the object is already in progress or done, return {ok:false, reason:"ledger: <message>"} — do NOT pass --force.`
   const selectPrompt = explicitObject
     ? `${AGENT_RULES}
 Your object is already chosen: \`${explicitObject}\`. Do NOT run \`recovery_goal.py next\`.
 Resolve its source files from the frontier ranking. NOTE \`--json\` takes a PATH and
 WRITES the ranking to it — it does not print to stdout:
-  \`rtk python3 tools/recovery/recovery_frontier.py --json artifacts/recovery_frontier.json\`
+  \`rtk python3 tools/recovery/recovery_frontier.py --allow-deactivated --json artifacts/recovery_frontier.json\`
 Then read that file and find the \`eligible\` entry whose \`object\` == "${explicitObject}":
 \`files\` is the source list, \`score\` the frontier score. Not in \`eligible\` =>
 {ok:false, reason:"not_eligible: <the gate it failed>"}.

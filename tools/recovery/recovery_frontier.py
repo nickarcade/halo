@@ -25,7 +25,8 @@ reported reason):
                        tools/audit/deactivation_allowlist.json. Those entries are
                        code that is deliberately switched off (bisect/dormant);
                        the TU's runtime behaviour is not fully exercised, so it
-                       is a riskier campaign target.
+                       is a riskier campaign target. Pass --allow-deactivated
+                       only for an explicitly requested byte-identity recovery.
 
 Score (eligible objects only) -- all three factors are deterministic and every
 constant is tunable at the top of this module:
@@ -238,6 +239,15 @@ def is_sharp_gate(rec, require_opnd):
     return rec['opnd'] is not None and rec['opnd'] >= HIGH_MATCH
 
 
+def function_name(func):
+    """Best-effort function name for a kb.json function entry."""
+    if func.get('name'):
+        return func['name']
+    decl = (func.get('decl') or '').split('(')[0]
+    idents = re.findall(r'[A-Za-z_][A-Za-z0-9_:]*', decl)
+    return idents[-1] if idents else None
+
+
 def load_allowlist_objects(path=ALLOWLIST):
     """Return {object: n_deactivated_entries} from the deactivation allowlist."""
     try:
@@ -254,15 +264,6 @@ def load_allowlist_objects(path=ALLOWLIST):
         if obj:
             out[obj] = out.get(obj, 0) + 1
     return out
-
-
-def function_name(func):
-    """Best-effort function name for a kb.json function entry."""
-    if func.get('name'):
-        return func['name']
-    decl = (func.get('decl') or '').split('(')[0]
-    idents = re.findall(r'[A-Za-z_][A-Za-z0-9_:]*', decl)
-    return idents[-1] if idents else None
 
 
 def load_kb_objects(path=KB_FILE):
@@ -317,21 +318,21 @@ def score_object(debt_total, funcs, high_match_funcs):
     return score, value, safety, size_penalty
 
 
-def classify(name, debt, csv_row, kb_row, allow_objects):
-    """Return the first failing gate name, or None when eligible."""
+def classify(name, debt, csv_row, kb_row, allow_objects, allow_deactivated=False):
+    """Return the first failing recovery gate, or None when eligible."""
     if debt is None or not debt.get('files'):
         return 'no_source_files'
     if csv_row is None or not csv_row['delink']:
         return 'no_delink'
     if kb_row is None or kb_row['total'] == 0 or kb_row['ported'] != kb_row['total']:
         return 'not_fully_ported'
-    if name in allow_objects:
+    if not allow_deactivated and name in allow_objects:
         return 'deactivated'
     return None
 
 
 def build_rows(debt_report, csv_objects, kb_objects, vc71, allow_objects,
-               header_dirs):
+               header_dirs, allow_deactivated=False):
     eligible, ineligible = [], []
     require_opnd = opnd_available(vc71)
     debt_objects = debt_report.get('objects', {})
@@ -341,7 +342,7 @@ def build_rows(debt_report, csv_objects, kb_objects, vc71, allow_objects,
         debt = debt_objects.get(name)
         csv_row = csv_objects.get(name)
         kb_row = kb_objects.get(name)
-        gate = classify(name, debt, csv_row, kb_row, allow_objects)
+        gate = classify(name, debt, csv_row, kb_row, allow_objects, allow_deactivated)
         if gate is not None:
             ineligible.append({'object': name, 'gate': gate})
             continue
@@ -432,7 +433,8 @@ def run(args):
     header_dirs = recovered_header_dirs()
 
     eligible, ineligible = build_rows(debt_report, csv_objects, kb_objects,
-                                      vc71, allow_objects, header_dirs)
+                                      vc71, allow_objects, header_dirs,
+                                      args.allow_deactivated)
 
     hidden = 0
     if args.min_funcs > 0:
@@ -591,8 +593,10 @@ def _self_test():
           classify('x.obj', debt_ok, csv_ok,
                    {'funcs': ['f1', 'f2'], 'ported': 1, 'total': 2}, {})
           == 'not_fully_ported')
-    check('gate: deactivated',
+    check('gate: allowlisted object remains deactivated by default',
           classify('x.obj', debt_ok, csv_ok, kb_ok, {'x.obj': 3}) == 'deactivated')
+    check('gate: explicitly allow deactivated object',
+          classify('x.obj', debt_ok, csv_ok, kb_ok, {'x.obj': 3}, True) is None)
     check('gate: order (delink beats ported)',
           classify('x.obj', debt_ok, {'delink': False, 'addr_range': '',
                                       'func_count': 2},
@@ -677,6 +681,9 @@ def main(argv=None):
     ap.add_argument('--debt', metavar='PATH',
                     help='reuse a check_readability.py --report-by-object --json '
                          'file instead of recomputing')
+    ap.add_argument('--allow-deactivated', action='store_true',
+                    help='include fully ported objects with allowlisted deactivations; '
+                         'use only for explicit byte-identity recovery')
     ap.add_argument('--self-test', action='store_true',
                     help='run internal checks and exit non-zero on failure')
     args = ap.parse_args(argv)
