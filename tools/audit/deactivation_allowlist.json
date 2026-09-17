@@ -1944,5 +1944,502 @@
     "object": "ui_widget_game_data_input_functions.obj",
     "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
     "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe3b40",
+    "name": "pool_alloc",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe3b60",
+    "name": "pool_free",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe3da0",
+    "name": "ui_widgets_active_for_local_player",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe3e60",
+    "name": "compute_offset_coordinate",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe3e80",
+    "name": "draw_bitmap_in_rect",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4330",
+    "name": "widget_instance_get_child_index_from_parent",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4420",
+    "name": "ui_set_next_level",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4490",
+    "name": "sub_E4490",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4500",
+    "name": "display_error_deferred",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe46f0",
+    "name": "ui_widget_pending_load_push_internal",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4770",
+    "name": "ui_widget_pending_load_pop",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe47d0",
+    "name": "dispose_widget_stack",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4960",
+    "name": "FUN_000e4960",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4a00",
+    "name": "widget_instance_can_handle_events",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4a40",
+    "name": "widget_instance_text_box_is_focused",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4ad0",
+    "name": "render_state_bitmap",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4ce0",
+    "name": "FUN_000e4ce0",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4da0",
+    "name": "remap_sticks_for_local_player",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4ed0",
+    "name": "widget_instance_update_animation_parameters",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4f00",
+    "name": "widget_instance_reload_recursive",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe4f10",
+    "name": "ui_widget_reload_by_tag",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5090",
+    "name": "ui_widget_pending_load_apply",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5160",
+    "name": "play_sound_tag",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5180",
+    "name": "FUN_000e5180",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5350",
+    "name": "spinner_list_update",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5380",
+    "name": "ui_widget_update_list_selection",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe53c0",
+    "name": "widget_instance_get_tail_child_widget",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe53e0",
+    "name": "ui_widget_list_prev",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5440",
+    "name": "ui_widget_list_next",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe54e0",
+    "name": "get_ui_rgb_white",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe59a0",
+    "name": "ui_widgets_delete_history",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5b10",
+    "name": "ui_widget_load_children_recursive",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5db0",
+    "name": "widget_instance_find_by_tag_index",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe5de0",
+    "name": "draw_string_and_hack_in_icons",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe6450",
+    "name": "widget_instance_render_spinner_list",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe68e0",
+    "name": "ui_widget_close_and_reload",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe73c0",
+    "name": "FUN_000e73c0",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe7760",
+    "name": "render_ui_widgets_postgame",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe7b10",
+    "name": "ui_widget_load_from_tag_internal",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe8830",
+    "name": "network_game_reset_to_pregame_ui",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe98a0",
+    "name": "widget_event_function_null",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9a90",
+    "name": "solo_level_set_next_map_name",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9bd0",
+    "name": "ui_widget_set_difficulty",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9c30",
+    "name": "start_new_game",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9c60",
+    "name": "pause_game_restart_at_checkpoint",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9c70",
+    "name": "pause_game_restart_level",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9c80",
+    "name": "pause_game_quit_to_main_menu",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9c90",
+    "name": "clear_multiplayer_player_joins",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9d00",
+    "name": "network_game_server_list_initialize",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xe9ff0",
+    "name": "network_game_cancel",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xea080",
+    "name": "coop_game_initialize",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xea090",
+    "name": "main_menu_initialize",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xea0d0",
+    "name": "multiplayer_type_menu_initialize",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xea0e0",
+    "name": "multiplayer_pick_quick_start_play_stage",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xea570",
+    "name": "ui_widget_multiplayer_profile_set_for_game",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xea810",
+    "name": "ui_widget_swap_player_team",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeaa10",
+    "name": "FUN_000eaa10",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeaba0",
+    "name": "player_profile_set_for_game_3wide",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xead60",
+    "name": "ui_widget_1wide_player_profile_set_for_game",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeaec0",
+    "name": "FUN_000eaec0",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeb000",
+    "name": "playlist_profile_end_editing",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeb100",
+    "name": "playlist_profile_change_name_eb100",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeb150",
+    "name": "playlist_profile_change_ctf_rules",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeb4f0",
+    "name": "playlist_profile_change_koth_rules",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeb710",
+    "name": "netgame_join_player",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeba70",
+    "name": "player_profiles_list_initialize",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xebff0",
+    "name": "playlist_profile_change_racing_rules",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xec2c0",
+    "name": "playlist_profile_begin_editing",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xec840",
+    "name": "playlist_profile_change_name",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xecb60",
+    "name": "FUN_000ecb60",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
+  },
+  {
+    "addr": "0xeceb0",
+    "name": "playlist_profile_initialize_ctf_rules",
+    "object": "ui_widget.obj",
+    "reason": "Dormant pending VC71 byte accuracy verification in GitHub Actions CI (requires >= 90.0%)",
+    "since": "2026-09-17"
   }
 ]
