@@ -8573,7 +8573,7 @@
     {
      "addr": "0xb5210",
      "decl": "void slayer_engine_display_score(int player_index);",
-     "ported": true
+     "ported": false
     },
     {
      "addr": "0xb5490",
@@ -31017,7 +31017,7 @@
     {
      "addr": "0x17ffc0",
      "decl": "float *uncompress_int32_to_real_vector3d(float *param_1, unsigned int param_2);",
-     "ported": true,
+     "ported": false,
      "name": "uncompress_int32_to_real_vector3d"
     },
     {
@@ -31088,7 +31088,7 @@
     {
      "addr": "0x180b10",
      "decl": "unsigned int compress_real_vector3d_to_int32_clamp(float *param_1);",
-     "ported": true,
+     "ported": false,
      "name": "compress_real_vector3d_to_int32_clamp"
     },
     {
