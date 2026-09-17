@@ -1,0 +1,23 @@
+{
+  "_comment": [
+    "Expected non-pass results for the CI snapshot-verification lane",
+    "(tools/equivalence/game_state_verify.py).  Anything listed here is",
+    "reported but does not fail the job; anything NOT listed that comes back",
+    "fail or error does.  Every entry needs a reason and, where the behaviour",
+    "is actually proven somewhere else, a pointer to that evidence.",
+    "",
+    "'inconclusive' is informational for every target: this lane drives one",
+    "captured snapshot, so a parameterless lifecycle routine sees the same",
+    "state on every seed by construction.  Per-branch proof for those lives in",
+    "tools/equivalence/regression_targets.json, not here."
+  ],
+  "allow_inconclusive": true,
+  "allow_not_applicable": true,
+  "expected_non_pass": {
+    "game_state_validate_core_header": {
+      "statuses": ["fail"],
+      "reason": "header@<esi> cannot be pinned from the minimal CI snapshot, so csstrcmp receives the raw-XBE literal address on the oracle and a synthetic .rdata address on the candidate -- a representation difference, not a behavioural one.",
+      "evidence": "tools/equivalence/regression_targets.json: the six game_state_validate_core_header[*] fixtures cover every non-fatal branch with --no-stub-arg-trace and pass."
+    }
+  }
+}

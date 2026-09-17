@@ -1,0 +1,13 @@
+{
+  "description": "game-state buffer committed at 0x80061000 and the save header allocated at 0x00700000",
+  "build_label": "halo-debug-2276-synthetic",
+  "verified": true,
+  "regions": {
+    "0x004ea994": "0000000000000000",
+    "0x004ea9ac": "0000000000000000"
+  },
+  "stub_returns": {
+    "FUN_001c00c0": 2147880960,
+    "game_state_malloc": 7340032
+  }
+}

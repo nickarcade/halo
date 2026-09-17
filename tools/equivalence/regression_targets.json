@@ -82,6 +82,324 @@
       "reason": "compressed 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification"
     },
     {
+      "addr": "0x1bfa00",
+      "name": "game_state_validate_core_header",
+      "label": "game_state_validate_core_header[valid]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_valid.json",
+        "--allow-stubs",
+        "--no-stub-arg-trace",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "deterministic non-fatal core-header path: matching build, scenario, allocation, player, and map checksums"
+    },
+    {
+      "addr": "0x1bfa00",
+      "name": "game_state_validate_core_header",
+      "label": "game_state_validate_core_header[build_mismatch]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_build_mismatch.json",
+        "--allow-stubs",
+        "--no-stub-arg-trace",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "deterministic non-fatal core-header path: build-version rejection"
+    },
+    {
+      "addr": "0x1bfa00",
+      "name": "game_state_validate_core_header",
+      "label": "game_state_validate_core_header[scenario_mismatch]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_scenario_mismatch.json",
+        "--allow-stubs",
+        "--no-stub-arg-trace",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "deterministic non-fatal core-header path: scenario-name rejection"
+    },
+    {
+      "addr": "0x1bfa00",
+      "name": "game_state_validate_core_header",
+      "label": "game_state_validate_core_header[allocation_mismatch]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_allocation_mismatch.json",
+        "--allow-stubs",
+        "--no-stub-arg-trace",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "deterministic non-fatal core-header path: allocation-checksum rejection"
+    },
+    {
+      "addr": "0x1bfa00",
+      "name": "game_state_validate_core_header",
+      "label": "game_state_validate_core_header[player_mismatch]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_player_mismatch.json",
+        "--allow-stubs",
+        "--no-stub-arg-trace",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "deterministic non-fatal core-header path: player-count rejection"
+    },
+    {
+      "addr": "0x1bfa00",
+      "name": "game_state_validate_core_header",
+      "label": "game_state_validate_core_header[map_mismatch]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_map_mismatch.json",
+        "--allow-stubs",
+        "--no-stub-arg-trace",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "deterministic non-fatal core-header path: map-file checksum rejection"
+    },
+    {
+      "addr": "0x1bf790",
+      "name": "game_state_call_after_load_procs",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_call_after_load_procs.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "walks the 13-entry after-load callback table at 0x32eaa8; the call sequence is the only observable output"
+    },
+    {
+      "addr": "0x1bf7b0",
+      "name": "game_state_dispose",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_dispose.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "releases the game-state buffer then closes the file; pinned so the two-call sequence is compared rather than scored vacuous"
+    },
+    {
+      "addr": "0x1bf7c0",
+      "name": "game_state_initialize_for_new_map",
+      "label": "game_state_initialize_for_new_map[easy]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_initialize_for_new_map_easy.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "rebuilds the 0x14c-byte save header through 0x4ea9ac at difficulty 0"
+    },
+    {
+      "addr": "0x1bf7c0",
+      "name": "game_state_initialize_for_new_map",
+      "label": "game_state_initialize_for_new_map[legendary]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_initialize_for_new_map_legendary.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "same header rebuild at difficulty 3 with a different map checksum, so the write trace differs from the easy fixture"
+    },
+    {
+      "addr": "0x1bf880",
+      "name": "game_state_save",
+      "label": "game_state_save[saved]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_save_saved.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "game_state_write_to_file succeeds, so the saved flag at 0x4ea9a5 is set"
+    },
+    {
+      "addr": "0x1bf880",
+      "name": "game_state_save",
+      "label": "game_state_save[save-failed]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_save_save_failed.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "game_state_write_to_file fails, so the saved flag at 0x4ea9a5 is cleared"
+    },
+    {
+      "addr": "0x1bf8a0",
+      "name": "game_state_revert",
+      "label": "game_state_revert[restart]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_revert_restart.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "no save and no restart flag: reverts by restarting the map (39.0% of the body, union with the reload fixture is complete)"
+    },
+    {
+      "addr": "0x1bf8a0",
+      "name": "game_state_revert",
+      "label": "game_state_revert[reload]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_revert_reload.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "a save exists: reads the save file and runs the 13 after-load callbacks (76.3% of the body)"
+    },
+    {
+      "addr": "0x1bf8e0",
+      "name": "game_state_save_to_persistent_storage",
+      "label": "game_state_save_to_persistent_storage[single-player]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_save_to_persistent_storage_single_player.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "single-player map type reverts and writes the header to persistent storage; regression guard for the CALL 0x001bf8a0 the original emits out of line"
+    },
+    {
+      "addr": "0x1bf8e0",
+      "name": "game_state_save_to_persistent_storage",
+      "label": "game_state_save_to_persistent_storage[multiplayer]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_save_to_persistent_storage_multiplayer.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "a non-single-player map type takes the early exit and writes nothing"
+    },
+    {
+      "addr": "0x1bf9e0",
+      "name": "game_state_reverted",
+      "label": "game_state_reverted[true]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_reverted_true.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "verified tick equals game_time_get, so the state reports reverted"
+    },
+    {
+      "addr": "0x1bf9e0",
+      "name": "game_state_reverted",
+      "label": "game_state_reverted[false]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_reverted_false.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "game time has advanced past the verified tick, so the state reports not reverted"
+    },
+    {
+      "addr": "0x1c0070",
+      "name": "game_state_lruv_cache_new",
+      "label": "game_state_lruv_cache_new[header-a]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_lruv_cache_new_header_a.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "commits the game-state buffer and stores the allocated save header at 0x4ea9ac"
+    },
+    {
+      "addr": "0x1c0070",
+      "name": "game_state_lruv_cache_new",
+      "label": "game_state_lruv_cache_new[header-b]",
+      "obj": "game_state.obj",
+      "seeds": 1,
+      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "flags": [
+        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_lruv_cache_new_header_b.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "same path with a different allocator result, so the write trace differs from the header-a fixture"
+    },
+    {
       "addr": "0x1bfd00",
       "name": "game_state_gpu_alloc",
       "label": "game_state_gpu_alloc[log-existing]",

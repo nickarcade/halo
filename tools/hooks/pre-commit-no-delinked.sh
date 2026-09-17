@@ -10,9 +10,14 @@
 # This hook makes the "never commit these" rule mechanical instead of relying
 # on nobody ever running `git add -f`.
 #
+# --diff-filter=d excludes DELETIONS.  Removing a delinked object from the
+# index is the cure this hook exists to encourage, not the disease: the 8
+# objects committed before the ignore rule could only ever be untracked by
+# staging their deletion, and blocking that made the rule unenforceable.
+#
 # Bypass: git commit --no-verify
 
-STAGED_DELINKED="$(git diff --cached --name-only -- 'delinked/*')"
+STAGED_DELINKED="$(git diff --cached --name-only --diff-filter=d -- 'delinked/*')"
 
 if [ -z "$STAGED_DELINKED" ]; then
     exit 0

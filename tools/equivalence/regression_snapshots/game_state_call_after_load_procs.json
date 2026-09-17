@@ -1,0 +1,6 @@
+{
+  "description": "the after-load callback table at 0x32eaa8 is walked exactly 13 times",
+  "build_label": "halo-debug-2276-synthetic",
+  "verified": true,
+  "regions": {}
+}

@@ -66,9 +66,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Link host assets
-        run: |
-          ln -sfn /mnt/g/dev/halo/halo-patched "$GITHUB_WORKSPACE/halo-patched"
+      - name: Stage host assets
+        uses: ./.github/actions/stage-local-assets
+        with:
+          xbe: "true"
+          required: halo-patched/cachebeta.xbe
 
       - name: Verify prerequisites
         run: |

@@ -62,11 +62,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Link local assets
-        run: |
-          rm -rf -- halo-patched delinked
-          ln -sfn ${{ env.XBE_DIR }} halo-patched
-          ln -sfn ${{ env.DELINKED_DIR }} delinked
+      - name: Stage local assets
+        uses: ./.github/actions/stage-local-assets
+        with:
+          xbe: "true"
+          delinked: "true"
+          required: >-
+            halo-patched/cachebeta.xbe
+            delinked/game_state.obj
 
       - name: Verify prerequisites
         run: |

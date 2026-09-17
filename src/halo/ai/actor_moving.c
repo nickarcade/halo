@@ -3005,25 +3005,25 @@ char actor_move_to_point(int actor_handle, float *destination, int param_3,
  */
 char actor_move_to_move_position(int actor_handle, int16_t param_2)
 {
-  char *iVar1;
+  actor_t *actor;
   int iVar3;
   int *puVar4;
   short *psVar5;
 
-  iVar1 = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
-  *(int16_t *)(iVar1 + 0x3b8) = -1;
+  actor = (actor_t *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  actor->firing_positions_current_position_index = -1;
   actor_set_dormant(actor_handle, 0);
-  if ((*(int16_t *)(iVar1 + 0x46c) != 4) ||
-      (*(int16_t *)(iVar1 + 0x470) != param_2)) {
-    *(int16_t *)(iVar1 + 0x404) = param_2;
-    *(int *)(iVar1 + 0x414) = -1;
-    *(char *)(iVar1 + 0x402) = 0;
-    *(int16_t *)(iVar1 + 0x400) = 4;
+  if ((actor->active_destination.mode != 4) ||
+      (actor->active_destination.position_index != param_2)) {
+    actor->pending_destination.position_index = param_2;
+    actor->pending_destination.orders_ignore_target_object_index = -1;
+    actor->pending_destination.field_02 = 0;
+    actor->pending_destination.mode = 4;
     /* Original emits REP MOVSD ECX=6 here; VC71 at our flags unrolls every
      * 24-byte copy form (memcpy, struct assign, volatile struct assign), so
      * the manual dword loop below is the closest reachable shape. */
-    puVar4 = (int *)(iVar1 + 0x400);
-    psVar5 = (short *)(iVar1 + 0x46c);
+    puVar4 = (int *)&actor->pending_destination;
+    psVar5 = (short *)&actor->active_destination;
     for (iVar3 = 6; iVar3 != 0; iVar3--) {
       *(int *)psVar5 = *puVar4;
       puVar4++;
@@ -3031,7 +3031,7 @@ char actor_move_to_move_position(int actor_handle, int16_t param_2)
     }
     return actor_path_refresh(actor_handle, 1, 0);
   }
-  if ((*(char *)(iVar1 + 0x4c) != '\0') && (*(char *)(iVar1 + 0x4a4) == '\0')) {
+  if ((actor->field_04c != '\0') && (actor->field_4a4 == '\0')) {
     return actor_path_refresh(actor_handle, 0, 0);
   }
   return 1;
@@ -3068,28 +3068,27 @@ char actor_move_to_move_position(int actor_handle, int16_t param_2)
 char actor_move_to_firing_position(int actor_handle, int16_t param_2,
                                    void *param_3)
 {
-  char *actor;
+  actor_t *actor;
   int iVar3;
   int *pending_state;
   int *active_state;
 
-  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  actor = (actor_t *)datum_get(*(data_t **)0x6325a4, actor_handle);
   actor_set_dormant(actor_handle, 0);
-  active_state = (int *)(actor + 0x46c);
-  if ((*(int16_t *)active_state == 3) &&
-      (((actor_t *)actor)->field_470 == param_2)) {
-    if ((((actor_t *)actor)->field_04c != '\0') &&
-        (((actor_t *)actor)->field_4a4 == '\0')) {
+  active_state = (int *)&actor->active_destination;
+  if ((actor->active_destination.mode == 3) &&
+      (actor->active_destination.position_index == param_2)) {
+    if ((actor->field_04c != '\0') && (actor->field_4a4 == '\0')) {
       return actor_path_refresh(actor_handle, 0, param_3);
     }
     return 1;
   }
-  *(int16_t *)(actor + 0x404) = param_2;
-  ((actor_t *)actor)->field_402 = 0;
-  ((actor_t *)actor)->field_414 = -1;
-  ((actor_t *)actor)->field_3bb = 0;
-  ((actor_t *)actor)->field_400 = 3;
-  pending_state = (int *)(actor + 0x400);
+  actor->pending_destination.position_index = param_2;
+  actor->pending_destination.field_02 = 0;
+  actor->pending_destination.orders_ignore_target_object_index = -1;
+  actor->field_3bb = 0;
+  actor->pending_destination.mode = 3;
+  pending_state = (int *)&actor->pending_destination;
   for (iVar3 = 6; iVar3 != 0; iVar3--) {
     *active_state++ = *pending_state++;
   }

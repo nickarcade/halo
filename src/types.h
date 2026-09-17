@@ -987,6 +987,29 @@ co(ai_firing_pos_entry_t, radius,    0x24);
 #define _actor_fire_target_prop         1
 #define _actor_fire_target_manual_point 2
 
+/* path_destination_t — actor movement target/order substructure (24 bytes).
+ * Confirmed: assert "control.path_destination.orders_ignore_target_object_index"
+ * at +0x14 (+0x480 in actor_t). */
+typedef struct path_destination_t {
+  int16_t mode;                                      /* +0x00 */
+  char field_02;                                     /* +0x02 */
+  char pad_03[0x1];                                  /* +0x03 */
+  int16_t position_index;                            /* +0x04 */
+  char pad_06[0x2];                                  /* +0x06 */
+  float field_08;                                    /* +0x08 */
+  float field_0c;                                    /* +0x0c */
+  int32_t dest_node;                                 /* +0x10 */
+  int32_t orders_ignore_target_object_index;         /* +0x14 */
+} path_destination_t;
+cs(path_destination_t, 0x18);
+co(path_destination_t, mode, 0x00);
+co(path_destination_t, field_02, 0x02);
+co(path_destination_t, position_index, 0x04);
+co(path_destination_t, field_08, 0x08);
+co(path_destination_t, field_0c, 0x0c);
+co(path_destination_t, dest_node, 0x10);
+co(path_destination_t, orders_ignore_target_object_index, 0x14);
+
 /* ---------------------------------------------------------------------------
  * actor_t — an element of the "actor" data_t pool.
  *
@@ -1179,7 +1202,7 @@ typedef struct {
   char pad_1b6[0x2];
   int32_t field_1b8;                                 /* +0x1b8  accessed 1x, meaning unproven */
   char pad_1bc[0x4];
-  int32_t field_1c0;                                 /* +0x1c0  accessed 1x, meaning unproven */
+  float field_1c0;                                   /* +0x1c0  pain boost / damage stun decay */
   int32_t field_1c4;                                 /* +0x1c4  accessed 1x, meaning unproven */
   char field_1c8;                                    /* +0x1c8  accessed 1x, meaning unproven */
   char field_1c9;                                    /* +0x1c9  accessed 1x, meaning unproven */
@@ -1354,13 +1377,20 @@ typedef struct {
   int32_t field_3f8;                                 /* +0x3f8  accessed 3x, meaning unproven */
   int16_t field_3fc;                                 /* +0x3fc  accessed 14x, meaning unproven */
   char pad_3fe[0x2];
-  int16_t field_400;                                 /* +0x400  accessed 3x, meaning unproven */
-  char field_402;                                    /* +0x402  accessed 1x, meaning unproven */
-  char pad_403[0x5];
-  float field_408;                                   /* +0x408  accessed 2x, meaning unproven */
-  float field_40c;                                   /* +0x40c  accessed 1x, meaning unproven */
-  int32_t field_410;                                 /* +0x410  accessed 1x, meaning unproven */
-  int32_t field_414;                                 /* +0x414  accessed 3x, meaning unproven */
+  union {
+    struct {
+      int16_t field_400;                             /* +0x400  accessed 3x, meaning unproven */
+      char field_402;                                /* +0x402  accessed 1x, meaning unproven */
+      char pad_403[0x1];
+      int16_t field_404;                             /* +0x404 */
+      char pad_406[0x2];
+      float field_408;                               /* +0x408  accessed 2x, meaning unproven */
+      float field_40c;                               /* +0x40c  accessed 1x, meaning unproven */
+      int32_t field_410;                             /* +0x410  accessed 1x, meaning unproven */
+      int32_t field_414;                             /* +0x414  accessed 3x, meaning unproven */
+    };
+    path_destination_t pending_destination;          /* +0x400 */
+  };
   int16_t field_418;                                 /* +0x418  accessed 1x, meaning unproven */
   char pad_41a[0x2];
   int32_t field_41c;                                 /* +0x41c  accessed 2x, meaning unproven */
@@ -1396,13 +1426,20 @@ typedef struct {
   char field_45c;                                    /* +0x45c  accessed 1x, meaning unproven */
   char field_45d;                                    /* +0x45d  accessed 2x, meaning unproven */
   char pad_45e[0xe];
-  int16_t field_46c;                                 /* +0x46c  accessed 2x, meaning unproven */
-  char field_46e;                                    /* +0x46e  accessed 1x, meaning unproven */
-  char pad_46f[0x1];
-  int16_t field_470;                                 /* +0x470  accessed 2x, meaning unproven */
-  char pad_472[0xa];
-  int32_t field_47c;                                 /* +0x47c  accessed 1x, meaning unproven */
-  int32_t control_path_destination_orders_ignore_target_object_index;/* +0x480  CMP dword [ESI+0x480],-1 @0x2d16b (NONE sentinel) */
+  union {
+    struct {
+      int16_t field_46c;                             /* +0x46c  accessed 2x, meaning unproven */
+      char field_46e;                                /* +0x46e  accessed 1x, meaning unproven */
+      char pad_46f[0x1];
+      int16_t field_470;                             /* +0x470  accessed 2x, meaning unproven */
+      char pad_472[0x2];
+      float field_474;
+      float field_478;
+      int32_t field_47c;                             /* +0x47c  accessed 1x, meaning unproven */
+      int32_t control_path_destination_orders_ignore_target_object_index;/* +0x480  CMP dword [ESI+0x480],-1 @0x2d16b (NONE sentinel) */
+    };
+    path_destination_t active_destination;           /* +0x46c */
+  };
   char field_484;                                    /* +0x484  accessed 6x, meaning unproven */
   char pad_485[0x3];
   float field_488;                                   /* +0x488  accessed 1x, meaning unproven */

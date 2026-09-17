@@ -701,34 +701,33 @@ int actor_action_handle_panic_from_surprise(int actor_handle)
  */
 char actor_action_handle_panic_from_damage(int actor_handle)
 {
-  char *actor;
+  actor_t *actor;
   int actr_tag;
   short panic_type;
-  int result;
+  char result;
 
-  actor = (char *)datum_get(actor_data, actor_handle);
-  actr_tag = (int)tag_get(0x61637472, ((actor_t *)actor)->field_058);
+  actor = (actor_t *)datum_get(actor_data, actor_handle);
+  actr_tag = (int)tag_get(0x61637472, actor->field_058);
   result = 0;
-  if (((actor_t *)actor)->field_2ec != '\0') {
-    if ((game_connection() != 0) || (*(char *)0x5ac9c8 == '\0')) {
-      if (*(float *)(actor + 0x1c0) <= *(float *)(actr_tag + 0x2ac))
-        goto check_assert_damage;
+  if (actor->field_2ec != '\0') {
+    if ((game_connection() == 0 && *(char *)0x5ac9c8 != '\0') ||
+        (actor->field_1c0 > *(float *)(actr_tag + 0x2ac))) {
+      panic_type = actor->stimuli_panic_type;
+      if (panic_type == 0 || actor->stimuli_panic_prop_index == -1) {
+        actor->stimuli_panic_prop_index =
+          actor_get_best_damaging_prop(actor_handle, 1);
+      }
+      panic_type = actor->stimuli_panic_type;
+      if (panic_type <= 1) {
+        panic_type = 1;
+      }
+      actor->stimuli_panic_type = panic_type;
+      actor->field_2ec = 0;
+      result = 1;
     }
-    panic_type = ((actor_t *)actor)->stimuli_panic_type;
-    if ((panic_type == 0) ||
-        (((actor_t *)actor)->stimuli_panic_prop_index == -1)) {
-      ((actor_t *)actor)->stimuli_panic_prop_index =
-        actor_get_best_damaging_prop(actor_handle, 1);
-    }
-    if (((actor_t *)actor)->stimuli_panic_type < 2) {
-      ((actor_t *)actor)->stimuli_panic_type = 1;
-    }
-    ((actor_t *)actor)->field_2ec = 0;
-    result = 1;
   }
-check_assert_damage:
-  assert_halt(((actor_t *)actor)->stimuli_panic_type == 0 ||
-              ((actor_t *)actor)->stimuli_panic_prop_index != 0);
+  assert_halt(actor->stimuli_panic_type == 0 ||
+              actor->stimuli_panic_prop_index != 0);
   return result;
 }
 
@@ -2061,46 +2060,35 @@ char actor_action_handle_panic_transition(int actor_handle, short param_2,
 {
   actor_t *actor = (actor_t *)datum_get(actor_data, actor_handle);
   short panic_level;
-  short shield_value;
-  int iVar5;
-  char bVar3;
+  bool bVar3;
   volatile char result;
 
   panic_level = actor->stimuli_panic_type;
   result = 0;
   if (panic_level >= param_2 && actor->field_160 == '\0') {
-    if (actor->state_action == _actor_action_flee &&
-        (shield_value = actor->field_0a8, shield_value > 0)) {
-      if (panic_level < shield_value) {
-        actor->field_0a8 = shield_value;
+    if (actor->state_action == _actor_action_flee && actor->field_0a8 > 0) {
+      if (actor->field_0a8 <= panic_level) {
+        actor->field_0a8 = panic_level;
+      }
+      actor->stimuli_panic_type = 0;
+      return result;
+    }
+    if (actor->field_398 == -1 || actor->field_398 + 7 < game_time_get()) {
+      bVar3 = actor->stimuli_panic_type >= param_4;
+      if (actor->stimuli_panic_prop_index == 0) {
+        display_assert("actor->stimuli.panic_prop_index != 0x00000000",
+                       "c:\\halo\\SOURCE\\ai\\actions.c", 0x295, 1);
+        system_exit(-1);
+      }
+      if (param_3 != '\0' && !bVar3) {
+        ai_communication_event(0x22, actor->field_018, -1, -1, -1, -1, 0);
         actor->stimuli_panic_type = 0;
-        return 0;
+        return result;
       }
-      actor->field_0a8 = panic_level;
-      actor->stimuli_panic_type = 0;
-      return result;
+      result = actor_action_try_to_panic(actor_handle, actor->stimuli_panic_type,
+                                         actor->stimuli_panic_prop_index, bVar3);
     }
-    if (actor->field_398 != -1) {
-      iVar5 = game_time_get();
-      if (iVar5 <= actor->field_398 + 7) {
-        goto done;
-      }
-    }
-    bVar3 = actor->stimuli_panic_type >= param_4;
-    if (actor->stimuli_panic_prop_index == 0) {
-      display_assert("actor->stimuli.panic_prop_index != 0x00000000",
-                     "c:\\halo\\SOURCE\\ai\\actions.c", 0x295, 1);
-      system_exit(-1);
-    }
-    if (param_3 != '\0' && !bVar3) {
-      ai_communication_event(0x22, actor->field_018, -1, -1, -1, -1, 0);
-      actor->stimuli_panic_type = 0;
-      return result;
-    }
-    result = actor_action_try_to_panic(actor_handle, actor->stimuli_panic_type,
-                          actor->stimuli_panic_prop_index, bVar3);
   }
-done:
   actor->stimuli_panic_type = 0;
   return result;
 }

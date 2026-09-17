@@ -722,7 +722,14 @@ def convert_to_unicorn_snapshot(snapshot_path: str,
         data = bytes.fromhex(gpu_info["data"])
         regions_out[addr] = data
 
-    # Additional memory regions (callbacks, scenario index, map type, etc.)
+    # Additional memory regions (callbacks, scenario index, map type, etc.).
+    #
+    # A region may also arrive ALREADY flattened -- "0x0031fa94": "<hex>" --
+    # because a snapshot that has been through this converter once is written
+    # in that shape, and both forms circulate under the name ci/snapshot.json.
+    # Silently producing zero regions from the flat form is worse than failing:
+    # every target still runs, against zero-filled globals, and the report reads
+    # like a real verification (game_state_gpu_alloc diverged that way).
     for key, entry in snap.get("regions", {}).items():
         if key in ("cpu_pool", "gpu_pool"):
             continue
@@ -730,6 +737,15 @@ def convert_to_unicorn_snapshot(snapshot_path: str,
             addr = int(entry.get("virtual_addr", entry.get("base", "0")), 16)
             data = bytes.fromhex(entry["data"])
             regions_out[addr] = data
+        elif isinstance(entry, str) and key.startswith("0x"):
+            regions_out[int(key, 16)] = bytes.fromhex(entry)
+
+    if not regions_out:
+        raise ValueError(
+            f"{snapshot_path} yielded no memory regions; the file is neither a "
+            f"game-state snapshot (globals_raw/header_raw/regions[*].data) nor "
+            f"a flat one (regions['0x...'] = hex). Running against zero-filled "
+            f"globals would report passes that tested nothing.")
 
     result = {
         "description": f"converted from {snapshot_path}",

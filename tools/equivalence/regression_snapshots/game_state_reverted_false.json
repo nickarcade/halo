@@ -1,0 +1,11 @@
+{
+  "description": "game time has advanced past the verified tick, so the state is not reverted",
+  "build_label": "halo-debug-2276-synthetic",
+  "verified": true,
+  "regions": {
+    "0x004ea9a8": "3412000000000000"
+  },
+  "stub_returns": {
+    "game_time_get": 4661
+  }
+}

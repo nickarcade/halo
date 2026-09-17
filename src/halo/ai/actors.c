@@ -7326,7 +7326,7 @@ LAB_3e02c:
    * Confirmed: FCOMP [0x2533c0] (0.0f) at 0x3e233; if length <= 0 copy fwd_vec.
    * Confirmed: else case: MOV dword[ESI+0x17c],0 at 0x3e243 (clears .z). */
   if (((actor_t *)actor)->field_099 == 0) {
-    if (magnitude3d((float *)(actor + 0x174)) <= *(float *)0x2533c0) {
+    if (!(magnitude3d((float *)(actor + 0x174)) > *(float *)0x2533c0)) {
       fwd_vec = *(float **)0x31fc3c;
       ((actor_t *)actor)->input_facing_vector[0] = fwd_vec[0];
       ((actor_t *)actor)->input_facing_vector[1] = fwd_vec[1];
@@ -7480,8 +7480,8 @@ LAB_3e02c:
                      0xcf6, 1);
       system_exit(-1);
     }
-    if (fabsf(((actor_t *)actor)->input_facing_vector[2]) >=
-        (float)*(double *)0x2533d0) {
+    if (fabs(((actor_t *)actor)->input_facing_vector[2]) >=
+        *(double *)0x2533d0) {
       display_assert("realcmp(actor->input.facing_vector.k, 0.0f)",
                      "c:\\halo\\SOURCE\\ai\\actors.c", 0xcf7, 1);
       system_exit(-1);
@@ -7491,7 +7491,7 @@ LAB_3e02c:
   /* Copy motion/velocity fields from biped */
   ((actor_t *)actor)->field_1b8 = *(int *)(biped + 0x90);
   *(int *)(actor + 0x1bc) = *(int *)(biped + 0x94);
-  ((actor_t *)actor)->field_1c0 = *(int *)(biped + 0xa8);
+  ((actor_t *)actor)->field_1c0 = *(float *)(biped + 0xa8);
   ((actor_t *)actor)->field_1c4 = *(int *)(biped + 0xa4);
 }
 

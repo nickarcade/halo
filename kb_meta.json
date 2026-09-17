@@ -3248,6 +3248,10 @@
         "The upstream libtiff identity of this entry point and the meaning of bit 0 of the byte at tif+0x9 are both UNKNOWN; in particular it is unproven whether that byte is byte 1 of an upstream uint32 tif_flags based at 0x08, so the bit is set with a literal 1 and cleared with 0xfe rather than a named TIFF_ macro."
       ]
     },
+    "0x68c40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x68e20": {
       "kind": "function",
       "status": "ported"

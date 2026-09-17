@@ -19,8 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Link pristine XBE
-        run: ln -sfn "$XBE_DIR" halo-patched
+      - name: Stage pristine XBE
+        uses: ./.github/actions/stage-local-assets
+        with:
+          xbe: "true"
+          required: halo-patched/cachebeta.xbe
 
       - name: Run versioned calibration corpus
         run: |

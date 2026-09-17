@@ -66,7 +66,11 @@ void game_state_save(void)
 
 /* Revert to the last saved game state. If no save exists or the map is
  * flagged for restart, calls the restart function instead. Otherwise,
- * loads the save and calls 13 initialize-for-new-map callbacks. */
+ * loads the save and calls 13 initialize-for-new-map callbacks.
+ *
+ * noinline: the original emits this out of line and
+ * game_state_save_to_persistent_storage reaches it via CALL 0x001bf8a0. */
+__declspec(noinline)
 void game_state_revert(void)
 {
   void (**callbacks)(void);
@@ -233,6 +237,16 @@ void FUN_001bfb60(const char *name, int a2, int value, bool flag)
   crt_fflush(game_state_globals.log_file);
 }
 
+/* Allocate from the CPU-side game state region.
+ *
+ * Logs each allocation to "d:\\gamestate.txt" (0x1bfc73-0x1bfcc0) using the
+ * same format string as game_state_gpu_alloc's inline logging, with the
+ * empty suffix at 0x25386f instead of gpu_alloc's "*" at 0x2686f4.
+ *
+ * noinline: the original emits this out of line at all three call sites --
+ * game_state_data_new, game_state_memory_pool_new and
+ * game_state_lruv_cache_new all reach it via CALL 0x001bfbf0. */
+__declspec(noinline)
 void *game_state_malloc(const char *name, const char *group_name, int size)
 {
   void *result;
@@ -242,6 +256,17 @@ void *game_state_malloc(const char *name, const char *group_name, int size)
   assert_halt(game_state_globals.cpu_allocation_size + size <=
               GAME_STATE_CPU_SIZE);
 
+  /* Open log file on first use; skip logging if open fails. */
+  if (game_state_globals.log_file == NULL) {
+    game_state_globals.log_file = crt_fopen("d:\\gamestate.txt", "w");
+    if (game_state_globals.log_file == NULL)
+      goto done;
+  }
+  crt_fprintf(game_state_globals.log_file, "% 40s% 20s% 10d%s\n", name,
+              group_name, size, (const char *)0x25386f);
+  crt_fflush(game_state_globals.log_file);
+
+done:
   result =
     game_state_globals.base_address + game_state_globals.cpu_allocation_size;
   game_state_globals.cpu_allocation_size += size;

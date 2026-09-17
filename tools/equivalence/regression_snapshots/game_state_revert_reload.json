@@ -1,0 +1,9 @@
+{
+  "description": "game_state_revert reloads the save and runs the 13 after-load callbacks when a save exists",
+  "build_label": "halo-debug-2276-synthetic",
+  "verified": true,
+  "regions": {
+    "0x004ea9a5": "0100000000000000",
+    "0x005054e8": "0000000000000000"
+  }
+}

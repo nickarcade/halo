@@ -8,8 +8,9 @@ name: Snapshot Verification
 #
 # See docs/repository-artifact-cleanup.md. On a GitHub-hosted runner neither
 # file exists after checkout, so the job could only ever fail -- which is what
-# it did for its last 8 runs before this was fixed. Both are symlinked in from
-# the host, the same way equivalence.yml and runtime-oracle.yml do it.
+# it did for its last 8 runs before this was fixed. They are COPIED in from the
+# host by .github/actions/stage-local-assets; that action's header explains why
+# they are no longer symlinked.
 
 on:
   push:
@@ -27,10 +28,9 @@ on:
 
 env:
   VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
-  DELINKED_DIR: /mnt/g/dev/halo/delinked
-  XBE_DIR: /mnt/g/dev/halo/halo-patched
-  # Host-only CI snapshot (raw game memory - never committed).
-  CI_DIR: /mnt/g/dev/halo/ci
+  # Host directory the never-committed assets (halo-patched/, delinked/, and
+  # the ci/ RAM capture) are copied out of.
+  SOURCE_ROOT: /mnt/g/dev/halo
 
 jobs:
   verify:
@@ -38,25 +38,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Link local assets
-        run: |
-          # delinked/ contains a few tracked reference objects. ln -sfn into
-          # that directory creates delinked/delinked rather than replacing it.
-          rm -rf -- delinked halo-patched ci
-          ln -sfn ${{ env.DELINKED_DIR }} delinked
-          ln -sfn ${{ env.XBE_DIR }} halo-patched
-          ln -sfn ${{ env.CI_DIR }} ci
+      - name: Stage local assets
+        uses: ./.github/actions/stage-local-assets
+        with:
+          xbe: "true"
+          delinked: "true"
+          ci: "true"
+          source-root: ${{ env.SOURCE_ROOT }}
+          required: >-
+            delinked/game_state.obj
+            halo-patched/cachebeta.xbe
+            ci/snapshot.json
 
       - name: Verify prerequisites
-        run: |
-          ${{ env.VENV_PYTHON }} -c "import unicorn, capstone; print('deps ok')"
-          fail=0
-          check() { if [ ! "$1" "$2" ]; then echo "::error::missing prerequisite: $2"; fail=1; else echo "ok: $2"; fi; }
-          check -d delinked
-          check -f delinked/game_state.obj
-          check -f halo-patched/cachebeta.xbe
-          check -f ci/snapshot.json
-          exit "$fail"
+        run: ${{ env.VENV_PYTHON }} -c "import unicorn, capstone; print('deps ok')"
 
       - name: Build
         run: |
@@ -105,3 +100,13 @@ jobs:
               else:
                   print(f'  PASS  {res[\"func\"]}  cov={res.get(\"coverage\", 0):.0f}%')
           "
+
+      # An unexpected fail/error fails the job; a not_applicable or
+      # inconclusive verdict, and anything listed in the policy file with a
+      # reviewed reason, does not.  Per-branch proof for the inconclusive
+      # lifecycle routines lives in tools/equivalence/regression_targets.json.
+      - name: Gate results against reviewed exceptions
+        if: always()
+        run: |
+          ${{ env.VENV_PYTHON }} tools/equivalence/check_snapshot_results.py \
+            artifacts/equivalence/ci_results.json

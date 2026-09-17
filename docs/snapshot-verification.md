@@ -17,7 +17,7 @@ xemu (QMP + GDB stub)   →   capture snapshot   →   verify with unicorn_diff 
 | `tools/equivalence/game_state_snapshot.py` | Capture memory snapshots from xemu via GDB RSP |
 | `tools/equivalence/game_state_verify.py` | Run unicorn_diff on ported functions with snapshot data |
 | `tools/report/generate_decomp_report.py` | Embed snapshot results in progress report |
-| `tools/report/progress_server.py` | Serve blam.info/progress dashboard |
+| `tools/report/progress_server.py` | Serve stianeklund.github.io/halo dashboard |
 | `.github/workflows/snapshot-tests.yml` | CI pipeline: build → verify → report |
 
 ## Capture
@@ -107,14 +107,14 @@ python3 tools/equivalence/game_state_verify.py \
 
 ## Progress Report Integration
 
-Snapshot results flow into the [blam.info/progress](https://blam.info/progress/) dashboard.
+Snapshot results flow into the [stianeklund.github.io/halo](https://stianeklund.github.io/halo/) dashboard.
 
 ### Data flow
 
 ```
 game_state_verify.py               generate_decomp_report.py          progress_server.py
     ↓                                       ↓                               ↓
-ci_results.json  ─────────────→  _load_snapshot_data()  ─────→  report.json  ─────→  blam.info/progress
+ci_results.json  ─────────────→  _load_snapshot_data()  ─────→  report.json  ─────→  stianeklund.github.io/halo
 ```
 
 The report generator reads `artifacts/equivalence/ci_results.json` and embeds
