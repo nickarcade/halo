@@ -6605,23 +6605,23 @@
           "addr": "0x24c0e1"
         },
         {
-          "decl": "void XInputOpen(void);",
+          "decl": "void * __stdcall XInputOpen(void *device_type, int port, int slot, void *polling_parameters);",
           "addr": "0x24c143"
         },
         {
-          "decl": "void XInputClose(void);",
+          "decl": "void __stdcall XInputClose(void *device_handle);",
           "addr": "0x24c1b8"
         },
         {
-          "decl": "void XInputGetCapabilities(void);",
+          "decl": "int __stdcall XInputGetCapabilities(void *device_handle, void *capabilities);",
           "addr": "0x24c1c4"
         },
         {
-          "decl": "void XInputGetState(void);",
+          "decl": "int __stdcall XInputGetState(void *device_handle, void *state);",
           "addr": "0x24c3b6"
         },
         {
-          "decl": "void XInputPoll(void);",
+          "decl": "int __stdcall XInputPoll(void *device_handle);",
           "addr": "0x24c45f"
         },
         {
@@ -6661,7 +6661,7 @@
           "addr": "0x24c932"
         },
         {
-          "decl": "void XGetDeviceChanges(void);",
+          "decl": "int __stdcall XGetDeviceChanges(void *device_type, uint32_t *insertions, uint32_t *removals);",
           "addr": "0x24c954"
         },
         {
