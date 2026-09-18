@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "struct": "decal_datum_t",
+  "size": {
+    "value": "0x38",
+    "evidence": "game_state_data_new(\"decals\", 0x800, 0x38) at decals_initialize @0x98ca0"
+  },
+  "stride": {
+    "value": "0x38",
+    "evidence": "pool element size argument of game_state_data_new(\"decals\", 0x800, 0x38)"
+  },
+  "sources": [
+    "FUN_00098970 @0x98970 — cluster_index/layer/prev/next consistency",
+    "decal_update @0x996b0 — flags, birth time, lifetime, decay, alpha, definition_index",
+    "decal_new_from_collision @0x9ac90 — writes position, color, sprite, primitive_count",
+    "decals_reconnect_to_structure_bsp @0x99b70 — position at +8, cluster_index==NONE, layer bounds",
+    "decal_delete @0x9a160 — flags bits, prev/next unlink, first_disconnected_decal_index",
+    "assert strings in c:\\halo\\SOURCE\\effects\\decals.c naming cluster_index, layer, flags, definition_index"
+  ],
+  "notes": [
+    "Pool identifier at +0x00 is the standard 16-bit datum salt; this TU does not load it.",
+    "+0x19 and +0x29 are never observed accessed in effects/decals.c.",
+    "previous_decal_index/next_decal_index are T2 mechanical names from the doubly-linked list; no assert spells the field identifiers."
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 2,
+      "signed": true,
+      "name": "datum_salt",
+      "confidence": "typed",
+      "evidence": "standard data_t element prefix; 16-bit hole before flags@0x02; not loaded in this TU"
+    },
+    {
+      "offset": "0x02",
+      "width": 2,
+      "signed": true,
+      "name": "flags",
+      "confidence": "named",
+      "evidence": "assert \"!TEST_FLAG(decal->flags, _decal_locked_bit)\" @decals.c:0x39f; bit0 locked, bit1 permanent (error strings / permanent_count)"
+    },
+    {
+      "offset": "0x04",
+      "width": 2,
+      "signed": true,
+      "name": "cluster_index",
+      "confidence": "named",
+      "evidence": "assert \"cluster_index==decal->cluster_index\" and \"decal->cluster_index==NONE\" (MOV word ptr)"
+    },
+    {
+      "offset": "0x06",
+      "width": 2,
+      "signed": true,
+      "name": "layer",
+      "confidence": "named",
+      "evidence": "assert \"decal->layer>=0 && decal->layer<NUMBER_OF_DECAL_LAYERS\" (MOV word ptr)"
+    },
+    {
+      "offset": "0x08",
+      "width": 4,
+      "kind": "float",
+      "array_len": 3,
+      "name": "position",
+      "confidence": "typed",
+      "evidence": "scenario_location_from_point(location, decal+8) @0x99b70; decal_new_from_collision stores collision hit xyz at +8/+c/+10 as dword FLD/FSTP"
+    },
+    {
+      "offset": "0x14",
+      "width": 4,
+      "signed": true,
+      "name": "birth_time",
+      "confidence": "typed",
+      "evidence": "decal_update: (game_time_get() - *(int*)(decal+0x14)) * 0.033333335f; dword store of game_time_get() at insert"
+    },
+    {
+      "offset": "0x18",
+      "width": 1,
+      "signed": false,
+      "name": "color_index",
+      "confidence": "typed",
+      "evidence": "decal_new_from_collision stores (uint8_t)selected_color at +0x18"
+    },
+    {
+      "offset": "0x19",
+      "width": 1,
+      "signed": false,
+      "confidence": "gap",
+      "evidence": "never observed accessed in effects/decals.c"
+    },
+    {
+      "offset": "0x1a",
+      "width": 1,
+      "signed": false,
+      "confidence": "typed",
+      "evidence": "decal_new_from_collision stores 0 at +0x1a (MOV byte ptr)"
+    },
+    {
+      "offset": "0x1b",
+      "width": 1,
+      "signed": false,
+      "name": "sprite_index",
+      "confidence": "typed",
+      "evidence": "decal_new_from_collision stores (uint8_t)sprite_index at +0x1b"
+    },
+    {
+      "offset": "0x1c",
+      "width": 4,
+      "kind": "float",
+      "name": "lifetime",
+      "confidence": "typed",
+      "evidence": "decal_update FCOM against [decal+0x1c]; insert fills from tag lifetime bounds at +0x78/+0x7c"
+    },
+    {
+      "offset": "0x20",
+      "width": 4,
+      "kind": "float",
+      "name": "decay_time",
+      "confidence": "typed",
+      "evidence": "decal_update FCOM against [decal+0x20]; insert fills from tag decay bounds at +0x80/+0x84"
+    },
+    {
+      "offset": "0x24",
+      "width": 4,
+      "signed": false,
+      "name": "color",
+      "confidence": "typed",
+      "evidence": "decal_new_from_collision stores real_a_rgb_color_to_pixel32 result as dword at +0x24"
+    },
+    {
+      "offset": "0x28",
+      "width": 1,
+      "signed": false,
+      "name": "alpha",
+      "confidence": "typed",
+      "evidence": "decal_update MOV byte ptr [decal+0x28], 0xff then FISTP fade byte; insert also writes 0xff"
+    },
+    {
+      "offset": "0x29",
+      "width": 1,
+      "signed": false,
+      "confidence": "gap",
+      "evidence": "never observed accessed in effects/decals.c"
+    },
+    {
+      "offset": "0x2a",
+      "width": 2,
+      "signed": true,
+      "name": "primitive_count",
+      "confidence": "typed",
+      "evidence": "decal_new_from_collision MOV word ptr [decal+0x2a], primitive_count"
+    },
+    {
+      "offset": "0x2c",
+      "width": 4,
+      "signed": true,
+      "name": "definition_index",
+      "confidence": "named",
+      "evidence": "assert \"decal->definition_index!=NONE\" @decals.c:0x133; tag_get('deca', field)"
+    },
+    {
+      "offset": "0x30",
+      "width": 4,
+      "signed": true,
+      "name": "previous_decal_index",
+      "confidence": "typed",
+      "evidence": "doubly-linked list prev; dword -1 sentinel; paired with next@0x34 across insert/delete/reconnect"
+    },
+    {
+      "offset": "0x34",
+      "width": 4,
+      "signed": true,
+      "name": "next_decal_index",
+      "confidence": "typed",
+      "evidence": "doubly-linked list next; dword -1 sentinel; FUN_00098970 loads it twice per neighbor"
+    }
+  ]
+}

@@ -83,6 +83,15 @@ cs(real_vector2d, 0x8);
 co(real_vector2d, i, 0x0);
 co(real_vector2d, j, 0x4);
 
+/// size=0x10
+typedef struct real_plane3d {
+  real normal[3];                  ///< offset=0x00
+  real d;                          ///< offset=0x0c
+} real_plane3d;
+cs(real_plane3d, 0x10);
+co(real_plane3d, normal, 0x0);
+co(real_plane3d, d, 0xc);
+
 #define __int16 short
 #define __int8 char
 
@@ -1820,6 +1829,62 @@ cs(tag_block, 0xc);
 co(tag_block, count,   0x00);
 co(tag_block, address, 0x04);
 
+/*
+ * Collision BSP header and winged-edge elements. Offsets and strides are the
+ * tag_block_get_element sites in collision_bsp.c / decals.c:
+ *   header +0x0c planes, +0x3c surfaces (stride 0xc), +0x48 edges (0x18),
+ *   +0x54 vertices (0x10). Surface[+0]=plane, [+4]=first_edge, [+8]=flags.
+ *   Edge six dwords: start/end vertex, forward/reverse edge, left/right surface.
+ */
+typedef struct collision_bsp_t {
+  char      pad_00[0x0c];
+  tag_block planes;                 ///< offset=0x0c
+  char      pad_18[0x24];
+  tag_block surfaces;               ///< offset=0x3c
+  tag_block edges;                  ///< offset=0x48
+  tag_block vertices;               ///< offset=0x54
+} collision_bsp_t;
+cs(collision_bsp_t, 0x60);
+co(collision_bsp_t, planes, 0x0c);
+co(collision_bsp_t, surfaces, 0x3c);
+co(collision_bsp_t, edges, 0x48);
+co(collision_bsp_t, vertices, 0x54);
+
+typedef struct collision_surface_t {
+  int32_t plane;                    ///< offset=0x00
+  int32_t first_edge;               ///< offset=0x04
+  uint8_t flags;                    ///< offset=0x08
+  uint8_t pad_09[3];
+} collision_surface_t;
+cs(collision_surface_t, 0x0c);
+co(collision_surface_t, plane, 0x00);
+co(collision_surface_t, first_edge, 0x04);
+co(collision_surface_t, flags, 0x08);
+
+typedef struct collision_edge_t {
+  int32_t start_vertex;             ///< offset=0x00
+  int32_t end_vertex;               ///< offset=0x04
+  int32_t forward_edge;             ///< offset=0x08
+  int32_t reverse_edge;             ///< offset=0x0c
+  int32_t left_surface;             ///< offset=0x10
+  int32_t right_surface;            ///< offset=0x14
+} collision_edge_t;
+cs(collision_edge_t, 0x18);
+co(collision_edge_t, start_vertex, 0x00);
+co(collision_edge_t, end_vertex, 0x04);
+co(collision_edge_t, forward_edge, 0x08);
+co(collision_edge_t, reverse_edge, 0x0c);
+co(collision_edge_t, left_surface, 0x10);
+co(collision_edge_t, right_surface, 0x14);
+
+typedef struct collision_vertex_t {
+  real    point[3];                 ///< offset=0x00
+  int32_t field_0c;                 ///< offset=0x0c
+} collision_vertex_t;
+cs(collision_vertex_t, 0x10);
+co(collision_vertex_t, point, 0x00);
+co(collision_vertex_t, field_0c, 0x0c);
+
 /// size=0x68
 /* Structure-BSP cluster element. Only the runtime-decal range is proven. */
 typedef struct {
@@ -1866,6 +1931,143 @@ typedef struct {
 } structure_decals_globals_t;
 cs(structure_decals_globals_t, 0x04);
 co(structure_decals_globals_t, field_00, 0x00);
+
+/* effects/decals.c asserts: NUMBER_OF_DECAL_LAYERS, NUMBER_OF_DECAL_TYPES,
+ * MAXIMUM_CLUSTERS_PER_STRUCTURE, MAXIMUM_DECAL_SURFACE_QUEUE_SIZE,
+ * _decal_locked_bit, geometry->decal_surface_count. */
+#define MAXIMUM_CLUSTERS_PER_STRUCTURE 512
+#define NUMBER_OF_DECAL_LAYERS 5
+#define NUMBER_OF_DECAL_TYPES 4
+#define MAXIMUM_DECALS 2048
+#define MAXIMUM_DECAL_SURFACE_QUEUE_SIZE 1024
+#define _decal_locked_bit 0
+#define _decal_permanent_bit 1
+
+/// size=0x38  pool stride from game_state_data_new("decals", 0x800, 0x38)
+typedef struct decal_datum_t {
+  int16_t  datum_salt;             ///< offset=0x00
+  int16_t  flags;                  ///< offset=0x02  T1: decal->flags / _decal_locked_bit
+  int16_t  cluster_index;          ///< offset=0x04  T1: decal->cluster_index
+  int16_t  layer;                  ///< offset=0x06  T1: decal->layer
+  real     position[3];            ///< offset=0x08
+  int32_t  birth_time;             ///< offset=0x14
+  uint8_t  color_index;            ///< offset=0x18
+  uint8_t  pad_19;                 ///< offset=0x19
+  uint8_t  field_1a;               ///< offset=0x1a
+  uint8_t  sprite_index;           ///< offset=0x1b
+  real     lifetime;               ///< offset=0x1c
+  real     decay_time;             ///< offset=0x20
+  uint32_t color;                  ///< offset=0x24
+  uint8_t  alpha;                  ///< offset=0x28
+  uint8_t  pad_29;                 ///< offset=0x29
+  int16_t  primitive_count;        ///< offset=0x2a
+  int32_t  definition_index;       ///< offset=0x2c  T1: decal->definition_index
+  int32_t  previous_decal_index;   ///< offset=0x30
+  int32_t  next_decal_index;       ///< offset=0x34
+} decal_datum_t;
+cs(decal_datum_t, 0x38);
+co(decal_datum_t, flags, 0x02);
+co(decal_datum_t, cluster_index, 0x04);
+co(decal_datum_t, layer, 0x06);
+co(decal_datum_t, position, 0x08);
+co(decal_datum_t, birth_time, 0x14);
+co(decal_datum_t, color_index, 0x18);
+co(decal_datum_t, lifetime, 0x1c);
+co(decal_datum_t, decay_time, 0x20);
+co(decal_datum_t, color, 0x24);
+co(decal_datum_t, alpha, 0x28);
+co(decal_datum_t, primitive_count, 0x2a);
+co(decal_datum_t, definition_index, 0x2c);
+co(decal_datum_t, previous_decal_index, 0x30);
+co(decal_datum_t, next_decal_index, 0x34);
+
+/// size=0x280c  from game_state_malloc("decal globals", 0, 0x280c)
+typedef struct decal_globals_t {
+  int32_t first_decal_index[NUMBER_OF_DECAL_LAYERS][MAXIMUM_CLUSTERS_PER_STRUCTURE]; ///< offset=0x00
+  int32_t first_disconnected_decal_index; ///< offset=0x2800  T1
+  int32_t locked_count;                   ///< offset=0x2804
+  int32_t permanent_count;                ///< offset=0x2808  T1: decal_globals->permanent_count
+} decal_globals_t;
+cs(decal_globals_t, 0x280c);
+co(decal_globals_t, first_decal_index, 0x00);
+co(decal_globals_t, first_disconnected_decal_index, 0x2800);
+co(decal_globals_t, locked_count, 0x2804);
+co(decal_globals_t, permanent_count, 0x2808);
+
+/// size=0x18  FUN_0009a5a0 vertex stride
+typedef struct decal_geometry_vertex_t {
+  real    position[3]; ///< offset=0x00
+  real    uv[2];       ///< offset=0x0c
+  boolean clipped;     ///< offset=0x14
+  uint8_t pad_15[3];   ///< offset=0x15
+} decal_geometry_vertex_t;
+cs(decal_geometry_vertex_t, 0x18);
+co(decal_geometry_vertex_t, uv, 0x0c);
+co(decal_geometry_vertex_t, clipped, 0x14);
+
+/// size=0x7804  bound at 0x44dfd8 by decal_new_from_collision
+typedef struct decal_geometry_scratch_t {
+  decal_geometry_vertex_t vertices[MAXIMUM_DECAL_SURFACE_QUEUE_SIZE];
+  int16_t vertex_count;                                                ///< offset=0x6000
+  int16_t surface_vertex_counts[MAXIMUM_DECAL_SURFACE_QUEUE_SIZE];     ///< offset=0x6002
+  int16_t decal_surface_count;                                         ///< offset=0x6802  T1
+  int32_t surfaces[MAXIMUM_DECAL_SURFACE_QUEUE_SIZE];                  ///< offset=0x6804
+} decal_geometry_scratch_t;
+cs(decal_geometry_scratch_t, 0x7804);
+co(decal_geometry_scratch_t, vertex_count, 0x6000);
+co(decal_geometry_scratch_t, surface_vertex_counts, 0x6002);
+co(decal_geometry_scratch_t, decal_surface_count, 0x6802);
+co(decal_geometry_scratch_t, surfaces, 0x6804);
+
+/// size=0x8c  g_decal_projection[35] overlay used by FUN_0009a300
+typedef struct decal_projection_t {
+  real    basis[13];       ///< offset=0x00
+  real    bounds[4];       ///< offset=0x34
+  real    normal[3];       ///< offset=0x44
+  real    field_50;        ///< offset=0x50
+  int16_t projection;      ///< offset=0x54
+  uint8_t sign;            ///< offset=0x56
+  uint8_t pad_57;          ///< offset=0x57
+  real    corner[4][2];    ///< offset=0x58
+  real    field_78;        ///< offset=0x78
+  real    field_7c;        ///< offset=0x7c
+  real    field_80;        ///< offset=0x80
+  real    field_84;        ///< offset=0x84
+  real    field_88;        ///< offset=0x88
+} decal_projection_t;
+cs(decal_projection_t, 0x8c);
+co(decal_projection_t, bounds, 0x34);
+co(decal_projection_t, normal, 0x44);
+co(decal_projection_t, projection, 0x54);
+co(decal_projection_t, sign, 0x56);
+co(decal_projection_t, corner, 0x58);
+co(decal_projection_t, field_88, 0x88);
+
+/// size=0x10  staged rasterizer vertex
+typedef struct decal_staged_vertex_t {
+  real    position[3];
+  int16_t uv[2];
+} decal_staged_vertex_t;
+cs(decal_staged_vertex_t, 0x10);
+co(decal_staged_vertex_t, uv, 0x0c);
+
+typedef struct decal_cached_quad_t {
+  decal_staged_vertex_t vertices[4];
+} decal_cached_quad_t;
+cs(decal_cached_quad_t, 0x40);
+
+/// size=0x10  per-type table at 0x269d80, indexed by decal tag type 0..3
+typedef struct decal_type_parameters_t {
+  real    field_00;   ///< offset=0x00  conformal-angle scale
+  real    field_04;   ///< offset=0x04  deviant-angle scale
+  real    field_08;   ///< offset=0x08  wrap-sphere radius scale
+  uint8_t field_0c;   ///< offset=0x0c
+  uint8_t pad_0d[3];  ///< offset=0x0d
+} decal_type_parameters_t;
+cs(decal_type_parameters_t, 0x10);
+co(decal_type_parameters_t, field_04, 0x04);
+co(decal_type_parameters_t, field_08, 0x08);
+co(decal_type_parameters_t, field_0c, 0x0c);
 
 /* -------------------------------------------------------------------------
  * tag_reference -- 0x10-byte element of a tag-reference tag block.

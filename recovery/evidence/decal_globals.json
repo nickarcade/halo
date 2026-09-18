@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "struct": "decal_globals_t",
+  "size": {
+    "value": "0x280c",
+    "evidence": "game_state_malloc(\"decal globals\", 0, 0x280c) at decals_initialize @0x98ca0"
+  },
+  "sources": [
+    "decals_initialize @0x98ca0 / decals_initialize_for_new_map @0x98d40",
+    "FUN_00098aa0 @0x98aa0 / FUN_00098fe0 @0x98fe0 — [layer*512 + cluster] first-index slot",
+    "decals_reconnect_to_structure_bsp @0x99b70 / decals_disconnect_from_structure_bsp @0x99d60",
+    "decal_delete @0x9a160 / decals_delete_permanent_from_cluster @0x99fd0",
+    "assert \"decal_globals->first_disconnected_decal_index==decal_index\"",
+    "assert \"decal_globals->permanent_count>=0\"",
+    "assert \"decal_get_first_decal_index(decal->cluster_index, decal->layer)==decal_index\""
+  ],
+  "notes": [
+    "csmemset(decal_globals, 0xFF, 0x2800) fills only the first-index table; the three trailer dwords are stored separately.",
+    "locked_count is named from the error string \"locked count is invalid\" plus the permanent_count assert pairing, not from a field-identifier assert."
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 4,
+      "signed": true,
+      "array_len": 2560,
+      "name": "first_decal_index",
+      "confidence": "named",
+      "evidence": "assert names decal_get_first_decal_index(cluster, layer); index is layer*MAXIMUM_CLUSTERS_PER_STRUCTURE(512)+cluster; 5*512=2560 dwords = 0x2800 bytes"
+    },
+    {
+      "offset": "0x2800",
+      "width": 4,
+      "signed": true,
+      "name": "first_disconnected_decal_index",
+      "confidence": "named",
+      "evidence": "assert \"decal_globals->first_disconnected_decal_index==decal_index\" @decals.c:0x2aa and 0x3db; dword NONE sentinel"
+    },
+    {
+      "offset": "0x2804",
+      "width": 4,
+      "signed": true,
+      "name": "locked_count",
+      "confidence": "typed",
+      "evidence": "inc/dec when flag bit0 changes; error \"### ERROR decals: locked count is invalid (#%d)\"; dword"
+    },
+    {
+      "offset": "0x2808",
+      "width": 4,
+      "signed": true,
+      "name": "permanent_count",
+      "confidence": "named",
+      "evidence": "assert \"decal_globals->permanent_count>=0\" @decals.c:0x3a8; inc/dec with flag bit1"
+    }
+  ]
+}

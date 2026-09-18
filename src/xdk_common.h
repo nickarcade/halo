@@ -84,6 +84,7 @@ static const int _scenario_type_main_menu = 2;
  * VC71 /FI src/xdk_common.h) rather than in a .c: a definition added above an
  * assert_halt would shift __FILE__/__LINE__ and move .text. */
 #define TAG_GROUP_DECAL 0x64656361 /* 'deca' */
+#define TAG_GROUP_BITM  0x6269746d /* 'bitm' */
 #define TAG_GROUP_FONT 0x666f6e74 /* 'font' */
 #define TAG_GROUP_HUDG 0x68756467 /* 'hudg' */
 #define TAG_GROUP_ITEM 0x6974656d /* 'item' */

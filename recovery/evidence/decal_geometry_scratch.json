@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "struct": "decal_geometry_scratch_t",
+  "size": {
+    "value": "0x7804",
+    "evidence": "vertices[0x400]*0x18 + int16 vertex_count + int16[0x400] surface_vertex_counts + int16 surface_count + int[0x400] surfaces; asserted by accesses at +0x6000/+0x6802/+0x6804 in FUN_0009a5a0"
+  },
+  "sources": [
+    "FUN_0009a5a0 @0x9a5a0 — geometry_data+0x6000 vertex_count, +0x6802 surface_count, +0x6804 surfaces[], per-vertex 0x18 stride",
+    "decal_new_from_collision @0x9ac90 — binds (s_decal_geometry_scratch*)0x44dfd8",
+    "assert \"geometry->decal_surface_count<MAXIMUM_DECAL_SURFACE_QUEUE_SIZE\""
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 4,
+      "kind": "float",
+      "array_len": 6144,
+      "name": "vertices",
+      "confidence": "typed",
+      "evidence": "0x400 vertices * 0x18 bytes; each vertex is position[3] + uv[2] + clipped bool at +0x14 (MOV byte / FSTP dwords in FUN_0009a5a0)"
+    },
+    {
+      "offset": "0x6000",
+      "width": 2,
+      "signed": true,
+      "name": "vertex_count",
+      "confidence": "typed",
+      "evidence": "MOV word ptr [geometry+0x6000]; compared against 0x400 - count in FUN_0009a5a0"
+    },
+    {
+      "offset": "0x6002",
+      "width": 2,
+      "signed": true,
+      "array_len": 1024,
+      "name": "surface_vertex_counts",
+      "confidence": "typed",
+      "evidence": "MOV word ptr [geometry + surface_count*2 + 0x6002] = clipped_count"
+    },
+    {
+      "offset": "0x6802",
+      "width": 2,
+      "signed": true,
+      "name": "surface_count",
+      "confidence": "named",
+      "evidence": "assert text geometry->decal_surface_count; MOV word ptr [geometry+0x6802]"
+    },
+    {
+      "offset": "0x6804",
+      "width": 4,
+      "signed": true,
+      "array_len": 1024,
+      "name": "surfaces",
+      "confidence": "typed",
+      "evidence": "MOV dword ptr [geometry + surface_count*4 + 0x6804] = surface_index"
+    }
+  ]
+}

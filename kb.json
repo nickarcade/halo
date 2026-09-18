@@ -656,7 +656,7 @@
     },
     {
      "addr": "0x44dfd0",
-     "decl": "char *decal_globals;"
+     "decl": "decal_globals_t *decal_globals;"
     },
     {
      "addr": "0x453fd8",
@@ -791,12 +791,48 @@
      "decl": "void *game_state_callback_32eaa4;"
     },
     {
+     "addr": "0x4557dc",
+     "decl": "uint8_t decals_reported_locked_count_update;"
+    },
+    {
+     "addr": "0x4557dd",
+     "decl": "uint8_t decals_reported_locked_count_insert;"
+    },
+    {
+     "addr": "0x4557de",
+     "decl": "uint8_t decals_reported_locked_count;"
+    },
+    {
+     "addr": "0x4557df",
+     "decl": "uint8_t decals_reported_permanent_count;"
+    },
+    {
      "addr": "0x4557e0",
      "decl": "uint8_t decals_reported_locked_delete;"
     },
     {
      "addr": "0x4557e1",
      "decl": "uint8_t decals_reported_permanent_delete;"
+    },
+    {
+     "addr": "0x44df10",
+     "decl": "real g_decal_clip_buffers[2][24];"
+    },
+    {
+     "addr": "0x44dfd8",
+     "decl": "decal_geometry_scratch_t g_decal_geometry;"
+    },
+    {
+     "addr": "0x2eebd0",
+     "decl": "uint8_t rasterizer_environment_decals;"
+    },
+    {
+     "addr": "0x325710",
+     "decl": "real rasterizer_zoffset;"
+    },
+    {
+     "addr": "0x269d80",
+     "decl": "decal_type_parameters_t g_decal_type_parameters[4];"
     },
     {
      "addr": "0x47e4d0",
@@ -6921,6 +6957,7 @@
     {
      "addr": "0x17cba0",
      "decl": "void rasterizer_screen_flash(void);",
+     "ported": true,
      "comment": "[NAME: rasterizer_screen_flash — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -6941,15 +6978,18 @@
     {
      "addr": "0x17cbe0",
      "decl": "void rasterizer_model_end(void);",
+     "ported": true,
      "comment": "[NAME: rasterizer_model_end — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x17cbf0",
-     "decl": "void FUN_0017cbf0(void);"
+     "decl": "void FUN_0017cbf0(void);",
+     "ported": true
     },
     {
      "addr": "0x17cc00",
-     "decl": "void FUN_0017cc00(void);"
+     "decl": "void FUN_0017cc00(void);",
+     "ported": true
     },
     {
      "addr": "0x17cc10",
@@ -6963,11 +7003,13 @@
     },
     {
      "addr": "0x17cc40",
-     "decl": "void FUN_0017cc40(void);"
+     "decl": "void FUN_0017cc40(void);",
+     "ported": true
     },
     {
      "addr": "0x17cc50",
-     "decl": "void FUN_0017cc50(void);"
+     "decl": "void FUN_0017cc50(void);",
+     "ported": true
     },
     {
      "addr": "0x17cc60",
@@ -6982,15 +7024,18 @@
     {
      "addr": "0x17cc80",
      "decl": "void rasterizer_environment_diffuse_light_end(void);",
+     "ported": true,
      "comment": "[NAME: rasterizer_environment_diffuse_light_end — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x17cc90",
-     "decl": "void FUN_0017cc90(void);"
+     "decl": "void FUN_0017cc90(void);",
+     "ported": true
     },
     {
      "addr": "0x17cca0",
-     "decl": "void FUN_0017cca0(void);"
+     "decl": "void FUN_0017cca0(void);",
+     "ported": true
     },
     {
      "addr": "0x17ccb0",
@@ -7010,6 +7055,7 @@
     {
      "addr": "0x17cce0",
      "decl": "void rasterizer_environment_shadow_model_end(void);",
+     "ported": true,
      "comment": "[NAME: rasterizer_environment_shadow_model_end — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -7019,15 +7065,18 @@
     },
     {
      "addr": "0x17cd00",
-     "decl": "void FUN_0017cd00(void);"
+     "decl": "void FUN_0017cd00(void);",
+     "ported": true
     },
     {
      "addr": "0x17cd10",
-     "decl": "void FUN_0017cd10(void);"
+     "decl": "void FUN_0017cd10(void);",
+     "ported": true
     },
     {
      "addr": "0x17cd20",
      "decl": "void rasterizer_environment_diffuse_textures_begin(void);",
+     "ported": true,
      "comment": "[NAME: rasterizer_environment_diffuse_textures_begin — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -7038,11 +7087,13 @@
     {
      "addr": "0x17cd40",
      "decl": "void rasterizer_environment_diffuse_textures_end(void);",
+     "ported": true,
      "comment": "[NAME: rasterizer_environment_diffuse_textures_end — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x17cd50",
-     "decl": "void FUN_0017cd50(void);"
+     "decl": "void FUN_0017cd50(void);",
+     "ported": true
     }
    ],
    "name": "decals.obj",
