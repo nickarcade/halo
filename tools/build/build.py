@@ -36,6 +36,19 @@ def _build_jobs() -> int:
     return os.cpu_count() or 1
 
 
+def _report_quiet_failure(command, result) -> None:
+    """Show output hidden by quiet mode when a command fails."""
+    if result.returncode == 0:
+        return
+    print(
+        "[build] command failed (exit %d): %s"
+        % (result.returncode, " ".join(str(arg) for arg in command)),
+        file=sys.stderr,
+    )
+    if result.stdout:
+        print(result.stdout, file=sys.stderr, end="")
+
+
 def _run_cmake_build(target: str = "", quiet: bool = False) -> int:
     command = ["cmake", "--build", BUILD_DIR]
     if target:
@@ -48,8 +61,17 @@ def _run_cmake_build(target: str = "", quiet: bool = False) -> int:
     if quiet:
         env["LOG_LEVEL"] = "WARNING"
 
-    stdout = subprocess.DEVNULL if quiet else None
-    result = subprocess.run(command, stdout=stdout, check=False, cwd=ROOT_DIR, env=env)
+    stdout = subprocess.PIPE if quiet else None
+    result = subprocess.run(
+        command,
+        stdout=stdout,
+        text=True,
+        check=False,
+        cwd=ROOT_DIR,
+        env=env,
+    )
+    if quiet:
+        _report_quiet_failure(command, result)
     return result.returncode
 
 
@@ -59,8 +81,16 @@ def _run_cmake_configure(extra_args: list[str] = None, quiet: bool = False) -> i
         command.append("-Wno-dev")
     if extra_args:
         command.extend(extra_args)
-    stdout = subprocess.DEVNULL if quiet else None
-    result = subprocess.run(command, stdout=stdout, check=False, cwd=ROOT_DIR)
+    stdout = subprocess.PIPE if quiet else None
+    result = subprocess.run(
+        command,
+        stdout=stdout,
+        text=True,
+        check=False,
+        cwd=ROOT_DIR,
+    )
+    if quiet:
+        _report_quiet_failure(command, result)
     return result.returncode
 
 
