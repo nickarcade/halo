@@ -837,6 +837,83 @@ def strip_regparam_loads(insns: list[str], reference: list[str],
     return out, n_stripped
 
 
+_ADD_ESP_RE = re.compile(
+    r'^addl?\s+\$((?:0x)?[0-9a-f]+),\s*%esp$', re.I)
+
+
+def _add_esp_imm(insn: str) -> int | None:
+    """Immediate added to ESP, or None if this is not `add $N, %esp`."""
+    s = insn.split("#", 1)[0].strip()
+    m = _ADD_ESP_RE.match(s)
+    if not m:
+        return None
+    tok = m.group(1)
+    return int(tok, 16) if tok.lower().startswith("0x") else int(tok)
+
+
+def _is_push_insn(insn: str) -> bool:
+    mn = mnemonic(insn).lower()
+    return mn in ("push", "pushl", "pushw", "pushb")
+
+
+def _is_call_insn(insn: str) -> bool:
+    mn = mnemonic(insn).lower()
+    return mn in ("call", "calll", "callw")
+
+
+def _cdecl_call_sites(insns: list[str]) -> list[tuple[int, int, int]]:
+    """(push_start, end_exclusive, arity) for `push*N; call; add $4N, %esp`."""
+    sites = []
+    i = 0
+    n = len(insns)
+    while i < n:
+        if _is_call_insn(insns[i]):
+            j = i
+            while j > 0 and _is_push_insn(insns[j - 1]):
+                j -= 1
+            arity = i - j
+            add_imm = _add_esp_imm(insns[i + 1]) if i + 1 < n else None
+            if arity >= 1 and add_imm == 4 * arity:
+                sites.append((j, i + 2, arity))
+                i += 2
+                continue
+        i += 1
+    return sites
+
+
+def strip_regarg_call_setups(insns: list[str], reference: list[str]
+                             ) -> tuple[list[str], int]:
+    """Remove candidate-only cdecl push/add-esp around all-register calls.
+
+    cl.exe cannot put `@<eax>`/`@<esi>` arguments in registers, so a same-TU
+    call to a 0-stack register-arg callee compiles as `push*N; call; add $4N`.
+    The reference has `mov`/`xor` into those registers and no stack cleanup.
+    Count-aware per arity: strip at most cand_count - ref_count cdecl-N sites
+    so a real cdecl call the reference also makes is never touched.
+    """
+    from collections import Counter
+
+    cand_sites = _cdecl_call_sites(insns)
+    if not cand_sites:
+        return insns, 0
+    ref_arity = Counter(a for _, _, a in _cdecl_call_sites(reference))
+    cand_arity = Counter(a for _, _, a in cand_sites)
+    remaining = {a: cand_arity[a] - ref_arity[a] for a in cand_arity}
+    to_strip: set[int] = set()
+    for start, end, arity in cand_sites:
+        if remaining.get(arity, 0) <= 0:
+            continue
+        remaining[arity] -= 1
+        call_i = end - 2
+        for k in range(start, call_i):
+            to_strip.add(k)
+        to_strip.add(end - 1)
+    if not to_strip:
+        return insns, 0
+    out = [insn for i, insn in enumerate(insns) if i not in to_strip]
+    return out, len(to_strip)
+
+
 def normalize_instruction(insn: str) -> str:
     """Full instruction normalization: mnemonic + operand shape with canonical registers."""
     # Strip llvm-objdump's trailing `# imm = 0x...` annotation. The reference
@@ -896,7 +973,8 @@ def comparison_ratio(compiled: list[str], reference: list[str],
 
 def select_regparam_candidate(compiled: list[str], reference: list[str],
                               regdef_params: list[tuple[int, str]] | None,
-                              reg_normalize: bool = False
+                              reg_normalize: bool = False,
+                              model_regarg_calls: bool = True
                               ) -> tuple[list[str], int, str]:
     """Choose the raw or phantom-load-stripped candidate used for scoring.
 
@@ -904,17 +982,32 @@ def select_regparam_candidate(compiled: list[str], reference: list[str],
     compiler artifact, but never lower the reported ratio. Other metrics must
     use this same selected instruction list to remain directly comparable.
     """
-    best = (comparison_ratio(compiled, reference, reg_normalize),
-            compiled, 0, "raw")
+    variants: list[tuple[list[str], int, str]] = [
+        (compiled, 0, "raw"),
+    ]
     for strip_saves, label in ((False, "regparam_stripped"),
                                (True, "regparam_stripped_saves")):
         stripped, n_stripped = strip_regparam_loads(
             compiled, reference, regdef_params, strip_saves=strip_saves)
-        if not n_stripped:
-            continue
-        ratio = comparison_ratio(stripped, reference, reg_normalize)
+        if n_stripped:
+            variants.append((stripped, n_stripped, label))
+
+    best = (comparison_ratio(compiled, reference, reg_normalize),
+            compiled, 0, "raw")
+    for base, n_base, label in variants:
+        ratio = comparison_ratio(base, reference, reg_normalize)
         if ratio > best[0]:
-            best = (ratio, stripped, n_stripped, label)
+            best = (ratio, base, n_base, label)
+        if not model_regarg_calls:
+            continue
+        call_stripped, n_call = strip_regarg_call_setups(base, reference)
+        if not n_call:
+            continue
+        call_ratio = comparison_ratio(call_stripped, reference, reg_normalize)
+        call_label = (label + "+regarg_call" if label != "raw"
+                      else "regarg_call_stripped")
+        if call_ratio > best[0]:
+            best = (call_ratio, call_stripped, n_base + n_call, call_label)
     return best[1], best[2], best[3]
 
 
@@ -1606,7 +1699,8 @@ def compare_fcom_guards(compiled: list[str], reference: list[str]) -> list[str]:
 
 def compare_functions(compiled: list[str], reference: list[str],
                       reg_normalize: bool = False,
-                      regdef_params: list[tuple[int, str]] | None = None
+                      regdef_params: list[tuple[int, str]] | None = None,
+                      model_regarg_calls: bool = True
                       ) -> tuple[float, list[str], list[str], list[str], list[str], list[str], list[str]]:
     """Compare two functions.
     Returns (match_pct, diff_summary, fpu_warnings, loadw_warnings,
@@ -1626,7 +1720,8 @@ def compare_functions(compiled: list[str], reference: list[str],
     penalty and must never introduce one.
     """
     compiled, _, _ = select_regparam_candidate(
-        compiled, reference, regdef_params, reg_normalize)
+        compiled, reference, regdef_params, reg_normalize,
+        model_regarg_calls=model_regarg_calls)
     if reg_normalize:
         # Score BOTH register mappings and report the higher.
         #
@@ -2206,6 +2301,63 @@ def _self_test():
     selected, n, mode = select_regparam_candidate(cand, ref, [(0, 'ebx')])
     check("RP13 saves pass never scores below raw",
           comparison_ratio(selected, ref, False) >= raw)
+
+    # --- caller-site all-register ABI (strip_regarg_call_setups) ---
+    # FUN_00083930: original xor eax / mov ecx / call; cl.exe push*3 / call /
+    # add $0xc. Strip only the candidate-surplus cdecl-N setup.
+
+    # RC1. 3-reg 0-stack call: pushes+add stripped, call kept, score rises.
+    cand = ["pushl\t$0x0", "pushl\t%eax", "pushl\t$0x2", "calll\tf",
+            "addl\t$0xc, %esp", "retl"]
+    ref = ["xorl\t%eax, %eax", "movl\t$0x2, %ecx", "calll\tf", "retl"]
+    stripped, n = strip_regarg_call_setups(cand, ref)
+    check("RC1 cdecl-3 setup stripped, call kept",
+          n == 4 and stripped == ["calll\tf", "retl"])
+    raw = comparison_ratio(cand, ref, False)
+    stripped_ratio = comparison_ratio(stripped, ref, False)
+    check("RC1 stripped scores higher than raw cdecl setup",
+          stripped_ratio > raw)
+    selected, nsel, mode = select_regparam_candidate(cand, ref, None)
+    check("RC1 mode is regarg_call_stripped",
+          mode == "regarg_call_stripped" and nsel == 4)
+
+    # RC2. Both sides are cdecl-3: excess 0, nothing stripped.
+    both = ["pushl\t$0x0", "pushl\t%eax", "pushl\t$0x2", "calll\tf",
+            "addl\t$0xc, %esp", "retl"]
+    stripped, n = strip_regarg_call_setups(both, both)
+    check("RC2 matching cdecl-3 is not stripped", n == 0 and stripped == both)
+
+    # RC3. stdcall (pushes + call, no add esp) is not a cdecl site.
+    cand = ["pushl\t%eax", "pushl\t%ecx", "pushl\t%edx", "calll\tf", "retl"]
+    ref = ["calll\tf", "retl"]
+    stripped, n = strip_regarg_call_setups(cand, ref)
+    check("RC3 stdcall pushes without add-esp are left alone", n == 0)
+
+    # RC4. Count-aware: one shared cdecl-2 plus one extra cand cdecl-3.
+    cand = ["pushl\t%eax", "pushl\t%ecx", "calll\tg", "addl\t$0x8, %esp",
+            "pushl\t$0x0", "pushl\t%eax", "pushl\t$0x2", "calll\tf",
+            "addl\t$0xc, %esp", "retl"]
+    ref = ["pushl\t%eax", "pushl\t%ecx", "calll\tg", "addl\t$0x8, %esp",
+           "xorl\t%eax, %eax", "movl\t$0x2, %ecx", "calll\tf", "retl"]
+    stripped, n = strip_regarg_call_setups(cand, ref)
+    check("RC4 only the surplus cdecl-3 is stripped",
+          n == 4 and stripped[:4] == cand[:4])
+
+    # RC5. Monotonic: a rewrite that would lower the ratio falls back to raw.
+    cand = ["pushl\t$0x1", "calll\tf", "addl\t$0x4, %esp", "retl"]
+    ref = ["pushl\t$0x1", "calll\tf", "addl\t$0x4, %esp", "retl"]
+    selected, n, mode = select_regparam_candidate(cand, ref, None)
+    check("RC5 identical cdecl stays raw",
+          mode == "raw" and n == 0 and selected == cand)
+
+    # RC6. Raw reporting path must not apply the call-setup model.
+    rc6_cand = ["pushl\t$0x0", "pushl\t%eax", "pushl\t$0x2", "calll\tf",
+                "addl\t$0xc, %esp", "retl"]
+    rc6_ref = ["xorl\t%eax, %eax", "movl\t$0x2, %ecx", "calll\tf", "retl"]
+    raw_pct = compare_functions(rc6_cand, rc6_ref, model_regarg_calls=False)[0]
+    check("RC6 model_regarg_calls=False keeps cdecl-3 ratio",
+          abs(raw_pct - comparison_ratio(rc6_cand, rc6_ref, False) * 100.0)
+          < 1e-9)
 
     # --- SHAPE: call-count and parameter-slot-store census (sections 49, 50) ---
 

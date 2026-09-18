@@ -1374,7 +1374,8 @@ def _build_score_context(
         compiled_insns, reference_insns, regdef_params, reg_normalize=False)
 
     raw_mnemonic_pct = co.compare_functions(
-        compiled_insns, reference_insns, reg_normalize=False)[0]
+        compiled_insns, reference_insns, reg_normalize=False,
+        model_regarg_calls=False)[0]
     abi_modeled_mnemonic_pct = co.compare_functions(
         scored_insns, reference_insns, reg_normalize=False)[0]
 
@@ -1859,7 +1860,7 @@ def run_compare_cached(
             reg_normalize=False)
         raw_mnemonic_pct = co.compare_functions(
             compiled_funcs[fn], reference_funcs[fn],
-            reg_normalize=False)[0]
+            reg_normalize=False, model_regarg_calls=False)[0]
         abi_modeled_mnemonic_pct = co.compare_functions(
             metric_insns, reference_funcs[fn], reg_normalize=False)[0]
         status = "PASS" if pct >= threshold else "FAIL"
