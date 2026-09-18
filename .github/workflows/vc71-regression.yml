@@ -1,15 +1,29 @@
 name: VC71 Byte-Accuracy Regression
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
+      - 'CMakeLists.txt'
       - 'src/**'
       - 'kb.json'
+      - 'toolchains/**'
+      - 'tools/analysis/knowledge.py'
+      - 'tools/verify/compare_obj.py'
+      - 'tools/verify/vc71_cache.py'
       - 'tools/verify/function_bounds.json'
       - 'tools/verify/vc71_regression.py'
       - 'tools/verify/vc71_verify.py'
       - 'tools/verify/xbe_reference.py'
+      - 'tools/verify/vc71_scores.json'
       - '.github/workflows/vc71-regression.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vc71-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   vc71-regression:
@@ -35,22 +49,67 @@ jobs:
           set -o pipefail
           PY="$VENV_PYTHON"
           [ -x "$PY" ] || PY=python3
-          BASE='${{ github.event.pull_request.base.sha }}'
-          HEAD='${{ github.event.pull_request.head.sha }}'
-          mapfile -t CHANGED < <(git diff --name-only "$BASE" "$HEAD")
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            BASE='${{ github.event.pull_request.base.sha }}'
+            HEAD='${{ github.event.pull_request.head.sha }}'
+
+            # The floor in a PR is untrusted input: compare its existing entries
+            # to the base before using the base file for measurement below. This
+            # permits new/improved entries but prevents a lowered or deleted
+            # floor from weakening this or a later PR's gate.
+            BASE_SCORES="$RUNNER_TEMP/vc71_scores.base.json"
+            git show "$BASE:tools/verify/vc71_scores.json" > "$BASE_SCORES"
+            "$PY" - "$BASE_SCORES" tools/verify/vc71_scores.json <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as f:
+              base = json.load(f).get("scores", {})
+          with open(sys.argv[2], encoding="utf-8") as f:
+              candidate = json.load(f).get("scores", {})
+
+          errors = []
+          for name, before in base.items():
+              after = candidate.get(name)
+              if after is None:
+                  errors.append(f"{name}: removed (was {before.get('score')})")
+                  continue
+              try:
+                  if float(after["score"]) < float(before["score"]):
+                      errors.append(f"{name}: {before['score']} -> {after['score']}")
+              except (KeyError, TypeError, ValueError):
+                  errors.append(f"{name}: invalid score entry")
+
+          if errors:
+              print("VC71 score floors must not be lowered or removed:", file=sys.stderr)
+              print("\n".join(f"  - {error}" for error in errors[:50]), file=sys.stderr)
+              if len(errors) > 50:
+                  print(f"  ... and {len(errors) - 50} more", file=sys.stderr)
+              sys.exit(1)
+          PY
+            cp "$BASE_SCORES" tools/verify/vc71_scores.json
+            mapfile -t CHANGED < <(git diff --name-only "$BASE...$HEAD")
+            FULL_CHECK=0
+          else
+            # A manual run is the bootstrap/diagnostic path: exercise every
+            # existing floor on the selected revision.
+            CHANGED=()
+            FULL_CHECK=1
+          fi
           mapfile -t CHANGED_SOURCES < <(printf '%s\n' "${CHANGED[@]}" | grep -E '^src/.*\.c$' || true)
           # A new source file can have no VC71 floor yet. `check` handles
           # that case and validates every existing baselined function it can
           # measure; the lift pipeline/commit hook establishes new floors.
           SOURCES=("${CHANGED_SOURCES[@]}")
 
-          FULL_CHECK=0
           for path in "${CHANGED[@]}"; do
             case "$path" in
-              kb.json|tools/verify/function_bounds.json|tools/verify/vc71_regression.py|tools/verify/vc71_verify.py|tools/verify/xbe_reference.py)
-                FULL_CHECK=1
+              # A non-C source file can alter any TU. C files retain the fast,
+              # source-scoped path above; headers, CMake, generated declarations,
+              # compiler settings, and score/reference code must check all floors.
+              src/*.c)
                 ;;
-              src/*.h|src/*.hh|src/*.hpp|src/*.hxx)
+              src/*|CMakeLists.txt|toolchains/*|kb.json|tools/analysis/knowledge.py|tools/verify/compare_obj.py|tools/verify/vc71_cache.py|tools/verify/function_bounds.json|tools/verify/vc71_regression.py|tools/verify/vc71_verify.py|tools/verify/xbe_reference.py|tools/verify/vc71_scores.json)
                 FULL_CHECK=1
                 ;;
             esac
