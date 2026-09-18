@@ -11324,19 +11324,19 @@
       "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
     "FUN_00082cf0": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 0.0,
+      "abi_model": "regparam_stripped_saves",
+      "abi_model_items": 4,
+      "abi_modeled_mnemonic_pct": 84.4,
       "addr": "0x82cf0",
       "end": "0x82d2c",
       "kind": "auto",
       "n_r": 19,
-      "opnd_percent": 0.0,
-      "raw_mnemonic_pct": 0.0,
+      "opnd_percent": 71.1,
+      "raw_mnemonic_pct": 77.6,
       "ref": "synth",
       "ref_sha": "24f599429c9506e1",
-      "score": 0.0,
-      "source": "src/halo/unported_thunks.c"
+      "score": 84.4,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
     "FUN_00083040": {
       "abi_model": "raw",
@@ -11428,6 +11428,21 @@
       "score": 100.0,
       "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
+    "FUN_00083930": {
+      "abi_model": "regparam_stripped",
+      "abi_model_items": 2,
+      "abi_modeled_mnemonic_pct": 93.6,
+      "addr": "0x83930",
+      "end": "0x83a5d",
+      "kind": "auto",
+      "n_r": 104,
+      "opnd_percent": 93.6,
+      "raw_mnemonic_pct": 92.7,
+      "ref": "synth",
+      "ref_sha": "656bb356708e2b69",
+      "score": 93.6,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
+    },
     "FUN_00083a60": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -11476,17 +11491,17 @@
     "FUN_00083e20": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 5.0,
+      "abi_modeled_mnemonic_pct": 83.1,
       "addr": "0x83e20",
       "end": "0x83ff7",
       "kind": "auto",
       "n_r": 155,
-      "opnd_percent": 3.8,
-      "raw_mnemonic_pct": 5.0,
+      "opnd_percent": 70.9,
+      "raw_mnemonic_pct": 83.1,
       "ref": "synth",
       "ref_sha": "82a04d4be2c3089e",
-      "score": 5.0,
-      "source": "src/halo/unported_thunks.c"
+      "score": 83.1,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
     "FUN_00084080": {
       "abi_model": "raw",
@@ -11506,32 +11521,32 @@
     "FUN_000841b0": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 6.6,
+      "abi_modeled_mnemonic_pct": 88.2,
       "addr": "0x841b0",
       "end": "0x842f3",
       "kind": "auto",
       "n_r": 116,
-      "opnd_percent": 5.0,
-      "raw_mnemonic_pct": 6.6,
+      "opnd_percent": 37.8,
+      "raw_mnemonic_pct": 88.2,
       "ref": "synth",
       "ref_sha": "1b558799653b4461",
-      "score": 6.6,
-      "source": "src/halo/unported_thunks.c"
+      "score": 88.2,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
     "FUN_000843a0": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 12.7,
+      "abi_modeled_mnemonic_pct": 81.1,
       "addr": "0x843a0",
       "end": "0x84441",
       "kind": "auto",
       "n_r": 58,
-      "opnd_percent": 9.5,
-      "raw_mnemonic_pct": 12.7,
+      "opnd_percent": 79.3,
+      "raw_mnemonic_pct": 81.1,
       "ref": "synth",
       "ref_sha": "0f40d26996cb3200",
-      "score": 12.7,
-      "source": "src/halo/unported_thunks.c"
+      "score": 81.1,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
     "FUN_00084450": {
       "abi_model": "raw",
@@ -11566,17 +11581,17 @@
     "FUN_00084740": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 6.5,
+      "abi_modeled_mnemonic_pct": 92.1,
       "addr": "0x84740",
       "end": "0x84895",
       "kind": "auto",
       "n_r": 119,
-      "opnd_percent": 4.8,
-      "raw_mnemonic_pct": 6.5,
+      "opnd_percent": 91.2,
+      "raw_mnemonic_pct": 92.1,
       "ref": "synth",
       "ref_sha": "8e7f7d74df26eca5",
-      "score": 6.5,
-      "source": "src/halo/unported_thunks.c"
+      "score": 92.1,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
     "FUN_00084940": {
       "abi_model": "raw",
@@ -53563,20 +53578,35 @@
       "score": 93.3,
       "source": "src/halo/ai/actions.c"
     },
+    "add_connect_thread": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 66.7,
+      "addr": "0x82c90",
+      "end": "0x82ce3",
+      "kind": "auto",
+      "n_r": 31,
+      "opnd_percent": 52.6,
+      "raw_mnemonic_pct": 66.7,
+      "ref": "synth",
+      "ref_sha": "58444e766d78b684",
+      "score": 66.7,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
+    },
     "add_endpoint_to_set": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 6.6,
+      "abi_modeled_mnemonic_pct": 88.3,
       "addr": "0x82700",
       "end": "0x82850",
       "kind": "auto",
       "n_r": 117,
-      "opnd_percent": 4.9,
-      "raw_mnemonic_pct": 6.6,
+      "opnd_percent": 57.5,
+      "raw_mnemonic_pct": 88.3,
       "ref": "synth",
       "ref_sha": "bba2af5743c5f621",
-      "score": 6.6,
-      "source": "src/halo/unported_thunks.c"
+      "score": 88.3,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
     "ai_adjust_damage": {
       "abi_model": "raw",
@@ -68266,17 +68296,17 @@
     "get_next_endpoint_from_set": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 16.7,
+      "abi_modeled_mnemonic_pct": 85.4,
       "addr": "0x82d70",
       "end": "0x82de6",
       "kind": "auto",
       "n_r": 43,
-      "opnd_percent": 12.5,
-      "raw_mnemonic_pct": 16.7,
+      "opnd_percent": 82.9,
+      "raw_mnemonic_pct": 85.4,
       "ref": "synth",
       "ref_sha": "3bc4d3e1b6aaa3fa",
-      "score": 16.7,
-      "source": "src/halo/unported_thunks.c"
+      "score": 85.4,
+      "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
     },
     "get_postgame_hilite_colors": {
       "abi_model": "raw",

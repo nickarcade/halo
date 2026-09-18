@@ -27160,7 +27160,7 @@
     {
      "addr": "0x83930",
      "decl": "int FUN_00083930(int af @<ecx>, int type @<edx>, int protocol @<eax>);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x83a60",
@@ -27244,7 +27244,8 @@
     },
     {
      "addr": "0x82700",
-     "decl": "int add_endpoint_to_set(int endpoint, void *set);"
+     "decl": "int add_endpoint_to_set(int endpoint, void *set);",
+    "ported": true
     },
     {
      "addr": "0x82940",
@@ -27273,16 +27274,19 @@
     },
     {
      "addr": "0x82c90",
-     "decl": "void add_connect_thread(void);",
+     "decl": "bool add_connect_thread(void *thread);",
+    "ported": true,
      "comment": "[NAME: add_connect_thread — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x82cf0",
-     "decl": "void FUN_00082cf0(void);"
+     "decl": "void FUN_00082cf0(int thread @<esi>);",
+    "ported": true
     },
     {
      "addr": "0x82d70",
-     "decl": "int get_next_endpoint_from_set(int type);"
+     "decl": "int get_next_endpoint_from_set(int type);",
+    "ported": true
     },
     {
      "addr": "0x82df0",
@@ -27326,7 +27330,8 @@
     },
     {
      "addr": "0x83e20",
-     "decl": "short FUN_00083e20(int endpoint, int address);"
+     "decl": "short FUN_00083e20(int endpoint, int address);",
+    "ported": true
     },
     {
      "addr": "0x84080",
@@ -27335,11 +27340,13 @@
     },
     {
      "addr": "0x841b0",
-     "decl": "short FUN_000841b0(int endpoint, int address, int process_ref);"
+     "decl": "short FUN_000841b0(int endpoint, int address, int process_ref);",
+    "ported": true
     },
     {
      "addr": "0x843a0",
-     "decl": "short FUN_000843a0(int endpoint);"
+     "decl": "short FUN_000843a0(int endpoint);",
+    "ported": true
     },
     {
      "addr": "0x84450",
@@ -27348,7 +27355,8 @@
     },
     {
      "addr": "0x84740",
-     "decl": "int FUN_00084740(int endpoint, void *message, int size, int dest_address);"
+     "decl": "int FUN_00084740(int endpoint, void *message, int size, int dest_address);",
+    "ported": true
     },
     {
      "addr": "0x84940",
@@ -43579,7 +43587,7 @@
     },
     {
      "addr": "0x22485c",
-     "decl": "void FUN_0022485c(void);"
+     "decl": "int __stdcall xnet_getsockopt(int socket, int level, int optname, void *optval, int *optlen);"
     },
     {
      "addr": "0x2249f7",
@@ -43595,7 +43603,7 @@
     },
     {
      "addr": "0x225188",
-     "decl": "void FUN_00225188(void);"
+     "decl": "int __stdcall xnet_setsockopt(int socket, int level, int optname, const void *optval, int optlen);"
     },
     {
      "addr": "0x2251c7",
@@ -43659,7 +43667,7 @@
     },
     {
      "addr": "0x225ce0",
-     "decl": "void FUN_00225ce0(void);"
+     "decl": "int __stdcall xnet_sendto(int socket, const void *buf, int len, int flags, const void *to, int tolen);"
     },
     {
      "addr": "0x225e40",
@@ -45700,7 +45708,7 @@
     },
     {
      "addr": "0x2249ec",
-     "decl": "void __stdcall FUN_002249ec(int a0, int a1);"
+     "decl": "int __stdcall xnet_listen(int socket, int backlog);"
     },
     {
      "addr": "0x224e8c",
@@ -45716,11 +45724,11 @@
     },
     {
      "addr": "0x2251a2",
-     "decl": "void __stdcall FUN_002251a2(int a0, int a1, int a2);"
+     "decl": "int __stdcall xnet_connect(int socket, const void *name, int namelen);"
     },
     {
      "addr": "0x2255f6",
-     "decl": "void __stdcall FUN_002255f6(int a0, int a1, int a2);"
+     "decl": "int __stdcall xnet_socket(int af, int type, int protocol);"
     },
     {
      "addr": "0x225ad7",
