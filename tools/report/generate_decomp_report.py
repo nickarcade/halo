@@ -259,7 +259,10 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
     function can have confidence=high). Scans recursively; latest run wins.
     """
     import glob as _glob
-    base = os.path.join(root_dir, 'artifacts', 'batch_verify')
+    base = os.environ.get(
+        'HALO_REPORT_BATCH_VERIFY_DIR',
+        os.path.join(root_dir, 'artifacts', 'batch_verify'),
+    )
     if not os.path.isdir(base):
         return {}
     verdicts = {}

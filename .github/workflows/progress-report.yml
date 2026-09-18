@@ -54,17 +54,17 @@ jobs:
           delinked: "true"
           required: halo-patched/cachebeta.xbe
 
-      # build/ (44M) and the four result directories (215M) stay symlinks --
-      # copying them per run is not worth it, and unlike the assets above they
-      # are all ignored as whole paths, so the checkout clean removes the link
-      # and never looks inside.  Link Safety below is what keeps that true.
+      # build/ (44M) and ignored report-data directories stay symlinks --
+      # copying them per run is not worth it. batch_verify is handled through
+      # HALO_REPORT_BATCH_VERIFY_DIR because its checkout contains tracked
+      # summary files and cannot safely be replaced by a symlink.
       - name: Link Bulk Report Data
         run: |
           if [ ! -e build ] && [ -d "$BUILD_DIR" ]; then
             ln -s "$BUILD_DIR" build
           fi
           mkdir -p artifacts
-          for dir in batch_verify equivalence runtime_oracle runtime_oracle_batch; do
+          for dir in equivalence runtime_oracle runtime_oracle_batch; do
             if [ ! -e "artifacts/$dir" ] && [ -d "$ARTIFACTS_DIR/$dir" ]; then
               ln -s "$ARTIFACTS_DIR/$dir" "artifacts/$dir"
             fi
@@ -117,6 +117,8 @@ jobs:
             --output-dir artifacts/progress
 
       - name: Generate Progress Report
+        env:
+          HALO_REPORT_BATCH_VERIFY_DIR: /mnt/g/dev/halo/artifacts/batch_verify
         run: |
           "$VENV_PYTHON" tools/report/generate_decomp_report.py \
             --output artifacts/progress/report.json \
