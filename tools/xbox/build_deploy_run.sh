@@ -65,7 +65,19 @@ else
 fi
 
 log "running build"
-python3 tools/build/build.py "${build_args[@]}"
+if python3 tools/build/build.py "${build_args[@]}"; then
+  :
+else
+  rc=$?
+  log "build failed (exit ${rc}); deployment skipped"
+  exit "$rc"
+fi
 log "deploying XBE to Xbox (${xbox_host})"
-python3 tools/xbox/deploy_xbox.py --xbox "$xbox_host" --xbe-only
+if python3 tools/xbox/deploy_xbox.py --xbox "$xbox_host" --xbe-only; then
+  :
+else
+  rc=$?
+  log "deployment failed (exit ${rc})"
+  exit "$rc"
+fi
 log "done"
