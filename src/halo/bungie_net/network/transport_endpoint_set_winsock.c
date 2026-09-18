@@ -1,6 +1,8 @@
 /* Xbox network transport layer — Winsock/XNet wrapper. */
 #include "../../../common.h"
 
+void *memset(void *buffer, int c, size_t size);
+
 /* Publish the global XNet key pair and register it on the first use.
  *
  * Copies the caller's 16-byte blob to the global at 0x5ab210 and the
@@ -243,10 +245,12 @@ void transport_initialize(void)
   if (*(uint8_t *)0x335090 != 0)
     return;
 
-  /* Zero the WSADATA buffer. */
-  csmemset(wsadata, 0, sizeof(wsadata));
+  /* Zero the WSADATA buffer. VC71 peels a leading word then stos the rest. */
+  *(uint16_t *)wsadata = 0;
+  memset(wsadata + 2, 0, sizeof(wsadata) - 2);
 
   /* Build XNetStartupParams structure (11 bytes). */
+  memset(xnet_params + 1, 0, 10);
   xnet_params[0] = 0x0B; /* cfgSizeOfStruct */
   xnet_params[1] = 0x00; /* cfgFlags */
   xnet_params[2] = 0x18; /* cfgSockMaxDgramSockets */
@@ -276,27 +280,25 @@ void transport_initialize(void)
   xnet_params[1] = 0x00;
 
   /* Check for security bypass file. */
-  file = ((void *(*)(const char *, const char *))0x1d9e59)(
-    "d:\\bypass_security.txt", "r");
+  file = crt_fopen("d:\\bypass_security.txt", "r");
   if (file != 0) {
     error(2, "XNET_STARTUP_BYPASS_SECURITY [ON]");
     xnet_params[1] |= 0x01;
-    ((void (*)(void *))0x1d9dac)(file);
+    crt_fclose(file);
   }
 
   /* Start XNet. */
   xnet_result =
-    ((int(__stdcall *)(uint8_t *))0x2231f8)(/* hazard-ok: fnptr-conv */
-                                            xnet_params);
+    ((int(__stdcall *)(uint8_t *))FUN_002231f8)(xnet_params);
   if (xnet_result != 0)
     return;
 
   /* Start WinSock 2.2. */
-  wsa_result = ((int16_t(__stdcall *)(int16_t, uint8_t *))0x223206)(
-    2, wsadata); /* hazard-ok: fnptr-conv */
+  wsa_result = ((int16_t(__stdcall *)(int16_t, uint8_t *))FUN_00223206)(
+    2, wsadata);
   if (wsa_result != 0) {
     /* Cleanup: WSACleanup then report error. */
-    ((void (*)(void))0x2232ed)();
+    FUN_002232ed();
     winsock_error_report((int)wsa_result);
     return;
   }
@@ -307,25 +309,22 @@ void transport_initialize(void)
 
   for (;;) {
     link_result =
-      ((int(__stdcall *)(void *))0x222ecf)(/* hazard-ok: fnptr-conv */
-                                           (void *)0x5ab230);
+      ((int(__stdcall *)(void *))FUN_00222ecf)((void *)0x5ab230);
     if (system_milliseconds() > deadline)
       break;
     if (link_result == 0)
       continue;
-    if (link_result != 1) {
-      /* Link detected — configure socket options and mark initialized. */
-      ((int(__stdcall *)(void *, int))0x222e0e)(/* hazard-ok: fnptr-conv */
-                                                (void *)0x5ab228, 8);
-      *(uint8_t *)0x335090 = 1;
-      return;
-    }
-    break;
+    if (link_result == 1)
+      break;
+    /* Link detected — configure socket options and mark initialized. */
+    FUN_00222e0e(0x5ab228, 8);
+    *(uint8_t *)0x335090 = 1;
+    return;
   }
 
   /* Timeout or error — shut down XNet and WSACleanup. */
-  ((void (*)(void))0x2232f5)();
-  ((void (*)(void))0x2232ed)();
+  FUN_002232f5();
+  FUN_002232ed();
 }
 
 /* Shut down the network transport layer. */
@@ -2238,6 +2237,7 @@ short FUN_00083ce0(int *ep, void *addr)
   uint32_t ip;
   uint16_t port;
   uint8_t sa[16];
+  int sock_type;
 
   status = 0;
 
@@ -2246,19 +2246,18 @@ short FUN_00083ce0(int *ep, void *addr)
 
   if (*ep == -1) {
     if (*(uint8_t *)((char *)ep + 5) == 0x12) {
-      socket_result = FUN_00083930(2, 1, 0);
-      *ep = socket_result;
-      if (socket_result != -1)
-        goto do_bind;
-      status = -1;
+      sock_type = 1;
     } else if (*(uint8_t *)((char *)ep + 5) == 0x11) {
-      socket_result = FUN_00083930(2, 2, 0);
-      *ep = socket_result;
-      if (socket_result != -1)
-        goto do_bind;
-      status = -1;
+      sock_type = 2;
     } else {
       status = -12;
+      sock_type = 0;
+    }
+    if (status == 0) {
+      socket_result = FUN_00083930(2, sock_type, 0);
+      *ep = socket_result;
+      if (socket_result == -1)
+        status = -1;
     }
     if (*ep == -1 || status != 0) {
       *(uint16_t *)((char *)ep + 6) = 0xffff;
