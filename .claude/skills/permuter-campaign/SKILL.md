@@ -516,7 +516,7 @@ These will never reach high match — skip early:
 
 | Pattern | Ceiling | Reason |
 |---------|---------|--------|
-| `@<ecx>` / `@<eax>` fastcall functions | ~65–80% | Preamble `MOV ECX, [ESP+4]` not in our lifted code |
+| Custom `@<reg>` definition ABI | ~65–80% | C preamble loads register args from stack slots; reference receives them in registers |
 | `__SEH_prolog` / `__SEH_epilog` in body | ~55% | Frame shape differs |
 | NT kernel import callees | ~45–65% | Can't emulate; no byte-match evidence |
 | trivial 1–3 line wrappers | ~40% | Too few instructions for permuter to work on |
