@@ -109,4 +109,5 @@ jobs:
         if: always()
         run: |
           ${{ env.VENV_PYTHON }} tools/equivalence/check_snapshot_results.py \
-            artifacts/equivalence/ci_results.json
+            artifacts/equivalence/ci_results.json \
+            --github-summary
