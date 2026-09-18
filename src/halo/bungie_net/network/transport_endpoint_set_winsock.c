@@ -2343,14 +2343,7 @@ short FUN_00083e20(int endpoint, int address)
   }
 
   if (ep->socket == -1) {
-#if defined(_MSC_VER) && !defined(__clang__)
-    /* Original CALL 0x83930 is af@ecx, type@edx, protocol@eax. VC71 has
-     * no EAX-arg convention; __fastcall covers ECX/EDX (crc_table_init). */
-    ep->socket =
-      ((int(__fastcall *)(int, int, int))FUN_00083930)(2, socktype, 0);
-#else
     ep->socket = FUN_00083930(2, socktype, 0);
-#endif
   }
 
   ip = *(uint32_t *)addr->address;
