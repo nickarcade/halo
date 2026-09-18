@@ -995,6 +995,65 @@ typedef struct
 cs(packet_header, 0x1);
 co(packet_header, type, 0x00);
 
+/// size=0x10
+/// Original source: c:\halo\SOURCE\memory\data_encoding.c
+typedef struct data_encoding_state
+{
+    void *buffer;                          ///< offset=0x00
+    int32_t offset;                        ///< offset=0x04
+    int32_t buffer_size;                   ///< offset=0x08
+    char overflow;                         ///< offset=0x0C
+    char pad_0d[3];                        ///< offset=0x0D
+} data_encoding_state_t;
+cs(data_encoding_state_t, 0x10);
+co(data_encoding_state_t, buffer, 0x00);
+co(data_encoding_state_t, offset, 0x04);
+co(data_encoding_state_t, buffer_size, 0x08);
+co(data_encoding_state_t, overflow, 0x0C);
+
+/// Dynamic array struct used by memory/array.c.
+/// Size: 0x0C bytes.
+/// Original source: c:\halo\SOURCE\memory\array.c
+typedef struct dynamic_array {
+    int element_size;                      ///< offset=0x00
+    int count;                             ///< offset=0x04
+    void *elements;                        ///< offset=0x08
+} dynamic_array_t;
+cs(dynamic_array_t, 0x0C);
+co(dynamic_array_t, element_size, 0x00);
+co(dynamic_array_t, count, 0x04);
+co(dynamic_array_t, elements, 0x08);
+
+typedef int (*hashtable_hash_proc_t)(int user_data, const void *key);
+typedef bool (*hashtable_compare_proc_t)(int user_data, const void *element, const void *key);
+
+/// Hash table struct used by memory/hashtable.c.
+/// Size: 0x28 bytes.
+/// Original source: c:\halo\SOURCE\memory\hashtable.c
+typedef struct hashtable {
+    int16_t key_size;                      ///< offset=0x00
+    int16_t element_size;                  ///< offset=0x02
+    int16_t count;                         ///< offset=0x04
+    int16_t capacity_bits;                 ///< offset=0x06
+    float load_factor;                     ///< offset=0x08
+    int32_t user_data;                     ///< offset=0x0C
+    hashtable_hash_proc_t hash_proc;       ///< offset=0x10
+    hashtable_compare_proc_t compare_proc; ///< offset=0x14
+    uint32_t *bitmap;                      ///< offset=0x18
+    dynamic_array_t array;                 ///< offset=0x1C
+} hashtable_t;
+cs(hashtable_t, 0x28);
+co(hashtable_t, key_size, 0x00);
+co(hashtable_t, element_size, 0x02);
+co(hashtable_t, count, 0x04);
+co(hashtable_t, capacity_bits, 0x06);
+co(hashtable_t, load_factor, 0x08);
+co(hashtable_t, user_data, 0x0C);
+co(hashtable_t, hash_proc, 0x10);
+co(hashtable_t, compare_proc, 0x14);
+co(hashtable_t, bitmap, 0x18);
+co(hashtable_t, array, 0x1C);
+
 /* ai_firing_pos_entry_t — one slot in the firing-position candidate buffer
  * built by FUN_00041420 and consumed by ai_test_line_of_fire.
  * Entry stride = 0x28 bytes; buffer holds up to 0x20 entries.

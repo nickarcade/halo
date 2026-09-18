@@ -14920,7 +14920,7 @@
     },
     {
      "addr": "0x12a000",
-     "decl": "bool network_game_in_progress(void);",
+     "decl": "int network_game_in_progress(void);",
      "ported": true
     },
     {
@@ -14930,7 +14930,7 @@
     },
     {
      "addr": "0x12a170",
-     "decl": "bool network_game_is_splitscreen_local(void);",
+     "decl": "int network_game_is_splitscreen_local(void);",
      "ported": true
     },
     {
@@ -15454,67 +15454,67 @@
    "functions": [
     {
      "addr": "0x11a230",
-     "decl": "bool FUN_0011a230(int *state, const char *source, short max_length);",
+     "decl": "bool FUN_0011a230(data_encoding_state_t *state, const char *source, short max_length);",
      "name": "FUN_0011a230",
      "ported": true
     },
     {
      "addr": "0x11a2d0",
-     "decl": "void FUN_0011a2d0(int *state, void *buffer, int buffer_size);",
+     "decl": "void FUN_0011a2d0(data_encoding_state_t *state, void *buffer, int buffer_size);",
      "name": "FUN_0011a2d0",
      "ported": true
     },
     {
      "addr": "0x11a340",
-     "decl": "int FUN_0011a340(int *state, short count, void *bs_definition);",
+     "decl": "int FUN_0011a340(data_encoding_state_t *state, short count, void *bs_definition);",
      "name": "FUN_0011a340",
      "ported": true
     },
     {
      "addr": "0x11a430",
-     "decl": "int FUN_0011a430(int *state, short count, int element_size);",
+     "decl": "int FUN_0011a430(data_encoding_state_t *state, short count, int element_size);",
      "name": "FUN_0011a430",
      "ported": true
     },
     {
      "addr": "0x11a560",
-     "decl": "unsigned char FUN_0011a560(int *state);",
+     "decl": "unsigned char FUN_0011a560(data_encoding_state_t *state);",
      "name": "FUN_0011a560",
      "ported": true
     },
     {
      "addr": "0x11a5d0",
-     "decl": "short FUN_0011a5d0(int *state);",
+     "decl": "short FUN_0011a5d0(data_encoding_state_t *state);",
      "name": "FUN_0011a5d0",
      "ported": true
     },
     {
      "addr": "0x11a650",
-     "decl": "int FUN_0011a650(int *state);",
+     "decl": "int FUN_0011a650(data_encoding_state_t *state);",
      "name": "FUN_0011a650",
      "ported": true
     },
     {
      "addr": "0x11a6d0",
-     "decl": "int64_t FUN_0011a6d0(int *state);",
+     "decl": "int64_t FUN_0011a6d0(data_encoding_state_t *state);",
      "name": "FUN_0011a6d0",
      "ported": true
     },
     {
      "addr": "0x11a700",
-     "decl": "unsigned int FUN_0011a700(int *state, int maximum_value);",
+     "decl": "unsigned int FUN_0011a700(data_encoding_state_t *state, int maximum_value);",
      "name": "FUN_0011a700",
      "ported": true
     },
     {
      "addr": "0x11a770",
-     "decl": "void *FUN_0011a770(int *state, int element_size_type, unsigned int *element_count_ref, int maximum_element_count, void *bs_definition);",
+     "decl": "void *FUN_0011a770(data_encoding_state_t *state, int element_size_type, unsigned int *element_count_ref, int maximum_element_count, void *bs_definition);",
      "name": "FUN_0011a770",
      "ported": true
     },
     {
      "addr": "0x11a8e0",
-     "decl": "char *FUN_0011a8e0(int *state, unsigned short max_length);",
+     "decl": "char *FUN_0011a8e0(data_encoding_state_t *state, unsigned short max_length);",
      "name": "FUN_0011a8e0",
      "ported": true
     },
@@ -15531,7 +15531,7 @@
     },
     {
      "addr": "0x11b2a0",
-     "decl": "void FUN_0011b2a0(int definition, int *decode_state, unsigned short version, unsigned short *output, short *decoded_size_out, short *field_defs, short *field_count_out);",
+     "decl": "void FUN_0011b2a0(int definition, data_encoding_state_t *decode_state, unsigned short version, unsigned short *output, short *decoded_size_out, short *field_defs, short *field_count_out);",
      "name": "FUN_0011b2a0",
      "ported": true
     },
@@ -27245,7 +27245,7 @@
     {
      "addr": "0x82700",
      "decl": "int add_endpoint_to_set(int endpoint, void *set);",
-    "ported": true
+     "ported": true
     },
     {
      "addr": "0x82940",
@@ -27275,18 +27275,18 @@
     {
      "addr": "0x82c90",
      "decl": "bool add_connect_thread(void *thread);",
-    "ported": true,
+     "ported": true,
      "comment": "[NAME: add_connect_thread — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x82cf0",
      "decl": "void FUN_00082cf0(int thread @<esi>);",
-    "ported": true
+     "ported": true
     },
     {
      "addr": "0x82d70",
      "decl": "int get_next_endpoint_from_set(int type);",
-    "ported": true
+     "ported": true
     },
     {
      "addr": "0x82df0",
@@ -27331,7 +27331,7 @@
     {
      "addr": "0x83e20",
      "decl": "short FUN_00083e20(int endpoint, int address);",
-    "ported": true
+     "ported": true
     },
     {
      "addr": "0x84080",
@@ -27341,12 +27341,12 @@
     {
      "addr": "0x841b0",
      "decl": "short FUN_000841b0(int endpoint, int address, int process_ref);",
-    "ported": true
+     "ported": true
     },
     {
      "addr": "0x843a0",
      "decl": "short FUN_000843a0(int endpoint);",
-    "ported": true
+     "ported": true
     },
     {
      "addr": "0x84450",
@@ -27356,7 +27356,7 @@
     {
      "addr": "0x84740",
      "decl": "int FUN_00084740(int endpoint, void *message, int size, int dest_address);",
-    "ported": true
+     "ported": true
     },
     {
      "addr": "0x84940",
