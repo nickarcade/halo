@@ -83,7 +83,8 @@ jobs:
           # TU is scored against a stale header, then writes vc71_current.json +
           # reference_validity.json, which the report step bakes into the published
           # dashboard (honest % and the compile-fail / no-ref badges).
-          "$VENV_PYTHON" tools/verify/vc71_regression.py populate
+           "$VENV_PYTHON" tools/verify/vc71_regression.py populate \
+             --no-baseline-write
 
       - name: Validate Fresh VC71 Snapshot
         run: |

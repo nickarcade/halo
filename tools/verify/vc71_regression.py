@@ -2039,6 +2039,11 @@ def cmd_populate(args) -> int:
     # header, so a header that was stale on disk is corrected here and the
     # affected TUs are re-verified rather than reusing a stale/empty slice.
     rebaseline = getattr(args, "rebaseline", False)
+    no_baseline_write = getattr(args, "no_baseline_write", False)
+    if no_baseline_write and rebaseline:
+        print("--no-baseline-write cannot be combined with --rebaseline.",
+              file=sys.stderr)
+        return 2
     if getattr(args, "skip_decl_regen", False):
         print("Skipping decl.h regeneration (--skip-decl-regen).", flush=True)
     else:
@@ -2092,6 +2097,8 @@ def cmd_populate(args) -> int:
     mode = "incremental" if incremental else "full"
     if rebaseline:
         mode += ", REBASELINE (replace, not raise-only)"
+    if no_baseline_write:
+        mode += ", no baseline write"
     print(f"Populating baseline from {len(tus)} source files ({mode})...")
 
     baseline = load_baseline()
@@ -2191,11 +2198,14 @@ def cmd_populate(args) -> int:
     # `score`, so the raise-only guarantee holds.
     n_optional = backfill_optional_fields(baseline, honest)
 
-    save_baseline(baseline)
-    if total_changed:
-        print(f"\nBaseline updated: {total_changed} function(s) changed → {BASELINE_PATH.name}")
+    if no_baseline_write:
+        print("\nBaseline write skipped (--no-baseline-write).")
     else:
-        print("\nBaseline unchanged.")
+        save_baseline(baseline)
+        if total_changed:
+            print(f"\nBaseline updated: {total_changed} function(s) changed → {BASELINE_PATH.name}")
+        else:
+            print("\nBaseline unchanged.")
     if n_optional:
         print(f"Advisory/model fields stamped on {n_optional} floor entry(ies).")
 
@@ -2673,11 +2683,14 @@ def build_parser():
                             "artifacts/audit/populate_state.json). A tooling, "
                             "kb.json, or delinked-chunk change forces a full pass.")
     p_pop.add_argument("--rebaseline", action="store_true",
-                       help="REPLACE stored scores with freshly measured ones "
-                            "(not raise-only) and stamp reference provenance. "
-                            "Journals to "
-                            "artifacts/audit/rebaseline_journal.json for "
-                            "`rebaseline-report`.")
+                        help="REPLACE stored scores with freshly measured ones "
+                             "(not raise-only) and stamp reference provenance. "
+                             "Journals to "
+                             "artifacts/audit/rebaseline_journal.json for "
+                             "`rebaseline-report`.")
+    p_pop.add_argument("--no-baseline-write", action="store_true",
+                       help="Refresh honest current scores without modifying "
+                            "the tracked vc71_scores.json floor (CI/report use).")
     p_pop.add_argument("--no-kb-only", dest="include_kb_only",
                        action="store_false", default=True,
                        help="Restrict discovery to objdiff.json units. Default "
