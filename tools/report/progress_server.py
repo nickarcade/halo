@@ -24,6 +24,10 @@ from socketserver import ThreadingMixIn
 _score_locks = {}
 _score_locks_mu = threading.Lock()
 
+# Equivalence lock: one raw-XBE differential run per function at a time.
+_equivalence_locks = {}
+_equivalence_locks_mu = threading.Lock()
+
 # SSE client tracking, for visibility into how many browsers are connected
 _sse_clients = 0
 _sse_clients_mu = threading.Lock()
@@ -107,6 +111,8 @@ class SSEHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/api/score':
             self.handle_score()
+        elif self.path == '/api/equivalence':
+            self.handle_equivalence()
         else:
             self.send_error(404, 'Not found')
 
@@ -152,6 +158,123 @@ class SSEHandler(SimpleHTTPRequestHandler):
             return
 
         self._json_response(200, result)
+
+    def handle_equivalence(self):
+        """Re-run a displayed divergence against the raw pristine-XBE oracle."""
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length) if length else b'{}')
+        except (ValueError, json.JSONDecodeError) as e:
+            self._json_response(400, {'error': f'Bad request: {e}'})
+            return
+
+        function_name = body.get('function')
+        address = body.get('address')
+        if not isinstance(function_name, str) or not isinstance(address, str):
+            self._json_response(400, {'error': 'Missing "function" or "address" field'})
+            return
+
+        report_path = os.path.join(self.directory, 'report.json')
+        try:
+            with open(report_path) as f:
+                report = json.load(f)
+        except Exception as e:
+            logging.error('Cannot read report.json: %s', e)
+            self._json_response(500, {'error': 'report_unreadable'})
+            return
+
+        function = None
+        for unit in report.get('units', []):
+            for candidate in unit.get('functions', []):
+                if (candidate.get('name') == function_name and
+                        str(candidate.get('address', '')).lower() == address.lower()):
+                    function = candidate
+                    break
+            if function is not None:
+                break
+        if function is None:
+            self._json_response(404, {'error': 'function_not_found'})
+            return
+
+        if not (function.get('ported') and function.get('equiv_status') == 'fail' and
+                function.get('equiv_reason') == 'divergence' and
+                function.get('equiv_confidence') in ('high', 'moderate')):
+            self._json_response(409, {'error': 'not_divergent'})
+            return
+
+        logging.info('Equivalence request for %s at %s from %s', function_name,
+                     address, self.client_address[0])
+        lock_key = address.lower()
+        with _equivalence_locks_mu:
+            lock = _equivalence_locks.setdefault(lock_key, threading.Lock())
+
+        if lock.locked():
+            logging.info('Function %s is already running equivalence; waiting', function_name)
+        with lock:
+            result = self._run_equivalence(function_name, address)
+
+        if result is None:
+            self._json_response(409, {'error': 'no_raw_xbe_oracle'})
+            return
+
+        if not self._refresh_dashboard():
+            self._json_response(500, {'error': 'dashboard_refresh_failed', 'result': result})
+            return
+        self._json_response(200, {'ok': True, 'function': function_name,
+                                  'address': address, 'result': result})
+
+    def _run_equivalence(self, function_name, address):
+        """Run the standard single-target batch verifier against the raw XBE."""
+        from pathlib import Path
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(script_dir, '../..'))
+        equivalence_dir = os.path.join(project_root, 'tools', 'equivalence')
+        if equivalence_dir not in sys.path:
+            sys.path.insert(0, equivalence_dir)
+        try:
+            import batch_verify as _equiv
+        except ImportError as e:
+            logging.error('Cannot import batch_verify: %s', e)
+            return None
+
+        candidates = _equiv.load_candidates(discover=True, oracle='xbe')
+        candidate = next((item for item in candidates
+                          if item['name'] == function_name and
+                          item['addr'].lower() == address.lower()), None)
+        if candidate is None:
+            logging.warning('No raw-XBE equivalence candidate for %s at %s',
+                            function_name, address)
+            return None
+
+        output_dir = Path(project_root) / 'artifacts' / 'batch_verify'
+        output_dir.mkdir(parents=True, exist_ok=True)
+        fingerprint = _equiv.candidate_fingerprint(_equiv.input_fingerprint(),
+                                                    candidate, 'xbe')
+        logging.info('Running raw-XBE equivalence for %s ...', function_name)
+        return _equiv.run_verify(function_name, output_dir, seeds=50, timeout=60,
+                                 float_tolerance=32, update_leaf_cache=False,
+                                 input_fingerprint=fingerprint, oracle='xbe')
+
+    def _refresh_dashboard(self):
+        """Regenerate the report so the fresh equivalence verdict reaches SSE clients."""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(script_dir, '../..'))
+        report_dir = os.path.join(project_root, 'tools', 'report')
+        if report_dir not in sys.path:
+            sys.path.insert(0, report_dir)
+        try:
+            import generate_decomp_report as _report
+            report_path = os.path.join(self.directory, 'report.json')
+            html_path = os.path.join(self.directory, 'index.html')
+            history_path = os.path.join(self.directory, 'history.json')
+            report = _report.generate_report(report_path)
+            _report.generate_html(report, html_path, history_path)
+            os.utime(report_path, None)
+            return True
+        except Exception as e:
+            logging.error('Dashboard refresh after equivalence failed: %s', e)
+            return False
 
     def _run_score(self, unit_name):
         """Run vc71_verify for unit_name, update report.json in-place, return scores dict.

@@ -39,7 +39,7 @@ Argument: $ARGUMENTS
   below), not noise.
 - `--attempt-ceilings` — also attempt targets classified with a permanent
   ceiling rule (`regarg_structural_ceiling`, `regarg_static_helper_ceiling`,
-  SEH wrappers, `@<reg>` fastcall preambles). Off by default — these do not
+   SEH wrappers, custom `@<reg>` preambles). Off by default — these do not
   move.
 - `--dry-run` — discovery, banding, and routing only; no edits, no commits.
 

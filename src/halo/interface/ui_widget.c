@@ -317,6 +317,52 @@ void display_error_when_main_menu_loaded(int16_t error_handle)
            "main menu; ignoring this one");
 }
 
+/* Deferred per-local-player error slots at 0x46cc50, stride 6 bytes:
+ * word error_handle (-1 == slot empty), word local_player_index, then the
+ * two flag bytes forwarded to the error screen. */
+typedef struct ui_widget_deferred_error {
+  int16_t error_handle;
+  int16_t local_player_index;
+  uint8_t a3;
+  uint8_t a4;
+} ui_widget_deferred_error_t;
+
+/* display_error_deferred — queues one error message per local player, to be
+ * dispatched by the deferred-error sweep in process_ui_widgets(). A
+ * player_index of -1 (no specific local player) uses slot 0 without the
+ * range assert; any other value must be a valid local player index. If the
+ * player's slot is already occupied the request is dropped with a
+ * priority-2 warning, same shape as display_error_when_main_menu_loaded(). */
+void display_error_deferred(int error_code, int player_index, bool a3, bool a4)
+{
+  ui_widget_deferred_error_t *deferred_errors;
+  int index;
+
+  deferred_errors = (ui_widget_deferred_error_t *)0x46cc50;
+  if ((int16_t)player_index == -1) {
+    index = 0;
+  } else {
+    index = (int16_t)player_index;
+    if ((index < 0) || (index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS)) {
+      display_assert("(index>=0) && (index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS)",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x8f0, true);
+      system_exit(-1);
+    }
+  }
+
+  if (deferred_errors[index].error_handle == -1) {
+    deferred_errors[index].error_handle = (int16_t)error_code;
+    deferred_errors[index].local_player_index = (int16_t)player_index;
+    deferred_errors[index].a3 = (uint8_t)a3;
+    deferred_errors[index].a4 = (uint8_t)a4;
+    return;
+  }
+  error(2,
+        "there is already a deferred error message for local player %d; "
+        "ignoring this one",
+        index);
+}
+
 /* display_error_abort_to_dashboard_deferred (0xe4590) — queues a single
  * "abort to dashboard" error (the error_handle/allow_abort pair consumed
  * by ui_widget_load_error_screen(), whose "error_abort_to_dashboard"
@@ -2767,13 +2813,6 @@ typedef struct ui_widget_process_data {
   int16_t unk4;
   int16_t unk6;
 } ui_widget_process_data_t;
-
-typedef struct ui_widget_deferred_error {
-  int16_t error_handle;
-  int16_t local_player_index;
-  uint8_t a3;
-  uint8_t a4;
-} ui_widget_deferred_error_t;
 
 /* Pending-load nodes on 0x46cc30..0x46cc3c are pushed by
  *

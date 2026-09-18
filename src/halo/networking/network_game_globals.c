@@ -1,6 +1,40 @@
 #ifdef HALO_RNG_TRACE
 #include "halo/math/rng_trace.h"
 #endif
+
+/* Recovered network game client state enum from assert strings and logs */
+enum network_game_client_state {
+  _network_game_client_state_searching = 0,
+  _network_game_client_state_joining = 1,
+  _network_game_client_state_pregame = 2,
+  _network_game_client_state_ingame = 3,
+  _network_game_client_state_postgame = 4
+};
+
+/* Recovered network game globals struct layout at 0x46e8bc.
+ * Derived from network_game_globals.c field access patterns and docs/system-link-architecture.md.
+ */
+typedef struct network_game_globals_t {
+  void *server;                           /* 0x00 (0x46e8bc) */
+  void *client;                           /* 0x04 (0x46e8c0) */
+  bool accept_remote_connections;         /* 0x08 (0x46e8c4) */
+  bool quickstart_local;                  /* 0x09 (0x46e8c5) */
+  bool abort;                             /* 0x0a (0x46e8c6) */
+  uint8_t pad_0b;                         /* 0x0b (0x46e8c7) */
+  uint32_t last_update_time;              /* 0x0c (0x46e8c8) */
+} network_game_globals_t;
+cs(network_game_globals_t, 0x10);
+co(network_game_globals_t, server, 0x00);
+co(network_game_globals_t, client, 0x04);
+co(network_game_globals_t, accept_remote_connections, 0x08);
+co(network_game_globals_t, quickstart_local, 0x09);
+co(network_game_globals_t, abort, 0x0a);
+co(network_game_globals_t, last_update_time, 0x0c);
+
+#define network_game_globals (*(network_game_globals_t *)0x46e8bc)
+#define network_connection_dont_timeout (*(bool *)0x46e8ba)
+#define s_last_client_state (*(int16_t *)0x322cd8)
+
 #line 1
 #include "network_connection.h"
 /* FUN_00129130 (0x129130)
@@ -13,28 +47,51 @@
  */
 bool FUN_00129130(int server_connection, int client_connection)
 {
-  int *client_list;
+  short result;
+  network_server_connection *server;
+  network_connection *client;
+  network_connection **slot;
   int i;
 
-  assert_halt(server_connection);
-  assert_halt(client_connection);
-  assert_halt(*(uint8_t *)(server_connection + 0x30) & 1);
-  assert_halt(*(int *)(server_connection + 0x38));
+  server = (network_server_connection *)server_connection;
+  client = (network_connection *)client_connection;
 
-  client_list = (int *)(server_connection + 0x3c);
-  assert_halt(client_list);
-
-  i = 0;
-  while (client_list[i] == 0 || client_list[i] != client_connection) {
-    i++;
-    if (i >= 5)
-      return false;
+  if (server == NULL) {
+    display_assert("server_connection", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1f7, true);
+    system_exit(-1);
+  }
+  if (client == NULL) {
+    display_assert("client_connection", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1f8, true);
+    system_exit(-1);
+  }
+  if ((server->connection.flags & FLAG(_connection_create_server_bit)) == 0) {
+    display_assert("server_connection->flags & FLAG(_connection_create_server_bit)",
+                   "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1f9, true);
+    system_exit(-1);
+  }
+  if (server->endpoint_set == 0) {
+    display_assert("server->endpoint_set", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1fa, true);
+    system_exit(-1);
+  }
+  slot = server->client_list;
+  if (slot == NULL) {
+    display_assert("server->client_list", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1fb, true);
+    system_exit(-1);
   }
 
-  if (*(int *)client_connection != 0) {
-    short result = remove_endpoint_from_set(
-      (int *)*(int *)(server_connection + 0x3c + i * 4),
-      (uint32_t *)*(int *)(server_connection + 0x38));
+  i = 0;
+  while (*slot == NULL || *slot != client) {
+    i++;
+    slot++;
+    if (i >= 5) {
+      return false;
+    }
+  }
+
+  if (client->reliable_endpoint != 0) {
+    result = remove_endpoint_from_set(
+      (int *)(*slot)->reliable_endpoint,
+      (uint32_t *)server->endpoint_set);
     if (result != 0) {
       error(2,
             "failed to remove a client endpoint from the server's endpoint set "
@@ -42,8 +99,8 @@ bool FUN_00129130(int server_connection, int client_connection)
     }
   }
 
-  network_connection_delete(*(int *)(server_connection + 0x3c + i * 4));
-  *(int *)(server_connection + 0x3c + i * 4) = 0;
+  network_connection_delete((int)*slot);
+  *slot = NULL;
   return true;
 }
 
@@ -59,20 +116,24 @@ bool FUN_00129130(int server_connection, int client_connection)
  */
 bool FUN_001298f0(int connection, void *buffer, int *size, void *addr)
 {
+  network_connection *conn;
   bool result;
 
-  if ((((network_connection *)connection)->flags & 1) != 0) {
+  conn = (network_connection *)connection;
+
+  if ((conn->flags & FLAG(_connection_create_server_bit)) != 0) {
     return network_connection_read_unreliable(connection, buffer, size, addr);
   }
 
-  if ((((network_connection *)connection)->flags & 6) == 0) {
+  if ((conn->flags & (FLAG(_connection_create_clientside_client_bit) |
+                      FLAG(_connection_create_serverside_client_bit))) == 0) {
     assert_halt_msg(
       0, "connection->flags&FLAG(_connection_create_clientside_client_bit) || "
          "connection->flags&FLAG(_connection_create_serverside_client_bit)");
   }
 
   result = network_connection_read_reliable(connection, buffer, size, addr);
-  if (!result && (*(uint8_t *)(connection + 0x30) & 2) != 0) {
+  if (!result && (conn->flags & FLAG(_connection_create_clientside_client_bit)) != 0) {
     result = network_connection_read_unreliable(connection, buffer, size, addr);
   }
   return result;
@@ -97,29 +158,33 @@ bool FUN_001298f0(int connection, void *buffer, int *size, void *addr)
  */
 bool FUN_00129980(int connection)
 {
+  network_connection *conn;
   int addr[6];
   int new_endpoint;
   short port;
 
+  conn = (network_connection *)connection;
+
   if (network_connection_connected(connection)) {
-    if ((*(uint8_t *)(connection + 0x30) & 6) != 0) {
+    if ((conn->flags & (FLAG(_connection_create_clientside_client_bit) |
+                        FLAG(_connection_create_serverside_client_bit))) != 0) {
       network_connection_idle_client_reliable_endpoint(connection);
     }
-    close_endpoint(*(int **)connection);
+    close_endpoint((int *)conn->reliable_endpoint);
   }
 
-  if (*(int *)(connection + 4) != 0) {
-    port = *(short *)(connection + 0x34);
+  if (conn->unreliable_endpoint != 0) {
+    port = conn->well_known_port;
     if (port != 0) {
       *(short *)((char *)addr + 0x10) = 4;
       addr[0] = 0;
       *(short *)((char *)addr + 0x12) = port;
-      destroy_endpoint(*(int **)(connection + 4));
+      destroy_endpoint((int *)conn->unreliable_endpoint);
       new_endpoint = get_next_endpoint_from_set(0x11);
-      *(int *)(connection + 4) = new_endpoint;
+      conn->unreliable_endpoint = new_endpoint;
       if (new_endpoint != 0) {
         if (FUN_00083ce0((int *)new_endpoint, addr) == 0) {
-          if (FUN_00083bd0(*(int *)(connection + 4), 0) == 0) {
+          if (FUN_00083bd0(conn->unreliable_endpoint, 0) == 0) {
             return true;
           }
         }
@@ -141,6 +206,7 @@ bool FUN_00129980(int connection)
  */
 bool FUN_00129cf0(int connection, int timeout, int *output)
 {
+  network_connection *conn;
   unsigned int now;
   uint32_t raw_flags;
   uint32_t flags;
@@ -158,34 +224,35 @@ bool FUN_00129cf0(int connection, int timeout, int *output)
   ok = true;
 
   assert_halt(connection);
+  conn = (network_connection *)connection;
 
-  raw_flags = ((network_connection *)connection)->flags;
+  raw_flags = conn->flags;
   flags = raw_flags & ~0x20u;
-  ((network_connection *)connection)->flags = flags;
+  conn->flags = flags;
 
   if (timeout != 0) {
-    if (now > (unsigned int)(*(int *)(connection + 0x8) + 5000)) {
-      ((network_connection *)connection)->flags = flags | 0x20;
+    if (now > (unsigned int)(conn->last_keep_alive_milliseconds + 5000)) {
+      conn->flags = flags | 0x20;
     }
-    if (now > (unsigned int)(*(int *)(connection + 0x8) + timeout)) {
-      if (*(uint8_t *)0x46e8ba == 0) {
+    if (now > (unsigned int)(conn->last_keep_alive_milliseconds + timeout)) {
+      if (!network_connection_dont_timeout) {
         error(2, "timeout in network_connection_idle");
         return false;
       }
       error(2, "dont timeout is active so not timing out of a connection");
-      *(unsigned int *)(connection + 0x8) = now;
+      conn->last_keep_alive_milliseconds = now;
     }
   } else {
-    *(unsigned int *)(connection + 0x8) = now;
+    conn->last_keep_alive_milliseconds = now;
   }
 
-  if ((((network_connection *)connection)->flags & 1) != 0) {
+  if ((conn->flags & 1) != 0) {
     ok = network_connection_idle(connection, output);
     if (!ok) {
       error(2, "network_connection_idle_server_reliable_endpoint failed");
       return false;
     }
-  } else if ((((network_connection *)connection)->flags & 6) != 0) {
+  } else if ((conn->flags & 6) != 0) {
     ok = network_connection_idle_client_reliable_endpoint(connection);
     if (!ok) {
       error(2, "network_connection_idle_client_reliable_endpoint failed");
@@ -193,54 +260,48 @@ bool FUN_00129cf0(int connection, int timeout, int *output)
     }
   }
 
-  if (((network_connection *)connection)->unreliable_endpoint == 0)
+  if (conn->unreliable_endpoint == 0)
     return ok;
 
-  queue_space = circular_queue_free_space(((network_connection *)connection)->unreliable_incoming_queue);
+  queue_space = circular_queue_free_space(conn->unreliable_incoming_queue);
 
   while (ok && queue_space > 0x193) {
     bytes_read = 0;
-    is_connected = FUN_000831a0(((network_connection *)connection)->unreliable_endpoint);
+    is_connected = FUN_000831a0(conn->unreliable_endpoint);
 
     if (is_connected) {
       bytes_read =
-        recv_endpoint((int *)((network_connection *)connection)->unreliable_endpoint, recv_buf, 400);
+        recv_endpoint((int *)conn->unreliable_endpoint, recv_buf, 400);
       if (bytes_read > 0) {
-        addr_result = FUN_00083a60((int *)((network_connection *)connection)->unreliable_endpoint, addr_buf);
+        addr_result = FUN_00083a60((int *)conn->unreliable_endpoint, addr_buf);
         if (addr_result != 0) {
           csmemset(addr_buf, 0, 0x18);
           ((transport_address *)addr_buf)->address_length = 4;
         }
 
-        if (*(int *)(connection + 0x18) != 0) {
+        if (conn->traffic_log_file != NULL) {
           elapsed =
-            (int)(system_milliseconds() - *(unsigned int *)(connection + 0x1c));
-          dval = (double)elapsed;
-          if (elapsed < 0)
-            dval = dval + *(double *)0x265d40;
-          dval = dval * *(double *)0x294bf0;
-          crt_fprintf(*(void **)(connection + 0x18), "%g\t%ld\t%ld\t%ld\t%ld\n",
+            (int)(system_milliseconds() - conn->traffic_log_start_milliseconds);
+          dval = (double)(unsigned int)elapsed * 0.001;
+          crt_fprintf(conn->traffic_log_file, "%g\t%ld\t%ld\t%ld\t%ld\n",
                       dval, 0, bytes_read, 0, 0);
-          crt_fflush(*(void **)(connection + 0x18));
+          crt_fflush(conn->traffic_log_file);
         }
-        ((network_connection *)connection)->datagrams_received = ((network_connection *)connection)->datagrams_received + 1;
+        conn->datagrams_received = conn->datagrams_received + 1;
       }
     } else {
-      bytes_read = FUN_00084520((int *)((network_connection *)connection)->unreliable_endpoint, recv_buf,
+      bytes_read = FUN_00084520((int *)conn->unreliable_endpoint, recv_buf,
                                 400, addr_buf);
       if (bytes_read > 0) {
-        if (*(int *)(connection + 0x18) != 0) {
+        if (conn->traffic_log_file != NULL) {
           elapsed =
-            (int)(system_milliseconds() - *(unsigned int *)(connection + 0x1c));
-          dval = (double)elapsed;
-          if (elapsed < 0)
-            dval = dval + *(double *)0x265d40;
-          dval = dval * *(double *)0x294bf0;
-          crt_fprintf(*(void **)(connection + 0x18), "%g\t%ld\t%ld\t%ld\t%ld\n",
+            (int)(system_milliseconds() - conn->traffic_log_start_milliseconds);
+          dval = (double)(unsigned int)elapsed * 0.001;
+          crt_fprintf(conn->traffic_log_file, "%g\t%ld\t%ld\t%ld\t%ld\n",
                       dval, 0, bytes_read, 0, 0);
-          crt_fflush(*(void **)(connection + 0x18));
+          crt_fflush(conn->traffic_log_file);
         }
-        ((network_connection *)connection)->datagrams_received = ((network_connection *)connection)->datagrams_received + 1;
+        conn->datagrams_received = conn->datagrams_received + 1;
       }
     }
 
@@ -255,7 +316,7 @@ bool FUN_00129cf0(int connection, int timeout, int *output)
       error(2, "datagram received from unknown address");
     } else {
       csmemcpy(recv_buf + bytes_read, addr_buf, 4);
-      ok = FUN_00118ec0(((network_connection *)connection)->unreliable_incoming_queue, recv_buf, bytes_read + 4);
+      ok = FUN_00118ec0(conn->unreliable_incoming_queue, recv_buf, bytes_read + 4);
       if (!ok) {
         assert_halt_msg(
           0, "circular_queue_queue_data() failed though it should have had "
@@ -263,7 +324,7 @@ bool FUN_00129cf0(int connection, int timeout, int *output)
       }
     }
 
-    queue_space = circular_queue_free_space(((network_connection *)connection)->unreliable_incoming_queue);
+    queue_space = circular_queue_free_space(conn->unreliable_incoming_queue);
   }
 
   return ok;
@@ -273,13 +334,13 @@ bool FUN_00129cf0(int connection, int timeout, int *output)
  *
  * Returns true when either global network game endpoint pointer is non-null.
  */
-bool network_game_in_progress(void)
+int network_game_in_progress(void)
 {
-  if (*(int *)0x46e8c0 == 0 && *(int *)0x46e8bc == 0) {
-    return false;
+  if (network_game_globals.client == NULL && network_game_globals.server == NULL) {
+    return 0;
   }
 
-  return true;
+  return 1;
 }
 
 /* Set the number of games played in both server and client game globals.
@@ -288,12 +349,12 @@ bool network_game_in_progress(void)
 void network_game_set_number_of_games_played(int games_played)
 {
   int game;
-  int server = *(int *)0x46e8bc;
+  int server = (int)network_game_globals.server;
   if (server != 0) {
     game = network_game_server_get_game((void *)server);
     *(int *)(game + 0x42c) = games_played;
   }
-  server = *(int *)0x46e8c0;
+  server = (int)network_game_globals.client;
   if (server != 0) {
     game = (int)network_game_client_get_machine_index((void *)server);
     *(int *)(game + 0x42c) = games_played;
@@ -306,7 +367,7 @@ void network_game_set_number_of_games_played(int games_played)
 void network_game_set_random_seed(int seed)
 {
   int game;
-  int server = *(int *)0x46e8bc;
+  int server = (int)network_game_globals.server;
 #ifdef HALO_RNG_TRACE
   RNG_TRACE(RNG_TRACE_GLOBAL_SEED_ADDR, RNG_TRACE_KIND_NET_SET_SEED, seed);
 #endif
@@ -315,7 +376,7 @@ void network_game_set_random_seed(int seed)
     game = network_game_server_get_game((void *)server);
     *(int *)(game + 0x428) = seed;
   }
-  server = *(int *)0x46e8c0;
+  server = (int)network_game_globals.client;
   if (server != 0) {
     game = (int)network_game_client_get_machine_index((void *)server);
     *(int *)(game + 0x428) = seed;
@@ -330,12 +391,12 @@ int network_game_get_game(void)
 {
   int result;
 
-  if (*(void **)0x0046e8bc != NULL) {
-    result = network_game_server_get_game(*(void **)0x0046e8bc);
+  if (network_game_globals.server != NULL) {
+    result = network_game_server_get_game(network_game_globals.server);
     return result;
   }
-  if (*(void **)0x0046e8c0 != NULL) {
-    result = (int)network_game_client_get_machine_index(*(void **)0x0046e8c0);
+  if (network_game_globals.client != NULL) {
+    result = (int)network_game_client_get_machine_index(network_game_globals.client);
     return result;
   }
   return 0;
@@ -361,8 +422,8 @@ bool network_game_player_is_local(void *player)
   void *machine;
 
   if (player != NULL && network_player_is_valid(player) &&
-      *(void **)0x0046e8c0 != NULL) {
-    machine = network_game_client_get_machine(*(void **)0x0046e8c0);
+      network_game_globals.client != NULL) {
+    machine = network_game_client_get_machine(network_game_globals.client);
     if (machine != NULL &&
         *(char *)((char *)machine + 0x40) == *(char *)((char *)player + 0x1c)) {
       return true;
@@ -388,7 +449,7 @@ bool network_game_player_is_local(void *player)
  */
 void network_game_set_accept_remote_connections(char accept)
 {
-  *(char *)0x46e8c4 = accept;
+  network_game_globals.accept_remote_connections = accept;
 }
 
 /* network_game_accept_remote_connections (0x12a160)
@@ -397,7 +458,7 @@ void network_game_set_accept_remote_connections(char accept)
  */
 bool network_game_accept_remote_connections(void)
 {
-  return *(uint8_t *)0x46e8c4;
+  return network_game_globals.accept_remote_connections;
 }
 
 /* network_game_is_splitscreen_local (0x12a170)
@@ -405,19 +466,19 @@ bool network_game_accept_remote_connections(void)
  * Returns true when a server connection exists (0x46e8bc != NULL) and the
  * global byte at 0x46e8c4 is zero.
  */
-bool network_game_is_splitscreen_local(void)
+int network_game_is_splitscreen_local(void)
 {
-  if (*(void **)0x46e8bc != NULL && *(uint8_t *)0x46e8c4 == 0) {
-    return true;
+  if (network_game_globals.server != NULL && !network_game_globals.accept_remote_connections) {
+    return 1;
   }
-  return false;
+  return 0;
 }
 
 /* Set the quickstart-local flag (0x46e8c5) to 1.
  * 0x12a190 / network_game_globals.obj */
 void FUN_0012a190(void)
 {
-  *(unsigned char *)0x0046e8c5 = 1;
+  network_game_globals.quickstart_local = 1;
 }
 
 /* Return true if this is a quickstart-local session:
@@ -425,9 +486,9 @@ void FUN_0012a190(void)
  * 0x12a1a0 / network_game_globals.obj */
 unsigned int FUN_0012a1a0(void)
 {
-  if ((*(void **)0x0046e8bc == NULL) ||
-      (*(unsigned char *)0x0046e8c4 != '\0') ||
-      (*(unsigned char *)0x0046e8c5 != '\x01')) {
+  if ((network_game_globals.server == NULL) ||
+      (network_game_globals.accept_remote_connections != 0) ||
+      (network_game_globals.quickstart_local != 1)) {
     return 0;
   }
   return 1;
@@ -439,7 +500,7 @@ unsigned int FUN_0012a1a0(void)
  */
 void *network_game_server_get(void)
 {
-  return *(void **)0x46e8bc;
+  return network_game_globals.server;
 }
 
 /* dispose_global_network_game_client (0x12a1e0)
@@ -448,12 +509,12 @@ void *network_game_server_get(void)
  */
 void dispose_global_network_game_client(void)
 {
-  void *client = *(void **)0x46e8bc;
+  void *client = network_game_globals.server;
 
   if (client != NULL) {
     network_game_client_dispose(client);
-    *(void **)0x46e8bc = NULL;
-    *(uint8_t *)0x46e8c5 = 0;
+    network_game_globals.server = NULL;
+    network_game_globals.quickstart_local = 0;
   }
 }
 
@@ -464,8 +525,8 @@ void dispose_global_network_game_client(void)
  */
 bool network_game_server_start_frame(void)
 {
-  if (*(void **)0x46e8bc != NULL) {
-    return network_game_server_start(*(void **)0x46e8bc);
+  if (network_game_globals.server != NULL) {
+    return network_game_server_start(network_game_globals.server);
   }
   error(2, "no network game server");
   return true;
@@ -477,7 +538,7 @@ bool network_game_server_start_frame(void)
  */
 void *network_game_client_get(void)
 {
-  return *(void **)0x46e8c0;
+  return network_game_globals.client;
 }
 
 /* Create and initialize the global network game client.
@@ -485,17 +546,17 @@ void *network_game_client_get(void)
  * 0x12a250 / network_game_globals.obj */
 bool FUN_0012a250(void)
 {
-  if (*(void **)0x0046e8c0 != NULL) {
+  if (network_game_globals.client != NULL) {
     display_assert("global_network_game_client==NULL",
                    "c:\\halo\\SOURCE\\networking\\network_game_globals.c",
                    0x10f, 1);
     system_exit(-1);
   }
-  *(void **)0x0046e8c0 = FUN_00126fe0();
-  if (*(void **)0x0046e8c0 != NULL) {
-    *(unsigned char *)0x0046e8c6 = 0;
+  network_game_globals.client = FUN_00126fe0();
+  if (network_game_globals.client != NULL) {
+    network_game_globals.abort = 0;
   }
-  return *(void **)0x0046e8c0 != NULL;
+  return network_game_globals.client != NULL;
 }
 
 /* dispose_global_network_game_server (0x12a2a0)
@@ -504,11 +565,11 @@ bool FUN_0012a250(void)
  */
 void dispose_global_network_game_server(void)
 {
-  if (*(void **)0x46e8c0 != NULL) {
-    network_game_server_dispose(*(void **)0x46e8c0);
-    *(void **)0x46e8c0 = NULL;
+  if (network_game_globals.client != NULL) {
+    network_game_server_dispose(network_game_globals.client);
+    network_game_globals.client = NULL;
   }
-  *(uint8_t *)0x46e8c6 = 0;
+  network_game_globals.abort = 0;
 }
 
 /* network_game_client_start_frame (0x12a2d0)
@@ -525,66 +586,66 @@ bool network_game_client_start_frame(void)
   int reason;
   bool result;
 
-  if (*(uint8_t *)0x46e8c6 == 1) {
+  if (network_game_globals.abort == 1) {
     set_game_connection(0);
 
-    if (*(void **)0x46e8bc != NULL) {
-      reason = network_game_server_get_game(*(void **)0x46e8bc);
-    } else if (*(void **)0x46e8c0 != NULL) {
-      reason = (int)network_game_client_get_machine_index(*(void **)0x46e8c0);
+    if (network_game_globals.server != NULL) {
+      reason = network_game_server_get_game(network_game_globals.server);
+    } else if (network_game_globals.client != NULL) {
+      reason = (int)network_game_client_get_machine_index(network_game_globals.client);
     } else {
       reason = 0;
     }
     network_game_end_and_load_ui((void *)reason);
 
-    if (*(void **)0x46e8c0 != NULL) {
-      network_game_server_dispose(*(void **)0x46e8c0);
-      *(void **)0x46e8c0 = NULL;
+    if (network_game_globals.client != NULL) {
+      network_game_server_dispose(network_game_globals.client);
+      network_game_globals.client = NULL;
     }
-    *(uint8_t *)0x46e8c6 = 0;
-    if (*(void **)0x46e8bc != NULL) {
-      network_game_client_dispose(*(void **)0x46e8bc);
-      *(void **)0x46e8bc = NULL;
-      *(uint8_t *)0x46e8c5 = 0;
+    network_game_globals.abort = 0;
+    if (network_game_globals.server != NULL) {
+      network_game_client_dispose(network_game_globals.server);
+      network_game_globals.server = NULL;
+      network_game_globals.quickstart_local = 0;
     }
     main_goto_main_menu();
     return true;
   }
 
-  result = FUN_00127070(*(void **)0x46e8c0);
+  result = FUN_00127070(network_game_globals.client);
   if (!result) {
     network_game_log(
       "internal networking error [network_game_client_idle() failed]");
     return false;
   }
 
-  if (FUN_00124cc0(*(void **)0x46e8c0) != 0) {
+  if (FUN_00124cc0(network_game_globals.client) != 0) {
     network_game_log(
       "internal networking error [network_game_client_get_error()!=0]");
     return false;
   }
 
-  state = network_game_client_get_state(*(void **)0x46e8c0, &out);
+  state = network_game_client_get_state(network_game_globals.client, &out);
 
   switch (state) {
-  case 0:
-    if (*(int16_t *)0x322cd8 != state)
+  case _network_game_client_state_searching:
+    if (s_last_client_state != state)
       network_game_log("searching for a network game ...");
     break;
-  case 1:
-    if (*(int16_t *)0x322cd8 != state)
+  case _network_game_client_state_joining:
+    if (s_last_client_state != state)
       network_game_log("joining a network game ...");
     break;
-  case 2:
-    if (*(int16_t *)0x322cd8 != state)
+  case _network_game_client_state_pregame:
+    if (s_last_client_state != state)
       network_game_log("waiting for game to start ...");
     break;
-  case 3:
-    if (*(int16_t *)0x322cd8 != state)
+  case _network_game_client_state_ingame:
+    if (s_last_client_state != state)
       network_game_log("client signalled to begin loading for network game");
     break;
-  case 4:
-    if (*(int16_t *)0x322cd8 != state)
+  case _network_game_client_state_postgame:
+    if (s_last_client_state != state)
       network_game_log("waiting for game to restart ...");
     break;
   default:
@@ -594,7 +655,7 @@ bool network_game_client_start_frame(void)
     system_exit(-1);
     break;
   }
-  *(int16_t *)0x322cd8 = state;
+  s_last_client_state = state;
   return result;
 }
 
@@ -617,28 +678,28 @@ bool network_game_client_end_frame(void)
 
   result = true;
 
-  if (*(void **)0x46e8c0 == NULL) {
+  if (network_game_globals.client == NULL) {
     set_game_connection(0);
     main_reset_player_actions();
     return true;
   }
 
-  state = network_game_client_get_state(*(void **)0x46e8c0, NULL);
+  state = network_game_client_get_state(network_game_globals.client, NULL);
 
   if (state == 3) {
     now = system_milliseconds();
 
-    if ((unsigned int)(now - *(int *)0x46e8c8) >= 0x10 &&
-        network_game_client_get_available_games(*(void **)0x46e8c0)) {
-      network_game_client_get_error(*(void **)0x46e8c0);
-      network_game_client_get_machine_index(*(void **)0x46e8c0);
+    if ((unsigned int)(now - network_game_globals.last_update_time) >= 0x10 &&
+        network_game_client_get_available_games(network_game_globals.client)) {
+      network_game_client_get_error(network_game_globals.client);
+      network_game_client_get_machine_index(network_game_globals.client);
       update_client_build_client_update(out_buf);
 
-      if (network_client_get_oos(*(void **)0x46e8c0)) {
-        flags = network_game_client_get_error(*(void **)0x46e8c0);
+      if (network_client_get_oos(network_game_globals.client)) {
+        flags = network_game_client_get_error(network_game_globals.client);
         flags = flags | 0x80000000;
       } else {
-        flags = network_game_client_get_error(*(void **)0x46e8c0);
+        flags = network_game_client_get_error(network_game_globals.client);
         flags = flags & 0x7fffffff;
       }
 
@@ -659,7 +720,7 @@ bool network_game_client_end_frame(void)
       msg = (uint16_t *)encode_network_game_message(0x19, msg_buf, 0x88);
 
       if (msg != NULL) {
-        network_game_client_switch_to_postgame(*(void **)0x46e8c0, addr_buf);
+        network_game_client_switch_to_postgame(network_game_globals.client, addr_buf);
         /* arg1 is the client's connection handle at +0x82c, fetched via the
          * 0x125710 getter (its kb name is a misnomer; it returns
          * *(client+0x82c), the same send channel FUN_001263a0 passes to
@@ -667,11 +728,11 @@ bool network_game_client_end_frame(void)
          * switch_to_postgame. */
         result =
           network_game_client_write((void *)network_game_client_get_seconds_to_game_start(
-                         *(void **)0x46e8c0),
+                         network_game_globals.client),
                        msg, *msg >> 4, (int)addr_buf, 0);
         if (!result) {
           network_game_log("failed to send a game update to the server");
-          *(int *)0x46e8c8 = now;
+          network_game_globals.last_update_time = now;
           return false;
         }
       } else {
@@ -679,7 +740,7 @@ bool network_game_client_end_frame(void)
           "failed to create a _message_type_client_game_update message");
         result = false;
       }
-      *(int *)0x46e8c8 = now;
+      network_game_globals.last_update_time = now;
     }
   }
 
@@ -700,8 +761,8 @@ short network_game_client_get_local_machine_index(void)
   short result;
 
   result = -1;
-  if (*(void **)0x0046e8c0 != NULL) {
-    machine = network_game_client_get_machine(*(void **)0x0046e8c0);
+  if (network_game_globals.client != NULL) {
+    machine = network_game_client_get_machine(network_game_globals.client);
     if (machine != NULL) {
       result = (short)*(char *)((char *)machine + 0x40);
     }
@@ -726,9 +787,9 @@ void network_game_client_local_player_quit(short player)
   char *record;
   int i;
 
-  if (*(void **)0x0046e8c0 != NULL) {
-    machine = network_game_client_get_machine(*(void **)0x0046e8c0);
-    index_base = network_game_client_get_machine_index(*(void **)0x0046e8c0);
+  if (network_game_globals.client != NULL) {
+    machine = network_game_client_get_machine(network_game_globals.client);
+    index_base = network_game_client_get_machine_index(network_game_globals.client);
     if (machine != NULL) {
       i = 0;
       slot = (char *)index_base + 0x242;
@@ -742,7 +803,7 @@ void network_game_client_local_player_quit(short player)
       }
       record = (char *)index_base + i * 0x20 + 0x226;
       if (record != NULL && !network_game_client_request_remove_player(
-                              *(void **)0x0046e8c0, record)) {
+                              network_game_globals.client, record)) {
         error(2, "failed to request player removal in-game for player #%d",
               (int)*(char *)(record + 0x1d));
       }
@@ -756,7 +817,7 @@ void network_game_client_local_player_quit(short player)
  */
 void network_game_abort(void)
 {
-  *(unsigned char *)0x46e8c6 = 1;
+  network_game_globals.abort = 1;
 }
 
 /* network_game_client_all_local_players_have_quit (0x12a790)
@@ -765,7 +826,7 @@ void network_game_abort(void)
  */
 void network_game_client_all_local_players_have_quit(void)
 {
-  *(unsigned char *)0x46e8c6 = 1;
+  network_game_globals.abort = 1;
 }
 
 /* Request a game start from the network client (request_type=3).
@@ -773,8 +834,8 @@ void network_game_client_all_local_players_have_quit(void)
  * 0x12a7a0 / network_game_globals.obj */
 void FUN_0012a7a0(void)
 {
-  if (*(void **)0x0046e8c0 != NULL) {
-    if (!network_game_client_request_start_time_change(*(void **)0x0046e8c0,
+  if (network_game_globals.client != NULL) {
+    if (!network_game_client_request_start_time_change(network_game_globals.client,
                                                        3)) {
       error(2, "network_game_client_request_start() failed");
     }
@@ -790,10 +851,10 @@ int network_game_get_number_of_games_played(void)
 {
   int game;
 
-  if (*(void **)0x0046e8bc != NULL) {
-    game = network_game_server_get_game(*(void **)0x0046e8bc);
-  } else if (*(void **)0x0046e8c0 != NULL) {
-    game = (int)network_game_client_get_machine_index(*(void **)0x0046e8c0);
+  if (network_game_globals.server != NULL) {
+    game = network_game_server_get_game(network_game_globals.server);
+  } else if (network_game_globals.client != NULL) {
+    game = (int)network_game_client_get_machine_index(network_game_globals.client);
   } else {
     game = 0;
   }
@@ -817,26 +878,26 @@ bool FUN_0012a890(void)
   unsigned int seed_step;
   int game;
 
-  if (*(void **)0x0046e8bc != NULL) {
+  if (network_game_globals.server != NULL) {
     display_assert("global_network_game_server==NULL",
                    "c:\\halo\\SOURCE\\networking\\network_game_globals.c", 0xd6,
                    1);
     system_exit(-1);
   }
-  *(void **)0x0046e8bc = FUN_0012eef0();
-  if (*(void **)0x0046e8bc != NULL) {
+  network_game_globals.server = FUN_0012eef0();
+  if (network_game_globals.server != NULL) {
     seed_addr = random_math_get_local_seed_address();
     seed_step = (unsigned int)random_seed_step(seed_addr);
-    if (*(void **)0x0046e8bc != NULL) {
-      game = network_game_server_get_game(*(void **)0x0046e8bc);
+    if (network_game_globals.server != NULL) {
+      game = network_game_server_get_game(network_game_globals.server);
       *(unsigned int *)(game + 0x428) = seed_step;
     }
-    if (*(void **)0x0046e8c0 != NULL) {
-      game = (int)network_game_client_get_machine_index(*(void **)0x0046e8c0);
+    if (network_game_globals.client != NULL) {
+      game = (int)network_game_client_get_machine_index(network_game_globals.client);
       *(unsigned int *)(game + 0x428) = seed_step;
     }
   }
-  return *(void **)0x0046e8bc != NULL;
+  return network_game_globals.server != NULL;
 }
 
 /* network_player_reset (0x12a920)

@@ -459,9 +459,24 @@ def generate_message(batch_name=None, since_ref=None, vc71_match=None,
     verb = "Port" if ports else "Update"
     lines = []
     if batch_name:
-        lines.append(f"{verb} {batch_name}{obj_tag}{match_tag}")
+        # Avoid duplicating object tag if batch_name already contains the object name
+        if obj_tag and obj_tag.strip(" ()") in batch_name:
+            lines.append(f"{verb} {batch_name}{match_tag}")
+        else:
+            lines.append(f"{verb} {batch_name}{obj_tag}{match_tag}")
     else:
-        lines.append(f"{verb} functions{obj_tag}{match_tag}")
+        # Smart default subject synthesis when batch_name is omitted
+        port_names = [decl.split("(")[0].split()[-1] for _, decl in ports]
+        if len(port_names) == 1:
+            lines.append(f"{verb} {port_names[0]}{obj_tag}{match_tag}")
+        elif len(port_names) == 2 and len(objs) == 1:
+            lines.append(f"{verb} {port_names[0]}, {port_names[1]}{obj_tag}{match_tag}")
+        elif len(port_names) > 2 and len(objs) == 1:
+            lines.append(f"{verb} {len(port_names)} functions from {objs[0]}{match_tag}")
+        elif len(port_names) > 2:
+            lines.append(f"{verb} {len(port_names)} functions from {objs[0]}{obj_tag}{match_tag}")
+        else:
+            lines.append(f"{verb} functions{obj_tag}{match_tag}")
     lines.append("")
 
     if ports:

@@ -35,4 +35,22 @@ if [ -n "$offending" ]; then
   exit 1
 fi
 
+# Reject unmerged squash remnants (duplicate headers, intermediate coverage lines)
+if [ -x "$(command -v python3)" ] && [ -f "tools/audit/consolidate_squash_msg.py" ]; then
+  if python3 tools/audit/consolidate_squash_msg.py --check "$msg_file" 2>/dev/null; then
+    echo "commit-msg: refusing commit — message appears to be an unmerged squash of multiple commits:" >&2
+    echo "  Detected duplicate 'Functions ported:' sections, 'Coverage:' lines, or orphan headers." >&2
+    echo "" >&2
+    echo "  Fix: consolidate automatically with:" >&2
+    echo "    python3 tools/audit/consolidate_squash_msg.py --in-place $msg_file" >&2
+    echo "" >&2
+    echo "  Or edit the commit message to follow the repo standard:" >&2
+    echo "    Port func1, func2 (object.obj) (score% VC71)" >&2
+    echo "    Port N functions from object.obj (score% VC71)" >&2
+    echo "" >&2
+    echo "  Bypass with: git commit --no-verify" >&2
+    exit 1
+  fi
+fi
+
 exit 0

@@ -2704,6 +2704,38 @@ def _run_self_test(verbose: bool = False, oracle: str = "delinked") -> int:
 # Main diff runner
 # ---------------------------------------------------------------------------
 
+def _divergence_summary(seed_label: str, state_diff, stub_arg_diff=None) -> dict:
+    """Return compact, dashboard-safe evidence for the first failed seed."""
+    summary = {
+        "first_seed": str(seed_label),
+        "state_summary": state_diff.summary() if state_diff.has_differences() else None,
+    }
+    if stub_arg_diff is None or not stub_arg_diff.has_differences():
+        summary.update({
+            "kind": "state_difference",
+            "message": summary["state_summary"] or "state comparison differed",
+        })
+        return summary
+
+    if stub_arg_diff.sequence_diverged:
+        relation, message = stub_arg_diff.sequence_relation()
+        summary.update({
+            "kind": "stub_call_sequence",
+            "message": message,
+            "sequence_relation": relation,
+            "sequence_index": stub_arg_diff.sequence_diverge_index,
+            "oracle_calls": stub_arg_diff.oracle_seq,
+            "candidate_calls": stub_arg_diff.candidate_seq,
+        })
+    else:
+        summary.update({
+            "kind": "stub_arguments",
+            "message": "%d stub argument mismatch(es)" % stub_arg_diff.arg_mismatches,
+            "argument_mismatches": stub_arg_diff.arg_mismatches,
+        })
+    return summary
+
+
 def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
              verbose: bool = False, save_log: bool = True,
              output_json: Optional[Path] = None,
@@ -3650,6 +3682,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     domain_skipped = 0
     error_details = []
     first_diff = None
+    first_divergence_summary = None
     trace_diff_count = 0
     # Affirmative heap-output evidence accumulated across seeds (BIPED_HEAP_COMPARE).
     # Keyed by (addr, size) -> last observed sample, so the report can show the
@@ -3910,6 +3943,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             failed += 1
             if first_diff is None:
                 first_diff = (si, seed_vec, diff, oracle_state, lifted_state)
+                first_divergence_summary = _divergence_summary(
+                    seed_label, diff, stub_arg_diff)
             if verbose:
                 log(f"  {seed_label} FAIL: {diff.summary()}")
                 log(state_mod.format_state_verbose(oracle_state, "oracle"))
@@ -4148,6 +4183,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                 failed += 1
                                 if first_diff is None:
                                     first_diff = (sl, seed_vec, d, orc_s, lft_s)
+                                    first_divergence_summary = _divergence_summary(sl, d)
                                 log(f"  {sl} FAIL: {d.summary()}")
                             else:
                                 passed += 1
@@ -4299,6 +4335,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         # the number of seeds that actually said anything.
         domain_skipped=domain_skipped,
     )
+    if first_divergence_summary is not None:
+        extra["divergence_summary"] = first_divergence_summary
     if merged_global_reads:
         reads = []
         for addr, (size, value) in sorted(merged_global_reads.items()):

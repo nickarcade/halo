@@ -1810,6 +1810,91 @@ void FUN_00123aa0(void *mode_tag, void *out_node_data)
   }
 }
 
+/* model_get_node_matrices (0x123b30) — Build the world node matrices for a
+ * 'mode' tag by walking its node tree breadth-first.
+ *
+ * Confirmed: cdecl, 5 stack args — [EBP+0x8] mode_tag, [EBP+0xc] node_matrices,
+ *            [EBP+0x10] position, [EBP+0x14] forward, [EBP+0x18] up. The
+ *            defaults loaded when an arg is NULL are the global basis pointers
+ *            *(float**)0x31fc1c (position), 0x31fc3c (forward), 0x31fc44 (up),
+ *            matching the kb.json names global_forward_vector_ptr /
+ *            global_up_vector_ptr.
+ * Confirmed: node tag_block is mode_tag+0xb8, element stride 0x9c — the same
+ *            block/stride pair as FUN_00123aa0 and animation_get_root_matrix.
+ * Confirmed: CALL 0x1094d0 component_vectors_from_normal3d pushes
+ *            LEA[EBX+0x34], LEA[EBX+0x28], LEA[EBP-0x40] (0x123b86..0x123b8e)
+ *            so out=local matrix, position=node+0x28, basis=node+0x34. The
+ *            ADD ESP,0x18 at 0x123b94 is the COMBINED cleanup for
+ *            tag_block_get_element (12) + this call (12), not a 6-arg call.
+ * Confirmed: CALL 0x10a110 pushes EDX(up), ECX(forward), EAX(position),
+ *            ESI(node_matrices) at 0x123bc7..0x123bca — out first per the
+ *            kb.json decl. The NULL tests run up, forward, position (i.e.
+ *            right-to-left argument evaluation).
+ * Confirmed: CALL 0x109850 at 0x123bd6 pushes ESI, LEA[EBP-0x40], ESI so
+ *            a=node_matrices, b=local matrix, out=node_matrices. ADD ESP,0x1c
+ *            at 0x123bdb is the COMBINED cleanup for 0x10a110 (16) + this (12).
+ * Confirmed: CALL 0x109850 at 0x123c1e pushes ESI(node_matrices +
+ *            node_index*0x34), EDX(local matrix), ECX(node_matrices +
+ *            parent*0x34) so a=parent matrix, b=local matrix,
+ *            out=node_matrices[node_index]. Both indices are MOVSX-widened
+ *            int16 before the *0x34 scaling.
+ * Confirmed: assert at 0x123bf8 — "node->parent_node_index!=NONE",
+ *            "c:\halo\SOURCE\models\models.c", line 0x28a, halt=1, followed by
+ *            system_exit(-1). It fires when node+0x24 == -1 on a non-root node.
+ * Confirmed: unlike animation_graph_node_matrices_from_orientations there is no
+ *            block-count guard before the loop and no write_index bounds
+ *            asserts — the do/while runs at least once.
+ * Confirmed: loop latch is CMP word ptr [EBP-0x8],CX at 0x123c5b — a 16-bit
+ *            compare of read_index against write_index.
+ */
+void model_get_node_matrices(void *mode_tag, float *node_matrices,
+                             float *position, float *forward, float *up)
+{
+  short node_indices[64];
+  float node_matrix[13];
+  int *node_block;
+  int read_index;
+  int write_index;
+  char *node;
+  short node_index;
+
+  read_index = 0;
+  node_indices[0] = 0;
+  write_index = 1;
+  node_block = (int *)((char *)mode_tag + 0xb8);
+  do {
+    node_index = node_indices[(short)read_index];
+    read_index = read_index + 1;
+    node = (char *)tag_block_get_element(node_block, (int)node_index, 0x9c);
+    component_vectors_from_normal3d(node_matrix, (float *)(node + 0x28),
+                                    (float *)(node + 0x34));
+    if (node_index == 0) {
+      matrix4x3_from_forward_up_position(
+        node_matrices, position != NULL ? position : *(float **)0x31fc1c,
+        forward != NULL ? forward : *(float **)0x31fc3c,
+        up != NULL ? up : *(float **)0x31fc44);
+      matrix4x3_multiply(node_matrices, node_matrix, node_matrices);
+    } else {
+      if (*(short *)(node + 0x24) == -1) {
+        display_assert("node->parent_node_index!=NONE",
+                       "c:\\halo\\SOURCE\\models\\models.c", 0x28a, 1);
+        system_exit(-1);
+      }
+      matrix4x3_multiply(
+        (float *)((char *)node_matrices + *(short *)(node + 0x24) * 0x34),
+        node_matrix, (float *)((char *)node_matrices + (int)node_index * 0x34));
+    }
+    if (*(short *)(node + 0x20) != -1) {
+      node_indices[(short)write_index] = *(short *)(node + 0x20);
+      write_index = write_index + 1;
+    }
+    if (*(short *)(node + 0x22) != -1) {
+      node_indices[(short)write_index] = *(short *)(node + 0x22);
+      write_index = write_index + 1;
+    }
+  } while ((short)read_index != (short)write_index);
+}
+
 /* animation_get_root_matrix (0x123e20) — Get a node's default matrix from a
  * model mode tag.
  *

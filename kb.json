@@ -599,6 +599,14 @@
      "decl": "void *current_game_engine;"
     },
     {
+     "addr": "0x456f10",
+     "decl": "game_engine_race_globals_t race_globals;"
+    },
+    {
+     "addr": "0x456fe0",
+     "decl": "slayer_globals_t slayer_globals;"
+    },
+    {
      "addr": "0x46b668",
      "decl": "char local_player_network_indices[64];"
     },
@@ -4981,8 +4989,9 @@
     },
     {
      "addr": "0x1bb640",
-     "decl": "void cache_copy_issue_write(void);",
-     "comment": "[NAME: cache_copy_issue_write — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void cache_copy_issue_write(short write_buffer_index /* @<eax> */, char *self /* @<ecx> */);",
+     "comment": "[NAME: cache_copy_issue_write — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1bb7d0",
@@ -4996,8 +5005,9 @@
     },
     {
      "addr": "0x1bb970",
-     "decl": "void cache_copy_update_write_buffers(void);",
-     "comment": "[NAME: cache_copy_update_write_buffers — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void cache_copy_update_write_buffers(char *self /* @<esi> */);",
+     "comment": "[NAME: cache_copy_update_write_buffers — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1bbb60",
@@ -5130,13 +5140,15 @@
     },
     {
      "addr": "0x1bcc10",
-     "decl": "void cached_map_issue_async_read(void);",
-     "comment": "[NAME: cached_map_issue_async_read — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void cached_map_issue_async_read(char *completion_flag /* @<eax> */, int offset /* @<ecx> */, unsigned int size /* @<edx> */, void *overlapped /* @<esi> */, void *completion_routine /* @<ebx> */, unsigned int handle, int buffer);",
+     "comment": "[NAME: cached_map_issue_async_read — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1bcc30",
-     "decl": "void cached_map_issue_async_write(void);",
-     "comment": "[NAME: cached_map_issue_async_write — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void cached_map_issue_async_write(char *completion_flag /* @<eax> */, int offset /* @<ecx> */, unsigned int size /* @<edx> */, void *overlapped /* @<esi> */, void *completion_routine /* @<ebx> */, unsigned int handle, int buffer);",
+     "comment": "[NAME: cached_map_issue_async_write — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1bcc50",
@@ -12342,7 +12354,8 @@
     },
     {
      "addr": "0xc8e00",
-     "decl": "void hs_parse_inspect(void);",
+     "decl": "bool hs_parse_inspect(int function_index, int expression_index);",
+     "ported": true,
      "comment": "[NAME: hs_parse_inspect — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -12645,13 +12658,15 @@
     },
     {
      "addr": "0xcaec0",
-     "decl": "void hs_string_to_boolean(void);",
-     "comment": "[NAME: hs_string_to_boolean — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int hs_string_to_boolean(const char *string);",
+     "comment": "[NAME: hs_string_to_boolean — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xcaef0",
-     "decl": "void hs_short_to_real(void);",
-     "comment": "[NAME: hs_short_to_real — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int hs_short_to_real(int16_t param_1);",
+     "comment": "[NAME: hs_short_to_real — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xcaf10",
@@ -12713,8 +12728,9 @@
     },
     {
      "addr": "0xcb940",
-     "decl": "void script_error(void);",
-     "comment": "[NAME: script_error — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "boolean script_error(int thread_index@<eax>, const char *reason@<edi>, const char *expression);",
+     "comment": "[NAME: script_error — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xcb980",
@@ -14904,7 +14920,7 @@
     },
     {
      "addr": "0x12a000",
-     "decl": "bool network_game_in_progress(void);",
+     "decl": "int network_game_in_progress(void);",
      "ported": true
     },
     {
@@ -14914,7 +14930,7 @@
     },
     {
      "addr": "0x12a170",
-     "decl": "bool network_game_is_splitscreen_local(void);",
+     "decl": "int network_game_is_splitscreen_local(void);",
      "ported": true
     },
     {
@@ -15438,67 +15454,67 @@
    "functions": [
     {
      "addr": "0x11a230",
-     "decl": "bool FUN_0011a230(int *state, const char *source, short max_length);",
+     "decl": "bool FUN_0011a230(data_encoding_state_t *state, const char *source, short max_length);",
      "name": "FUN_0011a230",
      "ported": true
     },
     {
      "addr": "0x11a2d0",
-     "decl": "void FUN_0011a2d0(int *state, void *buffer, int buffer_size);",
+     "decl": "void FUN_0011a2d0(data_encoding_state_t *state, void *buffer, int buffer_size);",
      "name": "FUN_0011a2d0",
      "ported": true
     },
     {
      "addr": "0x11a340",
-     "decl": "int FUN_0011a340(int *state, short count, void *bs_definition);",
+     "decl": "int FUN_0011a340(data_encoding_state_t *state, short count, void *bs_definition);",
      "name": "FUN_0011a340",
      "ported": true
     },
     {
      "addr": "0x11a430",
-     "decl": "int FUN_0011a430(int *state, short count, int element_size);",
+     "decl": "int FUN_0011a430(data_encoding_state_t *state, short count, int element_size);",
      "name": "FUN_0011a430",
      "ported": true
     },
     {
      "addr": "0x11a560",
-     "decl": "unsigned char FUN_0011a560(int *state);",
+     "decl": "unsigned char FUN_0011a560(data_encoding_state_t *state);",
      "name": "FUN_0011a560",
      "ported": true
     },
     {
      "addr": "0x11a5d0",
-     "decl": "short FUN_0011a5d0(int *state);",
+     "decl": "short FUN_0011a5d0(data_encoding_state_t *state);",
      "name": "FUN_0011a5d0",
      "ported": true
     },
     {
      "addr": "0x11a650",
-     "decl": "int FUN_0011a650(int *state);",
+     "decl": "int FUN_0011a650(data_encoding_state_t *state);",
      "name": "FUN_0011a650",
      "ported": true
     },
     {
      "addr": "0x11a6d0",
-     "decl": "int64_t FUN_0011a6d0(int *state);",
+     "decl": "int64_t FUN_0011a6d0(data_encoding_state_t *state);",
      "name": "FUN_0011a6d0",
      "ported": true
     },
     {
      "addr": "0x11a700",
-     "decl": "unsigned int FUN_0011a700(int *state, int maximum_value);",
+     "decl": "unsigned int FUN_0011a700(data_encoding_state_t *state, int maximum_value);",
      "name": "FUN_0011a700",
      "ported": true
     },
     {
      "addr": "0x11a770",
-     "decl": "void *FUN_0011a770(int *state, int element_size_type, unsigned int *element_count_ref, int maximum_element_count, void *bs_definition);",
+     "decl": "void *FUN_0011a770(data_encoding_state_t *state, int element_size_type, unsigned int *element_count_ref, int maximum_element_count, void *bs_definition);",
      "name": "FUN_0011a770",
      "ported": true
     },
     {
      "addr": "0x11a8e0",
-     "decl": "char *FUN_0011a8e0(int *state, unsigned short max_length);",
+     "decl": "char *FUN_0011a8e0(data_encoding_state_t *state, unsigned short max_length);",
      "name": "FUN_0011a8e0",
      "ported": true
     },
@@ -15515,7 +15531,7 @@
     },
     {
      "addr": "0x11b2a0",
-     "decl": "void FUN_0011b2a0(int definition, int *decode_state, unsigned short version, unsigned short *output, short *decoded_size_out, short *field_defs, short *field_count_out);",
+     "decl": "void FUN_0011b2a0(int definition, data_encoding_state_t *decode_state, unsigned short version, unsigned short *output, short *decoded_size_out, short *field_defs, short *field_count_out);",
      "name": "FUN_0011b2a0",
      "ported": true
     },
@@ -17435,7 +17451,7 @@
    "functions": [
     {
      "addr": "0x88d50",
-     "decl": "void first_person_camera_for_unit_and_vector(void);"
+     "decl": "void first_person_camera_for_unit_and_vector(float *vector @<eax>, int32_t unit_index @<ecx>, void *result @<esi>);"
     },
     {
      "addr": "0x89240",
@@ -17444,16 +17460,19 @@
     },
     {
      "addr": "0x89270",
-     "decl": "void first_person_camera_update(void);"
+     "decl": "void first_person_camera_update(void *camera, void *param_2, void *result);",
+     "ported": true
     },
     {
      "addr": "0x89330",
-     "decl": "void flying_camera_new(void);",
+     "decl": "void flying_camera_new(void *flying_camera);",
+     "ported": true,
      "comment": "[NAME: flying_camera_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x89350",
-     "decl": "void FUN_00089350(void *camera_data, float *position, float *forward);"
+     "decl": "void FUN_00089350(void *camera_data, float *position, float *forward);",
+     "ported": true
     },
     {
      "addr": "0x893a0",
@@ -17461,12 +17480,14 @@
     },
     {
      "addr": "0x89850",
-     "decl": "void following_camera_new(void *camera_data);"
+     "decl": "void following_camera_new(void *camera_data);",
+     "ported": true
     },
     {
      "addr": "0x898b0",
-     "decl": "void unit_camera_get(void);",
-     "comment": "[NAME: unit_camera_get — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void unit_camera_get(int unit_handle /* @eax */);",
+     "comment": "[NAME: unit_camera_get — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x89930",
@@ -17522,11 +17543,13 @@
     },
     {
      "addr": "0x8a570",
-     "decl": "void observer_command_has_finished(void);"
+     "decl": "boolean observer_command_has_finished(int16_t local_player_index);",
+     "ported": true
     },
     {
      "addr": "0x8a5f0",
-     "decl": "void observer_reconnect_to_structure_bsp(void);"
+     "decl": "void observer_reconnect_to_structure_bsp(void);",
+     "ported": true
     },
     {
      "addr": "0x8a660",
@@ -17540,7 +17563,8 @@
     },
     {
      "addr": "0x8aa30",
-     "decl": "void observer_obsolete_position(void);"
+     "decl": "void observer_obsolete_position(int16_t local_player_index);",
+     "ported": true
     },
     {
      "addr": "0x8aa80",
@@ -17627,8 +17651,9 @@
     },
     {
      "addr": "0x8d3a0",
-     "decl": "void static_camera_new(void);",
-     "comment": "[NAME: static_camera_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void static_camera_new(void *camera, const vector3_t *position, uint32_t field_0c, const vector3_t *forward, const vector3_t *up, float field_of_view, int32_t duration_ticks, uint32_t flags);",
+     "comment": "[NAME: static_camera_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     }
    ],
    "name": "observer.obj",
@@ -20453,7 +20478,7 @@
     },
     {
      "addr": "0x922a0",
-     "decl": "void __fastcall FUN_000922a0(int skip, int32_t *frames, uint32_t max, uint32_t *count);"
+          "decl": "void FUN_000922a0(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);"
     }
    ],
    "name": "profile.obj",
@@ -23500,7 +23525,8 @@
     {
      "addr": "0x184710",
      "decl": "void rasterizer_transparent_geometry_stop(void);",
-     "comment": "[NAME: rasterizer_transparent_geometry_stop — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: rasterizer_transparent_geometry_stop — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x184750",
@@ -23512,7 +23538,8 @@
     },
     {
      "addr": "0x184980",
-     "decl": "void FUN_00184980(char param_1);"
+     "decl": "void FUN_00184980(char param_1);",
+     "ported": true
     },
     {
      "addr": "0x184b60",
@@ -23837,34 +23864,41 @@
    "functions": [
     {
      "addr": "0x1c1b00",
-     "decl": "void player_profile_write(void);",
-     "comment": "[NAME: player_profile_write — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void player_profile_write(void *profile@<esi>, int unknown);",
+     "comment": "[NAME: player_profile_write — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c1ba0",
      "decl": "void player_profiles_initialize(void);",
-     "comment": "[NAME: player_profiles_initialize — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: player_profiles_initialize — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c1bc0",
-     "decl": "void player_profile_get_from_path(int profile_index, void *profile);"
+     "decl": "void player_profile_get_from_path(int profile_index, void *profile);",
+     "ported": true
     },
     {
      "addr": "0x1c1c00",
-     "decl": "void FUN_001c1c00(int local_player_index);"
+     "decl": "void FUN_001c1c00(short local_player_index);",
+     "ported": true
     },
     {
      "addr": "0x1c1cc0",
-     "decl": "void FUN_001c1cc0(int local_player_index);"
+     "decl": "void FUN_001c1cc0(short local_player_index);",
+     "ported": true
     },
     {
      "addr": "0x1c1da0",
-     "decl": "void FUN_001c1da0(void);"
+     "decl": "void FUN_001c1da0(void);",
+     "ported": true
     },
     {
      "addr": "0x1c1dc0",
      "decl": "void playlist_profiles_dispose(void);",
-     "comment": "[NAME: playlist_profiles_dispose — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: playlist_profiles_dispose — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c1e20",
@@ -23873,28 +23907,34 @@
     },
     {
      "addr": "0x1c1f70",
-     "decl": "void FUN_001c1f70(void);"
+     "decl": "void FUN_001c1f70(int param_1);",
+     "ported": true
     },
     {
      "addr": "0x1c1fa0",
-     "decl": "void playlist_profile_get(void);"
+     "decl": "boolean playlist_profile_get(const char *full_path, void *variant);",
+     "ported": true
     },
     {
      "addr": "0x1c20d0",
-     "decl": "void FUN_001c20d0(void);"
+     "decl": "boolean FUN_001c20d0(int param_1, wchar_t *display_name_out);",
+     "ported": true
     },
     {
      "addr": "0x1c2110",
-     "decl": "void playlist_profile_number_of_default_profiles_on_disk(void);",
-     "comment": "[NAME: playlist_profile_number_of_default_profiles_on_disk — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int16_t playlist_profile_number_of_default_profiles_on_disk(void);",
+     "comment": "[NAME: playlist_profile_number_of_default_profiles_on_disk — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c2120",
-     "decl": "void FUN_001c2120(void);"
+     "decl": "void FUN_001c2120(void);",
+     "ported": true
     },
     {
      "addr": "0x1c22e0",
-     "decl": "void playlist_profile_create_default_profiles_on_disk(void);"
+     "decl": "boolean playlist_profile_create_default_profiles_on_disk(game_variant_t *variant@<ebx>, int unknown);",
+     "comment": "[param variant@<ebx> proven by TEST EBX,EBX at 0x1c22e9 before any write plus the \"variant\" assert condition string; one stack arg [EBP+0x8] tested signed (JNS 0x1c2362); byte return via MOV AL,[EBP-0x1] at every epilog]"
     },
     {
      "addr": "0x1c2550",
@@ -23902,19 +23942,25 @@
     },
     {
      "addr": "0x1c26b0",
-     "decl": "void FUN_001c26b0(int, int *, int *);"
+     "decl": "void FUN_001c26b0(int, int *, int *);",
+     "ported": true
     },
     {
      "addr": "0x1c26f0",
-     "decl": "void playlist_profile_delete(void);"
+     "decl": "boolean playlist_profile_delete(int unknown, game_variant_t *variant);",
+     "comment": "[NAME: playlist_profile_delete — CEA PDB line-containment (confirmed); __FILE__ assert c:\\halo\\SOURCE\\saved games\\playlist_profile.c:0xd9. Two cdecl stack args ([EBP+0x8] int vs -1, [EBP+0xc] variant). Byte return proven by XOR BL,BL at 0x1c26f8 / MOV AL,BL at 0x1c2735]",
+     "ported": true
     },
     {
      "addr": "0x1c2750",
-     "decl": "void playlist_profile_read(void);"
+     "decl": "void playlist_profile_read(void *variant@<esi>, int unknown);",
+     "comment": "[NAME: playlist_profile_read — CEA PDB line-containment (high_confidence); param variant@<esi> proven by TEST ESI,ESI at 0x1c2753 before any write plus the \"variant\" assert condition string]",
+     "ported": true
     },
     {
      "addr": "0x1c27f0",
-     "decl": "void playlist_profile_get_display_name(void);"
+     "decl": "void playlist_profile_get_display_name(int unknown, game_variant_t *variant);",
+     "ported": true
     },
     {
      "addr": "0x1c2840",
@@ -23923,63 +23969,78 @@
     },
     {
      "addr": "0x1c2890",
-     "decl": "void saved_game_file_close(void);"
+     "decl": "bool saved_game_file_close(file_ref_t *saved_game_file, int32_t saved_game_file_index);",
+     "ported": true
     },
     {
      "addr": "0x1c29a0",
-     "decl": "unsigned short saved_game_file_get_type(int saved_game_file_index);"
+     "decl": "unsigned short saved_game_file_get_type(int saved_game_file_index);",
+     "ported": true
     },
     {
      "addr": "0x1c29b0",
-     "decl": "void saved_game_files_notify_memory_units_changed(void);"
+     "decl": "void saved_game_files_notify_memory_units_changed(void);",
+     "ported": true
     },
     {
      "addr": "0x1c29c0",
-     "decl": "void saved_game_file_get_useable_untitled_profile_name(wchar_t *out_name);"
+     "decl": "void saved_game_file_get_useable_untitled_profile_name(wchar_t *display_name);",
+     "ported": true
     },
     {
      "addr": "0x1c2af0",
-     "decl": "void saved_game_files_take_mutex(void);"
+     "decl": "void saved_game_files_take_mutex(void);",
+     "ported": true
     },
     {
      "addr": "0x1c2b10",
-     "decl": "void saved_game_files_release_mutex(void);"
+     "decl": "void saved_game_files_release_mutex(void);",
+     "ported": true
     },
     {
      "addr": "0x1c2b20",
-     "decl": "int16_t saved_game_perform_file_system_checks(void);"
+     "decl": "int16_t saved_game_perform_file_system_checks(void);",
+     "ported": true
     },
     {
      "addr": "0x1c2bf0",
-     "decl": "char saved_game_file_name_unique(const wchar_t *name);"
+     "decl": "char saved_game_file_name_unique(const wchar_t *name);",
+     "ported": true
     },
     {
      "addr": "0x1c2c50",
-     "decl": "void saved_game_file_remember_player1_last_used_profile_directory(void);"
+     "decl": "void saved_game_file_remember_player1_last_used_profile_directory(const char *directory_path);",
+     "ported": true
     },
     {
      "addr": "0x1c2d20",
-     "decl": "bool saved_game_file_retrieve_player1_last_used_profile_directory(char *directory_path);"
+     "decl": "bool saved_game_file_retrieve_player1_last_used_profile_directory(char *directory_path);",
+     "ported": true
     },
     {
      "addr": "0x1c2e00",
-     "decl": "void saved_game_file_remember_last_used_multiplayer_variant_directory(void);"
+     "decl": "void saved_game_file_remember_last_used_multiplayer_variant_directory(const char *directory_path);",
+     "ported": true
     },
     {
      "addr": "0x1c2ed0",
-     "decl": "bool saved_game_file_retrieve_last_used_multiplayer_variant_directory(char *directory_path);"
+     "decl": "bool saved_game_file_retrieve_last_used_multiplayer_variant_directory(char *directory_path);",
+     "ported": true
     },
     {
      "addr": "0x1c2fb0",
-     "decl": "void saved_game_file_remember_last_used_multiplayer_map(const char *map_name);"
+     "decl": "void saved_game_file_remember_last_used_multiplayer_map(const char *map_name);",
+     "ported": true
     },
     {
      "addr": "0x1c3080",
-     "decl": "bool saved_game_file_retrieve_last_used_multiplayer_map(char *map_name);"
+     "decl": "bool saved_game_file_retrieve_last_used_multiplayer_map(char *map_name);",
+     "ported": true
     },
     {
      "addr": "0x1c3160",
-     "decl": "void saved_game_file_generate_checksum(void);"
+     "decl": "void saved_game_file_generate_checksum(const void *buffer, unsigned short size, void *signature);",
+     "ported": true
     },
     {
      "addr": "0x1c31f0",
@@ -23987,43 +24048,51 @@
     },
     {
      "addr": "0x1c3250",
-     "decl": "void enumerate_saved_game_files_start(void);",
-     "comment": "[NAME: enumerate_saved_game_files_start — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void enumerate_saved_game_files_start(int16_t memory_unit@<ax>);",
+     "comment": "[NAME: enumerate_saved_game_files_start — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c3320",
-     "decl": "void enumerate_saved_game_files_end(void);",
-     "comment": "[NAME: enumerate_saved_game_files_end — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool enumerate_saved_game_files_end(int16_t memory_unit@<si>);",
+     "comment": "[NAME: enumerate_saved_game_files_end — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true,
+     "status": "ported"
     },
     {
      "addr": "0x1c33b0",
-     "decl": "void enumerate_saved_game_file(void);",
+     "decl": "bool enumerate_saved_game_file(void *record@<esi>);",
      "comment": "[NAME: enumerate_saved_game_file — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x1c3430",
-     "decl": "void enumerate_mapfile_start(void);",
-     "comment": "[NAME: enumerate_mapfile_start — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool enumerate_mapfile_start(int16_t memory_unit_index@<ax>);",
+     "comment": "[NAME: enumerate_mapfile_start — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c3500",
-     "decl": "void enumerate_mapfile_end(void);",
-     "comment": "[NAME: enumerate_mapfile_end — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool enumerate_mapfile_end(int16_t memory_unit_index@<si>);",
+     "comment": "[NAME: enumerate_mapfile_end — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c35a0",
-     "decl": "void enumerate_saved_game_file_from_mapfile(void);",
-     "comment": "[NAME: enumerate_saved_game_file_from_mapfile — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool enumerate_saved_game_file_from_mapfile(void *file@<esi>);",
+     "comment": "[NAME: enumerate_saved_game_file_from_mapfile — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c3610",
-     "decl": "void count_enumerated_profiles_in_mapfile(void);",
+     "decl": "uint32_t count_enumerated_profiles_in_mapfile(int16_t memory_unit_index@<si>);",
+     "ported": true,
      "comment": "[NAME: count_enumerated_profiles_in_mapfile — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x1c3710",
-     "decl": "void build_saved_game_file_index(void);",
-     "comment": "[NAME: build_saved_game_file_index — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "uint32_t build_saved_game_file_index(int32_t param_eax@<eax>, int32_t param_ecx@<ecx>, int32_t file_type@<edx>, bool param_1, bool param_2);",
+     "comment": "[NAME: build_saved_game_file_index — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c3750",
@@ -24032,32 +24101,36 @@
     },
     {
      "addr": "0x1c38d0",
-     "decl": "int saved_game_file_find_profile_index_for_directory_path(char *directory_path, int unknown);"
+     "decl": "int saved_game_file_find_profile_index_for_directory_path(char *directory_path, int file_type);",
+     "ported": true
     },
     {
      "addr": "0x1c3a30",
-     "decl": "void enumerate_default_playlist_profiles(void);",
+     "decl": "int16_t enumerate_default_playlist_profiles(void);",
      "comment": "[NAME: enumerate_default_playlist_profiles — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x1c3c40",
-     "decl": "void enumerate_default_player_profiles(void);",
-     "comment": "[NAME: enumerate_default_player_profiles — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int16_t enumerate_default_player_profiles(void);",
+     "comment": "[NAME: enumerate_default_player_profiles — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c3e40",
-     "decl": "void get_nth_entry_in_mapfile(void);",
+     "decl": "bool get_nth_entry_in_mapfile(int16_t memory_unit_index@<ax>, int32_t entry_index@<edi>, void *entry);",
      "comment": "[NAME: get_nth_entry_in_mapfile — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x1c4030",
-     "decl": "void set_nth_entry_in_mapfile(void);",
-     "comment": "[NAME: set_nth_entry_in_mapfile — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool set_nth_entry_in_mapfile(int16_t memory_unit_index@<ax>, int16_t entry_index, const void *entry);",
+     "comment": "[NAME: set_nth_entry_in_mapfile — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c4210",
-     "decl": "void append_entry_to_mapfile(void);",
-     "comment": "[NAME: append_entry_to_mapfile — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool append_entry_to_mapfile(int16_t memory_unit_index@<ax>, const void *file, uint32_t *profile_index);",
+     "comment": "[NAME: append_entry_to_mapfile — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c43f0",
@@ -24066,7 +24139,8 @@
     },
     {
      "addr": "0x1c4600",
-     "decl": "void saved_game_file_get_display_name(void);"
+     "decl": "wchar_t *saved_game_file_get_display_name(int32_t saved_game_file_index);",
+     "ported": true
     },
     {
      "addr": "0x1c46c0",
@@ -24097,7 +24171,7 @@
     },
     {
      "addr": "0x1c53f0",
-     "decl": "void saved_game_files_enumerate_available_to_local_player_index(void);",
+     "decl": "void saved_game_files_enumerate_available_to_local_player_index(int, int, int *, int *, int);",
      "comment": "[NAME: saved_game_files_enumerate_available_to_local_player_index — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -25483,7 +25557,7 @@
     },
     {
      "addr": "0x92370",
-     "decl": "void __fastcall FUN_00092370(int skip, int32_t *frames, uint32_t max, uint32_t *count);",
+          "decl": "void FUN_00092370(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);",
      "ported": true,
      "source_path": "src/halo/cseries/stack_walk_windows.c"
     },
@@ -27086,7 +27160,7 @@
     {
      "addr": "0x83930",
      "decl": "int FUN_00083930(int af @<ecx>, int type @<edx>, int protocol @<eax>);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x83a60",
@@ -27170,7 +27244,8 @@
     },
     {
      "addr": "0x82700",
-     "decl": "int add_endpoint_to_set(int endpoint, void *set);"
+     "decl": "int add_endpoint_to_set(int endpoint, void *set);",
+     "ported": true
     },
     {
      "addr": "0x82940",
@@ -27199,16 +27274,19 @@
     },
     {
      "addr": "0x82c90",
-     "decl": "void add_connect_thread(void);",
+     "decl": "bool add_connect_thread(void *thread);",
+     "ported": true,
      "comment": "[NAME: add_connect_thread — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x82cf0",
-     "decl": "void FUN_00082cf0(void);"
+     "decl": "void FUN_00082cf0(int thread @<esi>);",
+     "ported": true
     },
     {
      "addr": "0x82d70",
-     "decl": "int get_next_endpoint_from_set(int type);"
+     "decl": "int get_next_endpoint_from_set(int type);",
+     "ported": true
     },
     {
      "addr": "0x82df0",
@@ -27252,7 +27330,8 @@
     },
     {
      "addr": "0x83e20",
-     "decl": "short FUN_00083e20(int endpoint, int address);"
+     "decl": "short FUN_00083e20(int endpoint, int address);",
+     "ported": true
     },
     {
      "addr": "0x84080",
@@ -27261,11 +27340,13 @@
     },
     {
      "addr": "0x841b0",
-     "decl": "short FUN_000841b0(int endpoint, int address, int process_ref);"
+     "decl": "short FUN_000841b0(int endpoint, int address, int process_ref);",
+     "ported": true
     },
     {
      "addr": "0x843a0",
-     "decl": "short FUN_000843a0(int endpoint);"
+     "decl": "short FUN_000843a0(int endpoint);",
+     "ported": true
     },
     {
      "addr": "0x84450",
@@ -27274,7 +27355,8 @@
     },
     {
      "addr": "0x84740",
-     "decl": "int FUN_00084740(int endpoint, void *message, int size, int dest_address);"
+     "decl": "int FUN_00084740(int endpoint, void *message, int size, int dest_address);",
+     "ported": true
     },
     {
      "addr": "0x84940",
@@ -27285,6 +27367,16 @@
      "addr": "0x84970",
      "decl": "void FUN_00084970(int *ep);",
      "ported": true
+    }
+   ],
+   "data": [
+    {
+     "addr": "0x335090",
+     "decl": "uint8_t transport_initialized;"
+    },
+    {
+     "addr": "0x3350a0",
+     "decl": "transport_connect_thread_slot transport_connect_threads[64];"
     }
    ],
    "name": "transport_endpoint_set_winsock.obj",
@@ -27419,7 +27511,8 @@
     },
     {
      "addr": "0xe4500",
-     "decl": "void display_error_deferred(int error_code, int player_index, bool a3, bool a4);"
+     "decl": "void display_error_deferred(int error_code, int player_index, bool a3, bool a4);",
+     "ported": true
     },
     {
      "addr": "0xe4590",
@@ -27977,8 +28070,9 @@
     },
     {
      "addr": "0xef3f0",
-     "decl": "void player_profile_change_controller_settings(void);",
-     "comment": "[NAME: player_profile_change_controller_settings — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool player_profile_change_controller_settings(void *widget, void *event_data, bool *widget_deleted);",
+     "comment": "[NAME: player_profile_change_controller_settings — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xef5c0",
@@ -28211,7 +28305,9 @@
     },
     {
      "addr": "0xf3010",
-     "decl": "void solo_game_objective_text(void);"
+     "decl": "void solo_game_objective_text(void *widget);",
+     "ported": true,
+     "src": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     {
      "addr": "0xf31d0",
@@ -33108,7 +33204,7 @@
     },
     {
      "addr": "0x1d2f22",
-     "decl": "void FUN_001d2f22(void);"
+     "decl": "int __stdcall FUN_001d2f22(const char *param_1, const wchar_t *param_2, int param_3, int param_4, char *param_5, unsigned int param_6);"
     },
     {
      "addr": "0x1d3185",
@@ -33116,15 +33212,15 @@
     },
     {
      "addr": "0x1d3254",
-     "decl": "void FUN_001d3254(void);"
+     "decl": "int __stdcall FUN_001d3254(const char *path, void *find_data);"
     },
     {
      "addr": "0x1d335b",
-     "decl": "void FUN_001d335b(void);"
+     "decl": "bool __stdcall FUN_001d335b(int handle, void *find_data);"
     },
     {
      "addr": "0x1d33a2",
-     "decl": "void __stdcall FUN_001d33a2(int param_1);"
+     "decl": "int __stdcall FUN_001d33a2(int handle);"
     },
     {
      "addr": "0x1d33e6",
@@ -33172,7 +33268,7 @@
     },
     {
      "addr": "0x1d3739",
-     "decl": "void FUN_001d3739(void);"
+     "decl": "int __stdcall FUN_001d3739(const char *directory_name, uint64_t *free_bytes_available, uint64_t *total_bytes, uint64_t *total_free_bytes);"
     },
     {
      "addr": "0x1d3a91",
@@ -33216,15 +33312,15 @@
     },
     {
      "addr": "0x1d426b",
-     "decl": "void XCalculateSignatureBegin(void);"
+     "decl": "int __stdcall XCalculateSignatureBegin(unsigned long flags);"
     },
     {
      "addr": "0x1d42a9",
-     "decl": "void FUN_001d42a9(void);"
+     "decl": "int __stdcall XCalculateSignatureUpdate(int signature_handle, const void *buffer, unsigned long size);"
     },
     {
      "addr": "0x1d42c3",
-     "decl": "void FUN_001d42c3(void);"
+     "decl": "int __stdcall XCalculateSignatureEnd(int signature_handle, void *signature);"
     },
     {
      "addr": "0x1d4345",
@@ -33787,7 +33883,9 @@
     },
     {
      "addr": "0xfaf50",
-     "decl": "char weapon_can_be_fired(int weapon_handle);"
+     "decl": "char weapon_can_be_fired(int weapon_handle);",
+     "ported": true,
+     "source_path": "src/halo/items/weapons.c"
     },
     {
      "addr": "0xfafe0",
@@ -33894,8 +33992,9 @@
     },
     {
      "addr": "0xfba00",
-     "decl": "void weapon_state_interruptable(void);",
-     "comment": "[NAME: weapon_state_interruptable — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "boolean weapon_state_interruptable(int16_t param_1, int16_t state @<dx>);",
+     "comment": "[NAME: weapon_state_interruptable — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xfba20",
@@ -38113,8 +38212,9 @@
     },
     {
      "addr": "0x123b30",
-     "decl": "void model_get_node_matrices(void);",
-     "comment": "[NAME: model_get_node_matrices — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void model_get_node_matrices(void *mode_tag, float *node_matrices, float *position, float *forward, float *up);",
+     "comment": "[NAME: model_get_node_matrices — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x123c70",
@@ -38395,12 +38495,12 @@
     {
      "addr": "0x14ad60",
      "decl": "void render_debug_collision_sphere(void *sphere, void *color);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x14ad80",
      "decl": "void render_debug_collision_cylinder(void *cylinder, void *color);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x14adb0",
@@ -41345,7 +41445,7 @@
     },
     {
      "addr": "0x001eef80",
-     "decl": "void D3DDevice_CreateIndexBuffer(void);"
+     "decl": "int __stdcall D3DDevice_CreateIndexBuffer(uint32_t length, uint32_t usage, uint32_t format, uint32_t pool, void **index_buffer);"
     },
     {
      "addr": "0x001eefe0",
@@ -43497,7 +43597,7 @@
     },
     {
      "addr": "0x22485c",
-     "decl": "void FUN_0022485c(void);"
+     "decl": "int __stdcall xnet_getsockopt(int socket, int level, int optname, void *optval, int *optlen);"
     },
     {
      "addr": "0x2249f7",
@@ -43513,7 +43613,7 @@
     },
     {
      "addr": "0x225188",
-     "decl": "void FUN_00225188(void);"
+     "decl": "int __stdcall xnet_setsockopt(int socket, int level, int optname, const void *optval, int optlen);"
     },
     {
      "addr": "0x2251c7",
@@ -43577,7 +43677,7 @@
     },
     {
      "addr": "0x225ce0",
-     "decl": "void FUN_00225ce0(void);"
+     "decl": "int __stdcall xnet_sendto(int socket, const void *buf, int len, int flags, const void *to, int tolen);"
     },
     {
      "addr": "0x225e40",
@@ -45618,7 +45718,7 @@
     },
     {
      "addr": "0x2249ec",
-     "decl": "void __stdcall FUN_002249ec(int a0, int a1);"
+     "decl": "int __stdcall xnet_listen(int socket, int backlog);"
     },
     {
      "addr": "0x224e8c",
@@ -45634,11 +45734,11 @@
     },
     {
      "addr": "0x2251a2",
-     "decl": "void __stdcall FUN_002251a2(int a0, int a1, int a2);"
+     "decl": "int __stdcall xnet_connect(int socket, const void *name, int namelen);"
     },
     {
      "addr": "0x2255f6",
-     "decl": "void __stdcall FUN_002255f6(int a0, int a1, int a2);"
+     "decl": "int __stdcall xnet_socket(int af, int type, int protocol);"
     },
     {
      "addr": "0x225ad7",
@@ -47411,7 +47511,8 @@
     },
     {
      "addr": "0x168280",
-     "decl": "void FUN_00168280(void);"
+     "decl": "void FUN_00168280(int r1@<eax>, int r2@<ecx>, int r3@<edx>, int s1, int s2, int s3, int s4);",
+     "ported": true
     },
     {
      "addr": "0x1682c0",
@@ -47425,11 +47526,13 @@
     },
     {
      "addr": "0x168340",
-     "decl": "void FUN_00168340(void);"
+     "decl": "int FUN_00168340(int r1@<eax>, int r2@<ecx>, int r3@<edx>, int s1, int s2, int s3);",
+     "ported": true
     },
     {
      "addr": "0x168370",
-     "decl": "char FUN_00168370(void *bitmap);"
+     "decl": "char FUN_00168370(void *bitmap);",
+     "ported": true
     },
     {
      "addr": "0x168500",
@@ -47457,19 +47560,23 @@
     },
     {
      "addr": "0x168bc0",
-     "decl": "void FUN_00168bc0(void);"
+     "decl": "int FUN_00168bc0(int r1@<eax>, int r2@<ecx>, int r3@<edx>, int s1, int s2, int s3);",
+     "ported": true
     },
     {
      "addr": "0x168be0",
-     "decl": "void FUN_00168be0(void);"
+     "decl": "int FUN_00168be0(int r1@<eax>, int r2@<ecx>, int r3@<edx>, int s1, int s2, int s3);",
+     "ported": true
     },
     {
      "addr": "0x168c40",
-     "decl": "void FUN_00168c40(void);"
+     "decl": "void FUN_00168c40(int r1@<eax>, int r2@<ecx>, int r3@<edx>, int s1, int s2);",
+     "ported": true
     },
     {
      "addr": "0x168c70",
-     "decl": "void FUN_00168c70(void);"
+     "decl": "void FUN_00168c70(int base@<eax>, int *result@<edx>, int offset, int unused_1, int unused_2);",
+     "ported": true
     },
     {
      "addr": "0x168ca0",
@@ -47590,5 +47697,15 @@
     }
    ]
   }
- ]
+ ],
+ "0x184980": {
+  "ported": true
+ },
+ "0x14ad80": {
+  "ported": true
+ },
+ "0x8a570": {
+  "decl": "boolean observer_command_has_finished(int16_t local_player_index);",
+  "ported": true
+ }
 }

@@ -6,7 +6,7 @@
  *
  * Ported: path_state_init (0x5dfc0), path_state_set_focus (0x5e000),
  *         path_state_set_sphere (0x5e030), path_state_set_min_speed (0x5e070),
- *         path_state_commit (0x5e090), path_state_set_obstacle (0x5e0d0),
+ *         path_state_commit (0x5e090), FUN_0005e0d0 (0x5e0d0),
  *         path_get_node (path node accessor with bounds assert),
  *         path_node_from_hash_table (path hash table lookup by key),
  *         path_3d_available (path ray-cast clearance check),
@@ -143,7 +143,7 @@ void path_state_new(void *param_1, void *param_2, void *param_3)
   return;
 }
 
-/* 0x005e0d0 — path_state_set_obstacle
+/* 0x005e0d0 — FUN_0005e0d0
  * Sets an obstacle hit record in a path_state.
  *
  * Disassembly-confirmed stores (EAX = param_1):

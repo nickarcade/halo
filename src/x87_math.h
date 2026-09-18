@@ -288,4 +288,13 @@ static __inline float x87_sqrt(float val) {
 #endif
 }
 
+/* Address-named global aliases.  Each body preserves the exact original
+ * dereference spelling so source recovery does not change emitted code. */
+#define halo_actor_data_global (*(data_t **)0x6325a4)
+#define halo_actor_data_global_void (*(void **)0x6325a4)
+#define halo_actor_data_global_int (*(int *)0x6325a4)
+#define halo_prop_data_global (*(data_t **)0x5ab23c)
+#define halo_global_zero_vector_ptr (*(float **)0x31fc38)
+#define halo_global_zero_vector_ptr_int (*(int *)0x31fc38)
+
 #endif /* X87_MATH_H */

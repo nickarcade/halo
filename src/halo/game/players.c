@@ -171,8 +171,9 @@ int local_player_set_player_index(unsigned __int16 local_player_index,
   if (player_index != -1) {
     player = (char *)datum_get(player_data, player_index);
     *(int16_t *)(player + 2) = local_player_index;
+    return (int)player;
   }
-  return old_player;
+  return player_index;
 }
 
 __int16 local_player_count(void)

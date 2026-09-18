@@ -1,6 +1,8 @@
 /* Xbox network transport layer — Winsock/XNet wrapper. */
 #include "../../../common.h"
 
+void *memset(void *buffer, int c, size_t size);
+
 /* Publish the global XNet key pair and register it on the first use.
  *
  * Copies the caller's 16-byte blob to the global at 0x5ab210 and the
@@ -243,10 +245,12 @@ void transport_initialize(void)
   if (*(uint8_t *)0x335090 != 0)
     return;
 
-  /* Zero the WSADATA buffer. */
-  csmemset(wsadata, 0, sizeof(wsadata));
+  /* Zero the WSADATA buffer. VC71 peels a leading word then stos the rest. */
+  *(uint16_t *)wsadata = 0;
+  memset(wsadata + 2, 0, sizeof(wsadata) - 2);
 
   /* Build XNetStartupParams structure (11 bytes). */
+  memset(xnet_params + 1, 0, 10);
   xnet_params[0] = 0x0B; /* cfgSizeOfStruct */
   xnet_params[1] = 0x00; /* cfgFlags */
   xnet_params[2] = 0x18; /* cfgSockMaxDgramSockets */
@@ -276,26 +280,25 @@ void transport_initialize(void)
   xnet_params[1] = 0x00;
 
   /* Check for security bypass file. */
-  file = ((void *(*)(const char *, const char *))0x1d9e59)(
-    "d:\\bypass_security.txt", "r");
+  file = crt_fopen("d:\\bypass_security.txt", "r");
   if (file != 0) {
     error(2, "XNET_STARTUP_BYPASS_SECURITY [ON]");
     xnet_params[1] |= 0x01;
-    ((void (*)(void *))0x1d9dac)(file);
+    crt_fclose(file);
   }
 
   /* Start XNet. */
   xnet_result =
-    ((int(__stdcall *)(uint8_t *))0x2231f8)(/* hazard-ok: fnptr-conv */
-                                            xnet_params);
+    ((int(__stdcall *)(uint8_t *))FUN_002231f8)(xnet_params);
   if (xnet_result != 0)
     return;
 
   /* Start WinSock 2.2. */
-  wsa_result = ((int16_t(__stdcall *)(int16_t, uint8_t *))0x223206)(2, wsadata);  /* hazard-ok: fnptr-conv */
+  wsa_result = ((int16_t(__stdcall *)(int16_t, uint8_t *))FUN_00223206)(
+    2, wsadata);
   if (wsa_result != 0) {
     /* Cleanup: WSACleanup then report error. */
-    ((void (*)(void))0x2232ed)();
+    FUN_002232ed();
     winsock_error_report((int)wsa_result);
     return;
   }
@@ -306,25 +309,22 @@ void transport_initialize(void)
 
   for (;;) {
     link_result =
-      ((int(__stdcall *)(void *))0x222ecf)(/* hazard-ok: fnptr-conv */
-                                           (void *)0x5ab230);
+      ((int(__stdcall *)(void *))FUN_00222ecf)((void *)0x5ab230);
     if (system_milliseconds() > deadline)
       break;
     if (link_result == 0)
       continue;
-    if (link_result != 1) {
-      /* Link detected — configure socket options and mark initialized. */
-      ((int(__stdcall *)(void *, int))0x222e0e)(/* hazard-ok: fnptr-conv */
-                                                (void *)0x5ab228, 8);
-      *(uint8_t *)0x335090 = 1;
-      return;
-    }
-    break;
+    if (link_result == 1)
+      break;
+    /* Link detected — configure socket options and mark initialized. */
+    FUN_00222e0e(0x5ab228, 8);
+    *(uint8_t *)0x335090 = 1;
+    return;
   }
 
   /* Timeout or error — shut down XNet and WSACleanup. */
-  ((void (*)(void))0x2232f5)();
-  ((void (*)(void))0x2232ed)();
+  FUN_002232f5();
+  FUN_002232ed();
 }
 
 /* Shut down the network transport layer. */
@@ -610,7 +610,7 @@ int poll_endpoint_set(int endpoint_set, unsigned short timeout)
   if (*(int *)(endpoint_set + 0x114) != 0) {
     qsort(*(void **)(endpoint_set + 0x104),
           (size_t)(*(int *)(endpoint_set + 0x10c) + 1), 4,
-      (qsort_compar_proc)FUN_000824a0);
+          (qsort_compar_proc)FUN_000824a0);
 
     /* Walk the bound back over the NULL slots qsort pushed to the end. */
     while (*(int *)(*(int *)(endpoint_set + 0x104) +
@@ -686,6 +686,104 @@ int poll_endpoint_set(int endpoint_set, unsigned short timeout)
   }
 
   return -13;
+}
+
+/* Add an endpoint pointer to a set and, if its socket is not already in
+ * the set's fd array, append that socket.  Returns 0, or -20 when the set
+ * is full.
+ *
+ * The listening-flag (ep+4 bit 1) splits the fd-array walk into two
+ * copies that store the same socket dword; both then increment the set's
+ * fd count.  Cursor at set+0x10c is incremented on every success path,
+ * and ep+4 bit 3 (in-set) is set.
+ *
+ * Confirmed: display_assert "ep && set" line 0x22f, "transport_initialized"
+ * line 0x230, inlined "set" line 0x39; __FILE__ 0x266458 (the _set_ TU).
+ * Return -0x14 is MOV EAX,0xffffffec on the capacity-fail epilogue. */
+int add_endpoint_to_set(int endpoint, void *set)
+{
+  int max_minus_one;
+  int new_index;
+  int count;
+  unsigned int i;
+  int *array;
+  int *fds;
+  int socket;
+
+  if (endpoint == 0 || set == NULL) {
+    display_assert(
+      "ep && set",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_set_winsock.c",
+      0x22f, 1);
+    system_exit(-1);
+  }
+  if (transport_initialized == 0) {
+    display_assert(
+      "transport_initialized",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_set_winsock.c",
+      0x230, 1);
+    system_exit(-1);
+  }
+  if (set == NULL) {
+    display_assert(
+      "set",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_set_winsock.c",
+      0x39, 1);
+    system_exit(-1);
+  }
+
+  max_minus_one = *(int *)((char *)set + 0x108) - 1;
+  if (*(int *)((char *)set + 0x10c) <= max_minus_one) {
+    new_index = *(int *)((char *)set + 0x10c) + 1;
+    if (new_index >= 0) {
+      array = *(int **)((char *)set + 0x104);
+      array[new_index] = endpoint;
+      count = *(int *)set;
+
+      if ((*(uint8_t *)(endpoint + 4) & 2) != 0) {
+        i = 0;
+        if (count != 0) {
+          fds = (int *)((char *)set + 4);
+          socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
+          do {
+            if (*fds == socket) {
+              break;
+            }
+            i++;
+            fds++;
+          } while (i < *(unsigned int *)set);
+        }
+        if (i == (unsigned int)count && (unsigned int)count < 0x40) {
+          socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
+          *(int *)((char *)set + i * 4 + 4) = socket;
+          *(int *)set = *(int *)set + 1;
+        }
+      } else {
+        i = 0;
+        if (count != 0) {
+          fds = (int *)((char *)set + 4);
+          socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
+          do {
+            if (*fds == socket) {
+              break;
+            }
+            i++;
+            fds++;
+          } while (i < *(unsigned int *)set);
+        }
+        if (i == (unsigned int)count && (unsigned int)count < 0x40) {
+          socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
+          *(int *)((char *)set + i * 4 + 4) = socket;
+          *(int *)set = *(int *)set + 1;
+        }
+      }
+
+      *(int *)((char *)set + 0x10c) = *(int *)((char *)set + 0x10c) + 1;
+      *(uint8_t *)(endpoint + 4) = *(uint8_t *)(endpoint + 4) | 8;
+      return 0;
+    }
+  }
+  return -0x14;
 }
 
 /* Remove an endpoint from an endpoint set.
@@ -1001,6 +1099,80 @@ void FUN_00082bd0(void *param_1, const uint32_t *key, const uint32_t *id,
   *(uint8_t *)0x335091 = 1;
 }
 
+/* Record a connect-worker thread in the 64-slot table at 0x3350a0.
+ *
+ * Each slot is 8 bytes: dword handle at +0, cleanup-flag byte at +4.
+ * Slot 0 is used only when it is already empty; otherwise the search
+ * starts at slot 1.  Returns AL=1 on a successful insert, AL=0 if the
+ * table is full (EAX forced to -1, then SETNZ).
+ *
+ * Confirmed: cdecl, one stack arg at [EBP+8]; no callees; stride
+ * `EAX*8+0x3350a0` / `EAX*8+0x3350a4`. */
+bool add_connect_thread(void *thread)
+{
+  int i;
+  void *slot;
+
+  i = 0;
+  if (transport_connect_threads[0].thread != NULL) {
+    do {
+      if (i >= 0x40) {
+        i = -1;
+        goto done;
+      }
+      slot = transport_connect_threads[i + 1].thread;
+      i = i + 1;
+    } while (slot != NULL);
+    if (i >= 0x40) {
+      i = -1;
+      goto done;
+    }
+  }
+
+  transport_connect_threads[i].thread = thread;
+  transport_connect_threads[i].cleanup = 0;
+done:
+  return (bool)(i != -1);
+}
+
+/* Mark a connect-worker thread's cleanup flag so endpoint_pool_cleanup
+ * will close it.
+ *
+ * Confirmed: register arg ESI (TEST ESI,ESI at 0x82cf0, compared against
+ * `[EAX*8+0x3350a0]`); assert "thread" line 0x4f, __FILE__ 0x266618
+ * (transport_endpoint_winsock.c).  Stores 1 to the flag byte at
+ * `EAX*8+0x3350a4` on a match.
+ *
+ * VC71: original is a frameless ESI-arg leaf (TEST ESI,ESI). Same /Oy
+ * modeling as crc_table_init. Clang ignores the pragma. */
+#if defined(MSVC) && !defined(__clang__)
+#pragma optimize("y", on)
+#endif
+void FUN_00082cf0(int thread)
+{
+  int i;
+
+  if (thread == 0) {
+    display_assert(
+      "thread",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x4f, 1);
+    system_exit(-1);
+  }
+
+  i = 0;
+  do {
+    if (transport_connect_threads[i].thread == (void *)thread) {
+      transport_connect_threads[i].cleanup = 1;
+      return;
+    }
+    i++;
+  } while (i < 0x40);
+}
+#if defined(MSVC) && !defined(__clang__)
+#pragma optimize("y", off)
+#endif
+
 /* Clean up the endpoint pool. Iterates 64 entries (8 bytes each) at
  * 0x3350a0. For each entry with a non-zero thread handle and cleanup
  * flag set, closes the thread and clears the entry. */
@@ -1016,6 +1188,44 @@ void endpoint_pool_cleanup(void)
     }
     entry += 2;
   } while ((int)entry < 0x3352a0);
+}
+
+/* Allocate an 8-byte endpoint record of type 0x11 (UDP) or 0x12 (TCP).
+ *
+ * Asserts transport_initialized (winsock.c line 0xce), runs
+ * endpoint_pool_cleanup, then debug_malloc(8).  Stores socket=-1, flags=0,
+ * type at +5, status=0 at +6.  Returns NULL for any other type or on
+ * allocation failure.
+ *
+ * Confirmed: cdecl 1 arg; debug_malloc line 0xd4, __FILE__ 0x266618. */
+int get_next_endpoint_from_set(int type)
+{
+  transport_endpoint *ep;
+
+  ep = (transport_endpoint *)0;
+  if (transport_initialized == 0) {
+    display_assert(
+      "transport_initialized",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0xce, 1);
+    system_exit(-1);
+  }
+
+  endpoint_pool_cleanup();
+
+  if (type == _transport_type_udp || type == _transport_type_tcp) {
+    ep = (transport_endpoint *)debug_malloc(
+       sizeof(transport_endpoint), (int)ep,
+       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+       0xd4);
+    if (ep) {
+      ep->status = 0;
+      ep->type = (int8_t)type;
+      ep->socket = -1;
+      ep->flags = 0;
+    }
+  }
+  return (int)ep;
 }
 
 /* Return the signed byte stored at endpoint offset 5.
@@ -1776,6 +1986,95 @@ const char *winsock_error_report(int error_code)
   return name;
 }
 
+/* Set or clear non-blocking mode on a Winsock endpoint's socket.
+ *
+ * Reads the endpoint's current state from bit 4 of the flag byte at
+ * endpoint+4 — the same bit whose complement FUN_00083220 reports.  The
+ * `(~(*(byte*)(endpoint+4) >> 4) & 1) == 0` test below is FUN_00083220's
+ * own return expression compared against zero: the compiler inlined that
+ * getter's body here verbatim, carrying over its assert's original source
+ * line (0x436) into this function too.
+ *
+ * If bit 4 is set and `flag` is nonzero, calls ioctlsocket(FIONBIO, 0) to
+ * put the socket back into blocking mode and clears bit 4 on success.  If
+ * bit 4 is clear and `flag` is zero, calls ioctlsocket(FIONBIO, 1) to put
+ * the socket into non-blocking mode and sets bit 4 on success.  If `flag`
+ * already matches the bit-4 state, no ioctlsocket call is made and the
+ * function returns 0 unchanged. On ioctlsocket failure, reports the
+ * Winsock error via xapi_GetLastError()/winsock_error_report() and
+ * returns -0x12.  The 16-bit result is always stored at endpoint+6.
+ *
+ * Confirmed: assert_halt_msg_at "ep" at line 0x139, "transport_initialized"
+ * at line 0x13a, "ep" again at line 0x436 (file
+ * c:\halo\SOURCE\bungie_net\network\transport_endpoint_winsock.c).
+ * FIONBIO == 0x8004667e is the standard Winsock ioctl code for
+ * non-blocking mode. Call-site audit confirms FUN_00224633 is a plain
+ * cdecl-shaped 3-arg call (no register args) with no ESP cleanup after
+ * either call site (0x83c73/0x83ca5), i.e. __stdcall — matching the
+ * xnet_bind/xnet_getsockname/xnet_closesocket wrapper family already
+ * registered in the same object (XNET:wsock.obj, 0x224633 falls inside
+ * that object's address range). Registered here as xnet_ioctlsocket.
+ *
+ * Uncertain: no source-level name is recovered for bit 4 of the flag
+ * byte; kept as the same raw offset the sibling getters use.
+ */
+int FUN_00083930(int af, int type, int protocol)
+{
+  int sock;
+  int result;
+  int optval;
+  int optlen;
+
+  sock = xnet_socket(af, type, protocol);
+  if (sock == -1) {
+    winsock_error_report(xapi_GetLastError());
+    return sock;
+  }
+
+  if (type == 2) {
+    optval = -1;
+    result = xnet_setsockopt(sock, 0xffff, 0x20, &optval, 4);
+    if (result != 0) {
+      winsock_error_report(xapi_GetLastError());
+    }
+  }
+
+  optval = 1;
+  result = xnet_setsockopt(sock, 0xffff, 4, &optval, 4);
+  if (result != 0) {
+    winsock_error_report(xapi_GetLastError());
+  }
+
+  optlen = 4;
+  result = xnet_getsockopt(sock, 0xffff, 0x1001, &optval, &optlen);
+  if (result != 0 || optval < 0x4000) {
+    if (result == 0) {
+      optval = 0x4000;
+      result = xnet_setsockopt(sock, 0xffff, 0x1001, &optval, 4);
+      if (result == 0) {
+        goto do_sndbuf;
+      }
+    }
+    winsock_error_report(xapi_GetLastError());
+  }
+
+do_sndbuf:
+  optlen = 4;
+  result = xnet_getsockopt(sock, 0xffff, 0x1002, &optval, &optlen);
+  if (result != 0) {
+    winsock_error_report(xapi_GetLastError());
+    return sock;
+  }
+  if (optval < 0x4000) {
+    optval = 0x4000;
+    result = xnet_setsockopt(sock, 0xffff, 0x1002, &optval, 4);
+    if (result != 0) {
+      winsock_error_report(xapi_GetLastError());
+    }
+  }
+  return sock;
+}
+
 /* Get the socket address for an endpoint.
  *
  * Tries getsockname (0x224876) first; if that fails, tries getpeername
@@ -1859,38 +2158,6 @@ short FUN_00083a60(int *ep, void *addr)
   return (short)0xfff1;
 }
 
-/* Set or clear non-blocking mode on a Winsock endpoint's socket.
- *
- * Reads the endpoint's current state from bit 4 of the flag byte at
- * endpoint+4 — the same bit whose complement FUN_00083220 reports.  The
- * `(~(*(byte*)(endpoint+4) >> 4) & 1) == 0` test below is FUN_00083220's
- * own return expression compared against zero: the compiler inlined that
- * getter's body here verbatim, carrying over its assert's original source
- * line (0x436) into this function too.
- *
- * If bit 4 is set and `flag` is nonzero, calls ioctlsocket(FIONBIO, 0) to
- * put the socket back into blocking mode and clears bit 4 on success.  If
- * bit 4 is clear and `flag` is zero, calls ioctlsocket(FIONBIO, 1) to put
- * the socket into non-blocking mode and sets bit 4 on success.  If `flag`
- * already matches the bit-4 state, no ioctlsocket call is made and the
- * function returns 0 unchanged. On ioctlsocket failure, reports the
- * Winsock error via xapi_GetLastError()/winsock_error_report() and
- * returns -0x12.  The 16-bit result is always stored at endpoint+6.
- *
- * Confirmed: assert_halt_msg_at "ep" at line 0x139, "transport_initialized"
- * at line 0x13a, "ep" again at line 0x436 (file
- * c:\halo\SOURCE\bungie_net\network\transport_endpoint_winsock.c).
- * FIONBIO == 0x8004667e is the standard Winsock ioctl code for
- * non-blocking mode. Call-site audit confirms FUN_00224633 is a plain
- * cdecl-shaped 3-arg call (no register args) with no ESP cleanup after
- * either call site (0x83c73/0x83ca5), i.e. __stdcall — matching the
- * xnet_bind/xnet_getsockname/xnet_closesocket wrapper family already
- * registered in the same object (XNET:wsock.obj, 0x224633 falls inside
- * that object's address range). Registered here as xnet_ioctlsocket.
- *
- * Uncertain: no source-level name is recovered for bit 4 of the flag
- * byte; kept as the same raw offset the sibling getters use.
- */
 short FUN_00083bd0(int endpoint, int flag)
 {
   short status;
@@ -1970,6 +2237,7 @@ short FUN_00083ce0(int *ep, void *addr)
   uint32_t ip;
   uint16_t port;
   uint8_t sa[16];
+  int sock_type;
 
   status = 0;
 
@@ -1978,19 +2246,18 @@ short FUN_00083ce0(int *ep, void *addr)
 
   if (*ep == -1) {
     if (*(uint8_t *)((char *)ep + 5) == 0x12) {
-      socket_result = FUN_00083930(2, 1, 0);
-      *ep = socket_result;
-      if (socket_result != -1)
-        goto do_bind;
-      status = -1;
+      sock_type = 1;
     } else if (*(uint8_t *)((char *)ep + 5) == 0x11) {
-      socket_result = FUN_00083930(2, 2, 0);
-      *ep = socket_result;
-      if (socket_result != -1)
-        goto do_bind;
-      status = -1;
+      sock_type = 2;
     } else {
       status = -12;
+      sock_type = 0;
+    }
+    if (status == 0) {
+      socket_result = FUN_00083930(2, sock_type, 0);
+      *ep = socket_result;
+      if (socket_result == -1)
+        status = -1;
     }
     if (*ep == -1 || status != 0) {
       *(uint16_t *)((char *)ep + 6) = 0xffff;
@@ -1998,7 +2265,6 @@ short FUN_00083ce0(int *ep, void *addr)
     }
   }
 
-do_bind:
   ip = *(uint32_t *)addr;
   *(uint32_t *)(sa + 4) = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
                           (((ip & 0xff00u) | (ip << 16)) << 8);
@@ -2017,6 +2283,114 @@ do_bind:
   winsock_error_report(error_code);
   *(int16_t *)((char *)ep + 6) = (int16_t)0xfff2;
   return (short)0xfff2;
+}
+
+/* Connect an endpoint to a remote address (UDP or TCP).
+ *
+ * Creates the socket if needed (SOCK_DGRAM for type 0x11, SOCK_STREAM for
+ * 0x12), converts the engine address blob to sockaddr_in, forces blocking
+ * mode via FUN_00083bd0(ep, 0), then xnet_connect.  WSAEWOULDBLOCK (0x2733)
+ * polls xnet_select on the write set for up to 10000 ms.  Restores the
+ * previous non-blocking bit, then sets flags bits 0 and 5 and clears bit 4.
+ *
+ * Confirmed: FUN_00083930 regarg ECX/EDX/EAX; xnet_connect 0x2251a2
+ * stdcall 3; xnet_select write-set; xnet_closesocket on timeout;
+ * system_milliseconds (0x8e370); asserts "ep && address" 0x1b5,
+ * "transport_initialized" 0x1b6, __FILE__ 0x266618. */
+short FUN_00083e20(int endpoint, int address)
+{
+  transport_endpoint *ep;
+  transport_address *addr;
+  int socktype;
+  uint32_t ip;
+  uint16_t port;
+  unsigned int orig_flags;
+  uint8_t restore_flag;
+  int err;
+  unsigned int deadline;
+  int ready;
+  uint8_t sa[16];
+  int32_t timeout[2];
+  uint32_t write_set[65];
+
+  ep = (transport_endpoint *)endpoint;
+  addr = (transport_address *)address;
+
+  if (ep == NULL || addr == NULL) {
+    display_assert(
+      "ep && address",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x1b5, 1);
+    system_exit(-1);
+  }
+  if (transport_initialized == 0) {
+    display_assert(
+      "transport_initialized",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x1b6, 1);
+    system_exit(-1);
+  }
+
+  if (ep->type == _transport_type_udp) {
+    socktype = 2;
+  } else if (ep->type == _transport_type_tcp) {
+    socktype = 1;
+  } else {
+    ep->status = (int16_t)0xfff4;
+    return -0xc;
+  }
+
+  if (ep->socket == -1) {
+    ep->socket = FUN_00083930(2, socktype, 0);
+  }
+
+  ip = *(uint32_t *)addr->address;
+  *(uint32_t *)(sa + 4) = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
+                          (((ip & 0xff00u) | (ip << 16)) << 8);
+  port = addr->port;
+  *(uint16_t *)(sa + 2) =
+    (uint16_t)(((uint16_t)(port << 8)) | ((uint16_t)(port >> 8)));
+  *(uint16_t *)sa = 2;
+
+  orig_flags = ep->flags;
+  restore_flag = (uint8_t)((~(orig_flags >> 4)) & 1);
+  FUN_00083bd0(endpoint, 0);
+
+  err = xnet_connect(ep->socket, sa, 0x10);
+  if (err != 0) {
+    err = xapi_GetLastError();
+    if (err == 0x2733) {
+      deadline = system_milliseconds() + 10000;
+      timeout[0] = 1;
+      timeout[1] = 0;
+      do {
+        write_set[1] = (uint32_t)ep->socket;
+        write_set[0] = 1;
+        ready = xnet_select(1, NULL, write_set, NULL, timeout);
+        if (ready == 1) {
+          err = 0;
+        } else {
+          err = xapi_GetLastError();
+        }
+        if (system_milliseconds() > deadline) {
+          err = 0x2734;
+          xnet_closesocket(ep->socket);
+          goto connect_fail;
+        }
+      } while (err == 0x2734);
+    }
+    if (err != 0) {
+    connect_fail:
+      winsock_error_report(err);
+      ep->status = (int16_t)0xfff0;
+      return -0x10;
+    }
+  }
+
+  FUN_00083bd0(endpoint, restore_flag);
+  ep->flags = (uint8_t)((ep->flags & 0xef) | 0x21);
+  ep->status = 0;
+  return 0;
 }
 
 /* Close a transport endpoint's socket and clear its connected flag.
@@ -2159,10 +2533,88 @@ int __stdcall FUN_00084080(int *input)
   }
 
   if (input != NULL) {
-    FUN_00082cf0();
+    FUN_00082cf0((int)input);
   }
 
   return status;
+}
+
+/* Start an asynchronous connect on a worker thread.
+ *
+ * Allocates a 0x28-byte request, copies the 0x18-byte address blob,
+ * create_mutex at request+0x20, thread_new(FUN_00084080) at request+0x1c,
+ * then add_connect_thread.  Success returns -0x17 (in progress) and
+ * writes the request pointer through process_ref.
+ *
+ * Confirmed: debug_malloc 0x28 line 0x26b; create_mutex; thread_new
+ * (0x81630); add_connect_thread (0x82c90, cdecl 1); thread_close /
+ * FUN_00081910 on add_connect_thread failure; asserts
+ * "ep && address && process_ref_ptr" 0x268, "transport_initialized" 0x269,
+ * __FILE__ 0x266618. */
+short FUN_000841b0(int endpoint, int address, int process_ref)
+{
+  int *request;
+  int *dst;
+  int *src;
+  int i;
+  void **thread_slot;
+
+  endpoint_pool_cleanup();
+
+  if (endpoint == 0 || address == 0 || process_ref == 0) {
+    display_assert(
+      "ep && address && process_ref_ptr",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x268, 1);
+    system_exit(-1);
+  }
+  if (transport_initialized == 0) {
+    display_assert(
+      "transport_initialized",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x269, 1);
+    system_exit(-1);
+  }
+
+  request = (int *)debug_malloc(
+    0x28, true,
+    "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+    0x26b);
+  if (request != NULL) {
+    dst = request;
+    src = (int *)address;
+    for (i = 6; dst = dst + 1, i != 0; i--) {
+      *dst = *src;
+      src = src + 1;
+    }
+    request[0] = endpoint;
+    *(uint8_t *)(request + 9) = 0;
+
+    if (create_mutex((int **)(request + 8))) {
+      thread_slot = (void **)(request + 7);
+      if (thread_new(2, (void *)FUN_00084080, (int)request, thread_slot)) {
+        if (add_connect_thread(*thread_slot)) {
+          *(int *)process_ref = (int)request;
+          *(int16_t *)(endpoint + 6) = (int16_t)0xffe9;
+          return -0x17;
+        }
+        thread_close(*thread_slot);
+        FUN_00081910((int *)request[8]);
+        *thread_slot = NULL;
+        *(int16_t *)(endpoint + 6) = (int16_t)0xffff;
+        return -1;
+      }
+    }
+
+    debug_free(
+      request,
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x282);
+    *(int16_t *)(endpoint + 6) = (int16_t)0xfff0;
+    return -0x10;
+  }
+  *(int16_t *)(endpoint + 6) = (int16_t)0xfff7;
+  return -9;
 }
 
 /* Cancel an in-progress connection attempt.
@@ -2264,6 +2716,55 @@ void transport_server_terminate(int *connect_handle)
  * -1) and its adjacency to the xnet_bind thunk at 0x225197; nothing in the
  * binary names the import.
  */
+/* Put a connected endpoint into listen mode.
+ *
+ * xnet_listen(socket, 0x20).  On success sets ep+4 bit 1 (listening) and
+ * clears the status word.  INVALID_SOCKET returns -0xc; listen failure
+ * reports the Winsock error and returns -0x11.
+ *
+ * Confirmed: xnet_listen 0x2249ec stdcall 2; asserts "ep" 0x2b0,
+ * "transport_initialized" 0x2b1, __FILE__ 0x266618. */
+short FUN_000843a0(int endpoint)
+{
+  transport_endpoint *ep;
+  int result;
+  short status;
+
+  ep = (transport_endpoint *)endpoint;
+  status = 0;
+
+  if (ep == NULL) {
+    display_assert(
+      "ep",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x2b0, 1);
+    system_exit(-1);
+  }
+  if (transport_initialized == 0) {
+    display_assert(
+      "transport_initialized",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x2b1, 1);
+    system_exit(-1);
+  }
+
+  if (ep->socket != -1) {
+    result = xnet_listen(ep->socket, 0x20);
+    if (result == 0) {
+      ep->flags = (uint8_t)(ep->flags | 2);
+      ep->status = status;
+      return 0;
+    }
+
+    winsock_error_report(xapi_GetLastError());
+    ep->status = (int16_t)0xffef;
+    return -0x11;
+  }
+
+  ep->status = (int16_t)0xfff4;
+  return -0xc;
+}
+
 int FUN_00084450(int listening_endpoint)
 {
   int addr_len;
@@ -2393,6 +2894,87 @@ int FUN_00084520(int *ep, void *buffer, int length, void *addr)
   default:
     *(uint8_t *)((char *)ep + 4) &= 0xfb;
     return -2;
+  }
+}
+
+/* Send a UDP datagram to dest_addr.
+ *
+ * Converts dest_addr to sockaddr_in, creates a SOCK_DGRAM socket if the
+ * endpoint has none (asserts type==0x11), then xnet_sendto.  Classifies
+ * Winsock errors like send_endpoint: 0x2733 -> -4; disconnect family ->
+ * clear connected bit, return -3; other -> -2.  Socket-create failure
+ * writes status 0xffff then still classifies GetLastError.
+ *
+ * Confirmed: FUN_00083930; xnet_sendto 0x225ce0 stdcall 6; jump table
+ * 0x84898 / redirect 0x848a4; asserts 0x3bd/0x3be/0x3c6, __FILE__
+ * 0x266618. */
+int FUN_00084740(int endpoint, void *message, int size, int dest_address)
+{
+  uint32_t ip;
+  uint16_t port;
+  int result;
+  int error_code;
+  uint8_t sa[16];
+
+  if (endpoint == 0 || message == NULL || size < 1 || dest_address == 0) {
+    display_assert(
+      "ep && buffer && (length > 0) && dest_addr",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x3bd, 1);
+    system_exit(-1);
+  }
+  if (*(uint8_t *)0x335090 == 0) {
+    display_assert(
+      "transport_initialized",
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x3be, 1);
+    system_exit(-1);
+  }
+
+  ip = *(uint32_t *)dest_address;
+  *(uint32_t *)(sa + 4) = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
+                          (((ip & 0xff00u) | (ip << 16)) << 8);
+  port = *(uint16_t *)(dest_address + 0x12);
+  *(uint16_t *)(sa + 2) =
+    (uint16_t)(((uint16_t)(port << 8)) | ((uint16_t)(port >> 8)));
+  *(uint16_t *)sa = 2;
+
+  if (*(int *)endpoint == -1) {
+    if (*(uint8_t *)(endpoint + 5) != 0x11) {
+      display_assert(
+        "ep->type == _transport_type_udp",
+        "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+        0x3c6, 1);
+      system_exit(-1);
+    }
+    result = FUN_00083930(2, 2, 0);
+    *(int *)endpoint = result;
+    if (result == -1) {
+      *(uint16_t *)(endpoint + 6) = 0xffff;
+      goto sendto_error;
+    }
+  }
+
+  result = xnet_sendto(*(int *)endpoint, message, size, 0, sa, 0x10);
+  if (result != -1) {
+    return result;
+  }
+
+sendto_error:
+  error_code = xapi_GetLastError();
+  switch (error_code) {
+  case 0x2733:
+    return -4;
+  default:
+    return -2;
+  case 0x2744:
+  case 0x2745:
+  case 0x2746:
+  case 0x2749:
+  case 0x274a:
+  case 0x274c:
+    *(uint8_t *)(endpoint + 4) = *(uint8_t *)(endpoint + 4) & 0xfe;
+    return -3;
   }
 }
 

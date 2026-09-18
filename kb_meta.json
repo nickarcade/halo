@@ -4479,6 +4479,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x89330": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x8a340": {
       "kind": "function",
       "status": "ported"
@@ -4555,6 +4559,10 @@
       "comments": {
         "summary": "Per-tick update for all local-player observers: records delta_time, validates header/trailer signatures and updated_for_frame, then dispatches three unported sub-updates (0x8b060 input, 0x8cd40 integration when dt changed, 0x8c4b0 post) via inline asm passing index in EAX."
       }
+    },
+    "0x8d3a0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x8d410": {
       "kind": "function",
@@ -6926,6 +6934,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb4a70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb4d00": {
       "kind": "function",
       "status": "ported"
@@ -6947,6 +6959,10 @@
       "status": "ported"
     },
     "0xb4e20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb4fb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -9931,6 +9947,10 @@
         "Script types 3 and 4 are rejected as static scripts by the literal at 0x27d194, but the canonical enumeration of the scenario script-type field at element offset 0x20 remains unproven."
       ]
     },
+    "0xc8e00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc9050": {
       "kind": "function",
       "status": "ported",
@@ -9991,6 +10011,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xcaec0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaef0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xcaf70": {
       "kind": "function",
       "status": "ported"
@@ -10019,6 +10047,10 @@
       "status": "ported"
     },
     "0xcb7b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcb940": {
       "kind": "function",
       "status": "ported"
     },
@@ -10724,6 +10756,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xde3f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xdeb60": {
       "kind": "function",
       "status": "ported"
@@ -11240,6 +11276,10 @@
         "summary": "Depth-first search over a widget subtree for the first node whose tag handle (+0x0) equals tag_handle. Checks current node, then recurses into each child (+0x34) following next_sibling (+0x2c)."
       }
     },
+    "0xe4a40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe4a80": {
       "kind": "function",
       "status": "unknown"
@@ -11527,11 +11567,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xeaba0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xead60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeb4f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xecd50": {
       "kind": "function",
       "status": "ported"
     },
     "0xece10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xed240": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xee810": {
       "kind": "function",
       "status": "ported"
     },
@@ -11547,7 +11607,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xeef30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xef3f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xef900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefa80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefc60": {
       "kind": "function",
       "status": "ported"
     },
@@ -11615,7 +11691,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf3010": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf3320": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf3400": {
       "kind": "function",
       "status": "ported"
     },
@@ -11920,6 +12004,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfb990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfba00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfba20": {
       "kind": "function",
       "status": "ported"
@@ -11992,6 +12084,10 @@
       ]
     },
     "0xfd510": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfd520": {
       "kind": "function",
       "status": "ported"
     },
@@ -13822,6 +13918,10 @@
       "comments": {
         "summary": "Seat-enter matrix bridge: decodes one animation node into an 0x800-byte stack buffer via FUN_00121d60, then converts the decoded basis+position slice into an output matrix via FUN_001094d0."
       }
+    },
+    "0x123b30": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x123e20": {
       "kind": "function",
@@ -16778,6 +16878,14 @@
         "kb.json assigns 0x184610 to render.obj but the assert __FILE__ string is c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\rasterizer_transparent_geometry.c, so render.c is a mixed-TU aggregate for this address cluster."
       ]
     },
+    "0x184710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x184750": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1848d0": {
       "kind": "function",
       "status": "ported"
@@ -19168,7 +19276,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1bb640": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1bb7d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bb970": {
       "kind": "function",
       "status": "ported"
     },
@@ -19228,6 +19344,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1bcc10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bcc30": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1bcc50": {
       "kind": "function",
       "status": "ported"
@@ -19257,6 +19381,10 @@
       "status": "ported"
     },
     "0x1bcfb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1bd020": {
       "kind": "function",
       "status": "ported"
     },
@@ -19611,6 +19739,10 @@
       "status": "ported"
     },
     "0x1c2840": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c29a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -20188,6 +20320,10 @@
       "uncertain": [
         "The two float parameters cached at channel+0x44 and channel+0x48 are named scalar_44/scalar_48 because their meaning is unproven; sound_dsound_channel_update_3d consumes both as 1.0-value gain sends, so they are plausibly obstruction and occlusion, but nothing in the binary names them."
       ]
+    },
+    "0x1cb1d0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1cb790": {
       "kind": "function",

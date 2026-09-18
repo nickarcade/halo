@@ -48,12 +48,7 @@ void crc_checksum_buffer(uint32_t *checksum, void *data, int size)
 
   /* initialize the CRC lookup table on first use */
   if (*(uint8_t *)0x46E800 == 0) {
-#if defined(MSVC) && !defined(__clang__)
-    /* VC71 models the original EDX register-argument call this way. */
-    ((void(__fastcall *)(int))crc_table_init)(0x46E400);
-#else
     crc_table_init((uint32_t *)0x46E400);
-#endif
     *(uint8_t *)0x46E800 = 1;
   }
 

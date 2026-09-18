@@ -99,7 +99,7 @@ jobs:
       - name: Run regression tests
         run: |
           set +e
-          OUTPUT=$(${{ env.VENV_PYTHON }} tools/equivalence/regression_test.py --quick 2>&1)
+          OUTPUT=$(${{ env.VENV_PYTHON }} tools/equivalence/regression_test.py --quick --jobs 8 2>&1)
           RC=$?
           echo "$OUTPUT"
           if [ $RC -ne 0 ]; then

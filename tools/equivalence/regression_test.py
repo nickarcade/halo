@@ -16,7 +16,9 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -134,7 +136,7 @@ def _label(target):
     return target.get("label") or target["name"]
 
 
-def run_target(target, seed_override=None):
+def run_target(target, seed_override=None, disable_leaf_cache=False):
     name = target["name"]
     seeds = seed_override or target.get("seeds", 20)
     flags = target.get("flags", [])
@@ -154,6 +156,11 @@ def run_target(target, seed_override=None):
         name,
         "--seeds", str(seeds),
     ] + flags
+    # unicorn_diff updates the shared leaf cache by default.  Parallel
+    # regression children must not read/modify/write that JSON concurrently;
+    # the cache is selection metadata, not part of the regression verdict.
+    if disable_leaf_cache and "--no-leaf-cache" not in cmd:
+        cmd.append("--no-leaf-cache")
     child_env = os.environ.copy()
     child_env.update({str(k): str(v) for k, v in target.get("env", {}).items()})
 
@@ -188,6 +195,8 @@ def main():
     parser.add_argument("--quick", action="store_true", help="Use 5 seeds per target")
     parser.add_argument("--dry-run", action="store_true", help="List targets only")
     parser.add_argument("--target", help="Run a single target by name or address")
+    parser.add_argument("--jobs", "-j", type=int, default=1,
+                        help="Maximum concurrent targets (default: 1)")
     args = parser.parse_args()
 
     targets = load_targets(args.target)
@@ -204,6 +213,9 @@ def main():
             print(f"{t['addr']:<12} {_label(t):<20} {t['obj']:<20} {t.get('seeds', 20):<6} {status}")
         return 0
 
+    if args.jobs < 1:
+        parser.error("--jobs must be at least 1")
+
     seed_override = 5 if args.quick else None
     passed = failed = skipped = errors = artifacts = untriaged = 0
     t0 = time.time()
@@ -211,14 +223,44 @@ def main():
     print(f"Running {len(targets)} regression target(s)...")
     print()
 
-    for t in targets:
-        skip = check_prerequisites(t)
+    # Check prerequisites in target order, then execute runnable targets.
+    # Results are consumed in that same order even when workers finish out of
+    # order, keeping output and all accounting deterministic.  A target name
+    # can occur more than once with different snapshots; serialize those
+    # children because unicorn_diff writes name-based smoke logs.
+    outcomes = [None] * len(targets)
+    runnable = []
+    for index, target in enumerate(targets):
+        skip = check_prerequisites(target)
         if skip:
-            print(f"  SKIP  {_label(t):<24} {skip}")
+            outcomes[index] = ("skip", skip)
+        else:
+            runnable.append((index, target))
+
+    def execute(item):
+        index, target = item
+        lock = name_locks.setdefault(target["name"], threading.Lock())
+        with lock:
+            return index, run_target(target, seed_override,
+                                     disable_leaf_cache=args.jobs > 1)
+
+    name_locks = {}
+    if args.jobs == 1:
+        for item in runnable:
+            index, target = item
+            outcomes[index] = ("run", run_target(target, seed_override))
+    else:
+        with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+            for index, result in executor.map(execute, runnable):
+                outcomes[index] = ("run", result)
+
+    for t, outcome in zip(targets, outcomes):
+        if outcome[0] == "skip":
+            print(f"  SKIP  {_label(t):<24} {outcome[1]}")
             skipped += 1
             continue
 
-        status, detail = run_target(t, seed_override)
+        status, detail = outcome[1]
         seeds_used = seed_override or t.get("seeds", 20)
         artifact = t.get("known_artifact")
         triage = t.get("triage_pending")

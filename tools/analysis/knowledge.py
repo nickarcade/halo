@@ -446,6 +446,7 @@ __attribute__((naked)) { decl.replace(name, 'THUNK('+name+')') }
 					'//\n')
 
 		text = f.getvalue()
+		os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
 		try:
 			if open(path).read() == text:
 				log.info('Header unchanged; not rewriting %s', path)
@@ -471,6 +472,7 @@ __attribute__((naked)) { decl.replace(name, 'THUNK('+name+')') }
 		8482 lines.)  os.replace is NOT usable here — on drvfs (/mnt/g) it
 		raises PermissionError when a reader holds the target open.
 		"""
+		os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
 		try:
 			if open(path).read() == text:
 				log.info('%s unchanged; not rewriting %s', what, path)

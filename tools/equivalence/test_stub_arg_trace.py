@@ -21,6 +21,7 @@ from stubs import (
     patch_dir32_relocs, IMAGE_REL_I386_DIR32,
     GLOBALS_BASE, _STACK_BASE, _STACK_TOP,
 )
+from unicorn_diff import _divergence_summary
 
 # A stack address that should be treated as a soft match
 _SP1 = _STACK_BASE + 0x100   # oracle stack pointer
@@ -233,6 +234,30 @@ def test_truncated_sequence_is_flagged_as_early_exit():
     assert kind == "truncated", kind
     assert any("TRUNCATED" in ln for ln in d.sequence_detail())
     print("  PASS  test_truncated_sequence_is_flagged_as_early_exit")
+
+
+def test_divergence_summary_records_truncated_call_sequence():
+    """Dashboard evidence distinguishes early exits from real wrong-callee bugs."""
+    oracle = _make_tracer(_rec(0, _SENTINEL_A, "foo", 0x1))
+    cand = _make_tracer(
+        _rec(0, _SENTINEL_A, "foo", 0x1),
+        _rec(1, _SENTINEL_B, "bar", 0x2),
+    )
+    d = compare_stub_arg_traces(oracle, cand, seed_label="s-summary")
+
+    class _NoStateDiff:
+        def has_differences(self):
+            return False
+
+        def summary(self):
+            return "ok"
+
+    summary = _divergence_summary("seed[1]", _NoStateDiff(), d)
+    assert summary["kind"] == "stub_call_sequence", summary
+    assert summary["sequence_relation"] == "truncated", summary
+    assert summary["oracle_calls"] == ["foo"], summary
+    assert summary["candidate_calls"] == ["foo", "bar"], summary
+    print("  PASS  test_divergence_summary_records_truncated_call_sequence")
 
 
 def test_genuinely_different_callee_is_not_called_a_shift():

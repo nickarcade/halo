@@ -298,7 +298,7 @@ void _data_packet_encode(packet_definition *definition, int *encode_state,
           FUN_00119cc0(encode_state, (int)data_cursor, field[1], -8);
           break;
         case 5:
-          FUN_0011a230(encode_state, data_cursor, field[1]);
+          FUN_0011a230((data_encoding_state_t *)encode_state, data_cursor, field[1]);
           break;
         case 6:
           element_count = *(short *)data_cursor;

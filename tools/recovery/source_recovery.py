@@ -627,6 +627,41 @@ def _ensure_current(manifest: dict[str, Any]) -> Path:
     return source
 
 
+def _built_object_for_source(source: Path, build_dir: Path) -> Path:
+    """Return the CMake target object for source, without assuming a generator."""
+    rel = source.relative_to(ROOT)
+    preferred = build_dir / "CMakeFiles" / "halo.dir" / (str(rel) + ".obj")
+    if preferred.is_file():
+        return preferred
+
+    matches = sorted(build_dir.glob("CMakeFiles/halo.dir/**/*.c.obj"))
+    suffix = Path(str(rel) + ".obj")
+    matches = [candidate for candidate in matches
+               if candidate.relative_to(build_dir / "CMakeFiles" / "halo.dir").as_posix()
+               == suffix.as_posix()]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise RecoveryError("no built COFF for %s under %s; run "
+                            "tools/build/build.py -q --target halo first" %
+                            (_relative(source), _relative(build_dir)))
+    raise RecoveryError("ambiguous built COFF for %s: %s" %
+                        (_relative(source), ", ".join(_relative(p) for p in matches)))
+
+
+def _baseline(source_arg: str, output_arg: str, build_dir_arg: str,
+              allow_risky: bool = False) -> Path:
+    """Plan and capture one source atomically from this worktree's CMake object."""
+    source = _repo_path(source_arg, ".c")
+    build_dir = _repo_path(build_dir_arg, allow_noisy=True)
+    manifest = _plan(_relative(source), allow_risky)
+    output = _output_path(output_arg, ".json")
+    obj = _built_object_for_source(source, build_dir)
+    _capture(output, manifest, _relative(obj))
+    _write_atomic(output, manifest)
+    return obj
+
+
 def _capture(path: Path, manifest: dict[str, Any], object_arg: str) -> None:
     source = _ensure_current(manifest)
     obj = _repo_path(object_arg, allow_noisy=True)
@@ -937,6 +972,13 @@ def main(argv: list[str] | None = None) -> int:
     plan.add_argument("--allow-risky", action="store_true",
                       help="opt this manifest in to the risky ladder categories "
                            "(expr-simplify, control-flow); requires a behavioral oracle")
+    baseline = sub.add_parser("baseline",
+                              help="plan and capture one source from its CMake COFF")
+    baseline.add_argument("--source", required=True)
+    baseline.add_argument("-o", "--output", required=True)
+    baseline.add_argument("--build-dir", default="build")
+    baseline.add_argument("--allow-risky", action="store_true",
+                          help="opt the manifest in to risky ladder categories")
     capture = sub.add_parser("capture")
     capture.add_argument("manifest")
     capture.add_argument("--object", required=True)
@@ -969,6 +1011,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "plan":
             _write_atomic(_output_path(args.output, ".json"),
                           _plan(args.source, args.allow_risky))
+            return 0
+        if args.command == "baseline":
+            print(_relative(_baseline(args.source, args.output, args.build_dir,
+                                     args.allow_risky)))
             return 0
         path, manifest = _load(args.manifest)
         if args.command == "capture":

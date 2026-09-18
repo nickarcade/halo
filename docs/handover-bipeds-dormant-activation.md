@@ -31,7 +31,7 @@ look at next.
 | 0x1a2f40 | `void FUN_001a2f40(void *physics@<esi>)` | **75.9** | C | re-lifted this session (was 19.3, store bug fixed); cap ~76-77% (value-coupled writeback + x87) |
 
 ### Categories (drives strategy)
-- **A — cdecl, VC71-improvable** (0680, 1b90, 1e70): no frameless-fastcall penalty;
+- **A — cdecl, VC71-improvable** (0680, 1b90, 1e70): no register-argument prologue mismatch;
   can plausibly reach ≥88% byte-match → activate on VC71 evidence.
 - **B — register-arg, VC71 structurally capped mid-80s** (0b30, 0e00, 1a10, 2160,
   2290, 25e0, 2a60, 2b10): `@<reg>` callees compile to cdecl frame+pushes; VC71

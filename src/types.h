@@ -63,6 +63,7 @@ typedef uint8_t  byte;
 typedef uint16_t word;
 typedef uint32_t dword;
 typedef float    real;
+typedef uint32_t datum_index;
 
 /* Bungie's 2D real vector. Lives here rather than in its recovering TU
  * (rasterizer_xbox_screen_effect.c) because FUN_001700d0 returns it by value,
@@ -122,15 +123,43 @@ typedef struct {
   game_options_t game_options;         ///< offset=0x08
 } game_globals_t;
 
-/// size=0x68
 /* First field is a 2-byte scalar: every variant-default initializer in the
  * original zeroes a local copy as MOV word [base],DX then REP STOSD from
  * base+2 (0x19 dwords) + STOSW - MSVC's member-wise {0} zeroing of a struct
  * whose first member is 16-bit. */
+/// size=0x68
 typedef struct {
-  int16_t unk_0;
-  char    unk_2[0x66];
+  int16_t unk_0;                      ///< offset=0x00
+  char pad_02[0x16];                  ///< offset=0x02
+  int32_t engine_type;                ///< offset=0x18
+  uint8_t team_play;                  ///< offset=0x1c
+  char pad_1d[0x23];                  ///< offset=0x1d
+  int32_t score_limit;                ///< offset=0x40
+  char pad_44[0x8];                   ///< offset=0x44
+  uint8_t field_4c;                   ///< offset=0x4c
+  uint8_t field_4d;                   ///< offset=0x4d
+  uint8_t field_4e;                   ///< offset=0x4e
+  uint8_t field_4f;                   ///< offset=0x4f
+  int32_t field_50;                   ///< offset=0x50
+  int32_t field_54;                   ///< offset=0x54
+  int32_t field_58;                   ///< offset=0x58
+  int32_t field_5c;                   ///< offset=0x5c
+  int32_t field_60;                   ///< offset=0x60
+  char pad_64[4];                     ///< offset=0x64
 } game_variant_t;
+cs(game_variant_t, 0x68);
+co(game_variant_t, engine_type, 0x18);
+co(game_variant_t, team_play,   0x1c);
+co(game_variant_t, score_limit, 0x40);
+co(game_variant_t, field_4c,    0x4c);
+co(game_variant_t, field_4d,    0x4d);
+co(game_variant_t, field_4e,    0x4e);
+co(game_variant_t, field_4f,    0x4f);
+co(game_variant_t, field_50,    0x50);
+co(game_variant_t, field_54,    0x54);
+co(game_variant_t, field_58,    0x58);
+co(game_variant_t, field_5c,    0x5c);
+co(game_variant_t, field_60,    0x60);
 
 #define GAME_STATE_CPU_SIZE 0x305000
 
@@ -545,8 +574,75 @@ typedef struct {
 
 /// size=0xd4
 typedef struct {
-  char unk_0[0xd4];
+  char pad_00[2];
+  int16_t local_player_index;         ///< offset=0x02
+  wchar_t name[12];                   ///< offset=0x04
+  char pad_1c[4];                     ///< offset=0x1c
+  int32_t team_index;                 ///< offset=0x20
+  int32_t field_24;                   ///< offset=0x24  object handle (enter/pickup/board)
+  int16_t action_state;               ///< offset=0x28
+  char pad_2a[0xa];                   ///< offset=0x2a
+  datum_index unit_handle;            ///< offset=0x34
+  datum_index previous_unit_handle;   ///< offset=0x38
+  int16_t cluster_index;              ///< offset=0x3c
+  char pad_3e[0x2a];                  ///< offset=0x3e
+  int16_t field_68[2];                ///< offset=0x68  hud.c comments +0x68 as ac_timer
+  real speed_multiplier;              ///< offset=0x6c
+  char pad_70[0x18];                  ///< offset=0x70
+  datum_index target_player_index;    ///< offset=0x88
+  char pad_8c[0x36];                  ///< offset=0x8c
+  int16_t race_score;                 ///< offset=0xc2
+  int16_t field_c4;                   ///< offset=0xc4  lap counter in one path, lap time in another
+  char pad_c6[6];                     ///< offset=0xc6
+  int32_t quit_at;                    ///< offset=0xcc
+  char pad_d0;                        ///< offset=0xd0
+  boolean quitting;                   ///< offset=0xd1
+  char pad_d2[2];                     ///< offset=0xd2
 } player_data_t;
+cs(player_data_t, 0xd4);
+co(player_data_t, local_player_index,       0x02);
+co(player_data_t, name,                     0x04);
+co(player_data_t, team_index,               0x20);
+co(player_data_t, field_24,                 0x24);
+co(player_data_t, action_state,             0x28);
+co(player_data_t, unit_handle,              0x34);
+co(player_data_t, previous_unit_handle,     0x38);
+co(player_data_t, cluster_index,            0x3c);
+co(player_data_t, field_68,                 0x68);
+co(player_data_t, speed_multiplier,         0x6c);
+co(player_data_t, target_player_index,      0x88);
+co(player_data_t, race_score,               0xc2);
+co(player_data_t, field_c4,                 0xc4);
+co(player_data_t, quit_at,                  0xcc);
+co(player_data_t, quitting,                 0xd1);
+
+/// size=0xd0
+typedef struct {
+  uint32_t track_flags_bitmask;    ///< offset=0x00 (0x456f10)
+  int32_t team_current_flags[16];  ///< offset=0x04 (0x456f14)
+  uint32_t team_visited_flags[16]; ///< offset=0x44 (0x456f54)
+  int32_t random_flag;             ///< offset=0x84 (0x456f94)
+  int32_t team_scores[16];         ///< offset=0x88 (0x456f98)
+  char pad_c8[4];                  ///< offset=0xc8
+  boolean flag_set;                ///< offset=0xcc (0x456fdc)
+  char pad_cd[3];                  ///< offset=0xcd
+} game_engine_race_globals_t;
+cs(game_engine_race_globals_t, 0xd0);
+co(game_engine_race_globals_t, track_flags_bitmask, 0x00);
+co(game_engine_race_globals_t, team_current_flags,  0x04);
+co(game_engine_race_globals_t, team_visited_flags,  0x44);
+co(game_engine_race_globals_t, random_flag,         0x84);
+co(game_engine_race_globals_t, team_scores,         0x88);
+co(game_engine_race_globals_t, flag_set,            0xcc);
+
+/// size=0x80
+typedef struct {
+  int32_t team_scores[16];   ///< offset=0x00 (0x456fe0)
+  int32_t player_scores[16]; ///< offset=0x40 (0x457020)
+} slayer_globals_t;
+cs(slayer_globals_t, 0x80);
+co(slayer_globals_t, team_scores,   0x00);
+co(slayer_globals_t, player_scores, 0x40);
 
 /// size=0x40
 typedef struct {
@@ -898,6 +994,65 @@ typedef struct
 } packet_header;
 cs(packet_header, 0x1);
 co(packet_header, type, 0x00);
+
+/// size=0x10
+/// Original source: c:\halo\SOURCE\memory\data_encoding.c
+typedef struct data_encoding_state
+{
+    void *buffer;                          ///< offset=0x00
+    int32_t offset;                        ///< offset=0x04
+    int32_t buffer_size;                   ///< offset=0x08
+    char overflow;                         ///< offset=0x0C
+    char pad_0d[3];                        ///< offset=0x0D
+} data_encoding_state_t;
+cs(data_encoding_state_t, 0x10);
+co(data_encoding_state_t, buffer, 0x00);
+co(data_encoding_state_t, offset, 0x04);
+co(data_encoding_state_t, buffer_size, 0x08);
+co(data_encoding_state_t, overflow, 0x0C);
+
+/// Dynamic array struct used by memory/array.c.
+/// Size: 0x0C bytes.
+/// Original source: c:\halo\SOURCE\memory\array.c
+typedef struct dynamic_array {
+    int element_size;                      ///< offset=0x00
+    int count;                             ///< offset=0x04
+    void *elements;                        ///< offset=0x08
+} dynamic_array_t;
+cs(dynamic_array_t, 0x0C);
+co(dynamic_array_t, element_size, 0x00);
+co(dynamic_array_t, count, 0x04);
+co(dynamic_array_t, elements, 0x08);
+
+typedef int (*hashtable_hash_proc_t)(int user_data, const void *key);
+typedef bool (*hashtable_compare_proc_t)(int user_data, const void *element, const void *key);
+
+/// Hash table struct used by memory/hashtable.c.
+/// Size: 0x28 bytes.
+/// Original source: c:\halo\SOURCE\memory\hashtable.c
+typedef struct hashtable {
+    int16_t key_size;                      ///< offset=0x00
+    int16_t element_size;                  ///< offset=0x02
+    int16_t count;                         ///< offset=0x04
+    int16_t capacity_bits;                 ///< offset=0x06
+    float load_factor;                     ///< offset=0x08
+    int32_t user_data;                     ///< offset=0x0C
+    hashtable_hash_proc_t hash_proc;       ///< offset=0x10
+    hashtable_compare_proc_t compare_proc; ///< offset=0x14
+    uint32_t *bitmap;                      ///< offset=0x18
+    dynamic_array_t array;                 ///< offset=0x1C
+} hashtable_t;
+cs(hashtable_t, 0x28);
+co(hashtable_t, key_size, 0x00);
+co(hashtable_t, element_size, 0x02);
+co(hashtable_t, count, 0x04);
+co(hashtable_t, capacity_bits, 0x06);
+co(hashtable_t, load_factor, 0x08);
+co(hashtable_t, user_data, 0x0C);
+co(hashtable_t, hash_proc, 0x10);
+co(hashtable_t, compare_proc, 0x14);
+co(hashtable_t, bitmap, 0x18);
+co(hashtable_t, array, 0x1C);
 
 /* ai_firing_pos_entry_t — one slot in the firing-position candidate buffer
  * built by FUN_00041420 and consumed by ai_test_line_of_fire.
@@ -1446,7 +1601,8 @@ typedef struct {
   float field_48c;                                   /* +0x48c  accessed 1x, meaning unproven */
   float field_490;                                   /* +0x490  accessed 1x, meaning unproven */
   int32_t field_494;                                 /* +0x494  accessed 2x, meaning unproven */
-  char pad_498[0xc];
+  char pad_498[0x8];
+  int32_t field_4a0;                                 /* +0x4a0  path step counter */
   char field_4a4;                                    /* +0x4a4  accessed 1x, meaning unproven */
   char pad_4a5[0x3];
   char field_4a8;                                    /* +0x4a8  accessed 3x, meaning unproven */
@@ -1619,6 +1775,7 @@ co(actor_t, stimuli_panic_type,                            0x308);
 co(actor_t, stimuli_panic_prop_index,                      0x30c);
 co(actor_t, firing_positions_current_position_index,       0x3b8);
 co(actor_t, control_path_destination_orders_ignore_target_object_index, 0x480);
+co(actor_t, field_4a0,                                         0x4a0);
 co(actor_t, control_secondary_look_type,                   0x544);
 co(actor_t, secondary_look_priority,                     0x546);
 co(actor_t, secondary_look_timer,                        0x548);
@@ -1663,6 +1820,53 @@ cs(tag_block, 0xc);
 co(tag_block, count,   0x00);
 co(tag_block, address, 0x04);
 
+/// size=0x68
+/* Structure-BSP cluster element. Only the runtime-decal range is proven. */
+typedef struct {
+  char    pad_00[0x0c];
+  int16_t field_0c;
+  uint16_t field_0e;
+  char    pad_10[0x58];
+} structure_bsp_cluster_t;
+cs(structure_bsp_cluster_t, 0x68);
+co(structure_bsp_cluster_t, field_0c, 0x0c);
+co(structure_bsp_cluster_t, field_0e, 0x0e);
+
+/// size=0x10
+/* Structure runtime-decal element. */
+typedef struct {
+  char   pad_00[0x0c];
+  uint8_t field_0c;
+  int8_t pad_0d;
+  int8_t field_0e;
+  int8_t field_0f;
+} structure_runtime_decal_t;
+cs(structure_runtime_decal_t, 0x10);
+co(structure_runtime_decal_t, field_0c, 0x0c);
+co(structure_runtime_decal_t, field_0e, 0x0e);
+co(structure_runtime_decal_t, field_0f, 0x0f);
+
+/// size=0x264
+/* Runtime structure-BSP tag blocks used by structure_decals_update. */
+typedef struct {
+  char pad_00[0x134];
+  tag_block clusters;
+  char pad_140[0x118];
+  tag_block runtime_decals;
+} structure_bsp_t;
+cs(structure_bsp_t, 0x264);
+co(structure_bsp_t, clusters, 0x134);
+co(structure_bsp_t, runtime_decals, 0x258);
+
+/// size=0x04
+/* Global structure decal runtime state allocated at 0x4d8ec8. */
+typedef struct {
+  uint8_t field_00;
+  char    pad_01[3];
+} structure_decals_globals_t;
+cs(structure_decals_globals_t, 0x04);
+co(structure_decals_globals_t, field_00, 0x00);
+
 /* -------------------------------------------------------------------------
  * tag_reference -- 0x10-byte element of a tag-reference tag block.
  *
@@ -1680,6 +1884,15 @@ typedef struct {
 } tag_reference;
 cs(tag_reference, 0x10);
 co(tag_reference, tag_index, 0x0c);
+
+/// size=0x3C0
+/* Scenario overlay for the structure-BSP tag block used by runtime decals. */
+typedef struct {
+  char pad_00[0x3b4];
+  tag_block structure_bsps;
+} scenario_structure_bsps_t;
+cs(scenario_structure_bsps_t, 0x3c0);
+co(scenario_structure_bsps_t, structure_bsps, 0x3b4);
 
 /* -------------------------------------------------------------------------
  * netgame_flag -- 0x94-byte element of the scenario netgame-flags tag block
@@ -1731,12 +1944,17 @@ typedef struct {
                          *        taken from object_new, not from the casts. */
   float position_y;     /* +0x1c */
   float position_z;     /* +0x20 */
-  char  pad_24[0x64];   /* +0x24  never observed accessed */
+  char  pad_24[0x10];   /* +0x24  never observed accessed */
+  vector3_t forward;    /* +0x34  object_placement_data_new default {1,0,0} */
+  vector3_t up;         /* +0x40  object_placement_data_new default {0,0,1} */
+  char  pad_4c[0x3c];   /* +0x4c */
 } object_placement_data;
 cs(object_placement_data, 0x88);
 co(object_placement_data, position_x, 0x18);
 co(object_placement_data, position_y, 0x1c);
 co(object_placement_data, position_z, 0x20);
+co(object_placement_data, forward,    0x34);
+co(object_placement_data, up,         0x40);
 /* -------------------------------------------------------------------------
  * game_globals_multiplayer_element -- 0xa0-byte element of the tag block at
  * game_globals + 0x164 (the multiplayer information block).
@@ -1892,6 +2110,75 @@ typedef struct transport_address {
 } transport_address;
 co(transport_address, address_length, 0x10);
 co(transport_address, port,           0x12);
+
+/* transport_endpoint -- 8-byte Winsock endpoint (debug_malloc(8) at 0x82d70).
+ *
+ * type is named from the assert "ep->type == _transport_type_udp" (0x847ef).
+ * type is signed: count_endpoints_in_set (0x82df0) does MOVSX EAX,byte [ESI+5].
+ * socket / flags / status widths come from dword / byte / word operand sizes. */
+#define _transport_type_udp 0x11
+#define _transport_type_tcp 0x12
+
+typedef struct transport_endpoint {
+    int32_t socket;   ///< offset=0x00  INVALID_SOCKET = -1
+    uint8_t flags;    ///< offset=0x04  bit0 connected, bit1 listening, bit3 in-set, bit4 nbio
+    int8_t  type;     ///< offset=0x05  _transport_type_udp / _transport_type_tcp
+    int16_t status;   ///< offset=0x06
+} transport_endpoint;
+cs(transport_endpoint, 8);
+co(transport_endpoint, socket, 0x00);
+co(transport_endpoint, flags,  0x04);
+co(transport_endpoint, type,   0x05);
+co(transport_endpoint, status, 0x06);
+
+/* transport_endpoint_set -- 0x118-byte fd_set wrapper (debug_malloc(0x118)
+ * in create_endpoint_set 0x82310). ep_array / max_endpoints are T1 from
+ * asserts "set && set->ep_array" and "max_endpoints > 0". */
+typedef struct transport_endpoint_set {
+    int32_t fd_count;                 ///< offset=0x00
+    int32_t fd_array[0x40];           ///< offset=0x04
+    transport_endpoint **ep_array;    ///< offset=0x104
+    int32_t max_endpoints;            ///< offset=0x108
+    int32_t field_10c;                ///< offset=0x10c  high-water index, inited -1
+    int32_t field_110;                ///< offset=0x110  rewind cursor
+    int32_t field_114;                ///< offset=0x114  dirty; qsort in poll
+} transport_endpoint_set;
+cs(transport_endpoint_set, 0x118);
+co(transport_endpoint_set, fd_count,      0x00);
+co(transport_endpoint_set, fd_array,      0x04);
+co(transport_endpoint_set, ep_array,      0x104);
+co(transport_endpoint_set, max_endpoints, 0x108);
+co(transport_endpoint_set, field_10c,     0x10c);
+co(transport_endpoint_set, field_110,     0x110);
+co(transport_endpoint_set, field_114,     0x114);
+
+/* Connect-worker table at 0x3350a0, 64 slots of 8 bytes (walked to 0x3352a0
+ * by endpoint_pool_cleanup). "thread" is T1 from the 0x82cf0 assert. */
+typedef struct transport_connect_thread_slot {
+    void    *thread;     ///< offset=0x00
+    uint8_t  cleanup;    ///< offset=0x04
+    uint8_t  pad_05[3];  ///< offset=0x05  never observed accessed
+} transport_connect_thread_slot;
+cs(transport_connect_thread_slot, 8);
+co(transport_connect_thread_slot, thread,  0x00);
+co(transport_connect_thread_slot, cleanup, 0x04);
+
+/* Async connect request, debug_malloc(0x28) at 0x841b0. ep / thread are T1
+ * from "input->ep" / "input->thread". Address blob is 6 dwords (REP MOVSD). */
+typedef struct transport_connect_request {
+    transport_endpoint *ep;       ///< offset=0x00
+    uint32_t            address[6]; ///< offset=0x04
+    void               *thread;   ///< offset=0x1c
+    int                *mutex;    ///< offset=0x20
+    uint8_t             cancelled; ///< offset=0x24
+    uint8_t             pad_25[3]; ///< offset=0x25
+} transport_connect_request;
+cs(transport_connect_request, 0x28);
+co(transport_connect_request, ep,        0x00);
+co(transport_connect_request, address,   0x04);
+co(transport_connect_request, thread,    0x1c);
+co(transport_connect_request, mutex,     0x20);
+co(transport_connect_request, cancelled, 0x24);
 
 /* Callback handed to hs_object_iterate_names_containing (0xc9b10).  The three
  * call sites (0xc9b90 -> 0xc9990, 0xc9bb0 -> 0xc9a20, 0xca140 -> 0xca110) each

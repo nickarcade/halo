@@ -291,6 +291,7 @@ and move the target to runtime oracle or dual-oracle harness coverage.
   "unique_returns": 1,
   "confidence": "moderate",
   "trace_diffs": 0,
+  "divergence_summary": null,
   "concolic_seeds": 15,
   "phase1_coverage_pct": 38.1,
   "log_path": "artifacts/equivalence/FUN_000a7ae0_smoke.log"
@@ -302,6 +303,7 @@ and move the target to runtime oracle or dual-oracle harness coverage.
 | `coverage_pct` | float | Final code coverage after all phases |
 | `confidence` | string | `high`, `moderate`, or `weak` |
 | `trace_diffs` | int | Seeds with memory-trace divergences |
+| `divergence_summary` | object/null | First divergent seed’s compact cause: state, stub arguments, or stub-call sequence; includes the relevant call sequences when applicable |
 | `concolic_seeds` | int | Additional seeds from Phase 2 (0 if not triggered) |
 | `phase1_coverage_pct` | float | Coverage before concolic (only if concolic ran) |
 | `unique_returns` | int | Distinct EAX values across all seeds |

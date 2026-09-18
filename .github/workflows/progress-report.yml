@@ -54,17 +54,17 @@ jobs:
           delinked: "true"
           required: halo-patched/cachebeta.xbe
 
-      # build/ (44M) and the four result directories (215M) stay symlinks --
-      # copying them per run is not worth it, and unlike the assets above they
-      # are all ignored as whole paths, so the checkout clean removes the link
-      # and never looks inside.  Link Safety below is what keeps that true.
+      # build/ (44M) and ignored report-data directories stay symlinks --
+      # copying them per run is not worth it. batch_verify is handled through
+      # HALO_REPORT_BATCH_VERIFY_DIR because its checkout contains tracked
+      # summary files and cannot safely be replaced by a symlink.
       - name: Link Bulk Report Data
         run: |
           if [ ! -e build ] && [ -d "$BUILD_DIR" ]; then
             ln -s "$BUILD_DIR" build
           fi
           mkdir -p artifacts
-          for dir in batch_verify equivalence runtime_oracle runtime_oracle_batch; do
+          for dir in equivalence runtime_oracle runtime_oracle_batch; do
             if [ ! -e "artifacts/$dir" ] && [ -d "$ARTIFACTS_DIR/$dir" ]; then
               ln -s "$ARTIFACTS_DIR/$dir" "artifacts/$dir"
             fi
@@ -83,7 +83,32 @@ jobs:
           # TU is scored against a stale header, then writes vc71_current.json +
           # reference_validity.json, which the report step bakes into the published
           # dashboard (honest % and the compile-fail / no-ref badges).
-          "$VENV_PYTHON" tools/verify/vc71_regression.py populate
+           "$VENV_PYTHON" tools/verify/vc71_regression.py populate \
+             --no-baseline-write
+
+      - name: Validate Fresh VC71 Snapshot
+        run: |
+          SNAPSHOT=tools/verify/vc71_current.json
+          if [ ! -s "$SNAPSHOT" ]; then
+            echo "::error::populate did not leave a non-empty $SNAPSHOT"
+            exit 1
+          fi
+          jq --arg sha "$GITHUB_SHA" '
+            {
+              commit: .provenance.commit,
+              dirty: .provenance.dirty,
+              score_count: (.scores | length),
+              expected_commit: $sha,
+              valid: ((.provenance.commit == $sha) and
+                      (.provenance.dirty == false) and
+                      ((.scores | length) > 0))
+            }
+          ' "$SNAPSHOT"
+          jq -e --arg sha "$GITHUB_SHA" '
+            (.provenance.commit == $sha) and
+            (.provenance.dirty == false) and
+            ((.scores | length) > 0)
+          ' "$SNAPSHOT" >/dev/null
 
       - name: Generate CI Status
         run: |
@@ -92,10 +117,43 @@ jobs:
             --output-dir artifacts/progress
 
       - name: Generate Progress Report
+        env:
+          HALO_REPORT_BATCH_VERIFY_DIR: /mnt/g/dev/halo/artifacts/batch_verify
         run: |
           "$VENV_PYTHON" tools/report/generate_decomp_report.py \
             --output artifacts/progress/report.json \
             --html artifacts/progress/index.html
+
+      - name: Validate Report Provenance
+        run: |
+          jq --arg sha "$GITHUB_SHA" '
+            .provenance.inputs as $inputs |
+            {
+              report_commit: .meta.commit_sha,
+              raw_xbe_md5: $inputs.raw_xbe.md5,
+              function_bounds_md5: $inputs.function_bounds.recorded_xbe_md5,
+              snapshot_exists: $inputs.vc71_current.exists,
+              snapshot_score_count: $inputs.vc71_current.score_count,
+              snapshot_commit: $inputs.vc71_current.provenance.commit,
+              snapshot_dirty: $inputs.vc71_current.provenance.dirty,
+              expected_commit: $sha,
+              valid: ((.meta.commit_sha == $sha) and
+                      ($inputs.raw_xbe.md5 != null) and
+                      ($inputs.function_bounds.recorded_xbe_md5 != null) and
+                      ($inputs.raw_xbe.md5 == $inputs.function_bounds.recorded_xbe_md5) and
+                      ($inputs.vc71_current.provenance.commit == $sha) and
+                      ($inputs.vc71_current.provenance.dirty == false))
+            }
+          ' artifacts/progress/report.json
+          jq -e --arg sha "$GITHUB_SHA" '
+            .provenance.inputs as $inputs |
+            (.meta.commit_sha == $sha) and
+            ($inputs.raw_xbe.md5 != null) and
+            ($inputs.function_bounds.recorded_xbe_md5 != null) and
+            ($inputs.raw_xbe.md5 == $inputs.function_bounds.recorded_xbe_md5) and
+            ($inputs.vc71_current.provenance.commit == $sha) and
+            ($inputs.vc71_current.provenance.dirty == false)
+          ' artifacts/progress/report.json
       
       - name: Update README Badge Data
         run: |
@@ -134,6 +192,13 @@ jobs:
           mkdir -p artifacts/pages/progress
           cp -a artifacts/progress/. artifacts/pages/
           cp -a artifacts/progress/. artifacts/pages/progress/
+
+      - name: Upload GitHub Pages Payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: progress-report-pages-${{ github.sha }}
+          path: artifacts/pages
+          if-no-files-found: error
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

@@ -1804,8 +1804,8 @@
     },
     {
       "name": "actor_verify_activation",
-      "status": "error",
-      "reason": "emulation_error"
+      "status": "fail",
+      "reason": "divergence"
     },
     {
       "name": "actors_initialize",
@@ -3939,6 +3939,16 @@
     },
     {
       "name": "antenna_debug_data_simulate_rope",
+      "status": "fail",
+      "reason": "divergence"
+    },
+    {
+      "name": "actor_action_handle_lost_contact",
+      "status": "fail",
+      "reason": "divergence"
+    },
+    {
+      "name": "actor_action_handle_combat_status",
       "status": "fail",
       "reason": "divergence"
     }

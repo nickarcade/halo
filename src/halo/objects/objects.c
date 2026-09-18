@@ -94,7 +94,6 @@ double pow(double x, double y);
 #define CALL_FUN_001d9e59(a, b) \
   XCALL(0x1d9e59, void *(*)(const char *, const char *))(a, b)
 #define CALL_FUN_001d9260 XCALL(0x1d9260, int (*)(void *, const char *, ...))
-#define CALL_FUN_0013f3b0(a, b) XCALL(0x13f3b0, void (*)(void *, int))(a, b)
 #define CALL_FUN_00013010(a) XCALL(0x13010, float (*)(void *))(a)
 #define CALL_FUN_001ba1f0(a) XCALL(0x1ba1f0, void (*)(int))(a)
 #define CALL_FUN_0013aed0(a) XCALL(0x13aed0, void (*)(int))(a)
@@ -109,7 +108,8 @@ double pow(double x, double y);
   XCALL(0x85c80, void (*)(int, void *, void *))(a, b, c)
 /* FUN_00138fd0 and FUN_00138f70 now in kb.json with proper declarations. */
 #define CALL_FUN_00180570(a, b) XCALL(0x180570, void (*)(int, void *))(a, b)
-#define CALL_FUN_00180660(a, b) XCALL(0x180660, void (*)(int, void *))(a, b)
+#define CALL_FUN_00180660(a, b) \
+  XCALL(0x180660, void (*)(unsigned int *, float *))(a, b)
 #define CALL_FUN_00189150(a, b, c, d) \
   XCALL(0x189150, void (*)(int, int, float, void *))(a, b, c, d)
 #define CALL_FUN_007c490(a, b, c, d, e, f)                          \
@@ -133,7 +133,7 @@ double pow(double x, double y);
 #define CALL_FUN_0007c270(a, b, c, d, e)                                     \
   XCALL(0x7c270, float *(*)(float *, unsigned int, float *, float *, float)) \
   (a, b, c, d, e)
-#define CALL_FUN_00180b10(a) XCALL(0x180b10, int (*)(int))(a)
+#define CALL_FUN_00180b10(a) XCALL(0x180b10, unsigned int (*)(float *))(a)
 #define CALL_FUN_001390d0(a, b, c, d, e, f)                         \
   XCALL(0x1390d0, void (*)(int, int, void *, float, float, void *)) \
   (a, b, c, d, e, f)
@@ -3527,8 +3527,8 @@ void FUN_00139b40(int param_1, int *param_2, int param_3, int param_4,
      * NB: rank-1 winner also mutated the +0x1c fill to 0xFF — REJECTED as a
      * semantic corruption; 0xffff kept. */
     iVar1 = 0x14;
-    *(int *)(base + 0x10) = CALL_FUN_00180b10(param_3);
-    *(int *)(base + iVar1) = CALL_FUN_00180b10(param_4);
+    *(int *)(base + 0x10) = CALL_FUN_00180b10((float *)param_3);
+    *(int *)(base + iVar1) = CALL_FUN_00180b10((float *)param_4);
     base[0x22] = *(char *)0x50654a;
     iVar1 = 0x5a90ac;
     *(short *)(base + 0x1e) = (short)0xffff;
@@ -4449,17 +4449,17 @@ char FUN_0013ab20(unsigned int param_1, int param_2, int *param_3)
                      (float *)local_64, local_c, local_10);
         CALL_FUN_00013010((void *)local_7c);
         CALL_FUN_00180660(
-          *(int *)(iVar6 + 0xf8) +
-            ((unsigned int)*puVar5 + *(int *)(iVar6 + 0xb4) * 4) * 8,
-          (void *)local_64);
+          (unsigned int *)(*(int *)(iVar6 + 0xf8) +
+            ((unsigned int)*puVar5 + *(int *)(iVar6 + 0xb4) * 4) * 8),
+          (float *)local_64);
         CALL_FUN_00180660(
-          *(int *)(iVar6 + 0xf8) +
-            ((unsigned int)puVar5[1] + *(int *)(iVar6 + 0xb4) * 4) * 8,
-          (void *)local_58);
+          (unsigned int *)(*(int *)(iVar6 + 0xf8) +
+            ((unsigned int)puVar5[1] + *(int *)(iVar6 + 0xb4) * 4) * 8),
+          (float *)local_58);
         CALL_FUN_00180660(
-          *(int *)(iVar6 + 0xf8) +
-            ((unsigned int)puVar5[2] + *(int *)(iVar6 + 0xb4) * 4) * 8,
-          (void *)local_4c);
+          (unsigned int *)(*(int *)(iVar6 + 0xf8) +
+            ((unsigned int)puVar5[2] + *(int *)(iVar6 + 0xb4) * 4) * 8),
+          (float *)local_4c);
         local_2c = (float)CALL_FUN_00013010((void *)local_64);
         local_28 = (float)CALL_FUN_00013010((void *)local_58);
         local_24 = (float)CALL_FUN_00013010((void *)local_4c);
@@ -5098,9 +5098,9 @@ void FUN_0013b380(void)
                 *(int *)(lf_params + 0x04) = *(int *)(puVar13 + 0x24);
                 *(int *)(lf_params + 0x08) = *(int *)(puVar13 + 0x28);
                 *(int *)(lf_params + 0x0c) = *(int *)(puVar13 + 0x2c);
-                *(int *)(lf_params + 0x10) = CALL_FUN_00180b10((int)puVar13);
+                *(int *)(lf_params + 0x10) = CALL_FUN_00180b10((float *)puVar13);
                 *(int *)(lf_params + 0x14) =
-                  CALL_FUN_00180b10((int)(puVar13 + 0x18));
+                  CALL_FUN_00180b10((float *)(puVar13 + 0x18));
                 *(short *)(lf_params + 0x20) = sVar14;
                 CALL_FUN_00181670(lf_params);
                 sVar14 = sVar14 + 1;
@@ -5111,8 +5111,10 @@ void FUN_0013b380(void)
             *(int *)(lf_params + 0x04) = *(int *)(iVar5 + 0x30);
             *(int *)(lf_params + 0x08) = *(int *)(iVar5 + 0x34);
             *(int *)(lf_params + 0x0c) = *(int *)(iVar5 + 0x38);
-            *(int *)(lf_params + 0x10) = CALL_FUN_00180b10(iVar5 + 0x3c);
-            *(int *)(lf_params + 0x14) = CALL_FUN_00180b10(iVar5 + 0x48);
+            *(int *)(lf_params + 0x10) =
+              CALL_FUN_00180b10((float *)(iVar5 + 0x3c));
+            *(int *)(lf_params + 0x14) =
+              CALL_FUN_00180b10((float *)(iVar5 + 0x48));
             *(short *)(lf_params + 0x20) = 0;
             CALL_FUN_00181670(lf_params);
           }

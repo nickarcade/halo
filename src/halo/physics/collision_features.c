@@ -11,6 +11,19 @@ void collision_features_init(void *features)
   csmemset(features, 0, 6);
 }
 
+/* 0x14ad60 — Render a collision sphere with the supplied debug color */
+void render_debug_collision_sphere(void *sphere, void *color)
+{
+  FUN_00189540(1, (char *)sphere + 0x0c, *(float *)((char *)sphere + 0x18),
+               color);
+}
+
+void render_debug_collision_cylinder(void *cylinder, void *color)
+{
+  FUN_001896d0(1, (char *)cylinder + 0x0c, (char *)cylinder + 0x18,
+               *(float *)((char *)cylinder + 0x24), color);
+}
+
 /* 0x14adb0 — Add a sphere collision feature to the features buffer.
  * Writes a sphere entry (position, material, surface ID). If param_2 > 0,
  * also writes a second sphere entry and a cylinder entry with position_z

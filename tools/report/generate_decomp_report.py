@@ -10,6 +10,7 @@ import sys
 import os
 import json
 import argparse
+import hashlib
 from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
@@ -29,6 +30,118 @@ def load_function_sizes(cache_path: str) -> dict:
         return {}
     with open(cache_path) as f:
         return json.load(f)
+
+
+def _file_hash(path: str, algorithm: str) -> str | None:
+    """Return a content hash without loading a report input into memory at once."""
+    digest = hashlib.new(algorithm)
+    try:
+        with open(path, 'rb') as f:
+            while True:
+                chunk = f.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
+def _input_file_identity(path: str, root_dir: str, include_md5: bool = False) -> dict:
+    """Describe a report input with repo-relative path and content hash."""
+    exists = os.path.isfile(path)
+    identity = {
+        'path': os.path.relpath(path, root_dir),
+        'exists': exists,
+        'size_bytes': None,
+        'sha256': None,
+    }
+    if include_md5:
+        identity['md5'] = None
+    if not exists:
+        return identity
+    try:
+        identity['size_bytes'] = os.path.getsize(path)
+    except OSError:
+        return identity
+    identity['sha256'] = _file_hash(path, 'sha256')
+    if include_md5:
+        identity['md5'] = _file_hash(path, 'md5')
+    return identity
+
+
+def _score_input_provenance(path: str, root_dir: str, document: dict) -> dict:
+    """Add score count and writer provenance to a score-file identity."""
+    identity = _input_file_identity(path, root_dir)
+    scores = document.get('scores') if isinstance(document, dict) else None
+    provenance = document.get('provenance') if isinstance(document, dict) else None
+    identity['score_count'] = len(scores) if isinstance(scores, dict) else 0
+    identity['provenance'] = provenance if isinstance(provenance, dict) else None
+    return identity
+
+
+def _reference_validity_summary(document: dict) -> dict:
+    """Summarize the VC71 attention queue without exposing every row twice."""
+    flagged = document.get('flagged') if isinstance(document, dict) else None
+    flagged = flagged if isinstance(flagged, list) else []
+    by_state = {}
+    for entry in flagged:
+        state = entry.get('state') if isinstance(entry, dict) else None
+        state = state if isinstance(state, str) and state else 'unknown'
+        by_state[state] = by_state.get(state, 0) + 1
+    return {
+        'flagged_count': len(flagged),
+        'by_state': dict(sorted(by_state.items())),
+    }
+
+
+def _equivalence_evidence_summary(verdicts: dict) -> dict:
+    """Count latest equivalence verdicts and credible divergence findings."""
+    records = [record for record in verdicts.values()
+               if isinstance(record, dict)] if isinstance(verdicts, dict) else []
+    return {
+        'evidence_count': len(records),
+        'divergence_count': sum(
+            1 for record in records
+            if record.get('status') == 'fail' and record.get('reason') == 'divergence'
+        ),
+    }
+
+
+def build_report_provenance(root_dir: str, raw_xbe_path: str,
+                            bounds_path: str, bounds_doc: dict,
+                            floor_path: str, floor_doc: dict,
+                            current_path: str, current_doc: dict,
+                            validity_path: str, validity_doc: dict,
+                            equiv_verdicts: dict) -> dict:
+    """Build stable report metadata for all byte-match evidence inputs."""
+    bounds = _input_file_identity(bounds_path, root_dir)
+    bounds_meta = bounds_doc.get('_meta') if isinstance(bounds_doc, dict) else None
+    bounds['recorded_xbe_md5'] = (
+        bounds_meta.get('xbe_md5') if isinstance(bounds_meta, dict) else None
+    )
+    bounds['record_count'] = sum(
+        1 for key in bounds_doc
+        if key != '_meta'
+    ) if isinstance(bounds_doc, dict) else 0
+
+    validity = _input_file_identity(validity_path, root_dir)
+    validity.update(_reference_validity_summary(validity_doc))
+
+    return {
+        'schema_version': 1,
+        'inputs': {
+            'raw_xbe': _input_file_identity(raw_xbe_path, root_dir,
+                                             include_md5=True),
+            'function_bounds': bounds,
+            'vc71_floor': _score_input_provenance(floor_path, root_dir,
+                                                   floor_doc),
+            'vc71_current': _score_input_provenance(current_path, root_dir,
+                                                     current_doc),
+            'reference_validity': validity,
+            'equivalence': _equivalence_evidence_summary(equiv_verdicts),
+        },
+    }
 
 
 def _estimate_missing_sizes(funcs: list) -> dict[int, int]:
@@ -146,7 +259,10 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
     function can have confidence=high). Scans recursively; latest run wins.
     """
     import glob as _glob
-    base = os.path.join(root_dir, 'artifacts', 'batch_verify')
+    base = os.environ.get(
+        'HALO_REPORT_BATCH_VERIFY_DIR',
+        os.path.join(root_dir, 'artifacts', 'batch_verify'),
+    )
     if not os.path.isdir(base):
         return {}
     verdicts = {}
@@ -176,6 +292,8 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
             'reason': data.get('reason'),
             'confidence': data.get('confidence'),
             'coverage_pct': data.get('coverage_pct'),
+            'divergence_summary': data.get('divergence_summary'),
+            'log_path': data.get('log_path'),
         }
     return verdicts
 
@@ -447,6 +565,8 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
             equiv_status = ev.get('status') if ev else None
             equiv_proven = bool(ev.get('z3_proven')) if ev else False
             equiv_reason = ev.get('reason') if ev else None
+            equiv_divergence = ev.get('divergence_summary') if ev else None
+            equiv_log_path = ev.get('log_path') if ev else None
             # When a verdict exists, its confidence/coverage are paired with the
             # status (same run) and are more accurate than the leaf_cache snapshot,
             # so prefer them for the verified-gating decision and the display.
@@ -490,6 +610,8 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'equiv_status': equiv_status,
                 'equiv_proven': equiv_proven,
                 'equiv_reason': equiv_reason,
+                'equiv_divergence': equiv_divergence,
+                'equiv_log_path': equiv_log_path,
                 'snapshot_passed': snapshot_passed,
                 'snapshot_coverage': snapshot_coverage,
                 'snapshot_confidence': snapshot_confidence,
@@ -736,7 +858,10 @@ def generate_report(output_path: str) -> dict:
     # where it measured, floor covers everything it did not.
     vc71_current = os.path.join(root_dir, 'tools', 'verify', 'vc71_current.json')
     vc71_floor = os.path.join(root_dir, 'tools', 'verify', 'vc71_scores.json')
+    bounds_path = os.path.join(root_dir, 'tools', 'verify', 'function_bounds.json')
     leaf_cache_path = os.path.join(root_dir, 'tools', 'equivalence', 'leaf_cache.json')
+    validity_path = os.path.join(root_dir, 'artifacts', 'audit', 'reference_validity.json')
+    raw_xbe_path = os.path.join(root_dir, 'halo-patched', 'cachebeta.xbe')
     
     # Load knowledge base
     kb = KnowledgeBase.deserialize()
@@ -747,9 +872,10 @@ def generate_report(output_path: str) -> dict:
     function_cache = load_function_sizes(cache_path)
     
     # Load VC71 match scores: floor first, current layered over it (see above).
+    floor_doc = _load_vc71_doc(vc71_floor)
+    current_doc = _load_vc71_doc(vc71_current)
     vc71_scores = merge_vc71_scores(
-        _load_vc71_doc(vc71_floor), _load_vc71_doc(vc71_current),
-        current_exists=os.path.exists(vc71_current))
+        floor_doc, current_doc, current_exists=os.path.exists(vc71_current))
 
     # Load equivalence leaf cache
     leaf_cache = {}
@@ -775,7 +901,6 @@ def generate_report(output_path: str) -> dict:
     # (compile_failed | no_reference).  Lets the dashboard show a distinct badge
     # instead of a blank "—" that is indistinguishable from "not yet run".
     validity_data = {}
-    validity_path = os.path.join(root_dir, 'artifacts', 'audit', 'reference_validity.json')
     if os.path.exists(validity_path):
         try:
             with open(validity_path) as f:
@@ -804,6 +929,7 @@ def generate_report(output_path: str) -> dict:
     
     # Get git info
     commit = 'unknown'
+    commit_sha = 'unknown'
     branch = 'unknown'
     try:
         import subprocess
@@ -811,12 +937,30 @@ def generate_report(output_path: str) -> dict:
                               capture_output=True, text=True, cwd=root_dir)
         if result.returncode == 0:
             commit = result.stdout.strip()
+        result = subprocess.run(['git', 'rev-parse', 'HEAD'],
+                              capture_output=True, text=True, cwd=root_dir)
+        if result.returncode == 0:
+            commit_sha = result.stdout.strip()
         result = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
                               capture_output=True, text=True, cwd=root_dir)
         if result.returncode == 0:
             branch = result.stdout.strip()
     except:
         pass
+
+    report_provenance = build_report_provenance(
+        root_dir,
+        raw_xbe_path,
+        bounds_path,
+        _load_vc71_doc(bounds_path),
+        vc71_floor,
+        floor_doc,
+        vc71_current,
+        current_doc,
+        validity_path,
+        validity_data,
+        equiv_verdicts,
+    )
     
     report = {
         'project': {
@@ -854,9 +998,11 @@ def generate_report(output_path: str) -> dict:
         'meta': {
             'timestamp': datetime.now().astimezone().isoformat(),
             'commit': commit,
+            'commit_sha': commit_sha,
             'branch': branch,
             'tool_version': '1.0.0'
         },
+        'provenance': report_provenance,
         'consistency': {
             'ported_source_of_truth': 'kb.json',
             'kb_ported_missing_meta': drift['kb_ported_missing_meta'],
@@ -1640,7 +1786,35 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             ]);
         }
 
-        /* ===== SCORE BUTTON ===== */
+        /* ===== SCORE / EQUIVALENCE BUTTONS ===== */
+        function rerunEquivalence(btn) {
+            var functionName = btn.getAttribute('data-function');
+            var address = btn.getAttribute('data-address');
+            if (!functionName || !address) return;
+            btn.disabled = true;
+            btn.classList.remove('error');
+            btn.textContent = '⏳ Equiv…';
+            fetch('/api/equivalence', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({function: functionName, address: address})
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.ok) {
+                    hydrateLiveSnapshot().finally(function() { router(); });
+                } else {
+                    btn.disabled = false;
+                    btn.classList.add('error');
+                    btn.textContent = '⚠ Equiv error';
+                    btn.title = d.error || 'Equivalence run failed';
+                }
+            }).catch(function() {
+                btn.disabled = false;
+                btn.classList.add('error');
+                btn.textContent = '⚠ Server offline';
+                btn.title = 'progress_server.py is not running';
+            });
+        }
+
         function scoreFunction(btn) {
             var unit = btn.getAttribute('data-unit');
             if (!unit) return;
@@ -2945,8 +3119,18 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     // Equivalence FAIL — behaviorally differs from the original. A bug
                     // CANDIDATE (some are harness artifacts), not a confirmed bug.
                     var dtip = 'Equivalence divergence (' + (f.equiv_reason || 'diverged') + ') — investigate.\\n';
+                    var why = f.equiv_divergence;
+                    if (why && why.message) dtip += why.message + '\\n';
+                    if (why && why.oracle_calls && why.candidate_calls) {
+                        dtip += 'Oracle calls: ' + (why.oracle_calls.join(', ') || '(none)') + '\\n';
+                        dtip += 'Candidate calls: ' + (why.candidate_calls.join(', ') || '(none)') + '\\n';
+                    }
+                    if (f.equiv_log_path) dtip += 'Full log: ' + f.equiv_log_path + '\\n';
                     dtip += 'Behaves differently from the original under differential testing.';
-                    vStatus = '<span class="func-status" style="background:#da363322;color:#f85149;border-color:#f85149" title="' + escHtml(dtip) + '">✗ Divergent</span>';
+                    var whyText = why && why.message ? escHtml(why.message) : 'See equivalence log';
+                    vStatus = '<span class="func-status" style="background:#da363322;color:#f85149;border-color:#f85149" title="' + escHtml(dtip) + '">✗ Divergent</span> ' +
+                        '<span class="pct-none" title="' + escHtml(dtip) + '">Why: ' + whyText + '</span> ' +
+                        '<button class="score-btn" data-function="' + jsEsc(f.name) + '" data-address="' + jsEsc(f.address) + '" onclick="rerunEquivalence(this)" title="Re-run 50-seed differential equivalence against the raw pristine XBE">↻ Re-run equiv</button>';
                 } else if (isVerified(f)) {
                     var reasons = [];
                     if (f.equiv_proven) reasons.push('Z3-proven');

@@ -19,16 +19,16 @@ The 12 dormant functions, with declarations and register-arg annotations:
 | addr | name / decl | calling conv | VC71* |
 |------|-------------|--------------|-------|
 | 0x1a0680 | `char FUN_001a0680(int unit_handle)` | **cdecl** | 61.5 raw / ~82 real |
-| 0x1a0b30 | `char FUN_001a0b30(int unit_handle@<edi>)` | fastcall @edi | 81.4 |
+| 0x1a0b30 | `char FUN_001a0b30(int unit_handle@<edi>)` | register ABI @edi | 81.4 |
 | 0x1a0e00 | `void FUN_001a0e00(float threshold, int unit_handle@<eax>)` | reg @eax | 82.3 |
 | 0x1a1a10 | `int FUN_001a1a10(float scale, float *out_point, void *out_vec, float *direction@<eax>, int unit_handle@<edi>)` | reg @eax+@edi | 80.0 |
 | 0x1a1b90 | `int biped_approximate_surface_index(int unit_handle, float *out_point)` | **cdecl** | 78.6 |
 | 0x1a1e70 | `void FUN_001a1e70(int unit_handle)` | **cdecl** | 86.9 |
 | 0x1a2160 | `void FUN_001a2160(int unit_handle@<eax>)` | reg @eax | 73.4 |
-| 0x1a2290 | `char FUN_001a2290(int unit_handle@<edi>)` | fastcall @edi | 84.4 |
-| 0x1a25e0 | `void FUN_001a25e0(int unit_handle@<ecx>)` | fastcall @ecx | 79.3 |
-| 0x1a2a60 | `void FUN_001a2a60(int unit_handle@<edi>, char *state)` | fastcall @edi | 86.5 |
-| 0x1a2b10 | `void FUN_001a2b10(int unit_handle@<edi>)` | fastcall @edi | 84.0 |
+| 0x1a2290 | `char FUN_001a2290(int unit_handle@<edi>)` | register ABI @edi | 84.4 |
+| 0x1a25e0 | `void FUN_001a25e0(int unit_handle@<ecx>)` | register ABI @ecx | 79.3 |
+| 0x1a2a60 | `void FUN_001a2a60(int unit_handle@<edi>, char *state)` | register ABI @edi | 86.5 |
+| 0x1a2b10 | `void FUN_001a2b10(int unit_handle@<edi>)` | register ABI @edi | 84.0 |
 | 0x1a2f40 | `void FUN_001a2f40(void *physics@<esi>)` | reg @esi | 19.3 |
 
 \* VC71 scores were recorded at integration time (prior session). `vc71_scores.json`
@@ -37,7 +37,7 @@ was observed **stale** — re-run `vc71_verify.py` per function before trusting 
 ## Three categories (this drives strategy)
 
 **A. cdecl — genuinely improvable by VC71 (0x1a0680, 0x1a1b90, 0x1a1e70).**
-No frameless-fastcall preamble penalty. These can plausibly reach ≥88% byte-match.
+No register-argument prologue mismatch. These can plausibly reach ≥88% byte-match.
 - `0x1a0680` is a **measurement artifact, not a lift bug.** The raw 61.5% comes
   from delink trailing-NOP padding inflating the reference (documented pattern:
   243-byte fn at offset 0x4b0, next symbol at 0x5f0 → ~77 phantom padding bytes →
@@ -49,8 +49,9 @@ No frameless-fastcall preamble penalty. These can plausibly reach ≥88% byte-ma
   flow / FPU operand order) before permuting.
 
 **B. register-arg — VC71 structurally capped (the other 8).**
-`@edi/@eax/@ecx/@esi` callees are **frameless fastcall** in MSVC (no `push ebp`),
-while our cdecl-shaped C emits a frame → permanent preamble mismatch (~80–87% ceiling).
+`@edi/@eax/@ecx/@esi` callees use custom register ABIs. Their original bodies can be
+frameless while our cdecl-shaped C emits a frame → permanent preamble mismatch
+(~80–87% ceiling).
 Chasing VC71 here is mostly futile. The right evidence is **equivalence**:
 - Several already had 100/100 equiv at integration time (per commit messages).
 - These could be **activated via the equivalence clause** (the way `biped_fix_position`
@@ -78,7 +79,7 @@ disassembly, and complete the back half before re-scoring.
 
 ## Uncertain / Risks
 - The category-B VC71 ceilings are **inferred** from the `@<reg>` annotations +
-  the documented frameless-fastcall pattern, not re-measured this session.
+  the documented register-argument prologue mismatch, not re-measured this session.
 - Activating any dormant function flips runtime behavior. Several are **register-arg
   callees of already-active functions** — that's why they keep bodies (clean
   `ported=false` tail-call; an empty `@<reg>` thunk would infinite-recurse). When
@@ -107,7 +108,7 @@ disassembly, and complete the back half before re-scoring.
 > before assuming a lift bug), then permute 0x1a1e70, then pursue equivalence for
 > the register-arg group. Use `/lift` and `/verify` per CLAUDE.md; never lower the
 > ≥88% VC71 bar — register-arg functions activate on equivalence evidence instead.
-> Relevant memories: feedback_vc71_mismatch_delink_check (0680 artifact + fastcall
+> Relevant memories: feedback_vc71_mismatch_delink_check (0680 artifact + register-ABI
 > cap), feedback_true_dual_oracle_by_address (reg-arg equivalence path),
 > feedback_aliasing_verify_buffer_identity (2f40 wrong-store bug),
 > feedback_vc71_structural_ceiling.

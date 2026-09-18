@@ -133,6 +133,13 @@ The hook `tools/audit/token_discipline_hook.py` (wired in `.claude/settings.json
   4. **Cross-product operand swap:** `cross(A,B)` vs `cross(B,A)` look nearly identical — verify subtraction order against disassembly.
   5. **Buffer-alias confusion:** Ghidra names every stack offset an independent `local_XX` even inside a local buffer. After any call taking a buffer pointer, compute `EBP_offset - buffer_base_EBP_offset`; within `[0, buffer_size)` means it is a buffer field.
 
+- **Commit Message Invariants & Squash Discipline:** Every lift commit must follow the repository standard:
+  - Single subject line: `Port <func> (<obj>) (<score>)`, `Port <func1>, <func2> (<obj>) (<score>)` (2 funcs), or `Port <N> functions from <obj> (<score>)` (3+ funcs).
+  - Single, deduplicated `Functions ported:` section with per-function address, object, and VC71 score.
+  - Consolidated `Callee decls corrected:` and `Functions renamed:` sections.
+  - Net coverage change only: `Coverage: <start>% -> <end>% (<count>/<total> symbols)`.
+  - Unmerged squash artifacts (concatenated subject lines in the body, duplicate `Functions ported:` headers, raw Git squash comments) fail the `commit-msg` gate. Consolidate squashed commits with `python3 tools/audit/consolidate_squash_msg.py --in-place <msg_file>`.
+
 ### 3. Build & Verification
 - **Toolchain & Configure:** `clang + lld (lld-link) + cmake + python3`; `cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=toolchains/llvm.cmake` then `cmake --build build`. Pinned deps and Windows/Linux bootstrap: skill `tool-reference`.
 - **Lift Pipeline:** `rtk python3 tools/lift_pipeline.py --target <name_or_addr> --no-metadata-update --verify-policy auto` is the primary post-lift orchestrator (build, ABI audit, VC71 verify, optional behavior/runtime checks, low-match policy gates).
