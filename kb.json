@@ -599,6 +599,14 @@
      "decl": "void *current_game_engine;"
     },
     {
+     "addr": "0x456f10",
+     "decl": "game_engine_race_globals_t race_globals;"
+    },
+    {
+     "addr": "0x456fe0",
+     "decl": "slayer_globals_t slayer_globals;"
+    },
+    {
      "addr": "0x46b668",
      "decl": "char local_player_network_indices[64];"
     },

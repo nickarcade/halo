@@ -63,6 +63,7 @@ typedef uint8_t  byte;
 typedef uint16_t word;
 typedef uint32_t dword;
 typedef float    real;
+typedef uint32_t datum_index;
 
 /* Bungie's 2D real vector. Lives here rather than in its recovering TU
  * (rasterizer_xbox_screen_effect.c) because FUN_001700d0 returns it by value,
@@ -122,15 +123,43 @@ typedef struct {
   game_options_t game_options;         ///< offset=0x08
 } game_globals_t;
 
-/// size=0x68
 /* First field is a 2-byte scalar: every variant-default initializer in the
  * original zeroes a local copy as MOV word [base],DX then REP STOSD from
  * base+2 (0x19 dwords) + STOSW - MSVC's member-wise {0} zeroing of a struct
  * whose first member is 16-bit. */
+/// size=0x68
 typedef struct {
-  int16_t unk_0;
-  char    unk_2[0x66];
+  int16_t unk_0;                      ///< offset=0x00
+  char pad_02[0x16];                  ///< offset=0x02
+  int32_t engine_type;                ///< offset=0x18
+  uint8_t team_play;                  ///< offset=0x1c
+  char pad_1d[0x23];                  ///< offset=0x1d
+  int32_t score_limit;                ///< offset=0x40
+  char pad_44[0x8];                   ///< offset=0x44
+  uint8_t field_4c;                   ///< offset=0x4c
+  uint8_t field_4d;                   ///< offset=0x4d
+  uint8_t field_4e;                   ///< offset=0x4e
+  uint8_t field_4f;                   ///< offset=0x4f
+  int32_t field_50;                   ///< offset=0x50
+  int32_t field_54;                   ///< offset=0x54
+  int32_t field_58;                   ///< offset=0x58
+  int32_t field_5c;                   ///< offset=0x5c
+  int32_t field_60;                   ///< offset=0x60
+  char pad_64[4];                     ///< offset=0x64
 } game_variant_t;
+cs(game_variant_t, 0x68);
+co(game_variant_t, engine_type, 0x18);
+co(game_variant_t, team_play,   0x1c);
+co(game_variant_t, score_limit, 0x40);
+co(game_variant_t, field_4c,    0x4c);
+co(game_variant_t, field_4d,    0x4d);
+co(game_variant_t, field_4e,    0x4e);
+co(game_variant_t, field_4f,    0x4f);
+co(game_variant_t, field_50,    0x50);
+co(game_variant_t, field_54,    0x54);
+co(game_variant_t, field_58,    0x58);
+co(game_variant_t, field_5c,    0x5c);
+co(game_variant_t, field_60,    0x60);
 
 #define GAME_STATE_CPU_SIZE 0x305000
 
@@ -545,8 +574,75 @@ typedef struct {
 
 /// size=0xd4
 typedef struct {
-  char unk_0[0xd4];
+  char pad_00[2];
+  int16_t local_player_index;         ///< offset=0x02
+  wchar_t name[12];                   ///< offset=0x04
+  char pad_1c[4];                     ///< offset=0x1c
+  int32_t team_index;                 ///< offset=0x20
+  int32_t field_24;                   ///< offset=0x24  object handle (enter/pickup/board)
+  int16_t action_state;               ///< offset=0x28
+  char pad_2a[0xa];                   ///< offset=0x2a
+  datum_index unit_handle;            ///< offset=0x34
+  datum_index previous_unit_handle;   ///< offset=0x38
+  int16_t cluster_index;              ///< offset=0x3c
+  char pad_3e[0x2a];                  ///< offset=0x3e
+  int16_t field_68[2];                ///< offset=0x68  hud.c comments +0x68 as ac_timer
+  real speed_multiplier;              ///< offset=0x6c
+  char pad_70[0x18];                  ///< offset=0x70
+  datum_index target_player_index;    ///< offset=0x88
+  char pad_8c[0x36];                  ///< offset=0x8c
+  int16_t race_score;                 ///< offset=0xc2
+  int16_t field_c4;                   ///< offset=0xc4  lap counter in one path, lap time in another
+  char pad_c6[6];                     ///< offset=0xc6
+  int32_t quit_at;                    ///< offset=0xcc
+  char pad_d0;                        ///< offset=0xd0
+  boolean quitting;                   ///< offset=0xd1
+  char pad_d2[2];                     ///< offset=0xd2
 } player_data_t;
+cs(player_data_t, 0xd4);
+co(player_data_t, local_player_index,       0x02);
+co(player_data_t, name,                     0x04);
+co(player_data_t, team_index,               0x20);
+co(player_data_t, field_24,                 0x24);
+co(player_data_t, action_state,             0x28);
+co(player_data_t, unit_handle,              0x34);
+co(player_data_t, previous_unit_handle,     0x38);
+co(player_data_t, cluster_index,            0x3c);
+co(player_data_t, field_68,                 0x68);
+co(player_data_t, speed_multiplier,         0x6c);
+co(player_data_t, target_player_index,      0x88);
+co(player_data_t, race_score,               0xc2);
+co(player_data_t, field_c4,                 0xc4);
+co(player_data_t, quit_at,                  0xcc);
+co(player_data_t, quitting,                 0xd1);
+
+/// size=0xd0
+typedef struct {
+  uint32_t track_flags_bitmask;    ///< offset=0x00 (0x456f10)
+  int32_t team_current_flags[16];  ///< offset=0x04 (0x456f14)
+  uint32_t team_visited_flags[16]; ///< offset=0x44 (0x456f54)
+  int32_t random_flag;             ///< offset=0x84 (0x456f94)
+  int32_t team_scores[16];         ///< offset=0x88 (0x456f98)
+  char pad_c8[4];                  ///< offset=0xc8
+  boolean flag_set;                ///< offset=0xcc (0x456fdc)
+  char pad_cd[3];                  ///< offset=0xcd
+} game_engine_race_globals_t;
+cs(game_engine_race_globals_t, 0xd0);
+co(game_engine_race_globals_t, track_flags_bitmask, 0x00);
+co(game_engine_race_globals_t, team_current_flags,  0x04);
+co(game_engine_race_globals_t, team_visited_flags,  0x44);
+co(game_engine_race_globals_t, random_flag,         0x84);
+co(game_engine_race_globals_t, team_scores,         0x88);
+co(game_engine_race_globals_t, flag_set,            0xcc);
+
+/// size=0x80
+typedef struct {
+  int32_t team_scores[16];   ///< offset=0x00 (0x456fe0)
+  int32_t player_scores[16]; ///< offset=0x40 (0x457020)
+} slayer_globals_t;
+cs(slayer_globals_t, 0x80);
+co(slayer_globals_t, team_scores,   0x00);
+co(slayer_globals_t, player_scores, 0x40);
 
 /// size=0x40
 typedef struct {
@@ -1787,12 +1883,17 @@ typedef struct {
                          *        taken from object_new, not from the casts. */
   float position_y;     /* +0x1c */
   float position_z;     /* +0x20 */
-  char  pad_24[0x64];   /* +0x24  never observed accessed */
+  char  pad_24[0x10];   /* +0x24  never observed accessed */
+  vector3_t forward;    /* +0x34  object_placement_data_new default {1,0,0} */
+  vector3_t up;         /* +0x40  object_placement_data_new default {0,0,1} */
+  char  pad_4c[0x3c];   /* +0x4c */
 } object_placement_data;
 cs(object_placement_data, 0x88);
 co(object_placement_data, position_x, 0x18);
 co(object_placement_data, position_y, 0x1c);
 co(object_placement_data, position_z, 0x20);
+co(object_placement_data, forward,    0x34);
+co(object_placement_data, up,         0x40);
 /* -------------------------------------------------------------------------
  * game_globals_multiplayer_element -- 0xa0-byte element of the tag block at
  * game_globals + 0x164 (the multiplayer information block).

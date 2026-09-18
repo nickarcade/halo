@@ -340,7 +340,7 @@ void game_frame(float elapsed)
 void remove_quitting_players_from_game(void)
 {
   data_iter_t iter;
-  char *player;
+  player_data_t *player;
   int quit_tick;
   int quit_at;
 
@@ -349,14 +349,14 @@ void remove_quitting_players_from_game(void)
 
   quit_tick = game_time_get();
   data_iterator_new(&iter, player_data);
-  while ((player = (char *)data_iterator_next(&iter)) != NULL) {
-    quit_at = *(int *)(player + 0xCC);
-    if (quit_at != -1 && *(char *)(player + 0xD1) == 0) {
+  while ((player = (player_data_t *)data_iterator_next(&iter)) != NULL) {
+    quit_at = player->quit_at;
+    if (quit_at != -1 && player->quitting == 0) {
       if (quit_tick == quit_at) {
-        *(char *)(player + 0xD1) = 1;
-        if (*(int *)(player + 0x34) != -1) {
-          object_get_and_verify_type(*(int *)(player + 0x34), 3);
-          unit_delete(*(int *)(player + 0x34));
+        player->quitting = 1;
+        if (player->unit_handle != -1) {
+          object_get_and_verify_type(player->unit_handle, 3);
+          unit_delete(player->unit_handle);
         }
       } else if (quit_at < quit_tick) {
         error(2, "player %x failed to quit, wanted %d is %d", iter.datum_handle,
@@ -653,10 +653,10 @@ void game_set_game_variant_from_name(const char *name)
   game_variant_t variant;
   game_variant_t variant_copy;
 
-  // The original at 0xa78e0 has a dead `if (!&variant_copy)` branch from a
-  // LEA+TEST+JNZ pattern on a stack address — unreachable in practice, and
-  // inexpressible in C. We preserve the two-step copy via variant_copy but
-  // skip the dead zero-out branch.
+  /* The original at 0xa78e0 has a dead `if (!&variant_copy)` branch from a
+   * LEA+TEST+JNZ pattern on a stack address — unreachable in practice, and
+   * inexpressible in C. We preserve the two-step copy via variant_copy but
+   * skip the dead zero-out branch. */
   qmemcpy(&variant_copy, game_engine_get_variant_by_name(&variant, name),
           sizeof(game_variant_t));
   qmemcpy(&game_variant_global, &variant_copy, sizeof(game_variant_t));
@@ -674,16 +674,16 @@ int FUN_000b4170(int player_handle, int param_2)
   unsigned int uVar2;
   unsigned char bVar3;
   int iVar5;
+  int score;
   int iVar6;
-  char *player;
-  int team_index;
+  player_data_t *player;
 
-  player = (char *)datum_get(player_data, player_handle);
-  team_index = *(int *)(player + 0x20);
+  player = (player_data_t *)datum_get(player_data, player_handle);
   if (param_2 == 1) {
-    return ((int *)0x456f98)[team_index];
+    return race_globals.team_scores[player->team_index];
   }
-  uVar2 = ((unsigned int *)0x456f54)[team_index];
+  uVar2 = race_globals.team_visited_flags[player->team_index];
+  score = player->race_score;
   iVar6 = 0;
   iVar5 = 2;
   do {
@@ -707,7 +707,7 @@ int FUN_000b4170(int player_handle, int param_2)
     iVar1 = iVar5 + 6;
     iVar5 = iVar5 + 8;
   } while (iVar1 < 0x20);
-  return (int)*(int16_t *)(player + 0xc2) * 0x21 + iVar6;
+  return score * 0x21 + iVar6;
 }
 
 /* FUN_000b4250 (0xb4250) — race score string
@@ -718,10 +718,10 @@ int FUN_000b4170(int player_handle, int param_2)
  * L"%d"). */
 wchar_t *FUN_000b4250(int player_handle, wchar_t *dst)
 {
-  char *player;
+  player_data_t *player;
 
-  player = (char *)datum_get(player_data, player_handle);
-  usprintf(dst, (const wchar_t *)0x26c118, (int)*(int16_t *)(player + 0xc2));
+  player = (player_data_t *)datum_get(player_data, player_handle);
+  usprintf(dst, L"%d", (int)player->race_score);
   return dst;
 }
 
@@ -749,7 +749,7 @@ wchar_t *FUN_000b4290(wchar_t *dst)
  * format string pointer at 0x26c118. Returns dst. */
 wchar_t *FUN_000b42d0(int param_1, wchar_t *dst)
 {
-  usprintf(dst, (const wchar_t *)0x26c118, ((int *)0x456f98)[param_1]);
+  usprintf(dst, L"%d", race_globals.team_scores[param_1]);
   return dst;
 }
 
@@ -772,12 +772,12 @@ wchar_t *FUN_000b42d0(int param_1, wchar_t *dst)
 void FUN_000b4490(void)
 {
   char *scenario;
-  char *player;
+  player_data_t *player;
   char *unit;
   char *volatile flags_block;
   netgame_flag *flag;
   data_iter_t iter;
-  char placement[0x88];
+  object_placement_data placement;
   int flag_indices[8];
   int count;
   int flag_index;
@@ -791,10 +791,10 @@ void FUN_000b4490(void)
 
   count = 0;
   data_iterator_new(&iter, player_data);
-  player = (char *)data_iterator_next(&iter);
+  player = (player_data_t *)data_iterator_next(&iter);
   while (player != NULL) {
-    if (*(int *)(player + 0x34) != -1)
-      unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+    if (player->unit_handle != -1)
+      unit = (char *)object_get_and_verify_type(player->unit_handle, 3);
     else
       unit = (char *)0;
 
@@ -811,7 +811,7 @@ void FUN_000b4490(void)
 
     flag_indices[count] = flag_index;
     count++;
-    player = (char *)data_iterator_next(&iter);
+    player = (player_data_t *)data_iterator_next(&iter);
   }
 
   i = 0;
@@ -822,13 +822,13 @@ void FUN_000b4490(void)
                                                    0x94);
       tag_index = FUN_000b3770(i);
       if (tag_index != -1) {
-        object_placement_data_new(placement, tag_index, -1);
-        *(int *)(placement + 0x18) = *(int *)&flag->position_x;
-        *(int *)(placement + 0x1c) = *(int *)&flag->position_y;
-        *(int *)(placement + 0x20) = *(int *)&flag->position_z;
-        vector3d_from_angle((float *)(placement + 0x34), flag->facing);
-        object_new(placement);
-        *(char *)0x456fdc = 1;
+        object_placement_data_new(&placement, tag_index, -1);
+        placement.position_x = flag->position_x;
+        placement.position_y = flag->position_y;
+        placement.position_z = flag->position_z;
+        vector3d_from_angle((float *)&placement.forward.x, flag->facing);
+        object_new(&placement);
+        race_globals.flag_set = 1;
       }
       i++;
     } while (i < count);
@@ -847,58 +847,57 @@ void FUN_000b4490(void)
 int FUN_000b45c0(int param_1)
 {
   short sVar1;
-  int iVar2;
+  void *scenario;
+  tag_block *flags_block;
+  netgame_flag *flag;
+  uint32_t active_flags;
   int count;
-  int iVar4;
-  int iVar5;
-  int *piVar6;
-  int local_8;
-  int flag_element;
+  int random_index;
+  int i;
+  int result;
 
-  local_8 = -1;
-  iVar2 = (int)global_scenario_get();
+  result = -1;
+  scenario = global_scenario_get();
+  active_flags = race_globals.track_flags_bitmask;
   count = 0;
-  iVar4 = 0;
-  do {
-    if ((*(int *)0x456f10 & (1 << iVar4)) != 0) {
-      count = count + 1;
+  for (i = 0; i < 32; i++) {
+    if (active_flags & (1 << i)) {
+      count++;
     }
-    iVar4 = iVar4 + 1;
-  } while (iVar4 < 0x20);
-  if (param_1 != -1) {
-    count = count + -1;
   }
-  if (count < 1) {
+
+  if (param_1 != -1) {
+    count--;
+  }
+
+  if (count <= 0) {
     display_assert("count > 0", "c:\\halo\\SOURCE\\game\\game_engine_race.c",
                    0x2a7, 1);
     system_exit(-1);
   }
+
   sVar1 = random_range((unsigned int *)get_global_random_seed_address(), 0,
                        (short)count);
-  piVar6 = (int *)(iVar2 + 0x378);
-  iVar5 = (int)sVar1;
-  iVar4 = 0;
-  if (0 < *piVar6) {
-    do {
-      flag_element = (int)tag_block_get_element(piVar6, iVar4, 0x94);
-      if ((*(short *)(flag_element + 0x10) == 3) &&
-          (*(short *)(flag_element + 0x12) != param_1)) {
-        if (iVar5 == 0) {
-          local_8 = (int)*(short *)(flag_element + 0x12);
-          if (local_8 != -1) {
-            return local_8;
-          }
-          break;
+  flags_block = (tag_block *)((char *)scenario + 0x378);
+  random_index = (int)sVar1;
+  for (i = 0; i < flags_block->count; i++) {
+    flag = (netgame_flag *)tag_block_get_element(flags_block, i, 0x94);
+    if (flag->type == 3 && flag->team_index != param_1) {
+      if (random_index == 0) {
+        result = flag->team_index;
+        if (result != -1) {
+          return result;
         }
-        iVar5 = iVar5 + -1;
+        break;
       }
-      iVar4 = iVar4 + 1;
-    } while (iVar4 < *piVar6);
+      random_index--;
+    }
   }
+
   display_assert("new_flag != NONE",
                  "c:\\halo\\SOURCE\\game\\game_engine_race.c", 700, 1);
   system_exit(-1);
-  return local_8;
+  return result;
 }
 
 /* FUN_000B4800 (0xb4800) — race engine: per-player race update.
@@ -924,16 +923,16 @@ int FUN_000b45c0(int param_1)
  * Source: c:\halo\SOURCE\game\game_engine_race.c */
 void FUN_000B4800(int player_handle)
 {
-  char *player;
+  player_data_t *player;
   char *unit;
   char *parent;
   int flag_index;
 
-  player = (char *)datum_get(player_data, player_handle);
+  player = (player_data_t *)datum_get(player_data, player_handle);
   game_engine_state_message(player_handle, 0x16, player_handle);
-  if (*(int *)(player + 0x34) != -1) {
+  if (player->unit_handle != -1) {
     if (game_engine_can_score()) {
-      unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
+      unit = (char *)object_get_and_verify_type(player->unit_handle, 3);
       if (*(int *)(unit + 0xcc) == -1) {
         flag_index =
           find_netgame_flag((float *)(unit + 0x50), 1.5f, 0.6f, 3, -1);
@@ -973,8 +972,8 @@ int FUN_000b4960(void)
   min_flag = 0x20;
   iVar2 = (int)global_scenario_get();
   FUN_000b3860();
-  *(char *)0x456fdc = 0;
-  csmemset((void *)0x456f10, 0, 0xd0);
+  race_globals.flag_set = 0;
+  csmemset(&race_globals, 0, sizeof(race_globals));
   piVar5 = (int *)(iVar2 + 0x378);
   *(int *)0x5aa744 = 0x1e;
   iVar2 = 0;
@@ -992,7 +991,7 @@ int FUN_000b4960(void)
           if (min_flag > (int)sVar1) {
             min_flag = (int)sVar1;
           }
-          *(int *)0x456f10 |= (1 << ((unsigned char)sVar1 & 0x1f));
+          race_globals.track_flags_bitmask |= (1 << ((unsigned char)sVar1 & 0x1f));
           game_engine_set_goal_position((int)sVar1, (void *)iVar3, 0.0f,
                                         "flag_blue", -1, -1, -1);
         }
@@ -1002,12 +1001,12 @@ int FUN_000b4960(void)
   }
   iVar2 = (int)game_engine_get_variant();
   if (*(int *)(iVar2 + 0x4c) == 2) {
-    *(int *)0x456f94 = FUN_000b45c0(-1);
+    race_globals.random_flag = FUN_000b45c0(-1);
     return 1;
   }
   iVar2 = (int)game_engine_get_variant();
   {
-    int *dest = (int *)0x456f14;
+    int *dest = race_globals.team_current_flags;
     int count = 16;
     if (*(int *)(iVar2 + 0x4c) == 0) {
       while (count--) {
@@ -1018,8 +1017,8 @@ int FUN_000b4960(void)
     while (count--) {
       *dest++ = -1;
     }
-    return 1;
   }
+  return 1;
 }
 
 /* target_is_valid (0xb4a70)
@@ -1032,17 +1031,17 @@ int FUN_000b4960(void)
 bool target_is_valid(int candidate_handle, int player_handle,
                      int excluded_handle)
 {
-  char *player;
-  char *candidate;
+  player_data_t *player;
+  player_data_t *candidate;
   bool result;
 
   result = false;
-  player = (char *)datum_get(player_data, player_handle);
-  candidate = (char *)datum_get(player_data, candidate_handle);
+  player = (player_data_t *)datum_get(player_data, player_handle);
+  candidate = (player_data_t *)datum_get(player_data, candidate_handle);
   if (candidate_handle != player_handle &&
       candidate_handle != excluded_handle &&
-      *(int *)(candidate + 0x20) != *(int *)(player + 0x20) &&
-      *(int *)(candidate + 0x34) != -1) {
+      candidate->team_index != player->team_index &&
+      candidate->unit_handle != -1) {
     result = true;
   }
   return result;
@@ -1060,10 +1059,10 @@ bool target_is_valid(int candidate_handle, int player_handle,
  * MOV dword ptr [EAX+0x88],0xffffffff. */
 void FUN_000b4b10(unsigned int player_handle)
 {
-  char *player;
+  player_data_t *player;
 
-  player = (char *)datum_get(player_data, player_handle);
-  *(int *)(player + 0x88) = -1;
+  player = (player_data_t *)datum_get(player_data, player_handle);
+  player->target_player_index = -1;
 }
 
 /* slayer_engine_adjust_score (0xb4d00) — add a delta to a player's two score
@@ -1081,11 +1080,11 @@ void FUN_000b4b10(unsigned int player_handle)
  * ADD ESP,8; ADD ECX,EDI; MOV [EAX],ECX; POP ESI; RET. */
 void slayer_engine_adjust_score(unsigned int player_handle, int score_delta)
 {
-  char *player;
+  player_data_t *player;
 
-  player = (char *)datum_get(player_data, player_handle);
-  *(int *)(0x456fe0 + *(int *)(player + 0x20) * 4) += score_delta;
-  *(int *)(0x457020 + (player_handle & 0xffff) * 4) += score_delta;
+  player = (player_data_t *)datum_get(player_data, player_handle);
+  slayer_globals.team_scores[player->team_index] += score_delta;
+  slayer_globals.player_scores[player_handle & 0xffff] += score_delta;
 }
 
 /* FUN_000b4d50 (0xb4d50) — race score lookup
@@ -1095,13 +1094,13 @@ void slayer_engine_adjust_score(unsigned int player_handle, int score_delta)
  * reads from the 0x457020 table indexed by the player handle's low 16 bits. */
 int FUN_000b4d50(unsigned int player_handle, int param_2)
 {
-  char *player;
+  player_data_t *player;
 
-  player = (char *)datum_get(player_data, player_handle);
+  player = (player_data_t *)datum_get(player_data, player_handle);
   if (param_2 == 1) {
-    return *(int *)(0x456fe0 + *(int *)(player + 0x20) * 4);
+    return slayer_globals.team_scores[player->team_index];
   }
-  return *(int *)(0x457020 + (player_handle & 0xffff) * 4);
+  return slayer_globals.player_scores[player_handle & 0xffff];
 }
 
 /* FUN_000b4d90 (0xb4d90) — check race state == 1 */
@@ -1121,8 +1120,8 @@ bool FUN_000b4d90(int param_1)
  * low 16 bits of the player handle. Uses the format string at 0x26c118. */
 wchar_t *FUN_000b4da0(unsigned int player_handle, wchar_t *dst)
 {
-  usprintf(dst, (const wchar_t *)0x26c118,
-           *(int *)(0x457020 + (player_handle & 0xffff) * 4));
+  usprintf(dst, L"%d",
+           slayer_globals.player_scores[player_handle & 0xffff]);
   return dst;
 }
 
@@ -1141,7 +1140,7 @@ wchar_t *FUN_000b4dd0(wchar_t *dst)
  * by param_1. Uses the format string at 0x26c118. */
 wchar_t *FUN_000b4df0(int index, wchar_t *dst)
 {
-  usprintf(dst, (const wchar_t *)0x26c118, *(int *)(0x456fe0 + index * 4));
+  usprintf(dst, L"%d", slayer_globals.team_scores[index]);
   return dst;
 }
 
@@ -1170,28 +1169,28 @@ wchar_t *FUN_000b4df0(int index, wchar_t *dst)
 void find_next_target(int player_index)
 {
   data_iter_t iterator;
-  void *player;
-  void *self;
-  void *other;
+  player_data_t *player;
+  player_data_t *self;
+  player_data_t *other;
   int last_target;
   int next_target;
   int count;
   unsigned int handle;
 
-  player = datum_get(player_data, player_index);
-  last_target = *(int *)((char *)player + 0x88);
+  player = (player_data_t *)datum_get(player_data, player_index);
+  last_target = player->target_player_index;
   next_target = -1;
   count = 0;
   data_iterator_new(&iterator, player_data);
   if (data_iterator_next(&iterator) != 0) {
     do {
       handle = iterator.datum_handle;
-      self = datum_get(player_data, player_index);
-      other = datum_get(player_data, (int)handle);
+      self = (player_data_t *)datum_get(player_data, player_index);
+      other = (player_data_t *)datum_get(player_data, (int)handle);
       if (handle != (unsigned int)player_index &&
           handle != (unsigned int)last_target &&
-          *(int *)((char *)other + 0x20) != *(int *)((char *)self + 0x20) &&
-          *(int *)((char *)other + 0x34) != -1) {
+          other->team_index != self->team_index &&
+          other->unit_handle != -1) {
         count = count + 1;
       }
     } while (data_iterator_next(&iterator) != 0);
@@ -1201,12 +1200,12 @@ void find_next_target(int player_index)
       data_iterator_new(&iterator, player_data);
       while (data_iterator_next(&iterator) != 0) {
         handle = iterator.datum_handle;
-        self = datum_get(player_data, player_index);
-        other = datum_get(player_data, (int)handle);
+        self = (player_data_t *)datum_get(player_data, player_index);
+        other = (player_data_t *)datum_get(player_data, (int)handle);
         if (handle != (unsigned int)player_index &&
             handle != (unsigned int)last_target &&
-            *(int *)((char *)other + 0x20) != *(int *)((char *)self + 0x20) &&
-            *(int *)((char *)other + 0x34) != -1) {
+            other->team_index != self->team_index &&
+            other->unit_handle != -1) {
           if (count == 0) {
             next_target = (int)iterator.datum_handle;
             if (next_target != -1)
@@ -1222,7 +1221,7 @@ void find_next_target(int player_index)
     }
   }
 have_target:
-  *(int *)((char *)player + 0x88) = next_target;
+  player->target_player_index = next_target;
   if (next_target != -1) {
     game_engine_player_event(player_index, 0x1e, next_target);
   }
@@ -1233,16 +1232,16 @@ void slayer_engine_player_killed_player(int param_1, int param_2, int param_3,
                                         bool param_4)
 {
   player_data_t *player;
-  void *variant;
+  game_variant_t *variant;
 
   player = (player_data_t *)datum_get(player_data, param_3);
-  if (*(char *)((char *)player + 0xd1) == 0 && param_1 != -1) {
+  if (player->quitting == 0 && param_1 != -1) {
     player = (player_data_t *)datum_get(player_data, param_1);
     if (param_4 == 0) {
       update_speed_for_score(param_3, param_1);
-      variant = game_engine_get_variant();
-      if (*(char *)((char *)variant + 0x4e) != 0) {
-        if (*(int *)((char *)player + 0x88) != param_3) {
+      variant = (game_variant_t *)game_engine_get_variant();
+      if (variant->field_4e != 0) {
+        if (player->target_player_index != param_3) {
           return;
         }
         find_next_target(param_1);
@@ -1326,55 +1325,55 @@ bool FUN_000b5040(unsigned int player_handle, int event_type, int target_handle,
                   wchar_t *buffer, int buffer_size)
 {
   wchar_t local_buffer[128];
-  void *variant;
-  void *player;
-  void *target;
+  game_variant_t *variant;
+  player_data_t *player;
+  player_data_t *target;
   wchar_t *place_string;
   int table_score;
   int player_score;
 
   datum_get(player_data, player_handle);
   if (event_type == 0x1e) {
-    variant = game_engine_get_variant();
-    if (*((char *)variant + 0x1c) != 0) {
-      player = datum_get(player_data, player_handle);
-      table_score = *(int *)(0x456fe0 + *(int *)((char *)player + 0x20) * 4);
+    variant = (game_variant_t *)game_engine_get_variant();
+    if (variant->team_play != 0) {
+      player = (player_data_t *)datum_get(player_data, player_handle);
+      table_score = slayer_globals.team_scores[player->team_index];
       datum_get(player_data, player_handle);
       unicode_sprintf(local_buffer, 0x80, L"%d team %d",
-                      *(int *)(0x457020 + (player_handle & 0xffff) * 4),
+                      slayer_globals.player_scores[player_handle & 0xffff],
                       table_score);
     } else {
       datum_get(player_data, player_handle);
-      unicode_sprintf(local_buffer, 0x80, (const wchar_t *)0x26c118,
-                      *(int *)(0x457020 + (player_handle & 0xffff) * 4));
+      unicode_sprintf(local_buffer, 0x80, L"%d",
+                      slayer_globals.player_scores[player_handle & 0xffff]);
     }
-    target = datum_get(player_data, target_handle);
+    target = (player_data_t *)datum_get(player_data, target_handle);
     unicode_sprintf(buffer, buffer_size, L"New Target %s",
-                    (wchar_t *)((char *)target + 4));
+                    target->name);
     return true;
   }
   if (event_type == 0x16) {
-    variant = game_engine_get_variant();
-    if (*((char *)variant + 0x1c) != 0) {
+    variant = (game_variant_t *)game_engine_get_variant();
+    if (variant->team_play != 0) {
       place_string =
         game_engine_place_to_string(game_engine_get_place(player_handle, 1));
-      player = datum_get(player_data, player_handle);
-      table_score = *(int *)(0x456fe0 + *(int *)((char *)player + 0x20) * 4);
+      player = (player_data_t *)datum_get(player_data, player_handle);
+      table_score = slayer_globals.team_scores[player->team_index];
       datum_get(player_data, player_handle);
-      player_score = *(int *)(0x457020 + (player_handle & 0xffff) * 4);
-      variant = game_engine_get_variant();
+      player_score = slayer_globals.player_scores[player_handle & 0xffff];
+      variant = (game_variant_t *)game_engine_get_variant();
       unicode_sprintf(buffer, buffer_size, L"%s kills %d team %d of %d",
                       place_string, player_score, table_score,
-                      *(int *)((char *)variant + 0x40));
+                      variant->score_limit);
       return true;
     }
     place_string =
       game_engine_place_to_string(game_engine_get_place(player_handle, 1));
-    player = datum_get(player_data, player_handle);
-    table_score = *(int *)(0x456fe0 + *(int *)((char *)player + 0x20) * 4);
-    variant = game_engine_get_variant();
+    player = (player_data_t *)datum_get(player_data, player_handle);
+    table_score = slayer_globals.team_scores[player->team_index];
+    variant = (game_variant_t *)game_engine_get_variant();
     unicode_sprintf(buffer, buffer_size, L"%s kills %d of %d", place_string,
-                    table_score, *(int *)((char *)variant + 0x40));
+                    table_score, variant->score_limit);
     return true;
   }
   return false;
@@ -1413,40 +1412,40 @@ bool FUN_000b5040(unsigned int player_handle, int event_type, int target_handle,
  */
 void slayer_engine_display_score(int player_index)
 {
-  void *player;
-  void *variant;
-  void *target;
+  player_data_t *player;
+  player_data_t *target;
+  game_variant_t *variant;
   void *object;
   float fade;
   int target_handle;
   int table_score;
 
-  player = datum_get(player_data, player_index);
+  player = (player_data_t *)datum_get(player_data, player_index);
 
-  variant = game_engine_get_variant();
-  if (*(char *)((char *)variant + 0x4d) != 0 &&
-      *(float *)((char *)player + 0x6c) > *(const float *)0x2533c8) {
-    fade = *(float *)((char *)player + 0x6c) - *(const float *)0x26ddb8;
-    *(float *)((char *)player + 0x6c) = fade;
+  variant = (game_variant_t *)game_engine_get_variant();
+  if (variant->field_4d != 0 &&
+      player->speed_multiplier > *(const float *)0x2533c8) {
+    fade = player->speed_multiplier - *(const float *)0x26ddb8;
+    player->speed_multiplier = fade;
     if (fade <= *(const float *)0x2533c8) {
       fade = *(const float *)0x2533c8;
     }
-    *(float *)((char *)player + 0x6c) = fade;
+    player->speed_multiplier = fade;
   }
 
-  variant = game_engine_get_variant();
-  if (*(char *)((char *)variant + 0x4c) != 0 &&
-      *(float *)((char *)player + 0x6c) < *(const float *)0x2533c8) {
-    fade = *(float *)((char *)player + 0x6c) + *(const float *)0x26ddb4;
-    *(float *)((char *)player + 0x6c) = fade;
+  variant = (game_variant_t *)game_engine_get_variant();
+  if (variant->field_4c != 0 &&
+      player->speed_multiplier < *(const float *)0x2533c8) {
+    fade = player->speed_multiplier + *(const float *)0x26ddb4;
+    player->speed_multiplier = fade;
     if (fade > *(const float *)0x2533c8) {
       fade = *(const float *)0x2533c8;
     }
-    *(float *)((char *)player + 0x6c) = fade;
+    player->speed_multiplier = fade;
   }
 
-  variant = game_engine_get_variant();
-  if (*(char *)((char *)variant + 0x4e) != 0) {
+  variant = (game_variant_t *)game_engine_get_variant();
+  if (variant->field_4e != 0) {
     if ((short)player_index < 0 || (short)player_index >= 16) {
       display_assert("(index >= 0) && (index < MULTIPLAYER_MAXIMUM_PLAYERS)",
                      "c:\\halo\\SOURCE\\game\\game_engine_slayer.c", 0x1f5, 1);
@@ -1454,31 +1453,31 @@ void slayer_engine_display_score(int player_index)
     }
     game_engine_clear_goal_position((short)player_index);
 
-    if (*(int *)((char *)player + 0x88) != -1) {
-      target = datum_get(player_data, *(int *)((char *)player + 0x88));
-      if (*(int *)((char *)target + 0x34) != -1) {
-        object = object_get_and_verify_type(*(int *)((char *)target + 0x34), 3);
+    if (player->target_player_index != -1) {
+      target = (player_data_t *)datum_get(player_data, player->target_player_index);
+      if (target->unit_handle != -1) {
+        object = object_get_and_verify_type(target->unit_handle, 3);
         game_engine_set_goal_position(player_index,
                                       (int *)((char *)object + 0x50), 0.0f,
                                       "target_blue", player_index, -1, -1);
       }
     }
 
-    if (*(int *)((char *)player + 0x34) != -1 &&
-        *(int *)((char *)player + 0x88) == -1) {
+    if (player->unit_handle != -1 &&
+        player->target_player_index == -1) {
       find_next_target(player_index);
     }
 
-    target_handle = *(int *)((char *)player + 0x88);
+    target_handle = player->target_player_index;
     if (target_handle != -1 && game_engine_man_out(target_handle) != 0) {
       find_next_target(player_index);
     }
   }
 
-  player = datum_get(player_data, player_index);
-  table_score = *(int *)(0x456fe0 + *(int *)((char *)player + 0x20) * 4);
-  variant = game_engine_get_variant();
-  if (table_score >= *(int *)((char *)variant + 0x40)) {
+  player = (player_data_t *)datum_get(player_data, player_index);
+  table_score = slayer_globals.team_scores[player->team_index];
+  variant = (game_variant_t *)game_engine_get_variant();
+  if (table_score >= variant->score_limit) {
     game_engine_start_over();
   }
 }
@@ -1541,6 +1540,7 @@ __declspec(noinline) float game_globals_difficulty_scale(int16_t value_type,
 {
   float default_val = 1.0f;
   void *globals;
+  tag_block *block;
   void *element;
   int16_t clamped;
   int idx;
@@ -1551,10 +1551,11 @@ __declspec(noinline) float game_globals_difficulty_scale(int16_t value_type,
   if (!globals)
     return default_val;
 
-  if (*(int *)((char *)globals + 0x11c) == 0)
+  block = (tag_block *)((char *)globals + 0x11c);
+  if (block->count == 0)
     return default_val;
 
-  element = tag_block_get_element((char *)globals + 0x11c, 0, 0x284);
+  element = tag_block_get_element(block, 0, 0x284);
   if (!element)
     return default_val;
 
