@@ -1142,7 +1142,13 @@ done:
  * Confirmed: register arg ESI (TEST ESI,ESI at 0x82cf0, compared against
  * `[EAX*8+0x3350a0]`); assert "thread" line 0x4f, __FILE__ 0x266618
  * (transport_endpoint_winsock.c).  Stores 1 to the flag byte at
- * `EAX*8+0x3350a4` on a match. */
+ * `EAX*8+0x3350a4` on a match.
+ *
+ * VC71: original is a frameless ESI-arg leaf (TEST ESI,ESI). Same /Oy
+ * modeling as crc_table_init. Clang ignores the pragma. */
+#if defined(MSVC) && !defined(__clang__)
+#pragma optimize("y", on)
+#endif
 void FUN_00082cf0(int thread)
 {
   int i;
@@ -1164,6 +1170,9 @@ void FUN_00082cf0(int thread)
     i++;
   } while (i < 0x40);
 }
+#if defined(MSVC) && !defined(__clang__)
+#pragma optimize("y", off)
+#endif
 
 /* Clean up the endpoint pool. Iterates 64 entries (8 bytes each) at
  * 0x3350a0. For each entry with a non-zero thread handle and cleanup
@@ -2334,7 +2343,14 @@ short FUN_00083e20(int endpoint, int address)
   }
 
   if (ep->socket == -1) {
+#if defined(_MSC_VER) && !defined(__clang__)
+    /* Original CALL 0x83930 is af@ecx, type@edx, protocol@eax. VC71 has
+     * no EAX-arg convention; __fastcall covers ECX/EDX (crc_table_init). */
+    ep->socket =
+      ((int(__fastcall *)(int, int, int))FUN_00083930)(2, socktype, 0);
+#else
     ep->socket = FUN_00083930(2, socktype, 0);
+#endif
   }
 
   ip = *(uint32_t *)addr->address;
