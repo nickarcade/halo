@@ -884,7 +884,7 @@ int FUN_0011bb70(short *table_, void *key)
   }
   table = (hashtable_t *)table_;
   if (table->count != 0) {
-    found = (char)FUN_0011ba50(table, key, (unsigned short *)&slot);
+    found = (char)FUN_0011ba50((short *)table, key, (unsigned short *)&slot);
     if (found != '\0') {
       element_ptr =
         array_get_element((int *)&table->array, (int)slot, (int)table->element_size);

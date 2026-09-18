@@ -1601,7 +1601,8 @@ typedef struct {
   float field_48c;                                   /* +0x48c  accessed 1x, meaning unproven */
   float field_490;                                   /* +0x490  accessed 1x, meaning unproven */
   int32_t field_494;                                 /* +0x494  accessed 2x, meaning unproven */
-  char pad_498[0xc];
+  char pad_498[0x8];
+  int32_t field_4a0;                                 /* +0x4a0  path step counter */
   char field_4a4;                                    /* +0x4a4  accessed 1x, meaning unproven */
   char pad_4a5[0x3];
   char field_4a8;                                    /* +0x4a8  accessed 3x, meaning unproven */
@@ -1774,6 +1775,7 @@ co(actor_t, stimuli_panic_type,                            0x308);
 co(actor_t, stimuli_panic_prop_index,                      0x30c);
 co(actor_t, firing_positions_current_position_index,       0x3b8);
 co(actor_t, control_path_destination_orders_ignore_target_object_index, 0x480);
+co(actor_t, field_4a0,                                         0x4a0);
 co(actor_t, control_secondary_look_type,                   0x544);
 co(actor_t, secondary_look_priority,                     0x546);
 co(actor_t, secondary_look_timer,                        0x548);

@@ -4,12 +4,12 @@
  * sets is_moving to 1, and zeroes the path step counter. */
 void FUN_0002a3a0(int actor_handle)
 {
-  char *actor;
+  actor_t *actor;
 
-  actor = (char *)datum_get(halo_actor_data_global, actor_handle);
-  ((actor_t *)actor)->field_4a8 = 0;
-  ((actor_t *)actor)->field_484 = 1;
-  *(int *)(actor + 0x4a0) = 0;
+  actor = (actor_t *)datum_get(halo_actor_data_global, actor_handle);
+  actor->field_4a8 = 0;
+  actor->field_484 = 1;
+  actor->field_4a0 = 0;
 }
 
 /* actor_path_input_new (0x2a470) — Populate nav state for actor movement.
@@ -916,13 +916,11 @@ char FUN_0002b310(float *direction, short count, int records, float *values,
                   float *out_index, float *out_value)
 {
   float prev_cross;
-  float *new_var;
   float cross;
   float *rec;
   short prev;
   short i;
   int denom_idx;
-  float *new_var2;
 
   prev = count - 1;
   i = 0;
@@ -931,20 +929,16 @@ char FUN_0002b310(float *direction, short count, int records, float *values,
   if (count > 0) {
     do {
       rec = (float *)(records + i * 0xc);
-      new_var = direction;
-      new_var2 = new_var;
-      cross = rec[1] * new_var[2] - rec[2] * new_var[1];
-      if (prev_cross * cross <= 0.0f && 0.0f < new_var[0] * rec[0] +
-                                                 rec[1] * new_var2[1] +
-                                                 rec[2] * new_var[2]) {
-        denom_idx = i;
-        if (prev && prev) {
-        }
+      cross = rec[1] * direction[2] - rec[2] * direction[1];
+      if (prev_cross * cross <= 0.0f &&
+          rec[2] * direction[2] + rec[1] * direction[1] + direction[0] * rec[0] > 0.0f) {
         if (i == 0) {
-          denom_idx = count;
+          denom_idx = (int)count;
+        } else {
+          denom_idx = (int)i;
         }
         *out_index =
-          ((float)(int)prev * cross - (float)(int)denom_idx * prev_cross) /
+          ((float)(int)prev * cross - (float)denom_idx * prev_cross) /
           (cross - prev_cross);
         *out_value = (cross * values[prev] - prev_cross * values[i]) /
                      (cross - prev_cross);

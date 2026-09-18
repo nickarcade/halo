@@ -2265,7 +2265,6 @@ short FUN_00083ce0(int *ep, void *addr)
     }
   }
 
-do_bind:
   ip = *(uint32_t *)addr;
   *(uint32_t *)(sa + 4) = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
                           (((ip & 0xff00u) | (ip << 16)) << 8);

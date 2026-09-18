@@ -3993,16 +3993,16 @@
     "FUN_0002b310": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 89.8,
+      "abi_modeled_mnemonic_pct": 94.2,
       "addr": "0x2b310",
       "end": "0x2b3f6",
       "kind": "auto",
       "n_r": 94,
-      "opnd_percent": 53.5,
-      "raw_mnemonic_pct": 89.8,
+      "opnd_percent": 65.6,
+      "raw_mnemonic_pct": 94.2,
       "ref": "synth",
       "ref_sha": "3a66a8ccc29c4d3c",
-      "score": 89.8,
+      "score": 94.2,
       "source": "src/halo/ai/actor_moving.c"
     },
     "FUN_0002b830": {
