@@ -28,15 +28,14 @@
 /* -----------------------------------------------------------------------
  * FUN_00092370 (0x92370) — walk EBP chain and collect return addresses.
  *
- * __fastcall: ECX = skip (frames to skip), EDX = frames[] output array.
- * Additional args on stack: max = capacity of frames[], count = out ptr.
+ * Custom register ABI: ECX = skip, EDX = frames[]; max and count are stack
+ * arguments and the caller cleans them after the call.
  *
  * Captures the caller's EBP via __builtin_frame_address(0), saves it to
  * the profiler globals so walk_ebp_chain can bound the walk, then
  * delegates to the profile.obj helper at 0x922a0.
  * ----------------------------------------------------------------------- */
-void __fastcall FUN_00092370(int skip, int32_t *frames, uint32_t max,
-                             uint32_t *count)
+void FUN_00092370(int skip, int32_t *frames, uint32_t max, uint32_t *count)
 {
   uint32_t *frame;
   uint32_t return_address;

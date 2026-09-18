@@ -20478,7 +20478,7 @@
     },
     {
      "addr": "0x922a0",
-     "decl": "void __fastcall FUN_000922a0(int skip, int32_t *frames, uint32_t max, uint32_t *count);"
+          "decl": "void FUN_000922a0(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);"
     }
    ],
    "name": "profile.obj",
@@ -25557,7 +25557,7 @@
     },
     {
      "addr": "0x92370",
-     "decl": "void __fastcall FUN_00092370(int skip, int32_t *frames, uint32_t max, uint32_t *count);",
+          "decl": "void FUN_00092370(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);",
      "ported": true,
      "source_path": "src/halo/cseries/stack_walk_windows.c"
     },

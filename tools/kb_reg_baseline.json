@@ -9327,6 +9327,8 @@
     "0x91350": "void FUN_00091350(uint32_t *out @<ecx>);",
     "0x91cf0": "void FUN_00091cf0(uint16_t *end /* @<eax> */, uint16_t *begin, profile_sort16_compare_proc compare);",
     "0x91d50": "void FUN_00091d50(int32_t *end /* @<eax> */, int32_t *begin, profile_sort32_compare_proc compare);",
+    "0x922a0": "void FUN_000922a0(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);",
+    "0x92370": "void FUN_00092370(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);",
     "0x93b60": "void FUN_00093b60(short *angles @<eax>, signed char *cursor @<edx>);",
     "0x93ba0": "void FUN_00093ba0(short *angles @<eax>, short *cursor @<edx>);",
     "0x93be0": "void FUN_00093be0(short *angles @<eax>, float *out_vector);",
