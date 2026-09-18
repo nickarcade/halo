@@ -718,7 +718,7 @@ int add_endpoint_to_set(int endpoint, void *set)
       0x22f, 1);
     system_exit(-1);
   }
-  if (*(uint8_t *)0x335090 == 0) {
+  if (transport_initialized == 0) {
     display_assert(
       "transport_initialized",
       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_set_winsock.c",
@@ -734,59 +734,57 @@ int add_endpoint_to_set(int endpoint, void *set)
   }
 
   max_minus_one = *(int *)((char *)set + 0x108) - 1;
-  if (*(int *)((char *)set + 0x10c) > max_minus_one) {
-    return -0x14;
-  }
-  new_index = *(int *)((char *)set + 0x10c) + 1;
-  if (new_index < 0) {
-    return -0x14;
-  }
+  if (*(int *)((char *)set + 0x10c) <= max_minus_one) {
+    new_index = *(int *)((char *)set + 0x10c) + 1;
+    if (new_index >= 0) {
+      array = *(int **)((char *)set + 0x104);
+      array[new_index] = endpoint;
+      count = *(int *)set;
 
-  array = *(int **)((char *)set + 0x104);
-  array[new_index] = endpoint;
-  count = *(int *)set;
-
-  if ((*(uint8_t *)(endpoint + 4) & 2) != 0) {
-    i = 0;
-    if (count != 0) {
-      fds = (int *)((char *)set + 4);
-      socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
-      do {
-        if (*fds == socket) {
-          break;
+      if ((*(uint8_t *)(endpoint + 4) & 2) != 0) {
+        i = 0;
+        if (count != 0) {
+          fds = (int *)((char *)set + 4);
+          socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
+          do {
+            if (*fds == socket) {
+              break;
+            }
+            i++;
+            fds++;
+          } while (i < *(unsigned int *)set);
         }
-        i++;
-        fds++;
-      } while (i < *(unsigned int *)set);
-    }
-    if (i == (unsigned int)count && (unsigned int)count < 0x40) {
-      socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
-      *(int *)((char *)set + i * 4 + 4) = socket;
-      *(int *)set = *(int *)set + 1;
-    }
-  } else {
-    i = 0;
-    if (count != 0) {
-      fds = (int *)((char *)set + 4);
-      socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
-      do {
-        if (*fds == socket) {
-          break;
+        if (i == (unsigned int)count && (unsigned int)count < 0x40) {
+          socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
+          *(int *)((char *)set + i * 4 + 4) = socket;
+          *(int *)set = *(int *)set + 1;
         }
-        i++;
-        fds++;
-      } while (i < *(unsigned int *)set);
-    }
-    if (i == (unsigned int)count && (unsigned int)count < 0x40) {
-      socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
-      *(int *)((char *)set + i * 4 + 4) = socket;
-      *(int *)set = *(int *)set + 1;
+      } else {
+        i = 0;
+        if (count != 0) {
+          fds = (int *)((char *)set + 4);
+          socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
+          do {
+            if (*fds == socket) {
+              break;
+            }
+            i++;
+            fds++;
+          } while (i < *(unsigned int *)set);
+        }
+        if (i == (unsigned int)count && (unsigned int)count < 0x40) {
+          socket = **(int **)(*(int *)((char *)set + 0x104) + new_index * 4);
+          *(int *)((char *)set + i * 4 + 4) = socket;
+          *(int *)set = *(int *)set + 1;
+        }
+      }
+
+      *(int *)((char *)set + 0x10c) = *(int *)((char *)set + 0x10c) + 1;
+      *(uint8_t *)(endpoint + 4) = *(uint8_t *)(endpoint + 4) | 8;
+      return 0;
     }
   }
-
-  *(int *)((char *)set + 0x10c) = *(int *)((char *)set + 0x10c) + 1;
-  *(uint8_t *)(endpoint + 4) = *(uint8_t *)(endpoint + 4) | 8;
-  return 0;
+  return -0x14;
 }
 
 /* Remove an endpoint from an endpoint set.
@@ -1114,32 +1112,28 @@ void FUN_00082bd0(void *param_1, const uint32_t *key, const uint32_t *id,
 bool add_connect_thread(void *thread)
 {
   int i;
-  int slot;
-  unsigned char ok;
+  void *slot;
 
   i = 0;
-  if (*(int *)0x3350a0 != 0) {
+  if (transport_connect_threads[0].thread != NULL) {
     do {
       if (i >= 0x40) {
-        goto add_connect_thread_fail;
+        i = -1;
+        goto done;
       }
-      slot = *(int *)(0x3350a8 + i * 8);
+      slot = transport_connect_threads[i + 1].thread;
       i = i + 1;
-    } while (slot != 0);
+    } while (slot != NULL);
     if (i >= 0x40) {
-      goto add_connect_thread_fail;
+      i = -1;
+      goto done;
     }
   }
 
-  *(int *)(0x3350a0 + i * 8) = (int)thread;
-  *(unsigned char *)(0x3350a0 + i * 8 + 4) = 0;
-  ok = (unsigned char)(i != -1);
-  return (bool)ok;
-
-add_connect_thread_fail:
-  i = i | -1;
-  ok = (unsigned char)(i != -1);
-  return (bool)ok;
+  transport_connect_threads[i].thread = thread;
+  transport_connect_threads[i].cleanup = 0;
+done:
+  return (bool)(i != -1);
 }
 
 /* Mark a connect-worker thread's cleanup flag so endpoint_pool_cleanup
@@ -1163,8 +1157,8 @@ void FUN_00082cf0(int thread)
 
   i = 0;
   do {
-    if (*(int *)(0x3350a0 + i * 8) == thread) {
-      *(uint8_t *)(0x3350a0 + i * 8 + 4) = 1;
+    if (transport_connect_threads[i].thread == (void *)thread) {
+      transport_connect_threads[i].cleanup = 1;
       return;
     }
     i++;
@@ -1198,9 +1192,10 @@ void endpoint_pool_cleanup(void)
  * Confirmed: cdecl 1 arg; debug_malloc line 0xd4, __FILE__ 0x266618. */
 int get_next_endpoint_from_set(int type)
 {
-  unsigned int *ep;
+  transport_endpoint *ep;
 
-  if (*(uint8_t *)0x335090 == 0) {
+  ep = (transport_endpoint *)0;
+  if (transport_initialized == 0) {
     display_assert(
       "transport_initialized",
       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
@@ -1210,19 +1205,19 @@ int get_next_endpoint_from_set(int type)
 
   endpoint_pool_cleanup();
 
-  if ((type == 0x11 || type == 0x12) &&
-      (ep = (unsigned int *)debug_malloc(
-         8, false,
-         "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
-         0xd4),
-       ep != NULL)) {
-    *(uint16_t *)((char *)ep + 6) = 0;
-    *(uint8_t *)((char *)ep + 5) = (uint8_t)type;
-    ep[0] = 0xffffffff;
-    *(uint8_t *)(ep + 1) = 0;
-    return (int)ep;
+  if (type == _transport_type_udp || type == _transport_type_tcp) {
+    ep = (transport_endpoint *)debug_malloc(
+       sizeof(transport_endpoint), (int)ep,
+       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+       0xd4);
+    if (ep) {
+      ep->status = 0;
+      ep->type = (int8_t)type;
+      ep->socket = -1;
+      ep->flags = 0;
+    }
   }
-  return 0;
+  return (int)ep;
 }
 
 /* Return the signed byte stored at endpoint offset 5.
@@ -2297,11 +2292,13 @@ do_bind:
  * "transport_initialized" 0x1b6, __FILE__ 0x266618. */
 short FUN_00083e20(int endpoint, int address)
 {
+  transport_endpoint *ep;
+  transport_address *addr;
   int socktype;
   uint32_t ip;
   uint16_t port;
-  uint8_t orig_flags;
-  int restore_flag;
+  unsigned int orig_flags;
+  uint8_t restore_flag;
   int err;
   unsigned int deadline;
   int ready;
@@ -2309,14 +2306,17 @@ short FUN_00083e20(int endpoint, int address)
   int32_t timeout[2];
   uint32_t write_set[65];
 
-  if (endpoint == 0 || address == 0) {
+  ep = (transport_endpoint *)endpoint;
+  addr = (transport_address *)address;
+
+  if (ep == NULL || addr == NULL) {
     display_assert(
       "ep && address",
       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
       0x1b5, 1);
     system_exit(-1);
   }
-  if (*(uint8_t *)0x335090 == 0) {
+  if (transport_initialized == 0) {
     display_assert(
       "transport_initialized",
       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
@@ -2324,32 +2324,32 @@ short FUN_00083e20(int endpoint, int address)
     system_exit(-1);
   }
 
-  if (*(uint8_t *)(endpoint + 5) == 0x11) {
+  if (ep->type == _transport_type_udp) {
     socktype = 2;
-  } else if (*(uint8_t *)(endpoint + 5) == 0x12) {
+  } else if (ep->type == _transport_type_tcp) {
     socktype = 1;
   } else {
-    *(int16_t *)(endpoint + 6) = (int16_t)0xfff4;
+    ep->status = (int16_t)0xfff4;
     return -0xc;
   }
 
-  if (*(int *)endpoint == -1) {
-    *(int *)endpoint = FUN_00083930(2, socktype, 0);
+  if (ep->socket == -1) {
+    ep->socket = FUN_00083930(2, socktype, 0);
   }
 
-  ip = *(uint32_t *)address;
+  ip = *(uint32_t *)addr->address;
   *(uint32_t *)(sa + 4) = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
                           (((ip & 0xff00u) | (ip << 16)) << 8);
-  port = *(uint16_t *)(address + 0x12);
+  port = addr->port;
   *(uint16_t *)(sa + 2) =
     (uint16_t)(((uint16_t)(port << 8)) | ((uint16_t)(port >> 8)));
   *(uint16_t *)sa = 2;
 
-  orig_flags = *(uint8_t *)(endpoint + 4);
-  restore_flag = (int)((uint8_t)(~(orig_flags >> 4)) & 1);
+  orig_flags = ep->flags;
+  restore_flag = (uint8_t)((~(orig_flags >> 4)) & 1);
   FUN_00083bd0(endpoint, 0);
 
-  err = xnet_connect(*(int *)endpoint, sa, 0x10);
+  err = xnet_connect(ep->socket, sa, 0x10);
   if (err != 0) {
     err = xapi_GetLastError();
     if (err == 0x2733) {
@@ -2357,7 +2357,7 @@ short FUN_00083e20(int endpoint, int address)
       timeout[0] = 1;
       timeout[1] = 0;
       do {
-        write_set[1] = (uint32_t) * (int *)endpoint;
+        write_set[1] = (uint32_t)ep->socket;
         write_set[0] = 1;
         ready = xnet_select(1, NULL, write_set, NULL, timeout);
         if (ready == 1) {
@@ -2367,7 +2367,7 @@ short FUN_00083e20(int endpoint, int address)
         }
         if (system_milliseconds() > deadline) {
           err = 0x2734;
-          xnet_closesocket(*(int *)endpoint);
+          xnet_closesocket(ep->socket);
           goto connect_fail;
         }
       } while (err == 0x2734);
@@ -2375,15 +2375,14 @@ short FUN_00083e20(int endpoint, int address)
     if (err != 0) {
     connect_fail:
       winsock_error_report(err);
-      *(int16_t *)(endpoint + 6) = (int16_t)0xfff0;
+      ep->status = (int16_t)0xfff0;
       return -0x10;
     }
   }
 
   FUN_00083bd0(endpoint, restore_flag);
-  *(uint8_t *)(endpoint + 4) =
-    (uint8_t)((*(uint8_t *)(endpoint + 4) & 0xef) | 0x21);
-  *(int16_t *)(endpoint + 6) = 0;
+  ep->flags = (uint8_t)((ep->flags & 0xef) | 0x21);
+  ep->status = 0;
   return 0;
 }
 
@@ -2562,7 +2561,7 @@ short FUN_000841b0(int endpoint, int address, int process_ref)
       0x268, 1);
     system_exit(-1);
   }
-  if (*(uint8_t *)0x335090 == 0) {
+  if (transport_initialized == 0) {
     display_assert(
       "transport_initialized",
       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
@@ -2574,42 +2573,41 @@ short FUN_000841b0(int endpoint, int address, int process_ref)
     0x28, true,
     "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
     0x26b);
-  if (request == NULL) {
-    *(int16_t *)(endpoint + 6) = (int16_t)0xfff7;
-    return -9;
-  }
-
-  dst = request;
-  src = (int *)address;
-  for (i = 6; dst = dst + 1, i != 0; i--) {
-    *dst = *src;
-    src = src + 1;
-  }
-  request[0] = endpoint;
-  *(uint8_t *)(request + 9) = 0;
-
-  if (create_mutex((int **)(request + 8))) {
-    thread_slot = (void **)(request + 7);
-    if (thread_new(2, (void *)FUN_00084080, (int)request, thread_slot)) {
-      if (add_connect_thread(*thread_slot)) {
-        *(int *)process_ref = (int)request;
-        *(int16_t *)(endpoint + 6) = (int16_t)0xffe9;
-        return -0x17;
-      }
-      thread_close(*thread_slot);
-      FUN_00081910((int *)request[8]);
-      *thread_slot = NULL;
-      *(int16_t *)(endpoint + 6) = (int16_t)0xffff;
-      return -1;
+  if (request != NULL) {
+    dst = request;
+    src = (int *)address;
+    for (i = 6; dst = dst + 1, i != 0; i--) {
+      *dst = *src;
+      src = src + 1;
     }
-  }
+    request[0] = endpoint;
+    *(uint8_t *)(request + 9) = 0;
 
-  debug_free(
-    request,
-    "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
-    0x282);
-  *(int16_t *)(endpoint + 6) = (int16_t)0xfff0;
-  return -0x10;
+    if (create_mutex((int **)(request + 8))) {
+      thread_slot = (void **)(request + 7);
+      if (thread_new(2, (void *)FUN_00084080, (int)request, thread_slot)) {
+        if (add_connect_thread(*thread_slot)) {
+          *(int *)process_ref = (int)request;
+          *(int16_t *)(endpoint + 6) = (int16_t)0xffe9;
+          return -0x17;
+        }
+        thread_close(*thread_slot);
+        FUN_00081910((int *)request[8]);
+        *thread_slot = NULL;
+        *(int16_t *)(endpoint + 6) = (int16_t)0xffff;
+        return -1;
+      }
+    }
+
+    debug_free(
+      request,
+      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
+      0x282);
+    *(int16_t *)(endpoint + 6) = (int16_t)0xfff0;
+    return -0x10;
+  }
+  *(int16_t *)(endpoint + 6) = (int16_t)0xfff7;
+  return -9;
 }
 
 /* Cancel an in-progress connection attempt.
@@ -2721,16 +2719,21 @@ void transport_server_terminate(int *connect_handle)
  * "transport_initialized" 0x2b1, __FILE__ 0x266618. */
 short FUN_000843a0(int endpoint)
 {
+  transport_endpoint *ep;
   int result;
+  short status;
 
-  if (endpoint == 0) {
+  ep = (transport_endpoint *)endpoint;
+  status = 0;
+
+  if (ep == NULL) {
     display_assert(
       "ep",
       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
       0x2b0, 1);
     system_exit(-1);
   }
-  if (*(uint8_t *)0x335090 == 0) {
+  if (transport_initialized == 0) {
     display_assert(
       "transport_initialized",
       "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
@@ -2738,21 +2741,21 @@ short FUN_000843a0(int endpoint)
     system_exit(-1);
   }
 
-  if (*(int *)endpoint == -1) {
-    *(int16_t *)(endpoint + 6) = (int16_t)0xfff4;
-    return -0xc;
+  if (ep->socket != -1) {
+    result = xnet_listen(ep->socket, 0x20);
+    if (result == 0) {
+      ep->flags = (uint8_t)(ep->flags | 2);
+      ep->status = status;
+      return 0;
+    }
+
+    winsock_error_report(xapi_GetLastError());
+    ep->status = (int16_t)0xffef;
+    return -0x11;
   }
 
-  result = xnet_listen(*(int *)endpoint, 0x20);
-  if (result == 0) {
-    *(uint8_t *)(endpoint + 4) = *(uint8_t *)(endpoint + 4) | 2;
-    *(int16_t *)(endpoint + 6) = 0;
-    return 0;
-  }
-
-  winsock_error_report(xapi_GetLastError());
-  *(int16_t *)(endpoint + 6) = (int16_t)0xffef;
-  return -0x11;
+  ep->status = (int16_t)0xfff4;
+  return -0xc;
 }
 
 int FUN_00084450(int listening_endpoint)

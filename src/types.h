@@ -2050,6 +2050,75 @@ typedef struct transport_address {
 co(transport_address, address_length, 0x10);
 co(transport_address, port,           0x12);
 
+/* transport_endpoint -- 8-byte Winsock endpoint (debug_malloc(8) at 0x82d70).
+ *
+ * type is named from the assert "ep->type == _transport_type_udp" (0x847ef).
+ * type is signed: count_endpoints_in_set (0x82df0) does MOVSX EAX,byte [ESI+5].
+ * socket / flags / status widths come from dword / byte / word operand sizes. */
+#define _transport_type_udp 0x11
+#define _transport_type_tcp 0x12
+
+typedef struct transport_endpoint {
+    int32_t socket;   ///< offset=0x00  INVALID_SOCKET = -1
+    uint8_t flags;    ///< offset=0x04  bit0 connected, bit1 listening, bit3 in-set, bit4 nbio
+    int8_t  type;     ///< offset=0x05  _transport_type_udp / _transport_type_tcp
+    int16_t status;   ///< offset=0x06
+} transport_endpoint;
+cs(transport_endpoint, 8);
+co(transport_endpoint, socket, 0x00);
+co(transport_endpoint, flags,  0x04);
+co(transport_endpoint, type,   0x05);
+co(transport_endpoint, status, 0x06);
+
+/* transport_endpoint_set -- 0x118-byte fd_set wrapper (debug_malloc(0x118)
+ * in create_endpoint_set 0x82310). ep_array / max_endpoints are T1 from
+ * asserts "set && set->ep_array" and "max_endpoints > 0". */
+typedef struct transport_endpoint_set {
+    int32_t fd_count;                 ///< offset=0x00
+    int32_t fd_array[0x40];           ///< offset=0x04
+    transport_endpoint **ep_array;    ///< offset=0x104
+    int32_t max_endpoints;            ///< offset=0x108
+    int32_t field_10c;                ///< offset=0x10c  high-water index, inited -1
+    int32_t field_110;                ///< offset=0x110  rewind cursor
+    int32_t field_114;                ///< offset=0x114  dirty; qsort in poll
+} transport_endpoint_set;
+cs(transport_endpoint_set, 0x118);
+co(transport_endpoint_set, fd_count,      0x00);
+co(transport_endpoint_set, fd_array,      0x04);
+co(transport_endpoint_set, ep_array,      0x104);
+co(transport_endpoint_set, max_endpoints, 0x108);
+co(transport_endpoint_set, field_10c,     0x10c);
+co(transport_endpoint_set, field_110,     0x110);
+co(transport_endpoint_set, field_114,     0x114);
+
+/* Connect-worker table at 0x3350a0, 64 slots of 8 bytes (walked to 0x3352a0
+ * by endpoint_pool_cleanup). "thread" is T1 from the 0x82cf0 assert. */
+typedef struct transport_connect_thread_slot {
+    void    *thread;     ///< offset=0x00
+    uint8_t  cleanup;    ///< offset=0x04
+    uint8_t  pad_05[3];  ///< offset=0x05  never observed accessed
+} transport_connect_thread_slot;
+cs(transport_connect_thread_slot, 8);
+co(transport_connect_thread_slot, thread,  0x00);
+co(transport_connect_thread_slot, cleanup, 0x04);
+
+/* Async connect request, debug_malloc(0x28) at 0x841b0. ep / thread are T1
+ * from "input->ep" / "input->thread". Address blob is 6 dwords (REP MOVSD). */
+typedef struct transport_connect_request {
+    transport_endpoint *ep;       ///< offset=0x00
+    uint32_t            address[6]; ///< offset=0x04
+    void               *thread;   ///< offset=0x1c
+    int                *mutex;    ///< offset=0x20
+    uint8_t             cancelled; ///< offset=0x24
+    uint8_t             pad_25[3]; ///< offset=0x25
+} transport_connect_request;
+cs(transport_connect_request, 0x28);
+co(transport_connect_request, ep,        0x00);
+co(transport_connect_request, address,   0x04);
+co(transport_connect_request, thread,    0x1c);
+co(transport_connect_request, mutex,     0x20);
+co(transport_connect_request, cancelled, 0x24);
+
 /* Callback handed to hs_object_iterate_names_containing (0xc9b10).  The three
  * call sites (0xc9b90 -> 0xc9990, 0xc9bb0 -> 0xc9a20, 0xca140 -> 0xca110) each
  * PUSH the routine's address as the single stack argument, and 0xc9b10 invokes

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "struct": "transport_connect_thread_slot",
+  "size": {
+    "value": "0x08",
+    "evidence": "EAX*8 indexing at 0x82c90/0x82cf0; endpoint_pool_cleanup walks 0x3350a0 to 0x3352a0 (64*8)"
+  },
+  "stride": {
+    "value": "0x08",
+    "evidence": "scaled-index EAX*8 + 0x3350a0"
+  },
+  "sources": [
+    "add_connect_thread @0x82c90",
+    "FUN_00082cf0 @0x82cf0 assert \"thread\"",
+    "endpoint_pool_cleanup @0x82d30"
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 4,
+      "kind": "pointer",
+      "name": "thread",
+      "confidence": "named",
+      "evidence": "assert \"thread\" at FUN_00082cf0 line 0x4f; stored from add_connect_thread [EBP+8]; passed to thread_close"
+    },
+    {
+      "offset": "0x04",
+      "width": 1,
+      "signed": false,
+      "name": "cleanup",
+      "confidence": "typed",
+      "evidence": "MOV byte ptr [EAX*8+0x3350a4], 0/1"
+    }
+  ]
+}

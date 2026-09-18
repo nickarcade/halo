@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "struct": "transport_endpoint_set",
+  "size": {
+    "value": "0x118",
+    "evidence": "debug_malloc(0x118) in create_endpoint_set 0x82310"
+  },
+  "sources": [
+    "create_endpoint_set @0x82310 asserts max_endpoints > 0; inits +0x104..+0x114",
+    "delete_endpoint_set assert \"set && set->ep_array\"",
+    "add_endpoint_to_set @0x82700",
+    "poll_endpoint_set @0x824d0"
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 4,
+      "signed": true,
+      "name": "fd_count",
+      "confidence": "typed",
+      "evidence": "dword at set+0; incremented when a socket is appended to fd_array"
+    },
+    {
+      "offset": "0x04",
+      "width": 4,
+      "signed": true,
+      "array_len": 64,
+      "name": "fd_array",
+      "confidence": "typed",
+      "evidence": "64 dwords from +4 through +0x103; 0x40 cap in add_endpoint_to_set"
+    },
+    {
+      "offset": "0x104",
+      "width": 4,
+      "kind": "pointer",
+      "points_to": "transport_endpoint *",
+      "name": "ep_array",
+      "confidence": "named",
+      "evidence": "assert \"set && set->ep_array\"; separately malloc'd pointer array"
+    },
+    {
+      "offset": "0x108",
+      "width": 4,
+      "signed": true,
+      "name": "max_endpoints",
+      "confidence": "named",
+      "evidence": "assert \"max_endpoints > 0\" at create_endpoint_set line 0x197"
+    },
+    {
+      "offset": "0x10c",
+      "width": 4,
+      "signed": true,
+      "confidence": "typed",
+      "evidence": "inited -1; add increments; poll uses as last occupied index"
+    },
+    {
+      "offset": "0x110",
+      "width": 4,
+      "signed": true,
+      "confidence": "typed",
+      "evidence": "rewind stores 0; iteration cursor"
+    },
+    {
+      "offset": "0x114",
+      "width": 4,
+      "signed": true,
+      "confidence": "typed",
+      "evidence": "inited 0; remove stores 1; poll tests != 0 then qsort"
+    }
+  ]
+}

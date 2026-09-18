@@ -27369,6 +27369,16 @@
      "ported": true
     }
    ],
+   "data": [
+    {
+     "addr": "0x335090",
+     "decl": "uint8_t transport_initialized;"
+    },
+    {
+     "addr": "0x3350a0",
+     "decl": "transport_connect_thread_slot transport_connect_threads[64];"
+    }
+   ],
    "name": "transport_endpoint_set_winsock.obj",
    "source": "bungie_net/network/transport_endpoint_set_winsock.c"
   },
