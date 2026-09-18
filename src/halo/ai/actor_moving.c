@@ -2465,7 +2465,9 @@ LAB_check_dest:
      *     state in large_buf from local_nav and the cache slot.
      *  6. FUN_0005e0d0(large_buf, &actor[0x488], actor[0x494], actor[0x498]):
      *     set destination in path-build state.
-     *  7. path_state_traverse(large_buf): run pathfinder; returns 1 on success.
+     *  7. FUN_0005ff70(large_buf): init heap_count=1, seed start node, traverse.
+     *     Original CALL at 0x2d266 is 0x5ff70, not path_state_traverse
+     *     (0x5f740) — that skip leaves heap_count==0 (path.c:1394).
      *  8. path_state_build_path(large_buf, &actor[0x4a8]): extract waypoint
      * result into actor nav-control struct. Returns 1 if path is usable.
      *
@@ -2497,7 +2499,7 @@ LAB_check_dest:
     path_state_new(local_nav, large_buf, path_state);
     FUN_0005e0d0(large_buf, (float *)(actor + 0x488),
                  ((actor_t *)actor)->field_494, *(int *)(actor + 0x498));
-    path_found = path_state_traverse((unsigned int *)large_buf);
+    path_found = FUN_0005ff70((unsigned int *)large_buf);
     if (path_found != '\0') {
       path_found2 = path_state_build_path((unsigned int)large_buf,
                                           (unsigned int *)(actor + 0x4a8));
