@@ -85,6 +85,30 @@ jobs:
           # dashboard (honest % and the compile-fail / no-ref badges).
           "$VENV_PYTHON" tools/verify/vc71_regression.py populate
 
+      - name: Validate Fresh VC71 Snapshot
+        run: |
+          SNAPSHOT=tools/verify/vc71_current.json
+          if [ ! -s "$SNAPSHOT" ]; then
+            echo "::error::populate did not leave a non-empty $SNAPSHOT"
+            exit 1
+          fi
+          jq --arg sha "$GITHUB_SHA" '
+            {
+              commit: .provenance.commit,
+              dirty: .provenance.dirty,
+              score_count: (.scores | length),
+              expected_commit: $sha,
+              valid: ((.provenance.commit == $sha) and
+                      (.provenance.dirty == false) and
+                      ((.scores | length) > 0))
+            }
+          ' "$SNAPSHOT"
+          jq -e --arg sha "$GITHUB_SHA" '
+            (.provenance.commit == $sha) and
+            (.provenance.dirty == false) and
+            ((.scores | length) > 0)
+          ' "$SNAPSHOT" >/dev/null
+
       - name: Generate CI Status
         run: |
           mkdir -p artifacts/progress
@@ -99,6 +123,25 @@ jobs:
 
       - name: Validate Report Provenance
         run: |
+          jq --arg sha "$GITHUB_SHA" '
+            .provenance.inputs as $inputs |
+            {
+              report_commit: .meta.commit_sha,
+              raw_xbe_md5: $inputs.raw_xbe.md5,
+              function_bounds_md5: $inputs.function_bounds.recorded_xbe_md5,
+              snapshot_exists: $inputs.vc71_current.exists,
+              snapshot_score_count: $inputs.vc71_current.score_count,
+              snapshot_commit: $inputs.vc71_current.provenance.commit,
+              snapshot_dirty: $inputs.vc71_current.provenance.dirty,
+              expected_commit: $sha,
+              valid: ((.meta.commit_sha == $sha) and
+                      ($inputs.raw_xbe.md5 != null) and
+                      ($inputs.function_bounds.recorded_xbe_md5 != null) and
+                      ($inputs.raw_xbe.md5 == $inputs.function_bounds.recorded_xbe_md5) and
+                      ($inputs.vc71_current.provenance.commit == $sha) and
+                      ($inputs.vc71_current.provenance.dirty == false))
+            }
+          ' artifacts/progress/report.json
           jq -e --arg sha "$GITHUB_SHA" '
             .provenance.inputs as $inputs |
             (.meta.commit_sha == $sha) and
@@ -107,7 +150,7 @@ jobs:
             ($inputs.raw_xbe.md5 == $inputs.function_bounds.recorded_xbe_md5) and
             ($inputs.vc71_current.provenance.commit == $sha) and
             ($inputs.vc71_current.provenance.dirty == false)
-          ' artifacts/progress/report.json >/dev/null
+          ' artifacts/progress/report.json
       
       - name: Update README Badge Data
         run: |
