@@ -20529,7 +20529,7 @@
     },
     {
      "addr": "0x922a0",
-          "decl": "void FUN_000922a0(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);"
+     "decl": "void FUN_000922a0(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);"
     }
    ],
    "name": "profile.obj",
@@ -25608,7 +25608,7 @@
     },
     {
      "addr": "0x92370",
-          "decl": "void FUN_00092370(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);",
+     "decl": "void FUN_00092370(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);",
      "ported": true,
      "source_path": "src/halo/cseries/stack_walk_windows.c"
     },
@@ -47641,26 +47641,31 @@
    "functions": [
     {
      "addr": "0x168cd0",
-     "decl": "void rasterizer_vertex_buffer_new(void);",
-     "comment": "[NAME: rasterizer_vertex_buffer_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool rasterizer_vertex_buffer_new(void *vertex_buffer, int vertex_type, int vertex_count, void *vertices, int buffer_size);",
+     "comment": "[NAME: rasterizer_vertex_buffer_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x168e40",
-     "decl": "void rasterizer_vertex_buffer_delete(void);",
-     "comment": "[NAME: rasterizer_vertex_buffer_delete — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void rasterizer_vertex_buffer_delete(void *vertex_buffer);",
+     "comment": "[NAME: rasterizer_vertex_buffer_delete — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x168e70",
-     "decl": "void rasterizer_triangle_buffer_new(void);",
-     "comment": "[NAME: rasterizer_triangle_buffer_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool rasterizer_triangle_buffer_new(void *triangle_buffer, short type, int count, void *triangles);",
+     "comment": "[NAME: rasterizer_triangle_buffer_new — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x168fd0",
-     "decl": "void _rasterizer_dynamic_unlit_geometry_draw(void);"
+     "decl": "void rasterizer_triangle_buffer_delete(void *triangle_buffer);",
+     "ported": true
     },
     {
      "addr": "0x169200",
-     "decl": "bool FUN_00169200(float *point, float radius, float *out_extent, float *out_screen @<ebx>);"
+     "decl": "bool FUN_00169200(float *point, float radius, float *out_extent, float *out_screen @<ebx>);",
+     "ported": true
     }
    ]
   },

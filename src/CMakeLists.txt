@@ -133,6 +133,7 @@ halo/rasterizer/rasterizer_text.c
 	halo/rasterizer/common/rasterizer_common.c
 	halo/rasterizer/xbox/rasterizer_xbox.c
 	halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c
+	halo/rasterizer/xbox/rasterizer_xbox_hardware_geometry.c
 	halo/rasterizer/xbox/d3d_resource.c
 	halo/rasterizer/xbox/rasterizer_xbox_decals.c
 	halo/rasterizer/xbox/rasterizer_xbox_shadows.c
