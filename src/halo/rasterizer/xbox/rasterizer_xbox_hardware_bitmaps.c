@@ -116,21 +116,21 @@ char FUN_00168370(void *bitmap)
       hr = D3DDevice_CreateTexture(*(int16_t *)(bm + 4), *(int16_t *)(bm + 6), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
       if (hr < 0) {
         success = 0;
-        FUN_00167ff0(hr, "IDirect3DDevice8_CreateTexture(global_d3d_device, bitmap->width, bitmap->height, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DTexture8*)bitmap->hardware_format)");
+        rasterizer_error(hr, "IDirect3DDevice8_CreateTexture(global_d3d_device, bitmap->width, bitmap->height, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DTexture8*)bitmap->hardware_format)");
       }
       break;
     case 1:
       hr = D3DDevice_CreateVolumeTexture(*(int16_t *)(bm + 4), *(int16_t *)(bm + 6), *(int16_t *)(bm + 8), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
       if (hr < 0) {
         success = 0;
-        FUN_00167ff0(hr, "IDirect3DDevice8_CreateVolumeTexture(global_d3d_device, bitmap->width, bitmap->height, bitmap->depth, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DVolumeTexture8*)bitmap->hardware_format)");
+        rasterizer_error(hr, "IDirect3DDevice8_CreateVolumeTexture(global_d3d_device, bitmap->width, bitmap->height, bitmap->depth, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DVolumeTexture8*)bitmap->hardware_format)");
       }
       break;
     case 2:
       hr = D3DDevice_CreateCubeTexture(*(int16_t *)(bm + 4), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
       if (hr < 0) {
         success = 0;
-        FUN_00167ff0(hr, "IDirect3DDevice8_CreateCubeTexture(global_d3d_device, bitmap->width, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DCubeTexture8*)bitmap->hardware_format)");
+        rasterizer_error(hr, "IDirect3DDevice8_CreateCubeTexture(global_d3d_device, bitmap->width, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DCubeTexture8*)bitmap->hardware_format)");
       }
       break;
     default:
