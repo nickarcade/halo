@@ -8026,18 +8026,18 @@
       "source": "src/halo/unported_thunks.c"
     },
     "FUN_0005ff70": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 89.2,
+      "abi_model": "regarg_call_stripped",
+      "abi_model_items": 2,
+      "abi_modeled_mnemonic_pct": 90.2,
       "addr": "0x5ff70",
       "end": "0x6006b",
       "kind": "auto",
       "n_r": 84,
-      "opnd_percent": 84.3,
+      "opnd_percent": 85.4,
       "raw_mnemonic_pct": 89.2,
       "ref": "synth",
       "ref_sha": "e4a67286dd7383a2",
-      "score": 89.2,
+      "score": 90.2,
       "source": "src/halo/ai/path.c"
     },
     "FUN_00060070": {
@@ -8172,7 +8172,7 @@
       "raw_mnemonic_pct": 81.7,
       "ref": "synth",
       "ref_sha": "07ddaf83a397db0c",
-      "score": 89.2,
+      "score": 85.3,
       "source": "src/halo/ai/path.c"
     },
     "FUN_00060970": {
@@ -8187,7 +8187,7 @@
       "raw_mnemonic_pct": 81.2,
       "ref": "synth",
       "ref_sha": "1d46807c2fb04f53",
-      "score": 94.7,
+      "score": 81.2,
       "source": "src/halo/ai/path.c"
     },
     "FUN_000609e0": {
@@ -82375,7 +82375,7 @@
       "raw_mnemonic_pct": 92.5,
       "ref": "synth",
       "ref_sha": "b3c79f284eb6092a",
-      "score": 93.2,
+      "score": 92.5,
       "source": "src/halo/ai/path.c"
     },
     "path_input_new": {
