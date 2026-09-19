@@ -30,9 +30,21 @@ fi
 
 # Check if lift-related files are staged
 if git diff --cached --name-only | grep -qE '^(kb\.json|kb_meta\.json|src/.*\.c)$'; then
+    # Git runs pre-commit BEFORE prepare-commit-msg, so when kb.json is staged
+    # tools/hooks/pre-commit-lift-audit.sh has already run the ABI audit and the
+    # kb_reg_baseline drift gate against this exact index and aborted the commit
+    # if either failed. Re-running them here can only reach the same verdict,
+    # and this hook discards stderr and ignores the exit code anyway, so their
+    # cost buys nothing. When kb.json is NOT staged that hook exits early, so
+    # the gates must still run here.
+    SKIP_GATES=""
+    if git diff --cached --name-only | grep -qx 'kb.json'; then
+        SKIP_GATES="--skip-abi-audit"
+    fi
+
     # Generate the message and prepend it
     if [ -x "$(command -v python3)" ] && [ -f "tools/audit/generate_lift_commit.py" ]; then
-        GENERATED=$(python3 tools/audit/generate_lift_commit.py 2>/dev/null)
+        GENERATED=$(python3 tools/audit/generate_lift_commit.py $SKIP_GATES 2>/dev/null)
         if [ -n "$GENERATED" ]; then
             echo "$GENERATED" > "$COMMIT_MSG_FILE"
             echo "" >> "$COMMIT_MSG_FILE"

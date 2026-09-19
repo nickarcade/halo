@@ -511,10 +511,114 @@ def _settle_readme_regen(main_wt: str) -> bool:
     return st.returncode == 0 and not st.stdout.strip()
 
 
+# Gate 5 -- behaviour, which gates 1-4 never check. Its cost is the per-commit
+# Unicorn differential, moved here (once, over the branch tip) from
+# pre-commit-regression-test.sh, which defers to it on HALO_BATCH_COMMIT=1.
+# Fail-closed and unbypassable: --no-verify cannot reach this code path.
+_REGRESSION_TIMEOUT_S = 1800
+_HAZARD_TIMEOUT_S = 600
+
+
+def _harness_python() -> str:
+    """The interpreter that can `import unicorn`, mirroring regression_test.py.
+
+    A worktree has no .venv of its own; it sits beside the common git dir.
+    """
+    candidates = [os.path.join(".venv", "bin", "python3")]
+    cp = git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    if cp.returncode == 0 and cp.stdout.strip():
+        common = os.path.dirname(cp.stdout.strip())
+        candidates.append(os.path.join(common, ".venv", "bin", "python3"))
+    for c in candidates:
+        if os.path.isfile(c) and os.access(c, os.X_OK):
+            probe = subprocess.run([c, "-c", "import unicorn"],
+                                   capture_output=True, text=True)
+            if probe.returncode == 0:
+                return c
+    return sys.executable
+
+
+def _branch_changed_sources(branch: str) -> list[str]:
+    """Every src/*.c in merge-base..branch -- the batch, not its last commit."""
+    base = git("merge-base", "main", branch).stdout.strip()
+    if not base:
+        return []
+    cp = git("diff", "--name-only", "--diff-filter=ACMR", base, branch)
+    if cp.returncode != 0:
+        return []
+    return [p for p in cp.stdout.splitlines()
+            if p.startswith("src/") and p.endswith(".c") and os.path.isfile(p)]
+
+
+def behavior_gate(branch: str) -> tuple[bool, str, dict]:
+    """Gate 5: hazard scan over the branch range + the Unicorn differential.
+
+    The Unicorn corpus is fixed (110 targets, not scoped to the diff), so the
+    branch tip already covers every commit in the range; only the hazard scan
+    needs the range spelled out. Same (ok, reason, detail) shape as the others.
+    """
+    detail: dict = {}
+
+    # 5a -- hazard scan over the branch's full changed source set.
+    sources = _branch_changed_sources(branch)
+    detail["behavior_sources"] = len(sources)
+    if sources:
+        cp = subprocess.run(
+            [sys.executable, "tools/audit/check_lift_hazards.py",
+             "--files", *sources],
+            capture_output=True, text=True, timeout=_HAZARD_TIMEOUT_S)
+        errors = [ln for ln in (cp.stdout + cp.stderr).splitlines()
+                  if ln.startswith("ERROR:")]
+        if errors:
+            detail["hazard_errors"] = errors[:10]
+            return False, f"hazard_scan_errors={len(errors)}", detail
+        if cp.returncode != 0:
+            detail["hazard_tail"] = (cp.stdout + cp.stderr).strip().splitlines()[-8:]
+            return False, "hazard_scan_failed", detail
+
+    # 5b -- the Unicorn behavioural differential over the fixed corpus.
+    py = _harness_python()
+    probe = subprocess.run([py, "-c", "import unicorn"],
+                           capture_output=True, text=True)
+    if probe.returncode != 0:
+        # A park, not a pass: on the last gate before main, "could not run" must
+        # never print the same verdict as "passed".
+        detail["harness_python"] = py
+        return False, "regression_harness_unavailable", detail
+
+    jobs = (os.cpu_count() or 1) - 2
+    jobs = max(1, min(8, jobs))
+    detail["regression_jobs"] = jobs
+    try:
+        cp = subprocess.run(
+            [py, "tools/equivalence/regression_test.py", "--quick", "-j", str(jobs)],
+            capture_output=True, text=True, timeout=_REGRESSION_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        return False, "regression_test_timeout", detail
+    out = cp.stdout + cp.stderr
+    summary = [ln for ln in out.splitlines() if ln.startswith("Done in ")]
+    if summary:
+        detail["regression_summary"] = summary[-1]
+    if cp.returncode != 0:
+        detail["regression_failures"] = [
+            ln.strip() for ln in out.splitlines()
+            if ln.strip().startswith(("FAIL ", "ERR "))][:10]
+        return False, "regression_test_failed", detail
+
+    # A suite that ran NOTHING exits 0. Measured: a worktree without the
+    # gitignored halo-patched/cachebeta.xbe skips all 110 targets and passes.
+    # Zero executed targets is an environment failure, not a green verdict.
+    m = re.search(r"Done in [\d.]+s: (\d+) passed", summary[-1]) if summary else None
+    if not m or int(m.group(1)) == 0:
+        return False, "regression_suite_vacuous", detail
+
+    return True, "", detail
+
+
 def run_gates(main_wt: str, *, rebased: bool, backup: str | None,
               branch: str, derived_resolved: set | None = None,
               ) -> tuple[bool, str, dict]:
-    """Run the four reintegration gates. Return (ok, fail_reason, detail)."""
+    """Run the five reintegration gates. Return (ok, fail_reason, detail)."""
     detail: dict = {}
 
     # Gate 1 -- kb.json object partition, checked RELATIVE to main (main's
@@ -637,6 +741,14 @@ def run_gates(main_wt: str, *, rebased: bool, backup: str | None,
             if real:
                 detail["no_drop_drifted"] = real
                 return False, "rebase_dropped_or_changed_files", detail
+
+    # Gate 5 -- behaviour over the whole branch range. Last on purpose: it is
+    # the most expensive gate, and it reads candidate objects out of build/,
+    # which Gate 3 has just refreshed for this exact tree.
+    ok5, fail5, d5 = behavior_gate(branch)
+    detail.update(d5)
+    if not ok5:
+        return False, fail5, detail
 
     return True, "", detail
 

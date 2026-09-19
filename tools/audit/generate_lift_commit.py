@@ -330,12 +330,23 @@ def _find_latest_vc71_match(ports=None):
     tokens |= {str(addr).lower() for addr, _ in (ports or [])}
     if not tokens:
         return None
-    summaries = sorted(
-        (s for s in runs_dir.glob("*/summary.json")
-         if _TIMESTAMP_RUN_RE.match(s.parent.name)),
-        reverse=True,
-    )
-    for s in summaries[:10]:
+    # Run directories are named YYYYMMDD-HHMMSS, so lexical order IS
+    # chronological order. List the directory once and walk it newest-first,
+    # probing summary.json only until 10 are found. The previous form globbed
+    # "*/summary.json", which stats every one of ~1600 run directories to build
+    # a list whose first 10 entries were the only ones ever read — 5-6s on this
+    # DrvFs mount, measured, even with a warm page cache. Selection is
+    # unchanged: the same 10 newest runs that have a summary.json, same order.
+    summaries = []
+    for _name in sorted(os.listdir(runs_dir), reverse=True):
+        if not _TIMESTAMP_RUN_RE.match(_name):
+            continue
+        _cand = runs_dir / _name / "summary.json"
+        if _cand.is_file():
+            summaries.append(_cand)
+            if len(summaries) >= 10:
+                break
+    for s in summaries:
         try:
             data = json.loads(s.read_text())
             if tokens:
@@ -623,6 +634,11 @@ def main():
     ap.add_argument("--since", default=None, help="Git ref to diff against instead of staged changes")
     ap.add_argument("--skip-abi-audit", action="store_true",
                     help="Skip ABI audit gate (emergency bypass)")
+    ap.add_argument("--gate-only", action="store_true",
+                    help="Run the gates only (cross-TU call-site staging, ABI "
+                         "audit, kb_reg_baseline drift, sync-ported warning) "
+                         "and print no commit message. For callers that consume "
+                         "the exit code and stderr and discard stdout.")
     ap.add_argument("--vc71-match", default=None,
                     help="VC71 match %% to include in commit title (auto-detected from latest lift run if omitted)")
     ap.add_argument("--equivalence", default=None,
@@ -700,6 +716,17 @@ def main():
             "Run: python3 tools/analysis/kb_meta.py sync-ported   (then stage kb_meta.json)",
             file=sys.stderr,
         )
+
+    # Every gate has now spoken: the exit code above and the stderr above are
+    # the whole verdict. The pre-commit hook (tools/hooks/pre-commit-lift-audit.sh)
+    # sends stdout to /dev/null and reads only those two, so for that caller
+    # everything below is pure cost — generate_message() re-verifies each staged
+    # port with vc71_verify (one subprocess per candidate name per changed .c
+    # file; 9.6-12.9s measured for a 5-function port) and scans artifacts/ for
+    # prior run summaries and equivalence logs. Nothing below can change the
+    # exit code or add stderr.
+    if args.gate_only:
+        return 0
 
     msg = generate_message(batch_name=args.batch_name, since_ref=args.since,
                            vc71_match=args.vc71_match,

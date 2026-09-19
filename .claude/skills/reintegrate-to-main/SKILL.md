@@ -129,6 +129,32 @@ linear history, squash first:
    done
    ```
    Any file listed that isn't a legitimately-merged both-sides file = investigate.
+5. **Behaviour over the whole branch range (fail-closed, no bypass):** gates 1-4
+   execute nothing, so without this one the decision that exposes work to `main`
+   re-checks no behaviour at all. Runs last (it needs gate 3's fresh `build/`
+   objects as the candidate side):
+   ```bash
+   # hazard scan over every src/*.c the BATCH touched, not one commit's staged set
+   rtk python3 tools/audit/check_lift_hazards.py --files \
+     $(git diff --name-only $(git merge-base main <branch>) <branch> -- 'src/*.c')
+   # the Unicorn differential; the 110-target corpus is fixed, so the branch tip
+   # covers every commit in the range
+   rtk python3 tools/equivalence/regression_test.py --quick -j8
+   ```
+   Either failing → PARK (`gate_failed:hazard_scan_errors=N` /
+   `gate_failed:regression_test_failed`, with the failing targets in `gate`).
+   A missing Unicorn harness parks as `regression_harness_unavailable` — "could
+   not run" must never print the same verdict as "passed" on the last gate
+   before `main`.
+
+   This is the counterpart to the per-commit deferral: an automated batch commits
+   with `HALO_BATCH_COMMIT=1`, which makes
+   `tools/hooks/pre-commit-regression-test.sh` skip the differential per commit
+   (the hook refuses the skip on `main`, where no land gate follows). Cheap
+   per-commit gates — ABI audit, reg-baseline drift, per-TU VC71, the staged-file
+   hazard scan — still run on every commit. **Never** hand-FF `main` past a batch
+   branch: that route bypasses this gate, and those commits were committed on the
+   promise that it would run.
 
 ## Step 6 — Advance `main` (fast-forward only)
 
