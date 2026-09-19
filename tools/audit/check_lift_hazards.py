@@ -48,6 +48,8 @@ Usage:
     python3 tools/audit/check_lift_hazards.py --staged-only
     python3 tools/audit/check_lift_hazards.py --files src/halo/cutscene/cinematics.c
 """
+import atexit
+import hashlib
 import json
 import os
 import re
@@ -58,6 +60,38 @@ import tempfile
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 SRC_DIR = os.path.join(ROOT_DIR, 'src')
+
+# ---------------------------------------------------------------------------
+# Cross-invocation corpus memo
+# ---------------------------------------------------------------------------
+# Three checks here are whole-tree BY CONSTRUCTION, and must stay that way:
+# a slot-form mismatch, a symbol-vs-literal address mismatch and a
+# no-parameter decl are each a relationship between two call sites, and the
+# second site is routinely in a file the current commit never touched.
+# Scoping them to the staged set would silence exactly the bugs they exist
+# for, so --staged-only cannot narrow WHAT they scan.  What it can avoid is
+# re-deriving an answer whose inputs have not moved: the pre-commit hook runs
+# this script once per commit and pays the same ~11s whole-tree pass every
+# time, even when src/ is byte-identical to the previous run.
+#
+# So the three corpora are memoized to disk under a content fingerprint of
+# their inputs, mirroring the measurement memo in
+# tools/verify/vc71_regression.py.  A hit has to be indistinguishable from a
+# miss, so each key covers every input that can move that corpus: the source
+# bytes themselves, this script (its regexes and classifiers ARE the
+# extraction rules), and for the kb.json-derived corpora the kb-derived map
+# they filter against.  Host-local and gitignored (artifacts/).
+HAZARD_CACHE_PATH = os.path.join(ROOT_DIR, 'artifacts', 'audit',
+                                 'hazard_corpus_cache.json')
+# Schema version of the payloads below.  Bumped whenever the SHAPE of a cached
+# value changes, which the content-derived key cannot express.  A memo written
+# under an older version is discarded wholesale, never migrated.
+HAZARD_CACHE_VERSION = 1
+# Corpora are large; a handful of recent source states is all a working tree
+# ever revisits (edit, run, revert, run).  Keyed by content, so trimmed
+# entries are merely unreachable, never wrong.
+_HAZARD_CACHE_MAX_ENTRIES = 24
+_HAZARD_CACHE_MAX_STAT_SIGS = 8
 
 MSVC_INTRINSICS = {
     '1d90e0': ('_chkstk', 'modifies ESP — declare locals normally (do not use static, see lift-learnings §20)'),
@@ -128,6 +162,241 @@ LOCAL_SCALAR16_PATTERN = re.compile(
 LOCAL_SCALAR8_PATTERN = re.compile(
     r'^\s+(?:unsigned\s+)?(?:char|int8_t|uint8_t)\s+\w+\s*;',
 )
+
+
+def _sha(*chunks):
+    h = hashlib.sha1()
+    for c in chunks:
+        if c is None:
+            continue
+        if isinstance(c, str):
+            c = c.encode('utf-8', 'replace')
+        h.update(c)
+        h.update(b'\0')
+    return h.hexdigest()
+
+
+_HAZARD_CACHE = None
+_HAZARD_CACHE_DIRTY = False
+
+
+def _load_hazard_cache():
+    global _HAZARD_CACHE
+    if _HAZARD_CACHE is not None:
+        return _HAZARD_CACHE
+    _HAZARD_CACHE = {'stat_sigs': {}, 'entries': {}}
+    try:
+        with open(HAZARD_CACHE_PATH, 'r') as f:
+            data = json.load(f)
+        if data.get('version') == HAZARD_CACHE_VERSION:
+            _HAZARD_CACHE = {
+                'stat_sigs': data.get('stat_sigs') or {},
+                'entries': data.get('entries') or {},
+            }
+    except (OSError, ValueError):
+        # A truncated or torn file reads as a cold start, which is always
+        # correct -- every corpus is rebuilt from source.
+        pass
+    return _HAZARD_CACHE
+
+
+def _flush_hazard_cache():
+    """Persist the memo if anything new was derived.
+
+    Written via temp file + rename: several agents run gates concurrently in
+    this checkout, and a torn write would leave unparseable JSON that every
+    later process silently discards, turning a shared speedup into a
+    permanent cold start.  Last writer wins on content; entries are keyed by
+    content, so a concurrently-dropped entry costs one rebuild, never a wrong
+    answer.
+    """
+    if not _HAZARD_CACHE_DIRTY or _HAZARD_CACHE is None:
+        return
+    entries = _HAZARD_CACHE['entries']
+    if len(entries) > _HAZARD_CACHE_MAX_ENTRIES:
+        entries = dict(list(entries.items())[-_HAZARD_CACHE_MAX_ENTRIES:])
+    payload = {'version': HAZARD_CACHE_VERSION,
+               'stat_sigs': _HAZARD_CACHE['stat_sigs'],
+               'entries': entries}
+    tmp = '%s.%d.tmp' % (HAZARD_CACHE_PATH, os.getpid())
+    try:
+        os.makedirs(os.path.dirname(HAZARD_CACHE_PATH), exist_ok=True)
+        with open(tmp, 'w') as f:
+            json.dump(payload, f)
+            f.write('\n')
+        os.replace(tmp, HAZARD_CACHE_PATH)
+    except OSError:
+        pass
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+atexit.register(_flush_hazard_cache)
+
+
+def _hazard_cache_get(key):
+    return _load_hazard_cache()['entries'].get(key)
+
+
+def _hazard_cache_put(key, value):
+    global _HAZARD_CACHE_DIRTY
+    entries = _load_hazard_cache()['entries']
+    # Re-insert so dict order is recency order and the trim above drops the
+    # least recently produced corpus, not an arbitrary one.
+    entries.pop(key, None)
+    entries[key] = value
+    _HAZARD_CACHE_DIRTY = True
+
+
+_TOOL_SIG = None
+
+
+def _tool_sig():
+    """Hash of this script.
+
+    The regexes, the argument splitter and the slot classifier ARE the
+    extraction rules, so editing them must invalidate every cached corpus --
+    otherwise a narrowed (or widened) check would keep answering from the
+    corpus the previous rules produced, which is the "gate goes quietly
+    silent" failure this scanner exists to prevent.
+    """
+    global _TOOL_SIG
+    if _TOOL_SIG is not None:
+        return _TOOL_SIG
+    try:
+        with open(os.path.abspath(__file__), 'rb') as f:
+            _TOOL_SIG = _sha(f.read())
+    except OSError:
+        _TOOL_SIG = ''
+    return _TOOL_SIG
+
+
+_SRC_SIGS = {}
+_SRC_TREE = None
+_FILE_SHAS = {}
+
+# Extensions any corpus below can depend on.  Walked once; each caller filters
+# the shared listing rather than re-statting the tree (os.stat is expensive on
+# the drvfs mount this checkout lives on).
+_SRC_FINGERPRINT_EXTS = ('.c', '.h')
+
+
+def _src_tree_scan():
+    """(relpath, size, mtime_ns, abspath) for every src/ .c and .h file.
+
+    Deliberately no dotfile filter: the corpus builders below select purely on
+    extension, so a generated `.vc71_regcall_*.c` sitting in src/ is part of
+    the corpus and must be part of its fingerprint.
+    """
+    global _SRC_TREE
+    if _SRC_TREE is not None:
+        return _SRC_TREE
+    out = []
+    for dirpath, _dirs, files in os.walk(SRC_DIR):
+        for name in files:
+            if not name.endswith(_SRC_FINGERPRINT_EXTS):
+                continue
+            path = os.path.join(dirpath, name)
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            out.append((os.path.relpath(path, ROOT_DIR), st.st_size,
+                        st.st_mtime_ns, path))
+    out.sort()
+    _SRC_TREE = out
+    return out
+
+
+def _src_tree_entries(exts):
+    return [e for e in _src_tree_scan() if e[0].endswith(exts)]
+
+
+_SRC_TEXTS = {}
+
+
+def _src_file_text(path):
+    """Decoded contents of one src file, or None if it cannot be read.
+
+    Memoized, and shared with the fingerprint pass below.  A miss has to read
+    every byte to decide a corpus is stale, and the corpus builders then read
+    the same files again -- that is the 13MB tree read twice on a slow drvfs
+    mount, which would make a cache miss measurably more expensive than having
+    no cache at all.  One read serves both.
+
+    Same open() flags the builders have always used, so the text is the text
+    they would have parsed; the fingerprint hashes THIS (post-`errors=replace`)
+    string rather than the raw bytes, so it captures exactly what can move a
+    corpus.
+    """
+    if path in _SRC_TEXTS:
+        return _SRC_TEXTS[path]
+    try:
+        with open(path, 'r', errors='replace') as f:
+            text = f.read()
+    except OSError:
+        text = None
+    _SRC_TEXTS[path] = text
+    return text
+
+
+def _file_sha(path):
+    """Content hash of one file, memoized: the .c set is fingerprinted twice
+    (once alone, once with the headers) and the tree is 13MB."""
+    if path in _FILE_SHAS:
+        return _FILE_SHAS[path]
+    text = _src_file_text(path)
+    _FILE_SHAS[path] = None if text is None else _sha(text)
+    return _FILE_SHAS[path]
+
+
+def _src_content_sig(exts):
+    """Content signature of every src/ file with one of `exts`.
+
+    Content, not mtime: a corpus keyed on timestamps goes stale in the one
+    direction that matters -- a checkout that restores different bytes under
+    an older timestamp would read as unchanged.  Hashing the 13MB tree costs
+    about a second though, which the fast path must not pay, so the content
+    hash is itself memoized under a cheap (name, size, mtime) stat key,
+    exactly as vc71_regression._chunk_dir_signature does.  The stat key is
+    only ever a cache key for the content hash, never an input to an answer:
+    a touch or checkout that moves mtimes without changing bytes misses it,
+    re-hashes, lands on the identical content signature, and no corpus is
+    rebuilt.
+    """
+    global _HAZARD_CACHE_DIRTY
+    memo_key = ','.join(exts)
+    if memo_key in _SRC_SIGS:
+        return _SRC_SIGS[memo_key]
+
+    entries = _src_tree_entries(exts)
+    stat_key = _sha('\n'.join('%s:%d:%d' % (rel, size, mtime)
+                              for rel, size, mtime, _ in entries))
+    stat_sigs = _load_hazard_cache()['stat_sigs']
+    hit = stat_sigs.get(stat_key)
+    if hit:
+        _SRC_SIGS[memo_key] = hit
+        return hit
+
+    parts = []
+    for rel, size, _mtime, path in entries:
+        body_sha = _file_sha(path)
+        if body_sha is None:
+            continue
+        parts.append('%s:%d:%s' % (rel, size, body_sha))
+    sig = _sha('\n'.join(parts))
+
+    stat_sigs.pop(stat_key, None)
+    stat_sigs[stat_key] = sig
+    if len(stat_sigs) > _HAZARD_CACHE_MAX_STAT_SIGS:
+        for stale in list(stat_sigs)[:-_HAZARD_CACHE_MAX_STAT_SIGS]:
+            stat_sigs.pop(stale, None)
+    _HAZARD_CACHE_DIRTY = True
+    _SRC_SIGS[memo_key] = sig
+    return sig
 
 
 def check_decl_header_stale():
@@ -309,31 +578,41 @@ def check_noparam_decl_args():
     # Match any empty-argument call, then filter by set lookup.  A 150-way
     # name alternation over every .c file is ~10x slower than this.
     call_re = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*\)')
-    sites = {}
-    src_dir = os.path.join(ROOT_DIR, 'src')
-    for dirpath, _dirnames, filenames in os.walk(src_dir):
-        for fname in filenames:
-            if not fname.endswith('.c'):
-                continue
-            fpath = os.path.join(dirpath, fname)
-            try:
-                with open(fpath, 'r', errors='replace') as f:
-                    content = f.read()
-            except OSError:
-                continue
-            for m in call_re.finditer(content):
-                if m.group(1) not in candidates:
+    # The call-site scan is whole-tree (a bad `f()` can be in any TU) and is by
+    # far the most expensive part of this check.  It depends on exactly two
+    # things: the source bytes, and WHICH names are candidates -- not on their
+    # addresses or objects, which the disassembly step below re-derives from
+    # kb.json on every run, cached or not.  So the candidate NAME SET is what
+    # goes in the key; a lift that ports or renames a function changes it and
+    # forces a rebuild.
+    sites_key = 'noparam_sites:' + _sha(
+        _tool_sig(), _src_content_sig(('.c',)), '\n'.join(sorted(candidates)))
+    sites = _hazard_cache_get(sites_key)
+    if sites is None:
+        sites = {}
+        src_dir = os.path.join(ROOT_DIR, 'src')
+        for dirpath, _dirnames, filenames in os.walk(src_dir):
+            for fname in filenames:
+                if not fname.endswith('.c'):
                     continue
-                line_start = content.rfind('\n', 0, m.start()) + 1
-                line_end = content.find('\n', m.start())
-                line = content[line_start:line_end if line_end != -1 else None]
-                # Skip comment lines -- prose mentions f() constantly.
-                if line.lstrip().startswith(('*', '//', '/*')):
+                fpath = os.path.join(dirpath, fname)
+                content = _src_file_text(fpath)
+                if content is None:
                     continue
-                lineno = content.count('\n', 0, m.start()) + 1
-                sites.setdefault(m.group(1), []).append(
-                    (os.path.relpath(fpath, ROOT_DIR), lineno)
-                )
+                for m in call_re.finditer(content):
+                    if m.group(1) not in candidates:
+                        continue
+                    line_start = content.rfind('\n', 0, m.start()) + 1
+                    line_end = content.find('\n', m.start())
+                    line = content[line_start:line_end if line_end != -1 else None]
+                    # Skip comment lines -- prose mentions f() constantly.
+                    if line.lstrip().startswith(('*', '//', '/*')):
+                        continue
+                    lineno = content.count('\n', 0, m.start()) + 1
+                    sites.setdefault(m.group(1), []).append(
+                        (os.path.relpath(fpath, ROOT_DIR), lineno)
+                    )
+        _hazard_cache_put(sites_key, sites)
 
     if not sites:
         return errors
@@ -1495,16 +1774,29 @@ _PORTED_ADDR_CMP = re.compile(
     r'|0x([0-9a-fA-F]{5,8})\s*(==|!=))')
 
 
+_PORTED_ADDR_CACHE = None
+
+
 def _ported_function_addrs():
-    """Map original VA -> name for every kb.json function with ported: true."""
+    """Map original VA -> name for every kb.json function with ported: true.
+
+    Memoized in-process: check_ported_addr_compare defaults `ported` to None
+    and so calls this once PER SCANNED FILE, re-parsing the 1.4MB kb.json each
+    time.  Callers only read the result.
+    """
+    global _PORTED_ADDR_CACHE
+    if _PORTED_ADDR_CACHE is not None:
+        return _PORTED_ADDR_CACHE
     kb_path = os.path.join(ROOT_DIR, 'kb.json')
     if not os.path.isfile(kb_path):
-        return {}
+        _PORTED_ADDR_CACHE = {}
+        return _PORTED_ADDR_CACHE
     try:
         with open(kb_path, 'r', errors='replace') as f:
             kb = json.load(f)
     except Exception:
-        return {}
+        _PORTED_ADDR_CACHE = {}
+        return _PORTED_ADDR_CACHE
     decl_re = re.compile(r'([A-Za-z_][A-Za-z0-9_]*)\s*\(')
     out = {}
     for obj in kb.get('objects', []):
@@ -1518,6 +1810,7 @@ def _ported_function_addrs():
             m = decl_re.search((fn.get('decl') or '').strip())
             out[addr] = (m.group(1) if m else fn.get('name') or '?',
                          obj.get('name', '?'))
+    _PORTED_ADDR_CACHE = out
     return out
 
 
@@ -1538,17 +1831,27 @@ def _symbol_referenced_ported_addrs(ported):
         by_name.setdefault(name, addr)
     if not by_name:
         return _SYMBOL_ADDR_TAKEN_CACHE
+    # Whole-tree by construction: the `&FUN_...` store that makes a literal
+    # comparison wrong is almost never in the same TU as the comparison.  The
+    # key folds in the exact name -> addr map this scan resolves against, so a
+    # kb.json edit that ports, unports or renames a function rebuilds instead
+    # of answering from the previous map.
+    cache_key = 'sym_addr:' + _sha(
+        _tool_sig(), _src_content_sig(('.c', '.h')),
+        '\n'.join('%s=%x' % (n, a) for n, a in sorted(by_name.items())))
+    cached = _hazard_cache_get(cache_key)
+    if cached is not None:
+        for addr_str, name in cached.items():
+            _SYMBOL_ADDR_TAKEN_CACHE[int(addr_str)] = name
+        return _SYMBOL_ADDR_TAKEN_CACHE
     src_root = os.path.join(ROOT_DIR, 'src')
     pat = re.compile(r'&\s*([A-Za-z_][A-Za-z0-9_]*)')
     for dirpath, _dirs, files in os.walk(src_root):
         for fname in files:
             if not fname.endswith(('.c', '.h')):
                 continue
-            try:
-                with open(os.path.join(dirpath, fname), 'r',
-                          errors='replace') as f:
-                    body = f.read()
-            except OSError:
+            body = _src_file_text(os.path.join(dirpath, fname))
+            if body is None:
                 continue
             if '&' not in body:
                 continue
@@ -1556,6 +1859,8 @@ def _symbol_referenced_ported_addrs(ported):
                 addr = by_name.get(m.group(1))
                 if addr is not None:
                     _SYMBOL_ADDR_TAKEN_CACHE[addr] = m.group(1)
+    _hazard_cache_put(cache_key, {str(a): n
+                                  for a, n in _SYMBOL_ADDR_TAKEN_CACHE.items()})
     return _SYMBOL_ADDR_TAKEN_CACHE
 
 
@@ -2422,10 +2727,43 @@ def _ptr_slot_sites(filepath, content):
                 yield callee, idx, hit[0], hit[1], lineno
 
 
+def _encode_ptr_slot_corpus(corpus):
+    """JSON form of the corpus.
+
+    A list of records, not an object: the tuple key has to survive, and the
+    reported message quotes ``deref_sites[:2]``, so BOTH the record order and
+    each site list's order are part of the answer and must round-trip exactly.
+    """
+    return [[callee, idx, off,
+             {form: [[p, ln] for p, ln in sites]
+              for form, sites in forms.items()}]
+            for (callee, idx, off), forms in corpus.items()]
+
+
+def _decode_ptr_slot_corpus(payload):
+    out = {}
+    for callee, idx, off, forms in payload:
+        out[(callee, idx, off)] = {
+            form: [(p, ln) for p, ln in sites]
+            for form, sites in forms.items()}
+    return out
+
+
 def _build_ptr_slot_corpus():
-    """Index every (callee, arg index, offset) slot form across src/."""
+    """Index every (callee, arg index, offset) slot form across src/.
+
+    Whole-tree by construction -- the contradicting call site lives in another
+    TU, which is the entire point of the check -- so --staged-only cannot
+    shrink it.  The disk memo is what stops the pre-commit hook re-deriving an
+    unchanged index (~8s on this tree) on every commit.
+    """
     global _PTR_SLOT_CORPUS
     if _PTR_SLOT_CORPUS is not None:
+        return _PTR_SLOT_CORPUS
+    cache_key = 'ptr_slot:' + _sha(_tool_sig(), _src_content_sig(('.c',)))
+    cached = _hazard_cache_get(cache_key)
+    if cached is not None:
+        _PTR_SLOT_CORPUS = _decode_ptr_slot_corpus(cached)
         return _PTR_SLOT_CORPUS
     corpus = {}
     for dirpath, _dirs, files in os.walk(SRC_DIR):
@@ -2433,15 +2771,14 @@ def _build_ptr_slot_corpus():
             if not name.endswith('.c'):
                 continue
             fpath = os.path.join(dirpath, name)
-            try:
-                with open(fpath, 'r', errors='replace') as f:
-                    text = f.read()
-            except OSError:
+            text = _src_file_text(fpath)
+            if text is None:
                 continue
             for callee, idx, form, off, lineno in _ptr_slot_sites(fpath, text):
                 key = (callee, idx, off)
                 corpus.setdefault(key, {}).setdefault(form, []).append(
                     (os.path.relpath(fpath, ROOT_DIR), lineno))
+    _hazard_cache_put(cache_key, _encode_ptr_slot_corpus(corpus))
     _PTR_SLOT_CORPUS = corpus
     return corpus
 

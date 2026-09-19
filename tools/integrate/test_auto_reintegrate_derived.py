@@ -73,14 +73,21 @@ def make_repo(tmp):
     sh("git", "config", "user.name", "t", cwd=repo)
     (repo / "tools" / "verify").mkdir(parents=True)
     (repo / "src").mkdir()
-    # Stand-ins for the two gate tools the lander shells out to. The gates
+    # Stand-ins for the gate tools the lander shells out to. The gates
     # themselves are covered elsewhere; what is under test here is the conflict
     # path, so these just have to exist and succeed.
     (repo / "tools" / "audit").mkdir(parents=True)
     (repo / "tools" / "build").mkdir(parents=True)
+    (repo / "tools" / "equivalence").mkdir(parents=True)
     (repo / "tools/audit/extract_reg_args.py").write_text(
         'print("Check results: 0 OK, 0 drift, 0 missing, 0 stale")\n')
     (repo / "tools/build/build.py").write_text('print("ok")\n')
+    (repo / "tools/audit/check_lift_hazards.py").write_text('print("ok")\n')
+    # Non-zero `passed`: a suite that executes nothing is a gate failure
+    # (regression_suite_vacuous), so a stub reporting 0 passed would park.
+    (repo / "tools/equivalence/regression_test.py").write_text(
+        'print("Done in 0.0s: 1 passed, 0 failed, 0 errors, '
+        '0 known artifacts, 0 awaiting triage, 0 skipped")\n')
     (repo / "kb.json").write_text(json.dumps({"objects": []}, indent=1) + "\n")
     (repo / "src" / "a.c").write_text("int a(void){return 0;}\n")
     (repo / "tools/verify/vc71_scores.json").write_text(

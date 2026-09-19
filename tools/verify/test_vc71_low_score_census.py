@@ -31,7 +31,7 @@ class TestScoreContextInputs(unittest.TestCase):
         official = compare_obj.compare_functions(
             cand, ref, regdef_params=[(0, "eax")])[0]
         pack = vc71_verify._build_score_context(
-            "test_function", cand, ref, official, [], [], [], [],
+            "test_function", cand, ref, official, [], [], [], [], [],
             census.ROOT / "src/test.c",
             {"kind": "auto", "n_insns": 2}, [(0, "eax")], compare_obj)
         self.assertEqual(pack["scores"]["official_pct"], 100.0)
@@ -62,8 +62,8 @@ class TestScoreContextInputs(unittest.TestCase):
 
     def test_forwarding_reference_is_explicit(self):
         pack = vc71_verify._build_score_context(
-            "test_thunk", ["retl"], ["jmp 0x10"], 0.0,
-            [], [], [], [], census.ROOT / "src/test.c",
+            "test_thunk", ["retl"], ["jmp 0x10"], 0.0, [], [], [], [], [],
+            census.ROOT / "src/test.c",
             {"kind": "thunk", "n_insns": 1}, None, compare_obj)
         self.assertEqual(pack["classification"][0]["rule"],
                          "forwarding_reference")
@@ -116,6 +116,43 @@ class TestCensus(unittest.TestCase):
                 report["one_instruction_references"]["below_low_threshold"], 1)
             self.assertEqual(
                 report["regarg_structural_ceiling"]["below_70"], 1)
+
+    def test_candidates_exclude_non_functions_and_structural_ceilings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            floor = root / "scores.json"
+            contexts = root / "contexts"
+            contexts.mkdir()
+            floor.write_text(json.dumps({"scores": {
+                "ready": {"score": 82.0, "n_r": 20, "n_c": 19,
+                          "kind": "auto", "source": "src/ready.c"},
+                "unclassified": {"score": 70.0, "n_r": 20, "kind": "auto"},
+                "thunk": {"score": 80.0, "n_r": 20, "kind": "thunk"},
+                "tiny": {"score": 80.0, "n_r": 2, "kind": "auto"},
+                "ceiling": {"score": 80.0, "n_r": 20, "kind": "auto"},
+            }}))
+            for name, rules in (("ready", [{"rule": "loadw_field_width"}]),
+                                ("unclassified", []),
+                                ("tiny", []),
+                                ("ceiling", [{"rule": "regarg_structural_ceiling"}])):
+                (contexts / (name + ".json")).write_text(json.dumps({
+                    "name": name,
+                    "scores": {"official_pct": 80.0, "dp_lcs_pct": 84.0},
+                    "classification": rules,
+                }))
+
+            report = census.build_candidates(floor, contexts)
+            self.assertEqual([row["name"] for row in report["candidates"]],
+                             ["ready", "unclassified"])
+            self.assertEqual(report["candidates"][0]["metric_gap_pp"], 4.0)
+            self.assertEqual(report["skipped"]["non_function_reference"], 1)
+            self.assertEqual(report["skipped"]["short_reference"], 1)
+            self.assertEqual(report["skipped"]["structural_ceiling"], 1)
+
+            included = census.build_candidates(
+                floor, contexts, include_ceilings=True)
+            self.assertIn("ceiling", [row["name"]
+                                       for row in included["candidates"]])
 
 
 if __name__ == "__main__":

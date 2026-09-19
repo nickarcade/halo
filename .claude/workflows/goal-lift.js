@@ -464,10 +464,14 @@ full clean build) MUST be wrapped so it cannot run silently past 180s and trip
 the harness stall detector that kills the whole run:
   timeout 150 <cmd> 2>&1 || echo "[timed-out]"
 [STALL EXCEPTION — \`git commit\`] NEVER wrap \`git commit\` in \`timeout 150\` and
-never leave it on the default 120s Bash timeout. The pre-commit chain costs ~270s
-on a large TU (measured 2026-08-21: regression-test 159s + lift-audit 63s +
-vc71-regression 44s + 12 smaller hooks ~22s). Any ceiling under that kills the
-commit mid-hook every time, and retrying at the same ceiling cannot succeed.
+never leave it on the default 120s Bash timeout. The pre-commit chain still
+outruns it: measured 2026-08-21 at ~270s on a large TU (regression-test 159s +
+lift-audit 63s + vc71-regression 44s + 12 smaller hooks ~22s). Two of those have
+since been cut -- lift-audit runs --gate-only and the regression differential is
+deferred to the land gate by the HALO_BATCH_COMMIT=1 prefix below -- but
+vc71-regression alone still exceeds 120s on a large TU. Any ceiling under the
+real cost kills the commit mid-hook every time, and retrying at the same ceiling
+cannot succeed.
 Pass the Bash tool's \`timeout: 600000\` and run it in the FOREGROUND — do not
 background it. \`pre-commit-vc71-regression.sh\` auto-stages a refreshed
 vc71_scores.json partway through, so a killed commit can leave the index mutated
@@ -927,7 +931,14 @@ three unlinked translation units on 2026-08-01:
   d6caee6b):
   MSG=$(mktemp /tmp/halo-commit-msg.XXXXXX)
   rtk python3 tools/audit/generate_lift_commit.py --batch-name "${name}" > "$MSG"
-  rtk git commit -F "$MSG" && rm -f "$MSG"
+  HALO_BATCH_COMMIT=1 rtk git commit -F "$MSG" && rm -f "$MSG"
+
+  HALO_BATCH_COMMIT=1 is REQUIRED. It tells pre-commit-regression-test.sh to
+  defer the 40-48s Unicorn differential to auto_reintegrate.py's Gate 5, which
+  runs it once over the whole branch before main advances. Keep it as a prefix
+  on the \`git commit\` line, never an \`export\`, and never on any other
+  command. Dropping it is safe but slow, so do not "fix" a failure by removing
+  it.
 Then, if this function had a parked record from an earlier attempt, mark it
 promoted so the improve pass won't re-pick it (ignore errors if none exists):
   rtk python3 tools/lift/park.py promote --name ${JSON.stringify(name)} --commit "$(git rev-parse --short HEAD)" 2>/dev/null || true
@@ -1203,7 +1214,9 @@ ${multi.map((s, si) => `   stretch ${si}: [${s.items.map(i => i.name).join(', ')
       rtk python3 tools/audit/generate_lift_commit.py --batch-name "<N> functions from <obj>" > "$MSG"
       (N = this stretch's commit count, obj = this stretch's object, e.g.
       "9 functions from xbox_texture_cache.obj")
-      rtk git commit -F "$MSG" && rm -f "$MSG"
+      HALO_BATCH_COMMIT=1 rtk git commit -F "$MSG" && rm -f "$MSG"
+      (Same prefix, same reason: a squash re-commits trees already on this
+      branch, so the land gate's single run covers them.)
    d. rtk git rev-parse --short HEAD — record this as the stretch's new sha.
    Do NOT amend, force-push, or touch any commit outside the numbered list.
 4. rtk git log --oneline ${runStartSha}..HEAD and sanity-check: every stretch

@@ -20,6 +20,28 @@ rtk python3 tools/verify/vc71_low_score_census.py --check \
   --output docs/vc71-low-score-census-data.json
 ```
 
+## Candidate Worklist
+
+Print a fresh, tab-separated score-work list without recompiling any code:
+
+```bash
+rtk python3 tools/verify/vc71_low_score_census.py --candidates --format tsv
+```
+
+Defaults select the productive 50–85% range, real function bodies with at least
+six reference instructions, and exclude forwarding entries plus known
+register-argument ceilings. Rows include the target name, source TU, official
+score, instruction counts, DP mnemonic-LCS gap, and score-context rules. Use
+`--min-score`, `--max-score`, or `--include-ceilings` to adjust the frontier.
+The list reads existing `vc71_scores.json` and score-context packs, so it is a
+fast prioritization hint; remeasure any selected target before editing.
+
+After an accepted change, refresh its TU's stored floor before listing again:
+
+```bash
+rtk python3 tools/verify/vc71_regression.py update --source src/halo/path/file.c
+```
+
 The generated manifest records input hashes, context-schema populations, join
 gaps, thresholds, overlapping rule counts, one-instruction rows, and `@<reg>`
 populations. Regenerating score contexts first may change results; hashes and

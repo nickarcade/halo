@@ -288,6 +288,16 @@ static __inline float x87_sqrt(float val) {
 #endif
 }
 
+static __inline double x87_sqrtd(double val) {
+#if defined(_MSC_VER) && !defined(__clang__)
+  return sqrt(val);
+#else
+  double r;
+  __asm__ __volatile__("fsqrt" : "=t"(r) : "0"(val));
+  return r;
+#endif
+}
+
 /* Address-named global aliases.  Each body preserves the exact original
  * dereference spelling so source recovery does not change emitted code. */
 #define halo_actor_data_global (*(data_t **)0x6325a4)
