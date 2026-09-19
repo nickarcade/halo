@@ -11,6 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_FLOOR = ROOT / "tools/verify/vc71_scores.json"
 DEFAULT_CONTEXTS = ROOT / "artifacts/score_context"
+CEILING_RULES = frozenset(("regarg_structural_ceiling",
+                           "regarg_static_helper_ceiling"))
+EXCLUDED_RULES = CEILING_RULES | frozenset(("forwarding_reference",))
 
 
 def _sha256(path):
@@ -45,10 +48,7 @@ def _has_rule(context, rule):
                for item in context.get("classification", []))
 
 
-def build_census(floor_path, context_dir, low_threshold=70.0,
-                 gap_threshold=10.0, classifier_gap_threshold=12.0):
-    floor_doc = json.loads(floor_path.read_text())
-    floor = floor_doc["scores"]
+def _load_contexts(context_dir):
     context_paths = sorted(context_dir.glob("*.json"))
     contexts = {}
     invalid = []
@@ -61,6 +61,14 @@ def build_census(floor_path, context_dir, low_threshold=70.0,
             contexts[name] = context
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             invalid.append({"file": path.name, "error": str(exc)})
+    return context_paths, contexts, invalid
+
+
+def build_census(floor_path, context_dir, low_threshold=70.0,
+                  gap_threshold=10.0, classifier_gap_threshold=12.0):
+    floor_doc = json.loads(floor_path.read_text())
+    floor = floor_doc["scores"]
+    context_paths, contexts, invalid = _load_contexts(context_dir)
 
     joined_names = sorted(set(floor) & set(contexts))
     low_names = sorted(name for name, row in floor.items()
@@ -173,6 +181,95 @@ def build_census(floor_path, context_dir, low_threshold=70.0,
     }
 
 
+def build_candidates(floor_path, context_dir, min_score=50.0,
+                     max_score=85.0, min_reference_instructions=6,
+                     include_ceilings=False):
+    """Return score-work candidates from stored verifier output, without compiling."""
+    floor_doc = json.loads(floor_path.read_text())
+    floor = floor_doc["scores"]
+    _, contexts, _ = _load_contexts(context_dir)
+    candidates = []
+    skipped = {}
+
+    for name, row in floor.items():
+        score = row["score"]
+        if score < min_score or score >= max_score:
+            skipped["score_range"] = skipped.get("score_range", 0) + 1
+            continue
+        if row.get("kind") != "auto":
+            skipped["non_function_reference"] = (
+                skipped.get("non_function_reference", 0) + 1)
+            continue
+        if row.get("n_r", 0) < min_reference_instructions:
+            skipped["short_reference"] = skipped.get("short_reference", 0) + 1
+            continue
+
+        context = contexts.get(name)
+        if context is None:
+            skipped["missing_context"] = skipped.get("missing_context", 0) + 1
+            continue
+        rules = sorted(item["rule"] for item in context.get("classification", [])
+                       if item.get("rule"))
+        excluded = sorted(set(rules) & EXCLUDED_RULES)
+        if excluded and not include_ceilings:
+            reason = "forwarding_reference" if "forwarding_reference" in excluded \
+                else "structural_ceiling"
+            skipped[reason] = skipped.get(reason, 0) + 1
+            continue
+
+        context_scores = context.get("scores", {})
+        official = context_scores.get("official_pct", score)
+        dp_lcs = context_scores.get("dp_lcs_pct")
+        candidates.append({
+            "name": name,
+            "source": row.get("source", ""),
+            "score": score,
+            "reference_instructions": row.get("n_r"),
+            "candidate_instructions": context_scores.get(
+                "n_cand_insns", row.get("n_c")),
+            "dp_lcs_pct": dp_lcs,
+            "metric_gap_pp": (round(dp_lcs - official, 1)
+                              if dp_lcs is not None else None),
+            "rules": rules,
+        })
+
+    candidates.sort(key=lambda row: (
+        not bool(row["rules"]), -row["score"], row["name"]))
+    return {
+        "schema": 1,
+        "inputs": {
+            "floor": _display_path(floor_path),
+            "floor_sha256": _sha256(floor_path),
+            "context_dir": _display_path(context_dir),
+        },
+        "filters": {
+            "min_score": min_score,
+            "max_score": max_score,
+            "min_reference_instructions": min_reference_instructions,
+            "include_ceilings": include_ceilings,
+        },
+        "count": len(candidates),
+        "skipped": dict(sorted(skipped.items())),
+        "candidates": candidates,
+    }
+
+
+def _candidate_tsv(report):
+    lines = ["name\tsource\tscore\tn_r\tn_c\tdp_lcs\tgap_pp\trules"]
+    for row in report["candidates"]:
+        lines.append("\t".join((
+            row["name"], row["source"], "%.1f" % row["score"],
+            str(row["reference_instructions"] or ""),
+            str(row["candidate_instructions"] or ""),
+            ("%.1f" % row["dp_lcs_pct"] if row["dp_lcs_pct"] is not None
+             else ""),
+            ("%.1f" % row["metric_gap_pp"] if row["metric_gap_pp"] is not None
+             else ""),
+            ",".join(row["rules"]),
+        )))
+    return "\n".join(lines) + "\n"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--floor", type=Path, default=DEFAULT_FLOOR)
@@ -180,9 +277,30 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--check", action="store_true",
                         help="fail if --output differs from generated report")
+    parser.add_argument("--candidates", action="store_true",
+                        help="emit score-work candidates from stored score data")
+    parser.add_argument("--min-score", type=float, default=50.0)
+    parser.add_argument("--max-score", type=float, default=85.0)
+    parser.add_argument("--min-reference-instructions", type=int, default=6)
+    parser.add_argument("--include-ceilings", action="store_true",
+                        help="include known structural-ceiling candidates")
+    parser.add_argument("--format", choices=("json", "tsv"), default="json",
+                        help="candidate output format (default: json)")
     args = parser.parse_args()
-    report = build_census(args.floor.resolve(), args.contexts.resolve())
-    text = json.dumps(report, indent=2, sort_keys=True) + "\n"
+    if args.min_score >= args.max_score:
+        parser.error("--min-score must be less than --max-score")
+    if args.min_reference_instructions < 1:
+        parser.error("--min-reference-instructions must be positive")
+    if args.candidates:
+        report = build_candidates(
+            args.floor.resolve(), args.contexts.resolve(), args.min_score,
+            args.max_score, args.min_reference_instructions,
+            args.include_ceilings)
+        text = (_candidate_tsv(report) if args.format == "tsv"
+                else json.dumps(report, indent=2, sort_keys=True) + "\n")
+    else:
+        report = build_census(args.floor.resolve(), args.contexts.resolve())
+        text = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.check:
         if not args.output:
             parser.error("--check requires --output")
