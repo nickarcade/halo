@@ -1642,7 +1642,7 @@ void FUN_00121d60(void *mode_tag, void *animation, int animation_index,
  * and 0x1221f5 (2 args: animation, frame_index). Confirmed: CALL
  * quaternion_decompress_8byte at 0x12211d (2 args: src_shorts, dest_floats).
  * Confirmed: CALL FUN_00121330 at 0x122108, animation_get_node_orientations
- * at 0x12215c, overlay_animation_apply_continuous_scaled at 0x1221b7 — each 5
+ * at 0x12215c, animation_get_keyframe_scale at 0x1221b7 — each 5
  * args pushed out,node,count,frame,animation with the float frame lowered as
  * PUSH <dummy>; FILD [EBP-0x20]; FSTP [ESP] (frame = (float)(int)frame_index).
  * Confirmed: node stride 0x20 via MOVSX EDI,BX; SHL EDI,0x5 at 0x1220ba.
@@ -1779,7 +1779,7 @@ void replacement_animation_apply(void *animation, short frame_index,
  * last push EDX=data is arg0). Confirmed: CALL FUN_0010b9c0 at 0x122317 with
  * pushes EDI,EDI,LEA[EBP-0x40] — args (rotation, node, node).
  * Confirmed: CALL FUN_00121330 at 0x1222eb, animation_get_node_orientations
- * at 0x12234d, overlay_animation_apply_continuous_scaled at 0x1223c3 — each 5
+ * at 0x12234d, animation_get_keyframe_scale at 0x1223c3 — each 5
  * args pushed out,node,count,frame,animation with the float frame lowered as
  * PUSH <dummy>; FILD [EBP-0x24]; FSTP [ESP] (frame = (float)(int)frame_index).
  * Confirmed: node stride 0x20 via MOVSX EDI,BX; SHL EDI,0x5 at 0x12229a.
@@ -1871,7 +1871,7 @@ void overlay_animation_apply(void *anim_entry, int frame, void *node_data)
 
           if ((scale_flags & 1) != 0) {
             if (compressed != 0) {
-              overlay_animation_apply_continuous_scaled(
+              animation_get_keyframe_scale(
                 anim_entry, (float)(int)frame_index,
                 (unsigned short)scale_count, node_index, &scale);
               scale_count = scale_count + 1;
@@ -2046,7 +2046,6 @@ void model_get_node_matrices(void *mode_tag, float *node_matrices,
   } while ((short)read_index != (short)write_index);
 }
 
-/* model_get_default_inverse_matrix (0x123e20) — Get a node's default matrix from a
 /* model_get_default_inverse_matrix (0x123e20) — Get a node's default matrix from a
 
  * model mode tag.

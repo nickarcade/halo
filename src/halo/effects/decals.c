@@ -151,7 +151,7 @@ void decals_initialize(void)
   global_decal_data = game_state_data_new("decals", 0x800, 0x38);
   assert_halt(global_decal_data);
   global_decal_data->identifier_zero_invalid = 1;
-  decal_globals = (char *)game_state_malloc("decal globals", 0, 0x280c);
+  decal_globals = game_state_malloc("decal globals", 0, 0x280c);
   assert_halt(decal_globals);
   rasterizer_decals_initialize();
   decal_counts_0 = 0;
@@ -205,7 +205,7 @@ void decals_unlock(bool full_reset)
 {
   data_iter_t iter;
   int16_t *entry;
-  char *dg;
+  decal_globals_t *dg;
 
   assert_halt(global_decal_data);
 
@@ -219,12 +219,12 @@ void decals_unlock(bool full_reset)
       if (entry[1] & 1) {
         /* Clear locked flag and decrement locked count. */
         entry[1] = (int16_t)(entry[1] & ~1);
-        *(int *)(dg + 0x2804) -= 1;
+        *(int *)((char *)dg + 0x2804) -= 1;
       }
       if (full_reset && (entry[1] & 2)) {
         /* Clear permanent flag and decrement permanent count. */
         entry[1] = (int16_t)(entry[1] & ~2);
-        *(int *)(dg + 0x2808) -= 1;
+        *(int *)((char *)dg + 0x2808) -= 1;
       }
       entry = (int16_t *)data_iterator_next(&iter);
       dg = decal_globals;
@@ -233,27 +233,27 @@ void decals_unlock(bool full_reset)
     dg = decal_globals;
 
     /* Sanity-check locked count. */
-    if (*(int *)(dg + 0x2804) != 0) {
+    if (*(int *)((char *)dg + 0x2804) != 0) {
       if (*(uint8_t *)0x4557de == 0) {
         error(
           2, "### ERROR decals: locked count is invalid (#%d) -- tell Bernie!!",
-          *(int *)(dg + 0x2804));
+          *(int *)((char *)dg + 0x2804));
         *(uint8_t *)0x4557de = 1;
       }
       *(int *)(decal_globals + 0x2804) = 0;
     }
 
     /* Sanity-check permanent count (only meaningful on full reset). */
-    if (full_reset && *(int *)(dg + 0x2808) != 0) {
+    if (full_reset && *(int *)((char *)dg + 0x2808) != 0) {
       if (*(uint8_t *)0x4557df == 0) {
         error(
           2,
           "### ERROR decals: permanent count is invalid (#%d) -- tell Bernie!!",
-          *(int *)(dg + 0x2808));
+          *(int *)((char *)dg + 0x2808));
         *(uint8_t *)0x4557df = 1;
         dg = decal_globals;
       }
-      *(int *)(dg + 0x2808) = 0;
+      *(int *)((char *)dg + 0x2808) = 0;
     }
   }
 

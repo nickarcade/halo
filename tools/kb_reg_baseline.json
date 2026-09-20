@@ -10033,7 +10033,7 @@
     "0xfce60": "void weapon_trigger_locked(int weapon_handle@<eax>, int16_t trigger_index@<si>);",
     "0xfcec0": "void weapon_trigger_recover(int trigger_index@<eax>, int weapon_handle@<ebx>);",
     "0xfd150": "void weapon_state_next(int weapon_handle@<esi>);",
-    "0xfe6c0": "void weapon_trigger_overload(int trigger_index@<eax>, int weapon_handle@<ecx>);",
+    "0xfe6c0": "void FUN_000fe6c0(int trigger_index@<eax>, int weapon_handle@<ecx>);",
     "0xfe790": "void weapon_trigger_release_charge(int trigger_index@<eax>, int weapon_handle@<ecx>);",
     "0xfe890": "void weapon_trigger_overcharged(int trigger_index@<eax>, int weapon_handle@<ebx>);",
     "0x1b8f10": "void update_alien_fighter_physics(int vehicle_handle@<esi>, int param_2@<eax>, int param_3@<ebx>);",

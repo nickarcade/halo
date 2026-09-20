@@ -474,7 +474,7 @@ void FUN_001c2120(void)
     snprintf(path, 0xff, "z:\\saved\\playlists\\default_playlist\\%02d", i);
     unknown_flag = 0;
     directory_create_or_delete_contents(path);
-    csstrcat(path, "\\blam.lst", 0xff);
+    csstrcat(path, "\\blam.lst");
     unknown_flag = 0;
 
     display_name = (wchar_t *)FUN_0019d420(tag_index, i);

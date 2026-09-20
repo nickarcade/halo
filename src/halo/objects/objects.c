@@ -1217,7 +1217,6 @@ void glow_new(int tag_index)
 }
 
 /* glow_delete (0x1330a0 / objects.obj / glow.c) — dispose a glow widget:
-/* glow_delete (0x1330a0 / objects.obj / glow.c) — dispose a glow widget:
 
  * delete every particle datum in its list, then delete the widget's own
  * datum.
@@ -4288,23 +4287,13 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
  * object's bounding sphere (center local_2c, radius local_8) via
  * object_get_bounding_sphere, then iterates the object's cluster set
  * (object_get_first_cluster / object_get_next_cluster over iter_state
- * local_10).  For each cluster it calls FUN_00139c20 to select the strongest
- * point lights into the caller's marker array (param_2+0x44), capped at 2
- * (count at param_2+0x40).  Finally it converts each stored light datum handle
- * into the light's object field (light+0x8) in place.  Guarded by
- * lights_globals.marker_initialized (0x5a8d60) and a recursion/use counter
- * (0x5a8d64). */
+ * local_10).  For each cluster it calls find_point_lights_for_object_in_cluster
+ * to select the strongest point lights into the caller's marker array
+ * (param_2+0x44), capped at 2 (count at param_2+0x40).  Finally it converts
+ * each stored light datum handle into the light's object field (light+0x8) in
+ * place.  Guarded by lights_globals.marker_initialized (0x5a8d60) and a
+ * recursion/use counter (0x5a8d64). */
 void lights_prepare_for_object_dynamic(int param_1, int param_2)
- * object's bounding sphere (center local_2c, radius local_8) via object_get_bounding_sphere,
- * then iterates the object's cluster set (object_get_first_cluster /
- * object_get_next_cluster over iter_state local_10).  For each cluster it calls
- * find_point_lights_for_object_in_cluster to select the strongest point lights into the caller's marker
- * array (param_2+0x44), capped at 2 (count at param_2+0x40).  Finally it
- * converts each stored light datum handle into the light's object field
- * (light+0x8) in place.  Guarded by lights_globals.marker_initialized
- * (0x5a8d60) and a recursion/use counter (0x5a8d64). */
-void lights_prepare_for_object_dynamic(int param_1, int param_2)
-
 {
   float center[3];
   float radius;
