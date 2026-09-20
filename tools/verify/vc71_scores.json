@@ -85891,16 +85891,16 @@
     "player_profile_set_for_game_3wide": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 90.7,
+      "abi_modeled_mnemonic_pct": 93.5,
       "addr": "0xeaba0",
       "end": "0xead5d",
       "kind": "auto",
       "n_r": 150,
-      "opnd_percent": 77.2,
-      "raw_mnemonic_pct": 90.7,
+      "opnd_percent": 86.4,
+      "raw_mnemonic_pct": 93.5,
       "ref": "synth",
       "ref_sha": "65434ef787231265",
-      "score": 90.7,
+      "score": 93.5,
       "source": "src/halo/interface/ui_widget.c"
     },
     "player_profile_set_to_default": {

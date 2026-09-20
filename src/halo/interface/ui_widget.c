@@ -3823,9 +3823,7 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
   void *list_widget;
   short selected_index;
 
-  (void)event_data;
-
-  if (widget == NULL || *(int16_t *)((char *)widget + 2) == -1) {
+  if (event_data == NULL || *(int16_t *)((char *)event_data + 2) == -1) {
     display_assert(
       "setting a player profile requires a valid controller index",
       "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x6e3,
@@ -3885,7 +3883,7 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
     if (player_profile_new(profile_index, profile)) {
       local_player_index =
         player_ui_get_single_player_local_player_from_controller(
-          *(int16_t *)((char *)widget + 2));
+          *(int16_t *)((char *)event_data + 2));
       player_ui_set_active_player_profile(
         (short)local_player_index,
         *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4),
