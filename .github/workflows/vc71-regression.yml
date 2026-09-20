@@ -68,17 +68,36 @@ jobs:
           with open(sys.argv[2], encoding="utf-8") as f:
               candidate = json.load(f).get("scores", {})
 
+          # Keyed by ADDRESS, not by name: a function keeps its floor across a
+          # pure rename (same address, old name -> new name, same-or-better
+          # score), so a name-only diff must not read that as a removal. Only
+          # an address that is missing from the candidate, or whose score
+          # dropped at the same address, is a real regression. Entries with no
+          # "addr" fall back to name-keying (never expected on a clean floor,
+          # but keeps them checked instead of silently skipped).
+          def by_addr(scores):
+              out = {}
+              for name, entry in scores.items():
+                  key = entry.get("addr") or f"name:{name}"
+                  out.setdefault(key, (name, entry))
+              return out
+
+          base_by_addr = by_addr(base)
+          candidate_by_addr = by_addr(candidate)
+
           errors = []
-          for name, before in base.items():
-              after = candidate.get(name)
-              if after is None:
+          for key, (name, before) in base_by_addr.items():
+              found = candidate_by_addr.get(key)
+              if found is None:
                   errors.append(f"{name}: removed (was {before.get('score')})")
                   continue
+              after_name, after = found
+              label = after_name if after_name == name else f"{name} -> {after_name}"
               try:
                   if float(after["score"]) < float(before["score"]):
-                      errors.append(f"{name}: {before['score']} -> {after['score']}")
+                      errors.append(f"{label}: {before['score']} -> {after['score']}")
               except (KeyError, TypeError, ValueError):
-                  errors.append(f"{name}: invalid score entry")
+                  errors.append(f"{label}: invalid score entry")
 
           if errors:
               print("VC71 score floors must not be lowered or removed:", file=sys.stderr)
@@ -102,6 +121,7 @@ jobs:
           # measure; the lift pipeline/commit hook establishes new floors.
           SOURCES=("${CHANGED_SOURCES[@]}")
 
+          KB_CHANGED=0
           for path in "${CHANGED[@]}"; do
             case "$path" in
               # A non-C source file can alter any TU. C files retain the fast,
@@ -109,11 +129,28 @@ jobs:
               # compiler settings, and score/reference code must check all floors.
               src/*.c)
                 ;;
-              src/*|CMakeLists.txt|toolchains/*|kb.json|tools/analysis/knowledge.py|tools/verify/compare_obj.py|tools/verify/vc71_cache.py|tools/verify/function_bounds.json|tools/verify/vc71_regression.py|tools/verify/vc71_verify.py|tools/verify/xbe_reference.py|tools/verify/vc71_scores.json)
+              # kb.json is per-function, not cross-cutting: a rename, ported-flag,
+              # or decl edit only affects the source file(s) that own the changed
+              # address(es). Resolving that narrows the common case (every
+              # lift/rename touches kb.json) from a full 185+ file sweep to just
+              # the handful of files actually affected, instead of forcing
+              # FULL_CHECK on every PR that touches it.
+              kb.json)
+                KB_CHANGED=1
+                ;;
+              src/*|CMakeLists.txt|toolchains/*|tools/analysis/knowledge.py|tools/verify/compare_obj.py|tools/verify/vc71_cache.py|tools/verify/function_bounds.json|tools/verify/vc71_regression.py|tools/verify/vc71_verify.py|tools/verify/xbe_reference.py|tools/verify/vc71_scores.json)
                 FULL_CHECK=1
                 ;;
             esac
           done
+
+          if [ "$FULL_CHECK" -ne 1 ] && [ "$KB_CHANGED" -eq 1 ]; then
+            mapfile -t KB_SOURCES < <("$PY" tools/audit/kb_diff_sources.py --base "$BASE" --head "$HEAD")
+            SOURCES+=("${KB_SOURCES[@]}")
+          fi
+          if [ "${#SOURCES[@]}" -gt 0 ]; then
+            mapfile -t SOURCES < <(printf '%s\n' "${SOURCES[@]}" | sort -u)
+          fi
 
           if [ "$FULL_CHECK" -eq 1 ]; then
             ARGS=(check --strict)

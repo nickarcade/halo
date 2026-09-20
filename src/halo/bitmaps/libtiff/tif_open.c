@@ -1291,6 +1291,160 @@ int FUN_0006ce60(void *tif_)
   return 1;
 }
 
+/* LZW encoder hash-table geometry, upstream libtiff tif_lzw.c's HSIZE/HSHIFT.
+ * HSIZE is the 0x138b that both the initial probe stride (0x6d040) and the
+ * negative-index wrap (0x6d05f) use; the paired pointer wrap adds 0x4e2c
+ * (0x6d065), i.e. exactly HSIZE longs, so the hash array is 5003 dwords based
+ * at +0x30 and the code array is 5003 shorts immediately after it at +0x4e5c.
+ * HSHIFT is the `shl edi,4` at 0x6d013, i.e. BITS_MAX-8. Both tables live in
+ * the 0x3aa8-byte unobserved tail of lzw_codec_state_t, so they are reached
+ * through raw offsets for the same reason the encoder counters at
+ * +0x20..+0x2c are -- see FUN_0006cde0. */
+#define HSIZE 5003
+#define HSHIFT (BITS_MAX - 8)
+
+/**
+ * Compress a scanline/strip/tile with LZW.
+ *
+ * Upstream libtiff's LZWEncode (tif_lzw.c), pre-3.5 shape: the string table is
+ * the split hash/code pair rather than the later code_t chain, and the bit
+ * packer is a separate call rather than an inlined macro. The ratio-check arm
+ * upstream keeps inline is the one Bungie split out as FUN_0006cde0, called
+ * here at 0x6d11c with the handle in EDI, which is why nothing is pushed for
+ * it.
+ *
+ * Two guards, not one. `tif_data` is null-checked first and returns 0 with the
+ * saved code NOT written back (0x6cfb4 `xor eax,eax` skips the `mov [esi],ecx`
+ * tail); every other exit returns 1 through that tail. Then, when no code is
+ * pending, an empty buffer leaves through the SAME tail (0x6cfcb `jle`), so a
+ * zero-length call still stores the -1 back -- that is the binary's shape, not
+ * an `if (cc > 0 && ent == -1)` fusion.
+ *
+ * Signedness is load-bearing in three places. The hash slot is tested with
+ * `test edx,edx / jl` (0x6d03c), so an empty slot is any NEGATIVE value, not
+ * just -1. The recovered code is a `movsx` from the short table (0x6d02c,
+ * 0x6d0de), so it sign-extends. And the wrap test on the probe index is
+ * `test edi,edi / jge` (0x6d05b), so the index walks signed.
+ *
+ * Insertion order is taken from the disassembly, not from upstream: the new
+ * code is read out of free_ent and stored into the code table BEFORE free_ent
+ * is bumped (the `mov ax,[esi+0x1c]` at 0x6d081 predates the `inc edx` at
+ * 0x6d099), and the hash slot is filled after both (0x6d09d).
+ *
+ * The three post-insert arms are mutually exclusive and tested in binary
+ * order: table full (`cmp eax,0xffe`, 0x6d0a4) wins over a code-width bump
+ * (`cmp eax,[esi+0x10] / jle`, 0x6d0eb) which wins over the ratio checkpoint
+ * (`cmp edx,[esi+0x20] / jl`, 0x6d114). Both maxcode stores carry the same
+ * encode-side old-style bias FUN_0006cde0 and FUN_0006d1e0 apply: plain
+ * MAXCODE(nbits), one MORE when LZW_FLAG_OLDSTYLE is set.
+ *
+ * @param tif_ TIFF handle (declared void* so the generated header needs no
+ *             libtiff types); tif->tif_data may be null.
+ * @param bp0  input bytes; read as UNSIGNED (`movzx` at 0x6cfdf and 0x6d003).
+ * @param cc0  byte count. Signed -- both entry tests are `jle`.
+ * @param s    sample number; unused by this codec.
+ * @return 1 once the pending code has been saved back, 0 when the codec state
+ *         was never set up.
+ */
+int FUN_0006cfa0(void *tif_, char *bp0, int cc0, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  lzw_codec_state_t *sp = (lzw_codec_state_t *)tif->tif_data;
+  unsigned char *bp = (unsigned char *)bp0;
+  int cc = cc0;
+  long *hashtab;
+  short *codetab;
+  long *hp;
+  long ent;
+  long fcode;
+  int h;
+  int disp;
+  int c;
+  int i;
+  int maxcode;
+
+  (void)s;
+
+  if (sp == (lzw_codec_state_t *)0) {
+    return 0;
+  }
+  hashtab = (long *)((char *)sp + 0x30);
+  codetab = (short *)((char *)sp + 0x4e5c);
+  ent = sp->oldcode;
+  if (ent == -1) {
+    if (cc <= 0) {
+      goto done;
+    }
+    FUN_0006c960(tif_, 0x100); /* CODE_CLEAR */
+    ent = *bp++;
+    cc--;
+    ++*(long *)((char *)sp + 0x28); /* enc_incount */
+  }
+  if (cc > 0) {
+    i = cc;
+    do {
+      c = *bp++;
+      ++*(long *)((char *)sp + 0x28); /* enc_incount */
+      h = (c << HSHIFT) ^ (int)ent;
+      hp = &hashtab[h];
+      fcode = ((long)c << BITS_MAX) + ent;
+      if (*hp == fcode) {
+        ent = codetab[h];
+        goto next;
+      }
+      if (*hp >= 0) {
+        /* Secondary probe: a fixed stride derived from the slot itself, the
+         * `HSIZE - h` / 1 pair at 0x6d045-0x6d04b. The pointer and the index
+         * are stepped together and wrapped together. */
+        disp = HSIZE - h;
+        if (h == 0) {
+          disp = 1;
+        }
+        do {
+          h -= disp;
+          hp -= disp;
+          if (h < 0) {
+            h += HSIZE;
+            hp += HSIZE;
+          }
+          if (*hp == fcode) {
+            ent = codetab[h];
+            goto next;
+          }
+        } while (*hp >= 0);
+      }
+      FUN_0006c960(tif_, ent);
+      codetab[h] = (short)sp->free_ent;
+      ent = c;
+      sp->free_ent++;
+      hashtab[h] = fcode;
+      if (sp->free_ent == MAXCODE(BITS_MAX) - 1) {
+        FUN_0006ca50(sp);
+        FUN_0006c960(tif_, 0x100); /* CODE_CLEAR */
+        sp->nbits = BITS_MIN;
+        sp->maxcode = MAXCODE(BITS_MIN);
+        if (sp->flags & LZW_FLAG_OLDSTYLE) {
+          sp->maxcode = MAXCODE(BITS_MIN) + 1;
+        }
+      } else if (sp->free_ent > sp->maxcode) {
+        sp->nbits++;
+        maxcode = 1 << sp->nbits;
+        sp->maxcode = maxcode - 1;
+        if (sp->flags & LZW_FLAG_OLDSTYLE) {
+          sp->maxcode = maxcode;
+        }
+      } else if (*(long *)((char *)sp + 0x28) >= /* enc_incount */
+                 *(long *)((char *)sp + 0x20)) { /* enc_checkpoint */
+        FUN_0006cde0(tif_);
+      }
+    next:;
+    } while (--i != 0);
+  }
+done:
+  sp->oldcode = (int)ent;
+  return 1;
+}
+
 /**
  * Encode one scanline through the predictor: apply the horizontal differencing
  * in place, then hand the differenced row to the parent codec.
@@ -1882,7 +2036,7 @@ int TIFFFdOpen(int fd, const char *name, const char *mode)
       goto bad;
     }
     FUN_0006d500(tif, tif->tif_header.tiff_magic, 0);
-    if (!FUN_00066190(tif)) {
+    if (!TIFFDefaultDirectory(tif)) {
       goto bad;
     }
     tif->tif_diroff = 0;
@@ -1924,7 +2078,7 @@ int TIFFFdOpen(int fd, const char *name, const char *mode)
                    "Cannot append to file that has opposite byte ordering");
       goto bad;
     }
-    if (FUN_00066190(tif)) {
+    if (TIFFDefaultDirectory(tif)) {
       return (int)tif;
     }
     break;

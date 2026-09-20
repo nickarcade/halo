@@ -36,7 +36,21 @@
 #endif
 
 #ifdef XDK_BUILD
-#include <Xbox.h>
+/* XDK_BUILD is the VC71 reference-compile lane (tools/verify/vc71_verify.py,
+ * tools/permuter/compile.sh, the XDK: targets in CMakeLists.txt). It compiles
+ * with /X /Zl, so the Win32 headers the real XDK <Xbox.h> needs (WINAPI,
+ * WCHAR, LPCSTR) are absent and that header cannot be parsed. Kernel types and
+ * PAGE_* constants come from the forced include src/xdk_common.h instead; the
+ * two prototypes below are the only extra decls this lane needs.
+ *
+ * Do NOT reinstate `#include <Xbox.h>` here. `/I<repo>/src` precedes the
+ * vendor XDK's own include dir on the search path, so that line resolved back
+ * to THIS file (a no-op, the XBOX_H guard is already set) on case-insensitive
+ * drive-letter checkouts, but picked up the real XDK header on case-sensitive
+ * checkouts — e.g. anything WSL maps to a `\\wsl.localhost\...` UNC path,
+ * which is where the self-hosted CI runner's _work dir lives. Same commit,
+ * two different translation units.
+ */
 unsigned long __stdcall MmQueryAddressProtect(void *VirtualAddress);
 void __stdcall MmFreeContiguousMemory(void *BaseAddress);
 #else

@@ -62,7 +62,7 @@ bool rasterizer_vertex_buffer_new(void *vertex_buffer, int vertex_type,
       success = true;
     } else {
       success = false;
-      FUN_00167ff0(
+      rasterizer_error(
         hr,
         "IDirect3DDevice8_CreateVertexBuffer(global_d3d_device, buffer_size,"
         " RASTERIZER_STATIC_BUFFER_USAGE, 0, RASTERIZER_STATIC_BUFFER_POOL,"
@@ -207,7 +207,7 @@ bool rasterizer_triangle_buffer_new(void *triangle_buffer, short type,
       success = true;
     } else {
       success = false;
-      FUN_00167ff0(
+      rasterizer_error(
         hr, "IDirect3DDevice8_CreateIndexBuffer(global_d3d_device, buffer_size,"
             " RASTERIZER_STATIC_BUFFER_USAGE, D3DFMT_INDEX16,"
             " RASTERIZER_STATIC_BUFFER_POOL, &d3d_index_buffer)");

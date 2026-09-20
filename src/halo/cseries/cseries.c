@@ -155,7 +155,11 @@ void display_assert(const char *reason, const char *filepath, int lineno,
 
 /* Freestanding fallbacks for compiler-generated libcalls.  The Xbox image
  * has no hosted CRT, but Clang may lower builtin memory operations to these
- * symbols when the size is not a small compile-time constant. */
+ * symbols when the size is not a small compile-time constant.  Real MSVC/VC71
+ * treats memcmp/memset/memcpy as compiler intrinsics that cannot be
+ * redefined (C2169), and never needs these — only clang's freestanding path
+ * does. */
+#if !defined(_MSC_VER) || defined(__clang__)
 int memcmp(const void *a, const void *b, size_t size)
 {
   const uint8_t *pa;
@@ -197,6 +201,7 @@ void *memcpy(void *destination, const void *source, size_t size)
     dst[i] = src[i];
   return destination;
 }
+#endif /* !defined(_MSC_VER) || defined(__clang__) */
 #define memcpy xbox_memcpy
 
 /* Byte-compare two buffers with assertions on non-null pointers and

@@ -536,6 +536,64 @@ void sound_dsound_channel_release(int virtual_channel_index)
   }
 }
 
+/* dsound_fix_rear_speakers (0x1c9cf0)
+ *
+ * Xbox rear-speaker workaround: create a 32-byte 16-bit mono 22050 Hz
+ * "inanity" DirectSound buffer, fill it with silence and start it
+ * looping so the rear speakers stay fed.  Returns true once the buffer
+ * has been created and started.
+ *
+ * Layouts are taken from the disassembly, not from an SDK header:
+ *   DSBUFFERDESC (0x18 bytes, EBP-0x2c): +0x00 dwSize = 0x18,
+ *   +0x04 dwFlags = 0, +0x08 dwBufferBytes = 0x20, +0x0c lpwfxFormat,
+ *   +0x10 = 0x1f00 (mix-bin field), +0x14 left zero by the csmemset.
+ *   WAVEFORMATEX (EBP-0x14): +0x00 wFormatTag = 1 (PCM), +0x02
+ *   nChannels = 1, +0x04 nSamplesPerSec = 22050, +0x08
+ *   nAvgBytesPerSec = 44100, +0x0c nBlockAlign = 2, +0x0e
+ *   wBitsPerSample = 16.  The original never writes cbSize.
+ *
+ * The SetBufferData HRESULT is discarded by the original; only the
+ * CreateSoundBuffer and Play results are tested. */
+boolean dsound_fix_rear_speakers(void)
+{
+  unsigned char desc[0x18];
+  unsigned char wfx[0x14];
+  int result;
+
+  *(uint16_t *)&wfx[0x00] = 1; /* wFormatTag (WAVE_FORMAT_PCM) */
+  *(uint16_t *)&wfx[0x0e] = 0x10; /* wBitsPerSample */
+  *(uint16_t *)&wfx[0x02] = 1; /* nChannels */
+  *(uint16_t *)&wfx[0x0c] = 2; /* nBlockAlign */
+  *(uint32_t *)&wfx[0x04] = 0x5622; /* nSamplesPerSec (22050) */
+  *(uint32_t *)&wfx[0x08] = 0xac44; /* nAvgBytesPerSec (44100) */
+
+  csmemset(desc, 0, 0x18);
+
+  *(uint32_t *)&desc[0x00] = 0x18;
+  *(uint32_t *)&desc[0x04] = 0;
+  *(uint32_t *)&desc[0x08] = 0x20;
+  *(uint32_t *)&desc[0x0c] = (uint32_t)wfx;
+  *(uint32_t *)&desc[0x10] = 0x1f00;
+
+  result = IDirectSound_CreateSoundBuffer(*(void **)0x50545c, desc,
+                                          (void **)0x505460, NULL);
+  if (result < 0) {
+    sound_dsound_log_error(result, "failed to create the inanity channel.");
+    return false;
+  }
+
+  csmemset((void *)0x505464, 0, 0x20);
+  IDirectSoundBuffer_SetBufferData(*(void **)0x505460, (void *)0x505464, 0x20);
+
+  result = IDirectSoundBuffer_Play(*(void **)0x505460, 0, 0, 1);
+  if (result < 0) {
+    sound_dsound_log_error(result, "failed to start the inanity channel.");
+    return false;
+  }
+
+  return true;
+}
+
 /* FUN_001c9e20 (0x1c9e20)
  *
  * Per-frame DirectSound service routine.

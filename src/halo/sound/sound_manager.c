@@ -1090,6 +1090,29 @@ void sound_manager_set_sound_environment(const void *sound_environment)
   memcpy((void *)0x4eb068, sound_environment, 0x12 * sizeof(uint32_t));
 }
 
+/* FUN_001cb9d0 (0x1cb9d0)
+ *
+ * Samples the millisecond clock and updates the sound manager's frame
+ * timing pair: the dword timestamp at 0x4eaf4c (the same "previous ms"
+ * global read by sound_get_previous_ms at 0x1cb8e0) and the float delta
+ * at 0x4eaf50.
+ *
+ * Reference: CALL system_milliseconds (0x8e370); the result is spilled to
+ * [EBP-4] and re-loaded with FILD, then FISUB against the OLD value still
+ * in [0x4eaf4c], so the subtraction is new-minus-old.  Only after the
+ * FISUB does MOV [0x4eaf4c],EAX overwrite the timestamp.  The product is
+ * scaled by the float constant at 0x25bc08 (the same scale scenario.c
+ * clamps its frame deltas against) and stored to 0x4eaf50. */
+void FUN_001cb9d0(void)
+{
+  int now;
+
+  now = (int)system_milliseconds();
+  *(float *)0x4eaf50 =
+    ((float)now - (float)*(int *)0x4eaf4c) * *(const float *)0x25bc08;
+  *(int *)0x4eaf4c = now;
+}
+
 /* Check whether a sound tag can currently play.
  *
  * sound_tag_index is passed in EAX (register argument).
@@ -1795,6 +1818,93 @@ void FUN_001cc4f0(int sound_handle)
   }
 }
 
+/* render_debug_looping_sound (0x1cc5b0)
+ *
+ * Debug overlay for one active looping sound.  Gated on the debug byte at
+ * 0x4fc381 and on the looping-sound entry's 16-bit word at +0x0 being 1
+ * (MOV EAX,[EBP+0xc]; CMP word ptr [EAX],0x1; JNZ epilogue at 0x1cc5c3).
+ *
+ * It resolves the 'lsnd' definition for the tag index in the first argument,
+ * then hunts for a sound to describe:
+ *   - first over the block at definition + 0x3c (element size 0xa0, 'snd!'
+ *     reference index at element + 0x4c),
+ *   - then, only when the first hunt found nothing or latched a zero minimum
+ *     distance, over the block at definition + 0x48 (element size 0x68,
+ *     reference index at element + 0xc).
+ * Both hunts call tag_get(0x736e6421, index) for its side effects and discard
+ * the result, then latch the sound class minimum distance into [EBP-4] and
+ * the default priority into [EBP-8].
+ *
+ * NOTE: both loops pass a literal element index of 0 to
+ * tag_block_get_element (PUSH 0xa0 / PUSH 0x0 / PUSH ESI at 0x1cc600 and
+ * PUSH 0x68 / PUSH 0x0 / PUSH EDI at 0x1cc670); the EBX counter only feeds
+ * the loop bound, which is re-read from the block count each iteration.
+ * That is the reference's behaviour and is preserved here.
+ *
+ * The branch at 0x1cc65d is FCOMP [0x2533c0] / FNSTSW AX / TEST AH,0x44 / JP,
+ * which jumps when the compare is NOT equal (only the equal case sets C3
+ * alone and clears PF), so the second hunt runs only while the latched
+ * minimum distance is still 0.0f.
+ *
+ * Drawing uses the entry position at entry + 0xc: a text label carrying the
+ * definition's tag name in colour [0x2ee6c4], then a sphere of radius =
+ * default priority in colour [0x2ee6dc], then a sphere of radius = minimum
+ * distance in colour [0x2ee6d8]. */
+void render_debug_looping_sound(int definition_index, void *entry)
+{
+  char *definition;
+  int *tracks;
+  int *detail_sounds;
+  char *element;
+  void *position;
+  short index;
+  float min_distance;
+  float priority;
+
+  if (*(char *)0x4fc381 != '\0' && *(short *)entry == 1) {
+    definition = (char *)tag_get(0x6c736e64, definition_index);
+    tracks = (int *)(definition + 0x3c);
+    index = 0;
+    min_distance = 0.0f;
+    priority = 0.0f;
+    if (*tracks > 0) {
+      do {
+        element = (char *)tag_block_get_element(tracks, 0, 0xa0);
+        if (*(int *)(element + 0x4c) != -1) {
+          tag_get(0x736e6421, *(int *)(element + 0x4c));
+          min_distance = sound_class_get_min_distance(*(int *)(element + 0x4c));
+          priority = sound_get_default_priority(*(int *)(element + 0x4c));
+          if (min_distance != *(float *)0x2533c0) {
+            goto draw;
+          }
+          break;
+        }
+        index++;
+      } while (index < *tracks);
+    }
+    detail_sounds = (int *)(definition + 0x48);
+    index = 0;
+    if (*detail_sounds > 0) {
+      do {
+        element = (char *)tag_block_get_element(detail_sounds, 0, 0x68);
+        if (*(int *)(element + 0xc) != -1) {
+          tag_get(0x736e6421, *(int *)(element + 0xc));
+          min_distance = sound_class_get_min_distance(*(int *)(element + 0xc));
+          priority = sound_get_default_priority(*(int *)(element + 0xc));
+          break;
+        }
+        index++;
+      } while (index < *detail_sounds);
+    }
+  draw:
+    position = (void *)((char *)entry + 0xc);
+    FUN_00189cb0('\0', position, (void *)tag_get_name(definition_index),
+                 (int)*(void **)0x2ee6c4);
+    FUN_00189540('\0', position, priority, *(void **)0x2ee6dc);
+    FUN_00189540('\0', position, min_distance, *(void **)0x2ee6d8);
+  }
+}
+
 /* sound_initialize (0x1cc710)
  *
  * Bring the sound manager up.  Sequence follows the reference exactly:
@@ -2403,6 +2513,83 @@ void sound_update_channel(int channel_index, float attenuation)
   (*(void (**)(int))(*(int *)0x4eaf48 + 0x1c))(channel_index);
 }
 
+/* looping_sound_new (0x1cd190)
+ *
+ * Allocate a new entry in the looping-sound table (0x4fdba0) for an `lsnd`
+ * definition and seed each of its tracks with a randomized start deadline.
+ *
+ * Returns the new datum index, or -1 when the sound manager is not
+ * initialized (0x4eaf40 / 0x4eaf41 both false) or the table is full.
+ *
+ * definition_index arrives in EAX (register argument); the remaining two
+ * arguments are pushed cdecl (reference RETs without stack cleanup).
+ *
+ * Per-track deadline (reference 0x1cd267..0x1cd28b):
+ *   FLD [def+0x10]; FSUB [def+0x04]; FMUL [param_3+0x04]; FADD [def+0x04];
+ *   FMUL ST1 (ST1 = random_real_range result); FMUL [0x254cb8] (= 1000.0f);
+ *   FIADD [0x4eaf4c] (the previous-ms timestamp); _ftol2.
+ * The trailing FSTP ST0 discards the still-live random value, so the
+ * random call is an operand of the product, not a separate statement.
+ *
+ * The loop index is a short: the reference keeps the untruncated counter at
+ * [EBP-0xc] and re-derives the index with MOVSX ESI,AX each iteration.
+ *
+ * The `snd!` tag_get at 0x1cd22a discards its result (resolve-only). */
+int looping_sound_new(int definition_index /* @<eax> */, int param_2,
+                      const void *param_3)
+{
+  char *entry;
+  const char *definition;
+  const char *element;
+  short index;
+  int sound_index;
+  float scale;
+  float low;
+  float high;
+  float min;
+  float max;
+
+  sound_index = -1;
+  if (*(unsigned char *)0x4eaf40 == 0)
+    goto exit_result;
+  if (*(unsigned char *)0x4eaf41 == 0)
+    goto exit_result;
+
+  sound_index = data_new_at_index(*(data_t **)0x4fdba0);
+  if (sound_index == -1)
+    goto exit_result;
+
+  entry = (char *)datum_get(*(data_t **)0x4fdba0, sound_index);
+  definition = (const char *)tag_get(0x6c736e64, definition_index);
+
+  *(int *)(entry + 0x4) = definition_index;
+  *(int *)(entry + 0x8) = param_2;
+  *(short *)(entry + 0x50) = 0;
+  *(unsigned char *)(entry + 0x4e) = 0;
+
+  for (index = 0; index < *(const int *)(definition + 0x48); index++) {
+    element = (const char *)tag_block_get_element((void *)(definition + 0x48),
+                                                  index, 0x68);
+    tag_get(0x736e6421, *(const int *)(element + 0xc));
+
+    scale = *(const float *)((const char *)param_3 + 4);
+    high = *(const float *)(definition + 0x10);
+    low = *(const float *)(definition + 0x4);
+    max = *(const float *)(element + 0x14);
+    min = *(const float *)(element + 0x10);
+
+    *(int *)(entry + index * 4 + 0x54) =
+      (int)(((high - low) * scale + low) *
+              random_real_range((int *)random_math_get_local_seed_address(),
+                                min, max) *
+              *(const float *)0x254cb8 +
+            (float)*(const int *)0x4eaf4c);
+  }
+
+exit_result:
+  return sound_index;
+}
+
 /* sound_start_next_looping_permutation (0x1cd2c0)
  *
  * Advance a looping sound to its next permutation. Called when the current
@@ -2472,6 +2659,57 @@ void sound_start_next_looping_permutation(int sound_handle /* @<eax> */)
     }
 
     sound_stop_channel(sound_handle);
+  }
+}
+
+/* detail_sound_random_offset (0x1cd390, @<edi> element / @<esi> out_track_data)
+ *
+ * Pick the random offset vector for one lsnd! detail-sound element (0x68
+ * bytes).  Three random_real_range calls read min/max pairs off the element:
+ * +0x60/+0x64 for the distance, +0x58/+0x5c and +0x50/+0x54 for the two
+ * euler angles.  The seed comes from random_math_get_local_seed_address on
+ * every call (0x1cd3a8 / 0x1cd3d8 / 0x1cd3fb).
+ *
+ * The branch at 0x1cd3c4 is FCOMP [0x2533c0] / FNSTSW AX / TEST AH,0x44 /
+ * JNP, which jumps when the compare IS equal (only the equal case sets C3
+ * alone and clears PF), so a zero distance copies the global zero vector
+ * (through the pointer at 0x31fc38, three dword MOVs at 0x1cd439-0x1cd446)
+ * into the output and returns.
+ *
+ * The angle pair is one 8-byte stack local at [EBP-0x14]: the +0x58/+0x5c
+ * random is stored to the SECOND float (FSTP [EBP-0x10] at 0x1cd3e3) and the
+ * +0x50/+0x54 random to the first (FSTP [EBP-0x14] at 0x1cd406), so the
+ * second angle is evaluated first.  angles_to_vector (0x10cc40) receives
+ * PUSH EAX = &angles then PUSH ESI = out, writing the unit vector straight
+ * into the caller's 12-byte track block; the distance then scales it in
+ * place (FLD [EBP-0x4] / FMUL [ESI+n] / FSTP [ESI+n]). */
+void detail_sound_random_offset(void *element, void *out_track_data)
+{
+  char *e;
+  float *out;
+  uint32_t *zero_vector;
+  float angles[2];
+  float distance;
+
+  e = (char *)element;
+  out = (float *)out_track_data;
+
+  distance = random_real_range((int *)random_math_get_local_seed_address(),
+                               *(float *)(e + 0x60), *(float *)(e + 0x64));
+  if (distance != 0.0f) {
+    angles[1] = random_real_range((int *)random_math_get_local_seed_address(),
+                                  *(float *)(e + 0x58), *(float *)(e + 0x5c));
+    angles[0] = random_real_range((int *)random_math_get_local_seed_address(),
+                                  *(float *)(e + 0x50), *(float *)(e + 0x54));
+    angles_to_vector(out, angles);
+    out[0] = distance * out[0];
+    out[1] = distance * out[1];
+    out[2] = distance * out[2];
+  } else {
+    zero_vector = *(uint32_t **)0x31fc38;
+    ((uint32_t *)out_track_data)[0] = zero_vector[0];
+    ((uint32_t *)out_track_data)[1] = zero_vector[1];
+    ((uint32_t *)out_track_data)[2] = zero_vector[2];
   }
 }
 
@@ -2626,6 +2864,95 @@ int16_t sound_allocate_channel(void *source /* @<eax> */, float priority)
     return -1;
 
   return (short)best_channel;
+}
+
+/* sound_find_best_channel (0x1cd8b0)
+ *
+ * Pick the channel a new sound should play on: the first idle channel, or
+ * failing that, the lowest-priority active channel that our sound is allowed
+ * to evict.
+ *
+ * Channels live at 0x4fc3a0 with stride 0x18 (+0x00 sound handle, +0x04 flag
+ * word); the channel count is at 0x4eb0b4.  A channel qualifies when its flag
+ * word agrees with the sound and its definition: bit 1 (or the +0x14 source
+ * test), bit 2 vs definition+0x6, bit 1>>1 vs definition+0x6c and bit 3 vs
+ * definition+0x6e (disassembly 0x1cd952-0x1cd9bc).
+ *
+ * Eviction order is decided by sound_update_time: the candidate must beat our
+ * sound (ECX = our handle, EAX = candidate handle, distance on the stack at
+ * 0x1cd9cc) and, once a champion exists, beat the champion too (0x1cd9e8).
+ *
+ * Returns the loop index of an idle channel (AX from [EBP-0x8] at 0x1cda42)
+ * or the best eviction candidate (AX from [EBP-0xc] at 0x1cda37), -1 when
+ * nothing qualifies. */
+short sound_find_best_channel(int sound_handle)
+{
+  char *sound_entry;
+  char *sound_tag;
+  float our_distance;
+  float best_distance;
+  short best_channel;
+  int best_sound_handle;
+  short i;
+  unsigned int flags;
+  int other_handle;
+  int *channel_base;
+  char *other_entry;
+  boolean match;
+
+  best_channel = -1;
+
+  sound_entry = (char *)datum_get(*(data_t **)0x4fdba4, sound_handle);
+  sound_tag = (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8));
+  best_sound_handle = -1;
+
+  /* Reference listener distance for the sound we are trying to place. */
+  our_distance =
+    FUN_001ccbe0(*(short *)(sound_entry + 0x6), (void *)(sound_entry + 0x14));
+
+  for (i = 0; i < *(short *)0x4eb0b4; i++) {
+    if (i < 0 || i >= *(short *)0x4eb0b4) {
+      display_assert("index>=0 && index<sound_manager_globals.channel_count",
+                     "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x428, 1);
+      system_exit(-1);
+    }
+
+    channel_base = (int *)(0x4fc3a0 + (int)i * 0x18);
+    flags = (int)*(short *)(0x4fc3a4 + (int)i * 0x18);
+
+    /* Flag bits 3, 1 and 2 must agree with the definition's three boolean
+       fields (evaluated in that order at 0x1cd955-0x1cd99f, accumulated into
+       the byte temp at [EBP-0x1]). */
+    match = 1;
+    if ((~(flags >> 3) & 1) != (*(short *)(sound_tag + 0x6e) == 0))
+      match = 0;
+    if ((~(flags >> 1) & 1) != (*(short *)(sound_tag + 0x6c) == 0))
+      match = 0;
+    if (((flags >> 2) & 1) != (int)*(unsigned short *)(sound_tag + 0x6))
+      match = 0;
+
+    if ((((flags & 2) != 0) ||
+         ((~flags & 1) == (*(short *)(sound_entry + 0x14) == 0))) &&
+        match) {
+      other_handle = *channel_base;
+
+      /* An idle channel wins outright. */
+      if (other_handle == -1)
+        return i;
+
+      if (sound_update_time(sound_handle, other_handle, our_distance) &&
+          (best_channel == -1 ||
+           sound_update_time(best_sound_handle, other_handle, best_distance))) {
+        other_entry = (char *)datum_get(*(data_t **)0x4fdba4, *channel_base);
+        best_channel = i;
+        best_sound_handle = *channel_base;
+        best_distance = FUN_001ccbe0(*(short *)(other_entry + 0x6),
+                                     (void *)(other_entry + 0x14));
+      }
+    }
+  }
+
+  return best_channel;
 }
 
 /* sound_create_looping_entry (0x1cda50)
@@ -3256,6 +3583,237 @@ int sound_start(int sound_tag_index, void *source, int object_handle,
   return result;
 }
 
+/* FUN_001ce9c0 @ 0x1ce9c0 -- per-frame sound listener update.
+ *
+ * Runs only while a game is in progress (game_in_progress, 0xb5be0).
+ *
+ * Pass 1 walks the four local-player listener slots in the table at 0x4eaf58
+ * (stride 0x44).  The reference keeps EDI at base+1, so [EDI-1] is
+ * listener+0 and [EDI] is listener+1; the same base+1 cursor is reproduced
+ * here so the +3 / +0x37 displacements match the reference literally.
+ *   - listener+0 (byte) = slot-active flag.  Cleared when
+ *     local_player_get_player_index returns -1.
+ *   - Otherwise observer_get_camera yields the camera block (asserted
+ *     non-NULL, sound_manager.c line 0x4ef).  FUN_0018f3e0(camera+0xc,
+ *     camera+0, NULL) returns a boolean state for that camera position.  On
+ *     a change versus the stored listener+1 byte, a transition sound is
+ *     started from the tag block at game_globals_get()+0xf8 (element size
+ *     0x10, tag index at element+0xc): element 0 when the new state is set,
+ *     element 1 when it is clear.  The sound source handed to sound_start is
+ *     a stack block whose only initialized fields are the int16 at +0 (0)
+ *     and the two floats at +4 and +8 (1.0f); the remaining bytes are left
+ *     uninitialized by the reference and their meaning is UNKNOWN.
+ *   - listener+1 (byte) = the new state.
+ *   - matrix4x3_from_forward_up_position(listener+4, camera+0x00,
+ *     camera+0x20, camera+0x2c) builds the listener matrix at listener+4.
+ *   - real_matrix3x3_transform_vector(listener+4, camera+0x14,
+ *     listener+0x38).
+ *
+ * Pass 2 fills a 13-dword stack block from four global vector pointers and
+ * hands it to the sound driver's vtable+0xc entry (driver object pointer at
+ * 0x4eaf48):
+ *   [0..2]  <- *(float **)0x31fc1c   (global origin vector)
+ *   [3..5]  <- *(float **)0x31fc3c   (global forward vector)
+ *   [6..8]  <- *(float **)0x31fc44   (global up vector)
+ *   [9..11] <- *(float **)0x31fc38   (global zero vector)
+ *   [12]    =  0x4eb068              (sound environment globals)
+ * The reference copies these as raw dwords (MOV pairs) and stores them in
+ * the order fc3c, fc44, fc1c, fc38; that order is preserved.  The field
+ * names of the driver block are UNKNOWN, so it stays an untyped dword block.
+ *
+ * The tag-block count at game_globals+0xf8 is loaded once before the state
+ * branch in the reference (MOV ECX,[EAX] at 0x1cea8a precedes the JZ) and
+ * nothing writes it in between, so it is hoisted into a local here. */
+void FUN_001ce9c0(void)
+{
+  uint32_t sound_source[16];
+  uint32_t listener_block[13];
+  const uint32_t *global_vector;
+  int *transition_sounds;
+  int element_count;
+  int sound_tag_index;
+  void *element;
+  float *camera;
+  char *listener;
+  int index;
+  bool state;
+
+  if (!game_in_progress())
+    return;
+
+  index = 0;
+  listener = (char *)0x4eaf59;
+  do {
+    if ((short)index < 0 || (short)index >= 4) {
+      display_assert("index>=0 && index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x430, 1);
+      system_exit(-1);
+    }
+
+    if (local_player_get_player_index((int16_t)index) == -1) {
+      listener[-1] = 0;
+    } else {
+      camera = (float *)observer_get_camera((unsigned short)index);
+      if (camera == 0) {
+        display_assert("camera", "c:\\halo\\SOURCE\\sound\\sound_manager.c",
+                       0x4ef, 1);
+        system_exit(-1);
+      }
+
+      listener[-1] = 1;
+      state = FUN_0018f3e0(camera + 3, camera, (int16_t *)0);
+
+      if (listener[0] != (char)state) {
+        transition_sounds = (int *)((char *)game_globals_get() + 0xf8);
+        *(int16_t *)&sound_source[0] = 0;
+        *(float *)&sound_source[1] = 1.0f;
+        *(float *)&sound_source[2] = 1.0f;
+        element_count = *transition_sounds;
+        if (state) {
+          if (element_count > 0) {
+            element = tag_block_get_element(transition_sounds, 0, 0x10);
+            sound_tag_index = *(int *)((char *)element + 0xc);
+            if (sound_tag_index != -1)
+              sound_start(sound_tag_index, sound_source, -1, 0, (void *)0, 0);
+          }
+        } else if (element_count > 1) {
+          element = tag_block_get_element(transition_sounds, 1, 0x10);
+          sound_tag_index = *(int *)((char *)element + 0xc);
+          if (sound_tag_index != -1)
+            sound_start(sound_tag_index, sound_source, -1, 0, (void *)0, 0);
+        }
+      }
+
+      listener[0] = (char)state;
+      matrix4x3_from_forward_up_position(listener + 3, camera, camera + 8,
+                                         camera + 11);
+      real_matrix3x3_transform_vector(listener + 3, (vector3_t *)(camera + 5),
+                                      (vector3_t *)(listener + 0x37));
+    }
+
+    index++;
+    listener += 0x44;
+  } while ((short)index < 4);
+
+  global_vector = *(const uint32_t **)0x31fc3c;
+  listener_block[3] = global_vector[0];
+  listener_block[4] = global_vector[1];
+  listener_block[5] = global_vector[2];
+  global_vector = *(const uint32_t **)0x31fc44;
+  listener_block[6] = global_vector[0];
+  listener_block[7] = global_vector[1];
+  listener_block[8] = global_vector[2];
+  global_vector = *(const uint32_t **)0x31fc1c;
+  listener_block[0] = global_vector[0];
+  listener_block[1] = global_vector[1];
+  listener_block[2] = global_vector[2];
+  global_vector = *(const uint32_t **)0x31fc38;
+  listener_block[9] = global_vector[0];
+  listener_block[10] = global_vector[1];
+  listener_block[11] = global_vector[2];
+  *(void **)&listener_block[12] = (void *)0x4eb068;
+
+  (*(void (**)(void *))(*(int *)0x4eaf48 + 0xc))(listener_block);
+}
+
+/* sound_find_channel (0x1cebb0)
+ *
+ * Pick the channel a sound should play on, honouring the instance limits in
+ * the sound's class definition.
+ *
+ * If the sound already has a cached playing channel (+0x8c != NONE) that
+ * channel is validated against the channel table (0x4fc3a0, stride 0x18,
+ * sound handle at +0x00) and returned unchanged.
+ *
+ * Otherwise, when the class definition byte at +0x08 is set and the sound has
+ * a source (+0x0c != NONE), the channel table is scanned for another channel
+ * playing a sound from the same source whose class definition also has the
+ * +0x08 byte set; that channel's +0x14 word is copied into our sound (+0x14)
+ * and its index returned, so both sounds share the same field.  When no such
+ * channel exists, sound_find_best_channel decides.
+ *
+ * In every remaining case sound_collect_like_sounds fills a 0x48-byte summary
+ * on the stack (passed in ESI) and the limits decide: if
+ * like_source_count (+0x24) has reached maximum_source_instance_count (+0x46),
+ * evict the oldest of the like-source channels (+0x26); else if
+ * like_definition_count (+0x00) has reached maximum_instance_count (+0x22),
+ * evict the oldest of the like-definition channels (+0x02); otherwise fall
+ * back to sound_find_best_channel.
+ *
+ * Returns a channel index in AX. */
+short sound_find_channel(int sound_handle)
+{
+  char summary[0x48];
+  char *sound_entry;
+  char *sound_tag;
+  char *class_def;
+  char *other_entry;
+  char *other_tag;
+  char *other_class;
+  short channel_index;
+  int other_handle;
+
+  sound_entry = (char *)datum_get(*(data_t **)0x4fdba4, sound_handle);
+  channel_index = *(short *)(sound_entry + 0x8c);
+  if (channel_index != -1) {
+    if (channel_index < 0 || channel_index >= *(short *)0x4eb0b4) {
+      display_assert("index>=0 && index<sound_manager_globals.channel_count",
+                     "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x428, 1);
+      system_exit(-1);
+    }
+    if (*(int *)(0x4fc3a0 + (int)channel_index * 0x18) != sound_handle) {
+      display_assert(
+        "channel_get(sound->playing_channel_index)->sound_index==sound_index",
+        "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x6d0, 1);
+      system_exit(-1);
+    }
+    return *(short *)(sound_entry + 0x8c);
+  }
+
+  sound_tag = (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8));
+  class_def = (char *)sound_class_get_definition(*(short *)(sound_tag + 0x4));
+  if (*(char *)(class_def + 0x8) != 0 && *(int *)(sound_entry + 0xc) != -1) {
+    for (channel_index = 0; channel_index < *(short *)0x4eb0b4;
+         channel_index++) {
+      if (channel_index < 0 || channel_index >= *(short *)0x4eb0b4) {
+        display_assert("index>=0 && index<sound_manager_globals.channel_count",
+                       "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x428, 1);
+        system_exit(-1);
+      }
+
+      other_handle = *(int *)(0x4fc3a0 + (int)channel_index * 0x18);
+      if (other_handle != -1) {
+        other_entry = (char *)datum_get(*(data_t **)0x4fdba4, other_handle);
+        if (*(int *)(other_entry + 0xc) == *(int *)(sound_entry + 0xc)) {
+          other_tag = (char *)tag_get(0x736e6421, *(int *)(other_entry + 0x8));
+          other_class = (char *)sound_class_get_definition(
+            *(unsigned short *)(other_tag + 0x4));
+          if (*(char *)(other_class + 0x8) != 0) {
+            *(short *)(sound_entry + 0x14) = *(short *)(other_entry + 0x14);
+            return channel_index;
+          }
+        }
+      }
+    }
+
+    return sound_find_best_channel(sound_handle);
+  }
+
+  sound_collect_like_sounds(sound_handle, summary);
+
+  if (*(short *)(summary + 0x24) >= *(short *)(summary + 0x46)) {
+    return sound_find_oldest_channel(sound_handle, (short *)(summary + 0x26),
+                                     *(short *)(summary + 0x24));
+  }
+
+  if (*(short *)(summary + 0x00) >= *(short *)(summary + 0x22)) {
+    return sound_find_oldest_channel(sound_handle, (short *)(summary + 0x02),
+                                     *(short *)(summary + 0x00));
+  }
+
+  return sound_find_best_channel(sound_handle);
+}
+
 /* sound_update_music (0x1ceda0)
  *
  * Per-channel tick for spatialized sound playback. Iterates the global
@@ -3449,6 +4007,120 @@ void sound_update_music(void)
         sound_pitch_push_sample(*(int *)(sound_entry + 0xc), sample);
       }
     }
+  }
+}
+
+/* FUN_001cf100 (0x1cf100)
+ *
+ * Per-frame update of the detail sounds owned by every live looping sound
+ * (lsnd!).  Walks the looping-sounds table (0x4fdba0) with data_next_index.
+ *
+ * For each entry:
+ *   - entry+0x4c carries the per-frame flip flag written by sound_render at
+ *     0x4eaf54.  An entry that did not get refreshed this frame (flag
+ *     mismatch) is released with datum_delete and skipped.
+ *   - otherwise, unless the entry state (entry+0x52) is 2, iterate the lsnd!
+ *     detail-sound block (tag+0x48, element size 0x68).  Each element has a
+ *     per-entry next-play timestamp stored in the entry at 0x54 + index*4.
+ *     When that timestamp is older than the global sound timestamp
+ *     (0x4eaf4c) and the element names a snd! tag (+0xc), the detail sound
+ *     is (re)started and the next-play timestamp is recomputed.
+ *
+ * Start is suppressed by the element flags at +0x1c: bit 0 means "not while
+ * entry+0x4d is set", bit 1 means "only while entry+0x4d is set".
+ *
+ * The source block is the standard 0x40-byte sound source: a short kind at
+ * +0 (2 when entry+0xc is zero, 1 otherwise), the entry scale at +4 and the
+ * element scale (+0x18) at +8.  The 12-byte track block is filled by
+ * detail_sound_random_offset (0x1cd390, @<edi>/@<esi>), handed to
+ * track_loop_impulse_sound (0x1cc200) immediately and then again to
+ * sound_start, which also receives that same function as the update
+ * callback.  As with the lip-sync callback in sound_update_music, the
+ * callback is passed by SYMBOL and not as the literal 0x1cc200.
+ *
+ * Next play time = ((lsnd+0x10 - lsnd+0x4) * entry+0x10 + lsnd+0x4)
+ *                  * random_real_range(element+0x10, element+0x14)
+ *                  * 1000.0f (0x254cb8)
+ *                  + snd!+0x84 + the global sound timestamp, truncated by
+ * _ftol2.  The two FIADD operands are added in that order.
+ *
+ * The dword-typed locals below mirror the reference, which copies these
+ * floats through GPRs (MOV/MOV) and only then touches them with the x87. */
+void FUN_001cf100(void)
+{
+  uint32_t source[16];
+  uint32_t track_data[3];
+  uint32_t scale;
+  uint32_t lsnd_high;
+  uint32_t lsnd_low;
+  uint32_t flags;
+  float random_min;
+  float random_max;
+  float random_value;
+  char *entry;
+  char *lsnd_tag;
+  char *element;
+  char *snd_tag;
+  int looping_index;
+  int detail_counter;
+  int index;
+
+  looping_index = data_next_index(*(data_t **)0x4fdba0, -1);
+  while (looping_index != -1) {
+    entry = (char *)datum_get(*(data_t **)0x4fdba0, looping_index);
+    lsnd_tag = (char *)tag_get(0x6c736e64, *(int *)(entry + 4));
+
+    if (*(char *)(entry + 0x4c) != *(char *)0x4eaf54) {
+      datum_delete(*(data_t **)0x4fdba0, looping_index);
+    } else {
+      detail_counter = 0;
+      if (*(short *)(entry + 0x52) != 2 && *(int *)(lsnd_tag + 0x48) > 0) {
+        index = 0;
+        do {
+          element = (char *)tag_block_get_element(lsnd_tag + 0x48, index, 0x68);
+
+          if (*(int *)(entry + 0x54 + index * 4) < *(int *)0x4eaf4c &&
+              *(int *)(element + 0xc) != -1) {
+            snd_tag = (char *)tag_get(0x736e6421, *(int *)(element + 0xc));
+            scale = *(uint32_t *)(entry + 0x10);
+            flags = *(uint32_t *)(element + 0x1c);
+
+            if (((flags & 1) == 0 || *(char *)(entry + 0x4d) == 0) &&
+                ((flags & 2) == 0 || *(char *)(entry + 0x4d) != 0)) {
+              source[2] = *(uint32_t *)(element + 0x18);
+              source[1] = scale;
+              *(short *)&source[0] =
+                (short)((*(short *)(entry + 0xc) == 0) + 1);
+
+              detail_sound_random_offset(element, track_data);
+              track_loop_impulse_sound(looping_index, track_data, source);
+              sound_start(*(int *)(element + 0xc), source, looping_index,
+                          (int)&track_loop_impulse_sound, track_data, 0xc);
+            }
+
+            lsnd_high = *(uint32_t *)(lsnd_tag + 0x10);
+            lsnd_low = *(uint32_t *)(lsnd_tag + 4);
+            random_max = *(float *)(element + 0x14);
+            random_min = *(float *)(element + 0x10);
+            random_value =
+              random_real_range((int *)random_math_get_local_seed_address(),
+                                random_min, random_max);
+
+            *(int *)(entry + 0x54 + index * 4) =
+              (int)(((*(float *)&lsnd_high - *(float *)&lsnd_low) *
+                       *(float *)&scale +
+                     *(float *)&lsnd_low) *
+                      random_value * *(float *)0x254cb8 +
+                    (float)*(int *)(snd_tag + 0x84) + (float)*(int *)0x4eaf4c);
+          }
+
+          detail_counter++;
+          index = (short)detail_counter;
+        } while (index < *(int *)(lsnd_tag + 0x48));
+      }
+    }
+
+    looping_index = data_next_index(*(data_t **)0x4fdba0, looping_index);
   }
 }
 
