@@ -121,6 +121,7 @@ jobs:
           # measure; the lift pipeline/commit hook establishes new floors.
           SOURCES=("${CHANGED_SOURCES[@]}")
 
+          KB_CHANGED=0
           for path in "${CHANGED[@]}"; do
             case "$path" in
               # A non-C source file can alter any TU. C files retain the fast,
@@ -128,11 +129,28 @@ jobs:
               # compiler settings, and score/reference code must check all floors.
               src/*.c)
                 ;;
-              src/*|CMakeLists.txt|toolchains/*|kb.json|tools/analysis/knowledge.py|tools/verify/compare_obj.py|tools/verify/vc71_cache.py|tools/verify/function_bounds.json|tools/verify/vc71_regression.py|tools/verify/vc71_verify.py|tools/verify/xbe_reference.py|tools/verify/vc71_scores.json)
+              # kb.json is per-function, not cross-cutting: a rename, ported-flag,
+              # or decl edit only affects the source file(s) that own the changed
+              # address(es). Resolving that narrows the common case (every
+              # lift/rename touches kb.json) from a full 185+ file sweep to just
+              # the handful of files actually affected, instead of forcing
+              # FULL_CHECK on every PR that touches it.
+              kb.json)
+                KB_CHANGED=1
+                ;;
+              src/*|CMakeLists.txt|toolchains/*|tools/analysis/knowledge.py|tools/verify/compare_obj.py|tools/verify/vc71_cache.py|tools/verify/function_bounds.json|tools/verify/vc71_regression.py|tools/verify/vc71_verify.py|tools/verify/xbe_reference.py|tools/verify/vc71_scores.json)
                 FULL_CHECK=1
                 ;;
             esac
           done
+
+          if [ "$FULL_CHECK" -ne 1 ] && [ "$KB_CHANGED" -eq 1 ]; then
+            mapfile -t KB_SOURCES < <("$PY" tools/audit/kb_diff_sources.py --base "$BASE" --head "$HEAD")
+            SOURCES+=("${KB_SOURCES[@]}")
+          fi
+          if [ "${#SOURCES[@]}" -gt 0 ]; then
+            mapfile -t SOURCES < <(printf '%s\n' "${SOURCES[@]}" | sort -u)
+          fi
 
           if [ "$FULL_CHECK" -eq 1 ]; then
             ARGS=(check --strict)
