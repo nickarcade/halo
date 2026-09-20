@@ -406,7 +406,7 @@ int weapon_overcharged(int weapon_handle)
   return 1;
 }
 
-void *FUN_000fb320(void *weapon_obj, int16_t trigger_index)
+void *weapon_trigger_get(void *weapon_obj, int16_t trigger_index)
 {
   int *tag_data = (int *)tag_get(0x77656170, *(int *)weapon_obj);
 
@@ -453,20 +453,28 @@ bool weapon_busy(int weapon_handle)
   return false;
 }
 
-/* 0xfb510 — weapon trigger charge fraction
+/* 0xfb510 — weapon_trigger_get_charged_fraction
  *
  * Returns a float in ST(0) describing the trigger's charge state.
+ *
+ * Name evidence (T2, behaviour + state machine): returns
+ *   1.0f - elapsed/trigger_definition[+0x48] in trigger state 2, exactly
+ *   1.0f in state 3 and 0.0f otherwise. weapon_update (0xfe910) counts
+ *   state 2 down and enters state 3 when it reaches zero, so state 2 is
+ *   "charging" and state 3 is "fully charged" — the return value is the
+ *   charged fraction. Sole caller is weapon_export_function_values
+ *   (0xfbf00), the tag function-value exporter.
  *
  * Confirmed: register args — weapon_handle in EAX (PUSH 0x4 / PUSH EAX /
  *   CALL object_get_and_verify_type), trigger_index in CX
  *   (MOV ESI,ECX at 0xfb51a; later MOVSX EDX,SI).
  * Confirmed: call order is object_get_and_verify_type(handle, 4) ->
- *   FUN_000fb320(EDI=object, SI=trigger_index) -> tag_get(0x77656170,
+ *   weapon_trigger_get(EDI=object, SI=trigger_index) -> tag_get(0x77656170,
  *   *(int *)object) -> tag_block_get_element(tag_data+0x4fc,
  *   (int)(int16_t)trigger_index, 0x114). All four calls run
  *   unconditionally before the state test (ADD ESP,0x1c at 0xfb54f).
  * Confirmed: MOVSX ECX,byte ptr [EBX+0x1] / SUB ECX,2 / JZ (state 2)
- *   / DEC ECX / JZ (state 3); EBX is the FUN_000fb320 trigger pointer,
+ *   / DEC ECX / JZ (state 3); EBX is the weapon_trigger_get trigger pointer,
  *   so the byte is the trigger state at weapon_object+0x211.
  * Confirmed state 2: MOVSX ECX,word ptr [EBX+0x2] / FILD dword /
  *   FMUL [0x2546a4] / FDIV [EAX+0x48] / FSUBR [0x2533c8]
@@ -477,7 +485,7 @@ bool weapon_busy(int weapon_handle)
  * Unknown: the 0x114-byte trigger definition layout (+0x48) and the
  *   weapon-object trigger layout (+0x1/+0x2) are not modelled.
  */
-float FUN_000fb510(int weapon_handle, int16_t trigger_index)
+float weapon_trigger_get_charged_fraction(int weapon_handle, int16_t trigger_index)
 {
   int *weapon_obj;
   char *trigger;
@@ -486,7 +494,7 @@ float FUN_000fb510(int weapon_handle, int16_t trigger_index)
   int weapon_defn;
 
   weapon_obj = (int *)object_get_and_verify_type(weapon_handle, 4);
-  trigger = (char *)FUN_000fb320(weapon_obj, trigger_index);
+  trigger = (char *)weapon_trigger_get(weapon_obj, trigger_index);
   weapon_defn = (int)tag_get(0x77656170, *weapon_obj);
   trigger_defn = (char *)tag_block_get_element(
     (void *)((char *)weapon_defn + 0x4fc), trigger_index, 0x114);
@@ -566,10 +574,18 @@ int weapon_effect_new(int trigger_effect, float scale, float param_3,
   return -1;
 }
 
-/* 0xfb7d0 — weapon stop/detach effect helper
+/* 0xfb7d0 — weapon_effect_looping_new
  *
- * Sibling of weapon_start_effect (0xfb6e0): same parent-resolution
- * preamble, but dispatches to FUN_0009eb40 with three -1 shorts.
+ * Sibling of weapon_effect_new (0xfb6e0): same parent-resolution
+ * preamble, but dispatches to effect_new_looping (0x9eb40) with three
+ * -1 shorts.
+ *
+ * Name evidence (T2, callee + caller use): the tail call is
+ *   effect_new_looping (0x9eb40, named in kb.json) and weapon_update
+ *   (0xfe910) stores this function's EAX return into weapon object
+ *   +0x274, later passing it to effect_stop (0x9ceb0). So the return is
+ *   a looping-effect handle that is created here and stopped later —
+ *   the looping counterpart of weapon_effect_new.
  *
  * Confirmed: no prologue; EBX and ESI are live on entry (only EDI is
  *   saved/restored via PUSH EDI / POP EDI at 0xfb7d6 / 0xfb831).
@@ -589,7 +605,7 @@ int weapon_effect_new(int trigger_effect, float scale, float param_3,
  *   object fields +0x4 (flags byte) and +0xcc (parent handle) follow the
  *   0xfb6e0 sibling's usage.
  */
-int FUN_000fb7d0(int param_1, int weapon_handle)
+int weapon_effect_looping_new(int param_1, int weapon_handle)
 {
   char *weapon_data;
   int parent_handle;
@@ -616,7 +632,7 @@ int FUN_000fb7d0(int param_1, int weapon_handle)
   return -1;
 }
 
-/* 0xfb880 — weapon_trigger_release_charge
+/* 0xfb880 — weapon_trigger_change_state
  *
  * Sets a weapon trigger's state byte and its accompanying 16-bit charge
  * value. Resolves the weapon object, bounds-checks the trigger index and
@@ -632,8 +648,8 @@ int FUN_000fb7d0(int param_1, int weapon_handle)
  * Confirmed: address form MOVSX EAX,SI / LEA ECX,[EAX+EAX*8] /
  *   LEA EAX,[EDI+ECX*4] => weapon_data + trigger_index * 36.
  * Confirmed: store order — byte BL to +0x211 first, then word DX to +0x212.
- * Confirmed: trigger stride 36 and base +0x210 agree with FUN_000fb320;
- *   +0x211 is the state byte read as trigger[1] by FUN_000fb510 and
+ * Confirmed: trigger stride 36 and base +0x210 agree with weapon_trigger_get;
+ *   +0x211 is the state byte read as trigger[1] by weapon_trigger_get_charged_fraction and
  *   +0x212 the int16 read as *(int16_t *)(trigger + 2).
  * Unknown: the meaning of the stack-passed 16-bit value beyond its use as
  *   the trigger's charge/tick field; raw offsets retained to match the
@@ -659,7 +675,19 @@ void weapon_trigger_change_state(int16_t charge_ticks, int weapon_handle,
   *(int16_t *)(weapon_data + trigger_index * 36 + 0x212) = charge_ticks;
 }
 
-/* 0xfb910 — weapon trigger "charge ready" latch
+/* 0xfb910 — weapon_trigger_start_ejection_port
+ *
+ * Name evidence (T2, caller + decay pairing): the only caller is
+ *   weapon_state_key_frame (0xfb990), which dispatches here on weapon
+ *   animation states 3 and 4 with trigger_index 0 and 1 respectively
+ *   (0xfb9bb-0xfb9d3). States 3/4 are the "chamber-1"/"chamber-2"
+ *   animations (weapon_magazine_start_chamber sets magazine_index+3,
+ *   weapon_magazine_start_reload sets magazine_index+5 for
+ *   "reload-1"/"reload-2"; the name strings live at 0x290c08-0x290c54).
+ *   Chambering is the shell-ejection key frame. The value stored here,
+ *   trigger record +0x14, is decayed every tick by weapon_update using
+ *   trigger_definition[+0xf4], i.e. it is a recovery ramp started at
+ *   1.0f — an ejection-port recovery, not a charge latch.
  *
  * Resolves the weapon object and its trigger definition, then — when the
  * definition's +0xa4 float exceeds *(float *)0x2533c0 and the definition's
@@ -671,10 +699,10 @@ void weapon_trigger_change_state(int16_t charge_ticks, int weapon_handle,
  *   (MOV ESI,ECX at 0xfb919, later MOVSX EDX,SI at 0xfb936). One byte
  *   stack arg at [EBP+8] (MOV AL,byte ptr [EBP+8]).
  * Confirmed: call order object_get_and_verify_type(handle, 4) ->
- *   tag_get(0x77656170, *(int *)object) -> FUN_000fb320(EDI=object,
+ *   tag_get(0x77656170, *(int *)object) -> weapon_trigger_get(EDI=object,
  *   SI=trigger_index) -> tag_block_get_element(tag_data+0x4fc,
  *   (int)(int16_t)trigger_index, 0x114). Note this differs from
- *   FUN_000fb510, which calls FUN_000fb320 before tag_get.
+ *   weapon_trigger_get_charged_fraction, which calls weapon_trigger_get before tag_get.
  *   All four run unconditionally; one ADD ESP,0x1c at 0xfb94f cleans
  *   the 7 pushed dwords of all three cdecl calls.
  * Confirmed: FLD [ECX+0xa4] / FCOMP [0x2533c0] / FNSTSW AX /
@@ -683,13 +711,13 @@ void weapon_trigger_change_state(int16_t charge_ticks, int weapon_handle,
  * Confirmed: MOV ECX,[ECX] / AND ECX,0x80 then the two-arm test at
  *   0xfb96d..0xfb97f stores only when (flag != 0 && arg != 0) or
  *   (flag == 0 && arg == 0).
- * Confirmed: store target is EDI, the FUN_000fb320 return (trigger
+ * Confirmed: store target is EDI, the weapon_trigger_get return (trigger
  *   record), offset +0x14, immediate 0x3f800000 = 1.0f.
  * Unknown: the 0x114-byte trigger definition layout (+0x0 flags, +0xa4
  *   float) and the trigger record field at +0x14 are not modelled;
  *   the meaning of the byte stack argument beyond its boolean use.
  */
-void FUN_000fb910(char param_1, int weapon_handle, int16_t trigger_index)
+void weapon_trigger_start_ejection_port(char param_1, int weapon_handle, int16_t trigger_index)
 {
   int *weapon_obj;
   int weapon_defn;
@@ -698,7 +726,7 @@ void FUN_000fb910(char param_1, int weapon_handle, int16_t trigger_index)
 
   weapon_obj = (int *)object_get_and_verify_type(weapon_handle, 4);
   weapon_defn = (int)tag_get(0x77656170, *weapon_obj);
-  trigger = (char *)FUN_000fb320(weapon_obj, trigger_index);
+  trigger = (char *)weapon_trigger_get(weapon_obj, trigger_index);
   trigger_defn = (char *)tag_block_get_element(
     (void *)((char *)weapon_defn + 0x4fc), trigger_index, 0x114);
 
@@ -1433,7 +1461,15 @@ void weapon_magazine_finish_reload(int weapon_handle, int magazine_index)
   }
 }
 
-/* Begin a magazine chamber/charge cycle (0xfcbd0).
+/* weapon_magazine_start_chamber — begin a magazine chambering cycle (0xfcbd0).
+ *
+ * Name evidence (T2, magazine state machine): weapon_update (0xfe910)
+ *   drives magazine state 1 (reloading) -> weapon_magazine_finish_reload,
+ *   state 2 -> this function, state 3 -> weapon_magazine_finish_chamber
+ *   (0xfcc90). This function sets state 3, plays mag_def[+0x54] (the
+ *   tag reference one slot after the reload effect at +0x44) and sets
+ *   weapon animation state magazine_index+3, where +5 is the reload
+ *   animation pair — so +3 is the "chamber-1"/"chamber-2" pair.
  *
  * Confirmed: magazine_index arrives in EAX (MOV EBX,EAX at 0xfcbd6, used as
  * MOVSX ECX,BX for the tag-block index and as the @<bx> argument after
@@ -1454,7 +1490,7 @@ void weapon_magazine_finish_reload(int weapon_handle, int magazine_index)
  * 0x253394 is TICKS_PER_SECOND (30.0f), stored as int16_t.
  * Unknown: the semantic meaning of magazine state 3 and of mag_def+0x1c.
  */
-void FUN_000fcbd0(int16_t magazine_index, int weapon_handle)
+void weapon_magazine_start_chamber(int16_t magazine_index, int weapon_handle)
 {
   char *weapon_obj;
   int16_t *magazine_state;
@@ -1491,12 +1527,19 @@ void FUN_000fcbd0(int16_t magazine_index, int weapon_handle)
   }
 }
 
-/* Put one weapon trigger into state 3 with a tag-driven tick counter (0xfcd10).
+/* weapon_trigger_fully_charged — the trigger has finished charging (0xfcd10).
+ *
+ * Name evidence (T2, trigger state machine): weapon_update (0xfe910)
+ *   calls this from trigger state 2 (charging) exactly when the tick
+ *   counter reaches 0. It sets state 3, for which
+ *   weapon_trigger_get_charged_fraction returns exactly 1.0f, and sets
+ *   weapon animation state trigger_index+7 — the "charged-1"/"charged-2"
+ *   pair (strings at 0x290c08/0x290c14).
  *
  * Confirmed: trigger_index arrives in AX (MOV ESI,EAX at 0xfcd1d, then
  *   MOVSX EDI,SI); weapon_handle is the single stack arg at [EBP+8].
  * Confirmed: object_get_and_verify_type(weapon_handle, 4) at 0xfcd1f, then
- *   FUN_000fb320(EDI=object, SI=trigger_index) at 0xfcd26 — its return value
+ *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfcd26 — its return value
  *   is discarded (EAX is immediately reloaded with MOV EAX,[EDI]); the call is
  *   made for its bounds assert.
  * Confirmed: tag_get(0x77656170, *(int *)object) then
@@ -1517,7 +1560,7 @@ void FUN_000fcbd0(int16_t magazine_index, int weapon_handle)
  * Unknown: the semantic meaning of trigger state 3 and of trigger_def+0x4c
  *   (a duration in seconds); raw offsets retained.
  */
-void FUN_000fcd10(int16_t trigger_index, int weapon_handle)
+void weapon_trigger_fully_charged(int16_t trigger_index, int weapon_handle)
 {
   char *weapon_obj;
   char *tag_data;
@@ -1528,7 +1571,7 @@ void FUN_000fcd10(int16_t trigger_index, int weapon_handle)
   int counter;
 
   weapon_obj = (char *)object_get_and_verify_type(weapon_handle, 4);
-  FUN_000fb320((void *)weapon_obj, trigger_index);
+  weapon_trigger_get((void *)weapon_obj, trigger_index);
 
   tag_data = (char *)tag_get(0x77656170, *(int *)weapon_obj);
   trigger_def =
@@ -1556,15 +1599,21 @@ void FUN_000fcd10(int16_t trigger_index, int weapon_handle)
   first_person_weapon_message_from_weapon(weapon_handle, 0xe);
 }
 
-/* Clear one weapon trigger back to state 0 with a zero tick counter (0xfcdd0).
+/* weapon_trigger_idle — return one weapon trigger to the idle state (0xfcdd0).
+ *
+ * Name evidence (T2, trigger state machine): sets state 0 with a zero
+ *   tick counter. State 0 is weapon_update's not-firing branch (it just
+ *   increments a saturating idle counter at trigger+0x00). This is the
+ *   state weapon_trigger_recover (0xfcec0) and the state 7/8 exits fall
+ *   back to.
  *
  * Confirmed: both args are register args and there are no stack args —
  *   MOV EBX,ECX at 0xfcdd3 (weapon_handle in ECX) and MOV ESI,EAX at 0xfcdd8
  *   (trigger_index in AX); the function ends in a bare RET.
  * Confirmed: object_get_and_verify_type(weapon_handle, 4) at 0xfcdda, result
- *   kept in EDI, then FUN_000fb320(EDI=object, SI=trigger_index) at 0xfcde1 —
+ *   kept in EDI, then weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfcde1 —
  *   its return value is discarded (EAX is reloaded with MOV EAX,[EDI]); the
- *   call is made for its bounds assert, same as in FUN_000fcd10.
+ *   call is made for its bounds assert, same as in weapon_trigger_fully_charged.
  * Confirmed: tag_get(0x77656170, *(int *)object) then
  *   tag_block_get_element(tag+0x4fc, trigger_index, 0x114) at 0xfce02 — the
  *   trigger definition block (stride 0x114); its result is discarded here.
@@ -1578,10 +1627,10 @@ void FUN_000fcd10(int16_t trigger_index, int weapon_handle)
  *   display_assert(..., weapons.c, 0xa11, 1) then system_exit(-1).
  * Confirmed: LEA ECX,[EDI+EDI*8] / LEA EAX,[EBX+ECX*4] => weapon_data +
  *   trigger_index*36; stores byte [+0x211] = 0 then word [+0x212] = 0.
- * Unknown: the semantic meaning of trigger state 0 (FUN_000fcd10 uses 3,
- *   FUN_000fce60 uses 7, weapon_reset_state uses 8); raw offsets retained.
+ * Unknown: the semantic meaning of trigger state 0 (weapon_trigger_fully_charged uses 3,
+ *   weapon_trigger_locked uses 7, weapon_reset_state uses 8); raw offsets retained.
  */
-void FUN_000fcdd0(int16_t trigger_index, int weapon_handle)
+void weapon_trigger_idle(int16_t trigger_index, int weapon_handle)
 {
   char *weapon_obj;
   char *tag_data;
@@ -1589,7 +1638,7 @@ void FUN_000fcdd0(int16_t trigger_index, int weapon_handle)
   char *trigger_entry;
 
   weapon_obj = (char *)object_get_and_verify_type(weapon_handle, 4);
-  FUN_000fb320((void *)weapon_obj, trigger_index);
+  weapon_trigger_get((void *)weapon_obj, trigger_index);
 
   tag_data = (char *)tag_get(0x77656170, *(int *)weapon_obj);
   tag_block_get_element(tag_data + 0x4fc, (int)trigger_index, 0x114);
@@ -1608,7 +1657,14 @@ void FUN_000fcdd0(int16_t trigger_index, int weapon_handle)
   *(int16_t *)(trigger_entry + 2) = 0;
 }
 
-/* Mark one weapon trigger as blocked/locked-out (0xfce60).
+/* weapon_trigger_locked — lock a trigger out until it is released (0xfce60).
+ *
+ * Name evidence (T2, trigger state machine): sets state 7 with a tick
+ *   counter of -1, so the counter never expires. weapon_update's state 7
+ *   arm has exactly one exit — weapon_trigger_idle, taken only once the
+ *   trigger is no longer held. Entered from state 4 when trigger
+ *   definition flag 0x8 is set. The observable contract is a hold-time
+ *   lockout.
  *
  * Confirmed: weapon_handle in EAX, trigger_index in SI (register args, no
  * stack args; RET with no immediate).
@@ -1624,7 +1680,7 @@ void FUN_000fcdd0(int16_t trigger_index, int weapon_handle)
  * Unknown: the semantic meaning of trigger state 7 (weapon_reset_state uses 8
  * for the idle/reset state).
  */
-void FUN_000fce60(int weapon_handle, int16_t trigger_index)
+void weapon_trigger_locked(int weapon_handle, int16_t trigger_index)
 {
   char *weapon_data;
   char *trigger_entry;
@@ -1743,7 +1799,14 @@ void weapon_reset(int weapon_handle)
   }
 }
 
-/* FUN_000fd150 (0xfd150)
+/* weapon_state_next (0xfd150)
+ *
+ * Name evidence (T2, animation-event pairing): weapon_update (0xfe910)
+ *   calls animation_update_internal and dispatches result 1 to
+ *   weapon_state_key_frame (0xfb990) and result 2 — animation finished —
+ *   here. This picks the state that follows: everything returns to
+ *   animation state 0 (idle) except the holding/looping states 7, 8
+ *   ("charged-1"/"charged-2") and 10.
  *
  * Confirmed from disassembly at 0xfd150: the weapon handle arrives in ESI
  * (PUSH ESI at 0xfd152 with no prior definition in the function), so the
@@ -1755,7 +1818,7 @@ void weapon_reset(int weapon_handle)
  * BX (XOR EBX,EBX at 0xfd171), matching that callee's "@<bx>" annotation.
  * Compares are signed (JL/JLE), so the state is read as a signed char.
  */
-void FUN_000fd150(int weapon_handle)
+void weapon_state_next(int weapon_handle)
 {
   char animation_state;
 
@@ -1998,7 +2061,7 @@ void weapon_stop_reload(int weapon_handle)
 
 /* 0xfe6c0 — weapon trigger charge start (raw offsets retained)
  *
- * Resolves the weapon object, runs the FUN_000fb320 trigger-bounds debug
+ * Resolves the weapon object, runs the weapon_trigger_get trigger-bounds debug
  * assertion, fetches the trigger definition out of the weapon tag's 0x4fc
  * block, optionally notifies the next trigger, then latches trigger state 1
  * with a tick count derived from the definition's +0xc4 float.
@@ -2008,7 +2071,7 @@ void weapon_stop_reload(int weapon_handle)
  *   (MOV EBX,ECX at 0xfe6c7, pushed to object_get_and_verify_type twice).
  *   No stack args (RET with no immediate at 0xfe780).
  * Confirmed: call order object_get_and_verify_type(handle, 4) at 0xfe6ce ->
- *   FUN_000fb320(EDI=object, SI=trigger_index) at 0xfe6d5 (EDI survives it
+ *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfe6d5 (EDI survives it
  *   and is re-read at 0xfe6da) -> tag_get(0x77656170, *(int *)object) at
  *   0xfe6e2 -> tag_block_get_element(tag_data+0x4fc, trigger_index, 0x114)
  *   at 0xfe6f4. One ADD ESP,0x1c at 0xfe701 cleans all 7 pushed dwords.
@@ -2027,12 +2090,12 @@ void weapon_stop_reload(int weapon_handle)
  *   PUSH EBX) after the conversion and before the assert.
  * Confirmed: assert path PUSH 1 / PUSH 0xa11 / PUSH filepath / PUSH reason
  *   / CALL display_assert then PUSH -1 / CALL system_exit at 0xfe743–0xfe75b;
- *   same reason string and line as weapon_trigger_release_charge.
+ *   same reason string and line as weapon_trigger_change_state (0xfb880).
  * Confirmed: address form MOVSX EAX,SI / LEA ECX,[EAX+EAX*8] /
  *   LEA EAX,[EBX+ECX*4] => weapon_data + (int16_t)trigger_index * 36.
  * Confirmed: store order — word DI to +0x212 FIRST (0xfe76c), then byte
  *   immediate 1 to +0x211 (0xfe775); this is the reverse of
- *   weapon_trigger_release_charge.
+ *   weapon_trigger_change_state (0xfb880).
  * Unknown: the trigger definition field at +0xc4 (a duration in seconds) and
  *   the meaning of trigger state 1; raw offsets retained to match the
  *   sibling accessors. The role of FUN_000fdc90 is not established.
@@ -2047,7 +2110,7 @@ void FUN_000fe6c0(int trigger_index, int weapon_handle)
   int16_t tindex;
 
   weapon_obj = (int *)object_get_and_verify_type(weapon_handle, 4);
-  FUN_000fb320(weapon_obj, (int16_t)trigger_index);
+  weapon_trigger_get(weapon_obj, (int16_t)trigger_index);
   weapon_defn = (char *)tag_get(0x77656170, *weapon_obj);
   trigger_defn = (char *)tag_block_get_element((void *)(weapon_defn + 0x4fc),
                                                trigger_index, 0x114);
@@ -2072,10 +2135,19 @@ void FUN_000fe6c0(int trigger_index, int weapon_handle)
   *(char *)(weapon_data + tindex * 36 + 0x211) = 1;
 }
 
-/* 0xfe790 — weapon trigger charge-hold/latch (raw offsets retained)
+/* 0xfe790 — weapon_trigger_release_charge (raw offsets retained)
+ *
+ * Name evidence (T2, trigger state machine): weapon_update (0xfe910)
+ *   calls this from trigger state 3 (fully charged) exactly when the
+ *   trigger is no longer being held, and again from state 3 when the
+ *   magazine has run dry. It moves to state 6 for
+ *   trigger_definition[+0x58] seconds, or — when that duration is zero —
+ *   fires immediately (weapon_trigger_fire) and recovers
+ *   (weapon_trigger_recover). That is the release of a held charge.
+ *   The name previously sat on 0xfb880, which is weapon_trigger_change_state.
  *
  * Same prologue family as FUN_000fe6c0: resolve the weapon object, run the
- * FUN_000fb320 trigger-bounds debug helper (whose return is a trigger record
+ * weapon_trigger_get trigger-bounds debug helper (whose return is a trigger record
  * pointer), fetch the trigger definition from the weapon tag's 0x4fc block,
  * then either latch trigger state 6 with a tick count derived from the
  * definition's +0x58 float, or take the zero-duration path.
@@ -2085,7 +2157,7 @@ void FUN_000fe6c0(int trigger_index, int weapon_handle)
  *   ECX (MOV EBX,ECX at 0xfe799, pushed to object_get_and_verify_type twice).
  *   RET with no immediate at 0xfe859 / 0xfe884, so no stack args.
  * Confirmed: call order object_get_and_verify_type(handle, 4) at 0xfe7a0 ->
- *   FUN_000fb320(EDI=object, SI=trigger_index) at 0xfe7a7 (its EAX return is
+ *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfe7a7 (its EAX return is
  *   saved to [EBP-0x4]) -> tag_get(0x77656170, *(int *)object) at 0xfe7b7 ->
  *   tag_block_get_element(tag_data+0x4fc, (int16_t)trigger_index, 0x114) at
  *   0xfe7ce. One ADD ESP,0x1c at 0xfe7d5 cleans all 7 pushed dwords; the
@@ -2118,7 +2190,7 @@ void FUN_000fe6c0(int trigger_index, int weapon_handle)
  *   meaning of trigger state 6, the trigger-record field at +0x10, and the
  *   role of FUN_000fdc90 / FUN_000fcec0; raw offsets retained.
  */
-void FUN_000fe790(int trigger_index, int weapon_handle)
+void weapon_trigger_release_charge(int trigger_index, int weapon_handle)
 {
   int *weapon_obj;
   char *trigger;
@@ -2129,7 +2201,7 @@ void FUN_000fe790(int trigger_index, int weapon_handle)
   int16_t tindex;
 
   weapon_obj = (int *)object_get_and_verify_type(weapon_handle, 4);
-  trigger = (char *)FUN_000fb320(weapon_obj, (int16_t)trigger_index);
+  trigger = (char *)weapon_trigger_get(weapon_obj, (int16_t)trigger_index);
   weapon_defn = (char *)tag_get(0x77656170, *weapon_obj);
   tindex = (int16_t)trigger_index;
   trigger_defn =
