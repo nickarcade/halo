@@ -107,7 +107,7 @@ All 15 functions in Sub-Batch 1.2C utilizing custom register conventions retain 
 | `0x210f0` | `FUN_000210f0` | `actor_get_weapon_definition` | `actions.obj` | No |
 | `0x21350` | `FUN_00021350` | `fast_ftol` | `actor_combat.obj` | No |
 | `0x22390` | `FUN_00022390` | `actor_start_burst` | `actor_combat.obj` | No |
-| `0x2a360` | `FUN_0002a360` | `actor_move_animation_busy` | `actors.obj` | No |
+| `0x2a360` | `FUN_0002a360` | *(reverted — name contradicted own evidence, see PR #11 review)* | `actors.obj` | No |
 | `0x2a3a0` | `FUN_0002a3a0` | `actor_path_clear` | `actor_moving.obj` | No |
 | `0x2ade0` | `FUN_0002ade0` | `actor_move_avoidance_setup` | `actor_moving.obj` | No |
 | `0x2b020` | `FUN_0002b020` | `actor_move_test_avoidance_vector` | `actor_moving.obj` | No |
@@ -120,7 +120,7 @@ All 15 functions in Sub-Batch 1.2C utilizing custom register conventions retain 
 | `0x36960` | `FUN_00036960` | `actor_stimulus_surprise` | `actors.obj` | No |
 | `0x369c0` | `FUN_000369c0` | `actor_stimulus_suspicion` | `actors.obj` | No |
 | `0x36a20` | `FUN_00036a20` | `actor_stimulus_prop_sighted` | `actors.obj` | No |
-| `0x36a90` | `FUN_00036a90` | `actor_stimulus_enter_combat_found_body` | `actors.obj` | No |
+| `0x36a90` | `FUN_00036a90` | *(reverted — invented narrative, see PR #11 review)* | `actors.obj` | No |
 | `0x36b10` | `FUN_00036b10` | `actor_stimulus_enter_combat_perceived_enemy` | `actors.obj` | No |
 | `0x36b50` | `FUN_00036b50` | `actor_stimulus_enter_combat_friend_in_combat` | `actors.obj` | No |
 | `0x36bd0` | `FUN_00036bd0` | `actor_stimulus_bumped` | `actors.obj` | No |

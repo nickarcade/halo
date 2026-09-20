@@ -634,7 +634,7 @@ void director_script_camera(int value)
       *(int16_t *)(base + 0x50) = perspective;
     }
 
-    scripted_camera_enable(script_control);
+    FUN_00084fe0(script_control);
   }
 }
 

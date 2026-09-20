@@ -346,25 +346,30 @@ void bored_camera_update(int *param_1, unsigned short *param_2, unsigned char *p
   }
 }
 
-/* scripted_camera_enable (0x84fe0) — Set the bored-camera enable flag and mark the
- * camera state dirty so it will be re-evaluated this tick.
- * Object: objects.obj / source: bored_camera.c
+/* 0x84fe0 — Set the bored-camera enable flag and mark the camera state dirty
+ * so it will be re-evaluated this tick.
+ * Object: objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc
+ * global block with the confirmed bored_camera.c assert at 0x84ae0).
  *
  * Confirmed: MOV AL,[param_1]; MOV [0x2ee5a0],AL; MOV byte ptr [0x2ee5a1],1.
+ * Renamed scripted_camera_enable reverted: name contradicted its own cited
+ * source evidence (bored_camera.c, not camera_scripting.c).
  */
-void scripted_camera_enable(unsigned char param_1)
+void FUN_00084fe0(unsigned char param_1)
 {
   *(char *)0x2ee5a0 = param_1;
   *(char *)0x2ee5a1 = 1;
 }
 
-/* scripted_camera_set_animation (0x85000 / objects.obj) — select a scripted animation camera
- * by name from an 'antr' tag and update the camera globals.
+/* 0x85000 (objects.obj) — select a scripted animation camera by name from an
+ * 'antr' tag and update the camera globals.
  *
  * Confirmed: tag block at +0x74, element stride 0xb4, name at element+0,
  * camera duration at element+0x22, and the matched index at +0x2ee5dc.
+ * Renamed scripted_camera_set_animation reverted: pending source-file
+ * attribution (bored_camera.c vs camera_scripting.c, no direct xref here).
  */
-void scripted_camera_set_animation(int animation_tag, const char *camera_name)
+void FUN_00085000(int animation_tag, const char *camera_name)
 {
   void *tag;
   int *block;
@@ -400,14 +405,17 @@ void scripted_camera_set_animation(int animation_tag, const char *camera_name)
   }
 }
 
-/* scripted_camera_set_first_person (0x850d0) — Switch to first-person camera mode 2 for the
- * given unit handle, or report an error if the handle is -1.
- * Object: objects.obj / source: bored_camera.c
+/* 0x850d0 — Switch to first-person camera mode 2 for the given unit handle,
+ * or report an error if the handle is -1.
+ * Object: objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc
+ * global block with the confirmed bored_camera.c assert at 0x84ae0).
  *
  * Confirmed: CMP [param_1],-1; JE error_path; MOV [0x2ee5a2],2;
  * MOV [0x2ee5a1],1; MOV [0x2ee5d4],param_1; RET.
+ * Renamed scripted_camera_set_first_person reverted: name contradicted its
+ * own cited source evidence (bored_camera.c, not camera_scripting.c).
  */
-void scripted_camera_set_first_person(int param_1)
+void FUN_000850d0(int param_1)
 {
   if (param_1 != -1) {
     *(short *)0x2ee5a2 = 2;
@@ -422,7 +430,7 @@ void scripted_camera_set_first_person(int param_1)
  * given unit handle, or report an error if the handle is -1.
  * Object: objects.obj / source: bored_camera.c
  *
- * Confirmed: identical to scripted_camera_set_first_person but stores 3 in DAT_002ee5a2.
+ * Confirmed: identical to FUN_000850d0 (0x850d0) but stores 3 in DAT_002ee5a2.
  */
 void scripted_camera_set_dead(int param_1)
 {
