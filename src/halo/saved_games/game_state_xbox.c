@@ -294,7 +294,7 @@ int game_state_open_persistent_storage(int param_1)
     goto copy_caller_path;
   }
 have_path:
-  FUN_0008dc30(path, "savegame.bin");
+  csstrcat(path, "savegame.bin");
 
   file_handle = CreateFileA(path, 0xc0000000, 0, 0, 4, 0, 0);
   if (file_handle != -1) {
