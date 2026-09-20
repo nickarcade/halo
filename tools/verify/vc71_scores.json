@@ -41095,7 +41095,7 @@
       "raw_mnemonic_pct": 87.9,
       "ref": "synth",
       "ref_sha": "a9bce1ae0da0bfce",
-      "score": 89.1,
+      "score": 87.9,
       "source": "src/halo/rasterizer/rasterizer_text.c"
     },
     "FUN_00181c20": {
@@ -64036,16 +64036,16 @@
     "event_manager_tab_check": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 83.9,
+      "abi_modeled_mnemonic_pct": 82.1,
       "addr": "0xdc070",
       "end": "0xdc109",
       "kind": "auto",
       "n_r": 55,
-      "opnd_percent": 78.6,
-      "raw_mnemonic_pct": 83.9,
+      "opnd_percent": 76.8,
+      "raw_mnemonic_pct": 82.1,
       "ref": "synth",
       "ref_sha": "01e90946a7d86c1f",
-      "score": 83.9,
+      "score": 82.1,
       "source": "src/halo/interface/event_manager.c"
     },
     "event_manager_tab_process": {
@@ -87764,18 +87764,18 @@
       "source": "src/halo/rasterizer/rasterizer_text.c"
     },
     "rasterizer_text_cache_character": {
-      "abi_model": "regparam_stripped_saves",
-      "abi_model_items": 4,
-      "abi_modeled_mnemonic_pct": 71.6,
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 71.9,
       "addr": "0x183880",
       "end": "0x183bfc",
       "kind": "auto",
       "n_r": 236,
-      "opnd_percent": 54.2,
-      "raw_mnemonic_pct": 71.0,
+      "opnd_percent": 54.5,
+      "raw_mnemonic_pct": 71.9,
       "ref": "synth",
       "ref_sha": "d6610e565ad2dfef",
-      "score": 71.6,
+      "score": 71.9,
       "source": "src/halo/rasterizer/rasterizer_text.c"
     },
     "rasterizer_text_cache_dispose": {
