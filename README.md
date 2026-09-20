@@ -21,20 +21,34 @@ In practice, that means:
 * Every lift is still treated as untrusted until it passes build, ABI checks, and structural/behavioral verification.
 * Binary-backed review remains mandatory; LLM output speeds iteration, but does not replace reverse-engineering evidence.
 
+Build and workflow status
+-------------------------
+The badges below show the latest recorded result for each workflow on `main`.
+Some workflows run only for matching paths, on a schedule, or by manual dispatch.
+Select a badge to open that workflow's run history.
+
+[![Main build and gates](https://github.com/stianeklund/halo/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/main.yml)
+[![Audit gates](https://github.com/stianeklund/halo/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/audit.yml)
+[![Equivalence tests](https://github.com/stianeklund/halo/actions/workflows/equivalence.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/equivalence.yml)
+[![Snapshot verification](https://github.com/stianeklund/halo/actions/workflows/snapshot-tests.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/snapshot-tests.yml)
+[![VC71 byte-accuracy regression](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml)
+[![Runtime oracle tests](https://github.com/stianeklund/halo/actions/workflows/runtime-oracle.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/runtime-oracle.yml)
+[![Progress report](https://github.com/stianeklund/halo/actions/workflows/progress-report.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/progress-report.yml)
+
 Game Code Progress
 ------------------
 <!-- GAME_CODE_PROGRESS_START -->
-[![Decompilation Progress](https://img.shields.io/badge/decompilation-86.18%25-green.svg)](https://stianeklund.github.io/halo/)
-[![Ported Functions](https://img.shields.io/badge/functions-5,867%2F6,808-blue.svg)](https://stianeklund.github.io/halo/)
+[![Decompilation Progress](https://img.shields.io/badge/decompilation-86.16%25-green.svg)](https://stianeklund.github.io/halo/)
+[![Ported Functions](https://img.shields.io/badge/functions-5,866%2F6,808-blue.svg)](https://stianeklund.github.io/halo/)
 
 Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):
 
-* **Ported Functions:** `5,867 / 6,808` (`86.18%`)
-  `[██████████████████████████████████░░░░░░] 86.18%`
-* **Ported Code Bytes:** `1,241,909 / 1,737,867` (`71.46%`)
-  `[█████████████████████████████░░░░░░░░░░░] 71.46%`
-* **Average VC71 Match Accuracy:** `94.50%` (`5,866` scored functions, weighted: `90.30%`)
-* **Equivalence Verified:** `5,745` functions tested (`2,084` high confidence)
+* **Ported Functions:** `5,866 / 6,808` (`86.16%`)
+  `[██████████████████████████████████░░░░░░] 86.16%`
+* **Ported Code Bytes:** `1,241,523 / 1,737,867` (`71.44%`)
+  `[█████████████████████████████░░░░░░░░░░░] 71.44%`
+* **Average VC71 Match Accuracy:** `94.50%` (`5,890` scored functions, weighted: `90.30%`)
+* **Equivalence Verified:** `5,743` functions tested (`2,084` high confidence)
 * **Translation Units:** `189` source units (`39` platform/SDK buckets tracked separately)
 
 > Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
