@@ -170,6 +170,6 @@ Compilation, linking, and hazard validation completed cleanly with zero blockers
 | `0xfd570` | `weapons.obj` | `FUN_000fd570` | `trigger_create_projectiles` | ❌ No | No |
 | `0xfdc90` | `weapons.obj` | `FUN_000fdc90` | `weapon_trigger_fire` | ❌ No | No |
 | `0xfe450` | `weapons.obj` | `FUN_000fe450` | `weapon_trigger_begin_firing` | ❌ No | No |
-| `0xfe6c0` | `weapons.obj` | `FUN_000fe6c0` | `weapon_trigger_overload` | ❌ No | No |
+| `0xfe6c0` | `weapons.obj` | `FUN_000fe6c0` | *(reverted — name contradicted own evidence, see PR #11 review)* | ❌ No | No |
 | `0xfe790` | `weapons.obj` | `FUN_000fe790` | `weapon_trigger_release_charge` | ❌ No | No |
 | `0xfe890` | `weapons.obj` | `FUN_000fe890` | `weapon_trigger_overcharged` | ❌ No | No |
