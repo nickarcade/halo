@@ -34796,10 +34796,9 @@
     },
     {
      "addr": "0xfe6c0",
-     "decl": "void weapon_trigger_overload(int trigger_index@<eax>, int weapon_handle@<ecx>);",
+     "decl": "void FUN_000fe6c0(int trigger_index@<eax>, int weapon_handle@<ecx>);",
      "ported": true,
-     "source_path": "src/halo/items/weapons.c",
-     "name": "weapon_trigger_overload"
+     "source_path": "src/halo/items/weapons.c"
     },
     {
      "addr": "0xfe790",
