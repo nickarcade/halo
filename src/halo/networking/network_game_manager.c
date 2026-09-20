@@ -102,7 +102,7 @@ void network_game_generate_local_machine_name(void *name_buffer)
     name[31] = 0;
     return;
   }
-  FUN_001d33a2(iVar1);
+  XFindClose(iVar1);
   name[31] = 0;
 }
 

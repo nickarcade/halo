@@ -33790,15 +33790,18 @@
     },
     {
      "addr": "0x1d3254",
-     "decl": "int __stdcall FUN_001d3254(const char *path, void *find_data);"
+     "decl": "int __stdcall XFindFirstSaveGame(const char *path, void *find_data);",
+     "name": "XFindFirstSaveGame"
     },
     {
      "addr": "0x1d335b",
-     "decl": "bool __stdcall FUN_001d335b(int handle, void *find_data);"
+     "decl": "bool __stdcall XFindNextSaveGame(int handle, void *find_data);",
+     "name": "XFindNextSaveGame"
     },
     {
      "addr": "0x1d33a2",
-     "decl": "int __stdcall FUN_001d33a2(int handle);"
+     "decl": "int __stdcall XFindClose(int handle);",
+     "name": "XFindClose"
     },
     {
      "addr": "0x1d33e6",
@@ -33846,7 +33849,8 @@
     },
     {
      "addr": "0x1d3739",
-     "decl": "int __stdcall FUN_001d3739(const char *directory_name, uint64_t *free_bytes_available, uint64_t *total_bytes, uint64_t *total_free_bytes);"
+     "decl": "int __stdcall GetDiskFreeSpaceExA(const char *directory_name, uint64_t *free_bytes_available, uint64_t *total_bytes, uint64_t *total_free_bytes);",
+     "name": "GetDiskFreeSpaceExA"
     },
     {
      "addr": "0x1d3a91",
