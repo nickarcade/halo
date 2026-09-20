@@ -1,7 +1,10 @@
 #include "encounters.h"
 #include "x87_math.h"
-/* Check if an actor has a swarm component or its unit is in a vehicle seat. */
-int actor_move_animation_busy(int actor_handle)
+/* 0x2a360 — Check if an actor has a swarm component (field_418 != -1) or its
+ * unit is in a vehicle seat (unit_is_busy on field_018). Renamed
+ * actor_move_animation_busy reverted: comment/logic evidence supports a
+ * seat/swarm-busy check, not "animation". */
+int FUN_0002a360(int actor_handle)
 {
   char *actor = (char *)datum_get(actor_data, actor_handle);
   if (((actor_t *)actor)->field_418 != -1)
@@ -169,14 +172,16 @@ void actor_stimulus_prop_sighted(int actor_handle, int encounter_handle, char pa
   }
 }
 
-/* actor_stimulus_enter_combat_found_body (0x36a90) — actor seek-prop approach: record timestamp,
- * find pathfinding location, post priority-2 move stimulus toward prop+0xf0.
- * Stack args to actor_stimulus_combat (orig 0x36a90 push order, right-to-left):
+/* 0x36a90 — actor seek-prop approach: record timestamp, find pathfinding
+ * location, post priority-2 move stimulus toward prop+0xf0. Stack args to
+ * actor_stimulus_combat (orig 0x36a90 push order, right-to-left):
  *   param5=prop->0xec, param6=1.5f, param7=90 (0x5a), param8=prop_handle,
  *   param9=90, param10=1.  param7->actor+0x33c, param8->actor+0x340
- *   (combat_transition_prop_index). Disasm: 0x36adb push 0x5a (param7);
- *   0x36ada push edi=prop_handle (param8). */
-void actor_stimulus_enter_combat_found_body(int actor_handle, int prop_handle)
+ *   (field_340, unproven). Disasm: 0x36adb push 0x5a (param7);
+ *   0x36ada push edi=prop_handle (param8).
+ * Renamed actor_stimulus_enter_combat_found_body reverted: comment supports
+ * only a generic prop-approach stimulus, not "combat"/"found_body". */
+void FUN_00036a90(int actor_handle, int prop_handle)
 {
   char *actor;
   char *prop;

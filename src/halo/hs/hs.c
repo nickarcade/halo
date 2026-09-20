@@ -1186,7 +1186,7 @@ void hs_evaluate_camera_set_relative(int16_t function_index, int thread_datum, c
 
 /* 0xc1700 — HS script function handler. Evaluates the macro arguments; on
  * success the result block holds an int at +0x0 (result[0]) and a char*
- * string pointer at +0x4 (result[1]). Calls scripted_camera_set_animation(int, const char*)
+ * string pointer at +0x4 (result[1]). Calls FUN_00085000(int, const char*)
  * with those two fields, then returns void to the HS thread via
  * hs_return(thread_datum, 0). Matches the byte pattern of the sibling HS
  * handlers in this TU. */
@@ -1197,14 +1197,14 @@ void hs_evaluate_camera_set_animation(int16_t function_index, int thread_datum, 
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    scripted_camera_set_animation(result[0], (const char *)result[1]);
+    FUN_00085000(result[0], (const char *)result[1]);
     hs_return(thread_datum, 0);
   }
 }
 
 /* 0xc1740 — HS script function handler: evaluate a macro function and dispatch
- * the result's first field to scripted_camera_set_first_person. On success the result block holds
- * an int at +0x0 (result[0]); calls scripted_camera_set_first_person(result[0]), then returns void
+ * the result's first field to FUN_000850d0. On success the result block holds
+ * an int at +0x0 (result[0]); calls FUN_000850d0(result[0]), then returns void
  * to the HS thread via hs_return(thread_datum, 0). Matches the byte pattern of
  * the sibling HS handlers in this TU. */
 void hs_evaluate_camera_set_first_person(int16_t function_index, int thread_datum, char init)
@@ -1214,7 +1214,7 @@ void hs_evaluate_camera_set_first_person(int16_t function_index, int thread_datu
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    scripted_camera_set_first_person(result[0]);
+    FUN_000850d0(result[0]);
     hs_return(thread_datum, 0);
   }
 }

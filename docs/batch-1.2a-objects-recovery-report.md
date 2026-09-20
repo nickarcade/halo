@@ -81,9 +81,9 @@ All 8 functions in Sub-Batch 1.2A utilizing custom register-calling conventions 
 | Address | Placeholder / Prior Name | Authentic Symbol (Build 2276) | Object | Reg Args |
 |---------|--------------------------|--------------------------------|--------|----------|
 | `0x84ae0` | `FUN_84ae0` | `bored_camera_update` | `objects.obj` | No |
-| `0x84fe0` | `FUN_84fe0` | `scripted_camera_enable` | `objects.obj` | No |
-| `0x85000` | `FUN_85000` | `scripted_camera_set_animation` | `objects.obj` | No |
-| `0x850d0` | `FUN_850d0` | `scripted_camera_set_first_person` | `objects.obj` | No |
+| `0x84fe0` | `FUN_84fe0` | *(reverted — name contradicted own evidence, see PR #11 review)* | `objects.obj` | No |
+| `0x85000` | `FUN_85000` | *(reverted — source attribution unresolved, see PR #11 review)* | `objects.obj` | No |
+| `0x850d0` | `FUN_850d0` | *(reverted — name contradicted own evidence, see PR #11 review)* | `objects.obj` | No |
 | `0x85110` | `FUN_85110` | `scripted_camera_set_dead` | `objects.obj` | No |
 | `0x85150` | `FUN_85150` | `scripted_camera_object_is_first_person_camera` | `objects.obj` | No |
 | `0x85180` | `FUN_85180` | `scripted_camera_set` | `objects.obj` | No |

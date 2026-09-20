@@ -2911,9 +2911,8 @@
    "functions": [
     {
      "addr": "0x2a360",
-     "decl": "int actor_move_animation_busy(int actor_handle);",
-     "ported": true,
-     "name": "actor_move_animation_busy"
+     "decl": "int FUN_0002a360(int actor_handle);",
+     "ported": true
     },
     {
      "addr": "0x36860",
@@ -2948,10 +2947,9 @@
     },
     {
      "addr": "0x36a90",
-     "decl": "void actor_stimulus_enter_combat_found_body(int actor_handle, int prop_handle);",
+     "decl": "void FUN_00036a90(int actor_handle, int prop_handle);",
      "ported": true,
-     "source_path": "src/halo/ai/actors.c",
-     "name": "actor_stimulus_enter_combat_found_body"
+     "source_path": "src/halo/ai/actors.c"
     },
     {
      "addr": "0x36b10",
@@ -16498,23 +16496,20 @@
     },
     {
      "addr": "0x84fe0",
-     "decl": "void scripted_camera_enable(unsigned char param_1);",
+     "decl": "void FUN_00084fe0(unsigned char param_1);",
      "ported": true,
-     "source_path": "camera/bored_camera.c",
-     "name": "scripted_camera_enable"
+     "source_path": "camera/bored_camera.c"
     },
     {
      "addr": "0x85000",
-     "decl": "void scripted_camera_set_animation(int param_1, const char *param_2);",
-     "ported": true,
-     "name": "scripted_camera_set_animation"
+     "decl": "void FUN_00085000(int param_1, const char *param_2);",
+     "ported": true
     },
     {
      "addr": "0x850d0",
-     "decl": "void scripted_camera_set_first_person(int param_1);",
+     "decl": "void FUN_000850d0(int param_1);",
      "ported": true,
-     "source_path": "camera/bored_camera.c",
-     "name": "scripted_camera_set_first_person"
+     "source_path": "camera/bored_camera.c"
     },
     {
      "addr": "0x85110",
