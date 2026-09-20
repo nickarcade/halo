@@ -101,7 +101,7 @@
         "chronic timeout (contrails.obj @ 0x97980): does not terminate under differential harness within per-fn timeout; excluded to protect batch wall-clock budget"
       ]
     },
-    "FUN_00098200": {
+    "contrail_update_points": {
       "statuses": [
         "timeout"
       ],
@@ -117,7 +117,7 @@
         "chronic timeout (effects.obj @ 0x9c810): does not terminate under differential harness within per-fn timeout; excluded to protect batch wall-clock budget"
       ]
     },
-    "FUN_0009c910": {
+    "effects_information_get": {
       "statuses": [
         "timeout"
       ],
@@ -175,7 +175,7 @@
       ],
       "oracle": "xbe"
     },
-    "FUN_0013b150": {
+    "lights_reconnect_to_structure_bsp": {
       "statuses": [
         "timeout"
       ],
@@ -191,7 +191,7 @@
         "chronic timeout (objects.obj @ 0x141480): does not terminate under differential harness within per-fn timeout; excluded to protect batch wall-clock budget"
       ]
     },
-    "FUN_000a1590": {
+    "particles_reconnect_to_structure_bsp": {
       "statuses": [
         "timeout"
       ],
@@ -265,7 +265,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a740": {
+    "actor_types_initialize": {
       "statuses": [
         "*"
       ],
@@ -275,7 +275,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a760": {
+    "actor_type_get_name": {
       "statuses": [
         "*"
       ],
@@ -285,7 +285,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a770": {
+    "actor_type_get_race": {
       "statuses": [
         "*"
       ],
@@ -295,7 +295,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a790": {
+    "actor_type_get_when_to_search_at_target": {
       "statuses": [
         "*"
       ],
@@ -305,7 +305,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a7b0": {
+    "actor_type_get_when_to_pursue": {
       "statuses": [
         "*"
       ],
@@ -315,7 +315,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a7d0": {
+    "actor_type_get_when_to_search_pursuit": {
       "statuses": [
         "*"
       ],
@@ -325,7 +325,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a7f0": {
+    "actor_type_get_pursuit_controller": {
       "statuses": [
         "*"
       ],
@@ -335,7 +335,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a800": {
+    "actor_type_get_swarm": {
       "statuses": [
         "*"
       ],
@@ -345,7 +345,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a810": {
+    "actor_type_initialize": {
       "statuses": [
         "*"
       ],
@@ -355,7 +355,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a840": {
+    "actor_type_decide_action": {
       "statuses": [
         "*"
       ],
@@ -365,7 +365,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a8a0": {
+    "actor_type_swarm_control": {
       "statuses": [
         "*"
       ],
@@ -375,7 +375,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003a920": {
+    "actor_type_swarm_aim_jump": {
       "statuses": [
         "*"
       ],
@@ -415,7 +415,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003baa0": {
+    "actor_change_encounter": {
       "statuses": [
         "*"
       ],
@@ -423,7 +423,7 @@
         "oracle-unmappable: reference crashes in zero-fill Unicorn harness (unmapped callee code page / missing reloc); needs --state-snapshot to run"
       ]
     },
-    "FUN_0003be90": {
+    "actor_decision_loop": {
       "statuses": [
         "*"
       ],
@@ -441,7 +441,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003cb50": {
+    "actor_swarm_component_setup": {
       "statuses": [
         "*"
       ],
@@ -488,7 +488,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003d9f0": {
+    "actor_general_update": {
       "statuses": [
         "*"
       ],
@@ -498,7 +498,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003dc20": {
+    "actor_input_update": {
       "statuses": [
         "*"
       ],
@@ -517,7 +517,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003ec80": {
+    "actor_update": {
       "statuses": [
         "*"
       ],
@@ -527,7 +527,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0003f030": {
+    "actor_place": {
       "statuses": [
         "*"
       ],
@@ -1758,7 +1758,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_000a1910": {
+    "particle_next_sequence": {
       "statuses": [
         "*"
       ],
@@ -1766,7 +1766,7 @@
         "oracle-unmappable: reference crashes in zero-fill Unicorn harness (unmapped callee code page / missing reloc); needs --state-snapshot to run"
       ]
     },
-    "FUN_000a1a90": {
+    "particle_next_frame": {
       "statuses": [
         "*"
       ],
@@ -1824,7 +1824,7 @@
         "oracle-unmappable: reference crashes in zero-fill Unicorn harness (unmapped callee code page / missing reloc); needs --state-snapshot to run"
       ]
     },
-    "FUN_000f90d0": {
+    "projectile_collision": {
       "statuses": [
         "*"
       ],
@@ -2230,7 +2230,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_001a2900": {
+    "biped_update_airborne": {
       "statuses": [
         "*"
       ],
@@ -2338,7 +2338,7 @@
         "oracle-unmappable: reference crashes in zero-fill Unicorn harness (unmapped callee code page / missing reloc); needs --state-snapshot to run"
       ]
     },
-    "FUN_000fc990": {
+    "weapon_magazine_start_reload": {
       "statuses": [
         "*"
       ],
@@ -2346,7 +2346,7 @@
         "oracle-unmappable: reference crashes in zero-fill Unicorn harness (unmapped callee code page / missing reloc); needs --state-snapshot to run"
       ]
     },
-    "weapon_activate": {
+    "weapon_ready": {
       "statuses": [
         "*"
       ],
@@ -2356,7 +2356,7 @@
       ],
       "oracle": "delinked"
     },
-    "weapon_try_place": {
+    "weapon_put_away": {
       "statuses": [
         "*"
       ],
@@ -2592,7 +2592,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_0013aa10": {
+    "lights_prepare_for_object_dynamic": {
       "statuses": [
         "*"
       ],
@@ -2618,7 +2618,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_00141900": {
+    "objects_paparazzi": {
       "statuses": [
         "*"
       ],
@@ -2626,7 +2626,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_001a7d80": {
+    "unit_scripting_impervious": {
       "statuses": [
         "*"
       ],
@@ -2634,7 +2634,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_001a7df0": {
+    "unit_scripting_start_user_animation_list": {
       "statuses": [
         "*"
       ],
@@ -2840,7 +2840,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_00084ae0": {
+    "bored_camera_update": {
       "statuses": [
         "*"
       ],
@@ -2849,7 +2849,7 @@
         "RETRIED artifacts/equivalence/allowlist_retry_xbe_oracle_extract_failed.{csv,json} (2026-09-14) under --oracle=xbe, 20 seeds: still error/emulation_error."
       ]
     },
-    "FUN_00085110": {
+    "scripted_camera_set_dead": {
       "statuses": [
         "*"
       ],
@@ -2857,7 +2857,7 @@
         "no-delinked-ref: lifted_extract_failed could not be extracted for diff (registration/export gap)"
       ]
     },
-    "FUN_000ae0a0": {
+    "game_engine_remap_object_definition": {
       "statuses": [
         "*"
       ],
@@ -2867,7 +2867,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_001362d0": {
+    "widgets_delete": {
       "statuses": [
         "*"
       ],
@@ -2875,7 +2875,7 @@
         "no-delinked-ref: oracle_extract_failed could not be extracted for diff (registration/export gap)"
       ]
     },
-    "FUN_00139930": {
+    "light_unmarked": {
       "statuses": [
         "*"
       ],
@@ -3095,7 +3095,7 @@
         "no-delinked-ref: oracle_extract_failed could not be extracted for diff (registration/export gap)"
       ]
     },
-    "FUN_0008dc30": {
+    "csstrcat": {
       "statuses": [
         "*"
       ],
@@ -3105,7 +3105,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_001a6e20": {
+    "unit_lose_speech": {
       "statuses": [
         "*"
       ],
@@ -3115,7 +3115,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_001a6ef0": {
+    "unit_speak": {
       "statuses": [
         "*"
       ],
@@ -3125,7 +3125,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_001a74d0": {
+    "unit_scream": {
       "statuses": [
         "*"
       ],
@@ -3133,7 +3133,7 @@
         "no-delinked-ref: oracle_extract_failed could not be extracted for diff (registration/export gap)"
       ]
     },
-    "FUN_001ab6e0": {
+    "base_seat_label_get": {
       "statuses": [
         "*"
       ],
@@ -3153,7 +3153,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_001ab940": {
+    "unit_get_weapon": {
       "statuses": [
         "*"
       ],
