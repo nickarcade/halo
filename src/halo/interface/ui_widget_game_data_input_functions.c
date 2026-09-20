@@ -2183,6 +2183,95 @@ void multiplayer_edit_profile_set_ruleset_textbox_string_index(void *widget)
   }
 }
 
+/* game_options_menu_update_pic_desc (0xf3400). Text box widget update for the
+ * "team game directions" pic/description box. Requires the widget to be a text
+ * box (+0xe == 1); otherwise asserts + exits (assert string/file/line are the
+ * reference's own PUSH immediates at 0xf3426/0xf342b/0xf3421).
+ *
+ * Reads the current network game (network_game_get_game, 0xf3407) and the
+ * server object (network_game_server_get, 0xf340e). When a server exists:
+ * non-splitscreen games with game+0x112 (signed 16-bit) < 2 select string
+ * index 0x22; splitscreen games with game+0x224 < 2 select 0x23; a splitscreen
+ * game with no game object clears the box. Both selecting paths also set the
+ * widget's +0x10 visibility byte to 1.
+ *
+ * Otherwise, if the game's +0xc0 flag is 1 and FUN_00124D00 on the current
+ * client returns a negative int16 (TEST AX,AX / JGE at 0xf34bd), walks the 16
+ * player slots at game+0x244 with stride 0x20, counting slots whose player
+ * record (slot - 0x1e) is valid and whose byte at the slot base is 0 or 1.
+ * Both counts non-zero selects string index 0x1a, otherwise 0x1b; either way
+ * +0x10 becomes 1. Every other path clears +0x10 to 0. Evidence: reference
+ * disassembly at 0xf3400-0xf353a. */
+void game_options_menu_update_pic_desc(void *widget)
+{
+  int game;
+  void *server;
+  char *slot;
+  int count_free;
+  int count_taken;
+  int remaining;
+
+  game = network_game_get_game();
+  server = network_game_server_get();
+  if (*(short *)((char *)widget + 0xe) != 1) {
+    display_assert(
+      "expected text box widget for team game directions",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xbad, 1);
+    system_exit(-1);
+  }
+
+  if (server != NULL) {
+    if (!network_game_is_splitscreen_local() && game != 0 &&
+        *(short *)(game + 0x112) < 2) {
+      *(unsigned short *)((char *)widget + 0x40) = 0x22;
+      *(unsigned char *)((char *)widget + 0x10) = 1;
+      return;
+    }
+    if (network_game_is_splitscreen_local()) {
+      if (game == 0) {
+        *(unsigned char *)((char *)widget + 0x10) = 0;
+        return;
+      }
+      if (*(short *)(game + 0x224) < 2) {
+        *(unsigned short *)((char *)widget + 0x40) = 0x23;
+        *(unsigned char *)((char *)widget + 0x10) = 1;
+        return;
+      }
+    }
+  }
+
+  if (game != 0 && *(char *)(game + 0xc0) == 1 &&
+      FUN_00124D00(network_game_client_get()) < 0) {
+    count_free = 0;
+    count_taken = 0;
+    slot = (char *)(game + 0x244);
+    remaining = 0x10;
+    do {
+      if (network_player_is_valid(slot - 0x1e)) {
+        if (*slot == 0) {
+          count_free++;
+        } else if (*slot == 1) {
+          count_taken++;
+        }
+      }
+      slot += 0x20;
+      remaining--;
+    } while (remaining != 0);
+
+    if (count_free != 0 && count_taken != 0) {
+      *(unsigned short *)((char *)widget + 0x40) = 0x1a;
+      *(unsigned char *)((char *)widget + 0x10) = 1;
+      return;
+    }
+    *(unsigned short *)((char *)widget + 0x40) = 0x1b;
+    *(unsigned char *)((char *)widget + 0x10) = 1;
+    return;
+  }
+
+  *(unsigned char *)((char *)widget + 0x10) = 0;
+}
+
 /* get_editable_player_profile_display_name (0xf3590, ui_widget_game_data_
  * function_table[39]). The name is kb.json's pre-existing placeholder and
  * does not match the observed behavior: the assert strings and the globals

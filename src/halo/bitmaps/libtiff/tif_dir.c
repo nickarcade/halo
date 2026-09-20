@@ -245,7 +245,13 @@ typedef struct tiff_s {
 typedef struct tiff_field_info_s {
   unsigned char pad_00[0x0c]; /* 0x00 */
   unsigned short field_bit; /* 0x0c */
-  unsigned char pad_0e[0x02]; /* 0x0e */
+  /* Read by TIFFVSetField (0x65a70) as a 16-bit quantity compared against zero
+   * (`CMP word ptr [EAX+0xe],DI` at 0x65a9a, DI == 0), gating the
+   * "Cannot modify tag while writing" diagnostic. Upstream libtiff puts two
+   * bytes here, field_oktochange at 0x0e and field_passcount at 0x0f; the only
+   * access this TU has seen covers both at once, so the pair is kept as one
+   * mechanical 16-bit field rather than split on upstream's word. */
+  unsigned short field_0e; /* 0x0e */
   char *field_name; /* 0x10 */
 } tiff_field_info_t;
 
@@ -256,6 +262,16 @@ typedef struct tiff_field_info_s {
 /* field_0a bits, in this build's numbering (see the field comment above). */
 #define TIFF_ISTILED 0x80
 #define TIFF_DIRTYDIRECT 0x02
+/* `TEST byte ptr [EBX+0xa],0x8` at 0x65a86 gates TIFFVSetField's
+ * already-writing check, which is upstream's TIFF_BEENWRITING test. Upstream
+ * numbers that bit 0x0040 inside a 32-bit tif_flags; this build's bit is 0x08
+ * of the byte at 0x0a, so keep this build's numbering. */
+#define TIFF_BEENWRITING 0x08
+
+/* Second argument of TIFFFindFieldInfo (0x66320): `XOR EDI,EDI` at 0x65a7c
+ * feeds both PUSH EDI sites (0x65a8c, 0x65aa0). Upstream passes TIFF_ANY
+ * there, spelled TIFF_NOTYPE (0) in libtiff's TIFFDataType enum. */
+#define TIFF_NOTYPE 0
 
 /* Upstream libtiff's accessors, verbatim. TIFFSetFieldBit must stay a macro
  * that expands `field` twice: the binary calls FUN_00066380 TWICE for the same
@@ -725,4 +741,258 @@ badvalue:
   FUN_00068a30(tif->tif_name, "%ld: Bad value for \"%s\"", v,
                ((tiff_field_info_t *)FUN_00066380(tag))->field_name);
   return 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * TIFFVSetField (0x65a70) -- upstream libtiff tif_dir.c.
+ *
+ * Identification: upstream splits this into TIFFVSetField plus a static
+ * OkToChangeTag helper; here the helper is inlined and only its
+ * "writing has begun and the tag is not ok to change" arm survives -- there is
+ * no unknown-tag diagnostic, so a NULL row from TIFFFindFieldInfo simply falls
+ * through to _TIFFVSetField (JZ 0x65ace at 0x65a98).
+ *
+ * Ghidra reports `void FUN_00065a70(void)` with in_stack_ parameters because
+ * kb.json declared it `void(void)`; the three arguments are at [EBP+8],
+ * [EBP+0xc] and [EBP+0x10], and the tail path returns _TIFFVSetField's EAX
+ * unchanged (CALL 0x652f0 / ADD ESP,0xc / epilogue at 0x65ad4-0x65ae0), so the
+ * function returns int.
+ *
+ * TIFFFindFieldInfo is called TWICE for the same tag (0x65a8e and 0x65aa2,
+ * each with its own PUSH ESI / PUSH EDI pair and ADD ESP,0x8) -- upstream
+ * calls _TIFFFindFieldInfo once for the oktochange test and _TIFFFieldWithTag
+ * again inside the error call. Both sites here target 0x66320. Folding them to
+ * one call is a shape regression.
+ *
+ * The call takes two stack arguments only: `PUSH EDI` (0) then `PUSH ESI`
+ * (tag), so the first argument is the tag -- this build's TIFFFindFieldInfo
+ * does not take the TIFF handle that upstream's _TIFFFindFieldInfo does.
+ *
+ * Bungie deviation from upstream libtiff 3.5.x: the unknown-tag
+ * "%s: Unknown %stag %u" error is absent.
+ * ------------------------------------------------------------------------- */
+
+/* 0x65a70 */
+int TIFFVSetField(void *tif_, int tag, va_list ap)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_field_info_t *fip;
+
+  /* 0x65a7e-0x65a9e. */
+  if (tag != TIFFTAG_IMAGELENGTH && (tif->field_0a & TIFF_BEENWRITING)) {
+    fip = (tiff_field_info_t *)TIFFFindFieldInfo(tag, TIFF_NOTYPE);
+    if (fip != 0 && fip->field_0e == 0) {
+      /* 0x65aa0-0x65ac4. The module argument is the literal "TIFFVSetField"
+       * (0x25f6b4), not tif->tif_name as in _TIFFVSetField; the handle name is
+       * the first "%s" of the format at 0x25f688. */
+      fip = (tiff_field_info_t *)TIFFFindFieldInfo(tag, TIFF_NOTYPE);
+      if (fip != 0)
+        FUN_00068a30("TIFFVSetField",
+                     "%s: Cannot modify tag \"%s\" while writing",
+                     tif->tif_name, fip->field_name);
+      /* 0x65ac7, MOV EAX,EDI with EDI still zero. */
+      return 0;
+    }
+  }
+  /* 0x65ace-0x65ad9. Straight passthrough of all three arguments. */
+  return _TIFFVSetField(tif_, tag, ap);
+}
+
+/* ---------------------------------------------------------------------------
+ * TIFFGetField (0x65e90) -- upstream libtiff tif_dir.c, with TIFFVGetField
+ * inlined into it.
+ *
+ * Upstream splits this in two: TIFFGetField is a bare va_start/va_end wrapper
+ * around a static TIFFVGetField that does the field lookup, the FIELD_IGNORE
+ * test and the TIFFFieldSet test before delegating to _TIFFVGetField. Here
+ * there is no separate call for that body -- the whole sequence is in this
+ * frame (0x65e9a lookup, 0x65eaa ignore test, 0x65ec5 field-set test, 0x65ed3
+ * delegate), so the static was inlined at its single call site.
+ *
+ * The unknown-tag diagnostic is a Bungie addition: upstream's TIFFVGetField
+ * returns 0 silently on a NULL FieldInfo, while this build reports
+ * "Unknown field, tag 0x%x" (format at 0x25f714) under the module name
+ * "TIFFGetField" (0x25f704) and then returns 0 through the shared
+ * `XOR EAX,EAX` exit at 0x65ef3.
+ *
+ * ABI notes:
+ *   - `tag` is read into ESI at 0x65e94 and is the ONLY value passed to both
+ *     TIFFFindFieldInfo (0x65e99) and TIFFGetField1 (EDX at 0x65ed1).
+ *   - The delegate is a three-register-argument function, already declared in
+ *     kb.json as TIFFGetField1(void **out@<eax>, void *field_table@<ecx>,
+ *     unsigned int tag@<edx>). EAX is `LEA EAX,[EBP+0x10]` (0x65ece), the
+ *     address of the first vararg slot -- that is the va_list VALUE, not its
+ *     address, so `ap` is forwarded directly. ECX is `ADD ECX,0x14` (0x65ecb)
+ *     off the tif handle, i.e. &tif->td_fieldsset[0], reusing the base the
+ *     field-set test just indexed rather than re-deriving it.
+ *   - Ghidra reports this as `void FUN_00065e90(void)` with `extraout_EAX` and
+ *     `in_stack_00000004` because kb.json declared no parameters; both
+ *     parameters are at [EBP+8] and [EBP+0xc].
+ * ------------------------------------------------------------------------- */
+
+/* `CMP AX,0xffff` at 0x65eaa. Upstream libtiff 3.5.x spells the sentinel
+ * FIELD_IGNORE ((u_short) -1): a tag whose value is never mirrored into
+ * td_fieldsset and so can never satisfy the TIFFFieldSet test below. */
+#define FIELD_IGNORE 0xffff
+
+/* 0x65e90 */
+int TIFFGetField(int file, int field, ...)
+{
+  tiff_t *tif = (tiff_t *)file;
+  tiff_field_info_t *fip;
+  unsigned short bit;
+  unsigned int tag;
+  va_list ap;
+
+  va_start(ap, field);
+  /* 0x65e97-0x65ea4. */
+  tag = (unsigned int)field;
+  fip = (tiff_field_info_t *)TIFFFindFieldInfo((int)tag, TIFF_NOTYPE);
+  if (fip != 0) {
+    /* 0x65eaa: field_bit loaded once into AX and reused by the set test. */
+    bit = fip->field_bit;
+    if (bit != FIELD_IGNORE && TIFFFieldSet(tif, bit)) {
+      /* 0x65ecb-0x65edf. */
+      TIFFGetField1((void **)ap, (void *)tif->td_fieldsset, tag);
+      va_end(ap);
+      return 1;
+    }
+  } else {
+    /* 0x65ee0-0x65ef0. */
+    FUN_00068a30("TIFFGetField", "Unknown field, tag 0x%x", tag);
+  }
+  va_end(ap);
+  /* 0x65ef3. */
+  return 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * TIFFVGetField (0x65f00) -- upstream libtiff tif_dir.c.
+ *
+ * Same body as the copy inlined into TIFFGetField (0x65e90) above, but with
+ * the va_list arrived at as an explicit third stack parameter instead of
+ * va_start: `MOV EAX,dword ptr [EBP + 0x10]` at 0x65f3b loads the argument
+ * VALUE (contrast the `LEA EAX,[EBP+0x10]` at 0x65ece in TIFFGetField), so
+ * `ap` is forwarded straight through to the delegate.
+ *
+ * ABI notes:
+ *   - `tag` is [EBP+0xc], read into ESI at 0x65f04, and is the only value
+ *     passed to TIFFFindFieldInfo (PUSH 0x0 / PUSH ESI at 0x65f07-0x65f09,
+ *     ADD ESP,0x8) and to TIFFGetField1 (EDX at 0x65f41).
+ *   - The delegate at 0x65af0 takes three register arguments, already declared
+ *     in kb.json: EAX = ap, ECX = `ADD ECX,0x14` off the tif handle
+ *     (&tif->td_fieldsset[0], reusing the base the field-set test indexed),
+ *     EDX = tag. Its return value is discarded -- 0x65f48 is a literal
+ *     `MOV EAX,0x1`.
+ *   - The unknown-tag diagnostic (0x65f50-0x65f60) uses the SAME module string
+ *     as TIFFGetField, "TIFFGetField" at 0x25f704, not "TIFFVGetField"; the
+ *     format at 0x25f714 is shared too. Both fall through to the shared
+ *     `XOR EAX,EAX` exit at 0x65f63.
+ * ------------------------------------------------------------------------- */
+
+/* 0x65f00 */
+int TIFFVGetField(void *tif_, unsigned int tag, char *ap)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_field_info_t *fip;
+  unsigned short bit;
+
+  /* 0x65f07-0x65f14. */
+  fip = (tiff_field_info_t *)TIFFFindFieldInfo((int)tag, TIFF_NOTYPE);
+  if (fip != 0) {
+    /* 0x65f16: field_bit loaded once into AX and reused by the set test. */
+    bit = fip->field_bit;
+    if (bit != FIELD_IGNORE && TIFFFieldSet(tif, bit)) {
+      /* 0x65f3b-0x65f48. */
+      TIFFGetField1((void **)ap, (void *)tif->td_fieldsset, tag);
+      return 1;
+    }
+  } else {
+    /* 0x65f50-0x65f60. */
+    FUN_00068a30("TIFFGetField", "Unknown field, tag 0x%x", tag);
+  }
+  /* 0x65f63. */
+  return 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * TIFFDefaultDirectory (0x66190) -- upstream libtiff tif_dir.c.
+ *
+ * Identification: the body is upstream TIFFDefaultDirectory's default-value
+ * block, field for field and IN UPSTREAM'S ORDER, followed by the
+ * `TIFFSetField(tif, TIFFTAG_COMPRESSION, COMPRESSION_NONE)` call and the
+ * `tif->tif_flags &= ~TIFF_DIRTYDIRECT` that upstream documents as undoing the
+ * dirty bit that setup just set. No other libtiff function has that shape.
+ *
+ * ABI / call evidence:
+ *   - One stack parameter, `MOV EDI,dword ptr [EBP + 0x8]` at 0x66196.
+ *   - Returns 1: EBX is loaded with 1 at 0x661a9, reused as the immediate for
+ *     every `= 1` store, and moved to EAX at 0x661f9.
+ *   - `LEA ESI,[EDI + 0x14]` (0x6619e) is upstream's
+ *     `TIFFDirectory* td = &tif->tif_dir;`. Every directory store below is
+ *     `[ESI + off]`, i.e. handle offset 0x14 + off; this TU models the
+ *     directory inline on tiff_t, so the offsets are given at their handle
+ *     values.
+ *   - csmemset(tif + 0x14, 0, 0xb0) at 0x66199-0x661a4 is
+ *     `_TIFFmemset(td, 0, sizeof (*td))`; 0xb0 is this build's sizeof
+ *     TIFFDirectory, so the cleared range is 0x14..0xc4 and runs past the last
+ *     field this TU has recovered (td_pagename at 0xb0).
+ *   - TIFFSetField's three pushes (EBX=1, 0x103, EDI) are scheduled at
+ *     0x661ae-0x661b7, BEFORE the stores, and share one `ADD ESP,0x18` with
+ *     csmemset's three at 0x661f0. That is MSVC hoisting the pushes, not a
+ *     source-level reordering: the call itself is at 0x661eb, after every
+ *     store.
+ *   - `AND byte ptr [EDI + 0xa],0xfd` at 0x661f3 clears bit 0x02 of the flag
+ *     byte, which this TU already names TIFF_DIRTYDIRECT.
+ *
+ * Store widths, proven one by one (handle offset = ESI offset + 0x14):
+ *   0x40 td_fillorder=1, 0x36 td_bitspersample=1, 0x3e td_threshholding=1,
+ *   0x42 td_orientation=1, 0x44 td_samplesperpixel=1, 0x46 td_predictor=1
+ *     -- all `MOV word ptr [...],BX` (0x661b8-0x661cc), 16-bit.
+ *   0x48 td_rowsperstrip, 0x28 td_tilewidth, 0x2c td_tilelength -- all
+ *     `MOV dword ptr [...],EAX` with EAX = `OR EAX,0xffffffff` (0x661af),
+ *     i.e. upstream's `(uint32) -1`.
+ *   0x30 td_tiledepth=1 and 0x24 td_imagedepth=1 -- `MOV dword ptr [...],EBX`,
+ *     32-bit, matching the widths this TU already recovered for both.
+ *   0x5c td_resolutionunit=2 and 0x38 td_sampleformat=4 -- 16-bit immediate
+ *     stores (0x661dc, 0x661e2).
+ *
+ * Bungie deviations from upstream: the ycbcrsubsampling / ycbcrpositioning /
+ * inkset / ninks / stripbytecountsorted defaults are absent, and there is no
+ * _TIFFextender hook call -- the only call between the memset and the return
+ * is TIFFSetField.
+ * ------------------------------------------------------------------------- */
+
+/* Tag and value immediates carried by this function. */
+#define COMPRESSION_NONE 1 /* PUSH EBX (== 1) at 0x661ae */
+#define THRESHHOLD_BILEVEL 1 /* MOV word ptr [ESI+0x2a],BX at 0x661bc */
+#define RESUNIT_INCH 2 /* MOV word ptr [ESI+0x48],0x2 at 0x661dc */
+
+/* 0x66190 */
+int TIFFDefaultDirectory(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  /* 0x661a4. */
+  csmemset(tif->td_fieldsset, 0, 0xb0);
+  /* 0x661b8-0x661e8, in the original's store order. */
+  tif->td_fillorder = FILLORDER_MSB2LSB;
+  tif->td_bitspersample = 1;
+  tif->td_threshholding = THRESHHOLD_BILEVEL;
+  tif->td_orientation = ORIENTATION_TOPLEFT;
+  tif->td_samplesperpixel = 1;
+  tif->td_predictor = 1;
+  tif->td_rowsperstrip = (unsigned long)-1;
+  tif->td_tilewidth = (long)-1;
+  tif->td_tilelength = (long)-1;
+  tif->td_tiledepth = 1;
+  tif->td_resolutionunit = RESUNIT_INCH;
+  tif->td_sampleformat = SAMPLEFORMAT_VOID;
+  tif->td_imagedepth = 1;
+  /* 0x661eb: return value discarded. */
+  TIFFSetField((int)tif_, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
+  /* 0x661f3. */
+  tif->field_0a &= ~TIFF_DIRTYDIRECT;
+  /* 0x661f9. */
+  return 1;
 }

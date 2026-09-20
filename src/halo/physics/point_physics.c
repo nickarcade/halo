@@ -1,3 +1,73 @@
+/* 0x150790 — model-collision sphere pass: walk the collision-sphere tag block
+ * of a FUN_001509c0 model context, transform each sphere centre into world
+ * space through the context matrix, and feed the transformed point plus the
+ * scaled sphere radius to collision_features_from_point.
+ *
+ * Frame is SUB ESP,0xc: EBP-0x0c is the 3-float transformed point. ESI is
+ * only pushed/popped around the loop body (0x1507ac / 0x150812).
+ *
+ * param_1 is the model context:
+ *   +0x00  int    handle forwarded as collision_features_from_point param_4
+ *                 (MOV EAX,[EDI] at 0x1507d8)
+ *   +0x04  int    base whose +0x74 is the collision-sphere tag_block,
+ *                 element size 0x80 (PUSH 0x80 at 0x1507b0)
+ *   +0x08  float  matrix; matrix[0] is also the uniform radius scale used by
+ *                 FMUL float ptr [EDI+8] at 0x1507d5
+ * param_2 (EBP+0x0c) and param_3 (EBP+0x10) are never referenced anywhere in
+ * 0x150790-0x15083b; they are kept so the cdecl slots of the sole caller
+ * FUN_0014ea10 (call at 0x14eb98) line up.
+ * param_4 (EBP+0x14) and param_5 (EBP+0x18) are float dwords carried as int:
+ * param_4 is forwarded bit-exact by a plain dword copy (PUSH ECX at
+ * 0x1507ea/0x1507f7) and param_5 is the FADD operand at 0x1507ee.
+ * collision_features_from_point's param_3 is declared `int` in kb.json but the
+ * original stores it with FSTP [ESP] at 0x1507f4 — it is a float dword, so it
+ * is forwarded here bit-exact, never through a numeric cast (same note as
+ * collision_bsp.c 0x14ea10).
+ * Returns 1 when any of the three int16 counters at param_6 is non-zero, else
+ * 0 (MOV EAX,0x1 at 0x150832 / XOR EAX,EAX at 0x15082c). The sole caller
+ * discards the result.
+ */
+int FUN_00150790(int param_1, int param_2, float param_3, int param_4,
+                 int param_5, int param_6)
+{
+  void *element;
+  int base;
+  int element_index;
+  short index;
+  float *pRadius;
+  float radius;
+  float point[3];
+
+  base = *(int *)(param_1 + 4);
+  index = 0;
+
+  if (*(int *)(base + 0x74) > 0) {
+    element_index = 0;
+    do {
+      element =
+        tag_block_get_element((void *)(base + 0x74), element_index, 0x80);
+      matrix_transform_point((float *)(param_1 + 8),
+                             (float *)((char *)element + 0x38), point);
+      radius = *(float *)((char *)element + 0x68) * *(float *)(param_1 + 8) +
+               *(float *)&param_5;
+      pRadius = &radius;
+      collision_features_from_point((int)point, *(float *)&param_4,
+                                    *(int *)pRadius, *(int *)param_1, -1, 0,
+                                    0xff, -1, (void *)param_6);
+      base = *(int *)(param_1 + 4);
+      index = (short)(index + 1);
+      element_index = index;
+    } while (element_index < *(int *)(base + 0x74));
+  }
+
+  if (*(short *)param_6 != 0 || *(short *)(param_6 + 2) != 0 ||
+      *(short *)(param_6 + 4) != 0) {
+    return 1;
+  }
+
+  return 0;
+}
+
 /* 0x150840 — look up a collision-function attribute by index (compare
  * FUN_0014da80, same 0x234/0x48/+0x24 tag-block shape once the 'coll' tag is
  * resolved). If collision_fn_index == -1, returns -1 (OR AX,0xffff; only the
@@ -350,11 +420,9 @@ char FUN_001547d0(float *out_pos, float *out_vel, void *point_phys, float dt,
   initial_pos = *out_pos;
   remaining = FUN_001546f0(*out_pos, dt, target_pos, point_phys);
   if (remaining > 0.0f) {
-    FUN_00154540(out_vel, (char *)point_phys + 8,
-                 remaining * accel);
+    FUN_00154540(out_vel, (char *)point_phys + 8, remaining * accel);
     FUN_001544d0(out_pos, (float *)point_phys, *(char *)&dt, *out_vel);
-    if (FUN_001546f0(initial_pos, dt, target_pos, point_phys) <=
-        remaining) {
+    if (FUN_001546f0(initial_pos, dt, target_pos, point_phys) <= remaining) {
       return 0;
     }
   }

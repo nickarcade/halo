@@ -4,6 +4,11 @@
 
 #define MAXIMUM_RENDER_CAMERA_WARNING_CONDITIONS 64
 
+/* Saved copies of the four frustum projection terms hacked by
+ * render_camera_hack_frustum_z; stored and restored as raw dwords, exactly as
+ * the original does (MOV, never FLD/FSTP). */
+static uint32_t render_camera_saved_frustum_z[4]; /* 0x4d0d08 */
+
 static char render_camera_warnings_initialized; /* 0x4d0e18 */
 static float render_camera_warning_values
   [MAXIMUM_RENDER_CAMERA_WARNING_CONDITIONS]; /* 0x4d0d18
@@ -28,6 +33,162 @@ void render_camera_check_warning_condition(int16_t id, float value)
           (int)id, (double)value);
     render_camera_warning_values[id] = value;
   }
+}
+
+/* render_camera_new - 0x185810
+ * Zero-initializes a render camera block (camera_t, 0x54 bytes). */
+void render_camera_new(camera_t *camera)
+{
+  csmemset(camera, 0, sizeof(camera_t));
+}
+
+/* render_camera_hack_frustum_z - 0x185830
+ *
+ * Overrides the near/far terms of a frustum's projection matrix.  Two sentinel
+ * argument pairs select a save/restore mode instead of a recompute:
+ *
+ * Evidence (0x185830..0x18594a):
+ *   TEST ESI,ESI / JZ + MOV AL,[ESI+0x140] / TEST AL,AL / JNZ
+ *     => assert(frustum && frustum->projection_valid) at line 0x10f.
+ *   FLD [EBP+0xc] / FCOMP [0x00255e94] / FNSTSW AX / TEST AH,0x44 / JP
+ *     (twice)  ; 0x255e94 = -1.0f.  TEST AH,0x44 + JP is the MSVC equality
+ *     test, the JP taking the not-equal path.  Both args == -1.0f saves the
+ *     four terms into 0x4d0d08..0x4d0d14 as plain dword MOVs.
+ *   Same shape against 0x002533c0 (0.0f) restores them, also as dword MOVs.
+ *   Otherwise:
+ *     FLD [EBP+0x10] / FSUB [EBP+0xc]      => denom = far_z - near_z, held in
+ *                                             ST1 across both stores
+ *     MOV [ESI+0x14c],0 / MOV [ESI+0x15c],0
+ *     FLD [EBP+0xc] / FADD [EBP+0x10] / FDIV ST0,ST1 / FCHS / FSTP [ESI+0x16c]
+ *     FLD [EBP+0xc] / FMUL [EBP+0x10] / FMUL [0x0025eeac] / FDIV ST0,ST1 /
+ *       FSTP [ESI+0x17c]                   ; 0x25eeac = -2.0f
+ *   The trailing FSTP ST0 discards the shared denominator.
+ *
+ * The frustum has no recovered type at this decl, so the projection terms
+ * (stride 0x10 from +0x14c) and the validity byte at +0x140 are dereferenced
+ * raw, as in the rest of this file.
+ */
+void render_camera_hack_frustum_z(void *frustum, float near_z, float far_z)
+{
+  char *f;
+  float denom_held;
+  float denom;
+
+  f = (char *)frustum;
+
+  assert_halt_msg_at("frustum && frustum->projection_valid",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x10f,
+                     frustum != 0 && *(char *)(f + 0x140) != 0);
+
+  if (near_z == *(float *)0x255e94 && far_z == *(float *)0x255e94) {
+    render_camera_saved_frustum_z[0] = *(uint32_t *)(f + 0x14c);
+    render_camera_saved_frustum_z[1] = *(uint32_t *)(f + 0x15c);
+    render_camera_saved_frustum_z[2] = *(uint32_t *)(f + 0x16c);
+    render_camera_saved_frustum_z[3] = *(uint32_t *)(f + 0x17c);
+    return;
+  }
+
+  if (near_z == *(float *)0x2533c0 && far_z == *(float *)0x2533c0) {
+    *(uint32_t *)(f + 0x14c) = render_camera_saved_frustum_z[0];
+    *(uint32_t *)(f + 0x15c) = render_camera_saved_frustum_z[1];
+    *(uint32_t *)(f + 0x16c) = render_camera_saved_frustum_z[2];
+    *(uint32_t *)(f + 0x17c) = render_camera_saved_frustum_z[3];
+    return;
+  }
+
+  denom = far_z - near_z;
+  *(uint32_t *)(f + 0x14c) = 0;
+  *(uint32_t *)(f + 0x15c) = 0;
+  /* The original leaves the single subtraction result on the x87 stack (ST1)
+   * across both divides and pops it once at the end; the second reference to
+   * the divisor is written through a second local so the divisor stays held
+   * rather than being recomputed/reloaded per divide (+3.1pp VC71). */
+  denom_held = denom;
+  *(float *)(f + 0x16c) = -((near_z + far_z) / denom);
+  *(float *)(f + 0x17c) = (near_z * far_z * *(float *)0x25eeac) / denom_held;
+}
+
+/* render_frustum_sphere_diameter_in_pixels - 0x185a70
+ *
+ * Projects a world-space sphere onto the frustum and returns its diameter in
+ * pixels.  The depth term is row 3 of the frustum's world-to-view matrix
+ * (frustum + 0x1c / +0x28 / +0x34 dotted with the center, plus the
+ * translation at +0x40); it is made positive, clamped up to a floor, then
+ * divided into the pixel scale at frustum + 0x188 and scaled by the radius.
+ * The doubled result is the diameter.
+ *
+ * Evidence (0x185a70..0x185ac1):
+ *   FLD [ECX+0x34] / FMUL [EAX+8] / FLD [ECX+0x28] / FMUL [EAX+4] / FADDP /
+ *   FLD [ECX+0x1c] / FMUL [EAX] / FADDP / FADD [ECX+0x40]
+ *     => ((m34*c[2] + m28*c[1]) + m1c*c[0]) + m40, in that x87 order.
+ *   FCOM [0x002533c0] / TEST AH,0x1 / JZ +2 / FCHS   ; 0x2533c0 = 0.0f
+ *   FCOM [0x0025496c] / TEST AH,0x41 / JZ +8 / FSTP ST0 / FLD [0x0025496c]
+ *                                                   ; 0x25496c = 0.1f
+ *   FDIVR [ECX+0x188] / FMUL [EBP+0x10] / FADD ST0,ST0
+ *
+ * The frustum has no recovered type at this decl, so the four matrix fields
+ * and the pixel scale are dereferenced raw.  TEST AH,0x1 is C0 alone (strictly
+ * less than), TEST AH,0x41 is C0|C3 (less than or equal); both senses are
+ * written out as the binary tests them.
+ */
+float render_frustum_sphere_diameter_in_pixels(void *frustum, float *center,
+                                               float radius)
+{
+  char *f;
+  float depth;
+  float scaled;
+
+  f = (char *)frustum;
+  depth = *(float *)(f + 0x34) * center[2] + *(float *)(f + 0x28) * center[1] +
+          *(float *)(f + 0x1c) * center[0] + *(float *)(f + 0x40);
+
+  if (depth < *(float *)0x2533c0) {
+    depth = -depth;
+  }
+  if (depth <= *(float *)0x25496c) {
+    depth = *(float *)0x25496c;
+  }
+
+  scaled = (*(float *)(f + 0x188) / depth) * radius;
+  return scaled + scaled;
+}
+
+/* render_camera_screen_to_world - 0x186330
+ *
+ * Builds a world-space ray for a screen point: the ray origin is the camera
+ * position (camera + 0x00) copied verbatim, and the direction is the view-space
+ * ray from render_camera_screen_to_view rotated into world space by the
+ * frustum's view-to-world matrix (frustum + 0x44).
+ *
+ * Evidence (0x186330..0x18645f): five null-parameter asserts at source lines
+ * 0x41c..0x420, then a frustum->projection_valid byte test at +0x140 (line
+ * 0x422).  The position copy is three dword MOVs from [ESI]/[ESI+4]/[ESI+8]
+ * into [EDI]/[EDI+4]/[EDI+8] (a struct assignment, not three float loads).
+ * Both calls are cdecl; the shared ADD ESP,0x1c at 0x186456 retires 4+3 args.
+ */
+void render_camera_screen_to_world(camera_t *camera, float *frustum,
+                                   float *screen_point, vector3_t *world_point,
+                                   float *world_vector)
+{
+  float view_vector[3];
+
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x41c, camera);
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x41d, frustum);
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x41e,
+                 screen_point);
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x41f,
+                 world_point);
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x420,
+                 world_vector);
+  assert_halt_msg_at("frustum->projection_valid",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x422,
+                     *((char *)frustum + 0x140) != 0);
+
+  render_camera_screen_to_view(camera, frustum, screen_point, view_vector);
+
+  *world_point = camera->unk_0;
+
+  matrix_scale_transform_vector(frustum + 17, view_vector, world_vector);
 }
 
 /* Typedefs for math helpers called via hardcoded address. */
@@ -70,6 +231,54 @@ double render_camera_get_adjusted_field_of_view_tangent(float fov)
                : "memory");
   return result;
 #endif
+}
+
+/* Frustum-cull a triangle against the clip planes.
+ * Builds the outcode flags for each of the three points; a point with no
+ * flags is inside every plane, so the triangle is trivially visible.
+ * Otherwise the triangle is visible unless all three outcodes share a
+ * common plane bit (0x3f mask = the 6 clip planes). */
+bool render_frustum_triangle_visible(void *plane_ctx, void *v0, void *v1,
+                                     void *v2)
+{
+  int16_t flags;
+  int16_t point_flags;
+
+  point_flags = render_frustum_build_point_flags(plane_ctx, v0);
+  if (point_flags == 0) {
+    return 1;
+  }
+  flags = (int16_t)(point_flags & 0x3f);
+  point_flags = render_frustum_build_point_flags(plane_ctx, v1);
+  if (point_flags == 0) {
+    return 1;
+  }
+  flags &= point_flags;
+  point_flags = render_frustum_build_point_flags(plane_ctx, v2);
+  if (point_flags == 0) {
+    return 1;
+  }
+  return (int16_t)(point_flags & flags) == 0;
+}
+
+/* Project a world-space point into screen space.
+ * Transforms the point into view space with the frustum's world-to-view
+ * matrix (frustum + 0x10) and defers to render_camera_view_to_screen. */
+char render_camera_world_to_screen(void *camera, float *frustum,
+                                   float *world_point, float *screen_point)
+{
+  float view_point[3];
+
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x3c1, camera);
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x3c2, frustum);
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x3c3,
+                 world_point);
+  assert_halt_at("c:\\halo\\SOURCE\\render\\render_cameras.c", 0x3c4,
+                 screen_point);
+
+  matrix_transform_point(frustum + 4, world_point, view_point);
+  return render_camera_view_to_screen((int *)camera, (int *)frustum, view_point,
+                                      screen_point);
 }
 
 /* Build the full view frustum from a camera, optional viewport bounds, and
@@ -599,4 +808,82 @@ void render_camera_build_frustum(camera_t *camera, float *bounds,
   d = proj_ctr[0] * far_p[0] + proj_ctr[1] * far_p[1] + proj_ctr[2] * far_p[2] -
       far_p[3];
   render_camera_check_warning_condition(21, d);
+}
+
+/* render_contrails - 0x1887b0
+ *
+ * Walks the live contrail pool and draws each contrail sub-trail whose
+ * definition selects one of the render passes named by the incoming mask.
+ *
+ * The gate byte at 0x32574a is one of the four effect-enable bytes that
+ * render_effects (0x184b60) writes together.
+ *
+ * Evidence (0x1887b0..0x18885f):
+ *   - 001887b6 MOV AL,[0x0032574a] / TEST AL,AL / JZ end.
+ *   - 001887c3/001887e7/00188842 MOV from [0x005aa8c0] = contrail_data.
+ *   - 001887f6 MOV EDX,[EDI+4] = contrail definition_index, passed to
+ *     tag_get with group 'cont' (0x636f6e74).
+ *   - 0018880c LEA EBX,[EDI+0x2c] = contrail_point_counts[4]; the loop
+ *     counter is 16-bit (00188839 CMP SI,0x4 / JL).
+ *   - 00188810 MOV CL,[EAX+0x18] is reloaded from [EBP-8] every iteration
+ *     (0018882f), so the shift is recomputed inside the inner loop.
+ *   - 00188827 PUSH ESI / PUSH EAX / PUSH EDI / CALL 0x00188010 /
+ *     ADD ESP,0xc => render_contrail(contrail, definition, index) cdecl.
+ *
+ * The contrail element type lives in effects/contrails.c and is not visible
+ * here, so the two touched offsets are dereferenced raw; the definition tag
+ * has no recovered type at all (+0x18 is the only field observed).
+ */
+void render_contrails(uint32_t render_pass_mask)
+{
+  int contrail_index;
+  char *contrail;
+  char *definition;
+  int16_t *point_counts;
+  int16_t index;
+
+  if (*(char *)0x32574a == 0) {
+    return;
+  }
+
+  for (contrail_index = data_next_index(contrail_data, -1);
+       contrail_index != -1;
+       contrail_index = data_next_index(contrail_data, contrail_index)) {
+    contrail = (char *)datum_get(contrail_data, contrail_index);
+    definition = (char *)tag_get(0x636f6e74, *(int *)(contrail + 4));
+
+    point_counts = (int16_t *)(contrail + 0x2c);
+    index = 0;
+    do {
+      /* 00188818 SHL EDX,CL with no preceding AND: the reference relies on
+       * the x86 implicit shift-count mask, so no & 0x1f is written here. */
+      if ((render_pass_mask &
+           ((uint32_t)1 << *(uint8_t *)(definition + 0x18))) != 0 &&
+          *point_counts > 1) {
+        render_contrail(contrail, definition, index);
+      }
+      index++;
+      point_counts++;
+    } while (index < 4);
+  }
+}
+
+/* render_contrails_normal - 0x188880
+ *
+ * Trivial wrapper: selects the "normal" contrail render passes and tail-calls
+ * render_contrails.
+ *
+ * Evidence (0x188880..0x188888):
+ *   00188880 PUSH -0xd       ; render_pass_mask = 0xfffffff3
+ *   00188882 CALL 0x001887b0 ; render_contrails
+ *   00188887 POP ECX         ; cdecl cleanup of the single dword arg
+ *   00188888 RET
+ *
+ * The mask is the one's complement of 0x0000000c, i.e. every pass except the
+ * two selected by bits 2 and 3. The pass-bit meanings are not recovered, so
+ * the constant is written as the literal the binary pushes.
+ */
+void render_contrails_normal(void)
+{
+  render_contrails(0xfffffff3);
 }

@@ -268,6 +268,25 @@ void interface_initialize_for_new_map(void)
   draw_string_set_font(*(int *)(element + 0x1c), -1, 0, 0, *(void **)0x2ee6c4);
 }
 
+/* 0xdff00
+ * Look up an interface ARGB color (floats in [0,1]) and convert it to
+ * 16-bit fixed point: each channel is scaled by 65535.0 and truncated
+ * into a word. out_color receives 4 words in the same ARGB channel
+ * order interface_get_color writes. Returns out_color. */
+void *interface_get_rgb_color(int interface_tag_index, short color_index,
+                              int16_t *out_color)
+{
+  float color[4];
+
+  interface_get_color(interface_tag_index, color_index, color);
+  out_color[0] = (int16_t)(color[0] * 65535.0f);
+  out_color[1] = (int16_t)(color[1] * 65535.0f);
+  out_color[2] = (int16_t)(color[2] * 65535.0f);
+  out_color[3] = (int16_t)(color[3] * 65535.0f);
+
+  return out_color;
+}
+
 void interface_draw_fullscreen_overlays(void)
 {
   cinematic_render();

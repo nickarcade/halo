@@ -1751,6 +1751,157 @@ void replacement_animation_apply(void *animation, short frame_index,
   }
 }
 
+/* overlay_animation_apply (0x122240) — Blend an overlay (type 1) animation's
+ * per-node rotation/translation/scale channels onto a node transform array.
+ *
+ * Structural sibling of replacement_animation_apply (0x122060): same channel
+ * bitmask walk, but the sampled values are COMBINED with the existing node
+ * transform instead of overwriting it — rotation is quaternion-multiplied
+ * (FUN_0010b9c0), translation is added, scale is multiplied.
+ *
+ * Restricted to animations whose type (animation+0x20) is 1 and to a
+ * frame_index inside [0, animation+0x22). The three per-channel bitmask
+ * arrays are reloaded every 32 nodes and consumed one bit at a time:
+ *   +0x5c[]: translation channel present
+ *   +0x6c[]: rotation channel present
+ *   +0x7c[]: scale channel present
+ *
+ * Output stride is 0x20 per node: +0x00 rotation quaternion (4 floats),
+ * +0x10 translation (3 floats), +0x1c scale (1 float).
+ *
+ * Confirmed: cdecl, 3 args, void return (MOV ESP,EBP epilogue at 0x122442).
+ * Confirmed: frame_index is read as a 16-bit value (CMP DI,BX at 0x12225c;
+ * MOVSX EAX,word ptr [EBP+0xc] at 0x1222d7).
+ * Confirmed: CALL FUN_00120620(animation@<esi>) at 0x12226f — no stack args,
+ * result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at 0x122279
+ * and 0x12240a (2 args: animation, frame_index). Confirmed: CALL
+ * quaternion_decompress_8byte at 0x122300 (2 args: src_shorts, dest_floats;
+ * last push EDX=data is arg0). Confirmed: CALL FUN_0010b9c0 at 0x122317 with
+ * pushes EDI,EDI,LEA[EBP-0x40] — args (rotation, node, node).
+ * Confirmed: CALL FUN_00121330 at 0x1222eb, animation_get_node_orientations
+ * at 0x12234d, overlay_animation_apply_continuous_scaled at 0x1223c3 — each 5
+ * args pushed out,node,count,frame,animation with the float frame lowered as
+ * PUSH <dummy>; FILD [EBP-0x24]; FSTP [ESP] (frame = (float)(int)frame_index).
+ * Confirmed: node stride 0x20 via MOVSX EDI,BX; SHL EDI,0x5 at 0x12229a.
+ * Confirmed: mask block index is a 16-bit arithmetic shift (MOV AX,BX; SAR
+ * AX,0x5; MOVSX EAX,AX at 0x1222a7). Confirmed: uncompressed advances are 8
+ * bytes (rotation), 0xc bytes (translation), 4 bytes (scale), each copied as
+ * dwords (MOV pairs at 0x122363 and 0x1223d7).
+ * Confirmed: accumulate order is FLD local; FADD [EDI+N] (0x12237a) and
+ * FLD local; FMUL [EDI+0x1c] (0x1223e2).
+ * Confirmed: assert line 0x1d6 at 0x122430 followed by system_exit(-1).
+ */
+void overlay_animation_apply(void *anim_entry, int frame, void *node_data)
+{
+  char *anim;
+  char compressed;
+  int *data;
+  int frame_data;
+  int out_node;
+  int block_index;
+  int rotation_count;
+  int translation_count;
+  int scale_count;
+  short frame_index;
+  short node_index;
+  unsigned int translation_flags;
+  unsigned int rotation_flags;
+  unsigned int scale_flags;
+  float rotation[4];
+  float translation[3];
+  float scale;
+
+  anim = (char *)anim_entry;
+  frame_index = (short)frame;
+
+  if (*(short *)(anim + 0x20) == 1) {
+    node_index = 0;
+    if (frame_index >= node_index && frame_index < *(short *)(anim + 0x22)) {
+      compressed = FUN_00120620((int)anim);
+      data = (int *)FUN_00120500(anim_entry, frame_index);
+      rotation_count = 0;
+      translation_count = 0;
+      scale_count = 0;
+
+      if (0 < *(short *)(anim + 0x2c)) {
+        do {
+          out_node = (int)node_data + (int)node_index * 0x20;
+          if ((node_index & 0x1f) == 0) {
+            block_index = (int)(short)(node_index >> 5);
+            translation_flags =
+              *(unsigned int *)(anim + block_index * 4 + 0x5c);
+            rotation_flags = *(unsigned int *)(anim + block_index * 4 + 0x6c);
+            scale_flags = *(unsigned int *)(anim + block_index * 4 + 0x7c);
+          }
+
+          if ((rotation_flags & 1) != 0) {
+            if (compressed != 0) {
+              FUN_00121330(anim_entry, (float)(int)frame_index,
+                           (unsigned short)rotation_count, node_index,
+                           rotation);
+              rotation_count = rotation_count + 1;
+            } else {
+              quaternion_decompress_8byte((short *)data, rotation);
+              data = (int *)((char *)data + 8);
+            }
+            FUN_0010b9c0(rotation, (float *)out_node, (float *)out_node);
+          }
+          rotation_flags = rotation_flags >> 1;
+
+          if ((translation_flags & 1) != 0) {
+            if (compressed != 0) {
+              animation_get_node_orientations(
+                anim_entry, (float)(int)frame_index,
+                (unsigned short)translation_count, node_index, translation);
+              translation_count = translation_count + 1;
+            } else {
+              *(int *)&translation[0] = data[0];
+              *(int *)&translation[1] = data[1];
+              *(int *)&translation[2] = data[2];
+              data = (int *)((char *)data + 0xc);
+            }
+            *(float *)(out_node + 0x10) =
+              translation[0] + *(float *)(out_node + 0x10);
+            *(float *)(out_node + 0x14) =
+              translation[1] + *(float *)(out_node + 0x14);
+            *(float *)(out_node + 0x18) =
+              translation[2] + *(float *)(out_node + 0x18);
+          }
+          translation_flags = translation_flags >> 1;
+
+          if ((scale_flags & 1) != 0) {
+            if (compressed != 0) {
+              overlay_animation_apply_continuous_scaled(
+                anim_entry, (float)(int)frame_index,
+                (unsigned short)scale_count, node_index, &scale);
+              scale_count = scale_count + 1;
+            } else {
+              *(int *)&scale = data[0];
+              data = (int *)((char *)data + 4);
+            }
+            *(float *)(out_node + 0x1c) = scale * *(float *)(out_node + 0x1c);
+          }
+          scale_flags = scale_flags >> 1;
+
+          node_index = node_index + 1;
+        } while (node_index < *(short *)(anim + 0x2c));
+      }
+
+      if (compressed == 0) {
+        frame_data = (int)FUN_00120500(anim_entry, frame_index);
+        if ((int)data - frame_data != (int)*(short *)(anim + 0x24)) {
+          display_assert("compressed || ((byte *)data-(byte "
+                         "*)animation_get_frame_data(animation, "
+                         "frame_index)==animation->frame_size)",
+                         "c:\\halo\\SOURCE\\models\\model_animations.c", 0x1d6,
+                         1);
+          system_exit(-1);
+        }
+      }
+    }
+  }
+}
+
 /* FUN_00123aa0 (0x123aa0) — Fill default node transforms from mode tag.
  *
  * Iterates over the nodes in a model mode tag (tag block at mode_tag+0xb8,

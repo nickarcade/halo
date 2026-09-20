@@ -226,6 +226,39 @@ void *ui_widget_get_last_child(void *widget)
   return widget;
 }
 
+/* widget_instance_get_child_index_from_parent (0xe4330) - returns widget's
+ * zero-based position in its parent's child list, or -1 when widget has no
+ * parent (+0x30 NULL), the parent has no children (+0x34 NULL), or widget is
+ * not found in the chain. Walks first_child (+0x34) then next_sibling (+0x2c),
+ * the same fields widget_instance_count_children/get_nth_child walk above.
+ * 000e433a: MOV ECX,[ESI+0x30]; OR EAX,-1; TEST/JZ ret; MOV ECX,[ECX+0x34];
+ * XOR EDX,EDX; TEST/JZ ret; loop: CMP ECX,ESI; JZ (MOV EAX,EDX); MOV
+ * ECX,[ECX+0x2c]; INC EDX; TEST ECX,ECX; JNZ loop; RET with EAX still -1. */
+int widget_instance_get_child_index_from_parent(void *widget)
+{
+  void *parent;
+  void *child;
+  int index;
+  int result;
+
+  result = -1;
+  parent = *(void **)((char *)widget + 0x30);
+  if (parent != NULL) {
+    child = *(void **)((char *)parent + 0x34);
+    index = 0;
+    while (child != NULL) {
+      if (child == widget) {
+        result = index;
+        break;
+      }
+      child = *(void **)((char *)child + 0x2c);
+      index = index + 1;
+    }
+  }
+
+  return result;
+}
+
 /* widget_instance_set_visibility_recursive (0xe4370) — sets widget's
  * visible flag (+0x10, the same flag checked by the text-box render path
  * above as "return early if 0") to `visible`, then recurses over every
@@ -3777,6 +3810,98 @@ bool FUN_000eab70(void *widget, void *event_data, bool *widget_deleted)
   return true;
 }
 
+/* player_profile_set_for_game_3wide (0xeaba0) — event-handler table entry
+ * at 0x31e1e8.  Validates the profile-selection container and its spinner-list
+ * child, then applies the selected profile result. */
+bool player_profile_set_for_game_3wide(void *widget, void *event_data,
+                                       bool *widget_deleted)
+{
+  wchar_t profile[24];
+  int profile_index;
+  int local_player_index;
+  short *widget_definition;
+  void *list_widget;
+  short selected_index;
+
+  (void)event_data;
+
+  if (widget == NULL || *(int16_t *)((char *)widget + 2) == -1) {
+    display_assert(
+      "setting a player profile requires a valid controller index",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x6e3,
+      true);
+    system_exit(-1);
+  }
+
+  widget_definition = (short *)tag_get(0x44654c61, *(int *)widget);
+  if (*widget_definition != 0 ||
+      *(int *)((char *)widget_definition + 0x3e0) < 3) {
+    display_assert(
+      "expected the player profile select screen to be a container w/ 3 or "
+      "more children",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x6ec,
+      true);
+    system_exit(-1);
+  }
+
+  list_widget = *(void **)((char *)widget + 0x34);
+  widget_definition = (short *)tag_get(0x44654c61, *(int *)list_widget);
+  if (*widget_definition != 2) {
+    display_assert(
+      "expected a spinner list widget for 'player profile list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x6ef,
+      true);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)widget_definition + 0x3e0) != 3) {
+    display_assert(
+      "expected 3 list items for 'player profile list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x6f0,
+      true);
+    system_exit(-1);
+  }
+
+  selected_index = *(int16_t *)((char *)list_widget + 0x3c);
+  if (selected_index < 0 ||
+      (int)selected_index >= (int)*(uint16_t *)((char *)list_widget + 0x44)) {
+    display_assert(
+      "invalid multiplayer profile specified from 'player profile list' list "
+      "widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x6f8,
+      true);
+    system_exit(-1);
+  }
+
+  profile_index =
+    *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4);
+  if (profile_index != -1) {
+    if (profile_index >= 0) {
+      display_error_deferred(0x1f, -1, true, false);
+      ui_play_audio_feedback_sound(4);
+      *widget_deleted = true;
+      return false;
+    }
+
+    if (player_profile_new(profile_index, profile)) {
+      local_player_index =
+        player_ui_get_single_player_local_player_from_controller(
+          *(int16_t *)((char *)widget + 2));
+      player_ui_set_active_player_profile(
+        (short)local_player_index,
+        *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4),
+        profile);
+      return true;
+    }
+
+    error(2, "failed to retrieve user selected player profile");
+    return false;
+  }
+
+  error(2, "this is not a selectable player profile");
+  ui_play_audio_feedback_sound(4);
+  return false;
+}
+
 /* apply selected game engine item (event handler, data xref 0x31e1f8,
  * 0x14 bytes after FUN_000eab70's 0x31e1e4 entry, same
  * ui_widget_event_handler_fn pointer array as the select_game_engine_item
@@ -3863,6 +3988,180 @@ bool FUN_000eb020(void *widget, void *event_data, bool *widget_deleted)
   error(2, "failed to retrieve editable game variant");
   return false;
 }
+
+/* apply multiplayer radar/friends display options (event handler, data
+ * xref 0x31e21c in the same ui_widget_event_handler_fn pointer array as
+ * ui_widget_game_data_select_game_engine_item at 0x31e220) — 0xecb60.
+ * Runs the widget-to-profile direction: fetches the in-progress
+ * playlist-profile edit copy (player_ui_get_edit_playlist_profile,
+ * called unconditionally first, before the widget is even loaded —
+ * order preserved, and here the NULL test precedes the asserts, per the
+ * TEST EBX,EBX / JZ at 0xecb6b before [EBP+8] is read at 0xecb73), then
+ * walks three consecutive list items under the widget's first child
+ * (+0x34), each followed via the sibling link (+0x2c).
+ *
+ * For each list item the handler scans that item's own child chain
+ * (+0x34, following +0x2c) for the first widget whose type field
+ * (+0xe) is 2 — the option-spinner list — and reads its selected-index
+ * field (+0x3c) sign-extended (MOVSX, matching the sibling handlers'
+ * selected-item slot). Every missing item or missing spinner trips the
+ * same display_assert/system_exit(-1) shape as the sibling handlers,
+ * at source lines 0xa80/0xa82, 0xa8c/0xa8e and 0xa97/0xa99.
+ *
+ * Item 1 ('radar display') writes the selected index straight through
+ * to the profile's dword field at +0x24 (0, 1 or 2). Item 2 ('other
+ * players on radar') sets (index 0) or clears (index 1) bit 0 of the
+ * profile's flag dword at +0x20. Item 3 ('friends on screen') sets
+ * (index 0) or clears (index 1) bit 1 of that same flag dword. Both
+ * profile offsets are unproven field meanings — the profile is void*
+ * at player_ui_get_edit_playlist_profile's kb decl, the same upstream
+ * untyped producer the sibling handlers read +0x18 through.
+ *
+ * An out-of-range index on any of the three logs error(2, ...) with
+ * that item's own message and leaves the corresponding profile field
+ * untouched (the second block's common store at 0xecc98 is skipped
+ * entirely on the default arm). Returns true whenever a profile was
+ * retrieved, false after error(2, "failed to retrieve editable game
+ * variant") when none is being edited. event_data/widget_deleted are
+ * not read here; only [EBP+8] is touched, so only the widget parameter
+ * is declared, same as the single-param sibling
+ * ui_widget_game_data_select_game_engine_item. */
+bool FUN_000ecb60(void *widget)
+{
+  void *profile;
+  void *item;
+  void *spinner;
+  int16_t selected;
+
+  profile = player_ui_get_edit_playlist_profile();
+
+  if (profile != NULL) {
+    item = *(void **)((char *)widget + 0x34);
+    if (item == NULL) {
+      display_assert(
+        "expected 'radar display' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xa80, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'radar display' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xa82, true);
+      system_exit(-1);
+    }
+
+    selected = *(int16_t *)((char *)spinner + 0x3c);
+    switch (selected) {
+    case 0:
+      *(int *)((char *)profile + 0x24) = 0;
+      break;
+    case 1:
+      *(int *)((char *)profile + 0x24) = 1;
+      break;
+    case 2:
+      *(int *)((char *)profile + 0x24) = 2;
+      break;
+    default:
+      error(2,
+            "unknown option selected in 'radar display' option spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'other players on radar' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xa8c, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'other players on radar' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xa8e, true);
+      system_exit(-1);
+    }
+
+    selected = *(int16_t *)((char *)spinner + 0x3c);
+    switch (selected) {
+    case 0:
+      *(uint32_t *)((char *)profile + 0x20) =
+        *(uint32_t *)((char *)profile + 0x20) | 1;
+      break;
+    case 1:
+      *(uint32_t *)((char *)profile + 0x20) =
+        *(uint32_t *)((char *)profile + 0x20) & 0xfffffffe;
+      break;
+    default:
+      error(2, "unknown option selected in 'other players on radar' option "
+               "spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'friends on screen' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xa97, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'friends on screen' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xa99, true);
+      system_exit(-1);
+    }
+
+    selected = *(int16_t *)((char *)spinner + 0x3c);
+    switch (selected) {
+    case 0:
+      *(uint32_t *)((char *)profile + 0x20) =
+        *(uint32_t *)((char *)profile + 0x20) | 2;
+      break;
+    case 1:
+      *(uint32_t *)((char *)profile + 0x20) =
+        *(uint32_t *)((char *)profile + 0x20) & 0xfffffffd;
+      break;
+    default:
+      error(
+        2,
+        "unknown option selected in 'friends on screen' option spinner list");
+      break;
+    }
+
+    return true;
+  }
+
+  error(2, "failed to retrieve editable game variant");
+  return false;
+}
+
 
 /* select game engine item (event handler table index 50, data xref
  * 0x31e220 in the same ui_widget_event_handler_fn pointer array

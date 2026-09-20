@@ -826,9 +826,9 @@ void saved_game_file_get_useable_untitled_profile_name(wchar_t *display_name)
  * the disassembly loads its VALUE into EAX and passes that as take_mutex's
  * `mutex_reference`.  Timeout is the immediate 0x36ee80 = 3600000 ms.
  * The boolean result is discarded (no test after the call at 0x1c2afb). */
-void saved_game_files_take_mutex(void)
+bool saved_game_files_take_mutex(void)
 {
-  take_mutex(*(int **)0x4eacbc, 3600000);
+  return take_mutex(*(int **)0x4eacbc, 3600000);
 }
 
 /* Release the saved-game file system mutex.  Same handle dword at 0x4eacbc as

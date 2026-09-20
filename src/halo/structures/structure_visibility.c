@@ -225,6 +225,62 @@ void FUN_00196850(int param_1)
   }
 }
 
+/* FUN_00196c90: gather visible objects across all rendered clusters (0x196c90).
+ * Walks every rendered cluster (count at 0x5137cc), iterating the caller-
+ * supplied per-cluster object list via (iter_first, iter_next); for each object
+ * that needs_update() accepts it fetches a bounding sphere via get_bounds(),
+ * appends the handle to out_handles while under max_count and (when a cluster
+ * is current, 0x506784 != -1) the sphere passes the cluster's frustum planes
+ * (record + 0x14), then calls mark() on it. Returns the number appended.
+ * The function-pointer params are declared void * in kb.json and cast at each
+ * call site; arities/cleanups come from the call-site audit (2/1/3/1 args). */
+short FUN_00196c90(int out_handles, short max_count, void *iter_first,
+                   void *iter_next, void *get_bounds, void *needs_update,
+                   void *mark)
+{
+  short *rendered_cluster;
+  int object_handle;
+  short count;
+  int cluster_i;
+  float center[3];
+  int iterator;
+  float radius;
+
+  scenario_get();
+  count = 0;
+  cluster_i = 0;
+  if (0 < *(short *)0x5137cc) {
+    do {
+      rendered_cluster = (short *)rendered_cluster_get(cluster_i);
+      /* XOR ECX,ECX / MOV CX,[EBX]: cluster index is zero-extended. */
+      object_handle = ((int (*)(void *, int))iter_first)(
+        &iterator, (int)(unsigned short)*rendered_cluster);
+      while (object_handle != -1) {
+        /* TEST AL,AL: the predicate returns a byte. */
+        if (((char (*)(int))needs_update)(object_handle) != 0) {
+          ((void (*)(int, float *, float *))get_bounds)(object_handle, center,
+                                                        &radius);
+          /* CMP DI,[EBP+0xc] is a signed 16-bit compare; the bounds call above
+           * happens before it, unconditionally. */
+          if (count < max_count &&
+              (*(int *)0x506784 == -1 ||
+               /* TEST AX,AX: only the low 16 bits of the result are tested. */
+               (short)render_frustum_sphere_visible(
+                 (void *)(rendered_cluster + 10), center, radius) != 0)) {
+            *(int *)(out_handles + count * 4) = object_handle;
+            count = count + 1;
+            ((void (*)(int))mark)(object_handle);
+          }
+        }
+        object_handle = ((int (*)(void *))iter_next)(&iterator);
+      }
+      cluster_i = cluster_i + 1;
+    } while ((short)cluster_i < *(short *)0x5137cc);
+  }
+  return count;
+}
+
+
 /* Recursively flood rendered clusters across BSP portal connections (0x197b00).
  * DFS over the cluster portal graph. Sets a per-cluster "visited" bit (dynamic
  * bit-vector at *0x4d8ed8) on entry and clears it on exit (backtrack). The

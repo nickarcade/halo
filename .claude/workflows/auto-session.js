@@ -56,6 +56,16 @@ const LIFT_REG_ARGS = !!(args && args.liftRegArgs)
 // opt-in, since it adds a full nested workflow run after the batch loop.
 const IMPROVE_GOAL = (args && args.improveGoal) || 0
 
+// Model-policy pass-through to goal-lift. Undefined by default -- goal-lift
+// keeps its own Opus reasoning default (see its M table comment: sonnet-default
+// was tried 2026-09-02 and reverted for a measured regression, 55% vs 34%
+// promote rate, 60K -> 140K tokens/commit). Set explicitly (e.g. --reasonModel
+// sonnet) only when you intend to override that default for this run.
+const REASON_MODEL = (args && args.reasonModel) || undefined
+const EXTRACT_MODEL = (args && args.extractModel) || undefined
+const IMPROVE_MODEL = (args && args.improveModel) || undefined
+const COMMIT_MODEL = (args && args.commitModel) || undefined
+
 // Resolving the child by NAME uses a workflow registry snapshotted at session
 // start, so mid-session edits to goal-lift.js are silently ignored -- the agents
 // keep running the stale script. Passing goalLiftPath makes the child resolve by
@@ -220,6 +230,10 @@ for (let i = 1; i <= BATCHES; i++) {
   if (CRITERIA) glArgs.criteria = CRITERIA
   if (ADDRS) glArgs.addrs = ADDRS
   if (LIFT_REG_ARGS) glArgs.liftRegArgs = true
+  if (REASON_MODEL) glArgs.reasonModel = REASON_MODEL
+  if (EXTRACT_MODEL) glArgs.extractModel = EXTRACT_MODEL
+  if (IMPROVE_MODEL) glArgs.improveModel = IMPROVE_MODEL
+  if (COMMIT_MODEL) glArgs.commitModel = COMMIT_MODEL
   if (attempted.size) {
     glArgs.excludeAddrs = [...attempted]
     log(`Batch ${i}: excluding ${attempted.size} addresses attempted earlier this run`)
@@ -383,7 +397,12 @@ if (stoppedReason === 'batches_exhausted' && unlandedBatches > 0) {
 let improvePromoted = 0
 if (IMPROVE_GOAL > 0 && !resumable) {
   log(`\n── Improve pass — draining up to ${IMPROVE_GOAL} parked function(s) ─────`)
-  const ir = await workflow(GOAL_LIFT, { improve: true, goal: IMPROVE_GOAL, dryRun: DRY_RUN })
+  const irArgs = { improve: true, goal: IMPROVE_GOAL, dryRun: DRY_RUN }
+  if (REASON_MODEL) irArgs.reasonModel = REASON_MODEL
+  if (EXTRACT_MODEL) irArgs.extractModel = EXTRACT_MODEL
+  if (IMPROVE_MODEL) irArgs.improveModel = IMPROVE_MODEL
+  if (COMMIT_MODEL) irArgs.commitModel = COMMIT_MODEL
+  const ir = await workflow(GOAL_LIFT, irArgs)
   for (const [name, value] of Object.entries((ir && ir.phase_token_deltas) || {})) {
     phaseTokenDeltas[name] = (phaseTokenDeltas[name] || 0) + (Number(value) || 0)
   }
