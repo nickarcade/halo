@@ -1550,7 +1550,15 @@ def cmd_check(args) -> int:
                     f"{src_rel}: vc71_verify {status or 'produced no output'}")
             continue
 
-        if strict and status not in (None, "ok"):
+        # "subprocess_failed" is set purely from a nonzero exit code (see
+        # run_vc71_verify), and vc71_verify.py exits 1 whenever ANY function in
+        # the TU scores below its threshold -- a normal outcome, not an infra
+        # problem, and one baselined low scorers trigger on every run.  Only
+        # treat a non-ok status as a hard strict-failure when it left nothing
+        # to compare: if `results` came back non-empty, the per-function loop
+        # below already checks each baselined function against its measured
+        # score (or reports it vanished), which is the real signal.
+        if strict and status not in (None, "ok") and not results:
             strict_failures.append(f"{src_rel}: vc71_verify {status}")
             continue
 
