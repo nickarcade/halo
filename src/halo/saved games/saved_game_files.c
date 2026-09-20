@@ -8,11 +8,6 @@
  * EBP-0x20..EBP), so its layout is an explicit unknown. */
 #define XGAME_FIND_DATA_SIZE 0x344
 
-#define XGetDiskFreeSpaceEx FUN_001d3739
-#define XFindFirstSaveGame FUN_001d3254
-#define XFindNextSaveGame FUN_001d335b
-#define XFindCloseSaveGame FUN_001d33a2
-
 /* Helper: call ensure_directory at 0x1c31f0, which takes the path in EAX and
  * returns its result in AL.  kb.json carries that as `const char *path@<eax>`,
  * so the build system generates the thunk and this is a plain call. */
@@ -878,7 +873,7 @@ int16_t saved_game_perform_file_system_checks(void)
   int16_t result;
 
   result = 0;
-  if (XGetDiskFreeSpaceEx(
+  if (GetDiskFreeSpaceExA(
         wide_to_ascii(*(const wchar_t **)0x32eb94, root_path, 8),
         &free_bytes_available, &total_bytes, &total_free_bytes) != 0 &&
       free_bytes_available < 0x2800000)
@@ -894,7 +889,7 @@ int16_t saved_game_perform_file_system_checks(void)
       count++;
     } while (XFindNextSaveGame(find_handle, find_data) == true);
 
-    if (XFindCloseSaveGame(find_handle) == 0)
+    if (XFindClose(find_handle) == 0)
       error(2, "XFindClose() failed");
 
     if (count >= 100)
