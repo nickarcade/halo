@@ -25273,21 +25273,6 @@
       "score": 100.0,
       "source": "src/halo/interface/event_manager.c"
     },
-    "FUN_000db250": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 91.4,
-      "addr": "0xdb250",
-      "end": "0xdb323",
-      "kind": "auto",
-      "n_r": 85,
-      "opnd_percent": 76.5,
-      "raw_mnemonic_pct": 91.4,
-      "ref": "synth",
-      "ref_sha": "bd36dc91eb93dd64",
-      "score": 91.4,
-      "source": "src/halo/interface/event_manager.c"
-    },
     "FUN_000dbfb0": {
       "abi_model": "raw",
       "abi_model_items": 0,
