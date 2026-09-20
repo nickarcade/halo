@@ -68,17 +68,36 @@ jobs:
           with open(sys.argv[2], encoding="utf-8") as f:
               candidate = json.load(f).get("scores", {})
 
+          # Keyed by ADDRESS, not by name: a function keeps its floor across a
+          # pure rename (same address, old name -> new name, same-or-better
+          # score), so a name-only diff must not read that as a removal. Only
+          # an address that is missing from the candidate, or whose score
+          # dropped at the same address, is a real regression. Entries with no
+          # "addr" fall back to name-keying (never expected on a clean floor,
+          # but keeps them checked instead of silently skipped).
+          def by_addr(scores):
+              out = {}
+              for name, entry in scores.items():
+                  key = entry.get("addr") or f"name:{name}"
+                  out.setdefault(key, (name, entry))
+              return out
+
+          base_by_addr = by_addr(base)
+          candidate_by_addr = by_addr(candidate)
+
           errors = []
-          for name, before in base.items():
-              after = candidate.get(name)
-              if after is None:
+          for key, (name, before) in base_by_addr.items():
+              found = candidate_by_addr.get(key)
+              if found is None:
                   errors.append(f"{name}: removed (was {before.get('score')})")
                   continue
+              after_name, after = found
+              label = after_name if after_name == name else f"{name} -> {after_name}"
               try:
                   if float(after["score"]) < float(before["score"]):
-                      errors.append(f"{name}: {before['score']} -> {after['score']}")
+                      errors.append(f"{label}: {before['score']} -> {after['score']}")
               except (KeyError, TypeError, ValueError):
-                  errors.append(f"{name}: invalid score entry")
+                  errors.append(f"{label}: invalid score entry")
 
           if errors:
               print("VC71 score floors must not be lowered or removed:", file=sys.stderr)
