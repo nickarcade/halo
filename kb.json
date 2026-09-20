@@ -1680,7 +1680,7 @@
     },
     {
      "addr": "0x1df1bd",
-     "decl": "void calloc(void);",
+     "decl": "void *calloc(size_t count, size_t size);",
      "comment": "[NAME: calloc — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -2104,7 +2104,7 @@
     },
     {
      "addr": "0x1e3a9a",
-     "decl": "void ldexp(void);",
+     "decl": "double ldexp(double x, int exp);",
      "comment": "[NAME: ldexp — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -2225,7 +2225,7 @@
     },
     {
      "addr": "0x1e45d2",
-     "decl": "void _matherr(void);",
+     "decl": "int _matherr(void *except);",
      "comment": "[NAME: _matherr — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
