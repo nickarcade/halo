@@ -78,7 +78,7 @@ class PointerSlotArgFormTest(unittest.TestCase):
 
 
 class MeleeLungeCallSiteTest(unittest.TestCase):
-    """Regression pin for the FUN_001abd90 call site itself."""
+    """Regression pin for the unit_cause_continuous_melee_damage (0x1abd90) call site."""
 
     def test_melee_lunge_keeps_the_pointer_load(self):
         """units.c must load the plane pointer out of collision_result+0x0c.
@@ -91,7 +91,7 @@ class MeleeLungeCallSiteTest(unittest.TestCase):
         """
         repo_root = Path(__file__).resolve().parents[3]
         src = (repo_root / 'src/halo/units/units.c').read_text()
-        start = src.index('void FUN_001abd90(')
+        start = src.index('void unit_cause_continuous_melee_damage(')
         body = src[start:start + 6000]
         self.assertIn('*(float **)(collision_result + 0x0c)', body)
         stripped = body.replace('*(float **)(collision_result + 0x0c)', '')
