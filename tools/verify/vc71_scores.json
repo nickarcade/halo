@@ -101548,6 +101548,21 @@
       "score": 2.3,
       "source": "src/halo/unported_thunks.c"
     },
+    "ui_widget_initialize_single_player_level_list": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 95.0,
+      "addr": "0xe98c0",
+      "end": "0xe9a5c",
+      "kind": "auto",
+      "n_r": 138,
+      "opnd_percent": 84.2,
+      "raw_mnemonic_pct": 95.0,
+      "ref": "synth",
+      "ref_sha": "50390686e3cceed7",
+      "score": 95.0,
+      "source": "src/halo/interface/ui_widget.c"
+    },
     "ui_widget_launch_widget": {
       "abi_model": "raw",
       "abi_model_items": 0,
