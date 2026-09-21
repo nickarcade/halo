@@ -438,7 +438,7 @@
       "reason": "timeout"
     },
     {
-      "name": "FUN_0005ae70",
+      "name": "encounter_update_squads",
       "status": "fail",
       "reason": "divergence"
     },
