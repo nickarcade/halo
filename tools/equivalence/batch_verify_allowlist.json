@@ -215,7 +215,7 @@
         "chronic timeout (widgets.obj @ 0x136450): does not terminate under differential harness within per-fn timeout; excluded to protect batch wall-clock budget"
       ]
     },
-    "FUN_0005a640": {
+    "encounter_deactivate": {
       "statuses": [
         "timeout"
       ],
@@ -2404,7 +2404,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_0002f5b0": {
+    "actor_perception_qsort_compare_optional_props": {
       "statuses": [
         "*"
       ],
@@ -2424,7 +2424,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_00055620": {
+    "ai_scripting_swarm_count": {
       "statuses": [
         "*"
       ],
@@ -2434,7 +2434,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_00055640": {
+    "ai_scripting_nonswarm_count": {
       "statuses": [
         "*"
       ],
@@ -2444,7 +2444,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_00055660": {
+    "ai_scripting_living_count": {
       "statuses": [
         "*"
       ],
@@ -2454,7 +2454,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_00055680": {
+    "ai_scripting_living_fraction": {
       "statuses": [
         "*"
       ],
@@ -2464,7 +2464,7 @@
       ],
       "oracle": "delinked"
     },
-    "FUN_00056830": {
+    "ai_scripting_vehicle_candidate_qsort": {
       "statuses": [
         "*"
       ],
@@ -2666,7 +2666,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_00054a80": {
+    "ai_scripting_attach_units": {
       "statuses": [
         "*"
       ],
@@ -2675,7 +2675,7 @@
         "RETRIED artifacts/equivalence/allowlist_retry_xbe_names.{csv,json} (2026-09-14) under --oracle=xbe, 20 seeds: still error/emulation_error. The excuse stands. `emulation_error` alone does not say which side failed, so the next step is capturing the Unicorn message, not deleting the row."
       ]
     },
-    "FUN_000551e0": {
+    "ai_scripting_magically_see_units": {
       "statuses": [
         "*"
       ],
@@ -2683,7 +2683,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_00056a20": {
+    "ai_scripting_braindead_by_unit": {
       "statuses": [
         "*"
       ],
@@ -2691,7 +2691,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_00056b20": {
+    "ai_scripting_ignore": {
       "statuses": [
         "*"
       ],
@@ -2699,7 +2699,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_00056bc0": {
+    "ai_scripting_prefer_target": {
       "statuses": [
         "*"
       ],
@@ -2707,7 +2707,7 @@
         "non-terminating within instruction budget (assert->stub loop); needs live-state or higher budget"
       ]
     },
-    "FUN_000576a0": {
+    "ai_scripting_free_units": {
       "statuses": [
         "*"
       ],
