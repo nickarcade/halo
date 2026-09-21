@@ -530,11 +530,10 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
             # canonicalized registers).  Absent for entries scored before the
             # feature existed; display-only, gates nothing.
             opnd_pct = None
-            if is_ported:
-                score_entry = _lookup_score(scores_data, name, addr, source_path_for_scores)
-                if score_entry is not None:
-                    match_pct = score_entry.get('score')
-                    opnd_pct = score_entry.get('opnd_percent')
+            score_entry = _lookup_score(scores_data, name, addr, source_path_for_scores)
+            if score_entry is not None:
+                match_pct = score_entry.get('score')
+                opnd_pct = score_entry.get('opnd_percent')
 
             # If unscored, see whether the attention queue explains why (a whole-TU
             # VC71 compile failure, or a broken/absent delinked reference).  Only
