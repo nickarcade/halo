@@ -352,8 +352,7 @@ def enhance_report_with_matching(report_path: str, cache_path: str = DEFAULT_CAC
     report['matching_summary'] = summary
     
     # Write back
-    with open(report_path, 'w') as f:
-        json.dump(report, f, indent=2)
+    write_json_atomic(report_path, report, indent=2)
     
     return report
 
@@ -424,3 +423,8 @@ def main():
 
 if __name__ == '__main__':
     main()
+_tools_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _tools_dir not in sys.path:
+    sys.path.insert(0, _tools_dir)
+
+from report.atomic_write import write_json_atomic

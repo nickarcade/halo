@@ -187,8 +187,10 @@ def _target_identity(candidate_symbol, target, logical_target, convention, injec
     """
     if injected is not None:
         injected_target = injected.get("logical_target")
-        if injected_target is None or injected_target != target:
-            return {"status": "unresolved", "reason": "injected logical target differs from raw target",
+        if injected_target is None:
+            return {"status": "unresolved", "reason": "injected logical target is unknown"}
+        if injected_target != target:
+            return {"status": "mismatch", "reason": "injected logical target differs from raw target",
                     "logical_target": injected_target, "raw": "0x%08x" % target}
         return {"status": "resolved", "method": "injected_logical_target",
                 "logical_target": "0x%08x" % injected_target, "raw": "0x%08x" % target,
@@ -209,7 +211,7 @@ def _target_identity(candidate_symbol, target, logical_target, convention, injec
         symbol_target = addresses[0]
         method = "unique_bounds_name"
     if logical_target != target:
-        return {"status": "unresolved", "reason": "candidate symbol target differs from raw target",
+        return {"status": "mismatch", "reason": "candidate symbol target differs from raw target",
                 "candidate": candidate_name, "raw": "0x%08x" % target,
                 "symbol_address": "0x%08x" % symbol_target,
                 "logical_target": "0x%08x" % logical_target,
@@ -320,7 +322,7 @@ def _reference_relocations(reference):
 
 def _identity_evidence(relocation, form, candidate, reference, address, target_identities,
                        candidate_form=None):
-    """Return optional target evidence; never gate structural byte matching."""
+    """Distinguish matching, different, and unknown relocation targets."""
     target = _raw_target(reference, address, form)
     candidate_off = (candidate_form or form)["operand_offset"]
     addend = (struct.unpack_from("<I", candidate, candidate_off)[0]
@@ -516,6 +518,8 @@ def aligned_byte_compare(candidate, relocations, reference, address,
     unresolved_relocations = malformed_relocations
     uncertain_relocations = 0
     uncertain_relocation_bytes = 0
+    mismatched_relocations = 0
+    mismatched_relocation_bytes = 0
     unpaired_relocations = malformed_relocations
     first_difference = None
 
@@ -544,6 +548,7 @@ def aligned_byte_compare(candidate, relocations, reference, address,
         aligned_instructions += 1
         candidate_mask = set()
         reference_mask = set()
+        instruction_targets_match = True
         for relocation, candidate_form in candidate_relocations.get(
                 candidate_insn["offset"], []):
             candidates = []
@@ -554,6 +559,7 @@ def aligned_byte_compare(candidate, relocations, reference, address,
             if len(candidates) != 1:
                 unresolved_relocations += 1
                 unpaired_relocations += 1
+                instruction_targets_match = False
                 continue
             field_offset, field = candidates[0]
             reference_form = {
@@ -563,7 +569,25 @@ def aligned_byte_compare(candidate, relocations, reference, address,
             identity = _identity_evidence(
                 relocation, reference_form, candidate, reference, address,
                 target_identities, candidate_form=candidate_form)
-            if identity["evidence"].get("status") != "resolved":
+            identity_status = identity["evidence"].get("status")
+            if identity_status != "resolved":
+                instruction_targets_match = False
+            if identity_status == "mismatch":
+                # These four bytes encode a proven different target. They are
+                # fixed mismatches, never uncertainty in the upper bound.
+                mismatched_relocations += 1
+                mismatched_relocation_bytes += 4
+                candidate_local = candidate_form["operand_offset"] - candidate_insn["offset"]
+                reference_local = reference_form["operand_offset"] - reference_insn["offset"]
+                candidate_mask.update(range(candidate_local, candidate_local + 4))
+                reference_mask.update(range(reference_local, reference_local + 4))
+                if first_difference is None:
+                    first_difference = {
+                        "kind": "relocation_target", "candidate_offset": candidate_insn["offset"],
+                        "reference_offset": reference_insn["offset"],
+                        "target_identity": identity["evidence"]}
+                continue
+            if identity_status != "resolved":
                 unresolved_relocations += 1
                 uncertain_relocations += 1
                 uncertain_relocation_bytes += 4
@@ -593,10 +617,11 @@ def aligned_byte_compare(candidate, relocations, reference, address,
                 instruction_matching += 1
         matching += instruction_matching
         compared += instruction_compared
-        if (len(candidate_bytes) == len(reference_bytes) and
+        if (instruction_targets_match and
+                len(candidate_bytes) == len(reference_bytes) and
                 instruction_matching == instruction_compared):
             normalized_exact_instructions += 1
-        elif first_difference is None:
+        elif instruction_matching != instruction_compared and first_difference is None:
             first_difference = {
                 "candidate_offset": candidate_insn["offset"],
                 "reference_offset": reference_insn["offset"],
@@ -604,7 +629,7 @@ def aligned_byte_compare(candidate, relocations, reference, address,
                 "reference_mnemonic": reference_insn["mnemonic"],
                 "kind": "instruction_bytes"}
 
-    total_compared = compared + uncertain_relocation_bytes
+    total_compared = compared + uncertain_relocation_bytes + mismatched_relocation_bytes
     lower_accuracy = matching / total_compared if total_compared else None
     upper_accuracy = ((matching + uncertain_relocation_bytes) / total_compared
                       if total_compared else None)
@@ -616,6 +641,8 @@ def aligned_byte_compare(candidate, relocations, reference, address,
         "stable_compared_bytes": compared,
         "masked_relocation_bytes": masked,
         "uncertain_relocation_bytes": uncertain_relocation_bytes,
+        "mismatched_relocation_bytes": mismatched_relocation_bytes,
+        "mismatched_relocations": mismatched_relocations,
         "aligned_instruction_pairs": aligned_instructions,
         "normalized_exact_instructions": normalized_exact_instructions,
         "candidate_only_instructions": candidate_only,
@@ -625,7 +652,7 @@ def aligned_byte_compare(candidate, relocations, reference, address,
         "uncertain_relocations": uncertain_relocations,
         "unpaired_relocations": unpaired_relocations,
         "accuracy_is_lower_bound": bool(uncertain_relocation_bytes),
-        "accuracy_is_provisional": bool(unpaired_relocations),
+        "accuracy_is_provisional": bool(unpaired_relocations or uncertain_relocations),
         "alignment_ambiguous_steps": ambiguous_steps,
         "first_difference": first_difference,
         "confidence": "provisional"}
@@ -634,9 +661,8 @@ def aligned_byte_compare(candidate, relocations, reference, address,
 def compare(candidate, relocations, reference, address, target_identities=None):
     """Compare literal bytes after raw-XBE-approved relocation masking.
 
-    The candidate relocation location/type sequence must match the conservative
-    raw-XBE operand classification. Resolved target identity is recorded as
-    evidence only and is deliberately not required for a structural exact.
+    Masking describes encoding shape only. An exact verdict additionally
+    requires every candidate relocation target to resolve to the original.
     """
     result = {
         "verdict": "not comparable", "confidence": "low", "confidence_reasons": [],
@@ -644,6 +670,8 @@ def compare(candidate, relocations, reference, address, target_identities=None):
         "candidate_relocation_count": len(relocations), "relocations": [],
         "matching_non_relocation_bytes": 0, "matching_bytes": 0, "masked_bytes": 0,
         "byte_accuracy": None,
+        "literal_byte_match": ("unverified" if relocations else
+                               "exact" if candidate == reference else "different"),
         "byte_counts": {"candidate": len(candidate), "reference": len(reference),
                         "relocation_operand": 0, "non_relocation": 0,
                         "matching_non_relocation": 0, "mismatching_non_relocation": 0},
@@ -656,7 +684,7 @@ def compare(candidate, relocations, reference, address, target_identities=None):
     if reference_sites is None:
         result["relocation_shape_evidence"] = {"status": "unavailable", "matched": False,
                                                 "candidate": [], "reference": None,
-                                                "identity_required": False}
+                                                "identity_required": True}
         if relocations:
             result["confidence_reasons"].append("raw-XBE relocation classification is unavailable")
             return result
@@ -668,7 +696,7 @@ def compare(candidate, relocations, reference, address, target_identities=None):
         matched = candidate_shape == reference_shape
         result["relocation_shape_evidence"] = {
             "status": "matched" if matched else "mismatch", "matched": matched,
-            "identity_required": False,
+            "identity_required": True,
             "candidate": [{"offset": item["offset"], "type": item["type"],
                            "type_name": item["type_name"]} for item in relocations],
             "reference": [{"offset": item["offset"], "type": item["type"],
@@ -710,17 +738,19 @@ def compare(candidate, relocations, reference, address, target_identities=None):
                                       target_identities, candidate_form=form)
         item.update({"operand_kind": form["kind"], "raw_target": identity["raw_target"],
                      "target_identity": identity["evidence"], "comparable": True,
-                     "reason": "location/type and operand encoding matched; identity is evidence only"})
+                     "reason": "operand encoding matched; exactness also requires target identity"})
         result["relocations"].append(item)
         identity_records.append(identity["evidence"])
         candidate_mask.update(range(form["operand_offset"], form["operand_offset"] + 4))
         reference_mask.update(range(raw_form["operand_offset"], raw_form["operand_offset"] + 4))
 
     result["identity_evidence"] = {
-        "required_for_structural_match": False, "records": identity_records,
+        "required_for_structural_match": True, "records": identity_records,
         "resolved": sum(1 for item in identity_records if item.get("status") == "resolved"),
-        "unresolved": sum(1 for item in identity_records if item.get("status") != "resolved"),
-        "status": ("resolved" if identity_records and
+        "unresolved": sum(1 for item in identity_records if item.get("status") == "unresolved"),
+        "mismatched": sum(1 for item in identity_records if item.get("status") == "mismatch"),
+        "status": ("mismatch" if any(item.get("status") == "mismatch" for item in identity_records)
+                   else "resolved" if identity_records and
                    all(item.get("status") == "resolved" for item in identity_records)
                    else "unresolved" if identity_records and
                    all(item.get("status") != "resolved" for item in identity_records)
@@ -769,18 +799,27 @@ def compare(candidate, relocations, reference, address, target_identities=None):
                                   "size_mismatch_bytes": tail})
     result["byte_accuracy"] = matching / denominator if denominator else None
     differing = next(((i, left, right) for i, left, right in compared if left != right), None)
-    if len(candidate) != len(reference) or differing is not None:
+    if (len(candidate) != len(reference) or differing is not None or
+            result["identity_evidence"]["mismatched"] or
+            result["aligned_byte_match"].get("mismatched_relocations")):
         result["verdict"] = "structural differ"
         result["confidence"] = "high"
         if len(candidate) != len(reference):
             result["confidence_reasons"].append("function sizes differ")
         if differing:
             result["first_difference"] = differing[0]
+        if (result["identity_evidence"]["mismatched"] or
+                result["aligned_byte_match"].get("mismatched_relocations")):
+            result["confidence_reasons"].append("a relocation targets a different function or address")
+        return result
+    if unmasked or result["identity_evidence"]["unresolved"]:
+        result["reason"] = "non-relocation bytes match, but relocation targets remain unverified"
+        result["confidence_reasons"].append(result["reason"])
         return result
     result["verdict"] = "structural exact"
     result["confidence"] = "high"
     result["confidence_reasons"].append(
-        "all non-relocation bytes match; relocation identity was not required")
+        "all non-relocation bytes and all candidate relocation targets match within the selected span")
     return result
 
 
@@ -788,7 +827,11 @@ def audit(candidate_obj, function, address, source=None):
     """Run the relocation-shape-aware comparison against the pristine raw XBE."""
     candidate, relocs, provenance = _parse_coff(candidate_obj, function)
     reference, error = xref.function_bytes(address)
-    record = {"schema_version": 1, "lane": "raw_xbe_structural",
+    record = {"schema_version": 2, "lane": "raw_xbe_structural",
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "tool": {"version": "2", "compiler": _compiler_token() if source else "supplied object",
+                       "decl_sha256": _decl_hash(), "bounds_sha256": _bounds_hash(),
+                       "reference_authority": "pristine raw XBE + bounds"},
               "function": function, "address": "0x%08x" % address,
               "candidate": {"path": str(candidate_obj), "sha256": _sha256(candidate), **provenance},
               # This is the pristine XBE FILE hash, the provenance the report
@@ -800,6 +843,7 @@ def audit(candidate_obj, function, address, source=None):
         record["source"] = {"path": str(source), "sha256": strict.sha256_file(source)}
     if reference is None:
         record.update({"verdict": "not comparable", "confidence": "low", "reason": error})
+        record["verification"] = verification_evidence(record)
         return record
     # Register-argument functions ARE scored.  Their original receives arguments
     # in registers and our build reaches it through a generated thunk, so the
@@ -822,7 +866,62 @@ def audit(candidate_obj, function, address, source=None):
         record["bounds"] = {"start": "0x%08x" % address, "end": "0x%08x" % end,
                              "sha256": _hash_path(ROOT / "tools" / "verify" / "function_bounds.json")}
     record.update(compare(candidate, relocs, reference, address))
+    if extent is None or extent[1] == "no_terminator":
+        record.update({"verdict": "not comparable", "confidence": "low",
+                       "reason": "the original function boundary is unverified"})
+    record["verification"] = verification_evidence(record)
     return record
+
+
+def verification_evidence(record):
+    """Keep measured encoding results separate from unperformed verification."""
+    reference = record.get("reference", {})
+    kind = reference.get("bound_kind")
+    literal_status = record.get("literal_byte_match")
+    if literal_status is None:
+        literal_status = "unverified"
+        literal_detail = "literal comparison was not performed"
+    elif literal_status == "unverified":
+        literal_detail = "unlinked COFF relocations prevent a literal linked-byte verdict"
+    else:
+        literal_detail = "literal comparison within the selected span"
+    return {
+        "boundaries": {
+            "status": "inferred" if kind and kind != "no_terminator" else "uncertain",
+            "detail": "kind=%s; provenance=%s; no independent boundary review recorded" %
+                      (kind or "unknown", reference.get("bound_provenance", "unknown"))},
+        "compiler": {
+            "status": "provisional",
+            "detail": "%s; original compiler and flags are unproven" %
+                      record.get("tool", {}).get("compiler", "unknown candidate compiler")},
+        "behavior": {"status": "untested", "detail": "this static audit does not execute either function"},
+        "instruction_operands": {
+            "status": {"structural exact": "exact", "structural differ": "different"}.get(
+                record.get("verdict"), "unverified"),
+            "detail": "encoding and relocation targets within the selected span; no ABI or behavior proof"},
+        "literal_bytes": {
+            "status": literal_status,
+            "detail": literal_detail},
+    }
+
+
+def verification_markdown(record):
+    lines = ["# %s (%s)" % (record["function"], record["address"]), "",
+             "| Check | Result | Evidence |", "|---|---|---|"]
+    for key, label in (("boundaries", "Original boundaries"), ("compiler", "Compiler and settings"),
+                       ("behavior", "Behavior tests in this audit"),
+                       ("instruction_operands", "Instructions and operands"), ("literal_bytes", "Literal bytes")):
+        item = record["verification"][key]
+        lines.append("| %s | %s | %s |" % (label, item["status"], item["detail"].replace("|", "\\|")))
+    aligned = record.get("aligned_byte_match", {})
+    if aligned.get("byte_accuracy") is not None:
+        lines.extend(["", "Aligned bytes: %.1f–%.1f%%. Known different targets: %d. Unknown targets: %d." % (
+            100 * aligned["byte_accuracy"], 100 * aligned["byte_accuracy_upper_bound"],
+            aligned.get("mismatched_relocations", 0), aligned.get("unresolved_relocations", 0))])
+    if record.get("reason"):
+        lines.extend(["", record["reason"]])
+    lines.extend(["", "Exactness applies to the selected span. Boundary review and behavioral validation are separate.", ""])
+    return "\n".join(lines)
 
 
 def _write_record(record, output):
@@ -830,6 +929,8 @@ def _write_record(record, output):
     temporary = output.with_name(output.name + ".tmp")
     temporary.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.replace(temporary, output)
+    if record.get("verification") and record.get("function"):
+        output.with_suffix(".md").write_text(verification_markdown(record), encoding="utf-8")
 
 
 def _hash_path(path):
@@ -877,34 +978,59 @@ def _register_argument_addresses():
     return addresses
 
 
-def _vc71_sources():
-    """Map address -> source path using the VC71 score snapshot.
+def _function_name(entry):
+    """Derive the current canonical symbol when kb.json omits ``name``."""
+    if entry.get("name"):
+        return entry["name"]
+    decl = (entry.get("decl") or "").split("(", 1)[0]
+    identifiers = re.findall(r"[A-Za-z_][A-Za-z0-9_:]*", decl)
+    return identifiers[-1] if identifiers else None
 
-    Only a small minority of kb.json function entries carry ``source_path``.
-    The VC71 snapshot records the source it compiled for every function it
-    scored, so it resolves the rest without guessing.  Missing or unreadable
-    snapshot means no fallback, never an invented path.
+
+def _vc71_sources():
+    """Return source metadata from current scores, then the committed floor.
+
+    Only source/name/address metadata is consumed.  Scores are deliberately
+    ignored: this is discovery for the structural audit, not a score fallback.
+    Current records override the floor while the floor supplies historical
+    functions absent from the small current snapshot.
     """
-    snapshot = ROOT / "tools" / "verify" / "vc71_current.json"
-    if not snapshot.is_file():
-        return {}
-    try:
-        scores = json.loads(snapshot.read_text(encoding="utf-8")).get("scores", {})
-    except (ValueError, OSError):
-        return {}
-    sources = {}
-    for name, record in scores.items():
-        if not isinstance(record, dict):
-            continue
-        addr = record.get("addr")
-        source = record.get("source")
-        if not addr or not source:
+    by_address = {}
+    by_name = {}
+    for snapshot in (ROOT / "tools" / "verify" / "vc71_scores.json",
+                     ROOT / "tools" / "verify" / "vc71_current.json"):
+        if not snapshot.is_file():
             continue
         try:
-            sources[int(addr, 0)] = (source, name)
-        except (TypeError, ValueError):
+            scores = json.loads(snapshot.read_text(encoding="utf-8")).get("scores", {})
+        except (ValueError, OSError):
             continue
-    return sources
+        for name, record in scores.items():
+            if not isinstance(record, dict) or not record.get("source"):
+                continue
+            source = record["source"]
+            by_name[name] = source
+            addr = record.get("addr")
+            if addr:
+                try:
+                    by_address[int(addr, 0)] = (source, name)
+                except (TypeError, ValueError):
+                    continue
+    return {"by_address": by_address, "by_name": by_name}
+
+
+def _normalize_source_path(source_path):
+    if not source_path:
+        return None
+    path = Path(source_path)
+    if path.is_absolute():
+        return path
+    normalized = path.as_posix()
+    if normalized.startswith("src/"):
+        return Path(normalized)
+    if normalized.startswith("halo/"):
+        return Path("src/" + normalized)
+    return Path("src/halo/" + normalized)
 
 
 def _eligible_functions(source_filter=None):
@@ -914,10 +1040,21 @@ def _eligible_functions(source_filter=None):
         source_filter = {Path(source_filter).as_posix()}
     elif source_filter:
         source_filter = {Path(path).as_posix() for path in source_filter}
-    entries = list(kb.values()) if isinstance(kb, dict) else list(kb)
     if isinstance(kb, dict):
+        # The canonical function inventory is objects[].functions[].  Top-level
+        # metadata and legacy address-key entries are not audit targets.
+        entries = []
         for obj in kb.get("objects", []):
-            entries.extend(obj.get("functions", []))
+            if isinstance(obj, dict):
+                object_source = (obj.get("source_path") or obj.get("src") or
+                                 obj.get("source"))
+                for function in obj.get("functions", []):
+                    if isinstance(function, dict):
+                        item = dict(function)
+                        item["_object_source"] = object_source
+                        entries.append(item)
+    else:
+        entries = list(kb)
     eligible = {}
     for entry in entries:
         if not isinstance(entry, dict) or entry.get("ported") is not True:
@@ -925,21 +1062,37 @@ def _eligible_functions(source_filter=None):
         if not entry.get("addr"):
             continue
         address = int(entry["addr"], 0)
-        vc71_source, vc71_name = vc71_sources.get(address, (None, None))
-        source_path = entry.get("source_path") or entry.get("source") or vc71_source
-        if not source_path:
+        address_source = vc71_sources["by_address"].get(address)
+        function_name = _function_name(entry)
+        floor_source = vc71_sources["by_name"].get(function_name)
+        source_path = (entry.get("source_path") or entry.get("src") or
+                       entry.get("file") or entry.get("source") or
+                       (address_source[0] if address_source else None) or
+                       floor_source or entry.get("_object_source"))
+        source_path = _normalize_source_path(source_path)
+        if source_filter and (not source_path or
+                              Path(source_path).as_posix() not in source_filter):
             continue
-        source_path = source_path if source_path.startswith("src/") else "src/halo/" + source_path
-        if source_filter and Path(source_path).as_posix() not in source_filter:
-            continue
-        source = ROOT / source_path
-        if not source.is_file():
-            continue
+        source = source_path if source_path and source_path.is_absolute() else ROOT / source_path if source_path else None
+        selection_reason = None
+        if source is None:
+            selection_reason = "ported function has no source path"
+        elif not source.is_file():
+            selection_reason = "ported function source file is missing: %s" % source_path
+            source = None
         # kb.json often omits the name; the VC71 snapshot records the symbol
         # actually compiled, which is what the candidate COFF exports.  The
         # synthesized fallback is lowercase to match the repository convention.
-        eligible[address] = {"function": entry.get("name") or vc71_name or "FUN_%08x" % address,
-                             "address": address, "source": source}
+        item = {"function": function_name or "FUN_%08x" % address,
+                "address": address, "source": source}
+        if selection_reason:
+            item["selection_reason"] = selection_reason
+        # Duplicate KB entries can describe the same address. Keep a source-backed
+        # entry when one is available, while retaining an explicit missing-source
+        # record when no duplicate has a usable source.
+        current = eligible.get(address)
+        if current is None or (current.get("source") is None and source is not None):
+            eligible[address] = item
     return list(eligible.values())
 
 
@@ -952,14 +1105,30 @@ def _decl_hash():
 
 
 def _compiler_token():
-    return getattr(vc71, "VC71_CL_WSL", "VC71") + " /O2 /Oy- /GF /Gy /Gd /W0 /Zl /X"
+    # This identifies the candidate comparison tool only.  The source-specific
+    # compile invocation (including any opt/regcall settings) is not retained by
+    # this lane, and the original XBE compiler/options remain unconfirmed.
+    return "VC71 comparison compiler; invocation flags not recorded"
 
 
-def _record_error(item, reason, source_sha256=None):
-    return {"function": item["function"], "address": "0x%08x" % item["address"],
-            "verdict": "not comparable", "confidence": "low", "reason": reason,
-            "source": {"path": str(item["source"]), "sha256": source_sha256 or _hash_path(item["source"])},
-            "reference": {"path": str(xref.XBE), "sha256": _hash_path(xref.XBE)}}
+def _record_error(item, reason, source_sha256=None, compiler=None):
+    source = item.get("source")
+    record = {
+        "schema_version": 2,
+        "lane": "raw_xbe_structural",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "tool": {"version": "2", "compiler": compiler or _compiler_token(),
+                 "decl_sha256": _decl_hash(), "bounds_sha256": _bounds_hash(),
+                 "reference_authority": "pristine raw XBE + bounds"},
+        "function": item["function"], "address": "0x%08x" % item["address"],
+        "verdict": "not comparable", "confidence": "low", "reason": reason,
+        "reference": {"path": str(xref.XBE), "sha256": _hash_path(xref.XBE)},
+    }
+    if source is not None:
+        record["source"] = {"path": str(source),
+                             "sha256": source_sha256 or _hash_path(source)}
+    record["verification"] = verification_evidence(record)
+    return record
 
 
 def _audit_tu(source, items, artifact_dir, decl_hash):
@@ -974,13 +1143,14 @@ def _audit_tu(source, items, artifact_dir, decl_hash):
         except (OSError, strict.NotComparable) as exc:
             record = _record_error(item, str(exc), source_sha256)
         record["generated_at"] = datetime.now(timezone.utc).isoformat()
-        record["tool"] = {"version": "1", "compiler": _compiler_token(), "decl_sha256": decl_hash,
+        record["tool"] = {"version": "2", "compiler": _compiler_token(), "decl_sha256": decl_hash,
                           "bounds_sha256": _bounds_hash(), "reference_authority": "pristine raw XBE + bounds"}
         records.append((item, record))
     return records
 
 
-def _write_summary(records, invocation, source_count, compile_failures, eligible=None):
+def _write_summary(records, invocation, source_count, compile_failures, eligible=None,
+                   worker_failures=0):
     def empty():
         return {"functions": 0, "original_bytes": 0, "reference_bytes": 0,
                 "matching_non_relocation_bytes": 0, "compared_non_relocation_bytes": 0,
@@ -1011,16 +1181,26 @@ def _write_summary(records, invocation, source_count, compile_failures, eligible
     matching = sum(row["matching_non_relocation_bytes"] for row in totals.values())
     compared = sum(row["compared_non_relocation_bytes"] for row in totals.values())
     exact = totals["structural exact"]["functions"]
+    planned_functions = len(eligible) if eligible is not None else len(records)
+    missing_source = sum(1 for item in (eligible or []) if item.get("source") is None)
     aligned = [record.get("aligned_byte_match", {}) for record in records]
     aligned = [item for item in aligned if item.get("status") == "scored"]
     aligned_matching = sum(item.get("matching_bytes", 0) or 0 for item in aligned)
     aligned_compared = sum(item.get("compared_bytes", 0) or 0 for item in aligned)
     aligned_uncertain = sum(item.get("uncertain_relocation_bytes", 0) or 0 for item in aligned)
-    summary = {"schema_version": 1, "lane": "raw_xbe_structural", "tool_version": "1", "invocation": invocation,
+    aligned_fixed_mismatch = sum(item.get("mismatched_relocation_bytes", 0) or 0
+                                 for item in aligned)
+    aligned_mismatched_relocations = sum(item.get("mismatched_relocations", 0) or 0
+                                         for item in aligned)
+    summary = {"schema_version": 2, "lane": "raw_xbe_structural", "tool_version": "2", "invocation": invocation,
                "generated_at": datetime.now(timezone.utc).isoformat(),
                "xbe_sha256": _hash_path(xref.XBE), "bounds_sha256": _bounds_hash(), "decl_sha256": _decl_hash(),
-               "reference_authority": "pristine raw XBE", "source_tu_count": source_count,
-               "candidate_compile_failures": compile_failures, "totals": totals,
+                "reference_authority": "pristine raw XBE", "source_tu_count": source_count,
+                "planned_tu_count": source_count, "planned_function_count": planned_functions,
+                "missing_source_count": missing_source,
+                "audited_function_count": len(records),
+                "candidate_compile_failures": compile_failures,
+                "worker_failures": worker_failures, "totals": totals,
                "function_totals": {"structural_exact": exact, "structural_differ": totals["structural differ"]["functions"],
                                    "not_comparable": totals["not comparable"]["functions"], "not_audited": totals["not audited"]["functions"]},
                "byte_totals": {"reference": sum(row["reference_bytes"] for row in totals.values()),
@@ -1032,9 +1212,11 @@ def _write_summary(records, invocation, source_count, compile_failures, eligible
                                "masked_accuracy": (matching + sum(row["masked_relocation_bytes"] for row in totals.values())) / sum(row["reference_bytes"] for row in totals.values()) if sum(row["reference_bytes"] for row in totals.values()) else None},
                "aligned_byte_totals": {
                    "scored_functions": len(aligned),
-                   "matching_bytes": aligned_matching,
-                   "compared_bytes": aligned_compared,
-                   "uncertain_relocation_bytes": aligned_uncertain,
+                    "matching_bytes": aligned_matching,
+                    "compared_bytes": aligned_compared,
+                    "uncertain_relocation_bytes": aligned_uncertain,
+                    "fixed_mismatch_bytes": aligned_fixed_mismatch,
+                    "mismatched_relocations": aligned_mismatched_relocations,
                    "byte_accuracy_lower": aligned_matching / aligned_compared if aligned_compared else None,
                    "byte_accuracy_upper": ((aligned_matching + aligned_uncertain) / aligned_compared
                                            if aligned_compared else None),
@@ -1054,15 +1236,21 @@ def _run_single(args):
             record = audit(args.candidate, args.function, args.address)
         else:
             candidate = artifact_dir / ("%08x-%s.obj" % (args.address, args.function))
-            vc71.regen_decl_header(quiet=True)
+            if not vc71.regen_decl_header(quiet=True):
+                raise strict.NotComparable("generated declaration header regeneration failed")
             if not vc71.compile_vc71(args.source.resolve(), candidate):
-                return 2
+                raise strict.NotComparable("VC71 compilation failed")
             record = audit(candidate, args.function, args.address, args.source)
     except (OSError, strict.NotComparable) as exc:
         source = args.source if args.source is not None else args.candidate
-        record = {"function": args.function, "address": "0x%08x" % args.address,
-                  "verdict": "not comparable", "confidence": "low", "reason": str(exc),
-                  "candidate": {"path": str(source)}}
+        item = {"function": args.function, "address": args.address}
+        if args.source is not None:
+            item["source"] = args.source
+        record = _record_error(
+            item, str(exc),
+            compiler=("supplied object; compiler unavailable"
+                      if args.candidate is not None else None))
+        record["candidate"] = {"path": str(source)}
     _write_record(record, output)
     aligned = record.get("aligned_byte_match", {})
     aligned_suffix = ""
@@ -1079,6 +1267,9 @@ def _run_single(args):
             "?" if aligned.get("accuracy_is_provisional") else "")
     print("%s: %s%s (%s)" % (
         record.get("function", args.function), record["verdict"], aligned_suffix, output))
+    if record.get("verification"):
+        print("  " + "; ".join("%s: %s" % (key, item["status"])
+                              for key, item in record["verification"].items()))
     return {"structural exact": 0, "structural differ": 1, "not comparable": 2}.get(record["verdict"], 2)
 
 
@@ -1086,24 +1277,65 @@ def _run_populate(args):
     items = _eligible_functions(args.source)
     grouped = {}
     for item in items:
-        grouped.setdefault(item["source"], []).append(item)
-    if not vc71.regen_decl_header(quiet=True):
-        raise SystemExit("could not pin decl.h")
+        if item.get("source") is not None:
+            grouped.setdefault(item["source"], []).append(item)
     artifact_dir = ROOT / "artifacts" / "raw_xbe_structural"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     records = []
     compile_failures = 0
+    worker_failures = 0
+    missing_items = [item for item in items if item.get("source") is None]
+    missing_records = []
+    for item in missing_items:
+        missing_records.append(_record_error(item, item.get("selection_reason", "source unavailable")))
+    records.extend(missing_records)
     groups = sorted(grouped.items(), key=lambda pair: str(pair[0]))
+    print("Planned %d functions across %d TUs; %d lack source files." %
+          (len(items), len(groups), len(missing_items)))
+    if not vc71.regen_decl_header(quiet=True):
+        source_records = []
+        for item in grouped.values():
+            for source_item in item:
+                source_records.append((source_item, _record_error(
+                    source_item, "generated declaration header regeneration failed")))
+        for item, record in zip(missing_items, missing_records):
+            _write_record(record, artifact_dir / ("%08x-%s.json" %
+                                                  (item["address"], item["function"])))
+        for item, record in source_records:
+            _write_record(record, artifact_dir / ("%08x-%s.json" %
+                                                  (item["address"], item["function"])))
+        records.extend(record for _item, record in source_records)
+        summary = _write_summary(records, sys.argv[1:], len(groups), compile_failures,
+                                 items, worker_failures)
+        print(json.dumps(summary["totals"], sort_keys=True))
+        return 2
+    decl_hash = _decl_hash()
+    completed = 0
+    future_sources = {}
     with concurrent.futures.ProcessPoolExecutor(max_workers=max(1, min(args.workers, len(groups) or 1))) as executor:
-        futures = [executor.submit(_audit_tu, source, source_items, artifact_dir, _decl_hash()) for source, source_items in groups]
-        for future in futures:
-            results = future.result()
+        for source, source_items in groups:
+            future = executor.submit(_audit_tu, source, source_items, artifact_dir, decl_hash)
+            future_sources[future] = (source, source_items)
+        for future in concurrent.futures.as_completed(future_sources):
+            source, source_items = future_sources[future]
+            try:
+                results = future.result()
+            except Exception as exc:
+                worker_failures += 1
+                results = [(item, _record_error(item, "TU worker failed: %s" % exc))
+                           for item in source_items]
+            completed += 1
+            print("Completed TU %d/%d: %s (%d functions)" %
+                  (completed, len(groups), source, len(results)))
             if results and all(record.get("reason") == "VC71 compilation failed" for _, record in results):
                 compile_failures += 1
             for item, record in results:
                 _write_record(record, artifact_dir / ("%08x-%s.json" % (item["address"], item["function"])))
                 records.append(record)
-    summary = _write_summary(records, sys.argv[1:], len(grouped), compile_failures, items)
+    for item, record in zip(missing_items, missing_records):
+        _write_record(record, artifact_dir / ("%08x-%s.json" % (item["address"], item["function"])))
+    summary = _write_summary(records, sys.argv[1:], len(groups), compile_failures, items,
+                             worker_failures)
     print(json.dumps(summary["totals"], sort_keys=True))
     return 0 if not compile_failures else 2
 
@@ -1141,13 +1373,16 @@ def main(argv=None):
         print("no raw-XBE structural summary")
         return 2
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if summary.get("schema_version") != 2 or summary.get("lane") != "raw_xbe_structural":
+        print("stale raw-XBE structural summary; regenerate schema v2 artifacts")
+        return 2
     if args.command == "show":
         for verdict, totals in summary["totals"].items():
             print("%-20s %8d functions %10d bytes" % (verdict + ":", totals["functions"], totals["original_bytes"]))
         print("Byte accuracy (non-relocation): %s" % summary["byte_totals"]["byte_accuracy"])
         print("Exact among comparable functions: %s" % summary["exact_among_comparable"])
         print("Exact byte coverage of comparable: %s" % summary["exact_byte_coverage_of_comparable"])
-        print("Relocation identity is evidence only; it is not required for structural exactness.")
+        print("Structural exactness requires matching relocation targets; behavior and bounds require separate validation.")
         return 0
     return 0
 

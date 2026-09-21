@@ -20,6 +20,12 @@ import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
+_tools_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _tools_dir not in sys.path:
+    sys.path.insert(0, _tools_dir)
+
+from report.atomic_write import write_json_atomic
+
 # Scoring lock: one objdiff run at a time per unit
 _score_locks = {}
 _score_locks_mu = threading.Lock()
@@ -456,8 +462,7 @@ class SSEHandler(SimpleHTTPRequestHandler):
         _recompute_summary_match(report)
 
         try:
-            with open(report_path, 'w') as f:
-                json.dump(report, f)
+            write_json_atomic(report_path, report)
             os.utime(report_path, None)  # ensure mtime bumped for SSE polling
         except Exception as e:
             logging.error('Cannot write report.json: %s', e)

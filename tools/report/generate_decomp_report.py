@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(_root_dir, 'tools'))
 
 from analysis.knowledge import KnowledgeBase, Function, Data
 from analysis.kb_meta import MetadataStore
+from report.atomic_write import write_json_atomic, write_text_atomic
 
 
 def load_function_sizes(cache_path: str) -> dict:
@@ -249,6 +250,24 @@ def _load_scoreable_addrs(root_dir: str) -> set:
     return addrs
 
 
+def _valid_equiv_counts(data: dict) -> bool:
+    """Accept only non-negative, disjoint result counts within the seed total."""
+    values = {}
+    for field in ('passed', 'failed', 'errors', 'seeds'):
+        value = data.get(field)
+        if value is None:
+            values[field] = None
+        elif isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return False
+        else:
+            values[field] = value
+    if values['seeds'] is not None:
+        total = sum(values[field] or 0 for field in ('passed', 'failed', 'errors'))
+        if total > values['seeds']:
+            return False
+    return True
+
+
 def _load_equiv_verdicts(root_dir: str) -> dict:
     """Load equivalence pass/fail VERDICTS from batch_verify result JSONs.
 
@@ -274,6 +293,7 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
         except OSError:
             continue
     paths.sort()
+    records = []
     for _, p in paths:
         if os.path.basename(p) in ('summary.json', 'results.csv'):
             continue
@@ -282,10 +302,47 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
+        if not isinstance(data, dict) or not _valid_equiv_counts(data):
+            continue
+        records.append((p, data))
+
+    # Imported bundles reference their supplemental result files. Those files
+    # may live under this scan root, but are evidence for the bundle rather than
+    # standalone verdicts and must never overwrite its main result by mtime.
+    referenced = set()
+    for _p, data in records:
+        for case in data.get('targeted_cases', []) or []:
+            if not isinstance(case, dict):
+                continue
+            artifact = case.get('artifact')
+            if artifact:
+                referenced.add(os.path.normcase(os.path.abspath(
+                    artifact if os.path.isabs(artifact) else os.path.join(root_dir, artifact))))
+
+    for p, data in records:
+        if os.path.normcase(os.path.abspath(p)) in referenced:
+            continue
         target = data.get('target')
         status = data.get('status')
-        if not target or not status:
+        if (not isinstance(target, str) or not target.strip()
+                or status not in ('pass', 'fail', 'error', 'inconclusive',
+                                  'not_applicable')):
             continue
+        targeted_cases = data.get('targeted_cases', [])
+        if not isinstance(targeted_cases, list):
+            targeted_cases = []
+        normalized_cases = []
+        for case in targeted_cases:
+            if not isinstance(case, dict):
+                continue
+            normalized = dict(case)
+            result = case.get('result')
+            if isinstance(result, dict):
+                for field in ('target', 'status', 'passed', 'failed', 'errors',
+                              'seeds', 'coverage_pct', 'confidence', 'reason'):
+                    normalized.setdefault(field, result.get(field))
+            normalized_cases.append(normalized)
+        targeted_cases = normalized_cases
         verdicts[target] = {
             'status': status,
             'z3_proven': bool(data.get('z3_proven')),
@@ -294,6 +351,15 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
             'coverage_pct': data.get('coverage_pct'),
             'divergence_summary': data.get('divergence_summary'),
             'log_path': data.get('log_path'),
+            'passed': data.get('passed'),
+            'failed': data.get('failed'),
+            'errors': data.get('errors'),
+            'seeds': data.get('seeds'),
+            'artifact': os.path.relpath(p, root_dir).replace(os.sep, '/'),
+            'targeted_cases': targeted_cases,
+            'targeted_case_count': len(targeted_cases),
+            'targeted_case_passed': sum(
+                1 for case in targeted_cases if case.get('status') == 'pass'),
         }
     return verdicts
 
@@ -408,7 +474,7 @@ def _load_raw_byte_audits(root_dir: str) -> dict:
         current = latest.get(address)
         timestamp = audit.get('generated_at', '')
         if current is None or current.get('generated_at', '') < timestamp:
-            audit['artifact'] = os.path.relpath(audit_path, root_dir)
+            audit['artifact'] = os.path.relpath(audit_path, root_dir).replace(os.sep, '/')
             latest[address_key] = audit
     return latest
 
@@ -441,7 +507,7 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
         try:
             with audit_path.open(encoding='utf-8') as f:
                 audit = json.load(f)
-            if (audit.get('schema_version') != 1
+            if (audit.get('schema_version') != 2
                     or audit.get('lane') != 'raw_xbe_structural'):
                 continue
             address = audit.get('address')
@@ -449,11 +515,27 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
             source = audit.get('source')
             record_bounds = audit.get('bounds')
             verdict = audit.get('verdict')
-            if (not isinstance(reference, dict) or not isinstance(source, dict)
-                    or not isinstance(record_bounds, dict)
-                    or verdict not in valid_verdicts):
+            error_record = verdict == 'not comparable' and record_bounds is None
+            if (not isinstance(reference, dict) or verdict not in valid_verdicts
+                    or (not error_record and
+                        (not isinstance(source, dict) or not isinstance(record_bounds, dict)))):
                 continue
             address_key = f'0x{int(address, 16):x}'
+            if error_record:
+                verification = audit.get('verification')
+                if (reference.get('sha256') != xbe_sha256
+                        or not audit.get('generated_at')
+                        or not isinstance(verification, dict)
+                        or any(key not in verification for key in (
+                            'boundaries', 'compiler', 'behavior',
+                            'instruction_operands', 'literal_bytes'))):
+                    continue
+                current = latest.get(address_key)
+                timestamp = audit.get('generated_at', '')
+                if current is None or current.get('generated_at', '') < timestamp:
+                    audit['artifact'] = os.path.relpath(audit_path, root_dir).replace(os.sep, '/')
+                    latest[address_key] = audit
+                continue
             start = f'0x{int(record_bounds.get("start"), 16):x}'
             end = f'0x{int(record_bounds.get("end"), 16):x}'
             reference_start = f'0x{int(reference.get("start"), 16):x}'
@@ -493,7 +575,7 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
         current = latest.get(address_key)
         timestamp = audit.get('generated_at', '')
         if current is None or current.get('generated_at', '') < timestamp:
-            audit['artifact'] = os.path.relpath(audit_path, root_dir)
+            audit['artifact'] = os.path.relpath(audit_path, root_dir).replace(os.sep, '/')
             latest[address_key] = audit
     return latest
 
@@ -528,8 +610,12 @@ def _raw_xbe_structural_totals(audits: dict) -> dict:
     aligned_compared = sum(item.get('compared_bytes', 0) or 0 for item in aligned)
     aligned_uncertain = sum(item.get('uncertain_relocation_bytes', 0) or 0
                             for item in aligned)
+    aligned_mismatched = sum(item.get('mismatched_relocations', 0) or 0
+                             for item in aligned)
+    aligned_mismatched_bytes = sum(item.get('mismatched_relocation_bytes', 0) or 0
+                                   for item in aligned)
     return {
-        'schema_version': 1,
+        'schema_version': 2,
         'lane': 'raw_xbe_structural',
         'totals': totals,
         'audited_functions': sum(v['functions'] for v in totals.values()),
@@ -542,12 +628,101 @@ def _raw_xbe_structural_totals(audits: dict) -> dict:
         'aligned_matching_bytes': aligned_matching,
         'aligned_compared_bytes': aligned_compared,
         'aligned_uncertain_bytes': aligned_uncertain,
+        'aligned_mismatched_relocations': aligned_mismatched,
+        'aligned_mismatched_relocation_bytes': aligned_mismatched_bytes,
         'aligned_byte_accuracy_lower': (aligned_matching / aligned_compared
                                         if aligned_compared else None),
         'aligned_byte_accuracy_upper': ((aligned_matching + aligned_uncertain) /
                                         aligned_compared if aligned_compared else None),
         'aligned_provisional_functions': sum(
             1 for item in aligned if item.get('accuracy_is_provisional')),
+    }
+
+
+def _raw_xbe_structural_dashboard_totals(units: list[dict]) -> dict:
+    """Scope structural byte totals to implemented game functions.
+
+    Raw audit artifacts can outlive a port or belong to synthetic platform
+    units. The dashboard population is therefore derived from the current
+    function records: ported functions in non-synthetic units only. A function
+    with no audit is unchecked; an attempted audit without scored aligned bytes
+    is counted as unable to compare.
+    """
+    functions = [
+        function
+        for unit in units
+        if not unit.get('synthetic')
+        for function in unit.get('functions', [])
+        if function.get('ported')
+    ]
+    totals = {}
+    compared = []
+    cannot_compare = 0
+    unchecked = 0
+    for function in functions:
+        verdict = function.get('raw_xbe_structural_verdict')
+        if verdict:
+            entry = totals.setdefault(verdict, {'functions': 0, 'original_bytes': 0})
+            entry['functions'] += 1
+            entry['original_bytes'] += function.get('raw_xbe_structural_reference_length') or 0
+        aligned_status = function.get('raw_xbe_aligned_status')
+        compared_bytes = function.get('raw_xbe_aligned_compared_bytes') or 0
+        if aligned_status == 'scored' and compared_bytes > 0:
+            compared.append(function)
+        elif verdict:
+            cannot_compare += 1
+        else:
+            unchecked += 1
+
+    matching = sum(function.get('raw_xbe_aligned_matching_bytes') or 0
+                   for function in compared)
+    compared_bytes = sum(function.get('raw_xbe_aligned_compared_bytes') or 0
+                         for function in compared)
+    uncertain = sum(function.get('raw_xbe_aligned_uncertain_bytes') or 0
+                    for function in compared)
+    exact = totals.get('structural exact', {'functions': 0})['functions']
+    structural_comparable = (exact +
+                             totals.get('structural differ', {'functions': 0})['functions'])
+    non_relocation_matching = sum(
+        function.get('raw_xbe_structural_matching_non_relocation_bytes') or 0
+        for function in functions if function.get('raw_xbe_structural_verdict') in
+        ('structural exact', 'structural differ'))
+    non_relocation_bytes = sum(
+        function.get('raw_xbe_structural_non_relocation_bytes') or 0
+        for function in functions if function.get('raw_xbe_structural_verdict') in
+        ('structural exact', 'structural differ'))
+    return {
+        'schema_version': 2,
+        'lane': 'raw_xbe_structural',
+        'population_scope': 'implemented game functions',
+        'implemented_functions': len(functions),
+        'compared_functions': len(compared),
+        'cannot_compare_functions': cannot_compare,
+        'unchecked_functions': unchecked,
+        'totals': totals,
+        'audited_functions': sum(entry['functions'] for entry in totals.values()),
+        'function_exact_rate': (exact / structural_comparable
+                                if structural_comparable else None),
+        'matching_non_relocation_bytes': non_relocation_matching,
+        'non_relocation_bytes': non_relocation_bytes,
+        'byte_accuracy': (non_relocation_matching / non_relocation_bytes
+                          if non_relocation_bytes else None),
+        'aligned_scored_functions': len(compared),
+        'aligned_matching_bytes': matching,
+        'aligned_compared_bytes': compared_bytes,
+        'aligned_uncertain_bytes': uncertain,
+        'aligned_mismatched_relocations': sum(
+            function.get('raw_xbe_aligned_mismatched_relocations') or 0
+            for function in compared),
+        'aligned_mismatched_relocation_bytes': sum(
+            function.get('raw_xbe_aligned_mismatched_relocation_bytes') or 0
+            for function in compared),
+        'aligned_byte_accuracy_lower': (matching / compared_bytes
+                                        if compared_bytes else None),
+        'aligned_byte_accuracy_upper': ((matching + uncertain) / compared_bytes
+                                       if compared_bytes else None),
+        'aligned_provisional_functions': sum(
+            1 for function in compared if function.get('raw_xbe_aligned_provisional')),
     }
 
 
@@ -786,6 +961,14 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
             equiv_reason = ev.get('reason') if ev else None
             equiv_divergence = ev.get('divergence_summary') if ev else None
             equiv_log_path = ev.get('log_path') if ev else None
+            equiv_passed = ev.get('passed') if ev else None
+            equiv_failed = ev.get('failed') if ev else None
+            equiv_errors = ev.get('errors') if ev else None
+            equiv_seeds = ev.get('seeds') if ev else None
+            equiv_artifact = ev.get('artifact') if ev else None
+            equiv_targeted_cases = ev.get('targeted_cases', []) if ev else []
+            equiv_targeted_case_count = ev.get('targeted_case_count', 0) if ev else 0
+            equiv_targeted_case_passed = ev.get('targeted_case_passed', 0) if ev else 0
             # When a verdict exists, its confidence/coverage are paired with the
             # status (same run) and are more accurate than the leaf_cache snapshot,
             # so prefer them for the verified-gating decision and the display.
@@ -851,6 +1034,8 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                                    if structural_audit else None)
             aligned_audit = (structural_audit.get('aligned_byte_match', {})
                              if structural_audit else {})
+            structural_verification = (structural_audit.get('verification', {})
+                                       if structural_audit else {})
 
             func_entry = {
                 'address': addr_hex,
@@ -869,6 +1054,14 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'equiv_reason': equiv_reason,
                 'equiv_divergence': equiv_divergence,
                 'equiv_log_path': equiv_log_path,
+                'equiv_passed': equiv_passed,
+                'equiv_failed': equiv_failed,
+                'equiv_errors': equiv_errors,
+                'equiv_seeds': equiv_seeds,
+                'equiv_artifact': equiv_artifact,
+                'equiv_targeted_cases': equiv_targeted_cases,
+                'equiv_targeted_case_count': equiv_targeted_case_count,
+                'equiv_targeted_case_passed': equiv_targeted_case_passed,
                 'snapshot_passed': snapshot_passed,
                 'snapshot_coverage': snapshot_coverage,
                 'snapshot_confidence': snapshot_confidence,
@@ -899,6 +1092,12 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'raw_xbe_structural_lower_bound': structural_lower_bound,
                 'raw_xbe_structural_register_argument': structural_reg_arg,
                 'raw_xbe_structural_unmasked_relocations': structural_unmasked,
+                'raw_xbe_verification': structural_verification,
+                'raw_xbe_verification_boundaries': structural_verification.get('boundaries'),
+                'raw_xbe_verification_compiler': structural_verification.get('compiler'),
+                'raw_xbe_verification_behavior': structural_verification.get('behavior'),
+                'raw_xbe_verification_instruction_operands': structural_verification.get('instruction_operands'),
+                'raw_xbe_verification_literal_bytes': structural_verification.get('literal_bytes'),
                 'raw_xbe_aligned_status': aligned_audit.get('status'),
                 'raw_xbe_aligned_method': aligned_audit.get('method'),
                 'raw_xbe_aligned_lower': aligned_audit.get('byte_accuracy'),
@@ -907,6 +1106,9 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'raw_xbe_aligned_compared_bytes': aligned_audit.get('compared_bytes'),
                 'raw_xbe_aligned_stable_bytes': aligned_audit.get('stable_compared_bytes'),
                 'raw_xbe_aligned_uncertain_bytes': aligned_audit.get('uncertain_relocation_bytes'),
+                'raw_xbe_aligned_uncertain_relocations': aligned_audit.get('uncertain_relocations'),
+                'raw_xbe_aligned_mismatched_relocations': aligned_audit.get('mismatched_relocations'),
+                'raw_xbe_aligned_mismatched_relocation_bytes': aligned_audit.get('mismatched_relocation_bytes'),
                 'raw_xbe_aligned_exact_instructions': aligned_audit.get('normalized_exact_instructions'),
                 'raw_xbe_aligned_instruction_pairs': aligned_audit.get('aligned_instruction_pairs'),
                 'raw_xbe_aligned_candidate_only': aligned_audit.get('candidate_only_instructions'),
@@ -1006,6 +1208,10 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
         aligned_matching = sum(f['raw_xbe_aligned_matching_bytes'] or 0 for f in aligned_functions)
         aligned_compared = sum(f['raw_xbe_aligned_compared_bytes'] or 0 for f in aligned_functions)
         aligned_uncertain = sum(f['raw_xbe_aligned_uncertain_bytes'] or 0 for f in aligned_functions)
+        aligned_mismatched = sum(f['raw_xbe_aligned_mismatched_relocations'] or 0
+                                 for f in aligned_functions)
+        aligned_mismatched_bytes = sum(f['raw_xbe_aligned_mismatched_relocation_bytes'] or 0
+                                       for f in aligned_functions)
         structural_summary = {
             'totals': structural_totals,
             'audited_functions': sum(v['functions'] for v in structural_totals.values()),
@@ -1019,6 +1225,8 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
             'aligned_matching_bytes': aligned_matching,
             'aligned_compared_bytes': aligned_compared,
             'aligned_uncertain_bytes': aligned_uncertain,
+            'aligned_mismatched_relocations': aligned_mismatched,
+            'aligned_mismatched_relocation_bytes': aligned_mismatched_bytes,
             'aligned_byte_accuracy_lower': (aligned_matching / aligned_compared
                                             if aligned_compared else None),
             'aligned_byte_accuracy_upper': ((aligned_matching + aligned_uncertain) /
@@ -1259,6 +1467,10 @@ def generate_report(output_path: str) -> dict:
         raw_byte_audits=raw_byte_audits,
         raw_xbe_structural_audits=raw_xbe_structural_audits,
     )
+    # Re-scope raw structural totals to current implemented game functions.
+    # Artifact discovery alone can include stale, non-ported, or platform-unit
+    # records, which must not inflate the dashboard's byte-comparison population.
+    raw_xbe_structural_summary = _raw_xbe_structural_dashboard_totals(units)
     
     # Compute overall stats
     progress_units = [u for u in units if not u.get('synthetic')]
@@ -1361,8 +1573,7 @@ def generate_report(output_path: str) -> dict:
     
     # Write output
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
-    with open(output_path, 'w') as f:
-        json.dump(report, f, indent=2)
+    write_json_atomic(output_path, report, indent=2)
     
     return report
 
@@ -2232,7 +2443,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
         // (high/moderate confidence) or a Z3 proof. Coverage/confidence ALONE is
         // not a verdict — a divergent function can have confidence=high.
         function equivVerified(f) {
-            if (f.equiv_proven) return true;
+            if (f.equiv_proven && f.equiv_status === 'pass') return true;
             if (f.equiv_status === 'pass' &&
                 (f.equiv_confidence === 'high' || f.equiv_confidence === 'moderate')) return true;
             return false;
@@ -2326,24 +2537,46 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             // in there, so the summary shows one byte-accuracy number, not two.
             var rawCard = '';
             var structuralAudit = s.raw_xbe_structural || {};
-            var structuralTotals = structuralAudit.totals || {};
-            var structuralExact = structuralTotals['structural exact'] || {functions: 0};
-            var structuralDiffers = structuralTotals['structural differ'] || {functions: 0};
-            var structuralNc = structuralTotals['not comparable'] || {functions: 0};
             var alignedLower = structuralAudit.aligned_byte_accuracy_lower;
-            var alignedUpper = structuralAudit.aligned_byte_accuracy_upper;
-            var alignedSummary = alignedLower == null ? 'not populated' :
-                ((alignedLower * 100).toFixed(1) + (alignedUpper != null && alignedUpper !== alignedLower ? '\u2013' + (alignedUpper * 100).toFixed(1) : '') + '%');
-            var structuralCard = structuralAudit.audited_functions ?
-                '<div class="card" title="Bytes that match after lining up instructions. Exact: ' +
-                    fmtNum(structuralExact.functions) + '. Partial: ' + fmtNum(structuralDiffers.functions) +
-                    '. Unavailable: ' + fmtNum(structuralNc.functions) + '. Strict byte matches: ' +
-                    fmtNum(rawExact.functions) + '. A range means some address bytes are unknown.">' +
-                    '<div class="stat-label">Aligned byte match</div>' +
-                    '<div class="stat-value" style="color:#58a6ff">' + alignedSummary + '</div>' +
-                    '<div class="stat-label">' + fmtNum(structuralAudit.aligned_matching_bytes || 0) + ' / ' +
-                    fmtNum(structuralAudit.aligned_compared_bytes || 0) + ' bytes &middot; ' +
-                    fmtNum(structuralAudit.aligned_scored_functions || 0) + ' functions</div>' +
+            var alignedMatching = structuralAudit.aligned_matching_bytes || 0;
+            var alignedCompared = structuralAudit.aligned_compared_bytes || 0;
+            var alignedUncertain = structuralAudit.aligned_uncertain_bytes || 0;
+            var alignedDifferent = Math.max(alignedCompared - alignedMatching - alignedUncertain, 0);
+            var alignedImplemented = structuralAudit.implemented_functions;
+            if (alignedImplemented == null) alignedImplemented = structuralAudit.audited_functions || 0;
+            var alignedComparedFunctions = structuralAudit.compared_functions;
+            if (alignedComparedFunctions == null) alignedComparedFunctions = structuralAudit.aligned_scored_functions || 0;
+            var alignedCannotCompare = structuralAudit.cannot_compare_functions || 0;
+            var alignedUnchecked = structuralAudit.unchecked_functions;
+            if (alignedUnchecked == null) {
+                alignedUnchecked = Math.max(alignedImplemented - alignedComparedFunctions - alignedCannotCompare, 0);
+            }
+            var alignedScope = fmtNum(alignedComparedFunctions) + ' of ' +
+                fmtNum(alignedImplemented) + ' implemented functions compared';
+            var alignedCoverage = fmtNum(alignedCannotCompare) + ' cannot compare &middot; ' +
+                fmtNum(alignedUnchecked) + ' unchecked';
+            var structuralTip = 'Instructions are lined up before bytes are compared.\\n' +
+                'Uncertain bytes have unresolved address targets.\\n' +
+                'Behavior is checked separately.';
+            var structuralHeadline = alignedCompared > 0 && alignedLower != null ?
+                (alignedLower * 100).toFixed(1) + '% match' : 'No comparison yet';
+            var structuralBar = '';
+            if (alignedCompared > 0) {
+                structuralBar = '<div class="progress-bar" style="display:flex" aria-label="Byte comparison breakdown">' +
+                    '<div style="width:' + (alignedMatching / alignedCompared * 100) + '%;background:#3fb950" title="Matching bytes"></div>' +
+                    '<div style="width:' + (alignedDifferent / alignedCompared * 100) + '%;background:#d29922" title="Different bytes"></div>' +
+                    '<div style="width:' + (alignedUncertain / alignedCompared * 100) + '%;background:#8b949e" title="Uncertain bytes"></div>' +
+                '</div>';
+            }
+            var structuralCard = (structuralAudit.implemented_functions != null || structuralAudit.audited_functions) ?
+                '<div class="card" title="' + escHtml(structuralTip) + '">' +
+                    '<div class="stat-label">Byte comparison</div>' +
+                    '<div class="stat-value" style="color:#58a6ff">' + structuralHeadline + '</div>' +
+                    '<div class="stat-label">' + alignedScope + '</div>' +
+                    '<div class="stat-label">' + alignedCoverage + '</div>' +
+                    '<div class="stat-label">' + fmtNum(alignedMatching) + ' matching &middot; ' +
+                    fmtNum(alignedDifferent) + ' different &middot; ' + fmtNum(alignedUncertain) + ' uncertain</div>' +
+                    structuralBar +
                 '</div>' : '';
 
             document.getElementById('summary-cards').innerHTML =
@@ -3502,14 +3735,28 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     var rangeText = (lower * 100).toFixed(1) +
                         (upper !== lower ? '\u2013' + (upper * 100).toFixed(1) : '') + '%';
                     byteTip = 'Aligned byte match: ' + rangeText + '\\n' +
-                        f.raw_xbe_aligned_matching_bytes + ' / ' + f.raw_xbe_aligned_compared_bytes +
-                        ' bytes match.\\n' +
-                        f.raw_xbe_aligned_exact_instructions + ' / ' +
-                        f.raw_xbe_aligned_instruction_pairs + ' aligned instructions match exactly.\\n' +
-                        'Extra instructions, ours / original: ' + (f.raw_xbe_aligned_candidate_only || 0) +
-                        ' / ' + (f.raw_xbe_aligned_reference_only || 0) + '.';
+                         f.raw_xbe_aligned_matching_bytes + ' / ' + f.raw_xbe_aligned_compared_bytes +
+                         ' bytes match.\\n' +
+                         f.raw_xbe_aligned_exact_instructions + ' / ' +
+                         f.raw_xbe_aligned_instruction_pairs + ' aligned instructions match exactly.\\n' +
+                         'Extra instructions, ours / original: ' + (f.raw_xbe_aligned_candidate_only || 0) +
+                         ' / ' + (f.raw_xbe_aligned_reference_only || 0) + '.';
+                    var verification = f.raw_xbe_verification || {};
+                    var boundaries = verification.boundaries || {};
+                    var compiler = verification.compiler || {};
+                    var operands = verification.instruction_operands || {};
+                    var literalBytes = verification.literal_bytes || {};
+                    byteTip += '\\nBoundaries: ' + (boundaries.status || 'unverified') +
+                        '; compiler: ' + (compiler.status || 'unverified') +
+                        '; encoding: ' + (operands.status || 'unverified') +
+                        '; literal bytes: ' + (literalBytes.status || 'unverified') + '.';
+                    byteTip += '\\nKnown wrong relocation targets: ' +
+                        (f.raw_xbe_aligned_mismatched_relocations || 0) +
+                        ' (' + (f.raw_xbe_aligned_mismatched_relocation_bytes || 0) + ' bytes).';
                     if (f.raw_xbe_aligned_uncertain_bytes) {
-                        byteTip += '\\nUnknown address bytes: ' + f.raw_xbe_aligned_uncertain_bytes + '.';
+                        byteTip += '\\nUnknown relocation targets: ' +
+                            (f.raw_xbe_aligned_uncertain_relocations || 0) +
+                            ' (' + f.raw_xbe_aligned_uncertain_bytes + ' bytes); these remain uncertain.';
                     }
                     if (f.raw_xbe_aligned_provisional) {
                         byteTip += '\\n? means some address bytes could not be matched safely.';
@@ -3548,7 +3795,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 } else if (isVerified(f)) {
                     var reasons = [];
                     var reasonTips = [];
-                    if (f.equiv_proven) {
+                    if (f.equiv_proven && f.equiv_status === 'pass') {
                         reasons.push('Z3-proven');
                         reasonTips.push('Proved equivalent');
                     } else if (f.equiv_status === 'pass') {
@@ -3563,7 +3810,27 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                         reasons.push('Snap');
                         reasonTips.push('Passed snapshot comparison');
                     }
-                    vStatus = '<span class="func-status ported" title="' + escHtml(reasonTips.join('. ')) + '">✓ ' + reasons[0] + '</span>';
+                    var equivCounts = '';
+                    if (f.equiv_status === 'pass' && f.equiv_passed !== null &&
+                        f.equiv_passed !== undefined && f.equiv_seeds !== null &&
+                        f.equiv_seeds !== undefined) {
+                        equivCounts = ' ' + f.equiv_passed + '/' + f.equiv_seeds + ' passed';
+                    }
+                    var targetedCases = f.equiv_targeted_case_passed || 0;
+                    var targetedLabel = targetedCases > 0 ?
+                        ' · ' + targetedCases + ' targeted cases agree' : '';
+                    vStatus = '<span class="func-status ported" title="' +
+                        escHtml(reasonTips.join('. ')) + '">✓ ' + reasons[0] +
+                        equivCounts + targetedLabel + '</span>';
+                } else if (f.equiv_status === 'inconclusive') {
+                    var inconclusiveReason = f.equiv_reason ||
+                        'The behavioral run did not establish a verdict.';
+                    var inconclusiveCases = f.equiv_targeted_case_passed || 0;
+                    var inconclusiveLabel = inconclusiveCases > 0 ?
+                        ' · ' + inconclusiveCases + ' targeted cases agree' : '';
+                    vStatus = '<span class="func-status unported" title="' +
+                        escHtml(inconclusiveReason) + '">⚠ Inconclusive' +
+                        inconclusiveLabel + '</span>';
                 } else if (f.ported) {
                     vStatus = '<span class="func-status unported" title="No behavioral check has passed yet.">pending</span>';
                 }
@@ -3853,8 +4120,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                    .replace('__HISTORY_JSON__', history_json)\
                    .replace('__CI_SUMMARY_JSON__', ci_summary_json)
 
-    with open(output_path, 'w') as f:
-        f.write(html)
+    write_text_atomic(output_path, html)
 
 
 def update_readme_progress(report: dict, readme_path: str = 'README.md') -> bool:

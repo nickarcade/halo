@@ -2,6 +2,9 @@
 """Synthetic soundness tests for the raw-XBE structural lane."""
 
 import importlib.util
+import argparse
+import contextlib
+import io
 import struct
 import tempfile
 import pathlib
@@ -40,26 +43,31 @@ class TestStructuralComparison(unittest.TestCase):
         result = raw.compare(candidate, [relocation(1)], reference, 0x1000)
         self.assertEqual(result["verdict"], "structural exact")
 
-    def test_target_identity_is_optional_evidence(self):
+    def test_known_wrong_addend_is_structural_differ(self):
         reference = b"\xe8\x1b\x00\x00\x00\xc3"
         candidate = b"\xe8\x11\x00\x00\x00\xc3"
         result = raw.compare(candidate, [relocation(1, symbol="FUN_00001020")], reference, 0x1000)
-        self.assertEqual(result["verdict"], "structural exact")
-        self.assertEqual(result["identity_evidence"]["status"], "unresolved")
-        self.assertFalse(result["identity_evidence"]["required_for_structural_match"])
+        self.assertEqual(result["verdict"], "structural differ")
+        self.assertEqual(result["identity_evidence"]["status"], "mismatch")
+        self.assertTrue(result["identity_evidence"]["required_for_structural_match"])
+        self.assertEqual(result["aligned_byte_match"]["mismatched_relocation_bytes"], 4)
+        self.assertEqual(result["aligned_byte_match"]["byte_accuracy"],
+                         result["aligned_byte_match"]["byte_accuracy_upper_bound"])
 
-    def test_injected_identity_mismatch_does_not_change_structural_verdict(self):
+    def test_injected_identity_mismatch_is_structural_differ(self):
         reference = b"\xe8\x1b\x00\x00\x00\xc3"
         candidate = b"\xe8\x10\x00\x00\x00\xc3"
         result = raw.compare(candidate, [relocation(1)], reference, 0x1000,
                              {0x1020: {"logical_target": 0x9999}})
-        self.assertEqual(result["verdict"], "structural exact")
-        self.assertEqual(result["identity_evidence"]["status"], "unresolved")
+        self.assertEqual(result["verdict"], "structural differ")
+        self.assertEqual(result["identity_evidence"]["status"], "mismatch")
+        self.assertEqual(result["aligned_byte_match"]["mismatched_relocations"], 1)
 
     def test_metrics_report_only_unmasked_byte_accuracy(self):
         reference = b"\x90\xe8\x1b\x00\x00\x00\xc3"
         candidate = b"\x90\xe8\xaa\xbb\xcc\xdd\xc3"
-        result = raw.compare(candidate, [relocation(2)], reference, 0x1000)
+        result = raw.compare(candidate, [relocation(2)], reference, 0x1000,
+                             resolved(0x1021))
         self.assertEqual(result["matching_non_relocation_bytes"], 3)
         self.assertEqual(result["byte_counts"]["relocation_operand"], 4)
         self.assertEqual(result["byte_counts"]["non_relocation"], 3)
@@ -80,7 +88,8 @@ class TestStructuralComparison(unittest.TestCase):
     def test_relocation_location_mismatch_is_not_exact(self):
         reference = b"\x90\xe8\x1b\x00\x00\x00\xc3"
         candidate = b"\x90\x90\xe8\xaa\xbb\xcc\xdd\xc3"
-        result = raw.compare(candidate, [relocation(3)], reference, 0x1000, resolved())
+        result = raw.compare(candidate, [relocation(3)], reference, 0x1000,
+                             resolved(0x1007))
         self.assertNotEqual(result["verdict"], "structural exact")
         self.assertEqual(result["byte_counts"]["relocation_operand"], 0)
         self.assertTrue(result["accuracy_is_lower_bound"])
@@ -116,7 +125,8 @@ class TestStructuralComparison(unittest.TestCase):
         # opcode whitelist simply did not list it.
         reference = b"\x90\x0f\x80\x00\x00\x00\x00\xc3"
         candidate = b"\x90\x0f\x80\xaa\xbb\xcc\xdd\xc3"
-        result = raw.compare(candidate, [relocation(3)], reference, 0x1000, resolved())
+        result = raw.compare(candidate, [relocation(3)], reference, 0x1000,
+                             resolved(0x1007))
         self.assertEqual(result["verdict"], "structural exact")
         self.assertEqual(result["byte_counts"]["relocation_operand"], 4)
 
@@ -230,6 +240,48 @@ class TestStructuralComparison(unittest.TestCase):
         self.assertAlmostEqual(aligned["byte_accuracy"], 2 / 7)
         self.assertAlmostEqual(aligned["byte_accuracy_upper_bound"], 6 / 7)
 
+    def test_wrong_function_target_counts_four_fixed_mismatch_bytes(self):
+        reference = b"\xe8\x1b\x00\x00\x00\xc3"
+        candidate = b"\xe8\x00\x00\x00\x00\xc3"
+        result = raw.compare(candidate, [relocation(1, symbol="FUN_00001030")],
+                             reference, 0x1000)
+        aligned = result["aligned_byte_match"]
+        self.assertEqual(result["verdict"], "structural differ")
+        self.assertEqual(aligned["mismatched_relocations"], 1)
+        self.assertEqual(aligned["mismatched_relocation_bytes"], 4)
+        self.assertEqual(aligned["uncertain_relocation_bytes"], 0)
+        self.assertEqual(aligned["byte_accuracy"], aligned["byte_accuracy_upper_bound"])
+        self.assertAlmostEqual(aligned["byte_accuracy"], 2 / 6)
+        self.assertEqual(aligned["normalized_exact_instructions"], 1)
+
+    def test_wrong_global_target_counts_four_fixed_mismatch_bytes(self):
+        reference = b"\xa1\x20\x10\x00\x00\xc3"
+        candidate = b"\xa1\x00\x00\x00\x00\xc3"
+        result = raw.compare(
+            candidate, [relocation(1, raw.IMAGE_REL_I386_DIR32, "FUN_00001024")],
+            reference, 0x1000)
+        aligned = result["aligned_byte_match"]
+        self.assertEqual(result["verdict"], "structural differ")
+        self.assertEqual(aligned["mismatched_relocation_bytes"], 4)
+        self.assertEqual(aligned["uncertain_relocation_bytes"], 0)
+        self.assertAlmostEqual(aligned["byte_accuracy"], 2 / 6)
+
+    def test_mixed_known_and_unknown_targets_are_not_comparable(self):
+        reference = b"\xe8\x1b\x00\x00\x00\xe8\x16\x00\x00\x00\xc3"
+        candidate = b"\xe8\x00\x00\x00\x00\xe8\x00\x00\x00\x00\xc3"
+        result = raw.compare(candidate, [
+            relocation(1, symbol="FUN_00001020"),
+            relocation(6, symbol="unknown_target"),
+        ], reference, 0x1000)
+        aligned = result["aligned_byte_match"]
+        self.assertEqual(result["verdict"], "not comparable")
+        self.assertEqual(result["identity_evidence"]["status"], "partial")
+        self.assertEqual(aligned["resolved_relocations"], 1)
+        self.assertEqual(aligned["unresolved_relocations"], 1)
+        self.assertEqual(aligned["uncertain_relocation_bytes"], 4)
+        self.assertEqual(aligned["mismatched_relocation_bytes"], 0)
+        self.assertEqual(aligned["normalized_exact_instructions"], 2)
+
     def test_exact_ordinary_bytes_with_unknown_relocation_report_range(self):
         reference = b"\xe8\x1b\x00\x00\x00\xc3"
         candidate = b"\xe8\x00\x00\x00\x00\xc3"
@@ -260,7 +312,7 @@ class TestStructuralComparison(unittest.TestCase):
 
     def test_summary_reports_function_and_byte_weighted_metrics(self):
         records = [{
-            "schema_version": 1, "lane": "raw_xbe_structural", "verdict": "structural exact",
+            "schema_version": 2, "lane": "raw_xbe_structural", "verdict": "structural exact",
             "address": "0x00001000", "function": "exact",
             "reference": {"length": 8}, "matching_non_relocation_bytes": 4,
             "byte_counts": {"non_relocation": 4, "relocation_operand": 4},
@@ -269,7 +321,7 @@ class TestStructuralComparison(unittest.TestCase):
                 "uncertain_relocation_bytes": 2, "accuracy_is_provisional": False,
             },
         }, {
-            "schema_version": 1, "lane": "raw_xbe_structural", "verdict": "structural differ",
+            "schema_version": 2, "lane": "raw_xbe_structural", "verdict": "structural differ",
             "address": "0x00001008", "function": "differ",
             "reference": {"length": 4}, "matching_non_relocation_bytes": 2,
             "byte_counts": {"non_relocation": 4, "relocation_operand": 0},
@@ -290,7 +342,7 @@ class TestStructuralComparison(unittest.TestCase):
         finally:
             raw.xref.function_extent = old_extent
             raw.xref.XBE = old_xbe
-        self.assertEqual(summary["schema_version"], 1)
+        self.assertEqual(summary["schema_version"], 2)
         self.assertEqual(summary["lane"], "raw_xbe_structural")
         self.assertEqual(summary["function_totals"]["structural_exact"], 1)
         self.assertEqual(summary["byte_totals"]["matching_bytes"], 6)
@@ -303,6 +355,90 @@ class TestStructuralComparison(unittest.TestCase):
         self.assertEqual(summary["aligned_byte_totals"]["byte_accuracy_lower"], 8 / 12)
         self.assertEqual(summary["aligned_byte_totals"]["byte_accuracy_upper"], 10 / 12)
         self.assertEqual(summary["aligned_byte_totals"]["provisional_functions"], 1)
+
+    def test_per_function_report_writes_schema2_json_and_sidecar(self):
+        record = raw._record_error(
+            {"function": "broken", "address": 0x1234}, "candidate extraction failed")
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "broken.json"
+            raw._write_record(record, output)
+            self.assertTrue(output.is_file())
+            self.assertTrue(output.with_suffix(".md").is_file())
+            payload = __import__("json").loads(output.read_text(encoding="utf-8"))
+            sidecar = output.with_suffix(".md").read_text(encoding="utf-8")
+        self.assertEqual(payload["schema_version"], 2)
+        self.assertEqual(payload["verdict"], "not comparable")
+        self.assertEqual(payload["verification"]["behavior"]["status"], "untested")
+        self.assertIn("Compiler and settings", sidecar)
+        self.assertIn("Behavior tests in this audit", sidecar)
+
+    def test_error_report_has_provenance_and_all_verification_axes(self):
+        record = raw._record_error(
+            {"function": "supplied", "address": 0x1234}, "bad object",
+            compiler="supplied object; compiler unavailable")
+        self.assertEqual(record["schema_version"], 2)
+        self.assertEqual(record["tool"]["compiler"],
+                         "supplied object; compiler unavailable")
+        self.assertTrue(record["generated_at"])
+        self.assertEqual(set(record["verification"]), {
+            "boundaries", "compiler", "behavior", "instruction_operands", "literal_bytes"})
+        self.assertEqual(record["verification"]["boundaries"]["status"], "uncertain")
+        self.assertEqual(record["verification"]["instruction_operands"]["status"], "unverified")
+        self.assertEqual(record["verification"]["literal_bytes"]["detail"],
+                         "literal comparison was not performed")
+
+    def test_single_failure_replaces_stale_success_for_header_and_compile(self):
+        old_regen = raw.vc71.regen_decl_header
+        old_compile = raw.vc71.compile_vc71
+        try:
+            for failure in ("header", "compile"):
+                with tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    source = root / "candidate.c"
+                    source.write_text("/* candidate */", encoding="utf-8")
+                    output = root / "result.json"
+                    output.write_text(__import__("json").dumps({
+                        "schema_version": 2, "verdict": "structural exact",
+                    }), encoding="utf-8")
+                    if failure == "header":
+                        raw.vc71.regen_decl_header = lambda quiet=True: False
+                        raw.vc71.compile_vc71 = lambda source, output: True
+                    else:
+                        raw.vc71.regen_decl_header = lambda quiet=True: True
+                        raw.vc71.compile_vc71 = lambda source, output: False
+                    args = argparse.Namespace(
+                        candidate=None, output=output, function="candidate",
+                        address=0x1234, source=source)
+                    status = raw._run_single(args)
+                    payload = __import__("json").loads(
+                        output.read_text(encoding="utf-8"))
+                    self.assertEqual(status, 2)
+                    self.assertEqual(payload["schema_version"], 2)
+                    self.assertEqual(payload["verdict"], "not comparable")
+                    self.assertIn("failed", payload["reason"])
+                    self.assertTrue(output.with_suffix(".md").is_file())
+        finally:
+            raw.vc71.regen_decl_header = old_regen
+            raw.vc71.compile_vc71 = old_compile
+
+    def test_show_rejects_schema1_summary(self):
+        old_root = raw.ROOT
+        try:
+            with tempfile.TemporaryDirectory() as temp:
+                raw.ROOT = Path(temp)
+                output = raw.ROOT / "artifacts" / "raw_xbe_structural" / "summary.json"
+                output.parent.mkdir(parents=True)
+                output.write_text(__import__("json").dumps({
+                    "schema_version": 1, "lane": "raw_xbe_structural",
+                    "totals": {},
+                }), encoding="utf-8")
+                captured = io.StringIO()
+                with contextlib.redirect_stdout(captured):
+                    status = raw.main(["show"])
+        finally:
+            raw.ROOT = old_root
+        self.assertEqual(status, 2)
+        self.assertIn("stale", captured.getvalue())
 
     def test_coff_relocation_parse_preserves_type_and_symbol(self):
         code = b"\xe8\x00\x00\x00\x00\xc3"
@@ -324,6 +460,42 @@ class TestStructuralComparison(unittest.TestCase):
         self.assertEqual(parsed, code)
         self.assertEqual(relocs[0]["type_name"], "REL32")
         self.assertEqual(relocs[0]["symbol"]["name"], "target")
+
+    def test_populate_selection_covers_canonical_ported_functions(self):
+        import json
+        kb = json.loads((raw.ROOT / "kb.json").read_text(encoding="utf-8"))
+        expected = {int(entry["addr"], 0)
+                    for obj in kb.get("objects", [])
+                    for entry in obj.get("functions", [])
+                    if entry.get("ported") is True and entry.get("addr")}
+        items = raw._eligible_functions()
+        self.assertEqual({item["address"] for item in items}, expected)
+        missing = [item for item in items if item.get("source") is None]
+        self.assertLessEqual(len(missing), 1)
+        if missing:
+            self.assertEqual(missing[0]["function"],
+                             "_rasterizer_environment_diffuse_textures_end")
+            self.assertIn("source file is missing", missing[0]["selection_reason"])
+
+    def test_summary_reports_planned_tus_and_missing_source_count(self):
+        old_root = raw.ROOT
+        try:
+            with tempfile.TemporaryDirectory() as temp:
+                raw.ROOT = Path(temp)
+                eligible = [
+                    {"function": "backed", "address": 0x1000,
+                     "source": Path(temp) / "backed.c"},
+                    {"function": "missing", "address": 0x1004,
+                     "source": None},
+                ]
+                records = [raw._record_error(eligible[1], "ported function has no source path")]
+                summary = raw._write_summary(records, ["populate"], 1, 0, eligible)
+        finally:
+            raw.ROOT = old_root
+        self.assertEqual(summary["planned_tu_count"], 1)
+        self.assertEqual(summary["planned_function_count"], 2)
+        self.assertEqual(summary["missing_source_count"], 1)
+        self.assertEqual(summary["audited_function_count"], 1)
 
 
 if __name__ == "__main__":

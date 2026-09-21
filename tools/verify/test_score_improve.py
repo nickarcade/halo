@@ -2,6 +2,7 @@
 """Unit tests for tools/verify/score_improve.py."""
 
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -38,6 +39,24 @@ class TestClassifyContext(unittest.TestCase):
 
     def test_classifies_clean_context_as_codegen_shape(self):
         self.assertEqual(score_improve.classify_context({}), ["codegen_shape"])
+
+
+class TestParseScores(unittest.TestCase):
+    def test_parses_current_and_legacy_status_lines(self):
+        output = (
+            "  PASS current: 98.2% match (167/165 insns) | "
+            "opnd 97.6% (operand-normalized)\n"
+            "  FAIL legacy: 49.5% mnemonic match (100/102 insns)\n"
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            scores = score_improve._parse_scores(output, Path(temp))
+
+        self.assertEqual(scores["current"]["score"], 98.2)
+        self.assertEqual(scores["current"]["operand_score"], 97.6)
+        self.assertEqual(scores["current"]["candidate_instructions"], 167)
+        self.assertEqual(scores["current"]["reference_instructions"], 165)
+        self.assertEqual(scores["legacy"]["score"], 49.5)
+        self.assertIsNone(scores["legacy"]["operand_score"])
 
 
 class TestCompare(unittest.TestCase):

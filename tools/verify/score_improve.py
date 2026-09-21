@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _SCORE_RE = re.compile(
-    r"(?:PASS|FAIL)\s+(\S+):\s+([\d.]+)%\s+mnemonic\s+match\s+"
+    r"(?:PASS|FAIL)\s+(\S+):\s+([\d.]+)%\s+(?:mnemonic\s+)?match\s+"
     r"\((\d+)/(\d+)\s+insns\)"
     r"(?:.*?\|\s+opnd\s+([\d.]+)%\s+\(operand-normalized\))?"
 )
