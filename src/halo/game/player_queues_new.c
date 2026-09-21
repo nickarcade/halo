@@ -529,7 +529,7 @@ int update_client_get_maximum_possible_server_time(void)
  * (rejects NaN/Inf values where the exponent bits are all 1s).
  *
  * The actions pointer advances by 0x20 bytes per player slot. */
-void update_server_handle_client_update(int16_t machine_index, void *actions)
+void update_server_apply_actions(int16_t machine_index, void *actions)
 {
   int *player_list;
   int player_handle;
@@ -722,7 +722,7 @@ void update_server_next_update(void)
  * the client update globals are initialized. Copies the current 0x80-byte
  * action state from update_client_globals+0x0C (0x45b1dc) into a local
  * buffer, then applies those actions to the server queue via
- * update_server_handle_client_update(0, ...).
+ * update_server_apply_actions(0, ...).
  *
  * For each tick, creates a new server update snapshot via
  * update_server_next_update(), then retrieves the update data into a
@@ -748,7 +748,7 @@ void update_client_local_ticks(int16_t ticks)
   }
 
   csmemcpy(local_actions, (void *)0x45b1dc, 0x80);
-  update_server_handle_client_update(0, local_actions);
+  update_server_apply_actions(0, local_actions);
 
   if (ticks > 0) {
     tick_count = (uint16_t)ticks;

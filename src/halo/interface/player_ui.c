@@ -711,7 +711,7 @@ void player_ui_activate_all_solo_levels(void)
  * shares one cleanup (ADD ESP,0xc folds the iterator_new 8 and the first
  * next 4), which is the bottom-tested `while (player != NULL)` shape spelled
  * below, not a for/do-while. */
-void FUN_000e1000(wchar_t *message)
+void hud_message_to_all(wchar_t *message)
 {
   data_iter_t iter;
   char *player;
@@ -888,7 +888,7 @@ void player_ui_clear_multiplayer_joins(void)
  *
  * CALL 0x000e10c0 at 0xe14eb takes no stack arguments; EDI still holds the
  * local player index (nothing writes EDI after 0xe1498), so this is
- * FUN_000e10c0's `short local_player_index@<edi>` register argument. The
+ * set_local_player_controls_from_player_profile's `short local_player_index@<edi>` register argument. The
  * POP EDI that follows is the epilogue restore, not an argument. */
 void player_ui_set_active_player_profile(short local_player_index,
                                          int profile_index, void *profile)
@@ -903,7 +903,7 @@ void player_ui_set_active_player_profile(short local_player_index,
   *(int *)(player_ui_globals + local_player_index * 0x38 + 0x30) =
     profile_index;
   csmemcpy(player_ui_globals + local_player_index * 0x38, profile, 0x30);
-  FUN_000e10c0(local_player_index);
+  set_local_player_controls_from_player_profile(local_player_index);
 }
 
 /* player_ui_end_editing_profile (0xe1760)
@@ -941,13 +941,13 @@ void player_ui_end_editing_profile(void)
  *
  * MOV ESI,0x282b78 / CALL 0x000e1000: 0x282b78 in .rdata is the UTF-16
  * literal L"Saving..." (verified from the XBE image, not from the decompiler),
- * passed in ESI as FUN_000e1000's register argument.
+ * passed in ESI as hud_message_to_all's register argument.
  *
  * PUSH 0x46bee0 / PUSH ECX / CALL 0x001c1bc0 / ADD ESP,0x8 -- cdecl, last push
  * first, so (profile index, player_ui_globals), the same pair 0xe0fd0 passes.
  *
  * XOR EDI,EDI / CALL 0x000e10c0 is a register argument, not dead code:
- * FUN_000e10c0 never writes EDI (its prologue pushes EBP/EBX/ESI only) and
+ * set_local_player_controls_from_player_profile never writes EDI (its prologue pushes EBP/EBX/ESI only) and
  * reads it at 0xe10d4 as `CMP DI,BX` and at 0xe1199 as `MOVSX ESI,DI` before
  * indexing player_ui_globals + DI*0x38 + 0x8, and pushes it at 0xe12ae. So it
  * takes a signed 16-bit local-player index in EDI, and this call site passes
@@ -958,9 +958,9 @@ void player0_look_invert_pitch(char invert)
 {
   player_ui_globals[0x2b] = invert;
   if (*(int *)(player_ui_globals + 0x30) != -1) {
-    FUN_000e1000(L"Saving...");
+    hud_message_to_all(L"Saving...");
     player_profile_get_from_path(*(int *)(player_ui_globals + 0x30),
                                  player_ui_globals);
   }
-  FUN_000e10c0(0);
+  set_local_player_controls_from_player_profile(0);
 }

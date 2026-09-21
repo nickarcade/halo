@@ -36,7 +36,7 @@
 
 /* decode_string — copy a string from source into the state buffer (0x11a230).
  * Source: data_encoding.c line 0xb6. */
-bool data_encode_string(int *state, const char *source, short max_length)
+bool data_encode_string(data_encoding_state_t *state, const char *source, short max_length)
 {
   short string_length;
   int dest;
@@ -61,7 +61,7 @@ bool data_encode_string(int *state, const char *source, short max_length)
 
 /* decode_state_new — initialize a decode state struct (0x11a2d0).
  * Source: data_encoding.c line 0xcc. */
-void data_decode_new(int *state, void *buffer, int buffer_size)
+void data_decode_new(data_encoding_state_t *state, void *buffer, int buffer_size)
 {
   if (buffer == NULL) {
     display_assert("buffer", "c:\\halo\\SOURCE\\memory\\data_encoding.c", 0xcc,
@@ -80,7 +80,7 @@ void data_decode_new(int *state, void *buffer, int buffer_size)
 
 /* decode_structures — byte-swap structures in-place in the buffer (0x11a340).
  * Source: data_encoding.c line 0xde. */
-int data_decode_structures(int *state, short count, void *bs_definition)
+int data_decode_structures(data_encoding_state_t *state, short count, void *bs_definition)
 {
   short total_size;
   int result;
@@ -117,7 +117,7 @@ int data_decode_structures(int *state, short count, void *bs_definition)
 
 /* decode_raw_data — byte-swap raw elements in the buffer (0x11a430).
  * Source: data_encoding.c line 0x100. */
-__declspec(noinline) int data_decode_memory(int *state, short count, int element_size)
+__declspec(noinline) int data_decode_memory(data_encoding_state_t *state, short count, int element_size)
 {
   int byte_count;
   int result;
@@ -169,7 +169,7 @@ __declspec(noinline) int data_decode_memory(int *state, short count, int element
 
 /* decode_byte — read a single byte from the decode buffer (0x11a560).
  * Source: data_encoding.c. */
-__declspec(noinline) unsigned char data_decode_byte(int *state)
+__declspec(noinline) unsigned char data_decode_byte(data_encoding_state_t *state)
 {
   int new_offset;
   unsigned char *ptr;
@@ -196,7 +196,7 @@ __declspec(noinline) unsigned char data_decode_byte(int *state)
 
 /* decode_short — read and byte-swap a 16-bit value from the buffer (0x11a5d0).
  * Source: data_encoding.c. */
-short data_decode_short(int *state)
+short data_decode_short(data_encoding_state_t *state)
 {
   short *ptr;
 
@@ -222,7 +222,7 @@ short data_decode_short(int *state)
 
 /* decode_long — read and byte-swap a 32-bit value from the buffer (0x11a650).
  * Source: data_encoding.c. */
-int data_decode_long(int *state)
+int data_decode_long(data_encoding_state_t *state)
 {
   int *ptr;
 
@@ -248,7 +248,7 @@ int data_decode_long(int *state)
 
 /* decode_long_long — read and byte-swap an 8-byte value (0x11a6d0).
  * Source: data_encoding.c. Wrapper around decode_raw_data(state, 1, -8). */
-int64_t data_decode_int64(int *state)
+int64_t data_decode_int64(data_encoding_state_t *state)
 {
   int64_t *ptr;
 
@@ -261,25 +261,25 @@ int64_t data_decode_int64(int *state)
 
 /* decode_value — width-adaptive read based on maximum_value (0x11a700).
  * Source: data_encoding.c line 0x141. */
-__declspec(noinline) unsigned int data_decode_integer(int *state, int maximum_value)
+__declspec(noinline) unsigned int data_decode_integer(data_encoding_state_t *state, int maximum_value)
 {
   if (maximum_value <= 0) {
     display_assert("maximum_value>0",
                    "c:\\halo\\SOURCE\\memory\\data_encoding.c", 0x141, 1);
     system_exit(-1);
   }
-  if (maximum_value < 0x100) {
-    return (unsigned int)data_decode_byte(state) & 0xff;
+  if (maximum_value <= 0xff) {
+    return (unsigned char)data_decode_byte(state);
   }
-  if (maximum_value < 0x10000) {
-    return (unsigned int)(unsigned short)data_decode_short(state);
+  if (maximum_value <= 0xffff) {
+    return (short)data_decode_short(state);
   }
-  return (unsigned int)data_decode_long(state);
+  return data_decode_long(state);
 }
 
 /* decode_element_array — read count + structures from buffer (0x11a770).
  * Source: data_encoding.c line 0x15c. */
-void *data_decode_array(int *state, int element_size_type,
+void *data_decode_array(data_encoding_state_t *state, int element_size_type,
                    unsigned int *element_count_ref, int maximum_element_count,
                    void *bs_definition)
 {
@@ -309,17 +309,16 @@ void *data_decode_array(int *state, int element_size_type,
   }
   switch (element_size_type) {
   case 1:
-    count = data_decode_byte(state) & 0xff;
+    count = (int)(unsigned char)data_decode_byte(state);
     break;
   case -2:
-    sVar1 = data_decode_short(state);
-    count = (unsigned int)(int)sVar1;
+    count = (int)(short)data_decode_short(state);
     break;
   case -4:
-    count = (unsigned int)data_decode_long(state);
+    count = data_decode_long(state);
     break;
   case -8:
-    count = (unsigned int)(int)data_decode_int64(state);
+    count = (int)data_decode_int64(state);
     break;
   default:
     display_assert(NULL, "c:\\halo\\SOURCE\\memory\\data_encoding.c", 0x172, 1);
@@ -327,18 +326,16 @@ void *data_decode_array(int *state, int element_size_type,
     count = (int)*element_count_ref;
     break;
   }
-  if (((char)state[3] == '\0') && ((int)count >= 0) &&
-      ((int)count <= maximum_element_count)) {
-    *element_count_ref = count;
-    result = (void *)data_decode_structures(state, (short)count, bs_definition);
-    return result;
+  if (state->overflow == '\0' && count >= 0 && count <= maximum_element_count) {
+    *element_count_ref = (unsigned int)count;
+    return (void *)data_decode_structures(state, (short)count, bs_definition);
   }
   return NULL;
 }
 
 /* decode_string_read — scan for NUL-terminated string in buffer (0x11a8e0).
  * Source: data_encoding.c. */
-__declspec(noinline) char *data_decode_string(int *state, unsigned short max_length)
+__declspec(noinline) char *data_decode_string(data_encoding_state_t *state, unsigned short max_length)
 {
   int offset;
   short scan_count;
@@ -463,7 +460,7 @@ done:
 
 /* decode_packet_fields — recursively decode packet fields (0x11b2a0).
  * Source: data_packets.c. */
-void _data_packet_decode(int definition, int *decode_state, unsigned short version,
+void _data_packet_decode(int definition, data_encoding_state_t *decode_state, unsigned short version,
                   unsigned short *output, short *decoded_size_out,
                   short *field_defs, short *field_count_out)
 {
@@ -698,15 +695,15 @@ bool data_packet_decode(int definition, int encoded_packet, short encoded_packet
     system_exit(-1);
   }
   data_packet_verify((packet_definition *)definition);
-  data_decode_new(decode_state, (void *)encoded_packet, (int)encoded_packet_size);
+  data_decode_new(&decode_state, (void *)encoded_packet, (int)encoded_packet_size);
   if (*(short *)(definition + 10) == 0) {
     version = 0;
   } else {
-    version_byte = data_decode_byte(decode_state);
+    version_byte = data_decode_byte(&decode_state);
     version = (unsigned short)version_byte;
   }
   if ((short)version <= *(short *)(definition + 10)) {
-    _data_packet_decode(definition, decode_state, version,
+    _data_packet_decode(definition, &decode_state, version,
                  (unsigned short *)decoded_packet, 0,
                  *(short **)(definition + 0xc), 0);
     if (decode_state.overflow == '\0') {
@@ -776,7 +773,56 @@ void hashtable_set_user_data(void *table, int user_data)
   ht->user_data = user_data;
 }
 
-int hashtable_search(short *table, void *key, unsigned short *slot_index_out)
+#define hashtable_valid(t) \
+  ((t) != (void *)0 && ((hashtable_t *)(t))->key_size > 0 && ((hashtable_t *)(t))->element_size > 0 && \
+   ((hashtable_t *)(t))->load_factor > 0.0f && ((hashtable_t *)(t))->load_factor <= 1.0f && \
+   (((hashtable_t *)(t))->capacity_bits == -1 || (1 << ((hashtable_t *)(t))->capacity_bits) == ((hashtable_t *)(t))->array.count))
+
+void hashtable_dispose(short *table)
+{
+  hashtable_t *ht;
+
+  if (!hashtable_valid(table)) {
+    display_assert("hashtable_valid(table)",
+                   "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x6e, 1);
+    system_exit(-1);
+  }
+  ht = (hashtable_t *)table;
+  array_dispose((int *)&ht->array);
+  if (ht->bitmap != NULL) {
+    debug_free(ht->bitmap, "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x74);
+  }
+}
+
+/* hashtable_hash — default hash function using small primes (0x11ba00).
+ * Source: hashtable.c. */
+int default_hash_function(unsigned char *key, unsigned int key_size)
+{
+  int hash;
+  short prime_index;
+  int prime;
+
+  hash = 0;
+  prime_index = 0;
+  if (key_size > 0) {
+    do {
+      if (prime_index == 0xf) {
+        prime_index = 0;
+        key_size = key_size - 0xf;
+      }
+      prime = hashtable_primes[prime_index];
+      prime = (short)(prime * (unsigned short)*key);
+      hash += prime;
+      prime_index = prime_index + 1;
+      key = key + 1;
+    } while ((unsigned int)(int)prime_index < key_size);
+  }
+  return hash;
+}
+
+/* hashtable_find_slot — probe for a key in the table (0x11ba50).
+ * Source: hashtable.c. Takes table via @ESI register arg. */
+int hashtable_search(short *table_, void *key, unsigned short *slot_index_out)
 {
   hashtable_t *table;
   short hash_val;
@@ -792,7 +838,7 @@ int hashtable_search(short *table, void *key, unsigned short *slot_index_out)
     hash_val = (short)table->hash_proc(table->user_data, key);
   } else {
     hash_val =
-      (unsigned short)default_hash_function((unsigned char *)key, (unsigned int)*table);
+      (short)default_hash_function((unsigned char *)key, (unsigned int)table->key_size);
   }
   slot = (short)((unsigned short)(table->array.count - 1) & (unsigned short)hash_val);
   while ((*(unsigned int *)((char *)table->bitmap + ((int)slot >> 5) * 4) &
@@ -823,7 +869,7 @@ int hashtable_search(short *table, void *key, unsigned short *slot_index_out)
 
 /* hashtable_find — look up a key, return pointer to value (0x11bb70).
  * Source: hashtable.c line 0x4d. */
-int hashtable_get(short *table, void *key)
+int hashtable_get(short *table_, void *key)
 {
   hashtable_t *table;
   char found;
@@ -836,9 +882,9 @@ int hashtable_get(short *table, void *key)
                    "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x4d, 1);
     system_exit(-1);
   }
-  psVar1 = table;
-  if (psVar1[2] != 0) {
-    found = (char)hashtable_search(psVar1, key, (unsigned short *)&slot);
+  table = (hashtable_t *)table_;
+  if (table->count != 0) {
+    found = (char)hashtable_search((short *)table, key, (unsigned short *)&slot);
     if (found != '\0') {
       element_ptr =
         array_get_element((int *)&table->array, (int)slot, (int)table->element_size);
@@ -872,7 +918,7 @@ void hashtable_remove(short *table, void *key)
     display_assert("key", "c:\\halo\\SOURCE\\memory\\hashtable.c", 0xc4, 1);
     system_exit(-1);
   }
-  found = (char)hashtable_search(psVar3, key, (unsigned short *)&removed_slot);
+  found = (char)hashtable_search(table, key, (unsigned short *)&removed_slot);
   if (found != '\0') {
     next_slot = (unsigned short)((int)(removed_slot + 1) &
                                  (int)(unsigned short)(ht->array.count - 1));
@@ -881,10 +927,10 @@ void hashtable_remove(short *table, void *key)
                (1 << (next_slot & 0x1f));
     while (bit_mask != 0) {
       next_element =
-        array_get_element((int *)(psVar3 + 0xe), cur_pos, (int)psVar3[1]);
-      if (*(int *)(psVar3 + 8) == 0) {
+        array_get_element((int *)&ht->array, cur_pos, (int)ht->element_size);
+      if (ht->hash_proc == NULL) {
         key_hash = (unsigned short)default_hash_function((unsigned char *)next_element,
-                                                (unsigned int)*psVar3);
+                                                (unsigned int)ht->key_size);
       } else {
         key_hash = (unsigned short)ht->hash_proc(ht->user_data, (const void *)next_element);
       }
@@ -1059,10 +1105,11 @@ int hashtable_put(short *table, void *key)
                    "c:\\halo\\SOURCE\\memory\\hashtable.c", 0x5d, 1);
     system_exit(-1);
   }
-  if ((table[3] == -1) ||
-      ((float)(int)table[2] >=
-       (float)*(int *)(table + 0x10) * *(float *)(table + 4))) {
-    grew = (char)hashtable_grow(table, (short)((table[3] == -1) + 1));
+  ht = (hashtable_t *)table;
+  if ((ht->capacity_bits == -1) ||
+      ((float)(int)ht->count >=
+       (float)ht->array.count * ht->load_factor)) {
+    grew = (char)hashtable_grow(table, (short)((ht->capacity_bits == -1) + 1));
     if (grew == '\0') {
       return 0;
     }
@@ -1195,8 +1242,8 @@ void verify_lra_cache(int cache)
                    "c:\\halo\\SOURCE\\memory\\lra_cache.c", 0x1a2, 1);
     system_exit(-1);
   }
-  if (*(int *)(cache + 0x2c) != 0) {
-    verify_lra_cache_block(cache, *(int *)(cache + 0x2c));
+  if (c->head != NULL) {
+    verify_lra_cache_block(cache, (int)c->head);
   }
 }
 
@@ -1233,17 +1280,17 @@ int lra_new(const char *name, int size, void (*lock_proc)(void *, int),
                      "c:\\halo\\SOURCE\\memory\\lra_cache.c", 0x6b, 1);
       system_exit(-1);
     }
-    csmemset((void *)cache, 0, 0x3c);
-    csstrncpy((char *)cache, name, 0x1f);
-    *(char *)(cache + 0x1f) = 0;
-    *(int *)(cache + 0x20) = size;
-    *(void **)(cache + 0x24) = base_address;
-    *(int *)(cache + 0x2c) = 0;
-    *(int *)(cache + 0x38) = 0x6c726163;
-    *(char *)(cache + 0x28) = owns_buffer;
-    *(void (**)(void *, int))(cache + 0x30) = lock_proc;
-    *(void (**)(void *))(cache + 0x34) = unlock_proc;
-    verify_lra_cache(cache);
+    csmemset((void *)c, 0, sizeof(lra_cache_t));
+    csstrncpy(c->name, name, 0x1f);
+    c->name[0x1f] = 0;
+    c->size = size;
+    c->base_address = (lra_block_t *)base_address;
+    c->head = NULL;
+    c->magic = LRA_CACHE_MAGIC;
+    c->owns_buffer = owns_buffer;
+    c->lock_proc = lock_proc;
+    c->unlock_proc = unlock_proc;
+    verify_lra_cache((int)c);
   }
   return (int)c;
 cleanup:
@@ -1255,9 +1302,12 @@ cleanup:
  * Source: lra_cache.c lines 0x8c-0x8d. */
 void lra_dispose(int cache)
 {
+  lra_cache_t *c;
+
+  c = (lra_cache_t *)cache;
   verify_lra_cache(cache);
-  if (*(char *)(cache + 0x28) != '\0') {
-    debug_free(*(void **)(cache + 0x24),
+  if (c->owns_buffer != '\0') {
+    debug_free((void *)c->base_address,
                "c:\\halo\\SOURCE\\memory\\lra_cache.c", 0x8c);
   }
   debug_free((void *)c, "c:\\halo\\SOURCE\\memory\\lra_cache.c", 0x8d);
@@ -1270,9 +1320,9 @@ void lra_flush(int cache)
   lra_cache_t *c;
   lra_block_t *block;
 
+  c = (lra_cache_t *)cache;
   verify_lra_cache(cache);
-  if (*(int *)(cache + 0x2c) != 0 &&
-      (block = *(int **)(cache + 0x24), block != NULL)) {
+  if (c->head != NULL && (block = c->base_address) != NULL) {
     do {
       if ((block->magic_flags & 2) == 0) {
         c->unlock_proc(block->data);
@@ -1298,13 +1348,13 @@ void lra_free(int cache, void *pointer)
                    1);
     system_exit(-1);
   }
-  block_header = (int)pointer - 0x10;
+  c = (lra_cache_t *)cache;
+  block = (lra_block_t *)((char *)pointer - sizeof(lra_block_t));
   verify_lra_cache(cache);
-  verify_lra_cache_block(cache, block_header);
-  if ((*(unsigned char *)(block_header + 4) & 2) == 0) {
-    (*(void (**)(int))(cache + 0x34))(*(int *)block_header);
-    *(unsigned int *)(block_header + 4) =
-      (*(unsigned int *)(block_header + 4) & ~1U) | 2;
+  verify_lra_cache_block(cache, (int)block);
+  if ((block->magic_flags & 2) == 0) {
+    c->unlock_proc(block->data);
+    block->magic_flags = (block->magic_flags & ~1U) | 2;
   }
 }
 
@@ -1473,13 +1523,8 @@ void *create_network_game_message(int type, void *data,
   /* encode_packet_group's size parameter is short * (16-bit accesses at
    * 0x11abbc/0x11ac67); `encoded_size` is a dword slot here, matching the
    * original's own dword store/load of the same variable. */
-  if (!encode_packet_group(&s_network_game_messages_group, data, encoded_buf,
-                           (short *)&encoded_size, type, 1)) {
-    network_event("create_network_game_message() failed");
-    return NULL;
-  }
-
-  {
+  if (encode_packet_group(&s_network_game_messages_group, data, encoded_buf,
+                          (short *)&encoded_size, type, 1)) {
     void *msg =
       (void *)create_message(3, (int)encoded_buf, encoded_size,
                              (int)s_network_game_message_buffer, 0x604);
@@ -1488,4 +1533,7 @@ void *create_network_game_message(int type, void *data,
     }
     return msg;
   }
+
+  network_event("create_network_game_message() failed");
+  return NULL;
 }

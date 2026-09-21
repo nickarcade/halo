@@ -443,13 +443,13 @@ bool network_game_player_is_local(void *player)
   return true;
 }
 
-/* network_game_accept_remote_connections (0x12a150)
+/* network_game_set_accept_remote_connections (0x12a150)
  *
  * Stores the one-byte "accept remote connections" flag to the network game
  * globals byte at 0x46e8c4 (the byte read back by
  * network_game_should_accept_remote_connections at 0x12a160).
  */
-void network_game_accept_remote_connections(char accept)
+void network_game_set_accept_remote_connections(char accept)
 {
   network_game_globals.accept_remote_connections = accept;
 }

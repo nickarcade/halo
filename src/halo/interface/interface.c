@@ -272,13 +272,13 @@ void interface_initialize_for_new_map(void)
  * Look up an interface ARGB color (floats in [0,1]) and convert it to
  * 16-bit fixed point: each channel is scaled by 65535.0 and truncated
  * into a word. out_color receives 4 words in the same ARGB channel
- * order interface_get_color writes. Returns out_color. */
+ * order interface_get_real_argb_color writes. Returns out_color. */
 void *interface_get_rgb_color(int interface_tag_index, short color_index,
                               int16_t *out_color)
 {
   float color[4];
 
-  interface_get_color(interface_tag_index, color_index, color);
+  interface_get_real_argb_color(interface_tag_index, color_index, color);
   out_color[0] = (int16_t)(color[0] * 65535.0f);
   out_color[1] = (int16_t)(color[1] * 65535.0f);
   out_color[2] = (int16_t)(color[2] * 65535.0f);

@@ -827,7 +827,7 @@
     },
     {
       "addr": "0x2a360",
-      "name": "FUN_0002a360",
+      "name": "actor_move_animation_busy",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1220,11 +1220,12 @@
     },
     {
       "addr": "0xd7cd0",
-      "name": "FUN_000d7cd0",
+      "name": "hud_tick_shield",
       "obj": "hud_messaging.obj",
       "seeds": 40,
       "flags": ["--z3-equiv", "--allow-stubs", "--mem-trace", "--float-tolerance", "32"],
-      "reason": "Tripwire for the data-page execution guard (hook_code / _mapped_regions). Before it, an indirect call through synthetic state landed in a zero-filled auto-mapped page, whose zeros decode as 2-byte 'add [eax],al' and slid execution through the whole page -- 0% coverage, all 40 seeds ORACLE-CRASH FETCH_UNMAPPED. Now 100.0% coverage, 40/40 PASS, confidence high. Reverting the guard returns this to error."
+      "reason": "Tripwire for the data-page execution guard (hook_code / _mapped_regions). Before it, an indirect call through synthetic state landed in a zero-filled auto-mapped page, whose zeros decode as 2-byte 'add [eax],al' and slid execution through the whole page -- 0% coverage, all 40 seeds ORACLE-CRASH FETCH_UNMAPPED. Now 100.0% coverage, 40/40 PASS, confidence high. Reverting the guard returns this to error.",
+      "known_artifact": "This entry's name field was stale ('FUN_000d7cd0') and had been silently ERRORing 'not found in kb.json' since kb.json renamed 0xd7cd0 to hud_tick_shield -- its verdict was never actually checked in that window. Fixed the name (2026-09-21); the real comparison now runs and FAILs: seed player_handle=65535 (identifier=0 in the upper 16 bits) makes datum_get's `identifier==0 && data->identifier_zero_invalid` branch call assert_halt_msg on the lifted side, producing an extra _display_assert in the call sequence the oracle never makes for this input. Verified via Ghidra against the real binary: hud_tick_shield (0xd7cd0) and datum_get (0x119320) decompile byte-for-byte identical to our src/halo/memory/data.c and hud_messaging.c logic (no lift bug); traced g_players_data's real init chain (FUN_000ba100 -> game_state_data_new -> FUN_001191a0) and confirmed fIdentifier_zero_invalid (offset 0x25) is left 0/false by the zero-init memset and never set true anywhere in the real binary for this table -- matches our data_initialize exactly (only the unrelated decal_data table sets it true, decals.c:152). Both oracle and lift agree the assert should never fire for this input. The smoke log's own oracle-vs-candidate data-ref count asymmetry (1 vs 0) points at the Unicorn harness not seeding the candidate's synthetic player_data memory from the same initialized state the oracle reads -- a tools/equivalence/ state-snapshot gap, not a src/ or kb.json bug."
     },
     {
       "addr": "0xcb980",
@@ -1244,7 +1245,7 @@
     },
     {
       "addr": "0x5ae70",
-      "name": "FUN_0005ae70",
+      "name": "encounter_update_squads",
       "obj": "encounters.obj",
       "seeds": 50,
       "flags": ["--allow-stubs", "--mem-trace", "--float-tolerance", "32"],

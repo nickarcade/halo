@@ -1654,63 +1654,6 @@ common_tail:
   }
 }
 
-/* 0xbbfe0: update a player's pending action-result fields.
- *
- * player_handle arrives in EAX; the remaining three arguments are cdecl stack
- * arguments.  The equal-priority path keeps the existing result unless the
- * candidate object is strictly closer to the player's unit. */
-__declspec(noinline) void
-player_set_spawn_action_result(int player_handle /* @<eax> */,
-                               int16_t action_result_type, int object_handle,
-                               int16_t seat_index)
-{
-  char *player;
-
-  player = (char *)datum_get(player_data, player_handle);
-  if (action_result_type != 11) {
-    int16_t current_type = *(int16_t *)(player + 0x28);
-    if (action_result_type == current_type) {
-      char *unit_obj;
-      char *cur_obj;
-      char *new_obj;
-      float cur_dx;
-      float cur_dy;
-      float cur_dz;
-      float new_dx;
-      float new_dy;
-      float new_dz;
-      float cur_dist;
-      float new_dist;
-
-      unit_obj =
-        (char *)object_get_and_verify_type(*(int *)(player + 0x34), -1);
-      cur_obj = (char *)object_get_and_verify_type(*(int *)(player + 0x24), -1);
-      new_obj = (char *)object_get_and_verify_type(object_handle, -1);
-
-      cur_dx = *(float *)(cur_obj + 0xc) - *(float *)(unit_obj + 0xc);
-      cur_dy = *(float *)(cur_obj + 0x10) - *(float *)(unit_obj + 0x10);
-      cur_dz = *(float *)(cur_obj + 0x14) - *(float *)(unit_obj + 0x14);
-
-      new_dx = *(float *)(new_obj + 0xc) - *(float *)(unit_obj + 0xc);
-      new_dy = *(float *)(new_obj + 0x10) - *(float *)(unit_obj + 0x10);
-      new_dz = *(float *)(new_obj + 0x14) - *(float *)(unit_obj + 0x14);
-
-      cur_dist =
-        xbox_sqrtf(cur_dx * cur_dx + cur_dy * cur_dy + cur_dz * cur_dz);
-      new_dist =
-        xbox_sqrtf(new_dx * new_dx + new_dy * new_dy + new_dz * new_dz);
-      if (cur_dist <= new_dist)
-        return;
-    } else if (action_result_type <= current_type) {
-      return;
-    }
-  }
-
-  *(int16_t *)(player + 0x28) = action_result_type;
-  *(int *)(player + 0x24) = object_handle;
-  *(int16_t *)(player + 0x2a) = seat_index;
-}
-
 /* Attempt to spawn the player into a vehicle or interact with a world
  * object, based on the player's action result type (player+0x28).
  *

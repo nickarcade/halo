@@ -69,7 +69,7 @@ void display_error_damaged_media(void)
  * int16 error_handle @+0, uint8 is_modal @+2, uint8 pause_game @+3). Must run
  * only outside a cinematic; asserts otherwise ("Noooooooooooooooooo!!!",
  * ui_widget.c line 0x93f, system_exit(-1) flavor). For each valid record
- * (0 <= handle < 0x28) it re-issues display_error(handle, slot,
+ * (0 <= handle < 0x28) it re-issues ui_widget_display_error(handle, slot,
  * is_modal, pause_game), then clears the slot to -1. Ref 0xe8db0. */
 void ui_widget_display_deferred_errors(void)
 {
@@ -88,7 +88,7 @@ void ui_widget_display_deferred_errors(void)
   do {
     error_handle = *record;
     if (error_handle >= 0 && error_handle < 0x28) {
-      display_error(error_handle, local_player_index, (char)record[1],
+      ui_widget_display_error(error_handle, local_player_index, (char)record[1],
                               *(char *)((int)record + 3));
     }
     *record = -1;

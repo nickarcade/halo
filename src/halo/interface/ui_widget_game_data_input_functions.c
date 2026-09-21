@@ -738,7 +738,7 @@ bool single_player_set_player2_controller_choice(void *widget, void *event_data,
   current_controller = player_ui_get_single_player_local_player_controller(0);
 
   if (controller_index == current_controller) {
-    display_error(0x12, -1, 1, 0);
+    ui_widget_display_error(0x12, -1, 1, 0);
     *widget_deleted = 1;
     return false;
   }
@@ -771,7 +771,7 @@ bool display_error_if_no_network_connection(void *widget, void *event_data, bool
   }
 
   if (!network_available) {
-    display_error(5, *(uint16_t *)((char *)event_data + 2), 1, 1);
+    ui_widget_display_error(5, *(uint16_t *)((char *)event_data + 2), 1, 1);
   }
 
   return network_available;
@@ -1656,11 +1656,11 @@ void FUN_000f2690(void *widget)
   }
 }
 
-/* game_options_menu_update_pic_desc (0xf2720) — validates a three-column game-options list and
+/* FUN_000f2720 (0xf2720) — validates a three-column game-options list and
  * its extended-description picture container, then sums each preceding
  * spinner's item count and the selected spinner's selected-item index into
  * the picture widget's +0x50 word. */
-void game_options_menu_update_pic_desc(void *widget)
+void FUN_000f2720(void *widget)
 {
   void *picture_widget;
   void *list_item;
@@ -2274,7 +2274,7 @@ void multiplayer_edit_profile_set_ruleset_textbox_string_index(void *widget)
  * game with no game object clears the box. Both selecting paths also set the
  * widget's +0x10 visibility byte to 1.
  *
- * Otherwise, if the game's +0xc0 flag is 1 and FUN_00124D00 on the current
+ * Otherwise, if the game's +0xc0 flag is 1 and network_game_client_get_seconds_to_game_start on the current
  * client returns a negative int16 (TEST AX,AX / JGE at 0xf34bd), walks the 16
  * player slots at game+0x244 with stride 0x20, counting slots whose player
  * record (slot - 0x1e) is valid and whose byte at the slot base is 0 or 1.
@@ -2291,7 +2291,7 @@ void game_options_menu_update_pic_desc(void *widget)
   int remaining;
 
   game = network_game_get_game();
-  server = network_game_server_get();
+  server = global_network_game_server_get();
   if (*(short *)((char *)widget + 0xe) != 1) {
     display_assert(
       "expected text box widget for team game directions",
@@ -2321,7 +2321,7 @@ void game_options_menu_update_pic_desc(void *widget)
   }
 
   if (game != 0 && *(char *)(game + 0xc0) == 1 &&
-      FUN_00124D00(network_game_client_get()) < 0) {
+      network_game_client_get_seconds_to_game_start(global_network_game_client_get()) < 0) {
     count_free = 0;
     count_taken = 0;
     slot = (char *)(game + 0x244);
