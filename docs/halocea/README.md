@@ -20,11 +20,11 @@ Consequences for us:
 
 ## Version gap
 
-| | ours | upstream halocea | this local tree |
-|---|---|---|---|
-| binary | `cachebeta.xbe`, Halo Xbox debug `01.10.12.2276` (Oct 2001) | `HCEX_Release.xex` | (built from the corpus) |
-| Blam! engine | 2276 | `01.00.01.0563` (Halo PC 1.00 lineage, 2003) | same |
-| architecture | x86, MSVC | PowerPC, Xbox 360 toolchain | x86, MSVC |
+|              | ours                                                        | upstream halocea                             | this local tree         |
+|--------------|-------------------------------------------------------------|----------------------------------------------|-------------------------|
+| binary       | `cachebeta.xbe`, Halo Xbox debug `01.10.12.2276` (Oct 2001) | `HCEX_Release.xex`                           | (built from the corpus) |
+| Blam! engine | 2276                                                        | `01.00.01.0563` (Halo PC 1.00 lineage, 2003) | same                    |
+| architecture | x86, MSVC                                                   | PowerPC, Xbox 360 toolchain                  | x86, MSVC               |
 
 Roughly two years apart. Names, enums and algorithm structure are expected to transfer; exact codegen
 and some layout details are not.
@@ -33,7 +33,7 @@ and some layout details are not.
 port of the Blam engine"; `actor_action_change.c` uses `__fastcall` and `actor_datum.h` uses
 `__int16`. So the files future work will actually open are MSVC/x86-targeted, one step removed from
 the `.xex` ground truth their comments cite. Two consequences: offsets here may have been
-x86-normalised by the port author (convenient for us, but no longer the raw PPC evidence), and the
+x86-normalized by the port author (convenient for us, but no longer the raw PPC evidence), and the
 PPC-vs-x86 divergence hazard below is *reduced* in this tree rather than live. Where a layout
 question is load-bearing, prefer the upstream repository over this port.
 
@@ -75,13 +75,13 @@ names. Bungie's convention (`actor_action.c` holds `actor_action_*`) makes longe
 the join. Result: 105 of our 190 real TUs get a non-empty bucket, covering 2488 of 7318 halocea
 functions. Per-TU table in `tu_overlap.json`; top rows by `min(our ported FUN_ count, bucket size)`:
 
-| TU | fns | ported | still `FUN_` | halocea bucket |
-|---|---|---|---|---|
-| `hs.obj` | 257 | 257 | 229 | 225 |
-| `game_engine.obj` | 238 | 237 | 76 | 134 |
-| `rasterizer.obj` | 89 | 83 | 57 | 379 |
-| `scenario.obj` | 62 | 62 | 49 | 52 |
-| `players.obj` | 248 | 245 | 184 | 26 |
+| TU                | fns | ported | still `FUN_` | halocea bucket |
+|-------------------|-----|--------|--------------|----------------|
+| `hs.obj`          | 257 | 257    | 229          | 225            |
+| `game_engine.obj` | 238 | 237    | 76           | 134            |
+| `rasterizer.obj`  | 89  | 83     | 57           | 379            |
+| `scenario.obj`    | 62  | 62     | 49           | 52             |
+| `players.obj`     | 248 | 245    | 184          | 26             |
 
 Bucketing sizes the candidate pool per TU. It does **not** say which `FUN_` is which name — that
 still needs a per-function signal (shared literal strings, call-graph shape, or for `hs.obj` the
@@ -117,10 +117,10 @@ bounds, both target functions sat at a clean 100.0% baseline, and the file uses 
 
 Bounds independently proven from 2276 before consulting the corpus, and matching it exactly:
 
-| enum | our binary | halocea |
-|---|---|---|
-| `NUMBER_OF_PERIODIC_FUNCTIONS` | `FUN_0010a5e0` rejects `>= 0xc`; `periodic_functions_dispose` frees 12 tables | `0xC` |
-| `NUMBER_OF_TRANSITION_FUNCTIONS` | `transition_function_evaluate` rejects `>= 6`; dispose frees 6 tables | `6` |
+| enum                             | our binary                                                                    | halocea |
+|----------------------------------|-------------------------------------------------------------------------------|---------|
+| `NUMBER_OF_PERIODIC_FUNCTIONS`   | `FUN_0010a5e0` rejects `>= 0xc`; `periodic_functions_dispose` frees 12 tables | `0xC`   |
+| `NUMBER_OF_TRANSITION_FUNCTIONS` | `transition_function_evaluate` rejects `>= 6`; dispose frees 6 tables         | `6`     |
 
 The two headers land in **different tiers**, which is why this pair was worth piloting:
 `transition_function.h` is cited to a compiled enum in the 0563 binary (`name_source: halocea`,
@@ -155,14 +155,14 @@ assert-proven bounds remain unconverted.
 208 scored functions, no `__LINE__`. Six bounds proven from 2276 before the corpus was
 consulted; **all six agree exactly**, so the 0563 build added no unit selector in this group:
 
-| enum | proven from 2276 | value |
-|---|---|---|
-| `NUMBER_OF_UNIT_SPEECH_PRIORITIES` | `unit_dialogue.c:0x82` rejects `priority > 10` | 11 |
-| `NUMBER_OF_UNIT_SCREAM_TYPES` | rejects `>= 6` | 6 |
-| `NUMBER_OF_UNIT_CONTROL_FLAGS` | rejects `& 0xffff8000` | 15 |
-| `NUMBER_OF_UNIT_GRENADE_TYPES` | rejects `>= 2` | 2 |
-| `NUMBER_OF_UNIT_STATES` | rejects `>= 0x2c` | 44 |
-| `NUMBER_OF_VOCALIZATION_TYPES` | `unit_dialogue.c:0x90` rejects `> 0xd0` | 209 |
+| enum                               | proven from 2276                               | value |
+|------------------------------------|------------------------------------------------|-------|
+| `NUMBER_OF_UNIT_SPEECH_PRIORITIES` | `unit_dialogue.c:0x82` rejects `priority > 10` | 11    |
+| `NUMBER_OF_UNIT_SCREAM_TYPES`      | rejects `>= 6`                                 | 6     |
+| `NUMBER_OF_UNIT_CONTROL_FLAGS`     | rejects `& 0xffff8000`                         | 15    |
+| `NUMBER_OF_UNIT_GRENADE_TYPES`     | rejects `>= 2`                                 | 2     |
+| `NUMBER_OF_UNIT_STATES`            | rejects `>= 0x2c`                              | 44    |
+| `NUMBER_OF_VOCALIZATION_TYPES`     | `unit_dialogue.c:0x90` rejects `> 0xd0`        | 209   |
 
 The strongest single result is a member name, not a bound. Our own binary asserts verbatim at
 `units.c:1705`:
@@ -198,13 +198,13 @@ the corpus was consulted, **all four agreeing**: reference-info 1 (`& 0xfffe`), 
 This TU is the best case for the lane so far, because most **member** names are T1 — 2276 stamps
 the identifiers into assert strings *and* those asserts pin the bit values:
 
-| member | 2276 evidence | bit |
-|---|---|---|
-| `_has_filename_bit` | `!TEST_FLAG(info->flags, _has_filename_bit)` at `files.c:0x8a`, guarding `& 1` | 0 |
-| `_name_directory_bit` / `_name_extension_bit` | `flags!=(FLAG(_name_directory_bit)\|FLAG(_name_extension_bit))` at `0xbc`, guarding `== 9` | {0,3} |
-| `_name_parent_directory_bit` | `_name_directory_bit` vs `_name_parent_directory_bit` at `0xbd`, guarding `(flags&1)&&(flags&2)` — fixes directory=0, hence extension=3 | 1 |
-| `_permission_read_bit` / `_permission_write_bit` | `flags & (FLAG(_permission_read_bit)\|FLAG(_permission_write_bit))` at `files_windows.c:0x135`, guarding `& 3` | {0,1} |
-| `_permission_append_bit` | `_permission_write_bit` vs `_permission_append_bit` at `0x136`, guarding `(flags&2)==0 && (flags&4)!=0` — fixes write=1, hence read=0 and append=2 | 2 |
+| member                                           | 2276 evidence                                                                                                                                      | bit   |
+|--------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|-------|
+| `_has_filename_bit`                              | `!TEST_FLAG(info->flags, _has_filename_bit)` at `files.c:0x8a`, guarding `& 1`                                                                     | 0     |
+| `_name_directory_bit` / `_name_extension_bit`    | `flags!=(FLAG(_name_directory_bit)\|FLAG(_name_extension_bit))` at `0xbc`, guarding `== 9`                                                         | {0,3} |
+| `_name_parent_directory_bit`                     | `_name_directory_bit` vs `_name_parent_directory_bit` at `0xbd`, guarding `(flags&1)&&(flags&2)` — fixes directory=0, hence extension=3            | 1     |
+| `_permission_read_bit` / `_permission_write_bit` | `flags & (FLAG(_permission_read_bit)\|FLAG(_permission_write_bit))` at `files_windows.c:0x135`, guarding `& 3`                                     | {0,1} |
+| `_permission_append_bit`                         | `_permission_write_bit` vs `_permission_append_bit` at `0x136`, guarding `(flags&2)==0 && (flags&4)!=0` — fixes write=1, hence read=0 and append=2 | 2     |
 
 `_name_filename_bit` is **T1 by exhaustion**, and the mechanism generalises: bits 0, 1 and 3 are
 each named verbatim above, and `NUMBER_OF_NAME_FLAGS` is exactly 4 (proven by the `0xfff0`
@@ -212,7 +212,7 @@ reject), so bit 2 is forced. Both halves are load-bearing — the partial member
 not pin it without the bound, and the bound alone would not name it. Where a family has T1 bounds
 plus T1 members for all but one slot, the remainder is T1, not a borrowed name.
 
-Behavioural corroboration on our side: permission bit 0 maps to `GENERIC_READ` (0x80000000), bit 1
+Behavioral corroboration on our side: permission bit 0 maps to `GENERIC_READ` (0x80000000), bit 1
 to `GENERIC_WRITE` (0x40000000), and bit 2 to a seek-to-end — exactly read/write/append.
 
 `find_files` members carry no 2276 string and stay `name_source: halocea`, T2.
@@ -223,7 +223,7 @@ The `flags == 9` site was the one composite-value substitution and it folded cle
 Deliberately not done here: the existing `FIND_FILES_RECURSIVE_BIT` / `FIND_FILES_DIRECTORIES_BIT`
 defines hold *masks* under a `_BIT` name. Correcting that is a rename across 6 sites, not a
 constants change; mixing it in would have made any gate movement unattributable. Follow-up commit.
-Likewise the `_has_filename_bit` conversion covers only the two assert-adjacent sites — the other
+Likewise, the `_has_filename_bit` conversion covers only the two assert-adjacent sites — the other
 five read `ref->unk_4[0]`, an unnamed byte array, where naming the bit while the container stays
 anonymous would read as more recovery than was done. Those want a `structize` field split first.
 
@@ -234,11 +234,11 @@ Gate: 245 of 245 scored functions byte-identical to the pre-edit baseline, `IMM-
 
 One family borrowed, three bounds already present and now used by name:
 
-| Family | Bound | Where the bound is proven | Tier |
-|---|---|---|---|
-| `player_powerup` | `NUMBER_OF_PLAYER_POWERUPS = 2` | assert at `players.c` 0xaea reads `powerup_type<NUMBER_OF_PLAYER_POWERUPS` against a `cmp 2`; `player_update_weapon_timers` walks exactly two `int16_t` from `player+0x68` | T2 (`name_source: halocea`) |
-| `NUMBER_OF_UNIT_GRENADE_TYPES` | 2, already in `types.h:270` | assert text `desired_grenade_index <= NUMBER_OF_UNIT_GRENADE_TYPES` | T1 |
-| `MAXIMUM_WEAPONS_PER_UNIT` | 4, already in `types.h:269` | assert text `desired_weapon_index <= MAXIMUM_WEAPONS_PER_UNIT` | T1 |
+| Family                         | Bound                           | Where the bound is proven                                                                                                                                                  | Tier                        |
+|--------------------------------|---------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
+| `player_powerup`               | `NUMBER_OF_PLAYER_POWERUPS = 2` | assert at `players.c` 0xaea reads `powerup_type<NUMBER_OF_PLAYER_POWERUPS` against a `cmp 2`; `player_update_weapon_timers` walks exactly two `int16_t` from `player+0x68` | T2 (`name_source: halocea`) |
+| `NUMBER_OF_UNIT_GRENADE_TYPES` | 2, already in `types.h:270`     | assert text `desired_grenade_index <= NUMBER_OF_UNIT_GRENADE_TYPES`                                                                                                        | T1                          |
+| `MAXIMUM_WEAPONS_PER_UNIT`     | 4, already in `types.h:269`     | assert text `desired_weapon_index <= MAXIMUM_WEAPONS_PER_UNIT`                                                                                                             | T1                          |
 
 13 sites converted: the powerup guard and its slot-0 branches in `player_handle_powerup`,
 `player_set_respawn_timer`, `player_update_weapon_timers`, the two camo flag helpers
@@ -287,11 +287,11 @@ binary-proven bound of 2 is not evidence of anything missing.
 The enum overshield actually belongs to is the `'eqip'` tag field at +0x308, now
 `enum equipment_powerup_type` in `types.h`. Evidence splits by value:
 
-| Value | Name | Evidence | Tier |
-|---|---|---|---|
-| 0 | `_equipment_powerup_none` | `units.c` 0x1ca1 assert `powerup_type!=_equipment_powerup_none` guards `== 0` | **T1** |
-| 6 | `_equipment_powerup_grenade` | `units.c` 0x1c72 (`==`, guards `!= 6`) and 0x1ca2 (`!=`, guards `== 6`) | **T1** |
-| 1-5 | `_double_speed`, `_over_shield`, `_active_camouflage`, `_full_spectrum_vision`, `_health` | halocea DB-verified (`types_enum_values _270498BB874CAD5ECABAECA7DA81ECAE`); meaning confirmed independently by our dispatch routing each to an already-named handler | T2 |
+| Value | Name                                                                                      | Evidence                                                                                                                                                              | Tier   |
+|-------|-------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
+| 0     | `_equipment_powerup_none`                                                                 | `units.c` 0x1ca1 assert `powerup_type!=_equipment_powerup_none` guards `== 0`                                                                                         | **T1** |
+| 6     | `_equipment_powerup_grenade`                                                              | `units.c` 0x1c72 (`==`, guards `!= 6`) and 0x1ca2 (`!=`, guards `== 6`)                                                                                               | **T1** |
+| 1-5   | `_double_speed`, `_over_shield`, `_active_camouflage`, `_full_spectrum_vision`, `_health` | halocea DB-verified (`types_enum_values _270498BB874CAD5ECABAECA7DA81ECAE`); meaning confirmed independently by our dispatch routing each to an already-named handler | T2     |
 
 8 sites converted: 5 in `player_set_action_result_for_equipment`, 3 in the `units.c` equipment
 asserts.

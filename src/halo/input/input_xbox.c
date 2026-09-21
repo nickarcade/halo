@@ -27,8 +27,7 @@
 /* ---- Analog button hysteresis thresholds ---- */
 #define ANALOG_BTN_DEADZONE 0x20 /* 32/255 ≈ 12.5% — below this = released */
 #define ANALOG_BTN_SATURATE 0xBF /* 191/255 ≈ 75% — above this = full press */
-#define ANALOG_BTN_RELEASE_DECAY \
-  0x40 /* 64 — added each frame during release fade */
+#define ANALOG_BTN_RELEASE_DECAY 0x40 /* 64 — added each frame during release fade */
 
 /* ---- XInput function pointer typedefs ---- */
 typedef int(__stdcall *xinput_get_changes_fn)(void *, uint32_t *, uint32_t *);
