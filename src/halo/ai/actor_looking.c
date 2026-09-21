@@ -4493,7 +4493,7 @@ LAB_done:
  *
  * Post-initialization:
  *   - Copies field_c8 to 426/427, field_ca to 42c.
- *   - If field_f8 is set and actor_move_animation_busy passes: dispatches
+ *   - If field_f8 is set and FUN_0002a360 passes: dispatches
  *     actor_move_animation_impulse and ai_communication_event for firing-position
  * targets.
  *   - field_a9&1: copies field_b0/ac to 430-43c.
@@ -4599,7 +4599,7 @@ LAB_done:
   ((actor_t *)actor)->field_42c = ((actor_t *)actor)->field_0ca;
 
   if (((actor_t *)actor)->field_0f8 != '\0' &&
-      (char)actor_move_animation_busy(actor_handle) == '\0') {
+      (char)FUN_0002a360(actor_handle) == '\0') {
     animation_impulse = ((actor_t *)actor)->field_0fa;
     if (animation_impulse != -1) {
       tmp_v[1] = ((actor_t *)actor)->control_desired_facing_vector[1];

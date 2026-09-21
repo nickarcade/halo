@@ -20,62 +20,6 @@
   "obj": "actors.obj",
   "ported": false
  },
- "0x12fd80": {
-  "addr": "0x12fd80",
-  "decl": "char FUN_0012fd80(int server@<esi>, int machine, void *message_data, int message_size);",
-  "name": "FUN_0012fd80",
-  "ported": true,
-  "source_path": "src/halo/networking/network_server_message_handler.c"
- },
- "0x12fe40": {
-  "addr": "0x12fe40",
-  "decl": "char FUN_0012fe40(int server@<esi>, int machine, void *message_data, int message_size);",
-  "name": "FUN_0012fe40",
-  "ported": true,
-  "source_path": "src/halo/networking/network_server_message_handler.c"
- },
- "0x12ff00": {
-  "addr": "0x12ff00",
-  "decl": "char FUN_0012ff00(int server@<esi>, int machine, void *message_data, int message_size);",
-  "name": "FUN_0012ff00",
-  "ported": true,
-  "source_path": "src/halo/networking/network_server_message_handler.c"
- },
- "0x12ffe0": {
-  "addr": "0x12ffe0",
-  "decl": "char FUN_0012ffe0(int server@<esi>, int machine, void *message_data, int message_size);",
-  "name": "FUN_0012ffe0",
-  "ported": true,
-  "source_path": "src/halo/networking/network_server_message_handler.c"
- },
- "0x1300b0": {
-  "addr": "0x1300b0",
-  "decl": "char FUN_001300b0(int server@<esi>, int machine, void *message_data, int message_size);",
-  "name": "FUN_001300b0",
-  "ported": true,
-  "source_path": "src/halo/networking/network_server_message_handler.c"
- },
- "0x130180": {
-  "addr": "0x130180",
-  "decl": "char FUN_00130180(int server@<eax>, int machine, void *message_data, int message_size);",
-  "name": "FUN_00130180",
-  "ported": true,
-  "source_path": "src/halo/networking/network_server_message_handler.c"
- },
- "0x130270": {
-  "addr": "0x130270",
-  "decl": "bool FUN_00130270(void *server, void *buffer, int size, void *addr);",
-  "name": "FUN_00130270",
-  "ported": true,
-  "source_path": "src/halo/networking/network_server_message_handler.c"
- },
- "0x130580": {
-  "addr": "0x130580",
-  "decl": "bool FUN_00130580(void *server, void *machine, void *buffer, int size);",
-  "name": "FUN_00130580",
-  "ported": true,
-  "source_path": "src/halo/networking/network_server_message_handler.c"
- },
  "0x13dd0": {
   "decl": "int action_charge_valid_melee_destination(int actor_handle@<eax>, float *source_pos@<esi>);",
   "name": "action_charge_valid_melee_destination",
@@ -2785,9 +2729,9 @@
    "functions": [
     {
      "addr": "0x2a360",
-     "decl": "int actor_move_animation_busy(int actor_handle);",
+     "decl": "int FUN_0002a360(int actor_handle);",
      "ported": true,
-     "name": "actor_move_animation_busy"
+     "name": "FUN_0002a360"
     },
     {
      "addr": "0x36860",
@@ -2822,10 +2766,10 @@
     },
     {
      "addr": "0x36a90",
-     "decl": "void actor_stimulus_enter_combat_found_body(int actor_handle, int prop_handle);",
+     "decl": "void FUN_00036a90(int actor_handle, int prop_handle);",
      "ported": true,
      "source_path": "src/halo/ai/actors.c",
-     "name": "actor_stimulus_enter_combat_found_body"
+     "name": "FUN_00036a90"
     },
     {
      "addr": "0x36b10",
@@ -14404,7 +14348,7 @@
     {
      "addr": "0xdedf0",
      "decl": "void interface_get_weapon_hud_index(void);",
-     "ported": true,
+     "ported": false,
      "name": "interface_get_weapon_hud_index"
     },
     {
@@ -19170,7 +19114,7 @@
     {
      "addr": "0xe0620",
      "decl": "void overhead_map_post_rasterize(int unknown0, int unknown1, float *position);",
-     "ported": true,
+     "ported": false,
      "name": "overhead_map_post_rasterize"
     },
     {
@@ -28782,7 +28726,7 @@
     {
      "addr": "0xe98c0",
      "decl": "void solo_level_initialize_list_coop(void);",
-     "ported": true,
+     "ported": false,
      "name": "solo_level_initialize_list_coop"
     },
     {
@@ -28817,7 +28761,7 @@
     {
      "addr": "0xe9dd0",
      "decl": "void network_game_join_game_from_server_list(void);",
-     "ported": true,
+     "ported": false,
      "name": "network_game_join_game_from_server_list"
     },
     {

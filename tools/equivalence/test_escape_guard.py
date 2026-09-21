@@ -174,15 +174,19 @@ class TestArtifactMarkerDiscipline(unittest.TestCase):
         """A growing marked set means the harness is getting less useful, not
         that more targets are artifacts.  Fails loudly if it grows.
 
-        Empty as of the raw-XBE oracle flip: `game_state_memory_pool_new` was
-        the only entry, and it was marked because the DELINKED oracle RETed to
-        0x00000000 -- a sibling call whose relocation resolved to nothing.
-        Under `--oracle=xbe` that sibling has real bytes, the target passes
-        40/40 at 100% coverage, and the marker had to go: `regression_test.py`
-        scores a marked target that passes as a FAILURE precisely so a marker
-        cannot outlive its reason."""
+        `hud_tick_shield` was added as of the name-fix that made its
+        comparison actually run (it had been silently ERRORing on a stale
+        'FUN_000d7cd0' name since kb.json renamed the address, so its verdict
+        was never checked): the smoke log shows an extra _display_assert in
+        the lifted call sequence that the oracle never makes for
+        player_handle=65535, traced to the Unicorn harness not seeding the
+        candidate's synthetic player_data memory from the same initialized
+        state the oracle reads -- a tools/equivalence state-snapshot gap, not
+        a src/ or kb.json bug (see the target's own known_artifact text).
+        `regression_test.py` scores a marked target that passes as a FAILURE
+        precisely so a marker cannot outlive its reason."""
         marked = sorted(t["name"] for t in self.targets if t.get("known_artifact"))
-        self.assertEqual(marked, [],
+        self.assertEqual(marked, ["hud_tick_shield"],
                          "the known_artifact set changed; if that is "
                          "deliberate, update this pin in the same commit")
 
