@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "struct": "render_frustum_t",
+  "size": {
+    "value": "0x18c",
+    "evidence": "render_camera_build_frustum 0x187250 writes through frustum+0x188; render.c allocates float[99] (0x18c bytes)"
+  },
+  "sources": [
+    "render_camera_build_frustum 0x187250..0x187f7a",
+    "render.c local render_frustum[99]"
+  ],
+  "fields": [
+    {"offset":"0x00","width":4,"kind":"float","array_len":4,"name":"field_00","confidence":"typed","evidence":"0x187250 writes four float bounds"},
+    {"offset":"0x10","width":4,"kind":"float","array_len":13,"name":"field_10","confidence":"typed","evidence":"0x187250 matrix inverse output, 13 floats"},
+    {"offset":"0x44","width":4,"kind":"float","array_len":13,"name":"field_44","confidence":"typed","evidence":"0x187250 matrix input, 13 floats"},
+    {"offset":"0x78","width":4,"kind":"float","array_len":24,"name":"field_78","confidence":"typed","evidence":"0x187250 writes six 4-float planes"},
+    {"offset":"0xd8","width":4,"kind":"float","name":"field_d8","confidence":"typed","evidence":"0x187250 stores camera+0x3c"},
+    {"offset":"0xdc","width":4,"kind":"float","name":"field_dc","confidence":"typed","evidence":"0x187250 stores camera+0x40"},
+    {"offset":"0xe0","width":4,"kind":"float","array_len":12,"name":"field_e0","confidence":"typed","evidence":"0x187250 writes four 3-float transformed points"},
+    {"offset":"0x110","width":4,"kind":"float","array_len":3,"name":"field_110","confidence":"typed","evidence":"0x187250 writes camera position"},
+    {"offset":"0x11c","width":4,"kind":"float","array_len":3,"name":"field_11c","confidence":"typed","evidence":"0x187250 writes transformed projection center"},
+    {"offset":"0x128","width":4,"kind":"float","array_len":6,"name":"field_128","confidence":"typed","evidence":"0x187250 updates six AABB extrema"},
+    {"offset":"0x140","width":1,"signed":false,"name":"field_140","confidence":"typed","evidence":"0x187250 writes projection flag byte"},
+    {"offset":"0x144","width":4,"kind":"float","array_len":16,"name":"field_144","confidence":"typed","evidence":"0x187250 clears/writes 4x4 projection matrix"},
+    {"offset":"0x184","width":4,"kind":"float","array_len":2,"name":"field_184","confidence":"typed","evidence":"0x187250 writes two projection scale floats"}
+  ]
+}

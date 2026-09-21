@@ -484,7 +484,7 @@ void input_abstraction_update(void)
             }
           }
         } else {
-          if (network_game_client_get() == NULL) {
+          if (global_network_game_client_get() == NULL) {
             display_error_flag = 1;
             error_code = 0xc;
           } else {

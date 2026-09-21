@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "struct": "network_game_blob_t",
+  "size": {
+    "value": "0x434",
+    "evidence": "network_game_invalidate clears 0x434 bytes; network_game_settings_updated copies 0x434-byte settings messages; network_game_server_start_network_game copies 0x434 bytes from game+0x08"
+  },
+  "sources": [
+    "network_game_invalidate @ 0x12b1e0",
+    "network_game_add_machine @ 0x12a960",
+    "network_game_add_player @ 0x12ad60",
+    "network_game_settings_updated @ 0x125050",
+    "network_game_set_random_seed @ 0x12a060",
+    "network_game_set_number_of_games_played @ 0x12a020",
+    "network_game_server_start_network_game @ 0x12c290"
+  ],
+  "fields": [
+    {"offset":"0x24","width":1,"signed":false,"kind":"int","array_len":128,"name":"map_name","confidence":"named","evidence":"network_game_server_change_map_name copies up to 0x7f characters at game+0x2c after the leading field; network_game_create_game_objects passes game+0x24 to csstrncpy as the multiplayer map name"},
+    {"offset":"0xa4","width":4,"signed":false,"kind":"int","array_len":26,"name":"game_variant","confidence":"typed","evidence":"network_game_create_game_objects passes game+0xa4 to game_set_game_variant as an existing 0x68-byte game_variant_t"},
+    {"offset":"0x10d","width":1,"signed":true,"kind":"int","name":"field_10d","confidence":"typed","evidence":"network_game_invalidate initializes byte +0x10d to 2; no direct semantic read of this serialized game-data byte is proven"},
+    {"offset":"0x10e","width":1,"signed":true,"kind":"int","name":"maximum_player_count","confidence":"named","evidence":"network_game_add_player compares signed byte +0x10e against the current player count; network_game_invalidate initializes it to 16"},
+    {"offset":"0x10f","width":1,"signed":false,"kind":"int","name":"field_10f","confidence":"typed","evidence":"network_game_invalidate clears this byte and network settings serialization includes the surrounding setup-byte region; no direct semantic read is proven"},
+    {"offset":"0x110","width":2,"signed":true,"kind":"int","name":"difficulty","confidence":"named","evidence":"network_game_create_game_objects assigns signed 16-bit game+0x110 to game_options_t.difficulty"},
+    {"offset":"0x112","width":2,"signed":true,"kind":"int","name":"machine_count","confidence":"named","evidence":"network_game_add_machine/remove_machine increment/decrement word +0x112; settings validation and logs call it machine count"},
+    {"offset":"0x114","width":4,"signed":false,"kind":"int","array_len":17,"name":"machines","confidence":"typed","evidence":"network_game_add_machine and network_game_update_machine copy four 0x44-byte records beginning at +0x114"},
+    {"offset":"0x224","width":2,"signed":true,"kind":"int","name":"player_count","confidence":"named","evidence":"network_game_add_player/remove_player increment/decrement word +0x224; settings validation and logs call it player count"},
+    {"offset":"0x226","width":4,"signed":false,"kind":"int","array_len":128,"name":"players","confidence":"typed","evidence":"network_game_add_player, remove_player, and invalidate iterate sixteen 0x20-byte records beginning at +0x226"},
+    {"offset":"0x428","width":4,"signed":true,"kind":"int","name":"random_seed","confidence":"named","evidence":"network_game_set_random_seed and network_game_get_number_of_games_played read/write game+0x428; game_create_game_objects passes it as game_options_t.random_seed"},
+    {"offset":"0x42c","width":4,"signed":true,"kind":"int","name":"number_of_games_played","confidence":"named","evidence":"network_game_set_number_of_games_played writes game+0x42c and network_game_server logs it as number_of_games_played"},
+    {"offset":"0x430","width":1,"signed":false,"kind":"int","name":"map_loaded","confidence":"named","evidence":"network_game_invalidate/reset clear byte +0x430; network_game_end_and_load_ui tests it as the loaded-game flag"}
+  ],
+  "notes": [
+    "The artifact records the proven subranges and array strides; unobserved bytes between fields are intentionally omitted and remain padding in the rendered type.",
+    "The machine and player array entries are represented by network_machine_record_t and network_player_record_t."
+  ]
+}

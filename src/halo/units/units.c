@@ -2188,7 +2188,7 @@ int unit_find_dialogue_variant(void *tag_data, int dialogue_type)
       if ((int16_t)match_count == 1) {
         chosen = match_indices[0];
       } else {
-        chosen = random_range((unsigned int *)get_global_random_seed_address(),
+        chosen = seed_random_range((unsigned int *)get_global_random_seed_address(),
                               0, (int16_t)match_count);
         chosen = match_indices[chosen];
       }
@@ -2370,7 +2370,7 @@ void unit_dialogue_update(int param_1)
  * dereferences arg2/arg3). Declaring them as float* and forwarding the pointers
  * reinterprets the float bit-pattern (1.0f == 0x3f800000) as an address and
  * dereferences it — an infinite page-fault storm that froze PoA after the intro
- * (FUN_000bf380 calls this with floats pushed by value). */
+ * (unit_scripting_set_maximum_vitality_evaluate calls this with floats pushed by value). */
 void unit_scripting_set_maximum_vitality(int param_1, float body_dmg, float shield_dmg)
 {
   char *obj;
@@ -2463,7 +2463,7 @@ void unit_scripting_set_current_vitality(int datum_handle, float body_damage, fl
  * FPU -- it forwards them bit-exact through EBX/EDI (MOV EBX,[EBP+0xc]
  * @0x1a7c8b, MOV EDI,[EBP+0x10] @0x1a7c8f, pushed at 0x1a7c92/93) -- but its
  * callee unit_scripting_set_current_vitality takes (int, float, float), and its sole caller
- * FUN_000bf470 loads them with FLD and passes them via FSTP. Declaring them int
+ * units_scripting_set_current_vitality_evaluate loads them with FLD and passes them via FSTP. Declaring them int
  * made C convert the float BIT PATTERN numerically at the unit_scripting_set_current_vitality call:
  * body damage 1.0f (0x3f800000) became 1065353216.0f. Corrected here and in
  * kb.json. See lift-learnings 'XCALL type audit' / feedback on float-vs-int
@@ -3875,7 +3875,7 @@ uint32_t unit_test_spawning(int unit_handle)
     unit_tag = (char *)tag_get(0x756e6974, *unit);
     if (*(int *)(unit_tag + 0x258) != -1) {
       seed = get_global_random_seed_address();
-      count = random_range((unsigned int *)seed, *(int16_t *)(unit_tag + 0x25c),
+      count = seed_random_range((unsigned int *)seed, *(int16_t *)(unit_tag + 0x25c),
                            (int16_t)(*(int16_t *)(unit_tag + 0x25e) + 1));
       if (count > 0) {
         FUN_0003f350(unit_handle, *(int *)(unit_tag + 0x258), count,
@@ -6517,7 +6517,7 @@ void unit_detach_weapon(int unit_handle, int weapon_handle)
 
   /* Generate random throw direction from unit's facing vector (unk_492) */
   seed = get_global_random_seed_address();
-  random_direction3d(seed, (float *)(unit + 0x1ec), 0.0f, 0.39269909f,
+  seed_random_vector_in_cone3d(seed, (float *)(unit + 0x1ec), 0.0f, 0.39269909f,
                      direction);
 
   /* Scale direction by random amount */
@@ -9820,7 +9820,7 @@ void unit_start_flaming_to_death(int unit_handle, int param_2)
   *(uint16_t *)(unit + 0xb6) = (*(uint16_t *)(unit + 0xb6) & ~0x4u) | 0x800;
   if (*(char *)(unit + 0x23b) == '\0') {
     seed = get_global_random_seed_address();
-    ticks = random_range((unsigned int *)seed, 0x3c, 0x96);
+    ticks = seed_random_range((unsigned int *)seed, 0x3c, 0x96);
     if (ticks < 1) {
       ticks = 1;
     } else if (ticks > 0xff) {
@@ -11313,7 +11313,7 @@ done:
  * player and that player is valid, and the unit's zoom_level is not 0xFF,
  * retrieves the unit's current weapon and plays its zoom-deactivation sound
  * (weapon tag +0x4bc) at scale 1.0. Then clears zoom_level and unk_721 to
- * 0xFF and zeroes unk_760. Finally calls player_clear_aim_assist.
+ * 0xFF and zeroes unk_760. Finally calls player_control_unzoom.
  */
 void unit_reset_weapon_state(int unit_handle)
 {
@@ -11347,7 +11347,7 @@ void unit_reset_weapon_state(int unit_handle)
   unit->zoom_level = 0xFF;
   unit->unk_721 = 0xFF;
   unit->unk_760 = 0;
-  player_clear_aim_assist(unit_handle);
+  player_control_unzoom(unit_handle);
 }
 
 /* unit_get_zoom_magnification (0x1b1350)
@@ -11621,7 +11621,7 @@ check_ping:
         frame_count = *(short *)(anim_element + 0x22);
         quarter = frame_count >> 2;
         half = (frame_count >> 1) + quarter;
-        random_frame = FUN_00017940(quarter, half);
+        random_frame = random_range(quarter, half);
         *(char *)((int)unit + 0x23c) = (char)random_frame;
         if ((char)random_frame < 2) {
           *(char *)((int)unit + 0x23c) = 1;
@@ -12043,7 +12043,7 @@ char unit_unsuspecting(int object_handle, void *position)
  * Based on the flag value:
  *   flag 0: sets unk_676 via unit_next_weapon_index(unit, unk_674, 0)
  *   flag 1: if control_flags bit 0x800 is clear, calls
- *           player_control_set_unit_seat, then sets unk_676 = slot
+ *           player_control_set_desired_weapon, then sets unk_676 = slot
  *   flag 2: sets unk_676 = slot
  *   default: returns true without changing unk_676
  *
@@ -12088,7 +12088,7 @@ bool unit_enter_seat(int unit_handle, int seat_object_handle, int16_t flag)
     return true;
   case 1:
     if (!(unit->unk_440 & 0x800))
-      player_control_set_unit_seat(unit_handle, seat_index);
+      player_control_set_desired_weapon(unit_handle, seat_index);
     /* fall through */
   case 2:
     unit->unk_676 = seat_index;
@@ -12329,7 +12329,7 @@ char unit_throw_grenade_begin(int unit_handle, float *alignment_vector)
   }
   /* Trigger first-person weapon messages and player aim assist */
   first_person_weapon_message_from_unit(unit_handle, 0x11);
-  player_clear_aim_assist(unit_handle);
+  player_control_unzoom(unit_handle);
 
   /* Create grenade throw effect */
   gg = (int)game_globals_get();

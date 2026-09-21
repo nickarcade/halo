@@ -647,12 +647,12 @@ def _fix_struct_scope_issue(base_c_path: Path) -> None:
     """Fix base.c compilation issues from typedef/struct scoping.
 
     The generated base.c has two main issues:
-    1. TIFF-specific function pointer typedefs (tiff_*_method_t) are inside
+    1. Function pointer typedefs (tiff_*_method_t, *_fn) are inside
        #ifndef TYPES_H but needed by struct definitions outside the guard
     2. Some structs reference other structs defined later
 
     This function:
-    - Moves TIFF-specific function pointer typedefs outside the guard
+    - Moves function pointer typedefs outside the guard
     - Keeps generic typedefs (data_t, etc) inside the guard to avoid conflicts with types.h
     - Adds forward declarations for referenced structs
     """
@@ -687,7 +687,7 @@ def _fix_struct_scope_issue(base_c_path: Path) -> None:
             # After #endif, insert TIFF-specific typedefs before remaining content
             output_lines.extend(tiff_typedefs_to_move)
             i += 1
-        elif i < endif_idx and line.strip().startswith('typedef') and 'tiff_' in line and ('*' in line or '_method_t' in line):
+        elif i < endif_idx and line.strip().startswith('typedef') and (('tiff_' in line and ('*' in line or '_method_t' in line)) or '_fn' in line):
             # This is a TIFF-specific typedef we want to move out
             if line.strip().endswith(';'):
                 # Single-line typedef (function pointers)

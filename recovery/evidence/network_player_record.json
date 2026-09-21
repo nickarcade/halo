@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "struct": "network_player_record_t",
+  "size": {
+    "value": "0x20",
+    "evidence": "network_game_add_player copies exactly 0x20 bytes into each of 16 slots at game+0x226; network_player_reset accesses through offset 0x1f"
+  },
+  "stride": {
+    "value": "0x20",
+    "evidence": "network_game_add_player, network_game_remove_player, and network_game_invalidate_machine advance player slots by 0x20"
+  },
+  "sources": [
+    "network_game_add_player @ 0x12ad60",
+    "network_game_remove_player @ 0x12afc0",
+    "network_player_is_valid @ 0x12ac80",
+    "network_player_reset @ 0x12a920",
+    "network_game_client_add_player @ 0x1258a0",
+    "network_game_invalidate_machine @ 0x12a960"
+  ],
+  "fields": [
+    {"offset":"0x00","width":2,"signed":false,"kind":"int","array_len":12,"name":"name","confidence":"named","evidence":"network_game_client_add_player passes record+0x00 to ustrncpy with count 0xb, and network_game_client_add_player_to_game logs the record as a player identity"},
+    {"offset":"0x18","width":2,"signed":false,"kind":"int","name":"field_18","confidence":"typed","evidence":"network_game_client_add_player stores a 16-bit profile value at +0x18; network_game_server_add_player_to_game tests the same offset against -1"},
+    {"offset":"0x1a","width":2,"signed":false,"kind":"int","name":"field_1a","confidence":"typed","evidence":"network_game_client_add_player stores 0xffff at +0x1a; no semantic meaning is proven"},
+    {"offset":"0x1c","width":1,"signed":true,"kind":"int","name":"machine_index","confidence":"named","evidence":"network_player_is_valid range-checks signed byte +0x1c; logs and comparisons identify it as the machine index"},
+    {"offset":"0x1d","width":1,"signed":true,"kind":"int","name":"controller_index","confidence":"named","evidence":"network_player_is_valid range-checks signed byte +0x1d; logs call it controller index and network_game_client_add_player writes the local player index"},
+    {"offset":"0x1e","width":1,"signed":true,"kind":"int","name":"team_index","confidence":"named","evidence":"network_game_dump logs signed byte +0x1e as team_index; network_game_client_add_player initializes it from the profile record"},
+    {"offset":"0x1f","width":1,"signed":true,"kind":"int","name":"player_index","confidence":"named","evidence":"network_game_add_player uses signed byte +0x1f to select the destination slot and network_game_spawn_player updates it from player_new"}
+  ],
+  "notes": [
+    "Offsets 0x00-0x17 are a packed wide-character name plus terminator area; the record artifact claims only the observed 16-bit accesses and the 11-word copy range.",
+    "The source uses byte accesses for indices, and the original disassembly uses signed byte tests/MOVSX at these offsets."
+  ]
+}

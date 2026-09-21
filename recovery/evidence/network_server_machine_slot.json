@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "struct": "network_server_machine_slot_t",
+  "size": {
+    "value": "0x10",
+    "evidence": "network_game_server_get_client_machine_at_index returns server+0x43c+index*0x10; network_game_server_get_machine_connection scans four slots at that stride"
+  },
+  "stride": {
+    "value": "0x10",
+    "evidence": "network_game_server_get_client_machine_at_index and network_game_server_get_client_machine_at_address use index*0x10 at server+0x43c"
+  },
+  "sources": [
+    "network_game_server_get_machine_connection @ 0x12d3d0",
+    "network_game_server_get_client_machine_at_index @ 0x12d450",
+    "network_game_server_get_client_machine_at_address @ 0x12d4a0"
+  ],
+  "fields": [
+    {"offset":"0x00","width":4,"signed":false,"kind":"int","name":"connection","confidence":"named","evidence":"network_game_server_get_client_machine_at_address asserts server->client_machines[i].connection and passes slot dword +0x00 to network_connection_get_address"},
+    {"offset":"0x04","width":4,"signed":false,"kind":"int","name":"last_received_update_sequence_number","confidence":"named","evidence":"network_game_server_dump logs dword slot+0x04 with the exact label last_received_update_sequence_number"},
+    {"offset":"0x08","width":4,"signed":false,"kind":"int","name":"stall_start_time","confidence":"named","evidence":"network_game_server_dump logs dword slot+0x08 with the exact label stall_start_time"},
+    {"offset":"0x0c","width":2,"signed":true,"kind":"int","name":"machine_index","confidence":"named","evidence":"network_game_server_get_machine_connection compares signed word at slot+0x0c with the live machine index; address lookup range-checks the same word"},
+    {"offset":"0x0e","width":2,"signed":false,"kind":"int","name":"flags","confidence":"named","evidence":"network_game_server_dump logs word slot+0x0e with the exact label flags; network_game_server_all_machines_have_loaded tests bit 3"}
+  ],
+  "notes": [
+    "This 0x10-byte server connection slot is distinct from the 0x44-byte copied network_machine_record_t used inside the network game blob."
+  ]
+}

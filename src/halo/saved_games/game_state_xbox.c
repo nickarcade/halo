@@ -294,7 +294,7 @@ int game_state_open_persistent_storage(int param_1)
     goto copy_caller_path;
   }
 have_path:
-  FUN_0008dc30(path, "savegame.bin");
+  csstrcat(path, "savegame.bin");
 
   file_handle = CreateFileA(path, 0xc0000000, 0, 0, 4, 0, 0);
   if (file_handle != -1) {
@@ -822,9 +822,9 @@ void *FUN_001c1950(void *param_1, int param_2)
 
 /* 0x1c19c0
  * Returns a random value in [0, 0x11] (0-17 inclusive) using the local
- * random seed. Single caller: FUN_0012c750.
+ * random seed. Single caller: get_unique_random_color.
  */
 int FUN_001c19c0(void)
 {
-  return (int)random_range(random_math_get_local_seed_address(), 0, 0x11);
+  return (int)seed_random_range(random_math_get_local_seed_address(), 0, 0x11);
 }

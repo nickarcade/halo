@@ -100,6 +100,98 @@ float FUN_000121e0(float min, float max)
   return random_real_range(seed, min, max);
 }
 
+/* action_alert_update (0x12200) — per-tick arrival check for the alert action.
+ *
+ * If the actor is awake and holds an alert state index, measure the squared
+ * distance from its body position to the stored alert position; when the
+ * pathfinder reports arrival, or that distance is below the global arrival
+ * threshold, tick the initiative countdown down and, if the arrival flag is
+ * still set, hand the pending scenario command to the animation starter and
+ * clear the flag.
+ *
+ * Confirmed: cdecl, one stack arg at [EBP+0x8] kept in EDI (0x1220b). The kb
+ *   decl was `(void)`; the disassembly reads and pushes [EBP+0x8].
+ * Confirmed: PUSH EDI(actor_handle) / PUSH EAX(*0x6325a4) / CALL 0x119320 ->
+ *   datum_get(actors_data, actor_handle); result kept in ESI; ADD ESP,0x8.
+ * Confirmed: TEST byte [ESI+0x13] (dormant) and CMP word [ESI+0xa2],-1 are two
+ *   independent exits to 0x1233d.
+ * Confirmed: FLD [ESI+0xa8] / FSUB [ESI+0x12c] (and 0xac/0x130, 0xb0/0x134) —
+ *   delta = alert_position - body_position, in that subtraction order.
+ * Confirmed: x87 accumulation order is dz*dz + dx*dx then + dy*dy (FLD ST0 /
+ *   FMUL ST1 / FLD ST3 / FMUL ST4 / FADDP / FLD ST2 / FMUL ST3 / FADDP),
+ *   the same shape distance_squared3d (0x121a0) emits, inlined here.
+ * Confirmed: display_assert("!actor->meta.swarm", "c:\\halo\\SOURCE\\ai\\
+ *   action_alert.c", 0xae, true) / system_exit(-1) guarded by TEST byte
+ * [ESI+6]. Confirmed: PUSH EDI / CALL 0x2a3f0 ->
+ * actor_path_at_destination(actor_handle); TEST AL,AL / JNZ enters the body,
+ * otherwise FCOMP float [0x25337c] with FNSTSW/TEST AH,0x5/JP — i.e. `||
+ * distance_sq < *(float *)0x25337c`. Confirmed: word [ESI+0x9e] is decremented
+ * only while > 0 (TEST AX,AX / JLE). Confirmed: MOV AX,[ESI+0xc4] / CMP
+ * AX,0xffff / MOVSX ECX,AX — signed short command index; PUSH 0x3c / PUSH ECX /
+ * CALL 0x18e380 / ADD EAX,0x444 / PUSH EAX / CALL 0x19b210 ->
+ * tag_block_get_element(scenario+0x444, index, 0x3c); element kept in EDI.
+ * Confirmed: when *(int *)(element+0x2c) == -1 the animation comes from
+ *   object_get_and_verify_type(*(int *)(actor+0x18), 3) -> *(int *) deref ->
+ *   tag_get('unit', tag_index) -> *(int *)(definition + 0x44).
+ * Confirmed: PUSH 1 / PUSH EDI / PUSH EAX / PUSH ECX([ESI+0x18]) /
+ *   CALL 0x1ac180 -> FUN_001ac180(unit_handle, animation, element, 1).
+ * Confirmed: MOV byte [ESI+0xa6],0 clears the arrival flag on both paths that
+ *   reach 0x12336. */
+void action_alert_update(int actor_handle)
+{
+  char *actor;
+  float dx;
+  float dy;
+  float dz;
+  float distance_sq;
+  short initiative;
+  short command_index;
+  int animation;
+  void *command;
+  int *object;
+  unsigned char *definition;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (*(char *)(actor + 0x13) != 0) {
+    return;
+  }
+  if (*(short *)(actor + 0xa2) == -1) {
+    return;
+  }
+
+  dx = *(float *)(actor + 0xa8) - *(float *)(actor + 0x12c);
+  dy = *(float *)(actor + 0xac) - *(float *)(actor + 0x130);
+  dz = *(float *)(actor + 0xb0) - *(float *)(actor + 0x134);
+  distance_sq = dz * dz + dx * dx + dy * dy;
+
+  assert_halt_msg_at("!actor->meta.swarm",
+                     "c:\\halo\\SOURCE\\ai\\action_alert.c", 0xae,
+                     *(char *)(actor + 0x6) == 0);
+
+  if (actor_path_at_destination(actor_handle) != 0 ||
+      distance_sq < *(float *)0x25337c) {
+    initiative = *(short *)(actor + 0x9e);
+    if (initiative > 0) {
+      *(short *)(actor + 0x9e) = initiative - 1;
+    }
+    if (*(char *)(actor + 0xa6) != 0) {
+      command_index = *(short *)(actor + 0xc4);
+      if (command_index != -1) {
+        command = tag_block_get_element((char *)global_scenario_get() + 0x444,
+                                        command_index, 0x3c);
+        animation = *(int *)((char *)command + 0x2c);
+        if (animation == -1) {
+          object = (int *)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+          definition = (unsigned char *)tag_get(0x756e6974, *object);
+          animation = *(int *)(definition + 0x44);
+        }
+        FUN_001ac180(*(int *)(actor + 0x18), animation, command, 1);
+      }
+      *(unsigned char *)(actor + 0xa6) = 0;
+    }
+  }
+}
+
 /* action_alert_perform (0x12660)
  * One tick of the alert action: (1) if the actor has an alert command list
  * and no command in flight, optionally retire the arrival check and pick the

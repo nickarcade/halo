@@ -309,7 +309,7 @@ int weather_particle_system_new_particle(int16_t type_index /* @<eax> */,
     }
 
     sequence_index =
-      random_range(random_math_get_local_seed_address(), 0,
+      seed_random_range(random_math_get_local_seed_address(), 0,
                    (int16_t)*(uint16_t *)(bitmap + 0x54));
     *(int16_t *)(particle + 0x28) = sequence_index;
     sequence_element =

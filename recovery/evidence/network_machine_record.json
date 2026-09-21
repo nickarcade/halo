@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "struct": "network_machine_record_t",
+  "size": {
+    "value": "0x44",
+    "evidence": "network_game_add_machine and network_game_update_machine copy exactly 0x44 bytes; network_game_server_invalidate_network_machine clears 0x44 bytes"
+  },
+  "stride": {
+    "value": "0x44",
+    "evidence": "network_game_add_machine and network_game_update_machine index four records with i*0x44"
+  },
+  "sources": [
+    "network_game_add_machine @ 0x12a960",
+    "network_game_update_machine @ 0x12a9f0",
+    "network_game_invalidate_machine @ 0x12a920",
+    "network_game_server_accept_client_machine_into_game @ 0x12c560",
+    "network_game_server_get_client_machine @ 0x12d2f0"
+  ],
+  "fields": [
+    {"offset":"0x00","width":2,"signed":false,"kind":"int","array_len":32,"name":"name","confidence":"named","evidence":"network_game_server timeout handling converts game+0x11c+machine_index*0x44 to ASCII as a wide-character machine name; the 0x44-byte record has 0x40 bytes before its index byte"},
+    {"offset":"0x40","width":1,"signed":true,"kind":"int","name":"machine_index","confidence":"named","evidence":"network_machine_is_valid range-checks signed byte +0x40; network_game_add_machine uses it to select a game slot and network_game_server_get_client_machine writes it as the copied slot index"}
+  ],
+  "notes": [
+    "The two machine-index offsets are distinct fields in distinct record contexts: +0x0c belongs to the live server machine object, while +0x40 is the copied network-game machine record field used by network_game_manager.",
+    "All other bytes are bulk-copied or cleared but have no field-level evidence in the consulted functions; they remain implicit gaps in this partial layout."
+  ]
+}

@@ -44,7 +44,7 @@ int FUN_00120250(void *page, short width, short height, bool immediate)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   if (!immediate && *pg == 0) {
     display_assert("immediate || texture_page->contains_unsorted_textures",
@@ -87,7 +87,7 @@ int FUN_00120250(void *page, short width, short height, bool immediate)
  *
  * Confirmed: cdecl, 1 arg (page ptr, matches [EBP+8] loaded once into ESI at
  * 0x120345). Confirmed: void return (plain RET at 0x1203f2).
- * Confirmed: calls FUN_0011fd50() unconditionally first, same as
+ * Confirmed: calls texture_page_verify() unconditionally first, same as
  * FUN_00120250/FUN_00120400.
  * Confirmed: asserts page->contains_unsorted_textures (pg+0x0, byte) is
  * nonzero — display_assert("texture_page->contains_unsorted_textures",
@@ -127,7 +127,7 @@ void FUN_00120340(void *page)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   if (*pg == 0) {
     display_assert("texture_page->contains_unsorted_textures",
@@ -167,7 +167,7 @@ void FUN_00120340(void *page)
  * texture-page allocator, same as FUN_00120250 immediately above.
  *
  * Confirmed: cdecl, 1 arg (page ptr). Confirmed: void return.
- * Confirmed: calls FUN_0011fd50() unconditionally first, same as
+ * Confirmed: calls texture_page_verify() unconditionally first, same as
  * FUN_00120250 (0x120407).
  * Confirmed: asserts page->contains_unsorted_textures (pg+0x0, byte) is
  * nonzero — display_assert("texture_page->contains_unsorted_textures",
@@ -197,7 +197,7 @@ void FUN_00120400(void *page)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   if (*pg == 0) {
     display_assert("texture_page->contains_unsorted_textures",
@@ -234,7 +234,7 @@ void FUN_00120400(void *page)
  *
  * Confirmed: cdecl, 2 args (page ptr, datum handle int). Confirmed: void
  * return.
- * Confirmed: calls FUN_0011fd50() unconditionally first, same as
+ * Confirmed: calls texture_page_verify() unconditionally first, same as
  * FUN_00120250/FUN_00120400 (0x120477).
  * Confirmed: CALL datum_delete(*(data_t**)(page+0x18), handle) at 0x120484 —
  * ECX (page+0x18 deref) pushed last = first arg, EAX (param_2) pushed first =
@@ -254,7 +254,7 @@ void FUN_00120470(void *page, int handle)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   datum_delete(*(data_t **)(pg + 0x18), handle);
 
@@ -266,7 +266,7 @@ void FUN_00120470(void *page, int handle)
  *
  * kb.json maps this address into model_animations.obj by link-time object
  * grouping; same texture-page allocator TU as FUN_00120250/FUN_00120340/
- * FUN_00120400/FUN_00120470 immediately above (unconditional FUN_0011fd50()
+ * FUN_00120400/FUN_00120470 immediately above (unconditional texture_page_verify()
  * first, and FUN_0011ff70(page) to commit — same corrected bool-returning
  * decl already used by those functions).
  *
@@ -294,7 +294,7 @@ bool FUN_001204a0(void *page, short width, short height)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   old_width = *(short *)(pg + 8);
   old_height = *(short *)(pg + 0xa);
@@ -1642,7 +1642,7 @@ void FUN_00121d60(void *mode_tag, void *animation, int animation_index,
  * and 0x1221f5 (2 args: animation, frame_index). Confirmed: CALL
  * quaternion_decompress_8byte at 0x12211d (2 args: src_shorts, dest_floats).
  * Confirmed: CALL FUN_00121330 at 0x122108, animation_get_node_orientations
- * at 0x12215c, overlay_animation_apply_continuous_scaled at 0x1221b7 — each 5
+ * at 0x12215c, animation_get_keyframe_scale at 0x1221b7 — each 5
  * args pushed out,node,count,frame,animation with the float frame lowered as
  * PUSH <dummy>; FILD [EBP-0x20]; FSTP [ESP] (frame = (float)(int)frame_index).
  * Confirmed: node stride 0x20 via MOVSX EDI,BX; SHL EDI,0x5 at 0x1220ba.
@@ -1779,7 +1779,7 @@ void replacement_animation_apply(void *animation, short frame_index,
  * last push EDX=data is arg0). Confirmed: CALL FUN_0010b9c0 at 0x122317 with
  * pushes EDI,EDI,LEA[EBP-0x40] — args (rotation, node, node).
  * Confirmed: CALL FUN_00121330 at 0x1222eb, animation_get_node_orientations
- * at 0x12234d, overlay_animation_apply_continuous_scaled at 0x1223c3 — each 5
+ * at 0x12234d, animation_get_keyframe_scale at 0x1223c3 — each 5
  * args pushed out,node,count,frame,animation with the float frame lowered as
  * PUSH <dummy>; FILD [EBP-0x24]; FSTP [ESP] (frame = (float)(int)frame_index).
  * Confirmed: node stride 0x20 via MOVSX EDI,BX; SHL EDI,0x5 at 0x12229a.
@@ -1871,7 +1871,7 @@ void overlay_animation_apply(void *anim_entry, int frame, void *node_data)
 
           if ((scale_flags & 1) != 0) {
             if (compressed != 0) {
-              overlay_animation_apply_continuous_scaled(
+              animation_get_keyframe_scale(
                 anim_entry, (float)(int)frame_index,
                 (unsigned short)scale_count, node_index, &scale);
               scale_count = scale_count + 1;
@@ -2047,8 +2047,6 @@ void model_get_node_matrices(void *mode_tag, float *node_matrices,
 }
 
 /* model_get_default_inverse_matrix (0x123e20) — Get a node's default matrix from a
-/* model_get_default_inverse_matrix (0x123e20) — Get a node's default matrix from a
-
  * model mode tag.
  *
  * Confirmed: cdecl, 2 args (mode_tag ptr, node_index short).

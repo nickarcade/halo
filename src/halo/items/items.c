@@ -553,7 +553,7 @@ bool virtual_keyboard_active(void)
  * TEST/SETNE normalization, so the C form is a direct byte load into the
  * unsigned-char `bool`, not a `!= 0` comparison.
  *
- * No callees. Single caller (UNCONDITIONAL_CALL, from xrefs): FUN_000f04c0
+ * No callees. Single caller (UNCONDITIONAL_CALL, from xrefs): new_campaign_decision
  * @0xf04db. Name kept mechanical: behaviour is clear but there is no
  * string/PDB evidence for a symbol. */
 bool virtual_keyboard_last_exit_saved_text(void)
@@ -1266,7 +1266,7 @@ bool garbage_new(int item_handle)
   flags = *(unsigned int *)(item_obj + 0x4);
   *(unsigned int *)(item_obj + 0x4) = flags | 0xc0000;
   seed = (unsigned int *)get_global_random_seed_address();
-  *(int16_t *)(item_obj + 0x1dc) = random_range(seed, 300, 600);
+  *(int16_t *)(item_obj + 0x1dc) = seed_random_range(seed, 300, 600);
   return 1;
 }
 

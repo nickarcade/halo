@@ -170,6 +170,91 @@ co(game_variant_t, field_58,    0x58);
 co(game_variant_t, field_5c,    0x5c);
 co(game_variant_t, field_60,    0x60);
 
+/// size=0x20
+/// Evidence: recovery/evidence/network_player_record.json
+/// The record is packed because the containing player array starts at game+0x226.
+typedef struct {
+  wchar_t name[12];             ///< offset=0x00
+  uint16_t field_18;             ///< offset=0x18
+  uint16_t field_1a;             ///< offset=0x1a
+  int8_t machine_index;          ///< offset=0x1c
+  int8_t controller_index;       ///< offset=0x1d
+  int8_t team_index;             ///< offset=0x1e
+  int8_t player_index;           ///< offset=0x1f
+} network_player_record_t;
+cs(network_player_record_t, 0x20);
+co(network_player_record_t, name,              0x00);
+co(network_player_record_t, field_18,          0x18);
+co(network_player_record_t, field_1a,          0x1a);
+co(network_player_record_t, machine_index,     0x1c);
+co(network_player_record_t, controller_index,  0x1d);
+co(network_player_record_t, team_index,        0x1e);
+co(network_player_record_t, player_index,      0x1f);
+
+/// size=0x44
+/// Evidence: recovery/evidence/network_machine_record.json
+/// Only the signed machine-index byte at +0x40 is field-recovered.
+typedef struct {
+  wchar_t name[32];              ///< offset=0x00
+  int8_t machine_index;          ///< offset=0x40
+  char pad_41[3];                ///< offset=0x41
+} network_machine_record_t;
+cs(network_machine_record_t, 0x44);
+co(network_machine_record_t, machine_index, 0x40);
+
+/// size=0x10
+/// Evidence: recovery/evidence/network_server_machine_slot.json
+typedef struct {
+  uint32_t connection;            ///< offset=0x00
+  uint32_t last_received_update_sequence_number; ///< offset=0x04
+  uint32_t stall_start_time;      ///< offset=0x08
+  int16_t machine_index;          ///< offset=0x0c
+  uint16_t flags;                 ///< offset=0x0e
+} network_server_machine_slot_t;
+cs(network_server_machine_slot_t, 0x10);
+co(network_server_machine_slot_t, connection,                         0x00);
+co(network_server_machine_slot_t, last_received_update_sequence_number, 0x04);
+co(network_server_machine_slot_t, stall_start_time,                   0x08);
+co(network_server_machine_slot_t, machine_index,                       0x0c);
+co(network_server_machine_slot_t, flags,                               0x0e);
+
+/// size=0x434
+/// Evidence: recovery/evidence/network_game_blob.json
+/// This packed blob is serialized as a 0x434-byte network settings message.
+typedef struct {
+  char pad_00[0x24];              ///< offset=0x00
+  char map_name[0x80];            ///< offset=0x24
+  game_variant_t game_variant;    ///< offset=0xa4
+  char pad_10c[1];                ///< offset=0x10c
+  int8_t field_10d;                ///< offset=0x10d
+  int8_t maximum_player_count;    ///< offset=0x10e
+  uint8_t field_10f;               ///< offset=0x10f
+  int16_t difficulty;             ///< offset=0x110
+  int16_t machine_count;          ///< offset=0x112
+  network_machine_record_t machines[4]; ///< offset=0x114
+  int16_t player_count;           ///< offset=0x224
+  network_player_record_t players[16]; ///< offset=0x226
+  char pad_426[2];                ///< offset=0x426
+  int32_t random_seed;            ///< offset=0x428
+  int32_t number_of_games_played; ///< offset=0x42c
+  uint8_t map_loaded;             ///< offset=0x430
+  char pad_431[3];                ///< offset=0x431
+} network_game_blob_t;
+cs(network_game_blob_t, 0x434);
+co(network_game_blob_t, map_name,                0x24);
+co(network_game_blob_t, game_variant,            0xa4);
+co(network_game_blob_t, field_10d,               0x10d);
+co(network_game_blob_t, maximum_player_count,    0x10e);
+co(network_game_blob_t, field_10f,               0x10f);
+co(network_game_blob_t, difficulty,              0x110);
+co(network_game_blob_t, machine_count,           0x112);
+co(network_game_blob_t, machines,                0x114);
+co(network_game_blob_t, player_count,            0x224);
+co(network_game_blob_t, players,                 0x226);
+co(network_game_blob_t, random_seed,             0x428);
+co(network_game_blob_t, number_of_games_played,  0x42c);
+co(network_game_blob_t, map_loaded,              0x430);
+
 #define GAME_STATE_CPU_SIZE 0x305000
 
 /// size=0x20
@@ -325,10 +410,10 @@ typedef struct {
  * Values 1-5 are T2 (name_source: halocea, DB-verified there via
  * types_enum_values _270498BB874CAD5ECABAECA7DA81ECAE).  Our binary proves
  * their MEANING independently — the dispatch in
- * player_set_action_result_for_equipment routes each to an already-named
+ * player_handle_powerup_equipment routes each to an already-named
  * handler: game_set_players_are_double_speed (1), object_double_charge_shield
- * + player_apply_overshield_effect (2), powerup slot 0 (3), powerup slot 1
- * (4), object_restore_body + player_apply_health_effect (5).  The spellings
+ * + player_over_shield_screen_effect (2), powerup slot 0 (3), powerup slot 1
+ * (4), object_restore_body + player_health_pack_screen_effect (5).  The spellings
  * are still borrowed.
  *
  * No bound is named: 6 is the largest value our binary compares against, which
@@ -550,7 +635,7 @@ typedef struct
 
 #define MAXIMUM_NUMBER_OF_TRIGGERS_PER_WEAPON 2
 #define MAXIMUM_NUMBER_OF_MAGAZINES_PER_WEAPON 2  // TODO: confirm
-// Confirmed via disassembly at 0xfb880 (weapon_trigger_release_charge):
+// Confirmed via disassembly at 0xfb880 (weapon_trigger_change_state):
 // CMP BX,0x9 / JL 0xfb8e7 bounds new_state before the assert_halt fires.
 #define NUMBER_OF_TRIGGER_STATES 9
 
@@ -676,7 +761,7 @@ typedef struct {
 typedef struct {
   int32_t unit_index;            ///< offset=0x00 owning unit datum handle
   int32_t field_0x04;            ///< offset=0x04
-  uint16_t action_flags;         ///< offset=0x08 (player_control_set_action_flags)
+  uint16_t action_flags;         ///< offset=0x08 (player_control_inhibit_buttons)
   uint16_t persistent_action_flags; ///< offset=0x0a (persistent variant)
   real    desired_angles_yaw;    ///< offset=0x0c player->desired_angles.yaw
   real    desired_angles_pitch;  ///< offset=0x10 player->desired_angles.pitch
@@ -715,7 +800,7 @@ co(player_control_t, pitch_maximum,          0x3c);
 /// size=0x20
 /// One frame of controller input for a local player, filled by
 /// get_local_player_input_blob (0xb70b0, buffer in EBX) and consumed by
-/// player_control_get_facing. Bungie calls the parameter "input" -- recovered
+/// handle_one_player_input. Bungie calls the parameter "input" -- recovered
 /// from that function's own assert string "input->primary_trigger", which
 /// guards a load of +0x08. Field widths are taken from the producer's stores
 /// (byte at +0x14/+0x15, dword elsewhere); field_0xNN are offsets whose
@@ -733,7 +818,7 @@ typedef struct {
   uint32_t action_flags;         ///< offset=0x1c bit1 grenade switch, bit2 melee/throw
 } player_input_t;
 /// size=0x20
-/// The action player_control_get_facing builds from a player control slot and
+/// The action handle_one_player_input builds from a player control slot and
 /// hands to update_client_queue. Bungie calls the local "action" and the angle
 /// pair "desired_facing" -- both verbatim from this function's own assert
 /// strings "action.desired_facing.yaw"/".pitch" (player_control.c:0x369-0x36a),
@@ -831,9 +916,9 @@ typedef struct
 
 /// size=0x54
 typedef struct {
-  vector3_t         unk_0;                  ///< offset=0x00
-  vector3_t         unk_12;                 ///< offset=0x0c
-  vector3_t         unk_24;                 ///< offset=0x18
+  vector3_t         field_00;               ///< offset=0x00
+  vector3_t         field_0c;               ///< offset=0x0c
+  vector3_t         field_18;               ///< offset=0x18
   uint8_t           unk_36;                 ///< offset=0x24
   char              unk_37[3];              ///< offset=0x25
   float             vertical_field_of_view; ///< offset=0x28
@@ -841,8 +926,49 @@ typedef struct {
   viewport_bounds_t unk_52;                 ///< offset=0x34
   float             z_near;                 ///< offset=0x3c
   float             z_far;                  ///< offset=0x40
-  char              unk_68[16];             ///< offset=0x44
+  float             field_44[4];            ///< offset=0x44
 } camera_t;
+cs(camera_t, 0x54);
+co(camera_t, field_00, 0x00);
+co(camera_t, field_0c, 0x0c);
+co(camera_t, field_18, 0x18);
+co(camera_t, vertical_field_of_view, 0x28);
+co(camera_t, viewport_bounds, 0x2c);
+co(camera_t, z_near, 0x3c);
+co(camera_t, z_far, 0x40);
+co(camera_t, field_44, 0x44);
+
+/// size=0x18c. Recovered from render_camera_build_frustum (0x187250).
+typedef struct {
+  float        field_00[4];   ///< offset=0x000
+  float        field_10[13];  ///< offset=0x010 real_matrix4x3
+  float        field_44[13];  ///< offset=0x044 real_matrix4x3
+  real_plane3d field_78[6];   ///< offset=0x078
+  float        field_d8;      ///< offset=0x0d8
+  float        field_dc;      ///< offset=0x0dc
+  vector3_t    field_e0[4];   ///< offset=0x0e0
+  vector3_t    field_110;     ///< offset=0x110
+  vector3_t    field_11c;     ///< offset=0x11c
+  float        field_128[6];  ///< offset=0x128
+  uint8_t      field_140;     ///< offset=0x140
+  uint8_t      pad_141[3];    ///< offset=0x141
+  float        field_144[16]; ///< offset=0x144
+  float        field_184[2];  ///< offset=0x184
+} render_frustum_t;
+cs(render_frustum_t, 0x18c);
+co(render_frustum_t, field_00, 0x000);
+co(render_frustum_t, field_10, 0x010);
+co(render_frustum_t, field_44, 0x044);
+co(render_frustum_t, field_78, 0x078);
+co(render_frustum_t, field_d8, 0x0d8);
+co(render_frustum_t, field_dc, 0x0dc);
+co(render_frustum_t, field_e0, 0x0e0);
+co(render_frustum_t, field_110, 0x110);
+co(render_frustum_t, field_11c, 0x11c);
+co(render_frustum_t, field_128, 0x128);
+co(render_frustum_t, field_140, 0x140);
+co(render_frustum_t, field_144, 0x144);
+co(render_frustum_t, field_184, 0x184);
 
 /// size=0xac
 typedef struct {

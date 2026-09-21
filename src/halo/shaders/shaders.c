@@ -821,7 +821,7 @@ void numeric_countdown_timer_set(int time, char enabled)
  * upper half of EAX is whatever the divide left behind -- which is what Ghidra
  * renders as CONCAT22(...) ten times over. That is a return-WIDTH fact, not a
  * CONCAT hazard: the return type is 16-bit, so the garbage high half is never
- * reproduced. Confirmed from the caller side -- FUN_000be6a0's reference does
+ * reproduced. Confirmed from the caller side -- numeric_countdown_timer_get_evaluate's reference does
  * MOV word ptr [EBP-4],AX into a zero-initialised int slot before reading it
  * back, i.e. it consumes a 16-bit return. The kb decl was previously int. */
 int16_t numeric_countdown_timer_get(int a1)

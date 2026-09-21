@@ -2481,11 +2481,11 @@ finished:
  * the raw MOV/FSTP destinations:
  *   +0x00/+0x04/+0x08  p0 xyz, copied as three dword MOVs (MSVC copies the
  *                      12-byte point as integers, not FLD/FSTP)
- *   +0x0c              FUN_000d1c90(color0) -- the packed colour returned in
+ *   +0x0c              real_argb_color_to_pixel32(color0) -- the packed colour returned in
  *                      EAX and stored as a dword (MOV [ESI+0xc],EAX), so it
  *                      is a uint32_t, not a float
  *   +0x10/+0x14/+0x18  p1 xyz (written through LEA ECX,[ESI+0x10])
- *   +0x1c              FUN_000d1c90(color1)
+ *   +0x1c              real_argb_color_to_pixel32(color1)
  *   +0x20..+0x2f       never written here -- the third vertex slot, used only
  *                      by the triangle entry point
  *   +0x30              word 2, the int16 vertex count FUN_0017e130 sorts on
@@ -2506,7 +2506,7 @@ finished:
  * at EBP-0x1 (EBP-0x4..-0x2 unused).
  *
  * Call-site audit note: ADD ESP,0x8 at 0017e799 is the coalesced cleanup for
- * the two 1-argument FUN_000d1c90 calls, the same artifact class already
+ * the two 1-argument real_argb_color_to_pixel32 calls, the same artifact class already
  * documented for FUN_0017e040. */
 void FUN_0017e5b0(float *p0, float *p1, float *color0, float *color1)
 {
@@ -2563,8 +2563,8 @@ void FUN_0017e5b0(float *p0, float *p1, float *color0, float *color1)
         *(uint32_t *)(record + 0x10) = ((uint32_t *)p1)[0];
         *(uint32_t *)(record + 0x14) = ((uint32_t *)p1)[1];
         *(uint32_t *)(record + 0x18) = ((uint32_t *)p1)[2];
-        *(uint32_t *)(record + 0x0c) = FUN_000d1c90(color0);
-        *(uint32_t *)(record + 0x1c) = FUN_000d1c90(color1);
+        *(uint32_t *)(record + 0x0c) = real_argb_color_to_pixel32(color0);
+        *(uint32_t *)(record + 0x1c) = real_argb_color_to_pixel32(color1);
         distance0 = *(float *)0x5a5bdc * delta0[2] +
                     *(float *)0x5a5bd8 * delta0[1] +
                     *(float *)0x5a5bd4 * delta0[0];
@@ -2607,11 +2607,11 @@ void FUN_0017e5b0(float *p0, float *p1, float *color0, float *color1)
  *
  * Store offsets, from the raw MOV/FSTP destinations:
  *   +0x00/+0x04/+0x08  p0 xyz (dword MOVs through ECX = ESI)
- *   +0x0c              FUN_000d1c90(color0), a uint32_t packed colour in EAX
+ *   +0x0c              real_argb_color_to_pixel32(color0), a uint32_t packed colour in EAX
  *   +0x10/+0x14/+0x18  p1 xyz (through LEA ECX,[ESI+0x10])
- *   +0x1c              FUN_000d1c90(color1)
+ *   +0x1c              real_argb_color_to_pixel32(color1)
  *   +0x20/+0x24/+0x28  p2 xyz (through LEA ECX,[ESI+0x20])
- *   +0x2c              FUN_000d1c90(color2)
+ *   +0x2c              real_argb_color_to_pixel32(color2)
  *   +0x30              word 3
  *   +0x34              float sort key
  *   +0x38              byte opaque flag
@@ -2633,7 +2633,7 @@ void FUN_0017e5b0(float *p0, float *p1, float *color0, float *color1)
  * distance1 never leaves the x87 stack.
  *
  * Call-site audit note: ADD ESP,0xc at 0017ea59 is the coalesced cleanup for
- * the three 1-argument FUN_000d1c90 calls, the same artifact class documented
+ * the three 1-argument real_argb_color_to_pixel32 calls, the same artifact class documented
  * for FUN_0017e040. */
 void rasterizer_debug_triangle_shaded(float *p0, float *p1, float *p2,
                                       float *color0, float *color1,
@@ -2701,9 +2701,9 @@ void rasterizer_debug_triangle_shaded(float *p0, float *p1, float *p2,
         *(uint32_t *)(record + 0x20) = ((uint32_t *)p2)[0];
         *(uint32_t *)(record + 0x24) = ((uint32_t *)p2)[1];
         *(uint32_t *)(record + 0x28) = ((uint32_t *)p2)[2];
-        *(uint32_t *)(record + 0x0c) = FUN_000d1c90(color0);
-        *(uint32_t *)(record + 0x1c) = FUN_000d1c90(color1);
-        *(uint32_t *)(record + 0x2c) = FUN_000d1c90(color2);
+        *(uint32_t *)(record + 0x0c) = real_argb_color_to_pixel32(color0);
+        *(uint32_t *)(record + 0x1c) = real_argb_color_to_pixel32(color1);
+        *(uint32_t *)(record + 0x2c) = real_argb_color_to_pixel32(color2);
         distance1 = *(float *)0x5a5bdc * delta1[2] +
                     *(float *)0x5a5bd8 * delta1[1] +
                     *(float *)0x5a5bd4 * delta1[0];
@@ -3251,7 +3251,7 @@ void rasterizer_frame_statistics_update(void)
     *(int *)&rect[2] = *(int *)0x325660;
     rect2d_offset(rect, 0, 0x20);
 
-    interface_draw_text(1, -1, 0, 0, 5, 0);
+    interface_set_bitmap_text_draw_mode(1, -1, 0, 0, 5, 0);
 
     crt_sprintf(text, "|n|tframerate|taverage (of %d)|tmin|tmax",
                 *(short *)0x5a5404);

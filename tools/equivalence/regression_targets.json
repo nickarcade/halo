@@ -514,7 +514,7 @@
     },
     {
       "addr": "0x130580",
-      "name": "FUN_00130580",
+      "name": "network_game_server_handle_client_message",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -525,7 +525,7 @@
     },
     {
       "addr": "0x130270",
-      "name": "FUN_00130270",
+      "name": "network_game_server_handle_datagram",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -536,7 +536,7 @@
     },
     {
       "addr": "0x12fd80",
-      "name": "FUN_0012fd80",
+      "name": "network_game_server_handle_message_client_add_player_request_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -547,7 +547,7 @@
     },
     {
       "addr": "0x12fe40",
-      "name": "FUN_0012fe40",
+      "name": "network_game_server_handle_message_client_remove_player_request_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -558,7 +558,7 @@
     },
     {
       "addr": "0x12ff00",
-      "name": "FUN_0012ff00",
+      "name": "network_game_server_handle_message_client_settings_request",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -569,7 +569,7 @@
     },
     {
       "addr": "0x12ffe0",
-      "name": "FUN_0012ffe0",
+      "name": "network_game_server_handle_message_client_player_settings_request",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -580,7 +580,7 @@
     },
     {
       "addr": "0x1300b0",
-      "name": "FUN_001300b0",
+      "name": "network_game_server_handle_message_client_graceful_game_exit_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -591,7 +591,7 @@
     },
     {
       "addr": "0x130180",
-      "name": "FUN_00130180",
+      "name": "network_game_server_handle_message_client_remove_player_request_ingame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -837,7 +837,7 @@
     },
     {
       "addr": "0x36960",
-      "name": "FUN_00036960",
+      "name": "actor_stimulus_surprise",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -847,7 +847,7 @@
     },
     {
       "addr": "0x369c0",
-      "name": "FUN_000369c0",
+      "name": "actor_stimulus_suspicion",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -857,7 +857,7 @@
     },
     {
       "addr": "0x36a20",
-      "name": "FUN_00036a20",
+      "name": "actor_stimulus_prop_sighted",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -867,7 +867,7 @@
     },
     {
       "addr": "0x36bd0",
-      "name": "FUN_00036bd0",
+      "name": "actor_stimulus_bumped",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -877,7 +877,7 @@
     },
     {
       "addr": "0x36da0",
-      "name": "FUN_00036da0",
+      "name": "actor_stimulus_was_surprised",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -887,7 +887,7 @@
     },
     {
       "addr": "0x36dc0",
-      "name": "FUN_00036dc0",
+      "name": "actor_stimulus_maneuvering",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -897,7 +897,7 @@
     },
     {
       "addr": "0x36e30",
-      "name": "FUN_00036e30",
+      "name": "actor_stimulus_vehicle_eviction",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -917,7 +917,7 @@
     },
     {
       "addr": "0x3ac20",
-      "name": "FUN_0003ac20",
+      "name": "actor_verify_unit_activation",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -967,7 +967,7 @@
     },
     {
       "addr": "0x3b120",
-      "name": "FUN_0003b120",
+      "name": "actor_in_combat",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -977,7 +977,7 @@
     },
     {
       "addr": "0x3b190",
-      "name": "FUN_0003b190",
+      "name": "actor_attacking_target",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -997,7 +997,7 @@
     },
     {
       "addr": "0x3bb50",
-      "name": "FUN_0003bb50",
+      "name": "actor_get_timeslice",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1007,7 +1007,7 @@
     },
     {
       "addr": "0x3bbf0",
-      "name": "FUN_0003bbf0",
+      "name": "actor_clear_output",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1208,23 +1208,24 @@
     },
     {
       "addr": "0x130270",
-      "name": "FUN_00130270",
-      "label": "FUN_00130270[gameupd]",
+      "name": "network_game_server_handle_datagram",
+      "label": "network_game_server_handle_datagram[gameupd]",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
         "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp_gameupdate.json",
         "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
       ],
-      "reason": "Same function as the FUN_00130270 entry above, but on the gate-satisfied snapshot: size=16 / msg[0]=0x010c makes the header self-consistent, so the assert path is skipped and the category-3 packet switch actually dispatches (packet_type 0x19 = client_game_update, the deepest chain). Covers 24.4% vs 10.0% (40/40 PASS) and exercises code the sibling entry never reaches; the sibling still covers the assert/early-exit path, so both are kept. NOTE: both write the same artifacts/equivalence/FUN_00130270_smoke.log, so the log reflects whichever ran last. SKIPs when host snapshot absent."
+      "reason": "Same function as the network_game_server_handle_datagram entry above, but on the gate-satisfied snapshot: size=16 / msg[0]=0x010c makes the header self-consistent, so the assert path is skipped and the category-3 packet switch actually dispatches (packet_type 0x19 = client_game_update, the deepest chain). Covers 24.4% vs 10.0% (40/40 PASS) and exercises code the sibling entry never reaches; the sibling still covers the assert/early-exit path, so both are kept. NOTE: both write the same artifacts/equivalence/network_game_server_handle_datagram_smoke.log, so the log reflects whichever ran last. SKIPs when host snapshot absent."
     },
     {
       "addr": "0xd7cd0",
-      "name": "FUN_000d7cd0",
+      "name": "hud_tick_shield",
       "obj": "hud_messaging.obj",
       "seeds": 40,
       "flags": ["--z3-equiv", "--allow-stubs", "--mem-trace", "--float-tolerance", "32"],
-      "reason": "Tripwire for the data-page execution guard (hook_code / _mapped_regions). Before it, an indirect call through synthetic state landed in a zero-filled auto-mapped page, whose zeros decode as 2-byte 'add [eax],al' and slid execution through the whole page -- 0% coverage, all 40 seeds ORACLE-CRASH FETCH_UNMAPPED. Now 100.0% coverage, 40/40 PASS, confidence high. Reverting the guard returns this to error."
+      "reason": "Tripwire for the data-page execution guard (hook_code / _mapped_regions). Before it, an indirect call through synthetic state landed in a zero-filled auto-mapped page, whose zeros decode as 2-byte 'add [eax],al' and slid execution through the whole page -- 0% coverage, all 40 seeds ORACLE-CRASH FETCH_UNMAPPED. Now 100.0% coverage, 40/40 PASS, confidence high. Reverting the guard returns this to error.",
+      "known_artifact": "This entry's name field was stale ('FUN_000d7cd0') and had been silently ERRORing 'not found in kb.json' since kb.json renamed 0xd7cd0 to hud_tick_shield -- its verdict was never actually checked in that window. Fixed the name (2026-09-21); the real comparison now runs and FAILs: seed player_handle=65535 (identifier=0 in the upper 16 bits) makes datum_get's `identifier==0 && data->identifier_zero_invalid` branch call assert_halt_msg on the lifted side, producing an extra _display_assert in the call sequence the oracle never makes for this input. Verified via Ghidra against the real binary: hud_tick_shield (0xd7cd0) and datum_get (0x119320) decompile byte-for-byte identical to our src/halo/memory/data.c and hud_messaging.c logic (no lift bug); traced g_players_data's real init chain (FUN_000ba100 -> game_state_data_new -> FUN_001191a0) and confirmed fIdentifier_zero_invalid (offset 0x25) is left 0/false by the zero-init memset and never set true anywhere in the real binary for this table -- matches our data_initialize exactly (only the unrelated decal_data table sets it true, decals.c:152). Both oracle and lift agree the assert should never fire for this input. The smoke log's own oracle-vs-candidate data-ref count asymmetry (1 vs 0) points at the Unicorn harness not seeding the candidate's synthetic player_data memory from the same initialized state the oracle reads -- a tools/equivalence/ state-snapshot gap, not a src/ or kb.json bug."
     },
     {
       "addr": "0xcb980",
@@ -1244,7 +1245,7 @@
     },
     {
       "addr": "0x5ae70",
-      "name": "FUN_0005ae70",
+      "name": "encounter_update_squads",
       "obj": "encounters.obj",
       "seeds": 50,
       "flags": ["--allow-stubs", "--mem-trace", "--float-tolerance", "32"],

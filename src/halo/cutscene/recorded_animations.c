@@ -1074,6 +1074,47 @@ void recorded_animation_kill(int unit_handle)
   }
 }
 
+/* recorded_animation_get_time_left (0x955b0)
+ *
+ * Scans the thread pool for the record whose +0x04 unit handle matches, then
+ * returns its +0x08 tick counter (MOVZX EAX,word ptr [ESI+8] at 0x95630); no
+ * match returns 0 (EBX zeroed at 0x955c3, MOV EAX,EBX at 0x955f9; both
+ * exits define all of EAX, so the return type is 32-bit, not int16_t). The
+ * repeated NULL / handle test at 0x95600-0x95607 is the inlined finder's
+ * assert "!thread||thread->unit_index==unit_index" (line 0x138). */
+int32_t recorded_animation_get_time_left(int unit_handle)
+{
+  data_iter_t iter;
+  char *thread;
+  int handle2;
+
+  data_iterator_new(&iter, *(data_t **)0x44df04);
+  thread = (char *)data_iterator_next(&iter);
+  while (thread != NULL) {
+    if (*(int *)(thread + 4) == unit_handle) {
+      break;
+    }
+    thread = (char *)data_iterator_next(&iter);
+  }
+  if (thread == NULL) {
+    return 0;
+  }
+  /* MATCH-SENSITIVE: the original re-tests the handle after the inlined
+   * finder returns; reading the parameter back through its own stack home
+   * keeps that re-test alive (same value, no extra slot). */
+  handle2 = *(volatile int *)&unit_handle;
+  if (*(int *)(thread + 4) != handle2) {
+    display_assert("!thread||thread->unit_index==unit_index",
+                   "c:\\halo\\SOURCE\\cutscene\\recorded_animations.c", 0x138,
+                   1);
+    system_exit(-1);
+  }
+  if (*(int *)(thread + 4) != handle2) {
+    return 0;
+  }
+  return *(uint16_t *)(thread + 8);
+}
+
 /* Start a recorded animation on a unit. Thin forwarder to the shared worker
  * with an empty flag set; the sibling at 0x95660
  * (recorded_animation_play_and_delete) is the same body with flags = 8. The
@@ -1304,7 +1345,9 @@ void FUN_00095930(int object_handle)
  */
 void FUN_000959b0(int object_handle, char *event)
 {
-  typedef struct { int x, y, z; } copy3_t;
+  typedef struct {
+    int x, y, z;
+  } copy3_t;
   int *object;
 
   object = (int *)object_get_and_verify_type(object_handle, 0x200);

@@ -348,9 +348,12 @@ void bored_camera_update(int *param_1, unsigned short *param_2, unsigned char *p
 
 /* scripted_camera_enable (0x84fe0) — Set the bored-camera enable flag and mark the
  * camera state dirty so it will be re-evaluated this tick.
- * Object: objects.obj / source: bored_camera.c
+ * Object: objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc
+ * global block with the confirmed bored_camera.c assert at 0x84ae0).
  *
  * Confirmed: MOV AL,[param_1]; MOV [0x2ee5a0],AL; MOV byte ptr [0x2ee5a1],1.
+ * Renamed scripted_camera_enable reverted: name contradicted its own cited
+ * source evidence (bored_camera.c, not camera_scripting.c).
  */
 void scripted_camera_enable(unsigned char param_1)
 {
@@ -363,6 +366,8 @@ void scripted_camera_enable(unsigned char param_1)
  *
  * Confirmed: tag block at +0x74, element stride 0xb4, name at element+0,
  * camera duration at element+0x22, and the matched index at +0x2ee5dc.
+ * Renamed scripted_camera_set_animation reverted: pending source-file
+ * attribution (bored_camera.c vs camera_scripting.c, no direct xref here).
  */
 void scripted_camera_set_animation(int animation_tag, const char *camera_name)
 {
@@ -402,10 +407,13 @@ void scripted_camera_set_animation(int animation_tag, const char *camera_name)
 
 /* scripted_camera_set_first_person (0x850d0) — Switch to first-person camera mode 2 for the
  * given unit handle, or report an error if the handle is -1.
- * Object: objects.obj / source: bored_camera.c
+ * Object: objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc
+ * global block with the confirmed bored_camera.c assert at 0x84ae0).
  *
  * Confirmed: CMP [param_1],-1; JE error_path; MOV [0x2ee5a2],2;
  * MOV [0x2ee5a1],1; MOV [0x2ee5d4],param_1; RET.
+ * Renamed scripted_camera_set_first_person reverted: name contradicted its
+ * own cited source evidence (bored_camera.c, not camera_scripting.c).
  */
 void scripted_camera_set_first_person(int param_1)
 {
@@ -1044,7 +1052,7 @@ int game_engine_remap_object_definition(int tag_index)
 
 /* game_engine_get_state_message / objects.obj -- determine respawn state for a player.
  * Returns the "HUD text was produced" flag in AL (original only ever sets AL;
- * see xor al,al at 0xae23e). FUN_000d04d0 (unported) draws the buffer only
+ * see xor al,al at 0xae23e). hud_show_action_response (unported) draws the buffer only
  * when this returns nonzero. */
 char game_engine_get_state_message(int param_1, int param_2, int param_3)
 {
@@ -1101,7 +1109,7 @@ char game_engine_get_state_message(int param_1, int param_2, int param_3)
 
   /* Live player: both aceb0 paths RETURN the dispatcher's AL ("text was
    * produced"), per original 0xae205-0xae21c and 0xae21d-0xae23d -- there is
-   * no xor al,al before those rets. The unported caller FUN_000d04d0 only
+   * no xor al,al before those rets. The unported caller hud_show_action_response only
    * draws the buffer when this returns nonzero (test al,al at 0xd0931). */
   time = game_time_get();
   if (time < 0x1c2) {
@@ -1209,8 +1217,6 @@ void glow_new(int tag_index)
 }
 
 /* glow_delete (0x1330a0 / objects.obj / glow.c) — dispose a glow widget:
-/* glow_delete (0x1330a0 / objects.obj / glow.c) — dispose a glow widget:
-
  * delete every particle datum in its list, then delete the widget's own
  * datum.
  *
@@ -2052,7 +2058,7 @@ void light_volume_render(int object_handle, int light_volume_datum)
   float out_pos[3]; /* local_1c..: world position for sprite */
   float color2[4]; /* local_38..: per-segment ARGB. [0]=alpha (intensity),
                       [1..3]=RGB (FUN_0007c270 out at EBP-0x34); packed as a
-                      4-float a_rgb by FUN_000d1c90 (EBP-0x38). */
+                      4-float a_rgb by real_argb_color_to_pixel32 (EBP-0x38). */
   float interp_a, interp_b; /* local_2c / local_28 */
   unsigned char zfn;
   float fn_val;
@@ -2165,7 +2171,7 @@ void light_volume_render(int object_handle, int light_volume_datum)
                          (*(float *)0x2533c8 - fn_val) *
                            *(float *)(marker_state + 0x68)) *
                         depth_factor;
-            color_argb = FUN_000d1c90(color2);
+            color_argb = real_argb_color_to_pixel32(color2);
             FUN_0017d010(out_pos, interp_a, (float *)0, 0.0f, color_argb);
 
             i = (short)(i + 1);
@@ -2714,7 +2720,7 @@ void lightning_submit(int *param_1, int param_2, int param_3, int *param_4)
                   color[1] = cur->attr[2] * color_ptr[0];
                   color[2] = cur->attr[3] * color_ptr[1];
                   color[3] = cur->attr[4] * color_ptr[2];
-                  argb = FUN_000d1c90(color);
+                  argb = real_argb_color_to_pixel32(color);
                   vp[0].x = vtx_perp[0] * width + cur->position[0];
                   vp[0].y = vtx_perp[1] * width + cur->position[1];
                   vp[0].z = vtx_perp[2] * width + cur->position[2];
@@ -4280,23 +4286,13 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
  * object's bounding sphere (center local_2c, radius local_8) via
  * object_get_bounding_sphere, then iterates the object's cluster set
  * (object_get_first_cluster / object_get_next_cluster over iter_state
- * local_10).  For each cluster it calls FUN_00139c20 to select the strongest
- * point lights into the caller's marker array (param_2+0x44), capped at 2
- * (count at param_2+0x40).  Finally it converts each stored light datum handle
- * into the light's object field (light+0x8) in place.  Guarded by
- * lights_globals.marker_initialized (0x5a8d60) and a recursion/use counter
- * (0x5a8d64). */
+ * local_10).  For each cluster it calls find_point_lights_for_object_in_cluster
+ * to select the strongest point lights into the caller's marker array
+ * (param_2+0x44), capped at 2 (count at param_2+0x40).  Finally it converts
+ * each stored light datum handle into the light's object field (light+0x8) in
+ * place.  Guarded by lights_globals.marker_initialized (0x5a8d60) and a
+ * recursion/use counter (0x5a8d64). */
 void lights_prepare_for_object_dynamic(int param_1, int param_2)
- * object's bounding sphere (center local_2c, radius local_8) via object_get_bounding_sphere,
- * then iterates the object's cluster set (object_get_first_cluster /
- * object_get_next_cluster over iter_state local_10).  For each cluster it calls
- * find_point_lights_for_object_in_cluster to select the strongest point lights into the caller's marker
- * array (param_2+0x44), capped at 2 (count at param_2+0x40).  Finally it
- * converts each stored light datum handle into the light's object field
- * (light+0x8) in place.  Guarded by lights_globals.marker_initialized
- * (0x5a8d60) and a recursion/use counter (0x5a8d64). */
-void lights_prepare_for_object_dynamic(int param_1, int param_2)
-
 {
   float center[3];
   float radius;
@@ -10288,7 +10284,7 @@ void object_pvs_activate(int param_1)
  * Confirmed: tag_block at model_tag+0xc4, element size 0x4c.
  * Confirmed: calls object_find_region_permutations_available_with_variant.
  * Confirmed: if count==0, tries variant=0 as fallback.
- * Confirmed: random_range(get_global_random_seed_address(), 0, count). */
+ * Confirmed: seed_random_range(get_global_random_seed_address(), 0, count). */
 char object_select_random_region_permutations_by_variant(
   int object_handle /* @<eax> */, void *model_tag, int16_t variant)
 {
@@ -10328,7 +10324,7 @@ char object_select_random_region_permutations_by_variant(
           chosen = 0;
         } else {
           int *seed = get_global_random_seed_address();
-          chosen = random_range((unsigned int *)seed, 0, count);
+          chosen = seed_random_range((unsigned int *)seed, 0, count);
         }
         *(unsigned char *)(obj + 0x130 + (int)region_count) =
           (unsigned char)*(unsigned char *)((char *)avail_buf + chosen * 2);

@@ -1171,10 +1171,10 @@ unsigned char hs_not(unsigned char value)
  * Binary evidence (0xc95d0..0xc95e7), whole body:
  *   PUSH EBP / MOV EBP,ESP / MOV EAX,dword ptr [EBP+8] /
  *   MOV ECX,dword ptr [0x002ee6d4] / PUSH EAX / PUSH ECX /
- *   CALL 0x000e3a10 (terminal_output) / ADD ESP,0x8 / POP EBP / RET
+ *   CALL 0x000e3a10 (terminal_printf) / ADD ESP,0x8 / POP EBP / RET
  *
  * Exactly two stack args are pushed and cleaned (ADD ESP,0x8), so
- * terminal_output is entered with (color, format) only; the third parameter
+ * terminal_printf is entered with (color, format) only; the third parameter
  * in its kb.json declaration is the first formatting slot and is not
  * supplied at this site. Reached through a 2-arg function-pointer cast, the
  * same idiom already used for this callee in cheats.c
@@ -1185,14 +1185,14 @@ unsigned char hs_not(unsigned char value)
  *
  * param_1 arrives from hs_print_evaluate as the first dword of an HS macro
  * function result record. Its pointee type is unproven beyond being the
- * string terminal_output formats, so the kb.json declaration keeps int and
+ * string terminal_printf formats, so the kb.json declaration keeps int and
  * the cast is local. Semantic role is otherwise unknown, so the name is left
  * as hs_print. */
 void hs_print(int param_1)
 {
   typedef void (*terminal_output_2_t)(void *, const char *);
 
-  ((terminal_output_2_t)terminal_output)(*(void **)0x2ee6d4,
+  ((terminal_output_2_t)terminal_printf)(*(void **)0x2ee6d4,
                                          (const char *)param_1);
 }
 
@@ -5080,7 +5080,7 @@ void FUN_000ce3c0(void)
  * Confirmed (0xce420-0xce441): XOR EAX,EAX seeds the result with 0, and for
  * a non-NONE handle only AX is loaded from header+0x6 (MOV AX,word [EAX+6]),
  * so the result is a 16-bit value — kb.json declares int16_t and the single
- * caller (FUN_000be3b0 at 0xbe3b0) narrows it with (uint16_t). The upper
+ * caller (object_list_count_evaluate at 0xbe3b0) narrows it with (uint16_t). The upper
  * half of EAX is left holding datum_get's pointer in the original; only AX
  * is meaningful. */
 int16_t FUN_000ce420(int param_1)

@@ -115,7 +115,7 @@ void FUN_00096d70(int object_handle)
  *
  * Callers (xrefs_to): control_toggle (0x95874), FUN_00095c60 (0x95e87,
  * 0x95edd), FUN_00097220 (0x9724b, below), FUN_00097260 (0x97299, below),
- * FUN_000bfbc0 (0xbfbf1). */
+ * device_group_set_desired_value_evaluate (0xbfbf1). */
 char FUN_00096f20(int device_group_index, float value)
 {
   int16_t index;
@@ -174,7 +174,7 @@ char FUN_00096f20(int device_group_index, float value)
  * other than -1, calls device_group_set_actual_value with that index and
  * the given value. No-op if object_handle == -1, the object can't be
  * resolved, or there is no attached device group.
- * Callers: FUN_00095c10 (0x95c45), FUN_000bfb40 (0xbfb66). */
+ * Callers: FUN_00095c10 (0x95c45), device_set_actual_position_evaluate (0xbfb66). */
 void FUN_00097040(int object_handle, float value)
 {
   char *object;
@@ -286,7 +286,7 @@ bool FUN_000971a0(int object_handle, float *position, float *aim_position)
  * reached on those paths.
  * arg1 is an opaque float forwarded byte-for-byte (PUSH of the raw dword at
  * [EBP+0xc], no FLD/FSTP) -- this function never interprets it.
- * Caller: FUN_000bfab0 (0xbfade), which resolves arg0/arg1 from a
+ * Caller: device_set_desired_position_evaluate (0xbfade), which resolves arg0/arg1 from a
  * hs_macro_function_evaluate() record. FUN_00096f20 is unported; declared in
  * kb.json as `char FUN_00096f20(int arg0, float arg1);`. */
 char FUN_00097220(int arg0, float arg1)
@@ -313,7 +313,7 @@ char FUN_00097220(int arg0, float arg1)
  * FUN_00096f20(sign-extended int16 at +0x1a8, value).
  * No-op if object_handle == -1 or the object can't be resolved.
  * value is forwarded to FUN_00096f20 byte-for-byte (MOV, no FLD/FSTP).
- * Caller: FUN_000bfa30 (0xbfa56).
+ * Caller: device_set_power_evaluate (0xbfa56).
  * FUN_00096f20 is unported; declared in kb.json as
  * `char FUN_00096f20(int arg0, float arg1);`. */
 void FUN_00097260(int object_handle, float value)

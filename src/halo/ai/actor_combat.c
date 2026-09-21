@@ -397,8 +397,8 @@ char actor_combat_check_collateral_damage(int actor_handle, float range, float p
   result = 1;
   count = 0;
 
-  FUN_00064540(actor_iter, actor_handle);
-  element = FUN_00064570(actor_iter);
+  prop_iterator_new(actor_iter, actor_handle);
+  element = prop_iterator_next(actor_iter);
   while (element != 0) {
     if (*(short *)(element + 0x24) > 1 && *(short *)(element + 0x24) < 4 &&
         *(char *)(element + 0x127) == '\0') {
@@ -437,7 +437,7 @@ char actor_combat_check_collateral_damage(int actor_handle, float range, float p
         }
       }
     }
-    element = FUN_00064570(actor_iter);
+    element = prop_iterator_next(actor_iter);
   }
 
   actor = (int)datum_get(*(void **)0x6325a4, actor_handle);

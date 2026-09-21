@@ -186,7 +186,7 @@ void render_camera_screen_to_world(camera_t *camera, float *frustum,
 
   render_camera_screen_to_view(camera, frustum, screen_point, view_vector);
 
-  *world_point = camera->unk_0;
+  *world_point = camera->field_00;
 
   matrix_scale_transform_vector(frustum + 17, view_vector, world_vector);
 }
@@ -296,10 +296,11 @@ char render_camera_world_to_screen(void *camera, float *frustum,
 void render_camera_build_frustum(camera_t *camera, float *bounds,
                                  float *frustum, bool do_projection)
 {
-  float *forward = (float *)&camera->unk_12; /* +0x0c */
-  float *up = (float *)&camera->unk_24; /* +0x18 */
-  float *pos = (float *)&camera->unk_0; /* +0x00 */
-  float *proj_data = (float *)camera->unk_68; /* +0x44 */
+  render_frustum_t *frustum_data = (render_frustum_t *)frustum;
+  float *forward = &camera->field_0c.x; /* +0x0c */
+  float *up = &camera->field_18.x; /* +0x18 */
+  float *pos = &camera->field_00.x; /* +0x00 */
+  float *proj_data = camera->field_44; /* +0x44 */
 
   /* Compute viewport pixel dimensions. */
   int width_px =
@@ -449,8 +450,8 @@ void render_camera_build_frustum(camera_t *camera, float *bounds,
 
   /* Compute world_to_view = inverse(view_to_world).
    * frustum[4..0x10] = world_to_view matrix. */
-  view_to_world = &frustum[0x11];
-  world_to_view = &frustum[4];
+  view_to_world = frustum_data->field_44;
+  world_to_view = frustum_data->field_10;
   matrix4x3_inverse(view_to_world, world_to_view);
 
   assert_halt(valid_real_matrix4x3(world_to_view));
@@ -470,7 +471,8 @@ void render_camera_build_frustum(camera_t *camera, float *bounds,
   normalize_vector3(plane_vs);
   plane_vs[3] = plane_vs[0] * global_fwd[0] + plane_vs[1] * global_fwd[1] +
                 plane_vs[2] * global_fwd[2];
-  matrix4x3_transform_plane(view_to_world, plane_vs, &frustum[0x1e]);
+  matrix4x3_transform_plane(view_to_world, plane_vs,
+                             (float *)&frustum_data->field_78[0]);
 
   /* Right plane (frustum[0x22..0x25]) */
   plane_vs[0] = inv_tan_x;
@@ -479,7 +481,8 @@ void render_camera_build_frustum(camera_t *camera, float *bounds,
   normalize_vector3(plane_vs);
   plane_vs[3] = plane_vs[0] * global_fwd[0] + plane_vs[1] * global_fwd[1] +
                 plane_vs[2] * global_fwd[2];
-  matrix4x3_transform_plane(view_to_world, plane_vs, &frustum[0x22]);
+  matrix4x3_transform_plane(view_to_world, plane_vs,
+                             (float *)&frustum_data->field_78[1]);
 
   /* Bottom plane (frustum[0x26..0x29]) */
   plane_vs[0] = 0.0f;
@@ -489,7 +492,8 @@ void render_camera_build_frustum(camera_t *camera, float *bounds,
   normalize_vector3(plane_vs);
   plane_vs[3] = plane_vs[0] * global_fwd[0] + plane_vs[1] * global_fwd[1] +
                 plane_vs[2] * global_fwd[2];
-  matrix4x3_transform_plane(view_to_world, plane_vs, &frustum[0x26]);
+  matrix4x3_transform_plane(view_to_world, plane_vs,
+                             (float *)&frustum_data->field_78[2]);
 
   /* Top plane (frustum[0x2a..0x2d]) */
   plane_vs[0] = 0.0f;
@@ -498,21 +502,24 @@ void render_camera_build_frustum(camera_t *camera, float *bounds,
   normalize_vector3(plane_vs);
   plane_vs[3] = plane_vs[0] * global_fwd[0] + plane_vs[1] * global_fwd[1] +
                 plane_vs[2] * global_fwd[2];
-  matrix4x3_transform_plane(view_to_world, plane_vs, &frustum[0x2a]);
+  matrix4x3_transform_plane(view_to_world, plane_vs,
+                             (float *)&frustum_data->field_78[3]);
 
   /* Near plane (frustum[0x2e..0x31]) */
   plane_vs[0] = 0.0f;
   plane_vs[1] = 0.0f;
   plane_vs[2] = 1.0f;
   plane_vs[3] = -camera->z_near;
-  matrix4x3_transform_plane(view_to_world, plane_vs, &frustum[0x2e]);
+  matrix4x3_transform_plane(view_to_world, plane_vs,
+                             (float *)&frustum_data->field_78[4]);
 
   /* Far plane (frustum[0x32..0x35]) */
   plane_vs[0] = 0.0f;
   plane_vs[1] = 0.0f;
   plane_vs[2] = -1.0f;
   plane_vs[3] = camera->z_far;
-  matrix4x3_transform_plane(view_to_world, plane_vs, &frustum[0x32]);
+  matrix4x3_transform_plane(view_to_world, plane_vs,
+                             (float *)&frustum_data->field_78[5]);
 
   /* Store z_near and z_far copies. */
   frustum[0x36] = camera->z_near;

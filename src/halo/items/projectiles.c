@@ -264,7 +264,7 @@ char projectile_handle_parent_destroyed(int projectile_handle)
 void random_vector_in_cone3d(float *forward, float zero, float angle,
                              float *result)
 {
-  random_direction3d(get_global_random_seed_address(), forward, zero, angle,
+  seed_random_vector_in_cone3d(get_global_random_seed_address(), forward, zero, angle,
                      result);
 }
 
@@ -1909,7 +1909,7 @@ apply_speed_scale:
   /* Optional: random speed scale in [tag+0x60]. */
   if (*(float *)((char *)tag_elem + 0x60) != *(float *)0x2533c0) {
     seed = (float *)get_global_random_seed_address();
-    random_direction3d(
+    seed_random_vector_in_cone3d(
       (int *)seed, in_velocity,
       0.0f, /* dup-args-ok: in-place, verified PUSH EDI x2 at 0x000f95f3/59 */
       *(float *)((char *)tag_elem + 0x60), in_velocity);
