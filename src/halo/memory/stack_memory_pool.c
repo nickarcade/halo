@@ -27,11 +27,12 @@ typedef void(__stdcall *fatal_assert_stdcall_fn)(const char *reason,
                                                  const char *filepath, int line,
                                                  int halt);
 
-#define fatal_assert(reason, line)                                      \
-  ((fatal_assert_stdcall_fn)(void *)display_assert)(reason,             \
-                                                    "c:\\halo\\SOURCE\\" \
-                                                    "memory\\stack_memory_pool.c", \
-                                                    line, 1)
+#define fatal_assert(reason, line)                   \
+  ((fatal_assert_stdcall_fn)(void *)display_assert)( \
+    reason,                                          \
+    "c:\\halo\\SOURCE\\"                             \
+    "memory\\stack_memory_pool.c",                   \
+    line, 1)
 
 
 /* stack_memory_pool_initialize — reset a pool back to its initial state.
@@ -126,6 +127,24 @@ unsigned int FUN_0011ea90(void *block_hdr)
   }
 
   return blk[0] & 0x7fffffff;
+}
+
+/* memory_block_get_pool_index (0x11eb10) — return a block's pool slot index.
+ *
+ * Register convention: block_hdr in ESI (kb.json @<esi>).
+ * Asserts block != NULL (stack_memory_pool.c:0x24a), then returns the dword
+ * at +0x04 (the slot index written by FUN_0011ea50).
+ */
+int memory_block_get_pool_index(void *block_hdr)
+{
+  int *blk = (int *)block_hdr;
+
+  if (blk == 0) {
+    fatal_assert("block", 0x24a);
+    system_exit(-1);
+  }
+
+  return blk[1];
 }
 
 /* FUN_0011eb40 — compute largest free tail space in pool.
@@ -253,9 +272,8 @@ void *FUN_0011ec70(void *pool, int alloc_size,
 
   ret = 0;
   block = *(unsigned int **)(pool_p + 0x2c);
-  if (block != 0 &&
-      (unsigned int)((char *)block - *(char **)(pool_p + 4)) >=
-      (unsigned int)alloc_size) {
+  if (block != 0 && (unsigned int)((char *)block - *(char **)(pool_p + 4)) >=
+                      (unsigned int)alloc_size) {
     return *(void **)(pool_p + 4);
   }
 
@@ -336,6 +354,25 @@ bool memory_block_valid(void *block_hdr)
   }
 
   return false;
+}
+
+/* memory_block_get_user_address (0x11ee50) — return a block's payload pointer.
+ *
+ * Asserts the header is intact, then returns block_hdr + 0x1c (just past the
+ * "fryd" sentinel at +0x18), which is the first byte of user data.
+ *
+ * Register convention: block_hdr in ESI (kb.json @<esi>); it is forwarded to
+ * memory_block_valid in ECX.
+ */
+void *memory_block_get_user_address(void *block_hdr)
+{
+  if (!(memory_block_valid(block_hdr) & 0xff)) {
+    display_assert("memory_block_valid(block)",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x23f, 1);
+    system_exit(-1);
+  }
+
+  return (char *)block_hdr + 0x1c;
 }
 
 /* FUN_0011ee80 — compact unlocked blocks toward pool base.
@@ -616,6 +653,52 @@ do_mark:
   }
 }
 
+/* stack_memory_pool_unlock_block — clear a block's locked (in-use) flag.
+ *
+ * Verifies the block belongs to the pool and that it is currently locked
+ * (high bit of size_flags at +0x00 set), re-validates the block header, then
+ * clears the high bit.
+ *
+ * Register convention: block_hdr in ESI, pool in ECX (kb.json @<esi>/@<ecx>).
+ */
+void stack_memory_pool_unlock_block(void *block_hdr, void *pool)
+{
+  unsigned int *blk = (unsigned int *)block_hdr;
+  int valid;
+
+  valid = stack_memory_pool_valid_block(block_hdr, pool) & 0xff;
+  if (valid) {
+    valid = memory_block_valid(block_hdr) & 0xff;
+    if (!valid) {
+      display_assert("memory_block_valid(block)",
+                     "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x215, 1);
+      system_exit(-1);
+    }
+
+    /* memory_block_is_locked(reference) — high bit of size_flags. */
+    if ((blk[0] >> 31) & 1) {
+      goto do_unlock;
+    }
+  }
+
+  display_assert("stack_memory_pool_valid_block(pool, reference) && "
+                 "memory_block_is_locked(reference)",
+                 "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x2f0, 1);
+  system_exit(-1);
+
+do_unlock:
+  /* Validate block integrity before clearing the flag. */
+  valid = memory_block_valid(block_hdr) & 0xff;
+  if (!valid) {
+    display_assert("memory_block_valid(block)",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x20c, 1);
+    system_exit(-1);
+  }
+
+  blk[0] = blk[0] & 0x7fffffff;
+}
+
+
 /* stack_memory_pool_alloc_internal — allocate a block header inside the pool.
  *
  * Register convention follows kb.json:
@@ -760,6 +843,74 @@ void *stack_memory_pool_alloc_internal(int alloc_size, void *pool,
 
   FUN_0011ec10(pool);
   return block_hdr;
+}
+
+/* unlock_handle (0x11f550) — unlock the pool block that owns a user pointer.
+ *
+ * Scans the pool's slot table (+0x34, pool->slot_count entries at +0xc) for the
+ * block whose payload address (block_hdr + 0x1c) equals the handle, then clears
+ * that block's locked flag via stack_memory_pool_unlock_block.
+ *
+ * memory_block_get_user_address is inlined here in the original (ADD EDI,0x1c
+ * at 0x11f5c4), so the offset arithmetic is written out rather than called.
+ *
+ * Pool struct offsets used here:
+ *   +0x0c: slot_count (uint32)
+ *   +0x34: slot table base (slot_count entries, 4 bytes each)
+ *
+ * Asserts: h (0x107), memory_block_valid(block) (0x23f),
+ *          "invalid handle, or handle was not locked" (0x111).
+ */
+void unlock_handle(void *pool, void *h)
+{
+  char *pool_p = (char *)pool;
+  char *block;
+  char *candidate;
+  unsigned int *slot;
+  unsigned int index;
+  int valid;
+
+  block = 0;
+  index = 0;
+
+  if (h == 0) {
+    display_assert("h", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x107,
+                   1);
+    system_exit(-1);
+  }
+
+  if (*(unsigned int *)(pool_p + 0xc) != 0) {
+    slot = (unsigned int *)(pool_p + 0x34);
+    do {
+      candidate = (char *)*slot;
+      if (candidate != 0) {
+        valid = memory_block_valid(candidate) & 0xff;
+        if (!valid) {
+          display_assert("memory_block_valid(block)",
+                         "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x23f,
+                         1);
+          system_exit(-1);
+        }
+
+        /* memory_block_get_user_address(candidate) == h */
+        if (candidate + 0x1c == (char *)h) {
+          block = *(char **)(pool_p + 0x34 + index * 4);
+          break;
+        }
+      }
+
+      index++;
+      slot++;
+    } while (index < *(unsigned int *)(pool_p + 0xc));
+  }
+
+  if (block == 0) {
+    display_assert("invalid handle, or handle was not locked",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x111, 1);
+    system_exit(-1);
+  }
+
+  stack_memory_pool_unlock_block(block, pool);
 }
 
 /* stack_memory_pool_deallocate — free a block back to the pool.
@@ -1011,4 +1162,154 @@ void *stack_memory_pool_realloc(void *pool, int block, unsigned short new_size,
   }
 
   return (void *)(new_hdr + 0x1c);
+}
+
+
+/* texture_page_verify — validate a texture page header and its data block.
+ *
+ * Asserts the page pointer is non-NULL, then that both int16 dimensions are
+ * positive (width at +0x08, height at +0x0a — names from the assert string
+ * "texture_page->width>0 && texture_page->height>0"), then forwards the
+ * data_t pointer at +0x18 to data_verify.
+ *
+ * The page pointer arrives in ESI (kb.json @<esi>): the reference opens with
+ * "TEST ESI,ESI" with no prior write to ESI in this function.
+ *
+ * __FILE__ evidence: c:\halo\SOURCE\memory\texture_page.c, lines 0x104/0x105.
+ * kb.json maps 0x11fd50 into stack_memory_pool.obj, so the lift lives in this
+ * TU; the texture_page.c path in the assert strings is binary-proven and must
+ * be spelled as the original did.
+ *
+ * The asserts use the same __stdcall-cast no-cleanup shape as fatal_assert
+ * above (reference ends "calll display_assert; pushl $-1; calll system_exit"
+ * with no stack cleanup); the file path differs, so the macro cannot be reused.
+ */
+void texture_page_verify(void *texture_page)
+{
+  char *page = (char *)texture_page;
+
+  if (page == NULL) {
+    ((fatal_assert_stdcall_fn)(void *)display_assert)(
+      "texture_page", "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x104, 1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)(page + 8) <= 0 || *(int16_t *)(page + 0xa) <= 0) {
+    ((fatal_assert_stdcall_fn)(void *)display_assert)(
+      "texture_page->width>0 && texture_page->height>0",
+      "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x105, 1);
+    system_exit(-1);
+  }
+
+  data_verify(*(data_t **)(page + 0x18));
+}
+
+
+/* texture_page_new — allocate and initialize a texture page header.
+ *
+ * Allocates the 0x1c-byte page header via debug_malloc (reference pushes
+ * size=0x1c, zero=0, file, line=0x1d), then asserts both int16 dimensions are
+ * positive ("page_width>0 && page_height>0", line 0x1f) BEFORE testing the
+ * allocation result — the reference tests DI/BX at 0011fdd1 and only reaches
+ * "TEST ESI,ESI" at 0011fdfa afterwards.
+ *
+ * Field map recovered from the store sequence at 0011fe11-0011fe3f:
+ *   +0x00 byte   cleared
+ *   +0x04 dword  first stack arg ([EBP+8], meaning unproven)
+ *   +0x08 int16  page_width   ([EBP+0xc])
+ *   +0x0a int16  page_height  ([EBP+0x10])
+ *   +0x0c int16  fourth stack arg ([EBP+0x14], meaning unproven)
+ *   +0x10 dword  cleared
+ *   +0x14 dword  cleared
+ *   +0x18 data_t* "texture page textures" data array (0x7fff x 0xc)
+ * Field names at +0x08/+0x0a are cross-confirmed by texture_page_verify's
+ * assert string "texture_page->width>0 && texture_page->height>0".
+ *
+ * The store order below is the reference's source order, not MSVC's schedule
+ * (the reference interleaves the data_new argument pushes with the stores).
+ *
+ * On data_new failure the reference pushes EDI, which XOR EDI,EDI set to 0 at
+ * 0011fe15 and never rewrote — debug_free is called with a NULL pointer, not
+ * with the page (the page is still live in ESI and is not pushed). Reproduced
+ * literally; do not "fix" it into debug_free(page).
+ *
+ * Returns ESI: the page on success, NULL when debug_malloc or data_new failed.
+ *
+ * __FILE__ evidence: c:\halo\SOURCE\memory\texture_page.c (string 0x2905b0).
+ * kb.json maps 0x11fdb0 into stack_memory_pool.obj, so the lift lives in this
+ * TU alongside texture_page_verify; the texture_page.c path in the assert and
+ * allocator strings is binary-proven and must be spelled as the original did.
+ */
+void *texture_page_new(uint32_t unknown_field_04, int16_t page_width,
+                       int16_t page_height, int16_t unknown_field_0c)
+{
+  char *page;
+  data_t *textures;
+
+  page = (char *)debug_malloc(0x1c, 0,
+                              "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x1d);
+
+  if (page_width <= 0 || page_height <= 0) {
+    ((fatal_assert_stdcall_fn)(void *)display_assert)(
+      "page_width>0 && page_height>0",
+      "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x1f, 1);
+    system_exit(-1);
+  }
+
+  if (page == NULL) {
+    return NULL;
+  }
+
+  csmemset(page, 0, 0x1c);
+
+  *(int16_t *)(page + 8) = page_width;
+  *(int16_t *)(page + 0xa) = page_height;
+  *(int16_t *)(page + 0xc) = unknown_field_0c;
+  *(uint32_t *)(page + 4) = unknown_field_04;
+  *(uint32_t *)(page + 0x10) = 0;
+  *(uint32_t *)(page + 0x14) = 0;
+  *page = 0;
+
+  textures = data_new((char *)"texture page textures", 0x7fff, 0xc);
+  *(data_t **)(page + 0x18) = textures;
+
+  if (textures == NULL) {
+    debug_free(NULL, "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x38);
+    return NULL;
+  }
+
+  data_delete_all(textures);
+  texture_page_verify(page);
+  return page;
+}
+
+
+/* FUN_0011fe80 — dispose of a texture page header allocated by
+ * texture_page_new.
+ *
+ * Name left as FUN_: kb.json carries no name and no string in this function
+ * proves one. Only the file path and line number are binary evidence.
+ *
+ * Reference shape (0011fe80-0011fea7): the page arrives as the single cdecl
+ * stack arg, is loaded into ESI once ("MOV ESI,[EBP+8]") and reused for all
+ * three calls:
+ *   texture_page_verify(page)   — page passed in ESI (kb.json @<esi>), so the
+ *                                 reference emits no push for it
+ *   data_dispose(page->+0x18)   — "MOV EAX,[ESI+0x18]; PUSH EAX", the same
+ *                                 data_t* field texture_page_new stored and
+ *                                 texture_page_verify forwards to data_verify
+ *   debug_free(page, file, line) — pushes are 0x45, 0x2905b0, ESI (last arg
+ *                                 pushed first), so file/line are the
+ *                                 texture_page.c path at 0x2905b0 and line 0x45
+ * The single "ADD ESP,0x10" at 0011fea2 is MSVC's coalesced cleanup for both
+ * cdecl calls (1 dword + 3 dwords); it is not a 4-argument debug_free, so the
+ * artifact's ARG_COUNT hazard note is accounted for by the push count.
+ *
+ * The data array is disposed BEFORE the header is freed; preserve that order.
+ */
+void FUN_0011fe80(void *page)
+{
+  texture_page_verify(page);
+  data_dispose(*(data_t **)((char *)page + 0x18));
+  debug_free(page, "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x45);
 }

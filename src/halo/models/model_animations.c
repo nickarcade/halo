@@ -44,7 +44,7 @@ int FUN_00120250(void *page, short width, short height, bool immediate)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   if (!immediate && *pg == 0) {
     display_assert("immediate || texture_page->contains_unsorted_textures",
@@ -87,7 +87,7 @@ int FUN_00120250(void *page, short width, short height, bool immediate)
  *
  * Confirmed: cdecl, 1 arg (page ptr, matches [EBP+8] loaded once into ESI at
  * 0x120345). Confirmed: void return (plain RET at 0x1203f2).
- * Confirmed: calls FUN_0011fd50() unconditionally first, same as
+ * Confirmed: calls texture_page_verify() unconditionally first, same as
  * FUN_00120250/FUN_00120400.
  * Confirmed: asserts page->contains_unsorted_textures (pg+0x0, byte) is
  * nonzero — display_assert("texture_page->contains_unsorted_textures",
@@ -127,7 +127,7 @@ void FUN_00120340(void *page)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   if (*pg == 0) {
     display_assert("texture_page->contains_unsorted_textures",
@@ -167,7 +167,7 @@ void FUN_00120340(void *page)
  * texture-page allocator, same as FUN_00120250 immediately above.
  *
  * Confirmed: cdecl, 1 arg (page ptr). Confirmed: void return.
- * Confirmed: calls FUN_0011fd50() unconditionally first, same as
+ * Confirmed: calls texture_page_verify() unconditionally first, same as
  * FUN_00120250 (0x120407).
  * Confirmed: asserts page->contains_unsorted_textures (pg+0x0, byte) is
  * nonzero — display_assert("texture_page->contains_unsorted_textures",
@@ -197,7 +197,7 @@ void FUN_00120400(void *page)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   if (*pg == 0) {
     display_assert("texture_page->contains_unsorted_textures",
@@ -234,7 +234,7 @@ void FUN_00120400(void *page)
  *
  * Confirmed: cdecl, 2 args (page ptr, datum handle int). Confirmed: void
  * return.
- * Confirmed: calls FUN_0011fd50() unconditionally first, same as
+ * Confirmed: calls texture_page_verify() unconditionally first, same as
  * FUN_00120250/FUN_00120400 (0x120477).
  * Confirmed: CALL datum_delete(*(data_t**)(page+0x18), handle) at 0x120484 —
  * ECX (page+0x18 deref) pushed last = first arg, EAX (param_2) pushed first =
@@ -254,7 +254,7 @@ void FUN_00120470(void *page, int handle)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   datum_delete(*(data_t **)(pg + 0x18), handle);
 
@@ -266,7 +266,7 @@ void FUN_00120470(void *page, int handle)
  *
  * kb.json maps this address into model_animations.obj by link-time object
  * grouping; same texture-page allocator TU as FUN_00120250/FUN_00120340/
- * FUN_00120400/FUN_00120470 immediately above (unconditional FUN_0011fd50()
+ * FUN_00120400/FUN_00120470 immediately above (unconditional texture_page_verify()
  * first, and FUN_0011ff70(page) to commit — same corrected bool-returning
  * decl already used by those functions).
  *
@@ -294,7 +294,7 @@ bool FUN_001204a0(void *page, short width, short height)
 
   pg = (char *)page;
 
-  FUN_0011fd50();
+  texture_page_verify(page);
 
   old_width = *(short *)(pg + 8);
   old_height = *(short *)(pg + 0xa);

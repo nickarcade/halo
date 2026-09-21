@@ -5402,8 +5402,9 @@
     },
     {
      "addr": "0xa5700",
-     "decl": "void compare_targets(void);",
-     "comment": "[NAME: compare_targets \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int compare_targets(const void *a, const void *b);",
+     "comment": "[NAME: compare_targets \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xa57a0",
@@ -5416,8 +5417,9 @@
     },
     {
      "addr": "0xa5810",
-     "decl": "void set_real_euler_angles2d(void);",
-     "comment": "[NAME: set_real_euler_angles2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void set_real_euler_angles2d(real *angles, real angle_04, real angle_00);",
+     "comment": "[NAME: set_real_euler_angles2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xa5830",
@@ -6507,18 +6509,21 @@
     },
     {
      "addr": "0x11eb10",
-     "decl": "void memory_block_get_pool_index(void);",
-     "comment": "[NAME: memory_block_get_pool_index \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int memory_block_get_pool_index(void *block_hdr@<esi>);",
+     "comment": "[NAME: memory_block_get_pool_index \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x11ee50",
-     "decl": "void memory_block_get_user_address(void);",
-     "comment": "[NAME: memory_block_get_user_address \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void *memory_block_get_user_address(void *block_hdr@<esi>);",
+     "comment": "[NAME: memory_block_get_user_address \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x11f140",
-     "decl": "void stack_memory_pool_unlock_block(void);",
-     "comment": "[NAME: stack_memory_pool_unlock_block \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void stack_memory_pool_unlock_block(void *block_hdr@<esi>, void *pool@<ecx>);",
+     "comment": "[NAME: stack_memory_pool_unlock_block \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x11f460",
@@ -6530,7 +6535,8 @@
     },
     {
      "addr": "0x11f550",
-     "decl": "void unlock_handle(void);"
+     "decl": "void unlock_handle(void *pool, void *h);",
+     "ported": true
     },
     {
      "addr": "0x11f6d0",
@@ -6559,16 +6565,19 @@
     },
     {
      "addr": "0x11fd50",
-     "decl": "void FUN_0011fd50(void);"
+     "decl": "void texture_page_verify(void *texture_page@<esi>);",
+     "ported": true
     },
     {
      "addr": "0x11fdb0",
-     "decl": "void texture_page_new(void);",
-     "comment": "[NAME: texture_page_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void *texture_page_new(uint32_t unknown_field_04, int16_t page_width, int16_t page_height, int16_t unknown_field_0c);",
+     "comment": "[NAME: texture_page_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x11fe80",
-     "decl": "void FUN_0011fe80(void *page);"
+     "decl": "void FUN_0011fe80(void *page);",
+     "ported": true
     },
     {
      "addr": "0x11feb0",
@@ -22677,7 +22686,8 @@
     },
     {
      "addr": "0x12200",
-     "decl": "void action_alert_update(void);"
+     "decl": "void action_alert_update(int actor_handle);",
+     "ported": true
     },
     {
      "addr": "0x12350",
@@ -23819,7 +23829,8 @@
     },
     {
      "addr": "0x955b0",
-     "decl": "int16_t recorded_animation_get_time_left(int unit_handle);"
+     "decl": "int32_t recorded_animation_get_time_left(int unit_handle);",
+     "ported": true
     },
     {
      "addr": "0x95640",
@@ -24367,7 +24378,7 @@
     },
     {
      "addr": "0x1c1e20",
-     "decl": "void playlist_profile_new(void);",
+     "decl": "int playlist_profile_new(unsigned short local_player_index, wchar_t *name);",
      "comment": "[NAME: playlist_profile_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -24623,7 +24634,7 @@
     },
     {
      "addr": "0x1c4da0",
-     "decl": "void saved_game_file_get_path_to_enclosing_directory(void);",
+     "decl": "bool saved_game_file_get_path_to_enclosing_directory(int profile_index, char *path);",
      "comment": "[NAME: saved_game_file_get_path_to_enclosing_directory \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -28574,8 +28585,9 @@
     },
     {
      "addr": "0xefc60",
-     "decl": "void create_and_begin_editing_new_gametype_profile(void);",
-     "comment": "[NAME: create_and_begin_editing_new_gametype_profile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool create_and_begin_editing_new_gametype_profile(void *widget, void *event_data, bool *widget_deleted);",
+     "comment": "[NAME: create_and_begin_editing_new_gametype_profile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xefde0",

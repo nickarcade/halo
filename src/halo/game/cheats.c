@@ -66,6 +66,85 @@ float FUN_000a55e0(int arg1, int arg2, int arg3, int arg4)
   return FUN_000a5590(arg3, arg4) * saved;
 }
 
+/* compare_targets (0xa5700)
+ *
+ * qsort comparator over the 0x38-byte candidate-target records built by
+ * FUN_000a5f00 and sorted at 0xa60a8 (the only reference to this address is
+ * that DATA xref, i.e. the qsort function-pointer argument).
+ *
+ * Confirmed from the disassembly at 0xa5700 (ECX = param a = [EBP+8],
+ * EDX = param b = [EBP+0xc]; each FLD/FCOMP pair loads a's field and compares
+ * it against b's, so FNSTSW C0 means a < b and C3 means a == b):
+ *   0xa5709 TEST AH,0x41 / JZ   -> a[0x30] >  b[0x30] -> -1
+ *   0xa5716 TEST AH,0x05 / JNP  -> a[0x30] <  b[0x30] -> +1
+ *   0xa5723 TEST AH,0x41 / JZ   -> a[0x34] >  b[0x34] -> -1
+ *   0xa5730 TEST AH,0x05 / JNP  -> a[0x34] <  b[0x34] -> +1
+ *   0xa573d TEST AH,0x05 / JNP  -> a[0x28] <  b[0x28] -> -1
+ *   0xa574a TEST AH,0x41 / JZ   -> a[0x28] >  b[0x28] -> +1
+ *   0xa5757 TEST AH,0x05 / JP   -> fall through when a[0x2c] < b[0x2c] -> -1
+ *   0xa576b TEST AH,0x41 / JNZ  -> equal -> tie-break; else +1
+ * Two of the four keys therefore sort descending (0x30, 0x34) and two
+ * ascending (0x28, 0x2c).  The tie-break at 0xa577f loads the full dword at
+ * offset 0 of each record and masks it with 0xffff before subtracting
+ * (MOV/AND/AND/SUB, not MOVZX), i.e. the low 16 bits of the datum handle the
+ * record carries at offset 0 -- that same dword is passed as the handle
+ * argument to FUN_000a5830 at 0xa60ea.  The semantic meaning of the four
+ * float keys is unknown from this evidence, so they stay raw offsets.
+ */
+int compare_targets(const void *a, const void *b)
+{
+  const char *ra;
+  const char *rb;
+
+  ra = (const char *)a;
+  rb = (const char *)b;
+
+  if (*(const float *)(ra + 0x30) > *(const float *)(rb + 0x30))
+    return -1;
+  if (*(const float *)(ra + 0x30) < *(const float *)(rb + 0x30))
+    return 1;
+
+  if (*(const float *)(ra + 0x34) > *(const float *)(rb + 0x34))
+    return -1;
+  if (*(const float *)(ra + 0x34) < *(const float *)(rb + 0x34))
+    return 1;
+
+  if (*(const float *)(ra + 0x28) < *(const float *)(rb + 0x28))
+    return -1;
+  if (*(const float *)(ra + 0x28) > *(const float *)(rb + 0x28))
+    return 1;
+
+  if (*(const float *)(ra + 0x2c) < *(const float *)(rb + 0x2c))
+    return -1;
+  if (*(const float *)(ra + 0x2c) > *(const float *)(rb + 0x2c))
+    return 1;
+
+  return (int)(*(const uint32_t *)ra & 0xffff) -
+         (int)(*(const uint32_t *)rb & 0xffff);
+}
+
+/* set_real_euler_angles2d (0xa5810)
+ *
+ * Two-store setter, straight from the disassembly:
+ *   0xa5813 MOV EAX,[EBP+0x8]     -> destination pointer (arg 1)
+ *   0xa5816 FLD  float ptr [EBP+0xc]  -> arg 2 loaded as a float
+ *   0xa5819 MOV ECX,[EBP+0x10]    -> arg 3 copied as a plain dword
+ *   0xa581c FSTP float ptr [EAX+0x4]  -> arg 2 stored at destination +0x04
+ *   0xa581f MOV  [EAX],ECX        -> arg 3 stored at destination +0x00
+ *
+ * The argument slots are fixed, so the mapping is unambiguous: arg 2 lands at
+ * +0x04 and arg 3 at +0x00.  Which component is yaw and which is pitch is NOT
+ * proven -- the function has no callers in this build and no assert string --
+ * so the parameters are named after the offsets they write.  Arg 2 is a float
+ * by the FLD; arg 3's form (a dword copy) does not prove its type, but the
+ * symbol name and the adjacent float make `real` the recovered spelling.
+ */
+void set_real_euler_angles2d(real *angles, real angle_04, real angle_00)
+{
+  angles[1] = angle_04;
+  angles[0] = angle_00;
+}
+
 /* FUN_000a5d70 (0xa5d70)
  *
  * Recursive per-cluster worker behind FUN_000a5f00 (0xa5f00, unported): walks
@@ -220,7 +299,7 @@ char FUN_000a6030(float *cone_spec, float *point, float *direction, float *arg4,
   if (count <= 0)
     return 0;
 
-  qsort(local_buffer, (size_t)count, 0x38, (qsort_compar_proc)0x000a5700);
+  qsort(local_buffer, (size_t)count, 0x38, (qsort_compar_proc)compare_targets);
 
   for (i = 0; i < count; i++) {
     elem = local_buffer + (int)i * 0x38;

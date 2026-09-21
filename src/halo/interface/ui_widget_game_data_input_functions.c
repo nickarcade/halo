@@ -449,6 +449,85 @@ bool FUN_000ef970(void *widget, void *event_data, bool *widget_deleted)
   return true;
 }
 
+/* create and begin editing a new multiplayer game-type profile (0x0efc60,
+ * table xref 0x31e294) — the game-variant sibling of the player-profile
+ * handler below. Asserts the event's local player index (event_data+0x2)
+ * is in [0,4), fetches a default "untitled profile" name, creates a new
+ * playlist profile for the widget's index field (widget+0x8), begins
+ * editing it, seeds the editable profile with the slayer defaults, copies
+ * the untitled name in (max 11 chars + NUL) and hands it to the virtual
+ * keyboard for validation. On success it also remembers the profile's
+ * enclosing directory as the last-used multiplayer variant directory.
+ * Any failure reports a deferred error and plays the deny sound. */
+bool create_and_begin_editing_new_gametype_profile(void *widget,
+                                                   void *event_data,
+                                                   bool *widget_deleted)
+{
+  char directory_path[256];
+  game_variant_t scratch;
+  wchar_t untitled_name[128];
+  game_variant_t default_variant;
+  short local_player_index;
+  int profile_index;
+  wchar_t *profile;
+  bool result;
+
+  (void)widget_deleted;
+  result = false;
+
+  local_player_index = *(short *)((char *)event_data + 2);
+  if (local_player_index < 0 || local_player_index >= 4) {
+    display_assert(
+      "creating a new profile requires a valid local player index",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+      0x10b0, 1);
+    system_exit(-1);
+  }
+
+  saved_game_file_get_useable_untitled_profile_name(untitled_name);
+  if (untitled_name[0] != L'\0') {
+    /* widget+0x8 — unknown widget field, used as the profile's owning index */
+    profile_index = playlist_profile_new(*(unsigned short *)((char *)widget + 8),
+                                         untitled_name);
+    if (profile_index != -1) {
+      player_ui_begin_editing_profile(profile_index);
+      profile = (wchar_t *)player_ui_get_edit_playlist_profile();
+      if (profile != NULL) {
+        default_variant = *game_engine_slayer_default(&scratch);
+        csmemcpy(profile, &default_variant, sizeof(game_variant_t));
+        profile[0x32] = L'\0';
+        ustrncpy(profile, untitled_name, 0xb);
+        profile[0xb] = L'\0';
+
+        result = virtual_keyboard_launch(profile, 0x18, 9);
+        if (result) {
+          if (saved_game_file_get_path_to_enclosing_directory(profile_index,
+                                                              directory_path)) {
+            saved_game_file_remember_last_used_multiplayer_variant_directory(
+              directory_path);
+          }
+          return result;
+        }
+        if (result != 0) {
+          return result;
+        }
+      } else {
+        error(2, "failed to retrieve editable game variant profile!");
+        player_ui_end_editing_profile();
+      }
+    } else {
+      error(2, "failed to create a new multiplayer game type profile");
+    }
+  } else {
+    error(2, "unable to create a new untitled profile");
+  }
+
+  display_error_deferred(0x26, -1, true, false);
+  ui_play_audio_feedback_sound(4);
+
+  return *(volatile bool *)&result;
+}
+
 /* create and edit a new player profile (0x0efde0, table xref 0x31e298) —
  * fetches a default "untitled profile" name, creates a new saved-game
  * profile for the event's controller index (event_data+0x2; sentinel -1
