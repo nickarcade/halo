@@ -831,9 +831,9 @@ typedef struct
 
 /// size=0x54
 typedef struct {
-  vector3_t         unk_0;                  ///< offset=0x00
-  vector3_t         unk_12;                 ///< offset=0x0c
-  vector3_t         unk_24;                 ///< offset=0x18
+  vector3_t         field_00;               ///< offset=0x00
+  vector3_t         field_0c;               ///< offset=0x0c
+  vector3_t         field_18;               ///< offset=0x18
   uint8_t           unk_36;                 ///< offset=0x24
   char              unk_37[3];              ///< offset=0x25
   float             vertical_field_of_view; ///< offset=0x28
@@ -841,8 +841,49 @@ typedef struct {
   viewport_bounds_t unk_52;                 ///< offset=0x34
   float             z_near;                 ///< offset=0x3c
   float             z_far;                  ///< offset=0x40
-  char              unk_68[16];             ///< offset=0x44
+  float             field_44[4];            ///< offset=0x44
 } camera_t;
+cs(camera_t, 0x54);
+co(camera_t, field_00, 0x00);
+co(camera_t, field_0c, 0x0c);
+co(camera_t, field_18, 0x18);
+co(camera_t, vertical_field_of_view, 0x28);
+co(camera_t, viewport_bounds, 0x2c);
+co(camera_t, z_near, 0x3c);
+co(camera_t, z_far, 0x40);
+co(camera_t, field_44, 0x44);
+
+/// size=0x18c. Recovered from render_camera_build_frustum (0x187250).
+typedef struct {
+  float        field_00[4];   ///< offset=0x000
+  float        field_10[13];  ///< offset=0x010 real_matrix4x3
+  float        field_44[13];  ///< offset=0x044 real_matrix4x3
+  real_plane3d field_78[6];   ///< offset=0x078
+  float        field_d8;      ///< offset=0x0d8
+  float        field_dc;      ///< offset=0x0dc
+  vector3_t    field_e0[4];   ///< offset=0x0e0
+  vector3_t    field_110;     ///< offset=0x110
+  vector3_t    field_11c;     ///< offset=0x11c
+  float        field_128[6];  ///< offset=0x128
+  uint8_t      field_140;     ///< offset=0x140
+  uint8_t      pad_141[3];    ///< offset=0x141
+  float        field_144[16]; ///< offset=0x144
+  float        field_184[2];  ///< offset=0x184
+} render_frustum_t;
+cs(render_frustum_t, 0x18c);
+co(render_frustum_t, field_00, 0x000);
+co(render_frustum_t, field_10, 0x010);
+co(render_frustum_t, field_44, 0x044);
+co(render_frustum_t, field_78, 0x078);
+co(render_frustum_t, field_d8, 0x0d8);
+co(render_frustum_t, field_dc, 0x0dc);
+co(render_frustum_t, field_e0, 0x0e0);
+co(render_frustum_t, field_110, 0x110);
+co(render_frustum_t, field_11c, 0x11c);
+co(render_frustum_t, field_128, 0x128);
+co(render_frustum_t, field_140, 0x140);
+co(render_frustum_t, field_144, 0x144);
+co(render_frustum_t, field_184, 0x184);
 
 /// size=0xac
 typedef struct {

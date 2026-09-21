@@ -95386,16 +95386,16 @@
     "render_camera_build_frustum": {
       "abi_model": "regarg_call_stripped",
       "abi_model_items": 88,
-      "abi_modeled_mnemonic_pct": 48.3,
+      "abi_modeled_mnemonic_pct": 49.1,
       "addr": "0x187250",
       "end": "0x187f7a",
       "kind": "auto",
       "n_r": 1074,
-      "opnd_percent": 29.0,
-      "raw_mnemonic_pct": 46.9,
+      "opnd_percent": 27.5,
+      "raw_mnemonic_pct": 47.5,
       "ref": "synth",
       "ref_sha": "20ba12488fa9e7ad",
-      "score": 48.3,
+      "score": 49.1,
       "source": "src/halo/render/render_cameras.c"
     },
     "render_camera_check_warning_condition": {

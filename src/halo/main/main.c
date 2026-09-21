@@ -3547,12 +3547,12 @@ void main_pregame_render(void)
   unk[2].x = 0;
   unk[2].y = 0;
   unk[2].z = 0;
-  pregame_render_info.cam1.unk_0 = unk[2];
+  pregame_render_info.cam1.field_00 = unk[2];
 
   unk[1].x = 0;
   unk[1].y = 0;
   unk[1].z = 1.0;
-  pregame_render_info.cam1.unk_12 = unk[1];
+  pregame_render_info.cam1.field_0c = unk[1];
 
   pregame_render_info.unk_0 = -1;
   pregame_render_info.unk_2 = 1;
@@ -3560,7 +3560,7 @@ void main_pregame_render(void)
   unk[0].x = 0;
   unk[0].y = 1.0;
   unk[0].z = 0;
-  pregame_render_info.cam1.unk_24 = unk[0];
+  pregame_render_info.cam1.field_18 = unk[0];
 
   pregame_render_info.cam1.unk_36 = 0;
   pregame_render_info.cam1.vertical_field_of_view =
@@ -4129,19 +4129,19 @@ void halt_and_catch_fire(void)
      * pointer VALUE to a live 3-float vector each (same idiom already
      * established above for 0x31fc1c/0x31fc3c/0x31fc44). */
     default_pos = *(float **)0x31fc1c;
-    window_params.camera.unk_0.x = default_pos[0];
-    window_params.camera.unk_0.y = default_pos[1];
-    window_params.camera.unk_0.z = default_pos[2];
+    window_params.camera.field_00.x = default_pos[0];
+    window_params.camera.field_00.y = default_pos[1];
+    window_params.camera.field_00.z = default_pos[2];
 
     default_fwd = *(float **)0x31fc3c;
-    window_params.camera.unk_12.x = default_fwd[0];
-    window_params.camera.unk_12.y = default_fwd[1];
-    window_params.camera.unk_12.z = default_fwd[2];
+    window_params.camera.field_0c.x = default_fwd[0];
+    window_params.camera.field_0c.y = default_fwd[1];
+    window_params.camera.field_0c.z = default_fwd[2];
 
     default_up = *(float **)0x31fc44;
-    window_params.camera.unk_24.x = default_up[0];
-    window_params.camera.unk_24.y = default_up[1];
-    window_params.camera.unk_24.z = default_up[2];
+    window_params.camera.field_18.x = default_up[0];
+    window_params.camera.field_18.y = default_up[1];
+    window_params.camera.field_18.z = default_up[2];
 
     window_params.camera.unk_36 = 0;
 
