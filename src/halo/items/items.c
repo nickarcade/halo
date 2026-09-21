@@ -812,12 +812,12 @@ char virtual_keyboard_select(void)
     if (ustrcmp((const wchar_t *)0x46cf18, *(const wchar_t **)0x46cf08) == 0) {
       *(char *)0x46cf06 = 1;
     } else if (**(short **)0x46cf08 == 0) {
-      display_error(0x1d, -1, 1, 0);
+      ui_widget_display_error(0x1d, -1, 1, 0);
       virtual_keyboard_cancel();
     } else if (saved_game_file_name_unique(*(const wchar_t **)0x46cf08) != 0) {
       *(char *)0x46cf06 = 1;
     } else {
-      display_error(0x1b, -1, 1, 0);
+      ui_widget_display_error(0x1b, -1, 1, 0);
       virtual_keyboard_cancel();
     }
     ui_play_audio_feedback_sound(3);

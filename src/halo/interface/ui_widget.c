@@ -398,7 +398,7 @@ void display_error_deferred(int error_code, int player_index, bool a3, bool a4)
 
 /* display_error_abort_to_dashboard_deferred (0xe4590) — queues a single
  * "abort to dashboard" error (the error_handle/allow_abort pair consumed
- * by display_error_abort_to_dashboard(), whose "error_abort_to_dashboard"
+ * by ui_widget_load_error_screen(), whose "error_abort_to_dashboard"
  * widget name this function's name mirrors) for the deferred-dispatch
  * check on the next per-frame widget update (word at 0x46cc68 == -1
  * means "slot empty", byte at 0x46cc6a is the paired allow_abort flag).
@@ -2315,7 +2315,7 @@ void main_screen_shell_load(void)
   }
 
   if (word_46CC48 != -1) {
-    display_error(word_46CC48, -1, 1, 0);
+    ui_widget_display_error(word_46CC48, -1, 1, 0);
     word_46CC48 = -1;
   }
 
@@ -2332,7 +2332,7 @@ done:
   *(uint8_t *)0x31e050 = 0;
 }
 
-void display_error(int16_t error_handle, int local_player_index,
+void ui_widget_display_error(int16_t error_handle, int local_player_index,
                              char is_modal, char pause_game)
 {
   int16_t stack_index;
@@ -2532,7 +2532,7 @@ void display_error(int16_t error_handle, int local_player_index,
   }
 }
 
-/* display_error_abort_to_dashboard — displays a fatal/abort error overlay that
+/* ui_widget_load_error_screen — displays a fatal/abort error overlay that
  * forces the player back to the Xbox dashboard. If allow_abort is true
  * (== 1), the "error_abort_to_dashboard" widget is shown (user can confirm);
  * otherwise "error_abort_to_dashboard_you_have_no_choice" is shown and all
@@ -2541,7 +2541,7 @@ void display_error(int16_t error_handle, int local_player_index,
  * (+0x15) is set, and the global "last displayed error" at 0x31e054 is
  * updated. Asserts that the widget's type (+0x0e) is 1 (text box).
  * Source line: 0x90f in ui_widget.c. */
-void display_error_abort_to_dashboard(int16_t error_handle, int allow_abort)
+void ui_widget_load_error_screen(int16_t error_handle, int allow_abort)
 {
   const char *widget_name;
   void *widget;
@@ -2900,14 +2900,14 @@ void process_ui_widgets(void)
         if (bink_playback_has_video()) {
           bink_playback_stop();
         }
-        display_error_abort_to_dashboard(0x21, 1);
+        ui_widget_load_error_screen(0x21, 1);
         return;
       }
       if (*(int16_t *)0x46cc80 == 2) {
         if (bink_playback_has_video()) {
           bink_playback_stop();
         }
-        display_error_abort_to_dashboard(0x22, 1);
+        ui_widget_load_error_screen(0x22, 1);
         return;
       }
     }
@@ -2934,7 +2934,7 @@ void process_ui_widgets(void)
 
   /* If a pending error screen load is queued, dispatch it now. */
   if (*(int16_t *)0x46cc68 != -1) {
-    display_error_abort_to_dashboard(*(int16_t *)0x46cc68, *(uint8_t *)0x46cc6a);
+    ui_widget_load_error_screen(*(int16_t *)0x46cc68, *(uint8_t *)0x46cc6a);
     *(int16_t *)0x46cc68 = -1;
     return;
   }
@@ -3033,7 +3033,7 @@ void process_ui_widgets(void)
         error(2, "waiting for %d ticks before displaying deferred errors",
               0x1e);
       } else {
-        display_error(
+        ui_widget_display_error(
           deferred_error->error_handle, deferred_error->local_player_index,
           (char)deferred_error->a3, (char)deferred_error->a4);
         deferred_error->error_handle = -1;

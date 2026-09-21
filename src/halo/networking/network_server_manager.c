@@ -933,7 +933,7 @@ void network_game_server_handle_client_update_packet(int server, int machine,
         input_buf[i] = src[i];
       }
     }
-    update_server_handle_client_update(*(short *)((char *)machine + 0xc),
+    update_server_apply_actions(*(short *)((char *)machine + 0xc),
                                 (void *)input_buf);
     *(unsigned int *)((char *)machine + 4) =
       *(unsigned int *)message & 0x7fffffff;

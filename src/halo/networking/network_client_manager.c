@@ -36,7 +36,7 @@
  * sign-extended before each comparison against the 32-bit block count, which is
  * re-read from memory every iteration (0x1248ca).
  */
-int16_t FUN_00124730(int model_ref, const char *marker_name, int magic_table,
+int16_t model_get_marker_by_name(int model_ref, const char *marker_name, int magic_table,
                      int node_remap, int16_t node_count, void *node_matrices,
                      char mirrored, void *out_markers, int16_t max_markers)
 {
@@ -483,7 +483,7 @@ __declspec(noinline) void network_game_client_game_out_of_sync(void *client)
     if (*((char *)client + 0xcac) == '\0') {
       player_index = local_player_get_next(-1);
       while (player_index != -1) {
-        display_error(8, player_index, 1, 0);
+        ui_widget_display_error(8, player_index, 1, 0);
         player_index = local_player_get_next(player_index);
       }
     }
@@ -2474,7 +2474,7 @@ bool network_game_client_idle_ingame(void *server)
       __int16 player_idx;
       player_idx = local_player_get_next(-1);
       while (player_idx != (__int16)-1) {
-        display_error(9, player_idx, 0, 0);
+        ui_widget_display_error(9, player_idx, 0, 0);
         player_idx = local_player_get_next(player_idx);
       }
       network_event(
