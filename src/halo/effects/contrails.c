@@ -316,7 +316,7 @@ int16_t local_random_range(int16_t min, int16_t max)
 void local_random_vector_in_cone3d(float *forward, float zero, float angle,
                                    float *result)
 {
-  random_direction3d((int *)random_math_get_local_seed_address(), forward, zero,
+  seed_random_vector_in_cone3d((int *)random_math_get_local_seed_address(), forward, zero,
                      angle, result);
 }
 
@@ -499,8 +499,8 @@ void contrail_add_points(int contrail_handle /* @<eax> */, int count, int flag)
             float vel[3];
             float root_loc[3];
             unsigned int *seed = random_math_get_local_seed_address();
-            random_direction3d((int *)seed, (float *)(marker + 0x3c), 0.0f,
-                               dir_angle, vel);
+            seed_random_vector_in_cone3d((int *)seed, (float *)(marker + 0x3c), 0.0f,
+                              dir_angle, vel);
 
             *(float *)(pd + 0x1c) = *(float *)(marker + 0x60);
             *(float *)(pd + 0x20) = *(float *)(marker + 0x64);

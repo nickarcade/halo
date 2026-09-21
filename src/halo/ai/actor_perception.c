@@ -784,7 +784,7 @@ bool actor_situation_try_new_target(int actor_handle, int target)
   return true;
 }
 
-/* FUN_00030e60 (0x30e60): find-or-append a 0x1c-byte record in a caller-owned
+/* actor_emotion_get_unopposable_enemy (0x30e60): find-or-append a 0x1c-byte record in a caller-owned
  * array, keyed by the dword at record+0x8.
  *
  * @<eax> = array base, @<edi> = search key.  Stack: param_1 at [EBP+0x8] is
@@ -806,7 +806,7 @@ bool actor_situation_try_new_target(int actor_handle, int target)
  * `if (index == -1)` rather than written as an early return.
  *
  * No __FILE__ string. */
-short FUN_00030e60(void *records /* @<eax> */, int key /* @<edi> */,
+short actor_emotion_get_unopposable_enemy(void *records /* @<eax> */, int key /* @<edi> */,
                    int param_1, short *p_count, short max_count)
 {
   char *base;
@@ -1738,7 +1738,7 @@ iterate_props:
         if (*(char *)(prop + 0x127) != 0) {
           if (*(char *)(prop + 0x60) != 0)
             goto notify_departed;
-          FUN_00036a90(actor_handle, iter[0]);
+          actor_stimulus_enter_combat_found_body(actor_handle, iter[0]);
           goto after_notify;
         }
         if (*(char *)(prop + 0x60) != 0) {

@@ -1001,7 +1001,7 @@ void FUN_00137690(int object_handle, short region_index)
  * BUG1-FIX: FUN_00136bc0 arg7 = &damage_scale (EBP-0xc) at 0x1382db-0x1382de.
  * BUG2-FIX: FUN_001377d0 arg10 = &body_damage (EBP-0x24) at 0x138354-0x138357.
  * BUG3-FIX: get_global_random_seed_address() is 0-arg; min/max from jpt tag.
- * BUG4-FIX: driver path passes *(unit+0x1c8) to FUN_000a3b80, not player_index.
+ * BUG4-FIX: driver path passes *(unit+0x1c8) to player_effect_start, not player_index.
  * BUG5-FIX: FUN_00136f40 last two args: (int)effect_ptr, material_index.
  */
 /* impact_direction is a POINTER, not a bitmask.  Callers pass either a surface
@@ -1252,15 +1252,15 @@ after_modifier:
         driver_handle = *(int *)(unit_check + 0x1c8);
         if (driver_handle != -1) {
           /* BUG4-FIX: driver present → pass driver_handle (the value at +0x1c8)
-           * directly to FUN_000a3b80, NOT local_player_get_player_index(0).
+           * directly to player_effect_start, NOT local_player_get_player_index(0).
            * Disasm: MOV EAX,[EAX+0x1c8]; ... JMP 0x1380bb; PUSH EAX. */
-          FUN_000a3b80(driver_handle, damage_params, (char *)dp + 0x34,
+          player_effect_start(driver_handle, damage_params, (char *)dp + 0x34,
                        *(float *)((char *)dp + 0x40), damage_scale);
         } else {
           /* No driver: check global flag */
           if (*(char *)0x5aa895 == 0)
             goto skip_player_effect;
-          FUN_000a3b80(local_player_get_player_index(0), damage_params,
+          player_effect_start(local_player_get_player_index(0), damage_params,
                        (char *)dp + 0x34, *(float *)((char *)dp + 0x40),
                        damage_scale);
         }
@@ -1657,7 +1657,7 @@ void FUN_00137170(float *incident_direction, float *surface_normal,
  * Confirmed: CALL 0xa8e30 = game_engine_running().
  * Confirmed: CALL 0xba500 = player_index_from_unit_index(object_handle).
  * Confirmed: FLD [0x29b18c]; FCOMP [EBP-4] compares drain_rate with excess.
- * Confirmed: CALL 0xd7cd0 = FUN_000d7cd0(player_index, float_amount).
+ * Confirmed: CALL 0xd7cd0 = hud_tick_shield(player_index, float_amount).
  * Confirmed: TEST AH,0x5; JP at 0x1386d0 for shield >= 1.0f skip.
  * Confirmed: MOV AX,[ESI+0xb4]; TEST AX,AX; JNZ for delay counter check.
  * Confirmed: DEC AX at 0x138774 for delay counter decrement.
@@ -1755,10 +1755,10 @@ void object_damage_update(int object_handle)
     local_8 = *(float *)(obj + 0x94) - 1.0f;
     if (!(0.00074074074f <= local_8)) {
       *(float *)(obj + 0x94) = 1.0f;
-      FUN_000d7cd0(player_index, local_8);
+      hud_tick_shield(player_index, local_8);
     } else {
       *(float *)(obj + 0x94) = *(float *)(obj + 0x94) - 0.00074074074f;
-      FUN_000d7cd0(player_index, 0.00074074074f);
+      hud_tick_shield(player_index, 0.00074074074f);
     }
     goto stun_body;
   }

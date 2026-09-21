@@ -4029,7 +4029,7 @@ seed_fallback:
     ((actor_t *)actor)->field_530 = 0;
     goto store_prev;
   }
-  if (FUN_0002a360(actor_handle) != '\0' ||
+  if (actor_move_animation_busy(actor_handle) != '\0' ||
       ((actor_t *)actor)->field_440 == '\0') {
     goto store_prev;
   }

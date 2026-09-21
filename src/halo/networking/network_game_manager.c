@@ -130,12 +130,12 @@ void network_game_reset_for_next_round(void *game, bool flag)
   } else {
     main_load_ui_scenario(true);
     csmemset(g + 0x430, 0, 4);
-    if (network_game_server_get() != NULL) {
+    if (global_network_game_server_get() != NULL) {
       set_game_connection(2);
       game_time_end();
       return;
     }
-    if (network_game_client_get() != NULL) {
+    if (global_network_game_client_get() != NULL) {
       set_game_connection(1);
       game_time_end();
       return;
@@ -281,7 +281,7 @@ bool network_game_add_player(void *game, void *player)
   return result;
 }
 
-int FUN_0012af00(void *p1, void *p2)
+int sort_network_players(void *p1, void *p2)
 {
   char *player1 = (char *)p1;
   char *player2 = (char *)p2;
@@ -470,7 +470,7 @@ bool network_game_remove_player(void *game, void *player)
             player_slot->machine_index < 4) {
           if (player_slot->machine_index == p->machine_index &&
               player_slot->controller_index == p->controller_index) {
-            network_player_reset((uint8_t *)player_slot);
+            network_game_invalidate_player((uint8_t *)player_slot);
             *(short *)(g + 0x224) -= 1;
             return true;
           }
@@ -509,7 +509,7 @@ bool network_game_create_game_objects(void *game)
   conn = game_connection();
   if (conn > 0) {
     if (conn < 3) {
-      options.random_seed = network_game_get_number_of_games_played();
+      options.random_seed = network_game_get_random_seed();
     } else {
       if (conn != 3) {
         goto bad_connection;
@@ -535,7 +535,7 @@ bool network_game_create_game_objects(void *game)
 
     g->map_loaded = 1;
     game_initialize_for_new_map();
-    qsort(g->players, 16, 32, (int (*)(const void *, const void *))FUN_0012af00);
+    qsort(g->players, 16, 32, (int (*)(const void *, const void *))sort_network_players);
 
     player = g->players;
     for (i = 0; i < 16; i++, player++) {
@@ -624,7 +624,7 @@ wchar_t *network_game_get_random_player_name(void)
   return (wchar_t *)0x26cdf0;
 }
 
-void network_game_log(const char *format, ...)
+void network_event(const char *format, ...)
 {
   va_list args;
 
@@ -641,7 +641,7 @@ void network_game_log(const char *format, ...)
   error(3, error_string_buffer);
 }
 
-bool network_game_message_encode(void *message_struct, char *encoded_message,
+bool encode_network_game_message(void *message_struct, char *encoded_message,
                                  int16_t *encoded_message_size, int16_t type,
                                  int one)
 {
