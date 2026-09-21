@@ -21646,9 +21646,12 @@
     "call_count": 3
   },
   "0x3b410": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 3,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "moderate",
+    "coverage_pct": 53.2,
+    "oracle": "xbe"
   },
   "0x3b5e0": {
     "class": "non_leaf",

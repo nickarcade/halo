@@ -147,8 +147,10 @@ void network_game_reset_for_next_round(void *game, bool flag)
 
 bool network_player_is_valid(void *client)
 {
-  char *c = (char *)client;
-  if (c != NULL && c[0x1d] >= 0 && c[0x1d] < 4 && c[0x1c] >= 0 && c[0x1c] < 4) {
+  network_player_record_t *player = (network_player_record_t *)client;
+  if (player != NULL && player->controller_index >= 0 &&
+      player->controller_index < 4 && player->machine_index >= 0 &&
+      player->machine_index < 4) {
     return true;
   }
   return false;
@@ -192,8 +194,8 @@ void network_game_invalidate_machine(void *game, uint16_t machine_index)
 
 bool network_game_add_player(void *game, void *player)
 {
-  char *g = (char *)game;
-  char *p = (char *)player;
+  network_game_blob_t *g = (network_game_blob_t *)game;
+  network_player_record_t *p = (network_player_record_t *)player;
   char *pcVar4;
   char *slot_ptr;
   int i;
@@ -209,14 +211,14 @@ bool network_game_add_player(void *game, void *player)
     system_exit(-1);
   }
 
-  if (*(short *)(g + 0x224) < (short)g[0x10e]) {
-    machine_index = p[0x1c];
+  if (g->player_count < (int16_t)g->maximum_player_count) {
+    machine_index = p->machine_index;
     if (machine_index >= 0 && machine_index < 4) {
-      controller_index = p[0x1d];
+      controller_index = p->controller_index;
       if (controller_index >= 0 && controller_index < 4) {
         /* Check for duplicates */
         i = 0;
-        pcVar4 = g + 0x243;
+        pcVar4 = (char *)g + 0x243;
         do {
           if (pcVar4[-1] == machine_index && *pcVar4 == controller_index) break;
           if (pcVar4[0x1f] == machine_index && pcVar4[0x20] == controller_index) {
@@ -254,7 +256,7 @@ bool network_game_add_player(void *game, void *player)
         if (i == 16 && network_player_is_valid(p)) {
           /* Find empty slot (player_index == -1) */
           empty_slot = -1;
-          slot_ptr = g + 0x245;
+          slot_ptr = (char *)g + 0x245;
           for (i = 0; i < 16; i++, slot_ptr += 0x20) {
             if (*slot_ptr == (char)-1) {
               empty_slot = i;
@@ -262,11 +264,12 @@ bool network_game_add_player(void *game, void *player)
             }
           }
 
-          if ((p[0x1f] == (char)-1 || empty_slot == (int)(signed char)p[0x1f]) &&
+          if ((p->player_index == (int8_t)-1 ||
+               empty_slot == (int)(signed char)p->player_index) &&
               empty_slot != -1) {
-            p[0x1f] = (char)empty_slot;
-            csmemcpy(g + 0x226 + empty_slot * 0x20, p, 0x20);
-            *(short *)(g + 0x224) += 1;
+            p->player_index = (int8_t)empty_slot;
+            csmemcpy(g->players + empty_slot, p, 0x20);
+            g->player_count += 1;
             result = true;
           }
         }
@@ -321,7 +324,7 @@ int FUN_0012af00(void *p1, void *p2)
 
 bool network_game_spawn_player(void *player)
 {
-  char *p = (char *)player;
+  network_player_record_t *p = (network_player_record_t *)player;
   bool is_local;
   int16_t controller;
   int player_index;
@@ -335,14 +338,15 @@ bool network_game_spawn_player(void *player)
 
   is_local = network_game_player_is_local(p);
   if (is_local) {
-    controller = (int16_t)p[0x1d];
+    controller = (int16_t)p->controller_index;
   } else {
     controller = -1;
   }
 
-  player_index = player_new((int)p[0x1c], 0xffffffff, controller, p);
+  player_index = player_new((int)p->machine_index, 0xffffffff, controller,
+                             (char *)p);
   if (player_index != -1) {
-    p[0x1f] = (char)player_index;
+    p->player_index = (int8_t)player_index;
     return true;
   }
   return false;
@@ -391,7 +395,7 @@ done:
 
 void network_game_invalidate(void *game)
 {
-  char *g = (char *)game;
+  network_game_blob_t *g = (network_game_blob_t *)game;
   int i;
 
   if (g == NULL) {
@@ -401,26 +405,26 @@ void network_game_invalidate(void *game)
   }
 
   csmemset(g, 0, 0x434);
-  csmemset(g + 0x20, 0, 0x84);
-  *(short *)(g + 0x112) = 0;
-  *(short *)(g + 0x224) = 0;
+  csmemset((char *)g + 0x20, 0, 0x84);
+  g->machine_count = 0;
+  g->player_count = 0;
 
   for (i = 0; i < 4; i++) {
     network_game_invalidate_machine(g, i);
   }
 
-  csmemset(g + 0x226, 0xff, 0x200);
-  g[0x10d] = 2;
-  g[0x10e] = 16;
-  g[0x430] = 0;
+  csmemset(g->players, 0xff, 0x200);
+  g->field_10d = 2;
+  g->maximum_player_count = 16;
+  g->map_loaded = 0;
 }
 
 bool network_game_update_player(void *game, void *player)
 {
-  char *g = (char *)game;
-  char *p = (char *)player;
+  network_game_blob_t *g = (network_game_blob_t *)game;
+  network_player_record_t *p = (network_player_record_t *)player;
   int player_index;
-  char *player_slot;
+  network_player_record_t *player_slot;
 
   if (g == NULL || p == NULL) {
     display_assert("game && player",
@@ -430,9 +434,10 @@ bool network_game_update_player(void *game, void *player)
   }
 
   if (network_game_player_is_valid(p, g)) {
-    player_index = (int)p[0x1f];
-    player_slot = g + 0x226 + player_index * 0x20;
-    if (player_slot[0x1d] == p[0x1d] && player_slot[0x1c] == p[0x1c]) {
+    player_index = (int)p->player_index;
+    player_slot = &g->players[player_index];
+    if (player_slot->controller_index == p->controller_index &&
+        player_slot->machine_index == p->machine_index) {
       csmemcpy(player_slot, p, 0x20);
       return true;
     }
@@ -445,9 +450,9 @@ bool network_game_update_player(void *game, void *player)
 bool network_game_remove_player(void *game, void *player)
 {
   char *g = (char *)game;
-  char *p = (char *)player;
+  network_player_record_t *p = (network_player_record_t *)player;
   int i;
-  char *player_slot;
+  network_player_record_t *player_slot;
 
   if (g == NULL || p == NULL) {
     display_assert("game && player",
@@ -457,19 +462,21 @@ bool network_game_remove_player(void *game, void *player)
   }
 
   if (network_game_player_is_valid(p, g)) {
-    player_slot = g + 0x226;
+    player_slot = (network_player_record_t *)(g + 0x226);
     for (i = 0; i < 16; i++) {
-      if (player_slot != NULL && player_slot[0x1d] >= 0 &&
-          player_slot[0x1d] < 4) {
-        if (player_slot[0x1c] >= 0 && player_slot[0x1c] < 4) {
-          if (player_slot[0x1c] == p[0x1c] && player_slot[0x1d] == p[0x1d]) {
+      if (player_slot != NULL && player_slot->controller_index >= 0 &&
+          player_slot->controller_index < 4) {
+        if (player_slot->machine_index >= 0 &&
+            player_slot->machine_index < 4) {
+          if (player_slot->machine_index == p->machine_index &&
+              player_slot->controller_index == p->controller_index) {
             network_player_reset((uint8_t *)player_slot);
             *(short *)(g + 0x224) -= 1;
             return true;
           }
         }
       }
-      player_slot += 0x20;
+      player_slot++;
     }
     return false;
   }
@@ -480,9 +487,9 @@ bool network_game_remove_player(void *game, void *player)
 
 bool network_game_create_game_objects(void *game)
 {
-  char *g = (char *)game;
+  network_game_blob_t *g = (network_game_blob_t *)game;
   int i;
-  char *player;
+  network_player_record_t *player;
   game_options_t options;
   int conn;
 
@@ -496,8 +503,8 @@ bool network_game_create_game_objects(void *game)
    * game_options_t constructor), not a plain memset — it seeds non-zero option
    * defaults. */
   game_options_new(&options);
-  csstrncpy(options.map_name, g + 0x24, 0x7f);
-  options.difficulty = *(int16_t *)(g + 0x110);
+  csstrncpy(options.map_name, g->map_name, 0x7f);
+  options.difficulty = g->difficulty;
 
   conn = game_connection();
   if (conn > 0) {
@@ -507,7 +514,7 @@ bool network_game_create_game_objects(void *game)
       if (conn != 3) {
         goto bad_connection;
       }
-      options.random_seed = *(uint32_t *)(g + 0x428);
+      options.random_seed = g->random_seed;
     }
 
     game_precache_new_map(options.map_name, true);
@@ -517,32 +524,32 @@ bool network_game_create_game_objects(void *game)
       game_unload();
     }
 
-    if (*(int *)(g + 0xbc) != 0) {
-      game_set_game_variant((game_variant_t *)(g + 0xa4));
+    if (g->game_variant.engine_type != 0) {
+      game_set_game_variant(&g->game_variant);
     }
 
     if (!game_load(&options)) {
       error(0, "game_load() failed.");
-      return (bool)g[0x430];
+      return (bool)g->map_loaded;
     }
 
-    g[0x430] = 1;
+    g->map_loaded = 1;
     game_initialize_for_new_map();
-    qsort(g + 0x226, 16, 32, (int (*)(const void *, const void *))FUN_0012af00);
+    qsort(g->players, 16, 32, (int (*)(const void *, const void *))FUN_0012af00);
 
-    player = g + 0x226;
-    for (i = 0; i < 16; i++, player += 0x20) {
+    player = g->players;
+    for (i = 0; i < 16; i++, player++) {
       if (!network_player_is_valid(player)) {
         break;
       }
       if (!network_game_spawn_player(player)) {
-        volatile char *valid_flag = (volatile char *)(g + 0x430);
+        volatile uint8_t *valid_flag = &g->map_loaded;
         *valid_flag = 0;
         return (bool)*valid_flag;
       }
     }
 
-    return (bool)g[0x430];
+    return (bool)g->map_loaded;
   }
 
 bad_connection:
@@ -555,9 +562,9 @@ bad_connection:
 
 bool network_game_remove_machine(void *game, void *machine)
 {
-  char *g = (char *)game;
-  char *m = (char *)machine;
-  char machine_index;
+  network_game_blob_t *g = (network_game_blob_t *)game;
+  network_machine_record_t *m = (network_machine_record_t *)machine;
+  int8_t machine_index;
   int i;
 
   if (g == NULL || m == NULL) {
@@ -567,27 +574,28 @@ bool network_game_remove_machine(void *game, void *machine)
     system_exit(-1);
   }
 
-  machine_index = m[0x40];
+  machine_index = m->machine_index;
   if (machine_index >= 0 && machine_index < 4) {
-    char *mach_ptr = g + 0x154;
+    char *mach_ptr = (char *)g + 0x154;
     for (i = 0; i < 4; i++) {
       if (*mach_ptr == machine_index) {
-        char *player = g + 0x226;
+        network_player_record_t *player = g->players;
         int p;
         for (p = 0; p < 16; p++) {
           /* Check if player slot is valid and matches our machine (inlined
            * player_is_valid) */
-          if (player != NULL && player[0x1d] >= 0 && player[0x1d] < 4 &&
-              player[0x1c] >= 0 && player[0x1c] < 4 &&
-              player[0x1c] == machine_index) {
+          if (player != NULL && player->controller_index >= 0 &&
+              player->controller_index < 4 && player->machine_index >= 0 &&
+              player->machine_index < 4 &&
+              player->machine_index == machine_index) {
             if (!network_game_remove_player(g, player)) {
               error(2, "failed to remove a machine's player");
             }
           }
-          player += 0x20;
+          player++;
         }
         network_game_invalidate_machine(g, (short)machine_index);
-        *(short *)(g + 0x112) -= 1;
+        g->machine_count -= 1;
         return true;
       }
       mach_ptr += 0x44;

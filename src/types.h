@@ -170,6 +170,91 @@ co(game_variant_t, field_58,    0x58);
 co(game_variant_t, field_5c,    0x5c);
 co(game_variant_t, field_60,    0x60);
 
+/// size=0x20
+/// Evidence: recovery/evidence/network_player_record.json
+/// The record is packed because the containing player array starts at game+0x226.
+typedef struct {
+  wchar_t name[12];             ///< offset=0x00
+  uint16_t field_18;             ///< offset=0x18
+  uint16_t field_1a;             ///< offset=0x1a
+  int8_t machine_index;          ///< offset=0x1c
+  int8_t controller_index;       ///< offset=0x1d
+  int8_t team_index;             ///< offset=0x1e
+  int8_t player_index;           ///< offset=0x1f
+} network_player_record_t;
+cs(network_player_record_t, 0x20);
+co(network_player_record_t, name,              0x00);
+co(network_player_record_t, field_18,          0x18);
+co(network_player_record_t, field_1a,          0x1a);
+co(network_player_record_t, machine_index,     0x1c);
+co(network_player_record_t, controller_index,  0x1d);
+co(network_player_record_t, team_index,        0x1e);
+co(network_player_record_t, player_index,      0x1f);
+
+/// size=0x44
+/// Evidence: recovery/evidence/network_machine_record.json
+/// Only the signed machine-index byte at +0x40 is field-recovered.
+typedef struct {
+  wchar_t name[32];              ///< offset=0x00
+  int8_t machine_index;          ///< offset=0x40
+  char pad_41[3];                ///< offset=0x41
+} network_machine_record_t;
+cs(network_machine_record_t, 0x44);
+co(network_machine_record_t, machine_index, 0x40);
+
+/// size=0x10
+/// Evidence: recovery/evidence/network_server_machine_slot.json
+typedef struct {
+  uint32_t connection;            ///< offset=0x00
+  uint32_t last_received_update_sequence_number; ///< offset=0x04
+  uint32_t stall_start_time;      ///< offset=0x08
+  int16_t machine_index;          ///< offset=0x0c
+  uint16_t flags;                 ///< offset=0x0e
+} network_server_machine_slot_t;
+cs(network_server_machine_slot_t, 0x10);
+co(network_server_machine_slot_t, connection,                         0x00);
+co(network_server_machine_slot_t, last_received_update_sequence_number, 0x04);
+co(network_server_machine_slot_t, stall_start_time,                   0x08);
+co(network_server_machine_slot_t, machine_index,                       0x0c);
+co(network_server_machine_slot_t, flags,                               0x0e);
+
+/// size=0x434
+/// Evidence: recovery/evidence/network_game_blob.json
+/// This packed blob is serialized as a 0x434-byte network settings message.
+typedef struct {
+  char pad_00[0x24];              ///< offset=0x00
+  char map_name[0x80];            ///< offset=0x24
+  game_variant_t game_variant;    ///< offset=0xa4
+  char pad_10c[1];                ///< offset=0x10c
+  int8_t field_10d;                ///< offset=0x10d
+  int8_t maximum_player_count;    ///< offset=0x10e
+  uint8_t field_10f;               ///< offset=0x10f
+  int16_t difficulty;             ///< offset=0x110
+  int16_t machine_count;          ///< offset=0x112
+  network_machine_record_t machines[4]; ///< offset=0x114
+  int16_t player_count;           ///< offset=0x224
+  network_player_record_t players[16]; ///< offset=0x226
+  char pad_426[2];                ///< offset=0x426
+  int32_t random_seed;            ///< offset=0x428
+  int32_t number_of_games_played; ///< offset=0x42c
+  uint8_t map_loaded;             ///< offset=0x430
+  char pad_431[3];                ///< offset=0x431
+} network_game_blob_t;
+cs(network_game_blob_t, 0x434);
+co(network_game_blob_t, map_name,                0x24);
+co(network_game_blob_t, game_variant,            0xa4);
+co(network_game_blob_t, field_10d,               0x10d);
+co(network_game_blob_t, maximum_player_count,    0x10e);
+co(network_game_blob_t, field_10f,               0x10f);
+co(network_game_blob_t, difficulty,              0x110);
+co(network_game_blob_t, machine_count,           0x112);
+co(network_game_blob_t, machines,                0x114);
+co(network_game_blob_t, player_count,            0x224);
+co(network_game_blob_t, players,                 0x226);
+co(network_game_blob_t, random_seed,             0x428);
+co(network_game_blob_t, number_of_games_played,  0x42c);
+co(network_game_blob_t, map_loaded,              0x430);
+
 #define GAME_STATE_CPU_SIZE 0x305000
 
 /// size=0x20

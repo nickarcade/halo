@@ -926,7 +926,7 @@ void network_game_server_handle_client_update_packet(int server, int machine,
   if (player_count >= 0 && player_count <= 4) {
     memset(input_buf, 0, sizeof(input_buf));
     if ((int)player_count > 0) {
-      int count = (int)player_count * 8;
+      int count = ((int)player_count & 0x07ffffff) * 8;
       unsigned int *src = (unsigned int *)((char *)message + 8);
       int i;
       for (i = 0; i < count; i++) {
@@ -3031,7 +3031,7 @@ bool FUN_0012f540(int server, void *player)
 bool FUN_0012f5d0(void *server)
 {
   char local_buf[0x434];
-  int game_data;
+  network_game_blob_t *game_data;
   void *msg;
   bool result;
 
@@ -3044,9 +3044,9 @@ bool FUN_0012f5d0(void *server)
     system_exit(-1);
   }
 
-  game_data = network_game_server_get_game(server);
+  game_data = (network_game_blob_t *)network_game_server_get_game(server);
   if (game_data != 0) {
-    csmemcpy(local_buf, (void *)game_data, 0x434);
+    csmemcpy(local_buf, game_data, sizeof(network_game_blob_t));
     msg = encode_network_game_message(6, local_buf, 0x434);
     if (msg != NULL) {
       result = FUN_0012f430(server, msg);
@@ -3083,7 +3083,7 @@ char network_game_server_reset_to_pregame(int server, void *client_message,
   } scratch;
   int addr_hdr[6];
   char *body;
-  int game_data;
+  network_game_blob_t *game_data;
   int *key_ptr;
   int *xnaddr_ptr;
   void *msg;
@@ -3100,7 +3100,7 @@ char network_game_server_reset_to_pregame(int server, void *client_message,
   }
   if (*(short *)((char *)client_message + 2) != 1)
     return true;
-  game_data = network_game_server_get_game((void *)server);
+  game_data = (network_game_blob_t *)network_game_server_get_game((void *)server);
   if (!game_data)
     return true;
 
@@ -3134,18 +3134,18 @@ char network_game_server_reset_to_pregame(int server, void *client_message,
   *(short *)(body + 0x36) = 1;
   *(short *)(body + 0x38) = 0;
 
-  ustrncpy((wchar_t *)(body + 0x3a), (wchar_t *)game_data, 0xf);
-  *(short *)(body + 0xf8) = *(short *)((char *)game_data + 0xbc);
+  ustrncpy((wchar_t *)(body + 0x3a), (wchar_t *)game_data->map_name, 0xf);
+  *(short *)(body + 0xf8) = game_data->game_variant.engine_type;
   csmemcpy(body + 0x74, (char *)game_data + 0x20, 0x84);
-  *(short *)(body + 0xfc) = *(short *)((char *)game_data + 0x224);
-  *(short *)(body + 0xfa) = *(short *)((char *)game_data + 0x112);
-  *(short *)(body + 0xfe) = (short)*(char *)((char *)game_data + 0x10e);
+  *(short *)(body + 0xfc) = game_data->player_count;
+  *(short *)(body + 0xfa) = game_data->machine_count;
+  *(short *)(body + 0xfe) = (short)game_data->maximum_player_count;
   *(short *)(body + 0x100) = *(short *)((char *)game_data + 0xe4);
 
   *(short *)(body + 0x102) = 0;
-  if (*(char *)((char *)game_data + 0xc0) == 1)
+  if (game_data->game_variant.team_play == 1)
     *(short *)(body + 0x102) = 4;
-  if (*(int *)((char *)game_data + 0xbc) == 3 &&
+  if (game_data->game_variant.engine_type == 3 &&
       *(int *)((char *)game_data + 0x100) == 2)
     *(short *)(body + 0x102) |= 8;
   if (network_game_server_game_is_open((void *)server))
