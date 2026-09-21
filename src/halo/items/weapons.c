@@ -2098,7 +2098,7 @@ void weapon_stop_reload(int weapon_handle)
  *   the meaning of trigger state 1; raw offsets retained to match the
  *   sibling accessors. The role of FUN_000fdc90 is not established.
  */
-void FUN_000fe6c0(int trigger_index, int weapon_handle)
+void weapon_trigger_overload(int trigger_index, int weapon_handle)
 {
   int *weapon_obj;
   char *weapon_defn;
@@ -2144,7 +2144,7 @@ void FUN_000fe6c0(int trigger_index, int weapon_handle)
  *   (weapon_trigger_recover). That is the release of a held charge.
  *   The name previously sat on 0xfb880, which is weapon_trigger_change_state.
  *
- * Same prologue family as FUN_000fe6c0: resolve the weapon object, run the
+ * Same prologue family as weapon_trigger_overload: resolve the weapon object, run the
  * weapon_trigger_get trigger-bounds debug helper (whose return is a trigger record
  * pointer), fetch the trigger definition from the weapon tag's 0x4fc block,
  * then either latch trigger state 6 with a tick count derived from the

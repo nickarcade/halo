@@ -1738,7 +1738,7 @@ iterate_props:
         if (*(char *)(prop + 0x127) != 0) {
           if (*(char *)(prop + 0x60) != 0)
             goto notify_departed;
-          actor_stimulus_enter_combat_found_body(actor_handle, iter[0]);
+          FUN_00036a90(actor_handle, iter[0]);
           goto after_notify;
         }
         if (*(char *)(prop + 0x60) != 0) {

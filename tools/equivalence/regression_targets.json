@@ -514,7 +514,7 @@
     },
     {
       "addr": "0x130580",
-      "name": "FUN_00130580",
+      "name": "network_game_server_handle_client_message",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -525,7 +525,7 @@
     },
     {
       "addr": "0x130270",
-      "name": "FUN_00130270",
+      "name": "network_game_server_handle_datagram",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -536,7 +536,7 @@
     },
     {
       "addr": "0x12fd80",
-      "name": "FUN_0012fd80",
+      "name": "network_game_server_handle_message_client_add_player_request_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -547,7 +547,7 @@
     },
     {
       "addr": "0x12fe40",
-      "name": "FUN_0012fe40",
+      "name": "network_game_server_handle_message_client_remove_player_request_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -558,7 +558,7 @@
     },
     {
       "addr": "0x12ff00",
-      "name": "FUN_0012ff00",
+      "name": "network_game_server_handle_message_client_settings_request",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -569,7 +569,7 @@
     },
     {
       "addr": "0x12ffe0",
-      "name": "FUN_0012ffe0",
+      "name": "network_game_server_handle_message_client_player_settings_request",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -580,7 +580,7 @@
     },
     {
       "addr": "0x1300b0",
-      "name": "FUN_001300b0",
+      "name": "network_game_server_handle_message_client_graceful_game_exit_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -591,7 +591,7 @@
     },
     {
       "addr": "0x130180",
-      "name": "FUN_00130180",
+      "name": "network_game_server_handle_message_client_remove_player_request_ingame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
@@ -827,7 +827,7 @@
     },
     {
       "addr": "0x2a360",
-      "name": "actor_move_animation_busy",
+      "name": "FUN_0002a360",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1208,15 +1208,15 @@
     },
     {
       "addr": "0x130270",
-      "name": "FUN_00130270",
-      "label": "FUN_00130270[gameupd]",
+      "name": "network_game_server_handle_datagram",
+      "label": "network_game_server_handle_datagram[gameupd]",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
         "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp_gameupdate.json",
         "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
       ],
-      "reason": "Same function as the FUN_00130270 entry above, but on the gate-satisfied snapshot: size=16 / msg[0]=0x010c makes the header self-consistent, so the assert path is skipped and the category-3 packet switch actually dispatches (packet_type 0x19 = client_game_update, the deepest chain). Covers 24.4% vs 10.0% (40/40 PASS) and exercises code the sibling entry never reaches; the sibling still covers the assert/early-exit path, so both are kept. NOTE: both write the same artifacts/equivalence/FUN_00130270_smoke.log, so the log reflects whichever ran last. SKIPs when host snapshot absent."
+      "reason": "Same function as the network_game_server_handle_datagram entry above, but on the gate-satisfied snapshot: size=16 / msg[0]=0x010c makes the header self-consistent, so the assert path is skipped and the category-3 packet switch actually dispatches (packet_type 0x19 = client_game_update, the deepest chain). Covers 24.4% vs 10.0% (40/40 PASS) and exercises code the sibling entry never reaches; the sibling still covers the assert/early-exit path, so both are kept. NOTE: both write the same artifacts/equivalence/network_game_server_handle_datagram_smoke.log, so the log reflects whichever ran last. SKIPs when host snapshot absent."
     },
     {
       "addr": "0xd7cd0",

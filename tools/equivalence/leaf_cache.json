@@ -13377,9 +13377,9 @@
     "class": "non_leaf",
     "dir32_count": 8,
     "call_count": 3,
-    "confidence": "moderate",
-    "coverage_pct": 42.3,
-    "oracle": "delinked"
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x1bfbf0": {
     "class": "non_leaf",
