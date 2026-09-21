@@ -3360,7 +3360,7 @@ char actor_action_consider_grenade(int actor_handle)
  *
  * Pre-screen guards (all fall through to a false return):
  *   1. actor+0x158 (swarm element handle) must be NONE (-1).
- *   2. FUN_0002a360(actor_handle) must be false (some blocking condition).
+ *   2. actor_move_animation_busy(actor_handle) must be false (some blocking condition).
  *   3. actor+0x504 (a boolean flag) must be clear.
  *   4. actor+0x270 (target prop/attractor datum handle) must be valid (!= -1).
  *   5. unit_tag+0x234 (evade-enable / max-evade scalar) must be > 0.0f.
@@ -3402,7 +3402,7 @@ char actor_action_try_to_evade(int actor_handle)
   char path_result[0x1c];
 
   if (actor->field_158 != -1) return 0;
-  if (FUN_0002a360(actor_handle) != 0) return 0;
+  if (actor_move_animation_busy(actor_handle) != 0) return 0;
   if (actor->field_504 != '\0') return 0;
   if (actor->target_target_prop_index == -1) return 0;
 

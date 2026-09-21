@@ -788,7 +788,7 @@ void seed_random_orientation(unsigned int *seed, float *facing, float *up)
  *   angle   - maximum rotation angle (radians)
  *   result  - output direction vector (3 floats), initially set to forward
  */
-void random_direction3d(int *seed, float *forward, float zero, float angle,
+void seed_random_vector_in_cone3d(int *seed, float *forward, float zero, float angle,
                         float *result)
 {
   float random_vec[3];

@@ -28,7 +28,7 @@ extern void points_interpolate(float *a, float *b, float blend, float *out);
 extern void scalars_interpolate(float a, float b, float blend, float *out);
 extern void scalars_interpolate_and_clamp_0_to_1(float a, float b, float t,
                                                  float *out);
-extern uint32_t FUN_000d1c90(float *color);
+extern uint32_t real_argb_color_to_pixel32(float *color);
 extern void FUN_001bd5f0(void);
 extern void *csmemset(void *buffer, int c, size_t size);
 extern void crc_new(uint32_t *checksum);
@@ -1191,12 +1191,12 @@ void run_tests(void)
                     dump_values, 2, buf);
   }
 
-  /* FUN_000d1c90 (real_argb_color_to_pixel32) */
+  /* real_argb_color_to_pixel32 (real_argb_color_to_pixel32) */
   {
     float color[4] = { 0.5f, 1.0f, 0.0f, 0.8f }; /* alpha, red, green, blue */
-    uint32_t pixel = FUN_000d1c90(color);
+    uint32_t pixel = real_argb_color_to_pixel32(color);
     total += 1;
-    passed += check("FUN_000d1c90 pixel", pixel, 0x80FF00CC, buf);
+    passed += check("real_argb_color_to_pixel32 pixel", pixel, 0x80FF00CC, buf);
   }
 
   /* convex_polygon2d_clip_to_plane: 2D polygon clip against a line.

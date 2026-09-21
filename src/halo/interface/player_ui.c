@@ -458,8 +458,8 @@ int player_ui_get_player1_last_used_profile_index(void)
 void player_ui_fast_setup_network_server(void)
 {
   ui_widgets_close_all();
-  dispose_global_network_game_client();
   dispose_global_network_game_server();
+  dispose_global_network_game_client();
   set_game_connection(0);
   main_set_multiplayer_map_name("");
   player_ui_globals[0x154] = 0;
@@ -475,14 +475,14 @@ void player_ui_fast_setup_network_server(void)
 
   game_engine_playlist_initialize();
   network_game_set_accept_remote_connections(1);
-  if (FUN_0012a890() && FUN_0012a250()) {
+  if (create_global_network_game_server() && create_global_network_game_client()) {
     game_engine_playlist_begin();
     set_game_connection(2);
     return;
   }
 
-  dispose_global_network_game_client();
   dispose_global_network_game_server();
+  dispose_global_network_game_client();
   network_game_set_accept_remote_connections(0);
   error(2, "failed to initiate a multiplayer game server");
   main_goto_main_menu();
@@ -693,7 +693,7 @@ void player_ui_activate_all_solo_levels(void)
  * The message pointer arrives in ESI: the function never writes ESI (no
  * PUSH ESI in the prologue, no POP ESI in the epilogue) yet PUSHes it as the
  * second cdecl argument to hud_print_message at 0xe1031. The sole caller,
- * FUN_000e1770 at 0xe178a, does MOV ESI,0x282b78 immediately before the CALL;
+ * player0_look_invert_pitch at 0xe178a, does MOV ESI,0x282b78 immediately before the CALL;
  * 0x282b78 in .rdata is the UTF-16 literal L"Saving...". So ESI is a real
  * register argument, not a decompiler artifact, and the kb.json `(void)`
  * declaration was wrong.
@@ -754,7 +754,7 @@ unsigned char player0_look_pitch_is_inverted(void)
  * is kept verbatim. The byte is loaded once into AL and reused across both
  * compares, hence the single local here.
  * What the setting selects is unknown -- no string, assert or PDB evidence
- * reaches offset 0x29 -- so the name stays FUN_000e1060.
+ * reaches offset 0x29 -- so the name stays player0_joystick_set_is_normal.
  * The sole caller is the HaloScript evaluator FUN_000c3940 (call at 0xc394b),
  * which consumes AL immediately into a zeroed dword result slot. No callees.
  * The return is int-width, not byte-width: both exit arms write the whole
@@ -762,7 +762,7 @@ unsigned char player0_look_pitch_is_inverted(void)
  * MOV AL,0x1 / XOR AL,AL -- which is exactly how the byte-returning sibling
  * 0xe1050 ends. Declaring this one `unsigned char` cost the two return
  * instructions (77.8% VC71); `int` matches. */
-int FUN_000e1060(void)
+int player0_joystick_set_is_normal(void)
 {
   unsigned char setting;
 
@@ -954,7 +954,7 @@ void player_ui_end_editing_profile(void)
  * local player 0. kb.json's `(void)` declaration was wrong; widened to
  * `short local_player_index@<edi>`. The PUSH EDI/POP EDI around the call is
  * the caller preserving the register, not an argument push. */
-void FUN_000e1770(char invert)
+void player0_look_invert_pitch(char invert)
 {
   player_ui_globals[0x2b] = invert;
   if (*(int *)(player_ui_globals + 0x30) != -1) {

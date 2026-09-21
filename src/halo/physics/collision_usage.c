@@ -872,7 +872,7 @@ void collision_log_render(void)
         bounds[2] = 0x7fff;
         bounds[3] = 0x7fff;
 
-        interface_draw_text(1, -1, 0, 0, 5, 0);
+        interface_set_bitmap_text_draw_mode(1, -1, 0, 0, 5, 0);
         draw_string_set_color(*(const void **)0x2ee6c4);
         draw_string_set_tab_stops(NULL, 0);
         rasterizer_text_draw(NULL, bounds, tab_info, 0, line);

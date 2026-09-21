@@ -410,10 +410,10 @@ typedef struct {
  * Values 1-5 are T2 (name_source: halocea, DB-verified there via
  * types_enum_values _270498BB874CAD5ECABAECA7DA81ECAE).  Our binary proves
  * their MEANING independently — the dispatch in
- * player_set_action_result_for_equipment routes each to an already-named
+ * player_handle_powerup_equipment routes each to an already-named
  * handler: game_set_players_are_double_speed (1), object_double_charge_shield
- * + player_apply_overshield_effect (2), powerup slot 0 (3), powerup slot 1
- * (4), object_restore_body + player_apply_health_effect (5).  The spellings
+ * + player_over_shield_screen_effect (2), powerup slot 0 (3), powerup slot 1
+ * (4), object_restore_body + player_health_pack_screen_effect (5).  The spellings
  * are still borrowed.
  *
  * No bound is named: 6 is the largest value our binary compares against, which
@@ -761,7 +761,7 @@ typedef struct {
 typedef struct {
   int32_t unit_index;            ///< offset=0x00 owning unit datum handle
   int32_t field_0x04;            ///< offset=0x04
-  uint16_t action_flags;         ///< offset=0x08 (player_control_set_action_flags)
+  uint16_t action_flags;         ///< offset=0x08 (player_control_inhibit_buttons)
   uint16_t persistent_action_flags; ///< offset=0x0a (persistent variant)
   real    desired_angles_yaw;    ///< offset=0x0c player->desired_angles.yaw
   real    desired_angles_pitch;  ///< offset=0x10 player->desired_angles.pitch
@@ -800,7 +800,7 @@ co(player_control_t, pitch_maximum,          0x3c);
 /// size=0x20
 /// One frame of controller input for a local player, filled by
 /// get_local_player_input_blob (0xb70b0, buffer in EBX) and consumed by
-/// player_control_get_facing. Bungie calls the parameter "input" -- recovered
+/// handle_one_player_input. Bungie calls the parameter "input" -- recovered
 /// from that function's own assert string "input->primary_trigger", which
 /// guards a load of +0x08. Field widths are taken from the producer's stores
 /// (byte at +0x14/+0x15, dword elsewhere); field_0xNN are offsets whose
@@ -818,7 +818,7 @@ typedef struct {
   uint32_t action_flags;         ///< offset=0x1c bit1 grenade switch, bit2 melee/throw
 } player_input_t;
 /// size=0x20
-/// The action player_control_get_facing builds from a player control slot and
+/// The action handle_one_player_input builds from a player control slot and
 /// hands to update_client_queue. Bungie calls the local "action" and the angle
 /// pair "desired_facing" -- both verbatim from this function's own assert
 /// strings "action.desired_facing.yaw"/".pitch" (player_control.c:0x369-0x36a),
