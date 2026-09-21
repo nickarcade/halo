@@ -419,13 +419,15 @@ int network_game_get_game(void)
  */
 bool network_game_player_is_local(void *player)
 {
+  network_player_record_t *player_record =
+    (network_player_record_t *)player;
   void *machine;
 
   if (player != NULL && network_player_is_valid(player) &&
       network_game_globals.client != NULL) {
     machine = network_game_client_get_machine(network_game_globals.client);
     if (machine != NULL &&
-        *(char *)((char *)machine + 0x40) == *(char *)((char *)player + 0x1c)) {
+        *(char *)((char *)machine + 0x40) == player_record->machine_index) {
       return true;
     }
     return false;
@@ -435,7 +437,7 @@ bool network_game_player_is_local(void *player)
     assert_halt_at("c:\\halo\\SOURCE\\networking\\network_game_globals.c", 0x9b,
                    player);
 
-    return *(char *)((char *)player + 0x1c) == '\0';
+    return player_record->machine_index == '\0';
   }
 
   return true;

@@ -938,12 +938,12 @@ char network_game_client_handle_game_update(void *client, void *message)
  */
 char network_game_client_add_player_to_game(void *client, void *message)
 {
-  char *player;
+  network_player_record_t *player;
   char added;
   int player_handle;
 
   added = 0;
-  player = (char *)message;
+  player = (network_player_record_t *)message;
   if (client == NULL || message == NULL) {
     display_assert("client && player",
                    "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
@@ -956,15 +956,16 @@ char network_game_client_add_player_to_game(void *client, void *message)
     if (added) {
       if (*(int16_t *)((char *)client + 0xca6) == 3) {
         player =
-          (char *)client + 0xa62 + (*(int16_t *)((char *)client + 0xa80) << 5);
+          (network_player_record_t *)((char *)client + 0xa62 +
+                                      (*(int16_t *)((char *)client + 0xa80) << 5));
         added = network_game_spawn_player(player);
         if (!added) {
           return added;
         }
-        player_handle = unstrip_player_index((signed char)player[0x1f]);
-        if ((int)(signed char)player[0x1c] == (int)*(uint16_t *)client) {
+        player_handle = unstrip_player_index((signed char)player->player_index);
+        if ((int)(signed char)player->machine_index == (int)*(uint16_t *)client) {
           local_player_set_player_index(
-            (unsigned short)(signed char)player[0x1d], player_handle);
+            (unsigned short)(signed char)player->controller_index, player_handle);
         }
         client = (void *)player_handle;
         update_client_add_player((int)client);
@@ -975,7 +976,8 @@ char network_game_client_add_player_to_game(void *client, void *message)
 
       network_game_log(
         "added new player to the game (machine #%d / controller #%d)",
-        (int)(signed char)player[0x1c], (int)(signed char)player[0x1d]);
+        (int)(signed char)player->machine_index,
+        (int)(signed char)player->controller_index);
     }
   }
 
