@@ -149,8 +149,15 @@ def _source_comment_addr(fn: str, source: Path | None) -> tuple[int, str] | None
     if not sp.exists():
         return None
     try:
+        # Exact match only -- fn is already the literal kb-declared spelling
+        # (with whatever underscores it genuinely has).  A `_{0,2}` wildcard
+        # here let a query for the plain name match an underscore-prefixed
+        # sibling's earlier comment in the same file (re.search returns the
+        # first hit): TIFFVSetField (0x65a70) resolved to _TIFFVSetField's
+        # comment (0x652f0, defined earlier in tif_dir.c) and was scored
+        # against its 454-instruction reference body instead of its own.
         m = re.search(
-            r"/\*\s*0x([0-9a-fA-F]{4,8})\s*\*/\s*\n[^\n(]*?\b(_{0,2}"
+            r"/\*\s*0x([0-9a-fA-F]{4,8})\s*\*/\s*\n[^\n(]*?\b("
             + re.escape(fn) + r")\s*\(",
             sp.read_text(),
         )

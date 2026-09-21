@@ -87,7 +87,7 @@ def disassemble(obj_path: str) -> dict[str, list[str]]:
                 functions[current_func] = current_lines
                 _label_positions[current_func] = current_labels
                 _label_names[current_func] = current_label_names
-            current_func = re.sub(r'@\d+$', '', sym.lstrip("_@"))
+            current_func = _branch_target_symbol(sym)
             current_lines = []
             current_labels = set()
             current_label_names = {_branch_target_symbol(sym)}
@@ -174,7 +174,7 @@ def count_bounded_insns(obj_path: str, aliases) -> int | None:
     for line in result.stdout.splitlines():
         m = re.match(r'^(?:[0-9a-f]+ )?<([^>]+)>:', line)
         if m:
-            sym = re.sub(r'@\d+$', '', m.group(1).lstrip("_@"))
+            sym = _branch_target_symbol(m.group(1))
             if not in_target:
                 if sym in want:
                     in_target = True
@@ -241,7 +241,7 @@ def _has_back_edge_into(lines: list[str], start_idx: int, defined: set[str]) -> 
         line = raw.rstrip()
         m = re.match(r'^(?:[0-9a-f]+ )?<([^>]+)>:', line)
         if m:
-            sym = re.sub(r'@\d+$', '', m.group(1).lstrip("_@"))
+            sym = _branch_target_symbol(m.group(1))
             if not sym.startswith(("LAB_", "switchD_", "$")):
                 return False
             continue
@@ -249,7 +249,7 @@ def _has_back_edge_into(lines: list[str], start_idx: int, defined: set[str]) -> 
         if insn is None:
             continue
         for ref in re.findall(r'<([^>]+)>', insn):
-            if re.sub(r'@\d+$', '', ref.lstrip("_@")) in defined:
+            if _branch_target_symbol(ref) in defined:
                 return True
     return False
 
@@ -286,7 +286,7 @@ def _first_function_insns_from_text(stdout: str, aliases) -> list[str] | None:
         line = raw_line.rstrip()
         m = re.match(r'^(?:[0-9a-f]+ )?<([^>]+)>:', line)
         if m:
-            sym = re.sub(r'@\d+$', '', m.group(1).lstrip("_@"))
+            sym = _branch_target_symbol(m.group(1))
             if not in_target:
                 in_target = sym in want
                 found = found or in_target
@@ -347,7 +347,7 @@ def _first_function_insns_from_text(stdout: str, aliases) -> list[str] | None:
             # later ret+label boundary check can tell internal targets from
             # neighbour slots.
             for ref in re.findall(r'<([^>]+)>', insn):
-                referenced.add(re.sub(r'@\d+$', '', ref.lstrip("_@")))
+                referenced.add(_branch_target_symbol(ref))
 
     if not found:
         return None
@@ -463,9 +463,19 @@ def _branch_target_symbol(ref: str) -> str:
     out-of-line block `movl %eax,%esi; jmp <FUN_000d27a0+0x825>` looked like
     inline table data and was cut, leaving a 624-instruction reference for a
     626-instruction function.
+
+    Strips exactly one leading `_`/`@` (cdecl/fastcall decoration), never
+    ``.lstrip("_@")``: stripping every leading underscore collapsed distinct
+    symbols that differ only by decoration (``_TIFFVSetField`` vs
+    ``TIFFVSetField``, ``_rasterizer_frame_end`` vs ``rasterizer_frame_end``)
+    onto the same dict key, silently shadowing one function's disassembly with
+    the other's.
     """
     name = re.sub(r'\+0x[0-9a-f]+$', '', ref)
-    return re.sub(r'@\d+$', '', name.lstrip("_@"))
+    name = re.sub(r'@\d+$', '', name)
+    if name[:1] in ('_', '@'):
+        name = name[1:]
+    return name
 
 
 def _tail_branches_into_body(tail: list, body_label_names: set) -> bool:
