@@ -14347,9 +14347,8 @@
     },
     {
      "addr": "0xdedf0",
-     "decl": "void interface_get_weapon_hud_index(void);",
-     "ported": false,
-     "name": "interface_get_weapon_hud_index"
+     "decl": "int FUN_000dedf0(int32_t *out_value);",
+     "ported": true
     },
     {
      "addr": "0xdefb0",
@@ -28725,9 +28724,8 @@
     },
     {
      "addr": "0xe98c0",
-     "decl": "void solo_level_initialize_list_coop(void);",
-     "ported": false,
-     "name": "solo_level_initialize_list_coop"
+     "decl": "bool ui_widget_initialize_single_player_level_list(void *widget, void *event_data, bool *widget_deleted);",
+     "ported": true
     },
     {
      "addr": "0xe9a60",
