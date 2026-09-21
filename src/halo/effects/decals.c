@@ -74,8 +74,7 @@ void decal_set_first_decal_index(int16_t cluster_index, int16_t layer, int param
                    "c:\\halo\\SOURCE\\effects\\decals.c", 0xd9, 1);
     system_exit(-1);
   }
-  *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4) =
-    param_1;
+  decal_globals->first_decal_index[layer][cluster_index] = param_1;
 }
 
 void decal_sprite_get_bounds(float *sprite_bounds, void *definition,
@@ -163,9 +162,9 @@ void decals_initialize_for_new_map(void)
   assert_halt(global_decal_data);
   assert_halt(decal_globals);
   csmemset(decal_globals, 0xFF, 0x2800);
-  *(_DWORD *)(decal_globals + 0x2800) = -1;
-  *(_DWORD *)(decal_globals + 0x2804) = 0;
-  *(_DWORD *)(decal_globals + 0x2808) = 0;
+  decal_globals->first_disconnected_decal_index = -1;
+  decal_globals->locked_count = 0;
+  decal_globals->permanent_count = 0;
   data_delete_all(global_decal_data);
   rasterizer_decals_initialize_for_new_map();
   decal_counts_0 = 0;
@@ -219,12 +218,12 @@ void decals_unlock(bool full_reset)
       if (entry[1] & 1) {
         /* Clear locked flag and decrement locked count. */
         entry[1] = (int16_t)(entry[1] & ~1);
-        *(int *)((char *)dg + 0x2804) -= 1;
+        dg->locked_count -= 1;
       }
       if (full_reset && (entry[1] & 2)) {
         /* Clear permanent flag and decrement permanent count. */
         entry[1] = (int16_t)(entry[1] & ~2);
-        *(int *)((char *)dg + 0x2808) -= 1;
+        dg->permanent_count -= 1;
       }
       entry = (int16_t *)data_iterator_next(&iter);
       dg = decal_globals;
@@ -233,27 +232,27 @@ void decals_unlock(bool full_reset)
     dg = decal_globals;
 
     /* Sanity-check locked count. */
-    if (*(int *)((char *)dg + 0x2804) != 0) {
+    if (dg->locked_count != 0) {
       if (*(uint8_t *)0x4557de == 0) {
         error(
           2, "### ERROR decals: locked count is invalid (#%d) -- tell Bernie!!",
-          *(int *)((char *)dg + 0x2804));
+          dg->locked_count);
         *(uint8_t *)0x4557de = 1;
       }
-      *(int *)(decal_globals + 0x2804) = 0;
+      decal_globals->locked_count = 0;
     }
 
     /* Sanity-check permanent count (only meaningful on full reset). */
-    if (full_reset && *(int *)((char *)dg + 0x2808) != 0) {
+    if (full_reset && dg->permanent_count != 0) {
       if (*(uint8_t *)0x4557df == 0) {
         error(
           2,
           "### ERROR decals: permanent count is invalid (#%d) -- tell Bernie!!",
-          *(int *)((char *)dg + 0x2808));
+          dg->permanent_count);
         *(uint8_t *)0x4557df = 1;
         dg = decal_globals;
       }
-      *(int *)((char *)dg + 0x2808) = 0;
+      dg->permanent_count = 0;
     }
   }
 
@@ -271,8 +270,7 @@ int decal_get_first_decal_index(int16_t cluster_index, int16_t layer)
   assert_halt(cluster_index >= 0 && cluster_index < 0x200);
   assert_halt(layer >= 0 && layer < 5);
 
-  return *(int *)(decal_globals +
-                  ((int)layer * 0x200 + (int)cluster_index) * 4);
+  return decal_globals->first_decal_index[layer][cluster_index];
 }
 
 /* Projection axis remapping table at 0x28cb10. */
@@ -563,11 +561,11 @@ void decal_update(int decal_index)
   if (*(float *)(decal + 0x1c) != 0.0f && age >= *(float *)(decal + 0x1c)) {
     if ((flags & 1) != 0) {
       *(int16_t *)(decal + 2) = (int16_t)(flags & 0xfffe);
-      *(int *)(decal_globals + 0x2804) -= 1;
-      if (*(int *)(decal_globals + 0x2804) < 0 && *(uint8_t *)0x4557dc == 0) {
+      decal_globals->locked_count -= 1;
+      if (decal_globals->locked_count < 0 && *(uint8_t *)0x4557dc == 0) {
         error(
           2, "### ERROR decals: locked count is invalid (#%d) -- tell Bernie!!",
-          *(int *)(decal_globals + 0x2804));
+          decal_globals->locked_count);
         *(uint8_t *)0x4557dc = 1;
       }
     }
@@ -666,18 +664,18 @@ int decal_insert(int new_index_hint, int16_t cluster_index, int16_t layer,
 
   if (randomize) {
     *(int16_t *)(decal + 2) = 2;
-    *(int *)(decal_globals + 0x2808) += 1;
+    decal_globals->permanent_count += 1;
   } else {
     random_scaled = (uint32_t)random_seed_step(random_math_get_local_seed_address()) * 100;
 
     if (random_scaled < 0x9fff6) {
       *(int16_t *)(decal + 2) = 1;
-      *(int *)(decal_globals + 0x2804) += 1;
+      decal_globals->locked_count += 1;
 
-      if (*(int *)(decal_globals + 0x2804) > 0x200) {
+      if (decal_globals->locked_count > 0x200) {
         data_iterator_new(&iter, global_decal_data);
 
-        while (*(int *)(decal_globals + 0x2804) > 0x100) {
+        while (decal_globals->locked_count > 0x100) {
           candidate = (char *)data_iterator_next(&iter);
           if (candidate == NULL) {
             data_iterator_new(&iter, global_decal_data);
@@ -692,16 +690,16 @@ int decal_insert(int new_index_hint, int16_t cluster_index, int16_t layer,
 
             if (random_scaled < 0x28ffd7 || *(int16_t *)(candidate + 4) == -1) {
               *(uint8_t *)(candidate + 2) &= 0xfe;
-              *(int *)(decal_globals + 0x2804) -= 1;
+              decal_globals->locked_count -= 1;
             }
           }
         }
 
-        if (*(int *)(decal_globals + 0x2804) < 0 && *(uint8_t *)0x4557dd == 0) {
+        if (decal_globals->locked_count < 0 && *(uint8_t *)0x4557dd == 0) {
           error(
             2,
             "### ERROR decals: locked count is invalid (#%d) -- tell Bernie!!",
-            *(int *)(decal_globals + 0x2804));
+            decal_globals->locked_count);
           *(uint8_t *)0x4557dd = 1;
         }
       }
@@ -720,8 +718,7 @@ int decal_insert(int new_index_hint, int16_t cluster_index, int16_t layer,
 
     previous_index = *(int *)(existing_decal + 0x30);
     if (previous_index == -1) {
-      *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4) =
-        decal_index;
+      decal_globals->first_decal_index[layer][cluster_index] = decal_index;
     } else {
       previous_decal = (int)datum_get(global_decal_data, previous_index);
       *(int *)(previous_decal + 0x34) = decal_index;
@@ -735,8 +732,7 @@ int decal_insert(int new_index_hint, int16_t cluster_index, int16_t layer,
     return decal_index;
   }
 
-  previous_index =
-    *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4);
+  previous_index = decal_globals->first_decal_index[layer][cluster_index];
 
   *(int *)(decal + 0x30) = -1;
   *(int *)(decal + 0x34) = previous_index;
@@ -748,8 +744,7 @@ int decal_insert(int new_index_hint, int16_t cluster_index, int16_t layer,
     *(int *)(previous_decal + 0x30) = decal_index;
   }
 
-  *(int *)(decal_globals + ((int)layer * 0x200 + (int)cluster_index) * 4) =
-    decal_index;
+  decal_globals->first_decal_index[layer][cluster_index] = decal_index;
 
   return decal_index;
 }
@@ -791,7 +786,7 @@ void decals_reconnect_to_structure_bsp(void)
                      0x281, true);
       system_exit(-1);
     }
-    decal_index = *(int *)(decal_globals + 0x2800);
+    decal_index = decal_globals->first_disconnected_decal_index;
     if (decal_index != -1) {
       do {
         decal = (char *)datum_get(global_decal_data, decal_index);
@@ -825,13 +820,13 @@ void decals_reconnect_to_structure_bsp(void)
               (char *)datum_get(global_decal_data, *(int *)(decal + 0x30));
             *(int *)(other + 0x34) = *(int *)(decal + 0x34);
           } else {
-            if (*(int *)(decal_globals + 0x2800) != decal_index) {
+            if (decal_globals->first_disconnected_decal_index != decal_index) {
               display_assert(
                 "decal_globals->first_disconnected_decal_index==decal_index",
                 "c:\\halo\\SOURCE\\effects\\decals.c", 0x2aa, true);
               system_exit(-1);
             }
-            *(int *)(decal_globals + 0x2800) = *(int *)(decal + 0x34);
+            decal_globals->first_disconnected_decal_index = *(int *)(decal + 0x34);
           }
           decal_reinsert(*(int16_t *)((char *)location + 4),
                        *(int16_t *)(decal + 6), decal_index);
@@ -909,13 +904,13 @@ void decals_disconnect_from_structure_bsp(void)
           *(int16_t *)(decal + 4) = -1;
 
           if (*(int *)(decal + 0x34) == -1) {
-            *(int *)(decal + 0x34) = *(int *)(decal_globals + 0x2800);
-            if (*(int *)(decal_globals + 0x2800) != -1) {
+            *(int *)(decal + 0x34) = decal_globals->first_disconnected_decal_index;
+            if (decal_globals->first_disconnected_decal_index != -1) {
               other = (char *)datum_get(global_decal_data,
-                                        *(int *)(decal_globals + 0x2800));
+                                        decal_globals->first_disconnected_decal_index);
               *(int *)(other + 0x30) = current;
             }
-            *(int *)(decal_globals + 0x2800) = first;
+            decal_globals->first_disconnected_decal_index = first;
 
             if (cluster_index < 0 || cluster_index >= 0x200) {
               display_assert("cluster_index>=0 && "
@@ -928,8 +923,7 @@ void decals_disconnect_from_structure_bsp(void)
                              "c:\\halo\\SOURCE\\effects\\decals.c", 0xd9, true);
               system_exit(-1);
             }
-            *(int *)(decal_globals +
-                     ((int)layer * 0x200 + (int)cluster_index) * 4) = -1;
+            decal_globals->first_decal_index[layer][cluster_index] = -1;
           }
         }
       }
@@ -996,11 +990,10 @@ void decals_delete_permanent_from_cluster(int16_t cluster_index)
 
       if (cluster_index == -1) {
         if (layer == 0) {
-          decal_index = *(int *)(decal_globals + 0x2800);
+          decal_index = decal_globals->first_disconnected_decal_index;
         }
       } else {
-        decal_index =
-          *(int *)(decal_globals + (layer * 0x200 + (int)cluster_index) * 4);
+        decal_index = decal_globals->first_decal_index[layer][cluster_index];
       }
 
       while (decal_index != -1) {
@@ -1016,7 +1009,7 @@ void decals_delete_permanent_from_cluster(int16_t cluster_index)
 
         if ((*(uint16_t *)(decal + 2) & 2) != 0) {
           *(uint16_t *)(decal + 2) &= (uint16_t)~2;
-          *(int *)(decal_globals + 0x2808) -= 1;
+          decal_globals->permanent_count -= 1;
 
           if ((*(uint8_t *)(decal + 2) & 1) != 0) {
             display_assert("!TEST_FLAG(decal->flags, _decal_locked_bit)",
@@ -1029,7 +1022,7 @@ void decals_delete_permanent_from_cluster(int16_t cluster_index)
       }
     }
 
-    if (*(int *)(decal_globals + 0x2808) < 0) {
+    if (decal_globals->permanent_count < 0) {
       display_assert("decal_globals->permanent_count>=0",
                      "c:\\halo\\SOURCE\\effects\\decals.c", 0x3a8, true);
       system_exit(-1);
@@ -1089,13 +1082,13 @@ void decal_delete(int decal_index)
   }
 
   if (*(int16_t *)((char *)decal + 4) == -1) {
-    if (*(int *)(decal_globals + 0x2800) != decal_index) {
+    if (decal_globals->first_disconnected_decal_index != decal_index) {
       display_assert(
         "decal_globals->first_disconnected_decal_index==decal_index",
         "c:\\halo\\SOURCE\\effects\\decals.c", 0x3db, true);
       system_exit(-1);
     }
-    *(int *)(decal_globals + 0x2800) = *(int *)((char *)decal + 0x34);
+    decal_globals->first_disconnected_decal_index = *(int *)((char *)decal + 0x34);
     datum_delete(global_decal_data, decal_index);
     return;
   }
@@ -2192,8 +2185,8 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
         return;
       }
 
-      error(2, (char *)0x26a498, *(int *)(decal_globals + 0x2804),
-            *(int *)(decal_globals + 0x2808));
+      error(2, (char *)0x26a498, decal_globals->locked_count,
+            decal_globals->permanent_count);
       return;
     }
 
@@ -2206,8 +2199,8 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
         return;
       }
 
-      error(2, (char *)0x26a4e0, *(int *)(decal_globals + 0x2804),
-            *(int *)(decal_globals + 0x2808));
+      error(2, (char *)0x26a4e0, decal_globals->locked_count,
+            decal_globals->permanent_count);
       return;
     }
 
