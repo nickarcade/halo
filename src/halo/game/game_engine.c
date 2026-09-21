@@ -3924,7 +3924,7 @@ int FUN_000aca70(int item_collection_tag)
   tag = (int *)tag_get(TAG_GROUP_ITMC, item_collection_tag);
   count = *tag;
   seed = (unsigned int *)get_global_random_seed_address();
-  accum = random_range(seed, 0, FUN_000a8970(tag));
+  accum = seed_random_range(seed, 0, FUN_000a8970(tag));
   data = tag[1];
   i = 0;
   if (0 < count) {
@@ -6912,7 +6912,7 @@ int ctf_initialize_for_new_map(void)
   } else {
     {
       unsigned int *seed = (unsigned int *)get_global_random_seed_address();
-      rng = random_range(seed, 0, 2);
+      rng = seed_random_range(seed, 0, 2);
     }
     if ((int)rng < 0 || 1 < (int)rng) {
       display_assert("(flag_to_create >= 0) && (flag_to_create <= 1)",
@@ -7896,7 +7896,7 @@ int FUN_000b1e90(int param_1, int param_2)
 
   {
     unsigned int *seed = (unsigned int *)get_global_random_seed_address();
-    rng = random_range(seed, 0, *(int16_t *)0x456d54);
+    rng = seed_random_range(seed, 0, *(int16_t *)0x456d54);
   }
   i = 0;
   if (0 < *(int16_t *)0x456d54) {
@@ -8686,7 +8686,7 @@ void FUN_000b2d30(int *param_1, int param_2)
     if (flag_count != 0) {
       {
         unsigned int *seed = (unsigned int *)get_global_random_seed_address();
-        rng_pick = random_range(seed, 0, (int16_t)flag_count);
+        rng_pick = seed_random_range(seed, 0, (int16_t)flag_count);
       }
       i = 0;
       if (0 < *flag_block) {

@@ -121,8 +121,8 @@ All 15 functions in Sub-Batch 1.2C utilizing custom register conventions retain 
 | `0x369c0` | `FUN_000369c0` | `actor_stimulus_suspicion` | `actors.obj` | No |
 | `0x36a20` | `FUN_00036a20` | `actor_stimulus_prop_sighted` | `actors.obj` | No |
 | `0x36a90` | `FUN_00036a90` | *(reverted — invented narrative, see PR #11 review)* | `actors.obj` | No |
-| `0x36b10` | `FUN_00036b10` | `actor_stimulus_enter_combat_perceived_enemy` | `actors.obj` | No |
-| `0x36b50` | `FUN_00036b50` | `actor_stimulus_enter_combat_friend_in_combat` | `actors.obj` | No |
+| `0x36b10` | `FUN_00036b10` | `actor_stimulus_enter_combat_perceived_prop` | `actors.obj` | No |
+| `0x36b50` | `FUN_00036b50` | *(reverted — see PR #12 review)* | `actors.obj` | No |
 | `0x36bd0` | `FUN_00036bd0` | `actor_stimulus_bumped` | `actors.obj` | No |
 | `0x36c00` | `FUN_00036c00` | `actor_stimulus_environmental_noise` | `actors.obj` | No |
 | `0x36c50` | `FUN_00036c50` | `actor_stimulus_heard_shooting` | `actors.obj` | No |

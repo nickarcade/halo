@@ -773,7 +773,6 @@ boolean weapon_state_interruptable(int16_t param_1, int16_t state)
 }
 
 /* 0xfba20 — weapon_set_state
-
  *
  * Sets the weapon's animation state by looking up the animation graph
  * and choosing a random animation for the given state. The state

@@ -587,14 +587,14 @@ void particle_system_new_particles(void *ps_arg, int16_t type_index, float dt)
     }
 
     /* Call creation physics via function table.
-       0x9ffd8 calls 0x10b2d0 = random_range (int16_t result in AX), NOT
+       0x9ffd8 calls 0x10b2d0 = seed_random_range (int16_t result in AX), NOT
        random_real_range (0x10b270, used above for the rotation).  Its result
        selects which marker to use: 0x9ffdd-0x9ffe3
        `movsx eax,ax; imul eax,eax,0x6c; lea ecx,[ebp+eax-0x380]`, i.e.
        marker_buf + index*0x6c.  We previously discarded the result and always
        passed element 0. */
     {
-      int marker_index = (int)random_range(random_math_get_local_seed_address(),
+      int marker_index = (int)seed_random_range(random_math_get_local_seed_address(),
                                            0, location_valid);
       ((creation_physics_fn *)(0x26ab10))[creation_func_idx](
         ps, (short)type_index, particle, marker_buf + marker_index * 0x6c);
@@ -627,10 +627,10 @@ check_emission_multiplier:
 /* Populate particle output from state definition (0xa0080).
  * Reads particle state definition properties and fills in 7 floats in the
  * output array. First generates a random interpolation factor t, then:
- * - output[0] = random_range(state_def+0x48, state_def+0x4c)
- * - output[1] = random_range(state_def+0x50, state_def+0x54)
- * - output[2] = random_range(state_def+0x58, state_def+0x5c)
- * - output[3] = random_range(state_def+0x60, state_def+0x70)
+ * - output[0] = seed_random_range(state_def+0x48, state_def+0x4c)
+ * - output[1] = seed_random_range(state_def+0x50, state_def+0x54)
+ * - output[2] = seed_random_range(state_def+0x58, state_def+0x5c)
+ * - output[3] = seed_random_range(state_def+0x60, state_def+0x70)
  * - output[4] = lerp(state_def+0x64, state_def+0x74, t)
  * - output[5] = lerp(state_def+0x68, state_def+0x78, t)
  * - output[6] = lerp(state_def+0x6c, state_def+0x7c, t) */
@@ -1216,7 +1216,7 @@ void particle_system_render(int particle_system_handle)
 
             if (*(int *)(particle + 0x44) == (int)0xbf800000) {
               sprite_index =
-                random_range(random_math_get_local_seed_address(), 0,
+                seed_random_range(random_math_get_local_seed_address(), 0,
                              *(short *)(bitmap_sequence + 0x34));
               *(float *)(particle + 0x44) = (float)sprite_index;
               sprite_index = (int)*(float *)(particle + 0x44);

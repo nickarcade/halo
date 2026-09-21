@@ -2047,7 +2047,6 @@ void model_get_node_matrices(void *mode_tag, float *node_matrices,
 }
 
 /* model_get_default_inverse_matrix (0x123e20) — Get a node's default matrix from a
-
  * model mode tag.
  *
  * Confirmed: cdecl, 2 args (mode_tag ptr, node_index short).

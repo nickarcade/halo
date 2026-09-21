@@ -22,7 +22,7 @@
  * Confirmed: XOR EDX,EDX; MOV DX,[EAX+0x68] zero-extends team to int.
  * Confirmed: PUSH EDX; PUSH 0x2; CALL 0xb55b0 => FUN_000b55b0(2, team).
  * Confirmed: FMUL [EBP-4] multiplies the call result (ST0) by the local.
- * Confirmed: single caller at 0x521e7 in FUN_0004c920.
+ * Confirmed: single caller at 0x521e7 in ai_debug_render_actor.
  */
 float object_get_maximum_shield_vitality(int object_handle, char param_2)
 {
