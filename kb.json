@@ -16027,8 +16027,8 @@
     },
     {
      "addr": "0x11b960",
-     "decl": "void hashtable_delete(short *table);",
-     "name": "hashtable_delete",
+     "decl": "void hashtable_dispose(short *table);",
+     "name": "hashtable_dispose",
      "ported": true
     },
     {
