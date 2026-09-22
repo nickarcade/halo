@@ -135,7 +135,7 @@ Evidence levels (in priority order):
 2. `snap_some` — snapshot tested but not all pass
 3. `eq_high` — equivalence high-confidence
 4. `eq_some` — equivalence tested
-5. `vc71` — VC71 byte-match scored
+5. `vc71` — VC71 mnemonic match scored (structural evidence only)
 6. `unverified` — ported but not verified
 7. `no_ported` — no ported functions
 

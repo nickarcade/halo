@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-vc71_regression.py — Track VC71 match scores and detect regressions.
+vc71_regression.py — Track VC71 mnemonic-match scores and detect regressions.
 
 STATUS: Active.  Generates and updates tools/verify/vc71_scores.json which is
 committed to the repo.  The scores file is consumed by tools/analysis/frontier.py,
@@ -8,8 +8,9 @@ tools/llm_auto_lift.py (liftability scoring), and tools/equivalence/batch_equiva
 (priority queue).  No auto-callers; run manually after bulk lifts.
 
 Manages tools/verify/vc71_scores.json (committed to repo), which records the
-expected minimum VC71 match percentage for each ported function. Used to catch
-edits that silently degrade byte-match quality.
+expected minimum VC71 mnemonic-match percentage for each ported function. Used
+to catch edits that silently degrade the structural score; this is not a
+raw-byte-accuracy gate.
 
 Commands:
     update --source src/halo/game/game.c [...]
@@ -157,7 +158,7 @@ KNOWLEDGE_PY = REPO_ROOT / "tools" / "analysis" / "knowledge.py"
 DECL_H = REPO_ROOT / "build" / "generated" / "decl.h"
 
 _LINE_RE = re.compile(
-    r"(?:PASS|FAIL)\s+(\S+):\s+([\d.]+)%\s+match\s+\((\d+)/(\d+)\s+insns\)"
+    r"(?:PASS|FAIL)\s+(\S+):\s+([\d.]+)%\s+mnemonic\s+match\s+\((\d+)/(\d+)\s+insns\)"
 )
 # vc71_verify emits one of these per compiled, kb.json-tracked function it could
 # not score against any valid reference (no whole-object symbol and no valid
@@ -168,7 +169,7 @@ _DROP_RE = re.compile(
 )
 # Advisory operand-normalized score, appended by vc71_verify to the same status
 # line AFTER the optional reg/fpu/loadw/imm tags:
-#   "PASS FUN_x: 97.8% match (699/698 insns) | opnd 90.3% (operand-normalized)"
+#   "PASS FUN_x: 97.8% mnemonic match (699/698 insns) | opnd 90.3% (operand-normalized)"
 # Kept as its own pattern rather than an optional tail on _LINE_RE so the
 # primary score parse is unchanged and cached lines without the token still
 # parse.  Absent => opnd_percent is None everywhere downstream.
@@ -1751,7 +1752,7 @@ def _report_unbaselined_ported(baseline: dict) -> None:
 
     `check`'s denominator is the baseline, so a function that has never been
     scored is not a failure here -- it is invisible.  That is how 51 ported
-    functions across 10 TUs went four months with no byte-match evidence: their
+    functions across 10 TUs went four months with no VC71 mnemonic-score evidence: their
     translation units could not compile under VC71 (GCC-style `asm volatile`,
     C99 mixed declarations, `static inline`) and every gate still printed OK.
     The gate cannot fail on this without blocking every in-progress lift, so it
@@ -2263,11 +2264,11 @@ def cmd_populate(args) -> int:
         if n_compile:
             # A whole-TU VC71 compile failure (often a clang-ism the C89 CL.Exe
             # rejects: __attribute__, inline in a header, C99 mixed decls).  These
-            # have NO byte-match evidence until the TU compiles under VC71.
+            # have NO VC71 mnemonic-score evidence until the TU compiles under VC71.
             compile_srcs = sorted({f["source"] for f in flagged
                                    if f.get("state") == "compile_failed"})
             print(f"  {n_compile} in {len(compile_srcs)} TU(s) that FAIL to "
-                  f"compile under VC71 (no byte-match evidence):")
+                  f"compile under VC71 (no VC71 mnemonic-score evidence):")
             for s in compile_srcs[:12]:
                 print(f"    {s}")
             if len(compile_srcs) > 12:

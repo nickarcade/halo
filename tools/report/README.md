@@ -162,9 +162,11 @@ Remaining: 6,032 functions
 
 ---
 
-### 3. `matching.py` - Binary Matching Tracker
+### 3. `matching.py` - Clang Mnemonic-Match Tracker
 
-Integrates with objdiff CLI to track actual binary matching percentages, distinguishing between "ported" (exists in source) and "matching" (byte-accurate).
+Integrates with objdiff CLI to track clang mnemonic-sequence similarity. This
+standalone structural diagnostic is not raw-byte accuracy or behavioral
+verification.
 
 **Prerequisites:**
 - Built object files in `build/` directory

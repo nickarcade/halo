@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Matching percentage tracking using objdiff (clang LCS).
+Matching percentage tracking using objdiff (clang mnemonic sequence similarity).
 
-NOTE: This computes a *clang*-build vs original mnemonic-LCS similarity. It is
-NOT the metric the dashboard displays. The dashboard's "Match Quality" is VC71
-byte-accuracy (MSVC 7.1 recompile vs the delinked reference), sourced from
-tools/verify/vc71_scores.json via generate_decomp_report.py. Clang LCS is
-systematically lower than MSVC byte-match and needs the same delinked reference
-VC71 needs, so it is never a fallback where VC71 isn't already possible. This
-module is retained for standalone analysis only; the Score button no longer uses it.
+NOTE: This computes a *clang*-build vs original mnemonic-sequence similarity. It is
+NOT the metric the dashboard displays. The dashboard's VC71 mnemonic match is
+an MSVC 7.1 mnemonic-sequence score sourced from tools/verify/vc71_scores.json
+via generate_decomp_report.py. Clang mnemonic-sequence similarity is
+systematically lower than the VC71 mnemonic score and needs the same delinked
+reference VC71 needs, so it is never
+a fallback where VC71 isn't already possible. This module is retained for
+standalone analysis only; the Score button no longer uses it.
 
-Integrates with objdiff CLI to get clang-build matching percentages
-for ported functions, distinguishing between "ported" (exists in source)
-and "matching" (byte-accurate to original).
+Integrates with objdiff CLI to get clang mnemonic-match percentages for ported
+functions. It is a structural diagnostic, not raw-byte or behavior evidence.
 
 Usage:
     python3 tools/report/matching.py --unit actors     # Check specific unit
@@ -35,7 +35,7 @@ DEFAULT_OBJDIFF_JSON = 'objdiff.json'
 
 
 class MatchingTracker:
-    """Tracks matching percentages using objdiff."""
+    """Tracks clang mnemonic-match percentages using objdiff."""
     
     def __init__(self, cache_path: str = DEFAULT_CACHE_PATH, 
                  objdiff_path: str = DEFAULT_OBJDIFF_PATH):
@@ -395,7 +395,7 @@ def main():
     if args.unit:
         result = tracker.check_unit(args.unit, force=args.force)
         if result:
-            print(f"\n{args.unit}: {result['match_percent']:.1f}% matching")
+            print(f"\n{args.unit}: {result['match_percent']:.1f}% clang mnemonic match")
             tracker.save_cache()
         else:
             print(f"\nFailed to check {args.unit}")
@@ -415,11 +415,11 @@ def main():
     
     if args.show_summary or not any([args.unit, args.all_ported, args.enhance_report, args.clear_cache]):
         summary = tracker.get_summary()
-        print("\n=== Matching Summary ===")
+        print("\n=== Clang Mnemonic-Match Summary ===")
         print(f"Units checked: {summary['total_units_checked']}")
-        print(f"Average match: {summary['avg_match_percent']:.1f}%")
-        print(f"Fully matching (100%): {summary['fully_matching']}")
-        print(f"Partially matching: {summary['partially_matching']}")
+        print(f"Average mnemonic match: {summary['avg_match_percent']:.1f}%")
+        print(f"Full mnemonic match (100%): {summary['fully_matching']}")
+        print(f"Partial mnemonic match: {summary['partially_matching']}")
 
 
 if __name__ == '__main__':

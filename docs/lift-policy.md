@@ -19,11 +19,11 @@ Pass `--verify-policy <PRESET>` to `tools/lift_pipeline.py`.
 
 ### goal90 pass/fail bands
 
-| VC71 / structural match | Action |
-|-------------------------|--------|
-| ≥99% | `goal90: PASS` — byte-match sufficient, commit |
-| 90–98% | `goal90: PASS` — meets policy, commit |
-| 85–89% | `goal90: PASS` with "permuter recommended" note — commit after one permute pass |
+| VC71 mnemonic match | Action |
+|---------------------|--------|
+| ≥99% | `goal90: PASS` — strong structural evidence; require a raw-byte audit before claiming byte exactness and the applicable ABI/behavior gates before acceptance |
+| 90–98% | `goal90: PASS` — meets the structural threshold; do not treat it as byte or behavior proof |
+| 85–89% | `goal90: PASS` with "permuter recommended" note — structural evidence only; commit only after the applicable ABI/behavior gates |
 | 65–84% | `goal90: FAIL` — check structural cap; if not capped, enter the opus effort ladder (see §Escalation-flow) |
 | <65% | `goal90: FAIL` — assume lift bug, revert unless there is a clear, cheap fix |
 | No VC71 data | Treat as infra/build issue, not pass |

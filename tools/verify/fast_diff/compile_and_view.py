@@ -85,10 +85,11 @@ def compile_and_diff(func_name: str, c_code: str, target_obj: Path) -> dict:
         )
         output = cmp.stdout.strip()
 
-        # Parse match % and instruction counts from "XX.X% match (N_c/N_r insns)"
+        # Parse mnemonic-match % and instruction counts from
+        # "XX.X% mnemonic match (N_c/N_r insns)".
         match_pct = None
         diff_count = None
-        m = re.search(r"(\d+(?:\.\d+)?)%\s+match\s+\((\d+)/(\d+)\s+insns\)", output)
+        m = re.search(r"(\d+(?:\.\d+)?)%\s+mnemonic\s+match\s+\((\d+)/(\d+)\s+insns\)", output)
         if m:
             match_pct = float(m.group(1))
             n_c = int(m.group(2))

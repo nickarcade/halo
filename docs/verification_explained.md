@@ -33,8 +33,18 @@ This orchestrates the checks and writes a run summary to:
 
 - `artifacts/lift_runs/<run-id>/summary.json`
 
+## Claim vocabulary
 
-## Signal 1: Structural match ("shape" of the function)
+| Claim | Required evidence |
+|-------|-------------------|
+| `Mnemonic match: NN.N%` | VC71 verifier output. This is an ordered mnemonic-sequence similarity score. |
+| `Operand-normalized match: NN.N%` | VC71 advisory operand score. It never verifies a lift or gates acceptance. |
+| `Raw-byte exact` | A fresh `tools/verify/raw_byte_audit.py` candidate-versus-pristine-XBE literal byte audit. No current report may infer this claim from a VC71 percentage. |
+| `Behaviorally verified` | ABI/type audit plus appropriate equivalence, snapshot, or runtime-oracle evidence. |
+| `Verified` | Display which evidence passed. Never infer this state from a percentage alone. |
+
+
+## Signal 1: VC71 mnemonic match ("shape" of the function)
 
 Primary tools:
 
@@ -51,8 +61,8 @@ What happens:
 4. It computes similarity using Python `SequenceMatcher(...).ratio()` and reports
    a match percentage.
 
-In plain terms: this is a **sequence/structure similarity score**, not a strict
-byte-equality score.
+In plain terms: this is a **mnemonic-sequence/structure similarity score**, not
+a strict byte-equality score. A raw-byte audit is required for a raw-byte claim.
 
 For functions with custom `@<reg>` parameters, the official score may remove
 narrowly identified candidate-only phantom stack-slot loads. Status output and
@@ -183,7 +193,7 @@ This is a behavior-oriented signal, not just shape.
 High-level logic:
 
 1. Build and ABI audit must pass first.
-2. Structural match is taken from the best available structural source
+2. VC71 mnemonic match is taken from the best available structural source
    (`vc71` and/or `objdiff`).
 3. Low-match policy applies thresholds:
    - below reject floor: fail

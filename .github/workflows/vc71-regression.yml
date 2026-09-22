@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   vc71-regression:
-    name: VC71 byte-accuracy regression
+    name: VC71 mnemonic-match regression
     runs-on: self-hosted
     timeout-minutes: 45
     env:

@@ -165,7 +165,7 @@ def parse_boot_hash_sha(text: str) -> Optional[str]:
 
 
 def parse_match_percent(text: str) -> Optional[float]:
-  m = re.search(r'(\d+\.\d+)% match', text)
+  m = re.search(r'(\d+\.\d+)% (?:mnemonic )?match', text)
   if not m:
     m = re.search(r'match:\s*(\d+\.\d+)%', text)
   return float(m.group(1)) if m else None
@@ -196,9 +196,9 @@ def parse_match_percent_for_function(
     text: str, names: list) -> tuple:
   """Return (pct, exact) for a specific function's score.
 
-  vc71_verify.py prints one `PASS/FAIL <name>: NN.N% match` line for EVERY
+  vc71_verify.py prints one `PASS/FAIL <name>: NN.N% mnemonic match` line for EVERY
   function in the translation unit even when --function is passed, so the bare
-  `first NN.N% match in the output` parse above returns whichever function sorts
+  `first NN.N% mnemonic match in the output` parse above returns whichever function sorts
   first by address in the file -- not the target.
 
   Observed 2026-07-28 in src/halo/text/draw_string.c: both draw_string_get_color
@@ -210,16 +210,16 @@ def parse_match_percent_for_function(
 
   `names` is tried in order; pass both the kb name and the FUN_<addr> spelling,
   since vc71_verify may print either. Returns exact=False when no target line was
-  found and the caller is falling back to the whole-file first match.
+  found; it never substitutes a neighboring function's score.
   """
   for name in names:
     if not name:
       continue
-    m = re.search(r'(?:PASS|FAIL)\s+' + re.escape(name) + r':\s*(\d+\.\d+)%\s*match',
+    m = re.search(r'(?:PASS|FAIL)\s+' + re.escape(name) + r':\s*(\d+\.\d+)%\s+mnemonic\s+match',
                   text)
     if m:
       return float(m.group(1)), True
-  return parse_match_percent(text), False
+  return None, False
 
 
 def render_template(value: str, *, target: Target, artifact_dir: Path) -> str:
@@ -912,9 +912,9 @@ def run_pipeline(args: argparse.Namespace) -> int:
       vc71_opnd_pct = parse_opnd_percent_for_function(output, vc71_names)
       vc71_verify_ok = proc.returncode == 0
       if proc.returncode == 0:
-        details = f"{vc71_match_pct:.1f}% match" if vc71_match_pct is not None else "PASS"
+        details = f"{vc71_match_pct:.1f}% mnemonic match" if vc71_match_pct is not None else "PASS"
       elif vc71_has_fpu_warn:
-        details = f"{vc71_match_pct:.1f}% match, FPU operand-order warnings" if vc71_match_pct else "FPU warnings"
+        details = f"{vc71_match_pct:.1f}% mnemonic match, FPU operand-order warnings" if vc71_match_pct else "FPU warnings"
       else:
         details = "VC71 compilation or comparison failed"
       if vc71_opnd_pct is not None:

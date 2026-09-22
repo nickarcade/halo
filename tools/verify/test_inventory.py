@@ -56,7 +56,7 @@ def bounds_addrs() -> set[int]:
 
     VC71 scoring reads the pristine XBE bounded by tools/verify/function_bounds.json
     (tools/verify/xbe_reference.py), so membership here — not the presence of a
-    Ghidra export — is what "byte-matchable" means.
+    Ghidra export — is what "VC71-scoreable" means.
     """
     global _BOUNDS_CACHE
     if _BOUNDS_CACHE is not None:
@@ -88,7 +88,7 @@ def has_delinked_reference(obj_name: str, addr: str, manifest: set[str]) -> bool
 
     This is the EQUIVALENCE-lane precondition, not the VC71 one: unicorn_diff
     executes the oracle and needs an object with real relocations. For "can this
-    be byte-matched?" use is_vc71_scoreable().
+    receive a VC71 mnemonic score?" use is_vc71_scoreable().
     """
     bare = obj_name.replace("LIBCMT:", "")
     if bare in manifest:
@@ -208,7 +208,7 @@ def inventory() -> tuple[dict, dict, dict]:
                 "object": obj_name,
                 "ported": ported,
                 "class": cls,
-                # VC71 byte-match readiness (bounds table).  Distinct from
+                # VC71 mnemonic-match readiness (bounds table). Distinct from
                 # has_delinked_reference, which gates the equivalence lane.
                 "vc71_scoreable": scoreable,
                 "has_delinked_reference": has_ref,

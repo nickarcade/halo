@@ -114,7 +114,7 @@ def build_report_provenance(root_dir: str, raw_xbe_path: str,
                             current_path: str, current_doc: dict,
                             validity_path: str, validity_doc: dict,
                             equiv_verdicts: dict) -> dict:
-    """Build stable report metadata for all byte-match evidence inputs."""
+    """Build stable report metadata for VC71 mnemonic-score evidence inputs."""
     bounds = _input_file_identity(bounds_path, root_dir)
     bounds_meta = bounds_doc.get('_meta') if isinstance(bounds_doc, dict) else None
     bounds['recorded_xbe_md5'] = (
@@ -225,7 +225,7 @@ def _load_scoreable_addrs(root_dir: str) -> set:
 
     A VC71 reference is derived, not exported: the pristine XBE's bytes for the
     function, bounded by tools/verify/function_bounds.json
-    (tools/verify/xbe_reference.py).  So "can this be byte-matched?" is exactly
+    (tools/verify/xbe_reference.py).  So "can this receive a VC71 mnemonic score?" is exactly
     "does the table bound this address?" — objdiff.json and the on-disk delinked
     objects no longer decide it.  An unreadable table returns an empty set, which
     the caller treats as "unknown", not as "nothing is scoreable".
@@ -338,6 +338,219 @@ def _load_snapshot_data(results_path: str = None) -> dict:
     return out
 
 
+def _load_raw_byte_summary(root_dir: str) -> dict:
+    summary_path = Path(root_dir) / 'artifacts' / 'raw_byte_audit' / 'summary.json'
+    if not summary_path.is_file():
+        return {}
+    try:
+        with summary_path.open(encoding='utf-8') as f:
+            summary = json.load(f)
+        if summary.get('xbe_sha256') != _file_hash(str(Path(root_dir) / 'halo-patched' / 'cachebeta.xbe'), 'sha256'):
+            return {}
+        if summary.get('bounds_sha256') != _file_hash(str(Path(root_dir) / 'tools' / 'verify' / 'function_bounds.json'), 'sha256'):
+            return {}
+        decl_path = Path(root_dir) / 'build' / 'generated' / 'decl.h'
+        if summary.get('decl_sha256') != _file_hash(str(decl_path), 'sha256'):
+            return {}
+        return summary
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+
+
+def _load_raw_byte_audits(root_dir: str) -> dict:
+    """Load fresh literal raw-byte audit records keyed by XBE address.
+
+    An audit is displayable only when its source, pristine XBE, and committed
+    bounds entry still match the recorded provenance. This prevents a historical
+    `raw-byte exact` result from surviving a source, binary, or bound change.
+    """
+    audit_dir = Path(root_dir) / 'artifacts' / 'raw_byte_audit'
+    bounds_path = Path(root_dir) / 'tools' / 'verify' / 'function_bounds.json'
+    xbe_path = Path(root_dir) / 'halo-patched' / 'cachebeta.xbe'
+    if not audit_dir.is_dir() or not bounds_path.is_file() or not xbe_path.is_file():
+        return {}
+    try:
+        with bounds_path.open(encoding='utf-8') as f:
+            bounds = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    xbe_sha256 = _file_hash(str(xbe_path), 'sha256')
+    latest = {}
+    for audit_path in audit_dir.glob('*.json'):
+        try:
+            with audit_path.open(encoding='utf-8') as f:
+                audit = json.load(f)
+            address = audit.get('address')
+            reference = audit.get('reference', {})
+            candidate = audit.get('candidate', {})
+            source = audit.get('source', {})
+            verdict = audit.get('verdict')
+            try:
+                address_key = f'0x{int(address, 16):x}'
+                reference_start = f'0x{int(reference.get("start"), 16):x}'
+                reference_end = f'0x{int(reference.get("end"), 16):x}'
+            except (TypeError, ValueError):
+                continue
+            bound = bounds.get(address_key)
+            if (verdict not in ('raw-byte exact', 'bytes differ', 'not comparable')
+                    or not isinstance(bound, dict)
+                    or reference.get('sha256') != xbe_sha256
+                    or reference_start != address_key
+                    or reference_end != bound.get('end')):
+                continue
+            source_path = source.get('path')
+            if not source_path or source.get('sha256') != _file_hash(source_path, 'sha256'):
+                continue
+            if not candidate.get('sha256') or not reference.get('sha256_span'):
+                continue
+        except (OSError, json.JSONDecodeError, TypeError):
+            continue
+        current = latest.get(address)
+        timestamp = audit.get('generated_at', '')
+        if current is None or current.get('generated_at', '') < timestamp:
+            audit['artifact'] = os.path.relpath(audit_path, root_dir)
+            latest[address_key] = audit
+    return latest
+
+
+def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
+    """Load fresh relocation-masked structural records keyed by XBE address.
+
+    This is a separate evidence lane from the strict literal raw-byte audit.
+    Records must carry the stable batch schema and match the current source,
+    pristine XBE, and committed function bound before they are displayable.
+    """
+    audit_dir = Path(root_dir) / 'artifacts' / 'raw_xbe_structural'
+    bounds_path = Path(root_dir) / 'tools' / 'verify' / 'function_bounds.json'
+    xbe_path = Path(root_dir) / 'halo-patched' / 'cachebeta.xbe'
+    if not audit_dir.is_dir() or not bounds_path.is_file() or not xbe_path.is_file():
+        return {}
+    try:
+        with bounds_path.open(encoding='utf-8') as f:
+            bounds = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    xbe_sha256 = _file_hash(str(xbe_path), 'sha256')
+    bounds_sha256 = _file_hash(str(bounds_path), 'sha256')
+    latest = {}
+    valid_verdicts = ('structural exact', 'structural differ', 'not comparable')
+    for audit_path in audit_dir.glob('*.json'):
+        if audit_path.name == 'summary.json':
+            continue
+        try:
+            with audit_path.open(encoding='utf-8') as f:
+                audit = json.load(f)
+            if (audit.get('schema_version') != 1
+                    or audit.get('lane') != 'raw_xbe_structural'):
+                continue
+            address = audit.get('address')
+            reference = audit.get('reference')
+            source = audit.get('source')
+            record_bounds = audit.get('bounds')
+            verdict = audit.get('verdict')
+            if (not isinstance(reference, dict) or not isinstance(source, dict)
+                    or not isinstance(record_bounds, dict)
+                    or verdict not in valid_verdicts):
+                continue
+            address_key = f'0x{int(address, 16):x}'
+            start = f'0x{int(record_bounds.get("start"), 16):x}'
+            end = f'0x{int(record_bounds.get("end"), 16):x}'
+            reference_start = f'0x{int(reference.get("start"), 16):x}'
+            reference_end = f'0x{int(reference.get("end"), 16):x}'
+            bound = bounds.get(address_key)
+            source_path = source.get('path')
+            byte_counts = audit.get('byte_counts')
+            matching_bytes = audit.get('matching_non_relocation_bytes')
+            non_relocation_bytes = (byte_counts.get('non_relocation')
+                                    if isinstance(byte_counts, dict) else None)
+            byte_accuracy = audit.get('byte_accuracy')
+            comparable = verdict in ('structural exact', 'structural differ')
+            byte_fields_valid = (
+                isinstance(matching_bytes, int) and not isinstance(matching_bytes, bool)
+                and isinstance(non_relocation_bytes, int) and not isinstance(non_relocation_bytes, bool)
+                and non_relocation_bytes > 0
+                and 0 <= matching_bytes <= non_relocation_bytes
+                and isinstance(byte_accuracy, (int, float)) and not isinstance(byte_accuracy, bool)
+                and 0.0 <= float(byte_accuracy) <= 1.0
+                and abs(float(byte_accuracy) - matching_bytes / non_relocation_bytes) < 1e-9
+            )
+            if (not isinstance(bound, dict)
+                    or start != address_key
+                    or end != bound.get('end')
+                    or reference_start != address_key
+                    or reference_end != bound.get('end')
+                    or record_bounds.get('sha256') != bounds_sha256
+                    or reference.get('sha256') != xbe_sha256
+                    or not source_path
+                    or source.get('sha256') != _file_hash(source_path, 'sha256')
+                    or not audit.get('generated_at')
+                    or not audit.get('candidate', {}).get('sha256')
+                    or (comparable and not byte_fields_valid)):
+                continue
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            continue
+        current = latest.get(address_key)
+        timestamp = audit.get('generated_at', '')
+        if current is None or current.get('generated_at', '') < timestamp:
+            audit['artifact'] = os.path.relpath(audit_path, root_dir)
+            latest[address_key] = audit
+    return latest
+
+
+def _raw_xbe_structural_totals(audits: dict) -> dict:
+    """Aggregate accepted structural records without trusting a batch summary."""
+    totals = {}
+    for audit in audits.values():
+        verdict = audit.get('verdict')
+        if verdict not in ('structural exact', 'structural differ', 'not comparable'):
+            continue
+        length = audit.get('reference', {}).get('length', 0)
+        entry = totals.setdefault(verdict, {'functions': 0, 'original_bytes': 0})
+        entry['functions'] += 1
+        entry['original_bytes'] += length if isinstance(length, int) else 0
+    comparable = totals.get('structural exact', {'functions': 0})['functions'] + \
+        totals.get('structural differ', {'functions': 0})['functions']
+    exact = totals.get('structural exact', {'functions': 0})['functions']
+    matching_bytes = sum(
+        audit.get('matching_non_relocation_bytes', 0)
+        for audit in audits.values()
+        if audit.get('verdict') in ('structural exact', 'structural differ')
+    )
+    non_relocation_bytes = sum(
+        audit.get('byte_counts', {}).get('non_relocation', 0)
+        for audit in audits.values()
+        if audit.get('verdict') in ('structural exact', 'structural differ')
+    )
+    aligned = [audit.get('aligned_byte_match', {}) for audit in audits.values()]
+    aligned = [item for item in aligned if item.get('status') == 'scored']
+    aligned_matching = sum(item.get('matching_bytes', 0) or 0 for item in aligned)
+    aligned_compared = sum(item.get('compared_bytes', 0) or 0 for item in aligned)
+    aligned_uncertain = sum(item.get('uncertain_relocation_bytes', 0) or 0
+                            for item in aligned)
+    return {
+        'schema_version': 1,
+        'lane': 'raw_xbe_structural',
+        'totals': totals,
+        'audited_functions': sum(v['functions'] for v in totals.values()),
+        'function_exact_rate': exact / comparable if comparable else None,
+        'matching_non_relocation_bytes': matching_bytes,
+        'non_relocation_bytes': non_relocation_bytes,
+        'byte_accuracy': (matching_bytes / non_relocation_bytes
+                          if non_relocation_bytes else None),
+        'aligned_scored_functions': len(aligned),
+        'aligned_matching_bytes': aligned_matching,
+        'aligned_compared_bytes': aligned_compared,
+        'aligned_uncertain_bytes': aligned_uncertain,
+        'aligned_byte_accuracy_lower': (aligned_matching / aligned_compared
+                                        if aligned_compared else None),
+        'aligned_byte_accuracy_upper': ((aligned_matching + aligned_uncertain) /
+                                        aligned_compared if aligned_compared else None),
+        'aligned_provisional_functions': sum(
+            1 for item in aligned if item.get('accuracy_is_provisional')),
+    }
+
+
 def _load_runtime_oracle_data(results_root: str = None) -> dict:
     """Load latest runtime-oracle result per target function."""
     if results_root is None:
@@ -384,7 +597,9 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                        runtime_oracle_data: dict = None,
                        scoreable_addrs: set = None,
                        equiv_verdicts: dict = None,
-                       validity_data: dict = None) -> list[dict]:
+                       validity_data: dict = None,
+                       raw_byte_audits: dict = None,
+                       raw_xbe_structural_audits: dict = None) -> list[dict]:
     """Compute per-unit statistics in decomp.dev format.
 
     scoreable_addrs: addresses the committed VC71 bounds table can derive a
@@ -436,7 +651,12 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
 
     if runtime_oracle_data is None:
         runtime_oracle_data = {}
-    
+
+    if raw_byte_audits is None:
+        raw_byte_audits = {}
+    if raw_xbe_structural_audits is None:
+        raw_xbe_structural_audits = {}
+
     units = []
     drift = {
         'kb_ported_missing_meta': 0,
@@ -593,7 +813,45 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
             runtime_finished_utc = runtime.get('runtime_oracle_finished_utc') if runtime else None
             runtime_artifact = runtime.get('runtime_oracle_artifact') if runtime else None
             runtime_summary = runtime.get('runtime_oracle_summary') if runtime else None
-            
+
+            raw_audit = raw_byte_audits.get(f'0x{addr:x}')
+            raw_byte_verdict = raw_audit.get('verdict') if raw_audit else None
+            raw_byte_reason = raw_audit.get('reason') if raw_audit else None
+            raw_byte_audited_at = raw_audit.get('generated_at') if raw_audit else None
+            raw_byte_artifact = raw_audit.get('artifact') if raw_audit else None
+            raw_byte_first_difference = raw_audit.get('first_difference') if raw_audit else None
+            raw_byte_candidate_length = (raw_audit.get('candidate', {}).get('length')
+                                         if raw_audit else None)
+            raw_byte_reference_length = (raw_audit.get('reference', {}).get('length')
+                                         if raw_audit else None)
+
+            structural_audit = raw_xbe_structural_audits.get(f'0x{addr:x}')
+            structural_verdict = structural_audit.get('verdict') if structural_audit else None
+            structural_confidence = structural_audit.get('confidence') if structural_audit else None
+            structural_reason = structural_audit.get('reason') if structural_audit else None
+            structural_artifact = structural_audit.get('artifact') if structural_audit else None
+            structural_audited_at = structural_audit.get('generated_at') if structural_audit else None
+            structural_first_difference = (structural_audit.get('first_difference')
+                                           if structural_audit else None)
+            structural_reference_length = (structural_audit.get('reference', {}).get('length')
+                                           if structural_audit else None)
+            structural_matching_bytes = (structural_audit.get('matching_non_relocation_bytes')
+                                         if structural_audit else None)
+            structural_non_relocation_bytes = (structural_audit.get('byte_counts', {}).get('non_relocation')
+                                               if structural_audit else None)
+            structural_byte_accuracy = (structural_audit.get('byte_accuracy')
+                                        if structural_audit else None)
+            structural_masked_bytes = (structural_audit.get('byte_counts', {}).get('relocation_operand')
+                                       if structural_audit else None)
+            structural_lower_bound = (bool(structural_audit.get('accuracy_is_lower_bound'))
+                                      if structural_audit else None)
+            structural_reg_arg = (bool(structural_audit.get('register_argument'))
+                                  if structural_audit else None)
+            structural_unmasked = (structural_audit.get('unmasked_relocations')
+                                   if structural_audit else None)
+            aligned_audit = (structural_audit.get('aligned_byte_match', {})
+                             if structural_audit else {})
+
             func_entry = {
                 'address': addr_hex,
                 'name': name,
@@ -620,6 +878,43 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'runtime_oracle_finished_utc': runtime_finished_utc,
                 'runtime_oracle_artifact': runtime_artifact,
                 'runtime_oracle_summary': runtime_summary,
+                'raw_byte_verdict': raw_byte_verdict,
+                'raw_byte_reason': raw_byte_reason,
+                'raw_byte_audited_at': raw_byte_audited_at,
+                'raw_byte_artifact': raw_byte_artifact,
+                'raw_byte_first_difference': raw_byte_first_difference,
+                'raw_byte_candidate_length': raw_byte_candidate_length,
+                'raw_byte_reference_length': raw_byte_reference_length,
+                'raw_xbe_structural_verdict': structural_verdict,
+                'raw_xbe_structural_confidence': structural_confidence,
+                'raw_xbe_structural_reason': structural_reason,
+                'raw_xbe_structural_artifact': structural_artifact,
+                'raw_xbe_structural_audited_at': structural_audited_at,
+                'raw_xbe_structural_first_difference': structural_first_difference,
+                'raw_xbe_structural_reference_length': structural_reference_length,
+                'raw_xbe_structural_matching_non_relocation_bytes': structural_matching_bytes,
+                'raw_xbe_structural_non_relocation_bytes': structural_non_relocation_bytes,
+                'raw_xbe_structural_byte_accuracy': structural_byte_accuracy,
+                'raw_xbe_structural_masked_bytes': structural_masked_bytes,
+                'raw_xbe_structural_lower_bound': structural_lower_bound,
+                'raw_xbe_structural_register_argument': structural_reg_arg,
+                'raw_xbe_structural_unmasked_relocations': structural_unmasked,
+                'raw_xbe_aligned_status': aligned_audit.get('status'),
+                'raw_xbe_aligned_method': aligned_audit.get('method'),
+                'raw_xbe_aligned_lower': aligned_audit.get('byte_accuracy'),
+                'raw_xbe_aligned_upper': aligned_audit.get('byte_accuracy_upper_bound'),
+                'raw_xbe_aligned_matching_bytes': aligned_audit.get('matching_bytes'),
+                'raw_xbe_aligned_compared_bytes': aligned_audit.get('compared_bytes'),
+                'raw_xbe_aligned_stable_bytes': aligned_audit.get('stable_compared_bytes'),
+                'raw_xbe_aligned_uncertain_bytes': aligned_audit.get('uncertain_relocation_bytes'),
+                'raw_xbe_aligned_exact_instructions': aligned_audit.get('normalized_exact_instructions'),
+                'raw_xbe_aligned_instruction_pairs': aligned_audit.get('aligned_instruction_pairs'),
+                'raw_xbe_aligned_candidate_only': aligned_audit.get('candidate_only_instructions'),
+                'raw_xbe_aligned_reference_only': aligned_audit.get('reference_only_instructions'),
+                'raw_xbe_aligned_unresolved_relocations': aligned_audit.get('unresolved_relocations'),
+                'raw_xbe_aligned_unpaired_relocations': aligned_audit.get('unpaired_relocations'),
+                'raw_xbe_aligned_ambiguous_steps': aligned_audit.get('alignment_ambiguous_steps'),
+                'raw_xbe_aligned_provisional': aligned_audit.get('accuracy_is_provisional'),
             }
             unit_funcs.append(func_entry)
             
@@ -692,7 +987,46 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
 
         tracked_runtime_tested += runtime_tested
         tracked_runtime_passed += runtime_passed
-            
+
+        structural_totals = {}
+        for f in unit_funcs:
+            verdict = f['raw_xbe_structural_verdict']
+            if verdict:
+                item = structural_totals.setdefault(verdict, {'functions': 0, 'original_bytes': 0})
+                item['functions'] += 1
+                item['original_bytes'] += f['raw_xbe_structural_reference_length'] or 0
+        structural_comparable = (structural_totals.get('structural exact', {'functions': 0})['functions'] +
+                                 structural_totals.get('structural differ', {'functions': 0})['functions'])
+        structural_exact = structural_totals.get('structural exact', {'functions': 0})['functions']
+        structural_matching_bytes = sum(f['raw_xbe_structural_matching_non_relocation_bytes'] or 0
+                                        for f in unit_funcs)
+        structural_non_relocation_bytes = sum(f['raw_xbe_structural_non_relocation_bytes'] or 0
+                                              for f in unit_funcs)
+        aligned_functions = [f for f in unit_funcs if f['raw_xbe_aligned_status'] == 'scored']
+        aligned_matching = sum(f['raw_xbe_aligned_matching_bytes'] or 0 for f in aligned_functions)
+        aligned_compared = sum(f['raw_xbe_aligned_compared_bytes'] or 0 for f in aligned_functions)
+        aligned_uncertain = sum(f['raw_xbe_aligned_uncertain_bytes'] or 0 for f in aligned_functions)
+        structural_summary = {
+            'totals': structural_totals,
+            'audited_functions': sum(v['functions'] for v in structural_totals.values()),
+            'function_exact_rate': (structural_exact / structural_comparable
+                                    if structural_comparable else None),
+            'matching_non_relocation_bytes': structural_matching_bytes,
+            'non_relocation_bytes': structural_non_relocation_bytes,
+            'byte_accuracy': (structural_matching_bytes / structural_non_relocation_bytes
+                              if structural_non_relocation_bytes else None),
+            'aligned_scored_functions': len(aligned_functions),
+            'aligned_matching_bytes': aligned_matching,
+            'aligned_compared_bytes': aligned_compared,
+            'aligned_uncertain_bytes': aligned_uncertain,
+            'aligned_byte_accuracy_lower': (aligned_matching / aligned_compared
+                                            if aligned_compared else None),
+            'aligned_byte_accuracy_upper': ((aligned_matching + aligned_uncertain) /
+                                            aligned_compared if aligned_compared else None),
+            'aligned_provisional_functions': sum(
+                1 for f in aligned_functions if f['raw_xbe_aligned_provisional']),
+        }
+
         unit_source_path = _source_path(source)
         # Scoreable = the bounds table bounds at least one of this unit's
         # functions.  An empty table (unreadable/absent) must not badge every
@@ -717,7 +1051,7 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'match_weighted': match_weighted,
                 # Match percentage is only meaningful for the functions that have
                 # a score. Keep its coverage explicit so consumers do not mistake
-                # a partial VC71 snapshot for whole-TU byte accuracy.
+                # a partial VC71 snapshot for whole-TU mnemonic-score coverage.
                 'match_scored_count': len(match_scores),
                 'match_scored_bytes': match_scored_bytes,
                 'match_coverage_percent': round(match_scored_bytes / ported_bytes * 100, 2) if ported_bytes else None,
@@ -742,6 +1076,7 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'avg_coverage': snap_avg_cov,
                 'high_confidence': snap_high_conf,
             },
+            'raw_xbe_structural': structural_summary,
             'runtime_oracle': {
                 'tested': runtime_tested,
                 'passed': runtime_passed,
@@ -888,8 +1223,16 @@ def generate_report(output_path: str) -> dict:
     # Load runtime-oracle verification results
     runtime_oracle_data = _load_runtime_oracle_data()
 
+    # Strict literal raw-byte results are separate evidence from VC71 mnemonic
+    # similarity and behavioral verification. Only fresh provenance-valid audits
+    # are loaded, so the dashboard never presents stale exactness as current.
+    raw_byte_audits = _load_raw_byte_audits(root_dir)
+    raw_byte_summary = _load_raw_byte_summary(root_dir)
+    raw_xbe_structural_audits = _load_raw_xbe_structural_audits(root_dir)
+    raw_xbe_structural_summary = _raw_xbe_structural_totals(raw_xbe_structural_audits)
+
     # Addresses the committed VC71 bounds table can derive a reference for. This
-    # is what makes VC71 byte-match possible; the dashboard uses it to distinguish
+    # is what makes VC71 mnemonic scoring possible; the dashboard uses it to distinguish
     # "scoreable, not yet run" from "not scoreable (VC71 impossible)".
     scoreable_addrs = _load_scoreable_addrs(root_dir)
 
@@ -913,6 +1256,8 @@ def generate_report(output_path: str) -> dict:
         scoreable_addrs=scoreable_addrs,
         equiv_verdicts=equiv_verdicts,
         validity_data=validity_data,
+        raw_byte_audits=raw_byte_audits,
+        raw_xbe_structural_audits=raw_xbe_structural_audits,
     )
     
     # Compute overall stats
@@ -988,6 +1333,8 @@ def generate_report(output_path: str) -> dict:
             'equivalence': overall_equiv,
             'snapshot': overall_snapshot,
             'runtime_oracle': overall_runtime_oracle,
+            'raw_byte_audit': raw_byte_summary,
+            'raw_xbe_structural': raw_xbe_structural_summary,
             'platform': {
                 'units': len(platform_units),
                 'functions': platform_funcs,
@@ -1021,7 +1368,7 @@ def generate_report(output_path: str) -> dict:
 
 
 def generate_html(report: dict, output_path: str, history_path: str = None):
-    """Generate a client-rendered HTML dashboard with search, byte accuracy, and SSE live updates."""
+    """Generate a client-rendered HTML dashboard with VC71 mnemonic scores and SSE live updates."""
 
     import json
 
@@ -1271,9 +1618,9 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
         .match-dot {
             width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
         }
-        /* Byte-match color is a heat scale (how close to byte-identical), NOT a
-           correctness verdict — VC71 has structural ceilings (SEH ~55%, fastcall,
-           x87 ~15pp). The correctness verdict is the Verified column. */
+        /* Mnemonic-match color is a structural heat scale, NOT a raw-byte or
+           correctness verdict — VC71 has ceilings (SEH ~55%, fastcall, x87
+           ~15pp). The behavioral verdict is the Verified column. */
         .match-dot.neutral { background: var(--text-secondary); }
         .match-dot.high { background: var(--accent-green); }
         .match-dot.ok { background: var(--accent-blue); }
@@ -1555,19 +1902,19 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     <canvas id="progressChart"></canvas>
                 </div>
                 <div class="chart-container" id="charts-accuracy-container" style="height:240px">
-                    <div class="chart-title" id="accuracyChartTitle">Byte Accuracy Over Time</div>
+                    <div class="chart-title" id="accuracyChartTitle">VC71 Mnemonic Match Over Time</div>
                     <canvas id="accuracyChart"></canvas>
                 </div>
             </div>
 
-            <h2>Verification Coverage</h2>
+            <h2>Behavioral Evidence</h2>
             <div class="verif-two-col">
                 <div class="card">
-                    <div class="chart-title">Verification Pipeline</div>
+                    <div class="chart-title">Behavioral Checks</div>
                     <div id="verif-funnel"></div>
                 </div>
                 <div class="card">
-                    <div class="chart-title">Unit Evidence Map &mdash; <span style="font-weight:400;text-transform:none;letter-spacing:0">bar length = implemented, color = byte accuracy; click a tile to open unit</span></div>
+                    <div class="chart-title">Unit Evidence Map &mdash; <span style="font-weight:400;text-transform:none;letter-spacing:0">bar length = implemented, color = VC71 mnemonic match; click a tile to open unit</span></div>
                     <div class="tu-heatmap-grid" id="tu-heatmap"></div>
                     <div class="tu-legend" id="tu-legend"></div>
                 </div>
@@ -1600,13 +1947,13 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 <table>
                     <thead>
                         <tr>
-                            <th data-col="0" title="Translation unit name; click it to open the unit's function list.">Unit Name <span class="sort-arrow"></span></th>
-                            <th data-col="1" title="Source file path for this translation unit.">Source Path <span class="sort-arrow"></span></th>
-                            <th data-col="2" class="num" title="Number of functions in this translation unit.">Functions <span class="sort-arrow"></span></th>
-                            <th data-col="3" class="num" title="Functions currently ported into the reimplementation.">Ported <span class="sort-arrow"></span></th>
-                            <th data-col="4" class="num" title="Ported functions as a percentage of all functions in the unit.">Progress <span class="sort-arrow"></span></th>
-                            <th data-col="5" class="num" title="Ported function bytes / total function bytes in this unit.">Bytes <span class="sort-arrow"></span></th>
-                            <th data-col="6" class="num" title="Byte-weighted VC71 match for the unit: how closely its compiled code matches the original. The per-function op score is shown in the detail view and is advisory.">Match % <span class="sort-arrow"></span></th>
+                            <th data-col="0" title="Object or source group. Select it to see its functions.">Unit Name <span class="sort-arrow"></span></th>
+                            <th data-col="1" title="Source file for this unit.">Source Path <span class="sort-arrow"></span></th>
+                            <th data-col="2" class="num" title="Total functions in this unit.">Functions <span class="sort-arrow"></span></th>
+                            <th data-col="3" class="num" title="Functions implemented in our code.">Ported <span class="sort-arrow"></span></th>
+                            <th data-col="4" class="num" title="Share of functions implemented.">Progress <span class="sort-arrow"></span></th>
+                            <th data-col="5" class="num" title="Implemented bytes / total bytes.">Bytes <span class="sort-arrow"></span></th>
+                            <th data-col="6" class="num" title="How closely the instruction names and order match the original. Exact values are ignored.">Mnemonic % <span class="sort-arrow"></span></th>
                         </tr>
                     </thead>
                     <tbody id="table-body"></tbody>
@@ -1642,11 +1989,11 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
 
                 <div class="charts-grid" id="detail-charts-grid" style="margin:16px 0">
                     <div class="chart-container" id="unitHistoryContainer" style="height:240px">
-                        <div class="chart-title" id="unitHistoryTitle">Unit Progress &amp; Accuracy History</div>
+                        <div class="chart-title" id="unitHistoryTitle">Unit Progress &amp; Mnemonic-Match History</div>
                         <canvas id="unitHistoryChart"></canvas>
                     </div>
                     <div class="chart-container" id="detailChartContainer" style="height:240px">
-                        <div class="chart-title">Match Score Distribution</div>
+                        <div class="chart-title">Mnemonic-Match Distribution</div>
                         <canvas id="detailChart"></canvas>
                     </div>
                 </div>
@@ -1663,12 +2010,13 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     <table>
                         <thead>
                             <tr>
-                                <th data-fcol="0" title="Address of the function in the original Xbox binary.">Address <span class="sort-arrow"></span></th>
-                                <th data-fcol="1" title="Recovered source-level name of the function.">Function Name <span class="sort-arrow"></span></th>
-                                <th data-fcol="2" class="num" title="Function size in bytes in the original binary.">Size <span class="sort-arrow"></span></th>
-                                <th data-fcol="3" class="num" title="Whether this function is ported into the reimplementation.">Status <span class="sort-arrow"></span></th>
-                                <th data-fcol="4" class="num" title="VC71 byte-match: the percentage of compiled instructions matching the original. The separate op score compares operand shapes after normalizing constants and offsets; it is advisory.">Match % <span class="sort-arrow"></span></th>
-                                <th data-fcol="5" class="num" title="Verified means at least one trusted check passed: VC71 &ge;90%, high-confidence equivalence, snapshot, or runtime oracle.">Verified <span class="sort-arrow"></span></th>
+                                <th data-fcol="0" title="Address in the original Xbox binary.">Address <span class="sort-arrow"></span></th>
+                                <th data-fcol="1" title="Recovered function name.">Function Name <span class="sort-arrow"></span></th>
+                                <th data-fcol="2" class="num" title="Size in the original binary.">Size <span class="sort-arrow"></span></th>
+                                <th data-fcol="3" class="num" title="Whether we have implemented this function.">Status <span class="sort-arrow"></span></th>
+                                <th data-fcol="4" class="num" title="How closely the instruction names and order match the original. Exact values are ignored.">Mnemonic % <span class="sort-arrow"></span></th>
+                                <th data-fcol="5" class="num" title="Bytes that match after lining up instructions. A range means some address bytes are unknown. This does not prove the behavior is correct.">Aligned bytes <span class="sort-arrow"></span></th>
+                                <th data-fcol="6" class="num" title="Matched the original in at least one behavioral check. Byte and mnemonic scores do not count.">Behavioral match <span class="sort-arrow"></span></th>
                             </tr>
                         </thead>
                         <tbody id="func-table-body"></tbody>
@@ -1872,7 +2220,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
         // Low-coverage/weak fails are inconclusive (often harness artifacts), so they
         // are treated as "unknown", not flagged — symmetric with how a pass needs
         // coverage to count. NOTE: even credible fails need triage (e.g. a fail at
-        // ~100% byte-match is almost certainly a harness artifact, not a real bug).
+        // ~100% mnemonic match is almost certainly a harness artifact, not a real bug).
         function isDivergent(f) {
             // Only an actual behavioral divergence counts — emulation_error / timeout /
             // *_extract_failed are harness failures, not lift bugs, so they stay "unknown".
@@ -1893,7 +2241,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
         function countVerified() {
             var count = 0;
             var divergent = 0;
-            var byMethod = { vc71: 0, equiv: 0, snap: 0, oracle: 0 };
+            var byMethod = { equiv: 0, snap: 0, oracle: 0 };
             for (var ui = 0; ui < REPORT.units.length; ui++) {
                 if (REPORT.units[ui].synthetic) continue;
                 var funcs = REPORT.units[ui].functions || [];
@@ -1905,7 +2253,6 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     if (equivVerified(f)) { byMethod.equiv++; verified = true; }
                     if (f.snapshot_passed === true) { byMethod.snap++; verified = true; }
                     if (f.runtime_oracle_passed === true) { byMethod.oracle++; verified = true; }
-                    if (f.match_percent !== null && f.match_percent !== undefined && f.match_percent >= 90) { byMethod.vc71++; verified = true; }
                     if (verified) count++;
                 }
             }
@@ -1918,7 +2265,6 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             if (equivVerified(f)) return true;
             if (f.snapshot_passed === true) return true;
             if (f.runtime_oracle_passed === true) return true;
-            if (f.match_percent !== null && f.match_percent !== undefined && f.match_percent >= 90) return true;
             return false;
         }
 
@@ -1940,18 +2286,17 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             var completedPct = Math.round(completedUnits / totalUnits * 100);
 
             var verifiedPct = s.functions.ported > 0 ? (vData.total / s.functions.ported * 100).toFixed(1) : '0';
-            var verifiedTip = 'Verified by at least one method (divergences excluded):\\n';
-            verifiedTip += 'Equiv pass (high/mod cov) or Z3-proven: ' + vData.byMethod.equiv + '\\n';
-            verifiedTip += 'Runtime oracle pass: ' + vData.byMethod.oracle + '\\n';
-            verifiedTip += 'Snapshot pass: ' + vData.byMethod.snap + '\\n';
-            verifiedTip += 'VC71 \\u226590%: ' + vData.byMethod.vc71 + '\\n';
-            if (vData.divergent > 0) verifiedTip += '\\n\\u2717 Divergent (equiv FAIL \\u2014 investigate): ' + vData.divergent;
+            var verifiedTip = 'Functions that matched the original in at least one behavioral check.\\n';
+            verifiedTip += 'Equivalence or proof: ' + vData.byMethod.equiv + '\\n';
+            verifiedTip += 'Runtime comparison: ' + vData.byMethod.oracle + '\\n';
+            verifiedTip += 'Snapshot comparison: ' + vData.byMethod.snap;
+            if (vData.divergent > 0) verifiedTip += '\\nNeeds investigation: ' + vData.divergent;
 
             // Match-coverage buckets: a ported function is "scored" if it has a
             // VC71 match, "scoreable" if the committed bounds table can derive a
             // reference for its unit (could be scored), or "not scoreable" if VC71
             // is impossible (needs behavioral verification instead). Honest scope
-            // for the Match Quality headline.
+            // for the VC71 mnemonic-match headline.
             var mScored = 0, mScoreable = 0, mNoRef = 0;
             for (var mui = 0; mui < u.length; mui++) {
                 if (u[mui].synthetic) continue;
@@ -1966,31 +2311,61 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     else mNoRef++;
                 }
             }
-            var matchTip = 'Byte-level accuracy of ported code compiled with MSVC 7.1 vs the original Xbox binary.\\n';
-            matchTip += 'Scored: ' + mScored + ' of ' + s.functions.ported + ' ported\\n';
-            matchTip += 'Scoreable, not yet run: ' + mScoreable + '\\n';
-            matchTip += 'Not scoreable — no bounds entry (needs equivalence/oracle): ' + mNoRef;
+            var matchTip = 'How closely instruction names and order match the original. Exact values are ignored.\\n';
+            matchTip += 'Scored: ' + mScored + ' / ' + s.functions.ported + ' ported\\n';
+            matchTip += 'Not yet scored: ' + mScoreable + '\\n';
+            matchTip += 'No reference available: ' + mNoRef;
+
+            var rawAudit = s.raw_byte_audit || {};
+            var rawTotals = rawAudit.totals || {};
+            var rawExact = rawTotals['raw-byte exact'] || {functions: 0, original_bytes: 0};
+            var rawDiffers = rawTotals['bytes differ'] || {functions: 0, original_bytes: 0};
+            var rawNc = rawTotals['not comparable'] || {functions: 0, original_bytes: 0};
+            // The strict literal audit no longer gets its own card: it answers the
+            // same question as the byte-match card and its Exact count is folded
+            // in there, so the summary shows one byte-accuracy number, not two.
+            var rawCard = '';
+            var structuralAudit = s.raw_xbe_structural || {};
+            var structuralTotals = structuralAudit.totals || {};
+            var structuralExact = structuralTotals['structural exact'] || {functions: 0};
+            var structuralDiffers = structuralTotals['structural differ'] || {functions: 0};
+            var structuralNc = structuralTotals['not comparable'] || {functions: 0};
+            var alignedLower = structuralAudit.aligned_byte_accuracy_lower;
+            var alignedUpper = structuralAudit.aligned_byte_accuracy_upper;
+            var alignedSummary = alignedLower == null ? 'not populated' :
+                ((alignedLower * 100).toFixed(1) + (alignedUpper != null && alignedUpper !== alignedLower ? '\u2013' + (alignedUpper * 100).toFixed(1) : '') + '%');
+            var structuralCard = structuralAudit.audited_functions ?
+                '<div class="card" title="Bytes that match after lining up instructions. Exact: ' +
+                    fmtNum(structuralExact.functions) + '. Partial: ' + fmtNum(structuralDiffers.functions) +
+                    '. Unavailable: ' + fmtNum(structuralNc.functions) + '. Strict byte matches: ' +
+                    fmtNum(rawExact.functions) + '. A range means some address bytes are unknown.">' +
+                    '<div class="stat-label">Aligned byte match</div>' +
+                    '<div class="stat-value" style="color:#58a6ff">' + alignedSummary + '</div>' +
+                    '<div class="stat-label">' + fmtNum(structuralAudit.aligned_matching_bytes || 0) + ' / ' +
+                    fmtNum(structuralAudit.aligned_compared_bytes || 0) + ' bytes &middot; ' +
+                    fmtNum(structuralAudit.aligned_scored_functions || 0) + ' functions</div>' +
+                '</div>' : '';
 
             document.getElementById('summary-cards').innerHTML =
-                '<div class="card" title="Functions ported out of total game source functions.">' +
+                '<div class="card" title="Implemented game functions / total game functions.">' +
                     '<div class="stat-label">Game Code Progress</div>' +
                     '<div class="stat-value">' + s.functions.percent.toFixed(1) + '%</div>' +
                     '<div class="stat-label">' + fmtNum(s.functions.ported) + ' / ' + fmtNum(s.functions.total) + ' functions</div>' +
                     '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.max(s.functions.percent, 2) + '%"><span class="progress-text">' + s.functions.percent.toFixed(1) + '%</span></div></div>' +
                 '</div>' +
-                '<div class="card" title="SDK/platform/runtime library functions are tracked separately from Halo game source progress.">' +
+                '<div class="card" title="Implemented platform and library functions. These are separate from game code.">' +
                     '<div class="stat-label">Platform / SDK</div>' +
                     '<div class="stat-value" style="color:#79c0ff">' + platformPctStr + '</div>' +
                     '<div class="stat-label">' + fmtNum(platform.ported) + ' / ' + fmtNum(platform.functions) + ' functions &middot; ' + fmtNum(platform.units) + ' buckets (excluded)</div>' +
                     '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.max(platformPct, platform.ported > 0 ? 2 : 0) + '%;background:linear-gradient(90deg,#1f6feb,#58a6ff)"><span class="progress-text">' + platformPctStr + '</span></div></div>' +
                 '</div>' +
-                '<div class="card" title="Combined progress across both Halo game source code (' + fmtNum(s.functions.total) + ') and SDK/platform libraries (' + fmtNum(platform.functions) + ').">' +
+                '<div class="card" title="Implemented functions across game code and platform libraries.">' +
                     '<div class="stat-label">Total Progress</div>' +
                     '<div class="stat-value" style="color:#d2a8ff">' + totalAllPctStr + '</div>' +
                     '<div class="stat-label">' + fmtNum(totalAllPorted) + ' / ' + fmtNum(totalAllFuncs) + ' functions total</div>' +
                     '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.max(totalAllPct, 2) + '%;background:linear-gradient(90deg,#8957e5,#d2a8ff)"><span class="progress-text">' + totalAllPctStr + '</span></div></div>' +
                 '</div>' +
-                '<div class="card" title="Source files where every function has been ported.">' +
+                '<div class="card" title="Source files with every function implemented.">' +
                     '<div class="stat-label">Files Complete</div>' +
                     '<div class="stat-value">' + completedUnits + '</div>' +
                     '<div class="stat-label">' + completedUnits + ' / ' + totalUnits + ' source files fully ported</div>' +
@@ -1998,17 +2373,19 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 '</div>' +
                 (s.match ?
                 '<div class="card" title="' + escHtml(matchTip) + '">' +
-                    '<div class="stat-label">VC71 Match Score <span style="opacity:.6;font-weight:400">(diagnostic)</span></div>' +
+                    '<div class="stat-label">VC71 Mnemonic Match <span style="opacity:.6;font-weight:400">(structural diagnostic)</span></div>' +
                     '<div class="stat-value" style="color:' + matchColor(s.match.weighted) + '">' + s.match.weighted.toFixed(1) + '%</div>' +
-                    '<div class="stat-label">Byte-weighted &middot; ' + fmtNum(s.match.scored_count) + ' of ' + fmtNum(s.functions.ported) + ' scored &middot; has structural ceilings</div>' +
+                    '<div class="stat-label">Size-weighted &middot; ' + fmtNum(s.match.scored_count) + ' of ' + fmtNum(s.functions.ported) + ' scored &middot; has structural ceilings</div>' +
                     '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.max(s.match.weighted, 2) + '%;background:linear-gradient(90deg,var(--accent-green),#2ea043)"><span class="progress-text">' + s.match.weighted.toFixed(1) + '%</span></div></div>' +
                 '</div>' : '') +
                 '<div class="card" title="' + escHtml(verifiedTip) + '">' +
-                    '<div class="stat-label">Verified functions</div>' +
+                    '<div class="stat-label">Behavioral matches</div>' +
                     '<div class="stat-value" style="color:#3fb950">' + fmtNum(vData.total) + '</div>' +
                     '<div class="stat-label">' + verifiedPct + '% of ported &middot; hover for breakdown</div>' +
                     (s.functions.ported > 0 ? '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.max(vData.total / s.functions.ported * 100, 0.3) + '%;background:linear-gradient(90deg,#238636,#3fb950)"><span class="progress-text">' + verifiedPct + '%</span></div></div>' : '') +
                 '</div>' +
+                rawCard +
+                structuralCard +
                 renderCICards();
         }
 
@@ -2033,7 +2410,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                        '<span style="font-size:0.8em;color:var(--text-secondary)">' + escHtml(shortName) + '</span></div>';
             }).join('');
             var sha = ciRuns.last_commit ? ' &middot; <span style="font-family:monospace;font-size:0.85em">' + escHtml(ciRuns.last_commit) + '</span>' : '';
-            out += '<a href="ci.html" class="card" style="text-decoration:none;display:block;cursor:pointer" title="View CI status page">' +
+            out += '<a href="ci.html" class="card" style="text-decoration:none;display:block;cursor:pointer" title="Open build and test status.">' +
                     '<div class="stat-label">CI Status</div>' +
                     '<div class="stat-value" style="color:' + ciColor + '">' + ciLabel + '</div>' +
                     '<div class="stat-label">' + fmtNum(wfs.length) + ' workflow' + (wfs.length === 1 ? '' : 's') + sha + '</div>' +
@@ -2045,7 +2422,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             var eq = ci.equivalence || {};
             var equivColor = (eq.avg_coverage >= 60) ? '#3fb950' : (eq.avg_coverage >= 30 ? '#58a6ff' : '#d29922');
             var highPct = eq.tested > 0 ? Math.round(eq.high_confidence / eq.tested * 100) : 0;
-            out += '<a href="ci.html" class="card" style="text-decoration:none;display:block;cursor:pointer" title="View equivalence coverage details">' +
+            out += '<a href="ci.html" class="card" style="text-decoration:none;display:block;cursor:pointer" title="Open behavioral test coverage.">' +
                     '<div class="stat-label">Equivalence Coverage</div>' +
                     '<div class="stat-value" style="color:' + equivColor + '">' + (eq.avg_coverage !== null && eq.avg_coverage !== undefined ? eq.avg_coverage.toFixed(1) + '%' : '—') + '</div>' +
                     '<div class="stat-label">avg code coverage &middot; ' + fmtNum(eq.tested) + ' functions tested</div>' +
@@ -2056,10 +2433,10 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             return out;
         }
 
-        // Color scale encodes how close the byte-match is to byte-identical — a
-        // useful at-a-glance heat scale. It is NOT a correctness verdict: VC71 has
+        // Color scale encodes mnemonic-sequence similarity — a useful at-a-glance
+        // heat scale. It is NOT a raw-byte or correctness verdict: VC71 has
         // structural ceilings (SEH ~55%, fastcall preamble, x87 ~15pp), so a low
-        // byte-match can still be a perfect lift. Correctness lives in the Verified
+        // mnemonic match can still accompany a perfect lift. Correctness lives in the Verified
         // column (behavioral evidence), which is the separate colored verdict.
         function matchColor(pct) {
             if (pct >= 95) return '#3fb950';
@@ -2118,7 +2495,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 options: chartOpts()
             });
 
-            // 2. Byte Accuracy chart
+            // 2. VC71 mnemonic-match chart
             destroyChart('accuracyChart');
             var matchSnaps = [];
             for (var i = 0; i < snaps.length; i++) {
@@ -2147,7 +2524,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 var deltaSign = delta >= 0 ? '+' : '';
                 var titleEl = document.getElementById('accuracyChartTitle');
                 if (titleEl) {
-                    titleEl.innerHTML = 'Byte Accuracy Over Time &mdash; ' +
+                    titleEl.innerHTML = 'VC71 Mnemonic Match Over Time &mdash; ' +
                         '<span style="font-weight:400;font-size:0.85em;color:var(--text-secondary)">' +
                         'Weighted: <strong style="color:' + matchColor(latest.weighted) + '">' + latest.weighted.toFixed(1) + '%</strong> &middot; ' +
                         'Avg: <strong>' + latest.average.toFixed(1) + '%</strong> ' +
@@ -2170,7 +2547,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                                 pointRadius: 2, pointHoverRadius: 5
                             },
                             {
-                                label: 'Average Match Accuracy (%)',
+                                label: 'Average VC71 Mnemonic Match (%)',
                                 data: avgData,
                                 borderColor: '#58a6ff',
                                 backgroundColor: 'rgba(88, 166, 255, 0.05)',
@@ -2185,9 +2562,9 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                             var idx = tooltipItem.dataIndex;
                             var item = matchSnaps[idx];
                             if (tooltipItem.datasetIndex === 0) {
-                                return 'Byte-Weighted: ' + item.weighted.toFixed(2) + '% (' + item.scored + ' scored funcs)';
+                                return 'Weighted mnemonic match: ' + item.weighted.toFixed(2) + '% (' + item.scored + ' functions)';
                             } else {
-                                return 'Average Match: ' + item.average.toFixed(2) + '%';
+                                return 'Average mnemonic match: ' + item.average.toFixed(2) + '%';
                             }
                         }
                     })
@@ -2257,7 +2634,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 { label: 'All functions',   count: total,       color: '#3d444d', pct: 100 },
                 { label: 'Ported',          count: ported,      color: '#388bfd', pct: total > 0 ? ported / total * 100 : 0 },
                 { label: 'VC71 scored',     count: vc71,        color: '#d29922', pct: total > 0 ? vc71 / total * 100 : 0 },
-                { label: 'Function verified', count: vData.total, color: '#3fb950', pct: total > 0 ? vData.total / total * 100 : 0 }
+                { label: 'Behavioral match', count: vData.total, color: '#3fb950', pct: total > 0 ? vData.total / total * 100 : 0 }
             ];
 
             var html = '';
@@ -2283,7 +2660,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
 
         // The map answers the two headline questions per unit at a glance, with
         // a single visual element: bar length = implemented surface (ported
-        // bytes / unit bytes) and bar color = byte accuracy (byte-weighted VC71
+        // bytes / unit bytes) and bar color = mnemonic similarity (byte-weighted VC71
         // match over scored bytes). Everything else — function counts, the
         // scored-byte denominator, verification-lane evidence — lives in the
         // hover tooltip. A TU can be partly ported, partly scored, and partly
@@ -2297,11 +2674,11 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             return '#da3633';
         }
 
-        // A unit earns the solid-green "byte-accurate" distinction only when
-        // every ported function has been scored AND the byte-weighted match is
-        // 100%. A 100% match over a partial score coverage is just light green —
+        // A unit earns the solid-green "complete mnemonic match" distinction only when
+        // every ported function has been scored AND the size-weighted match is
+        // 100%. A 100% mnemonic match over a partial score coverage is just light green —
         // the unscored remainder is unproven.
-        function unitIsPerfect(unit, st) {
+        function unitHasCompleteMnemonicMatch(unit, st) {
             if (st.ported === 0 || st.scored !== st.ported) return false;
             var match = (unit.summary || {}).match_weighted;
             return match !== null && match !== undefined && match >= 100;
@@ -2317,7 +2694,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             var verified = 0;
             var verifiedBytes = 0;
             var divergent = 0;
-            var methods = { equiv: 0, snapshot: 0, runtime: 0, byte: 0 };
+            var methods = { equiv: 0, snapshot: 0, runtime: 0, mnemonic: 0 };
 
             for (var i = 0; i < funcs.length; i++) {
                 var f = funcs[i];
@@ -2334,7 +2711,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 if (equivVerified(f)) methods.equiv++;
                 if (f.snapshot_passed === true) methods.snapshot++;
                 if (f.runtime_oracle_passed === true) methods.runtime++;
-                if (f.match_percent !== null && f.match_percent !== undefined && f.match_percent >= 90) methods.byte++;
+                if (f.match_percent !== null && f.match_percent !== undefined && f.match_percent >= 90) methods.mnemonic++;
                 if (isVerified(f)) {
                     verified++;
                     verifiedBytes += size;
@@ -2345,7 +2722,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             var state = 'No ported functions';
             if (ported > 0) {
                 if (divergent > 0) state = 'Divergence candidate needs triage';
-                else if (ported === total && verified === ported) state = 'Fully ported; all functions verified';
+                else if (ported === total && verified === ported) state = 'Fully ported; all functions have a behavioral match';
                 else if (ported === total && scored === ported) state = 'Fully ported; every function has VC71 evidence';
                 else if (ported === total) state = 'Fully ported; evidence is incomplete';
                 else state = 'Partially ported';
@@ -2384,20 +2761,17 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             var lines = [
                 unit.name,
                 st.state,
-                (unitIsPerfect(unit, st) ? 'Byte-accurate: 100% weighted match over all ported bytes' : null),
-                'Ported: ' + st.ported + '/' + st.total + ' functions (' + pctText(st.total ? st.ported / st.total * 100 : 0) + '; ' + pctText(unitMeterPct(st, st.portedBytes, st.ported)) + ' of TU bytes)',
-                'VC71 byte evidence: ' + st.scored + '/' + st.ported + ' ported functions (' + pctText(unitMeterPct(st, st.scoredBytes, st.scored)) + ' of TU bytes; ' + pctText(st.byteCoverage) + ' of ported bytes scored)',
-                'VC71 match score: ' + match + ' (weighted over scored bytes only)',
-                'Verified: ' + st.verified + '/' + st.ported + ' ported functions (' + pctText(unitMeterPct(st, st.verifiedBytes, st.verified)) + ' of TU bytes; ' + pctText(st.ported ? st.verified / st.ported * 100 : 0) + ' of ported functions)'
+                'Ported: ' + st.ported + ' / ' + st.total + ' functions · ' +
+                    pctText(unitMeterPct(st, st.portedBytes, st.ported)) + ' of bytes',
+                'Mnemonic match: ' + match + ' · ' + st.scored + ' / ' + st.ported + ' ported functions scored',
+                'Behavioral matches: ' + st.verified + ' / ' + st.ported + ' ported functions'
             ];
             var methodText = [];
-            if (st.methods.equiv) methodText.push(st.methods.equiv + ' equivalence/Z3');
+            if (st.methods.equiv) methodText.push(st.methods.equiv + ' equivalence');
             if (st.methods.snapshot) methodText.push(st.methods.snapshot + ' snapshot');
-            if (st.methods.runtime) methodText.push(st.methods.runtime + ' runtime oracle');
-            if (st.methods.byte) methodText.push(st.methods.byte + ' VC71 >=90%');
-            lines.push('Verified evidence: ' + (methodText.length ? methodText.join(', ') : 'none'));
-            if (st.divergent) lines.push('Divergence candidates: ' + st.divergent + ' (not counted as verified)');
-            lines.push('Verified is per-function evidence, not a whole-TU correctness proof.');
+            if (st.methods.runtime) methodText.push(st.methods.runtime + ' runtime');
+            lines.push('Checks passed: ' + (methodText.length ? methodText.join(', ') : 'none'));
+            if (st.divergent) lines.push('Needs investigation: ' + st.divergent);
             return lines.filter(function(l) { return l !== null; }).join('\\n');
         }
 
@@ -2409,7 +2783,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 var st = unitEvidenceStats(u);
                 var s = u.summary || {};
                 var match = st.ported > 0 ? s.match_weighted : null;
-                var perfect = unitIsPerfect(u, st);
+                var perfect = unitHasCompleteMnemonicMatch(u, st);
                 var color = perfect ? '#238636' : accuracyColor(match);
                 var portedPct = unitMeterPct(st, st.portedBytes, st.ported);
                 var tip = unitEvidenceTooltip(u, st);
@@ -2424,15 +2798,15 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             var legEl = document.getElementById('tu-legend');
             if (legEl) {
                 var legHtml =
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#238636"></div>100% byte-accurate (fully scored)</div>' +
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#3fb950"></div>&ge;95% match</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#238636"></div>100% mnemonic match (fully scored; not raw-byte exact)</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#3fb950"></div>&ge;95% mnemonic match</div>' +
                     '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#58a6ff"></div>85&ndash;95%</div>' +
                     '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#d29922"></div>70&ndash;85%</div>' +
                     '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#da3633"></div>&lt;70%</div>' +
                     '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#8b949e"></div>unscored</div>' +
                     '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background-color:#58a6ff;background-image:repeating-linear-gradient(-45deg,rgba(0,0,0,0.35),rgba(0,0,0,0.35) 3px,transparent 3px,transparent 6px)"></div>divergence candidate (striped)</div>' +
                     '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:transparent;outline:1px solid #f85149;outline-offset:-1px"></div>divergence candidate outline</div>' +
-                    '<div class="tu-map-note">Bar length = implemented (ported bytes / unit bytes). Color = byte-weighted VC71 match over scored bytes; hover a tile for detail.</div>';
+                    '<div class="tu-map-note">Bar length = implemented (ported bytes / unit bytes). Color = byte-weighted VC71 mnemonic match over scored bytes; hover a tile for detail.</div>';
                 legEl.innerHTML = legHtml;
             }
         }
@@ -2488,7 +2862,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
 
             var legendItems = [
                 ['#2d333b', 'Unported'], ['#444c56', 'Ported'],
-                ['#388bfd', 'Byte-matched'], ['#3fb950', 'Verified']
+                ['#388bfd', 'VC71 scored'], ['#3fb950', 'Behaviorally verified']
             ];
             var legEl = document.getElementById('addr-legend');
             if (legEl) {
@@ -2656,7 +3030,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     tooltip.innerHTML = '<strong>' + escHtml(u.name) + '</strong><br>' +
                         s.ported + ' / ' + s.total + ' functions (' + s.percent.toFixed(1) + '%)<br>' +
                         fmtNum(s.bytes_ported) + ' / ' + fmtNum(s.bytes_total) + ' bytes' +
-                        (s.match_weighted != null ? '<br>Match: ' + s.match_weighted.toFixed(1) + '%' : '');
+                        (s.match_weighted != null ? '<br>Mnemonic match: ' + s.match_weighted.toFixed(1) + '%' : '');
                     tooltip.style.display = 'block';
                     tooltip.style.left = (e.clientX + 12) + 'px';
                     tooltip.style.top = (e.clientY - 10) + 'px';
@@ -2801,9 +3175,8 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 if (sc !== null && sc !== undefined) {
                     var sw = s.match_weighted !== null && s.match_weighted !== undefined ? s.match_weighted : sc;
                     var mClass = matchBadge(sw);
-                    var tip = 'VC71 byte-match (diagnostic): compiled with MSVC 7.1, compared to the original binary.\\n';
-                    tip += 'Average: ' + sc.toFixed(1) + '%  Byte-weighted: ' + sw.toFixed(1) + '%\\n';
-                    tip += 'Has structural ceilings (SEH/fastcall/FPU); not a correctness verdict — see Verified.';
+                    var tip = 'Instruction names and order compared with the original. Exact values are ignored.\\n';
+                    tip += 'Average: ' + sc.toFixed(1) + '% · weighted: ' + sw.toFixed(1) + '%';
                     matchHtml = '<span class="match-indicator" title="' + tip + '"><span class="match-dot ' + mClass + '"></span>' + sw.toFixed(1) + '%</span>';
                 } else {
                     matchHtml = '<span class="pct-none">\u2014</span>';
@@ -2894,12 +3267,12 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 // VC71 scoring is a whole-translation-unit MSVC compile, so this is a
                 // single unit-level action — not per function. Only offered when the
                 // committed bounds table can derive a reference for this unit's
-                // functions; otherwise VC71 byte-match is impossible.
+                // functions; otherwise VC71 mnemonic scoring is impossible.
                 (unit.synthetic ?
-                    '<span class="unit-meta-item pct-none" title="Synthetic platform/common bucket, not a real source translation unit.">Synthetic bucket &middot; excluded from source progress</span>' :
+                    '<span class="unit-meta-item pct-none" title="Platform or shared code grouped for reporting. Not counted as game source progress.">Synthetic bucket &middot; excluded from source progress</span>' :
                 (currentUnitHasRef ?
-                    '<span class="unit-meta-item"><button class="score-btn" data-unit="' + jsEsc(unit.name) + '" onclick="scoreFunction(this)" title="Recompile this unit with MSVC 7.1 and diff against the reference derived from the pristine XBE (bounds: tools/verify/function_bounds.json)">&#x25B6; Score unit (VC71)</button></span>' :
-                    '<span class="unit-meta-item pct-none" title="No entry in tools/verify/function_bounds.json for this unit’s functions — no reference can be derived, so VC71 byte-match is unavailable. Verify behaviorally via equivalence or the runtime oracle.">Not VC71-scoreable</span>'));
+                    '<span class="unit-meta-item"><button class="score-btn" data-unit="' + jsEsc(unit.name) + '" onclick="scoreFunction(this)" title="Rebuild this unit and update its mnemonic scores.">&#x25B6; Score unit (VC71)</button></span>' :
+                    '<span class="unit-meta-item pct-none" title="The original function boundaries are unknown, so mnemonic scoring is unavailable.">Not VC71-scoreable</span>'));
 
             // Unit history chart & Match distribution chart
             renderUnitHistoryChart(unit.name);
@@ -2978,7 +3351,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
 
             if (hasMatchData) {
                 datasets.push({
-                    label: 'Unit Match Accuracy (%)',
+                    label: 'Unit VC71 Mnemonic Match (%)',
                     data: matchWeightedData,
                     borderColor: '#3fb950',
                     backgroundColor: 'rgba(63, 185, 80, 0.08)',
@@ -3097,49 +3470,102 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 if (f.match_percent !== null && f.match_percent !== undefined) {
                     // Advisory operand-normalized score, shown as a muted
                     // secondary value. The primary number and the >=90
-                    // "verified" logic stay on match_percent alone.
+                    // display stays separate from behavioral verification.
                     var opndSuffix = '';
                     if (f.opnd_percent !== null && f.opnd_percent !== undefined) {
-                        opndSuffix = ' <span class="opnd-pct" title="Operand-normalized match: same LCS but comparing mnemonic + operand shape, with immediates normalized to IMM and displacements to OFF. Scored under two register mappings — canonical (positional aliases by first appearance) and identity (real register names) — reporting the higher, so it is a LOWER BOUND rather than a register-order artifact. Because immediates and displacements are erased, it is blind to wrong struct offsets and wrong constants; those are caught by LOADW-WARN and IMM-WARN instead. A large gap against the primary % means the instruction skeleton lines up but the operand shapes / register dataflow do not. Advisory — gates nothing.">· op ' + f.opnd_percent.toFixed(1) + '%</span>';
+                        opndSuffix = ' <span class="opnd-pct" title="Instruction and operand shapes compared with the original. Exact constants and offsets are ignored. This is an extra diagnostic, not a correctness check.">· op ' + f.opnd_percent.toFixed(1) + '%</span>';
                     }
                     matchDisplay = '<span class="num"><span class="match-dot ' + mClass + '"></span>' + f.match_percent.toFixed(1) + '%' + opndSuffix + '</span>';
                 } else if (f.vc71_flagged === 'compile_failed') {
-                    matchDisplay = '<span class="func-status" style="background:#da363322;color:#f85149;border-color:#f85149" title="VC71 compile FAILED for this translation unit (often a clang-ism the C89 CL.Exe rejects: __attribute__, inline in a header, C99 mixed decls). No byte-match evidence until the TU compiles under VC71.">compile fail</span>';
+                    matchDisplay = '<span class="func-status" style="background:#da363322;color:#f85149;border-color:#f85149" title="MSVC 7.1 could not compile this source file, so no mnemonic score is available.">compile fail</span>';
                 } else if (f.vc71_flagged === 'no_reference') {
-                    matchDisplay = '<span class="func-status" style="background:#d2992222;color:#d29922;border-color:#d29922" title="No reference could be derived for this function \u2014 it is missing from tools/verify/function_bounds.json, or its bound is zero-length. Regenerate with tools/verify/function_bounds.py.">no ref</span>';
+                    matchDisplay = '<span class="func-status" style="background:#d2992222;color:#d29922;border-color:#d29922" title="The original function boundaries are missing or empty, so there is nothing to compare.">no ref</span>';
                 } else if (f.ported && !currentUnitHasRef) {
-                    matchDisplay = '<span class="pct-none" title="Not VC71-scoreable (no bounds entry) \u2014 verify via equivalence or the runtime oracle">n/a</span>';
+                    matchDisplay = '<span class="pct-none" title="The original function boundaries are unknown, so mnemonic scoring is unavailable.">n/a</span>';
                 } else {
                     matchDisplay = '<span class="pct-none">\u2014</span>';
+                }
+
+                // Show only the instruction-aligned measurement here.  The old
+                // positional result remains in artifacts for compatibility.
+                var byteDisplay = '<span class="pct-none">\u2014</span>';
+                var strictVerdict = f.raw_byte_verdict;
+                var structuralVerdict = f.raw_xbe_structural_verdict;
+                var byteTip = '';
+                if (strictVerdict === 'raw-byte exact') {
+                    byteTip = 'All bytes match the original. Nothing was ignored.\\n' +
+                        'Size: ' + f.raw_byte_candidate_length + ' bytes.';
+                    byteDisplay = '<span class="func-status ported" title="' + escHtml(byteTip) + '">100%</span>';
+                } else if (f.raw_xbe_aligned_status === 'scored') {
+                    var lower = f.raw_xbe_aligned_lower;
+                    var upper = f.raw_xbe_aligned_upper == null ? lower : f.raw_xbe_aligned_upper;
+                    var rangeText = (lower * 100).toFixed(1) +
+                        (upper !== lower ? '\u2013' + (upper * 100).toFixed(1) : '') + '%';
+                    byteTip = 'Aligned byte match: ' + rangeText + '\\n' +
+                        f.raw_xbe_aligned_matching_bytes + ' / ' + f.raw_xbe_aligned_compared_bytes +
+                        ' bytes match.\\n' +
+                        f.raw_xbe_aligned_exact_instructions + ' / ' +
+                        f.raw_xbe_aligned_instruction_pairs + ' aligned instructions match exactly.\\n' +
+                        'Extra instructions, ours / original: ' + (f.raw_xbe_aligned_candidate_only || 0) +
+                        ' / ' + (f.raw_xbe_aligned_reference_only || 0) + '.';
+                    if (f.raw_xbe_aligned_uncertain_bytes) {
+                        byteTip += '\\nUnknown address bytes: ' + f.raw_xbe_aligned_uncertain_bytes + '.';
+                    }
+                    if (f.raw_xbe_aligned_provisional) {
+                        byteTip += '\\n? means some address bytes could not be matched safely.';
+                    }
+                    byteTip += '\\nThis compares compiled code. It does not prove correct behavior.';
+                    var suffix = f.raw_xbe_aligned_provisional ? '?' : '';
+                    var exactClass = lower === 1 && upper === 1 ? ' ported' : '';
+                    byteDisplay = '<span class="func-status' + exactClass + '" style="background:#d2992222;color:#d29922;border-color:#d29922" title="' +
+                        escHtml(byteTip) + '">' + rangeText + suffix + '</span>';
+                } else if (strictVerdict === 'bytes differ') {
+                    byteTip = 'The compiled bytes differ from the original.\\n' +
+                        'Size, ours / original: ' + f.raw_byte_candidate_length + ' / ' + f.raw_byte_reference_length + ' bytes.';
+                    if (f.raw_byte_first_difference !== null && f.raw_byte_first_difference !== undefined) {
+                        byteTip += '\\nFirst difference at +0x' + Number(f.raw_byte_first_difference).toString(16) + '.';
+                    }
+                    byteTip += '\\nThis alone does not mean the behavior is wrong.';
+                    byteDisplay = '<span class="func-status" style="background:#d2992222;color:#d29922;border-color:#d29922" title="' +
+                        escHtml(byteTip) + '">Differs</span>';
+                } else if (strictVerdict === 'not comparable' || structuralVerdict === 'not comparable') {
+                    byteTip = 'No reliable byte comparison is available for this function.';
+                    byteDisplay = '<span class="pct-none" title="' + escHtml(byteTip) + '">N/C</span>';
                 }
 
                 var vStatus = '<span class="pct-none">—</span>';
                 if (isDivergent(f)) {
                     // Equivalence FAIL — behaviorally differs from the original. A bug
                     // CANDIDATE (some are harness artifacts), not a confirmed bug.
-                    var dtip = 'Equivalence divergence (' + (f.equiv_reason || 'diverged') + ') — investigate.\\n';
+                    var dtip = 'Behavior differed during an equivalence test. Investigate before treating this function as correct.\\n';
                     var why = f.equiv_divergence;
                     if (why && why.message) dtip += why.message + '\\n';
-                    if (why && why.oracle_calls && why.candidate_calls) {
-                        dtip += 'Oracle calls: ' + (why.oracle_calls.join(', ') || '(none)') + '\\n';
-                        dtip += 'Candidate calls: ' + (why.candidate_calls.join(', ') || '(none)') + '\\n';
-                    }
-                    if (f.equiv_log_path) dtip += 'Full log: ' + f.equiv_log_path + '\\n';
-                    dtip += 'Behaves differently from the original under differential testing.';
-                    var whyText = why && why.message ? escHtml(why.message) : 'See equivalence log';
+                    if (f.equiv_log_path) dtip += 'Details: ' + f.equiv_log_path;
+                    var whyText = why && why.message ? escHtml(why.message) : 'See test details';
                     vStatus = '<span class="func-status" style="background:#da363322;color:#f85149;border-color:#f85149" title="' + escHtml(dtip) + '">✗ Divergent</span> ' +
                         '<span class="pct-none" title="' + escHtml(dtip) + '">Why: ' + whyText + '</span> ' +
-                        '<button class="score-btn" data-function="' + jsEsc(f.name) + '" data-address="' + jsEsc(f.address) + '" onclick="rerunEquivalence(this)" title="Re-run 50-seed differential equivalence against the raw pristine XBE">↻ Re-run equiv</button>';
+                        '<button class="score-btn" data-function="' + jsEsc(f.name) + '" data-address="' + jsEsc(f.address) + '" onclick="rerunEquivalence(this)" title="Run the behavioral comparison again.">↻ Re-run equiv</button>';
                 } else if (isVerified(f)) {
                     var reasons = [];
-                    if (f.equiv_proven) reasons.push('Z3-proven');
-                    else if (f.equiv_status === 'pass') reasons.push('Equiv');
-                    if (f.runtime_oracle_passed === true) reasons.push('Oracle');
-                    if (f.snapshot_passed === true) reasons.push('Snap');
-                    if (f.match_percent != null && f.match_percent >= 90) reasons.push('VC71 ' + f.match_percent.toFixed(0) + '%');
-                    vStatus = '<span class="func-status ported" title="' + escHtml(reasons.join(', ')) + '">✓ ' + reasons[0] + '</span>';
+                    var reasonTips = [];
+                    if (f.equiv_proven) {
+                        reasons.push('Z3-proven');
+                        reasonTips.push('Proved equivalent');
+                    } else if (f.equiv_status === 'pass') {
+                        reasons.push('Equiv');
+                        reasonTips.push('Passed equivalence testing');
+                    }
+                    if (f.runtime_oracle_passed === true) {
+                        reasons.push('Oracle');
+                        reasonTips.push('Passed runtime comparison');
+                    }
+                    if (f.snapshot_passed === true) {
+                        reasons.push('Snap');
+                        reasonTips.push('Passed snapshot comparison');
+                    }
+                    vStatus = '<span class="func-status ported" title="' + escHtml(reasonTips.join('. ')) + '">✓ ' + reasons[0] + '</span>';
                 } else if (f.ported) {
-                    vStatus = '<span class="func-status unported">pending</span>';
+                    vStatus = '<span class="func-status unported" title="No behavioral check has passed yet.">pending</span>';
                 }
 
                 html += '<tr>' +
@@ -3148,6 +3574,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     '<td class="num">' + fmtNum(f.size) + '</td>' +
                     '<td class="num">' + statusBadge(f.ported) + '</td>' +
                     '<td class="num">' + matchDisplay + '</td>' +
+                    '<td class="num">' + byteDisplay + '</td>' +
                     '<td class="num">' + vStatus + '</td>' +
                 '</tr>';
             }
@@ -3161,7 +3588,18 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 case 2: return func.size;
                 case 3: return func.ported ? 1 : 0;
                 case 4: return func.match_percent !== null && func.match_percent !== undefined ? func.match_percent : -1;
-                case 5: return isVerified(func) ? 1 : (func.ported ? 0 : -1);
+                case 5:
+                    // Conservative ordering: ranges sort by their lower bound.
+                    if (func.raw_byte_verdict === 'raw-byte exact') return 100;
+                    if (func.raw_xbe_aligned_lower !== null &&
+                        func.raw_xbe_aligned_lower !== undefined) {
+                        return func.raw_xbe_aligned_lower * 100;
+                    }
+                    if (func.raw_byte_verdict === 'bytes differ') return -1;
+                    if (func.raw_byte_verdict === 'not comparable' ||
+                        func.raw_xbe_structural_verdict === 'not comparable') return -2;
+                    return -3;
+                case 6: return isVerified(func) ? 1 : (func.ported ? 0 : -1);
                 default: return '';
             }
         }
@@ -3478,8 +3916,8 @@ def update_readme_progress(report: dict, readme_path: str = 'README.md') -> bool
         f"  `[{func_bar}] {func_pct:.2f}%`\n"
         f"* **Ported Code Bytes:** `{bytes_ported:,} / {bytes_total:,}` (`{bytes_pct:.2f}%`)\n"
         f"  `[{bytes_bar}] {bytes_pct:.2f}%`\n"
-        f"* **Average VC71 Match Accuracy:** `{match_avg:.2f}%` (`{scored_cnt:,}` scored functions, weighted: `{match_weighted:.2f}%`)\n"
-        f"* **Equivalence Verified:** `{equiv_tested:,}` functions tested (`{equiv_hc:,}` high confidence)\n"
+        f"* **Average VC71 Mnemonic Match:** `{match_avg:.2f}%` (`{scored_cnt:,}` scored functions, size-weighted: `{match_weighted:.2f}%`; structural signal, not raw-byte accuracy)\n"
+        f"* **Equivalence Tests:** `{equiv_tested:,}` functions tested (`{equiv_hc:,}` high confidence)\n"
         f"* **Translation Units:** `{progress_units_cnt}` source units (`{platform_units_cnt}` platform/SDK buckets tracked separately)\n\n"
         "> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))\n"
         "<!-- GAME_CODE_PROGRESS_END -->"

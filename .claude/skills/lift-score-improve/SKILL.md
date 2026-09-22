@@ -21,7 +21,7 @@ description: Checklist for recovering VC71 match before declaring a structural c
 Source: `docs/lift-learnings.md` §19, §20, §24, §27, §38; classification rules
 in `tools/verify/vc71_verify.py::_classify_score_context`.
 
-This is score/byte-accuracy content only. Naming, comments, and readability
+This is mnemonic-score recovery only. Naming, comments, and readability
 cleanups are out of scope for this skill — see the `source-recovery` family instead.
 
 ---

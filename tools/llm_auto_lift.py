@@ -733,7 +733,7 @@ _VC71_SCORES_CACHE: Optional[dict[str, dict]] = None
 
 
 def _load_vc71_scores() -> dict[str, dict]:
-    """Return the committed VC71 byte-match cache, keyed by function name.
+    """Return the committed VC71 mnemonic-match cache, keyed by function name.
 
     Shape is {"scores": {name: {"score": float, "source": path}}, "version": N}.
     Empty dict if the file is missing or unreadable -- absence of a prior score
