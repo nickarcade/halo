@@ -31,6 +31,11 @@ on:
     branches: [main]
     paths:
       - 'kb.json'
+      # patch.py resolves ported declarations against build/halo exports.
+      # Source-only renames and unregistered TUs must run this patched-XBE gate.
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'tools/build/**'
       - 'tools/audit/**'
       - 'tools/equivalence/**'
       # A change to this workflow should run this workflow -- otherwise an edit
@@ -39,6 +44,9 @@ on:
   pull_request:
     paths:
       - 'kb.json'
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'tools/build/**'
       - 'tools/audit/**'
       # The equivalence harness self-tests run here rather than in
       # equivalence.yml because several of them (test_xbe_symbol_addrs) read

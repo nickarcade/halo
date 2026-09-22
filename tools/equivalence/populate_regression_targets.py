@@ -151,7 +151,8 @@ def main():
         return 0
 
     for t in new_targets:
-        clean = {k: v for k, v in t.items() if not k.startswith("_")}
+        clean = {k: v for k, v in t.items()
+                 if not k.startswith("_") and k != "name"}
         data["targets"].append(clean)
 
     TARGETS_FILE.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")

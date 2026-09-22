@@ -351,6 +351,20 @@ def load_candidates(leaf_only: bool = False, classes: set = None,
     return candidates
 
 
+def load_function_names() -> dict[str, str]:
+    """Return current kb.json declaration names keyed by original address."""
+    kb = json.loads(KB_JSON.read_text(encoding="utf-8"))
+    names = {}
+    for obj in kb["objects"]:
+        for fn in obj["functions"]:
+            addr = fn.get("addr")
+            decl = fn.get("decl", "")
+            m = re.search(r'\b(\w+)\s*\(', decl)
+            if isinstance(addr, str) and m:
+                names[addr] = m.group(1)
+    return names
+
+
 def load_json(path: Path) -> dict:
     if not path:
         return {}
@@ -393,7 +407,7 @@ def load_targets(path: Path):
 
 
 def load_allowlist(path: Path, oracle: str = "") -> dict[str, set[str]]:
-    """Allowlist entries that apply to `oracle` (all of them when unset).
+    """Address-keyed allowlist entries that apply to `oracle` (all if unset).
 
     An entry may carry `"oracle": "delinked"` to say its excuse belongs to one
     lane.  Most of this file does: 245 `oracle-unmappable` rows say the
@@ -426,24 +440,24 @@ def load_allowlist(path: Path, oracle: str = "") -> dict[str, set[str]]:
             return [str(item) for item in value]
         return []
 
-    for name, value in entries.items():
+    for addr, value in entries.items():
         if isinstance(value, str):
-            allowlist[name] = {value}
+            allowlist[addr] = {value}
         elif isinstance(value, list):
-            allowlist[name] = {str(item) for item in value}
+            allowlist[addr] = {str(item) for item in value}
         elif isinstance(value, dict):
             scope = value.get("oracle")
             if oracle and scope and scope != oracle:
                 continue
-            allowlist[name] = set(values(value.get("statuses", [])))
-            allowlist[name].update(values(value.get("reasons", [])))
+            allowlist[addr] = set(values(value.get("statuses", [])))
+            allowlist[addr].update(values(value.get("reasons", [])))
         else:
-            allowlist[name] = {"*"}
+            allowlist[addr] = {"*"}
     return allowlist
 
 
 def is_allowlisted(row: dict, allowlist: dict[str, set[str]]) -> bool:
-    allowed = allowlist.get(row["name"]) or allowlist.get(row["addr"])
+    allowed = allowlist.get(row["addr"])
     if not allowed:
         return False
     if "*" in allowed:
@@ -794,7 +808,7 @@ def main():
     parser.add_argument("--allowlist", type=Path, default=None,
                         help="JSON allowlist for known failures or not_applicable reasons")
     parser.add_argument("--skip-allowlisted", action="store_true",
-                        help="Do not execute functions named in --allowlist at all "
+                        help="Do not execute functions addressed in --allowlist at all "
                              "(they structurally cannot pass); excludes them from the "
                              "run to reclaim wall-clock time. Off by default so "
                              "allowlisted funcs still get fresh results.")
@@ -860,8 +874,7 @@ def main():
     if args.skip_allowlisted and args.allowlist:
         allowlist = load_allowlist(args.allowlist, args.oracle)
         before = len(candidates)
-        candidates = [c for c in candidates
-                      if c["name"] not in allowlist and c["addr"] not in allowlist]
+        candidates = [c for c in candidates if c["addr"] not in allowlist]
         dropped = before - len(candidates)
         if dropped:
             print(f"Skipping {dropped} allowlisted function(s) "

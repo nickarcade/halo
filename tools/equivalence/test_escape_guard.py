@@ -142,7 +142,7 @@ class TestArtifactMarkerDiscipline(unittest.TestCase):
             marker = t.get("known_artifact")
             if marker is None:
                 continue
-            with self.subTest(target=t["name"]):
+            with self.subTest(target=t["addr"]):
                 self.assertIsInstance(marker, str)
                 self.assertGreater(len(marker), 80,
                                    "a marker must explain itself, not just "
@@ -174,19 +174,15 @@ class TestArtifactMarkerDiscipline(unittest.TestCase):
         """A growing marked set means the harness is getting less useful, not
         that more targets are artifacts.  Fails loudly if it grows.
 
-        `hud_tick_shield` was added as of the name-fix that made its
-        comparison actually run (it had been silently ERRORing on a stale
-        'FUN_000d7cd0' name since kb.json renamed the address, so its verdict
-        was never checked): the smoke log shows an extra _display_assert in
-        the lifted call sequence that the oracle never makes for
-        player_handle=65535, traced to the Unicorn harness not seeding the
-        candidate's synthetic player_data memory from the same initialized
-        state the oracle reads -- a tools/equivalence state-snapshot gap, not
-        a src/ or kb.json bug (see the target's own known_artifact text).
-        `regression_test.py` scores a marked target that passes as a FAILURE
-        precisely so a marker cannot outlive its reason."""
-        marked = sorted(t["name"] for t in self.targets if t.get("known_artifact"))
-        self.assertEqual(marked, ["hud_tick_shield"],
+        Empty as of the raw-XBE oracle flip: `game_state_memory_pool_new` was
+        the only entry, and it was marked because the DELINKED oracle RETed to
+        0x00000000 -- a sibling call whose relocation resolved to nothing.
+        Under `--oracle=xbe` that sibling has real bytes, the target passes
+        40/40 at 100% coverage, and the marker had to go: `regression_test.py`
+        scores a marked target that passes as a FAILURE precisely so a marker
+        cannot outlive its reason."""
+        marked = sorted(t["addr"] for t in self.targets if t.get("known_artifact"))
+        self.assertEqual(marked, [],
                          "the known_artifact set changed; if that is "
                          "deliberate, update this pin in the same commit")
 
@@ -217,7 +213,7 @@ class TestTriagePendingDiscipline(unittest.TestCase):
             marker = t.get("triage_pending")
             if marker is None:
                 continue
-            with self.subTest(target=t["name"]):
+            with self.subTest(target=t["addr"]):
                 self.assertIsInstance(marker, str)
                 self.assertGreater(
                     len(marker), 200,
@@ -228,7 +224,7 @@ class TestTriagePendingDiscipline(unittest.TestCase):
         """They are contradictory claims: one says the harness is at fault,
         the other says nobody knows yet."""
         for t in self.targets:
-            with self.subTest(target=t["name"]):
+            with self.subTest(target=t["addr"]):
                 self.assertFalse(t.get("known_artifact")
                                  and t.get("triage_pending"))
 
@@ -247,7 +243,7 @@ class TestTriagePendingDiscipline(unittest.TestCase):
         self.assertIn("NOT excused failures", self.src)
 
     def test_the_untriaged_set_is_named(self):
-        pending = sorted(t["name"] for t in self.targets
+        pending = sorted(t["addr"] for t in self.targets
                          if t.get("triage_pending"))
         self.assertEqual(pending, [],
                          "the triage_pending set changed; a growing set means "

@@ -1,113 +1,113 @@
 {
-  "description": "Curated runtime-oracle golden-test targets. These are expected to pass in nightly CI and are backed by stable test_harness coverage.",
+  "description": "Curated runtime-oracle golden-test targets. These are expected to pass in nightly CI and are backed by stable test_harness coverage. Function identity is addr; names are derived from kb.json only for reports.",
   "targets": [
     {
-      "target": "FUN_00012140",
       "obj": "rasterizer.obj",
       "timeout": 120,
-      "reason": "curated initial runtime-oracle target; currently passes golden harness"
+      "reason": "curated initial runtime-oracle target; currently passes golden harness",
+      "addr": "0x12140"
     },
     {
-      "target": "FUN_00012170",
       "obj": "rasterizer.obj",
       "timeout": 120,
-      "reason": "curated initial runtime-oracle target; currently passes golden harness"
+      "reason": "curated initial runtime-oracle target; currently passes golden harness",
+      "addr": "0x12170"
     },
     {
-      "target": "normalize3d",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks magnitude and normalized vector components"
+      "reason": "harness checks magnitude and normalized vector components",
+      "addr": "0x13010"
     },
     {
-      "target": "vector3d_scale_add",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks all three output components"
+      "reason": "harness checks all three output components",
+      "addr": "0x12f80"
     },
     {
-      "target": "matrix_transform_point",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks translated point output"
+      "reason": "harness checks translated point output",
+      "addr": "0x109590"
     },
     {
-      "target": "perpendicular3d",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks perpendicular basis result"
+      "reason": "harness checks perpendicular basis result",
+      "addr": "0x10b620"
     },
     {
-      "target": "angles_to_vector",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks spherical-angle conversion output"
+      "reason": "harness checks spherical-angle conversion output",
+      "addr": "0x10cc40"
     },
     {
-      "target": "object_placement_data_new",
       "obj": "objects.obj",
       "timeout": 120,
-      "reason": "harness checks placement buffer fields and tail byte"
+      "reason": "harness checks placement buffer fields and tail byte",
+      "addr": "0x13fc20"
     },
     {
-      "target": "matrix_inverse",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks representative inverse-matrix cells"
+      "reason": "harness checks representative inverse-matrix cells",
+      "addr": "0x109150"
     },
     {
-      "target": "matrix4x3_multiply",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks composed matrix output cells"
+      "reason": "harness checks composed matrix output cells",
+      "addr": "0x109850"
     },
     {
-      "target": "matrix_from_forward_and_up",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks generated orientation matrix"
+      "reason": "harness checks generated orientation matrix",
+      "addr": "0x109e10"
     },
     {
-      "target": "FUN_00013070",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks dot-product result"
+      "reason": "harness checks dot-product result",
+      "addr": "0x13070"
     },
     {
-      "target": "points_interpolate",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks vector interpolation result"
+      "reason": "harness checks vector interpolation result",
+      "addr": "0x10b7d0"
     },
     {
-      "target": "scalars_interpolate",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness checks scalar interpolation result"
+      "reason": "harness checks scalar interpolation result",
+      "addr": "0x10b820"
     },
     {
-      "target": "scalars_interpolate_and_clamp_0_to_1",
       "obj": "math.obj",
       "timeout": 120,
-      "reason": "harness golden case checks clamp-low and clamp-high interpolation outputs"
+      "reason": "harness golden case checks clamp-low and clamp-high interpolation outputs",
+      "addr": "0x10b840"
     },
     {
-      "target": "FUN_000d1c90",
       "obj": "rasterizer.obj",
       "timeout": 120,
-      "reason": "harness checks ARGB-to-pixel conversion"
+      "reason": "harness checks ARGB-to-pixel conversion",
+      "addr": "0xd1c90"
     },
     {
-      "target": "FUN_00115430",
       "obj": "zlib.obj",
       "timeout": 120,
-      "reason": "inflate round-trip harness validates stream teardown path"
+      "reason": "inflate round-trip harness validates stream teardown path",
+      "addr": "0x115430"
     },
     {
-      "target": "FUN_001155c0",
       "obj": "zlib.obj",
       "timeout": 120,
-      "reason": "inflate round-trip harness validates zlib init path"
+      "reason": "inflate round-trip harness validates zlib init path",
+      "addr": "0x1155c0"
     }
   ]
 }

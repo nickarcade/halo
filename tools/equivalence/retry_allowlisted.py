@@ -3,7 +3,7 @@
 
 Why
 ---
-`batch_verify_allowlist.json` holds 383 targets. 334 of them (87%) are
+`batch_verify_allowlist.json` holds address-keyed targets. Most are
 reference-availability or relocation artifacts rather than lift bugs:
 
     243  oracle-unmappable    reference crashes in the zero-fill Unicorn
@@ -103,20 +103,24 @@ def categorize(entry: dict) -> str:
 
 def load_entries(category: str = "") -> list:
     raw = json.loads(ALLOWLIST.read_text(encoding="utf-8"))
+    names = batch_verify.load_function_names()
     out = []
-    for name, entry in (raw.get("targets") or {}).items():
+    for addr, entry in (raw.get("targets") or {}).items():
         if not isinstance(entry, dict):
             entry = {"reasons": [str(entry)]}
         cat = categorize(entry)
         if category and cat != category:
             continue
+        if addr not in names:
+            raise ValueError("allowlist address is absent from kb.json: " + addr)
         out.append({
-            "name": name,
+            "addr": addr,
+            "name": names[addr],
             "category": cat,
             "scoped_oracle": entry.get("oracle"),
             "reasons": entry.get("reasons", []),
         })
-    out.sort(key=lambda r: (r["category"], r["name"]))
+    out.sort(key=lambda r: (r["category"], r["addr"]))
     return out
 
 
@@ -161,11 +165,9 @@ def main() -> int:
                     help="Only retry one category (see the table above)")
     ap.add_argument("--limit", type=int, default=0,
                     help="Retry at most N targets (0 = all)")
-    ap.add_argument("--names", default="",
-                    help="Only retry these comma-separated names, or @<file> "
-                         "for one name per line. Cuts across --category, "
-                         "which is what a targeted re-check needs: a rename "
-                         "batch or a fix spans several categories at once.")
+    ap.add_argument("--addresses", default="",
+                    help="Only retry these comma-separated addresses, or @<file> "
+                         "for one address per line. Cuts across --category.")
     ap.add_argument("--seeds", type=int, default=20)
     ap.add_argument("--timeout", type=int, default=180)
     ap.add_argument("--jobs", type=int, default=3)
@@ -174,16 +176,16 @@ def main() -> int:
     args = ap.parse_args()
 
     entries = load_entries(args.category)
-    if args.names:
-        spec = args.names
+    if args.addresses:
+        spec = args.addresses
         if spec.startswith("@"):
             spec = Path(spec[1:]).read_text(encoding="utf-8")
         wanted = {n.strip() for n in spec.replace(",", "\n").splitlines()
                   if n.strip()}
-        entries = [e for e in entries if e["name"] in wanted]
-        # A name that matches nothing is a typo or a row that is already gone.
+        entries = [e for e in entries if e["addr"] in wanted]
+        # An address that matches nothing is a typo or a row already gone.
         # Silently retrying 15 of 16 would read as a clean result.
-        absent = sorted(wanted - {e["name"] for e in entries})
+        absent = sorted(wanted - {e["addr"] for e in entries})
         if absent:
             print("ERROR: not in the allowlist: " + ", ".join(absent),
                   file=sys.stderr)
@@ -195,11 +197,12 @@ def main() -> int:
         return 0
 
     if args.dry_run:
-        print(f"{'Category':<22} {'Name':<34} Reason")
+        print(f"{'Category':<22} {'Address':<12} {'Name':<34} Reason")
         print("-" * 100)
         for e in entries:
             reason = (e["reasons"] or [""])[0]
-            print(f"{e['category']:<22} {e['name']:<34} {reason[:60]}")
+            print(f"{e['category']:<22} {e['addr']:<12} {e['name']:<34} "
+                  f"{reason[:60]}")
         print(f"\n{len(entries)} target(s)")
         return 0
 
@@ -222,7 +225,7 @@ def main() -> int:
         rec["verdict"] = verdict_of(result)
         done[0] += 1
         print(f"  [{done[0]:3d}/{len(entries)}] {rec['verdict']:<12} "
-              f"{e['name']:<34} {e['category']:<22} "
+              f"{e['addr']:<12} {e['name']:<34} {e['category']:<22} "
               f"{rec['status']}/{rec['reason'] or '-'}")
         return rec
 
@@ -237,14 +240,14 @@ def main() -> int:
         cat[r["verdict"]] = cat.get(r["verdict"], 0) + 1
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    # A --names run must not overwrite the full sweep's artifact: the two
+    # An --addresses run must not overwrite the full sweep's artifact: the two
     # answer different questions and the sweep's is the reviewable one.
-    stem_cat = args.category or ("names" if args.names else "")
+    stem_cat = args.category or ("addresses" if args.addresses else "")
     csv_path, json_path = artifact_paths(args.oracle, stem_cat)
-    cols = ("name", "category", "verdict", "status", "reason",
+    cols = ("addr", "name", "category", "verdict", "status", "reason",
             "coverage_pct", "confidence", "scoped_oracle")
     lines = [",".join(cols)]
-    for r in sorted(records, key=lambda x: (x["category"], x["name"])):
+    for r in sorted(records, key=lambda x: (x["category"], x["addr"])):
         row = []
         for c in cols:
             v = r.get(c)
