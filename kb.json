@@ -16785,25 +16785,40 @@
     },
     {
      "addr": "0x1330f0",
-     "decl": "void FUN_001330f0(int glow_widget@<eax>, int particle_ptr@<esi>);"
+     "decl": "void FUN_001330f0(int glow_widget@<eax>, int particle_ptr@<esi>);",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "FUN_001330f0"
     },
     {
      "addr": "0x133170",
-     "decl": "void glow_trailing_particle_update_size(void);",
-     "comment": "[NAME: glow_trailing_particle_update_size \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void glow_trailing_particle_update_size(int glow_widget@<eax>, int particle_ptr@<esi>);",
+     "comment": "[NAME: glow_trailing_particle_update_size \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "glow_trailing_particle_update_size"
     },
     {
      "addr": "0x1331d0",
-     "decl": "void FUN_001331d0(int glow_widget@<eax>, int particle_ptr@<ecx>);"
+     "decl": "void FUN_001331d0(int glow_widget@<eax>, int particle_ptr@<ecx>);",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "FUN_001331d0"
     },
     {
      "addr": "0x133260",
-     "decl": "void glow_trailing_particle_update_position(void);",
-     "comment": "[NAME: glow_trailing_particle_update_position \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void glow_trailing_particle_update_position(int glow_widget@<eax>, int particle_ptr@<esi>, float delta);",
+     "comment": "[NAME: glow_trailing_particle_update_position \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "glow_trailing_particle_update_position"
     },
     {
      "addr": "0x133300",
-     "decl": "void FUN_00133300(int particle_ptr@<edi>, int object_handle, int glow_widget@<ebx>);"
+     "decl": "void FUN_00133300(int particle_ptr@<edi>, int object_handle, int glow_widget@<ebx>);",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "FUN_00133300"
     },
     {
      "addr": "0x1334f0",
@@ -16819,7 +16834,10 @@
     },
     {
      "addr": "0x1335e0",
-     "decl": "float FUN_001335e0(float a, float b, float c, float d, float w_a, float w_b, float w_c, float w_d, float w_e);"
+     "decl": "float FUN_001335e0(float a, float b, float c, float d, float w_a, float w_b, float w_c, float w_d, float w_e);",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "FUN_001335e0"
     },
     {
      "addr": "0x1336a0",
@@ -16836,7 +16854,10 @@
     },
     {
      "addr": "0x1339a0",
-     "decl": "void get_particle_world_position(int glow_widget@<eax>, int particle_ptr, float param_3);"
+     "decl": "void get_particle_world_position(int glow_widget@<eax>, int particle_ptr, float param_3);",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "get_particle_world_position"
     },
     {
      "addr": "0x134070",

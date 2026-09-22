@@ -2548,4 +2548,164 @@ co(triangle_buffer, field_04,        0x04);
 co(triangle_buffer, field_08,        0x08);
 co(triangle_buffer, hardware_format, 0x0c);
 
+/* Glow widget types (objects/widgets/glow.c; code split across
+ * src/halo/objects/objects.c and src/halo/objects/widgets/glow.c, hence
+ * shared here). Rendered from recovery/evidence/{object_marker,glow_particle,
+ * glow_datum,glow_definition}.json; fix the artifact, not this copy. */
+/// size=0x6C  (glow_datum marker stride: IMUL EAX,EAX,0x6c @0x133b69 in get_particle_world_position)
+/// stride=0x6C  (IMUL EAX,EAX,0x6c @0x133b69; widget+idx*0x6c+0x44 in glow_render)
+/// Recovered layout - evidence artifact: recovery/evidence/object_marker.json
+/// matrix is a real_matrix4x3 (scale, forward, left, up, position) at +0x38; only forward/up/position are observed accessed here.
+/// Offsets 0x00-0x3b are not accessed by glow code and stay padding until another consumer proves them.
+/// evidence: get_particle_world_position @0x1339a0
+/// evidence: glow_render @0x133520
+/// evidence: PAL reference source/objects/objects.h struct object_marker {short node_index; real_matrix4x3 node_matrix; real_matrix4x3 matrix;} (names only)
+typedef struct object_marker {
+    uint8_t pad_00[60];       ///< offset=0x00  declared padding
+    float matrix_forward[3];  ///< offset=0x3C  FMUL [EAX+0x44..0x4c] rel. glow_datum = marker+0x3c (cross product @0x133b7a-0x133bf0); name: PAL-2342 (T2) (real_matrix4x3.forward)
+    uint8_t pad_48[12];       ///< offset=0x48  declared padding
+    float matrix_up[3];       ///< offset=0x54  dword copy from EAX+0x5c = marker+0x54 @0x133b91 and cross product operands; name: PAL-2342 (T2) (real_matrix4x3.up)
+    float matrix_position[3]; ///< offset=0x60  dword copy from EAX+0x68 = marker+0x60 @0x133b72; glow_trailing_particle_new copies widget+0x68; name: PAL-2342 (T2) (real_matrix4x3.position)
+} object_marker;
+cs(object_marker, 0x6C);
+co(object_marker, pad_00, 0x00);
+co(object_marker, matrix_forward, 0x3C);
+co(object_marker, pad_48, 0x48);
+co(object_marker, matrix_up, 0x54);
+co(object_marker, matrix_position, 0x60);
+
+/// size=0x64  (data_new("glow particles", 0x200, 0x64) @0x13377f in glow_initialize (0x133750))
+/// Recovered layout - evidence artifact: recovery/evidence/glow_particle.json
+/// Field names come from the PAL 2342 reference (T2) unless an evidence line cites a 2276 string; every offset and width is from 2276 disassembly.
+/// color is PAL real_argb_color: alpha +0x0c, red +0x10, green +0x14, blue +0x18 (FUN_00133300 stores alpha=1.0 via MOV [EDI+0xc] and rgb via FSTP [EDI+0x10..0x18]).
+/// evidence: glow_initialize @0x133750 (pool element size)
+/// evidence: FUN_001330f0 @0x1330f0, glow_trailing_particle_update_size @0x133170, FUN_001331d0 @0x1331d0, glow_trailing_particle_update_position @0x133260 (trailing particle fields)
+/// evidence: FUN_00133300 @0x133300 (color/fade), get_particle_world_position @0x1339a0 (marker index, t, position, angle, distance)
+/// evidence: glow_delete @0x1330a0 (index, next), glow_update @0x1345b0 (flags, previous)
+/// evidence: PAL reference /mnt/g/dev/halo-pal-2342 source/objects/widgets/glow.c struct glow_particle (names only; layout re-proven here)
+typedef struct glow_particle {
+    int16_t datum_salt;          ///< offset=0x00  standard data_t element prefix (pool from data_new @0x13377f); not accessed in the glow cluster
+    int16_t parent_marker_index; ///< offset=0x02  MOV word [EDI+0x2],AX @0x133a2b stores PIN(marker_index,...); MOVSX EAX,word [EDI+0x2] @0x133c5e; name: PAL-2342 (T2)
+    int32_t index;               ///< offset=0x04  datum index passed to datum_delete(glow particle pool) in glow_delete; name: PAL-2342 (T2)
+    float initial_angle;         ///< offset=0x08  FADD [EDI+0x8] @0x134005 (angle = rate*t + initial_angle); name: PAL-2342 (T2)
+    float color_alpha;           ///< offset=0x0C  MOV dword [EDI+0xc],1.0f @0x133391; name: PAL-2342 (T2)
+    float color_red;             ///< offset=0x10  FSTP [EDI+0x10] @0x133363; name: PAL-2342 (T2)
+    float color_green;           ///< offset=0x14  FSTP [EDI+0x14] @0x13337a; name: PAL-2342 (T2)
+    float color_blue;            ///< offset=0x18  FSTP [EDI+0x18] @0x133394; name: PAL-2342 (T2)
+    float distance_to_object;    ///< offset=0x1C  FMUL [EDI+0x1c] @0x13401f (orbit radius); name: PAL-2342 (T2)
+    float initial_size;          ///< offset=0x20  FMUL [ESI+0x20] @0x1331c1; name: PAL-2342 (T2)
+    float present_size;          ///< offset=0x24  FSTP [ESI+0x24] @0x1331c4; name: PAL-2342 (T2)
+    float t;                     ///< offset=0x28  FCOMP [EDI+0x28] @0x1339c7 against marker times; spline parameter (assert "t>= t0 && t <= t3" @0x29aae4); name: PAL-2342 (T2)
+    float position[3];           ///< offset=0x2C  FADD/FSTP [ESI+0x2c/0x30/0x34] @0x13327d-0x133298; spline output pointer LEA ESI,[EDI+0x2c] @0x133f8d; name: PAL-2342 (T2)
+    float initial_velocity[3];   ///< offset=0x38  FMUL [ESI+0x38/0x3c/0x40] @0x133226-0x133234; name: PAL-2342 (T2)
+    float present_velocity[3];   ///< offset=0x44  FSTP [ESI+0x44/0x48/0x4c] @0x133229-0x133237; FMUL [ESI+0x44] @0x133277; name: PAL-2342 (T2)
+    int16_t ticks_in_existence;  ///< offset=0x50  MOVSX EDX,word [ESI+0x50] @0x133110; name: PAL-2342 (T2)
+    int16_t lifetime;            ///< offset=0x52  MOVSX EAX,word [ESI+0x52] @0x133114; name: PAL-2342 (T2)
+    uint32_t flags;              ///< offset=0x54  bit tests (&2 trailing, &1 reverse) in glow_update / glow_normal_particle_update_position, dword OR-store of bit 0; name: PAL-2342 (T2)
+    float fade;                  ///< offset=0x58  FST [ESI+0x58] @0x133130; FSTP [EDI+0x58] @0x133428; name: PAL-2342 (T2)
+    struct glow_particle *next;  ///< offset=0x5C  next-link read before datum_delete in glow_delete @0x1330c1; list walk in glow_render; name: PAL-2342 (T2)
+    struct glow_particle *previous; ///< offset=0x60  previous-link read when unlinking an expired trailing particle in glow_update; name: PAL-2342 (T2)
+} glow_particle;
+cs(glow_particle, 0x64);
+co(glow_particle, datum_salt, 0x00);
+co(glow_particle, parent_marker_index, 0x02);
+co(glow_particle, index, 0x04);
+co(glow_particle, initial_angle, 0x08);
+co(glow_particle, color_alpha, 0x0C);
+co(glow_particle, color_red, 0x10);
+co(glow_particle, color_green, 0x14);
+co(glow_particle, color_blue, 0x18);
+co(glow_particle, distance_to_object, 0x1C);
+co(glow_particle, initial_size, 0x20);
+co(glow_particle, present_size, 0x24);
+co(glow_particle, t, 0x28);
+co(glow_particle, position, 0x2C);
+co(glow_particle, initial_velocity, 0x38);
+co(glow_particle, present_velocity, 0x44);
+co(glow_particle, ticks_in_existence, 0x50);
+co(glow_particle, lifetime, 0x52);
+co(glow_particle, flags, 0x54);
+co(glow_particle, fade, 0x58);
+co(glow_particle, next, 0x5C);
+co(glow_particle, previous, 0x60);
+
+/// size=0x25C  (data_new("glow", 8, 0x25c) @0x133759 in glow_initialize (0x133750))
+/// Recovered layout - evidence artifact: recovery/evidence/glow_datum.json
+/// 0x08..0x223 is object_marker markers[5] (5 * 0x6c, see object_marker.json). The schema has no struct-typed field kind, so the region is recorded as one gap here and the placed struct embeds object_marker markers[5]; the co() on markers is the check.
+/// marker count 5 = (0x224 - 0x08) / 0x6c; PAL MAXIMUM_GLOW_MARKERS = 5.
+/// evidence: glow_initialize @0x133750
+/// evidence: get_particle_world_position @0x1339a0
+/// evidence: glow_delete @0x1330a0
+/// evidence: glow_render @0x133520
+/// evidence: FUN_001330f0/..._update_size/FUN_001331d0/..._update_position/FUN_00133300 (definition_index +0x224)
+/// evidence: PAL reference source/objects/widgets/glow.c struct glow_datum (names only; layout re-proven here)
+typedef struct glow_datum {
+    int16_t datum_salt;                                     ///< offset=0x00  standard data_t element prefix (pool from data_new @0x133759)
+    uint8_t pad_02[2];                                      ///< offset=0x02  declared padding
+    int16_t number_of_markers;                              ///< offset=0x04  assert "glow->number_of_markers > 1" @0x29ab88 (glow.c:0x43b); MOVSX EDX,word [ESI+0x4] @0x1339ad
+    uint8_t pad_06[2];                                      ///< offset=0x06  declared padding
+    object_marker markers[5];                                    ///< offset=0x08  5 * 0x6c (see recovery/evidence/object_marker.json)
+    int32_t definition_index;                               ///< offset=0x224  tag_get('glw!', [EAX+0x224]) @0x1330f4; name: PAL-2342 (T2)
+    uint8_t pad_228[2];                                     ///< offset=0x228  declared padding
+    int16_t marker_order[5];                                ///< offset=0x22A  MOVSX EAX,word [ECX] with ECX = widget+first*2+0x22a @0x133b2d/0x133b66; name: PAL-2342 (T2)
+    float total_time;                                       ///< offset=0x234  FDIV [EBX+0x234] @0x133406; name: PAL-2342 (T2)
+    float marker_time_index[5];                             ///< offset=0x238  FLD [ESI+ECX*4+0x238] @0x1339c0; name: PAL-2342 (T2)
+    uint16_t number_of_particles;                           ///< offset=0x24C  zero-extended word load (XOR ECX,ECX; MOV CX,[..+0x24c]) @0x133554 in glow_render; name: PAL-2342 (T2)
+    uint8_t pad_24e[2];                                     ///< offset=0x24E  declared padding
+    glow_particle *head_particle;                           ///< offset=0x250  list head read in glow_delete/glow_render (widget+0x250); name: PAL-2342 (T2)
+    uint8_t pad_254[4];                                     ///< offset=0x254  declared padding
+    int16_t accumulated_trailing_particle_generation_ticks; ///< offset=0x258  word add of game_time_get() into widget+0x258 in glow_update; name: PAL-2342 (T2)
+    uint8_t pad_25a[2];                                     ///< offset=0x25A  declared padding
+} glow_datum;
+cs(glow_datum, 0x25C);
+co(glow_datum, datum_salt, 0x00);
+co(glow_datum, pad_02, 0x02);
+co(glow_datum, number_of_markers, 0x04);
+co(glow_datum, pad_06, 0x06);
+co(glow_datum, markers, 0x08);
+co(glow_datum, definition_index, 0x224);
+co(glow_datum, pad_228, 0x228);
+co(glow_datum, marker_order, 0x22A);
+co(glow_datum, total_time, 0x234);
+co(glow_datum, marker_time_index, 0x238);
+co(glow_datum, number_of_particles, 0x24C);
+co(glow_datum, pad_24e, 0x24E);
+co(glow_datum, head_particle, 0x250);
+co(glow_datum, pad_254, 0x254);
+co(glow_datum, accumulated_trailing_particle_generation_ticks, 0x258);
+co(glow_datum, pad_25a, 0x25A);
+
+/// Recovered layout - evidence artifact: recovery/evidence/glow_definition.json
+/// Partial: only offsets proven by the listed functions are typed; the rest stay padding for structize split to refine.
+/// color bounds are PAL real_argb_color (alpha first); the alpha slots +0xb4/+0xc4 are not observed accessed and stay padding.
+/// size is omitted: tag definitions have no pool/allocation size in this code.
+/// evidence: FUN_001330f0 @0x1330f0, glow_trailing_particle_update_size @0x133170, FUN_001331d0 @0x1331d0 (flags bits 3/4/5)
+/// evidence: FUN_00133300 @0x133300 (color attachment, color bounds, rate, edge fade, flags bit 0)
+/// evidence: PAL reference source/objects/widgets/glow.c struct glow_definition (names only; size 0x154 there, unproven here)
+typedef struct glow_definition {
+    uint8_t pad_00[40];              ///< offset=0x00  declared padding
+    uint32_t flags;                  ///< offset=0x28  TEST byte [EAX+0x28],0x8/0x10/0x20 @0x13310b/0x13318b/0x1331ee, TEST byte [ESI+0x28],0x1 @0x1333a0; name: PAL-2342 (T2)
+    uint8_t pad_2c[132];             ///< offset=0x2C  declared padding
+    uint16_t color_attachment_index; ///< offset=0xB0  XOR EAX,EAX; MOV AX,[ESI+0xb0]; CMP AX,0xffff @0x133318-0x133324 (zero-extended); name: PAL-2342 (T2)
+    uint8_t pad_b2[6];               ///< offset=0xB2  declared padding
+    float color_lower_bound_rgb[3];  ///< offset=0xB8  FSUB/FADD [ESI+0xb8/0xbc/0xc0] @0x133355-0x13338b; name: PAL-2342 (T2) (color_lower_bound.red..blue)
+    uint8_t pad_c4[4];               ///< offset=0xC4  declared padding
+    float color_upper_bound_rgb[3];  ///< offset=0xC8  FLD [ESI+0xc8/0xcc/0xd0] @0x13334a-0x13337d; name: PAL-2342 (T2) (color_upper_bound.red..blue)
+    uint8_t pad_d4[32];              ///< offset=0xD4  declared padding
+    float color_rate_of_change;      ///< offset=0xF4  FMUL [ESI+0xf4] @0x1333b2; name: PAL-2342 (T2)
+    float percentage_edge_fade;      ///< offset=0xF8  FLD [ESI+0xf8]; FMUL 0.5 @0x13340c; name: PAL-2342 (T2)
+} glow_definition;
+/* size unproven - largest observed access at 0xFC */
+co(glow_definition, pad_00, 0x00);
+co(glow_definition, flags, 0x28);
+co(glow_definition, pad_2c, 0x2C);
+co(glow_definition, color_attachment_index, 0xB0);
+co(glow_definition, pad_b2, 0xB2);
+co(glow_definition, color_lower_bound_rgb, 0xB8);
+co(glow_definition, pad_c4, 0xC4);
+co(glow_definition, color_upper_bound_rgb, 0xC8);
+co(glow_definition, pad_d4, 0xD4);
+co(glow_definition, color_rate_of_change, 0xF4);
+co(glow_definition, percentage_edge_fade, 0xF8);
+
 #endif /* TYPES_H */

@@ -1,0 +1,194 @@
+{
+  "schema": 1,
+  "struct": "glow_particle",
+  "size": {
+    "value": "0x64",
+    "evidence": "data_new(\"glow particles\", 0x200, 0x64) @0x13377f in glow_initialize (0x133750)"
+  },
+  "sources": [
+    "glow_initialize @0x133750 (pool element size)",
+    "FUN_001330f0 @0x1330f0, glow_trailing_particle_update_size @0x133170, FUN_001331d0 @0x1331d0, glow_trailing_particle_update_position @0x133260 (trailing particle fields)",
+    "FUN_00133300 @0x133300 (color/fade), get_particle_world_position @0x1339a0 (marker index, t, position, angle, distance)",
+    "glow_delete @0x1330a0 (index, next), glow_update @0x1345b0 (flags, previous)",
+    "PAL reference /mnt/g/dev/halo-pal-2342 source/objects/widgets/glow.c struct glow_particle (names only; layout re-proven here)"
+  ],
+  "notes": [
+    "Field names come from the PAL 2342 reference (T2) unless an evidence line cites a 2276 string; every offset and width is from 2276 disassembly.",
+    "color is PAL real_argb_color: alpha +0x0c, red +0x10, green +0x14, blue +0x18 (FUN_00133300 stores alpha=1.0 via MOV [EDI+0xc] and rgb via FSTP [EDI+0x10..0x18])."
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 2,
+      "signed": true,
+      "name": "datum_salt",
+      "confidence": "typed",
+      "evidence": "standard data_t element prefix (pool from data_new @0x13377f); not accessed in the glow cluster"
+    },
+    {
+      "offset": "0x02",
+      "width": 2,
+      "signed": true,
+      "name": "parent_marker_index",
+      "confidence": "typed",
+      "evidence": "MOV word [EDI+0x2],AX @0x133a2b stores PIN(marker_index,...); MOVSX EAX,word [EDI+0x2] @0x133c5e; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x04",
+      "width": 4,
+      "signed": true,
+      "name": "index",
+      "confidence": "typed",
+      "evidence": "datum index passed to datum_delete(glow particle pool) in glow_delete; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x08",
+      "width": 4,
+      "kind": "float",
+      "name": "initial_angle",
+      "confidence": "typed",
+      "evidence": "FADD [EDI+0x8] @0x134005 (angle = rate*t + initial_angle); name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x0c",
+      "width": 4,
+      "kind": "float",
+      "name": "color_alpha",
+      "confidence": "typed",
+      "evidence": "MOV dword [EDI+0xc],1.0f @0x133391; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x10",
+      "width": 4,
+      "kind": "float",
+      "name": "color_red",
+      "confidence": "typed",
+      "evidence": "FSTP [EDI+0x10] @0x133363; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x14",
+      "width": 4,
+      "kind": "float",
+      "name": "color_green",
+      "confidence": "typed",
+      "evidence": "FSTP [EDI+0x14] @0x13337a; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x18",
+      "width": 4,
+      "kind": "float",
+      "name": "color_blue",
+      "confidence": "typed",
+      "evidence": "FSTP [EDI+0x18] @0x133394; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x1c",
+      "width": 4,
+      "kind": "float",
+      "name": "distance_to_object",
+      "confidence": "typed",
+      "evidence": "FMUL [EDI+0x1c] @0x13401f (orbit radius); name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x20",
+      "width": 4,
+      "kind": "float",
+      "name": "initial_size",
+      "confidence": "typed",
+      "evidence": "FMUL [ESI+0x20] @0x1331c1; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x24",
+      "width": 4,
+      "kind": "float",
+      "name": "present_size",
+      "confidence": "typed",
+      "evidence": "FSTP [ESI+0x24] @0x1331c4; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x28",
+      "width": 4,
+      "kind": "float",
+      "name": "t",
+      "confidence": "typed",
+      "evidence": "FCOMP [EDI+0x28] @0x1339c7 against marker times; spline parameter (assert \"t>= t0 && t <= t3\" @0x29aae4); name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x2c",
+      "width": 4,
+      "kind": "float",
+      "array_len": 3,
+      "name": "position",
+      "confidence": "typed",
+      "evidence": "FADD/FSTP [ESI+0x2c/0x30/0x34] @0x13327d-0x133298; spline output pointer LEA ESI,[EDI+0x2c] @0x133f8d; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x38",
+      "width": 4,
+      "kind": "float",
+      "array_len": 3,
+      "name": "initial_velocity",
+      "confidence": "typed",
+      "evidence": "FMUL [ESI+0x38/0x3c/0x40] @0x133226-0x133234; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x44",
+      "width": 4,
+      "kind": "float",
+      "array_len": 3,
+      "name": "present_velocity",
+      "confidence": "typed",
+      "evidence": "FSTP [ESI+0x44/0x48/0x4c] @0x133229-0x133237; FMUL [ESI+0x44] @0x133277; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x50",
+      "width": 2,
+      "signed": true,
+      "name": "ticks_in_existence",
+      "confidence": "typed",
+      "evidence": "MOVSX EDX,word [ESI+0x50] @0x133110; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x52",
+      "width": 2,
+      "signed": true,
+      "name": "lifetime",
+      "confidence": "typed",
+      "evidence": "MOVSX EAX,word [ESI+0x52] @0x133114; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x54",
+      "width": 4,
+      "signed": false,
+      "name": "flags",
+      "confidence": "typed",
+      "evidence": "bit tests (&2 trailing, &1 reverse) in glow_update / glow_normal_particle_update_position, dword OR-store of bit 0; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x58",
+      "width": 4,
+      "kind": "float",
+      "name": "fade",
+      "confidence": "typed",
+      "evidence": "FST [ESI+0x58] @0x133130; FSTP [EDI+0x58] @0x133428; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x5c",
+      "width": 4,
+      "kind": "pointer",
+      "points_to": "glow_particle",
+      "name": "next",
+      "confidence": "typed",
+      "evidence": "next-link read before datum_delete in glow_delete @0x1330c1; list walk in glow_render; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x60",
+      "width": 4,
+      "kind": "pointer",
+      "points_to": "glow_particle",
+      "name": "previous",
+      "confidence": "typed",
+      "evidence": "previous-link read when unlinking an expired trailing particle in glow_update; name: PAL-2342 (T2)"
+    }
+  ]
+}

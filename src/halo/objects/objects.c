@@ -347,10 +347,10 @@ void bored_camera_update(int *param_1, unsigned short *param_2,
   }
 }
 
-/* scripted_camera_enable (0x84fe0) — Set the bored-camera enable flag and mark the
- * camera state dirty so it will be re-evaluated this tick.
- * Object: objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc
- * global block with the confirmed bored_camera.c assert at 0x84ae0).
+/* scripted_camera_enable (0x84fe0) — Set the bored-camera enable flag and mark
+ * the camera state dirty so it will be re-evaluated this tick. Object:
+ * objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc global block
+ * with the confirmed bored_camera.c assert at 0x84ae0).
  *
  * Confirmed: MOV AL,[param_1]; MOV [0x2ee5a0],AL; MOV byte ptr [0x2ee5a1],1.
  * Renamed scripted_camera_enable reverted: name contradicted its own cited
@@ -362,8 +362,8 @@ void scripted_camera_enable(unsigned char param_1)
   *(char *)0x2ee5a1 = 1;
 }
 
-/* scripted_camera_set_animation (0x85000 / objects.obj) — select a scripted animation camera
- * by name from an 'antr' tag and update the camera globals.
+/* scripted_camera_set_animation (0x85000 / objects.obj) — select a scripted
+ * animation camera by name from an 'antr' tag and update the camera globals.
  *
  * Confirmed: tag block at +0x74, element stride 0xb4, name at element+0,
  * camera duration at element+0x22, and the matched index at +0x2ee5dc.
@@ -406,8 +406,8 @@ void scripted_camera_set_animation(int animation_tag, const char *camera_name)
   }
 }
 
-/* scripted_camera_set_first_person (0x850d0) — Switch to first-person camera mode 2 for the
- * given unit handle, or report an error if the handle is -1.
+/* scripted_camera_set_first_person (0x850d0) — Switch to first-person camera
+ * mode 2 for the given unit handle, or report an error if the handle is -1.
  * Object: objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc
  * global block with the confirmed bored_camera.c assert at 0x84ae0).
  *
@@ -431,7 +431,8 @@ void scripted_camera_set_first_person(int param_1)
  * the given unit handle, or report an error if the handle is -1. Object:
  * objects.obj / source: bored_camera.c
  *
- * Confirmed: identical to scripted_camera_set_first_person but stores 3 in DAT_002ee5a2.
+ * Confirmed: identical to scripted_camera_set_first_person but stores 3 in
+ * DAT_002ee5a2.
  */
 void scripted_camera_set_dead(int param_1)
 {
@@ -1065,10 +1066,10 @@ int game_engine_remap_object_definition(int tag_index)
   return tag_index;
 }
 
-/* game_engine_get_state_message / objects.obj -- determine respawn state for a player.
- * Returns the "HUD text was produced" flag in AL (original only ever sets AL;
- * see xor al,al at 0xae23e). hud_show_action_response (unported) draws the buffer only
- * when this returns nonzero. */
+/* game_engine_get_state_message / objects.obj -- determine respawn state for a
+ * player. Returns the "HUD text was produced" flag in AL (original only ever
+ * sets AL; see xor al,al at 0xae23e). hud_show_action_response (unported) draws
+ * the buffer only when this returns nonzero. */
 char game_engine_get_state_message(int param_1, int param_2, int param_3)
 {
   int player;
@@ -1124,8 +1125,9 @@ char game_engine_get_state_message(int param_1, int param_2, int param_3)
 
   /* Live player: both aceb0 paths RETURN the dispatcher's AL ("text was
    * produced"), per original 0xae205-0xae21c and 0xae21d-0xae23d -- there is
-   * no xor al,al before those rets. The unported caller hud_show_action_response only
-   * draws the buffer when this returns nonzero (test al,al at 0xd0931). */
+   * no xor al,al before those rets. The unported caller
+   * hud_show_action_response only draws the buffer when this returns nonzero
+   * (test al,al at 0xd0931). */
   time = game_time_get();
   if (time < 0x1c2) {
     result = FUN_000aceb0(param_2, param_3, -1, param_1, 0x1d);
@@ -1270,6 +1272,199 @@ void glow_delete(int widget_datum)
   datum_delete(*(data_t **)0x5a90c8, widget_datum);
 }
 
+/* FUN_001330f0 (0x1330f0 / objects.obj / glow.c) — age-based fade of a
+ * trailing glow particle (the PAL reference calls it
+ * glow_trailing_particle_update_color). If glowdef flag 0x8 (byte +0x28) is
+ * set, fade (+0x58) = 1 - age(+0x50) / lifetime(+0x52), pinned to [0,1];
+ * otherwise fade = 1.
+ *
+ * glow_widget arrives in EAX and particle_ptr in ESI (both read uninitialized
+ * at 0x1330f4 / 0x133110). Sole caller: glow_update (0x1348f5). The fade is
+ * FST'd to +0x58 before the pin compares (0x133130), so the pin is a second
+ * assignment of the same field, not a local. */
+void FUN_001330f0(int glow_widget, int particle_ptr)
+{
+  glow_particle *particle;
+  glow_definition *definition;
+
+  particle = (glow_particle *)particle_ptr;
+  definition = (glow_definition *)tag_get(
+    0x676c7721, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags & 0x8) != 0) {
+    particle->fade = *(float *)0x2533c8 -
+                     (float)particle->ticks_in_existence / particle->lifetime;
+    particle->fade = particle->fade < *(float *)0x2533c0
+                       ? *(float *)0x2533c0
+                       : (particle->fade > *(float *)0x2533c8
+                            ? *(float *)0x2533c8
+                            : particle->fade);
+  } else {
+    particle->fade = 1.0f;
+  }
+}
+
+/* glow_trailing_particle_update_size (0x133170 / objects.obj / glow.c) — if
+ * glowdef flag 0x10 is set, size (+0x24) = max(0, 1 - age/lifetime) *
+ * initial size (+0x20).
+ *
+ * No call xrefs: glow_update inlines the same body. ABI is taken from the body
+ * alone: EAX (glow_widget, 0x133174) and ESI (particle_ptr, 0x133190) are read
+ * without being set. The max is `0 > scale ? 0 : scale` -- FLD 0; FCOMP
+ * (0x1331aa-0x1331b0) puts the constant first. */
+void glow_trailing_particle_update_size(int glow_widget, int particle_ptr)
+{
+  glow_particle *particle;
+  glow_definition *definition;
+  float scale;
+
+  particle = (glow_particle *)particle_ptr;
+  definition = (glow_definition *)tag_get(
+    0x676c7721, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags & 0x10) != 0) {
+    scale = *(float *)0x2533c8 -
+            (float)particle->ticks_in_existence / particle->lifetime;
+    scale = 0.0f > scale ? 0.0f : scale;
+    particle->present_size = scale * particle->initial_size;
+  }
+}
+
+/* FUN_001331d0 (0x1331d0 / objects.obj / glow.c) — velocity of a trailing
+ * glow particle (the PAL reference calls it
+ * glow_trailing_particle_update_velocity). If glowdef flag 0x20 is set,
+ * velocity (+0x44) = max(0, 1 - age/lifetime) * initial velocity (+0x38);
+ * otherwise velocity = initial velocity (3-dword copy, 0x13323f-0x133252).
+ *
+ * glow_widget arrives in EAX and particle_ptr in ECX (MOV ESI,ECX at
+ * 0x1331d5). Sole caller: glow_update (0x134951). */
+void FUN_001331d0(int glow_widget, int particle_ptr)
+{
+  glow_particle *particle;
+  glow_definition *definition;
+  float scale;
+
+  particle = (glow_particle *)particle_ptr;
+  definition = (glow_definition *)tag_get(
+    0x676c7721, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags & 0x20) != 0) {
+    scale = *(float *)0x2533c8 -
+            (float)particle->ticks_in_existence / particle->lifetime;
+    scale = 0.0f > scale ? 0.0f : scale;
+    particle->present_velocity[0] = scale * particle->initial_velocity[0];
+    particle->present_velocity[1] = scale * particle->initial_velocity[1];
+    particle->present_velocity[2] = scale * particle->initial_velocity[2];
+  } else {
+    *(vector3_t *)particle->present_velocity =
+      *(vector3_t *)particle->initial_velocity;
+  }
+}
+
+/* glow_trailing_particle_update_position (0x133260 / objects.obj / glow.c) —
+ * integrate a trailing particle's position (+0x2c) by delta * velocity
+ * (+0x44).
+ *
+ * No call xrefs: glow_update inlines the same body. ABI is taken from the body
+ * alone: EAX (glow_widget, 0x133263) and ESI (particle_ptr, 0x133277) are read
+ * without being set, and delta is the single cdecl stack arg ([EBP+8]). The
+ * glowdef lookup's result is unused (it is never read after the CALL). */
+void glow_trailing_particle_update_position(int glow_widget, int particle_ptr,
+                                            float delta)
+{
+  glow_particle *particle;
+
+  particle = (glow_particle *)particle_ptr;
+  tag_get(0x676c7721, ((glow_datum *)glow_widget)->definition_index);
+  particle->position[0] =
+    delta * particle->present_velocity[0] + particle->position[0];
+  particle->position[1] =
+    delta * particle->present_velocity[1] + particle->position[1];
+  particle->position[2] =
+    delta * particle->present_velocity[2] + particle->position[2];
+}
+
+/* FUN_00133300 (0x133300 / objects.obj / glow.c) — color and edge fade of a
+ * normal glow particle (the PAL reference calls it
+ * glow_normal_particle_update_color).
+ *
+ *  - If the glowdef's color function index (u16 +0xb0) is not 0xffff, color
+ *    rgb (+0x10..+0x18) = lerp(lower +0xb8, upper +0xc8, function value, or 0
+ *    if object_get_function_value fails), and alpha (+0xc) = 1.
+ *  - If glowdef flag 0x1 is set, color rgb = lower + (upper - lower) *
+ *    rate(+0xf4) * particle t(+0x28), and alpha = 1.
+ *  - fade (+0x58): t = particle t / glow total time (+0x234),
+ *    edge = glowdef +0xf8 * 0.5; ramp up over [0,edge), down over
+ *    (1-edge,1], else 1; then pinned to [0,1].
+ *
+ * particle_ptr arrives in EDI and glow_widget in EBX; object_handle is the
+ * single stack arg. Sole caller: glow_update (0x1348b8). The final
+ * `MOV EAX,[EDI+0x58]; MOV [EDI+0x58],EAX` (0x13348c) is the pin's
+ * pass-through arm storing the field back to itself. */
+void FUN_00133300(int particle_ptr, int object_handle, int glow_widget)
+{
+  glow_particle *particle;
+  glow_definition *definition;
+  float function_value;
+  float scale;
+  float t;
+  float edge_fade;
+
+  particle = (glow_particle *)particle_ptr;
+  definition = (glow_definition *)tag_get(
+    0x676c7721, ((glow_datum *)glow_widget)->definition_index);
+  if (definition->color_attachment_index != 0xffff) {
+    if (!object_get_function_value(object_handle,
+                                   definition->color_attachment_index,
+                                   &function_value))
+      scale = *(float *)0x2533c0;
+    else
+      scale = function_value;
+    particle->color_red = (definition->color_upper_bound_rgb[0] -
+                           definition->color_lower_bound_rgb[0]) *
+                            scale +
+                          definition->color_lower_bound_rgb[0];
+    particle->color_green = (definition->color_upper_bound_rgb[1] -
+                             definition->color_lower_bound_rgb[1]) *
+                              scale +
+                            definition->color_lower_bound_rgb[1];
+    particle->color_blue = (definition->color_upper_bound_rgb[2] -
+                            definition->color_lower_bound_rgb[2]) *
+                             scale +
+                           definition->color_lower_bound_rgb[2];
+    particle->color_alpha = 1.0f;
+  }
+
+  /* t is read through the particle_ptr parameter, not the particle local:
+   * VC71 orders the two commutative FMULs by operand symbol, and only the
+   * parameter spelling reproduces 2276's FMUL rate(+0xf4); FMUL t(+0x28). */
+  if ((definition->flags & 0x1) != 0) {
+    particle->color_red = (definition->color_upper_bound_rgb[0] -
+                           definition->color_lower_bound_rgb[0]) *
+                            definition->color_rate_of_change * ((glow_particle *)particle_ptr)->t +
+                          definition->color_lower_bound_rgb[0];
+    particle->color_green = (definition->color_upper_bound_rgb[1] -
+                             definition->color_lower_bound_rgb[1]) *
+                              definition->color_rate_of_change * ((glow_particle *)particle_ptr)->t +
+                            definition->color_lower_bound_rgb[1];
+    particle->color_blue = (definition->color_upper_bound_rgb[2] -
+                            definition->color_lower_bound_rgb[2]) *
+                             definition->color_rate_of_change * ((glow_particle *)particle_ptr)->t +
+                           definition->color_lower_bound_rgb[2];
+    particle->color_alpha = 1.0f;
+  }
+
+  t = particle->t / ((glow_datum *)glow_widget)->total_time;
+  edge_fade = definition->percentage_edge_fade * 0.5f;
+  if (t < edge_fade)
+    particle->fade = t / edge_fade;
+  else if (t > *(float *)0x2533c8 - edge_fade)
+    particle->fade = (*(float *)0x2533c8 - t) / edge_fade;
+  else
+    particle->fade = 1.0f;
+
+  particle->fade = particle->fade < 0.0f
+                     ? 0.0f
+                     : (particle->fade > 1.0f ? 1.0f : particle->fade);
+}
+
 /* point_from_parametric_line (0x1334f0 / objects.obj) — evaluate a point along
  * a parametric line: out = point + t * vector, component-wise.
  *
@@ -1350,6 +1545,33 @@ void glow_render(int object_handle, int widget_datum)
   FUN_0018d360(record);
 }
 
+/* FUN_001335e0 (0x1335e0 / objects.obj, ..\math\real_math.h inline) —
+ * nonuniform cubic spline of four samples f0..f3 at knots t0..t3, evaluated at
+ * t (Newton divided differences). The assert string at 0x29aae4,
+ * "t>= t0 && t <= t3" (real_math.h line 0x5fa), names t0/t3/t; the PAL
+ * reference calls the function nonuniform_cubic_spline.
+ *
+ * The divided differences reuse the f1/f3 parameter slots
+ * (FSTP [EBP+0xc] / [EBP+0x14] at 0x133647 / 0x133656), matching in-place
+ * updates of the parameters. cdecl, float return in ST0. */
+float FUN_001335e0(float f0, float f1, float f2, float f3, float t0, float t1,
+                   float t2, float t3, float t)
+{
+  if (!(t >= t0 && t <= t3)) {
+    display_assert("t>= t0 && t <= t3", "..\\math\\real_math.h", 0x5fa, 1);
+    system_exit(-1);
+  }
+
+  f3 = (f3 - f2) / (t3 - t2);
+  f2 = (f2 - f1) / (t2 - t1);
+  f1 = (f1 - f0) / (t1 - t0);
+  f3 = (f3 - f2) / (t3 - t1);
+  f2 = (f2 - f1) / (t2 - t0);
+  f3 = (f3 - f2) / (t3 - t0);
+
+  return f0 + (t - t0) * (f1 + (t - t1) * (f2 + (t - t2) * f3));
+}
+
 /* nonuniform_cubic_spline_vector3d (0x1336a0 / objects.obj / glow.c) — blend
  * the x, y and z components of four points via FUN_001335e0, calling it once
  * per axis (offsets 0/4/8 into pt_a..pt_d) with the same five extra values each
@@ -1358,8 +1580,8 @@ void glow_render(int object_handle, int widget_datum)
  * w_a..w_e's semantics are unconfirmed -- names are mechanical placeholders,
  * not a claim about what is being blended.
  *
- * FUN_001335e0 stays unported (cdecl, float return via ST0); its signature
- * below is widened from disassembly -- Ghidra's decompile shows void(void)
+ * FUN_001335e0 (ported above) is cdecl with a float return via ST0; its kb.json
+ * signature is widened from disassembly -- Ghidra's decompile shows void(void)
  * because it can't recover args from a caller alone -- so this call's ABI
  * matches the binary. Argument order per call site (first PUSH is the last
  * cdecl arg): *(pt+off), then w_a..w_e unchanged from
@@ -1525,6 +1747,238 @@ int glow_normal_particle_new(int glow_widget_ptr, short index, short count)
  *   +0x224 int32_t definition_tag_index
  *   +0x234 float   period                   // phase wrap period
  */
+
+/* get_particle_world_position (0x1339a0 / objects.obj / glow.c) — place a
+ * glow particle on the spline through the glow's markers at the particle's
+ * parameter t (+0x28), then offset it around the spline by an angle.
+ *
+ * Glow widget fields used: marker count (short +0x4); marker matrices at
+ * +0x40 + i*0x6c (forward +0x44, up +0x5c, position +0x68); marker order
+ * (short[] +0x22a); marker times (float[] +0x238). Particle fields: marker
+ * index (short +0x2), initial angle (+0x8), orbit distance (+0x1c),
+ * t (+0x28), position (+0x2c).
+ *
+ * 1. Find the marker span containing t (assert glow.c 0x437), pin it, and
+ *    store it at particle+0x2; assert more than 1 marker (0x43b).
+ * 2. Build 4 control points (positions, ups, sides) and 4 knots:
+ *    - 2 markers: the ends, plus points at 1/4 and 3/4 between them.
+ *    - 3 markers: the ends plus the middle marker; the missing point is the
+ *      midpoint of the span the particle is in.
+ *    - more: 4 consecutive markers around the span (assert 0x49c), with
+ *      sides = cross(up, forward) per marker.
+ * 3. Spline the position into particle+0x2c, and the up and side vectors,
+ *    then add (side*cos(a) + up*sin(a)) * distance, a = rate*t + angle.
+ *
+ * Faithful 2276 bugs (the later PAL reference differs; the binary wins):
+ *  - Every interpolated point's z adds the start point's y (FADD [EBP-0x4c]
+ *    at 0x133cf6 etc.), as in point_from_parametric_line.
+ *  - The 2- and 3-marker paths never compute sides[] (no cross products
+ *    between 0x133c0e and 0x133f66), so the third spline reads uninitialized
+ *    stack and so does the resulting side offset.
+ *  - 3 markers, particle in span 1: only knots[2] is stored
+ *    (FSTP [EBP-0x8] at 0x133f66), set to the midpoint of knots[0] and
+ *    marker time 1; knots[1] stays uninitialized.
+ *
+ * glow_widget arrives in EAX (MOV ESI,EAX at 0x1339ab); particle_ptr and
+ * rotation_rate are cdecl stack args. */
+void get_particle_world_position(int glow_widget, int particle_ptr,
+                                 float rotation_rate)
+{
+  vector3_t sides[4];
+  vector3_t up;
+  vector3_t ups[4];
+  vector3_t positions[4];
+  vector3_t side;
+  float knots[4];
+  float angle;
+  float sin_angle;
+  float cos_angle;
+  short marker_index;
+  short first_marker_index;
+  short last_marker_index;
+  short index;
+  int marker;
+  glow_datum *glow;
+  glow_particle *particle;
+
+  glow = (glow_datum *)glow_widget;
+  particle = (glow_particle *)particle_ptr;
+  for (marker_index = 0; marker_index < glow->number_of_markers - 1;
+       marker_index++) {
+    if (glow->marker_time_index[marker_index] <=
+          particle->t &&
+        glow->marker_time_index[marker_index + 1] >
+          particle->t)
+      break;
+  }
+  if (!(marker_index < glow->number_of_markers - 1)) {
+    display_assert("marker_index<glow->number_of_markers-1",
+                   "c:\\halo\\SOURCE\\objects\\widgets\\glow.c", 0x437, 1);
+    system_exit(-1);
+  }
+  particle->parent_marker_index =
+    marker_index < 0 ? 0 :
+                       (marker_index > glow->number_of_markers - 1 ?
+                          glow->number_of_markers - 1 :
+                          marker_index);
+
+  if (!(glow->number_of_markers > 1)) {
+    display_assert("glow->number_of_markers > 1",
+                   "c:\\halo\\SOURCE\\objects\\widgets\\glow.c", 0x43b, 1);
+    system_exit(-1);
+  }
+
+  switch (glow->number_of_markers) {
+  case 2:
+    positions[0] = *(vector3_t *)glow->markers[0].matrix_position;
+    positions[3] = *(vector3_t *)glow->markers[1].matrix_position;
+    ups[0] = *(vector3_t *)glow->markers[0].matrix_up;
+    ups[3] = *(vector3_t *)glow->markers[1].matrix_up;
+    *(int *)&knots[0] = *(int *)&glow->marker_time_index[0];
+    *(int *)&knots[3] = *(int *)&glow->marker_time_index[1];
+
+    positions[1].x = (positions[3].x - positions[0].x) * 0.25f + positions[0].x;
+    positions[1].y = (positions[3].y - positions[0].y) * 0.25f + positions[0].y;
+    positions[1].z = (positions[3].z - positions[0].z) * 0.25f + positions[0].y;
+    positions[2].x = (positions[3].x - positions[0].x) * 0.75f + positions[0].x;
+    positions[2].y = (positions[3].y - positions[0].y) * 0.75f + positions[0].y;
+    positions[2].z = (positions[3].z - positions[0].z) * 0.75f + positions[0].y;
+
+    ups[1].x = (ups[3].x - ups[0].x) * 0.25f + ups[0].x;
+    ups[1].y = (ups[3].y - ups[0].y) * 0.25f + ups[0].y;
+    ups[1].z = (ups[3].z - ups[0].z) * 0.25f + ups[0].y;
+    ups[2].x = (ups[3].x - ups[0].x) * 0.75f + ups[0].x;
+    ups[2].y = (ups[3].y - ups[0].y) * 0.75f + ups[0].y;
+    ups[2].z = (ups[3].z - ups[0].z) * 0.75f + ups[0].y;
+
+    knots[1] = (knots[3] - knots[0]) * 0.25f + knots[0];
+    knots[2] = (knots[3] - knots[0]) * 0.75f + knots[0];
+    break;
+
+  case 3:
+    positions[0] = *(vector3_t *)glow->markers[0].matrix_position;
+    positions[3] = *(vector3_t *)glow->markers[2].matrix_position;
+    ups[0] = *(vector3_t *)glow->markers[0].matrix_up;
+    ups[3] = *(vector3_t *)glow->markers[2].matrix_up;
+    *(int *)&knots[0] = *(int *)&glow->marker_time_index[0];
+    *(int *)&knots[3] = *(int *)&glow->marker_time_index[2];
+
+    switch (particle->parent_marker_index) {
+    case 0:
+      positions[1] = *(vector3_t *)glow->markers[1].matrix_position;
+      ups[1] = *(vector3_t *)glow->markers[1].matrix_up;
+      *(int *)&knots[1] = *(int *)&glow->marker_time_index[1];
+
+      positions[2].x =
+        (positions[3].x - positions[1].x) * 0.5f + positions[1].x;
+      positions[2].y =
+        (positions[3].y - positions[1].y) * 0.5f + positions[1].y;
+      positions[2].z =
+        (positions[3].z - positions[1].z) * 0.5f + positions[1].y;
+
+      ups[2].x = (ups[3].x - ups[1].x) * 0.5f + ups[1].x;
+      ups[2].y = (ups[3].y - ups[1].y) * 0.5f + ups[1].y;
+      ups[2].z = (ups[3].z - ups[1].z) * 0.5f + ups[1].y;
+
+      knots[2] = (knots[3] - knots[1]) * 0.5f + knots[1];
+      break;
+
+    case 1:
+      positions[2] = *(vector3_t *)glow->markers[1].matrix_position;
+      ups[2] = *(vector3_t *)glow->markers[1].matrix_up;
+
+      positions[1].x =
+        (positions[2].x - positions[0].x) * 0.5f + positions[0].x;
+      positions[1].y =
+        (positions[2].y - positions[0].y) * 0.5f + positions[0].y;
+      positions[1].z =
+        (positions[2].z - positions[0].z) * 0.5f + positions[0].y;
+
+      ups[1].x = (ups[2].x - ups[0].x) * 0.5f + ups[0].x;
+      ups[1].y = (ups[2].y - ups[0].y) * 0.5f + ups[0].y;
+      ups[1].z = (ups[2].z - ups[0].z) * 0.5f + ups[0].y;
+
+      knots[2] = (glow->marker_time_index[1] - knots[0]) * 0.5f + knots[0];
+      break;
+    }
+    break;
+
+  default:
+    for (marker_index = 0; marker_index < glow->number_of_markers - 1;
+         marker_index++) {
+      if (glow->marker_time_index[marker_index] <=
+            particle->t &&
+          particle->t <=
+            glow->marker_time_index[marker_index + 1])
+        break;
+    }
+    if (!(marker_index < glow->number_of_markers - 1)) {
+      display_assert("marker_index<glow->number_of_markers-1",
+                     "c:\\halo\\SOURCE\\objects\\widgets\\glow.c", 0x49c, 1);
+      system_exit(-1);
+    }
+    marker_index = marker_index < 0 ?
+                     0 :
+                     (marker_index > glow->number_of_markers - 1 ?
+                        glow->number_of_markers - 1 :
+                        marker_index);
+
+    first_marker_index = marker_index;
+    last_marker_index = (short)(marker_index + 1);
+    while (last_marker_index - first_marker_index + 1 < 4) {
+      if (first_marker_index > 0)
+        first_marker_index--;
+      if (last_marker_index < glow->number_of_markers - 1)
+        last_marker_index++;
+    }
+
+    *(int *)&knots[0] = *(int *)&glow->marker_time_index[first_marker_index];
+    *(int *)&knots[1] = *(int *)&glow->marker_time_index[first_marker_index + 1];
+    *(int *)&knots[2] = *(int *)&glow->marker_time_index[first_marker_index + 2];
+    *(int *)&knots[3] = *(int *)&glow->marker_time_index[first_marker_index + 3];
+
+    for (index = 0; index < 4; index++) {
+      marker = glow_widget + glow->marker_order[first_marker_index + index] * 0x6c;
+      positions[index] = *(vector3_t *)((glow_datum *)marker)->markers[0].matrix_position;
+      ups[index] = *(vector3_t *)((glow_datum *)marker)->markers[0].matrix_up;
+      /* sides[index] = cross(matrix_up, matrix_forward) */
+      sides[index].x = ((glow_datum *)marker)->markers[0].matrix_up[1] * ((glow_datum *)marker)->markers[0].matrix_forward[2] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[2] * ((glow_datum *)marker)->markers[0].matrix_forward[1];
+      sides[index].y = ((glow_datum *)marker)->markers[0].matrix_up[2] * ((glow_datum *)marker)->markers[0].matrix_forward[0] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[0] * ((glow_datum *)marker)->markers[0].matrix_forward[2];
+      sides[index].z = ((glow_datum *)marker)->markers[0].matrix_up[0] * ((glow_datum *)marker)->markers[0].matrix_forward[1] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[1] * ((glow_datum *)marker)->markers[0].matrix_forward[0];
+    }
+    break;
+  }
+
+  nonuniform_cubic_spline_vector3d(
+    particle->position, (float *)&positions[0],
+    (float *)&positions[1], (float *)&positions[2], (float *)&positions[3],
+    knots[0], knots[1], knots[2], knots[3], particle->t);
+  nonuniform_cubic_spline_vector3d(
+    (float *)&up, (float *)&ups[0], (float *)&ups[1], (float *)&ups[2],
+    (float *)&ups[3], knots[0], knots[1], knots[2], knots[3],
+    particle->t);
+  nonuniform_cubic_spline_vector3d(
+    (float *)&side, (float *)&sides[0], (float *)&sides[1], (float *)&sides[2],
+    (float *)&sides[3], knots[0], knots[1], knots[2], knots[3],
+    particle->t);
+
+  angle = rotation_rate * particle->t +
+          particle->initial_angle;
+  sin_angle = x87_fsin(angle);
+  cos_angle = x87_fcos(angle);
+  particle->position[0] =
+    (side.x * cos_angle + up.x * sin_angle) * particle->distance_to_object +
+    particle->position[0];
+  particle->position[1] =
+    (side.y * cos_angle + up.y * sin_angle) * particle->distance_to_object +
+    particle->position[1];
+  particle->position[2] =
+    (side.z * cos_angle + up.z * sin_angle) * particle->distance_to_object +
+    particle->position[2];
+}
 
 /* glow_normal_particle_update_position — advance a glow particle's phase
  * animation by one frame and recompute its world position.  If the glow

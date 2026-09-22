@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "struct": "glow_definition",
+  "sources": [
+    "FUN_001330f0 @0x1330f0, glow_trailing_particle_update_size @0x133170, FUN_001331d0 @0x1331d0 (flags bits 3/4/5)",
+    "FUN_00133300 @0x133300 (color attachment, color bounds, rate, edge fade, flags bit 0)",
+    "PAL reference source/objects/widgets/glow.c struct glow_definition (names only; size 0x154 there, unproven here)"
+  ],
+  "notes": [
+    "Partial: only offsets proven by the listed functions are typed; the rest stay padding for structize split to refine.",
+    "color bounds are PAL real_argb_color (alpha first); the alpha slots +0xb4/+0xc4 are not observed accessed and stay padding.",
+    "size is omitted: tag definitions have no pool/allocation size in this code."
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 1,
+      "array_len": 40,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0x28",
+      "width": 4,
+      "signed": false,
+      "name": "flags",
+      "confidence": "typed",
+      "evidence": "TEST byte [EAX+0x28],0x8/0x10/0x20 @0x13310b/0x13318b/0x1331ee, TEST byte [ESI+0x28],0x1 @0x1333a0; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x2c",
+      "width": 1,
+      "array_len": 132,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0xb0",
+      "width": 2,
+      "signed": false,
+      "name": "color_attachment_index",
+      "confidence": "typed",
+      "evidence": "XOR EAX,EAX; MOV AX,[ESI+0xb0]; CMP AX,0xffff @0x133318-0x133324 (zero-extended); name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0xb2",
+      "width": 1,
+      "array_len": 6,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0xb8",
+      "width": 4,
+      "kind": "float",
+      "array_len": 3,
+      "name": "color_lower_bound_rgb",
+      "confidence": "typed",
+      "evidence": "FSUB/FADD [ESI+0xb8/0xbc/0xc0] @0x133355-0x13338b; name: PAL-2342 (T2) (color_lower_bound.red..blue)"
+    },
+    {
+      "offset": "0xc4",
+      "width": 1,
+      "array_len": 4,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0xc8",
+      "width": 4,
+      "kind": "float",
+      "array_len": 3,
+      "name": "color_upper_bound_rgb",
+      "confidence": "typed",
+      "evidence": "FLD [ESI+0xc8/0xcc/0xd0] @0x13334a-0x13337d; name: PAL-2342 (T2) (color_upper_bound.red..blue)"
+    },
+    {
+      "offset": "0xd4",
+      "width": 1,
+      "array_len": 32,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0xf4",
+      "width": 4,
+      "kind": "float",
+      "name": "color_rate_of_change",
+      "confidence": "typed",
+      "evidence": "FMUL [ESI+0xf4] @0x1333b2; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0xf8",
+      "width": 4,
+      "kind": "float",
+      "name": "percentage_edge_fade",
+      "confidence": "typed",
+      "evidence": "FLD [ESI+0xf8]; FMUL 0.5 @0x13340c; name: PAL-2342 (T2)"
+    }
+  ]
+}

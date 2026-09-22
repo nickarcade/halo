@@ -1,0 +1,139 @@
+{
+  "schema": 1,
+  "struct": "glow_datum",
+  "size": {
+    "value": "0x25c",
+    "evidence": "data_new(\"glow\", 8, 0x25c) @0x133759 in glow_initialize (0x133750)"
+  },
+  "sources": [
+    "glow_initialize @0x133750",
+    "get_particle_world_position @0x1339a0",
+    "glow_delete @0x1330a0",
+    "glow_render @0x133520",
+    "FUN_001330f0/..._update_size/FUN_001331d0/..._update_position/FUN_00133300 (definition_index +0x224)",
+    "PAL reference source/objects/widgets/glow.c struct glow_datum (names only; layout re-proven here)"
+  ],
+  "notes": [
+    "0x08..0x223 is object_marker markers[5] (5 * 0x6c, see object_marker.json). The schema has no struct-typed field kind, so the region is recorded as one gap here and the placed struct embeds object_marker markers[5]; the co() on markers is the check.",
+    "marker count 5 = (0x224 - 0x08) / 0x6c; PAL MAXIMUM_GLOW_MARKERS = 5."
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 2,
+      "signed": true,
+      "name": "datum_salt",
+      "confidence": "typed",
+      "evidence": "standard data_t element prefix (pool from data_new @0x133759)"
+    },
+    {
+      "offset": "0x02",
+      "width": 1,
+      "array_len": 2,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0x04",
+      "width": 2,
+      "signed": true,
+      "name": "number_of_markers",
+      "confidence": "named",
+      "evidence": "assert \"glow->number_of_markers > 1\" @0x29ab88 (glow.c:0x43b); MOVSX EDX,word [ESI+0x4] @0x1339ad"
+    },
+    {
+      "offset": "0x06",
+      "width": 1,
+      "array_len": 2,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0x08",
+      "width": 1,
+      "array_len": 540,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0x224",
+      "width": 4,
+      "signed": true,
+      "name": "definition_index",
+      "confidence": "typed",
+      "evidence": "tag_get('glw!', [EAX+0x224]) @0x1330f4; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x228",
+      "width": 1,
+      "array_len": 2,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0x22a",
+      "width": 2,
+      "signed": true,
+      "array_len": 5,
+      "name": "marker_order",
+      "confidence": "typed",
+      "evidence": "MOVSX EAX,word [ECX] with ECX = widget+first*2+0x22a @0x133b2d/0x133b66; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x234",
+      "width": 4,
+      "kind": "float",
+      "name": "total_time",
+      "confidence": "typed",
+      "evidence": "FDIV [EBX+0x234] @0x133406; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x238",
+      "width": 4,
+      "kind": "float",
+      "array_len": 5,
+      "name": "marker_time_index",
+      "confidence": "typed",
+      "evidence": "FLD [ESI+ECX*4+0x238] @0x1339c0; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x24c",
+      "width": 2,
+      "signed": false,
+      "name": "number_of_particles",
+      "confidence": "typed",
+      "evidence": "zero-extended word load (XOR ECX,ECX; MOV CX,[..+0x24c]) @0x133554 in glow_render; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x24e",
+      "width": 1,
+      "array_len": 2,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0x250",
+      "width": 4,
+      "kind": "pointer",
+      "points_to": "glow_particle",
+      "name": "head_particle",
+      "confidence": "typed",
+      "evidence": "list head read in glow_delete/glow_render (widget+0x250); name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x254",
+      "width": 1,
+      "array_len": 4,
+      "confidence": "gap"
+    },
+    {
+      "offset": "0x258",
+      "width": 2,
+      "signed": true,
+      "name": "accumulated_trailing_particle_generation_ticks",
+      "confidence": "typed",
+      "evidence": "word add of game_time_get() into widget+0x258 in glow_update; name: PAL-2342 (T2)"
+    },
+    {
+      "offset": "0x25a",
+      "width": 1,
+      "array_len": 2,
+      "confidence": "gap"
+    }
+  ]
+}
