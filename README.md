@@ -39,15 +39,15 @@ Game Code Progress
 ------------------
 <!-- GAME_CODE_PROGRESS_START -->
 [![Decompilation Progress](https://img.shields.io/badge/decompilation-88.00%25-green.svg)](https://stianeklund.github.io/halo/)
-[![Ported Functions](https://img.shields.io/badge/functions-5,991%2F6,808-blue.svg)](https://stianeklund.github.io/halo/)
+[![Ported Functions](https://img.shields.io/badge/functions-5,994%2F6,811-blue.svg)](https://stianeklund.github.io/halo/)
 
 Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):
 
-* **Ported Functions:** `5,991 / 6,808` (`88.00%`)
+* **Ported Functions:** `5,994 / 6,811` (`88.00%`)
   `[███████████████████████████████████░░░░░] 88.00%`
-* **Ported Code Bytes:** `1,278,313 / 1,737,867` (`73.56%`)
+* **Ported Code Bytes:** `1,278,489 / 1,738,043` (`73.56%`)
   `[█████████████████████████████░░░░░░░░░░░] 73.56%`
-* **Average VC71 Mnemonic Match:** `94.40%` (`5,540` scored functions, size-weighted: `90.10%`; structural signal, not raw-byte accuracy)
+* **Average VC71 Mnemonic Match:** `94.40%` (`5,543` scored functions, size-weighted: `90.10%`; structural signal, not raw-byte accuracy)
 * **Equivalence Tests:** `5,589` functions tested (`2,025` high confidence)
 * **Translation Units:** `190` source units (`39` platform/SDK buckets tracked separately)
 

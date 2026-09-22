@@ -1392,6 +1392,45 @@ void glow_trailing_particle_update_position(int glow_widget, int particle_ptr,
     delta * particle->present_velocity[2] + particle->position[2];
 }
 
+/* glow_trailing_particle_age (0x1332a0 / objects.obj / glow.c) — retire a
+ * trailing particle whose age (+0x50) has passed its lifetime (+0x52): unlink
+ * it from the glow's particle list (head +0x250 / tail +0x254), return it to
+ * the glow particle pool and decrement the glow's particle count (+0x24c).
+ *
+ * No call xrefs: glow_update inlines the same body (0x1349ac-0x1349e9). ABI
+ * is taken from the body alone: EDI (glow_widget, 0x1332a0) and ESI
+ * (particle_ptr, 0x1332b1) are read without being set. The glowdef lookup's
+ * result is unused (it is never read after the CALL).
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_trailing_particle_update_position and
+ * glow_normal_particle_update_color.
+ */
+void glow_trailing_particle_age(int glow_widget, int particle_ptr)
+{
+  glow_datum *glow;
+  glow_particle *particle;
+  glow_particle *previous;
+  glow_particle *next;
+
+  glow = (glow_datum *)glow_widget;
+  particle = (glow_particle *)particle_ptr;
+  tag_get(TAG_GROUP_GLW, glow->definition_index);
+  if (particle->ticks_in_existence > particle->lifetime) {
+    previous = particle->previous;
+    next = particle->next;
+    if (previous)
+      previous->next = next;
+    else
+      glow->head_particle = next;
+    if (next)
+      next->previous = previous;
+    else
+      glow->tail_particle = previous;
+    datum_delete(*(data_t **)0x5a90cc, particle->index);
+    glow->number_of_particles--;
+  }
+}
+
 /* glow_normal_particle_update_color (0x133300 / objects.obj / glow.c) — color
  * and edge fade of a normal glow particle (the PAL reference calls it
  * glow_normal_particle_update_color).
@@ -1482,6 +1521,43 @@ void glow_normal_particle_update_color(int particle_ptr, int object_handle,
   particle->fade = particle->fade < 0.0f ?
                      0.0f :
                      (particle->fade > 1.0f ? 1.0f : particle->fade);
+}
+
+/* glow_normal_particle_update_size (0x1334a0 / objects.obj / glow.c) — a
+ * normal particle's present size (+0x24) is its initial size (+0x20), copied
+ * as a dword.
+ *
+ * No call xrefs: glow_update inlines the same copy. particle_ptr arrives in
+ * EAX (read without being set at 0x1334a0).
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, after
+ * glow_normal_particle_update_color.
+ */
+void glow_normal_particle_update_size(int particle_ptr)
+{
+  *(uint32_t *)&((glow_particle *)particle_ptr)->present_size =
+    *(uint32_t *)&((glow_particle *)particle_ptr)->initial_size;
+}
+
+/* glow_particle_new (0x1334b0 / objects.obj / glow.c) — allocate a particle
+ * from the glow particle pool and store its datum index in the particle
+ * (+0x4). Returns the particle, or NULL when the pool is full.
+ *
+ * No call xrefs: glow_update inlines the same body. cdecl, no args.
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_normal_particle_update_size and point_from_parametric_line.
+ */
+void *glow_particle_new(void)
+{
+  glow_particle *particle;
+  int index;
+
+  particle = NULL;
+  index = data_new_at_index(*(data_t **)0x5a90cc);
+  if (index != -1) {
+    particle = (glow_particle *)datum_get(*(data_t **)0x5a90cc, index);
+    particle->index = index;
+  }
+  return particle;
 }
 
 /* point_from_parametric_line (0x1334f0 / objects.obj) — evaluate a point along

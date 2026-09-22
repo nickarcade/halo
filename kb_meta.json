@@ -17567,7 +17567,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1332a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x133300": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1334a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1334b0": {
       "kind": "function",
       "status": "ported"
     },

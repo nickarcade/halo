@@ -16814,11 +16814,32 @@
      "name": "glow_trailing_particle_update_position"
     },
     {
+     "addr": "0x1332a0",
+     "decl": "void glow_trailing_particle_age(int glow_widget@<edi>, int particle_ptr@<esi>);",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "glow_trailing_particle_age"
+    },
+    {
      "addr": "0x133300",
      "decl": "void glow_normal_particle_update_color(int particle_ptr@<edi>, int object_handle, int glow_widget@<ebx>);",
      "ported": true,
      "source_path": "objects/objects.c",
      "name": "glow_normal_particle_update_color"
+    },
+    {
+     "addr": "0x1334a0",
+     "decl": "void glow_normal_particle_update_size(int particle_ptr@<eax>);",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "glow_normal_particle_update_size"
+    },
+    {
+     "addr": "0x1334b0",
+     "decl": "void *glow_particle_new(void);",
+     "ported": true,
+     "source_path": "objects/objects.c",
+     "name": "glow_particle_new"
     },
     {
      "addr": "0x1334f0",
