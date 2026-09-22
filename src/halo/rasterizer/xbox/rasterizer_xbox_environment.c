@@ -50,7 +50,7 @@ void _rasterizer_dynamic_lit_geometry_draw(void)
  * read from the frame: [EBP+8] shader, [EBP+0x10], [EBP+0x14], [EBP+0x18] and
  * [EBP+0x1c]. The slot at [EBP+0xc] is never read by this function, but it
  * occupies a parameter position, so it is declared and left unused.
- * The last three forwarded slots land in FUN_0015de60's kb decl positions
+ * The last three forwarded slots land in rasterizer_draw_dynamic_triangles_static_vertices2's kb decl positions
  * vertices_per_primitive / a2 / triangle_count, and in
  * rasterizer_frame_statistics_count_static_vertices' identically named slots;
  * the names here are taken from those decls, not from independent evidence.
@@ -174,8 +174,8 @@ void FUN_001609b0(void *shader, int a2, int vertices_per_primitive, int a4,
       D3DDevice_SetRenderState_Simple(0x40a80, render_state);
       *(uint32_t *)0x1fb6e0 = render_state;
 
-      FUN_0015de60(vertices_per_primitive, a4, triangle_count, geometry,
-                   (char *)geometry + 0x14);
+      rasterizer_draw_dynamic_triangles_static_vertices2(vertices_per_primitive, a4, triangle_count, (const vertex_buffer *)geometry,
+                   (const vertex_buffer *)((char *)geometry + 0x14));
 
       if (*(uint16_t *)0x3256ba == 2) {
         batch_count = *(int *)0x5a548c;
@@ -697,8 +697,8 @@ void FUN_00160f50(void *shader, int frame_index, int vertices_per_primitive,
       *(uint32_t *)0x5a5ae0 = (uint32_t)table[table_index].value;
     }
     rasterizer_set_pixel_shader((void *)0x5a5ac0);
-    FUN_0015de60(vertices_per_primitive, a4, triangle_count, vertex_buffer,
-                 (char *)vertex_buffer + 20 * (*(uint8_t *)0x47dca4 == 0));
+    rasterizer_draw_dynamic_triangles_static_vertices2(vertices_per_primitive, a4, triangle_count, (const struct vertex_buffer *)vertex_buffer,
+                 (const struct vertex_buffer *)((char *)vertex_buffer + 20 * (*(uint8_t *)0x47dca4 == 0)));
     return;
   }
 
@@ -949,8 +949,8 @@ void FUN_00160f50(void *shader, int frame_index, int vertices_per_primitive,
   }
 
   rasterizer_set_pixel_shader((void *)0x5a5ac0);
-  FUN_0015de60(vertices_per_primitive, a4, triangle_count, vertex_buffer,
-               (char *)vertex_buffer + 20 * (*(uint8_t *)0x47dca4 == 0));
+  rasterizer_draw_dynamic_triangles_static_vertices2(vertices_per_primitive, a4, triangle_count, (const struct vertex_buffer *)vertex_buffer,
+               (const struct vertex_buffer *)((char *)vertex_buffer + 20 * (*(uint8_t *)0x47dca4 == 0)));
 
   if (*(uint16_t *)0x3256ba == 2) {
     batch_count = *(int *)0x5a542c;
@@ -1072,7 +1072,7 @@ void FUN_00161f00(void)
  * read from the frame: [EBP+8] shader, [EBP+0xc] (forwarded to
  * rasterizer_set_texture's frame_index slot), [EBP+0x10], [EBP+0x14],
  * [EBP+0x18] and [EBP+0x1c]. The last three forwarded slots land in
- * FUN_0015dc10's kb decl positions vertices_per_primitive / a2 /
+ * rasterizer_draw_dynamic_triangles_static_vertices's kb decl positions vertices_per_primitive / a2 /
  * triangle_count and in rasterizer_frame_statistics_count_static_vertices'
  * identically named slots; the names here are taken from those decls, not
  * from independent evidence. [EBP+0x1c] is asserted non-NULL under the string
@@ -1212,7 +1212,7 @@ void FUN_00162560(void *shader, int frame_index, int vertices_per_primitive,
     D3DDevice_SetRenderState_Simple(0x41e20, render_state);
     *(uint32_t *)0x1fb744 = render_state;
 
-    FUN_0015dc10(vertices_per_primitive, a4, triangle_count, vertex_buffer);
+    rasterizer_draw_dynamic_triangles_static_vertices(vertices_per_primitive, a4, triangle_count, vertex_buffer);
 
     if (*(uint16_t *)0x3256ba == 2) {
       batch_count = *(int *)0x5a5448;
@@ -1550,7 +1550,7 @@ void FUN_00163590(int light_index)
  * Signature: parameter slots EBP+0x8..EBP+0x1c are all read, so cdecl with six
  * dword parameters. Names for slots 1 and 6 come from the assert strings
  * ("shader" at line 0x667, "vertex_buffer" at line 0x66d); slots 3/4/5 are
- * named after the FUN_0015dc10 decl they are forwarded to. Only one caller
+ * named after the rasterizer_draw_dynamic_triangles_static_vertices decl they are forwarded to. Only one caller
  * (0x17cd74 in FUN_0017cd70), which is not ported.
  *
  * Globals (roles unproven beyond the assert string):
@@ -1699,7 +1699,7 @@ void FUN_00163910(void *shader, int frame_index, int vertices_per_primitive,
 
       rasterizer_set_pixel_shader((void *)0x5a5ac0);
 
-      FUN_0015dc10(vertices_per_primitive, a4, triangle_count, vertex_buffer);
+      rasterizer_draw_dynamic_triangles_static_vertices(vertices_per_primitive, a4, triangle_count, vertex_buffer);
 
       if (*(uint16_t *)0x3256ba == 2) {
         batch_count = *(int *)0x5a5474;
@@ -1903,7 +1903,7 @@ void FUN_00163fe0(void *bitmap_data)
  * read from the frame: [EBP+8] shader, [EBP+0xc] (forwarded to
  * rasterizer_set_texture's frame_index slot), [EBP+0x10], [EBP+0x14],
  * [EBP+0x18] and [EBP+0x1c]. The last three forwarded slots land in
- * FUN_0015de60's kb decl positions vertices_per_primitive / a2 /
+ * rasterizer_draw_dynamic_triangles_static_vertices2's kb decl positions vertices_per_primitive / a2 /
  * triangle_count and in rasterizer_frame_statistics_count_static_vertices'
  * identically named slots; the names here are taken from those decls, not
  * from independent evidence. [EBP+0x1c] is read as a uint16 at offset 0 (the
@@ -2070,8 +2070,8 @@ void FUN_001640d0(void *shader, int frame_index, int vertices_per_primitive,
 
       rasterizer_set_pixel_shader((void *)0x5a5ac0);
 
-      FUN_0015de60(vertices_per_primitive, a4, triangle_count, geometry,
-                   (char *)geometry + 0x14);
+      rasterizer_draw_dynamic_triangles_static_vertices2(vertices_per_primitive, a4, triangle_count, (const vertex_buffer *)geometry,
+                   (const vertex_buffer *)((char *)geometry + 0x14));
 
       if (*(uint16_t *)0x3256ba == 2) {
         batch_count = *(int *)0x5a5480;
@@ -2223,14 +2223,14 @@ void FUN_00164590(void *bitmap_data)
  * Signature: cdecl, bare RET (caller cleans). Six dword parameter slots are
  * read from the frame: [EBP+8] shader, [EBP+0xc] (forwarded to
  * rasterizer_set_texture's frame_index slot), [EBP+0x10], [EBP+0x14],
- * [EBP+0x18] and [EBP+0x1c]. The middle three land in FUN_0015dc10's kb decl
+ * [EBP+0x18] and [EBP+0x1c]. The middle three land in rasterizer_draw_dynamic_triangles_static_vertices's kb decl
  * positions vertices_per_primitive / a2 / triangle_count and in
  * rasterizer_frame_statistics_count_static_vertices' identically named slots;
  * the names here are taken from those decls, not from independent evidence.
  * [EBP+0x1c] is the vertex buffer: read as a uint16 at offset 0 (the vertex
- * type passed to FUN_00178b40) and forwarded whole to FUN_0015dc10. Unlike
+ * type passed to FUN_00178b40) and forwarded whole to rasterizer_draw_dynamic_triangles_static_vertices. Unlike
  * the FUN_001609b0 / FUN_001640d0 siblings there is no "+0x14" second
- * forward — the callee here is the 4-argument FUN_0015dc10, not FUN_0015de60.
+ * forward — the callee here is the 4-argument rasterizer_draw_dynamic_triangles_static_vertices, not rasterizer_draw_dynamic_triangles_static_vertices2.
  *
  * Globals (roles unproven beyond the assert string):
  *   0x476ab0  void *  global_d3d_device (assert at __FILE__ line 0x8df)
@@ -2493,7 +2493,7 @@ void FUN_00164690(void *shader, int frame_index, int vertices_per_primitive,
 
       rasterizer_set_pixel_shader((void *)0x5a5ac0);
 
-      FUN_0015dc10(vertices_per_primitive, a4, triangle_count, vertex_buffer);
+      rasterizer_draw_dynamic_triangles_static_vertices(vertices_per_primitive, a4, triangle_count, vertex_buffer);
 
       if (*(uint16_t *)0x3256ba == 2) {
         batch_count = *(int *)0x5a5498;
@@ -2756,8 +2756,8 @@ void FUN_00164cf0(void *shader, int frame_index, int vertices_per_primitive,
     lightmap_pass = 0;
   }
 
-  FUN_0015de60(vertices_per_primitive, a4, triangle_count, vertex_buffer,
-               (char *)vertex_buffer + lightmap_pass * 20);
+  rasterizer_draw_dynamic_triangles_static_vertices2(vertices_per_primitive, a4, triangle_count, (const struct vertex_buffer *)vertex_buffer,
+               (const struct vertex_buffer *)((char *)vertex_buffer + lightmap_pass * 20));
 
   if (*(uint16_t *)0x3256ba == 2) {
     batch_count = *(int *)0x5a5498;

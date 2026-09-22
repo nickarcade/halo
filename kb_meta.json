@@ -19341,6 +19341,54 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x15d8b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15dc10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15de60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e0f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e650": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e9e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15ea70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15eb90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15ec50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15ee80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x160920": {
       "kind": "function",
       "status": "ported"

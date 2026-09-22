@@ -2516,4 +2516,36 @@ co(transport_connect_request, cancelled, 0x24);
  * because the kb.json thunk generator cannot spell one. */
 typedef void (*hs_object_name_iterator_t)(int16_t index);
 
+/* Static (non-dynamic) geometry buffers consumed by rasterizer_draw (0x15e650)
+ * and its rasterizer_draw_*_static_* variants in
+ * rasterizer_xbox_draw_primitives.c.  Offsets read off the draw routines'
+ * disassembly; both are passed by pointer and only read. */
+typedef struct vertex_buffer {
+    int16_t type;             ///< offset=0x00 rasterizer vertex type index
+    uint16_t pad_02;          ///< offset=0x02
+    int32_t count;            ///< offset=0x04 vertex count
+    int32_t field_08;         ///< offset=0x08
+    void   *vertices;         ///< offset=0x0c
+    void   *hardware_format;  ///< offset=0x10 D3D vertex buffer
+} vertex_buffer;
+cs(vertex_buffer, 0x14);
+co(vertex_buffer, type,            0x00);
+co(vertex_buffer, count,           0x04);
+co(vertex_buffer, field_08,        0x08);
+co(vertex_buffer, vertices,        0x0c);
+co(vertex_buffer, hardware_format, 0x10);
+
+typedef struct triangle_buffer {
+    int16_t type;             ///< offset=0x00
+    uint16_t pad_02;          ///< offset=0x02
+    int32_t field_04;         ///< offset=0x04
+    int32_t field_08;         ///< offset=0x08
+    void   *hardware_format;  ///< offset=0x0c D3D index buffer
+} triangle_buffer;
+cs(triangle_buffer, 0x10);
+co(triangle_buffer, type,            0x00);
+co(triangle_buffer, field_04,        0x04);
+co(triangle_buffer, field_08,        0x08);
+co(triangle_buffer, hardware_format, 0x0c);
+
 #endif /* TYPES_H */

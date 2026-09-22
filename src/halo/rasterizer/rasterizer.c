@@ -2188,10 +2188,10 @@ void FUN_00174510(void *group, int has_lightmap)
      * block and places the 0x15e0f0 block out of line at LAB_00174582, so the
      * test emits `je` rather than `jne`. */
     if (*(int *)(g + 0x58) != 0) {
-      FUN_0015e430(*(void **)(g + 0x48), *(int *)(g + 0x4c), *(int *)(g + 0x50),
+      rasterizer_draw_static_triangles_static_vertices(*(void **)(g + 0x48), *(int *)(g + 0x4c), *(int *)(g + 0x50),
                    *(void **)(g + 0x58));
     } else {
-      FUN_0015e0f0(*(void **)(g + 0x48), *(int *)(g + 0x4c), *(int *)(g + 0x50),
+      rasterizer_draw_static_triangles_dynamic_vertices(*(void **)(g + 0x48), *(int *)(g + 0x4c), *(int *)(g + 0x50),
                    *(int *)(g + 0x54));
     }
     return;
@@ -2202,11 +2202,11 @@ void FUN_00174510(void *group, int has_lightmap)
   vertex_buffer = *(char **)(g + 0x58);
   if (vertex_buffer != 0) {
     if ((char)has_lightmap != 0) {
-      FUN_0015de60(*(int *)(g + 0x44), *(int *)(g + 0x4c), *(int *)(g + 0x50),
-                   vertex_buffer, vertex_buffer + 0x14);
+      rasterizer_draw_dynamic_triangles_static_vertices2(*(int *)(g + 0x44), *(int *)(g + 0x4c), *(int *)(g + 0x50),
+                   (const struct vertex_buffer *)vertex_buffer, (const struct vertex_buffer *)(vertex_buffer + 0x14));
     } else {
-      FUN_0015dc10(*(int *)(g + 0x44), *(int *)(g + 0x4c), *(int *)(g + 0x50),
-                   vertex_buffer);
+      rasterizer_draw_dynamic_triangles_static_vertices(*(int *)(g + 0x44), *(int *)(g + 0x4c), *(int *)(g + 0x50),
+                   (const struct vertex_buffer *)vertex_buffer);
     }
     return;
   }
@@ -2220,7 +2220,7 @@ void FUN_00174510(void *group, int has_lightmap)
   }
 
   if (*(int *)(g + 0x44) >= 0) {
-    FUN_0015d8b0(*(int *)(g + 0x44), *(int *)(g + 0x4c), *(int *)(g + 0x50),
+    rasterizer_draw_dynamic_triangles_dynamic_vertices(*(int *)(g + 0x44), *(int *)(g + 0x4c), *(int *)(g + 0x50),
                  *(int *)(g + 0x54));
     return;
   }
@@ -6649,12 +6649,12 @@ int rasterizer_widget_submit(int mode)
 
 void *rasterizer_widget_begin(int handle)
 {
-  return FUN_0015ea70(handle);
+  return rasterizer_dynamic_triangles_lock(handle);
 }
 
 void rasterizer_widget_set_texture(int handle)
 {
-  FUN_0015eb90(handle);
+  rasterizer_dynamic_triangles_unlock(handle);
 }
 
 /* Adapter thunk (PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x15d300).  The callee
@@ -6678,12 +6678,12 @@ short rasterizer_widget_draw_sprite2d(int dynamic_vertex_buffer_index)
 
 int rasterizer_widget_draw_sprite3d(int zbuf_result)
 {
-  return FUN_0015ec50(zbuf_result);
+  return (int)rasterizer_dynamic_vertices_lock(zbuf_result);
 }
 
 void rasterizer_widget_end(int handle)
 {
-  FUN_0015ee80(handle);
+  rasterizer_dynamic_vertices_unlock(handle);
 }
 
 /* Adapter thunk (PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x15d5a0).  As with

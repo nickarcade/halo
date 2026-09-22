@@ -10094,7 +10094,10 @@
     "0x89ab0": "void camera_track_splut(void *definition@<ecx>, float t, float *out);",
     "0x8ab10": "void observer_apply_rotational_displacement(float *rotation @<eax>, float *vector_a, float *vector_b);",
     "0xe4ad0": "void render_state_bitmap(short *dst_rect@<ebx>, void *state@<esi>, int param_1, int color, int param_3);",
-    "0x168ca0": "int FUN_00168ca0(int base@<eax>, int *result@<edx>, int offset, int unused_1, int unused_2);"
+    "0x168ca0": "int FUN_00168ca0(int base@<eax>, int *result@<edx>, int offset, int unused_1, int unused_2);",
+    "0x15e770": "int FUN_0015e770(void *vertex_buffer, uint32_t offset_to_lock, uint32_t size_to_lock@<edx>, void **ppb_data@<ecx>, uint32_t flags@<eax>);",
+    "0x15e7a0": "void FUN_0015e7a0(void *index_buffer@<eax>, uint32_t offset_to_lock, uint32_t size_to_lock, void **ppb_data@<edx>, uint32_t flags);",
+    "0x15e7d0": "int FUN_0015e7d0(void *index_buffer@<eax>, uint32_t offset_to_lock, uint32_t size_to_lock, void **ppb_data@<edx>, uint32_t flags);"
   },
   "0x57330": "short ai_scripting_command_list_status_internal(int16_t scenario_index@<eax>, void *record@<esi>, int field_1a8_val, int child_handle, int reserved);",
   "0x1631d0": "void FUN_001631d0(int light_index@<eax>);",

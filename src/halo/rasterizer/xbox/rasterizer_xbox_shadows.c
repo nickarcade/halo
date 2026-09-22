@@ -206,7 +206,7 @@ void FUN_00172730(void)
  *      are the texture-coordinate generation rows produced by the map
  *      animation evaluator FUN_00190e10 (seeded with the identity rows
  *      (1,0,0,0) and (0,1,0,0)).
- *   6. Emits the indexed draw via FUN_0015e430.
+ *   6. Emits the indexed draw via rasterizer_draw_static_triangles_static_vertices.
  *   7. If the render-mode word (*(short *)0x3256ba) == 2, bumps the three
  *      per-frame statistics counters.
  *
@@ -300,7 +300,7 @@ void FUN_00172de0(void *shader, int frame_index, void *triangle_buffer,
         0.0f, 0.0f, *(float *)0x5a5e18, &shader_constants[4],
         &shader_constants[8]);
       D3DDevice_SetVertexShaderConstant(-0x54, shader_constants, 3);
-      FUN_0015e430(triangle_buffer, 0, *(int *)((char *)triangle_buffer + 4),
+      rasterizer_draw_static_triangles_static_vertices(triangle_buffer, 0, *(int *)((char *)triangle_buffer + 4),
                    vertex_buffer);
       if (*(short *)0x3256ba == 2) {
         *(int *)0x5a5500 = *(int *)0x5a5500 + 1;
@@ -324,7 +324,7 @@ void FUN_00172de0(void *shader, int frame_index, void *triangle_buffer,
  * Ghidra reports `void FUN_00173090(void)` and loses every parameter: the six
  * cdecl arguments are read straight off the frame — [EBP+8] shader,
  * [EBP+0xc] (never referenced), [EBP+0x10]/[EBP+0x14]/[EBP+0x18] forwarded to
- * FUN_0015dc10 and the statistics counter, and [EBP+0x1c] the vertex buffer
+ * rasterizer_draw_dynamic_triangles_static_vertices and the statistics counter, and [EBP+0x1c] the vertex buffer
  * whose leading 16-bit operand feeds FUN_00178b40 (XOR EAX,EAX;
  * MOV AX,[ESI] @0x1733e4).
  *
@@ -485,7 +485,7 @@ void FUN_00173090(void *shader, int param_2, int vertices_per_primitive,
       *(char *)0x47e4b4 = 1;
     }
     FUN_00158ae0(2);
-    FUN_0015dc10(vertices_per_primitive, a2, triangle_count, vertex_buffer);
+    rasterizer_draw_dynamic_triangles_static_vertices(vertices_per_primitive, a2, triangle_count, vertex_buffer);
     if (*(short *)0x3256ba == 2) {
       *(int *)0x5a543c = *(int *)0x5a543c + 1;
       *(int *)0x5a5438 = *(int *)0x5a5438 + triangle_count;

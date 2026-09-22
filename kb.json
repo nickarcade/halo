@@ -40029,8 +40029,8 @@
     },
     {
      "addr": "0x15f220",
-      "decl": "void FUN_0015f220(void *base, void *multitex_params);",
-      "ported": true
+     "decl": "void FUN_0015f220(void *base, void *multitex_params);",
+     "ported": true
     },
     {
      "addr": "0x15f540",
@@ -40048,9 +40048,9 @@
      "ported": true
     },
     {
-      "addr": "0x15f8e0",
-      "decl": "void FUN_0015f8e0(void *parameters, void *vertices);",
-      "ported": true
+     "addr": "0x15f8e0",
+     "decl": "void FUN_0015f8e0(void *parameters, void *vertices);",
+     "ported": true
     }
    ]
   },
@@ -42819,7 +42819,7 @@
     },
     {
      "addr": "0x001ecf90",
-     "decl": "void D3DDevice_DrawIndexedVertices(void);"
+     "decl": "void __stdcall D3DDevice_DrawIndexedVertices(uint32_t primitive_type, uint32_t vertex_count, const void *index_data);"
     },
     {
      "addr": "0x001ed200",
@@ -48670,64 +48670,93 @@
    "functions": [
     {
      "addr": "0x15d8b0",
-     "decl": "void FUN_0015d8b0(int vertices_per_primitive, int a2, int triangle_count, int dynamic_vertex_buffer_index);"
+     "decl": "void rasterizer_draw_dynamic_triangles_dynamic_vertices(int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, int dynamic_vertex_buffer_index);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15dc10",
-     "decl": "void FUN_0015dc10(int vertices_per_primitive, int a2, int triangle_count, void *vertex_buffer);"
+     "decl": "void rasterizer_draw_dynamic_triangles_static_vertices(int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15de60",
-     "decl": "void FUN_0015de60(int vertices_per_primitive, int a2, int triangle_count, void *vertex_buffer, void *a5);"
+     "decl": "void rasterizer_draw_dynamic_triangles_static_vertices2(int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer0, const vertex_buffer *vertex_buffer1);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15e0f0",
-     "decl": "void FUN_0015e0f0(void *triangle_buffer, int a2, int triangle_count, int dynamic_vertex_buffer_index);"
+     "decl": "void rasterizer_draw_static_triangles_dynamic_vertices(const triangle_buffer *triangle_buffer, int first_triangle_index, int triangle_count, int dynamic_vertex_buffer_index);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15e430",
-     "decl": "void FUN_0015e430(void *triangle_buffer, int a2, int triangle_count, void *vertex_buffer);"
+     "decl": "void rasterizer_draw_static_triangles_static_vertices(const triangle_buffer *triangle_buffer, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15e650",
-     "decl": "void rasterizer_draw(void);",
-     "comment": "[NAME: rasterizer_draw \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void rasterizer_draw(const triangle_buffer *triangle_buffer, int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer, int dynamic_vertex_buffer_index);",
+     "comment": "[NAME: rasterizer_draw \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x15e770",
-     "decl": "void FUN_0015e770(void);"
+     "decl": "int FUN_0015e770(void *vertex_buffer, uint32_t offset_to_lock, uint32_t size_to_lock@<edx>, void **ppb_data@<ecx>, uint32_t flags@<eax>);",
+     "ported": true,
+     "comment": "[ABI: RET 8 -> 2 stack operands; EAX/ECX/EDX read before write at 0x15e773-0x15e77b. tier=T1 binary]"
     },
     {
      "addr": "0x15e7a0",
-     "decl": "void FUN_0015e7a0(void);"
+     "decl": "void FUN_0015e7a0(void *index_buffer@<eax>, uint32_t offset_to_lock, uint32_t size_to_lock, void **ppb_data@<edx>, uint32_t flags);",
+     "ported": true,
+     "comment": "[ABI: RET 0xc -> 3 stack operands; EAX/EDX read before write at 0x15e7a3-0x15e7a9. tier=T1 binary]"
     },
     {
      "addr": "0x15e7d0",
-     "decl": "void FUN_0015e7d0(void);"
+     "decl": "int FUN_0015e7d0(void *index_buffer@<eax>, uint32_t offset_to_lock, uint32_t size_to_lock, void **ppb_data@<edx>, uint32_t flags);",
+     "ported": true,
+     "comment": "[ABI: RET 0xc -> 3 stack operands; EAX/EDX read before write at 0x15e7d3-0x15e7d9. tier=T1 binary]"
     },
     {
      "addr": "0x15e800",
-     "decl": "bool FUN_0015e800(void);"
+     "decl": "boolean rasterizer_dynamic_geometry_initialize(void);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15e9e0",
-     "decl": "void FUN_0015e9e0(void);"
+     "decl": "void rasterizer_dynamic_geometry_dispose(void);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15ea70",
-     "decl": "void *FUN_0015ea70(int dynamic_triangle_buffer_index);"
+     "decl": "void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15eb90",
-     "decl": "void FUN_0015eb90(int handle);"
+     "decl": "void rasterizer_dynamic_triangles_unlock(int dynamic_triangle_buffer_index);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15ec50",
-     "decl": "int FUN_0015ec50(int dynamic_vertex_buffer_index);"
+     "decl": "void *rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15ee80",
-     "decl": "void FUN_0015ee80(int handle);"
+     "decl": "void rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index);",
+     "ported": true,
+     "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     }
    ]
   },
