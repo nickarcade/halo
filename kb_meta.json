@@ -17551,11 +17551,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1330f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x133170": {
       "kind": "function",
       "status": "ported"
     },
+    "0x1331d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x133260": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x133300": {
       "kind": "function",
       "status": "ported"
     },
@@ -17564,6 +17576,10 @@
       "status": "ported"
     },
     "0x133520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1335e0": {
       "kind": "function",
       "status": "ported"
     },

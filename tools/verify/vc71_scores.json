@@ -16093,66 +16093,6 @@
       "score": 97.2,
       "source": "src/halo/main/telnet_console.c"
     },
-    "FUN_001330f0": {
-      "abi_model": "regparam_stripped",
-      "abi_model_items": 1,
-      "abi_modeled_mnemonic_pct": 91.6,
-      "addr": "0x1330f0",
-      "end": "0x133170",
-      "kind": "auto",
-      "n_r": 43,
-      "opnd_percent": 69.9,
-      "raw_mnemonic_pct": 90.5,
-      "ref": "synth",
-      "ref_sha": "f6d1d4fc2da7a93e",
-      "score": 91.6,
-      "source": "src/halo/objects/objects.c"
-    },
-    "FUN_001331d0": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 89.8,
-      "addr": "0x1331d0",
-      "end": "0x13325a",
-      "kind": "auto",
-      "n_r": 51,
-      "opnd_percent": 53.1,
-      "raw_mnemonic_pct": 89.8,
-      "ref": "synth",
-      "ref_sha": "1dcb4c1c9517ddce",
-      "score": 89.8,
-      "source": "src/halo/objects/objects.c"
-    },
-    "FUN_00133300": {
-      "abi_model": "regparam_stripped_saves",
-      "abi_model_items": 10,
-      "abi_modeled_mnemonic_pct": 96.6,
-      "addr": "0x133300",
-      "end": "0x133496",
-      "kind": "auto",
-      "n_r": 119,
-      "opnd_percent": 94.9,
-      "raw_mnemonic_pct": 93.5,
-      "ref": "synth",
-      "ref_sha": "0d2a26c40de9af19",
-      "score": 96.6,
-      "source": "src/halo/objects/objects.c"
-    },
-    "FUN_001335e0": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 100.0,
-      "addr": "0x1335e0",
-      "end": "0x133693",
-      "kind": "auto",
-      "n_r": 65,
-      "opnd_percent": 100.0,
-      "raw_mnemonic_pct": 100.0,
-      "ref": "synth",
-      "ref_sha": "ad40bf30e97a4b91",
-      "score": 100.0,
-      "source": "src/halo/objects/objects.c"
-    },
     "FUN_00136840": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -52798,6 +52738,21 @@
       "score": 95.8,
       "source": "src/halo/objects/objects.c"
     },
+    "glow_normal_particle_update_color": {
+      "abi_model": "regparam_stripped_saves",
+      "abi_model_items": 10,
+      "abi_modeled_mnemonic_pct": 96.6,
+      "addr": "0x133300",
+      "end": "0x133496",
+      "kind": "auto",
+      "n_r": 119,
+      "opnd_percent": 94.9,
+      "raw_mnemonic_pct": 93.5,
+      "ref": "synth",
+      "ref_sha": "0d2a26c40de9af19",
+      "score": 96.6,
+      "source": "src/halo/objects/objects.c"
+    },
     "glow_normal_particle_update_position": {
       "abi_model": "regparam_stripped_saves",
       "abi_model_items": 23,
@@ -52873,6 +52828,21 @@
       "score": 93.9,
       "source": "src/halo/objects/objects.c"
     },
+    "glow_trailing_particle_update_color": {
+      "abi_model": "regparam_stripped",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 91.6,
+      "addr": "0x1330f0",
+      "end": "0x133170",
+      "kind": "auto",
+      "n_r": 43,
+      "opnd_percent": 69.9,
+      "raw_mnemonic_pct": 90.5,
+      "ref": "synth",
+      "ref_sha": "f6d1d4fc2da7a93e",
+      "score": 91.6,
+      "source": "src/halo/objects/objects.c"
+    },
     "glow_trailing_particle_update_position": {
       "abi_model": "regparam_stripped",
       "abi_model_items": 1,
@@ -52901,6 +52871,21 @@
       "ref": "synth",
       "ref_sha": "581d1d3ae899ae69",
       "score": 94.9,
+      "source": "src/halo/objects/objects.c"
+    },
+    "glow_trailing_particle_update_velocity": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 89.8,
+      "addr": "0x1331d0",
+      "end": "0x13325a",
+      "kind": "auto",
+      "n_r": 51,
+      "opnd_percent": 53.1,
+      "raw_mnemonic_pct": 89.8,
+      "ref": "synth",
+      "ref_sha": "1dcb4c1c9517ddce",
+      "score": 89.8,
       "source": "src/halo/objects/objects.c"
     },
     "glow_update": {
@@ -66957,6 +66942,21 @@
       "ref_sha": "720fa2603d9b7d9c",
       "score": 92.1,
       "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
+    },
+    "nonuniform_cubic_spline": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x1335e0",
+      "end": "0x133693",
+      "kind": "auto",
+      "n_r": 65,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "ad40bf30e97a4b91",
+      "score": 100.0,
+      "source": "src/halo/objects/objects.c"
     },
     "nonuniform_cubic_spline_vector3d": {
       "abi_model": "raw",

@@ -10,7 +10,7 @@
     "get_particle_world_position @0x1339a0",
     "glow_delete @0x1330a0",
     "glow_render @0x133520",
-    "FUN_001330f0/..._update_size/FUN_001331d0/..._update_position/FUN_00133300 (definition_index +0x224)",
+    "glow_trailing_particle_update_color/..._update_size/glow_trailing_particle_update_velocity/..._update_position/glow_normal_particle_update_color (definition_index +0x224)",
     "PAL reference source/objects/widgets/glow.c struct glow_datum (names only; layout re-proven here)"
   ],
   "notes": [

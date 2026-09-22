@@ -69,8 +69,8 @@ void glow_update(int glow_widget, int object_handle)
   if (glow_tag == 0)
     return;
 
-  marker_count = (short)object_get_markers_by_string_id(
-    object_handle, glow_tag, w + 8, GLOW_MARKER_MAX);
+  marker_count = (short)object_get_markers_by_string_id(object_handle, glow_tag,
+                                                        w + 8, GLOW_MARKER_MAX);
   *(short *)(w + 4) = marker_count;
 
   if (*(char *)(w + 2) == 0) {
@@ -102,9 +102,8 @@ void glow_update(int glow_widget, int object_handle)
               d[1] = basis_j[-1] - basis_i[-1];
               d[2] = basis_j[0] - basis_i[0];
               normalize3d(d);
-              dot =
-                d[0] * basis_i[-0xb] + d[1] * basis_i[-0xa] +
-                d[2] * basis_i[-9];
+              dot = d[0] * basis_i[-0xb] + d[1] * basis_i[-0xa] +
+                    d[2] * basis_i[-9];
               if (dot > best_dot) {
                 best_dot = dot;
                 best_j = j;
@@ -157,24 +156,24 @@ void glow_update(int glow_widget, int object_handle)
           do {
             int a_idx = *(short *)(w + 0x22a + seg_index * 2);
             int b_idx = *(short *)(w + 0x22a + (seg_index + 1) * 2);
-          volatile float point_a[3];
-          volatile float point_b[3];
-          point_a[0] = *(float *)(w + 8 + a_idx * 0x6c + 0x60);
-          point_a[1] = *(float *)(w + 8 + a_idx * 0x6c + 0x64);
-          point_a[2] = *(float *)(w + 8 + a_idx * 0x6c + 0x68);
-          point_b[0] = *(float *)(w + 8 + b_idx * 0x6c + 0x60);
-          point_b[1] = *(float *)(w + 8 + b_idx * 0x6c + 0x64);
-          point_b[2] = *(float *)(w + 8 + b_idx * 0x6c + 0x68);
-          {
-            float dx = point_b[0] - point_a[0];
-            float dy = point_b[1] - point_a[1];
-            float dz = point_b[2] - point_a[2];
-            float dist = sqrtf(dx * dx + dy * dy + dz * dz);
-            *(float *)(w + 0x234) += dist;
-            *(float *)(w + 0x23c + seg_index * 4) = *(float *)(w + 0x234);
-            seg_count++;
-            seg_index = (int)seg_count;
-          }
+            volatile float point_a[3];
+            volatile float point_b[3];
+            point_a[0] = *(float *)(w + 8 + a_idx * 0x6c + 0x60);
+            point_a[1] = *(float *)(w + 8 + a_idx * 0x6c + 0x64);
+            point_a[2] = *(float *)(w + 8 + a_idx * 0x6c + 0x68);
+            point_b[0] = *(float *)(w + 8 + b_idx * 0x6c + 0x60);
+            point_b[1] = *(float *)(w + 8 + b_idx * 0x6c + 0x64);
+            point_b[2] = *(float *)(w + 8 + b_idx * 0x6c + 0x68);
+            {
+              float dx = point_b[0] - point_a[0];
+              float dy = point_b[1] - point_a[1];
+              float dz = point_b[2] - point_a[2];
+              float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+              *(float *)(w + 0x234) += dist;
+              *(float *)(w + 0x23c + seg_index * 4) = *(float *)(w + 0x234);
+              seg_count++;
+              seg_index = (int)seg_count;
+            }
           } while (seg_index < *(short *)(w + 4) - 1);
         }
       }
@@ -219,14 +218,16 @@ void glow_update(int glow_widget, int object_handle)
     for (particle = *(int *)(w + 0x250); particle != 0;
          particle = *(int *)(particle + 0x5c)) {
       if ((*(unsigned char *)(particle + 0x54) & 2) == 0) {
-        glow_normal_particle_update_position(particle, glow_widget, object_handle,
-                     *(float *)0x50654c * scale_b, ratio);
-        /* FUN_00133300 recomputes the particle RGB colour from the glow tag,
-         * which it reaches via glow_widget passed in EBX (@<ebx>).  The
-         * original 0x1345b0 kept glow_widget in EBX across the call; our lift
-         * must pass it explicitly or the tag lookup reads garbage and the
-         * particle renders the wrong colour (orange-not-blue trail bug). */
-        FUN_00133300(particle, object_handle, glow_widget);
+        glow_normal_particle_update_position(
+          particle, glow_widget, object_handle, *(float *)0x50654c * scale_b,
+          ratio);
+        /* glow_normal_particle_update_color recomputes the particle RGB colour
+         * from the glow tag, which it reaches via glow_widget passed in EBX
+         * (@<ebx>).  The original 0x1345b0 kept glow_widget in EBX across the
+         * call; our lift must pass it explicitly or the tag lookup reads
+         * garbage and the particle renders the wrong colour (orange-not-blue
+         * trail bug). */
+        glow_normal_particle_update_color(particle, object_handle, glow_widget);
         *(int *)(particle + 0x24) = *(int *)(particle + 0x20);
       }
     }
@@ -237,12 +238,13 @@ void glow_update(int glow_widget, int object_handle)
        particle = *(int *)(particle + 0x5c)) {
     if ((*(unsigned char *)(particle + 0x54) & 2) != 0) {
       *(short *)(particle + 0x50) += (short)game_time_get();
-      /* FUN_001330f0 computes the age-based fade into particle+0x58; it reads
-       * the particle via ESI (movswl 0x50/0x52(%esi), fstps 0x58(%esi) in the
-       * pristine XBE) — an undeclared @<esi> arg the original kept live in
-       * ESI across the loop.  Dropping it read garbage and broke the trailing
-       * particle fade/colour (orange-not-blue trail bug, loop-B class). */
-      FUN_001330f0(glow_widget, particle);
+      /* glow_trailing_particle_update_color computes the age-based fade into
+       * particle+0x58; it reads the particle via ESI (movswl 0x50/0x52(%esi),
+       * fstps 0x58(%esi) in the pristine XBE) — an undeclared @<esi> arg the
+       * original kept live in ESI across the loop.  Dropping it read garbage
+       * and broke the trailing particle fade/colour (orange-not-blue trail bug,
+       * loop-B class). */
+      glow_trailing_particle_update_color(glow_widget, particle);
       tag_block = tag_get(GLOW_TAG, *(int *)(w + 0x224));
       if ((*(unsigned char *)((char *)tag_block + 0x28) & 0x10) != 0) {
         int age = *(short *)(particle + 0x50);
@@ -252,7 +254,7 @@ void glow_update(int glow_widget, int object_handle)
           t = *(float *)0x2533c0;
         *(float *)(particle + 0x24) = t * *(float *)(particle + 0x20);
       }
-      FUN_001331d0(glow_widget, particle);
+      glow_trailing_particle_update_velocity(glow_widget, particle);
       {
         float dt = *(float *)0x50654c;
         tag_get(GLOW_TAG, *(int *)(w + 0x224));

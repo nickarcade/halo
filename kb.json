@@ -16785,10 +16785,10 @@
     },
     {
      "addr": "0x1330f0",
-     "decl": "void FUN_001330f0(int glow_widget@<eax>, int particle_ptr@<esi>);",
+     "decl": "void glow_trailing_particle_update_color(int glow_widget@<eax>, int particle_ptr@<esi>);",
      "ported": true,
      "source_path": "objects/objects.c",
-     "name": "FUN_001330f0"
+     "name": "glow_trailing_particle_update_color"
     },
     {
      "addr": "0x133170",
@@ -16800,10 +16800,10 @@
     },
     {
      "addr": "0x1331d0",
-     "decl": "void FUN_001331d0(int glow_widget@<eax>, int particle_ptr@<ecx>);",
+     "decl": "void glow_trailing_particle_update_velocity(int glow_widget@<eax>, int particle_ptr@<ecx>);",
      "ported": true,
      "source_path": "objects/objects.c",
-     "name": "FUN_001331d0"
+     "name": "glow_trailing_particle_update_velocity"
     },
     {
      "addr": "0x133260",
@@ -16815,10 +16815,10 @@
     },
     {
      "addr": "0x133300",
-     "decl": "void FUN_00133300(int particle_ptr@<edi>, int object_handle, int glow_widget@<ebx>);",
+     "decl": "void glow_normal_particle_update_color(int particle_ptr@<edi>, int object_handle, int glow_widget@<ebx>);",
      "ported": true,
      "source_path": "objects/objects.c",
-     "name": "FUN_00133300"
+     "name": "glow_normal_particle_update_color"
     },
     {
      "addr": "0x1334f0",
@@ -16834,10 +16834,10 @@
     },
     {
      "addr": "0x1335e0",
-     "decl": "float FUN_001335e0(float a, float b, float c, float d, float w_a, float w_b, float w_c, float w_d, float w_e);",
+     "decl": "float nonuniform_cubic_spline(float a, float b, float c, float d, float w_a, float w_b, float w_c, float w_d, float w_e);",
      "ported": true,
      "source_path": "objects/objects.c",
-     "name": "FUN_001335e0"
+     "name": "nonuniform_cubic_spline"
     },
     {
      "addr": "0x1336a0",

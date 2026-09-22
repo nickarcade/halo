@@ -2,8 +2,8 @@
   "schema": 1,
   "struct": "glow_definition",
   "sources": [
-    "FUN_001330f0 @0x1330f0, glow_trailing_particle_update_size @0x133170, FUN_001331d0 @0x1331d0 (flags bits 3/4/5)",
-    "FUN_00133300 @0x133300 (color attachment, color bounds, rate, edge fade, flags bit 0)",
+    "glow_trailing_particle_update_color @0x1330f0, glow_trailing_particle_update_size @0x133170, glow_trailing_particle_update_velocity @0x1331d0 (flags bits 3/4/5)",
+    "glow_normal_particle_update_color @0x133300 (color attachment, color bounds, rate, edge fade, flags bit 0)",
     "PAL reference source/objects/widgets/glow.c struct glow_definition (names only; size 0x154 there, unproven here)"
   ],
   "notes": [

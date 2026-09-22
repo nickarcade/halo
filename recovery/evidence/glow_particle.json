@@ -7,14 +7,14 @@
   },
   "sources": [
     "glow_initialize @0x133750 (pool element size)",
-    "FUN_001330f0 @0x1330f0, glow_trailing_particle_update_size @0x133170, FUN_001331d0 @0x1331d0, glow_trailing_particle_update_position @0x133260 (trailing particle fields)",
-    "FUN_00133300 @0x133300 (color/fade), get_particle_world_position @0x1339a0 (marker index, t, position, angle, distance)",
+    "glow_trailing_particle_update_color @0x1330f0, glow_trailing_particle_update_size @0x133170, glow_trailing_particle_update_velocity @0x1331d0, glow_trailing_particle_update_position @0x133260 (trailing particle fields)",
+    "glow_normal_particle_update_color @0x133300 (color/fade), get_particle_world_position @0x1339a0 (marker index, t, position, angle, distance)",
     "glow_delete @0x1330a0 (index, next), glow_update @0x1345b0 (flags, previous)",
     "PAL reference /mnt/g/dev/halo-pal-2342 source/objects/widgets/glow.c struct glow_particle (names only; layout re-proven here)"
   ],
   "notes": [
     "Field names come from the PAL 2342 reference (T2) unless an evidence line cites a 2276 string; every offset and width is from 2276 disassembly.",
-    "color is PAL real_argb_color: alpha +0x0c, red +0x10, green +0x14, blue +0x18 (FUN_00133300 stores alpha=1.0 via MOV [EDI+0xc] and rgb via FSTP [EDI+0x10..0x18])."
+    "color is PAL real_argb_color: alpha +0x0c, red +0x10, green +0x14, blue +0x18 (glow_normal_particle_update_color stores alpha=1.0 via MOV [EDI+0xc] and rgb via FSTP [EDI+0x10..0x18])."
   ],
   "fields": [
     {

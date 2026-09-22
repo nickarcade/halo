@@ -1272,8 +1272,8 @@ void glow_delete(int widget_datum)
   datum_delete(*(data_t **)0x5a90c8, widget_datum);
 }
 
-/* FUN_001330f0 (0x1330f0 / objects.obj / glow.c) — age-based fade of a
- * trailing glow particle (the PAL reference calls it
+/* glow_trailing_particle_update_color (0x1330f0 / objects.obj / glow.c) —
+ * age-based fade of a trailing glow particle (the PAL reference calls it
  * glow_trailing_particle_update_color). If glowdef flag 0x8 (byte +0x28) is
  * set, fade (+0x58) = 1 - age(+0x50) / lifetime(+0x52), pinned to [0,1];
  * otherwise fade = 1.
@@ -1281,8 +1281,12 @@ void glow_delete(int widget_datum)
  * glow_widget arrives in EAX and particle_ptr in ESI (both read uninitialized
  * at 0x1330f4 / 0x133110). Sole caller: glow_update (0x1348f5). The fade is
  * FST'd to +0x58 before the pin compares (0x133130), so the pin is a second
- * assignment of the same field, not a local. */
-void FUN_001330f0(int glow_widget, int particle_ptr)
+ * assignment of the same field, not a local.
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_delete and glow_trailing_particle_update_size; tests the PAL
+ * trailing_particles_fade_over_time bit (flags & 0x8).
+ */
+void glow_trailing_particle_update_color(int glow_widget, int particle_ptr)
 {
   glow_particle *particle;
   glow_definition *definition;
@@ -1328,15 +1332,19 @@ void glow_trailing_particle_update_size(int glow_widget, int particle_ptr)
   }
 }
 
-/* FUN_001331d0 (0x1331d0 / objects.obj / glow.c) — velocity of a trailing
- * glow particle (the PAL reference calls it
+/* glow_trailing_particle_update_velocity (0x1331d0 / objects.obj / glow.c) —
+ * velocity of a trailing glow particle (the PAL reference calls it
  * glow_trailing_particle_update_velocity). If glowdef flag 0x20 is set,
  * velocity (+0x44) = max(0, 1 - age/lifetime) * initial velocity (+0x38);
  * otherwise velocity = initial velocity (3-dword copy, 0x13323f-0x133252).
  *
  * glow_widget arrives in EAX and particle_ptr in ECX (MOV ESI,ECX at
- * 0x1331d5). Sole caller: glow_update (0x134951). */
-void FUN_001331d0(int glow_widget, int particle_ptr)
+ * 0x1331d5). Sole caller: glow_update (0x134951).
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_trailing_particle_update_size and _update_position; tests the PAL
+ * trailing_particles_slow_over_time bit (flags & 0x20).
+ */
+void glow_trailing_particle_update_velocity(int glow_widget, int particle_ptr)
 {
   glow_particle *particle;
   glow_definition *definition;
@@ -1381,8 +1389,8 @@ void glow_trailing_particle_update_position(int glow_widget, int particle_ptr,
     delta * particle->present_velocity[2] + particle->position[2];
 }
 
-/* FUN_00133300 (0x133300 / objects.obj / glow.c) — color and edge fade of a
- * normal glow particle (the PAL reference calls it
+/* glow_normal_particle_update_color (0x133300 / objects.obj / glow.c) — color
+ * and edge fade of a normal glow particle (the PAL reference calls it
  * glow_normal_particle_update_color).
  *
  *  - If the glowdef's color function index (u16 +0xb0) is not 0xffff, color
@@ -1397,8 +1405,13 @@ void glow_trailing_particle_update_position(int glow_widget, int particle_ptr,
  * particle_ptr arrives in EDI and glow_widget in EBX; object_handle is the
  * single stack arg. Sole caller: glow_update (0x1348b8). The final
  * `MOV EAX,[EDI+0x58]; MOV [EDI+0x58],EAX` (0x13348c) is the pin's
- * pass-through arm storing the field back to itself. */
-void FUN_00133300(int particle_ptr, int object_handle, int glow_widget)
+ * pass-through arm storing the field back to itself.
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, after the
+ * trailing-particle helpers and before point_from_parametric_line; tests
+ * the PAL modify_particle_color bit (flags & 0x1).
+ */
+void glow_normal_particle_update_color(int particle_ptr, int object_handle,
+                                       int glow_widget)
 {
   glow_particle *particle;
   glow_definition *definition;
@@ -1547,17 +1560,21 @@ void glow_render(int object_handle, int widget_datum)
   FUN_0018d360(record);
 }
 
-/* FUN_001335e0 (0x1335e0 / objects.obj, ..\math\real_math.h inline) —
- * nonuniform cubic spline of four samples f0..f3 at knots t0..t3, evaluated at
- * t (Newton divided differences). The assert string at 0x29aae4,
- * "t>= t0 && t <= t3" (real_math.h line 0x5fa), names t0/t3/t; the PAL
- * reference calls the function nonuniform_cubic_spline.
+/* nonuniform_cubic_spline (0x1335e0 / objects.obj, ..\math\real_math.h inline)
+ * — nonuniform cubic spline of four samples f0..f3 at knots t0..t3, evaluated
+ * at t (Newton divided differences). The assert string at 0x29aae4, "t>= t0 &&
+ * t <= t3" (real_math.h line 0x5fa), names t0/t3/t; the PAL reference calls the
+ * function nonuniform_cubic_spline.
  *
  * The divided differences reuse the f1/f3 parameter slots
  * (FSTP [EBP+0xc] / [EBP+0x14] at 0x133647 / 0x133656), matching in-place
- * updates of the parameters. cdecl, float return in ST0. */
-float FUN_001335e0(float f0, float f1, float f2, float f3, float t0, float t1,
-                   float t2, float t3, float t)
+ * updates of the parameters. cdecl, float return in ST0.
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_render and nonuniform_cubic_spline_vector3d (its only caller);
+ * carries the real_math.h assert "t>= t0 && t <= t3".
+ */
+float nonuniform_cubic_spline(float f0, float f1, float f2, float f3, float t0,
+                              float t1, float t2, float t3, float t)
 {
   if (!(t >= t0 && t <= t3)) {
     display_assert("t>= t0 && t <= t3", "..\\math\\real_math.h", 0x5fa, 1);
@@ -1575,18 +1592,18 @@ float FUN_001335e0(float f0, float f1, float f2, float f3, float t0, float t1,
 }
 
 /* nonuniform_cubic_spline_vector3d (0x1336a0 / objects.obj / glow.c) — blend
- * the x, y and z components of four points via FUN_001335e0, calling it once
- * per axis (offsets 0/4/8 into pt_a..pt_d) with the same five extra values each
- * time. Called three times by get_particle_world_position (0x1339a0, xrefs at
- * 0x133f91/0x133fbe/0x133ff7); FUN_001335e0's own role and pt_a..pt_d/
- * w_a..w_e's semantics are unconfirmed -- names are mechanical placeholders,
- * not a claim about what is being blended.
+ * the x, y and z components of four points via nonuniform_cubic_spline, calling
+ * it once per axis (offsets 0/4/8 into pt_a..pt_d) with the same five extra
+ * values each time. Called three times by get_particle_world_position
+ * (0x1339a0, xrefs at 0x133f91/0x133fbe/0x133ff7); nonuniform_cubic_spline's
+ * own role and pt_a..pt_d/ w_a..w_e's semantics are unconfirmed -- names are
+ * mechanical placeholders, not a claim about what is being blended.
  *
- * FUN_001335e0 (ported above) is cdecl with a float return via ST0; its kb.json
- * signature is widened from disassembly -- Ghidra's decompile shows void(void)
- * because it can't recover args from a caller alone -- so this call's ABI
- * matches the binary. Argument order per call site (first PUSH is the last
- * cdecl arg): *(pt+off), then w_a..w_e unchanged from
+ * nonuniform_cubic_spline (ported above) is cdecl with a float return via ST0;
+ * its kb.json signature is widened from disassembly -- Ghidra's decompile shows
+ * void(void) because it can't recover args from a caller alone -- so this
+ * call's ABI matches the binary. Argument order per call site (first PUSH is
+ * the last cdecl arg): *(pt+off), then w_a..w_e unchanged from
  * nonuniform_cubic_spline_vector3d's own params. The call_site_audit's
  * SWALLOWED hazard on the third call (cleanup_args=9) is a false lead: that
  * call is the function's last, so there is no following call for those 9 pushes
@@ -1598,12 +1615,12 @@ void nonuniform_cubic_spline_vector3d(float *out_xyz, float *pt_a, float *pt_b,
                                       float w_b, float w_c, float w_d,
                                       float w_e)
 {
-  out_xyz[0] =
-    FUN_001335e0(pt_a[0], pt_b[0], pt_c[0], pt_d[0], w_a, w_b, w_c, w_d, w_e);
-  out_xyz[1] =
-    FUN_001335e0(pt_a[1], pt_b[1], pt_c[1], pt_d[1], w_a, w_b, w_c, w_d, w_e);
-  out_xyz[2] =
-    FUN_001335e0(pt_a[2], pt_b[2], pt_c[2], pt_d[2], w_a, w_b, w_c, w_d, w_e);
+  out_xyz[0] = nonuniform_cubic_spline(pt_a[0], pt_b[0], pt_c[0], pt_d[0], w_a,
+                                       w_b, w_c, w_d, w_e);
+  out_xyz[1] = nonuniform_cubic_spline(pt_a[1], pt_b[1], pt_c[1], pt_d[1], w_a,
+                                       w_b, w_c, w_d, w_e);
+  out_xyz[2] = nonuniform_cubic_spline(pt_a[2], pt_b[2], pt_c[2], pt_d[2], w_a,
+                                       w_b, w_c, w_d, w_e);
 }
 
 /* Object glow widgets — animated glow effects attached to game objects.

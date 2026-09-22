@@ -2577,10 +2577,10 @@ co(object_marker, matrix_position, 0x60);
 /// size=0x64  (data_new("glow particles", 0x200, 0x64) @0x13377f in glow_initialize (0x133750))
 /// Recovered layout - evidence artifact: recovery/evidence/glow_particle.json
 /// Field names come from the PAL 2342 reference (T2) unless an evidence line cites a 2276 string; every offset and width is from 2276 disassembly.
-/// color is PAL real_argb_color: alpha +0x0c, red +0x10, green +0x14, blue +0x18 (FUN_00133300 stores alpha=1.0 via MOV [EDI+0xc] and rgb via FSTP [EDI+0x10..0x18]).
+/// color is PAL real_argb_color: alpha +0x0c, red +0x10, green +0x14, blue +0x18 (glow_normal_particle_update_color stores alpha=1.0 via MOV [EDI+0xc] and rgb via FSTP [EDI+0x10..0x18]).
 /// evidence: glow_initialize @0x133750 (pool element size)
-/// evidence: FUN_001330f0 @0x1330f0, glow_trailing_particle_update_size @0x133170, FUN_001331d0 @0x1331d0, glow_trailing_particle_update_position @0x133260 (trailing particle fields)
-/// evidence: FUN_00133300 @0x133300 (color/fade), get_particle_world_position @0x1339a0 (marker index, t, position, angle, distance)
+/// evidence: glow_trailing_particle_update_color @0x1330f0, glow_trailing_particle_update_size @0x133170, glow_trailing_particle_update_velocity @0x1331d0, glow_trailing_particle_update_position @0x133260 (trailing particle fields)
+/// evidence: glow_normal_particle_update_color @0x133300 (color/fade), get_particle_world_position @0x1339a0 (marker index, t, position, angle, distance)
 /// evidence: glow_delete @0x1330a0 (index, next), glow_update @0x1345b0 (flags, previous)
 /// evidence: PAL reference /mnt/g/dev/halo-pal-2342 source/objects/widgets/glow.c struct glow_particle (names only; layout re-proven here)
 typedef struct glow_particle {
@@ -2637,7 +2637,7 @@ co(glow_particle, previous, 0x60);
 /// evidence: get_particle_world_position @0x1339a0
 /// evidence: glow_delete @0x1330a0
 /// evidence: glow_render @0x133520
-/// evidence: FUN_001330f0/..._update_size/FUN_001331d0/..._update_position/FUN_00133300 (definition_index +0x224)
+/// evidence: glow_trailing_particle_update_color/..._update_size/glow_trailing_particle_update_velocity/..._update_position/glow_normal_particle_update_color (definition_index +0x224)
 /// evidence: PAL reference source/objects/widgets/glow.c struct glow_datum (names only; layout re-proven here)
 typedef struct glow_datum {
     int16_t datum_salt;                                     ///< offset=0x00  standard data_t element prefix (pool from data_new @0x133759)
@@ -2679,8 +2679,8 @@ co(glow_datum, pad_25a, 0x25A);
 /// Partial: only offsets proven by the listed functions are typed; the rest stay padding for structize split to refine.
 /// color bounds are PAL real_argb_color (alpha first); the alpha slots +0xb4/+0xc4 are not observed accessed and stay padding.
 /// size is omitted: tag definitions have no pool/allocation size in this code.
-/// evidence: FUN_001330f0 @0x1330f0, glow_trailing_particle_update_size @0x133170, FUN_001331d0 @0x1331d0 (flags bits 3/4/5)
-/// evidence: FUN_00133300 @0x133300 (color attachment, color bounds, rate, edge fade, flags bit 0)
+/// evidence: glow_trailing_particle_update_color @0x1330f0, glow_trailing_particle_update_size @0x133170, glow_trailing_particle_update_velocity @0x1331d0 (flags bits 3/4/5)
+/// evidence: glow_normal_particle_update_color @0x133300 (color attachment, color bounds, rate, edge fade, flags bit 0)
 /// evidence: PAL reference source/objects/widgets/glow.c struct glow_definition (names only; size 0x154 there, unproven here)
 typedef struct glow_definition {
     uint8_t pad_00[40];              ///< offset=0x00  declared padding
