@@ -47,15 +47,31 @@ Parse from $ARGUMENTS (all optional):
   goal-lift (agent-interpreted, not mechanically enforced).
 - `--dry-run` — run goal-lift in dry-run (no commits) and never land; reports
   what each batch would do.
+- `--model NAME` — override goal-lift's lift/review agent (REASON_MODEL,
+  default Opus) for every batch this run, e.g. `--model sonnet` for a
+  cheaper/faster session. Forward as `model` in the Workflow args — do not
+  reimplement the fan-out, `auto-session.js` already resolves it to
+  `reasonModel` only. Deliberately does **not** affect the commit-gate agent
+  (stays on goal-lift's cheap MECHANICAL_MODEL/haiku default — it just runs a
+  build and parses the result) or the select/scoring agent (stays at goal-lift's
+  own opus default). The improve-pass agent has no separate default of its
+  own — goal-lift defaults it to whatever REASON_MODEL resolves to, so it
+  follows `--model` automatically.
+  For anything more specific, pass `--reasonModel`/`--extractModel`/
+  `--commitModel`/`--improveModel` directly and forward each as the matching
+  key (`reasonModel`/`extractModel`/`commitModel`/`improveModel`) in the
+  Workflow args, alongside or instead of `model`.
 
 ## Steps
 
 1. Print a one-line banner: `Auto-session: {batches} batches x {batch-goal} functions, land-to-main auto-FF`.
 2. Call the Workflow tool — do not reimplement any of its steps inline:
    ```
-   Workflow({ name: "auto-session", args: { batches: N, batchGoal: M, dryRun: <bool>, noLand: <bool>, objects: [<obj>, ...], criteria: "<text>" } })
+   Workflow({ name: "auto-session", args: { batches: N, batchGoal: M, dryRun: <bool>, noLand: <bool>, objects: [<obj>, ...], criteria: "<text>", model: "<name>", reasonModel: "<name>", extractModel: "<name>", commitModel: "<name>", improveModel: "<name>" } })
    ```
-   Omit `objects`/`criteria` when not passed (don't send `null`/empty).
+   Omit any key not passed (don't send `null`/empty) — in particular, only
+   include one of the four granular `*Model` keys if its specific flag
+   (`--reasonModel` etc.) was given; `--model` alone maps to `model` only.
 3. The workflow runs in the background. Report the returned task info and
    mention `/workflows` for live progress.
 4. When it completes, relay its final summary verbatim (batches landed,
@@ -73,6 +89,7 @@ Parse from $ARGUMENTS (all optional):
 /auto-session --batches 1 --batch-goal 2       # one real batch, then FF main
 /auto-session --batches 3 --batch-goal 12 --objects real_math.obj,rasterizer.obj
 /auto-session --batches 2 --batch-goal 12 --no-land  # main is busy; land later
+/auto-session --batches 2 --batch-goal 12 --model sonnet   # cheaper/faster session
 ```
 
 ## Landing policy (why it may stop early)
