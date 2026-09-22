@@ -1,6 +1,13 @@
 # System-link desync: evidence, limitations, and current state
 
-Updated: **2026-09-11**. Status: **OPEN — no proven root cause or verified fix**.
+Updated: **2026-09-22**. Status: **OPEN — no proven root cause or verified fix**.
+
+**Start a new investigation session with [the September 22 handoff](system-link-desync-handoff.md).**
+It records the current reported pairing, new log evidence, ranked leads, and a
+bounded paired-capture procedure. No capture preparation or gameplay fix has
+been implemented. The ds69-ds110 evidence below remains historical; its saved
+runtime identities, deployment state, and dirty-worktree description are not
+claims about the September 22 session.
 
 The investigation concerns a patched Halo CE Xbox client against a
 cachebeta-derived host. Binary source of truth: debug build 2276,
@@ -14,7 +21,7 @@ preserved, with their superseded claims and procedures explicitly marked:
 - [Earlier investigation log](archive/system-link-rng-desync-investigation-log.md).
 - [Archived ds72-ds110 working notes](archive/system-link-rng-desync-ds72-ds110-working-notes.md).
 
-## Current operational state
+## Historical operational state (through 2026-09-11)
 
 Investigation and deployment work was stopped after the user raised concerns
 about time, quota, and the quality of the bisection strategy. The subsequent

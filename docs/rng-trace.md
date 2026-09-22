@@ -1,5 +1,15 @@
 # RNG draw trace
 
+> **September 22, 2026: do not execute this historical recipe unchanged.**
+> The current `rng_trace_note` default filter retains only kinds 83-97 and
+> drops RNG draws/reseeds unless `HALO_RNG_TRACE_DEEP` is defined. Thus
+> `--rng-trace` alone does not currently provide the RNG stream described below.
+> Automatic trace freezing is also not implemented. Start with the
+> [paired-capture handoff](system-link-desync-handoff.md); it describes the
+> required trace selection, matched host probes, capture validation, and limits
+> of the existing comparison scripts. A differing RNG caller is a localization
+> clue, not proof that that caller contains the initiating defect.
+
 A runtime trace of every draw from the **global** random seed (`0x46e3f4`), used
 to find which lifted function desyncs a system-link game against a pristine
 build-2276 console ("client/server random seed mismatch" right after a kill).
