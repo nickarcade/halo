@@ -40014,35 +40014,43 @@
    "functions": [
     {
      "addr": "0x15f1f0",
-     "decl": "void FUN_0015f1f0(void);"
+     "decl": "void FUN_0015f1f0(void);",
+     "ported": true
     },
     {
      "addr": "0x15f200",
-     "decl": "void FUN_0015f200(void);"
+     "decl": "void FUN_0015f200(void);",
+     "ported": true
     },
     {
      "addr": "0x15f210",
-     "decl": "void FUN_0015f210(int param_1);"
+     "decl": "void FUN_0015f210(int param_1);",
+     "ported": true
     },
     {
      "addr": "0x15f220",
-     "decl": "void FUN_0015f220(void *dest, void *src);"
+      "decl": "void FUN_0015f220(void *base, void *multitex_params);",
+      "ported": true
     },
     {
      "addr": "0x15f540",
-     "decl": "void FUN_0015f540(int param_1, int param_2, uint32_t param_3, int param_4);"
+     "decl": "void FUN_0015f540(int param_1, int param_2, uint32_t param_3, int param_4);",
+     "ported": true
     },
     {
      "addr": "0x15f5e0",
-     "decl": "void FUN_0015f5e0(void);"
+     "decl": "int __stdcall FUN_0015f5e0(void *device, uint32_t reg@<edx>, float a, float b);",
+     "ported": true
     },
     {
      "addr": "0x15f630",
-     "decl": "void FUN_0015f630(void *shader, uint32_t param_2, int param_3, int param_4, uint32_t param_5, int param_6, float *centroid, uint32_t geometry_flags);"
+     "decl": "void FUN_0015f630(void *shader, uint32_t param_2, int param_3, int param_4, uint32_t param_5, int param_6, float *centroid, uint32_t geometry_flags);",
+     "ported": true
     },
     {
-     "addr": "0x15f8e0",
-     "decl": "void FUN_0015f8e0(void *parameters, void *vertices);"
+      "addr": "0x15f8e0",
+      "decl": "void FUN_0015f8e0(void *parameters, void *vertices);",
+      "ported": true
     }
    ]
   },

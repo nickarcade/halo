@@ -1,3 +1,16 @@
+## Dynavobgeom lift attempt — 2026-09-22
+
+| function | addr | obj | vc71 | action | reason |
+|---|---|---|---|---|---|
+| FUN_0015f220 | 0x15f220 | rasterizer_xbox_dynavobgeom.obj | 100.0% | committed | cdecl selective copy; patched-XBE build, ABI/hazard, VC71, and equivalence pass |
+| FUN_0015f8e0 | 0x15f8e0 | rasterizer_xbox_dynavobgeom.obj | 92.945% | committed | FCOM and signed-field recovery; patched-XBE build, ABI/hazard, and neighbor gate pass |
+| FUN_0015f630 | 0x15f630 | rasterizer_xbox_dynavobgeom.obj | 84.4% | retained-inactive | frame mismatch 0x0c vs 0x1c; user-approved recovery draft with ported:false |
+| FUN_0015f1f0 | 0x15f1f0 | rasterizer_xbox_dynavobgeom.obj | — | skipped | single-call wrapper to FUN_0016f910 |
+| FUN_0015f200 | 0x15f200 | rasterizer_xbox_dynavobgeom.obj | — | skipped | single-call wrapper to FUN_0016fa40 |
+| FUN_0015f210 | 0x15f210 | rasterizer_xbox_dynavobgeom.obj | — | skipped | no-op/thunk artifact; Ghidra resolves body away from KB address |
+| FUN_0015f540 | 0x15f540 | rasterizer_xbox_dynavobgeom.obj | — | skipped | assertion-only unsupported-mode stub |
+| FUN_0015f5e0 | 0x15f5e0 | rasterizer_xbox_dynavobgeom.obj | — | skipped | EDX register-ABI wrapper around D3DDevice_SetVertexData2f |
+
 ## Goal-lift run — 12/12 committed (goal_reached) — 2026-09-22
 
 | function | addr | obj | vc71 | action | reason |
@@ -8267,4 +8280,3 @@ Then regenerate the actionable-unblock queue from this run's park/skip reasons
 | interior_rectangle2d | 0x108d00 | rectangles.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=retrieval] |
 | equal_rectangle2d | 0x108d40 | rectangles.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=none] |
 | equal_point2d | 0x108d80 | - | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
-

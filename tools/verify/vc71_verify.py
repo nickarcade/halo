@@ -1020,7 +1020,7 @@ def compile_vc71(source: Path, output: Path, regcall_elide: bool = False, opt: s
     frame_flag = ["/Oy-"] if "/Oy" not in opt_flags else []
 
     cmd = [
-        VC71_CL_WSL,
+        VC71_CL if os.name == "nt" else VC71_CL_WSL,
         "/nologo", "/c", "/TC",
         *opt_flags, *frame_flag, "/GF", "/Gy", "/Gd",
         "/W0", "/Zl", "/X",
