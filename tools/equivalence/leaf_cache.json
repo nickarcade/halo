@@ -4304,9 +4304,12 @@
     "call_count": 3
   },
   "0x1330f0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 5,
-    "call_count": 1
+    "call_count": 1,
+    "confidence": "moderate",
+    "coverage_pct": 33.6,
+    "oracle": "xbe"
   },
   "0x133170": {
     "class": "stubbable",

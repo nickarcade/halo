@@ -19421,6 +19421,22 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x165ea0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x165fd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x166010": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x166210": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x168cd0": {
       "kind": "function",
       "status": "ported"

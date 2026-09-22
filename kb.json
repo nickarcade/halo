@@ -48963,79 +48963,115 @@
    "functions": [
     {
      "addr": "0x165980",
-     "decl": "void FUN_00165980(void);"
+     "decl": "int __stdcall FUN_00165980(void *device, uint32_t count, void *rects, uint32_t flags, uint32_t color@<edx>, float z, uint32_t stencil@<eax>);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x1659a0",
-     "decl": "bool FUN_001659a0(void);"
+     "decl": "bool FUN_001659a0(void);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x1659f0",
-     "decl": "void FUN_001659f0(void);"
+     "decl": "void FUN_001659f0(void);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x165a00",
-     "decl": "void FUN_00165a00(void);"
+     "decl": "void FUN_00165a00(void);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x165a10",
-     "decl": "void FUN_00165a10(void);"
+     "decl": "void FUN_00165a10(void);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x165cb0",
-     "decl": "void FUN_00165cb0(void *shader, int arg2, int arg3, int arg4, int arg5, void *vertex_buffer);"
+     "decl": "void FUN_00165cb0(void *shader, int arg2, int arg3, int arg4, int arg5, void *vertex_buffer);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x165dd0",
-     "decl": "void FUN_00165dd0(void);"
+     "decl": "void FUN_00165dd0(void);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x165de0",
-     "decl": "void FUN_00165de0(int16_t index, float scale, float *out);"
+     "decl": "void FUN_00165de0(int16_t index, float scale, float *out);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x165ea0",
-     "decl": "void rasterizer_environment_fog_screen_model_submit(void);",
-     "comment": "[NAME: rasterizer_environment_fog_screen_model_submit \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void rasterizer_environment_fog_screen_model_submit(void *shader, int16_t shader_permutation_index, void *triangle_buffer, int dynamic_triangle_buffer_index, int triangle_count, void *vertex_buffer, int dynamic_vertex_buffer_index);",
+     "comment": "[NAME: rasterizer_environment_fog_screen_model_submit \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x165fc0",
-     "decl": "void FUN_00165fc0(void);"
+     "decl": "void FUN_00165fc0(void);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x165fd0",
-     "decl": "void set_real_vector4d(void);",
-     "comment": "[NAME: set_real_vector4d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "float *set_real_vector4d(float *vector, float i, float j, float k, float l);",
+     "comment": "[NAME: set_real_vector4d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x166010",
-     "decl": "void rasterizer_environment_fog_screen_is_active(void);",
-     "comment": "[NAME: rasterizer_environment_fog_screen_is_active \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool rasterizer_environment_fog_screen_is_active(void);",
+     "comment": "[NAME: rasterizer_environment_fog_screen_is_active \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x166210",
-     "decl": "void rasterizer_environment_fog_screen_wind_update(void);",
-     "comment": "[NAME: rasterizer_environment_fog_screen_wind_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void rasterizer_environment_fog_screen_wind_update(void *screen@<ebx>, void *wind@<esi>);",
+     "comment": "[NAME: rasterizer_environment_fog_screen_wind_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x166400",
-     "decl": "void FUN_00166400(void);"
+     "decl": "void FUN_00166400(void);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x166890",
-     "decl": "void FUN_00166890(int16_t pass);"
+     "decl": "void FUN_00166890(int16_t pass);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x1677d0",
-     "decl": "void FUN_001677d0(void *shader, int arg2, int arg3, int arg4, int arg5, void *arg6);"
+     "decl": "void FUN_001677d0(void *shader, int arg2, int arg3, int arg4, int arg5, void *arg6);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x167920",
-     "decl": "void FUN_00167920(void);"
+     "decl": "void FUN_00167920(void);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x167ee0",
-     "decl": "bool FUN_00167ee0(void *param_1);"
+     "decl": "bool FUN_00167ee0(void *param_1);",
+     "ported": true,
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c"
     },
     {
      "addr": "0x167ff0",
