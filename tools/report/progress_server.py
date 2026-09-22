@@ -48,13 +48,13 @@ logging.basicConfig(
 
 
 def _recompute_unit_match(unit: dict) -> None:
-    """Recompute unit['summary'] match_avg/match_weighted from its function scores in-place."""
+    """Recompute unit match from scored, ported functions."""
     scores = []
     weighted_sum = 0.0
     weighted_bytes = 0
     for func in unit.get('functions', []):
         mp = func.get('match_percent')
-        if mp is None:
+        if not func.get('ported') or mp is None:
             continue
         size = func.get('size') or 0
         scores.append(mp)
@@ -70,7 +70,7 @@ def _recompute_unit_match(unit: dict) -> None:
 
 
 def _recompute_summary_match(report: dict) -> None:
-    """Recompute report['summary']['match'] from all units' function scores in-place."""
+    """Recompute overall match from scored, ported functions."""
     total_sum = 0.0
     weighted_sum = 0.0
     weighted_bytes = 0
@@ -78,7 +78,7 @@ def _recompute_summary_match(report: dict) -> None:
     for unit in report.get('units', []):
         for func in unit.get('functions', []):
             mp = func.get('match_percent')
-            if mp is None:
+            if not func.get('ported') or mp is None:
                 continue
             size = func.get('size') or 0
             total_sum += mp
