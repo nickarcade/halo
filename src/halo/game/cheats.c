@@ -102,7 +102,7 @@ float FUN_000a5590(float value, float range)
  */
 float FUN_000a55e0(float arg1, float arg2, float arg3, float arg4)
 {
-  float saved;
+  volatile float saved;
 
   saved = FUN_000a5590(arg1, arg2);
   return FUN_000a5590(arg3, arg4) * saved;

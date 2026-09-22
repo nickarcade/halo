@@ -265,7 +265,7 @@ bool network_connection_idle(int connection, int timeout, int *output)
 
   queue_space = circular_queue_free_space(conn->unreliable_incoming_queue);
 
-  while (ok && queue_space > 0x193) {
+  while (ok && queue_space >= 0x194) {
     bytes_read = 0;
     is_connected = FUN_000831a0(conn->unreliable_endpoint);
 
@@ -309,7 +309,7 @@ bool network_connection_idle(int connection, int timeout, int *output)
       assert_halt_msg(0, "endpoint read buffer overflowed");
     }
 
-    if (bytes_read < 1)
+    if (bytes_read <= 0)
       return ok;
 
     if (*(int *)addr_buf == 0) {

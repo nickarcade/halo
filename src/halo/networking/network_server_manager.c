@@ -752,6 +752,7 @@ char network_game_server_adjust_machine_settings(int param_1, int param_2, int p
 {
   char cVar1;
 
+  cVar1 = 0;
   if (((param_1 == 0) || (param_2 == 0)) || (param_3 == 0)) {
     display_assert("server && machine && machine_description",
                    "c:\\halo\\SOURCE\\networking\\network_server_manager.c",
@@ -763,15 +764,15 @@ char network_game_server_adjust_machine_settings(int param_1, int param_2, int p
     if (cVar1 == '\x01') {
       network_event("server updated machine #%d settings",
                        (int)*(char *)(param_3 + 0x40));
-      return '\x01';
+    } else {
+      network_event("network_game_update_machine() failed in "
+                       "network_game_server_get_client_connection()");
     }
-    network_event("network_game_update_machine() failed in "
-                     "network_game_server_get_client_connection()");
-    return cVar1;
+  } else {
+    network_event("client machine tried to update itself with a non-matching "
+                     "machine identifier");
   }
-  network_event("client machine tried to update itself with a non-matching "
-                   "machine identifier");
-  return '\0';
+  return cVar1;
 }
 
 /* Finalize server loading after all machines have loaded (0x12caa0).
@@ -2393,6 +2394,7 @@ bool network_game_server_idle_pregame_tasks(int server)
 void network_game_server_dispose(void *server)
 {
   void *msg;
+  void *server_addr;
 
   if (!server) {
     display_assert("server",
@@ -2400,9 +2402,10 @@ void network_game_server_dispose(void *server)
                    0x120, 1);
     system_exit(-1);
   }
+  server_addr = server;
   switch (*(uint16_t *)((char *)server + 4)) {
   case 0:
-    msg = create_network_game_message(9, &server, 4);
+    msg = create_network_game_message(9, &server_addr, 4);
     if (msg) {
       goto notify;
     }
@@ -2410,7 +2413,7 @@ void network_game_server_dispose(void *server)
       "failed to create a _message_type_server_graceful_game_exit_pregame message");
     break;
   case 2:
-    msg = create_network_game_message(0x1f, &server, 4);
+    msg = create_network_game_message(0x1f, &server_addr, 4);
     if (msg) {
       goto notify;
     }
