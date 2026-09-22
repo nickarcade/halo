@@ -1046,6 +1046,119 @@ void FUN_001baca0(void)
         (double)*(int *)0x4e5630 / (double)*(int *)0x32ea9c);
 }
 
+/* 0x1badc0 — cache_copy_get_status: report the cache-copy worker's state and
+ * write the [0, 1] progress fraction through the caller's float pointer.
+ *
+ * Assert TU is cache_files_decompress_windows.c (same __FILE__ string as the
+ * rest of this block); the two asserts are at source lines 0x23e and 0x272.
+ *
+ * ABI recovered from the disassembly, not from the kb decl that preceded this
+ * lift: the single argument is at [EBP+0x8] (MOV EDI,[EBP+8] at 0x1badd1) and
+ * is used only as FSTP float ptr [EDI] / MOV dword ptr [EDI],0, so it is a
+ * float *. Every return is MOV AX,SI (16-bit) except the one constant arm at
+ * 0x1baece (MOV EAX,0x3), so the return value is a 16-bit status code; the
+ * five observed values are 0..4 and no string names them, so no enum is
+ * claimed.
+ *
+ * Globals block reached through the POINTER global at 0x32ea98, the same block
+ * FUN_001baf50 and FUN_001ba2f0 use. The original reloads that pointer after
+ * every call (0x1bae10, 0x1bae46, 0x1bae6a), which the reloads of `globals`
+ * below reproduce; the +0x904 flag word is read once up front, before the argument
+ * assert (MOV EBX,[EAX+0x904] at 0x1badc9), so it is held in a local.
+ *
+ *   +0x904  flag word; zero means "copy in progress", otherwise exactly one of
+ *           bits 1/2/0 is expected (tested in that order at 0x1baed6/0x1baeee/
+ *           0x1baeff) and anything else trips the unreachable assert.
+ *   +0x988  byte flag; non-zero makes the function sleep 16 ms before sampling
+ *           (PUSH 0x10 / CALL 0x1d0362, the same __stdcall sleep main.c calls
+ *           through a pointer at 0x1d0362).
+ *   +0x95c  non-zero enables the in-progress path at all.
+ *   +0x10c  signed count; <= 0 means nothing queued (progress 0, status 3).
+ *   +0x954  worker-idle event, +0x958  a second event; both polled with a zero
+ *           timeout. The first poll's result picks status 3 (non-zero, i.e. not
+ *           WAIT_OBJECT_0) or 4 (signalled) via the NEG/SBB/ADD 4 idiom at
+ *           0x1bae52. A non-zero second poll returns that status without
+ *           touching the caller's float.
+ *   +0xaa0  progress float, clamped to the .rdata constants 0.0f (0x2533c0)
+ *           and 1.0f (0x2533c8). The clamp senses come from the FNSTSW tests:
+ *           TEST AH,0x5 / JP at 0x1bae7e falls through only when C0 alone is
+ *           set (x < 0.0f); TEST AH,0x41 / JNZ at 0x1baea1 falls through only
+ *           when neither C0 nor C3 is set (x > 1.0f).
+ *
+ * In the flag arms the status is materialised into ESI before the zero store
+ * to the caller's float; that order is preserved. */
+short cache_copy_get_status(float *progress)
+{
+  unsigned char *globals;
+  unsigned int flags;
+  short status;
+
+  globals = *(unsigned char **)0x32ea98;
+  flags = *(unsigned int *)(globals + 0x904);
+  status = 0;
+
+  if (progress == (float *)0) {
+    display_assert("progress",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c",
+                   0x23e, true);
+    system_exit(-1);
+  }
+
+  globals = *(unsigned char **)0x32ea98;
+  if (*(char *)(globals + 0x988) != 0) {
+    FUN_001d0362(0x10);
+    globals = *(unsigned char **)0x32ea98;
+  }
+
+  if (flags == 0 && *(int *)(globals + 0x95c) != 0) {
+    if (*(int *)(globals + 0x10c) <= 0) {
+      goto queue_empty;
+    }
+
+    status =
+      (short)(WaitForSingleObject(*(int *)(globals + 0x954), 0) != 0 ? 3 : 4);
+
+    globals = *(unsigned char **)0x32ea98;
+    if (WaitForSingleObject(*(int *)(globals + 0x958), 0) == 0) {
+      globals = *(unsigned char **)0x32ea98;
+      if (*(float *)(globals + 0xaa0) < 0.0f) {
+        *progress = 0.0f;
+      } else if (*(float *)(globals + 0xaa0) > 1.0f) {
+        *progress = 1.0f;
+      } else {
+        *progress = *(float *)(globals + 0xaa0);
+      }
+    }
+    return status;
+  }
+
+  if ((flags & 2) != 0) {
+    status = 1;
+    goto exit;
+  }
+  if ((flags & 4) != 0) {
+    status = 0;
+    goto exit;
+  }
+  if ((flags & 1) != 0) {
+    status = 2;
+    goto exit;
+  }
+
+  display_assert("!\"unreachable\"",
+                 "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c",
+                 0x272, true);
+  system_exit(-1);
+
+exit:
+  *progress = 0.0f;
+  return status;
+
+queue_empty:
+  *progress = 0.0f;
+  return 3;
+}
+
 /* 0x1baf50 — FUN_001baf50: wait for the cache-copy worker to go idle, then
  * optionally dump the copy timing accumulators.
  *

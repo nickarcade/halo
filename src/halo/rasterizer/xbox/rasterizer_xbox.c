@@ -683,7 +683,7 @@ int FUN_00155b60(int r1, int r2, int r3, int s1, int s2)
 void _rasterizer_dispose(void)
 {
   rasterizer_memory_pool_delete();
-  FUN_0015e9e0();
+  rasterizer_dynamic_geometry_dispose();
   FUN_00184690();
   rasterizer_vertex_shaders_dispose();
   FUN_0017e040();
@@ -2655,7 +2655,7 @@ char FUN_00157010(void)
 
   success =
     (success != 0 && (char)rasterizer_memory_pool_new() != 0 &&
-     FUN_0015e800() != 0 && (char)rasterizer_transparent_geometry_new() != 0 &&
+     rasterizer_dynamic_geometry_initialize() != 0 && (char)rasterizer_transparent_geometry_new() != 0 &&
      rasterizer_vertex_shaders_initialize() != 0 && FUN_0017df80() != 0 &&
      FUN_0017eb50() != 0 && (char)rasterizer_text_cache_initialize() != 0 &&
      FUN_0015c2d0() != 0 && FUN_0016f6c0() != 0 && FUN_001659a0() != 0) ?

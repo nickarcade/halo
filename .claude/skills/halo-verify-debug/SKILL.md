@@ -325,7 +325,7 @@ against the new source.
 
 ### Equivalence (`/verify equivalence`)
 Unicorn-Engine behavioral differential with seeded inputs, coverage tracking,
-and concolic feedback. Use when byte-match is weak evidence: FPU-heavy code,
+and concolic feedback. Use when mnemonic matching is weak evidence: FPU-heavy code,
 hashes/serializers, or structurally capped lifts (e.g. SEH wrappers stuck at
 ~55%). Works for both leaf and non-leaf functions:
 - **Oracle:** the pristine `halo-patched/cachebeta.xbe`, mapped at real VAs
@@ -363,10 +363,11 @@ hashes/serializers, or structurally capped lifts (e.g. SEH wrappers stuck at
 - Each run records leaf classification and confidence to
   `tools/equivalence/leaf_cache.json`, boosting pure leaves by `+5 eq_pure_leaf`
   and high-confidence results by `+3 eq_high_conf` in future selector runs.
-- **Verification decision:** Match ≥99% → done (byte-match sufficient);
-  [85, 98]% with delinked ref → try `/verify permute` first; [85, 98]% pure leaf
-  FPU-heavy → `/verify equivalence` first; <85% → investigate lift (don't
-  permute); structurally capped (~55%) → equivalence to prove behavior.
+- **Verification decision:** ≥99% mnemonic match → strong structural evidence,
+  not byte or behavior proof; [85, 98]% with delinked ref → try `/verify permute`
+  first; [85, 98]% pure leaf FPU-heavy → `/verify equivalence` first; <85% →
+  investigate lift (don't permute); structurally capped (~55%) → equivalence to
+  prove behavior. Use the future strict raw-byte audit for byte-exact claims.
   **Interpret confidence:** `high` = strong evidence; `moderate` = concolic
   improved coverage but returns monotonic; `weak` = only early-exit path tested,
   needs investigation or live memory replay.

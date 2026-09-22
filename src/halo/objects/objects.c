@@ -207,7 +207,8 @@ bool valid_real_normal3d_perpendicular(float *a, float *b)
  * 3 cdecl params: camera_state, unit_datum, result buffer.
  */
 /* 0x84ae0 */
-void bored_camera_update(int *param_1, unsigned short *param_2, unsigned char *param_3)
+void bored_camera_update(int *param_1, unsigned short *param_2,
+                         unsigned char *param_3)
 {
   int iVar3;
   int iVar4;
@@ -346,10 +347,10 @@ void bored_camera_update(int *param_1, unsigned short *param_2, unsigned char *p
   }
 }
 
-/* scripted_camera_enable (0x84fe0) — Set the bored-camera enable flag and mark the
- * camera state dirty so it will be re-evaluated this tick.
- * Object: objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc
- * global block with the confirmed bored_camera.c assert at 0x84ae0).
+/* scripted_camera_enable (0x84fe0) — Set the bored-camera enable flag and mark
+ * the camera state dirty so it will be re-evaluated this tick. Object:
+ * objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc global block
+ * with the confirmed bored_camera.c assert at 0x84ae0).
  *
  * Confirmed: MOV AL,[param_1]; MOV [0x2ee5a0],AL; MOV byte ptr [0x2ee5a1],1.
  * Renamed scripted_camera_enable reverted: name contradicted its own cited
@@ -361,8 +362,8 @@ void scripted_camera_enable(unsigned char param_1)
   *(char *)0x2ee5a1 = 1;
 }
 
-/* scripted_camera_set_animation (0x85000 / objects.obj) — select a scripted animation camera
- * by name from an 'antr' tag and update the camera globals.
+/* scripted_camera_set_animation (0x85000 / objects.obj) — select a scripted
+ * animation camera by name from an 'antr' tag and update the camera globals.
  *
  * Confirmed: tag block at +0x74, element stride 0xb4, name at element+0,
  * camera duration at element+0x22, and the matched index at +0x2ee5dc.
@@ -405,8 +406,8 @@ void scripted_camera_set_animation(int animation_tag, const char *camera_name)
   }
 }
 
-/* scripted_camera_set_first_person (0x850d0) — Switch to first-person camera mode 2 for the
- * given unit handle, or report an error if the handle is -1.
+/* scripted_camera_set_first_person (0x850d0) — Switch to first-person camera
+ * mode 2 for the given unit handle, or report an error if the handle is -1.
  * Object: objects.obj / source: bored_camera.c (shared DAT_002ee5a0..dc
  * global block with the confirmed bored_camera.c assert at 0x84ae0).
  *
@@ -426,11 +427,12 @@ void scripted_camera_set_first_person(int param_1)
   error(2, "cannot set first person camera on a unit that doesn't exist.");
 }
 
-/* scripted_camera_set_dead (0x85110) — Switch to first-person camera mode 3 for the
- * given unit handle, or report an error if the handle is -1.
- * Object: objects.obj / source: bored_camera.c
+/* scripted_camera_set_dead (0x85110) — Switch to first-person camera mode 3 for
+ * the given unit handle, or report an error if the handle is -1. Object:
+ * objects.obj / source: bored_camera.c
  *
- * Confirmed: identical to scripted_camera_set_first_person but stores 3 in DAT_002ee5a2.
+ * Confirmed: identical to scripted_camera_set_first_person but stores 3 in
+ * DAT_002ee5a2.
  */
 void scripted_camera_set_dead(int param_1)
 {
@@ -443,9 +445,10 @@ void scripted_camera_set_dead(int param_1)
   CALL_FUN_0008f390(2, (const char *)0x266ecc);
 }
 
-/* scripted_camera_object_is_first_person_camera (0x85150) — Check if first-person camera mode 2 is active for
- * the given unit handle. Returns 1 if the bored-camera is enabled, mode is 2,
- * and the stored unit handle matches param_1; otherwise 0. */
+/* scripted_camera_object_is_first_person_camera (0x85150) — Check if
+ * first-person camera mode 2 is active for the given unit handle. Returns 1 if
+ * the bored-camera is enabled, mode is 2, and the stored unit handle matches
+ * param_1; otherwise 0. */
 int scripted_camera_object_is_first_person_camera(int param_1)
 {
   if (*(char *)0x2ee5a0 != '\0' && *(short *)0x2ee5a2 == 2 &&
@@ -455,10 +458,10 @@ int scripted_camera_object_is_first_person_camera(int param_1)
   return 0;
 }
 
-/* scripted_camera_set (0x85180) — Configure camera globals from a cutscene-camera
- * entry (param_1) in the scenario, using param_2 as tick-based time and
- * param_3 as unit handle. Triggers director_update and observer_update.
- * Object: objects.obj / source: bored_camera.c
+/* scripted_camera_set (0x85180) — Configure camera globals from a
+ * cutscene-camera entry (param_1) in the scenario, using param_2 as tick-based
+ * time and param_3 as unit handle. Triggers director_update and
+ * observer_update. Object: objects.obj / source: bored_camera.c
  *
  * Confirmed: CALL global_scenario_get; CALL
  * tag_block_get_element(+0x4f0,param_1,0x68); stores to 0x2ee5a1..0x2ee5d4;
@@ -497,14 +500,16 @@ void scripted_camera_set_absolute(short param_1, short param_2)
   return;
 }
 
-/* scripted_camera_set_camera_point_relative (0x85280 / objects.obj) — set scripted camera globals from
- * position, forward, up, speed, time, and an optional unit handle.
+/* scripted_camera_set_camera_point_relative (0x85280 / objects.obj) — set
+ * scripted camera globals from position, forward, up, speed, time, and an
+ * optional unit handle.
  *
  * Confirmed: the zero-speed comparison uses 0x2533c0; the fallback speed is
  * the binary constant 0x3f9c61aa, and observer_update receives 0x38d1b717.
  */
-void scripted_camera_set_camera_point_relative(float *position, float *forward, float *up, float speed,
-                  short ticks, int unit_handle)
+void scripted_camera_set_camera_point_relative(float *position, float *forward,
+                                               float *up, float speed,
+                                               short ticks, int unit_handle)
 {
   *(short *)0x2ee5a2 = 0;
   *(short *)0x2ee5a4 = -1;
@@ -528,21 +533,24 @@ void scripted_camera_set_camera_point_relative(float *position, float *forward, 
   observer_update(0.0001f);
 }
 
-/* scripted_camera_set_camera_point_absolute (0x85350 / objects.obj) — scripted camera helper with no
- * associated unit handle. */
-void scripted_camera_set_camera_point_absolute(float *position, float *forward, float *up, float speed,
-                  short ticks)
+/* scripted_camera_set_camera_point_absolute (0x85350 / objects.obj) — scripted
+ * camera helper with no associated unit handle. */
+void scripted_camera_set_camera_point_absolute(float *position, float *forward,
+                                               float *up, float speed,
+                                               short ticks)
 {
-  scripted_camera_set_camera_point_relative(position, forward, up, speed, ticks, -1);
+  scripted_camera_set_camera_point_relative(position, forward, up, speed, ticks,
+                                            -1);
 }
 
 /*
- * scripted_camera_time (0x853a0 / objects.obj) — convert the cutscene-camera time
- * (seconds, at 0x2ee5a8) back to a tick count by multiplying by 30.0 and
+ * scripted_camera_time (0x853a0 / objects.obj) — convert the cutscene-camera
+ * time (seconds, at 0x2ee5a8) back to a tick count by multiplying by 30.0 and
  * truncating to int.
  *
- * The camera time global at 0x2ee5a8 is stored as ticks/30 (see scripted_camera_set,
- * which writes (float)(param_2 / 30)); this reverses that to recover ticks.
+ * The camera time global at 0x2ee5a8 is stored as ticks/30 (see
+ * scripted_camera_set, which writes (float)(param_2 / 30)); this reverses that
+ * to recover ticks.
  *
  * Confirmed: FLD [0x2ee5a8]; FMUL [0x253394 = 30.0f]; JMP _ftol2 (tail-call).
  * Confirmed: return value is the truncated int product (EAX from _ftol2).
@@ -560,7 +568,8 @@ int scripted_camera_time(void)
  * 3 cdecl params.
  */
 /* 0x853c0 */
-void scripted_camera_update(int param_1, unsigned short *param_2, unsigned int *param_3)
+void scripted_camera_update(int param_1, unsigned short *param_2,
+                            unsigned int *param_3)
 {
   float *pfVar1;
   int iVar2;
@@ -780,8 +789,9 @@ void scripted_camera_update(int param_1, unsigned short *param_2, unsigned int *
  * copies the default scale vector from **(float**)0x2ee708. Runs the
  * marker-resolve callback and optionally the first-person weapon marker
  * callback, then fires the initial effect_update tick. */
-int effect_new_looping(int definition_index, int object_index, short marker_index,
-                 short secondary_marker, short unknown)
+int effect_new_looping(int definition_index, int object_index,
+                       short marker_index, short secondary_marker,
+                       short unknown)
 {
   char *iVar4;
   int iVar3;
@@ -808,7 +818,8 @@ int effect_new_looping(int definition_index, int object_index, short marker_inde
     }
     *(uint8_t *)(iVar4 + 2) |= 2;
     csmemset(iVar4 + 0x5c, -1, 0x80);
-    effect_build_locations((int)iVar4, (void *)&object_get_markers_by_string_id);
+    effect_build_locations((int)iVar4,
+                           (void *)&object_get_markers_by_string_id);
     if (*(short *)(iVar4 + 0x4c) != -1) {
       effect_build_locations((int)iVar4, (void *)0xdd190);
     }
@@ -817,13 +828,14 @@ int effect_new_looping(int definition_index, int object_index, short marker_inde
   return iVar3;
 }
 
-/* effect_new_from_object / effects.obj — create a scaled effect attached to an object.
- * Validates that object_index is not NONE and that both scale values are in
- * [0,1]. Allocates an effect datum, applies scale/colour via impulse_effect_initialize,
- * stores the attached object handle and first-person-weapon index, optionally
- * marks as "violent" (via effects_object_is_corpse), performs debug logging if enabled,
- * memsets the per-event slot array, runs marker-resolve callbacks, and fires
- * the initial effect_update tick. Returns the new datum index or NONE (-1).
+/* effect_new_from_object / effects.obj — create a scaled effect attached to an
+ * object. Validates that object_index is not NONE and that both scale values
+ * are in [0,1]. Allocates an effect datum, applies scale/colour via
+ * impulse_effect_initialize, stores the attached object handle and
+ * first-person-weapon index, optionally marks as "violent" (via
+ * effects_object_is_corpse), performs debug logging if enabled, memsets the
+ * per-event slot array, runs marker-resolve callbacks, and fires the initial
+ * effect_update tick. Returns the new datum index or NONE (-1).
  *
  * VC71 ceiling 82.9% (180 compiled vs 165 ref insns) is STRUCTURAL, not a
  * defect: the delinked boundary is correct (Ghidra body 0x9ec30-0x9ee32 =
@@ -833,7 +845,8 @@ int effect_new_looping(int definition_index, int object_index, short marker_inde
  * FPU compare-direction (jnp/jne) and 16-bit store (orb/orw) idioms. Verified
  * 2026-06-23; do not chase — no re-bounded export will close it. */
 int effect_new_from_object(int param_1, int param_2, int param_3, short param_4,
-                 float param_5, float param_6, int param_7, int param_8)
+                           float param_5, float param_6, int param_7,
+                           int param_8)
 {
   int iVar3;
   char *iVar4;
@@ -898,7 +911,8 @@ int effect_new_from_object(int param_1, int param_2, int param_3, short param_4,
     }
 
     csmemset(iVar4 + 0x5c, -1, 0x80);
-    effect_build_locations((int)iVar4, (void *)&object_get_markers_by_string_id);
+    effect_build_locations((int)iVar4,
+                           (void *)&object_get_markers_by_string_id);
     if (*(short *)(iVar4 + 0x4c) != -1) {
       effect_build_locations((int)iVar4, (void *)0xdd190);
     }
@@ -911,10 +925,11 @@ int effect_new_from_object(int param_1, int param_2, int param_3, short param_4,
 }
 
 /*
- * game_engine_remap_equipment — equipment tag-index remapper for game engine mode 3.
+ * game_engine_remap_equipment — equipment tag-index remapper for game engine
+ * mode 3.
  *
- * Called from game_engine_remap_object_definition when the 'obje' type word is 3 (equipment).
- * Remaps or blocks equipment spawn based on:
+ * Called from game_engine_remap_object_definition when the 'obje' type word is
+ * 3 (equipment). Remaps or blocks equipment spawn based on:
  *   - weapon_definition_index_to_list_index returning 0xc or 0xd
  *   - The 'eqip' tag's type field at offset 0x308 vs variant flags at 0x456b18
  *   - Game engine type at 0x456b3c (3→list 0xd, 9→list 0xc, 10→none)
@@ -1008,7 +1023,8 @@ return_original:
 }
 
 /*
- * game_engine_remap_object_definition — game-engine tag-index remapping dispatch.
+ * game_engine_remap_object_definition — game-engine tag-index remapping
+ * dispatch.
  *
  * When a game engine is active (*(int *)0x456b60 != 0) and tag_index is
  * valid (!= -1), reads the object type word from the 'obje' tag header
@@ -1050,10 +1066,10 @@ int game_engine_remap_object_definition(int tag_index)
   return tag_index;
 }
 
-/* game_engine_get_state_message / objects.obj -- determine respawn state for a player.
- * Returns the "HUD text was produced" flag in AL (original only ever sets AL;
- * see xor al,al at 0xae23e). hud_show_action_response (unported) draws the buffer only
- * when this returns nonzero. */
+/* game_engine_get_state_message / objects.obj -- determine respawn state for a
+ * player. Returns the "HUD text was produced" flag in AL (original only ever
+ * sets AL; see xor al,al at 0xae23e). hud_show_action_response (unported) draws
+ * the buffer only when this returns nonzero. */
 char game_engine_get_state_message(int param_1, int param_2, int param_3)
 {
   int player;
@@ -1109,8 +1125,9 @@ char game_engine_get_state_message(int param_1, int param_2, int param_3)
 
   /* Live player: both aceb0 paths RETURN the dispatcher's AL ("text was
    * produced"), per original 0xae205-0xae21c and 0xae21d-0xae23d -- there is
-   * no xor al,al before those rets. The unported caller hud_show_action_response only
-   * draws the buffer when this returns nonzero (test al,al at 0xd0931). */
+   * no xor al,al before those rets. The unported caller
+   * hud_show_action_response only draws the buffer when this returns nonzero
+   * (test al,al at 0xd0931). */
   time = game_time_get();
   if (time < 0x1c2) {
     result = FUN_000aceb0(param_2, param_3, -1, param_1, 0x1d);
@@ -1129,12 +1146,13 @@ done:
  * Returns 1 (won), 0 (not won), or -1 (invalid/undecided).
  *
  * VC71 whole-file score 2.3% is a MEASUREMENT ARTIFACT, not a lift defect:
- * game_engine_did_player_win_default is the LAST function in objects.obj's delinked range, which
- * batch_delink.py's compute_truncated_range() deliberately ends at the last
- * function's START (BFT COFF relocation-bug workaround), truncating this
- * body to 1 instruction in the reference. True match is 92.9% (87/81 insns)
- * against the per-function ref delinked/functions/000ae250.obj (verified via
- * `vc71_verify --function game_engine_did_player_win_default` 2026-06-23). Do NOT bump the committed
+ * game_engine_did_player_win_default is the LAST function in objects.obj's
+ * delinked range, which batch_delink.py's compute_truncated_range()
+ * deliberately ends at the last function's START (BFT COFF relocation-bug
+ * workaround), truncating this body to 1 instruction in the reference. True
+ * match is 92.9% (87/81 insns) against the per-function ref
+ * delinked/functions/000ae250.obj (verified via `vc71_verify --function
+ * game_engine_did_player_win_default` 2026-06-23). Do NOT bump the committed
  * whole-file floor or re-export objects.obj — both reintroduce the COFF bug /
  * a false regression. See [[reference_inline_delinked_export_when_live_down]].
  */
@@ -1196,7 +1214,7 @@ void glow_new(int tag_index)
     glow_datum = data_new_at_index(*(data_t **)0x5a90c8);
     if (glow_datum != -1) {
       glow_widget = (int)datum_get(*(data_t **)0x5a90c8, glow_datum);
-      glow_definition = (int)tag_get(0x676c7721, tag_index);
+      glow_definition = (int)tag_get(TAG_GROUP_GLW, tag_index);
       bitmap_definition =
         (int)tag_get(0x6269746d, *(int *)(glow_definition + 0x150));
       if (*(int16_t *)bitmap_definition == 3) {
@@ -1254,12 +1272,319 @@ void glow_delete(int widget_datum)
   datum_delete(*(data_t **)0x5a90c8, widget_datum);
 }
 
+/* glow_trailing_particle_update_color (0x1330f0 / objects.obj / glow.c) —
+ * age-based fade of a trailing glow particle (the PAL reference calls it
+ * glow_trailing_particle_update_color). If glowdef flag 0x8 (byte +0x28) is
+ * set, fade (+0x58) = 1 - age(+0x50) / lifetime(+0x52), pinned to [0,1];
+ * otherwise fade = 1.
+ *
+ * glow_widget arrives in EAX and particle_ptr in ESI (both read uninitialized
+ * at 0x1330f4 / 0x133110). Sole caller: glow_update (0x1348f5). The fade is
+ * FST'd to +0x58 before the pin compares (0x133130), so the pin is a second
+ * assignment of the same field, not a local.
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_delete and glow_trailing_particle_update_size; tests the PAL
+ * trailing_particles_fade_over_time bit (flags & 0x8).
+ */
+void glow_trailing_particle_update_color(int glow_widget, int particle_ptr)
+{
+  glow_particle *particle;
+  glow_definition *definition;
+
+  particle = (glow_particle *)particle_ptr;
+  definition = (glow_definition *)tag_get(
+    TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags &
+       FLAG(_glow_definition_trailing_particles_fade_over_time_bit)) != 0) {
+    particle->fade = *(float *)0x2533c8 -
+                     (float)particle->ticks_in_existence / particle->lifetime;
+    particle->fade =
+      particle->fade < *(float *)0x2533c0 ?
+        *(float *)0x2533c0 :
+        (particle->fade > *(float *)0x2533c8 ? *(float *)0x2533c8 :
+                                               particle->fade);
+  } else {
+    particle->fade = 1.0f;
+  }
+}
+
+/* glow_trailing_particle_update_size (0x133170 / objects.obj / glow.c) — if
+ * glowdef flag 0x10 is set, size (+0x24) = max(0, 1 - age/lifetime) *
+ * initial size (+0x20).
+ *
+ * No call xrefs: glow_update inlines the same body. ABI is taken from the body
+ * alone: EAX (glow_widget, 0x133174) and ESI (particle_ptr, 0x133190) are read
+ * without being set. The max is `0 > scale ? 0 : scale` -- FLD 0; FCOMP
+ * (0x1331aa-0x1331b0) puts the constant first. */
+void glow_trailing_particle_update_size(int glow_widget, int particle_ptr)
+{
+  glow_particle *particle;
+  glow_definition *definition;
+  float scale;
+
+  particle = (glow_particle *)particle_ptr;
+  definition = (glow_definition *)tag_get(
+    TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags &
+       FLAG(_glow_definition_trailing_particles_shrink_over_time_bit)) != 0) {
+    scale = *(float *)0x2533c8 -
+            (float)particle->ticks_in_existence / particle->lifetime;
+    scale = 0.0f > scale ? 0.0f : scale;
+    particle->present_size = scale * particle->initial_size;
+  }
+}
+
+/* glow_trailing_particle_update_velocity (0x1331d0 / objects.obj / glow.c) —
+ * velocity of a trailing glow particle (the PAL reference calls it
+ * glow_trailing_particle_update_velocity). If glowdef flag 0x20 is set,
+ * velocity (+0x44) = max(0, 1 - age/lifetime) * initial velocity (+0x38);
+ * otherwise velocity = initial velocity (3-dword copy, 0x13323f-0x133252).
+ *
+ * glow_widget arrives in EAX and particle_ptr in ECX (MOV ESI,ECX at
+ * 0x1331d5). Sole caller: glow_update (0x134951).
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_trailing_particle_update_size and _update_position; tests the PAL
+ * trailing_particles_slow_over_time bit (flags & 0x20).
+ */
+void glow_trailing_particle_update_velocity(int glow_widget, int particle_ptr)
+{
+  glow_particle *particle;
+  glow_definition *definition;
+  float scale;
+
+  particle = (glow_particle *)particle_ptr;
+  definition = (glow_definition *)tag_get(
+    TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags &
+       FLAG(_glow_definition_trailing_particles_slow_over_time_bit)) != 0) {
+    scale = *(float *)0x2533c8 -
+            (float)particle->ticks_in_existence / particle->lifetime;
+    scale = 0.0f > scale ? 0.0f : scale;
+    particle->present_velocity[0] = scale * particle->initial_velocity[0];
+    particle->present_velocity[1] = scale * particle->initial_velocity[1];
+    particle->present_velocity[2] = scale * particle->initial_velocity[2];
+  } else {
+    *(vector3_t *)particle->present_velocity =
+      *(vector3_t *)particle->initial_velocity;
+  }
+}
+
+/* glow_trailing_particle_update_position (0x133260 / objects.obj / glow.c) —
+ * integrate a trailing particle's position (+0x2c) by delta * velocity
+ * (+0x44).
+ *
+ * No call xrefs: glow_update inlines the same body. ABI is taken from the body
+ * alone: EAX (glow_widget, 0x133263) and ESI (particle_ptr, 0x133277) are read
+ * without being set, and delta is the single cdecl stack arg ([EBP+8]). The
+ * glowdef lookup's result is unused (it is never read after the CALL). */
+void glow_trailing_particle_update_position(int glow_widget, int particle_ptr,
+                                            float delta)
+{
+  glow_particle *particle;
+
+  particle = (glow_particle *)particle_ptr;
+  tag_get(TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
+  particle->position[0] =
+    delta * particle->present_velocity[0] + particle->position[0];
+  particle->position[1] =
+    delta * particle->present_velocity[1] + particle->position[1];
+  particle->position[2] =
+    delta * particle->present_velocity[2] + particle->position[2];
+}
+
+/* glow_trailing_particle_age (0x1332a0 / objects.obj / glow.c) — retire a
+ * trailing particle whose age (+0x50) has passed its lifetime (+0x52): unlink
+ * it from the glow's particle list (head +0x250 / tail +0x254), return it to
+ * the glow particle pool and decrement the glow's particle count (+0x24c).
+ *
+ * No call xrefs: glow_update inlines the same body (0x1349ac-0x1349e9). ABI
+ * is taken from the body alone: EDI (glow_widget, 0x1332a0) and ESI
+ * (particle_ptr, 0x1332b1) are read without being set. The glowdef lookup's
+ * result is unused (it is never read after the CALL).
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_trailing_particle_update_position and
+ * glow_normal_particle_update_color.
+ */
+void glow_trailing_particle_age(int glow_widget, int particle_ptr)
+{
+  glow_datum *glow;
+  glow_particle *particle;
+  glow_particle *previous;
+  glow_particle *next;
+
+  glow = (glow_datum *)glow_widget;
+  particle = (glow_particle *)particle_ptr;
+  tag_get(TAG_GROUP_GLW, glow->definition_index);
+  if (particle->ticks_in_existence > particle->lifetime) {
+    previous = particle->previous;
+    next = particle->next;
+    if (previous)
+      previous->next = next;
+    else
+      glow->head_particle = next;
+    if (next)
+      next->previous = previous;
+    else
+      glow->tail_particle = previous;
+    datum_delete(*(data_t **)0x5a90cc, particle->index);
+    glow->number_of_particles--;
+  }
+}
+
+/* glow_normal_particle_update_color (0x133300 / objects.obj / glow.c) — color
+ * and edge fade of a normal glow particle (the PAL reference calls it
+ * glow_normal_particle_update_color).
+ *
+ *  - If the glowdef's color function index (u16 +0xb0) is not 0xffff, color
+ *    rgb (+0x10..+0x18) = lerp(lower +0xb8, upper +0xc8, function value, or 0
+ *    if object_get_function_value fails), and alpha (+0xc) = 1.
+ *  - If glowdef flag 0x1 is set, color rgb = lower + (upper - lower) *
+ *    rate(+0xf4) * particle t(+0x28), and alpha = 1.
+ *  - fade (+0x58): t = particle t / glow total time (+0x234),
+ *    edge = glowdef +0xf8 * 0.5; ramp up over [0,edge), down over
+ *    (1-edge,1], else 1; then pinned to [0,1].
+ *
+ * particle_ptr arrives in EDI and glow_widget in EBX; object_handle is the
+ * single stack arg. Sole caller: glow_update (0x1348b8). The final
+ * `MOV EAX,[EDI+0x58]; MOV [EDI+0x58],EAX` (0x13348c) is the pin's
+ * pass-through arm storing the field back to itself.
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, after the
+ * trailing-particle helpers and before point_from_parametric_line; tests
+ * the PAL modify_particle_color bit (flags & 0x1).
+ */
+void glow_normal_particle_update_color(int particle_ptr, int object_handle,
+                                       int glow_widget)
+{
+  glow_particle *particle;
+  glow_definition *definition;
+  float function_value;
+  float scale;
+  float t;
+  float edge_fade;
+
+  particle = (glow_particle *)particle_ptr;
+  definition = (glow_definition *)tag_get(
+    TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
+  if (definition->color_attachment_index != 0xffff) {
+    if (!object_get_function_value(
+          object_handle, definition->color_attachment_index, &function_value))
+      scale = *(float *)0x2533c0;
+    else
+      scale = function_value;
+    particle->color_red = (definition->color_upper_bound_rgb[0] -
+                           definition->color_lower_bound_rgb[0]) *
+                            scale +
+                          definition->color_lower_bound_rgb[0];
+    particle->color_green = (definition->color_upper_bound_rgb[1] -
+                             definition->color_lower_bound_rgb[1]) *
+                              scale +
+                            definition->color_lower_bound_rgb[1];
+    particle->color_blue = (definition->color_upper_bound_rgb[2] -
+                            definition->color_lower_bound_rgb[2]) *
+                             scale +
+                           definition->color_lower_bound_rgb[2];
+    particle->color_alpha = 1.0f;
+  }
+
+  /* t is read through the particle_ptr parameter, not the particle local:
+   * VC71 orders the two commutative FMULs by operand symbol, and only the
+   * parameter spelling reproduces 2276's FMUL rate(+0xf4); FMUL t(+0x28). */
+  if ((definition->flags & FLAG(_glow_definition_modify_particle_color_bit)) !=
+      0) {
+    particle->color_red = (definition->color_upper_bound_rgb[0] -
+                           definition->color_lower_bound_rgb[0]) *
+                            definition->color_rate_of_change *
+                            ((glow_particle *)particle_ptr)->t +
+                          definition->color_lower_bound_rgb[0];
+    particle->color_green = (definition->color_upper_bound_rgb[1] -
+                             definition->color_lower_bound_rgb[1]) *
+                              definition->color_rate_of_change *
+                              ((glow_particle *)particle_ptr)->t +
+                            definition->color_lower_bound_rgb[1];
+    particle->color_blue = (definition->color_upper_bound_rgb[2] -
+                            definition->color_lower_bound_rgb[2]) *
+                             definition->color_rate_of_change *
+                             ((glow_particle *)particle_ptr)->t +
+                           definition->color_lower_bound_rgb[2];
+    particle->color_alpha = 1.0f;
+  }
+
+  t = particle->t / ((glow_datum *)glow_widget)->total_time;
+  edge_fade = definition->percentage_edge_fade * 0.5f;
+  if (t < edge_fade)
+    particle->fade = t / edge_fade;
+  else if (t > *(float *)0x2533c8 - edge_fade)
+    particle->fade = (*(float *)0x2533c8 - t) / edge_fade;
+  else
+    particle->fade = 1.0f;
+
+  particle->fade = particle->fade < 0.0f ?
+                     0.0f :
+                     (particle->fade > 1.0f ? 1.0f : particle->fade);
+}
+
+/* glow_normal_particle_update_size (0x1334a0 / objects.obj / glow.c) — a
+ * normal particle's present size (+0x24) is its initial size (+0x20), copied
+ * as a dword.
+ *
+ * No call xrefs: glow_update inlines the same copy. particle_ptr arrives in
+ * EAX (read without being set at 0x1334a0).
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, after
+ * glow_normal_particle_update_color.
+ */
+void glow_normal_particle_update_size(int particle_ptr)
+{
+  *(uint32_t *)&((glow_particle *)particle_ptr)->present_size =
+    *(uint32_t *)&((glow_particle *)particle_ptr)->initial_size;
+}
+
+/* glow_particle_new (0x1334b0 / objects.obj / glow.c) — allocate a particle
+ * from the glow particle pool and store its datum index in the particle
+ * (+0x4). Returns the particle, or NULL when the pool is full.
+ *
+ * No call xrefs: glow_update inlines the same body. cdecl, no args.
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_normal_particle_update_size and point_from_parametric_line.
+ */
+void *glow_particle_new(void)
+{
+  glow_particle *particle;
+  int index;
+
+  particle = NULL;
+  index = data_new_at_index(*(data_t **)0x5a90cc);
+  if (index != -1) {
+    particle = (glow_particle *)datum_get(*(data_t **)0x5a90cc, index);
+    particle->index = index;
+  }
+  return particle;
+}
+
+/* point_from_parametric_line (0x1334f0 / objects.obj) — evaluate a point along
+ * a parametric line: out = point + t * vector, component-wise.
+ *
+ * x87 order is fixed per component by the disassembly: FLD [ebp+0x10] (t);
+ * FMUL [eax+N] (vector); FADD [ecx+N] (point); FSTP [edx+N] (out), so the
+ * expression must stay `t * vector[i] + point[i]`.
+ *
+ * NOTE (faithful to the binary): the z component adds the y component of
+ * `point`, not z — 0x133517 is `FADD float ptr [ECX + 0x4]`, while x uses
+ * [ECX] and y uses [ECX + 0x4]. This is an original-binary bug (a copy-paste
+ * slip in the Bungie source); it is reproduced deliberately. Do not "fix" it.
+ */
+void point_from_parametric_line(real *point, real *vector, real t, real *out)
+{
+  out[0] = t * vector[0] + point[0];
+  out[1] = t * vector[1] + point[1];
+  out[2] = t * vector[2] + point[1];
+}
+
 /* glow_render (0x133520 / objects.obj, object_lights.c) — build and submit
  * the render-sprite batch for a glow widget's particle list.
  *
  * Resolves the glow widget (datum_get(*(data_t**)0x5a90c8, widget_datum), the
  * same widget pool glow_submit uses) and its 'glw!' tag definition
- * (tag_get(0x676c7721, glow_widget+0x224)), opens a sprite-build record
+ * (tag_get(TAG_GROUP_GLW, glow_widget+0x224)), opens a sprite-build record
  * (build_sprites_begin) sized from the widget's active particle count (+0x24c,
  * zero-extended per the XOR ECX,ECX;MOV CX idiom at 0x133554) and the tag's
  * shader field (glowdef+0x150), then walks the particle list rooted at
@@ -1299,7 +1624,7 @@ void glow_render(int object_handle, int widget_datum)
   char record[0xa4];
 
   glow_widget = (int)datum_get(*(data_t **)0x5a90c8, widget_datum);
-  glow_tag = (int)tag_get(0x676c7721, *(int *)(glow_widget + 0x224));
+  glow_tag = (int)tag_get(TAG_GROUP_GLW, *(int *)(glow_widget + 0x224));
   build_sprites_begin((uint32_t *)record, *(uint16_t *)(glow_widget + 0x24c),
                       *(uint32_t *)(glow_tag + 0x150), 0x326a78, 0);
 
@@ -1315,35 +1640,67 @@ void glow_render(int object_handle, int widget_datum)
   FUN_0018d360(record);
 }
 
-/* nonuniform_cubic_spline_vector3d (0x1336a0 / objects.obj / glow.c) — blend the x, y and z
- * components of four points via FUN_001335e0, calling it once per axis
- * (offsets 0/4/8 into pt_a..pt_d) with the same five extra values each time.
- * Called three times by get_particle_world_position (0x1339a0, xrefs at
- * 0x133f91/0x133fbe/0x133ff7); FUN_001335e0's own role and pt_a..pt_d/
- * w_a..w_e's semantics are unconfirmed -- names are mechanical placeholders,
- * not a claim about what is being blended.
+/* nonuniform_cubic_spline (0x1335e0 / objects.obj, ..\math\real_math.h inline)
+ * — nonuniform cubic spline of four samples f0..f3 at knots t0..t3, evaluated
+ * at t (Newton divided differences). The assert string at 0x29aae4, "t>= t0 &&
+ * t <= t3" (real_math.h line 0x5fa), names t0/t3/t; the PAL reference calls the
+ * function nonuniform_cubic_spline.
  *
- * FUN_001335e0 stays unported (cdecl, float return via ST0); its signature
- * below is widened from disassembly -- Ghidra's decompile shows void(void)
- * because it can't recover args from a caller alone -- so this call's ABI
- * matches the binary. Argument order per call site (first PUSH is the last
- * cdecl arg): *(pt+off), then w_a..w_e unchanged from nonuniform_cubic_spline_vector3d's own
- * params. The call_site_audit's SWALLOWED hazard on the third call
- * (cleanup_args=9) is a false lead: that call is the function's last, so
- * there is no following call for those 9 pushes to belong to -- it is this
- * caller's normal deferred-cleanup pattern (one ADD ESP,0x48 batches calls
- * 1+2's cleanup before call 3 issues its own pushes, then ADD ESP,0x24
- * cleans call 3 alone). */
-void nonuniform_cubic_spline_vector3d(float *out_xyz, float *pt_a, float *pt_b, float *pt_c,
-                  float *pt_d, float w_a, float w_b, float w_c, float w_d,
-                  float w_e)
+ * The divided differences reuse the f1/f3 parameter slots
+ * (FSTP [EBP+0xc] / [EBP+0x14] at 0x133647 / 0x133656), matching in-place
+ * updates of the parameters. cdecl, float return in ST0.
+ * Name: PAL-2342 glow.c (T2) — same slot in PAL's symbol order, between
+ * glow_render and nonuniform_cubic_spline_vector3d (its only caller);
+ * carries the real_math.h assert "t>= t0 && t <= t3".
+ */
+float nonuniform_cubic_spline(float f0, float f1, float f2, float f3, float t0,
+                              float t1, float t2, float t3, float t)
 {
-  out_xyz[0] =
-    FUN_001335e0(pt_a[0], pt_b[0], pt_c[0], pt_d[0], w_a, w_b, w_c, w_d, w_e);
-  out_xyz[1] =
-    FUN_001335e0(pt_a[1], pt_b[1], pt_c[1], pt_d[1], w_a, w_b, w_c, w_d, w_e);
-  out_xyz[2] =
-    FUN_001335e0(pt_a[2], pt_b[2], pt_c[2], pt_d[2], w_a, w_b, w_c, w_d, w_e);
+  if (!(t >= t0 && t <= t3)) {
+    display_assert("t>= t0 && t <= t3", "..\\math\\real_math.h", 0x5fa, 1);
+    system_exit(-1);
+  }
+
+  f3 = (f3 - f2) / (t3 - t2);
+  f2 = (f2 - f1) / (t2 - t1);
+  f1 = (f1 - f0) / (t1 - t0);
+  f3 = (f3 - f2) / (t3 - t1);
+  f2 = (f2 - f1) / (t2 - t0);
+  f3 = (f3 - f2) / (t3 - t0);
+
+  return f0 + (t - t0) * (f1 + (t - t1) * (f2 + (t - t2) * f3));
+}
+
+/* nonuniform_cubic_spline_vector3d (0x1336a0 / objects.obj / glow.c) — blend
+ * the x, y and z components of four points via nonuniform_cubic_spline, calling
+ * it once per axis (offsets 0/4/8 into pt_a..pt_d) with the same five extra
+ * values each time. Called three times by get_particle_world_position
+ * (0x1339a0, xrefs at 0x133f91/0x133fbe/0x133ff7); nonuniform_cubic_spline's
+ * own role and pt_a..pt_d/ w_a..w_e's semantics are unconfirmed -- names are
+ * mechanical placeholders, not a claim about what is being blended.
+ *
+ * nonuniform_cubic_spline (ported above) is cdecl with a float return via ST0;
+ * its kb.json signature is widened from disassembly -- Ghidra's decompile shows
+ * void(void) because it can't recover args from a caller alone -- so this
+ * call's ABI matches the binary. Argument order per call site (first PUSH is
+ * the last cdecl arg): *(pt+off), then w_a..w_e unchanged from
+ * nonuniform_cubic_spline_vector3d's own params. The call_site_audit's
+ * SWALLOWED hazard on the third call (cleanup_args=9) is a false lead: that
+ * call is the function's last, so there is no following call for those 9 pushes
+ * to belong to -- it is this caller's normal deferred-cleanup pattern (one ADD
+ * ESP,0x48 batches calls 1+2's cleanup before call 3 issues its own pushes,
+ * then ADD ESP,0x24 cleans call 3 alone). */
+void nonuniform_cubic_spline_vector3d(float *out_xyz, float *pt_a, float *pt_b,
+                                      float *pt_c, float *pt_d, float w_a,
+                                      float w_b, float w_c, float w_d,
+                                      float w_e)
+{
+  out_xyz[0] = nonuniform_cubic_spline(pt_a[0], pt_b[0], pt_c[0], pt_d[0], w_a,
+                                       w_b, w_c, w_d, w_e);
+  out_xyz[1] = nonuniform_cubic_spline(pt_a[1], pt_b[1], pt_c[1], pt_d[1], w_a,
+                                       w_b, w_c, w_d, w_e);
+  out_xyz[2] = nonuniform_cubic_spline(pt_a[2], pt_b[2], pt_c[2], pt_d[2], w_a,
+                                       w_b, w_c, w_d, w_e);
 }
 
 /* Object glow widgets — animated glow effects attached to game objects.
@@ -1355,27 +1712,28 @@ void nonuniform_cubic_spline_vector3d(float *out_xyz, float *pt_a, float *pt_b, 
 /* glow_normal_particle_new (0x1337c0 / objects.obj / glow.c)
  *
  * Allocates a new "normal" glow particle datum from GLOW_PARTICLE_DATA and
- * seeds the fields glow_normal_particle_update_position doesn't recompute every frame: an initial
- * scale/size sampled from the glowdef's random ranges when no object function
- * drives that channel, an initial color lerp between the glowdef's min/max
- * color when no color function is bound and the glowdef isn't flagged
- * solid-color, and an initial phase either uniformly random over [0, period)
- * or spread evenly across the `count` particles being created by the caller
- * (glow_particles_initialize). Returns 0 (particle stays NULL) if the pool is exhausted.
+ * seeds the fields glow_normal_particle_update_position doesn't recompute every
+ * frame: an initial scale/size sampled from the glowdef's random ranges when no
+ * object function drives that channel, an initial color lerp between the
+ * glowdef's min/max color when no color function is bound and the glowdef isn't
+ * flagged solid-color, and an initial phase either uniformly random over [0,
+ * period) or spread evenly across the `count` particles being created by the
+ * caller (glow_particles_initialize). Returns 0 (particle stays NULL) if the
+ * pool is exhausted.
  *
  * Confirmed against 001337c0-00133992:
- *   glow_tag = tag_get(0x676c7721, *(glow_widget_ptr+0x224)).
+ *   glow_tag = tag_get(TAG_GROUP_GLW, *(glow_widget_ptr+0x224)).
  *   idx = data_new_at_index(GLOW_PARTICLE_DATA); returns 0 if idx == -1.
  *   particle = datum_get(GLOW_PARTICLE_DATA, idx); particle+4 = idx.
  *   scale (+0x1c): if glow_tag+0x80 (function index, see the glowdef layout
- *     comment below for glow_normal_particle_update_position) == -1, random_real_range over
- *     [glow_tag+0x84, glow_tag+0x88) (scale_lower/upper) assigned directly --
- *     no extra lerp math, matching the disassembly (FSTP straight from the
- *     call's ST0 result).
- *   size (+0x20): if glow_tag+0x9c (a second, distinct function index) == -1,
- *     random_real_range over [glow_tag+0xa0, glow_tag+0xa4) -- the same
- *     radius range glow_trailing_particle_new samples -- divided by the
- *     widget's glow_widget_ptr+0x228 int16 divisor (the same divisor
+ *     comment below for glow_normal_particle_update_position) == -1,
+ * random_real_range over [glow_tag+0x84, glow_tag+0x88) (scale_lower/upper)
+ * assigned directly -- no extra lerp math, matching the disassembly (FSTP
+ * straight from the call's ST0 result). size (+0x20): if glow_tag+0x9c (a
+ * second, distinct function index) == -1, random_real_range over
+ * [glow_tag+0xa0, glow_tag+0xa4) -- the same radius range
+ * glow_trailing_particle_new samples -- divided by the widget's
+ * glow_widget_ptr+0x228 int16 divisor (the same divisor
  *     glow_trailing_particle_new applies to its own size field). The FST
  *     (not FSTP) at 0x133870 plus the later FILD/FDIVR at
  *     0x133883-0x133888 divide the live FPU value in place; written here as
@@ -1408,7 +1766,7 @@ int glow_normal_particle_new(int glow_widget_ptr, short index, short count)
   float fmax;
   float t;
 
-  glow_tag = (int)tag_get(0x676c7721, *(int *)(glow_widget_ptr + 0x224));
+  glow_tag = (int)tag_get(TAG_GROUP_GLW, *(int *)(glow_widget_ptr + 0x224));
   particle = 0;
   idx = data_new_at_index(GLOW_PARTICLE_DATA);
   if (idx != -1) {
@@ -1433,7 +1791,8 @@ int glow_normal_particle_new(int glow_widget_ptr, short index, short count)
     }
 
     if ((*(int16_t *)(glow_tag + 0xb0) == -1) &&
-        ((*(unsigned char *)(glow_tag + 0x28) & 1) == 0)) {
+        ((*(unsigned char *)(glow_tag + 0x28) &
+          FLAG(_glow_definition_modify_particle_color_bit)) == 0)) {
       t = random_real_range((int *)random_math_get_local_seed_address(), 0.0f,
                             1.0f);
       *(float *)(particle + 0xc) = 1.0f;
@@ -1489,12 +1848,258 @@ int glow_normal_particle_new(int glow_widget_ptr, short index, short count)
  *   +0x234 float   period                   // phase wrap period
  */
 
-/* glow_normal_particle_update_position — advance a glow particle's phase animation by one frame and
- * recompute its world position.  If the glow definition binds an object
- * function, resample it and remap into the scale output.  Then step the phase
- * counter by +/-delta (direction per particle flags bit0), wrapping against the
- * period: boundary mode 0 reflects and flips direction, mode 1 plain-wraps.
- * Ends by recomputing the particle's world position.
+/* get_particle_world_position (0x1339a0 / objects.obj / glow.c) — place a
+ * glow particle on the spline through the glow's markers at the particle's
+ * parameter t (+0x28), then offset it around the spline by an angle.
+ *
+ * Glow widget fields used: marker count (short +0x4); marker matrices at
+ * +0x40 + i*0x6c (forward +0x44, up +0x5c, position +0x68); marker order
+ * (short[] +0x22a); marker times (float[] +0x238). Particle fields: marker
+ * index (short +0x2), initial angle (+0x8), orbit distance (+0x1c),
+ * t (+0x28), position (+0x2c).
+ *
+ * 1. Find the marker span containing t (assert glow.c 0x437), pin it, and
+ *    store it at particle+0x2; assert more than 1 marker (0x43b).
+ * 2. Build 4 control points (positions, ups, sides) and 4 knots:
+ *    - 2 markers: the ends, plus points at 1/4 and 3/4 between them.
+ *    - 3 markers: the ends plus the middle marker; the missing point is the
+ *      midpoint of the span the particle is in.
+ *    - more: 4 consecutive markers around the span (assert 0x49c), with
+ *      sides = cross(up, forward) per marker.
+ * 3. Spline the position into particle+0x2c, and the up and side vectors,
+ *    then add (side*cos(a) + up*sin(a)) * distance, a = rate*t + angle.
+ *
+ * Faithful 2276 bugs (the binary wins over the PAL reference):
+ *  - Every interpolated point's z adds the start point's y (FADD [EBP-0x4c]
+ *    at 0x133cf6 etc.), as in point_from_parametric_line.  PAL has the same
+ *    bug; the rest below differ from PAL.
+ *  - The 2- and 3-marker paths never compute sides[] (no cross products
+ *    between 0x133c0e and 0x133f66), so the third spline reads uninitialized
+ *    stack and so does the resulting side offset.
+ *  - 3 markers, particle in span 1: only knots[2] is stored, set to the
+ *    midpoint of knots[0] and marker time 1 (the case computes the product
+ *    and JMPs to the shared FADD knots[0]; FSTP [EBP-0x8] tail at 0x133f63);
+ *    knots[1] stays uninitialized.  PAL instead stores the midpoint in
+ *    knots[1] and marker time 1 in knots[2].
+ *  - PAL's 2- and 3-marker paths call cross_product3d for sides[]; 2276 has
+ *    no such call (its only calls are sin/cos and the three splines).
+ *
+ * glow_widget arrives in EAX (MOV ESI,EAX at 0x1339ab); particle_ptr and
+ * rotation_rate are cdecl stack args. */
+void get_particle_world_position(int glow_widget, int particle_ptr,
+                                 float rotation_rate)
+{
+  vector3_t sides[4];
+  vector3_t up;
+  vector3_t ups[4];
+  vector3_t positions[4];
+  vector3_t side;
+  float knots[4];
+  float angle;
+  float sin_angle;
+  float cos_angle;
+  short marker_index;
+  short first_marker_index;
+  short last_marker_index;
+  short index;
+  int marker;
+  glow_datum *glow;
+  glow_particle *particle;
+
+  glow = (glow_datum *)glow_widget;
+  particle = (glow_particle *)particle_ptr;
+  for (marker_index = 0; marker_index < glow->number_of_markers - 1;
+       marker_index++) {
+    if (glow->marker_time_index[marker_index] <= particle->t &&
+        glow->marker_time_index[marker_index + 1] > particle->t)
+      break;
+  }
+  if (!(marker_index < glow->number_of_markers - 1)) {
+    display_assert("marker_index<glow->number_of_markers-1",
+                   "c:\\halo\\SOURCE\\objects\\widgets\\glow.c", 0x437, 1);
+    system_exit(-1);
+  }
+  particle->parent_marker_index =
+    marker_index < 0 ? 0 :
+                       (marker_index > glow->number_of_markers - 1 ?
+                          glow->number_of_markers - 1 :
+                          marker_index);
+
+  if (!(glow->number_of_markers > 1)) {
+    display_assert("glow->number_of_markers > 1",
+                   "c:\\halo\\SOURCE\\objects\\widgets\\glow.c", 0x43b, 1);
+    system_exit(-1);
+  }
+
+  switch (glow->number_of_markers) {
+  case 2:
+    positions[0] = *(vector3_t *)glow->markers[0].matrix_position;
+    positions[3] = *(vector3_t *)glow->markers[1].matrix_position;
+    ups[0] = *(vector3_t *)glow->markers[0].matrix_up;
+    ups[3] = *(vector3_t *)glow->markers[1].matrix_up;
+    *(int *)&knots[0] = *(int *)&glow->marker_time_index[0];
+    *(int *)&knots[3] = *(int *)&glow->marker_time_index[1];
+
+    positions[1].x = (positions[3].x - positions[0].x) * 0.25f + positions[0].x;
+    positions[1].y = (positions[3].y - positions[0].y) * 0.25f + positions[0].y;
+    positions[1].z = (positions[3].z - positions[0].z) * 0.25f + positions[0].y;
+    positions[2].x = (positions[3].x - positions[0].x) * 0.75f + positions[0].x;
+    positions[2].y = (positions[3].y - positions[0].y) * 0.75f + positions[0].y;
+    positions[2].z = (positions[3].z - positions[0].z) * 0.75f + positions[0].y;
+
+    ups[1].x = (ups[3].x - ups[0].x) * 0.25f + ups[0].x;
+    ups[1].y = (ups[3].y - ups[0].y) * 0.25f + ups[0].y;
+    ups[1].z = (ups[3].z - ups[0].z) * 0.25f + ups[0].y;
+    ups[2].x = (ups[3].x - ups[0].x) * 0.75f + ups[0].x;
+    ups[2].y = (ups[3].y - ups[0].y) * 0.75f + ups[0].y;
+    ups[2].z = (ups[3].z - ups[0].z) * 0.75f + ups[0].y;
+
+    knots[1] = (knots[3] - knots[0]) * 0.25f + knots[0];
+    knots[2] = (knots[3] - knots[0]) * 0.75f + knots[0];
+    break;
+
+  case 3:
+    positions[0] = *(vector3_t *)glow->markers[0].matrix_position;
+    positions[3] = *(vector3_t *)glow->markers[2].matrix_position;
+    ups[0] = *(vector3_t *)glow->markers[0].matrix_up;
+    ups[3] = *(vector3_t *)glow->markers[2].matrix_up;
+    *(int *)&knots[0] = *(int *)&glow->marker_time_index[0];
+    *(int *)&knots[3] = *(int *)&glow->marker_time_index[2];
+
+    switch (particle->parent_marker_index) {
+    case 0:
+      positions[1] = *(vector3_t *)glow->markers[1].matrix_position;
+      ups[1] = *(vector3_t *)glow->markers[1].matrix_up;
+      *(int *)&knots[1] = *(int *)&glow->marker_time_index[1];
+
+      positions[2].x =
+        (positions[3].x - positions[1].x) * 0.5f + positions[1].x;
+      positions[2].y =
+        (positions[3].y - positions[1].y) * 0.5f + positions[1].y;
+      positions[2].z =
+        (positions[3].z - positions[1].z) * 0.5f + positions[1].y;
+
+      ups[2].x = (ups[3].x - ups[1].x) * 0.5f + ups[1].x;
+      ups[2].y = (ups[3].y - ups[1].y) * 0.5f + ups[1].y;
+      ups[2].z = (ups[3].z - ups[1].z) * 0.5f + ups[1].y;
+
+      knots[2] = (knots[3] - knots[1]) * 0.5f + knots[1];
+      break;
+
+    case 1:
+      positions[2] = *(vector3_t *)glow->markers[1].matrix_position;
+      ups[2] = *(vector3_t *)glow->markers[1].matrix_up;
+
+      positions[1].x =
+        (positions[2].x - positions[0].x) * 0.5f + positions[0].x;
+      positions[1].y =
+        (positions[2].y - positions[0].y) * 0.5f + positions[0].y;
+      positions[1].z =
+        (positions[2].z - positions[0].z) * 0.5f + positions[0].y;
+
+      ups[1].x = (ups[2].x - ups[0].x) * 0.5f + ups[0].x;
+      ups[1].y = (ups[2].y - ups[0].y) * 0.5f + ups[0].y;
+      ups[1].z = (ups[2].z - ups[0].z) * 0.5f + ups[0].y;
+
+      knots[2] = (glow->marker_time_index[1] - knots[0]) * 0.5f + knots[0];
+      break;
+    }
+    break;
+
+  default:
+    for (marker_index = 0; marker_index < glow->number_of_markers - 1;
+         marker_index++) {
+      if (glow->marker_time_index[marker_index] <= particle->t &&
+          particle->t <= glow->marker_time_index[marker_index + 1])
+        break;
+    }
+    if (!(marker_index < glow->number_of_markers - 1)) {
+      display_assert("marker_index<glow->number_of_markers-1",
+                     "c:\\halo\\SOURCE\\objects\\widgets\\glow.c", 0x49c, 1);
+      system_exit(-1);
+    }
+    marker_index = marker_index < 0 ?
+                     0 :
+                     (marker_index > glow->number_of_markers - 1 ?
+                        glow->number_of_markers - 1 :
+                        marker_index);
+
+    first_marker_index = marker_index;
+    last_marker_index = (short)(marker_index + 1);
+    while (last_marker_index - first_marker_index + 1 < 4) {
+      if (first_marker_index > 0)
+        first_marker_index--;
+      if (last_marker_index < glow->number_of_markers - 1)
+        last_marker_index++;
+    }
+
+    *(int *)&knots[0] = *(int *)&glow->marker_time_index[first_marker_index];
+    *(int *)&knots[1] =
+      *(int *)&glow->marker_time_index[first_marker_index + 1];
+    *(int *)&knots[2] =
+      *(int *)&glow->marker_time_index[first_marker_index + 2];
+    *(int *)&knots[3] =
+      *(int *)&glow->marker_time_index[first_marker_index + 3];
+
+    for (index = 0; index < 4; index++) {
+      /* 2276 forms glow + order*0x6c and folds markers' +0x08 into each
+       * displacement (+0x44/+0x5c/+0x68); &glow->markers[order] adds the +8
+       * to the pointer instead and costs ~4pp VC71. So this is a row base
+       * over glow_datum, read through markers[0]. */
+      marker =
+        glow_widget + glow->marker_order[first_marker_index + index] * 0x6c;
+      positions[index] =
+        *(vector3_t *)((glow_datum *)marker)->markers[0].matrix_position;
+      ups[index] = *(vector3_t *)((glow_datum *)marker)->markers[0].matrix_up;
+      /* sides[index] = cross(matrix_up, matrix_forward) */
+      sides[index].x = ((glow_datum *)marker)->markers[0].matrix_up[1] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[2] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[2] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[1];
+      sides[index].y = ((glow_datum *)marker)->markers[0].matrix_up[2] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[0] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[0] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[2];
+      sides[index].z = ((glow_datum *)marker)->markers[0].matrix_up[0] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[1] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[1] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[0];
+    }
+    break;
+  }
+
+  nonuniform_cubic_spline_vector3d(
+    particle->position, (float *)&positions[0], (float *)&positions[1],
+    (float *)&positions[2], (float *)&positions[3], knots[0], knots[1],
+    knots[2], knots[3], particle->t);
+  nonuniform_cubic_spline_vector3d(
+    (float *)&up, (float *)&ups[0], (float *)&ups[1], (float *)&ups[2],
+    (float *)&ups[3], knots[0], knots[1], knots[2], knots[3], particle->t);
+  nonuniform_cubic_spline_vector3d(
+    (float *)&side, (float *)&sides[0], (float *)&sides[1], (float *)&sides[2],
+    (float *)&sides[3], knots[0], knots[1], knots[2], knots[3], particle->t);
+
+  angle = rotation_rate * particle->t + particle->initial_angle;
+  sin_angle = x87_fsin(angle);
+  cos_angle = x87_fcos(angle);
+  particle->position[0] =
+    (side.x * cos_angle + up.x * sin_angle) * particle->distance_to_object +
+    particle->position[0];
+  particle->position[1] =
+    (side.y * cos_angle + up.y * sin_angle) * particle->distance_to_object +
+    particle->position[1];
+  particle->position[2] =
+    (side.z * cos_angle + up.z * sin_angle) * particle->distance_to_object +
+    particle->position[2];
+}
+
+/* glow_normal_particle_update_position — advance a glow particle's phase
+ * animation by one frame and recompute its world position.  If the glow
+ * definition binds an object function, resample it and remap into the scale
+ * output.  Then step the phase counter by +/-delta (direction per particle
+ * flags bit0), wrapping against the period: boundary mode 0 reflects and flips
+ * direction, mode 1 plain-wraps. Ends by recomputing the particle's world
+ * position.
  *
  * ABI: particle_ptr in ESI, glow_widget_ptr in EDI (register args); the
  * remaining three are cdecl stack args.
@@ -1504,15 +2109,16 @@ int glow_normal_particle_new(int glow_widget_ptr, short index, short count)
  * (0x1340f7 and 0x1341dd) -- a switch lowering.  An if-chain emits CMP/JE and
  * lays the case bodies out in the opposite order, which cost ~54 percentage
  * points of VC71 match (84.1% -> 30.1%) when it was tried. */
-void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr, int object_handle,
-                  float delta, float ratio)
+void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
+                                          int object_handle, float delta,
+                                          float ratio)
 {
   void *glowdef;
   short function_index;
   unsigned int flags;
   float function_value;
 
-  glowdef = tag_get(0x676c7721, *(int *)(glow_widget_ptr + 0x224));
+  glowdef = tag_get(TAG_GROUP_GLW, *(int *)(glow_widget_ptr + 0x224));
 
   function_index = *(short *)((char *)glowdef + 0x80);
   if (function_index != -1) {
@@ -1534,7 +2140,7 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
 
   flags = *(unsigned int *)(particle_ptr + 0x54);
 
-  if ((flags & 1) != 0) {
+  if ((flags & FLAG(_glow_particle_moving_backwards_bit)) != 0) {
     /* reverse phase: step down.  FLD [ESI+0x28]; FSUB [EBP+0xc] at 0x1340ee
      * -> phase is the left operand here. */
     *(float *)(particle_ptr + 0x28) = *(float *)(particle_ptr + 0x28) - delta;
@@ -1550,7 +2156,7 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
             *(float *)(glow_widget_ptr + 0x234) +
             *(float *)(particle_ptr + 0x28);
         } while (*(float *)(particle_ptr + 0x28) < 0.0f);
-        flags &= ~1u;
+        flags &= ~(unsigned int)FLAG(_glow_particle_moving_backwards_bit);
         *(unsigned int *)(particle_ptr + 0x54) = flags;
         *(float *)(particle_ptr + 0x28) =
           *(float *)(glow_widget_ptr + 0x234) - *(float *)(particle_ptr + 0x28);
@@ -1589,7 +2195,7 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
         }
         *(float *)(particle_ptr + 0x28) =
           *(float *)(glow_widget_ptr + 0x234) - *(float *)(particle_ptr + 0x28);
-        flags |= 1u;
+        flags |= FLAG(_glow_particle_moving_backwards_bit);
         *(unsigned int *)(particle_ptr + 0x54) = flags;
       }
       break;
@@ -1640,11 +2246,11 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
  * Confirmed: assert_halt for type range check at 0x1361fe.
  */
 
-/* glow_particles_initialize (0x1342a0 / objects.obj, object_lights.c) — build the glow
- * particle chain for a glow-widget instance.
+/* glow_particles_initialize (0x1342a0 / objects.obj, object_lights.c) — build
+ * the glow particle chain for a glow-widget instance.
  *
  * Fetches the glow ('glw!' = 0x676c7721) tag block via
- * tag_get(0x676c7721, widget+0x224), then allocates one particle node per
+ * tag_get(TAG_GROUP_GLW, widget+0x224), then allocates one particle node per
  * widget+0x24c (int16 count) via glow_normal_particle_new, linking them into a
  * doubly-linked list rooted at widget+0x250 (head) / widget+0x254 (tail).
  * Node flag word at +0x54:
@@ -1669,7 +2275,7 @@ void glow_particles_initialize(int glow_widget_ptr)
   char parity;
   short index;
 
-  glow_tag = tag_get(0x676c7721, *(int *)(glow_widget_ptr + 0x224));
+  glow_tag = tag_get(TAG_GROUP_GLW, *(int *)(glow_widget_ptr + 0x224));
   index = 0;
   prev_node = 0;
   parity = 1;
@@ -1679,14 +2285,19 @@ void glow_particles_initialize(int glow_widget_ptr)
     if (node == 0) {
       break;
     }
-    if ((*(unsigned char *)((int)glow_tag + 0x28) & 2) != 0) {
-      *(unsigned int *)(node + 0x54) |= 1;
+    if ((*(unsigned char *)((int)glow_tag + 0x28) &
+         FLAG(_glow_definition_particles_move_backwards_bit)) != 0) {
+      *(unsigned int *)(node + 0x54) |=
+        FLAG(_glow_particle_moving_backwards_bit);
     }
-    if ((*(unsigned char *)((int)glow_tag + 0x28) & 4) != 0) {
+    if ((*(unsigned char *)((int)glow_tag + 0x28) &
+         FLAG(_glow_definition_particles_move_in_both_directions_bit)) != 0) {
       if (!parity) {
-        flags = *(unsigned int *)(node + 0x54) | 1;
+        flags = *(unsigned int *)(node + 0x54) |
+                FLAG(_glow_particle_moving_backwards_bit);
       } else {
-        flags = *(unsigned int *)(node + 0x54) & 0xfffffffe;
+        flags = *(unsigned int *)(node + 0x54) &
+                ~FLAG(_glow_particle_moving_backwards_bit);
       }
       *(unsigned int *)(node + 0x54) = flags;
       parity = !parity;
@@ -1742,7 +2353,7 @@ int glow_trailing_particle_new(int glow_widget /* @<ebx> */)
   float radius;
   float t;
 
-  glow_tag = (int)tag_get(0x676c7721, *(int *)(glow_widget + 0x224));
+  glow_tag = (int)tag_get(TAG_GROUP_GLW, *(int *)(glow_widget + 0x224));
   particle = 0;
 
   idx = data_new_at_index(GLOW_PARTICLE_DATA);
@@ -1820,7 +2431,7 @@ int glow_trailing_particle_new(int glow_widget /* @<ebx> */)
     *(float *)(particle + 0x14) =
       *(float *)(glow_tag + 0xbc) +
       t * (*(float *)(glow_tag + 0xcc) - *(float *)(glow_tag + 0xbc));
-    *(uint32_t *)(particle + 0x54) |= 2;
+    *(uint32_t *)(particle + 0x54) |= FLAG(_glow_particle_trailing_bit);
     *(float *)(particle + 0x18) =
       *(float *)(glow_tag + 0xc0) +
       t * (*(float *)(glow_tag + 0xd0) - *(float *)(glow_tag + 0xc0));
@@ -1842,7 +2453,7 @@ int glow_trailing_particle_new(int glow_widget /* @<ebx> */)
  * Confirmed: 2 cdecl args (object_handle @ [EBP+0x8], widget_datum @
  * [EBP+0xc]), early-out if either is -1. Confirmed: first
  * datum_get(*(data_t**)0x5a90c8, widget_datum) -> object datum; widget tag =
- * tag_get(0x676c7721, *(object_datum+0x224)). Confirmed: glow_update is
+ * tag_get(TAG_GROUP_GLW, *(object_datum+0x224)). Confirmed: glow_update is
  * register-arg — glow_widget@<eax> receives the second datum_get's return
  * (object datum ptr); object_handle pushed (the EDI push at 0x134b1f) is its
  * single cdecl stack arg. The trailing ADD ESP,0x1c batch-cleans this push plus
@@ -1858,9 +2469,9 @@ void glow_submit(int object_handle, int widget_datum)
 
   if ((object_handle != -1) && (widget_datum != -1)) {
     object_datum = (int)datum_get(*(data_t **)0x5a90c8, widget_datum);
-    widget_tag = tag_get(0x676c7721, *(int *)(object_datum + 0x224));
+    widget_tag = tag_get(TAG_GROUP_GLW, *(int *)(object_datum + 0x224));
     glow_update((int)datum_get(*(data_t **)0x5a90c8, widget_datum),
-                 object_handle);
+                object_handle);
     object_get_markers_by_string_id((int)object_handle, widget_tag, local_buf,
                                     1);
     glow_render(object_handle, widget_datum);
@@ -1898,12 +2509,13 @@ void light_volume_delete(int param_1)
  * TU: c:\halo\SOURCE\objects\widgets\light_volumes.c (confirmed via __FILE__
  * assert xref at line 0x6e).
  *
- * light_volume_interpolate_frames selects a light-volume parameter block for an object.  The
- * definition holds a tag_block of parameter frames (header at +0x120, element
- * stride 0xb0).  With <=1 frame it returns element 0 directly.  With more than
- * one frame it reads the object's animation function value (function index at
- * definition+0xb8, minus one) and, when that succeeds, blends two frames into a
- * static scratch block at 0x0046ef70 and returns that block.
+ * light_volume_interpolate_frames selects a light-volume parameter block for an
+ * object.  The definition holds a tag_block of parameter frames (header at
+ * +0x120, element stride 0xb0).  With <=1 frame it returns element 0 directly.
+ * With more than one frame it reads the object's animation function value
+ * (function index at definition+0xb8, minus one) and, when that succeeds,
+ * blends two frames into a static scratch block at 0x0046ef70 and returns that
+ * block.
  *
  * The binary re-fetches element index 0 in every tag_block_get_element call
  * (verified against disassembly — the three main-path calls and the <=1
@@ -2021,12 +2633,12 @@ float pow1(float value, float exponent)
  *
  * Confirmed: 2 cdecl args (object_handle @ [EBP+0x8], light_volume_datum @
  * [EBP+0xc]). Confirmed: light tag 'lmgs2' = tag_get(0x6d677332,
- * *(light_datum+4)). Confirmed: light_volume_interpolate_frames is register-arg — light_tag@<ebx>
- * (EBX from MOV EBX,EAX at 0x134ebe), object_handle pushed (EDI). Decompiler
- * dropped the @<ebx> arg. Confirmed: marker buffer base EBP-0xa4, size 0x6c;
- * object_get_markers_by_string_id fills it. Marker position =
- * buf+0x60/+0x64/+0x68 (FLD [EBP-0x44/-0x40/-0x3c]). Marker forward  =
- * buf+0x3c/+0x40/+0x44 (FLD [EBP-0x68/-0x64/-0x60]). Confirmed: object_handle
+ * *(light_datum+4)). Confirmed: light_volume_interpolate_frames is register-arg
+ * — light_tag@<ebx> (EBX from MOV EBX,EAX at 0x134ebe), object_handle pushed
+ * (EDI). Decompiler dropped the @<ebx> arg. Confirmed: marker buffer base
+ * EBP-0xa4, size 0x6c; object_get_markers_by_string_id fills it. Marker
+ * position = buf+0x60/+0x64/+0x68 (FLD [EBP-0x44/-0x40/-0x3c]). Marker forward
+ * = buf+0x3c/+0x40/+0x44 (FLD [EBP-0x68/-0x64/-0x60]). Confirmed: object_handle
  * copied to EDI; the [EBP+0x8] param slot is reused as a float scratch (blend
  * value), kept as a separate local here. Confirmed: the per-segment curve is
  * pow(frac, period) with the "skip when period==1.0" identity (four
@@ -2069,7 +2681,8 @@ void light_volume_render(int object_handle, int light_volume_datum)
     light_tag = (int)tag_get(0x6d677332, *(int *)(light_datum + 4));
     if ((0 < *(short *)(light_tag + 0x6e)) &&
         (0 < *(int *)(light_tag + 0x120))) {
-      marker_state = (int)light_volume_interpolate_frames(light_tag, object_handle);
+      marker_state =
+        (int)light_volume_interpolate_frames(light_tag, object_handle);
       object_get_markers_by_string_id(object_handle, (void *)light_tag,
                                       marker_buf, 1);
 
@@ -2184,9 +2797,10 @@ void light_volume_render(int object_handle, int light_volume_datum)
   }
 }
 
-/* light_volume_submit (0x135210 / objects.obj, object_lights.c) — visibility/submit
- * pre-pass for an object's light-volume effect; if visible, queues it for
- * deferred rendering with light_volume_render as the draw callback.
+/* light_volume_submit (0x135210 / objects.obj, object_lights.c) —
+ * visibility/submit pre-pass for an object's light-volume effect; if visible,
+ * queues it for deferred rendering with light_volume_render as the draw
+ * callback.
  *
  * Gates on the same light-volume tag ('lmgs2') having marker count (+0x6e > 0)
  * and sprite count (+0x120 > 0); additionally, when the tag has a function
@@ -2201,13 +2815,13 @@ void light_volume_render(int object_handle, int light_volume_datum)
  * Confirmed: 4 cdecl args. object_handle @ [EBP+0x8] (EBX), light_volume_datum
  * @ [EBP+0xc] (EDI); param_3 @ [EBP+0x10] is unused here; param_4 @ [EBP+0x14]
  * is a function-state pointer (reads ptr+0x4 then indexes by tag+0x44).
- * Confirmed: PUSH 0x134e80 at 0x135303 — light_volume_render is the draw callback.
- * Confirmed: marker buffer base EBP-0x6c, size 0x6c; position at
+ * Confirmed: PUSH 0x134e80 at 0x135303 — light_volume_render is the draw
+ * callback. Confirmed: marker buffer base EBP-0x6c, size 0x6c; position at
  * buf+0x60/+0x64/ +0x68 (FLD [EBP-0xc/-0x8/-0x4]); &buf[0x60] passed as
  * position to FUN_0017cfb0.
  */
 void light_volume_submit(int object_handle, int light_volume_datum, int param_3,
-                  int param_4)
+                         int param_4)
 {
   unsigned char marker_buf[0x6c];
   int light_tag;
@@ -2791,8 +3405,8 @@ void lightning_submit(int *param_1, int param_2, int param_3, int *param_4)
 }
 
 /*
- * tag_group_to_widget_type (0x135f20 / objects.obj) — find the widget_types table index
- * whose group_tag (entry+0x00) matches the requested group tag.
+ * tag_group_to_widget_type (0x135f20 / objects.obj) — find the widget_types
+ * table index whose group_tag (entry+0x00) matches the requested group tag.
  *
  * Linear search of the 5-entry widget_types table at 0x323528 (stride 0x28
  * bytes). Returns the matching index in [0,4], or -1 (0xffff) if no entry
@@ -2884,8 +3498,9 @@ typedef void (*pfn_int_t)(int);
 typedef int (*valid_real_point3d_fn)(float *p);
 typedef void (*object_type_validate_fn)(int16_t type);
 
-/* game engine tag-index remapping helpers (called from game_engine_remap_object_definition).
- * Binary: each takes 1 cdecl int arg, returns int in EAX. */
+/* game engine tag-index remapping helpers (called from
+ * game_engine_remap_object_definition). Binary: each takes 1 cdecl int arg,
+ * returns int in EAX. */
 int game_engine_remap_vehicle(int tag_index);
 int game_engine_remap_weapon(int tag_index);
 int weapon_definition_index_to_list_index(int param_1);
@@ -3170,9 +3785,9 @@ void widgets_delete(int object_handle)
   *(int *)((char *)obj + 0x11c) = -1;
 }
 
-/* widgets_need_lighting (0x1363d0 / objects.obj) — walk a widget's chain looking for
- * a widget whose type is flagged in the widget_types table, returning a
- * one-byte status.
+/* widgets_need_lighting (0x1363d0 / objects.obj) — walk a widget's chain
+ * looking for a widget whose type is flagged in the widget_types table,
+ * returning a one-byte status.
  *
  * Starting from the widget handle in param_1, follows the chain link at
  * widget+0x8 until either a flagged widget is found or the chain reaches
@@ -3216,9 +3831,9 @@ int widgets_need_lighting(int param_1)
 }
 
 /*
- * object_initialize_vitality (0x1365d0 / objects.obj) — initialise an object's maximum body
- * vitality and maximum shield vitality from its collision-model tag, with
- * optional caller overrides.
+ * object_initialize_vitality (0x1365d0 / objects.obj) — initialise an object's
+ * maximum body vitality and maximum shield vitality from its collision-model
+ * tag, with optional caller overrides.
  *
  * Reads the object's 'obje' definition (object+0); if the definition has a
  * collision model ('coll') tag (objtag+0x7c != NONE), pulls the default body
@@ -3236,8 +3851,9 @@ int widgets_need_lighting(int param_1)
  * (FST to +0x8c); compares against FLOAT 0.0 (0x2533c0) using AH&0x41 (<=0
  * set).
  */
-void object_initialize_vitality(int object_handle, float *body_vitality_override,
-                  float *shield_vitality_override)
+void object_initialize_vitality(int object_handle,
+                                float *body_vitality_override,
+                                float *shield_vitality_override)
 {
   int *obj;
   int objtag;
@@ -3273,13 +3889,14 @@ void object_initialize_vitality(int object_handle, float *body_vitality_override
 }
 
 /*
- * object_get_maximum_body_vitality (0x1366b0 / objects.obj) — return an object's effective maximum
- * body vitality.
+ * object_get_maximum_body_vitality (0x1366b0 / objects.obj) — return an
+ * object's effective maximum body vitality.
  *
  * Resolves the object and reads its stored max body vitality (object+0x88,
- * set by object_initialize_vitality). If use_raw_max (param_2) is non-zero, returns that
- * value unmodified. Otherwise scales it by the per-team / game-mode vitality
- * multiplier returned by FUN_000b55b0(1, object->team@+0x68).
+ * set by object_initialize_vitality). If use_raw_max (param_2) is non-zero,
+ * returns that value unmodified. Otherwise scales it by the per-team /
+ * game-mode vitality multiplier returned by FUN_000b55b0(1,
+ * object->team@+0x68).
  *
  * §7 note: Ghidra mis-groups object_get_and_verify_type as taking 3 args; the
  * disassembly shows PUSH -1, PUSH handle -> (handle, -1); the char flag stays
@@ -3506,8 +4123,8 @@ void render_debug_light(int param_1)
  * kept as int to match the existing int(*)(int) thunk.
  */
 /* 0x139b40 */
-void lights_queue_lens_flare(int param_1, int *param_2, int param_3, int param_4,
-                  float *param_5, float param_6)
+void lights_queue_lens_flare(int param_1, int *param_2, int param_3,
+                             int param_4, float *param_5, float param_6)
 {
   int iVar1;
   char *base;
@@ -3552,9 +4169,9 @@ void lights_queue_lens_flare(int param_1, int *param_2, int param_3, int param_4
  * Source: c:\halo\SOURCE\objects\object_lights.c
  */
 /*
- * find_point_lights_for_object_in_cluster (0x139c20 / object_lights.c) — gather the strongest point
- * lights influencing a position and accumulate the brightest up to max_count
- * into three parallel caller arrays.
+ * find_point_lights_for_object_in_cluster (0x139c20 / object_lights.c) — gather
+ * the strongest point lights influencing a position and accumulate the
+ * brightest up to max_count into three parallel caller arrays.
  *
  * Iterates the connected-light cluster partition (0x5a90b0) for the cluster of
  * the query position (cluster_idx = marker_index). For each light datum:
@@ -3586,9 +4203,10 @@ void lights_queue_lens_flare(int param_1, int *param_2, int param_3, int param_4
  * after the min-search loop and is only reassigned to argmin on evict; final
  * CMP CX,max_count / JGE skips the store when no eviction occurs.
  */
-void find_point_lights_for_object_in_cluster(int object_handle, int16_t marker_index, float *position,
-                  float bias, int out_index_base, float *out_weights,
-                  int out_atten_base, int16_t *count, int16_t max_count)
+void find_point_lights_for_object_in_cluster(
+  int object_handle, int16_t marker_index, float *position, float bias,
+  int out_index_base, float *out_weights, int out_atten_base, int16_t *count,
+  int16_t max_count)
 {
   int state;
   float attenuation;
@@ -3683,8 +4301,8 @@ void find_point_lights_for_object_in_cluster(int object_handle, int16_t marker_i
 
 /* 0x139e50 */
 void build_distant_lights(unsigned int param_1, float *param_2, float *param_3,
-                  float param_4, float *color_ptr, float *output_ptr,
-                  float *intensity_ptr)
+                          float param_4, float *color_ptr, float *output_ptr,
+                          float *intensity_ptr)
 {
   float fVar1;
   float fVar2;
@@ -3834,9 +4452,9 @@ void build_distant_lights(unsigned int param_1, float *param_2, float *param_3,
  * Confirmed: writes to [EDI], [EDI+4], [EDI+8] for position and [EBX] for
  * radius. */
 void light_compute_bounding_sphere(int light_handle /* @<eax> */,
-                  float *out_position /* @<edi> */,
-                  float *out_radius /* @<ebx> */, char param_1, char param_2,
-                  char param_3)
+                                   float *out_position /* @<edi> */,
+                                   float *out_radius /* @<ebx> */, char param_1,
+                                   char param_2, char param_3)
 {
   char *light;
   char *tag;
@@ -3935,13 +4553,14 @@ void light_get_bounding_sphere(int param_1, float *param_2, float *param_3)
 
 /* 0x13a420 / objects.obj — Render point and spot lights.
  * Iterates through the active lights array, computes position/radius for
- * each enabled light, optionally gathers gel objects via light_build_cluster_array,
- * and dispatches to FUN_00196060 for rasterizer rendering.
- * No params (void). Bounded by profiling enter/exit calls.
+ * each enabled light, optionally gathers gel objects via
+ * light_build_cluster_array, and dispatches to FUN_00196060 for rasterizer
+ * rendering. No params (void). Bounded by profiling enter/exit calls.
  * Confirmed: loop counter is int16_t, iterates DAT_005a8d68 entries.
  * Confirmed: SUB ESP,0x41c for local buffer (1024 bytes for gel objects).
- * Confirmed: light_build_cluster_array called with EAX=handle, EBX=buf, EDI=0x200.
- * Confirmed: FUN_00196060(obj_handle, &position, radius, gel_count, gel_buf).
+ * Confirmed: light_build_cluster_array called with EAX=handle, EBX=buf,
+ * EDI=0x200. Confirmed: FUN_00196060(obj_handle, &position, radius, gel_count,
+ * gel_buf).
  */
 void lights_render_diffuse(void)
 {
@@ -3994,8 +4613,8 @@ void lights_render_diffuse(void)
 
     gel_count = 0;
     if (is_specular == '\0') {
-      gel_count =
-        light_build_cluster_array(*(int *)(0x5a8d6c + (int)i * 4), gel_buffer, 0x200);
+      gel_count = light_build_cluster_array(*(int *)(0x5a8d6c + (int)i * 4),
+                                            gel_buffer, 0x200);
     }
 
     light_reloaded =
@@ -4043,13 +4662,13 @@ done:
 
 /* 0x13a5f0 / objects.obj — Render specular lights.
  * Similar to lights_render_diffuse but for specular lighting pass. Skips lights
- * with the specular-only flag (tag byte 0 bit 2). Uses light_compute_bounding_sphere to
- * compute position/radius and FUN_00195f30 for the rasterizer pass.
- * No params (void).
- * Confirmed: same loop structure as 0x13a420 over DAT_005a8d68 lights.
- * Confirmed: calls light_compute_bounding_sphere(handle, position, &radius, 0, 1, 0).
- * Confirmed: calls FUN_00195f30(obj_handle, &position, radius, gel_count,
- * gel_buf). Confirmed: profiling enter 0x17cd50, exit 0x17cd90. */
+ * with the specular-only flag (tag byte 0 bit 2). Uses
+ * light_compute_bounding_sphere to compute position/radius and FUN_00195f30 for
+ * the rasterizer pass. No params (void). Confirmed: same loop structure as
+ * 0x13a420 over DAT_005a8d68 lights. Confirmed: calls
+ * light_compute_bounding_sphere(handle, position, &radius, 0, 1, 0). Confirmed:
+ * calls FUN_00195f30(obj_handle, &position, radius, gel_count, gel_buf).
+ * Confirmed: profiling enter 0x17cd50, exit 0x17cd90. */
 void lights_render_specular(void)
 {
   int16_t i;
@@ -4112,8 +4731,8 @@ void lights_render_specular(void)
     }
 
     /* Compute position and radius using light_compute_bounding_sphere */
-    light_compute_bounding_sphere(*(int *)(0x5a8d6c + (int)i * light_stride), position, &radius,
-                 0, 1, 0);
+    light_compute_bounding_sphere(*(int *)(0x5a8d6c + (int)i * light_stride),
+                                  position, &radius, 0, 1, 0);
 
     /* Dispatch to specular rasterizer */
     {
@@ -4165,16 +4784,16 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
   int local_c;
   short local_8[2];
   /*
-   * Marker-light output arrays for the find_point_lights_for_object_in_cluster call below. max_count is 2
-   * (PUSH 0x2 at 0x13a8a2), and the accumulation loop at 0x13a915/0x13a934
-   * indexes both bases with EDI stepping by 4 — so all three are 2-element
-   * arrays, not scalars. In the original frame MSVC overlaps them with the
-   * now-dead lightmap locals (indices at EBP-0x1c/-0x18 = local_20/local_1c,
-   * attenuations at EBP-0x24/-0x20 = local_28/local_24, weights at
-   * EBP-0x14/-0x10 = local_18/local_14); Ghidra split every slot into its own
-   * scalar. Reading element 1 through a scalar picked up an adjacent float
-   * (observed handle 0x3f54ebf5) and tripped the "lights index is unused"
-   * datum_get assert.
+   * Marker-light output arrays for the find_point_lights_for_object_in_cluster
+   * call below. max_count is 2 (PUSH 0x2 at 0x13a8a2), and the accumulation
+   * loop at 0x13a915/0x13a934 indexes both bases with EDI stepping by 4 — so
+   * all three are 2-element arrays, not scalars. In the original frame MSVC
+   * overlaps them with the now-dead lightmap locals (indices at EBP-0x1c/-0x18
+   * = local_20/local_1c, attenuations at EBP-0x24/-0x20 = local_28/local_24,
+   * weights at EBP-0x14/-0x10 = local_18/local_14); Ghidra split every slot
+   * into its own scalar. Reading element 1 through a scalar picked up an
+   * adjacent float (observed handle 0x3f54ebf5) and tripped the "lights index
+   * is unused" datum_get assert.
    */
   int light_indices[2];
   float light_weights[2];
@@ -4222,9 +4841,10 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
     }
     *(int *)0x5a8d64 = *(int *)0x5a8d64 + 1;
     *(char *)0x5a8d60 = '\x01';
-    find_point_lights_for_object_in_cluster(-1, (int16_t) * (unsigned short *)(param_2 + 4),
-                 (float *)param_1, 0.0f, (int)light_indices, light_weights,
-                 (int)light_attenuations, (int16_t *)&param_3, 2);
+    find_point_lights_for_object_in_cluster(
+      -1, (int16_t) * (unsigned short *)(param_2 + 4), (float *)param_1, 0.0f,
+      (int)light_indices, light_weights, (int)light_attenuations,
+      (int16_t *)&param_3, 2);
     if (*(char *)0x5a8d60 == '\0') {
       display_assert("lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x68e, 1);
@@ -4319,8 +4939,9 @@ void lights_prepare_for_object_dynamic(int param_1, int param_2)
   marker = object_get_first_cluster(iter_state, param_1);
   if (marker != -1) {
     do {
-      find_point_lights_for_object_in_cluster(param_1, marker, center, radius, param_2 + 0x44, weights,
-                   (int)atten, count, 2);
+      find_point_lights_for_object_in_cluster(param_1, marker, center, radius,
+                                              param_2 + 0x44, weights,
+                                              (int)atten, count, 2);
       marker = object_get_next_cluster(iter_state, param_1);
     } while (marker != -1);
   }
@@ -4350,7 +4971,8 @@ void lights_prepare_for_object_dynamic(int param_1, int param_2)
  * 3 cdecl params. Returns char (bool).
  */
 /* 0x13ab20 */
-char lights_distant_lighting_at_point(unsigned int param_1, int param_2, int *param_3)
+char lights_distant_lighting_at_point(unsigned int param_1, int param_2,
+                                      int *param_3)
 {
   char cVar1;
   int iVar2;
@@ -4452,18 +5074,21 @@ char lights_distant_lighting_at_point(unsigned int param_1, int param_2, int *pa
         FUN_00138f70((float *)local_7c, (float *)local_4c, (float *)local_58,
                      (float *)local_64, local_c, local_10);
         CALL_FUN_00013010((void *)local_7c);
-        CALL_FUN_00180660(
-          (unsigned int *)(*(int *)(iVar6 + 0xf8) +
-            ((unsigned int)*puVar5 + *(int *)(iVar6 + 0xb4) * 4) * 8),
-          (float *)local_64);
-        CALL_FUN_00180660(
-          (unsigned int *)(*(int *)(iVar6 + 0xf8) +
-            ((unsigned int)puVar5[1] + *(int *)(iVar6 + 0xb4) * 4) * 8),
-          (float *)local_58);
-        CALL_FUN_00180660(
-          (unsigned int *)(*(int *)(iVar6 + 0xf8) +
-            ((unsigned int)puVar5[2] + *(int *)(iVar6 + 0xb4) * 4) * 8),
-          (float *)local_4c);
+        CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
+                                           ((unsigned int)*puVar5 +
+                                            *(int *)(iVar6 + 0xb4) * 4) *
+                                             8),
+                          (float *)local_64);
+        CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
+                                           ((unsigned int)puVar5[1] +
+                                            *(int *)(iVar6 + 0xb4) * 4) *
+                                             8),
+                          (float *)local_58);
+        CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
+                                           ((unsigned int)puVar5[2] +
+                                            *(int *)(iVar6 + 0xb4) * 4) *
+                                             8),
+                          (float *)local_4c);
         local_2c = (float)CALL_FUN_00013010((void *)local_64);
         local_28 = (float)CALL_FUN_00013010((void *)local_58);
         local_24 = (float)CALL_FUN_00013010((void *)local_4c);
@@ -4486,8 +5111,8 @@ char lights_distant_lighting_at_point(unsigned int param_1, int param_2, int *pa
           }
         }
         build_distant_lights(param_1, (float *)local_7c, (float *)local_70,
-                     distance_scale, (float *)local_88, (float *)param_3,
-                     (float *)local_40);
+                             distance_scale, (float *)local_88,
+                             (float *)param_3, (float *)local_40);
         local_5 = 1;
       }
     }
@@ -4681,7 +5306,8 @@ void object_move_to_limbo(int object_handle)
 }
 
 /*
- * lights_reconnect_to_structure_bsp (0x13b150 / objects.obj) — flush all lights flagged for limbo.
+ * lights_reconnect_to_structure_bsp (0x13b150 / objects.obj) — flush all lights
+ * flagged for limbo.
  *
  * Walks the light data table (global at 0x5a90bc) via the data-table forward
  * iterator data_next_index (-1 seed -> first index, -1 return -> end). For each
@@ -4715,7 +5341,7 @@ void lights_reconnect_to_structure_bsp(void)
  * derived from the tag's dynamic state. Returns the new datum handle, or -1
  * if the tag is static/unattached or the table is full. */
 int light_new(int tag_index, int object_handle, int16_t p3, int16_t p4,
-                 int16_t p5)
+              int16_t p5)
 {
   unsigned char *light;
   int handle;
@@ -4755,7 +5381,7 @@ int light_new(int tag_index, int object_handle, int16_t p3, int16_t p4,
  * directly; otherwise marker index and local offsets are stored for attachment.
  */
 int light_new_unattached(int tag_index, int object_handle, int16_t marker,
-                 float *position, float *forward, int unknown)
+                         float *position, float *forward, int unknown)
 {
   int handle;
   char *datum;
@@ -5102,7 +5728,8 @@ void lights_preprocess_scene(void)
                 *(int *)(lf_params + 0x04) = *(int *)(puVar13 + 0x24);
                 *(int *)(lf_params + 0x08) = *(int *)(puVar13 + 0x28);
                 *(int *)(lf_params + 0x0c) = *(int *)(puVar13 + 0x2c);
-                *(int *)(lf_params + 0x10) = CALL_FUN_00180b10((float *)puVar13);
+                *(int *)(lf_params + 0x10) =
+                  CALL_FUN_00180b10((float *)puVar13);
                 *(int *)(lf_params + 0x14) =
                   CALL_FUN_00180b10((float *)(puVar13 + 0x18));
                 *(short *)(lf_params + 0x20) = sVar14;
@@ -5141,11 +5768,12 @@ void lights_preprocess_scene(void)
   }
 }
 
-/* lights_prepare_for_object_static — Compute object lighting from BSP lightmap/environment.
- * Samples lighting at the object's position and 4 offset positions, averages
- * successful samples. lights_distant_lighting_at_point overwrites all 0x74 bytes of local_88 before
- * returning, so this local intentionally has no pre-clear, matching the XBE.
- * (0x13bce0 / objects.obj, object_lights.c:0x3ca) */
+/* lights_prepare_for_object_static — Compute object lighting from BSP
+ * lightmap/environment. Samples lighting at the object's position and 4 offset
+ * positions, averages successful samples. lights_distant_lighting_at_point
+ * overwrites all 0x74 bytes of local_88 before returning, so this local
+ * intentionally has no pre-clear, matching the XBE. (0x13bce0 / objects.obj,
+ * object_lights.c:0x3ca) */
 void lights_prepare_for_object_static(int object_handle, float *lighting)
 {
   int *obj;
@@ -5174,7 +5802,8 @@ void lights_prepare_for_object_static(int object_handle, float *lighting)
   if (*(uint8_t *)(tag_data + 2) & 4)
     flags |= 4;
 
-  ok = lights_distant_lighting_at_point(flags, (int)(obj + 0x14), (int *)lighting);
+  ok =
+    lights_distant_lighting_at_point(flags, (int)(obj + 0x14), (int *)lighting);
 
   if ((obj[1] & 0x4000) != 0)
     return;
@@ -5206,7 +5835,8 @@ void lights_prepare_for_object_static(int object_handle, float *lighting)
     offset_pos[1] = yoff * *(float *)(obj + 0x17) + *(float *)(obj + 0x15);
     *(int *)(offset_pos + 2) = obj[0x16];
 
-    ok = lights_distant_lighting_at_point(flags, (int)offset_pos, (int *)local_88);
+    ok =
+      lights_distant_lighting_at_point(flags, (int)offset_pos, (int *)local_88);
     if (ok != '\0') {
       sample_count++;
       lighting[0] += local_88[0];
@@ -5266,8 +5896,8 @@ void lights_prepare_for_object_static(int object_handle, float *lighting)
   }
 }
 
-/* build_family_shadow (0x13c030 / objects.obj) — depth-first walk of an object's child
- * hierarchy, forwarding two opaque parameters down the tree.
+/* build_family_shadow (0x13c030 / objects.obj) — depth-first walk of an
+ * object's child hierarchy, forwarding two opaque parameters down the tree.
  *
  * For each object node (param_1), verifies the datum
  * (object_get_and_verify_type with type_mask -1), recurses into the first-child
@@ -5295,9 +5925,9 @@ void build_family_shadow(int param_1, int param_2, int param_3)
 }
 
 /* Fills the bounding-box-style output struct param_3 from object param_1's tag
-   model bounds, then recurses into child/attached objects via build_family_shadow,
-   which accumulates into the struct. Returns 1 if the count field
-   (param_3[7] low word) ended up > 0, else 0. */
+   model bounds, then recurses into child/attached objects via
+   build_family_shadow, which accumulates into the struct. Returns 1 if the
+   count field (param_3[7] low word) ended up > 0, else 0. */
 char object_build_shadow(int param_1, int param_2, int *param_3)
 {
   int *obj;
@@ -5352,8 +5982,9 @@ void *object_type_definition_get(int16_t object_type)
  *
  * Validates the object type is in [0, 0xc) and that its definition pointer in
  * the object_type_definitions table (0x324608) is non-NULL, then returns the
- * int16_t at definition+8. Same validation shape as sibling object_type_get_name
- * (two asserts: bounds at object_types.c:0x282, NULL at object_types.c:0x283).
+ * int16_t at definition+8. Same validation shape as sibling
+ * object_type_get_name (two asserts: bounds at object_types.c:0x282, NULL at
+ * object_types.c:0x283).
  *
  * Confirmed: bounds check param_1 < 0 || 0xb < param_1.
  * Confirmed: table object_type_definitions at 0x324608 (array of pointers).
@@ -5402,16 +6033,17 @@ void *object_type_get_name(int16_t param_1)
 }
 
 /*
- * object_types_initialize (0x13c2e0 / object_types.c) — build the object-type definition
- * dependency list and run each definition's initialize procedure.
+ * object_types_initialize (0x13c2e0 / object_types.c) — build the object-type
+ * definition dependency list and run each definition's initialize procedure.
  *
  * Threads a singly-linked list through definition+0x9c ('next') in dependency
- * order: for each object type 0..0xb, object_type_definition_get(type) yields the definition;
- * it is appended to the list (asserting its 'next' is still NONE), then each of
- * its up to 16 child-type definitions (def+0x5c[i], stopping at the first 0) is
- * appended if not already linked. The list head is kept at 0x5a8d54. After the
- * list is terminated with a NULL next, it is walked head-to-tail and each
- * definition's initialize callback at def+0x10 (if non-NULL) is invoked.
+ * order: for each object type 0..0xb, object_type_definition_get(type) yields
+ * the definition; it is appended to the list (asserting its 'next' is still
+ * NONE), then each of its up to 16 child-type definitions (def+0x5c[i],
+ * stopping at the first 0) is appended if not already linked. The list head is
+ * kept at 0x5a8d54. After the list is terminated with a NULL next, it is walked
+ * head-to-tail and each definition's initialize callback at def+0x10 (if
+ * non-NULL) is invoked.
  *
  * Confirmed (disasm 0x13c2e0): head at DAT_005a8d54; assert "!definition->next"
  * (object_types.c:0x2ea) when def+0x9c != 0; inner child scan def+0x5c+i*4 for
@@ -5536,18 +6168,18 @@ void object_type_adjust_placement(int param_1, void *param_2)
  * object_type_new (0x13c490 / objects.obj) — run an object type's "can delete?"
  * predicate chain.
  *
- * Resolves the object, looks up its type definition via object_type_definition_get(type),
- * and walks the NULL-terminated array of type-handler vtable pointers at
- * type_def+0x5c. For each non-NULL handler, if it has a predicate at +0x24,
- * calls predicate(object_handle); if the predicate returns false the whole
- * function returns false. If the list is empty (first entry NULL) or every
- * predicate passes, returns true.
+ * Resolves the object, looks up its type definition via
+ * object_type_definition_get(type), and walks the NULL-terminated array of
+ * type-handler vtable pointers at type_def+0x5c. For each non-NULL handler, if
+ * it has a predicate at +0x24, calls predicate(object_handle); if the predicate
+ * returns false the whole function returns false. If the list is empty (first
+ * entry NULL) or every predicate passes, returns true.
  *
  * Confirmed: PUSH -1, PUSH handle -> object_get_and_verify_type(handle, -1).
- * Confirmed: MOVSX EAX,[obj+0x64] -> object type, passed to object_type_definition_get.
- * Confirmed: handler list at type_def+0x5c, dword-stride, NULL-terminated.
- * Confirmed: handler predicate at handler+0x24; called handler-less as
- *            predicate(handle) (one cdecl arg, ADD ESP,4).
+ * Confirmed: MOVSX EAX,[obj+0x64] -> object type, passed to
+ * object_type_definition_get. Confirmed: handler list at type_def+0x5c,
+ * dword-stride, NULL-terminated. Confirmed: handler predicate at handler+0x24;
+ * called handler-less as predicate(handle) (one cdecl arg, ADD ESP,4).
  * Confirmed: empty list -> return 1 (CL=1 path); predicate false -> return 0.
  */
 char object_type_new(int object_handle)
@@ -5635,9 +6267,9 @@ void object_type_delete(int param_1)
 /* 0x13c5c0 / objects.obj — dispatch the type-extension vtable callback at
  * +0x30 for every registered extension of an object's type, accumulating a
  * boolean OR of the callback results. Walks the extension table (base +0x5c)
- * obtained from the object's type via object_type_definition_get, calling each non-NULL
- * fn-ptr at *(extension+0x30) with the object handle until a NULL slot ends
- * the list. Returns AL (1 if any callback returned non-zero, else 0).
+ * obtained from the object's type via object_type_definition_get, calling each
+ * non-NULL fn-ptr at *(extension+0x30) with the object handle until a NULL slot
+ * ends the list. Returns AL (1 if any callback returned non-zero, else 0).
  *
  * Confirmed: cdecl, 1 arg (object_handle at [EBP+8]).
  * Confirmed: returns bool in AL (MOV AL,BL at exit).
@@ -5718,13 +6350,13 @@ void object_type_handle_deleted_object(int param_1, int param_2)
 }
 
 /*
- * object_type_handle_region_destroyed — dispatch a region-destroyed callback through the object
- * type definition's extension table.
+ * object_type_handle_region_destroyed — dispatch a region-destroyed callback
+ * through the object type definition's extension table.
  *
- * Resolves the object's type, looks up its type definition via object_type_definition_get,
- * then walks the pointer array at type_def+0x5c. For each non-NULL entry,
- * reads a function pointer at entry+0x3c and calls it with the original
- * three arguments (object_handle, param_2, param_3).
+ * Resolves the object's type, looks up its type definition via
+ * object_type_definition_get, then walks the pointer array at type_def+0x5c.
+ * For each non-NULL entry, reads a function pointer at entry+0x3c and calls it
+ * with the original three arguments (object_handle, param_2, param_3).
  *
  * Called from damage.c (FUN_00137690) when a region is destroyed, passing
  * (object_handle, region_index, region_flags).
@@ -5738,7 +6370,8 @@ void object_type_handle_deleted_object(int param_1, int param_2)
  * 0x13c71f-0x13c721).
  */
 /* 0x13c6e0 */
-void object_type_handle_region_destroyed(int object_handle, int region_index, unsigned int flags)
+void object_type_handle_region_destroyed(int object_handle, int region_index,
+                                         unsigned int flags)
 {
   typedef void (*type_callback_t)(int, int, unsigned int);
   char *obj;
@@ -5763,14 +6396,15 @@ void object_type_handle_region_destroyed(int object_handle, int region_index, un
 }
 
 /*
- * object_type_handle_parent_destroyed — walk the object type definition extension table and check
- * whether any extension's callback at offset +0x40 returns true.
+ * object_type_handle_parent_destroyed — walk the object type definition
+ * extension table and check whether any extension's callback at offset +0x40
+ * returns true.
  *
  * Resolves the object's type via object_get_and_verify_type(-1), looks up
- * the type definition via object_type_definition_get, then walks the NULL-terminated
- * pointer array at type_def+0x5c. For each non-NULL entry, reads a function
- * pointer at entry+0x40 and calls it with the object handle. If any callback
- * returns non-zero, the function returns 1 (sticky OR).
+ * the type definition via object_type_definition_get, then walks the
+ * NULL-terminated pointer array at type_def+0x5c. For each non-NULL entry,
+ * reads a function pointer at entry+0x40 and calls it with the object handle.
+ * If any callback returns non-zero, the function returns 1 (sticky OR).
  *
  * Called from FUN_00136840, which recursively walks child objects. If this
  * function returns 0, the caller recurses into the child.
@@ -5837,16 +6471,17 @@ void object_type_preprocess_node_orientations(int param_1, int param_2)
 }
 
 /*
- * object_type_postprocess_node_matrices — dispatch an animation-block initializer callback through the
- * object type definition's extension table.
+ * object_type_postprocess_node_matrices — dispatch an animation-block
+ * initializer callback through the object type definition's extension table.
  *
- * Resolves the object's type, looks up its type definition via object_type_definition_get,
- * then walks the NULL-terminated pointer array at type_def+0x5c. For each
- * non-NULL entry, reads a function pointer at entry+0x48 and calls it with
- * (object_handle, block_data).
+ * Resolves the object's type, looks up its type definition via
+ * object_type_definition_get, then walks the NULL-terminated pointer array at
+ * type_def+0x5c. For each non-NULL entry, reads a function pointer at
+ * entry+0x48 and calls it with (object_handle, block_data).
  *
- * Called from object_postprocess_node_matrices after resolving the animation block reference,
- * passing the object handle and the resolved block data pointer.
+ * Called from object_postprocess_node_matrices after resolving the animation
+ * block reference, passing the object handle and the resolved block data
+ * pointer.
  *
  * Confirmed: cdecl, 2 args (ADD ESP,0x8 after indirect CALL).
  * Confirmed: MOVSX word [EAX+0x64] — reads object type as int16_t.
@@ -5884,9 +6519,9 @@ void object_type_postprocess_node_matrices(int object_handle, void *block_data)
 /*
  * object_type_reset — dispatch per-type reset callbacks for an object.
  *
- * Looks up the object's type via object_type_definition_get(object_type), then iterates
- * the null-terminated handler array at type_data+0x5c. For each handler,
- * calls the reset function pointer at handler+0x4c with object_handle.
+ * Looks up the object's type via object_type_definition_get(object_type), then
+ * iterates the null-terminated handler array at type_data+0x5c. For each
+ * handler, calls the reset function pointer at handler+0x4c with object_handle.
  * Used internally by object_reset to apply type-specific re-initialization.
  *
  * 0x13c860 / objects.obj
@@ -5900,7 +6535,8 @@ void object_type_reset(int object_handle)
   short cnt;
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
-  type_data = (char *)object_type_definition_get((int16_t) * (short *)(obj + 0x64));
+  type_data =
+    (char *)object_type_definition_get((int16_t) * (short *)(obj + 0x64));
   ptr = (int *)(type_data + 0x5c);
   cnt = 0;
 
@@ -5989,13 +6625,14 @@ void object_type_notify_impulse_sound(int param_1, int param_2, int param_3)
 }
 
 /*
- * object_definition_index_to_object_type (0x13c9e0 / objects.obj) — find the object type definition
- * index whose group tag matches the given tag index's group tag.
+ * object_definition_index_to_object_type (0x13c9e0 / objects.obj) — find the
+ * object type definition index whose group tag matches the given tag index's
+ * group tag.
  *
  * Resolves the tag's group tag via tag_get_group_tag(tag_index), then scans
- * the 12 object type definitions (object_type_definition_get(i) for i in 0..0xb), comparing
- * each definition's group_tag field at +0x4. Returns the matching index, or
- * -1 (0xffff) if none match.
+ * the 12 object type definitions (object_type_definition_get(i) for i in
+ * 0..0xb), comparing each definition's group_tag field at +0x4. Returns the
+ * matching index, or -1 (0xffff) if none match.
  *
  * Confirmed: CALL 0x1ba210 (tag_get_group_tag) with tag_index.
  * Confirmed: loop CALL 0x13c100 (object type definition get) per index.
@@ -6025,7 +6662,8 @@ unsigned short object_definition_index_to_object_type(int tag_index)
 /* Return a pointer into the scenario's placement block for an object type.
  * 0x13ca30 / objects.obj
  */
-int scenario_get_object_type_scenario_datums(int param_1, int param_2, int *param_3)
+int scenario_get_object_type_scenario_datums(int param_1, int param_2,
+                                             int *param_3)
 {
   int iVar1;
 
@@ -6076,15 +6714,15 @@ int scenario_get_object_type_scenario_palette(int param_1, int param_2)
 }
 
 /*
- * object_types_disconnect_from_structure_bsp (0x13cb30 / object_types.c) — delete all unnamed scenery and
- * light-fixture objects.
+ * object_types_disconnect_from_structure_bsp (0x13cb30 / object_types.c) —
+ * delete all unnamed scenery and light-fixture objects.
  *
  * Walks the object table for type_mask 0x240 (scenery | light_fixture) via an
  * object_iter_t and deletes every matching object whose name_index (obj+0x6a)
  * is -1 (NONE) — i.e. transient placements with no scenario name; named ones
  * are left intact. Called by scenario_switch_structure_bsp (0x18eb40) during a
- * structure-BSP switch; the sibling object_types_place_objects below refreshes/respawns the
- * placements for the new BSP cluster.
+ * structure-BSP switch; the sibling object_types_place_objects below
+ * refreshes/respawns the placements for the new BSP cluster.
  *
  * Confirmed (disasm 0x13cb30): object_iterator_new(&iter,0x240,0); first
  * object_iterator_next(&iter); while EAX!=0 { CMP word ptr [EAX+0x6a],-1
@@ -6109,23 +6747,24 @@ void object_types_disconnect_from_structure_bsp(void)
 }
 
 /*
- * object_types_place_objects (0x13cb80 / object_types.c) — refresh scenario object placement
- * for the currently-loaded BSP cluster slot, and (when do_spawn is set) spawn
- * the eligible placements.
+ * object_types_place_objects (0x13cb80 / object_types.c) — refresh scenario
+ * object placement for the currently-loaded BSP cluster slot, and (when
+ * do_spawn is set) spawn the eligible placements.
  *
  * No-op when in the editor (game_in_editor()) or no BSP slot is active
  * (DAT_00326a0c == -1). Iterates object types 0..0xb, processing ONLY the mask
  * 0x240 (bits 6 and 9 = scenery and light_fixture — the BSP-cluster-scoped
  * placement types); every other type is skipped. Confirmed from the original at
  * 0x13cb80+0x49: `test $0x240,%eax; je next_type` — i.e. skip when the bit is
- * CLEAR. This is the complement of the sibling object_types_place_all, whose `test
- * $0x240,%eax; jne next_type` places all the non-BSP-scoped types at scenario
- * load. Getting this backwards leaves scenery (e.g. the teleporter plasma
- * effect) unspawned. For each processed type whose
- * definition (object_type_definition_get) has valid placement (def+0xa) and palette (def+0xc)
- * tag-block offsets:
- *   - fetches the scenario placement block (scenario_get_object_type_scenario_datums, also writes the block
- *     element size) and the palette base index (scenario_get_object_type_scenario_palette);
+ * CLEAR. This is the complement of the sibling object_types_place_all, whose
+ * `test $0x240,%eax; jne next_type` places all the non-BSP-scoped types at
+ * scenario load. Getting this backwards leaves scenery (e.g. the teleporter
+ * plasma effect) unspawned. For each processed type whose definition
+ * (object_type_definition_get) has valid placement (def+0xa) and palette
+ * (def+0xc) tag-block offsets:
+ *   - fetches the scenario placement block
+ * (scenario_get_object_type_scenario_datums, also writes the block element
+ * size) and the palette base index (scenario_get_object_type_scenario_palette);
  *   - if this BSP slot has NOT yet been processed (bit (1<<DAT_00326a0c) clear
  * in DAT_0046f078): for each placement, builds a rotation matrix from the
  *     placement's Euler angles (element+0x14/+0x18/+0x1c via FUN_00109e90),
@@ -6134,9 +6773,9 @@ void object_types_disconnect_from_structure_bsp(void)
  *     membership (FUN_0018e720) for both the raw position and the transformed
  *     point; sets/clears the per-placement "in this BSP slot" flag
  * (element+0x20) accordingly;
- *   - if do_spawn != 0: runs objects_memory_compact, then for each placement not already
- *     instantiated (element+0x2 NONE or object_name_list_get_handle == -1), not
- *     flagged no-spawn (element+0x4 bit0), and flagged for this slot
+ *   - if do_spawn != 0: runs objects_memory_compact, then for each placement
+ * not already instantiated (element+0x2 NONE or object_name_list_get_handle ==
+ * -1), not flagged no-spawn (element+0x4 bit0), and flagged for this slot
  *     (element+0x20 bit (1<<DAT_00326a0c)): spawns it via
  * object_new_from_scenario and runs objects_garbage_collect_tick. After all
  * types: marks this BSP slot processed (sets bit in DAT_0046f078).
@@ -6161,7 +6800,8 @@ void object_types_place_objects(int do_spawn)
   int type;
   int def;
   int *block;
-  int element_size; /* written by scenario_get_object_type_scenario_datums via &element_size */
+  int element_size; /* written by scenario_get_object_type_scenario_datums via
+                       &element_size */
   int palette_base;
   short *element;
   int obj_tag;
@@ -6184,7 +6824,8 @@ void object_types_place_objects(int do_spawn)
       goto next_type;
     }
 
-    block = (int *)scenario_get_object_type_scenario_datums(scenario, type, &element_size);
+    block = (int *)scenario_get_object_type_scenario_datums(scenario, type,
+                                                            &element_size);
     palette_base = scenario_get_object_type_scenario_palette(scenario, type);
 
     /* Phase 1: refresh per-placement cluster membership, once per BSP slot. */
@@ -6262,20 +6903,20 @@ void object_types_place_objects(int do_spawn)
 }
 
 /*
- * object_types_place_all (0x13cdd0 / object_types.c) — place every scenario palette
- * object for all eligible object types.
+ * object_types_place_all (0x13cdd0 / object_types.c) — place every scenario
+ * palette object for all eligible object types.
  *
  * No-op when the game is in the editor (game_in_editor() != 0). Otherwise
  * iterates object types 0..0xb, skipping types in the mask 0x240 (bits 6 and
- * 9). For each remaining type whose definition (object_type_definition_get) has both a valid
- * placement tag-block offset (def+0xa != NONE) and palette tag-block offset
- * (def+0xc != NONE): fetches the scenario placement block via scenario_get_object_type_scenario_datums
- * (writing element_size to a local) and the palette base index via
- * scenario_get_object_type_scenario_palette, then for each element in the block calls
- * object_new_from_scenario (object_new_from_scenario) on the element with that
- * palette base, followed by objects_garbage_collect_tick
- * (objects_garbage_collect_tick). A final object_types_place_objects(1) runs after all types
- * are placed.
+ * 9). For each remaining type whose definition (object_type_definition_get) has
+ * both a valid placement tag-block offset (def+0xa != NONE) and palette
+ * tag-block offset (def+0xc != NONE): fetches the scenario placement block via
+ * scenario_get_object_type_scenario_datums (writing element_size to a local)
+ * and the palette base index via scenario_get_object_type_scenario_palette,
+ * then for each element in the block calls object_new_from_scenario
+ * (object_new_from_scenario) on the element with that palette base, followed by
+ * objects_garbage_collect_tick (objects_garbage_collect_tick). A final
+ * object_types_place_objects(1) runs after all types are placed.
  *
  * Confirmed (disasm 0x13cdd0): game_in_editor early-out via AL; type/shift
  * dual-counter always equal (both INC each pass) so mask test is
@@ -6289,7 +6930,8 @@ void object_types_place_all(int scenario)
   int def;
   int *block; /* scenario placement tag block (count at *block) */
   int palette_base;
-  int element_size; /* written by scenario_get_object_type_scenario_datums via &element_size */
+  int element_size; /* written by scenario_get_object_type_scenario_datums via
+                       &element_size */
   int16_t index;
   int i;
   void *element;
@@ -6302,8 +6944,10 @@ void object_types_place_all(int scenario)
     if (((1 << (type & 0x1f)) & 0x240) == 0) {
       def = (int)object_type_definition_get((int16_t)type);
       if (*(int16_t *)(def + 0xa) != -1 && *(int16_t *)(def + 0xc) != -1) {
-        block = (int *)scenario_get_object_type_scenario_datums(scenario, type, &element_size);
-        palette_base = scenario_get_object_type_scenario_palette(scenario, type);
+        block = (int *)scenario_get_object_type_scenario_datums(scenario, type,
+                                                                &element_size);
+        palette_base =
+          scenario_get_object_type_scenario_palette(scenario, type);
         index = 0;
         if (*block > 0) {
           i = 0;
@@ -6324,23 +6968,25 @@ void object_types_place_all(int scenario)
 }
 
 /*
- * object_names_postprocess (0x13ce90 / object_types.c) — build the object->cluster
- * back-reference table for the loaded scenario.
+ * object_names_postprocess (0x13ce90 / object_types.c) — build the
+ * object->cluster back-reference table for the loaded scenario.
  *
  * No-op when editor_flag is nonzero. Otherwise iterates object types 0..0xb.
- * For each type whose definition (object_type_definition_get) has a valid placement tag-block
- * offset (def+0xa != NONE) and palette tag-block offset (def+0xc != NONE):
- * fetches the scenario placement block via scenario_get_object_type_scenario_datums (which also writes the
- * block element size to a local). For each element whose cluster reference word
- * (element+0x2) is not NONE, indexes the scenario cluster block at
- * scenario+0x204 (stride 0x24) by that reference and stamps the placement's
- * (type, element index) back into it at +0x20 / +0x22.
+ * For each type whose definition (object_type_definition_get) has a valid
+ * placement tag-block offset (def+0xa != NONE) and palette tag-block offset
+ * (def+0xc != NONE): fetches the scenario placement block via
+ * scenario_get_object_type_scenario_datums (which also writes the block element
+ * size to a local). For each element whose cluster reference word (element+0x2)
+ * is not NONE, indexes the scenario cluster block at scenario+0x204 (stride
+ * 0x24) by that reference and stamps the placement's (type, element index) back
+ * into it at +0x20 / +0x22.
  *
  * Confirmed (disasm 0x13ce90): editor early-out via byte [EBP+0xc]; type loop
  * counter (EBX) is the value stamped at +0x20; element counter (ESI) is stamped
- * at +0x22; both are 16-bit stores (MOV word). scenario_get_object_type_scenario_datums's 3rd arg is the
- * out element-size (original literally reuses the [EBP+0xc] slot; a separate
- * local is used here). Cluster block stride confirmed 0x24 (PUSH 0x24 before
+ * at +0x22; both are 16-bit stores (MOV word).
+ * scenario_get_object_type_scenario_datums's 3rd arg is the out element-size
+ * (original literally reuses the [EBP+0xc] slot; a separate local is used
+ * here). Cluster block stride confirmed 0x24 (PUSH 0x24 before
  * tag_block_get_element 0x19b210).
  */
 void object_names_postprocess(int scenario, char editor_flag)
@@ -6362,7 +7008,8 @@ void object_names_postprocess(int scenario, char editor_flag)
     def = object_type_definition_get((int16_t)type);
     if (*(int16_t *)((char *)def + 0xa) != -1 &&
         *(int16_t *)((char *)def + 0xc) != -1) {
-      block = (int *)scenario_get_object_type_scenario_datums(scenario, type, &element_size);
+      block = (int *)scenario_get_object_type_scenario_datums(scenario, type,
+                                                              &element_size);
       element_index = 0;
       if (*block > 0) {
         e = 0;
@@ -6392,8 +7039,8 @@ void object_names_postprocess(int scenario, char editor_flag)
  * 5 cdecl params. Returns int (object handle).
  */
 /* 0x13cf50 */
-int object_type_synchronize(int param_1, short *param_2, int param_3, short param_4,
-                 short param_5)
+int object_type_synchronize(int param_1, short *param_2, int param_3,
+                            short param_4, short param_5)
 {
   struct fun_0013cf50_frame {
     char placement[0x88];
@@ -6940,16 +7587,17 @@ void object_name_list_set_handle(short name_index, int object_handle)
  *
  * Walks all objects via an inlined object iterator (type_mask = all, flags = 0)
  * and, for each object whose "referenced object" field (object+0xa0) equals the
- * target handle, resets that field to NONE (-1). object_type_handle_deleted_object is then called
- * for every iterated object with (iterator.last_handle, target_handle) to run
- * any per-object detach side effects.
+ * target handle, resets that field to NONE (-1).
+ * object_type_handle_deleted_object is then called for every iterated object
+ * with (iterator.last_handle, target_handle) to run any per-object detach side
+ * effects.
  *
  * Confirmed (disasm 0x13d8b0): data_verify(*(data_t**)0x5a8d50) first; iterator
  * struct inlined at EBP-0x10 (type_mask=-1, flags=0, current_index=0,
  * last_handle=-1, cookie=0x86868686 — matching object_iter_t); object pointer
  * returned by object_iterator_next (0x13d730) in EAX; CMP [EAX+0xa0],ESI then
- * conditional MOV [EAX+0xa0],-1; object_type_handle_deleted_object([EBP-0x8]=last_handle,
- * ESI=handle).
+ * conditional MOV [EAX+0xa0],-1;
+ * object_type_handle_deleted_object([EBP-0x8]=last_handle, ESI=handle).
  */
 void objects_fix_for_deleted_object(int object_handle)
 {
@@ -7386,8 +8034,7 @@ int object_header_new(data_t *data, int16_t datum_size, int type_hint)
   return handle;
 }
 
-void object_header_delete(data_t *data,
-                           int object_handle /* @<ebx> */)
+void object_header_delete(data_t *data, int object_handle /* @<ebx> */)
 {
   char *header;
   void **object_ptr;
@@ -7515,7 +8162,8 @@ int object_header_block_allocate(int object_handle, int offset, int size)
 }
 
 /*
- * object_postprocess_node_matrices — run animation-block initializer callbacks for an object.
+ * object_postprocess_node_matrices — run animation-block initializer callbacks
+ * for an object.
  *
  * Resolves the object's tag definition and checks whether both a model
  * (tag+0x34) and an animation graph (tag+0x44) are present. If so,
@@ -7532,8 +8180,8 @@ int object_header_block_allocate(int object_handle, int offset, int size)
  * Confirmed: ADD ESI,0x1a0 -> object_data+0x1a0 is the animation block ref.
  * Confirmed: PUSH ESI, PUSH EDI -> object_header_block_reference_get(handle,
  * obj+0x1a0). Confirmed: PUSH EAX (return value), PUSH EDI ->
- * object_type_postprocess_node_matrices(handle, block). Confirmed: ADD ESP,0x10 cleans both calls (4
- * pushes).
+ * object_type_postprocess_node_matrices(handle, block). Confirmed: ADD ESP,0x10
+ * cleans both calls (4 pushes).
  */
 /* 0x13e1a0 */
 void object_postprocess_node_matrices(int object_handle /* @<edi> */)
@@ -8242,10 +8890,10 @@ int object_mark(int object_handle)
  * light_new  (light)        ; sets object flag 0x100 type 1 'lsnd' ->
  * game_looping_sound_new       ; sets object flag 0x400 type 2 'effe' ->
  * effect_new_looping  (effect) type 3 'cont' -> contrail_new type 4 'pctl' ->
- * particle_system_new_attached  (particle) The attachment type byte is stored at object+0xf4+i
- * and the created handle at object+0xfc+i*4. Marker indices passed to creators
- * are element fields minus 1 (element+0x30/+0x32/+0x34 -> marker / secondary /
- * tertiary).
+ * particle_system_new_attached  (particle) The attachment type byte is stored
+ * at object+0xf4+i and the created handle at object+0xfc+i*4. Marker indices
+ * passed to creators are element fields minus 1 (element+0x30/+0x32/+0x34 ->
+ * marker / secondary / tertiary).
  *
  * DORMANT — kept ported=false. Gate B: caller edge from object_new (0x143c80,
  * lifecycle cluster member) at 0x144147, AND object-lifecycle mutation (fills
@@ -8304,8 +8952,8 @@ void attachments_new(int object_handle)
       switch (type) {
       case 0:
         handle = light_new((int)def, object_handle, i,
-                              (short)(*(short *)((char *)element + 0x30) - 1),
-                              (short)(*(short *)((char *)element + 0x34) - 1));
+                           (short)(*(short *)((char *)element + 0x30) - 1),
+                           (short)(*(short *)((char *)element + 0x34) - 1));
         if (handle != -1) {
           obj[1] = obj[1] | 0x100;
         }
@@ -8319,10 +8967,11 @@ void attachments_new(int object_handle)
         }
         break;
       case 2:
-        handle = effect_new_looping((int)def, object_handle,
-                              (short)(*(short *)((char *)element + 0x30) - 1),
-                              (short)(*(short *)((char *)element + 0x32) - 1),
-                              (short)(*(short *)((char *)element + 0x34) - 1));
+        handle =
+          effect_new_looping((int)def, object_handle,
+                             (short)(*(short *)((char *)element + 0x30) - 1),
+                             (short)(*(short *)((char *)element + 0x32) - 1),
+                             (short)(*(short *)((char *)element + 0x34) - 1));
         break;
       case 3:
         handle = contrail_new((int)def, object_handle, i);
@@ -8444,8 +9093,8 @@ void object_remove_from_name_list(int object_handle /* @<edi> */)
  *
  *
  * Sets the object_is_being_placed flag on object_globals, calls the scenario
- * object placer (object_types_place_all, unported), then clears the flag. The flag is at
- * byte offset 0x00 of the object_globals struct.
+ * object placer (object_types_place_all, unported), then clears the flag. The
+ * flag is at byte offset 0x00 of the object_globals struct.
  *
  * Confirmed: MOV byte ptr [EAX], 0x1 / MOV byte ptr [ECX], 0x0
  * Confirmed: global_scenario_get() result (EAX) pushed as sole arg to placer.
@@ -8955,10 +9604,10 @@ void objects_initialize(void)
  *
  * Call order (confirmed from disasm):
  *   widgets_dispose  — resets a global slot index (object type slot reset)
- *   widgets_initialize_for_new_map  — iterates 5 object type slots, calls initialize_for_new_map
- *                   vtable entry via [EDI] (slot stride 0x28)
- *   object_types_initialize_for_new_map  — walks the object_type_definition linked list, calls
- *                   each type's initialize_for_new_map function at +0x18
+ *   widgets_initialize_for_new_map  — iterates 5 object type slots, calls
+ * initialize_for_new_map vtable entry via [EDI] (slot stride 0x28)
+ *   object_types_initialize_for_new_map  — walks the object_type_definition
+ * linked list, calls each type's initialize_for_new_map function at +0x18
  *   lights_initialize_for_new_map  — calls data_delete_all on a BSP cluster
  * data table, then object_list_initialize_for_new_map via FUN_1915d0
  *
@@ -9018,8 +9667,9 @@ void objects_initialize_for_new_map(void)
  * Call order (confirmed from disasm):
  *   widgets_dispose_from_old_map  — per-map dispose for type-slot array
  *   widgets_dispose_from_old_map  — per-map dispose for 5 object-type slots
- *   object_types_dispose_from_old_map  — per-map dispose for object type definition list
- *   lights_dispose_from_old_map  — per-map dispose for BSP cluster data
+ *   object_types_dispose_from_old_map  — per-map dispose for object type
+ * definition list lights_dispose_from_old_map  — per-map dispose for BSP
+ * cluster data
  *
  * Then, if the object header data table is valid (byte at data+0x24 != 0):
  *   Walk every datum via data_next_index (0x1198f0):
@@ -9094,9 +9744,9 @@ void objects_dispose_from_old_map(void)
  * objects_dispose — tear down all object subsystems.
  *
  * Call order (confirmed from disasm):
- *   widgets_dispose  — iterates 5 type slots, calls dispose vtable entry at [EDI]
- *   object_types_dispose  — walks linked list, calls each type's dispose at +0x14
- *   lights_dispose  — disposes the BSP cluster data, calls FUN_191630
+ *   widgets_dispose  — iterates 5 type slots, calls dispose vtable entry at
+ * [EDI] object_types_dispose  — walks linked list, calls each type's dispose at
+ * +0x14 lights_dispose  — disposes the BSP cluster data, calls FUN_191630
  *
  * Then:
  *   if (!game_in_editor()):  null out *(data_t**)0x5a8d50 (don't free)
@@ -9192,7 +9842,8 @@ void object_deactivate(int object_handle)
  *
  * Confirmed: single call to object_get_and_verify_type(handle, -1), then
  * two identical 3-dword copies from [0x31fc38]. The 3 cdecl args
- * (−1, handle, handle) are batch-cleaned by ADD ESP,0xc after object_type_reset.
+ * (−1, handle, handle) are batch-cleaned by ADD ESP,0xc after
+ * object_type_reset.
  *
  * 0x13fbc0 / objects.obj
  */
@@ -10080,8 +10731,9 @@ int object_name_list_get_handle(int16_t index)
  * calling it).  For each object that is connected to the map (flags bit 0x800)
  * and has no parent (object+0xcc == NONE), it calls object_disconnect_from_map
  * on the iterator's last_handle and re-asserts the 0x800 flag (a redundant
- * store the original preserves).  object_type_disconnect_from_structure_bsp (vtable +0x50 dispatch) is then
- * invoked for every iterated object, unconditionally.
+ * store the original preserves).  object_type_disconnect_from_structure_bsp
+ * (vtable +0x50 dispatch) is then invoked for every iterated object,
+ * unconditionally.
  *
  * Confirmed (disasm 0x140750): data_verify(*(data_t**)0x5a8d50) first; iterator
  * inlined at EBP-0x10 with EAX=-1 written to type_mask(+0)/last_handle(+8),
@@ -11356,9 +12008,9 @@ void objects_paparazzi(void)
 }
 
 /*
- * object_export_function_values (0x141970 / objects.obj) — evaluate the four object "function
- * input" values from the object tag and store them into the object's function
- * value cache (object+0xd4, four floats).
+ * object_export_function_values (0x141970 / objects.obj) — evaluate the four
+ * object "function input" values from the object tag and store them into the
+ * object's function value cache (object+0xd4, four floats).
  *
  * For each of the four function-input source codes (object tag+0x108, stride
  * 2), a non-zero code selects a value via a jump table (table at 0x141b38, byte
@@ -12888,8 +13540,8 @@ void object_translate(int object_handle, float *position, void *location)
  * (placement+0x24 multiplied through). Confirmed: tag_get(0x6d6f6465, ...) for
  * 'mode' model tag, node count at +0xb8. Confirmed:
  * object_header_block_allocate for block reference allocation (3 calls).
- * Confirmed: effect_new_from_object creation effect (8 args) if tag_data+0xac != -1.
- * Confirmed: return EBX (object_handle or -1).
+ * Confirmed: effect_new_from_object creation effect (8 args) if tag_data+0xac
+ * != -1. Confirmed: return EBX (object_handle or -1).
  */
 int object_new(void *placement)
 {
@@ -13144,8 +13796,9 @@ int object_new(void *placement)
 
     /* --- Creation effect --- */
     if (*(int *)(tag_data + 0xac) != -1) {
-      effect_new_from_object(*(int *)(tag_data + 0xac), object_handle, /* dup-args-ok */
-                   object_handle, -1, 0, 0, 0, 0);
+      effect_new_from_object(*(int *)(tag_data + 0xac),
+                             object_handle, /* dup-args-ok */
+                             object_handle, -1, 0, 0, 0, 0);
     }
 
     return object_handle;
@@ -13407,16 +14060,17 @@ done:
  *     interpolation tick (obj+0x84) and clear the period once it elapses.
  *     Asserts the object type is interpolatable (mask 0xfe0 over
  * 1<<(type&0x1f)).
- *   - runs object_type_update, damage update (if tag+0x7c != -1), object_type_export_function_values,
- *     node matrices (unless flags&0x800000), function values, change colors.
+ *   - runs object_type_update, damage update (if tag+0x7c != -1),
+ * object_type_export_function_values, node matrices (unless flags&0x800000),
+ * function values, change colors.
  *   - propagates a flag to children when flags&0x2000 and either flags&1 is
  *     clear or the definition's tag+0x34 == -1.
  *   - recurses into the first child (obj+0xC8) and, when a parent link
  *     (obj+0xCC) and sibling link (obj+0xC4) both exist, into the next sibling.
  *   - re-fetches obj/tag after recursion (registers reloaded in the original)
  *     and, if tag+0x34 and tag+0x44 are both != -1, resolves a header block
- *     reference (obj+0x1A0) and hands it to object_type_postprocess_node_matrices.
- * Always returns true (AL=1).
+ *     reference (obj+0x1A0) and hands it to
+ * object_type_postprocess_node_matrices. Always returns true (AL=1).
  *
  * Confirmed: header via datum_get(*(data_t**)0x5a8d50, handle); obj via
  * object_get_and_verify_type(handle, -1); tag via tag_get(0x6f626a65, obj[0]).
@@ -13729,9 +14383,11 @@ void object_new_by_name(short param_1)
 
   scn = (int)global_scenario_get();
   e = (int)tag_block_get_element((void *)(scn + 0x204), param_1, 0x24);
-  palette = scenario_get_object_type_scenario_datums(scn, *(short *)(e + 0x20), &elem_size);
+  palette = scenario_get_object_type_scenario_datums(scn, *(short *)(e + 0x20),
+                                                     &elem_size);
   scn = (int)global_scenario_get();
-  pal_base = scenario_get_object_type_scenario_palette(scn, *(short *)(e + 0x20));
+  pal_base =
+    scenario_get_object_type_scenario_palette(scn, *(short *)(e + 0x20));
   placement = (int)tag_block_get_element((void *)palette, *(short *)(e + 0x22),
                                          elem_size);
   object_new_from_scenario((void *)placement, pal_base);
@@ -14560,8 +15216,9 @@ void objects_update(void)
 }
 
 /*
- * objects_memory_compact (0x145490 / objects.obj) — flush deferred object work: run one
- * garbage-collect tick, then compact the global objects memory pool (0x46f080).
+ * objects_memory_compact (0x145490 / objects.obj) — flush deferred object work:
+ * run one garbage-collect tick, then compact the global objects memory pool
+ * (0x46f080).
  *
  * Confirmed (disasm 0x145490): CALL objects_garbage_collect_tick (0x144b50);
  * MOV EAX,[0x46f080]; PUSH EAX; CALL memory_pool_compact (0x11e840); POP ECX.

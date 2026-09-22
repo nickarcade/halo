@@ -1001,6 +1001,58 @@ void *stack_memory_pool_alloc_or_resize(int new_size, void *pool,
   return new_hdr;
 }
 
+/* pool_new_handle (0x11f810) — allocate a block and update pool accounting.
+ *
+ * Calls internal allocator 0x11f1e0 with EAX=size and stack args
+ * [pool, file, line]. On success updates the pool statistics and returns the
+ * block header pointer itself (unlike stack_memory_pool_allocate, which
+ * returns block_hdr + 0x1c). Returns NULL on allocation failure.
+ *
+ * Pool struct offsets touched:
+ *   +0x14: bytes_used
+ *   +0x18: peak_bytes
+ *   +0x1c: alloc_count
+ *   +0x20: peak_alloc_count
+ *   +0x24: largest_alloc
+ */
+void *pool_new_handle(void *pool, int size, const char *file, unsigned int line)
+{
+  char *pool_p = (char *)pool;
+  char *block_hdr;
+  unsigned int usable_size;
+  unsigned int alloc_count;
+  unsigned int bytes_used;
+
+  block_hdr = (char *)stack_memory_pool_alloc_internal(size, pool, file, line);
+
+  if (block_hdr != 0) {
+    usable_size = *(unsigned int *)block_hdr & 0x7fffffff;
+
+    alloc_count = *(unsigned int *)(pool_p + 0x1c) + 1;
+    bytes_used = *(unsigned int *)(pool_p + 0x14) + usable_size;
+    *(unsigned int *)(pool_p + 0x14) = bytes_used;
+    *(unsigned int *)(pool_p + 0x1c) = alloc_count;
+
+    if ((int)bytes_used > *(int *)(pool_p + 0x18)) {
+      *(unsigned int *)(pool_p + 0x18) = bytes_used;
+    }
+
+    if (alloc_count > *(unsigned int *)(pool_p + 0x20)) {
+      *(unsigned int *)(pool_p + 0x20) = alloc_count;
+    }
+
+    if ((*(unsigned int *)block_hdr & 0x7fffffff) >
+        *(unsigned int *)(pool_p + 0x24)) {
+      *(unsigned int *)(pool_p + 0x24) =
+        *(unsigned int *)block_hdr & 0x7fffffff;
+    }
+
+    return block_hdr;
+  }
+
+  return 0;
+}
+
 /* stack_memory_pool_allocate — allocate a new block from the pool.
  *
  * Calls internal allocator 0x11f1e0 with EAX=size and stack args
@@ -1312,4 +1364,79 @@ void FUN_0011fe80(void *page)
   texture_page_verify(page);
   data_dispose(*(data_t **)((char *)page + 0x18));
   debug_free(page, "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x45);
+}
+
+
+/* FUN_0011fef0 — verify a texture page, then fetch one texture datum from it.
+ *
+ * Name left as FUN_: kb.json carries no name and this function contains no
+ * string or assert that proves one.
+ *
+ * Reference shape (0011fef0-0011ff0e): two cdecl stack args.
+ *   MOV ESI,[EBP+8]            page
+ *   CALL 0x11fd50              texture_page_verify(page) — page in ESI
+ *                              (kb.json @<esi>), so no push is emitted
+ *   MOV EAX,[EBP+0xc]          datum_handle
+ *   MOV ECX,[ESI+0x18]         page->+0x18, the same data_t* field
+ *                              texture_page_new stores and FUN_0011fe80
+ *                              disposes
+ *   PUSH EAX; PUSH ECX         cdecl: last arg pushed first, so the call is
+ *                              datum_get(data, datum_handle)
+ *   CALL 0x119320; ADD ESP,8
+ *   RET                        datum_get's EAX return is the return value
+ */
+void *FUN_0011fef0(void *page, int datum_handle)
+{
+  texture_page_verify(page);
+  return datum_get(*(data_t **)((char *)page + 0x18), datum_handle);
+}
+
+
+/* qsort_texture_indexes — sort predicate over texture indexes in the current
+ * texture page (name from the 2276 symbol dump, kb.json tier T1).
+ *
+ * Reference shape (0011ff10-0011ff66). Two cdecl stack args, both read with
+ * MOVSX word — so they are signed int16 indexes, not pointers:
+ *   MOV ESI,[0x46e808]; MOV EDI,ESI; CALL 0x11fd50   texture_page_verify(page)
+ *   MOV ESI,[0x46e808]; MOV EBX,ESI; CALL 0x11fd50   texture_page_verify(page)
+ *   MOVSX EAX,[EBP+8];  MOV ECX,[EBX+0x18]; PUSH EAX; PUSH ECX; CALL datum_get
+ *   MOVSX EDX,[EBP+0xc];MOV EAX,[EDI+0x18]; PUSH EDX; PUSH EAX; CALL datum_get
+ *   MOVSX ECX,[EAX+0xa]  entry for index_b
+ *   MOVSX EDX,[ESI+0xa]  entry for index_a
+ *   SUB ECX,EDX; XOR EAX,EAX; TEST ECX,ECX; SETG AL; RET
+ *
+ * The verify+datum_get pair is FUN_0011fef0 inlined twice (same global page,
+ * loaded from 0x46e808 once per inlined copy). MSVC hoisted both verify calls
+ * ahead of both datum_get calls; that is the order the binary executes, so it
+ * is the order written here. The EDI copy (first global load) feeds the
+ * index_b lookup and the EBX copy (second load) feeds index_a — same pointer
+ * value either way, but the two loads are reproduced literally.
+ *
+ * page+0x18 is the "texture page textures" data_t* (see texture_page_new).
+ * Entry field +0x0a is the int16 cross-confirmed as the height by the
+ * FUN_0011fef0 call sites in model_animations.c / bitmap_utilities.c.
+ *
+ * Return is a byte predicate (XOR EAX,EAX + SETG AL): true when the index_b
+ * entry's +0x0a is greater than the index_a entry's, i.e. a descending sort
+ * by that field. The subtraction is performed before the sign test exactly as
+ * the reference does it; do not re-spell it as a direct comparison.
+ */
+bool qsort_texture_indexes(int16_t index_a, int16_t index_b)
+{
+  char *page_b;
+  char *page_a;
+  char *entry_a;
+  int16_t *entry_a_field_0a;
+  char *entry_b;
+
+  page_b = *(char **)0x46e808;
+  texture_page_verify(page_b);
+  page_a = *(char **)0x46e808;
+  texture_page_verify(page_a);
+
+  entry_a = (char *)datum_get(*(data_t **)(page_a + 0x18), index_a);
+  entry_a_field_0a = (int16_t *)(entry_a + 0xa);
+  entry_b = (char *)datum_get(*(data_t **)(page_b + 0x18), index_b);
+
+  return (*(int16_t *)(entry_b + 0xa) - *entry_a_field_0a) > 0;
 }

@@ -28,6 +28,22 @@ Parse from $ARGUMENTS (all optional):
 - `--lift-reg-args` — let goal-lift lift `@<reg>` targets instead of dropping
   them at its two pre-screens. The remaining frontier is mostly these.
 - `--dry-run` — pass through; nothing commits and nothing lands.
+- `--model NAME` — override goal-lift's lift/review agent (REASON_MODEL,
+  default Opus) for every run in this campaign, e.g. `--model sonnet`. Pass
+  through as `model` in every `auto-session` Workflow call (step 5).
+  auto-session.js resolves it to `reasonModel` only (an explicit
+  `--reasonModel` still wins). It deliberately does **not** touch:
+  - the commit-gate agent (COMMIT_MODEL), which stays on goal-lift's own
+    MECHANICAL_MODEL default (haiku) — it only runs a build and parses the
+    result, no reason to pay reasoning-model rates there;
+  - the select/scoring agent (EXTRACT_MODEL), which stays at goal-lift's own
+    default (opus) unless explicitly overridden with `--extractModel`;
+  - the improve-pass agent (IMPROVE_MODEL), which goal-lift itself defaults to
+    whatever REASON_MODEL resolves to — so it follows `--model`/`--reasonModel`
+    automatically, without being forced independently.
+  Use `--reasonModel`/`--extractModel`/`--commitModel`/`--improveModel`
+  directly (passed the same way, verbatim) for anything more specific than
+  this default split.
 
 ## Preflight (once)
 
@@ -69,8 +85,14 @@ Parse from $ARGUMENTS (all optional):
 
 5. **Launch a run.** `Workflow({ name: "auto-session", args: { batches: N,
    batchGoal: M, noLand: <bool>, dryRun: <bool>, liftRegArgs: <bool>,
-   objects: [...], criteria: "<text>" } })`. Omit `objects`/`criteria` when not
-   given. It runs in the background.
+   objects: [...], criteria: "<text>", model: "<name>", reasonModel: "<name>",
+   extractModel: "<name>", commitModel: "<name>", improveModel: "<name>" } })`.
+   Omit any key not given on the command line — in particular omit
+   `objects`/`criteria`/`model` when not passed, same as before. The four
+   granular `*Model` keys are advanced/rare: only include one if the user
+   explicitly passed the matching `--reasonModel`/`--extractModel`/
+   `--commitModel`/`--improveModel` flag; `--model` alone should map to
+   `model` only, not to all four.
 6. **Warm the next targets while it runs** (fire-and-forget, ignore failures):
    `rtk python3 tools/llm_auto_lift.py cache-context --batch 8`.
 7. **Triage the result** (`{branch, batches_landed, batches_unlanded,
@@ -94,10 +116,15 @@ Parse from $ARGUMENTS (all optional):
    ```json
    {"ts": "<ISO-8601 finish time>", "campaign": "<branch>@<campaign start date>",
     "run": <n>, "branch": "<branch>", "objects": [...], "batches": N,
-    "batch_goal": N, "functions_committed": N, "improve_promoted": N,
-    "batches_landed": N, "batches_unlanded": N, "stopped_reason": "...",
-    "tokens_spent": N, "wall_s": N}
+    "batch_goal": N, "model": "<name or 'default'>", "functions_committed": N,
+    "improve_promoted": N, "batches_landed": N, "batches_unlanded": N,
+    "stopped_reason": "...", "tokens_spent": N, "wall_s": N}
    ```
+   Record `model` even when `--model` was not given (as `"default"` — Opus) so a
+   later `campaigns.jsonl` comparison across runs isn't silently comparing
+   different model policies without saying so (see the auto-session.js note on
+   the 2026-09-02 sonnet-default regression: 55% vs 34% promote rate, 60K vs
+   140K tokens/commit — model choice is not a neutral knob).
 
    `tokens_spent` comes from the run's result JSON; `wall_s` is your own
    launch→completion timestamps (workflow scripts cannot read the clock).
@@ -149,4 +176,5 @@ use `/reintegrate-to-main` if the gate parks.
 /campaign --max-runs 6 --lift-reg-args             # frontier is mostly @<reg> now
 /campaign --max-runs 2 --no-land                   # main busy; land once at the end
 /campaign --max-runs 1 --dry-run                   # trial: nothing commits, nothing lands
+/campaign --max-runs 3 --model sonnet              # cheaper/faster session, all runs
 ```

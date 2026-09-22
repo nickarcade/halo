@@ -28,6 +28,19 @@ Parse from $ARGUMENTS (all optional):
 - `--criteria "free text"` — freeform instruction appended to the Select
   prompt on top of the built-in rules (e.g. "prefer functions under 40
   instructions"). Agent-interpreted only — not mechanically enforced.
+- `--model NAME` — override the lift/review agent (REASON_MODEL, default
+  Opus) for this run, e.g. `--model sonnet`. Forward as `reasonModel` in the
+  Workflow args (goal-lift.js has no separate `model` key — `reasonModel` IS
+  the reasoning-tier knob here). Deliberately does **not** affect:
+  - the commit-gate agent (COMMIT_MODEL), which defaults to
+    MECHANICAL_MODEL/haiku — it only runs a build and parses the result;
+  - the select/scoring agent (EXTRACT_MODEL), which defaults to opus;
+  - the improve-pass agent (IMPROVE_MODEL), which has no default of its own —
+    it defaults to whatever REASON_MODEL resolves to, so it follows `--model`
+    automatically.
+  For anything more specific, pass `--reasonModel`/`--extractModel`/
+  `--commitModel`/`--improveModel`/`--mechanicalModel` directly and forward
+  each verbatim as the matching camelCase key in the Workflow args.
 
 ## Steps
 
@@ -38,10 +51,12 @@ Parse from $ARGUMENTS (all optional):
    this with `/goal` manually.
 2. Call the Workflow tool — do not reimplement any of its steps inline:
    ```
-   Workflow({ name: "goal-lift", args: { goal: N, stopOnFail: M, dryRun: <bool>, objects: [<obj>, ...], criteria: "<text>" } })
+   Workflow({ name: "goal-lift", args: { goal: N, stopOnFail: M, dryRun: <bool>, objects: [<obj>, ...], criteria: "<text>", reasonModel: "<name>", extractModel: "<name>", commitModel: "<name>", improveModel: "<name>", mechanicalModel: "<name>" } })
    ```
-   Omit `objects`/`criteria` from the args object entirely when not passed on
-   the command line (don't pass `null` or empty string/array).
+   Omit any key from the args object entirely when not passed on the command
+   line (don't pass `null` or empty string/array) — in particular, `--model`
+   maps only to `reasonModel`; only include one of the other four `*Model`
+   keys if its own specific flag was given.
 3. The workflow runs in the background. Report the returned task info and
    mention `/workflows` for live progress.
 4. When the workflow completes, relay its final summary verbatim (goal
@@ -57,4 +72,5 @@ Parse from $ARGUMENTS (all optional):
 /goal-lift --goal 20 --objects real_math.obj,rasterizer.obj   # restrict to these objects only
 /goal-lift --goal 15 --criteria "prioritize bipeds.obj and actor_combat.obj; skip anything touching D3D or rasterizer"
 /goal-lift --goal 20 --objects units.obj,actors.obj --criteria "prefer smaller functions (under 40 instructions) first"
+/goal-lift --goal 20 --model sonnet   # lift/review agent on sonnet; commit stays haiku, improve follows sonnet
 ```

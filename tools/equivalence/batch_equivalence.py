@@ -10,7 +10,8 @@ Priority order (highest first):
   2. VC71 65–85%    — borderline; instruction-faithful ≠ behavior-faithful
   3. FPU-heavy      — float precision issues are invisible to instruction diff
   4. VC71 85–98%    — permuter band; behavioral check confirms correctness
-  (Functions at VC71 >= 99% are skipped; byte-match is sufficient evidence)
+  (Functions at VC71 >= 99% are outside this batch-priority queue; that is not
+   behavioral evidence. Test them when their risk profile warrants it.)
 
 Usage:
   rtk python3 tools/equivalence/batch_equivalence.py --limit 50
@@ -95,7 +96,7 @@ def _priority(name: str, scores: dict, fpu: bool) -> int:
         return 2
     if s < 99:
         return 3
-    return 99  # skip
+    return 99
 
 
 def build_queue(limit: int, resume: bool) -> list[dict]:
@@ -188,7 +189,7 @@ def main():
     queue = build_queue(limit=args.limit, resume=args.resume)
     print(f"[batch_equivalence] {len(queue)} functions queued")
     if not queue:
-        print("Nothing to do (all already ledgered or above VC71 99%).")
+        print("Nothing to do (all candidates already ledgered).")
         return 0
 
     if args.dry_run:

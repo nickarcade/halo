@@ -64,7 +64,7 @@ jobs:
             ln -s "$BUILD_DIR" build
           fi
           mkdir -p artifacts
-          for dir in equivalence runtime_oracle runtime_oracle_batch; do
+          for dir in equivalence runtime_oracle runtime_oracle_batch raw_byte_audit raw_xbe_structural; do
             if [ ! -e "artifacts/$dir" ] && [ -d "$ARTIFACTS_DIR/$dir" ]; then
               ln -s "$ARTIFACTS_DIR/$dir" "artifacts/$dir"
             fi

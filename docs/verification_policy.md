@@ -1,4 +1,4 @@
-# Verification Policy: Accepting Low Match %
+# Verification Policy: Accepting Low VC71 Mnemonic Match %
 
 This policy defines when a lift may be accepted with low structural match
 percentages, using:
@@ -9,14 +9,14 @@ percentages, using:
 - immediate-constant signal (`[IMM-WARN]`, lift-learnings §25 — wrong float/magic literal)
 - behavior checks (reference behavior harness + runtime checks)
 
-Behavioral fidelity to Xbox is the primary goal. Match % is a signal, not the
-goal by itself.
+Behavioral fidelity to Xbox is the primary goal. VC71 mnemonic match is a
+structural signal, not raw-byte accuracy or a goal by itself.
 
 ## Scope
 
 Use this policy for lifted functions when:
 
-- `vc71_verify.py` reports low match %
+- `vc71_verify.py` reports low VC71 mnemonic match %
 - there is uncertainty whether mismatch is scheduling noise vs real behavior drift
 - `ENABLE_XDK_HYBRID` is being considered as a fallback
 
@@ -37,7 +37,7 @@ If any required input is missing, verdict is `UNDECIDED` (do not mark verified).
 
 ## Hard-Fail Gates
 
-Reject (or keep unverified) regardless of match % when any are true:
+Reject (or keep unverified) regardless of VC71 mnemonic match % when any are true:
 
 - `B = FAIL` (build or ABI gate fails)
 - FPU-sensitive function and `W > 0`

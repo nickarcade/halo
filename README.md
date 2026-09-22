@@ -31,24 +31,24 @@ Select a badge to open that workflow's run history.
 [![Audit gates](https://github.com/stianeklund/halo/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/audit.yml)
 [![Equivalence tests](https://github.com/stianeklund/halo/actions/workflows/equivalence.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/equivalence.yml)
 [![Snapshot verification](https://github.com/stianeklund/halo/actions/workflows/snapshot-tests.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/snapshot-tests.yml)
-[![VC71 byte-accuracy regression](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml)
+[![VC71 mnemonic-match regression](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml)
 [![Runtime oracle tests](https://github.com/stianeklund/halo/actions/workflows/runtime-oracle.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/runtime-oracle.yml)
 [![Progress report](https://github.com/stianeklund/halo/actions/workflows/progress-report.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/progress-report.yml)
 
 Game Code Progress
 ------------------
 <!-- GAME_CODE_PROGRESS_START -->
-[![Decompilation Progress](https://img.shields.io/badge/decompilation-86.65%25-green.svg)](https://stianeklund.github.io/halo/)
-[![Ported Functions](https://img.shields.io/badge/functions-5,899%2F6,808-blue.svg)](https://stianeklund.github.io/halo/)
+[![Decompilation Progress](https://img.shields.io/badge/decompilation-88.00%25-green.svg)](https://stianeklund.github.io/halo/)
+[![Ported Functions](https://img.shields.io/badge/functions-5,994%2F6,811-blue.svg)](https://stianeklund.github.io/halo/)
 
 Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):
 
-* **Ported Functions:** `5,899 / 6,808` (`86.65%`)
-  `[███████████████████████████████████░░░░░] 86.65%`
-* **Ported Code Bytes:** `1,252,630 / 1,737,867` (`72.08%`)
-  `[█████████████████████████████░░░░░░░░░░░] 72.08%`
-* **Average VC71 Match Accuracy:** `94.50%` (`5,923` scored functions, weighted: `90.20%`)
-* **Equivalence Verified:** `5,714` functions tested (`2,074` high confidence)
+* **Ported Functions:** `5,994 / 6,811` (`88.00%`)
+  `[███████████████████████████████████░░░░░] 88.00%`
+* **Ported Code Bytes:** `1,278,489 / 1,738,043` (`73.56%`)
+  `[█████████████████████████████░░░░░░░░░░░] 73.56%`
+* **Average VC71 Mnemonic Match:** `94.40%` (`5,543` scored functions, size-weighted: `90.10%`; structural signal, not raw-byte accuracy)
+* **Equivalence Tests:** `5,589` functions tested (`2,025` high confidence)
 * **Translation Units:** `190` source units (`39` platform/SDK buckets tracked separately)
 
 > Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))

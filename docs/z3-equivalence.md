@@ -98,7 +98,7 @@ The pipeline tries the strongest verification first and falls through:
 
 1. **Z3 formal proof** (leaf, ≤200 instructions, no transcendentals) → PROVEN EQUIVALENT or counterexample
 2. **Unicorn + Z3 seeds** (leaf or data_only or stubbable) → statistical pass/fail with branch-covering inputs
-3. **VC71 byte-match** (has delinked reference) → structural similarity percentage
+3. **VC71 mnemonic match** (has an XBE-derived reference) → structural similarity percentage, not raw-byte identity
 4. **Build + ABI audit** (always) → compile + calling convention check
 
 A Z3 proof is the strongest possible evidence — it supersedes VC71 match and Unicorn testing. Functions with `z3_proven: true` in leaf_cache.json can skip the permuter entirely.

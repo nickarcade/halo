@@ -1,190 +1,199 @@
 {
-  "description": "Curated high-risk ported functions for fast regression testing. Run with: python3 tools/equivalence/regression_test.py",
+  "description": "Curated high-risk ported functions for fast regression testing. Run with: python3 tools/equivalence/regression_test.py Function identity is addr; names are derived from kb.json only for reports.",
   "targets": [
     {
       "addr": "0x10b9c0",
-      "name": "FUN_0010b9c0",
-      "label": "quaternion_multiply[finite-corpus]",
       "obj": "random_math.obj",
       "seeds": 20,
       "flags": [
         "--mem-trace",
         "--no-leaf-cache"
       ],
-      "reason": "pure quaternion multiply; 20/20 finite seeded inputs with 73.5% high-confidence coverage"
+      "reason": "pure quaternion multiply; 20/20 finite seeded inputs with 73.5% high-confidence coverage",
+      "scenario": "finite-corpus"
     },
     {
       "addr": "0x7d6e0",
-      "name": "bitmap_mipmap_width",
-      "label": "bitmap_mipmap_width[plain-0..5]",
       "obj": "bitmaps.obj",
       "seeds": 20,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/bitmap_mipmap_width_plain_range.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/bitmap_mipmap_width_plain_range.json",
         "--allow-stubs",
         "--no-real-callees",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "plain 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification"
+      "reason": "plain 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification",
+      "scenario": "plain-0..5"
     },
     {
       "addr": "0x7d6e0",
-      "name": "bitmap_mipmap_width",
-      "label": "bitmap_mipmap_width[compressed-0..5]",
       "obj": "bitmaps.obj",
       "seeds": 20,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/bitmap_mipmap_width_compressed_range.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/bitmap_mipmap_width_compressed_range.json",
         "--allow-stubs",
         "--no-real-callees",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "compressed 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification"
+      "reason": "compressed 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification",
+      "scenario": "compressed-0..5"
     },
     {
       "addr": "0x7d780",
-      "name": "bitmap_mipmap_get_height",
-      "label": "bitmap_mipmap_get_height[plain-0..5]",
       "obj": "bitmaps.obj",
       "seeds": 20,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/bitmap_mipmap_height_plain_range.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/bitmap_mipmap_height_plain_range.json",
         "--allow-stubs",
         "--no-real-callees",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "plain 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification"
+      "reason": "plain 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification",
+      "scenario": "plain-0..5"
     },
     {
       "addr": "0x7d780",
-      "name": "bitmap_mipmap_get_height",
-      "label": "bitmap_mipmap_get_height[compressed-0..5]",
       "obj": "bitmaps.obj",
       "seeds": 20,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/bitmap_mipmap_height_compressed_range.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/bitmap_mipmap_height_compressed_range.json",
         "--allow-stubs",
         "--no-real-callees",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "compressed 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification"
+      "reason": "compressed 32x16 bitmap across mip levels 0..5; sibling-resolved bitmap verification",
+      "scenario": "compressed-0..5"
     },
     {
       "addr": "0x1bfa00",
-      "name": "game_state_validate_core_header",
-      "label": "game_state_validate_core_header[valid]",
       "obj": "game_state.obj",
       "seeds": 1,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_valid.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_validate_core_header_valid.json",
         "--allow-stubs",
         "--no-stub-arg-trace",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "deterministic non-fatal core-header path: matching build, scenario, allocation, player, and map checksums"
+      "reason": "deterministic non-fatal core-header path: matching build, scenario, allocation, player, and map checksums",
+      "scenario": "valid"
     },
     {
       "addr": "0x1bfa00",
-      "name": "game_state_validate_core_header",
-      "label": "game_state_validate_core_header[build_mismatch]",
       "obj": "game_state.obj",
       "seeds": 1,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_build_mismatch.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_validate_core_header_build_mismatch.json",
         "--allow-stubs",
         "--no-stub-arg-trace",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "deterministic non-fatal core-header path: build-version rejection"
+      "reason": "deterministic non-fatal core-header path: build-version rejection",
+      "scenario": "build_mismatch"
     },
     {
       "addr": "0x1bfa00",
-      "name": "game_state_validate_core_header",
-      "label": "game_state_validate_core_header[scenario_mismatch]",
       "obj": "game_state.obj",
       "seeds": 1,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_scenario_mismatch.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_validate_core_header_scenario_mismatch.json",
         "--allow-stubs",
         "--no-stub-arg-trace",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "deterministic non-fatal core-header path: scenario-name rejection"
+      "reason": "deterministic non-fatal core-header path: scenario-name rejection",
+      "scenario": "scenario_mismatch"
     },
     {
       "addr": "0x1bfa00",
-      "name": "game_state_validate_core_header",
-      "label": "game_state_validate_core_header[allocation_mismatch]",
       "obj": "game_state.obj",
       "seeds": 1,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_allocation_mismatch.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_validate_core_header_allocation_mismatch.json",
         "--allow-stubs",
         "--no-stub-arg-trace",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "deterministic non-fatal core-header path: allocation-checksum rejection"
+      "reason": "deterministic non-fatal core-header path: allocation-checksum rejection",
+      "scenario": "allocation_mismatch"
     },
     {
       "addr": "0x1bfa00",
-      "name": "game_state_validate_core_header",
-      "label": "game_state_validate_core_header[player_mismatch]",
       "obj": "game_state.obj",
       "seeds": 1,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_player_mismatch.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_validate_core_header_player_mismatch.json",
         "--allow-stubs",
         "--no-stub-arg-trace",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "deterministic non-fatal core-header path: player-count rejection"
+      "reason": "deterministic non-fatal core-header path: player-count rejection",
+      "scenario": "player_mismatch"
     },
     {
       "addr": "0x1bfa00",
-      "name": "game_state_validate_core_header",
-      "label": "game_state_validate_core_header[map_mismatch]",
       "obj": "game_state.obj",
       "seeds": 1,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_validate_core_header_map_mismatch.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_validate_core_header_map_mismatch.json",
         "--allow-stubs",
         "--no-stub-arg-trace",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "deterministic non-fatal core-header path: map-file checksum rejection"
+      "reason": "deterministic non-fatal core-header path: map-file checksum rejection",
+      "scenario": "map_mismatch"
     },
     {
       "addr": "0x1bf790",
-      "name": "game_state_call_after_load_procs",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_call_after_load_procs.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_call_after_load_procs.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
@@ -194,12 +203,14 @@
     },
     {
       "addr": "0x1bf7b0",
-      "name": "game_state_dispose",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_dispose.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_dispose.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
@@ -209,260 +220,283 @@
     },
     {
       "addr": "0x1bf7c0",
-      "name": "game_state_initialize_for_new_map",
-      "label": "game_state_initialize_for_new_map[easy]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_initialize_for_new_map_easy.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_initialize_for_new_map_easy.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "rebuilds the 0x14c-byte save header through 0x4ea9ac at difficulty 0"
+      "reason": "rebuilds the 0x14c-byte save header through 0x4ea9ac at difficulty 0",
+      "scenario": "easy"
     },
     {
       "addr": "0x1bf7c0",
-      "name": "game_state_initialize_for_new_map",
-      "label": "game_state_initialize_for_new_map[legendary]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_initialize_for_new_map_legendary.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_initialize_for_new_map_legendary.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "same header rebuild at difficulty 3 with a different map checksum, so the write trace differs from the easy fixture"
+      "reason": "same header rebuild at difficulty 3 with a different map checksum, so the write trace differs from the easy fixture",
+      "scenario": "legendary"
     },
     {
       "addr": "0x1bf880",
-      "name": "game_state_save",
-      "label": "game_state_save[saved]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_save_saved.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_save_saved.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "game_state_write_to_file succeeds, so the saved flag at 0x4ea9a5 is set"
+      "reason": "game_state_write_to_file succeeds, so the saved flag at 0x4ea9a5 is set",
+      "scenario": "saved"
     },
     {
       "addr": "0x1bf880",
-      "name": "game_state_save",
-      "label": "game_state_save[save-failed]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_save_save_failed.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_save_save_failed.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "game_state_write_to_file fails, so the saved flag at 0x4ea9a5 is cleared"
+      "reason": "game_state_write_to_file fails, so the saved flag at 0x4ea9a5 is cleared",
+      "scenario": "save-failed"
     },
     {
       "addr": "0x1bf8a0",
-      "name": "game_state_revert",
-      "label": "game_state_revert[restart]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_revert_restart.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_revert_restart.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "no save and no restart flag: reverts by restarting the map (39.0% of the body, union with the reload fixture is complete)"
+      "reason": "no save and no restart flag: reverts by restarting the map (39.0% of the body, union with the reload fixture is complete)",
+      "scenario": "restart"
     },
     {
       "addr": "0x1bf8a0",
-      "name": "game_state_revert",
-      "label": "game_state_revert[reload]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_revert_reload.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_revert_reload.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "a save exists: reads the save file and runs the 13 after-load callbacks (76.3% of the body)"
+      "reason": "a save exists: reads the save file and runs the 13 after-load callbacks (76.3% of the body)",
+      "scenario": "reload"
     },
     {
       "addr": "0x1bf8e0",
-      "name": "game_state_save_to_persistent_storage",
-      "label": "game_state_save_to_persistent_storage[single-player]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_save_to_persistent_storage_single_player.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_save_to_persistent_storage_single_player.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "single-player map type reverts and writes the header to persistent storage; regression guard for the CALL 0x001bf8a0 the original emits out of line"
+      "reason": "single-player map type reverts and writes the header to persistent storage; regression guard for the CALL 0x001bf8a0 the original emits out of line",
+      "scenario": "single-player"
     },
     {
       "addr": "0x1bf8e0",
-      "name": "game_state_save_to_persistent_storage",
-      "label": "game_state_save_to_persistent_storage[multiplayer]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_save_to_persistent_storage_multiplayer.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_save_to_persistent_storage_multiplayer.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "a non-single-player map type takes the early exit and writes nothing"
+      "reason": "a non-single-player map type takes the early exit and writes nothing",
+      "scenario": "multiplayer"
     },
     {
       "addr": "0x1bf9e0",
-      "name": "game_state_reverted",
-      "label": "game_state_reverted[true]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_reverted_true.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_reverted_true.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "verified tick equals game_time_get, so the state reports reverted"
+      "reason": "verified tick equals game_time_get, so the state reports reverted",
+      "scenario": "true"
     },
     {
       "addr": "0x1bf9e0",
-      "name": "game_state_reverted",
-      "label": "game_state_reverted[false]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_reverted_false.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_reverted_false.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "game time has advanced past the verified tick, so the state reports not reverted"
+      "reason": "game time has advanced past the verified tick, so the state reports not reverted",
+      "scenario": "false"
     },
     {
       "addr": "0x1c0070",
-      "name": "game_state_lruv_cache_new",
-      "label": "game_state_lruv_cache_new[header-a]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_lruv_cache_new_header_a.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_lruv_cache_new_header_a.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "commits the game-state buffer and stores the allocated save header at 0x4ea9ac"
+      "reason": "commits the game-state buffer and stores the allocated save header at 0x4ea9ac",
+      "scenario": "header-a"
     },
     {
       "addr": "0x1c0070",
-      "name": "game_state_lruv_cache_new",
-      "label": "game_state_lruv_cache_new[header-b]",
       "obj": "game_state.obj",
       "seeds": 1,
-      "env": {"BIPED_SIBLING_RESOLVE": "1"},
+      "env": {
+        "BIPED_SIBLING_RESOLVE": "1"
+      },
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_lruv_cache_new_header_b.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_lruv_cache_new_header_b.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "same path with a different allocator result, so the write trace differs from the header-a fixture"
+      "reason": "same path with a different allocator result, so the write trace differs from the header-a fixture",
+      "scenario": "header-b"
     },
     {
       "addr": "0x1bfd00",
-      "name": "game_state_gpu_alloc",
-      "label": "game_state_gpu_alloc[log-existing]",
       "obj": "game_state.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_gpu_alloc_log_existing.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_gpu_alloc_log_existing.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "valid aligned GPU allocation with an existing log stream"
+      "reason": "valid aligned GPU allocation with an existing log stream",
+      "scenario": "log-existing"
     },
     {
       "addr": "0x1bfd00",
-      "name": "game_state_gpu_alloc",
-      "label": "game_state_gpu_alloc[log-open-success]",
       "obj": "game_state.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_gpu_alloc_log_open_success.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_gpu_alloc_log_open_success.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "valid aligned GPU allocation when the log opens successfully"
+      "reason": "valid aligned GPU allocation when the log opens successfully",
+      "scenario": "log-open-success"
     },
     {
       "addr": "0x1bfd00",
-      "name": "game_state_gpu_alloc",
-      "label": "game_state_gpu_alloc[log-open-fail]",
       "obj": "game_state.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/game_state_gpu_alloc_log_open_fail.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/game_state_gpu_alloc_log_open_fail.json",
         "--allow-stubs",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "allocation and checksum still complete when the log cannot be opened"
+      "reason": "allocation and checksum still complete when the log cannot be opened",
+      "scenario": "log-open-fail"
     },
     {
       "addr": "0x131790",
-      "name": "antenna_debug_data_update_all",
-      "label": "antenna_debug_data_update_all[one-record-terminating]",
       "obj": "telnet_console.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/antenna_debug_data_update_all_bounded.json",
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/antenna_debug_data_update_all_bounded.json",
         "--allow-stubs",
         "--real-callees",
         "--mem-trace",
         "--no-concolic",
         "--no-leaf-cache"
       ],
-      "reason": "one valid pool record with data_next_index sequence [0, -1]; nested rope simulation is excluded"
+      "reason": "one valid pool record with data_next_index sequence [0, -1]; nested rope simulation is excluded",
+      "scenario": "one-record-terminating"
     },
     {
       "addr": "0x119520",
-      "name": "data_dispose",
       "obj": "data.obj",
       "seeds": 20,
       "flags": [
@@ -472,7 +506,6 @@
     },
     {
       "addr": "0x1196d0",
-      "name": "datum_delete",
       "obj": "data.obj",
       "seeds": 20,
       "flags": [
@@ -482,19 +515,21 @@
     },
     {
       "addr": "0x1198f0",
-      "name": "data_next_index",
-      "label": "data_next_index[valid-pool]",
       "obj": "data.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/data_next_index_first.json",
-        "--allow-stubs", "--real-callees", "--mem-trace", "--no-concolic"
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/data_next_index_first.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--mem-trace",
+        "--no-concolic"
       ],
-      "reason": "valid synthetic data_t pool: first, inactive-slot skip, and NONE sentinel paths"
+      "reason": "valid synthetic data_t pool: first, inactive-slot skip, and NONE sentinel paths",
+      "scenario": "valid-pool"
     },
     {
       "addr": "0x183c00",
-      "name": "rasterizer_text_draw_cached_char",
       "obj": "rasterizer_text.obj",
       "seeds": 20,
       "flags": [
@@ -504,7 +539,6 @@
     },
     {
       "addr": "0x1bd8e0",
-      "name": "cache_files_precache_map_loaded",
       "obj": "cache_files_windows.obj",
       "seeds": 20,
       "flags": [
@@ -514,260 +548,344 @@
     },
     {
       "addr": "0x130580",
-      "name": "network_game_server_handle_client_message",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
       "reason": "network_game_server_handle_client_message dispatcher on live MP-host state (server @0x5a90e0). Reachable-path tripwire for @<reg>-marshaling/control-flow/return-value drift (obs 14.3% cov, 50/50 PASS). --no-stub-arg-trace: the only diverging stub args are display_assert/halt_and_catch_fire string-literal pointers (harness artifact). NOT a state-mutation test (state callees stubbed; 0 witnessed server writes). SKIPs when host snapshot absent."
     },
     {
       "addr": "0x130270",
-      "name": "network_game_server_handle_datagram",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
       "reason": "network_game_server_handle_datagram (broadcast/ping/game-update) on live MP-host state. Reachable-path drift tripwire (obs 10.0% cov, 40/40 PASS). See dispatcher entry for --no-stub-arg-trace rationale. SKIPs when host snapshot absent."
     },
     {
       "addr": "0x12fd80",
-      "name": "network_game_server_handle_message_client_add_player_request_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
       "reason": "add_player_request_pregame handler (server @<esi>) on live MP-host state. Reachable-path drift tripwire (obs 52.4% cov, 40/40 PASS). SKIPs when host snapshot absent."
     },
     {
       "addr": "0x12fe40",
-      "name": "network_game_server_handle_message_client_remove_player_request_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
       "reason": "remove_player_request_pregame handler (server @<esi>) on live MP-host state. Reachable-path drift tripwire (obs 52.4% cov, 40/40 PASS). SKIPs when host snapshot absent."
     },
     {
       "addr": "0x12ff00",
-      "name": "network_game_server_handle_message_client_settings_request",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
       "reason": "settings_request handler (server @<esi>) on live MP-host state. Reachable-path drift tripwire (obs 45.0% cov, 40/40 PASS). SKIPs when host snapshot absent."
     },
     {
       "addr": "0x12ffe0",
-      "name": "network_game_server_handle_message_client_player_settings_request",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
       "reason": "player_settings_request handler (server @<esi>) on live MP-host state. Reachable-path drift tripwire (obs 48.5% cov, 40/40 PASS). SKIPs when host snapshot absent."
     },
     {
       "addr": "0x1300b0",
-      "name": "network_game_server_handle_message_client_graceful_game_exit_pregame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
       "reason": "graceful_game_exit_pregame handler (server @<esi>) on live MP-host state. Reachable-path drift tripwire (obs 51.0% cov, 40/40 PASS). SKIPs when host snapshot absent."
     },
     {
       "addr": "0x130180",
-      "name": "network_game_server_handle_message_client_remove_player_request_ingame",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
       "reason": "remove_player_request_ingame handler (server @<eax>) on live MP-host state. Reachable-path drift tripwire (obs 21.6% cov, 40/40 PASS). Note: server arrives in EAX not ESI. SKIPs when host snapshot absent."
     },
     {
       "addr": "0x2fd10",
-      "name": "actor_compute_prop_target_weight",
       "obj": "actor_perception.obj",
       "seeds": 8,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace"
       ],
-      "reason": "perception prop-weight scorer; runs on real actor+perception-prop state from host-only Recording 19 (door grunt slot6, awareness=10). Audited faithful (a10) — this guards against future lift drift. SKIPs cleanly when the host recording/snapshot is absent (forks, hosted CI) — no game memory in git."
+      "reason": "perception prop-weight scorer; runs on real actor+perception-prop state from host-only Recording 19 (door grunt slot6, awareness=10). Audited faithful (a10) \u2014 this guards against future lift drift. SKIPs cleanly when the host recording/snapshot is absent (forks, hosted CI) \u2014 no game memory in git."
     },
     {
       "addr": "0x2fd10",
-      "name": "actor_compute_prop_target_weight",
       "obj": "actor_perception.obj",
       "seeds": 8,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt10.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace"
       ],
-      "reason": "prop-weight scorer on Recording 19 door grunt slot10 (awareness=6) — mid-alertness state covers a different path than grunt6 (52.9% vs 48.6%). SKIPs if host snapshot absent."
+      "reason": "prop-weight scorer on Recording 19 door grunt slot10 (awareness=6) \u2014 mid-alertness state covers a different path than grunt6 (52.9% vs 48.6%). SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2fd10",
-      "name": "actor_compute_prop_target_weight",
       "obj": "actor_perception.obj",
       "seeds": 8,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt11.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace"
       ],
-      "reason": "prop-weight scorer on Recording 19 door grunt slot11 (awareness=6) — second mid-alertness grunt for added path coverage. SKIPs if host snapshot absent."
+      "reason": "prop-weight scorer on Recording 19 door grunt slot11 (awareness=6) \u2014 second mid-alertness grunt for added path coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f910",
-      "name": "actor_perception_find_prop_pathfinding_location",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot6 actor+prop state; confirmed PASS 20/20 seeds with 48.1% moderate real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f910",
-      "name": "actor_perception_find_prop_pathfinding_location",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt10.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot10 actor+prop state; confirmed PASS 20/20 seeds with 48.1% moderate real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f910",
-      "name": "actor_perception_find_prop_pathfinding_location",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt11.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot11 actor+prop state; confirmed PASS 20/20 seeds with 48.1% moderate real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f9b0",
-      "name": "actor_perception_find_killer_prop_index",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot6 actor+prop state; confirmed PASS 20/20 seeds with 83.3% weak real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f9b0",
-      "name": "actor_perception_find_killer_prop_index",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt10.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot10 actor+prop state; confirmed PASS 20/20 seeds with 83.3% weak real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f9b0",
-      "name": "actor_perception_find_killer_prop_index",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt11.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot11 actor+prop state; confirmed PASS 20/20 seeds with 83.3% weak real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2fc20",
-      "name": "actor_get_perception_knowledge",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot6 actor+clump state; confirmed PASS 20/20 seeds with 51.3% weak real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2fc20",
-      "name": "actor_get_perception_knowledge",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt10.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot10 actor+clump state; confirmed PASS 20/20 seeds with 40.3% weak real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2fc20",
-      "name": "actor_get_perception_knowledge",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt11.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot11 actor+clump state; confirmed PASS 20/20 seeds with 40.3% weak real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f2b0",
-      "name": "actor_perception_acknowledge",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt6.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt6.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot6 actor+acknowledgeable prop state; confirmed PASS 20/20 seeds with 52.2% moderate real-state coverage. Separate a10-checkpoint high-cadence sweep also confirmed 176/176 active frames. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f2b0",
-      "name": "actor_perception_acknowledge",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt10_ack.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt10_ack.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot10 with valid alternate ack prop 0xf7480029; confirmed PASS 20/20 seeds with 52.2% moderate real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0x2f2b0",
-      "name": "actor_perception_acknowledge",
       "obj": "actor_perception.obj",
       "seeds": 20,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/rec19_grunt11_ack.json",
-        "--allow-stubs", "--float-tolerance", "32", "--mem-trace", "--no-concolic", "--no-leaf-cache"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/rec19_grunt11_ack.json",
+        "--allow-stubs",
+        "--float-tolerance",
+        "32",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
       ],
       "reason": "Recording 19 door grunt slot11 with valid alternate ack prop 0xf7460026; confirmed PASS 20/20 seeds with 52.2% moderate real-state coverage. SKIPs if host snapshot absent."
     },
     {
       "addr": "0xb4da0",
-      "name": "FUN_000b4da0",
       "obj": "game.obj",
       "seeds": 20,
       "flags": [
@@ -777,7 +895,6 @@
     },
     {
       "addr": "0xb4dd0",
-      "name": "FUN_000b4dd0",
       "obj": "game.obj",
       "seeds": 20,
       "flags": [
@@ -787,7 +904,6 @@
     },
     {
       "addr": "0xb4df0",
-      "name": "FUN_000b4df0",
       "obj": "game.obj",
       "seeds": 20,
       "flags": [
@@ -797,7 +913,6 @@
     },
     {
       "addr": "0x1c3e0",
-      "name": "actor_action_control",
       "obj": "actions.obj",
       "seeds": 20,
       "flags": [
@@ -807,7 +922,6 @@
     },
     {
       "addr": "0x1c450",
-      "name": "actor_action_replace_prop",
       "obj": "actions.obj",
       "seeds": 20,
       "flags": [
@@ -817,7 +931,6 @@
     },
     {
       "addr": "0x1d6d0",
-      "name": "actor_get_action_priority_flag",
       "obj": "actions.obj",
       "seeds": 20,
       "flags": [
@@ -827,7 +940,6 @@
     },
     {
       "addr": "0x2a360",
-      "name": "FUN_0002a360",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -837,7 +949,6 @@
     },
     {
       "addr": "0x36960",
-      "name": "actor_stimulus_surprise",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -847,7 +958,6 @@
     },
     {
       "addr": "0x369c0",
-      "name": "actor_stimulus_suspicion",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -857,7 +967,6 @@
     },
     {
       "addr": "0x36a20",
-      "name": "actor_stimulus_prop_sighted",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -867,7 +976,6 @@
     },
     {
       "addr": "0x36bd0",
-      "name": "actor_stimulus_bumped",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -877,7 +985,6 @@
     },
     {
       "addr": "0x36da0",
-      "name": "actor_stimulus_was_surprised",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -887,7 +994,6 @@
     },
     {
       "addr": "0x36dc0",
-      "name": "actor_stimulus_maneuvering",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -897,7 +1003,6 @@
     },
     {
       "addr": "0x36e30",
-      "name": "actor_stimulus_vehicle_eviction",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -907,7 +1012,6 @@
     },
     {
       "addr": "0x3aa60",
-      "name": "actor_in_combat",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -917,7 +1021,6 @@
     },
     {
       "addr": "0x3ac20",
-      "name": "actor_verify_unit_activation",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -927,7 +1030,6 @@
     },
     {
       "addr": "0x3ad80",
-      "name": "actor_detach_from_unit",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -937,7 +1039,6 @@
     },
     {
       "addr": "0x3ae60",
-      "name": "actor_swarm_detach_from_unit",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -947,7 +1048,6 @@
     },
     {
       "addr": "0x3b030",
-      "name": "actor_swarm_cache_delete",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -957,7 +1057,6 @@
     },
     {
       "addr": "0x3b0b0",
-      "name": "actor_switch_props",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -967,7 +1066,6 @@
     },
     {
       "addr": "0x3b120",
-      "name": "actor_in_combat",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -977,7 +1075,6 @@
     },
     {
       "addr": "0x3b190",
-      "name": "actor_attacking_target",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -987,7 +1084,6 @@
     },
     {
       "addr": "0x3b270",
-      "name": "actor_attacking_target",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -997,7 +1093,6 @@
     },
     {
       "addr": "0x3bb50",
-      "name": "actor_get_timeslice",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1007,7 +1102,6 @@
     },
     {
       "addr": "0x3bbf0",
-      "name": "actor_clear_output",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1017,7 +1111,6 @@
     },
     {
       "addr": "0x1c4c0",
-      "name": "actor_action_flush_position_indices",
       "obj": "actions.obj",
       "seeds": 20,
       "flags": [
@@ -1027,7 +1120,6 @@
     },
     {
       "addr": "0x1d5c0",
-      "name": "actor_action_name",
       "obj": "actions.obj",
       "seeds": 20,
       "flags": [
@@ -1037,7 +1129,6 @@
     },
     {
       "addr": "0x1d730",
-      "name": "actor_action_get_default_state",
       "obj": "actions.obj",
       "seeds": 20,
       "flags": [
@@ -1047,7 +1138,6 @@
     },
     {
       "addr": "0x16960",
-      "name": "vehicle_possibility_qsort",
       "obj": "actor_looking.obj",
       "seeds": 20,
       "flags": [
@@ -1057,7 +1147,6 @@
     },
     {
       "addr": "0x1d760",
-      "name": "set_real_vector2d",
       "obj": "actions.obj",
       "seeds": 20,
       "flags": [
@@ -1067,7 +1156,6 @@
     },
     {
       "addr": "0x1d780",
-      "name": "set_real_vector3d",
       "obj": "actions.obj",
       "seeds": 20,
       "flags": [
@@ -1077,7 +1165,6 @@
     },
     {
       "addr": "0x2a540",
-      "name": "midpoint3d",
       "obj": "actor_moving.obj",
       "seeds": 20,
       "flags": [
@@ -1087,7 +1174,6 @@
     },
     {
       "addr": "0x3aac0",
-      "name": "actor_set_team",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1097,7 +1183,6 @@
     },
     {
       "addr": "0x3ab80",
-      "name": "actor_activation_debug_color",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1107,7 +1192,6 @@
     },
     {
       "addr": "0x3b100",
-      "name": "actor_is_noncombat",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1117,7 +1201,6 @@
     },
     {
       "addr": "0x3b150",
-      "name": "actor_is_fighting",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1127,7 +1210,6 @@
     },
     {
       "addr": "0x3b240",
-      "name": "actor_is_leaping",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1137,7 +1219,6 @@
     },
     {
       "addr": "0x3b380",
-      "name": "actor_target_unit_index",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1147,7 +1228,6 @@
     },
     {
       "addr": "0x3b5e0",
-      "name": "actor_flush_position_indices",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1157,7 +1237,6 @@
     },
     {
       "addr": "0x3bc90",
-      "name": "actor_find_pathfinding_location",
       "obj": "actors.obj",
       "seeds": 20,
       "flags": [
@@ -1167,7 +1246,6 @@
     },
     {
       "addr": "0xa83a0",
-      "name": "game_engine_player_count",
       "obj": "game_engine.obj",
       "seeds": 20,
       "flags": [
@@ -1180,7 +1258,6 @@
     },
     {
       "addr": "0xd04d0",
-      "name": "FUN_000d04d0",
       "obj": "hud.obj",
       "seeds": 1,
       "flags": [
@@ -1195,7 +1272,6 @@
     },
     {
       "addr": "0xa8220",
-      "name": "game_engine_evaluate_game_complexity",
       "obj": "game_engine.obj",
       "seeds": 20,
       "flags": [
@@ -1208,95 +1284,128 @@
     },
     {
       "addr": "0x130270",
-      "name": "network_game_server_handle_datagram",
-      "label": "network_game_server_handle_datagram[gameupd]",
       "obj": "network_server_message_handler.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/host_snapshots/network_server_mp_gameupdate.json",
-        "--allow-stubs", "--mem-trace", "--no-stub-arg-trace"
+        "--state-snapshot",
+        "tools/equivalence/host_snapshots/network_server_mp_gameupdate.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--no-stub-arg-trace"
       ],
-      "reason": "Same function as the network_game_server_handle_datagram entry above, but on the gate-satisfied snapshot: size=16 / msg[0]=0x010c makes the header self-consistent, so the assert path is skipped and the category-3 packet switch actually dispatches (packet_type 0x19 = client_game_update, the deepest chain). Covers 24.4% vs 10.0% (40/40 PASS) and exercises code the sibling entry never reaches; the sibling still covers the assert/early-exit path, so both are kept. NOTE: both write the same artifacts/equivalence/network_game_server_handle_datagram_smoke.log, so the log reflects whichever ran last. SKIPs when host snapshot absent."
+      "reason": "Same function as the FUN_00130270 entry above, but on the gate-satisfied snapshot: size=16 / msg[0]=0x010c makes the header self-consistent, so the assert path is skipped and the category-3 packet switch actually dispatches (packet_type 0x19 = client_game_update, the deepest chain). Covers 24.4% vs 10.0% (40/40 PASS) and exercises code the sibling entry never reaches; the sibling still covers the assert/early-exit path, so both are kept. NOTE: both write the same artifacts/equivalence/FUN_00130270_smoke.log, so the log reflects whichever ran last. SKIPs when host snapshot absent.",
+      "scenario": "gameupd"
     },
     {
       "addr": "0xd7cd0",
-      "name": "hud_tick_shield",
       "obj": "hud_messaging.obj",
       "seeds": 40,
-      "flags": ["--z3-equiv", "--allow-stubs", "--mem-trace", "--float-tolerance", "32"],
-      "reason": "Tripwire for the data-page execution guard (hook_code / _mapped_regions). Before it, an indirect call through synthetic state landed in a zero-filled auto-mapped page, whose zeros decode as 2-byte 'add [eax],al' and slid execution through the whole page -- 0% coverage, all 40 seeds ORACLE-CRASH FETCH_UNMAPPED. Now 100.0% coverage, 40/40 PASS, confidence high. Reverting the guard returns this to error.",
-      "known_artifact": "This entry's name field was stale ('FUN_000d7cd0') and had been silently ERRORing 'not found in kb.json' since kb.json renamed 0xd7cd0 to hud_tick_shield -- its verdict was never actually checked in that window. Fixed the name (2026-09-21); the real comparison now runs and FAILs: seed player_handle=65535 (identifier=0 in the upper 16 bits) makes datum_get's `identifier==0 && data->identifier_zero_invalid` branch call assert_halt_msg on the lifted side, producing an extra _display_assert in the call sequence the oracle never makes for this input. Verified via Ghidra against the real binary: hud_tick_shield (0xd7cd0) and datum_get (0x119320) decompile byte-for-byte identical to our src/halo/memory/data.c and hud_messaging.c logic (no lift bug); traced g_players_data's real init chain (FUN_000ba100 -> game_state_data_new -> FUN_001191a0) and confirmed fIdentifier_zero_invalid (offset 0x25) is left 0/false by the zero-init memset and never set true anywhere in the real binary for this table -- matches our data_initialize exactly (only the unrelated decal_data table sets it true, decals.c:152). Both oracle and lift agree the assert should never fire for this input. The smoke log's own oracle-vs-candidate data-ref count asymmetry (1 vs 0) points at the Unicorn harness not seeding the candidate's synthetic player_data memory from the same initialized state the oracle reads -- a tools/equivalence/ state-snapshot gap, not a src/ or kb.json bug."
+      "flags": [
+        "--z3-equiv",
+        "--allow-stubs",
+        "--mem-trace",
+        "--float-tolerance",
+        "32"
+      ],
+      "reason": "Tripwire for the data-page execution guard (hook_code / _mapped_regions). Before it, an indirect call through synthetic state landed in a zero-filled auto-mapped page, whose zeros decode as 2-byte 'add [eax],al' and slid execution through the whole page -- 0% coverage, all 40 seeds ORACLE-CRASH FETCH_UNMAPPED. Now 100.0% coverage, 40/40 PASS, confidence high. Reverting the guard returns this to error."
     },
     {
       "addr": "0xcb980",
-      "name": "hs_runtime_get_executing_thread_name",
       "obj": "hs_runtime.obj",
       "seeds": 40,
-      "flags": ["--z3-equiv", "--allow-stubs", "--mem-trace", "--float-tolerance", "32"],
+      "flags": [
+        "--z3-equiv",
+        "--allow-stubs",
+        "--mem-trace",
+        "--float-tolerance",
+        "32"
+      ],
       "reason": "Second data-page-execution-guard tripwire, different object. 0% coverage / all-seeds error before the guard; 100.0% coverage, 40/40 PASS after."
     },
     {
       "addr": "0x1bfe50",
-      "name": "game_state_memory_pool_new",
       "obj": "game_state.obj",
       "seeds": 40,
-      "flags": ["--z3-equiv", "--allow-stubs", "--mem-trace", "--float-tolerance", "32"],
+      "flags": [
+        "--z3-equiv",
+        "--allow-stubs",
+        "--mem-trace",
+        "--float-tolerance",
+        "32"
+      ],
       "reason": "Third data-page-execution-guard tripwire. 0% -> 60.0% coverage, 40/40 PASS, confidence high. Kept alongside the two 100%-coverage ones because it exercises a partial-coverage path rather than a whole tiny function. Under --oracle=xbe this target passes 40/40 at 100.0% coverage: the sibling call whose delinked relocation resolved to nothing now has real bytes, so control flow is never lost and the known_artifact marker this entry used to carry was removed."
     },
     {
       "addr": "0x5ae70",
-      "name": "encounter_update_squads",
       "obj": "encounters.obj",
       "seeds": 50,
-      "flags": ["--allow-stubs", "--mem-trace", "--float-tolerance", "32"],
+      "flags": [
+        "--allow-stubs",
+        "--mem-trace",
+        "--float-tolerance",
+        "32"
+      ],
       "reason": "Sign-extension fix: the squad index is the handle's low word ZERO-extended (original is a plain 'AND ESI,0xffff; PUSH ESI'), but the lift had an (int16_t) cast that sign-extended indices >= 0x8000. Was 32/50 with 'arg[1] to tag_block_get_element: oracle=0x8020 candidate=0xffff8020'; now 50/50 clean. VC71 is blind to it -- 78.4% both before and after -- so this differential is the only guard."
     },
     {
       "addr": "0xdc1d0",
-      "name": "event_manager_initialize",
       "obj": "event_manager.obj",
       "seeds": 20,
-      "flags": ["--allow-stubs", "--mem-trace"],
+      "flags": [
+        "--allow-stubs",
+        "--mem-trace"
+      ],
       "reason": "Tripwire for the dllimport-indirection seeding (_seed_dllimport_indirection). kb.json HDATA globals are __declspec(dllimport), so the candidate reaches event_manager_globals via a pointer-to-pointer while the delinked oracle references DAT_0046bd40 directly; the unseeded import slot made the candidate pass NULL to csmemset. Was 0/N with 'arg[0]: oracle=0x500000 candidate=0x0'; now clean."
     },
     {
       "addr": "0xe1350",
-      "name": "player_ui_initialize",
       "obj": "player_ui.obj",
       "seeds": 20,
-      "flags": ["--allow-stubs", "--mem-trace"],
+      "flags": [
+        "--allow-stubs",
+        "--mem-trace"
+      ],
       "reason": "Second dllimport-indirection tripwire, different object and global (player_ui_globals @0x46bee0), so the fix is not pinned to one symbol."
     },
     {
       "addr": "0x148240",
-      "name": "FUN_00148240",
       "obj": "collision_bsp.obj",
       "seeds": 40,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/snap_collision_bsp_surface_ring.json",
-        "--allow-stubs", "--mem-trace", "--float-tolerance", "16"
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/snap_collision_bsp_surface_ring.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--float-tolerance",
+        "16"
       ],
       "reason": "Surface edge-ring 2D point test. The snapshot pins valid surface/edge/vertex tag blocks so the semantic tag_block_get_element stub resolves every lookup; without it 2/40 seeds hit ORACLE-CRASH eip=0x0 on an unrelocated oracle target. Observed 40/40 PASS, 83.6% cov, high confidence. Guards the byte-typed side flag (SETZ BL / MOVZX EDI,BL at 0x1482b9) and the cross-product guard sense at 0x14833c."
     },
     {
       "addr": "0x148780",
-      "name": "FUN_00148780",
       "obj": "collision_bsp.obj",
       "seeds": 30,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/snap_collision_bsp2d_ref_body.json",
-        "--allow-stubs", "--mem-trace", "--float-tolerance", "16"
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/snap_collision_bsp2d_ref_body.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--float-tolerance",
+        "16"
       ],
       "reason": "bsp2d surface-reference scan, body-reached path (param_8==0). The snapshot seeds tag_block headers inside the bsp parameter content so the reference matches surface_index and the loop body actually runs: axis selection, sign XOR, t*direction+origin, and both external calls. Observed 30/30 PASS, 75.9% cov, high confidence -- versus 15.4% and weak with no snapshot."
     },
     {
       "addr": "0x148780",
-      "name": "FUN_00148780",
       "obj": "collision_bsp.obj",
       "seeds": 30,
       "flags": [
-        "--state-snapshot", "tools/equivalence/regression_snapshots/snap_collision_bsp2d_ref_nomatch.json",
-        "--allow-stubs", "--mem-trace", "--float-tolerance", "16"
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/snap_collision_bsp2d_ref_nomatch.json",
+        "--allow-stubs",
+        "--mem-trace",
+        "--float-tolerance",
+        "16"
       ],
       "reason": "bsp2d surface-reference scan, no-match path: ref[0] != surface_index so the body is skipped and the loop exhausts to the -1 sentinel. Observed 30/30 PASS, 30.8% cov, moderate. Deliberately NOT registered: the param_8!=0 paths that call the now-ported FUN_00148240. There the candidate runs the real sibling while the oracle stubs it, and the oracle ignores that stub's return entirely -- it yields a constant 0x00400f2c whether the stub is told to return 0 or 1, while the lifted side correctly returns -1 and 7. Oracle-side harness defect, not a lift defect; the call arguments are covered by the stub-arg differential (9 calls, 0 mismatches)."
     }

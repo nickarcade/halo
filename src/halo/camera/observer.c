@@ -131,6 +131,23 @@ void unit_camera_get(int unit_handle /* @eax */)
   tag_get(0x756e6974, *(int *)unit);
 }
 
+/* arcsine (0x89930) — Single-precision arc sine.
+ * The original is a five-instruction wrapper: PUSH EBP / MOV EBP,ESP /
+ * FLD dword ptr [EBP+8] / POP EBP / JMP 0x1da0cc, i.e. it loads the single
+ * float stack argument into ST(0) and tail-jumps to the MSVC CRT _CIasin
+ * core (0x1da0cc), which returns its result in ST(0). Faithful equivalent is
+ * asin(x) on the widened argument; the float param and float return are read
+ * off the FLD/ST(0) pair above. */
+float arcsine(float x)
+{
+#if defined(_MSC_VER) && !defined(__clang__)
+  double asin(double x);
+  return (float)asin((double)x);
+#else
+  return (float)asin((double)x);
+#endif
+}
+
 /* Evaluate the scalar interpolator uniform_cubic_spline once per component of a
  * 3-vector (0x89a20). The four input pointers supply the four control values
  * y0..y3 for each component; t0/h/t are shared scalars forwarded unchanged to
@@ -141,6 +158,80 @@ void FUN_00089a20(float *out, float *p0, float *p1, float *p2, float *p3,
   out[0] = uniform_cubic_spline(p0[0], p1[0], p2[0], p3[0], t0, h, t);
   out[1] = uniform_cubic_spline(p0[1], p1[1], p2[1], p3[1], t0, h, t);
   out[2] = uniform_cubic_spline(p0[2], p1[2], p2[2], p3[2], t0, h, t);
+}
+
+/* camera_track_splut (0x89ab0) — Sample the active camera track spline.
+ * [TU: c:\halo\SOURCE\camera\following_camera.c — __FILE__ assert xref]
+ * The definition pointer arrives in ECX; the tag_block at its +0x4c (0x1c-byte
+ * elements, tag index at element +0xc) supplies the camera_track reference,
+ * falling back to element 0 of the game globals block at +0x104 (0x10-byte
+ * elements) when that block is empty, the element is missing, or the index is
+ * NONE. The element index used for the first block is the branchless
+ * MIN(count - 1, 0) the original emits (SETGE/DEC/AND at 0x89ac5).
+ * The scalar t is remapped by (t + PI/2) * (1/PI), scaled by the control point
+ * span and truncated to int16, then walked down until four consecutive control
+ * points exist; the quadruple plus (t0, step, t) goes to the per-component
+ * cubic spline evaluator at 0x89a20. */
+void camera_track_splut(void *definition, float t, float *out)
+{
+  char *block;
+  char *points;
+  void *element;
+  void *tag_data;
+  int tag_index;
+  int index;
+  int count;
+  int count_minus_1;
+  short start;
+  short i;
+  float step;
+
+  block = (char *)definition + 0x4c;
+  if (*(int *)block != 0) {
+    index = *(int *)block - 1;
+    index &= (index >= 0) - 1;
+    element = tag_block_get_element(block, index, 0x1c);
+    if (element != NULL) {
+      tag_index = *(int *)((char *)element + 0xc);
+      if (tag_index != -1) {
+        goto have_track;
+      }
+    }
+  }
+  element = tag_block_get_element((char *)game_globals_get() + 0x104, 0, 0x10);
+  tag_index = *(int *)((char *)element + 0xc);
+
+have_track:
+  tag_data = tag_get(0x7472616b, tag_index);
+  points = (char *)tag_data + 4;
+  count = *(int *)points;
+  count_minus_1 = count - 1;
+  t = (t + 1.5707964f) * 0.31830987f;
+  start = (short)(int)(t * (float)count_minus_1);
+  if (count < 4) {
+    display_assert("camera_track->control_points.count >= 4",
+                   "c:\\halo\\SOURCE\\camera\\following_camera.c", 0x56, 1);
+    system_exit(-1);
+  }
+  step = 1.0f / (float)count_minus_1;
+
+  i = start;
+  if (start > 0) {
+    do {
+      if ((int)i + 4 <= *(int *)points && (int)i <= (int)start - 1) {
+        break;
+      }
+      i--;
+    } while (i > 0);
+  }
+
+  index = (int)i;
+  FUN_00089a20(
+    out, (float *)tag_block_get_element(points, index, 0x3c),
+    (float *)tag_block_get_element(points, index + 1, 0x3c),
+    (float *)tag_block_get_element(points, index + 2, 0x3c),
+    (float *)tag_block_get_element((char *)tag_data + 4, index + 3, 0x3c),
+    (float)index * step, step, t);
 }
 
 void observer_initialize(void)
@@ -451,6 +542,34 @@ void observer_obsolete_position(int16_t local_player_index)
     system_exit(-1);
   }
   observer_result_initialize((char *)0x33571c + local_player_index * 0x29c);
+}
+
+/* Rotate two vectors about a rotational-displacement axis (0x8ab10).
+ * The EAX argument is a rotation vector whose direction is the axis and whose
+ * magnitude is the angle in radians. A local copy is normalized in place by
+ * normalize3d, which returns the original magnitude; a zero magnitude means no
+ * displacement and the function returns without touching either vector.
+ * Otherwise sin and cos of the angle are computed once and both vectors are
+ * rotated about the normalized axis. */
+void observer_apply_rotational_displacement(float *rotation, float *vector_a,
+                                            float *vector_b)
+{
+  float axis[3];
+  float angle;
+  float sin_angle;
+  float cos_angle;
+
+  axis[0] = rotation[0];
+  axis[1] = rotation[1];
+  axis[2] = rotation[2];
+
+  angle = normalize3d(axis);
+  if (angle != *(float *)0x2533c0) {
+    sin_angle = x87_fsin(angle);
+    cos_angle = x87_fcos(angle);
+    rotate_vector3d_by_sincos(vector_a, axis, sin_angle, cos_angle);
+    rotate_vector3d_by_sincos(vector_b, axis, sin_angle, cos_angle);
+  }
 }
 
 /* Cast a collision ray for the observer camera (0x8ab90).
@@ -1627,6 +1746,17 @@ void observer_update(float delta_time)
       system_exit(-1);
     }
   }
+}
+
+/* Initialize an orbiting camera block (0x8cf10).
+ * Layout is derived from the two accesses here: the distance is stored at
+ * +0x08, and +0x00/+0x04 are filled by vector_to_angles(), which writes a
+ * two-float angle pair (yaw, pitch). Store order matches the reference:
+ * the distance FSTP happens before the call. */
+void orbiting_camera_new(float *orbiting_camera, float distance, float *vector)
+{
+  orbiting_camera[2] = distance;
+  vector_to_angles(orbiting_camera, vector);
 }
 
 /* Fill in a static (scripted) camera command block (0x8d3a0).

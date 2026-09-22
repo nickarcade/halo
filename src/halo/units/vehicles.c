@@ -462,6 +462,135 @@ int vehicle_get_estimated_position(int vehicle_handle, vector3_t *out_position)
 }
 
 /*
+ * create_pelican_effect (0x1b6e20)
+ *
+ * Spawns the vehicle tag's thruster-wash effect ('vehi' tag +0x3ec) under
+ * every "hover thrusters" and "jet thrusters" marker of the vehicle.
+ *
+ * Confirmed from disassembly at 0x1b6e20:
+ *   MOV EBX,[EBP+0x8] -> one cdecl stack argument (the vehicle datum handle);
+ *   kb.json declared it (void), corrected here. Both xrefs (0x1b8239 and
+ *   0x1b855d, inside FUN_001b81d0) are unconditional calls.
+ *   PUSH 0x2; PUSH EBX; CALL 0x13d680 -> object_get_and_verify_type(h, 2).
+ *   MOV EAX,[EAX]; PUSH 0x76656869 -> tag_get('vehi', obj->tag_index).
+ *   MOV EAX,[EDI+0x3ec]; CMP EAX,-0x1; JZ exit -> nothing to do when the
+ *   effect tag reference is NONE.
+ *   Marker buffer is at EBP-0x78c and is exactly 16 * 0x6c = 0x6c0 bytes; the
+ *   first query is capped at 0xf and the second at 0x10 minus the first
+ *   result, appended at (first_count * 0x6c).
+ *   Per marker, ESI = &markers[i]; ESI+0x3c is the world-transform forward
+ *   vector and ESI+0x60 the world-transform position (marker record =
+ *   {int16 node; local matrix4x3 @0x04; world matrix4x3 @0x38}, and a
+ *   matrix4x3 is {scale, forward[3], left[3], up[3], position[3]}).
+ *   PUSH &dir; PUSH 0x3e860a92; PUSH 0x0; PUSH ESI+0x3c; CALL 0x10b120;
+ *   PUSH EAX; CALL 0x10b4c0; ADD ESP,0x14 -> random_direction3d(seed,
+ *   marker_forward, 0.0f, 0.2617994f, dir) with the seed fetched last
+ *   (cdecl right-to-left), matching the call in C source order.
+ *   CMP BX,word [EBP-0x1c] selects vehi+0x444 for hover markers and vehi+0x448
+ *   for jet markers; FMUL [0x254640] (6.0f); FADD [0x253f40] (2.0f).
+ *   PUSH ECX(&collision); PUSH EDX(handle); PUSH EAX(&velocity);
+ *   PUSH ESI+0x60; PUSH 0x61; CALL 0x14df70; ADD ESP,0x14.
+ *   On a hit, three effect markers are built: "incident" forward = -dir,
+ *   "normal" forward = collision+0x24, "reflected" forward = 0x10c8e0(dir,
+ *   collision+0x24); all three points are the hit position collision+0x18.
+ *   FLD [0x2533c8] (1.0f); FSUB [collision+0x14] -> fade = 1 - hit fraction,
+ *   passed as both scale arguments.
+ *   The final call pushes 15 dwords (ADD ESP,0x3c) for the 12 declared
+ *   parameters of effect_new_unattached_from_markers (3 of them are floats).
+ * Inferred: name from the 2276 symbol dump; the marker-name strings are the
+ *   literals at 0x2b7d18/0x2b7d08 and 0x28ab18/0x26b188/0x2b7cfc.
+ * Unknown: the meaning of vehi+0x444 / vehi+0x448 (per-thruster-class speed
+ *   scalars), collision flag set 0x61, and the trailing 0.0f/0.0f/1 effect
+ *   arguments.
+ */
+void create_pelican_effect(int vehicle_handle)
+{
+  char markers[16 * 0x6c]; /* EBP-0x78c */
+  int16_t collision_result[40]; /* EBP-0xcc, 80-byte raycast result */
+  float marker_forwards[9]; /* EBP-0x7c: 3 marker forward vectors */
+  float marker_points[9]; /* EBP-0x58: 3 marker positions */
+  const char *marker_names[3]; /* EBP-0x34 */
+  float velocity[3]; /* EBP-0x28 */
+  float fade; /* EBP-0x14 */
+  float direction[3]; /* EBP-0x10 */
+  char *vehicle;
+  char *vehicle_tag;
+  char *marker;
+  int16_t hover_count;
+  int16_t jet_count;
+  int marker_count;
+  int16_t i;
+  float speed;
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehicle_tag = (char *)tag_get(0x76656869, *(int *)vehicle);
+  if (*(int *)(vehicle_tag + 0x3ec) == -1) {
+    return;
+  }
+
+  hover_count = object_get_markers_by_string_id(
+    vehicle_handle, (void *)"hover thrusters", markers, 0xf);
+  jet_count = object_get_markers_by_string_id(
+    vehicle_handle, (void *)"jet thrusters", markers + (int)hover_count * 0x6c,
+    0x10 - (int)hover_count);
+  marker_count = (int)hover_count + (int)jet_count;
+
+  i = 0;
+  if (marker_count <= 0) {
+    return;
+  }
+
+  do {
+    marker = markers + (int)i * 0x6c;
+    seed_random_vector_in_cone3d((int *)random_math_get_local_seed_address(),
+                       (float *)(marker + 0x3c), 0.0f, 0.2617994f, direction);
+
+    if (i < hover_count) {
+      speed = *(float *)(vehicle + 0x444);
+    } else {
+      speed = *(float *)(vehicle + 0x448);
+    }
+    speed = speed * *(float *)0x254640 + *(float *)0x253f40;
+    velocity[0] = direction[0] * speed;
+    velocity[1] = direction[1] * speed;
+    velocity[2] = direction[2] * speed;
+
+    if (FUN_0014df70(0x61, (float *)(marker + 0x60), velocity, vehicle_handle,
+                     collision_result)) {
+      marker_forwards[0] = -direction[0];
+      marker_forwards[1] = -direction[1];
+      marker_forwards[2] = -direction[2];
+      marker_forwards[3] = *(float *)((char *)collision_result + 0x24);
+      marker_forwards[4] = *(float *)((char *)collision_result + 0x28);
+      marker_forwards[5] = *(float *)((char *)collision_result + 0x2c);
+
+      marker_points[0] = *(float *)((char *)collision_result + 0x18);
+      marker_points[1] = *(float *)((char *)collision_result + 0x1c);
+      marker_points[2] = *(float *)((char *)collision_result + 0x20);
+      marker_points[3] = marker_points[0];
+      marker_points[4] = marker_points[1];
+      marker_points[5] = marker_points[2];
+      marker_points[6] = marker_points[0];
+      marker_points[7] = marker_points[1];
+      marker_points[8] = marker_points[2];
+
+      marker_names[0] = "incident";
+      marker_names[1] = "normal";
+      marker_names[2] = "reflected";
+
+      FUN_0010c8e0(direction, (float *)((char *)collision_result + 0x24),
+                   &marker_forwards[6]);
+
+      fade = *(float *)0x2533c8 - *(float *)((char *)collision_result + 0x14);
+      effect_new_unattached_from_markers(
+        *(int *)(vehicle_tag + 0x3ec), -1, (float *)0, 3, marker_names,
+        marker_points, marker_forwards, fade, fade, 0.0f, 0.0f, 1);
+    }
+    i = i + 1;
+  } while ((int)i < marker_count);
+}
+
+/*
  * vehicle_moving_near_any_player (0x1b7ee0)
  *
  * Scans all local players. For each local player whose unit is on foot (not

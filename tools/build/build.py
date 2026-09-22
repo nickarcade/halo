@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 
@@ -23,6 +24,7 @@ ROOT_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
 )
 BUILD_DIR = os.path.join(ROOT_DIR, "build")
+TOOLCHAIN_FILE = os.path.join(ROOT_DIR, "toolchains", "llvm.cmake")
 
 
 def _build_jobs() -> int:
@@ -76,7 +78,10 @@ def _run_cmake_build(target: str = "", quiet: bool = False) -> int:
 
 
 def _run_cmake_configure(extra_args: list[str] = None, quiet: bool = False) -> int:
-    command = ["cmake", "-B", BUILD_DIR, "-S", ROOT_DIR]
+    command = [
+        "cmake", "-B", BUILD_DIR, "-S", ROOT_DIR,
+        "-DCMAKE_TOOLCHAIN_FILE=" + TOOLCHAIN_FILE,
+    ]
     if quiet:
         command.append("-Wno-dev")
     if extra_args:
@@ -106,7 +111,7 @@ def _generate_debug_elf(quiet: bool = False) -> None:
     if not os.path.isfile(src):
         return
     offset = 0x242000
-    cmd = ["objcopy"]
+    cmd = [shutil.which("objcopy") or shutil.which("llvm-objcopy") or "objcopy"]
     for sec in (".text", ".rdata", ".data", ".thunks", ".reloc"):
         cmd += ["--change-section-vma", f"{sec}+{offset:#x}"]
     cmd += [src, dst]

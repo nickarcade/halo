@@ -31,6 +31,7 @@ class TestRegressionTargetEnvironment(unittest.TestCase):
             )
 
         target = {
+            "addr": "0x1234",
             "name": "synthetic_env_target",
             "seeds": 1,
             "env": {

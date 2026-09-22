@@ -1198,7 +1198,7 @@
       "resolved_in": "2026-09-13"
     },
     "0x5ae70": {
-      "name": "FUN_0005ae70",
+      "name": "encounter_update_squads",
       "obj": "encounters.obj",
       "addr": "0x5ae70",
       "category": "arg_mismatch",

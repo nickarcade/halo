@@ -86,6 +86,7 @@ static const int _scenario_type_main_menu = 2;
 #define TAG_GROUP_DECAL 0x64656361 /* 'deca' */
 #define TAG_GROUP_BITM  0x6269746d /* 'bitm' */
 #define TAG_GROUP_FONT 0x666f6e74 /* 'font' */
+#define TAG_GROUP_GLW  0x676c7721 /* 'glw!' */
 #define TAG_GROUP_HUDG 0x68756467 /* 'hudg' */
 #define TAG_GROUP_ITEM 0x6974656d /* 'item' */
 #define TAG_GROUP_ITMC 0x69746d63 /* 'itmc' */
@@ -93,12 +94,29 @@ static const int _scenario_type_main_menu = 2;
 #define TAG_GROUP_SND  0x736e6421 /* 'snd!' */
 #define TAG_GROUP_WEAP 0x77656170 /* 'weap' */
 
+/* The original source's FLAG(bit) macro, quoted verbatim by binary assert
+ * strings ("server_connection->flags&FLAG(_connection_create_server_bit)"). */
+#ifndef FLAG
+#define FLAG(b) (1 << (b))
+#endif
+
 /* Screen-bounds rect at 0x50657c — four int16 in the engine's standard 2D
  * rect order {top, left, bottom, right}.  Kept in sync with src/common.h;
  * this header is the one the VC71 compare lane force-includes. */
 #define screen_bounds_top (*(int16_t *)0x50657c)
 #define screen_bounds_left (*(int16_t *)0x50657e)
 #define structure_decals_globals (*(structure_decals_globals_t **)0x4d8ec8)
+
+/* network_server_manager.c globals. Kept in sync with src/common.h. */
+#define network_game_server_memory_do_not_use_directly_in_use (*(char *)0x46eed4)
+#define network_game_server_next_team (*(int *)0x46eed8)
+#define network_game_server_connection (*(int *)0x5a90e0)
+#define network_game_server_state (*(short *)0x5a90e4)
+#define network_game_server_flags (*(short *)0x5a90e6)
+#define network_game_server_difficulty (*(short *)0x5a91f8)
+#define network_game_server_reset_counter (*(int *)0x5a9514)
+#define network_game_server_loading_flag (*(char *)0x5a9599)
+#define network_game_server_all_loaded_time (*(int *)0x5a9564)
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert (see common.h). */
 #define assert_halt_at(file, line, cond)                       \

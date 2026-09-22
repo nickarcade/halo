@@ -3782,6 +3782,10 @@
         "FUN_00066380 (0x66380) was renamed from the incorrect kb name TIFFDefaultDirectory and its prototype corrected to void *FUN_00066380(int tag); by behavior it is upstream _TIFFFieldWithTag returning a field-info record with a 16-bit bit index at +0x0c and a name pointer at +0x10, but it was deliberately left unnamed pending its own lift."
       ]
     },
+    "0x659f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x65a70": {
       "kind": "function",
       "status": "ported"
@@ -3797,7 +3801,67 @@
         "Decl widened from void(void) to int TIFFVGetField(void *tif, unsigned int tag, char *ap) on the evidence of its only observed call site (0x64ce2): three pushes, ADD ESP,0xc, and TEST EAX,EAX on the result. The ap parameter is spelled char * because the generated decl.h has no stdarg.h in scope and va_list is exactly char * under both MSVC 7.1 and clang-i386."
       ]
     },
+    "0x65f70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x66190": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66320": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66380": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x663f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66550": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66640": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x666a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66720": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66770": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x667d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x668a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66cc0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5163,6 +5227,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x89930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x89ab0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x8a340": {
       "kind": "function",
       "status": "ported"
@@ -5200,6 +5272,10 @@
       "status": "ported"
     },
     "0x8aa30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8ab10": {
       "kind": "function",
       "status": "ported"
     },
@@ -5251,6 +5327,10 @@
       "comments": {
         "summary": "Per-tick update for all local-player observers: records delta_time, validates header/trailer signatures and updated_for_frame, then dispatches three unported sub-updates (0x8b060 input, 0x8cd40 integration when dt changed, 0x8c4b0 post) via inline asm passing index in EAX."
       }
+    },
+    "0x8cf10": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x8d3a0": {
       "kind": "function",
@@ -5519,6 +5599,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x90860": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x90880": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x90cd0": {
       "kind": "function",
       "status": "ported"
@@ -5576,6 +5664,10 @@
       "status": "ported"
     },
     "0x91800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x92060": {
       "kind": "function",
       "status": "ported"
     },
@@ -6757,7 +6849,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa5610": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa5700": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa57a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -9061,6 +9161,10 @@
       "status": "ported"
     },
     "0xbf340": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xbf380": {
       "kind": "function",
       "status": "ported"
     },
@@ -12613,6 +12717,10 @@
         "ECX survives through FUN_000dc800 and FUN_000dc8c0 because both are pure switch-table functions that only modify EAX; this is not guaranteed by calling convention but is relied upon by the binary."
       ]
     },
+    "0xdcaf0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xdcb30": {
       "kind": "function",
       "status": "ported"
@@ -12631,6 +12739,10 @@
       "inferred": [
         "Offset 0x2a2 on a unit object is the current weapon slot index (int16_t), and offset 0x2a8 is the start of a weapon handle array indexed by that slot."
       ]
+    },
+    "0xdcdc0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xdce00": {
       "kind": "function",
@@ -12665,6 +12777,10 @@
       "status": "ported"
     },
     "0xdde80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xde0e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -13240,6 +13356,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe4ad0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe4c70": {
       "kind": "function",
       "status": "ported"
@@ -13267,6 +13387,10 @@
       ]
     },
     "0xe5090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe5180": {
       "kind": "function",
       "status": "ported"
     },
@@ -13836,7 +13960,7 @@
     },
     "0xf5660": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Column-cursor semantics (11 columns, wrap -1 -> 10, keymap stride 0xb at 0x28a790) are inferred from the sibling move handlers 0xf5700/0xf5750/0xf57a0 in the same TU; the binary only proves the constants 0xa and 0xb.",
         "Column-cursor left-move handler for the virtual keyboard: decrements the int16 column at 0x46cefa modulo 11 (wrap -1 -> 10), skipping columns whose keymap byte at 0x28a790[col + row*0xb] equals the pre-move key, which steps over merged/wide keys such as the space bar in a single press."
@@ -13878,11 +14002,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf5800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf5900": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf5f10": {
       "kind": "function",
       "status": "ported"
     },
     "0xf5f30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf5fa0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14164,6 +14300,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfb320": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfb370": {
       "kind": "function",
       "status": "ported"
@@ -14172,11 +14312,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfb510": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfb6e0": {
       "kind": "function",
       "status": "ported"
     },
+    "0xfb7d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfb880": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfb910": {
       "kind": "function",
       "status": "ported"
     },
@@ -14232,7 +14384,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfcbd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfcd10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfcdd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfce60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfcf20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfd150": {
       "kind": "function",
       "status": "ported"
     },
@@ -14264,6 +14436,18 @@
       "status": "ported"
     },
     "0xfd520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfe6c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfe790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfe910": {
       "kind": "function",
       "status": "ported"
     },
@@ -14981,7 +15165,47 @@
         "Zero-fill equivalence showed 6/100 divergences plus 5 errors; consistent with degenerate point-cloud inputs (division by len_sq=0 and uninitialized threshold globals), not a lift defect given the 477/479 instruction-count parity."
       ]
     },
+    "0x1089d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1089f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108a10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108a30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108a50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x108a70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108c60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108cd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108d00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108d40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108d80": {
       "kind": "function",
       "status": "ported"
     },
@@ -16208,6 +16432,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x11feb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x11ff10": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x120670": {
       "kind": "function",
       "status": "ported"
@@ -16296,6 +16528,10 @@
       "status": "ported"
     },
     "0x123e20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x124730": {
       "kind": "function",
       "status": "ported"
     },
@@ -17315,7 +17551,47 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1330f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x133170": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1331d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x133260": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1332a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x133300": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1334a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1334b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1334f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x133520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1335e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -17324,6 +17600,10 @@
       "status": "ported"
     },
     "0x1337c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1339a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -19098,6 +19378,90 @@
       "status": "ported"
     },
     "0x15d5b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15d8b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15dc10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15de60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e0f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e430": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e650": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15e9e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15ea70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15eb90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15ec50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15ee80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160950": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160980": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1609a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x165ea0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x165fd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x166010": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x166210": {
       "kind": "function",
       "status": "ported"
     },
@@ -22391,11 +22755,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1b5890": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b5d90": {
       "kind": "function",
       "status": "ported"
     },
     "0x1b5df0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b6140": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b6e20": {
       "kind": "function",
       "status": "ported"
     },
@@ -22521,6 +22897,10 @@
       "status": "ported"
     },
     "0x1bab60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1badc0": {
       "kind": "function",
       "status": "ported"
     },

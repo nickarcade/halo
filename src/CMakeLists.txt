@@ -134,8 +134,10 @@ halo/rasterizer/rasterizer_text.c
 	halo/rasterizer/xbox/rasterizer_xbox.c
 	halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c
 	halo/rasterizer/xbox/rasterizer_xbox_hardware_geometry.c
+	halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c
 	halo/rasterizer/xbox/d3d_resource.c
 	halo/rasterizer/xbox/rasterizer_xbox_decals.c
+	halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c
 	halo/rasterizer/xbox/rasterizer_xbox_shadows.c
 	halo/rasterizer/xbox/rasterizer_xbox_water.c
 	halo/rasterizer/xbox/rasterizer_xbox_models.c
@@ -145,6 +147,7 @@ halo/rasterizer/rasterizer_text.c
 	halo/rasterizer/xbox/rasterizer_xbox_vertex_shaders_runtime.c
 	halo/rasterizer/xbox/rasterizer_xbox_widgets.c
 	halo/rasterizer/xbox/rasterizer_xbox_environment.c
+	halo/rasterizer/xbox/rasterizer_xbox_environment_fog.c
 	halo/rasterizer/xbox/shader_transparent_generic_preprocessor.c
 	halo/rasterizer/xbox/rasterizer_xbox_lights.c
 	halo/render/render.c

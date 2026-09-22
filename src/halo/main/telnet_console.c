@@ -483,24 +483,23 @@ void antenna_debug_data_relocate_marker(void *world_pos_out, void *rec,
   if (!((float)abs_delta > *(float *)0x2533c8))
     goto no_relocate;
 
-relocate:
-  {
-    int count;
+relocate: {
+  int count;
 
-    count = *(int *)((char *)tag_def + 0xc4) + 1;
-    if (count > 0) {
-      int i;
+  count = *(int *)((char *)tag_def + 0xc4) + 1;
+  if (count > 0) {
+    int i;
 
-      for (i = 0; i < count; i++) {
-        float *elem;
+    for (i = 0; i < count; i++) {
+      float *elem;
 
-        elem = (float *)((char *)rec + 0x1c + i * 0x20);
-        elem[0] = dx + elem[0];
-        elem[1] = dy + elem[1];
-        elem[2] = dz + elem[2];
-      }
+      elem = (float *)((char *)rec + 0x1c + i * 0x20);
+      elem[0] = dx + elem[0];
+      elem[1] = dy + elem[1];
+      elem[2] = dz + elem[2];
     }
   }
+}
 
 no_relocate:
 
@@ -600,10 +599,10 @@ void antenna_debug_data_simulate_rope(void *rec, void *tag_def,
   float world_pos[3];
   float marker_pos[3];
   int location_out[2]; /* {leaf_index, cluster_index@+4}; point_physics_update
-                         * aliases this SAME stack slot on every loop
-                         * iteration in the original disasm (LEA EBP-0x8c
-                         * reused each call) -- must persist across the loop,
-                         * not be a fresh per-iteration local. */
+                        * aliases this SAME stack slot on every loop
+                        * iteration in the original disasm (LEA EBP-0x8c
+                        * reused each call) -- must persist across the loop,
+                        * not be a fresh per-iteration local. */
   int count;
 
   antenna_debug_data_relocate_marker(world_pos, rec, marker_pos, tag_def,
@@ -917,6 +916,59 @@ void FUN_00131a00(void)
 void FUN_00131b40(int datum_handle)
 {
   datum_delete(g_antenna_data, datum_handle);
+}
+
+/*
+ * FUN_00131e00 (0x131e00) -- walk the flag definition's tag_block at +0x54
+ * (0x34-byte elements) and, for each element, split its run length across the
+ * remaining row extent at +0xe into two halves, emitting one FUN_00131a20 pass
+ * per half (modes 4 and 5).  Runs are rounded down to an even length
+ * (AND 0xfffffffe at 0x131e6e) before halving.  Offsets +0x08, +0x0e and +0x54
+ * are disasm-observed; nothing else about the definition is touched.
+ */
+void FUN_00131e00(void *definition, void *flag)
+{
+  int row;
+  int index;
+  int run;
+  int half;
+  int16_t count;
+  int16_t *element;
+
+  row = 0;
+  index = 0;
+  if (*(int16_t *)((char *)definition + 8) == 0) {
+    return;
+  }
+  if (*(int *)((char *)definition + 0x54) <= 0) {
+    return;
+  }
+
+  do {
+    if ((int)(int16_t)row >= (int)*(int16_t *)((char *)definition + 0xe)) {
+      return;
+    }
+
+    element = (int16_t *)tag_block_get_element((char *)definition + 0x54,
+                                               (int)(int16_t)index, 0x34);
+    count = *element;
+    if (count < 0) {
+      run = 0;
+    } else {
+      run = (int)*(int16_t *)((char *)definition + 0xe) - (int)(int16_t)row;
+      if ((int)count <= run) {
+        run = (int)count;
+      }
+    }
+
+    run &= ~1;
+    half = run >> 1;
+    FUN_00131a20(definition, flag, 0, row, half, 4);
+    FUN_00131a20(definition, flag, 0, half + row, half, 5);
+
+    row += run;
+    index++;
+  } while ((int)(int16_t)index < *(int *)((char *)definition + 0x54));
 }
 
 /* FUN_00131ed0 (0x131ed0) -- initialize edge flag cells. */

@@ -2480,7 +2480,7 @@ void initialize_hud_state(int slot)
 /* unit_hud_get_slot (0xd7280)
  * Returns pointer to a player's unit HUD slot.
  * ABI: @esi=local_player_index */
-int get_hud_state_0(short local_player_index)
+__declspec(noinline) int get_hud_state_0(short local_player_index)
 {
   if (local_player_index < 0 || local_player_index >= 4) {
     display_assert("local_player_index>=0 && "

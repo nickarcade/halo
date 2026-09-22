@@ -14,6 +14,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -23,6 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 TARGETS_FILE = Path(__file__).resolve().parent / "regression_targets.json"
+KB_JSON = ROOT / "kb.json"
 UNICORN_DIFF = ROOT / "tools" / "equivalence" / "unicorn_diff.py"
 
 # Mirrors `unicorn_diff.py --oracle`'s default.  Pinned by
@@ -30,9 +32,32 @@ UNICORN_DIFF = ROOT / "tools" / "equivalence" / "unicorn_diff.py"
 DEFAULT_ORACLE = "xbe"
 
 
+def load_function_names() -> dict[str, str]:
+    """Return current kb.json declaration names keyed by original address."""
+    kb = json.loads(KB_JSON.read_text(encoding="utf-8"))
+    names = {}
+    for obj in kb["objects"]:
+        for fn in obj["functions"]:
+            addr = fn.get("addr")
+            decl = fn.get("decl", "")
+            m = re.search(r'\b(\w+)\s*\(', decl)
+            if isinstance(addr, str) and m:
+                names[addr] = m.group(1)
+    return names
+
+
 def load_targets(filter_name=None):
     data = json.loads(TARGETS_FILE.read_text(encoding="utf-8"))
-    targets = data.get("targets", [])
+    names = load_function_names()
+    targets = []
+    for entry in data.get("targets", []):
+        addr = entry.get("addr")
+        name = names.get(addr)
+        if not name:
+            raise ValueError("regression target address is absent from kb.json: %r" % addr)
+        target = dict(entry)
+        target["name"] = name
+        targets.append(target)
     if filter_name:
         targets = [t for t in targets if t["name"] == filter_name or t["addr"] == filter_name]
     return targets
@@ -129,11 +154,9 @@ def check_prerequisites(target):
 
 
 def _label(target):
-    """Display name. Two entries may share one `name` (same function, different
-    state snapshot / arg pins), which would otherwise print identical rows —
-    an optional `label` tells them apart. Display only; `name` is still what
-    unicorn_diff resolves as the target symbol."""
-    return target.get("label") or target["name"]
+    """Display current name plus optional scenario label."""
+    scenario = target.get("scenario")
+    return target["name"] + ("[" + scenario + "]" if scenario else "")
 
 
 def run_target(target, seed_override=None, disable_leaf_cache=False):
@@ -225,7 +248,7 @@ def main():
 
     # Check prerequisites in target order, then execute runnable targets.
     # Results are consumed in that same order even when workers finish out of
-    # order, keeping output and all accounting deterministic.  A target name
+    # order, keeping output and all accounting deterministic.  A target address
     # can occur more than once with different snapshots; serialize those
     # children because unicorn_diff writes name-based smoke logs.
     outcomes = [None] * len(targets)
@@ -239,7 +262,7 @@ def main():
 
     def execute(item):
         index, target = item
-        lock = name_locks.setdefault(target["name"], threading.Lock())
+        lock = name_locks.setdefault(target["addr"], threading.Lock())
         with lock:
             return index, run_target(target, seed_override,
                                      disable_leaf_cache=args.jobs > 1)

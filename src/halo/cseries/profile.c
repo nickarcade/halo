@@ -453,6 +453,19 @@ void FUN_000907c0(char *substring /* @<edi> */, unsigned char active)
   }
 }
 
+/* profile_sections_deactivate (0x90880) -- HaloScript "profile_sections_
+ * deactivate" builtin.  The whole body is a forward to the shared worker
+ * FUN_000907c0 with active=0:
+ *   MOV EDI,[EBP+8]  -- substring into EDI (the worker's @<edi> arg)
+ *   PUSH 0           -- active = 0 (single cdecl stack arg)
+ *   CALL 0x907c0 ; ADD ESP,4
+ * The sibling profile_sections_activate (0x90860) is the same shape with
+ * PUSH 1. */
+void profile_sections_deactivate(const char *substring)
+{
+  FUN_000907c0((char *)substring, 0);
+}
+
 /* Asserts name and section_index_reference are both non-null (per the
  * assert string), then unconditionally writes -1 (0xffff, the same
  * "not found"/"not started" sentinel used elsewhere in this file, e.g.
@@ -1140,6 +1153,49 @@ void FUN_00091d50(int32_t *end /* @<eax> */, int32_t *begin,
 void FUN_00092050(uint8_t failed)
 {
   stack_walk_load_failed = failed;
+}
+
+/* -----------------------------------------------------------------------
+ * profile_idle_start (0x92060) -- cdecl comparator over two 0x10-byte
+ * records, ordering them by the uint32 field at +0x04.  The kb name is the
+ * pre-existing auto-generated label and is NOT supported by this body's
+ * evidence: the only xref is a DATA reference from load_symbol_table
+ * (0x92710) at 0x92cde, i.e. the address is taken as a function pointer,
+ * and +0x04 is the value field of that loader's 0x10-byte symbol entries
+ * (same field FUN_000921c0 returns on a match).  Renaming is left to a
+ * separate recovery pass.
+ *
+ * Disassembly (0x92060..0x9208e), two stack args at [EBP+8]/[EBP+0xc]:
+ *   MOV ECX,[EAX+4] / TEST ECX,ECX / JZ  -> MOV EAX,1   ; a == 0 -> 1
+ *   MOV EAX,[EDX+4] / CMP ECX,EAX / JA   -> MOV EAX,1   ; unsigned a > b -> 1
+ *   TEST EAX,EAX    / JZ           -> OR EAX,-1         ; b == 0 -> -1
+ *   CMP ECX,EAX     / JC (below)   -> OR EAX,-1         ; a < b  -> -1
+ *   fallthrough XOR EAX,EAX                             ; a == b -> 0
+ * The comparisons are unsigned (JA/JC), so both fields are read as uint32.
+ * The b == 0 arm is unreachable in practice (a != 0 and a <= b already
+ * imply b != 0) but is emitted by the reference, so it is kept verbatim
+ * rather than folded away.  The nesting (rather than a flat guard chain)
+ * mirrors the reference's block order: both "return 1" exits are the
+ * sunk tail block at 0x92088, so the two forward branches are taken on
+ * a == 0 and on a > b.
+ * ----------------------------------------------------------------------- */
+int profile_idle_start(const void *a, const void *b)
+{
+  uint32_t value_a;
+  uint32_t value_b;
+
+  value_a = *(const uint32_t *)((const char *)a + 4);
+  if (value_a != 0) {
+    value_b = *(const uint32_t *)((const char *)b + 4);
+    if (value_a <= value_b) {
+      if (value_b != 0 && value_a >= value_b) {
+        return 0;
+      }
+      return -1;
+    }
+  }
+
+  return 1;
 }
 
 /* -----------------------------------------------------------------------

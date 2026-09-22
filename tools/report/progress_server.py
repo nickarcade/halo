@@ -20,6 +20,12 @@ import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
+_tools_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _tools_dir not in sys.path:
+    sys.path.insert(0, _tools_dir)
+
+from report.atomic_write import write_json_atomic
+
 # Scoring lock: one objdiff run at a time per unit
 _score_locks = {}
 _score_locks_mu = threading.Lock()
@@ -42,13 +48,13 @@ logging.basicConfig(
 
 
 def _recompute_unit_match(unit: dict) -> None:
-    """Recompute unit['summary'] match_avg/match_weighted from its function scores in-place."""
+    """Recompute unit match from scored, ported functions."""
     scores = []
     weighted_sum = 0.0
     weighted_bytes = 0
     for func in unit.get('functions', []):
         mp = func.get('match_percent')
-        if mp is None:
+        if not func.get('ported') or mp is None:
             continue
         size = func.get('size') or 0
         scores.append(mp)
@@ -64,7 +70,7 @@ def _recompute_unit_match(unit: dict) -> None:
 
 
 def _recompute_summary_match(report: dict) -> None:
-    """Recompute report['summary']['match'] from all units' function scores in-place."""
+    """Recompute overall match from scored, ported functions."""
     total_sum = 0.0
     weighted_sum = 0.0
     weighted_bytes = 0
@@ -72,7 +78,7 @@ def _recompute_summary_match(report: dict) -> None:
     for unit in report.get('units', []):
         for func in unit.get('functions', []):
             mp = func.get('match_percent')
-            if mp is None:
+            if not func.get('ported') or mp is None:
                 continue
             size = func.get('size') or 0
             total_sum += mp
@@ -456,8 +462,7 @@ class SSEHandler(SimpleHTTPRequestHandler):
         _recompute_summary_match(report)
 
         try:
-            with open(report_path, 'w') as f:
-                json.dump(report, f)
+            write_json_atomic(report_path, report)
             os.utime(report_path, None)  # ensure mtime bumped for SSE polling
         except Exception as e:
             logging.error('Cannot write report.json: %s', e)

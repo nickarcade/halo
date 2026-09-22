@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -16,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_TARGETS = ROOT / "tools" / "verify" / "runtime_oracle_targets.json"
+KB_JSON = ROOT / "kb.json"
 DEFAULT_OUTPUT = ROOT / "artifacts" / "runtime_oracle_batch"
 DEFAULT_PROGRESS_DIR = ROOT / "artifacts" / "progress"
 FAIL_STATUSES = {"fail", "error"}
@@ -32,20 +34,37 @@ def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def load_function_names() -> dict[str, str]:
+    """Return current kb.json declaration names keyed by original address."""
+    kb = json.loads(KB_JSON.read_text(encoding="utf-8"))
+    names = {}
+    for obj in kb["objects"]:
+        for fn in obj["functions"]:
+            addr = fn.get("addr")
+            decl = fn.get("decl", "")
+            match = re.search(r'\b(\w+)\s*\(', decl)
+            if isinstance(addr, str) and match:
+                names[addr] = match.group(1)
+    return names
+
+
 def load_targets(path: Path) -> list[dict]:
     raw = load_json(path)
     targets = raw.get("targets", [])
+    names = load_function_names()
     cleaned = []
     for entry in targets:
         if not isinstance(entry, dict):
             continue
         if entry.get("disabled"):
             continue
-        target = str(entry.get("target") or entry.get("name") or "").strip()
-        if not target:
-            continue
+        addr = str(entry.get("addr") or "").strip()
+        name = names.get(addr)
+        if not name:
+            raise ValueError("runtime-oracle target address is absent from kb.json: " + addr)
         cleaned.append({
-            "target": target,
+            "addr": addr,
+            "name": name,
             "obj": str(entry.get("obj", "")).strip(),
             "reason": str(entry.get("reason", "")).strip(),
             "timeout": int(entry.get("timeout", 60)),
@@ -133,13 +152,13 @@ def restore_normal_mode(output_dir: Path, skip_deploy: bool) -> dict:
 
 def run_target(entry: dict, batch_id: str, skip_build: bool, skip_deploy: bool,
                per_target_restore: bool) -> tuple[dict, str]:
-    target = entry["target"]
-    run_id = f"{batch_id}-{sanitize_target(target)}"
+    addr = entry["addr"]
+    run_id = f"{batch_id}-{sanitize_target(addr)}"
     summary_path = ROOT / "artifacts" / "runtime_oracle" / run_id / "summary.json"
     cmd = [
         sys.executable,
         str(ROOT / "tools" / "verify" / "run_golden_tests.py"),
-        "--target", target,
+        "--target", addr,
         "--run-id", run_id,
         "--timeout", str(entry["timeout"]),
         "--poll-interval", str(entry["poll_interval"]),
@@ -262,13 +281,15 @@ def main() -> int:
         for index, entry in enumerate(targets, start=1):
             if interrupted:
                 break
-            print(f"[{index}/{len(targets)}] {entry['target']:32s} ", end="", flush=True)
+            print(f"[{index}/{len(targets)}] {entry['addr']:12s} {entry['name']:32s} ",
+                  end="", flush=True)
             summary, output = run_target(entry, batch_id, args.skip_build,
                                          args.skip_deploy, args.per_target_restore)
             status = summary_status(summary)
             results[status] += 1
             row = {
-                "target": entry["target"],
+                "addr": entry["addr"],
+                "name": entry["name"],
                 "obj": entry["obj"],
                 "reason": entry["reason"],
                 "status": status,
@@ -293,7 +314,7 @@ def main() -> int:
             else:
                 print(f"ERROR ({row['error']})")
 
-            log_path = output_dir / f"{sanitize_target(entry['target'])}.log"
+            log_path = output_dir / f"{sanitize_target(entry['addr'])}.log"
             log_path.write_text(output, encoding="utf-8")
     finally:
         for sig, handler in prev_handlers.items():

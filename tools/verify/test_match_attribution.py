@@ -5,8 +5,8 @@ Run with:
     python3 tools/verify/test_match_attribution.py
 
 Pins the defect found on 2026-07-28: lift_pipeline's vc71_verify stage parsed
-the match percentage with a bare `re.search(r'(\\d+\\.\\d+)% match', output)`.
-vc71_verify.py prints one `PASS/FAIL <name>: NN.N% match` line for EVERY function
+the mnemonic-match percentage with a bare `re.search(r'(\\d+\\.\\d+)% mnemonic match', output)`.
+vc71_verify.py prints one `PASS/FAIL <name>: NN.N% mnemonic match` line for EVERY function
 in the translation unit even when --function is passed, so that parse returned
 whichever function sorts first by address -- not the target.
 
@@ -53,14 +53,14 @@ def check(name, cond):
 # Real vc71_verify output shape from src/halo/text/draw_string.c.
 SAMPLE = """Using cached VC71 object: draw_string.obj
 Comparing against 0019c0a0.obj...
-  PASS FUN_0019b3c0: 67.8% match (28/31 insns)
-  PASS FUN_0019b430: 89.2% match (79/78 insns)
-  PASS FUN_0019b560: 89.9% match (34/35 insns)
-  PASS FUN_0019b640: 100.0% match (97/97 insns)
-  PASS FUN_0019b800: 100.0% match (52/52 insns)
-  PASS FUN_0019bcc0: 76.3% match (47/31 insns)
-  PASS FUN_0019c0a0: 77.5% match (44/37 insns)
-  PASS draw_string_get_color: 100.0% match (25/25 insns)
+  PASS FUN_0019b3c0: 67.8% mnemonic match (28/31 insns)
+  PASS FUN_0019b430: 89.2% mnemonic match (79/78 insns)
+  PASS FUN_0019b560: 89.9% mnemonic match (34/35 insns)
+  PASS FUN_0019b640: 100.0% mnemonic match (97/97 insns)
+  PASS FUN_0019b800: 100.0% mnemonic match (52/52 insns)
+  PASS FUN_0019bcc0: 76.3% mnemonic match (47/31 insns)
+  PASS FUN_0019c0a0: 77.5% mnemonic match (44/37 insns)
+  PASS draw_string_get_color: 100.0% mnemonic match (25/25 insns)
 """
 
 
@@ -88,15 +88,15 @@ def main():
     pct, exact = f(SAMPLE, ["kb_only_name", "FUN_0019bcc0"])
     check("A4 second name tried when first absent", (pct, exact) == (76.3, True))
 
-    # A5. Target absent entirely -> flagged inexact so the caller can warn
-    #     instead of silently gating on someone else's score.
+    # A5. Target absent entirely -> no score, so the caller cannot silently
+    #     gate on a neighbouring function's score.
     pct, exact = f(SAMPLE, ["not_present_anywhere"])
-    check("A5 absent target flagged inexact", (pct, exact) == (67.8, False))
+    check("A5 absent target has no score", pct is None and exact is False)
 
     # A6. FAIL lines are parsed too -- a failing target must not fall through to
     #     a passing neighbour's number.
-    fail_out = ("  PASS FUN_0019b3c0: 67.8% match (28/31 insns)\n"
-                "  FAIL FUN_0019c0a0: 38.1% match (49/99 insns) [LOADW-WARN]\n")
+    fail_out = ("  PASS FUN_0019b3c0: 67.8% mnemonic match (28/31 insns)\n"
+                "  FAIL FUN_0019c0a0: 38.1% mnemonic match (49/99 insns) [LOADW-WARN]\n")
     pct, exact = f(fail_out, ["FUN_0019c0a0"])
     check("A6 FAIL line attributed, not neighbour", (pct, exact) == (38.1, True))
 
@@ -108,7 +108,7 @@ def main():
     #     FUN_0019b64 is a prefix of FUN_0019b640; the colon anchor prevents it.
     pct, exact = f(SAMPLE, ["FUN_0019b64"])
     check("A8 prefix name does not match longer name",
-          exact is False and pct == 67.8)
+          exact is False and pct is None)
 
     print()
     if FAILURES:
