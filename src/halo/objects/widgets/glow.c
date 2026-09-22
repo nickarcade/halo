@@ -49,7 +49,6 @@
  * halt_and_catch_fire().  Confirm with check_assert_targets.py.
  */
 
-#define GLOW_TAG 0x676c7721 /* 'glw!' */
 
 /* Number of glow markers = capacity of the +0x22a ordering table (0x234-0x22a
  * = 10 bytes = 5 int16 slots) and the object_get_markers_by_string_id max. */
@@ -65,7 +64,7 @@ void glow_update(int glow_widget, int object_handle)
 
   char *w;
   w = (char *)glow_widget;
-  glow_tag = (float *)tag_get(GLOW_TAG, *(int *)(w + 0x224));
+  glow_tag = (float *)tag_get(TAG_GROUP_GLW, *(int *)(w + 0x224));
   if (glow_tag == 0)
     return;
 
@@ -245,7 +244,7 @@ void glow_update(int glow_widget, int object_handle)
        * and broke the trailing particle fade/colour (orange-not-blue trail bug,
        * loop-B class). */
       glow_trailing_particle_update_color(glow_widget, particle);
-      tag_block = tag_get(GLOW_TAG, *(int *)(w + 0x224));
+      tag_block = tag_get(TAG_GROUP_GLW, *(int *)(w + 0x224));
       if ((*(unsigned char *)((char *)tag_block + 0x28) & 0x10) != 0) {
         int age = *(short *)(particle + 0x50);
         int life = *(short *)(particle + 0x52);
@@ -257,12 +256,12 @@ void glow_update(int glow_widget, int object_handle)
       glow_trailing_particle_update_velocity(glow_widget, particle);
       {
         float dt = *(float *)0x50654c;
-        tag_get(GLOW_TAG, *(int *)(w + 0x224));
+        tag_get(TAG_GROUP_GLW, *(int *)(w + 0x224));
         *(float *)(particle + 0x2c) += dt * *(float *)(particle + 0x44);
         *(float *)(particle + 0x30) += dt * *(float *)(particle + 0x48);
         *(float *)(particle + 0x34) += dt * *(float *)(particle + 0x4c);
       }
-      tag_get(GLOW_TAG, *(int *)(w + 0x224));
+      tag_get(TAG_GROUP_GLW, *(int *)(w + 0x224));
       if (*(short *)(particle + 0x50) > *(short *)(particle + 0x52)) {
         int prev = *(int *)(particle + 0x60);
         int next = *(int *)(particle + 0x5c);

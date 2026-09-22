@@ -2708,4 +2708,23 @@ co(glow_definition, pad_d4, 0xD4);
 co(glow_definition, color_rate_of_change, 0xF4);
 co(glow_definition, percentage_edge_fade, 0xF8);
 
+/* glow_definition.flags (+0x28) bits.  Names: PAL-2342 glow.c
+ * glow_definition_flags (T2); each bit is matched to the 2276 site that tests
+ * it with the behavior PAL gives it. */
+enum {
+  _glow_definition_modify_particle_color_bit = 0,             /* glow_normal_particle_update_color, glow_normal_particle_new */
+  _glow_definition_particles_move_backwards_bit = 1,          /* glow_particles_initialize: sets particle moving_backwards */
+  _glow_definition_particles_move_in_both_directions_bit = 2, /* glow_particles_initialize: alternates moving_backwards */
+  _glow_definition_trailing_particles_fade_over_time_bit = 3, /* glow_trailing_particle_update_color */
+  _glow_definition_trailing_particles_shrink_over_time_bit = 4, /* glow_trailing_particle_update_size */
+  _glow_definition_trailing_particles_slow_over_time_bit = 5  /* glow_trailing_particle_update_velocity */
+};
+
+/* glow_particle.flags (+0x54) bits.  Names: PAL-2342 glow.c
+ * glow_particle_flags (T2). */
+enum {
+  _glow_particle_moving_backwards_bit = 0, /* glow_normal_particle_update_position steps t down */
+  _glow_particle_trailing_bit = 1          /* set by glow_trailing_particle_new; glow_update tests it (0x134893) */
+};
+
 #endif /* TYPES_H */

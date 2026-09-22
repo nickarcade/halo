@@ -126,12 +126,19 @@ static const int _scenario_type_main_menu = 2;
 #define TAG_GROUP_DECAL 0x64656361 /* 'deca' */
 #define TAG_GROUP_BITM  0x6269746d /* 'bitm' */
 #define TAG_GROUP_FONT 0x666f6e74 /* 'font' */
+#define TAG_GROUP_GLW  0x676c7721 /* 'glw!' */
 #define TAG_GROUP_HUDG 0x68756467 /* 'hudg' */
 #define TAG_GROUP_ITEM 0x6974656d /* 'item' */
 #define TAG_GROUP_ITMC 0x69746d63 /* 'itmc' */
 #define TAG_GROUP_SHDR 0x73686472 /* 'shdr' */
 #define TAG_GROUP_SND  0x736e6421 /* 'snd!' */
 #define TAG_GROUP_WEAP 0x77656170 /* 'weap' */
+
+/* The original source's FLAG(bit) macro, quoted verbatim by binary assert
+ * strings ("server_connection->flags&FLAG(_connection_create_server_bit)"). */
+#ifndef FLAG
+#define FLAG(b) (1 << (b))
+#endif
 
 #ifdef DEBUG_BUILD
 #undef strlen

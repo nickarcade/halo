@@ -1214,7 +1214,7 @@ void glow_new(int tag_index)
     glow_datum = data_new_at_index(*(data_t **)0x5a90c8);
     if (glow_datum != -1) {
       glow_widget = (int)datum_get(*(data_t **)0x5a90c8, glow_datum);
-      glow_definition = (int)tag_get(0x676c7721, tag_index);
+      glow_definition = (int)tag_get(TAG_GROUP_GLW, tag_index);
       bitmap_definition =
         (int)tag_get(0x6269746d, *(int *)(glow_definition + 0x150));
       if (*(int16_t *)bitmap_definition == 3) {
@@ -1293,8 +1293,9 @@ void glow_trailing_particle_update_color(int glow_widget, int particle_ptr)
 
   particle = (glow_particle *)particle_ptr;
   definition = (glow_definition *)tag_get(
-    0x676c7721, ((glow_datum *)glow_widget)->definition_index);
-  if ((definition->flags & 0x8) != 0) {
+    TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags &
+       FLAG(_glow_definition_trailing_particles_fade_over_time_bit)) != 0) {
     particle->fade = *(float *)0x2533c8 -
                      (float)particle->ticks_in_existence / particle->lifetime;
     particle->fade =
@@ -1323,8 +1324,9 @@ void glow_trailing_particle_update_size(int glow_widget, int particle_ptr)
 
   particle = (glow_particle *)particle_ptr;
   definition = (glow_definition *)tag_get(
-    0x676c7721, ((glow_datum *)glow_widget)->definition_index);
-  if ((definition->flags & 0x10) != 0) {
+    TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags &
+       FLAG(_glow_definition_trailing_particles_shrink_over_time_bit)) != 0) {
     scale = *(float *)0x2533c8 -
             (float)particle->ticks_in_existence / particle->lifetime;
     scale = 0.0f > scale ? 0.0f : scale;
@@ -1352,8 +1354,9 @@ void glow_trailing_particle_update_velocity(int glow_widget, int particle_ptr)
 
   particle = (glow_particle *)particle_ptr;
   definition = (glow_definition *)tag_get(
-    0x676c7721, ((glow_datum *)glow_widget)->definition_index);
-  if ((definition->flags & 0x20) != 0) {
+    TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
+  if ((definition->flags &
+       FLAG(_glow_definition_trailing_particles_slow_over_time_bit)) != 0) {
     scale = *(float *)0x2533c8 -
             (float)particle->ticks_in_existence / particle->lifetime;
     scale = 0.0f > scale ? 0.0f : scale;
@@ -1380,7 +1383,7 @@ void glow_trailing_particle_update_position(int glow_widget, int particle_ptr,
   glow_particle *particle;
 
   particle = (glow_particle *)particle_ptr;
-  tag_get(0x676c7721, ((glow_datum *)glow_widget)->definition_index);
+  tag_get(TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
   particle->position[0] =
     delta * particle->present_velocity[0] + particle->position[0];
   particle->position[1] =
@@ -1422,7 +1425,7 @@ void glow_normal_particle_update_color(int particle_ptr, int object_handle,
 
   particle = (glow_particle *)particle_ptr;
   definition = (glow_definition *)tag_get(
-    0x676c7721, ((glow_datum *)glow_widget)->definition_index);
+    TAG_GROUP_GLW, ((glow_datum *)glow_widget)->definition_index);
   if (definition->color_attachment_index != 0xffff) {
     if (!object_get_function_value(
           object_handle, definition->color_attachment_index, &function_value))
@@ -1447,7 +1450,8 @@ void glow_normal_particle_update_color(int particle_ptr, int object_handle,
   /* t is read through the particle_ptr parameter, not the particle local:
    * VC71 orders the two commutative FMULs by operand symbol, and only the
    * parameter spelling reproduces 2276's FMUL rate(+0xf4); FMUL t(+0x28). */
-  if ((definition->flags & 0x1) != 0) {
+  if ((definition->flags & FLAG(_glow_definition_modify_particle_color_bit)) !=
+      0) {
     particle->color_red = (definition->color_upper_bound_rgb[0] -
                            definition->color_lower_bound_rgb[0]) *
                             definition->color_rate_of_change *
@@ -1504,7 +1508,7 @@ void point_from_parametric_line(real *point, real *vector, real t, real *out)
  *
  * Resolves the glow widget (datum_get(*(data_t**)0x5a90c8, widget_datum), the
  * same widget pool glow_submit uses) and its 'glw!' tag definition
- * (tag_get(0x676c7721, glow_widget+0x224)), opens a sprite-build record
+ * (tag_get(TAG_GROUP_GLW, glow_widget+0x224)), opens a sprite-build record
  * (build_sprites_begin) sized from the widget's active particle count (+0x24c,
  * zero-extended per the XOR ECX,ECX;MOV CX idiom at 0x133554) and the tag's
  * shader field (glowdef+0x150), then walks the particle list rooted at
@@ -1544,7 +1548,7 @@ void glow_render(int object_handle, int widget_datum)
   char record[0xa4];
 
   glow_widget = (int)datum_get(*(data_t **)0x5a90c8, widget_datum);
-  glow_tag = (int)tag_get(0x676c7721, *(int *)(glow_widget + 0x224));
+  glow_tag = (int)tag_get(TAG_GROUP_GLW, *(int *)(glow_widget + 0x224));
   build_sprites_begin((uint32_t *)record, *(uint16_t *)(glow_widget + 0x24c),
                       *(uint32_t *)(glow_tag + 0x150), 0x326a78, 0);
 
@@ -1642,7 +1646,7 @@ void nonuniform_cubic_spline_vector3d(float *out_xyz, float *pt_a, float *pt_b,
  * pool is exhausted.
  *
  * Confirmed against 001337c0-00133992:
- *   glow_tag = tag_get(0x676c7721, *(glow_widget_ptr+0x224)).
+ *   glow_tag = tag_get(TAG_GROUP_GLW, *(glow_widget_ptr+0x224)).
  *   idx = data_new_at_index(GLOW_PARTICLE_DATA); returns 0 if idx == -1.
  *   particle = datum_get(GLOW_PARTICLE_DATA, idx); particle+4 = idx.
  *   scale (+0x1c): if glow_tag+0x80 (function index, see the glowdef layout
@@ -1686,7 +1690,7 @@ int glow_normal_particle_new(int glow_widget_ptr, short index, short count)
   float fmax;
   float t;
 
-  glow_tag = (int)tag_get(0x676c7721, *(int *)(glow_widget_ptr + 0x224));
+  glow_tag = (int)tag_get(TAG_GROUP_GLW, *(int *)(glow_widget_ptr + 0x224));
   particle = 0;
   idx = data_new_at_index(GLOW_PARTICLE_DATA);
   if (idx != -1) {
@@ -1711,7 +1715,8 @@ int glow_normal_particle_new(int glow_widget_ptr, short index, short count)
     }
 
     if ((*(int16_t *)(glow_tag + 0xb0) == -1) &&
-        ((*(unsigned char *)(glow_tag + 0x28) & 1) == 0)) {
+        ((*(unsigned char *)(glow_tag + 0x28) &
+          FLAG(_glow_definition_modify_particle_color_bit)) == 0)) {
       t = random_real_range((int *)random_math_get_local_seed_address(), 0.0f,
                             1.0f);
       *(float *)(particle + 0xc) = 1.0f;
@@ -1788,15 +1793,20 @@ int glow_normal_particle_new(int glow_widget_ptr, short index, short count)
  * 3. Spline the position into particle+0x2c, and the up and side vectors,
  *    then add (side*cos(a) + up*sin(a)) * distance, a = rate*t + angle.
  *
- * Faithful 2276 bugs (the later PAL reference differs; the binary wins):
+ * Faithful 2276 bugs (the binary wins over the PAL reference):
  *  - Every interpolated point's z adds the start point's y (FADD [EBP-0x4c]
- *    at 0x133cf6 etc.), as in point_from_parametric_line.
+ *    at 0x133cf6 etc.), as in point_from_parametric_line.  PAL has the same
+ *    bug; the rest below differ from PAL.
  *  - The 2- and 3-marker paths never compute sides[] (no cross products
  *    between 0x133c0e and 0x133f66), so the third spline reads uninitialized
  *    stack and so does the resulting side offset.
- *  - 3 markers, particle in span 1: only knots[2] is stored
- *    (FSTP [EBP-0x8] at 0x133f66), set to the midpoint of knots[0] and
- *    marker time 1; knots[1] stays uninitialized.
+ *  - 3 markers, particle in span 1: only knots[2] is stored, set to the
+ *    midpoint of knots[0] and marker time 1 (the case computes the product
+ *    and JMPs to the shared FADD knots[0]; FSTP [EBP-0x8] tail at 0x133f63);
+ *    knots[1] stays uninitialized.  PAL instead stores the midpoint in
+ *    knots[1] and marker time 1 in knots[2].
+ *  - PAL's 2- and 3-marker paths call cross_product3d for sides[]; 2276 has
+ *    no such call (its only calls are sin/cos and the three splines).
  *
  * glow_widget arrives in EAX (MOV ESI,EAX at 0x1339ab); particle_ptr and
  * rotation_rate are cdecl stack args. */
@@ -2032,7 +2042,7 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
   unsigned int flags;
   float function_value;
 
-  glowdef = tag_get(0x676c7721, *(int *)(glow_widget_ptr + 0x224));
+  glowdef = tag_get(TAG_GROUP_GLW, *(int *)(glow_widget_ptr + 0x224));
 
   function_index = *(short *)((char *)glowdef + 0x80);
   if (function_index != -1) {
@@ -2054,7 +2064,7 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
 
   flags = *(unsigned int *)(particle_ptr + 0x54);
 
-  if ((flags & 1) != 0) {
+  if ((flags & FLAG(_glow_particle_moving_backwards_bit)) != 0) {
     /* reverse phase: step down.  FLD [ESI+0x28]; FSUB [EBP+0xc] at 0x1340ee
      * -> phase is the left operand here. */
     *(float *)(particle_ptr + 0x28) = *(float *)(particle_ptr + 0x28) - delta;
@@ -2070,7 +2080,7 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
             *(float *)(glow_widget_ptr + 0x234) +
             *(float *)(particle_ptr + 0x28);
         } while (*(float *)(particle_ptr + 0x28) < 0.0f);
-        flags &= ~1u;
+        flags &= ~(unsigned int)FLAG(_glow_particle_moving_backwards_bit);
         *(unsigned int *)(particle_ptr + 0x54) = flags;
         *(float *)(particle_ptr + 0x28) =
           *(float *)(glow_widget_ptr + 0x234) - *(float *)(particle_ptr + 0x28);
@@ -2109,7 +2119,7 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
         }
         *(float *)(particle_ptr + 0x28) =
           *(float *)(glow_widget_ptr + 0x234) - *(float *)(particle_ptr + 0x28);
-        flags |= 1u;
+        flags |= FLAG(_glow_particle_moving_backwards_bit);
         *(unsigned int *)(particle_ptr + 0x54) = flags;
       }
       break;
@@ -2164,7 +2174,7 @@ void glow_normal_particle_update_position(int particle_ptr, int glow_widget_ptr,
  * the glow particle chain for a glow-widget instance.
  *
  * Fetches the glow ('glw!' = 0x676c7721) tag block via
- * tag_get(0x676c7721, widget+0x224), then allocates one particle node per
+ * tag_get(TAG_GROUP_GLW, widget+0x224), then allocates one particle node per
  * widget+0x24c (int16 count) via glow_normal_particle_new, linking them into a
  * doubly-linked list rooted at widget+0x250 (head) / widget+0x254 (tail).
  * Node flag word at +0x54:
@@ -2189,7 +2199,7 @@ void glow_particles_initialize(int glow_widget_ptr)
   char parity;
   short index;
 
-  glow_tag = tag_get(0x676c7721, *(int *)(glow_widget_ptr + 0x224));
+  glow_tag = tag_get(TAG_GROUP_GLW, *(int *)(glow_widget_ptr + 0x224));
   index = 0;
   prev_node = 0;
   parity = 1;
@@ -2199,14 +2209,19 @@ void glow_particles_initialize(int glow_widget_ptr)
     if (node == 0) {
       break;
     }
-    if ((*(unsigned char *)((int)glow_tag + 0x28) & 2) != 0) {
-      *(unsigned int *)(node + 0x54) |= 1;
+    if ((*(unsigned char *)((int)glow_tag + 0x28) &
+         FLAG(_glow_definition_particles_move_backwards_bit)) != 0) {
+      *(unsigned int *)(node + 0x54) |=
+        FLAG(_glow_particle_moving_backwards_bit);
     }
-    if ((*(unsigned char *)((int)glow_tag + 0x28) & 4) != 0) {
+    if ((*(unsigned char *)((int)glow_tag + 0x28) &
+         FLAG(_glow_definition_particles_move_in_both_directions_bit)) != 0) {
       if (!parity) {
-        flags = *(unsigned int *)(node + 0x54) | 1;
+        flags = *(unsigned int *)(node + 0x54) |
+                FLAG(_glow_particle_moving_backwards_bit);
       } else {
-        flags = *(unsigned int *)(node + 0x54) & 0xfffffffe;
+        flags = *(unsigned int *)(node + 0x54) &
+                ~FLAG(_glow_particle_moving_backwards_bit);
       }
       *(unsigned int *)(node + 0x54) = flags;
       parity = !parity;
@@ -2262,7 +2277,7 @@ int glow_trailing_particle_new(int glow_widget /* @<ebx> */)
   float radius;
   float t;
 
-  glow_tag = (int)tag_get(0x676c7721, *(int *)(glow_widget + 0x224));
+  glow_tag = (int)tag_get(TAG_GROUP_GLW, *(int *)(glow_widget + 0x224));
   particle = 0;
 
   idx = data_new_at_index(GLOW_PARTICLE_DATA);
@@ -2340,7 +2355,7 @@ int glow_trailing_particle_new(int glow_widget /* @<ebx> */)
     *(float *)(particle + 0x14) =
       *(float *)(glow_tag + 0xbc) +
       t * (*(float *)(glow_tag + 0xcc) - *(float *)(glow_tag + 0xbc));
-    *(uint32_t *)(particle + 0x54) |= 2;
+    *(uint32_t *)(particle + 0x54) |= FLAG(_glow_particle_trailing_bit);
     *(float *)(particle + 0x18) =
       *(float *)(glow_tag + 0xc0) +
       t * (*(float *)(glow_tag + 0xd0) - *(float *)(glow_tag + 0xc0));
@@ -2362,7 +2377,7 @@ int glow_trailing_particle_new(int glow_widget /* @<ebx> */)
  * Confirmed: 2 cdecl args (object_handle @ [EBP+0x8], widget_datum @
  * [EBP+0xc]), early-out if either is -1. Confirmed: first
  * datum_get(*(data_t**)0x5a90c8, widget_datum) -> object datum; widget tag =
- * tag_get(0x676c7721, *(object_datum+0x224)). Confirmed: glow_update is
+ * tag_get(TAG_GROUP_GLW, *(object_datum+0x224)). Confirmed: glow_update is
  * register-arg — glow_widget@<eax> receives the second datum_get's return
  * (object datum ptr); object_handle pushed (the EDI push at 0x134b1f) is its
  * single cdecl stack arg. The trailing ADD ESP,0x1c batch-cleans this push plus
@@ -2378,7 +2393,7 @@ void glow_submit(int object_handle, int widget_datum)
 
   if ((object_handle != -1) && (widget_datum != -1)) {
     object_datum = (int)datum_get(*(data_t **)0x5a90c8, widget_datum);
-    widget_tag = tag_get(0x676c7721, *(int *)(object_datum + 0x224));
+    widget_tag = tag_get(TAG_GROUP_GLW, *(int *)(object_datum + 0x224));
     glow_update((int)datum_get(*(data_t **)0x5a90c8, widget_datum),
                 object_handle);
     object_get_markers_by_string_id((int)object_handle, widget_tag, local_buf,

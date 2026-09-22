@@ -5,13 +5,6 @@
 #ifndef NETWORK_CONNECTION_H
 #define NETWORK_CONNECTION_H
 
-/* Mirrors the original source's FLAG(bit) macro, quoted verbatim by binary
- * assert strings
- * ("server_connection->flags&FLAG(_connection_create_server_bit)"). */
-#ifndef FLAG
-#define FLAG(b) (1 << (b))
-#endif
-
 /* Connection flag bits (the flags field at connection+0x30).  The three
  * _connection_create_* names are quoted verbatim by binary assert strings in
  * network_connection.c.  The last two have no binary name (unverified names):
