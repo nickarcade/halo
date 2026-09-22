@@ -29671,16 +29671,16 @@
     "TIFFGetField": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 44.4,
+      "abi_modeled_mnemonic_pct": 93.8,
       "addr": "0x65e90",
       "end": "0x65ef8",
       "kind": "auto",
       "n_r": 39,
-      "opnd_percent": 28.9,
-      "raw_mnemonic_pct": 44.4,
+      "opnd_percent": 93.8,
+      "raw_mnemonic_pct": 93.8,
       "ref": "synth",
       "ref_sha": "b00492e07907a469",
-      "score": 44.4,
+      "score": 93.8,
       "source": "src/halo/bitmaps/libtiff/tif_dir.c"
     },
     "TIFFGetFieldDefaulted": {
@@ -29776,16 +29776,16 @@
     "TIFFVGetField": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 44.4,
+      "abi_modeled_mnemonic_pct": 93.8,
       "addr": "0x65f00",
       "end": "0x65f68",
       "kind": "auto",
       "n_r": 39,
-      "opnd_percent": 28.9,
-      "raw_mnemonic_pct": 44.4,
+      "opnd_percent": 93.8,
+      "raw_mnemonic_pct": 93.8,
       "ref": "synth",
       "ref_sha": "24d33c1d9f47f6e9",
-      "score": 44.4,
+      "score": 93.8,
       "source": "src/halo/bitmaps/libtiff/tif_dir.c"
     },
     "TIFFVGetFieldDefaulted": {
@@ -29801,6 +29801,21 @@
       "ref": "synth",
       "ref_sha": "56ba07f9ed6f72dd",
       "score": 92.6,
+      "source": "src/halo/bitmaps/libtiff/tif_dir.c"
+    },
+    "TIFFVSetField": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 42.3,
+      "addr": "0x65a70",
+      "end": "0x65ae1",
+      "kind": "auto",
+      "n_r": 51,
+      "opnd_percent": 37.4,
+      "raw_mnemonic_pct": 42.3,
+      "ref": "synth",
+      "ref_sha": "036caaa38abcf808",
+      "score": 42.3,
       "source": "src/halo/bitmaps/libtiff/tif_dir.c"
     },
     "TIFFWriteScanline": {

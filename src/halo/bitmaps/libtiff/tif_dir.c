@@ -880,6 +880,14 @@ int TIFFVSetField(void *tif_, int tag, va_list ap)
  * td_fieldsset and so can never satisfy the TIFFFieldSet test below. */
 #define FIELD_IGNORE 0xffff
 
+/* TIFFFindFieldInfo is a real out-of-line CALL in the reference (it scores
+ * 97.2% standalone) -- cl.exe /Ob2 inlines it into this caller by default,
+ * unrolling the scan loop into this frame and tripping a LOADW-WARN on the
+ * callee's field_tag. Bracket just this function so the VC71 scoring build
+ * keeps the call; the production clang build is unaffected. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth(0)
+#endif
 /* 0x65e90 */
 int TIFFGetField(int file, int field, ...)
 {
@@ -910,6 +918,9 @@ int TIFFGetField(int file, int field, ...)
   /* 0x65ef3. */
   return 0;
 }
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth()
+#endif
 
 /* ---------------------------------------------------------------------------
  * TIFFVGetField (0x65f00) -- upstream libtiff tif_dir.c.
@@ -935,6 +946,14 @@ int TIFFGetField(int file, int field, ...)
  *     `XOR EAX,EAX` exit at 0x65f63.
  * ------------------------------------------------------------------------- */
 
+/* TIFFFindFieldInfo is a real out-of-line CALL in the reference (it scores
+ * 97.2% standalone) -- cl.exe /Ob2 inlines it into this caller by default,
+ * unrolling the scan loop into this frame and tripping a LOADW-WARN on the
+ * callee's field_tag. Bracket just this function so the VC71 scoring build
+ * keeps the call; the production clang build is unaffected. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth(0)
+#endif
 /* 0x65f00 */
 int TIFFVGetField(void *tif_, unsigned int tag, char *ap)
 {
@@ -959,6 +978,9 @@ int TIFFVGetField(void *tif_, unsigned int tag, char *ap)
   /* 0x65f63. */
   return 0;
 }
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth()
+#endif
 
 /* ---------------------------------------------------------------------------
  * TIFFDefaultDirectory (0x66190) -- upstream libtiff tif_dir.c.
