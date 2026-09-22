@@ -473,9 +473,8 @@ bool virtual_keyboard_initialize(void)
  * true.
  *
  * cdecl, bool return in AL (MOV AL,1 success / XOR AL,AL failure). */
-bool virtual_keyboard_launch(wchar_t *text_buffer,
-                                     unsigned short buffer_size,
-                                     short caption_index)
+bool virtual_keyboard_launch(wchar_t *text_buffer, unsigned short buffer_size,
+                             short caption_index)
 {
   int len;
 
@@ -547,11 +546,11 @@ bool virtual_keyboard_active(void)
  *
  * 0x46cf06 is the byte-wide "done" flag documented alongside the other
  * virtual_keyboard_globals fields in this file (cleared by
- * virtual_keyboard_cancel/edit-buffer commit and the ACCEPT key path's error arms,
- * latched by virtual_keyboard_select's ACCEPT key path). Same shape as virtual_keyboard_active
- * (active predicate): the flag byte is returned raw in AL with no
- * TEST/SETNE normalization, so the C form is a direct byte load into the
- * unsigned-char `bool`, not a `!= 0` comparison.
+ * virtual_keyboard_cancel/edit-buffer commit and the ACCEPT key path's error
+ * arms, latched by virtual_keyboard_select's ACCEPT key path). Same shape as
+ * virtual_keyboard_active (active predicate): the flag byte is returned raw in
+ * AL with no TEST/SETNE normalization, so the C form is a direct byte load into
+ * the unsigned-char `bool`, not a `!= 0` comparison.
  *
  * No callees. Single caller (UNCONDITIONAL_CALL, from xrefs): new_campaign_decision
  * @0xf04db. Name kept mechanical: behaviour is clear but there is no
@@ -570,7 +569,8 @@ bool virtual_keyboard_last_exit_saved_text(void)
  * so duplicate/merged keys are stepped over in one press. Stores the new
  * column, plays the UI cursor-move sound (selector 1), and returns 1 (move
  * accepted -> caller latches last_move_dir/last_move_time). Column analogue
- * of the row handlers virtual_keyboard_tab_up/5750; sibling of virtual_keyboard_tab_left/57a0/5fb0.
+ * of the row handlers virtual_keyboard_tab_up/5750; sibling of
+ * virtual_keyboard_tab_left/57a0/5fb0.
  *
  * Disasm notes: row (0x46cef8) is MOVSX-loaded and scaled ONCE before the
  * loop (MOVSX ECX,[0x46cef8]; IMUL ECX,ECX,0xb), so row*0xb is loop-
@@ -585,8 +585,9 @@ bool virtual_keyboard_last_exit_saved_text(void)
  * incl/xorl %eax, plus one extra zeroing of EAX before the 16-bit load and the
  * original's loop-entry JMP. Neither `col++` nor `(short)(col + 1)` changes
  * this -- VC71 promotes to 32-bit either way. Same ceiling as the sibling row
- * handlers (virtual_keyboard_tab_up 75.6%, virtual_keyboard_tab_down 82.6%, virtual_keyboard_cancel 83.0%).
- * Behaviour is carried by equivalence: 100/100 seeds, 92% coverage. */
+ * handlers (virtual_keyboard_tab_up 75.6%, virtual_keyboard_tab_down 82.6%,
+ * virtual_keyboard_cancel 83.0%). Behaviour is carried by equivalence: 100/100
+ * seeds, 92% coverage. */
 char virtual_keyboard_tab_right(void)
 {
   int row_offset;
@@ -651,7 +652,8 @@ char virtual_keyboard_tab_up(void)
  * the character under the pre-move cursor, so duplicate/merged keys are
  * stepped over in one press. Stores the new row, plays the UI cursor-move
  * sound (selector 1), and returns 1 (move accepted -> caller latches
- * last_move_dir/last_move_time). Sibling of virtual_keyboard_tab_left/56b0/5700.
+ * last_move_dir/last_move_time). Sibling of
+ * virtual_keyboard_tab_left/56b0/5700.
  *
  * Disasm notes: row is held in AX for the whole loop (16-bit inc/cmp/xor)
  * and stored to the global once after the loop; the pre-move key byte is
@@ -751,6 +753,19 @@ void virtual_keyboard_backspace(void)
   ui_play_audio_feedback_sound(1);
 }
 
+/* virtual_keyboard_render (0xf5fa0)
+ * Guarded render entry point. Reads the byte "active" flag at offset 0 of the
+ * virtual_keyboard_globals block (0x46cef0); if non-zero, tail-calls
+ * virtual_keyboard_render_internal (0xf5900), else returns.
+ * Disasm: MOV AL,[0x46cef0] / TEST AL,AL / JZ +5 / JMP 0xf5900 / RET.
+ * The original tail-calls (JMP), so no frame is set up. */
+void virtual_keyboard_render(void)
+{
+  if (*(uint8_t *)0x46cef0 != 0) {
+    virtual_keyboard_render_internal();
+  }
+}
+
 /* Virtual keyboard action-key handler (0xf5fb0).
  * TU: c:\halo\SOURCE\interface\virtual_keyboard.c (__FILE__ assert @0x28a854,
  * assert text @0x28aa58, L".fortune" @0x28aa44). kb.json files 0xf5fb0 under
@@ -767,25 +782,21 @@ void virtual_keyboard_backspace(void)
  *                    target text, or the typed name is unique, latch "done"
  *                    (0x46cf06 = 1); an empty buffer raises UI error 0x1d and
  *                    a duplicate name raises 0x1b, both of which also commit
- *                    via virtual_keyboard_cancel. Always plays selector 3, clears the
- *                    active flag (0x46cef0) and flushes the event queue.
- *   0x25/26/27      - toggle shift / caps / symbol modifier bytes
- *                    (0x46cef1/2/3); selector 1.
- *   0x28  CLEAR/BS  - if the buffer is still pristine (0x46cf07 == 1) wipe it
- *                    whole and rewind the caret, otherwise delete one wide
- *                    char via virtual_keyboard_backspace.
- *   0x29/0x2a       - caret left / right by one UTF-16 cell; clears the
- *                    pristine flag and plays selector 1.
- *   0x2b  SPACE     - like the default key path but inserts L' '; the room
- *                    check is delegated to virtual_keyboard_free_space_in_text_buffer (returns the free
- *                    cell count in EAX; < 2 rejects with selector 4).
- *   default         - insert the keymap character: shift the tail right one
- *                    cell, resolve the character through virtual_keyboard_get_character
- *                    (key code passed in SI, wide char returned in AX), then
- *                    advance the caret. Typing ".fortune" is an easter egg:
- *                    it picks a fortune index 0xb + (system_milliseconds()
- *                    % 10) into 0x46cf04 and either clears the buffer or
- *                    replaces it with the working string at 0x46cf18.
+ *                    via virtual_keyboard_cancel. Always plays selector 3,
+ * clears the active flag (0x46cef0) and flushes the event queue. 0x25/26/27 -
+ * toggle shift / caps / symbol modifier bytes (0x46cef1/2/3); selector 1. 0x28
+ * CLEAR/BS  - if the buffer is still pristine (0x46cf07 == 1) wipe it whole and
+ * rewind the caret, otherwise delete one wide char via
+ * virtual_keyboard_backspace. 0x29/0x2a       - caret left / right by one
+ * UTF-16 cell; clears the pristine flag and plays selector 1. 0x2b  SPACE     -
+ * like the default key path but inserts L' '; the room check is delegated to
+ * virtual_keyboard_free_space_in_text_buffer (returns the free cell count in
+ * EAX; < 2 rejects with selector 4). default         - insert the keymap
+ * character: shift the tail right one cell, resolve the character through
+ * virtual_keyboard_get_character (key code passed in SI, wide char returned in
+ * AX), then advance the caret. Typing ".fortune" is an easter egg: it picks a
+ * fortune index 0xb + (system_milliseconds() % 10) into 0x46cf04 and either
+ * clears the buffer or replaces it with the working string at 0x46cf18.
  *
  * Globals: 0x46cef0 active, 0x46cef1/2/3 modifier toggles, 0x46cef8 row,
  * 0x46cefa col, 0x46cefc buffer_size (bytes, unsigned 16-bit via MOVZX),
@@ -977,8 +988,9 @@ char virtual_keyboard_select(void)
  * Keymap dispatch table at 0x28a790 is a signed byte array indexed
  * [row * 0xb + col] (11 columns) yielding the character stored at 0x46cf00.
  *
- * Move handlers virtual_keyboard_tab_left/56b0/5700/5750/5fb0/57a0 return a char in AL
- * (0/1); the return latches last_move_dir + last_move_time when it is 1.
+ * Move handlers virtual_keyboard_tab_left/56b0/5700/5750/5fb0/57a0 return a
+ * char in AL (0/1); the return latches last_move_dir + last_move_time when it
+ * is 1.
  */
 
 /* Controller input event record; event_manager_get_next_event writes 8 bytes
@@ -1436,10 +1448,9 @@ void item_adjust_for_angular_velocity_change(int item_handle)
   float inv_mag;
 
   item_obj = (char *)object_get_and_verify_type(item_handle, 0x1c);
-  mag = sqrtf(
-    *(float *)(item_obj + 0x3c) * *(float *)(item_obj + 0x3c) +
-    *(float *)(item_obj + 0x40) * *(float *)(item_obj + 0x40) +
-    *(float *)(item_obj + 0x44) * *(float *)(item_obj + 0x44));
+  mag = sqrtf(*(float *)(item_obj + 0x3c) * *(float *)(item_obj + 0x3c) +
+              *(float *)(item_obj + 0x40) * *(float *)(item_obj + 0x40) +
+              *(float *)(item_obj + 0x44) * *(float *)(item_obj + 0x44));
 
   if (mag != 0.0f) {
     *(uint32_t *)(item_obj + 0x1a4) = *(uint32_t *)(item_obj + 0x1a4) | 4;
@@ -1551,11 +1562,11 @@ char valid_real_matrix4x3(float *mat)
  * (random_seed_get_direction3d) for degenerate case. Confirmed: CALL 0x121e0
  * (FUN_000121e0) for random angle
  * [-pi/4, pi/4]. Confirmed: CALL 0x213c0 (vector3d_add) for angular velocity
- * accumulation. Confirmed: CALL 0xf6b80 (item_adjust_for_angular_velocity_change) with item_handle in EAX.
- * Confirmed: CALL 0x13d920 (object_set_garbage_flag) with (handle, 0).
- * Confirmed: global collision depth at 0x4761d8 (int16_t).
- * Confirmed: collision user stack at 0x5a8c80.
- * Confirmed: global up vector pointer at 0x31fc44 → {0, 0, 1}.
+ * accumulation. Confirmed: CALL 0xf6b80
+ * (item_adjust_for_angular_velocity_change) with item_handle in EAX. Confirmed:
+ * CALL 0x13d920 (object_set_garbage_flag) with (handle, 0). Confirmed: global
+ * collision depth at 0x4761d8 (int16_t). Confirmed: collision user stack at
+ * 0x5a8c80. Confirmed: global up vector pointer at 0x31fc44 → {0, 0, 1}.
  * Confirmed: epsilon constant at 0x253f44 = ~0.0001f.
  * Confirmed: offset constant at 0x2533e8 = 0.05f.
  * Confirmed: zero constant at 0x2533c0 = 0.0f.
@@ -1783,10 +1794,10 @@ typedef struct {
  * Confirmed: returns 1 in AL (MOV AL,0x1 immediately before the epilogue).
  * Confirmed: asserts at items.c lines 0xae and 0x1d4 (collision depth) and
  *   0x11b (unreachable surface type), all tailing into system_exit(-1).
- * Confirmed: item_align_to_normal_and_point is called with three register arguments
- *   (EAX = optional out point, ESI = normal, EBX = item handle) plus one
- *   stack argument; see its kb.json declaration.
- * Confirmed: item_adjust_for_angular_velocity_change takes the item handle in EAX.
+ * Confirmed: item_align_to_normal_and_point is called with three register
+ * arguments (EAX = optional out point, ESI = normal, EBX = item handle) plus
+ * one stack argument; see its kb.json declaration. Confirmed:
+ * item_adjust_for_angular_velocity_change takes the item handle in EAX.
  * Uncertain: the exact semantics of the marker/collision record fields;
  *   they are addressed by raw offset into the single 0x6c-byte buffer that
  *   VC7.1 shares between the marker record and the collision result. */
@@ -1878,9 +1889,9 @@ bool item_update(int item_handle)
 
         if (*(int *)(item_tag + 0x254) != NONE &&
             material_effect_visible(marker_buf + 0x34)) {
-          material_effect_new(*(int *)(item_tag + 0x254), 8,
-                       *(int16_t *)(marker_buf + 0x50), marker_buf + 0x34,
-                       marker_buf + 0x40, marker_buf + 0x28, scale);
+          material_effect_new(
+            *(int *)(item_tag + 0x254), 8, *(int16_t *)(marker_buf + 0x50),
+            marker_buf + 0x34, marker_buf + 0x40, marker_buf + 0x28, scale);
         }
 
         if (*(int *)(item_tag + 0x264) != NONE) {
@@ -1913,8 +1924,9 @@ bool item_update(int item_handle)
           new_point[0] = *(float *)(marker_buf + 0x34);
           new_point[1] = *(float *)(marker_buf + 0x38);
           new_point[2] = *(float *)(marker_buf + 0x3c);
-          item_align_to_normal_and_point(new_point, (float *)(marker_buf + 0x40), item_handle,
-                       (float *)(marker_buf + 0x34));
+          item_align_to_normal_and_point(
+            new_point, (float *)(marker_buf + 0x40), item_handle,
+            (float *)(marker_buf + 0x34));
 
           velocity[2] = 0.0f;
           velocity[1] = 0.0f;
@@ -2012,8 +2024,8 @@ bool item_update(int item_handle)
           node_matrix = object_get_node_matrix(*(int *)(item_obj + 0x1b8), 0);
           matrix_transform_point(node_matrix, (float *)(item_obj + 0x1bc),
                                  new_point);
-          item_align_to_normal_and_point((float *)0, (float *)(item_obj + 0x1c8), item_handle,
-                       new_point);
+          item_align_to_normal_and_point(
+            (float *)0, (float *)(item_obj + 0x1c8), item_handle, new_point);
         } else {
           FUN_00012fb0(*(float **)0x31fc50, *(float *)0x32512c, new_point);
           *(uint32_t *)(item_obj + 0x1a4) =

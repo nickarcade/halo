@@ -318,6 +318,35 @@ bool main_menu_screen_is_active(void)
   return false;
 }
 
+/* ui_set_next_level (0xe4420) — selects what happens after the current solo
+ * level is completed. The incoming slot is read as a 16-bit index
+ * (0xe4423-0xe4426: MOV ECX,[EBP+8]; MOVSX EAX,CX), so only the low word is
+ * significant:
+ *   -1        → roll the credits (tail JMP 0x102070 at 0xe4462)
+ *   [0, 9]    → look the solo level name up by index and arm it as the next
+ *               map, then disallow persistent storage (tail JMP 0xfff90)
+ *   otherwise → priority-2 "unknown level" error and fall back to the main
+ *               menu (tail JMP 0x100620)
+ * The single ADD ESP,0x8 at 0xe4443 is coalesced cleanup for the index push
+ * at 0xe4437 and the name push at 0xe443d. */
+void ui_set_next_level(int level_index)
+{
+  int16_t index;
+
+  index = (int16_t)level_index;
+  if (index != -1) {
+    if (index >= 0 && index <= 9) {
+      main_set_map_name(main_get_solo_level_name(index));
+      main_disallow_persistent_storage();
+      return;
+    }
+    error(2, "unknown level");
+    main_goto_main_menu();
+    return;
+  }
+  main_roll_credits();
+}
+
 /* ui_widget_load_progress_widget — stub that fires a priority-2 error
  * stating the old loading progress screen was replaced. The original
  * progress widget system was superseded by the "glowy halo gravy"
@@ -693,6 +722,114 @@ int16_t get_icon_type(const wchar_t *name)
   return index;
 }
 
+/* render_state_bitmap (0xe4ad0) — draws one inline icon bitmap for the
+ * draw_string_and_hack_in_icons() text pass (sole caller FUN_000e5de0, the
+ * unconditional call at 0xe60cb) and advances the running x stored in
+ * dst_rect[1].
+ *
+ * The bitmap tag comes from the interface globals tag block, the same block
+ * interface_get_tag_index() walks: game globals +0x140, element 0, element
+ * size 0x130; +0xec is the tag_index field of interface tag slot 14
+ * (0xec == 14 * 0x10 + 0xc). When the block is empty the element pointer is
+ * NULL and the load happens anyway, exactly as in the reference (MOV EDI,
+ * [EAX + 0xec] with EAX zeroed at 0xe4b01) and as interface.c already
+ * reproduces. The leading global_scenario_get() at 0xe4ad6 has its result
+ * discarded; it is preserved because the reference makes it unconditionally.
+ *
+ * ABI, from the call site at 0xe60cb (PUSH ECX ... PUSH EAX / PUSH EDX /
+ * LEA EBX,[EBP + -0x14] / CALL / ADD ESP,0xc — three stack arguments, EBX
+ * and ESI live in): @ebx = dst_rect, @esi = state, stack = (param_1, color,
+ * param_3). Only the second stack argument is read here ([EBP + 0xc] at
+ * 0xe4be1); param_1 and param_3 are never touched on any path, so their
+ * meaning is unproven and they stay unnamed. The caller builds the color
+ * argument as (rgb & 0xffffff) | alpha.
+ *
+ * state offsets accessed (meanings unproven except as noted):
+ *   +0x00 uint16  bitmap sequence index (zero-extended at 0xe4b3d)
+ *   +0x02 int16   x advance bias
+ *   +0x04 int16   x offset, multiplied by the screen scale
+ *   +0x06 int16   y offset, multiplied by the screen scale
+ *   +0x08 int32   override color, used when (+0x0d & 2)
+ *   +0x0c int8    animation divisor: frames advance at 30/s divided by it
+ *   +0x0d uint8   flags; bit 2 selects +0x08 as the color, bit 4 advances
+ *                 by +0x02 alone instead of by the bitmap width
+ * dst_rect[1] (+0x2) is the running x, dst_rect[2] (+0x4) the baseline y.
+ * bitmap_data + 4 is the bitmap_data width field (int16) — corroborated by
+ * the sprite path, which scales it by the sprite's u extent
+ * (sprite[1] - sprite[0]) to get a pixel width.
+ *
+ * The two FPU constants are 1.0f at 0x2533c8 (FADD, x) and 2.0f at 0x253f40
+ * (FSUB, y). The y term is dst_rect[2] - state+0x6 * scale: FILD of the
+ * dst_rect value is pushed first and FSUBP computes st(1) - st(0). */
+void render_state_bitmap(short *dst_rect, void *state, int param_1, int color,
+                         int param_3)
+{
+  char *globals;
+  char *element;
+  char *s;
+  int bitmap_tag;
+  unsigned int frame_index;
+  int bitmap_data;
+  int sprite;
+  float scale;
+  int draw_color;
+  short screen_pos[2];
+
+  global_scenario_get();
+  globals = (char *)game_globals_get();
+  if (*(int *)(globals + 0x140) != 0) {
+    element = (char *)tag_block_get_element(globals + 0x140, 0, 0x130);
+  } else {
+    element = NULL;
+  }
+  bitmap_tag = *(int *)(element + 0xec);
+
+  s = (char *)state;
+  frame_index = 0;
+  bitmap_data = 0;
+  sprite = 0;
+  if (*(signed char *)(s + 0xc) != 0) {
+    frame_index = (system_milliseconds() * 30) / 1000 /
+                  (unsigned int)(int)*(signed char *)(s + 0xc);
+  }
+  hud_retrieve_bitmap_and_bounding_rect(bitmap_tag, (short)*(unsigned short *)s, frame_index,
+               &bitmap_data, &sprite);
+  if (bitmap_data == 0) {
+    return;
+  }
+  if (xbox_texture_cache_get_hardware_format((void *)bitmap_data, false,
+                                             true) == NULL) {
+    return;
+  }
+
+  scale = hud_globals_get_scale(local_player_count() > 1);
+  screen_pos[0] = (short)(int)((float)(int)*(short *)(s + 4) * scale +
+                               (float)(int)dst_rect[1] + 1.0f);
+  screen_pos[1] = (short)(int)((float)(int)dst_rect[2] -
+                               (float)(int)*(short *)(s + 6) * scale - 2.0f);
+
+  if ((*(unsigned char *)(s + 0xd) & 2) != 0) {
+    draw_color = *(int *)(s + 8);
+  } else {
+    draw_color = color;
+  }
+  hud_draw_bitmap_direct(bitmap_data, 2, screen_pos, sprite, scale, 0.0f, draw_color, 0);
+
+  if ((*(unsigned char *)(s + 0xd) & 4) != 0) {
+    dst_rect[1] = (short)(*(short *)(s + 2) + screen_pos[0]);
+    return;
+  }
+  if (sprite != 0) {
+    dst_rect[1] =
+      (short)(int)((*(float *)(sprite + 4) - *(float *)sprite) *
+                     (float)(int)*(short *)(bitmap_data + 4) +
+                   (float)(int)*(short *)(s + 2) + (float)(int)screen_pos[0]);
+    return;
+  }
+  dst_rect[1] =
+    (short)(*(short *)(bitmap_data + 4) + *(short *)(s + 2) + screen_pos[0]);
+}
+
 /* render_state_text (0xe4c70) — draws text into dst_rect using the indent
  * difference between src_rect and dst_rect (row 1, e.g. "top"), then copies
  * src_rect back into dst_rect. A negative computed indent is clamped to 0
@@ -866,6 +1003,96 @@ void column_list_update(void *widget, void *definition);
 void widget_instance_tab_to_next_valid_widget(void *widget);
 
 void widget_instance_tab_to_previous_valid_widget(void *widget);
+
+/* search_and_replace (0xe5180) — in-place/realloc search-and-replace over a
+ * wide string held by *text. Returns the number of replacements, 0 when
+ * text or *text is NULL or no match exists, and -1 when the pool realloc
+ * needed to grow the buffer fails. When the replacement is no longer than
+ * the search string the edit happens in place and *text is left alone;
+ * otherwise the buffer is reallocated from the widget stack memory pool at
+ * [0x31e04c] (assert file/line "ui_widget.c":0x1382) and *text is
+ * rewritten. Lengths are in wide characters; total_length counts the
+ * terminator. */
+int search_and_replace(const wchar_t *search, const wchar_t *replace, wchar_t **text)
+{
+  wchar_t *buffer;
+  wchar_t *found;
+  void *block;
+  int search_length;
+  int replace_length;
+  int total_length;
+  int delta;
+  int count;
+
+  count = 0;
+  if (text == NULL || *text == NULL) {
+    return count;
+  }
+
+  buffer = *text;
+  search_length = ustrlen((const unsigned short *)search);
+  replace_length = ustrlen((const unsigned short *)replace);
+  total_length = ustrlen((const unsigned short *)buffer) + 1;
+
+  if (replace_length <= search_length) {
+    delta = search_length - replace_length;
+    found = ustrstr(buffer, search);
+    while (found != NULL) {
+      count++;
+      csmemcpy(found, (void *)replace, (size_t)(replace_length * 2));
+      if (delta > 0) {
+        csmemmove(found + replace_length, found + search_length,
+                  (unsigned int)((total_length -
+                                  ((int)(found - buffer) + replace_length)) *
+                                 2));
+        total_length -= delta;
+      }
+      found = ustrstr(buffer, search);
+    }
+    return count;
+  }
+
+  delta = replace_length - search_length;
+  found = ustrstr(buffer, search);
+  if (found == NULL) {
+    return count;
+  }
+  do {
+    count++;
+    found = ustrstr(found + search_length, search);
+  } while (found != NULL);
+
+  if (count <= 0) {
+    return count;
+  }
+
+  block = stack_memory_pool_realloc(
+    *(void **)0x31e04c, (int)buffer,
+    (unsigned short)((delta * count + total_length) * 2),
+    "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x1382);
+  if (block == NULL) {
+    return -1;
+  }
+  buffer = (wchar_t *)block;
+
+  found = ustrstr(buffer, search);
+  if (found != NULL) {
+    replace_length = replace_length * 2;
+    do {
+      csmemmove((wchar_t *)((char *)found + replace_length),
+                found + search_length,
+                (unsigned int)((total_length -
+                                ((int)(found - buffer) + search_length)) *
+                               2));
+      csmemcpy(found, (void *)replace, (size_t)replace_length);
+      total_length += delta;
+      found = ustrstr(buffer, search);
+    } while (found != NULL);
+  }
+
+  *text = buffer;
+  return count;
+}
 
 /* Local shape-only float4, not a claimed Bungie struct: mirrors the
  * reference's whole-struct copy (see get_ui_argb_white below) so the

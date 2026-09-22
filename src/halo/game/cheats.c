@@ -1,3 +1,5 @@
+#include "../../x87_math.h"
+
 void FUN_000a54b0(void)
 {
   int16_t local_player_index;
@@ -36,7 +38,8 @@ void FUN_000a54b0(void)
       weather_particle_system_delete(local_player_index);
     }
     if (particle_system_tag_index != -1) {
-      weather_particle_system_new(local_player_index, particle_system_tag_index, 1.0f);
+      weather_particle_system_new(local_player_index, particle_system_tag_index,
+                                  1.0f);
     }
   }
 
@@ -45,20 +48,59 @@ void FUN_000a54b0(void)
   }
 }
 
+/* FUN_000a5590 (0xa5590)
+ *
+ * Linear falloff ramp over a float pair. Both parameters are proven floats by
+ * the body itself: FLD float ptr [EBP+0x8] and FLD float ptr [EBP+0xc].
+ * Confirmed from disassembly (no calls, no globals other than .rdata):
+ *   FLD [EBP+0xc]; FMUL [0x253398]; FSTP [EBP-0x4]   -> half = range * 0.5f
+ *   FLD [EBP+0x8]; FCOMP [EBP+0xc]; TEST AH,0x1; JNZ -> C0 set means
+ *     value < range, so the FALL-THROUGH (value >= range) returns
+ *     FLD [0x2533c0] = 0.0f.
+ *   FLD [EBP+0x8]; FCOMP [EBP-0x4]; TEST AH,0x41; JP -> JP is taken only when
+ *     neither C0 nor C3 is set (value > half), so the FALL-THROUGH
+ *     (value < half or value == half) returns FLD [0x2533c8] = 1.0f.
+ *   FLD [EBP+0xc]; FSUB [EBP+0x8]; FLD [EBP+0xc]; FSUB [EBP-0x4]; FDIVP
+ *     -> ST(1)/ST(0) = (range - value) / (range - half), in that operand
+ *     order.
+ * 0x253398 = 0.5f, 0x2533c0 = 0.0f, 0x2533c8 = 1.0f are the shared .rdata
+ * constants used throughout the binary; read through their addresses so the
+ * reference's FLD/FMUL m32 form is preserved (a literal would let the
+ * compiler pick FLDZ/FLD1).
+ * The semantic meaning of the two parameters is unknown: the only callers are
+ * FUN_000a55e0 (which just forwards its own arguments) and the unported
+ * FUN_000a5ac0, so the names stay generic.
+ */
+float FUN_000a5590(float value, float range)
+{
+  float half;
+
+  half = range * *(float *)0x253398;
+  if (value >= range) {
+    return *(float *)0x2533c0;
+  }
+  if (value <= half) {
+    return *(float *)0x2533c8;
+  }
+  return (range - value) / (range - half);
+}
+
 /* FUN_000a55e0 (0xa55e0)
  *
- * Multiplies the results of two calls to FUN_000a5590 (0xa5590, unported,
- * cdecl, 2 raw dword args -> float in ST0). Confirmed from disassembly:
+ * Multiplies the results of two calls to FUN_000a5590 (0xa5590, cdecl,
+ * 2 float args -> float in ST0; the callee loads both stack slots with
+ * FLD float ptr, so these forwarded arguments are floats, not ints).
+ * Confirmed from disassembly:
  *   000a55ec CALL FUN_000a5590(arg1, arg2) -> FSTP [EBP-4] (saved)
  *   000a55fc CALL FUN_000a5590(arg3, arg4) -> FMUL [EBP-4] (result * saved)
  * Argument push order at each call site is the standard cdecl
  * right-to-left push (second param pushed first), so callee arg order is
  * NOT swapped: call 1 is FUN_000a5590(arg1, arg2), call 2 is
  * FUN_000a5590(arg3, arg4). No evidence of the semantic meaning of arg1-4
- * or of FUN_000a5590 itself beyond its arity/return -- kept as generic int
- * params and no callers found in this artifact (xrefs_to: none).
+ * beyond their float type -- kept as generic names, and no callers found in
+ * this artifact (xrefs_to: none).
  */
-float FUN_000a55e0(int arg1, int arg2, int arg3, int arg4)
+float FUN_000a55e0(float arg1, float arg2, float arg3, float arg4)
 {
   float saved;
 
@@ -121,6 +163,33 @@ int compare_targets(const void *a, const void *b)
 
   return (int)(*(const uint32_t *)ra & 0xffff) -
          (int)(*(const uint32_t *)rb & 0xffff);
+}
+
+/* reciprocal_square_root (0xa57a0)
+ *
+ * Whole function, verbatim from the disassembly (7 instructions, no calls):
+ *   000a57a0 PUSH EBP
+ *   000a57a1 MOV  EBP,ESP
+ *   000a57a3 FLD  float ptr [EBP+0x8]   -> the single argument is a float
+ *   000a57a6 FSQRT                      -> ST(0) = sqrt(value)
+ *   000a57a8 FDIVR float ptr [0x2533c8] -> ST(0) = [0x2533c8] / sqrt(value)
+ *   000a57ae POP  EBP
+ *   000a57af RET                        -> result returned in ST(0)
+ *
+ * FDIVR is the reversed form, so the .rdata constant is the dividend, not the
+ * divisor.  0x2533c8 is the same .rdata slot FUN_000a5590 (0xa5590) loads as
+ * its 1.0f return value, so the constant is 1.0f and the function is
+ * 1.0f / sqrt(value).
+ *
+ * No domain guard: a negative or zero argument is passed straight to FSQRT,
+ * matching the original.  The Ghidra decompile for this address is stale (an
+ * empty `void __cdecl FUN_000a57a0(void)`); the disassembly above is the
+ * evidence used here, and it also proves the float parameter and float return
+ * that the kb.json decl previously spelled `void (void)`.
+ */
+real reciprocal_square_root(real value)
+{
+  return 1.0f / sqrtf(value);
 }
 
 /* set_real_euler_angles2d (0xa5810)
@@ -500,4 +569,90 @@ void cheat_all_powerups(void)
   if (flags & 0x10)
     *(unsigned int *)(weapon + 0x1b4) = flags | 0x20;
   *(unsigned int *)(weapon + 0x1b4) |= 0x10;
+}
+
+/* FUN_000a6930 -- spawn one object per non-NONE tag index in a 0x10-byte
+ * stride record array, arranged on a circle around the first armed player.
+ *
+ * records (param_1) -- base of the record array; each 0x10-byte element holds
+ *                      a tag index at +0xC (NONE (-1) skips that slot).
+ * count   (param_2) -- element count, re-read as a signed 16-bit word from the
+ *                      stack slot on every iteration (MOV AX,[EBP+0xC]).
+ *
+ * Bails out when no player has a weapon equipped (FUN_000a67c0 == -1).
+ * Otherwise takes that player's object (player+0x34) world position and
+ * orientation, then for each populated slot places an object at
+ *   spacing = min(*(float *)0x255a54 / count, *(float *)0x26b164)
+ *   angle   = (i - count/2) * spacing + atan2(forward.x, forward.y)
+ *   x = cos(angle) * *(float *)0x2533ec + position.x
+ *   y = sin(angle) * *(float *)0x2533ec + position.y
+ *   z = position.z + *(float *)0x2533f0
+ * with the player's forward/up copied into the placement descriptor.
+ * The constants keep their raw addresses because their values are not proven
+ * here beyond 0x255a54 = 6.2831855f (2*pi, named in structures.c).
+ *
+ * Call-site verification (raw disassembly at 0xa6930):
+ *   0xa694f datum_get: PUSH EAX(*(data_t **)0x5aa6d4), PUSH EAX(handle)
+ *   0xa695c object_get_and_verify_type: PUSH 3, PUSH [ESI+0x34]; result unused
+ *   0xa6969 object_get_world_position: PUSH EDX(&position), PUSH [ESI+0x34]
+ *   0xa697a object_get_orientation: PUSH ECX(&up), PUSH EDX(&forward),
+ *           PUSH EAX([ESI+0x34]).  ADD ESP,0x24 merges the cleanup of all
+ *           four calls, so the ARG_COUNT=9 hazard on this site is that merge
+ *           and not a 9-argument call.
+ *   0xa69fb object_placement_data_new: PUSH -1, PUSH ECX(*record),
+ *           PUSH EAX(&placement)
+ *   0xa6a62 object_new: PUSH ECX(&placement); ADD ESP,0x10 covers both.
+ * FPATAN operand order: FLD [EBP-0x10] (forward.x) then FLD [EBP-0x0c]
+ * (forward.y), so ST(1) = forward.x is the atan2 numerator.
+ * The placement buffer is 0x88 bytes ([EBP-0xB0 .. EBP-0x29]), matching the
+ * 0x88 bytes object_placement_data_new writes.
+ */
+void FUN_000a6930(int records, unsigned short count)
+{
+  object_placement_data placement;
+  vector3_t position;
+  vector3_t forward;
+  vector3_t up;
+  int player_handle;
+  char *player;
+  int i;
+  int *record;
+  unsigned int remaining;
+  float spacing;
+  float angle;
+
+  player_handle = FUN_000a67c0();
+  if (player_handle == -1)
+    return;
+  player = (char *)datum_get(player_data, player_handle);
+  object_get_and_verify_type(*(int *)(player + 0x34), 3);
+  object_get_world_position(*(int *)(player + 0x34), &position);
+  object_get_orientation(*(int *)(player + 0x34), (float *)&forward,
+                         (float *)&up);
+  if ((short)count <= 0)
+    return;
+  i = 0;
+  record = (int *)((char *)records + 0xc);
+  remaining = count;
+  do {
+    if (*record != -1) {
+      spacing = *(float *)0x00255a54 / (float)(short)count;
+      if (spacing > *(float *)0x0026b164)
+        spacing = *(float *)0x0026b164;
+      angle = (float)(i - (short)count / 2) * spacing +
+              (float)atan2((double)forward.x, (double)forward.y);
+      object_placement_data_new(&placement, *record, -1);
+      placement.forward = forward;
+      placement.up = up;
+      placement.position_x =
+        x87_fcos(angle) * *(float *)0x002533ec + position.x;
+      placement.position_y =
+        x87_fsin(angle) * *(float *)0x002533ec + position.y;
+      placement.position_z = position.z + *(float *)0x002533f0;
+      object_new(&placement);
+    }
+    i++;
+    record += 4;
+    remaining--;
+  } while (remaining != 0);
 }

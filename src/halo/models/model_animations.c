@@ -266,9 +266,9 @@ void FUN_00120470(void *page, int handle)
  *
  * kb.json maps this address into model_animations.obj by link-time object
  * grouping; same texture-page allocator TU as FUN_00120250/FUN_00120340/
- * FUN_00120400/FUN_00120470 immediately above (unconditional texture_page_verify()
- * first, and FUN_0011ff70(page) to commit — same corrected bool-returning
- * decl already used by those functions).
+ * FUN_00120400/FUN_00120470 immediately above (unconditional
+ * texture_page_verify() first, and FUN_0011ff70(page) to commit — same
+ * corrected bool-returning decl already used by those functions).
  *
  * Confirmed: cdecl, 3 args (page ptr at [EBP+8]->ESI, new width int16 at
  * [EBP+0xc], new height int16 at [EBP+0x10]). Confirmed: returns bool in AL
@@ -418,6 +418,40 @@ const char *FUN_001205f0(void *string_table, int16_t index)
     result = "#<invalid>";
   }
   return result;
+}
+
+/* build_damage_animation_index (0x120670) — flatten a (damage_type,
+ * damage_direction, damage_part) triple into a single animation index.
+ *
+ * Confirmed: cdecl, 3 stack args, each tested as a 16-bit value (TEST DI,DI /
+ * CMP DI,0x4 at 0x120679-0x120682, and likewise for BX and SI). Confirmed
+ * bounds from the assert strings: damage_type and damage_direction in [0,4),
+ * damage_part in [0,0xb). Assert lines 0x37/0x38/0x39 of
+ * c:\halo\SOURCE\models\model_animations.c, each followed by
+ * system_exit(-1). Confirmed index form: LEA EAX,[EBX+EDI*4] (damage_direction
+ * + damage_type*4), IMUL EAX,EAX,0xb, ADD EAX,ESI (damage_part).
+ */
+short build_damage_animation_index(short damage_type, short damage_direction,
+                                   short damage_part)
+{
+  if (damage_type < 0 || damage_type >= 4) {
+    display_assert(
+      "damage_type>=0 && damage_type<NUMBER_OF_ANIMATION_DAMAGE_TYPES",
+      "c:\\halo\\SOURCE\\models\\model_animations.c", 0x37, true);
+    system_exit(-1);
+  }
+  if (damage_direction < 0 || damage_direction >= 4) {
+    display_assert("damage_direction>=0 && "
+                   "damage_direction<NUMBER_OF_ANIMATION_DAMAGE_DIRECTIONS",
+                   "c:\\halo\\SOURCE\\models\\model_animations.c", 0x38, true);
+    system_exit(-1);
+  }
+  if (damage_part < 0 || damage_part >= 0xb) {
+    display_assert("damage_part>=0 && damage_part<NUMBER_OF_DAMAGE_PARTS",
+                   "c:\\halo\\SOURCE\\models\\model_animations.c", 0x39, true);
+    system_exit(-1);
+  }
+  return (short)((damage_direction + damage_type * 4) * 0xb + damage_part);
 }
 
 /* animation_get_x_offsets (0x120710) — Accumulate the first float of every
@@ -1277,9 +1311,8 @@ void animation_get_node_orientations(void *animation, float frame,
  * LEA ECX+EAX*0x2 at 0x121a44.
  */
 void animation_get_keyframe_scale(void *animation, float frame,
-                                               unsigned short scale_count,
-                                               short node_index,
-                                               void *out_scale)
+                                  unsigned short scale_count, short node_index,
+                                  void *out_scale)
 {
   char *anim;
   char *tag_data_base;
@@ -1871,9 +1904,9 @@ void overlay_animation_apply(void *anim_entry, int frame, void *node_data)
 
           if ((scale_flags & 1) != 0) {
             if (compressed != 0) {
-              animation_get_keyframe_scale(
-                anim_entry, (float)(int)frame_index,
-                (unsigned short)scale_count, node_index, &scale);
+              animation_get_keyframe_scale(anim_entry, (float)(int)frame_index,
+                                           (unsigned short)scale_count,
+                                           node_index, &scale);
               scale_count = scale_count + 1;
             } else {
               *(int *)&scale = data[0];
@@ -2073,17 +2106,16 @@ float *model_get_default_inverse_matrix(void *mode_tag, short node_index)
  * returns -1 without calling tag_get when tag_index == -1 (JZ at 0x123e5c).
  * Confirmed: CALL tag_get(0x6d6f6465 ('mode'), tag_index) at 0x123e64.
  * Confirmed: tag block at mode_tag+0xb8 — same tag block/element-size pair
- * (0x9c) as FUN_00123aa0 and model_get_default_inverse_matrix above, so this walks
- * the mode tag's node array. Confirmed: CALL
- * tag_block_get_element(nodes, index, 0x9c) at 0x123e87. Confirmed: CALL
- * csstrcmp(element, name) at 0x123e8e — the element pointer itself is passed
- * as the string, so the node name field is at offset 0x0 of the 0x9c-byte
- * node struct. Confirmed: loop index is a short — MOVSX EAX,DI at 0x123e9d
- * re-sign-extends it from DI before the count comparison, matching a
- * `short` C loop variable stored in a 32-bit register. Confirmed: on a
- * csstrcmp match (== 0) the function returns the index via MOV AX,DI at
- * 0x123ead; the tag_index==-1, empty-block, and no-match paths all fall
- * through to OR AX,0xffff at 0x123ea6 and return -1.
+ * (0x9c) as FUN_00123aa0 and model_get_default_inverse_matrix above, so this
+ * walks the mode tag's node array. Confirmed: CALL tag_block_get_element(nodes,
+ * index, 0x9c) at 0x123e87. Confirmed: CALL csstrcmp(element, name) at 0x123e8e
+ * — the element pointer itself is passed as the string, so the node name field
+ * is at offset 0x0 of the 0x9c-byte node struct. Confirmed: loop index is a
+ * short — MOVSX EAX,DI at 0x123e9d re-sign-extends it from DI before the count
+ * comparison, matching a `short` C loop variable stored in a 32-bit register.
+ * Confirmed: on a csstrcmp match (== 0) the function returns the index via MOV
+ * AX,DI at 0x123ead; the tag_index==-1, empty-block, and no-match paths all
+ * fall through to OR AX,0xffff at 0x123ea6 and return -1.
  */
 short FUN_00123e50(int tag_index, const char *name)
 {

@@ -154,7 +154,13 @@ typedef struct tiff_s {
    * directory member; every TIFFError/TIFFWarning call in _TIFFVSetField passes
    * `MOV ECX,dword ptr [tif]` as the module argument, which agrees. */
   char *tif_name; /* 0x00 */
-  unsigned char pad_04[0x06]; /* 0x04 */
+  /* File handle, read here as a SIGNED 16-bit value: EstimateStripByteCounts
+   * forwards it with `MOVSX ECX,word ptr [ESI+0x4]` (0x66472) into the
+   * file-size helper at 0x64f50. tif_open.c's fuller recovery of the same
+   * struct declares the same offset `short tif_fd` from independent evidence;
+   * upstream libtiff types it `int`, which this build narrowed. */
+  short tif_fd; /* 0x04 */
+  unsigned char pad_06[0x04]; /* 0x06 */
   /* Flag byte. _TIFFVSetField only ever ORs into it: 0x80 for the two tile
    * dimension tags (`OR byte ptr [EAX+0xa],0x80` at 0x65790/0x657b9) and 0x02
    * once the field bit is set (0x65886). Bit 7 is the same bit TIFFIsTiled
@@ -227,7 +233,35 @@ typedef struct tiff_s {
   char *td_model; /* 0xa8 */
   char *td_software; /* 0xac */
   char *td_pagename; /* 0xb0 */
-  unsigned char pad_b4[0x68]; /* 0xb4 */
+  unsigned char pad_b4[0x08]; /* 0xb4 */
+  /* The two per-strip arrays, proven by EstimateStripByteCounts: the malloc'd
+   * block is stored to +0xc0 (`MOV dword ptr [ESI+0xc0],EBX` at 0x6646a) and
+   * then indexed at [0], and +0xbc is loaded and dereferenced once
+   * (`MOV EDX,dword ptr [ESI+0xbc]` / `MOV EDX,dword ptr [EDX]` at
+   * 0x664cd-0x664d3) in the same expression upstream spells
+   * `td->td_stripoffset[i-1] + td->td_stripbytecount[i-1]`. Both are pointers
+   * to 32-bit counts; nothing here observes the element count. */
+  unsigned long *td_stripoffset; /* 0xbc */
+  unsigned long *td_stripbytecount; /* 0xc0 */
+  /* First word of the on-disk file header, which this build stores inline in
+   * the handle: TIFFFetchFloat compares it against 0x4d4d
+   * (`CMP word ptr [ESI+0xc4],0x4d4d` at 0x6677b) to pick the big-endian
+   * extraction arm. tif_open.c's independent recovery of the same struct
+   * declares an eight-byte tiff_header_t at 0xc4 whose first member is
+   * tiff_magic, which agrees. */
+  unsigned short tiff_magic; /* 0xc4 */
+  unsigned char pad_c6[0x06]; /* 0xc6 */
+  /* Two per-type tables indexed by tdir_type. Both are POINTERS, loaded and
+   * then indexed by type*4: `MOV EDI,dword ptr [ESI+0xcc]` /
+   * `MOV ECX,dword ptr [EDI+EDX*0x1]` with EDX already scaled (0x6678a-0x66793)
+   * and `MOV ECX,dword ptr [ESI+0xd0]` / `MOV ESI,dword ptr [ECX+EDX*0x1]`
+   * (0x66798-0x6679e). The 0xcc value supplies a SHR count and the 0xd0 value
+   * an AND mask, which is upstream libtiff's tif_typeshift / tif_typemask pair
+   * (tiffiop.h); the offsets are Bungie's. Element width is the observed dword
+   * load; signedness is unobservable, so upstream's unsigned typing is kept. */
+  const unsigned long *tif_typeshift; /* 0xcc */
+  const unsigned long *tif_typemask; /* 0xd0 */
+  unsigned char pad_d4[0x48]; /* 0xd4 */
   /* Codec teardown hook, called before a new compression scheme replaces the
    * current one (`MOV EAX,dword ptr [EAX+0x11c]` / `CALL EAX` at
    * 0x65399-0x653a6, one pushed argument). tif_open.c proves the identity: the
@@ -243,7 +277,18 @@ typedef struct tiff_s {
  * TIFFFieldInfo::field_bit and ::field_name. Nothing here observes the rest of
  * the row, so its size is unknown and the struct stops at the last read. */
 typedef struct tiff_field_info_s {
-  unsigned char pad_00[0x0c]; /* 0x00 */
+  /* Matched 16 bits wide by TIFFFindFieldInfo (`CMP word ptr [EAX],SI` at
+   * 0x66334 and `CMP CX,SI` at 0x66352, both against a word loaded from the
+   * tag argument slot), and tested 16 bits wide as the table terminator
+   * (`TEST CX,CX` at 0x66348/0x66367). Upstream libtiff spells this
+   * TIFFFieldInfo::field_tag as a 32-bit ttag_t; this build only ever reads
+   * the low word, so the width of the rest is unproven and stays padding. */
+  unsigned short field_tag; /* 0x00 */
+  unsigned char pad_02[6]; /* 0x02 */
+  /* Compared as a full dword against TIFFFindFieldInfo's second argument
+   * (`CMP EDX,dword ptr [EAX+0x8]` at 0x6633d, `CMP dword ptr [EAX+0x8],EDX`
+   * at 0x6635b). Upstream's TIFFFieldInfo::field_type (TIFFDataType). */
+  int field_type; /* 0x08 */
   unsigned short field_bit; /* 0x0c */
   /* Read by TIFFVSetField (0x65a70) as a 16-bit quantity compared against zero
    * (`CMP word ptr [EAX+0xe],DI` at 0x65a9a, DI == 0), gating the
@@ -995,4 +1040,648 @@ int TIFFDefaultDirectory(void *tif_)
   tif->field_0a &= ~TIFF_DIRTYDIRECT;
   /* 0x661f9. */
   return 1;
+}
+
+/* ---------------------------------------------------------------------------
+ * TIFFFindFieldInfo (0x66320) -- upstream libtiff's tag lookup, reduced by
+ * Bungie to a single static descriptor table with no TIFF handle argument.
+ *
+ * Confirmed from 0x66320-0x66378:
+ *   - Two cdecl stack arguments and nothing else: the tag is read 16 bits wide
+ *     (`MOV SI,word ptr [EBP+0x8]` at 0x6632e) and the data type as a dword
+ *     (`MOV EDX,dword ptr [EBP+0xc]` at 0x6632a). kb.json keeps both slots
+ *     declared `int`; the narrowing is done in the body, as the original does.
+ *   - 0x3340ac is the one-entry lookup cache. Upstream spells it as a
+ *     function-local `static const TIFFFieldInfo *last`; here it has its own
+ *     data address, so it is declared as a global.
+ *   - The cache hit path (0x66323-0x66340) tests pointer, tag and type and
+ *     returns the cached row unchanged in EAX (0x6636e).
+ *   - The scan walks 0x2c9a98 with stride 0x14 (`ADD EAX,0x14` at 0x66364)
+ *     and stops on a zero tag (`TEST CX,CX` at 0x66348 and 0x66367), i.e.
+ *     upstream's `for (fip = table; fip->field_tag; fip++)`. The table in the
+ *     pristine image holds 70 rows plus that zero terminator.
+ *   - The two type comparisons keep upstream's asymmetric operand order:
+ *     `CMP EDX,[EAX+0x8]` on the cache path (`dt == last->field_type`) and
+ *     `CMP [EAX+0x8],EDX` in the loop (`fip->field_type == dt`).
+ *   - A hit stores the row back into the cache (0x66371) and returns it; a
+ *     dry scan returns NULL (`XOR EAX,EAX` at 0x6636c).
+ * ------------------------------------------------------------------------- */
+
+/* Upstream's wildcard type, the value every call site in this TU passes. */
+#define TIFF_ANY TIFF_NOTYPE
+
+/* 0x66320 */
+void *TIFFFindFieldInfo(int tag, int dt)
+{
+  unsigned short t;
+  tiff_field_info_t *fip;
+
+  /* 0x6632e: the original only ever compares the low word of the slot. */
+  t = (unsigned short)tag;
+  /* 0x66323-0x66340. */
+  fip = (tiff_field_info_t *)tiff_find_field_info_last;
+  if (fip != NULL && fip->field_tag == t &&
+      (dt == TIFF_ANY || dt == fip->field_type))
+    return fip;
+  /* 0x66342-0x6636a. */
+  for (fip = (tiff_field_info_t *)tiffFieldInfo; fip->field_tag != 0; fip++) {
+    if (fip->field_tag == t && (dt == TIFF_ANY || fip->field_type == dt)) {
+      /* 0x66371. */
+      tiff_find_field_info_last = fip;
+      return fip;
+    }
+  }
+  /* 0x6636c. */
+  return NULL;
+}
+
+/* ---------------------------------------------------------------------------
+ * CheckMalloc (0x663f0) -- upstream libtiff's directory-read allocation
+ * helper, reshaped by Bungie to return the block instead of a boolean.
+ *
+ * Confirmed from 0x663f0-0x66427:
+ *   - Size arrives in EAX and is never written before `PUSH EAX` at 0x663fd,
+ *     so it is an incoming register argument (@<eax>). The two stack
+ *     parameters are `[EBP+0x8]` (the TIFF handle, dereferenced at 0x66412 as
+ *     `MOV EAX,dword ptr [EDX]` == tif_name) and `[EBP+0xc]` (the `what`
+ *     string forwarded as the `%s` argument).
+ *   - debug_malloc pushes at 0x663f4-0x663fd are line 0x60, file
+ *     "c:\halo\SOURCE\bitmaps\libtiff\tif_dirread.c", zero-flag 0, size EAX;
+ *     `ADD ESP,0x10` confirms four cdecl arguments. The __FILE__ string is
+ *     tif_dirread.c, so the function's real translation unit is tif_dirread;
+ *     kb.json groups it under tif_dir.obj, which is why the body lives here.
+ *   - The result is parked in ESI (0x66403) and returned unchanged in EAX
+ *     (0x66423) on both paths -- the error arm falls through to the same
+ *     `MOV EAX,ESI`, so a failed allocation returns NULL rather than a flag.
+ *   - Error arm: `PUSH ECX` (what), `PUSH 0x25fae0` ("No space %s"),
+ *     `PUSH EAX` (tif->tif_name), `CALL 0x68a30`, `ADD ESP,0xc` -- three
+ *     cdecl arguments, module-first, same as every other TIFFError site here.
+ */
+
+/* 0x663f0 */
+void *CheckMalloc(uint32_t size, void *tif_, const char *what)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  void *cp;
+
+  /* 0x663f4-0x66405. */
+  cp = debug_malloc(size, 0,
+                    "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x60);
+  /* 0x66408-0x66420. */
+  if (cp == 0) {
+    FUN_00068a30(tif->tif_name, "No space %s", what);
+  }
+  /* 0x66423. */
+  return cp;
+}
+
+/* ---------------------------------------------------------------------------
+ * EstimateStripByteCounts (0x66430) -- upstream libtiff tif_dirread.c helper
+ * that invents a StripByteCounts value for a directory that omitted the tag.
+ *
+ * ABI, from 0x66430-0x6651c: three arguments, two of them in registers.
+ *   - EAX holds the directory-entry count. It is copied to EDI at 0x66440
+ *     before anything writes EAX, and EDI is both the `n*12` multiplicand
+ *     (0x66476) and the loop counter (`TEST EDI,EDI` / `JLE` at 0x66489, so a
+ *     SIGNED 32-bit count) -- an incoming register argument (@<eax>).
+ *   - ESI is never written and is the TIFF handle: `[ESI]` is the module
+ *     string pushed to TIFFError, and every directory field is read off it
+ *     (@<esi>).
+ *   - `[EBP+0x8]` (0x6648d) is the directory-entry array; the only stack
+ *     argument, and the frame keeps no other.
+ *
+ * Confirmed details:
+ *   - CheckMalloc (0x663f0) is INLINED here, not called: the four debug_malloc
+ *     pushes at 0x66435-0x66442 are that helper's own (size 4, zero-flag 0,
+ *     file "...tif_dirread.c", line 0x60), and the NULL arm at 0x66450-0x66462
+ *     is its TIFFError verbatim, with the "for \"StripByteCounts\" array"
+ *     string it is always called with. Calling CheckMalloc from here would add
+ *     a CALL the original does not have.
+ *   - The estimate is for ONE strip only. Upstream divides by
+ *     td_samplesperpixel for PLANARCONFIG_SEPARATE and loops over td_nstrips;
+ *     neither survives here -- there is no division and no second store, only
+ *     `[0]`.
+ *   - `space` = 8 (TIFFHeader) + 2 (dir count) + nDirEntries*12 + 4 (next-dir
+ *     offset) == the `LEA EBX,[EDI+EDI*2]` / `LEA EBX,[EBX*4+0xe]` pair at
+ *     0x66476/0x6647a.
+ *   - The indirect-value sweep compares `cc` against 4 with JBE (0x664ae), so
+ *     the threshold test is UNSIGNED, matching upstream's `cc >
+ * sizeof(uint32)`.
+ *   - The final clamp compares `stripoffset[0] + stripbytecount[0]` against
+ *     the file size with JBE (0x664db): also unsigned.
+ * ------------------------------------------------------------------------- */
+
+/* One entry of the on-disk directory, 12 bytes: the loop strides by 0xc
+ * (0x664b5) and reads a 16-bit type at +0x2 (`MOVZX ECX,word ptr [EDX+-0x2]`
+ * against a cursor primed to base+4) and a 32-bit count at +0x4. The tag at
+ * +0x0 and the value/offset at +0x8 are never touched here. */
+typedef struct tiff_dir_entry_s {
+  unsigned short tdir_tag; /* 0x00 */
+  unsigned short tdir_type; /* 0x02 */
+  unsigned long tdir_count; /* 0x04 */
+  unsigned long tdir_offset; /* 0x08 */
+} tiff_dir_entry_t;
+
+/* Per-type byte width, indexed by tdir_type: `MOV ECX,dword ptr
+ * [ECX*0x4 + 0x2ca024]` at 0x664a4. Upstream calls this table tiffDataWidth. */
+#define tiffDataWidth ((const long *)0x2ca024)
+
+/* Bits of td_fieldsset[0] carried by this function. */
+#define FIELD_ROWSPERSTRIP_BIT 0x00020000 /* TEST EAX,0x20000 at 0x66509 */
+#define FIELD_STRIPBYTECOUNTS_BIT 0x04000000 /* OR ECX,0x4000000 at 0x66501 */
+
+/* 0x66430 */
+void EstimateStripByteCounts(int nDirEntries, void *tif_, void *dir_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  const tiff_dir_entry_t *dp;
+  unsigned long *cp;
+  unsigned long space;
+  unsigned long filesize;
+  unsigned long cc;
+  unsigned long rowbytes;
+  int n;
+
+  /* 0x66435-0x66462: CheckMalloc, inlined. */
+  cp = (unsigned long *)debug_malloc(
+    4, 0, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x60);
+  if (cp == 0) {
+    FUN_00068a30(tif->tif_name, "No space %s", "for \"StripByteCounts\" array");
+  }
+  /* 0x6646a. */
+  tif->td_stripbytecount = cp;
+  /* 0x66465. */
+  if (tif->td_compression != COMPRESSION_NONE) {
+    /* 0x66476-0x6647a. */
+    space = (unsigned long)(8 + 2 + nDirEntries * 12 + 4);
+    /* 0x66472-0x66486. */
+    filesize = (unsigned long)TIFFGetFileSize((int)tif->tif_fd);
+    /* 0x66489-0x664b9: amount of space used by indirect values. */
+    for (dp = (const tiff_dir_entry_t *)dir_, n = nDirEntries; n > 0;
+         n--, dp++) {
+      cc = (unsigned long)tiffDataWidth[dp->tdir_type] * dp->tdir_count;
+      if (cc > 4) {
+        space += cc;
+      }
+    }
+    /* 0x664bb-0x664c5. */
+    tif->td_stripbytecount[0] = filesize - space;
+    /* 0x664c7-0x664df: the last strip must not run past the end of file. */
+    if (tif->td_stripoffset[0] + tif->td_stripbytecount[0] > filesize) {
+      tif->td_stripbytecount[0] = filesize - tif->td_stripoffset[0];
+    }
+  } else {
+    /* 0x664e3-0x664fc. */
+    rowbytes = ((unsigned long)tif->td_samplesperpixel * tif->td_bitspersample *
+                  tif->td_imagewidth +
+                7) /
+               8;
+    tif->td_stripbytecount[0] = tif->td_imagelength * rowbytes;
+  }
+  /* 0x664fe-0x66518. */
+  tif->td_fieldsset[0] |= FIELD_STRIPBYTECOUNTS_BIT;
+  if ((tif->td_fieldsset[0] & FIELD_ROWSPERSTRIP_BIT) == 0) {
+    tif->td_rowsperstrip = tif->td_imagelength;
+  }
+}
+
+/* Directory-entry type codes, as the 0x665c1-0x665d0 jump table groups them:
+ * `type - 3` bounded by `CMP EAX,0x8 / JA default`, so 3..11 only. The three
+ * arms are byte-swap widths, which fixes the upstream libtiff identity of each
+ * code (2-byte, 4-byte, 4-byte-pair). */
+#define TIFF_SHORT 3
+#define TIFF_LONG 4
+#define TIFF_RATIONAL 5
+#define TIFF_SSHORT 8
+#define TIFF_SLONG 9
+#define TIFF_SRATIONAL 10
+#define TIFF_FLOAT 11
+
+/* `TEST byte ptr [EBX+0xa],0x10` at 0x665b7 gates the byte-swap arms, so bit 4
+ * of field_0a is this build's "file byte order differs from host" flag --
+ * upstream's TIFF_SWAB, at a different value than upstream's own numbering. */
+#define TIFF_SWAB_BIT 0x10
+
+/* 0x66550
+ *
+ * ABI: three arguments, two in registers.
+ *   - EBX is never written and is the TIFF handle: `[EBX]` is the module string
+ *     pushed to TIFFError (0x665a1), `[EBX+0x4]` the file handle, `[EBX+0xa]`
+ *     the flag byte (@<ebx>).
+ *   - ESI is never written and is the directory entry: +0x0 tag, +0x2 type,
+ *     +0x4 count, +0x8 offset (@<esi>).
+ *   - `[EBP+0x8]` (0x6657d) is the destination buffer; the only stack argument.
+ * Returns EAX: `cc` on every success path (`MOV EAX,EDI` at 0x665e7/0x665fc/
+ * 0x66613) and 0 on the error path (`XOR EAX,EAX` at 0x665b2).
+ *
+ * Confirmed details:
+ *   - The two I/O calls go straight to the CRT (0x1e24d2 lseek, 0x1e209e read),
+ *     not through upstream's tif_seekproc/tif_readproc indirection, and there
+ *     is no memory-mapped arm at all -- this build compiled the unmapped path
+ *     only.
+ *   - `cc` is computed BEFORE the seek (0x6655f-0x66566) and the file handle is
+ *     re-loaded for each call (`MOVSX` at 0x6655a and again at 0x66580), as is
+ *     tdir_offset for the comparison (0x66573).
+ *   - The error arm's tag lookup at 0x66599 has NO `ADD ESP` of its own: its
+ *     one pushed argument is cleaned by the `ADD ESP,0x10` at 0x665af together
+ *     with TIFFError's three. TIFFError therefore takes three arguments here,
+ *     not four.
+ *   - TIFF_DOUBLE never appears: the switch range stops at type 11, so this
+ *     build has no TIFFSwabArrayOfDouble arm.
+ * ------------------------------------------------------------------------- */
+long TIFFFetchData(void *tif_, void *dp_, char *cp)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  const tiff_dir_entry_t *dp = (const tiff_dir_entry_t *)dp_;
+  long cc;
+
+  /* 0x66553-0x66566. */
+  cc = tiffDataWidth[dp->tdir_type] * dp->tdir_count;
+  /* 0x6656a-0x66591: seek to the indirect value and read it whole. */
+  if (__lseek(tif->tif_fd, (long)dp->tdir_offset, 0) != (long)dp->tdir_offset ||
+      __read(tif->tif_fd, cp, (unsigned int)cc) != (int)cc) {
+    /* 0x66593-0x665b6. */
+    FUN_00068a30(tif->tif_name, "Error fetching data for field \"%s\"",
+                 ((tiff_field_info_t *)FUN_00066380(dp->tdir_tag))->field_name);
+    return 0;
+  }
+  /* 0x665b7-0x66610. */
+  if ((tif->field_0a & TIFF_SWAB_BIT) != 0) {
+    switch (dp->tdir_type) {
+    case TIFF_SHORT:
+    case TIFF_SSHORT:
+      FUN_0006f1f0(cp, (int)dp->tdir_count);
+      break;
+    case TIFF_LONG:
+    case TIFF_SLONG:
+    case TIFF_FLOAT:
+      FUN_0006f220(cp, (int)dp->tdir_count);
+      break;
+    case TIFF_RATIONAL:
+    case TIFF_SRATIONAL:
+      FUN_0006f220(cp, (int)(2 * dp->tdir_count));
+      break;
+    default:
+      break;
+    }
+  }
+  /* 0x66613. */
+  return cc;
+}
+
+/* 0x66640
+ *
+ * ABI: three arguments, two in registers plus one on the stack.
+ *   - ECX is the TIFF handle (`MOV EBX,ECX` at 0x6664c, then
+ *     `TEST byte ptr [EBX+0xa],0x10` at 0x66656) (@<ecx>).
+ *   - EAX is the directory entry (`MOV ESI,EAX` at 0x66646; +0x4 count,
+ *     +0x8 offset) (@<eax>).
+ *   - EDI is the destination buffer: pushed unchanged as the last csmemcpy
+ *     argument at 0x66670 and as TIFFFetchData's stack argument at 0x66684
+ *     (@<edi>).
+ *   Returns EAX: `MOV EAX,0x1` at 0x6667a on the inline arm; the out-of-line
+ *   arm falls through with TIFFFetchData's own EAX (0x66685, no reload).
+ *
+ * Confirmed details:
+ *   - `CMP dword ptr [ESI+0x4],0x4 / JA` (0x66648): counts of four bytes or
+ *     fewer live inline in tdir_offset; anything larger is fetched indirectly.
+ *   - The inline value is copied to `[EBP-0x4]` first (0x66650-0x66653) and the
+ *     byte-swap helper takes the address of that copy (`LEA ECX,[EBP-0x4]`),
+ *     so the swap is applied to the local, never to the directory entry.
+ *   - The copy length is re-loaded from `[ESI+0x4]` at 0x66668, after the
+ *     optional swap call. */
+long TIFFFetchString(void *tif_, void *dp_, char *cp)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  const tiff_dir_entry_t *dp = (const tiff_dir_entry_t *)dp_;
+  unsigned long l;
+
+  /* 0x66648-0x6664e. */
+  if (dp->tdir_count <= 4) {
+    /* 0x66650-0x66665. */
+    l = dp->tdir_offset;
+    if ((tif->field_0a & TIFF_SWAB_BIT) != 0) {
+      FUN_0006f1d0(&l);
+    }
+    /* 0x66668-0x6667a. */
+    csmemcpy(cp, &l, dp->tdir_count);
+    return 1;
+  }
+  /* 0x66684-0x66685. */
+  return TIFFFetchData(tif, (void *)dp, cp);
+}
+
+/* 0x66720
+ *
+ * ABI: two register arguments, no stack arguments.
+ *   - EAX is the TIFF handle: `MOV EBX,EAX` at 0x66727, and EBX is then
+ *     TIFFFetchData's @<ebx> argument at 0x66730 and cvtRational's first
+ *     stack argument (`PUSH EBX`, 0x66744) (@<eax>).
+ *   - EDI is the directory entry: `MOV ESI,EDI` at 0x6672e supplies
+ *     TIFFFetchData's @<esi> argument, and `MOV EDX,EDI` at 0x66748 supplies
+ *     cvtRational's @<edx> argument (@<edi>).
+ *   Returns ST(0): `FLD dword ptr [EBP-0x4]` on the success arm (0x66756) and
+ *   `FLD qword ptr [0x2573d8]` (1.0) on both failure arms (0x6675f).
+ *
+ * Confirmed details:
+ *   - The frame is `SUB ESP,0xc`: the two-word fetch buffer lives at
+ *     [EBP-0xc]/[EBP-0x8] (its address is the only pushed argument to
+ *     TIFFFetchData at 0x6672a) and the float result at [EBP-0x4] (address
+ *     taken by `LEA ESI,[EBP-0x4]` at 0x66745).
+ *   - cvtRational takes five arguments: `ADD ESP,0xc` at 0x6674f covers the
+ *     three pushes (numerator [EBP-0xc] then denominator [EBP-0x8] are pushed
+ *     in reverse order at 0x66742/0x66743, the handle at 0x66744); EDX and ESI
+ *     carry the remaining two.
+ *   - Both failure tests are `TEST EAX,EAX / JZ 0x6675f`, so the two arms share
+ *     one epilogue and the buffer is never re-read on failure. */
+float TIFFFetchRational(void *tif_, void *dp_)
+{
+  unsigned long l[2];
+  float v;
+
+  /* 0x66726-0x6673a. */
+  if (TIFFFetchData(tif_, dp_, (char *)l) != 0) {
+    /* 0x6673c-0x66754. */
+    if (cvtRational(tif_, dp_, l[0], l[1], &v) != 0) {
+      /* 0x66756. */
+      return v;
+    }
+  }
+  /* 0x6675f. */
+  return 1.0;
+}
+
+/* Magic of a big-endian ("MM") TIFF file, the immediate compared at 0x6677b.
+ * tif_open.c defines the same constant from TIFFFdOpen's own comparisons. */
+#define TIFF_BIGENDIAN_MAGIC 0x4d4d
+
+/* Pull a directory entry's inline value out of tdir_offset. Upstream libtiff
+ * spells this as the TIFFExtractData macro in tiffiop.h; both arms are present
+ * verbatim here (0x6677b-0x667b2): on a big-endian file the value is first
+ * shifted right by tif_typeshift[type] and then masked, otherwise it is only
+ * masked. The shift is SHR (unsigned) at 0x66796. */
+#define TIFFExtractData(tif, type, v)                          \
+  ((unsigned long)((tif)->tiff_magic == TIFF_BIGENDIAN_MAGIC ? \
+                     ((v) >> (tif)->tif_typeshift[type]) &     \
+                       (tif)->tif_typemask[type] :             \
+                     (v) & (tif)->tif_typemask[type]))
+
+/* 0x66770
+ *
+ * ABI: two register arguments, no stack arguments.
+ *   - EAX is the TIFF handle: `MOV ESI,EAX` at 0x66779, and ESI is the base of
+ *     every handle load that follows (+0xc4, +0xcc, +0xd0) (@<eax>).
+ *   - ECX is the directory entry: `MOVZX EDX,word ptr [ECX+0x2]` (tdir_type) at
+ *     0x66774 and `MOV EAX,dword ptr [ECX+0x8]` (tdir_offset) at 0x66786 /
+ *     0x667af (@<ecx>).
+ *   Returns ST(0): `FILD dword ptr [EBP-0x4]` at 0x667b7 with no FSTP before
+ *   the epilogue.
+ *
+ * Confirmed details:
+ *   - The type index is scaled by four on both arms: `SHL EDX,0x2` at 0x66790
+ *     followed by `[EDI+EDX*0x1]` on the big-endian arm, and an unscaled EDX
+ *     with `[EAX+EDX*0x4]` on the little-endian arm -- the same C subscript.
+ *   - There is no call. Upstream's TIFFCvtIEEEFloatToNative is a no-op on an
+ *     IEEE host and compiled away; nothing in the range 0x66770-0x667c6 is an
+ *     E8/E9.
+ *   - `TEST EAX,EAX / MOV [EBP-0x4],EAX / FILD / JGE / FADD [0x25fb8c]` is the
+ *     unsigned-32-to-float conversion MSVC emits for `(float)(unsigned long)x`
+ *     (the constant at 0x25fb8c is 4294967296.0), not a source-level branch. */
+float TIFFFetchFloat(void *tif_, void *dp_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  const tiff_dir_entry_t *dp = (const tiff_dir_entry_t *)dp_;
+
+  /* 0x66774-0x667c6. */
+  return (float)TIFFExtractData(tif, dp->tdir_type, dp->tdir_offset);
+}
+
+/* 0x667d0
+ *
+ * ABI: three register arguments, no stack arguments.
+ *   - ECX is the directory entry: `MOV ESI,ECX` at 0x667d2, then `[ESI+0x4]`
+ *     (tdir_count, 0x667d4) and the inline value bytes `[ESI+0x8]`..`[ESI+0xb]`
+ *     (@<ecx>).
+ *   - EDX is the TIFF handle: `MOV EBX,EDX` at 0x667da, then
+ *     `CMP word ptr [EBX+0xc4],0x4d4d` at 0x667e3 (@<edx>).
+ *   - EAX is the destination array, never reloaded: `MOV word ptr [EAX+0x6]`,
+ *     `[EAX+0x4]`, `[EAX+0x2]`, `[EAX]`, and the single `PUSH EAX` at 0x66868
+ *     that is TIFFFetchData's stack argument (@<eax>).
+ *   Returns EAX: `MOV EAX,0x1` at 0x66824 / 0x66861 on the inline arms; the
+ *   out-of-line arm falls through with TIFFFetchData's own EAX (0x6686e, no
+ *   reload).
+ *
+ * Confirmed details:
+ *   - `CMP ECX,0x4 / JA 0x00066868` (0x667d7): counts above four go to
+ *     TIFFFetchData, exactly as in TIFFFetchString.
+ *   - `DEC ECX / CMP ECX,0x3 / JA <ret 1> / JMP [ECX*4 + jumptable]` is the
+ *     switch on tdir_count with cases 1..4; the jump tables live at 0x66874
+ *     (big-endian arm) and 0x66884, and both are fall-through chains, so no
+ *     `break` appears between cases.
+ *   - The byte offsets run in opposite directions between the two arms:
+ *     big-endian takes v[3] from `[ESI+0x8]` down to v[0] from `[ESI+0xb]`,
+ *     little-endian the reverse -- upstream's shift/mask pair on tdir_offset,
+ *     which MSVC folds into the single byte loads seen here.
+ *   - The magic test is the same `word ptr [handle+0xc4] == 0x4d4d` used by
+ *     TIFFFetchFloat at 0x6677b. */
+long TIFFFetchByteArray(void *tif_, void *dp_, unsigned short *v)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  const tiff_dir_entry_t *dp = (const tiff_dir_entry_t *)dp_;
+
+  /* 0x667d4-0x667dc. */
+  if (dp->tdir_count <= 4) {
+    /* 0x667e3-0x667ec. */
+    if (tif->tiff_magic == TIFF_BIGENDIAN_MAGIC) {
+      /* 0x667f3-0x66821. */
+      switch (dp->tdir_count) {
+      case 4:
+        v[3] = (unsigned short)(dp->tdir_offset & 0xff);
+      case 3:
+        v[2] = (unsigned short)((dp->tdir_offset >> 8) & 0xff);
+      case 2:
+        v[1] = (unsigned short)((dp->tdir_offset >> 16) & 0xff);
+      case 1:
+        v[0] = (unsigned short)(dp->tdir_offset >> 24);
+      }
+    } else {
+      /* 0x66830-0x6685d. */
+      switch (dp->tdir_count) {
+      case 4:
+        v[3] = (unsigned short)(dp->tdir_offset >> 24);
+      case 3:
+        v[2] = (unsigned short)((dp->tdir_offset >> 16) & 0xff);
+      case 2:
+        v[1] = (unsigned short)((dp->tdir_offset >> 8) & 0xff);
+      case 1:
+        v[0] = (unsigned short)(dp->tdir_offset & 0xff);
+      }
+    }
+    /* 0x66824 / 0x66861. */
+    return 1;
+  }
+  /* 0x66868-0x6686e. */
+  return TIFFFetchData(tif, (void *)dp, (char *)v);
+}
+
+/* TIFFFetchShortArray, 0x668a0. Same shape as TIFFFetchByteArray one entry
+ * earlier, for SHORT values: up to two 16-bit values live inline in
+ * tdir_offset, anything larger is fetched indirectly.
+ *
+ * ABI: three register arguments, no stack arguments.
+ *   - EAX is the directory entry: `MOV ESI,EAX` at 0x668a2, then `[ESI+0x4]`
+ *     (tdir_count, 0x668a4) and the inline halves `[ESI+0x8]` / `[ESI+0xa]`
+ *     (@<eax>).
+ *   - EDX is the TIFF handle: `MOV EBX,EDX` at 0x668aa, then
+ *     `CMP word ptr [EBX+0xc4],0x4d4d` at 0x668ae (@<edx>).
+ *   - ECX is the destination array, never reloaded: `MOV word ptr [ECX+0x2]`,
+ *     `MOV word ptr [ECX]`, and the single `PUSH ECX` at 0x668f3 that is
+ *     TIFFFetchData's stack argument (@<ecx>).
+ *   Returns EAX: `MOV EAX,0x1` at 0x668cf / 0x668ec on the inline arms; the
+ *   out-of-line arm falls through with TIFFFetchData's own EAX (0x668f4, no
+ *   reload or TEST, so the result is returned directly).
+ *
+ * Confirmed details:
+ *   - `CMP EAX,0x2 / JA 0x000668f3` (0x668a7): counts above two go to
+ *     TIFFFetchData; the magic test is only reached for counts 0..2.
+ *   - Each arm is `DEC EAX / JZ <v[0] store> / DEC EAX / JNZ <ret 1>`, a
+ *     fall-through chain of cases 2 and 1 (count 0 stores nothing and still
+ *     returns 1), so no `break` appears between cases.
+ *   - The halves run in opposite directions between the two arms: big-endian
+ *     takes v[1] from `[ESI+0x8]` and v[0] from `[ESI+0xa]`, little-endian the
+ *     reverse -- upstream's shift/mask pair on tdir_offset, which MSVC folds
+ *     into the single 16-bit loads seen here. */
+long TIFFFetchShortArray(void *tif_, void *dp_, unsigned short *v)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  const tiff_dir_entry_t *dp = (const tiff_dir_entry_t *)dp_;
+
+  /* 0x668a4-0x668ac. */
+  if (dp->tdir_count <= 2) {
+    /* 0x668ae-0x668b7. */
+    if (tif->tiff_magic == TIFF_BIGENDIAN_MAGIC) {
+      /* 0x668b9-0x668cc. */
+      switch (dp->tdir_count) {
+      case 2:
+        v[1] = (unsigned short)(dp->tdir_offset & 0xffff);
+      case 1:
+        v[0] = (unsigned short)(dp->tdir_offset >> 16);
+      }
+    } else {
+      /* 0x668d6-0x668e8. */
+      switch (dp->tdir_count) {
+      case 2:
+        v[1] = (unsigned short)(dp->tdir_offset >> 16);
+      case 1:
+        v[0] = (unsigned short)(dp->tdir_offset & 0xffff);
+      }
+    }
+    /* 0x668cf / 0x668ec. */
+    return 1;
+  }
+  /* 0x668f3-0x668f9. */
+  return TIFFFetchData(tif, (void *)dp, (char *)v);
+}
+
+/* TIFFFetchLongArray, 0x66900. The LONG counterpart of TIFFFetchShortArray:
+ * a single 32-bit value lives inline in tdir_offset, anything else is fetched
+ * indirectly. No byte-order test is needed because the inline value is already
+ * a whole dword.
+ *
+ * ABI: three register arguments, no stack arguments.
+ *   - ECX is the directory entry: `MOV ESI,ECX` at 0x66901, then `[ESI+0x4]`
+ *     (tdir_count, 0x66903) and `[ESI+0x8]` (tdir_offset, 0x66909). ESI is
+ *     also TIFFFetchData's @<esi> argument at the 0x66916 call, unchanged
+ *     (@<ecx>).
+ *   - EBX is the TIFF handle: never written in this function, yet it is
+ *     TIFFFetchData's @<ebx> argument, so it arrives live from the caller
+ *     (@<ebx>).
+ *   - EAX is the destination array: `MOV dword ptr [EAX],ECX` at 0x6690c and
+ *     the single `PUSH EAX` at 0x66915 that is TIFFFetchData's stack argument
+ *     (@<eax>).
+ *   Returns EAX: `MOV EAX,0x1` at 0x6690e on the inline arm; the out-of-line
+ *   arm falls through with TIFFFetchData's own EAX (0x6691b-0x6691f is only
+ *   `ADD ESP,0x4 / POP ESI / RET`, no reload or TEST, so the result is
+ *   returned directly).
+ *
+ * Confirmed details:
+ *   - `CMP dword ptr [ESI+0x4],0x1 / JNZ` (0x66903): only an exact count of 1
+ *     takes the inline path; count 0 goes to TIFFFetchData as well. */
+long TIFFFetchLongArray(void *tif_, void *dp_, unsigned long *lp)
+{
+  const tiff_dir_entry_t *dp = (const tiff_dir_entry_t *)dp_;
+
+  /* 0x66903-0x66914. */
+  if (dp->tdir_count == 1) {
+    lp[0] = dp->tdir_offset;
+    return 1;
+  }
+  /* 0x66915-0x6691f. */
+  return TIFFFetchData(tif_, (void *)dp, (char *)lp);
+}
+
+/* TIFFFetchRationalArray, 0x66920. Fetches a RATIONAL array into a float
+ * array: the raw numerator/denominator dwords are read into a scratch buffer,
+ * then converted one pair at a time by cvtRational.
+ *
+ * ABI: three cdecl stack arguments, no register arguments.
+ *   - [EBP+0x8] is the TIFF handle: `[ECX]` is the module string pushed to
+ *     TIFFError at 0x66958 and it is TIFFFetchData's @<ebx> argument
+ *     (0x66976) and cvtRational's first stack argument (0x669a4).
+ *   - [EBP+0xc] is the directory entry: +0x2 tdir_type (0x66929), +0x4
+ *     tdir_count (0x66934 / 0x66989 / 0x669b7); it is TIFFFetchData's @<esi>
+ *     argument (0x66926) and cvtRational's @<edx> argument (0x669a1).
+ *   - [EBP+0x10] is the destination float array (`MOV ESI,[EBP+0x10]` at
+ *     0x66992, `ADD ESI,0x4` per iteration at 0x669bb), carried as
+ *     cvtRational's @<esi> argument.
+ *   Returns EAX: `MOV EAX,EBX` (zero) at 0x6696f on the allocation-failure
+ *   arm, `MOV EAX,[EBP-0x4]` at 0x669d2 otherwise.
+ *
+ * Confirmed details:
+ *   - CheckMalloc is INLINED, as in EstimateStripByteCounts: the debug_malloc
+ *     pushes at 0x66939-0x66943 carry file tif_dirread.c and line 0x60, and
+ *     the failure arm reports "No space %s" / "to fetch array of rationals"
+ *     through TIFFError directly (0x66965).
+ *   - The allocation-failure arm returns WITHOUT calling debug_free; the free
+ *     at 0x669cd (line 0x345) is reached from every other path, including the
+ *     TIFFFetchData-failed arm (`JZ 0x669c2` at 0x66984).
+ *   - `ok` lives at [EBP-0x4], zeroed at 0x66944 and written from cvtRational's
+ *     EAX at 0x669af on every iteration, so a zero return both breaks the loop
+ *     (0x669b2) and becomes the function result.
+ *   - The pair subscript is `[EDI+EBX*0x8]` / `[EDI+EBX*0x8+0x4]` (0x66995 /
+ *     0x66999), i.e. l[2*i+0] and l[2*i+1]; the denominator is pushed first
+ *     (0x6699f) so the argument order is (num, denom).
+ *   - tdir_count is re-loaded from the directory entry for the loop test each
+ *     iteration (0x669b4-0x669be), not cached. */
+long TIFFFetchRationalArray(void *tif_, void *dp_, float *v)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  const tiff_dir_entry_t *dp = (const tiff_dir_entry_t *)dp_;
+  unsigned long *l;
+  unsigned long i;
+  long ok;
+
+  /* 0x66929-0x66951: CheckMalloc, inlined. */
+  ok = 0;
+  l = (unsigned long *)debug_malloc(
+    (unsigned long)tiffDataWidth[dp->tdir_type] * dp->tdir_count, 0,
+    "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x60);
+  if (l == 0) {
+    /* 0x66955-0x66975. */
+    FUN_00068a30(tif->tif_name, "No space %s", "to fetch array of rationals");
+    return 0;
+  }
+  /* 0x66976-0x66984. */
+  if (TIFFFetchData(tif_, (void *)dp, (char *)l) != 0) {
+    /* 0x66986-0x669c0. */
+    for (i = 0; i < dp->tdir_count; i++) {
+      ok = cvtRational(tif_, (void *)dp, l[2 * i + 0], l[2 * i + 1], &v[i]);
+      if (ok == 0) {
+        break;
+      }
+    }
+  }
+  /* 0x669c2-0x669de. */
+  debug_free(l, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x345);
+  return ok;
 }

@@ -100,11 +100,17 @@ char FUN_00168370(void *bitmap)
   bm = (char *)bitmap;
   success = 1;
   if (bitmap == NULL) {
-    display_assert("bitmap", "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c", 0x33, true);
+    display_assert(
+      "bitmap",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0x33, true);
     system_exit(-1);
   }
   if ((*(uint8_t *)(bm + 0xe) & 1) == 0) {
-    display_assert("TEST_FLAG(bitmap->flags, _bitmap_has_power_of_two_dimensions_bit)", "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c", 0x34, true);
+    display_assert(
+      "TEST_FLAG(bitmap->flags, _bitmap_has_power_of_two_dimensions_bit)",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0x34, true);
     system_exit(-1);
   }
   mipmap_count = FUN_00183120(bitmap);
@@ -113,28 +119,53 @@ char FUN_00168370(void *bitmap)
     format = *(int16_t *)(bm + 0xc);
     switch (*(int16_t *)(bm + 0xa)) {
     case 0:
-      hr = D3DDevice_CreateTexture(*(int16_t *)(bm + 4), *(int16_t *)(bm + 6), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
+      hr = D3DDevice_CreateTexture(
+        *(int16_t *)(bm + 4), *(int16_t *)(bm + 6), mipmap_count + 1, 0,
+        *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
       if (hr < 0) {
         success = 0;
-        rasterizer_error(hr, "IDirect3DDevice8_CreateTexture(global_d3d_device, bitmap->width, bitmap->height, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DTexture8*)bitmap->hardware_format)");
+        rasterizer_error(
+          hr, "IDirect3DDevice8_CreateTexture(global_d3d_device, "
+              "bitmap->width, bitmap->height, bitmap->mipmap_count+1, 0, "
+              "rasterizer_bitmap_format_table[bitmap->format], "
+              "D3DPOOL_MANAGED, &(IDirect3DTexture8*)bitmap->hardware_format)");
       }
       break;
     case 1:
-      hr = D3DDevice_CreateVolumeTexture(*(int16_t *)(bm + 4), *(int16_t *)(bm + 6), *(int16_t *)(bm + 8), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
+      hr = D3DDevice_CreateVolumeTexture(
+        *(int16_t *)(bm + 4), *(int16_t *)(bm + 6), *(int16_t *)(bm + 8),
+        mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1,
+        (void *)(bm + 0x28));
       if (hr < 0) {
         success = 0;
-        rasterizer_error(hr, "IDirect3DDevice8_CreateVolumeTexture(global_d3d_device, bitmap->width, bitmap->height, bitmap->depth, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DVolumeTexture8*)bitmap->hardware_format)");
+        rasterizer_error(
+          hr,
+          "IDirect3DDevice8_CreateVolumeTexture(global_d3d_device, "
+          "bitmap->width, bitmap->height, bitmap->depth, "
+          "bitmap->mipmap_count+1, 0, "
+          "rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, "
+          "&(IDirect3DVolumeTexture8*)bitmap->hardware_format)");
       }
       break;
     case 2:
-      hr = D3DDevice_CreateCubeTexture(*(int16_t *)(bm + 4), mipmap_count + 1, 0, *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
+      hr = D3DDevice_CreateCubeTexture(
+        *(int16_t *)(bm + 4), mipmap_count + 1, 0,
+        *(int *)((char *)0x2a2428 + format * 4), 1, (void *)(bm + 0x28));
       if (hr < 0) {
         success = 0;
-        rasterizer_error(hr, "IDirect3DDevice8_CreateCubeTexture(global_d3d_device, bitmap->width, bitmap->mipmap_count+1, 0, rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, &(IDirect3DCubeTexture8*)bitmap->hardware_format)");
+        rasterizer_error(
+          hr,
+          "IDirect3DDevice8_CreateCubeTexture(global_d3d_device, "
+          "bitmap->width, bitmap->mipmap_count+1, 0, "
+          "rasterizer_bitmap_format_table[bitmap->format], D3DPOOL_MANAGED, "
+          "&(IDirect3DCubeTexture8*)bitmap->hardware_format)");
       }
       break;
     default:
-      display_assert("### ERROR unsupported bitmap type", "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c", 0x5b, true);
+      display_assert("### ERROR unsupported bitmap type",
+                     "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                     "hardware_bitmaps.c",
+                     0x5b, true);
       system_exit(-1);
       break;
     }
@@ -217,4 +248,26 @@ void FUN_00168c70(int base, int *result, int offset, int unused_1, int unused_2)
   (void)unused_1;
   (void)unused_2;
   *result = *(int *)(base + 4) + offset;
+}
+
+/*
+ * FUN_00168ca0 @ 0x168ca0 — dead D3D8 inline-wrapper instantiation, same
+ * body as FUN_00168c70 above plus an explicit success return:
+ *   push ebp; mov ebp,esp; mov ecx,[eax+4]; add ecx,[ebp+8];
+ *   mov [edx],ecx; xor eax,eax; pop ebp; ret 0xc
+ * EAX is the resource base (its +4 dword is read), EDX is the out-pointer.
+ * RET 0xc => three stack dwords at +8/+0xc/+0x10; only +8 is read, the
+ * other two stay in the signature so the callee-cleans immediate is right.
+ * XOR EAX,EAX before the epilogue is a real `return 0` (S_OK) — it is the
+ * only instruction difference from 0x168c70 (17 bytes here vs 15 there),
+ * so that sibling is void and this one is not.
+ * xrefs_to empty: no call sites in the binary.
+ */
+/* 0x168ca0 */
+int FUN_00168ca0(int base, int *result, int offset, int unused_1, int unused_2)
+{
+  (void)unused_1;
+  (void)unused_2;
+  *result = *(int *)(base + 4) + offset;
+  return 0;
 }

@@ -1,3 +1,47 @@
+/* 0x160920 — end rasterizer profile section 3.
+ * Binary: PUSH 0x3 / CALL FUN_0016fa40 / POP ECX / RET.
+ * FUN_0016fa40 takes an int16_t profile index; the semantic role of the
+ * index is unproven. */
+void _rasterizer_environment_lightmaps_end(void)
+{
+  FUN_0016fa40(3);
+}
+
+/* 0x160940 — begin the HUD rasterizer profile section.
+ * Binary: PUSH 0x5 / CALL 0x16fa40 / POP ECX / RET.
+ * FUN_0016fa40 takes an int16_t profile index; the semantic role of the
+ * callee and of index 5 is unproven (no assert or string evidence). */
+void _rasterizer_hud_begin(void)
+{
+  FUN_0016fa40(5);
+}
+
+/* 0x160950 — end diffuse-texture scope.
+ * Binary: PUSH 2 / CALL FUN_00158ae0 / PUSH 8 / CALL FUN_0016fa40 /
+ * ADD ESP,8 / RET. Call order and profile index are binary-fixed; their
+ * semantic roles are unproven. */
+void _rasterizer_environment_diffuse_textures_end(void)
+{
+  FUN_00158ae0(2);
+  FUN_0016fa40(8);
+}
+
+/* 0x160980 — end rasterizer profile section 0xb.
+ * Binary: PUSH 0xb / CALL FUN_0016fa40 / POP ECX / RET.
+ * The profile index semantic role is unproven. */
+void _rasterizer_environment_specular_lights_end(void)
+{
+  FUN_0016fa40(0xb);
+}
+
+/* 0x1609a0 — end rasterizer profile section 0xc.
+ * Binary: PUSH 0xc / CALL FUN_0016fa40 / POP ECX / RET.
+ * FUN_0016fa40 takes an int16_t profile index; the semantic role of the
+ * index is unproven. */
+void _rasterizer_dynamic_lit_geometry_draw(void)
+{
+  FUN_0016fa40(0xc);
+}
 
 /* 0x1609b0 — draw one environment geometry batch through the shared
  * texture-animation vertex-shader constant block.
@@ -221,9 +265,9 @@ void FUN_00160c20(void)
  *   0x3256c9  uint8     enable flag (must be non-zero)
  *   0x476204  ptr       rasterizer globals; +0x1c is a bitmap tag index
  *   0x1fb7a4 / 0x1fb784 / 0x1fb78c / 0x1fb77c / 0x1fb798
- *                       render-state shadow copies, each stored next to the
- *                       matching D3DDevice_SetRenderState_Simple call.
- * Call order and the interleaving of the shadow stores are binary-fixed. */
+ *                       render-state shadow copies, each stored next to
+ * the matching D3DDevice_SetRenderState_Simple call. Call order and the
+ * interleaving of the shadow stores are binary-fixed. */
 void FUN_00160c30(void)
 {
   uint16_t mode;
@@ -1431,9 +1475,9 @@ void FUN_00163590(int light_index)
     /* Constant 0 is the light position (copied as raw dwords, as the reference
      * does with MOV EDX/EAX/ECX) plus a scale in .w; constants 1..4 are the
      * rows of an identity-like basis. */
-    vs_const[3] = (*(float *)0x2533c8 / (*(float *)(light->owner + 0x24) *
-                                         light->radius)) *
-                  *(float *)0x253398;
+    vs_const[3] =
+      (*(float *)0x2533c8 / (*(float *)(light->owner + 0x24) * light->radius)) *
+      *(float *)0x253398;
     *(struct vs_vec3 *)&vs_const[0] = *(const struct vs_vec3 *)light->position;
     vs_const[4] = 0.0f;
     vs_const[5] = 0.0f;
