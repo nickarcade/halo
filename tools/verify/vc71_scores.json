@@ -66106,16 +66106,16 @@
     "network_game_server_idle": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 71.2,
+      "abi_modeled_mnemonic_pct": 83.8,
       "addr": "0x12eb20",
       "end": "0x12ec99",
       "kind": "auto",
       "n_r": 148,
-      "opnd_percent": 68.5,
-      "raw_mnemonic_pct": 71.2,
+      "opnd_percent": 93.1,
+      "raw_mnemonic_pct": 83.8,
       "ref": "synth",
       "ref_sha": "9da1d23cce6e2af9",
-      "score": 71.2,
+      "score": 83.8,
       "source": "src/halo/networking/network_server_manager.c"
     },
     "network_game_server_idle_postgame_tasks": {

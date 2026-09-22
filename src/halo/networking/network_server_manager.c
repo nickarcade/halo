@@ -1,3 +1,55 @@
+typedef struct network_game_server_game {
+  uint8_t field_00[0x114];
+  uint8_t machines[4][0x44];
+  uint8_t field_224[0x210];
+} network_game_server_game;
+
+typedef struct network_game_server_client_machine {
+  int connection;
+  uint32_t last_received_update_sequence_number;
+  uint32_t stall_start_time;
+  int16_t machine_index;
+  uint16_t flags;
+} network_game_server_client_machine;
+
+typedef struct network_game_server_countdown_state {
+  int timer[2];
+  int last_countdown_message_time;
+  uint8_t active;
+  uint8_t paused;
+  uint8_t adjusted_time_this_tick;
+  uint8_t pad_0f;
+} network_game_server_countdown_state;
+
+typedef struct network_game_server {
+  int connection;
+  uint16_t state;
+  uint16_t flags;
+  network_game_server_game game;
+  network_game_server_client_machine client_machines[4];
+  int next_update_number;
+  uint32_t time_of_last_keep_alive;
+  uint32_t time_of_first_client_loading_completion;
+  network_game_server_countdown_state countdown_state;
+  uint8_t queued_player[0x20];
+  uint8_t queued_player_valid;
+  uint8_t sent_start_game_message;
+  uint8_t pad_4ba[2];
+} network_game_server;
+
+cs(network_game_server_game, 0x434);
+co(network_game_server_game, machines, 0x114);
+cs(network_game_server_client_machine, 0x10);
+co(network_game_server_client_machine, machine_index, 0x0c);
+co(network_game_server_client_machine, flags, 0x0e);
+cs(network_game_server_countdown_state, 0x10);
+co(network_game_server_countdown_state, last_countdown_message_time, 0x08);
+co(network_game_server, game, 0x08);
+co(network_game_server, client_machines, 0x43c);
+co(network_game_server, countdown_state, 0x488);
+co(network_game_server, sent_start_game_message, 0x4b9);
+cs(network_game_server, 0x4bc);
+
 /* Decode a network game message from an encoded buffer.
  * Returns true on success; logs an error on failure.
  * 0x12bce0 / network_server_manager.obj */
@@ -1493,7 +1545,7 @@ void network_game_server_change_game_variant(void *server, void *variant)
  * validates the remote address, stores the connection, and signals accept. */
 bool network_game_server_add_new_client(int server, int new_connection)
 {
-  char *s = (char *)server;
+  network_game_server *server_data = (network_game_server *)server;
   volatile bool result = false;
   int i;
   short *slot;
@@ -1514,7 +1566,7 @@ bool network_game_server_add_new_client(int server, int new_connection)
   }
 
   i = 0;
-  slot = (short *)(s + 0x448);
+  slot = &server_data->client_machines[0].machine_index;
   do {
     if (*slot == -1) {
       memset(addr_buf, 0, 24);
@@ -1534,12 +1586,12 @@ bool network_game_server_add_new_client(int server, int new_connection)
             addr_str);
           result = false;
         } else {
-          *(int *)(s + i * 0x10 + 0x43c) = new_connection;
-          network_game_invalidate_machine(s + 8, i);
-          *(short *)(s + i * 0x10 + 0x448) = (short)i;
-          *(short *)(s + i * 0x10 + 0x44a) = 1;
+          server_data->client_machines[i].connection = new_connection;
+          network_game_invalidate_machine(&server_data->game, i);
+          server_data->client_machines[i].machine_index = (short)i;
+          server_data->client_machines[i].flags = 1;
           result = network_connection_server_accept_client_connection(
-            *(int *)s, new_connection);
+            server_data->connection, new_connection);
           if (result == 1) {
             addr_str = transport_address_to_string(addr_buf);
             network_event("new remote connection accepted from %s",
@@ -2463,61 +2515,65 @@ after_notify:
 #endif
 bool network_game_server_idle(void *server)
 {
+  network_game_server *server_data = (network_game_server *)server;
   char addr_buf[24];
   int new_conn;
-  bool result;
+  bool result = true;
   uint16_t state;
 
   if (!transport_network_available() && !network_game_is_splitscreen_local()) {
     display_error_when_main_menu_loaded(6);
     error(2, "network connection went down!");
-    return false;
-  }
-
-  if (network_game_server_game_is_valid(server)) {
+    result = false;
+  } else if (network_game_server_game_is_valid(server)) {
     new_conn = 0;
-    result = network_connection_idle(*(int *)server, 0, &new_conn);
-    if (!result) {
-      network_event("network_connection_idle_server_reliable_endpoint() failed");
-      return result;
-    }
-    if (new_conn != 0) {
-      if (network_game_server_add_new_client((int)server, new_conn) == result) {
-        network_connection_get_address(new_conn, addr_buf, 0);
-        network_event(
-          "new client connected from ip %s (validation pending)",
-          transport_address_to_string(addr_buf));
-      } else {
-        network_event("failed to add new client connection to the game");
-        network_server_close_client_connection(*(int *)server, new_conn);
+    result = network_connection_idle(server_data->connection, 0, &new_conn);
+    if (result) {
+      if (new_conn != 0) {
+        result = network_game_server_add_new_client((int)server, new_conn);
+        if (result) {
+          network_connection_get_address(new_conn, addr_buf, 0);
+          network_event(
+            "new client connected from ip %s (validation pending)",
+            transport_address_to_string(addr_buf));
+        } else {
+          network_event("failed to add new client connection to the game");
+          result = network_server_close_client_connection(server_data->connection, new_conn);
+        }
       }
-    }
-    result = network_game_server_handle_public_endpoint((int)server);
-    if (!result) {
-      network_event("network_game_server_handle_public_endpoint() failed");
-      return result;
-    }
-    result = network_game_server_handle_client_machines((int)server);
-    if (!result) {
-      network_event("network_game_server_handle_client_machines() failed");
-      return result;
-    }
-    state = *(uint16_t *)((char *)server + 4);
-    switch (state) {
-    case 0:
-      return network_game_server_idle_pregame_tasks((int)server);
-    case 1:
-      break;
-    case 2:
-      return network_game_server_idle_postgame_tasks((int)server);
-    default:
-      network_event("unknown server state");
-      return false;
+      result = network_game_server_handle_public_endpoint((int)server);
+      if (result) {
+        result = network_game_server_handle_client_machines((int)server);
+        if (result) {
+          state = server_data->state;
+          switch (state) {
+          case 0:
+            result = network_game_server_idle_pregame_tasks((int)server);
+            break;
+          case 1:
+            break;
+          case 2:
+            result = network_game_server_idle_postgame_tasks((int)server);
+            break;
+          default:
+            network_event("unknown server state");
+            result = false;
+            break;
+          }
+        } else {
+          network_event("network_game_server_handle_client_machines() failed");
+        }
+      } else {
+        network_event("network_game_server_handle_public_endpoint() failed");
+      }
+    } else {
+      network_event("network_connection_idle_server_reliable_endpoint() failed");
     }
   } else {
     network_event("the server's game is invalid");
   }
-  return true;
+
+  return result;
 }
 #if defined(_MSC_VER) && !defined(__clang__)
 #pragma inline_depth()
