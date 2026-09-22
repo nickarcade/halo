@@ -2639,6 +2639,7 @@ co(glow_particle, previous, 0x60);
 /// evidence: glow_render @0x133520
 /// evidence: glow_trailing_particle_update_color/..._update_size/glow_trailing_particle_update_velocity/..._update_position/glow_normal_particle_update_color (definition_index +0x224)
 /// evidence: PAL reference source/objects/widgets/glow.c struct glow_datum (names only; layout re-proven here)
+/// evidence: glow_update @0x1345b0 (tail_particle +0x254: remove @0x1349d0, append @0x134a5c/0x134a70)
 typedef struct glow_datum {
     int16_t datum_salt;                                     ///< offset=0x00  standard data_t element prefix (pool from data_new @0x133759)
     uint8_t pad_02[2];                                      ///< offset=0x02  declared padding
@@ -2653,7 +2654,7 @@ typedef struct glow_datum {
     uint16_t number_of_particles;                           ///< offset=0x24C  zero-extended word load (XOR ECX,ECX; MOV CX,[..+0x24c]) @0x133554 in glow_render; name: PAL-2342 (T2)
     uint8_t pad_24e[2];                                     ///< offset=0x24E  declared padding
     glow_particle *head_particle;                           ///< offset=0x250  list head read in glow_delete/glow_render (widget+0x250); name: PAL-2342 (T2)
-    uint8_t pad_254[4];                                     ///< offset=0x254  declared padding
+    glow_particle *tail_particle;                           ///< offset=0x254  list tail: MOV [EBX+0x254],EAX @0x1349d0 when removing the last particle in glow_update (also @0x1332dc in the uncalled glow_trailing_particle_age copy); read @0x134a5c/0x134a70 to append; name: PAL-2342 (T2)
     int16_t accumulated_trailing_particle_generation_ticks; ///< offset=0x258  word add of game_time_get() into widget+0x258 in glow_update; name: PAL-2342 (T2)
     uint8_t pad_25a[2];                                     ///< offset=0x25A  declared padding
 } glow_datum;
@@ -2671,7 +2672,7 @@ co(glow_datum, marker_time_index, 0x238);
 co(glow_datum, number_of_particles, 0x24C);
 co(glow_datum, pad_24e, 0x24E);
 co(glow_datum, head_particle, 0x250);
-co(glow_datum, pad_254, 0x254);
+co(glow_datum, tail_particle, 0x254);
 co(glow_datum, accumulated_trailing_particle_generation_ticks, 0x258);
 co(glow_datum, pad_25a, 0x25A);
 

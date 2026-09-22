@@ -11,7 +11,8 @@
     "glow_delete @0x1330a0",
     "glow_render @0x133520",
     "glow_trailing_particle_update_color/..._update_size/glow_trailing_particle_update_velocity/..._update_position/glow_normal_particle_update_color (definition_index +0x224)",
-    "PAL reference source/objects/widgets/glow.c struct glow_datum (names only; layout re-proven here)"
+    "PAL reference source/objects/widgets/glow.c struct glow_datum (names only; layout re-proven here)",
+    "glow_update @0x1345b0 (tail_particle +0x254: remove @0x1349d0, append @0x134a5c/0x134a70)"
   ],
   "notes": [
     "0x08..0x223 is object_marker markers[5] (5 * 0x6c, see object_marker.json). The schema has no struct-typed field kind, so the region is recorded as one gap here and the placed struct embeds object_marker markers[5]; the co() on markers is the check.",
@@ -117,9 +118,12 @@
     },
     {
       "offset": "0x254",
-      "width": 1,
-      "array_len": 4,
-      "confidence": "gap"
+      "width": 4,
+      "kind": "pointer",
+      "points_to": "glow_particle",
+      "name": "tail_particle",
+      "confidence": "typed",
+      "evidence": "list tail: MOV [EBX+0x254],EAX @0x1349d0 when removing the last particle in glow_update (also @0x1332dc in the uncalled glow_trailing_particle_age copy); read @0x134a5c/0x134a70 to append; name: PAL-2342 (T2)"
     },
     {
       "offset": "0x258",
