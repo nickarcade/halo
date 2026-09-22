@@ -1293,11 +1293,11 @@ void FUN_001330f0(int glow_widget, int particle_ptr)
   if ((definition->flags & 0x8) != 0) {
     particle->fade = *(float *)0x2533c8 -
                      (float)particle->ticks_in_existence / particle->lifetime;
-    particle->fade = particle->fade < *(float *)0x2533c0
-                       ? *(float *)0x2533c0
-                       : (particle->fade > *(float *)0x2533c8
-                            ? *(float *)0x2533c8
-                            : particle->fade);
+    particle->fade =
+      particle->fade < *(float *)0x2533c0 ?
+        *(float *)0x2533c0 :
+        (particle->fade > *(float *)0x2533c8 ? *(float *)0x2533c8 :
+                                               particle->fade);
   } else {
     particle->fade = 1.0f;
   }
@@ -1411,9 +1411,8 @@ void FUN_00133300(int particle_ptr, int object_handle, int glow_widget)
   definition = (glow_definition *)tag_get(
     0x676c7721, ((glow_datum *)glow_widget)->definition_index);
   if (definition->color_attachment_index != 0xffff) {
-    if (!object_get_function_value(object_handle,
-                                   definition->color_attachment_index,
-                                   &function_value))
+    if (!object_get_function_value(
+          object_handle, definition->color_attachment_index, &function_value))
       scale = *(float *)0x2533c0;
     else
       scale = function_value;
@@ -1438,15 +1437,18 @@ void FUN_00133300(int particle_ptr, int object_handle, int glow_widget)
   if ((definition->flags & 0x1) != 0) {
     particle->color_red = (definition->color_upper_bound_rgb[0] -
                            definition->color_lower_bound_rgb[0]) *
-                            definition->color_rate_of_change * ((glow_particle *)particle_ptr)->t +
+                            definition->color_rate_of_change *
+                            ((glow_particle *)particle_ptr)->t +
                           definition->color_lower_bound_rgb[0];
     particle->color_green = (definition->color_upper_bound_rgb[1] -
                              definition->color_lower_bound_rgb[1]) *
-                              definition->color_rate_of_change * ((glow_particle *)particle_ptr)->t +
+                              definition->color_rate_of_change *
+                              ((glow_particle *)particle_ptr)->t +
                             definition->color_lower_bound_rgb[1];
     particle->color_blue = (definition->color_upper_bound_rgb[2] -
                             definition->color_lower_bound_rgb[2]) *
-                             definition->color_rate_of_change * ((glow_particle *)particle_ptr)->t +
+                             definition->color_rate_of_change *
+                             ((glow_particle *)particle_ptr)->t +
                            definition->color_lower_bound_rgb[2];
     particle->color_alpha = 1.0f;
   }
@@ -1460,9 +1462,9 @@ void FUN_00133300(int particle_ptr, int object_handle, int glow_widget)
   else
     particle->fade = 1.0f;
 
-  particle->fade = particle->fade < 0.0f
-                     ? 0.0f
-                     : (particle->fade > 1.0f ? 1.0f : particle->fade);
+  particle->fade = particle->fade < 0.0f ?
+                     0.0f :
+                     (particle->fade > 1.0f ? 1.0f : particle->fade);
 }
 
 /* point_from_parametric_line (0x1334f0 / objects.obj) — evaluate a point along
@@ -1805,10 +1807,8 @@ void get_particle_world_position(int glow_widget, int particle_ptr,
   particle = (glow_particle *)particle_ptr;
   for (marker_index = 0; marker_index < glow->number_of_markers - 1;
        marker_index++) {
-    if (glow->marker_time_index[marker_index] <=
-          particle->t &&
-        glow->marker_time_index[marker_index + 1] >
-          particle->t)
+    if (glow->marker_time_index[marker_index] <= particle->t &&
+        glow->marker_time_index[marker_index + 1] > particle->t)
       break;
   }
   if (!(marker_index < glow->number_of_markers - 1)) {
@@ -1906,10 +1906,8 @@ void get_particle_world_position(int glow_widget, int particle_ptr,
   default:
     for (marker_index = 0; marker_index < glow->number_of_markers - 1;
          marker_index++) {
-      if (glow->marker_time_index[marker_index] <=
-            particle->t &&
-          particle->t <=
-            glow->marker_time_index[marker_index + 1])
+      if (glow->marker_time_index[marker_index] <= particle->t &&
+          particle->t <= glow->marker_time_index[marker_index + 1])
         break;
     }
     if (!(marker_index < glow->number_of_markers - 1)) {
@@ -1933,40 +1931,52 @@ void get_particle_world_position(int glow_widget, int particle_ptr,
     }
 
     *(int *)&knots[0] = *(int *)&glow->marker_time_index[first_marker_index];
-    *(int *)&knots[1] = *(int *)&glow->marker_time_index[first_marker_index + 1];
-    *(int *)&knots[2] = *(int *)&glow->marker_time_index[first_marker_index + 2];
-    *(int *)&knots[3] = *(int *)&glow->marker_time_index[first_marker_index + 3];
+    *(int *)&knots[1] =
+      *(int *)&glow->marker_time_index[first_marker_index + 1];
+    *(int *)&knots[2] =
+      *(int *)&glow->marker_time_index[first_marker_index + 2];
+    *(int *)&knots[3] =
+      *(int *)&glow->marker_time_index[first_marker_index + 3];
 
     for (index = 0; index < 4; index++) {
-      marker = glow_widget + glow->marker_order[first_marker_index + index] * 0x6c;
-      positions[index] = *(vector3_t *)((glow_datum *)marker)->markers[0].matrix_position;
+      /* 2276 forms glow + order*0x6c and folds markers' +0x08 into each
+       * displacement (+0x44/+0x5c/+0x68); &glow->markers[order] adds the +8
+       * to the pointer instead and costs ~4pp VC71. So this is a row base
+       * over glow_datum, read through markers[0]. */
+      marker =
+        glow_widget + glow->marker_order[first_marker_index + index] * 0x6c;
+      positions[index] =
+        *(vector3_t *)((glow_datum *)marker)->markers[0].matrix_position;
       ups[index] = *(vector3_t *)((glow_datum *)marker)->markers[0].matrix_up;
       /* sides[index] = cross(matrix_up, matrix_forward) */
-      sides[index].x = ((glow_datum *)marker)->markers[0].matrix_up[1] * ((glow_datum *)marker)->markers[0].matrix_forward[2] -
-                       ((glow_datum *)marker)->markers[0].matrix_up[2] * ((glow_datum *)marker)->markers[0].matrix_forward[1];
-      sides[index].y = ((glow_datum *)marker)->markers[0].matrix_up[2] * ((glow_datum *)marker)->markers[0].matrix_forward[0] -
-                       ((glow_datum *)marker)->markers[0].matrix_up[0] * ((glow_datum *)marker)->markers[0].matrix_forward[2];
-      sides[index].z = ((glow_datum *)marker)->markers[0].matrix_up[0] * ((glow_datum *)marker)->markers[0].matrix_forward[1] -
-                       ((glow_datum *)marker)->markers[0].matrix_up[1] * ((glow_datum *)marker)->markers[0].matrix_forward[0];
+      sides[index].x = ((glow_datum *)marker)->markers[0].matrix_up[1] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[2] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[2] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[1];
+      sides[index].y = ((glow_datum *)marker)->markers[0].matrix_up[2] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[0] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[0] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[2];
+      sides[index].z = ((glow_datum *)marker)->markers[0].matrix_up[0] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[1] -
+                       ((glow_datum *)marker)->markers[0].matrix_up[1] *
+                         ((glow_datum *)marker)->markers[0].matrix_forward[0];
     }
     break;
   }
 
   nonuniform_cubic_spline_vector3d(
-    particle->position, (float *)&positions[0],
-    (float *)&positions[1], (float *)&positions[2], (float *)&positions[3],
-    knots[0], knots[1], knots[2], knots[3], particle->t);
+    particle->position, (float *)&positions[0], (float *)&positions[1],
+    (float *)&positions[2], (float *)&positions[3], knots[0], knots[1],
+    knots[2], knots[3], particle->t);
   nonuniform_cubic_spline_vector3d(
     (float *)&up, (float *)&ups[0], (float *)&ups[1], (float *)&ups[2],
-    (float *)&ups[3], knots[0], knots[1], knots[2], knots[3],
-    particle->t);
+    (float *)&ups[3], knots[0], knots[1], knots[2], knots[3], particle->t);
   nonuniform_cubic_spline_vector3d(
     (float *)&side, (float *)&sides[0], (float *)&sides[1], (float *)&sides[2],
-    (float *)&sides[3], knots[0], knots[1], knots[2], knots[3],
-    particle->t);
+    (float *)&sides[3], knots[0], knots[1], knots[2], knots[3], particle->t);
 
-  angle = rotation_rate * particle->t +
-          particle->initial_angle;
+  angle = rotation_rate * particle->t + particle->initial_angle;
   sin_angle = x87_fsin(angle);
   cos_angle = x87_fcos(angle);
   particle->position[0] =
