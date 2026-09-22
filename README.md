@@ -31,7 +31,7 @@ Select a badge to open that workflow's run history.
 [![Audit gates](https://github.com/stianeklund/halo/actions/workflows/audit.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/audit.yml)
 [![Equivalence tests](https://github.com/stianeklund/halo/actions/workflows/equivalence.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/equivalence.yml)
 [![Snapshot verification](https://github.com/stianeklund/halo/actions/workflows/snapshot-tests.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/snapshot-tests.yml)
-[![VC71 byte-accuracy regression](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml)
+[![VC71 mnemonic-match regression](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/vc71-regression.yml)
 [![Runtime oracle tests](https://github.com/stianeklund/halo/actions/workflows/runtime-oracle.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/runtime-oracle.yml)
 [![Progress report](https://github.com/stianeklund/halo/actions/workflows/progress-report.yml/badge.svg?branch=main)](https://github.com/stianeklund/halo/actions/workflows/progress-report.yml)
 
