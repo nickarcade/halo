@@ -671,9 +671,9 @@ char network_game_server_add_player_to_game(int server, int machine,
     system_exit(-1);
   }
   if (*(short *)(machine + 0xc) == (short)p[0x1c]) {
-    next_val = *(int *)0x46eed8;
+    next_val = network_game_server_next_team;
     *(char *)(p + 0x1e) = (char)next_val;
-    *(int *)0x46eed8 = (next_val + 1) % 2;
+    network_game_server_next_team = (next_val + 1) % 2;
     if (*(short *)p == 0) {
       get_unique_random_name(server, (int)player);
     }
@@ -2442,13 +2442,13 @@ after_notify:
   SleepEx(1000, 0);
   FUN_00082b30();
   csmemset(server, 0, 0x4bc);
-  if (!*(char *)0x46eed4) {
+  if (!network_game_server_memory_do_not_use_directly_in_use) {
     display_assert("network_game_server_memory_do_not_use_directly_in_use",
                    "c:\\halo\\SOURCE\\networking\\network_server_manager.c",
                    0x171, 1);
     system_exit(-1);
   }
-  *(char *)0x46eed4 = 0;
+  network_game_server_memory_do_not_use_directly_in_use = 0;
   network_event("network server disposed");
 }
 
@@ -2642,25 +2642,25 @@ void *network_game_server_create(void)
   int i;
   int *slot;
 
-  if (*(char *)0x46eed4) {
+  if (network_game_server_memory_do_not_use_directly_in_use) {
     display_assert("!network_game_server_memory_do_not_use_directly_in_use",
                    "c:\\halo\\SOURCE\\networking\\network_server_manager.c",
                    0xe0, 1);
     system_exit(-1);
   }
-  *(char *)0x46eed4 = 1;
+  network_game_server_memory_do_not_use_directly_in_use = 1;
   csmemset((void *)0x5a90e0, 0, 0x4bc);
-  *(int *)0x5a90e0 = network_connection_new(1, 0x141e);
-  if (*(int *)0x5a90e0) {
+  network_game_server_connection = network_connection_new(1, 0x141e);
+  if (network_game_server_connection) {
     FUN_00082a90();
-    *(short *)0x5a90e4 = 0;
-    *(short *)0x5a90e6 = 2;
+    network_game_server_state = 0;
+    network_game_server_flags = 2;
     csmemset((void *)0x5a90e8, 0, 0x434);
-    network_connection_set_connection_rejection_procedure(*(int *)0x5a90e0,
+    network_connection_set_connection_rejection_procedure(network_game_server_connection,
                                                           (void *)network_game_server_reject_connection_game_is_full);
     network_game_invalidate((void *)0x5a90e8);
-    *(short *)0x5a91f8 = (short)main_get_difficulty();
-    *(int *)0x5a9514 = -1;
+    network_game_server_difficulty = (short)main_get_difficulty();
+    network_game_server_reset_counter = -1;
     i = 0;
     slot = (int *)0x5a9520;
     do {
@@ -2673,8 +2673,8 @@ void *network_game_server_create(void)
       slot += 4;
       i++;
     } while ((int)slot < 0x5a9560);
-    *(char *)0x5a9599 = 0;
-    *(int *)0x5a9564 = 0;
+    network_game_server_loading_flag = 0;
+    network_game_server_all_loaded_time = 0;
     if (!network_game_server_reset_to_pregame((void *)0x5a90e0)) {
       error(2, "failed to initialize server pregame settings");
       network_game_server_dispose((void *)0x5a90e0);

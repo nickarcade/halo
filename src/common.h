@@ -149,4 +149,21 @@ static const int _scenario_type_main_menu = 2;
 #define screen_bounds_left (*(int16_t *)0x50657e)
 #define structure_decals_globals (*(structure_decals_globals_t **)0x4d8ec8)
 
+/* network_server_manager.c global server instance (base 0x5a90e0) and two
+ * standalone flags.  network_game_server_create() returns (void *)0x5a90e0
+ * as its "server" pointer, so these are the same fields other functions in
+ * that TU reach via a server/s parameter at the matching relative offset
+ * (e.g. server+0 = connection, server+4 = state, server+6 = flags,
+ * server+0x484 = all_loaded_time, server+0x4b9 = loading_flag). Bodies must
+ * stay token-identical to the code they replace. */
+#define network_game_server_memory_do_not_use_directly_in_use (*(char *)0x46eed4)
+#define network_game_server_next_team (*(int *)0x46eed8)
+#define network_game_server_connection (*(int *)0x5a90e0)
+#define network_game_server_state (*(short *)0x5a90e4)
+#define network_game_server_flags (*(short *)0x5a90e6)
+#define network_game_server_difficulty (*(short *)0x5a91f8)
+#define network_game_server_reset_counter (*(int *)0x5a9514)
+#define network_game_server_loading_flag (*(char *)0x5a9599)
+#define network_game_server_all_loaded_time (*(int *)0x5a9564)
+
 #endif

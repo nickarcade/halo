@@ -100,6 +100,17 @@ static const int _scenario_type_main_menu = 2;
 #define screen_bounds_left (*(int16_t *)0x50657e)
 #define structure_decals_globals (*(structure_decals_globals_t **)0x4d8ec8)
 
+/* network_server_manager.c globals. Kept in sync with src/common.h. */
+#define network_game_server_memory_do_not_use_directly_in_use (*(char *)0x46eed4)
+#define network_game_server_next_team (*(int *)0x46eed8)
+#define network_game_server_connection (*(int *)0x5a90e0)
+#define network_game_server_state (*(short *)0x5a90e4)
+#define network_game_server_flags (*(short *)0x5a90e6)
+#define network_game_server_difficulty (*(short *)0x5a91f8)
+#define network_game_server_reset_counter (*(int *)0x5a9514)
+#define network_game_server_loading_flag (*(char *)0x5a9599)
+#define network_game_server_all_loaded_time (*(int *)0x5a9564)
+
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert (see common.h). */
 #define assert_halt_at(file, line, cond)                       \
     do {                                                     \
