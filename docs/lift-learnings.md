@@ -3054,3 +3054,63 @@ false — `objects.c`'s MSVC-vs-clang `#if` guard opens a brace in each arm and
 closes it once, which left depth permanently +1 and leaked one function's scope
 across the next 3000 lines. `check_readability.py --self-test` covers all four
 cases.
+
+---
+
+## 61. Nothing Checked WHICH Function a Lift Calls — a Reordered Argument List Hid the Wrong Callee for a Week
+
+**Automation:** YES — `tools/audit/check_callee_identity.py` (HIGH tier also
+surfaced by `check_lift_hazards.py`).
+
+**What happens:** `FUN_000dedf0` in `src/halo/interface/interface.c` called
+`unit_get_weapon` (0x1ab940). The original calls `unit_inventory_get_weapon`
+(0x1adeb0). Two kb.json functions with near-identical names and related
+purposes were confused at lift time — the name was picked by semantic
+plausibility instead of by decoding the CALL target in the disassembly.
+
+The failure then got *entrenched*. An automated rebase fixup (9f02d7c9d) noticed
+the call site's arguments did not match `unit_get_weapon`'s decl
+(`int16_t weapon_index@<si>, char *unit_data`) and mechanically **reordered
+them to conform** — never asking whether `unit_get_weapon` was the right callee
+at all. After that the site type-checked cleanly, so every existing gate passed
+it: `check_arg_counts.py` (arity), `check_param_types.py` (float/int param and
+return types), `check_callee_reg_args.py` (`@<reg>`), `check_xcall_types.py`
+(raw-cast conventions). All of them check the **shape** of a call; none checked
+its **identity**. It survived ~7 days and cost 4.2pp of VC71 match on that
+function (82.7% → 86.9% once fixed).
+
+**Why VC71 did not catch it either:** a wrong CALL target is one differing
+operand in a mnemonic-only LCS. The `call` mnemonic still lines up.
+
+**Rule:** the callee NAME is evidence, not a guess. When a call site's arguments
+do not match the named callee's decl, the first hypothesis is that the NAME is
+wrong — not the argument order. Decode the `E8` target at that site before
+touching anything.
+
+**Detection:**
+
+```bash
+rtk python3 tools/audit/check_callee_identity.py --function FUN_000dedf0
+rtk python3 tools/audit/check_callee_identity.py --changed-only
+```
+
+For each `ported: true` function it disassembles the original bytes over
+`[addr, function_bounds.json end)`, collects every direct `CALL`/tail-`JMP`
+immediate target (following one-instruction `JMP` thunks, so the
+`thunk_rasterizer_*` and XAPI import stubs are transparent), and compares that
+set against the kb.json address of every NAMED callee the C body calls.
+A source callee whose address the original never reaches is a finding; targets
+the original DOES reach that the source never names are reported as the
+candidates for what it should have said. HIGH means one of those candidates is
+lexically similar to the name used — the confusion signature. On the pre-fix
+interface.c it fires on both call sites and names
+`unit_inventory_get_weapon@0x1adeb0` outright.
+
+**Noise, honestly:** 29,758 of 29,874 named call sites confirm against the
+binary (99.5%). The residue is dominated by MSVC **inlining** — the original
+inlined a small cseries/CRT helper, so there is no CALL to compare and the
+inlined body's own callees surface as orphans. Those land in WARN/INFO and are
+not gated; only HIGH is. The other live HIGH the first full run found is real
+and of the same class: `FUN_001c2120` (`saved_game_files.c:477`) calls
+`csstrcat(path, "\\blam.lst")` where 0x1c21a5 calls `csstrncat` (0x8dd30) —
+a 2-arg call written for a 3-arg bounded one.

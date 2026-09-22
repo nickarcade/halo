@@ -2984,6 +2984,38 @@ def check_narrowing_assignment(filepath, content, lines):
     return errors
 
 
+def check_callee_identity(c_files):
+    """Flag lifts that name one kb.json function where the original calls another.
+
+    Every other call-site gate here checks the SHAPE of a call (arity, param
+    and return types, register annotations).  None checks callee IDENTITY, and
+    a wrong-but-similarly-named callee type-checks cleanly once its arguments
+    are reordered to the decl it does not belong to — which is exactly how
+    FUN_000dedf0 shipped `unit_get_weapon` for `unit_inventory_get_weapon` for
+    a week (lift-learnings §61).
+
+    Delegates to tools/audit/check_callee_identity.py, which resolves the real
+    CALL targets out of the pristine XBE.  Only its HIGH tier (a similarly
+    named function IS called at an address the source never names) is surfaced
+    here; WARN/INFO are dominated by MSVC inlining and belong to the standalone
+    tool.  Fails soft — a missing XBE or capstone must not break the scan.
+    """
+    if not c_files:
+        return []
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import check_callee_identity as cci
+    except Exception:
+        return []
+    if not (cci.cac.XBE_PATH.exists() and cci.BOUNDS_PATH.exists()):
+        return []
+    try:
+        findings, _stats = cci.analyze(files=list(c_files))
+    except Exception:
+        return []
+    return [f'  {cci._fmt(f).strip()}' for f in findings if f.severity == 'HIGH']
+
+
 def main():
     frame_audit = '--frame-size-audit' in sys.argv
     quiet = '-q' in sys.argv or '--quiet' in sys.argv or os.environ.get('LOG_LEVEL') == 'WARNING'
@@ -3036,6 +3068,7 @@ def main():
     all_static_buf_errors = []
     all_slot_form_errors = []
     all_narrowing_errors = []
+    all_callee_identity_errors = check_callee_identity(c_files)
 
     for fpath in c_files:
         with open(fpath, 'r', errors='replace') as f:
@@ -3100,7 +3133,8 @@ def main():
             f'fnptr_conv: {len(all_fnptr_conv_errors)}, '
             f'vendored_src: {len(all_vendored_errors)}, '
             f'slot_form: {len(all_slot_form_errors)}, '
-            f'narrowing_assign: {len(all_narrowing_errors)}'
+            f'narrowing_assign: {len(all_narrowing_errors)}, '
+            f'callee_identity: {len(all_callee_identity_errors)}'
         )
         if frame_audit:
             counts += f', frame_sizes: {len(all_frame_errors)}'
@@ -3121,7 +3155,7 @@ def main():
                  len(all_contiguity_errors) + len(all_nan_guard_errors) +
                  len(all_range_gate_errors) + len(all_fnptr_conv_errors) +
                  len(all_vendored_errors) + len(all_slot_form_errors) +
-                 len(all_narrowing_errors))
+                 len(all_narrowing_errors) + len(all_callee_identity_errors))
         if total:
             print(counts, file=sys.stderr)
     else:
@@ -3492,6 +3526,24 @@ def main():
                 file=sys.stderr,
             )
             for e in all_narrowing_errors:
+                print(e, file=sys.stderr)
+            print(file=sys.stderr)
+
+        if all_callee_identity_errors:
+            print(
+                'WARNING: the source names one kb.json function where the\n'
+                'pristine XBE calls a different, similarly-named one. Every\n'
+                'other call-site gate checks the SHAPE of a call (arity, param\n'
+                'and return types, @<reg>); none checks callee IDENTITY, and a\n'
+                'wrong callee whose arguments were later reordered to fit its\n'
+                'decl type-checks cleanly (lift-learnings §61 — FUN_000dedf0\n'
+                'called unit_get_weapon for unit_inventory_get_weapon for a\n'
+                'week and cost 4.2pp of VC71). Decode the CALL target in the\n'
+                'original before changing the arguments — the NAME is what is\n'
+                'in question. Detail: check_callee_identity.py --function <fn>:\n',
+                file=sys.stderr,
+            )
+            for e in all_callee_identity_errors:
                 print(e, file=sys.stderr)
             print(file=sys.stderr)
 
