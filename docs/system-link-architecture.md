@@ -4,7 +4,7 @@ Sources: current `kb.json` function inventory, the networking source under
 `src/halo/networking/` and `src/halo/bungie_net/`,
 `artifacts/ntsc_callgraph/callgraph.json`, and
 `docs/system-link-rng-desync.md`. The port-status snapshot below was checked
-on 2026-09-21. Historical investigation notes are useful evidence, but do not
+on 2026-09-22. Historical investigation notes are useful evidence, but do not
 override current source or `kb.json`.
 
 # 1. Current port coverage
@@ -39,22 +39,22 @@ runtime proof.
 recorded reason. They are a useful, bounded surface for system-link work, not
 evidence that they cause a current regression.
 
-| Addr       | Function                               | VC71 mnemonic | Role                             |
-|------------|----------------------------------------|--------------:|----------------------------------|
-| `0x12eb20` | `network_game_server_start`            |      71.2% | server main tick                 |
-| `0x12eca0` | `network_server_manager_pregame_start` |      92.3% | postgame→pregame reset           |
-| `0x12e750` | `FUN_0012e750`                         |      79.4% | server pregame (state 0) tick    |
-| `0x12e580` | `FUN_0012e580`                         |      77.1% | handle client machines           |
-| `0x12d880` | `FUN_0012d880`                         |      81.9% | add new client connection        |
-| `0x12dc20` | `FUN_0012dc20`                         |      84.1% | set up variant/name/open game    |
-| `0x12f5d0` | `FUN_0012f5d0`                         |     100.0% | broadcast pregame game data      |
-| `0x12f690` | `network_game_server_reset_to_pregame` |      90.3% | advertise game (broadcast reply) |
-| `0x12f8d0` | `FUN_0012f8d0`                         |      77.9% | client ping handler              |
-| `0x12f990` | `FUN_0012f990`                         |      79.1% | join-game-request handler        |
-| `0x12f040` | `FUN_0012f040`                         |     100.0% | client game-start request        |
-| `0x12f170` | `FUN_0012f170`                         |      99.1% | client loaded                    |
-| `0x12f200` | `FUN_0012f200`                         |     100.0% | add player ingame                |
-| `0x12f290` | `FUN_0012f290`                         |     100.0% | remove player postgame           |
+| Addr       | Function                                                              | VC71 mnemonic | Role                             |
+|------------|------------------------------------------------------------------------|--------------:|----------------------------------|
+| `0x12eb20` | `network_game_server_idle`                                            |      71.2% | server main tick                 |
+| `0x12eca0` | `network_game_server_reset_to_pregame`                                |      92.3% | postgame→pregame reset           |
+| `0x12e750` | `network_game_server_idle_pregame_tasks`                              |      79.4% | server pregame (state 0) tick    |
+| `0x12e580` | `network_game_server_handle_client_machines`                          |      77.1% | handle client machines           |
+| `0x12d880` | `network_game_server_add_new_client`                                  |      81.9% | add new client connection        |
+| `0x12dc20` | `network_game_server_setup_game_from_playlist`                        |      84.1% | set up variant/name/open game    |
+| `0x12f5d0` | `network_game_server_send_game_data_pregame`                          |     100.0% | broadcast pregame game data      |
+| `0x12f690` | `handle_message_client_broadcast_game_search`                         |      89.4% | advertise game (broadcast reply) |
+| `0x12f8d0` | `handle_message_client_ping`                                          |      77.9% | client ping handler              |
+| `0x12f990` | `network_game_server_handle_message_client_join_game_request`         |      79.1% | join-game-request handler        |
+| `0x12f040` | `network_game_server_handle_message_client_game_start_request`        |     100.0% | client game-start request        |
+| `0x12f170` | `network_game_server_handle_message_client_loaded`                    |      99.1% | client loaded                    |
+| `0x12f200` | `network_game_server_handle_message_client_add_player_request_ingame` |     100.0% | add player ingame                |
+| `0x12f290` | `network_game_server_handle_message_client_remove_player_request_postgame` |     100.0% | remove player postgame           |
 
 `FUN_00083930` (socket creation), `FUN_00083e20` (bind),
 `FUN_000841b0` (asynchronous connect), `FUN_000843a0` (listen), and
@@ -85,56 +85,56 @@ file for `transport_endpoint_set_winsock.obj`.
 - An endpoint set is a socket file-descriptor array, with operations `create`, `delete`, `add`, `remove`, `rewind`, `count`, `poll`, and `get_next`.
 - The endpoint pool has a cleanup function, `endpoint_pool_cleanup`. Endpoints support create, bind, connect, listen, and accept operations.
 - The API includes `recv_endpoint` (0x82e50), `send_endpoint` (0x82f50), `close_endpoint` (0x84000), and the datagram functions `FUN_00084520` (recvfrom) and `FUN_00084740` (sendto). These are active redirects in the current transport lift.
-- `game_initialize` calls `transport_initialize` (0x82130), and `game_dispose` calls `transport_dispose` (0x822d0) (`src/halo/game/game.c:119`). Three helper functions, `transport_get_nonce`, `transport_get_key`, and `transport_get_xnaddr`, support Xbox secure-address authentication.
+- `game_initialize` calls `transport_initialize` (0x82130) (`src/halo/game/game.c:119`), and `game_dispose` calls `transport_dispose` (0x822d0) (`src/halo/game/game.c:166`). Three helper functions, `transport_get_nonce`, `transport_get_key`, and `transport_get_xnaddr`, support Xbox secure-address authentication.
 
 ## Layer 2 — connection (`network_connection.c`, 18/18 ported)
 
 The `network_connection` struct is 0x38 bytes (`src/halo/networking/network_connection.h`). It holds a reliable endpoint with a reliable circular queue, an unreliable endpoint with an unreliable queue, flags, and counters. The server variant, `network_server_connection`, is 0x50 bytes. It adds an endpoint set, four child clients, and an accept gate.
 
-- `network_connection_new(flags, port)` (0x1296b0) creates a TCP reliable endpoint, a UDP unreliable endpoint, and their queues. Flag value 1 selects server mode (listen-set limit 5, port `0x141e` = 5150). Flag value 2 selects client mode (port `0x141f` = 5151).
+- `network_connection_new(flags, well_known_port)` (0x1296b0) creates a TCP reliable endpoint, a UDP unreliable endpoint, and their queues; the port is a caller-supplied argument, not derived from `flags`. Flag value 1 selects server mode (listen-set limit 5); its caller (`network_server_manager.c:2653`) passes port `0x141e` = 5150. Flag value 2 selects client mode; its caller (`network_client_manager.c:2589`) passes port `0x141f` = 5151.
 - `network_connection_connect` (0x128460) runs on the client, asynchronously. `network_connection_server_accept_client_connection` (0x1285c0) runs on the server.
 - `network_connection_write` (0x128e00) selects the reliable stream or datagram path from the connection role and requested reliability. Its reliable path handles partial `send_endpoint` writes and treats `-4` as the retryable result; its datagram path uses `FUN_00084740`.
-- `network_connection_idle` (0x129a30) runs on the server. It calls `poll_endpoint_set`, rewinds the set, then handles each ready endpoint. For a new client, it calls `FUN_00084450` and `network_connection_new_serverside_client` (0x129270). For an existing client, it calls `network_connection_idle_client_reliable_endpoint` (0x1294d0), which receives data into a 0x8000-byte queue.
-- The read functions are `network_connection_read_reliable` (0x1292f0) and `network_connection_read_unreliable` (0x1286e0).
+- `network_connection_idle_server_reliable_endpoint` (0x129a30) runs on the server. It calls `poll_endpoint_set`, rewinds the set, then handles each ready endpoint. For a new client, it calls `FUN_00084450` and `network_connection_create_client_from_endpoint` (0x129270). For an existing client, it calls `network_connection_idle_client_reliable_endpoint` (0x1294d0), which receives data into a 0x8000-byte queue. The literal name `network_connection_idle` now belongs to a different, more general timeout/servicing function at 0x129cf0 — defined in `network_game_globals.c` despite an embedded `__FILE__` string that still points at `network_connection.c`.
+- The read functions are `network_client_reliable_connection_read` (0x1292f0) and `network_client_unreliable_connection_read` (0x1286e0).
 
 ## Layer 3 — message frame + crypto (`message_header.c`)
 
 The wire header is a 16-bit word. Bits 4-15 hold the size (`size = header >> 4`). Bits 0-1 hold flags. Bits 2-3 hold the category (see `GET_MESSAGE_SIZE` and the category mask in the handlers). `build_message_header` (0x80b40) builds this header. `create_message` (0x80ca0) wraps a payload with the header. `byte_swap_message_header` (0x80c20) converts between host and network byte order.
 
-Cryptography functions include `tea_encrypt`/`tea_decrypt` (the TEA cipher), `key_message_xor_keystream`, `message_encrypt`/`message_decrypt` (0x80940/0x80a40), and prime and RSA helpers starting at `FUN_00080eb0`. The key-exchange handlers at 0x805a0 and 0x80620 are active and currently live in `message_header.c`; the message-builder and crypto functions listed in section 1 remain on original bytes. `network_connection_read_reliable` asserts that its received header has no encryption flag. That establishes plaintext as the expected reliable-message form, but is not by itself proof about every packet path.
+Cryptography functions include `tea_encrypt`/`tea_decrypt` (the TEA cipher), `key_message_xor_keystream`, `message_encrypt`/`message_decrypt` (0x80940/0x80a40), and prime and RSA helpers starting at `FUN_00080eb0`. The key-exchange handlers at 0x805a0 and 0x80620 are active and currently live in `message_header.c`; the message-builder and crypto functions listed in section 1 remain on original bytes. `network_client_reliable_connection_read` asserts that its received header has no encryption flag. That establishes plaintext as the expected reliable-message form, but is not by itself proof about every packet path.
 
 ## Layer 4 — packet serialization (`network_messages.c` + `data_packet_groups.c`)
 
 - `data_packet_groups.c` defines field descriptors as five `short` values, ending with a type-9 terminator. It contains `encode_packet_group` (0x11aca0) and `compute_packet_field_sizes` (0x11add0).
-- `network_messages.c` contains decode-state helpers, `verify_packet_group_definitions` (0x11a930), `decode_packet_group` (0x11aa40), a hash table, and an LRA cache. `initialize_network_game_packets` (0x12b640) validates `s_network_game_messages_group` (0x323510).
-- `encode_network_game_message` (0x12b700, at `network_messages.c:1422`) checks `message_struct_size` for each of the 35 message types. The source defines, for example, `server_game_advertise` (0x114), `server_game_settings_update` (0x434), `server_game_update` (0x210), and `client_game_update` (0x88). It wraps the message with `create_message`.
+- `network_messages.c` contains decode-state helpers, `data_packet_group_initialize` (0x11a930), `data_packet_group_decode_packet` (0x11aa40), a hash table, and an LRA cache. `initialize_network_game_packets` (0x12b640) validates `s_network_game_messages_group` (0x323510).
+- `create_network_game_message` (0x12b700, at `network_messages.c:1422`) checks `message_struct_size` for each of the 35 message types. The source defines, for example, `server_game_advertise` (0x114), `server_game_settings_update` (0x434), `server_game_update` (0x210), and `client_game_update` (0x88). It wraps the message with `create_message`.
 
 ## Layer 5 — game protocol / state machines
 
 Key globals: the client pointer at `0x46e8c0`, the server pointer at `0x46e8bc`, the abort flag at `0x46e8c6`, and the keepalive timestamp at `0x46e8c8`. The server static block sits at `0x5a90e0`. The client static block sits at `0x5a95a0`. Two functions in `network_game_globals.c`, `network_game_set_number_of_games_played` and `network_game_set_random_seed`, reuse a local variable named `server` to hold the client pointer. This is a naming inconsistency in the source, not a logic error.
 
 ### Client
-`FUN_00127070` (0x127070) dispatches on the state field at `client+0xca6`:
+`network_game_client_idle` (0x127070) dispatches on the state field at `client+0xca6`:
 
 | State       | Handler                                       | Role                           |
 |-------------|-----------------------------------------------|--------------------------------|
 | 0 searching | `network_game_client_idle_searching` 0x1268a0 | broadcast game search + ping   |
-| 1 joining   | `FUN_00126b60`                                | TCP connect, send join request |
-| 2 pregame   | `FUN_00126ce0`                                | keepalive, settings            |
-| 3 ingame    | `FUN_00126db0`                                | stale detection, game updates  |
-| 4 postgame  | `network_game_client_idle` 0x126f40           | keepalive/reconnect            |
+| 1 joining   | `network_game_client_idle_joining` 0x126b60   | TCP connect, send join request |
+| 2 pregame   | `network_game_client_idle_pregame` 0x126ce0   | keepalive, settings            |
+| 3 ingame    | `network_game_client_idle_ingame` 0x126db0    | stale detection, game updates  |
+| 4 postgame  | `network_game_client_idle_postgame` 0x126f40  | keepalive/reconnect            |
 
-For incoming messages, `FUN_001260c0` (0x1260c0) drains the queue through `FUN_001298f0`, then `FUN_00127ea0` (0x127ea0) switches on message type.
+For incoming messages, `network_game_client_process_incoming_messages` (0x1260c0) drains the queue through `network_connection_read` (0x1298f0), then `network_game_client_handle_message` (0x127ea0) switches on message type.
 
 ### Server
-`network_game_server_start` (0x12eb20, deactivated) runs the server tick in this order:
-1. `network_connection_idle` accepts new connections.
-2. `FUN_0012d880` (deactivated) adds a new client.
-3. `FUN_0012d9f0` handles public-endpoint datagrams.
-4. `FUN_0012e580` (deactivated) handles client machines.
-5. The tick dispatches on the state field at `server+4`: state 0 (pregame) calls `FUN_0012e750` (deactivated), state 2 (postgame) calls `FUN_0012db60`. State 1 (ingame) has no separate handler listed here.
+`network_game_server_idle` (0x12eb20, deactivated) runs the server tick in this order:
+1. `network_connection_idle` (0x129cf0) accepts new connections — it calls into `network_connection_idle_server_reliable_endpoint` (0x129a30).
+2. `network_game_server_add_new_client` (0x12d880, deactivated) adds a new client.
+3. `network_game_server_handle_public_endpoint` (0x12d9f0) handles public-endpoint datagrams.
+4. `network_game_server_handle_client_machines` (0x12e580, deactivated) handles client machines.
+5. The tick dispatches on the state field at `server+4`: state 0 (pregame) calls `network_game_server_idle_pregame_tasks` (0x12e750, deactivated), state 2 (postgame) calls `network_game_server_idle_postgame_tasks` (0x12db60). State 1 (ingame) has no separate handler listed here.
 
-Datagrams route through `FUN_00130270` (0x130270). Connected messages route through `FUN_00130580` (0x130580). The broadcast helper `FUN_0012f430` (0x12f430) loops over the four machine slots.
+Datagrams route through `network_game_server_handle_datagram` (0x130270). Connected messages route through `network_game_server_handle_client_message` (0x130580). The broadcast helper `network_game_server_send_message_to_all_machines` (0x12f430) loops over the four machine slots.
 
 Server states: 0 pregame, 1 ingame, 2 postgame.
 
@@ -199,20 +199,20 @@ The `network_game` blob starts at `game+8` and is 0x434 bytes. It holds four mac
 ```
 CLIENT idle_searching (0x1268a0)
   encode 0x00 broadcast_game_search -> network_connection_write(UDP, 255.255.255.255:0x141e)
-HOST   network_game_server_start -> FUN_0012d9f0 -> FUN_00130270 datagram case 0
-        -> network_game_server_reset_to_pregame [deact]  (builds 0x114 advertise)
+HOST   network_game_server_idle -> network_game_server_handle_public_endpoint -> network_game_server_handle_datagram datagram case 0
+        -> handle_message_client_broadcast_game_search [deact]  (builds 0x114 advertise)
 CLIENT FUN_00127260 (0x02 advertise) -> FUN_00125ce0 advertised-games list -> UI
 CLIENT initiate_join_game -> network_connection_connect (TCP :0x141e)
-HOST   network_connection_idle accept -> network_connection_new_serverside_client
-        -> FUN_0012d880 add client [deact]
-CLIENT send 0x0c join_game_request (FUN_00126b60)
-HOST   FUN_00130580 case 0xc -> FUN_0012f990 join handler [deact]
+HOST   network_connection_idle accept -> network_connection_create_client_from_endpoint
+        -> network_game_server_add_new_client add client [deact]
+CLIENT send 0x0c join_game_request (network_game_client_idle_joining)
+HOST   network_game_server_handle_client_message case 0xc -> network_game_server_handle_message_client_join_game_request join handler [deact]
         -> network_game_server_accept_client_machine_into_game
-HOST   broadcast 0x04 machine_accepted -> 0x06 game_settings_update (FUN_0012f5d0)
-CLIENT 0x04 -> pregame state 2; HOST state 0 (FUN_0012e750 loop)
+HOST   broadcast 0x04 machine_accepted -> 0x06 game_settings_update (network_game_server_send_game_data_pregame)
+CLIENT 0x04 -> pregame state 2; HOST state 0 (network_game_server_idle_pregame_tasks loop)
 ... countdown 0x07 / begin_game 0x08 -> state 3 ...
 INGAME: CLIENT end_frame -> 0x19 client_game_update (UDP) every 16ms
-        HOST FUN_00130270 case 0x19 -> handle_client_update_packet
+        HOST network_game_server_handle_datagram case 0x19 -> handle_client_update_packet
         HOST broadcast 0x14 server_game_update -> CLIENT FUN_00127a50
 ```
 
