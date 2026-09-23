@@ -16194,7 +16194,7 @@
     {
      "addr": "0x12d880",
      "decl": "bool network_game_server_add_new_client(int server@<eax>, int new_connection);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_add_new_client"
     },
     {
@@ -16218,7 +16218,7 @@
     {
      "addr": "0x12dc20",
      "decl": "bool network_game_server_setup_game_from_playlist(int server@<ebx>);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_setup_game_from_playlist"
     },
     {
@@ -16248,13 +16248,13 @@
     {
      "addr": "0x12e580",
      "decl": "bool network_game_server_handle_client_machines(int server@<ebx>);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_handle_client_machines"
     },
     {
      "addr": "0x12e750",
      "decl": "bool network_game_server_idle_pregame_tasks(int server@<esi>);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_idle_pregame_tasks"
     },
     {
@@ -16266,13 +16266,13 @@
     {
      "addr": "0x12eb20",
      "decl": "bool network_game_server_idle(void *server);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_idle"
     },
     {
      "addr": "0x12eca0",
      "decl": "bool network_game_server_reset_to_pregame(void *server);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_reset_to_pregame"
     },
     {
@@ -16575,7 +16575,7 @@
     {
      "addr": "0x12f990",
      "decl": "char network_game_server_handle_message_client_join_game_request(int server, void *machine @<esi>, void *message, int message_size);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_handle_message_client_join_game_request"
     }
    ],
