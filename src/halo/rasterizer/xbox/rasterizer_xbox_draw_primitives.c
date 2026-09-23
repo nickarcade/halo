@@ -59,35 +59,33 @@ cs(dynamic_triangle_buffer, 0xc);
 static const char kDrawPrimitivesFile[] =
   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_draw_primitives.c";
 
-static dynamic_vertex_group *dynamic_vertex_groups(void)
-{
-  return (dynamic_vertex_group *)0x476ae8;
-}
-
-static dynamic_vertex_buffer *dynamic_vertex_buffers(void)
-{
-  return (dynamic_vertex_buffer *)0x476bd8;
-}
-
-static dynamic_triangle_buffer *dynamic_triangle_buffers(void)
-{
-  return (dynamic_triangle_buffer *)0x47abe0;
-}
-
-static int *dynamic_vertex_buffer_count(void)
-{
-  return (int *)0x47abd8;
-}
-
-static int *dynamic_triangle_buffer_count(void)
-{
-  return (int *)0x47dbe0;
-}
-
-static void **dynamic_triangle_index_buffer(void)
-{
-  return (void **)0x47dbe8;
-}
+/* Globals. Names from assert/error strings in this file unless noted. */
+#define global_d3d_device (*(void **)0x476ab0)
+#define dynamic_vertex_groups ((struct dynamic_vertex_group *)0x476ae8)
+#define dynamic_vertex_buffers ((struct dynamic_vertex_buffer *)0x476bd8)
+#define dynamic_vertices_buffer_count (*(int *)0x47abd8)
+#define dynamic_triangle_buffers ((struct dynamic_triangle_buffer *)0x47abe0)
+#define dynamic_triangles_buffer_count (*(int *)0x47dbe0)
+#define dynamic_triangles_d3d_index_buffer (*(void **)0x47dbe8)
+/* Byte cleared by rasterizer_dynamic_triangles_lock; role unproven. */
+#define unk_47dbec (*(byte *)0x47dbec)
+#define aux_dynamic_unlit_vb (*(void **)0x47dbf0)
+/* Bit 0 selects aux_dynamic_unlit_vb over the unlit group's buffer; role
+ * unproven. */
+#define unk_325668 (*(int *)0x325668)
+/* T2: zero triggers "tried to lock dynamic vertices without specifying a
+ * lock operation"; callers store it before locking (rasterizer.c). */
+#define dynamic_vertices_lock_operation (*(int16_t *)0x325652)
+/* T3: base pointer the index offsets are added to before
+ * D3DDevice_DrawIndexedVertices (every site loads it: MOV reg,[0x1fb494]). */
+#define index_data_base (*(uint32_t *)0x1fb494)
+/* T3: triangle_buffer->type -> D3DPRIMITIVETYPE (first arg of
+ * D3DDevice_DrawIndexedVertices). */
+#define triangle_buffer_primitive_types ((const int *)0x2a0098)
+/* T3: per-primitive-type {multiplier, addend} pairs giving the index count
+ * as multiplier * primitive_count + addend. */
+#define primitive_index_count_multipliers ((const int *)0x29f7e8)
+#define primitive_index_count_addends ((const int *)0x29f7ec)
 
 static void *
 dynamic_vertex_group_get_d3d_vertex_buffer(dynamic_vertex_group *group)
@@ -98,9 +96,9 @@ dynamic_vertex_group_get_d3d_vertex_buffer(dynamic_vertex_group *group)
     display_assert("group", kDrawPrimitivesFile, 0x1f8, 1);
     system_exit(-1);
   }
-  if (group == &dynamic_vertex_groups()[DYNAMIC_UNLIT_VERTEX_TYPE] &&
-      (*(int *)0x325668 & 1) != 0) {
-    d3d_vertex_buffer = *(void **)0x47dbf0;
+  if (group == &dynamic_vertex_groups[DYNAMIC_UNLIT_VERTEX_TYPE] &&
+      (unk_325668 & 1) != 0) {
+    d3d_vertex_buffer = aux_dynamic_unlit_vb;
   } else {
     d3d_vertex_buffer = group->d3d_vertex_buffer;
   }
@@ -121,7 +119,7 @@ void rasterizer_draw_dynamic_triangles_dynamic_vertices(
   int local_triangle_count;
 
   success = 1;
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x2e5, 1);
     system_exit(-1);
   }
@@ -131,7 +129,7 @@ void rasterizer_draw_dynamic_triangles_dynamic_vertices(
         dynamic_vertex_buffer_index == -1) {
       break;
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x2f4, 1);
       system_exit(-1);
@@ -141,7 +139,7 @@ void rasterizer_draw_dynamic_triangles_dynamic_vertices(
                      0x2f7, 1);
       system_exit(-1);
     }
-    if (dynamic_triangle_buffer_index >= *dynamic_triangle_buffer_count()) {
+    if (dynamic_triangle_buffer_index >= dynamic_triangles_buffer_count) {
       display_assert(
         "dynamic_triangle_buffer_index<dynamic_triangles.buffer_count",
         kDrawPrimitivesFile, 0x2f8, 1);
@@ -152,7 +150,7 @@ void rasterizer_draw_dynamic_triangles_dynamic_vertices(
                      0x2f9, 1);
       system_exit(-1);
     }
-    if (dynamic_vertex_buffer_index >= *dynamic_vertex_buffer_count()) {
+    if (dynamic_vertex_buffer_index >= dynamic_vertices_buffer_count) {
       display_assert(
         "dynamic_vertex_buffer_index<dynamic_vertices.buffer_count",
         kDrawPrimitivesFile, 0x2fa, 1);
@@ -160,12 +158,12 @@ void rasterizer_draw_dynamic_triangles_dynamic_vertices(
     }
 
     dynamic_vertex_buffer =
-      &dynamic_vertex_buffers()[dynamic_vertex_buffer_index];
+      &dynamic_vertex_buffers[dynamic_vertex_buffer_index];
     dynamic_triangle_buffer =
-      &dynamic_triangle_buffers()[dynamic_triangle_buffer_index];
+      &dynamic_triangle_buffers[dynamic_triangle_buffer_index];
     vertex_size =
       rasterizer_geometry_get_vertex_size(dynamic_vertex_buffer->type);
-    group = &dynamic_vertex_groups()[dynamic_vertex_buffer->type];
+    group = &dynamic_vertex_groups[dynamic_vertex_buffer->type];
     d3d_vertex_buffer = dynamic_vertex_group_get_d3d_vertex_buffer(group);
 
     if (d3d_vertex_buffer == 0) {
@@ -214,7 +212,7 @@ void rasterizer_draw_dynamic_triangles_dynamic_vertices(
       rasterizer_error(0, "IDirect3DDevice8_SetStreamSource(global_d3d_device, "
                           "0, d3d_vertex_buffer, vertex_size)");
     }
-    D3DDevice_SetIndices(*dynamic_triangle_index_buffer(),
+    D3DDevice_SetIndices(dynamic_triangles_d3d_index_buffer,
                          (uint32_t)dynamic_vertex_buffer->vertex_start_index);
     if (success) {
       success = 1;
@@ -226,7 +224,7 @@ void rasterizer_draw_dynamic_triangles_dynamic_vertices(
     }
     D3DDevice_DrawIndexedVertices(
       5, (uint32_t)(local_triangle_count * 3),
-      (const void *)((const int16_t *)0x1fb494 +
+      (const void *)((const int16_t *)index_data_base +
                      (first_triangle_index +
                       dynamic_triangle_buffer->triangle_start_index) *
                        3));
@@ -263,7 +261,7 @@ void rasterizer_draw_dynamic_triangles_static_vertices(
   int local_triangle_count;
 
   success = 1;
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x337, 1);
     system_exit(-1);
   }
@@ -272,7 +270,7 @@ void rasterizer_draw_dynamic_triangles_static_vertices(
         vertex_buffer->hardware_format == 0) {
       break;
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x342, 1);
       system_exit(-1);
@@ -282,14 +280,14 @@ void rasterizer_draw_dynamic_triangles_static_vertices(
                      0x345, 1);
       system_exit(-1);
     }
-    if (dynamic_triangle_buffer_index >= *dynamic_triangle_buffer_count()) {
+    if (dynamic_triangle_buffer_index >= dynamic_triangles_buffer_count) {
       display_assert(
         "dynamic_triangle_buffer_index<dynamic_triangles.buffer_count",
         kDrawPrimitivesFile, 0x346, 1);
       system_exit(-1);
     }
     dynamic_triangle_buffer =
-      &dynamic_triangle_buffers()[dynamic_triangle_buffer_index];
+      &dynamic_triangle_buffers[dynamic_triangle_buffer_index];
     vertex_size = rasterizer_geometry_get_vertex_size(vertex_buffer->type);
     if (dynamic_triangle_buffer->triangle_start_index < 0) {
       display_assert("dynamic_triangle_buffer->triangle_start_index>=0",
@@ -322,7 +320,7 @@ void rasterizer_draw_dynamic_triangles_static_vertices(
                        "(IDirect3DVertexBuffer8*)vertex_buffer->hardware_"
                        "format, vertex_size)");
     }
-    D3DDevice_SetIndices(*dynamic_triangle_index_buffer(), 0);
+    D3DDevice_SetIndices(dynamic_triangles_d3d_index_buffer, 0);
     if (success)
       success = 1;
     else {
@@ -332,7 +330,7 @@ void rasterizer_draw_dynamic_triangles_static_vertices(
     }
     D3DDevice_DrawIndexedVertices(
       5, (uint32_t)(local_triangle_count * 3),
-      (const void *)((const int16_t *)0x1fb494 +
+      (const void *)((const int16_t *)index_data_base +
                      (first_triangle_index +
                       dynamic_triangle_buffer->triangle_start_index) *
                        3));
@@ -369,7 +367,7 @@ void rasterizer_draw_dynamic_triangles_static_vertices2(
   int local_triangle_count;
 
   success = 1;
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x37a, 1);
     system_exit(-1);
   }
@@ -379,7 +377,7 @@ void rasterizer_draw_dynamic_triangles_static_vertices2(
         vertex_buffer1->hardware_format == 0) {
       break;
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x387, 1);
       system_exit(-1);
@@ -389,14 +387,14 @@ void rasterizer_draw_dynamic_triangles_static_vertices2(
                      0x38a, 1);
       system_exit(-1);
     }
-    if (dynamic_triangle_buffer_index >= *dynamic_triangle_buffer_count()) {
+    if (dynamic_triangle_buffer_index >= dynamic_triangles_buffer_count) {
       display_assert(
         "dynamic_triangle_buffer_index<dynamic_triangles.buffer_count",
         kDrawPrimitivesFile, 0x38b, 1);
       system_exit(-1);
     }
     dynamic_triangle_buffer =
-      &dynamic_triangle_buffers()[dynamic_triangle_buffer_index];
+      &dynamic_triangle_buffers[dynamic_triangle_buffer_index];
     vertex_size0 = rasterizer_geometry_get_vertex_size(vertex_buffer0->type);
     vertex_size1 = rasterizer_geometry_get_vertex_size(vertex_buffer1->type);
     if (dynamic_triangle_buffer->triangle_start_index < 0) {
@@ -441,7 +439,7 @@ void rasterizer_draw_dynamic_triangles_static_vertices2(
                        "(IDirect3DVertexBuffer8*)vertex_buffer1->hardware_"
                        "format, vertex_size1)");
     }
-    D3DDevice_SetIndices(*dynamic_triangle_index_buffer(), 0);
+    D3DDevice_SetIndices(dynamic_triangles_d3d_index_buffer, 0);
     if (success)
       success = 1;
     else {
@@ -451,7 +449,7 @@ void rasterizer_draw_dynamic_triangles_static_vertices2(
     }
     D3DDevice_DrawIndexedVertices(
       5, (uint32_t)(local_triangle_count * 3),
-      (const void *)((const int16_t *)0x1fb494 +
+      (const void *)((const int16_t *)index_data_base +
                      (first_triangle_index +
                       dynamic_triangle_buffer->triangle_start_index) *
                        3));
@@ -491,7 +489,7 @@ void rasterizer_draw_static_triangles_dynamic_vertices(
 
   success = 1;
   local_triangle_vertex_indices_offset = 0;
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x3c3, 1);
     system_exit(-1);
   }
@@ -500,7 +498,7 @@ void rasterizer_draw_static_triangles_dynamic_vertices(
         dynamic_vertex_buffer_index == -1) {
       break;
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x3d1, 1);
       system_exit(-1);
@@ -510,17 +508,17 @@ void rasterizer_draw_static_triangles_dynamic_vertices(
                      0x3d4, 1);
       system_exit(-1);
     }
-    if (dynamic_vertex_buffer_index >= *dynamic_vertex_buffer_count()) {
+    if (dynamic_vertex_buffer_index >= dynamic_vertices_buffer_count) {
       display_assert(
         "dynamic_vertex_buffer_index<dynamic_vertices.buffer_count",
         kDrawPrimitivesFile, 0x3d5, 1);
       system_exit(-1);
     }
     dynamic_vertex_buffer =
-      &dynamic_vertex_buffers()[dynamic_vertex_buffer_index];
+      &dynamic_vertex_buffers[dynamic_vertex_buffer_index];
     vertex_size =
       rasterizer_geometry_get_vertex_size(dynamic_vertex_buffer->type);
-    group = &dynamic_vertex_groups()[dynamic_vertex_buffer->type];
+    group = &dynamic_vertex_groups[dynamic_vertex_buffer->type];
     d3d_vertex_buffer = dynamic_vertex_group_get_d3d_vertex_buffer(group);
     if (d3d_vertex_buffer == 0) {
       display_assert("d3d_vertex_buffer", kDrawPrimitivesFile, 0x3df, 1);
@@ -570,13 +568,13 @@ void rasterizer_draw_static_triangles_dynamic_vertices(
                           "(IDirect3DIndexBuffer8*)triangle_buffer->hardware_"
                           "format, dynamic_vertex_buffer->vertex_start_index)");
     }
-    primitive_type = ((const int *)0x2a0098)[triangle_buffer->type];
+    primitive_type = triangle_buffer_primitive_types[triangle_buffer->type];
     D3DDevice_DrawIndexedVertices(
       (uint32_t)primitive_type,
-      (uint32_t)(((const int *)0x29f7e8)[primitive_type * 2] *
+      (uint32_t)(primitive_index_count_multipliers[primitive_type * 2] *
                    local_triangle_count +
-                 ((const int *)0x29f7ec)[primitive_type * 2]),
-      (const void *)((const int16_t *)0x1fb494 +
+                 primitive_index_count_addends[primitive_type * 2]),
+      (const void *)((const int16_t *)index_data_base +
                      local_triangle_vertex_indices_offset));
     if (success)
       success = 1;
@@ -618,7 +616,7 @@ void rasterizer_draw_static_triangles_static_vertices(
 
   success = 1;
   local_triangle_vertex_indices_offset = 0;
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x427, 1);
     system_exit(-1);
   }
@@ -627,7 +625,7 @@ void rasterizer_draw_static_triangles_static_vertices(
         vertex_buffer == 0 || vertex_buffer->hardware_format == 0) {
       break;
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x431, 1);
       system_exit(-1);
@@ -667,13 +665,13 @@ void rasterizer_draw_static_triangles_static_vertices(
         0, "IDirect3DDevice8_SetIndices(global_d3d_device, "
            "(IDirect3DIndexBuffer8*)triangle_buffer->hardware_format, 0)");
     }
-    primitive_type = ((const int *)0x2a0098)[triangle_buffer->type];
+    primitive_type = triangle_buffer_primitive_types[triangle_buffer->type];
     D3DDevice_DrawIndexedVertices(
       (uint32_t)primitive_type,
-      (uint32_t)(((const int *)0x29f7e8)[primitive_type * 2] *
+      (uint32_t)(primitive_index_count_multipliers[primitive_type * 2] *
                    local_triangle_count +
-                 ((const int *)0x29f7ec)[primitive_type * 2]),
-      (const void *)((const int16_t *)0x1fb494 +
+                 primitive_index_count_addends[primitive_type * 2]),
+      (const void *)((const int16_t *)index_data_base +
                      local_triangle_vertex_indices_offset));
     if (success)
       success = 1;
@@ -794,14 +792,14 @@ boolean rasterizer_dynamic_geometry_initialize(void)
   dynamic_vertex_group *group;
   int count;
 
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x5d, 1);
     system_exit(-1);
   }
   result = D3DDevice_CreateIndexBuffer(
     SIZEOF_RASTERIZER_TRIANGLE * RASTERIZER_MAXIMUM_DYNAMIC_TRIANGLES,
     RASTERIZER_DYNAMIC_BUFFER_USAGE, D3DFMT_INDEX16,
-    RASTERIZER_DYNAMIC_BUFFER_POOL, dynamic_triangle_index_buffer());
+    RASTERIZER_DYNAMIC_BUFFER_POOL, &dynamic_triangles_d3d_index_buffer);
   if (result >= 0) {
     success = 1;
   } else {
@@ -813,17 +811,17 @@ boolean rasterizer_dynamic_geometry_initialize(void)
       "RASTERIZER_DYNAMIC_BUFFER_USAGE, D3DFMT_INDEX16, "
       "RASTERIZER_DYNAMIC_BUFFER_POOL, &dynamic_triangles.d3d_index_buffer)");
   }
-  if (*dynamic_triangle_index_buffer() == 0) {
+  if (dynamic_triangles_d3d_index_buffer == 0) {
     success = 0;
   }
   if (!success) {
-    *dynamic_triangle_index_buffer() = 0;
+    dynamic_triangles_d3d_index_buffer = 0;
     error(2, "### ERROR failed to create dynamic triangle buffer");
   }
   for (vertex_type = 0;
        success && vertex_type < NUMBER_OF_RASTERIZER_VERTEX_TYPES;
        vertex_type++) {
-    group = &dynamic_vertex_groups()[vertex_type];
+    group = &dynamic_vertex_groups[vertex_type];
     switch (vertex_type) {
     case DYNAMIC_UNLIT_VERTEX_TYPE:
       count = RASTERIZER_MAXIMUM_DYNAMIC_UNLIT_VERTICES;
@@ -876,7 +874,7 @@ boolean rasterizer_dynamic_geometry_initialize(void)
                    DYNAMIC_UNLIT_VERTEX_TYPE) *
                  RASTERIZER_MAXIMUM_DYNAMIC_UNLIT_VERTICES),
       RASTERIZER_DYNAMIC_BUFFER_USAGE, 0, RASTERIZER_DYNAMIC_BUFFER_POOL,
-      (void **)0x47dbf0);
+      &aux_dynamic_unlit_vb);
     if (result >= 0) {
       success = 1;
     } else {
@@ -888,11 +886,11 @@ boolean rasterizer_dynamic_geometry_initialize(void)
                 "RASTERIZER_DYNAMIC_BUFFER_USAGE, 0, "
                 "RASTERIZER_DYNAMIC_BUFFER_POOL, &aux_dynamic_unlit_vb)");
     }
-    if (*(void **)0x47dbf0 == 0) {
+    if (aux_dynamic_unlit_vb == 0) {
       success = 0;
     }
     if (!success) {
-      *(void **)0x47dbf0 = 0;
+      aux_dynamic_unlit_vb = 0;
     }
   }
   if (!success) {
@@ -908,11 +906,11 @@ void rasterizer_dynamic_geometry_dispose(void)
   int count;
   void *resource;
 
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x107, 1);
     system_exit(-1);
   }
-  group = dynamic_vertex_groups();
+  group = dynamic_vertex_groups;
   count = NUMBER_OF_RASTERIZER_VERTEX_TYPES;
   do {
     resource = group->d3d_vertex_buffer;
@@ -923,15 +921,15 @@ void rasterizer_dynamic_geometry_dispose(void)
     group++;
     count--;
   } while (count != 0);
-  resource = *(void **)0x47dbf0;
+  resource = aux_dynamic_unlit_vb;
   if (resource != 0) {
     D3DResource_Release(resource);
-    *(void **)0x47dbf0 = 0;
+    aux_dynamic_unlit_vb = 0;
   }
-  resource = *dynamic_triangle_index_buffer();
+  resource = dynamic_triangles_d3d_index_buffer;
   if (resource != 0) {
     D3DResource_Release(resource);
-    *dynamic_triangle_index_buffer() = 0;
+    dynamic_triangles_d3d_index_buffer = 0;
   }
 }
 
@@ -942,7 +940,7 @@ void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index)
   void *triangles;
 
   triangles = 0;
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x14b, 1);
     system_exit(-1);
   }
@@ -952,19 +950,19 @@ void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index)
                      0x151, 1);
       system_exit(-1);
     }
-    if (dynamic_triangle_buffer_index >= *dynamic_triangle_buffer_count()) {
+    if (dynamic_triangle_buffer_index >= dynamic_triangles_buffer_count) {
       display_assert(
         "dynamic_triangle_buffer_index<dynamic_triangles.buffer_count",
         kDrawPrimitivesFile, 0x152, 1);
       system_exit(-1);
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x154, 1);
       system_exit(-1);
     }
     dynamic_triangle_buffer =
-      &dynamic_triangle_buffers()[dynamic_triangle_buffer_index];
+      &dynamic_triangle_buffers[dynamic_triangle_buffer_index];
     if (dynamic_triangle_buffer->triangle_count <= 0) {
       display_assert("dynamic_triangle_buffer->triangle_count>0",
                      kDrawPrimitivesFile, 0x158, 1);
@@ -973,10 +971,10 @@ void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index)
     /* IDirect3DIndexBuffer8_Lock is an XDK inline: the data pointer lives at
      * +4 in D3DIndexBuffer and only the offset operand survives. */
     dynamic_triangle_buffer->triangles =
-      (int16_t *)((char *)*dynamic_triangle_index_buffer() + 4 +
+      (int16_t *)((char *)dynamic_triangles_d3d_index_buffer + 4 +
                   SIZEOF_RASTERIZER_TRIANGLE *
                     dynamic_triangle_buffer->triangle_start_index);
-    *(byte *)0x47dbec = 0;
+    unk_47dbec = 0;
     triangles = dynamic_triangle_buffer->triangles;
   } else {
     error(2, "### WARNING tried to lock dynamic triangles with index=NONE");
@@ -987,7 +985,7 @@ void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index)
 /* 0x15eb90 */
 void rasterizer_dynamic_triangles_unlock(int dynamic_triangle_buffer_index)
 {
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x175, 1);
     system_exit(-1);
   }
@@ -997,13 +995,13 @@ void rasterizer_dynamic_triangles_unlock(int dynamic_triangle_buffer_index)
                      0x179, 1);
       system_exit(-1);
     }
-    if (dynamic_triangle_buffer_index >= *dynamic_triangle_buffer_count()) {
+    if (dynamic_triangle_buffer_index >= dynamic_triangles_buffer_count) {
       display_assert(
         "dynamic_triangle_buffer_index<dynamic_triangles.buffer_count",
         kDrawPrimitivesFile, 0x17a, 1);
       system_exit(-1);
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x17c, 1);
       system_exit(-1);
@@ -1024,11 +1022,11 @@ void *rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index)
   uint32_t flags;
 
   vertices = 0;
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x207, 1);
     system_exit(-1);
   }
-  if (*(int16_t *)0x325652 == 0) {
+  if (dynamic_vertices_lock_operation == 0) {
     error(2, "### WARNING: tried to lock dynamic vertices without specifying a "
              "lock operation");
   }
@@ -1038,19 +1036,19 @@ void *rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index)
                      0x217, 1);
       system_exit(-1);
     }
-    if (dynamic_vertex_buffer_index >= *dynamic_vertex_buffer_count()) {
+    if (dynamic_vertex_buffer_index >= dynamic_vertices_buffer_count) {
       display_assert(
         "dynamic_vertex_buffer_index<dynamic_vertices.buffer_count",
         kDrawPrimitivesFile, 0x218, 1);
       system_exit(-1);
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x21b, 1);
       system_exit(-1);
     }
     dynamic_vertex_buffer =
-      &dynamic_vertex_buffers()[dynamic_vertex_buffer_index];
+      &dynamic_vertex_buffers[dynamic_vertex_buffer_index];
     vertex_size =
       rasterizer_geometry_get_vertex_size(dynamic_vertex_buffer->type);
     if (dynamic_vertex_buffer->type < 0) {
@@ -1069,7 +1067,7 @@ void *rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index)
                      kDrawPrimitivesFile, 0x222, 1);
       system_exit(-1);
     }
-    group = &dynamic_vertex_groups()[dynamic_vertex_buffer->type];
+    group = &dynamic_vertex_groups[dynamic_vertex_buffer->type];
     d3d_vertex_buffer = dynamic_vertex_group_get_d3d_vertex_buffer(group);
     if (d3d_vertex_buffer == 0) {
       display_assert("d3d_vertex_buffer", kDrawPrimitivesFile, 0x227, 1);
@@ -1096,7 +1094,7 @@ void rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index)
   dynamic_vertex_group *group;
   void *d3d_vertex_buffer;
 
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x246, 1);
     system_exit(-1);
   }
@@ -1106,19 +1104,19 @@ void rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index)
                      0x24c, 1);
       system_exit(-1);
     }
-    if (dynamic_vertex_buffer_index >= *dynamic_vertex_buffer_count()) {
+    if (dynamic_vertex_buffer_index >= dynamic_vertices_buffer_count) {
       display_assert(
         "dynamic_vertex_buffer_index<dynamic_vertices.buffer_count",
         kDrawPrimitivesFile, 0x24d, 1);
       system_exit(-1);
     }
-    if (*dynamic_triangle_index_buffer() == 0) {
+    if (dynamic_triangles_d3d_index_buffer == 0) {
       display_assert("dynamic_triangles.d3d_index_buffer", kDrawPrimitivesFile,
                      0x24f, 1);
       system_exit(-1);
     }
     dynamic_vertex_buffer =
-      &dynamic_vertex_buffers()[dynamic_vertex_buffer_index];
+      &dynamic_vertex_buffers[dynamic_vertex_buffer_index];
     if (dynamic_vertex_buffer->type < 0 ||
         dynamic_vertex_buffer->type >= NUMBER_OF_RASTERIZER_VERTEX_TYPES) {
       display_assert(
@@ -1126,7 +1124,7 @@ void rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index)
         kDrawPrimitivesFile, 0x253, 1);
       system_exit(-1);
     }
-    group = &dynamic_vertex_groups()[dynamic_vertex_buffer->type];
+    group = &dynamic_vertex_groups[dynamic_vertex_buffer->type];
     d3d_vertex_buffer = dynamic_vertex_group_get_d3d_vertex_buffer(group);
     if (d3d_vertex_buffer == 0) {
       display_assert("d3d_vertex_buffer", kDrawPrimitivesFile, 0x258, 1);

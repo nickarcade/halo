@@ -38615,8 +38615,7 @@
     },
     {
      "addr": "0x6ca50",
-     "decl": "void FUN_0006ca50(void *sp@<esi>);",
-     "ported": true
+     "decl": "void FUN_0006ca50(void *sp@<esi>);"
     },
     {
      "addr": "0x6cac0",
