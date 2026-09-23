@@ -485,6 +485,8 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
     This is a separate evidence lane from the strict literal raw-byte audit.
     Records must carry the stable batch schema and match the current source,
     pristine XBE, and committed function bound before they are displayable.
+    The bound is checked per function (start/end), not by hashing the whole
+    bounds file: a rename or new entry elsewhere must not hide every record.
     """
     audit_dir = Path(root_dir) / 'artifacts' / 'raw_xbe_structural'
     bounds_path = Path(root_dir) / 'tools' / 'verify' / 'function_bounds.json'
@@ -498,7 +500,6 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
         return {}
 
     xbe_sha256 = _file_hash(str(xbe_path), 'sha256')
-    bounds_sha256 = _file_hash(str(bounds_path), 'sha256')
     latest = {}
     valid_verdicts = ('structural exact', 'structural differ', 'not comparable')
     for audit_path in audit_dir.glob('*.json'):
@@ -562,7 +563,6 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
                     or end != bound.get('end')
                     or reference_start != address_key
                     or reference_end != bound.get('end')
-                    or record_bounds.get('sha256') != bounds_sha256
                     or reference.get('sha256') != xbe_sha256
                     or not source_path
                     or source.get('sha256') != _file_hash(source_path, 'sha256')
