@@ -675,19 +675,6 @@ unsigned int compress_real_vector3d_to_int32_clamp(float *param_1)
   return packed;
 }
 
-/* rasterizer_geometry_vertex_compress: compress vertex buffer (0x180d10)
- * ported=false: structural cap, too complex for reliable VC71 match */
-void FUN_00180d10(short param_1, int param_2, int param_3, int param_4,
-                  void *param_5, int param_6)
-{
-  (void)param_1;
-  (void)param_2;
-  (void)param_3;
-  (void)param_4;
-  (void)param_5;
-  (void)param_6;
-}
-
 /* rasterizer_lights.c */
 
 /* Address of a slot in this frame's lens flare queue (0x181020).

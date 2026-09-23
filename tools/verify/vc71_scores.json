@@ -35428,21 +35428,6 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer_text.c"
     },
-    "FUN_0017ffc0": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 62.9,
-      "addr": "0x17ffc0",
-      "end": "0x180047",
-      "kind": "auto",
-      "n_r": 40,
-      "opnd_percent": 51.4,
-      "raw_mnemonic_pct": 62.9,
-      "ref": "synth",
-      "ref_sha": "01d5cb701d26c977",
-      "score": 62.9,
-      "source": "src/halo/rasterizer/rasterizer_text.c"
-    },
     "FUN_001800b0": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -35591,36 +35576,6 @@
       "ref": "synth",
       "ref_sha": "1a56494db1de79a1",
       "score": 65.7,
-      "source": "src/halo/rasterizer/rasterizer_text.c"
-    },
-    "FUN_00180b10": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 69.1,
-      "addr": "0x180b10",
-      "end": "0x180d0c",
-      "kind": "auto",
-      "n_r": 160,
-      "opnd_percent": 66.0,
-      "raw_mnemonic_pct": 69.1,
-      "ref": "synth",
-      "ref_sha": "db92bb06f6bf3932",
-      "score": 69.1,
-      "source": "src/halo/rasterizer/rasterizer_text.c"
-    },
-    "FUN_00180d10": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 0.8,
-      "addr": "0x180d10",
-      "end": "0x180fe3",
-      "kind": "auto",
-      "n_r": 242,
-      "opnd_percent": 0.8,
-      "raw_mnemonic_pct": 0.8,
-      "ref": "synth",
-      "ref_sha": "0b36d01983c77b7b",
-      "score": 0.8,
       "source": "src/halo/rasterizer/rasterizer_text.c"
     },
     "FUN_00181020": {
