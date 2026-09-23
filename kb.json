@@ -38244,7 +38244,7 @@
     },
     {
      "addr": "0x65f70",
-     "decl": "void _TIFFgetfield(void);"
+     "decl": "int _TIFFgetfield(void *td, int tag, ...);"
     },
     {
      "addr": "0x65f90",
@@ -38268,7 +38268,7 @@
     },
     {
      "addr": "0x66380",
-     "decl": "void *FUN_00066380(int tag);"
+     "decl": "void *FUN_00066380(unsigned short tag);"
     },
     {
      "addr": "0x663f0",
@@ -39005,7 +39005,7 @@
     },
     {
      "addr": "0x6f260",
-     "decl": "void TIFFReverseBits(void);",
+     "decl": "void TIFFReverseBits(unsigned char *cp, int n);",
      "comment": "[NAME: TIFFReverseBits \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -39025,17 +39025,17 @@
     },
     {
      "addr": "0x6f690",
-     "decl": "void TIFFComputeTile(void);",
+     "decl": "unsigned int TIFFComputeTile(void *tif, unsigned long x, unsigned long y, unsigned int s, unsigned long z);",
      "comment": "[NAME: TIFFComputeTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x6f780",
-     "decl": "void TIFFCheckTile(void);",
+     "decl": "int TIFFCheckTile(void *tif, unsigned long x, unsigned long y, unsigned long z, unsigned int s);",
      "comment": "[NAME: TIFFCheckTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x6f820",
-     "decl": "void TIFFNumberOfTiles(void);",
+     "decl": "unsigned int TIFFNumberOfTiles(void *tif);",
      "comment": "[NAME: TIFFNumberOfTiles \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -39067,56 +39067,68 @@
     },
     {
      "addr": "0x6f9f0",
-     "decl": "void TIFFSetupStrips(void);",
-     "comment": "[NAME: TIFFSetupStrips \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFSetupStrips(void *tif@<esi>);",
+     "comment": "[NAME: TIFFSetupStrips \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6faf0",
-     "decl": "void TIFFWriteCheck(void);",
-     "comment": "[NAME: TIFFWriteCheck \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteCheck(void *tif@<eax>, int tiles@<ecx>, char *module@<edi>);",
+     "comment": "[NAME: TIFFWriteCheck \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6fbd0",
-     "decl": "void TIFFBufferSetup(void);",
-     "comment": "[NAME: TIFFBufferSetup \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFBufferSetup(void *tif@<esi>, char *module);",
+     "comment": "[NAME: TIFFBufferSetup \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6fc60",
-     "decl": "void TIFFGrowStrips(void);",
-     "comment": "[NAME: TIFFGrowStrips \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFGrowStrips(void *tif@<esi>, int delta@<edi>, char *module);",
+     "comment": "[NAME: TIFFGrowStrips \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6fd30",
-     "decl": "void TIFFAppendToStrip(void);",
-     "comment": "[NAME: TIFFAppendToStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFAppendToStrip(void *tif@<esi>, unsigned int strip@<edi>, unsigned char *data, unsigned int cc@<ebx>);",
+     "comment": "[NAME: TIFFAppendToStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6fe10",
-     "decl": "int TIFFFlushData1(void *tif);"
+     "decl": "int TIFFFlushData1(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6fea0",
-     "decl": "int TIFFWriteScanline(int file, void *buffer, int row, int sample);"
+     "decl": "int TIFFWriteScanline(int file, void *buffer, unsigned int row, unsigned int sample);",
+     "ported": true
     },
     {
      "addr": "0x700c0",
-     "decl": "void TIFFWriteEncodedStrip(void);"
+     "decl": "int TIFFWriteEncodedStrip(void *tif, unsigned int strip, unsigned char *data, unsigned int cc);",
+     "ported": true
     },
     {
      "addr": "0x701f0",
-     "decl": "void TIFFWriteRawStrip(void);"
+     "decl": "int TIFFWriteRawStrip(void *tif, unsigned int strip, unsigned char *data, unsigned int cc);",
+     "ported": true
     },
     {
      "addr": "0x70260",
-     "decl": "void TIFFWriteEncodedTile(void);"
+     "decl": "int TIFFWriteEncodedTile(void *tif, unsigned int tile, unsigned char *data, unsigned int cc);",
+     "ported": true
     },
     {
      "addr": "0x703f0",
-     "decl": "void FUN_000703f0(void);"
+     "decl": "int TIFFWriteRawTile(void *tif, unsigned int tile, unsigned char *data, unsigned int cc);",
+     "ported": true
     },
     {
      "addr": "0x70460",
-     "decl": "void FUN_00070460(void);"
+     "decl": "int TIFFWriteTile(void *tif, unsigned char *buf, unsigned long x, unsigned long y, unsigned long z, unsigned int s);",
+     "ported": true
     },
     {
      "addr": "0x704c0",
@@ -39189,7 +39201,7 @@
     },
     {
      "addr": "0x71cc0",
-     "decl": "void TIFFWriteRawTile(void);"
+     "decl": "void FUN_00071cc0(void);"
     },
     {
      "addr": "0x71d30",
@@ -39275,7 +39287,7 @@
     },
     {
      "addr": "0x74a30",
-     "decl": "void TIFFWriteTile(void);",
+     "decl": "void FUN_00074a30(void);",
      "comment": "[NAME: TIFFWriteTile \u2014 CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]"
     }
    ],
@@ -49524,73 +49536,94 @@
    "functions": [
     {
      "addr": "0x67710",
-     "decl": "void TIFFSetupShortLong(void);",
-     "comment": "[NAME: TIFFSetupShortLong \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void TIFFSetupShortLong(void *tif@<esi>, unsigned short tag@<ax>, void *dir@<edx>, unsigned long v@<ecx>);",
+     "comment": "[NAME: TIFFSetupShortLong \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67760",
-     "decl": "void TIFFWriteData(void);",
-     "comment": "[NAME: TIFFWriteData \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteData(void *tif@<ebx>, void *dir@<edi>, char *cp);",
+     "comment": "[NAME: TIFFWriteData \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x677f0",
-     "decl": "void TIFFLinkDirectory(void);",
-     "comment": "[NAME: TIFFLinkDirectory \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFLinkDirectory(void *tif@<esi>);",
+     "comment": "[NAME: TIFFLinkDirectory \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67960",
-     "decl": "void TIFFWriteRational(void);",
-     "comment": "[NAME: TIFFWriteRational \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteRational(void *tif, int type@<eax>, unsigned short tag@<cx>, void *dir@<edx>, float v);",
+     "comment": "[NAME: TIFFWriteRational \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x679f0",
-     "decl": "void TIFFWriteShortTable(void);",
-     "comment": "[NAME: TIFFWriteShortTable \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteShortTable(void *tif@<edx>, unsigned short tag@<ax>, void *dir@<ecx>, int n, unsigned short **table);",
+     "comment": "[NAME: TIFFWriteShortTable \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67a70",
-     "decl": "void TIFFWriteString(void);",
-     "comment": "[NAME: TIFFWriteString \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteString(void *tif@<ebx>, unsigned short tag@<ax>, void *dir@<ecx>, char *cp@<esi>);",
+     "comment": "[NAME: TIFFWriteString \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67ac0",
-     "decl": "void TIFFWriteShortArray(void);",
-     "comment": "[NAME: TIFFWriteShortArray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteShortArray(void *tif, int type, unsigned short tag@<dx>, void *dir, int n@<eax>, unsigned short *v@<ecx>);",
+     "comment": "[NAME: TIFFWriteShortArray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67b40",
-     "decl": "void TIFFWriteLongArray(void);",
-     "comment": "[NAME: TIFFWriteLongArray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteLongArray(void *tif@<ebx>, int type, unsigned short tag@<dx>, void *dir, int n@<eax>, unsigned long *v@<ecx>);",
+     "comment": "[NAME: TIFFWriteLongArray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67b80",
-     "decl": "void TIFFWriteRationalArray(void);",
-     "comment": "[NAME: TIFFWriteRationalArray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteRationalArray(void *tif, int type, unsigned short tag@<cx>, void *dir, int n@<eax>, float *v);",
+     "comment": "[NAME: TIFFWriteRationalArray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67c10",
-     "decl": "void TIFFWriteFloatArray(void);",
-     "comment": "[NAME: TIFFWriteFloatArray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteFloatArray(void *tif@<ebx>, int type, unsigned short tag@<dx>, void *dir, int n@<eax>, float *v@<ecx>);",
+     "comment": "[NAME: TIFFWriteFloatArray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67c50",
-     "decl": "void TIFFWriteNormalTag(void);",
-     "comment": "[NAME: TIFFWriteNormalTag \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWriteNormalTag(void *tif, void *dir@<ecx>, void *fip@<eax>);",
+     "comment": "[NAME: TIFFWriteNormalTag \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x67f70",
-     "decl": "void TIFFWritePerSampleShorts(void);",
-     "comment": "[NAME: TIFFWritePerSampleShorts \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFWritePerSampleShorts(void *tif, unsigned short tag, void *dir@<esi>);",
+     "comment": "[NAME: TIFFWritePerSampleShorts \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x68030",
-     "decl": "void TIFFSetupShortPair(void);",
-     "comment": "[NAME: TIFFSetupShortPair \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFSetupShortPair(void *tif@<ebx>, unsigned short tag@<di>, void *dir@<esi>);",
+     "comment": "[NAME: TIFFSetupShortPair \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x680a0",
      "decl": "int TIFFWriteDirectory(void *tif);",
-     "comment": "[NAME: TIFFWriteDirectory \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: TIFFWriteDirectory \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
+    }
+   ],
+   "data": [
+    {
+     "addr": "0x3340b0",
+     "decl": "long dataoff;",
+     "note": "file-static next-free data offset of the directory being written (upstream tif_dirwrite.c `static long dataoff`); read/written by TIFFWriteData 0x67763/0x677b3"
     }
    ]
   }

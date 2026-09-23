@@ -106,6 +106,14 @@ OVERRIDES = {
                 "0x1a8ec0 (0x1a8e72/0x1a8e85/0x1a8e4c/0x1a8e5f/0x1a8e24/"
                 "0x1a8e38/0x1a8e98/0x1a8eab). Next function is 0x1a8ee0.",
     },
+    0x67C50: {
+        "end": 0x67F70,
+        "kind": "table_data",
+        "note": "TIFFWriteNormalTag: true_end stopped at the TIFF_SHORT arm's "
+                "ret at 0x67d5e; the LONG/RATIONAL/FLOAT/ASCII case bodies run "
+                "to the ret at 0x67f44, then the 10-slot `jmp [edx*4+0x67f48]` "
+                "switch table (field_type 2..11). Next function is 0x67f70.",
+    },
 }
 
 _MD = None
