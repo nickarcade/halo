@@ -89,7 +89,7 @@ void FUN_001966b0(int param_1)
           if (*(short *)0x5937d0 >= 0x4000)
             break;
           iVar4 = (int)tag_block_get_element(iVar3, sVar6, 0x24);
-          if (render_frustum_cube_visible(local_8, iVar4, 0) != 0) {
+          if (render_frustum_cube_visible(local_8, (float *)iVar4, 0) != 0) {
             piVar1 = (int *)(iVar4 + 0x18);
             piVar5 = (int *)tag_block_get_element(piVar1, 0, 4);
             sVar2 = 0;

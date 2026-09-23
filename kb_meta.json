@@ -17659,6 +17659,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1335e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1336a0": {
       "kind": "function",
       "status": "ported"
@@ -20334,7 +20338,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x185950": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x185a70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x185ad0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x185f80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x186050": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x186230": {
       "kind": "function",
       "status": "ported"
     },
@@ -20346,11 +20370,39 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x186480": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1865e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x186690": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x186790": {
       "kind": "function",
       "status": "ported"
     },
+    "0x1867f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x186ac0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x186c70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x186d40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x186ef0": {
       "kind": "function",
       "status": "ported"
     },
@@ -20364,6 +20416,14 @@
       "uncertain": [
         "The FPTAN instruction behavior and FPU stack management in the inv_tan_x/inv_tan_y computation may not be perfectly reproduced by the C version since the compiler may use different FPU instruction sequences."
       ]
+    },
+    "0x187f80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x188010": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1887b0": {
       "kind": "function",

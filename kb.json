@@ -24473,7 +24473,8 @@
     },
     {
      "addr": "0x185950",
-     "decl": "void render_camera_build_frustum_bounds(void);"
+     "decl": "void render_camera_build_frustum_bounds(camera_t *camera, real_rectangle2d *frustum_bounds);",
+     "ported": true
     },
     {
      "addr": "0x185a70",
@@ -24482,19 +24483,23 @@
     },
     {
      "addr": "0x185ad0",
-     "decl": "float render_frustum_cube_view_fraction(void *frustum, float *bounds);"
+     "decl": "float render_frustum_cube_view_fraction(void *frustum, float *bounds);",
+     "ported": true
     },
     {
      "addr": "0x185f80",
-     "decl": "void render_frustum_get_projection_bounds(void *param_1, void *param_2);"
+     "decl": "void render_frustum_get_projection_bounds(void *param_1, void *param_2);",
+     "ported": true
     },
     {
      "addr": "0x186050",
-     "decl": "char render_camera_view_to_screen(int *param_1, int *param_2, void *param_3, void *param_4);"
+     "decl": "char render_camera_view_to_screen(int *param_1, int *param_2, void *param_3, void *param_4);",
+     "ported": true
     },
     {
      "addr": "0x186230",
-     "decl": "void render_camera_screen_to_view(void *camera, void *frustum, float *screen_point, float *view_vector);"
+     "decl": "void render_camera_screen_to_view(void *camera, void *frustum, float *screen_point, float *view_vector);",
+     "ported": true
     },
     {
      "addr": "0x186330",
@@ -24508,15 +24513,18 @@
     },
     {
      "addr": "0x186480",
-     "decl": "int render_camera_build_clipped_frustum_bounds(camera_t *camera, float *in_bounds, float *out_bounds);"
+     "decl": "bool render_camera_build_clipped_frustum_bounds(camera_t *camera, float *in_bounds, float *out_bounds);",
+     "ported": true
     },
     {
      "addr": "0x1865e0",
-     "decl": "void render_camera_triangle_frontfacing(void);"
+     "decl": "bool render_camera_triangle_frontfacing(camera_t *camera, vector3_t *point0, vector3_t *point1, vector3_t *point2);",
+     "ported": true
     },
     {
      "addr": "0x186690",
-     "decl": "int16_t render_frustum_build_point_flags(void *plane_ctx, void *point);"
+     "decl": "int16_t render_frustum_build_point_flags(void *plane_ctx, void *point);",
+     "ported": true
     },
     {
      "addr": "0x186790",
@@ -24525,11 +24533,13 @@
     },
     {
      "addr": "0x1867f0",
-     "decl": "short render_frustum_cube_visible(void *param_1, int param_2, int param_3);"
+     "decl": "int16_t render_frustum_cube_visible(void *frustum, float *bounds, bool test_frustum_against_cube);",
+     "ported": true
     },
     {
      "addr": "0x186ac0",
-     "decl": "int render_frustum_sphere_visible(void *frustum, float *center, float radius);"
+     "decl": "int16_t render_frustum_sphere_visible(void *frustum, float *center, float radius);",
+     "ported": true
     },
     {
      "addr": "0x186c70",
@@ -24538,11 +24548,13 @@
     },
     {
      "addr": "0x186d40",
-     "decl": "void render_camera_debug_frustum(void);"
+     "decl": "void render_camera_debug_frustum(camera_t *camera, void *frustum);",
+     "ported": true
     },
     {
      "addr": "0x186ef0",
-     "decl": "void render_camera_mirror(void);"
+     "decl": "void render_camera_mirror(camera_t *camera, render_mirror_t *mirror, camera_t *result);",
+     "ported": true
     },
     {
      "addr": "0x187250",
@@ -24551,12 +24563,14 @@
     },
     {
      "addr": "0x187f80",
-     "decl": "void contrail_fade(void);",
-     "comment": "[NAME: contrail_fade \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "float contrail_fade(contrail_definition_t *definition, int16_t fade_mode, vector3_t *world_point, vector3_t *world_normal);",
+     "comment": "[NAME: contrail_fade \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x188010",
-     "decl": "void render_contrail(void *contrail, void *definition, int16_t point_index);"
+     "decl": "void render_contrail(void *contrail, void *definition, int16_t point_index);",
+     "ported": true
     },
     {
      "addr": "0x1887b0",

@@ -88,6 +88,15 @@ typedef struct real_plane3d {
   real normal[3];                  ///< offset=0x00
   real d;                          ///< offset=0x0c
 } real_plane3d;
+
+/// Mirror/refraction surface consumed by render_camera_mirror (0x186ef0):
+/// plane at +0x00, index_of_refraction at +0x10 (0.0f = reflective mirror),
+/// depth at +0x14.  Only these offsets are proven; total size unverified.
+typedef struct {
+  real_plane3d plane;               ///< offset=0x00
+  real         index_of_refraction; ///< offset=0x10
+  real         depth;               ///< offset=0x14
+} render_mirror_t;
 cs(real_plane3d, 0x10);
 co(real_plane3d, normal, 0x0);
 co(real_plane3d, d, 0xc);
@@ -924,6 +933,18 @@ typedef struct {
 } real_rectangle2d;
 cs(real_rectangle2d, 0x10);
 
+/// size=0x18. Axis-aligned box; render_frustum_cube_view_fraction (0x185ad0)
+/// asserts x0<=x1 at +0x00/+0x04, y0<=y1 at +0x08/+0x0c, z0<=z1 at +0x10/+0x14.
+typedef struct {
+  real x0; ///< offset=0x00
+  real x1; ///< offset=0x04
+  real y0; ///< offset=0x08
+  real y1; ///< offset=0x0c
+  real z0; ///< offset=0x10
+  real z1; ///< offset=0x14
+} real_rectangle3d;
+cs(real_rectangle3d, 0x18);
+
 /// size=0x34. Scale, three basis rows, then translation; matrix_inverse
 /// (0x109150) / matrix_transform_point (0x109590) operand layout.
 typedef struct {
@@ -952,6 +973,15 @@ typedef struct {
   float             field_44[4];            ///< offset=0x44
 } camera_t;
 cs(camera_t, 0x54);
+
+/// size=0x10. PAL real_argb_color: alpha first.
+typedef struct {
+  real alpha; ///< offset=0x00
+  real red;   ///< offset=0x04
+  real green; ///< offset=0x08
+  real blue;  ///< offset=0x0c
+} real_argb_color;
+cs(real_argb_color, 0x10);
 co(camera_t, field_00, 0x00);
 co(camera_t, field_0c, 0x0c);
 co(camera_t, field_18, 0x18);
@@ -1973,6 +2003,77 @@ typedef struct tag_block {
     int32_t  field_08;   /* +0x08: block definition ptr; no runtime access observed */
 } tag_block;
 cs(tag_block, 0xc);
+
+/// Contrail instance datum (contrail_data).  Offsets from render_contrail
+/// (0x188010) and render_contrails (0x1887b0); names from PAL 2342
+/// render_contrails.c.  Total size unverified.
+typedef struct {
+  uint8_t pad_00[4];                         ///< offset=0x00
+  int32_t definition_index;                  ///< offset=0x04
+  int32_t object_index;                      ///< offset=0x08
+  int16_t attachment_index;                  ///< offset=0x0c
+  uint8_t pad_0e[2];                         ///< offset=0x0e
+  real    density;                           ///< offset=0x10
+  int16_t sequence_index;                    ///< offset=0x14
+  int16_t frame_index;                       ///< offset=0x16
+  real    texture_offset_u;                  ///< offset=0x18
+  real    texture_offset_v;                  ///< offset=0x1c
+  uint8_t pad_20[0xc];                       ///< offset=0x20
+  int16_t contrail_point_counts[4];          ///< offset=0x2c
+  int32_t first_contrail_point_indices[4];   ///< offset=0x34
+} contrail_datum_t;
+
+/// Contrail point datum (contrail_point_data).  Offsets from render_contrail
+/// (0x188010).  Total size unverified.
+typedef struct {
+  uint8_t   pad_00[2];                 ///< offset=0x00
+  uint8_t   flags;                     ///< offset=0x02 (bit 1: transitioning)
+  int8_t    state_index;               ///< offset=0x03
+  real      time;                      ///< offset=0x04
+  uint8_t   pad_08[4];                 ///< offset=0x08
+  real      density;                   ///< offset=0x0c
+  uint8_t   pad_10[0xc];               ///< offset=0x10
+  vector3_t position;                  ///< offset=0x1c
+  uint8_t   pad_28[0xc];               ///< offset=0x28
+  int32_t   next_contrail_point_index; ///< offset=0x34
+} contrail_point_datum_t;
+
+/// size=0x68. contrail_definition.states element (tag_block_get_element
+/// size 0x68 in render_contrail, 0x188010).
+typedef struct {
+  uint8_t         pad_00[0x40];      ///< offset=0x00
+  real            width;             ///< offset=0x40
+  real_argb_color color_lower_bound; ///< offset=0x44
+  real_argb_color color_upper_bound; ///< offset=0x54
+  uint32_t        scale_flags;       ///< offset=0x64 (0x10 width, 0x20 color)
+} contrail_point_state_t;
+cs(contrail_point_state_t, 0x68);
+
+/// Embedded contrail shader; only framebuffer_fade_mode is observed here.
+typedef struct {
+  uint8_t  pad_00[0x2c];          ///< offset=0x00
+  uint16_t framebuffer_fade_mode; ///< offset=0x2c
+  uint8_t  pad_2e[0x86];          ///< offset=0x2e
+} contrail_shader_t;
+cs(contrail_shader_t, 0xb4);
+
+/// 'cont' tag definition.  Offsets from render_contrail (0x188010),
+/// contrail_fade (0x187f80) and render_contrails (0x1887b0).  Total size
+/// unverified.
+typedef struct {
+  uint16_t          flags;               ///< offset=0x00 (1 first unfaded, 2 last unfaded, 0x40 fades slowly)
+  uint16_t          scale_flags;         ///< offset=0x02 (0x40 repeats_u, 0x80 repeats_v)
+  uint8_t           pad_04[0x14];        ///< offset=0x04
+  int16_t           render_type;         ///< offset=0x18
+  uint8_t           pad_1a[2];           ///< offset=0x1a
+  real              texture_repeats_u;   ///< offset=0x1c
+  real              texture_repeats_v;   ///< offset=0x20
+  uint8_t           pad_24[0x18];        ///< offset=0x24
+  int32_t           bitmap_index;        ///< offset=0x3c (bitmap tag_reference index)
+  uint8_t           pad_40[0x44];        ///< offset=0x40
+  contrail_shader_t shader;              ///< offset=0x84
+  tag_block         states;              ///< offset=0x138
+} contrail_definition_t;
 co(tag_block, count,   0x00);
 co(tag_block, address, 0x04);
 
