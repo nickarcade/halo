@@ -237,7 +237,7 @@ typedef struct {
   char pad_10c[1];                ///< offset=0x10c
   int8_t minimum_players;          ///< offset=0x10d
   int8_t maximum_player_count;    ///< offset=0x10e
-  uint8_t field_10f;               ///< offset=0x10f
+  uint8_t maximum_teams;            ///< offset=0x10f
   int16_t difficulty;             ///< offset=0x110
   int16_t machine_count;          ///< offset=0x112
   network_machine_record_t machines[4]; ///< offset=0x114
@@ -254,7 +254,7 @@ co(network_game_blob_t, map_name,                0x24);
 co(network_game_blob_t, game_variant,            0xa4);
 co(network_game_blob_t, minimum_players,          0x10d);
 co(network_game_blob_t, maximum_player_count,    0x10e);
-co(network_game_blob_t, field_10f,               0x10f);
+co(network_game_blob_t, maximum_teams,           0x10f);
 co(network_game_blob_t, difficulty,              0x110);
 co(network_game_blob_t, machine_count,           0x112);
 co(network_game_blob_t, machines,                0x114);

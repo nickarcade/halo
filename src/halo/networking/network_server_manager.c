@@ -1794,9 +1794,10 @@ bool network_game_server_setup_game_from_playlist(int server)
 
     *(short *)(s + 0x26) = 0;
     *(int *)(s + 0x28) = 0;
-    *(char *)(s + 0x115) = 2;
-    *(char *)(s + 0x116) = 0x10;
-    *(char *)(s + 0x117) = (*(char *)(s + 0xc8) != 0) + 1;
+    ((network_game_blob_t *)(s + 8))->minimum_players = 2;
+    ((network_game_blob_t *)(s + 8))->maximum_player_count = 0x10;
+    ((network_game_blob_t *)(s + 8))->maximum_teams =
+        (((network_game_blob_t *)(s + 8))->game_variant.team_play != 0) + 1;
 
     network_game_server_open_game((void *)server);
 
