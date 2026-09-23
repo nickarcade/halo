@@ -26817,7 +26817,8 @@
     },
     {
      "addr": "0x1937a0",
-     "decl": "void vertex_type_from_shader_tag(void);"
+     "decl": "void vertex_type_from_shader_tag(int param_1, int16_t *out_type_a, int16_t *out_type_b, bool flag);",
+     "ported": true
     },
     {
      "addr": "0x1937d0",

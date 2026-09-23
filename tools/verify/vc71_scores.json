@@ -115782,6 +115782,21 @@
       "ref_sha": "617228161245735b",
       "score": 94.1,
       "source": "src/halo/memory/circular_queue.c"
+    },
+    "vertex_type_from_shader_tag": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x1937a0",
+      "end": "0x1937ce",
+      "kind": "auto",
+      "n_r": 17,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "0f0c396b66ae6254",
+      "score": 100.0,
+      "source": "src/halo/structures/structure_bsp_definitions.c"
     }
   },
   "version": 2
