@@ -10571,7 +10571,8 @@
     },
     {
      "addr": "0x1c19a0",
-     "decl": "int FUN_001c19a0(void);"
+     "decl": "int FUN_001c19a0(void);",
+     "ported": true
     },
     {
      "addr": "0x1c19c0",
