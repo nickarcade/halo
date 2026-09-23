@@ -39851,7 +39851,8 @@
     },
     {
      "addr": "0x123d80",
-     "decl": "int16_t FUN_00123d80(int model_ref, const char *marker_name);"
+     "decl": "int16_t FUN_00123d80(int model_ref, const char *marker_name);",
+     "ported": true
     },
     {
      "addr": "0x123e20",

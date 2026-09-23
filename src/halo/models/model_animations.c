@@ -2079,6 +2079,44 @@ void model_get_node_matrices(void *mode_tag, float *node_matrices,
   } while ((short)read_index != (short)write_index);
 }
 
+/* 0x123d80 — Find a marker group by name in a model tag.
+ * PAL calls this model_find_marker.  The 2276 body searches the sorted
+ * 0x40-byte entries at model+0xac with signed 16-bit bounds and compares
+ * each entry's name at offset zero without changing the input string.
+ */
+int16_t FUN_00123d80(int model_ref, const char *marker_name)
+{
+  char *model;
+  char *block;
+  short lower_bound;
+  short upper_bound;
+  short marker_index;
+  char *marker;
+  int comparison;
+
+  if (model_ref != NONE && marker_name != 0 && *marker_name != '\0') {
+    model = (char *)tag_get(0x6d6f6465, model_ref);
+    block = model + 0xac;
+    lower_bound = 0;
+    upper_bound = (short)(*(short *)block - 1);
+    while (lower_bound <= upper_bound) {
+      marker_index = (short)(((int)lower_bound + (int)upper_bound) / 2);
+      marker = (char *)tag_block_get_element(block, (int)marker_index, 0x40);
+      comparison = crt_stricmp(marker_name, marker);
+      if (comparison == 0) {
+        return marker_index;
+      }
+      if (comparison < 0) {
+        upper_bound = (short)(marker_index - 1);
+      } else {
+        lower_bound = (short)(marker_index + 1);
+      }
+    }
+  }
+
+  return -1;
+}
+
 /* model_get_default_inverse_matrix (0x123e20) — Get a node's default matrix from a
  * model mode tag.
  *
