@@ -742,9 +742,10 @@ def parse_regdef_from_decl(decl: str) -> list[tuple[int, str]]:
     return regs
 
 
-def _phantom_load_key(insn: str, slot_map: dict):
+def _phantom_load_key(insn: str, slot_map: dict, any_family: bool = False):
     """(disp, family) if insn is a mov-family load from a phantom reg-param
-    slot into that param's own register family; else None."""
+    slot into that param's own register family; else None. With any_family
+    the destination register is not checked and the key is (disp, None)."""
     parts = insn.strip().split(None, 1)
     if len(parts) != 2 or parts[0].lower() not in _MOV_LOAD_MNEMONICS:
         return None
@@ -755,6 +756,8 @@ def _phantom_load_key(insn: str, slot_map: dict):
     family = slot_map.get(disp)
     if family is None:
         return None
+    if any_family:
+        return (disp, None)
     if _REG_TO_FAMILY.get(m.group(3).lower()) != family:
         return None
     return (disp, family)
@@ -780,13 +783,22 @@ def _pushpop_key(insn: str, families: set):
 
 def strip_regparam_loads(insns: list[str], reference: list[str],
                          regdef_params: list[tuple[int, str]] | None,
-                         strip_saves: bool = False
+                         strip_saves: bool = False,
+                         any_family: bool = False
                          ) -> tuple[list[str], int]:
     """Remove candidate-only phantom reg-param slot loads (see module comment).
 
     Returns (stripped_insns, n_stripped).  Count-aware: per (disp, family),
     strips at most candidate_count - reference_count occurrences, so a slot
     the reference also loads is never touched.
+
+    any_family drops the destination-family check (cl.exe often loads the
+    phantom slot into whatever register its allocator picked -- `movw
+    0x10(%ebp), %cx` for a tag@<dx> param). The count guard then runs per
+    disp over loads into ANY register on both sides. It is only ever tried
+    as its own candidate by select_regparam_candidate, so the case the
+    family check protects -- a candidate load that pairs with a reference
+    reg-to-reg `mov` -- loses the max and falls back to the strict variant.
     """
     if not regdef_params:
         return insns, 0
@@ -799,19 +811,45 @@ def strip_regparam_loads(insns: list[str], reference: list[str],
         return insns, 0
 
     from collections import Counter
-    ref_counts = Counter(
-        k for k in (_phantom_load_key(i, slot_map) for i in reference)
-        if k is not None)
-    cand_keys = [_phantom_load_key(i, slot_map) for i in insns]
+    ref_keys = [_phantom_load_key(i, slot_map, any_family) for i in reference]
+    if any_family:
+        # The reference numbers only its STACK params (a register param has
+        # no caller slot), the candidate numbers every param, so the same
+        # disp names different params on the two sides. Translate each
+        # reference slot to the candidate slot of the same stack param
+        # before counting; a register param then has no reference reads.
+        reg_idx = {idx for idx, _ in regdef_params}
+        stack_idx = [i for i in range(len(reg_idx) + 64) if i not in reg_idx]
+        ref_keys = []
+        for insn in reference:
+            parts = insn.strip().split(None, 1)
+            m = (_PHANTOM_LOAD_RE.match(parts[1].strip())
+                 if len(parts) == 2
+                 and parts[0].lower() in _MOV_LOAD_MNEMONICS else None)
+            if not m:
+                ref_keys.append(None)
+                continue
+            disp = int(m.group(1), 16) if m.group(1) else int(m.group(2))
+            if disp < 8 or (disp - 8) % 4:
+                ref_keys.append(None)
+                continue
+            cand_disp = 8 + 4 * stack_idx[(disp - 8) // 4]
+            ref_keys.append((cand_disp, None) if cand_disp in slot_map
+                            else None)
+    ref_counts = Counter(k for k in ref_keys if k is not None)
+    cand_keys = [_phantom_load_key(i, slot_map, any_family) for i in insns]
     excess = Counter(k for k in cand_keys if k is not None)
     excess.subtract(ref_counts)
 
     out = []
     n_stripped = 0
+    load_dest_families = set()
     for insn, key in zip(insns, cand_keys):
         if key is not None and excess[key] > 0:
             excess[key] -= 1
             n_stripped += 1
+            dm = _PHANTOM_LOAD_RE.match(insn.strip().split(None, 1)[1].strip())
+            load_dest_families.add(_REG_TO_FAMILY.get(dm.group(3).lower()))
             continue
         out.append(insn)
 
@@ -830,6 +868,11 @@ def strip_regparam_loads(insns: list[str], reference: list[str],
         fam = _REG_TO_FAMILY.get(reg.lower())
         if fam in ('ebx', 'esi', 'edi'):
             save_families.add(fam)
+    # With any_family, a callee-saved register that only exists to hold a
+    # stripped phantom load (cl.exe parked a register param's slot in ESI)
+    # is the same artifact: the original has the value in its arg register.
+    if strip_saves and any_family:
+        save_families |= load_dest_families & {'ebx', 'esi', 'edi'}
     if save_families:
         ref_pp = Counter(k for k in (_pushpop_key(i, save_families)
                                      for i in reference) if k is not None)
@@ -845,6 +888,200 @@ def strip_regparam_loads(insns: list[str], reference: list[str],
             out2.append(insn)
         out = out2
     return out, n_stripped
+
+
+_SUB_ESP_RE = re.compile(r'^subl?\s+\$((?:0x)?[0-9a-f]+),\s*%esp$', re.I)
+_EBP_SLOT_RE = re.compile(r'(-?(?:0x[0-9a-f]+|\d+))\(%ebp\)$')
+
+
+def _sub_esp_imm(insn: str) -> int | None:
+    m = _SUB_ESP_RE.match(insn.split("#", 1)[0].strip())
+    if not m:
+        return None
+    tok = m.group(1)
+    return int(tok, 16) if tok.lower().startswith("0x") else int(tok)
+
+
+def _phantom_slot_reuse(insns: list[str], slot_map: dict) -> set[int]:
+    """Phantom reg-param slots the candidate writes or takes the address of.
+
+    A load FROM such a slot is the phantom-load artifact; a store TO it, or
+    a `lea` of it, is cl.exe reusing the dead argument slot as a local."""
+    used = set()
+    for insn in insns:
+        parts = insn.split("#", 1)[0].strip().split(None, 1)
+        if len(parts) != 2:
+            continue
+        mn, ops = parts[0].lower(), parts[1].replace(" ", "")
+        dest = ops.rsplit(",", 1)[-1] if mn.startswith("lea") is False \
+            else ops.split(",", 1)[0]
+        m = _EBP_SLOT_RE.match(dest)
+        if not m:
+            continue
+        tok = m.group(1)
+        disp = int(tok, 16) if "0x" in tok.lower() else int(tok)
+        if disp in slot_map and (mn.startswith("lea") or "," in ops):
+            used.add(disp)
+    return used
+
+
+def add_regparam_locals_frame(insns: list[str], reference: list[str],
+                              regdef_params: list[tuple[int, str]] | None
+                              ) -> tuple[list[str], int]:
+    """Model the local frame the original needs because its args are in regs.
+
+    The mirror of strip_regparam_frame. A stack-arg compile of an @<reg>
+    function owns one caller slot per register param, and once the param is
+    in a register cl.exe reuses that dead slot for a local (`mov %eax,
+    0x10(%ebp)`, `lea 0x10(%ebp)` for an out-arg). The original has no such
+    slot, so it allocates the same locals below EBP: `sub $N, %esp` in the
+    prologue and `mov %ebp, %esp` before each `pop %ebp`. Guards:
+      - only for functions with @<reg> params;
+      - the reference opens `push %ebp; mov %esp,%ebp; sub $N,%esp` (or
+        cl.exe's one-dword `push %ecx` form, N = 4) and the candidate has
+        the frame pointer but no `sub` at all;
+      - the candidate writes or takes the address of a phantom reg-param
+        slot (the reused storage that stands in for the reference's locals;
+        cl.exe may also overlap locals of disjoint switch arms in it, so
+        the slot count need not reach N/4);
+      - `mov %ebp, %esp` is inserted before `pop %ebp; ret` epilogues only,
+        at most as many as the reference has.
+    Adds only the frame instructions the reference itself carries. Tried as
+    its own candidate by select_regparam_candidate (monotonic max).
+    """
+    if not regdef_params or len(reference) < 3 or len(insns) < 2:
+        return insns, 0
+    if not (_is_frame_setup(reference) and _is_frame_setup(insns)):
+        return insns, 0
+    alloc = reference[2]
+    n_frame = _sub_esp_imm(alloc)
+    if n_frame is None and _insn_tokens(alloc) == ("pushl", "%ecx"):
+        n_frame = 4   # cl.exe's one-dword `sub $4, %esp` idiom
+    if not n_frame:
+        return insns, 0
+    if any(_sub_esp_imm(i) is not None for i in insns):
+        return insns, 0
+    slot_map = {8 + 4 * idx: reg for idx, reg in regdef_params}
+    if not _phantom_slot_reuse(insns, slot_map):
+        return insns, 0
+    budget = sum(1 for i in reference
+                 if _insn_tokens(i) == ("movl", "%ebp,%esp"))
+    out = insns[:2] + [alloc.split("#", 1)[0].rstrip()]
+    n_added = 1
+    body = insns[2:]
+    for k, insn in enumerate(body):
+        nxt = body[k + 1] if k + 1 < len(body) else ""
+        if (budget > 0 and _insn_tokens(insn) == ("popl", "%ebp")
+                and mnemonic(nxt).lower() in ("ret", "retl")):
+            out.append("movl\t%ebp, %esp")
+            budget -= 1
+            n_added += 1
+        out.append(insn)
+    return out, n_added
+
+
+_CALLEE_REGS_CACHE: dict[int, set[str]] | None = None
+_REF_CALL_RE = re.compile(
+    r'^call[lw]?\s+0x([0-9a-f]+)\s+<FUN_([0-9a-f]{8})\+', re.I)
+
+
+def _kb_callee_arg_families() -> dict[int, set[str]]:
+    """{addr: register families of its @<reg> params} from kb.json (cached).
+
+    Fail-soft: an unreadable kb.json yields {} and the save model is off."""
+    global _CALLEE_REGS_CACHE
+    if _CALLEE_REGS_CACHE is None:
+        _CALLEE_REGS_CACHE = {}
+        try:
+            import json
+            kb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "..", "..", "kb.json")
+            with open(kb_path, encoding="utf-8") as fh:
+                kb = json.load(fh)
+            for obj in kb.get("objects", []):
+                for fn in obj.get("functions", []) or []:
+                    decl = fn.get("decl") or ""
+                    if "@<" not in decl or not fn.get("addr"):
+                        continue
+                    fams = {_REG_TO_FAMILY.get(r) for _, r
+                            in parse_regdef_from_decl(decl)}
+                    fams.discard(None)
+                    if fams:
+                        _CALLEE_REGS_CACHE[int(fn["addr"], 16)] = fams
+        except Exception:
+            _CALLEE_REGS_CACHE = {}
+    return _CALLEE_REGS_CACHE
+
+
+def _ref_callee_addrs(reference: list[str]) -> list[int]:
+    """Absolute targets of the reference's direct calls.
+
+    The synthesized reference is its own FUN_<addr> symbol at offset 0, so
+    llvm-objdump prints each call target relative to the function start."""
+    out = []
+    for insn in reference:
+        m = _REF_CALL_RE.match(insn.strip())
+        if m:
+            out.append((int(m.group(2), 16) + int(m.group(1), 16))
+                       & 0xffffffff)
+    return out
+
+
+def add_callee_arg_saves(insns: list[str], reference: list[str],
+                         regdef_params: list[tuple[int, str]] | None
+                         ) -> tuple[list[str], int]:
+    """Model the callee-saved register the original saves only to pass an arg.
+
+    The mirror of strip_regparam_loads' saves pass. A callee given a custom
+    convention by the original link can take arguments in callee-saved
+    registers (`TIFFWriteData(tif@<ebx>, dir@<edi>, cp)`), so the original
+    caller must PUSH/POP that register around its body to load it. cl.exe
+    pushes the argument instead and never touches the register. Guards:
+      - R is ebx/esi/edi and is a register parameter family (kb.json) of a
+        function the REFERENCE calls (targets are exact addresses);
+      - R is not one of this function's own register params (a param that
+        arrives in R is passed through, not saved);
+      - the candidate never pushes R, and the reference both pushes and pops
+        it; inserted pops are bounded by the reference's pop count.
+    `push %R` goes after the prologue, `pop %R` before each `pop %ebp; ret`.
+    Adds only instructions the reference itself carries. Tried as its own
+    candidate by select_regparam_candidate (monotonic max).
+    """
+    kb = _kb_callee_arg_families()
+    if not kb:
+        return insns, 0
+    fams: set[str] = set()
+    for addr in _ref_callee_addrs(reference):
+        fams |= kb.get(addr, set())
+    fams &= {"ebx", "esi", "edi"}
+    for _, reg in regdef_params or []:
+        fams.discard(_REG_TO_FAMILY.get(reg.lower()))
+    todo = []
+    for fam in sorted(fams):
+        if any(_insn_tokens(i) == ("pushl", "%" + fam) for i in insns):
+            continue
+        n_pop = sum(1 for i in reference
+                    if _insn_tokens(i) == ("popl", "%" + fam))
+        if n_pop and any(_insn_tokens(i) == ("pushl", "%" + fam)
+                         for i in reference):
+            todo.append((fam, n_pop))
+    if not todo or not _is_frame_setup(insns):
+        return insns, 0
+    out = insns[:2] + [f"pushl\t%{fam}" for fam, _ in todo]
+    n_added = len(todo)
+    budget = {fam: n for fam, n in todo}
+    body = insns[2:]
+    for k, insn in enumerate(body):
+        nxt = body[k + 1] if k + 1 < len(body) else ""
+        if (_insn_tokens(insn) == ("popl", "%ebp")
+                and mnemonic(nxt).lower() in ("ret", "retl")):
+            for fam, _ in todo:
+                if budget[fam] > 0:
+                    out.append(f"popl\t%{fam}")
+                    budget[fam] -= 1
+                    n_added += 1
+        out.append(insn)
+    return out, n_added
 
 
 def _insn_tokens(insn: str) -> tuple[str, str]:
@@ -936,6 +1173,12 @@ def _is_call_insn(insn: str) -> bool:
     return mn in ("call", "calll", "callw")
 
 
+def _is_control_flow_insn(insn: str) -> bool:
+    """Jump, conditional branch or return: a basic-block boundary."""
+    mn = mnemonic(insn).lower()
+    return mn.startswith("j") or mn.startswith("ret") or mn.startswith("loop")
+
+
 def _cdecl_call_sites(insns: list[str]) -> list[tuple[int, int, int]]:
     """(push_start, end_exclusive, arity) for `push*N; call; add $4N, %esp`."""
     sites = []
@@ -987,6 +1230,135 @@ def strip_regarg_call_setups(insns: list[str], reference: list[str]
         return insns, 0
     out = [insn for i, insn in enumerate(insns) if i not in to_strip]
     return out, len(to_strip)
+
+
+def _call_pushes(insns: list[str]) -> list[tuple[int, int]]:
+    """(call_index, contiguous pushes directly before it) for every call."""
+    return [(i, len(p)) for i, p in _call_push_sites(insns)]
+
+
+def _call_push_sites(insns: list[str], windowed: bool = False
+                     ) -> list[tuple[int, list[int]]]:
+    """(call_index, push indices) for every call.
+
+    Contiguous mode takes only the pushes directly before the call. Windowed
+    mode walks back over every non-control-flow instruction to the previous
+    call/jump/ret, so an argument push that the scheduler separated from the
+    call by register-argument `mov`s or unrelated arithmetic still counts
+    (the LTCG original loads its register args between the pushes and the
+    call).
+    """
+    out = []
+    for i, insn in enumerate(insns):
+        if not _is_call_insn(insn):
+            continue
+        pushes = []
+        j = i
+        while j > 0:
+            prev = insns[j - 1]
+            if _is_push_insn(prev):
+                pushes.append(j - 1)
+            elif not windowed:
+                break
+            elif _is_call_insn(prev) or _is_control_flow_insn(prev):
+                break
+            j -= 1
+        pushes.reverse()
+        out.append((i, pushes))
+    return out
+
+
+def strip_mixed_regarg_call_setups(insns: list[str], reference: list[str],
+                                   strict: bool = False,
+                                   as_mov: bool = False,
+                                   windowed: bool = False
+                                   ) -> tuple[list[str], int]:
+    """Drop candidate pushes the reference passes in registers, per call.
+
+    The mixed-ABI companion to strip_regarg_call_setups: an LTCG callee such
+    as `TIFFWriteData(tif@<ebx>, dir@<edi>, cp)` is called in the original
+    as `mov ebx/edi; push cp; call; add $4`, but cl.exe pushes all three.
+    Count-based pairing cannot tell such a site from a real cdecl call, so
+    this pairs calls by ORDINAL and only runs when both sides make the same
+    number of calls. Where the candidate has Pc contiguous pushes before a
+    call and the paired reference call Pr < Pc, the Pc-Pr pushes nearest the
+    call (the leading, register-passed params) are dropped and the stack
+    cleanup that pops them is lowered by 4*(Pc-Pr), or dropped when it
+    reaches zero. The cleanup is the first `add $N, %esp` after the call; cl
+    may merge the cleanup of consecutive calls into one `add` after the last
+    of them, so surplus bytes of a site with no `add` before the next call
+    carry forward to the next `add` (never more bytes than it pops). Surplus
+    that no `add` absorbs (a callee-clean site) is left untouched.
+    `strict` only rewrites textbook sites: the cleanup directly after the
+    call on the candidate, and on the reference either the same shape or a
+    bare call with no pushes and no cleanup. `as_mov` turns each dropped push
+    into the `movl` the original uses to load that register argument (only
+    the mnemonic is modeled). Each combination is its own candidate in
+    select_regparam_candidate, because one pairing can lose an alignment
+    another keeps. `windowed` counts pushes on both sides with
+    _call_push_sites(windowed=True), so a reference call whose stack pushes
+    are separated from it by register-argument movs is not read as pushing
+    nothing (which would strip every candidate push at that site).
+    """
+    cand_calls = _call_push_sites(insns, windowed)
+    if not cand_calls:
+        return insns, 0
+    ref_calls = [(i, len(p)) for i, p in _call_push_sites(reference, windowed)]
+    if len(cand_calls) != len(ref_calls):
+        return insns, 0
+    drop: set[int] = set()
+    rewrite: dict[int, str] = {}
+    n = len(insns)
+    pending: list[int] = []      # push indices awaiting a cleanup
+    pending_pushed = 0           # all bytes pushed by the pending sites
+    for o, (call_i, push_idx) in enumerate(cand_calls):
+        pc = len(push_idx)
+        ref_i, pr = ref_calls[o]
+        extra = pc - pr
+        if extra > 0 and strict:
+            ref_add = (_add_esp_imm(reference[ref_i + 1])
+                       if ref_i + 1 < len(reference) else None)
+            if not ((pr == 0 and ref_add is None) or ref_add == 4 * pr):
+                extra = 0
+        if extra > 0:
+            pending.extend(push_idx[-extra:])
+        pending_pushed += 4 * pc
+        nxt = cand_calls[o + 1][0] if o + 1 < len(cand_calls) else n
+        add_i = None
+        for k in range(call_i + 1, nxt):
+            if _add_esp_imm(insns[k]) is not None:
+                add_i = k
+                break
+        if add_i is None:
+            if strict:
+                pending, pending_pushed = [], 0
+            continue
+        imm = _add_esp_imm(insns[add_i])
+        group, pushed = pending, pending_pushed
+        pending, pending_pushed = [], 0
+        if not group:
+            continue
+        if imm < pushed or (strict and (add_i != call_i + 1
+                                        or imm != pushed)):
+            continue
+        for idx in group:
+            if as_mov:
+                op = insns[idx].split("#", 1)[0].strip().split(None, 1)
+                rewrite[idx] = ("movl\t" + (op[1] if len(op) > 1 else "")
+                                + ", %reg")
+            else:
+                drop.add(idx)
+        left = imm - 4 * len(group)
+        if left == 0:
+            drop.add(add_i)
+        else:
+            rewrite[add_i] = f"addl\t$0x{left:x}, %esp"
+    if not drop and not rewrite:
+        return insns, 0
+    out = [rewrite.get(i, insn) for i, insn in enumerate(insns)
+           if i not in drop]
+    n_mov = sum(1 for i, r in rewrite.items() if r.startswith("movl"))
+    return out, len(drop) + n_mov
 
 
 def normalize_instruction(insn: str) -> str:
@@ -1060,10 +1432,14 @@ def select_regparam_candidate(compiled: list[str], reference: list[str],
     variants: list[tuple[list[str], int, str]] = [
         (compiled, 0, "raw"),
     ]
-    for strip_saves, label in ((False, "regparam_stripped"),
-                               (True, "regparam_stripped_saves")):
+    for strip_saves, any_family, label in (
+            (False, False, "regparam_stripped"),
+            (True, False, "regparam_stripped_saves"),
+            (False, True, "regparam_stripped_anyreg"),
+            (True, True, "regparam_stripped_saves_anyreg")):
         stripped, n_stripped = strip_regparam_loads(
-            compiled, reference, regdef_params, strip_saves=strip_saves)
+            compiled, reference, regdef_params, strip_saves=strip_saves,
+            any_family=any_family)
         if n_stripped:
             variants.append((stripped, n_stripped, label))
     # Frameless-reference modeling layered on every base as its OWN candidate:
@@ -1075,6 +1451,20 @@ def select_regparam_candidate(compiled: list[str], reference: list[str],
             variants.append((framed, n_base + n_frame,
                              "regparam_frameless" if label == "raw"
                              else label + "+frameless"))
+
+    for base, n_base, label in list(variants):
+        saved, n_saved = add_callee_arg_saves(base, reference, regdef_params)
+        if n_saved:
+            variants.append((saved, n_base + n_saved,
+                             "callee_arg_saves" if label == "raw"
+                             else label + "+callee_saves"))
+    for base, n_base, label in list(variants):
+        framed, n_frame = add_regparam_locals_frame(base, reference,
+                                                    regdef_params)
+        if n_frame:
+            variants.append((framed, n_base + n_frame,
+                             "regparam_locals_frame" if label == "raw"
+                             else label + "+locals_frame"))
 
     best =(comparison_ratio(compiled, reference, reg_normalize),
             compiled, 0, "raw")
@@ -1092,6 +1482,25 @@ def select_regparam_candidate(compiled: list[str], reference: list[str],
                       else "regarg_call_stripped")
         if call_ratio > best[0]:
             best = (call_ratio, call_stripped, n_base + n_call, call_label)
+    if model_regarg_calls:
+        # Ordinal-paired mixed-ABI model, its own candidate on every base so
+        # it can never displace a better count-based alignment.
+        for base, n_base, label in variants:
+            for strict, as_mov, windowed in (
+                    (True, False, False), (False, False, False),
+                    (True, True, False), (False, True, False),
+                    (True, False, True), (False, False, True),
+                    (True, True, True), (False, True, True)):
+                mixed, n_mixed = strip_mixed_regarg_call_setups(
+                    base, reference, strict=strict, as_mov=as_mov,
+                    windowed=windowed)
+                if not n_mixed:
+                    continue
+                mixed_ratio = comparison_ratio(mixed, reference, reg_normalize)
+                mixed_label = (label + "+regarg_mixed" if label != "raw"
+                               else "regarg_mixed_stripped")
+                if mixed_ratio > best[0]:
+                    best = (mixed_ratio, mixed, n_base + n_mixed, mixed_label)
     return best[1], best[2], best[3]
 
 
@@ -2478,6 +2887,78 @@ def _self_test():
     check("RC6 model_regarg_calls=False keeps cdecl-3 ratio",
           abs(raw_pct - comparison_ratio(rc6_cand, rc6_ref, False) * 100.0)
           < 1e-9)
+
+    # --- caller-site mixed register/stack ABI (strip_mixed_regarg_call_setups) ---
+    # TIFFWriteData(tif@<ebx>, dir@<edi>, cp): original `mov ebx/edi; push cp;
+    # call; add $4`, cl.exe `push cp; push dir; push tif; call; add $0xc`.
+
+    # RM1. cdecl-3 paired with reference cdecl-1: two pushes dropped, add
+    #      rewritten to 4.
+    cand = ["pushl\t%ecx", "pushl\t%eax", "pushl\t%edx", "calll\tf",
+            "addl\t$0xc, %esp", "retl"]
+    ref = ["movl\t%esi, %ebx", "pushl\t%ecx", "calll\tf",
+           "addl\t$0x4, %esp", "retl"]
+    stripped, n = strip_mixed_regarg_call_setups(cand, ref)
+    check("RM1 cdecl-3 reduced to the reference's cdecl-1",
+          n == 2 and stripped == ["pushl\t%ecx", "calll\tf",
+                                  "addl\t$0x4, %esp", "retl"])
+
+    # RM2. Different call counts: ordinal pairing is unsafe, nothing changes.
+    ref2 = ref[:3] + ["calll\tg"] + ref[3:]
+    stripped, n = strip_mixed_regarg_call_setups(cand, ref2)
+    check("RM2 call-count mismatch leaves the candidate alone",
+          n == 0 and stripped == cand)
+
+    # RM3. Deferred cleanup (loose mode only): add esp after an unrelated
+    #      insn is still lowered; strict mode refuses it.
+    cand = ["pushl\t%ecx", "pushl\t%eax", "calll\tf", "movl\t%eax, %edx",
+            "addl\t$0x8, %esp", "retl"]
+    ref = ["pushl\t%ecx", "calll\tf", "movl\t%eax, %edx",
+           "addl\t$0x4, %esp", "retl"]
+    stripped, n = strip_mixed_regarg_call_setups(cand, ref)
+    check("RM3 loose mode lowers a deferred cleanup",
+          n == 1 and stripped[3] == "addl\t$0x4, %esp")
+    stripped, n = strip_mixed_regarg_call_setups(cand, ref, strict=True)
+    check("RM3 strict mode skips a deferred cleanup", n == 0)
+
+    # RM4. Callee-clean candidate site (no add esp before the next call) and
+    #      equal push counts are never touched.
+    cand = ["pushl\t%ecx", "pushl\t%eax", "calll\tf", "retl"]
+    ref = ["pushl\t%ecx", "calll\tf", "retl"]
+    stripped, n = strip_mixed_regarg_call_setups(cand, ref)
+    check("RM4 callee-clean site left alone", n == 0)
+    both = ["pushl\t%ecx", "calll\tf", "addl\t$0x4, %esp", "retl"]
+    stripped, n = strip_mixed_regarg_call_setups(both, both)
+    check("RM4 equal push counts left alone", n == 0)
+
+    # RM5. Reduced to zero stack args: the add esp is dropped entirely.
+    cand = ["pushl\t%eax", "calll\tf", "addl\t$0x4, %esp", "retl"]
+    ref = ["movl\t%esi, %eax", "calll\tf", "retl"]
+    stripped, n = strip_mixed_regarg_call_setups(cand, ref, strict=True)
+    check("RM5 cdecl-1 vs bare call drops push and cleanup",
+          n == 2 and stripped == ["calll\tf", "retl"])
+
+    # RM6. Windowed counting: the reference's two stack pushes are separated
+    #      from the call by register-arg movs. Contiguous counting reads that
+    #      as zero pushes and strips all four candidate pushes; windowed
+    #      counting strips only the two register-passed ones, and it also
+    #      finds a candidate push split off by unrelated arithmetic.
+    cand = ["pushl\t%edx", "addl\t$0xc, %edi", "pushl\t%edi",
+            "pushl\t$0x140", "pushl\t%esi", "calll\tf",
+            "addl\t$0x10, %esp", "retl"]
+    ref = ["pushl\t%edx", "pushl\t%edi", "movl\t$0x140, %eax",
+           "movl\t%ebx, %esi", "calll\tf", "addl\t$0x8, %esp", "retl"]
+    stripped, n = strip_mixed_regarg_call_setups(cand, ref)
+    check("RM6 contiguous counting over-strips", n == 3)
+    stripped, n = strip_mixed_regarg_call_setups(cand, ref, windowed=True)
+    check("RM6 windowed counting drops only the register-passed pushes",
+          n == 2 and stripped == ["pushl\t%edx", "addl\t$0xc, %edi",
+                                  "pushl\t%edi", "calll\tf",
+                                  "addl\t$0x8, %esp", "retl"])
+    check("RM6 windowed counting stops at a branch",
+          [len(p) for _, p in _call_push_sites(
+              ["pushl\t%eax", "jne\tx", "movl\t%eax, %ecx", "calll\tf"],
+              windowed=True)] == [0])
 
     # --- SHAPE: call-count and parameter-slot-store census (sections 49, 50) ---
 

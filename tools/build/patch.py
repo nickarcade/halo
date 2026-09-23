@@ -821,15 +821,29 @@ def generate_reverse_thunk(sym, impl_addr, rvthunk_addr):
             _emit_move(i)
             continue
 
+        # A sub-register source rides the XCHG rotation inside its 32-bit
+        # parent and is zero-extended in its destination afterwards: the low
+        # 16 (or low 8) bits land unchanged in the same sub-register of dst32.
+        # A high-byte source (ah/ch/dh/bh) has no such in-place view.
+        widen_fixups = []
         for member in cycle:
-            if moves[member][3]:
-                raise ValueError(f'Cannot XCHG with sub-register {moves[member][1]!r} in cycle')
+            dst32, src_reg, _, needs_widen = moves[member]
+            if not needs_widen:
+                continue
+            if src_reg in REG16_BITS:
+                widen_fixups.append(encode_movzx_r32_r16(dst32, dst32[1:]))
+            elif src_reg in ('al', 'cl', 'dl', 'bl') and dst32 in ('eax', 'ecx', 'edx', 'ebx'):
+                widen_fixups.append(encode_movzx_r32_r8(dst32, dst32[1] + 'l'))
+            else:
+                raise ValueError(f'Cannot XCHG with sub-register {src_reg!r} in cycle')
 
         # XCHG cycle[0] with each subsequent member.
         head_reg = moves[cycle[0]][0]
         for j in range(1, len(cycle)):
             other_reg = moves[cycle[j]][0]
             code.extend(b'\x87' + bytes([0xc0 | (REG32_BITS[head_reg] << 3) | REG32_BITS[other_reg]]))
+        for fixup in widen_fixups:
+            code.extend(fixup)
 
         for member in cycle:
             emitted[member] = True
