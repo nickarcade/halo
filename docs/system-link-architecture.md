@@ -46,7 +46,7 @@ evidence that they cause a current regression.
 | `0x12e750` | `network_game_server_idle_pregame_tasks`                              |      79.4% | server pregame (state 0) tick    |
 | `0x12e580` | `network_game_server_handle_client_machines`                          |      77.5% | handle client machines           |
 | `0x12d880` | `network_game_server_add_new_client`                                  |      81.9% | add new client connection        |
-| `0x12dc20` | `network_game_server_setup_game_from_playlist`                        |      84.1% | set up variant/name/open game; `network_game_blob_t.maximum_teams` at `0x10f` is confirmed by PAL and the 2276 byte store at server `+0x117` |
+| `0x12dc20` | `network_game_server_setup_game_from_playlist`                        |      84.1% | set up variant/name/open game; PAL and 2276 confirm `game_name` at game `+0`, `map_version` at `+0x20`, and `maximum_teams` at `+0x10f`; typed accesses preserve the 84.7%/72.7% mnemonic/operand scores |
 | `0x12f5d0` | `network_game_server_send_game_data_pregame`                          |     100.0% | broadcast pregame game data      |
 | `0x12f690` | `handle_message_client_broadcast_game_search`                         |      89.4% | advertise game (broadcast reply) |
 | `0x12f8d0` | `handle_message_client_ping`                                          |      77.9% | client ping handler              |

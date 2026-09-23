@@ -231,7 +231,8 @@ co(network_server_machine_slot_t, flags,                               0x0e);
 /// Evidence: recovery/evidence/network_game_blob.json
 /// This packed blob is serialized as a 0x434-byte network settings message.
 typedef struct {
-  char pad_00[0x24];              ///< offset=0x00
+  wchar_t game_name[16];          ///< offset=0x00
+  int32_t map_version;            ///< offset=0x20
   char map_name[0x80];            ///< offset=0x24
   game_variant_t game_variant;    ///< offset=0xa4
   char pad_10c[1];                ///< offset=0x10c
@@ -250,6 +251,8 @@ typedef struct {
   char pad_431[3];                ///< offset=0x431
 } network_game_blob_t;
 cs(network_game_blob_t, 0x434);
+co(network_game_blob_t, game_name,               0x00);
+co(network_game_blob_t, map_version,             0x20);
 co(network_game_blob_t, map_name,                0x24);
 co(network_game_blob_t, game_variant,            0xa4);
 co(network_game_blob_t, minimum_players,          0x10d);

@@ -1790,10 +1790,10 @@ bool network_game_server_setup_game_from_playlist(int server)
 #endif
 
     network_game_generate_local_machine_name(name_buf);
-    ustrncpy((wchar_t *)(s + 8), name_buf, 0xf);
+    ustrncpy(((network_game_blob_t *)(s + 8))->game_name, name_buf, 0xf);
 
-    *(short *)(s + 0x26) = 0;
-    *(int *)(s + 0x28) = 0;
+    ((network_game_blob_t *)(s + 8))->game_name[15] = 0;
+    ((network_game_blob_t *)(s + 8))->map_version = 0;
     ((network_game_blob_t *)(s + 8))->minimum_players = 2;
     ((network_game_blob_t *)(s + 8))->maximum_player_count = 0x10;
     ((network_game_blob_t *)(s + 8))->maximum_teams =
