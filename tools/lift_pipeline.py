@@ -215,7 +215,7 @@ def parse_match_percent_for_function(
   for name in names:
     if not name:
       continue
-    m = re.search(r'(?:PASS|FAIL)\s+' + re.escape(name) + r':\s*(\d+\.\d+)%\s+mnemonic\s+match',
+    m = re.search(r'(?:PASS|FAIL)\s+' + re.escape(name) + r':\s*(\d+\.\d+)%\s+(?:mnemonic\s+)?match',
                   text)
     if m:
       return float(m.group(1)), True
