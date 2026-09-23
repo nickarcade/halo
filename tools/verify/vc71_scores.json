@@ -14431,17 +14431,17 @@
     "FUN_000a5830": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 9.9,
+      "abi_modeled_mnemonic_pct": 92.9,
       "addr": "0xa5830",
       "end": "0xa591f",
       "kind": "auto",
       "n_r": 76,
-      "opnd_percent": 7.4,
-      "raw_mnemonic_pct": 9.9,
+      "opnd_percent": 92.9,
+      "raw_mnemonic_pct": 92.9,
       "ref": "synth",
       "ref_sha": "117b1d0af60aa5df",
-      "score": 9.9,
-      "source": "src/halo/unported_thunks.c"
+      "score": 92.9,
+      "source": "src/halo/game/cheats.c"
     },
     "FUN_000a5c60": {
       "abi_model": "raw",

@@ -214,6 +214,61 @@ void set_real_euler_angles2d(real *angles, real angle_04, real angle_00)
   angles[0] = angle_00;
 }
 
+/* FUN_000a5830 (0xa5830)
+ *
+ * Line-of-sight test (asserts name c:\halo\SOURCE\game\aim_assist.c).
+ * Pushes collision user 6, casts a ray (flags 0xc2ad) from `point` toward
+ * the float[3] at `elem_data`, ignoring the root parent of arg3 ([EBP+0x10],
+ * used as an object handle). Returns 1 (BL) when nothing is hit, or when
+ * the hit type (result +0x00, int16) is 3 and the root parent of the hit
+ * object (result +0x38, [EBP-0x24]) equals the root parent of arg4.
+ * The collision result buffer spans [EBP-0x5c, EBP-0xc) = 0x50 bytes; the
+ * ray delta vector is [EBP-0xc].
+ */
+char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4)
+{
+  char result;
+  int ignore_root;
+  float direction[3];
+  int collision_result[0x14];
+
+  result = 0;
+  if (*(int16_t *)0x4761d8 >= 0x20) {
+    display_assert("global_current_collision_user_depth < "
+                   "MAXIMUM_COLLISION_USER_STACK_DEPTH",
+                   "c:\\halo\\SOURCE\\game\\aim_assist.c", 0x15e, 1);
+    system_exit(-1);
+  }
+
+  {
+    int16_t depth = *(int16_t *)0x4761d8;
+    *(int16_t *)(0x5a8c80 + (int)depth * 2) = 6;
+    *(int16_t *)0x4761d8 = (int16_t)(depth + 1);
+  }
+
+  ignore_root = object_get_root_parent((int)arg3);
+  direction[0] = ((float *)elem_data)[0] - point[0];
+  direction[1] = ((float *)elem_data)[1] - point[1];
+  direction[2] = ((float *)elem_data)[2] - point[2];
+
+  if (!FUN_0014df70(0xc2ad, point, direction, ignore_root,
+                    (int16_t *)collision_result) ||
+      (*(int16_t *)collision_result == 3 &&
+       object_get_root_parent(collision_result[0x38 / 4]) ==
+         object_get_root_parent(arg4))) {
+    result = 1;
+  }
+
+  if (*(int16_t *)0x4761d8 <= 1) {
+    display_assert("global_current_collision_user_depth > 1",
+                   "c:\\halo\\SOURCE\\game\\aim_assist.c", 0x16f, 1);
+    system_exit(-1);
+  }
+  *(int16_t *)0x4761d8 -= 1;
+
+  return result;
+}
+
 /* FUN_000a5d70 (0xa5d70)
  *
  * Recursive per-cluster worker behind FUN_000a5f00 (0xa5f00, unported): walks

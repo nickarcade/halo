@@ -495,7 +495,7 @@
  "0xa5830": {
   "addr": "0xa5830",
   "decl": "char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4);",
-  "ported": false
+  "ported": true
  },
  "0xa5f00": {
   "addr": "0xa5f00",
