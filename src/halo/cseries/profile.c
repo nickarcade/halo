@@ -1251,6 +1251,110 @@ recurse:
   }
 }
 
+/* FUN_00091ef0 (0x91ef0) -- non-recursive quicksort over an array of 32-bit
+ * elements with an explicit 30-entry lo/hi range stack (lo stack at
+ * EBP-0x7c, hi stack at EBP-0xf4; frame SUB ESP,0xf4). 32-bit sibling of
+ * FUN_00091da0 (0x91da0) just above: same shape, dword loads/stores and
+ * 4-byte stride. Ranges of <= 8 elements (0x91f2b CMP EAX,8 / JA) go to the
+ * selection sort FUN_00091d50 (end in EAX, PUSH compare / PUSH lo at
+ * 0x91f30-0x91f37). Otherwise the middle element is swapped into *lo as
+ * pivot and the range is partitioned.
+ *
+ * `count` is compared unsigned (0x91efc CMP EAX,2 / JC); its stack slot is
+ * reused as the range-stack depth (tested signed after DEC, 0x91f46 JS).
+ * Element count uses SAR (signed pointer difference / 4). The
+ * partition-size comparison at 0x91fc0-0x91fc9 is done on byte differences:
+ * (higuy - lo) - 1 vs (hi - loguy), signed JL.
+ *
+ * Compare call sites (0x91f7e/0x91f9b): PUSH *lo, PUSH *elem, CALL [EBP+0x10]
+ * -- so compare(*elem, *lo); result tested as AL (TEST AL,AL), hence the
+ * bool-returning profile_sort32_compare_proc view of the kb-declared `cmp`.
+ * The forward scan continues while compare returns 0 (JZ 0x91f70), the
+ * backward scan while it returns nonzero (JNZ 0x91f90). */
+void FUN_00091ef0(int *keys, int count, int (*cmp)(int, int))
+{
+  int32_t *lo;
+  int32_t *hi;
+  int32_t *loguy;
+  int32_t *higuy;
+  int32_t *lostk[30];
+  int32_t *histk[30];
+  uint32_t size;
+  int32_t tmp;
+  int stkptr;
+  profile_sort32_compare_proc comp;
+
+  if ((uint32_t)count < 2) {
+    return;
+  }
+
+  comp = (profile_sort32_compare_proc)cmp;
+  lo = (int32_t *)keys;
+  stkptr = 0;
+  hi = lo + (count - 1);
+
+recurse:
+  size = (uint32_t)(hi - lo) + 1;
+  if (size <= 8) {
+    FUN_00091d50(hi, lo, comp);
+  } else {
+    size >>= 1;
+    tmp = lo[size];
+    lo[size] = *lo;
+    *lo = tmp;
+
+    loguy = lo;
+    higuy = hi + 1;
+    for (;;) {
+      do {
+        loguy++;
+      } while (loguy <= hi && !comp(*loguy, *lo));
+      do {
+        higuy--;
+      } while (higuy > lo && comp(*higuy, *lo));
+      if (higuy < loguy) {
+        break;
+      }
+      tmp = *loguy;
+      *loguy = *higuy;
+      *higuy = tmp;
+    }
+
+    tmp = *lo;
+    *lo = *higuy;
+    *higuy = tmp;
+
+    if ((char *)higuy - (char *)lo - 1 >= (char *)hi - (char *)loguy) {
+      if (lo + 1 < higuy) {
+        lostk[stkptr] = lo;
+        histk[stkptr] = higuy - 1;
+        stkptr++;
+      }
+      if (loguy < hi) {
+        lo = loguy;
+        goto recurse;
+      }
+    } else {
+      if (loguy < hi) {
+        lostk[stkptr] = loguy;
+        histk[stkptr] = hi;
+        stkptr++;
+      }
+      if (lo + 1 < higuy) {
+        hi = higuy - 1;
+        goto recurse;
+      }
+    }
+  }
+
+  stkptr--;
+  if (stkptr >= 0) {
+    lo = lostk[stkptr];
+    hi = histk[stkptr];
+    goto recurse;
+  }
+}
+
 /* FUN_00092050 (0x92050) -- one-instruction setter: store the incoming
  * byte argument into stack_walk_load_failed (0x2ee784), a stack_walk_windows
  * global (see globals note at the top of stack_walk_windows.c) written from

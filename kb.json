@@ -21330,7 +21330,8 @@
     },
     {
      "addr": "0x91ef0",
-     "decl": "void FUN_00091ef0(int *keys, int count, int (*cmp)(int, int));"
+     "decl": "void FUN_00091ef0(int *keys, int count, int (*cmp)(int, int));",
+     "ported": true
     },
     {
      "addr": "0x92050",
