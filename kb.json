@@ -22286,47 +22286,47 @@
     },
     {
      "addr": "0x17c970",
-     "decl": "int rasterizer_widget_submit(int mode);",
+     "decl": "int rasterizer_dynamic_triangles_new(int mode);",
      "ported": true
     },
     {
      "addr": "0x17c980",
-     "decl": "void *rasterizer_widget_begin(int handle);",
+     "decl": "void *rasterizer_dynamic_triangles_lock(int handle);",
      "ported": true
     },
     {
      "addr": "0x17c990",
-     "decl": "void rasterizer_widget_set_texture(int handle);",
+     "decl": "void rasterizer_dynamic_triangles_unlock(int handle);",
      "ported": true
     },
     {
      "addr": "0x17c9a0",
-     "decl": "void rasterizer_widget_set_tint_factor(int handle);",
+     "decl": "void rasterizer_dynamic_triangles_delete(int handle);",
      "ported": true
     },
     {
      "addr": "0x17c9b0",
-     "decl": "int rasterizer_widget_set_zbuffer_enable(int param_1, int param_2);",
+     "decl": "int rasterizer_dynamic_vertices_new(int param_1, int param_2);",
      "ported": true
     },
     {
      "addr": "0x17c9c0",
-     "decl": "short rasterizer_widget_draw_sprite2d(int dynamic_vertex_buffer_index);",
+     "decl": "short rasterizer_dynamic_vertices_get_type(int dynamic_vertex_buffer_index);",
      "ported": true
     },
     {
      "addr": "0x17c9d0",
-     "decl": "int rasterizer_widget_draw_sprite3d(int zbuf_result);",
+     "decl": "int rasterizer_dynamic_vertices_lock(int zbuf_result);",
      "ported": true
     },
     {
      "addr": "0x17c9e0",
-     "decl": "void rasterizer_widget_end(int handle);",
+     "decl": "void rasterizer_dynamic_vertices_unlock(int handle);",
      "ported": true
     },
     {
      "addr": "0x17c9f0",
-     "decl": "void FUN_0017c9f0(int handle);",
+     "decl": "void rasterizer_dynamic_vertices_delete(int handle);",
      "ported": true
     },
     {
@@ -22735,7 +22735,7 @@
     },
     {
      "addr": "0x15d170",
-     "decl": "int FUN_0015d170(int count);",
+     "decl": "int _rasterizer_dynamic_triangles_new(int count);",
      "name": null,
      "ported": true,
      "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c"
@@ -22754,20 +22754,20 @@
     },
     {
      "addr": "0x15d300",
-     "decl": "void FUN_0015d300(int handle);"
+     "decl": "void _rasterizer_dynamic_triangles_delete(int handle);"
     },
     {
      "addr": "0x15d5a0",
-     "decl": "void FUN_0015d5a0(int handle);"
+     "decl": "void _rasterizer_dynamic_vertices_delete(int handle);"
     },
     {
      "addr": "0x15d310",
-     "decl": "int FUN_0015d310(short type, int count);",
+     "decl": "int _rasterizer_dynamic_vertices_new(short type, int count);",
      "ported": true
     },
     {
      "addr": "0x15d480",
-     "decl": "short __cdecl FUN_0015d480(int dynamic_vertex_buffer_index);",
+     "decl": "short __cdecl _rasterizer_dynamic_vertices_get_type(int dynamic_vertex_buffer_index);",
      "ported": true
     },
     {
@@ -23034,7 +23034,7 @@
     },
     {
      "addr": "0x12f10",
-     "decl": "float magnitude3d(float *v);",
+     "decl": "float normalize2d(float *v);",
      "ported": true
     },
     {
@@ -49020,25 +49020,25 @@
     },
     {
      "addr": "0x15ea70",
-     "decl": "void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index);",
+     "decl": "void *_rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index);",
      "ported": true,
      "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15eb90",
-     "decl": "void rasterizer_dynamic_triangles_unlock(int dynamic_triangle_buffer_index);",
+     "decl": "void _rasterizer_dynamic_triangles_unlock(int dynamic_triangle_buffer_index);",
      "ported": true,
      "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15ec50",
-     "decl": "void *rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index);",
+     "decl": "void *_rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index);",
      "ported": true,
      "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     },
     {
      "addr": "0x15ee80",
-     "decl": "void rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index);",
+     "decl": "void _rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index);",
      "ported": true,
      "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
     }

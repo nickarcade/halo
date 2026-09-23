@@ -22,7 +22,7 @@ extern char *csstrtok(char *string, const char *delimiters);
 extern void set_random_seed(int seed);
 extern float random_math_real(unsigned int *seed);
 
-extern float magnitude3d(float *v);
+extern float normalize2d(float *v);
 extern float FUN_00013070(float *a, float *b);
 extern void points_interpolate(float *a, float *b, float blend, float *out);
 extern void scalars_interpolate(float a, float b, float blend, float *out);
@@ -948,25 +948,25 @@ void run_tests(void)
     passed += check("rand r2", *(uint32_t *)&r2, 0x3F0CAC8D, buf);
   }
 
-  /* magnitude3d (normalize2d) */
+  /* normalize2d */
   {
     float v[2] = { 3.0f, 4.0f };
-    float mag = magnitude3d(v);
+    float mag = normalize2d(v);
     total += 3;
-    passed += check("magnitude3d mag", *(uint32_t *)&mag, 0x40A00000, buf);
-    passed += check("magnitude3d x", *(uint32_t *)&v[0], 0x3F19999A, buf);
-    passed += check("magnitude3d y", *(uint32_t *)&v[1], 0x3F4CCCCD, buf);
+    passed += check("normalize2d mag", *(uint32_t *)&mag, 0x40A00000, buf);
+    passed += check("normalize2d x", *(uint32_t *)&v[0], 0x3F19999A, buf);
+    passed += check("normalize2d y", *(uint32_t *)&v[1], 0x3F4CCCCD, buf);
   }
 
   /* FUN_001a2f40 ground-tangent no-clamp restore lock.
    *
    * Locks the "no-clamp ground-tangent" fix in src/halo/units/bipeds.c
    * (FUN_001a2f40, mode flags&1 branch). That branch computes raw tangent
-   * deltas (raw0/raw1), copies them into tang[], then calls magnitude3d
-   * (magnitude3d) which NORMALIZES tang IN PLACE and returns the
+   * deltas (raw0/raw1), copies them into tang[], then calls normalize2d
+   * (0x12f10), which NORMALIZES tang IN PLACE and returns the
    * pre-normalize length. When the length does NOT exceed the clamp
    * (physics[0x14]), the original RESTORES tang[0]=raw0; tang[1]=raw1 before
-   * writing new_velocity. A "cleanup" that assumes magnitude3d is pure and
+   * writing new_velocity. A "cleanup" that assumes normalize2d is pure and
    * drops that restore emits the ~unit vector instead of the small raw delta
    * -> runaway velocity ("walk/jump up an incline -> massive speed -> die").
    *
@@ -1029,7 +1029,7 @@ void run_tests(void)
 
     total += 2;
     /* new_velocity = restored tangent(0.06,0.08). Removing the no-clamp
-     * restore lets magnitude3d's in-place normalization leak through:
+     * restore lets normalize2d's in-place normalization leak through:
      * tangent -> unit (0.6,0.8), so this case FAILS. */
     passed += check("a2f40 noclamp vx", *(uint32_t *)&dump_values[0],
                     0x3D75C28F, buf); /* 0.06f */

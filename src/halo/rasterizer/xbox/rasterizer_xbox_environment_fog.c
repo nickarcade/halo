@@ -644,7 +644,7 @@ void rasterizer_environment_fog_screen_wind_update(void *screen_data,
     acceleration_weight = screen->wind_acceleration_weight;
     wind->direction.i += acceleration_weight * target_direction->i;
     wind->direction.j += acceleration_weight * target_direction->j;
-    if (magnitude3d(&wind->direction.i) == 0.0f) {
+    if (normalize2d(&wind->direction.i) == 0.0f) {
       wind->direction.i = 1.0f;
       wind->direction.j = 0.0f;
     }
@@ -668,7 +668,7 @@ void rasterizer_environment_fog_screen_wind_update(void *screen_data,
         (1.0f - weight) * wind->direction.i + perpendicular.i;
       target_direction->j =
         (1.0f - weight) * wind->direction.j + perpendicular.j;
-      if (magnitude3d(&target_direction->i) == 0.0f) {
+      if (normalize2d(&target_direction->i) == 0.0f) {
         target_direction->i = 1.0f;
         target_direction->j = 0.0f;
       }

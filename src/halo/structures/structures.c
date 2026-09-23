@@ -4848,11 +4848,11 @@ void FUN_00195650(void *out, int *indices, short count)
 /* 0x1956d0 - build a dynamic structure-triangle set for the render pipeline.
  *
  * Allocates a widget/triangle slot sized for count triangles
- * (rasterizer_widget_submit), maps it (rasterizer_widget_begin -> triangles
+ * (rasterizer_dynamic_triangles_new), maps it (rasterizer_dynamic_triangles_lock -> triangles
  * buffer), then fills it: when param_2 (the per-32-surface bitmask) is NULL the
  * caller supplies a plain index list in param_1 and FUN_00195650 copies the
  * sorted elements; otherwise FUN_00195550 gathers the mask-selected surfaces.
- * Finalizes the slot (rasterizer_widget_set_texture) and returns the slot
+ * Finalizes the slot (rasterizer_dynamic_triangles_unlock) and returns the slot
  * handle, or -1 when count <= 0 or the allocation fails.
  *
  * Register ABI: count arrives in ESI (int16, TEST SI,SI); param_1 and param_2
@@ -4867,9 +4867,9 @@ int FUN_001956d0(void *param_1, void *param_2, short param_3)
 
   scenario_get();
   if (0 < param_3) {
-    handle = rasterizer_widget_submit((int)param_3);
+    handle = rasterizer_dynamic_triangles_new((int)param_3);
     if (handle != -1) {
-      triangles = rasterizer_widget_begin(handle);
+      triangles = rasterizer_dynamic_triangles_lock(handle);
       if (triangles == NULL) {
         display_assert("triangles",
                        "c:\\halo\\SOURCE\\structures\\structure_render.c",
@@ -4878,12 +4878,12 @@ int FUN_001956d0(void *param_1, void *param_2, short param_3)
       }
       if (param_2 == NULL) {
         FUN_00195650(triangles, (int *)param_1, param_3);
-        rasterizer_widget_set_texture(handle);
+        rasterizer_dynamic_triangles_unlock(handle);
         return handle;
       }
       FUN_00195550(param_3, (int *)param_1, (unsigned int *)param_2,
                    (int)triangles);
-      rasterizer_widget_set_texture(handle);
+      rasterizer_dynamic_triangles_unlock(handle);
       return handle;
     }
     if (*(short *)0x32bd60 != 0) {
@@ -5478,7 +5478,7 @@ void FUN_00195ec0(void)
  *     @eax = material_offsets ([EBP-4]) plus 6 stack args (surface_count,
  *     material_index, 0, FUN_0017cd70 surface-draw cb, 0, 0) -- shared
  *     ADD ESP,0x1C = 1+6 stack args; _rasterizer_hud_end() via 1-instr JMP
- *     thunk @0x17cd80 -> 0x160970; rasterizer_widget_set_tint_factor gated on
+ *     thunk @0x17cd80 -> 0x160970; rasterizer_dynamic_triangles_delete gated on
  *     gel_buffer != 0.
  *   - radius is a float passed by value (raw dword push); position is float*.
  * All calls cdecl, args pushed right-to-left.
@@ -5516,7 +5516,7 @@ void FUN_00195f30(int object_handle, float *position, float radius,
                  (void *)FUN_0017cd70, 0, 0);
     _rasterizer_hud_end();
     if (gel_buffer != 0) {
-      rasterizer_widget_set_tint_factor(material_index);
+      rasterizer_dynamic_triangles_delete(material_index);
     }
     if (*(char *)0x449ef1 != 0 && *(char *)0x329f90 != 0) {
       profile_exit_private((void *)0x329f88);
@@ -5558,7 +5558,7 @@ void FUN_00195f30(int object_handle, float *position, float radius,
  *   - draw section: FUN_0017cc60(object_handle) [1 arg]; FUN_00195790 takes
  *     @eax = material_offsets ([EBP-4]) plus 6 stack args (surface_count,
  *     material_index, 0, FUN_0017cc70 surface-draw cb, 0, 0) -- shared
- *     ADD ESP,0x1C = 1+6 stack args; rasterizer_widget_set_tint_factor
+ *     ADD ESP,0x1C = 1+6 stack args; rasterizer_dynamic_triangles_delete
  *     (@0x196139) gated on gel_buffer != 0; _rasterizer_environment_diffuse_light_end() (HUD end) via
  *     1-instr JMP thunk @0x17cc80.
  *   - radius is a float passed by value (raw dword push); position is float*.
@@ -5596,7 +5596,7 @@ void FUN_00196060(int object_handle, float *position, float radius,
     FUN_00195790(material_offsets, surface_count, material_index, 0,
                  (void *)FUN_0017cc70, 0, 0);
     if (gel_buffer != 0) {
-      rasterizer_widget_set_tint_factor(material_index);
+      rasterizer_dynamic_triangles_delete(material_index);
     }
     _rasterizer_environment_diffuse_light_end();
     if (*(char *)0x449ef1 != 0 && *(char *)0x32ab80 != 0) {
@@ -5616,7 +5616,7 @@ void FUN_00196060(int object_handle, float *position, float radius,
  * FUN_00196060 (diffuse lights) / FUN_00195f30 (specular): identical shape, but
  * with shadow-specific profiler scopes, NO per-gel branch (always builds the
  * surface set from the passed center/radius/bounds/count/planes), a single
- * surface-draw callback (FUN_0017ccf0), and rasterizer_widget_set_tint_factor
+ * surface-draw callback (FUN_0017ccf0), and rasterizer_dynamic_triangles_delete
  * as the post-draw thunk (no HUD-end call).  Allocates a 0x4000-byte
  * surface-material scratch table on the stack, builds the shadow surface set
  * via FUN_00197e90, resolves the lightmap/pass index via FUN_001956d0, and when
@@ -5637,7 +5637,7 @@ void FUN_00196060(int object_handle, float *position, float radius,
  *   - draw section: FUN_00195790 @eax = buffer + 6 stack args (surface_count,
  *     pass_index, 0, FUN_0017ccf0 surface-draw cb, 0, 0) [the 5-byte PUSH at
  *     +0x95 is a reloc-stripped PUSH 0x17ccf0]; then
- *     rasterizer_widget_set_tint_factor(pass_index).  ADD ESP,0x1C == 6+1 args.
+ *     rasterizer_dynamic_triangles_delete(pass_index).  ADD ESP,0x1C == 6+1 args.
  *   - center/bounds/planes are pointers passed through as dwords; radius is a
  *     float by value.  All calls cdecl, args pushed right-to-left.
  */
@@ -5662,7 +5662,7 @@ void render_structure_shadows(float *center, float radius_x4, float *bounds6, in
     }
     FUN_00195790((int *)buffer, surface_count, pass_index, 0,
                  (void *)FUN_0017ccf0, 0, 0);
-    rasterizer_widget_set_tint_factor(pass_index);
+    rasterizer_dynamic_triangles_delete(pass_index);
     if (*(char *)0x449ef1 != 0 && *(char *)0x32b770 != 0) {
       profile_exit_private((void *)0x32b768);
     }

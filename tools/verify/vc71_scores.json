@@ -31408,7 +31408,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c"
     },
-    "FUN_0015d170": {
+    "_rasterizer_dynamic_triangles_new": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 90.1,
@@ -31453,7 +31453,7 @@
       "score": 96.6,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c"
     },
-    "FUN_0015d300": {
+    "_rasterizer_dynamic_triangles_delete": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 0.0,
@@ -31468,7 +31468,7 @@
       "score": 0.0,
       "source": "src/halo/unported_thunks.c"
     },
-    "FUN_0015d310": {
+    "_rasterizer_dynamic_vertices_new": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 92.3,
@@ -31483,7 +31483,7 @@
       "score": 92.3,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c"
     },
-    "FUN_0015d480": {
+    "_rasterizer_dynamic_vertices_get_type": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 92.3,
@@ -31498,7 +31498,7 @@
       "score": 92.3,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c"
     },
-    "FUN_0015d5a0": {
+    "_rasterizer_dynamic_vertices_delete": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 0.0,
@@ -33988,7 +33988,7 @@
       "score": 85.1,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
-    "FUN_0017c9f0": {
+    "rasterizer_dynamic_vertices_delete": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -82618,7 +82618,7 @@
       "score": 80.0,
       "source": "src/halo/game/players.c"
     },
-    "magnitude3d": {
+    "normalize2d": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -97798,7 +97798,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
-    "rasterizer_dynamic_triangles_lock": {
+    "_rasterizer_dynamic_triangles_lock": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 98.8,
@@ -97813,7 +97813,7 @@
       "score": 99.4,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
     },
-    "rasterizer_dynamic_triangles_unlock": {
+    "_rasterizer_dynamic_triangles_unlock": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -97828,7 +97828,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
     },
-    "rasterizer_dynamic_vertices_lock": {
+    "_rasterizer_dynamic_vertices_lock": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 94.4,
@@ -97843,7 +97843,7 @@
       "score": 94.4,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
     },
-    "rasterizer_dynamic_vertices_unlock": {
+    "_rasterizer_dynamic_vertices_unlock": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 91.9,
@@ -99043,7 +99043,7 @@
       "score": 95.7,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_vertex_shaders_initialize.c"
     },
-    "rasterizer_widget_begin": {
+    "rasterizer_dynamic_triangles_lock": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -99058,7 +99058,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
-    "rasterizer_widget_draw_sprite2d": {
+    "rasterizer_dynamic_vertices_get_type": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -99073,7 +99073,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
-    "rasterizer_widget_draw_sprite3d": {
+    "rasterizer_dynamic_vertices_lock": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -99088,7 +99088,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
-    "rasterizer_widget_end": {
+    "rasterizer_dynamic_vertices_unlock": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -99118,7 +99118,7 @@
       "score": 92.9,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_widgets.c"
     },
-    "rasterizer_widget_set_texture": {
+    "rasterizer_dynamic_triangles_unlock": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -99133,7 +99133,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
-    "rasterizer_widget_set_tint_factor": {
+    "rasterizer_dynamic_triangles_delete": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -99148,7 +99148,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
-    "rasterizer_widget_set_zbuffer_enable": {
+    "rasterizer_dynamic_vertices_new": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -99163,7 +99163,7 @@
       "score": 100.0,
       "source": "src/halo/rasterizer/rasterizer.c"
     },
-    "rasterizer_widget_submit": {
+    "rasterizer_dynamic_triangles_new": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,

@@ -4091,7 +4091,7 @@ bool action_obey_command_begin(int actor_handle, short scenario_idx,
          * same non-unit magnitude and unit_verify_vectors asserted
          * ("unit-preprocess-nodes"). */
         pos[2] = 0.0f;
-        if (magnitude3d(pos) == *(float *)0x2533c0) {
+        if (normalize2d(pos) == *(float *)0x2533c0) {
           unit_get_facing_vector(unit_handle, pos);
         }
       } else {
@@ -4261,18 +4261,18 @@ bool action_obey_command_perform(int unit_handle, int actor_handle,
           diff[1] =
             *(float *)((char *)command + 0x20) - ((actor_t *)actor)->field_130;
           diff[2] = 0.0f;
-          /* magnitude3d is 2D (reads v[0],v[1]) and normalizes them IN PLACE.
+          /* normalize2d is 2D (reads v[0],v[1]) and normalizes them IN PLACE.
            * The original stored diff_x/diff_y in adjacent stack floats
            * ([ebp-8]/[ebp-4]) so both got normalized. Scattered scalar locals
            * made it normalize garbage and leave diff_y raw. */
-          if (magnitude3d(diff) > 0.0f) {
+          if (normalize2d(diff) > 0.0f) {
             range = diff[1] * ((actor_t *)actor)->input_facing_vector[1];
             local_vec[0] = diff[0];
           }
         } else {
           FUN_00012140((float *)(actor + 0x12c),
                        (float *)((char *)command + 0x1c), local_vec);
-          if (magnitude3d(local_vec) > 0.0f) {
+          if (normalize2d(local_vec) > 0.0f) {
             range = local_vec[2] * ((actor_t *)actor)->input_facing_vector[2] +
                     local_vec[1] * ((actor_t *)actor)->input_facing_vector[1];
           }
@@ -4637,7 +4637,7 @@ LAB_done:
  * Confirmed: assert !actor->swarm at 0x19390/0x193a5.
  * Confirmed: branch on field_fe at 0x193b4/0x193bc.
  * Confirmed: actor_path_at_destination(actor_handle) at 0x19426.
- * Confirmed: magnitude3d at 0x19390 (discard result, 0x19595: FSTP ST0).
+ * Confirmed: normalize2d at 0x19390 (discard result, 0x19595: FSTP ST0).
  * Confirmed: FCOMP [0x2533c0] / FNSTSW / TEST AH,0x44 at 0x19699/0x196a4
  *   for null-vector check.
  * Confirmed: FMUL [0x2533c4]=0.7f / FCOMP at 0x196c2/0x196ce. */
@@ -4647,7 +4647,7 @@ void action_obey_control(int actor_handle)
   int mode;
   int selected_x;
   int selected_y;
-  float tmp_v[2]; /* contiguous: magnitude3d (2D) reads/normalizes [0],[1] */
+  float tmp_v[2]; /* contiguous: normalize2d (2D) reads/normalizes [0],[1] */
   float len_sq;
   int16_t animation_impulse;
 
@@ -4737,7 +4737,7 @@ LAB_done:
     if (animation_impulse != -1) {
       tmp_v[1] = ((actor_t *)actor)->control_desired_facing_vector[1];
       tmp_v[0] = ((actor_t *)actor)->control_desired_facing_vector[0];
-      magnitude3d(tmp_v); /* normalizes tmp_v[0],tmp_v[1] in place (2D) */
+      normalize2d(tmp_v); /* normalizes tmp_v[0],tmp_v[1] in place (2D) */
       (void)actor_move_animation_impulse(
         actor_handle, animation_impulse,
         (int *)tmp_v); /* hazard-ok: intentional-discard (output via pointer
@@ -4776,7 +4776,7 @@ LAB_done:
           !unit_is_busy(((actor_t *)actor)->field_018)) {
         tmp_v[0] = ((actor_t *)actor)->input_facing_vector[0];
         tmp_v[1] = ((actor_t *)actor)->input_facing_vector[1];
-        len_sq = magnitude3d(tmp_v);
+        len_sq = normalize2d(tmp_v);
         if (len_sq == 0.0f) {
           selected_x = **(int **)0x31fc0c;
           selected_y = *(*(int **)0x31fc0c + 1);
@@ -6479,7 +6479,7 @@ void pre_evaluator_panic(int actor_handle, void *ctx, unsigned short count,
  *
  * Register args: @eax=actor_handle, @edi=state, @ecx=actor.
  * Calls datum_get, unit_estimate_position, ai_test_line_of_sight,
- * magnitude3d, display_assert, system_exit.
+ * normalize2d, display_assert, system_exit.
  *
  * Confirmed: PUSH at 0x257b0/0x257b1 → datum_get(actor_data, actor_handle).
  * Confirmed: CMP word [ESI+4],5 / JNZ at 0x257ea/0x257ee.
@@ -6541,7 +6541,7 @@ void firing_position_compute_line_of_sight(int actor_handle, void *state,
       ((actor_t *)actor)->field_618 - *(float *)((char *)*(void **)state + 8);
     type = 3;
     direction_ptr = (void *)(actor + 0x5e0);
-    len_sq = magnitude3d(diff);
+    len_sq = normalize2d(diff);
     if (len_sq <= *(float *)0x2533c0) {
       position_ptr = (float *)(d + 0x174);
     } else {
@@ -8235,7 +8235,7 @@ bool actor_look_valid_aim_vector(float *dir, float *vec2, float threshold)
  * Vector normalization + dot/cross comparison against two thresholds.
  *
  * Confirmed: EAX=dir, ECX=vec2, EDX=limit, EBP+8=threshold,
- *   EBP+0xC=output.  FSQRT/FDIV/FMUL/FCOMPP + magnitude3d. */
+ *   EBP+0xC=output.  FSQRT/FDIV/FMUL/FCOMPP + normalize2d. */
 bool actor_look_valid_look_vector(float *dir, float *vec2, float *limit,
                                   float threshold, float *output)
 {
@@ -8266,7 +8266,7 @@ bool actor_look_valid_look_vector(float *dir, float *vec2, float *limit,
   if (!(tmp[2] * limit[0] + tmp[0] * limit[1] > threshold))
     return 0;
 
-  mag = magnitude3d(tmp);
+  mag = normalize2d(tmp);
   if (!(mag > 0.0f))
     return 0;
 
@@ -9375,7 +9375,7 @@ LAB_00029e6d:
      * into the body on an unordered compare. */
     if (!(pitch_abs < *(double *)0x2533d0)) {
       ((actor_t *)actor)->control_desired_facing_vector[2] = 0.0f;
-      if (magnitude3d(desired_facing) == *(float *)0x2533c0) {
+      if (normalize2d(desired_facing) == *(float *)0x2533c0) {
         desired_facing[0] = ((actor_t *)actor)->input_facing_vector[0];
         desired_facing[1] = ((actor_t *)actor)->input_facing_vector[1];
         desired_facing[2] = ((actor_t *)actor)->input_facing_vector[2];
@@ -9460,11 +9460,11 @@ LAB_00029e6d:
       dv[1] = desired_facing[1];
       ss[0] = snap_stored[0];
       ss[1] = snap_stored[1];
-      if (magnitude3d(sv) == *(float *)0x2533c0)
+      if (normalize2d(sv) == *(float *)0x2533c0)
         goto LAB_0002a0a7;
-      if (magnitude3d(dv) == *(float *)0x2533c0)
+      if (normalize2d(dv) == *(float *)0x2533c0)
         goto LAB_0002a0a7;
-      if (magnitude3d(ss) == *(float *)0x2533c0)
+      if (normalize2d(ss) == *(float *)0x2533c0)
         goto LAB_0002a0a7;
       if (ss[1] * sv[1] + ss[0] * sv[0] > snap_cos) {
         /* Same LAB_0002a09d comparison as the 3D arm (0x2a04d `jne

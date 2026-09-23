@@ -12323,7 +12323,7 @@ char unit_throw_grenade_begin(int unit_handle, float *alignment_vector)
     /* Compute alignment from unit forward direction if magnitude > 0 */
     local_buf[0] = *(float *)(unit + 0x1ec);
     local_buf[1] = *(float *)(unit + 0x1f0);
-    if (magnitude3d(local_buf) > 0.0f) {
+    if (normalize2d(local_buf) > 0.0f) {
       unit_apply_alignment_vector(unit_handle, local_buf);
     }
   }

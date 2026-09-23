@@ -2991,7 +2991,7 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
     /* ---- mode 0x01 (0x1a3198..0x1a3264): ground tangent movement ----
      * The original computes both planar cross-products, THEN damp = 1-friction,
      * duplicates damp (fld st0) and multiplies it into each before subtracting
-     * velocity. magnitude3d normalizes tang in-place, so keep the raw deltas
+     * velocity. normalize2d normalizes tang in-place, so keep the raw deltas
      * for the original's no-clamp branch at 0x1a3219. */
     float tang[3];
     float c0, c1;
@@ -3010,11 +3010,11 @@ void FUN_001a2f40(void *physics_arg /* @esi */)
     raw1 = damp * c1 - physics[0xc];
     tang[0] = raw0;
     tang[1] = raw1;
-    /* magnitude3d at 0x12f10 is the 2D normalize helper; it only reads/writes
+    /* normalize2d at 0x12f10 is the 2D normalize helper; it only reads/writes
      * tang[0]/tang[1]. Keep tang[2] zero for a complete local vec3. */
     tang[2] = 0.0f;
 
-    length3 = magnitude3d(tang);
+    length3 = normalize2d(tang);
     if (length3 > physics[0x14]) {
       clamp = physics[0x14];
       tang[0] = tang[0] * clamp;

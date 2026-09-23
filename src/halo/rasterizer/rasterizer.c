@@ -6642,55 +6642,55 @@ void rasterizer_psuedo_dynamic_screen_quad_draw(int param_1)
   FUN_0016f8a0((bool)param_1);
 }
 
-int rasterizer_widget_submit(int mode)
+int rasterizer_dynamic_triangles_new(int mode)
 {
-  return FUN_0015d170(mode);
+  return _rasterizer_dynamic_triangles_new(mode);
 }
 
-void *rasterizer_widget_begin(int handle)
+void *rasterizer_dynamic_triangles_lock(int handle)
 {
-  return rasterizer_dynamic_triangles_lock(handle);
+  return _rasterizer_dynamic_triangles_lock(handle);
 }
 
-void rasterizer_widget_set_texture(int handle)
+void rasterizer_dynamic_triangles_unlock(int handle)
 {
-  rasterizer_dynamic_triangles_unlock(handle);
+  _rasterizer_dynamic_triangles_unlock(handle);
 }
 
 /* Adapter thunk (PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x15d300).  The callee
  * at 0x15d300 is a single RET followed by NOP padding -- a stripped no-op in
- * rasterizer_decals.obj -- so the tint factor is discarded in this build.
+ * rasterizer_decals.obj -- so the delete is a no-op in this build.
  * Kept as a real call so the redirect preserves the original control flow. */
-void rasterizer_widget_set_tint_factor(int handle)
+void rasterizer_dynamic_triangles_delete(int handle)
 {
-  FUN_0015d300(handle);
+  _rasterizer_dynamic_triangles_delete(handle);
 }
 
-int rasterizer_widget_set_zbuffer_enable(int param_1, int param_2)
+int rasterizer_dynamic_vertices_new(int param_1, int param_2)
 {
-  return FUN_0015d310((short)param_1, param_2);
+  return _rasterizer_dynamic_vertices_new((short)param_1, param_2);
 }
 
-short rasterizer_widget_draw_sprite2d(int dynamic_vertex_buffer_index)
+short rasterizer_dynamic_vertices_get_type(int dynamic_vertex_buffer_index)
 {
-  return FUN_0015d480(dynamic_vertex_buffer_index);
+  return _rasterizer_dynamic_vertices_get_type(dynamic_vertex_buffer_index);
 }
 
-int rasterizer_widget_draw_sprite3d(int zbuf_result)
+int rasterizer_dynamic_vertices_lock(int zbuf_result)
 {
-  return (int)rasterizer_dynamic_vertices_lock(zbuf_result);
+  return (int)_rasterizer_dynamic_vertices_lock(zbuf_result);
 }
 
-void rasterizer_widget_end(int handle)
+void rasterizer_dynamic_vertices_unlock(int handle)
 {
-  rasterizer_dynamic_vertices_unlock(handle);
+  _rasterizer_dynamic_vertices_unlock(handle);
 }
 
 /* Adapter thunk (PUSH EBP; MOV EBP,ESP; POP EBP; JMP 0x15d5a0).  As with
- * rasterizer_widget_set_tint_factor, the callee at 0x15d5a0 is a lone RET. */
-void FUN_0017c9f0(int handle)
+ * rasterizer_dynamic_triangles_delete, the callee at 0x15d5a0 is a lone RET. */
+void rasterizer_dynamic_vertices_delete(int handle)
 {
-  FUN_0015d5a0(handle);
+  _rasterizer_dynamic_vertices_delete(handle);
 }
 
 void FUN_0017ca00(void)

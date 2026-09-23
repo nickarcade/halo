@@ -80,7 +80,7 @@ python3 tools/equivalence/unicorn_diff.py --batch-classify
 python3 tools/equivalence/unicorn_diff.py vector3d_scale_add --z3-equiv
 
 # Test a data_only function with DIR32 patching
-python3 tools/equivalence/unicorn_diff.py magnitude3d --allow-stubs
+python3 tools/equivalence/unicorn_diff.py normalize2d --allow-stubs
 
 # Test an FPU-heavy function with float tolerance
 python3 tools/equivalence/unicorn_diff.py FUN_00106510 --allow-stubs --float-tolerance 32

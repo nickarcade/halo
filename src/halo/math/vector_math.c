@@ -655,10 +655,10 @@ float FUN_00012ef0(float *v)
 }
 
 /* 0x12f10 — Normalize a 2D vector in-place and return its magnitude.
- * Despite the kb.json name "magnitude3d", only operates on v[0] and v[1].
+ * Name from PAL 2342 (real_math.c normalize2d); only operates on v[0] and v[1].
  * If magnitude exceeds epsilon, divides each component by it so v becomes
  * a unit vector. Returns the original magnitude, or 0.0f if too small. */
-float magnitude3d(float *v)
+float normalize2d(float *v)
 {
   float mag;
   float scale;

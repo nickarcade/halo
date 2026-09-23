@@ -67,7 +67,7 @@ static const char kDrawPrimitivesFile[] =
 #define dynamic_triangle_buffers ((struct dynamic_triangle_buffer *)0x47abe0)
 #define dynamic_triangles_buffer_count (*(int *)0x47dbe0)
 #define dynamic_triangles_d3d_index_buffer (*(void **)0x47dbe8)
-/* Byte cleared by rasterizer_dynamic_triangles_lock; role unproven. */
+/* Byte cleared by _rasterizer_dynamic_triangles_lock; role unproven. */
 #define unk_47dbec (*(byte *)0x47dbec)
 #define aux_dynamic_unlit_vb (*(void **)0x47dbf0)
 /* Bit 0 selects aux_dynamic_unlit_vb over the unlit group's buffer; role
@@ -934,7 +934,7 @@ void rasterizer_dynamic_geometry_dispose(void)
 }
 
 /* 0x15ea70 */
-void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index)
+void *_rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index)
 {
   dynamic_triangle_buffer *dynamic_triangle_buffer;
   void *triangles;
@@ -984,7 +984,7 @@ void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index)
 }
 
 /* 0x15eb90 */
-void rasterizer_dynamic_triangles_unlock(int dynamic_triangle_buffer_index)
+void _rasterizer_dynamic_triangles_unlock(int dynamic_triangle_buffer_index)
 {
   if (global_d3d_device == 0) {
     display_assert("global_d3d_device", kDrawPrimitivesFile, 0x175, 1);
@@ -1013,7 +1013,7 @@ void rasterizer_dynamic_triangles_unlock(int dynamic_triangle_buffer_index)
 }
 
 /* 0x15ec50 */
-void *rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index)
+void *_rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index)
 {
   dynamic_vertex_buffer *dynamic_vertex_buffer;
   dynamic_vertex_group *group;
@@ -1089,7 +1089,7 @@ void *rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index)
 }
 
 /* 0x15ee80 */
-void rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index)
+void _rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index)
 {
   dynamic_vertex_buffer *dynamic_vertex_buffer;
   dynamic_vertex_group *group;

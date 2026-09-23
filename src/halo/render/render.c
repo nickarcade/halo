@@ -92,7 +92,7 @@ short FUN_00184610(void *group)
   }
   dynamic_vertex_buffer_index = *(int *)((char *)group + 0x54);
   if (dynamic_vertex_buffer_index != -1) {
-    return rasterizer_widget_draw_sprite2d(dynamic_vertex_buffer_index);
+    return rasterizer_dynamic_vertices_get_type(dynamic_vertex_buffer_index);
   }
   error(2, "### ERROR transparent geometry group has no vertices");
   return -1;

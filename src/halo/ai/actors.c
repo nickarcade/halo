@@ -2768,7 +2768,7 @@ void infection_swarm_control(int actor_handle)
  *   0.12 if below the runtime threshold at 0x25698c. Call
  *   projectile_aim_ballistic (gravity=1.0, origin=component+4,
  *   target=encounter+0xc8) to solve a ballistic arc; on success normalise the
- *   XY aim direction with magnitude3d. If the XY pair is zero fall back to
+ *   XY aim direction with normalize2d. If the XY pair is zero fall back to
  *   actor+0x174 then *(float**)0x31fc3c (global default 3D direction). Cap
  *   vz at 0.075 for non-flying encounter types. Write velocity = aim_dir *
  *   speed_scale (from param_14 output) and clamp magnitude to 'speed'.
@@ -2824,10 +2824,10 @@ void infection_swarm_aim_jump(int actor_handle, int object_handle, float speed,
         if ((flags2 & 4) && (flags2 & 0x10)) {
           dir[0] = *(float *)(biped + 0x24);
           dir[1] = *(float *)(biped + 0x28);
-          if (magnitude3d(dir) == 0.0f) {
+          if (normalize2d(dir) == 0.0f) {
             dir[0] = *(float *)(biped + 0x30);
             dir[1] = *(float *)(biped + 0x34);
-            if (magnitude3d(dir) == 0.0f) {
+            if (normalize2d(dir) == 0.0f) {
               def = *(float **)0x31fc0c;
               dir[0] = def[0];
               dir[1] = def[1];
@@ -2851,11 +2851,11 @@ void infection_swarm_aim_jump(int actor_handle, int object_handle, float speed,
         (int)&min_speed, &max_speed, 0, 0, aim_vec, 0, 0, 0, &vz_out,
         &speed_scale);
       if (aim_ok) {
-        if (magnitude3d(aim_vec) == 0.0f) {
+        if (normalize2d(aim_vec) == 0.0f) {
           aim_vec[0] = ((actor_t *)actor)->input_facing_vector[0];
           aim_vec[1] = ((actor_t *)actor)->input_facing_vector[1];
           aim_vec[2] = ((actor_t *)actor)->input_facing_vector[2];
-          if (magnitude3d(aim_vec) == 0.0f) {
+          if (normalize2d(aim_vec) == 0.0f) {
             def = *(float **)0x31fc3c;
             aim_vec[0] = def[0];
             aim_vec[1] = def[1];
@@ -6994,7 +6994,7 @@ char actor_general_update(int actor_handle)
  * assert_valid_real_normal3d (3 calls at 0x3e380..0x3e447). Confirmed:
  * valid_real_normal2d = assert_valid_real_normal2d at 0x3e4ac. Confirmed:
  * game_allegiance_get_team_is_friendly = object_is_in_team at 0x3e145.
- * Confirmed: magnitude3d = real_vector3d_length at 0x3e22e. Confirmed:
+ * Confirmed: normalize2d = real_vector3d_length at 0x3e22e. Confirmed:
  * normalize3d = real_vector3d_normalize (in-place) at 0x3e33a. Confirmed:
  * world_up constant pointer at *(float**)0x31fc44 (x,y,z). Confirmed:
  * zero-vector pointer at
@@ -7343,11 +7343,11 @@ LAB_3e02c:
 
   /* On foot: if facing vector is zero-length, use default forward vector.
    * Otherwise clear facing_vector.z (force 2D). Vehicle: skip.
-   * Confirmed: magnitude3d(actor+0x174) length check at 0x3e22e.
+   * Confirmed: normalize2d(actor+0x174) length check at 0x3e22e.
    * Confirmed: FCOMP [0x2533c0] (0.0f) at 0x3e233; if length <= 0 copy fwd_vec.
    * Confirmed: else case: MOV dword[ESI+0x17c],0 at 0x3e243 (clears .z). */
   if (((actor_t *)actor)->field_099 == 0) {
-    if (!(magnitude3d((float *)(actor + 0x174)) > *(float *)0x2533c0)) {
+    if (!(normalize2d((float *)(actor + 0x174)) > *(float *)0x2533c0)) {
       fwd_vec = *(float **)0x31fc3c;
       ((actor_t *)actor)->input_facing_vector[0] = fwd_vec[0];
       ((actor_t *)actor)->input_facing_vector[1] = fwd_vec[1];

@@ -1474,11 +1474,8 @@ float contrail_fade(contrail_definition_t *definition, int16_t fade_mode,
  * definition->render_type (0 vertical, 1/2 horizontal/media, 4 viewer;
  * 3 and out of range report an error).  The error arm returns without
  * releasing the buffers or clearing the lock operation (original bug,
- * preserved).  Callee names follow kb.json; the PAL names are
- * rasterizer_dynamic_triangles_new/lock/unlock/delete (0x17c970/80/90/a0),
- * rasterizer_dynamic_vertices_new/lock/unlock/delete (0x17c9b0/d0/e0/f0),
- * rasterizer_dynamic_unlit_geometry_draw (0x17cf60) and normalize2d
- * (0x12f10, kb: magnitude3d).
+ * preserved).  PAL 2342 names 0x17cf60 (kb: FUN_0017cf60)
+ * rasterizer_dynamic_unlit_geometry_draw.
  */
 typedef struct {
   vector3_t point; /* +0x00 */
@@ -1507,8 +1504,8 @@ void render_contrail(void *contrail_datum, void *contrail_definition,
     segment_count = contrail->contrail_point_counts[instance_index] - 1;
     triangle_count = segment_count + segment_count;
     vertex_count = triangle_count + 2;
-    triangle_buffer_index = rasterizer_widget_submit(triangle_count);
-    vertex_buffer_index = rasterizer_widget_set_zbuffer_enable(6, vertex_count);
+    triangle_buffer_index = rasterizer_dynamic_triangles_new(triangle_count);
+    vertex_buffer_index = rasterizer_dynamic_vertices_new(6, vertex_count);
     if (triangle_buffer_index != -1 && vertex_buffer_index != -1) {
       int16_t *triangles;
       contrail_vertex_t *vertices;
@@ -1523,8 +1520,8 @@ void render_contrail(void *contrail_datum, void *contrail_definition,
       real texture_u;
       int point_datum_index;
 
-      triangles = (int16_t *)rasterizer_widget_begin(triangle_buffer_index);
-      vertices = (contrail_vertex_t *)rasterizer_widget_draw_sprite3d(
+      triangles = (int16_t *)rasterizer_dynamic_triangles_lock(triangle_buffer_index);
+      vertices = (contrail_vertex_t *)rasterizer_dynamic_vertices_lock(
         vertex_buffer_index);
       average_position = *global_origin3d;
       shader = &definition->shader;
@@ -1701,7 +1698,7 @@ void render_contrail(void *contrail_datum, void *contrail_definition,
             perpendicular[0] = point->position.y - next_point->position.y;
             perpendicular[1] = next_point->position.x - point->position.x;
           }
-          magnitude3d(perpendicular);
+          normalize2d(perpendicular);
           vertices[0].point.x =
             point->position.x - perpendicular[0] * half_width;
           vertices[0].point.y =
@@ -1830,13 +1827,13 @@ void render_contrail(void *contrail_datum, void *contrail_definition,
         average_position.y *= one_over_point_count;
         average_position.z *= one_over_point_count;
       }
-      rasterizer_widget_set_texture(triangle_buffer_index);
-      rasterizer_widget_end(vertex_buffer_index);
+      rasterizer_dynamic_triangles_unlock(triangle_buffer_index);
+      rasterizer_dynamic_vertices_unlock(vertex_buffer_index);
       FUN_0017cf60((uint32_t)shader, (uint32_t)bitmap, 0, triangle_buffer_index,
                    (uint32_t)vertex_buffer_index, triangle_count,
                    (float *)&average_position, 0);
-      rasterizer_widget_set_tint_factor(triangle_buffer_index);
-      FUN_0017c9f0(vertex_buffer_index);
+      rasterizer_dynamic_triangles_delete(triangle_buffer_index);
+      rasterizer_dynamic_vertices_delete(vertex_buffer_index);
     }
   }
   rasterizer_current_lock_operation = 0;

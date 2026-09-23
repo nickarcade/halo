@@ -161,7 +161,7 @@ void collision_features_from_line(float *param_1, float *param_2, float param_3,
       *(int *)(iVar9 + 0x24) = param_4;
     }
     perpendicular2d(param_2, perp);
-    if (magnitude3d(perp) != 0.0f) {
+    if (normalize2d(perp) != 0.0f) {
       /* build 4 vertices; pts[0..2]=start, pts[3..5]=end, pts[6..8]=end_low,
        * pts[9..11]=start_low */
       pts[0] = param_1[0];

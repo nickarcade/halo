@@ -3966,7 +3966,7 @@ void FUN_0015d160(void)
  * EAX is loaded from [0x47dbe0] at 0x15d20a and the success exit takes
  * `jne 0x15d28f`, SKIPPING the `mov eax,edi` at 0x15d28d), or -1 on the
  * count<=0 / overflow paths (edi is seeded -1 and reaches EAX only there).
- * Callers pass this handle to 0x15ea70 (rasterizer_widget_begin), which
+ * Callers pass this handle to 0x15ea70 (rasterizer_dynamic_triangles_lock), which
  * asserts handle < record count — an earlier lift returned the advanced
  * cursor instead, firing that assert (draw_primitives.c:338) in-game
  * (fixed 2026-07-12).
@@ -3979,7 +3979,7 @@ void FUN_0015d160(void)
  *
  * 0x15d170 / rasterizer_decals.obj
  */
-int FUN_0015d170(int count)
+int _rasterizer_dynamic_triangles_new(int count)
 {
   int result;
   int handle;
@@ -4085,13 +4085,13 @@ int FUN_0015d2d0(int index, int a2, int s1, int s2, int s3, int s4)
  * cdecl stack params, NOT register args).  Returns the record index (the
  * handle = pre-increment record count: `mov ecx,[0x47abd8]; mov eax,ecx` at
  * 0x15d3f3), or -1 (`or eax,-1` at 0x15d472) on the count<=0 / overflow
- * paths.  Callers reach this via the 0x17c9b0 thunk (kb name
- * rasterizer_widget_set_zbuffer_enable, a misnomer) and pass the handle to
+ * paths.  Callers reach this via the 0x17c9b0 thunk
+ * (rasterizer_dynamic_vertices_new) and pass the handle to
  * 0x15ec50 — a void lift here left garbage in EAX, firing the
  * dynamic_vertex_buffer_index assert (draw_primitives.c:536) in-game
- * (fixed 2026-07-12, same class as sibling FUN_0015d170).
+ * (fixed 2026-07-12, same class as sibling _rasterizer_dynamic_triangles_new).
  *
- * NB: like the sibling FUN_0015d170, every assert path is
+ * NB: like the sibling _rasterizer_dynamic_triangles_new, every assert path is
  * display_assert(...); system_exit(-1); (the pristine XBE's combined
  * `add esp,0x14` after each site proves the second call takes one arg -- it is
  * system_exit(-1), NOT the arg-less halt_and_catch_fire the Ghidra draft
@@ -4099,7 +4099,7 @@ int FUN_0015d2d0(int index, int a2, int s1, int s2, int s3, int s4)
  *
  * 0x15d310 / rasterizer_decals.obj
  */
-int FUN_0015d310(short type, int count)
+int _rasterizer_dynamic_vertices_new(short type, int count)
 {
   int iType;
   int rec;
@@ -4154,7 +4154,7 @@ int FUN_0015d310(short type, int count)
  *
  * Query the short field at +0 of dynamic-vertices reservation record
  * `dynamic_vertex_buffer_index` (the 0x10-stride table at 0x476bd8 filled by
- * FUN_0015d310; +0 is the record's vertex-type short).  Validates the index:
+ * _rasterizer_dynamic_vertices_new; +0 is the record's vertex-type short).  Validates the index:
  * NONE (-1) emits a non-fatal warning and returns NONE; any other
  * out-of-range value asserts.  Asserts cite
  * c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_draw_primitives.c (grouped
@@ -4172,7 +4172,7 @@ int FUN_0015d310(short type, int count)
  *   0x47abd8  int     - dynamic_vertices reservation record_count (bound)
  *   0x476bd8  short   - reservation table base, stride 0x10, +0 short field
  */
-short FUN_0015d480(int dynamic_vertex_buffer_index)
+short _rasterizer_dynamic_vertices_get_type(int dynamic_vertex_buffer_index)
 {
   short result = -1;
 
@@ -4209,7 +4209,7 @@ short FUN_0015d480(int dynamic_vertex_buffer_index)
  *
  * Draw a batch of `primitive_count` dynamic primitives that were previously
  * reserved into group-buffer slot `dynamic_vertex_buffer_index` (an index into
- * the reservation table filled by FUN_0015d310).  Each primitive consumes
+ * the reservation table filled by _rasterizer_dynamic_vertices_new).  Each primitive consumes
  * `vertices_per_primitive` vertices.  The D3D primitive type is selected from
  * vertices_per_primitive: 2->LINELIST(2), 3->TRIANGLELIST(5), 4->QUADLIST(8);
  * any other value is treated as a single fan/strip run (TRIANGLESTRIP, 6) with
