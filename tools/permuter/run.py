@@ -119,6 +119,7 @@ typedef struct { real i; real j; } real_vector2d;
 typedef struct { float x; float y; float z; } vector3_t;
 typedef struct { float x; float y; float z; float w; } vector4_t;
 typedef struct { short index; short salt; } datum_handle_t;
+typedef uint32_t datum_index;
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
 typedef unsigned char _BYTE;
