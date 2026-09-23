@@ -15583,6 +15583,21 @@
       "score": 100.0,
       "source": "src/halo/game/game.c"
     },
+    "FUN_000b43b0": {
+      "abi_model": "regparam_stripped_saves",
+      "abi_model_items": 4,
+      "abi_modeled_mnemonic_pct": 98.2,
+      "addr": "0xb43b0",
+      "end": "0xb4484",
+      "kind": "auto",
+      "n_r": 82,
+      "opnd_percent": 90.9,
+      "raw_mnemonic_pct": 95.9,
+      "ref": "synth",
+      "ref_sha": "07756f857a54dd97",
+      "score": 98.2,
+      "source": "src/halo/game/game.c"
+    },
     "FUN_000b4490": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -92383,6 +92398,21 @@
       "score": 96.5,
       "source": "src/halo/game/game_engine.c"
     },
+    "race_engine_update": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 86.7,
+      "addr": "0xb4300",
+      "end": "0xb43b0",
+      "kind": "auto",
+      "n_r": 72,
+      "opnd_percent": 75.5,
+      "raw_mnemonic_pct": 86.7,
+      "ref": "synth",
+      "ref_sha": "3061d58b9ac98bfa",
+      "score": 86.7,
+      "source": "src/halo/game/game.c"
+    },
     "race_player_added": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -107787,6 +107817,21 @@
       "ref_sha": "9b09f4af35a28211",
       "score": 100.0,
       "source": "src/halo/game/player_queues_new.c"
+    },
+    "update_speed_for_score": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xb4bf0",
+      "end": "0xb4cf4",
+      "kind": "auto",
+      "n_r": 87,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "82d00f1861351cdb",
+      "score": 100.0,
+      "source": "src/halo/game/game.c"
     },
     "uperror": {
       "abi_model": "raw",

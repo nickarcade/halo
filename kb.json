@@ -8568,11 +8568,13 @@
     },
     {
      "addr": "0xb4300",
-     "decl": "void race_engine_update(void);"
+     "decl": "int race_engine_update(int player_handle);",
+     "ported": true
     },
     {
      "addr": "0xb43b0",
-     "decl": "int FUN_000b43b0(void *param_1, int *param_2);"
+     "decl": "int FUN_000b43b0(float *point, int *used_indices, int count@<ebx>);",
+     "ported": true
     },
     {
      "addr": "0xb4490",
@@ -8612,7 +8614,8 @@
     {
      "addr": "0xb4bf0",
      "decl": "void update_speed_for_score(int param_1, int param_2);",
-     "comment": "[NAME: update_speed_for_score \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: update_speed_for_score \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xb4d00",
