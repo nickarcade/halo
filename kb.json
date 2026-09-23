@@ -16284,7 +16284,7 @@
     {
      "addr": "0x12f5d0",
      "decl": "bool network_game_server_send_game_data_pregame(void *server);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_send_game_data_pregame"
     },
     {
@@ -16509,7 +16509,7 @@
     {
      "addr": "0x12f040",
      "decl": "bool network_game_server_handle_message_client_game_start_request(int server @<esi>, int machine, void *message_data, int message_size);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_handle_message_client_game_start_request"
     },
     {
@@ -16521,19 +16521,19 @@
     {
      "addr": "0x12f170",
      "decl": "bool network_game_server_handle_message_client_loaded(int server @<esi>, int machine, void *message_data, int message_size);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_handle_message_client_loaded"
     },
     {
      "addr": "0x12f200",
      "decl": "bool network_game_server_handle_message_client_add_player_request_ingame(int server @<esi>, int machine, void *message_data, int message_size);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_handle_message_client_add_player_request_ingame"
     },
     {
      "addr": "0x12f290",
      "decl": "bool network_game_server_handle_message_client_remove_player_request_postgame(int server @<esi>, int machine, void *message_data, int message_size);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_handle_message_client_remove_player_request_postgame"
     },
     {
@@ -16563,13 +16563,13 @@
     {
      "addr": "0x12f690",
      "decl": "char handle_message_client_broadcast_game_search(int server, void *client_message @<ecx>, void *source_address @<eax>);",
-     "ported": false,
+     "ported": true,
      "name": "handle_message_client_broadcast_game_search"
     },
     {
      "addr": "0x12f8d0",
      "decl": "char handle_message_client_ping(int server @<ecx>, void *decoded_msg @<eax>, void *client_message);",
-     "ported": false,
+     "ported": true,
      "name": "handle_message_client_ping"
     },
     {
