@@ -98,8 +98,8 @@ def _reference_validity_summary(document: dict) -> dict:
 
 def _equivalence_evidence_summary(verdicts: dict) -> dict:
     """Count latest equivalence verdicts and credible divergence findings."""
-    records = [record for record in verdicts.values()
-               if isinstance(record, dict)] if isinstance(verdicts, dict) else []
+    records = list({id(record): record for record in verdicts.values()
+                    if isinstance(record, dict)}.values()) if isinstance(verdicts, dict) else []
     return {
         'evidence_count': len(records),
         'divergence_count': sum(
@@ -268,6 +268,32 @@ def _valid_equiv_counts(data: dict) -> bool:
     return True
 
 
+def _verified_result_address(root_dir: str, result: dict, bounds: dict,
+                             source_hashes: dict) -> str | None:
+    """Trust an address alias only when its source and XBE bound still match."""
+    provenance = result.get('_report_provenance')
+    if not isinstance(provenance, dict) or provenance.get('schema') != 1:
+        return None
+    try:
+        addr = f"0x{int(provenance['address'], 16):x}"
+        end = f"0x{int(provenance['reference_end'], 16):x}"
+        source = (Path(root_dir) / provenance['source_path']).resolve()
+        source.relative_to((Path(root_dir) / 'src' / 'halo').resolve())
+        bound = bounds[addr]
+        if (result.get('address') != addr
+                or provenance.get('xbe_md5') != bounds['_meta']['xbe_md5']
+                or f"0x{int(bound['end'], 16):x}" != end):
+            return None
+    except (KeyError, TypeError, ValueError, OSError):
+        return None
+    source_key = str(source)
+    if source_key not in source_hashes:
+        source_hashes[source_key] = _file_hash(source_key, 'sha256')
+    if source_hashes[source_key] != provenance.get('source_sha256'):
+        return None
+    return addr
+
+
 def _load_equiv_verdicts(root_dir: str) -> dict:
     """Load equivalence pass/fail VERDICTS from batch_verify result JSONs.
 
@@ -284,6 +310,12 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
     )
     if not os.path.isdir(base):
         return {}
+    try:
+        with open(os.path.join(root_dir, 'tools', 'verify', 'function_bounds.json')) as f:
+            bounds = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        bounds = {}
+    source_hashes = {}
     verdicts = {}
     # Sort by mtime ascending so later (newer) results overwrite earlier ones.
     paths = []
@@ -343,7 +375,7 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
                     normalized.setdefault(field, result.get(field))
             normalized_cases.append(normalized)
         targeted_cases = normalized_cases
-        verdicts[target] = {
+        verdict = {
             'status': status,
             'z3_proven': bool(data.get('z3_proven')),
             'reason': data.get('reason'),
@@ -361,6 +393,10 @@ def _load_equiv_verdicts(root_dir: str) -> dict:
             'targeted_case_passed': sum(
                 1 for case in targeted_cases if case.get('status') == 'pass'),
         }
+        verdicts[target] = verdict
+        addr = _verified_result_address(root_dir, data, bounds, source_hashes)
+        if addr:
+            verdicts[addr] = verdict
     return verdicts
 
 
@@ -2651,14 +2687,16 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     '<div style="color:var(--accent-blue);font-size:0.78em;margin-top:8px">View full CI status &#x2192;</div>' +
                 '</a>';
 
-            // Card 2: Equivalence Coverage
+            // Card 2: measured coverage in the committed leaf cache. This is
+            // a narrower population than behavioral verdicts in batch artifacts.
             var eq = ci.equivalence || {};
             var equivColor = (eq.avg_coverage >= 60) ? '#3fb950' : (eq.avg_coverage >= 30 ? '#58a6ff' : '#d29922');
             var highPct = eq.tested > 0 ? Math.round(eq.high_confidence / eq.tested * 100) : 0;
             out += '<a href="ci.html" class="card" style="text-decoration:none;display:block;cursor:pointer" title="Open behavioral test coverage.">' +
                     '<div class="stat-label">Equivalence Coverage</div>' +
                     '<div class="stat-value" style="color:' + equivColor + '">' + (eq.avg_coverage !== null && eq.avg_coverage !== undefined ? eq.avg_coverage.toFixed(1) + '%' : '—') + '</div>' +
-                    '<div class="stat-label">avg code coverage &middot; ' + fmtNum(eq.tested) + ' functions tested</div>' +
+                    '<div class="stat-label">average among ' + fmtNum(eq.tested) + ' measured functions</div>' +
+                    '<div class="stat-sub">' + fmtNum(eq.classified || 0) + ' functions classified in the cache</div>' +
                     '<div class="stat-sub" style="margin-top:6px">' + fmtNum(eq.high_confidence) + ' high-confidence (' + highPct + '%) &middot; ' + fmtNum(eq.weak_coverage) + ' weak</div>' +
                     '<div style="color:var(--accent-blue);font-size:0.78em;margin-top:8px">View coverage details &#x2192;</div>' +
                 '</a>';

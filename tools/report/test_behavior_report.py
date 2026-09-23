@@ -1,6 +1,7 @@
 """Tests behavior-result ingestion and dashboard evidence plumbing."""
 
 import importlib.util
+import hashlib
 import json
 import os
 import tempfile
@@ -80,6 +81,35 @@ class TestBehaviorReport(unittest.TestCase):
             "target": "target", "status": "mystery", "passed": 1, "seeds": 1,
         }), encoding="utf-8")
         self.assertEqual(report._load_equiv_verdicts(str(root)), {})
+
+    def test_renamed_target_joins_by_address_only_with_current_provenance(self):
+        temp, root = self._root()
+        self.addCleanup(temp.cleanup)
+        source = root / "src/halo/objects/widgets/widgets.c"
+        source.parent.mkdir(parents=True)
+        source.write_text("void renamed(void) {}\n", encoding="utf-8")
+        bounds = root / "tools/verify/function_bounds.json"
+        bounds.parent.mkdir(parents=True)
+        bounds.write_text(json.dumps({
+            "_meta": {"xbe_md5": "pristine-xbe"},
+            "0x136580": {"end": "0x1365a0"},
+        }), encoding="utf-8")
+        result_path = root / "artifacts/batch_verify/old_name.json"
+        self._write_result(result_path, "old_name", "pass", 50, 50)
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["address"] = "0x136580"
+        result["_report_provenance"] = {
+            "schema": 1, "address": "0x136580",
+            "source_path": "src/halo/objects/widgets/widgets.c",
+            "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "reference_end": "0x1365a0", "xbe_md5": "pristine-xbe",
+        }
+        result_path.write_text(json.dumps(result), encoding="utf-8")
+        verdicts = report._load_equiv_verdicts(str(root))
+        self.assertEqual(verdicts["0x136580"]["status"], "pass")
+        self.assertEqual(report._equivalence_evidence_summary(verdicts)["evidence_count"], 1)
+        source.write_text("void renamed(void) { changed(); }\n", encoding="utf-8")
+        self.assertNotIn("0x136580", report._load_equiv_verdicts(str(root)))
 
     def test_imported_cases_are_distinct_and_inconclusive_main_stays_inconclusive(self):
         temp, root = self._root()
