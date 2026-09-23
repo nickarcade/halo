@@ -23092,7 +23092,8 @@
     },
     {
      "addr": "0x12000",
-     "decl": "char FUN_00012000(int actor_handle, int param_2, int param_3, int state_data);"
+     "decl": "char FUN_00012000(int actor_handle, int param_2, int param_3, int state_data);",
+     "ported": true
     },
     {
      "addr": "0x12090",

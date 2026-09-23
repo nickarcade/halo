@@ -1,5 +1,44 @@
 #include "x87_math.h"
 
+/* 0x12000 — action_alert: initialise a 0x5c-byte alert state block.
+ *
+ * Confirmed: cdecl, four stack args [EBP+0x8..0x14]; byte return (MOV AL,1).
+ * Confirmed: PUSH EAX([EBP+8]) / PUSH ECX(*0x6325a4) / CALL 0x119320
+ *   -> datum_get(actors_data, actor_handle), result kept in EDI; the call
+ *   precedes the state_data check.
+ * Confirmed: TEST ESI([EBP+0x14]) / JNZ -> display_assert("state_data"
+ *   @0x25334c, "c:\halo\SOURCE\ai\action_alert.c" @0x253358, 0x23, 1),
+ *   then PUSH -1 / CALL system_exit (noreturn).
+ * Confirmed: PUSH 0x5c / PUSH 0 / PUSH ESI / CALL csmemset.
+ * Confirmed: byte [actor+6] nonzero -> 0, else low word of param_2; stored
+ *   as word [state+0]. Then word [state+6]=0xffff, word [state+8]=low word
+ *   of param_3, byte [state+4]=1, word [state+2]=0, byte [state+0xa]=0.
+ *   Field meanings are unknown. */
+char FUN_00012000(int actor_handle, int param_2, int param_3, int state_data)
+{
+  int actor;
+  int value;
+
+  actor = (int)datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (state_data == 0) {
+    display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_alert.c", 0x23,
+                   1);
+    system_exit(-1);
+  }
+  csmemset((void *)state_data, 0, 0x5c);
+  value = param_2;
+  if (*(char *)(actor + 6) != 0) {
+    value = 0;
+  }
+  *(short *)state_data = (short)value;
+  *(unsigned short *)(state_data + 6) = 0xffff;
+  *(short *)(state_data + 8) = (short)param_3;
+  *(char *)(state_data + 4) = 1;
+  *(short *)(state_data + 2) = 0;
+  *(char *)(state_data + 10) = 0;
+  return 1;
+}
+
 /* 0x12090 — action_alert: raise alert/engage flags on an actor.
  *
  * Confirmed: cdecl, one stack arg at [EBP+0x8] (Ghidra: in_stack_00000004).

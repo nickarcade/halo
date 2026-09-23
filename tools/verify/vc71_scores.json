@@ -1788,17 +1788,17 @@
     "FUN_00012000": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 16.0,
+      "abi_modeled_mnemonic_pct": 96.6,
       "addr": "0x12000",
       "end": "0x1207e",
       "kind": "auto",
       "n_r": 45,
-      "opnd_percent": 12.0,
-      "raw_mnemonic_pct": 16.0,
+      "opnd_percent": 92.1,
+      "raw_mnemonic_pct": 96.6,
       "ref": "synth",
       "ref_sha": "60848d51012abb43",
-      "score": 16.0,
-      "source": "src/halo/unported_thunks.c"
+      "score": 96.6,
+      "source": "src/halo/math/vector_math.c"
     },
     "FUN_00012090": {
       "abi_model": "raw",
