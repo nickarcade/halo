@@ -3252,6 +3252,14 @@ char handle_message_client_broadcast_game_search(int server, void *client_messag
  * The reference calls network_game_server_get_connection() out of line
  * (call count 7); cl.exe /Ob2 inlines its trivial NULL-guard here, which
  * duplicates a nested display_assert call (our count 8). */
+typedef struct {
+  uint32_t timestamp;
+  uint16_t port;
+  uint8_t pad_06[2];
+} message_client_ping_t;
+cs(message_client_ping_t, 8);
+co(message_client_ping_t, port, 4);
+
 #if defined(_MSC_VER) && !defined(__clang__)
 #pragma inline_depth(0)
 #endif
@@ -3275,7 +3283,7 @@ char handle_message_client_ping(int server, void *decoded_msg, void *client_mess
       1);
     system_exit(-1);
   }
-  ping_data = *(int *)decoded_msg;
+  ping_data = ((message_client_ping_t *)decoded_msg)->timestamp;
   local_data.raw[0] = ping_data;
   pong_msg = create_network_game_message(3, &local_data.raw[0], 4);
   if (!pong_msg) {
@@ -3285,7 +3293,7 @@ char handle_message_client_ping(int server, void *decoded_msg, void *client_mess
   local_data.raw[0] = *(int *)client_message;
   pong_len = *(unsigned short *)pong_msg;
   local_data.address.address_length = 4;
-  local_data.address.port = *(unsigned short *)((char *)decoded_msg + 4);
+  local_data.address.port = ((message_client_ping_t *)decoded_msg)->port;
   connection = network_game_server_get_connection((void *)server);
   result = network_connection_write((void *)connection, pong_msg, pong_len >> 4,
                                     (int)&local_data.address, 0);
