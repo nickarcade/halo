@@ -32804,18 +32804,18 @@
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
     },
     "FUN_00168b10": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 94.2,
+      "abi_model": "regarg_call_stripped",
+      "abi_model_items": 6,
+      "abi_modeled_mnemonic_pct": 85.7,
       "addr": "0x168b10",
       "end": "0x168bb1",
       "kind": "auto",
       "n_r": 58,
-      "opnd_percent": 82.6,
-      "raw_mnemonic_pct": 94.2,
+      "opnd_percent": 82.4,
+      "raw_mnemonic_pct": 83.2,
       "ref": "synth",
       "ref_sha": "f0fce3a22827e9de",
-      "score": 94.2,
+      "score": 85.7,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
     },
     "FUN_00168bc0": {

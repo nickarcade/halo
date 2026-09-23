@@ -49176,7 +49176,7 @@
     },
     {
      "addr": "0x168500",
-     "decl": "void rasterizer_bitmap_2d_changed(void);",
+     "decl": "void rasterizer_bitmap_2d_changed(void *bitmap@<esi>);",
      "comment": "[NAME: rasterizer_bitmap_2d_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -49186,7 +49186,7 @@
     },
     {
      "addr": "0x1688d0",
-     "decl": "void rasterizer_bitmap_cm_changed(void);",
+     "decl": "void rasterizer_bitmap_cm_changed(void *bitmap@<esi>);",
      "comment": "[NAME: rasterizer_bitmap_cm_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {

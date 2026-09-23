@@ -217,14 +217,15 @@ void FUN_00168ae0(void *bitmap)
  * FUN_00168b10 @ 0x168b10 — bitmap_hardware_format_changed dispatcher: NULL
  * asserts the bitmap, sets the 0x325652 render-phase marker to 1, switches
  * on the bitmap type word at +0xa (0=2D, 1=3D, 2=cubemap, else assert), and
- * clears the marker back to 0 on the way out. Case 1 (3D) is the only
- * branch that forwards the bitmap pointer to its callee: disassembly shows
- * PUSH EDI (save)/MOV EDI,ESI (bitmap ptr)/CALL 0x1686c0/POP EDI around
- * that call only, and 0x1686c0 (rasterizer_bitmap_3d_changed) itself does
- * `TEST EDI,EDI` at entry and reads [EDI+0x28]/[EDI+0x2c]/[EDI+0x14]/etc,
- * confirming an implicit @<edi> bitmap-pointer argument. Cases 0 and 2
- * (rasterizer_bitmap_2d_changed / rasterizer_bitmap_cm_changed) are called
- * with no arguments in the disassembly.
+ * clears the marker back to 0 on the way out. Every case forwards the
+ * bitmap pointer in a register. Case 1 (3D): PUSH EDI/MOV EDI,ESI/CALL
+ * 0x1686c0/POP EDI; 0x1686c0 does `TEST EDI,EDI` at entry and reads
+ * [EDI+0x28]/[EDI+0x2c]/[EDI+0x14], so its bitmap is @<edi>. Cases 0 and 2
+ * call 0x168500 / 0x1688d0 with the bitmap still live in ESI (loaded at
+ * 0x168b15); both callees open with `TEST ESI,ESI` (assert "bitmap") and
+ * read [ESI+0x2c], so their bitmap is @<esi>. Calling them with no argument
+ * leaves ESI as garbage; 0x168500 then hands it to bitmap_mipmap_address
+ * (CALL 0x7d000 at 0x1685af), which halts on "unsupported bitmap type".
  */
 /* 0x168b10 */
 void FUN_00168b10(void *bitmap)
@@ -246,13 +247,13 @@ void FUN_00168b10(void *bitmap)
   type = *(int16_t *)(bm + 0xa);
   switch (type) {
   case 0:
-    rasterizer_bitmap_2d_changed();
+    rasterizer_bitmap_2d_changed(bitmap);
     break;
   case 1:
     rasterizer_bitmap_3d_changed(bitmap);
     break;
   case 2:
-    rasterizer_bitmap_cm_changed();
+    rasterizer_bitmap_cm_changed(bitmap);
     break;
   default:
     display_assert(

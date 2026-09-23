@@ -969,9 +969,10 @@ void *rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index)
       system_exit(-1);
     }
     /* IDirect3DIndexBuffer8_Lock is an XDK inline: the data pointer lives at
-     * +4 in D3DIndexBuffer and only the offset operand survives. */
+     * +4 in D3DIndexBuffer (MOV EDX,[ECX+4] at 0x15eb5e) and the offset is
+     * added to that pointer, not to the resource. */
     dynamic_triangle_buffer->triangles =
-      (int16_t *)((char *)dynamic_triangles_d3d_index_buffer + 4 +
+      (int16_t *)(*(char **)((char *)dynamic_triangles_d3d_index_buffer + 4) +
                   SIZEOF_RASTERIZER_TRIANGLE *
                     dynamic_triangle_buffer->triangle_start_index);
     unk_47dbec = 0;
