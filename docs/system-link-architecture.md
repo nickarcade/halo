@@ -145,7 +145,7 @@ The shared `network_game_blob_t` now also names byte `+0x10d` `minimum_players`.
 
 The join-game request handler had a 16-byte local address buffer while `network_connection_get_address` can clear 0x18 bytes at that pointer (2276 `0x12840e`/`0x12843c`). The local is now 0x18 bytes. VC71 remains 79.1% mnemonic and 60.9% operand with no server-object regression. Its lift pipeline passes build and hazard gates but fails synthetic equivalence (53 pass, 46 diverge, 1 error): the candidate inlines server helpers and asserts in states where the oracle stubs those callees. A second snapshot with a non-null pregame server still fails at an inlined assert because it does not model a server-owned client-machine pointer. These tests do not cover a valid join state or justify redirect activation.
 
-The PAL 2342 `bungie_net/common/message_header.c` does not contain the 2276 key agreement, TEA, or message encryption implementations; its retained file covers only header construction, byte swapping, and message creation. For 2276 crypto, the binary is the reference. The active `tea_encrypt` and `tea_decrypt` lifts previously used signed 32-bit state and sum operations; Ghidra shows logical right shifts and wrapping arithmetic. Using unsigned state words and explicit wrapping for the sum makes each helper pass 100/100 differential seeds and the lift pipeline's Z3 all-input equivalence proof. Current VC71 match is 96.4%/92.9% (mnemonic/operand) for encrypt and 96.6%/89.7% for decrypt; the whole `message_header.c` regression gate passes. The active `message_encrypt` and `message_decrypt` wrappers still need same-context verification: the direct synthetic oracle stubs TEA while the compiled candidate executes its same-file TEA body, even for a valid 10-byte frame. Enabling `--oracle-native-callees` with that frame still compared 71 oracle instructions against 867 candidate instructions and found a scratch-buffer difference; the oracle did not run TEA because the candidate inlined it. The active key-agreement builder passed 100/100 direct seeds, but all returned null because `encode_packet_group` was stubbed; its 61.9% coverage misses message creation. The active sieve matches 100/100 synthetic limits in both 0–4 and 2–1000, plus one production `0xffff` run with a longer emulator timeout; allocator and `qsort` calls remain stubbed. The prior unconstrained sieve differential passed 28/100 seeds while 72 exhausted the instruction budget. These checks do not yet establish end-to-end behavior of the four active redirects.
+The PAL 2342 `bungie_net/common/message_header.c` does not contain the 2276 key agreement, TEA, or message encryption implementations; its retained file covers only header construction, byte swapping, and message creation. For 2276 crypto, the binary is the reference. The active `tea_encrypt` and `tea_decrypt` lifts previously used signed 32-bit state and sum operations; Ghidra shows logical right shifts and wrapping arithmetic. Using unsigned state words and explicit wrapping for the sum makes each helper pass 100/100 differential seeds and the lift pipeline's Z3 all-input equivalence proof. Current VC71 match is 96.4%/92.9% (mnemonic/operand) for encrypt and 96.6%/89.7% for decrypt; the whole `message_header.c` regression gate passes. The wrapper probe now runs the original TEA/XOR helpers from the pristine XBE and checks complete frames against the candidate; its 32 length, direction, and secondary-flag cases pass. The active key-agreement builder passed 100/100 direct seeds, but all returned null because `encode_packet_group` was stubbed; its 61.9% coverage misses message creation. The active sieve matches 100/100 synthetic limits in both 0–4 and 2–1000, plus one production `0xffff` run with a longer emulator timeout; allocator and `qsort` calls remain stubbed. The prior unconstrained sieve differential passed 28/100 seeds while 72 exhausted the instruction budget. These checks do not yet establish end-to-end behavior of the four active redirects.
 
 The 64-bit key-agreement arithmetic has a PAL source counterpart. Its `divide64` intentionally seeds the work register from the denominator and subtracts the numerator, matching the 2276 lift even though the argument names suggest the opposite. Direct differential checks pass 100/100 seeds for add, negate, and multiply. Subtract and divide fail direct scratch comparison because the oracle stubs same-object arithmetic callees while the candidate executes them; PAL source and high VC71 match support the source shape, but the direct tests are not same-context proofs for those two helpers.
 
@@ -167,6 +167,36 @@ game_time_update 0xb6020  — lockstep tick advance
 
 The frame scheduler invokes the client start frame for client and host modes,
 the server start frame for host mode, and the client end frame while in game.
+
+The tracked
+[`check_system_link_crypto_composed.py`](../tools/equivalence/check_system_link_crypto_composed.py)
+runner adds 32 frame-level checks for the active encrypt/decrypt wrappers:
+lengths 2, 3, 9, 10, 11, 17, 18, and 19, each encrypted and decrypted with
+header bit 1 clear and set. It
+executes the original wrapper with its pristine TEA/XOR callees and compares
+both sides' entire 32-byte frame against the 2276-backed composition,
+including untouched trailing bytes and the header flag. The probe asserts
+that the original reaches the expected helper entry for each frame length.
+All 32 checks pass. The separately verified TEA helpers have all-input Z3
+proofs against the original; live encrypted traffic remains unverified.
+
+The tracked
+[`check_system_link_key_message.py`](../tools/equivalence/check_system_link_key_message.py)
+runner reaches the key-agreement builder's success path. Oracle and candidate
+both pass the same 24 encoded bytes to `create_message` as type 3, with the
+same destination, capacity, and encoded size; both return the destination and
+write header flag 2. The packet encoder and message allocator are intercepted
+with matched effects. This closes the prior null-only synthetic builder
+observation but does not verify live key exchange or the encoder's behavior.
+
+The tracked
+[`check_system_link_key_arithmetic.py`](../tools/equivalence/check_system_link_key_arithmetic.py)
+runner checks three concrete subtract and three divide cases on the active
+64-bit key helpers. It confirms modular subtraction and the 2276 divide
+operand reversal, including quotient and remainder outputs. All six pass.
+These are candidate composition checks against the binary-backed PAL source;
+same-context original-versus-candidate arithmetic remains unproven because
+the direct harness stubs same-object callees on the original side.
 
 ## Layer 1 — transport / winsock (`src/halo/bungie_net/`, Xbox XNET below)
 
