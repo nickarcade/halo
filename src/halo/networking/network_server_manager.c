@@ -3108,7 +3108,7 @@ bool network_game_server_send_player_joined_info_ingame(int server, void *player
  * Returns true on success. */
 bool network_game_server_send_game_data_pregame(void *server)
 {
-  char local_buf[0x434];
+  network_game_blob_t message;
   network_game_blob_t *game_data;
   void *msg;
   bool result;
@@ -3124,8 +3124,8 @@ bool network_game_server_send_game_data_pregame(void *server)
 
   game_data = (network_game_blob_t *)network_game_server_get_game(server);
   if (game_data != 0) {
-    csmemcpy(local_buf, game_data, sizeof(network_game_blob_t));
-    msg = create_network_game_message(6, local_buf, 0x434);
+    csmemcpy(&message, game_data, sizeof(message));
+    msg = create_network_game_message(6, &message, sizeof(message));
     if (msg != NULL) {
       result = network_game_server_send_message_to_all_machines(server, msg);
       if (!result) {
