@@ -16,8 +16,11 @@ static float render_camera_warning_values
 
 /* render_camera_check_warning_condition - 0x185770
  * Tracks maximum frustum-integrity violation distances per condition ID.
- * Logs when a condition exceeds its previous worst value. */
-void render_camera_check_warning_condition(int16_t id, float value)
+ * Logs when a condition exceeds its previous worst value.
+ * render_camera_build_frustum calls this out of line 22 times (id in AX), so
+ * it must not be inlined into that caller. */
+__declspec(noinline) void render_camera_check_warning_condition(int16_t id,
+                                                                float value)
 {
   assert_halt(id >= 0 && id < MAXIMUM_RENDER_CAMERA_WARNING_CONDITIONS);
 
@@ -27,7 +30,9 @@ void render_camera_check_warning_condition(int16_t id, float value)
     render_camera_warnings_initialized = 1;
   }
 
-  if (value > 0.05f && value > render_camera_warning_values[id]) {
+  /* 001857c9 FCOMP [0.05f] / TEST AH,0x1 / JNZ skip: only strictly-below
+   * skips, so the bound is inclusive. */
+  if (value >= 0.05f && value > render_camera_warning_values[id]) {
     error(2,
           "### ERROR cameras: frustum-integrity condition #%d violated by %f",
           (int)id, (double)value);
@@ -191,34 +196,13 @@ void render_camera_screen_to_world(camera_t *camera, float *frustum,
   matrix_scale_transform_vector(frustum + 17, view_vector, world_vector);
 }
 
-/* Typedefs for math helpers called via hardcoded address. */
-typedef float (*normalize_vector3_fn)(float *v);
-typedef void (*matrix4x3_inverse_fn)(float *src, float *dst);
-typedef void (*matrix4x3_transform_point_fn)(float *mat, float *in, float *out);
-typedef void (*matrix4x3_transform_plane_fn)(float *mat, float *in, float *out);
-typedef int (*valid_real_matrix4x3_fn)(float *mat);
-
-#define normalize_vector3 ((normalize_vector3_fn)0x13010)
-#define matrix4x3_inverse ((matrix4x3_inverse_fn)0x109150)
-#define matrix4x3_transform_point ((matrix4x3_transform_point_fn)0x109590)
-#define matrix4x3_transform_plane ((matrix4x3_transform_plane_fn)0x10a1c0)
-#define valid_real_matrix4x3 ((valid_real_matrix4x3_fn)0xf6d00)
-
 /* Compute the adjusted FOV tangent for the render camera.
  * Uses FPTAN: tan(fov * half_constant) * aspect_ratio */
 double render_camera_get_adjusted_field_of_view_tangent(float fov)
 {
 #if defined(_MSC_VER) && !defined(__clang__)
-  double result;
-  __asm {
-    fld fov
-    fmul dword ptr ds:[253398h]
-    fptan
-    fstp st(0)
-    fmul dword ptr ds:[2b1504h]
-    fstp result
-  }
-  return result;
+  /* VC71 /Oi inlines tan as FPTAN (matches original). */
+  return tan(fov * *(float *)0x253398) * *(float *)0x2b1504;
 #else
   double result;
   asm volatile("flds %[f]\n\t"
@@ -281,540 +265,393 @@ char render_camera_world_to_screen(void *camera, float *frustum,
                                       screen_point);
 }
 
-/* Build the full view frustum from a camera, optional viewport bounds, and
- * projection flag.  Populates the frustum structure with:
- *   - viewport bounds (float[4])
- *   - world-to-view / view-to-world matrices (matrix4x3 each)
- *   - 6 clip planes (left, right, bottom, top, near, far)
- *   - z_near / z_far copies
- *   - 4 far-plane frustum corners + camera position + projection center
- *   - AABB (min/max xyz) of the frustum corners
- *   - optional projection matrix and scale factors
- * Assertions guard field-of-view, z ordering, and viewport sanity.
- * Ends with 22 frustum-integrity warning checks (distances of corners
- * and projection center to each clip plane). */
+/* Header-inline math helpers used by render_camera_build_frustum.  The
+ * original expands these inline (no calls in 0x187250..0x187f7a); bodies follow
+ * the PAL 2342 real_math.h definitions.  Suffixed _inline because kb.json
+ * already names the out-of-line copies (0x178d0, 0x99490, 0x99500). */
+#define global_origin3d (*(vector3_t **)0x31fc1c)
+
+/* The engine builds with -fno-builtin, so clang would lower fabs() to a CRT
+ * call; the original (and VC71 /Oi) inlines FABS. */
+#if !(defined(_MSC_VER) && !defined(__clang__))
+#define fabs(x) __builtin_fabs(x)
+#endif
+
+static __inline vector3_t *cross_product3d_inline(const vector3_t *a,
+                                           const vector3_t *b,
+                                           vector3_t *result)
+{
+  real k = a->x * b->y - a->y * b->x;
+  real j = a->z * b->x - a->x * b->z;
+  real i = a->y * b->z - a->z * b->y;
+
+  result->x = i;
+  result->y = j;
+  result->z = k;
+  return result;
+}
+
+static __inline real dot_product3d_inline(const vector3_t *a, const vector3_t *b)
+{
+  return a->x * b->x + a->y * b->y + a->z * b->z;
+}
+
+static __inline real_plane3d *plane3d_from_point_and_normal_inline(
+  real_plane3d *plane, const vector3_t *point, const vector3_t *normal)
+{
+  *(vector3_t *)plane->normal = *normal;
+  plane->d = dot_product3d_inline(point, (const vector3_t *)plane->normal);
+  return plane;
+}
+
+static __inline real plane3d_distance_to_point_inline(const real_plane3d *plane,
+                                               const vector3_t *point)
+{
+  return dot_product3d_inline(point, (const vector3_t *)plane->normal) - plane->d;
+}
+
+/* render_camera_build_frustum - 0x187250
+ *
+ * Builds the view frustum from a camera, optional frustum bounds, and a
+ * projection flag: bounds, world_to_view / view_to_world matrices, the six
+ * clip planes (left, right, bottom, top, near, far), z_near / z_far copies, the
+ * four far-plane corners plus the camera position, the midpoint, the world
+ * AABB of the five vertices, the optional projection matrix, and 22
+ * frustum-integrity warning checks.
+ *
+ * Structure follows the PAL 2342 reconstruction, re-verified against
+ * 0x187250..0x187f7a: assert lines 0x1ae..0x1b4 and 0x1ca..0x1cb, the bounds
+ * struct copy (dword MOVs), per-vertex MIN/MAX stores (FCOMP / TEST AH,0x41 /
+ * unconditional FSTP), and out-of-line warning calls with the id in EAX.
+ */
 void render_camera_build_frustum(camera_t *camera, float *bounds,
                                  float *frustum, bool do_projection)
 {
-  render_frustum_t *frustum_data = (render_frustum_t *)frustum;
-  float *forward = &camera->field_0c.x; /* +0x0c */
-  float *up = &camera->field_18.x; /* +0x18 */
-  float *pos = &camera->field_00.x; /* +0x00 */
-  float *proj_data = camera->field_44; /* +0x44 */
+  render_frustum_t *fr = (render_frustum_t *)frustum;
+  int viewport_width_integer =
+    camera->viewport_bounds.x1 - camera->viewport_bounds.x0;
+  int viewport_height_integer =
+    camera->viewport_bounds.y1 - camera->viewport_bounds.y0;
+  real viewport_width = (real)viewport_width_integer;
+  real viewport_height = (real)viewport_height_integer;
+  real half_bounds_width;
+  real half_bounds_height;
+  real bounds_center_x;
+  real bounds_center_y;
+  real field_of_view_tangent;
+  real projection_x_scale;
+  real projection_y_scale;
+  vector3_t view_left;
+  vector3_t view_up;
+  vector3_t view_backward;
+  vector3_t plane_normal;
+  real_plane3d view_plane;
+  real left_plane_z;
+  real bottom_plane_z;
+  real inverse_projection_x_scale;
+  real inverse_projection_y_scale;
+  real half_z;
+  real far_left;
+  real far_right;
+  real far_bottom;
+  real far_top;
+  vector3_t view_point;
+  int vertex_index;
 
-  /* Compute viewport pixel dimensions. */
-  int width_px =
-    (int)camera->viewport_bounds.x1 - (int)camera->viewport_bounds.x0;
-  int height_px =
-    (int)camera->viewport_bounds.y1 - (int)camera->viewport_bounds.y0;
-  float width_f = (float)width_px;
-  float height_f = (float)height_px;
-  float half_w_range;
-  float half_h_range;
-  float center_x;
-  float center_y;
-  float tan_half_fov;
-  float inv_tan_x;
-  float inv_tan_y;
-  float right[3], up2[3], neg_fwd[3];
-  float *view_to_world;
-  float *world_to_view;
-  float *global_fwd;
-  float plane_vs[4]; /* view-space plane: (x, y, z, d) */
-  float saved_cx_plus_1;
-  float saved_cy_plus_1;
-  float scale_x;
-  float scale_y;
-  float half_z;
-  float corner_lx;
-  float corner_rx;
-  float corner_by;
-  float corner_ty;
-  float corner_vs[3];
-  float proj_center_vs[3];
-  float *corner0;
-  float *left_p;
-  float *right_p;
-  float *bottom_p;
-  float *top_p;
-  float *near_p;
-  float *far_p;
-  float *c0;
-  float *c1;
-  float *c2;
-  float *c3;
-  float *cam_pos;
-  float *proj_ctr;
-  float d;
-
-  /* Copy or default the viewport bounds (frustum[0..3]). */
-  if (bounds != 0) {
-    frustum[0] = bounds[0];
-    frustum[1] = bounds[1];
-    frustum[2] = bounds[2];
-    frustum[3] = bounds[3];
+  if (bounds) {
+    fr->field_00 = *(real_rectangle2d *)bounds;
   } else {
-    frustum[2] = -1.0f;
-    frustum[0] = -1.0f;
-    frustum[3] = 1.0f;
-    frustum[1] = 1.0f;
+    fr->field_00.y0 = -1.0f;
+    fr->field_00.x0 = -1.0f;
+    fr->field_00.y1 = 1.0f;
+    fr->field_00.x1 = 1.0f;
   }
 
-  /* Compute half-ranges and viewport centers. */
-  half_w_range = (frustum[1] - frustum[0]) * 0.5f;
-  half_h_range = (frustum[3] - frustum[2]) * 0.5f;
-  center_x = (frustum[0] + frustum[1]) / half_w_range * -0.5f;
-  center_y = (frustum[2] + frustum[3]) / half_h_range * -0.5f;
-
-  /* Compute tan(vfov/2) and inverse tangent scale factors.
-   * inv_tan_x accounts for the aspect ratio correction. */
+  half_bounds_width = (fr->field_00.x1 - fr->field_00.x0) * 0.5f;
+  half_bounds_height = (fr->field_00.y1 - fr->field_00.y0) * 0.5f;
+  bounds_center_x =
+    (fr->field_00.x0 + fr->field_00.x1) / half_bounds_width * -0.5f;
+  bounds_center_y =
+    (fr->field_00.y0 + fr->field_00.y1) / half_bounds_height * -0.5f;
 #if defined(_MSC_VER) && !defined(__clang__)
-  {
-    float vfov = camera->vertical_field_of_view;
-    __asm {
-      fld vfov
-      fmul dword ptr ds:[253398h]
-      fptan
-      fstp st(0)
-      fstp tan_half_fov
-    }
-  }
+  /* VC71 /Oi inlines tan as FPTAN (matches original). */
+  field_of_view_tangent = (real)tan(camera->vertical_field_of_view * 0.5f);
 #else
-  asm volatile("flds %[f]\n\t"
-               "fmuls 0x253398\n\t"
-               "fptan\n\t"
-               "fstp %%st(0)"
-               : "=t"(tan_half_fov)
-               : [f] "m"(camera->vertical_field_of_view)
-               : "memory");
+  field_of_view_tangent = x87_fptan(camera->vertical_field_of_view * 0.5f);
 #endif
+  projection_x_scale = 1.0f / (half_bounds_width / viewport_height *
+                               viewport_width * field_of_view_tangent);
+  projection_y_scale = 1.0f / (field_of_view_tangent * half_bounds_height);
 
-  inv_tan_x = 1.0f / (half_w_range / height_f * width_f * tan_half_fov);
-  inv_tan_y = 1.0f / (tan_half_fov * half_h_range);
-
-  /* Assertions. */
-  assert_halt(camera->vertical_field_of_view <
-              *(float *)0x2b16f4); /* _pi - _real_epsilon */
+  assert_halt_msg_at("camera->vertical_field_of_view<_pi - _real_epsilon",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1ae,
+                     camera->vertical_field_of_view < *(float *)0x2b16f4);
   if (camera->vertical_field_of_view <= *(float *)0x253f44) {
-    char *msg = csprintf((char *)0x5ab100,
-                         "### FATAL ERROR: field of view set to %f (0x%x)",
-                         (double)camera->vertical_field_of_view,
-                         *(int *)&camera->vertical_field_of_view);
-    display_assert(msg, "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1b0,
-                   true);
+    display_assert(csprintf((char *)0x5ab100,
+                            "### FATAL ERROR: field of view set to %f (0x%x)",
+                            (double)camera->vertical_field_of_view,
+                            *(int *)&camera->vertical_field_of_view),
+                   "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1b0, true);
     system_exit(-1);
   }
-  assert_halt(camera->z_near >= 0.0f);
-  assert_halt(camera->z_far > camera->z_near);
-  assert_halt(camera->viewport_bounds.x0 < camera->viewport_bounds.x1);
-  assert_halt(camera->viewport_bounds.y0 < camera->viewport_bounds.y1);
+  assert_halt_msg_at("camera->z_near>=0.0f",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1b1,
+                     camera->z_near >= 0.0f);
+  assert_halt_msg_at("camera->z_far>camera->z_near",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1b2,
+                     camera->z_far > camera->z_near);
+  assert_halt_msg_at("camera->viewport_bounds.x0<camera->viewport_bounds.x1",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1b3,
+                     camera->viewport_bounds.x0 < camera->viewport_bounds.x1);
+  assert_halt_msg_at("camera->viewport_bounds.y0<camera->viewport_bounds.y1",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1b4,
+                     camera->viewport_bounds.y0 < camera->viewport_bounds.y1);
 
-  /* Build the view-to-world matrix (frustum[0x11..0x1d]).
-   * Columns are: right (cross product), up (double cross), -forward,
-   * then the camera position as the translation row. */
+  cross_product3d_inline(&camera->field_0c, &camera->field_18, &view_left);
+  cross_product3d_inline(&view_left, &camera->field_0c, &view_up);
+  view_backward.x = -camera->field_0c.x;
+  view_backward.y = -camera->field_0c.y;
+  view_backward.z = -camera->field_0c.z;
+  normalize3d(&view_left.x);
+  normalize3d(&view_up.x);
+  normalize3d(&view_backward.x);
+  fr->field_44.forward = view_left;
+  fr->field_44.left = view_up;
+  fr->field_44.up = view_backward;
+  fr->field_44.position = camera->field_00;
+  fr->field_44.scale = 1.0f;
+  matrix_inverse(&fr->field_44.scale, &fr->field_10.scale);
+  assert_halt_msg_at("valid_real_matrix4x3(&frustum->world_to_view)",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1ca,
+                     valid_real_matrix4x3(&fr->field_10.scale));
+  assert_halt_msg_at("valid_real_matrix4x3(&frustum->view_to_world)",
+                     "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x1cb,
+                     valid_real_matrix4x3(&fr->field_44.scale));
 
-  /* right = up x forward */
-  right[0] = up[2] * forward[1] - up[1] * forward[2];
-  right[1] = up[0] * forward[2] - up[2] * forward[0];
-  right[2] = up[1] * forward[0] - forward[1] * up[0];
+  plane_normal.x = -projection_x_scale;
+  plane_normal.y = 0.0f;
+  left_plane_z = bounds_center_x + 1.0f;
+  plane_normal.z = left_plane_z;
+  normalize3d(&plane_normal.x);
+  plane3d_from_point_and_normal_inline(&view_plane, global_origin3d, &plane_normal);
+  FUN_0010a1c0(&fr->field_44.scale, view_plane.normal,
+               fr->field_78[0].normal);
 
-  /* up2 = right x forward  (re-orthogonalized up) */
-  up2[0] = right[1] * forward[2] - right[2] * forward[1];
-  up2[1] = right[2] * forward[0] - right[0] * forward[2];
-  up2[2] = right[0] * forward[1] - right[1] * forward[0];
+  plane_normal.x = projection_x_scale;
+  plane_normal.y = 0.0f;
+  plane_normal.z = 1.0f - bounds_center_x;
+  normalize3d(&plane_normal.x);
+  plane3d_from_point_and_normal_inline(&view_plane, global_origin3d, &plane_normal);
+  FUN_0010a1c0(&fr->field_44.scale, view_plane.normal,
+               fr->field_78[1].normal);
 
-  /* neg_fwd = -forward */
-  neg_fwd[0] = -forward[0];
-  neg_fwd[1] = -forward[1];
-  neg_fwd[2] = -forward[2];
+  plane_normal.x = 0.0f;
+  plane_normal.y = -projection_y_scale;
+  bottom_plane_z = bounds_center_y + 1.0f;
+  plane_normal.z = bottom_plane_z;
+  normalize3d(&plane_normal.x);
+  plane3d_from_point_and_normal_inline(&view_plane, global_origin3d, &plane_normal);
+  FUN_0010a1c0(&fr->field_44.scale, view_plane.normal,
+               fr->field_78[2].normal);
 
-  normalize_vector3(right);
-  normalize_vector3(up2);
-  normalize_vector3(neg_fwd);
+  plane_normal.x = 0.0f;
+  plane_normal.y = projection_y_scale;
+  plane_normal.z = 1.0f - bounds_center_y;
+  normalize3d(&plane_normal.x);
+  plane3d_from_point_and_normal_inline(&view_plane, global_origin3d, &plane_normal);
+  FUN_0010a1c0(&fr->field_44.scale, view_plane.normal,
+               fr->field_78[3].normal);
 
-  /* Store view_to_world matrix at frustum[0x12..0x1d].
-   * frustum[0x11] = scale (1.0). */
-  frustum[0x12] = right[0];
-  frustum[0x13] = right[1];
-  frustum[0x14] = right[2];
-  frustum[0x15] = up2[0];
-  frustum[0x16] = up2[1];
-  frustum[0x17] = up2[2];
-  frustum[0x18] = neg_fwd[0];
-  frustum[0x19] = neg_fwd[1];
-  frustum[0x1a] = neg_fwd[2];
-  frustum[0x1b] = pos[0];
-  frustum[0x1c] = pos[1];
-  frustum[0x1d] = pos[2];
-  frustum[0x11] = 1.0f;
+  view_plane.normal[0] = 0.0f;
+  view_plane.normal[1] = 0.0f;
+  view_plane.normal[2] = 1.0f;
+  view_plane.d = -camera->z_near;
+  FUN_0010a1c0(&fr->field_44.scale, view_plane.normal,
+               fr->field_78[4].normal);
 
-  /* Compute world_to_view = inverse(view_to_world).
-   * frustum[4..0x10] = world_to_view matrix. */
-  view_to_world = frustum_data->field_44;
-  world_to_view = frustum_data->field_10;
-  matrix4x3_inverse(view_to_world, world_to_view);
+  view_plane.normal[0] = 0.0f;
+  view_plane.normal[1] = 0.0f;
+  view_plane.normal[2] = -1.0f;
+  view_plane.d = camera->z_far;
+  FUN_0010a1c0(&fr->field_44.scale, view_plane.normal,
+               fr->field_78[5].normal);
 
-  assert_halt(valid_real_matrix4x3(world_to_view));
-  assert_halt(valid_real_matrix4x3(view_to_world));
-
-  /* Build clip planes.  Each plane is stored as (nx, ny, nz, d).
-   * Plane normals are constructed in view space, normalized, then
-   * the distance d is computed as dot(normal, global_forward) where
-   * global_forward is the vector at **(float**)0x31fc1c. */
-  global_fwd = *(float **)0x31fc1c;
-
-  /* Left plane (frustum[0x1e..0x21]) */
-  plane_vs[0] = -inv_tan_x;
-  plane_vs[1] = 0.0f;
-  plane_vs[2] = center_x + 1.0f;
-  saved_cx_plus_1 = plane_vs[2];
-  normalize_vector3(plane_vs);
-  plane_vs[3] = plane_vs[0] * global_fwd[0] + plane_vs[1] * global_fwd[1] +
-                plane_vs[2] * global_fwd[2];
-  matrix4x3_transform_plane(view_to_world, plane_vs,
-                             (float *)&frustum_data->field_78[0]);
-
-  /* Right plane (frustum[0x22..0x25]) */
-  plane_vs[0] = inv_tan_x;
-  plane_vs[1] = 0.0f;
-  plane_vs[2] = 1.0f - center_x;
-  normalize_vector3(plane_vs);
-  plane_vs[3] = plane_vs[0] * global_fwd[0] + plane_vs[1] * global_fwd[1] +
-                plane_vs[2] * global_fwd[2];
-  matrix4x3_transform_plane(view_to_world, plane_vs,
-                             (float *)&frustum_data->field_78[1]);
-
-  /* Bottom plane (frustum[0x26..0x29]) */
-  plane_vs[0] = 0.0f;
-  plane_vs[1] = -inv_tan_y;
-  plane_vs[2] = center_y + 1.0f;
-  saved_cy_plus_1 = plane_vs[2];
-  normalize_vector3(plane_vs);
-  plane_vs[3] = plane_vs[0] * global_fwd[0] + plane_vs[1] * global_fwd[1] +
-                plane_vs[2] * global_fwd[2];
-  matrix4x3_transform_plane(view_to_world, plane_vs,
-                             (float *)&frustum_data->field_78[2]);
-
-  /* Top plane (frustum[0x2a..0x2d]) */
-  plane_vs[0] = 0.0f;
-  plane_vs[1] = inv_tan_y;
-  plane_vs[2] = 1.0f - center_y;
-  normalize_vector3(plane_vs);
-  plane_vs[3] = plane_vs[0] * global_fwd[0] + plane_vs[1] * global_fwd[1] +
-                plane_vs[2] * global_fwd[2];
-  matrix4x3_transform_plane(view_to_world, plane_vs,
-                             (float *)&frustum_data->field_78[3]);
-
-  /* Near plane (frustum[0x2e..0x31]) */
-  plane_vs[0] = 0.0f;
-  plane_vs[1] = 0.0f;
-  plane_vs[2] = 1.0f;
-  plane_vs[3] = -camera->z_near;
-  matrix4x3_transform_plane(view_to_world, plane_vs,
-                             (float *)&frustum_data->field_78[4]);
-
-  /* Far plane (frustum[0x32..0x35]) */
-  plane_vs[0] = 0.0f;
-  plane_vs[1] = 0.0f;
-  plane_vs[2] = -1.0f;
-  plane_vs[3] = camera->z_far;
-  matrix4x3_transform_plane(view_to_world, plane_vs,
-                             (float *)&frustum_data->field_78[5]);
-
-  /* Store z_near and z_far copies. */
-  frustum[0x36] = camera->z_near;
-  frustum[0x37] = camera->z_far;
-
-  /* Compute scale factors for projection. */
-  scale_x = 1.0f / inv_tan_x;
-  scale_y = 1.0f / inv_tan_y;
-
+  fr->field_d8 = camera->z_near;
+  fr->field_dc = camera->z_far;
+  inverse_projection_x_scale = 1.0f / projection_x_scale;
+  inverse_projection_y_scale = 1.0f / projection_y_scale;
   half_z = (camera->z_far + camera->z_near) * 0.5f;
+  far_left = left_plane_z * -(inverse_projection_x_scale * camera->z_far);
+  far_right =
+    (bounds_center_x - 1.0f) * -(inverse_projection_x_scale * camera->z_far);
+  far_bottom = bottom_plane_z * -(inverse_projection_y_scale * camera->z_far);
+  far_top =
+    (bounds_center_y - 1.0f) * -(inverse_projection_y_scale * camera->z_far);
 
-  /* Compute 4 far-plane frustum corners in world space.
-   * Each corner is a view-space direction scaled by -z_far, then
-   * transformed by view_to_world into world space. */
-  corner_lx = saved_cx_plus_1 * -(scale_x * camera->z_far);
-  corner_rx = (center_x - 1.0f) * -(scale_x * camera->z_far);
-  corner_by = saved_cy_plus_1 * -(scale_y * camera->z_far);
-  corner_ty = (center_y - 1.0f) * -(scale_y * camera->z_far);
+  view_point.x = far_left;
+  view_point.y = far_bottom;
+  view_point.z = -camera->z_far;
+  matrix_transform_point(&fr->field_44.scale, &view_point.x,
+                         &fr->field_e0[0].x);
+  view_point.x = far_right;
+  view_point.y = far_bottom;
+  view_point.z = -camera->z_far;
+  matrix_transform_point(&fr->field_44.scale, &view_point.x,
+                         &fr->field_e0[1].x);
+  view_point.x = far_left;
+  view_point.y = far_top;
+  view_point.z = -camera->z_far;
+  matrix_transform_point(&fr->field_44.scale, &view_point.x,
+                         &fr->field_e0[2].x);
+  view_point.x = far_right;
+  view_point.y = far_top;
+  view_point.z = -camera->z_far;
+  matrix_transform_point(&fr->field_44.scale, &view_point.x,
+                         &fr->field_e0[3].x);
 
+  fr->field_e0[4] = camera->field_00;
+  view_point.x = -(inverse_projection_x_scale * half_z * bounds_center_x);
+  view_point.y = -(inverse_projection_y_scale * half_z * bounds_center_y);
+  view_point.z = -half_z;
+  matrix_transform_point(&fr->field_44.scale, &view_point.x,
+                         &fr->field_11c.x);
 
-  /* Corner 0: left-bottom-far => frustum[0x38..0x3a] */
-  corner_vs[0] = corner_lx;
-  corner_vs[1] = corner_by;
-  corner_vs[2] = -camera->z_far;
-  matrix4x3_transform_point(view_to_world, corner_vs, &frustum[0x38]);
+  /* World AABB: x0,x1,y0,y1,z0,z1. */
+  fr->field_128[0] = fr->field_128[1] = fr->field_e0[0].x;
+  fr->field_128[2] = fr->field_128[3] = fr->field_e0[0].y;
+  fr->field_128[4] = fr->field_128[5] = fr->field_e0[0].z;
+  for (vertex_index = 1; vertex_index < 5; vertex_index++) {
+    const vector3_t *vertex = &fr->field_e0[vertex_index];
 
-  /* Corner 1: right-bottom-far => frustum[0x3b..0x3d] */
-  corner_vs[0] = corner_rx;
-  corner_vs[1] = corner_by;
-  corner_vs[2] = -camera->z_far;
-  matrix4x3_transform_point(view_to_world, corner_vs, &frustum[0x3b]);
-
-  /* Corner 2: left-top-far => frustum[0x3e..0x40] */
-  corner_vs[0] = corner_lx;
-  corner_vs[1] = corner_ty;
-  corner_vs[2] = -camera->z_far;
-  matrix4x3_transform_point(view_to_world, corner_vs, &frustum[0x3e]);
-
-  /* Corner 3: right-top-far => frustum[0x41..0x43] */
-  corner_vs[0] = corner_rx;
-  corner_vs[1] = corner_ty;
-  corner_vs[2] = -camera->z_far;
-  matrix4x3_transform_point(view_to_world, corner_vs, &frustum[0x41]);
-
-  /* Camera position => frustum[0x44..0x46] */
-  frustum[0x44] = pos[0];
-  frustum[0x45] = pos[1];
-  frustum[0x46] = pos[2];
-
-  /* Projection center => frustum[0x47..0x49] */
-  proj_center_vs[0] = -(scale_x * half_z * center_x);
-  proj_center_vs[1] = -(scale_y * half_z * center_y);
-  proj_center_vs[2] = -half_z;
-  matrix4x3_transform_point(view_to_world, proj_center_vs, &frustum[0x47]);
-
-  /* Compute AABB of frustum corners (frustum[0x4a..0x4f]).
-   * Initialize from corner 0, then expand with corners 1-3. */
-  corner0 = &frustum[0x38];
-  frustum[0x4b] = corner0[0]; /* max_x = corner0.x */
-  frustum[0x4a] = corner0[0]; /* min_x = corner0.x */
-  frustum[0x4d] = corner0[1]; /* max_y */
-  frustum[0x4c] = corner0[1]; /* min_y */
-  frustum[0x4f] = corner0[2]; /* max_z */
-  frustum[0x4e] = corner0[2]; /* min_z */
-
-  {
-    float *cp = &frustum[0x3c]; /* start at corner1[0] (= 0x3b+1?) */
-    int i;
-    /* The loop walks 4 iterations starting at frustum[0x3c-1] = 0x3b.
-     * ECX starts at ESI+0xF0 = frustum + 0x3c. The comparisons use
-     * [ECX-4], [ECX], [ECX+4] => frustum[0x3b], [0x3c], [0x3d] etc.
-     * Actually the disasm starts ECX at ESI+0xF0 and accesses
-     * [ECX-4], [ECX], [ECX+4]. Let me trace: */
-    /* Initial: ECX = &frustum[0x3c] (= ESI + 0xF0).
-     * Iteration 0: [ECX-4]=frustum[0x3b], [ECX]=frustum[0x3c],
-     *              [ECX+4]=frustum[0x3d]
-     * Iteration 1: ECX += 3 => &frustum[0x3f]:
-     *              [ECX-4]=frustum[0x3e], etc.
-     * ...4 iterations covering corners 1,2,3 and one more. */
-    /* Actually: from the disasm, ECX = ESI+0xF0, EDX=4, loop body
-     * uses [ECX-4], [ECX], [ECX+4], increments ECX by 0xC (3 floats),
-     * decrements EDX, loops while EDX != 0.
-     * So 4 iterations at offsets: 0xF0, 0xFC, 0x108, 0x114
-     * = frustum[0x3c], [0x3f], [0x42], [0x45]
-     * Corner data starts at [0x3b] with stride 3:
-     * iter0: [0x3b,0x3c,0x3d] = corner 1 (indices 0x3b-0x3d)
-     * iter1: [0x3e,0x3f,0x40] = corner 2
-     * iter2: [0x41,0x42,0x43] = corner 3
-     * iter3: [0x44,0x45,0x46] = camera position */
-    cp = &frustum[0x3c];
-    for (i = 4; i != 0; i--) {
-      if (frustum[0x4a] > cp[-1])
-        frustum[0x4a] = cp[-1];
-      if (frustum[0x4c] > cp[0])
-        frustum[0x4c] = cp[0];
-      if (frustum[0x4e] > cp[1])
-        frustum[0x4e] = cp[1];
-      if (frustum[0x4b] < cp[-1])
-        frustum[0x4b] = cp[-1];
-      if (frustum[0x4d] < cp[0])
-        frustum[0x4d] = cp[0];
-      if (frustum[0x4f] < cp[1])
-        frustum[0x4f] = cp[1];
-      cp += 3;
-    }
+    fr->field_128[0] =
+      fr->field_128[0] > vertex->x ? vertex->x : fr->field_128[0];
+    fr->field_128[2] =
+      fr->field_128[2] > vertex->y ? vertex->y : fr->field_128[2];
+    fr->field_128[4] =
+      fr->field_128[4] > vertex->z ? vertex->z : fr->field_128[4];
+    fr->field_128[1] =
+      fr->field_128[1] > vertex->x ? fr->field_128[1] : vertex->x;
+    fr->field_128[3] =
+      fr->field_128[3] > vertex->y ? fr->field_128[3] : vertex->y;
+    fr->field_128[5] =
+      fr->field_128[5] > vertex->z ? fr->field_128[5] : vertex->z;
   }
 
-  /* Projection matrix block (frustum[0x50..0x62]). */
-  if (!do_projection) {
-    /* No projection: zero the matrix and scale, clear flag. */
-    csmemset(&frustum[0x51], 0, 0x40);
-    csmemset(&frustum[0x61], 0, 0x8);
-    *(unsigned char *)&frustum[0x50] = 0;
-  } else {
-    float inv_z;
-    float neg_proj_d;
-    float abs_x;
-    float abs_y;
-    float denom;
-    float proj_scale;
+  if (do_projection) {
+    real inverse_plane_z;
+    real clip_offset;
+    real projection_scale;
 
-    /* Build the projection matrix from the camera's projection
-     * data at camera->unk_68 (+0x44, 4 floats). */
     if (camera->z_near == 0.0f) {
-      /* z_near == 0: transform the projection data through
-       * world_to_view to get the view-space direction. */
-      matrix4x3_transform_plane(world_to_view, proj_data, plane_vs);
-      /* plane_vs now contains the view-space values. */
+      FUN_0010a1c0(&fr->field_10.scale, camera->field_44, view_plane.normal);
     } else {
-      /* z_near != 0: use default forward direction. */
-      plane_vs[0] = 0.0f;
-      plane_vs[2] = 1.0f;
-      plane_vs[3] = -camera->z_near;
-      plane_vs[1] = 0.0f;
+      view_plane.normal[0] = 0.0f;
+      view_plane.normal[1] = 0.0f;
+      view_plane.normal[2] = 1.0f;
+      view_plane.d = -camera->z_near;
     }
 
-    /* Compute adjusted projection parameters. */
-    inv_z = 1.0f / plane_vs[2];
-    neg_proj_d = -(plane_vs[3] * inv_z);
-    abs_x = inv_z * plane_vs[0];
-    abs_y = inv_z * plane_vs[1];
-    if (abs_x < 0.0f)
-      abs_x = -abs_x;
-    if (abs_y < 0.0f)
-      abs_y = -abs_y;
-    denom =
-      (camera->z_far - neg_proj_d) * (abs_x + abs_y + *(double *)0x2573d8);
-    proj_scale = camera->z_far / denom;
-
-    plane_vs[0] = inv_z * proj_scale * plane_vs[0];
-    plane_vs[1] = inv_z * proj_scale * plane_vs[1];
-    plane_vs[3] = -(proj_scale * neg_proj_d);
-
-    /* If the adjusted distance is positive and z_near is zero,
-     * flip all signs (face the other way). */
-    if (plane_vs[3] > 0.0f && camera->z_near == 0.0f) {
-      plane_vs[0] = -plane_vs[0];
-      plane_vs[1] = -plane_vs[1];
-      proj_scale = -proj_scale;
-      plane_vs[3] = -plane_vs[3];
+    inverse_plane_z = 1.0f / view_plane.normal[2];
+    clip_offset = -(view_plane.d * inverse_plane_z);
+    projection_scale =
+      (real)(camera->z_far / ((camera->z_far - clip_offset) *
+                              (fabs(inverse_plane_z * view_plane.normal[0]) +
+                               fabs(inverse_plane_z * view_plane.normal[1]) +
+                               1.0)));
+    view_plane.normal[0] *= inverse_plane_z * projection_scale;
+    view_plane.normal[1] *= inverse_plane_z * projection_scale;
+    view_plane.normal[2] = projection_scale;
+    view_plane.d = -(projection_scale * clip_offset);
+    if (view_plane.d > 0.0f && camera->z_near == 0.0f) {
+      view_plane.normal[0] = -view_plane.normal[0];
+      view_plane.normal[1] = -view_plane.normal[1];
+      view_plane.normal[2] = -view_plane.normal[2];
+      view_plane.d = -view_plane.d;
     }
 
-    /* Write the 4x4 projection matrix. */
-    csmemset(&frustum[0x51], 0, 0x40);
-    frustum[0x53] = -plane_vs[0];
-    frustum[0x57] = -plane_vs[1];
-    frustum[0x51] = inv_tan_x;
-    frustum[0x56] = inv_tan_y;
-    frustum[0x5c] = -1.0f;
-    frustum[0x59] = -center_x;
-    frustum[0x5f] = plane_vs[3];
-    *(unsigned char *)&frustum[0x50] = 1;
-    frustum[0x5a] = -center_y;
-    frustum[0x5b] = -proj_scale;
-    frustum[0x61] = inv_tan_x * width_f * 0.5f;
-    frustum[0x62] = inv_tan_y * height_f * 0.5f;
+    /* 4x4 projection matrix, row-major [row * 4 + column]. */
+    csmemset(fr->field_144, 0, sizeof(fr->field_144));
+    fr->field_144[0] = projection_x_scale;
+    fr->field_144[2] = -view_plane.normal[0];
+    fr->field_144[5] = projection_y_scale;
+    fr->field_144[6] = -view_plane.normal[1];
+    fr->field_144[8] = -bounds_center_x;
+    fr->field_144[9] = -bounds_center_y;
+    fr->field_144[10] = -view_plane.normal[2];
+    fr->field_144[11] = -1.0f;
+    fr->field_144[14] = view_plane.d;
+    fr->field_140 = 1;
+    fr->field_184[0] = projection_x_scale * viewport_width * 0.5f;
+    fr->field_184[1] = projection_y_scale * viewport_height * 0.5f;
+  } else {
+    csmemset(fr->field_144, 0, sizeof(fr->field_144));
+    csmemset(fr->field_184, 0, sizeof(fr->field_184));
+    fr->field_140 = 0;
   }
 
-  /* Frustum integrity checks: measure signed distances from key
-   * points (corners, camera position, projection center) to each
-   * clip plane.  The absolute distance is passed to the warning
-   * function along with a condition ID (0..0x15). */
-  left_p = &frustum[0x1e];
-  right_p = &frustum[0x22];
-  bottom_p = &frustum[0x26];
-  top_p = &frustum[0x2a];
-  near_p = &frustum[0x2e];
-  far_p = &frustum[0x32];
-  c0 = &frustum[0x38];
-  c1 = &frustum[0x3b];
-  c2 = &frustum[0x3e];
-  c3 = &frustum[0x41];
-  cam_pos = &frustum[0x44];
-  proj_ctr = &frustum[0x47];
-
-  /* Corners vs left plane */
-  d = c0[0] * left_p[0] + c0[1] * left_p[1] + c0[2] * left_p[2] - left_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(0, d);
-
-  d = c2[0] * left_p[0] + c2[1] * left_p[1] + c2[2] * left_p[2] - left_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(1, d);
-
-  d = cam_pos[0] * left_p[0] + cam_pos[1] * left_p[1] + cam_pos[2] * left_p[2] -
-      left_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(2, d);
-
-  /* Corners vs right plane */
-  d = c1[0] * right_p[0] + c1[1] * right_p[1] + c1[2] * right_p[2] - right_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(3, d);
-
-  d = c3[0] * right_p[0] + c3[1] * right_p[1] + c3[2] * right_p[2] - right_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(4, d);
-
-  d = cam_pos[0] * right_p[0] + cam_pos[1] * right_p[1] +
-      cam_pos[2] * right_p[2] - right_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(5, d);
-
-  /* Corners vs bottom plane */
-  d = c0[0] * bottom_p[0] + c0[1] * bottom_p[1] + c0[2] * bottom_p[2] -
-      bottom_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(6, d);
-
-  d = c1[0] * bottom_p[0] + c1[1] * bottom_p[1] + c1[2] * bottom_p[2] -
-      bottom_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(7, d);
-
-  d = cam_pos[0] * bottom_p[0] + cam_pos[1] * bottom_p[1] +
-      cam_pos[2] * bottom_p[2] - bottom_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(8, d);
-
-  /* Corners vs top plane */
-  d = c2[0] * top_p[0] + c2[1] * top_p[1] + c2[2] * top_p[2] - top_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(9, d);
-
-  d = c3[0] * top_p[0] + c3[1] * top_p[1] + c3[2] * top_p[2] - top_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(10, d);
-
-  d = cam_pos[0] * top_p[0] + cam_pos[1] * top_p[1] + cam_pos[2] * top_p[2] -
-      top_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(11, d);
-
-  /* Corners vs far plane */
-  d = c0[0] * far_p[0] + c0[1] * far_p[1] + c0[2] * far_p[2] - far_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(12, d);
-
-  d = c1[0] * far_p[0] + c1[1] * far_p[1] + c1[2] * far_p[2] - far_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(13, d);
-
-  d = c2[0] * far_p[0] + c2[1] * far_p[1] + c2[2] * far_p[2] - far_p[3];
-  d = x87_fabs(d);
-  render_camera_check_warning_condition(14, d);
-
-  d = c3[0] * far_p[0] + c3[1] * far_p[1] + c3[2] * far_p[2] - far_p[3];
-  if (d < 0.0f)
-    d = -d;
-  render_camera_check_warning_condition(15, d);
-
-  /* Projection center vs all 6 planes (no fabs — signed distance). */
-  d = proj_ctr[0] * left_p[0] + proj_ctr[1] * left_p[1] +
-      proj_ctr[2] * left_p[2] - left_p[3];
-  render_camera_check_warning_condition(16, d);
-
-  d = proj_ctr[0] * right_p[0] + proj_ctr[1] * right_p[1] +
-      proj_ctr[2] * right_p[2] - right_p[3];
-  render_camera_check_warning_condition(17, d);
-
-  d = proj_ctr[0] * bottom_p[0] + proj_ctr[1] * bottom_p[1] +
-      proj_ctr[2] * bottom_p[2] - bottom_p[3];
-  render_camera_check_warning_condition(18, d);
-
-  d = proj_ctr[0] * top_p[0] + proj_ctr[1] * top_p[1] + proj_ctr[2] * top_p[2] -
-      top_p[3];
-  render_camera_check_warning_condition(19, d);
-
-  d = proj_ctr[0] * near_p[0] + proj_ctr[1] * near_p[1] +
-      proj_ctr[2] * near_p[2] - near_p[3];
-  render_camera_check_warning_condition(20, d);
-
-  d = proj_ctr[0] * far_p[0] + proj_ctr[1] * far_p[1] + proj_ctr[2] * far_p[2] -
-      far_p[3];
-  render_camera_check_warning_condition(21, d);
+  /* Planes: 0 left, 1 right, 2 bottom, 3 top, 4 near, 5 far.
+   * Vertices: 0 bottom-left, 1 bottom-right, 2 top-left, 3 top-right,
+   * 4 apex (camera position). */
+  render_camera_check_warning_condition(
+    0, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[0],
+                                            &fr->field_e0[0])));
+  render_camera_check_warning_condition(
+    1, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[0],
+                                            &fr->field_e0[2])));
+  render_camera_check_warning_condition(
+    2, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[0],
+                                            &fr->field_e0[4])));
+  render_camera_check_warning_condition(
+    3, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[1],
+                                            &fr->field_e0[1])));
+  render_camera_check_warning_condition(
+    4, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[1],
+                                            &fr->field_e0[3])));
+  render_camera_check_warning_condition(
+    5, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[1],
+                                            &fr->field_e0[4])));
+  render_camera_check_warning_condition(
+    6, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[2],
+                                            &fr->field_e0[0])));
+  render_camera_check_warning_condition(
+    7, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[2],
+                                            &fr->field_e0[1])));
+  render_camera_check_warning_condition(
+    8, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[2],
+                                            &fr->field_e0[4])));
+  render_camera_check_warning_condition(
+    9, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[3],
+                                            &fr->field_e0[2])));
+  render_camera_check_warning_condition(
+    10, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[3],
+                                             &fr->field_e0[3])));
+  render_camera_check_warning_condition(
+    11, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[3],
+                                             &fr->field_e0[4])));
+  render_camera_check_warning_condition(
+    12, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[5],
+                                             &fr->field_e0[0])));
+  render_camera_check_warning_condition(
+    13, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[5],
+                                             &fr->field_e0[1])));
+  render_camera_check_warning_condition(
+    14, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[5],
+                                             &fr->field_e0[2])));
+  render_camera_check_warning_condition(
+    15, (real)fabs(plane3d_distance_to_point_inline(&fr->field_78[5],
+                                             &fr->field_e0[3])));
+  render_camera_check_warning_condition(
+    16, plane3d_distance_to_point_inline(&fr->field_78[0], &fr->field_11c));
+  render_camera_check_warning_condition(
+    17, plane3d_distance_to_point_inline(&fr->field_78[1], &fr->field_11c));
+  render_camera_check_warning_condition(
+    18, plane3d_distance_to_point_inline(&fr->field_78[2], &fr->field_11c));
+  render_camera_check_warning_condition(
+    19, plane3d_distance_to_point_inline(&fr->field_78[3], &fr->field_11c));
+  render_camera_check_warning_condition(
+    20, plane3d_distance_to_point_inline(&fr->field_78[4], &fr->field_11c));
+  render_camera_check_warning_condition(
+    21, plane3d_distance_to_point_inline(&fr->field_78[5], &fr->field_11c));
 }
 
 /* render_contrails - 0x1887b0

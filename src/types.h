@@ -914,6 +914,29 @@ typedef struct
   int16_t x1; ///< offset=0x06
 } viewport_bounds_t;
 
+/// size=0x10. Field order from render_camera_build_frustum (0x187250): the
+/// default bounds store -1.0 to +0x00/+0x08 and +1.0 to +0x04/+0x0c.
+typedef struct {
+  real x0; ///< offset=0x00
+  real x1; ///< offset=0x04
+  real y0; ///< offset=0x08
+  real y1; ///< offset=0x0c
+} real_rectangle2d;
+cs(real_rectangle2d, 0x10);
+
+/// size=0x34. Scale, three basis rows, then translation; matrix_inverse
+/// (0x109150) / matrix_transform_point (0x109590) operand layout.
+typedef struct {
+  real      scale;    ///< offset=0x00
+  vector3_t forward;  ///< offset=0x04
+  vector3_t left;     ///< offset=0x10
+  vector3_t up;       ///< offset=0x1c
+  vector3_t position; ///< offset=0x28
+} real_matrix4x3;
+cs(real_matrix4x3, 0x34);
+co(real_matrix4x3, forward, 0x04);
+co(real_matrix4x3, position, 0x28);
+
 /// size=0x54
 typedef struct {
   vector3_t         field_00;               ///< offset=0x00
@@ -940,14 +963,13 @@ co(camera_t, field_44, 0x44);
 
 /// size=0x18c. Recovered from render_camera_build_frustum (0x187250).
 typedef struct {
-  float        field_00[4];   ///< offset=0x000
-  float        field_10[13];  ///< offset=0x010 real_matrix4x3
-  float        field_44[13];  ///< offset=0x044 real_matrix4x3
+  real_rectangle2d field_00;  ///< offset=0x000
+  real_matrix4x3 field_10;    ///< offset=0x010
+  real_matrix4x3 field_44;    ///< offset=0x044
   real_plane3d field_78[6];   ///< offset=0x078
   float        field_d8;      ///< offset=0x0d8
   float        field_dc;      ///< offset=0x0dc
-  vector3_t    field_e0[4];   ///< offset=0x0e0
-  vector3_t    field_110;     ///< offset=0x110
+  vector3_t    field_e0[5];   ///< offset=0x0e0 [4] = camera position
   vector3_t    field_11c;     ///< offset=0x11c
   float        field_128[6];  ///< offset=0x128
   uint8_t      field_140;     ///< offset=0x140
@@ -963,7 +985,6 @@ co(render_frustum_t, field_78, 0x078);
 co(render_frustum_t, field_d8, 0x0d8);
 co(render_frustum_t, field_dc, 0x0dc);
 co(render_frustum_t, field_e0, 0x0e0);
-co(render_frustum_t, field_110, 0x110);
 co(render_frustum_t, field_11c, 0x11c);
 co(render_frustum_t, field_128, 0x128);
 co(render_frustum_t, field_140, 0x140);
