@@ -84301,16 +84301,16 @@
     "math64_add": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 78.2,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x7ff40",
       "end": "0x7ffd6",
       "kind": "auto",
       "n_r": 55,
-      "opnd_percent": 65.5,
-      "raw_mnemonic_pct": 78.2,
+      "opnd_percent": 89.1,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "72f28146967618f6",
-      "score": 78.2,
+      "score": 100.0,
       "source": "src/halo/bungie_net/64bit_math.c"
     },
     "math64_divide": {
@@ -84345,17 +84345,17 @@
     },
     "math64_negate": {
       "abi_model": "regparam_stripped_saves",
-      "abi_model_items": 3,
-      "abi_modeled_mnemonic_pct": 91.1,
+      "abi_model_items": 6,
+      "abi_modeled_mnemonic_pct": 96.6,
       "addr": "0x7ffe0",
       "end": "0x80063",
       "kind": "auto",
       "n_r": 43,
-      "opnd_percent": 42.2,
-      "raw_mnemonic_pct": 88.2,
+      "opnd_percent": 96.6,
+      "raw_mnemonic_pct": 90.5,
       "ref": "synth",
       "ref_sha": "c0f10e2be97fa9e7",
-      "score": 91.1,
+      "score": 96.6,
       "source": "src/halo/bungie_net/64bit_math.c"
     },
     "math64_subtract": {
