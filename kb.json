@@ -12524,6 +12524,12 @@
      "ported": true
     },
     {
+     "addr": "0xc3c40",
+     "decl": "void hs_recompile(void);",
+     "ported": false,
+     "name": "hs_recompile"
+    },
+    {
      "addr": "0xc3c50",
      "decl": "void hs_update(void);",
      "ported": true
@@ -12628,6 +12634,90 @@
      "name": "hs_tokens_enumerate_functions"
     },
     {
+     "addr": "0xc4240",
+     "decl": "void hs_enumerate_script_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_script_names"
+    },
+    {
+     "addr": "0xc4270",
+     "decl": "void hs_enumerate_variable_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_variable_names"
+    },
+    {
+     "addr": "0xc4320",
+     "decl": "void hs_enumerate_ai_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_ai_names"
+    },
+    {
+     "addr": "0xc4350",
+     "decl": "void hs_enumerate_ai_command_list_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_ai_command_list_names"
+    },
+    {
+     "addr": "0xc4380",
+     "decl": "void hs_enumerate_starting_profile_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_starting_profile_names"
+    },
+    {
+     "addr": "0xc43b0",
+     "decl": "void hs_enumerate_conversation_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_conversation_names"
+    },
+    {
+     "addr": "0xc43e0",
+     "decl": "void hs_enumerate_object_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_object_names"
+    },
+    {
+     "addr": "0xc4410",
+     "decl": "void hs_enumerate_trigger_volume_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_trigger_volume_names"
+    },
+    {
+     "addr": "0xc4440",
+     "decl": "void hs_enumerate_cutscene_flag_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_cutscene_flag_names"
+    },
+    {
+     "addr": "0xc4470",
+     "decl": "void hs_enumerate_cutscene_camera_point_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_cutscene_camera_point_names"
+    },
+    {
+     "addr": "0xc44a0",
+     "decl": "void hs_enumerate_cutscene_title_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_cutscene_title_names"
+    },
+    {
+     "addr": "0xc44d0",
+     "decl": "void hs_enumerate_cutscene_recording_names(void);",
+     "ported": false,
+     "name": "hs_enumerate_cutscene_recording_names"
+    },
+    {
+     "addr": "0xc4500",
+     "decl": "void hs_enumerate_navpoints(void);",
+     "ported": false,
+     "name": "hs_enumerate_navpoints"
+    },
+    {
+     "addr": "0xc4540",
+     "decl": "void hs_enumerate_hud_messages(void);",
+     "ported": false,
+     "name": "hs_enumerate_hud_messages"
+    },
+    {
      "addr": "0xc4580",
      "decl": "int16_t hs_tokens_enumerate(const char *prefix, uint32_t type_mask, char **tokens, int16_t max_tokens);",
      "ported": true
@@ -12717,6 +12807,12 @@
      "addr": "0xc4e90",
      "decl": "void hs_doc(void);",
      "ported": true
+    },
+    {
+     "addr": "0xc4f90",
+     "decl": "void hs_hack(void);",
+     "ported": false,
+     "name": "hs_hack"
     },
     {
      "addr": "0xc4ff0",
@@ -13320,6 +13416,12 @@
      "name": "hs_teleport_players_not_in_trigger_volume"
     },
     {
+     "addr": "0xca4b0",
+     "decl": "int hs_syntax_nth(int node_index@<eax>, int16_t count@<cx>);",
+     "ported": false,
+     "name": "hs_syntax_nth"
+    },
+    {
      "addr": "0xca4e0",
      "decl": "void hs_inspect_boolean(int16_t type, bool value, char *buffer);",
      "ported": true,
@@ -13365,6 +13467,12 @@
      "addr": "0xca800",
      "decl": "void hs_runtime_dispose_from_old_map(void);",
      "ported": true
+    },
+    {
+     "addr": "0xca880",
+     "decl": "void hs_runtime_dispose(void);",
+     "ported": false,
+     "name": "hs_runtime_dispose"
     },
     {
      "addr": "0xca890",
@@ -13433,6 +13541,12 @@
      "decl": "int hs_string_to_boolean(const char *string);",
      "comment": "[NAME: hs_string_to_boolean — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "ported": true
+    },
+    {
+     "addr": "0xcaee0",
+     "decl": "uint32_t hs_data_to_void(void);",
+     "ported": false,
+     "name": "hs_data_to_void"
     },
     {
      "addr": "0xcaef0",
