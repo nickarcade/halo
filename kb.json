@@ -21166,7 +21166,8 @@
     },
     {
      "addr": "0x90860",
-     "decl": "void profile_sections_activate(const char *substring);"
+     "decl": "void profile_sections_activate(const char *substring);",
+     "ported": true
     },
     {
      "addr": "0x90880",
@@ -21319,7 +21320,8 @@
     },
     {
      "addr": "0x91da0",
-     "decl": "void FUN_00091da0(void *base, int count, void *compare);"
+     "decl": "void FUN_00091da0(void *base, int count, void *compare);",
+     "ported": true
     },
     {
      "addr": "0x91ef0",

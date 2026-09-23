@@ -453,6 +453,16 @@ void FUN_000907c0(char *substring /* @<edi> */, unsigned char active)
   }
 }
 
+/* profile_sections_activate (0x90860) -- forward to the shared worker
+ * FUN_000907c0 with active=1:
+ *   MOV EDI,[EBP+8]  -- substring into EDI (the worker's @<edi> arg)
+ *   PUSH 1           -- active = 1 (single cdecl stack arg)
+ *   CALL 0x907c0 ; ADD ESP,4 */
+void profile_sections_activate(const char *substring)
+{
+  FUN_000907c0((char *)substring, 1);
+}
+
 /* profile_sections_deactivate (0x90880) -- HaloScript "profile_sections_
  * deactivate" builtin.  The whole body is a forward to the shared worker
  * FUN_000907c0 with active=0:
@@ -1138,6 +1148,107 @@ void FUN_00091d50(int32_t *end /* @<eax> */, int32_t *begin,
     *max_elem = tmp;
     end--;
   } while (end > begin);
+}
+
+/* FUN_00091da0 (0x91da0) -- non-recursive quicksort over an array of 16-bit
+ * elements with an explicit 30-entry lo/hi range stack (lo stack at
+ * EBP-0x7c, hi stack at EBP-0xf4; frame SUB ESP,0xf4). Ranges of <= 8
+ * elements (0x91dda CMP EAX,8 / JA) go to the selection sort FUN_00091cf0
+ * (end in EAX, PUSH compare / PUSH lo). Otherwise the middle element is
+ * swapped into *lo as pivot and the range is partitioned.
+ *
+ * `count` is compared unsigned (0x91dac CMP EAX,2 / JC); its stack slot is
+ * reused as the range-stack depth (tested signed after DEC, 0x91df5 JS).
+ * Element count uses SAR (signed pointer difference / 2). The
+ * partition-size comparison at 0x91e80-0x91e8b is done on byte differences:
+ * (higuy - lo) - 1 vs (hi - loguy), signed JL.
+ *
+ * Compare call sites (0x91e36/0x91e53): PUSH *lo, PUSH *elem, CALL -- so
+ * compare(*elem, *lo); both loaded zero-extended; result tested as AL.
+ * The forward scan continues while compare returns 0 (JZ 0x91e22), the
+ * backward scan while it returns nonzero (JNZ 0x91e42). */
+void FUN_00091da0(void *base, int count, void *compare)
+{
+  uint16_t *lo;
+  uint16_t *hi;
+  uint16_t *loguy;
+  uint16_t *higuy;
+  uint16_t *lostk[30];
+  uint16_t *histk[30];
+  uint32_t size;
+  uint16_t tmp;
+  int stkptr;
+  profile_sort16_compare_proc comp;
+
+  if ((uint32_t)count < 2) {
+    return;
+  }
+
+  comp = (profile_sort16_compare_proc)compare;
+  lo = (uint16_t *)base;
+  stkptr = 0;
+  hi = lo + (count - 1);
+
+recurse:
+  size = (uint32_t)(hi - lo) + 1;
+  if (size <= 8) {
+    FUN_00091cf0(hi, lo, comp);
+  } else {
+    size >>= 1;
+    tmp = lo[size];
+    lo[size] = *lo;
+    *lo = tmp;
+
+    loguy = lo;
+    higuy = hi + 1;
+    for (;;) {
+      do {
+        loguy++;
+      } while (loguy <= hi && !comp(*loguy, *lo));
+      do {
+        higuy--;
+      } while (higuy > lo && comp(*higuy, *lo));
+      if (higuy < loguy) {
+        break;
+      }
+      tmp = *loguy;
+      *loguy = *higuy;
+      *higuy = tmp;
+    }
+
+    tmp = *lo;
+    *lo = *higuy;
+    *higuy = tmp;
+
+    if ((char *)higuy - (char *)lo - 1 >= (char *)hi - (char *)loguy) {
+      if (lo + 1 < higuy) {
+        lostk[stkptr] = lo;
+        histk[stkptr] = higuy - 1;
+        stkptr++;
+      }
+      if (loguy < hi) {
+        lo = loguy;
+        goto recurse;
+      }
+    } else {
+      if (loguy < hi) {
+        lostk[stkptr] = loguy;
+        histk[stkptr] = hi;
+        stkptr++;
+      }
+      if (lo + 1 < higuy) {
+        hi = higuy - 1;
+        goto recurse;
+      }
+    }
+  }
+
+  stkptr--;
+  if (stkptr >= 0) {
+    lo = lostk[stkptr];
+    hi = histk[stkptr];
+    goto recurse;
+  }
 }
 
 /* FUN_00092050 (0x92050) -- one-instruction setter: store the incoming
