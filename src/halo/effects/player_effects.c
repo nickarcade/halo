@@ -164,6 +164,18 @@ void player_effect_clear_damage_indicators(int player_index)
   csmemset(effect + 0xe4, 0, 4);
 }
 
+/* effect_scale_factor -- returns base + (1.0f - base) * scale.
+ *
+ * Binary (0xa2a90): FLD [0x2533c8] (1.0f); FSUB [ebp+8]; FMUL [ebp+0xc];
+ * FADD [ebp+8]; result left in ST0, plain RET (cdecl, no callees).
+ * Parameter meanings unknown; names are positional.
+ *
+ * 0xa2a90 / player_effects.obj */
+float effect_scale_factor(float param_1, float param_2)
+{
+  return (*(float *)0x002533c8 - param_1) * param_2 + param_1;
+}
+
 void player_effect_update(void)
 {
   int16_t local_player_index;

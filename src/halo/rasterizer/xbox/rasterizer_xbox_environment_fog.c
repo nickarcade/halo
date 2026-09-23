@@ -1559,3 +1559,97 @@ bool FUN_00167ee0(void *param_1)
   }
   return result;
 }
+
+/* 0x167ff0 rasterizer_error. Variadic in the binary: the caller's format
+ * (call_text) is fed to vsprintf with arglist = &call_text + 1
+ * (LEA EAX,[EBP+0x10]), i.e. MSVC's va_start(ap, call_text). The kb decl is
+ * the protected two-parameter form, so the arglist is formed the same way
+ * MSVC's <stdarg.h> does. 0x201c48 is declared void, but its EAX is tested
+ * (TEST EAX,EAX / JGE) so it is called through an int-returning __stdcall
+ * cast; arguments are (hr, buffer, 0x3ff). */
+void rasterizer_error(int a1, const char *call_text)
+{
+  const char *error_name;
+  char formatted[1024];
+  char description[1024];
+
+  error_name = "<unknown error>";
+  vsprintf(formatted, call_text, (char *)(&call_text + 1));
+  if (((int(__stdcall *)(int, int, int))FUN_00201c48)(a1, (int)description,
+                                                      0x3ff) < 0) {
+    csstrcpy(description, "<can't get description>");
+  }
+  switch (a1) {
+  case (int)0x8007000e:
+    error_name = "E_OUTOFMEMORY";
+    break;
+  case (int)0x80004005:
+    error_name = "E_FAIL";
+    break;
+  case (int)0x80070057:
+    error_name = "E_INVALIDARG";
+    break;
+  case (int)0x8876017c:
+    error_name = "D3DERR_OUTOFVIDEOMEMORY";
+    break;
+  case (int)0x88760818:
+    error_name = "D3DERR_WRONGTEXTUREFORMAT";
+    break;
+  case (int)0x88760819:
+    error_name = "D3DERR_UNSUPPORTEDCOLOROPERATION";
+    break;
+  case (int)0x8876081a:
+    error_name = "D3DERR_UNSUPPORTEDCOLORARG";
+    break;
+  case (int)0x8876081b:
+    error_name = "D3DERR_UNSUPPORTEDALPHAOPERATION";
+    break;
+  case (int)0x8876081c:
+    error_name = "D3DERR_UNSUPPORTEDALPHAARG";
+    break;
+  case (int)0x8876081d:
+    error_name = "D3DERR_TOOMANYOPERATIONS";
+    break;
+  case (int)0x8876081e:
+    error_name = "D3DERR_CONFLICTINGTEXTUREFILTER";
+    break;
+  case (int)0x8876081f:
+    error_name = "D3DERR_UNSUPPORTEDFACTORVALUE";
+    break;
+  case (int)0x88760821:
+    error_name = "D3DERR_CONFLICTINGRENDERSTATE";
+    break;
+  case (int)0x88760822:
+    error_name = "D3DERR_UNSUPPORTEDTEXTUREFILTER";
+    break;
+  case (int)0x88760826:
+    error_name = "D3DERR_CONFLICTINGTEXTUREPALETTE";
+    break;
+  case (int)0x88760827:
+    error_name = "D3DERR_DRIVERINTERNALERROR";
+    break;
+  case (int)0x88760866:
+    error_name = "D3DERR_NOTFOUND";
+    break;
+  case (int)0x88760867:
+    error_name = "D3DERR_MOREDATA";
+    break;
+  case (int)0x88760868:
+    error_name = "D3DERR_DEVICELOST";
+    break;
+  case (int)0x88760869:
+    error_name = "D3DERR_DEVICENOTRESET";
+    break;
+  case (int)0x8876086a:
+    error_name = "D3DERR_NOTAVAILABLE";
+    break;
+  case (int)0x8876086b:
+    error_name = "D3DERR_INVALIDDEVICE";
+    break;
+  case (int)0x8876086c:
+    error_name = "D3DERR_INVALIDCALL";
+    break;
+  }
+  error(2, "%s in %s (code=%d, error=%s)", error_name, formatted, a1,
+        description);
+}

@@ -18900,9 +18900,10 @@
     },
     {
      "addr": "0xa2a90",
-     "decl": "void effect_scale_factor(void);",
+     "decl": "float effect_scale_factor(float param_1, float param_2);",
      "comment": "[NAME: effect_scale_factor \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "effect_scale_factor"
+     "name": "effect_scale_factor",
+     "ported": true
     },
     {
      "addr": "0xa2ab0",
@@ -49344,7 +49345,8 @@
     {
      "addr": "0x167ff0",
      "decl": "void rasterizer_error(int a1, const char *call_text);",
-     "name": "rasterizer_error"
+     "name": "rasterizer_error",
+     "ported": true
     }
    ]
   },
@@ -49390,7 +49392,8 @@
     {
      "addr": "0x168500",
      "decl": "void rasterizer_bitmap_2d_changed(void *bitmap@<esi>);",
-     "comment": "[NAME: rasterizer_bitmap_2d_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: rasterizer_bitmap_2d_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14] [ABI: bitmap@<esi> \u2014 callee reads ESI at entry (TEST ESI,ESI @0x168506 bitmap assert; [ESI+0x2c]/[ESI+0x28]/[ESI+0x14]/[ESI+0xc]/[ESI+0xe] reads) with no prior ESI write; sole caller 0x168b10 holds the bitmap in ESI (MOV EDI,ESI feeds its case 1)]",
+     "ported": true
     },
     {
      "addr": "0x1686c0",
@@ -49400,7 +49403,8 @@
     {
      "addr": "0x1688d0",
      "decl": "void rasterizer_bitmap_cm_changed(void *bitmap@<esi>);",
-     "comment": "[NAME: rasterizer_bitmap_cm_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: rasterizer_bitmap_cm_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14] [ABI: bitmap@<esi> \u2014 TEST ESI,ESI @0x1688d6 with no prior ESI write; [ESI+0x2c]/[ESI+0x28]/[ESI+0x14]/[ESI+0xe]/[ESI+0xc] reads; PUSH ESI as bitmap arg to bitmap_cube_map_address @0x1689bb; caller 0x168b10 holds bitmap in ESI]",
+     "ported": true
     },
     {
      "addr": "0x168ae0",
