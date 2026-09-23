@@ -2769,16 +2769,16 @@ bool network_game_server_handle_message_client_game_start_request(int server, in
 {
   int packet_type;
   int packet_version;
-  int decoded_buf;
+  int countdown_time;
 
   if (network_game_server_get_state(server, (short *)0) == 0) {
     message_size -= 2;
     packet_type = 0x10;
     packet_version = 1;
-    if (decode_network_game_message((int)&decoded_buf, (int)((char *)message_data + 2),
+    if (decode_network_game_message((int)&countdown_time, (int)((char *)message_data + 2),
                      (short *)&message_size, (short *)&packet_type,
                      (short *)&packet_version, 3)) {
-      network_game_server_update_countdown((void *)server, decoded_buf);
+      network_game_server_update_countdown((void *)server, countdown_time);
       return true;
     }
     network_event(

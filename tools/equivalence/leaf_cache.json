@@ -3963,9 +3963,12 @@
     "class": "leaf"
   },
   "0x12f040": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "moderate",
+    "coverage_pct": 71.6,
+    "oracle": "xbe"
   },
   "0x12f0d0": {
     "class": "stubbable",
