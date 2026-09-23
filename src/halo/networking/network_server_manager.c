@@ -3258,8 +3258,11 @@ char handle_message_client_broadcast_game_search(int server, void *client_messag
 char handle_message_client_ping(int server, void *decoded_msg, void *client_message)
 {
   int ping_data;
-  short ping_extra;
-  int local_data[8];
+  /* Message creation consumes raw[0] before the reply address replaces it. */
+  union {
+    int raw[8];
+    transport_address address;
+  } local_data;
   void *pong_msg;
   unsigned short pong_len;
   int connection;
@@ -3273,20 +3276,19 @@ char handle_message_client_ping(int server, void *decoded_msg, void *client_mess
     system_exit(-1);
   }
   ping_data = *(int *)decoded_msg;
-  local_data[0] = ping_data;
-  pong_msg = create_network_game_message(3, &local_data[0], 4);
+  local_data.raw[0] = ping_data;
+  pong_msg = create_network_game_message(3, &local_data.raw[0], 4);
   if (!pong_msg) {
     network_event("failed to create a message_server_pong message");
     return false;
   }
-  ping_extra = *(short *)((char *)decoded_msg + 4);
-  local_data[0] = *(int *)client_message;
+  local_data.raw[0] = *(int *)client_message;
   pong_len = *(unsigned short *)pong_msg;
-  *(short *)((char *)&local_data[0] + 4) = ping_extra;
-  *(short *)((char *)&local_data[0] + 2) = 4;
+  local_data.address.address_length = 4;
+  local_data.address.port = *(unsigned short *)((char *)decoded_msg + 4);
   connection = network_game_server_get_connection((void *)server);
   result = network_connection_write((void *)connection, pong_msg, pong_len >> 4,
-                                    (int)local_data, 0);
+                                    (int)&local_data.address, 0);
   if (!result)
     network_event(
       "network_game_server_write() failed in handle_message_client_ping()");
