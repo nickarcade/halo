@@ -1882,44 +1882,52 @@ char network_game_client_request_remove_player(void *client, void *record)
   case 1:
     network_event(
       "can't remove players from a game until after a game is joined");
-    return 0;
+    result = 0;
+    break;
   case 2:
     csmemcpy(buf, record, 0x20);
     packet = (unsigned short *)create_network_game_message(0xe, buf, 0x20);
     if (packet != NULL) {
-      goto send_packet;
+      result = network_connection_write(*(void **)((char *)client + 0x82c),
+                                        packet, (unsigned short)(*packet >> 4),
+                                        0, true);
+    } else {
+      network_event(
+        "failed to create a message_client_remove_player_request_pregame "
+        "mesage");
+      result = 0;
     }
-    network_event(
-      "failed to create a message_client_remove_player_request_pregame "
-      "mesage");
-    return 0;
+    break;
   case 3:
     csmemcpy(buf, record, 0x20);
     packet = (unsigned short *)create_network_game_message(0x1b, buf, 0x20);
-    if (packet == NULL) {
+    if (packet != NULL) {
+      result = network_connection_write(*(void **)((char *)client + 0x82c),
+                                        packet, (unsigned short)(*packet >> 4),
+                                        0, true);
+    } else {
       network_event(
         "failed to create a message_client_remove_player_request_ingame "
         "message");
-      return 0;
+      result = 0;
     }
-  send_packet:
-    return network_connection_write(*(void **)((char *)client + 0x82c), packet,
-                                    (unsigned short)(*packet >> 4), 0, true);
+    break;
   case 4:
     csmemcpy(buf, record, 0x20);
     packet = (unsigned short *)create_network_game_message(0x20, buf, 0x20);
-    if (packet == NULL) {
+    if (packet != NULL) {
+      result =
+        network_connection_write(*(void **)((char *)client + 0x82c), packet,
+                                 (unsigned short)(*packet >> 4), 0, true);
+      if (!result) {
+        network_event("network_game_client_write() failed while sending a "
+                           "message_client_remove_player_request_postgame message");
+      }
+    } else {
       network_event(
         "failed to create a message_client_remove_player_request_postgame "
         "message");
-      return 0;
-    }
-    result =
-      network_connection_write(*(void **)((char *)client + 0x82c), packet,
-                               (unsigned short)(*packet >> 4), 0, true);
-    if (!result) {
-      network_event("network_game_client_write() failed while sending a "
-                       "message_client_remove_player_request_postgame message");
+      result = 0;
     }
     break;
   default:
@@ -2192,122 +2200,99 @@ bool network_game_client_idle_searching(void *server)
   char *s;
   unsigned int now_time;
   bool ok;
-  void *found_server;
 
   s = (char *)server;
   now_time = system_milliseconds();
   network_connection_keep_alive(*(int *)(s + 0x82c));
 
   ok = true;
-  if (!network_game_is_splitscreen_local()) {
+  if (!(bool)network_game_is_splitscreen_local()) {
     ok = transport_network_available();
     if (!ok) {
       error(2, "network connection went down!");
       display_error_when_main_menu_loaded(6);
     }
   }
-  if (!ok) {
-    return ok;
-  }
 
-  found_server = global_network_game_server_get();
-  if (found_server != NULL) {
-    unsigned char game_buf[0xe4];
-    unsigned char join_params[0x22];
-    transport_address addr;
-    unsigned int *p;
-    int i;
-
-    p = (unsigned int *)game_buf;
-    for (i = 0; i < 0x39; i++) {
-      p[i] = 0;
-    }
-    transport_get_nonce(game_buf + 0x24, 8);
-    *(uint16_t *)(join_params + 2) = 0;
-    network_game_generate_join_game_token(join_params + 0x12);
-    *(unsigned int *)addr.address = 0x7f000001;
-    addr.address_length = 4;
-    addr.port = 0x141e;
-
-    if (!network_game_client_initiate_join_game(server, game_buf, join_params,
-                                                &addr)) {
-      display_error_when_main_menu_loaded(7);
-      network_event("network_game_client_initiate_join_game() failed");
-      return false;
-    }
-    return ok;
-  }
-
-  if (!network_connection_idle(*(int *)(s + 0x82c), 5000, NULL)) {
-    display_error_when_main_menu_loaded(7);
-    network_event("network_connection_idle() failed in "
-                     "network_game_client_idle_searching()");
-    return false;
-  }
-  if (!network_game_client_process_incoming_messages(server)) {
-    network_event(
-      "network_game_client_process_incoming_messages() failed in "
-      "network_game_client_idle_searching()");
-    return false;
-  }
-
-  if (now_time - *(unsigned int *)(s + 0xc94) > 2000) {
-    unsigned char msg[0xc];
-    unsigned short *packet;
-    transport_address dest;
-
+  if (ok == true) {
     if (global_network_game_server_get() != NULL) {
-      return ok;
-    }
+      unsigned char game_buf[0xe4] = {0};
+      unsigned char join_params[0x22];
+      transport_address addr;
 
-    *(uint16_t *)msg = 0x141f;
-    *(uint16_t *)(msg + 2) = 1;
-    transport_get_nonce(msg + 4, 8);
-    *(unsigned int *)dest.address = 0xffffffff;
-    dest.address_length = 4;
-    dest.port = 0x141e;
+      transport_get_nonce(game_buf + 0x24, 8);
+      *(uint16_t *)(join_params + 2) = 0;
+      network_game_generate_join_game_token(join_params + 0x12);
+      *(unsigned int *)addr.address = 0x7f000001;
+      addr.address_length = 4;
+      addr.port = 0x141e;
 
-    packet = (unsigned short *)create_network_game_message(0, msg, 0xc);
-    if (packet == NULL) {
+      if (!network_game_client_initiate_join_game(server, game_buf, join_params,
+                                                  &addr)) {
+        ok = false;
+        display_error_when_main_menu_loaded(7);
+        network_event("network_game_client_initiate_join_game() failed");
+      }
+    } else if (!(ok = network_connection_idle(*(int *)(s + 0x82c), 5000, NULL))) {
+      display_error_when_main_menu_loaded(7);
+      network_event("network_connection_idle() failed in "
+                       "network_game_client_idle_searching()");
+    } else if (!(ok = network_game_client_process_incoming_messages(server))) {
       network_event(
-        "failed to create a message_client_broadcast_game_search message");
-      return ok;
-    }
-    ok = network_connection_write(*(void **)(s + 0x82c), packet,
-                                  (unsigned short)(*packet >> 4), (int)&dest,
-                                  false);
-    if (ok == true) {
-      network_event("sent out a broadcast game search packet");
-      *(unsigned int *)(s + 0xc94) = now_time;
-      return ok;
-    }
-    network_event("network_game_client_write() failed while sending a "
-                     "message_client_broadcast_game_search message");
-    return false;
-  }
+        "network_game_client_process_incoming_messages() failed in "
+        "network_game_client_idle_searching()");
+    } else if (now_time - *(unsigned int *)(s + 0xc94) > 2000) {
+      if (global_network_game_server_get() == NULL) {
+        unsigned char msg[0xc];
+        unsigned short *packet;
+        transport_address dest;
 
-  if (*(unsigned char *)(s + 0x82a) == 1 &&
-      now_time - *(unsigned int *)(s + 0x820) > 1000) {
-    unsigned char ping[8];
-    unsigned short *packet;
+        *(uint16_t *)msg = 0x141f;
+        *(uint16_t *)(msg + 2) = 1;
+        transport_get_nonce(msg + 4, 8);
+        *(unsigned int *)dest.address = 0xffffffff;
+        dest.address_length = 4;
+        dest.port = 0x141e;
 
-    *(unsigned int *)ping = now_time;
-    *(uint16_t *)(ping + 4) = 0x141f;
+        packet = (unsigned short *)create_network_game_message(0, msg, 0xc);
+        if (packet != NULL) {
+          ok = network_connection_write(*(void **)(s + 0x82c), packet,
+                                        (unsigned short)(*packet >> 4),
+                                        (int)&dest, false);
+          if (ok == true) {
+            network_event("sent out a broadcast game search packet");
+            *(unsigned int *)(s + 0xc94) = now_time;
+          } else {
+            network_event("network_game_client_write() failed while sending a "
+                         "message_client_broadcast_game_search message");
+          }
+        } else {
+          network_event(
+            "failed to create a message_client_broadcast_game_search message");
+        }
+      }
+    } else if (*(unsigned char *)(s + 0x82a) == 1 &&
+               now_time - *(unsigned int *)(s + 0x820) > 1000) {
+      unsigned char ping[8];
+      unsigned short *packet;
 
-    packet = (unsigned short *)create_network_game_message(1, ping, 8);
-    if (packet == NULL) {
-      network_event("failed to create a message_client_ping message");
-      return ok;
+      *(unsigned int *)ping = now_time;
+      *(uint16_t *)(ping + 4) = 0x141f;
+
+      packet = (unsigned short *)create_network_game_message(1, ping, 8);
+      if (packet != NULL) {
+        if (network_connection_write(*(void **)(s + 0x82c), packet,
+                                     (unsigned short)(*packet >> 4),
+                                     (int)(s + 0x808), false)) {
+          *(unsigned int *)(s + 0x820) = now_time;
+        } else {
+          network_event("network_game_client_write() failed while sending a "
+                       "message_client_ping message");
+        }
+      } else {
+        network_event("failed to create a message_client_ping message");
+      }
     }
-    if (network_connection_write(*(void **)(s + 0x82c), packet,
-                                 (unsigned short)(*packet >> 4),
-                                 (int)(s + 0x808), false)) {
-      *(unsigned int *)(s + 0x820) = now_time;
-      return ok;
-    }
-    network_event("network_game_client_write() failed while sending a "
-                     "message_client_ping message");
-    return ok;
   }
 
   return ok;
@@ -2328,7 +2313,7 @@ bool network_game_client_idle_joining(void *server)
   int connect_handle;
 
   connected = 1;
-  if (!network_game_is_splitscreen_local()) {
+  if (!(bool)network_game_is_splitscreen_local()) {
     connected = transport_network_available();
     if (!connected) {
       error(2, "network connection went down!");
@@ -2336,7 +2321,7 @@ bool network_game_client_idle_joining(void *server)
     }
   }
 
-  if (connected) {
+  if (connected == 1) {
     if (network_connection_connected(*(int *)((char *)server + 0x82c))) {
       if ((*(unsigned char *)((char *)server + 0xcaa) & 2) == 0) {
         csmemset(join_payload, 0, 0x50);
@@ -2344,17 +2329,19 @@ bool network_game_client_idle_joining(void *server)
         csmemcpy(&join_payload[0x40], (char *)server + 0x84a, 0x10);
         encoded = (unsigned short *)create_network_game_message(
           0xc, join_payload, 0x50);
-        if (encoded == NULL) {
+        if (encoded != NULL) {
+          if (network_connection_write(
+                (void *)*(int *)((char *)server + 0x82c), encoded,
+                (unsigned short)(*encoded >> 4), 0, 1)) {
+            *(unsigned char *)((char *)server + 0xcaa) =
+              *(unsigned char *)((char *)server + 0xcaa) | 2;
+          } else {
+            network_event("network_game_client_write() failed to send a "
+                          "message_client_join_game_request message");
+          }
+        } else {
           network_event(
             "failed to create a message_client_join_game_request message");
-        } else if (network_connection_write(
-                     (void *)*(int *)((char *)server + 0x82c), encoded,
-                     (unsigned short)(*encoded >> 4), 0, 1)) {
-          *(unsigned char *)((char *)server + 0xcaa) =
-            *(unsigned char *)((char *)server + 0xcaa) | 2;
-        } else {
-          network_event("network_game_client_write() failed to send a "
-                           "message_client_join_game_request message");
         }
       }
       *(int *)((char *)server + 0x830) = 0;
@@ -2376,16 +2363,14 @@ bool network_game_client_idle_joining(void *server)
 
     connected = network_connection_idle(*(int *)((char *)server + 0x82c), 5000, 0);
     if (connected) {
-      connected = network_game_client_process_incoming_messages(server);
-      if (!connected) {
+      if (!(connected = network_game_client_process_incoming_messages(server))) {
         network_event(
           "network_game_client_process_incoming_messages() failed in "
           "network_game_client_idle_joining()");
-        return 0;
       }
     } else {
-      network_event("network_connection_idle_server_reliable_endpoint() failed in "
-                       "network_game_client_idle_joining()");
+      network_event("network_connection_idle() failed in "
+                    "network_game_client_idle_joining()");
     }
   }
   return connected;
@@ -2402,7 +2387,7 @@ bool network_game_client_idle_pregame(void *server)
   bool connected;
 
   connected = true;
-  if (!network_game_is_splitscreen_local()) {
+  if (!(bool)network_game_is_splitscreen_local()) {
     connected = transport_network_available();
     if (!connected) {
       error(2, "network connection went down!");
@@ -2414,26 +2399,25 @@ bool network_game_client_idle_pregame(void *server)
     if (network_connection_active(*(int *)((char *)server + 0x82c)) &&
         network_connection_connected(*(int *)((char *)server + 0x82c))) {
       network_game_client_update_precache_status(server);
-      connected = network_connection_idle(*(int *)((char *)server + 0x82c), 15000, 0);
-      if (connected) {
-        connected = network_game_client_process_incoming_messages(server);
-        if (connected)
-          return true;
+      if (!(connected = network_connection_idle(
+              *(int *)((char *)server + 0x82c), 15000, 0))) {
+        network_event("network_connection_idle() failed in "
+                         "network_game_client_idle_pregame()");
+      } else if (!(connected = network_game_client_process_incoming_messages(server))) {
         network_event(
           "network_game_client_process_incoming_messages() failed in "
           "network_game_client_idle_pregame()");
-      } else {
-        network_event("network_connection_idle_server_reliable_endpoint() failed in "
-                         "network_game_client_idle_pregame()");
       }
     } else {
       connected = false;
     }
   }
 
-  if (!network_connection_active(*(int *)((char *)server + 0x82c))) {
-    display_error_when_main_menu_loaded(4);
-    return false;
+  if (!connected) {
+    if (!network_connection_active(*(int *)((char *)server + 0x82c))) {
+      display_error_when_main_menu_loaded(4);
+      return false;
+    }
   }
   return connected;
 }
@@ -2450,64 +2434,58 @@ bool network_game_client_idle_pregame(void *server)
  */
 bool network_game_client_idle_ingame(void *server)
 {
-  char valid;
-  char is_silent;
-  char result;
-  int connection;
+  bool success;
 
-  connection = *(int *)((char *)server + 0x82c);
-  if (!network_connection_active(connection) ||
-      !network_connection_connected(connection)) {
+  success = true;
+  if (!network_connection_active(*(int *)((char *)server + 0x82c)) ||
+      !network_connection_connected(*(int *)((char *)server + 0x82c))) {
     error(2, "new idle in game abort hit");
     display_error_when_main_menu_loaded(4);
-    return 0;
-  }
+    success = false;
+  } else if (!(bool)network_game_is_splitscreen_local()) {
+    bool connection_stale;
 
-  if (!network_game_is_splitscreen_local()) {
-    valid = 1;
-    is_silent =
-      network_connection_going_stale(*(int *)((char *)server + 0x82c));
+    connection_stale = network_connection_going_stale(*(int *)((char *)server + 0x82c));
     if (!transport_network_available()) {
       display_error_when_main_menu_loaded(6);
       network_event("network connection went down (idle in game)!");
-      valid = 0;
-    } else if (is_silent && !*(char *)((char *)server + 0xcad)) {
-      __int16 player_idx;
-      player_idx = local_player_get_next(-1);
-      while (player_idx != (__int16)-1) {
-        ui_widget_display_error(9, player_idx, 0, 0);
-        player_idx = local_player_get_next(player_idx);
+      success = false;
+    } else if (connection_stale && !*(char *)((char *)server + 0xcad)) {
+      short local_player_index;
+
+      for (local_player_index = local_player_get_next(-1);
+           local_player_index != (short)-1;
+           local_player_index = local_player_get_next(local_player_index)) {
+        ui_widget_display_error(9, local_player_index, 0, 0);
       }
       network_event(
         "network client connection has been silent for a dangerously long "
         "amount of time");
     }
-    *(char *)((char *)server + 0xcad) = is_silent;
-    if (valid != 1)
-      return valid;
+    *(char *)((char *)server + 0xcad) = connection_stale;
   }
 
-  result = network_connection_idle(*(int *)((char *)server + 0x82c), 15000, 0);
-  if (result) {
-    result = network_game_client_process_incoming_messages(server);
-    if (!result) {
-      network_event(
-        "network_game_client_process_incoming_messages() failed in "
-        "network_game_client_idle_ingame()");
-      return result;
+  if (success == true) {
+    success = network_connection_idle(*(int *)((char *)server + 0x82c), 15000, 0);
+    if (success) {
+      success = network_game_client_process_incoming_messages(server);
+      if (!success) {
+        network_event(
+          "network_game_client_process_incoming_messages() failed in "
+          "network_game_client_idle_ingame()");
+      }
+    } else {
+      if (!network_connection_active(*(int *)((char *)server + 0x82c)) ||
+          !network_connection_connected(*(int *)((char *)server + 0x82c))) {
+        error(2, "new2 idle in game abort hit");
+        display_error_when_main_menu_loaded(4);
+        success = false;
+      }
+      network_event("network_connection_idle() failed in "
+                    "network_game_client_idle_ingame()");
     }
-  } else {
-    connection = *(int *)((char *)server + 0x82c);
-    if (!network_connection_active(connection) ||
-        !network_connection_connected(connection)) {
-      error(2, "new2 idle in game abort hit");
-      display_error_when_main_menu_loaded(4);
-      result = 0;
-    }
-    network_event(
-      "network_connection_idle_server_reliable_endpoint() failed in network_game_client_idle_ingame()");
   }
-  return result;
+  return success;
 }
 
 /* network_game_client_idle_postgame (0x126f40) — network_game_client_idle_postgame
@@ -2518,40 +2496,35 @@ bool network_game_client_idle_ingame(void *server)
  * connection drops or processing fails. */
 bool network_game_client_idle_postgame(void *server)
 {
-  bool result;
+  bool success;
 
-  result = true;
-  if (network_game_is_splitscreen_local())
-    goto check_result;
-  result = transport_network_available();
-  if (result)
-    goto main_body;
-  error(2, "network connection went down!");
-  display_error_when_main_menu_loaded(6);
-
-check_result:
-  if (!result)
-    goto tail_check;
-
-main_body:
-  result = network_connection_idle(*(int *)((char *)server + 0x82c), 15000, 0);
-  if (!result) {
-    network_event("network_connection_idle_server_reliable_endpoint() failed in "
-                     "network_game_client_idle_postgame()");
-    goto tail_check;
+  success = true;
+  if (!(bool)network_game_is_splitscreen_local()) {
+    success = transport_network_available();
+    if (!success) {
+      error(2, "network connection went down!");
+      display_error_when_main_menu_loaded(6);
+    }
   }
-  result = network_game_client_process_incoming_messages(server);
-  if (result)
-    return result;
-  network_event("network_game_client_process_incoming_messages() failed in "
-                   "network_game_client_idle_postgame()");
 
-tail_check:
-  if (!network_connection_active(*(int *)((char *)server + 0x82c))) {
-    display_error_when_main_menu_loaded(4);
-    return false;
+  if (success) {
+    if (!(success = network_connection_idle(
+            *(int *)((char *)server + 0x82c), 15000, 0))) {
+      network_event("network_connection_idle() failed in "
+                    "network_game_client_idle_postgame()");
+    } else if (!(success = network_game_client_process_incoming_messages(server))) {
+      network_event("network_game_client_process_incoming_messages() failed in "
+                    "network_game_client_idle_postgame()");
+    }
   }
-  return result;
+
+  if (!success) {
+    if (!network_connection_active(*(int *)((char *)server + 0x82c))) {
+      display_error_when_main_menu_loaded(4);
+      return false;
+    }
+  }
+  return success;
 }
 
 /* 0x126fe0 — network_game_create_client (name from the failure log string at
