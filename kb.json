@@ -7775,7 +7775,7 @@
     },
     {
      "addr": "0x87c70",
-     "decl": "float10 editor_camera_get_field_of_view(void);",
+     "decl": "float editor_camera_get_field_of_view(void);",
      "ported": false,
      "name": "editor_camera_get_field_of_view"
     },
@@ -8305,7 +8305,7 @@
     },
     {
      "addr": "0x8f830",
-     "decl": "undefined10 profile_timesection_inherit(void);",
+     "decl": "void profile_timesection_inherit(void);",
      "ported": false,
      "name": "profile_timesection_inherit"
     }
@@ -8357,7 +8357,7 @@
     },
     {
      "addr": "0xdb0a0",
-     "decl": "float10 blip_size_get(char a0);",
+     "decl": "float blip_size_get(char a0);",
      "ported": false,
      "name": "blip_size_get"
     },
@@ -16174,7 +16174,7 @@
     },
     {
      "addr": "0xffee0",
-     "decl": "float10 main_get_seconds_elapsed(void);",
+     "decl": "float main_get_seconds_elapsed(void);",
      "ported": false,
      "name": "main_get_seconds_elapsed"
     },
@@ -27561,9 +27561,9 @@
     },
     {
      "addr": "0x184720",
-     "decl": "void rasterizer_sort_internal(int32_t a0);",
+     "decl": "void FUN_00184720(int32_t a0);",
      "ported": false,
-     "name": "rasterizer_sort_internal"
+     "name": "FUN_00184720"
     },
     {
      "addr": "0x184750",
@@ -27571,9 +27571,9 @@
     },
     {
      "addr": "0x1848d0",
-     "decl": "void rasterizer_sort_external(void);",
+     "decl": "void rasterizer_sort_internal(void);",
      "ported": true,
-     "name": "rasterizer_sort_external"
+     "name": "rasterizer_sort_internal"
     },
     {
      "addr": "0x184980",
@@ -29393,9 +29393,9 @@
     },
     {
      "addr": "0x1c88a0",
-     "decl": "void byte_swap_bungie_ima_adpcm_header(void *data);",
+     "decl": "void sound_is_active(void *data);",
      "ported": true,
-     "name": "byte_swap_bungie_ima_adpcm_header"
+     "name": "sound_is_active"
     },
     {
      "addr": "0x1c88c0",
@@ -29483,9 +29483,9 @@
     },
     {
      "addr": "0x1cb880",
-     "decl": "uint32_t sound_is_active(void);",
+     "decl": "uint32_t FUN_001cb880(void);",
      "ported": false,
-     "name": "sound_is_active"
+     "name": "FUN_001cb880"
     },
     {
      "addr": "0x1cb8a0",
@@ -29558,7 +29558,7 @@
     },
     {
      "addr": "0x1cbba0",
-     "decl": "float10 sound_manager_master_gain(void);",
+     "decl": "float sound_manager_master_gain(void);",
      "ported": false,
      "name": "sound_manager_master_gain"
     },
@@ -34205,14 +34205,8 @@
     },
     {
      "addr": "0x1a7fc0",
-     "decl": "void unit_kill_no_statistics(int datum_handle);",
+     "decl": "void unit_delete(int datum_handle);",
      "ported": true,
-     "name": "unit_kill_no_statistics"
-    },
-    {
-     "addr": "0x1a7fe0",
-     "decl": "void unit_delete(void);",
-     "ported": false,
      "name": "unit_delete"
     },
     {
@@ -35436,7 +35430,7 @@
     },
     {
      "addr": "0xa49c0",
-     "decl": "undefined10 weather_particle_system_transform_clip_planes_to_box(int32_t a0, real *a1, real *a2);",
+     "decl": "void weather_particle_system_transform_clip_planes_to_box(int32_t a0, real *a1, real *a2);",
      "ported": false,
      "name": "weather_particle_system_transform_clip_planes_to_box"
     },
@@ -42868,7 +42862,7 @@
     },
     {
      "addr": "0x6b8a0",
-     "decl": "code * pickTileSeparateCase(void);",
+     "decl": "void * pickTileSeparateCase(void);",
      "ported": false,
      "name": "pickTileSeparateCase"
     },
@@ -46557,7 +46551,7 @@
    "functions": [
     {
      "addr": "0x1cfb68",
-     "decl": "void XapiDispatchAPC(code *a0, uint32_t a1);",
+     "decl": "void XapiDispatchAPC(void *a0, uint32_t a1);",
      "ported": false,
      "name": "XapiDispatchAPC"
     },
