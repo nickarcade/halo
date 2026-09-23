@@ -32,7 +32,7 @@ deactivated functions and are outside this system-link-focused list. Thirteen
 of these 14 retain an allowlist reason that calls them sub-80% VC71 lifts
 pending score improvement; that is historical metadata, not current
 measurement evidence. The committed VC71 score file has a score for every
-function in this table (range: 71.2% to 100.0%). Those scores are mnemonic-LCS
+function in this table (range: 77.1% to 100.0%). Those scores are mnemonic-LCS
 comparisons against XBE-synthesized references, not raw-byte accuracy or
 runtime proof.
 `0x12f990` is separately allowlisted as a pre-existing deactivation with no
@@ -41,10 +41,10 @@ evidence that they cause a current regression.
 
 | Addr       | Function                                                              | VC71 mnemonic | Role                             |
 |------------|------------------------------------------------------------------------|--------------:|----------------------------------|
-| `0x12eb20` | `network_game_server_idle`                                            |      71.2% | server main tick                 |
+| `0x12eb20` | `network_game_server_idle`                                            |      86.5% | server main tick                |
 | `0x12eca0` | `network_game_server_reset_to_pregame`                                |      92.3% | postgame→pregame reset           |
 | `0x12e750` | `network_game_server_idle_pregame_tasks`                              |      79.4% | server pregame (state 0) tick    |
-| `0x12e580` | `network_game_server_handle_client_machines`                          |      77.1% | handle client machines           |
+| `0x12e580` | `network_game_server_handle_client_machines`                          |      77.5% | handle client machines           |
 | `0x12d880` | `network_game_server_add_new_client`                                  |      81.9% | add new client connection        |
 | `0x12dc20` | `network_game_server_setup_game_from_playlist`                        |      84.1% | set up variant/name/open game    |
 | `0x12f5d0` | `network_game_server_send_game_data_pregame`                          |     100.0% | broadcast pregame game data      |
@@ -59,6 +59,35 @@ evidence that they cause a current regression.
 `FUN_00083930` (socket creation), `FUN_00083e20` (bind),
 `FUN_000841b0` (asynchronous connect), `FUN_000843a0` (listen), and
 `FUN_00084740` (datagram send) are now active transport redirects.
+
+## 1b. Full pipeline inventory (2276)
+
+The 15 scoped `kb.json` objects below contain 391 functions. Of these, 373 have active redirects, 14 server handlers explicitly use `ported:false`, and four message-header entries have no `ported` field. All 18 inactive entries have C bodies. The earlier 13-object count missed `thread_win32.obj` (thread/mutex and key-agreement helpers) and `64bit_math.obj` (key-agreement arithmetic); both are fully active. The PAL 2342 source provides counterparts for the client/server state machines; its ABI, source shape, and behavior must be checked against the 2276 binary before reuse. Its message-header file lacks the 2276 encryption implementations.
+
+| Pipeline stage | Objects | Active / total |
+|---|---|---:|
+| Transport | `transport_endpoint_set_winsock.obj`, `transport_address.obj` | 56 / 56 |
+| Message framing and crypto | `message_header.obj` | 19 / 23 |
+| Key-agreement and platform support | `thread_win32.obj`, `64bit_math.obj` | 20 / 20 |
+| Connection | `network_connection.obj` | 18 / 18 |
+| Serialization | `data_packet_groups.obj`, `network_messages.obj` | 42 / 42 |
+| Client | `network_game_globals.obj`, `network_client_manager.obj`, `network_client_message_handler.obj` | 100 / 100 |
+| Server | `network_server_manager.obj`, `network_server_message_handler.obj` | 78 / 92 |
+| Game state and lockstep | `network_game_manager.obj`, `game_time.obj` | 40 / 40 |
+
+PAL review found three distinct cases. The 2276 transport functions `transport_dispose` and `transport_network_available` have low mnemonic percentages because their reference bodies are very short; Ghidra confirms their current behavior, including a `void` return for `transport_dispose` where PAL returns an error code. The client search and server machine handlers have longer low-match bodies: PAL's explicit result handling improves the 2276 client search score, while binary-backed branch and layout recovery improves the server handler's operand match. Finally, four disabled server handlers score 100% in both mnemonic and operand comparison, but a direct differential run of the game-start handler diverges when its candidate inlines `network_game_server_get_state` and reaches an assert while the oracle stubs that callee. That run does not establish a runtime regression or safe activation. Redirects remain disabled pending a same-context oracle or system-link runtime test.
+
+`network_game_server_send_game_data_pregame` is one of the 100% matching disabled handlers. PAL and 2276 agree on its 0x434-byte game copy, type-6 message creation, broadcast, return value, and error strings. A non-null synthetic server snapshot still reaches only the no-game branch in the current differential harness: the oracle stubs `network_game_server_get_game` to zero, yielding 28.7% code coverage. The success path has not been verified in the same context, so its redirect stays disabled.
+
+The pregame handler now uses recovered `network_game_server_game.minimum_players` (+0x10d) and `player_count` (+0x224), the countdown fields, and PAL's connected/loaded flag-bit names. The 2276 disassembly and the existing `network_game_blob_t` layout confirm the offsets. This is a source recovery with unchanged 79.4% mnemonic and 77.2% operand match. The lift pipeline passes ABI, build, and hazards; its synthetic differential reaches only 25.7% coverage (138 pass, 0 diverge, 2 errors), so the pregame redirect remains disabled.
+
+The join-game request handler had a 16-byte local address buffer while `network_connection_get_address` can clear 0x18 bytes at that pointer (2276 `0x12840e`/`0x12843c`). The local is now 0x18 bytes. VC71 remains 79.1% mnemonic and 60.9% operand with no server-object regression. Its lift pipeline passes build and hazard gates but fails synthetic equivalence (53 pass, 46 diverge, 1 error): the candidate inlines server helpers and asserts in states where the oracle stubs those callees. A second snapshot with a non-null pregame server still fails at an inlined assert because it does not model a server-owned client-machine pointer. These tests do not cover a valid join state or justify redirect activation.
+
+The PAL 2342 `bungie_net/common/message_header.c` does not contain the 2276 key agreement, TEA, or message encryption implementations; its retained file covers only header construction, byte swapping, and message creation. For 2276 crypto, the binary is the reference. The active `tea_encrypt` and `tea_decrypt` lifts previously used signed 32-bit state and sum operations; Ghidra shows logical right shifts and wrapping arithmetic. Using unsigned state words and explicit wrapping for the sum makes each helper pass 100/100 differential seeds and the lift pipeline's Z3 all-input equivalence proof. Current VC71 match is 96.4%/92.9% (mnemonic/operand) for encrypt and 96.6%/89.7% for decrypt; the whole `message_header.c` regression gate passes. The disabled `message_encrypt` and `message_decrypt` wrappers still need same-context verification: the direct synthetic oracle stubs TEA while the compiled candidate executes its same-file TEA body, even for a valid 10-byte frame. Enabling `--oracle-native-callees` with that frame still compared 71 oracle instructions against 867 candidate instructions and found a scratch-buffer difference; the oracle did not run TEA because the candidate inlined it. The key-agreement builder passed 100/100 direct seeds, but all returned null because `encode_packet_group` was stubbed; its 61.9% coverage misses message creation. A direct sieve differential passed 28/100 seeds with no mismatches, but 72 seeds hit the instruction limit. These results do not justify activating any of the four disabled message-header redirects.
+
+The 64-bit key-agreement arithmetic has a PAL source counterpart. Its `divide64` intentionally seeds the work register from the denominator and subtracts the numerator, matching the 2276 lift even though the argument names suggest the opposite. Direct differential checks pass 100/100 seeds for add, negate, and multiply. Subtract and divide fail direct scratch comparison because the oracle stubs same-object arithmetic callees while the candidate executes them; PAL source and high VC71 match support the source shape, but the direct tests are not same-context proofs for those two helpers.
+
+The active two-word key-parameter generator `FUN_00081170` now follows PAL `generate_key_parameters`' separate prime draws and two-iteration countdown. The 2276 disassembly at `0x81170` confirms the two `FUN_00080eb0(0xffff)` calls, product plus two, `0xffffff` retry threshold, range calls, and assertions. VC71 mnemonic/operand match rose from 68.8%/49.5% to 72.4%/64.9%; the 15-function `thread_win32.c` regression gate passed. The lift pipeline passed ABI, build, hazard, buffer, and VC71 stages but its equivalence stage did not establish a verdict: native prime-generation callees reached the 1,000,000-instruction cap, while a stubbed run escaped to the cross-object prime helper at `0x80eb0`. The generator remains active as before this source recovery.
 
 # 2. Architecture
 
@@ -217,6 +246,8 @@ INGAME: CLIENT end_frame -> 0x19 client_game_update (UDP) every 16ms
 ```
 
 ## Practical notes
+
+- PAL 2342 has typed source for the server idle path and ping handler. All inactive functions in section 1 have C bodies in this 2276 tree; the remaining gap is redirect activation and verification. PAL is a source-shape reference, subject to 2276 binary checks: PAL assigns the return of `network_server_close_client_connection` in the rejected-client path, whereas 2276 at `0x12ebe1` ignores it. PAL's explicit `== TRUE` checks improved the local 2276 VC71 match of `network_game_server_idle` from the committed 83.8% to 86.5%, with no neighboring regression. The server state values 0/1/2 and their pregame/ingame/postgame names are confirmed by the 2276 switch and PAL handlers.
 
 - `docs/system-link-rng-desync.md` is the authoritative record for the open RNG-desync investigation. Its retained captures show RNG divergence downstream of earlier collision, matrix, or float-order differences in the tested cases; they do not establish a universal initiating cause. Session ds94 implicated `FUN_001a2f40`, which remains `ported:false`. Bisection is incomplete.
 - `docs/networking_system_link_bug.md` is a historical regression note. Its function inventory is obsolete: it predates the active transport lift and `0x12e1d0` is now the active `network_game_server_stalled_on_client` redirect. Its pregame-call theory remains unverified and must not be treated as a current root-cause finding.

@@ -1,7 +1,10 @@
 typedef struct network_game_server_game {
-  uint8_t field_00[0x114];
+  uint8_t field_00[0x10d];
+  int8_t minimum_players;
+  uint8_t field_10e[0x06];
   uint8_t machines[4][0x44];
-  uint8_t field_224[0x210];
+  int16_t player_count;
+  uint8_t field_226[0x20e];
 } network_game_server_game;
 
 typedef struct network_game_server_client_machine {
@@ -11,6 +14,14 @@ typedef struct network_game_server_client_machine {
   int16_t machine_index;
   uint16_t flags;
 } network_game_server_client_machine;
+
+enum network_client_machine_flag_bit {
+  NETWORK_CLIENT_MACHINE_CONNECTED_BIT = 0,
+  NETWORK_CLIENT_MACHINE_VALIDATED_BIT = 1,
+  NETWORK_CLIENT_MACHINE_LEVEL_LOADED_BIT = 2,
+  NETWORK_CLIENT_MACHINE_PRECACHED_BIT = 3
+};
+#define NETWORK_CLIENT_MACHINE_FLAG(bit) (1u << (bit))
 
 typedef struct network_game_server_countdown_state {
   int timer[2];
@@ -28,7 +39,7 @@ typedef struct network_game_server {
   network_game_server_game game;
   network_game_server_client_machine client_machines[4];
   int next_update_number;
-  uint32_t time_of_last_keep_alive;
+  int32_t time_of_last_keep_alive;
   uint32_t time_of_first_client_loading_completion;
   network_game_server_countdown_state countdown_state;
   uint8_t queued_player[0x20];
@@ -37,8 +48,15 @@ typedef struct network_game_server {
   uint8_t pad_4ba[2];
 } network_game_server;
 
+/* server->state: 2276 network_game_server_idle switch at 0x12ec01. */
+#define NETWORK_GAME_SERVER_STATE_PREGAME 0
+#define NETWORK_GAME_SERVER_STATE_INGAME 1
+#define NETWORK_GAME_SERVER_STATE_POSTGAME 2
+
 cs(network_game_server_game, 0x434);
+co(network_game_server_game, minimum_players, 0x10d);
 co(network_game_server_game, machines, 0x114);
+co(network_game_server_game, player_count, 0x224);
 cs(network_game_server_client_machine, 0x10);
 co(network_game_server_client_machine, machine_index, 0x0c);
 co(network_game_server_client_machine, flags, 0x0e);
@@ -1589,7 +1607,8 @@ bool network_game_server_add_new_client(int server, int new_connection)
           server_data->client_machines[i].connection = new_connection;
           network_game_invalidate_machine(&server_data->game, i);
           server_data->client_machines[i].machine_index = (short)i;
-          server_data->client_machines[i].flags = 1;
+          server_data->client_machines[i].flags =
+            NETWORK_CLIENT_MACHINE_FLAG(NETWORK_CLIENT_MACHINE_CONNECTED_BIT);
           result = network_connection_server_accept_client_connection(
             server_data->connection, new_connection);
           if (result == 1) {
@@ -2228,14 +2247,12 @@ void network_game_server_update_countdown(void *server, short param_2)
  * messages, handles disconnections and removal. Returns true on success. */
 bool network_game_server_handle_client_machines(int server)
 {
-  char *s = (char *)server;
+  network_game_server *server_data = (network_game_server *)server;
   int i;
   short *flags;
   char *machine;
   char buffer[0x800];
   int size;
-  int machine_index;
-  const char *log_msg;
 
   if (!server) {
     display_assert("server",
@@ -2245,7 +2262,7 @@ bool network_game_server_handle_client_machines(int server)
   }
 
   i = 0;
-  flags = (short *)(s + 0x448);
+  flags = &server_data->client_machines[0].machine_index;
 
 loop_top:
   for (;;) {
@@ -2258,7 +2275,7 @@ loop_top:
     machine = (char *)flags - 0xc;
 
     if (!network_connection_active(*(int *)machine)) {
-      if (network_game_server_remove_machine_from_game((void *)server, s + 0x11c + (int)*flags * 0x44)) {
+      if (network_game_server_remove_machine_from_game((void *)server, server_data->game.machines[(int)*flags])) {
         network_event("client machine %x removed from game", (int)*flags);
         network_game_server_dump((void *)server);
         i++;
@@ -2289,28 +2306,21 @@ loop_top:
     network_event("network_game_server_handle_client_message() failed in "
                      "network_game_server_handle_client_machines()");
 
-    if (network_game_server_remove_machine_from_game((void *)server, s + 0x11c + (int)*flags * 0x44)) {
-      machine_index = (int)*flags;
-      log_msg = "client machine removed from game";
+    if (network_game_server_remove_machine_from_game((void *)server, server_data->game.machines[(int)*flags])) {
+      network_event("client machine removed from game", (int)*flags);
     } else {
       if (network_game_server_remove_client_machine_from_game((void *)server, machine))
         goto next_slot;
-      machine_index = (int)*flags;
-      log_msg = "failed to remove client machine from game";
+      network_event("failed to remove client machine from game", (int)*flags);
     }
-    goto do_log;
+    goto next_slot;
 
   remove_path:
-    if (network_game_server_remove_machine_from_game((void *)server, s + 0x11c + (int)*flags * 0x44)) {
-      machine_index = (int)*flags;
-      log_msg = "client machine removed from game";
+    if (network_game_server_remove_machine_from_game((void *)server, server_data->game.machines[(int)*flags])) {
+      network_event("client machine removed from game", (int)*flags);
     } else {
-      machine_index = (int)*flags;
-      log_msg = "failed to remove client machine from game";
+      network_event("failed to remove client machine from game", (int)*flags);
     }
-
-  do_log:
-    network_event(log_msg, machine_index);
 
   next_slot:
     i++;
@@ -2325,6 +2335,7 @@ loop_top:
 bool network_game_server_idle_pregame_tasks(int server)
 {
   char *s = (char *)server;
+  network_game_server *server_data = (network_game_server *)server;
   int now;
   bool result;
   int i;
@@ -2338,8 +2349,8 @@ bool network_game_server_idle_pregame_tasks(int server)
   now = system_milliseconds();
   result = true;
 
-  if (*(char *)(s + 0x4b9) == 0) {
-    conn_ptr = (int *)(s + 0x43c);
+  if (server_data->sent_start_game_message == 0) {
+    conn_ptr = &server_data->client_machines[0].connection;
     for (i = 0; i < 4; i++) {
       if (*conn_ptr != 0 && !network_connection_active(*conn_ptr)) {
         network_event("booting dead client machine %d", i);
@@ -2348,27 +2359,30 @@ bool network_game_server_idle_pregame_tasks(int server)
       conn_ptr += 4;
     }
 
-    if (*(char *)(s + 0x494) != 1) {
-      if (now <= *(int *)(s + 0x480) + 5000)
+    if (server_data->countdown_state.active != 1) {
+      if (now <= server_data->time_of_last_keep_alive + 5000)
         return result;
       countdown = 0;
       network_game_server_send_message_to_all_machines((void *)server,
                    create_network_game_message(0xa, &countdown, 2));
-      *(int *)(s + 0x480) = now;
+      server_data->time_of_last_keep_alive = now;
       return result;
     }
 
     if (!server_has_enough_machines((void *)server) ||
         !server_has_a_player_on_each_machine((void *)server) ||
         server_needs_more_teams((void *)server) ||
-        *(short *)(s + 0x22c) < (short)*(char *)(s + 0x115)) {
-      csmemset(s + 0x488, 0, 0x10);
+        server_data->game.player_count < (short)server_data->game.minimum_players) {
+      csmemset(&server_data->countdown_state, 0,
+               sizeof(server_data->countdown_state));
       i = 0;
     } else {
       i = 1;
-      timer_ms = countdown_timer_get_time_remaining(s + 0x488);
+      timer_ms = countdown_timer_get_time_remaining(
+        server_data->countdown_state.timer);
       if (timer_ms == 0) {
-        if (network_game_server_have_all_machines_have_precached(server) && *(char *)(s + 0x495) == 0) {
+        if (network_game_server_have_all_machines_have_precached(server) &&
+            server_data->countdown_state.paused == 0) {
           volatile bool result_shadow;
           network_game_server_close_game((void *)server);
           result_shadow = network_game_server_start_network_game((void *)server);
@@ -2378,13 +2392,14 @@ bool network_game_server_idle_pregame_tasks(int server)
           return result_shadow;
         }
       }
-      if (now - *(int *)(s + 0x490) < 0x3e9)
+      if (now - server_data->countdown_state.last_countdown_message_time < 0x3e9)
         return result;
     }
 
-    *(char *)(s + 0x496) = 0;
+    server_data->countdown_state.adjusted_time_this_tick = 0;
     if (i) {
-      timer_ms = countdown_timer_get_time_remaining(s + 0x488);
+      timer_ms = countdown_timer_get_time_remaining(
+        server_data->countdown_state.timer);
       countdown = (short)(timer_ms / 1000);
     } else {
       countdown = -1;
@@ -2401,19 +2416,23 @@ bool network_game_server_idle_pregame_tasks(int server)
       }
     }
 
-    *(int *)(s + 0x490) = now;
+    server_data->countdown_state.last_countdown_message_time = now;
     return result;
   }
 
-  if (*(int *)(s + 0x484) == 0)
+  if (server_data->time_of_first_client_loading_completion == 0)
     return true;
 
-  if ((unsigned int)(system_milliseconds() - *(int *)(s + 0x484)) < 15000)
+  if ((unsigned int)(system_milliseconds() -
+                     server_data->time_of_first_client_loading_completion) < 15000)
     return result;
 
   flags_ptr = (short *)(s + 0x44a);
   for (i = 0; i < 4; i++) {
-    if ((*(short *)flags_ptr & 1) && !(*(short *)flags_ptr & 4)) {
+    if ((*(short *)flags_ptr &
+         NETWORK_CLIENT_MACHINE_FLAG(NETWORK_CLIENT_MACHINE_CONNECTED_BIT)) &&
+        !(*(short *)flags_ptr &
+          NETWORK_CLIENT_MACHINE_FLAG(NETWORK_CLIENT_MACHINE_LEVEL_LOADED_BIT))) {
       if (wide_to_ascii(
             (const wchar_t *)(s + 0x11c +
                               (int)*(short *)(flags_ptr - 1) * 0x44),
@@ -2528,17 +2547,17 @@ bool network_game_server_idle(void *server)
   } else if (network_game_server_game_is_valid(server)) {
     new_conn = 0;
     result = network_connection_idle(server_data->connection, 0, &new_conn);
-    if (result) {
+    if (result == true) {
       if (new_conn != 0) {
         result = network_game_server_add_new_client((int)server, new_conn);
-        if (result) {
+        if (result == true) {
           network_connection_get_address(new_conn, addr_buf, 0);
           network_event(
             "new client connected from ip %s (validation pending)",
             transport_address_to_string(addr_buf));
         } else {
           network_event("failed to add new client connection to the game");
-          result = network_server_close_client_connection(server_data->connection, new_conn);
+          network_server_close_client_connection(server_data->connection, new_conn);
         }
       }
       result = network_game_server_handle_public_endpoint((int)server);
@@ -2547,12 +2566,12 @@ bool network_game_server_idle(void *server)
         if (result) {
           state = server_data->state;
           switch (state) {
-          case 0:
+          case NETWORK_GAME_SERVER_STATE_PREGAME:
             result = network_game_server_idle_pregame_tasks((int)server);
             break;
-          case 1:
+          case NETWORK_GAME_SERVER_STATE_INGAME:
             break;
-          case 2:
+          case NETWORK_GAME_SERVER_STATE_POSTGAME:
             result = network_game_server_idle_postgame_tasks((int)server);
             break;
           default:
@@ -2567,7 +2586,7 @@ bool network_game_server_idle(void *server)
         network_event("network_game_server_handle_public_endpoint() failed");
       }
     } else {
-      network_event("network_connection_idle_server_reliable_endpoint() failed");
+      network_event("network_connection_idle() failed");
     }
   } else {
     network_event("the server's game is invalid");
@@ -3288,7 +3307,7 @@ char network_game_server_handle_message_client_join_game_request(int server, voi
 {
   char decode_buf[0x50]; /* [0x40]=name(wchar), [0x40..0x4f]=client_token */
   char expected_token[16];
-  char addr_buf[16];
+  char addr_buf[0x18]; /* network_connection_get_address may clear 0x18 bytes */
   char host_line[0x20];
   int conn;
   /* Reference keeps this flag in a 1-byte slot (`movb $0x1, -0x1(%ebp)`;

@@ -2240,7 +2240,7 @@ bool network_game_client_idle_searching(void *server)
 
   if (!network_connection_idle(*(int *)(s + 0x82c), 5000, NULL)) {
     display_error_when_main_menu_loaded(7);
-    network_event("network_connection_idle_server_reliable_endpoint() failed in "
+    network_event("network_connection_idle() failed in "
                      "network_game_client_idle_searching()");
     return false;
   }
@@ -2273,9 +2273,10 @@ bool network_game_client_idle_searching(void *server)
         "failed to create a message_client_broadcast_game_search message");
       return ok;
     }
-    if (network_connection_write(*(void **)(s + 0x82c), packet,
-                                 (unsigned short)(*packet >> 4), (int)&dest,
-                                 false)) {
+    ok = network_connection_write(*(void **)(s + 0x82c), packet,
+                                  (unsigned short)(*packet >> 4), (int)&dest,
+                                  false);
+    if (ok == true) {
       network_event("sent out a broadcast game search packet");
       *(unsigned int *)(s + 0xc94) = now_time;
       return ok;

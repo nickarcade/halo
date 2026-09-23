@@ -584,7 +584,7 @@ void dispose_global_network_game_client(void)
 bool network_game_client_start_frame(void)
 {
   int16_t state;
-  int out; /* local_4, EBP-0x4 */
+  int16_t out; /* network_game_client_get_state writes a word at 0x124a63/0x124a91 */
   int reason;
   bool result;
 
@@ -617,7 +617,7 @@ bool network_game_client_start_frame(void)
   result = network_game_client_idle(network_game_globals.client);
   if (!result) {
     network_event(
-      "internal networking error [network_game_client_idle_postgame() failed]");
+      "internal networking error [network_game_client_idle() failed]");
     return false;
   }
 
