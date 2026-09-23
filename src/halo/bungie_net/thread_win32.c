@@ -52,7 +52,8 @@ typedef struct {
  * __FILE__ string at 0x265da0 pushed by both asserts below); it links into
  * the same COFF object as the thread_win32 routines.
  *
- * For each of the two dwords: draw p[i] = rand(0xffff) * rand(0xffff) + 2
+ * For each of the two dwords: draw p[i] from two prime candidates
+ * (`randomprime(0xffff)` in PAL) multiplied together plus 2
  * until it is >= 0xffffff, then draw x[i] in [0xff, p[i]-2] and
  * g[i] in [0xff, p[i]-1].
  *
@@ -61,17 +62,25 @@ typedef struct {
  * Confirmed: FUN_00080eb0 called twice with 0xffff; FUN_00081410 called as
  * (0xff, p[i]-2) then (0xff, p[i]-1) — first PUSH is the last argument.
  * Confirmed: the retry compare is JC (unsigned) against 0xffffff.
- * Unknown: the semantic names of the function and of FUN_00080eb0 /
- * FUN_00081410 (no string or symbol evidence); parameter names p/x/g come
- * from the assert strings.
+ * PAL names this function generate_key_parameters and its two helpers
+ * randomprime and randomrange. The 2276 binary proves the operations and
+ * call order; these cross-build names are retained as source guidance.
+ * Parameter names p/x/g also occur in the 2276 assert strings.
  */
 void FUN_00081170(unsigned int *p, unsigned int *x, unsigned int *g)
 {
-  int i;
+  long i;
+  long count;
+  unsigned long prime0;
+  unsigned long prime1;
 
-  for (i = 0; i < 2; i++) {
+  i = 0;
+  count = 2;
+  while (count) {
     do {
-      p[i] = FUN_00080eb0(0xffff) * FUN_00080eb0(0xffff) + 2;
+      prime0 = FUN_00080eb0(0xffff);
+      prime1 = FUN_00080eb0(0xffff);
+      p[i] = prime0 * prime1 + 2;
     } while (p[i] < 0xffffff);
 
     x[i] = (unsigned int)FUN_00081410(0xff, (int)(p[i] - 2));
@@ -89,6 +98,8 @@ void FUN_00081170(unsigned int *p, unsigned int *x, unsigned int *g)
                      0xa3, 1);
       system_exit(-1);
     }
+    i++;
+    count--;
   }
 }
 
