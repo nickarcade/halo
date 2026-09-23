@@ -40984,61 +40984,6 @@
     {
      "addr": "0x2062d0",
      "decl": "int __stdcall DirectSoundCreateBuffer(void *desc, void **out_buffer);"
-    },
-    {
-     "addr": "0x22e3f0",
-     "decl": "unsigned long __stdcall FUN_0022e3f0(radcb_callback *callback, unsigned long iteration);",
-     "comment": "bink.obj static: io radcb get_priority registered by BinkOpen 0x230f7c"
-    },
-    {
-     "addr": "0x22e440",
-     "decl": "unsigned long __stdcall FUN_0022e440(radcb_callback *callback, unsigned long iteration);",
-     "comment": "bink.obj static: io radcb dispatch registered by BinkOpen 0x230f77 (RET 8)"
-    },
-    {
-     "addr": "0x22e460",
-     "decl": "void __stdcall FUN_0022e460(BINKIO *io);",
-     "comment": "bink.obj static: BINKIO suspend_callback set by BinkOpen"
-    },
-    {
-     "addr": "0x22e480",
-     "decl": "long __stdcall FUN_0022e480(BINKIO *io);",
-     "comment": "bink.obj static: BINKIO try_suspend_callback set by BinkOpen"
-    },
-    {
-     "addr": "0x22e4a0",
-     "decl": "void __stdcall FUN_0022e4a0(BINKIO *io);",
-     "comment": "bink.obj static: BINKIO resume_callback set by BinkOpen (RET 4)"
-    },
-    {
-     "addr": "0x22e4c0",
-     "decl": "void __stdcall FUN_0022e4c0(BINKIO *io);",
-     "comment": "bink.obj static: BINKIO idle_on_callback set by BinkOpen (RET 4)"
-    },
-    {
-     "addr": "0x22e4d0",
-     "decl": "unsigned long __stdcall FUN_0022e4d0(radcb_callback *callback, unsigned long iteration);",
-     "comment": "bink.obj static: sound radcb get_priority registered by BinkOpen (RET 8)"
-    },
-    {
-     "addr": "0x22e4f0",
-     "decl": "unsigned long __stdcall FUN_0022e4f0(radcb_callback *callback, unsigned long iteration);",
-     "comment": "bink.obj static: sound radcb dispatch registered by BinkOpen"
-    },
-    {
-     "addr": "0x231e80",
-     "decl": "bink_sound_open_proc __stdcall BinkOpenDirectSound(unsigned long direct_sound);",
-     "comment": "[NAME: PAL-2342 binkds.h T2] default sound system passed by BinkOpen 0x230d0c"
-    },
-    {
-     "addr": "0x23f3a0",
-     "decl": "long __stdcall BinkFileOpen(BINKIO *io, const char *name, unsigned long flags);",
-     "comment": "[NAME: PAL-2342 binkfile.h T2] default BinkOpen io open (0x2303aa); clears 0x3f dwords, installs 6 io procs"
-    },
-    {
-     "addr": "0x238070",
-     "decl": "void __stdcall FUN_00238070(void *plane_prev, void *plane_cur, void *aplane_prev, void *aplane_cur, unsigned char *mask, unsigned long width, unsigned long height, unsigned long mask_width, unsigned long mask_height, const unsigned char *input, unsigned long keyframe, void *field_3ac, unsigned long open_flags, unsigned long bink_type);",
-     "comment": "bink frame-expand driver; RET 0x38, sole caller BinkDoFrame 0x22efd4"
     }
    ],
    "name": "<xdk_stubs>",
