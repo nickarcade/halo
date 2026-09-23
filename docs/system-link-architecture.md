@@ -60,6 +60,8 @@ evidence that they cause a current regression.
 `FUN_000841b0` (asynchronous connect), `FUN_000843a0` (listen), and
 `FUN_00084740` (datagram send) are now active transport redirects.
 
+For inactive `network_game_server_setup_game_from_playlist`, the recovered `network_game_blob_t` layout now identifies the 16-wide-character game name at `+0`, map version at `+0x20`, and maximum teams at `+0x10f`. PAL names and the 2276 stores agree; typed accesses preserve the 84.7% mnemonic and 72.7% operand match. Synthetic server snapshots reach playlist lookup failure and both team and non-team success branches, with matching outer return and observed memory. On success, the candidate calls `csmemcpy`/`csmemset` for the local default name while the oracle initializes it inline, so call-sequence comparison diverges and those helper effects remain unverified. The redirect stays inactive.
+
 ## 1b. Full pipeline inventory (2276)
 
 The 15 scoped `kb.json` objects below contain 391 functions. Of these, 373 have active redirects, 14 server handlers explicitly use `ported:false`, and four message-header entries have no `ported` field. All 18 inactive entries have C bodies. The earlier 13-object count missed `thread_win32.obj` (thread/mutex and key-agreement helpers) and `64bit_math.obj` (key-agreement arithmetic); both are fully active. The PAL 2342 source provides counterparts for the client/server state machines; its ABI, source shape, and behavior must be checked against the 2276 binary before reuse. Its message-header file lacks the 2276 encryption implementations.
