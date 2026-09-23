@@ -256,19 +256,19 @@ void ai_communication_packet_new(void *packet)
  * Confirmed (disasm 0x42d80-0x42de1):
  *   - No SUB ESP (frame is PUSH EBP; MOV EBP,ESP; PUSH EBX only), so params
  *     are read straight off the incoming stack slots: EBP+8 = param_1
- *     (pushed as ECX, second prop_get_base_by_unit_index arg), EBP+0xC (param_2) is never
- *     referenced anywhere in the function body, EBP+0x10 = param_3 (pushed
- *     as EAX, first prop_get_base_by_unit_index arg). BL is zeroed once up front (XOR BL,BL)
- *     and is the shared default (false) return value; every early-exit
- *     branch targets 0x42ddd (MOV AL,BL), so the real return is bool in AL,
- *     not the void the stale kb decl showed.
+ *     (pushed as ECX, second prop_get_base_by_unit_index arg), EBP+0xC
+ * (param_2) is never referenced anywhere in the function body, EBP+0x10 =
+ * param_3 (pushed as EAX, first prop_get_base_by_unit_index arg). BL is zeroed
+ * once up front (XOR BL,BL) and is the shared default (false) return value;
+ * every early-exit branch targets 0x42ddd (MOV AL,BL), so the real return is
+ * bool in AL, not the void the stale kb decl showed.
  *   - if (param_3 == -1) return false — CMP EAX,-1 / JZ before the call, so
  *     the -1 sentinel check is on the caller-supplied handle, not on
  *     prop_get_base_by_unit_index's result.
- *   - prop_get_base_by_unit_index(param_3, param_1, 1, 1): push order is EAX(param_3) last
- *     = first decl arg (actor_handle), ECX(param_1) = second decl arg
- *     (object_handle), then two literal 1s (create_if_missing, acknowledge).
- *     If the result is -1, return false.
+ *   - prop_get_base_by_unit_index(param_3, param_1, 1, 1): push order is
+ * EAX(param_3) last = first decl arg (actor_handle), ECX(param_1) = second decl
+ * arg (object_handle), then two literal 1s (create_if_missing, acknowledge). If
+ * the result is -1, return false.
  *   - datum_get(prop_data, result): MOV EDX,[0x5ab23c] (prop_data, the same
  *     global documented in props.c); PUSH EAX(handle); PUSH EDX(prop_data)
  *     — cdecl right-to-left, so prop_data is arg1.
@@ -311,28 +311,29 @@ bool reply_filter_close(int param_1, int param_2, int param_3)
   return result;
 }
 
-/* reply_filter_not_close (0x42df0) — bool predicate over the same (object_handle,
- * actor_handle)-keyed prop lookup as sibling reply_filter_close, but with the
- * threshold comparison direction and success/failure roles swapped: true
- * when the prop's distance field is past the threshold, OR its +0x38 field
- * is neither 0 nor 1; false when the prop is missing/unreachable, or the
- * field is within the threshold AND +0x38 is 0 or 1.
+/* reply_filter_not_close (0x42df0) — bool predicate over the same
+ * (object_handle, actor_handle)-keyed prop lookup as sibling
+ * reply_filter_close, but with the threshold comparison direction and
+ * success/failure roles swapped: true when the prop's distance field is past
+ * the threshold, OR its +0x38 field is neither 0 nor 1; false when the prop is
+ * missing/unreachable, or the field is within the threshold AND +0x38 is 0
+ * or 1.
  *
  * Confirmed (disasm 0x42df0-0x42e51):
- *   - Same frame/param shape as reply_filter_close: PUSH EBP; MOV EBP,ESP; PUSH EBX
- *     only (no SUB ESP). EBP+8 = param_1 (pushed as ECX, second
- *     prop_get_base_by_unit_index arg), EBP+0xC (param_2) is never referenced anywhere in
- *     the function body, EBP+0x10 = param_3 (pushed as EAX, first
- *     prop_get_base_by_unit_index arg). BL is zeroed once (XOR BL,BL) and is the shared
- *     false-return value; both early-exit branches and the final failure
+ *   - Same frame/param shape as reply_filter_close: PUSH EBP; MOV EBP,ESP; PUSH
+ * EBX only (no SUB ESP). EBP+8 = param_1 (pushed as ECX, second
+ *     prop_get_base_by_unit_index arg), EBP+0xC (param_2) is never referenced
+ * anywhere in the function body, EBP+0x10 = param_3 (pushed as EAX, first
+ *     prop_get_base_by_unit_index arg). BL is zeroed once (XOR BL,BL) and is
+ * the shared false-return value; both early-exit branches and the final failure
  *     path target 0x42e4d (MOV AL,BL).
  *   - if (param_3 == -1) return false — CMP EAX,-1 / JZ before the call, so
  *     the -1 sentinel check is on the caller-supplied handle, not on
  *     prop_get_base_by_unit_index's result.
- *   - prop_get_base_by_unit_index(param_3, param_1, 1, 1): push order is EAX(param_3) last
- *     = first decl arg (actor_handle), ECX(param_1) = second decl arg
- *     (object_handle), then two literal 1s (create_if_missing, acknowledge)
- *     — identical call shape to reply_filter_close. If the result is -1, return
+ *   - prop_get_base_by_unit_index(param_3, param_1, 1, 1): push order is
+ * EAX(param_3) last = first decl arg (actor_handle), ECX(param_1) = second decl
+ * arg (object_handle), then two literal 1s (create_if_missing, acknowledge) —
+ * identical call shape to reply_filter_close. If the result is -1, return
  *     false.
  *   - datum_get(prop_data, result): MOV EDX,[0x5ab23c] (prop_data, same
  *     global documented in props.c); PUSH EAX(handle); PUSH EDX(prop_data)
@@ -351,8 +352,8 @@ bool reply_filter_close(int param_1, int param_2, int param_3)
  *     path: MOV AL,BL (0x42e4d, BL==0) then a separate POP EBX/POP EBP/RET
  *     — two distinct epilogues, not a shared one.
  * Uncertain: no evidence for this function's or prop+0x38's semantic name,
- *   or for param_2's role (never read); kept as reply_filter_not_close with param_2
- *   named for its stack position only. */
+ *   or for param_2's role (never read); kept as reply_filter_not_close with
+ * param_2 named for its stack position only. */
 bool reply_filter_not_close(int param_1, int param_2, int param_3)
 {
   int prop_index;
@@ -430,8 +431,8 @@ bool reply_filter_same_platoon(int param_1, int param_2, int param_3)
   return false;
 }
 
-/* reply_filter_fighting (0x42f40) — thin wrapper returning actor_is_fighting for the
- * actor keyed by param_3.
+/* reply_filter_fighting (0x42f40) — thin wrapper returning actor_is_fighting
+ * for the actor keyed by param_3.
  *
  * Confirmed (disasm 0x42f40-0x42f50):
  *   - No SUB ESP (frame is PUSH EBP; MOV EBP,ESP only); the single param
@@ -441,10 +442,10 @@ bool reply_filter_same_platoon(int param_1, int param_2, int param_3)
  *   - CALL actor_is_fighting; ADD ESP,0x4; POP EBP; RET — nothing
  *     overwrites EAX between the call and RET, so this function's return
  *     value is actor_is_fighting's bool-in-AL result verbatim.
- *   - Same 3-int-param frame shape as sibling reply_filter_close/reply_filter_not_close in
- *     this object (both PUSH EBP; MOV EBP,ESP; read only EBP+0x10), kept as
- *     (param_1, param_2, param_3) for consistency.
- * Uncertain: no evidence for this function's semantic name, or for
+ *   - Same 3-int-param frame shape as sibling
+ * reply_filter_close/reply_filter_not_close in this object (both PUSH EBP; MOV
+ * EBP,ESP; read only EBP+0x10), kept as (param_1, param_2, param_3) for
+ * consistency. Uncertain: no evidence for this function's semantic name, or for
  *   param_1/param_2's roles (never read); no callers found (xrefs empty),
  *   consistent with the siblings being reached only via an indirect table. */
 bool reply_filter_fighting(int param_1, int param_2, int param_3)
@@ -455,8 +456,8 @@ bool reply_filter_fighting(int param_1, int param_2, int param_3)
   return (bool)actor_is_fighting(param_3);
 }
 
-/* reply_filter_fighting_close (0x42f60): cdecl predicate with three 32-bit stack
- * arguments.  The binary reads [EBP+0x8], [EBP+0xc], and [EBP+0x10],
+/* reply_filter_fighting_close (0x42f60): cdecl predicate with three 32-bit
+ * stack arguments.  The binary reads [EBP+0x8], [EBP+0xc], and [EBP+0x10],
  * forwards all three to reply_filter_close, and returns a byte in AL.  When
  * reply_filter_close returns nonzero, the third argument is passed to
  * actor_is_fighting; the result is 1 only when both calls return nonzero. */
@@ -472,11 +473,11 @@ char reply_filter_fighting_close(int param_1, int param_2, int param_3)
   return result;
 }
 
-/* reply_filter_same_target (0x42fa0) — true when param_1's unit and param_3's actor are
- * both currently targeting (target_target_prop_index) the same object.
- * Gated by sibling predicate reply_filter_close on (param_1, param_2, param_3);
- * returns false immediately if that gate fails, or if either actor lookup
- * or target lookup is unresolved (-1).
+/* reply_filter_same_target (0x42fa0) — true when param_1's unit and param_3's
+ * actor are both currently targeting (target_target_prop_index) the same
+ * object. Gated by sibling predicate reply_filter_close on (param_1, param_2,
+ * param_3); returns false immediately if that gate fails, or if either actor
+ * lookup or target lookup is unresolved (-1).
  *
  * Confirmed (disasm 0x42fa0-0x4304e):
  *   - PUSH ESI(param_3); PUSH EAX(param_2); PUSH EDI(param_1); CALL
@@ -514,8 +515,9 @@ char reply_filter_fighting_close(int param_1, int param_2, int param_3)
  *     prop2->object_handle`.
  * Uncertain: no evidence for this function's semantic name or for
  *   param_2's role (forwarded to reply_filter_close only, never read directly
- *   here); kept as reply_filter_same_target with param_2 named for its stack position
- *   only, consistent with siblings reply_filter_close/reply_filter_not_close. */
+ *   here); kept as reply_filter_same_target with param_2 named for its stack
+ * position only, consistent with siblings
+ * reply_filter_close/reply_filter_not_close. */
 bool reply_filter_same_target(int param_1, int param_2, int param_3)
 {
   char *unit;
@@ -544,10 +546,10 @@ bool reply_filter_same_target(int param_1, int param_2, int param_3)
   return *(int *)(prop1 + 0x18) == *(int *)(prop2 + 0x18);
 }
 
-/* reply_filter_no_certain_target (0x43050): cdecl predicate with three 32-bit stack
- * arguments.  The binary reads only the third argument at [EBP+0x10]; the
- * first two slots remain unused (same shape as reply_filter_searching in this file).
- * It resolves that argument through actor_data, then requires
+/* reply_filter_no_certain_target (0x43050): cdecl predicate with three 32-bit
+ * stack arguments.  The binary reads only the third argument at [EBP+0x10]; the
+ * first two slots remain unused (same shape as reply_filter_searching in this
+ * file). It resolves that argument through actor_data, then requires
  * actor->field_06a == 3 and actor->field_06e < 4 (signed word compares).
  * Disasm 0x43050-0x43081: CMP EAX,-1/JZ -> false; datum_get(actor_data,
  * param_3); CMP word[EAX+0x6a],3/JNZ -> false; CMP word[EAX+0x6e],4/JL ->
@@ -601,19 +603,20 @@ char FUN_00043090(int param_1, int param_2, int param_3)
  * ABI (disasm 0x430d0-0x43266): three register arguments plus seven cdecl
  * stack slots. ECX -> ESI = vocalization_type, EAX -> EBX =
  * sound_definition_index_reference, EDX -> EDI = priority (the assert string
- * at 0xc1a names the first two and `weight`; the callee decl of unit_test_speech
- * names unit_handle/priority). Stack: [EBP+0x08] unit_handle, [EBP+0x0c]
- * param_5, [EBP+0x10] param_6, [EBP+0x14] param_7, [EBP+0x18] param_8,
- * [EBP+0x1c] weight, [EBP+0x20] failure_reason. Returns short: both exits do
- * MOV AX,BX where BX holds the play type (kb's earlier `void(void)` decl was
- * a placeholder).
+ * at 0xc1a names the first two and `weight`; the callee decl of
+ * unit_test_speech names unit_handle/priority). Stack: [EBP+0x08] unit_handle,
+ * [EBP+0x0c] param_5, [EBP+0x10] param_6, [EBP+0x14] param_7, [EBP+0x18]
+ * param_8, [EBP+0x1c] weight, [EBP+0x20] failure_reason. Returns short: both
+ * exits do MOV AX,BX where BX holds the play type (kb's earlier `void(void)`
+ * decl was a placeholder).
  *
  * Confirmed details:
  *   - 0x4311e..0x43114 pushes seven args (ADD ESP,0x1c) in the order
  *     (unit_handle, priority, param_7, 1, &last_speech_time,
  *      vocalization_type, sound_definition_index_reference).
- *   - 0x43147 ADD ESP,0x10 merges unit_get_speech_priority_name's one-dword cleanup into
- *     crt_sprintf's three, so the name lookup stays nested in the call.
+ *   - 0x43147 ADD ESP,0x10 merges unit_get_speech_priority_name's one-dword
+ * cleanup into crt_sprintf's three, so the name lookup stays nested in the
+ * call.
  *   - 0x431a2 MOV ECX,0 / SETS CL / DEC ECX / AND ECX,EAX clamps the elapsed
  *     tick delta at zero (branchless `delta < 0 ? 0 : delta`).
  *   - 0x431b9 indexes a 0x28-byte-stride table at 0x257cd8 by param_5 and
@@ -642,11 +645,13 @@ short ai_communication_consider_speech(int *sound_definition_index_reference,
                  vocalization_type && sound_definition_index_reference &&
                    weight);
 
-  play_type = unit_test_speech(unit_handle, priority, param_7, 1, &last_speech_time,
-                           vocalization_type, sound_definition_index_reference);
+  play_type =
+    unit_test_speech(unit_handle, priority, param_7, 1, &last_speech_time,
+                     vocalization_type, sound_definition_index_reference);
   if (play_type == 0) {
     if (failure_reason != 0) {
-      crt_sprintf(failure_reason, "nospch-%s", unit_get_speech_priority_name(priority));
+      crt_sprintf(failure_reason, "nospch-%s",
+                  unit_get_speech_priority_name(priority));
     }
   } else if (play_type == 1) {
     *weight = *weight * *(float *)0x2533e4;
@@ -685,12 +690,12 @@ short ai_communication_consider_speech(int *sound_definition_index_reference,
 /* actor_communication_team (0x43270) — classify an actor's communication
  * team from its actor-type definition flags. Confirmed via disasm
  * 0x43270-0x432ac: datum_get(actor_data, actor_handle) resolves the actor
- * record (no -1 guard on actor_handle, unlike reply_filter_no_certain_target); the actor's
- * field_004 (int16_t, "meaning unproven") is passed to actor_type_get_race
- * (actor_type_definitions[actor_type]->+0x4 flags word, already ported in
- * actors.c). Bit 0x2 of that flags word (TEST AL,0x2) returns 0; bit 0x4
- * (TEST AL,0x4) returns 1; otherwise returns -1 (OR ECX,0xffffffff / MOV
- * AX,CX at 0x43292/0x432a8). Called through a `(short (*)(int))` function
+ * record (no -1 guard on actor_handle, unlike reply_filter_no_certain_target);
+ * the actor's field_004 (int16_t, "meaning unproven") is passed to
+ * actor_type_get_race (actor_type_definitions[actor_type]->+0x4 flags word,
+ * already ported in actors.c). Bit 0x2 of that flags word (TEST AL,0x2) returns
+ * 0; bit 0x4 (TEST AL,0x4) returns 1; otherwise returns -1 (OR ECX,0xffffffff /
+ * MOV AX,CX at 0x43292/0x432a8). Called through a `(short (*)(int))` function
  * pointer cast at encounters.c:6018 with an actor index, confirming the
  * (int actor_handle) -> int16_t signature; the prior kb.json `void(void)`
  * decl was a placeholder. Ghidra's decompile_c mis-typed this as void with
@@ -713,11 +718,11 @@ int16_t actor_communication_team(int actor_handle)
   return result;
 }
 
-/* ai_communication_look_secondary_at_unit (0x432b0) — issue a primary "look at object" request for an
- * actor, reusing a caller-supplied prop handle when valid instead of always
- * looking one up. Called with a register-passed prop handle so a caller that
- * already resolved one (e.g. from an earlier prop_get_active_by_unit_index
- * call) can skip the redundant lookup.
+/* ai_communication_look_secondary_at_unit (0x432b0) — issue a primary "look at
+ * object" request for an actor, reusing a caller-supplied prop handle when
+ * valid instead of always looking one up. Called with a register-passed prop
+ * handle so a caller that already resolved one (e.g. from an earlier
+ * prop_get_active_by_unit_index call) can skip the redundant lookup.
  *
  * Confirmed via disasm 0x432b0-0x43352:
  *   - No incoming register store to EAX/EBX/EDI in the prologue (only
@@ -744,10 +749,12 @@ int16_t actor_communication_team(int actor_handle)
  *     pushed EDX(&look_buf), EAX([EBP+0xc]=priority), ECX([EBP+8]=
  *     look_type), EBX(actor_handle) — cdecl ADD ESP,0x10 (4 args).
  * Uncertain: no evidence for this function's semantic name; kept as
- *   ai_communication_look_secondary_at_unit with params named for their forwarded role, matching the
- *   ai_communication_look_secondary_at_object comment convention below. */
-void ai_communication_look_secondary_at_unit(int prop_handle, int actor_handle, int object_handle,
-                  short look_type, short priority)
+ *   ai_communication_look_secondary_at_unit with params named for their
+ * forwarded role, matching the ai_communication_look_secondary_at_object
+ * comment convention below. */
+void ai_communication_look_secondary_at_unit(int prop_handle, int actor_handle,
+                                             int object_handle, short look_type,
+                                             short priority)
 {
   short look_buf[8]; /* [0]=type word, [2..7]=data (int handle or float[3]
                          position) */
@@ -787,9 +794,10 @@ void ai_communication_look_secondary_at_unit(int prop_handle, int actor_handle, 
   actor_look_secondary(actor_handle, look_type, priority, look_buf);
 }
 
-/* ai_communication_look_secondary_at_object (0x43360) — issue a secondary "look at object" request
- * (look_buf[0]=6) for an actor, gated on valid actor/object handles and a
- * positive priority. Called unconditionally from ai_communication_handle_received_looking (0x43eef).
+/* ai_communication_look_secondary_at_object (0x43360) — issue a secondary "look
+ * at object" request (look_buf[0]=6) for an actor, gated on valid actor/object
+ * handles and a positive priority. Called unconditionally from
+ * ai_communication_handle_received_looking (0x43eef).
  *
  * Confirmed: register-arg gate at 0x43366-0x43373: CMP EDI,-1/JZ;
  *   TEST BX,BX/JLE; CMP ESI,-1/JZ — no incoming register store in this
@@ -802,16 +810,18 @@ void ai_communication_look_secondary_at_unit(int prop_handle, int actor_handle, 
  *   0x4338e) and *(int*)&buf[2]=ESI (MOV dword [EBP-0xc],ESI at 0x43394) are
  *   written; buf[4..7] (data[1..2]) are left uninitialized, matching the
  *   original's single-store pattern — do not zero-fill them.
- * Confirmed: actor_look_secondary(EDI, [EBP+8], EBX, &look_buf) at 0x43397, args
- *   pushed EAX(&buf), EBX(priority), ECX([EBP+8]=look_type stack param),
+ * Confirmed: actor_look_secondary(EDI, [EBP+8], EBX, &look_buf) at 0x43397,
+ * args pushed EAX(&buf), EBX(priority), ECX([EBP+8]=look_type stack param),
  *   EDI(actor_handle) — cdecl ADD ESP,0x10 (4 args).
  * Uncertain: no evidence for this function's semantic name, nor for the
- *   buf[0]=6 tag's meaning (actor_look_secondary only special-cases tag==1; tag=6
- *   is opaque here) or for the stack look_type parameter's caller-supplied
- *   value — kept as ai_communication_look_secondary_at_object with params named for their forwarded
- *   role in actor_look_secondary's own signature. */
-void ai_communication_look_secondary_at_object(short look_type, int actor_handle, int object_handle,
-                  short priority)
+ *   buf[0]=6 tag's meaning (actor_look_secondary only special-cases tag==1;
+ * tag=6 is opaque here) or for the stack look_type parameter's caller-supplied
+ *   value — kept as ai_communication_look_secondary_at_object with params named
+ * for their forwarded role in actor_look_secondary's own signature. */
+void ai_communication_look_secondary_at_object(short look_type,
+                                               int actor_handle,
+                                               int object_handle,
+                                               short priority)
 {
   short look_buf[8];
 
@@ -1039,13 +1049,14 @@ void ai_conversation_finish(int conversation_handle, char param_2, char param_3)
   datum_delete(*(data_t **)0x6324ec, conversation_handle);
 }
 
-/* ai_conversation_new (0x43740) — begin (or force-start) a scenario conversation.
- * Tries to allocate a fresh conversation datum; if the pool is full and the
- * caller passed a non-zero param_2, it evicts one running conversation
- * (lowest +0x4 byte, tie-broken by oldest +0xc timestamp), finishes it, and
- * reuses its handle.  The resulting datum records the scenario conversation
- * index at +0x2, an invalid line index (-1) at +0x48, param_2 at +0x4 and the
- * current game time at +0xc.  Returns the datum index, or -1 on failure.
+/* ai_conversation_new (0x43740) — begin (or force-start) a scenario
+ * conversation. Tries to allocate a fresh conversation datum; if the pool is
+ * full and the caller passed a non-zero param_2, it evicts one running
+ * conversation (lowest +0x4 byte, tie-broken by oldest +0xc timestamp),
+ * finishes it, and reuses its handle.  The resulting datum records the scenario
+ * conversation index at +0x2, an invalid line index (-1) at +0x48, param_2 at
+ * +0x4 and the current game time at +0xc.  Returns the datum index, or -1 on
+ * failure.
  *
  * Confirmed (disasm 0x43740-0x43860):
  *   - Signature: `MOV DX,word ptr [EBP+8]` / `MOV AL,byte ptr [EBP+0xc]` —
@@ -1260,18 +1271,19 @@ bool ai_conversation_line_begin(int conversation_handle)
  *   - CMP word ptr [ESI+0x6a],0x2 / JL — signed 16-bit `>= 2`.
  *   - MOV ECX,[0x632574]; MOV AL,byte ptr [ECX+0x10]; TEST AL,AL — the AI
  *     globals block is loaded by value, the gate is its byte at +0x10.
- *   - actor_reset_idle_vocalization_timer is called with MOV EAX,EDI at 0x43e06, i.e. the actor
- *     handle in EAX; 0x43ce9 (MOV EDI,EAX) proves the callee consumes it, so
- *     the kb.json decl carries `@<eax>`.  It is the routine that writes both
- *     +0x6cc (the cached fighting flag) and +0x6ce (the countdown).
+ *   - actor_reset_idle_vocalization_timer is called with MOV EAX,EDI at
+ * 0x43e06, i.e. the actor handle in EAX; 0x43ce9 (MOV EDI,EAX) proves the
+ * callee consumes it, so the kb.json decl carries `@<eax>`.  It is the routine
+ * that writes both +0x6cc (the cached fighting flag) and +0x6ce (the
+ * countdown).
  *   - The countdown is read once into EAX (XOR EAX,EAX; MOV AX,[ESI+0x6ce]),
  *     tested `> 0` (TEST AX,AX / JLE), decremented, stored back and tested
  *     `== 0` (DEC EAX; TEST AX,AX; MOV [ESI+0x6ce],AX; JNZ) — one load, hence
  *     the `> 0 && --field == 0` form rather than three separate reads.
  *   - EBP-0x4 is written with a full dword (MOV dword ptr [EBP-0x4],EDX after
  *     XOR EDX,EDX / SETNZ DL), so the vocalization-type local is int-width and
- *     is passed to unit_test_speech through a `short *` cast; EBP-0x8 is likewise
- *     a dword -1.
+ *     is passed to unit_test_speech through a `short *` cast; EBP-0x8 is
+ * likewise a dword -1.
  *   - unit_test_speech's pushes at 0x43e2d..0x43e45 are EAX(=&[EBP-0x8]),
  *     ECX(=&[EBP-0x4]), 0, 0, 1, 1, EDX(=[ESI+0x18]); cdecl, so left-to-right
  *     the arguments are (unit handle, 1, 1, 0, NULL, &type, &sound index) and
@@ -1290,11 +1302,10 @@ bool ai_conversation_line_begin(int conversation_handle)
  *   - MOV EDI,EAX; TEST DI,DI; JLE — the communication count is a signed
  *     16-bit `> 0` test.
  * Inferred: actor_in_combat (returns char, +0x6cc is a byte) is the actor
- *   "is fighting" predicate; the vocalization type passed to unit_test_speech is
- *   just that flag widened, and vocalization index 1 is a literal at this
- *   call site.
- * Uncertain: the meaning of the `1`/`0` byte-width literals in arguments 3
- *   and 4 of unit_test_speech is not recoverable from this call site. */
+ *   "is fighting" predicate; the vocalization type passed to unit_test_speech
+ * is just that flag widened, and vocalization index 1 is a literal at this call
+ * site. Uncertain: the meaning of the `1`/`0` byte-width literals in arguments
+ * 3 and 4 of unit_test_speech is not recoverable from this call site. */
 void actor_communication_update(int actor_handle)
 {
   char communication[0x30];
@@ -1315,7 +1326,7 @@ void actor_communication_update(int actor_handle)
       sound_definition_index = -1;
       communication_count =
         unit_test_speech(actor->field_018, 1, 1, 0, NULL,
-                     (short *)&vocalization_type, &sound_definition_index);
+                         (short *)&vocalization_type, &sound_definition_index);
       if (communication_count > 0) {
         csmemset(communication, 0, 0x30);
         *(short *)(communication + 0x00) = 1;
@@ -1324,6 +1335,80 @@ void actor_communication_update(int actor_handle)
         ai_communication_packet_new(communication + 0x10);
         unit_speak(actor->field_018, communication_count, communication);
       }
+    }
+  }
+}
+
+/* ai_communication_handle_received_looking (0x43ea0) — react to an incoming
+ * communication record that requests a "look at" response: dispatch either
+ * a secondary look-at-unit or look-at-object request depending on the
+ * record's type field, escalating the look_type/priority passed to the
+ * secondary-look helper when the record's object handle matches the actor's
+ * already-active prop. Called unconditionally from ai_communication_notify
+ * (0x45290, not yet ported) at 0x45474.
+ *
+ * Confirmed via disasm 0x43ea0-0x43f1b:
+ *   - No incoming register store to ECX/EAX in the prologue (only
+ *     `MOV EDI,ECX` at 0x43ea4 to preserve the pointer across the datum_get
+ *     call) -> ECX/EAX are @<reg> parameters, not locals; [EBP+0x8] is a
+ *     genuine caller-pushed stack argument (actor_handle), reused unchanged
+ *     by both downstream calls.
+ *   - Gate: word [ECX+0xe] (record's type field) <= 0 -> return (0x43eab).
+ *   - datum_get(prop_data, EAX) at 0x43eb7 (cdecl, args PUSH EAX then
+ *     PUSH ECX(=prop_data global @0x5ab23c) so ECX=data,EAX=datum_handle
+ *     per datum_get's own decl) -> EAX holds the resolved prop record
+ *     pointer for the rest of the function.
+ *   - look_type default is 9 (MOV EDX,0x9 at 0x43ec7, unconditional);
+ *     escalated to 8 only when record type==1 AND record's object handle
+ *     (dword [EDI+0x10]) equals the resolved prop's dword [EAX+0x18]
+ *     (0x43ec3-0x43ed6) — both conditions gate the single EDX,0x8 store.
+ *   - MOVSX EAX,CX; DEC EAX; JZ / DEC EAX; JNZ (0x43edb-0x43ee2) is a
+ *     type==1 / type==2 / else dispatch: type==2 falls through to
+ *     ai_communication_look_secondary_at_object; type==1 jumps to the
+ *     ai_communication_look_secondary_at_unit call; any other type value
+ *     falls straight to the epilogue.
+ *   - type==2 path (0x43ee4-0x43f14): ESI=dword[EDI+0x10](object_handle),
+ *     BX=word[EDI+0xc](priority), EDI reloaded from [EBP+8](actor_handle),
+ *     PUSH EDX(look_type) -> CALL ai_communication_look_secondary_at_object
+ *     matches that callee's kb.json @<edi>/@<esi>/@<bx> + stack look_type.
+ *   - type==1 path (0x43efc-0x43f14): EBX=[EBP+8](actor_handle),
+ *     EAX=zero-extended word[EDI+0xc](priority) pushed first, EDX(look_type)
+ *     pushed second (last before call, so it is the first cdecl param),
+ *     EDI reloaded from dword[EDI_old+0x10](object_handle), EAX=-1
+ *     (prop_handle, forces the callee to re-resolve its own prop) ->
+ *     CALL ai_communication_look_secondary_at_unit matches that callee's
+ *     kb.json @<eax>/@<ebx>/@<edi> + stack look_type,priority order.
+ * Uncertain: the incoming record pointer has no recovered struct (no other
+ *   site in this file names its fields), so it is dereferenced as a raw
+ *   char* with field_0c/field_0e/field_10 offsets, matching the untyped
+ *   `char *prop` convention used by the two callees in this same file;
+ *   no evidence for what the type field's values 1/2 mean, nor for the
+ *   8-vs-9 look_type semantics, beyond the binary comparison recovered
+ *   above. */
+void ai_communication_handle_received_looking(int actor_handle, void *record,
+                                              int prop_handle)
+{
+  char *data;
+  char *prop;
+  short type;
+  short look_type;
+
+  data = (char *)record;
+  if (*(short *)(data + 0x0e) > 0) {
+    prop = (char *)datum_get(prop_data, prop_handle);
+    type = *(short *)(data + 0x0e);
+    look_type = 9;
+    if (type == 1 && *(int32_t *)(data + 0x10) == *(int32_t *)(prop + 0x18)) {
+      look_type = 8;
+    }
+    if (type == 1) {
+      ai_communication_look_secondary_at_unit(
+        -1, actor_handle, *(int32_t *)(data + 0x10), look_type,
+        *(short *)(data + 0x0c));
+    } else if (type == 2) {
+      ai_communication_look_secondary_at_object(look_type, actor_handle,
+                                                *(int32_t *)(data + 0x10),
+                                                *(short *)(data + 0x0c));
     }
   }
 }
@@ -1353,8 +1438,9 @@ void actor_communication_update(int actor_handle)
  *     SETL DL; DEC EDX; AND EAX,EDX — a branchless max(0, field-0x2d).
  *   - XOR ECX,ECX; MOV CX,word ptr [EAX+4] — the actor field at +0x4 is
  *     zero-extended, so it is read through an unsigned short.
- *   - TEST AL,0x2 / TEST AL,0x4 on actor_type_get_race's result select team index 0
- *     and 1 respectively; neither bit set returns without touching anything.
+ *   - TEST AL,0x2 / TEST AL,0x4 on actor_type_get_race's result select team
+ * index 0 and 1 respectively; neither bit set returns without touching
+ * anything.
  *   - The AI globals pointer at 0x632574 is re-loaded for each of the three
  *     high-water updates (0x43fe1, 0x43ffb, 0x44015), and EBP-0x4 is
  *     re-read with MOVSX at 0x43fdd, 0x440c6 and 0x44158 — kept as separate
@@ -1381,8 +1467,8 @@ void actor_communication_update(int actor_handle)
  *     + six varargs.
  * Uncertain: param_2 and param_3 keep mechanical names.  param_2 indexes the
  *   three high-water slots and picks "talk" vs "chatter"; param_3 is only
- *   ever handed to dialogue_get_vocalization_name for the debug line.  Neither meaning is
- *   proven by a string or assert at this call site. */
+ *   ever handed to dialogue_get_vocalization_name for the debug line.  Neither
+ * meaning is proven by a string or assert at this call site. */
 void ai_communication_update_speech_timers(int unit_handle, int16_t param_2,
                                            int16_t param_3,
                                            int16_t dialogue_type_index,
@@ -1456,8 +1542,9 @@ void ai_communication_update_speech_timers(int unit_handle, int16_t param_2,
           speech_kind = "chatter";
         }
         error(2, "%s %s %d/%s: %s %d",
-              *(char **)(0x2c8d68 + (int)team_index * 8), unit_get_speech_priority_name(param_2),
-              (int)dialogue_type_index, dialogue_get_vocalization_name(param_3, 1), speech_kind,
+              *(char **)(0x2c8d68 + (int)team_index * 8),
+              unit_get_speech_priority_name(param_2), (int)dialogue_type_index,
+              dialogue_get_vocalization_name(param_3, 1), speech_kind,
               ticks - base_ticks);
       }
     }
@@ -1789,9 +1876,9 @@ int ai_communication_find_specific_actor_to_talk(
     }
     ai_index_actor_iterator_new(ai_index, iter);
     while (ai_index_actor_iterator_next(iter) != 0) {
-      score = ai_communication_actor_talk_weight(object_handle, *(int *)(iter + 0x10), vec_a,
-                           other_object_handle, vec_b, param_1, param_2,
-                           param_3, param_4, param_5, param_6, param_7);
+      score = ai_communication_actor_talk_weight(
+        object_handle, *(int *)(iter + 0x10), vec_a, other_object_handle, vec_b,
+        param_1, param_2, param_3, param_4, param_5, param_6, param_7);
       if (score > best_score) {
         best_score = score;
         best_handle = *(int *)(iter + 0x10);
@@ -1805,8 +1892,9 @@ int ai_communication_find_specific_actor_to_talk(
  * and return the datum handle of the best-scoring conversation partner.
  *
  * Walks the global encounter/actor iterator, filters candidates by team
- * relationship, scores each survivor with ai_communication_actor_talk_weight, and keeps the highest
- * score (strictly greater). Returns -1 when nothing scores above 0.0f.
+ * relationship, scores each survivor with ai_communication_actor_talk_weight,
+ * and keeps the highest score (strictly greater). Returns -1 when nothing
+ * scores above 0.0f.
  *
  * Confirmed (disasm 0x458f0-0x45a08):
  *   Register params: EDI = object_handle (never saved in the prologue),
@@ -1835,16 +1923,16 @@ int ai_communication_find_specific_actor_to_talk(
  *   1 -> match = !friendly                   (TEST AL,AL / SETZ)
  *   2 -> match = friendly                    (falls through to TEST AL,AL)
  *   else -> assert "!\"unreachable\"" line 0xdfd = 3581, then system_exit(-1).
- * Confirmed: ADD ESP,0x2c at 0x459d4 = 11 stack dwords into ai_communication_actor_talk_weight, with
- *   MOV EAX,EDI at 0x459ca supplying its @<eax> register arg. cdecl push order
- *   (0x459a7-0x459c9) reverses to
+ * Confirmed: ADD ESP,0x2c at 0x459d4 = 11 stack dwords into
+ * ai_communication_actor_talk_weight, with MOV EAX,EDI at 0x459ca supplying its
+ * @<eax> register arg. cdecl push order (0x459a7-0x459c9) reverses to
  *   (iter+0x14, vec_a, param_2, vec_b, param_3..param_9).
  * Confirmed: FCOM [EBP-0x8] / FNSTSW AX / TEST AH,0x41 / JNZ at 0x459d1 keeps
  *   the candidate only when the returned score is strictly greater than
  *   best_score (C3|C0 clear); the reject arm is FSTP ST0 at 0x459e9.
- * Confirmed: ai_communication_actor_talk_weight prologue (PUSH EBP / MOV EBP,ESP / SUB ESP,0x10 /
- *   PUSH EBX / PUSH ESI / MOV ESI,EAX / PUSH EDI) saves EBX, ESI and EDI, so
- *   EAX is its only register parameter.
+ * Confirmed: ai_communication_actor_talk_weight prologue (PUSH EBP / MOV
+ * EBP,ESP / SUB ESP,0x10 / PUSH EBX / PUSH ESI / MOV ESI,EAX / PUSH EDI) saves
+ * EBX, ESI and EDI, so EAX is its only register parameter.
  */
 int ai_communication_find_global_actor_to_talk(int16_t param_1, int param_2,
                                                int param_3, int param_4,
@@ -1895,9 +1983,9 @@ int ai_communication_find_global_actor_to_talk(int16_t param_1, int param_2,
       }
     }
     if (match) {
-      score = ai_communication_actor_talk_weight(object_handle, *(int *)(iter + 0x14), vec_a, param_2,
-                           vec_b, param_3, param_4, param_5, param_6, param_7,
-                           param_8, param_9);
+      score = ai_communication_actor_talk_weight(
+        object_handle, *(int *)(iter + 0x14), vec_a, param_2, vec_b, param_3,
+        param_4, param_5, param_6, param_7, param_8, param_9);
       if (score > best_score) {
         best_score = score;
         best_handle = *(int *)(iter + 0x14);
@@ -1949,8 +2037,8 @@ int ai_communication_find_global_actor_to_talk(int16_t param_1, int param_2,
  *     args plus console_printf's 3.
  *   - Both false exits are `MOV AL,BL` with BL zeroed at 0x46b6e — a bool
  *     return, not a status variable.
- * Uncertain: the meaning of param_2 beyond ai_conversation_new's force-start flag,
- *   and of ai_conversation_finish's ('\1','\0') argument pair here. */
+ * Uncertain: the meaning of param_2 beyond ai_conversation_new's force-start
+ * flag, and of ai_conversation_finish's ('\1','\0') argument pair here. */
 int ai_conversation(int param_1, int param_2)
 {
   char *scenario;

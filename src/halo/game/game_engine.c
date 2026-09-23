@@ -7749,14 +7749,14 @@ void FUN_000b1b30(float *param_1, int param_2, void *param_3, void *param_4,
   int local_8;
 
   *(int16_t *)0x325652 = 9;
-  widget_a = rasterizer_widget_submit(2);
-  local_8 = rasterizer_widget_set_zbuffer_enable(5, 4);
+  widget_a = rasterizer_dynamic_triangles_new(2);
+  local_8 = rasterizer_dynamic_vertices_new(5, 4);
   if (widget_a == -1 || local_8 == -1) {
     *(int16_t *)0x325652 = 0;
     return;
   }
-  local_c = rasterizer_widget_draw_sprite3d(local_8);
-  ppoint_count = (int16_t *)rasterizer_widget_begin(widget_a);
+  local_c = rasterizer_dynamic_vertices_lock(local_8);
+  ppoint_count = (int16_t *)rasterizer_dynamic_triangles_lock(widget_a);
   FUN_00180d10(4, 4, local_c, 0x80, param_1, 0x110);
   ppoint_count[0] = 0;
   ppoint_count[1] = 1;
@@ -7764,8 +7764,8 @@ void FUN_000b1b30(float *param_1, int param_2, void *param_3, void *param_4,
   ppoint_count[3] = 2;
   ppoint_count[4] = 3;
   ppoint_count[5] = 0;
-  rasterizer_widget_set_texture(widget_a);
-  rasterizer_widget_end(local_8);
+  rasterizer_dynamic_triangles_unlock(widget_a);
+  rasterizer_dynamic_vertices_unlock(local_8);
   shader = (int)tag_get(TAG_GROUP_SHDR, param_2);
   centroid[0] = (param_1[0x33] + param_1[0x22] + param_1[0x11] + param_1[0]) *
                 *(float *)0x25337c;
@@ -7832,8 +7832,8 @@ void FUN_000b1b30(float *param_1, int param_2, void *param_3, void *param_4,
   FUN_0016b1c0();
   FUN_0016b240();
   rasterizer_psuedo_dynamic_screen_quad_draw(1);
-  rasterizer_widget_set_tint_factor(widget_a);
-  FUN_0017c9f0(local_8);
+  rasterizer_dynamic_triangles_delete(widget_a);
+  rasterizer_dynamic_vertices_delete(local_8);
   *(int16_t *)0x325652 = 0;
 }
 

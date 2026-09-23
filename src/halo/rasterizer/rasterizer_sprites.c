@@ -2331,12 +2331,12 @@ void FUN_0017e190(void)
   *(uint16_t *)0x325652 = 0xd;
 
   if (*(int *)0x47e4e0 > 0) {
-    handle = rasterizer_widget_set_zbuffer_enable(9, *(int *)0x47e4e0 * 3);
+    handle = rasterizer_dynamic_vertices_new(9, *(int *)0x47e4e0 * 3);
     if (handle == -1) {
       ok = 0;
       goto finished;
     }
-    vertices = (void *)rasterizer_widget_draw_sprite3d(handle);
+    vertices = (void *)rasterizer_dynamic_vertices_lock(handle);
     if (vertices != (void *)0) {
       vertex_index = 0;
       primitive_count = *(int *)0x47e4e0;
@@ -2352,7 +2352,7 @@ void FUN_0017e190(void)
           remaining--;
         } while (remaining != 0);
       }
-      rasterizer_widget_end(handle);
+      rasterizer_dynamic_vertices_unlock(handle);
       FUN_0015a560(1);
       rasterizer_draw_dynamic_vertices(0, primitive_count, handle, 3);
       FUN_0015a290();
@@ -2361,19 +2361,19 @@ void FUN_0017e190(void)
                "primitives");
       ok = 0;
     }
-    FUN_0017c9f0(handle);
+    rasterizer_dynamic_vertices_delete(handle);
     if (ok == 0) {
       goto finished;
     }
   }
 
   if (*(int *)0x47e4e8 > 0) {
-    handle = rasterizer_widget_set_zbuffer_enable(9, *(int *)0x47e4e8 * 2);
+    handle = rasterizer_dynamic_vertices_new(9, *(int *)0x47e4e8 * 2);
     if (handle == -1) {
       ok = 0;
       goto finished;
     }
-    vertices = (void *)rasterizer_widget_draw_sprite3d(handle);
+    vertices = (void *)rasterizer_dynamic_vertices_lock(handle);
     if (vertices != (void *)0) {
       vertex_index = 0;
       primitive_count = *(int *)0x47e4e8;
@@ -2389,16 +2389,16 @@ void FUN_0017e190(void)
           remaining--;
         } while (remaining != 0);
       }
-      rasterizer_widget_end(handle);
+      rasterizer_dynamic_vertices_unlock(handle);
       FUN_0015a560(1);
       rasterizer_draw_dynamic_vertices(0, primitive_count, handle, 2);
       FUN_0015a290();
-      FUN_0017c9f0(handle);
+      rasterizer_dynamic_vertices_delete(handle);
     } else {
       error(2, "### ERROR failed to lock dynamic vertex buffers for debug "
                "primitives");
       ok = 0;
-      FUN_0017c9f0(handle);
+      rasterizer_dynamic_vertices_delete(handle);
     }
   }
 
@@ -2412,25 +2412,25 @@ finished:
       }
       record = (char *)*(void **)0x47e4ec + record_offset;
       handle =
-        rasterizer_widget_set_zbuffer_enable(9, (int)*(short *)(record + 0x30));
+        rasterizer_dynamic_vertices_new(9, (int)*(short *)(record + 0x30));
       if (handle == -1) {
         ok = 0;
       } else {
-        vertices = (void *)rasterizer_widget_draw_sprite3d(handle);
+        vertices = (void *)rasterizer_dynamic_vertices_lock(handle);
         if (vertices != (void *)0) {
           csmemcpy(vertices, record,
                    (size_t)((int)*(short *)(record + 0x30) << 4));
-          rasterizer_widget_end(handle);
+          rasterizer_dynamic_vertices_unlock(handle);
           FUN_0015a560(0);
           rasterizer_draw_dynamic_vertices(0, 1, handle,
                                            *(unsigned short *)(record + 0x30));
           FUN_0015a290();
-          FUN_0017c9f0(handle);
+          rasterizer_dynamic_vertices_delete(handle);
         } else {
           error(2, "### ERROR failed to lock dynamic vertex buffers for debug "
                    "primitives");
           ok = 0;
-          FUN_0017c9f0(handle);
+          rasterizer_dynamic_vertices_delete(handle);
         }
       }
       index++;
@@ -3053,7 +3053,7 @@ int rasterizer_frame_statistics_count_static_vertices(
 
   unique_count = 0;
   if (vertices_per_primitive >= 0) {
-    widget = rasterizer_widget_begin(vertices_per_primitive);
+    widget = rasterizer_dynamic_triangles_lock(vertices_per_primitive);
     base = widget;
     if (widget != 0) {
       assert_halt_msg_at(
@@ -3084,7 +3084,7 @@ int rasterizer_frame_statistics_count_static_vertices(
         }
       }
 
-      rasterizer_widget_set_texture(*(volatile int *)&vertices_per_primitive);
+      rasterizer_dynamic_triangles_unlock(*(volatile int *)&vertices_per_primitive);
       return *(volatile int *)&unique_count;
     }
     return 0;

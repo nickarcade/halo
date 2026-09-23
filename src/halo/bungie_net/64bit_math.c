@@ -59,24 +59,18 @@ typedef union {
  *  - The carry is materialised with XOR ECX,ECX / CMP EAX,0xffff / SETG CL.
  *    SETG (not SETA) proves a *signed* accumulator, so the sum is an `int` and
  *    0xffff is a plain int constant.
- *  - Limbs 1..3 accumulate as (carry + a[i]) + b[i]: `ADD ECX,EDX` folds the
- *    carry into a[i] first, then `ADD EAX,ECX` adds b[i].
- *  - Limb 0 has no carry-in (no `ADD ECX,EDX` before the accumulate) and limb 3
- *    computes no carry-out (no XOR/CMP/SETG after its store) — i.e. exactly a
- *    uniform loop body with carry=0 constant-folded into the first iteration
- * and the last iteration's dead carry eliminated. VC71 fully unrolls the loop
- *    below to the same constant +0/+2/+4/+6 displacements the reference uses,
- *    which is why it is written as a loop rather than four copies.
+ *  - Limb 0 has no carry-in and limb 3 computes no carry-out, i.e. a uniform
+ *    loop body with carry=0 constant-folded into the first iteration and the
+ *    last iteration's dead carry eliminated. VC71 fully unrolls the loop to the
+ *    constant +0/+2/+4/+6 displacements the reference uses.
  *
- * Match note (VC71 78.2%, 55 candidate vs 55 reference insns, dp_lcs 90.9%):
- * the whole gap is register allocation. VC71 narrows limb 3 to 16-bit
- * memory-operand adds (`addw 0x6(%esi),%dx`) because the final carry is dead;
- * that pins the carry in EDX and forces a `movl %edx,%eax` shuffle per limb,
- * whereas the reference keeps the carry in ECX and accumulates into the b-limb
- * register. Commutative reorderings of the sum, loop vs. straight-line, and a
- * single-accumulator form all compile to byte-identical VC71 output, and /O2
- * beats /O1 and /Og /Os here. Behaviour is proven separately: unicorn
- * equivalence is 100/100 seeds, 0 diverged, high confidence, 80.7% coverage.
+ * Source form (from the PAL 2342 reference source, add64): the sum is
+ * `a[i] + b[i] + carry`, the carry is decided by an if/else *before* the limb
+ * is stored, and only then is result[i] written. The earlier form here
+ * (`carry + a[i] + b[i]`, store, then `carry = (sum > 0xffff)`) computed the
+ * same values but let VC71 narrow limb 3 to 16-bit memory-operand adds and
+ * shuffle the carry through EDX, capping the match at 78.2%. With the carry
+ * test ahead of the store the result is VC71 100.0%, 55/55 instructions.
  */
 void math64_add(const uint16_t *a, const uint16_t *b, uint16_t *result)
 {
@@ -89,9 +83,12 @@ void math64_add(const uint16_t *a, const uint16_t *b, uint16_t *result)
 
   carry = 0;
   for (i = 0; i < 4; i++) {
-    sum = carry + a[i] + b[i];
+    sum = a[i] + b[i] + carry;
+    if (sum > 0xffff)
+      carry = 1;
+    else
+      carry = 0;
     result[i] = (uint16_t)sum;
-    carry = (sum > 0xffff);
   }
 }
 
@@ -117,8 +114,10 @@ void math64_add(const uint16_t *a, const uint16_t *b, uint16_t *result)
  *    subtract use). Line 0x3a, same 64bit_math.c __FILE__ string at 0x265a54.
  *  - The borrow lives in EDI: `XOR EDI,EDI` before the guard, and a sticky
  *    `MOV EDI,1` after each of limbs 0..2. It is only ever set, never cleared,
- *    so it means "some lower limb was non-zero". `ADD CX,DI` is a *16-bit* add,
- *    which is why the borrow is a 16-bit type and not an int.
+ *    so it means "some lower limb was non-zero". `ADD CX,DI` is a 16-bit add
+ *    only because the sum is truncated to 16 bits on store; a 32-bit borrow
+ *    (as in the PAL 2342 reference source, `unsigned long carry`) compiles to
+ *    exactly that instruction.
  *  - Each limb re-reads a[i] from memory for the non-zero test
  *    (`MOV AX,[ESI]` ... `MOV [EBX],AX` ... `CMP word ptr [ESI],0`) instead of
  *    reusing the loaded register. `a` and `result` are unrelated pointers, so
@@ -128,11 +127,13 @@ void math64_add(const uint16_t *a, const uint16_t *b, uint16_t *result)
  *    limbs 1..3 zero-extend into a 32-bit register (`XOR ECX,ECX` +
  *    `MOV CX,[ESI+2]`), add the borrow 16-bit, then negate 32-bit
  *    (`f7 d9` = NEG ECX, no 0x66 prefix) and store the low 16. That is exactly
- *    the integer-promotion shape of `-sum` on a `uint16_t sum`.
- *  - Limb 0's `+ borrow` is constant-folded away (borrow is provably 0) and
- *    limb 3 computes no borrow-out (dead), i.e. a uniform four-iteration loop
- *    body that VC71 fully unrolls to the constant +0/+2/+4/+6 displacements —
- *    the same treatment math64_add gets, so it is written as a loop here too.
+ *    the integer-promotion shape of `-(a[i] + borrow)` truncated to 16 bits.
+ *  - Limb 0 has no `+ borrow` and limb 3 computes no borrow-out. The PAL 2342
+ *    reference source writes the four limbs out by hand in exactly that shape
+ *    (negate64), and it is written that way here: the earlier uniform loop
+ *    over a uint16_t borrow scored 91.1% with operand-normalized 42.2%; the
+ *    unrolled form scores 96.6% / 96.6%, the only residual being the EBP frame
+ *    our cdecl build adds around the reference's frameless register-arg body.
  *
  * The arithmetic is a correct negate, unlike math64_multiply's seeded
  * accumulator: with borrow = 1 the limb value is -(a[i]+1) == ~a[i] (mod
@@ -141,21 +142,21 @@ void math64_add(const uint16_t *a, const uint16_t *b, uint16_t *result)
  */
 void math64_negate(const uint16_t *a, uint16_t *result)
 {
-  uint16_t sum;
-  uint16_t borrow;
-  int32_t i;
+  uint32_t borrow = 0;
 
   assert_halt_at("c:\\halo\\SOURCE\\bungie_net\\common\\64bit_math.c", 0x3a,
                  a && result);
 
-  borrow = 0;
-  for (i = 0; i < 4; i++) {
-    sum = (uint16_t)(a[i] + borrow);
-    result[i] = (uint16_t)-sum;
-    if (a[i] != 0) {
-      borrow = 1;
-    }
-  }
+  result[0] = (uint16_t)-a[0];
+  if (a[0])
+    borrow = 1;
+  result[1] = (uint16_t)-(a[1] + borrow);
+  if (a[1])
+    borrow = 1;
+  result[2] = (uint16_t)-(a[2] + borrow);
+  if (a[2])
+    borrow = 1;
+  result[3] = (uint16_t)-(a[3] + borrow);
 }
 
 /* 64-bit subtract: result = a - b, implemented as a + (-b).

@@ -48,6 +48,12 @@ def _load_leaf_cache():
         return {}
 
 
+def _cache_rows(leaf_cache):
+    """Metadata and classification alone are not coverage measurements."""
+    return (entry for addr, entry in leaf_cache.items()
+            if not addr.startswith('_') and isinstance(entry, dict))
+
+
 def _load_snapshot_results():
     path = ROOT / 'artifacts' / 'equivalence' / 'ci_results.json'
     if not path.exists():
@@ -170,7 +176,8 @@ def build_ci_summary(gh_runs, leaf_cache, snapshot_data):
 
     conf_counts = {}
     cov_total, cov_count = 0.0, 0
-    for entry in leaf_cache.values():
+    rows = list(_cache_rows(leaf_cache))
+    for entry in rows:
         conf = entry.get('confidence') or 'uncached'
         conf_counts[conf] = conf_counts.get(conf, 0) + 1
         cov = entry.get('coverage_pct')
@@ -197,6 +204,7 @@ def build_ci_summary(gh_runs, leaf_cache, snapshot_data):
         },
         'equivalence': {
             'tested': cov_count,
+            'classified': len(rows),
             'high_confidence': conf_counts.get('high', 0),
             'moderate_confidence': conf_counts.get('moderate', 0),
             'weak_coverage': conf_counts.get('weak', 0),
@@ -497,6 +505,8 @@ def generate_html(out_path, gh_runs, lift_runs, leaf_cache, snapshot_data, oracl
     cov_total, cov_count = 0.0, 0
     weak_fns = []
     for addr, entry in leaf_cache.items():
+        if addr.startswith('_') or not isinstance(entry, dict):
+            continue
         conf = (entry.get('confidence') or 'uncached').lower()
         conf_counts[conf] = conf_counts.get(conf, 0) + 1
         cov = entry.get('coverage_pct')
@@ -541,18 +551,18 @@ def generate_html(out_path, gh_runs, lift_runs, leaf_cache, snapshot_data, oracl
     for f in weak_fns[:50]:
         weak_rows += f'<tr><td class="mono">{f["addr"]}</td><td><span class="badge {f["cls"] if f["cls"] in ("leaf","non_leaf","stubbable") else "none"}">{f["cls"]}</span></td><td>{_conf_badge(f["confidence"])}</td><td>{_cov_cell(f["coverage"])}</td></tr>'
 
-    equiv_note = f'<p class="section-note">{total_cached} functions have equivalence data in leaf_cache.json &middot; avg coverage {avg_cov:.1f}%</p>' if avg_cov is not None else ''
+    equiv_note = f'<p class="section-note">{cov_count} functions have measured coverage in leaf_cache.json; {total_cached} are classified. The average covers measured functions only.</p>'
 
     equiv_html = f'''
     <div class="cards-row">
       <div class="card">
-        <div class="stat-label">Tested (any)</div>
-        <div class="stat-value">{total_cached}</div>
+        <div class="stat-label">Coverage measured</div>
+        <div class="stat-value">{cov_count}</div>
       </div>
       <div class="card">
         <div class="stat-label">High Confidence</div>
         <div class="stat-value" style="color:var(--green)">{high_n}</div>
-        <div class="stat-sub">{pct(high_n)} of tested</div>
+        <div class="stat-sub">{high_n / cov_count * 100:.0f}% of measured</div>
       </div>
       <div class="card">
         <div class="stat-label">Avg Coverage</div>

@@ -1687,12 +1687,12 @@ int16_t FUN_0018d140(void *data, int bitmap)
       fmt = xbox_texture_cache_get_hardware_format((void *)bitmap, 0, 1);
       if (fmt != NULL) {
         *(uint16_t *)0x325652 = 0x10;
-        vb = rasterizer_widget_set_zbuffer_enable(
+        vb = rasterizer_dynamic_vertices_new(
           (*(uint32_t *)((char *)data + 0x10) & 1) != 0 ? 8 : 6,
           (int)*(int16_t *)((char *)data + 4) << 2);
         *(int *)group = vb;
         if (vb != -1) {
-          verts = rasterizer_widget_draw_sprite3d(vb);
+          verts = rasterizer_dynamic_vertices_lock(vb);
           *(int *)(group + 4) = verts;
           if (verts == 0) {
             display_assert("group->vertices",
@@ -1807,7 +1807,7 @@ void FUN_0018d360(void *sprite_build_data)
   for (i = 0; i < *(int16_t *)(data + 0x20); i++) {
     rec = (uint32_t *)(data + 0x24 + (int)i * 0x10);
     if (*(int16_t *)((char *)rec + 0x8) != 0) {
-      rasterizer_widget_end((int)rec[0]);
+      rasterizer_dynamic_vertices_unlock((int)rec[0]);
       if ((*(uint32_t *)(data + 0x10) & 1) != 0) {
         display_assert(
           "### ERROR sprites rendered with screen geometry -- tell Bernie!!",
@@ -1819,7 +1819,7 @@ void FUN_0018d360(void *sprite_build_data)
                      (int)*(int16_t *)((char *)rec + 0x8) << 1, origin,
                      ((*(uint32_t *)(data + 0x10) & 2) << 6) | 0x20);
       }
-      FUN_0017c9f0((int)rec[0]);
+      rasterizer_dynamic_vertices_delete((int)rec[0]);
     }
   }
 

@@ -9,8 +9,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from batch_verify import (CACHE_SCHEMA, CACHE_SCHEMA_FIELD, FINGERPRINT_FIELD,
-                          VERIFIED_AT_FIELD, candidate_fingerprint,
-                          reusable_results)
+                           VERIFIED_AT_FIELD, candidate_fingerprint,
+                           merge_leaf_measurements, report_provenance,
+                           reusable_results)
 
 
 NOW = 1_800_000_000.0
@@ -111,6 +112,42 @@ def test_candidate_fingerprint_includes_target_identity():
     changed = dict(candidate, decl="int fn(int value)")
     assert candidate_fingerprint(base, candidate) != candidate_fingerprint(base, changed)
     print("  PASS  test_candidate_fingerprint_includes_target_identity")
+
+
+def test_measured_coverage_merges_serially_without_downgrading():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "leaf_cache.json"
+        path.write_text(json.dumps({
+            "_meta": {"oracle": "xbe"},
+            "0x10": {"class": "leaf", "oracle": "xbe",
+                     "coverage_pct": 90.0, "confidence": "high"},
+        }), encoding="utf-8")
+        completed = {
+            0: ({"addr": "0x10"}, {"oracle": "xbe", "status": "pass",
+                                   "coverage_pct": 70.0, "confidence": "weak"}, False),
+            1: ({"addr": "0x20"}, {"oracle": "xbe", "status": "pass",
+                                   "coverage_pct": 82.0, "confidence": "moderate",
+                                   "z3_proven": True}, False),
+        }
+        assert merge_leaf_measurements(path, completed, "xbe") == 1
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["0x10"]["coverage_pct"] == 90.0
+        assert data["0x20"]["coverage_pct"] == 82.0
+        assert data["0x20"]["z3_proven"] is True
+        assert data["_meta"] == {"oracle": "xbe"}
+    print("  PASS  test_measured_coverage_merges_serially_without_downgrading")
+
+
+def test_provenance_resolves_kb_source_path_forms():
+    bounds = {"_meta": {"xbe_md5": "example"},
+              "0x10": {"end": "0x20"}}
+    for source_path in ("cseries/xbox_crt.c", "src/halo/cseries/xbox_crt.c"):
+        result = report_provenance({"addr": "0x10", "source_path": source_path},
+                                   bounds, {})
+        assert result is not None
+        assert result["source_path"] == "src/halo/cseries/xbox_crt.c"
+        assert len(result["source_sha256"]) == 64
+    print("  PASS  test_provenance_resolves_kb_source_path_forms")
 
 
 def main():

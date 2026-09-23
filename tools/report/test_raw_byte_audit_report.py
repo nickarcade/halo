@@ -264,7 +264,7 @@ class TestRawByteAuditLoading(unittest.TestCase):
         (root / "artifacts/raw_xbe_structural/target.json").write_text(json.dumps(record), encoding="utf-8")
         self.assertEqual(report._load_raw_xbe_structural_audits(str(root)), {})
 
-    def test_rejects_stale_structural_bounds_hash(self):
+    def test_rejects_moved_structural_bound(self):
         temp, root, source, xbe = self._make_root()
         self.addCleanup(temp.cleanup)
         bounds = root / "tools/verify/function_bounds.json"
@@ -272,6 +272,17 @@ class TestRawByteAuditLoading(unittest.TestCase):
         bounds.write_text(json.dumps({"0x1000": {"end": "0x1008", "kind": "auto"}}), encoding="utf-8")
         (root / "artifacts/raw_xbe_structural/target.json").write_text(json.dumps(record), encoding="utf-8")
         self.assertEqual(report._load_raw_xbe_structural_audits(str(root)), {})
+
+    def test_keeps_structural_record_when_unrelated_bounds_change(self):
+        temp, root, source, xbe = self._make_root()
+        self.addCleanup(temp.cleanup)
+        bounds = root / "tools/verify/function_bounds.json"
+        record = self._structural_record(source, xbe, bounds)
+        bounds.write_text(json.dumps({
+            "0x1000": {"end": "0x1004", "kind": "auto", "name": "renamed"},
+            "0x2000": {"end": "0x2010", "kind": "auto"}}), encoding="utf-8")
+        (root / "artifacts/raw_xbe_structural/target.json").write_text(json.dumps(record), encoding="utf-8")
+        self.assertIn("0x1000", report._load_raw_xbe_structural_audits(str(root)))
 
     def test_rejects_structural_record_with_invalid_byte_counts(self):
         temp, root, source, xbe = self._make_root()

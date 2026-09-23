@@ -28,6 +28,7 @@ jobs:
     runs-on: self-hosted
     permissions:
       contents: write
+      actions: read
     env:
       VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
       BUILD_DIR: /mnt/g/dev/halo/build
@@ -40,6 +41,24 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Download nightly measured coverage
+        if: github.event_name == 'workflow_run'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: measured-leaf-cache
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/measured-leaf-cache
+
+      - name: Use nightly measured coverage
+        if: github.event_name == 'workflow_run'
+        run: |
+          CACHE="${{ runner.temp }}/measured-leaf-cache/leaf_cache.json"
+          if [ -s "$CACHE" ]; then
+            cp "$CACHE" tools/equivalence/leaf_cache.json
+          fi
 
       # NOTE: scoring no longer needs delinked/.  VC71 references are derived
       # from the pristine XBE + the committed tools/verify/function_bounds.json
@@ -165,10 +184,16 @@ jobs:
         run: |
           # Try to fetch existing history from gh-pages
           git fetch origin gh-pages:gh-pages --depth=1 || true
-          if git show-ref --quiet refs/remotes/origin/gh-pages; then
-            git show origin/gh-pages:progress/history.json > artifacts/progress/history.json 2>/dev/null || echo "No existing history found"
+          if git rev-parse --verify -q refs/heads/gh-pages >/dev/null; then
+            git show gh-pages:progress/history.json > artifacts/progress/history.json 2>/dev/null || echo "No existing history found"
+            git show gh-pages:report.json > "$RUNNER_TEMP/previous-report.json" 2>/dev/null || true
           fi
         continue-on-error: true
+
+      - name: Check behavioral-match count
+        run: |
+          "$VENV_PYTHON" tools/report/check_behavior_count.py \
+            "$RUNNER_TEMP/previous-report.json" artifacts/progress/report.json
       
       - name: Update Historical Data
         run: |

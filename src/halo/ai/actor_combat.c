@@ -282,13 +282,13 @@ char actor_combat_compute_ballistic_solution(int actor_handle, int param_2)
 
   ground[0] = aim_dir[0];
   ground[1] = aim_dir[1];
-  /* The original computes magnitude3d over (aim_dir[0], aim_dir[1], aim_speed):
+  /* The original computes normalize2d over (aim_dir[0], aim_dir[1], aim_speed):
    * it writes only the first two components into the EBP-0x10 buffer and reads
    * the third from EBP-0x8, which projectile_aim already filled with aim_speed
    * (an MSVC stack-overlap). Our clang stack layout does not guarantee that
    * overlap, so write the speed component explicitly. */
   ground[2] = speed;
-  if (magnitude3d(ground) <= *(float *)0x2533c0) {
+  if (normalize2d(ground) <= *(float *)0x2533c0) {
     return 0;
   }
 
@@ -929,7 +929,7 @@ int actor_aim_grenade(int actor_handle, void *aim_params, float *out_aim_vector)
   if (((actor_t *)actor)->field_158 == -1) {
     planar[0] = aim_x;
     planar[1] = aim_y;
-    if (magnitude3d(planar) > *(float *)0x2533c0 &&
+    if (normalize2d(planar) > *(float *)0x2533c0 &&
         planar[0] * ((actor_t *)actor)->input_facing_vector[0] +
             planar[1] * ((actor_t *)actor)->input_facing_vector[1] <
           *(float *)0x2533dc) {

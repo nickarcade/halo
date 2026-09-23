@@ -94,6 +94,7 @@ def _fingerprint_paths() -> list[Path]:
             paths.extend(
                 p for p in directory.rglob("*")
                 if p.is_file()
+                and p != LEAF_CACHE
                 and not FINGERPRINT_IGNORED_PARTS.intersection(p.parts)
                 and p.suffix not in FINGERPRINT_IGNORED_SUFFIXES
             )
@@ -136,6 +137,92 @@ def candidate_fingerprint(base_fingerprint: str, candidate: dict,
     }
     payload = json.dumps(identity, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256((base_fingerprint + "\0" + payload).encode("utf-8")).hexdigest()
+
+
+def report_provenance(candidate: dict, bounds: dict,
+                      source_hashes: dict[str, str]) -> dict | None:
+    """Evidence needed to join a result by address after a symbol rename."""
+    try:
+        addr = hex(int(candidate["addr"], 16))
+        source_rel = candidate["source_path"]
+        source_root = (ROOT / "src" / "halo").resolve()
+        source = next(
+            path for path in (
+                (ROOT / source_rel).resolve(),
+                (ROOT / "src" / source_rel).resolve(),
+                (source_root / source_rel).resolve(),
+            ) if path.is_file() and path.is_relative_to(source_root)
+        )
+        bound = bounds[addr]
+        end = hex(int(bound["end"], 16))
+        xbe_md5 = bounds["_meta"]["xbe_md5"]
+        if not xbe_md5:
+            return None
+    except (KeyError, TypeError, ValueError, OSError, StopIteration):
+        return None
+    source_key = source.as_posix()
+    if source_key not in source_hashes:
+        try:
+            source_hashes[source_key] = hashlib.sha256(source.read_bytes()).hexdigest()
+        except OSError:
+            return None
+    return {
+        "schema": 1,
+        "address": addr,
+        "source_path": source.relative_to(ROOT).as_posix(),
+        "source_sha256": source_hashes[source_key],
+        "reference_end": end,
+        "xbe_md5": xbe_md5,
+    }
+
+
+def merge_leaf_measurements(cache_path: Path, completed: dict,
+                            oracle: str) -> int:
+    """Apply batch measurements serially; worker writes would race and lose rows."""
+    try:
+        cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        cache = {}
+    changed = 0
+    ranks = {"none": 0, "weak": 1, "moderate": 2, "high": 3}
+    for candidate, result, _reused in completed.values():
+        coverage = result.get("coverage_pct")
+        confidence = result.get("confidence")
+        if (not isinstance(coverage, (int, float)) or isinstance(coverage, bool)
+                or not math.isfinite(coverage) or not 0 <= coverage <= 100
+                or confidence not in ranks or result.get("oracle") != oracle):
+            continue
+        try:
+            addr = hex(int(candidate["addr"], 16))
+        except (KeyError, TypeError, ValueError):
+            continue
+        prior = cache.get(addr)
+        entry = dict(prior) if isinstance(prior, dict) else {}
+        old_coverage = entry.get("coverage_pct")
+        same_oracle = entry.get("oracle", "delinked") == oracle
+        better = (not same_oracle or not isinstance(old_coverage, (int, float))
+                  or coverage > old_coverage
+                  or (coverage == old_coverage
+                      and ranks[confidence] > ranks.get(entry.get("confidence"), -1)))
+        if better:
+            entry.update(coverage_pct=coverage, confidence=confidence,
+                         oracle=oracle)
+        if result.get("status") == "pass" and result.get("z3_proven"):
+            entry["z3_proven"] = True
+        if entry != prior:
+            cache[addr] = entry
+            changed += 1
+    if not changed:
+        return 0
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=cache_path.parent,
+                                     prefix=".leaf-cache-", suffix=".json",
+                                     delete=False) as tmp:
+        json.dump(dict(sorted(cache.items())), tmp, indent=2)
+        tmp.write("\n")
+        tmp_path = Path(tmp.name)
+    os.replace(tmp_path, cache_path)
+    return changed
 
 
 def reusable_results(output_dir: Path, fingerprints: dict[str, str],
@@ -345,6 +432,7 @@ def load_candidates(leaf_only: bool = False, classes: set = None,
                 "class": cls,
                 "obj": obj_name,
                 "decl": decl,
+                "source_path": fn.get("source_path", ""),
                 "discovered": not bool(entry),
             })
 
@@ -916,6 +1004,16 @@ def main():
               f"with an available {args.oracle} oracle")
 
     if args.max_new_per_run > 0:
+        if args.update_leaf_cache and LEAF_CACHE.is_file():
+            try:
+                measured = json.loads(LEAF_CACHE.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                measured = {}
+            candidates.sort(key=lambda c: isinstance(
+                measured.get(hex(int(c["addr"], 16))), dict
+            ) and isinstance(
+                measured[hex(int(c["addr"], 16))].get("coverage_pct"),
+                (int, float)))
         # Rationing FRESH work, not candidates: a target with a reusable
         # result costs nothing to keep, and dropping it would throw away the
         # reuse --skip-existing exists to get.  Order is the candidate order,
@@ -1047,7 +1145,9 @@ def main():
                               timeout=args.timeout,
                               float_tolerance=args.float_tolerance,
                               skip_esp=args.skip_esp,
-                              update_leaf_cache=args.update_leaf_cache,
+                              # Merge cache measurements once after all workers
+                              # finish; parallel read/modify/write loses rows.
+                              update_leaf_cache=False,
                     oracle=args.oracle,
                               input_fingerprint=fingerprints[c["name"]]): (i, c)
                     for i, c in compute
@@ -1078,11 +1178,25 @@ def main():
     finally:
         signal.signal(signal.SIGINT, prev_handler)
 
+    try:
+        bounds = json.loads(FUNCTION_BOUNDS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        bounds = {}
+    source_hashes = {}
+
     # Tally in candidate order for deterministic rows / CSV / diffs, independent
     # of the order results completed in under parallelism.
     for idx in sorted(completed):
         c, result, reused = completed[idx]
         name = c["name"]
+        provenance = report_provenance(c, bounds, source_hashes)
+        if provenance:
+            result["address"] = provenance["address"]
+            result["_report_provenance"] = provenance
+            result_path = output_dir / f"{name}.json"
+            if result_path.is_file():
+                result_path.write_text(json.dumps(result, indent=2) + "\n",
+                                       encoding="utf-8")
         status = result.get("status", "error")
         results[status] = results.get(status, 0) + 1
         if result.get("z3_proven"):
@@ -1109,6 +1223,10 @@ def main():
         rows.append(row)
         # CSV fieldnames omit error_details (a list); keep it only in summary rows.
         csv_rows.append({k: v for k, v in row.items() if k != "error_details"})
+
+    if args.update_leaf_cache:
+        refreshed = merge_leaf_measurements(LEAF_CACHE, completed, args.oracle)
+        print(f"Leaf cache: {refreshed} measurement(s) added or improved")
 
     summary_path, elapsed, comparison = _write_summary()
 

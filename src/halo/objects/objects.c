@@ -3267,10 +3267,10 @@ void lightning_submit(int *param_1, int param_2, int param_3, int *param_4)
           if ((short)point_count > 2) {
             vertcount = (short)point_count + 1;
             point_count = vertcount;
-            handle = (unsigned int)rasterizer_widget_set_zbuffer_enable(
+            handle = (unsigned int)rasterizer_dynamic_vertices_new(
               6, vertcount * 2);
             if (handle != 0xffffffff) {
-              vertices = (lightning_vertex *)rasterizer_widget_draw_sprite3d(
+              vertices = (lightning_vertex *)rasterizer_dynamic_vertices_lock(
                 (int)handle);
               v_step = *(float *)0x2533c8 / (float)vertcount;
               seed = random_math_get_local_seed_address();
@@ -3386,11 +3386,11 @@ void lightning_submit(int *param_1, int param_2, int param_3, int *param_4)
               } else {
                 source_elem = (void *)0x326a78;
               }
-              rasterizer_widget_end((int)handle);
+              rasterizer_dynamic_vertices_unlock((int)handle);
               FUN_0017cf60((unsigned int)source_elem, (unsigned int)bitmap_elem,
                            (int)param_4, vertcount * -2, handle,
                            vertcount * 2 + -2, center, 0);
-              FUN_0017c9f0((int)handle);
+              rasterizer_dynamic_vertices_delete((int)handle);
             }
             need_first = 1;
           }

@@ -181,6 +181,188 @@ char FUN_00168370(void *bitmap)
 }
 
 /*
+ * rasterizer_bitmap_2d_changed @ 0x168500 — re-upload every mip level of a
+ * 2D bitmap into its D3D texture (bitmap->hardware_format at +0x28). The
+ * bitmap arrives in ESI (TEST ESI,ESI at entry, no prior write). Mip levels
+ * 0..[+0x14] are locked with D3DLOCK_NOOVERWRITE (0x20); bitmaps with
+ * flag bit 1 at +0xe set are copied raw with csmemcpy, the others are
+ * swizzled by bytes-per-pixel (bitmap_format_bits_per_pixel(+0xc) / 8).
+ *
+ * `success` mirrors the D3D result-check macro: BL starts at 1 (MOV BL,0x1)
+ * and the post-LockRect TEST BL,BL branch to rasterizer_error is
+ * unreachable at runtime (Ghidra drops it); kept to preserve the binary's
+ * blocks. locked_rect is D3DLOCKED_RECT as int[2] (Pitch, pBits @ -0x10).
+ * +0x2c is tested non-zero but its meaning is not proven here.
+ */
+/* 0x168500 */
+void rasterizer_bitmap_2d_changed(void *bitmap /* @<esi> */)
+{
+  char *bm;
+  char success;
+  short mipmap_index;
+  int locked_rect[2];
+  void *dst;
+  void *src;
+  short width;
+  short height;
+
+  bm = (char *)bitmap;
+  success = 1;
+  if (bitmap == NULL) {
+    display_assert(
+      "bitmap",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0x8d, true);
+    system_exit(-1);
+  }
+  if (*(void **)0x476ab0 != NULL && *(int *)(bm + 0x2c) != 0 &&
+      *(void **)(bm + 0x28) != NULL) {
+    for (mipmap_index = 0; success && mipmap_index <= *(short *)(bm + 0x14);
+         mipmap_index++) {
+      D3DTexture_LockRect(*(void **)(bm + 0x28), (int)mipmap_index, locked_rect,
+                          NULL, 0x20);
+      if (!success) {
+        rasterizer_error(0, "IDirect3DTexture8_LockRect((IDirect3DTexture8*)"
+                            "bitmap->hardware_format, mipmap_index, "
+                            "&d3d_locked_rect, NULL, D3DLOCK_NOOVERWRITE)");
+      }
+      if (success && (void *)locked_rect[1] != NULL) {
+        src = bitmap_mipmap_address(bitmap, mipmap_index);
+        dst = (void *)locked_rect[1];
+        width = bitmap_mipmap_width(bitmap, mipmap_index);
+        height = bitmap_mipmap_get_height(bitmap, mipmap_index);
+        if ((*(unsigned char *)(bm + 0xe) & 2) != 0) {
+          csmemcpy(dst, src,
+                   bitmap_mipmap_get_pixel_data_size(bitmap, mipmap_index));
+        } else {
+          switch (bitmap_format_bits_per_pixel(*(unsigned short *)(bm + 0xc)) /
+                  8) {
+          case 1:
+            rasterizer_xbox_bitmap_swizzle2d_byte(dst, src, width, height);
+            break;
+          case 2:
+            rasterizer_xbox_bitmap_swizzle2d_word(dst, src, width, height);
+            break;
+          case 4:
+            rasterizer_xbox_bitmap_swizzle2d_long(dst, src, width, height);
+            break;
+          default:
+            display_assert("### ERROR uncompressed bitmap format does not "
+                           "have 1,2 or 4 bytes per pixel",
+                           "c:\\halo\\SOURCE\\rasterizer\\xbox\\"
+                           "rasterizer_xbox_hardware_bitmaps.c",
+                           0xb1, true);
+            system_exit(-1);
+            break;
+          }
+        }
+        success = 1;
+      } else {
+        error(2, "### ERROR failed to lock surface");
+        success = 0;
+      }
+    }
+    if (!success) {
+      error(2, "### ERROR failed to change bitmap hardware format");
+    }
+  }
+}
+
+/*
+ * rasterizer_bitmap_cm_changed @ 0x1688d0 — re-upload every mip level of
+ * all six faces of a cube-map bitmap into its D3D cube texture
+ * (bitmap->hardware_format at +0x28). The bitmap arrives in ESI (TEST
+ * ESI,ESI at 0x1688d6, no prior write); the caller FUN_00168b10 holds it
+ * in ESI. Faces 0..5 map through the int16 table at 0x2a2470 before
+ * D3DCubeTexture_LockRect(..., D3DLOCK_NOOVERWRITE=0x20). Flag bit 1 at
+ * +0xe copies raw with csmemcpy(pixel_data_size / 6); otherwise swizzled
+ * by bytes-per-pixel. As in rasterizer_bitmap_2d_changed, the post-LockRect
+ * TEST BL,BL branch to rasterizer_error is unreachable at runtime but kept
+ * to preserve the binary's blocks. locked_rect is D3DLOCKED_RECT as int[2]
+ * (Pitch, pBits @ -0x14). +0x2c is tested non-zero; meaning unproven.
+ */
+/* 0x1688d0 */
+void rasterizer_bitmap_cm_changed(void *bitmap /* @<esi> */)
+{
+  char *bm;
+  char success;
+  short mipmap_index;
+  short face_index;
+  int locked_rect[2];
+  void *dst;
+  void *src;
+  short width;
+  short height;
+
+  bm = (char *)bitmap;
+  success = 1;
+  if (bitmap == NULL) {
+    display_assert(
+      "bitmap",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0x114, true);
+    system_exit(-1);
+  }
+  if (*(void **)0x476ab0 != NULL && *(int *)(bm + 0x2c) != 0 &&
+      *(void **)(bm + 0x28) != NULL) {
+    for (mipmap_index = 0; success && mipmap_index <= *(short *)(bm + 0x14);
+         mipmap_index++) {
+      for (face_index = 0; success && face_index < 6; face_index++) {
+        D3DCubeTexture_LockRect(*(void **)(bm + 0x28),
+                                (int)((short *)0x2a2470)[face_index],
+                                (int)mipmap_index, locked_rect, NULL, 0x20);
+        if (!success) {
+          rasterizer_error(0,
+                           "IDirect3DCubeTexture8_LockRect("
+                           "(IDirect3DCubeTexture8*)bitmap->hardware_format, "
+                           "face_mapping_table[face_index], mipmap_index, "
+                           "&d3d_locked_rect, NULL, D3DLOCK_NOOVERWRITE)");
+        }
+        if (success && (void *)locked_rect[1] != NULL) {
+          src = bitmap_cube_map_address(bitmap, 0, 0, face_index, mipmap_index);
+          dst = (void *)locked_rect[1];
+          width = bitmap_mipmap_width(bitmap, mipmap_index);
+          height = bitmap_mipmap_get_height(bitmap, mipmap_index);
+          if ((*(unsigned char *)(bm + 0xe) & 2) != 0) {
+            csmemcpy(dst, src,
+                     bitmap_mipmap_get_pixel_data_size(bitmap, mipmap_index) /
+                       6);
+          } else {
+            switch (
+              bitmap_format_bits_per_pixel(*(unsigned short *)(bm + 0xc)) / 8) {
+            case 1:
+              rasterizer_xbox_bitmap_swizzle2d_byte(dst, src, width, height);
+              break;
+            case 2:
+              rasterizer_xbox_bitmap_swizzle2d_word(dst, src, width, height);
+              break;
+            case 4:
+              rasterizer_xbox_bitmap_swizzle2d_long(dst, src, width, height);
+              break;
+            default:
+              display_assert("### ERROR uncompressed bitmap format does not "
+                             "have 1,2 or 4 bytes per pixel",
+                             "c:\\halo\\SOURCE\\rasterizer\\xbox\\"
+                             "rasterizer_xbox_hardware_bitmaps.c",
+                             0x13f, true);
+              system_exit(-1);
+              break;
+            }
+          }
+          success = 1;
+        } else {
+          error(2, "### ERROR failed to lock surface");
+          success = 0;
+        }
+      }
+    }
+    if (!success) {
+      error(2, "### ERROR failed to change bitmap hardware format");
+    }
+  }
+}
+
+/*
  * FUN_00168ae0 @ 0x168ae0 — release a bitmap_data's D3D hardware texture
  * resource: called from bitmap_delete (bitmaps.c) via a raw function-pointer
  * cast at 0x168ae0, and cross-referenced
@@ -211,6 +393,59 @@ void FUN_00168ae0(void *bitmap)
     D3DResource_Release(*(void **)((char *)bitmap + 0x28));
     *(void **)((char *)bitmap + 0x28) = NULL;
   }
+}
+
+/*
+ * FUN_00168b10 @ 0x168b10 — bitmap_hardware_format_changed dispatcher: NULL
+ * asserts the bitmap, sets the 0x325652 render-phase marker to 1, switches
+ * on the bitmap type word at +0xa (0=2D, 1=3D, 2=cubemap, else assert), and
+ * clears the marker back to 0 on the way out. Every case forwards the
+ * bitmap pointer in a register. Case 1 (3D): PUSH EDI/MOV EDI,ESI/CALL
+ * 0x1686c0/POP EDI; 0x1686c0 does `TEST EDI,EDI` at entry and reads
+ * [EDI+0x28]/[EDI+0x2c]/[EDI+0x14], so its bitmap is @<edi>. Cases 0 and 2
+ * call 0x168500 / 0x1688d0 with the bitmap still live in ESI (loaded at
+ * 0x168b15); both callees open with `TEST ESI,ESI` (assert "bitmap") and
+ * read [ESI+0x2c], so their bitmap is @<esi>. Calling them with no argument
+ * leaves ESI as garbage; 0x168500 then hands it to bitmap_mipmap_address
+ * (CALL 0x7d000 at 0x1685af), which halts on "unsupported bitmap type".
+ */
+/* 0x168b10 */
+void FUN_00168b10(void *bitmap)
+{
+  uint16_t *new_var;
+  char *bm;
+  int16_t type;
+
+  new_var = (uint16_t *)0x325652;
+  bm = (char *)bitmap;
+  if (bitmap == NULL) {
+    display_assert(
+      "bitmap",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0x70, true);
+    system_exit(-1);
+  }
+  *new_var = 1;
+  type = *(int16_t *)(bm + 0xa);
+  switch (type) {
+  case 0:
+    rasterizer_bitmap_2d_changed(bitmap);
+    break;
+  case 1:
+    rasterizer_bitmap_3d_changed(bitmap);
+    break;
+  case 2:
+    rasterizer_bitmap_cm_changed(bitmap);
+    break;
+  default:
+    display_assert(
+      "### ERROR unsupported bitmap type",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0x80, true);
+    system_exit(-1);
+    break;
+  }
+  *(uint16_t *)0x325652 = 0;
 }
 
 /*

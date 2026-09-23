@@ -97,7 +97,7 @@ int16_t FUN_0019ce70(void *screen_pos, char *text, const void *ref_point)
  *     unproven here; the case set matches a pixel-format selector.
  *   - Both clamp blocks are the same shape: two `cmp bm,r / jg` minima
  *     against bitmap+0x4 and bitmap+0x6, two `test/jge` clamps of r[0]
- *     and r[1] to >= 0, then cdecl FUN_001089a0(&local, max(0,r[1]),
+ *     and r[1] to >= 0, then cdecl set_rectangle2d(&local, max(0,r[1]),
  *     max(0,r[0]), min(bm[2],r[3]), min(bm[3],r[2])) with `add esp,0x14`.
  *     The frame is `sub esp,0x10` holding exactly the two 8-byte rects at
  *     [ebp-8] (screen) and [ebp-0x10] (clip).
@@ -131,20 +131,20 @@ void bitmap_draw_string(void *bitmap, int16_t *screen_bounds,
   case 6:
   case 11:
     if (screen_bounds == 0) {
-      FUN_001089a0((int *)screen_rect,
-                   screen_bounds[1] < 0 ? 0 : screen_bounds[1],
-                   screen_bounds[0] < 0 ? 0 : screen_bounds[0],
-                   bm[2] > screen_bounds[3] ? screen_bounds[3] : bm[2],
-                   bm[3] > screen_bounds[2] ? screen_bounds[2] : bm[3]);
+      set_rectangle2d(screen_rect,
+                      screen_bounds[1] < 0 ? 0 : screen_bounds[1],
+                      screen_bounds[0] < 0 ? 0 : screen_bounds[0],
+                      bm[2] > screen_bounds[3] ? screen_bounds[3] : bm[2],
+                      bm[3] > screen_bounds[2] ? screen_bounds[2] : bm[3]);
       screen_bounds = screen_rect;
     }
 
     clip_arg = 0;
     if (clip_bounds != 0) {
-      FUN_001089a0((int *)clip_rect, clip_bounds[1] < 0 ? 0 : clip_bounds[1],
-                   clip_bounds[0] < 0 ? 0 : clip_bounds[0],
-                   bm[2] > clip_bounds[3] ? clip_bounds[3] : bm[2],
-                   bm[3] > clip_bounds[2] ? clip_bounds[2] : bm[3]);
+      set_rectangle2d(clip_rect, clip_bounds[1] < 0 ? 0 : clip_bounds[1],
+                      clip_bounds[0] < 0 ? 0 : clip_bounds[0],
+                      bm[2] > clip_bounds[3] ? clip_bounds[3] : bm[2],
+                      bm[3] > clip_bounds[2] ? clip_bounds[2] : bm[3]);
       clip_arg = clip_rect;
     }
 

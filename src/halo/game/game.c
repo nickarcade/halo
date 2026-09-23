@@ -753,6 +753,95 @@ wchar_t *FUN_000b42d0(int param_1, wchar_t *dst)
   return dst;
 }
 
+/* race_engine_update (0xb4300) — race per-player team-win query
+ *
+ * Signature from binary: reads one stack arg [ebp+8] (player handle, passed to
+ * datum_get(player_data) and game_engine_did_player_win_default) and returns
+ * in EAX on every path (callee result, SETNZ of
+ * can_team_win[player->team_index] at 0xb4353, or OR EAX,-1 at 0xb4384).
+ * FUN_000b3c60 takes team in EDI (0 then 1). Assert string/line from
+ * 0xb4363..0xb437b. */
+int race_engine_update(int player_handle)
+{
+  player_data_t *player;
+  char can_team_win[2];
+
+  if (game_engine_has_teams()) {
+    player = (player_data_t *)datum_get(player_data, player_handle);
+    can_team_win[0] = FUN_000b3c60(0);
+    can_team_win[1] = FUN_000b3c60(1);
+    if (can_team_win[0] != can_team_win[1])
+      return can_team_win[player->team_index] != 0;
+    if (!can_team_win[0]) {
+      if (can_team_win[1]) {
+        display_assert("!can_team_win[1]",
+                       "c:\\halo\\SOURCE\\game\\game_engine_race.c", 0x48d, 1);
+        system_exit(-1);
+      }
+      return -1;
+    }
+    return game_engine_did_player_win_default(player_handle);
+  }
+  return game_engine_did_player_win_default(player_handle);
+}
+
+/* FUN_000b43b0 (0xb43b0) — race engine: pick the nearest unused race flag.
+ *
+ * Walks scenario netgame flags (scenario+0x378, 0x94-byte elements) and
+ * considers only type 4 (CMP word [elem+0x10],4 at 0xb440f). Indices already
+ * present in used_indices[0..count) are skipped; count arrives in EBX (never
+ * written by the callee; the caller keeps its collection counter in EBX at
+ * 0xb44ee/0xb4514/0xb451c). With point == NULL the first eligible index is
+ * returned (0xb447c returns ESI); otherwise the index with the smallest
+ * squared distance below 1e6 (0x49742400) wins, or -1. The game_globals
+ * element 0 of block +0x164 (0xa0 bytes) is fetched and discarded (0xb43df).
+ * Squared distance addends are dx*dx + dz*dz + dy*dy (0xb4444..0xb4452). */
+int FUN_000b43b0(float *point, int *used_indices, int count)
+{
+  char *scenario;
+  char *globals;
+  float best_distance;
+  int best_index;
+  netgame_flag *flag;
+  float dx;
+  float dy;
+  float dz;
+  float distance;
+  int i;
+  int j;
+
+  best_distance = 1000000.0f;
+  best_index = -1;
+  scenario = (char *)global_scenario_get();
+  globals = (char *)game_globals_get();
+  tag_block_get_element(globals + 0x164, 0, 0xa0);
+  i = 0;
+  if (*(int *)(scenario + 0x378) > 0) {
+    do {
+      flag = (netgame_flag *)tag_block_get_element(scenario + 0x378, i, 0x94);
+      if (flag->type == 4) {
+        for (j = 0; j < count; j++) {
+          if (i == used_indices[j])
+            goto next;
+        }
+        if (point == NULL)
+          return i;
+        dx = flag->position_x - point[0];
+        dy = flag->position_y - point[1];
+        dz = flag->position_z - point[2];
+        distance = dx * dx + dz * dz + dy * dy;
+        if (distance < best_distance) {
+          best_distance = distance;
+          best_index = i;
+        }
+      }
+    next:
+      i++;
+    } while (i < *(int *)(scenario + 0x378));
+  }
+  return best_index;
+}
+
 /* FUN_000b4490 (0xb4490) — race engine: place the race flag objects.
  *
  * Walks the player table (0x5aa6d4). For each player it fetches the player's
@@ -765,8 +854,9 @@ wchar_t *FUN_000b42d0(int param_1, wchar_t *dst)
  * flag's facing angle. 0x456fdc (cleared by FUN_000b4960) is set to 1 for
  * every object actually created.
  *
- * FUN_000b43b0 signature: two stack pushes at 0xb44f7/0xb4501 (position-or-
- * NULL, then &flag_indices) and the result is compared against -1 at 0xb450f.
+ * FUN_000b43b0 signature: count in EBX; two stack pushes at 0xb44f7/0xb4501
+ * (position-or- NULL, then &flag_indices) and the result is compared against -1
+ * at 0xb450f.
  *
  * Source: c:\halo\SOURCE\game\game_engine_race.c */
 void FUN_000b4490(void)
@@ -802,9 +892,9 @@ void FUN_000b4490(void)
       break;
 
     if (unit != (char *)0)
-      flag_index = FUN_000b43b0(unit + 0xc, flag_indices);
+      flag_index = FUN_000b43b0((float *)(unit + 0xc), flag_indices, count);
     else
-      flag_index = FUN_000b43b0((void *)0, flag_indices);
+      flag_index = FUN_000b43b0((float *)0, flag_indices, count);
 
     if (flag_index == -1)
       break;
@@ -877,7 +967,7 @@ int FUN_000b45c0(int param_1)
   }
 
   sVar1 = seed_random_range((unsigned int *)get_global_random_seed_address(), 0,
-                       (short)count);
+                            (short)count);
   flags_block = (tag_block *)((char *)scenario + 0x378);
   random_index = (int)sVar1;
   for (i = 0; i < flags_block->count; i++) {
@@ -991,7 +1081,8 @@ int FUN_000b4960(void)
           if (min_flag > (int)sVar1) {
             min_flag = (int)sVar1;
           }
-          race_globals.track_flags_bitmask |= (1 << ((unsigned char)sVar1 & 0x1f));
+          race_globals.track_flags_bitmask |=
+            (1 << ((unsigned char)sVar1 & 0x1f));
           game_engine_set_goal_position((int)sVar1, (void *)iVar3, 0.0f,
                                         "flag_blue", -1, -1, -1);
         }
@@ -1065,6 +1156,46 @@ void FUN_000b4b10(unsigned int player_handle)
   player->target_player_index = -1;
 }
 
+/* update_speed_for_score (0xb4bf0)
+ *
+ * Disassembly (0xb4bf0): datum_get(player_data, [EBP+0xc]) -> ESI first,
+ * then datum_get(player_data, [EBP+8]) -> EDI (one combined ADD ESP,0x10).
+ * If variant+0x4d byte is zero: ESI+0x6c -= 0.02; if >= 1.0 then -= 0.15
+ * and pinned to 1.0 when <= 1.0; finally raised to at least 0.9.
+ * If variant+0x4c byte is zero: EDI+0x6c += 0.1; if <= 1.0 then += 0.1
+ * again and pinned to 1.0 when > 1.0; finally capped at 1.5.
+ * The meaning of variant bytes 0x4c/0x4d is unproven. */
+void update_speed_for_score(int param_1, int param_2)
+{
+  player_data_t *player_2;
+  player_data_t *player_1;
+
+  player_2 = (player_data_t *)datum_get(player_data, param_2);
+  player_1 = (player_data_t *)datum_get(player_data, param_1);
+  if (!((game_variant_t *)game_engine_get_variant())->field_4d) {
+    player_2->speed_multiplier -= 0.02f;
+    if (player_2->speed_multiplier >= 1.0f) {
+      player_2->speed_multiplier -= 0.15f;
+      player_2->speed_multiplier = player_2->speed_multiplier > 1.0f
+                                       ? player_2->speed_multiplier
+                                       : 1.0f;
+    }
+    player_2->speed_multiplier =
+      player_2->speed_multiplier > 0.9f ? player_2->speed_multiplier : 0.9f;
+  }
+  if (!((game_variant_t *)game_engine_get_variant())->field_4c) {
+    player_1->speed_multiplier += 0.1f;
+    if (player_1->speed_multiplier <= 1.0f) {
+      player_1->speed_multiplier += 0.1f;
+      player_1->speed_multiplier = player_1->speed_multiplier > 1.0f
+                                       ? 1.0f
+                                       : player_1->speed_multiplier;
+    }
+    player_1->speed_multiplier =
+      player_1->speed_multiplier > 1.5f ? 1.5f : player_1->speed_multiplier;
+  }
+}
+
 /* slayer_engine_adjust_score (0xb4d00) — add a delta to a player's two score
  * counters (register args: player handle in EAX, delta in EDI).
  *
@@ -1120,8 +1251,7 @@ bool FUN_000b4d90(int param_1)
  * low 16 bits of the player handle. Uses the format string at 0x26c118. */
 wchar_t *FUN_000b4da0(unsigned int player_handle, wchar_t *dst)
 {
-  usprintf(dst, L"%d",
-           slayer_globals.player_scores[player_handle & 0xffff]);
+  usprintf(dst, L"%d", slayer_globals.player_scores[player_handle & 0xffff]);
   return dst;
 }
 
@@ -1148,8 +1278,8 @@ wchar_t *FUN_000b4df0(int index, wchar_t *dst)
  *
  * Slayer/oddball "next target" selection: counts the eligible players
  * (not us, not our previous target, different team, alive), picks a random
- * one of them with seed_random_range(seed, 0, count), then walks the player data
- * again to find that Nth eligible player and reports it.
+ * one of them with seed_random_range(seed, 0, count), then walks the player
+ * data again to find that Nth eligible player and reports it.
  *
  * Register arg: @EDI = player datum handle (read uninitialized at 0xb4e2b
  * PUSH EDI, never written inside the function).
@@ -1161,9 +1291,9 @@ wchar_t *FUN_000b4df0(int index, wchar_t *dst)
  *   EAX (other); the +0x20 team compare is other vs self, and the +0x34
  *   != -1 aliveness test is on `other`.
  * Confirmed 0xb4ec8: PUSH EAX(count) / PUSH 0x0 / CALL
- *   get_global_random_seed_address / PUSH EAX -> seed_random_range(seed, 0, count).
- * Confirmed 0xb4f56: on count exhaustion the chosen handle is re-read from
- *   the iterator ([EBP-0x18] == data_iter_t.datum_handle) and the assert
+ *   get_global_random_seed_address / PUSH EAX -> seed_random_range(seed, 0,
+ * count). Confirmed 0xb4f56: on count exhaustion the chosen handle is re-read
+ * from the iterator ([EBP-0x18] == data_iter_t.datum_handle) and the assert
  *   fires when it is NONE.
  */
 void find_next_target(int player_index)
@@ -1189,14 +1319,13 @@ void find_next_target(int player_index)
       other = (player_data_t *)datum_get(player_data, (int)handle);
       if (handle != (unsigned int)player_index &&
           handle != (unsigned int)last_target &&
-          other->team_index != self->team_index &&
-          other->unit_handle != -1) {
+          other->team_index != self->team_index && other->unit_handle != -1) {
         count = count + 1;
       }
     } while (data_iterator_next(&iterator) != 0);
     if (count > 0) {
-      count = seed_random_range((unsigned int *)get_global_random_seed_address(), 0,
-                           (int16_t)count);
+      count = seed_random_range(
+        (unsigned int *)get_global_random_seed_address(), 0, (int16_t)count);
       data_iterator_new(&iterator, player_data);
       while (data_iterator_next(&iterator) != 0) {
         handle = iterator.datum_handle;
@@ -1204,8 +1333,7 @@ void find_next_target(int player_index)
         other = (player_data_t *)datum_get(player_data, (int)handle);
         if (handle != (unsigned int)player_index &&
             handle != (unsigned int)last_target &&
-            other->team_index != self->team_index &&
-            other->unit_handle != -1) {
+            other->team_index != self->team_index && other->unit_handle != -1) {
           if (count == 0) {
             next_target = (int)iterator.datum_handle;
             if (next_target != -1)
@@ -1348,8 +1476,7 @@ bool FUN_000b5040(unsigned int player_handle, int event_type, int target_handle,
                       slayer_globals.player_scores[player_handle & 0xffff]);
     }
     target = (player_data_t *)datum_get(player_data, target_handle);
-    unicode_sprintf(buffer, buffer_size, L"New Target %s",
-                    target->name);
+    unicode_sprintf(buffer, buffer_size, L"New Target %s", target->name);
     return true;
   }
   if (event_type == 0x16) {
@@ -1454,7 +1581,8 @@ void slayer_engine_display_score(int player_index)
     game_engine_clear_goal_position((short)player_index);
 
     if (player->target_player_index != -1) {
-      target = (player_data_t *)datum_get(player_data, player->target_player_index);
+      target =
+        (player_data_t *)datum_get(player_data, player->target_player_index);
       if (target->unit_handle != -1) {
         object = object_get_and_verify_type(target->unit_handle, 3);
         game_engine_set_goal_position(player_index,
@@ -1463,8 +1591,7 @@ void slayer_engine_display_score(int player_index)
       }
     }
 
-    if (player->unit_handle != -1 &&
-        player->target_player_index == -1) {
+    if (player->unit_handle != -1 && player->target_player_index == -1) {
       find_next_target(player_index);
     }
 

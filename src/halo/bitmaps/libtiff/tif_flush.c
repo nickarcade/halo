@@ -4316,3 +4316,101 @@ int FUN_0006ba70(void *tif, unsigned long *raster, void *img,
   debug_free(buf, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_getimage.c", 0x19c);
   return (1);
 }
+
+/**
+ * Decode a stripped, packed-sample image into the 32-bit RGBA raster.
+ *
+ * Upstream libtiff tif_getimage.c:gtStripContig, transcribed from the
+ * disassembly (0x6bcb0-0x6be3c) rather than reshaped from the decompiler,
+ * which lost every parameter and every local and reported the body as
+ * `void(void)` with unresolved `in_stack_*`/`extraout_*` placeholders.
+ *
+ * ABI (cdecl, caller-cleans, frame `sub esp,0x20` at 0x6bcb3):
+ *   EBP+0x08  tif     reloaded fresh at 0x6bda1/0x6bdb9/0x6bd19, never
+ *                     dereferenced here
+ *   EBP+0x0c  raster  scaled by `lea ecx,[eax+edx*4]` at 0x6bded
+ *   EBP+0x10  img     never dereferenced; forwarded to FUN_0006b780 (0x6bcba)
+ *                     and to the put call (0x6bde8)
+ *   EBP+0x14  h       the loop bound, reloaded at 0x6bd15, 0x6bd80, 0x6bd90,
+ *                     0x6be06
+ *   EBX       w       INCOMING REGISTER ARGUMENT. Never pushed/popped in the
+ *                     prologue/epilogue (only ESI/EDI are), and the sole
+ *                     caller (FUN_0006c080, 0x6c3aa) loads it with
+ *                     `mov ebx,[ebp+0xc]` one instruction before `call
+ *                     0x6bcb0` -- the same value the sibling dispatch arm at
+ *                     0x6c39a passes to FUN_0006b8e0 in EDI, so this is a
+ *                     per-callee convention, not a global one. Hence the
+ *                     @<ebx> annotation in kb.json.
+ * Return is EAX: `mov eax,1` at 0x6be32 on the normal exit (including the
+ * h==0 no-op exit, which falls straight into the same tail), `xor eax,eax`
+ * at 0x6bd0e on the allocation failure, and the no-put exit at 0x6bccc falls
+ * out with EAX still holding FUN_0006b780's NULL.
+ *
+ * Unlike the tile sibling (FUN_0006b8e0), this is a SINGLE loop over strips
+ * -- there is no inner column loop, no per-iteration tile clamp, and
+ * fromskew/toskew are each computed ONCE before the loop, not re-derived
+ * per iteration:
+ *   - fromskew = (w < image_width) ? image_width - w : 0 (0x6bd6e-0x6bd79,
+ *     unsigned `cmp ebx,eax` / `jnc`), compared once against the whole
+ *     image width, not a per-tile remainder.
+ *   - toskew = TOPLEFT ? -(w+w) : 0 (0x6bd2f-0x6bd3a: `mov eax,ebx / neg
+ *     eax / shl eax,1` on the true arm, a bare `mov ...,0` on the false
+ *     arm) -- NOT the tile sibling's `-(tw+w)`/`(tw-w)` shape; there is no
+ *     tw here.
+ *   - both loop tests are UNSIGNED (`jbe` guard at 0x6bd87, `jc` bottom test
+ *     at 0x6be15), and the read-error test is SIGNED (`test eax,eax / jge`
+ *     at 0x6bdc5).
+ */
+int gtStripContig(void *tif, unsigned long *raster, void *img,
+                  unsigned long w /* @<ebx> */, unsigned long h)
+{
+  tiff_put_contig_proc put;
+  unsigned char *buf;
+  unsigned long rows_per_strip;
+  unsigned long image_width;
+  unsigned long row;
+  unsigned long nrow;
+  unsigned long y;
+  unsigned long strip;
+  long scanline_size;
+  long fromskew;
+  long toskew;
+
+  put = (tiff_put_contig_proc)FUN_0006b780(img);
+  if (put == 0)
+    return (0);
+
+  buf = (unsigned char *)debug_malloc(
+    TIFFStripSize(tif), 0, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_getimage.c",
+    0x1b8);
+  if (buf == 0) {
+    FUN_00068a30(filename, "No space for strip buffer");
+    return (0);
+  }
+
+  y = FUN_0006a310(tif, h);
+  toskew = orientation == ORIENTATION_TOPLEFT ? -(long)(w + w) : 0;
+
+  TIFFGetFieldDefaulted(tif, 0x116, &rows_per_strip);
+  TIFFGetField((int)tif, 0x100, &image_width);
+  scanline_size = TIFFScanlineSize((int)tif);
+
+  fromskew = w < image_width ? (long)(image_width - w) : 0;
+
+  for (row = 0; row < h; row += rows_per_strip) {
+    nrow = row + rows_per_strip > h ? h - row : rows_per_strip;
+
+    strip = TIFFComputeStrip(tif, row, 0);
+    if (TIFFReadEncodedStrip(
+          tif, strip, buf, (long)(nrow * (unsigned long)scanline_size)) < 0 &&
+        stoponerr)
+      break;
+
+    (*put)(raster + y * w, buf, (unsigned long)img, w, nrow, fromskew, toskew);
+
+    y += orientation == ORIENTATION_TOPLEFT ? -(long)nrow : (long)nrow;
+  }
+
+  debug_free(buf, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_getimage.c", 0x1cb);
+  return (1);
+}

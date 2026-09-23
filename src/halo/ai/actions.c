@@ -1991,7 +1991,7 @@ char actor_action_handle_surprise(int actor_handle, short type)
   if (((actor_t *)actor)->field_2f8 != '\0') {
     direction[0] = *(float *)(actor + 0x2fc);
     direction[1] = *(float *)(actor + 0x300);
-    magnitude3d(direction);
+    normalize2d(direction);
     dot = direction[1] * ((actor_t *)actor)->control_desired_facing_vector[1] +
           direction[0] * ((actor_t *)actor)->control_desired_facing_vector[0];
     if (dot < 0.0f) {
@@ -2004,7 +2004,7 @@ char actor_action_handle_surprise(int actor_handle, short type)
   } else {
     direction[0] = ((actor_t *)actor)->input_facing_vector[0];
     direction[1] = ((actor_t *)actor)->input_facing_vector[1];
-    magnitude3d(direction);
+    normalize2d(direction);
     anim_type = 4;
   }
 
@@ -3254,7 +3254,7 @@ char actor_action_handle_exit_pursuit(int actor_handle)
  * re-tests grenade viability via actor_action_test_grenade and clears the
  * pending flag (actor+0x6a0) if that test fails. If the pending flag is set,
  * computes the horizontal offset from self position (0x12c/0x130) to the
- * grenade target (0x6a8/0x6ac), normalizes it in place (magnitude3d, 2 floats),
+ * grenade target (0x6a8/0x6ac), normalizes it in place (normalize2d, 2 floats),
  * and requires a nonzero magnitude. Then checks the target lies within the
  * throw arc: the normalized direction dotted with the actor facing
  * (0x174/0x178) must be >= *(float*)0x2533dc (cos(30 deg) = 0.866025388;
@@ -3283,7 +3283,7 @@ char actor_action_try_to_throw_grenade(int actor_handle, char flag)
           ((actor_t *)actor)->field_6a8 - ((actor_t *)actor)->field_12c;
         delta[1] =
           ((actor_t *)actor)->field_6ac - ((actor_t *)actor)->field_130;
-        if (*(float *)0x2533c0 < magnitude3d(delta)) {
+        if (*(float *)0x2533c0 < normalize2d(delta)) {
           if (*(float *)0x2533dc <=
               delta[0] * ((actor_t *)actor)->input_facing_vector[0] +
                 delta[1] * ((actor_t *)actor)->input_facing_vector[1]) {
@@ -3368,7 +3368,7 @@ char actor_action_consider_grenade(int actor_handle)
  * Reads the attractor direction (2D vector at prop+0xe0) and measures its
  * alignment with the actor's facing (actor+0x174/0x178). When actr_tag flag
  * 0x200000 is set the alignment is a 3-component dot (FUN_00013070); otherwise
- * the attractor vector is copied, normalized (magnitude3d), and dotted in 2D.
+ * the attractor vector is copied, normalized (normalize2d), and dotted in 2D.
  * A zero-length attractor vector skips the alignment gate. The alignment must
  * exceed 0.4f (0x253524) to proceed.
  *
@@ -3417,7 +3417,7 @@ char actor_action_try_to_evade(int actor_handle)
   } else {
     scratch[0] = attractor_vec[0];
     scratch[1] = attractor_vec[1];
-    if (!(magnitude3d(scratch) > *(float *)0x2533c0)) {
+    if (!(normalize2d(scratch) > *(float *)0x2533c0)) {
       goto do_evade;
     }
     dot = scratch[1] * actor->input_facing_vector[1] +
@@ -3429,7 +3429,7 @@ do_evade:
   alignment_vec[0] = attractor_vec[0];
   alignment_vec[1] = attractor_vec[1];
   evade_dir_ref = 4;
-  magnitude3d(alignment_vec);
+  normalize2d(alignment_vec);
   if (actor_move_try_evasion_direction(actor_handle, alignment_vec,
                                        *(float *)(unit_tag + 0x234),
                                        (unsigned short *)&evade_dir_ref, 0.0f,

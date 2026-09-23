@@ -4634,7 +4634,7 @@
             {
               "offset": 16026,
               "target": {
-                "name": "_magnitude3d",
+                "name": "_normalize2d",
                 "section": 0,
                 "value": 0
               },
@@ -4643,7 +4643,7 @@
             {
               "offset": 16077,
               "target": {
-                "name": "_magnitude3d",
+                "name": "_normalize2d",
                 "section": 0,
                 "value": 0
               },
@@ -4652,7 +4652,7 @@
             {
               "offset": 16207,
               "target": {
-                "name": "_magnitude3d",
+                "name": "_normalize2d",
                 "section": 0,
                 "value": 0
               },
@@ -4661,7 +4661,7 @@
             {
               "offset": 16246,
               "target": {
-                "name": "_magnitude3d",
+                "name": "_normalize2d",
                 "section": 0,
                 "value": 0
               },
@@ -12531,7 +12531,7 @@
             {
               "offset": 35750,
               "target": {
-                "name": "_magnitude3d",
+                "name": "_normalize2d",
                 "section": 0,
                 "value": 0
               },
@@ -18152,7 +18152,7 @@
         "line": 7309,
         "reason": "abs-addr non-neutral: no named symbol at this address in kb.json objects.data (T4). Introducing a new global needs a kb.json data entry (out of this category staging set). Substituting any symbol for a cast-deref is not identifier->identifier (purity reject under symbol-names), and an HDATA import would change .text/relocations (neutral gate fail). A #define is const-enum shape.",
         "status": "parked",
-        "text": "if (magnitude3d((float *)(actor + 0x174)) <= *(float *)0x2533c0) {"
+        "text": "if (normalize2d((float *)(actor + 0x174)) <= *(float *)0x2533c0) {"
       },
       {
         "category": "symbol-names",
@@ -30621,7 +30621,7 @@
       "line": 7309,
       "reason": "abs-addr non-neutral: no named symbol at this address in kb.json objects.data (T4). Introducing a new global needs a kb.json data entry (out of this category staging set). Substituting any symbol for a cast-deref is not identifier->identifier (purity reject under symbol-names), and an HDATA import would change .text/relocations (neutral gate fail). A #define is const-enum shape.",
       "status": "parked",
-      "text": "if (magnitude3d((float *)(actor + 0x174)) <= *(float *)0x2533c0) {"
+      "text": "if (normalize2d((float *)(actor + 0x174)) <= *(float *)0x2533c0) {"
     },
     {
       "category": "symbol-names",

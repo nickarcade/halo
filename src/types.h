@@ -88,6 +88,15 @@ typedef struct real_plane3d {
   real normal[3];                  ///< offset=0x00
   real d;                          ///< offset=0x0c
 } real_plane3d;
+
+/// Mirror/refraction surface consumed by render_camera_mirror (0x186ef0):
+/// plane at +0x00, index_of_refraction at +0x10 (0.0f = reflective mirror),
+/// depth at +0x14.  Only these offsets are proven; total size unverified.
+typedef struct {
+  real_plane3d plane;               ///< offset=0x00
+  real         index_of_refraction; ///< offset=0x10
+  real         depth;               ///< offset=0x14
+} render_mirror_t;
 cs(real_plane3d, 0x10);
 co(real_plane3d, normal, 0x0);
 co(real_plane3d, d, 0xc);
@@ -914,6 +923,41 @@ typedef struct
   int16_t x1; ///< offset=0x06
 } viewport_bounds_t;
 
+/// size=0x10. Field order from render_camera_build_frustum (0x187250): the
+/// default bounds store -1.0 to +0x00/+0x08 and +1.0 to +0x04/+0x0c.
+typedef struct {
+  real x0; ///< offset=0x00
+  real x1; ///< offset=0x04
+  real y0; ///< offset=0x08
+  real y1; ///< offset=0x0c
+} real_rectangle2d;
+cs(real_rectangle2d, 0x10);
+
+/// size=0x18. Axis-aligned box; render_frustum_cube_view_fraction (0x185ad0)
+/// asserts x0<=x1 at +0x00/+0x04, y0<=y1 at +0x08/+0x0c, z0<=z1 at +0x10/+0x14.
+typedef struct {
+  real x0; ///< offset=0x00
+  real x1; ///< offset=0x04
+  real y0; ///< offset=0x08
+  real y1; ///< offset=0x0c
+  real z0; ///< offset=0x10
+  real z1; ///< offset=0x14
+} real_rectangle3d;
+cs(real_rectangle3d, 0x18);
+
+/// size=0x34. Scale, three basis rows, then translation; matrix_inverse
+/// (0x109150) / matrix_transform_point (0x109590) operand layout.
+typedef struct {
+  real      scale;    ///< offset=0x00
+  vector3_t forward;  ///< offset=0x04
+  vector3_t left;     ///< offset=0x10
+  vector3_t up;       ///< offset=0x1c
+  vector3_t position; ///< offset=0x28
+} real_matrix4x3;
+cs(real_matrix4x3, 0x34);
+co(real_matrix4x3, forward, 0x04);
+co(real_matrix4x3, position, 0x28);
+
 /// size=0x54
 typedef struct {
   vector3_t         field_00;               ///< offset=0x00
@@ -929,6 +973,15 @@ typedef struct {
   float             field_44[4];            ///< offset=0x44
 } camera_t;
 cs(camera_t, 0x54);
+
+/// size=0x10. PAL real_argb_color: alpha first.
+typedef struct {
+  real alpha; ///< offset=0x00
+  real red;   ///< offset=0x04
+  real green; ///< offset=0x08
+  real blue;  ///< offset=0x0c
+} real_argb_color;
+cs(real_argb_color, 0x10);
 co(camera_t, field_00, 0x00);
 co(camera_t, field_0c, 0x0c);
 co(camera_t, field_18, 0x18);
@@ -940,14 +993,13 @@ co(camera_t, field_44, 0x44);
 
 /// size=0x18c. Recovered from render_camera_build_frustum (0x187250).
 typedef struct {
-  float        field_00[4];   ///< offset=0x000
-  float        field_10[13];  ///< offset=0x010 real_matrix4x3
-  float        field_44[13];  ///< offset=0x044 real_matrix4x3
+  real_rectangle2d field_00;  ///< offset=0x000
+  real_matrix4x3 field_10;    ///< offset=0x010
+  real_matrix4x3 field_44;    ///< offset=0x044
   real_plane3d field_78[6];   ///< offset=0x078
   float        field_d8;      ///< offset=0x0d8
   float        field_dc;      ///< offset=0x0dc
-  vector3_t    field_e0[4];   ///< offset=0x0e0
-  vector3_t    field_110;     ///< offset=0x110
+  vector3_t    field_e0[5];   ///< offset=0x0e0 [4] = camera position
   vector3_t    field_11c;     ///< offset=0x11c
   float        field_128[6];  ///< offset=0x128
   uint8_t      field_140;     ///< offset=0x140
@@ -963,7 +1015,6 @@ co(render_frustum_t, field_78, 0x078);
 co(render_frustum_t, field_d8, 0x0d8);
 co(render_frustum_t, field_dc, 0x0dc);
 co(render_frustum_t, field_e0, 0x0e0);
-co(render_frustum_t, field_110, 0x110);
 co(render_frustum_t, field_11c, 0x11c);
 co(render_frustum_t, field_128, 0x128);
 co(render_frustum_t, field_140, 0x140);
@@ -1952,6 +2003,77 @@ typedef struct tag_block {
     int32_t  field_08;   /* +0x08: block definition ptr; no runtime access observed */
 } tag_block;
 cs(tag_block, 0xc);
+
+/// Contrail instance datum (contrail_data).  Offsets from render_contrail
+/// (0x188010) and render_contrails (0x1887b0); names from PAL 2342
+/// render_contrails.c.  Total size unverified.
+typedef struct {
+  uint8_t pad_00[4];                         ///< offset=0x00
+  int32_t definition_index;                  ///< offset=0x04
+  int32_t object_index;                      ///< offset=0x08
+  int16_t attachment_index;                  ///< offset=0x0c
+  uint8_t pad_0e[2];                         ///< offset=0x0e
+  real    density;                           ///< offset=0x10
+  int16_t sequence_index;                    ///< offset=0x14
+  int16_t frame_index;                       ///< offset=0x16
+  real    texture_offset_u;                  ///< offset=0x18
+  real    texture_offset_v;                  ///< offset=0x1c
+  uint8_t pad_20[0xc];                       ///< offset=0x20
+  int16_t contrail_point_counts[4];          ///< offset=0x2c
+  int32_t first_contrail_point_indices[4];   ///< offset=0x34
+} contrail_datum_t;
+
+/// Contrail point datum (contrail_point_data).  Offsets from render_contrail
+/// (0x188010).  Total size unverified.
+typedef struct {
+  uint8_t   pad_00[2];                 ///< offset=0x00
+  uint8_t   flags;                     ///< offset=0x02 (bit 1: transitioning)
+  int8_t    state_index;               ///< offset=0x03
+  real      time;                      ///< offset=0x04
+  uint8_t   pad_08[4];                 ///< offset=0x08
+  real      density;                   ///< offset=0x0c
+  uint8_t   pad_10[0xc];               ///< offset=0x10
+  vector3_t position;                  ///< offset=0x1c
+  uint8_t   pad_28[0xc];               ///< offset=0x28
+  int32_t   next_contrail_point_index; ///< offset=0x34
+} contrail_point_datum_t;
+
+/// size=0x68. contrail_definition.states element (tag_block_get_element
+/// size 0x68 in render_contrail, 0x188010).
+typedef struct {
+  uint8_t         pad_00[0x40];      ///< offset=0x00
+  real            width;             ///< offset=0x40
+  real_argb_color color_lower_bound; ///< offset=0x44
+  real_argb_color color_upper_bound; ///< offset=0x54
+  uint32_t        scale_flags;       ///< offset=0x64 (0x10 width, 0x20 color)
+} contrail_point_state_t;
+cs(contrail_point_state_t, 0x68);
+
+/// Embedded contrail shader; only framebuffer_fade_mode is observed here.
+typedef struct {
+  uint8_t  pad_00[0x2c];          ///< offset=0x00
+  uint16_t framebuffer_fade_mode; ///< offset=0x2c
+  uint8_t  pad_2e[0x86];          ///< offset=0x2e
+} contrail_shader_t;
+cs(contrail_shader_t, 0xb4);
+
+/// 'cont' tag definition.  Offsets from render_contrail (0x188010),
+/// contrail_fade (0x187f80) and render_contrails (0x1887b0).  Total size
+/// unverified.
+typedef struct {
+  uint16_t          flags;               ///< offset=0x00 (1 first unfaded, 2 last unfaded, 0x40 fades slowly)
+  uint16_t          scale_flags;         ///< offset=0x02 (0x40 repeats_u, 0x80 repeats_v)
+  uint8_t           pad_04[0x14];        ///< offset=0x04
+  int16_t           render_type;         ///< offset=0x18
+  uint8_t           pad_1a[2];           ///< offset=0x1a
+  real              texture_repeats_u;   ///< offset=0x1c
+  real              texture_repeats_v;   ///< offset=0x20
+  uint8_t           pad_24[0x18];        ///< offset=0x24
+  int32_t           bitmap_index;        ///< offset=0x3c (bitmap tag_reference index)
+  uint8_t           pad_40[0x44];        ///< offset=0x40
+  contrail_shader_t shader;              ///< offset=0x84
+  tag_block         states;              ///< offset=0x138
+} contrail_definition_t;
 co(tag_block, count,   0x00);
 co(tag_block, address, 0x04);
 
@@ -2727,5 +2849,333 @@ enum {
   _glow_particle_moving_backwards_bit = 0, /* glow_normal_particle_update_position steps t down */
   _glow_particle_trailing_bit = 1          /* set by glow_trailing_particle_new; glow_update tests it (0x134893) */
 };
+
+/* ---- RAD Bink (Xbox, 2001) --------------------------------------------------
+ * Layouts and names: PAL-2342 libs/binkxbox/{bink.h,binkio.h,radcb.h} (T2),
+ * the public RAD SDK names for the public fields.  Every offset named below was
+ * re-checked against a 2276 access in bink.obj (BinkClose 0x231220, BinkWait
+ * 0x22f1e0, BinkGetSummary 0x22f480, BinkGetRealtime 0x22f650, BinkNextFrame
+ * 0x230ff0, GotoFrame 0x2302d0, dosilence 0x22e000, endframe 0x22f180).
+ * pad_ spans were not observed in 2276 code. */
+struct BINK;
+struct BINKIO;
+struct BINKSND;
+struct radcb_handler;
+
+/* RADCB callback record embedded in BINKIO and BINK (0x18 bytes). */
+struct radcb_callback;
+typedef unsigned long(__stdcall *radcb_callback_proc)(struct radcb_callback *callback, unsigned long iteration);
+typedef struct radcb_callback {
+  struct radcb_callback *next;
+  void *mutex;
+  struct radcb_callback *priority_next;
+  unsigned long priority;
+  radcb_callback_proc get_priority;
+  radcb_callback_proc dispatch;
+} radcb_callback;
+cs(radcb_callback, 0x18);
+
+typedef long(__stdcall *bink_io_open_proc)(struct BINKIO *io, const char *name, unsigned long flags);
+typedef unsigned long(__stdcall *bink_io_read_header_proc)(struct BINKIO *io, long offset, void *destination, unsigned long size);
+typedef unsigned long(__stdcall *bink_io_read_frame_proc)(struct BINKIO *io, unsigned long frame, long offset, void *destination, unsigned long size);
+typedef unsigned long(__stdcall *bink_io_buffer_size_proc)(struct BINKIO *io, unsigned long size);
+typedef void(__stdcall *bink_io_set_info_proc)(struct BINKIO *io, void *buffer, unsigned long size, unsigned long file_size, unsigned long simulate);
+typedef unsigned long(__stdcall *bink_io_idle_proc)(struct BINKIO *io);
+typedef void(__stdcall *bink_io_callback_proc)(struct BINKIO *io);
+typedef long(__stdcall *bink_io_try_suspend_proc)(struct BINKIO *io);
+
+/* The status block is written by the RADCB IO thread; the RAD SDK declares it
+ * volatile, and BinkNextFrame's back-to-back Working=1/Working=0 stores
+ * (0x231006/0x231010) are only emitted for a volatile field. */
+typedef struct BINKIO {
+  bink_io_read_header_proc ReadHeader;
+  bink_io_read_frame_proc ReadFrame;
+  bink_io_buffer_size_proc GetBufferSize;
+  bink_io_set_info_proc SetInfo;
+  bink_io_idle_proc Idle;
+  bink_io_callback_proc Close;
+  struct BINK *bink;
+  volatile unsigned long ReadError;
+  volatile unsigned long DoingARead;
+  volatile unsigned long BytesRead;
+  volatile unsigned long Working;
+  volatile unsigned long TotalTime;
+  volatile unsigned long ForegroundTime;
+  volatile unsigned long IdleTime;
+  volatile unsigned long ThreadTime;
+  volatile unsigned long BufSize;
+  volatile unsigned long BufHighUsed;
+  volatile unsigned long CurBufSize;
+  volatile unsigned long CurBufUsed;
+  unsigned char pad_4c[0x80]; /* backend iodata */
+  bink_io_callback_proc suspend_callback;
+  bink_io_try_suspend_proc try_suspend_callback;
+  bink_io_callback_proc resume_callback;
+  bink_io_callback_proc idle_on_callback;
+  radcb_callback callback;
+  unsigned char pad_f4[8];
+} BINKIO;
+cs(BINKIO, 0xfc);
+co(BINKIO, Idle, 0x10);
+co(BINKIO, Close, 0x14);
+co(BINKIO, bink, 0x18);
+co(BINKIO, BytesRead, 0x24);
+co(BINKIO, Working, 0x28);
+co(BINKIO, BufSize, 0x3c);
+co(BINKIO, CurBufUsed, 0x48);
+co(BINKIO, suspend_callback, 0xcc);
+co(BINKIO, callback, 0xdc);
+
+typedef long(__stdcall *bink_sound_ready_proc)(struct BINKSND *sound);
+typedef long(__stdcall *bink_sound_lock_proc)(struct BINKSND *sound, unsigned char **destination, unsigned long *bytes);
+typedef long(__stdcall *bink_sound_unlock_proc)(struct BINKSND *sound, unsigned long bytes);
+typedef void(__stdcall *bink_sound_volume_proc)(struct BINKSND *sound, long volume);
+typedef void(__stdcall *bink_sound_pan_proc)(struct BINKSND *sound, long pan);
+typedef long(__stdcall *bink_sound_pause_proc)(struct BINKSND *sound, long pause);
+typedef long(__stdcall *bink_sound_on_off_proc)(struct BINKSND *sound, long on);
+typedef void(__stdcall *bink_sound_close_proc)(struct BINKSND *sound);
+typedef void(__stdcall *bink_sound_mix_bins_proc)(struct BINKSND *sound, unsigned long bins);
+typedef long(__stdcall *bink_sound_open_proc)(struct BINKSND *sound, unsigned long frequency, long bits, long channels, unsigned long flags, struct BINK *bink);
+typedef bink_sound_open_proc(__stdcall *bink_sound_system_open_proc)(unsigned long parameter);
+
+typedef struct BINKSND {
+  bink_sound_ready_proc Ready;
+  bink_sound_lock_proc Lock;
+  bink_sound_unlock_proc Unlock;
+  bink_sound_volume_proc Volume;
+  bink_sound_pan_proc Pan;
+  bink_sound_pause_proc Pause;
+  bink_sound_on_off_proc SetOnOff;
+  bink_sound_close_proc Close;
+  bink_sound_mix_bins_proc MixBins;
+  unsigned long BestSizeIn16;
+  unsigned long SoundDroppedOut;
+  long OnOff;
+  unsigned long Latency;
+  unsigned long VideoScale;
+  unsigned long Frequency;
+  long Bits;
+  long Channels;
+  unsigned char pad_44[0x80]; /* DirectSound backend state */
+} BINKSND;
+cs(BINKSND, 0xc4);
+co(BINKSND, Close, 0x1c);
+co(BINKSND, SoundDroppedOut, 0x28);
+co(BINKSND, VideoScale, 0x34);
+co(BINKSND, Channels, 0x40);
+
+typedef struct BINKRECT {
+  long Left;
+  long Top;
+  long Width;
+  long Height;
+} BINKRECT;
+cs(BINKRECT, 0x10);
+
+typedef struct BINK {
+  unsigned long Width;
+  unsigned long Height;
+  unsigned long Frames;
+  unsigned long FrameNum;
+  unsigned long LastFrameNum;
+  unsigned long FrameRate;
+  unsigned long FrameRateDiv;
+  unsigned long ReadError;
+  unsigned long OpenFlags;
+  unsigned long BinkType;
+  unsigned long Size;
+  unsigned long FrameSize;
+  unsigned long SndSize;
+  BINKRECT FrameRects[8];
+  long NumRects;
+  unsigned long field_b8;  /* plane-pair index, XORed with 1 per decode (0x22efd9) */
+  void *field_bc[2];       /* decode planes indexed by field_b8; [0] is the
+                            * BinkOpen plane allocation base BinkClose frees */
+  void *field_c4[2];       /* alpha planes (OpenFlags 0x100000), indexed as field_bc */
+  long dirty_width;
+  long dirty_height;
+  unsigned long field_d4;  /* ((Width+1)/2+7)&~7; dirty_width is twice this */
+  unsigned long field_d8;  /* ((Height+1)/2+7)&~7; dirty_height is twice this */
+  unsigned char *dirty_mask;
+  long dirty_pitch;
+  unsigned long field_e4;  /* dirty_mask length; BinkOpen stores a 0 terminator there */
+  unsigned long field_e8;  /* header dword 3; compframe allocation size */
+  unsigned long InternalFrames;
+  long NumTracks;
+  unsigned long Highest1SecRate;
+  unsigned long Highest1SecFrame;
+  long Paused;
+  unsigned char pad_100[4];
+  unsigned char *compframe;
+  void *preloadptr;
+  unsigned long *frameoffsets;
+  BINKIO io;
+  void *iobuffer;
+  unsigned long iosize;
+  unsigned long field_214; /* header Width before copy-mode doubling */
+  unsigned long field_218; /* header Height before copy-mode doubling */
+  long trackindex;
+  unsigned long *tracksizes;
+  unsigned long *tracktypes;
+  unsigned long *trackIDs;
+  unsigned char pad_22c[4];
+  unsigned long playedframes;
+  unsigned long firstframetime;
+  unsigned long field_238; /* BinkDoFrame start timestamp */
+  unsigned long startblittime;
+  unsigned long starttime;
+  unsigned long startframe;
+  unsigned long resynctime;
+  unsigned long longestframetime;
+  unsigned long slowestframetime;
+  unsigned long slowestframe;
+  unsigned long slowest2frametime;
+  unsigned long slowest2frame;
+  long SoundOn;
+  long VideoOn;
+  unsigned long totalmem;
+  unsigned long timevdecomp;
+  unsigned long timeadecomp;
+  unsigned long timeblit;
+  unsigned long timeopen;
+  unsigned long fileframerate;
+  unsigned long fileframeratediv;
+  unsigned long runtimeframes;
+  unsigned long runtimemoveamt;
+  unsigned long *rtframetimes;
+  unsigned long *rtadecomptimes;
+  unsigned long *rtvdecomptimes;
+  unsigned long *rtblittimes;
+  unsigned long *rtreadtimes;
+  unsigned long *rtidlereadtimes;
+  unsigned long *rtthreadreadtimes;
+  unsigned long lastblitflags;
+  unsigned long lastdecompframe;
+  unsigned long sndbufsize;
+  unsigned char *sndbuf;
+  unsigned char *sndend;
+  unsigned char *sndwritepos;
+  unsigned char *sndreadpos;
+  void *sndcomp;
+  unsigned long sndamt;
+  long sndconvert8;
+  BINKSND sound;
+  unsigned long skippedlastblit;
+  unsigned long skippedblits;
+  unsigned long soundskips;
+  long sndendframe;
+  unsigned long sndprime;
+  unsigned char pad_3a8[4];
+  unsigned long field_3ac[9]; /* sizes from FUN_00236210, then pushmalloc'd buffers */
+  unsigned long field_3d0;    /* consecutive late BinkCopyToBuffer count */
+  unsigned long big_sound_skip_adj;
+  unsigned long big_sound_skip_reduce;
+  unsigned char pad_3dc[0xc];
+  radcb_callback sound_callback;
+  unsigned char pad_400[8];
+} BINK;
+cs(BINK, 0x408);
+co(BINK, OpenFlags, 0x20);
+co(BINK, NumRects, 0xb4);
+co(BINK, field_b8, 0xb8);
+co(BINK, field_bc, 0xbc);
+co(BINK, field_c4, 0xc4);
+co(BINK, field_d4, 0xd4);
+co(BINK, dirty_mask, 0xdc);
+co(BINK, field_e4, 0xe4);
+co(BINK, field_e8, 0xe8);
+co(BINK, InternalFrames, 0xec);
+co(BINK, Highest1SecFrame, 0xf8);
+co(BINK, compframe, 0x104);
+co(BINK, field_214, 0x214);
+co(BINK, tracksizes, 0x220);
+co(BINK, trackIDs, 0x228);
+co(BINK, field_238, 0x238);
+co(BINK, resynctime, 0x248);
+co(BINK, timeopen, 0x278);
+co(BINK, runtimemoveamt, 0x288);
+co(BINK, sndprime, 0x3a4);
+co(BINK, field_3ac, 0x3ac);
+co(BINK, field_3d0, 0x3d0);
+co(BINK, Paused, 0xfc);
+co(BINK, preloadptr, 0x108);
+co(BINK, io, 0x110);
+co(BINK, iobuffer, 0x20c);
+co(BINK, trackindex, 0x21c);
+co(BINK, playedframes, 0x230);
+co(BINK, startblittime, 0x23c);
+co(BINK, longestframetime, 0x24c);
+co(BINK, SoundOn, 0x260);
+co(BINK, totalmem, 0x268);
+co(BINK, timeblit, 0x274);
+co(BINK, runtimeframes, 0x284);
+co(BINK, rtframetimes, 0x28c);
+co(BINK, rtthreadreadtimes, 0x2a4);
+co(BINK, sndbuf, 0x2b4);
+co(BINK, sndcomp, 0x2c4);
+co(BINK, sound, 0x2d0);
+co(BINK, skippedblits, 0x398);
+co(BINK, sndendframe, 0x3a0);
+co(BINK, big_sound_skip_adj, 0x3d4);
+co(BINK, sound_callback, 0x3e8);
+
+/* BinkGetSummary output; BinkGetSummary clears exactly 0x1f dwords. */
+typedef struct BINKSUMMARY {
+  unsigned long Width;
+  unsigned long Height;
+  unsigned long TotalTime;
+  unsigned long FileFrameRate;
+  unsigned long FileFrameRateDiv;
+  unsigned long FrameRate;
+  unsigned long FrameRateDiv;
+  unsigned long TotalOpenTime;
+  unsigned long TotalFrames;
+  unsigned long TotalPlayedFrames;
+  unsigned long SkippedFrames;
+  unsigned long SkippedBlits;
+  unsigned long SoundSkips;
+  unsigned long TotalBlitTime;
+  unsigned long TotalReadTime;
+  unsigned long TotalVideoDecompTime;
+  unsigned long TotalAudioDecompTime;
+  unsigned long TotalIdleReadTime;
+  unsigned long TotalBackReadTime;
+  unsigned long TotalReadSpeed;
+  unsigned long SlowestFrameTime;
+  unsigned long Slowest2FrameTime;
+  unsigned long SlowestFrameNum;
+  unsigned long Slowest2FrameNum;
+  unsigned long AverageDataRate;
+  unsigned long AverageFrameSize;
+  unsigned long HighestMemAmount;
+  unsigned long TotalIOMemory;
+  unsigned long HighestIOUsed;
+  unsigned long Highest1SecRate;
+  unsigned long Highest1SecFrame;
+} BINKSUMMARY;
+cs(BINKSUMMARY, 0x7c);
+co(BINKSUMMARY, TotalReadSpeed, 0x4c);
+co(BINKSUMMARY, HighestMemAmount, 0x68);
+
+/* BinkGetRealtime output. */
+typedef struct BINKREALTIME {
+  unsigned long FrameNum;
+  unsigned long FrameRate;
+  unsigned long FrameRateDiv;
+  unsigned long Frames;
+  unsigned long FramesTime;
+  unsigned long FramesVideoDecompTime;
+  unsigned long FramesAudioDecompTime;
+  unsigned long FramesReadTime;
+  unsigned long FramesIdleReadTime;
+  unsigned long FramesThreadReadTime;
+  unsigned long FramesBlitTime;
+  unsigned long ReadBufferSize;
+  unsigned long ReadBufferUsed;
+  unsigned long FramesDataRate;
+} BINKREALTIME;
+cs(BINKREALTIME, 0x38);
+co(BINKREALTIME, FramesBlitTime, 0x28);
+co(BINKREALTIME, FramesDataRate, 0x34);
 
 #endif /* TYPES_H */

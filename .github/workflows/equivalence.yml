@@ -174,6 +174,9 @@ jobs:
             # Reused results are free and are not counted against the cap, so
             # the corpus grows ~150 functions a night and then holds.
             EXTRA_FLAGS="--discover --max-new-per-run 150"
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              EXTRA_FLAGS="$EXTRA_FLAGS --update-leaf-cache"
+            fi
           fi
           echo "extra_flags=$EXTRA_FLAGS" >> "$GITHUB_OUTPUT"
 
@@ -210,6 +213,17 @@ jobs:
           # oracle.
           key: batch-verify-${{ hashFiles('kb.json', 'src/**', 'tools/equivalence/**', 'tools/verify/function_bounds.json', 'tools/verify/xbe_reference.py') }}
 
+      # Keep measured coverage across nightly clean checkouts. A bounds change
+      # starts a fresh cache because it changes the coverage denominator.
+      - name: Restore measured coverage cache
+        if: github.event_name == 'schedule'
+        uses: actions/cache/restore@v4
+        with:
+          path: tools/equivalence/leaf_cache.json
+          key: equiv-leaf-${{ hashFiles('tools/verify/function_bounds.json') }}-${{ github.run_id }}
+          restore-keys: |
+            equiv-leaf-${{ hashFiles('tools/verify/function_bounds.json') }}-
+
       # No continue-on-error: with --fail-on-new the job fails ONLY on a
       # divergence absent from the committed baseline, so a red run now means
       # something actually regressed. Before this, the step could not fail at
@@ -245,6 +259,21 @@ jobs:
             ${{ steps.mode.outputs.extra_flags }} \
             ${{ steps.baseline.outputs.flags }} \
             --output-dir artifacts/batch_verify
+
+      - name: Save measured coverage cache
+        if: always() && github.event_name == 'schedule'
+        uses: actions/cache/save@v4
+        with:
+          path: tools/equivalence/leaf_cache.json
+          key: equiv-leaf-${{ hashFiles('tools/verify/function_bounds.json') }}-${{ github.run_id }}
+
+      - name: Share measured coverage with progress report
+        if: always() && github.event_name == 'schedule'
+        uses: actions/upload-artifact@v4
+        with:
+          name: measured-leaf-cache
+          path: tools/equivalence/leaf_cache.json
+          if-no-files-found: error
 
       - name: Generate progress dashboard
         if: always()

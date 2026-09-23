@@ -3386,7 +3386,7 @@ void actor_move_compute_facing(char want_facing /* @<al> */,
           goto eval_throttle;
         }
         scratch2[2] = ((actor_t *)actor)->input_facing_vector[2];
-        if (*(float *)0x2533c0 < magnitude3d(scratch2)) {
+        if (*(float *)0x2533c0 < normalize2d(scratch2)) {
           scratch2[2] = 0.0f;
           vector3d_scale_add((float *)(actor + 0x12c), scratch2, 0.4f,
                              avoid_vec);
@@ -3874,7 +3874,7 @@ void actor_move_update(int actor_handle)
           vec_scratch[0] = *(float *)(vehicle + 0x30);
           vec_scratch[1] = *(float *)(vehicle + 0x34);
           vec_scratch[2] = 0.0f;
-          if (*(float *)0x2533c0 < magnitude3d(vec_scratch)) {
+          if (*(float *)0x2533c0 < normalize2d(vec_scratch)) {
             ((actor_t *)actor)->field_504 = 1;
             crouch = 0;
             *(float *)(actor + 0x518) = vec_scratch[0] * *(float *)0x254644;
@@ -4010,7 +4010,7 @@ seed_fallback:
       forward[0] = *(float *)(src + 0xe0);
       forward[1] = *(float *)(src + 0xe4);
       handle = *(int *)(src + 0x18);
-      if (magnitude3d(forward) == *(float *)0x2533c0) {
+      if (normalize2d(forward) == *(float *)0x2533c0) {
         forward[0] = ((actor_t *)actor)->input_facing_vector[0];
         forward[1] = ((actor_t *)actor)->input_facing_vector[1];
       }
@@ -4039,7 +4039,7 @@ seed_fallback:
     if (((actor_t *)actor)->field_442 == '\0') {
       forward[0] = ((actor_t *)actor)->input_facing_vector[0];
       forward[1] = ((actor_t *)actor)->input_facing_vector[1];
-      if (magnitude3d(forward) == *(float *)0x2533c0) {
+      if (normalize2d(forward) == *(float *)0x2533c0) {
         forward[0] = *(float *)*(int *)0x31fc0c;
         forward[1] = ((float *)*(int *)0x31fc0c)[1];
       }

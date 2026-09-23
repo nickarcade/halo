@@ -47,16 +47,16 @@ Parse from $ARGUMENTS (all optional):
   goal-lift (agent-interpreted, not mechanically enforced).
 - `--dry-run` — run goal-lift in dry-run (no commits) and never land; reports
   what each batch would do.
-- `--model NAME` — override goal-lift's lift/review agent (REASON_MODEL,
-  default Opus) for every batch this run, e.g. `--model sonnet` for a
-  cheaper/faster session. Forward as `model` in the Workflow args — do not
-  reimplement the fan-out, `auto-session.js` already resolves it to
-  `reasonModel` only. Deliberately does **not** affect the commit-gate agent
+- `--model NAME` — override goal-lift's "reasoning stages" (its own M-table
+  grouping: select + lift/review, i.e. EXTRACT_MODEL and REASON_MODEL, default
+  Opus) for every batch this run, e.g. `--model sonnet` for a cheaper/faster
+  session. Forward as `model` in the Workflow args — do not reimplement the
+  fan-out, `auto-session.js` already resolves it to BOTH `reasonModel` and
+  `extractModel`. Deliberately does **not** affect the commit-gate agent
   (stays on goal-lift's cheap MECHANICAL_MODEL/haiku default — it just runs a
-  build and parses the result) or the select/scoring agent (stays at goal-lift's
-  own opus default). The improve-pass agent has no separate default of its
-  own — goal-lift defaults it to whatever REASON_MODEL resolves to, so it
-  follows `--model` automatically.
+  build and parses the result). The improve-pass agent has no separate default
+  of its own — goal-lift defaults it to whatever REASON_MODEL resolves to, so
+  it follows `--model` automatically.
   For anything more specific, pass `--reasonModel`/`--extractModel`/
   `--commitModel`/`--improveModel` directly and forward each as the matching
   key (`reasonModel`/`extractModel`/`commitModel`/`improveModel`) in the

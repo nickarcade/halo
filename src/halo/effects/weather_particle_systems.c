@@ -873,7 +873,7 @@ void weather_particle_system_render(int16_t local_player_index /* @<eax> */)
           cube[3] = tile_offset[j] + box_max_y;
           cube[5] = tile_offset[k] + box_max_z;
 
-          if (render_frustum_cube_visible((void *)0x5065a4, (int)(size_t)cube,
+          if (render_frustum_cube_visible((void *)0x5065a4, cube,
                                           1) != 0) {
             assert_halt_msg_at(
               "box_count<MAXIMUM_NUMBER_OF_VISIBLE_WEATHER_PARTICLE_BOXES",

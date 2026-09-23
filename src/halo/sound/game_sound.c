@@ -616,6 +616,40 @@ void scripted_foley_predict(int handle)
   }
 }
 
+/* Set the scale of the scripted looping sound owned by an lsnd tag (0x1c7650).
+ *
+ * Same lookup as scripted_looping_sound_set_alternate: lsnd+0x1c indexes the
+ * object-looping-sound table (0x5054e4); both indices are checked against
+ * NONE, no datum_get NULL check.  scale is clamped to [*(float *)0x2533c0,
+ * *(float *)0x2533c8] (0x2533c0 = 0.0f; upper bound value unrecovered) and
+ * stored at entry+0x8.  An unordered (NaN) scale fails both tests and is
+ * stored raw. */
+void scripted_looping_sound_set_scale(int handle, float scale)
+{
+  void *lsnd_tag;
+  void *entry;
+  int looping_sound_index;
+
+  if (handle == NONE) {
+    return;
+  }
+
+  lsnd_tag = tag_get(0x6c736e64, handle);
+  looping_sound_index = *(int *)((char *)lsnd_tag + 0x1c);
+  if (looping_sound_index == NONE) {
+    return;
+  }
+
+  entry = datum_get(*(data_t **)0x5054e4, looping_sound_index);
+  if (scale < *(float *)0x2533c0) {
+    *(float *)((char *)entry + 0x8) = *(float *)0x2533c0;
+  } else if (scale > *(float *)0x2533c8) {
+    *(float *)((char *)entry + 0x8) = *(float *)0x2533c8;
+  } else {
+    *(float *)((char *)entry + 0x8) = scale;
+  }
+}
+
 /* Set or clear the 'alternate' flag (bit 0x8) of the scripted looping sound
  * owned by an lsnd tag (0x1c76c0).
  *
@@ -691,6 +725,113 @@ void unattached_looping_sound_stop(int sound_index)
     *(unsigned int *)((char *)entry + 0x4) | 2;
 }
 
+/* Per-tick update of one object-looping-sound datum (0x1c77a0).
+ * Called from game_sound_update with location == NULL when the datum has no
+ * object (+0x10 == NONE); location is only asserted/read when the object
+ * handle is valid. Builds a 0x4c-byte source block on the stack and forwards
+ * it to sound_refresh_looping (0x1ce550). Every exit stamps entry+0x14 with
+ * the current tick (*DAT_005054e0), including after the datum is deleted.
+ * Source-block field meanings are unproven; offsets follow FUN_001c7a10. */
+void FUN_001c77a0(int looping_sound_index, void *location)
+{
+  char source[0x4c];
+  char *entry;
+  void *definition;
+  float *node_matrix;
+  float fade;
+  int restart;
+  char *entry_flags;
+  bool active;
+  bool was_recent;
+
+  entry = (char *)datum_get(*(data_t **)0x5054e4, looping_sound_index);
+  definition = tag_get(0x6c736e64, *(int *)(entry + 0xc));
+
+  was_recent = *(int *)(entry + 0x14) == NONE ||
+               *(int *)(entry + 0x14) == **(int **)0x5054e0 - 1;
+
+  if ((*(uint32_t *)(entry + 4) & 1) == 0) {
+    active = object_get_function_value(*(int *)(entry + 0x10),
+                                       *(int16_t *)(entry + 0x18), source + 4);
+  } else {
+    *(int *)(source + 4) = *(int *)(entry + 8);
+    active = (bool)(~(*(uint32_t *)(entry + 4) >> 1) & 1);
+  }
+
+  if (active || (*(int16_t *)(entry + 2) != 2 && was_recent)) {
+    if (*(int *)(entry + 0x10) != NONE) {
+      node_matrix = (float *)object_get_node_matrix(*(int *)(entry + 0x10),
+                                                    *(int16_t *)(entry + 0x1a));
+      if (location == 0) {
+        display_assert("location", "c:\\halo\\SOURCE\\sound\\game_sound.c",
+                       0x269, 1);
+        system_exit(-1);
+      }
+      matrix_transform_point(node_matrix, (float *)(entry + 0x1c),
+                             (float *)(source + 0xc));
+      matrix_transform_vector(node_matrix, (float *)(entry + 0x28),
+                              (float *)(source + 0x18));
+      object_get_root_location(*(int *)(entry + 0x10), (float *)(source + 0x24),
+                               (float *)(source + 0x40));
+      *(int *)(source + 0x30) = *(int *)location;
+      *(int *)(source + 0x34) = *((int *)location + 1);
+      *(int16_t *)source = 1;
+    } else {
+      *(int16_t *)source = 0;
+    }
+    *(float *)(source + 8) = 1.0f;
+
+    entry_flags = entry + 4;
+    if (active) {
+      restart = (*(int16_t *)(entry + 2) == 0 || !was_recent) ? 1 : 0;
+      *(int16_t *)(entry + 2) = 0;
+      if (!sound_refresh_looping(
+            *(int *)(entry + 0xc), looping_sound_index, source, restart,
+            (bool)((*(uint32_t *)entry_flags >> 3) & 1), 0.0f)) {
+        goto update_time;
+      }
+      if ((*(uint8_t *)definition & 2) == 0) {
+        display_assert(
+          "TEST_FLAG(definition->flags, _looping_sound_fake_impulse_sound_bit)",
+          "c:\\halo\\SOURCE\\sound\\game_sound.c", 0x28f, 1);
+        system_exit(-1);
+      }
+      if ((*(uint8_t *)entry_flags & 1) == 0) {
+        *(int16_t *)(entry + 2) = 2;
+      } else {
+        if (*(int *)((char *)definition + 0x1c) == looping_sound_index) {
+          *(int *)((char *)definition + 0x1c) = NONE;
+        }
+        game_looping_sound_delete(looping_sound_index);
+      }
+    } else {
+      if (was_recent) {
+        if ((*(uint32_t *)entry_flags & 4) != 0) {
+          fade = 4.0f;
+        } else {
+          fade = 0.0f;
+        }
+        if (!sound_refresh_looping(
+              *(int *)(entry + 0xc), looping_sound_index, source, 2,
+              (bool)((*(uint32_t *)entry_flags >> 3) & 1), fade)) {
+          *(int16_t *)(entry + 2) = 1;
+          goto update_time;
+        }
+      }
+      if ((*(uint8_t *)entry_flags & 1) == 0) {
+        *(int16_t *)(entry + 2) = 2;
+      } else {
+        game_looping_sound_delete(looping_sound_index);
+      }
+    }
+  } else if (*(int16_t *)(entry + 2) != 2) {
+    *(int16_t *)(entry + 2) = 2;
+  }
+
+update_time:
+  *(int *)(entry + 0x14) = **(int **)0x5054e0;
+}
+
 bool FUN_001c7a10(int object_handle, void *attachment_data, void *source)
 {
   void *object;
@@ -750,9 +891,8 @@ bool sound_cluster_is_audible(void *location /* @<esi> */)
   }
 
   cluster_index = *(int16_t *)((char *)location + 4);
-  if (cluster_index != -1 &&
-      ((((uint32_t *)0x5054a0)[(int)cluster_index >> 5] &
-        (1u << ((uint8_t)cluster_index & 0x1f))) != 0)) {
+  if (cluster_index != -1 && ((((uint32_t *)0x5054a0)[(int)cluster_index >> 5] &
+                               (1u << ((uint8_t)cluster_index & 0x1f))) != 0)) {
     return true;
   }
   return false;
@@ -1281,6 +1421,111 @@ void sound_looping_start(int sound_tag_index, int object_index, float scale)
     entry = datum_get(*(data_t **)0x5054e4, looping_sound_handle);
     *(uint32_t *)((char *)entry + 4) |= 0x10;
   }
+}
+
+/* compress_ima_adpcm_audio_data (0x1c85a0)
+ *
+ * IMA ADPCM encoder. With output == NULL returns the required buffer size
+ * (sample_count / 2 rounded up, plus an 8-byte header). Otherwise writes the
+ * header (+0 int = samples consumed, +4 short = first sample; +6..+7 never
+ * touched), then packs one 4-bit code per sample, high nibble first, until
+ * the samples or output_size - 8 bytes run out. Returns the count of
+ * samples not encoded. Tables: 0x2bc710 = int step table (index clamped to
+ * 0..0x58), 0x2bc6d0 = int index-adjust table indexed by the signed code. */
+int compress_ima_adpcm_audio_data(short *samples, int sample_count,
+                                  uint8_t *output, int output_size)
+{
+  int *header;
+  int predicted;
+  int remaining;
+  int required_size;
+  short step_index;
+  bool high_nibble;
+
+  required_size = (sample_count >> 1) + (sample_count & 1) + 8;
+  if (output != NULL) {
+    predicted = *samples;
+    header = (int *)output;
+    output += 8;
+    output_size -= 8;
+    step_index = 0;
+    high_nibble = 1;
+    remaining = sample_count;
+    *(short *)((char *)header + 4) = (short)predicted;
+
+    while (remaining > 0 && output_size != 0) {
+      int diff;
+      int step;
+      int step_shift;
+      int delta;
+      int next_index;
+      char code;
+      char mask;
+
+      diff = *samples - predicted;
+      step = ((int *)0x2bc710)[step_index];
+      if (diff < 0) {
+        code = 8;
+        diff = -diff;
+      } else {
+        code = 0;
+      }
+
+      mask = 4;
+      step_shift = step;
+      do {
+        if (diff >= step_shift) {
+          code |= mask;
+          diff -= step_shift;
+        }
+        mask >>= 1;
+        step_shift >>= 1;
+      } while (mask != 0);
+
+      delta = step >> 3;
+      mask = 4;
+      do {
+        if ((code & mask) != 0)
+          delta += step;
+        mask >>= 1;
+        step >>= 1;
+      } while (mask != 0);
+
+      if ((code & 8) != 0)
+        delta = -delta;
+      delta += predicted;
+      if (delta < -0x8000)
+        predicted = -0x8000;
+      else if (delta > 0x7fff)
+        predicted = 0x7fff;
+      else
+        predicted = delta;
+
+      next_index = ((int *)0x2bc6d0)[(int)code] + step_index;
+      if (next_index < 0)
+        step_index = 0;
+      else if (next_index > 0x58)
+        step_index = 0x58;
+      else
+        step_index = (short)next_index;
+
+      if (high_nibble)
+        *output = (uint8_t)(code << 4);
+      else
+        *output |= code;
+      high_nibble = !high_nibble;
+      if (high_nibble) {
+        output++;
+        output_size--;
+      }
+      remaining--;
+      samples++;
+    }
+
+    *header = sample_count - remaining;
+    return remaining;
+  }
+  return required_size;
 }
 
 /* game_sound_set_music_volume (0x1c8c80)

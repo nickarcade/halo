@@ -1095,7 +1095,7 @@ emits for float→int truncations.
 **Automation:** RESOLVED — `check_lift_hazards.py::check_inplace_mutator_misuse` (WARN), shipped in this commit. Plus the standing golden-master case for `FUN_001a2f40` ground-tangent (see `test_harness.c`). Suppress a verified-legitimate hit with `/* hazard-ok: normalize-in-place */`.
 
 **What happens:** Three Halo vector helpers **normalize their argument IN PLACE and return its pre-normalization length** — they are NOT pure magnitude functions despite the name:
-- `magnitude3d` (`FUN_00012f10`, a 2D normalize of `v[0]/v[1]`)
+- `normalize2d` (`FUN_00012f10`, a 2D normalize of `v[0]/v[1]`)
 - `normalize3d` (`FUN_00013010`)
 - `normalize2d`
 
@@ -1103,16 +1103,16 @@ The original code's clamp idiom keeps a raw copy precisely because the call dest
 ```c
 raw0 = damp * c0 - vel[0];  raw1 = damp * c1 - vel[1];
 v[0] = raw0;  v[1] = raw1;
-len = magnitude3d(v);                 /* v[0]/v[1] now overwritten with unit vector */
+len = normalize2d(v);                 /* v[0]/v[1] now overwritten with unit vector */
 if (len > clamp) { v[0] = v[0] * clamp; v[1] = v[1] * clamp; }  /* scale the unit vec */
 else             { v[0] = raw0;          v[1] = raw1;        }  /* RESTORE the raw    */
 ```
 A "cleanup" that mistakes the helper for pure and deletes the `else`-restore makes the no-clamp branch emit the **normalized unit vector (magnitude ~1.0)** instead of the small raw delta. Injected as velocity every frame, that is a runaway speed.
 
-**Example (FUN_001a2f40, biped ground-tangent, `flags & 1`):** disasm `bipeds_FUN_001a2f40.obj` at `LAB_001a3219` (file offset `0x2d9`) reloads `raw0` from `edi` and `raw1` from `[ebp-0xac]` in the no-clamp branch rather than reading `tang[0]/tang[1]` at `[ebp-0x44]/[ebp-0x40]` — the proof the helper clobbered those slots. With the restore present the lift matches; deleting it reproduced the "jump/walk up an incline → massive speed → die" bug. (`magnitude3d` mutation is independently locked by `test_harness.c` which asserts `v[0]/v[1]` come back normalized.)
+**Example (FUN_001a2f40, biped ground-tangent, `flags & 1`):** disasm `bipeds_FUN_001a2f40.obj` at `LAB_001a3219` (file offset `0x2d9`) reloads `raw0` from `edi` and `raw1` from `[ebp-0xac]` in the no-clamp branch rather than reading `tang[0]/tang[1]` at `[ebp-0x44]/[ebp-0x40]` — the proof the helper clobbered those slots. With the restore present the lift matches; deleting it reproduced the "jump/walk up an incline → massive speed → die" bug. (`normalize2d` mutation is independently locked by `test_harness.c` which asserts `v[0]/v[1]` come back normalized.)
 
 **Prevention:**
-- Treat `magnitude3d`/`normalize3d`/`normalize2d` as in-place mutators. If a later branch needs the pre-call vector, save a raw copy first and restore it — never reuse the post-call vector as if it were unchanged.
+- Treat `normalize2d`/`normalize3d` as in-place mutators. If a later branch needs the pre-call vector, save a raw copy first and restore it — never reuse the post-call vector as if it were unchanged.
 - The detector fires only on the dangerous shape: the captured length is compared with a relational clamp (`>`,`<`,`>=`,`<=`), a branch scales `v[i]` in place (`v[i] = <…v[i]…> * …`), and **no sibling branch restores `v[i]` from a non-`v` source**. The common legitimate idioms (`normalize3d(v); v[i] = -v[i];` sign-flip with the return ignored, or `len = normalize3d(v); if (len != eps) v[i] = len*v[i];` intentional rescale on a validity check) do not match and are not flagged.
 
 ## 23. NaN-Blind Degenerate-Vector Guard (`<` Lets NaN Through)
@@ -1253,8 +1253,8 @@ Original call-site args (from the pristine body): case 0 pushes 0 (disable); cas
 **Automation:** RESOLVED — `thunk_decl_audit()` in `tools/audit/check_stdcall_ret.py` (runs in every sweep; WARN per trampoline thunk whose void-ness disagrees with its jump target's decl, self-tested on the 0x17c9b0→0x15d310 pair). Also fixable at review time: for any int-returning lift, verify WHERE the original's exit paths last write EAX — VC71's LCS % aligns a `mov eax,<wrong source>` away (both allocators scored 90-93% with the bug in).
 
 **What happens:** two related failure shapes in one TU (both shipped 2026-07-11, both asserted in-game within hours):
-1. **Wrong return VALUE** — `FUN_0015d170` (dynamic-triangle allocator): the original loads `EAX = [0x47dbe0]` (pre-increment record count = the handle) at 0x15d20a, and its success exit takes `jne 0x15d28f`, *skipping* the `mov eax,edi` at 0x15d28d. The lift returned the advanced vertex cursor instead. Callers pass the value to `rasterizer_widget_begin` (0x15ea70), which asserts `handle < record_count` → `dynamic_triangle_buffer_index<dynamic_triangles.buffer_count` (draw_primitives.c:338).
-2. **Return dropped entirely** — `FUN_0015d310` (dynamic-vertex allocator): Ghidra decompiled it `void(void)`; the lift kept `void`. But the impl is only reached through the trampoline thunk 0x17c9b0 (`int rasterizer_widget_set_zbuffer_enable(int,int)` — kb name is a misnomer), whose callers consume EAX as the reservation handle (`mov ecx,[0x47abd8]; mov eax,ecx` at 0x15d3f3, `or eax,-1` at 0x15d472 on failure). The void lift left garbage in EAX → sprite-group handles were stack noise → `dynamic_vertex_buffer_index<dynamic_vertices.buffer_count` (draw_primitives.c:536).
+1. **Wrong return VALUE** — `_rasterizer_dynamic_triangles_new` (dynamic-triangle allocator): the original loads `EAX = [0x47dbe0]` (pre-increment record count = the handle) at 0x15d20a, and its success exit takes `jne 0x15d28f`, *skipping* the `mov eax,edi` at 0x15d28d. The lift returned the advanced vertex cursor instead. Callers pass the value to `rasterizer_dynamic_triangles_lock` (0x15ea70), which asserts `handle < record_count` → `dynamic_triangle_buffer_index<dynamic_triangles.buffer_count` (draw_primitives.c:338).
+2. **Return dropped entirely** — `_rasterizer_dynamic_vertices_new` (dynamic-vertex allocator): Ghidra decompiled it `void(void)`; the lift kept `void`. But the impl is only reached through the trampoline thunk 0x17c9b0 (`int rasterizer_dynamic_vertices_new(int,int)` — kb name is a misnomer), whose callers consume EAX as the reservation handle (`mov ecx,[0x47abd8]; mov eax,ecx` at 0x15d3f3, `or eax,-1` at 0x15d472 on failure). The void lift left garbage in EAX → sprite-group handles were stack noise → `dynamic_vertex_buffer_index<dynamic_vertices.buffer_count` (draw_primitives.c:536).
 
 **Lessons:**
 - When exit paths *merge* (`jne` past a `mov eax,reg`), the decompiler often picks the wrong side. Trace EAX's last writer per exit edge in the disassembly before writing `return`.

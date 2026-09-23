@@ -813,7 +813,7 @@
   },
   {
     "addr": "0x12f10",
-    "name": "magnitude3d",
+    "name": "normalize2d",
     "object": "vector_math.obj",
     "reason": "pre-gate baseline 2026-06-10",
     "since": "2026-06-10"

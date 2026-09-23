@@ -16029,7 +16029,7 @@
                   "section": ".rdata#138",
                   "value": 0
                 },
-                "name": "??_C@_0CL@MKJGLHIO@magnitude3d?$CI?$CGcontrol_data?9?$DOthrot@",
+                "name": "??_C@_0CL@MKJGLHIO@normalize2d?$CI?$CGcontrol_data?9?$DOthrot@",
                 "section": ".rdata#138",
                 "value": 0
               },
@@ -19562,7 +19562,7 @@
             {
               "offset": 64108,
               "target": {
-                "name": "_magnitude3d",
+                "name": "_normalize2d",
                 "section": 0,
                 "value": 0
               },

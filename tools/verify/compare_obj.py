@@ -847,6 +847,71 @@ def strip_regparam_loads(insns: list[str], reference: list[str],
     return out, n_stripped
 
 
+def _insn_tokens(insn: str) -> tuple[str, str]:
+    """(mnemonic, operands) with whitespace collapsed, lowercased."""
+    parts = insn.split("#", 1)[0].strip().lower().split(None, 1)
+    if not parts:
+        return "", ""
+    ops = parts[1].replace(" ", "") if len(parts) == 2 else ""
+    return parts[0], ops
+
+
+def _is_frame_setup(reference_or_cand: list[str]) -> bool:
+    """True if the listing opens with `push %ebp; mov %esp, %ebp`."""
+    if len(reference_or_cand) < 2:
+        return False
+    return (_insn_tokens(reference_or_cand[0]) == ("pushl", "%ebp") and
+            _insn_tokens(reference_or_cand[1]) == ("movl", "%esp,%ebp"))
+
+
+def strip_regparam_frame(insns: list[str], reference: list[str],
+                         regdef_params: list[tuple[int, str]] | None
+                         ) -> tuple[list[str], int]:
+    """Remove the candidate-only EBP frame of a frameless @<reg> function.
+
+    The original build keeps frame pointers everywhere (/Oy-) EXCEPT on the
+    link-time custom-convention functions whose params arrive in registers:
+    those are emitted frameless (e.g. 0xdc8c0 opens `movsx eax, ax`).  cl.exe
+    compiling the lift as a stack-arg function always emits
+    `push %ebp; mov %esp, %ebp` plus one `pop %ebp` per return, and nothing
+    in C89 (short of a banned `#pragma optimize("y")`) removes it -- a pure
+    convention artifact, one surplus insn per exit.
+
+    Guards, same spirit as the load/saves passes:
+      - only for functions with @<reg> params (regdef_params non-empty);
+      - only when the REFERENCE is frameless and the candidate is framed;
+      - the leading `push %ebp; mov %esp, %ebp` pair, then `pop %ebp` /
+        `leave` / `mov %ebp, %esp` count-aware against the reference (a
+        frameless function that saves EBP as a GPR keeps its pairs).
+    Tried as its own candidate by select_regparam_candidate (monotonic max).
+    """
+    from collections import Counter
+
+    if not regdef_params:
+        return insns, 0
+    if _is_frame_setup(reference) or not _is_frame_setup(insns):
+        return insns, 0
+    teardown = {("popl", "%ebp"), ("leave", ""), ("leavel", ""),
+                ("movl", "%ebp,%esp")}
+    ref_counts = Counter(t for t in (_insn_tokens(i) for i in reference)
+                         if t in teardown)
+    # The reference's own `push %ebp` (EBP saved as a GPR) pairs with one of
+    # its pops; the candidate's prologue push is the surplus one we drop.
+    body = insns[2:]
+    keys = [_insn_tokens(i) for i in body]
+    excess = Counter(t for t in keys if t in teardown)
+    excess.subtract(ref_counts)
+    out = []
+    n_stripped = 2
+    for insn, key in zip(body, keys):
+        if key in teardown and excess[key] > 0:
+            excess[key] -= 1
+            n_stripped += 1
+            continue
+        out.append(insn)
+    return out, n_stripped
+
+
 _ADD_ESP_RE = re.compile(
     r'^addl?\s+\$((?:0x)?[0-9a-f]+),\s*%esp$', re.I)
 
@@ -1001,8 +1066,17 @@ def select_regparam_candidate(compiled: list[str], reference: list[str],
             compiled, reference, regdef_params, strip_saves=strip_saves)
         if n_stripped:
             variants.append((stripped, n_stripped, label))
+    # Frameless-reference modeling layered on every base as its OWN candidate:
+    # folding it into an existing one could lose an alignment that base had
+    # (see the saves-pass three-way-max note).
+    for base, n_base, label in list(variants):
+        framed, n_frame = strip_regparam_frame(base, reference, regdef_params)
+        if n_frame:
+            variants.append((framed, n_base + n_frame,
+                             "regparam_frameless" if label == "raw"
+                             else label + "+frameless"))
 
-    best = (comparison_ratio(compiled, reference, reg_normalize),
+    best =(comparison_ratio(compiled, reference, reg_normalize),
             compiled, 0, "raw")
     for base, n_base, label in variants:
         ratio = comparison_ratio(base, reference, reg_normalize)
@@ -2311,6 +2385,42 @@ def _self_test():
     selected, n, mode = select_regparam_candidate(cand, ref, [(0, 'ebx')])
     check("RP13 saves pass never scores below raw",
           comparison_ratio(selected, ref, False) >= raw)
+
+    # RP14. Frameless @<eax> reference (0xdc8c0 shape): candidate prologue and
+    #       one `pop %ebp` per return are stripped; the phantom-load base is
+    #       NOT required (its movswl aligns with the ref's movswl %ax).
+    cand = ["pushl\t%ebp", "movl\t%esp, %ebp", "movswl\t0x8(%ebp), %eax",
+            "cmpl\t$0x17, %eax", "xorl\t%eax, %eax", "popl\t%ebp", "retl",
+            "movl\t$0x9, %eax", "popl\t%ebp", "retl"]
+    ref = ["movswl\t%ax, %eax", "cmpl\t$0x17, %eax", "xorl\t%eax, %eax",
+           "retl", "movl\t$0x9, %eax", "retl"]
+    stripped, n = strip_regparam_frame(cand, ref, [(0, 'eax')])
+    check("RP14 frame prologue + per-return pop stripped",
+          n == 4 and [mnemonic(i) for i in stripped] ==
+          [mnemonic(i) for i in ref])
+    selected, n, mode = select_regparam_candidate(cand, ref, [(0, 'eax')])
+    check("RP14 selection reports frameless model at 100",
+          mode == "regparam_frameless" and
+          comparison_ratio(selected, ref, False) == 1.0)
+
+    # RP15. Reference is framed -> nothing stripped.
+    ref_framed = ["pushl\t%ebp", "movl\t%esp, %ebp"] + ref
+    stripped, n = strip_regparam_frame(cand, ref_framed, [(0, 'eax')])
+    check("RP15 framed reference leaves candidate frame alone", n == 0)
+
+    # RP16. No @<reg> params -> nothing stripped (stack-arg frameless refs
+    #       are not a convention artifact).
+    stripped, n = strip_regparam_frame(cand, ref, None)
+    check("RP16 no regdef params -> no frame stripping", n == 0)
+
+    # RP17. Count-aware: a frameless reference that saves EBP as a GPR keeps
+    #       its matching pop in the candidate.
+    cand = ["pushl %ebp", "movl %esp, %ebp", "pushl %ebp", "popl %ebp",
+            "popl %ebp", "retl"]
+    ref = ["pushl %ebp", "popl %ebp", "retl"]
+    stripped, n = strip_regparam_frame(cand, ref, [(0, 'esi')])
+    check("RP17 reference GPR save of EBP keeps one pop",
+          n == 3 and stripped == ["pushl %ebp", "popl %ebp", "retl"])
 
     # --- caller-site all-register ABI (strip_regarg_call_setups) ---
     # FUN_00083930: original xor eax / mov ecx / call; cl.exe push*3 / call /

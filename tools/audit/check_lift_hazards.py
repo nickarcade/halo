@@ -2084,10 +2084,10 @@ def check_discarded_result(filepath, content, lines):
 # ---------------------------------------------------------------------------
 # §22: In-place vector normalizer — clamp branch without raw restore (WARN)
 # ---------------------------------------------------------------------------
-# magnitude3d (FUN_00012f10), normalize3d (FUN_00013010) and normalize2d
+# normalize2d (FUN_00012f10) and normalize3d (FUN_00013010)
 # NORMALIZE their vector argument IN PLACE and return its pre-normalization
 # length.  The Halo clamp idiom is:
-#     len = magnitude3d(v);
+#     len = normalize2d(v);
 #     if (len > clamp) { v[0] = v[0] * clamp; v[1] = v[1] * clamp; } /* scale  */
 #     else             { v[0] = raw0;          v[1] = raw1;        } /* RESTORE */
 # Dropping the else-restore (mistaking the helper for a pure magnitude) makes
@@ -2097,14 +2097,14 @@ def check_discarded_result(filepath, content, lines):
 # branch restores v[i] from a non-v source.  Our current (correct) code has
 # both a scale and a restore for each index, so it does NOT fire; deleting the
 # restore makes it fire.  Suppress with /* hazard-ok: normalize-in-place */.
-# Match `len = magnitude3d(v)` — capture BOTH the return var and the vector.
+# Match `len = normalize2d(v)` — capture BOTH the return var and the vector.
 # Requiring the return to be captured (and later compared, below) is what
 # separates the clamp idiom from the common, legitimate `normalize3d(v);
 # v[i] = -v[i];` (conditional sign-flip, return ignored) and `len =
 # normalize3d(v); if (len != eps) v[i] = len * v[i];` (intentional rescale on
 # a validity check, not a magnitude clamp).
 _MUT_CALL_PAT = re.compile(
-    r'\b([A-Za-z_]\w*)\s*=\s*(magnitude3d|normalize3d|normalize2d)'
+    r'\b([A-Za-z_]\w*)\s*=\s*(normalize2d|normalize3d)'
     r'\s*\(\s*&?\s*([A-Za-z_]\w*)\s*\)'
 )
 
@@ -2242,7 +2242,7 @@ def _collect_c_files(changed_only=False, staged_only=False, only_files=None):
 # (unit_can_see_point / FUN_001aa430: float dir_x,dir_y,dir_z; normalize3d(&dir_x)
 #  -> overflow -> assert_valid_real_normal3d crash, PoA marines.)
 _VEC_CONTIG_FNS = (
-    'normalize3d', 'normalize2d', 'magnitude3d', 'magnitude2d',
+    'normalize3d', 'normalize2d', 'magnitude2d',
     'cross_product3d', 'dot_product3d', 'scale_vector3d',
     'add_vectors3d', 'subtract_vectors3d', 'perpendicular3d',
 )
@@ -3388,7 +3388,7 @@ def main():
         if all_inplace_mut_errors:
             print(
                 'WARNING: in-place vector normalizer with a clamp branch but no\n'
-                'raw restore. magnitude3d/normalize3d/normalize2d normalize their\n'
+                'raw restore. normalize2d/normalize3d normalize their\n'
                 'argument IN PLACE and return the length; the no-clamp branch must\n'
                 'restore the raw pre-call value, not reuse the normalized vector\n'
                 '(see lift-learnings §22):\n',
@@ -3401,7 +3401,7 @@ def main():
         if all_contiguity_errors:
             print(
                 'WARNING: contiguous-vector helper called with &<scalar_float>.\n'
-                'normalize3d/cross_product3d/magnitude3d/... read 2-3 components\n'
+                'normalize3d/cross_product3d/normalize2d/... read 2-3 components\n'
                 'past the pointer; separate float locals are not guaranteed\n'
                 'contiguous under clang (it reordered/scattered them in\n'
                 'unit_can_see_point -> overflow -> assert). Use a float[N] array:\n',
