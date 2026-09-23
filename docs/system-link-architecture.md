@@ -4,7 +4,7 @@ Sources: current `kb.json` function inventory, the networking source under
 `src/halo/networking/` and `src/halo/bungie_net/`,
 `artifacts/ntsc_callgraph/callgraph.json`, and
 `docs/system-link-rng-desync.md`. The port-status snapshot below was checked
-on 2026-09-22. Historical investigation notes are useful evidence, but do not
+on 2026-09-24. Historical investigation notes are useful evidence, but do not
 override current source or `kb.json`.
 
 # 1. Current port coverage
@@ -57,7 +57,9 @@ On the client pong consumer, the default Unicorn pointer slot is only `0x400` by
 
 ## 1b. Full pipeline inventory (2276)
 
-The 15 scoped `kb.json` objects below contain 391 functions. Of these, 377 have active redirects and 14 server handlers explicitly use `ported:false`; all 14 inactive entries have C bodies. The four message-header entries with no `ported` field in the nested object list have top-level `ported:true` records. The patcher uses those records, and a rebuilt XBE confirms redirects at their original addresses. The earlier 13-object count missed `thread_win32.obj` (thread/mutex and key-agreement helpers) and `64bit_math.obj` (key-agreement arithmetic); both are fully active. The PAL 2342 source provides counterparts for the client/server state machines; its ABI, source shape, and behavior must be checked against the 2276 binary before reuse. Its message-header file lacks the 2276 encryption implementations.
+The 15 scoped `kb.json` objects below contain 391 functions. All 391 have active redirects. The four message-header entries with no `ported` field in the nested object list have top-level `ported:true` records. A fresh patched XBE byte audit found a `push target; ret` redirect at every one of the 391 entries and no entry with the original six bytes. The earlier 13-object count missed `thread_win32.obj` (thread/mutex and key-agreement helpers) and `64bit_math.obj` (key-agreement arithmetic); both are fully active. The PAL 2342 source provides counterparts for the client/server state machines; its ABI, source shape, and behavior must be checked against the 2276 binary before reuse. Its message-header file lacks the 2276 encryption implementations.
+
+Recheck the built redirects with `rtk python3 tools/audit/check_system_link_redirects.py` after building the `patched_xbe` target. The audit checks all 391 KB activation flags and verifies each 2276 entry contains a `push target; ret` whose target lies in patched executable code. It uses the pristine 2276 XBE only as the original-byte reference. This is build coverage evidence, not live network behavior evidence.
 
 | Pipeline stage | Objects | Active / total |
 |---|---|---:|
@@ -188,6 +190,21 @@ operand reversal, including quotient and remainder outputs. All six pass.
 These are candidate composition checks against the binary-backed PAL source;
 same-context original-versus-candidate arithmetic remains unproven because
 the direct harness stubs same-object callees on the original side.
+
+The repeatable
+[`check_system_link_indirect_calls.py`](../tools/audit/check_system_link_indirect_calls.py)
+audit scans the pristine 2276 bytes for all 391 scoped functions. It finds 35
+indirect control transfers: 29 computed jump-table branches whose initial
+entries stay within their owning function, and six true indirect calls. Five
+of the calls are generic hash-table or LRA-cache callbacks; the pristine
+direct-call graph shows no callers of their constructors, but an indirect
+caller could still reach them. The sixth is the rejected-client callback in
+`network_connection_idle_server_reliable_endpoint` at `0x129c07`. Server
+creation installs `network_game_server_reject_connection_game_is_full`
+(`0x12db30`, active) at `0x12ef7b`-`0x12ef81`; the rejection call pushes the
+accepted endpoint and cleans it alongside the destroy call. This closes the
+known indirect call boundary, subject to static disassembly and function
+bound limits. Live callback behavior remains unverified.
 
 ## Layer 1 — transport / winsock (`src/halo/bungie_net/`, Xbox XNET below)
 
