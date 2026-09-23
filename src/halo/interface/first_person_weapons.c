@@ -109,8 +109,9 @@ int16_t first_person_animation_type_from_weapon_state(int16_t state)
 /* Try to play a third-person weapon sound for an object event (0xdc9d0).
  * When no local player owns the weapon, this function looks up the weapon's
  * animation graph tag, maps the event through two state-translation tables
- * (FUN_000dc800 and first_person_animation_type_from_weapon_state), resolves the animation's sound effect
- * tag reference, and plays it at the global origin with default forward. */
+ * (FUN_000dc800 and first_person_animation_type_from_weapon_state), resolves
+ * the animation's sound effect tag reference, and plays it at the global origin
+ * with default forward. */
 void weapon_play_first_person_weapon_sound(int param_2, int object_handle)
 {
   int16_t state;
@@ -197,9 +198,11 @@ void *first_person_weapon_get(int16_t local_player_index)
 /* Toggle the first-person weapon activation state for a local player (0xdcb30).
  * When activating (activate != 0): asserts weapon_index != NONE, then calls
  * effects_start_on_first_person_weapon to start effects. When deactivating:
- * calls effects_stop_on_first_person_weapon to stop effects and particles_stop_on_first_person_weapon to
- * stop sounds. Only acts if the state changes. */
-void first_person_weapon_set_visibility(int16_t local_player_index, uint8_t activate)
+ * calls effects_stop_on_first_person_weapon to stop effects and
+ * particles_stop_on_first_person_weapon to stop sounds. Only acts if the state
+ * changes. */
+void first_person_weapon_set_visibility(int16_t local_player_index,
+                                        uint8_t activate)
 {
   char *fp;
 
@@ -227,9 +230,11 @@ void first_person_weapon_set_visibility(int16_t local_player_index, uint8_t acti
  * For each model node i, node_remap[i] gives the source index in the
  * animation graph node array. Copies 0x34 bytes (13 dwords) per node.
  * Asserts that every remap index is within [0, antr->nodes.count). */
-void model_remap_node_matrices_to_match_animation_graph(int mode_tag_index, int fp_nodes,
-                              int antr_tag_index, int anim_nodes,
-                              int16_t *node_remap)
+void model_remap_node_matrices_to_match_animation_graph(int mode_tag_index,
+                                                        int fp_nodes,
+                                                        int antr_tag_index,
+                                                        int anim_nodes,
+                                                        int16_t *node_remap)
 {
   char *mode_tag;
   char *antr_tag;
@@ -270,7 +275,9 @@ void model_remap_node_matrices_to_match_animation_graph(int mode_tag_index, int 
  * graph's node block for a matching string label via csstrcmp. Stores the
  * matching index in the output array. Returns 1 if all nodes matched, 0 if
  * any node had no match. */
-uint8_t model_build_remapping_table_for_animation_graph(int mode_tag_index, int antr_tag_index, int16_t *output)
+uint8_t model_build_remapping_table_for_animation_graph(int mode_tag_index,
+                                                        int antr_tag_index,
+                                                        int16_t *output)
 {
   char *mode_tag;
   char *antr_tag;
@@ -413,6 +420,104 @@ void first_person_weapon_predict(int16_t local_player_index)
   *(int16_t *)(fp + 0x12) = 0x1e;
 }
 
+/* Render the current local player's first-person weapon and hands (0xdce80).
+ * Reads the active local player index at 0x506548; bails on -1. Resolves the
+ * player's unit (player+0x34), the fp slot's weapon (fp+0x8), the weapon tag
+ * and its animation graph (weap+0x478). Builds an on-stack record at
+ * ebp-0x38 that render_model receives as its effect_record argument:
+ * a flag word (1 when unit+0x1b4 bit 0x10 is set or unit+0x32c > 0.0f),
+ * then unit+0x32c/+0x330, the unit handle and the 3 dwords at 0x506550.
+ * Then remaps and renders the weapon model (weap+0x468, gated by fp+0x1d8c)
+ * and the hands model (game globals block +0x17c element 0, +0xc, gated by
+ * fp+0x1e0e). Field meanings beyond the offsets are unproven. */
+void first_person_weapon_draw(void)
+{
+  struct {
+    int16_t field_00;
+    int16_t pad_02;
+    uint32_t field_04;
+    uint32_t field_08;
+    int field_0c;
+    uint32_t field_10;
+    uint32_t field_14;
+    uint32_t field_18;
+    uint32_t field_1c;
+  } record;
+  char node_matrices[0xd00];
+  int16_t local_player_index;
+  char *fp;
+  char *unit;
+  int *weapon;
+  char *weapon_tag;
+  char *hands_element;
+  void *lighting;
+  int unit_handle;
+
+  local_player_index = *(int16_t *)0x506548;
+  if (local_player_index == -1)
+    return;
+
+  assert_halt(local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  fp = (char *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
+  if (local_player_get_player_index(local_player_index) == -1)
+    return;
+
+  unit_handle =
+    *(int *)((char *)datum_get(player_data, local_player_get_player_index(
+                                              *(int16_t *)0x506548)) +
+             0x34);
+  if (unit_handle == -1 || *fp == 0 || *(int *)(fp + 4) == -1 ||
+      *(int *)(fp + 8) == -1)
+    return;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  weapon = (int *)object_get_and_verify_type(*(int *)(fp + 8), 4);
+  weapon_tag = (char *)tag_get(0x77656170, *weapon);
+  if (*(int *)(weapon_tag + 0x478) == -1)
+    return;
+
+  hands_element =
+    (char *)tag_block_get_element((char *)game_globals_get() + 0x17c, 0, 0xc0);
+  tag_get(0x616e7472, *(int *)(weapon_tag + 0x478));
+  lighting = scenario_leaf_index_from_point(unit_handle, 3.4028235e+38f);
+
+  record.field_1c = 0;
+  if ((*(uint8_t *)(unit + 0x1b4) & 0x10) != 0 ||
+      *(float *)(unit + 0x32c) > *(float *)0x2533c0) {
+    record.field_04 = *(uint32_t *)(unit + 0x32c);
+    record.field_08 = *(uint32_t *)(unit + 0x330);
+    record.field_0c = unit_handle;
+    record.field_00 = 1;
+    record.field_10 = *(uint32_t *)0x506550;
+    record.field_14 = *(uint32_t *)0x506554;
+    record.field_18 = *(uint32_t *)0x506558;
+  } else {
+    record.field_00 = 0;
+  }
+
+  if (*(uint8_t *)(fp + 0x1d8c) != 0 && *(int *)(weapon_tag + 0x468) != -1) {
+    model_remap_node_matrices_to_match_animation_graph(
+      *(int *)(weapon_tag + 0x468), (int)node_matrices,
+      *(int *)(weapon_tag + 0x478), (int)(fp + 0x108c),
+      (int16_t *)(fp + 0x1d8e));
+    render_model(*(int *)(weapon_tag + 0x468), 0.0f, node_matrices, 0,
+                 (char *)weapon + 0x168, (char *)weapon + 0xe4, (int)lighting,
+                 (void *)0x506550, 0, &record, *(int *)(fp + 8), 0, 8);
+  }
+
+  if (*(uint8_t *)(fp + 0x1e0e) != 0 && *(int *)(hands_element + 0xc) != -1) {
+    model_remap_node_matrices_to_match_animation_graph(
+      *(int *)(hands_element + 0xc), (int)node_matrices,
+      *(int *)(weapon_tag + 0x478), (int)(fp + 0x108c),
+      (int16_t *)(fp + 0x1e10));
+    render_model(*(int *)(hands_element + 0xc), 0.0f, node_matrices, 0,
+                 unit + 0x168, unit + 0xe4, (int)lighting, (void *)0x506550, 0,
+                 &record, *(int *)(fp + 8), 0, 8);
+  }
+}
+
 /* Search the 4 first-person weapon slots for the one owning object_handle.
  * Returns the local player index (0-3), or -1 if not found (0xdd110). */
 int first_person_weapon_get_local_index(int object_handle)
@@ -468,7 +573,8 @@ void *first_person_weapon_get_node_matrix(int16_t local_player_index,
  * update blend timing (0xdd4d0). Copies node_count * 32 bytes from fp + 0x8c
  * to fp + 0x88c. If blend_ticks >= (fp[0x8a] - fp[0x88]), resets the blend
  * origin to 0 and sets the blend target to blend_ticks. */
-void first_person_weapon_start_interpolation(int16_t local_player_index, int16_t blend_ticks)
+void first_person_weapon_start_interpolation(int16_t local_player_index,
+                                             int16_t blend_ticks)
 {
   char *fp;
   int *weapon_obj;
@@ -503,7 +609,8 @@ int16_t first_person_weapon_get_marker_by_name_render(int object_handle,
                                                       void *out_markers,
                                                       int max_count)
 {
-  if (*(int16_t *)0x506548 == first_person_weapon_index_from_weapon_index(object_handle)) {
+  if (*(int16_t *)0x506548 ==
+      first_person_weapon_index_from_weapon_index(object_handle)) {
     return first_person_weapon_get_marker_by_name(object_handle, marker_name,
                                                   out_markers, max_count);
   }
@@ -515,8 +622,9 @@ int16_t first_person_weapon_get_marker_by_name_render(int object_handle,
  * Applies state-transition filtering: certain incoming states are rejected
  * depending on the current state. For dual-wielding weapons (type 3), maps
  * state 3 to state 0 unless the weapon has a specific flag. Looks up the
- * animation index via first_person_animation_type_from_weapon_state and the animation graph to validate the
- * transition. If param_3 is nonzero, stops any pending sound. */
+ * animation index via first_person_animation_type_from_weapon_state and the
+ * animation graph to validate the transition. If param_3 is nonzero, stops any
+ * pending sound. */
 void first_person_weapon_set_state(int param_1, int param_2, int param_3)
 {
   int16_t local_player_index = (int16_t)param_1;
@@ -645,7 +753,8 @@ void first_person_weapon_set_state(int param_1, int param_2, int param_3)
               *(int16_t *)(fp + 0x1e9c) = -1;
             }
             if (blend_ticks > 0) {
-              first_person_weapon_start_interpolation(local_player_index, blend_ticks);
+              first_person_weapon_start_interpolation(local_player_index,
+                                                      blend_ticks);
             }
             *(int16_t *)(fp + 0xc) = state;
             *(int16_t *)(fp + 0x16) = anim_index;
@@ -746,15 +855,17 @@ void first_person_weapon_switch_weapons(int param_1)
               (char *)tag_block_get_element(game_globals + 0x17c, 0, 0xc0);
 
             if (*(int *)(gg_element + 0xc) != -1) {
-              *(uint8_t *)(fp + 0x1e0e) = model_build_remapping_table_for_animation_graph(
-                *(int *)(gg_element + 0xc), *(int *)(weapon_tag + 0x478),
-                (int16_t *)(fp + 0x1e10));
+              *(uint8_t *)(fp + 0x1e0e) =
+                model_build_remapping_table_for_animation_graph(
+                  *(int *)(gg_element + 0xc), *(int *)(weapon_tag + 0x478),
+                  (int16_t *)(fp + 0x1e10));
             }
           }
 
-          *(uint8_t *)(fp + 0x1d8c) = model_build_remapping_table_for_animation_graph(*(int *)(weapon_tag + 0x468),
-                                                   *(int *)(weapon_tag + 0x478),
-                                                   (int16_t *)(fp + 0x1d8e));
+          *(uint8_t *)(fp + 0x1d8c) =
+            model_build_remapping_table_for_animation_graph(
+              *(int *)(weapon_tag + 0x468), *(int *)(weapon_tag + 0x478),
+              (int16_t *)(fp + 0x1d8e));
 
           if (*(uint8_t *)(fp + 0x1d8c) == 0)
             goto done;
@@ -946,7 +1057,8 @@ void first_person_weapon_message_from_unit(int unit_handle, int message_type)
  * no local player owns it, attempts third-person sound playback. */
 void first_person_weapon_message_from_weapon(int object_handle, int param_2)
 {
-  int16_t local_player = first_person_weapon_index_from_weapon_index(object_handle);
+  int16_t local_player =
+    first_person_weapon_index_from_weapon_index(object_handle);
   first_person_weapon_message(local_player, param_2);
   if (local_player == -1) {
     weapon_play_first_person_weapon_sound(param_2, object_handle);
@@ -988,6 +1100,6 @@ void first_person_weapons_update(void)
     }
     if (*(int *)(fp + 8) == NONE)
       first_person_weapon_switch_weapons(i);
-    ((void (*)(int))0xde560)(i);
+    first_person_weapon_update(i);
   }
 }

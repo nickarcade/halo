@@ -22738,6 +22738,21 @@
       "score": 77.6,
       "source": "src/halo/interface/first_person_weapons.c"
     },
+    "FUN_000de560": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 0.4,
+      "addr": "0xde560",
+      "end": "0xdeb5d",
+      "kind": "auto",
+      "n_r": 465,
+      "opnd_percent": 0.4,
+      "raw_mnemonic_pct": 0.4,
+      "ref": "synth",
+      "ref_sha": "11e089c87f261dbb",
+      "score": 0.4,
+      "source": "src/halo/interface/first_person_weapons.c"
+    },
     "FUN_000dedf0": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -67216,17 +67231,17 @@
     "first_person_weapon_draw": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 1.0,
+      "abi_modeled_mnemonic_pct": 95.9,
       "addr": "0xdce80",
       "end": "0xdd102",
       "kind": "auto",
       "n_r": 195,
-      "opnd_percent": 0.0,
-      "raw_mnemonic_pct": 1.0,
+      "opnd_percent": 87.2,
+      "raw_mnemonic_pct": 95.9,
       "ref": "synth",
       "ref_sha": "8928b7eca6cac0fc",
-      "score": 1.0,
-      "source": "src/halo/unported_thunks.c"
+      "score": 95.9,
+      "source": "src/halo/interface/first_person_weapons.c"
     },
     "first_person_weapon_get": {
       "abi_model": "regparam_stripped_saves",
@@ -67471,16 +67486,16 @@
     "first_person_weapons_update": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 91.6,
+      "abi_modeled_mnemonic_pct": 90.1,
       "addr": "0xdeb60",
       "end": "0xdec4c",
       "kind": "auto",
       "n_r": 78,
-      "opnd_percent": 59.4,
-      "raw_mnemonic_pct": 91.6,
+      "opnd_percent": 57.0,
+      "raw_mnemonic_pct": 90.1,
       "ref": "synth",
       "ref_sha": "86d75ade711c73bf",
-      "score": 91.6,
+      "score": 90.1,
       "source": "src/halo/interface/first_person_weapons.c"
     },
     "flood_decide_action": {
