@@ -2912,7 +2912,7 @@ bool network_game_server_handle_message_client_add_player_request_ingame(int ser
 #endif
 bool network_game_server_handle_message_client_remove_player_request_postgame(int server, int machine, void *message_data, int message_size)
 {
-  char decoded_buf[32];
+  network_player_record_t player;
   short packet_type;
   short packet_version;
 
@@ -2920,10 +2920,10 @@ bool network_game_server_handle_message_client_remove_player_request_postgame(in
     message_size -= 2;
     packet_type = 0x20;
     packet_version = 1;
-    if (decode_network_game_message((int)decoded_buf, (int)((char *)message_data + 2),
+    if (decode_network_game_message((int)&player, (int)((char *)message_data + 2),
                      (short *)&message_size, &packet_type, &packet_version, 7)) {
       if (!network_game_server_remove_player_from_game(server, machine,
-                                                       (int)decoded_buf))
+                                                       (int)&player))
         network_event("server failed to remove a network player post-game");
       return true;
     }
