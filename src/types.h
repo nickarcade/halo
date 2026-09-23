@@ -2552,17 +2552,21 @@ co(sound_cache_sound, field_34,           0x34);
  * csmemcmp(a, b, max(a->address_length, b->address_length)) starting at
  * offset 0, so the address bytes occupy the front of the record; only the
  * first IPV4_ADDRESS_LENGTH (4) of them are ever compared at runtime. The
- * 16-byte span is inferred from address_length sitting at +0x10, not proven
- * as the declared address width. Total size is UNKNOWN, so there is no cs()
- * assert and everything past +0x14 is unexamined rather than proven unused.
+ * 16-byte span is inferred from address_length sitting at +0x10. The 24-byte
+ * size and final dword are proven by FUN_00084520's bind-address initializer
+ * at 0x845dc-0x845fb. See recovery/evidence/transport_address.json.
  * ------------------------------------------------------------------------- */
 typedef struct transport_address {
     uint8_t  address[0x10];   /* +0x00: address bytes, compared as a block */
     uint16_t address_length;  /* +0x10: asserted == IPV4_ADDRESS_LENGTH */
     uint16_t port;            /* +0x12: compared as a 16-bit value */
+    uint32_t field_14;        /* +0x14: dword cleared at FUN_00084520:0x845f8 */
 } transport_address;
+cs(transport_address, 0x18);
+co(transport_address, address,        0x00);
 co(transport_address, address_length, 0x10);
 co(transport_address, port,           0x12);
+co(transport_address, field_14,       0x14);
 
 /* transport_endpoint -- 8-byte Winsock endpoint (debug_malloc(8) at 0x82d70).
  *

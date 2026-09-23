@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "struct": "countdown_timer",
+  "sources": [
+    "PAL 2342 source/networking/network_server_manager.c:549-553 defines the two-field timer",
+    "2276 countdown_timer_get_time_remaining @0x12bdb0 reads +0x00 and +0x04 as dwords and writes +0x04",
+    "2276 countdown_timer_set_time_remaining @0x12bf30 writes +0x00 and +0x04 as dwords",
+    "2276 network_game_server_update_countdown @0x12e3a0 accesses embedded timer at server+0x488 and next field at server+0x490"
+  ],
+  "size": {
+    "value": "0x08",
+    "evidence": "PAL embeds two 4-byte longs; 2276 update_countdown @0x12e546 takes server+0x488 as timer and @0x12e555 writes a separate field at server+0x490"
+  },
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 4,
+      "signed": true,
+      "name": "time_remaining",
+      "confidence": "named",
+      "evidence": "2276 assert string 'timer->time_remaining >= 0' at countdown_timer_set_time_remaining @0x12bf47; @0x12bf40 stores a dword and countdown_timer_get_time_remaining @0x12bddb tests its sign"
+    },
+    {
+      "offset": "0x04",
+      "width": 4,
+      "signed": false,
+      "confidence": "typed",
+      "evidence": "PAL countdown_timer declares unsigned long last_update_time; 2276 countdown_timer_get_time_remaining @0x12bdbc reads a dword at +0x04 and @0x12bddd stores the current tick there"
+    }
+  ],
+  "notes": [
+    "PAL names +0x04 last_update_time. Keep the C field name mechanical because no 2276 assert or PDB name for that field has been found; its signed comparison is an interpretation of the unsigned stored tick.",
+    "Ghidra MCP was unavailable, so 2276 evidence came from local pristine-XBE disassembly."
+  ]
+}
