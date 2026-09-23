@@ -1074,6 +1074,27 @@ def _test_reverse_thunks():
             "4 reg args + 1 stack arg: K=1 displacement offset",
         ),
         (
+            # TIFFSetupShortLong shape: ECX in the callee-save slot. It is
+            # pushed before the tag@<ax> widen overwrites ECX.
+            "void f(void *a@<esi>, unsigned short b@<ax>, void *c@<edx>, unsigned long d@<ecx>);",
+            0x401000,
+            0x650000,
+            (
+                b'\x51'                                    # PUSH ECX (save d)
+                b'\x0f\xb7\xc8'                           # MOVZX ECX, AX (b)
+                b'\x89\xf0'                               # MOV EAX, ESI (a)
+                b'\xff\x34\x24'                           # PUSH [ESP+0] (d)
+                b'\x52'                                    # PUSH EDX (c)
+                b'\x51'                                    # PUSH ECX (b)
+                b'\x50'                                    # PUSH EAX (a)
+                b'\xe8' + _rel32(0x650000 + 12, 0x401000) +
+                b'\x83\xc4\x10'                           # ADD ESP, 16
+                b'\x59'                                    # POP ECX
+                b'\xc3'
+            ),
+            "4 reg args: ECX callee-save slot saved before it is restaged",
+        ),
+        (
             # 3-cycle in scratch slots alongside a callee-save 4th arg.
             # Entry: EAX=c, ECX=a, EDX=b, EBX=d.
             # Scratch staging: XCHG EAX,EDX; XCHG EAX,ECX → EAX=a, ECX=b, EDX=c.
