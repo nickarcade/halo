@@ -505,6 +505,17 @@ void FUN_001c0cf0(void)
   csmemset((void *)0x4ea9c8, 0, 0x6c);
 }
 
+/* 0x1c0d50
+ * Forward to saved_game_files_enumerate_available_to_local_player_index with
+ * a constant 0 as the second argument; the other four arguments pass through
+ * in order (binary: PUSH [ebp+14], [ebp+10], [ebp+c], 0, [ebp+8]).
+ */
+void FUN_001c0d50(int param_1, int *param_2, int *param_3, int param_4)
+{
+  saved_game_files_enumerate_available_to_local_player_index(
+    param_1, 0, param_2, param_3, param_4);
+}
+
 /* 0x1c0d70
  * Delete a player profile by index. Calls the saved-game file deletion
  * routine and logs an error if it fails.
@@ -742,51 +753,51 @@ int FUN_001c1720(int a1, wchar_t *name)
 
   saved_game_file_index = FUN_001c5560(0, a1, name);
   if (saved_game_file_index != -1) {
-  if (enumerate_memory_units_test(&file_info, saved_game_file_index)) {
-    char buffer[0x200] = { 0 };
-    int level;
-    int bit;
-    uint8_t unlock_flags;
+    if (enumerate_memory_units_test(&file_info, saved_game_file_index)) {
+      char buffer[0x200] = { 0 };
+      int level;
+      int bit;
+      uint8_t unlock_flags;
 
-    csmemset(buffer, 0, 0x30);
-    *(uint16_t *)(buffer + 0x18) = 0xffff;
-    *(uint8_t *)(buffer + 0x2a) = 3;
-    *(uint8_t *)(buffer + 0x2b) = 0;
-    *(uint8_t *)(buffer + 0x2d) = 0;
-    *(uint8_t *)(buffer + 0x2f) = 0;
-    *(uint8_t *)(buffer + 0x2c) = 0;
-    *(uint16_t *)(buffer + 0x26) = 0;
-    *(uint8_t *)(buffer + 0x28) = 0;
-    *(uint8_t *)(buffer + 0x29) = 0;
-    *(uint16_t *)(buffer + 0x1a) = 0;
-    ustrncpy((wchar_t *)buffer, name, 0xb);
-    *(uint16_t *)(buffer + 0x16) = 0;
+      csmemset(buffer, 0, 0x30);
+      *(uint16_t *)(buffer + 0x18) = 0xffff;
+      *(uint8_t *)(buffer + 0x2a) = 3;
+      *(uint8_t *)(buffer + 0x2b) = 0;
+      *(uint8_t *)(buffer + 0x2d) = 0;
+      *(uint8_t *)(buffer + 0x2f) = 0;
+      *(uint8_t *)(buffer + 0x2c) = 0;
+      *(uint16_t *)(buffer + 0x26) = 0;
+      *(uint8_t *)(buffer + 0x28) = 0;
+      *(uint8_t *)(buffer + 0x29) = 0;
+      *(uint16_t *)(buffer + 0x1a) = 0;
+      ustrncpy((wchar_t *)buffer, name, 0xb);
+      *(uint16_t *)(buffer + 0x16) = 0;
 
-    error(2, "### DEBUG unlocking all solo levels for newly created profile");
-    for (level = 0; level < 10; level++) {
-      unlock_flags = *(uint8_t *)(buffer + 0x1c + level);
-      for (bit = 0; bit < 4; bit++) {
-        unlock_flags |= (uint8_t)(1 << bit);
+      error(2, "### DEBUG unlocking all solo levels for newly created profile");
+      for (level = 0; level < 10; level++) {
+        unlock_flags = *(uint8_t *)(buffer + 0x1c + level);
+        for (bit = 0; bit < 4; bit++) {
+          unlock_flags |= (uint8_t)(1 << bit);
+        }
+        *(uint8_t *)(buffer + 0x1c + level) = unlock_flags;
       }
-      *(uint8_t *)(buffer + 0x1c + level) = unlock_flags;
+
+      saved_game_file_generate_checksum(buffer, 0x30, buffer + 0x30);
+      if (file_set_position(&file_info, 0) &&
+          file_write(&file_info, 0x200, buffer)) {
+        saved_game_file_close(&file_info, saved_game_file_index);
+        return saved_game_file_index;
+      }
+
+      error(2, "failed to initialize newly created player profile");
+      delete_enumerated_saved_game_file(saved_game_file_index);
+      saved_game_file_close(&file_info, -1);
+      return -1;
     }
 
-    saved_game_file_generate_checksum(buffer, 0x30, buffer + 0x30);
-    if (file_set_position(&file_info, 0) &&
-        file_write(&file_info, 0x200, buffer)) {
-      saved_game_file_close(&file_info, saved_game_file_index);
-      return saved_game_file_index;
-    }
-
-    error(2, "failed to initialize newly created player profile");
+    error(2, "failed to open newly created player profile");
     delete_enumerated_saved_game_file(saved_game_file_index);
-    saved_game_file_close(&file_info, -1);
     return -1;
-  }
-
-  error(2, "failed to open newly created player profile");
-  delete_enumerated_saved_game_file(saved_game_file_index);
-  return -1;
   }
 
   error(2, "failed to create new player profile");

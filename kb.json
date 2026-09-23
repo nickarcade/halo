@@ -10507,7 +10507,8 @@
     },
     {
      "addr": "0x1c0d50",
-     "decl": "void FUN_001c0d50(int, int *, int *, int);"
+     "decl": "void FUN_001c0d50(int, int *, int *, int);",
+     "ported": true
     },
     {
      "addr": "0x1c0d70",

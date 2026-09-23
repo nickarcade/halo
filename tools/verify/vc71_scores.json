@@ -39748,6 +39748,21 @@
       "score": 100.0,
       "source": "src/halo/saved_games/game_state_xbox.c"
     },
+    "FUN_001c0d50": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x1c0d50",
+      "end": "0x1c0d6f",
+      "kind": "auto",
+      "n_r": 15,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "654f019173c7fed4",
+      "score": 100.0,
+      "source": "src/halo/saved_games/game_state_xbox.c"
+    },
     "FUN_001c0d70": {
       "abi_model": "raw",
       "abi_model_items": 0,
