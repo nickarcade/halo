@@ -3149,10 +3149,40 @@ bool network_game_server_send_game_data_pregame(void *server)
 
 /* Handle client broadcast game search (0x12f690).
  * client_message @<ecx>, source_address @<eax>, server on stack. */
+/* 2276 game-advertise payload. PAL 2342 names these same fields; the 2276
+ * stores at +0x34, +0x3a, +0x74, +0xf8..+0x104 establish their offsets. */
+typedef struct {
+  uint8_t client_nonce[8];
+  uint8_t nonce[8];
+  uint8_t key_id[8];
+  uint8_t key[16];
+  uint8_t xnaddr[12];
+  uint16_t port;
+  uint16_t version;
+  uint16_t platform;
+  uint16_t game_name[16];
+  uint8_t reserved[0x1a];
+  uint8_t map[0x84];
+  uint16_t engine_type;
+  uint16_t machine_count;
+  uint16_t player_count;
+  uint16_t maximum_player_count;
+  uint16_t variant_setting;
+  uint16_t flags;
+  uint8_t join_game_token[16];
+} message_server_game_advertise_t;
+cs(message_server_game_advertise_t, 0x114);
+co(message_server_game_advertise_t, port, 0x34);
+co(message_server_game_advertise_t, game_name, 0x3a);
+co(message_server_game_advertise_t, map, 0x74);
+co(message_server_game_advertise_t, engine_type, 0xf8);
+co(message_server_game_advertise_t, flags, 0x102);
+co(message_server_game_advertise_t, join_game_token, 0x104);
+
 char handle_message_client_broadcast_game_search(int server, void *client_message,
                                           void *source_address)
 {
-  char advertise_buf[0x114];
+  message_server_game_advertise_t advertise_buf;
   union {
     int key[4];
     struct {
@@ -3184,18 +3214,18 @@ char handle_message_client_broadcast_game_search(int server, void *client_messag
     return true;
 
 #if defined(_MSC_VER) && !defined(__clang__)
-  memset(advertise_buf, 0, 0x114);
+  memset(&advertise_buf, 0, 0x114);
 #else
-  csmemset(advertise_buf, 0, 0x114);
+  csmemset(&advertise_buf, 0, 0x114);
 #endif
-  body = advertise_buf;
+  body = (char *)&advertise_buf;
 
   addr_hdr[0] = -1;
   *(short *)((char *)addr_hdr + 0x10) = 4;
   *(short *)((char *)addr_hdr + 0x12) = 0x141f;
 
-  csmemcpy(body, (char *)client_message + 4, 8);
-  transport_get_nonce(body + 0x08, 8);
+  csmemcpy(advertise_buf.client_nonce, (char *)client_message + 4, 8);
+  transport_get_nonce(advertise_buf.nonce, 8);
   *(int64_t *)(body + 0x10) = transport_get_key_id();
 
   key_ptr = (int *)transport_get_key(scratch.key);
@@ -3209,28 +3239,28 @@ char handle_message_client_broadcast_game_search(int server, void *client_messag
   *(int *)(body + 0x2c) = xnaddr_ptr[1];
   *(int *)(body + 0x30) = xnaddr_ptr[2];
 
-  *(short *)(body + 0x34) = 0x141e;
-  *(short *)(body + 0x36) = 1;
-  *(short *)(body + 0x38) = 0;
+  advertise_buf.port = 0x141e;
+  advertise_buf.version = 1;
+  advertise_buf.platform = 0;
 
-  ustrncpy((wchar_t *)(body + 0x3a), (wchar_t *)game_data->map_name, 0xf);
-  *(short *)(body + 0xf8) = game_data->game_variant.engine_type;
-  csmemcpy(body + 0x74, (char *)game_data + 0x20, 0x84);
-  *(short *)(body + 0xfc) = game_data->player_count;
-  *(short *)(body + 0xfa) = game_data->machine_count;
-  *(short *)(body + 0xfe) = (short)game_data->maximum_player_count;
-  *(short *)(body + 0x100) = *(short *)((char *)game_data + 0xe4);
+  ustrncpy((wchar_t *)advertise_buf.game_name, (wchar_t *)game_data->map_name, 0xf);
+  advertise_buf.engine_type = game_data->game_variant.engine_type;
+  csmemcpy(advertise_buf.map, (char *)game_data + 0x20, 0x84);
+  advertise_buf.player_count = game_data->player_count;
+  advertise_buf.machine_count = game_data->machine_count;
+  advertise_buf.maximum_player_count = (short)game_data->maximum_player_count;
+  advertise_buf.variant_setting = *(short *)((char *)game_data + 0xe4);
 
-  *(short *)(body + 0x102) = 0;
+  advertise_buf.flags = 0;
   if (game_data->game_variant.team_play == 1)
-    *(short *)(body + 0x102) = 4;
+    advertise_buf.flags = 4;
   if (game_data->game_variant.engine_type == 3 &&
       *(int *)((char *)game_data + 0x100) == 2)
-    *(short *)(body + 0x102) |= 8;
+    advertise_buf.flags |= 8;
   if (network_game_server_game_is_open((void *)server))
-    *(short *)(body + 0x102) |= 2;
+    advertise_buf.flags |= 2;
 
-  network_game_generate_join_game_token(body + 0x104);
+  network_game_generate_join_game_token(advertise_buf.join_game_token);
 
   msg = create_network_game_message(2, body, 0x114);
   if (msg) {
