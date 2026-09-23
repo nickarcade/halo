@@ -1506,6 +1506,19 @@ _PER_FUNCTION_OPT: dict[str, dict[str, str]] = {
     # D3D_BlockOnResource (0x1efd80) and FUN_001ed870 (0x1ed870): both use
     # ESP-relative addressing from entry (`mov ecx,[esp+4]` / `push esi; mov
     # esi,[esp+8]`), no EBP setup anywhere -- also /Oy.
+    # RAD Bink library (bink.obj): every function addresses its arguments
+    # ESP-relative with no EBP frame (BinkSetMemory 0x22e320 is `mov eax,
+    # [esp+4] / mov [0x639ba0],eax / ret 4`; BinkClose 0x231220 `push ebx /
+    # push esi / mov esi,[esp+0xc]`) -- RAD built it with /Oy.
+    "halo/bink/bink.c": {
+        name: "/O2 /Oy"
+        for name in (
+            "BinkSoundUseDirectSound", "BinkSetMemory", "BinkCopyToBuffer",
+            "BinkDoFrame", "BinkWait", "BinkGetSummary",
+            "BinkGetFrameBuffersInfo", "BinkOpen", "BinkNextFrame",
+            "BinkClose", "FUN_00231490",
+        )
+    },
     "rasterizer/xbox/d3d_resource.c": {
         "D3DResource_BlockUntilNotBusy": "/O2 /Oy",
         "D3DTexture_GetLevelDesc": "/O2 /Oy",

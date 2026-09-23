@@ -31,6 +31,7 @@ halo/ai/actor_firing_position.c
 	halo/bungie_net/64bit_math.c
 	halo/bungie_net/network/transport_endpoint_set_winsock.c
 	halo/bungie_net/thread_win32.c
+	halo/bink/bink.c
 	halo/bink/bink_playback.c
 	halo/bink/bink_sound.c
 	halo/camera/bored_camera.c

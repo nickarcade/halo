@@ -38,16 +38,16 @@ Select a badge to open that workflow's run history.
 Game Code Progress
 ------------------
 <!-- GAME_CODE_PROGRESS_START -->
-[![Decompilation Progress](https://img.shields.io/badge/decompilation-88.34%25-green.svg)](https://stianeklund.github.io/halo/)
-[![Ported Functions](https://img.shields.io/badge/functions-6,017%2F6,811-blue.svg)](https://stianeklund.github.io/halo/)
+[![Decompilation Progress](https://img.shields.io/badge/decompilation-88.50%25-green.svg)](https://stianeklund.github.io/halo/)
+[![Ported Functions](https://img.shields.io/badge/functions-6,028%2F6,811-blue.svg)](https://stianeklund.github.io/halo/)
 
 Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):
 
-* **Ported Functions:** `6,017 / 6,811` (`88.34%`)
-  `[███████████████████████████████████░░░░░] 88.34%`
-* **Ported Code Bytes:** `1,282,403 / 1,738,043` (`73.78%`)
-  `[██████████████████████████████░░░░░░░░░░] 73.78%`
-* **Average VC71 Mnemonic Match:** `94.50%` (`6,042` scored functions, size-weighted: `90.30%`; structural signal, not raw-byte accuracy)
+* **Ported Functions:** `6,028 / 6,811` (`88.50%`)
+  `[███████████████████████████████████░░░░░] 88.50%`
+* **Ported Code Bytes:** `1,295,987 / 1,738,043` (`74.57%`)
+  `[██████████████████████████████░░░░░░░░░░] 74.57%`
+* **Average VC71 Mnemonic Match:** `94.50%` (`6,053` scored functions, size-weighted: `90.30%`; structural signal, not raw-byte accuracy)
 * **Equivalence Tests:** `5,592` functions tested (`2,025` high confidence)
 * **Translation Units:** `190` source units (`39` platform/SDK buckets tracked separately)
 
