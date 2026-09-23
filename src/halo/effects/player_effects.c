@@ -1,3 +1,4 @@
+#include "x87_math.h"
 
 __declspec(noinline) char *player_effect_get(int16_t local_player_index)
 {
@@ -26,6 +27,32 @@ void player_effect_initialize_for_new_map(void)
 
 void player_effect_dispose_from_old_map(void)
 {
+}
+
+/* scripted_player_effect_set_rotation -- store the three script-supplied
+ * rotation components, each scaled by the constant at 0x253d4c
+ * (0.017453292f, degrees to radians), into the player-effect globals.
+ *
+ * Confirmed (0xa28e0..0xa2916): EAX = [0x4557ec] (player_effect_globals);
+ * FLD [EBP+8] / FMUL [0x253d4c] / FSTP [EAX+0x3d0], then the same shape for
+ * [EBP+0xc] -> +0x3d4 and [EBP+0x10] -> +0x3d8.
+ *
+ * The first stack slot is loaded with FLD float ptr, so the binary reads it
+ * as a float. The kb decl still declares it `int` (inherited from the
+ * HaloScript caller at 0xc2fe0, which forwards result[0] verbatim); the decl
+ * and caller are left unchanged here and the slot's bits are read as a float,
+ * which matches both the caller's verbatim dword forward and this FLD.
+ *
+ * 0xa28e0 / player_effects.obj */
+void scripted_player_effect_set_rotation(int param_1, float param_2,
+                                         float param_3)
+{
+  char *globals;
+
+  globals = player_effect_globals;
+  *(float *)(globals + 0x3d0) = *(float *)&param_1 * *(float *)0x253d4c;
+  *(float *)(globals + 0x3d4) = param_2 * *(float *)0x253d4c;
+  *(float *)(globals + 0x3d8) = param_3 * *(float *)0x253d4c;
 }
 
 /* Forward the two script-supplied motor values to the rumble system.
@@ -176,6 +203,23 @@ float effect_scale_factor(float param_1, float param_2)
   return (*(float *)0x002533c8 - param_1) * param_2 + param_1;
 }
 
+/* effect_scale_value -- evaluates a transition function at
+ * t = 1.0f - param_2 / param_3 and scales the result by param_1.
+ *
+ * Binary (0xa2c70): FLD [ebp+0xc]; FDIV [ebp+0x10]; FSUBR [0x2533c8] (1.0f);
+ * FSTP [esp]; PUSH EAX (caller-supplied, never defined here);
+ * CALL transition_function_evaluate; FMUL [ebp+8]; result in ST0.
+ * No xrefs in the binary; float parameter meanings unknown (positional).
+ *
+ * 0xa2c70 / player_effects.obj */
+float effect_scale_value(short function_type /* @<eax> */, float param_1,
+                         float param_2, float param_3)
+{
+  return transition_function_evaluate(function_type, *(float *)0x002533c8 -
+                                                       param_2 / param_3) *
+         param_1;
+}
+
 void player_effect_update(void)
 {
   int16_t local_player_index;
@@ -229,6 +273,34 @@ void scripted_player_effect_set_translation(int param_1, float param_2,
   *(int *)(globals + 0x3c4) = param_1;
   *(float *)(globals + 0x3c8) = param_2;
   *(float *)(globals + 0x3cc) = param_3;
+}
+
+/* scripted_player_effect_stop -- script-driven stop of the scripted player
+ * effect: converts the incoming duration to ticks and arms the stop.
+ *
+ * Confirmed (0xa2e40..0xa2e76): FLD [EBP+8]; FMUL [0x253394]
+ * (TICKS_PER_SECOND); FSTP [EBP+8] -- the product is narrowed back into the
+ * argument slot -- then FLD; FISTP [EBP-4] (round-to-nearest, no _ftol2).
+ * The low word of that integer is stored to both +0x3e0 and +0x3e2 of
+ * player_effect_globals (0x4557ec), then bit 1 of the dword at +0x3e4 is set.
+ *
+ * The kb decl keeps `int param_1` because the only caller (0xc30b0) forwards
+ * the HaloScript record's +0 dword bit-exact (MOV EDX,[EAX]; PUSH EDX); the
+ * callee reads that slot as a float, so it is reinterpreted, not converted.
+ * Unknown: semantics of +0x3e0/+0x3e2 (int16) and of flag bit 1 at +0x3e4.
+ *
+ * 0xa2e40 / player_effects.obj */
+void scripted_player_effect_stop(int param_1)
+{
+  char *globals;
+  int16_t ticks;
+
+  *(float *)&param_1 = *(float *)&param_1 * TICKS_PER_SECOND;
+  ticks = (int16_t)x87_round_to_int(*(float *)&param_1);
+  globals = player_effect_globals;
+  *(int16_t *)(globals + 0x3e0) = ticks;
+  *(int16_t *)(globals + 0x3e2) = ticks;
+  *(uint32_t *)(globals + 0x3e4) |= 2;
 }
 
 /* player_effect_set_from_descriptor -- apply an effect descriptor to a player's
@@ -287,7 +359,7 @@ static void player_effect_set_from_descriptor(int player_index, char *effect,
 }
 
 void player_effect_screen_flash(int player_handle, void *effect_descriptor,
-                         float intensity)
+                                float intensity)
 {
   int16_t unit_index;
   void *player;
@@ -359,8 +431,8 @@ void player_effect_screen_flash(int player_handle, void *effect_descriptor,
  *     int conversion.
  *   - The single ADD ESP,0x2c at 0xa2fb3 cleans up all four cdecl calls
  *     (1 + 3 + 4 + 3 dwords).  That is why the call-site audit reports
- *     cleanup=11 against player_effect_update_camera_shake's three stack params; it is not
- *     evidence of extra arguments.
+ *     cleanup=11 against player_effect_update_camera_shake's three stack
+ * params; it is not evidence of extra arguments.
  *   - 0xa2ab0 receives the descriptor in EBX (LEA EBX,[EBP-0x3c] immediately
  *     before the CALL) and 0xa2ba0 receives the effect-data block in EAX and
  *     the effect pointer in EBX.  The descriptor is passed as an ordinary
@@ -402,8 +474,40 @@ void player_telefrag_effect_start(int player_handle, float intensity)
                              *(int *)&intensity);
     player_effect_set_from_descriptor(local_player_index, effect, intensity,
                                       1.0f, descriptor);
-    player_effect_update_camera_shake(local_player_index, intensity, 1.0f, effect_data /* @<eax> */,
-                 (void *)effect /* @<ebx> */);
+    player_effect_update_camera_shake(local_player_index, intensity, 1.0f,
+                                      effect_data /* @<eax> */,
+                                      (void *)effect /* @<ebx> */);
+  }
+}
+
+/* get_shake_matrix -- apply a random-axis rotation and a random-direction
+ * translation to the caller's matrix (ESI).
+ *
+ * Binary (0xa32e0): if [ebp+0xc] != [0x2533c0]: seed =
+ * random_math_get_local_seed_address(); random_seed_get_direction3d(seed,
+ * &axis); FUN_001092d0(ESI, &axis, fsin(angle), fcos(angle)) (both floats
+ * FSTP'd into the reused arg slots). If [ebp+8] != [0x2533c0]: same random
+ * direction, scaled by [ebp+8], stored to matrix +0x28/+0x2c/+0x30.
+ * Callers: FUN_000a3370 (x2).
+ *
+ * 0xa32e0 / player_effects.obj */
+void get_shake_matrix(float *matrix /* @<esi> */, float translation_scale,
+                      float rotation_angle)
+{
+  float direction[3];
+
+  if (rotation_angle != *(float *)0x002533c0) {
+    random_seed_get_direction3d(random_math_get_local_seed_address(),
+                                direction);
+    FUN_001092d0(matrix, direction, x87_fsin(rotation_angle),
+                 x87_fcos(rotation_angle));
+  }
+  if (translation_scale != *(float *)0x002533c0) {
+    random_seed_get_direction3d(random_math_get_local_seed_address(),
+                                direction);
+    matrix[10] = direction[0] * translation_scale;
+    matrix[11] = direction[1] * translation_scale;
+    matrix[12] = direction[2] * translation_scale;
   }
 }
 
@@ -427,8 +531,8 @@ void player_telefrag_effect_start(int player_handle, float intensity)
  * +0x2c is up vector. Confirmed: effect flags at +0xe4 (right), +0xe5
  * (forward), +0xe6 (down), +0xe7 (side).
  */
-void player_effect_start(int player_handle, void *damage_params, void *direction,
-                  float damage_amount, float scale)
+void player_effect_start(int player_handle, void *damage_params,
+                         void *direction, float damage_amount, float scale)
 {
   char *player;
   int16_t unit_index;
@@ -460,11 +564,12 @@ void player_effect_start(int player_handle, void *damage_params, void *direction
 
     player_effect_set_from_descriptor(unit_index, effect, damage_amount, 1.0f,
                                       (void *)(jpt_tag + 0x24));
-    player_effect_update_camera_impulse(unit_index, (float *)(jpt_tag + 0x98), direction,
-                 damage_amount, 1.0f, (float *)effect /* @<eax> */);
+    player_effect_update_camera_impulse(unit_index, (float *)(jpt_tag + 0x98),
+                                        direction, damage_amount, 1.0f,
+                                        (float *)effect /* @<eax> */);
     player_effect_update_camera_shake(unit_index, damage_amount, 1.0f,
-                 (float *)(jpt_tag + 0xcc) /* @<eax> */,
-                 (void *)effect /* @<ebx> */);
+                                      (float *)(jpt_tag + 0xcc) /* @<eax> */,
+                                      (void *)effect /* @<ebx> */);
     rumble_player_impulse((short)unit_index, (float *)(jpt_tag + 0x5c),
                           damage_amount, 1.0f);
 

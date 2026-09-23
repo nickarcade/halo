@@ -18875,7 +18875,8 @@
     },
     {
      "addr": "0xa28e0",
-     "decl": "void scripted_player_effect_set_rotation(int param_1, float param_2, float param_3);"
+     "decl": "void scripted_player_effect_set_rotation(int param_1, float param_2, float param_3);",
+     "ported": true
     },
     {
      "addr": "0xa2920",
@@ -18920,9 +18921,10 @@
     },
     {
      "addr": "0xa2c70",
-     "decl": "void effect_scale_value(void);",
+     "decl": "float effect_scale_value(short function_type @<eax>, float param_1, float param_2, float param_3);",
      "comment": "[NAME: effect_scale_value \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "effect_scale_value"
+     "name": "effect_scale_value",
+     "ported": true
     },
     {
      "addr": "0xa2d30",
@@ -18939,7 +18941,8 @@
     },
     {
      "addr": "0xa2e40",
-     "decl": "void scripted_player_effect_stop(int param_1);"
+     "decl": "void scripted_player_effect_stop(int param_1);",
+     "ported": true
     },
     {
      "addr": "0xa2ed0",
@@ -18952,9 +18955,10 @@
     },
     {
      "addr": "0xa32e0",
-     "decl": "void get_shake_matrix(void);",
+     "decl": "void get_shake_matrix(float *matrix @<esi>, float translation_scale, float rotation_angle);",
      "comment": "[NAME: get_shake_matrix \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "get_shake_matrix"
+     "name": "get_shake_matrix",
+     "ported": true
     },
     {
      "addr": "0xa3370",
