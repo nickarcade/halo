@@ -169,7 +169,7 @@ _DROP_RE = re.compile(
 )
 # Advisory operand-normalized score, appended by vc71_verify to the same status
 # line AFTER the optional reg/fpu/loadw/imm tags:
-#   "PASS FUN_x: 97.8% match (699/698 insns) | opnd 90.3% (operand-normalized)"
+#   "PASS FUN_x: 97.8% mnemonic match (699/698 insns) | opnd 90.3% (operand-normalized)"
 # Kept as its own pattern rather than an optional tail on _LINE_RE so the
 # primary score parse is unchanged and cached lines without the token still
 # parse.  Absent => opnd_percent is None everywhere downstream.

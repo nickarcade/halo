@@ -552,12 +552,51 @@ bool virtual_keyboard_active(void)
  * AL with no TEST/SETNE normalization, so the C form is a direct byte load into
  * the unsigned-char `bool`, not a `!= 0` comparison.
  *
- * No callees. Single caller (UNCONDITIONAL_CALL, from xrefs): new_campaign_decision
+ * No callees. Single caller (UNCONDITIONAL_CALL, from xrefs):
+ * new_campaign_decision
  * @0xf04db. Name kept mechanical: behaviour is clear but there is no
  * string/PDB evidence for a symbol. */
 bool virtual_keyboard_last_exit_saved_text(void)
 {
   return *(uint8_t *)0x46cf06;
+}
+
+/* Virtual keyboard cursor move handler: advance the keymap column cursor
+ * leftward (0xf5660, virtual_keyboard.obj TU).
+ *
+ * Decrements the column cursor at 0x46cefa modulo 0xb (11 keymap columns,
+ * wrapping -1 -> 0xa), skipping columns whose key character (keymap byte at
+ * 0x28a790[col + row*0xb]) equals the character under the pre-move cursor,
+ * so duplicate/merged keys are stepped over in one press. Stores the new
+ * column, plays the UI cursor-move sound (selector 1), and returns 1 (move
+ * accepted -> caller latches last_move_dir/last_move_time). Column analogue
+ * of virtual_keyboard_tab_up/5700 (row decrement); direction mirror of
+ * virtual_keyboard_tab_right/56b0.
+ *
+ * Disasm notes: row (0x46cef8) is MOVSX-loaded and scaled ONCE before the
+ * loop (MOVSX ECX,[0x46cef8]; IMUL ECX,ECX,0xb), so row*0xb is loop-
+ * invariant, same as tab_right; col is held in AX for the whole loop
+ * (16-bit DEC/JNS wrap to 0xa) and stored to the global once after it. The
+ * pre-move key byte is cached in DL before the loop. MOV AL,1 before RET ->
+ * char return; PUSH 1 is the audio-selector argument. */
+char virtual_keyboard_tab_left(void)
+{
+  int row_offset;
+  short col;
+  char original_key;
+
+  row_offset = (int)*(short *)0x46cef8 * 0xb;
+  col = *(short *)0x46cefa;
+  original_key = ((char *)0x28a790)[row_offset + (int)col];
+  do {
+    col = (short)(col - 1);
+    if (col < 0) {
+      col = 0xa;
+    }
+  } while (((char *)0x28a790)[row_offset + (int)col] == original_key);
+  *(short *)0x46cefa = col;
+  ui_play_audio_feedback_sound(1);
+  return 1;
 }
 
 /* Virtual keyboard cursor move handler: advance the keymap column cursor

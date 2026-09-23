@@ -214,6 +214,58 @@ void FUN_00168ae0(void *bitmap)
 }
 
 /*
+ * FUN_00168b10 @ 0x168b10 — bitmap_hardware_format_changed dispatcher: NULL
+ * asserts the bitmap, sets the 0x325652 render-phase marker to 1, switches
+ * on the bitmap type word at +0xa (0=2D, 1=3D, 2=cubemap, else assert), and
+ * clears the marker back to 0 on the way out. Case 1 (3D) is the only
+ * branch that forwards the bitmap pointer to its callee: disassembly shows
+ * PUSH EDI (save)/MOV EDI,ESI (bitmap ptr)/CALL 0x1686c0/POP EDI around
+ * that call only, and 0x1686c0 (rasterizer_bitmap_3d_changed) itself does
+ * `TEST EDI,EDI` at entry and reads [EDI+0x28]/[EDI+0x2c]/[EDI+0x14]/etc,
+ * confirming an implicit @<edi> bitmap-pointer argument. Cases 0 and 2
+ * (rasterizer_bitmap_2d_changed / rasterizer_bitmap_cm_changed) are called
+ * with no arguments in the disassembly.
+ */
+/* 0x168b10 */
+void FUN_00168b10(void *bitmap)
+{
+  uint16_t *new_var;
+  char *bm;
+  int16_t type;
+
+  new_var = (uint16_t *)0x325652;
+  bm = (char *)bitmap;
+  if (bitmap == NULL) {
+    display_assert(
+      "bitmap",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0x70, true);
+    system_exit(-1);
+  }
+  *new_var = 1;
+  type = *(int16_t *)(bm + 0xa);
+  switch (type) {
+  case 0:
+    rasterizer_bitmap_2d_changed();
+    break;
+  case 1:
+    rasterizer_bitmap_3d_changed(bitmap);
+    break;
+  case 2:
+    rasterizer_bitmap_cm_changed();
+    break;
+  default:
+    display_assert(
+      "### ERROR unsupported bitmap type",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0x80, true);
+    system_exit(-1);
+    break;
+  }
+  *(uint16_t *)0x325652 = 0;
+}
+
+/*
  * FUN_00168bc0 @ 0x168bc0 — dead D3D8 inline-wrapper instantiation of
  * D3DDevice_CreateVertexBuffer: fvf/pool/ppVertexBuffer arrive in
  * EDX/ECX/EAX, the device argument (s1) is ignored, and length/usage

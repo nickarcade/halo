@@ -62,14 +62,18 @@ const IMPROVE_GOAL = (args && args.improveGoal) || 0
 // promote rate, 60K -> 140K tokens/commit). Set explicitly (e.g. --reasonModel
 // sonnet) only when you intend to override that default for this run.
 //
-// `model` is a convenience alias for the ONE role people actually mean when
-// they say "set the model": goal-lift's REASON_MODEL (the lift/review agent).
-// An explicit --reasonModel always wins over it. It deliberately does NOT feed:
-//   - EXTRACT_MODEL / COMMIT_MODEL — an explicit --extractModel/--commitModel
-//     still works, but --model alone leaves both at goal-lift's own defaults
-//     (opus, and MECHANICAL_MODEL/haiku respectively). The commit-gate agent
-//     just runs a build + parses its output — it should stay cheap regardless
-//     of what --model was set to for the reasoning work.
+// `model` is a convenience alias for "the reasoning stages", matching
+// goal-lift's own M-table grouping (its comment: "Reasoning stages (select,
+// lift, review) use Opus" vs. "cheap deterministic tool-runs" for
+// mechanical/commit) -- so `model` feeds BOTH REASON_MODEL (lift/review) and
+// EXTRACT_MODEL (select), the same pair goal-lift's own doc calls out as
+// "one flag away" from Opus (`--extractModel` / `--reasonModel`). An explicit
+// --reasonModel/--extractModel always wins over it. It deliberately does NOT
+// feed:
+//   - COMMIT_MODEL — an explicit --commitModel still works, but --model alone
+//     leaves it at goal-lift's own default (MECHANICAL_MODEL/haiku). The
+//     commit-gate agent just runs a build + parses its output — it should
+//     stay cheap regardless of what --model was set to for the reasoning work.
 //   - IMPROVE_MODEL — left unset here on purpose so goal-lift's own default
 //     applies (IMPROVE_MODEL defaults to REASON_MODEL there), which already
 //     follows whatever REASON_MODEL resolves to (via --model or --reasonModel)
@@ -78,7 +82,7 @@ const IMPROVE_GOAL = (args && args.improveGoal) || 0
 //     own MECH agents (guard/land) — those stay cheap regardless.
 const MODEL = (args && args.model) || undefined
 const REASON_MODEL = (args && args.reasonModel) || MODEL || undefined
-const EXTRACT_MODEL = (args && args.extractModel) || undefined
+const EXTRACT_MODEL = (args && args.extractModel) || MODEL || undefined
 const IMPROVE_MODEL = (args && args.improveModel) || undefined
 const COMMIT_MODEL = (args && args.commitModel) || undefined
 

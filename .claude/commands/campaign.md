@@ -28,16 +28,16 @@ Parse from $ARGUMENTS (all optional):
 - `--lift-reg-args` — let goal-lift lift `@<reg>` targets instead of dropping
   them at its two pre-screens. The remaining frontier is mostly these.
 - `--dry-run` — pass through; nothing commits and nothing lands.
-- `--model NAME` — override goal-lift's lift/review agent (REASON_MODEL,
-  default Opus) for every run in this campaign, e.g. `--model sonnet`. Pass
-  through as `model` in every `auto-session` Workflow call (step 5).
-  auto-session.js resolves it to `reasonModel` only (an explicit
-  `--reasonModel` still wins). It deliberately does **not** touch:
+- `--model NAME` — override goal-lift's "reasoning stages" (its own M-table
+  grouping: select + lift/review, i.e. EXTRACT_MODEL and REASON_MODEL, default
+  Opus) for every run in this campaign, e.g. `--model sonnet`. Pass through as
+  `model` in every `auto-session` Workflow call (step 5). auto-session.js
+  resolves it to BOTH `reasonModel` and `extractModel` (an explicit
+  `--reasonModel`/`--extractModel` still wins over the blanket for its own
+  role). It deliberately does **not** touch:
   - the commit-gate agent (COMMIT_MODEL), which stays on goal-lift's own
     MECHANICAL_MODEL default (haiku) — it only runs a build and parses the
     result, no reason to pay reasoning-model rates there;
-  - the select/scoring agent (EXTRACT_MODEL), which stays at goal-lift's own
-    default (opus) unless explicitly overridden with `--extractModel`;
   - the improve-pass agent (IMPROVE_MODEL), which goal-lift itself defaults to
     whatever REASON_MODEL resolves to — so it follows `--model`/`--reasonModel`
     automatically, without being forced independently.

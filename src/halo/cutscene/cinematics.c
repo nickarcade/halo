@@ -1348,6 +1348,34 @@ void FUN_00093ba0(short *angles, short *cursor)
 }
 
 
+/* recorded animation playback: short-angle-pair to euler-vector helper
+ * (0x00093be0, c:\halo\SOURCE\cutscene\recorded_animation_playback.c).
+ *
+ * Called out-of-line from FUN_00093c20 and FUN_00093e20 for control vectors 1
+ * and 2 (vector 0 has this same short -> radians -> angles_to_vector shape
+ * inlined at 0x93d06-0x93d2f / 0x93efe-0x93f3e); see the FUN_00093c20 comment
+ * for the full inlined derivation this out-of-line copy matches exactly.
+ *
+ * ABI: angles arrives in EAX (kb decl @<eax>), out_vector on the stack.  The
+ * two shorts are widened with MOVSX before the FILD (0x93be6/0x93be9), so the
+ * conversion is signed short -> int -> float, not a raw short reinterpret.
+ * Each is scaled by the pool float at 0x26919c, RECORDED_ANIMATION_ANGLE_SCALE
+ * (PI/1000, matching the 1/1000-PI angle units documented on FUN_00093b60).
+ *
+ * Push order at 0x93bfc/0x93bfd is PUSH EAX (&euler) then PUSH ECX
+ * (out_vector), so in cdecl the out vector is the FIRST argument, matching
+ * the kb decl angles_to_vector(out, angles).
+ */
+void FUN_00093be0(short *angles, float *out_vector)
+{
+  float euler[2];
+
+  euler[0] = (float)angles[0] * RECORDED_ANIMATION_ANGLE_SCALE;
+  euler[1] = (float)angles[1] * RECORDED_ANIMATION_ANGLE_SCALE;
+  angles_to_vector(out_vector, euler);
+}
+
+
 /* recorded animation playback: control-vector char-difference stream event
  * handler (0x00093c20,
  * c:\halo\SOURCE\cutscene\recorded_animation_playback.c lines

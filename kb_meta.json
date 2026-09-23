@@ -2286,6 +2286,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x43ea0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x43f20": {
       "kind": "function",
       "status": "ported"
@@ -4202,6 +4206,10 @@
       "uncertain": [
         "The owning object file is unresolved: kb.json records obj=null for 0x6b780 and for all eleven dispatch targets, and the body is libtiff PickContigCase which upstream places in tif_getimage.c, but the implementation was written into src/halo/bitmaps/libtiff/tif_flush.c because every sibling put-routine and the error reporter FUN_00068a30 already live there."
       ]
+    },
+    "0x6bcb0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x6c400": {
       "kind": "function",
@@ -13695,6 +13703,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xeaec0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xeb020": {
       "kind": "function",
       "status": "ported"
@@ -13720,6 +13732,10 @@
       "status": "ported"
     },
     "0xeea10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeead0": {
       "kind": "function",
       "status": "ported"
     },
@@ -13879,6 +13895,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf2990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf2a40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf2b00": {
       "kind": "function",
       "status": "ported"
@@ -13903,6 +13927,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf31d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf3280": {
       "kind": "function",
       "status": "ported"
@@ -13915,6 +13943,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf3540": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf3590": {
       "kind": "function",
       "status": "ported"
@@ -13923,7 +13955,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf3740": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf3850": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf3960": {
       "kind": "function",
       "status": "ported"
     },
@@ -15165,6 +15205,14 @@
         "Zero-fill equivalence showed 6/100 divergences plus 5 errors; consistent with degenerate point-cloud inputs (division by len_sq=0 and uninitialized threshold globals), not a lift defect given the 477/479 instruction-count parity."
       ]
     },
+    "0x107c30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1089a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1089d0": {
       "kind": "function",
       "status": "ported"
@@ -15189,6 +15237,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x108bc0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x108c60": {
       "kind": "function",
       "status": "ported"
@@ -15210,6 +15262,22 @@
       "status": "ported"
     },
     "0x108db0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108df0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108e20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108e40": {
       "kind": "function",
       "status": "ported"
     },
@@ -17588,10 +17656,6 @@
       "status": "ported"
     },
     "0x133520": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1335e0": {
       "kind": "function",
       "status": "ported"
     },

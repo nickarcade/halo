@@ -511,6 +511,16 @@
   "ported": true
  },
  "md5": "c7869590a1c64ad034e49a5ee0c02465",
+ "0x184980": {
+  "ported": true
+ },
+ "0x14ad80": {
+  "ported": true
+ },
+ "0x8a570": {
+  "decl": "boolean observer_command_has_finished(int16_t local_player_index);",
+  "ported": true
+ },
  "objects": [
   {
    "data": [
@@ -3707,7 +3717,7 @@
     {
      "addr": "0x15bb0",
      "decl": "void action_guard_speak_post_combat(int actor_handle /* @<eax> */);",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: action_guard_speak_post_combat \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "name": "action_guard_speak_post_combat"
     },
@@ -14473,7 +14483,8 @@
     {
      "addr": "0xf5660",
      "decl": "char virtual_keyboard_tab_left(void);",
-     "name": "virtual_keyboard_tab_left"
+     "name": "virtual_keyboard_tab_left",
+     "ported": true
     },
     {
      "addr": "0xf56b0",
@@ -28794,6 +28805,7 @@
     {
      "addr": "0xe9bd0",
      "decl": "bool difficulty_set(void *widget, void *event_data, bool *widget_deleted);",
+     "ported": true,
      "name": "difficulty_set"
     },
     {
@@ -28864,7 +28876,9 @@
     {
      "addr": "0xea810",
      "decl": "bool multiplayer_game_swap_teams(void *widget, void *event_data, bool *widget_deleted);",
-     "name": "multiplayer_game_swap_teams"
+     "name": "multiplayer_game_swap_teams",
+     "ported": true,
+     "source_path": "src/halo/interface/ui_widget.c"
     },
     {
      "addr": "0xea900",
@@ -28893,12 +28907,14 @@
     {
      "addr": "0xead60",
      "decl": "bool player_profile_set_for_game_1wide(void *widget, void *event_data, bool *widget_deleted);",
-     "name": "player_profile_set_for_game_1wide"
+     "name": "player_profile_set_for_game_1wide",
+     "ported": true
     },
     {
      "addr": "0xeaec0",
-     "decl": "void playlist_profile_begin_editing(void);",
-     "name": "playlist_profile_begin_editing"
+     "decl": "bool playlist_profile_begin_editing(void *widget, void *event_data, bool *widget_deleted);",
+     "name": "playlist_profile_begin_editing",
+     "ported": true
     },
     {
      "addr": "0xeb020",
@@ -29039,6 +29055,7 @@
     {
      "addr": "0xeead0",
      "decl": "bool player_profile_color_picker_menu_initialize(void *widget, void *event_data, bool *widget_deleted);",
+     "ported": true,
      "name": "player_profile_color_picker_menu_initialize"
     },
     {
@@ -29277,7 +29294,8 @@
     },
     {
      "addr": "0xf24b0",
-     "decl": "void player_profile_edit_select_menu_update_extended_description(void);",
+     "decl": "void player_profile_edit_select_menu_update_extended_description(void *widget);",
+     "ported": true,
      "name": "player_profile_edit_select_menu_update_extended_description"
     },
     {
@@ -29312,7 +29330,8 @@
     },
     {
      "addr": "0xf2990",
-     "decl": "void get_editable_player_profile_display_name(void);",
+     "decl": "void get_editable_player_profile_display_name(void *widget);",
+     "ported": true,
      "name": "get_editable_player_profile_display_name"
     },
     {
@@ -29366,8 +29385,9 @@
     },
     {
      "addr": "0xf31d0",
-     "decl": "void multiplayer_game_set_bitmap_for_ruleset(void);",
-     "name": "multiplayer_game_set_bitmap_for_ruleset"
+     "decl": "void multiplayer_game_set_bitmap_for_ruleset(void *widget);",
+     "name": "multiplayer_game_set_bitmap_for_ruleset",
+     "ported": true
     },
     {
      "addr": "0xf3280",
@@ -29389,8 +29409,10 @@
     },
     {
      "addr": "0xf3540",
-     "decl": "void teams_no_teams_mp_game_bitmap_update(void);",
-     "name": "teams_no_teams_mp_game_bitmap_update"
+     "decl": "void teams_no_teams_mp_game_bitmap_update(void *widget);",
+     "name": "teams_no_teams_mp_game_bitmap_update",
+     "ported": true,
+     "src": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     {
      "addr": "0xf3590",
@@ -29411,12 +29433,14 @@
     {
      "addr": "0xf3740",
      "decl": "void player_profile_update_cache_for_nwide_list(int *ids, int count);",
-     "name": "player_profile_update_cache_for_nwide_list"
+     "name": "player_profile_update_cache_for_nwide_list",
+     "ported": true
     },
     {
      "addr": "0xf3850",
-     "decl": "void variant_profile_update_cache_for_nwide_list(void);",
-     "name": "variant_profile_update_cache_for_nwide_list"
+     "decl": "void variant_profile_update_cache_for_nwide_list(int *ids, int count);",
+     "name": "variant_profile_update_cache_for_nwide_list",
+     "ported": true
     },
     {
      "addr": "0xf3960",
@@ -32924,13 +32948,14 @@
    "functions": [
     {
      "addr": "0x107520",
-     "decl": "void convex_hull3d_expand(void);",
+     "decl": "bool convex_hull3d_expand(int16_t point_count, float *points, int16_t vertices_capacity, char *vertices, int16_t edges_capacity, char *edges, int16_t surfaces_capacity, char *surfaces, int16_t point_index);",
      "comment": "[NAME: convex_hull3d_expand \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x107c30",
-     "decl": "void convex_hull3d(void);",
-     "comment": "[NAME: convex_hull3d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool convex_hull3d(int16_t point_count, float *points, int16_t vertices_capacity, char *vertices, int16_t edges_capacity, char *edges, int16_t surfaces_capacity, char *surfaces);",
+     "comment": "[NAME: convex_hull3d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x107d40",
@@ -32964,7 +32989,9 @@
     },
     {
      "addr": "0x1089a0",
-     "decl": "void FUN_001089a0(int *bounds, int y0, int x0, int h, int w);"
+     "decl": "void set_rectangle2d(int16_t *rect, int16_t left, int16_t top, int16_t right, int16_t bottom);",
+     "comment": "[NAME: set_rectangle2d \u2014 name_source=binary-evidence method=call-site-analysis tier=inferred, lift 2026-09-22]",
+     "ported": true
     },
     {
      "addr": "0x1089d0",
@@ -33011,8 +33038,9 @@
     },
     {
      "addr": "0x108c60",
-     "decl": "void rectangle2d_hull_from_rectangles2d(void);",
-     "comment": "[NAME: rectangle2d_hull_from_rectangles2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void rectangle2d_hull_from_rectangles2d(const int16_t *rect_a, const int16_t *rect_b, int16_t *hull);",
+     "comment": "[NAME: rectangle2d_hull_from_rectangles2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x108cd0",
@@ -33045,23 +33073,27 @@
     },
     {
      "addr": "0x108dd0",
-     "decl": "void ceiling_log2(void);",
-     "comment": "[NAME: ceiling_log2 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int32_t ceiling_log2(uint32_t value);",
+     "comment": "[NAME: ceiling_log2 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]; lifted verbatim from disassembly (Ghidra decompile drops the ecx counter), no callers in binary",
+     "ported": true
     },
     {
      "addr": "0x108df0",
-     "decl": "void floor_power2(void);",
-     "comment": "[NAME: floor_power2 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int32_t floor_power2(uint16_t value);",
+     "comment": "[NAME: floor_power2 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x108e20",
-     "decl": "void ceiling_power2(void);",
-     "comment": "[NAME: ceiling_power2 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int32_t ceiling_power2(uint16_t value);",
+     "comment": "[NAME: ceiling_power2 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x108e40",
-     "decl": "void integer_square_root(void);",
-     "comment": "[NAME: integer_square_root \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "uint32_t integer_square_root(uint32_t value);",
+     "comment": "[NAME: integer_square_root \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]; lifted from disassembly (Ghidra decompile drops the return value and final rounding step). Binary shape: value read via mov esi,[ebp+8] (single uint arg). eax=result accumulator=0, edx=bit=0x40000000. Loop: ecx=bit+result; if ecx<=value: value-=ecx, result=ecx+bit; bit>>=2; result>>=1; while(bit!=0). Tail: if value>result, result++. No callers found in xrefs_to scan (local index gap, not evidence of dead code).",
+     "ported": true
     }
    ],
    "name": "rectangles.obj",
@@ -36146,8 +36178,9 @@
     },
     {
      "addr": "0x43ea0",
-     "decl": "void ai_communication_handle_received_looking(void);",
-     "name": "ai_communication_handle_received_looking"
+     "decl": "void ai_communication_handle_received_looking(int actor_handle, void *record @<ecx>, int prop_handle @<eax>);",
+     "name": "ai_communication_handle_received_looking",
+     "ported": true
     },
     {
      "addr": "0x43f20",
@@ -38521,8 +38554,9 @@
     },
     {
      "addr": "0x6bcb0",
-     "decl": "void gtStripContig(void);",
-     "comment": "[NAME: gtStripContig \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int gtStripContig(void *tif, unsigned long *raster, void *img, unsigned long w @<ebx>, unsigned long h);",
+     "comment": "[NAME: gtStripContig \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6be40",
@@ -38581,7 +38615,8 @@
     },
     {
      "addr": "0x6ca50",
-     "decl": "void FUN_0006ca50(void *sp@<esi>);"
+     "decl": "void FUN_0006ca50(void *sp@<esi>);",
+     "ported": true
     },
     {
      "addr": "0x6cac0",
@@ -38801,7 +38836,7 @@
     },
     {
      "addr": "0x6ede0",
-     "decl": "void TIFFReadEncodedStrip(void);",
+     "decl": "long TIFFReadEncodedStrip(void *tif, unsigned long strip, void *buf, long size);",
      "comment": "[NAME: TIFFReadEncodedStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -38819,7 +38854,7 @@
     },
     {
      "addr": "0x6f0d0",
-     "decl": "void TIFFComputeStrip(void);",
+     "decl": "unsigned long TIFFComputeStrip(void *tif, unsigned long row, unsigned int sample);",
      "comment": "[NAME: TIFFComputeStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -38834,7 +38869,7 @@
     },
     {
      "addr": "0x6f180",
-     "decl": "void TIFFStripSize(void);",
+     "decl": "unsigned long TIFFStripSize(void *tif);",
      "comment": "[NAME: TIFFStripSize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -49147,8 +49182,8 @@
     },
     {
      "addr": "0x1686c0",
-     "decl": "void rasterizer_bitmap_3d_changed(void);",
-     "comment": "[NAME: rasterizer_bitmap_3d_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void rasterizer_bitmap_3d_changed(void *bitmap@<edi>);",
+     "comment": "[NAME: rasterizer_bitmap_3d_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14] [ABI: bitmap@<edi> \u2014 disasm at call site 0x168b90 (MOV EDI,ESI before CALL) plus callee prologue TEST EDI,EDI / [EDI+0x28]/[EDI+0x2c]/[EDI+0x14] reads, confirmed via ghidra disassemble_function 0x1686c0]"
     },
     {
      "addr": "0x1688d0",
@@ -49162,7 +49197,8 @@
     },
     {
      "addr": "0x168b10",
-     "decl": "void FUN_00168b10(void *bitmap);"
+     "decl": "void FUN_00168b10(void *bitmap);",
+     "ported": true
     },
     {
      "addr": "0x168bc0",
@@ -49385,15 +49421,5 @@
     }
    ]
   }
- ],
- "0x184980": {
-  "ported": true
- },
- "0x14ad80": {
-  "ported": true
- },
- "0x8a570": {
-  "decl": "boolean observer_command_has_finished(int16_t local_player_index);",
-  "ported": true
- }
+ ]
 }

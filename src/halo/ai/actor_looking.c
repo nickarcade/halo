@@ -81,12 +81,13 @@ done:
 /* action_charge_setup (0x13ef0)
  * Actor charge action initializer (action_charge.c, 0x2f).
  * Validates charge preconditions, computes melee timing and speed, then arms
- * actor_move_to_prop and tests the line-of-sight path via action_charge_valid_melee_destination.
- * Returns 1 if the charge can proceed, 0 otherwise; sets actor_state+0x190
- * to a fail-reason code (0=ok, 2–9 = specific block reasons).
- * Confirmed: 3 cdecl stack args; actor_state = *(char**)0x331f58 + slot*0x657c;
- * encounter = datum_get(*(data_t**)0x5ab23c, actor+0x270);
- * FUN_00012ad0 @ebx=actor_handle @esi=action_type, stack=charge_state. */
+ * actor_move_to_prop and tests the line-of-sight path via
+ * action_charge_valid_melee_destination. Returns 1 if the charge can proceed, 0
+ * otherwise; sets actor_state+0x190 to a fail-reason code (0=ok, 2–9 = specific
+ * block reasons). Confirmed: 3 cdecl stack args; actor_state =
+ * *(char**)0x331f58 + slot*0x657c; encounter = datum_get(*(data_t**)0x5ab23c,
+ * actor+0x270); FUN_00012ad0 @ebx=actor_handle @esi=action_type,
+ * stack=charge_state. */
 char action_charge_setup(int actor_handle, int action_type, void *charge_state)
 {
   char *actor;
@@ -130,8 +131,8 @@ char action_charge_setup(int actor_handle, int action_type, void *charge_state)
       completion_state = 2;
     } else {
       /* Original zeroes return_flag unconditionally here (0x13fe4: MOV byte
-       * [EBP-0x1],0 before the JNS) — the rest of the melee path is pessimistic:
-       * fail reasons 3-6 all return 0; only reason 7 re-sets 1. */
+       * [EBP-0x1],0 before the JNS) — the rest of the melee path is
+       * pessimistic: fail reasons 3-6 all return 0; only reason 7 re-sets 1. */
       return_flag = 0;
       if (*(int8_t *)((char *)object_get_and_verify_type(
                         ((actor_t *)actor)->field_018, 3) +
@@ -160,8 +161,7 @@ char action_charge_setup(int actor_handle, int action_type, void *charge_state)
             else
               is_secondary = 0;
             *(char *)((char *)charge_state + 0xa) = (char)is_secondary;
-            if (*(float *)(actr_tag + 0x384) <=
-                *(float *)(encounter + 0x11c)) {
+            if (*(float *)(actr_tag + 0x384) <= *(float *)(encounter + 0x11c)) {
               if (is_secondary)
                 action_type = 3;
             } else {
@@ -204,16 +204,17 @@ char action_charge_setup(int actor_handle, int action_type, void *charge_state)
             speed = FUN_00012ad0(actor_handle, action_type, charge_state);
             *(float *)((char *)charge_state + 0x2c) = speed;
 
-            min_speed = ((short)action_type == 3) ? *(float *)0x2533d8
-                                                  : *(float *)0x2533ec;
+            min_speed = ((short)action_type == 3) ? *(float *)0x2533d8 :
+                                                    *(float *)0x2533ec;
             if (min_speed > speed)
               speed = min_speed;
 
-            if (actor_move_to_prop(
-                  actor_handle, ((actor_t *)actor)->target_target_prop_index,
-                  speed)) {
+            if (actor_move_to_prop(actor_handle,
+                                   ((actor_t *)actor)->target_target_prop_index,
+                                   speed)) {
               actor_move_keep_moving_past_destination(actor_handle);
-              if (action_charge_valid_melee_destination(actor_handle, (float *)(encounter + 0xc8))) {
+              if (action_charge_valid_melee_destination(
+                    actor_handle, (float *)(encounter + 0xc8))) {
                 return_flag = 1;
                 completion_state = 7;
               } else {
@@ -291,21 +292,22 @@ char action_converse_setup(int actor_handle, int action_handle, int *state_data)
  *
  * If the actor has no current prop (field_ac == -1) but has a follow-prop
  * handle (field_a8 != -1), acquires a prop near the follow target via
- * prop_get_base_by_unit_index.  Then, if a prop is held, checks whether the prop's type
- * qualifies (field_32 >= 2) and its distance (field_11c) is within the
- * actor's tolerance (field_a4), or the prop distance is less than 0.7f; if
+ * prop_get_base_by_unit_index.  Then, if a prop is held, checks whether the
+ * prop's type qualifies (field_32 >= 2) and its distance (field_11c) is within
+ * the actor's tolerance (field_a4), or the prop distance is less than 0.7f; if
  * so, marks the actor as ready (field_a1 = 1).  When ready, calls
  * actor_move_halt (perception acknowledge) and returns the current state byte
  * (field_a0).  Otherwise tries to move toward the prop via
  * actor_move_to_prop; sets field_a0 = 1 if no prop at all, or if
  * actor_move_to_prop returns 0.
  *
- * Confirmed: EBX = 1 set at 0x1438c; used as literal arg to prop_get_base_by_unit_index
- *   and as byte written to field_a1 at 0x14408 and field_a0 at 0x14447.
- * Confirmed: actor_move_to_prop pushes [ESI+0xa4] raw (float bits) as 3rd arg.
- * Confirmed: field_32 comparison is signed short CMP vs 2 (JL 0x143f5).
- * Confirmed: float threshold at 0x2533c4 = 0.7f (0x3f333333).
- * Confirmed: early return at 0x1441e returns field_a0 without setting it. */
+ * Confirmed: EBX = 1 set at 0x1438c; used as literal arg to
+ * prop_get_base_by_unit_index and as byte written to field_a1 at 0x14408 and
+ * field_a0 at 0x14447. Confirmed: actor_move_to_prop pushes [ESI+0xa4] raw
+ * (float bits) as 3rd arg. Confirmed: field_32 comparison is signed short CMP
+ * vs 2 (JL 0x143f5). Confirmed: float threshold at 0x2533c4 = 0.7f
+ * (0x3f333333). Confirmed: early return at 0x1441e returns field_a0 without
+ * setting it. */
 char action_converse_perform(int actor_handle)
 {
   char *actor;
@@ -387,8 +389,8 @@ void action_converse_control(int actor_handle)
   if (*(int *)(actor + 0xac) != -1) {
     prop_handle = *(int *)(actor + 0xac);
   } else if (conversation != NULL && *(int *)(conversation + 0x10) != -1) {
-    prop_handle = prop_get_active_by_unit_index(
-      actor_handle, *(int *)(conversation + 0x10));
+    prop_handle = prop_get_active_by_unit_index(actor_handle,
+                                                *(int *)(conversation + 0x10));
   }
   ((actor_t *)actor)->field_3fc = 1;
   if (prop_handle != -1) {
@@ -443,7 +445,7 @@ void action_converse_replace_prop(int actor_handle, int old_prop, int new_prop)
  *   prop_get_active_by_unit_index and unit_get_head_position. */
 #if defined(_MSC_VER) && !defined(__clang__)
 __declspec(noinline) int actor_look_secondary(int actor_handle, short look_type,
-                                      short priority, short *look_buf);
+                                              short priority, short *look_buf);
 #endif
 void actor_conversation_control(int actor_handle)
 {
@@ -451,11 +453,10 @@ void actor_conversation_control(int actor_handle)
   int look_entry; /* return from prop_get_active_by_unit_index: existing look
                      entry or -1 */
 
-  /* Buffer passed to actor_look_secondary: { int16_t type; int16_t pad; int data[3]; }
-   * type=1 (object handle look): data[0] = look_entry handle
-   * type=3 (position look):      data[0..2] = xyz position from
-   * unit_get_head_position Total: 2 + 2(pad) + 12 = 16 bytes (0x10), matching
-   * SUB ESP,0x10 */
+  /* Buffer passed to actor_look_secondary: { int16_t type; int16_t pad; int
+   * data[3]; } type=1 (object handle look): data[0] = look_entry handle type=3
+   * (position look):      data[0..2] = xyz position from unit_get_head_position
+   * Total: 2 + 2(pad) + 12 = 16 bytes (0x10), matching SUB ESP,0x10 */
   short look_buf[8]; /* 16 bytes on stack: [0]=type word, [2..7]=data dwords */
 
   actor = (char *)datum_get(actor_data, actor_handle);
@@ -506,8 +507,8 @@ void actor_conversation_end(int actor_handle)
 /* action_converse_end (0x145f0)
  * Stop any active conversation for this actor (second variant).
  *
- * Structurally identical to actor_conversation_end.  Two separate functions exist in
- * the binary at distinct addresses; both read actor+0x1dc and call
+ * Structurally identical to actor_conversation_end.  Two separate functions
+ * exist in the binary at distinct addresses; both read actor+0x1dc and call
  * ai_conversation_finish if a conversation is active.
  *
  * Confirmed: identical decompile to actor_conversation_end at 0x145f0.
@@ -609,8 +610,9 @@ void action_fight_control(int actor_handle)
  *   PATH A (field_358 && tag_bit5): quick check via
  * actor_nearby_firing_positions. Success → encounter checks + optional
  * firing position reset → tail. Failure → fall through to PATH B. PATH B:
- * evaluation pipeline (csmemset → actor_active_select_firing_position → actor_change_firing_position), then randomized
- * delay timer from tag range and weapon rate-of-fire. TAIL: if actor->field_268
+ * evaluation pipeline (csmemset → actor_active_select_firing_position →
+ * actor_change_firing_position), then randomized delay timer from tag range and
+ * weapon rate-of-fire. TAIL: if actor->field_268
  * >= 7, prop unreachable check with ranged weapon.
  *
  * Confirmed: cdecl, single stack arg (actor_handle).
@@ -646,8 +648,10 @@ unsigned int action_fight_perform(int actor_handle)
   char large_buf[0x670];
   char huge_buf[0x1474c];
   int local_14;
-  int local_50[15]; /* actor_active_select_firing_position -> actor_select_firing_position memcpy's 0xf*4 = 60 bytes
-                       (0x3c) here; actor_change_firing_position reads it. Was [12] (48 bytes)
+  int local_50[15]; /* actor_active_select_firing_position ->
+                       actor_select_firing_position memcpy's 0xf*4 = 60 bytes
+                       (0x3c) here; actor_change_firing_position reads it. Was
+                       [12] (48 bytes)
                        -> 12-byte stack overflow. */
   char local_c;
 
@@ -671,9 +675,9 @@ unsigned int action_fight_perform(int actor_handle)
   if (((actor_t *)actor)->field_358 != '\0' && (*tag & 0x20)) {
     actor_find_pathfinding_location(actor_handle);
 
-    if (actor_nearby_firing_positions(
-          actor_handle, (float *)(actor + 0x168), ((actor_t *)actor)->field_164,
-          0) != '\0') {
+    if (actor_nearby_firing_positions(actor_handle, (float *)(actor + 0x168),
+                                      ((actor_t *)actor)->field_164,
+                                      0) != '\0') {
       within_range = 0;
 
       if (*(int *)(actor + 0x34) != -1 &&
@@ -716,10 +720,11 @@ unsigned int action_fight_perform(int actor_handle)
   csmemset(large_buf, 0, 0x670);
   *(short *)(large_buf + 4) = 0;
 
-  result = actor_active_select_firing_position(actor_handle, large_buf, local_50, &local_14, huge_buf,
-                        &local_c);
-  result = actor_change_firing_position(actor_handle, (short)result, local_50, local_14,
-                        (unsigned int)(int)huge_buf, local_c);
+  result = actor_active_select_firing_position(
+    actor_handle, large_buf, local_50, &local_14, huge_buf, &local_c);
+  result = actor_change_firing_position(actor_handle, (short)result, local_50,
+                                        local_14, (unsigned int)(int)huge_buf,
+                                        local_c);
 
   if (result == -1) {
     *(short *)(actor + 0x9c) = 0;
@@ -856,9 +861,9 @@ void action_flee_modify_color(int actor_handle, int *param_2)
  * Firing-position state update for look/fight actor actions.
  *
  * Initialises state_data (zeroes it, fills the FP query buffer, queries
- * the best firing position via actor_select_firing_position + actor_change_firing_position), then if a
- * valid FP and secondary target exist evaluates path accessibility via
- * the path_input / path_state pipeline.
+ * the best firing position via actor_select_firing_position +
+ * actor_change_firing_position), then if a valid FP and secondary target exist
+ * evaluates path accessibility via the path_input / path_state pipeline.
  *
  * Register args:
  *   EBX = actor_handle
@@ -867,8 +872,8 @@ void action_flee_modify_color(int actor_handle, int *param_2)
  *   param_3 (int) DEAD: no [EBP+8] access in disasm.
  *
  * state_data field writes (all confirmed from disasm):
- *   +0x8  (short): fp_index; actor_select_firing_position ret written first (0x14d54),
- *                  then overwritten by actor_change_firing_position return (0x14d64)
+ *   +0x8  (short): fp_index; actor_select_firing_position ret written first
+ * (0x14d54), then overwritten by actor_change_firing_position return (0x14d64)
  *   +0xa  (bool):  1 iff fp_index != -1 && (char)out3_int == 0 (0x14d7e)
  *   +0x20 (char):  0 always (0x14d81), conditionally path_state_approach_point
  *                  return (0x14e79)
@@ -876,34 +881,34 @@ void action_flee_modify_color(int actor_handle, int *param_2)
  *
  * Stack-local layout (_chkstk EAX=0x28820 = 165920-byte frame):
  *   EBP-0x1    local_byte (char output from path_state_approach_point)
- *   EBP-0x5    out3_int (int written by actor_select_firing_position *out3; low byte used)
- *   EBP-0xc    tag_ptr
- *   EBP-0x10   actor_ptr
- *   EBP-0x14   out2 (int written by actor_select_firing_position *out2)
- *   EBP-0x50   fp_result_ptr (void* output from actor_select_firing_position *out1;
- *                used as struct ptr via [EBP-0x50]+0x14 accesses)
- *   EBP-0x98   path_buf (0x98 bytes)
- *   EBP-0x708  query_buf (0x670 bytes, csmemset confirmed)
- *   EBP-0x14794 path_state_buf (up to 0x146fc bytes)
- *   EBP-0x28820 huge_buf (0x1408c bytes raw FP candidate data)
+ *   EBP-0x5    out3_int (int written by actor_select_firing_position *out3; low
+ * byte used) EBP-0xc    tag_ptr EBP-0x10   actor_ptr EBP-0x14   out2 (int
+ * written by actor_select_firing_position *out2) EBP-0x50   fp_result_ptr
+ * (void* output from actor_select_firing_position *out1; used as struct ptr via
+ * [EBP-0x50]+0x14 accesses) EBP-0x98   path_buf (0x98 bytes) EBP-0x708
+ * query_buf (0x670 bytes, csmemset confirmed) EBP-0x14794 path_state_buf (up to
+ * 0x146fc bytes) EBP-0x28820 huge_buf (0x1408c bytes raw FP candidate data)
  *
  * Confirmed: swarm assert action_flee.c:0x20a (522).
  * Confirmed: PUSH EDI at 0x14c22 is callee-save, not a datum_get arg.
  * Confirmed: datum_get(actor_data, actor_handle) global at 0x6325a4.
  * Confirmed: secondary target: datum_get(prop_data, state_data->0x1c).
- * Confirmed: fp_result_ptr is pointer output from actor_select_firing_position; disasm
- *   0x14e2e MOV EAX,[EBP-0x50] then 0x14e31 MOV ECX,[EAX+0x14] proves it.
- * Confirmed: actor_change_firing_position param_3 = LEA [EBP-0x50] = &fp_result_ptr.
- * Confirmed: actor_change_firing_position param_5 = LEA [EBP-0x28820] = (uint)addr of huge_buf.
+ * Confirmed: fp_result_ptr is pointer output from actor_select_firing_position;
+ * disasm 0x14e2e MOV EAX,[EBP-0x50] then 0x14e31 MOV ECX,[EAX+0x14] proves it.
+ * Confirmed: actor_change_firing_position param_3 = LEA [EBP-0x50] =
+ * &fp_result_ptr. Confirmed: actor_change_firing_position param_5 = LEA
+ * [EBP-0x28820] = (uint)addr of huge_buf.
  */
-void action_flee_find_flee_position(int actor_handle, void *state_data, int param_3)
+void action_flee_find_flee_position(int actor_handle, void *state_data,
+                                    int param_3)
 {
   char *actor;
   char *tag;
   char *sec_target;
-  int fp_result_ptr[15]; /* 0x3c-byte record buffer: actor_select_firing_position memcpy's
-                          * 0xf*4 = 60 bytes here and actor_change_firing_position reads it.
-                          * Was void* (4 bytes) -> 56-byte stack overflow.
+  int fp_result_ptr[15]; /* 0x3c-byte record buffer:
+                          * actor_select_firing_position memcpy's 0xf*4 = 60
+                          * bytes here and actor_change_firing_position reads
+                          * it. Was void* (4 bytes) -> 56-byte stack overflow.
                           * Original reserves [ebp-0x50]..[ebp-0x14] = 0x3c. */
   short fp_index_tmp;
   short fp_index;
@@ -964,15 +969,16 @@ void action_flee_find_flee_position(int actor_handle, void *state_data, int para
     actor_get_firing_position_group(actor_handle, (int)group_type, 0);
 
   /*
-   * actor_select_firing_position returns a short (AX = fp candidate count/index).
-   * Writes pointer to fp results into fp_result_ptr via *out1 (EBP-0x50).
-   * Writes out2 int via *out2 (EBP-0x14).
-   * Writes out3 int via *out3 (EBP-0x5); low byte = exclusion flag.
+   * actor_select_firing_position returns a short (AX = fp candidate
+   * count/index). Writes pointer to fp results into fp_result_ptr via *out1
+   * (EBP-0x50). Writes out2 int via *out2 (EBP-0x14). Writes out3 int via *out3
+   * (EBP-0x5); low byte = exclusion flag.
    */
-  fp_index_tmp = (short)actor_select_firing_position(actor_handle, query_buf, fp_result_ptr,
-                                     &out2, huge_buf, &out3_int);
+  fp_index_tmp = (short)actor_select_firing_position(
+    actor_handle, query_buf, fp_result_ptr, &out2, huge_buf, &out3_int);
 
-  /* Temporary write (0x14d54); overwritten by actor_change_firing_position return */
+  /* Temporary write (0x14d54); overwritten by actor_change_firing_position
+   * return */
   *(short *)((char *)state_data + 0x8) = fp_index_tmp;
 
   /*
@@ -980,8 +986,9 @@ void action_flee_find_flee_position(int actor_handle, void *state_data, int para
    *   param_3 = &fp_result_ptr (address of pointer storage, void **)
    *   param_5 = (unsigned int) address of huge_buf (pointer as uint)
    */
-  fp_index = actor_change_firing_position(actor_handle, fp_index_tmp, fp_result_ptr, out2,
-                          (unsigned int)(int)huge_buf, (char)out3_int);
+  fp_index = actor_change_firing_position(
+    actor_handle, fp_index_tmp, fp_result_ptr, out2,
+    (unsigned int)(int)huge_buf, (char)out3_int);
   *(short *)((char *)state_data + 0x8) = fp_index;
 
   /* valid = 1 iff fp_index != -1 AND out3 low byte == 0 */
@@ -1132,19 +1139,21 @@ int action_flee_blind_panic(short param_1)
  * Validates state_data pointer, zeroes 0x30 bytes, populates fields from
  * params. If a valid target is provided, calls actor_situation_try_new_target.
  * For scripted look types [9,12], rolls a random chance against 0x253524 and
- * may set a short timer. Otherwise dispatches action_flee_find_flee_position(actor_handle,
- * state_data, 0) to find a firing position.
+ * may set a short timer. Otherwise dispatches
+ * action_flee_find_flee_position(actor_handle, state_data, 0) to find a firing
+ * position.
  *
  * Confirmed: standard cdecl, 7 stack params.
- * Confirmed: action_flee_find_flee_position takes actor_handle @<ebx> + state_data @<esi> +
- * 1 stack arg — original 0x1504c loads EBX=[EBP+8] (handle), 0x15071 loads
- * ESI=[EBP+0x20] (param_7 state_data, still live at the call), 0x15121
- * PUSH 0, 0x15123 CALL. Ghidra showed only action_flee_find_flee_position(0) (register-arg
- * blindness); the missing args caused a datum_get assert (garbage EBX) and
- * then an AV at 0x14c7d reading [ESI+4] with leftover ESI=-1.
- * Confirmed: NEG CL; SBB ECX,ECX; AND ECX,0xb4 → condition ? 0xb4 : 0. */
-char action_flee_setup(int actor_handle, short param_2, int param_3, char param_4,
-                  char param_5, char param_6, short *param_7)
+ * Confirmed: action_flee_find_flee_position takes actor_handle @<ebx> +
+ * state_data @<esi> + 1 stack arg — original 0x1504c loads EBX=[EBP+8]
+ * (handle), 0x15071 loads ESI=[EBP+0x20] (param_7 state_data, still live at the
+ * call), 0x15121 PUSH 0, 0x15123 CALL. Ghidra showed only
+ * action_flee_find_flee_position(0) (register-arg blindness); the missing args
+ * caused a datum_get assert (garbage EBX) and then an AV at 0x14c7d reading
+ * [ESI+4] with leftover ESI=-1. Confirmed: NEG CL; SBB ECX,ECX; AND ECX,0xb4 →
+ * condition ? 0xb4 : 0. */
+char action_flee_setup(int actor_handle, short param_2, int param_3,
+                       char param_4, char param_5, char param_6, short *param_7)
 {
   char *actor;
   volatile char result;
@@ -1289,8 +1298,8 @@ void action_flee_update(int actor_handle)
  *   - If actor+0xa4 == -1: call actor_move_halt and return.
  *   - If actor+0x4c != 0: try actor_move_to_firing_position.
  *     On success: copy actor+0xa4..0xa6 into actor+0x3b8..0x3ba and return.
- *     On failure: if actor+0x3b8 != -1, dispatch actor_discard_firing_position + FUN_0002f1a0
- *                 and clear 0x3b8.  Then set actor+0xa4=-1, actor+0xa2=1.
+ *     On failure: if actor+0x3b8 != -1, dispatch actor_discard_firing_position
+ * + FUN_0002f1a0 and clear 0x3b8.  Then set actor+0xa4=-1, actor+0xa2=1.
  *
  * Note: The original has a goto from branch 2 to the shared tail, bypassing
  * branches 3 and 4.  Restructured here with a `handled` flag (no C89 goto).
@@ -1364,9 +1373,9 @@ FUN_00015250_tail:
       return;
     }
     if (((actor_t *)actor)->firing_positions_current_position_index != -1) {
-      actor_discard_firing_position(actor_handle,
-                   ((actor_t *)actor)->firing_positions_current_position_index,
-                   0);
+      actor_discard_firing_position(
+        actor_handle,
+        ((actor_t *)actor)->firing_positions_current_position_index, 0);
       actor_move_halt(actor_handle);
       ((actor_t *)actor)->firing_positions_current_position_index = -1;
     }
@@ -1393,8 +1402,9 @@ FUN_00015250_tail:
  *   squared-distance comparison at 0x154b5-0x154c9 (FPU: FMUL/FADDP/FCOMPP).
  * Confirmed: prop seat check (0x38) at 0x154fa-0x15503; seat 0 or 1 returns
  *   false (vehicle driver/passenger seats block the flee target).
- * Confirmed: actor_path_at_destination short-circuit — if the actor is already fleeing
- *   with the same target index (0x46c==3 && 0x470==0x3b8), returns true. */
+ * Confirmed: actor_path_at_destination short-circuit — if the actor is already
+ * fleeing with the same target index (0x46c==3 && 0x470==0x3b8), returns true.
+ */
 bool action_flee_at_flee_position(int actor_handle)
 {
   char *actor;
@@ -1425,7 +1435,8 @@ bool action_flee_at_flee_position(int actor_handle)
     encounter + 0x98,
     (int)((actor_t *)actor)->firing_positions_current_position_index, 0x18);
 
-  if (actor_path_at_destination(actor_handle) != 0 && ((actor_t *)actor)->field_46c == 3 &&
+  if (actor_path_at_destination(actor_handle) != 0 &&
+      ((actor_t *)actor)->field_46c == 3 &&
       ((actor_t *)actor)->field_470 ==
         ((actor_t *)actor)->firing_positions_current_position_index)
     return true;
@@ -1472,15 +1483,15 @@ bool action_flee_at_flee_position(int actor_handle)
  *
  * Confirmed: EBX=actor_handle, EDI=actor*, ESI=actor+0x9c.
  * Confirmed: action_flee_at_flee_position @<ebx>=actor_handle (no stack args).
- * Confirmed: action_flee_current_position_exposed @<eax>=actor_handle, stack=state_block_ptr.
- * Confirmed: action_flee_find_flee_position(actor_handle @<ebx>, state_data @<esi>, int) —
- *   original 0x156c6: MOV EBX,[EBP+8]; PUSH 1; CALL 0x14c10, with ESI =
- *   state block (LEA ESI,[EDI+0x9c] at 0x1553f still live). 14c10 reads
- *   [ESI], [ESI+4], [ESI+0xc] before any ESI write (first use 0x14c7d).
- *   Ghidra missed both register args.
- * Confirmed: actor_situation_update_target_status/302b0 cdecl 1 arg.
- * Confirmed: switch table at 0x15864; cases 9/10 share case 0xb/0xc bodies.
- * Confirmed: assert at action_flee.c:0x12e, 0x98. */
+ * Confirmed: action_flee_current_position_exposed @<eax>=actor_handle,
+ * stack=state_block_ptr. Confirmed: action_flee_find_flee_position(actor_handle
+ * @<ebx>, state_data @<esi>, int) — original 0x156c6: MOV EBX,[EBP+8]; PUSH 1;
+ * CALL 0x14c10, with ESI = state block (LEA ESI,[EDI+0x9c] at 0x1553f still
+ * live). 14c10 reads [ESI], [ESI+4], [ESI+0xc] before any ESI write (first use
+ * 0x14c7d). Ghidra missed both register args. Confirmed:
+ * actor_situation_update_target_status/302b0 cdecl 1 arg. Confirmed: switch
+ * table at 0x15864; cases 9/10 share case 0xb/0xc bodies. Confirmed: assert at
+ * action_flee.c:0x12e, 0x98. */
 int action_flee_perform(int actor_handle)
 {
   char *actor;
@@ -1637,10 +1648,12 @@ skip_mark_unable:
     }
     if (*(char *)(state + 0x10) == '\0') {
       mode = (look_anim == 8) ? 0x20 : 0x1f;
-      ai_communication_event(mode, ((actor_t *)actor)->field_018, enc_val, -1, -1, 4, 0);
+      ai_communication_event(mode, ((actor_t *)actor)->field_018, enc_val, -1,
+                             -1, 4, 0);
       *(char *)(state + 0x10) = 1;
     } else {
-      ai_communication_event(0x21, ((actor_t *)actor)->field_018, enc_val, -1, -1, -1, 0);
+      ai_communication_event(0x21, ((actor_t *)actor)->field_018, enc_val, -1,
+                             -1, -1, 0);
     }
   }
   *(int *)(state + 0x14) = cur_tick;
@@ -1718,7 +1731,8 @@ int action_guard_setup_current_position(int actor_handle, char *state_data)
  * Confirmed: csmemset(state_data, 0, 0x44) at 0x1594b.
  * Confirmed: all branch conditions and field offsets from raw disassembly.
  */
-int action_guard_setup_find_position(int actor_handle, int param_2, char *state_data)
+int action_guard_setup_find_position(int actor_handle, int param_2,
+                                     char *state_data)
 {
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
@@ -1847,15 +1861,104 @@ void action_guard_end(int actor_handle)
   }
 }
 
+/* action_guard_speak_post_combat (0x15bb0)
+ * Fires a post-combat guard-chatter AI communication event once per guard
+ * cycle, then marks the actor as having spoken.
+ *
+ * Confirmed: datum_get(actor_data, actor_handle) at 0x15bba.
+ * Confirmed: assert "state_data->post_combat" (action_guard.c:0x158) fires
+ * and halts via system_exit(-1) when actor+0xa1 == 0 (display_assert's
+ * halt=true argument means execution never continues past this point at
+ * runtime; matching it exactly preserves the original assert message/site).
+ * Confirmed: early return when actor+0xa2 != 0 (already spoken this cycle).
+ * Confirmed: switch on actor->field_1e4 (guard/prop state index) selects the
+ * event id (0x30-0x38 for cases 1-5,7-10); any other value skips straight to
+ * the actor+0xa2=1 mark (switchD_00015c0f_caseD_5).
+ * Confirmed: when actor->field_0d8 (prop handle) != -1, datum_get(prop_data,
+ * prop_handle) at 0x15c6d; target handle = prop+0x18 (int, MOV EDI). When
+ * prop+0x60 (byte) == 0, relation = 2; else relation =
+ * game_team_is_ally(actor->field_03e, *(short *)(prop+0x12)) + 3 (asm at
+ * 0x15c7f-0x15c99: last-pushed/first-arg = actor->field_03e, second arg =
+ * prop+0x12 MOVSX).
+ * Confirmed: ai_communication_event(event_id, actor->field_018, target,
+ * relation, -1, -1, 0) at 0x15cb0 (7-arg cdecl, PUSH order reversed from
+ * decl argument order). */
+void action_guard_speak_post_combat(int actor_handle)
+{
+  char *actor;
+  char *prop;
+  int event_id;
+  int target_handle;
+  int relation;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (((actor_t *)actor)->field_0a1 == '\0') {
+    display_assert("state_data->post_combat",
+                   "c:\\halo\\SOURCE\\ai\\action_guard.c", 0x158, 1);
+    system_exit(-1);
+  }
+  if (((actor_t *)actor)->field_0a2 != '\0') {
+    return;
+  }
+  switch (((actor_t *)actor)->field_1e4) {
+  case 1:
+    event_id = 0x30;
+    break;
+  case 2:
+    event_id = 0x31;
+    break;
+  case 3:
+    event_id = 0x32;
+    break;
+  case 4:
+    event_id = 0x33;
+    break;
+  case 5:
+    event_id = 0x34;
+    break;
+  case 7:
+    event_id = 0x35;
+    break;
+  case 8:
+    event_id = 0x36;
+    break;
+  case 9:
+    event_id = 0x37;
+    break;
+  case 10:
+    event_id = 0x38;
+    break;
+  default:
+    goto mark_spoken;
+  }
+  target_handle = -1;
+  relation = -1;
+  if (((actor_t *)actor)->field_0d8 != -1) {
+    prop = (char *)datum_get(prop_data, ((actor_t *)actor)->field_0d8);
+    target_handle = *(int *)(prop + 0x18);
+    if (*(char *)(prop + 0x60) == '\0') {
+      relation = 2;
+    } else {
+      relation = game_team_is_ally(((actor_t *)actor)->field_03e,
+                                   *(int16_t *)(prop + 0x12)) +
+                 3;
+    }
+  }
+  ai_communication_event(event_id, ((actor_t *)actor)->field_018, target_handle,
+                         relation, -1, -1, 0);
+mark_spoken:
+  ((actor_t *)actor)->field_0a2 = 1;
+}
+
 /* action_guard_update (0x15cf0)
  * Per-tick guard-state look countdown: decrements guard state counters and
- * calls action_guard_speak_post_combat (actor handle in EAX) when the main counter expires.
- * Also handles fleet-vehicle leave and target-following logic.
+ * calls action_guard_speak_post_combat (actor handle in EAX) when the main
+ * counter expires. Also handles fleet-vehicle leave and target-following logic.
  *
- * Confirmed: datum_get at 0x15cfd. MOV EAX,EDI / CALL action_guard_speak_post_combat at 0x15d4b.
- * Confirmed: CMP/DEC word [ESI+0x9c/0x9e] at 0x15d1d/0x15d7b.
- * Confirmed: actor_set_dormant at 0x15e0c. actor_target_unit_index+ai_communication_event
- * at 0x15e3a. */
+ * Confirmed: datum_get at 0x15cfd. MOV EAX,EDI / CALL
+ * action_guard_speak_post_combat at 0x15d4b. Confirmed: CMP/DEC word
+ * [ESI+0x9c/0x9e] at 0x15d1d/0x15d7b. Confirmed: actor_set_dormant at 0x15e0c.
+ * actor_target_unit_index+ai_communication_event at 0x15e3a. */
 void action_guard_update(int actor_handle)
 {
   char *actor;
@@ -1917,7 +2020,8 @@ wake:
   if (((actor_t *)actor)->field_06e >= 2 &&
       ((actor_t *)actor)->field_018 != -1) {
     ai_communication_event(0x23, ((actor_t *)actor)->field_018,
-                 actor_target_unit_index(actor_handle), -1, -1, -1, 0);
+                           actor_target_unit_index(actor_handle), -1, -1, -1,
+                           0);
   }
   actor_discard_firing_position(actor_handle, *(short *)(actor + 0xc4), 0);
   ((actor_t *)actor)->firing_positions_current_position_index = -1;
@@ -2072,9 +2176,9 @@ int action_guard_setup_from_combat_transition(int actor_handle, short *param_2)
       system_exit(-1);
     }
     if (((actor_t *)actor)->field_314 != '\0') {
-      cVar1 = actor_nearby_firing_positions(
-        actor_handle, (float *)(actor + 0x318), ((actor_t *)actor)->field_324,
-        1);
+      cVar1 =
+        actor_nearby_firing_positions(actor_handle, (float *)(actor + 0x318),
+                                      ((actor_t *)actor)->field_324, 1);
       if (cVar1 != '\0') {
         param_2[0x12] = 2;
         *(int *)(param_2 + 0x14) = ((actor_t *)actor)->field_318;
@@ -2127,14 +2231,15 @@ LAB_done:
 /* action_guard_setup_from_fleeing (0x16210)
  * Initialize guard-mode action state (post-combat variant).
  *
- * Similar to action_guard_setup_from_combat_transition but adds actor-type tag lookup and random-range
- * timer for pre-combat delay. Handles combat-transition type 2 prop
- * assignment.
+ * Similar to action_guard_setup_from_combat_transition but adds actor-type tag
+ * lookup and random-range timer for pre-combat delay. Handles combat-transition
+ * type 2 prop assignment.
  *
  * Confirmed: datum_get(actor_data, actor_handle) → actor.
  * Confirmed: tag_get(0x61637472, actor+0x58) → actor tag.
  * Confirmed: assert path "c:\halo\SOURCE\ai\action_guard.c" at 0xed. */
-char action_guard_setup_from_fleeing(int actor_handle, int param_2, short *param_3)
+char action_guard_setup_from_fleeing(int actor_handle, int param_2,
+                                     short *param_3)
 {
   char *actor;
   char *tag;
@@ -2210,8 +2315,9 @@ char action_guard_setup_from_fleeing(int actor_handle, int param_2, short *param
  * state machine. Three early-exit conditions (swarm, field_160, reset).
  * Main path: if field_4c is active and field_aa is flagged, runs
  * the firing-position evaluation pipeline (actor_discard_firing_position,
- * actor_get_firing_position_group, actor_select_firing_position, actor_change_firing_position), then selects a
- * randomized delay timer from the actor tag's min/max range, scaled by 30.0 Hz.
+ * actor_get_firing_position_group, actor_select_firing_position,
+ * actor_change_firing_position), then selects a randomized delay timer from the
+ * actor tag's min/max range, scaled by 30.0 Hz.
  *
  * Confirmed: cdecl, single stack arg (actor_handle).
  * Confirmed: _chkstk with 0x14748 (83784 bytes) at 0x163d3/0x163d8.
@@ -2219,13 +2325,14 @@ char action_guard_setup_from_fleeing(int actor_handle, int param_2, short *param
  * 0x163e4/0x163e9. Confirmed: tag_get('actr', actor->field_58) at
  * 0x163f0/0x163f9. Confirmed: three early-return paths for
  * swarm/field_160/reset at 0x16407/0x16422/0x16443. Confirmed: main evaluation
- * pipeline: actor_discard_firing_position at 0x1649b, csmemset(0x670) at 0x164b1,
- * actor_get_firing_position_group at 0x164c4, actor_select_firing_position at 0x164f1,
- * actor_change_firing_position at 0x1650b. Confirmed: random timer: random_real_range(seed,
- * tag_min, tag_max) at 0x16563, FMUL [0x253394]=30.0f at 0x16568, _ftol2 at
- * 0x16571, store to actor->field_9c at 0x16576. Inferred: actor+0xc0 =
- * firing-position action state (int16_t). actor+0xc4 = firing-position target
- * (int16_t). actor+0x9c = combat timer (int16_t). */
+ * pipeline: actor_discard_firing_position at 0x1649b, csmemset(0x670) at
+ * 0x164b1, actor_get_firing_position_group at 0x164c4,
+ * actor_select_firing_position at 0x164f1, actor_change_firing_position at
+ * 0x1650b. Confirmed: random timer: random_real_range(seed, tag_min, tag_max)
+ * at 0x16563, FMUL [0x253394]=30.0f at 0x16568, _ftol2 at 0x16571, store to
+ * actor->field_9c at 0x16576. Inferred: actor+0xc0 = firing-position action
+ * state (int16_t). actor+0xc4 = firing-position target (int16_t). actor+0x9c =
+ * combat timer (int16_t). */
 unsigned int action_guard_perform(int actor_handle)
 {
   char *actor;
@@ -2265,9 +2372,10 @@ unsigned int action_guard_perform(int actor_handle)
     int ret_24a60;
     int local_10;
     int local_c;
-    int local_50[15]; /* actor_select_firing_position memcpy's 0xf*4 = 60 bytes (0x3c) here;
-                       * original reserves [ebp-0x4c]..[ebp-0x10] = 0x3c bytes.
-                       * Was [12] (48 bytes) -> 12-byte stack overflow. */
+    int local_50[15]; /* actor_select_firing_position memcpy's 0xf*4 = 60 bytes
+                       * (0x3c) here; original reserves [ebp-0x4c]..[ebp-0x10] =
+                       * 0x3c bytes. Was [12] (48 bytes) -> 12-byte stack
+                       * overflow. */
     int ret_25c10;
 
     if (((actor_t *)actor)->field_0c0 == 3 &&
@@ -2282,10 +2390,11 @@ unsigned int action_guard_perform(int actor_handle)
     *(int *)large_buf = ret_24a60;
     large_buf[0x19] = 1;
 
-    ret_25c10 = (int)actor_select_firing_position(actor_handle, large_buf, local_50, &local_c,
-                                  huge_buf, &local_10);
-    result = actor_change_firing_position(actor_handle, (short)ret_25c10, local_50, local_c,
-                          (unsigned int)(int)huge_buf, (char)local_10);
+    ret_25c10 = (int)actor_select_firing_position(
+      actor_handle, large_buf, local_50, &local_c, huge_buf, &local_10);
+    result = actor_change_firing_position(
+      actor_handle, (short)ret_25c10, local_50, local_c,
+      (unsigned int)(int)huge_buf, (char)local_10);
 
     ((actor_t *)actor)->field_0aa = 0;
     *(char *)(actor + 0xb0) = 0;
@@ -2315,12 +2424,13 @@ unsigned int action_guard_perform(int actor_handle)
  *   0/1 → retreat (actor_move_halt)
  *   2   → approach position (actor_move_to_point or retreat)
  *   3   → move to firing position (actor_move_to_firing_position)
- * On approach success: fires action_guard_speak_post_combat if prop-ready (actor+0xa1) and
- * guard state (a3) not set. Then sets nav output (3e8/3ec/3f0/3fc).
+ * On approach success: fires action_guard_speak_post_combat if prop-ready
+ * (actor+0xa1) and guard state (a3) not set. Then sets nav output
+ * (3e8/3ec/3f0/3fc).
  *
  * Confirmed: datum_get at 0x165a0. tag_get(actr) at 0x165b0.
- * Confirmed: CALL action_guard_speak_post_combat at 0x167f7 with MOV EAX,EDI beforehand.
- * Confirmed: SETGE+LEA for 3fc at 0x16934-0x16942. */
+ * Confirmed: CALL action_guard_speak_post_combat at 0x167f7 with MOV EAX,EDI
+ * beforehand. Confirmed: SETGE+LEA for 3fc at 0x16934-0x16942. */
 void action_guard_control(int actor_handle)
 {
   char *actor;
@@ -2394,7 +2504,8 @@ void action_guard_control(int actor_handle)
         (short)sVar1;
       ((actor_t *)actor)->field_3ba = 0;
       if (actor_move_to_firing_position(actor_handle, sVar1, 0) == '\0') {
-        actor_discard_firing_position(actor_handle, *(unsigned short *)(actor + 0xc4), 0);
+        actor_discard_firing_position(actor_handle,
+                                      *(unsigned short *)(actor + 0xc4), 0);
         ((actor_t *)actor)->firing_positions_current_position_index = -1;
       }
     }
@@ -2418,8 +2529,8 @@ void action_guard_control(int actor_handle)
       ((actor_t *)actor)->field_0ab = 0;
       *(int *)(actor + 0xac) = -1;
       actor_stimulus_suspicion(actor_handle, 2, 600);
-      ai_communication_event(7, ((actor_t *)actor)->field_018, *(int *)(prop + 0x18), -1,
-                   -1, 2, 0);
+      ai_communication_event(7, ((actor_t *)actor)->field_018,
+                             *(int *)(prop + 0x18), -1, -1, 2, 0);
     }
     if (((actor_t *)actor)->field_0a1 != '\0') {
       action_guard_speak_post_combat(actor_handle);
@@ -2506,8 +2617,8 @@ int vehicle_possibility_qsort(float *param_1, float *param_2)
  * Confirmed: switch table at 0x16bac (byte lookup) + 0x16b8c (DWORD jumps).
  * Confirmed: assert strings "c:\\halo\\SOURCE\\ai\\action_obey.c". */
 void action_obey_command_end(volatile int actor_handle, int unit_handle,
-                  short scenario_idx, int param_4, char *out_index,
-                  void *state_ptr /* @<esi> */)
+                             short scenario_idx, int param_4, char *out_index,
+                             void *state_ptr /* @<esi> */)
 {
   char *actor;
   char *scenario;
@@ -2626,7 +2737,7 @@ void action_obey_command_end(volatile int actor_handle, int unit_handle,
  * Confirmed: csmemset(param_4, 0, 0x24); MOV byte [ESI],0xff.
  * Confirmed: assert "targeting_reference" at line 0x550 of action_obey.c. */
 void action_obey_individual_setup(int param_1, int param_2, int param_3,
-                               char *param_4, int param_5, char *param_6)
+                                  char *param_4, int param_5, char *param_6)
 {
   csmemset(param_4, 0, 0x24);
   *param_4 = (char)0xff;
@@ -2647,7 +2758,8 @@ void action_obey_individual_setup(int param_1, int param_2, int param_3,
 }
 
 /* action_obey_individual_flush_command_indices (0x16c40) */
-void action_obey_individual_flush_command_indices(int param_1, int param_2, short param_3, char *param_4)
+void action_obey_individual_flush_command_indices(int param_1, int param_2,
+                                                  short param_3, char *param_4)
 {
   int iVar1;
   iVar1 = (int)tag_block_get_element((char *)global_scenario_get() + 0x438,
@@ -2657,9 +2769,9 @@ void action_obey_individual_flush_command_indices(int param_1, int param_2, shor
   }
 }
 
-/* action_obey_individual_begin (0x16c80) — Scenario encounter guard-zone boundary callback.
- * Checks if the encounter element at param_3 has the 0x10 flag set at +0x20.
- * If so, sets bit 0x1000 in the object's flags at +0x1b4. */
+/* action_obey_individual_begin (0x16c80) — Scenario encounter guard-zone
+ * boundary callback. Checks if the encounter element at param_3 has the 0x10
+ * flag set at +0x20. If so, sets bit 0x1000 in the object's flags at +0x1b4. */
 void action_obey_individual_begin(int param_1, int param_2, short param_3)
 {
   char *elem;
@@ -2677,28 +2789,29 @@ void action_obey_individual_begin(int param_1, int param_2, short param_3)
  * Called by action_obey_individuals_iterate as the reset callback.
  * Dispatcher passes: (actor_handle, object_handle, index, state_data_ptr, ...)
  */
-void action_obey_individual_advance(int param_1, int param_2, int param_3, char *param_4)
+void action_obey_individual_advance(int param_1, int param_2, int param_3,
+                                    char *param_4)
 {
   param_4[4] = (param_4[4] & (char)0xef) | 8;
 }
 
 /* action_obey_individual_end (0x16cf0)
- * Execute command-list step: get unit, optionally dispatch action_obey_command_end,
- * then clear bit 12 (0x1000) from unit+0x1b4.
+ * Execute command-list step: get unit, optionally dispatch
+ * action_obey_command_end, then clear bit 12 (0x1000) from unit+0x1b4.
  *
  * Confirmed: object_get_and_verify_type(param_2, 3) → unit.
  * Confirmed: TEST AL,0x2 on param_4[4]; if clear, call action_obey_command_end.
  * Confirmed: LEA EAX,[EBP+0x17] → address of high byte of param_4 on stack.
  * Confirmed: AND [EDI+0x1b4],0xffffefff at end. */
-void action_obey_individual_end(int param_1, int param_2, short param_3, int param_4,
-                  int param_5)
+void action_obey_individual_end(int param_1, int param_2, short param_3,
+                                int param_4, int param_5)
 {
   char *unit;
 
   unit = (char *)object_get_and_verify_type(param_2, 3);
   if ((*(char *)(param_4 + 4) & 2) == 0) {
     action_obey_command_end(param_1, param_2, param_3, param_5,
-                 (char *)((int)&param_4 + 3), (void *)param_4);
+                            (char *)((int)&param_4 + 3), (void *)param_4);
   }
   *(int *)(unit + 0x1b4) = *(int *)(unit + 0x1b4) & 0xffffefff;
 }
@@ -2717,8 +2830,8 @@ void action_obey_individual_end(int param_1, int param_2, short param_3, int par
  * Confirmed: CALL 0x16d40 from action_obey_advance_command_list at 0x170b2.
  * Confirmed: swarm_data=DAT_006325a0, swarm_component_data=DAT_0063259c. */
 void action_obey_individuals_iterate(int actor_handle, int param_2,
-                                      short *param_3, void (*callback)(void),
-                                      int param_5)
+                                     short *param_3, void (*callback)(void),
+                                     int param_5)
 {
   char *actor;
   char *swarm;
@@ -2765,13 +2878,15 @@ void action_obey_individuals_iterate(int actor_handle, int param_2,
  * Validates the command-list index against the scenario encounter table,
  * checks BSP compatibility, extracts command flags, optionally stops
  * scripted look, and dispatches initialization via
- * action_obey_individuals_iterate with the action_obey_individual_setup callback.
+ * action_obey_individuals_iterate with the action_obey_individual_setup
+ * callback.
  *
  * Confirmed: datum_get(actor_data, actor_handle) → actor.
  * Confirmed: global_scenario_get, tag_block_get_element(scenario+0x438,
  * cmd_idx, 0x60). Confirmed: command flags extracted from iVar3[0x20] (bits
  * 0-3). */
-int action_obey_command_list_setup(int actor_handle, short param_2, char *param_3)
+int action_obey_command_list_setup(int actor_handle, short param_2,
+                                   char *param_3)
 {
   char *actor;
   char *scenario;
@@ -2840,9 +2955,9 @@ int action_obey_command_list_setup(int actor_handle, short param_2, char *param_
  * Fetches actor record; prop_state = (short*)(actor+0x9c).  If the prop
  * index (*prop_state) is valid (>= 0) and within the scenario prop count
  * (*(int*)(scenario+0x438)), delegates to action_obey_individuals_iterate
- * with reset=0, callback=action_obey_individual_flush_command_indices, param_5=0.  Otherwise marks the
- * prop as invalid: *prop_state = -1, actor+0xa1 = 1, then calls
- * actor_action_change(actor_handle, 0, 0).
+ * with reset=0, callback=action_obey_individual_flush_command_indices,
+ * param_5=0.  Otherwise marks the prop as invalid: *prop_state = -1, actor+0xa1
+ * = 1, then calls actor_action_change(actor_handle, 0, 0).
  *
  * Confirmed: cdecl, single stack arg (actor_handle).
  * Confirmed: datum_get(actor_data, actor_handle); ADD ESI,0x9c.
@@ -2860,8 +2975,9 @@ void action_obey_flush_command_indices(int actor_handle)
   prop_state = (short *)(actor + 0x9c);
   scenario = (int)global_scenario_get();
   if ((*prop_state >= 0) && ((int)*prop_state < *(int *)(scenario + 0x438))) {
-    action_obey_individuals_iterate(actor_handle, 0, prop_state,
-                                     (void (*)(void))action_obey_individual_flush_command_indices, 0);
+    action_obey_individuals_iterate(
+      actor_handle, 0, prop_state,
+      (void (*)(void))action_obey_individual_flush_command_indices, 0);
     return;
   }
   *prop_state = -1;
@@ -2888,7 +3004,8 @@ void action_obey_flush_structure_indices(int actor_handle)
  * Compute actor prop-interest for the prop list at actor+0x9c.
  *
  * Fetches the actor record, then calls action_obey_individuals_iterate with
- * reset=0, prop_state=actor+0x9c, callback=action_obey_individual_advance, param_5=0.
+ * reset=0, prop_state=actor+0x9c, callback=action_obey_individual_advance,
+ * param_5=0.
  *
  * Confirmed: datum_get(actor_data, actor_handle) at 0x1709e.
  * Confirmed: PUSH 0x0; PUSH 0x16cd0; ADD EAX,0x9c; PUSH EAX; PUSH 0x0;
@@ -2898,42 +3015,47 @@ void action_obey_advance_command_list(int actor_handle)
 {
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
-  action_obey_individuals_iterate(actor_handle, 0, (short *)(actor + 0x9c),
-                                   (void (*)(void))action_obey_individual_advance, 0);
+  action_obey_individuals_iterate(
+    actor_handle, 0, (short *)(actor + 0x9c),
+    (void (*)(void))action_obey_individual_advance, 0);
 }
 
 /* action_obey_begin (0x170c0)
  * Compute actor prop-interest for the prop list at actor+0x9c using the
  * guard-zone boundary callback (action_obey_individual_begin).
  *
- * Same pattern as action_obey_advance_command_list but selects the guard-specific callback.
+ * Same pattern as action_obey_advance_command_list but selects the
+ * guard-specific callback.
  *
  * Confirmed: datum_get(actor_data, actor_handle);
- * action_obey_individuals_iterate with callback=action_obey_individual_begin, reset=0,
- * prop_state=actor+0x9c, param_5=0. */
+ * action_obey_individuals_iterate with callback=action_obey_individual_begin,
+ * reset=0, prop_state=actor+0x9c, param_5=0. */
 void action_obey_begin(int actor_handle)
 {
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
   action_obey_individuals_iterate(actor_handle, 0, (short *)(actor + 0x9c),
-                                   (void (*)(void))action_obey_individual_begin, 0);
+                                  (void (*)(void))action_obey_individual_begin,
+                                  0);
 }
 
 /* action_obey_end (0x170f0)
  * Compute actor prop-interest for the prop list at actor+0x9c using the
  * danger-zone update callback (action_obey_individual_end).
  *
- * Same pattern as action_obey_advance_command_list but selects the danger-update callback.
+ * Same pattern as action_obey_advance_command_list but selects the
+ * danger-update callback.
  *
  * Confirmed: datum_get(actor_data, actor_handle);
- * action_obey_individuals_iterate with callback=action_obey_individual_end, reset=0,
- * prop_state=actor+0x9c, param_5=0. */
+ * action_obey_individuals_iterate with callback=action_obey_individual_end,
+ * reset=0, prop_state=actor+0x9c, param_5=0. */
 void action_obey_end(int actor_handle)
 {
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
   action_obey_individuals_iterate(actor_handle, 0, (short *)(actor + 0x9c),
-                                   (void (*)(void))action_obey_individual_end, 0);
+                                  (void (*)(void))action_obey_individual_end,
+                                  0);
 }
 
 /* action_obey_describe_command (0x17120)
@@ -2951,14 +3073,14 @@ void action_obey_end(int actor_handle)
  * Confirmed: snprintf family for string building; tag_block_get_element
  *   for name lookups from scenario tag blocks.
  * Confirmed: 320 bytes of locals (SUB ESP,0x140). */
-void action_obey_describe_command(void *scenario_data, short *cmd, char *out_buf, int out_size)
+void action_obey_describe_command(void *scenario_data, short *cmd,
+                                  char *out_buf, int out_size)
 {
   int cmd_type;
   int sub_type;
-  const char *mode_names[5] = {
-    "idle aim weapon", "idle turn around", "idle look with head",
-    "forced exact facing", "forced aim weapon"
-  };
+  const char *mode_names[5] = { "idle aim weapon", "idle turn around",
+                                "idle look with head", "forced exact facing",
+                                "forced aim weapon" };
 
   cmd_type = cmd[0];
   sub_type = cmd[1];
@@ -2977,9 +3099,8 @@ void action_obey_describe_command(void *scenario_data, short *cmd, char *out_buf
     snprintf(out_buf, out_size, "go to (p%d) and face (p%d)", cmd[6], cmd[7]);
     return;
   case 3: {
-    const char *move_names[5] = {
-      "forwards", "left", "right", "backwards", "any-facing"
-    };
+    const char *move_names[5] = { "forwards", "left", "right", "backwards",
+                                  "any-facing" };
     if (cmd[6] == -1) {
       snprintf(out_buf, out_size, "move %s along angle %.1f, dist %.2f",
                move_names[sub_type], *(float *)(cmd + 4), *(float *)(cmd + 2));
@@ -3001,9 +3122,8 @@ void action_obey_describe_command(void *scenario_data, short *cmd, char *out_buf
     return;
   }
   case 5: {
-    const char *animation_modes[5] = {
-      "idle aim weapon", "noncombat", "asleep", "combat", "panic"
-    };
+    const char *animation_modes[5] = { "idle aim weapon", "noncombat", "asleep",
+                                       "combat", "panic" };
     snprintf(out_buf, out_size, "animation mode %s",
              animation_modes[sub_type + 1]);
     return;
@@ -3021,9 +3141,8 @@ void action_obey_describe_command(void *scenario_data, short *cmd, char *out_buf
     snprintf(out_buf, out_size, "throw grenade at (p%d)", cmd[6]);
     return;
   case 9: {
-    const char *seat_names[5] = {
-      "any-non-driver", "gunner", "passenger", "driver", "any-seat"
-    };
+    const char *seat_names[5] = { "any-non-driver", "gunner", "passenger",
+                                  "driver", "any-seat" };
     snprintf(out_buf, out_size, "enter vehicle as %s if within %.1f",
              seat_names[sub_type], *(float *)(cmd + 2));
     return;
@@ -3084,7 +3203,8 @@ void action_obey_describe_command(void *scenario_data, short *cmd, char *out_buf
     return;
   }
   case 16:
-    snprintf(out_buf, out_size, "vocalize %s", dialogue_get_vocalization_name(sub_type, 0));
+    snprintf(out_buf, out_size, "vocalize %s",
+             dialogue_get_vocalization_name(sub_type, 0));
     return;
   case 17: {
     const char *toggle_names[2] = { "enable", "disable" };
@@ -3097,9 +3217,8 @@ void action_obey_describe_command(void *scenario_data, short *cmd, char *out_buf
     return;
   }
   case 19: {
-    const char *wait_modes[3] = {
-      "until alerted", "until visible enemy", "until told to advance"
-    };
+    const char *wait_modes[3] = { "until alerted", "until visible enemy",
+                                  "until told to advance" };
     snprintf(out_buf, out_size, "wait %s", wait_modes[sub_type]);
     return;
   }
@@ -3201,11 +3320,12 @@ void negate_vector3d(float *a, float *result)
  *   CALL 0x10b2d0 (seed_random_range); ADD ESP,0xc. */
 int16_t random_range(int16_t min, int16_t max)
 {
-  return seed_random_range((unsigned int *)get_global_random_seed_address(), min,
-                      max);
+  return seed_random_range((unsigned int *)get_global_random_seed_address(),
+                           min, max);
 }
 
-/* action_obey_directmovement_update_facing (0x17960) — Resolve look-direction vector into state_data.
+/* action_obey_directmovement_update_facing (0x17960) — Resolve look-direction
+ * vector into state_data.
  *
  * Writes a normalized look-direction vec3 to state_data+0xc..+0x14 based
  * on the look_type field at state_data+8.
@@ -3219,7 +3339,9 @@ int16_t random_range(int16_t min, int16_t max)
  *
  * Register args: ECX=state_data, EAX=actor_handle, EDI=object_handle.
  * Confirmed: ESI=state_data; actor+0x18=object_handle check. */
-void action_obey_directmovement_update_facing(char *state_data, int actor_handle, int object_handle)
+void action_obey_directmovement_update_facing(char *state_data,
+                                              int actor_handle,
+                                              int object_handle)
 {
   char *actor;
   float facing[3];
@@ -3273,7 +3395,8 @@ void action_obey_directmovement_update_facing(char *state_data, int actor_handle
   }
 }
 
-/* action_obey_command_begin (0x17ab0) — Execute one command-list atom for an actor.
+/* action_obey_command_begin (0x17ab0) — Execute one command-list atom for an
+ * actor.
  *
  * Dispatches on the atom type (28 cases, jump table at 0x18adc) from the
  * scenario command list block (scenario+0x438, stride 0x60; atoms at
@@ -3288,16 +3411,16 @@ void action_obey_directmovement_update_facing(char *state_data, int actor_handle
  *   tag_block_get_element(scenario+0x438, scenario_idx, 0x60),
  *   tag_block_get_element(scenario+0x450/0x444/0x45c, idx, stride) and
  *   action_obey_describe_command(scenario, atom, 0x5ab100, 0x100).
- * Confirmed: action_obey_directmovement_update_facing(state_data@<ecx>, actor_handle@<eax>,
- *   unit_handle@<edi>) at 0x18113 (EDI still holds entry ECX).
- * Confirmed: qsort(near_list, count, 8, vehicle_possibility_qsort) at 0x185ea.
- * Confirmed: case 0x10 reuses the state_data arg slot for the seat short
- *   and case 0x1b reuses the scenario_idx slot for the point element
+ * Confirmed: action_obey_directmovement_update_facing(state_data@<ecx>,
+ * actor_handle@<eax>, unit_handle@<edi>) at 0x18113 (EDI still holds entry
+ * ECX). Confirmed: qsort(near_list, count, 8, vehicle_possibility_qsort) at
+ * 0x185ea. Confirmed: case 0x10 reuses the state_data arg slot for the seat
+ * short and case 0x1b reuses the scenario_idx slot for the point element
  *   (separate locals here).
  * Confirmed: case 0x1b non-flying branch zeroes the actr-definition local
  *   (dead store kept for parity, decomp local_1c = 0). */
-bool action_obey_command_begin(int actor_handle, short scenario_idx, char *state_data,
-                  int cmd_param, int unit_handle)
+bool action_obey_command_begin(int actor_handle, short scenario_idx,
+                               char *state_data, int cmd_param, int unit_handle)
 {
   char *actor;
   char *actr_def;
@@ -3509,7 +3632,8 @@ bool action_obey_command_begin(int actor_handle, short scenario_idx, char *state
         *(int *)(look_target + 8) = elem[1];
         *(int *)(look_target + 0xc) = elem[2];
       }
-      actor_look_secondary(actor_handle, 0xd, (short)style, (short *)look_target);
+      actor_look_secondary(actor_handle, 0xd, (short)style,
+                           (short *)look_target);
       *(short *)(state_data + 2) = (short)(int)(radius * *(float *)0x253394);
       result = 1;
     }
@@ -3564,7 +3688,8 @@ bool action_obey_command_begin(int actor_handle, short scenario_idx, char *state
     } else {
       *(short *)(state_data + 8) = mode;
     }
-    action_obey_directmovement_update_facing(state_data, actor_handle, unit_handle);
+    action_obey_directmovement_update_facing(state_data, actor_handle,
+                                             unit_handle);
     *(short *)(state_data + 2) =
       (short)(int)(*(float *)(atom + 2) * *(float *)0x253394);
     state_data[5] = state_data[5] | 3;
@@ -3979,7 +4104,8 @@ bool action_obey_command_begin(int actor_handle, short scenario_idx, char *state
     object_reset(unit_handle);
     object_update_children_recursive(unit_handle);
     if (unit_handle == ((actor_t *)actor)->field_018) {
-      actor_input_sample_position(actor_handle, ((actor_t *)actor)->field_018, actor + 0x120);
+      actor_input_sample_position(actor_handle, ((actor_t *)actor)->field_018,
+                                  actor + 0x120);
       actor_move_halt(actor_handle);
     }
     result = 1;
@@ -4003,7 +4129,8 @@ LAB_done:
       enc + 0x80, (int)((actor_t *)actor)->field_03a, 0xe8);
     crt_sprintf(name_buf, "%s/%s", enc, sq);
   }
-  action_obey_describe_command(global_scenario_get(), atom, (char *)0x5ab100, 0x100);
+  action_obey_describe_command(global_scenario_get(), atom, (char *)0x5ab100,
+                               0x100);
   status = "";
   if (result == 0) {
     status = " FAILED";
@@ -4041,8 +4168,9 @@ ret_done:
  * Confirmed: case 14 (game-engine status check).
  * Confirmed: case 16 (damage aftermath check).
  * Confirmed: case 19 (stance/vitality sub-cases). */
-bool action_obey_command_perform(int unit_handle, int actor_handle, short scenario_index,
-                  char *output, void *command)
+bool action_obey_command_perform(int unit_handle, int actor_handle,
+                                 short scenario_index, char *output,
+                                 void *command)
 {
   char *actor;
   char *scenario;
@@ -4221,9 +4349,8 @@ bool action_obey_command_perform(int unit_handle, int actor_handle, short scenar
         threat_position[0] = *(float *)((char *)command + 0x4c);
         threat_position[1] = *(float *)((char *)command + 0x50);
         threat_position[2] = *(float *)((char *)command + 0x54);
-        result =
-          FUN_00021e50(actor_handle, *(short *)((char *)command + 0x4a),
-                       threat_position, -1, -1);
+        result = FUN_00021e50(actor_handle, *(short *)((char *)command + 0x4a),
+                              threat_position, -1, -1);
         if (result != 0) {
           *(char *)((char *)command + 0x48) = 1;
         }
@@ -4295,9 +4422,10 @@ bool action_obey_command_perform(int unit_handle, int actor_handle, short scenar
  *
  * Called by action_obey_individuals_iterate via action_obey_perform.
  * Steps through atoms in the encounter's command list:
- *   - Validates the current atom via action_obey_command_perform (if cVar5 set).
- *   - If validated, advances the atom index and calls action_obey_command_end to execute
- *     the atom step.
+ *   - Validates the current atom via action_obey_command_perform (if cVar5
+ * set).
+ *   - If validated, advances the atom index and calls action_obey_command_end
+ * to execute the atom step.
  *   - Sets the exhausted flag (state_data[4] | 0x2) when the index reaches
  *     the atom count.
  *   - When the loop exits without exhausting, writes 0 to *finished_ref.
@@ -4307,16 +4435,17 @@ bool action_obey_command_perform(int unit_handle, int actor_handle, short scenar
  *   18b90/17ab0 call via [EBP+0xc]), param_3=scenario_idx (EBX, sign-extended
  *   short), param_4=state_data (ESI, loaded at 0x19142), param_5=cmd_param
  *   ([EBP+0x18]), param_6=finished_ref ([EBP+0x1c]).
- * Confirmed: action_obey_command_perform @<eax>=unit_handle, cdecl(actor_handle,
- *   scenario_idx, state_data, cmd_param).
- * Confirmed: action_obey_command_end @<esi>=state_data, cdecl(actor_handle, unit_handle,
+ * Confirmed: action_obey_command_perform @<eax>=unit_handle,
+ * cdecl(actor_handle, scenario_idx, state_data, cmd_param). Confirmed:
+ * action_obey_command_end @<esi>=state_data, cdecl(actor_handle, unit_handle,
  *   scenario_idx, cmd_param, &out_index).
  * Confirmed: action_obey_command_begin @<eax>=cmd_param, @<ecx>=unit_handle,
  *   cdecl(actor_handle, scenario_idx, state_data).
  * Confirmed: out_index local at [EBP+0x17]; cVar5 (loop-continue) stored at
  *   [EBP+0x13]; loop exits on (state_data[4] & 4). */
-void action_obey_individual_perform(int actor_handle, int unit_handle, short scenario_idx,
-                  char *state_data, int cmd_param, char *finished_ref)
+void action_obey_individual_perform(int actor_handle, int unit_handle,
+                                    short scenario_idx, char *state_data,
+                                    int cmd_param, char *finished_ref)
 {
   char *atom_table;
   char cVar5;
@@ -4334,8 +4463,8 @@ void action_obey_individual_perform(int actor_handle, int unit_handle, short sce
 
   do {
     if (cVar5 != 0) {
-      validated = action_obey_command_perform(unit_handle, actor_handle, scenario_idx,
-                               state_data, (void *)cmd_param);
+      validated = action_obey_command_perform(
+        unit_handle, actor_handle, scenario_idx, state_data, (void *)cmd_param);
       if (validated == 0)
         break;
     }
@@ -4347,8 +4476,8 @@ void action_obey_individual_perform(int actor_handle, int unit_handle, short sce
     }
 
     if (cVar5 != 0) {
-      action_obey_command_end(actor_handle, unit_handle, scenario_idx, cmd_param,
-                   &out_index, state_data);
+      action_obey_command_end(actor_handle, unit_handle, scenario_idx,
+                              cmd_param, &out_index, state_data);
     }
 
     if (*(int *)(atom_table + 0x30) <= (int)(unsigned char)out_index) {
@@ -4357,8 +4486,8 @@ void action_obey_individual_perform(int actor_handle, int unit_handle, short sce
     }
 
     state_data[0] = out_index;
-    cVar5 = action_obey_command_begin(actor_handle, scenario_idx, state_data, cmd_param,
-                         unit_handle);
+    cVar5 = action_obey_command_begin(actor_handle, scenario_idx, state_data,
+                                      cmd_param, unit_handle);
   } while ((state_data[4] & 4) == 0);
 
 LAB_check_finished:
@@ -4377,17 +4506,17 @@ LAB_check_finished:
  * Scripted-look prop-interest update callback.
  *
  * Decrements state_data timers.  If the flags byte at state_data+5 has
- * both bit 0 and bit 1 set, invokes action_obey_directmovement_update_facing to compute the look-at
- * direction and store it into state_data+0xc..0x14.
+ * both bit 0 and bit 1 set, invokes action_obey_directmovement_update_facing to
+ * compute the look-at direction and store it into state_data+0xc..0x14.
  *
  * Confirmed: 4 cdecl stack args — actor_handle, object_handle, unused,
  *   state_data_ptr.
  * Confirmed: state_data+0x2 = short countdown; state_data+0x5 = flags;
  *   state_data+0x8 = short secondary countdown.
- * Confirmed: action_obey_directmovement_update_facing(state_data@<ecx>, actor_handle@<eax>,
- *   object_handle@<edi>). */
-void action_obey_individual_update(int actor_handle, int object_handle, int unused,
-                  char *state_data)
+ * Confirmed: action_obey_directmovement_update_facing(state_data@<ecx>,
+ * actor_handle@<eax>, object_handle@<edi>). */
+void action_obey_individual_update(int actor_handle, int object_handle,
+                                   int unused, char *state_data)
 {
   short counter;
   char flags;
@@ -4410,38 +4539,42 @@ void action_obey_individual_update(int actor_handle, int object_handle, int unus
   if (!(flags & 2))
     return;
 
-  action_obey_directmovement_update_facing(state_data, actor_handle, object_handle);
+  action_obey_directmovement_update_facing(state_data, actor_handle,
+                                           object_handle);
 }
 
 /* action_obey_update (0x19280)
  * Compute actor prop-interest for the prop list at actor+0x9c using the
  * scripted-look update callback (action_obey_individual_update).
  *
- * Same pattern as action_obey_advance_command_list but selects the scripted-look callback.
+ * Same pattern as action_obey_advance_command_list but selects the
+ * scripted-look callback.
  *
  * Confirmed: datum_get(actor_data, actor_handle);
- * action_obey_individuals_iterate with callback=action_obey_individual_update, reset=0,
- * prop_state=actor+0x9c, param_5=0. */
+ * action_obey_individuals_iterate with callback=action_obey_individual_update,
+ * reset=0, prop_state=actor+0x9c, param_5=0. */
 void action_obey_update(int actor_handle)
 {
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
   action_obey_individuals_iterate(actor_handle, 0, (short *)(actor + 0x9c),
-                                   (void (*)(void))action_obey_individual_update, 0);
+                                  (void (*)(void))action_obey_individual_update,
+                                  0);
 }
 
 /* action_obey_perform (0x192b0)
  * Execute actor command-list "obey" action update.
  *
  * Dispatches the prop-interest iteration via action_obey_individuals_iterate
- * with the action_obey_individual_perform callback. If the finished-flag is set and the actor
- * hasn't posted combat yet, checks encounter flags and actor-type flags to
- * decide whether to post combat. Returns 1 if actor's current action (0x6c)
- * is 0xb and post_combat is set, else 0.
+ * with the action_obey_individual_perform callback. If the finished-flag is set
+ * and the actor hasn't posted combat yet, checks encounter flags and actor-type
+ * flags to decide whether to post combat. Returns 1 if actor's current action
+ * (0x6c) is 0xb and post_combat is set, else 0.
  *
  * Confirmed: datum_get(actor_data, actor_handle) → actor.
  * Confirmed: LEA ECX,[EBP-1] → address of local_finished byte.
- * Confirmed: action_obey_individuals_iterate callback=action_obey_individual_perform. */
+ * Confirmed: action_obey_individuals_iterate
+ * callback=action_obey_individual_perform. */
 int action_obey_perform(int actor_handle)
 {
   char *actor;
@@ -4451,9 +4584,9 @@ int action_obey_perform(int actor_handle)
 
   actor = (char *)datum_get(actor_data, actor_handle);
   finished = 1;
-  action_obey_individuals_iterate(actor_handle, 0, (short *)(actor + 0x9c),
-                                   (void (*)(void))action_obey_individual_perform,
-                                   (int)&finished);
+  action_obey_individuals_iterate(
+    actor_handle, 0, (short *)(actor + 0x9c),
+    (void (*)(void))action_obey_individual_perform, (int)&finished);
   if (finished != '\0' && ((actor_t *)actor)->field_0a1 == '\0') {
     encounter_elem =
       (char *)tag_block_get_element((char *)global_scenario_get() + 0x438,
@@ -4494,8 +4627,8 @@ LAB_done:
  * Post-initialization:
  *   - Copies field_c8 to 426/427, field_ca to 42c.
  *   - If field_f8 is set and FUN_0002a360 passes: dispatches
- *     actor_move_animation_impulse and ai_communication_event for firing-position
- * targets.
+ *     actor_move_animation_impulse and ai_communication_event for
+ * firing-position targets.
  *   - field_a9&1: copies field_b0/ac to 430-43c.
  *   - field_a9&4: evasion/cliff-protection init or maintenance.
  *
@@ -4612,7 +4745,8 @@ LAB_done:
     }
     if (((actor_t *)actor)->field_0fc != -1) {
       (void)ai_communication_event(((actor_t *)actor)->field_0fc,
-                         ((actor_t *)actor)->field_018, -1, -1, -1, -1, 0);
+                                   ((actor_t *)actor)->field_018, -1, -1, -1,
+                                   -1, 0);
     }
     ((actor_t *)actor)->field_0f8 = 0;
   }
@@ -4708,15 +4842,16 @@ int action_search_setup_target(int actor_handle, char param_2, char *state_data)
 /* action_search_setup_pursuit (0x197d0)
  * Initialize search action state from a firing-position record (type 1).
  *
- * Similar to action_uncover_setup_pursuit (uncover variant) but uses a 0x2c-byte buffer
- * and stores param_3 (byte flag) to state_data+4 instead of state_data+3.
- * Validates actor conditions, looks up the firing position, fills state.
+ * Similar to action_uncover_setup_pursuit (uncover variant) but uses a
+ * 0x2c-byte buffer and stores param_3 (byte flag) to state_data+4 instead of
+ * state_data+3. Validates actor conditions, looks up the firing position, fills
+ * state.
  *
  * Confirmed: 4-arg cdecl: actor_handle, param_2 (short), param_3 (byte),
  *   state_data (ptr). datum_get at 0x197e1. assert line 0x38.
  * Confirmed: [EBP+0x10] → MOV [ESI+4],CL (state_data[4] = param_3). */
 int action_search_setup_pursuit(int actor_handle, short param_2, char param_3,
-                 char *state_data)
+                                char *state_data)
 {
   char *actor;
   char *enc;
@@ -4764,7 +4899,8 @@ int action_search_setup_pursuit(int actor_handle, short param_2, char param_3,
  *
  * Confirmed: display_assert "state_data", action_search.c line 0x57.
  * Confirmed: csmemset(state_data, 0, 0x2c); actor+6 branch; type=2. */
-int action_search_setup_undirected(int actor_handle, int param_2, char *state_data)
+int action_search_setup_undirected(int actor_handle, int param_2,
+                                   char *state_data)
 {
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
@@ -4832,13 +4968,15 @@ skip_flag:
              (remain + 0x5a < *(int *)(actor + 0xbc)))) {
           *(int *)(actor + 0x3bd) = 1;
           ai_communication_event(0xd, ((actor_t *)actor)->field_018,
-                       actor_target_unit_index(actor_handle), -1, -1, -1, 0);
+                                 actor_target_unit_index(actor_handle), -1, -1,
+                                 -1, 0);
           ((actor_t *)actor)->field_3bd = 1;
           return;
         }
       } else if (remain == 0) {
         ai_communication_event(0x12, ((actor_t *)actor)->field_018,
-                     actor_target_unit_index(actor_handle), -1, -1, -1, 0);
+                               actor_target_unit_index(actor_handle), -1, -1,
+                               -1, 0);
         return;
       }
     }
@@ -5009,9 +5147,9 @@ void action_search_begin(int actor_handle)
  * 0x19d91-0x19d9f. Confirmed: field_a4==1 branch: squared-distance to field_b0
  * at 0x19ddf/0x19de4, FCOM [0x253dd0] / FCOMP [0x253dcc] at 0x19de4/0x19dff,
  *   unit_estimate_position + ai_test_line_of_sight at 0x19e24/0x19e59.
- * Confirmed: actor iteration with prop_iterator_new/prop_iterator_next at 0x19e97/0x19ea0,
- *   loop head at 0x19eb2, actors_searching_same_position at 0x19ee0, inner
- * datum_get at 0x19ef7. Confirmed: encounter support
+ * Confirmed: actor iteration with prop_iterator_new/prop_iterator_next at
+ * 0x19e97/0x19ea0, loop head at 0x19eb2, actors_searching_same_position at
+ * 0x19ee0, inner datum_get at 0x19ef7. Confirmed: encounter support
  * encounter_mark_examined_pursuit_position at 0x19fac. Confirmed: fallback
  * actor_move_to_prop(actor_handle, field_270, 3.0f) at 0x19feb. or
  * actor_move_to_firing_position(actor_handle, field_a6, 0) at 0x19fa2a.
@@ -5177,7 +5315,8 @@ void action_sleep_control(int actor_handle)
  * Confirmed: csmemset(state_data, 0, 0x34); MOV word [state_data+8],0x0.
  * Confirmed: MOV byte [state_data+3],param_2; actor+0x160 and actor+6 checks.
  * Confirmed: MOV AL,0x1 (success path); MOV AL,BL (BL=0, failure path). */
-int action_uncover_setup_target(int actor_handle, char param_2, char *state_data)
+int action_uncover_setup_target(int actor_handle, char param_2,
+                                char *state_data)
 {
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
@@ -5209,7 +5348,8 @@ int action_uncover_setup_target(int actor_handle, char param_2, char *state_data
  * Confirmed: assert on state_data (action_uncover.c:0x38).
  * Confirmed: csmemset 0x34 bytes. tag_block_get_element stride 0x18.
  * Confirmed: pos[5] = *(int*)((char*)pos+0x14) stored at state_data+0x10. */
-int action_uncover_setup_pursuit(int actor_handle, short param_2, char *state_data)
+int action_uncover_setup_pursuit(int actor_handle, short param_2,
+                                 char *state_data)
 {
   char *actor;
   char *enc;
@@ -5247,13 +5387,15 @@ int action_uncover_setup_pursuit(int actor_handle, short param_2, char *state_da
   return 0;
 }
 
-/* action_uncover_perform (0x1a200) — Run actor uncover-action look-target search.
+/* action_uncover_perform (0x1a200) — Run actor uncover-action look-target
+ * search.
  *
  * Source file: c:\halo\SOURCE\ai\action_uncover.c (assert line 0x84).
  *
  * Checks three gating flags on the actor record (swarm-assert, flag+0x4c,
  * flag+0x160, flag+0x9d), then builds a 0x670-byte look-state buffer and
- * calls actor_active_select_firing_position to find a look target.  If a target is found:
+ * calls actor_active_select_firing_position to find a look target.  If a target
+ * is found:
  *   - If actor+0xa4==0 and look-result (local_48+6) is not 0 or 1:
  *       sets actor+0xa0=1 (with optional ai_debug log when +0xa0 was 0).
  *   - If actor+0xa4==1 and look-result==0:
@@ -5312,8 +5454,8 @@ char action_uncover_perform(int actor_handle)
     *(char *)(state_buf + 0x41) = ((actor_t *)actor)->field_0a0;
   }
 
-  result = (short)actor_active_select_firing_position(actor_handle, state_buf, local_48, &local_8,
-                               big_buf, &local_4);
+  result = (short)actor_active_select_firing_position(
+    actor_handle, state_buf, local_48, &local_8, big_buf, &local_4);
   if (result != -1) {
     if (*(short *)(actor + 0xa4) == 0) {
       look_result = *(short *)(local_48 + 6);
@@ -5341,8 +5483,9 @@ char action_uncover_perform(int actor_handle)
     }
   }
 
-  fire_result = (short)actor_change_firing_position(actor_handle, result, local_48, local_8,
-                                    (unsigned int)big_buf, (char)local_4);
+  fire_result =
+    (short)actor_change_firing_position(actor_handle, result, local_48, local_8,
+                                        (unsigned int)big_buf, (char)local_4);
   if (fire_result == -1) {
     ((actor_t *)actor)->field_09e = 1;
   }
@@ -5428,8 +5571,9 @@ void action_uncover_control(int actor_handle)
  *
  * If the look-target type word at actor+0xa4 equals 1, clears the
  * target-acquired index at actor+0xa6 (set to 0xffff = none) and
- * sets the look-state byte at actor+0x9d to 1.  Differs from action_search_flush_position_indices
- * only in the byte offset written: 0x9d vs 0x9c.
+ * sets the look-state byte at actor+0x9d to 1.  Differs from
+ * action_search_flush_position_indices only in the byte offset written: 0x9d vs
+ * 0x9c.
  *
  * Confirmed: ADD EAX,0x9c; MOV ECX,0x1; CMP word [EAX+0x8],CX;
  *   MOV word [EAX+0xa],0xffff; MOV byte [EAX+0x1],CL. */
@@ -5446,9 +5590,9 @@ void action_uncover_flush_position_indices(int actor_handle)
 /* action_uncover_flush_structure_indices (0x1a5d0)
  * Reset actor look-target handles to invalid (-1).
  *
- * Identical body to action_search_flush_structure_indices: clears actor+0xa8 (int16_t) and
- * actor+0xac (int32_t) to -1.  Compiled as a separate function at a
- * different address.
+ * Identical body to action_search_flush_structure_indices: clears actor+0xa8
+ * (int16_t) and actor+0xac (int32_t) to -1.  Compiled as a separate function at
+ * a different address.
  *
  * Confirmed: ADD EAX,0x9c; OR ECX,0xffffffff;
  *   MOV word [EAX+0xc],CX (actor+0xa8); MOV dword [EAX+0x10],ECX (actor+0xac).
@@ -5546,8 +5690,8 @@ void action_uncover_begin(int actor_handle)
       ((actor_t *)actor)->field_06e < 3) {
     prop = (char *)datum_get(*(data_t **)0x5ab23c,
                              ((actor_t *)actor)->target_target_prop_index);
-    ai_communication_event(0x15, ((actor_t *)actor)->field_018, *(int *)(prop + 0x18), -1,
-                 -1, -1, 0);
+    ai_communication_event(0x15, ((actor_t *)actor)->field_018,
+                           *(int *)(prop + 0x18), -1, -1, -1, 0);
   }
 }
 
@@ -5617,7 +5761,8 @@ void action_uncover_update(int actor_handle)
     if (*(short *)(actor + 0xa4) != 0)
       goto LAB_result_inspected;
     if (*(int *)(actor + 0xc0) >= 30)
-      actor_discard_firing_position(actor_handle, *(unsigned short *)(actor + 0x3b8), 0);
+      actor_discard_firing_position(actor_handle,
+                                    *(unsigned short *)(actor + 0x3b8), 0);
   }
 
   if (*(short *)(actor + 0xa4) == 0) {
@@ -5752,7 +5897,8 @@ void action_vehicle_flush_structure_indices(int actor_handle)
  * Clears look-suppression flags; sets look-speed=4.
  *
  * Confirmed: datum_get(actor_data, actor_handle) at 0x1ac08.
- * Confirmed: CMP byte [EAX+0xc8],0; actor_path_has_path(actor_handle) for mount check.
+ * Confirmed: CMP byte [EAX+0xc8],0; actor_path_has_path(actor_handle) for mount
+ * check.
  */
 void action_vehicle_control(int actor_handle)
 {
@@ -5832,14 +5978,15 @@ char actor_firing_position_discarded(int actor_handle, short param_2)
  *   Danger zone (eval[0x40] set):
  *     Trajectory dir = actor[0x2c8..0x2d0] - actor[0x2b0..0x2b8].
  *     Sphere (r=actor[0x2d8]+2.5) around actor[0x2dc]: if fp inside:
- *       point_to_line_distance_squared3d dist from fp to trajectory line (dist_sq).
- *       if dist_sq <= range^2: mark fp[0x1d]=1; invalidate if unlocked.
- *       if dist_sq <= (range+2.5)^2: score=(sqrt(dist_sq)-range)*8.0 ->
- * firing_position_store_evaluation_debug. else: score=20.0 -> firing_position_store_evaluation_debug. Sphere (r=actor[0x2d8]+3.0)
- * around actor[0x12c] eye: if eye inside AND actor[0x2d4]>range: point_to_line_distance_squared3d
- * from eye to trajectory; if eye_dist>range^2: scaled fp direction =
- * fp_ptr[-8..0]*3.0; if norm>1e-4: vector_to_line_distance_squared3d; if
- * dist<range^2: invalidate if unlocked.
+ *       point_to_line_distance_squared3d dist from fp to trajectory line
+ * (dist_sq). if dist_sq <= range^2: mark fp[0x1d]=1; invalidate if unlocked. if
+ * dist_sq <= (range+2.5)^2: score=(sqrt(dist_sq)-range)*8.0 ->
+ * firing_position_store_evaluation_debug. else: score=20.0 ->
+ * firing_position_store_evaluation_debug. Sphere (r=actor[0x2d8]+3.0) around
+ * actor[0x12c] eye: if eye inside AND actor[0x2d4]>range:
+ * point_to_line_distance_squared3d from eye to trajectory; if eye_dist>range^2:
+ * scaled fp direction = fp_ptr[-8..0]*3.0; if norm>1e-4:
+ * vector_to_line_distance_squared3d; if dist<range^2: invalidate if unlocked.
  *
  *   Faction bonus: bit (1<<fp_faction) in eval[0x48] -> fp->score +=
  * eval[0x4c]. Threat proximity: eval[0x50] threats; stride 0x10; weight at
@@ -5853,15 +6000,15 @@ char actor_firing_position_discarded(int actor_handle, short param_2)
  *   dist<8m AND cos<0.707 AND dir non-degen: invalidate if unlocked.
  *   Else: los_score = f(cos_angle) in [0..15]; fp2->score += los_score.
  *
- * Confirmed: datum_get at 0x24d04; CALL actor_firing_position_discarded at 0x24d46.
- * Confirmed: stride 0x3c at 0x25138; fp_ptr saved at [EBP-4] (0x24d24).
- * Confirmed: point_to_line_distance_squared3d at 0x24e33, 0x24f3a;
+ * Confirmed: datum_get at 0x24d04; CALL actor_firing_position_discarded at
+ * 0x24d46. Confirmed: stride 0x3c at 0x25138; fp_ptr saved at [EBP-4]
+ * (0x24d24). Confirmed: point_to_line_distance_squared3d at 0x24e33, 0x24f3a;
  * vector_to_line_distance_squared3d at 0x24fb8. Confirmed:
  * object_get_and_verify_type(target,2) at 0x25168. Confirmed: fp->score =
  * fp_ptr+0x24 = fp2_ptr+8 (element_base+0x38). Confirmed: threat stride i*0x10
  * (SHL EAX,4 at 0x25076). */
-void pre_evaluator_global(int actor_handle, char *eval_state, unsigned short fp_count,
-                  char *fp_array)
+void pre_evaluator_global(int actor_handle, char *eval_state,
+                          unsigned short fp_count, char *fp_array)
 {
   char *actor;
   char *fp_ptr;
@@ -5945,8 +6092,8 @@ void pre_evaluator_global(int actor_handle, char *eval_state, unsigned short fp_
           radius = ((actor_t *)actor)->field_2d8 + 2.5f;
 
           if (dist_sq <= radius * radius) {
-            local_10_dsq = point_to_line_distance_squared3d((float *)fp_pos_ptr,
-                                        (float *)actor_traj_base, local_buf);
+            local_10_dsq = point_to_line_distance_squared3d(
+              (float *)fp_pos_ptr, (float *)actor_traj_base, local_buf);
             local_14_score = 0.0f;
 
             if (local_10_dsq <
@@ -5965,7 +6112,8 @@ void pre_evaluator_global(int actor_handle, char *eval_state, unsigned short fp_
               } else {
                 local_14_score = 20.0f;
               }
-              firing_position_store_evaluation_debug(eval_state, local_14_score, 0x17, fp_base_ptr);
+              firing_position_store_evaluation_debug(eval_state, local_14_score,
+                                                     0x17, fp_base_ptr);
             }
           }
 
@@ -5977,8 +6125,8 @@ void pre_evaluator_global(int actor_handle, char *eval_state, unsigned short fp_
 
           if (dist_sq <= radius * radius) {
             if (((actor_t *)actor)->field_2d4 > ((actor_t *)actor)->field_294) {
-              local_10_dsq = point_to_line_distance_squared3d((float *)(actor + 0x12c),
-                                          (float *)actor_traj_base, local_buf);
+              local_10_dsq = point_to_line_distance_squared3d(
+                (float *)(actor + 0x12c), (float *)actor_traj_base, local_buf);
               range = ((actor_t *)actor)->field_294;
               if (local_10_dsq > range * range) {
                 dir_vec[0] = *(float *)(fp_ptr - 8) * 3.0f;
@@ -6146,7 +6294,7 @@ void pre_evaluator_global(int actor_handle, char *eval_state, unsigned short fp_
  * Confirmed: loop at 0x25340+0xd, count >= 0 check.
  * Confirmed: display_assert guards on eval thresholds. */
 void pre_evaluator_pursuit(int actor_handle, void *ctx, unsigned short count,
-                  void *positions)
+                           void *positions)
 {
   char *pos;
   float eval;
@@ -6226,7 +6374,7 @@ void pre_evaluator_pursuit(int actor_handle, void *ctx, unsigned short count,
  * Confirmed: loop structure at 0x25510, position stride 0x3c.
  * Confirmed: display_assert guards on evaluation. */
 void pre_evaluator_panic(int actor_handle, void *ctx, unsigned short count,
-                  void *positions)
+                         void *positions)
 {
   char *pos;
   float eval;
@@ -6301,9 +6449,9 @@ void pre_evaluator_panic(int actor_handle, void *ctx, unsigned short count,
                   bonus = *(float *)0x2533c8;
               }
               /* @<esi> = position element base (original 0x2576b). */
-              firing_position_store_evaluation_debug(ctx,
-                           (*(float *)0x2533c8 - bonus) * *(float *)0x253f78,
-                           10, pos - 8);
+              firing_position_store_evaluation_debug(
+                ctx, (*(float *)0x2533c8 - bonus) * *(float *)0x253f78, 10,
+                pos - 8);
             } else {
               *(char *)(pos + 0x28) = 0;
             }
@@ -6319,7 +6467,8 @@ void pre_evaluator_panic(int actor_handle, void *ctx, unsigned short count,
   } while (n != 0);
 }
 
-/* firing_position_compute_line_of_sight (0x257a0) — Firing-position evaluation per-position updater.
+/* firing_position_compute_line_of_sight (0x257a0) — Firing-position evaluation
+ * per-position updater.
  *
  * Evaluates aim/LoS targeting for a single firing position within the
  * actor's firing-position evaluation. Two branches:
@@ -6338,7 +6487,8 @@ void pre_evaluator_panic(int actor_handle, void *ctx, unsigned short count,
  * Confirmed: 2x CALL 001a93e0 (unit_estimate_position) and 2x CALL 000416e0
  *   (ai_test_line_of_sight).
  * Confirmed: MOV word [EDI+6],AX at 0x2584d/0x25857/0x2595e. */
-void firing_position_compute_line_of_sight(int actor_handle, void *state, char *actor)
+void firing_position_compute_line_of_sight(int actor_handle, void *state,
+                                           char *actor)
 {
   char *d;
   float diff[3];
@@ -6418,20 +6568,21 @@ void firing_position_compute_line_of_sight(int actor_handle, void *state, char *
   *(short *)((char *)state + 6) = los_result;
 }
 
-/* firing_position_forced_evaluation (0x25970) — Firing-position evaluation state updater.
- * Advances the per-position evaluation state machine.
+/* firing_position_forced_evaluation (0x25970) — Firing-position evaluation
+ * state updater. Advances the per-position evaluation state machine.
  *
  * Confirmed: EAX=state_ptr@<eax>, ESI=actor_ptr@<esi>, EBP+8=actor_handle.
  *   (actor was wrongly a stack param before 2026-06-10 — original callers
  *   at 0x26d2f/0x2728f push only the handle; the rvthunk fed garbage.)
- *   Calls firing_position_pre_evaluate, firing_position_compute_line_of_sight, firing_position_post_evaluate.
- * Confirmed: firing_position_pre_evaluate takes actor@<edi> + state@<ebx> pass-throughs —
- *   original 0x25988 MOV EDI,ESI and 0x25974 MOV EBX,EAX before the call;
- *   24850/24890 gate hook tables (0x254bf8/0x254c30) on 1<<[actor+4]
- *   (actor type index) and forward (handle, actor, state) to each hook.
- * Confirmed: state+0x30/0x31/0x34/0x38 accessed; actor+0x668/0x66a/0x66c
- *   debug counters. */
-char firing_position_forced_evaluation(void *state, int actor_handle, char *actor)
+ *   Calls firing_position_pre_evaluate, firing_position_compute_line_of_sight,
+ * firing_position_post_evaluate. Confirmed: firing_position_pre_evaluate takes
+ * actor@<edi> + state@<ebx> pass-throughs — original 0x25988 MOV EDI,ESI and
+ * 0x25974 MOV EBX,EAX before the call; 24850/24890 gate hook tables
+ * (0x254bf8/0x254c30) on 1<<[actor+4] (actor type index) and forward (handle,
+ * actor, state) to each hook. Confirmed: state+0x30/0x31/0x34/0x38 accessed;
+ * actor+0x668/0x66a/0x66c debug counters. */
+char firing_position_forced_evaluation(void *state, int actor_handle,
+                                       char *actor)
 {
   char result;
 
@@ -6482,7 +6633,7 @@ char firing_position_forced_evaluation(void *state, int actor_handle, char *acto
  * EBP-0x140e0 (82080 bytes); ray-init struct at EBP-0x54 (84 bytes). Source
  * file string: c:\halo\SOURCE\ai\actor_firing_position.c */
 char actor_nearby_firing_positions(int actor_handle, float *position,
-                                          int surface_index, int group_mask)
+                                   int surface_index, int group_mask)
 {
   /* C89: all declarations at top */
   char *actor;
@@ -6591,7 +6742,8 @@ char actor_nearby_firing_positions(int actor_handle, float *position,
   return 0;
 }
 
-/* actor_select_firing_position (0x25c10) — actor_firing_position evaluate/select.
+/* actor_select_firing_position (0x25c10) — actor_firing_position
+ * evaluate/select.
  *
  * Main entry point for choosing an actor's firing position within its
  * encounter.  Populates the caller-supplied evaluation context (eval_ctx),
@@ -6633,8 +6785,8 @@ char actor_nearby_firing_positions(int actor_handle, float *position,
  * Confirmed: scorer table at 0x254bf8 (8-byte entries: mask word at -4,
  *   fn at +0): fn(actor_handle, ctx, rec_count, records) — pushes
  *   ECX(records) EDX(count) EBX(ctx) EAX(actor) at 0x26da0.
- * Confirmed: sort FUN_00091ef0(order, count, firing_position_compare) with record
- *   base/count published to 0x331f04/0x331f00 (0x26de8/0x26def).
+ * Confirmed: sort FUN_00091ef0(order, count, firing_position_compare) with
+ * record base/count published to 0x331f04/0x331f00 (0x26de8/0x26def).
  * Confirmed: path_state_estimated_distance is 6-arg cdecl (ADD ESP,0x18):
  *   main loop (huge_buf, pos, pos[0x14], rec+0x8, rec+0x1c,
  *   ctx[0x40] ? rec+0xc : 0) at 0x26c50; refine loop (path_eval, pos,
@@ -6649,8 +6801,9 @@ char actor_nearby_firing_positions(int actor_handle, float *position,
  *   LEA at 0x269f4) is distinct from the huge_buf parameter.
  * Confirmed: returns AX=[EBP-0x30]; on success AX=rec[+0x4] and
  *   *out_owner=owner_indices[fp_idx] (0x27058-0x27072). */
-short actor_select_firing_position(int actor_handle, void *eval_ctx, int *out_record,
-                   int *out_owner, void *huge_buf, int *out_found)
+short actor_select_firing_position(int actor_handle, void *eval_ctx,
+                                   int *out_record, int *out_owner,
+                                   void *huge_buf, int *out_found)
 {
   char path_eval_scratch[0x1408c]; /* EBP-0x1c91c local path-eval state */
   char records[0x200 * 0x3c]; /* EBP-0x8890 candidate records */
@@ -6925,8 +7078,8 @@ short actor_select_firing_position(int actor_handle, void *eval_ctx, int *out_re
               *(short *)(ctx + *(short *)(ctx + 0x254) * 0x1c + 0x25c) = 2;
               *(vector3_t *)(ctx + *(short *)(ctx + 0x254) * 0x1c + 0x260) =
                 *(vector3_t *)(it + 0xbc);
-              unit_get_aiming_vector(
-                aim, ctx + *(short *)(ctx + 0x254) * 0x1c + 0x26c);
+              unit_get_aiming_vector(aim, ctx + *(short *)(ctx + 0x254) * 0x1c +
+                                            0x26c);
               *(short *)(ctx + 0x254) = *(short *)(ctx + 0x254) + 1;
               *(short *)(ctx + 0x258) = *(short *)(ctx + 0x258) + 1;
             }
@@ -6976,9 +7129,9 @@ short actor_select_firing_position(int actor_handle, void *eval_ctx, int *out_re
             *(int *)((char *)fp + 0x14) != -1) {
           int keep = 1;
           if (*(short *)(ctx + 0x4) == 5) {
-            if (actor_nearby_firing_positions(
-                  actor_handle, (float *)fp, *(int *)((char *)fp + 0x14), 1) ==
-                '\0')
+            if (actor_nearby_firing_positions(actor_handle, (float *)fp,
+                                              *(int *)((char *)fp + 0x14),
+                                              1) == '\0')
               keep = 0;
           }
           if (keep) {
@@ -7205,8 +7358,8 @@ short actor_select_firing_position(int actor_handle, void *eval_ctx, int *out_re
                      "c:\\halo\\SOURCE\\ai\\actor_firing_position.c", 0x83c, 1);
       system_exit(-1);
     }
-    rec_idx = seed_random_range((unsigned int *)get_global_random_seed_address(), 0,
-                           (short)rec_count);
+    rec_idx = seed_random_range(
+      (unsigned int *)get_global_random_seed_address(), 0, (short)rec_count);
     *(char *)out_found = 0;
     selected = rec_idx;
     {
@@ -7257,13 +7410,15 @@ short actor_select_firing_position(int actor_handle, void *eval_ctx, int *out_re
     }
     *(short *)0x331f00 = (short)rec_count;
     *(int *)0x331f04 = (int)records;
-    /* firing_position_compare returns its verdict in AL only (see its comment in
-     * actor_firing_position.c), so kb.json declares it bool while the generic
-     * sort's comparator slot is int(*)(int,int). The cast reconciles the two
-     * declarations without changing either; no code is emitted for it. */
+    /* firing_position_compare returns its verdict in AL only (see its comment
+     * in actor_firing_position.c), so kb.json declares it bool while the
+     * generic sort's comparator slot is int(*)(int,int). The cast reconciles
+     * the two declarations without changing either; no code is emitted for it.
+     */
     FUN_00091ef0(order, (short)rec_count,
                  (int (*)(int, int))firing_position_compare);
-    *(char *)(ctx + 0x65c) = firing_positions_get_post_evaluation_bound(actor_handle, ctx);
+    *(char *)(ctx + 0x65c) =
+      firing_positions_get_post_evaluation_bound(actor_handle, ctx);
 
     i = 0;
     if ((short)rec_count > 0) {
@@ -7358,13 +7513,14 @@ short actor_select_firing_position(int actor_handle, void *eval_ctx, int *out_re
   return (short)selected;
 }
 
-/* actor_active_select_firing_position (0x27090) — Select firing position for actor.
- * Sets up eval_ctx group bitmasks, calls actor_select_firing_position; falls back to
- * cached actor fp_index on miss.
- * Confirmed: allowed_groups from actor_get_firing_position_group 0/2/1.
- * Confirmed: ctx[0]=total, ctx[0x12]=allowed, ctx[0x13]=0x41000000. */
-short actor_active_select_firing_position(int actor_handle, void *param_2, void *param_3,
-                   void *param_4, void *param_5, void *param_6)
+/* actor_active_select_firing_position (0x27090) — Select firing position for
+ * actor. Sets up eval_ctx group bitmasks, calls actor_select_firing_position;
+ * falls back to cached actor fp_index on miss. Confirmed: allowed_groups from
+ * actor_get_firing_position_group 0/2/1. Confirmed: ctx[0]=total,
+ * ctx[0x12]=allowed, ctx[0x13]=0x41000000. */
+short actor_active_select_firing_position(int actor_handle, void *param_2,
+                                          void *param_3, void *param_4,
+                                          void *param_5, void *param_6)
 {
   char *actor;
   unsigned int allowed;
@@ -7408,8 +7564,8 @@ short actor_active_select_firing_position(int actor_handle, void *param_2, void 
     }
     *(char *)((char *)param_2 + 0x14) = 1;
 
-    fp_idx =
-      actor_select_firing_position(actor_handle, param_2, param_3, param_4, param_5, param_6);
+    fp_idx = actor_select_firing_position(actor_handle, param_2, param_3,
+                                          param_4, param_5, param_6);
 
     if (fp_idx != -1) {
       if ((allowed &
@@ -7450,10 +7606,12 @@ short actor_active_select_firing_position(int actor_handle, void *param_2, void 
       /* Original 0x2728d: MOV EAX,EDI (state@eax = param_3, the firing-position
        * record just built above) and ESI = param_2 (the eval ctx) is the
        * actor@esi pass-through.  The prior lift wrongly passed param_2 as the
-       * record and the local `actor` datum as the ctx, so pre_evaluator_global scored
-       * the ctx buffer (whose [0] = group bitmask = total) as a firing-position
-       * record and dereferenced total (=1) as a position pointer -> PoA AV. */
-      if (!firing_position_forced_evaluation(param_3, actor_handle, (char *)param_2)) {
+       * record and the local `actor` datum as the ctx, so pre_evaluator_global
+       * scored the ctx buffer (whose [0] = group bitmask = total) as a
+       * firing-position record and dereferenced total (=1) as a position
+       * pointer -> PoA AV. */
+      if (!firing_position_forced_evaluation(param_3, actor_handle,
+                                             (char *)param_2)) {
         existing_fp = -1;
         ((actor_t *)actor)->firing_positions_current_position_index = -1;
       }
@@ -7478,8 +7636,9 @@ short actor_active_select_firing_position(int actor_handle, void *param_2, void 
  * Confirmed: datum_get(actor_data, actor_handle) at 0x272e3.
  * Confirmed: assert on actor->meta.encounter_index != NONE at 0x27305.
  * Confirmed: actor_move_to_firing_position = attempt move to position. */
-short actor_change_firing_position(int actor_handle, short param_2, void *param_3, int param_4,
-                   unsigned int param_5, char param_6)
+short actor_change_firing_position(int actor_handle, short param_2,
+                                   void *param_3, int param_4,
+                                   unsigned int param_5, char param_6)
 {
   char *actor;
   char *prev_actor;
@@ -7497,9 +7656,9 @@ short actor_change_firing_position(int actor_handle, short param_2, void *param_
     if (((actor_t *)actor)->firing_positions_current_position_index != -1 &&
         ((actor_t *)actor)->firing_positions_current_position_index !=
           param_2) {
-      actor_discard_firing_position(actor_handle,
-                   ((actor_t *)actor)->firing_positions_current_position_index,
-                   1);
+      actor_discard_firing_position(
+        actor_handle,
+        ((actor_t *)actor)->firing_positions_current_position_index, 1);
     }
     if (param_4 != -1) {
       prev_actor = (char *)datum_get(actor_data, param_4);
@@ -7537,8 +7696,8 @@ done:
   return ((actor_t *)actor)->firing_positions_current_position_index;
 }
 
-/* pre_evaluator_attack (0x27410) — Firing-position preferred-range and attack-vector
- * scorer.
+/* pre_evaluator_attack (0x27410) — Firing-position preferred-range and
+ * attack-vector scorer.
  *
  * Source file: c:\halo\SOURCE\ai\actor_firing_position.c
  *
@@ -7547,10 +7706,11 @@ done:
  *   +0x30: char active_flag     +0x38: float score accumulator
  *
  * Pass 1 (ctx+0x5fc gate): weapon optimal-range score + actor preferred-range
- *   score via firing_position_store_evaluation_debug (type=0xd). Preferred-range min floored by
- *   ctx+0x658 and combat+0x40c; gap = min(max-range, range-min).
- * Pass 2 (ctx+0x258 > 0 gate): finds closest type-2 attack vector, projects
- *   position onto its plane (dot>0 only), scores by perpendicular distance.
+ *   score via firing_position_store_evaluation_debug (type=0xd).
+ * Preferred-range min floored by ctx+0x658 and combat+0x40c; gap =
+ * min(max-range, range-min). Pass 2 (ctx+0x258 > 0 gate): finds closest type-2
+ * attack vector, projects position onto its plane (dot>0 only), scores by
+ * perpendicular distance.
  *
  * Confirmed: datum_get at 0x27421; actor_combat_get_firing_variant_definition
  *   at 0x2742a; position ptr at entry+0x0 (MOV EAX,[ECX-0x38] at 0x27734).
@@ -7558,7 +7718,7 @@ done:
  * Confirmed: attack-vector fields at ctx+i*0x1c+{0x25c type, 0x260 origin,
  * 0x26c normal}. */
 void pre_evaluator_attack(int actor_handle, void *ctx, unsigned short fp_count,
-                  void *fp_array)
+                          void *fp_array)
 {
   char *actor;
   char *variant_def;
@@ -7638,7 +7798,8 @@ void pre_evaluator_attack(int actor_handle, void *ctx, unsigned short fp_count,
           } else if (0.0f < gap) {
             pref_score = gap * *(float *)0x253398 * *(float *)0x254cd0;
           }
-          firing_position_store_evaluation_debug(ctx, pref_score, 0xd, (char *)fp_array - 0x38);
+          firing_position_store_evaluation_debug(ctx, pref_score, 0xd,
+                                                 (char *)fp_array - 0x38);
         }
       }
 
@@ -7870,7 +8031,7 @@ int actor_look_get_looking_definition(int actor_handle)
  * at EBP-0x34; literal XBE addresses 0x2551e0..0x255178 (type) and
  * 0x255244..0x2551ec (prio). */
 int actor_look_secondary(int actor_handle, short look_type, short priority,
-                 short *look_buf)
+                         short *look_buf)
 {
   char *actor;
   char *tag;
@@ -8075,8 +8236,8 @@ bool actor_look_valid_aim_vector(float *dir, float *vec2, float threshold)
  *
  * Confirmed: EAX=dir, ECX=vec2, EDX=limit, EBP+8=threshold,
  *   EBP+0xC=output.  FSQRT/FDIV/FMUL/FCOMPP + magnitude3d. */
-bool actor_look_valid_look_vector(float *dir, float *vec2, float *limit, float threshold,
-                  float *output)
+bool actor_look_valid_look_vector(float *dir, float *vec2, float *limit,
+                                  float threshold, float *output)
 {
   float tmp[3];
   float len;
@@ -8120,12 +8281,14 @@ bool actor_look_valid_look_vector(float *dir, float *vec2, float *limit, float t
   return 0;
 }
 
-/* actor_looking_test_validity (0x27f40) — Actor look-at angle constraint evaluator.
- * Gets actor tag, computes pitch/yaw cosines based on combat state,
- * and invokes actor_look_valid_aim_vector/actor_look_valid_look_vector to fill two output flags.
+/* actor_looking_test_validity (0x27f40) — Actor look-at angle constraint
+ * evaluator. Gets actor tag, computes pitch/yaw cosines based on combat state,
+ * and invokes actor_look_valid_aim_vector/actor_look_valid_look_vector to fill
+ * two output flags.
  *
  * Confirmed: EDI=actor, EBX=dir_ptr, out1/out2 at EBP+0x10/0x14. */
-void actor_looking_test_validity(int actor_handle, void *dir_ptr, void *out1, void *out2)
+void actor_looking_test_validity(int actor_handle, void *dir_ptr, void *out1,
+                                 void *out2)
 {
   char *actor;
   char *tag_data;
@@ -8155,13 +8318,14 @@ void actor_looking_test_validity(int actor_handle, void *dir_ptr, void *out1, vo
  * Evaluates firing positions for an actor's look-at target.
  * Iterates over firing positions via object iterator, scores each
  * by recency and distance, checks direction constraints via
- * actor_look_valid_aim_vector/actor_look_valid_look_vector, and returns the best candidate.
+ * actor_look_valid_aim_vector/actor_look_valid_look_vector, and returns the
+ * best candidate.
  *
  * Confirmed: param_1=actor_handle, param_2/param_3=direction flags,
  *   param_4=output struct (short result, int index), param_5=out_flag.
  *   Returns true if a suitable firing position was found. */
-char actor_look_idle_find_prop(int actor_handle, char param_2, char param_3, short *output,
-                  char *out_flag)
+char actor_look_idle_find_prop(int actor_handle, char param_2, char param_3,
+                               short *output, char *out_flag)
 {
   char *actor;
   char *tag_data;
@@ -8246,9 +8410,9 @@ char actor_look_idle_find_prop(int actor_handle, char param_2, char param_3, sho
       if (item_score > 0.0f) {
         check_result = 0;
         if (param_3 == 0) {
-          check_result =
-            (char)actor_look_valid_look_vector((float *)(item + 0xe0), (float *)(actor + 0x5b0),
-                               (float *)(actor + 0x5a4), tag_fov, &cos_yaw);
+          check_result = (char)actor_look_valid_look_vector(
+            (float *)(item + 0xe0), (float *)(actor + 0x5b0),
+            (float *)(actor + 0x5a4), tag_fov, &cos_yaw);
         } else if (param_2 == 0 || item_flag == 0) {
           check_result = (char)actor_look_valid_aim_vector(
             (float *)(item + 0xe0), (float *)(actor + 0x5a4), tag_threshold);
@@ -8299,8 +8463,9 @@ char actor_look_idle_find_prop(int actor_handle, char param_2, char param_3, sho
  *   actor+0x564 = FUN_00028250 result; actor+0x570 = output look direction
  * vec3. Returns 1 (char) if FUN_00028250 found a valid look target, 0
  * otherwise. */
-char actor_look_idle_new_major_direction(float *look_vectors, float *dir_vec, char look_mode,
-                  char is_aim, char is_secondary, int actor_handle)
+char actor_look_idle_new_major_direction(float *look_vectors, float *dir_vec,
+                                         char look_mode, char is_aim,
+                                         char is_secondary, int actor_handle)
 {
   char *actor;
   int tag_data;
@@ -8318,8 +8483,8 @@ char actor_look_idle_new_major_direction(float *look_vectors, float *dir_vec, ch
   ((actor_t *)actor)->control_idle_major_active = 0;
 
   if (is_secondary != '\0' ||
-      actor_look_idle_find_prop(actor_handle, look_mode, is_aim, (short *)(actor + 0x56c),
-                   &local_c) == '\0') {
+      actor_look_idle_find_prop(actor_handle, look_mode, is_aim,
+                                (short *)(actor + 0x56c), &local_c) == '\0') {
     local_dir[0] = dir_vec[0];
     local_dir[1] = dir_vec[1];
     local_dir[2] = dir_vec[2];
@@ -8397,7 +8562,9 @@ char actor_look_idle_new_major_direction(float *look_vectors, float *dir_vec, ch
  * FUN_000283b0); FUN_000283b0 called with 7 cdecl + 1 @<eax> = idle_direction;
  *   FUN_00028250 called with ESI=actor_handle (preserved), EDI=2, cdecl
  *   (look_vectors, flag_byte). Output vec3 written to actor+0x580/584/588. */
-void actor_look_idle_new_minor_direction(float *look_vectors, float *idle_direction, int actor_handle)
+void actor_look_idle_new_minor_direction(float *look_vectors,
+                                         float *idle_direction,
+                                         int actor_handle)
 {
   char *actor;
   int tag_data;
@@ -8415,8 +8582,8 @@ void actor_look_idle_new_minor_direction(float *look_vectors, float *idle_direct
   flag_byte = 0;
   ((actor_t *)actor)->control_idle_minor_active = 0;
 
-  look_found =
-    actor_look_idle_find_prop(actor_handle, 0, 0, (short *)(actor + 0x57c), &flag_byte);
+  look_found = actor_look_idle_find_prop(actor_handle, 0, 0,
+                                         (short *)(actor + 0x57c), &flag_byte);
   if (!look_found) {
     /* az_range = min(tag[0xac], tag[0xcc]) */
     if (*(float *)(tag_data + 0xac) <= *(float *)(tag_data + 0xcc)) {
@@ -8452,8 +8619,8 @@ void actor_look_idle_new_minor_direction(float *look_vectors, float *idle_direct
          RETURN early — do NOT call FUN_00028250 or arm the look gate. The
          prior lift dropped this early-out and fell through, arming +0x55f
          over a stale +0x57c==4 / (0,0,0) +0x580. That degenerate look-spec
-         was later copied by actor_look_decode_direction case 4 (actor_looking.c:8894),
-         bypassing its magnitude gate, and halted at
+         was later copied by actor_look_decode_direction case 4
+         (actor_looking.c:8894), bypassing its magnitude gate, and halted at
          actor_looking.c:529 assert_valid_real_normal3d(0,0,0) during PoA
          combat actor activation. */
       return;
@@ -8472,23 +8639,24 @@ void actor_look_idle_new_minor_direction(float *look_vectors, float *idle_direct
   }
 }
 
-/* look_spec_28660_safe — wrapper around actor_look_decode_direction that guards against the
-   actor_looking.c:529 halt on a degenerate (0,0,0) look-spec.
+/* look_spec_28660_safe — wrapper around actor_look_decode_direction that guards
+   against the actor_looking.c:529 halt on a degenerate (0,0,0) look-spec.
 
-   actor_look_decode_direction builds a look direction from a look-spec. Its NORMALIZE cases
-   (type 0/1/3/5/6) pass a (0,0,0) through normalize3d, whose magnitude gate
-   makes 28660 silently return 0. But its COPY cases — type 2 (actor+0x68c /
-   actor+0x63c) and type 4 (look_spec+4) — copy the stored vector directly,
-   bypassing that gate, and a (0,0,0) there reaches assert_valid_real_normal3d
-   and HALTS at line 529.
+   actor_look_decode_direction builds a look direction from a look-spec. Its
+   NORMALIZE cases (type 0/1/3/5/6) pass a (0,0,0) through normalize3d, whose
+   magnitude gate makes 28660 silently return 0. But its COPY cases — type 2
+   (actor+0x68c / actor+0x63c) and type 4 (look_spec+4) — copy the stored vector
+   directly, bypassing that gate, and a (0,0,0) there reaches
+   assert_valid_real_normal3d and HALTS at line 529.
 
    Such a degenerate copy-case look-spec arises during actor activation: the
-   idle look producer actor_look_idle_new_major_direction sets the look-spec type (e.g. +0x56c=4)
-   BEFORE calling FUN_000283b0, which writes the look vector ONLY on success.
-   When 283b0's collision raycast (FUN_0014df70) finds no clear direction in
-   any of its attempts it returns false and leaves the vector unwritten — so a
-   never-initialised (0,0,0) survives with the type already armed. The slot is
-   then copied (+0x56c -> +0x57c) and consumed by 28660 case 4 (line 8894).
+   idle look producer actor_look_idle_new_major_direction sets the look-spec
+   type (e.g. +0x56c=4) BEFORE calling FUN_000283b0, which writes the look
+   vector ONLY on success. When 283b0's collision raycast (FUN_0014df70) finds
+   no clear direction in any of its attempts it returns false and leaves the
+   vector unwritten — so a never-initialised (0,0,0) survives with the type
+   already armed. The slot is then copied (+0x56c -> +0x57c) and consumed by
+   28660 case 4 (line 8894).
 
    In a RELEASE build 28660 would simply return 0 here (valid_real_normal3d
    fails, asserts compiled out); we replicate exactly that — return 0 ("no
@@ -8520,9 +8688,10 @@ static char look_spec_28660_safe(int actor_handle, char *actor,
     tgt = (float *)((char *)look_spec + 4);
   }
   if (tgt != 0) {
-    /* Replicate actor_look_decode_direction's own valid_real_normal3d (0x21fb0) gate exactly:
-       skip (return 0, "no valid look this tick") unless the copy-case vector is
-       a true unit normal -- |dot(v,v) - 1| < 0.001 and not NaN/Inf. The earlier
+    /* Replicate actor_look_decode_direction's own valid_real_normal3d (0x21fb0)
+       gate exactly: skip (return 0, "no valid look this tick") unless the
+       copy-case vector is a true unit normal -- |dot(v,v) - 1| < 0.001 and not
+       NaN/Inf. The earlier
        `!(m2 >= 1e-8f)` form only closed the LOWER bound: it rejected
        (0,0,0)/tiny/NaN but PASSED a finite-but-huge uninitialized component
        (live: +0x570 X = -3.5e31), whose squared length overflows to +inf,
@@ -8543,11 +8712,11 @@ static char look_spec_28660_safe(int actor_handle, char *actor,
  * and writes the final facing/aiming/looking vectors to actor output fields.
  *
  * Confirmed: all 13 look-vector call sites traced from disasm -- 8 to
- *   actor_look_valid_aim_vector and 5 to actor_look_valid_look_vector, per the relocations in
- *   delinked/actor_looking_FUN_00029040.obj (objdump -dr)
- *   (EAX=dir, EDX=vec2 at each CALL); actor_look_valid_look_vector takes 2 extra cdecl args
- *   (constrain_range, cos_limits); FUN_00028250/28cc0/28ed0 all take
- *   actor_handle via register (@<esi>, @<eax>, @<eax> respectively).
+ *   actor_look_valid_aim_vector and 5 to actor_look_valid_look_vector, per the
+ * relocations in delinked/actor_looking_FUN_00029040.obj (objdump -dr)
+ *   (EAX=dir, EDX=vec2 at each CALL); actor_look_valid_look_vector takes 2
+ * extra cdecl args (constrain_range, cos_limits); FUN_00028250/28cc0/28ed0 all
+ * take actor_handle via register (@<esi>, @<eax>, @<eax> respectively).
  *   primary_vec/secondary_vec/cos_angles are contiguous stack buffers
  *   passed by address to callees — lift-learnings #2 applies. */
 void actor_look_update(int actor_handle)
@@ -8665,7 +8834,8 @@ void actor_look_update(int actor_handle)
     cos_angles[1] = x87_fcos(*(float *)(tag_data + 0xb8));
   }
   /* Determine primary look mode */
-  if (actor_combat_currently_firing_burst(actor_handle) && !((actor_t *)actor)->field_456) {
+  if (actor_combat_currently_firing_burst(actor_handle) &&
+      !((actor_t *)actor)->field_456) {
     look_spec_type = 2;
     if (look_spec_28660_safe(actor_handle, actor, &look_spec_type,
                              primary_vec)) {
@@ -8746,8 +8916,8 @@ void actor_look_update(int actor_handle)
   /* Apply primary_vec if look_mode >= 2 */
   if (look_mode >= 2) {
     if (look_mode < 5 ||
-        (snap_flag == 0 &&
-         !actor_look_valid_aim_vector(primary_vec, desired_facing, aim_threshold))) {
+        (snap_flag == 0 && !actor_look_valid_aim_vector(
+                             primary_vec, desired_facing, aim_threshold))) {
       if (look_mode >= 3 && transient_aim) {
         transient_aim = 0;
         snap_flag = 1;
@@ -8793,7 +8963,8 @@ void actor_look_update(int actor_handle)
   case 4:
   case 5:
   case 6:
-    in_range = actor_look_valid_aim_vector(secondary_vec, desired_facing, aim_threshold);
+    in_range =
+      actor_look_valid_aim_vector(secondary_vec, desired_facing, aim_threshold);
     if (!no_timing_window) {
       if (want_secondary)
         goto LAB_000296af;
@@ -8848,8 +9019,9 @@ void actor_look_update(int actor_handle)
       goto LAB_000297b8;
     }
   LAB_000296af:
-    if (use_aim && actor_look_valid_look_vector(secondary_vec, desired_aiming, desired_facing,
-                                constrain_range, cos_angles)) {
+    if (use_aim && actor_look_valid_look_vector(secondary_vec, desired_aiming,
+                                                desired_facing, constrain_range,
+                                                cos_angles)) {
       desired_looking[0] = secondary_vec[0];
       desired_looking[1] = secondary_vec[1];
       desired_looking[2] = secondary_vec[2];
@@ -8872,7 +9044,8 @@ void actor_look_update(int actor_handle)
     idle_major_active = (char)(secondary_mode == 8);
     no_timing_window = idle_major_active;
     if (!((actor_t *)actor)->field_58d) {
-      if (!actor_look_valid_aim_vector(secondary_vec, desired_facing, aim_threshold)) {
+      if (!actor_look_valid_aim_vector(secondary_vec, desired_facing,
+                                       aim_threshold)) {
         if (!actor_move_force_stop(actor_handle))
           goto LAB_000297c7;
         no_timing_window = 1;
@@ -9035,8 +9208,8 @@ LAB_000297c7:
 
   /* has_primary is the FALLTHROUGH arm in the original: at ~0x29ac6
    * movb -0x1(%ebp),%al; testb; je LAB_00029b3e jumps AWAY to the
-   * actor_look_valid_look_vector arm. The second test is on look_forced alone -- the
-   * triple above has already set it, so re-testing the triple is
+   * actor_look_valid_look_vector arm. The second test is on look_forced alone
+   * -- the triple above has already set it, so re-testing the triple is
    * redundant (original tests only -0x24(%ebp) at LAB_00029adb). */
   if (has_primary) {
     if (snap_flag && no_timing_window && ((actor_t *)actor)->field_099) {
@@ -9052,7 +9225,8 @@ LAB_000297c7:
       desired_aiming[2] = primary_vec[2];
       ((actor_t *)actor)->field_58c = 1;
     } else {
-      if (!actor_look_valid_aim_vector(primary_vec, desired_facing, aim_threshold))
+      if (!actor_look_valid_aim_vector(primary_vec, desired_facing,
+                                       aim_threshold))
         goto LAB_00029ccc;
       desired_aiming[0] = primary_vec[0];
       desired_aiming[1] = primary_vec[1];
@@ -9060,8 +9234,9 @@ LAB_000297c7:
       ((actor_t *)actor)->field_58c = 1;
     }
   } else {
-    if (!actor_look_valid_look_vector(primary_vec, desired_aiming, desired_facing,
-                      constrain_range, cos_angles))
+    if (!actor_look_valid_look_vector(primary_vec, desired_aiming,
+                                      desired_facing, constrain_range,
+                                      cos_angles))
       goto LAB_00029ccc;
     desired_looking[0] = primary_vec[0];
     desired_looking[1] = primary_vec[1];
@@ -9107,7 +9282,8 @@ LAB_00029c00:
     ((actor_t *)actor)->control_idle_minor_active = 0;
   } else {
     if (!((actor_t *)actor)->control_idle_minor_timer) {
-      actor_look_idle_new_minor_direction((float *)look_data_mode, primary_vec, actor_handle);
+      actor_look_idle_new_minor_direction((float *)look_data_mode, primary_vec,
+                                          actor_handle);
       if (!(((actor_t *)actor)->control_idle_minor_timer > 0)) {
         display_assert("actor->control.idle_minor_timer > 0",
                        "c:\\halo\\SOURCE\\ai\\actor_looking.c", 0x62d, 1);
@@ -9124,10 +9300,12 @@ LAB_00029c00:
          * `movb -0x5(%ebp),%bl; testb %bl,%bl; je LAB_00029ceb`, jumping
          * AWAY to the actor_look_valid_look_vector arm. */
         if (want_secondary)
-          cVar7 = actor_look_valid_aim_vector(primary_vec, desired_facing, aim_threshold);
+          cVar7 = actor_look_valid_aim_vector(primary_vec, desired_facing,
+                                              aim_threshold);
         else
-          cVar7 = actor_look_valid_look_vector(primary_vec, desired_aiming, desired_facing,
-                               constrain_range, cos_angles);
+          cVar7 = actor_look_valid_look_vector(primary_vec, desired_aiming,
+                                               desired_facing, constrain_range,
+                                               cos_angles);
         if (cVar7) {
           if (!valid_real_normal3d(primary_vec)) {
             display_assert(
@@ -9164,16 +9342,19 @@ LAB_00029dac:
   if (!((actor_t *)actor)->field_504 && !((actor_t *)actor)->field_505 &&
       !unit_is_busy(((actor_t *)actor)->field_018) &&
       ((actor_t *)actor)->field_158 == -1) {
-    if (actor_look_valid_aim_vector(desired_aiming, desired_facing, aim_threshold) &&
+    if (actor_look_valid_aim_vector(desired_aiming, desired_facing,
+                                    aim_threshold) &&
         !actor_look_valid_aim_vector(desired_aiming, (float *)(actor + 0x174),
-                      aim_threshold)) {
+                                     aim_threshold)) {
       goto LAB_00029e4a;
     }
     if (is_attacking &&
-        actor_look_valid_look_vector(desired_looking, desired_aiming, desired_facing,
-                     constrain_range, cos_angles) &&
-        !actor_look_valid_look_vector(desired_looking, desired_aiming, (float *)(actor + 0x174),
-                      constrain_range, cos_angles)) {
+        actor_look_valid_look_vector(desired_looking, desired_aiming,
+                                     desired_facing, constrain_range,
+                                     cos_angles) &&
+        !actor_look_valid_look_vector(desired_looking, desired_aiming,
+                                      (float *)(actor + 0x174), constrain_range,
+                                      cos_angles)) {
     LAB_00029e4a:
       ((actor_t *)actor)->field_591 = 1;
     }
@@ -9264,7 +9445,8 @@ LAB_00029e6d:
          * `je` fires when C0=C3=0, i.e. dot > snap_cos -- the snap is KEPT
          * while the vector is still inside the cone. This lift had the
          * test inverted (dot <= snap_cos), clearing actor+0x590 and
-         * calling actor_stimulus_abandon_stationary_facing exactly when it should have been left. */
+         * calling actor_stimulus_abandon_stationary_facing exactly when it
+         * should have been left. */
         if (dot4 > snap_cos)
           goto LAB_0002a0c3;
       }
@@ -9372,14 +9554,14 @@ LAB_0002a0c3:
  *
  * Reads the actor record and the look-specification slot at actor+0x3ec.
  * If the spec type word (actor+0x3ec) is 0 (no look command active) and the
- * actor is not in a vehicle (actor_path_has_path returns 0), the look-priority word
- * at actor+0x3e8 is reset to 0.
+ * actor is not in a vehicle (actor_path_has_path returns 0), the look-priority
+ * word at actor+0x3e8 is reset to 0.
  *
  * If the look-priority (actor+0x3e8) is > 2 AND a look spec is active
- * (actor+0x3ec != 0), actor_look_decode_direction is called with EBX=&actor[0x3ec] and
- * EDI=&actor[0x524] (the look-direction float[3] output buffer).  On success
- * actor+0x505 is set to 1; on failure or when no look spec is active it is
- * set to 0.
+ * (actor+0x3ec != 0), actor_look_decode_direction is called with
+ * EBX=&actor[0x3ec] and EDI=&actor[0x524] (the look-direction float[3] output
+ * buffer).  On success actor+0x505 is set to 1; on failure or when no look spec
+ * is active it is set to 0.
  *
  * Confirmed: cdecl, single stack arg (actor_handle).
  * Confirmed: datum_get(actor_data=DAT_006325a4, actor_handle) at 0x2a2c0.
@@ -9389,12 +9571,13 @@ LAB_0002a0c3:
  * Confirmed: MOV word [ESI+0x3e8],0x0 at 0x2a2e3 when spec==0 && not mounted.
  * Confirmed: CMP word [ESI+0x3e8],0x3 (JL skip) at 0x2a2ec; CMP [EBX],0x0 (JZ
  * skip). Confirmed: LEA EDI,[ESI+0x524] at 0x2a2ff; PUSH actor_handle; CALL
- * 0x28660. Confirmed: actor_look_decode_direction register args: EBX=short*look_spec,
- * EDI=float*direction. Confirmed: MOV byte [ESI+0x505],0x1 on success at
- * 0x2a313; RET. Confirmed: MOV byte [ESI+0x505],0x0 on fallthrough at 0x2a31f;
- * RET. Inferred: actor+0x3e8 = look priority (int16_t); actor+0x3ec = look spec
- * type (int16_t). Inferred: actor+0x505 = look-direction valid flag (char).
- * Inferred: actor+0x524 = computed look direction (float[3]). */
+ * 0x28660. Confirmed: actor_look_decode_direction register args:
+ * EBX=short*look_spec, EDI=float*direction. Confirmed: MOV byte [ESI+0x505],0x1
+ * on success at 0x2a313; RET. Confirmed: MOV byte [ESI+0x505],0x0 on
+ * fallthrough at 0x2a31f; RET. Inferred: actor+0x3e8 = look priority (int16_t);
+ * actor+0x3ec = look spec type (int16_t). Inferred: actor+0x505 =
+ * look-direction valid flag (char). Inferred: actor+0x524 = computed look
+ * direction (float[3]). */
 void actor_look_affect_movement(int actor_handle)
 {
   char *actor = (char *)datum_get(actor_data, actor_handle);
@@ -9405,7 +9588,8 @@ void actor_look_affect_movement(int actor_handle)
       ((actor_t *)actor)->field_3e8 = 0;
   }
   if (((actor_t *)actor)->field_3e8 >= 3 && *look_spec != 0) {
-    if (actor_look_decode_direction(actor_handle, look_spec, (float *)(actor + 0x524))) {
+    if (actor_look_decode_direction(actor_handle, look_spec,
+                                    (float *)(actor + 0x524))) {
       actor[0x505] = 1;
       return;
     }
@@ -9413,8 +9597,8 @@ void actor_look_affect_movement(int actor_handle)
   actor[0x505] = 0;
 }
 
-/* actor_move_keep_moving_past_destination (0x2a330) — Set actor 'looking' active flags.
- * Sets the byte at actor+0x402 and actor+0x46e both to 1. */
+/* actor_move_keep_moving_past_destination (0x2a330) — Set actor 'looking'
+ * active flags. Sets the byte at actor+0x402 and actor+0x46e both to 1. */
 void actor_move_keep_moving_past_destination(int actor_handle)
 {
   char *actor;
@@ -9439,9 +9623,9 @@ __declspec(noinline) char actor_path_has_path(int actor_handle)
   return actor[0x4a8];
 }
 
-/* actor_path_at_destination (0x2a3f0) — Check if actor can move (not on active path and
- * is_moving). Returns 0 if path_active (+0x4a8) is set AND is_moving (+0x484)
- * is clear, else 1. */
+/* actor_path_at_destination (0x2a3f0) — Check if actor can move (not on active
+ * path and is_moving). Returns 0 if path_active (+0x4a8) is set AND is_moving
+ * (+0x484) is clear, else 1. */
 __declspec(noinline) int actor_path_at_destination(int actor_handle)
 {
   char *actor;
@@ -9452,8 +9636,9 @@ __declspec(noinline) int actor_path_at_destination(int actor_handle)
   return 1;
 }
 
-/* actor_path_get_destination_firing_position_index (0x2a430) — Get actor activation value if activation state is 3.
- * Returns actor[+0x470] (short) if actor[+0x46c] == 3, else -1. */
+/* actor_path_get_destination_firing_position_index (0x2a430) — Get actor
+ * activation value if activation state is 3. Returns actor[+0x470] (short) if
+ * actor[+0x46c] == 3, else -1. */
 short actor_path_get_destination_firing_position_index(int actor_handle)
 {
   char *actor;

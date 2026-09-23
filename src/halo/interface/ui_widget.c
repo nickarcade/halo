@@ -207,12 +207,14 @@ void ui_widgets_inhibit_processing(bool suppress)
   *(uint8_t *)0x46cc85 = (uint8_t)suppress;
 }
 
-/* widget_instance_get_topmost_parent (0xe4310) — walks the parent chain (field +0x30,
- * the same field walked by widget_instance_give_focus_directly/widget_instance_give_focus_by_tag above
- * and by the inline root-walk at ui_widget_delete(widget_instance_get_topmost_parent(w))
- * below) from widget up to the top-most ancestor with no parent, and returns
- * that root. 0xe4313-0xe432a: MOV EAX,[EBP+8]; MOV ECX,[EAX+0x30]; TEST/JZ;
- * loop MOV EAX,ECX; MOV ECX,[EAX+0x30]; TEST/JNZ while ECX!=0; RET EAX. */
+/* widget_instance_get_topmost_parent (0xe4310) — walks the parent chain (field
+ * +0x30, the same field walked by
+ * widget_instance_give_focus_directly/widget_instance_give_focus_by_tag above
+ * and by the inline root-walk at
+ * ui_widget_delete(widget_instance_get_topmost_parent(w)) below) from widget up
+ * to the top-most ancestor with no parent, and returns that root.
+ * 0xe4313-0xe432a: MOV EAX,[EBP+8]; MOV ECX,[EAX+0x30]; TEST/JZ; loop MOV
+ * EAX,ECX; MOV ECX,[EAX+0x30]; TEST/JNZ while ECX!=0; RET EAX. */
 void *widget_instance_get_topmost_parent(void *widget)
 {
   void *parent;
@@ -395,7 +397,8 @@ typedef struct ui_widget_deferred_error {
  * range assert; any other value must be a valid local player index. If the
  * player's slot is already occupied the request is dropped with a
  * priority-2 warning, same shape as display_error_when_main_menu_loaded(). */
-void display_error_deferred(int error_code, int player_index, bool a3, bool a4)
+__declspec(noinline) void
+display_error_deferred(int error_code, int player_index, bool a3, bool a4)
 {
   ui_widget_deferred_error_t *deferred_errors;
   int index;
@@ -506,7 +509,25 @@ void ui_widgets_disable_pause_game(int duration_ticks)
 
 void push_widget(int *head, void *record);
 
-void pop_widget(int *head, void *output);
+/* pop_widget (0xe4770) — pops the head node off the intrusive list at
+ * *head, copies its first 3 dwords into *output, relinks *head to the
+ * popped node's 4th dword (next pointer, +0xc), then returns the node to
+ * the widget stack memory pool at [0x31e04c]. Asserts both head and output
+ * are non-NULL (ui_widget.c:0x9fc). */
+void pop_widget(int *head, void *output)
+{
+  int *top;
+
+  assert_halt_msg_at("top && data", "c:\\halo\\SOURCE\\interface\\ui_widget.c",
+                     0x9fc, head != NULL && output != NULL);
+
+  top = (int *)*head;
+  ((int *)output)[0] = top[0];
+  ((int *)output)[1] = top[1];
+  ((int *)output)[2] = top[2];
+  *head = top[3];
+  stack_memory_pool_deallocate(*(void **)0x31e04c, top);
+}
 
 /* ui_widget_add_child (0xe4800) — appends child to the end of parent's
  * sibling list. `child` arrives in EBX (see kb.json @<ebx>), `parent` on the
@@ -545,8 +566,8 @@ void ui_widget_add_child(void *child, void *parent)
   }
 }
 
-/* ui_widget_delete_children_recursive — walks the first_child linked list of a widget
- * and closes each child via ui_widget_delete. Asserts that each child's
+/* ui_widget_delete_children_recursive — walks the first_child linked list of a
+ * widget and closes each child via ui_widget_delete. Asserts that each child's
  * prev_sibling is NULL (since it should be the head of the sibling list)
  * and that the next sibling's prev_sibling points back correctly. After
  * closing each child, clears the next sibling's prev_sibling link before
@@ -580,10 +601,11 @@ void ui_widget_delete_children_recursive(void *widget)
 int ui_widget_load_widget_children(void *definition, void *widget);
 void ui_widget_link_child(void *parent, void *child);
 
-/* widget_instance_find_by_tag_index_recursive — depth-first search over a widget subtree for the
- * first node whose tag handle (offset +0x0) equals tag_handle.  Checks the
- * current node first, then recurses into each child from first_child (+0x34)
- * following next_sibling (+0x2c). Returns NULL when no match exists. */
+/* widget_instance_find_by_tag_index_recursive — depth-first search over a
+ * widget subtree for the first node whose tag handle (offset +0x0) equals
+ * tag_handle.  Checks the current node first, then recurses into each child
+ * from first_child (+0x34) following next_sibling (+0x2c). Returns NULL when no
+ * match exists. */
 int *widget_instance_find_by_tag_index_recursive(int *widget, int tag_handle)
 {
   int *result;
@@ -606,18 +628,19 @@ int *widget_instance_find_by_tag_index_recursive(int *widget, int tag_handle)
   return result;
 }
 
-/* widget_instance_can_receive_events (0xe4980) — widget ancestor-chain check, called from
- * widget_instance_set_focused_child_by_index (0xe5090). Returns false immediately if the
- * widget is disabled (+0x12 != 0). Otherwise walks up the parent chain
- * (+0x30 — the same field widget_instance_give_focus_directly and widget_instance_give_focus_by_tag use
- * to climb to the root widget) starting at the widget's immediate parent.
- * For each ancestor, looks up its DeLa tag definition
- * (tag_get(0x44654c61, ancestor[0])) and requires either the *previous*
- * ancestor's tag definition to have bit 0 of field_0x2c set, or the
+/* widget_instance_can_receive_events (0xe4980) — widget ancestor-chain check,
+ * called from widget_instance_set_focused_child_by_index (0xe5090). Returns
+ * false immediately if the widget is disabled (+0x12 != 0). Otherwise walks up
+ * the parent chain
+ * (+0x30 — the same field widget_instance_give_focus_directly and
+ * widget_instance_give_focus_by_tag use to climb to the root widget) starting
+ * at the widget's immediate parent. For each ancestor, looks up its DeLa tag
+ * definition (tag_get(0x44654c61, ancestor[0])) and requires either the
+ * *previous* ancestor's tag definition to have bit 0 of field_0x2c set, or the
  * *current* ancestor's type field (+0xe) to be 2 or 3 (list types — same
- * values widget_instance_give_focus_directly tests). The first ancestor that fails this
- * check stops the walk and yields false; running out of ancestors (or
- * having none at all) yields true. */
+ * values widget_instance_give_focus_directly tests). The first ancestor that
+ * fails this check stops the walk and yields false; running out of ancestors
+ * (or having none at all) yields true. */
 bool widget_instance_can_receive_events(void *widget)
 {
   int *w;
@@ -698,8 +721,9 @@ char widget_instance_text_box_is_focused(void *widget)
  * match table[i]'s full length as a prefix. Returns the matching table
  * index (0..0x27), or -1 if none of the 0x28 entries match. Table
  * contents/semantics not otherwise evidenced by this bundle; name kept
- * mechanical. Callers: string_has_icons_to_draw, FUN_000e5de0, FUN_000e4da0 (x4) — none
- * ported yet, so caller-side intent is not available as corroboration. */
+ * mechanical. Callers: string_has_icons_to_draw, FUN_000e5de0, FUN_000e4da0
+ * (x4) — none ported yet, so caller-side intent is not available as
+ * corroboration. */
 int16_t get_icon_type(const wchar_t *name)
 {
   const wchar_t *entry;
@@ -792,8 +816,8 @@ void render_state_bitmap(short *dst_rect, void *state, int param_1, int color,
     frame_index = (system_milliseconds() * 30) / 1000 /
                   (unsigned int)(int)*(signed char *)(s + 0xc);
   }
-  hud_retrieve_bitmap_and_bounding_rect(bitmap_tag, (short)*(unsigned short *)s, frame_index,
-               &bitmap_data, &sprite);
+  hud_retrieve_bitmap_and_bounding_rect(bitmap_tag, (short)*(unsigned short *)s,
+                                        frame_index, &bitmap_data, &sprite);
   if (bitmap_data == 0) {
     return;
   }
@@ -813,7 +837,8 @@ void render_state_bitmap(short *dst_rect, void *state, int param_1, int color,
   } else {
     draw_color = color;
   }
-  hud_draw_bitmap_direct(bitmap_data, 2, screen_pos, sprite, scale, 0.0f, draw_color, 0);
+  hud_draw_bitmap_direct(bitmap_data, 2, screen_pos, sprite, scale, 0.0f,
+                         draw_color, 0);
 
   if ((*(unsigned char *)(s + 0xd) & 4) != 0) {
     dst_rect[1] = (short)(*(short *)(s + 2) + screen_pos[0]);
@@ -842,13 +867,13 @@ void render_state_bitmap(short *dst_rect, void *state, int param_1, int color,
  * dst_rect/src_rect naming are taken directly from this function's own
  * disassembly (matches FUN_0019cdb0's out_rect/in_rect argument order) and
  * from the structurally identical draw_string_set_indents/FUN_0019cdb0/
- * rasterizer_draw_string sequence already lifted as render_state_text_0's non-icon
- * path in hud_messaging.c. The incoming ESI register (PUSH ESI at entry,
- * POP ESI at exit) is a callee-saved scratch register the original compiler
- * reused for the indent computation, not a real argument: its low 16 bits
- * are unconditionally overwritten by the indent subtraction before any read,
- * and the surviving high 16 bits are only ever pushed as the padding half of
- * a stack dword for a `short` parameter (draw_string_set_indents), which the
+ * rasterizer_draw_string sequence already lifted as render_state_text_0's
+ * non-icon path in hud_messaging.c. The incoming ESI register (PUSH ESI at
+ * entry, POP ESI at exit) is a callee-saved scratch register the original
+ * compiler reused for the indent computation, not a real argument: its low 16
+ * bits are unconditionally overwritten by the indent subtraction before any
+ * read, and the surviving high 16 bits are only ever pushed as the padding half
+ * of a stack dword for a `short` parameter (draw_string_set_indents), which the
  * callee never reads — so its incoming value has no observable effect.
  * ABI: @ebx=dst_rect, @edi=src_rect, stack: text */
 void render_state_text(short *dst_rect, void *text, short *src_rect)
@@ -873,13 +898,13 @@ void render_state_text(short *dst_rect, void *text, short *src_rect)
   *dst_rect = *src_rect;
 }
 
-/* should_flip_sticks_for_local_player (0xe4d40) — evaluates whether a local player's input
- * preferences select control scheme 1 or 3. If local_player_index is -1
- * (unspecified), resolves it via local_player_get_next(-1) first. Builds a
- * 0x18-byte zeroed preferences block on the stack, fills it via
- * input_abstraction_get_local_player_preferences() when a valid local
- * player was found, then tests the int16 field at buffer offset 0x14
- * against 1 and 3. field_14: offset is accessed, meaning unproven.
+/* should_flip_sticks_for_local_player (0xe4d40) — evaluates whether a local
+ * player's input preferences select control scheme 1 or 3. If
+ * local_player_index is -1 (unspecified), resolves it via
+ * local_player_get_next(-1) first. Builds a 0x18-byte zeroed preferences block
+ * on the stack, fills it via input_abstraction_get_local_player_preferences()
+ * when a valid local player was found, then tests the int16 field at buffer
+ * offset 0x14 against 1 and 3. field_14: offset is accessed, meaning unproven.
  * Callers: FUN_000e4da0 (x2, both unconditional calls per xrefs_to). */
 bool should_flip_sticks_for_local_player(int16_t local_player_index)
 {
@@ -902,10 +927,10 @@ bool should_flip_sticks_for_local_player(int16_t local_player_index)
   return (control_scheme == 1) || (control_scheme == 3);
 }
 
-/* widget_instance_give_focus_directly — applies focus to target_widget within the root's
- * focus chain. Walks to the top-most parent (+0x30), snapshots the current
- * focused-descendant chain head (+0x38), optionally retargets when the input
- * widget is disabled (+0x12==1) by scanning sibling/parent lists for a
+/* widget_instance_give_focus_directly — applies focus to target_widget within
+ * the root's focus chain. Walks to the top-most parent (+0x30), snapshots the
+ * current focused-descendant chain head (+0x38), optionally retargets when the
+ * input widget is disabled (+0x12==1) by scanning sibling/parent lists for a
  * focusable widget (DeLa handlers>0 or type 2/3), then rewrites ancestor
  * focused-descendant links (+0x38). If the previous and new focus share the
  * same direct parent, updates only that parent and exits early. */
@@ -996,7 +1021,8 @@ void widget_instance_give_focus_directly(void *root_widget, void *target_widget)
   }
 }
 
-void widget_instance_set_focused_child_by_index(int pending_a6, int widget, int16_t a7);
+void widget_instance_set_focused_child_by_index(int pending_a6, int widget,
+                                                int16_t a7);
 
 void column_list_update(void *widget, void *definition);
 
@@ -1013,7 +1039,8 @@ void widget_instance_tab_to_previous_valid_widget(void *widget);
  * [0x31e04c] (assert file/line "ui_widget.c":0x1382) and *text is
  * rewritten. Lengths are in wide characters; total_length counts the
  * terminator. */
-int search_and_replace(const wchar_t *search, const wchar_t *replace, wchar_t **text)
+int search_and_replace(const wchar_t *search, const wchar_t *replace,
+                       wchar_t **text)
 {
   wchar_t *buffer;
   wchar_t *found;
@@ -1124,17 +1151,17 @@ float *get_ui_argb_white(float *out_color)
   return out_color;
 }
 
-/* filesystem_initialization_thread_proc(x) (0xe5590) — saved-game filesystem-check thread procedure.
- * Registered with thread_new as the background thread entry point by
- * perform_filesystem_initialization, and also invoked directly (synchronously,
- * with param_1 = 0) if thread creation fails. `RET 0x4` marks it __stdcall
- * with one unused thread-proc parameter (the Win32 thread lpParameter slot).
- * Calls saved_game_perform_file_system_checks and stores its bool/short
- * result to the filesystem-check result word at 0x46cc80 (read back by
- * widget_instance_go_back_to_previous's caller as 1 == "no saved games", 2 == "disk
- * error"). Only on success (result == 0) does it run the two saved-game
- * enumeration helpers at 0x1c26b0/0x1c0d50 (each takes -1 plus out-params
- * pointing at two EBP locals shared between both calls: local_4 is
+/* filesystem_initialization_thread_proc(x) (0xe5590) — saved-game
+ * filesystem-check thread procedure. Registered with thread_new as the
+ * background thread entry point by perform_filesystem_initialization, and also
+ * invoked directly (synchronously, with param_1 = 0) if thread creation fails.
+ * `RET 0x4` marks it __stdcall with one unused thread-proc parameter (the Win32
+ * thread lpParameter slot). Calls saved_game_perform_file_system_checks and
+ * stores its bool/short result to the filesystem-check result word at 0x46cc80
+ * (read back by widget_instance_go_back_to_previous's caller as 1 == "no saved
+ * games", 2 == "disk error"). Only on success (result == 0) does it run the two
+ * saved-game enumeration helpers at 0x1c26b0/0x1c0d50 (each takes -1 plus
+ * out-params pointing at two EBP locals shared between both calls: local_4 is
  * pre-initialized to 1 before the first call so the callee can read a caller
  * default; local_8 is left uninitialized for the callee to fill) and the
  * profile-index getter, whose return value is unused here. */
@@ -1182,9 +1209,9 @@ uint32_t modulate_pixel32_by_real_alpha(uint32_t pixel, float alpha)
 /* ui_widget_delete — tears down a single UI widget and frees its memory.
  * Handles the "widget deleted" event handlers (type 0x19) from the widget's
  * DeLa tag definition, firing each matching handler via
- * ui_widget_event_handler_function_invoke and optionally spawning replacement widgets.
- * Manages the pause counter (if the widget pauses the game), unlinks the
- * widget from its sibling/parent chains, performs type-specific cleanup
+ * ui_widget_event_handler_function_invoke and optionally spawning replacement
+ * widgets. Manages the pause counter (if the widget pauses the game), unlinks
+ * the widget from its sibling/parent chains, performs type-specific cleanup
  * (text data for type 1, list data for types 2-3), frees the widget from
  * the stack memory pool, and clears any root widget slot that pointed to it.
  * The being_deleted flag at +0x14 prevents re-entrant closing. */
@@ -1241,8 +1268,7 @@ void ui_widget_delete(void *widget)
 
         if (handler_result && (handler[0] & 0x8) != 0 &&
             *(int *)(handler + 0x14) != -1) {
-          if (ui_widget_launch_widget(w, *(int *)(handler + 0x14)) ==
-              0) {
+          if (ui_widget_launch_widget(w, *(int *)(handler + 0x14)) == 0) {
             error(2, "event handler failed to spawn widget");
           }
         }
@@ -1438,7 +1464,7 @@ void ui_widgets_pop_stack(int16_t local_player_index)
 
   if (*(int *)(0x46cc30 + (int)local_player_index * 4) != 0) {
     pop_widget((int *)(0x46cc30 + (int)local_player_index * 4),
-                               (void *)&record);
+               (void *)&record);
   }
 }
 
@@ -1526,7 +1552,8 @@ void ui_play_audio_feedback_sound(short sound_selector)
   }
 }
 
-/* widget_instance_render_text_box (0xe6140) — refreshes and draws a text-box widget.
+/* widget_instance_render_text_box (0xe6140) — refreshes and draws a text-box
+ * widget.
  *
  * Register ABI confirmed from the prologue: MOV ESI,EAX / MOV EBX,ECX, so
  * EAX carries the widget *definition* (tag data: offsets 0x24..0x132) and
@@ -1554,11 +1581,11 @@ void ui_play_audio_feedback_sound(short sound_selector)
  * by the global UI "white" colour when the caller asks for it or when the
  * definition's RGB is exactly (1,1,1); the alpha is always the definition's
  * alpha scaled by the widget's inherited opacity (the product of field_24 up
- * the parent chain, computed by widget_instance_get_cumulative_alpha_modifier and returned in ST0 — the
- * original keeps it live on the x87 stack across the whole colour selection,
- * which is not expressible in C).  Flag 0x4 at +0x11e adds a cosine pulse
- * driven by the UI millisecond clock at 0x46cc40 (FILD plus a negative fixup
- * of 4294967296.0f, i.e. the clock is unsigned).
+ * the parent chain, computed by widget_instance_get_cumulative_alpha_modifier
+ * and returned in ST0 — the original keeps it live on the x87 stack across the
+ * whole colour selection, which is not expressible in C).  Flag 0x4 at +0x11e
+ * adds a cosine pulse driven by the UI millisecond clock at 0x46cc40 (FILD plus
+ * a negative fixup of 4294967296.0f, i.e. the clock is unsigned).
  *
  * Note the asymmetry between the two rects, which is what the binary does:
  * the drawn position rect always starts from the definition's bounds
@@ -1568,8 +1595,9 @@ void ui_play_audio_feedback_sound(short sound_selector)
  * top/bottom, and the top-left corner additionally picks up the definition's
  * text offsets at +0x132 (y) and +0x130 (x). */
 void widget_instance_render_text_box(void *definition, void *widget,
-                            const int32_t *position_override,
-                            int32_t position_offset, bool use_white_color)
+                                     const int32_t *position_override,
+                                     int32_t position_offset,
+                                     bool use_white_color)
 {
   const int16_t *offset;
   volatile int32_t offset_pair;
@@ -1625,9 +1653,9 @@ void widget_instance_render_text_box(void *definition, void *widget,
       *(const char **)((char *)definition + 0x64) + function_offset;
     if (function_name != NULL && *function_name != '\0') {
       search_and_replace(ascii_to_wide(function_name, name, 0x40),
-                   ui_widget_search_and_replace_invoke(
-                     widget, *(const uint16_t *)(function_name + 0x20)),
-                   text);
+                         ui_widget_search_and_replace_invoke(
+                           widget, *(const uint16_t *)(function_name + 0x20)),
+                         text);
     }
     function_offset += 0x22;
   }
@@ -1712,11 +1740,13 @@ void widget_instance_render_text_box(void *definition, void *widget,
   }
 }
 
-/* widget_instance_give_focus_by_tag — walks up the parent chain (field_0x30) from the given
- * widget to the root, then searches the widget tree for one matching
- * tag_handle.  If found, calls widget_instance_give_focus_directly; otherwise logs an error.
+/* widget_instance_give_focus_by_tag — walks up the parent chain (field_0x30)
+ * from the given widget to the root, then searches the widget tree for one
+ * matching tag_handle.  If found, calls widget_instance_give_focus_directly;
+ * otherwise logs an error.
  */
-void widget_instance_give_focus_by_tag(void *widget, int tag_handle, int16_t player_index)
+void widget_instance_give_focus_by_tag(void *widget, int tag_handle,
+                                       int16_t player_index)
 {
   void *root = widget;
   void *found;
@@ -1779,20 +1809,21 @@ void ui_widgets_dispose(void)
   csmemset((void *)0x46cc20, 0, 0x68);
 }
 
-int widget_event_function_list_widget_goto_next_item(void *widget, void *event_data,
-                             char *widget_deleted);
+int widget_event_function_list_widget_goto_next_item(void *widget,
+                                                     void *event_data,
+                                                     char *widget_deleted);
 
-int widget_event_function_list_widget_goto_previous_item(void *widget, void *event_data,
-                             char *widget_deleted);
+int widget_event_function_list_widget_goto_previous_item(void *widget,
+                                                         void *event_data,
+                                                         char *widget_deleted);
 
-void event_handler_dispatch(void *widget, void *definition,
-                                    void *event_data, void *event_handler,
-                                    char *widget_deleted);
+void event_handler_dispatch(void *widget, void *definition, void *event_data,
+                            void *event_handler, char *widget_deleted);
 
-/* widget_instance_render_column_list — called from the widget-tree recursive render helper at
- * 0xe73c0 (xref 0xe75e9; that function is itself still unported — the
- * calls below reach its original binary code through the kb.json redirect
- * thunk). Two independent steps:
+/* widget_instance_render_column_list — called from the widget-tree recursive
+ * render helper at 0xe73c0 (xref 0xe75e9; that function is itself still
+ * unported — the calls below reach its original binary code through the kb.json
+ * redirect thunk). Two independent steps:
  *   1. If widget+0x48 ("target") is non-NULL, accumulates a scale/alpha
  *      value starting from widget+0x24 and multiplying in +0x24 of every
  *      ancestor reached by following the +0x30 "parent" chain, stores the
@@ -1802,8 +1833,9 @@ void event_handler_dispatch(void *widget, void *definition,
  *      children via 0xe73c0, flagging the child at index +0x3c as the
  *      last one (bool arg 5).
  * Clears widget+0x3e (a pending-count field) on every exit path. */
-void widget_instance_render_column_list(int widget, int param_2, viewport_bounds_t *bounds,
-                  int param_4, int param_5)
+void widget_instance_render_column_list(int widget, int param_2,
+                                        viewport_bounds_t *bounds, int param_4,
+                                        int param_5)
 {
   int target;
   float scale;
@@ -1831,7 +1863,8 @@ void widget_instance_render_column_list(int widget, int param_2, viewport_bounds
       if (index >= (int)*(uint16_t *)(widget + 0x44))
         break;
       is_last = (index == (int)*(int16_t *)(widget + 0x3c));
-      widget_instance_render_recursive(child, bounds, param_4, param_5, is_last);
+      widget_instance_render_recursive(child, bounds, param_4, param_5,
+                                       is_last);
       child = *(int *)(child + 0x2c);
       index++;
     }
@@ -1963,8 +1996,9 @@ void render_ui_widgets(int16_t player_index, viewport_bounds_t *window_bounds)
   }
 }
 
-void widget_instance_process_one_event_recursive(void *widget, void *widget_tag, void *event_data,
-                             void *handled)
+void widget_instance_process_one_event_recursive(void *widget, void *widget_tag,
+                                                 void *event_data,
+                                                 void *handled)
 {
   int *w;
   int *definition;
@@ -2180,13 +2214,15 @@ void widget_instance_process_one_event_recursive(void *widget, void *widget_tag,
           !widget_deleted) {
         if (*(int16_t *)event == 3 && event[5] == 1) {
           if (event[4] == 8) {
-            widget_event_function_list_widget_goto_previous_item(w, event, (char *)&widget_deleted);
+            widget_event_function_list_widget_goto_previous_item(
+              w, event, (char *)&widget_deleted);
             if (sound_effect == 0) {
               sound_effect = 1;
             }
             consumed = true;
           } else if (event[4] == 9) {
-            widget_event_function_list_widget_goto_next_item(w, event, (char *)&widget_deleted);
+            widget_event_function_list_widget_goto_next_item(
+              w, event, (char *)&widget_deleted);
             if (sound_effect == 0) {
               sound_effect = 1;
             }
@@ -2194,13 +2230,15 @@ void widget_instance_process_one_event_recursive(void *widget, void *widget_tag,
           }
         } else if (*(int16_t *)event == 1) {
           if (*(int16_t *)(event + 6) == (int16_t)0x8000) {
-            widget_event_function_list_widget_goto_next_item(w, event, (char *)&widget_deleted);
+            widget_event_function_list_widget_goto_next_item(
+              w, event, (char *)&widget_deleted);
             if (sound_effect == 0) {
               sound_effect = 1;
             }
             consumed = true;
           } else if (*(int16_t *)(event + 6) == 0x7fff) {
-            widget_event_function_list_widget_goto_previous_item(w, event, (char *)&widget_deleted);
+            widget_event_function_list_widget_goto_previous_item(
+              w, event, (char *)&widget_deleted);
             if (sound_effect == 0) {
               sound_effect = 1;
             }
@@ -2213,13 +2251,15 @@ void widget_instance_process_one_event_recursive(void *widget, void *widget_tag,
           !widget_deleted) {
         if (*(int16_t *)event == 3 && event[5] == 1) {
           if (event[4] == 0xa) {
-            widget_event_function_list_widget_goto_previous_item(w, event, (char *)&widget_deleted);
+            widget_event_function_list_widget_goto_previous_item(
+              w, event, (char *)&widget_deleted);
             if (sound_effect == 0) {
               sound_effect = 1;
             }
             consumed = true;
           } else if (event[4] == 0xb) {
-            widget_event_function_list_widget_goto_next_item(w, event, (char *)&widget_deleted);
+            widget_event_function_list_widget_goto_next_item(
+              w, event, (char *)&widget_deleted);
             if (sound_effect == 0) {
               sound_effect = 1;
             }
@@ -2227,13 +2267,15 @@ void widget_instance_process_one_event_recursive(void *widget, void *widget_tag,
           }
         } else if (*(int16_t *)event == 1) {
           if (*(int16_t *)(event + 4) == (int16_t)0x8000) {
-            widget_event_function_list_widget_goto_previous_item(w, event, (char *)&widget_deleted);
+            widget_event_function_list_widget_goto_previous_item(
+              w, event, (char *)&widget_deleted);
             if (sound_effect == 0) {
               sound_effect = 1;
             }
             consumed = true;
           } else if (*(int16_t *)(event + 4) == 0x7fff) {
-            widget_event_function_list_widget_goto_next_item(w, event, (char *)&widget_deleted);
+            widget_event_function_list_widget_goto_next_item(
+              w, event, (char *)&widget_deleted);
             if (sound_effect == 0) {
               sound_effect = 1;
             }
@@ -2294,7 +2336,7 @@ after_local_handling:
       if (matches) {
         consumed = true;
         event_handler_dispatch(w, definition, event, event_handler,
-                                       (char *)&widget_deleted);
+                               (char *)&widget_deleted);
       }
 
       offset += 0x48;
@@ -2318,9 +2360,9 @@ after_local_handling:
         int16_t child_player = *(int16_t *)(child + 8);
         if (child_player == -1 || child_player == *(int16_t *)(event + 2)) {
           child_tag = *(int *)child;
-          widget_instance_process_one_event_recursive((void *)(uintptr_t)child,
-                                  tag_get(0x44654c61, child_tag), event,
-                                  (char *)&widget_deleted);
+          widget_instance_process_one_event_recursive(
+            (void *)(uintptr_t)child, tag_get(0x44654c61, child_tag), event,
+            (char *)&widget_deleted);
         }
       }
     } else {
@@ -2329,9 +2371,9 @@ after_local_handling:
         int16_t child_player = *(int16_t *)(child + 8);
         if (child_player == -1 || child_player == *(int16_t *)(event + 2)) {
           child_tag = *(int *)child;
-          widget_instance_process_one_event_recursive((void *)(uintptr_t)child,
-                                  tag_get(0x44654c61, child_tag), event,
-                                  (char *)&widget_deleted);
+          widget_instance_process_one_event_recursive(
+            (void *)(uintptr_t)child, tag_get(0x44654c61, child_tag), event,
+            (char *)&widget_deleted);
           if (widget_deleted) {
             break;
           }
@@ -2460,8 +2502,7 @@ __declspec(noinline) void *ui_widget_load_by_name_or_tag(const char *name,
       pending_load.a6 = a6;
       pending_load.a7 = (int16_t)a7;
       pending_load.widget_stack = previous_stack_player;
-      push_widget(
-        (int *)(0x46cc30 + (int)stack_index * 4), &pending_load);
+      push_widget((int *)(0x46cc30 + (int)stack_index * 4), &pending_load);
     }
   }
 
@@ -2488,7 +2529,7 @@ __declspec(noinline) void *ui_widget_load_by_name_or_tag(const char *name,
   }
 
   widget_instance_initialize((void *)tag_data, (void *)widget, (void *)a3,
-                                   tag_index, widget_stack, widget_stack_base);
+                             tag_index, widget_stack, widget_stack_base);
   return (void *)widget;
 }
 
@@ -3213,8 +3254,8 @@ void process_ui_widgets(void)
         do {
           handled = 0;
           if (blocked_by_pause == 0) {
-            widget_instance_process_one_event_recursive((void *)widget, widget_tag, &process_data,
-                                    &handled);
+            widget_instance_process_one_event_recursive(
+              (void *)widget, widget_tag, &process_data, &handled);
           }
           if ((handled == 1) || (widget != *widget_roots)) {
             break;
@@ -3224,8 +3265,8 @@ void process_ui_widgets(void)
       } else if (blocked_by_pause == 0) {
         process_data.unk2 = *(uint16_t *)(widget + 8);
         handled = 0;
-        widget_instance_process_one_event_recursive((void *)widget, widget_tag, &process_data,
-                                &handled);
+        widget_instance_process_one_event_recursive((void *)widget, widget_tag,
+                                                    &process_data, &handled);
       }
 
       did_work = 1;
@@ -3236,8 +3277,8 @@ void process_ui_widgets(void)
             0, pending_load.tag_index, 0, pending_load.widget_stack, -1, -1,
             -1);
           if (loaded_widget != 0) {
-            widget_instance_set_focused_child_by_index(pending_load.a6, (int)loaded_widget,
-                                         pending_load.a7);
+            widget_instance_set_focused_child_by_index(
+              pending_load.a6, (int)loaded_widget, pending_load.a7);
           }
         }
       }
@@ -3372,11 +3413,37 @@ bool ui_widget_initialize_single_player_level_list(void *widget,
  * 0x50-byte single-player level list scratch block at 0x46cce8 and drops the
  * widget's cached list pointer/count at +0x40/+0x44. */
 bool solo_level_dispose_list(void *widget, void *event_data,
-                                                bool *widget_deleted)
+                             bool *widget_deleted)
 {
   csmemset((void *)0x46cce8, 0, 0x50);
   *(int *)((char *)widget + 0x40) = 0;
   *(int16_t *)((char *)widget + 0x44) = 0;
+  return true;
+}
+
+/* difficulty_set (event handler, 0x0e9bd0) — reads the widget's selected
+ * item index (signed 16-bit) at +0x3c. If it is a valid difficulty
+ * (0 <= selected < 4), applies it via main_set_difficulty and plays audio
+ * feedback sound 2, then returns true. Otherwise it asserts (message plus
+ * this file/line 0x313) and, since display_assert's halt argument is true,
+ * falls through to system_exit(-1) — a path the reference marks
+ * non-returning. */
+bool difficulty_set(void *widget, void *event_data, bool *widget_deleted)
+{
+  (void)event_data;
+  (void)widget_deleted;
+
+  if (*(short *)((char *)widget + 0x3c) < 0 ||
+      *(short *)((char *)widget + 0x3c) >= 4) {
+    display_assert(
+      "I don't think this is the difficulty list widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x313,
+      true);
+    system_exit(-1);
+  }
+
+  main_set_difficulty(*(short *)((char *)widget + 0x3c));
+  ui_play_audio_feedback_sound(2);
   return true;
 }
 
@@ -3385,9 +3452,8 @@ bool solo_level_dispose_list(void *widget, void *event_data,
  * resolved to a specific gamepad (not NONE/-1); asserts and exits otherwise.
  * Forwards the (zero/sign-extended) index to
  * player_ui_local_player_joined_multiplayer_game and always returns true. */
-bool player_wants_to_join_multiplayer_game(void *widget,
-                                                   void *event_data,
-                                                   bool *widget_deleted)
+bool player_wants_to_join_multiplayer_game(void *widget, void *event_data,
+                                           bool *widget_deleted)
 {
   char *local_player_index_ptr;
 
@@ -3412,19 +3478,20 @@ bool player_wants_to_join_multiplayer_game(void *widget,
  * index 17, 0x0e9d40) — disposes any existing server, clears the cached
  * multiplayer variant UI text, and re-enables incoming connections. If no
  * server is currently advertised, initializes the game engine playlist and
- * attempts to start hosting (create_global_network_game_server); on success, fetches the fresh
- * server handle, pauses its countdown, begins the playlist, and switches
- * the local game connection state to 2 (host). Once past that gate (or if
- * a server was already up), checks for a local client and, if none,
- * re-derives the result via create_global_network_game_client. On any failure the server and
- * client are torn down, "accept connections" is cleared, the multiplayer
- * variant text is re-cleared, and error 2 "failed to initiate a
+ * attempts to start hosting (create_global_network_game_server); on success,
+ * fetches the fresh server handle, pauses its countdown, begins the playlist,
+ * and switches the local game connection state to 2 (host). Once past that gate
+ * (or if a server was already up), checks for a local client and, if none,
+ * re-derives the result via create_global_network_game_client. On any failure
+ * the server and client are torn down, "accept connections" is cleared, the
+ * multiplayer variant text is re-cleared, and error 2 "failed to initiate a
  * multiplayer game server" is reported. widget/event_data/widget_deleted
  * are unused — the original never establishes a stack frame and never
  * touches its incoming event-handler params. Called both through the
  * dispatch table above and directly (tail-propagated) by
  * start_network_game_if_no_advertised_servers (0x0f01d0). */
-bool network_game_start_new_server(void *widget, void *event_data, bool *widget_deleted)
+bool network_game_start_new_server(void *widget, void *event_data,
+                                   bool *widget_deleted)
 {
   bool result;
   void *server;
@@ -3534,7 +3601,8 @@ bool FUN_000e9dd0(void *widget, void *event_data, bool *widget_deleted)
             *(uint16_t *)(join_params + 2) = 0;
             network_game_generate_join_game_token(join_params + 0x12);
             if (network_game_client_initiate_join_game(
-                  global_network_game_client_get(), entry, join_params, address)) {
+                  global_network_game_client_get(), entry, join_params,
+                  address)) {
               last_child = widget_instance_get_topmost_parent(widget);
               player_index_ptr = *(int **)((char *)widget + 0x30);
               if (player_index_ptr != NULL) {
@@ -3588,7 +3656,7 @@ done:
 /* dispose net game server list (event handler table index 18, 0x0e9fd0) —
  * drops the widget's cached list pointer/count at +0x40/+0x44. */
 bool network_server_list_dispose(void *widget, void *event_data,
-                                                bool *widget_deleted)
+                                 bool *widget_deleted)
 {
   *(int *)((char *)widget + 0x40) = 0;
   *(int16_t *)((char *)widget + 0x44) = 0;
@@ -3596,9 +3664,9 @@ bool network_server_list_dispose(void *widget, void *event_data,
 }
 
 /* start split-screen game networking (0x0ea010, single data xref at
- * 0x31e1ac) — counterpart to network_game_start_new_server's "failed to initiate a
- * multiplayer game server" path, but for split screen: disallows remote
- * connections, then if no network game server exists yet, spins one up
+ * 0x31e1ac) — counterpart to network_game_start_new_server's "failed to
+ * initiate a multiplayer game server" path, but for split screen: disallows
+ * remote connections, then if no network game server exists yet, spins one up
  * via the game engine playlist and switches the connection to server
  * mode (2); bails out immediately on playlist-begin failure without
  * ever probing the client. If a server already existed (or was just
@@ -3652,7 +3720,7 @@ fail:
  * +0x3c (reset to 0 if no match is found; left untouched if no map was
  * remembered). Always returns true. */
 bool multiplayer_level_list_initialize(void *widget, void *event_data,
-                                                 bool *widget_deleted)
+                                       bool *widget_deleted)
 {
   short *list_tag;
   char saved_map_name[256];
@@ -3703,7 +3771,7 @@ bool multiplayer_level_list_initialize(void *widget, void *event_data,
 /* mp level list dispose (event handler table index 27, 0x0ea1f0) — drops the
  * widget's cached list pointer/count at +0x40/+0x44. */
 bool multiplayer_level_list_dispose(void *widget, void *event_data,
-                                              bool *widget_deleted)
+                                    bool *widget_deleted)
 {
   *(int *)((char *)widget + 0x40) = 0;
   *(int16_t *)((char *)widget + 0x44) = 0;
@@ -3919,7 +3987,8 @@ bool ui_widget_multiplayer_profiles_list_initialize(void *widget,
  * above (mp level list dispose, sp level list dispose, dispose net game
  * server list, ...), this variant owns and frees its buffer. event_data
  * and widget_deleted are unused. Always returns true. */
-bool multiplayer_profiles_list_dispose(void *widget, void *event_data, bool *widget_deleted)
+bool multiplayer_profiles_list_dispose(void *widget, void *event_data,
+                                       bool *widget_deleted)
 {
   void *list_ptr;
 
@@ -3932,6 +4001,69 @@ bool multiplayer_profiles_list_dispose(void *widget, void *event_data, bool *wid
     *(void **)((char *)widget + 0x40) = NULL;
   }
   *(int16_t *)((char *)widget + 0x44) = 0;
+  return true;
+}
+
+/* swap teams (event handler, 0x0ea810) — asserts event_data is non-NULL,
+ * then, if a network game exists with teams enabled (+0xc0 == 1, same flag
+ * multiplayer_game_set_text_box_for_teams_noteams reads) and this client has
+ * a valid local machine index (network_game_client_get_local_machine_index),
+ * walks the game's 16-slot player table (index_base+0x226, stride 0x20 —
+ * same table netgame_join_player and multiplayer_profiles_list_dispose's
+ * neighbor walk) for a valid record (network_player_is_valid) whose
+ * machine-index byte (record+0x1c) matches the local machine index and
+ * whose controller-index byte (record+0x1d) matches the event's
+ * controller_index (event_data+2, same field netgame_join_player reads).
+ * On the first match it copies the 0x20-byte record to a local buffer,
+ * flips the byte at record offset 0x1e to its logical complement (0/1
+ * toggle — the team field), and pushes the updated record via
+ * network_game_client_update_local_player_data(global_network_game_client_get(),
+ * &local_record), logging "failed to update player's team for multiplayer
+ * game" via error(2, ...) on failure, then stops walking the table. widget
+ * and widget_deleted are unused; always returns true. */
+bool multiplayer_game_swap_teams(void *widget, void *event_data,
+                                 bool *widget_deleted)
+{
+  int index_base;
+  short local_machine_index;
+  int i;
+  char *player_slot;
+  uint32_t local_record[8];
+  bool updated;
+
+  (void)widget;
+  (void)widget_deleted;
+
+  if (event_data == NULL) {
+    display_assert(
+      "event",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x624,
+      true);
+    system_exit(-1);
+  }
+
+  index_base = network_game_get_game();
+  if (index_base != 0 && *(char *)(index_base + 0xc0) == 1) {
+    local_machine_index = network_game_client_get_local_machine_index();
+    if (local_machine_index != -1) {
+      player_slot = (char *)index_base + 0x226;
+      for (i = 0; i < 0x10; i++, player_slot += 0x20) {
+        if (network_player_is_valid(player_slot) &&
+            *(player_slot + 0x1c) == local_machine_index &&
+            *(player_slot + 0x1d) == *(int16_t *)((char *)event_data + 2)) {
+          memcpy(local_record, player_slot, sizeof(local_record));
+          ((char *)local_record)[0x1e] = (((char *)local_record)[0x1e] == 0);
+          updated = network_game_client_update_local_player_data(
+            global_network_game_client_get(), local_record);
+          if (!updated) {
+            error(2, "failed to update player's team for multiplayer game");
+          }
+          break;
+        }
+      }
+    }
+  }
+
   return true;
 }
 
@@ -4016,12 +4148,13 @@ bool netgame_join_player(void *widget, void *event_data, bool *widget_deleted)
 }
 
 /* dispose owned list, duplicate table entry (event handler, 0x0eab70; data
- * xref at 0x31e1e4, 0x14 bytes after multiplayer_profiles_list_dispose's 0x31e1d0 entry) —
- * byte-identical body to multiplayer_profiles_list_dispose above: if the widget's cached list
- * pointer at +0x40 is non-NULL, frees it via widget_free and clears the
- * pointer; always clears the 16-bit count at +0x44. event_data and
- * widget_deleted are unused. Always returns true. */
-bool player_profiles_list_dispose(void *widget, void *event_data, bool *widget_deleted)
+ * xref at 0x31e1e4, 0x14 bytes after multiplayer_profiles_list_dispose's
+ * 0x31e1d0 entry) — byte-identical body to multiplayer_profiles_list_dispose
+ * above: if the widget's cached list pointer at +0x40 is non-NULL, frees it via
+ * widget_free and clears the pointer; always clears the 16-bit count at +0x44.
+ * event_data and widget_deleted are unused. Always returns true. */
+bool player_profiles_list_dispose(void *widget, void *event_data,
+                                  bool *widget_deleted)
 {
   void *list_ptr;
 
@@ -4127,6 +4260,202 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
   return false;
 }
 
+/* player_profile_set_for_game_1wide (0xead60) — event-handler table entry.
+ * Same profile-selection idea as player_profile_set_for_game_3wide (0xeaba0)
+ * above but for a single spinner list, found by walking the widget's child
+ * chain (+0x34, sibling link +0x2c) for the first child of type 2 (spinner
+ * list) instead of using a fixed container-of-3 layout, and there is no
+ * "container w/ 3 or more children" assert at all (disasm has no such check
+ * here). The code-generated-list assert also differs: it requires the tag's
+ * +0x3e0 field to be exactly 0, not >= 3.
+ *
+ * Unlike the 3-wide sibling, this handler never calls
+ * player_ui_get_single_player_local_player_from_controller: the raw
+ * controller index read once from event_data+2 is reused directly as the
+ * local_player_index argument to both display_error_deferred and
+ * player_ui_set_active_player_profile (disasm: MOV BX,[ESI+2] once into EBX,
+ * then PUSH EBX unmodified at both call sites further down — safe because
+ * both callees only read a 16-bit slice of that pushed dword: an int16_t
+ * param and int, respectively, at MSVC).
+ *
+ * Control flow is also flatter than the 3-wide sibling: there is a single
+ * `if (profile_index >= 0) {...} else {...}` (JS on the sign bit), not a
+ * three-way -1 vs. <-1 vs. >=0 split — so there is no separate "this is not
+ * a selectable player profile" branch here, and widget_deleted is never
+ * read or written anywhere in this function (unused param). */
+bool player_profile_set_for_game_1wide(void *widget, void *event_data,
+                                       bool *widget_deleted)
+{
+  wchar_t profile[24];
+  int profile_index;
+  int16_t controller_index;
+  short selected_index;
+  short *widget_definition;
+  void *list_widget;
+
+  (void)widget_deleted;
+
+  if (event_data == NULL || *(int16_t *)((char *)event_data + 2) == -1) {
+    display_assert(
+      "setting a player profile requires a valid controller index",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x72a,
+      true);
+    system_exit(-1);
+  }
+
+  controller_index = *(int16_t *)((char *)event_data + 2);
+
+  list_widget = *(void **)((char *)widget + 0x34);
+  while (list_widget != NULL && *(int16_t *)((char *)list_widget + 0xe) != 2) {
+    list_widget = *(void **)((char *)list_widget + 0x2c);
+  }
+  if (list_widget == NULL) {
+    display_assert(
+      "failed to find the 1-wide spinner list for player profiles (expected "
+      "it to be a child of this widget)",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x72e,
+      true);
+    system_exit(-1);
+  }
+
+  widget_definition = (short *)tag_get(0x44654c61, *(int *)list_widget);
+  if (*(int *)((char *)widget_definition + 0x3e0) != 0) {
+    display_assert(
+      "expected a code-generated 1-wide spinner list for 'mp player profile "
+      "list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x735,
+      true);
+    system_exit(-1);
+  }
+
+  selected_index = *(int16_t *)((char *)list_widget + 0x3c);
+  if (selected_index < 0 ||
+      (int)selected_index >= (int)*(uint16_t *)((char *)list_widget + 0x44)) {
+    display_assert(
+      "invalid multiplayer profile specified from 'mp player profile list' "
+      "list widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x73b,
+      true);
+    system_exit(-1);
+  }
+
+  profile_index =
+    *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4);
+
+  if (profile_index >= 0) {
+    display_error_deferred(0x1f, controller_index, true, false);
+    ui_play_audio_feedback_sound(4);
+    return false;
+  }
+
+  if (player_profile_new(profile_index, profile)) {
+    player_ui_set_active_player_profile(
+      (short)controller_index,
+      *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4),
+      profile);
+    return true;
+  }
+
+  error(2, "failed to retrieve user selected player profile");
+  return false;
+}
+
+/* playlist_profile_begin_editing (0xeaec0) — event-handler table entry
+ * (data xref 0x31e1f0). Validates 'widget' itself is a container with 3+
+ * children (tag_get on *(int *)widget, same container check shape as
+ * delete_player_profile_request), then the child list widget at widget+0x34
+ * is a 3-item spinner list, resolves the selected item's profile handle
+ * from that list, stores it to DAT_0031e494, and dispatches on it: -1 plays
+ * the deny sound and returns false; a negative-but-not-(-1) handle begins
+ * editing that profile (player_ui_begin_editing_profile) and returns true;
+ * otherwise (>= 0) reports a deferred error and plays the deny sound,
+ * returning false. Same three-way -1/<0/>=0 split and callee set as
+ * player_profile_begin_editing (0xeed10), but with the container-of-3
+ * tag_get check up front (like delete_player_profile_request) instead of
+ * that sibling's simple container-flag check, and DAT_0031e494 is cleared
+ * to -1 before the container check runs, not after (disasm: the MOV to
+ * 0x31e494 is scheduled ahead of the first CALL tag_get). event_data and
+ * widget_deleted are unused, same 3-arg handler-table shape as siblings. */
+bool playlist_profile_begin_editing(void *widget, void *event_data,
+                                    bool *widget_deleted)
+{
+  short *container_tag;
+  int *list_widget;
+  short *list_tag;
+  short list_index;
+  int profile_handle;
+  int widget_tag_id;
+  bool result;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  result = false;
+
+  widget_tag_id = *(int *)widget;
+  *(int *)0x31e494 = -1; /* DAT_0031e494 — unknown purpose */
+
+  container_tag = (short *)tag_get(0x44654c61 /* 'DeLa' */, widget_tag_id);
+  if (*container_tag != 0 || *(int *)((char *)container_tag + 0x3e0) < 3) {
+    display_assert(
+      "expected the multiplayer profile select screen to be a container w/ "
+      "3+ children",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x768,
+      1);
+    system_exit(-1);
+  }
+
+  list_widget = *(int **)((char *)widget + 0x34);
+  list_tag = (short *)tag_get(0x44654c61 /* 'DeLa' */, *(int *)list_widget);
+  if (*list_tag != 2) {
+    display_assert(
+      "expected a spinner list widget for 'multiplayer profile list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x76b,
+      1);
+    system_exit(-1);
+  }
+
+  if (*(int *)((char *)list_tag + 0x3e0) != 3) {
+    display_assert(
+      "expected 3 list items for 'multiplayer profile list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x76c,
+      1);
+    system_exit(-1);
+  }
+
+  list_widget = *(int **)((char *)widget + 0x34);
+  list_index = *(short *)((char *)list_widget + 0x3c);
+  if (list_index < 0 ||
+      (int)list_index >= (int)*(unsigned short *)((char *)list_widget + 0x44)) {
+    display_assert(
+      "invalid multiplayer profile specified from 'multiplayer profile "
+      "list' list widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x775,
+      1);
+    system_exit(-1);
+  }
+
+  profile_handle = (*(int **)((char *)list_widget +
+                              0x40))[*(short *)((char *)list_widget + 0x3c)];
+
+  if (profile_handle == -1) {
+    ui_play_audio_feedback_sound(4);
+    goto exit;
+  }
+
+  if (profile_handle < 0) {
+    player_ui_begin_editing_profile(profile_handle);
+    result = true;
+    goto exit;
+  }
+
+  display_error_deferred(0x1f, -1, true, false);
+  ui_play_audio_feedback_sound(4);
+
+exit:
+  return result;
+}
+
 /* apply selected game engine item (event handler, data xref 0x31e1f8,
  * 0x14 bytes after player_profiles_list_dispose's 0x31e1e4 entry, same
  * ui_widget_event_handler_fn pointer array as the select_game_engine_item
@@ -4157,7 +4486,8 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
  * path; event_data and widget_deleted are unused, same "3-arg handler
  * typedef pushed by the dispatcher regardless" shape noted at
  * select_game_engine_item. */
-bool playlist_profile_set_game_engine(void *widget, void *event_data, bool *widget_deleted)
+bool playlist_profile_set_game_engine(void *widget, void *event_data,
+                                      bool *widget_deleted)
 {
   void *profile;
   void *parent;
@@ -4387,7 +4717,6 @@ bool FUN_000ecb60(void *widget)
   return false;
 }
 
-
 /* select game engine item (event handler table index 50, data xref
  * 0x31e220 in the same ui_widget_event_handler_fn pointer array
  * ui_widget_event_handler_function_invoke indexes at 0x31e158; single-param
@@ -4478,8 +4807,8 @@ bool playlist_profile_initialize_game_engine(void *widget)
  *
  * If a profile is being edited, (re)allocates a 0x100-byte name buffer
  * through ui_widget_realloc (same stack_memory_pool_realloc wrapper and
- * +0x3c buffer-pointer slot widget_instance_render_text_box above uses), passing
- * the widget's existing +0x3c buffer pointer as the realloc input. The
+ * +0x3c buffer-pointer slot widget_instance_render_text_box above uses),
+ * passing the widget's existing +0x3c buffer pointer as the realloc input. The
  * result is stored back to +0x3c unconditionally right after the call
  * (MOV before the NULL-test JZ in the disassembly, order preserved).
  * On successful allocation, copies up to 0x7f wide characters from the
@@ -4497,7 +4826,7 @@ bool playlist_profile_initialize_game_engine(void *widget)
  * unused, same 3-arg handler typedef shape as the sibling handlers
  * above. */
 bool playlist_profile_initialize_name(void *widget, void *event_data,
-                                             bool *widget_deleted)
+                                      bool *widget_deleted)
 {
   void *profile;
   void *name_buffer;

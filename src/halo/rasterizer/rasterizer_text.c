@@ -3371,7 +3371,8 @@ void rasterizer_text_draw(void *screen_pos, short *bounds, const void *color,
       if (bounds[1] < 0) {
         clamp_y = 0;
       }
-      FUN_001089a0(clip_bounds, clamp_y, clamp_x, max_height, max_width);
+      set_rectangle2d((short *)clip_bounds, (short)clamp_y, (short)clamp_x,
+                      (short)max_height, (short)max_width);
       texture = (void *)(*(int *)0x4d04ac);
     }
 
@@ -3459,7 +3460,8 @@ void rasterizer_draw_string(void *screen_pos, short *bounds, const void *color,
       if (bounds[1] < 0) {
         clamp_y = 0;
       }
-      FUN_001089a0(clip_bounds, clamp_y, clamp_x, max_height, max_width);
+      set_rectangle2d((short *)clip_bounds, (short)clamp_y, (short)clamp_x,
+                      (short)max_height, (short)max_width);
       texture = (void *)(*(int *)0x4d04ac);
     }
 

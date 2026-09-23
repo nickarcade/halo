@@ -6,7 +6,7 @@
  * through the rename prompt. Otherwise the profile is saved and the save
  * result is returned. */
 bool playlist_profile_save_changes(void *widget, void *event_data,
-                                                bool *widget_deleted)
+                                   bool *widget_deleted)
 {
   void *last_child;
   bool result;
@@ -45,10 +45,79 @@ bool playlist_profile_save_changes(void *widget, void *event_data,
   return result;
 }
 
+/* player profile color picker menu initialize (0x0eead0) — widget is the
+ * 'player color picker list' spinner list itself (definition tag 'DeLa',
+ * type 2, 3 list items; asserts otherwise). (Re)allocates its per-index
+ * indirection buffer at widget+0x40 sized to the player-profile-color count
+ * (FUN_001c0ed0), fills it 0..count-1, and stores the count at widget+0x44.
+ * Clamps the currently edited profile's color (profile+0x18) into
+ * [0, count-1] and mirrors the clamped value into the widget's selected
+ * index at widget+0x3c. Reports a deferred error but still returns true when
+ * no profile is currently being edited. */
+bool player_profile_color_picker_menu_initialize(void *widget, void *event_data,
+                                                 bool *widget_deleted)
+{
+  unsigned short color_count;
+  void *profile;
+  void *buffer;
+  short *list_tag;
+  int i;
+  short current_color;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  color_count = FUN_001c0ed0();
+  profile = player_ui_get_edit_player_profile();
+
+  list_tag = (short *)tag_get(0x44654c61 /* 'DeLa' */, *(int *)widget);
+  if (*list_tag != 2) {
+    display_assert(
+      "expected a spinner list widget for 'player color picker list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xdf8,
+      1);
+    system_exit(-1);
+  }
+
+  if (*(int *)((char *)list_tag + 0x3e0) != 3) {
+    display_assert(
+      "expected 3 list items for 'player color picker list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xdf9,
+      1);
+    system_exit(-1);
+  }
+
+  buffer = ui_widget_realloc(
+    *(int *)((char *)widget + 0x40), color_count,
+    "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xdfd);
+  *(void **)((char *)widget + 0x40) = buffer;
+  if (buffer != NULL) {
+    for (i = 0; i < (int)color_count; i++) {
+      ((char *)buffer)[i] = (char)i;
+    }
+    *(unsigned short *)((char *)widget + 0x44) = color_count;
+  }
+
+  if (profile != NULL) {
+    current_color = *(short *)((char *)profile + 0x18);
+    if (current_color < 0) {
+      current_color = 0;
+    } else if (current_color >= (short)color_count) {
+      current_color = (short)(color_count - 1);
+    }
+    *(short *)((char *)profile + 0x18) = current_color;
+    *(short *)((char *)widget + 0x3c) = current_color;
+    return true;
+  }
+
+  error(2, "failed to find editing player profile");
+  return true;
+}
+
 /* color picker menu dispose (event handler table index 62, 0x0eebe0) — frees
  * the child widget cached at +0x40 back to the widget pool, if present. */
 bool player_profile_color_picker_menu_dispose(void *widget, void *event_data,
-                                         bool *widget_deleted)
+                                              bool *widget_deleted)
 {
   void *child;
 
@@ -130,7 +199,8 @@ bool player_profile_color_picker_select_color(void *widget, void *event_data,
  * hanging off widget+0x34, resolves the selected item's profile handle, and
  * either begins editing it, plays a deny sound (no profile / handle == -1),
  * or reports a deferred error (handle >= 0). */
-bool player_profile_begin_editing(void *widget, void *event_data, bool *widget_deleted)
+bool player_profile_begin_editing(void *widget, void *event_data,
+                                  bool *widget_deleted)
 {
   short *list_tag;
   int *list_widget;
@@ -203,7 +273,8 @@ bool player_profile_begin_editing(void *widget, void *event_data, bool *widget_d
  * succeeded, returns immediately. On no-op or save failure it reports the
  * condition via error(), ends the profile edit session, closes the widget's
  * last child, marks *widget_deleted, and returns false. */
-bool player_profile_save_changes(void *widget, void *event_data, bool *widget_deleted)
+bool player_profile_save_changes(void *widget, void *event_data,
+                                 bool *widget_deleted)
 {
   void *last_child;
   bool profile_dirty;
@@ -360,9 +431,8 @@ bool player_profile_change_controller_settings(void *widget, void *event_data,
  * and, if so, quits that local player from the current network game. A NULL
  * event_data or an out-of-range controller index halts with an assert and
  * exits. */
-bool network_game_remove_local_player(void *widget,
-                                                     void *event_data,
-                                                     bool *widget_deleted)
+bool network_game_remove_local_player(void *widget, void *event_data,
+                                      bool *widget_deleted)
 {
   (void)widget;
   (void)widget_deleted;
@@ -385,9 +455,11 @@ bool network_game_remove_local_player(void *widget,
  * sub-widget at widget+0x34 must be a 3-item spinner list), resolves the
  * selected item's profile handle, stores it to DAT_0031e494, and either
  * plays a deny sound (handle == -1, returns false) or returns true. Sibling
- * of player_profile_begin_editing (player profile list) but with an extra tag_get-based
- * container check instead of a flag check, and no editing-session branch. */
-bool delete_player_profile_request(void *widget, void *event_data, bool *widget_deleted)
+ * of player_profile_begin_editing (player profile list) but with an extra
+ * tag_get-based container check instead of a flag check, and no editing-session
+ * branch. */
+bool delete_player_profile_request(void *widget, void *event_data,
+                                   bool *widget_deleted)
 {
   short *container_tag;
   int *list_widget;
@@ -487,8 +559,8 @@ bool create_and_begin_editing_new_gametype_profile(void *widget,
   saved_game_file_get_useable_untitled_profile_name(untitled_name);
   if (untitled_name[0] != L'\0') {
     /* widget+0x8 — unknown widget field, used as the profile's owning index */
-    profile_index = playlist_profile_new(*(unsigned short *)((char *)widget + 8),
-                                         untitled_name);
+    profile_index = playlist_profile_new(
+      *(unsigned short *)((char *)widget + 8), untitled_name);
     if (profile_index != -1) {
       player_ui_begin_editing_profile(profile_index);
       profile = (wchar_t *)player_ui_get_edit_playlist_profile();
@@ -536,7 +608,8 @@ bool create_and_begin_editing_new_gametype_profile(void *widget,
  * NUL), and hands the buffer to the virtual keyboard for validation. Any
  * failure along the way reports a deferred error and plays the deny sound;
  * a validation failure does the same after also ending the edit session. */
-bool create_and_begin_editing_new_player_profile(void *widget, void *event_data, bool *widget_deleted)
+bool create_and_begin_editing_new_player_profile(void *widget, void *event_data,
+                                                 bool *widget_deleted)
 {
   wchar_t untitled_name[128];
   short controller_index;
@@ -590,14 +663,15 @@ failure:
  * this file (widget/widget_deleted unused here; disasm never touches
  * EBP+8 or EBP+0x10). Always returns true (MOV AL,1 before every RET).
  *
- * Looks up the local network client (global_network_game_client_get), then scans
- * its player table (network_game_client_get_game() + 0x242,
- * 16 entries, stride 0x20; network_player_is_valid() takes the entry base
- * at +0x226) for a valid entry whose machine index (entry+0) matches this
- * client's own machine index (network_game_client_get_machine_index) and whose local-player index
+ * Looks up the local network client (global_network_game_client_get), then
+ * scans its player table (network_game_client_get_game() + 0x242, 16 entries,
+ * stride 0x20; network_player_is_valid() takes the entry base at +0x226) for a
+ * valid entry whose machine index (entry+0) matches this client's own machine
+ * index (network_game_client_get_machine_index) and whose local-player index
  * (entry+1) matches the field at event_data+2. On a match, requests a game
  * start-time change (request_type=1) and errors if it fails. */
-bool network_game_start_faster(void *widget, void *event_data, bool *widget_deleted)
+bool network_game_start_faster(void *widget, void *event_data,
+                               bool *widget_deleted)
 {
   void *client;
   char *player_base;
@@ -638,7 +712,8 @@ bool network_game_start_faster(void *widget, void *event_data, bool *widget_dele
  * index and the event's controller index (event_data+0x2); on a match asks
  * the network client to request a start-time change, logging an error if the
  * request is refused. Always returns true regardless of outcome. */
-bool network_game_start_slower(void *widget, void *event_data, bool *widget_deleted)
+bool network_game_start_slower(void *widget, void *event_data,
+                               bool *widget_deleted)
 {
   void *client;
   void *machine_base;
@@ -680,7 +755,7 @@ bool network_game_start_slower(void *widget, void *event_data, bool *widget_dele
  * widget disabled (+0x12) and clears its enabled/visible byte (+0x10) when no
  * Xbox demo content is installed. */
 bool disable_widget_if_no_xdemos(void *widget, void *event_data,
-                                    bool *widget_deleted)
+                                 bool *widget_deleted)
 {
   if (!xbox_demos_available()) {
     *(uint8_t *)((char *)widget + 0x12) = 1;
@@ -693,7 +768,8 @@ bool disable_widget_if_no_xdemos(void *widget, void *event_data,
  * asserts event_data is non-null (halts and exits otherwise), then sets the
  * single-player local player's controller index to the event's controller
  * index (event_data+0x2). Local player index is always 0. */
-bool single_player_set_player1_controller_choice(void *widget, void *event_data, bool *widget_deleted)
+bool single_player_set_player1_controller_choice(void *widget, void *event_data,
+                                                 bool *widget_deleted)
 {
   (void)widget;
   (void)widget_deleted;
@@ -719,7 +795,8 @@ bool single_player_set_player1_controller_choice(void *widget, void *event_data,
  * match, shows error 0x12 (modal, no pause) and marks the widget deleted,
  * returning false. Otherwise assigns that controller to local player 1
  * and returns true. */
-bool single_player_set_player2_controller_choice(void *widget, void *event_data, bool *widget_deleted)
+bool single_player_set_player2_controller_choice(void *widget, void *event_data,
+                                                 bool *widget_deleted)
 {
   short controller_index;
   short current_controller;
@@ -753,7 +830,8 @@ bool single_player_set_player2_controller_choice(void *widget, void *event_data,
  * event's controller index (event_data+0x2, zero-extended) as the local
  * player index (modal, pauses game). Returns the network-available flag
  * regardless of which branch ran. */
-bool display_error_if_no_network_connection(void *widget, void *event_data, bool *widget_deleted)
+bool display_error_if_no_network_connection(void *widget, void *event_data,
+                                            bool *widget_deleted)
 {
   bool network_available;
 
@@ -781,13 +859,13 @@ bool display_error_if_no_network_connection(void *widget, void *event_data, bool
  * column-list widget type (3), then, if widget+0x44 (no visible advertised
  * servers) is zero, fetches the network client and, if present and its
  * connection state is 0 ("searching"), forwards this handler's own params to
- * network_game_start_new_server and returns its result directly (the original tail-propagates
- * network_game_start_new_server's EAX into AL without touching it). If widget+0x44 is
- * non-zero, logs that a new server isn't being started because other servers
- * are already available. Falls through to false on: missing client, non-zero
- * client state, or the log branch. */
+ * network_game_start_new_server and returns its result directly (the original
+ * tail-propagates network_game_start_new_server's EAX into AL without touching
+ * it). If widget+0x44 is non-zero, logs that a new server isn't being started
+ * because other servers are already available. Falls through to false on:
+ * missing client, non-zero client state, or the log branch. */
 bool start_network_game_if_no_advertised_servers(void *widget, void *event_data,
-                                               bool *widget_deleted)
+                                                 bool *widget_deleted)
 {
   void *client;
   int16_t state;
@@ -809,7 +887,8 @@ bool start_network_game_if_no_advertised_servers(void *widget, void *event_data,
     if (client != NULL) {
       state = network_game_client_get_state(client, &elapsed_pct);
       if (state == 0) {
-        return network_game_start_new_server(widget, event_data, widget_deleted);
+        return network_game_start_new_server(widget, event_data,
+                                             widget_deleted);
       }
     }
   } else {
@@ -826,8 +905,7 @@ bool start_network_game_if_no_advertised_servers(void *widget, void *event_data,
  * record, clears its local-player autojoin flag, and, when exactly one local
  * record was found, tears down or pauses the server before copying autojoin
  * flags to the next multiplayer game. */
-bool netgame_unjoin_player(void *widget, void *event_data,
-                                          bool *widget_deleted)
+bool netgame_unjoin_player(void *widget, void *event_data, bool *widget_deleted)
 {
   void *client;
   char *record;
@@ -902,10 +980,10 @@ bool netgame_unjoin_player(void *widget, void *event_data,
   return false;
 }
 
-/* close_calling_widget_if_not_editing_profile (0xf03d0, table xref 0x31e2d0) — closes the widget's last
- * child when neither an in-progress player profile edit nor an in-progress
- * playlist profile edit is active ("no saved game file being edited"
- * cancel path). */
+/* close_calling_widget_if_not_editing_profile (0xf03d0, table xref 0x31e2d0) —
+ * closes the widget's last child when neither an in-progress player profile
+ * edit nor an in-progress playlist profile edit is active ("no saved game file
+ * being edited" cancel path). */
 void close_calling_widget_if_not_editing_profile(void *widget)
 {
   void *child;
@@ -927,8 +1005,7 @@ void close_calling_widget_if_not_editing_profile(void *widget)
  * caller-supplied 16-bit value) into DAT_0031e4fc, then opens the virtual
  * keyboard to let the player edit the name. Logs an error (does not fail)
  * if the keyboard couldn't be invoked; always returns true. */
-bool new_campaign_chosen(void *widget, void *event_data,
-                                   bool *widget_deleted)
+bool new_campaign_chosen(void *widget, void *event_data, bool *widget_deleted)
 {
   wchar_t campaign_name[128];
   bool keyboard_ok;
@@ -1016,7 +1093,7 @@ void new_campaign_decision(void)
 /* pop history stack once (event handler table index 98, 0x0f0620) — pops one
  * entry from the widget history stack of the widget's local player (+0x8). */
 bool go_back_twice_next_time(void *widget, void *event_data,
-                                      bool *widget_deleted)
+                             bool *widget_deleted)
 {
   ui_widgets_pop_stack(*(uint16_t *)((char *)widget + 0x8));
   return true;
@@ -1030,7 +1107,8 @@ bool go_back_twice_next_time(void *widget, void *event_data,
  * child index (DAT_0046ce38, a stored int16); otherwise preselects index 1
  * (default difficulty). Stores the resolved child widget pointer at
  * widget+0x38 and the selected index at widget+0x3c — the same "selected
- * list item" field pair player_profile_1wide_list_update uses at +0x3c for its spinner list. */
+ * list item" field pair player_profile_1wide_list_update uses at +0x3c for its
+ * spinner list. */
 bool difficulty_menu_initialize(void *widget)
 {
   const char *map_name;
@@ -1200,13 +1278,13 @@ void settings_menu_update_extended_description(void *widget)
 }
 
 /* playlist_settings_menu_update_extended_description (0xf0bb0)
- * Same purpose as settings_menu_update_extended_description above (updates an extended-description
- * widget for a "settings select" list widget's currently highlighted
- * item), but for a widget whose extended-description owner (widget+0x48)
- * holds the index directly on its container ((*(widget+0x48))+0x34) and
- * that container's first child (+0x2c), rather than distinguishing a
- * container/text-box pair by type. Counts the index of widget's
- * currently-selected sibling (widget+0x34 chain via +0x2c, compared
+ * Same purpose as settings_menu_update_extended_description above (updates an
+ * extended-description widget for a "settings select" list widget's currently
+ * highlighted item), but for a widget whose extended-description owner
+ * (widget+0x48) holds the index directly on its container
+ * ((*(widget+0x48))+0x34) and that container's first child (+0x2c), rather than
+ * distinguishing a container/text-box pair by type. Counts the index of
+ * widget's currently-selected sibling (widget+0x34 chain via +0x2c, compared
  * against widget+0x38), resolves the owner's definition tag via
  * tag_get('DeLa', *(widget+0x48)) and asserts it is a 2-child widget
  * definition (tag+0x3e0 == 2), then writes the resolved index into both
@@ -1260,11 +1338,12 @@ void playlist_settings_menu_update_extended_description(void *widget)
 }
 
 /* playlist_gametype_select_menu_update_extended_description (0xf0c60)
- * Same shape as playlist_settings_menu_update_extended_description above (updates an extended-description widget
- * for a "settings select" list widget's currently highlighted item, owner
- * holding the index directly on its container), reusing the identical
- * pooled string literals for both display_assert messages — only the
- * embedded __LINE__ values (0x173, 0x181 vs 0x14d, 0x15b) differ. */
+ * Same shape as playlist_settings_menu_update_extended_description above
+ * (updates an extended-description widget for a "settings select" list widget's
+ * currently highlighted item, owner holding the index directly on its
+ * container), reusing the identical pooled string literals for both
+ * display_assert messages — only the embedded __LINE__ values (0x173, 0x181 vs
+ * 0x14d, 0x15b) differ. */
 void playlist_gametype_select_menu_update_extended_description(void *widget)
 {
   int child;
@@ -1314,18 +1393,20 @@ void playlist_gametype_select_menu_update_extended_description(void *widget)
 }
 
 /* multiplayer_type_menu_update_extended_description (0xf0d10)
- * Same purpose as playlist_settings_menu_update_extended_description/playlist_gametype_select_menu_update_extended_description above (updates an
- * extended-description widget for a "settings select" list widget's
- * currently-highlighted item: counts the index of widget's currently
+ * Same purpose as
+ * playlist_settings_menu_update_extended_description/playlist_gametype_select_menu_update_extended_description
+ * above (updates an extended-description widget for a "settings select" list
+ * widget's currently-highlighted item: counts the index of widget's currently
  * selected sibling via the +0x34/+0x2c chain compared against widget+0x38),
  * but does not resolve a 'DeLa' tag definition — instead it validates
  * widget+0x48's container (+0x34) and that container's first child (+0x2c)
  * directly, and writes the resolved index to container+0x50 and
  * (container's first child)+0x40, the offsets swapped relative to
- * playlist_settings_menu_update_extended_description/playlist_gametype_select_menu_update_extended_description's +0x40/+0x50 writes. The final two stores each
- * re-derive the container from widget+0x48 independently (matching two
- * separate reloads in the disassembly, 0xf0d75 and 0xf0d7f), rather than
- * reusing the value computed for the guard check. */
+ * playlist_settings_menu_update_extended_description/playlist_gametype_select_menu_update_extended_description's
+ * +0x40/+0x50 writes. The final two stores each re-derive the container from
+ * widget+0x48 independently (matching two separate reloads in the disassembly,
+ * 0xf0d75 and 0xf0d7f), rather than reusing the value computed for the guard
+ * check. */
 void multiplayer_type_menu_update_extended_description(void *widget)
 {
   int container;
@@ -1369,10 +1450,10 @@ void multiplayer_type_menu_update_extended_description(void *widget)
 }
 
 /* difficulty_select_menu_update_extended_description (0xf0d90)
- * Same shape as settings_menu_update_extended_description above (updates the extended-description
- * text/pic widgets for a "settings select" list widget's currently
- * highlighted item), but for the difficulty-select widget: resolves the
- * widget's owner's definition tag via widget+0x48 (tag_get('DeLa',
+ * Same shape as settings_menu_update_extended_description above (updates the
+ * extended-description text/pic widgets for a "settings select" list widget's
+ * currently highlighted item), but for the difficulty-select widget: resolves
+ * the widget's owner's definition tag via widget+0x48 (tag_get('DeLa',
  * tag_index)) and asserts it is a 2-child widget definition (tag+0x3e0 ==
  * 2). Walks the sibling chain at widget+0x34 (via +0x2c "next sibling"),
  * counting the index of the previously-selected child (widget+0x38), then
@@ -1538,6 +1619,64 @@ void netgame_prejoin_players(void)
     }
     index++;
   } while ((short)index < 4);
+}
+
+/* player_profile_edit_select_menu_update_extended_description (0xf24b0)
+ * Same shape as playlist_gametype_select_menu_update_extended_description
+ * above (updates the extended-description widgets for a "settings select"
+ * list widget's currently-highlighted item): resolves widget+0x48's owner
+ * definition tag via tag_get('DeLa', tag_index) and asserts it is a 2-child
+ * widget definition (tag+0x3e0 == 2). Walks the sibling chain at widget+0x34
+ * (via +0x2c "next sibling"), counting the index of the previously-selected
+ * child (widget+0x38), then writes the resolved index into both the
+ * container (+0x34 off widget+0x48, +0x40) and that container's first child
+ * (+0x2c, +0x50). */
+void player_profile_edit_select_menu_update_extended_description(void *widget)
+{
+  int child;
+  short index;
+  void *widget_def;
+  int container;
+
+  if ((widget == 0) || (*(int *)((char *)widget + 0x38) == 0) ||
+      (*(int *)((char *)widget + 0x48) == 0)) {
+    display_assert(
+      "invalid widget trying to update its extended list description",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x836, 1);
+    system_exit(-1);
+  }
+
+  child = *(int *)((char *)widget + 0x34);
+  index = 0;
+  if (child != 0) {
+    int selected_child = *(int *)((char *)widget + 0x38);
+    do {
+      if (child == selected_child)
+        break;
+      child = *(int *)((char *)child + 0x2c);
+      index = index + 1;
+    } while (child != 0);
+    if (index == -1) {
+      return;
+    }
+  }
+
+  widget_def =
+    tag_get(0x44654c61 /* 'DeLa' */, *(int *)*(int *)((char *)widget + 0x48));
+
+  if (*(int *)((char *)widget_def + 0x3e0) != 2) {
+    display_assert(
+      "expected a container widget w/ 2 children for the player profile edit "
+      "settings list extended description",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x844, 1);
+    system_exit(-1);
+  }
+
+  container = *(int *)((char *)*(int *)((char *)widget + 0x48) + 0x34);
+  *(short *)((char *)container + 0x40) = index;
+  *(short *)((char *)*(int *)((char *)container + 0x2c) + 0x50) = index;
 }
 
 /* player-profile three-column list update (0x0f2560). Validates the column
@@ -1830,6 +1969,55 @@ void get_active_player_profile_display_name(void *widget)
   }
 }
 
+/* get_editable_player_profile_display_name (0xf2990)
+ * Sibling of get_active_player_profile_display_name, for the profile
+ * currently being edited rather than the active one. Same widget-type
+ * (+0xe == 1) and local-player-index (+0x8, [0,4)) guards. Unlike the
+ * active-profile version, player_ui_get_edit_player_profile (FUN_000e0ea0)
+ * takes no arguments and returns a pointer directly into the edit-profile
+ * record (no local 0x30-byte copy) — a NULL return (no profile being
+ * edited) is a normal, non-asserting no-op, matching the reference's
+ * `if (extraout_EAX != NULL) { ... } return;` shape. Evidence: reference
+ * disassembly at 0xf2990-0xf2a30 (assert strings/lines are the reference's
+ * own PUSH immediates at 0xf29a1/0xf29a6/0xf29d0/0xf29da; realloc call site
+ * line immediate at 0xf29fc). */
+void get_editable_player_profile_display_name(void *widget)
+{
+  wchar_t *profile;
+  wchar_t *new_buf;
+  short local_player_index;
+
+  if (*(short *)((char *)widget + 0xe) != 1) {
+    display_assert(
+      "expected a text box widget for profile display name",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x9fe, 1);
+    system_exit(-1);
+  }
+
+  local_player_index = *(short *)((char *)widget + 8);
+  if (local_player_index < 0 || local_player_index >= 4) {
+    display_assert(
+      "profile display name requires a valid local player index",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xa00, 1);
+    system_exit(-1);
+  }
+
+  profile = (wchar_t *)player_ui_get_edit_player_profile();
+  if (profile != NULL) {
+    new_buf = (wchar_t *)ui_widget_realloc(
+      *(int *)((char *)widget + 0x3c), 0x18,
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xa04);
+    *(wchar_t **)((char *)widget + 0x3c) = new_buf;
+    if (new_buf != NULL) {
+      ustrncpy(new_buf, profile, 0xb);
+      *(unsigned short *)((char *)new_buf + 0x16) = 0;
+    }
+  }
+}
+
 /* get_active_player_profile_color_index (0xf2b00) — "profile color picture"
  * data-driven widget update. Requires the widget's bound local player index
  * (+0x8, signed 16-bit) to be in [0, MAXIMUM_NUMBER_OF_LOCAL_PLAYERS), fetches
@@ -1870,8 +2058,8 @@ void get_active_player_profile_color_index(void *widget)
   *(short *)((char *)widget + 0x50) = color_index;
 }
 
-/* multiplayer_game_set_text_box_for_map_name (0xf2b90) — maps the active multiplayer map name to its
- * legacy game-settings text index. */
+/* multiplayer_game_set_text_box_for_map_name (0xf2b90) — maps the active
+ * multiplayer map name to its legacy game-settings text index. */
 void multiplayer_game_set_text_box_for_map_name(void *widget)
 {
   char *map_name;
@@ -2172,7 +2360,50 @@ void solo_game_objective_text(void *widget)
   }
 }
 
-/* multiplayer_game_set_text_box_for_number_of_players (0xf3280)
+/* multiplayer_game_set_bitmap_for_ruleset (0xf31d0). The widget's type
+ * must be zero; the active network game's ruleset at +0xbc maps to the
+ * bitmap/string index at +0x50. Unknown ruleset values select index 5. */
+void multiplayer_game_set_bitmap_for_ruleset(void *widget)
+{
+  int game;
+
+  if (*(short *)((char *)widget + 0xe) != 0) {
+    display_assert(
+      "expected container widget for mp game settings bitmap",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xb28, 1);
+    system_exit(-1);
+  }
+
+  game = network_game_get_game();
+  if (game == 0) {
+    error(2, "no network game");
+    return;
+  }
+
+  switch (*(int *)((char *)game + 0xbc)) {
+  case 1:
+    *(unsigned short *)((char *)widget + 0x50) = 0;
+    return;
+  case 2:
+    *(unsigned short *)((char *)widget + 0x50) = 2;
+    return;
+  case 3:
+    *(unsigned short *)((char *)widget + 0x50) = 3;
+    return;
+  case 4:
+    *(unsigned short *)((char *)widget + 0x50) = 1;
+    return;
+  case 5:
+    *(unsigned short *)((char *)widget + 0x50) = 4;
+    return;
+  default:
+    *(unsigned short *)((char *)widget + 0x50) = 5;
+    return;
+  }
+}
+
+/* multiplayer_game_set_text_box_for_number_of_players (0xf3280\)
  * "mp game settings text" numeric text box widget update. Requires the
  * widget to be a text box (type == 1 at +0xe). Looks up the current network
  * game via network_game_get_game(); if none is active, reports error 2 "no
@@ -2274,13 +2505,14 @@ void multiplayer_edit_profile_set_ruleset_textbox_string_index(void *widget)
  * game with no game object clears the box. Both selecting paths also set the
  * widget's +0x10 visibility byte to 1.
  *
- * Otherwise, if the game's +0xc0 flag is 1 and network_game_client_get_seconds_to_game_start on the current
- * client returns a negative int16 (TEST AX,AX / JGE at 0xf34bd), walks the 16
- * player slots at game+0x244 with stride 0x20, counting slots whose player
- * record (slot - 0x1e) is valid and whose byte at the slot base is 0 or 1.
- * Both counts non-zero selects string index 0x1a, otherwise 0x1b; either way
- * +0x10 becomes 1. Every other path clears +0x10 to 0. Evidence: reference
- * disassembly at 0xf3400-0xf353a. */
+ * Otherwise, if the game's +0xc0 flag is 1 and
+ * network_game_client_get_seconds_to_game_start on the current client returns a
+ * negative int16 (TEST AX,AX / JGE at 0xf34bd), walks the 16 player slots at
+ * game+0x244 with stride 0x20, counting slots whose player record (slot - 0x1e)
+ * is valid and whose byte at the slot base is 0 or 1. Both counts non-zero
+ * selects string index 0x1a, otherwise 0x1b; either way +0x10 becomes 1. Every
+ * other path clears +0x10 to 0. Evidence: reference disassembly at
+ * 0xf3400-0xf353a. */
 void game_options_menu_update_pic_desc(void *widget)
 {
   int game;
@@ -2321,7 +2553,8 @@ void game_options_menu_update_pic_desc(void *widget)
   }
 
   if (game != 0 && *(char *)(game + 0xc0) == 1 &&
-      network_game_client_get_seconds_to_game_start(global_network_game_client_get()) < 0) {
+      network_game_client_get_seconds_to_game_start(
+        global_network_game_client_get()) < 0) {
     count_free = 0;
     count_taken = 0;
     slot = (char *)(game + 0x244);
@@ -2349,6 +2582,36 @@ void game_options_menu_update_pic_desc(void *widget)
   }
 
   *(unsigned char *)((char *)widget + 0x10) = 0;
+}
+
+/* teams_no_teams_mp_game_bitmap_update (0xf3540, ui_widget_game_data_
+ * function_table). Bitmap widget update for the "teams / no teams"
+ * pregame header art. Requires the widget to be a container bitmap
+ * (+0xe == 0); otherwise asserts and exits (assert string/file/line are
+ * the reference's own PUSH immediates at 0xf3562/0xf355d/0xf3558).
+ *
+ * Reads the current network game (network_game_get_game, 0xf3545). When a
+ * game exists, the widget's +0x50 word is set to 1 unless the game's
+ * +0xc0 flag equals 1 (i.e. teams-off maps to 1, teams-on maps to 0),
+ * else left untouched when there is no game. Evidence: reference
+ * disassembly at 0xf3540-0xf358f. */
+void teams_no_teams_mp_game_bitmap_update(void *widget)
+{
+  int game;
+
+  game = network_game_get_game();
+  if (*(short *)((char *)widget + 0xe) != 0) {
+    display_assert(
+      "expected a container bitmap for mp pregame header widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xbfc, 1);
+    system_exit(-1);
+  }
+
+  if (game != 0) {
+    *(unsigned short *)((char *)widget + 0x50) =
+      (unsigned short)(*(char *)(game + 0xc0) != 1);
+  }
 }
 
 /* warn_if_difficulty_will_nuke_saved_game (0xf3590, ui_widget_game_data_
@@ -2436,6 +2699,188 @@ void dim_if_no_system_link_cable(void *widget)
     *(float *)((char *)widget + 0x24) = 1.0f;
   } else {
     *(float *)((char *)widget + 0x24) = 0.333f;
+  }
+}
+
+/* player_profile_update_cache_for_nwide_list (0xf3740,
+ * ui_widget_game_data_input_functions.obj). Ensures the global profile record
+ * table at 0x5aa3c0 (3 records, stride 0x34 -- see the layout comment on
+ * player_profile_1wide_list_update below) has a cached record for every
+ * distinct profile id present in ids[0..count). Evidence: reference
+ * disassembly 0xf3740-0xf384b.
+ *
+ * Pass 1 (0xf3746-0xf3784): for each of the 3 table records whose id is live
+ * (!= -1), linear-scan ids[] for a match and mark found[record_index] = 1 on
+ * the first hit (found is a 3-byte local, zeroed up front).
+ *
+ * Pass 2 (0xf3786-0xf3845): for each requested id (skipping -1 placeholders)
+ * already present in the table, do nothing further. For one NOT present,
+ * scan for the first record index k with found[k] == 0. The bound check on
+ * that scan ("if (k > 2) assert(...)") tests k BEFORE the increment, so it
+ * never fires when all 3 records are occupied -- the scan instead falls
+ * through with k == 3 and the call below addresses one record past the
+ * table. This is the reference's own behavior (0xf37c4-0xf37f6), reproduced
+ * as-is. On a free (or out-of-bounds) k, call player_profile_new(id,
+ * &table[k].name) to fill in the record's name; on success store the id into
+ * table[k].id and mark found[k] = 1 (skipped when k == 3, matching the
+ * reference, which never touches found[3]); on failure log
+ * error(2, "failed to cache player profile"). */
+void player_profile_update_cache_for_nwide_list(int *ids, int count)
+{
+  /* found[3] is padding: the reference's k==3 fallthrough (see above) writes
+   * one byte past its 3-entry array into an adjacent unused stack byte
+   * (EBP-1). Sized to 4 so that write stays in-bounds C; it is never read. */
+  char found[4];
+  int *entry;
+  int entry_index;
+  int i;
+  int j;
+  int k;
+  int *slot;
+
+  found[0] = 0;
+  found[1] = 0;
+  found[2] = 0;
+
+  entry = (int *)0x5aa3c0;
+  entry_index = 0;
+  do {
+    if (*entry != -1) {
+      for (i = 0; i < count; i++) {
+        if (*entry == ids[i]) {
+          found[entry_index] = 1;
+          break;
+        }
+      }
+    }
+    entry = entry + 0xd; /* stride 0x34 bytes */
+    entry_index = entry_index + 1;
+  } while ((int)entry < 0x5aa45c);
+
+  for (i = 0; i < count; i++) {
+    if (ids[i] != -1) {
+      j = 0;
+      entry = (int *)0x5aa3c0;
+      while (1) {
+        if (*entry == ids[i]) {
+          break;
+        }
+        entry = entry + 0xd; /* stride 0x34 bytes */
+        j = j + 1;
+        if ((int)entry >= 0x5aa45c) {
+          break;
+        }
+      }
+      if (j == 3) {
+        k = 0;
+        do {
+          if (found[k] != 1) {
+            break;
+          }
+          if (k > 2) {
+            display_assert("not enough cache profiles",
+                           "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_"
+                           "input_functions.c",
+                           0xca2, 1);
+            system_exit(-1);
+          }
+          k = k + 1;
+        } while (k < 3);
+
+        slot = (int *)(k * 0x34 + 0x5aa3c0);
+        if (player_profile_new(ids[i], (wchar_t *)((char *)slot + 4))) {
+          *slot = ids[i];
+          found[k] = 1;
+        } else {
+          error(2, "failed to cache player profile");
+        }
+      }
+    }
+  }
+}
+
+/* variant_profile_update_cache_for_nwide_list (0xf3850)
+ * Same shape as player_profile_update_cache_for_nwide_list above, but for the
+ * game-variant profile scratch block at DAT_005aa260 (3 entries, stride
+ * 0x6c: int id followed by an embedded game_variant_t). Evidence: disasm
+ * base 0x5aa260 / end 0x5aa3a4 / stride 0x6c (matches ui_widget.c's
+ * csmemset((void *)0x5aa260, -1, 0x144) comment "profile scratch block"),
+ * callee playlist_profile_delete(id, variant*) at 0x1c26f0 with args
+ * (EAX=id, ECX=&slot+4) traced from the two PUSHes before the CALL, assert
+ * line 0xcd5 / error string "failed to cache playlist profile" read
+ * directly off the pushed literals. */
+void variant_profile_update_cache_for_nwide_list(int *ids, int count)
+{
+  /* found[3] is padding: the reference's k==3 fallthrough (see below) writes
+   * one byte past its 3-entry array into an adjacent unused stack byte
+   * (EBP-1). Sized to 4 so that write stays in-bounds C; it is never read. */
+  char found[4];
+  int *entry;
+  int entry_index;
+  int i;
+  int j;
+  int k;
+  int *slot;
+
+  found[0] = 0;
+  found[1] = 0;
+  found[2] = 0;
+
+  entry = (int *)0x5aa260;
+  entry_index = 0;
+  do {
+    if (*entry != -1) {
+      for (i = 0; i < count; i++) {
+        if (*entry == ids[i]) {
+          found[entry_index] = 1;
+          break;
+        }
+      }
+    }
+    entry = entry + 0x1b; /* stride 0x6c bytes */
+    entry_index = entry_index + 1;
+  } while ((int)entry < 0x5aa3a4);
+
+  for (i = 0; i < count; i++) {
+    if (ids[i] != -1) {
+      j = 0;
+      entry = (int *)0x5aa260;
+      while (1) {
+        if (*entry == ids[i]) {
+          break;
+        }
+        entry = entry + 0x1b; /* stride 0x6c bytes */
+        j = j + 1;
+        if ((int)entry >= 0x5aa3a4) {
+          break;
+        }
+      }
+      if (j == 3) {
+        k = 0;
+        do {
+          if (found[k] != 1) {
+            break;
+          }
+          if (k > 2) {
+            display_assert("not enough cache profiles",
+                           "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_"
+                           "input_functions.c",
+                           0xcd5, 1);
+            system_exit(-1);
+          }
+          k = k + 1;
+        } while (k < 3);
+
+        slot = (int *)(k * 0x6c + 0x5aa260);
+        if (playlist_profile_delete(ids[i],
+                                    (game_variant_t *)((char *)slot + 4))) {
+          *slot = ids[i];
+          found[k] = 1;
+        } else {
+          error(2, "failed to cache playlist profile");
+        }
+      }
+    }
   }
 }
 
