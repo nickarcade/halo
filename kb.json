@@ -28781,7 +28781,8 @@
     },
     {
      "addr": "0xe8830",
-     "decl": "void network_game_reset_to_pregame_ui(void);"
+     "decl": "void network_game_reset_to_pregame_ui(void);",
+     "ported": true
     },
     {
      "addr": "0xe8910",

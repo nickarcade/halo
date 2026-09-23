@@ -81,6 +81,40 @@ The 15 scoped `kb.json` objects below contain 391 functions. Of these, 377 have 
 | Server | `network_server_manager.obj`, `network_server_message_handler.obj` | 78 / 92 |
 | Game state and lockstep | `network_game_manager.obj`, `game_time.obj` | 40 / 40 |
 
+A static direct-call boundary check against `artifacts/ntsc_callgraph/callgraph.json`
+found three original-body game helpers called by the 15 objects. The
+good-color picker at `0x1c19a0` is now ported: PAL identifies it as
+`player_profile_get_random_good_color`, and 2276 calls
+`seed_random_range(local_seed, 0, 3)`. Its C lift has 100% mnemonic and
+operand match, passes the object-wide VC71 gate, and has a redirect in the
+fresh patched XBE. The random-player-name lookup `FUN_0019d420` is also now
+active. PAL and 2276 agree on its UTF-16 tag entry, signed index check, and
+in-place terminator; its lift passes 100/100 synthetic seeds at 62.1%
+coverage and scores 88.2% mnemonic / 85.3% operand match without an
+object-wide regression. The model marker-group lookup `FUN_00123d80` is now
+ported too. PAL calls it `model_find_marker`; Ghidra confirms the signed
+16-bit binary search over 0x40-byte entries, case-insensitive compare, and
+`-1` miss result. Its lift pipeline passes 120/120 synthetic cases at 47.4%
+coverage and scores 85.5% mnemonic / 71.8% operand match. The strict
+model-source VC71 gate reports two older functions below their recorded
+baseline; removing this new body leaves both drops unchanged, so this port
+does not cause them. The same boundary audit exposed an original UI helper,
+`network_game_reset_to_pregame_ui` at `0xe8830`, called by the client pregame
+transition. It is now active. PAL and 2276 agree on the four screen choices
+and the connected host's countdown pause. Its lift scores 96.5% mnemonic /
+95.1% operand match; a tracked
+[`check_system_link_ui_pregame.py`](../tools/equivalence/check_system_link_ui_pregame.py)
+runner checks eight success/failure states against the original, including
+the widget path, host pause arguments, and error text. The generic 100-seed
+differential was vacuous at 31.3% coverage because it stayed on one path.
+The strict UI-source VC71 gate reports no regressions but cannot score an
+already absent baselined `FUN_000e5180`; it lists 19 unrelated improvements.
+All direct game and UI helper callees found by this static boundary check now
+have active C bodies.
+SDK, XNet, and C runtime calls at this boundary are platform dependencies.
+This static index records direct calls only; indirect calls and live behavior
+still need separate checks.
+
 PAL review found three distinct cases. The 2276 transport functions `transport_dispose` and `transport_network_available` have low mnemonic percentages because their reference bodies are very short; Ghidra confirms their current behavior, including a `void` return for `transport_dispose` where PAL returns an error code. The client search and server machine handlers have longer low-match bodies: PAL's explicit result handling improves the 2276 client search score, while binary-backed branch and layout recovery improves the server handler's operand match. Finally, four disabled server handlers score 100% in both mnemonic and operand comparison, but a direct differential run of the game-start handler diverges when its candidate inlines `network_game_server_get_state` and reaches an assert while the oracle stubs that callee. That run does not establish a runtime regression or safe activation. Redirects remain disabled pending a same-context oracle or system-link runtime test.
 
 `network_game_server_send_game_data_pregame` is one of the 100% matching disabled handlers. PAL and 2276 agree on its 0x434-byte game copy, type-6 message creation, broadcast, return value, and error strings. Its local message now uses the verified `network_game_blob_t` layout in place of an opaque byte array; VC71 remains 100% for both mnemonic and operands, and the whole server-source regression gate passes. The default synthetic oracle stubs `network_game_server_get_game` to zero and covers only 28.7% of the function. Supplying the verified `server + 8` game pointer as a deterministic stub return reaches the message-creation failure branch (52.1% coverage); overriding creation and broadcast returns also exercises broadcast success (53.7%) and failure (60.6%) branches. Each targeted snapshot agrees on the reached path, but message creation, payload copying, and sending remain stubbed. The redirect stays disabled pending an end-to-end system-link test or a stronger same-context oracle.

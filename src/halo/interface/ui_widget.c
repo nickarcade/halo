@@ -2600,6 +2600,50 @@ done:
   *(uint8_t *)0x31e050 = 0;
 }
 
+/* 0xe8830 — Return the client to its pregame screen after a network game.
+ * The 2276 body closes widgets first and selects one of four screens based
+ * on split-screen, quickstart, and local-host state.  The connected host
+ * pauses the server countdown before opening map selection.
+ */
+void network_game_reset_to_pregame_ui(void)
+{
+  void *server;
+
+  ui_widgets_close_all();
+  if (network_game_is_splitscreen_local()) {
+    if (network_game_is_quickstart_local()) {
+      if (ui_widget_load_by_name_or_tag(
+            "ui\\shell\\main_menu\\multiplayer_type_select\\split_screen\\pregame\\splitscreen_pregame_wrapper_normal",
+            -1, 0, -1, -1, -1, -1) == 0) {
+        error(2, "failed to load pregame screen after quickstart match");
+      }
+    } else {
+      if (ui_widget_load_by_name_or_tag(
+            "ui\\shell\\main_menu\\multiplayer_type_select\\split_screen\\splitscreen_map_select_postgame_wrapper",
+            -1, 0, -1, -1, -1, -1) == 0) {
+        error(2, "failed to load map select postgame screen");
+      }
+    }
+  } else {
+    server = global_network_game_server_get();
+    if (server != 0) {
+      server = global_network_game_server_get();
+      network_game_server_pause_countdown(server, 1);
+      if (ui_widget_load_by_name_or_tag(
+            "ui\\shell\\main_menu\\multiplayer_type_select\\connected\\connected_map_select_postgame_wrapper",
+            -1, 0, -1, -1, -1, -1) == 0) {
+        error(2, "failed to load map select postgame screen");
+      }
+    } else {
+      if (ui_widget_load_by_name_or_tag(
+            "ui\\shell\\main_menu\\multiplayer_type_select\\connected\\pregame\\connected_pregame_screen",
+            -1, 0, -1, -1, -1, -1) == 0) {
+        error(2, "failed to load networked pregame status screen");
+      }
+    }
+  }
+}
+
 void ui_widget_display_error(int16_t error_handle, int local_player_index,
                              char is_modal, char pause_game)
 {
