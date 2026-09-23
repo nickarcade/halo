@@ -49,16 +49,15 @@ void FUN_000dc7f0(void)
 
 /* Map a first-person weapon state to an animation graph index (0xdc8c0).
  * Pure lookup table: 24 states (0..23) map to animation indices; any
- * out-of-range state returns -1. */
-int16_t first_person_animation_type_from_weapon_state(int16_t state)
+ * out-of-range state returns -1. The return is 32-bit (every arm is
+ * `mov eax, imm`, the default `or eax, -1`; PAL-2342 declares it long), and
+ * the cases follow the original's case-body order behind the jump table at
+ * 0xdc964, not numeric order. */
+int first_person_animation_type_from_weapon_state(int16_t state)
 {
   switch (state) {
   case 0:
     return 0;
-  case 1:
-    return 0x15;
-  case 2:
-    return 0x16;
   case 3:
     return 9;
   case 4:
@@ -83,12 +82,6 @@ int16_t first_person_animation_type_from_weapon_state(int16_t state)
     return 7;
   case 14:
     return 8;
-  case 15:
-    return 0x17;
-  case 16:
-    return 0x18;
-  case 17:
-    return 0x19;
   case 18:
     return 0xb;
   case 19:
@@ -97,12 +90,22 @@ int16_t first_person_animation_type_from_weapon_state(int16_t state)
     return 0x10;
   case 21:
     return 0x14;
+  case 1:
+    return 0x15;
+  case 2:
+    return 0x16;
+  case 15:
+    return 0x17;
+  case 16:
+    return 0x18;
+  case 17:
+    return 0x19;
   case 22:
     return 0x1a;
   case 23:
     return 0x1b;
   default:
-    return (int16_t)-1;
+    return -1;
   }
 }
 

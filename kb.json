@@ -8225,7 +8225,7 @@
     },
     {
      "addr": "0xdc8c0",
-     "decl": "int16_t first_person_animation_type_from_weapon_state(int16_t state@<eax>);",
+     "decl": "int first_person_animation_type_from_weapon_state(int16_t state@<eax>);",
      "ported": true,
      "name": "first_person_animation_type_from_weapon_state"
     },
