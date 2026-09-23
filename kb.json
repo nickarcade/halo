@@ -28493,7 +28493,7 @@
     {
      "addr": "0xe4770",
      "decl": "void pop_widget(int *head@<edi>, void *record@<esi>);",
-     "ported": false,
+     "ported": true,
      "name": "pop_widget"
     },
     {
