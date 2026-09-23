@@ -3987,9 +3987,12 @@
     "call_count": 5
   },
   "0x12f290": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 3,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "moderate",
+    "coverage_pct": 75.6,
+    "oracle": "xbe"
   },
   "0x12f330": {
     "class": "stubbable",
@@ -4018,8 +4021,8 @@
     "class": "non_leaf",
     "dir32_count": 5,
     "call_count": 9,
-    "confidence": "weak",
-    "coverage_pct": 28.7,
+    "confidence": "moderate",
+    "coverage_pct": 60.6,
     "oracle": "xbe"
   },
   "0x12f60": {
