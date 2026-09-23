@@ -40183,6 +40183,21 @@
       "score": 100.0,
       "source": "src/halo/sound/game_sound.c"
     },
+    "FUN_001c77a0": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 90.0,
+      "addr": "0x1c77a0",
+      "end": "0x1c7a0b",
+      "kind": "auto",
+      "n_r": 220,
+      "opnd_percent": 73.7,
+      "raw_mnemonic_pct": 90.0,
+      "ref": "synth",
+      "ref_sha": "a914c3b6127b464f",
+      "score": 90.0,
+      "source": "src/halo/sound/game_sound.c"
+    },
     "FUN_001c7a10": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -57567,6 +57582,21 @@
       "ref_sha": "902ce57abe6b6a88",
       "score": 91.4,
       "source": "src/halo/math/real_math.c"
+    },
+    "compress_ima_adpcm_audio_data": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 91.7,
+      "addr": "0x1c85a0",
+      "end": "0x1c86fa",
+      "kind": "auto",
+      "n_r": 135,
+      "opnd_percent": 79.5,
+      "raw_mnemonic_pct": 91.7,
+      "ref": "synth",
+      "ref_sha": "80f2f9c9bccaee89",
+      "score": 91.7,
+      "source": "src/halo/sound/game_sound.c"
     },
     "compress_real_to_int16": {
       "abi_model": "raw",
@@ -97801,17 +97831,17 @@
     "scripted_looping_sound_set_scale": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 17.8,
+      "abi_modeled_mnemonic_pct": 85.0,
       "addr": "0x1c7650",
       "end": "0x1c76c0",
       "kind": "auto",
       "n_r": 40,
-      "opnd_percent": 13.3,
-      "raw_mnemonic_pct": 17.8,
+      "opnd_percent": 85.0,
+      "raw_mnemonic_pct": 85.0,
       "ref": "synth",
       "ref_sha": "92087f2c62cee55d",
-      "score": 17.8,
-      "source": "src/halo/unported_thunks.c"
+      "score": 85.0,
+      "source": "src/halo/sound/game_sound.c"
     },
     "scripted_player_control_set_camera_control": {
       "abi_model": "raw",

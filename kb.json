@@ -10260,7 +10260,8 @@
     },
     {
      "addr": "0x1c7650",
-     "decl": "void scripted_looping_sound_set_scale(int handle, float scale);"
+     "decl": "void scripted_looping_sound_set_scale(int handle, float scale);",
+     "ported": true
     },
     {
      "addr": "0x1c76c0",
@@ -10279,7 +10280,8 @@
     },
     {
      "addr": "0x1c77a0",
-     "decl": "void FUN_001c77a0(void);"
+     "decl": "void FUN_001c77a0(int looping_sound_index, void *location);",
+     "ported": true
     },
     {
      "addr": "0x1c7ca0",
@@ -10302,8 +10304,9 @@
     },
     {
      "addr": "0x1c85a0",
-     "decl": "void compress_ima_adpcm_audio_data(void);",
-     "comment": "[NAME: compress_ima_adpcm_audio_data \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int compress_ima_adpcm_audio_data(short *samples, int sample_count, uint8_t *output, int output_size);",
+     "comment": "[NAME: compress_ima_adpcm_audio_data \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     }
    ],
    "name": "game_sound.obj",
@@ -26448,7 +26451,7 @@
     },
     {
      "addr": "0x1ce550",
-     "decl": "void sound_refresh_looping(void);"
+     "decl": "bool sound_refresh_looping(int sound_tag_index, int looping_sound_index, void *source, int param_4, bool param_5, float param_6);"
     },
     {
      "addr": "0x1ce9c0",
