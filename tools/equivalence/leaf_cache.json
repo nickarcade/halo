@@ -3977,14 +3977,20 @@
     "dir32_count": 3
   },
   "0x12f170": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "moderate",
+    "coverage_pct": 71.2,
+    "oracle": "xbe"
   },
   "0x12f200": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "moderate",
+    "coverage_pct": 71.9,
+    "oracle": "xbe"
   },
   "0x12f290": {
     "class": "non_leaf",

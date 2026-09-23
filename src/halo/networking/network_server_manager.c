@@ -2876,7 +2876,7 @@ bool network_game_server_handle_message_client_loaded(int server, int machine, v
 #endif
 bool network_game_server_handle_message_client_add_player_request_ingame(int server, int machine, void *message_data, int message_size)
 {
-  char decoded_buf[32];
+  network_player_record_t player;
   short packet_type;
   short packet_version;
 
@@ -2884,9 +2884,9 @@ bool network_game_server_handle_message_client_add_player_request_ingame(int ser
     message_size -= 2;
     packet_type = 0x1a;
     packet_version = 1;
-    if (decode_network_game_message((int)decoded_buf, (int)((char *)message_data + 2),
+    if (decode_network_game_message((int)&player, (int)((char *)message_data + 2),
                      (short *)&message_size, &packet_type, &packet_version, 5)) {
-      network_game_server_queue_player_for_addition(server, (int)decoded_buf);
+      network_game_server_queue_player_for_addition(server, (int)&player);
       return true;
     }
     network_event(
