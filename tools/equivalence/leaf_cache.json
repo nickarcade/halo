@@ -35348,9 +35348,12 @@
     "call_count": 4
   },
   "0xe4770": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 3,
-    "call_count": 3
+    "call_count": 3,
+    "confidence": "high",
+    "coverage_pct": 60.5,
+    "oracle": "xbe"
   },
   "0xe4800": {
     "class": "stubbable",
