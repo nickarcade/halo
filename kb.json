@@ -791,6 +791,30 @@
     {
      "addr": "0x47e4d0",
      "decl": "void *global_rasterizer_model_ambient_reflection_tint;"
+    },
+    {
+     "addr": "0x33413c",
+     "decl": "unsigned long unknown_33413c;"
+    },
+    {
+     "addr": "0x334140",
+     "decl": "unsigned long unknown_334140;"
+    },
+    {
+     "addr": "0x334144",
+     "decl": "unsigned long unknown_334144;"
+    },
+    {
+     "addr": "0x334148",
+     "decl": "char unknown_334148;"
+    },
+    {
+     "addr": "0x334149",
+     "decl": "char unknown_334149;"
+    },
+    {
+     "addr": "0x334150",
+     "decl": "void *unknown_334150;"
     }
    ],
    "functions": [],
@@ -8338,7 +8362,8 @@
     },
     {
      "addr": "0xdd340",
-     "decl": "char first_person_weapon_adjust_light(int object_handle, int marker_result, void *out_position, void *out_forward, void *out_up);"
+     "decl": "char first_person_weapon_adjust_light(int object_handle, int marker_result, void *out_position, void *out_forward, void *out_up);",
+     "ported": true
     },
     {
      "addr": "0xdd580",
@@ -33151,7 +33176,7 @@
     },
     {
      "addr": "0x108bc0",
-     "decl": "void intersect_rectangles2d(void);",
+     "decl": "bool intersect_rectangles2d(short *rectangle0, short *rectangle1, short *intersection);",
      "comment": "[NAME: intersect_rectangles2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -38904,169 +38929,203 @@
    "functions": [
     {
      "addr": "0x6e740",
-     "decl": "void TIFFReadRawStrip1(void);",
-     "comment": "[NAME: TIFFReadRawStrip1 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFReadRawStrip1(void *tif@<esi>, unsigned int strip@<edi>, void *buf, int size@<ebx>, const char *module);",
+     "comment": "[NAME: TIFFReadRawStrip1 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6e7d0",
-     "decl": "void TIFFReadRawTile1(void);",
-     "comment": "[NAME: TIFFReadRawTile1 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFReadRawTile1(void *tif@<esi>, unsigned int tile@<edi>, void *buf, int size@<ebx>, const char *module);",
+     "comment": "[NAME: TIFFReadRawTile1 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6e870",
-     "decl": "void TIFFReadBufferSetup(void);",
-     "comment": "[NAME: TIFFReadBufferSetup \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFReadBufferSetup(void *tif, void *bp, int size);",
+     "comment": "[NAME: TIFFReadBufferSetup \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6e930",
-     "decl": "void TIFFStartStrip(void);",
-     "comment": "[NAME: TIFFStartStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFStartStrip(void *tif@<ecx>, unsigned int strip@<esi>);",
+     "comment": "[NAME: TIFFStartStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6e980",
-     "decl": "void TIFFStartTile(void);",
-     "comment": "[NAME: TIFFStartTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFStartTile(void *tif@<ecx>, unsigned int tile@<esi>);",
+     "comment": "[NAME: TIFFStartTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6ea50",
-     "decl": "void TIFFReadRawStrip(void);",
-     "comment": "[NAME: TIFFReadRawStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFReadRawStrip(void *tif, unsigned int strip, void *buf, unsigned long size);",
+     "comment": "[NAME: TIFFReadRawStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6eaf0",
-     "decl": "void TIFFFillStrip(void);",
-     "comment": "[NAME: TIFFFillStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFFillStrip(void *tif, unsigned int strip);",
+     "comment": "[NAME: TIFFFillStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6ebb0",
-     "decl": "void TIFFReadRawTile(void);",
-     "comment": "[NAME: TIFFReadRawTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFReadRawTile(void *tif, unsigned int tile, void *buf, unsigned long size);",
+     "comment": "[NAME: TIFFReadRawTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6ec50",
-     "decl": "void TIFFFillTile(void);",
-     "comment": "[NAME: TIFFFillTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFFillTile(void *tif, unsigned int tile);",
+     "comment": "[NAME: TIFFFillTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6ed10",
-     "decl": "void TIFFSeek(void);",
-     "comment": "[NAME: TIFFSeek \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFSeek(void *tif@<edi>, unsigned int row@<ebx>, unsigned int sample@<ecx>);",
+     "comment": "[NAME: TIFFSeek \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6ede0",
      "decl": "long TIFFReadEncodedStrip(void *tif, unsigned long strip, void *buf, long size);",
-     "comment": "[NAME: TIFFReadEncodedStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: TIFFReadEncodedStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6eea0",
-     "decl": "int FUN_0006eea0(void *tif, void *buf, unsigned long x, unsigned long y, unsigned long z, unsigned long s);"
+     "decl": "int FUN_0006eea0(void *tif, void *buf, unsigned long x, unsigned long y, unsigned long z, unsigned long s);",
+     "ported": true
     },
     {
      "addr": "0x6ef80",
-     "decl": "void TIFFReadEncodedTile(void);",
-     "comment": "[NAME: TIFFReadEncodedTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "long TIFFReadEncodedTile(void *tif, unsigned int tile, void *buf, long size);",
+     "comment": "[NAME: TIFFReadEncodedTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f040",
-     "decl": "int FUN_0006f040(int file, void *buf, int row, int sample);"
+     "decl": "int FUN_0006f040(int file, void *buf, int row, int sample);",
+     "ported": true
     },
     {
      "addr": "0x6f0d0",
      "decl": "unsigned long TIFFComputeStrip(void *tif, unsigned long row, unsigned int sample);",
-     "comment": "[NAME: TIFFComputeStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: TIFFComputeStrip \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f120",
-     "decl": "void TIFFNumberOfStrips(void);",
-     "comment": "[NAME: TIFFNumberOfStrips \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "unsigned long TIFFNumberOfStrips(void *tif);",
+     "comment": "[NAME: TIFFNumberOfStrips \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f150",
-     "decl": "void TIFFVStripSize(void);",
-     "comment": "[NAME: TIFFVStripSize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "unsigned long TIFFVStripSize(void *tif, unsigned long nrows);",
+     "comment": "[NAME: TIFFVStripSize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f180",
      "decl": "unsigned long TIFFStripSize(void *tif);",
-     "comment": "[NAME: TIFFStripSize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: TIFFStripSize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f1b0",
-     "decl": "void FUN_0006f1b0(unsigned short *wp);"
+     "decl": "void FUN_0006f1b0(unsigned short *wp);",
+     "ported": true
     },
     {
      "addr": "0x6f1d0",
-     "decl": "void FUN_0006f1d0(unsigned long *lp);"
+     "decl": "void FUN_0006f1d0(unsigned long *lp);",
+     "ported": true
     },
     {
      "addr": "0x6f1f0",
-     "decl": "void FUN_0006f1f0(void *wp, int n);"
+     "decl": "void FUN_0006f1f0(void *wp, int n);",
+     "ported": true
     },
     {
      "addr": "0x6f220",
-     "decl": "void FUN_0006f220(void *lp, int n);"
+     "decl": "void FUN_0006f220(void *lp, int n);",
+     "ported": true
     },
     {
      "addr": "0x6f260",
      "decl": "void TIFFReverseBits(unsigned char *cp, int n);",
+     "ported": true,
      "comment": "[NAME: TIFFReverseBits \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x6f320",
-     "decl": "void ThunderDecode(void);",
+     "decl": "int ThunderDecode(void *tif, char *op, int maxpixels);",
      "comment": "[NAME: ThunderDecode \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x6f620",
-     "decl": "void ThunderDecodeRow(void);",
-     "comment": "[NAME: ThunderDecodeRow \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int ThunderDecodeRow(void *tif, char *buf, int occ, int s);",
+     "comment": "[NAME: ThunderDecodeRow \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f670",
-     "decl": "void TIFFInitThunderScan(void);",
-     "comment": "[NAME: TIFFInitThunderScan \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int TIFFInitThunderScan(void *tif, int scheme);",
+     "comment": "[NAME: TIFFInitThunderScan \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f690",
      "decl": "unsigned int TIFFComputeTile(void *tif, unsigned long x, unsigned long y, unsigned int s, unsigned long z);",
-     "comment": "[NAME: TIFFComputeTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: TIFFComputeTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f780",
      "decl": "int TIFFCheckTile(void *tif, unsigned long x, unsigned long y, unsigned long z, unsigned int s);",
-     "comment": "[NAME: TIFFCheckTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: TIFFCheckTile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f820",
      "decl": "unsigned int TIFFNumberOfTiles(void *tif);",
-     "comment": "[NAME: TIFFNumberOfTiles \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: TIFFNumberOfTiles \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f890",
-     "decl": "int FUN_0006f890(void *tif);"
+     "decl": "int FUN_0006f890(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6f8d0",
-     "decl": "void TIFFVTileSize(void);",
-     "comment": "[NAME: TIFFVTileSize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "unsigned long TIFFVTileSize(void *tif, unsigned long nrows);",
+     "comment": "[NAME: TIFFVTileSize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f910",
-     "decl": "unsigned long FUN_0006f910(void *tif);"
+     "decl": "unsigned long FUN_0006f910(void *tif);",
+     "ported": true
     },
     {
      "addr": "0x6f950",
-     "decl": "void defaultHandler(void);",
-     "comment": "[NAME: defaultHandler \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void defaultHandler(const char *module, const char *fmt, char *ap);",
+     "comment": "[NAME: defaultHandler \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f9b0",
-     "decl": "void TIFFSetWarningHandler(void);",
-     "comment": "[NAME: TIFFSetWarningHandler \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void *TIFFSetWarningHandler(void *handler);",
+     "comment": "[NAME: TIFFSetWarningHandler \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6f9d0",
-     "decl": "void FUN_0006f9d0(const char *module, const char *format, ...);"
+     "decl": "void FUN_0006f9d0(const char *module, const char *format, ...);",
+     "ported": true
     },
     {
      "addr": "0x6f9f0",
@@ -39135,17 +39194,19 @@
     },
     {
      "addr": "0x704c0",
-     "decl": "void ColorToFcolor(void);",
+     "decl": "void ColorToFcolor(unsigned char *color@<ecx>, float *out@<eax>);",
+     "ported": true,
      "comment": "[NAME: ColorToFcolor \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x70570",
-     "decl": "void ColorToRGB(void);",
-     "comment": "[NAME: ColorToRGB \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void ColorToRGB(unsigned char *color@<eax>, unsigned short *out);",
+     "comment": "[NAME: ColorToRGB \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x705b0",
-     "decl": "void RGBToColor(void);",
+     "decl": "void RGBToColor(unsigned short *rgb@<eax>, unsigned char *color);",
      "comment": "[NAME: RGBToColor \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -39165,17 +39226,19 @@
     },
     {
      "addr": "0x70a00",
-     "decl": "void AllSame(void);",
+     "decl": "void AllSame(unsigned long *pixels@<edx>, unsigned short *block@<esi>, unsigned short mask@<di>);",
+     "ported": true,
      "comment": "[NAME: AllSame \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x70b70",
-     "decl": "void EncodeBlockRGBColorKey(void);",
+     "decl": "void EncodeBlockRGBColorKey(void *param_1, void *param_2, int param_3);",
      "comment": "[NAME: EncodeBlockRGBColorKey \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x71400",
-     "decl": "void FUN_00071400(void *block, unsigned int *out_pixels);"
+     "decl": "void FUN_00071400(void *block, unsigned int *out_pixels);",
+     "ported": true
     },
     {
      "addr": "0x715c0",
@@ -39183,15 +39246,18 @@
     },
     {
      "addr": "0x717b0",
-     "decl": "void FUN_000717b0(void *block, unsigned int *out_pixels);"
+     "decl": "void FUN_000717b0(void *block, unsigned int *out_pixels);",
+     "ported": true
     },
     {
      "addr": "0x71840",
-     "decl": "void FUN_00071840(void *block, uint32_t *pixel, int x, int y);"
+     "decl": "void FUN_00071840(void *block, uint32_t *pixel, int x, int y);",
+     "ported": true
     },
     {
      "addr": "0x71890",
-     "decl": "void FUN_00071890(void *block, unsigned int *out_pixels);"
+     "decl": "void FUN_00071890(void *block, unsigned int *out_pixels);",
+     "ported": true
     },
     {
      "addr": "0x71af0",
@@ -39199,32 +39265,38 @@
     },
     {
      "addr": "0x71ca0",
-     "decl": "void EncodeBlockRGB(void);",
-     "comment": "[NAME: EncodeBlockRGB \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void EncodeBlockRGB(void *param_1, void *param_2);",
+     "comment": "[NAME: EncodeBlockRGB \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x71cc0",
-     "decl": "void FUN_00071cc0(void);"
+     "decl": "void FUN_00071cc0(unsigned char *pixels, unsigned short *out);",
+     "ported": true
     },
     {
      "addr": "0x71d30",
-     "decl": "void EncodeBlockAlpha3(void);",
-     "comment": "[NAME: EncodeBlockAlpha3 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void EncodeBlockAlpha3(unsigned char *pixels, unsigned char *out);",
+     "comment": "[NAME: EncodeBlockAlpha3 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x71fa0",
-     "decl": "void bitmap_initialize_line(void);",
+     "decl": "void bitmap_initialize_line(short *line, short *point0, short *point1);",
+     "ported": true,
      "comment": "[NAME: bitmap_initialize_line \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x72060",
-     "decl": "void bitmap_step_line(void);",
-     "comment": "[NAME: bitmap_step_line \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool bitmap_step_line(short *line, short mode);",
+     "comment": "[NAME: bitmap_step_line \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x721a0",
-     "decl": "void bitmap_fill_rectangle(void);",
-     "comment": "[NAME: bitmap_fill_rectangle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void bitmap_fill_rectangle(void *destination, unsigned int color, short *rectangle, short *clip_rectangle);",
+     "comment": "[NAME: bitmap_fill_rectangle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x72490",
@@ -39237,35 +39309,41 @@
     },
     {
      "addr": "0x73390",
-     "decl": "void bitmap_draw_line(void);",
+     "decl": "void bitmap_draw_line(void *destination, unsigned int color, short *clip_rectangle, float *point0, float *point1);",
      "comment": "[NAME: bitmap_draw_line \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x73770",
-     "decl": "void bitmap_frame_rectangle(void);",
-     "comment": "[NAME: bitmap_frame_rectangle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void bitmap_frame_rectangle(void *destination, unsigned int color, float *rectangle, short *clip_rectangle);",
+     "comment": "[NAME: bitmap_frame_rectangle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x73830",
-     "decl": "void FUN_00073830(void);"
+     "decl": "void FUN_00073830(void);",
+     "ported": true
     },
     {
      "addr": "0x73960",
-     "decl": "int FUN_00073960(int *param_1);"
+     "decl": "short FUN_00073960(int *param_1);",
+     "ported": true
     },
     {
      "addr": "0x73a80",
-     "decl": "void FUN_00073a80(void);"
+     "decl": "void FUN_00073a80(short y @<di>);",
+     "ported": true
     },
     {
      "addr": "0x73b00",
-     "decl": "void extract_plateless_cube_map(void);",
-     "comment": "[NAME: extract_plateless_cube_map \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool extract_plateless_cube_map(void *bitmap);",
+     "comment": "[NAME: extract_plateless_cube_map \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x73e40",
-     "decl": "void extract_adjust_bounds(void);",
-     "comment": "[NAME: extract_adjust_bounds \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool extract_adjust_bounds(short *bounds, short *adjusted_bounds_reference@<esi>);",
+     "comment": "[NAME: extract_adjust_bounds \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x73fd0",
@@ -39276,12 +39354,14 @@
     },
     {
      "addr": "0x74210",
-     "decl": "void extract_pixels_to_mipmap(void);",
-     "comment": "[NAME: extract_pixels_to_mipmap \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void extract_pixels_to_mipmap(short destination_mipmap_index@<eax>, void *source_bitmap@<ecx>, void *destination_bitmap);",
+     "comment": "[NAME: extract_pixels_to_mipmap \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x745c0",
-     "decl": "void extract_pixels_from_mipmap(void);",
+     "decl": "void extract_pixels_from_mipmap(short source_mipmap_index@<eax>, void *destination_bitmap@<ecx>, void *source_bitmap);",
+     "ported": true,
      "comment": "[NAME: extract_pixels_from_mipmap \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {

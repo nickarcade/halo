@@ -8499,3 +8499,38 @@ Then regenerate the actionable-unblock queue from this run's park/skip reasons
 | get_shake_matrix | 0xa32e0 | - | 93.8 | committed | pass1+equiv_moderate [equivalence detail: The lift_pipeline equivalence lane ran 100 seeds: 100 passed, 0 diverged, 0 errors, with 43.2% coverage and moderate confidence. It used the pipeline default setup, not the infection_swarm snapshot. Step 6d was not required because the score is at least 90%. — a 0-divergence pass on the live-state infection_swarm snapshot (populated datum tables, real actor handles) is accepted runtime behavioral evidence for the sub-90% band per the state-snapshot equivalence lane in CLAUDE.md] [cohort=none] |
 | render_camera_build_clipped_frustum_bounds | 0x186480 | render_cameras.obj | 94.9 | committed | mechanical gate: 94.9% clean (pass1) [cohort=retrieval] |
 | render_frustum_build_point_flags | 0x186690 | render_cameras.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+
+## Goal-lift run — 12/12 committed (goal_reached) — 2026-09-23
+
+| function | addr | obj | vc71 | action | reason |
+|---|---|---|---|---|---|
+| TIFFComputeStrip | 0x6f0d0 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=retrieval] |
+| FUN_0006f1b0 | 0x6f1b0 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+| TIFFStartStrip | 0x6e930 | tif_write.obj | 95.5 | committed | mechanical gate: 95.5% clean (pass1) [cohort=control] |
+| TIFFStartTile | 0x6e980 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=retrieval] |
+| TIFFNumberOfStrips | 0x6f120 | tif_write.obj | 94.7 | committed | mechanical gate: 94.7% clean (pass1) [cohort=retrieval] |
+| TIFFStripSize | 0x6f180 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=retrieval] |
+| FUN_0006f1d0 | 0x6f1d0 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+| FUN_0006f1f0 | 0x6f1f0 | tif_write.obj | 94.4 | committed | mechanical gate: 94.4% clean (pass1) [cohort=control] |
+| FUN_0006f220 | 0x6f220 | tif_write.obj | 95.5 | committed | mechanical gate: 95.5% clean (pass1) [cohort=control] |
+| TIFFReverseBits | 0x6f260 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+| TIFFNumberOfTiles | 0x6f820 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+| FUN_0006f890 | 0x6f890 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=retrieval] |
+
+## Goal-lift run — 12/12 committed (goal_reached) — 2026-09-24
+
+| function | addr | obj | vc71 | action | reason |
+|---|---|---|---|---|---|
+| ColorToRGB | 0x70570 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+| RGBToColor | 0x705b0 | tif_write.obj | 72.5 | parked | escalation_exhausted [cohort=retrieval] |
+| bitmap_initialize_line | 0x71fa0 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (escalated+optimize) [cohort=retrieval] |
+| FUN_0006f910 | 0x6f910 | tif_write.obj | 89.3 | committed | pass1+permute [cohort=control] |
+| TIFFReadRawStrip1 | 0x6e740 | tif_write.obj | 97 | committed | mechanical gate: 97% clean (pass1) [cohort=retrieval] |
+| TIFFReadRawTile1 | 0x6e7d0 | tif_write.obj | 97.2 | committed | mechanical gate: 97.2% clean (pass1) [cohort=control] |
+| TIFFReadBufferSetup | 0x6e870 | tif_write.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+| TIFFReadRawStrip | 0x6ea50 | tif_write.obj | 89.6 | committed | pass1+permute+equiv_high [equivalence detail: Zero-fill unicorn_diff ran without a snapshot: 100/100 seeds passed, 0 diverged, 84% byte coverage, z3 branch seeds. The infection_swarm snapshot was skipped because this function takes a TIFF* pointer, not an object handle. The lift_pipeline equivalence lane also passed 100/100 at high confidence. — a 0-divergence pass on the live-state infection_swarm snapshot (populated datum tables, real actor handles) is accepted runtime behavioral evidence for the sub-90% band per the state-snapshot equivalence lane in CLAUDE.md] [cohort=control] |
+| TIFFFillStrip | 0x6eaf0 | tif_write.obj | 96 | committed | mechanical gate: 96% clean (pass1) [cohort=retrieval] |
+| TIFFReadRawTile | 0x6ebb0 | tif_write.obj | 85.9 | committed | pass1+permute+equiv_high [equivalence detail: The zero-fill equivalence run inside lift_pipeline passed 100/100 with 0 divergences, high confidence and 86.1% coverage. The live-state snapshot run (/tmp/snap_TIFFReadRawTile.json, tile=0, size=-1) passed 65 seeds with 0 failures and 0 stub-arg mismatches, but 35 seeds errored. All 65 passing snapshot seeds returned -1, so that run only reached the early-error branches (57% coverage). — a 0-divergence pass on the live-state infection_swarm snapshot (populated datum tables, real actor handles) is accepted runtime behavioral evidence for the sub-90% band per the state-snapshot equivalence lane in CLAUDE.md] [cohort=retrieval] |
+| TIFFFillTile | 0x6ec50 | tif_write.obj | 96 | committed | mechanical gate: 96% clean (pass1) [cohort=retrieval] |
+| TIFFSeek | 0x6ed10 | tif_write.obj | 85.2 | committed | pass1+permute [cohort=control] |
+| TIFFReadEncodedTile | 0x6ef80 | tif_write.obj | 95.2 | committed | mechanical gate: 95.2% clean (pass1) [cohort=retrieval] |

@@ -33,6 +33,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x12350": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x12660": {
       "kind": "function",
       "status": "ported"
@@ -4431,6 +4435,94 @@
         "The final 1.3% VC71 gap is unlocalised; the candidate emits exactly 773 instructions against the reference's 773 and the score context reports no classification rule, so the residue is operand-level (operand-normalized score is 93.7%)."
       ]
     },
+    "0x6e740": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6e7d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6e870": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6e930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6e980": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6ea50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6eaf0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6ebb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6ec50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6ed10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6ef80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f0d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f120": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f150": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f180": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f260": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f620": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f670": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f820": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f8d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f950": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x6f9b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x6f9f0": {
       "kind": "function",
       "status": "ported"
@@ -4476,6 +4568,22 @@
       "status": "ported"
     },
     "0x70460": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x70570": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x705b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x71ca0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x71fa0": {
       "kind": "function",
       "status": "ported"
     },
@@ -6860,6 +6968,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa2a90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa2ab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa2c70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa2ca0": {
       "kind": "function",
       "status": "ported"
@@ -6868,11 +6988,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa2df0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa2e40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa2e80": {
       "kind": "function",
       "status": "ported"
     },
     "0xa2ed0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa32e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -7955,6 +8087,10 @@
       "status": "ported"
     },
     "0xb4a70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb4bf0": {
       "kind": "function",
       "status": "ported"
     },
@@ -12857,6 +12993,10 @@
       "status": "ported"
     },
     "0xdce00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdce80": {
       "kind": "function",
       "status": "ported"
     },
@@ -19549,6 +19689,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x15d170": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15d310": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x15d480": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x15d5b0": {
       "kind": "function",
       "status": "ported"
@@ -19634,6 +19786,18 @@
       "status": "ported"
     },
     "0x166210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x167ff0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x168500": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1688d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -19981,6 +20145,10 @@
       "status": "ported"
     },
     "0x17c9e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17c9f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -20943,6 +21111,10 @@
       "status": "ported"
     },
     "0x192f80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1931e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -24012,6 +24184,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c7650": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c76c0": {
       "kind": "function",
       "status": "ported"
@@ -24069,6 +24245,10 @@
       "status": "ported"
     },
     "0x1c8510": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c85a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -24836,66 +25016,6 @@
     },
     "0x5065a4": {
       "kind": "data",
-      "status": "ported"
-    },
-    "0x12350": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa2a90": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa2ab0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa2c70": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa2df0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa2e40": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xa32e0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xb4bf0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xdce80": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x167ff0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x168500": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1688d0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1931e0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c7650": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0x1c85a0": {
-      "kind": "function",
       "status": "ported"
     }
   }

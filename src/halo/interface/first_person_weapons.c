@@ -547,6 +547,52 @@ int first_person_weapon_get_local_index(int object_handle)
   return (int)i;
 }
 
+/* Fetch the first-person marker of a weapon held by the unit of the local
+ * player currently being rendered (0xdd340). Resolves weapon (type 4) ->
+ * owner unit at +0xcc (type 3) -> player handle at unit+0x1c8; requires the
+ * player's local index (+0x2) to equal the render local player (0x506548)
+ * and first_person_weapon_get()'s leading byte to be nonzero. Looks up one
+ * marker named by marker_result and copies its position (+0x60), forward
+ * (+0x3c) and up (+0x54) vectors out. Returns 1 on success, else 0. */
+char first_person_weapon_adjust_light(int object_handle, int marker_result,
+                                      void *out_position, void *out_forward,
+                                      void *out_up)
+{
+  object_marker marker;
+  char *weapon;
+  char *unit;
+  char *player;
+  int player_handle;
+  int16_t local_player_index;
+  char result;
+
+  weapon = (char *)object_get_and_verify_type(object_handle, 4);
+  unit = (char *)object_get_and_verify_type(*(int *)(weapon + 0xcc), 3);
+  player_handle = *(int *)(unit + 0x1c8);
+  result = 0;
+  if (player_handle != -1) {
+    player = (char *)datum_get(player_data, player_handle);
+    local_player_index = *(int16_t *)(player + 2);
+    if (local_player_index != -1 &&
+        local_player_index == *(int16_t *)0x506548 &&
+        *(char *)first_person_weapon_get(local_player_index) != 0 &&
+        first_person_weapon_get_marker_by_name(
+          object_handle, (void *)marker_result, &marker, 1) > 0) {
+      ((int *)out_position)[0] = ((int *)marker.matrix_position)[0];
+      ((int *)out_position)[1] = ((int *)marker.matrix_position)[1];
+      ((int *)out_position)[2] = ((int *)marker.matrix_position)[2];
+      ((int *)out_forward)[0] = ((int *)marker.matrix_forward)[0];
+      ((int *)out_forward)[1] = ((int *)marker.matrix_forward)[1];
+      ((int *)out_forward)[2] = ((int *)marker.matrix_forward)[2];
+      ((int *)out_up)[0] = ((int *)marker.matrix_up)[0];
+      ((int *)out_up)[1] = ((int *)marker.matrix_up)[1];
+      ((int *)out_up)[2] = ((int *)marker.matrix_up)[2];
+      return 1;
+    }
+  }
+  return result;
+}
+
 /* Return a pointer to the node transform for a given node in the local
  * player's first-person weapon animation state (0xdd410).
  * Validates the local_player_index (0..3) and node_index against the

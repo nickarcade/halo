@@ -28,12 +28,16 @@
  * The public functions are plain cdecl.
  * ======================================================================== */
 
+#include <stdarg.h>
+
 #define TIFF_BUFFERSETUP 0x4
 #define TIFF_BEENWRITING 0x8
 #define TIFF_NOBITREV 0x20
+#define TIFF_MYBUFFER 0x40 /* `test/or/and byte ptr [esi+0xa],0x40` 0x6e881 */
 #define TIFF_ISTILED 0x80
 #define TIFF_POSTENCODE 0x200 /* `or byte ptr [esi+0xb],2` */
 
+#define PLANARCONFIG_CONTIG 1 /* CMP word [ecx+0x5e],0x1 at 0x6f8ab */
 #define PLANARCONFIG_SEPARATE 2
 #define FIELD_IMAGEDIMENSIONS 0
 #define FIELD_PLANARCONFIG 20
@@ -41,6 +45,7 @@
 #define FIELD_STRIPOFFSETS 27
 
 #define O_RDONLY 0
+#define O_WRONLY 1 /* CMP word [esi+0x6],0x1 at 0x6ea57 */
 #define L_SET 0
 #define L_XTND 2
 
@@ -155,6 +160,7 @@ typedef struct tiff_s {
 } tiff_t;
 
 #define TIFF_WRITE_FILE "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_write.c"
+#define TIFF_READ_FILE "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_read.c"
 
 #define BITn(n) (((unsigned)1L) << ((n) & 0x1f))
 #define BITFIELDn(tif, n) ((tif)->tif_dir.td_fieldsset[(n) / 32])
@@ -169,7 +175,825 @@ typedef struct tiff_s {
 /* FUN_00068a30 is TIFFError, FUN_0006a210 TIFFFlushData and FUN_0006f910
  * TIFFTileSize. */
 
-/* 0x6f9f0 -- size and allocate the strip (or tile) offset/bytecount
+/* 0x6e740 -- upstream libtiff tif_read.c TIFFReadRawStrip1 (file-static
+ * there), placed in this kb.json bucket. tif@esi strip@edi size@ebx from
+ * entry code; buf at [ebp+8], module at [ebp+0xc]. Callers 0x6ead9 and
+ * 0x6eb62. Seek to the strip's offset (+0xbc) and read size bytes into buf;
+ * returns size, or -1 after reporting the error. */
+int TIFFReadRawStrip1(void *tif_, unsigned int strip, void *buf, int size,
+                      const char *module)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  if (!SeekOK(tif->tif_fd, td->td_stripoffset[strip])) {
+    FUN_00068a30(module, "%s: Seek error at scanline %d, strip %d",
+                 tif->tif_name, tif->tif_row, strip);
+    return (-1);
+  }
+  if (__read(tif->tif_fd, buf, (unsigned int)size) != size) {
+    FUN_00068a30(module, "%s: Read error at scanline %d", tif->tif_name,
+                 tif->tif_row);
+    return (-1);
+  }
+  return (size);
+}
+
+/* 0x6e7d0 -- upstream libtiff tif_read.c TIFFReadRawTile1 (file-static
+ * there), placed in this kb.json bucket. tif@esi tile@edi size@ebx from
+ * entry code; buf at [ebp+8], module at [ebp+0xc]. Seek to the tile's offset
+ * (+0xbc) and read size bytes into buf; the seek error reports row (+0xd4),
+ * col (+0xe4) and tile. Returns size, or -1 after reporting the error. */
+int TIFFReadRawTile1(void *tif_, unsigned int tile, void *buf, int size,
+                     const char *module)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  if (!SeekOK(tif->tif_fd, td->td_stripoffset[tile])) {
+    FUN_00068a30(module, "%s: Seek error at row %d, col %d, tile %d",
+                 tif->tif_name, tif->tif_row, tif->tif_col, tile);
+    return (-1);
+  }
+  if (__read(tif->tif_fd, buf, (unsigned int)size) != size) {
+    FUN_00068a30(module, "%s: Read error at row %d, col %d", tif->tif_name,
+                 tif->tif_row, tif->tif_col);
+    return (-1);
+  }
+  return (size);
+}
+
+/* 0x6e870 -- upstream libtiff tif_read.c TIFFReadBufferSetup, placed in this
+ * kb.json bucket. cdecl: tif [ebp+8], bp [ebp+0xc], size [ebp+0x10]; returns
+ * 1 in EAX, or 0 after reporting the error. Frees an owned (TIFF_MYBUFFER)
+ * tif_rawdata (0x12c), then adopts bp or allocates size rounded up to 1K
+ * (shr/shl 10); tif_rawdatasize is 0x130. Assert lines 0x203/0x20c. */
+int TIFFReadBufferSetup(void *tif_, void *bp, int size)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  if (tif->tif_rawdata) {
+    if (tif->tif_flags & TIFF_MYBUFFER)
+      debug_free(tif->tif_rawdata, TIFF_READ_FILE, 515);
+    tif->tif_rawdata = NULL;
+  }
+  if (bp) {
+    tif->tif_flags &= ~TIFF_MYBUFFER;
+    tif->tif_rawdatasize = size;
+  } else {
+    tif->tif_rawdatasize = howmany(size, 1024) * 1024;
+    bp = debug_malloc(tif->tif_rawdatasize, 0, TIFF_READ_FILE, 524);
+    tif->tif_flags |= TIFF_MYBUFFER;
+  }
+  tif->tif_rawdata = (char *)bp;
+  if (tif->tif_rawdata == NULL) {
+    FUN_00068a30("TIFFReadBufferSetup",
+                 "%s: No space for data buffer at scanline %d", tif->tif_name,
+                 tif->tif_row);
+    tif->tif_rawdatasize = 0;
+    return (0);
+  }
+  return (1);
+}
+
+/* 0x6e930 -- upstream libtiff tif_read.c TIFFStartStrip (file-static there),
+ * placed in this kb.json bucket. tif@ecx strip@esi from entry code; callers
+ * 0x6eb98/0x6ed8f. Returns 1 when tif_predecode (0xf0) is NULL, otherwise
+ * the callback's result normalized to 0/1. */
+int TIFFStartStrip(void *tif_, unsigned int strip)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  tif->tif_curstrip = strip;
+  tif->tif_row = (strip % td->td_stripsperimage) * td->td_rowsperstrip;
+  tif->tif_rawcp = tif->tif_rawdata;
+  tif->tif_rawcc = td->td_stripbytecount[strip];
+  return (tif->tif_predecode == NULL || (*tif->tif_predecode)(tif));
+}
+
+/* 0x6e980 -- upstream libtiff tif_read.c TIFFStartTile (file-static there),
+ * placed in this kb.json bucket. tif@ecx tile@esi from entry code; caller
+ * 0x6ecf8. Row/col use unsigned DIV of howmany(width|length, tilewidth|
+ * tilelength). Returns 1 when tif_predecode (0xf0) is NULL, otherwise the
+ * callback's result normalized to 0/1. */
+int TIFFStartTile(void *tif_, unsigned int tile)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  tif->tif_curtile = tile;
+  tif->tif_row =
+    (tile % howmany(td->td_imagewidth, td->td_tilewidth)) * td->td_tilelength;
+  tif->tif_col =
+    (tile % howmany(td->td_imagelength, td->td_tilelength)) * td->td_tilewidth;
+  tif->tif_rawcp = tif->tif_rawdata;
+  tif->tif_rawcc = td->td_stripbytecount[tile];
+  return (tif->tif_predecode == NULL || (*tif->tif_predecode)(tif));
+}
+
+/* 0x6ea50 -- upstream libtiff tif_read.c TIFFReadRawStrip, placed in this
+ * kb.json bucket. cdecl: tif [ebp+8], strip [ebp+0xc], buf [ebp+0x10], size
+ * [ebp+0x14]. Rejects write-only files (tif_mode == 1, string 0x2610f4),
+ * tiled images (flags bit 0x80, 0x26109c) and strip >= td_nstrips (0xb8,
+ * 0x261110); each error returns -1. Otherwise clamps td_stripbytecount[strip]
+ * (0xc0) to size when size != -1 (unsigned JNC) and calls
+ * TIFFReadRawStrip1 with module = the .data string 0x2ecad8. */
+int TIFFReadRawStrip(void *tif_, unsigned int strip, void *buf,
+                     unsigned long size)
+{
+  static char module[] = "TIFFReadRawStrip";
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned long bytecount;
+
+  if (tif->tif_mode == O_WRONLY) {
+    FUN_00068a30(tif->tif_name, "File not open for reading");
+    return (-1);
+  }
+  if (isTiled(tif)) {
+    FUN_00068a30(tif->tif_name, "Can not read scanlines from a tiled image");
+    return (-1);
+  }
+  if (strip >= td->td_nstrips) {
+    FUN_00068a30(tif->tif_name, "%d: Strip out of range, max %d", strip,
+                 td->td_nstrips);
+    return (-1);
+  }
+  bytecount = td->td_stripbytecount[strip];
+  if (size != (unsigned long)-1 && size < bytecount)
+    bytecount = size;
+  return (TIFFReadRawStrip1(tif, strip, buf, (int)bytecount, module));
+}
+
+/* 0x6eaf0 -- upstream libtiff tif_read.c TIFFFillStrip, placed in this
+ * kb.json bucket. cdecl: tif [ebp+8], strip [ebp+0xc]. bytecount is
+ * td_stripbytecount[strip] (0xc0), compared unsigned (JBE) with
+ * tif_rawdatasize (0x130). module is the .data string 0x2ecaec; the error
+ * format is 0x261130. tif_curstrip (0xdc) is set to -1 before the
+ * TIFF_MYBUFFER test. Tail calls TIFFStartStrip (tif@ecx strip@esi). */
+int TIFFFillStrip(void *tif_, unsigned int strip)
+{
+  static char module[] = "TIFFFillStrip";
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned long bytecount;
+
+  bytecount = td->td_stripbytecount[strip];
+  if (bytecount > (unsigned long)tif->tif_rawdatasize) {
+    tif->tif_curstrip = -1;
+    if ((tif->tif_flags & TIFF_MYBUFFER) == 0) {
+      FUN_00068a30(module, "%s: Data buffer too small to hold strip %d",
+                   tif->tif_name, strip);
+      return (0);
+    }
+    if (!TIFFReadBufferSetup(tif, 0, howmany(bytecount, 1024) * 1024))
+      return (0);
+  }
+  if ((unsigned long)TIFFReadRawStrip1(tif, strip, tif->tif_rawdata,
+                                       (int)bytecount, module) != bytecount)
+    return (0);
+  if (td->td_fillorder != tif->tif_fillorder &&
+      (tif->tif_flags & TIFF_NOBITREV) == 0)
+    TIFFReverseBits((unsigned char *)tif->tif_rawdata, (int)bytecount);
+  return (TIFFStartStrip(tif, strip));
+}
+
+/* 0x6ebb0 -- upstream libtiff tif_read.c TIFFReadRawTile, placed in this
+ * kb.json bucket. cdecl: tif [ebp+8], tile [ebp+0xc], buf [ebp+0x10], size
+ * [ebp+0x14]. Rejects write-only files (tif_mode == 1, string 0x2610f4),
+ * stripped images (flags bit 0x80 clear, 0x2610c8) and tile >= td_nstrips
+ * (0xb8, 0x26115c); each error returns -1. Otherwise clamps
+ * td_stripbytecount[tile] (0xc0) to size when size != -1 (unsigned JNC) and
+ * calls TIFFReadRawTile1 (tif@esi tile@edi size@ebx) with module = the .data
+ * string 0x2ecafc. */
+int TIFFReadRawTile(void *tif_, unsigned int tile, void *buf,
+                    unsigned long size)
+{
+  static char module[] = "TIFFReadRawTile";
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned long bytecount;
+
+  if (tif->tif_mode == O_WRONLY) {
+    FUN_00068a30(tif->tif_name, "File not open for reading");
+    return (-1);
+  }
+  if (!isTiled(tif)) {
+    FUN_00068a30(tif->tif_name, "Can not read tiles from a stripped image");
+    return (-1);
+  }
+  if (tile >= td->td_nstrips) {
+    FUN_00068a30(tif->tif_name, "%d: Tile out of range, max %d", tile,
+                 td->td_nstrips);
+    return (-1);
+  }
+  bytecount = td->td_stripbytecount[tile];
+  if (size != (unsigned long)-1 && size < bytecount)
+    bytecount = size;
+  return (TIFFReadRawTile1(tif, tile, buf, (int)bytecount, module));
+}
+
+/* 0x6ec50 -- upstream libtiff tif_read.c TIFFFillTile, placed in this
+ * kb.json bucket. cdecl: tif [ebp+8], tile [ebp+0xc]. bytecount is
+ * td_stripbytecount[tile] (0xc0), compared unsigned (JBE) with
+ * tif_rawdatasize (0x130). module is the .data string 0x2ecb0c; the error
+ * format is 0x26117c. tif_curtile (0xe8) is set to -1 before the
+ * TIFF_MYBUFFER test. TIFFReadRawTile1 takes tif@esi tile@edi size@ebx;
+ * tail calls TIFFStartTile (tif@ecx tile@esi). */
+int TIFFFillTile(void *tif_, unsigned int tile)
+{
+  static char module[] = "TIFFFillTile";
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned long bytecount;
+
+  bytecount = td->td_stripbytecount[tile];
+  if (bytecount > (unsigned long)tif->tif_rawdatasize) {
+    tif->tif_curtile = -1;
+    if ((tif->tif_flags & TIFF_MYBUFFER) == 0) {
+      FUN_00068a30(module, "%s: Data buffer too small to hold tile %d",
+                   tif->tif_name, tile);
+      return (0);
+    }
+    if (!TIFFReadBufferSetup(tif, 0, howmany(bytecount, 1024) * 1024))
+      return (0);
+  }
+  if ((unsigned long)TIFFReadRawTile1(tif, tile, tif->tif_rawdata,
+                                      (int)bytecount, module) != bytecount)
+    return (0);
+  if (td->td_fillorder != tif->tif_fillorder &&
+      (tif->tif_flags & TIFF_NOBITREV) == 0)
+    TIFFReverseBits((unsigned char *)tif->tif_rawdata, (int)bytecount);
+  return (TIFFStartTile(tif, tile));
+}
+
+/* 0x6ed10 -- upstream libtiff tif_read.c TIFFSeek (file-static there),
+ * placed in this kb.json bucket. tif@edi row@ebx sample@ecx from entry code
+ * (no prologue; first use MOV EAX,[EDI+0x20] / CMP EBX,EAX / CMP ECX,EAX);
+ * caller 0x6f08b. Row test vs td_imagelength (0x20) and sample test vs
+ * td_samplesperpixel (0x44, movzx) are unsigned (JC); formats 0x261200 and
+ * 0x2611e0. strip = row / td_rowsperstrip (0x48, DIV) plus
+ * td_stripsperimage (0xb4) * sample when td_planarconfig (0x5e) == 2.
+ * Refill via TIFFFillStrip (cdecl) when strip != tif_curstrip (0xdc), else
+ * TIFFStartStrip (tif@ecx strip@esi) when row < tif_row (0xd4, JNC).
+ * tif_seek (0x118) is called with row - tif_row; NULL reports 0x2611a8. */
+int TIFFSeek(void *tif_, unsigned int row, unsigned int sample)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned int strip;
+
+  if (row >= td->td_imagelength) {
+    FUN_00068a30(tif->tif_name, "%d: Row out of range, max %d", row,
+                 td->td_imagelength);
+    return (0);
+  }
+  if (td->td_planarconfig == PLANARCONFIG_SEPARATE) {
+    if (sample >= td->td_samplesperpixel) {
+      FUN_00068a30(tif->tif_name, "%d: Sample out of range, max %d", sample,
+                   td->td_samplesperpixel);
+      return (0);
+    }
+    strip = sample * td->td_stripsperimage + row / td->td_rowsperstrip;
+  } else
+    strip = row / td->td_rowsperstrip;
+  if (strip != (unsigned int)tif->tif_curstrip) {
+    if (!TIFFFillStrip(tif, strip))
+      return (0);
+  } else if (row < (unsigned long)tif->tif_row) {
+    if (!TIFFStartStrip(tif, strip))
+      return (0);
+  }
+  if (row != (unsigned long)tif->tif_row) {
+    if (tif->tif_seek == NULL) {
+      FUN_00068a30(tif->tif_name,
+                   "Compression algorithm does not support random access");
+      return (0);
+    }
+    if (!(*tif->tif_seek)(tif, row - tif->tif_row))
+      return (0);
+    tif->tif_row = row;
+  }
+  return (1);
+}
+
+/* 0x6ede0 -- upstream libtiff tif_read.c TIFFReadEncodedStrip, placed in this
+ * kb.json bucket. cdecl: tif [ebp+8], strip [ebp+0xc], buf [ebp+0x10], size
+ * [ebp+0x14]. TIFFStripSize(tif) is called FIRST (0x6ede8) and its EAX is
+ * kept live across the guards. Guards (strings 0x2610f4, 0x26109c, 0x261110;
+ * strip vs td_nstrips 0xb8 unsigned JC) each return -1. size == -1 or
+ * size > stripsize (unsigned JBE) clamps to stripsize. TIFFFillStrip(tif,
+ * strip) then tif_decodestrip (0x104) with sample = strip /
+ * td_stripsperimage (0xb4, DIV); returns size on success, else -1. No
+ * tif_postdecode call in this build. */
+long TIFFReadEncodedStrip(void *tif_, unsigned long strip, void *buf, long size)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned long stripsize = TIFFStripSize(tif);
+
+  if (tif->tif_mode == O_WRONLY) {
+    FUN_00068a30(tif->tif_name, "File not open for reading");
+    return (-1);
+  }
+  if (isTiled(tif)) {
+    FUN_00068a30(tif->tif_name, "Can not read scanlines from a tiled image");
+    return (-1);
+  }
+  if (strip >= td->td_nstrips) {
+    FUN_00068a30(tif->tif_name, "%d: Strip out of range, max %d", strip,
+                 td->td_nstrips);
+    return (-1);
+  }
+  if (size == (long)-1 || (unsigned long)size > stripsize)
+    size = (long)stripsize;
+  return ((TIFFFillStrip(tif, (unsigned int)strip) &&
+           (*tif->tif_decodestrip)(tif, (char *)buf, (int)size,
+                                   (int)(strip / td->td_stripsperimage))) ?
+            size :
+            -1);
+}
+
+/* 0x6eea0 -- upstream libtiff tif_read.c TIFFReadTile shape (TIFFCheckRead
+ * and TIFFReadEncodedTile inlined). cdecl: tif [ebp+8], buf [ebp+0xc], x
+ * [ebp+0x10], y [ebp+0x14], z [ebp+0x18], s [ebp+0x1c]. Guards (strings
+ * 0x2610f4, 0x2610c8) return -1. TIFFCheckTile(tif,x,y,z,s) (0x6f780) == 0
+ * returns -1. TIFFComputeTile is pushed (tif,x,y,z,s) positionally
+ * (0x6ef12-0x6ef16); tile vs td_nstrips (0xb8, unsigned JC) else error
+ * 0x26115c and -1. TIFFFillTile(tif, tile) then tif_decodetile (0x10c) with
+ * (tif, buf, tif_tilesize (0xec), s); returns tif_tilesize reloaded at
+ * 0x6ef73 on success, else -1. */
+int FUN_0006eea0(void *tif_, void *buf, unsigned long x, unsigned long y,
+                 unsigned long z, unsigned long s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  unsigned int tile;
+
+  if (tif->tif_mode == O_WRONLY) {
+    FUN_00068a30(tif->tif_name, "File not open for reading");
+    return (-1);
+  }
+  if (!isTiled(tif)) {
+    FUN_00068a30(tif->tif_name, "Can not read tiles from a stripped image");
+    return (-1);
+  }
+  if (!TIFFCheckTile(tif, x, y, z, (unsigned int)s))
+    return (-1);
+  tile = TIFFComputeTile(tif, x, y, (unsigned int)z, s);
+  if (tile >= tif->tif_dir.td_nstrips) {
+    FUN_00068a30(tif->tif_name, "%d: Tile out of range, max %d", tile,
+                 tif->tif_dir.td_nstrips);
+    return (-1);
+  }
+  if (TIFFFillTile(tif, tile) &&
+      (*tif->tif_decodetile)(tif, (char *)buf, (int)tif->tif_tilesize, (int)s))
+    return ((int)tif->tif_tilesize);
+  return (-1);
+}
+
+/* 0x6ef80 -- upstream libtiff tif_read.c TIFFReadEncodedTile, placed in this
+ * kb.json bucket. cdecl: tif [ebp+8], tile [ebp+0xc], buf [ebp+0x10], size
+ * [ebp+0x14]; no callers. Same three guards as TIFFReadRawTile (strings
+ * 0x2610f4, 0x2610c8, 0x26115c; tile vs td_nstrips 0xb8 unsigned JC), each
+ * returning -1. size == -1 or size > tif_tilesize (0xec, unsigned JBE)
+ * clamps to tif_tilesize. TIFFFillTile(tif, tile) then tif_decodetile
+ * (0x10c) with sample = tile / td_stripsperimage (0xb4, DIV, pushed as a
+ * full dword); returns size on success, else -1. */
+long TIFFReadEncodedTile(void *tif_, unsigned int tile, void *buf, long size)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  if (tif->tif_mode == O_WRONLY) {
+    FUN_00068a30(tif->tif_name, "File not open for reading");
+    return (-1);
+  }
+  if (!isTiled(tif)) {
+    FUN_00068a30(tif->tif_name, "Can not read tiles from a stripped image");
+    return (-1);
+  }
+  if (tile >= td->td_nstrips) {
+    FUN_00068a30(tif->tif_name, "%d: Tile out of range, max %d", tile,
+                 td->td_nstrips);
+    return (-1);
+  }
+  if (size == (long)-1 ||
+      (unsigned long)size > (unsigned long)tif->tif_tilesize)
+    size = tif->tif_tilesize;
+  return ((TIFFFillTile(tif, tile) &&
+           (*tif->tif_decodetile)(tif, (char *)buf, (int)size,
+                                  (int)(tile / td->td_stripsperimage))) ?
+            size :
+            -1);
+}
+
+/* 0x6f040 -- upstream libtiff tif_read.c TIFFReadScanline shape (TIFFCheckRead
+ * inlined). cdecl: tif [ebp+8], buf [ebp+0xc], row [ebp+0x10], sample
+ * [ebp+0x14] (full dword). Guards (strings 0x2610f4, 0x26109c) return -1.
+ * TIFFSeek(tif@edi, row@ebx, sample@ecx); on success tif_decoderow (0xfc)
+ * with (tif, buf, tif_scanlinesize 0x124, sample), then tif_row (0xd4) is
+ * incremented unconditionally. Returns (e != 0) ? 1 : -1 (SETNZ/LEA). */
+int FUN_0006f040(int file, void *buf, int row, int sample)
+{
+  tiff_t *tif = (tiff_t *)file;
+  int e;
+
+  if (tif->tif_mode == O_WRONLY) {
+    FUN_00068a30(tif->tif_name, "File not open for reading");
+    return (-1);
+  }
+  if (isTiled(tif)) {
+    FUN_00068a30(tif->tif_name, "Can not read scanlines from a tiled image");
+    return (-1);
+  }
+  if ((e = TIFFSeek(tif, (unsigned int)row, (unsigned int)sample)) != 0) {
+    e = (*tif->tif_decoderow)(tif, (char *)buf, tif->tif_scanlinesize, sample);
+    tif->tif_row++;
+  }
+  return (e ? 1 : -1);
+}
+
+/* 0x6f0d0 -- upstream libtiff tif_strip.c TIFFComputeStrip, placed in this
+ * kb.json bucket. The DIV by td_rowsperstrip precedes the planarconfig test;
+ * the error string at 0x2611e0 is "%d: Sample out of range, max %d". */
+unsigned long TIFFComputeStrip(void *tif_, unsigned long row,
+                               unsigned int sample)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned long strip;
+
+  strip = row / td->td_rowsperstrip;
+  if (td->td_planarconfig == PLANARCONFIG_SEPARATE) {
+    if (sample >= td->td_samplesperpixel) {
+      FUN_00068a30(tif->tif_name, "%d: Sample out of range, max %d", sample,
+                   td->td_samplesperpixel);
+      return (0);
+    }
+    strip += sample * td->td_stripsperimage;
+  }
+  return (strip);
+}
+
+/* 0x6f120 -- upstream libtiff tif_strip.c TIFFNumberOfStrips (this build has
+ * no PLANARCONFIG_SEPARATE multiply): rowsperstrip (+0x48) == -1 yields
+ * imagelength (+0x20) != 0, else TIFFhowmany(imagelength, rowsperstrip). */
+unsigned long TIFFNumberOfStrips(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  if (td->td_rowsperstrip == (unsigned long)-1) {
+    return (td->td_imagelength != 0);
+  }
+  return ((td->td_imagelength + (td->td_rowsperstrip - 1)) /
+          td->td_rowsperstrip);
+}
+
+/* 0x6f150 -- upstream libtiff tif_strip.c TIFFVStripSize (no YCbCr
+ * subsampling branch in this build): nrows == -1 (CMP ESI,-0x1) yields
+ * imagelength (+0x20), then IMUL TIFFScanlineSize(tif), nrows. */
+unsigned long TIFFVStripSize(void *tif_, unsigned long nrows)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  if (nrows == (unsigned long)-1)
+    nrows = tif->tif_dir.td_imagelength;
+  return (TIFFScanlineSize((int)tif) * nrows);
+}
+
+/* 0x6f180 -- strip size in bytes: rowsperstrip (+0x48), or imagelength
+ * (+0x20) when rowsperstrip == -1, times TIFFScanlineSize(tif). Binary
+ * computes IMUL scanline_size, rows (call result first operand). */
+unsigned long TIFFStripSize(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  unsigned long rps = tif->tif_dir.td_rowsperstrip;
+
+  if (rps == (unsigned long)-1)
+    rps = tif->tif_dir.td_imagelength;
+  return (TIFFScanlineSize((int)tif) * rps);
+}
+
+/* 0x6f1b0 -- byte-swap one 16-bit word in place (shape of upstream libtiff
+ * tif_swab.c TIFFSwabShort): MOVZX cp[1] into an int temp, cp[1] = cp[0],
+ * cp[0] = temp. */
+void FUN_0006f1b0(unsigned short *wp)
+{
+  unsigned char *cp = (unsigned char *)wp;
+  int t;
+
+  t = cp[1];
+  cp[1] = cp[0];
+  cp[0] = (unsigned char)t;
+}
+
+/* 0x6f1d0 -- byte-swap one 32-bit long in place (shape of upstream libtiff
+ * tif_swab.c TIFFSwabLong): swap cp[0]<->cp[3], then cp[1]<->cp[2]. */
+void FUN_0006f1d0(unsigned long *lp)
+{
+  unsigned char *cp = (unsigned char *)lp;
+  int t;
+
+  t = cp[3];
+  cp[3] = cp[0];
+  cp[0] = (unsigned char)t;
+  t = cp[2];
+  cp[2] = cp[1];
+  cp[1] = (unsigned char)t;
+}
+
+/* 0x6f1f0 -- byte-swap n 16-bit words in place (shape of upstream libtiff
+ * tif_swab.c TIFFSwabArrayOfShort): per word MOVZX cp[1], cp[1] = cp[0],
+ * cp[0] = temp, advance 2 bytes; no work when n <= 0. */
+void FUN_0006f1f0(void *wp, int n)
+{
+  unsigned char *cp = (unsigned char *)wp;
+  int t;
+
+  while (n-- > 0) {
+    t = cp[1];
+    cp[1] = cp[0];
+    cp[0] = (unsigned char)t;
+    cp += 2;
+  }
+}
+
+/* 0x6f220 -- byte-swap n 32-bit longs in place (shape of upstream libtiff
+ * tif_swab.c TIFFSwabArrayOfLong): per long swap cp[0]<->cp[3] and
+ * cp[1]<->cp[2], advance 4 bytes; no work when n <= 0. */
+void FUN_0006f220(void *lp, int n)
+{
+  unsigned char *cp = (unsigned char *)lp;
+  int t;
+
+  while (n-- > 0) {
+    t = cp[3];
+    cp[3] = cp[0];
+    cp[0] = (unsigned char)t;
+    t = cp[2];
+    cp[2] = cp[1];
+    cp[1] = (unsigned char)t;
+    cp += 4;
+  }
+}
+
+/* 0x6f260 -- upstream libtiff tif_swab.c TIFFReverseBits: replace each byte
+ * with its bit-reversed value from the 256-byte table at 0x2ecbe0
+ * (`mov dl,[edx+0x2ecbe0]`), 8 bytes per pass while n > 8 (signed JLE at
+ * 0x6f26a), then one byte at a time while n > 0 (signed JLE at 0x6f2f4). */
+void TIFFReverseBits(unsigned char *cp, int n)
+{
+  const unsigned char *bitrev = (const unsigned char *)0x2ecbe0;
+
+  for (; n > 8; n -= 8) {
+    cp[0] = bitrev[cp[0]];
+    cp[1] = bitrev[cp[1]];
+    cp[2] = bitrev[cp[2]];
+    cp[3] = bitrev[cp[3]];
+    cp[4] = bitrev[cp[4]];
+    cp[5] = bitrev[cp[5]];
+    cp[6] = bitrev[cp[6]];
+    cp[7] = bitrev[cp[7]];
+    cp += 8;
+  }
+  while (n-- > 0)
+    *cp = bitrev[*cp], cp++;
+}
+
+/* 0x6f620 -- upstream libtiff tif_thunder.c ThunderDecodeRow: while occ > 0
+ * (signed JLE/JG), decode one row via ThunderDecode(tif, row, imagewidth
+ * +0x1c) (3 cdecl pushes, ADD ESP,0xc, EAX tested); a zero return yields 0.
+ * occ and row advance by tif_scanlinesize (+0x124). s is never read. */
+int ThunderDecodeRow(void *tif_, char *buf, int occ, int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  char *row = buf;
+
+  (void)s;
+  while (occ > 0) {
+    if (!ThunderDecode(tif, row, tif->tif_dir.td_imagewidth))
+      return (0);
+    occ -= tif->tif_scanlinesize;
+    row += tif->tif_scanlinesize;
+  }
+  return (1);
+}
+
+/* 0x6f670 -- upstream libtiff tif_thunder.c TIFFInitThunderScan: stores
+ * ThunderDecodeRow (0x6f620) into tif_decoderow (+0xfc) then
+ * tif_decodestrip (+0x104); returns 1 (MOV EAX,0x1). scheme is never read. */
+int TIFFInitThunderScan(void *tif_, int scheme)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  (void)scheme;
+  tif->tif_decoderow = ThunderDecodeRow;
+  tif->tif_decodestrip = ThunderDecodeRow;
+  return (1);
+}
+
+/* 0x6f690 -- upstream libtiff tif_tile.c TIFFComputeTile, but with the binary
+ * slot order (tif, x, y, s, z): [ebp+0x18] is zeroed when td_imagedepth
+ * (+0x24) == 1 and divided by dz, [ebp+0x14] is multiplied by zpt. dx/dy/dz
+ * (+0x28/+0x2c/+0x30) fall back to imagewidth/length/depth when -1. The
+ * multiply chain is Horner-ordered (IMUL ECX,s ... IMUL ECX,ypt ... IMUL
+ * ECX,xpt); zpt is only computed when td_planarconfig (+0x5e) == 2. */
+unsigned int TIFFComputeTile(void *tif_, unsigned long x, unsigned long y,
+                             unsigned int s, unsigned long z)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned long dx = td->td_tilewidth;
+  unsigned long dy = td->td_tilelength;
+  unsigned long dz = td->td_tiledepth;
+  unsigned int tile = 1;
+
+  if (td->td_imagedepth == 1)
+    z = 0;
+  if (dx == (unsigned long)-1)
+    dx = td->td_imagewidth;
+  if (dy == (unsigned long)-1)
+    dy = td->td_imagelength;
+  if (dz == (unsigned long)-1)
+    dz = td->td_imagedepth;
+  if (dx != 0 && dy != 0 && dz != 0) {
+    unsigned long xpt = (td->td_imagewidth + dx - 1) / dx;
+    unsigned long ypt = (td->td_imagelength + dy - 1) / dy;
+
+    if (td->td_planarconfig == PLANARCONFIG_SEPARATE) {
+      unsigned long zpt = (td->td_imagedepth + dz - 1) / dz;
+
+      tile = ((zpt * s + z / dz) * ypt + y / dy) * xpt + x / dx;
+    } else {
+      tile = x / dx + (s + ((z / dz) * ypt + y / dy) * xpt);
+    }
+  }
+  return (tile);
+}
+
+/* 0x6f780 -- upstream libtiff tif_tile.c TIFFCheckTile: x/y/z tested
+ * unsigned (JC) against td_imagewidth/length/depth (+0x1c/+0x20/+0x24);
+ * sample s against td_samplesperpixel (+0x44, movzx) only when
+ * td_planarconfig (+0x5e) == 2. Each failure reports via TIFFError
+ * (0x68a30, cdecl, 4 pushes: name, fmt 0x2612c8/0x2612ac/0x26128c/
+ * 0x26126c, value, max) and returns 0; success returns 1. */
+int TIFFCheckTile(void *tif_, unsigned long x, unsigned long y, unsigned long z,
+                  unsigned int s)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  if (x >= td->td_imagewidth) {
+    FUN_00068a30(tif->tif_name, "Col %d out of range, max %d", x,
+                 td->td_imagewidth);
+    return (0);
+  }
+  if (y >= td->td_imagelength) {
+    FUN_00068a30(tif->tif_name, "Row %d out of range, max %d", y,
+                 td->td_imagelength);
+    return (0);
+  }
+  if (z >= td->td_imagedepth) {
+    FUN_00068a30(tif->tif_name, "Depth %d out of range, max %d", z,
+                 td->td_imagedepth);
+    return (0);
+  }
+  if (td->td_planarconfig == PLANARCONFIG_SEPARATE &&
+      s >= td->td_samplesperpixel) {
+    FUN_00068a30(tif->tif_name, "Sample %d out of range, max %d", s,
+                 td->td_samplesperpixel);
+    return (0);
+  }
+  return (1);
+}
+
+/* 0x6f820 -- upstream libtiff tif_tile.c TIFFNumberOfTiles (this build has
+ * no PLANARCONFIG_SEPARATE multiply): tilewidth/length/depth (+0x28/+0x2c/
+ * +0x30) == -1 fall back to imagewidth/length/depth (+0x1c/+0x20/+0x24); any
+ * zero tile dimension yields 0, else the product of unsigned howmany(). */
+unsigned int TIFFNumberOfTiles(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  unsigned long dx = td->td_tilewidth;
+  unsigned long dy = td->td_tilelength;
+  unsigned long dz = td->td_tiledepth;
+
+  if (dx == (unsigned long)-1)
+    dx = td->td_imagewidth;
+  if (dy == (unsigned long)-1)
+    dy = td->td_imagelength;
+  if (dz == (unsigned long)-1)
+    dz = td->td_imagedepth;
+  return ((dx == 0 || dy == 0 || dz == 0) ?
+            0 :
+            (howmany(td->td_imagewidth, dx) * howmany(td->td_imagelength, dy) *
+             howmany(td->td_imagedepth, dz)));
+}
+
+/* 0x6f890 -- upstream libtiff tif_tile.c TIFFTileRowSize: 0 when
+ * tilelength (+0x2c) or tilewidth (+0x28) is zero, else
+ * howmany(bitspersample * tilewidth [* samplesperpixel if contig], 8). */
+int FUN_0006f890(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+  int rowsize;
+
+  if (td->td_tilelength == 0 || td->td_tilewidth == 0)
+    return (0);
+  rowsize = td->td_bitspersample * td->td_tilewidth;
+  if (td->td_planarconfig == PLANARCONFIG_CONTIG)
+    rowsize *= td->td_samplesperpixel;
+  return ((int)howmany(rowsize, 8));
+}
+
+/* 0x6f8d0 -- upstream libtiff tif_tile.c TIFFVTileSize: 0 when tilelength
+ * (+0x2c), tilewidth (+0x28) or tiledepth (+0x30) is zero, else
+ * TIFFTileRowSize(tif) * tiledepth * nrows (IMUL EAX,ESI then
+ * IMUL [EBP+0xc] at 0x6f8f2-0x6f8f8). */
+unsigned long TIFFVTileSize(void *tif_, unsigned long nrows)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  if (td->td_tilelength == 0 || td->td_tilewidth == 0 || td->td_tiledepth == 0)
+    return (0);
+  return ((unsigned long)FUN_0006f890(tif) * td->td_tiledepth * nrows);
+}
+
+/* 0x6f910 -- upstream libtiff tif_tile.c TIFFTileSize: 0 when tilelength
+ * (+0x2c), tilewidth (+0x28) or tiledepth (+0x30) is zero, else
+ * TIFFTileRowSize * tilelength * tiledepth (IMUL [esi+0x2c], IMUL edi). */
+unsigned long FUN_0006f910(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_directory_t *td = &tif->tif_dir;
+
+  if (td->td_tilelength == 0 || td->td_tilewidth == 0 || td->td_tiledepth == 0)
+    return (0);
+  return ((unsigned long)FUN_0006f890(tif) * td->td_tilelength *
+          td->td_tiledepth);
+}
+
+/* 0x6f950 -- upstream libtiff tif_warning.c defaultHandler (the default
+ * warning handler). Same shape as tif_error.c's FUN_000689c0 plus the
+ * "Warning, " fprintf that upstream carries:
+ *   0x6f953 mov eax,[ebp+8]; test; jz  -> if (module != NULL)
+ *   0x6f95a push module / 0x259f68 "%s: " / 0x331070; call fprintf; add 0xc
+ *   0x6f96d push 0x2612e4 "Warning, " / 0x331070; call fprintf
+ *   0x6f97c push ap / fmt / 0x331070; call vfprintf (0x1d9850)
+ *   0x6f98e push 0x260020 ".\n" / 0x331070; call fprintf
+ *   0x6f99d add esp,0x1c -- coalesced cleanup (8+0xc+8), no EAX set.
+ * 0x331070 is the ADDRESS of MSVC's stderr record (&_iob[2]). */
+#define tif_write_crt_stderr ((void *)0x331070)
+
+void defaultHandler(const char *module, const char *fmt, char *ap)
+{
+  if (module != NULL)
+    crt_fprintf(tif_write_crt_stderr, "%s: ", module);
+  crt_fprintf(tif_write_crt_stderr, "Warning, ");
+  FUN_001d9850(tif_write_crt_stderr, fmt, ap); /* vfprintf */
+  crt_fprintf(tif_write_crt_stderr, ".\n");
+}
+
+/* 0x6f9d0 -- upstream libtiff tif_warning.c TIFFWarning (tif_dir.c and
+ * tif_dirwrite.c call sites identify it). Same shape as TIFFError
+ * (FUN_00068a30): load the handler word at 0x2ecfac, skip when NULL, else
+ * push (&args, fmt, module) and CALL EAX with ADD ESP,0xc (0x6f9d3-0x6f9ea).
+ * The slot's pointee shape is inferred from that 3-arg cdecl call site and
+ * the TIFFError sibling; no static initializer was checked for this word. */
+typedef void (*tiff_warning_handler_t)(const char *module, const char *fmt,
+                                       char *ap);
+
+#define _TIFFwarningHandler (*(tiff_warning_handler_t *)0x2ecfac)
+
+/* 0x6f9b0 -- upstream libtiff tif_warning.c TIFFSetWarningHandler: EAX gets
+ * the old 0x2ecfac word, then [ebp+8] is stored there (0x6f9b3-0x6f9bb).
+ * Parameter/return kept as void * because decl.h cannot see the local
+ * handler typedef. */
+void *TIFFSetWarningHandler(void *handler)
+{
+  tiff_warning_handler_t prev = _TIFFwarningHandler;
+
+  _TIFFwarningHandler = (tiff_warning_handler_t)handler;
+  return (void *)prev;
+}
+
+void FUN_0006f9d0(const char *module, const char *format, ...)
+{
+  va_list ap;
+
+  if (_TIFFwarningHandler != NULL) {
+    va_start(ap, format);
+    (*_TIFFwarningHandler)(module, format, (char *)ap);
+    va_end(ap);
+  }
+}
+
+/* 0x6f9f0-- size and allocate the strip (or tile) offset/bytecount
  * arrays for the first write. */
 int TIFFSetupStrips(void *tif_)
 {
@@ -626,4 +1450,1251 @@ int TIFFWriteTile(void *tif, unsigned char *buf, unsigned long x,
     return (-1);
   return (TIFFWriteEncodedTile(tif, TIFFComputeTile(tif, x, y, z, s), buf,
                                (unsigned int)-1));
+}
+
+/* 0x704c0 -- expand a 3-byte color into 3 floats: out[i] = (float)color[i]
+ * * per-channel scale (0x2ed08c/0x2ed090/0x2ed094) * shared scale (0x261518).
+ * color arrives in ECX, out in EAX (read at entry, 0x704c4/0x704d9); no stack
+ * args. Scale constant meanings are unproven. */
+void ColorToFcolor(unsigned char *color, float *out)
+{
+  out[0] = (float)color[0] * *(float *)0x2ed08c * *(float *)0x261518;
+  out[1] = (float)color[1] * *(float *)0x2ed090 * *(float *)0x261518;
+  out[2] = (float)color[2] * *(float *)0x2ed094 * *(float *)0x261518;
+}
+
+/* 0x70570 -- pack a 3-byte color into a 16-bit 5:6:5 word: color[2] in
+ * bits 11-15, color[1] in bits 5-10, color[0] in bits 0-4. color arrives in
+ * EAX (read at entry, 0x70573-0x70580); out is the only stack arg ([EBP+8]). */
+void ColorToRGB(unsigned char *color, unsigned short *out)
+{
+  *out = (unsigned short)((((unsigned short)(color[2] >> 3) << 6 |
+                            (unsigned short)(color[1] >> 2))
+                           << 5) |
+                          (unsigned short)(color[0] >> 3));
+}
+
+/* 0x70a00 -- fill a 4x4 color block whose pixels share one color. pixels
+ * (16 dwords) arrives in EDX, block in ESI, mask in DI (read at entry,
+ * 0x70a06-0x70a39). Stores dword 0 at block+4, then the 5:6:5 packing of
+ * pixels[0] (same formula as ColorToRGB) into block[0] and block[1]. When
+ * mask != 0xffff, walks 16 pixels (0x70a60-0x70b31): a clear mask bit ORs
+ * 3 << (2*i) into the dword at block+4, a set bit records pixels[i]; the
+ * last recorded pixel (pixels[0] if none) is re-packed into block[0] and
+ * block[1] (0x70b37-0x70b65). Param meanings beyond these operations are
+ * unproven. */
+void AllSame(unsigned long *pixels, unsigned short *block, unsigned short mask)
+{
+  unsigned long last;
+  unsigned short color;
+  unsigned short bit;
+  unsigned long code;
+  int i;
+  int j;
+
+  last = pixels[0];
+  color =
+    (unsigned short)((((unsigned short)(((unsigned char *)pixels)[2] >> 3)
+                         << 6 |
+                       (unsigned short)(((unsigned char *)pixels)[1] >> 2))
+                      << 5) |
+                     (unsigned short)(((unsigned char *)pixels)[0] >> 3));
+  *(unsigned long *)(block + 2) = 0;
+  block[0] = color;
+  block[1] = color;
+  if (mask != 0xffff) {
+    bit = 1;
+    code = 3;
+    for (i = 0; i < 2; i++) {
+      for (j = 0; j < 8; j++) {
+        if ((bit & mask) == 0) {
+          *(unsigned long *)(block + 2) |= code;
+        } else {
+          last = pixels[i * 8 + j];
+        }
+        bit <<= 1;
+        code <<= 2;
+      }
+    }
+    color =
+      (unsigned short)((((unsigned short)(((unsigned char *)&last)[2] >> 3)
+                           << 6 |
+                         (unsigned short)(((unsigned char *)&last)[1] >> 2))
+                        << 5) |
+                       (unsigned short)(((unsigned char *)&last)[0] >> 3));
+    block[0] = color;
+    block[1] = color;
+  }
+}
+
+/* 0x71400 -- decode an 8-byte 5:6:5 color block into 16 four-byte pixels.
+ * NULL block zero-fills 0x40 bytes of out_pixels (0x7140e-0x71415). Word 0
+ * is expanded inline (same byte formula as RGBToColor, 0x71426-0x71470);
+ * word 1 via RGBToColor(EAX=block+2, &colors[1]) (0x7146a-0x71473). Alpha
+ * of colors 0-2 is 0xff. word0 > word1 (JBE, 0x7147b): colors 2/3 are the
+ * signed /3 blends (c1 + 2*c0 + 1), (c0 + 2*c1 + 1), alpha 0xff; else
+ * color 2 is the signed /2 average and color 3 is all zero. Then 16 two-bit
+ * indices from the dword at block+4 pick each pixel (0x71572-0x715aa). */
+void FUN_00071400(void *block, unsigned int *out_pixels)
+{
+  unsigned short *words;
+  unsigned char colors[4][4];
+  unsigned short word0;
+  unsigned short c0;
+  unsigned short c1;
+  unsigned long value;
+  unsigned char b;
+  unsigned char g;
+  unsigned char r;
+  unsigned long bits;
+  unsigned char *out;
+  int idx;
+  int i;
+
+  words = (unsigned short *)block;
+  if (words == NULL) {
+    csmemset(out_pixels, 0, 0x40);
+    return;
+  }
+  word0 = words[0];
+  value = word0;
+  b = (unsigned char)(((unsigned char *)&value)[0] << 3);
+  b |= b >> 5;
+  *(unsigned short *)&value >>= 5;
+  g = (unsigned char)(((unsigned char *)&value)[0] << 2);
+  g |= g >> 6;
+  r = (unsigned char)((unsigned char)(value >> 6) << 3);
+  r |= r >> 5;
+  ((unsigned char *)&value)[0] = b;
+  ((unsigned char *)&value)[1] = g;
+  ((unsigned char *)&value)[2] = r;
+  *(unsigned long *)colors[0] = value;
+  RGBToColor(&words[1], colors[1]);
+  colors[2][3] = 0xff;
+  colors[1][3] = 0xff;
+  colors[0][3] = 0xff;
+  if (word0 > words[1]) {
+    c0 = colors[0][0];
+    c1 = colors[1][0];
+    colors[2][0] = (unsigned char)((c1 + c0 * 2 + 1) / 3);
+    colors[3][0] = (unsigned char)((c0 + c1 * 2 + 1) / 3);
+    c0 = colors[0][1];
+    c1 = colors[1][1];
+    colors[2][1] = (unsigned char)((c1 + c0 * 2 + 1) / 3);
+    colors[3][1] = (unsigned char)((c0 + c1 * 2 + 1) / 3);
+    c0 = colors[0][2];
+    c1 = colors[1][2];
+    colors[2][2] = (unsigned char)((c1 + c0 * 2 + 1) / 3);
+    colors[3][2] = (unsigned char)((c0 + c1 * 2 + 1) / 3);
+    colors[3][3] = 0xff;
+  } else {
+    for (i = 0; i < 3; i++) {
+      colors[2][i] =
+        (unsigned char)(((int)colors[0][i] + (int)colors[1][i]) / 2);
+      colors[3][i] = 0;
+    }
+    colors[3][3] = 0;
+  }
+  bits = *(unsigned long *)(words + 2);
+  out = (unsigned char *)out_pixels;
+  for (i = 0; i < 16; i++) {
+    idx = bits & 3;
+    out[0] = colors[idx][0];
+    out[1] = colors[idx][1];
+    out[2] = colors[idx][2];
+    out[3] = colors[idx][3];
+    bits >>= 2;
+    out += 4;
+  }
+}
+
+/* 0x717b0 -- decode a 16-byte block whose first 8 bytes are four 16-bit
+ * rows of 4-bit values: FUN_00071400 decodes block+8 into out_pixels
+ * (0x717bc-0x717c1), then each 4-bit value n becomes byte (n | n << 4) at
+ * byte 3 of out_pixels[i * 4 + j], low nibble first (0x717d0-0x7182c).
+ * cdecl, two stack args ([EBP+8] block, [EBP+0xc] out_pixels). */
+void FUN_000717b0(void *block, unsigned int *out_pixels)
+{
+  int i;
+  int j;
+  unsigned short value;
+
+  FUN_00071400((char *)block + 8, out_pixels);
+  for (i = 0; i < 4; i++) {
+    value = ((unsigned short *)block)[i];
+    for (j = 0; j < 4; j++) {
+      ((unsigned char *)&out_pixels[i * 4 + j])[3] =
+        (unsigned char)((value & 0xf) | (value << 4));
+      value >>= 4;
+    }
+  }
+}
+
+/* 0x71840 -- single-pixel variant of FUN_000717b0: calls
+ * DecodeBlockRGB__single_pixel(block + 8, pixel, x, y) (0x71852-0x71859),
+ * then takes the 4-bit value at nibble x of 16-bit row (short)y of block
+ * (MOVSX EDX,SI; SHL CL,0x2; SHR AX,CL; AND 0xf) and stores (n << 4 | n)
+ * at byte 3 of *pixel (0x7185e-0x7187d). cdecl, four stack args. */
+void FUN_00071840(void *block, uint32_t *pixel, int x, int y)
+{
+  unsigned char n;
+
+  DecodeBlockRGB__single_pixel((char *)block + 8, pixel, x, y);
+  n = (unsigned char)(((unsigned short *)block)[(short)y] >>
+                      (unsigned char)((unsigned char)x << 2)) &
+      0xf;
+  ((unsigned char *)pixel)[3] = (unsigned char)(n << 4 | n);
+}
+
+/* 0x71890 -- alpha-block decode: FUN_00071400(block + 8, out_pixels)
+ * (0x7189f-0x718b2), then builds an 8-entry table from block[0]/block[1]
+ * (MOVZX, signed IMUL-magic /7 when block[0] > block[1] via JLE at 0x718bd,
+ * else /5 with entries 6/7 = 0/0xff, 0x718c3-0x719e6). For each of the 16
+ * pixels, 3-bit indices come from the 24-bit little-endian value at
+ * block + 2 (i == 0) or block + 5 (i == 8), reloaded when (i & 7) == 0
+ * (0x719f0-0x71a15); byte 3 of out_pixels[i] = table[bits & 7], bits >>= 3.
+ * cdecl, two stack args ([EBP+8] block, [EBP+0xc] out_pixels). */
+void FUN_00071890(void *block, unsigned int *out_pixels)
+{
+  unsigned char *src;
+  unsigned int bits;
+  int i;
+  int alpha[8];
+
+  src = (unsigned char *)block;
+  bits = 0;
+  FUN_00071400(src + 8, out_pixels);
+  alpha[0] = src[0];
+  alpha[1] = src[1];
+  if (alpha[0] > alpha[1]) {
+    alpha[2] = (alpha[0] * 6 + alpha[1]) / 7;
+    alpha[3] = (alpha[0] * 5 + alpha[1] * 2) / 7;
+    alpha[4] = (alpha[0] * 4 + alpha[1] * 3) / 7;
+    alpha[5] = (alpha[0] * 3 + alpha[1] * 4) / 7;
+    alpha[6] = (alpha[0] * 2 + alpha[1] * 5) / 7;
+    alpha[7] = (alpha[0] + alpha[1] * 6) / 7;
+  } else {
+    alpha[2] = (alpha[0] * 4 + alpha[1]) / 5;
+    alpha[3] = (alpha[0] * 3 + alpha[1] * 2) / 5;
+    alpha[4] = (alpha[0] * 2 + alpha[1] * 3) / 5;
+    alpha[5] = (alpha[0] + alpha[1] * 4) / 5;
+    alpha[6] = 0;
+    alpha[7] = 0xff;
+  }
+  for (i = 0; i < 16; i++) {
+    if ((i & 7) == 0) {
+      if (i == 0) {
+        bits = src[2] | ((src[4] << 8 | src[3]) << 8);
+      } else {
+        bits = src[5] | ((src[7] << 8 | src[6]) << 8);
+      }
+    }
+    ((unsigned char *)&out_pixels[i])[3] = (unsigned char)alpha[bits & 7];
+    bits >>= 3;
+  }
+}
+
+/* 0x71ca0 -- forward both stack args ([EBP+8], [EBP+0xc]) to
+ * EncodeBlockRGBColorKey with a third arg of 0 (PUSH 0x0, 0x71ca9;
+ * ADD ESP,0xc after the call). cdecl; param types are unproven. */
+void EncodeBlockRGB(void *param_1, void *param_2)
+{
+  EncodeBlockRGBColorKey(param_1, param_2, 0);
+}
+
+/* 0x71cc0 -- pack the high nibble of byte 3 of each of 16 four-byte
+ * pixels into four 16-bit words at out[0..3]; per word the four source bytes
+ * are read at pixels + 0xf + 16*i, stepping back 4 bytes each
+ * (0x71ce0-0x71d11). Each word is shifted left 4 in place before OR-ing in the
+ * next nibble. Then calls EncodeBlockRGBColorKey(pixels, (char *)out + 8, 0)
+ * (0x71d13-0x71d25). cdecl, two stack args ([EBP+8] pixels, [EBP+0xc] out);
+ * param meanings beyond this arithmetic are unproven. */
+void FUN_00071cc0(unsigned char *pixels, unsigned short *out)
+{
+  unsigned char *row;
+  unsigned char *src;
+  unsigned short *dst;
+  int i;
+  int j;
+
+  row = pixels + 0xf;
+  dst = out;
+  for (i = 4; i != 0; i--) {
+    src = row;
+    for (j = 4; j != 0; j--) {
+      *dst <<= 4;
+      *dst |= (unsigned short)(*src >> 4);
+      src -= 4;
+    }
+    dst++;
+    row += 0x10;
+  }
+  EncodeBlockRGBColorKey(pixels, (char *)out + 8, 0);
+}
+
+/* 0x71d30 -- encode an 8-byte 3-bit-index alpha block from byte 3 of each
+ * of 16 four-byte pixels, then EncodeBlockRGBColorKey(pixels, out + 8, 0)
+ * (0x71f81-0x71f8d). cdecl, two stack args ([EBP+8] pixels, [EBP+0xc] out).
+ * Pass 1 (0x71d50-0x71d9e) takes max/min alpha. When max == 0xff and
+ * min == 0, pass 2 (0x71db8-0x71e7b) restarts at 0xff/0 and takes the
+ * smallest alpha != 0 and the largest alpha != 0xff; if that range is
+ * non-empty the 6-step form (key, codes 6/7 for 0/0xff) is used, else
+ * 0xff/0. out[0]/out[1] = endpoints; equal endpoints zero out[2..7]
+ * (0x71f69). Otherwise each 3-bit code is packed from pixel 15 down to 0,
+ * 24 bits flushed to out[5..7] at i == 8 and out[2..4] at i == 0. */
+void EncodeBlockAlpha3(unsigned char *pixels, unsigned char *out)
+{
+  unsigned char *p;
+  unsigned char hi;
+  unsigned char lo;
+  unsigned char a;
+  unsigned int bits;
+  int key;
+  int range;
+  int steps;
+  int half;
+  int q;
+  int i;
+
+  lo = pixels[3];
+  bits = 0;
+  hi = lo;
+  p = pixels + 0xb;
+  for (i = 3; i != 0; i--) {
+    a = p[-4];
+    if (a > hi) {
+      hi = a;
+    }
+    if (a < lo) {
+      lo = a;
+    }
+    a = p[0];
+    if (a > hi) {
+      hi = a;
+    }
+    if (a < lo) {
+      lo = a;
+    }
+    a = p[4];
+    if (a > hi) {
+      hi = a;
+    }
+    if (a < lo) {
+      lo = a;
+    }
+    a = p[8];
+    if (a > hi) {
+      hi = a;
+    }
+    if (a < lo) {
+      lo = a;
+    }
+    a = p[0xc];
+    if (a > hi) {
+      hi = a;
+    }
+    if (a < lo) {
+      lo = a;
+    }
+    p += 0x14;
+  }
+  key = 0;
+  if (hi == 0xff && lo == 0) {
+    p = pixels + 7;
+    for (i = 2; i != 0; i--) {
+      a = p[-4];
+      if (a < hi && a != 0) {
+        hi = a;
+      }
+      if (a > lo && a != 0xff) {
+        lo = a;
+      }
+      a = p[0];
+      if (a < hi && a != 0) {
+        hi = a;
+      }
+      if (a > lo && a != 0xff) {
+        lo = a;
+      }
+      a = p[4];
+      if (a < hi && a != 0) {
+        hi = a;
+      }
+      if (a > lo && a != 0xff) {
+        lo = a;
+      }
+      a = p[8];
+      if (a < hi && a != 0) {
+        hi = a;
+      }
+      if (a > lo && a != 0xff) {
+        lo = a;
+      }
+      a = p[0xc];
+      if (a < hi && a != 0) {
+        hi = a;
+      }
+      if (a > lo && a != 0xff) {
+        lo = a;
+      }
+      a = p[0x10];
+      if (a < hi && a != 0) {
+        hi = a;
+      }
+      if (a > lo && a != 0xff) {
+        lo = a;
+      }
+      a = p[0x14];
+      if (a < hi && a != 0) {
+        hi = a;
+      }
+      if (a > lo && a != 0xff) {
+        lo = a;
+      }
+      a = p[0x18];
+      if (a < hi && a != 0) {
+        hi = a;
+      }
+      if (a > lo && a != 0xff) {
+        lo = a;
+      }
+      p += 0x20;
+    }
+    if (hi < lo) {
+      key = 1;
+    } else {
+      hi = 0xff;
+      lo = 0;
+    }
+  }
+  out[0] = hi;
+  out[1] = lo;
+  if (hi == lo) {
+    out[7] = 0;
+    out[6] = 0;
+    out[5] = 0;
+    out[4] = 0;
+    out[3] = 0;
+    out[2] = 0;
+  } else {
+    range = (int)hi - (int)lo;
+    half = range >> 1;
+    steps = (key == 0) * 2 + 5;
+    for (i = 15; i >= 0; i--) {
+      bits <<= 3;
+      if (key != 0 && pixels[i * 4 + 3] == 0) {
+        bits |= 6;
+      } else if (key != 0 && pixels[i * 4 + 3] == 0xff) {
+        bits |= 7;
+      } else {
+        q = (((int)hi - (int)pixels[i * 4 + 3]) * steps + half) / range;
+        if (q >= steps) {
+          bits |= 1;
+        } else if (q > 0) {
+          bits |= (unsigned int)q + 1;
+        }
+      }
+      if ((i & 7) == 0) {
+        if (i == 8) {
+          out[5] = (unsigned char)bits;
+          out[6] = (unsigned char)(bits >> 8);
+          out[7] = (unsigned char)(bits >> 16);
+        } else {
+          out[2] = (unsigned char)bits;
+          out[3] = (unsigned char)(bits >> 8);
+          out[4] = (unsigned char)(bits >> 16);
+        }
+        bits >>= 16;
+      }
+    }
+  }
+  EncodeBlockRGBColorKey(pixels, out + 8, 0);
+}
+
+/* 0x71fa0 -- initialize a Bresenham-style line record from two 16-bit
+ * (x,y) points. cdecl, three stack args ([EBP+8] line, [EBP+0xc] point0,
+ * [EBP+0x10] point1); no calls. Line layout, all int16 unless noted (field
+ * meanings beyond the arithmetic are unproven):
+ *   +0x0 2*|dx|  +0x2 2*|dy|  +0x4 sign(dx)  +0x6 sign(dy)
+ *   +0x8 dx      +0xa dy      +0xc initial error term
+ *   +0xe point0 (dword copy)  +0x12 point1 (dword copy)
+ * dx/dy are point1 - point0. */
+void bitmap_initialize_line(short *line, short *point0, short *point1)
+{
+  short adx2;
+  short ady2;
+
+  line[4] = (short)(point1[0] - point0[0]);
+  line[5] = (short)(point1[1] - point0[1]);
+  adx2 = (short)((line[4] < 0 ? -line[4] : line[4]) * 2);
+  line[0] = adx2;
+  ady2 = (short)((line[5] < 0 ? -line[5] : line[5]) * 2);
+  line[1] = ady2;
+  line[2] = (short)(line[4] != 0 ? (line[4] >= 0 ? 1 : -1) : 0);
+  line[3] = (short)(line[5] != 0 ? (line[5] >= 0 ? 1 : -1) : 0);
+  *(unsigned long *)(line + 7) = *(unsigned long *)point0;
+  *(unsigned long *)(line + 9) = *(unsigned long *)point1;
+  line[6] = (short)(adx2 > ady2 ? ady2 - (adx2 >> 1) : adx2 - (ady2 >> 1));
+}
+
+/* 0x72060 -- advance a line record built by bitmap_initialize_line by one
+ * step. cdecl, two stack args ([EBP+8] line, [EBP+0xc] int16 mode read with
+ * MOVSX); no calls. Returns the byte local [EBP-1] in AL: 1 when the current
+ * point on the major axis (+0xe x-major, +0x10 y-major) already equals the
+ * end point (+0x12 / +0x14), else 0. x-major when +0x0 > +0x2 (0x72071).
+ * Mode 0 takes one step; mode 2 (x-major, 0x720a2) or mode 1 (y-major,
+ * 0x72139) steps the major axis only while the error term +0xc is negative.
+ * Other modes do nothing. Mode meanings are unproven. */
+bool bitmap_step_line(short *line, short mode)
+{
+  short adx2;
+  short ady2;
+  short error;
+  bool done;
+
+  adx2 = line[0];
+  ady2 = line[1];
+  done = 0;
+  if (adx2 > ady2) {
+    if (line[7] == line[9]) {
+      done = 1;
+    } else {
+      switch (mode) {
+      case 0:
+        error = line[6];
+        if (error >= 0) {
+          line[8] += line[3];
+          line[6] = (short)(error - adx2);
+        }
+        line[6] += ady2;
+        line[7] = (short)(line[2] + line[7]);
+        break;
+      case 2:
+        while (line[6] < 0 && line[7] != line[9]) {
+          line[6] += ady2;
+          line[7] = (short)(line[2] + line[7]);
+        }
+        break;
+      }
+    }
+  } else {
+    if (line[8] == line[10]) {
+      done = 1;
+    } else {
+      switch (mode) {
+      case 0:
+        error = line[6];
+        if (error >= 0) {
+          line[7] += line[2];
+          line[6] = (short)(error - ady2);
+        }
+        line[6] += adx2;
+        line[8] = (short)(line[3] + line[8]);
+        break;
+      case 1:
+        while (line[6] < 0 && line[8] != line[10]) {
+          line[6] += adx2;
+          line[8] = (short)(line[3] + line[8]);
+        }
+        break;
+      }
+    }
+  }
+  return done;
+}
+
+/* 0x721a0 -- fill a rectangle of a 16-bit 5:6:5 bitmap (encoding #6 at
+ * +0xc) with an A8R8G8B8 color. cdecl, four stack args: destination
+ * ([EBP+8]), color ([EBP+0xc]), rectangle ([EBP+0x10], four int16 copied as
+ * two dwords to [EBP-0x30]: [0]/[2] are clamped to the height at +0x6,
+ * [1]/[3] to the width at +0x4), and an optional clip rectangle ([EBP+0x14])
+ * passed with the original rectangle and the local copy to
+ * intersect_rectangles2d (returns early when it returns 0 in AL).
+ * Alpha 0xff selects mode 0 (plain fill of each row, REP STOSD/STOSW);
+ * otherwise mode 2 (5:6:5 blend). Mode 1 (5:5:5 blend) is unreachable here
+ * (0x72283: SETZ/DEC/AND 2). The blend cases never advance the row pointer:
+ * the binary loads the first pixel once (0x72378 / 0x723fc), blends it
+ * width times and stores it once (0x723c6 / 0x72448). Kept as found. */
+void bitmap_fill_rectangle(void *destination, unsigned int color,
+                           short *rectangle, short *clip_rectangle)
+{
+  short bounds[4];
+  short alpha;
+  short inverse_alpha;
+  unsigned int color16;
+  short mode;
+  short x0;
+  short x1;
+  short y;
+  short y1;
+  short width;
+  short x;
+  short format;
+  unsigned short *pixel;
+
+  *(unsigned long *)&bounds[0] = *(unsigned long *)&rectangle[0];
+  *(unsigned long *)&bounds[2] = *(unsigned long *)&rectangle[2];
+  assert_halt_at("c:\\halo\\SOURCE\\bitmaps\\bitmap_drawing.c", 0x113,
+                 destination);
+  if (clip_rectangle != NULL &&
+      !intersect_rectangles2d(rectangle, clip_rectangle, bounds)) {
+    return;
+  }
+  alpha = (short)(color >> 24);
+  inverse_alpha = (short)(0xff - (color >> 24));
+  format = *(short *)((char *)destination + 0xc);
+  if (format != 6) {
+    display_assert(csprintf((char *)0x5ab100,
+                            "bitmap @%p has bad encoding #%d for "
+                            "fill_rectangle()",
+                            destination, (int)format),
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_drawing.c", 0x12d, 1);
+    system_exit(-1);
+  }
+  color16 = ((((color >> 16) & 0xf8) << 5) | ((color >> 8) & 0xfc)) << 3 |
+            ((color >> 3) & 0x1f);
+  mode = (short)(alpha == 0xff ? 0 : 2);
+  if (bounds[1] < 0) {
+    x0 = 0;
+  } else if (bounds[1] > (short)*(unsigned short *)((char *)destination + 4)) {
+    x0 = (short)*(unsigned short *)((char *)destination + 4);
+  } else {
+    x0 = bounds[1];
+  }
+  if (bounds[3] < 0) {
+    x1 = 0;
+  } else if (bounds[3] > (short)*(unsigned short *)((char *)destination + 4)) {
+    x1 = (short)*(unsigned short *)((char *)destination + 4);
+  } else {
+    x1 = bounds[3];
+  }
+  if (bounds[0] < 0) {
+    y = 0;
+  } else if (bounds[0] > (short)*(unsigned short *)((char *)destination + 6)) {
+    y = (short)*(unsigned short *)((char *)destination + 6);
+  } else {
+    y = bounds[0];
+  }
+  if (bounds[2] < 0) {
+    y1 = 0;
+  } else if (bounds[2] > (short)*(unsigned short *)((char *)destination + 6)) {
+    y1 = (short)*(unsigned short *)((char *)destination + 6);
+  } else {
+    y1 = bounds[2];
+  }
+  width = (short)(x1 - x0);
+  for (; y < y1; y++) {
+    pixel = (unsigned short *)bitmap_2d_address(destination, x0, y, 0);
+    switch (mode) {
+    case 0:
+      for (x = 0; x < width; x++) {
+        pixel[x] = (unsigned short)color16;
+      }
+      break;
+    case 1:
+      for (x = 0; x < width; x++) {
+        *pixel =
+          (unsigned short)((((int)(*pixel * inverse_alpha + color16 * alpha) >>
+                             8) &
+                            0x7c00) |
+                           (((int)((*pixel & 0x3ff) * inverse_alpha +
+                                   (color16 & 0x3ff) * alpha) >>
+                             8) &
+                            0x3e0) |
+                           (((int)((*pixel & 0x1f) * inverse_alpha +
+                                   (color16 & 0x1f) * alpha) >>
+                             8) &
+                            0x1f));
+      }
+      break;
+    case 2:
+      for (x = 0; x < width; x++) {
+        *pixel =
+          (unsigned short)((((int)(*pixel * inverse_alpha + color16 * alpha) >>
+                             8) &
+                            0xf800) |
+                           (((int)((*pixel & 0x7ff) * inverse_alpha +
+                                   (color16 & 0x7ff) * alpha) >>
+                             8) &
+                            0x7e0) |
+                           (((int)((*pixel & 0x1f) * inverse_alpha +
+                                   (color16 & 0x1f) * alpha) >>
+                             8) &
+                            0x1f));
+      }
+      break;
+    }
+  }
+}
+
+/* 0x73770 -- draw the four edges of a float rectangle with bitmap_draw_line
+ * (0x73390). cdecl, four stack args: destination ([EBP+8]), color
+ * ([EBP+0xc]), rectangle ([EBP+0x10], four floats; [1] and [3] are reduced
+ * by 1.0f from 0x2533c8) and clip_rectangle ([EBP+0x14], forwarded as the
+ * callee's third arg). Two 8-byte point locals at [EBP-0x10] (point0) and
+ * [EBP-0x8] (point1) alternate as the line endpoints. */
+void bitmap_frame_rectangle(void *destination, unsigned int color,
+                            float *rectangle, short *clip_rectangle)
+{
+  float point0[2];
+  float point1[2];
+
+  point1[0] = rectangle[0];
+  point0[0] = rectangle[1] - 1.0f;
+  point1[1] = rectangle[2];
+  point0[1] = rectangle[2];
+  bitmap_draw_line(destination, color, clip_rectangle, point1, point0);
+  point1[0] = rectangle[1] - 1.0f;
+  point1[1] = rectangle[3] - 1.0f;
+  bitmap_draw_line(destination, color, clip_rectangle, point0, point1);
+  point0[1] = rectangle[3] - 1.0f;
+  point0[0] = rectangle[0];
+  bitmap_draw_line(destination, color, clip_rectangle, point1, point0);
+  point1[0] = rectangle[0];
+  point1[1] = rectangle[2];
+  bitmap_draw_line(destination, color, clip_rectangle, point0, point1);
+}
+
+/* 0x73830 -- sample the color keys of the source plate bitmap held at
+ * 0x334150 (same global bitmap_utilities.c reads as the plate). cdecl, no
+ * args, no return. Pixel (0,0), (1,0), (2,0) are read through
+ * bitmap_2d_address and masked to 24 bits into dwords 0x33413c/0x334140/
+ * 0x334144 (0x7384a-0x7389f). Byte 0x334148 starts at 1 and is cleared when
+ * any check fails; byte 0x334149 is set when key0 == key1 (0x738b5-0x738c7).
+ * Columns 3..width-1 (int16 at plate+4, re-read each pass, 0x738d9/0x7392d)
+ * clear 0x334148 when row 0 differs from key0 AND row 1 differs from key1.
+ * On failure all three keys become 0xff000000 (0x7393e-0x7394d). Meanings of
+ * the globals beyond these operations are unproven. */
+void FUN_00073830(void)
+{
+  short x;
+
+  unknown_334148 = 1;
+  unknown_334149 = 0;
+  unknown_33413c =
+    *(unsigned long *)bitmap_2d_address(unknown_334150, 0, 0, 0) & 0xffffff;
+  unknown_334140 =
+    *(unsigned long *)bitmap_2d_address(unknown_334150, 1, 0, 0) & 0xffffff;
+  unknown_334144 =
+    *(unsigned long *)bitmap_2d_address(unknown_334150, 2, 0, 0) & 0xffffff;
+  if (unknown_334144 == unknown_334140 && unknown_334140 != 0xff) {
+    unknown_334148 = 0;
+  }
+  if (unknown_33413c == unknown_334140) {
+    unknown_334144 = 0xffff;
+    unknown_334149 = 1;
+  }
+  for (x = 3; x < *(short *)((char *)unknown_334150 + 4); x++) {
+    unsigned long row0;
+    unsigned long row1;
+
+    row0 =
+      *(unsigned long *)bitmap_2d_address(unknown_334150, x, 0, 0) & 0xffffff;
+    row1 =
+      *(unsigned long *)bitmap_2d_address(unknown_334150, x, 1, 0) & 0xffffff;
+    if (row0 != unknown_33413c && row1 != unknown_334140) {
+      unknown_334148 = 0;
+    }
+  }
+  if (unknown_334148 == 0) {
+    unknown_334144 = 0xff000000;
+    unknown_334140 = 0xff000000;
+    unknown_33413c = 0xff000000;
+  }
+}
+
+/* 0x73960 -- advance a 16-bit row cursor through the plate bitmap at
+ * 0x334150. Asserts param_1 != NULL ("top_reference", bitmap_extract.c line
+ * 0x1d9). The cursor is read and written as a word (0x739a0/0x73a1e,
+ * 0x73a03/0x73a62) even though the declared type is int *. Return value is
+ * the final row in AX (0x73a12/0x73a72); upper EAX bits are unspecified in
+ * the original, the only caller (0x76704) consumes the low 16 bits.
+ * When byte 0x334149 is set: per row, any pixel of the row whose low 24 bits
+ * differ from dword 0x33413c marks the row; the first marked row sets a
+ * latch, and the first unmarked row after the latch stops the walk; every
+ * unmarked row before the latch stores row+1 to the cursor.
+ * Otherwise: only column 0 is sampled; a pixel equal to 0x33413c sets the
+ * latch, a pixel equal to 0x334140 after the latch stops the walk, any other
+ * pixel stores row+1. Meanings of the globals are unproven. */
+short FUN_00073960(int *param_1)
+{
+  short y;
+  short x;
+  char latched;
+  char marked;
+  unsigned long pixel;
+
+  assert_halt_msg_at("top_reference",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x1d9,
+                     param_1 != NULL);
+  if (unknown_334149 != 0) {
+    latched = 0;
+    for (y = *(short *)param_1; y < *(short *)((char *)unknown_334150 + 6);
+         y++) {
+      marked = 0;
+      for (x = 0; x < *(short *)((char *)unknown_334150 + 4); x++) {
+        if ((*(unsigned long *)bitmap_2d_address(unknown_334150, x, y, 0) &
+             0xffffff) != unknown_33413c) {
+          marked = 1;
+        }
+      }
+      if (marked) {
+        latched = 1;
+      } else {
+        if (latched) {
+          break;
+        }
+        *(short *)param_1 = (short)(y + 1);
+      }
+    }
+  } else {
+    latched = 0;
+    for (y = *(short *)param_1; y < *(short *)((char *)unknown_334150 + 6);
+         y++) {
+      pixel =
+        *(unsigned long *)bitmap_2d_address(unknown_334150, 0, y, 0) & 0xffffff;
+      if (pixel == unknown_33413c) {
+        latched = 1;
+      } else {
+        if (pixel == unknown_334140 && latched) {
+          break;
+        }
+        *(short *)param_1 = (short)(y + 1);
+      }
+    }
+  }
+  return y;
+}
+
+/* 0x73a80 -- scan row y of the plate bitmap at 0x334150 (y arrives in DI,
+ * caller 0x76709 passes FUN_00073960's result). Skips when y < 0 or
+ * y >= int16 plate+6. Walks x from 0 while x < int16 plate+4 (re-read each
+ * pass, 0x73abe-0x73ac4); a pixel whose low 24 bits differ from dword
+ * 0x334140 prints the warning to the stream at 0x331050 and flushes
+ * (0x73acc-0x73aed). Meaning of the globals beyond these operations is
+ * unproven. */
+void FUN_00073a80(short y)
+{
+  short x;
+
+  if (y < 0 || y >= *(short *)((char *)unknown_334150 + 6)) {
+    return;
+  }
+  for (x = 0; x < *(short *)((char *)unknown_334150 + 4); x++) {
+    if ((*(unsigned long *)bitmap_2d_address(unknown_334150, x, y, 0) &
+         0xffffff) != unknown_334140) {
+      crt_fprintf((void *)0x331050,
+                  "### WARNING horizontal border broken at (#%d,#%d)\r\n",
+                  (int)x, (int)y);
+      crt_fflush((void *)0x331050);
+      return;
+    }
+  }
+}
+
+/* 0x73b00 -- split a plateless cube map bitmap (stack arg [EBP+8]) into six
+ * square temporary bitmaps. Width (int16 +4) must be a multiple of 4 and a
+ * power of two, and height (int16 +6) at least 3 * width/4 (0x73b45-0x73b81).
+ * Temporary entries are 16 bytes in the array at *(char **)0x334134, count
+ * int16 at 0x334138 (limit 0x400, 0x73b87-0x73b96). The per-face table is
+ * 6 x 8 int16 stored on the stack (0x73ba1-0x73c67): [0]/[1] and [2]/[3]
+ * are the source x/y start multipliers of size and size-1, [4]/[5] the
+ * source x/y step per destination column, [6]/[7] per destination row.
+ * Each face gets bitmap_2d_new(size, size, 0, 0xb); on success entry +4
+ * gets int16 0x33415c, +6/+8 int16 -1 and +0xc dword -1. Returns AL: the
+ * success byte [EBP-1], cleared only on a failed allocation, or 0 on the
+ * two early error exits. Field meanings beyond these operations are
+ * unproven. */
+bool extract_plateless_cube_map(void *bitmap)
+{
+  bool success;
+  short width;
+  short size;
+  short face_index;
+  short row;
+  short column;
+  short x;
+  short y;
+  short *face;
+  char *entry;
+  void *source;
+  void *temporary;
+  short faces[48];
+
+  success = 1;
+  assert_halt_msg_at("bitmap_verify(bitmap, TRUE)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x2c2,
+                     bitmap_verify(bitmap, 1));
+  width = *(short *)((char *)bitmap + 4);
+  if (width % 4 == 0 &&
+      (size = (short)(width / 4),
+       *(short *)((char *)bitmap + 6) >= width / 4 * 3) &&
+      (width & (width - 1)) == 0) {
+    if (*(short *)0x334138 + 6 <= 0x400) {
+      faces[0] = 0;
+      faces[1] = 1;
+      faces[2] = 1;
+      faces[3] = 0;
+      faces[4] = 0;
+      faces[5] = 1;
+      faces[6] = -1;
+      faces[7] = 0;
+      faces[8] = 1;
+      faces[9] = 1;
+      faces[10] = 1;
+      faces[11] = 1;
+      faces[12] = -1;
+      faces[13] = 0;
+      faces[14] = 0;
+      faces[15] = -1;
+      faces[16] = 2;
+      faces[17] = 1;
+      faces[18] = 0;
+      faces[19] = 1;
+      faces[20] = 0;
+      faces[21] = -1;
+      faces[22] = 1;
+      faces[23] = 0;
+      faces[24] = 3;
+      faces[25] = 1;
+      faces[26] = 0;
+      faces[27] = 0;
+      faces[28] = 1;
+      faces[29] = 0;
+      faces[30] = 0;
+      faces[31] = 1;
+      faces[32] = 0;
+      faces[33] = 0;
+      faces[34] = 1;
+      faces[35] = 0;
+      faces[36] = 0;
+      faces[37] = 1;
+      faces[38] = -1;
+      faces[39] = 0;
+      faces[40] = 0;
+      faces[41] = 2;
+      faces[42] = 1;
+      faces[43] = 0;
+      faces[44] = 0;
+      faces[45] = 1;
+      faces[46] = -1;
+      faces[47] = 0;
+      face = faces;
+      for (face_index = 6; face_index != 0; face_index--) {
+        entry = *(char **)0x334134 + *(short *)0x334138 * 0x10;
+        (*(short *)0x334138)++;
+        temporary = bitmap_2d_new(size, size, 0, 0xb);
+        *(void **)entry = temporary;
+        if (temporary != NULL) {
+          for (row = 0; row < size; row++) {
+            x = (short)((unsigned short)(face[0] * size) +
+                        (unsigned short)(face[2] * (size - 1)) +
+                        (unsigned short)(face[6] * row));
+            y = (short)((unsigned short)(face[1] * size) +
+                        (unsigned short)(face[3] * (size - 1)) +
+                        (unsigned short)(face[7] * row));
+            for (column = 0; column < size; column++) {
+              source = bitmap_2d_address(bitmap, x, y, 0);
+              *(unsigned long *)bitmap_2d_address(*(void **)entry, column, row,
+                                                  0) = *(unsigned long *)source;
+              x += face[4];
+              y += face[5];
+            }
+          }
+          *(short *)(entry + 4) = *(short *)0x33415c;
+          *(short *)(entry + 6) = -1;
+          *(short *)(entry + 8) = -1;
+          *(long *)(entry + 0xc) = -1;
+        } else {
+          error(2, "### ERROR extract: failed to allocate temporary bitmap");
+          success = 0;
+        }
+        face += 8;
+      }
+      return success;
+    } else {
+      error(2,
+            "### ERROR extract: can't handle more than (#%d) temporary bitmaps",
+            0x400);
+      return 0;
+    }
+  }
+  error(2,
+        "### ERROR extract: plateless cube map had invalid dimensions "
+        "#%dx#%d",
+        (int)width, (int)*(short *)((char *)bitmap + 6));
+  return 0;
+}
+
+/* 0x73e40 -- grow adjusted_bounds_reference (ESI, four int16: [0]/[2] track
+ * the y range, [1]/[3] the x range) to the pixels of the plate bitmap at
+ * 0x334150 inside bounds (stack arg, same layout, half-open). Both pointers
+ * are asserted non-NULL (bitmap_extract.c lines 0x3f7/0x3f8). The result is
+ * reset to 0x7fff,0x7fff,0x8000,0x8000 (0x73e95-0x73ea9). Pixels outside the
+ * plate are skipped (0x73ed5-0x73ef5). When byte 0x334148 is set, pixels
+ * whose low 24 bits equal one of the three color-key dwords 0x33413c/
+ * 0x334140/0x334144 are skipped, and when int16 at (*(void **)0x33414c)+4 is
+ * zero, pixels whose top byte is zero are skipped as well (0x73f17-0x73f45).
+ * The two max entries are incremented on exit (0x73fb7/0x73fbb). Returns AL
+ * = 1 when any pixel was accepted (byte [EBP-1], 0x73e4b/0x73f95). */
+bool extract_adjust_bounds(short *bounds, short *adjusted_bounds_reference)
+{
+  bool found;
+  short y;
+  short x;
+  void *plate;
+  unsigned long pixel;
+  unsigned long color;
+
+  found = 0;
+  assert_halt_msg_at("bounds", "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c",
+                     0x3f7, bounds != NULL);
+  assert_halt_msg_at("adjusted_bounds_reference",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x3f8,
+                     adjusted_bounds_reference != NULL);
+  adjusted_bounds_reference[0] = 0x7fff;
+  adjusted_bounds_reference[1] = 0x7fff;
+  adjusted_bounds_reference[2] = (short)0x8000;
+  adjusted_bounds_reference[3] = (short)0x8000;
+  plate = unknown_334150;
+  for (y = bounds[0]; y < bounds[2]; y++) {
+    for (x = bounds[1]; x < bounds[3]; x++) {
+      if (x < 0 || x >= *(short *)((char *)plate + 4) || y < 0 ||
+          y >= *(short *)((char *)plate + 6)) {
+        continue;
+      }
+      pixel = *(unsigned long *)bitmap_2d_address(plate, x, y, 0);
+      color = pixel & 0xffffff;
+      if (unknown_334148 == 0 ||
+          (color != unknown_33413c && color != unknown_334140 &&
+           color != unknown_334144 &&
+           (*(short *)(*(char **)0x33414c + 4) != 0 ||
+            (pixel & 0xff000000) != 0))) {
+        adjusted_bounds_reference[1] =
+          x > adjusted_bounds_reference[1] ? adjusted_bounds_reference[1] : x;
+        adjusted_bounds_reference[0] =
+          y > adjusted_bounds_reference[0] ? adjusted_bounds_reference[0] : y;
+        adjusted_bounds_reference[3] =
+          x > adjusted_bounds_reference[3] ? x : adjusted_bounds_reference[3];
+        adjusted_bounds_reference[2] =
+          y > adjusted_bounds_reference[2] ? y : adjusted_bounds_reference[2];
+        found = 1;
+      }
+      plate = unknown_334150;
+    }
+  }
+  adjusted_bounds_reference[3]++;
+  adjusted_bounds_reference[2]++;
+  return found;
+}
+
+/* 0x74210 extract_pixels_to_mipmap -- inverse of extract_pixels_from_mipmap:
+ * convert the a8r8g8b8 dwords of source_bitmap into mipmap
+ * destination_mipmap_index of destination_bitmap. ABI read off the entry
+ * code: destination_mipmap_index arrives in AX (MOV EBX,EAX 0x7421e, used as
+ * BX), source_bitmap in ECX (MOV ESI,ECX 0x74219, passed to
+ * bitmap_verify(...,1) under the "source_bitmap" assert), destination_bitmap
+ * on the stack ([EBP+8]). Asserts are bitmap_extract.c 0x6a6-0x6ae. When bit
+ * 1 of byte +0xe is set the work is delegated to bitmap_compress_to_mipmap
+ * with a fourth arg of &unknown_334144 when byte 0x334148 is nonzero, else 0
+ * (NEG/SBB/AND 0x743dd-0x743e6). Otherwise the word format at +0xc is
+ * re-read per pixel (0x74440) and dispatched through the jump table at
+ * 0x7457c/0x745a4; unsupported formats hit the 0x6ec error. */
+void extract_pixels_to_mipmap(short destination_mipmap_index,
+                              void *source_bitmap, void *destination_bitmap)
+{
+  uint32_t *source_address;
+  char *destination_address;
+  int pixel_count;
+  int i;
+  uint32_t pixel;
+
+  assert_halt_msg_at("bitmap_verify(source_bitmap, TRUE)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6a6,
+                     bitmap_verify(source_bitmap, 1));
+  assert_halt_msg_at("source_bitmap->width ==MAX(1, destination_bitmap->width "
+                     ">>destination_mipmap_index)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6a7,
+                     *(short *)((char *)source_bitmap + 4) ==
+                       ((short)(*(short *)((char *)destination_bitmap + 4) >>
+                                destination_mipmap_index) < 1 ?
+                          1 :
+                          *(short *)((char *)destination_bitmap + 4) >>
+                            destination_mipmap_index));
+  assert_halt_msg_at("source_bitmap->height==MAX(1, "
+                     "destination_bitmap->height>>destination_mipmap_index)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6a8,
+                     *(short *)((char *)source_bitmap + 6) ==
+                       ((short)(*(short *)((char *)destination_bitmap + 6) >>
+                                destination_mipmap_index) < 1 ?
+                          1 :
+                          *(short *)((char *)destination_bitmap + 6) >>
+                            destination_mipmap_index));
+  assert_halt_msg_at("source_bitmap->depth ==MAX(1, destination_bitmap->depth "
+                     ">>destination_mipmap_index)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6a9,
+                     *(short *)((char *)source_bitmap + 8) ==
+                       ((short)(*(short *)((char *)destination_bitmap + 8) >>
+                                destination_mipmap_index) < 1 ?
+                          1 :
+                          *(short *)((char *)destination_bitmap + 8) >>
+                            destination_mipmap_index));
+  assert_halt_msg_at("bitmap_verify(destination_bitmap, FALSE)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6ab,
+                     bitmap_verify(destination_bitmap, 0));
+  assert_halt_msg_at("destination_bitmap->type==source_bitmap->type",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6ac,
+                     *(short *)((char *)destination_bitmap + 0xa) ==
+                       *(short *)((char *)source_bitmap + 0xa));
+  assert_halt_msg_at("destination_mipmap_index>=0 && "
+                     "destination_mipmap_index<=destination_bitmap->mipmap_"
+                     "count",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6ad,
+                     destination_mipmap_index >= 0 &&
+                       destination_mipmap_index <=
+                         *(short *)((char *)destination_bitmap + 0x14));
+  assert_halt_msg_at("!TEST_FLAG(destination_bitmap->flags, "
+                     "_bitmap_swizzled_bit)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6ae,
+                     (*((unsigned char *)destination_bitmap + 0xe) & 8) == 0);
+  if ((*((unsigned char *)destination_bitmap + 0xe) & 2) != 0) {
+    bitmap_compress_to_mipmap(source_bitmap, destination_bitmap,
+                              destination_mipmap_index,
+                              unknown_334148 != 0 ? (int)&unknown_334144 : 0);
+    return;
+  }
+  source_address = (uint32_t *)bitmap_mipmap_address(source_bitmap, 0);
+  destination_address =
+    (char *)bitmap_mipmap_address(destination_bitmap, destination_mipmap_index);
+  pixel_count = bitmap_get_pixel_count(source_bitmap);
+  for (i = 0; i < pixel_count; i++) {
+    pixel = source_address[i];
+    switch (*(short *)((char *)destination_bitmap + 0xc)) {
+    case 0:
+      destination_address[i] = (char)(pixel >> 24);
+      break;
+    case 1:
+    case 2:
+      destination_address[i] = (char)(pixel >> 16);
+      break;
+    case 3:
+      ((short *)destination_address)[i] = (short)(pixel >> 16);
+      break;
+    case 6:
+      ((unsigned short *)destination_address)[i] =
+        (unsigned short)(((((pixel >> 16) & 0xfff8) << 5 |
+                           ((pixel >> 8) & 0xfc))
+                          << 3) |
+                         ((pixel >> 3) & 0x1f));
+      break;
+    case 8:
+      ((unsigned short *)destination_address)[i] =
+        (unsigned short)(((((((pixel & 0xff000000) != 0 ? 0x80 : 0) << 1 |
+                             ((pixel >> 16) & 0xf8))
+                            << 5) |
+                           ((pixel >> 8) & 0xf8))
+                          << 2) |
+                         ((pixel >> 3) & 0x1f));
+      break;
+    case 9:
+      ((unsigned short *)destination_address)[i] =
+        (unsigned short)((((((pixel >> 16) & 0xf0) | ((pixel >> 28) << 8))
+                           << 4) |
+                          ((pixel >> 8) & 0xf0)) |
+                         ((pixel >> 4) & 0xf));
+      break;
+    case 10:
+      pixel |= 0xff000000;
+      /* fall through (0x7450c -> 0x74511) */
+    case 11:
+      ((uint32_t *)destination_address)[i] = pixel;
+      break;
+    case 0x11:
+      destination_address[i] =
+        (char)palette_find_closest_match((const uint32_t *)0x2ee0a0, pixel);
+      break;
+    default:
+      display_assert("### ERROR unsupported bitmap format",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6ec, 1);
+      system_exit(-1);
+    }
+  }
+}
+
+/* 0x745c0 extract_pixels_from_mipmap -- copy mipmap source_mipmap_index of
+ * source_bitmap into destination_bitmap as a8r8g8b8 dwords. ABI read off the
+ * entry code: source_mipmap_index arrives in AX (MOV EBX,EAX 0x745cc, used as
+ * BX), destination_bitmap in ECX (MOV EDI,ECX 0x745c7, passed to
+ * bitmap_verify(...,1) under the "destination_bitmap" assert), source_bitmap
+ * on the stack ([EBP+8]). Asserts (bitmap_extract.c 0x6f9-0x700) check
+ * width/height/depth (int16 +4/+6/+8) against MAX(1, source >> index), type
+ * (int16 +0xa) equality and index against int16 +0x14 (mipmap_count). When
+ * bit 1 of byte +0xe is set the work is delegated to
+ * bitmap_3d_compress_to_mipmap; otherwise each destination pixel is converted
+ * from the source mipmap using the word format at +0xc (re-read per pixel,
+ * 0x747a5). */
+void extract_pixels_from_mipmap(short source_mipmap_index,
+                                void *destination_bitmap, void *source_bitmap)
+{
+  void *source_address;
+  uint32_t *destination_address;
+  int pixel_count;
+  int i;
+
+  assert_halt_msg_at("bitmap_verify(destination_bitmap, TRUE)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6f9,
+                     bitmap_verify(destination_bitmap, 1));
+  assert_halt_msg_at(
+    "destination_bitmap->width ==MAX(1, source_bitmap->width "
+    ">>source_mipmap_index)",
+    "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6fa,
+    *(short *)((char *)destination_bitmap + 4) ==
+      ((short)(*(short *)((char *)source_bitmap + 4) >> source_mipmap_index) <
+           1 ?
+         1 :
+         *(short *)((char *)source_bitmap + 4) >> source_mipmap_index));
+  assert_halt_msg_at(
+    "destination_bitmap->height==MAX(1, "
+    "source_bitmap->height>>source_mipmap_index)",
+    "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6fb,
+    *(short *)((char *)destination_bitmap + 6) ==
+      ((short)(*(short *)((char *)source_bitmap + 6) >> source_mipmap_index) <
+           1 ?
+         1 :
+         *(short *)((char *)source_bitmap + 6) >> source_mipmap_index));
+  assert_halt_msg_at(
+    "destination_bitmap->depth ==MAX(1, source_bitmap->depth "
+    ">>source_mipmap_index)",
+    "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6fc,
+    *(short *)((char *)destination_bitmap + 8) ==
+      ((short)(*(short *)((char *)source_bitmap + 8) >> source_mipmap_index) <
+           1 ?
+         1 :
+         *(short *)((char *)source_bitmap + 8) >> source_mipmap_index));
+  assert_halt_msg_at("bitmap_verify(source_bitmap, FALSE)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6fe,
+                     bitmap_verify(source_bitmap, 0));
+  assert_halt_msg_at("source_bitmap->type==destination_bitmap->type",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x6ff,
+                     *(short *)((char *)source_bitmap + 0xa) ==
+                       *(short *)((char *)destination_bitmap + 0xa));
+  assert_halt_msg_at("source_mipmap_index>=0 && "
+                     "source_mipmap_index<=source_bitmap->mipmap_count",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x700,
+                     source_mipmap_index >= 0 &&
+                       source_mipmap_index <=
+                         *(short *)((char *)source_bitmap + 0x14));
+  if ((*((unsigned char *)source_bitmap + 0xe) & 2) != 0) {
+    bitmap_3d_compress_to_mipmap(source_bitmap, destination_bitmap,
+                                 source_mipmap_index);
+    return;
+  }
+  source_address = bitmap_mipmap_address(source_bitmap, source_mipmap_index);
+  destination_address =
+    (uint32_t *)bitmap_mipmap_address(destination_bitmap, 0);
+  pixel_count = bitmap_get_pixel_count(destination_bitmap);
+  for (i = 0; i < pixel_count; i++) {
+    destination_address[i] = bitmap_format_to_a8r8g8b8(
+      *(unsigned short *)((char *)source_bitmap + 0xc), source_address, i);
+  }
 }

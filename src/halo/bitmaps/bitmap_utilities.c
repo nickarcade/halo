@@ -661,7 +661,7 @@ char FUN_000766e0(void)
     if (*(short *)(*(char **)0x334150 + 6) <= (short)local_8)
       return cVar1;
     iVar3 = FUN_00073960(&local_8);
-    FUN_00073a80();
+    FUN_00073a80((short)iVar3); /* DI = FUN_00073960 result (0x76709) */
     sVar2 = tag_block_add_element(*(char **)0x33414c + 0x54);
     if (sVar2 == -1) {
       error(2, "### ERROR extract: failed to allocate sequence");
