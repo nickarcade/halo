@@ -1367,6 +1367,31 @@ void FUN_0011fe80(void *page)
 }
 
 
+/* texture_page_textures_begin (0x11feb0) — verify a texture page, assert it
+ * holds no unsorted textures, then set the flag at +0x00.
+ *
+ * Binary evidence (0x11feb0..0x11fee3):
+ *   MOV ESI,[EBP+8]; CALL 0x11fd50   texture_page_verify(page) — page in ESI
+ *   CMP byte [ESI],0; JZ              assert "!texture_page->contains_unsorted_
+ *                                     textures" (texture_page.c, line 0x4e),
+ *                                     display_assert + system_exit(-1), no
+ *                                     cleanup between (stdcall-cast shape)
+ *   MOV byte [ESI],1                  set the byte at +0x00
+ * The assert string names the +0x00 byte contains_unsorted_textures.
+ */
+void texture_page_textures_begin(void *page)
+{
+  texture_page_verify(page);
+  if (*(char *)page != 0) {
+    ((fatal_assert_stdcall_fn)(void *)display_assert)(
+      "!texture_page->contains_unsorted_textures",
+      "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x4e, 1);
+    system_exit(-1);
+  }
+  *(char *)page = 1;
+}
+
+
 /* FUN_0011fef0 — verify a texture page, then fetch one texture datum from it.
  *
  * Name left as FUN_: kb.json carries no name and this function contains no

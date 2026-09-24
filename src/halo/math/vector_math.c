@@ -231,6 +231,154 @@ void action_alert_update(int actor_handle)
   }
 }
 
+/* action_alert_next_position (0x12350) — pick the next alert position index
+ * in the actor's squad position block.
+ *
+ * Confirmed: cdecl, four stack args [EBP+0x8..0x14]; param_2/param_3 are read
+ *   as 16-bit words (MOV BX,[EBP+0xc] / CMP AX,0xffff on [EBP+0x10]);
+ *   16-bit return in AX. Early exits return -1 (OR EAX,-1), except
+ *   param_2 == 1 with param_3 != -1, which returns param_3 (0x12401..0x12408).
+ * Confirmed: datum_get(*0x6325a4, actor_handle); exits on byte [actor+0x160],
+ *   word param_2 == 0, dword [actor+0x34] == -1.
+ * Confirmed: tag_block_get_element(scenario+0x42c, [actor+0x34] & 0xffff,
+ *   0xb0) then (+0x80, MOVSX [actor+0x3a], 0xe8) -> squad; assert
+ *   "!actor->meta.swarm" line 0x113 on byte [actor+6].
+ * Confirmed: csmemset(&flags, 0, 4); position block at squad+0xc4 (count
+ *   dword, elements 0x50 bytes). Per position: usable = index != param_3;
+ *   cleared when param_3 != -1 and |pos - actor[0x12c..0x134]|^2 < [0x25337c]
+ *   (x87 order dx*dx + dy*dy, + dz*dz), or byte pos[0x1e] is nonzero and
+ *   differs from byte [actor+0x68]; any prop from prop_iterator_new/next with
+ *   word [prop+0x24] in 2..3 within [0x25337c] of pos (order dz*dz + dy*dy,
+ *   + dx*dx) marks it occupied without clearing any_usable.
+ * Confirmed: mode 5 -> choose_random_array_element(*(squad+0xc8), 0x50,
+ *   word count, 0x10, &flags). Otherwise walk from param_3 (clamped to 0):
+ *   mode 3 reverses at the last index / forwards at 0 / else follows *param_4;
+ *   mode 4 uses game_time_get() & 1; other modes forward. The direction byte
+ *   is stored to *param_4 when non-NULL. Returns the first index whose flag
+ *   bit is clear.
+ * Unknown: field meanings of actor+0x160/0x68, pos+0x1e, prop+0x24/0xbc. */
+short action_alert_next_position(int actor_handle, int param_2, int param_3,
+                                 void *param_4)
+{
+  char *actor;
+  void *squad;
+  int *positions;
+  float *position;
+  int prop;
+  int iterator[2];
+  uint32_t used_flags[1];
+  short index;
+  short next;
+  char usable;
+  char any_usable;
+  char forward;
+  float dx;
+  float dy;
+  float dz;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (*(char *)(actor + 0x160) != 0 || (short)param_2 == 0 ||
+      *(int *)(actor + 0x34) == -1) {
+    return -1;
+  }
+  squad = tag_block_get_element((char *)global_scenario_get() + 0x42c,
+                                *(int *)(actor + 0x34) & 0xffff, 0xb0);
+  squad =
+    tag_block_get_element((char *)squad + 0x80, *(short *)(actor + 0x3a), 0xe8);
+  if (*(char *)(actor + 6) != 0) {
+    display_assert("!actor->meta.swarm", "c:\\halo\\SOURCE\\ai\\action_alert.c",
+                   0x113, 1);
+    system_exit(-1);
+  }
+  if ((short)param_2 == 1 && (short)param_3 != -1) {
+    return (short)param_3;
+  }
+
+  any_usable = 0;
+  csmemset(used_flags, 0, 4);
+  positions = (int *)((char *)squad + 0xc4);
+  for (index = 0; index < *positions; index++) {
+    position = (float *)tag_block_get_element(positions, index, 0x50);
+    usable = index != (short)param_3;
+    if ((short)param_3 != -1) {
+      dx = position[0] - *(float *)(actor + 0x12c);
+      dy = position[1] - *(float *)(actor + 0x130);
+      dz = position[2] - *(float *)(actor + 0x134);
+      if (dx * dx + dy * dy + dz * dz < *(float *)0x25337c) {
+        usable = 0;
+      }
+    }
+    if (*((char *)position + 0x1e) != 0 &&
+        *((char *)position + 0x1e) != *(char *)(actor + 0x68)) {
+      usable = 0;
+    }
+    prop_iterator_new(iterator, actor_handle);
+    prop = prop_iterator_next(iterator);
+    while (prop != 0) {
+      if (*(short *)(prop + 0x24) >= 2 && *(short *)(prop + 0x24) <= 3) {
+        dx = position[0] - *(float *)(prop + 0xbc);
+        dy = position[1] - *(float *)(prop + 0xc0);
+        dz = position[2] - *(float *)(prop + 0xc4);
+        if (dz * dz + dy * dy + dx * dx < *(float *)0x25337c) {
+          goto occupied;
+        }
+      }
+      prop = prop_iterator_next(iterator);
+    }
+    if (usable) {
+      any_usable = 1;
+    } else {
+    occupied:
+      used_flags[index >> 5] |= 1 << (index & 0x1f);
+    }
+  }
+  if (!any_usable) {
+    return -1;
+  }
+
+  if ((short)param_2 == 5) {
+    return choose_random_array_element(*(void **)((char *)squad + 0xc8), 0x50,
+                                       (short)*positions, 0x10, used_flags);
+  }
+
+  next = (short)param_3;
+  if (next < 0 || next >= *positions) {
+    next = 0;
+  }
+  do {
+    forward = 1;
+    switch ((short)param_2) {
+    case 3:
+      if (next == 0) {
+        forward = 1;
+      } else if (next == *positions - 1) {
+        forward = 0;
+      } else if (param_4 != NULL) {
+        forward = *(char *)param_4;
+      }
+      break;
+    case 4:
+      forward = (char)(game_time_get() & 1);
+      break;
+    }
+    if (param_4 != NULL) {
+      *(char *)param_4 = forward;
+    }
+    if (forward) {
+      next++;
+      if (next >= *positions) {
+        next = 0;
+      }
+    } else {
+      next--;
+      if (next < 0) {
+        next = (short)*positions - 1;
+      }
+    }
+  } while (used_flags[next >> 5] & (1 << (next & 0x1f)));
+  return next;
+}
+
 /* action_alert_perform (0x12660)
  * One tick of the alert action: (1) if the actor has an alert command list
  * and no command in flight, optionally retire the arrival check and pick the

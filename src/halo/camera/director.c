@@ -1477,6 +1477,65 @@ void FUN_00087c00(void *state)
                    (float *)(*(char **)0x2ee670 + 0x1c));
 }
 
+/* editor_camera_move_to_point (0x87c80) — place the editor/flying camera so
+ * that it sits back from `point` along its current facing.
+ *
+ * The facing vector comes from angles_to_vector on the angle pair at
+ * camera_data + 0xc (cdecl, ADD ESP,0x8: PUSH EAX = [0x3356b0] + 0xc is the
+ * last argument, PUSH ECX = the local vector at EBP-0xc the first).  The
+ * camera-data pointer at 0x3356b0 is re-loaded after the call (MOV EAX at
+ * 0x87cc9).  Each position component is point[i] - forward[i] * [0x254e04]
+ * (FMUL then FSUBR [ESI+i*4], so the point is the minuend). */
+void editor_camera_move_to_point(const float *point)
+{
+  float forward[3];
+  float *camera_data;
+
+  if (point == 0) {
+    display_assert("point", "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c",
+                   0x8b, 1);
+    system_exit(-1);
+  }
+
+  angles_to_vector(forward, (float *)(*(char **)0x3356b0 + 0xc));
+  camera_data = *(float **)0x3356b0;
+  camera_data[0] = point[0] - forward[0] * *(float *)0x254e04;
+  camera_data[1] = point[1] - forward[1] * *(float *)0x254e04;
+  camera_data[2] = point[2] - forward[2] * *(float *)0x254e04;
+}
+
+/* FUN_00087eb0 (0x87eb0) — record the editor camera target handle and derive
+ * the camera offset vector at 0x3356b8.
+ *
+ * param_1 is stored to [0x2ee66c] unconditionally (MOV [0x2ee66c],EAX at
+ * 0x87ebf).  With a live camera-data pointer at 0x3356b0 and a handle other
+ * than -1, the offset is camera_data[i] - object[0x50 + i*4] (FLD [ESI],
+ * FSUB [EAX+0x50]: camera position is the minuend).  For a -1 handle the
+ * three dwords at the pointer held in [0x31fc38] are copied (MOV dword). */
+void FUN_00087eb0(void *param_1)
+{
+  float *camera_data;
+  float *object_position;
+  uint32_t *source;
+
+  camera_data = *(float **)0x3356b0;
+  *(void **)0x2ee66c = param_1;
+  if (camera_data != 0) {
+    if ((int)param_1 != -1) {
+      object_position =
+        (float *)((char *)object_get_and_verify_type((int)param_1, -1) + 0x50);
+      *(float *)0x3356b8 = camera_data[0] - object_position[0];
+      *(float *)0x3356bc = camera_data[1] - object_position[1];
+      *(float *)0x3356c0 = camera_data[2] - object_position[2];
+      return;
+    }
+    source = *(uint32_t **)0x31fc38;
+    *(uint32_t *)0x3356b8 = source[0];
+    *(uint32_t *)0x3356bc = source[1];
+    *(uint32_t *)0x3356c0 = source[2];
+  }
+}
+
 /* editor_camera_update (0x87f20) — per-mode editor camera update entry stored
  * in the update_funcs table (the only xref is the DATA store at 0x87026).
  *
@@ -1620,12 +1679,14 @@ void editor_camera_set_scripted(unsigned char enable)
     target = *(int *)0x2ee66c;
     if (target != -1) {
       globals = *(char **)0x2ee670;
-      scripted_camera_set_camera_point_relative((float *)0x3356b8, (float *)(globals + 0x1c),
-                   (float *)(globals + 0x28), 1.2217305f, 0, target);
+      scripted_camera_set_camera_point_relative(
+        (float *)0x3356b8, (float *)(globals + 0x1c), (float *)(globals + 0x28),
+        1.2217305f, 0, target);
     } else {
       globals = *(char **)0x2ee670;
-      scripted_camera_set_camera_point_relative((float *)(globals + 0x10), (float *)(globals + 0x1c),
-                   (float *)(globals + 0x28), 1.2217305f, 0, -1);
+      scripted_camera_set_camera_point_relative(
+        (float *)(globals + 0x10), (float *)(globals + 0x1c),
+        (float *)(globals + 0x28), 1.2217305f, 0, -1);
     }
   } else {
     /* ADD EAX,0x10 / MOV ECX,EAX at 0x8813a: globals + 0x10 is held in one

@@ -1370,32 +1370,32 @@ void FUN_001cb0c0(int channel_index, void *sound)
   }
 }
 
-/*
- * dsound_stream_is_active (0x20f069) -- XDK DirectSound inline, stdcall RET 4.
- * Loads the media object at stream+0x24 and tests its status dword at +0x8
- * against 0x10000002; returns 1 when any of those bits is set, else 0.
- * Bit meanings are unconfirmed.
- */
+/* 0x20f069 -- XDK DirectSound stream inline (stdcall, RET 4).
+ * Loads the object pointer at stream+0x24 and tests its dword at +0x8
+ * against mask 0x10000002; NEG/SBB/NEG materializes 0/1 in EAX.
+ * The meaning of the individual status bits is unconfirmed. */
 bool __stdcall dsound_stream_is_active(void *stream)
 {
   return (*(unsigned int *)(*(char **)((char *)stream + 0x24) + 0x8) &
           0x10000002) != 0;
 }
 
-/*
- * FUN_0020f081 (0x20f081) -- XDK DirectSound inline, stdcall RET 4.
- * Loads the media object at stream+0x24 into ECX and calls vtable slot 4
- * (vtbl+0x10) with two stacked zero args and no caller cleanup:
- *   MOV ECX,[EAX+0x24]; MOV EAX,[ECX]; PUSH 0; PUSH 0; CALL [EAX+0x10]
- * The object travels in ECX (thiscall). C89 has no __thiscall, so the
- * slot is typed __fastcall with an unused EDX slot: ECX=object, the two
- * zeros stay on the stack, callee cleans. Method semantics unconfirmed.
- */
+/* 0x20f081 -- XDK DirectSound stream inline (stdcall, RET 4).
+ * MOV EAX,[ESP+4]; MOV ECX,[EAX+0x24]; MOV EAX,[ECX]; PUSH 0; PUSH 0;
+ * CALL [EAX+0x10]: a thiscall through vtable slot 4 (+0x10) of the object
+ * at stream+0x24, with ECX = that object and two zero stack args (callee
+ * cleans).  C89/VC71 cannot spell an explicit __thiscall pointer, so the
+ * call is expressed as __fastcall with an unused EDX slot: ECX = object,
+ * identical stack args and callee cleanup.  The method's meaning is
+ * unconfirmed. */
+typedef void(__fastcall *dsound_stream_object_method4_t)(void *object,
+                                                         int unused_edx,
+                                                         int arg0, int arg1);
+
 void __stdcall FUN_0020f081(void *stream)
 {
-  void *media_object;
+  void *object;
 
-  media_object = *(void **)((char *)stream + 0x24);
-  ((void(__fastcall *)(void *, int, int, int))(*(void ***)media_object)[4])(
-    media_object, 0, 0, 0);
+  object = *(void **)((char *)stream + 0x24);
+  ((dsound_stream_object_method4_t)(*(void ***)object)[4])(object, 0, 0, 0);
 }

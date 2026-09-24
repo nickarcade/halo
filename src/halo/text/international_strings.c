@@ -1,3 +1,381 @@
+/* 0x19c5d0 — draw_string: lay the 8-bit `text` out line by line inside the
+ * rectangle at `screen_pos` and hand each laid-out run to FUN_0019c1b0 for
+ * clipping and per-glyph emission through `callback`.
+ *
+ * Confirmed from the pristine-XBE disassembly of [0x19c5d0, 0x19c939):
+ *   - SUB ESP,0x54: the 0x1c-byte tokenizer state block (FUN_0019bd30 /
+ *     parse_string layout) at EBP-0x54; the 8-byte rectangle copied from
+ *     *screen_pos (two dword moves) at EBP-0x38; the int16 pen pair at
+ *     EBP-0x10. State fields read: +4 font table, +0xc position, +0x10
+ *     justification, +0x12 character, +0x14 token type, +0x18 color word.
+ *   - Asserts "bounds" (0x27f) and "string" (0x280) guard screen_pos and
+ *     text; tab-stop index assert is line 0x2a0; switch default is
+ *     display_assert(NULL, ..., 0x328). Each tail calls system_exit(-1).
+ *   - FUN_0019bd30: style 0x4d9b14 in AX, &state in EBX, pushes text,
+ *     [0x4d9b0c], zero-extended [0x4d9b16], 0x4d9b18.
+ *   - The tab-stop count 0x4d9b28 is re-read from memory for the
+ *     `tab < count` test after the stop value was loaded into AX.
+ *   - FUN_0019c1b0: EAX = &rect, pushes callback, &pen, clip_bounds,
+ *     state+0x18, text, first, last (cdecl, ADD ESP,0x1c).
+ *   - On exit stores 0 to 0x4d9b4c then 0x4d9b4a and, if the third argument
+ *     is non-NULL, stores the final pen dword through it.
+ *
+ * Same body shape as the wide-string twin FUN_0019c960 below. The kb
+ * parameter names `color` and `flags` are unproven: the third argument is
+ * written as an int16 pen pair (draw_string_compute_bounds passes
+ * &screen_pos there) and `flags` is added to the line pitch.
+ */
+void draw_string(void *callback, void *screen_pos, const void *color,
+                 void *clip_bounds, int flags, char *text)
+{
+  char state[0x1c];
+  int16_t rect[4];
+  int16_t pen[2];
+  void *glyph;
+  short first;
+  short justification;
+  short saved_width;
+  short prev_token;
+  short saved_pos;
+  short max_wrap;
+  short last;
+  short line;
+  short tab;
+  short wrap;
+  short width;
+  short y;
+  char done;
+  char rewound;
+
+  tab = 0;
+  line = 0;
+  wrap = 0;
+  max_wrap = 0;
+  if (screen_pos == 0) {
+    display_assert("bounds", "c:\\halo\\SOURCE\\text\\draw_string.c", 0x27f, 1);
+    system_exit(-1);
+  }
+  if (text == 0) {
+    display_assert("string", "c:\\halo\\SOURCE\\text\\draw_string.c", 0x280, 1);
+    system_exit(-1);
+  }
+  FUN_0019bd30(*(short *)0x4d9b14, state, (int *)text, *(int *)0x4d9b0c,
+               *(short *)0x4d9b16, (float *)0x4d9b18);
+
+  do {
+    first = *(int16_t *)(state + 0xc);
+    justification = *(int16_t *)(state + 0x10);
+    width = 0;
+    saved_pos = 0;
+    prev_token = -1;
+    done = 0;
+    ((int *)rect)[0] = ((int *)screen_pos)[0];
+    ((int *)rect)[1] = ((int *)screen_pos)[1];
+    if (*(short *)0x4d9b28 > 0) {
+      if (tab < 0 || tab > *(short *)0x4d9b28) {
+        display_assert("tab_stop_index>=0 && "
+                       "tab_stop_index<=font_drawing_globals.tab_stop_count",
+                       "c:\\halo\\SOURCE\\text\\draw_string.c", 0x2a0, 1);
+        system_exit(-1);
+      }
+      if (tab != 0)
+        rect[1] = ((short *)0x4d9b28)[tab];
+      else if (line != 0)
+        rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b50);
+      else
+        rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b4e);
+      if (tab < *(short *)0x4d9b28)
+        rect[3] = ((short *)0x4d9b2a)[tab];
+    } else if (line != 0) {
+      rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b50);
+    } else {
+      rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b4e);
+    }
+
+    pen[0] = (int16_t)(*(int16_t *)(*(char **)(state + 4) + 0xa) + rect[1]);
+    y = (short)((*(uint16_t *)(*(char **)(state + 4) + 8) +
+                 *(uint16_t *)(*(char **)(state + 4) + 6) +
+                 *(uint16_t *)(*(char **)(state + 4) + 4) + flags) *
+                  (wrap + line) +
+                *(uint16_t *)(*(char **)(state + 4) + 4) + rect[0]);
+    pen[1] = y;
+
+    do {
+      rewound = 0;
+      parse_string(state);
+      if (*(int16_t *)(state + 0x14) == 2 || *(int16_t *)(state + 0x14) == 6) {
+        glyph =
+          FUN_0019cff0(*(void **)(state + 4), *(uint16_t *)(state + 0x12));
+        if (glyph != 0) {
+          if (*(int16_t *)(state + 0x14) != 2 && prev_token == 2) {
+            saved_pos = last;
+            saved_width = width;
+          }
+          if (*(int16_t *)((char *)glyph + 4) + pen[0] + width < rect[3]) {
+            width = (short)(width + *(int16_t *)((char *)glyph + 2));
+          } else if (*(int *)0x4d9b10 & 1) {
+            if (saved_pos > 0) {
+              last = saved_pos;
+              width = saved_width;
+              rewound = 1;
+            }
+            done = 1;
+          }
+        }
+      } else {
+        done = 1;
+      }
+      if (!rewound)
+        last = *(int16_t *)(state + 0xc);
+      prev_token = *(int16_t *)(state + 0x14);
+    } while (!done);
+
+    switch (justification) {
+    case 1:
+      pen[0] = (int16_t)(rect2d_width(rect) +
+                         (int16_t)(rect[1] -
+                                   *(int16_t *)(*(char **)(state + 4) + 0xa)) -
+                         width);
+      break;
+    case 2:
+      pen[0] = (int16_t)((((short)rect2d_width(rect) - width) >> 1) + rect[1]);
+      break;
+    }
+
+    if ((*(int *)0x4d9b10 & 2) || y < rect[2])
+      FUN_0019c1b0((const uint16_t *)rect, (draw_string_emit_proc)callback, pen,
+                   (const uint16_t *)clip_bounds, *(int *)(state + 0x18),
+                   (int *)text, first, last);
+
+    *(int16_t *)(state + 0xc) = last;
+    switch (*(int16_t *)(state + 0x14)) {
+    case 0:
+    case 5:
+      break;
+    case 2:
+    case 6:
+      wrap++;
+      if (wrap > max_wrap)
+        max_wrap = wrap;
+      break;
+    case 3:
+      if (tab < *(short *)0x4d9b28) {
+        tab++;
+        wrap = 0;
+      }
+      break;
+    case 4:
+      wrap = 0;
+      break;
+    case 1:
+      tab = 0;
+      wrap = 0;
+      line = (short)(line + max_wrap + 1);
+      break;
+    default:
+      display_assert(0, "c:\\halo\\SOURCE\\text\\draw_string.c", 0x328, 1);
+      system_exit(-1);
+    }
+  } while (*(int16_t *)(state + 0x14) != 0);
+
+  *(short *)0x4d9b4c = 0;
+  *(short *)0x4d9b4a = 0;
+  if (color != 0)
+    *(int *)color = *(int *)pen;
+}
+
+/* 0x19c960 — Wide-string (unsigned short text) draw_string: lay `text` out
+ * line by line inside the rectangle at `screen_pos` and hand each laid-out
+ * run to FUN_0019c3c0 for clipping and per-glyph emission.
+ *
+ * Confirmed from the pristine-XBE disassembly of [0x19c960, 0x19ccd1):
+ *   - SUB ESP,0x58: the 0x1c-byte tokenizer state block (FUN_0019bd30 /
+ *     FUN_0019c0a0 layout, see draw_string.c) sits at EBP-0x58; the
+ *     8-byte rectangle copied from *screen_pos (two dword moves) at
+ *     EBP-0x3c; the int16 pen pair at EBP-0x10.
+ *   - Asserts "bounds" (0x347) and "string" (0x348) guard screen_pos and
+ *     text; the tab-stop index assert is line 0x368; the switch default is
+ *     display_assert(NULL, ..., 0x3f0). Each tail calls system_exit(-1).
+ *   - FUN_0019bd30 is called with the same global operands as the two
+ *     draw_string.c callers (style 0x4d9b14 in AX, &state in EBX).
+ *   - Tab stops: 0x4d9b28 is the count and the stops follow at 0x4d9b2a, so
+ *     `[tab*2+0x4d9b28]` (tab >= 1) is stop tab-1 and `[tab*2+0x4d9b2a]` is
+ *     stop tab. Indents: 0x4d9b4e (line 0) / 0x4d9b50 (later lines).
+ *   - Glyph fields read from FUN_0019cff0's result: +2 advance, +4 width.
+ *     Font-table fields: +4, +6, +8 summed with `flags` form the line pitch
+ *     multiplied by (wrap + line); +4 and +0xa are baseline offsets.
+ *   - Justification (state+0x10) 1 = right, 2 = centre, via rect2d_width.
+ *   - 0x4d9b10 bit 0 enables word-wrap at the last space-to-word boundary;
+ *     bit 1 forces emission even when the pen is below rect[2].
+ *   - On exit clears the highlight range words 0x4d9b4c/0x4d9b4a and, if
+ *     the third argument is non-NULL, stores the final pen dword through it.
+ *
+ * The kb parameter names `color` and `flags` are unproven: the third
+ * argument is written as an int16 pen pair (see FUN_0019cdb0, which passes
+ * &out_rect there), and `flags` is added to the line pitch. Token type 2 is
+ * never produced by FUN_0019c0a0 as lifted; its handling is kept verbatim.
+ */
+void FUN_0019c960(void *callback, void *screen_pos, const void *color,
+                  void *clip_bounds, int flags, unsigned short *text)
+{
+  char state[0x1c];
+  int16_t rect[4];
+  int16_t pen[2];
+  void *glyph;
+  short first;
+  short justification;
+  short saved_width;
+  short prev_token;
+  short saved_pos;
+  short max_wrap;
+  short last;
+  short line;
+  short tab;
+  short wrap;
+  short width;
+  short tab_count;
+  short y;
+  char done;
+  char rewound;
+
+  tab = 0;
+  line = 0;
+  wrap = 0;
+  max_wrap = 0;
+  if (screen_pos == 0) {
+    display_assert("bounds", "c:\\halo\\SOURCE\\text\\draw_string.c", 0x347, 1);
+    system_exit(-1);
+  }
+  if (text == 0) {
+    display_assert("string", "c:\\halo\\SOURCE\\text\\draw_string.c", 0x348, 1);
+    system_exit(-1);
+  }
+  FUN_0019bd30(*(short *)0x4d9b14, state, (int *)text, *(int *)0x4d9b0c,
+               *(short *)0x4d9b16, (float *)0x4d9b18);
+
+  do {
+    first = *(int16_t *)(state + 0xc);
+    justification = *(int16_t *)(state + 0x10);
+    width = 0;
+    saved_pos = 0;
+    prev_token = -1;
+    done = 0;
+    ((int *)rect)[0] = ((int *)screen_pos)[0];
+    ((int *)rect)[1] = ((int *)screen_pos)[1];
+    tab_count = *(short *)0x4d9b28;
+    if (tab_count > 0) {
+      if (tab < 0 || tab > tab_count) {
+        display_assert("tab_stop_index>=0 && "
+                       "tab_stop_index<=font_drawing_globals.tab_stop_count",
+                       "c:\\halo\\SOURCE\\text\\draw_string.c", 0x368, 1);
+        system_exit(-1);
+      }
+      if (tab != 0)
+        rect[1] = ((short *)0x4d9b28)[tab];
+      else if (line != 0)
+        rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b50);
+      else
+        rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b4e);
+      if (tab < tab_count)
+        rect[3] = ((short *)0x4d9b2a)[tab];
+    } else if (line != 0) {
+      rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b50);
+    } else {
+      rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b4e);
+    }
+
+    pen[0] = (int16_t)(*(int16_t *)(*(char **)(state + 4) + 0xa) + rect[1]);
+    y = (short)((*(uint16_t *)(*(char **)(state + 4) + 8) +
+                 *(uint16_t *)(*(char **)(state + 4) + 6) +
+                 *(uint16_t *)(*(char **)(state + 4) + 4) + flags) *
+                  (wrap + line) +
+                *(uint16_t *)(*(char **)(state + 4) + 4) + rect[0]);
+    pen[1] = y;
+
+    do {
+      rewound = 0;
+      FUN_0019c0a0(state);
+      if (*(int16_t *)(state + 0x14) == 2 || *(int16_t *)(state + 0x14) == 6) {
+        glyph =
+          FUN_0019cff0(*(void **)(state + 4), *(uint16_t *)(state + 0x12));
+        if (glyph != 0) {
+          if (*(int16_t *)(state + 0x14) != 2 && prev_token == 2) {
+            saved_pos = last;
+            saved_width = width;
+          }
+          if (*(int16_t *)((char *)glyph + 4) + pen[0] + width < rect[3]) {
+            width = (short)(width + *(int16_t *)((char *)glyph + 2));
+          } else if (*(int *)0x4d9b10 & 1) {
+            if (saved_pos > 0) {
+              last = saved_pos;
+              width = saved_width;
+              rewound = 1;
+            }
+            done = 1;
+          }
+        }
+      } else {
+        done = 1;
+      }
+      if (!rewound)
+        last = *(int16_t *)(state + 0xc);
+      prev_token = *(int16_t *)(state + 0x14);
+    } while (!done);
+
+    switch (justification) {
+    case 1:
+      pen[0] = (int16_t)(rect2d_width(rect) +
+                         (int16_t)(rect[1] -
+                                   *(int16_t *)(*(char **)(state + 4) + 0xa)) -
+                         width);
+      break;
+    case 2:
+      pen[0] = (int16_t)((((short)rect2d_width(rect) - width) >> 1) + rect[1]);
+      break;
+    }
+
+    if ((*(int *)0x4d9b10 & 2) || y < rect[2])
+      FUN_0019c3c0((const uint16_t *)rect, (draw_string_emit_proc)callback, pen,
+                   (const uint16_t *)clip_bounds, *(int *)(state + 0x18),
+                   (int *)text, first, last);
+
+    *(int16_t *)(state + 0xc) = last;
+    switch (*(int16_t *)(state + 0x14)) {
+    case 0:
+    case 5:
+      break;
+    case 2:
+    case 6:
+      wrap++;
+      if (wrap > max_wrap)
+        max_wrap = wrap;
+      break;
+    case 3:
+      if (tab < *(short *)0x4d9b28) {
+        tab++;
+        wrap = 0;
+      }
+      break;
+    case 4:
+      wrap = 0;
+      break;
+    case 1:
+      tab = 0;
+      wrap = 0;
+      line = (short)(line + max_wrap + 1);
+      break;
+    default:
+      display_assert(0, "c:\\halo\\SOURCE\\text\\draw_string.c", 0x3f0, 1);
+      system_exit(-1);
+    }
+  } while (*(int16_t *)(state + 0x14) != 0);
+
+  *(short *)0x4d9b4c = 0;
+  *(short *)0x4d9b4a = 0;
+  if (color != 0)
+    *(int *)color = *(int *)pen;
+}
+
 /* 0x19ccf0 — Lay out `text` without drawing it and report the resulting
  * bounds plus the rectangle of the final pen position.
  *
@@ -53,6 +431,51 @@ void draw_string_compute_bounds(void *screen_pos, char *text,
   out_bounds[0] = *(const int16_t *)start_pos;
   out_bounds[3] = *(int16_t *)0x4d9b02;
   out_bounds[2] = out_cursor[2];
+}
+
+/* 0x19cdb0 — Wide-string (unsigned short text) twin of
+ * draw_string_compute_bounds above.
+ *
+ * Confirmed from the pristine-XBE disassembly of [0x19cdb0, 0x19ce69):
+ * same body instruction-for-instruction as 0x19ccf0 except the layout call
+ * is `call 0x19c960` (FUN_0019c960, the unsigned-short-text draw_string
+ * variant) with pushes 0x19b3c0 / esi(=out_rect) / ecx(=&out_rect) / 0 / 0 /
+ * eax(=text), then `add esp,0x18`. After the call [ebp+8]/[ebp+0xa] (the
+ * first parameter slot) are re-read as two int16s written back by the
+ * callee, while the original pointer in ESI is dereferenced for
+ * out_bounds[0]. Store order: [in_rect+2], [+6], [+0], [+4], then
+ * [out_bounds+2], [+0], [+6], [+4]; 0x4d9b04 is re-loaded between stores.
+ *
+ * The kb parameter names (out_rect, in_rect) are unproven: out_rect is
+ * the start screen position and in_rect is written, not read.
+ */
+void FUN_0019cdb0(short *out_rect, void *text, short *out_bounds,
+                  short *in_rect)
+{
+  short *start_pos;
+  const int16_t *pen;
+
+  start_pos = out_rect;
+  pen = (const int16_t *)&out_rect;
+
+  *(int16_t *)0x4d9afc = 0x7fff;
+  *(int16_t *)0x4d9afe = 0x7fff;
+  *(int16_t *)0x4d9b00 = (int16_t)0x8000;
+  *(int16_t *)0x4d9b02 = (int16_t)0x8000;
+
+  *(void **)0x4d9b04 = FUN_0019bcc0(*(int16_t *)0x4d9b14, *(int *)0x4d9b0c);
+
+  FUN_0019c960(FUN_0019b3c0, out_rect, &out_rect, 0, 0, (unsigned short *)text);
+
+  in_rect[1] = pen[0];
+  in_rect[3] = (int16_t)(pen[0] + 1);
+  in_rect[0] = (int16_t)(pen[1] - (*(const int16_t **)0x4d9b04)[2]);
+  in_rect[2] = (int16_t)((*(const int16_t **)0x4d9b04)[3] + pen[1]);
+
+  out_bounds[1] = *(int16_t *)0x4d9afe;
+  out_bounds[0] = *start_pos;
+  out_bounds[3] = *(int16_t *)0x4d9b02;
+  out_bounds[2] = in_rect[2];
 }
 
 /* 0x19ce70 — Seed the shared draw-string cursor hit-test search and resolve
@@ -131,8 +554,7 @@ void bitmap_draw_string(void *bitmap, int16_t *screen_bounds,
   case 6:
   case 11:
     if (screen_bounds == 0) {
-      set_rectangle2d(screen_rect,
-                      screen_bounds[1] < 0 ? 0 : screen_bounds[1],
+      set_rectangle2d(screen_rect, screen_bounds[1] < 0 ? 0 : screen_bounds[1],
                       screen_bounds[0] < 0 ? 0 : screen_bounds[0],
                       bm[2] > screen_bounds[3] ? screen_bounds[3] : bm[2],
                       bm[3] > screen_bounds[2] ? screen_bounds[2] : bm[3]);
@@ -151,6 +573,42 @@ void bitmap_draw_string(void *bitmap, int16_t *screen_bounds,
     draw_string(bitmap_draw_character, screen_bounds, 0, clip_arg, 0, text);
     break;
   }
+}
+
+/* 0x19cff0 — Two-level character lookup in a font-like tag.
+ *
+ * Confirmed from the disassembly of [0x19cff0, 0x19d05e):
+ *   - tag_block_get_element(font_table + 0x30, character >> 8, 0xc):
+ *     a 12-byte element whose first dword is a count.
+ *   - count <= 0 -> return NULL (EBX = 0).
+ *   - count == 0x100 -> tag_block_get_element(element, character & 0xff, 2);
+ *     any other positive count leaves the pointer NULL, and the original
+ *     then reads the int16 at address 0 (`xor eax,eax / mov ax,[eax]`).
+ *     That read is reproduced as written, not guarded.
+ *   - int16 index == -1 -> return NULL; otherwise return
+ *     tag_block_get_element(font_table + 0x7c, (int)index, 0x14) (EAX
+ *     of the call is the return value).
+ * Meaning of the blocks at +0x30 / +0x7c is unproven.
+ */
+__declspec(noinline) void *FUN_0019cff0(void *font_table, uint16_t character)
+{
+  int *page;
+  short *index;
+
+  page = (int *)tag_block_get_element((char *)font_table + 0x30, character >> 8,
+                                      0xc);
+  if (*page > 0) {
+    if (*page == 0x100) {
+      index = (short *)tag_block_get_element(page, character & 0xff, 2);
+    } else {
+      index = NULL;
+    }
+    if (*index != -1) {
+      return tag_block_get_element((char *)font_table + 0x7c, (int)*index,
+                                   0x14);
+    }
+  }
+  return NULL;
 }
 
 /* 0x19d060 — Set the language/encoding selector read by
@@ -405,8 +863,8 @@ int FUN_0019d420(int tag_index, int string_index)
   if (tag_index != NONE) {
     list = (int *)tag_get(0x75737472, tag_index);
     if ((int16_t)string_index >= 0 && (int)(int16_t)string_index < *list) {
-      entry = (int *)tag_block_get_element(list, (int)(int16_t)string_index,
-                                           0x14);
+      entry =
+        (int *)tag_block_get_element(list, (int)(int16_t)string_index, 0x14);
       size = *entry;
       if (size > 0) {
         data = (uint16_t *)entry[3];

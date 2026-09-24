@@ -18,7 +18,7 @@
     "0x11ba50:byte_return:declared return `int` but all 3 conclusive callers test AL only": {
       "detail": "declared return `int` but all 3 conclusive callers test AL only",
       "kind": "byte_return",
-      "name": "FUN_0011ba50",
+      "name": "hashtable_search",
       "ported": true,
       "severity": "WARN"
     },
@@ -39,7 +39,7 @@
     "0x1363d0:byte_return:declared return `int` but all 1 conclusive callers test AL only": {
       "detail": "declared return `int` but all 1 conclusive callers test AL only",
       "kind": "byte_return",
-      "name": "FUN_001363d0",
+      "name": "widgets_need_lighting",
       "ported": true,
       "severity": "WARN"
     },
@@ -144,7 +144,7 @@
     "0x1a6bc0:byte_return:declared return `int` but all 1 conclusive callers test AL only": {
       "detail": "declared return `int` but all 1 conclusive callers test AL only",
       "kind": "byte_return",
-      "name": "FUN_001a6bc0",
+      "name": "unit_is_speaking",
       "ported": true,
       "severity": "WARN"
     },
@@ -263,7 +263,7 @@
     "0x30d10:byte_return:declared return `unsigned int` but all 2 conclusive callers test AL only": {
       "detail": "declared return `unsigned int` but all 2 conclusive callers test AL only",
       "kind": "byte_return",
-      "name": "FUN_00030d10",
+      "name": "actor_emotion_flee_with_friends",
       "ported": false,
       "severity": "WARN"
     },
@@ -271,6 +271,13 @@
       "detail": "declared return `int` but all 1 conclusive callers test AL only",
       "kind": "byte_return",
       "name": "actor_swarm_attach_unit",
+      "ported": true,
+      "severity": "WARN"
+    },
+    "0x616e0:byte_return:declared return `int` but all 1 conclusive callers test AL only": {
+      "detail": "declared return `int` but all 1 conclusive callers test AL only",
+      "kind": "byte_return",
+      "name": "path_find",
       "ported": true,
       "severity": "WARN"
     },
@@ -298,7 +305,7 @@
     "0x85150:byte_return:declared return `int` but all 2 conclusive callers test AL only": {
       "detail": "declared return `int` but all 2 conclusive callers test AL only",
       "kind": "byte_return",
-      "name": "FUN_00085150",
+      "name": "scripted_camera_object_is_first_person_camera",
       "ported": true,
       "severity": "WARN"
     },
@@ -319,7 +326,7 @@
     "0xd6550:byte_return:declared return `short` but all 1 conclusive callers test AL only": {
       "detail": "declared return `short` but all 1 conclusive callers test AL only",
       "kind": "byte_return",
-      "name": "FUN_000d6550",
+      "name": "hud_get_nav_point_render_type",
       "ported": true,
       "severity": "WARN"
     },
@@ -340,7 +347,7 @@
     "0xfba20:byte_return:declared return `int` but all 2 conclusive callers test AL only": {
       "detail": "declared return `int` but all 2 conclusive callers test AL only",
       "kind": "byte_return",
-      "name": "weapon_set_animation_state",
+      "name": "weapon_set_state",
       "ported": true,
       "severity": "WARN"
     }

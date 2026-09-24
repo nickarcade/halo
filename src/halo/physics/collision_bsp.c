@@ -370,7 +370,8 @@ float collision_surface_perimeter(int bsp, int surface_index)
   edge_index = first_edge;
   do {
     dz = 0x18;
-    edge = (int *)tag_block_get_element((void *)(bsp + 0x48), edge_index, (int)dz);
+    edge =
+      (int *)tag_block_get_element((void *)(bsp + 0x48), edge_index, (int)dz);
     side = (edge[5] == surface_index);
     vertex_a =
       (float *)tag_block_get_element((void *)(bsp + 0x54), edge[side], 0x10);
@@ -807,7 +808,8 @@ void FUN_00147ed0(void *state, int surface_index)
       dist2 = dist2 + sq;
       HALO_FLT_ROUNDTRIP(dist2);
 #endif
-      if (dist2 <= radius2) {
+      if (dist2 <= radius2)
+      {
         results = *(int **)((char *)state + 0x14);
         for (i = 0; i < results[0x202]; i++) {
           if (results[0x203 + i] == vertex_index) {
@@ -1346,7 +1348,8 @@ void bsp3d_test_sphere_recursive(void *data, int node_index)
   float *center;
   int *results;
   float d;
-  x87_wide_t t; /* 0x148d91 FCHS: the original keeps t in ST(0), never narrowed */
+  x87_wide_t
+    t; /* 0x148d91 FCHS: the original keeps t in ST(0), never narrowed */
   int leaf_index;
   short k;
   short projection;
@@ -1645,6 +1648,51 @@ char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin,
 
   collision_log_add_time(log_id, *(unsigned int *)0x46f090, *(int *)0x46f094);
   return hit;
+}
+
+/* 0x149c60
+ *
+ * Builds a 0x22c-byte query record on the stack (SUB ESP,0x22c; the record
+ * starts at EBP-0x22c and fills the whole frame), seeds the caller's result
+ * record, and hands the query to collision_bsp_test_pill at 0x149680.
+ *
+ * Record stores: +0x00 block_ptr, +0x04 transformed_2c, +0x08 transformed_20,
+ * +0x0c scale (dword copy via EAX, no x87), +0x10 result, +0x14 = 0. The
+ * remaining 0x214 bytes are never written here; the callee uses them.
+ *
+ * FCOMP [0x2533c0] (0.0f); TEST AH,5; JP is taken when NOT less-than, so the
+ * fallthrough loads 0.0f: *result = best_dist < 0.0f ? 0.0f : best_dist.
+ * result[7] is written with the same zero register (MOV [ECX+0x1c],EDX).
+ *
+ * Call at 0x149cc6 is cdecl, ADD ESP,8: pushes EDX (0) then &record, so the
+ * arguments are (&record, 0). AL from the callee is returned unchanged.
+ */
+typedef struct {
+  int *block_ptr; /* 0x00 */
+  void *transformed_2c; /* 0x04 */
+  void *transformed_20; /* 0x08 */
+  float scale; /* 0x0c */
+  float *result; /* 0x10 */
+  int32_t field_14; /* 0x14 - seeded to 0 */
+  char pad_18[0x214]; /* 0x18 - not written by the builder */
+} collision_bsp_pill_query_data;
+
+char FUN_00149c60(int *block_ptr, void *transformed_2c, void *transformed_20,
+                  float scale, float best_dist, float *result)
+{
+  collision_bsp_pill_query_data data;
+
+  data.block_ptr = block_ptr;
+  data.transformed_2c = transformed_2c;
+  data.transformed_20 = transformed_20;
+  data.scale = scale;
+  data.result = result;
+  data.field_14 = 0;
+
+  *result = (best_dist < 0.0f) ? 0.0f : best_dist;
+  result[7] = 0.0f;
+
+  return collision_bsp_test_pill(&data, 0);
 }
 /* 0x14dc30 - Point-vs-world collision test. If any of the collision-type
  * flags (0xE0) are set, locate the BSP3D leaf containing `pos`; a leaf of -1

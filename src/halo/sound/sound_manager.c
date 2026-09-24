@@ -1188,6 +1188,17 @@ void FUN_001cb9d0(void)
   *(int *)0x4eaf4c = now;
 }
 
+/* sound_scale_value (0x1cba00)
+ *
+ * Linear interpolation between lower and upper by fraction, then scaled:
+ * FLD [EBP+0x10] / FSUB [EBP+0xc] / FMUL [EBP+0x14] / FADD [EBP+0xc] /
+ * FMUL [EBP+0x8]; result returned in ST0. No callers were found by the
+ * Ghidra xref pass, so parameter meaning beyond the arithmetic is unknown. */
+float sound_scale_value(float scale, float lower, float upper, float fraction)
+{
+  return ((upper - lower) * fraction + lower) * scale;
+}
+
 /* Check whether a sound tag can currently play.
  *
  * sound_tag_index is passed in EAX (register argument).

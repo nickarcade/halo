@@ -494,6 +494,153 @@ typedef union {
   __int64 QuadPart;
 } CACHE_DECOMPRESS_LARGE_INTEGER;
 
+/* cache_copy_run_decompression (0x1bbb60) — copy-thread decompression pump.
+ * self arrives in EAX (MOV ESI,EAX before any write to EAX). The zlib
+ * stream lives at self+0x908 (EBX); assert text names +0x4 avail_in, and
+ * +0x0/+0xc/+0x10/+0x18 match z_stream next_in/next_out/avail_out/msg.
+ * Other self offsets stay mechanical except where asserts name them:
+ *   +0xaac current_request, +0xac2 current_read_sequence_count.
+ * Returns when no read request is available, no write buffer is current,
+ * or the event at globals+0x950 is signaled after a zlib error.
+ * Source: c:\halo\SOURCE\cache\cache_files_decompress_windows.c. */
+void cache_copy_run_decompression(char *self /* @<eax> */)
+{
+  char *zlib_stream;
+  short *request;
+  int16_t read_buffer_index;
+  int16_t write_buffer_index;
+  int zlib_result;
+  const char *message;
+  CACHE_DECOMPRESS_LARGE_INTEGER write_end_time;
+  CACHE_DECOMPRESS_LARGE_INTEGER read_end_time;
+
+  zlib_stream = self + 0x908;
+  for (;;) {
+    SleepEx(0, 1);
+    cache_copy_update_write_buffers(self);
+
+    if (*(int *)(zlib_stream + 0x4) == 0) {
+      if (*(int *)(self + 0xaac) != 0) {
+        display_assert(
+          "!self->current_request",
+          "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x47d,
+          1);
+        system_exit(-1);
+      }
+      if (*(int16_t *)(self + 0xac2) != 0) {
+        display_assert(
+          "!self->current_read_sequence_count",
+          "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x47e,
+          1);
+        system_exit(-1);
+      }
+      request = FUN_001ba9d0(self, *(uint16_t *)(self + 0xaba));
+      *(short **)(self + 0xaac) = request;
+      if (request == NULL) {
+        return;
+      }
+      *(int *)(zlib_stream + 0x4) = 0x20000;
+      read_buffer_index =
+        (int16_t)((*(int *)(self + 0xaac) - (int)self - 0xa78) >> 1);
+      if (read_buffer_index < 0 || read_buffer_index >= 8) {
+        display_assert(
+          "read_buffer_index>=0 && read_buffer_index<NUMBER_OF_READ_BUFFERS",
+          "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x646,
+          1);
+        system_exit(-1);
+      }
+      *(int *)zlib_stream = *(int *)(self + 0x964 + read_buffer_index * 4);
+      *(int16_t *)(self + 0xac2) = 1;
+      if (*(int *)(zlib_stream + 0x4) != 0x20000) {
+        display_assert(
+          "zlib_stream->avail_in==FILE_BLOCK_SIZE",
+          "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x48b,
+          1);
+        system_exit(-1);
+      }
+    }
+
+    if (*(int *)(self + 0xaac) == 0) {
+      display_assert(
+        "self->current_request",
+        "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x494, 1);
+      system_exit(-1);
+    }
+
+    write_buffer_index = *(int16_t *)(self + 0xabc);
+    if (write_buffer_index == -1) {
+      return;
+    }
+
+    if (*(int *)(zlib_stream + 0x10) == 0) {
+      if (write_buffer_index < 0 || write_buffer_index >= 1) {
+        display_assert(
+          "write_buffer_index>=0 && write_buffer_index<NUMBER_OF_WRITE_BUFFERS",
+          "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x661,
+          1);
+        system_exit(-1);
+      }
+      *(int *)(zlib_stream + 0xc) =
+        *(int *)(self + 0x984 + write_buffer_index * 4);
+      if (*(int16_t *)(self + 0xabc) < 0 || *(int16_t *)(self + 0xabc) >= 1) {
+        display_assert(
+          "write_buffer_index>=0 && write_buffer_index<NUMBER_OF_WRITE_BUFFERS",
+          "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x66a,
+          1);
+        system_exit(-1);
+      }
+      *(int *)(zlib_stream + 0x10) = 0x400000;
+    }
+
+    if (*(int *)(zlib_stream + 0x4) != 0 && *(int *)(zlib_stream + 0x10) != 0) {
+      if (*(*(unsigned char **)0x32ea98 + 0x988) == 0) {
+        SwitchToThread();
+      }
+      QueryPerformanceCounter((void *)0x4e5650);
+      if (*(int *)(self + 0xab4) > 1) {
+        QueryPerformanceCounter((void *)0x4e5658);
+      }
+      zlib_result = FUN_001155e0((int)zlib_stream, 0);
+      QueryPerformanceCounter(&read_end_time);
+      *(int *)0x4e561c =
+        *(int *)0x4e561c + ((int)read_end_time.u.LowPart - *(int *)0x4e5650);
+      if (*(int *)(self + 0xab4) > 1) {
+        QueryPerformanceCounter(&write_end_time);
+        *(int *)0x4e5620 =
+          *(int *)0x4e5620 + ((int)write_end_time.u.LowPart - *(int *)0x4e5658);
+      }
+
+      if (zlib_result != 0 && zlib_result != 1) {
+        if (WaitForSingleObject(*(int *)(*(unsigned char **)0x32ea98 + 0x950),
+                                0) == 0) {
+          return;
+        }
+        message = *(const char **)(zlib_stream + 0x18);
+        if (message == NULL) {
+          message = (const char *)0x25386f; /* "" */
+        }
+        display_assert(
+          csprintf((char *)0x4e5510,
+                   "decompression fucked up with error code (%d), msg '%s'",
+                   zlib_result, message),
+          "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x4e0,
+          1);
+        system_exit(-1);
+      }
+
+      if (*(int *)(zlib_stream + 0x4) == 0) {
+        acquire_read_request(self, *(short **)(self + 0xaac));
+        *(int16_t *)(self + 0xaba) = *(int16_t *)(self + 0xaba) + 1;
+        *(int16_t *)(self + 0xac2) = *(int16_t *)(self + 0xac2) - 1;
+        *(int *)(self + 0xaac) = 0;
+      }
+      if (*(int *)(zlib_stream + 0x10) == 0 || zlib_result == 1) {
+        *(int16_t *)(self + 0xabc) = -1;
+      }
+    }
+  }
+}
+
 /* FUN_001bc280 — initialize the cache decompression system.
  *
  * Latches the low dword of the performance-counter frequency into the

@@ -197,6 +197,34 @@ bool ui_widgets_active(void)
   return active;
 }
 
+/* ui_widgets_active_for_local_player (0xe3da0) — like ui_widgets_active,
+ * but only returns true for a non-NULL root slot (0x46cc20..0x46cc2c)
+ * whose widget's int16 at +0x08 equals local_player_index. Asserts
+ * 0 <= local_player_index < 4 (line 0x456).
+ * 0xe3da5: MOV SI,[EBP+8]; XOR BL,BL; loop: MOV ECX,[EAX]; TEST/JZ next;
+ * CMP word[ECX+8],SI; JZ ret-true (AL=1); else RET AL=BL. */
+bool ui_widgets_active_for_local_player(int16_t local_player_index)
+{
+  int *slot;
+  bool active;
+
+  active = false;
+  assert_halt_msg_at("expected a valid local_player_index",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x456,
+                     local_player_index >= 0 && local_player_index < 4);
+  if (*(uint8_t *)0x46cc82 != 0) {
+    for (slot = (int *)0x46cc20; (int)slot < 0x46cc30; slot++) {
+      if (*slot != 0 &&
+          *(int16_t *)((char *)*slot + 0x08) == local_player_index) {
+        active = true;
+        break;
+      }
+    }
+  }
+
+  return active;
+}
+
 /* ui_widgets_inhibit_processing — sets or clears the events-suppressed
  * flag at 0x46cc85 in the widget globals block. When suppressed, the
  * per-frame event dispatch in process_ui_widgets skips input processing.
@@ -205,6 +233,22 @@ void ui_widgets_inhibit_processing(bool suppress)
 {
   assert_halt(*(uint8_t *)0x46cc82);
   *(uint8_t *)0x46cc85 = (uint8_t)suppress;
+}
+
+/* compute_offset_coordinate (0xe3e60-0xe3e7b) — returns the fractional part
+ * fmod(param_1 * (param_2 * 0.001f), 1.0).
+ * 0xe3e63: FLD [EBP+0xc]; FMUL [0x255ef8] (0.001f); FIMUL [EBP+8];
+ * FLD double [0x2573d8] (1.0); JMP 0x1daf7e (_CIfmod, tail call, result in
+ * ST0). No known direct callers (xrefs_to empty). Parameter meanings unknown.
+ */
+double compute_offset_coordinate(int param_1, float param_2)
+{
+#if defined(_MSC_VER) && !defined(__clang__)
+  double __cdecl fmod(double, double);
+  return fmod(param_1 * (param_2 * *(float *)0x255ef8), 1.0);
+#else
+  return x87_fmod(param_1 * (param_2 * *(float *)0x255ef8), 1.0);
+#endif
 }
 
 /* widget_instance_get_topmost_parent (0xe4310) — walks the parent chain (field
@@ -1156,6 +1200,32 @@ int search_and_replace(const wchar_t *search, const wchar_t *replace,
   return count;
 }
 
+/* Local shape-only float3, not a claimed Bungie struct: mirrors the
+ * reference's whole-struct copy so the same EBP slots are written. */
+typedef struct {
+  float f0, f1, f2;
+} get_ui_rgb_white_color_t;
+
+/* get_ui_rgb_white (0xe54e0) — writes a float[3] RGB color into out_color
+ * and returns out_color (EAX = [EBP+8] at RET; cdecl, no stack pop).
+ * Disassembly copies 12 bytes from the struct pointed to by the global at
+ * 0x2ee708 into a local, then overwrites all three local words with the
+ * RGB white constants at 0x31e148/0x31e14c/0x31e150 (stores in 0,2,1
+ * order), then copies the local out through out_color. */
+float *get_ui_rgb_white(float *out_color)
+{
+  get_ui_rgb_white_color_t local_color;
+
+  local_color = **(get_ui_rgb_white_color_t **)0x2ee708;
+  local_color.f0 = *(float *)0x31e148;
+  local_color.f2 = *(float *)0x31e150;
+  local_color.f1 = *(float *)0x31e14c;
+
+  *(get_ui_rgb_white_color_t *)out_color = local_color;
+
+  return out_color;
+}
+
 /* Local shape-only float4, not a claimed Bungie struct: mirrors the
  * reference's whole-struct copy (see get_ui_argb_white below) so the
  * compiler spills/overwrites the same EBP slots the original does. */
@@ -1480,7 +1550,7 @@ void ui_widgets_close_all_for_local_player(int16_t local_player_index)
  * local_player_index == -1 is treated as player 0; otherwise it must be in
  * [0, MAXIMUM_NUMBER_OF_LOCAL_PLAYERS). The popped record is discarded --
  * this only drains one node, it does not apply it. */
-void ui_widgets_pop_stack(int16_t local_player_index)
+__declspec(noinline) void ui_widgets_pop_stack(int16_t local_player_index)
 {
   unsigned char record[12]; /* sizeof(ui_widget_pending_load_t); output is
                                 discarded by this caller, so no need for the
@@ -1906,6 +1976,65 @@ void widget_instance_render_column_list(int widget, int param_2,
   }
 
   *(uint16_t *)(widget + 0x3e) = 0;
+}
+
+/* 0xe7760 — render_ui_widgets_postgame. Same per-slot visibility filter as
+ * render_ui_widgets over the 4 root slots at 0x46cc20, but bails when the
+ * virtual keyboard is active and passes a per-(local player count, player)
+ * packed int16 pair from a 4x4 stack table as arg3 of
+ * widget_instance_render_recursive (the binary reads each pair as one dword
+ * at [ebp+idx*4-0x58], idx = player + count*4). The meaning of the two
+ * halves (0/0xf0/0x140 values) is unproven. */
+void render_ui_widgets_postgame(__int16 local_player_index, __int16 *bounds)
+{
+  int16_t player_offsets[4][4][2] = {
+    { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } },
+    { { 0, 0 }, { 0, 0xf0 }, { 0, 0 }, { 0, 0 } },
+    { { 0, 0 }, { 0, 0xf0 }, { 0x140, 0xf0 }, { 0, 0 } },
+    { { 0, 0 }, { 0x140, 0 }, { 0, 0xf0 }, { 0x140, 0xf0 } }
+  };
+  viewport_bounds_t local_bounds;
+  int widget;
+  int16_t widget_player;
+  int i;
+
+  if (virtual_keyboard_active()) {
+    return;
+  }
+
+  if (local_player_index < 0) {
+    local_player_index = 0;
+  } else if (local_player_index > 3) {
+    local_player_index = 3;
+  }
+
+  for (i = 0; i < 4; i++) {
+    widget = *(int *)(0x46cc20 + i * 4);
+    if (widget == 0)
+      continue;
+
+    if (*(uint8_t *)(widget + 0x11) != 1) {
+      widget_player = *(int16_t *)(widget + 0x8);
+      if (*(uint8_t *)(widget + 0x15) == 1) {
+        if (widget_player != local_player_index && widget_player != -1 &&
+            local_player_index != -1 && *(uint8_t *)0x46cc88 == 0)
+          continue;
+      } else {
+        if (!(widget_player == -1 && i == 0) &&
+            widget_player != local_player_index)
+          continue;
+      }
+    }
+
+    local_bounds.x0 = 0;
+    local_bounds.y0 = 0;
+    local_bounds.x1 = bounds[3] - bounds[1];
+    local_bounds.y1 = bounds[2] - bounds[0];
+    widget_instance_render_recursive(
+      *(int *)(0x46cc20 + i * 4), &local_bounds,
+      *(int *)player_offsets[local_player_count() - 1][local_player_index], 1,
+      0);
+  }
 }
 
 /* render_ui_widgets — renders all active UI widget stacks and an optional
@@ -2648,13 +2777,15 @@ void network_game_reset_to_pregame_ui(void)
   if (network_game_is_splitscreen_local()) {
     if (network_game_is_quickstart_local()) {
       if (ui_widget_load_by_name_or_tag(
-            "ui\\shell\\main_menu\\multiplayer_type_select\\split_screen\\pregame\\splitscreen_pregame_wrapper_normal",
+            "ui\\shell\\main_menu\\multiplayer_type_select\\split_"
+            "screen\\pregame\\splitscreen_pregame_wrapper_normal",
             -1, 0, -1, -1, -1, -1) == 0) {
         error(2, "failed to load pregame screen after quickstart match");
       }
     } else {
       if (ui_widget_load_by_name_or_tag(
-            "ui\\shell\\main_menu\\multiplayer_type_select\\split_screen\\splitscreen_map_select_postgame_wrapper",
+            "ui\\shell\\main_menu\\multiplayer_type_select\\split_"
+            "screen\\splitscreen_map_select_postgame_wrapper",
             -1, 0, -1, -1, -1, -1) == 0) {
         error(2, "failed to load map select postgame screen");
       }
@@ -2665,13 +2796,15 @@ void network_game_reset_to_pregame_ui(void)
       server = global_network_game_server_get();
       network_game_server_pause_countdown(server, 1);
       if (ui_widget_load_by_name_or_tag(
-            "ui\\shell\\main_menu\\multiplayer_type_select\\connected\\connected_map_select_postgame_wrapper",
+            "ui\\shell\\main_menu\\multiplayer_type_"
+            "select\\connected\\connected_map_select_postgame_wrapper",
             -1, 0, -1, -1, -1, -1) == 0) {
         error(2, "failed to load map select postgame screen");
       }
     } else {
       if (ui_widget_load_by_name_or_tag(
-            "ui\\shell\\main_menu\\multiplayer_type_select\\connected\\pregame\\connected_pregame_screen",
+            "ui\\shell\\main_menu\\multiplayer_type_"
+            "select\\connected\\pregame\\connected_pregame_screen",
             -1, 0, -1, -1, -1, -1) == 0) {
         error(2, "failed to load networked pregame status screen");
       }
@@ -4083,6 +4216,128 @@ bool multiplayer_profiles_list_dispose(void *widget, void *event_data,
   return true;
 }
 
+/* multiplayer profile set for game (event handler, 0x0ea570) — asserts that
+ * `widget` is a wrapper ('DeLa' +0x3e0 == 1) whose child (+0x34) is a
+ * container (type 0) with 3 children, whose own child (+0x34) is a spinner
+ * list (type 2) with 3 list items.  Reads the selected row (+0x3c, bounded
+ * by the count at +0x44) of that list's handle buffer (+0x40).  A handle of
+ * -1 plays feedback sound 4; any non-negative handle defers error 0x1f and
+ * plays sound 4; both return false.  A negative (non -1) handle is loaded
+ * into a local game variant via playlist_profile_delete (logs and returns
+ * false on failure), remembers its enclosing directory when resolvable,
+ * optionally overrides the variant by name from d:\variant_automation.txt
+ * (only when the named lookup is non-zero), then applies it to the player
+ * UI and, when a server exists, to the network game server.  Returns true.
+ * event_data and widget_deleted are unused. */
+bool multiplayer_profile_set_for_game(void *widget, void *event_data,
+                                      bool *widget_deleted)
+{
+  void *tag;
+  void *list;
+  short selection;
+  int profile;
+  void *server;
+  void *file;
+  char directory[256];
+  game_variant_t named;
+  game_variant_t zero;
+  game_variant_t found;
+  char line[0x80];
+  game_variant_t variant;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  tag = tag_get(0x44654c61 /* 'DeLa' */, *(int *)widget);
+  if (*(int *)((char *)tag + 0x3e0) != 1) {
+    display_assert(
+      "expected a wrapper widget around the multiplayer profile select screen",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x5b9,
+      true);
+    system_exit(-1);
+  }
+
+  list = *(void **)((char *)widget + 0x34);
+  tag = tag_get(0x44654c61 /* 'DeLa' */, *(int *)list);
+  if (*(short *)tag != 0 || *(int *)((char *)tag + 0x3e0) != 3) {
+    display_assert(
+      "expected the multiplayer profile select screen to be a container w/ 3 "
+      "children",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x5be,
+      true);
+    system_exit(-1);
+  }
+
+  list = *(void **)((char *)list + 0x34);
+  tag = tag_get(0x44654c61 /* 'DeLa' */, *(int *)list);
+  if (*(short *)tag != 2) {
+    display_assert(
+      "expected a spinner list widget for 'multiplayer profile list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x5c1,
+      true);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)tag + 0x3e0) != 3) {
+    display_assert(
+      "expected 3 list items for 'multiplayer profile list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x5c2,
+      true);
+    system_exit(-1);
+  }
+
+  list = *(void **)((char *)*(void **)((char *)widget + 0x34) + 0x34);
+  selection = *(short *)((char *)list + 0x3c);
+  if (selection < 0 ||
+      (int)selection >= (int)*(unsigned short *)((char *)list + 0x44)) {
+    display_assert(
+      "invalid multiplayer profile specified from 'multiplayer profile list' "
+      "list widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x5cb,
+      true);
+    system_exit(-1);
+  }
+
+  profile = (*(int **)((char *)list + 0x40))[*(short *)((char *)list + 0x3c)];
+  if (profile == -1) {
+    ui_play_audio_feedback_sound(4);
+    return false;
+  }
+  if (profile >= 0) {
+    display_error_deferred(0x1f, -1, true, false);
+    ui_play_audio_feedback_sound(4);
+    return false;
+  }
+
+  if (!playlist_profile_delete(profile, &variant)) {
+    error(2, "failed to retrieve user selected game variant");
+    return false;
+  }
+
+  server = global_network_game_server_get();
+  if (saved_game_file_get_path_to_enclosing_directory(profile, directory)) {
+    saved_game_file_remember_last_used_multiplayer_variant_directory(directory);
+  }
+
+  file = crt_fopen("d:\\variant_automation.txt", "r");
+  if (file != NULL) {
+    crt_fgets(line, 0x80, file);
+    line[0x7f] = 0;
+    csstrtok(line, "\n\r \t");
+    csmemset(&zero, 0, 0x68);
+    found = *game_engine_get_variant_by_name(&named, line);
+    if (csmemcmp(&found, &zero, 0x68) != 0) {
+      variant = found;
+    }
+    crt_fclose(file);
+  }
+
+  player_ui_set_game_variant(&variant);
+  if (server != NULL) {
+    network_game_server_change_game_variant(server, &variant);
+  }
+  return true;
+}
+
 /* swap teams (event handler, 0x0ea810) — asserts event_data is non-NULL,
  * then, if a network game exists with teams enabled (+0xc0 == 1, same flag
  * multiplayer_game_set_text_box_for_teams_noteams reads) and this client has
@@ -4616,6 +4871,469 @@ bool playlist_profile_set_game_engine(void *widget, void *event_data,
     }
     *(int *)((char *)profile + 0x18) = new_value;
 
+    return true;
+  }
+
+  error(2, "failed to retrieve editable game variant");
+  return false;
+}
+
+/* apply capture-the-flag rules (event handler) — 0xeb150. Fetches the
+ * in-progress playlist-profile edit copy (player_ui_get_edit_playlist_profile,
+ * called first; the NULL test at 0xeb15c precedes any [EBP+8] read), then
+ * walks five consecutive list items under the widget's first child (+0x34),
+ * each followed via the sibling link (+0x2c). For each item, scans the item's
+ * child chain (+0x34, following +0x2c) for the first widget whose type field
+ * (+0xe) is 2 (option spinner list) and reads its selected index (+0x3c,
+ * MOVSX). Missing items/spinners trip display_assert/system_exit(-1) at
+ * source lines 0x7f8/0x7fa, 0x803/0x805, 0x812/0x814, 0x81d/0x81f and
+ * 0x828/0x82a.
+ *
+ * Profile stores (field meanings unproven; profile is void* upstream):
+ *   'assault'           index 0 -> byte +0x4c = 1, index 1 -> 0
+ *   'single flag'       index 0..5 -> dword +0x50 = 0, 0x708, 0xe10,
+ *                       0x1518, 0x2328, 0x4650 (jump table 0xeb4c0)
+ *   'flag must reset'   index 0 -> byte +0x4e = 1, index 1 -> 0
+ *   'flag at home ...'  index 0 -> byte +0x4f = 1, index 1 -> 0
+ *   'captures to win'   index 0..4 -> dword +0x40 = 1, 3, 5, 10, 15
+ *                       (jump table 0xeb4d8)
+ * Any other index logs error(2, ...) and leaves that field untouched. Then
+ * pops the widget stack for the widget's u16 at +0x8 (MOVZX-style XOR/MOV CX
+ * at 0xeb492). Returns true on BOTH paths: MOV AL,1 at 0xeb4a1 and again at
+ * 0xeb4b7 after error(2, "failed to retrieve editable game variant"). Only
+ * [EBP+8] is read, so only the widget parameter is declared. */
+bool playlist_profile_change_ctf_rules(void *widget)
+{
+  void *profile;
+  void *item;
+  void *spinner;
+
+  profile = player_ui_get_edit_playlist_profile();
+
+  if (profile != NULL) {
+    item = *(void **)((char *)widget + 0x34);
+    if (item == NULL) {
+      display_assert(
+        "expected 'assault' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x7f8, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'assault' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x7fa, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *((char *)profile + 0x4c) = 1;
+      break;
+    case 1:
+      *((char *)profile + 0x4c) = 0;
+      break;
+    default:
+      error(2, "unknown option selected in 'assault' option spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'single flag' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x803, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'single flag' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x805, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *(int *)((char *)profile + 0x50) = 0;
+      break;
+    case 1:
+      *(int *)((char *)profile + 0x50) = 0x708;
+      break;
+    case 2:
+      *(int *)((char *)profile + 0x50) = 0xe10;
+      break;
+    case 3:
+      *(int *)((char *)profile + 0x50) = 0x1518;
+      break;
+    case 4:
+      *(int *)((char *)profile + 0x50) = 0x2328;
+      break;
+    case 5:
+      *(int *)((char *)profile + 0x50) = 0x4650;
+      break;
+    default:
+      error(2, "unknown option selected in 'single flag' option spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'flag must reset' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x812, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'flag must reset' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x814, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *((char *)profile + 0x4e) = 1;
+      break;
+    case 1:
+      *((char *)profile + 0x4e) = 0;
+      break;
+    default:
+      error(2,
+            "unknown option selected in 'flag must reset' option spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'flag at home to score' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x81d, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'flag at home to score' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x81f, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *((char *)profile + 0x4f) = 1;
+      break;
+    case 1:
+      *((char *)profile + 0x4f) = 0;
+      break;
+    default:
+      error(2, "unknown option selected in 'flag at home to score' option "
+               "spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'captures to win' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x828, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'captures to win' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x82a, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *(int *)((char *)profile + 0x40) = 1;
+      break;
+    case 1:
+      *(int *)((char *)profile + 0x40) = 3;
+      break;
+    case 2:
+      *(int *)((char *)profile + 0x40) = 5;
+      break;
+    case 3:
+      *(int *)((char *)profile + 0x40) = 10;
+      break;
+    case 4:
+      *(int *)((char *)profile + 0x40) = 15;
+      break;
+    default:
+      error(2,
+            "unknown option selected in 'captures to win' option spinner list");
+      break;
+    }
+
+    ui_widgets_pop_stack(*(uint16_t *)((char *)widget + 0x8));
+    return true;
+  }
+
+  error(2, "failed to retrieve editable game variant");
+  return true;
+}
+
+/* apply slayer rules (event handler) — 0xeb710. Same shape as
+ * playlist_profile_change_ctf_rules: fetches the in-progress playlist-profile
+ * edit copy first (player_ui_get_edit_playlist_profile; NULL test at 0xeb721
+ * precedes the [EBP+8] read), then walks five consecutive list items under
+ * the widget's first child (+0x34), following the sibling link (+0x2c). For
+ * each item, scans its child chain (+0x34, following +0x2c) for the first
+ * widget whose type (+0xe) is 2 and reads its selected index (+0x3c, MOVSX).
+ * Missing items/spinners trip display_assert/system_exit(-1) at source lines
+ * 0x88b/0x88d, 0x896/0x898, 0x8a1/0x8a3, 0x8ac/0x8ae and 0x8ba/0x8bc.
+ *
+ * Profile stores (field meanings unproven; profile is void* upstream):
+ *   'death bonus'    index 0 -> byte +0x4c = 0, index 1 -> 1
+ *   'kill in order'  index 0 -> byte +0x4e = 1, index 1 -> 0
+ *   'kill penalty'   index 0 -> byte +0x4d = 0, index 1 -> 1
+ *   'kills to win'   index 0..4 -> dword +0x40 = 5, 10, 15, 25, 50
+ *                    (jump table 0xeba5c)
+ *   'teams'          index 0 -> byte +0x1c = 1, index 1 -> 0
+ * Any other index logs error(2, ...) and leaves that field untouched. Then
+ * pops the widget stack for the widget's u16 at +0x8 and returns true
+ * (MOV AL,1 at 0xeba3c). Unlike the ctf sibling, the no-profile path returns
+ * false (XOR AL,AL at 0xeba52) after error(2, ...). Only [EBP+8] is read. */
+bool playlist_profile_change_slayer_rules(void *widget)
+{
+  void *profile;
+  void *item;
+  void *spinner;
+
+  profile = player_ui_get_edit_playlist_profile();
+
+  if (profile != NULL) {
+    item = *(void **)((char *)widget + 0x34);
+    if (item == NULL) {
+      display_assert(
+        "expected 'death bonus' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x88b, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'death bonus' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x88d, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *((char *)profile + 0x4c) = 0;
+      break;
+    case 1:
+      *((char *)profile + 0x4c) = 1;
+      break;
+    default:
+      error(2, "unknown option selected in 'death bonus' option spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'kill in order' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x896, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'kill in order' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x898, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *((char *)profile + 0x4e) = 1;
+      break;
+    case 1:
+      *((char *)profile + 0x4e) = 0;
+      break;
+    default:
+      error(2,
+            "unknown option selected in 'kill in order' option spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'kill penalty' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x8a1, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'kill penalty' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x8a3, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *((char *)profile + 0x4d) = 0;
+      break;
+    case 1:
+      *((char *)profile + 0x4d) = 1;
+      break;
+    default:
+      error(2, "unknown option selected in 'kill penalty' option spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'kills to win' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x8ac, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'kills to win' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x8ae, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *(int *)((char *)profile + 0x40) = 5;
+      break;
+    case 1:
+      *(int *)((char *)profile + 0x40) = 10;
+      break;
+    case 2:
+      *(int *)((char *)profile + 0x40) = 15;
+      break;
+    case 3:
+      *(int *)((char *)profile + 0x40) = 25;
+      break;
+    case 4:
+      *(int *)((char *)profile + 0x40) = 50;
+      break;
+    default:
+      error(2, "unknown option selected in 'kills to win' option spinner list");
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'teams' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x8ba, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'teams' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0x8bc, true);
+      system_exit(-1);
+    }
+
+    switch (*(int16_t *)((char *)spinner + 0x3c)) {
+    case 0:
+      *((char *)profile + 0x1c) = 1;
+      break;
+    case 1:
+      *((char *)profile + 0x1c) = 0;
+      break;
+    default:
+      error(2, "unknown option selected in 'teams' option spinner list");
+      break;
+    }
+
+    ui_widgets_pop_stack(*(uint16_t *)((char *)widget + 0x8));
     return true;
   }
 

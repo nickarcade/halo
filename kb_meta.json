@@ -2061,6 +2061,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x40a80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x40f80": {
       "kind": "function",
       "status": "ported"
@@ -2092,6 +2096,10 @@
       "status": "ported"
     },
     "0x41590": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x41e80": {
       "kind": "function",
       "status": "ported"
     },
@@ -3546,6 +3554,10 @@
       "status": "ported"
     },
     "0x60c40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x616e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5491,6 +5503,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x87c80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x87f20": {
       "kind": "function",
       "status": "ported"
@@ -5883,6 +5899,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x90180": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x901d0": {
       "kind": "function",
       "status": "ported"
@@ -5899,7 +5919,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x908a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x90cd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x90d10": {
       "kind": "function",
       "status": "ported"
     },
@@ -5916,6 +5944,14 @@
       "status": "ported"
     },
     "0x91220": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x912c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x91380": {
       "kind": "function",
       "status": "ported"
     },
@@ -11779,6 +11815,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xc8ec0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc8f40": {
       "kind": "function",
       "status": "ported"
@@ -12956,7 +12996,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xdade0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdae90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xdb0f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdb4c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -13575,6 +13627,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe3e60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe4310": {
       "kind": "function",
       "status": "ported"
@@ -13790,6 +13846,10 @@
       "status": "ported"
     },
     "0xe5ab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe5b10": {
       "kind": "function",
       "status": "ported"
     },
@@ -23424,6 +23484,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1bbb60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1bbea0": {
       "kind": "function",
       "status": "ported"
@@ -24673,6 +24737,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1cba00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1cba20": {
       "kind": "function",
       "status": "ported",
@@ -24907,7 +24975,15 @@
         "Vtable calls at offsets +0x10 and +0x14 through the sound driver pointer at 0x4eaf48 are likely lock/unlock or begin-frame/end-frame pairs."
       ]
     },
+    "0x1cf840": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1cf880": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cf97c": {
       "kind": "function",
       "status": "ported"
     },
