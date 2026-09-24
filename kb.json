@@ -28612,7 +28612,8 @@
     },
     {
      "addr": "0xe4da0",
-     "decl": "short remap_sticks_for_local_player(short icon_type, int local_player_index);"
+     "decl": "short remap_sticks_for_local_player(short icon_type, int local_player_index);",
+     "ported": true
     },
     {
      "addr": "0xe4f20",
