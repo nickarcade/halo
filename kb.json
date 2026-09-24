@@ -25021,7 +25021,8 @@
     {
      "addr": "0x1c33b0",
      "decl": "bool enumerate_saved_game_file(void *record@<esi>);",
-     "comment": "[NAME: enumerate_saved_game_file \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: enumerate_saved_game_file \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c3430",

@@ -1259,6 +1259,47 @@ bool enumerate_saved_game_files_end(int16_t memory_unit)
   return 1;
 }
 
+/* Write the next profile record into the memory-unit mapfile opened by
+ * enumerate_saved_game_files_start.  `record` arrives in ESI and is used
+ * unchecked as both the destination of the index write and the file_write
+ * source buffer.  A single combined assert (line 0x741) guards both
+ * preconditions: the enumeration_in_progress byte at 0x4eacc8 must be set
+ * (TEST AL,AL / JZ at 0x1c33b7 short-circuits before the second check), and
+ * the running count word at 0x4eacc4 must not be negative (TEST AX,AX / JGE
+ * at 0x1c33bf). That same AX value is reused (not reread) for the 100-record
+ * cap compare (CMP AX,0x64 at 0x1c33ea), the word store into record+0x202
+ * (MOV word ptr [ESI+0x202],AX at 0x1c33f6), and is then incremented in
+ * place (INC word ptr [0x4eacc4] at 0x1c33fd) -- the record gets the
+ * pre-increment (0-based) index. The success path returns file_write's
+ * result unmodified (ADD ESP,0xc / RET with no MOV into AL after the CALL at
+ * 0x1c3409); the cap-exceeded path returns false explicitly (XOR AL,AL at
+ * 0x1c3421). */
+bool enumerate_saved_game_file(void *record)
+{
+  int16_t index;
+
+  index = *(int16_t *)0x4eacc4;
+
+  if ((*(uint8_t *)0x4eacc8 == 0) || (index < 0)) {
+    display_assert(
+      "(saved_game_files_globals.enumeration_in_progress) && "
+      "(saved_game_files_globals.next_enumerated_profile_index >= 0)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x741, 1);
+    system_exit(-1);
+  }
+
+  if (index < 100) {
+    *(int16_t *)((char *)record + 0x202) = index;
+    (*(int16_t *)0x4eacc4)++;
+
+    return file_write((file_ref_t *)0x4eabb0, 0x206, record);
+  }
+
+  error(2, "the maximum number of game files have already been enumerated "
+           "(time to clean up your hard drive and/or memory cards)");
+  return 0;
+}
+
 /* Open the memory-unit mapfile for reading and sanity-check its length.
  * `memory_unit_index` arrives in AX (MOV SI,AX at 0x1c3431) and is asserted to
  * be the hard drive (0); the enumeration flag at 0x4eacc8 must be clear.  The
