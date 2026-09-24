@@ -14194,7 +14194,8 @@
     },
     {
      "addr": "0xce8c0",
-     "decl": "char input_abstraction_print_config_control(int local_player_index@<eax>);"
+     "decl": "char input_abstraction_print_config_control(int local_player_index@<eax>);",
+     "ported": true
     }
    ],
    "name": "input_abstraction.obj",

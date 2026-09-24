@@ -103,6 +103,97 @@ void input_abstraction_update_device_changes(unsigned int device_change_flags)
   }
 }
 
+/* input_abstraction_print_config_control (0xce8c0)
+ *
+ * For the given local player slot, returns whether the player's mounted
+ * vehicle should print its "seat prompt" hint (e.g. "press X to fire the
+ * turret"). Only fires for vehicle seats whose tag seat type is 3 or 5, and
+ * only when bit 2 of the seat-anim block's first byte is set.
+ *
+ * Disassembly (0xce8c0-0xce992):
+ *   TEST SI,SI/JL + CMP SI,0x4/JL -> range guard on controller_index (only
+ *   the low 16 bits are inspected, but ESI is pushed unmasked at 0xce8f1;
+ *   the sole caller (FUN_000cea90) only ever passes a clean 0..3 loop
+ *   index, so this is not behaviourally reachable).
+ *   Assert path: PUSH 1/PUSH 0x239/PUSH 0x280fe4/PUSH 0x2810d0 ->
+ *   display_assert(reason=0x2810d0, filepath=0x280fe4, lineno=0x239,
+ *   halt=1), confirmed via read_memory: reason string is
+ *   "(controller_index>=0) &&
+ * (controller_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS)", filepath is
+ * "c:\halo\SOURCE\input\input_abstraction.c"; followed by PUSH -1/CALL
+ * system_exit. CALL local_player_get_player_index(ESI); CMP EAX,-1/JZ -> return
+ * 0. PUSH EAX(player_index); MOV EAX,[player_data]; PUSH EAX; CALL
+ * datum_absolute_index_to_index(player_data, player_index); TEST EAX,EAX/JZ ->
+ * return 0. MOV ECX,[EAX+0x34] (player->unit_handle); PUSH 3; PUSH ECX; CALL
+ * object_try_and_get_and_verify_type; MOV ESI,EAX (unit); TEST ESI,ESI/JZ ->
+ * return 0. MOV EAX,[ESI+0xcc] (unit->object.parent_object_index); CMP
+ * EAX,-1/JZ -> return 0. CMP word[ESI+0x2a0],-1/JZ (unit->unk_672) -> return 0.
+ *   PUSH 2; PUSH EAX; CALL object_get_and_verify_type -> vehicle (no NULL
+ *   check, immediately dereferenced).
+ *   MOV EDX,[EAX] (vehicle tag_index, object_data_t offset 0x00); PUSH EDX;
+ *   PUSH 'vehi'(0x76656869); CALL tag_get -> vehi_tag.
+ *   MOV CX,[EAX+0x2f4]; CMP CX,3/JZ; CMP CX,5/JNZ -> return 0 unless 3 or 5.
+ *   MOVSX ECX,word[ESI+0x2a0] (unit->unk_672); PUSH 0x11c; PUSH ECX;
+ *   ADD EAX,0x2e4; PUSH EAX; CALL tag_block_get_element -> seat.
+ *   MOV CL,[EAX]; TEST CL,4; MOV AL,1/JNZ -> return 1, else MOV AL,BL(=0).
+ *
+ * Confirmed: all 8 callees resolve to existing kb.json declarations at
+ * 0x8d9f0, 0x8e2f0, 0xba3c0, 0x119270, 0x13d640, 0x13d680, 0x1ba140,
+ * 0x19b210. Confirmed: sole caller is FUN_000cea90 (0xcf02f), which keeps
+ * the return value live in AL across a large switch (never spilled to a
+ * named stack slot), matching the existing `cVar7 = ...` call site already
+ * in this file. */
+char input_abstraction_print_config_control(int controller_index)
+{
+  int player_index;
+  player_data_t *player;
+  unit_data_t *unit;
+  unit_data_t *vehicle;
+  char *vehi_tag;
+  char *seat;
+
+  if ((int16_t)controller_index < 0 ||
+      (int16_t)controller_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS) {
+    display_assert("(controller_index>=0) && "
+                   "(controller_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS)",
+                   "c:\\halo\\SOURCE\\input\\input_abstraction.c", 0x239, 1);
+    system_exit(-1);
+  }
+
+  player_index = local_player_get_player_index(controller_index);
+  if (player_index == -1) {
+    return 0;
+  }
+
+  player =
+    (player_data_t *)datum_absolute_index_to_index(player_data, player_index);
+  if (player == NULL) {
+    return 0;
+  }
+
+  unit =
+    (unit_data_t *)object_try_and_get_and_verify_type(player->unit_handle, 3);
+  if (unit == NULL) {
+    return 0;
+  }
+
+  if (unit->object.parent_object_index.value == -1 ||
+      (int16_t)unit->unk_672 == -1) {
+    return 0;
+  }
+
+  vehicle = (unit_data_t *)object_get_and_verify_type(
+    (int)unit->object.parent_object_index.value, 2);
+  vehi_tag = (char *)tag_get(0x76656869, *(int *)vehicle);
+  if (*(int16_t *)(vehi_tag + 0x2f4) == 3 ||
+      *(int16_t *)(vehi_tag + 0x2f4) == 5) {
+    seat = (char *)tag_block_get_element(vehi_tag + 0x2e4,
+                                         (int)(int16_t)unit->unk_672, 0x11c);
+    return (char)((*seat & 4) != 0);
+  }
+  return 0;
+}
+
 void input_abstraction_initialize(void)
 {
   int i;

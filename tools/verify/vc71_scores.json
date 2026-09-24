@@ -74608,10 +74608,25 @@
       "score": 100.0,
       "source": "src/halo/input/input_abstraction.c"
     },
+    "input_abstraction_print_config_control": {
+      "abi_model": "regparam_stripped_saves_anyreg",
+      "abi_model_items": 2,
+      "abi_modeled_mnemonic_pct": 89.9,
+      "addr": "0xce8c0",
+      "end": "0xce993",
+      "kind": "auto",
+      "n_r": 69,
+      "opnd_percent": 85.5,
+      "raw_mnemonic_pct": 88.6,
+      "ref": "synth",
+      "ref_sha": "2ca9aa399306d627",
+      "score": 89.9,
+      "source": "src/halo/input/input_abstraction.c"
+    },
     "input_abstraction_update": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 90.8,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 2,
+      "abi_modeled_mnemonic_pct": 90.9,
       "addr": "0xcea90",
       "end": "0xcf3cf",
       "kind": "auto",
@@ -74620,7 +74635,7 @@
       "raw_mnemonic_pct": 90.8,
       "ref": "synth",
       "ref_sha": "60cd94c6947068b6",
-      "score": 90.8,
+      "score": 90.9,
       "source": "src/halo/input/input_abstraction.c"
     },
     "input_abstraction_update_device_changes": {
