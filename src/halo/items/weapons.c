@@ -28,6 +28,10 @@
  * Confirmed: TEST byte [EDI+0x4c],1 / JNZ skip → FLD [ESI+0x14] /
  * FADD [0x2533e8] / FSTP [ESI+0x14].
  */
+
+/* Forward declaration for unported function at 0x21fb0 — valid_real_normal3d */
+extern bool valid_real_normal3d(float *vec);
+
 int weapon_place(int weapon_handle, void *placement)
 {
   char *weapon;
@@ -218,9 +222,75 @@ char weapon_can_be_fired(int weapon_handle)
   }
 
   return 1;
-  if (weap_tag)
-  {
+  if (weap_tag) {
   }
+}
+
+/* 0xfafe0 — weapon_useful
+ *
+ * Returns 1 while the weapon object's float at +0x1f0 is below 1.0f.
+ *
+ * Confirmed: cdecl, 1 stack arg ([EBP+8]); no callers found in binary.
+ * Confirmed: PUSH 0x4 / PUSH EAX → object_get_and_verify_type at 0xfafe9.
+ * Confirmed: FLD [EAX+0x1f0]; FCOMP [0x2533c8] (1.0f); TEST AH,1; JNZ → AL=1.
+ * Confirmed: returns in AL only (XOR AL,AL / MOV AL,1).
+ */
+bool weapon_useful(int weapon_index)
+{
+  void *obj = object_get_and_verify_type(weapon_index, 4);
+  if (*(float *)((char *)obj + 0x1f0) >= 1.0f) {
+    return 0;
+  }
+  return 1;
+}
+
+/* 0xfb010 — weapon_compute_movement_penalty
+ *
+ * Selects one of two tag floats (tag+0x400 when param_2 is nonzero, else
+ * tag+0x404), then, depending on the int16 selector at tag+0x3fc, replaces it
+ * with 0.0f when param_3 is zero. Parameter meanings are unproven.
+ *
+ * Confirmed: cdecl, 3 stack args; [EBP+0xc] and [EBP+0x10] read as bytes.
+ * Confirmed: PUSH 0x4 / PUSH EAX → object_get_and_verify_type at 0xfb01a.
+ * Confirmed: MOV ECX,[ESI] / PUSH ECX / PUSH 0x77656170 → tag_get at 0xfb029;
+ * ADD ESP,0x10 at 0xfb031 cleans both calls (2 + 2 args).
+ * Confirmed: MOVSX [tag+0x3fc]; case 1 → zero check; case 2 → zero check only
+ * when int16 obj+0x258 == 1 or obj+0x264 == 1 (0x258 tested first).
+ * Confirmed: FSTP ST0 / FLD [0x2533c0] (0.0f) when param_3 == 0.
+ */
+float weapon_compute_movement_penalty(int weapon_handle, char param_2,
+                                      char param_3)
+{
+  int *obj;
+  void *weap_tag;
+  float result;
+
+  obj = (int *)object_get_and_verify_type(weapon_handle, 4);
+  weap_tag = tag_get(0x77656170, obj[0]);
+
+  if (param_2) {
+    result = *(float *)((char *)weap_tag + 0x400);
+  } else {
+    result = *(float *)((char *)weap_tag + 0x404);
+  }
+
+  switch (*(int16_t *)((char *)weap_tag + 0x3fc)) {
+  case 1:
+    break;
+  case 2:
+    if (*(int16_t *)((char *)obj + 0x258) == 1 ||
+        *(int16_t *)((char *)obj + 0x264) == 1) {
+      break;
+    }
+    return result;
+  default:
+    return result;
+  }
+
+  if (!param_3) {
+    result = *(float *)0x2533c0;
+  }
+  return result;
 }
 
 /* 0xfb090 — weapon_must_be_readied
@@ -298,8 +368,9 @@ int weapon_prevents_grenade_throwing(int weapon_handle)
  * Confirmed: dual-wield branch reads indices 0x17(+0x2e), 0x18(+0x30),
  *   0x19(+0x32) from first element's index array.
  */
-int16_t weapon_get_first_person_animation_time(int weapon_handle, int16_t param_2,
-                                   int16_t param_3, int16_t param_4)
+int16_t weapon_get_first_person_animation_time(int weapon_handle,
+                                               int16_t param_2, int16_t param_3,
+                                               int16_t param_4)
 {
   uint32_t *weapon_data;
   int weap_tag;
@@ -485,7 +556,8 @@ bool weapon_busy(int weapon_handle)
  * Unknown: the 0x114-byte trigger definition layout (+0x48) and the
  *   weapon-object trigger layout (+0x1/+0x2) are not modelled.
  */
-float weapon_trigger_get_charged_fraction(int weapon_handle, int16_t trigger_index)
+float weapon_trigger_get_charged_fraction(int weapon_handle,
+                                          int16_t trigger_index)
 {
   int *weapon_obj;
   char *trigger;
@@ -527,7 +599,7 @@ float weapon_trigger_get_charged_fraction(int weapon_handle, int16_t trigger_ind
  * Confirmed: effe branch calls effect_new_from_object with 8 args.
  */
 int weapon_effect_new(int trigger_effect, float scale, float param_3,
-                        int weapon_handle)
+                      int weapon_handle)
 {
   char *weapon_data;
   int parent_handle;
@@ -555,8 +627,8 @@ int weapon_effect_new(int trigger_effect, float scale, float param_3,
     tag_group = tag_get_group_tag(trigger_effect);
     switch (tag_group) {
     case 0x65666665:
-      return (int)effect_new_from_object(trigger_effect, object_handle, parent_handle, -1,
-                               scale, param_3, 0, 0);
+      return (int)effect_new_from_object(
+        trigger_effect, object_handle, parent_handle, -1, scale, param_3, 0, 0);
     case 0x736e6421: {
       float *position = *(float **)0x31fc1c;
       float *forward = *(float **)0x31fc3c;
@@ -649,14 +721,14 @@ int weapon_effect_looping_new(int param_1, int weapon_handle)
  *   LEA EAX,[EDI+ECX*4] => weapon_data + trigger_index * 36.
  * Confirmed: store order — byte BL to +0x211 first, then word DX to +0x212.
  * Confirmed: trigger stride 36 and base +0x210 agree with weapon_trigger_get;
- *   +0x211 is the state byte read as trigger[1] by weapon_trigger_get_charged_fraction and
- *   +0x212 the int16 read as *(int16_t *)(trigger + 2).
- * Unknown: the meaning of the stack-passed 16-bit value beyond its use as
- *   the trigger's charge/tick field; raw offsets retained to match the
+ *   +0x211 is the state byte read as trigger[1] by
+ * weapon_trigger_get_charged_fraction and +0x212 the int16 read as *(int16_t
+ * *)(trigger + 2). Unknown: the meaning of the stack-passed 16-bit value beyond
+ * its use as the trigger's charge/tick field; raw offsets retained to match the
  *   sibling accessors.
  */
 void weapon_trigger_change_state(int16_t charge_ticks, int weapon_handle,
-                                   int16_t trigger_index, int16_t new_state)
+                                 int16_t trigger_index, int16_t new_state)
 {
   char *weapon_data;
 
@@ -702,11 +774,11 @@ void weapon_trigger_change_state(int16_t charge_ticks, int weapon_handle,
  *   tag_get(0x77656170, *(int *)object) -> weapon_trigger_get(EDI=object,
  *   SI=trigger_index) -> tag_block_get_element(tag_data+0x4fc,
  *   (int)(int16_t)trigger_index, 0x114). Note this differs from
- *   weapon_trigger_get_charged_fraction, which calls weapon_trigger_get before tag_get.
- *   All four run unconditionally; one ADD ESP,0x1c at 0xfb94f cleans
- *   the 7 pushed dwords of all three cdecl calls.
- * Confirmed: FLD [ECX+0xa4] / FCOMP [0x2533c0] / FNSTSW AX /
- *   TEST AH,0x41 / JNZ end => continue only when definition+0xa4 >
+ *   weapon_trigger_get_charged_fraction, which calls weapon_trigger_get before
+ * tag_get. All four run unconditionally; one ADD ESP,0x1c at 0xfb94f cleans the
+ * 7 pushed dwords of all three cdecl calls. Confirmed: FLD [ECX+0xa4] / FCOMP
+ * [0x2533c0] / FNSTSW AX / TEST AH,0x41 / JNZ end => continue only when
+ * definition+0xa4 >
  *   *(float *)0x2533c0 (C3|C0 set means <= or unordered).
  * Confirmed: MOV ECX,[ECX] / AND ECX,0x80 then the two-arm test at
  *   0xfb96d..0xfb97f stores only when (flag != 0 && arg != 0) or
@@ -717,7 +789,8 @@ void weapon_trigger_change_state(int16_t charge_ticks, int weapon_handle,
  *   float) and the trigger record field at +0x14 are not modelled;
  *   the meaning of the byte stack argument beyond its boolean use.
  */
-void weapon_trigger_start_ejection_port(char param_1, int weapon_handle, int16_t trigger_index)
+void weapon_trigger_start_ejection_port(char param_1, int weapon_handle,
+                                        int16_t trigger_index)
 {
   int *weapon_obj;
   int weapon_defn;
@@ -954,6 +1027,68 @@ void weapon_set_total_rounds(int weapon_handle, int16_t *rounds_array)
     new_loaded = (current_loaded <= new_total) ? current_loaded : new_total;
     *(int16_t *)(magazine + 8) = new_loaded;
   }
+}
+
+/* 0xfbd10 — weapon_new
+ *
+ * Object-type "new" callback (only xref is DATA 0x323f4c). cdecl, 1 stack arg
+ * at [EBP+8]; returns MOV AL,1.
+ * Confirmed: byte [weapon+0x1e8]=0, dword [weapon+0x274]=-1 after tag_get.
+ * Magazines loop (tag +0x4f0, element 0x70, assert line 0x672): per-weapon
+ *   slot at weapon+(i*3+0x96)*4; +8 = min(elem+6, elem+0xa) (CMP CX,DX /
+ *   JLE keeps elem+6), then +6 = elem+6 - that value.
+ * Triggers loop (tag +0x4fc, element 0x114, assert line 0x667): slot at
+ *   weapon+i*0x24+0x210; element pointer unused; dword +0x20=-1, byte +0=0x7f.
+ * Field meanings are unproven; raw offsets retained.
+ */
+bool weapon_new(int weapon_handle)
+{
+  int *weapon = (int *)object_get_and_verify_type(weapon_handle, 4);
+  int tag_data = (int)tag_get(0x77656170, *weapon);
+  int16_t i;
+
+  *((char *)weapon + 0x1e8) = 0;
+  weapon[0x274 / 4] = -1;
+
+  for (i = 0; (int)i < *(int *)(tag_data + 0x4f0); i++) {
+    int check_tag;
+    char *mag_def;
+    char *magazine;
+    int16_t loaded;
+    check_tag = (int)tag_get(0x77656170, *weapon);
+    if ((int16_t)i < 0 || (int)i >= *(int *)(check_tag + 0x4f0)) {
+      display_assert("magazine_index>=0 && "
+                     "magazine_index<weapon_definition->weapon.magazines.count",
+                     "c:\\halo\\SOURCE\\items\\weapons.c", 0x672, 1);
+      system_exit(-1);
+    }
+    magazine = (char *)weapon + ((int)i * 3 + 0x96) * 4;
+    mag_def =
+      (char *)tag_block_get_element((int *)(tag_data + 0x4f0), (int)i, 0x70);
+    loaded = (*(int16_t *)(mag_def + 6) > *(int16_t *)(mag_def + 0xa)) ?
+               *(int16_t *)(mag_def + 0xa) :
+               *(int16_t *)(mag_def + 6);
+    *(int16_t *)(magazine + 8) = loaded;
+    *(int16_t *)(magazine + 6) = *(int16_t *)(mag_def + 6) - loaded;
+  }
+
+  for (i = 0; (int)i < *(int *)(tag_data + 0x4fc); i++) {
+    int check_tag;
+    char *trigger;
+    check_tag = (int)tag_get(0x77656170, *weapon);
+    if ((int16_t)i < 0 || (int)i >= *(int *)(check_tag + 0x4fc)) {
+      display_assert("trigger_index>=0 && "
+                     "trigger_index<weapon_definition->weapon.triggers.count",
+                     "c:\\halo\\SOURCE\\items\\weapons.c", 0x667, 1);
+      system_exit(-1);
+    }
+    trigger = (char *)weapon + (int)i * 0x24 + 0x210;
+    tag_block_get_element((int *)(tag_data + 0x4fc), (int)i, 0x114);
+    *(int *)(trigger + 0x20) = -1;
+    *trigger = 0x7f;
+  }
+
+  return true;
 }
 
 /* 0xfbea0 — weapon_delete
@@ -1356,15 +1491,16 @@ char weapon_prevents_melee_attack(int weapon_handle)
  *
  * Confirmed: magazine_index in AX (register arg), 2 stack args (weapon_handle,
  * param_2). Confirmed: calls object_get_and_verify_type(weapon_handle, 4)
- * twice. Confirmed: calls weapon_magazine_get(weapon_obj@<edi>, magazine_index@<si>).
- * Confirmed: calls weapon_set_state(weapon_handle, 0,
+ * twice. Confirmed: calls weapon_magazine_get(weapon_obj@<edi>,
+ * magazine_index@<si>). Confirmed: calls weapon_set_state(weapon_handle, 0,
  * magazine_index+5 @<bx>). Confirmed: calls weapon_effect_new(mag_def[0x44],
  * 0, 0, weapon_handle@<eax>). Confirmed: calls
  * first_person_weapon_message_from_weapon(weapon_handle, 9 or 10). Confirmed:
- * calls weapon_get_first_person_animation_time(weapon_handle, 0, 7, iVar6). Confirmed:
- * clears bit 3 of weapon_obj[0x1dc] on non-early-exit path.
+ * calls weapon_get_first_person_animation_time(weapon_handle, 0, 7, iVar6).
+ * Confirmed: clears bit 3 of weapon_obj[0x1dc] on non-early-exit path.
  */
-void weapon_magazine_start_reload(int16_t magazine_index, int weapon_handle, int param_2)
+void weapon_magazine_start_reload(int16_t magazine_index, int weapon_handle,
+                                  int param_2)
 {
   char *weapon_obj = (char *)object_get_and_verify_type(weapon_handle, 4);
   int16_t *magazine_state =
@@ -1381,8 +1517,7 @@ void weapon_magazine_start_reload(int16_t magazine_index, int weapon_handle, int
           magazine_state[4] < *(int16_t *)(mag_def + 0xa)) {
         int16_t anim_variant = -1;
         int16_t frame;
-        weapon_set_state(weapon_handle, 0,
-                                   (int16_t)(magazine_index + 5));
+        weapon_set_state(weapon_handle, 0, (int16_t)(magazine_index + 5));
         weapon_effect_new(*(int *)(mag_def + 0x44), 0, 0, weapon_handle);
         first_person_weapon_message_from_weapon(weapon_handle,
                                                 (magazine_state[4] != 0) + 9);
@@ -1398,7 +1533,8 @@ void weapon_magazine_start_reload(int16_t magazine_index, int weapon_handle, int
         }
 
         *magazine_state = 1;
-        frame = weapon_get_first_person_animation_time(weapon_handle, 0, 7, anim_variant);
+        frame = weapon_get_first_person_animation_time(weapon_handle, 0, 7,
+                                                       anim_variant);
         magazine_state[1] = frame;
         magazine_state[2] = frame;
       }
@@ -1498,7 +1634,8 @@ void weapon_magazine_start_chamber(int16_t magazine_index, int weapon_handle)
   int state;
 
   weapon_obj = (char *)object_get_and_verify_type(weapon_handle, 4);
-  magazine_state = (int16_t *)weapon_magazine_get((void *)weapon_obj, magazine_index);
+  magazine_state =
+    (int16_t *)weapon_magazine_get((void *)weapon_obj, magazine_index);
 
   state = *magazine_state;
   switch (state) {
@@ -1511,8 +1648,7 @@ void weapon_magazine_start_chamber(int16_t magazine_index, int weapon_handle)
       tag_data = (char *)tag_get(0x77656170, *(int *)weapon_obj);
       mag_def = (char *)tag_block_get_element(tag_data + 0x4f0,
                                               (int)magazine_index, 0x70);
-      weapon_set_state(weapon_handle, 0,
-                                 (int16_t)(magazine_index + 3));
+      weapon_set_state(weapon_handle, 0, (int16_t)(magazine_index + 3));
       weapon_effect_new(*(int *)(mag_def + 0x54), 0, 0, weapon_handle);
       *magazine_state = 3;
       magazine_state[1] =
@@ -1537,11 +1673,10 @@ void weapon_magazine_start_chamber(int16_t magazine_index, int weapon_handle)
  * Confirmed: trigger_index arrives in AX (MOV ESI,EAX at 0xfcd1d, then
  *   MOVSX EDI,SI); weapon_handle is the single stack arg at [EBP+8].
  * Confirmed: object_get_and_verify_type(weapon_handle, 4) at 0xfcd1f, then
- *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfcd26 — its return value
- *   is discarded (EAX is immediately reloaded with MOV EAX,[EDI]); the call is
- *   made for its bounds assert.
- * Confirmed: tag_get(0x77656170, *(int *)object) then
- *   tag_block_get_element(tag+0x4fc, trigger_index, 0x114) — the trigger
+ *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfcd26 — its return
+ * value is discarded (EAX is immediately reloaded with MOV EAX,[EDI]); the call
+ * is made for its bounds assert. Confirmed: tag_get(0x77656170, *(int *)object)
+ * then tag_block_get_element(tag+0x4fc, trigger_index, 0x114) — the trigger
  *   definition block (stride 0x114), same block used by weapon_reset_state.
  * Confirmed: FLD [def+0x4c] / FMUL [0x253394] / CALL _ftol2 at 0xfcd4c-0xfcd55;
  *   the int result is spilled to [EBP-4] and only its low word is stored
@@ -1609,11 +1744,11 @@ void weapon_trigger_fully_charged(int16_t trigger_index, int weapon_handle)
  *   MOV EBX,ECX at 0xfcdd3 (weapon_handle in ECX) and MOV ESI,EAX at 0xfcdd8
  *   (trigger_index in AX); the function ends in a bare RET.
  * Confirmed: object_get_and_verify_type(weapon_handle, 4) at 0xfcdda, result
- *   kept in EDI, then weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfcde1 —
- *   its return value is discarded (EAX is reloaded with MOV EAX,[EDI]); the
- *   call is made for its bounds assert, same as in weapon_trigger_fully_charged.
- * Confirmed: tag_get(0x77656170, *(int *)object) then
- *   tag_block_get_element(tag+0x4fc, trigger_index, 0x114) at 0xfce02 — the
+ *   kept in EDI, then weapon_trigger_get(EDI=object, SI=trigger_index) at
+ * 0xfcde1 — its return value is discarded (EAX is reloaded with MOV EAX,[EDI]);
+ * the call is made for its bounds assert, same as in
+ * weapon_trigger_fully_charged. Confirmed: tag_get(0x77656170, *(int *)object)
+ * then tag_block_get_element(tag+0x4fc, trigger_index, 0x114) at 0xfce02 — the
  *   trigger definition block (stride 0x114); its result is discarded here.
  * Confirmed: MOVSX EDI,SI at 0xfcdf3 supplies the sign-extended index to both
  *   tag_block_get_element and the entry-address LEA.
@@ -1625,8 +1760,9 @@ void weapon_trigger_fully_charged(int16_t trigger_index, int weapon_handle)
  *   display_assert(..., weapons.c, 0xa11, 1) then system_exit(-1).
  * Confirmed: LEA ECX,[EDI+EDI*8] / LEA EAX,[EBX+ECX*4] => weapon_data +
  *   trigger_index*36; stores byte [+0x211] = 0 then word [+0x212] = 0.
- * Unknown: the semantic meaning of trigger state 0 (weapon_trigger_fully_charged uses 3,
- *   weapon_trigger_locked uses 7, weapon_reset_state uses 8); raw offsets retained.
+ * Unknown: the semantic meaning of trigger state 0
+ * (weapon_trigger_fully_charged uses 3, weapon_trigger_locked uses 7,
+ * weapon_reset_state uses 8); raw offsets retained.
  */
 void weapon_trigger_idle(int16_t trigger_index, int weapon_handle)
 {
@@ -1783,7 +1919,8 @@ void weapon_reset(int weapon_handle)
       tag_block_get_element((void *)mag_tag_ptr, mag_count_index, 0x70);
 
       if (mag_entry[0] == 1) {
-        int16_t frame = weapon_get_first_person_animation_time(weapon_handle, 0, 7, -1);
+        int16_t frame =
+          weapon_get_first_person_animation_time(weapon_handle, 0, 7, -1);
         if (mag_entry[1] * 2 < (int)frame) {
           weapon_magazine_finish_reload(weapon_handle, magazine_int);
         }
@@ -2029,7 +2166,7 @@ bool weapon_aim(int weapon_handle, int16_t trigger_index, void *param_3,
                                       param_5, param_6, 0, param_7, param_8,
                                       param_9);
 
-  if (!((bool (*)(float *))0x21fb0)(param_6)) {
+  if (!valid_real_normal3d(param_6)) {
     display_assert(csprintf((char *)0x5ab100,
                             "%s: assert_valid_real_normal3d(%f, %f, %f)",
                             "result_aim_vector", (double)param_6[0],
@@ -2069,8 +2206,8 @@ void weapon_stop_reload(int weapon_handle)
  *   (MOV EBX,ECX at 0xfe6c7, pushed to object_get_and_verify_type twice).
  *   No stack args (RET with no immediate at 0xfe780).
  * Confirmed: call order object_get_and_verify_type(handle, 4) at 0xfe6ce ->
- *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfe6d5 (EDI survives it
- *   and is re-read at 0xfe6da) -> tag_get(0x77656170, *(int *)object) at
+ *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfe6d5 (EDI survives
+ * it and is re-read at 0xfe6da) -> tag_get(0x77656170, *(int *)object) at
  *   0xfe6e2 -> tag_block_get_element(tag_data+0x4fc, trigger_index, 0x114)
  *   at 0xfe6f4. One ADD ESP,0x1c at 0xfe701 cleans all 7 pushed dwords.
  * Confirmed: MOV EAX,[EDI] / LEA ECX,[ESI+1] / CMP ECX,EAX / JGE at
@@ -2144,19 +2281,19 @@ void weapon_trigger_overload(int trigger_index, int weapon_handle)
  *   (weapon_trigger_recover). That is the release of a held charge.
  *   The name previously sat on 0xfb880, which is weapon_trigger_change_state.
  *
- * Same prologue family as weapon_trigger_overload: resolve the weapon object, run the
- * weapon_trigger_get trigger-bounds debug helper (whose return is a trigger record
- * pointer), fetch the trigger definition from the weapon tag's 0x4fc block,
- * then either latch trigger state 6 with a tick count derived from the
- * definition's +0x58 float, or take the zero-duration path.
+ * Same prologue family as weapon_trigger_overload: resolve the weapon object,
+ * run the weapon_trigger_get trigger-bounds debug helper (whose return is a
+ * trigger record pointer), fetch the trigger definition from the weapon tag's
+ * 0x4fc block, then either latch trigger state 6 with a tick count derived from
+ * the definition's +0x58 float, or take the zero-duration path.
  *
  * Confirmed: register args — trigger_index arrives in EAX (MOV ESI,EAX at
  *   0xfe79e, later TEST SI,SI / CMP SI,0x2 / MOVSX EDI,SI), weapon_handle in
  *   ECX (MOV EBX,ECX at 0xfe799, pushed to object_get_and_verify_type twice).
  *   RET with no immediate at 0xfe859 / 0xfe884, so no stack args.
  * Confirmed: call order object_get_and_verify_type(handle, 4) at 0xfe7a0 ->
- *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfe7a7 (its EAX return is
- *   saved to [EBP-0x4]) -> tag_get(0x77656170, *(int *)object) at 0xfe7b7 ->
+ *   weapon_trigger_get(EDI=object, SI=trigger_index) at 0xfe7a7 (its EAX return
+ * is saved to [EBP-0x4]) -> tag_get(0x77656170, *(int *)object) at 0xfe7b7 ->
  *   tag_block_get_element(tag_data+0x4fc, (int16_t)trigger_index, 0x114) at
  *   0xfe7ce. One ADD ESP,0x1c at 0xfe7d5 cleans all 7 pushed dwords; the
  *   block pointer tag_data+0x4fc is also kept at [EBP-0x8].

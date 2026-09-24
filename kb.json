@@ -35252,11 +35252,15 @@
     },
     {
      "addr": "0xfafe0",
-     "decl": "void weapon_useful(void);"
+     "decl": "bool weapon_useful(int weapon_index);",
+     "ported": true
     },
     {
      "addr": "0xfb010",
-     "decl": "void weapon_compute_movement_penalty(void);"
+     "decl": "float weapon_compute_movement_penalty(int weapon_handle, char param_2, char param_3);",
+     "name": "weapon_compute_movement_penalty",
+     "ported": true,
+     "source_path": "src/halo/items/weapons.c"
     },
     {
      "addr": "0xfb090",
@@ -35393,7 +35397,10 @@
     },
     {
      "addr": "0xfbd10",
-     "decl": "void weapon_new(void);"
+     "decl": "bool weapon_new(int weapon_handle);",
+     "name": "weapon_new",
+     "ported": true,
+     "source_path": "src/halo/items/weapons.c"
     },
     {
      "addr": "0xfbea0",
