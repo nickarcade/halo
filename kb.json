@@ -26824,7 +26824,7 @@
     },
     {
      "addr": "0x192da0",
-     "decl": "void leaf_map_build_portals_from_leaf(void);"
+     "decl": "void leaf_map_build_portals_from_leaf(int *leaf_map, int param_2, int param_3, int param_4, int16_t param_5);"
     },
     {
      "addr": "0x192f80",
@@ -26832,8 +26832,9 @@
     },
     {
      "addr": "0x1931e0",
-     "decl": "void leaf_map_build_portals(void);",
-     "comment": "[NAME: leaf_map_build_portals \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void leaf_map_build_portals(int *leaf_map, int node_index);",
+     "comment": "[NAME: leaf_map_build_portals \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1932d0",

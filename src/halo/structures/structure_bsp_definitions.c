@@ -1,3 +1,46 @@
+/* 0x1931e0 -- Push each child of a leaf-map node onto the node stack and
+ * recurse; negative (non -1) children build portals from the leaf.
+ * The fifth callee arg is the node-stack count minus one (dword read of the
+ * int16 global, DEC, PUSH). */
+void leaf_map_build_portals(int *leaf_map, int node_index)
+{
+  int *node;
+  int child;
+  int entry;
+  int16_t i;
+
+  node = (int *)tag_block_get_element((void *)*leaf_map, node_index, 0xc);
+  for (i = 0; i < 2; i = (int16_t)(i + 1)) {
+    entry = node_index;
+    if (i == 0) {
+      entry |= (int)0x80000000;
+    }
+    if (*(int16_t *)0x4d8e90 >= 0x100) {
+      display_assert(
+        "leaf_map_globals.node_stack_count<MAXIMUM_NODE_STACK_COUNT",
+        "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x2a, 1);
+      system_exit(-1);
+    }
+    *(int *)(0x4d8a90 + (int)*(int16_t *)0x4d8e90 * 4) = entry;
+    ++*(int16_t *)0x4d8e90;
+    child = node[i + 1];
+    if (child < 0) {
+      if (child != -1) {
+        leaf_map_build_portals_from_leaf(leaf_map, -1, child & 0x7fffffff, 0,
+                                         (int16_t)(*(int16_t *)0x4d8e90 - 1));
+      }
+    } else {
+      leaf_map_build_portals(leaf_map, child);
+    }
+    if (*(int16_t *)0x4d8e90 <= 0) {
+      display_assert("leaf_map_globals.node_stack_count>0",
+                     "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x33, 1);
+      system_exit(-1);
+    }
+    --*(int16_t *)0x4d8e90;
+  }
+}
+
 /* Traverse two child nodes from a BSP leaf (0x193340). */
 void FUN_00193340(int *leaf_map, int leaf_index)
 {
