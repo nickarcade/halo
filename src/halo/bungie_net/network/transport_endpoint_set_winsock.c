@@ -2828,7 +2828,6 @@ int FUN_00084520(int *ep, void *buffer, int length, void *addr)
   short bind_result;
   int recv_result;
   int error_code;
-  uint32_t bind_addr[6];
   uint8_t from_addr[16];
   int from_len;
   uint32_t ip;
@@ -2845,15 +2844,11 @@ int FUN_00084520(int *ep, void *buffer, int length, void *addr)
     socket_result = FUN_00083930(2, 2, 0);
     *ep = socket_result;
     if (socket_result != -1) {
-      bind_addr[0] = 0;
-      bind_addr[1] = 0;
-      bind_addr[2] = 0;
-      bind_addr[3] = 0;
-      bind_addr[4] = 0;
-      bind_addr[5] = 0;
-      *(uint16_t *)&bind_addr[4] = 4;
+      transport_address bind_addr = {0};
 
-      bind_result = FUN_00083ce0(ep, (void *)bind_addr);
+      bind_addr.address_length = 4;
+
+      bind_result = FUN_00083ce0(ep, &bind_addr);
       assert_halt(bind_result == 0);
 
       if (*ep != -1)
