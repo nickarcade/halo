@@ -2709,9 +2709,12 @@
     "call_count": 2
   },
   "0x120950": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x1209b0": {
     "class": "stubbable",
@@ -2876,8 +2879,11 @@
     "call_count": 4
   },
   "0x123d80": {
-    "class": "stubbable",
-    "call_count": 3
+    "class": "non_leaf",
+    "call_count": 3,
+    "confidence": "moderate",
+    "coverage_pct": 47.4,
+    "oracle": "xbe"
   },
   "0x123e20": {
     "class": "stubbable",
@@ -14297,9 +14303,12 @@
     "call_count": 4
   },
   "0x1c7f80": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 5,
-    "call_count": 7
+    "call_count": 7,
+    "confidence": "high",
+    "coverage_pct": 82.7,
+    "oracle": "xbe"
   },
   "0x1c80e0": {
     "class": "stubbable",
@@ -24505,9 +24514,12 @@
     "oracle": "xbe"
   },
   "0x696d0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 22,
-    "call_count": 20
+    "call_count": 20,
+    "confidence": "none",
+    "coverage_pct": 9.0,
+    "oracle": "xbe"
   },
   "0x69b90": {
     "class": "non_leaf",
@@ -25067,8 +25079,11 @@
     "call_count": 9
   },
   "0x71400": {
-    "class": "stubbable",
-    "call_count": 2
+    "class": "non_leaf",
+    "call_count": 2,
+    "confidence": "moderate",
+    "coverage_pct": 52.6,
+    "oracle": "xbe"
   },
   "0x715c0": {
     "class": "stubbable",
@@ -25120,9 +25135,12 @@
     "call_count": 38
   },
   "0x72f70": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 3,
-    "call_count": 9
+    "call_count": 9,
+    "confidence": "weak",
+    "coverage_pct": 12.0,
+    "oracle": "xbe"
   },
   "0x73390": {
     "class": "stubbable",
@@ -34749,9 +34767,12 @@
     "call_count": 3
   },
   "0xde3f0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 6,
-    "call_count": 11
+    "call_count": 11,
+    "confidence": "weak",
+    "coverage_pct": 23.3,
+    "oracle": "xbe"
   },
   "0xde560": {
     "class": "stubbable",

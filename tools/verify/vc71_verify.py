@@ -1500,6 +1500,11 @@ _PER_FUNCTION_OPT: dict[str, dict[str, str]] = {
     "cseries/xbox_crt.c": {"crt_tolower": "/O1 /Oy", "crt_toupper": "/O1 /Oy"},
     # FUN_000dc800: leaf switch table with register parameter; reference has NO EBP frame.
     "halo/interface/event_manager.c": {"FUN_000dc800": "/O2 /Oy"},
+    # dsound_stream_is_active (0x20f069): XDK DirectSound leaf; reference reads
+    # its arg ESP-relative (`mov eax,[esp+4]`) with no EBP setup -- /Oy.
+    # FUN_0020f081 (0x20f081): same XDK inline family, `mov eax,[esp+4]`, no EBP.
+    "halo/sound/sound_dsound_xbox.c": {"dsound_stream_is_active": "/O2 /Oy",
+                                       "FUN_0020f081": "/O2 /Oy"},
     # D3D resource/texture functions in XDK D3D; compiled with /Oy (no EBP frame).
     # D3DResource_BlockUntilNotBusy: bare JMP thunk (0x1ed620); D3DResource_IsBusy:
     # ESP-relative addressing throughout (0x1ed980) -- both prove /Oy.
