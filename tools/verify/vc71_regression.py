@@ -407,7 +407,7 @@ def _merged_validity(flagged: list[dict], measured_sources: set) -> list[dict]:
 
 
 def record_rebaseline_journal(honest: dict[str, dict], flagged: list[dict],
-                              sources: list[str]) -> None:
+                              sources: list[str], epoch: str) -> None:
     """Merge one rebaseline shard's outcome into the cross-shard journal.
 
     Records the keys the scorer emitted (with their fresh entries), the
@@ -428,9 +428,34 @@ def record_rebaseline_journal(honest: dict[str, dict], flagged: list[dict],
     doc["flagged"] = [f for f in doc["flagged"]
                       if f.get("source") not in visited] + list(flagged)
     doc["sources"] = sorted(set(doc["sources"]) | visited)
+    doc["tool_epoch"] = epoch
     REBASELINE_JOURNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
     REBASELINE_JOURNAL_PATH.write_text(
         json.dumps(doc, indent=1, sort_keys=True) + "\n")
+
+
+def rebaseline_inputs_stale(epoch: str) -> str | None:
+    """Why the re-baseline journal or pre-snapshot cannot be trusted, or None.
+
+    Both files outlive the pass that wrote them: the journal MERGES every shard
+    ever run and the pre-snapshot is only written when missing.  Left over from
+    an older pass, they name functions by their old spellings, and pruning
+    against them deletes the rows of functions that were renamed since
+    (2026-09-24: an 08-14 pre-snapshot and an old-name journal pruned 422 live
+    rows, keeping the stale FUN_ spelling).  Each file is stamped with the tool
+    epoch when written; any other stamp, or none, is stale.
+    """
+    for path in (REBASELINE_PRE_PATH, REBASELINE_JOURNAL_PATH):
+        if not path.exists():
+            continue
+        try:
+            stamp = json.loads(path.read_text()).get("tool_epoch")
+        except (json.JSONDecodeError, OSError, AttributeError):
+            stamp = None
+        if stamp != epoch:
+            return (f"{path.relative_to(REPO_ROOT)} was written under "
+                    f"{'a different tool/kb.json epoch' if stamp else 'no epoch stamp'}")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -807,6 +832,25 @@ def _kb_maps():
     return _KB_MAPS
 
 
+def _kb_decl_names_by_addr() -> dict[int, str]:
+    """Map each kb.json function address to its current declared name."""
+    try:
+        data = json.loads((REPO_ROOT / "kb.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    names: dict[int, str] = {}
+    for obj in data.get("objects", []):
+        for fn in obj.get("functions") or []:
+            m = re.search(r"([A-Za-z_]\w*)\s*\(", fn.get("decl", "") or "")
+            if not m or not fn.get("addr"):
+                continue
+            try:
+                names.setdefault(int(fn["addr"], 16), m.group(1))
+            except (ValueError, TypeError):
+                continue
+    return names
+
+
 _KB_SOURCE_FUNCS = None
 
 
@@ -928,7 +972,7 @@ REBASELINE_HINT = (
     "the stored floor was measured against different bytes than this run.  Those\n"
     "two numbers are not comparable -- do not commit through this by lowering a\n"
     "floor.  Review the delta, then re-baseline the affected TUs:\n"
-    "  python3 tools/verify/vc71_regression.py populate --rebaseline --source <file>\n"
+    "  python3 tools/verify/vc71_regression.py populate --rebaseline --reset-journal --source <file>\n"
     "  python3 tools/verify/vc71_regression.py rebaseline-report"
 )
 
@@ -2117,13 +2161,19 @@ def cmd_populate(args) -> int:
                 if p.exists():
                     p.unlink()
             print("Re-baseline journal and pre-snapshot reset.")
+        stale = rebaseline_inputs_stale(epoch)
+        if stale:
+            print(f"Refusing to re-baseline: {stale}.  Start a fresh pass with "
+                  f"--reset-journal.", file=sys.stderr)
+            return 1
         if not REBASELINE_PRE_PATH.exists():
             # Snapshot the floor BEFORE the first shard rewrites it.  The delta
             # report is written after every shard has run, by which time the
             # file no longer remembers what it used to say.
             REBASELINE_PRE_PATH.parent.mkdir(parents=True, exist_ok=True)
             REBASELINE_PRE_PATH.write_text(json.dumps(
-                {"version": 1, "scores": baseline}, indent=1, sort_keys=True) + "\n")
+                {"version": 1, "tool_epoch": epoch, "scores": baseline},
+                indent=1, sort_keys=True) + "\n")
             print(f"Pre-rebaseline snapshot ({len(baseline)} entries) → "
                   f"{REBASELINE_PRE_PATH.relative_to(REPO_ROOT)}")
     honest: dict[str, dict] = {}
@@ -2226,7 +2276,7 @@ def cmd_populate(args) -> int:
         # recovered from the baseline afterwards, because the baseline cannot
         # distinguish "measured and unchanged" from "never measured".
         record_rebaseline_journal(honest, flagged,
-                                  [rel for _a, rel, _r, _f in to_verify])
+                                  [rel for _a, rel, _r, _f in to_verify], epoch)
 
     # Honest current scores drive the dashboard; the floored baseline stays the
     # CI tripwire.  The validity report is the re-delink work queue.  A --source
@@ -2442,6 +2492,11 @@ def cmd_rebaseline_report(args) -> int:
               f"{REBASELINE_PRE_PATH.relative_to(REPO_ROOT)}; run "
               f"`populate --rebaseline` first.", file=sys.stderr)
         return 1
+    stale = rebaseline_inputs_stale(_tool_epoch())
+    if stale:
+        print(f"Refusing to prune: {stale}.  Re-run `populate --rebaseline "
+              f"--reset-journal` first.", file=sys.stderr)
+        return 1
     pre = json.loads(REBASELINE_PRE_PATH.read_text()).get("scores", {}) or {}
     journal = {}
     if REBASELINE_JOURNAL_PATH.exists():
@@ -2473,6 +2528,7 @@ def cmd_rebaseline_report(args) -> int:
     # Keep the key today's scorer emits; drop its aliases.  When NOTHING at that
     # address was measured we cannot arbitrate, so every key is kept and flagged
     # stale_key -- dropping one would silently delete a floor on a guess.
+    kb_names = _kb_decl_names_by_addr()
     pruned: list[dict] = []
     # Old score inherited by a surviving key from the alias that carried it, so
     # the delta for a merged function compares the floor that actually existed
@@ -2485,6 +2541,14 @@ def cmd_rebaseline_report(args) -> int:
         if not live:
             continue
         keep = live[0]
+        # The current kb.json name is the row the gate looks up.  Keep it, and
+        # when this pass did not measure it, do not arbitrate: a measured alias
+        # then means the measurement predates the rename.
+        kb_name = kb_names.get(addr)
+        if kb_name in ks:
+            if kb_name not in live:
+                continue
+            keep = kb_name
         for k in ks:
             if k in live or k not in baseline:
                 continue
