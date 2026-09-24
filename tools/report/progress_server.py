@@ -34,6 +34,10 @@ _score_locks_mu = threading.Lock()
 _equivalence_locks = {}
 _equivalence_locks_mu = threading.Lock()
 
+# Raw-XBE structural audit lock: one populate run per unit at a time.
+_raw_audit_locks = {}
+_raw_audit_locks_mu = threading.Lock()
+
 # SSE client tracking, for visibility into how many browsers are connected
 _sse_clients = 0
 _sse_clients_mu = threading.Lock()
@@ -119,6 +123,8 @@ class SSEHandler(SimpleHTTPRequestHandler):
             self.handle_score()
         elif self.path == '/api/equivalence':
             self.handle_equivalence()
+        elif self.path == '/api/raw-audit':
+            self.handle_raw_audit()
         else:
             self.send_error(404, 'Not found')
 
@@ -229,6 +235,98 @@ class SSEHandler(SimpleHTTPRequestHandler):
         self._json_response(200, {'ok': True, 'function': function_name,
                                   'address': address, 'result': result})
 
+    def handle_raw_audit(self):
+        """Run the raw-XBE structural audit for every ported function in a unit.
+
+        This is what produces the dashboard's aligned-byte numbers.  The
+        generator discards an audit whose source hash no longer matches, so
+        any edit to the TU needs a fresh run.
+        """
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(length) if length else b'{}')
+        except (ValueError, json.JSONDecodeError) as e:
+            self._json_response(400, {'error': f'Bad request: {e}'})
+            return
+
+        unit_name = body.get('unit')
+        if not isinstance(unit_name, str) or not unit_name:
+            self._json_response(400, {'error': 'Missing "unit" field'})
+            return
+
+        report_path = os.path.join(self.directory, 'report.json')
+        try:
+            with open(report_path) as f:
+                report = json.load(f)
+        except Exception as e:
+            logging.error('Cannot read report.json: %s', e)
+            self._json_response(500, {'error': 'report_unreadable'})
+            return
+
+        unit = next((u for u in report.get('units', [])
+                     if u.get('name') == unit_name), None)
+        if unit is None:
+            self._json_response(404, {'error': 'unit_not_found'})
+            return
+        source_path_rel = unit.get('source_path')
+        if unit.get('synthetic') or not source_path_rel:
+            self._json_response(409, {'error': 'no_source'})
+            return
+
+        logging.info('Raw-XBE audit request for unit %s from %s', unit_name,
+                     self.client_address[0])
+        with _raw_audit_locks_mu:
+            lock = _raw_audit_locks.setdefault(unit_name, threading.Lock())
+        if lock.locked():
+            logging.info('Unit %s is already auditing; waiting for it to finish', unit_name)
+        with lock:
+            result = self._run_raw_audit(unit_name, source_path_rel)
+
+        if result is None:
+            self._json_response(500, {'error': 'audit_failed', 'unit': unit_name})
+            return
+        if not self._refresh_dashboard():
+            self._json_response(500, {'error': 'dashboard_refresh_failed', 'result': result})
+            return
+        self._json_response(200, {'ok': True, 'unit': unit_name, 'result': result})
+
+    def _run_raw_audit(self, unit_name, source_path_rel):
+        """Run `raw_xbe_structural.py populate --source` scoped to one TU.
+
+        A subprocess, not an import: populate owns a process pool and the
+        module-level ROOT, and a crash there must not take the server down.
+        """
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(script_dir, '../..'))
+        script = os.path.join(project_root, 'tools', 'verify', 'raw_xbe_structural.py')
+        cmd = [sys.executable, script, 'populate', '--source', source_path_rel]
+        logging.info('Running raw-XBE audit for %s ...', source_path_rel)
+        t_start = time.time()
+        try:
+            r = subprocess.run(cmd, cwd=project_root, capture_output=True,
+                               text=True, timeout=1800)
+        except subprocess.TimeoutExpired:
+            logging.error('Raw-XBE audit timed out for unit %s', unit_name)
+            return None
+        elapsed = time.time() - t_start
+        # rc 2 = the TU failed to compile; error records are still written and
+        # the dashboard shows those functions as "cannot compare".
+        if r.returncode not in (0, 2):
+            logging.error('Raw-XBE audit failed for unit %s (rc=%d, %.1fs): %s',
+                          unit_name, r.returncode, elapsed, r.stderr[-2000:])
+            return None
+        tail = r.stdout.strip().splitlines()
+        totals = None
+        if tail:
+            try:
+                totals = json.loads(tail[-1])
+            except json.JSONDecodeError:
+                pass
+        logging.info('Raw-XBE audit finished for %s in %.1fs (rc=%d): %s',
+                     source_path_rel, elapsed, r.returncode, totals)
+        return {'returncode': r.returncode, 'elapsed': round(elapsed, 1),
+                'totals': totals}
+
     def _run_equivalence(self, function_name, address):
         """Run the standard single-target batch verifier against the raw XBE."""
         from pathlib import Path
@@ -263,7 +361,7 @@ class SSEHandler(SimpleHTTPRequestHandler):
                                  input_fingerprint=fingerprint, oracle='xbe')
 
     def _refresh_dashboard(self):
-        """Regenerate the report so the fresh equivalence verdict reaches SSE clients."""
+        """Regenerate the report so a fresh verdict or audit reaches SSE clients."""
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(script_dir, '../..'))
         report_dir = os.path.join(project_root, 'tools', 'report')
@@ -279,7 +377,7 @@ class SSEHandler(SimpleHTTPRequestHandler):
             os.utime(report_path, None)
             return True
         except Exception as e:
-            logging.error('Dashboard refresh after equivalence failed: %s', e)
+            logging.error('Dashboard refresh failed: %s', e)
             return False
 
     def _run_score(self, unit_name):
@@ -588,6 +686,39 @@ def _background_regen(serve_dir: str, project_root: str, interval_secs: int = 30
             logging.warning('Background regen error (%.1fs): %s', time.time() - t_start, exc)
 
 
+def _background_raw_audit(project_root: str, interval_secs: int, workers: int) -> None:
+    """Periodically re-run the raw-XBE structural audit for the whole project.
+
+    Any source edit invalidates a function's audit, so without this the audited
+    set shrinks and the aligned-byte history line tracks coverage instead of
+    accuracy.  The next dashboard refresh picks the new records up.
+    """
+    venv_py = os.path.join(project_root, '.venv', 'bin', 'python3')
+    py = venv_py if os.path.exists(venv_py) else sys.executable
+    script = os.path.join(project_root, 'tools', 'verify', 'raw_xbe_structural.py')
+
+    while True:
+        time.sleep(interval_secs)
+        logging.info('Background raw-XBE audit starting (%d workers)...', workers)
+        t_start = time.time()
+        try:
+            r = subprocess.run(
+                [py, script, 'populate', '--workers', str(workers)],
+                cwd=project_root, capture_output=True, text=True,
+                timeout=max(interval_secs, 1800),
+            )
+            # rc 2 = some TUs failed to compile; the rest are still recorded.
+            if r.returncode in (0, 2):
+                logging.info('Background raw-XBE audit finished in %.1fs (rc=%d)',
+                             time.time() - t_start, r.returncode)
+            else:
+                logging.warning('Background raw-XBE audit failed (rc=%d, %.1fs): %s',
+                                r.returncode, time.time() - t_start, r.stderr[-200:])
+        except Exception as exc:
+            logging.warning('Background raw-XBE audit error (%.1fs): %s',
+                            time.time() - t_start, exc)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='SSE-powered live progress dashboard server'
@@ -607,6 +738,15 @@ def main():
         # --host to expose it (and put access control in front of it first).
         '--host', default='127.0.0.1',
         help='Host to bind to (default: 127.0.0.1; /api/score is unauthenticated)'
+    )
+    parser.add_argument(
+        '--raw-audit-interval', type=int, default=3600,
+        help='Seconds between whole-project raw-XBE audits that keep aligned-byte '
+             'coverage current (default: 3600; 0 disables)'
+    )
+    parser.add_argument(
+        '--raw-audit-workers', type=int, default=4,
+        help='Parallel TU workers for the background raw-XBE audit (default: 4)'
     )
     args = parser.parse_args()
 
@@ -638,6 +778,14 @@ def main():
         daemon=True,
     )
     regen_thread.start()
+
+    if args.raw_audit_interval > 0:
+        logging.info('  Raw-XBE audit refreshes every %d min', args.raw_audit_interval // 60)
+        threading.Thread(
+            target=_background_raw_audit,
+            args=(project_root, args.raw_audit_interval, args.raw_audit_workers),
+            daemon=True,
+        ).start()
 
     try:
         server.serve_forever()

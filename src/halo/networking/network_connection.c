@@ -608,7 +608,8 @@ bool network_connection_write(void *connection, void *message,
                       "buffer_size <= DATAGRAM_MAXIMUM_SIZE");
     }
     result =
-      FUN_00084740(conn->unreliable_endpoint, message, size, dest_address);
+      FUN_00084740((transport_endpoint *)conn->unreliable_endpoint, message,
+                   size, (const transport_address *)dest_address);
     network_connection_log_traffic_event(2, size, (int)conn);
     goto finish;
   }
@@ -665,7 +666,8 @@ bool network_connection_write(void *connection, void *message,
     }
     return true;
   }
-  FUN_00084740(conn->unreliable_endpoint, message, size, dest_address);
+  FUN_00084740((transport_endpoint *)conn->unreliable_endpoint, message, size,
+               (const transport_address *)dest_address);
   network_connection_log_traffic_event(2, size, (int)conn);
   return true;
 

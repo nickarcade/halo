@@ -1707,6 +1707,249 @@ int finddiff(unsigned char *cp, int bs /* @<esi> */, int be /* @<edx> */,
   return bs + FUN_00069600(bs, be, runs, &cp);
 }
 
+/* Fax3Decode2DRow's state-machine tables and fill masks, read at their
+ * original addresses: 0x2ca770 is the 2D mode table and 0x2cbb70 the
+ * next-bit-state table (both indexed `(bit << 8) + data`, movzx byte loads at
+ * 0x6973e/0x69746); 0x2ec378 is the nine-byte fill-mask table fillspan also
+ * uses (`mov al,[0x2ec379]` at 0x699aa, `mov al,[ebx+0x2ec378]` at 0x699f1). */
+#define TIFF_FAX_2D_MODE ((const unsigned char *)0x2ca770)
+#define TIFF_FAX_2D_NEXT_STATE ((const unsigned char *)0x2cbb70)
+#define TIFF_FAX_FILLMASKS ((const unsigned char *)0x2ec378)
+
+/**
+ * Decode one 2D-coded fax row into `buf` (`npels` pixels).
+ *
+ * Shape-identified as upstream libtiff 3.x tif_fax3.c `Fax3Decode2DRow`: the
+ * module string "Fax3Decode2D" (0x2ec394) and every TIFFError/TIFFWarning
+ * format pushed here are upstream's. The identification of the individual
+ * mode values follows the jump tables at 0x69b30 (outer, 13 entries) and
+ * 0x69b64/0x69b78 (uncompressed-mode, indexed by mode-2):
+ *   outer 0 null, 1 pass, 2 horizontal, 3..9 vertical (V0 = 6), 10
+ *   uncompressed, 11 bad code word, 12 EOL; anything above 12 panics.
+ *   inner 2..6 run+1, 7 five zeros, 8..12 exit with colour bit, 13 EOF,
+ *   14 invalid code word; other values fall through to the loop test.
+ *
+ * Upstream's `finddiff` macro is expanded inline by the reference here
+ * (0x69768-0x697f8, 0x698b1-0x6990c: cursor bias, run-table select and a
+ * direct call to FUN_00069600), NOT a call to the out-of-line finddiff at
+ * 0x69690, so it is spelled as the direct FUN_00069600 calls. Likewise the
+ * one-bit fillspan of the uncompressed run case is inlined by the reference
+ * (0x69987-0x69a09, `rep stosd/stosb` whole-byte fill with EAX=-1) while the
+ * other three fillspan sites are real calls to 0x68e20.
+ *
+ * ABI: cdecl, three stack arguments ([ebp+8] tif, [ebp+0xc] buf, [ebp+0x10]
+ * npels, the caller FUN_0006a070 cleans 0xc). Returns 0 on a hard error, 1
+ * after a premature EOL, else `a0 >= npels` (SETGE at 0x69b00).
+ */
+int FUN_000696d0(void *tif_, unsigned char *buf, int npels)
+{
+  static const char module[] = "Fax3Decode2D";
+  tiff_t *tif;
+  tiff_codec_bits_t *sp;
+  unsigned char *refline;
+  const unsigned char *runs;
+  unsigned char *cp;
+  unsigned char *bp;
+  unsigned char mask;
+  unsigned short color;
+  short mode;
+  short umode;
+  int a0;
+  int b1;
+  int b2;
+  int run1;
+  int run2;
+  int x;
+  int count;
+  int whole_bytes;
+  int n;
+
+  tif = (tiff_t *)tif_;
+  sp = tif->tif_data;
+  a0 = -1;
+  color = sp->fill_white;
+  do {
+    /* 0x696f4-0x6972c: refill the byte when the bit cursor is exhausted. */
+    if (sp->bit == 0 || sp->bit > 7) {
+      if (tif->tif_rawcc <= 0) {
+        FUN_00068a30(module, "%s: Premature EOF at scanline %d", tif->tif_name,
+                     tif->tif_row);
+        return 0;
+      }
+      tif->tif_rawcc--;
+      sp->data = sp->bitmap[*tif->tif_rawcp];
+      tif->tif_rawcp++;
+    }
+    x = ((int)sp->bit << 8) + (int)sp->data;
+    mode = TIFF_FAX_2D_MODE[x];
+    sp->bit = TIFF_FAX_2D_NEXT_STATE[x];
+    switch (mode) {
+    case 0:
+      break;
+    case 1:
+      /* Pass mode, 0x69768-0x6982b. */
+      refline = sp->fill_line;
+      cp = refline + (a0 >> 3);
+      runs = TIFF_FAX_ONERUNS;
+      if (color)
+        runs = TIFF_FAX_ZERORUNS;
+      b2 = a0 + FUN_00069600(a0, npels, runs, &cp);
+      cp = refline + (b2 >> 3);
+      runs = TIFF_FAX_ONERUNS;
+      if (!color)
+        runs = TIFF_FAX_ZERORUNS;
+      b1 = b2 + FUN_00069600(b2, npels, runs, &cp);
+      cp = refline + (b1 >> 3);
+      runs = TIFF_FAX_ONERUNS;
+      if (color)
+        runs = TIFF_FAX_ZERORUNS;
+      b2 = b1 + FUN_00069600(b1, npels, runs, &cp);
+      if (color) {
+        if (a0 < 0)
+          a0 = 0;
+        fillspan((char *)buf, a0, b2 - a0);
+      }
+      a0 = b2;
+      break;
+    case 2:
+      /* Horizontal mode, 0x69830-0x698ac. */
+      if (color == sp->fill_white) {
+        run1 = FUN_00068eb0(tif);
+        run2 = FUN_00068f60(tif);
+      } else {
+        run1 = FUN_00068f60(tif);
+        run2 = FUN_00068eb0(tif);
+      }
+      if (a0 < 0)
+        a0 = 0;
+      if (run1 + a0 > npels)
+        run1 = npels - a0;
+      if (color)
+        fillspan((char *)buf, a0, run1);
+      a0 += run1;
+      if (run2 + a0 > npels)
+        run2 = npels - a0;
+      if (!color)
+        fillspan((char *)buf, a0, run2);
+      a0 += run2;
+      break;
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+      /* Vertical modes, 0x698b1-0x6994f: b1 + (mode - V0), V0 = 6. */
+      refline = sp->fill_line;
+      cp = refline + (a0 >> 3);
+      runs = TIFF_FAX_ONERUNS;
+      if (color)
+        runs = TIFF_FAX_ZERORUNS;
+      b1 = a0 + FUN_00069600(a0, npels, runs, &cp);
+      cp = refline + (b1 >> 3);
+      runs = TIFF_FAX_ONERUNS;
+      if (!color)
+        runs = TIFF_FAX_ZERORUNS;
+      b1 = FUN_00069600(b1, npels, runs, &cp) + (mode + b1) - 6;
+      if (color) {
+        if (a0 < 0)
+          a0 = 0;
+        fillspan((char *)buf, a0, b1 - a0);
+      }
+      color = (unsigned short)(color == 0);
+      a0 = b1;
+      break;
+    case 10:
+      /* Uncompressed mode, 0x69954-0x69a45. */
+      if (a0 < 0)
+        a0 = 0;
+      do {
+        umode = (short)FUN_00069180(tif);
+        switch (umode) {
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+          /* Inlined fillspan(buf, a0 + umode - 2, 1). */
+          x = umode + a0 - 2;
+          bp = buf + (x >> 3);
+          x &= 7;
+          count = 1;
+          if (x == 0) {
+            mask = TIFF_FAX_FILLMASKS[count];
+          } else if (8 - x > count) {
+            mask = (unsigned char)(TIFF_FAX_FILLMASKS[count] >> x);
+          } else {
+            *bp |= (unsigned char)(0xff >> x);
+            bp++;
+            count -= 8 - x;
+            if (count >= 8) {
+              whole_bytes = (int)((unsigned int)count >> 3);
+              n = whole_bytes;
+              while (n > 0) {
+                *bp = 0xff;
+                bp++;
+                n--;
+              }
+              count -= whole_bytes << 3;
+            }
+            mask = TIFF_FAX_FILLMASKS[count];
+          }
+          *bp |= mask;
+          a0 += umode - 1;
+          break;
+        case 7:
+          a0 += 5;
+          break;
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+          a0 += umode - 8;
+          if (FUN_00068bd0(tif))
+            color = (unsigned short)(sp->fill_white == 0);
+          else
+            color = sp->fill_white;
+          break;
+        case 13:
+          FUN_00068a30(module, "%s: Premature EOF at scanline %d",
+                       tif->tif_name, tif->tif_row);
+          return 0;
+        case 14:
+          FUN_00068a30(module, "%s: Bad uncompressed code word at scanline %d",
+                       tif->tif_name, tif->tif_row);
+          goto bad;
+        }
+      } while (umode < 8);
+      break;
+    case 12:
+      /* EOL, 0x69a95: warn and resync unless field_09 bit 1 is set. */
+      if ((tif->field_09 & 2) == 0) {
+        FUN_0006f9d0(module, "%s: Premature EOL at scanline %d (x %d)",
+                     tif->tif_name, tif->tif_row, a0);
+        FUN_00068a70(7, tif);
+        return 1;
+      }
+      /* fall through */
+    case 11:
+      FUN_00068a30(module, "%s: Bad 2D code word at scanline %d", tif->tif_name,
+                   tif->tif_row);
+      goto bad;
+    default:
+      FUN_00068a30(module, "%s: Panic, bad decoding state at scanline %d",
+                   tif->tif_name, tif->tif_row);
+      return 0;
+    }
+  } while (a0 < npels);
+bad:
+  if ((tif->field_09 & 2) == 0)
+    FUN_00068a70(0, tif);
+  return a0 >= npels;
+}
+
 /**
  * Decode `occ` bytes of one CCITT Group 3/4 strip, one row at a time.
  *
@@ -4401,8 +4644,8 @@ int gtStripContig(void *tif, unsigned long *raster, void *img,
     nrow = row + rows_per_strip > h ? h - row : rows_per_strip;
 
     strip = TIFFComputeStrip(tif, row, 0);
-    if (TIFFReadEncodedStrip(
-          tif, strip, buf, (long)(nrow * (unsigned long)scanline_size)) < 0 &&
+    if (TIFFReadEncodedStrip(tif, strip, buf,
+                             (long)(nrow * (unsigned long)scanline_size)) < 0 &&
         stoponerr)
       break;
 
@@ -4412,5 +4655,104 @@ int gtStripContig(void *tif, unsigned long *raster, void *img,
   }
 
   debug_free(buf, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_getimage.c", 0x1cb);
+  return (1);
+}
+
+/**
+ * Decode a stripped, PLANARCONFIG_SEPARATE RGB image into the 32-bit RGBA
+ * raster -- upstream libtiff tif_getimage.c:gtStripSeparate, with its
+ * pickTileSeparateCase() inlined (same inline picker as FUN_0006ba70 above).
+ *
+ * ABI (cdecl, frame `sub esp,0x28` at 0x6be43). Unlike gtStripContig, EBX/
+ * ESI/EDI are all saved in the prologue and initialised before use, so every
+ * parameter is on the stack:
+ *   EBP+0x08  tif
+ *   EBP+0x0c  raster  scaled by `lea ecx,[eax+edx*4]` at 0x6c027
+ *   EBP+0x10  img     forwarded raw into the put call's 5th slot (0x6c017)
+ *   EBP+0x14  h       loop bound (0x6bee2, 0x6c043) and FUN_0006a310 arg
+ *   EBP+0x18  w       toskew/fromskew/raster stride (0x6befc, 0x6c012)
+ *
+ * Order differs from the tile sibling: TIFFStripSize + debug_malloc run
+ * BEFORE the put pick (0x6be4d-0x6be65), and a NULL put reports "Can not
+ * handle format" twice (0x6beb6 from the inlined picker, 0x6bed1 from the
+ * caller's own check) and returns 0 WITHOUT freeing buf (upstream leak).
+ * toskew = TOPLEFT ? -(w+w) : 0; fromskew = w < image_width ? image_width-w
+ * : 0; one strip loop with three plane reads (sample 0/1/2), each breaking
+ * out of the loop on a signed-negative read when stoponerr is set.
+ */
+int gtStripSeparate(void *tif, unsigned long *raster, void *img,
+                    unsigned long h, unsigned long w)
+{
+  tiff_put_separate_proc put;
+  unsigned char *buf;
+  unsigned char *gbuf;
+  unsigned char *bbuf;
+  unsigned long strip_size;
+  unsigned long rows_per_strip;
+  unsigned long image_width;
+  unsigned long row;
+  unsigned long nrow;
+  unsigned long y;
+  long scanline_size;
+  long read_size;
+  long fromskew;
+  long toskew;
+
+  strip_size = TIFFStripSize(tif);
+  buf = (unsigned char *)debug_malloc(
+    strip_size * 3, 0, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_getimage.c",
+    0x1e7);
+  if (buf == 0)
+    return (0);
+  gbuf = buf + strip_size;
+  bbuf = gbuf + strip_size;
+
+  /* inlined pickTileSeparateCase() */
+  put = 0;
+  if (photometric == PHOTOMETRIC_RGB) {
+    put = (bitspersample == 8) ? (tiff_put_separate_proc)FUN_0006b190 :
+                                 (tiff_put_separate_proc)FUN_0006b2d0;
+  }
+  if (put == 0)
+    FUN_00068a30(filename, "Can not handle format");
+
+  if (put == 0) {
+    FUN_00068a30(filename, "Can not handle format");
+    return (0);
+  }
+
+  y = FUN_0006a310(tif, h);
+  toskew = orientation == ORIENTATION_TOPLEFT ? -(long)(w + w) : 0;
+
+  TIFFGetFieldDefaulted(tif, 0x116, &rows_per_strip);
+  TIFFGetField((int)tif, 0x100, &image_width);
+  scanline_size = TIFFScanlineSize((int)tif);
+
+  fromskew = w < image_width ? (long)(image_width - w) : 0;
+
+  for (row = 0; row < h; row += rows_per_strip) {
+    nrow = row + rows_per_strip > h ? h - row : rows_per_strip;
+    read_size = (long)(nrow * (unsigned long)scanline_size);
+
+    if (TIFFReadEncodedStrip(tif, TIFFComputeStrip(tif, row, 0), buf,
+                             read_size) < 0 &&
+        stoponerr)
+      break;
+    if (TIFFReadEncodedStrip(tif, TIFFComputeStrip(tif, row, 1), gbuf,
+                             read_size) < 0 &&
+        stoponerr)
+      break;
+    if (TIFFReadEncodedStrip(tif, TIFFComputeStrip(tif, row, 2), bbuf,
+                             read_size) < 0 &&
+        stoponerr)
+      break;
+
+    (*put)(raster + y * w, buf, gbuf, bbuf, (unsigned char *)img, w, nrow,
+           fromskew, toskew);
+
+    y += orientation == ORIENTATION_TOPLEFT ? -(long)nrow : (long)nrow;
+  }
+
+  debug_free(buf, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_getimage.c", 0x205);
   return (1);
 }

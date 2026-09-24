@@ -1,0 +1,10 @@
+{
+  "description": "system-link split-screen postgame UI",
+  "build_label": "synthetic",
+  "regions": {},
+  "stub_returns": {
+    "network_game_is_splitscreen_local": 1,
+    "network_game_is_quickstart_local": 0,
+    "ui_widget_load_by_name_or_tag": [1]
+  }
+}

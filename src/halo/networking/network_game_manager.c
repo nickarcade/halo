@@ -414,7 +414,7 @@ void network_game_invalidate(void *game)
   }
 
   csmemset(g->players, 0xff, 0x200);
-  g->field_10d = 2;
+  g->minimum_players = 2;
   g->maximum_player_count = 16;
   g->map_loaded = 0;
 }

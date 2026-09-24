@@ -5,9 +5,9 @@
  * FUN_ per naming-confidence rules. No-op when param_1 == -1 (skips both
  * the object lookup and the flag update).
  *
- * Sole caller unit_set_enterable_by_player_evaluate (players.c, HaloScript builtin dispatcher)
- * passes (record[0], zero-extended byte at record+4) and discards the
- * (void) return. */
+ * Sole caller unit_set_enterable_by_player_evaluate (players.c, HaloScript
+ * builtin dispatcher) passes (record[0], zero-extended byte at record+4) and
+ * discards the (void) return. */
 void FUN_001ac030(int param_1, int param_2)
 {
   char *obj;
@@ -113,8 +113,9 @@ void FUN_001ac0a0(int param_1, int param_2)
  *   the ARG_COUNT warning on 0x19b210 ("cleanup=5 vs decl=3") is that merge
  *   -- tag_block_get_element really takes 3 args, do NOT "fix" its decl.
  *
- * Sole caller unit_get_custom_animation_time_evaluate (players.c, HaloScript builtin dispatcher)
- * zero-extends the 16-bit result and forwards it to hs_return. */
+ * Sole caller unit_get_custom_animation_time_evaluate (players.c, HaloScript
+ * builtin dispatcher) zero-extends the 16-bit result and forwards it to
+ * hs_return. */
 int16_t FUN_001AC0E0(int handle)
 {
   char *obj;
@@ -161,6 +162,80 @@ unsigned char FUN_001ac150(int handle)
   if (handle != -1) {
     obj = (char *)object_get_and_verify_type(handle, 3);
     return (unsigned char)(*(char *)(obj + 0x253) == 0x1c);
+  }
+
+  return 0;
+}
+
+/* FUN_001ac180 (0x1ac180)
+ *
+ * Looks up a named animation in an animation graph and, when the chosen
+ * animation block entry's short at +0x20 is 0, starts it on a unit via
+ * unit_set_animation and sets the byte at unit+0x253 to 0x1c. Meanings of
+ * +0x20, +0x34, +0x42 (animation block entry, stride 0xb4) and unit +0x80,
+ * +0x82, +0x248 are UNKNOWN.
+ *
+ * Binary evidence (0x1ac180-0x1ac2e1, cdecl, no FPU):
+ *   object_get_and_verify_type(actor, 3); tag_get('unit', *unit) result is
+ *   discarded; tag_get('antr', anim_tag) kept in EBX.
+ *   animation_graph_get_animation_by_name == -1 -> console_warning(0x29c71c,
+ *   entry, tag_get_name(anim_tag)) and return 0.
+ *   model_animation_choose_random(1, anim_tag, index) result is saved as a
+ *   dword at [EBP-8] and passed later in BX to unit_set_animation
+ *   (@<eax>=actor, @<edi>=anim_tag, @<bx>=choice; no pushes at 0x1ac2a0).
+ *   Entry short +0x20: CMP 1 / JZ exit, then TEST / JNZ exit.
+ *   Unit short +0x82 is loaded zero-extended (XOR ECX / MOV CX) then MOVSX
+ *   for the +2 compare; the store path is DEC ECX / MOV word, return 0.
+ *   do_flag is tested as a byte (MOV AL,[EBP+0x14] / TEST AL,AL). */
+char FUN_001ac180(int actor, int anim_tag, void *entry, int do_flag)
+{
+  char *unit;
+  char *graph;
+  char *element;
+  char *current;
+  short animation_index;
+  short choice;
+  short count;
+  short kind;
+
+  if (actor != -1 && anim_tag != -1) {
+    unit = (char *)object_get_and_verify_type(actor, 3);
+    tag_get(0x756e6974, *(int *)unit);
+    graph = (char *)tag_get(0x616e7472, anim_tag);
+    animation_index =
+      animation_graph_get_animation_by_name(anim_tag, (const char *)entry);
+    if (animation_index != -1) {
+      choice = model_animation_choose_random(1, anim_tag, animation_index);
+      element = (char *)tag_block_get_element(graph + 0x74, (int)choice, 0xb4);
+      kind = *(short *)(element + 0x20);
+      if (kind != 1 && kind == 0) {
+        if (*(char *)(unit + 0x253) == 0x1c && *(short *)(unit + 0x80) != -1) {
+          current = (char *)tag_block_get_element(
+            graph + 0x74, (int)*(short *)(unit + 0x80), 0xb4);
+          if (*(short *)(current + 0x42) == *(short *)(element + 0x42)) {
+            count = *(short *)(unit + 0x82);
+            if (count + 2 == (int)*(short *)(current + 0x34)) {
+              *(short *)(unit + 0x82) = count - 1;
+              return 0;
+            }
+            if (count < *(short *)(current + 0x34)) {
+              return 0;
+            }
+          }
+        }
+        if ((char)do_flag != 0) {
+          object_set_region_count(actor, 6);
+        }
+        *(char *)(unit + 0x253) = 0x1c;
+        unit_set_animation(actor, anim_tag, choice);
+        *(char *)(unit + 0x248) |= 1;
+        object_update_children_recursive(actor);
+        return 1;
+      }
+    } else {
+      console_warning("the animation '%s' doesn't exist in the graph '%s'",
+                      entry, tag_get_name(anim_tag));
+    }
   }
 
   return 0;
@@ -1636,6 +1711,52 @@ char FUN_001cc1c0(int looping_handle, int param_2, void *out_source_data)
     return 1;
   }
   return 0;
+}
+
+/* track_loop_impulse_sound (0x1cc200)
+ *
+ * Looping-sound impulse source update callback (passed by symbol to
+ * sound_start in FUN_001cf100, which also calls it directly once).
+ * Resolves looping_handle in the looping-sounds table (*(data_t **)0x4fdba0)
+ * via datum_absolute_index_to_index; returns 0 (AL) when the datum is gone.
+ * Otherwise fills the 0x40-byte source block:
+ *   +0x38/+0x3c <- entry +0x44/+0x48
+ *   entry short +0xc != 0: +0x24 <- entry +0x30 (12 bytes),
+ *     +0x18 <- entry +0x24 (12 bytes), +0x30/+0x34 <- entry +0x3c/+0x40
+ *   else: +0x18 <- *(vector3_t **)0x31fc3c, +0x24 <- *(vector3_t **)0x31fc38
+ *   +0xc <- track_data (12 bytes)
+ *   source short +0 == 1: +0xc..+0x14 += entry +0x18..+0x20 (entry + source)
+ * and returns 1.  Return width is AL (MOV AL,1 / MOV AL,CL). */
+char track_loop_impulse_sound(int looping_handle, void *track_data,
+                              void *source)
+{
+  char *entry;
+  char *src;
+
+  entry =
+    (char *)datum_absolute_index_to_index(*(data_t **)0x4fdba0, looping_handle);
+  if (entry == (char *)0) {
+    return 0;
+  }
+  src = (char *)source;
+  *(uint32_t *)(src + 0x38) = *(uint32_t *)(entry + 0x44);
+  *(uint32_t *)(src + 0x3c) = *(uint32_t *)(entry + 0x48);
+  if (*(short *)(entry + 0xc) != 0) {
+    *(vector3_t *)(src + 0x24) = *(vector3_t *)(entry + 0x30);
+    *(vector3_t *)(src + 0x18) = *(vector3_t *)(entry + 0x24);
+    *(uint32_t *)(src + 0x30) = *(uint32_t *)(entry + 0x3c);
+    *(uint32_t *)(src + 0x34) = *(uint32_t *)(entry + 0x40);
+  } else {
+    *(vector3_t *)(src + 0x18) = **(vector3_t **)0x0031fc3c;
+    *(vector3_t *)(src + 0x24) = **(vector3_t **)0x0031fc38;
+  }
+  *(vector3_t *)(src + 0xc) = *(vector3_t *)track_data;
+  if (*(short *)src == 1) {
+    *(float *)(src + 0xc) = *(float *)(entry + 0x18) + *(float *)(src + 0xc);
+    *(float *)(src + 0x10) = *(float *)(entry + 0x1c) + *(float *)(src + 0x10);
+    *(float *)(src + 0x14) = *(float *)(entry + 0x20) + *(float *)(src + 0x14);
+  }
+  return 1;
 }
 
 /* FUN_001cc2f0 (0x1cc2f0)

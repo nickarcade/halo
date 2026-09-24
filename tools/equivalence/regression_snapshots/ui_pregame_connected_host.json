@@ -1,0 +1,11 @@
+{
+  "description": "system-link connected host pregame UI",
+  "build_label": "synthetic",
+  "regions": {},
+  "stub_returns": {
+    "network_game_is_splitscreen_local": 0,
+    "global_network_game_server_get": 7340032,
+    "network_game_server_pause_countdown": [0],
+    "ui_widget_load_by_name_or_tag": [1]
+  }
+}

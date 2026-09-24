@@ -389,6 +389,36 @@ char *FUN_0019d3c0(int index, short param_2)
   return "<missing string>";
 }
 
+/* 0x19d420 — UTF-16 string-list counterpart of FUN_0019d3c0.
+ * PAL unicode_string_list_get_string and the 2276 disassembly agree on the
+ * signed 16-bit index, 0x14-byte entry, and in-place UTF-16 terminator.
+ * The low bit of the byte size is discarded by the original SHR before the
+ * final word store.  The fallback is the original wide-string address.
+ */
+int FUN_0019d420(int tag_index, int string_index)
+{
+  int *list;
+  int *entry;
+  int size;
+  uint16_t *data;
+
+  if (tag_index != NONE) {
+    list = (int *)tag_get(0x75737472, tag_index);
+    if ((int16_t)string_index >= 0 && (int)(int16_t)string_index < *list) {
+      entry = (int *)tag_block_get_element(list, (int)(int16_t)string_index,
+                                           0x14);
+      size = *entry;
+      if (size > 0) {
+        data = (uint16_t *)entry[3];
+        data[(size >> 1) - 1] = 0;
+        return (int)data;
+      }
+    }
+  }
+
+  return 0x2b4574;
+}
+
 /* Shared unsigned-compare bound for the u* buffer helpers below
  * (umemchr, umemcmp): both guard asserts name this identifier verbatim
  * ("count < MAXIMUM_MEMCMP_SIZE" / "(count >= 0) && (count <=

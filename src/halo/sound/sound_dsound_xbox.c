@@ -1369,3 +1369,33 @@ void FUN_001cb0c0(int channel_index, void *sound)
     break;
   }
 }
+
+/*
+ * dsound_stream_is_active (0x20f069) -- XDK DirectSound inline, stdcall RET 4.
+ * Loads the media object at stream+0x24 and tests its status dword at +0x8
+ * against 0x10000002; returns 1 when any of those bits is set, else 0.
+ * Bit meanings are unconfirmed.
+ */
+bool __stdcall dsound_stream_is_active(void *stream)
+{
+  return (*(unsigned int *)(*(char **)((char *)stream + 0x24) + 0x8) &
+          0x10000002) != 0;
+}
+
+/*
+ * FUN_0020f081 (0x20f081) -- XDK DirectSound inline, stdcall RET 4.
+ * Loads the media object at stream+0x24 into ECX and calls vtable slot 4
+ * (vtbl+0x10) with two stacked zero args and no caller cleanup:
+ *   MOV ECX,[EAX+0x24]; MOV EAX,[ECX]; PUSH 0; PUSH 0; CALL [EAX+0x10]
+ * The object travels in ECX (thiscall). C89 has no __thiscall, so the
+ * slot is typed __fastcall with an unused EDX slot: ECX=object, the two
+ * zeros stay on the stack, callee cleans. Method semantics unconfirmed.
+ */
+void __stdcall FUN_0020f081(void *stream)
+{
+  void *media_object;
+
+  media_object = *(void **)((char *)stream + 0x24);
+  ((void(__fastcall *)(void *, int, int, int))(*(void ***)media_object)[4])(
+    media_object, 0, 0, 0);
+}

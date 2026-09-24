@@ -339,6 +339,75 @@ class TestRebaselineMerge(unittest.TestCase):
         self.assertEqual(baseline["main_loop"]["addr"], "0x102e40")
 
 
+class TestRebaselineReportGuards(unittest.TestCase):
+    """rebaseline-report must not prune against a leftover pass (2026-09-24)."""
+
+    ADDR = 0x42d80
+
+    def _run(self, pre_epoch, journal_epoch, measured, baseline):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            paths = {
+                "BASELINE_PATH": root / "scores.json",
+                "REBASELINE_PRE_PATH": root / "pre.json",
+                "REBASELINE_JOURNAL_PATH": root / "journal.json",
+                "REBASELINE_REPORT_PATH": root / "report.json",
+                "REPO_ROOT": root,
+            }
+            paths["BASELINE_PATH"].write_text(
+                json.dumps({"version": 2, "scores": baseline}))
+            pre = {"version": 1, "scores": baseline}
+            if pre_epoch:
+                pre["tool_epoch"] = pre_epoch
+            paths["REBASELINE_PRE_PATH"].write_text(json.dumps(pre))
+            journal = {"version": 1, "measured": measured, "flagged": [],
+                       "sources": ["src/x.c"]}
+            if journal_epoch:
+                journal["tool_epoch"] = journal_epoch
+            paths["REBASELINE_JOURNAL_PATH"].write_text(json.dumps(journal))
+            with contextlib.ExitStack() as stack:
+                for name, value in paths.items():
+                    stack.enter_context(patch.object(vc71, name, value))
+                stack.enter_context(
+                    patch.object(vc71, "_tool_epoch", lambda: "now"))
+                stack.enter_context(patch.object(
+                    vc71, "_kb_decl_names_by_addr",
+                    lambda: {self.ADDR: "reply_filter_close"}))
+                stack.enter_context(
+                    patch.object(vc71, "_load_ref_migration", lambda: {}))
+                with contextlib.redirect_stdout(io.StringIO()), \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    rc = vc71.cmd_rebaseline_report(SimpleNamespace(dry_run=False))
+                scores = json.loads(paths["BASELINE_PATH"].read_text())["scores"]
+            return rc, scores
+
+    def _rows(self):
+        entry = {"score": 100.0, "source": "src/x.c", "addr": "0x42d80"}
+        return {"reply_filter_close": dict(entry), "FUN_00042d80": dict(entry)}
+
+    def test_refuses_unstamped_leftover_inputs(self):
+        rc, scores = self._run(None, None, {"FUN_00042d80": {}}, self._rows())
+        self.assertEqual(rc, 1)
+        self.assertIn("reply_filter_close", scores)
+
+    def test_refuses_inputs_from_another_epoch(self):
+        rc, scores = self._run("old", "now", {"FUN_00042d80": {}}, self._rows())
+        self.assertEqual(rc, 1)
+        self.assertIn("reply_filter_close", scores)
+
+    def test_keeps_kb_name_when_only_the_old_alias_was_measured(self):
+        rc, scores = self._run("now", "now", {"FUN_00042d80": {}}, self._rows())
+        self.assertEqual(rc, 0)
+        self.assertIn("reply_filter_close", scores)
+        self.assertIn("FUN_00042d80", scores)
+
+    def test_prunes_the_alias_when_the_kb_name_was_measured(self):
+        rc, scores = self._run("now", "now", {"reply_filter_close": {}},
+                               self._rows())
+        self.assertEqual(rc, 0)
+        self.assertEqual(sorted(scores), ["reply_filter_close"])
+
+
 class TestBaselineDocument(unittest.TestCase):
     def test_version_2_and_sibling_keys_preserved(self):
         with tempfile.TemporaryDirectory() as temp:

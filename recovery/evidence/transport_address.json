@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "struct": "transport_address",
+  "size": {
+    "value": "0x18",
+    "evidence": "FUN_00084520 0x845dc-0x845fb clears six dwords from EBP-0x2c through EBP-0x18 before passing EBP-0x2c to FUN_00083ce0; next independent local starts at EBP-0x14. PAL transport.h also defines a 24-byte transport_address."
+  },
+  "sources": [
+    "FUN_00084520 @0x845dc-0x84601 local bind address initialization",
+    "transport_address_equivalent @0x81a90 assertion IPV4_ADDRESS_LENGTH == a->address_length",
+    "PAL 2342 source/bungie_net/network/transport.h transport_address layout"
+  ],
+  "fields": [
+    {
+      "offset": "0x00",
+      "width": 1,
+      "array_len": 16,
+      "signed": false,
+      "name": "address",
+      "confidence": "typed",
+      "evidence": "transport_address_equivalent compares address bytes from +0 through address_length; address_length is at +0x10"
+    },
+    {
+      "offset": "0x10",
+      "width": 2,
+      "signed": false,
+      "name": "address_length",
+      "confidence": "named",
+      "evidence": "assert string IPV4_ADDRESS_LENGTH == a->address_length; FUN_00084520 0x845fb writes word 4"
+    },
+    {
+      "offset": "0x12",
+      "width": 2,
+      "signed": false,
+      "name": "port",
+      "confidence": "typed",
+      "evidence": "FUN_00084520 0x84708 stores byte-swapped network port at +0x12; PAL transport.h calls field port"
+    },
+    {
+      "offset": "0x14",
+      "width": 4,
+      "signed": false,
+      "confidence": "typed",
+      "evidence": "FUN_00084520 0x845f8 clears dword at bind-address +0x14; PAL transport.h calls this address_type, but 2276 meaning is unproven"
+    }
+  ]
+}

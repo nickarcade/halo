@@ -231,13 +231,14 @@ co(network_server_machine_slot_t, flags,                               0x0e);
 /// Evidence: recovery/evidence/network_game_blob.json
 /// This packed blob is serialized as a 0x434-byte network settings message.
 typedef struct {
-  char pad_00[0x24];              ///< offset=0x00
+  wchar_t game_name[16];          ///< offset=0x00
+  int32_t map_version;            ///< offset=0x20
   char map_name[0x80];            ///< offset=0x24
   game_variant_t game_variant;    ///< offset=0xa4
   char pad_10c[1];                ///< offset=0x10c
-  int8_t field_10d;                ///< offset=0x10d
+  int8_t minimum_players;          ///< offset=0x10d
   int8_t maximum_player_count;    ///< offset=0x10e
-  uint8_t field_10f;               ///< offset=0x10f
+  uint8_t maximum_teams;            ///< offset=0x10f
   int16_t difficulty;             ///< offset=0x110
   int16_t machine_count;          ///< offset=0x112
   network_machine_record_t machines[4]; ///< offset=0x114
@@ -250,11 +251,13 @@ typedef struct {
   char pad_431[3];                ///< offset=0x431
 } network_game_blob_t;
 cs(network_game_blob_t, 0x434);
+co(network_game_blob_t, game_name,               0x00);
+co(network_game_blob_t, map_version,             0x20);
 co(network_game_blob_t, map_name,                0x24);
 co(network_game_blob_t, game_variant,            0xa4);
-co(network_game_blob_t, field_10d,               0x10d);
+co(network_game_blob_t, minimum_players,          0x10d);
 co(network_game_blob_t, maximum_player_count,    0x10e);
-co(network_game_blob_t, field_10f,               0x10f);
+co(network_game_blob_t, maximum_teams,           0x10f);
 co(network_game_blob_t, difficulty,              0x110);
 co(network_game_blob_t, machine_count,           0x112);
 co(network_game_blob_t, machines,                0x114);
@@ -2549,17 +2552,33 @@ co(sound_cache_sound, field_34,           0x34);
  * csmemcmp(a, b, max(a->address_length, b->address_length)) starting at
  * offset 0, so the address bytes occupy the front of the record; only the
  * first IPV4_ADDRESS_LENGTH (4) of them are ever compared at runtime. The
- * 16-byte span is inferred from address_length sitting at +0x10, not proven
- * as the declared address width. Total size is UNKNOWN, so there is no cs()
- * assert and everything past +0x14 is unexamined rather than proven unused.
+ * 16-byte span is inferred from address_length sitting at +0x10. The 24-byte
+ * size and final dword are proven by FUN_00084520's bind-address initializer
+ * at 0x845dc-0x845fb. See recovery/evidence/transport_address.json.
  * ------------------------------------------------------------------------- */
+#define IPV4_ADDRESS_LENGTH 4 /* T1: assert text; stored as 4 at 0x84702 */
+
 typedef struct transport_address {
-    uint8_t  address[0x10];   /* +0x00: address bytes, compared as a block */
+    /* ipv4_address is T1: assert text "address->address.ipv4_address"
+     * (network_client_manager.c 0x2d5). The union layout and the words/bytes
+     * names come from the PAL 2342 reference (transport.h), T2. Our binary
+     * agrees: FUN_00084520 zeroes a transport_address with a dword store at
+     * +0x00, so the first member is 32 bits wide, and transport_address.c
+     * reads the block as 8 words (IPv6) or 4 bytes (IPv4). */
+    union {
+        uint32_t ipv4_address;
+        uint16_t words[8];
+        uint8_t  bytes[0x10];
+    } address;                /* +0x00: address bytes, compared as a block */
     uint16_t address_length;  /* +0x10: asserted == IPV4_ADDRESS_LENGTH */
     uint16_t port;            /* +0x12: compared as a 16-bit value */
+    uint32_t field_14;        /* +0x14: dword cleared at FUN_00084520:0x845f8 */
 } transport_address;
+cs(transport_address, 0x18);
+co(transport_address, address,        0x00);
 co(transport_address, address_length, 0x10);
 co(transport_address, port,           0x12);
+co(transport_address, field_14,       0x14);
 
 /* transport_endpoint -- 8-byte Winsock endpoint (debug_malloc(8) at 0x82d70).
  *
@@ -2580,6 +2599,90 @@ co(transport_endpoint, socket, 0x00);
 co(transport_endpoint, flags,  0x04);
 co(transport_endpoint, type,   0x05);
 co(transport_endpoint, status, 0x06);
+
+/* transport_endpoint.flags bit numbers. Order from the PAL 2342 reference
+ * (transport_endpoint.h), T2. Our binary agrees: "!endpoint_connected(ep)"
+ * (0x266d58, T1) tests bit 0 at 0x84633; a read error clears bit 2
+ * (AND 0xfb, 0x846b7); a lost connection clears bits 0 and 2 (AND 0xfa,
+ * 0x846a8). */
+enum {
+    _transport_endpoint_connected_bit = 0,
+    _transport_endpoint_listening_bit,
+    _transport_endpoint_readable_bit,
+    _transport_endpoint_in_set_bit,
+    _transport_endpoint_nonblocking_bit
+};
+
+/* Transport-layer result/error codes.
+ *
+ * Confirmed: the member NAMES are exact -- each one is the .rdata string the
+ * matching case returns (0x26611c-0x266438), and the leading underscore is
+ * Bungie's usual enum-constant spelling, so the original almost certainly
+ * stringized the constant rather than hand-typing a parallel literal table.
+ * Confirmed: the VALUES are exact -- the dispatch biases the selector by +23
+ * and indexes a 24-entry jump table at 0x81d4c, so table index i selects
+ * selector (i - 23): index 0 is _transport_result_connect_in_progress (-23)
+ * and index 0x17 is _transport_error_none (0).
+ * Uncertain: the enum's TYPE name is not recoverable from the binary (no
+ * assert or string names it), so this stays an anonymous enum rather than
+ * inventing one. */
+enum {
+    _transport_error_none = 0,
+    _transport_error_unknown = -1,
+    _transport_error_endpoint_io = -2,
+    _transport_error_connection_lost = -3,
+    _transport_result_operation_would_block = -4,
+    _transport_error_not_initialized = -5,
+    _transport_result_already_initialized = -6,
+    _transport_error_bad_input_parameters = -7,
+    _transport_error_dns_lookup_failure = -8,
+    _transport_error_out_of_memory = -9,
+    _transport_error_seg_fault = -10,
+    _transport_error_buffers_full = -11,
+    _transport_error_bad_endpoint = -12,
+    _transport_result_poll_timeout = -13,
+    _transport_error_bind_endpoint = -14,
+    _transport_error_address_unknown = -15,
+    _transport_error_connect_failed = -16,
+    _transport_error_listen_failed = -17,
+    _transport_error_options_failed = -18,
+    _transport_error_endpoint_not_in_set = -19,
+    _transport_error_endpoint_set_full = -20,
+    _transport_error_poll_error = -21,
+    _transport_result_dns_lookup_in_progress = -22,
+    _transport_result_connect_in_progress = -23
+};
+
+/* Standard Winsock values used by the transport layer. Each one appears as
+ * an immediate in FUN_00084520: socket(AF_INET, SOCK_DGRAM, 0) at 0x845c3,
+ * and the error switch over WSAGetLastError() is based at 0x2733 (10035). */
+#define INVALID_SOCKET  (-1)
+#define SOCKET_ERROR    (-1)
+#define AF_INET         2
+#define SOCK_DGRAM      2
+#define WSAEWOULDBLOCK  10035
+#define WSAENETRESET    10052
+#define WSAECONNABORTED 10053
+#define WSAECONNRESET   10054
+#define WSAENOTCONN     10057
+#define WSAESHUTDOWN    10058
+#define WSAETIMEDOUT    10060
+
+/* Winsock sockaddr_in (16 bytes). FUN_00084520 reads sin_port at -0x12 and
+ * sin_addr at -0x10 of a 16-byte frame slot based at -0x14. */
+typedef struct in_addr {
+    uint32_t s_addr;
+} in_addr;
+
+typedef struct sockaddr_in {
+    int16_t  sin_family;    ///< offset=0x00
+    uint16_t sin_port;      ///< offset=0x02  network byte order
+    in_addr  sin_addr;      ///< offset=0x04  network byte order
+    uint8_t  sin_zero[8];   ///< offset=0x08
+} sockaddr_in;
+cs(sockaddr_in, 0x10);
+co(sockaddr_in, sin_port, 0x02);
+co(sockaddr_in, sin_addr, 0x04);
 
 /* transport_endpoint_set -- 0x118-byte fd_set wrapper (debug_malloc(0x118)
  * in create_endpoint_set 0x82310). ep_array / max_endpoints are T1 from

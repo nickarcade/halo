@@ -355,9 +355,11 @@ void key_message_xor_keystream(int msg, int len, int keystream, int key_len)
 void tea_encrypt(unsigned int *v, unsigned int *w, int *key)
 {
   unsigned int uVar1;
-  int uVar2;
+  unsigned int uVar2;
   int iVar3;
   unsigned int count;
+  unsigned int right_mix;
+  unsigned int left_mix;
 
   uVar1 = v[0];
   uVar2 = v[1];
@@ -365,11 +367,13 @@ void tea_encrypt(unsigned int *v, unsigned int *w, int *key)
   count = 0x20;
 
   do {
-    iVar3 = iVar3 + (int)0x9E3779B9u; /* -0x61c88647 mod 2^32 */
-    uVar1 += (((uVar2 << 4) + key[0]) ^ (uVar2 + (unsigned int)iVar3)) ^
-             ((uVar2 >> 5) + key[1]);
-    uVar2 += (((uVar1 << 4) + key[2]) ^ (uVar1 + (unsigned int)iVar3)) ^
-             ((uVar1 >> 5) + key[3]);
+    iVar3 = (int)((unsigned int)iVar3 + 0x9E3779B9u);
+    right_mix = (uVar2 >> 5) + key[1];
+    left_mix = (uVar2 << 4) + key[0];
+    uVar1 += (right_mix ^ left_mix) ^ (uVar2 + (unsigned int)iVar3);
+    right_mix = (uVar1 >> 5) + key[3];
+    left_mix = (uVar1 << 4) + key[2];
+    uVar2 += (right_mix ^ left_mix) ^ (uVar1 + (unsigned int)iVar3);
     count = count - 1;
   } while (count != 0);
 
@@ -383,10 +387,12 @@ void tea_encrypt(unsigned int *v, unsigned int *w, int *key)
  * Starting sum = 0xC6EF3720 = 32 * TEA_DELTA. Runs 32 rounds. */
 void tea_decrypt(unsigned int *v, unsigned int *w, int *key)
 {
-  int uVar1;
+  unsigned int uVar1;
   unsigned int uVar2;
   int iVar3;
   unsigned int count;
+  unsigned int right_mix;
+  unsigned int left_mix;
 
   uVar2 = v[0];
   uVar1 = v[1];
@@ -394,11 +400,13 @@ void tea_decrypt(unsigned int *v, unsigned int *w, int *key)
   count = 0x20;
 
   do {
-    uVar1 -= (((uVar2 << 4) + key[2]) ^ (uVar2 + (unsigned int)iVar3)) ^
-             ((uVar2 >> 5) + key[3]);
-    uVar2 -= (((uVar1 << 4) + key[0]) ^ (uVar1 + (unsigned int)iVar3)) ^
-             ((uVar1 >> 5) + key[1]);
-    iVar3 = iVar3 + 0x61c88647;
+    right_mix = (uVar2 >> 5) + key[3];
+    left_mix = (uVar2 << 4) + key[2];
+    uVar1 -= (right_mix ^ left_mix) ^ (uVar2 + (unsigned int)iVar3);
+    right_mix = (uVar1 >> 5) + key[1];
+    left_mix = (uVar1 << 4) + key[0];
+    uVar2 -= (right_mix ^ left_mix) ^ (uVar1 + (unsigned int)iVar3);
+    iVar3 = (int)((unsigned int)iVar3 + 0x61c88647u);
     count = count - 1;
   } while (count != 0);
 

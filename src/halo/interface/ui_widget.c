@@ -927,6 +927,41 @@ bool should_flip_sticks_for_local_player(int16_t local_player_index)
   return (control_scheme == 1) || (control_scheme == 3);
 }
 
+/* remap_sticks_for_local_player (0xe4da0) — jump table on icon_type - 0x10
+ * (0..0xf). Icon types 0x10/0x1e (left-stick/move) return 0x10 plus 1 when
+ * should_flip_sticks_for_local_player(local_player_index) is true; icon types
+ * 0x11/0x1f (right-stick/look) return 0x11 minus 1 in that case. Each path
+ * first asserts the get_icon_type() table indices (ui_widget.c lines
+ * 0x1093/0x1094 and 0x109a/0x109b). All other icon types are returned
+ * unchanged. */
+short remap_sticks_for_local_player(short icon_type, int local_player_index)
+{
+  switch (icon_type) {
+  case 0x10:
+  case 0x1e:
+    assert_halt_msg_at("16 == get_icon_type(L\"left-stick\")",
+                       "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x1093,
+                       get_icon_type(L"left-stick") == 0x10);
+    assert_halt_msg_at("30 == get_icon_type(L\"move\")",
+                       "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x1094,
+                       get_icon_type(L"move") == 0x1e);
+    return (short)(should_flip_sticks_for_local_player(
+                     (int16_t)local_player_index) != 0) +
+           0x10;
+  case 0x11:
+  case 0x1f:
+    assert_halt_msg_at("17 == get_icon_type(L\"right-stick\")",
+                       "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x109a,
+                       get_icon_type(L"right-stick") == 0x11);
+    assert_halt_msg_at("31 == get_icon_type(L\"look\")",
+                       "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x109b,
+                       get_icon_type(L"look") == 0x1f);
+    return (short)(0x11 - (should_flip_sticks_for_local_player(
+                             (int16_t)local_player_index) != 0));
+  }
+  return icon_type;
+}
+
 /* widget_instance_give_focus_directly — applies focus to target_widget within
  * the root's focus chain. Walks to the top-most parent (+0x30), snapshots the
  * current focused-descendant chain head (+0x38), optionally retargets when the
@@ -2598,6 +2633,50 @@ done:
     error(2, "failed to initialize the virtual keyboard");
   }
   *(uint8_t *)0x31e050 = 0;
+}
+
+/* 0xe8830 — Return the client to its pregame screen after a network game.
+ * The 2276 body closes widgets first and selects one of four screens based
+ * on split-screen, quickstart, and local-host state.  The connected host
+ * pauses the server countdown before opening map selection.
+ */
+void network_game_reset_to_pregame_ui(void)
+{
+  void *server;
+
+  ui_widgets_close_all();
+  if (network_game_is_splitscreen_local()) {
+    if (network_game_is_quickstart_local()) {
+      if (ui_widget_load_by_name_or_tag(
+            "ui\\shell\\main_menu\\multiplayer_type_select\\split_screen\\pregame\\splitscreen_pregame_wrapper_normal",
+            -1, 0, -1, -1, -1, -1) == 0) {
+        error(2, "failed to load pregame screen after quickstart match");
+      }
+    } else {
+      if (ui_widget_load_by_name_or_tag(
+            "ui\\shell\\main_menu\\multiplayer_type_select\\split_screen\\splitscreen_map_select_postgame_wrapper",
+            -1, 0, -1, -1, -1, -1) == 0) {
+        error(2, "failed to load map select postgame screen");
+      }
+    }
+  } else {
+    server = global_network_game_server_get();
+    if (server != 0) {
+      server = global_network_game_server_get();
+      network_game_server_pause_countdown(server, 1);
+      if (ui_widget_load_by_name_or_tag(
+            "ui\\shell\\main_menu\\multiplayer_type_select\\connected\\connected_map_select_postgame_wrapper",
+            -1, 0, -1, -1, -1, -1) == 0) {
+        error(2, "failed to load map select postgame screen");
+      }
+    } else {
+      if (ui_widget_load_by_name_or_tag(
+            "ui\\shell\\main_menu\\multiplayer_type_select\\connected\\pregame\\connected_pregame_screen",
+            -1, 0, -1, -1, -1, -1) == 0) {
+        error(2, "failed to load networked pregame status screen");
+      }
+    }
+  }
 }
 
 void ui_widget_display_error(int16_t error_handle, int local_player_index,

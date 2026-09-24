@@ -831,6 +831,15 @@ void *FUN_001c1950(void *param_1, int param_2)
   return param_1;
 }
 
+/* 0x1c19a0
+ * PAL player_profile_get_random_good_color.  The 2276 body passes the local
+ * random seed and inclusive bounds [0, 3] to seed_random_range.
+ */
+int FUN_001c19a0(void)
+{
+  return (int)seed_random_range(random_math_get_local_seed_address(), 0, 3);
+}
+
 /* 0x1c19c0
  * Returns a random value in [0, 0x11] (0-17 inclusive) using the local
  * random seed. Single caller: get_unique_random_color.
