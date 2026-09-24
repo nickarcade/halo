@@ -33108,8 +33108,9 @@
     },
     {
      "addr": "0x107d40",
-     "decl": "void convex_hull3d_test_point(void);",
-     "comment": "[NAME: convex_hull3d_test_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "boolean convex_hull3d_test_point(uint32_t unused_param_1, uint32_t unused_param_2, uint32_t unused_param_3, uint32_t unused_param_4, uint32_t unused_param_5, uint32_t unused_param_6, int16_t surface_count, char *surfaces, real *point);",
+     "comment": "[NAME: convex_hull3d_test_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x107db0",

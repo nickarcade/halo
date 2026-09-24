@@ -15545,6 +15545,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x107d40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1089a0": {
       "kind": "function",
       "status": "ported"

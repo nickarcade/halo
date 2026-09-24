@@ -54373,6 +54373,21 @@
       "score": 100.0,
       "source": "src/halo/math/rectangles.c"
     },
+    "convex_hull3d_test_point": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 94.5,
+      "addr": "0x107d40",
+      "end": "0x107da6",
+      "kind": "auto",
+      "n_r": 46,
+      "opnd_percent": 92.3,
+      "raw_mnemonic_pct": 94.5,
+      "ref": "synth",
+      "ref_sha": "4001143d99fbe791",
+      "score": 94.5,
+      "source": "src/halo/math/rectangles.c"
+    },
     "convex_polygon2d_clip_to_plane": {
       "abi_model": "raw",
       "abi_model_items": 0,

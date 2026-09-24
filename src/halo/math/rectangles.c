@@ -50,6 +50,73 @@ bool convex_hull3d(int16_t point_count, float *points,
   return 1;
 }
 
+/* Test whether a point lies inside every valid face of a 3D convex hull
+ * (0x107d40).
+ * `surfaces` is a char* blob array, stride 0x1c, matching the raw-offset
+ * style already used for convex_hull3d/convex_hull3d_expand's vertices/
+ * edges/surfaces params in this file. Per-surface record (bytes proven by
+ * this function's own accesses; layout past 0x10 is unproven -- stride is
+ * 0x1c but nothing beyond 0x10 is ever read here):
+ *   +0x00 flag (uint8_t)   -- surface active/valid when nonzero
+ *   +0x04 real normal.x
+ *   +0x08 real normal.y
+ *   +0x0c real normal.z
+ *   +0x10 real d (plane distance)
+ * xrefs_to is empty for this address (no callers found in this binary), so
+ * the true parameter count/types cannot be confirmed from any call site.
+ * The disassembly proves only 3 stack reads, at EBP+0x20 (surface_count,
+ * word), EBP+0x24 (surfaces, dword) and EBP+0x28 (point, dword) -- i.e. the
+ * 7th/8th/9th cdecl argument slots. EBP+0x08..+0x1c (the first six 4-byte
+ * slots) are never read by this function body. Rather than invent a
+ * signature for that unread region, it is preserved here as six explicit
+ * unused parameters so the three real parameters keep their proven stack
+ * offsets; nothing supports a guess at their real types/count.
+ * Per-surface test order and grouping match the FPU trace exactly (FP
+ * addition is bit-exact commutative, but grouping affects rounding and is
+ * preserved): dot = (normal.z*point.z + normal.y*point.y) + normal.x*point.x;
+ * a surface fails the point when *(float *)0x31fb40 (0.001f) < (dot - d), at
+ * which point the function returns false immediately (short-circuit over the
+ * whole array, not just skipping one surface). Comparison uses FCOMP +
+ * FNSTSW AX + TEST AH,0x41 (fails only when strictly greater, not on <=, ==,
+ * or unordered). surface_count/loop index are compared as signed 16-bit
+ * (TEST DI,DI / JLE, CMP CX,DI / JL), matching int16_t.
+ * 0x31fb40 has no prior name/declaration anywhere in this codebase; per the
+ * precedent in real_math.c's angular_accelerate_to_position (which
+ * dereferences fixed rdata addresses like 0x2533c0/0x2533c8/0x255e94
+ * in-line rather than inventing a named global), it is dereferenced directly
+ * here rather than declared as an extern DAT_ symbol. */
+boolean
+convex_hull3d_test_point(uint32_t unused_param_1, uint32_t unused_param_2,
+                         uint32_t unused_param_3, uint32_t unused_param_4,
+                         uint32_t unused_param_5, uint32_t unused_param_6,
+                         int16_t surface_count, char *surfaces, real *point)
+{
+  int16_t i;
+  char *surface;
+  real dot;
+
+  (void)unused_param_1;
+  (void)unused_param_2;
+  (void)unused_param_3;
+  (void)unused_param_4;
+  (void)unused_param_5;
+  (void)unused_param_6;
+
+  for (i = 0; i < surface_count; i++) {
+    surface = surfaces + i * 0x1c;
+    if (*surface != 0) {
+      dot = (*(real *)(surface + 0xc) * point[2] +
+             *(real *)(surface + 8) * point[1]) +
+            *(real *)(surface + 4) * point[0];
+      if (*(float *)0x31fb40 < dot - *(real *)(surface + 0x10)) {
+        return 0;
+      }
+    }
+  }
+
+  return 1;
+}
+
 /* Store a 2D rectangle (0x1089a0).
  * rect layout: {top, left, bottom, right} as int16_t[4].
  * Store order follows the binary: left, top, right, bottom. */
