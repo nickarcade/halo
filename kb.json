@@ -32510,7 +32510,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int IDirect3DDevice8_SetVertexData4f_0(x param_1, x param_2, x param_3, x param_4, x param_5, x)(unsigned int a0, unsigned int a1, unsigned int a2, unsigned int a3, unsigned int a4, unsigned int a5);",
+          "decl": "int __stdcall IDirect3DDevice8_SetVertexData4f_0(void *device, uint32_t reg, float a, float b, float c, float d);",
           "addr": "0x16de80",
           "ported": true
         },
@@ -32756,7 +32756,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int IDirect3DDevice8_SetVertexData4f(x param_1, x param_2, x param_3, x param_4, x param_5, x)(unsigned int a0, unsigned int a1, unsigned int a2, unsigned int a3, unsigned int a4, unsigned int a5);",
+          "decl": "int __stdcall IDirect3DDevice8_SetVertexData4f(void *device, uint32_t reg, float a, float b, float c, float d);",
           "addr": "0x17ad40",
           "ported": true
         },
@@ -33058,7 +33058,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int IDirect3DDevice8_SetVertexData4f_3(x param_1, x param_2, x param_3, x param_4, x param_5, x)(unsigned int a0, unsigned int a1, unsigned int a2, unsigned int a3, unsigned int a4, unsigned int a5);",
+          "decl": "int __stdcall IDirect3DDevice8_SetVertexData4f_3(void *device, uint32_t reg, float a, float b, float c, float d);",
           "addr": "0x15a4f0",
           "ported": true
         },
@@ -33217,7 +33217,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int IDirect3DDevice8_SetVertexData4f_2(x param_1, x param_2, x param_3, x param_4, x param_5, x)(unsigned int a0, unsigned int a1, unsigned int a2, unsigned int a3, unsigned int a4, unsigned int a5);",
+          "decl": "int __stdcall IDirect3DDevice8_SetVertexData4f_2(void *device, uint32_t reg, float a, float b, float c, float d);",
           "addr": "0x15c600",
           "ported": true
         },
@@ -34858,7 +34858,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int IDirect3DDevice8_SetVertexData4f_1(x param_1, x param_2, x param_3, x param_4, x param_5, x)(unsigned int a0, unsigned int a1, unsigned int a2, unsigned int a3, unsigned int a4, unsigned int a5);",
+          "decl": "int __stdcall IDirect3DDevice8_SetVertexData4f_1(void *device, uint32_t reg, float a, float b, float c, float d);",
           "addr": "0x169670",
           "ported": true
         },
@@ -34913,7 +34913,7 @@
           "addr": "0x16b2b0"
         },
         {
-          "decl": "void __rasterizer_model_begin(uint32_t *param_1, char a1) // param_2, warn: iteboolean: re-rolled 1 0/1 select param_3);",
+          "decl": "void __rasterizer_model_begin(void *param_1, int param_2);",
           "addr": "0x16bed0",
           "ported": true
         },
@@ -34923,7 +34923,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_model_draw(int a0, unsigned int a1, unsigned int a2, unsigned int a3, int a4, short *param_6, unsigned int a6) // return-dupe x2, warn: iteboolean: re-rolled 1 0/1 select param_8);",
+          "decl": "void __rasterizer_model_draw(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7);",
           "addr": "0x16c5a0"
         }
       ]
