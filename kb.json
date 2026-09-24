@@ -33038,7 +33038,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 rasterizer_active_camouflage_draw(uint32_t *group);",
+          "decl": "void rasterizer_active_camouflage_draw(void *group);",
           "addr": "0x159900",
           "ported": true
         },
@@ -33727,7 +33727,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 rasterizer_frame_statistics_get_fps(real *stats_out);",
+          "decl": "void rasterizer_frame_statistics_get_fps(float *stats_out);",
           "addr": "0x17ebb0",
           "ported": true
         },
@@ -33818,7 +33818,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 environment_lightmap_vertex_compressed_get_texcoord(int param_1, real *param_2);",
+          "decl": "void environment_lightmap_vertex_compressed_get_texcoord(int param_1, float *param_2);",
           "addr": "0x1806e0",
           "ported": true
         },
@@ -33921,7 +33921,7 @@
           "ported": true
         },
         {
-          "decl": "code * rasterizer_memory_alloc(int data, int size);",
+          "decl": "int rasterizer_memory_alloc(int data, int size);",
           "addr": "0x182530",
           "ported": true
         },
@@ -34533,7 +34533,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 __rasterizer_environment_lightmap_begin(int param_1);",
+          "decl": "void __rasterizer_environment_lightmap_begin(int param_1);",
           "addr": "0x160dc0",
           "ported": true
         },
@@ -34615,7 +34615,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_reflection_draw(int a0, unsigned int a1, unsigned int a2, unsigned int a3, int a4, unsigned short *param_6, warn: iteboolean: re-rolled 1 0/1 select param_7);",
+          "decl": "void __rasterizer_environment_reflection_draw(void *shader, int frame_index, int vertices_per_primitive, int a4, int triangle_count, void *vertex_buffer);",
           "addr": "0x164cf0",
           "ported": true
         },
@@ -34666,7 +34666,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 __rasterizer_environment_fog_screen_wind_get_vector(short index, real scale, real *out);",
+          "decl": "void __rasterizer_environment_fog_screen_wind_get_vector(int16_t index, float scale, float *out);",
           "addr": "0x165de0",
           "ported": true
         },
@@ -34701,7 +34701,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 __rasterizer_environment_fog_screen_begin(short pass);",
+          "decl": "void __rasterizer_environment_fog_screen_begin(int16_t pass);",
           "addr": "0x166890",
           "ported": true
         },
@@ -35023,7 +35023,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 __rasterizer_widget_submit(unsigned int param_1, unsigned int param_2, real *centroid, int param_4);",
+          "decl": "void __rasterizer_widget_submit(unsigned int arg_4c, unsigned int arg_50, float *centroid, unsigned int arg_48);",
           "addr": "0x17ae90",
           "ported": true
         },
@@ -35048,12 +35048,12 @@
           "ported": true
         },
         {
-          "decl": "undefined10 __rasterizer_widget_draw_sprite2d(real *point, real radius, real *scale, int texcoord_repeat, real theta, unsigned int color);",
+          "decl": "void __rasterizer_widget_draw_sprite2d(float *point, float radius, float *scale, float *texcoord_repeat, float theta, unsigned int color);",
           "addr": "0x17b5c0",
           "ported": true
         },
         {
-          "decl": "undefined10 __rasterizer_widget_draw_sprite3d(real point, real radius, real *scale, real theta, unsigned int color);",
+          "decl": "void __rasterizer_widget_draw_sprite3d(float *point, float radius, float *scale, float theta, unsigned int color);",
           "addr": "0x17b7d0"
         }
       ]
@@ -36556,7 +36556,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 render_debug_add_cache_entry(unsigned int a0, unsigned int *param_2, unsigned int a2, unsigned int *param_4, unsigned int *param_5, unsigned int *param_6, unsigned int a6, unsigned int *param_8, float8 a8);",
+          "decl": "void render_debug_add_cache_entry(int type, ...);",
           "addr": "0x188ec0"
         },
         {
@@ -37427,7 +37427,7 @@
       "source": "shaders/shaders.c",
       "functions": [
         {
-          "decl": "undefined10 scenario_get_current_from_weather_palette(unsigned int position, real *out, unsigned char flags, real sky_index);",
+          "decl": "void scenario_get_current_from_weather_palette(float *position, float *out, uint32_t flags, int16_t sky_index);",
           "addr": "0x190240",
           "ported": true
         },
@@ -37540,7 +37540,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 shader_texture_animation_evaluate(short *map_animation, int external_animation, real u_scale, real v_scale, real u_offset, real v_offset, real rotation, real time, real *out_u, real *out_v);",
+          "decl": "void shader_texture_animation_evaluate(void *map_animation, void *external_animation, float u_scale, float v_scale, float u_offset, float v_offset, float rotation, float time, float *out_u, float *out_v);",
           "addr": "0x190e10"
         }
       ]
@@ -38648,7 +38648,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 structure_render_detail_objects(void);",
+          "decl": "void structure_render_detail_objects(void);",
           "addr": "0x193c00",
           "ported": true
         }
@@ -38709,7 +38709,7 @@
           "addr": "0x196b10"
         },
         {
-          "decl": "unsigned short * structure_visibility_find_objects(int out_handles, short max_count, code *iter_first, code *iter_next, code *get_bounds, code *needs_update, code *mark);",
+          "decl": "short structure_visibility_find_objects(int out_handles, short max_count, void *iter_first, void *iter_next, void *get_bounds, void *needs_update, void *mark);",
           "addr": "0x196c90",
           "ported": true
         },
@@ -38753,7 +38753,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 project_point3d(int point, short projection, unsigned char sign, unsigned int *out_projected);",
+          "decl": "void project_point3d(void *point, short projection, unsigned char sign, void *out_projected);",
           "addr": "0x61df0",
           "ported": true
         },
@@ -38803,7 +38803,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 obstacles_disc_neighborhood(int partition, real param_2, int index, int out_mask);",
+          "decl": "void obstacles_disc_neighborhood(int16_t *partition, uint32_t arg2, int16_t index, uint32_t *out_mask);",
           "addr": "0x62680",
           "ported": true
         },
@@ -38888,7 +38888,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 build_torus(unsigned int matrix, unsigned short *out_vertex_count, unsigned short *out_index_run_count, real *out_positions, real *out_texcoords, short *out_indices, short ring_segment_count, real param_8, int cylinder_segment_count, real param_10);",
+          "decl": "void build_torus(float *matrix, short *out_vertex_count, short *out_index_run_count, float *out_positions, float *out_texcoords, short *out_indices, short ring_segment_count, float param_8, int cylinder_segment_count, float param_10);",
           "addr": "0x105980",
           "ported": true
         },
@@ -39063,7 +39063,7 @@
           "ported": true
         },
         {
-          "decl": "undefined10 leaf_map_get_leaf_bounds(int *bsp, int *leaf_index, real *out_center, real *out_radius);",
+          "decl": "void leaf_map_get_leaf_bounds(void *bsp, unsigned int leaf_index, float *out_center, float *out_radius);",
           "addr": "0x192390",
           "ported": true
         },
@@ -39198,7 +39198,7 @@
           "ported": true
         },
         {
-          "decl": "void structure_render_shadow(int center, int radius_x4, int bounds6, unsigned int count, code *planes6);",
+          "decl": "void structure_render_shadow(float *center, float radius_x4, float *bounds6, int count, float *planes6);",
           "addr": "0x196190",
           "ported": true
         },
