@@ -26413,8 +26413,9 @@
     },
     {
      "addr": "0x1cc200",
-     "decl": "void track_loop_impulse_sound(int looping_handle, void *track_data, void *source);",
-     "comment": "[NAME: track_loop_impulse_sound \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "char track_loop_impulse_sound(int looping_handle, void *track_data, void *source);",
+     "comment": "[NAME: track_loop_impulse_sound \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1cc2f0",

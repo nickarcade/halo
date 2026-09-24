@@ -5,9 +5,9 @@
  * FUN_ per naming-confidence rules. No-op when param_1 == -1 (skips both
  * the object lookup and the flag update).
  *
- * Sole caller unit_set_enterable_by_player_evaluate (players.c, HaloScript builtin dispatcher)
- * passes (record[0], zero-extended byte at record+4) and discards the
- * (void) return. */
+ * Sole caller unit_set_enterable_by_player_evaluate (players.c, HaloScript
+ * builtin dispatcher) passes (record[0], zero-extended byte at record+4) and
+ * discards the (void) return. */
 void FUN_001ac030(int param_1, int param_2)
 {
   char *obj;
@@ -113,8 +113,9 @@ void FUN_001ac0a0(int param_1, int param_2)
  *   the ARG_COUNT warning on 0x19b210 ("cleanup=5 vs decl=3") is that merge
  *   -- tag_block_get_element really takes 3 args, do NOT "fix" its decl.
  *
- * Sole caller unit_get_custom_animation_time_evaluate (players.c, HaloScript builtin dispatcher)
- * zero-extends the 16-bit result and forwards it to hs_return. */
+ * Sole caller unit_get_custom_animation_time_evaluate (players.c, HaloScript
+ * builtin dispatcher) zero-extends the 16-bit result and forwards it to
+ * hs_return. */
 int16_t FUN_001AC0E0(int handle)
 {
   char *obj;
@@ -1636,6 +1637,52 @@ char FUN_001cc1c0(int looping_handle, int param_2, void *out_source_data)
     return 1;
   }
   return 0;
+}
+
+/* track_loop_impulse_sound (0x1cc200)
+ *
+ * Looping-sound impulse source update callback (passed by symbol to
+ * sound_start in FUN_001cf100, which also calls it directly once).
+ * Resolves looping_handle in the looping-sounds table (*(data_t **)0x4fdba0)
+ * via datum_absolute_index_to_index; returns 0 (AL) when the datum is gone.
+ * Otherwise fills the 0x40-byte source block:
+ *   +0x38/+0x3c <- entry +0x44/+0x48
+ *   entry short +0xc != 0: +0x24 <- entry +0x30 (12 bytes),
+ *     +0x18 <- entry +0x24 (12 bytes), +0x30/+0x34 <- entry +0x3c/+0x40
+ *   else: +0x18 <- *(vector3_t **)0x31fc3c, +0x24 <- *(vector3_t **)0x31fc38
+ *   +0xc <- track_data (12 bytes)
+ *   source short +0 == 1: +0xc..+0x14 += entry +0x18..+0x20 (entry + source)
+ * and returns 1.  Return width is AL (MOV AL,1 / MOV AL,CL). */
+char track_loop_impulse_sound(int looping_handle, void *track_data,
+                              void *source)
+{
+  char *entry;
+  char *src;
+
+  entry =
+    (char *)datum_absolute_index_to_index(*(data_t **)0x4fdba0, looping_handle);
+  if (entry == (char *)0) {
+    return 0;
+  }
+  src = (char *)source;
+  *(uint32_t *)(src + 0x38) = *(uint32_t *)(entry + 0x44);
+  *(uint32_t *)(src + 0x3c) = *(uint32_t *)(entry + 0x48);
+  if (*(short *)(entry + 0xc) != 0) {
+    *(vector3_t *)(src + 0x24) = *(vector3_t *)(entry + 0x30);
+    *(vector3_t *)(src + 0x18) = *(vector3_t *)(entry + 0x24);
+    *(uint32_t *)(src + 0x30) = *(uint32_t *)(entry + 0x3c);
+    *(uint32_t *)(src + 0x34) = *(uint32_t *)(entry + 0x40);
+  } else {
+    *(vector3_t *)(src + 0x18) = **(vector3_t **)0x0031fc3c;
+    *(vector3_t *)(src + 0x24) = **(vector3_t **)0x0031fc38;
+  }
+  *(vector3_t *)(src + 0xc) = *(vector3_t *)track_data;
+  if (*(short *)src == 1) {
+    *(float *)(src + 0xc) = *(float *)(entry + 0x18) + *(float *)(src + 0xc);
+    *(float *)(src + 0x10) = *(float *)(entry + 0x1c) + *(float *)(src + 0x10);
+    *(float *)(src + 0x14) = *(float *)(entry + 0x20) + *(float *)(src + 0x14);
+  }
+  return 1;
 }
 
 /* FUN_001cc2f0 (0x1cc2f0)
