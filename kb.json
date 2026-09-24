@@ -13642,21 +13642,21 @@
           "addr": "0x74fb0"
         },
         {
-          "decl": "short extract_bitmap_to_group(void *bitmap /*@<eax> */);",
+          "decl": "short extract_bitmap_to_group(void *bitmap /* @<eax> */);",
           "addr": "0x75380",
           "ported": true
         },
         {
-          "decl": "uint32_t process_3d_bitmaps(void);",
+          "decl": "char process_3d_bitmaps(void);",
           "addr": "0x75630",
           "ported": true
         },
         {
-          "decl": "unsigned int process_cube_maps(void);",
+          "decl": "char process_cube_maps(void);",
           "addr": "0x75800"
         },
         {
-          "decl": "uint32_t process_sprites(void);",
+          "decl": "char process_sprites(void);",
           "addr": "0x75a20",
           "ported": true
         },
@@ -13665,7 +13665,7 @@
           "addr": "0x75e70"
         },
         {
-          "decl": "uint32_t extract_no_plate(unsigned int a0);",
+          "decl": "char extract_no_plate(void);",
           "addr": "0x76300",
           "ported": true
         },
@@ -13674,72 +13674,72 @@
           "addr": "0x76410"
         },
         {
-          "decl": "uint32_t extract_plate(unsigned int a0);",
+          "decl": "char extract_plate(void);",
           "addr": "0x766e0",
           "ported": true
         },
         {
-          "decl": "unsigned int bitmaps_extract(short *group, unsigned int param_3);",
+          "decl": "char bitmaps_extract(void *group, int param_3);",
           "addr": "0x76790",
           "ported": true
         },
         {
-          "decl": "uint32_t bitmaps_extract_from_plate(int plate, int group, unsigned int param_3);",
+          "decl": "char bitmaps_extract_from_plate(void *plate, void *group, int param_3);",
           "addr": "0x76a70",
           "ported": true
         },
         {
-          "decl": "void delete_bitmap(unsigned int tag_block, unsigned int index);",
+          "decl": "void delete_bitmap(void *tag_block, int index);",
           "addr": "0x76bb0",
           "ported": true
         },
         {
-          "decl": "unsigned int postprocess_bitmap_group(unsigned int tag_index);",
+          "decl": "char postprocess_bitmap_group(int tag_index);",
           "addr": "0x76bd0",
           "ported": true
         },
         {
-          "decl": "unsigned int bitmap_group_try_and_get_bitmap(unsigned int tag_index, short bitmap_index);",
+          "decl": "void *bitmap_group_try_and_get_bitmap(int tag_index, short bitmap_index);",
           "addr": "0x76ff0",
           "ported": true
         },
         {
-          "decl": "unsigned int bitmap_group_get_bitmap_from_sequence(int tag_index, short sequence_index, unsigned int frame_index);",
+          "decl": "void *bitmap_group_get_bitmap_from_sequence(int tag_index, short sequence_index, short frame_index);",
           "addr": "0x77040",
           "ported": true
         },
         {
-          "decl": "unsigned int bitmap_group_add_bitmap(short *group, uint32_t type, uint32_t width, int height, unsigned short depth, int format, unsigned short mipmap_count);",
+          "decl": "short bitmap_group_add_bitmap(void *group, short type, short width, short height, short depth, short format, short mipmap_count);",
           "addr": "0x77120",
           "ported": true
         },
         {
-          "decl": "void bitmap_fill(unsigned int bitmap, unsigned int fill_color);",
+          "decl": "void bitmap_fill(void *bitmap, int fill_color);",
           "addr": "0x77510",
           "ported": true
         },
         {
-          "decl": "void bitmap_alpha_to_rgb(unsigned int bitmap);",
+          "decl": "void bitmap_alpha_to_rgb(void *bitmap);",
           "addr": "0x77540",
           "ported": true
         },
         {
-          "decl": "int bitmap_clone(int bitmap);",
+          "decl": "void *bitmap_clone(void *bitmap);",
           "addr": "0x77590",
           "ported": true
         },
         {
-          "decl": "void *bitmap_2d_shrink(short scale /*@<eax> */, void *source_bitmap, short brightness_adjust, char alpha_weighted);",
+          "decl": "void *bitmap_2d_shrink(short scale /* @<eax> */, void *source_bitmap, short brightness_adjust, char alpha_weighted);",
           "addr": "0x77720",
           "ported": true
         },
         {
-          "decl": "void *bitmap_3d_shrink(short scale /*@<eax> */, void *source_bitmap, short brightness_adjust, char alpha_weighted);",
+          "decl": "void *bitmap_3d_shrink(short scale /* @<eax> */, void *source_bitmap, short brightness_adjust, char alpha_weighted);",
           "addr": "0x779b0",
           "ported": true
         },
         {
-          "decl": "int bitmap_cm_shrink(int source_bitmap, unsigned int scale, unsigned int brightness_adjust, unsigned int param_4);",
+          "decl": "void *bitmap_cm_shrink(void *source_bitmap, short scale, int brightness_adjust, int alpha_weighted);",
           "addr": "0x77cd0",
           "ported": true
         },
@@ -13749,17 +13749,17 @@
           "ported": true
         },
         {
-          "decl": "void bitmap_2d_smooth(int bitmap, int filter_radius, int filter_coefficients);",
+          "decl": "void bitmap_2d_smooth(void *bitmap, short filter_radius, short *filter_coefficients);",
           "addr": "0x77ff0",
           "ported": true
         },
         {
-          "decl": "void bitmap_3d_smooth(short *bitmap, int filter_radius, int filter_coefficients);",
+          "decl": "void bitmap_3d_smooth(void *bitmap, short filter_radius, short *filter_coefficients);",
           "addr": "0x78460",
           "ported": true
         },
         {
-          "decl": "void bitmap_cm_smooth(int filter_radius, short *filter_coefficients, void *bitmap /*@<esi> */);",
+          "decl": "void bitmap_cm_smooth(int filter_radius, short *filter_coefficients, void *bitmap /* @<esi> */);",
           "addr": "0x78b80",
           "ported": true
         },
@@ -13768,62 +13768,62 @@
           "addr": "0x78c30"
         },
         {
-          "decl": "void bitmap_3d_sharpen(int unused, int positive_table, int negative_table, void *bitmap /*@<esi> */);",
+          "decl": "void bitmap_3d_sharpen(int unused, int positive_table, int negative_table, void *bitmap /* @<esi> */);",
           "addr": "0x790b0",
           "ported": true
         },
         {
-          "decl": "void bitmap_cm_sharpen(int unused, int positive_table, int negative_table, void *bitmap /*@<esi> */);",
+          "decl": "void bitmap_cm_sharpen(int unused, int positive_table, int negative_table, void *bitmap /* @<esi> */);",
           "addr": "0x79180",
           "ported": true
         },
         {
-          "decl": "void bitmap_2d_alpha_bleed(short passes /*@<eax> */, void *bitmap);",
+          "decl": "void bitmap_2d_alpha_bleed(short passes /* @<eax> */, void *bitmap);",
           "addr": "0x79250",
           "ported": true
         },
         {
-          "decl": "void bitmap_3d_alpha_bleed(short passes, void *bitmap /*@<edi> */);",
+          "decl": "void bitmap_3d_alpha_bleed(short passes, void *bitmap /* @<edi> */);",
           "addr": "0x79480",
           "ported": true
         },
         {
-          "decl": "void bitmap_cm_alpha_bleed(short passes, void *bitmap /*@<esi> */);",
+          "decl": "void bitmap_cm_alpha_bleed(short passes, void *bitmap /* @<esi> */);",
           "addr": "0x79590",
           "ported": true
         },
         {
-          "decl": "void bitmap_cm_height_map(float bump_height, void *bitmap /*@<esi> */);",
+          "decl": "void bitmap_cm_height_map(float bump_height, void *bitmap /* @<esi> */);",
           "addr": "0x79630",
           "ported": true
         },
         {
-          "decl": "void bitmap_2d_compress_to_mipmap(void *source_bitmap@<edi>, void *destination_bitmap@<esi>, short destination_mipmap_index@<bx>, int param_4);",
+          "decl": "void bitmap_2d_compress_to_mipmap(void *source_bitmap @<edi>, void *destination_bitmap @<esi>, short destination_mipmap_index @<bx>, int param_4);",
           "addr": "0x796e0",
           "ported": true
         },
         {
-          "decl": "void bitmap_3d_compress_to_mipmap(int source_bitmap, int destination_bitmap, unsigned int destination_mipmap_index, unsigned int param_4);",
+          "decl": "void bitmap_3d_compress_to_mipmap(void *source_bitmap, void *destination_bitmap, short destination_mipmap_index, int param_4);",
           "addr": "0x798e0",
           "ported": true
         },
         {
-          "decl": "void bitmap_cm_compress_to_mipmap(int source_bitmap, int destination_bitmap, unsigned int destination_mipmap_index, unsigned int param_4);",
+          "decl": "void bitmap_cm_compress_to_mipmap(void *source_bitmap, void *destination_bitmap, short destination_mipmap_index, int param_4);",
           "addr": "0x79bb0",
           "ported": true
         },
         {
-          "decl": "void bitmap_2d_uncompress_from_mipmap(int source_bitmap, int destination_bitmap, unsigned int source_mipmap_index);",
+          "decl": "void bitmap_2d_uncompress_from_mipmap(void *source_bitmap, void *destination_bitmap, short source_mipmap_index);",
           "addr": "0x79e70",
           "ported": true
         },
         {
-          "decl": "void bitmap_3d_uncompress_from_mipmap(int source_bitmap, int destination_bitmap, unsigned int source_mipmap_index);",
+          "decl": "void bitmap_3d_uncompress_from_mipmap(void *source_bitmap, void *destination_bitmap, short source_mipmap_index);",
           "addr": "0x7a1e0",
           "ported": true
         },
         {
-          "decl": "void bitmap_cm_uncompress_from_mipmap(int source_bitmap, int destination_bitmap, unsigned int source_mipmap_index);",
+          "decl": "void bitmap_cm_uncompress_from_mipmap(void *source_bitmap, void *destination_bitmap, short source_mipmap_index);",
           "addr": "0x7a4a0",
           "ported": true
         },
@@ -13843,7 +13843,7 @@
           "ported": true
         },
         {
-          "decl": "real * real_rgb_color_to_real_hsv_color(real *rgb, real *hsv_out);",
+          "decl": "float *real_rgb_color_to_real_hsv_color(float *rgb, float *hsv_out);",
           "addr": "0x7ab50",
           "ported": true
         },
@@ -13902,7 +13902,7 @@
           "addr": "0x7b510"
         },
         {
-          "decl": "void bitmap_3d_height_map(float bump_height, void *bitmap /*@<ebx> */);",
+          "decl": "void bitmap_3d_height_map(float bump_height, void *bitmap /* @<ebx> */);",
           "addr": "0x7b940",
           "ported": true
         }
@@ -13933,27 +13933,27 @@
           "ported": true
         },
         {
-          "decl": "void bitmap_uncompress_from_mipmap(int source_bitmap, int destination_bitmap, unsigned int source_mipmap_index);",
+          "decl": "void bitmap_uncompress_from_mipmap(void *source_bitmap, void *destination_bitmap, short source_mipmap_index);",
           "addr": "0x7c070",
           "ported": true
         },
         {
-          "decl": "real * rgb_colors_interpolate(real *out_color, uint32_t flags, real *rgb_lower_bound, real *rgb_upper_bound, real blend);",
+          "decl": "float *rgb_colors_interpolate(float *out_color, uint32_t flags, float *rgb_lower_bound, float *rgb_upper_bound, float blend);",
           "addr": "0x7c270",
           "ported": true
         },
         {
-          "decl": "real * rgb_colors_interpolate_and_scale(real *rgb_result, unsigned int flags, real *lower_bound, real *upper_bound, real *rgb_scale, real blend);",
+          "decl": "void rgb_colors_interpolate_and_scale(float *rgb_result, uint32_t flags, float *lower_bound, float *upper_bound, float *rgb_scale, float blend);",
           "addr": "0x7c490",
           "ported": true
         },
         {
-          "decl": "void bitmap_height_map(int bitmap, real bump_height);",
+          "decl": "void bitmap_height_map(void *bitmap, float bump_height);",
           "addr": "0x7c5f0",
           "ported": true
         },
         {
-          "decl": "void bitmap_vector_map(int bitmap);",
+          "decl": "void bitmap_vector_map(void *bitmap);",
           "addr": "0x7c6c0",
           "ported": true
         },
@@ -14033,7 +14033,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t bitmap_mipmap_get_width(int bitmap, short mipmap_index);",
+          "decl": "short bitmap_mipmap_get_width(void *bitmap, int mipmap_index);",
           "addr": "0x7d6e0",
           "ported": true
         },
@@ -14093,17 +14093,17 @@
           "ported": true
         },
         {
-          "decl": "void bitmap_3d_slice_extract(int source_bitmap, unsigned int mipmap_index, unsigned int slice_index, int destination_bitmap);",
+          "decl": "void bitmap_3d_slice_extract(void *source_bitmap, short mipmap_index, short slice_index, void *destination_bitmap);",
           "addr": "0x7e560",
           "ported": true
         },
         {
-          "decl": "void bitmap_3d_slice_insert(int src_bitmap, int dst_bitmap, unsigned int face, unsigned int slice);",
+          "decl": "void bitmap_3d_slice_insert(void *src_bitmap, void *dst_bitmap, int face, int slice);",
           "addr": "0x7e7e0",
           "ported": true
         },
         {
-          "decl": "void bitmap_cube_map_face_extract(int source_bitmap, unsigned int mipmap_index, unsigned int face_index, int destination_bitmap);",
+          "decl": "void bitmap_cube_map_face_extract(void *source_bitmap, short mipmap_index, short face_index, void *destination_bitmap);",
           "addr": "0x7ea60",
           "ported": true
         },
@@ -14113,12 +14113,12 @@
           "ported": true
         },
         {
-          "decl": "void row_dither(short *bits_per_channel, short *thresholds, short width, short *current, int next, int source_row);",
+          "decl": "void row_dither(short *bits_per_channel, short *thresholds, short width, short *current, short *next, uint8_t *source_row);",
           "addr": "0x7ef80",
           "ported": true
         },
         {
-          "decl": "void bitmap_quantitize(int bitmap, short *bits_per_channel);",
+          "decl": "void bitmap_quantitize(void *bitmap, short *bits_per_channel);",
           "addr": "0x7f150",
           "ported": true
         }
@@ -32520,16 +32520,16 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_hud_motion_sensor_blip_draw(real *param_1, real param_2, real param_3, real *param_4, real param_5);",
+          "decl": "void __rasterizer_hud_motion_sensor_blip_draw(void *param_1, int param_2, float param_3, int param_4, int param_5);",
           "addr": "0x16e160"
         },
         {
-          "decl": "void __rasterizer_hud_motion_sensor_blip_end(real *position, real param_2);",
+          "decl": "void __rasterizer_hud_motion_sensor_blip_end(float *position, float param_2);",
           "addr": "0x16e2e0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_plasma_energy_draw(int group);",
+          "decl": "void rasterizer_plasma_energy_draw(void *group);",
           "addr": "0x16eef0",
           "ported": true
         },
@@ -32538,7 +32538,7 @@
           "addr": "0x16f480"
         },
         {
-          "decl": "int callback_function(unsigned int a0, unsigned int a1, int a2);",
+          "decl": "void callback_function(int profile_and_flag);",
           "addr": "0x16f500",
           "ported": true
         },
@@ -32548,7 +32548,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int rasterizer_profile_initialize(void);",
+          "decl": "bool rasterizer_profile_initialize(void);",
           "addr": "0x16f6c0",
           "ported": true
         },
@@ -32563,22 +32563,22 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_profile_enable(char enable_profiling);",
+          "decl": "void __rasterizer_profile_enable(bool enable_profiling);",
           "addr": "0x16f8a0",
           "ported": true
         },
         {
-          "decl": "unsigned int rasterizer_profile_get_string(short profile);",
+          "decl": "const char *rasterizer_profile_get_string(short profile);",
           "addr": "0x16fb80",
           "ported": true
         },
         {
-          "decl": "real rasterizer_profile_query(unsigned int profile);",
+          "decl": "float rasterizer_profile_query(int16_t profile);",
           "addr": "0x16fbd0",
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_profile_query_pushbuffer(unsigned int profile);",
+          "decl": "int rasterizer_profile_query_pushbuffer(int16_t profile);",
           "addr": "0x16fcf0",
           "ported": true
         },
@@ -32636,7 +32636,7 @@
           "ported": true
         },
         {
-          "decl": "real * __rasterizer_environment_shadow_begin(unsigned int param_1, unsigned int *shadow_matrix, real *shadow_color, real object_bounding_radius, real *out_radius);",
+          "decl": "char __rasterizer_environment_shadow_begin(int param_1, const float *shadow_matrix, const float *shadow_color, float object_bounding_radius, float *out_radius);",
           "addr": "0x172a30",
           "ported": true
         },
@@ -32651,12 +32651,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_text_begin(int *params);",
+          "decl": "void rasterizer_text_begin(float *params);",
           "addr": "0x173b40",
           "ported": true
         },
         {
-          "decl": "void rasterizer_text_draw_character(int quad);",
+          "decl": "void rasterizer_text_draw_character(float *quad);",
           "addr": "0x1741d0",
           "ported": true
         },
@@ -32666,7 +32666,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_transparent_geometry_group_draw__internal(int group, char has_lightmap);",
+          "decl": "void rasterizer_transparent_geometry_group_draw__internal(void *group, int has_lightmap);",
           "addr": "0x174510",
           "ported": true
         },
@@ -32681,17 +32681,17 @@
           "ported": true
         },
         {
-          "decl": "void subtract_vectors4d(real *param_1, real *b, real *out);",
+          "decl": "void subtract_vectors4d(float *a, float *b, float *out);",
           "addr": "0x174b60",
           "ported": true
         },
         {
-          "decl": "void offset_vector4d(real *param_1, real *b, real t, real *out);",
+          "decl": "void offset_vector4d(float *a, float *b, float t, float *out);",
           "addr": "0x174b90",
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_transparent_geometry_initialize_aux_buffer(void);",
+          "decl": "char rasterizer_transparent_geometry_initialize_aux_buffer(void);",
           "addr": "0x174bd0",
           "ported": true
         },
@@ -32736,17 +32736,17 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_water_build_bumpmap(real shader);",
+          "decl": "void rasterizer_water_build_bumpmap(void *shader);",
           "addr": "0x1795c0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_water_draw(uint32_t *group);",
+          "decl": "void rasterizer_water_draw(void *group);",
           "addr": "0x179de0",
           "ported": true
         },
         {
-          "decl": "bool rasterizer_widget_project_billboard(float *point, float radius, float *out_extent, float *out_screen@<ebx>);",
+          "decl": "bool rasterizer_widget_project_billboard(float *point, float radius, float *out_extent, float *out_screen @<ebx>);",
           "addr": "0x17a8a0",
           "ported": true
         },
@@ -32766,12 +32766,12 @@
           "ported": true
         },
         {
-          "decl": "int __rasterizer_widget_submit_occlusion_test(unsigned int position, unsigned int radius, unsigned int index);",
+          "decl": "int __rasterizer_widget_submit_occlusion_test(float *position, float radius, unsigned int index);",
           "addr": "0x17ba10",
           "ported": true
         },
         {
-          "decl": "unsigned int shader_transparent_chicago_create(uint32_t shader, int *pixel_shader);",
+          "decl": "char shader_transparent_chicago_create(void *shader, void *pixel_shader);",
           "addr": "0x17bca0",
           "ported": true
         },
@@ -32801,12 +32801,12 @@
           "ported": true
         },
         {
-          "decl": "unsigned int shader_transparent_generic_create(int shader, unsigned int *pixel_shader);",
+          "decl": "char shader_transparent_generic_create(void *shader, void *pixel_shader);",
           "addr": "0x17c2f0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_initialize(void);",
+          "decl": "bool rasterizer_initialize(void);",
           "addr": "0x17c790",
           "ported": true
         },
@@ -32831,12 +32831,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_window_get_fog(void);",
+          "decl": "void rasterizer_window_get_fog(void *fog);",
           "addr": "0x17c8e0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_window_set_fog(void);",
+          "decl": "void rasterizer_window_set_fog(void *screen_fog);",
           "addr": "0x17c8f0",
           "ported": true
         },
@@ -32856,7 +32856,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_present(void);",
+          "decl": "void rasterizer_present(void *param_1, void *param_2);",
           "addr": "0x17c930",
           "ported": true
         },
@@ -32871,52 +32871,52 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_profile_enable(void);",
+          "decl": "void rasterizer_profile_enable(int param_1);",
           "addr": "0x17c960",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_triangles_new(void);",
+          "decl": "int rasterizer_dynamic_triangles_new(int mode);",
           "addr": "0x17c970",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_triangles_lock(void);",
+          "decl": "void *rasterizer_dynamic_triangles_lock(int handle);",
           "addr": "0x17c980",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_triangles_unlock(void);",
+          "decl": "void rasterizer_dynamic_triangles_unlock(int handle);",
           "addr": "0x17c990",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_triangles_delete(void);",
+          "decl": "void rasterizer_dynamic_triangles_delete(int handle);",
           "addr": "0x17c9a0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_vertices_new(void);",
+          "decl": "int rasterizer_dynamic_vertices_new(int param_1, int param_2);",
           "addr": "0x17c9b0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_vertices_get_type(void);",
+          "decl": "short rasterizer_dynamic_vertices_get_type(int dynamic_vertex_buffer_index);",
           "addr": "0x17c9c0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_vertices_lock(void);",
+          "decl": "int rasterizer_dynamic_vertices_lock(int zbuf_result);",
           "addr": "0x17c9d0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_vertices_unlock(void);",
+          "decl": "void rasterizer_dynamic_vertices_unlock(int handle);",
           "addr": "0x17c9e0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_vertices_delete(void);",
+          "decl": "void rasterizer_dynamic_vertices_delete(int handle);",
           "addr": "0x17c9f0",
           "ported": true
         },
@@ -32926,12 +32926,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_debug_immediate_line(void);",
+          "decl": "void rasterizer_debug_immediate_line(float *p0, float *p1, float *color0, float *color1);",
           "addr": "0x17ca10",
           "ported": true
         },
         {
-          "decl": "void rasterizer_debug_immediate_triangle(void);",
+          "decl": "void rasterizer_debug_immediate_triangle(float *p0, float *p1, float *p2, float *color0, float *color1, float *color2);",
           "addr": "0x17ca20",
           "ported": true
         },
@@ -32983,22 +32983,22 @@
       "source": "rasterizer/xbox/rasterizer_xbox_decals.c",
       "functions": [
         {
-          "decl": "void __rasterizer_present(int screenshot_bitmap, short *point);",
+          "decl": "void __rasterizer_present(void *screenshot_bitmap, short *point);",
           "addr": "0x157e40",
           "ported": true
         },
         {
-          "decl": "void rasterizer_set_framebuffer_blend_function(short framebuffer_blend_function);",
+          "decl": "void rasterizer_set_framebuffer_blend_function(int framebuffer_blend_function);",
           "addr": "0x1580b0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_set_target(short target, short mipmap_index, unsigned int color, char do_clear, char zbuffer);",
+          "decl": "void rasterizer_set_target(int target, int mipmap_index, uint32_t color, int do_clear, int zbuffer);",
           "addr": "0x158140",
           "ported": true
         },
         {
-          "decl": "void rasterizer_set_target_as_texture(short stage, int target, unsigned int max_mipmap);",
+          "decl": "void rasterizer_set_target_as_texture(int stage, int target, int max_mipmap);",
           "addr": "0x1584f0",
           "ported": true
         },
@@ -33008,12 +33008,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_set_stencil_mode(unsigned int mode);",
+          "decl": "void rasterizer_set_stencil_mode(int mode);",
           "addr": "0x158ae0",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_window_begin(short *parameters);",
+          "decl": "void __rasterizer_window_begin(unsigned short *parameters);",
           "addr": "0x158df0",
           "ported": true
         },
@@ -33023,7 +33023,7 @@
           "ported": true
         },
         {
-          "decl": "int real_alpha_to_pixel32(real param_1);",
+          "decl": "uint32_t real_alpha_to_pixel32(float a1);",
           "addr": "0x159070",
           "ported": true
         },
@@ -33063,7 +33063,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_debug_drawing_begin(char param_1);",
+          "decl": "void rasterizer_debug_drawing_begin(char additive);",
           "addr": "0x15a560",
           "ported": true
         },
@@ -33073,12 +33073,12 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_debug_immediate_line(unsigned int *p0, unsigned int *p1, unsigned int *color0, unsigned int *color1);",
+          "decl": "void __rasterizer_debug_immediate_line(float *p0, float *p1, float *color0, float *color1);",
           "addr": "0x15a7f0",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_debug_immediate_triangle(unsigned int *p0, unsigned int *p1, unsigned int *p2, unsigned int *color0, unsigned int *color1, unsigned int *color2);",
+          "decl": "void __rasterizer_debug_immediate_triangle(float *p0, float *p1, float *p2, float *color0, float *color1, float *color2);",
           "addr": "0x15a8f0",
           "ported": true
         },
@@ -33088,22 +33088,22 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_debug_immediate_line_screenspace(unsigned short *p0, unsigned short *p1, int color0, int color1);",
+          "decl": "void __rasterizer_debug_immediate_line_screenspace(short *p0, short *p1, float *color0, float *color1);",
           "addr": "0x15abe0",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_debug_immediate_linestrip_screenspace(unsigned short *points, unsigned short point_count, int color);",
+          "decl": "void __rasterizer_debug_immediate_linestrip_screenspace(short *points, int16_t point_count, float *color);",
           "addr": "0x15acc0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_decal_vertices_purge_proc(char *decal_index);",
+          "decl": "void rasterizer_decal_vertices_purge_proc(int decal_index);",
           "addr": "0x15afa0",
           "ported": true
         },
         {
-          "decl": "int rasterizer_decal_vertices_locked_proc(int decal_index);",
+          "decl": "bool rasterizer_decal_vertices_locked_proc(int decal_index);",
           "addr": "0x15b0c0",
           "ported": true
         },
@@ -33137,7 +33137,7 @@
           "addr": "0x15b450"
         },
         {
-          "decl": "void __rasterizer_decal_vertices_new(uint32_t cache_size);",
+          "decl": "int __rasterizer_decal_vertices_new(uint32_t cache_size);",
           "addr": "0x15b460",
           "ported": true
         },
@@ -33177,7 +33177,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int __rasterizer_decal_vertices_lock(int cache_index, unsigned int cache_size);",
+          "decl": "void *__rasterizer_decal_vertices_lock(int cache_index, uint32_t cache_size);",
           "addr": "0x15b890",
           "ported": true
         },
@@ -33192,7 +33192,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_decals_draw(unsigned int rendered_cluster_data);",
+          "decl": "void __rasterizer_decals_draw(int rendered_cluster_data);",
           "addr": "0x15bc40",
           "ported": true
         },
@@ -33207,7 +33207,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_detail_objects_initialize(void);",
+          "decl": "char rasterizer_detail_objects_initialize(void);",
           "addr": "0x15c2d0",
           "ported": true
         },
@@ -33237,12 +33237,12 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_detail_objects_rebuild_vertices(int *view_data);",
+          "decl": "void __rasterizer_detail_objects_rebuild_vertices(void *view_data);",
           "addr": "0x15c980",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_detail_objects_draw(int *detail_object_view_data);",
+          "decl": "void __rasterizer_detail_objects_draw(void *detail_object_view_data);",
           "addr": "0x15cbb0",
           "ported": true
         },
@@ -33282,21 +33282,21 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_dynamic_triangles_delete(void);",
+          "decl": "void __rasterizer_dynamic_triangles_delete(int handle);",
           "addr": "0x15d300"
         },
         {
-          "decl": "int __rasterizer_dynamic_vertices_new(unsigned int type, int count);",
+          "decl": "int __rasterizer_dynamic_vertices_new(short type, int count);",
           "addr": "0x15d310",
           "ported": true
         },
         {
-          "decl": "int __rasterizer_dynamic_vertices_get_type(int dynamic_vertex_buffer_index);",
+          "decl": "short __cdecl __rasterizer_dynamic_vertices_get_type(int dynamic_vertex_buffer_index);",
           "addr": "0x15d480",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_dynamic_vertices_delete(void);",
+          "decl": "void __rasterizer_dynamic_vertices_delete(int handle);",
           "addr": "0x15d5a0"
         },
         {
@@ -33322,12 +33322,12 @@
       "source": "rasterizer/rasterizer_sprites.c",
       "functions": [
         {
-          "decl": "void rasterizer_environment_specular_light_begin(void);",
+          "decl": "void rasterizer_environment_specular_light_begin(int object_handle);",
           "addr": "0x17cd60",
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_specular_light_draw(void);",
+          "decl": "void rasterizer_environment_specular_light_draw(int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);",
           "addr": "0x17cd70",
           "ported": true
         },
@@ -33347,12 +33347,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_specular_lightmap_begin(void);",
+          "decl": "void rasterizer_environment_specular_lightmap_begin(void *param_1);",
           "addr": "0x17cdb0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_specular_lightmap_draw(void);",
+          "decl": "void rasterizer_environment_specular_lightmap_draw(int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);",
           "addr": "0x17cdc0",
           "ported": true
         },
@@ -33367,12 +33367,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_reflection_lightmap_mask_begin(void);",
+          "decl": "void rasterizer_environment_reflection_lightmap_mask_begin(int arg1);",
           "addr": "0x17ce00",
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_reflection_lightmap_mask_draw(void);",
+          "decl": "void rasterizer_environment_reflection_lightmap_mask_draw(int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);",
           "addr": "0x17ce10",
           "ported": true
         },
@@ -33387,7 +33387,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_reflection_mirror_draw(void);",
+          "decl": "void rasterizer_environment_reflection_mirror_draw(int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);",
           "addr": "0x17ce50",
           "ported": true
         },
@@ -33402,7 +33402,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_reflection_draw(void);",
+          "decl": "void rasterizer_environment_reflection_draw(void *shader, int arg2, int arg3, int arg4, int arg5, void *vertex_buffer);",
           "addr": "0x17ce80",
           "ported": true
         },
@@ -33417,7 +33417,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_transparent_geometry_submit(void);",
+          "decl": "void rasterizer_environment_transparent_geometry_submit(void *arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, void *arg8, int arg9, int arg10, int arg11, int arg12);",
           "addr": "0x17ceb0",
           "ported": true
         },
@@ -33432,7 +33432,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_fog_draw(void);",
+          "decl": "void rasterizer_environment_fog_draw(void *shader, int arg2, int arg3, int arg4, int arg5, void *vertex_buffer);",
           "addr": "0x17cee0",
           "ported": true
         },
@@ -33442,17 +33442,17 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_fog_screen_wind_get_vector(void);",
+          "decl": "void rasterizer_environment_fog_screen_wind_get_vector(int param_1, float param_2, float *param_3);",
           "addr": "0x17cf00",
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_fog_screen_begin(void);",
+          "decl": "void rasterizer_environment_fog_screen_begin(int pass_index);",
           "addr": "0x17cf10",
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_fog_screen_draw(void);",
+          "decl": "void rasterizer_environment_fog_screen_draw(void *shader, int arg2, int arg3, int arg4, int arg5, void *arg6);",
           "addr": "0x17cf20",
           "ported": true
         },
@@ -33472,62 +33472,62 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_unlit_geometry_draw(void);",
+          "decl": "void rasterizer_dynamic_unlit_geometry_draw(uint32_t source, uint32_t param, int arg3, int arg4, uint32_t handle, int subcount2, float *origin, uint32_t widget_flags);",
           "addr": "0x17cf60",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_lit_geometry_draw(void);",
+          "decl": "void rasterizer_dynamic_lit_geometry_draw(int param_1);",
           "addr": "0x17cf70",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_screen_geometry_draw(void);",
+          "decl": "void rasterizer_dynamic_screen_geometry_draw(int arg1, int arg2, uint32_t handle, int subcount2);",
           "addr": "0x17cf80",
           "ported": true
         },
         {
-          "decl": "void rasterizer_dynamic_screen_geometry_add_multitexture_params_to_base(void);",
+          "decl": "void rasterizer_dynamic_screen_geometry_add_multitexture_params_to_base(void *dest, void *src);",
           "addr": "0x17cf90",
           "ported": true
         },
         {
-          "decl": "void rasterizer_psuedo_dynamic_screen_quad_draw(void);",
+          "decl": "void rasterizer_psuedo_dynamic_screen_quad_draw(void *render_data, void *vertices);",
           "addr": "0x17cfa0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_submit(void);",
+          "decl": "void rasterizer_widget_submit(int object_handle, int datum, float *position, int callback);",
           "addr": "0x17cfb0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_begin(void);",
+          "decl": "void rasterizer_widget_begin(int param_1, int param_2);",
           "addr": "0x17cfc0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_set_texture(void);",
+          "decl": "char rasterizer_widget_set_texture(int param_1, int param_2, int param_3);",
           "addr": "0x17cfd0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_set_tint_factor(void);",
+          "decl": "void rasterizer_widget_set_tint_factor(unsigned int value_bits);",
           "addr": "0x17cfe0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_set_zbuffer_enable(void);",
+          "decl": "void rasterizer_widget_set_zbuffer_enable(bool enable);",
           "addr": "0x17cff0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_draw_sprite2d(void);",
+          "decl": "void rasterizer_widget_draw_sprite2d(float *point, float radius, float *scale, float *texcoord_repeat, float theta, unsigned int color);",
           "addr": "0x17d000",
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_draw_sprite3d(void);",
+          "decl": "void rasterizer_widget_draw_sprite3d(float *position, float radius, float *scale2d, float angle, uint32_t color);",
           "addr": "0x17d010",
           "ported": true
         },
@@ -33537,12 +33537,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_submit_occlusion_test(void);",
+          "decl": "int rasterizer_widget_submit_occlusion_test(float *position, float radius, unsigned int index);",
           "addr": "0x17d030",
           "ported": true
         },
         {
-          "decl": "void rasterizer_widget_get_occlusion_test_result(void);",
+          "decl": "int rasterizer_widget_get_occlusion_test_result(int index);",
           "addr": "0x17d040",
           "ported": true
         },
@@ -33552,27 +33552,27 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_hud_motion_sensor_blip_draw(void);",
+          "decl": "void rasterizer_hud_motion_sensor_blip_draw(void *param_1, int param_2, float param_3, int param_4, int param_5);",
           "addr": "0x17d060",
           "ported": true
         },
         {
-          "decl": "void rasterizer_hud_motion_sensor_blip_end(void);",
+          "decl": "void rasterizer_hud_motion_sensor_blip_end(float *position, float param_2);",
           "addr": "0x17d070",
           "ported": true
         },
         {
-          "decl": "void rasterizer_debug_immediate_point(real *point, real radius, unsigned int color);",
+          "decl": "void rasterizer_debug_immediate_point(float *point, float radius, float *color);",
           "addr": "0x17d080",
           "ported": true
         },
         {
-          "decl": "void rasterizer_debug_immediate_vector(real *point, real *direction, real scale, unsigned int color);",
+          "decl": "void rasterizer_debug_immediate_vector(float *point, float *direction, float scale, float *color);",
           "addr": "0x17d150",
           "ported": true
         },
         {
-          "decl": "void rasterizer_models_begin(unsigned int param_1);",
+          "decl": "void rasterizer_models_begin(bool param_1);",
           "addr": "0x17d1a0",
           "ported": true
         },
@@ -33582,7 +33582,7 @@
           "ported": true
         },
         {
-          "decl": "real sub_17D8F0(void);",
+          "decl": "float sub_17D8F0(void);",
           "addr": "0x17d8f0",
           "ported": true
         },
@@ -33607,12 +33607,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_script_screen_effect_set_value(short param_1, unsigned int param_2);",
+          "decl": "void rasterizer_script_screen_effect_set_value(int16_t param_1, float param_2);",
           "addr": "0x17d9a0",
           "ported": true
         },
         {
-          "decl": "real rasterizer_script_screen_effect_get_value(short param_1);",
+          "decl": "float rasterizer_script_screen_effect_get_value(int16_t param_1);",
           "addr": "0x17d9d0",
           "ported": true
         },
@@ -33622,17 +33622,17 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_screen_effect_set_convolution(unsigned short param_1, unsigned short param_2, unsigned int param_3, unsigned int param_4, real param_5);",
+          "decl": "void rasterizer_screen_effect_set_convolution(int16_t param_1, uint16_t param_2, float param_3, float param_4, float param_5);",
           "addr": "0x17da40",
           "ported": true
         },
         {
-          "decl": "void rasterizer_screen_effect_set_filter(unsigned int param_1, unsigned int param_2, unsigned int param_3, unsigned int param_4, char param_5, real param_6);",
+          "decl": "void rasterizer_screen_effect_set_filter(int param_1, float param_2, float param_3, float param_4, char param_5, float param_6);",
           "addr": "0x17dab0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_screen_effect_set_filter_desaturation_tint(unsigned int param_1, unsigned int param_2, unsigned int param_3);",
+          "decl": "void rasterizer_screen_effect_set_filter_desaturation_tint(int param_1, float param_2, float param_3);",
           "addr": "0x17db20",
           "ported": true
         },
@@ -33652,12 +33652,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_set_near_clip_distance(unsigned int param_1);",
+          "decl": "void rasterizer_set_near_clip_distance(int param_1);",
           "addr": "0x17dec0",
           "ported": true
         },
         {
-          "decl": "real rasterizer_get_near_clip_distance(void);",
+          "decl": "float rasterizer_get_near_clip_distance(void);",
           "addr": "0x17dee0",
           "ported": true
         },
@@ -33667,7 +33667,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_debug_initialize(void);",
+          "decl": "bool rasterizer_debug_initialize(void);",
           "addr": "0x17df80",
           "ported": true
         },
@@ -33687,7 +33687,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t compare_debug_primitives(int record_a, int record_b);",
+          "decl": "int compare_debug_primitives(void *record_a, void *record_b);",
           "addr": "0x17e130",
           "ported": true
         },
@@ -33697,7 +33697,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_debug_line_shaded(real *p0, real *p1, real *color0, real *color1);",
+          "decl": "void rasterizer_debug_line_shaded(float *p0, float *p1, float *color0, float *color1);",
           "addr": "0x17e5b0",
           "ported": true
         },
@@ -33707,17 +33707,17 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_debug_line(unsigned int vert_a, unsigned int vert_b, unsigned int param_3);",
+          "decl": "void rasterizer_debug_line(float *vert_a, float *vert_b, int param_3);",
           "addr": "0x17eb10",
           "ported": true
         },
         {
-          "decl": "void rasterizer_debug_triangle(unsigned int point0, unsigned int point1, unsigned int point2, unsigned int color);",
+          "decl": "void rasterizer_debug_triangle(float *point0, float *point1, float *point2, void *color);",
           "addr": "0x17eb30",
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_frame_statistics_initialize(void);",
+          "decl": "bool rasterizer_frame_statistics_initialize(void);",
           "addr": "0x17eb50",
           "ported": true
         },
@@ -33737,17 +33737,17 @@
           "ported": true
         },
         {
-          "decl": "short eat_my_shorts(unsigned short param_1, unsigned short b);",
+          "decl": "char eat_my_shorts(uint16_t a, uint16_t b);",
           "addr": "0x17ed70",
           "ported": true
         },
         {
-          "decl": "int rasterizer_frame_statistics_count_static_vertices(short *triangle_buffer, int vertex_buffer);",
+          "decl": "int rasterizer_frame_statistics_count_static_vertices(void *triangle_buffer, void *vertex_buffer);",
           "addr": "0x17ed90",
           "ported": true
         },
         {
-          "decl": "int rasterizer_frame_statistics_count_dynamic_vertices(int vertices_per_primitive, int param_2, int triangle_count);",
+          "decl": "int rasterizer_frame_statistics_count_dynamic_vertices(int vertices_per_primitive, int a2, int triangle_count);",
           "addr": "0x17edd0",
           "ported": true
         },
@@ -33773,12 +33773,12 @@
           "ported": true
         },
         {
-          "decl": "real uncompress_int8_to_real(unsigned char param_1);",
+          "decl": "float uncompress_int8_to_real(unsigned char param_1);",
           "addr": "0x17ff80",
           "ported": true
         },
         {
-          "decl": "real uncompress_int16_to_real(short param_1);",
+          "decl": "float uncompress_int16_to_real(short param_1);",
           "addr": "0x17ffa0",
           "ported": true
         },
@@ -33793,27 +33793,27 @@
           "ported": true
         },
         {
-          "decl": "real rasterizer_geometry_uncompress_vertices(uint32_t param_1, int param_2, int param_3, int param_4, int param_5, real param_6);",
+          "decl": "void rasterizer_geometry_uncompress_vertices(short param_1, int param_2, int param_3, int param_4, int param_5, int param_6);",
           "addr": "0x1800b0",
           "ported": true
         },
         {
-          "decl": "void environment_vertex_compressed_get_point(unsigned int *param_1, unsigned int *param_2);",
+          "decl": "void environment_vertex_compressed_get_point(float *param_1, float *param_2);",
           "addr": "0x180500",
           "ported": true
         },
         {
-          "decl": "void environment_vertex_compressed_get_normal(int param_1, unsigned int *param_2);",
+          "decl": "void environment_vertex_compressed_get_normal(int param_1, float *param_2);",
           "addr": "0x180570",
           "ported": true
         },
         {
-          "decl": "void environment_vertex_compressed_get_texcoord(int param_1, unsigned int *param_2);",
+          "decl": "void environment_vertex_compressed_get_texcoord(int param_1, float *param_2);",
           "addr": "0x1805f0",
           "ported": true
         },
         {
-          "decl": "void environment_lightmap_vertex_compressed_get_incident_radiosity(unsigned int *param_1, unsigned int *param_2);",
+          "decl": "void environment_lightmap_vertex_compressed_get_incident_radiosity(unsigned int *param_1, float *param_2);",
           "addr": "0x180660",
           "ported": true
         },
@@ -33823,12 +33823,12 @@
           "ported": true
         },
         {
-          "decl": "unsigned short compress_real_to_int8(real param_1);",
+          "decl": "unsigned char compress_real_to_int8(float alpha);",
           "addr": "0x180770",
           "ported": true
         },
         {
-          "decl": "unsigned short compress_real_to_int8_clamp(real param_1);",
+          "decl": "unsigned char compress_real_to_int8_clamp(float param_1);",
           "addr": "0x1807d0",
           "ported": false
         },
@@ -33838,7 +33838,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned short compress_real_to_int16_clamp(real f);",
+          "decl": "short compress_real_to_int16_clamp(float f);",
           "addr": "0x180890",
           "ported": true
         },
@@ -33853,12 +33853,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_geometry_compress_vertices(short type, int count, int compressed_out, int compressed_size, int uncompressed, int uncompressed_size);",
+          "decl": "void rasterizer_geometry_compress_vertices(short type, int count, int compressed_out, int compressed_size, void *uncompressed, int uncompressed_size);",
           "addr": "0x180d10",
           "ported": false
         },
         {
-          "decl": "int *lens_flare_parameters_get(short index@<si>);",
+          "decl": "int *lens_flare_parameters_get(short index @<si>);",
           "addr": "0x181020",
           "ported": true
         },
@@ -33882,7 +33882,7 @@
           "ported": true
         },
         {
-          "decl": "int rasterizer_light_submit(unsigned int *parameters);",
+          "decl": "int rasterizer_light_submit(void *parameters);",
           "addr": "0x1812c0",
           "ported": true
         },
@@ -33911,7 +33911,7 @@
           "ported": false
         },
         {
-          "decl": "uint32_t rasterizer_memory_pool_initialize(void);",
+          "decl": "int rasterizer_memory_pool_initialize(void);",
           "addr": "0x1824e0",
           "ported": true
         },
@@ -33926,7 +33926,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_memory_alloc_const(int data, unsigned int size);",
+          "decl": "int rasterizer_memory_alloc_const(int data, int size);",
           "addr": "0x182590",
           "ported": true
         },
@@ -33941,17 +33941,17 @@
           "ported": true
         },
         {
-          "decl": "void compute_swizzle_masks(short param_1@<esi>, short param_2, short param_3);",
+          "decl": "void compute_swizzle_masks(short param_1 @<esi>, short param_2, short param_3);",
           "addr": "0x182610",
           "ported": true
         },
         {
-          "decl": "void bitmap_swizzle_vector2d(unsigned int param_1, int param_2, unsigned short param_3, unsigned short param_4, uint32_t *param_5);",
+          "decl": "void bitmap_swizzle_vector2d(short param_1, short param_2, unsigned short param_3, unsigned short param_4, unsigned int *param_5);",
           "addr": "0x182690",
           "ported": true
         },
         {
-          "decl": "void bitmap_swizzle_vector3d(short param_1, short param_2, short param_3, uint32_t param_4, uint32_t param_5, uint32_t param_6, uint32_t *param_7);",
+          "decl": "void bitmap_swizzle_vector3d(short param_1, short param_2, short param_3, unsigned int param_4, unsigned int param_5, unsigned int param_6, unsigned int *param_7);",
           "addr": "0x1827c0",
           "ported": true
         },
@@ -33991,12 +33991,12 @@
           "ported": true
         },
         {
-          "decl": "unsigned int rasterizer_xbox_bitmap_get_max_mipmap_count(int bitmap);",
+          "decl": "int16_t rasterizer_xbox_bitmap_get_max_mipmap_count(void *bitmap);",
           "addr": "0x183120",
           "ported": true
         },
         {
-          "decl": "int rasterizer_xbox_bitmap_get_pixel_data_size(int bitmap);",
+          "decl": "int rasterizer_xbox_bitmap_get_pixel_data_size(void *bitmap);",
           "addr": "0x183290",
           "ported": true
         },
@@ -34041,27 +34041,27 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw_character(unsigned int param_1, unsigned int font, int font_character, unsigned int color, short x, short y, unsigned int screen_x, unsigned int screen_y, short width, short height);",
+          "decl": "void rasterizer_draw_character(void *arg0, void *font, void *font_character, unsigned int color, short x, short y, int screen_x, int screen_y, short width, short height);",
           "addr": "0x183c00",
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw_character_with_dropshadow(unsigned int param_1, unsigned int font, int font_character, uint32_t color, short x, short y, int offset_x, int offset_y, short width, short height);",
+          "decl": "void rasterizer_draw_character_with_dropshadow(void *arg0, void *font, void *font_character, unsigned int color, short x, short y, int offset_x, int offset_y, short width, short height);",
           "addr": "0x183cf0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw_string(unsigned int *screen_pos, short *bounds, unsigned int color, unsigned int flags, char *text);",
+          "decl": "void rasterizer_draw_string(void *screen_pos, short *bounds, const void *color, int flags, const char *text);",
           "addr": "0x183e60",
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw_unicode_string(unsigned int *screen_pos, short *bounds, unsigned int color, unsigned int flags, short *text);",
+          "decl": "void rasterizer_draw_unicode_string(void *screen_pos, short *bounds, const void *color, int flags, unsigned short *text);",
           "addr": "0x184060",
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_transparent_geometry_initialize(void);",
+          "decl": "char rasterizer_transparent_geometry_initialize(void);",
           "addr": "0x184260",
           "ported": false
         },
@@ -34071,17 +34071,17 @@
           "ported": false
         },
         {
-          "decl": "int rasterizer_transparent_geometry_new_group(void);",
+          "decl": "void *rasterizer_transparent_geometry_new_group(void);",
           "addr": "0x184330",
           "ported": true
         },
         {
-          "decl": "int rasterizer_transparent_geometry_new_group2(void);",
+          "decl": "void *rasterizer_transparent_geometry_new_group2(void);",
           "addr": "0x184360",
           "ported": true
         },
         {
-          "decl": "unsigned int rasterizer_transparent_geometry_get_groups2(unsigned short *out_count);",
+          "decl": "void *rasterizer_transparent_geometry_get_groups2(short *out_count);",
           "addr": "0x184390",
           "ported": true
         },
@@ -34091,12 +34091,12 @@
           "ported": true
         },
         {
-          "decl": "int rasterizer_transparent_geometry_get_group_from_presorted_index(short group_presorted_index);",
+          "decl": "void *rasterizer_transparent_geometry_get_group_from_presorted_index(short group_presorted_index);",
           "addr": "0x184460",
           "ported": true
         },
         {
-          "decl": "unsigned int rasterizer_transparent_geometry_get_group_presorted_index(uint32_t group);",
+          "decl": "short rasterizer_transparent_geometry_get_group_presorted_index(unsigned int group);",
           "addr": "0x1844b0",
           "ported": true
         }
@@ -34127,7 +34127,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_preinitialize__fill_you_up_with_the_devils_cock(void);",
+          "decl": "char rasterizer_preinitialize__fill_you_up_with_the_devils_cock(void);",
           "addr": "0x1553f0",
           "ported": true
         },
@@ -34137,7 +34137,7 @@
           "ported": true
         },
         {
-          "decl": "int rasterizer_get_bitmap_default_hardware_format(int bitmap_data);",
+          "decl": "void *rasterizer_get_bitmap_default_hardware_format(void *bitmap_data);",
           "addr": "0x155580",
           "ported": true
         },
@@ -34217,7 +34217,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_set_vblank_callback(unsigned int callback);",
+          "decl": "void __rasterizer_set_vblank_callback(void *callback);",
           "addr": "0x155c10",
           "ported": true
         },
@@ -34282,7 +34282,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_set_model_lighting_distant_light(unsigned int *light, short light_index, int lighting_constants);",
+          "decl": "void rasterizer_set_model_lighting_distant_light(void *light, short light_index, void *lighting_constants);",
           "addr": "0x1569f0",
           "ported": true
         },
@@ -34312,12 +34312,12 @@
           "ported": true
         },
         {
-          "decl": "uint32_t __rasterizer_initialize(void);",
+          "decl": "char __rasterizer_initialize(void);",
           "addr": "0x157010",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_frame_begin(unsigned int *elapsed);",
+          "decl": "void __rasterizer_frame_begin(float *elapsed);",
           "addr": "0x157940",
           "ported": true
         },
@@ -34337,27 +34337,27 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw_dynamic_triangles_static_vertices(int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, unsigned short *vertex_buffer);",
+          "decl": "void rasterizer_draw_dynamic_triangles_static_vertices(int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer);",
           "addr": "0x15dc10",
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw_dynamic_triangles_static_vertices2(int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, unsigned short *vertex_buffer0, unsigned short *vertex_buffer1);",
+          "decl": "void rasterizer_draw_dynamic_triangles_static_vertices2(int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer0, const vertex_buffer *vertex_buffer1);",
           "addr": "0x15de60",
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw_static_triangles_dynamic_vertices(short *triangle_buffer, int first_triangle_index, int triangle_count, int dynamic_vertex_buffer_index);",
+          "decl": "void rasterizer_draw_static_triangles_dynamic_vertices(const triangle_buffer *triangle_buffer, int first_triangle_index, int triangle_count, int dynamic_vertex_buffer_index);",
           "addr": "0x15e0f0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw_static_triangles_static_vertices(short *triangle_buffer, int first_triangle_index, int triangle_count, unsigned short *vertex_buffer);",
+          "decl": "void rasterizer_draw_static_triangles_static_vertices(const triangle_buffer *triangle_buffer, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer);",
           "addr": "0x15e430",
           "ported": true
         },
         {
-          "decl": "void rasterizer_draw(int triangle_buffer, int dynamic_triangle_buffer_index, unsigned int first_triangle_index, unsigned int triangle_count, int vertex_buffer, int dynamic_vertex_buffer_index);",
+          "decl": "void rasterizer_draw(const triangle_buffer *triangle_buffer, int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer, int dynamic_vertex_buffer_index);",
           "addr": "0x15e650",
           "ported": true
         },
@@ -34377,7 +34377,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int rasterizer_dynamic_geometry_initialize(void);",
+          "decl": "boolean rasterizer_dynamic_geometry_initialize(void);",
           "addr": "0x15e800",
           "ported": true
         },
@@ -34387,7 +34387,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int __rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index);",
+          "decl": "void *__rasterizer_dynamic_triangles_lock(int dynamic_triangle_buffer_index);",
           "addr": "0x15ea70",
           "ported": true
         },
@@ -34397,7 +34397,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int __rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index);",
+          "decl": "void *__rasterizer_dynamic_vertices_lock(int dynamic_vertex_buffer_index);",
           "addr": "0x15ec50",
           "ported": true
         },
@@ -34423,12 +34423,12 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_dynamic_lit_geometry_draw(void);",
+          "decl": "void __rasterizer_dynamic_lit_geometry_draw(int param_1);",
           "addr": "0x15f210",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_dynamic_screen_geometry_add_multitexture_params_to_base(int base, int multitex_params);",
+          "decl": "void __rasterizer_dynamic_screen_geometry_add_multitexture_params_to_base(void *base, void *multitex_params);",
           "addr": "0x15f220",
           "ported": true
         },
@@ -34443,12 +34443,12 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_dynamic_unlit_geometry_draw(uint32_t shader, uint32_t param_2, unsigned int param_3, uint32_t param_4, uint32_t param_5, uint32_t param_6, real *centroid, uint32_t geometry_flags);",
+          "decl": "void __rasterizer_dynamic_unlit_geometry_draw(void *shader, uint32_t param_2, int param_3, int param_4, uint32_t param_5, int param_6, float *centroid, uint32_t geometry_flags);",
           "addr": "0x15f630",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_psuedo_dynamic_screen_quad_draw(int *parameters, int vertices);",
+          "decl": "void __rasterizer_psuedo_dynamic_screen_quad_draw(void *parameters, void *vertices);",
           "addr": "0x15f8e0",
           "ported": true
         }
@@ -34491,7 +34491,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_reflection_lightmap_mask_draw(int shader, unsigned int param_2, unsigned int vertices_per_primitive, unsigned int param_4, int triangle_count, unsigned short *geometry);",
+          "decl": "void __rasterizer_environment_reflection_lightmap_mask_draw(void *shader, int a2, int vertices_per_primitive, int a4, int triangle_count, void *geometry);",
           "addr": "0x1609b0",
           "ported": true
         },
@@ -34538,7 +34538,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_lightmap_draw(int shader, unsigned int frame_index, unsigned int vertices_per_primitive, unsigned int param_4, int triangle_count, unsigned short *vertex_buffer);",
+          "decl": "void __rasterizer_environment_lightmap_draw(void *shader, int frame_index, int vertices_per_primitive, int a4, int triangle_count, void *vertex_buffer);",
           "addr": "0x160f50",
           "ported": true
         },
@@ -34552,7 +34552,7 @@
           "addr": "0x1621c0"
         },
         {
-          "decl": "void __rasterizer_environment_diffuse_light_draw(int shader, unsigned int frame_index, unsigned int vertices_per_primitive, unsigned int param_4, int triangle_count, unsigned short *vertex_buffer);",
+          "decl": "void __rasterizer_environment_diffuse_light_draw(void *shader, int frame_index, int vertices_per_primitive, int a4, int triangle_count, void *vertex_buffer);",
           "addr": "0x162560",
           "ported": true
         },
@@ -34562,7 +34562,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_diffuse_texture_draw(int param_1, unsigned int param_2, unsigned int param_3, unsigned int param_4, int param_5, unsigned short *param_6);",
+          "decl": "void __rasterizer_environment_diffuse_texture_draw(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6);",
           "addr": "0x162920"
         },
         {
@@ -34580,7 +34580,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_specular_light_draw(int shader, unsigned int frame_index, unsigned int vertices_per_primitive, unsigned int param_4, int triangle_count, unsigned short *vertex_buffer);",
+          "decl": "void __rasterizer_environment_specular_light_draw(void *shader, int frame_index, int vertices_per_primitive, int a4, int triangle_count, void *vertex_buffer);",
           "addr": "0x163910",
           "ported": true
         },
@@ -34590,12 +34590,12 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_specular_lightmap_begin(int bitmap_data);",
+          "decl": "void __rasterizer_environment_specular_lightmap_begin(void *bitmap_data);",
           "addr": "0x163fe0",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_specular_lightmap_draw(int shader, unsigned int frame_index, unsigned int vertices_per_primitive, unsigned int param_4, int triangle_count, unsigned short *geometry);",
+          "decl": "void __rasterizer_environment_specular_lightmap_draw(void *shader, int frame_index, int vertices_per_primitive, int a4, int triangle_count, void *geometry);",
           "addr": "0x1640d0",
           "ported": true
         },
@@ -34605,12 +34605,12 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_reflection_lightmap_mask_begin(int bitmap_data);",
+          "decl": "void __rasterizer_environment_reflection_lightmap_mask_begin(void *bitmap_data);",
           "addr": "0x164590",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_reflection_mirror_draw(int shader, unsigned int frame_index, unsigned int vertices_per_primitive, unsigned int param_4, int triangle_count, unsigned short *vertex_buffer);",
+          "decl": "void __rasterizer_environment_reflection_mirror_draw(void *shader, int frame_index, int vertices_per_primitive, int a4, int triangle_count, void *vertex_buffer);",
           "addr": "0x164690",
           "ported": true
         },
@@ -34620,7 +34620,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_transparent_geometry_submit(uint32_t shader, unsigned short param_2, uint32_t param_3, uint32_t vertices_per_primitive, uint32_t param_5, uint32_t triangle_count, uint32_t param_7, real *centroid, uint32_t *colors, unsigned int param_10, unsigned int geometry_data, uint32_t geometry_flags);",
+          "decl": "void __rasterizer_environment_transparent_geometry_submit(void *shader, int16_t a2, int a3, int vertices_per_primitive, int a5, int triangle_count, int a7, float *centroid, uint32_t *colors, int a10, int geometry_data, int geometry_flags);",
           "addr": "0x165420",
           "ported": true
         }
@@ -34636,7 +34636,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_environment_fog_screen_initialize(void);",
+          "decl": "bool rasterizer_environment_fog_screen_initialize(void);",
           "addr": "0x1659a0",
           "ported": true
         },
@@ -34656,7 +34656,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_fog_draw(int shader, unsigned int param_2, unsigned int param_3, unsigned int param_4, int param_5, unsigned short *vertex_buffer);",
+          "decl": "void __rasterizer_environment_fog_draw(void *shader, int arg2, int arg3, int arg4, int arg5, void *vertex_buffer);",
           "addr": "0x165cb0",
           "ported": true
         },
@@ -34671,7 +34671,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_environment_fog_screen_model_submit(unsigned int shader, unsigned short shader_permutation_index, unsigned int triangle_buffer, unsigned int dynamic_triangle_buffer_index, unsigned int triangle_count, unsigned int vertex_buffer, unsigned int dynamic_vertex_buffer_index);",
+          "decl": "void rasterizer_environment_fog_screen_model_submit(void *shader, int16_t shader_permutation_index, void *triangle_buffer, int dynamic_triangle_buffer_index, int triangle_count, void *vertex_buffer, int dynamic_vertex_buffer_index);",
           "addr": "0x165ea0",
           "ported": true
         },
@@ -34681,12 +34681,12 @@
           "ported": true
         },
         {
-          "decl": "void set_real_vector4d(unsigned int *vector, unsigned int i, unsigned int j, unsigned int k, unsigned int l);",
+          "decl": "float *set_real_vector4d(float *vector, float i, float j, float k, float l);",
           "addr": "0x165fd0",
           "ported": true
         },
         {
-          "decl": "uint32_t rasterizer_environment_fog_screen_is_active(unsigned int a0);",
+          "decl": "bool rasterizer_environment_fog_screen_is_active(void);",
           "addr": "0x166010",
           "ported": true
         },
@@ -34706,7 +34706,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_fog_screen_draw(unsigned int shader, unsigned int param_2, unsigned int param_3, unsigned int param_4, int param_5, unsigned short *param_6);",
+          "decl": "void __rasterizer_environment_fog_screen_draw(void *shader, int arg2, int arg3, int arg4, int arg5, void *arg6);",
           "addr": "0x1677d0",
           "ported": true
         },
@@ -34716,7 +34716,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned short rasterizer_environment_fog_screen_model_begin(unsigned short a0, int a1);",
+          "decl": "bool rasterizer_environment_fog_screen_model_begin(void *param_1);",
           "addr": "0x167ee0",
           "ported": true
         },
@@ -34762,7 +34762,7 @@
           "ported": true
         },
         {
-          "decl": "unsigned int rasterizer_bitmap_new(int bitmap);",
+          "decl": "char rasterizer_bitmap_new(void *bitmap);",
           "addr": "0x168370",
           "ported": true
         },
@@ -34781,12 +34781,12 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_bitmap_delete(int bitmap);",
+          "decl": "void rasterizer_bitmap_delete(void *bitmap);",
           "addr": "0x168ae0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_bitmap_changed(int bitmap);",
+          "decl": "void rasterizer_bitmap_changed(void *bitmap);",
           "addr": "0x168b10",
           "ported": true
         },
@@ -34822,27 +34822,27 @@
       "source": "rasterizer/xbox/rasterizer_xbox_hardware_geometry.c",
       "functions": [
         {
-          "decl": "int rasterizer_vertex_buffer_new(unsigned short *vertex_buffer, int *vertex_type, int vertex_count, int vertices, int buffer_size);",
+          "decl": "bool rasterizer_vertex_buffer_new(void *vertex_buffer, int vertex_type, int vertex_count, void *vertices, int buffer_size);",
           "addr": "0x168cd0",
           "ported": true
         },
         {
-          "decl": "void rasterizer_vertex_buffer_delete(int vertex_buffer);",
+          "decl": "void rasterizer_vertex_buffer_delete(void *vertex_buffer);",
           "addr": "0x168e40",
           "ported": true
         },
         {
-          "decl": "int rasterizer_triangle_buffer_new(short *triangle_buffer, short type, int count, int triangles);",
+          "decl": "bool rasterizer_triangle_buffer_new(void *triangle_buffer, short type, int count, void *triangles);",
           "addr": "0x168e70",
           "ported": true
         },
         {
-          "decl": "void rasterizer_triangle_buffer_delete(int triangle_buffer);",
+          "decl": "void rasterizer_triangle_buffer_delete(void *triangle_buffer);",
           "addr": "0x168fd0",
           "ported": true
         },
         {
-          "decl": "bool rasterizer_project_billboard(float *point, float radius, float *out_extent, float *out_screen@<ebx>);",
+          "decl": "bool rasterizer_project_billboard(float *point, float radius, float *out_extent, float *out_screen @<ebx>);",
           "addr": "0x169200",
           "ported": true
         }
@@ -34868,7 +34868,7 @@
           "ported": true
         },
         {
-          "decl": "int rasterizer_sun_glow_convolve(unsigned int primary_target, unsigned int secondary_target, unsigned short iterations);",
+          "decl": "int rasterizer_sun_glow_convolve(int primary_target, int secondary_target, short iterations);",
           "addr": "0x169a50",
           "ported": true
         },
@@ -34889,7 +34889,7 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_models_begin(char flag);",
+          "decl": "void __rasterizer_models_begin(bool flag);",
           "addr": "0x16b180",
           "ported": true
         },
@@ -34904,7 +34904,7 @@
           "ported": true
         },
         {
-          "decl": "void rasterizer_model_ambient_reflection_tint(unsigned int param_1, unsigned int param_2, unsigned int param_3, unsigned int param_4);",
+          "decl": "void rasterizer_model_ambient_reflection_tint(int param_1, float param_2, float param_3, float param_4);",
           "addr": "0x16b270",
           "ported": true
         },
@@ -34918,7 +34918,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t * __rasterizer_model_transparent_geometry_submit(uint32_t shader, unsigned short param_2, uint32_t param_3, uint32_t param_4, uint32_t param_5, uint32_t param_6, uint32_t param_7, uint32_t *centroid, int *out);",
+          "decl": "void *__rasterizer_model_transparent_geometry_submit(void *shader, short param_2, int param_3, int param_4, int param_5, int param_6, int param_7, float *centroid, void *out);",
           "addr": "0x16c090",
           "ported": true
         },
@@ -34933,12 +34933,12 @@
       "source": "rasterizer/xbox/rasterizer_xbox_profile.c",
       "functions": [
         {
-          "decl": "void rasterizer_profile_begin(unsigned int profile);",
+          "decl": "void rasterizer_profile_begin(int16_t profile);",
           "addr": "0x16f910",
           "ported": true
         },
         {
-          "decl": "void rasterizer_profile_end(unsigned int profile);",
+          "decl": "void rasterizer_profile_end(int16_t profile);",
           "addr": "0x16fa40",
           "ported": true
         }
@@ -34975,12 +34975,12 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_shadow_model_draw(int shader, unsigned int frame_index, int triangle_buffer, unsigned short *vertex_buffer);",
+          "decl": "void __rasterizer_environment_shadow_model_draw(void *shader, int frame_index, void *triangle_buffer, void *vertex_buffer);",
           "addr": "0x172de0",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_environment_shadow_draw(unsigned int shader, unsigned int param_2, unsigned int vertices_per_primitive, unsigned int param_4, int triangle_count, unsigned short *vertex_buffer);",
+          "decl": "void __rasterizer_environment_shadow_draw(void *shader, int param_2, int vertices_per_primitive, int a2, int triangle_count, void *vertex_buffer);",
           "addr": "0x173090",
           "ported": true
         }
@@ -35007,7 +35007,7 @@
       "source": "rasterizer/xbox/rasterizer_xbox_vertex_shaders_runtime.c",
       "functions": [
         {
-          "decl": "void rasterizer_set_vertex_shader_permutation(int vertex_shader_index, int vertex_type, short permutation_index);",
+          "decl": "void rasterizer_set_vertex_shader_permutation(int vertex_shader_index, int vertex_type, int permutation_index);",
           "addr": "0x178b40",
           "ported": true
         }
@@ -35018,7 +35018,7 @@
       "source": "rasterizer/xbox/rasterizer_xbox_widgets.c",
       "functions": [
         {
-          "decl": "int __rasterizer_widget_get_occlusion_test_result(unsigned int index);",
+          "decl": "unsigned int __rasterizer_widget_get_occlusion_test_result(unsigned int index);",
           "addr": "0x17adc0",
           "ported": true
         },
@@ -35028,22 +35028,22 @@
           "ported": true
         },
         {
-          "decl": "void __rasterizer_widget_begin(int widget_type, unsigned short flags);",
+          "decl": "void __rasterizer_widget_begin(int16_t widget_type, uint16_t flags);",
           "addr": "0x17b000",
           "ported": true
         },
         {
-          "decl": "unsigned int __rasterizer_widget_set_texture(unsigned int stage, int bitmap_index, unsigned int frame_index);",
+          "decl": "char __rasterizer_widget_set_texture(int stage, int bitmap_index, int frame_index);",
           "addr": "0x17b480",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_widget_set_tint_factor(unsigned int value);",
+          "decl": "void __rasterizer_widget_set_tint_factor(float value);",
           "addr": "0x17b540",
           "ported": true
         },
         {
-          "decl": "void __rasterizer_widget_set_zbuffer_enable(char enable);",
+          "decl": "void __rasterizer_widget_set_zbuffer_enable(bool enable);",
           "addr": "0x17b580",
           "ported": true
         },
@@ -36281,17 +36281,17 @@
       "source": "render/render.c",
       "functions": [
         {
-          "decl": "unsigned int rasterizer_transparent_geometry_get_group_pending_status(unsigned int group);",
+          "decl": "char rasterizer_transparent_geometry_get_group_pending_status(void *group);",
           "addr": "0x184570",
           "ported": true
         },
         {
-          "decl": "void rasterizer_transparent_geometry_set_group_pending_status(unsigned int group, char clear_bit);",
+          "decl": "void rasterizer_transparent_geometry_set_group_pending_status(void *group, int clear_bit);",
           "addr": "0x1845b0",
           "ported": true
         },
         {
-          "decl": "unsigned short * rasterizer_transparent_geometry_get_primary_vertex_type(int group);",
+          "decl": "short rasterizer_transparent_geometry_get_primary_vertex_type(void *group);",
           "addr": "0x184610",
           "ported": true
         },
@@ -36317,7 +36317,7 @@
           "addr": "0x1848d0"
         },
         {
-          "decl": "void rasterizer_transparent_geometry_draw(unsigned int param_1);",
+          "decl": "void rasterizer_transparent_geometry_draw(char param_1);",
           "addr": "0x184980",
           "ported": true
         },
@@ -36495,7 +36495,7 @@
           "ported": true
         },
         {
-          "decl": "real contrail_fade(unsigned char *definition, short fade_mode, real *world_point, real *world_normal);",
+          "decl": "float contrail_fade(contrail_definition_t *definition, int16_t fade_mode, vector3_t *world_point, vector3_t *world_normal);",
           "addr": "0x187f80",
           "ported": true
         },
@@ -36521,17 +36521,17 @@
       "source": "render/render_debug.c",
       "functions": [
         {
-          "decl": "void render_debug_triangle(char flag, int point0, int point1, int point2, int color);",
+          "decl": "void render_debug_triangle(char flag, float *point0, float *point1, float *point2, void *color);",
           "addr": "0x188890",
           "ported": true
         },
         {
-          "decl": "void render_debug_quadrilateral(unsigned int flag, int point0, int point1, int point2, int point3, int color);",
+          "decl": "void render_debug_quadrilateral(char flag, float *point0, float *point1, float *point2, float *point3, void *color);",
           "addr": "0x188970",
           "ported": true
         },
         {
-          "decl": "void render_debug_polygon(int points, short count, int color);",
+          "decl": "void render_debug_polygon(float *points, short count, void *color);",
           "addr": "0x188a90",
           "ported": true
         },
@@ -36560,67 +36560,67 @@
           "addr": "0x188ec0"
         },
         {
-          "decl": "void render_debug_point(char flag, real *position, real scale, int color);",
+          "decl": "void render_debug_point(char flag, float *position, float scale, void *color);",
           "addr": "0x189150",
           "ported": true
         },
         {
-          "decl": "void render_debug_line(char flag, int point_a, int point_b, int color);",
+          "decl": "void render_debug_line(char flag, float *point_a, float *point_b, void *color);",
           "addr": "0x189270",
           "ported": true
         },
         {
-          "decl": "void render_debug_vector(unsigned int flag, real *point, real *vector, real scale, int color);",
+          "decl": "void render_debug_vector(int flag, float *point, float *vector, float scale, void *color);",
           "addr": "0x189320",
           "ported": true
         },
         {
-          "decl": "void render_debug_tick(unsigned int flag, real *point, real *dir, real scale, unsigned int color);",
+          "decl": "void render_debug_tick(int flag, float *point, float *dir, float scale, void *color);",
           "addr": "0x1893e0",
           "ported": true
         },
         {
-          "decl": "void render_debug_line_offset(unsigned int flag, real *point_a, real *point_b, unsigned int color, real scale);",
+          "decl": "void render_debug_line_offset(int flag, float *point_a, float *point_b, void *color, float scale);",
           "addr": "0x189450",
           "ported": true
         },
         {
-          "decl": "void render_debug_matrix(unsigned int flag, real *matrix, real scale);",
+          "decl": "void render_debug_matrix(int flag, float *matrix, float scale);",
           "addr": "0x1894d0",
           "ported": true
         },
         {
-          "decl": "void render_debug_sphere(int flag, real *center, real radius, int color);",
+          "decl": "void render_debug_sphere(char flag, void *center, float radius, void *color);",
           "addr": "0x189540",
           "ported": true
         },
         {
-          "decl": "void render_debug_cylinder(char flag, int center, int height_vec, real radius, int color);",
+          "decl": "void render_debug_cylinder(char flag, void *center, void *height_vec, float radius, void *color);",
           "addr": "0x1896d0",
           "ported": true
         },
         {
-          "decl": "void render_debug_pill(char flag, int center, int height_vec, real radius, int color);",
+          "decl": "void render_debug_pill(char flag, void *center, void *height_vec, float radius, void *color);",
           "addr": "0x189860",
           "ported": true
         },
         {
-          "decl": "void render_debug_box(char flag, unsigned int *bounds, int color);",
+          "decl": "void render_debug_box(char flag, float *bounds, void *color);",
           "addr": "0x189a20",
           "ported": true
         },
         {
-          "decl": "void render_debug_polygon_edges(int points, int count, int color);",
+          "decl": "void render_debug_polygon_edges(float *points, short count, void *color);",
           "addr": "0x189ba0",
           "ported": true
         },
         {
-          "decl": "void render_debug_string(char flag, int string);",
+          "decl": "void render_debug_string(char flag, const char *string);",
           "addr": "0x189c40",
           "ported": true
         },
         {
-          "decl": "void render_debug_string_at_point(int flag, int position, int string, int color);",
+          "decl": "void render_debug_string_at_point(char flag, void *position, void *string, int color);",
           "addr": "0x189cb0",
           "ported": true
         },
@@ -36655,42 +36655,42 @@
           "ported": true
         },
         {
-          "decl": "void render_debug_point2d(unsigned int flag, int plane, unsigned int projection, unsigned int sign, int point, unsigned int scale, int color, real offset);",
+          "decl": "void render_debug_point2d(int flag, float *plane, int projection, int sign, float *point, float scale, void *color, float offset);",
           "addr": "0x18a580",
           "ported": true
         },
         {
-          "decl": "void render_debug_line2d(unsigned int flag, int plane, unsigned int projection, unsigned int sign, int point_a, int point_b, int color, real offset);",
+          "decl": "void render_debug_line2d(int flag, float *plane, int projection, int sign, float *point_a, float *point_b, void *color, float offset);",
           "addr": "0x18a650",
           "ported": true
         },
         {
-          "decl": "void render_debug_vector2d(unsigned int flag, int plane, unsigned int projection, unsigned int sign, real *point, real *vector, real scale, int color, unsigned int offset);",
+          "decl": "void render_debug_vector2d(int flag, float *plane, int projection, int sign, float *point, float *vector, float scale, void *color, float offset);",
           "addr": "0x18a770",
           "ported": true
         },
         {
-          "decl": "void render_debug_circle(int flag, int plane, unsigned int projection, uint32_t sign, real *center, real radius, int color, unsigned int offset);",
+          "decl": "void render_debug_circle(char flag, float *plane, int projection, int sign, float *center, float radius, void *color, float offset);",
           "addr": "0x18a860",
           "ported": true
         },
         {
-          "decl": "void render_debug_vectors(unsigned int flag, unsigned int position, unsigned int forward, unsigned int up, unsigned int scale);",
+          "decl": "void render_debug_vectors(int flag, float *position, float *forward, float *up, float scale);",
           "addr": "0x18a990",
           "ported": true
         },
         {
-          "decl": "void render_debug_quaternion(unsigned int flag, unsigned int position, unsigned int basis_data, unsigned int scale);",
+          "decl": "void render_debug_quaternion(int flag, float *position, float *basis_data, float scale);",
           "addr": "0x18a9d0",
           "ported": true
         },
         {
-          "decl": "void render_debug_box2d_outline(char flag, unsigned int *bounds, int color);",
+          "decl": "void render_debug_box2d_outline(char flag, float *bounds, void *color);",
           "addr": "0x18aa00",
           "ported": true
         },
         {
-          "decl": "void render_debug_box_outline(char wireframe, unsigned int *bounds, int color);",
+          "decl": "void render_debug_box_outline(char wireframe, float *bounds, void *color);",
           "addr": "0x18ab30",
           "ported": true
         },
@@ -37436,22 +37436,22 @@
           "addr": "0x190380"
         },
         {
-          "decl": "unsigned int scenario_get_current(uint32_t location, uint32_t position, unsigned int param_3, uint32_t flags);",
+          "decl": "bool scenario_get_current(void *location, void *position, int32_t param_3, uint32_t flags);",
           "addr": "0x190550",
           "ported": true
         },
         {
-          "decl": "void scenario_get_wind(unsigned int location, unsigned int position, unsigned int param_3, uint32_t flags);",
+          "decl": "void scenario_get_wind(void *location, void *position, int32_t param_3, uint32_t flags);",
           "addr": "0x190670",
           "ported": true
         },
         {
-          "decl": "void scenario_get_water_current(unsigned int location, unsigned int position, unsigned int param_3, uint32_t flags);",
+          "decl": "bool scenario_get_water_current(void *location, void *position, int32_t param_3, uint32_t flags);",
           "addr": "0x190690",
           "ported": true
         },
         {
-          "decl": "int shader_get_and_verify_type(int shader_pointer, short shader_type);",
+          "decl": "void *shader_get_and_verify_type(void *shader_pointer, int16_t shader_type);",
           "addr": "0x1906b0",
           "ported": true
         },
@@ -38573,7 +38573,7 @@
           "addr": "0x1932d0"
         },
         {
-          "decl": "void leaf_map_build_leaf_faces(unsigned int *leaf_map, uint32_t leaf_index);",
+          "decl": "void leaf_map_build_leaf_faces(int *leaf_map, int leaf_index);",
           "addr": "0x193340",
           "ported": true
         },
@@ -38582,7 +38582,7 @@
           "addr": "0x193420"
         },
         {
-          "decl": "int structure_bsp_get_cluster_pvs(int bsp, short cluster_index);",
+          "decl": "uint32_t *structure_bsp_get_cluster_pvs(void *bsp, int16_t cluster_index);",
           "addr": "0x193550",
           "ported": true
         },
@@ -38602,7 +38602,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t structure_bsp_get_cluster_encoded_sound_distance(int bsp, unsigned int from_cluster, unsigned int to_cluster);",
+          "decl": "uint8_t structure_bsp_get_cluster_encoded_sound_distance(void *bsp, int16_t from_cluster, int16_t to_cluster);",
           "addr": "0x193870",
           "ported": true
         }
@@ -38613,7 +38613,7 @@
       "source": "structures/structure_detail_objects.c",
       "functions": [
         {
-          "decl": "real calculate_world_from_cell_index_and_offset(real param_1, real param_2);",
+          "decl": "float calculate_world_from_cell_index_and_offset(float param_1, float param_2);",
           "addr": "0x193910",
           "ported": true
         },
@@ -38628,22 +38628,22 @@
           "ported": true
         },
         {
-          "decl": "void detail_object_offset(real param_1);",
+          "decl": "void detail_object_offset(float param_1);",
           "addr": "0x1939f0",
           "ported": true
         },
         {
-          "decl": "int get_lower_bound_cell(int param_1 /*@<ecx> */, short *param_2, int in_EAX /*@<eax> */);",
+          "decl": "int get_lower_bound_cell(int param_1 /* @<ecx> */, short *param_2, int in_EAX /* @<eax> */);",
           "addr": "0x193a80",
           "ported": true
         },
         {
-          "decl": "int get_upper_bound_cell(int param_1 /*@<ecx> */, short *param_2, int in_EAX /*@<eax> */);",
+          "decl": "int get_upper_bound_cell(int param_1 /* @<ecx> */, short *param_2, int in_EAX /* @<eax> */);",
           "addr": "0x193b00",
           "ported": true
         },
         {
-          "decl": "real dot_product4d(real *param_1, real *param_2);",
+          "decl": "float dot_product4d(float *param_1, float *param_2);",
           "addr": "0x193b80",
           "ported": true
         },
@@ -38659,7 +38659,7 @@
       "source": "structures/structure_render.c",
       "functions": [
         {
-          "decl": "void structure_render_set_fog_offset(unsigned int *fog_offset);",
+          "decl": "void structure_render_set_fog_offset(void *fog_offset);",
           "addr": "0x1954e0",
           "ported": true
         }
@@ -38722,7 +38722,7 @@
           "addr": "0x196e10"
         },
         {
-          "decl": "void structure_visibility_traverse_cluster(unsigned int cluster_index, unsigned short *sound_list);",
+          "decl": "void structure_visibility_traverse_cluster(int16_t cluster_index, uint16_t *sound_list);",
           "addr": "0x197b00",
           "ported": true
         }
@@ -38738,17 +38738,17 @@
           "ported": true
         },
         {
-          "decl": "void obstacles_new(unsigned short *out);",
+          "decl": "void obstacles_new(int16_t *out);",
           "addr": "0x61d80",
           "ported": true
         },
         {
-          "decl": "void set_real_point2d(unsigned int *out, unsigned int value0, unsigned int value1);",
+          "decl": "void set_real_point2d(void *out, float value0, int value1);",
           "addr": "0x61da0",
           "ported": true
         },
         {
-          "decl": "void rotate_vector2d(real *point, real rot_sin, real rot_cos, real *out);",
+          "decl": "void rotate_vector2d(float *point, float rot_sin, float rot_cos, float *out);",
           "addr": "0x61dc0",
           "ported": true
         },
@@ -38758,12 +38758,12 @@
           "ported": true
         },
         {
-          "decl": "unsigned int point_in_circle(real *p0, real *p1, real radius);",
+          "decl": "int point_in_circle(float *p0, float *p1, float radius);",
           "addr": "0x61e80",
           "ported": true
         },
         {
-          "decl": "unsigned int point_in_sphere(real *p0, real *p1, real radius);",
+          "decl": "int point_in_sphere(float *p0, float *p1, float radius);",
           "addr": "0x61ec0",
           "ported": true
         },
@@ -38778,7 +38778,7 @@
           "ported": true
         },
         {
-          "decl": "uint32_t obstacles_add_disc(unsigned int a0, short *param_2, unsigned int a2, unsigned short a3, int a4, unsigned int a5);",
+          "decl": "bool obstacles_add_disc(int16_t *obstacle_set, uint32_t datum, uint16_t flags, float *vector, uint32_t param_5);",
           "addr": "0x62020",
           "ported": true
         },
@@ -38788,17 +38788,17 @@
           "ported": true
         },
         {
-          "decl": "unsigned int obstacles_test_circle(unsigned int a0, int a1, short a2, real *param_4, real a4);",
+          "decl": "short obstacles_test_circle(void *obstacles, short disc_index_skip, float *position_xy, float radius);",
           "addr": "0x62410",
           "ported": true
         },
         {
-          "decl": "bool obstacles_test_pill(int obstacles, short skip_index, unsigned int pt0, unsigned int vec_a, real radius_base, real max_distance, char check_extant, real *result);",
+          "decl": "char obstacles_test_pill(void *obstacles, short skip_index, float *pt0, float *vec_a, float radius_base, float max_distance, char check_extant, void *result);",
           "addr": "0x624b0",
           "ported": true
         },
         {
-          "decl": "void obstacles_disc_tangents(int obstacles, real disc_index, real *point, real base_value, unsigned int out_b, unsigned int out_a, unsigned int out_scalar);",
+          "decl": "void obstacles_disc_tangents(void *obstacles, short disc_index, float *point, float base_value, float *out_b, float *out_a, float *out_scalar);",
           "addr": "0x625a0",
           "ported": true
         },
@@ -38808,7 +38808,7 @@
           "ported": true
         },
         {
-          "decl": "void obstacles_recompute(short *partition, unsigned int param_2);",
+          "decl": "void obstacles_recompute(int16_t *partition, uint32_t arg2);",
           "addr": "0x628b0",
           "ported": true
         },
@@ -38818,67 +38818,67 @@
           "ported": true
         },
         {
-          "decl": "int projection_from_vector3d(real *plane);",
+          "decl": "short projection_from_vector3d(float *plane);",
           "addr": "0x99220",
           "ported": true
         },
         {
-          "decl": "unsigned int projection_sign_from_vector3d(int plane, short basis);",
+          "decl": "int projection_sign_from_vector3d(float *plane, short basis);",
           "addr": "0x99270",
           "ported": true
         },
         {
-          "decl": "void error_geometry_rectangle3d(unsigned int *bounds, int color);",
+          "decl": "void error_geometry_rectangle3d(float *bounds, float *color);",
           "addr": "0x1049d0",
           "ported": true
         },
         {
-          "decl": "void error_geometry_bounded_line(real *p0, real *p1, real radius, real *color);",
+          "decl": "void error_geometry_bounded_line(float *p0, float *p1, float radius, float *color);",
           "addr": "0x104bd0",
           "ported": true
         },
         {
-          "decl": "void error_geometry_bounded_triangle(real *p0, real *p1, real *p2, real radius, real *color);",
+          "decl": "void error_geometry_bounded_triangle(float *p0, float *p1, float *p2, float radius, float *color);",
           "addr": "0x104d40",
           "ported": true
         },
         {
-          "decl": "void error_geometry_bounded_polygon(uint32_t point_count, int points, real radius, real *color);",
+          "decl": "void error_geometry_bounded_polygon(int point_count, float *points, float radius, float *color);",
           "addr": "0x104fa0",
           "ported": true
         },
         {
-          "decl": "void error_geometry_set_transform(real *matrix);",
+          "decl": "void error_geometry_set_transform(float *matrix);",
           "addr": "0x105160",
           "ported": true
         },
         {
-          "decl": "void error_geometry_point(real *point, int color);",
+          "decl": "void error_geometry_point(float *point, float *color);",
           "addr": "0x105550",
           "ported": true
         },
         {
-          "decl": "void error_geometry_bounded_point(real *point, real radius, real *color);",
+          "decl": "void error_geometry_bounded_point(float *point, float radius, float *color);",
           "addr": "0x105610",
           "ported": true
         },
         {
-          "decl": "void geosphere_dispose(int handle);",
+          "decl": "void geosphere_dispose(void *handle);",
           "addr": "0x1056e0",
           "ported": true
         },
         {
-          "decl": "real plane2d_distance_to_point(real *param_1, real *param_2);",
+          "decl": "float plane2d_distance_to_point(float *param_1, float *param_2);",
           "addr": "0x1057a0",
           "ported": true
         },
         {
-          "decl": "real vector_intersect_plane2d(real *param_1, real *param_2, real *param_3);",
+          "decl": "float vector_intersect_plane2d(float *param_1, float *param_2, float *param_3);",
           "addr": "0x1057c0",
           "ported": true
         },
         {
-          "decl": "real vector_intersect_plane3d(real *param_1, real *param_2, real *param_3);",
+          "decl": "float vector_intersect_plane3d(float *param_1, float *param_2, float *param_3);",
           "addr": "0x1057f0",
           "ported": true
         },
@@ -38893,42 +38893,42 @@
           "ported": true
         },
         {
-          "decl": "short points_dimension2d(short vertex_count, float *vertices@<ebx>);",
+          "decl": "short points_dimension2d(short vertex_count, float *vertices @<ebx>);",
           "addr": "0x105c80",
           "ported": true
         },
         {
-          "decl": "unsigned int convex_hull2d(int vertex_count, real *vertices, short *out_indices);",
+          "decl": "int16_t convex_hull2d(int16_t vertex_count, float *vertices, int16_t *out_indices);",
           "addr": "0x105d20",
           "ported": true
         },
         {
-          "decl": "unsigned int convex_hull2d_verify(unsigned int param_1, int param_2, short param_3, int param_4);",
+          "decl": "int convex_hull2d_verify(void *param_1, int param_2, short param_3, int param_4);",
           "addr": "0x106030",
           "ported": true
         },
         {
-          "decl": "unsigned int convex_hull2d_test_circle(unsigned int a0, short a1, int a2, real *param_4, real a4);",
+          "decl": "bool convex_hull2d_test_circle(uint16_t point_count, void *points, void *query_point, float radius);",
           "addr": "0x106130",
           "ported": true
         },
         {
-          "decl": "int convex_hull2d_test_point(int a0, short a1, int a2, real *param_4, real a4);",
+          "decl": "bool convex_hull2d_test_point(int16_t count, void *points, float *query_point, float epsilon);",
           "addr": "0x106200",
           "ported": true
         },
         {
-          "decl": "int convex_hull2d_test_point_indexed(int a0, short a1, int a2, int a3, real *param_5, real a5);",
+          "decl": "int convex_hull2d_test_point_indexed(int16_t count, void *index_array, void *vertex_base, float *query_point, float epsilon);",
           "addr": "0x106290",
           "ported": true
         },
         {
-          "decl": "real convex_hull2d_area(short count, real *points);",
+          "decl": "float convex_hull2d_area(int16_t count, float *points);",
           "addr": "0x106330",
           "ported": true
         },
         {
-          "decl": "int global_bsp3d_get(void);",
+          "decl": "void *global_bsp3d_get(void);",
           "addr": "0x18e420",
           "ported": true
         },
@@ -38943,17 +38943,17 @@
           "ported": true
         },
         {
-          "decl": "void cluster_partition_new(int *out, char *name);",
+          "decl": "void cluster_partition_new(void **out, const char *name);",
           "addr": "0x191500",
           "ported": true
         },
         {
-          "decl": "void cluster_partition_make_valid(unsigned int *partition);",
+          "decl": "void cluster_partition_make_valid(void *partition);",
           "addr": "0x1915d0",
           "ported": true
         },
         {
-          "decl": "void cluster_partition_make_invalid(int partition);",
+          "decl": "void cluster_partition_make_invalid(void *partition);",
           "addr": "0x191600",
           "ported": true
         },
@@ -38963,17 +38963,17 @@
           "ported": true
         },
         {
-          "decl": "unsigned int cluster_partition_get_next_datum(int partition, int *state);",
+          "decl": "int cluster_partition_get_next_datum(void *partition, int *state);",
           "addr": "0x191660",
           "ported": true
         },
         {
-          "decl": "unsigned int cluster_partition_get_first_cluster(int cluster_list, int *out_cluster, int cluster_handle);",
+          "decl": "int cluster_partition_get_first_cluster(void *cluster_list, int *out_cluster, int cluster_handle);",
           "addr": "0x191690",
           "ported": true
         },
         {
-          "decl": "unsigned int cluster_partition_get_next_cluster(int partition, int *state);",
+          "decl": "int cluster_partition_get_next_cluster(int partition, int *state);",
           "addr": "0x1916d0",
           "ported": true
         },
@@ -38988,27 +38988,27 @@
           "ported": true
         },
         {
-          "decl": "void cluster_partition_reconnect(int *partition, unsigned int object_handle, int *first_cluster_ref, short *position, unsigned int radius_fp, uint32_t location);",
+          "decl": "void cluster_partition_reconnect(void *partition, int object_handle, void *first_cluster_ref, void *position, uint32_t radius_fp, void *location);",
           "addr": "0x1917a0",
           "ported": true
         },
         {
-          "decl": "void cluster_partition_disconnect(int *partition, unsigned int object_handle, int *first_cluster_ref);",
+          "decl": "void cluster_partition_disconnect(void *partition, int object_handle, void *first_cluster_ref);",
           "addr": "0x1919a0",
           "ported": true
         },
         {
-          "decl": "unsigned int cluster_partition_get_first_datum(int *partition, int *state, short cluster_idx);",
+          "decl": "int cluster_partition_get_first_datum(void *partition, int *state, int16_t cluster_idx);",
           "addr": "0x191a50",
           "ported": true
         },
         {
-          "decl": "void node_stack_push(unsigned int node);",
+          "decl": "void node_stack_push(int32_t node);",
           "addr": "0x191ad0",
           "ported": true
         },
         {
-          "decl": "unsigned int node_stack_pop(void);",
+          "decl": "int32_t node_stack_pop(void);",
           "addr": "0x191b20",
           "ported": true
         },
@@ -39018,7 +39018,7 @@
           "ported": true
         },
         {
-          "decl": "void leaf_map_delete(int base);",
+          "decl": "void leaf_map_delete(void *base);",
           "addr": "0x191ba0",
           "ported": true
         },
@@ -39033,27 +39033,27 @@
           "ported": true
         },
         {
-          "decl": "void leaf_map_close_portal(uint32_t *structure, uint32_t portal_index);",
+          "decl": "void leaf_map_close_portal(void *structure, uint32_t portal_index);",
           "addr": "0x191cb0",
           "ported": true
         },
         {
-          "decl": "uint32_t leaf_map_leaf_is_closed(int base, uint32_t index);",
+          "decl": "char leaf_map_leaf_is_closed(int base, unsigned int index);",
           "addr": "0x191d80",
           "ported": true
         },
         {
-          "decl": "void leaf_map_family_mark(int descriptor, int dst, uint32_t cluster_index);",
+          "decl": "void leaf_map_family_mark(int descriptor, int dst, unsigned int cluster_index);",
           "addr": "0x191de0",
           "ported": true
         },
         {
-          "decl": "void render_debug_leaf_portal(unsigned int *param_1, uint32_t param_2);",
+          "decl": "void render_debug_leaf_portal(int param_1, int param_2);",
           "addr": "0x191e90",
           "ported": true
         },
         {
-          "decl": "void render_debug_leaf_portals(int base, uint32_t index);",
+          "decl": "void render_debug_leaf_portals(int base, unsigned int index);",
           "addr": "0x191ff0",
           "ported": true
         },
@@ -39068,12 +39068,12 @@
           "ported": true
         },
         {
-          "decl": "int leaf_map_closure(int descriptor, int src, int dst);",
+          "decl": "unsigned char leaf_map_closure(int descriptor, int src, int dst);",
           "addr": "0x1926a0",
           "ported": true
         },
         {
-          "decl": "uint32_t leaf_map_leaf_spans_polygon(int *bsp, uint32_t index, real *plane, unsigned int projection, unsigned int sign, unsigned int count, unsigned int points);",
+          "decl": "char leaf_map_leaf_spans_polygon(void *bsp, int index, float *plane, int16_t projection, uint8_t sign, int16_t count, void *points);",
           "addr": "0x192710",
           "ported": true
         },
@@ -39098,7 +39098,7 @@
           "ported": true
         },
         {
-          "decl": "int cluster_index_from_point(int param_1, unsigned int param_2);",
+          "decl": "int cluster_index_from_point(int param_1, void *param_2);",
           "addr": "0x194380",
           "ported": true
         },
@@ -39113,12 +39113,12 @@
           "ported": true
         },
         {
-          "decl": "int compare_surface_indices(int param_1, int param_2);",
+          "decl": "char compare_surface_indices(int param_1, int param_2);",
           "addr": "0x195530",
           "ported": true
         },
         {
-          "decl": "void structure_render_dynamic_triangles_from_bitvector(short surface_count, int *out_indices, uint32_t *mask, int out_surfaces);",
+          "decl": "void structure_render_dynamic_triangles_from_bitvector(short surface_count, int *out_indices, unsigned int *mask, int out_surfaces);",
           "addr": "0x195550",
           "ported": true
         },
@@ -39188,12 +39188,12 @@
           "ported": true
         },
         {
-          "decl": "void structure_render_specular_light(unsigned int object_handle, int position, int radius, unsigned int gel_count, int gel_buffer);",
+          "decl": "void structure_render_specular_light(int object_handle, float *position, float radius, int gel_count, int gel_buffer);",
           "addr": "0x195f30",
           "ported": true
         },
         {
-          "decl": "void structure_render_diffuse_light(unsigned int object_handle, int position, int radius, unsigned int gel_count, int gel_buffer);",
+          "decl": "void structure_render_diffuse_light(int object_handle, float *position, float radius, int gel_count, int gel_buffer);",
           "addr": "0x196060",
           "ported": true
         },
@@ -39232,7 +39232,7 @@
           "addr": "0x196eb0"
         },
         {
-          "decl": "unsigned int structure_visibility_build_surfaces_traverse_clusters(int a0, short a1);",
+          "decl": "int16_t structure_visibility_build_surfaces_traverse_clusters(int *out_buf, int16_t max_count, int unused_10, int unused_14, float *bounds, int arg_1c, int arg_20, uint32_t *seen_mask, int16_t cluster_count, int16_t *cluster_indices);",
           "addr": "0x196fd0",
           "ported": true
         },
@@ -39247,27 +39247,27 @@
           "ported": true
         },
         {
-          "decl": "void portal_hull_from_portal(short connection_index, char pick, unsigned int out);",
+          "decl": "short portal_hull_from_portal(int16_t connection_index, char pick, int *out);",
           "addr": "0x1974f0",
           "ported": true
         },
         {
-          "decl": "char points_within_distance(float *records@<edx>, int16_t count@<esi>, float threshold);",
+          "decl": "char points_within_distance(float *records @<edx>, int16_t count @<esi>, float threshold);",
           "addr": "0x197570",
           "ported": true
         },
         {
-          "decl": "uint32_t structure_visibility_find_mirror(unsigned int ref, int *frustum, real *out);",
+          "decl": "char structure_visibility_find_mirror(void *ref, void *frustum, void *out);",
           "addr": "0x1975e0",
           "ported": true
         },
         {
-          "decl": "unsigned int structure_visibility_build_surfaces_traverse_node(unsigned int node_index, uint32_t parent_bounds, unsigned int param_3, int param_4, int param_5, real *center, real radius, int cull_bounds, unsigned int param_9, unsigned int param_10, char *intersection);",
+          "decl": "uint16_t structure_visibility_build_surfaces_traverse_node(int node_index, float *parent_bounds, void *param_3, int *param_4, int param_5, float *center, float radius, float *cull_bounds, int param_9, int param_10, int intersection);",
           "addr": "0x1978a0",
           "ported": true
         },
         {
-          "decl": "void structure_visibility_build_surfaces(unsigned int buffer, unsigned int max_count, real * *position, real radius, real * * *param_5, unsigned int param_6, real * *param_7, unsigned int gel_count, int gel_buffer);",
+          "decl": "short structure_visibility_build_surfaces(void *buffer, int max_count, float *position, float radius, int param_5, int param_6, int param_7, int gel_count, int gel_buffer);",
           "addr": "0x197e90",
           "ported": true
         },
@@ -39332,12 +39332,12 @@
           "ported": true
         },
         {
-          "decl": "uint32_t sphere_intersects_cluster_portal(int scenario, real portal_index, real *position, real radius);",
+          "decl": "bool sphere_intersects_cluster_portal(void *scenario, int16_t portal_index, float *position, float radius);",
           "addr": "0x198800",
           "ported": true
         },
         {
-          "decl": "unsigned int structure_clusters_in_sphere_recursive(unsigned int cluster_count, unsigned int position, unsigned int radius, int max_count, short *out_indices);",
+          "decl": "int16_t structure_clusters_in_sphere_recursive(uint16_t cluster_count, float *position, float radius, int max_count, int16_t *out_indices);",
           "addr": "0x1989b0",
           "ported": true
         },
@@ -39352,7 +39352,7 @@
           "ported": true
         },
         {
-          "decl": "void structure_get_planar_fog(unsigned int index, unsigned short *fog);",
+          "decl": "void structure_get_planar_fog(int index, void *fog);",
           "addr": "0x198f10",
           "ported": true
         },
@@ -39362,12 +39362,12 @@
           "ported": true
         },
         {
-          "decl": "unsigned int structure_clusters_in_sphere(unsigned int cluster_count, int position, real radius, unsigned int max_count, short *out_indices);",
+          "decl": "int16_t structure_clusters_in_sphere(uint16_t cluster_count, float *position, float radius, int max_count, short *out_indices);",
           "addr": "0x199230",
           "ported": true
         },
         {
-          "decl": "void file_location_set_volume(short location, unsigned int volume_name);",
+          "decl": "void file_location_set_volume(int16_t location, const char *volume_name);",
           "addr": "0x199360",
           "ported": true
         }
