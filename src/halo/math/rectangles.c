@@ -154,6 +154,11 @@ int rect2d_width(const int16_t *rect)
   return (int)(uint16_t)rect[3] - (int)rect[1];
 }
 
+int rectangle2d_width(const int16_t *rect)
+{
+  return rect2d_width(rect);
+}
+
 /* Height of a 2D rectangle (0x108a30).
  * rect layout: {top, left, bottom, right} as int16_t[4].
  * Binary reads `bottom` zero-extended (xor eax,eax; mov ax,[ecx+4]) and
@@ -161,6 +166,11 @@ int rect2d_width(const int16_t *rect)
 int rect2d_height(const int16_t *rect)
 {
   return (int)(uint16_t)rect[2] - (int)rect[0];
+}
+
+int rectangle2d_height(const int16_t *rect)
+{
+  return rect2d_height(rect);
 }
 
 /* Inset a 2D rectangle by (dx, dy) (0x108a50).
