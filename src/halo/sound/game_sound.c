@@ -1085,6 +1085,66 @@ int object_impulse_sound_new(int object_handle, int tag_index, int16_t marker,
                      callback_data, 0x1c);
 }
 
+/* scripted_sound_new (0x1c7f80)
+ *
+ * param_1 is a 'snd!' tag index, param_2 an object handle (NONE => play
+ * unattached via sound_impulse_start), param_3 a scale clamped to [0,1].
+ * Stops the impulse held at tag+0x94, schedules tag+0x90 as game time plus
+ * (tag+0x84 * 30) / 1000 ticks, then stores the new impulse handle at +0x94.
+ * With an object, the marker named at 0x2909e4 supplies marker index (+0x0),
+ * forward (+0x08) and position (+0x2c) from the 0x6c-byte marker record;
+ * otherwise the global vectors at *(float **)0x31fc1c / 0x31fc3c are used. */
+void scripted_sound_new(int param_1, int param_2, float param_3)
+{
+  char marker_buf[0x6c];
+  float forward[3];
+  float position[3];
+  char *sound_tag;
+  int16_t marker;
+  int sound_index;
+
+  if (param_1 != NONE) {
+    sound_tag = (char *)tag_get(0x736e6421, param_1);
+    sound_stop_impulse(*(int *)(sound_tag + 0x94));
+    sound_index = game_time_get();
+    *(int *)(sound_tag + 0x90) =
+      (*(int *)(sound_tag + 0x84) * 30) / 1000 + sound_index;
+    if (param_3 < 0.0f) {
+      param_3 = 0.0f;
+    } else if (param_3 > 1.0f) {
+      param_3 = 1.0f;
+    }
+    if (param_2 == NONE) {
+      sound_index = sound_impulse_start(param_1, param_3);
+    } else {
+      if (object_get_markers_by_string_id(param_2, (void *)0x2909e4, marker_buf,
+                                          1)) {
+        marker = *(int16_t *)marker_buf;
+        position[0] = *(float *)(marker_buf + 0x2c);
+        position[1] = *(float *)(marker_buf + 0x30);
+        position[2] = *(float *)(marker_buf + 0x34);
+        forward[0] = *(float *)(marker_buf + 0x08);
+        forward[1] = *(float *)(marker_buf + 0x0c);
+        forward[2] = *(float *)(marker_buf + 0x10);
+      } else {
+        position[0] = (*(float **)0x31fc1c)[0];
+        position[1] = (*(float **)0x31fc1c)[1];
+        position[2] = (*(float **)0x31fc1c)[2];
+        forward[0] = (*(float **)0x31fc3c)[0];
+        forward[1] = (*(float **)0x31fc3c)[1];
+        forward[2] = (*(float **)0x31fc3c)[2];
+        marker = 0;
+      }
+      sound_index = object_impulse_sound_new(param_2, param_1, marker, position,
+                                             forward, param_3);
+      if (sound_index != NONE) {
+        object_type_notify_impulse_sound(param_2, param_1, sound_index);
+      }
+    }
+    *(int *)(sound_tag + 0x94) = sound_index;
+  }
+}
+
 /* sound_looping_stop (0x1c80e0)
  *
  * If sound_tag_index is valid, resolves the

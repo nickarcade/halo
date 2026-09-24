@@ -10325,7 +10325,8 @@
     },
     {
      "addr": "0x1c7f80",
-     "decl": "void scripted_sound_new(int param_1, int param_2, float param_3);"
+     "decl": "void scripted_sound_new(int param_1, int param_2, float param_3);",
+     "ported": true
     },
     {
      "addr": "0x1c85a0",
