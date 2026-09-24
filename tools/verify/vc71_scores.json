@@ -46648,6 +46648,21 @@
       "score": 93.7,
       "source": "src/halo/ai/encounters.c"
     },
+    "ai_scripting_assess_status": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x57b40",
+      "end": "0x57bb2",
+      "kind": "auto",
+      "n_r": 36,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "30297c2ac2755f91",
+      "score": 100.0,
+      "source": "src/halo/ai/encounters.c"
+    },
     "ai_scripting_attach_free": {
       "abi_model": "raw",
       "abi_model_items": 0,

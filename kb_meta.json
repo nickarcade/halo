@@ -3060,6 +3060,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x57b40": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x57bc0": {
       "kind": "function",
       "status": "ported"

@@ -1663,6 +1663,57 @@ void ai_scripting_set_current_state(int encounter_handle, short state)
   }
 }
 
+/* ai_scripting_assess_status (0x57b40) — per-actor status level used by
+ * ai_scripting_status to compute an encounter's maximum status.
+ *
+ * Confirmed (disasm 0x57b40-0x57bb1): no stack frame (leaf, no
+ * PUSH EBP/MOV EBP,ESP) and the actor handle arrives in EAX with no other
+ * setup, matching kb.json's `@<eax>`; the sole caller
+ * (ai_scripting_status/0x57bc0, call at 0x57c33) does
+ * MOV EAX,[EBP-8]; CALL, with no push and no post-call ADD ESP, and
+ * immediately follows with CMP SI,AX / conditional MOV ESI,EAX, matching the
+ * existing `status = (short)ai_scripting_assess_status(...)` call in
+ * ai_scripting_status.
+ *
+ * actor = datum_get(actor_data, actor_handle); then a cascade of
+ * early-return comparisons, each `CMP ...; Jcc skip; MOV EAX,<level>; RET`:
+ *   actor->field_008 == 0            -> 0  (TEST CL,CL / JNZ skip)
+ *   actor->field_06a < 3             -> 1  (CMP word,0x3 / JGE skip, signed)
+ *   actor->field_06e == 0            -> 2  (CMP word,0x0 / JNZ skip)
+ *   actor->target_target_type < 6    -> 3  (CMP CX,0x6 / JGE skip, signed)
+ *   actor->target_target_type < 10   -> 4  (CMP CX,0xa / JGE skip, signed)
+ * The final block (0x57b93-0x57bb1) sets EAX=5 unconditionally
+ * (MOV EAX,0x5 at 0x57ba5, which does not disturb the flags from the
+ * preceding TEST CL,CL) and only overwrites it to 6 when either
+ * field_454 != 0 (JNZ straight to the EAX=6 store) or, having fallen
+ * through with field_454 == 0, field_45c != 0 (JZ over the EAX=6 store is
+ * NOT taken) -- i.e. `field_454 != 0 || field_45c != 0` -> 6, else 5. */
+int ai_scripting_assess_status(int actor_handle)
+{
+  actor_t *actor;
+
+  actor = (actor_t *)datum_get(actor_data, actor_handle);
+  if (actor->field_008 == 0) {
+    return 0;
+  }
+  if (actor->field_06a < 3) {
+    return 1;
+  }
+  if (actor->field_06e == 0) {
+    return 2;
+  }
+  if (actor->target_target_type < 6) {
+    return 3;
+  }
+  if (actor->target_target_type < 10) {
+    return 4;
+  }
+  if (actor->field_454 != 0 || actor->field_45c != 0) {
+    return 6;
+  }
+  return 5;
+}
+
 /* ai_scripting_status — ai_status.
  *
  * Returns the maximum status level across all platoons in an encounter.
