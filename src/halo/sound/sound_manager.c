@@ -597,7 +597,7 @@ void FUN_001c7b40(void)
   } while (local_player_index < 4);
 }
 
-/* sound_is_active (0x1c88a0)
+/* byte_swap_bungie_ima_adpcm_header (0x1c88a0)
  *
  * Byte-swaps one "bungie ima adpcm header" record in place.
  *
@@ -611,7 +611,7 @@ void FUN_001c7b40(void)
  * The one stack argument at [EBP+8] is proven by the binary; the kb.json
  * placeholder decl carried (void).  RET (no imm) => cdecl, caller cleans.
  * The record layout behind `data` is unknown here, so it stays void *. */
-void sound_is_active(void *data)
+void byte_swap_bungie_ima_adpcm_header(void *data)
 {
   FUN_00118be0((void *)0x32ecf4, data, 1);
 }
