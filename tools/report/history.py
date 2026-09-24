@@ -21,6 +21,10 @@ from collections import defaultdict
 DEFAULT_HISTORY_PATH = 'artifacts/progress/history.json'
 
 
+def _percent_or_none(fraction):
+    return round(fraction * 100, 2) if isinstance(fraction, (int, float)) else None
+
+
 class HistoryManager:
     """Manages historical progress data."""
     
@@ -91,7 +95,14 @@ class HistoryManager:
                     'bytes_ported': u['summary'].get('bytes_ported', 0),
                     'bytes_total': u['summary'].get('bytes_total', 0),
                     'match_avg': u['summary'].get('match_avg'),
-                    'match_weighted': u['summary'].get('match_weighted')
+                    'match_weighted': u['summary'].get('match_weighted'),
+                    # Covers only functions with a current raw-XBE audit; the
+                    # audited count is kept so coverage can be shown beside it.
+                    # Never backfilled: there is no honest way to reconstruct it.
+                    'aligned_accuracy': _percent_or_none(
+                        (u.get('raw_xbe_structural') or {}).get('aligned_byte_accuracy_lower')),
+                    'aligned_audited': (u.get('raw_xbe_structural') or {}).get(
+                        'aligned_scored_functions', 0),
                 }
                 for u in report.get('units', [])
             ]
