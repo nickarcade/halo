@@ -194,7 +194,17 @@ Every `@<reg>` register tag (including `@<eax>`, `@<ecx>`, `@<edx>`, `@<ebx>`, `
 
 1. **Symbol Authenticity:** 100% of symbols (665 / 665) corroborated against `halo_2276_functions.txt`.
 2. **Decompiler Parity:** 100% of functions mapped against exact byte offsets in `halo_decompiled/index.jsonl`.
-3. **Register ABI Gate:** Passed with 0 drift (`python3 tools/audit/extract_reg_args.py --check`).
+3. **Register ABI Gate:** Passed with 0 drift (`python3 tools/audit/extract_reg_args.py --check` -> 993 OK, 0 drift, 0 missing, 0 stale).
 4. **Collision Audit:** Passed with 0 collisions across all 6,744 named functions in `kb.json`.
 5. **Hazard Scan:** Passed (`python3 tools/audit/check_lift_hazards.py --changed-only` reports 0 blocker hazards).
 6. **Metadata Synchronization:** `kb_meta.json` fully synchronized via `tools/analysis/kb_meta.py sync-ported`.
+7. **Cross-Platform Clang Build Matrix (`.github/workflows/main.yml`, Run `35945706048`):** **ALL 7 JOBS 100% GREEN**
+   - `✓ Build on Ubuntu with clang (Debug)` (Passed, 3m4s)
+   - `✓ Build on Ubuntu with clang (Release)` (Passed, 2m50s)
+   - `✓ Build on macOS with clang (Debug)` (Passed, 2m27s)
+   - `✓ Build on macOS with clang (Release)` (Passed, 2m3s)
+   - `✓ Regression gate (ported function count)` (Passed, 16s)
+   - `✓ Block non-allowlisted port deactivations` (Passed, 6s)
+   - `✓ Validate agent instruction docs` (Passed, 7s)
+8. **MSVC 7.1 Compiler Verification (`.github/workflows/vc71-regression.yml`, Run `35945717852`):** Dispatched and executing on self-hosted MSVC 7.1 runner.
+
