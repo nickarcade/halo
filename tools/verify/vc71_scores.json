@@ -64978,6 +64978,21 @@
       "score": 85.8,
       "source": "src/halo/interface/first_person_weapons.c"
     },
+    "first_person_weapon_update": {
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 7,
+      "abi_modeled_mnemonic_pct": 93.2,
+      "addr": "0xde560",
+      "end": "0xdeb5d",
+      "kind": "auto",
+      "n_r": 465,
+      "opnd_percent": 79.1,
+      "raw_mnemonic_pct": 92.5,
+      "ref": "synth",
+      "ref_sha": "11e089c87f261dbb",
+      "score": 93.2,
+      "source": "src/halo/interface/first_person_weapons.c"
+    },
     "first_person_weapons_initialize_for_new_map": {
       "abi_model": "raw",
       "abi_model_items": 0,
