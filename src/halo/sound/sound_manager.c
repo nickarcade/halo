@@ -167,6 +167,80 @@ unsigned char FUN_001ac150(int handle)
   return 0;
 }
 
+/* FUN_001ac180 (0x1ac180)
+ *
+ * Looks up a named animation in an animation graph and, when the chosen
+ * animation block entry's short at +0x20 is 0, starts it on a unit via
+ * unit_set_animation and sets the byte at unit+0x253 to 0x1c. Meanings of
+ * +0x20, +0x34, +0x42 (animation block entry, stride 0xb4) and unit +0x80,
+ * +0x82, +0x248 are UNKNOWN.
+ *
+ * Binary evidence (0x1ac180-0x1ac2e1, cdecl, no FPU):
+ *   object_get_and_verify_type(actor, 3); tag_get('unit', *unit) result is
+ *   discarded; tag_get('antr', anim_tag) kept in EBX.
+ *   animation_graph_get_animation_by_name == -1 -> console_warning(0x29c71c,
+ *   entry, tag_get_name(anim_tag)) and return 0.
+ *   model_animation_choose_random(1, anim_tag, index) result is saved as a
+ *   dword at [EBP-8] and passed later in BX to unit_set_animation
+ *   (@<eax>=actor, @<edi>=anim_tag, @<bx>=choice; no pushes at 0x1ac2a0).
+ *   Entry short +0x20: CMP 1 / JZ exit, then TEST / JNZ exit.
+ *   Unit short +0x82 is loaded zero-extended (XOR ECX / MOV CX) then MOVSX
+ *   for the +2 compare; the store path is DEC ECX / MOV word, return 0.
+ *   do_flag is tested as a byte (MOV AL,[EBP+0x14] / TEST AL,AL). */
+char FUN_001ac180(int actor, int anim_tag, void *entry, int do_flag)
+{
+  char *unit;
+  char *graph;
+  char *element;
+  char *current;
+  short animation_index;
+  short choice;
+  short count;
+  short kind;
+
+  if (actor != -1 && anim_tag != -1) {
+    unit = (char *)object_get_and_verify_type(actor, 3);
+    tag_get(0x756e6974, *(int *)unit);
+    graph = (char *)tag_get(0x616e7472, anim_tag);
+    animation_index =
+      animation_graph_get_animation_by_name(anim_tag, (const char *)entry);
+    if (animation_index != -1) {
+      choice = model_animation_choose_random(1, anim_tag, animation_index);
+      element = (char *)tag_block_get_element(graph + 0x74, (int)choice, 0xb4);
+      kind = *(short *)(element + 0x20);
+      if (kind != 1 && kind == 0) {
+        if (*(char *)(unit + 0x253) == 0x1c && *(short *)(unit + 0x80) != -1) {
+          current = (char *)tag_block_get_element(
+            graph + 0x74, (int)*(short *)(unit + 0x80), 0xb4);
+          if (*(short *)(current + 0x42) == *(short *)(element + 0x42)) {
+            count = *(short *)(unit + 0x82);
+            if (count + 2 == (int)*(short *)(current + 0x34)) {
+              *(short *)(unit + 0x82) = count - 1;
+              return 0;
+            }
+            if (count < *(short *)(current + 0x34)) {
+              return 0;
+            }
+          }
+        }
+        if ((char)do_flag != 0) {
+          object_set_region_count(actor, 6);
+        }
+        *(char *)(unit + 0x253) = 0x1c;
+        unit_set_animation(actor, anim_tag, choice);
+        *(char *)(unit + 0x248) |= 1;
+        object_update_children_recursive(actor);
+        return 1;
+      }
+    } else {
+      console_warning("the animation '%s' doesn't exist in the graph '%s'",
+                      entry, tag_get_name(anim_tag));
+    }
+  }
+
+  return 0;
+}
+
 /* sound_object_apply_pitch_delta (0x1ac2f0)
  *
  * Computes a clamped pitch delta and accumulates it onto the object's

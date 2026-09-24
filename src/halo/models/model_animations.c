@@ -684,6 +684,27 @@ void quaternion_decompress_6byte_renormalized(void *compressed_data,
   sphere_intersects_rectangle3d(dest);
 }
 
+/* quaternion_compress_8byte (0x120950) — Compress 4 quaternion floats into 4
+ * packed int16 values.
+ *
+ * Inverse of quaternion_decompress_8byte: each component is scaled by
+ * 32767.0f and truncated to int (_ftol2), then stored as a 16-bit word.
+ *
+ * Confirmed: cdecl, 2 args ([EBP+8] quaternion float ptr in ESI, [EBP+0xc]
+ * output ptr in EDI), void return, RET with no immediate.
+ * Confirmed: FLD [ESI+0/4/8/0xc] * float at 0x26a600 (= 32767.0f, the same
+ * constant used by quaternion_compress_6byte) then CALL _ftol2 (0x1d9068)
+ * per component, in order 0,1,2,3.
+ * Confirmed: stores are MOV word ptr [EDI+0/2/4/6],AX.
+ */
+void quaternion_compress_8byte(float *quaternion, short *compressed_data)
+{
+  compressed_data[0] = (short)(int)(quaternion[0] * 32767.0f);
+  compressed_data[1] = (short)(int)(quaternion[1] * 32767.0f);
+  compressed_data[2] = (short)(int)(quaternion[2] * 32767.0f);
+  compressed_data[3] = (short)(int)(quaternion[3] * 32767.0f);
+}
+
 /* quaternion_compress_6byte (0x1209b0) — Compress 4 quaternion floats into 3
  * packed uint16s (48 bits, 12 bits per component).
  *
@@ -2079,46 +2100,58 @@ void model_get_node_matrices(void *mode_tag, float *node_matrices,
   } while ((short)read_index != (short)write_index);
 }
 
-/* 0x123d80 — Find a marker group by name in a model tag.
- * PAL calls this model_find_marker.  The 2276 body searches the sorted
- * 0x40-byte entries at model+0xac with signed 16-bit bounds and compares
- * each entry's name at offset zero without changing the input string.
+/* FUN_00123d80 (0x123d80) — Binary-search a mode-tag block (+0xac, element
+ * size 0x40) for an element whose name (element+0x0) matches marker_name
+ * case-insensitively; returns the int16 index or -1. PAL calls this
+ * model_find_marker.
+ *
+ * Confirmed: early-out to OR AX,0xffff when model_ref == -1, marker_name ==
+ * NULL, or *marker_name == 0 (JZ at 0x123d8c/0x123d93/0x123d98).
+ * Confirmed: CALL tag_get(0x6d6f6465 ('mode'), model_ref) at 0x123da0.
+ * Confirmed: hi = (int16)(word [mode+0xac]) - 1 (MOV DI,word / DEC DI); lo in
+ * BX starts at 0; loop runs while lo <= hi (CMP BX,DI / JLE, JGE entry test).
+ * Confirmed: mid = (MOVSX lo + MOVSX hi) / 2 (CDQ/SUB/SAR), kept in SI.
+ * Confirmed: CALL tag_block_get_element(mode+0xac, MOVSX mid, 0x40) at
+ * 0x123de6, then CALL crt_stricmp(marker_name, element) at 0x123df0; the
+ * single ADD ESP,0x14 is the combined cleanup of both calls (3 + 2 args).
+ * Confirmed: result 0 returns mid (MOV AX,SI); <0 sets hi = mid-1, else
+ * lo = mid+1. Block semantics beyond element size/name are unknown.
  */
 int16_t FUN_00123d80(int model_ref, const char *marker_name)
 {
-  char *model;
-  char *block;
-  short lower_bound;
-  short upper_bound;
-  short marker_index;
-  char *marker;
-  int comparison;
+  char *mode_tag;
+  void *block;
+  short lo;
+  short hi;
+  short mid;
+  int result;
 
-  if (model_ref != NONE && marker_name != 0 && *marker_name != '\0') {
-    model = (char *)tag_get(0x6d6f6465, model_ref);
-    block = model + 0xac;
-    lower_bound = 0;
-    upper_bound = (short)(*(short *)block - 1);
-    while (lower_bound <= upper_bound) {
-      marker_index = (short)(((int)lower_bound + (int)upper_bound) / 2);
-      marker = (char *)tag_block_get_element(block, (int)marker_index, 0x40);
-      comparison = crt_stricmp(marker_name, marker);
-      if (comparison == 0) {
-        return marker_index;
-      }
-      if (comparison < 0) {
-        upper_bound = (short)(marker_index - 1);
-      } else {
-        lower_bound = (short)(marker_index + 1);
-      }
+  if (model_ref != -1 && marker_name != NULL && *marker_name != '\0') {
+    mode_tag = (char *)tag_get(0x6d6f6465, model_ref); /* 'mode' */
+    block = (void *)(mode_tag + 0xac);
+    lo = 0;
+    hi = (short)(*(short *)block - 1);
+    if (hi >= 0) {
+      do {
+        mid = (short)(((int)lo + (int)hi) / 2);
+        result = crt_stricmp(marker_name, (const char *)tag_block_get_element(
+                                            block, (int)mid, 0x40));
+        if (result == 0) {
+          return mid;
+        }
+        if (result < 0) {
+          hi = (short)(mid - 1);
+        } else {
+          lo = (short)(mid + 1);
+        }
+      } while (lo <= hi);
     }
   }
-
   return -1;
 }
 
-/* model_get_default_inverse_matrix (0x123e20) — Get a node's default matrix from a
- * model mode tag.
+/* model_get_default_inverse_matrix (0x123e20) — Get a node's default matrix
+ * from a model mode tag.
  *
  * Confirmed: cdecl, 2 args (mode_tag ptr, node_index short).
  * Confirmed: CALL tag_block_get_element(mode_tag+0xb8, node_index, 0x9c) at

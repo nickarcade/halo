@@ -25908,13 +25908,13 @@
      "addr": "0x20f069",
      "comment": "Check if a DirectSound stream is still active by testing internal kernel status bits (0x10000002). Returns true if the stream is still processing.",
      "decl": "bool __stdcall dsound_stream_is_active(void *stream);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x20f081",
      "comment": "XDK DirectSound stream inline: loads the media object at stream+0x24 and makes a thiscall through its vtable slot 4 (vtbl+0x10) with two NULL arguments. Semantics of that COM method are unconfirmed; kept as FUN_ rather than guessed. stdcall, RET 4.",
      "decl": "void __stdcall FUN_0020f081(void *stream);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1c9230",
@@ -26270,7 +26270,7 @@
     {
      "addr": "0x1ac180",
      "decl": "char FUN_001ac180(int actor, int anim_tag, void *entry, int do_flag);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1ac350",
@@ -38562,7 +38562,8 @@
     },
     {
      "addr": "0x696d0",
-     "decl": "int FUN_000696d0(void *tif, unsigned char *buf, int npels);"
+     "decl": "int FUN_000696d0(void *tif, unsigned char *buf, int npels);",
+     "ported": true
     },
     {
      "addr": "0x69b90",
@@ -38716,8 +38717,9 @@
     },
     {
      "addr": "0x6be40",
-     "decl": "void gtStripSeparate(void);",
-     "comment": "[NAME: gtStripSeparate \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int gtStripSeparate(void *tif, unsigned long *raster, void *img, unsigned long h, unsigned long w);",
+     "comment": "[NAME: gtStripSeparate \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x6c080",
@@ -39273,7 +39275,8 @@
     },
     {
      "addr": "0x71af0",
-     "decl": "void FUN_00071af0(void *block, uint32_t *pixel, int x, int y);"
+     "decl": "void FUN_00071af0(void *block, uint32_t *pixel, int x, int y);",
+     "ported": true
     },
     {
      "addr": "0x71ca0",
@@ -39840,7 +39843,8 @@
     },
     {
      "addr": "0x120950",
-     "decl": "void quaternion_compress_8byte(void);"
+     "decl": "void quaternion_compress_8byte(float *quaternion, short *compressed_data);",
+     "ported": true
     },
     {
      "addr": "0x1209b0",

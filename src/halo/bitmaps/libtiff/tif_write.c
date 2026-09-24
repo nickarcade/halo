@@ -1694,6 +1694,55 @@ void FUN_00071890(void *block, unsigned int *out_pixels)
   }
 }
 
+/* 0x71af0 -- single-pixel variant of FUN_00071890: calls
+ * DecodeBlockRGB__single_pixel(block + 8, pixel, x, y) (0x71b05-0x71b0c),
+ * then builds an 8-entry 16-bit table ([EBP-0x10]) from block[0]/block[1]
+ * (MOVZX AX/DX; unsigned CMP AX,DX + JBE at 0x71b2e selects signed
+ * IMUL-magic /7 when block[0] > block[1], else /5 with entries 6/7 = 0/0xff).
+ * The 24-bit index word comes from block + 2 when (short)y < 2 (CMP DI,0x2;
+ * JGE at 0x71c5e), else block + 5 with the index biased by -8; the entry
+ * table[(bits >> ((x + y * 4) * 3)) & 7] low byte is stored at byte 3 of
+ * *pixel (0x71c87-0x71c99). cdecl, four stack args. */
+void FUN_00071af0(void *block, uint32_t *pixel, int x, int y)
+{
+  unsigned char *src;
+  unsigned int bits;
+  int shift;
+  int a0;
+  int a1;
+  unsigned short alpha[8];
+
+  src = (unsigned char *)block;
+  DecodeBlockRGB__single_pixel(src + 8, pixel, x, y);
+  alpha[0] = src[0];
+  alpha[1] = src[1];
+  a1 = alpha[1];
+  a0 = alpha[0];
+  if (alpha[0] > alpha[1]) {
+    alpha[2] = (unsigned short)((a0 * 6 + a1) / 7);
+    alpha[3] = (unsigned short)((a0 * 5 + a1 * 2) / 7);
+    alpha[4] = (unsigned short)((a0 * 4 + a1 * 3) / 7);
+    alpha[5] = (unsigned short)((a0 * 3 + a1 * 4) / 7);
+    alpha[6] = (unsigned short)((a0 * 2 + a1 * 5) / 7);
+    alpha[7] = (unsigned short)((a0 + a1 * 6) / 7);
+  } else {
+    alpha[2] = (unsigned short)((a0 * 4 + a1) / 5);
+    alpha[3] = (unsigned short)((a0 * 3 + a1 * 2) / 5);
+    alpha[4] = (unsigned short)((a0 * 2 + a1 * 3) / 5);
+    alpha[5] = (unsigned short)((a0 + a1 * 4) / 5);
+    alpha[6] = 0;
+    alpha[7] = 0xff;
+  }
+  if ((short)y < 2) {
+    bits = src[2] | ((src[4] << 8 | src[3]) << 8);
+    shift = x + y * 4;
+  } else {
+    bits = src[5] | ((src[7] << 8 | src[6]) << 8);
+    shift = x + y * 4 - 8;
+  }
+  ((unsigned char *)pixel)[3] = (unsigned char)alpha[(bits >> (shift * 3)) & 7];
+}
+
 /* 0x71ca0 -- forward both stack args ([EBP+8], [EBP+0xc]) to
  * EncodeBlockRGBColorKey with a third arg of 0 (PUSH 0x0, 0x71ca9;
  * ADD ESP,0xc after the call). cdecl; param types are unproven. */
