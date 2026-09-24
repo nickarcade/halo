@@ -23,6 +23,15 @@ enum network_client_machine_flag_bit {
 };
 #define NETWORK_CLIENT_MACHINE_FLAG(bit) (1u << (bit))
 
+/* Layout evidence: recovery/evidence/countdown_timer.json. */
+typedef struct countdown_timer {
+  int32_t time_remaining; /* 0x00: 2276 assert names this field */
+  uint32_t field_04;      /* 0x04: PAL calls this last_update_time */
+} countdown_timer;
+cs(countdown_timer, 0x08);
+co(countdown_timer, time_remaining, 0x00);
+co(countdown_timer, field_04, 0x04);
+
 typedef struct network_game_server_countdown_state {
   int timer[2];
   int last_countdown_message_time;
@@ -105,7 +114,6 @@ void countdown_timer_update(int *param_1)
 
   now = system_milliseconds();
   old = param_1[1];
-  param_1[1] = now;
   if (now > old) {
     elapsed = now - old;
     if (elapsed < param_1[0]) {
@@ -114,6 +122,7 @@ void countdown_timer_update(int *param_1)
       param_1[0] = 0;
     }
   }
+  param_1[1] = now;
 }
 
 /* Tick a millisecond countdown timer. Subtracts elapsed time from
@@ -149,9 +158,9 @@ void countdown_timer_increment(int *param_1, int param_2, int param_3)
   int iVar2;
   iVar1 = system_milliseconds();
   if (iVar1 > param_1[1]) {
-    iVar2 = iVar1 - param_1[1];
+    iVar2 = (int)((unsigned int)iVar1 - (unsigned int)param_1[1]);
     if (iVar2 < *param_1) {
-      *param_1 = *param_1 - iVar2;
+      *param_1 = (int)((unsigned int)*param_1 - (unsigned int)iVar2);
     } else {
       *param_1 = 0;
     }
@@ -163,15 +172,12 @@ void countdown_timer_increment(int *param_1, int param_2, int param_3)
                    0x68, 1);
     system_exit(-1);
   }
-  iVar1 = *param_1 + param_2;
+  iVar1 = (int)((unsigned int)*param_1 + (unsigned int)param_2);
   if (iVar1 < param_2) {
     *param_1 = param_3;
   } else {
-    *param_1 = iVar1;
-    if (param_3 < iVar1) {
-      iVar1 = param_3;
-    }
-    *param_1 = iVar1;
+    *param_1 = (int)((unsigned int)*param_1 + (unsigned int)param_2);
+    *param_1 = *param_1 <= param_3 ? *param_1 : param_3;
   }
   if (*param_1 < 0) {
     display_assert("timer->time_remaining >= 0",
@@ -189,9 +195,9 @@ void countdown_timer_decrement(int *param_1, int param_2)
   int iVar2;
   iVar1 = system_milliseconds();
   if (iVar1 > param_1[1]) {
-    iVar2 = iVar1 - param_1[1];
+    iVar2 = (int)((unsigned int)iVar1 - (unsigned int)param_1[1]);
     if (iVar2 < *param_1) {
-      *param_1 = *param_1 - iVar2;
+      *param_1 = (int)((unsigned int)*param_1 - (unsigned int)iVar2);
     } else {
       *param_1 = 0;
     }
@@ -203,18 +209,18 @@ void countdown_timer_decrement(int *param_1, int param_2)
                    0x7e, 1);
     system_exit(-1);
   }
-  if (param_2 < *param_1) {
-    param_2 = *param_1 - param_2;
-    *param_1 = param_2;
-    if (param_2 < 0) {
-      display_assert("timer->time_remaining >= 0",
-                     "c:\\halo\\SOURCE\\networking\\network_server_manager.c",
-                     0x89, 1);
-      system_exit(-1);
-    }
-    return;
+  if (*param_1 > param_2) {
+    iVar2 = (int)((unsigned int)*param_1 - (unsigned int)param_2);
+    *param_1 = iVar2;
+  } else {
+    *param_1 = 0;
   }
-  *param_1 = 0;
+  if (*param_1 < 0) {
+    display_assert("timer->time_remaining >= 0",
+                   "c:\\halo\\SOURCE\\networking\\network_server_manager.c",
+                   0x89, 1);
+    system_exit(-1);
+  }
 }
 
 /* countdown_timer_set_time_remaining — 0x12bf30
@@ -390,7 +396,11 @@ void network_game_server_remove_players_from_machine_ingame(int server, int clie
     if (network_player_is_valid(ptr)) {
       if ((short)*(signed char *)(ptr + 0x1c) ==
           *(short *)((char *)client + 0xc)) {
+#if defined(_MSC_VER) && !defined(__clang__)
+        memcpy(local_buf, ptr, 0x20);
+#else
         csmemcpy(local_buf, ptr, 0x20);
+#endif
         quit_time = game_time_get() + 0x21;
         *(int *)(local_buf + 0x20) = quit_time;
         error(2, "sending quit out of game, time = %x", quit_time);
@@ -491,7 +501,7 @@ void network_game_server_switch_to_postgame(void *server)
 bool network_game_server_graceful_shutdown(void *server)
 {
   int data;
-  void *msg;
+  void *msg = NULL;
   bool result = false;
 
   if (!server) {
@@ -511,7 +521,6 @@ bool network_game_server_graceful_shutdown(void *server)
     if (!msg) {
       network_event(
         "failed to create a message_server_graceful_game_exit_pregame");
-      return result;
     }
     break;
   case 2:
@@ -520,20 +529,20 @@ bool network_game_server_graceful_shutdown(void *server)
     if (!msg) {
       network_event(
         "failed to create a message_server_graceful_game_exit_postgame");
-      return result;
     }
     break;
-  default:
-    return result;
   }
-  result = network_game_server_send_message_to_all_machines(server, msg);
-  if (result == 1) {
-    network_event(
-      "server closing down; all client machines were properly informed");
-    return result;
+
+  if (msg) {
+    result = network_game_server_send_message_to_all_machines(server, msg);
+    if (result == 1) {
+      network_event(
+        "server closing down; all client machines were properly informed");
+    } else {
+      network_event(
+        "server going down, but failed to properly inform all client machines");
+    }
   }
-  network_event(
-    "server going down, but failed to properly inform all client machines");
   return result;
 }
 
@@ -1567,7 +1576,6 @@ bool network_game_server_add_new_client(int server, int new_connection)
   bool result = false;
   int i;
   char addr_buf[24];
-  const char *addr_str;
 
   if (!server || !new_connection) {
     display_assert("server && new_connection",
@@ -1577,47 +1585,43 @@ bool network_game_server_add_new_client(int server, int new_connection)
   }
 
   if (network_game_server_game_is_open((void *)server)) {
-  for (i = 0; i < 4; i++) {
-    if (server_data->client_machines[i].machine_index == -1) {
-      memset(addr_buf, 0, 24);
-      network_connection_get_address(new_connection, addr_buf, 0);
-      if (*(int *)addr_buf == 0) {
-        network_event(
-          "network_connection_get_address() failed to get a valid address "
-          "in network_game_server_add_new_client()");
-        result = false;
-      } else {
-        if (!network_game_should_accept_remote_connections() &&
-            *(int *)addr_buf != 0x7f000001) {
-          addr_str = transport_address_to_string(addr_buf);
-          network_event(
-            "remote system tried to join our server but we are not accepting "
-            "remote connections: address= '%s'",
-            addr_str);
-          result = false;
-        } else {
-          server_data->client_machines[i].connection = new_connection;
-          network_game_invalidate_machine(&server_data->game, i);
-          server_data->client_machines[i].machine_index = (short)i;
-          server_data->client_machines[i].flags =
-            NETWORK_CLIENT_MACHINE_FLAG(NETWORK_CLIENT_MACHINE_CONNECTED_BIT);
-          result = network_connection_server_accept_client_connection(
-            server_data->connection, new_connection);
-          if (result == 1) {
-            addr_str = transport_address_to_string(addr_buf);
-            network_event("new remote connection accepted from %s",
-                             addr_str);
+    for (i = 0; i < 4; i++) {
+      if (server_data->client_machines[i].machine_index == -1) {
+        memset(addr_buf, 0, 24);
+        network_connection_get_address(new_connection, addr_buf, 0);
+        if (*(int *)addr_buf) {
+          if (!network_game_should_accept_remote_connections() &&
+              *(int *)addr_buf != 0x7f000001) {
+            network_event(
+              "remote system tried to join our server but we are not accepting "
+              "remote connections: address= '%s'",
+              transport_address_to_string(addr_buf));
+          } else {
+            server_data->client_machines[i].connection = new_connection;
+            network_game_invalidate_machine(&server_data->game, i);
+            server_data->client_machines[i].machine_index = (short)i;
+            server_data->client_machines[i].flags =
+              NETWORK_CLIENT_MACHINE_FLAG(NETWORK_CLIENT_MACHINE_CONNECTED_BIT);
+            result = network_connection_server_accept_client_connection(
+              server_data->connection, new_connection);
+            if (result == 1) {
+              network_event("new remote connection accepted from %s",
+                            transport_address_to_string(addr_buf));
+            }
           }
+        } else {
+          network_event(
+            "network_connection_get_address() failed to get a valid address "
+            "in network_game_server_add_new_client()");
         }
+        break;
       }
-      break;
     }
-  }
 
-  if (i == 4) {
-    network_event("failed to find an available machine slot in "
-                     "network_game_server_add_new_client()");
-  }
+    if (i == 4) {
+      network_event("failed to find an available machine slot in "
+                    "network_game_server_add_new_client()");
+    }
   } else {
     network_event(
       "network_game_server_add_new_client() failed because the game is closed");
@@ -2975,18 +2979,18 @@ bool network_game_server_write(int dest_address, unsigned short size, int reliab
 /* Write a message to a machine's network connection (0x12f3f0).
  * Resolves machine→connection via get_machine_connection, then sends reliably.
  */
-int network_game_server_send_message_to_machine(int server, int machine, void *message)
+bool network_game_server_send_message_to_machine(int server, int machine, void *message)
 {
   int connection;
   unsigned short msg_size;
-  int result;
+  bool result;
 
   result = 0;
   connection = network_game_server_get_machine_connection(server, machine);
   if (connection) {
     msg_size = *(unsigned short *)message;
-    return (int)network_connection_write((void *)connection, message,
-                                         msg_size >> 4, 0, 1);
+    result = network_connection_write((void *)connection, message,
+                                      msg_size >> 4, 0, 1);
   }
   return result;
 }
@@ -3286,7 +3290,7 @@ char handle_message_client_ping(int server, void *decoded_msg, void *client_mess
   pong_timestamp = ((message_client_ping_t *)decoded_msg)->timestamp;
   pong_msg = create_network_game_message(3, &pong_timestamp, 4);
   if (pong_msg) {
-    *(int *)reply_address.address = *(int *)client_message;
+    reply_address.address.ipv4_address = *(int *)client_message;
     reply_address.address_length = 4;
     reply_address.port = ((message_client_ping_t *)decoded_msg)->port;
     connection = network_game_server_get_connection((void *)server);

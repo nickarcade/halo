@@ -8,10 +8,6 @@
 #define TRANSPORT_ADDRESS_FILE \
   "c:\\halo\\SOURCE\\bungie_net\\network\\transport_address.c"
 
-/* IPv4 address length in bytes. Named from the assert text
- * "IPV4_ADDRESS_LENGTH == a->address_length"; the compared immediate is 4. */
-#define IPV4_ADDRESS_LENGTH 4
-
 /* transport_initialized flag (0x335090) -- the same byte the rest of the
  * transport layer tests (see transport_endpoint_set_winsock.c). Spelled as a
  * macro so the assert reproduces the original "transport_initialized" reason
@@ -108,68 +104,29 @@ const char *transport_address_to_string(void *addr_)
 
   if (addr->address_length == IPV4_ADDRESS_LENGTH) {
     snprintf(transport_address_string, TRANSPORT_ADDRESS_STRING_SIZE,
-             "%hd.%hd.%hd.%hd:%hd", addr->address[3], addr->address[2],
-             addr->address[1], addr->address[0], addr->port);
+             "%hd.%hd.%hd.%hd:%hd", addr->address.bytes[3],
+             addr->address.bytes[2], addr->address.bytes[1],
+             addr->address.bytes[0], addr->port);
     return transport_address_string;
   }
 
   if (addr->address_length == IPV6_ADDRESS_LENGTH) {
     snprintf(transport_address_string, TRANSPORT_ADDRESS_STRING_SIZE,
              "%4X.%4X.%4X.%4X.%4X.%4X.%4X.%4X:%hd",
-             ((const uint16_t *)addr->address)[0],
-             ((const uint16_t *)addr->address)[1],
-             ((const uint16_t *)addr->address)[2],
-             ((const uint16_t *)addr->address)[3],
-             ((const uint16_t *)addr->address)[4],
-             ((const uint16_t *)addr->address)[5],
-             ((const uint16_t *)addr->address)[6],
-             ((const uint16_t *)addr->address)[7], addr->port);
+             addr->address.words[0],
+             addr->address.words[1],
+             addr->address.words[2],
+             addr->address.words[3],
+             addr->address.words[4],
+             addr->address.words[5],
+             addr->address.words[6],
+             addr->address.words[7], addr->port);
   }
 
   return transport_address_string;
 
 #undef addr
 }
-
-/* Transport-layer result/error codes.
- *
- * Confirmed: the member NAMES are exact -- each one is the .rdata string the
- * matching case returns (0x26611c-0x266438), and the leading underscore is
- * Bungie's usual enum-constant spelling, so the original almost certainly
- * stringized the constant rather than hand-typing a parallel literal table.
- * Confirmed: the VALUES are exact -- the dispatch biases the selector by +23
- * and indexes a 24-entry jump table at 0x81d4c, so table index i selects
- * selector (i - 23): index 0 is _transport_result_connect_in_progress (-23)
- * and index 0x17 is _transport_error_none (0).
- * Uncertain: the enum's TYPE name is not recoverable from the binary (no
- * assert or string names it), so this stays an anonymous enum rather than
- * inventing one. */
-enum {
-  _transport_error_none = 0,
-  _transport_error_unknown = -1,
-  _transport_error_endpoint_io = -2,
-  _transport_error_connection_lost = -3,
-  _transport_result_operation_would_block = -4,
-  _transport_error_not_initialized = -5,
-  _transport_result_already_initialized = -6,
-  _transport_error_bad_input_parameters = -7,
-  _transport_error_dns_lookup_failure = -8,
-  _transport_error_out_of_memory = -9,
-  _transport_error_seg_fault = -10,
-  _transport_error_buffers_full = -11,
-  _transport_error_bad_endpoint = -12,
-  _transport_result_poll_timeout = -13,
-  _transport_error_bind_endpoint = -14,
-  _transport_error_address_unknown = -15,
-  _transport_error_connect_failed = -16,
-  _transport_error_listen_failed = -17,
-  _transport_error_options_failed = -18,
-  _transport_error_endpoint_not_in_set = -19,
-  _transport_error_endpoint_set_full = -20,
-  _transport_error_poll_error = -21,
-  _transport_result_dns_lookup_in_progress = -22,
-  _transport_result_connect_in_progress = -23
-};
 
 /* Emit one `case <code>: return "<code>";` pair. Keeps the returned literal
  * and the case label from ever drifting apart, which is the only real hazard

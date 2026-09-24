@@ -1,0 +1,11 @@
+{
+  "description": "2276 graceful shutdown pregame_send_fail",
+  "build_label": "synthetic",
+  "arg_overrides": {
+    "server": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "stub_returns": {
+    "create_network_game_message": 7471104,
+    "network_game_server_send_message_to_all_machines": 0
+  }
+}

@@ -2344,7 +2344,7 @@ short FUN_00083e20(int endpoint, int address)
     ep->socket = FUN_00083930(2, socktype, 0);
   }
 
-  ip = *(uint32_t *)addr->address;
+  ip = addr->address.ipv4_address;
   *(uint32_t *)(sa + 4) = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
                           (((ip & 0xff00u) | (ip << 16)) << 8);
   port = addr->port;
@@ -2804,173 +2804,177 @@ int FUN_00084450(int listening_endpoint)
   return (int)endpoint;
 }
 
-/* Receive a UDP datagram and return the sender's address.
+#define TRANSPORT_ENDPOINT_WINSOCK_FILE \
+  "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c"
+
+/* Receive a UDP datagram and return the sender's address. The PAL 2342
+ * reference names this read_from_endpoint (T2); control flow follows that
+ * source, and our binary agrees at every branch.
  *
- * If the endpoint's socket is not yet created (== -1), creates a UDP socket
- * via FUN_00083930 (regarg: ECX=af, EDX=type, EAX=protocol) and binds to
- * any address/port via FUN_00083ce0. Then calls xnet_recvfrom (0x225cd1,
- * stdcall 6 args). On success, converts the sender's sockaddr_in to the
- * custom address format: addr[0]=ntohl(ip), addr+0x10=4, addr+0x12=ntohs(port).
- * On failure, classifies the Winsock error:
- *   WSAEWOULDBLOCK (0x2733) -> return -4
- *   Disconnect family (0x2744-0x274c) -> clear bits 0,2 of flags, return -3
- *   Other -> clear bit 2 of flags, return -2
+ * On first use, creates a UDP socket and binds it to any address and port.
+ * On success, converts the sender's address from network byte order into
+ * src_addr. On failure, maps the Winsock error to a transport error. A lost
+ * connection clears the connected and readable flags; any other error
+ * clears only the readable flag.
  *
  * Confirmed: FUN_00083930 (0x83930, regarg ECX/EDX/EAX, creates socket);
  * FUN_00083ce0 (0x83ce0, cdecl 2 args, binds endpoint);
- * xnet_recvfrom (0x225cd1, stdcall 6 args);
- * xapi_GetLastError (0x2235c4); transport_initialized at 0x335090.
- * Assert strings at 0x266db0/0x266618; source lines 0x377-0x38b.
+ * xnet_recvfrom (0x225cd1, stdcall 6 args); xapi_GetLastError (0x2235c4).
+ * Assert strings at 0x266db0/0x266618; source lines 0x377-0x38b. The
+ * byte swaps keep the operand shape the binary uses (0x846cf-0x84700).
  */
-int FUN_00084520(int *ep, void *buffer, int length, void *addr)
+int FUN_00084520(transport_endpoint *ep, void *buffer, int length,
+                 transport_address *src_addr)
 {
-  int socket_result;
-  short bind_result;
-  int recv_result;
-  int error_code;
-  uint8_t from_addr[16];
-  int from_len;
+  sockaddr_in socket_address;
+  int address_length;
+  int result;
   uint32_t ip;
   uint16_t port;
 
-  from_len = 0x10;
+  address_length = sizeof(socket_address);
 
-  assert_halt(ep && buffer && addr && (length > 0));
-  assert_halt(*(uint8_t *)0x335090);
+  assert_halt_at(TRANSPORT_ENDPOINT_WINSOCK_FILE, 0x377,
+                 ep && buffer && src_addr && (length > 0));
+  assert_halt_at(TRANSPORT_ENDPOINT_WINSOCK_FILE, 0x378,
+                 transport_initialized);
 
-  if (*ep == -1) {
-    assert_halt(*(uint8_t *)((char *)ep + 5) == 0x11);
+  if (ep->socket == INVALID_SOCKET) {
+    assert_halt_at(TRANSPORT_ENDPOINT_WINSOCK_FILE, 0x37c,
+                   ep->type == _transport_type_udp);
 
-    socket_result = FUN_00083930(2, 2, 0);
-    *ep = socket_result;
-    if (socket_result != -1) {
-      transport_address bind_addr = {0};
+    ep->socket = FUN_00083930(AF_INET, SOCK_DGRAM, 0);
+    if (ep->socket != INVALID_SOCKET) {
+      transport_address bind_address = {0};
+      short err;
 
-      bind_addr.address_length = 4;
-
-      bind_result = FUN_00083ce0(ep, &bind_addr);
-      assert_halt(bind_result == 0);
-
-      if (*ep != -1)
-        goto do_recvfrom;
+      bind_address.address_length = IPV4_ADDRESS_LENGTH;
+      err = FUN_00083ce0((int *)ep, &bind_address);
+      assert_halt_at(TRANSPORT_ENDPOINT_WINSOCK_FILE, 0x384,
+                     err == _transport_error_none);
     }
-    *(uint16_t *)((char *)ep + 6) = 0xffff;
+  }
+
+  if (ep->socket != INVALID_SOCKET) {
+    assert_halt_msg_at("!endpoint_connected(ep)",
+                       TRANSPORT_ENDPOINT_WINSOCK_FILE, 0x38b,
+                       !(ep->flags & FLAG(_transport_endpoint_connected_bit)));
+
+    result = xnet_recvfrom(ep->socket, buffer, length, 0, &socket_address,
+                           &address_length);
   } else {
-  do_recvfrom:
-    assert_halt(!(*(uint8_t *)((char *)ep + 4) & 1));
+    ep->status = _transport_error_unknown;
+    result = SOCKET_ERROR;
+  }
 
-    recv_result = xnet_recvfrom(*ep, buffer, length, 0, from_addr, &from_len);
-    if (recv_result != -1) {
-      if (recv_result >= 0) {
-        ip = *(uint32_t *)(from_addr + 4);
-        *(uint32_t *)addr = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
-                            (((ip & 0xff00u) | (ip << 16)) << 8);
-        *(uint16_t *)((char *)addr + 0x10) = 4;
-        port = *(uint16_t *)(from_addr + 2);
-        *(uint16_t *)((char *)addr + 0x12) =
-          (uint16_t)(((uint16_t)(port << 8)) | ((uint16_t)(port >> 8)));
-      }
-      return recv_result;
+  if (result == SOCKET_ERROR) {
+    switch (xapi_GetLastError()) {
+    case WSAEWOULDBLOCK:
+      result = _transport_result_operation_would_block;
+      break;
+
+    case WSAENETRESET:
+    case WSAECONNABORTED:
+    case WSAECONNRESET:
+    case WSAENOTCONN:
+    case WSAESHUTDOWN:
+    case WSAETIMEDOUT:
+      ep->flags &= ~FLAG(_transport_endpoint_connected_bit);
+      ep->flags &= ~FLAG(_transport_endpoint_readable_bit);
+      result = _transport_error_connection_lost;
+      break;
+
+    default:
+      result = _transport_error_endpoint_io;
+      ep->flags &= ~FLAG(_transport_endpoint_readable_bit);
+      break;
     }
+  } else if (result >= 0) {
+    ip = socket_address.sin_addr.s_addr;
+    src_addr->address.ipv4_address =
+      (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
+      (((ip & 0xff00u) | (ip << 16)) << 8);
+    src_addr->address_length = IPV4_ADDRESS_LENGTH;
+    port = socket_address.sin_port;
+    src_addr->port =
+      (uint16_t)(((uint16_t)(port << 8)) | ((uint16_t)(port >> 8)));
   }
 
-  error_code = xapi_GetLastError();
-  switch (error_code) {
-  case 0x2733:
-    return -4;
-  case 0x2744:
-  case 0x2745:
-  case 0x2746:
-  case 0x2749:
-  case 0x274a:
-  case 0x274c:
-    *(uint8_t *)((char *)ep + 4) &= 0xfa;
-    return -3;
-  default:
-    *(uint8_t *)((char *)ep + 4) &= 0xfb;
-    return -2;
-  }
+  return result;
 }
 
-/* Send a UDP datagram to dest_addr.
+/* Send a UDP datagram to dest_addr. The PAL 2342 reference names this
+ * write_to_endpoint (T2); control flow follows that source, and our binary
+ * agrees at every branch.
  *
- * Converts dest_addr to sockaddr_in, creates a SOCK_DGRAM socket if the
- * endpoint has none (asserts type==0x11), then xnet_sendto.  Classifies
- * Winsock errors like send_endpoint: 0x2733 -> -4; disconnect family ->
- * clear connected bit, return -3; other -> -2.  Socket-create failure
- * writes status 0xffff then still classifies GetLastError.
+ * Converts dest_addr to network byte order, and creates a UDP socket on
+ * first use. On failure, maps the Winsock error to a transport error; a
+ * lost connection also clears the connected flag.
  *
- * Confirmed: FUN_00083930; xnet_sendto 0x225ce0 stdcall 6; jump table
- * 0x84898 / redirect 0x848a4; asserts 0x3bd/0x3be/0x3c6, __FILE__
- * 0x266618. */
-int FUN_00084740(int endpoint, void *message, int size, int dest_address)
+ * Confirmed: FUN_00083930 (0x83930, regarg ECX/EDX/EAX, creates socket);
+ * xnet_sendto (0x225ce0, stdcall 6 args); xapi_GetLastError (0x2235c4);
+ * jump table 0x84898 / index 0x848a4. Assert strings at 0x266ddc/0x266618;
+ * source lines 0x3bd-0x3c6. The byte swaps keep the operand shape the
+ * binary uses (0x847ae-0x847de). */
+int FUN_00084740(transport_endpoint *ep, const void *buffer, int length,
+                 const transport_address *dest_addr)
 {
+  sockaddr_in socket_address;
+  int result;
   uint32_t ip;
   uint16_t port;
-  int result;
-  int error_code;
-  uint8_t sa[16];
 
-  if (endpoint == 0 || message == NULL || size < 1 || dest_address == 0) {
-    display_assert(
-      "ep && buffer && (length > 0) && dest_addr",
-      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
-      0x3bd, 1);
-    system_exit(-1);
-  }
-  if (*(uint8_t *)0x335090 == 0) {
-    display_assert(
-      "transport_initialized",
-      "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
-      0x3be, 1);
-    system_exit(-1);
-  }
+  assert_halt_at(TRANSPORT_ENDPOINT_WINSOCK_FILE, 0x3bd,
+                 ep && buffer && (length > 0) && dest_addr);
+  assert_halt_at(TRANSPORT_ENDPOINT_WINSOCK_FILE, 0x3be,
+                 transport_initialized);
 
-  ip = *(uint32_t *)dest_address;
-  *(uint32_t *)(sa + 4) = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
-                          (((ip & 0xff00u) | (ip << 16)) << 8);
-  port = *(uint16_t *)(dest_address + 0x12);
-  *(uint16_t *)(sa + 2) =
+  ip = dest_addr->address.ipv4_address;
+  socket_address.sin_addr.s_addr = (((ip & 0xff0000u) | (ip >> 16)) >> 8) |
+                                   (((ip & 0xff00u) | (ip << 16)) << 8);
+  port = dest_addr->port;
+  socket_address.sin_port =
     (uint16_t)(((uint16_t)(port << 8)) | ((uint16_t)(port >> 8)));
-  *(uint16_t *)sa = 2;
+  socket_address.sin_family = AF_INET;
 
-  if (*(int *)endpoint == -1) {
-    if (*(uint8_t *)(endpoint + 5) != 0x11) {
-      display_assert(
-        "ep->type == _transport_type_udp",
-        "c:\\halo\\SOURCE\\bungie_net\\network\\transport_endpoint_winsock.c",
-        0x3c6, 1);
-      system_exit(-1);
+  if (ep->socket == INVALID_SOCKET) {
+    assert_halt_at(TRANSPORT_ENDPOINT_WINSOCK_FILE, 0x3c6,
+                   ep->type == _transport_type_udp);
+
+    ep->socket = FUN_00083930(AF_INET, SOCK_DGRAM, 0);
+  }
+
+  if (ep->socket != INVALID_SOCKET) {
+    result = xnet_sendto(ep->socket, buffer, length, 0, &socket_address,
+                         sizeof(socket_address));
+  } else {
+    ep->status = _transport_error_unknown;
+    result = SOCKET_ERROR;
+  }
+
+  if (result == SOCKET_ERROR) {
+    switch (xapi_GetLastError()) {
+    case WSAEWOULDBLOCK:
+      result = _transport_result_operation_would_block;
+      break;
+
+    case WSAENETRESET:
+    case WSAECONNABORTED:
+    case WSAECONNRESET:
+    case WSAENOTCONN:
+    case WSAESHUTDOWN:
+    case WSAETIMEDOUT:
+      ep->flags &= ~FLAG(_transport_endpoint_connected_bit);
+      result = _transport_error_connection_lost;
+      break;
+
+    default:
+      result = _transport_error_endpoint_io;
+      break;
     }
-    result = FUN_00083930(2, 2, 0);
-    *(int *)endpoint = result;
-    if (result == -1) {
-      *(uint16_t *)(endpoint + 6) = 0xffff;
-      goto sendto_error;
-    }
   }
 
-  result = xnet_sendto(*(int *)endpoint, message, size, 0, sa, 0x10);
-  if (result != -1) {
-    return result;
-  }
-
-sendto_error:
-  error_code = xapi_GetLastError();
-  switch (error_code) {
-  case 0x2733:
-    return -4;
-  default:
-    return -2;
-  case 0x2744:
-  case 0x2745:
-  case 0x2746:
-  case 0x2749:
-  case 0x274a:
-  case 0x274c:
-    *(uint8_t *)(endpoint + 4) = *(uint8_t *)(endpoint + 4) & 0xfe;
-    return -3;
-  }
+  return result;
 }
 
 /* Destroy a transport endpoint: close its socket, free memory, cleanup pool.

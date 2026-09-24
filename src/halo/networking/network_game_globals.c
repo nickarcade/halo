@@ -290,8 +290,8 @@ bool network_connection_idle(int connection, int timeout, int *output)
         conn->datagrams_received = conn->datagrams_received + 1;
       }
     } else {
-      bytes_read = FUN_00084520((int *)conn->unreliable_endpoint, recv_buf,
-                                400, addr_buf);
+      bytes_read = FUN_00084520((transport_endpoint *)conn->unreliable_endpoint,
+                                recv_buf, 400, (transport_address *)addr_buf);
       if (bytes_read > 0) {
         if (conn->traffic_log_file != NULL) {
           elapsed =

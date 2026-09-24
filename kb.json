@@ -16577,7 +16577,7 @@
     },
     {
      "addr": "0x12f3f0",
-     "decl": "int network_game_server_send_message_to_machine(int server, int machine, void *message);",
+     "decl": "bool network_game_server_send_message_to_machine(int server, int machine, void *message);",
      "ported": true,
      "name": "network_game_server_send_message_to_machine"
     },
@@ -28167,7 +28167,7 @@
     },
     {
      "addr": "0x84520",
-     "decl": "int FUN_00084520(int *ep, void *buffer, int length, void *addr);",
+     "decl": "int FUN_00084520(transport_endpoint *ep, void *buffer, int length, transport_address *src_addr);",
      "ported": true
     },
     {
@@ -28338,7 +28338,7 @@
     },
     {
      "addr": "0x84740",
-     "decl": "int FUN_00084740(int endpoint, void *message, int size, int dest_address);",
+     "decl": "int FUN_00084740(transport_endpoint *ep, const void *buffer, int length, const transport_address *dest_addr);",
      "ported": true
     },
     {

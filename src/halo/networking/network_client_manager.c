@@ -576,10 +576,7 @@ void network_game_client_accepted_into_game(void *client, void *source_address,
   }
 
   machine_index = *(int16_t *)((char *)message_packet + 4);
-  if (machine_index < 0 || machine_index >= 4) {
-    network_event("received a message_server_machine_accepted message with "
-                     "a bad machine_index");
-  } else {
+  if (machine_index >= 0 && machine_index < 4) {
     *(int16_t *)client = machine_index;
     *((char *)client + *(int16_t *)((char *)message_packet + 4) * 0x44 +
       0x9b0) = *(char *)((char *)message_packet + 4);
@@ -590,18 +587,20 @@ void network_game_client_accepted_into_game(void *client, void *source_address,
     network_game_generate_local_machine_name(settings_request);
     settings_request[0x40] = *(char *)((char *)message_packet + 4);
     message = create_network_game_message(0xf, settings_request, 0x44);
-    if (message == NULL) {
+    if (message != NULL) {
+      if (!network_connection_write(
+            *(void **)((char *)client + 0x82c), message,
+            (unsigned short)(*(unsigned short *)message >> 4), 0, true)) {
+        network_event("network_game_client_write() failed while sending a "
+                         "message_client_settings_request message");
+      }
+    } else {
       network_event(
         "failed to create a message_client_settings_request message");
-      return;
     }
-    if (!network_connection_write(
-          *(void **)((char *)client + 0x82c), message,
-          (unsigned short)(*(unsigned short *)message >> 4), 0, true)) {
-      network_event("network_game_client_write() failed while sending a "
-                       "message_client_settings_request message");
-      return;
-    }
+  } else {
+    network_event("received a message_server_machine_accepted message with "
+                     "a bad machine_index");
   }
 }
 
@@ -878,33 +877,31 @@ char network_game_client_handle_game_update(void *client, void *message)
     *(int16_t *)(m + 0xe) = client_count;
   }
 
-  if (*(int *)m == *(int *)(c + 0xc98)) {
-    if (global_network_game_server_get() == NULL) {
-      if (game_time_get() == *(int *)m && game_time_get() != *(int *)(m + 8)) {
-        network_event("not a bug, but update %d time %d our time %d",
-                         *(int *)m, *(int *)(m + 8), game_time_get());
-      }
-      if (game_time_get() == *(int *)(m + 8)) {
-        if (*(unsigned int *)(m + 4) != get_random_seed()) {
-          network_event(
-            "out of sync: client/server random seed mismatch, update= "
-            "#%ld, game time= #%ld (%ld) (#%lx/#%lx)",
-            *(int *)m, game_time_get(), *(int *)(m + 8), get_random_seed(),
-            *(unsigned int *)(m + 4));
-          network_game_client_game_out_of_sync(client);
-        }
-      }
-      if (*(unsigned int *)m % 30 == 0) {
-        network_event(
-          "client is lagging behind the server by #%d game ticks",
-          *(int *)m - game_time_get());
-      }
-    }
-  } else {
+  if (*(int *)m != *(int *)(c + 0xc98)) {
     network_event(
       "out of sync: missed a server update (expected #%ld, got #%ld)",
       *(int *)(c + 0xc98), *(int *)m);
     network_game_client_game_out_of_sync(client);
+  } else if (global_network_game_server_get() == NULL) {
+    if (game_time_get() == *(int *)m && game_time_get() != *(int *)(m + 8)) {
+      network_event("not a bug, but update %d time %d our time %d",
+                       *(int *)m, *(int *)(m + 8), game_time_get());
+    }
+    if (game_time_get() == *(int *)(m + 8)) {
+      if (*(unsigned int *)(m + 4) != get_random_seed()) {
+        network_event(
+          "out of sync: client/server random seed mismatch, update= "
+          "#%ld, game time= #%ld (%ld) (#%lx/#%lx)",
+          *(int *)m, game_time_get(), *(int *)(m + 8), get_random_seed(),
+          *(unsigned int *)(m + 4));
+        network_game_client_game_out_of_sync(client);
+      }
+    }
+    if (*(unsigned int *)m % 30 == 0) {
+      network_event(
+        "client is lagging behind the server by #%d game ticks",
+        *(int *)m - game_time_get());
+    }
   }
 
   seq = *(unsigned int *)m;
@@ -1669,16 +1666,15 @@ bool network_game_client_process_incoming_messages(void *server)
   int local_8;
 
   result = true;
-  do {
-    local_8 = 0x800;
-    if (!network_connection_read(*(int *)((char *)server + 0x82c), local_820, &local_8,
-                      local_20))
-      return result;
+  local_8 = 0x800;
+  while (result && network_connection_read(*(int *)((char *)server + 0x82c),
+                                           local_820, &local_8, local_20)) {
     result = network_game_client_handle_message(server, local_820, local_8, local_20);
     if (!result)
       network_event("network_game_client_handle_message() failed in "
                        "network_game_client_process_incoming_messages()");
-  } while (result);
+    local_8 = 0x800;
+  }
   return result;
 }
 
@@ -2223,7 +2219,7 @@ bool network_game_client_idle_searching(void *server)
       transport_get_nonce(game_buf + 0x24, 8);
       *(uint16_t *)(join_params + 2) = 0;
       network_game_generate_join_game_token(join_params + 0x12);
-      *(unsigned int *)addr.address = 0x7f000001;
+      addr.address.ipv4_address = 0x7f000001;
       addr.address_length = 4;
       addr.port = 0x141e;
 
@@ -2250,7 +2246,7 @@ bool network_game_client_idle_searching(void *server)
         *(uint16_t *)msg = 0x141f;
         *(uint16_t *)(msg + 2) = 1;
         transport_get_nonce(msg + 4, 8);
-        *(unsigned int *)dest.address = 0xffffffff;
+        dest.address.ipv4_address = 0xffffffff;
         dest.address_length = 4;
         dest.port = 0x141e;
 
@@ -2870,28 +2866,32 @@ char network_game_client_handle_message_server_game_settings_update(void *client
       message_size -= 2;
       packet_type = 6;
       packet_version = 1;
-      if (decode_network_game_message((int)decoded, (int)message + 2, (short *)&message_size,
-                       (short *)&packet_type, (short *)&packet_version, 2)) {
+      if (decode_network_game_message((int)decoded, (int)message + 2,
+                                      (short *)&message_size,
+                                      (short *)&packet_type,
+                                      (short *)&packet_version, 2)) {
         result = network_game_client_game_settings_updated(client, decoded);
         if (result == 0) {
           network_event(
             "network_game_client_game_settings_updated() failed");
         }
-        return result;
+      } else {
+        network_event(
+          "failed to decode a message_server_game_settings_update packet");
       }
+    } else {
       network_event(
-        "failed to decode a message_server_game_settings_update packet");
-      return result;
+        "failed to handle a message_server_game_settings_update message; "
+        "not in pregame state");
+      result = 1;
     }
+  } else {
     network_event(
-      "failed to handle a message_server_game_settings_update message; "
-      "not in pregame state");
-    return 1;
+      "ignoring a message_server_game_settings_update; came from a bad "
+      "machine");
+    result = 1;
   }
-  network_event(
-    "ignoring a message_server_game_settings_update; came from a bad "
-    "machine");
-  return 1;
+  return result;
 }
 
 /* ------------------------------------------------------------------------
