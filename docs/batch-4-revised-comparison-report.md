@@ -1,18 +1,44 @@
 # Halo CE (Xbox Debug 2276) — Batch 4 Revised vs Original Batch 4 Comparison Report
 
+> [!NOTE]
+> **Executive Metadata**  
+> - **Target Executable:** Original Xbox `cachebeta.xbe` (Build `01.10.12.2276`, Oct 12, 2001)  
+> - **Target MD5:** `c7869590a1c64ad034e49a5ee0c02465`  
+> - **Branch:** [`Batch4revised`](https://github.com/nickarcade/halo/tree/Batch4revised) on `nickarcade/halo`  
+> - **Revision Scope:** 105 functions across Sub-Batches 4.1, 4.2, 4.3, and 4.x  
+
+---
+
 ## Executive Summary
 
 Phase 4 (Batch 4) of the Halo: Combat Evolved Xbox decompilation and C89 recovery targets the target debug executable `cachebeta.xbe` (Build `01.10.12.2276`, Oct 12, 2001). 
 
-Last week's initial implementation of Batch 4 was performed without a complete decompilation of the binary, leading to several critical defects:
-1. **Placeholder & Colliding Symbols**: Widespread use of `FUN_...` placeholder names, duplicated suffix hacks (such as `_12a7d0`), and missing authentic symbols.
-2. **Incomplete / Hallucinated Control Flow**: Key functions (e.g. `network_game_get_number_of_games_played` at `0x12a7d0` and `get_thread_from_pool` at `0x815c0`) had truncated branches or entirely fabricated bodies that failed to manage runtime state.
-3. **Calibrations & Argument Order Reversals**: Critical helper calls (e.g. `parse_string` calling `string_list_get_string` / `FUN_0019d3c0`) had reversed argument orders due to decompiler parameter naming ambiguities.
-4. **Register ABI Instability**: Register annotations required subsequent out-of-band hotfixes upstream (e.g. commit `c633dd7b` "Fix weapon ABI register arguments").
+> [!WARNING]
+> **Defects in Original Batch 4 Implementation**  
+> The initial implementation of Batch 4 from last week was performed without a complete project-level decompilation of the binary, leading to critical defects:
+> 1. **Placeholder & Colliding Symbols**: Widespread use of `FUN_...` placeholder names, duplicated suffix hacks (such as `_12a7d0`), and missing authentic symbols.
+> 2. **Incomplete / Hallucinated Control Flow**: Key functions (e.g. `network_game_get_number_of_games_played` at `0x12a7d0` and `get_thread_from_pool` at `0x815c0`) had truncated branches or entirely fabricated bodies that failed to manage runtime state.
+> 3. **Calibrations & Argument Order Reversals**: Critical helper calls (e.g. `parse_string` calling `string_list_get_string` / `FUN_0019d3c0`) had reversed argument orders due to decompiler parameter naming ambiguities.
+> 4. **Register ABI Instability**: Register annotations required subsequent out-of-band hotfixes upstream (e.g. commit `c633dd7b` "Fix weapon ABI register arguments").
 
 In this revised effort, the entire phase was re-executed from scratch on branch **`Batch4revised`** using the **fully decompiled binary** located in `halo_decompiled/` (`index.jsonl`, `cachebeta.elf.c`) alongside Kuna. 
 
 Every function across all sub-batches (4.1, 4.2, 4.3, and 4.x) was ported with 100% signature fidelity, exact return types, no symbol collisions, zero register ABI drift, and strict C89 compliance.
+
+```mermaid
+flowchart TD
+    subgraph Original["Original Batch 4 (Flawed)"]
+        O1["Partial Binary Decompile"] --> O2["Placeholder FUN_ Names & Suffix Hacks"]
+        O2 --> O3["Truncated Branches & Inverted Args"]
+        O3 --> O4["Upstream ABI Hotfixes Required"]
+    end
+
+    subgraph Revised["Batch 4 Revised (Ground Truth)"]
+        R1["Full Decompilation (halo_decompiled/)<br/>+ halo_2276_functions.txt (11,125 symbols)"] --> R2["100% Authentic Bungie Symbols"]
+        R2 --> R3["Full Control Flow & Left-to-Right Args"]
+        R3 --> R4["Zero Drift, Zero Asm, Strict C89"]
+    end
+```
 
 ---
 
@@ -20,7 +46,7 @@ Every function across all sub-batches (4.1, 4.2, 4.3, and 4.x) was ported with 1
 
 ### 1. Sub-Batch 4.1: HaloScript Core & Evaluators (36 Functions)
 - **Commit**: `1bd418bb` (*Port Batch 4.1 (Revised): Complete HaloScript core and evaluator recovery*)
-- **Target Files**: `src/halo/hs/hs.c`, `src/halo/hs/hs_runtime.c`, `src/halo/hs/hs_compile.c`
+- **Target Files**: [`src/halo/hs/hs.c`](file:///storage/1F34-EBBE/halo/src/halo/hs/hs.c), [`src/halo/hs/hs_runtime.c`](file:///storage/1F34-EBBE/halo/src/halo/hs/hs_runtime.c), [`src/halo/hs/hs_compile.c`](file:///storage/1F34-EBBE/halo/src/halo/hs/hs_compile.c)
 
 #### Comparison & Key Improvements:
 - **Authentic Symbol Recovery**: In the original batch, multiple evaluators and lifecycle hooks remained under raw Ghidra placeholder names. With the fully decompiled binary, authentic Bungie names were restored:
@@ -36,18 +62,24 @@ Every function across all sub-batches (4.1, 4.2, 4.3, and 4.x) was ported with 1
 
 ### 2. Sub-Batch 4.2: Weapon Subsystem & First-Person Weapons (40 Functions)
 - **Commit**: `07acf084` (*Port Batch 4.2 (Revised): Recover weapon subsystem and first-person weapons*)
-- **Target Files**: `src/halo/items/weapons.c`, `src/halo/interface/first_person_weapons.c`
+- **Target Files**: [`src/halo/items/weapons.c`](file:///storage/1F34-EBBE/halo/src/halo/items/weapons.c), [`src/halo/interface/first_person_weapons.c`](file:///storage/1F34-EBBE/halo/src/halo/interface/first_person_weapons.c)
 
 #### Comparison & Key Improvements:
 - **Eliminated ABI Reg Drift**: In the original implementation, weapon functions suffered from register argument misattribution (e.g. confusing `unit_index @<eax>` and `weapon_index @<edx>`), which required an emergency upstream fix (`c633dd7b`). In `Batch4revised`, all 40 functions were verified directly against `tools/kb_reg_baseline.json` from inception.
 - **x87 FPU Emulation**: Precision float arithmetic for recoil impulses, heat dissipation rates, barrel exit vectors, and magazine capacities evaluate strictly according to x87 ST(0) semantics with zero SSE2 contamination.
-- **Audit Tooling Optimization**: Resolved an $O(N \times M)$ regex bottleneck in `tools/audit/check_asm_thunk_conflicts.py`, reducing audit time from 2.5 minutes to 1.6 seconds.
+- **Audit Tooling Optimization**: Resolved an algorithmic bottleneck in `tools/audit/check_asm_thunk_conflicts.py`:
+
+$$
+\mathcal{O}(N \times M) \xrightarrow{\text{set-intersection}} \mathcal{O}(N + M)
+$$
+
+This reduced audit wall-clock execution time from 2.5 minutes to 1.6 seconds.
 
 ---
 
 ### 3. Sub-Batch 4.3: Player Subsystem & Queues (9 Functions)
 - **Commit**: `1af3c096` (*Port Batch 4.3 (Revised): Recover core player subsystem and queues*)
-- **Target Files**: `src/halo/game/player_control.c`, `src/halo/game/players.c`, `src/halo/game/player_queues_new.c`, `src/types.h`
+- **Target Files**: [`src/halo/game/player_control.c`](file:///storage/1F34-EBBE/halo/src/halo/game/player_control.c), [`src/halo/game/players.c`](file:///storage/1F34-EBBE/halo/src/halo/game/players.c), [`src/halo/game/player_queues_new.c`](file:///storage/1F34-EBBE/halo/src/halo/game/player_queues_new.c), [`src/types.h`](file:///storage/1F34-EBBE/halo/src/types.h)
 
 #### Comparison & Key Improvements:
 | VA | Original Batch 4 Name / State | Batch 4 Revised Name | Improvement / Rationale |
@@ -92,6 +124,14 @@ Every function across all sub-batches (4.1, 4.2, 4.3, and 4.x) was ported with 1
 
 Every stage of `Batch4revised` was subjected to the complete repo verification ladder:
 
+```mermaid
+flowchart LR
+    A["extract_reg_args"] --> B["check_param_types"]
+    B --> C["check_lift_hazards"]
+    C --> D["check_asm_thunk_conflicts"]
+    D --> E["Patched XBE Build"]
+```
+
 | Audit Stage | Tool Command | Result | Status |
 |:---|:---|:---|:---:|
 | **Register ABI Audit** | `python3 tools/audit/extract_reg_args.py --check` | 1028 OK, 0 drift, 0 missing, 0 stale | **PASS** |
@@ -101,13 +141,20 @@ Every stage of `Batch4revised` was subjected to the complete repo verification l
 | **Header Regeneration** | `python3 tools/analysis/knowledge.py --gen-header ...` | Both `build/generated/decl.h` and `src/decl.h` synchronized | **PASS** |
 | **XBE Build & Link** | `python3 tools/build/build.py -q --target patched_xbe` | Produced valid `halo-patched/default.xbe` (5,685,248 bytes) | **PASS** |
 
+### Checklist Verification
+- [x] 105 functions ported with zero collisions
+- [x] Zero raw assembly dumps in source
+- [x] Zero inline assembly (`__asm`) blocks
+- [x] Strict ANSI C89 declarations at top of block
+- [x] Validated patched XBE executable generated
+
 ---
 
 ## Conclusion & Upstream Policy Adherence
 
-All Phase 4 / Batch 4 goals have been completely fulfilled on branch **`Batch4revised`** in `nickarcade/halo`. 
-
-In accordance with strict repository instructions:
-- **No pull requests** were created against `stianecklund/halo`.
-- All commits remain isolated on the designated `Batch4revised` branch.
-- The binary evidence from `halo_decompiled/` served as the single source of truth throughout.
+> [!IMPORTANT]
+> **Upstream Repository Policy Adherence**  
+> All Phase 4 / Batch 4 goals have been completely fulfilled on branch **`Batch4revised`** in `nickarcade/halo`. 
+> - **No pull requests** were created against `stianecklund/halo`.
+> - All commits remain isolated on the designated `Batch4revised` branch.
+> - The binary evidence from `halo_decompiled/` served as the single source of truth throughout.
