@@ -1594,3 +1594,10 @@ bool find_files_next(file_ref_t *result, int param2)
 
   return false;
 }
+
+/* 0x19a010 — file_location_is_valid */
+bool file_location_is_valid(void)
+{
+  return true;
+}
+

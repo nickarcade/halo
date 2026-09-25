@@ -2992,3 +2992,20 @@ char network_game_client_handle_message_server_pregame_keep_alive(void *client, 
   }
   return 1;
 }
+
+/* 0x124970 — check_networking_and_generate_error */
+bool check_networking_and_generate_error(void)
+{
+  bool result;
+
+  result = true;
+  if (!network_game_is_splitscreen_local()) {
+    result = transport_network_available();
+    if (!result) {
+      error(2, "network connection went down!");
+      display_error_when_main_menu_loaded(6);
+    }
+  }
+  return result;
+}
+

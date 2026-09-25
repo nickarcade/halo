@@ -1134,3 +1134,9 @@ bool network_connection_idle_server_reliable_endpoint(int connection, int *outpu
   }
   return ok;
 }
+
+/* 0x1282e0 — network_connection_initialize */
+void network_connection_initialize(void)
+{
+}
+

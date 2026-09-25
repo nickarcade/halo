@@ -1127,3 +1127,9 @@ void particle_system_orphan(int contrail_handle)
   *(uint32_t *)(datum + 4) &= ~1u;
   *(int *)(datum + 0xc) = -1;
 }
+
+/* 0x97970 — contrails_disconnect_from_structure_bsp */
+void contrails_disconnect_from_structure_bsp(void)
+{
+}
+

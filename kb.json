@@ -9660,7 +9660,7 @@
         {
           "decl": "int __stdcall XapiFormatFATVolume(void *device_path);",
           "addr": "0x1d8368",
-          "ported": false
+          "ported": true
         }
       ]
     },
@@ -13142,7 +13142,8 @@
       "functions": [
         {
           "decl": "short ai_scripting_command_list_status_internal(int16_t scenario_index@<eax>, void *record@<esi>, int field_1a8_val, int child_handle, int reserved);",
-          "addr": "0x57330"
+          "addr": "0x57330",
+          "ported": true
         },
         {
           "decl": "short ai_scripting_command_list_status(int ai_index);",
@@ -14887,7 +14888,8 @@
         },
         {
           "decl": "void FUN_00093be0(short *angles @<eax>, float *out_vector);",
-          "addr": "0x93be0"
+          "addr": "0x93be0",
+          "ported": true
         },
         {
           "decl": "void FUN_00093c20(short *angles, unsigned char *control, unsigned char *header, unsigned char **stream);",
@@ -15773,6 +15775,11 @@
           "decl": "bool console_update(void);",
           "addr": "0xff9e0",
           "ported": true
+        },
+        {
+          "decl": "void console_open(void);",
+          "addr": "0xff470",
+          "ported": true
         }
       ]
     },
@@ -15868,6 +15875,11 @@
         {
           "decl": "void particle_system_orphan(int contrail_handle);",
           "addr": "0x9f6e0",
+          "ported": true
+        },
+        {
+          "decl": "void contrails_disconnect_from_structure_bsp(void);",
+          "addr": "0x97970",
           "ported": true
         }
       ]
@@ -17352,8 +17364,9 @@
           "ported": true
         },
         {
-          "decl": "void parse_string(void *state);",
-          "addr": "0x19be30"
+          "decl": "int16_t parse_string(void *state);",
+          "addr": "0x19be30",
+          "ported": true
         },
         {
           "decl": "int16_t FUN_0019c0a0(void *state@<eax>);",
@@ -18910,6 +18923,11 @@
         {
           "decl": "bool find_files_next(file_ref_t *result, int param2);",
           "addr": "0x19aed0",
+          "ported": true
+        },
+        {
+          "decl": "bool file_location_is_valid(void);",
+          "addr": "0x19a010",
           "ported": true
         }
       ]
@@ -25801,6 +25819,11 @@
           "decl": "void FUN_000e0570(void);",
           "addr": "0xe0570",
           "ported": true
+        },
+        {
+          "decl": "void __stdcall IDirect3DDevice8_PersistDisplay(void *device);",
+          "addr": "0xe0490",
+          "ported": true
         }
       ]
     },
@@ -25876,6 +25899,11 @@
         {
           "decl": "bool memory_pool_block_resize(void *pool, void **block_reference, int new_size);",
           "addr": "0x11e8a0",
+          "ported": true
+        },
+        {
+          "decl": "int memory_pool_block_compute_actual_size(int size);",
+          "addr": "0x11e3f0",
           "ported": true
         }
       ]
@@ -26507,6 +26535,11 @@
           "decl": "char network_game_client_handle_message_server_pregame_keep_alive(void *client @<esi>, void *source_address @<edi>, void *message, int message_size);",
           "addr": "0x127710",
           "ported": true
+        },
+        {
+          "decl": "bool check_networking_and_generate_error(void);",
+          "addr": "0x124970",
+          "ported": true
         }
       ]
     },
@@ -26658,6 +26691,11 @@
         {
           "decl": "bool network_connection_idle_server_reliable_endpoint(int connection@<ebx>, int *output);",
           "addr": "0x129a30",
+          "ported": true
+        },
+        {
+          "decl": "void network_connection_initialize(void);",
+          "addr": "0x1282e0",
           "ported": true
         }
       ]
@@ -26815,6 +26853,11 @@
           "decl": "void network_game_invalidate_player(uint8_t *player);",
           "addr": "0x12a920",
           "ported": true
+        },
+        {
+          "decl": "int network_game_get_number_of_games_played(void);",
+          "addr": "0x12a7d0",
+          "ported": true
         }
       ]
     },
@@ -26920,6 +26963,11 @@
         {
           "decl": "bool encode_network_game_message(void *message_struct @<edi>, char *encoded_message @<ebx>, int16_t *encoded_message_size @<esi>, int16_t type, int one);",
           "addr": "0x12b6b0",
+          "ported": true
+        },
+        {
+          "decl": "void network_game_assign_players_to_team(void);",
+          "addr": "0x12ac70",
           "ported": true
         }
       ]
@@ -27651,6 +27699,11 @@
         {
           "decl": "void light_particle(void *position, void *tint_color, void *out_color, char use_lightmap);",
           "addr": "0x139480",
+          "ported": true
+        },
+        {
+          "decl": "bool should_render_lights(void);",
+          "addr": "0x1391c0",
           "ported": true
         }
       ]
@@ -29148,6 +29201,11 @@
         {
           "decl": "void particle_systems_render(void);",
           "addr": "0xa1170",
+          "ported": true
+        },
+        {
+          "decl": "void particle_systems_disconnect_from_structure_bsp(void);",
+          "addr": "0x9f7d0",
           "ported": true
         }
       ]
@@ -35190,6 +35248,11 @@
           "decl": "void rasterizer_vertex_shaders_dispose(void);",
           "addr": "0x178ab0",
           "ported": true
+        },
+        {
+          "decl": "unsigned int IDirect3DDevice8_DeleteVertexShader(unsigned int handle);",
+          "addr": "0x178840",
+          "ported": true
         }
       ]
     },
@@ -36748,7 +36811,8 @@
         },
         {
           "decl": "void FUN_00188ec0(int type, ...);",
-          "addr": "0x188ec0"
+          "addr": "0x188ec0",
+          "ported": true
         },
         {
           "decl": "void FUN_00189150(char flag, float *position, float scale, void *color);",
@@ -37783,6 +37847,11 @@
         {
           "decl": "char *shell_get_command_line(void);",
           "addr": "0x191240",
+          "ported": true
+        },
+        {
+          "decl": "bool shell_running_import_tool(void);",
+          "addr": "0x1911a0",
           "ported": true
         }
       ]
@@ -40015,6 +40084,11 @@
           "decl": "void terminal_printf(void *color, const char *format, const char *text);",
           "addr": "0xe3a10",
           "ported": true
+        },
+        {
+          "decl": "bool terminal_gets_active(void);",
+          "addr": "0xe34d0",
+          "ported": true
         }
       ]
     },
@@ -40095,6 +40169,11 @@
         {
           "decl": "void FUN_00081a20(void *address);",
           "addr": "0x81a20",
+          "ported": true
+        },
+        {
+          "decl": "void *get_thread_from_pool(void);",
+          "addr": "0x815c0",
           "ported": true
         }
       ]
