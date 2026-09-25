@@ -34903,6 +34903,21 @@
       "score": 2.6,
       "source": "src/halo/unported_thunks.c"
     },
+    "FUN_001c5010": {
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 4,
+      "abi_modeled_mnemonic_pct": 94.7,
+      "addr": "0x1c5010",
+      "end": "0x1c53e6",
+      "kind": "auto",
+      "n_r": 283,
+      "opnd_percent": 89.8,
+      "raw_mnemonic_pct": 93.4,
+      "ref": "synth",
+      "ref_sha": "e4ca6c87bdf01c38",
+      "score": 94.4,
+      "source": "src/halo/saved games/saved_game_files.c"
+    },
     "FUN_001c58f0": {
       "abi_model": "raw",
       "abi_model_items": 0,

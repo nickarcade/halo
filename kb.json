@@ -25127,7 +25127,8 @@
     },
     {
      "addr": "0x1c5010",
-     "decl": "void FUN_001c5010(void);"
+     "decl": "void FUN_001c5010(void);",
+     "ported": true
     },
     {
      "addr": "0x1c53f0",

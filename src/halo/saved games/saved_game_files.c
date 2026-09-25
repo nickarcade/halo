@@ -2076,3 +2076,227 @@ wchar_t *saved_game_file_get_display_name(int32_t saved_game_file_index)
 
   return (wchar_t *)0x4eaab0;
 }
+
+/* 0x1c5010 — verify (and, if necessary, upgrade) the checksums of every
+ * saved game file found on memory unit 0, then fold in the default
+ * playlist/player profile counts.  No symbol from the 2276 dump names this
+ * address, so it keeps the mechanical FUN_ name (T4; see the
+ * naming-confidence skill).
+ *
+ * Only two real callers exist (caller disassembly saved at
+ * artifacts/lift/caller_disasm_FUN_001c5010.txt), plus a plain
+ * JMP-forwarding thunk at 0x1c58f0; both real callers gate the call behind
+ * `if (*(uint8_t *)0x4eacc7) FUN_001c5010();`, with no arguments pushed and
+ * no use of AL/EAX afterward -- matching `void FUN_001c5010(void)`.  This
+ * function clears 0x4eacc7 back to 0 at 0x1c53db right before returning,
+ * making it the (previously undocumented) consumer of the "memory units
+ * changed" dirty flag set by saved_game_files_notify_memory_units_changed()
+ * and saved_game_files_initialize().
+ *
+ * Outer loop (0x1c5020-0x1c53d3): `EDI = 0; do { ...; EDI++; } while
+ * (EDI == 0)` in the disassembly -- a real loop shape, but EDI only ever
+ * reaches 1 in practice (it would have to wrap a full 32 bits to loop
+ * again), so the body executes exactly once per call.  Reproduced as
+ * `for (unit = 0; unit == 0; unit++)` rather than flattened, per the
+ * project's preserve-control-flow-shape convention.  take_mutex/
+ * release_mutex bracket the whole iteration (0x4eacbc, the save-game-files
+ * mutex used throughout this file, 3600000 ms timeout); a failed
+ * take_mutex skips straight to the increment (no start()/end() call at
+ * all).  A failed enumerate_saved_game_files_start(unit) skips the whole
+ * per-unit body, including enumerate_saved_game_files_end -- only
+ * release_mutex still runs (0x1c5054 JZ 0x1c53c0).
+ *
+ * The `if (unit == 0)` guard (0x1c505a/0x1c505c) is unreachable-false in
+ * practice (enumerate_saved_game_files_start already asserts unit == 0),
+ * but is reproduced because it is really there; when it is false the
+ * default-playlist/player-profile calls at 0x1c53a5/0x1c53ac are skipped
+ * entirely and control goes straight to enumerate_saved_game_files_end.
+ *
+ * Per-file record ("entry", the same 0x206-byte mapfile record documented
+ * on enumerate_default_playlist_profiles/enumerate_default_player_profiles
+ * above): path at +0, wide display name at +0x100 (0x7f wide chars,
+ * terminator at +0x1fe), int16 kind at +0x200 (0 = primary "blam.sav",
+ * 1 = alternate "blam.lst", -1 = neither found), and the checksum_valid
+ * bool at +0x205.  Unlike the two sibling enumerators, this function never
+ * writes entry+0x204 (confirmed absent from the disassembly), so that byte
+ * stays 0 from the zero-fill in every record this function enumerates --
+ * a real, confirmed difference from enumerate_default_playlist_profiles /
+ * enumerate_default_player_profiles, whose records always set it to 1;
+ * its meaning is not established here either way.
+ *
+ * XFindFirstSaveGame/XFindNextSaveGame walk the same root
+ * (*(const wchar_t **)0x32eb94) as saved_game_perform_file_system_checks
+ * above, capped at 100 records (CMP dword ptr [EBP-4],0x64 at 0x1c50a1).
+ * For each match: try "<directory>blam.sav" first (kind 0, checksum covers
+ * the leading 0x30 bytes of the 0x200-byte file); if that is not a real
+ * file, try "<directory>blam.lst" (kind 1, checksum covers the leading
+ * 0x68 bytes); if neither is a real file, log "random crap found by
+ * XFindNextSaveGame(): display name= '%s' path= '%hs'" (wide display name
+ * at find_data+0x244, narrow path at find_data+0x2c), mark kind -1, and
+ * skip straight to the next XFindNextSaveGame call -- no
+ * enumerate_saved_game_file call and no count increment for that record
+ * (0x1c527e JMP 0x1c5374).
+ *
+ * Checksum verification only runs when a real file was found.  It signs
+ * the file's leading `checksum_size` bytes and compares against the
+ * stored 0x14-byte signature at read_buf+checksum_size
+ * (saved_game_file_generate_checksum + csmemcmp, same idiom as the sibling
+ * enumerators).  On mismatch it logs "checksum validation failed for
+ * '%s'" and falls back to the old-style 4-byte CRC at the same offset
+ * (crc_new/crc_checksum_buffer/csmemcmp); if that matches, it logs
+ * "checksum validation matched old-style crc; updating saved game file
+ * '%s'", overwrites the stored signature in place with the new one
+ * (csmemcpy), rewrites the file (file_set_position(0) + file_write), and
+ * only then sets checksum_valid.  A checksum failure with no CRC match
+ * leaves checksum_valid 0, but the record is still enumerated --
+ * enumerate_saved_game_file(entry) always runs once a real file was
+ * found, regardless of open/read/checksum outcome (a file_open failure
+ * skips file_read/file_close and the whole checksum block; a file_read
+ * failure still runs file_close).  If enumerate_saved_game_file itself
+ * returns false, the whole enumeration loop stops immediately (0x1c536f
+ * JZ 0x1c5389, no further XFindNextSaveGame call).
+ *
+ * After the loop (or immediately, if XFindFirstSaveGame returned -1):
+ * enumerate_default_playlist_profiles() then
+ * enumerate_default_player_profiles() run in that order (0x1c53a5/
+ * 0x1c53ac) and their 16-bit sum is added into the same counter the
+ * enumeration loop above uses (MOVSX ECX,AX / ADD [EBP-4],ECX at
+ * 0x1c53b3/0x1c53b6) -- the result is never read again, but both calls'
+ * side effects (they each call enumerate_saved_game_file in turn) still
+ * have to happen. */
+void FUN_001c5010(void)
+{
+  int16_t unit;
+  int count;
+  char root_path[8] = "";
+  char find_data[XGAME_FIND_DATA_SIZE];
+  int find_handle;
+  int n;
+  bool have_record;
+  int checksum_size;
+  char read_buf[0x200];
+  char signature[0x14];
+  char *checksum_slot;
+  uint32_t old_crc;
+  file_ref_t info;
+  wchar_t error_msg[0x100];
+  char *ascii_msg;
+  int16_t playlist_count;
+  int16_t player_count;
+
+  unit = 0;
+  count = 0;
+
+  for (; unit == 0; unit = (int16_t)(unit + 1)) {
+    if (!take_mutex(*(int **)0x4eacbc, 3600000))
+      continue;
+
+    if (enumerate_saved_game_files_start(unit)) {
+      if (unit == 0) {
+        find_handle = XFindFirstSaveGame(
+          wide_to_ascii(*(const wchar_t **)0x32eb94, root_path, 8), find_data);
+
+        if (find_handle != -1) {
+          while (count < 100) {
+            char entry[0x206] = "";
+
+            have_record = 0;
+
+            n = snprintf(entry, 0xff, "%s%s", find_data + 0x140, "blam.sav");
+            if (n > 0 &&
+                file_reference_create_from_path(&info, entry, 0) != NULL &&
+                file_exists(&info)) {
+              *(int16_t *)(entry + 0x200) = 0;
+              checksum_size = 0x30;
+              have_record = 1;
+            } else {
+              n = snprintf(entry, 0xff, "%s%s", find_data + 0x140, "blam.lst");
+              if (n > 0 &&
+                  file_reference_create_from_path(&info, entry, 0) != NULL &&
+                  file_exists(&info)) {
+                *(int16_t *)(entry + 0x200) = 1;
+                checksum_size = 0x68;
+                have_record = 1;
+              } else {
+                unicode_sprintf(
+                  error_msg, 0xff,
+                  L"random crap found by XFindNextSaveGame(): display name= "
+                  L"'%s' path= '%hs'",
+                  (wchar_t *)(find_data + 0x244), find_data + 0x2c);
+                error_msg[0xff] = 0;
+                ascii_msg = wide_to_ascii(error_msg, (char *)error_msg, 0x200);
+                error(2, ascii_msg);
+                *(int16_t *)(entry + 0x200) = -1;
+              }
+            }
+
+            if (have_record) {
+              ustrncpy((wchar_t *)(entry + 0x100),
+                       (wchar_t *)(find_data + 0x244), 0x7f);
+              *(wchar_t *)(entry + 0x1fe) = L'\0';
+
+              if (file_open(&info, 3)) {
+                if (file_read(&info, 0x200, read_buf)) {
+                  saved_game_file_generate_checksum(read_buf, checksum_size,
+                                                    signature);
+                  checksum_slot = read_buf + checksum_size;
+
+                  if (csmemcmp(signature, checksum_slot, 0x14) == 0) {
+                    entry[0x205] = 1;
+                  } else {
+                    error(2, "checksum validation failed for '%s'", entry);
+
+                    crc_new(&old_crc);
+                    crc_checksum_buffer(&old_crc, read_buf, checksum_size);
+
+                    if (csmemcmp(&old_crc, checksum_slot, 4) == 0) {
+                      error(2,
+                            "checksum validation matched old-style crc; "
+                            "updating saved game file '%s'",
+                            entry);
+                      csmemcpy(checksum_slot, signature, 0x14);
+
+                      if (file_set_position(&info, 0) &&
+                          file_write(&info, 0x200, read_buf)) {
+                        entry[0x205] = 1;
+                      }
+                    }
+                  }
+                } else {
+                  error(2, "failed to read saved game file to verify checksum");
+                }
+
+                if (!file_close(&info))
+                  error(2, "failed to close saved game file after verifying "
+                           "checksum");
+              } else {
+                error(2, "failed to open saved game file to verify checksum");
+              }
+
+              if (!enumerate_saved_game_file(entry))
+                break;
+
+              count++;
+            }
+
+            if (!XFindNextSaveGame(find_handle, find_data))
+              break;
+          }
+
+          if (!XFindClose(find_handle))
+            error(2, "XFindClose() failed");
+        }
+
+        playlist_count = enumerate_default_playlist_profiles();
+        player_count = enumerate_default_player_profiles();
+        count += (int16_t)(player_count + playlist_count);
+      }
+
+      enumerate_saved_game_files_end(unit);
+    }
+
+    release_mutex(*(int **)0x4eacbc);
+  }
+
+  *(uint8_t *)0x4eacc7 = 0;
+}
