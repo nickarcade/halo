@@ -658,3 +658,9 @@ bool encode_network_game_message(void *message_struct, char *encoded_message,
                              encoded_message, encoded_message_size, type,
                              (short)one);
 }
+
+/* 0x12ac70 — network_game_assign_players_to_team */
+void network_game_assign_players_to_team(void)
+{
+}
+

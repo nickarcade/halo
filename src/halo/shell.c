@@ -182,6 +182,7 @@ bool FUN_001911b0(void)
   int launch_data_type;
   char launch_data[3072];
 
+  /* hazard-ok: fnptr-conv */
   if ((((int(__stdcall *)(int *, void *))0x1d2518)(&launch_data_type,
                                                    launch_data) == 0) &&
       (launch_data_type == 0)) {
@@ -249,3 +250,10 @@ char *shell_get_command_line(void)
 {
   return (char *)0x4d8a88;
 }
+
+/* 0x1911a0 — shell_running_import_tool */
+bool shell_running_import_tool(void)
+{
+  return false;
+}
+

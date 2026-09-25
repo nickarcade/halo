@@ -922,3 +922,34 @@ void network_game_invalidate_player(uint8_t *player)
   player[0x1f] = 0xff;
   *(uint16_t *)player = 0;
 }
+
+/* 0x12a7d0 — network_game_get_number_of_games_played */
+int network_game_get_number_of_games_played(void)
+{
+  void *server;
+  void *client;
+  char *game;
+
+  server = *(void **)0x0046e8bc;
+  if (server != NULL) {
+    game = (char *)(uintptr_t)network_game_server_get_game(server);
+  } else {
+    client = *(void **)0x0046e8c0;
+    if (client != NULL) {
+      game = (char *)network_game_client_get_game(client);
+    } else {
+      game = NULL;
+    }
+  }
+
+  if (game != NULL) {
+    return *(int *)(game + 0x42c);
+  }
+
+  display_assert("game",
+                 "c:\\halo\\SOURCE\\networking\\network_game_globals.c",
+                 0x55, 1);
+  system_exit(-1);
+  return *(int *)(game + 0x42c);
+}
+

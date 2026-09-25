@@ -1066,6 +1066,8 @@ int16_t parse_string(void *state)
  *
  * 0x19c0a0 / draw_string.obj
  */
+
+
 int16_t FUN_0019c0a0(void *state)
 {
   char *s = (char *)state;
