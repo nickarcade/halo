@@ -5440,7 +5440,7 @@
     },
     {
      "addr": "0xa6130",
-     "decl": "void player_aim_projectile(void);"
+     "decl": "int player_aim_projectile(int16_t player_index, float *forward, float *target_dir);"
     },
     {
      "addr": "0xa6470",
@@ -8382,11 +8382,13 @@
     },
     {
      "addr": "0xdd190",
-     "decl": "int16_t first_person_weapon_get_marker_by_name(int object_handle, void *marker_name, void *out_markers, int max_count);"
+     "decl": "int16_t first_person_weapon_get_marker_by_name(int object_handle, void *marker_name, void *out_markers, int max_count);",
+     "ported": true
     },
     {
      "addr": "0xdd260",
-     "decl": "void first_person_weapon_center_flashlight(int object_handle, float *out_position, float *out_forward, void *out_up);"
+     "decl": "void first_person_weapon_center_flashlight(int object_handle, float *out_position, float *out_forward, void *out_up);",
+     "ported": true
     },
     {
      "addr": "0xdd340",
@@ -8395,12 +8397,14 @@
     },
     {
      "addr": "0xdd580",
-     "decl": "void first_person_weapon_build_node_matrices(void);",
-     "name": "first_person_weapon_build_node_matrices"
+     "decl": "void first_person_weapon_build_node_matrices(int16_t local_player_index);",
+     "name": "first_person_weapon_build_node_matrices",
+     "ported": true
     },
     {
      "addr": "0xddae0",
-     "decl": "void first_person_weapon_render_update(void);"
+     "decl": "void first_person_weapon_render_update(void);",
+     "ported": true
     },
     {
      "addr": "0xddb90",
@@ -8422,12 +8426,18 @@
      "addr": "0xde3f0",
      "decl": "void first_person_weapon_next_state(int local_player_index@<ebx>);",
      "comment": "[NAME: first_person_weapon_next_state — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "first_person_weapon_next_state"
+     "name": "first_person_weapon_next_state",
+     "ported": true
     },
     {
      "addr": "0xde560",
      "decl": "void first_person_weapon_update(int16_t local_player_index);",
      "name": "first_person_weapon_update",
+     "ported": true
+    },
+    {
+     "decl": "void first_person_weapons_dispose(void);",
+     "addr": "0xdc790",
      "ported": true
     }
    ],
@@ -13139,7 +13149,7 @@
     {
      "addr": "0xcbb40",
      "decl": "void render_debug_trigger_volumes(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xcbf80",
@@ -35510,15 +35520,17 @@
     },
     {
      "addr": "0xfb5a0",
-     "decl": "void weapon_trigger_can_fire_again(void);",
+     "decl": "boolean weapon_trigger_can_fire_again(int weapon_handle, int16_t trigger_index);",
      "comment": "[NAME: weapon_trigger_can_fire_again — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_trigger_can_fire_again"
+     "name": "weapon_trigger_can_fire_again",
+     "ported": true
     },
     {
      "addr": "0xfb690",
-     "decl": "void weapon_magazine_idle(void);",
+     "decl": "void weapon_magazine_idle(int weapon_handle, int16_t magazine_index);",
      "comment": "[NAME: weapon_magazine_idle — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_magazine_idle"
+     "name": "weapon_magazine_idle",
+     "ported": true
     },
     {
      "addr": "0xfb6e0",
@@ -35550,9 +35562,10 @@
     },
     {
      "addr": "0xfb990",
-     "decl": "void weapon_state_key_frame(void);",
+     "decl": "void weapon_state_key_frame(int weapon_handle);",
      "comment": "[NAME: weapon_state_key_frame — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_state_key_frame"
+     "name": "weapon_state_key_frame",
+     "ported": true
     },
     {
      "addr": "0xfba00",
@@ -35576,9 +35589,10 @@
     },
     {
      "addr": "0xfbcf0",
-     "decl": "void power(void);",
+     "decl": "float power(float a, float b);",
      "comment": "[NAME: power — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "power"
+     "name": "power",
+     "ported": true
     },
     {
      "addr": "0xfbd10",
@@ -35594,7 +35608,8 @@
     },
     {
      "addr": "0xfbf00",
-     "decl": "void weapon_export_function_values(void);"
+     "decl": "void weapon_export_function_values(int weapon_handle);",
+     "ported": true
     },
     {
      "addr": "0xfc290",
@@ -35624,11 +35639,13 @@
     },
     {
      "addr": "0xfc780",
-     "decl": "float weapon_get_zoom_magnification(int weapon_handle, int zoom_level);"
+     "decl": "float weapon_get_zoom_magnification(int weapon_handle, int zoom_level);",
+     "ported": true
     },
     {
      "addr": "0xfc8e0",
-     "decl": "real weapon_get_field_of_view(int weapon_handle, real base_field_of_view, uint16_t zoom_level);"
+     "decl": "real weapon_get_field_of_view(int weapon_handle, real base_field_of_view, uint16_t zoom_level);",
+     "ported": true
     },
     {
      "addr": "0xfc930",
@@ -35659,9 +35676,10 @@
     },
     {
      "addr": "0xfcc90",
-     "decl": "void weapon_magazine_finish_chamber(void);",
+     "decl": "void weapon_magazine_finish_chamber(int16_t magazine_index@<eax>, int weapon_handle);",
      "comment": "[NAME: weapon_magazine_finish_chamber — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_magazine_finish_chamber"
+     "name": "weapon_magazine_finish_chamber",
+     "ported": true
     },
     {
      "addr": "0xfcd10",
@@ -35687,7 +35705,8 @@
     {
      "addr": "0xfcec0",
      "decl": "void weapon_trigger_recover(int trigger_index@<eax>, int weapon_handle@<ebx>);",
-     "name": "weapon_trigger_recover"
+     "name": "weapon_trigger_recover",
+     "ported": true
     },
     {
      "addr": "0xfcf20",
@@ -35698,9 +35717,10 @@
     },
     {
      "addr": "0xfd0b0",
-     "decl": "void projectile_distribute(void);",
+     "decl": "void projectile_distribute(int index@<eax>, float *out_forward, float *out_up, int16_t count, float angle_spread, char distribution_type);",
      "comment": "[NAME: projectile_distribute — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "projectile_distribute"
+     "name": "projectile_distribute",
+     "ported": true
     },
     {
      "addr": "0xfd150",
@@ -35746,26 +35766,30 @@
     },
     {
      "addr": "0xfd520",
-     "decl": "void weapon_trigger_finish_tracking(void);",
+     "decl": "void weapon_trigger_finish_tracking(int weapon_handle, int trigger_index);",
      "comment": "[NAME: weapon_trigger_finish_tracking — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_trigger_finish_tracking"
+     "name": "weapon_trigger_finish_tracking",
+     "ported": true
     },
     {
      "addr": "0xfd570",
-     "decl": "void trigger_create_projectiles(void);",
+     "decl": "void trigger_create_projectiles(int weapon_handle, int16_t trigger_index);",
      "comment": "[NAME: trigger_create_projectiles — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "trigger_create_projectiles"
+     "name": "trigger_create_projectiles",
+     "ported": true
     },
     {
      "addr": "0xfdc90",
      "decl": "void weapon_trigger_fire(int weapon_handle, int trigger_index);",
-     "name": "weapon_trigger_fire"
+     "name": "weapon_trigger_fire",
+     "ported": true
     },
     {
      "addr": "0xfe450",
-     "decl": "void weapon_trigger_begin_firing(void);",
+     "decl": "void weapon_trigger_begin_firing(int weapon_handle, int16_t trigger_index, char param_3);",
      "comment": "[NAME: weapon_trigger_begin_firing — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_trigger_begin_firing"
+     "name": "weapon_trigger_begin_firing",
+     "ported": true
     },
     {
      "addr": "0xfe6c0",
@@ -35783,13 +35807,64 @@
     {
      "addr": "0xfe890",
      "decl": "void weapon_trigger_overcharged(int trigger_index@<eax>, int weapon_handle@<ebx>);",
-     "ported": false,
+     "ported": true,
      "name": "weapon_trigger_overcharged"
     },
     {
      "addr": "0xfe910",
-     "decl": "void weapon_update(void);",
-     "comment": "[NAME: weapon_update — name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+     "decl": "boolean weapon_update(int weapon_handle);",
+     "comment": "[NAME: weapon_update — name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]",
+     "ported": true
+    },
+    {
+     "decl": "void weapons_dispose_from_old_map(void);",
+     "addr": "0xfad40",
+     "ported": true
+    },
+    {
+     "decl": "void weapons_dispose(void);",
+     "addr": "0xfad50",
+     "ported": true
+    },
+    {
+     "decl": "void weapon_melee_attack(void);",
+     "addr": "0xfb080",
+     "ported": true
+    },
+    {
+     "decl": "boolean weapon_magazine_state_change_ok(int weapon_handle);",
+     "addr": "0xfb410",
+     "ported": true
+    },
+    {
+     "decl": "int weapon_get_effect_object_index(int weapon_handle);",
+     "addr": "0xfb450",
+     "ported": true
+    },
+    {
+     "decl": "int weapon_get_owner_object_index(int weapon_handle);",
+     "addr": "0xfb480",
+     "ported": true
+    },
+    {
+     "decl": "int weapon_get_projectile_owner_object_index(int weapon_handle);",
+     "addr": "0xfb4c0",
+     "ported": true
+    },
+    {
+     "decl": "void weapon_detonate(int weapon_handle);",
+     "addr": "0xfb840",
+     "ported": true
+    },
+    {
+     "decl": "boolean weapon_magazine_state_interruptable(int16_t state);",
+     "addr": "0xfb9e0",
+     "ported": true
+    },
+    {
+     "decl": "uint16_t random(void);",
+     "addr": "0xfbd00",
+     "ported": true
     }
    ],
    "name": "weapons.obj",
@@ -35899,7 +35974,7 @@
     },
     {
      "addr": "0x220c0",
-     "decl": "void actor_aim_projectile(void);"
+     "decl": "int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int *out_target);"
     },
     {
      "addr": "0x22b40",

@@ -756,7 +756,7 @@ void effect_build_locations(int datum, void *callback)
                       tag_block_get_element(events_block, (int)event_index, 0x20),
                       marker_buf, 0x10);
     if (marker_count > 0) {
-      is_particle = (callback == (void *)0x000dd190);
+      is_particle = (callback == (void *)first_person_weapon_get_marker_by_name || callback == (void *)0x000dd190 /* hazard-ok */);
       for (j = 0; j < marker_count; j++) {
         result = effect_build_location((int)(marker_buf + (int)j * 0x6c), datum,
                               event_index, is_particle);
