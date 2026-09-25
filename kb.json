@@ -5444,7 +5444,7 @@
     },
     {
      "addr": "0xa6470",
-     "decl": "void local_player_aim_assist(void);",
+     "decl": "int local_player_aim_assist(short local_player_index, real *autoaim_level, real *field_0x30, void *lead_vector, void *arg5);",
      "comment": "[NAME: local_player_aim_assist — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -18971,7 +18971,8 @@
     },
     {
      "addr": "0xb70b0",
-     "decl": "void get_local_player_input_blob(void *action@<ebx>, short local_player_index, real delta_time);"
+     "decl": "void get_local_player_input_blob(void *action@<ebx>, short local_player_index, real delta_time);",
+     "ported": true
     },
     {
      "addr": "0xb7e30",
@@ -18994,6 +18995,21 @@
      "decl": "void player_control_permanent_impulse(int16_t local_player_index, float *delta);",
      "ported": true,
      "name": "player_control_permanent_impulse"
+    },
+    {
+     "decl": "void player_control_dispose_from_old_map(void);",
+     "addr": "0xb6400",
+     "ported": true
+    },
+    {
+     "decl": "bool player_control_camera_control_is_active(void);",
+     "addr": "0xb6410",
+     "ported": true
+    },
+    {
+     "decl": "void clear_input_blob(void *blob);",
+     "addr": "0xb65b0",
+     "ported": true
     }
    ],
    "name": "player_control.obj",
@@ -19266,6 +19282,21 @@
      "ported": true,
      "src": "src/halo/game/player_queues_new.c",
      "name": "update_client_handle_server_update"
+    },
+    {
+     "decl": "void update_client_delete(void);",
+     "addr": "0xb8e00",
+     "ported": true
+    },
+    {
+     "decl": "void *update_client_get_update(int sequence_index);",
+     "addr": "0xb90a0",
+     "ported": true
+    },
+    {
+     "decl": "void update_queues_reset_and_fill_with_lies(void);",
+     "addr": "0xb9880",
+     "ported": true
     }
    ],
    "name": "player_queues_new.obj",
@@ -19809,7 +19840,8 @@
     {
      "addr": "0xbb670",
      "decl": "char player_teleport_internal(int player_index, int object_handle, void *position);",
-     "name": "player_teleport_internal"
+     "name": "player_teleport_internal",
+     "ported": true
     },
     {
      "addr": "0xbbb80",
@@ -21069,6 +21101,11 @@
      "decl": "void hs_object_list_get_element_evaluate(int16_t function_index, int thread_datum, char init);",
      "ported": true,
      "name": "hs_object_list_get_element_evaluate"
+    },
+    {
+     "decl": "void player_examine_nearby_unit(void);",
+     "addr": "0xbae10",
+     "ported": true
     }
    ],
    "name": "players.obj",
