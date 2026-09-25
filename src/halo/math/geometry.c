@@ -12,13 +12,13 @@ extern double __cdecl fabs(double);
 #endif
 
 /* 0x994d0 — Negate all four components of a plane */
-void plane_negate(float *plane_in, float *plane_out)
+float * plane_negate(float *plane_in, float *plane_out)
 {
   plane_out[0] = -plane_in[0];
   plane_out[1] = -plane_in[1];
   plane_out[2] = -plane_in[2];
   plane_out[3] = -plane_in[3];
-}
+return plane_out; }
 
 /* 0x106390 — Perimeter of a closed 2D polygon.
  * vertices is a flat array of (x,y) pairs; vertex_count is the vertex count.

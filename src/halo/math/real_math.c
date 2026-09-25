@@ -82,11 +82,11 @@ enum transition_function {
 };
 
 /* 0x1acb0 — 2D scale-add: out = base + scale * dir. */
-void FUN_0001acb0(float *base, float *dir, float scale, float *out)
+float * FUN_0001acb0(float *base, float *dir, float scale, float *out)
 {
   out[0] = scale * dir[0] + base[0];
   out[1] = scale * dir[1] + base[1];
-}
+return out; }
 
 /* 0x1ace0 — Squared distance between two 2D points. */
 float FUN_0001ace0(float *a, float *b)
@@ -105,11 +105,11 @@ float FUN_0001ad10(float *a, float *b)
 }
 
 /* 0x1ad40 — Negate a 2D vector: out = -in. */
-void FUN_0001ad40(float *in, float *out)
+float * FUN_0001ad40(float *in, float *out)
 {
   out[0] = -in[0];
   out[1] = -in[1];
-}
+return out; }
 
 
 #if defined(__clang__)
@@ -570,7 +570,7 @@ float *matrix_transform_point(float *matrix, float *in, float *out)
 
 /* 0x109610 — Scale-transform a vector by a 4x3 matrix.
  * If matrix scale != 1.0, scales the input vector components first. */
-void matrix_scale_transform_vector(float *matrix, float *in, float *out)
+float * matrix_scale_transform_vector(float *matrix, float *in, float *out)
 {
   float x = in[0];
   float y = in[1];
@@ -584,7 +584,7 @@ void matrix_scale_transform_vector(float *matrix, float *in, float *out)
   out[0] = z * matrix[7] + y * matrix[4] + x * matrix[1];
   out[1] = z * matrix[8] + y * matrix[5] + x * matrix[2];
   out[2] = z * matrix[9] + y * matrix[6] + x * matrix[3];
-}
+return out; }
 
 /* Transform a 3D vector by a 3x3 rotation matrix (stored at matrix+0x4).
  * out[i] = dot(in, column_i of matrix).
@@ -1013,7 +1013,7 @@ void FUN_00109ba0(float *out, float *axis, float sine, float cosine)
 }
 
 /* 0x109c70 — Multiply two 3x3 matrices: out = a * b. Supports aliasing. */
-void FUN_00109c70(float *a, float *b, float *out)
+float * FUN_00109c70(float *a, float *b, float *out)
 {
   float scratch[9];
 
@@ -1034,7 +1034,7 @@ void FUN_00109c70(float *a, float *b, float *out)
   out[6] = a[6] * b[8] + a[3] * b[7] + a[0] * b[6];
   out[7] = a[1] * b[6] + a[4] * b[7] + a[7] * b[8];
   out[8] = a[2] * b[6] + a[5] * b[7] + a[8] * b[8];
-}
+return out; }
 
 /* 0x109d90 — Transform a 3D vector by a 3x3 matrix. Supports b==out aliasing.
  */
@@ -1653,11 +1653,11 @@ void real_math_reset_precision(void)
  * Computes: out[0] = -in[1], out[1] = in[0]
  * This produces the perpendicular (left-normal) of a 2D vector.
  */
-void perpendicular2d(float *in, float *out)
+float * perpendicular2d(float *in, float *out)
 {
   out[0] = -in[1];
   out[1] = in[0];
-}
+return out; }
 
 /* Compute a perpendicular vector to the input 3D vector.
  * Finds the component with the smallest absolute value and zeros it,
@@ -1691,13 +1691,13 @@ void perpendicular3d(float *in, float *out)
 }
 
 /* 0x10b6b0 — Compute a perpendicular 4D vector (swizzle + negate). */
-void perpendicular4d(float *in, float *out)
+float * perpendicular4d(float *in, float *out)
 {
   out[0] = in[2];
   out[1] = in[3];
   out[2] = -in[0];
   out[3] = -in[1];
-}
+return out; }
 
 /* Rotate vector in-place around axis by angle given as sin/cos (0x10b6e0).
  * Uses the Rodrigues rotation formula:
@@ -2257,7 +2257,7 @@ void orientations_interpolate(float *orient1, float *orient2, float t,
 /* Convert a 3D direction vector to yaw/pitch angles (radians).
  * Reference (0x10cc00, 25 insns, zero frame) re-reads in_vector[] per use —
  * no cached locals; sum order x*x + y*y. */
-void vector_to_angles(float *out_angles, float *in_vector)
+float * vector_to_angles(float *out_angles, float *in_vector)
 {
   float y;
   float x;
@@ -2270,14 +2270,14 @@ void vector_to_angles(float *out_angles, float *in_vector)
   x = in_vector[0];
   z = in_vector[2];
   out_angles[1] = (float)atan2((double)z, (double)sqrtf(x * x + y * y));
-}
+return out_angles; }
 
 /* Convert yaw/pitch angles to a unit direction vector.
  * angles[0] = yaw, angles[1] = pitch.
  * out[0] = cos(yaw) * cos(pitch)
  * out[1] = sin(yaw) * cos(pitch)
  * out[2] = sin(pitch) */
-void angles_to_vector(float *out, float *angles)
+float * angles_to_vector(float *out, float *angles)
 {
   float cos_pitch;
 
@@ -2285,7 +2285,7 @@ void angles_to_vector(float *out, float *angles)
   out[0] = x87_fcos(angles[0]) * cos_pitch;
   out[1] = x87_fsin(angles[0]) * cos_pitch;
   out[2] = x87_fsin(angles[1]);
-}
+return out; }
 
 /* Convert an angle to a 2D direction vector stored as (cos, sin, 0) (0x10cc70).
  */

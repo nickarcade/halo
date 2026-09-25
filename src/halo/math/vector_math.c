@@ -94,12 +94,12 @@ void FUN_00012110(int actor_handle)
  * Confirmed: arg1=a [EBP+0x8], arg2=b [EBP+0xc], arg3=result [EBP+0x10].
  * Confirmed: FLD [ECX] / FSUB [EDX] / FSTP [EAX] where ECX=b, EDX=a,
  * EAX=result. */
-void FUN_00012140(float *a, float *b, float *result)
+float * FUN_00012140(float *a, float *b, float *result)
 {
   result[0] = b[0] - a[0];
   result[1] = b[1] - a[1];
   result[2] = b[2] - a[2];
-}
+return result; }
 
 /* 0x12170 — FUN_00012170: squared magnitude of a 3D vector.
  *
@@ -675,11 +675,11 @@ float FUN_00012ea0(float x)
 }
 
 /* 0x12eb0 — Scale a 2D vector: out = scale * in. */
-void FUN_00012eb0(float *in, float scale, float *out)
+float * FUN_00012eb0(float *in, float scale, float *out)
 {
   out[0] = scale * in[0];
   out[1] = scale * in[1];
-}
+return out; }
 
 /* 0x12ed0 — Squared magnitude of a 2D vector. */
 float FUN_00012ed0(float *v)
@@ -729,12 +729,12 @@ float *vector3d_scale_add(float *base, float *direction, float scale,
 }
 
 /* 0x12fb0 — Scale a 3D vector: out = scale * in. */
-void FUN_00012fb0(float *in, float scale, float *out)
+float * FUN_00012fb0(float *in, float scale, float *out)
 {
   out[0] = scale * in[0];
   out[1] = scale * in[1];
   out[2] = scale * in[2];
-}
+return out; }
 
 /* 0x12fe0 — Magnitude of a 3D vector. */
 float FUN_00012fe0(float *v)
@@ -795,12 +795,12 @@ float FUN_00013070(float *a, float *b)
 }
 
 /* 0x13090 — Subtract two 3D vectors: out = a - b. */
-void FUN_00013090(float *a, float *b, float *out)
+float * FUN_00013090(float *a, float *b, float *out)
 {
   out[0] = a[0] - b[0];
   out[1] = a[1] - b[1];
   out[2] = a[2] - b[2];
-}
+return out; }
 
 /* 0x130d0 — Ray-cast between two points. Computes the direction vector
  * (point_b - point_a) and delegates to FUN_0014df70 for the actual
@@ -857,12 +857,12 @@ float FUN_000213a0(float *a, float *b)
 }
 
 /* 0x213c0 — Compute out = a + b (3-component). */
-void vector3d_add(float *a, float *b, float *out)
+float * vector3d_add(float *a, float *b, float *out)
 {
   out[0] = a[0] + b[0];
   out[1] = a[1] + b[1];
   out[2] = a[2] + b[2];
-}
+return out; }
 
 /* 0x21410 — Check if a float is valid (not NaN/Inf). */
 int FUN_00021410(uint32_t bits)

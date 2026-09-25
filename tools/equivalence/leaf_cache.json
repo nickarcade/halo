@@ -701,7 +701,10 @@
     "class": "leaf"
   },
   "0x109610": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x109680": {
     "class": "leaf"
@@ -736,7 +739,10 @@
     "dir32_count": 4
   },
   "0x109c70": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 89.9,
+    "oracle": "xbe"
   },
   "0x109d90": {
     "class": "leaf"
@@ -929,13 +935,19 @@
     "call_count": 1
   },
   "0x10b600": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x10b620": {
     "class": "leaf"
   },
   "0x10b6b0": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x10b6e0": {
     "class": "data_only",
@@ -1079,10 +1091,16 @@
     "call_count": 2
   },
   "0x10cc00": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x10cc40": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x10cc70": {
     "class": "leaf"
@@ -2774,7 +2792,10 @@
   },
   "0x12140": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x121640": {
     "class": "stubbable",
@@ -3945,7 +3966,10 @@
   },
   "0x12eb0": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x12eb20": {
     "class": "stubbable",
@@ -4064,7 +4088,10 @@
   },
   "0x12fb0": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x12fd80": {
     "class": "non_leaf",
@@ -4142,7 +4169,10 @@
   },
   "0x13090": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x13092a": {
     "class": "leaf"
@@ -7675,10 +7705,16 @@
     "call_count": 12
   },
   "0x174b60": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x174b90": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x174bd0": {
     "class": "stubbable",
@@ -7716,7 +7752,10 @@
   },
   "0x178b0": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x178b40": {
     "class": "stubbable",
@@ -7729,7 +7768,10 @@
   },
   "0x17910": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x1792a0": {
     "class": "data_only",
@@ -12130,7 +12172,10 @@
   },
   "0x1acb0": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x1acb70": {
     "class": "stubbable",
@@ -12164,7 +12209,10 @@
   },
   "0x1ad40": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x1ad60": {
     "class": "leaf"
@@ -20357,7 +20405,10 @@
   },
   "0x213c0": {
     "z3_proven": true,
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x21410": {
     "class": "leaf"
@@ -25418,19 +25469,28 @@
     "call_count": 5
   },
   "0x7ae70": {
-    "class": "data_only",
-    "dir32_count": 4
+    "class": "non_leaf",
+    "dir32_count": 4,
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x7aed0": {
-    "class": "data_only",
-    "dir32_count": 3
+    "class": "non_leaf",
+    "dir32_count": 3,
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x7af20": {
-    "class": "data_only",
-    "dir32_count": 8
+    "class": "non_leaf",
+    "dir32_count": 8,
+    "confidence": "high",
+    "coverage_pct": 83.2,
+    "oracle": "xbe"
   },
   "0x7afb0": {
-    "class": "data_only",
+    "class": "non_leaf",
     "dir32_count": 6
   },
   "0x7b020": {
@@ -27928,7 +27988,10 @@
     "class": "leaf"
   },
   "0x994d0": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x99500": {
     "class": "leaf"
@@ -27939,8 +28002,11 @@
     "call_count": 6
   },
   "0x99640": {
-    "class": "stubbable",
-    "call_count": 1
+    "class": "non_leaf",
+    "call_count": 1,
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x996b0": {
     "class": "stubbable",

@@ -3978,7 +3978,7 @@ float *real_hsv_color_to_real_rgb_color(float *hsv, float *rgb_out)
  * Each component is zero-extended from ushort to int, then converted to float
  * and multiplied by the scale factor at 0x264154.
  */
-void argb_color_to_real_argb_color(unsigned short *src, float *dst)
+float * argb_color_to_real_argb_color(unsigned short *src, float *dst)
 {
   int val;
 
@@ -3990,7 +3990,7 @@ void argb_color_to_real_argb_color(unsigned short *src, float *dst)
   dst[2] = (float)val * *(float *)0x264154;
   val = src[3];
   dst[3] = (float)val * *(float *)0x264154;
-}
+return dst; }
 
 /*
  * rgb_color_to_real_rgb_color -- rgb_color_to_real_rgb_color: convert 3
@@ -3998,7 +3998,7 @@ void argb_color_to_real_argb_color(unsigned short *src, float *dst)
  *
  * Same pattern as argb_color_to_real_argb_color but only 3 components.
  */
-void rgb_color_to_real_rgb_color(unsigned short *src, float *dst)
+float * rgb_color_to_real_rgb_color(unsigned short *src, float *dst)
 {
   int val;
 
@@ -4008,7 +4008,7 @@ void rgb_color_to_real_rgb_color(unsigned short *src, float *dst)
   dst[1] = (float)val * *(float *)0x264154;
   val = src[2];
   dst[2] = (float)val * *(float *)0x264154;
-}
+return dst; }
 
 /*
  * pixel32_to_real_argb_color -- pixel32_to_real_argb_color: extract ARGB from a
@@ -4017,7 +4017,7 @@ void rgb_color_to_real_rgb_color(unsigned short *src, float *dst)
  * Byte layout: bits 31-24 = A, 23-16 = R, 15-8 = G, 7-0 = B.
  * Uses MSVC's unsigned-to-float pattern (FILD + TEST/JGE/FADD fixup).
  */
-void pixel32_to_real_argb_color(unsigned int color, float *dst)
+float * pixel32_to_real_argb_color(unsigned int color, float *dst)
 {
   unsigned int a, r, g, b;
 
@@ -4029,7 +4029,7 @@ void pixel32_to_real_argb_color(unsigned int color, float *dst)
   dst[2] = (float)g * *(float *)0x261518;
   b = color & 0xff;
   dst[3] = (float)b * *(float *)0x261518;
-}
+return dst; }
 
 /*
  * pixel32_to_real_rgb_color -- pixel32_to_real_rgb_color: extract RGB from a
@@ -4038,7 +4038,7 @@ void pixel32_to_real_argb_color(unsigned int color, float *dst)
  * Byte layout: bits 23-16 = R, 15-8 = G, 7-0 = B (alpha ignored).
  * Uses MSVC's unsigned-to-float pattern (FILD + TEST/JGE/FADD fixup).
  */
-void pixel32_to_real_rgb_color(unsigned int color, float *dst)
+float * pixel32_to_real_rgb_color(unsigned int color, float *dst)
 {
   unsigned int r, g, b;
 
@@ -4048,7 +4048,7 @@ void pixel32_to_real_rgb_color(unsigned int color, float *dst)
   dst[1] = (float)g * *(float *)0x261518;
   b = color & 0xff;
   dst[2] = (float)b * *(float *)0x261518;
-}
+return dst; }
 
 bool valid_real_rgb_color(float *rgb)
 {

@@ -3275,11 +3275,11 @@ void action_obey_describe_command(void *scenario_data, short *cmd,
 /* vector_from_points2d (0x178b0)
  * Subtract two 2D vectors: result = b - a.
  * Confirmed: cdecl, 3 stack params. FLD [ECX]/FSUB [EDX]/FSTP [EAX] twice. */
-void vector_from_points2d(float *a, float *b, float *result)
+float * vector_from_points2d(float *a, float *b, float *result)
 {
   result[0] = b[0] - a[0];
   result[1] = b[1] - a[1];
-}
+return result; }
 
 /* Compute the cross product of two 3D vectors: out = a x b.
  *
@@ -3298,12 +3298,12 @@ void cross_product3d(float *a, float *b, float *out)
 /* negate_vector3d (0x17910)
  * Negate a 3D vector: result = -a.
  * Confirmed: cdecl, 2 stack params. FCHS on each component. */
-void negate_vector3d(float *a, float *result)
+float * negate_vector3d(float *a, float *result)
 {
   result[0] = -a[0];
   result[1] = -a[1];
   result[2] = -a[2];
-}
+return result; }
 
 /* random_range (0x17940)
  * Draw a random int16_t in [min, max] using the global random seed.

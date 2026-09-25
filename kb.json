@@ -3912,7 +3912,7 @@
     },
     {
      "addr": "0x178b0",
-     "decl": "void vector_from_points2d(float *a, float *b, float *result);",
+     "decl": "float *vector_from_points2d(float *a, float *b, float *result);",
      "ported": true,
      "comment": "[NAME: vector_from_points2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "name": "vector_from_points2d"
@@ -3924,7 +3924,7 @@
     },
     {
      "addr": "0x17910",
-     "decl": "void negate_vector3d(float *a, float *result);",
+     "decl": "float *negate_vector3d(float *a, float *result);",
      "ported": true,
      "comment": "[NAME: negate_vector3d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "name": "negate_vector3d"
@@ -6864,7 +6864,7 @@
     },
     {
      "addr": "0x99640",
-     "decl": "void bsp3d_get_plane_from_designator(int structure_bsp, uint32_t plane_reference, float *out_plane);",
+     "decl": "float *bsp3d_get_plane_from_designator(int structure_bsp, uint32_t plane_reference, float *out_plane);",
      "ported": true
     },
     {
@@ -22128,12 +22128,12 @@
     },
     {
      "addr": "0x174b60",
-     "decl": "void FUN_00174b60(float *a, float *b, float *out);",
+     "decl": "float *FUN_00174b60(float *a, float *b, float *out);",
      "ported": true
     },
     {
      "addr": "0x174b90",
-     "decl": "void FUN_00174b90(float *a, float *b, float t, float *out);",
+     "decl": "float *FUN_00174b90(float *a, float *b, float t, float *out);",
      "ported": true
     },
     {
@@ -23097,7 +23097,7 @@
     },
     {
      "addr": "0x213c0",
-     "decl": "void vector3d_add(float *a, float *b, float *out);",
+     "decl": "float *vector3d_add(float *a, float *b, float *out);",
      "ported": true,
      "source": "src/halo/math/vector_math.c",
      "status": "ported"
@@ -23126,7 +23126,7 @@
     },
     {
      "addr": "0x12140",
-     "decl": "void FUN_00012140(float *a, float *b, float *result);",
+     "decl": "float *FUN_00012140(float *a, float *b, float *result);",
      "ported": true
     },
     {
@@ -23215,7 +23215,7 @@
     },
     {
      "addr": "0x12eb0",
-     "decl": "void FUN_00012eb0(float *in, float scale, float *out);",
+     "decl": "float *FUN_00012eb0(float *in, float scale, float *out);",
      "ported": true
     },
     {
@@ -23235,7 +23235,7 @@
     },
     {
      "addr": "0x12fb0",
-     "decl": "void FUN_00012fb0(float *in, float scale, float *out);",
+     "decl": "float *FUN_00012fb0(float *in, float scale, float *out);",
      "ported": true
     },
     {
@@ -23245,7 +23245,7 @@
     },
     {
      "addr": "0x13090",
-     "decl": "void FUN_00013090(float *a, float *b, float *out);",
+     "decl": "float *FUN_00013090(float *a, float *b, float *out);",
      "ported": true
     },
     {
@@ -23307,7 +23307,7 @@
    "functions": [
     {
      "addr": "0x1acb0",
-     "decl": "void FUN_0001acb0(float *base, float *dir, float scale, float *out);",
+     "decl": "float *FUN_0001acb0(float *base, float *dir, float scale, float *out);",
      "ported": true
     },
     {
@@ -23322,7 +23322,7 @@
     },
     {
      "addr": "0x1ad40",
-     "decl": "void FUN_0001ad40(float *in, float *out);",
+     "decl": "float *FUN_0001ad40(float *in, float *out);",
      "ported": true
     },
     {
@@ -23397,7 +23397,7 @@
     },
     {
      "addr": "0x109610",
-     "decl": "void matrix_scale_transform_vector(float *matrix, float *in, float *out);",
+     "decl": "float *matrix_scale_transform_vector(float *matrix, float *in, float *out);",
      "ported": true
     },
     {
@@ -23448,7 +23448,7 @@
     },
     {
      "addr": "0x109c70",
-     "decl": "void FUN_00109c70(float *a, float *b, float *out);",
+     "decl": "float *FUN_00109c70(float *a, float *b, float *out);",
      "ported": true
     },
     {
@@ -23554,7 +23554,7 @@
     },
     {
      "addr": "0x10b600",
-     "decl": "void perpendicular2d(float *in, float *out);",
+     "decl": "float *perpendicular2d(float *in, float *out);",
      "ported": true
     },
     {
@@ -23564,7 +23564,7 @@
     },
     {
      "addr": "0x10b6b0",
-     "decl": "void perpendicular4d(float *in, float *out);",
+     "decl": "float *perpendicular4d(float *in, float *out);",
      "ported": true
     },
     {
@@ -23675,12 +23675,12 @@
     },
     {
      "addr": "0x10cc00",
-     "decl": "void vector_to_angles(float *out_angles, float *in_vector);",
+     "decl": "float *vector_to_angles(float *out_angles, float *in_vector);",
      "ported": true
     },
     {
      "addr": "0x10cc40",
-     "decl": "void angles_to_vector(float *out, float *angles);",
+     "decl": "float *angles_to_vector(float *out, float *angles);",
      "name": "angles_to_vector",
      "ported": true
     },
@@ -34232,22 +34232,22 @@
     },
     {
      "addr": "0x7ae70",
-     "decl": "void argb_color_to_real_argb_color(unsigned short *src, float *dst);",
+     "decl": "float *argb_color_to_real_argb_color(unsigned short *src, float *dst);",
      "ported": true
     },
     {
      "addr": "0x7aed0",
-     "decl": "void rgb_color_to_real_rgb_color(unsigned short *src, float *dst);",
+     "decl": "float *rgb_color_to_real_rgb_color(unsigned short *src, float *dst);",
      "ported": true
     },
     {
      "addr": "0x7af20",
-     "decl": "void pixel32_to_real_argb_color(unsigned int color, float *dst);",
+     "decl": "float *pixel32_to_real_argb_color(unsigned int color, float *dst);",
      "ported": true
     },
     {
      "addr": "0x7afb0",
-     "decl": "void pixel32_to_real_rgb_color(unsigned int color, float *dst);",
+     "decl": "float *pixel32_to_real_rgb_color(unsigned int color, float *dst);",
      "ported": true
     },
     {
@@ -40526,7 +40526,7 @@
    "functions": [
     {
      "addr": "0x994d0",
-     "decl": "void plane_negate(float *plane_in, float *plane_out);",
+     "decl": "float *plane_negate(float *plane_in, float *plane_out);",
      "ported": true
     },
     {

@@ -509,7 +509,7 @@ uint32_t real_a_rgb_color_to_pixel32(float alpha, float *color)
  * negated, effectively flipping the plane to face the opposite direction.
  * Each plane element is 0x10 bytes (four floats: i, j, k, d).
  */
-void bsp3d_get_plane_from_designator(int structure_bsp,
+float * bsp3d_get_plane_from_designator(int structure_bsp,
                                      uint32_t plane_reference, float *out_plane)
 {
   float *plane_data;
@@ -525,7 +525,7 @@ void bsp3d_get_plane_from_designator(int structure_bsp,
   } else {
     *(real_plane3d *)out_plane = *(real_plane3d *)plane_data;
   }
-}
+return out_plane; }
 
 /*
  * decal_update — age one decal, fading or retiring it.
