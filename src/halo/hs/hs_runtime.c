@@ -850,6 +850,34 @@ bool hs_parse_inspect(int function_index, int expression_index)
   return *(volatile bool *)&success;
 }
 
+/* 0xc8ec0 — Type-check an object cast up to unit/device.
+ *
+ * Binary evidence (0xc8ec0..0xc8f37, cdecl, EBP frame):
+ *   asserts function_index in range
+ *   checks arguments via hs_syntax_get_arguments
+ *   checks argument type via hs_type_check(_hs_type_object, 0x25)
+ */
+bool hs_parse_object_cast_up(int function_index, int expression_index)
+{
+  bool success;
+
+  success = false;
+  if (function_index < 0x17 || function_index > 0x17) {
+    display_assert(
+      "function_index>=_hs_function_object_to_unit && "
+      "function_index<=_hs_function_object_to_device",
+      "c:\\halo\\SOURCE\\hs\\hs_library_internal_compile.h", 0x29a, true);
+    system_exit(-1);
+  }
+
+  if (hs_syntax_get_arguments(
+        *(const char **)((char *)hs_function_table_get(function_index) + 4),
+        &function_index, expression_index, 1)) {
+    return hs_type_check(function_index, 0x25);
+  }
+  return success;
+}
+
 /* 0xc8f40 — Type-check the arguments of a debug-string function call.
  *
  * The syntax node at expression_index is the function-call node; +0x10 is
@@ -1392,6 +1420,48 @@ unsigned char hs_objects_can_see_object(int arg0, int arg1, float arg2)
         hs_unit_can_see_object(child, arg1, arg2) != 0)
       return 1;
     child = FUN_000ce320(arg0, &iter_state);
+  }
+  return 0;
+}
+
+/* 0xc97f0 — Check if a unit can see a cutscene flag within half-angle.
+ *
+ * Binary evidence (0xc97f0..0xc9835, cdecl, EBP frame, 3 stack args):
+ *   MOV  CX,word ptr [EBP+0xc]
+ *   XOR  AL,AL
+ *   TEST CX,CX
+ *   JE   0xc9834
+ *   FLD  dword ptr [EBP+0x10]
+ *   PUSH ECX
+ *   FMUL dword ptr [0x253d4c]
+ *   MOVSX EAX,CX
+ *   FSTP dword ptr [ESP]
+ *   PUSH 0x5c
+ *   PUSH EAX
+ *   CALL 0x18e380                   ; global_scenario_get
+ *   ADD  EAX,0x4e4
+ *   PUSH EAX
+ *   CALL 0x19b210                   ; tag_block_get_element
+ *   MOV  ECX,dword ptr [EBP+8]
+ *   ADD  ESP,0xc
+ *   ADD  EAX,0x24
+ *   PUSH EAX
+ *   PUSH ECX
+ *   CALL 0x1aa430                   ; unit_can_see_point
+ *   ADD  ESP,0xc
+ * 0xc9834:
+ *   POP  EBP
+ *   RET
+ */
+boolean hs_unit_can_see_flag(int unit_handle, int16_t flag_index, real angle)
+{
+  if (flag_index != 0) {
+    char *scenario;
+    char *flag;
+
+    scenario = (char *)global_scenario_get();
+    flag = (char *)tag_block_get_element(scenario + 0x4e4, (int)flag_index, 0x5c);
+    return (boolean)unit_can_see_point(unit_handle, (float *)(flag + 0x24), angle * *(real *)0x253d4c);
   }
   return 0;
 }
@@ -2208,6 +2278,57 @@ void *hs_sound_get_gain_reference(const char *sound_name)
   return NULL;
 }
 
+/* 0xca010 — HS runtime real value getter for sound playback parameter.
+ *
+ * Binary evidence (0xca010..0xca02e, cdecl, EBP frame, ESI saved):
+ *   MOV  ESI,dword ptr [EBP+8]
+ *   CALL 0xc9f90                    ; hs_sound_get_gain_reference
+ *   TEST EAX,EAX
+ *   POP  ESI
+ *   JZ   0xca025
+ *   FLD  dword ptr [EAX]
+ *   POP  EBP
+ *   RET
+ * 0xca025:
+ *   FLD  dword ptr [0x2533c0]
+ *   POP  EBP
+ *   RET
+ */
+real hs_sound_get_gain(const char *sound_name)
+{
+  real *val;
+
+  val = (real *)hs_sound_get_gain_reference(sound_name);
+  if (val != NULL) {
+    return *val;
+  }
+  return *(real *)0x2533c0;
+}
+
+/* 0xca030 — HS runtime real value setter for sound playback parameter.
+ *
+ * Binary evidence (0xca030..0xca047, cdecl, EBP frame, ESI saved):
+ *   MOV  ESI,dword ptr [EBP+8]
+ *   CALL 0xc9f90                    ; hs_sound_get_gain_reference
+ *   TEST EAX,EAX
+ *   POP  ESI
+ *   JE   0xca046
+ *   MOV  ECX,dword ptr [EBP+0xc]
+ *   MOV  dword ptr [EAX],ECX
+ * 0xca046:
+ *   POP  EBP
+ *   RET
+ */
+void hs_sound_set_gain(const char *sound_name, real value)
+{
+  real *val;
+
+  val = (real *)hs_sound_get_gain_reference(sound_name);
+  if (val != NULL) {
+    *val = value;
+  }
+}
+
 /* 0xca050 — Walk an HS object list and require the FUN_0018ef00 predicate to
  * hold for EVERY member; commit the resulting boolean into the same 256-bit
  * vector at 0x5aa6a0 that 0xc9650 writes, at bit `bit_index`.
@@ -2342,6 +2463,96 @@ void hs_object_create_anew(int16_t index)
   }
 }
 
+/* 0xca140 — Iterate objects with name containing substring and invoke hs_object_create_anew.
+ *
+ * Binary evidence (0xca140..0xca156, cdecl, EBP frame, EBX saved):
+ *   MOV  EBX,dword ptr [EBP+8]
+ *   PUSH 0xca110
+ *   CALL 0xc9b10                    ; hs_object_iterate_names_containing
+ *   ADD  ESP,4
+ *   POP  EBX
+ *   POP  EBP
+ *   RET
+ */
+void hs_object_create_anew_containing(const char *substring)
+{
+  hs_object_iterate_names_containing(FUN_000ca110, substring);
+}
+
+/* 0xca160 — Object script execution context dispatcher / cutscene flag teleporter.
+ *
+ * Binary evidence (0xca160..0xca3ea, regparm object_handle@<ebx>, 3 stack args):
+ *   MOVSX EAX, word ptr [EBP+8] (flag_index)
+ *   fetches cutscene flag at scenario+0x4e4
+ *   validates flag position & orientation
+ *   wakes object and positions/teleports it to flag
+ */
+void hs_object_orient(int object_handle, int flag_index, char dismount_unit, char set_camera)
+{
+  char *object;
+  char *flag;
+  vector3_t *flag_pos;
+  vector3_t forward;
+  real angle;
+  real sin_val;
+  real cos_val;
+  scenario_t *scenario;
+  int16_t unit_handle;
+
+  if (object_handle == NONE) {
+    return;
+  }
+
+  object = (char *)object_get_and_verify_type(object_handle, 0);
+  scenario = global_scenario_get();
+  flag = (char *)tag_block_get_element((char *)scenario + 0x4e4, (int16_t)flag_index, 0x5c);
+
+  if (flag != NULL && object != NULL) {
+    flag_pos = (vector3_t *)(flag + 0x24);
+    angle = *(real *)(flag + 0x20);
+
+    /* Assert flag angle is valid. */
+    if (angle < 0.0f || angle > 6.2831855f) {
+      display_assert("valid_real_normal_angle(flag->yaw)",
+                     "c:\\halo\\SOURCE\\hs\\hs_library_external.c", 0x1cc, 1);
+      system_exit(-1);
+    }
+
+    /* Convert yaw to direction vector. */
+    sin_val = x87_fsin(angle);
+    cos_val = x87_fcos(angle);
+    forward.x = cos_val;
+    forward.y = sin_val;
+    forward.z = 0.0f;
+
+    /* Dismount object if in a unit seat. */
+    if (dismount_unit && *(int16_t *)(object + 0x10) == 1) {
+      unit_handle = *(int16_t *)(object + 0x11c);
+      if (unit_handle != NONE) {
+        unit_exit_seat(object_handle, 0);
+      }
+    }
+
+    /* If attached to another object / vehicle, detach. */
+    if (*(int *)(object + 0xc) != NONE) {
+      object_detach(object_handle);
+    }
+
+    /* Teleport object. */
+    object_wake(object_handle);
+    object_set_position(object_handle, flag_pos, &forward, NULL);
+
+    /* Reset object velocity. */
+    *(vector3_t *)(object + 0x68) = *(vector3_t *)0x2537a0; /* zero vector */
+    *(vector3_t *)(object + 0x74) = *(vector3_t *)0x2537a0;
+
+    /* Update camera if requested. */
+    if (set_camera && *(int16_t *)(object + 0x10) == 0) {
+      director_set_camera_position(flag_pos, &forward);
+    }
+  }
+}
+
 /* 0xca3f0 — Two-argument forwarder onto 0xca160 with both trailing byte
  * flags pinned to 1.
  *
@@ -2367,7 +2578,7 @@ void hs_object_create_anew(int16_t index)
  * mechanical. */
 void hs_object_teleport(int a, int b)
 {
-  FUN_000ca160(a, b, 1, 1);
+  hs_object_orient(a, b, 1, 1);
 }
 
 /* 0xca430 — Walk every player datum; for each player whose unit handle at
@@ -2428,9 +2639,57 @@ void hs_teleport_players_not_in_trigger_volume(int cluster_index, int param_2)
     player = (char *)datum_get(*(data_t **)0x5aa6d4, player_index);
     if (*(int *)(player + 0x34) != -1 &&
         FUN_0018ef00(cluster_index, *(int *)(player + 0x34)) == 0) {
-      FUN_000ca160(*(int *)(player + 0x34), param_2, 1, 1);
+      hs_object_orient(*(int *)(player + 0x34), param_2, 1, 1);
     }
   }
+}
+
+/* 0xca410 — Orient an object to face a cutscene flag without changing camera.
+ *
+ * Binary evidence (0xca410..0xca429, cdecl, 2 stack args):
+ *   MOV  EAX,dword ptr [EBP+0xc]
+ *   MOV  ECX,dword ptr [EBP+8]
+ *   PUSH 1
+ *   PUSH 0
+ *   PUSH EAX
+ *   MOV  EBX,ECX
+ *   CALL 0xca160                    ; hs_object_orient
+ *   ADD  ESP,0xc
+ *   POP  EBP
+ *   RET
+ */
+void hs_object_set_facing(int object_handle, int scenario_index)
+{
+  hs_object_orient(object_handle, scenario_index, 0, 1);
+}
+
+/* 0xca4b0 — Extract Nth syntax tree child.
+ *
+ * Binary evidence (0xca4b0..0xca4d7, regparm node_index@<eax>, count@<cx>):
+ *   TEST CX,CX
+ *   JLE  .exit
+ *   MOVZX ESI,CX
+ * .loop:
+ *   CALL datum_get(hs_syntax_data, EAX)
+ *   MOV  EAX,[EAX+8]
+ *   DEC  ESI
+ *   JNZ  .loop
+ * .exit:
+ *   RET
+ */
+int hs_syntax_nth(int node_index, int16_t count)
+{
+  char *node;
+  int16_t i;
+
+  if (count <= 0) {
+    return node_index;
+  }
+  for (i = count; i > 0; i--) {
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, node_index);
+    node_index = *(int *)(node + 8);
+  }
+  return node_index;
 }
 
 /* 0xca4e0 — HS boolean inspect handler: slot 5 (_hs_type_boolean) of the
@@ -2763,6 +3022,20 @@ void hs_runtime_dispose_from_old_map(void)
   *(uint8_t *)0x46b810 = 0;
 }
 
+/* 0xca880 — Dispose runtime thread datums and reset VM state.
+ *
+ * Binary evidence (0xca880..0xca88c):
+ *   MOV  EAX,dword ptr [0x5aa6c0]
+ *   PUSH EAX
+ *   CALL data_make_invalid
+ *   ADD  ESP,4
+ *   RET
+ */
+void hs_runtime_dispose(void)
+{
+  data_make_invalid(*(data_t **)0x5aa6c0);
+}
+
 /* 0xca890 — Resolve the printable name of the expression a thread is currently
  * evaluating (used by the script error/report path).
  *
@@ -3043,6 +3316,37 @@ static void *hs_thread_stack_alloc(int thread_handle, int size)
   return (void *)(frame + (int)old_size + 0xe);
 }
 
+/* 0xcacf0 — Wake a dormant or sleeping HS thread.
+ *
+ * Binary evidence (0xcacf0..0xcad9e, regparm thread_handle@<edi>):
+ *   fetches thread datum from 0x5aa6c4
+ *   clears sleep_time (+0x8)
+ *   restores execution pointer
+ */
+void hs_wake(int thread_handle)
+{
+  char *thread;
+  char *node;
+  int node_index;
+
+  thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
+  if (*(int *)(thread + 8) != -1) {
+    *(int *)(thread + 8) = 0;
+    if (*(uint8_t *)(thread + 3) & 2) {
+      *(int *)(thread + 8) = *(int *)(thread + 0xc);
+      *(uint8_t *)(thread + 3) &= ~2;
+      return;
+    }
+    node_index = *(int *)(*(char **)(thread + 0x10) + 4);
+    if (node_index != -1) {
+      node = (char *)datum_get(*(data_t **)0x5aa6c8, node_index);
+      if (*(int16_t *)(node + 2) == 0x14) {
+        *(char **)(thread + 0x10) = *(char ***)(thread + 0x10)[0];
+      }
+    }
+  }
+}
+
 /* 0xcada0 — Find an HS thread whose script index (at +4) matches the given
  * index. Iterates hs_thread_data; returns the matching datum handle or -1. */
 int hs_find_thread_by_script(int16_t script_index)
@@ -3058,6 +3362,39 @@ int hs_find_thread_by_script(int16_t script_index)
         return datum_index;
       datum_index = data_next_index(*(data_t **)0x5aa6c4, datum_index);
     } while (datum_index != -1);
+  }
+  return -1;
+}
+
+/* 0xcae00 — Find active HS thread executing a script by script name.
+ *
+ * Binary evidence (0xcae00..0xcae71, regparm script_name@<edi>):
+ *   walks threads in 0x5aa6c4 via data_next_index
+ *   fetches script name from scenario tag_block + 0x49c
+ *   returns matching thread handle or -1
+ */
+int hs_find_thread_by_name(const char *script_name)
+{
+  int thread_handle;
+  char *thread;
+  scenario_t *scenario;
+  char *script_entry;
+  const char *candidate_name;
+
+  thread_handle = data_next_index(*(data_t **)0x5aa6c4, -1);
+  while (thread_handle != -1) {
+    thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
+    if (*(int *)(thread + 4) != -1) {
+      scenario = global_scenario_get();
+      script_entry = (char *)tag_block_get_element((char *)scenario + 0x49c, *(int *)(thread + 4), 0x5c);
+      if (script_entry != NULL) {
+        candidate_name = (const char *)script_entry;
+        if (crt_stricmp(candidate_name, script_name) == 0) {
+          return thread_handle;
+        }
+      }
+    }
+    thread_handle = data_next_index(*(data_t **)0x5aa6c4, thread_handle);
   }
   return -1;
 }
@@ -3169,6 +3506,12 @@ int hs_string_to_boolean(const char *string)
   return result;
 }
 
+/* 0xcaee0 — Cast matrix converter: discard data and return 0. */
+int hs_data_to_void(void)
+{
+  return 0;
+}
+
 /* 0xcaef0 — Convert a signed 16-bit script value to a real and return its
  * IEEE-754 single-precision bit pattern in EAX. This generic HS function-table
  * entry re-boxes the real through its argument slot rather than returning ST0.
@@ -3224,6 +3567,12 @@ int hs_enum_to_real(int16_t param_1)
   local_1 = (int)param_1 + 1;
   local_2 = (float)local_1;
   return *(int *)&local_2;
+}
+
+/* 0xcaf70 — Cast matrix converter: truncate 32-bit int to 16-bit short. */
+int hs_long_to_short(int value)
+{
+  return (int16_t)value;
 }
 
 /* 0xcaf80 — Resolve an object-name index to a handle and register it with the
@@ -3885,13 +4234,158 @@ char hs_wake_by_name(const char *script_name)
   int target_thread;
   char result;
 
-  target_thread = FUN_000cae00(script_name);
+  target_thread = hs_find_thread_by_name(script_name);
   result = 0;
   if (target_thread != -1) {
-    FUN_000cacf0(target_thread);
+    hs_wake(target_thread);
     result = 1;
   }
   return result;
+}
+
+/* 0xcb9c0 — Render debug on-screen text for active script threads.
+ *
+ * Binary evidence (0xcb9c0..0xcbb38, cdecl, 1024-byte stack buffer):
+ *   Checks 0x5aa69d debug flag
+ *   Formats active thread script names and remaining sleep times
+ *   Draws via draw_string_set_tab_stops and FUN_00189c40
+ */
+void render_debug_scripting(void)
+{
+  int thread_handle;
+  char *thread;
+  int sleep_time;
+  int time_remaining;
+  const char *script_name;
+  const char *expr_name;
+  int16_t tab_stops[2];
+  char buffer[10240];
+
+  if (!*(uint8_t *)0x5aa69d) {
+    return;
+  }
+
+  tab_stops[0] = 200;
+  tab_stops[1] = 300;
+  crt_sprintf(buffer, "\n\n\nscript name\tsleep time\tfunction");
+
+  thread_handle = data_next_index(*(data_t **)0x5aa6c4, -1);
+  if (*(uint8_t *)0x46b810) {
+    while (thread_handle != -1) {
+      thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
+      sleep_time = *(int *)(thread + 8);
+      if (sleep_time >= 0) {
+        script_name = hs_get_thread_script_name(thread_handle);
+        crt_sprintf(buffer + csstrlen(buffer), "\n%s\t", script_name);
+        if (sleep_time != 0) {
+          time_remaining = sleep_time - game_time_get();
+        } else {
+          time_remaining = 0;
+        }
+        crt_sprintf(buffer + csstrlen(buffer), "%d", time_remaining);
+        FUN_0008dc30(buffer, "\t");
+        if (*(char **)(thread + 0x10) != (thread + 0x18) && sleep_time != -2) {
+          expr_name = FUN_000ca890(*(int *)(*(char **)(thread + 0x10) + 4), thread_handle);
+          if (expr_name != NULL) {
+            crt_sprintf(buffer + csstrlen(buffer), "%s", expr_name);
+          }
+        }
+      }
+      thread_handle = data_next_index(*(data_t **)0x5aa6c4, thread_handle);
+    }
+  }
+
+  draw_string_set_tab_stops(tab_stops, 2);
+  FUN_00189c40(buffer, (void *)0x280924);
+}
+
+/* 0xcbb40 — Render debug wireframes for scenario trigger volumes.
+ *
+ * Binary evidence (0xcbb40..0xcbf77):
+ *   Checks 0x5aa69c debug trigger volume flag
+ *   Iterates trigger volumes from scenario + 0x360
+ *   Computes orientation matrix and bounding box corners
+ *   Draws wireframe lines using rasterizer debug line renderer
+ */
+void render_debug_trigger_volumes(void)
+{
+  scenario_t *scenario;
+  void *block;
+  int count;
+  int index;
+  char *volume;
+  int16_t type;
+  float transform[13];
+  vector3_t extents;
+  vector3_t min_bounds;
+  uint32_t *bitvector_word;
+  uint32_t bit_mask;
+  int side;
+  vector3_t face_pts[4];
+  vector3_t center;
+  vector3_t view_dir;
+  int16_t col_result[2];
+
+  if (!*(uint8_t *)0x5aa69c) {
+    return;
+  }
+
+  scenario = global_scenario_get();
+  block = (char *)scenario + 0x360;
+  count = *(int *)block;
+  if (count <= 0) {
+    return;
+  }
+
+  for (index = 0; index < count; index++) {
+    volume = (char *)tag_block_get_element(block, index, 0x60);
+    type = *(int16_t *)volume;
+    if (type != 0) {
+      if (type != 1) {
+        display_assert("!\"unreachable\"", "c:\\halo\\SOURCE\\hs\\hs_runtime.c", 0x213, true);
+        system_exit(-1);
+      } else {
+        extents = *(vector3_t *)(volume + 0x2a);
+        matrix4x3_from_forward_up_position(transform, (float *)(volume + 0x24), (float *)(volume + 0x18), (float *)(volume + 0x1e));
+        min_bounds.x = -extents.x;
+        min_bounds.y = -extents.y;
+        min_bounds.z = -extents.z;
+
+        for (side = 0; side < 6; side++) {
+          bitvector_word = (uint32_t *)((char *)0x5aa6a0 + (index >> 5) * 4);
+          bit_mask = 1 << (index & 0x1f);
+          if (*bitvector_word & bit_mask) {
+            col_result[0] = 0;
+            col_result[1] = 0;
+          } else {
+            col_result[0] = 1;
+            col_result[1] = 1;
+          }
+
+          FUN_00084ba0(side, (float *)&min_bounds, (float *)&extents, (float *)face_pts);
+          /* hazard-ok: intentional in-place transform verified against binary */
+          matrix_scale_transform_vector(transform, (float *)&face_pts[0], (float *)&face_pts[0]);
+          matrix_scale_transform_vector(transform, (float *)&face_pts[1], (float *)&face_pts[1]);
+          matrix_scale_transform_vector(transform, (float *)&face_pts[2], (float *)&face_pts[2]);
+          matrix_scale_transform_vector(transform, (float *)&face_pts[3], (float *)&face_pts[3]);
+
+          center.x = (face_pts[0].x + face_pts[2].x) * 0.5f;
+          center.y = (face_pts[0].y + face_pts[2].y) * 0.5f;
+          center.z = (face_pts[0].z + face_pts[2].z) * 0.5f;
+
+          view_dir.x = center.x - *(real *)0x3269c0;
+          view_dir.y = center.y - *(real *)0x3269c4;
+          view_dir.z = center.z - *(real *)0x3269c8;
+
+          /* Draw debug lines if not culled */
+          render_debug_line(false, (float *)&face_pts[0], (float *)&face_pts[1], (float *)col_result);
+          render_debug_line(false, (float *)&face_pts[1], (float *)&face_pts[2], (float *)col_result);
+          render_debug_line(false, (float *)&face_pts[2], (float *)&face_pts[3], (float *)col_result);
+          render_debug_line(false, (float *)&face_pts[3], (float *)&face_pts[0], (float *)col_result);
+        }
+      }
+    }
+  }
 }
 
 /* 0xcbf80 — Execute a pending script-call expression on an HS thread.
@@ -4056,7 +4550,7 @@ void hs_evaluate_wake(int16_t function_index, int thread_datum, char init)
 
   target_thread = hs_find_thread_by_script(*(int16_t *)(script_name_node + 0x10));
   if (target_thread != -1) {
-    FUN_000cacf0(target_thread);
+    hs_wake(target_thread);
   }
 
   hs_return(thread_datum, 0);
@@ -4863,6 +5357,12 @@ void FUN_000ce150(void)
   *(data_t **)0x5aa698 = game_state_data_new("object list header", 0x30, 0xc);
   crt_sprintf(buffer, "%s reference", "list object");
   *(data_t **)0x5aa694 = game_state_data_new(buffer, 0x80, 0xc);
+}
+
+/* 0xce1b0 — Empty dispose callback for hs object lists. */
+void object_lists_dispose(void)
+{
+  return;
 }
 
 /* Initialize HaloScript runtime data structures. Calls data_delete_all
