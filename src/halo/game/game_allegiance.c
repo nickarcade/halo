@@ -1,3 +1,49 @@
+enum
+{
+  NUMBER_OF_GAME_TEAMS = 10
+};
+
+enum allegiance_incident_type
+{
+  _allegiance_incident_accident = 0,
+  _allegiance_incident_betrayal,
+  _allegiance_incident_forgive,
+  NUMBER_OF_ALLEGIANCE_INCIDENT_TYPES
+};
+
+#define SET_FLAG(f, b, v) ((v) ? ((f) |= (uint32_t)FLAG(b)) : ((f) &= (uint32_t)~FLAG(b)))
+#define BIT_VECTOR_SET_FLAG(bit_vector, bit, enable) (SET_FLAG((bit_vector)[(bit) >> 5], ((bit) & 31), enable))
+#define TEST_FLAG(f, b) (((f) & FLAG(b)) != 0)
+#define BIT_VECTOR_TEST_FLAG(bit_vector, bit) (TEST_FLAG((bit_vector)[(bit) >> 5], ((bit) & 31)))
+
+struct game_allegiance_record
+{
+  int16_t team1_index;
+  int16_t team2_index;
+  int16_t incident_threshold;
+  int16_t incident_decay_time;
+  bool team1_suspicious;
+  bool team2_suspicious;
+  bool currently_broken;
+  bool status_changed;
+  bool requires_communication;
+  uint8_t reserved0D;
+  int16_t current_incidents;
+  int16_t current_incident_decay_time;
+};
+cs(struct game_allegiance_record, 0x12);
+
+struct game_allegiance_globals
+{
+  int16_t allegiance_count;
+  struct game_allegiance_record allegiances[8];
+  uint8_t reserved92[2];
+  uint32_t ally_bitvector[4];
+  uint32_t friendly_bitvector[4];
+};
+cs(struct game_allegiance_globals, 0xb4);
+typedef struct game_allegiance_globals game_allegiance_globals_type;
+
 void game_allegiance_initialize(void)
 {
   game_allegiance_globals =
@@ -11,24 +57,41 @@ void game_allegiance_dispose(void)
 
 void game_allegiance_initialize_for_new_map(void)
 {
-  char *ptr;
-  int bit;
-  int i;
+  game_allegiance_globals_type *globals;
+  int32_t bit_index;
+  int16_t team_index;
 
-  assert_halt_at("c:\\halo\\SOURCE\\game\\game_allegiance.c", 0x57, game_allegiance_globals);
+  globals = (game_allegiance_globals_type *)game_allegiance_globals;
+  if (!globals) {
+    display_assert(
+      "game_allegiance_globals",
+      "c:\\halo\\SOURCE\\game\\game_allegiance.c",
+      87,
+      true);
+    system_exit(-1);
+    globals = (game_allegiance_globals_type *)game_allegiance_globals;
+  }
 
-  *(int16_t *)game_allegiance_globals = 0;
-  csmemset(game_allegiance_globals + 0x94, 0, 0x10);
-  csmemset(game_allegiance_globals + 0xa4, 0, 0x10);
+  globals->allegiance_count = 0;
+  csmemset(
+    globals->ally_bitvector,
+    0,
+    sizeof(globals->ally_bitvector));
+  csmemset(
+    ((game_allegiance_globals_type *)game_allegiance_globals)->friendly_bitvector,
+    0,
+    sizeof(((game_allegiance_globals_type *)game_allegiance_globals)->friendly_bitvector));
 
-  ptr = game_allegiance_globals;
-  bit = 0;
-  i = 10;
-  do {
-    *(uint32_t *)(ptr + 0xa4 + (bit >> 5) * 4) |=
-      1 << (bit & 0x1f);
-    bit += 11;
-  } while (--i);
+  globals = (game_allegiance_globals_type *)game_allegiance_globals;
+  for (team_index = 0;
+       team_index < NUMBER_OF_GAME_TEAMS;
+       team_index++) {
+    bit_index = NUMBER_OF_GAME_TEAMS * team_index + team_index;
+    BIT_VECTOR_SET_FLAG(
+      globals->friendly_bitvector,
+      bit_index,
+      true);
+  }
 }
 
 void game_allegiance_dispose_from_old_map(void)
@@ -47,13 +110,16 @@ void game_allegiance_dispose_from_old_map(void)
 bool game_allegiance_get_team_is_friendly(int16_t team_a, int16_t team_b)
 {
   int bit_index;
+  bool result;
 
-  if (team_a < 0 || team_a >= 10 || team_b < 0 || team_b >= 10)
-    return true;
-
-  bit_index = team_a * 10 + team_b;
-  return (*(uint32_t *)(game_allegiance_globals + 0xa4 + (bit_index >> 5) * 4) &
-          (1 << (bit_index & 0x1f))) == 0;
+  result = true;
+  if (team_a >= 0 && team_a < 10 && team_b >= 0 && team_b < 10) {
+    bit_index = team_a * 10 + team_b;
+    result =
+      (*(uint32_t *)(game_allegiance_globals + 0xa4 + (bit_index >> 5) * 4) &
+       (1 << (bit_index & 0x1f))) == 0;
+  }
+  return result;
 }
 
 /**
@@ -82,23 +148,28 @@ bool game_team_is_ally(int16_t team_a, int16_t team_b)
 
 bool game_team_ally_status_changed(int16_t team_a, int16_t team_b)
 {
-  int16_t i;
-  int16_t *entry;
+  struct game_allegiance_record *allegiance;
+  int16_t allegiance_count;
+  int16_t allegiance_index;
+  bool result = false;
 
-  i = 0;
-  entry = (int16_t *)game_allegiance_globals + 1;
-  if (*(int16_t *)game_allegiance_globals > 0) {
-    while ((entry[0] != team_a || entry[1] != team_b) &&
-           (entry[1] != team_a || entry[0] != team_b)) {
-      i++;
-      entry += 9;
-      if (*(int16_t *)game_allegiance_globals <= i) {
-        return 0;
-      }
+  allegiance = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiances;
+  allegiance_count = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count;
+  for (allegiance_index = 0;
+       allegiance_index < allegiance_count;
+       allegiance_index++, allegiance++) {
+    int16_t team1_index = allegiance->team1_index;
+
+    if ((team1_index == team_a &&
+         allegiance->team2_index == team_b) ||
+        (allegiance->team2_index == team_a &&
+         team1_index == team_b)) {
+      result = allegiance->status_changed;
+      break;
     }
-    return *((char *)entry + 0xb);
   }
-  return 0;
+
+  return result;
 }
 
 int16_t game_allegiance_get_incidents(int16_t team_a, int16_t team_b,
@@ -188,261 +259,243 @@ void game_allegiance_notify_change(int16_t team_a, int16_t team_b)
  * Skips the update entirely if force==0 and the friendship value hasn't
  * changed.
  */
-void game_allegiance_set(int16_t *entry, char friendship, char force)
+void game_allegiance_set(
+  int16_t *entry,
+  bool currently_broken,
+  bool permanently_broken)
 {
-  int16_t team_a;
-  int16_t team_b;
-  char *base;
+  struct game_allegiance_record *allegiance =
+    (struct game_allegiance_record *)entry;
 
-  /* early out: if not forced and friendship hasn't changed, do nothing */
-  if (!force && *((char *)entry + 0xa) == friendship)
+  if (!permanently_broken &&
+      allegiance->currently_broken == currently_broken) {
     return;
-
-  /* store new friendship value */
-  *((char *)entry + 0xa) = friendship;
-
-  team_a = entry[0];
-  team_b = entry[1];
-  base = game_allegiance_globals;
-
-  if (team_a < 10 && team_b < 10) {
-    /* update incidents bitfield at +0x94 */
-    if (!force) {
-      /* not forced: set incident bits for both team orderings */
-      *(uint32_t *)(base + 0x94 +
-        (((int)team_a * 10 + (int)team_b) >> 5) * 4) |=
-        1 << (((int)team_a * 10 + (int)team_b) & 0x1f);
-      *(uint32_t *)(base + 0x94 +
-        (((int)entry[1] * 10 + (int)entry[0]) >> 5) * 4) |=
-        1 << (((int)entry[1] * 10 + (int)entry[0]) & 0x1f);
-    } else {
-      /* forced: clear incident bits for both team orderings */
-      *(uint32_t *)(base + 0x94 +
-        (((int)entry[0] * 10 + (int)entry[1]) >> 5) * 4) &=
-        ~(1 << (((int)entry[0] * 10 + (int)entry[1]) & 0x1f));
-      *(uint32_t *)(base + 0x94 +
-        (((int)entry[1] * 10 + (int)entry[0]) >> 5) * 4) &=
-        ~(1 << (((int)entry[1] * 10 + (int)entry[0]) & 0x1f));
-    }
-
-    /* update hostility bitfield at +0xa4 */
-    if (!friendship) {
-      /* hostile: set hostility bits for both team orderings */
-      *(uint32_t *)(base + 0xa4 +
-        (((int)entry[0] * 10 + (int)entry[1]) >> 5) * 4) |=
-        1 << (((int)entry[0] * 10 + (int)entry[1]) & 0x1f);
-      *(uint32_t *)(base + 0xa4 +
-        (((int)entry[1] * 10 + (int)entry[0]) >> 5) * 4) |=
-        1 << (((int)entry[1] * 10 + (int)entry[0]) & 0x1f);
-    } else {
-      /* friendly: clear hostility bits for both team orderings */
-      *(uint32_t *)(base + 0xa4 +
-        (((int)entry[0] * 10 + (int)entry[1]) >> 5) * 4) &=
-        ~(1 << (((int)entry[0] * 10 + (int)entry[1]) & 0x1f));
-      *(uint32_t *)(base + 0xa4 +
-        (((int)entry[1] * 10 + (int)entry[0]) >> 5) * 4) &=
-        ~(1 << (((int)entry[1] * 10 + (int)entry[0]) & 0x1f));
-    }
   }
 
-  /* mark entry as changed */
-  *((char *)entry + 0xb) = 1;
+  allegiance->currently_broken = currently_broken;
+  if (allegiance->team1_index < NUMBER_OF_GAME_TEAMS &&
+      allegiance->team2_index < NUMBER_OF_GAME_TEAMS) {
+    game_allegiance_globals_type *globals =
+      (game_allegiance_globals_type *)game_allegiance_globals;
 
-  /* propagate allegiance change to AI encounters */
-  game_allegiance_apply_change(entry[0], entry[1], friendship, force);
+    BIT_VECTOR_SET_FLAG(
+      globals->ally_bitvector,
+      NUMBER_OF_GAME_TEAMS * allegiance->team1_index +
+        allegiance->team2_index,
+      !permanently_broken);
+    BIT_VECTOR_SET_FLAG(
+      globals->ally_bitvector,
+      NUMBER_OF_GAME_TEAMS * allegiance->team2_index +
+        allegiance->team1_index,
+      !permanently_broken);
+    BIT_VECTOR_SET_FLAG(
+      globals->friendly_bitvector,
+      NUMBER_OF_GAME_TEAMS * allegiance->team1_index +
+        allegiance->team2_index,
+      !currently_broken);
+    BIT_VECTOR_SET_FLAG(
+      globals->friendly_bitvector,
+      NUMBER_OF_GAME_TEAMS * allegiance->team2_index +
+        allegiance->team1_index,
+      !currently_broken);
+  }
+
+  allegiance->status_changed = true;
+  game_allegiance_apply_change(
+    allegiance->team1_index,
+    allegiance->team2_index,
+    currently_broken,
+    permanently_broken);
 }
 
 void game_allegiance_update(void)
 {
-  int16_t i;
-  int16_t *entry;
+  struct game_allegiance_record *allegiance;
+  int16_t allegiance_index;
 
-  i = 0;
-  entry = (int16_t *)(game_allegiance_globals + 2);
-  if (*(int16_t *)game_allegiance_globals > 0) {
+  allegiance_index = 0;
+  allegiance = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiances;
+  if (((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count > 0) {
     do {
-      if (entry[8] > 0) {
-        entry[8] = entry[8] - 1;
-        if (entry[8] == 0) {
-          if (entry[7] < 1) {
-            display_assert("allegiance->current_incidents > 0",
-                           "c:\\halo\\SOURCE\\game\\game_allegiance.c", 0x79,
-                           1);
-            system_exit(-1);
-          }
-          entry[7] = entry[7] - 1;
-          if (entry[7] == 0) {
-            game_allegiance_set(entry, 0, 0);
+      if (allegiance->current_incident_decay_time > 0) {
+        allegiance->current_incident_decay_time--;
+        if (allegiance->current_incident_decay_time == 0) {
+          assert_halt_at(
+            "c:\\halo\\SOURCE\\game\\game_allegiance.c",
+            121,
+            allegiance->current_incidents > 0);
+          allegiance->current_incidents--;
+          if (allegiance->current_incidents == 0) {
+            game_allegiance_set((int16_t *)allegiance, false, false);
           } else {
-            entry[8] = entry[3];
+            allegiance->current_incident_decay_time =
+              allegiance->incident_decay_time;
           }
         }
       }
-      i++;
-      entry += 9;
-    } while (i < *(int16_t *)game_allegiance_globals);
+
+      allegiance_index++;
+      allegiance++;
+    } while (allegiance_index < ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count);
   }
 }
 
-/**
- * Creates or reuses an allegiance entry between two teams.
- *
- * Searches for an existing entry matching (team_a, team_b) or (team_b, team_a).
- * If found, reuses it; otherwise creates a new one (up to 8 entries max).
- * Populates the entry and transitions it to hostile (friendship=0) via
- * game_allegiance_set.
- */
-void game_allegiance_create(int16_t team_a, char is_player, int16_t team_b,
-                            char is_timer, int16_t threshold, int16_t timer,
-                            char is_ally)
+void game_allegiance_create(
+  int16_t team_a,
+  char is_player,
+  int16_t team_b,
+  char is_timer,
+  int16_t threshold,
+  int16_t timer,
+  char is_ally)
 {
-  int16_t i;
-  int16_t count;
-  int16_t *entry;
-  int16_t *globals;
+  struct game_allegiance_record *allegiance;
+  int16_t allegiance_count;
+  int16_t allegiance_index;
+  int16_t allegiance_team1_index;
 
-  globals = (int16_t *)game_allegiance_globals;
-  count = globals[0];
-  entry = globals + 1;
-
-  for (i = 0; i < count; i++, entry += 9) {
-    if ((entry[0] == team_a && entry[1] == team_b) ||
-        (entry[1] == team_a && entry[0] == team_b)) {
-      break;
-    }
-  }
-
-  if (i >= count) {
-    if (count < 8) {
-      globals[0] = count + 1;
-    } else {
-      error(2, "game_allegiance_create: too many allegiances (maximum is %d)",
-            8);
-      globals = (int16_t *)game_allegiance_globals;
-    }
-  }
-
-  if (i < globals[0]) {
-    entry = globals + 1 + i * 9;
-    entry[1] = team_b;
-    entry[0] = team_a;
-    entry[3] = timer;
-    *((char *)entry + 8) = is_player;
-    *((char *)entry + 9) = is_timer;
-    entry[7] = 0;
-    entry[8] = 0;
-    *((char *)entry + 0xa) = 1;
-    game_allegiance_set(entry, 0, 0);
-    *((char *)entry + 0xb) = 0;
-    entry[2] = threshold;
-    *((char *)entry + 0xc) = is_ally;
-  }
-}
-
-/**
- * Removes the allegiance entry between two teams.
- *
- * Finds the matching entry, sets it to friendly (friendship=1, forced),
- * then removes it by swapping with the last entry and decrementing the count.
- * Returns true if an entry was found and removed.
- */
-struct allegiance_entry_raw {
-  char b[18];
-};
-
-bool game_allegiance_remove(int16_t team_a, int16_t team_b)
-{
-  int16_t i;
-  int16_t count;
-  int16_t *entry;
-  int16_t *globals;
-  bool found;
-
-  found = false;
-  globals = (int16_t *)game_allegiance_globals;
-  count = globals[0];
-  entry = globals + 1;
-
-  for (i = 0; i < count; i++, entry += 9) {
-    if ((entry[0] == team_a && entry[1] == team_b) ||
-        (entry[1] == team_a && entry[0] == team_b)) {
-      game_allegiance_set(entry, 1, 1);
-      globals = (int16_t *)game_allegiance_globals;
-      globals[0]--;
-      if (i < globals[0]) {
-        int16_t *last = globals + 1 + globals[0] * 9;
-        *(struct allegiance_entry_raw *)entry = *(struct allegiance_entry_raw *)last;
-      }
-      found = true;
-      break;
-    }
-  }
-  return found;
-}
-
-/**
- * Bumps the incident count on an allegiance entry, optionally flipping it.
- *
- * Searches for an entry matching (team_a, team_b) or (team_b, team_a).
- * Depending on action: 0 adds +1 incident, 1 adds +3, 2 adds -1.
- * If current_incidents reaches the threshold, flips the entry to friendly
- * via game_allegiance_set and returns true.
- */
-bool game_allegiance_bump(int16_t team_a, int16_t team_b, int16_t action,
-                          bool *out_changed)
-{
-  int16_t i;
-  int16_t count;
-  int16_t delta;
-  int16_t *entry;
-  int16_t *globals;
-  bool result;
-
-  result = false;
-  globals = (int16_t *)game_allegiance_globals;
-  count = globals[0];
-  entry = globals + 1;
-  i = 0;
-
-  if (count > 0) {
+  allegiance = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiances;
+  allegiance_count = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count;
+  allegiance_index = 0;
+  if (allegiance_count > 0) {
     do {
-      if ((entry[0] == team_a && entry[1] == team_b &&
-           *((char *)entry + 9) != 0) ||
-          (entry[1] == team_a && entry[0] == team_b &&
-           *((char *)entry + 8) != 0)) {
-        delta = 0;
-        switch (action) {
-        case 0:
-          delta = 1;
-          break;
-        case 1:
-          delta = 3;
-          break;
-        case 2:
-          delta = -1;
-          break;
-        }
-        entry[7] = entry[7] + delta;
-        if (entry[3] != -1) {
-          entry[8] = entry[3];
-        }
-        if (entry[2] == -1) {
-          break;
-        }
-        if (entry[7] < entry[2]) {
-          break;
-        }
-        game_allegiance_set(entry, 1, 0);
-        if (out_changed != NULL) {
-          *out_changed = (*((char *)entry + 0xc) == 0);
-        }
-        result = true;
+      allegiance_team1_index = allegiance->team1_index;
+
+      if (allegiance_team1_index == team_a &&
+          allegiance->team2_index == team_b) {
         break;
       }
-      i++;
-      entry += 9;
-    } while (i < count);
+      if (allegiance->team2_index == team_a &&
+          allegiance_team1_index == team_b) {
+        break;
+      }
+
+      allegiance_index++;
+      allegiance++;
+    } while (allegiance_index < ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count);
   }
+
+  if (allegiance_index >= ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count) {
+    if (allegiance_count < 8) {
+      allegiance_index = allegiance_count;
+      ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count = allegiance_count + 1;
+    } else {
+      error(
+        2,
+        "game_allegiance_create: too many allegiances (maximum is %d)",
+        8);
+    }
+  }
+
+  if (allegiance_index < ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count) {
+    struct game_allegiance_record *target =
+      &((game_allegiance_globals_type *)game_allegiance_globals)->allegiances[allegiance_index];
+
+    target->team1_index = team_a;
+    target->team1_suspicious = is_player;
+    target->team2_index = team_b;
+    target->team2_suspicious = is_timer;
+    target->incident_threshold = threshold;
+    target->incident_decay_time = timer;
+    target->current_incidents = 0;
+    target->current_incident_decay_time = 0;
+    target->requires_communication = is_ally;
+    target->currently_broken = true;
+    game_allegiance_set((int16_t *)target, false, false);
+    target->status_changed = false;
+  }
+}
+
+bool game_allegiance_remove(
+  int16_t team_a,
+  int16_t team_b)
+{
+  struct game_allegiance_record *allegiance;
+  int16_t allegiance_count;
+  int16_t allegiance_index;
+  bool result = false;
+  game_allegiance_globals_type *globals;
+
+  allegiance = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiances;
+  allegiance_count = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count;
+  for (allegiance_index = 0;
+       allegiance_index < allegiance_count;
+       allegiance_index++, allegiance++) {
+    if ((allegiance->team1_index == team_a &&
+         allegiance->team2_index == team_b) ||
+        (allegiance->team2_index == team_a &&
+         allegiance->team1_index == team_b)) {
+      game_allegiance_set((int16_t *)allegiance, true, true);
+      globals = (game_allegiance_globals_type *)game_allegiance_globals;
+      globals->allegiance_count--;
+      if (globals->allegiance_count > allegiance_index) {
+        globals->allegiances[allegiance_index] =
+          globals->allegiances[globals->allegiance_count];
+      }
+
+      result = true;
+      break;
+    }
+  }
+
+  return result;
+}
+
+bool game_allegiance_bump(
+  int16_t team_a,
+  int16_t team_b,
+  int16_t action,
+  bool *out_changed)
+{
+  struct game_allegiance_record *allegiance;
+  int16_t allegiance_count;
+  int16_t allegiance_index;
+  int16_t increment;
+  bool result = false;
+
+  allegiance = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiances;
+  allegiance_count = ((game_allegiance_globals_type *)game_allegiance_globals)->allegiance_count;
+  for (allegiance_index = 0;
+       allegiance_index < allegiance_count;
+       allegiance_index++, allegiance++) {
+    if ((allegiance->team1_index == team_a &&
+         allegiance->team2_index == team_b &&
+         allegiance->team2_suspicious) ||
+        (allegiance->team2_index == team_a &&
+         allegiance->team1_index == team_b &&
+         allegiance->team1_suspicious)) {
+      increment = 0;
+      switch (action) {
+      case _allegiance_incident_accident:
+        increment = 1;
+        break;
+      case _allegiance_incident_betrayal:
+        increment = 3;
+        break;
+      case _allegiance_incident_forgive:
+        increment = -1;
+        break;
+      }
+
+      allegiance->current_incidents += increment;
+      if (allegiance->incident_decay_time != NONE) {
+        allegiance->current_incident_decay_time =
+          allegiance->incident_decay_time;
+      }
+
+      if (allegiance->incident_threshold != NONE &&
+          allegiance->current_incidents >= allegiance->incident_threshold) {
+        game_allegiance_set((int16_t *)allegiance, true, false);
+        result = true;
+        if (out_changed) {
+          *out_changed = !allegiance->requires_communication;
+        }
+      }
+
+      break;
+    }
+  }
+
   return result;
 }
 
@@ -457,7 +510,6 @@ int FUN_000a8110(int param_1, int param_2)
 
 int FUN_000a8130(int param_1)
 {
-  int (*fn)(int, int);
   char *item;
   data_iter_t iter;
 
@@ -471,6 +523,5 @@ int FUN_000a8130(int param_1)
       break;
     item = (char *)data_iterator_next(&iter);
   }
-  fn = *(int (**)(int, int))((char *)(*(void **)0x456b60) + 0x48);
-  return fn((int)iter.datum_handle, 1);
+  return ((int (*)(uint32_t, int))((int *)current_game_engine)[0x48 / 4])(iter.datum_handle, 1);
 }

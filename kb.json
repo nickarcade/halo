@@ -8756,7 +8756,7 @@
     },
     {
      "addr": "0xa7c90",
-     "decl": "void game_allegiance_set(int16_t *entry@<eax>, char friendship@<ebx>, char force);",
+     "decl": "void game_allegiance_set(int16_t *entry@<eax>, bool currently_broken@<ebx>, bool permanently_broken);",
      "ported": true
     },
     {
