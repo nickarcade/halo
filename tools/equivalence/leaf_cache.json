@@ -21032,9 +21032,12 @@
     "call_count": 12
   },
   "0x2b020": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 7,
-    "call_count": 9
+    "call_count": 9,
+    "confidence": "none",
+    "coverage_pct": 7.0,
+    "oracle": "xbe"
   },
   "0x2b310": {
     "class": "data_only",
@@ -21045,9 +21048,12 @@
     "dir32_count": 1
   },
   "0x2b490": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 13,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "high",
+    "coverage_pct": 86.9,
+    "oracle": "xbe"
   },
   "0x2b5d0": {
     "class": "data_only",
@@ -21059,19 +21065,28 @@
     "call_count": 4
   },
   "0x2b830": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 11,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "high",
+    "coverage_pct": 72.8,
+    "oracle": "xbe"
   },
   "0x2bab0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 28,
-    "call_count": 25
+    "call_count": 25,
+    "confidence": "weak",
+    "coverage_pct": 12.6,
+    "oracle": "xbe"
   },
   "0x2bd80": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 107,
-    "call_count": 22
+    "call_count": 22,
+    "confidence": "moderate",
+    "coverage_pct": 52.8,
+    "oracle": "xbe"
   },
   "0x2cdb0": {
     "class": "stubbable",
@@ -21084,9 +21099,12 @@
     "call_count": 10
   },
   "0x2d720": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "moderate",
+    "coverage_pct": 51.5,
+    "oracle": "xbe"
   },
   "0x2d850": {
     "class": "stubbable",
@@ -21094,19 +21112,28 @@
     "call_count": 4
   },
   "0x2d900": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "high",
+    "coverage_pct": 69.5,
+    "oracle": "xbe"
   },
   "0x2d9b0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "high",
+    "coverage_pct": 66.5,
+    "oracle": "xbe"
   },
   "0x2daa0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 49,
-    "call_count": 37
+    "call_count": 37,
+    "confidence": "weak",
+    "coverage_pct": 11.6,
+    "oracle": "xbe"
   },
   "0x2e560": {
     "class": "stubbable",

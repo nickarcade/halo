@@ -83,6 +83,26 @@ cs(real_vector2d, 0x8);
 co(real_vector2d, i, 0x0);
 co(real_vector2d, j, 0x4);
 
+typedef struct real_point3d {
+  real x;                          ///< offset=0x00
+  real y;                          ///< offset=0x04
+  real z;                          ///< offset=0x08
+} real_point3d;
+cs(real_point3d, 0xc);
+co(real_point3d, x, 0x0);
+co(real_point3d, y, 0x4);
+co(real_point3d, z, 0x8);
+
+typedef struct real_vector3d {
+  real i;                          ///< offset=0x00
+  real j;                          ///< offset=0x04
+  real k;                          ///< offset=0x08
+} real_vector3d;
+cs(real_vector3d, 0xc);
+co(real_vector3d, i, 0x0);
+co(real_vector3d, j, 0x4);
+co(real_vector3d, k, 0x8);
+
 /// size=0x10
 typedef struct real_plane3d {
   real normal[3];                  ///< offset=0x00
@@ -1338,21 +1358,57 @@ typedef struct path_destination_t {
   int16_t mode;                                      /* +0x00 */
   char field_02;                                     /* +0x02 */
   char pad_03[0x1];                                  /* +0x03 */
-  int16_t position_index;                            /* +0x04 */
-  char pad_06[0x2];                                  /* +0x06 */
-  float field_08;                                    /* +0x08 */
-  float field_0c;                                    /* +0x0c */
-  int32_t dest_node;                                 /* +0x10 */
+  union {
+    struct {
+      real_point3d point;                            /* +0x04 */
+      int32_t surface_index;                         /* +0x10 */
+    } raw;
+    int16_t firing_position_index;                   /* +0x04 */
+    int16_t move_position_index;                     /* +0x04 */
+    struct {
+      int32_t prop_index;                            /* +0x04 */
+      float accept_radius;                           /* +0x08 */
+    } prop;
+    struct {
+      int16_t position_index;                        /* +0x04 */
+      char pad_06[0x2];                              /* +0x06 */
+      float field_08;                                /* +0x08 */
+      float field_0c;                                /* +0x0c */
+      int32_t dest_node;                             /* +0x10 */
+    };
+  };
   int32_t orders_ignore_target_object_index;         /* +0x14 */
 } path_destination_t;
 cs(path_destination_t, 0x18);
 co(path_destination_t, mode, 0x00);
 co(path_destination_t, field_02, 0x02);
+co(path_destination_t, raw.point, 0x04);
+co(path_destination_t, raw.surface_index, 0x10);
+co(path_destination_t, firing_position_index, 0x04);
+co(path_destination_t, move_position_index, 0x04);
+co(path_destination_t, prop.prop_index, 0x04);
+co(path_destination_t, prop.accept_radius, 0x08);
 co(path_destination_t, position_index, 0x04);
 co(path_destination_t, field_08, 0x08);
 co(path_destination_t, field_0c, 0x0c);
 co(path_destination_t, dest_node, 0x10);
 co(path_destination_t, orders_ignore_target_object_index, 0x14);
+/* prop_t — an element of the "prop" data_t pool (0x138 = 312 bytes).
+ * Confirmed: props_initialize at 0x64100 allocates pool with element size 0x138.
+ * Offsets confirmed:
+ *   unit_index at +0x18 (read by actor_move_to_prop @0x2d9da)
+ *   vehicle_index at +0x110 (read by actor_move_to_prop @0x2d9dc)
+ */
+typedef struct prop_t {
+  char pad_00[0x18];
+  int32_t unit_index;                                /* +0x018 */
+  char pad_1c[0xf4];
+  int32_t vehicle_index;                             /* +0x110 */
+  char pad_114[0x24];
+} prop_t;
+cs(prop_t, 0x138);
+co(prop_t, unit_index, 0x018);
+co(prop_t, vehicle_index, 0x110);
 
 /* ---------------------------------------------------------------------------
  * actor_t — an element of the "actor" data_t pool.
@@ -1401,7 +1457,10 @@ typedef struct {
   char field_013;                                    /* +0x013  accessed 1x, meaning unproven */
   int16_t field_014;                                 /* +0x014  accessed 4x, meaning unproven */
   char pad_016[0x2];
-  int32_t field_018;                                 /* +0x018  accessed 55x, meaning unproven */
+  union {
+    int32_t field_018;                                 /* +0x018  accessed 55x, meaning unproven */
+    int32_t meta_unit_index;                           /* +0x018  actor->meta.unit_index */
+  };
   char field_01c;                                    /* +0x01c  accessed 4x, meaning unproven */
   char pad_01d[0x1];
   int16_t field_01e;                                 /* +0x01e  accessed 15x, meaning unproven */
@@ -1512,14 +1571,22 @@ typedef struct {
   float field_120;                                   /* +0x120  accessed 1x, meaning unproven */
   float field_124;                                   /* +0x124  accessed 1x, meaning unproven */
   float field_128;                                   /* +0x128  accessed 3x, meaning unproven */
-  float field_12c;                                   /* +0x12c  accessed 1x, meaning unproven */
-  float field_130;                                   /* +0x130  accessed 1x, meaning unproven */
-  float field_134;                                   /* +0x134  accessed 1x, meaning unproven */
+  union {
+    struct {
+      float field_12c;                               /* +0x12c  accessed 1x, meaning unproven */
+      float field_130;                               /* +0x130  accessed 1x, meaning unproven */
+      float field_134;                               /* +0x134  accessed 1x, meaning unproven */
+    };
+    real_point3d body_position;                      /* +0x12c  actor->input.position.body_position */
+  };
   char pad_138[0xc];
   int32_t field_144;                                 /* +0x144  accessed 1x, meaning unproven */
   uint16_t field_148;                                /* +0x148  accessed 1x, meaning unproven */
   char pad_14a[0xe];
-  int32_t field_158;                                 /* +0x158  accessed 10x, meaning unproven */
+  union {
+    int32_t field_158;                                 /* +0x158  accessed 10x, meaning unproven */
+    int32_t vehicle_index;                             /* +0x158  actor->input.vehicle_index */
+  };
   char field_15c;                                    /* +0x15c  accessed 3x, meaning unproven */
   char field_15d;                                    /* +0x15d  accessed 2x, meaning unproven */
   int16_t field_15e;                                 /* +0x15e  accessed 6x, meaning unproven */
@@ -1813,9 +1880,14 @@ typedef struct {
   int32_t field_518;                                 /* +0x518  accessed 1x, meaning unproven */
   int32_t field_51c;                                 /* +0x51c  accessed 1x, meaning unproven */
   int32_t field_520;                                 /* +0x520  accessed 1x, meaning unproven */
-  float field_524;                                   /* +0x524  accessed 1x, meaning unproven */
-  float field_528;                                   /* +0x528  accessed 1x, meaning unproven */
-  float field_52c;                                   /* +0x52c  accessed 1x, meaning unproven */
+  union {
+    struct {
+      float field_524;                               /* +0x524  accessed 1x, meaning unproven */
+      float field_528;                               /* +0x528  accessed 1x, meaning unproven */
+      float field_52c;                               /* +0x52c  accessed 1x, meaning unproven */
+    };
+    real_vector3d control_moving_forced_aim_direction;/* +0x524  actor->control.moving_forced_aim_direction */
+  };
   char field_530;                                    /* +0x530  accessed 5x, meaning unproven */
   char pad_531[0x13];
   int16_t control_secondary_look_type;                /* +0x544  CMP word [ESI+0x544],0 @0x6443d */
@@ -1850,19 +1922,29 @@ typedef struct {
   char field_58f;                                    /* +0x58f  accessed 1x, meaning unproven */
   char field_590;                                    /* +0x590  accessed 4x, meaning unproven */
   char field_591;                                    /* +0x591  accessed 6x, meaning unproven */
-  char pad_592[0x6];
+  char pad_592[0x2];
+  float control_face_exactly_oversteer_angle;        /* +0x594  actor->control.face_exactly_oversteer_angle */
   float field_598;                                   /* +0x598  accessed 1x, meaning unproven */
   float field_59c;                                   /* +0x59c  accessed 1x, meaning unproven */
   float field_5a0;                                   /* +0x5a0  accessed 1x, meaning unproven */
   float control_desired_facing_vector[3];             /* +0x5a4  LEA EDI,[ESI+0x5a4] @0x2906b */
   float control_desired_aiming_vector[3];             /* +0x5b0  LEA EBX,[ESI+0x5b0] @0x290d8 */
   float control_desired_looking_vector[3];            /* +0x5bc  LEA EBX,[ESI+0x5bc] @0x2913d */
-  char pad_5c8[0x10];
-  int16_t field_5d8;                                 /* +0x5d8  accessed 1x, meaning unproven */
+  union {
+    char pad_5c8[0x10];
+    uint8_t control_vector_avoidance_clear_times[8][2];/* +0x5c8  actor->control.vector_avoidance_clear_times */
+  };
+  union {
+    int16_t field_5d8;                                 /* +0x5d8  accessed 1x, meaning unproven */
+    int16_t control_vector_avoidance_current_direction;/* +0x5d8  actor->control.vector_avoidance_current_direction */
+  };
   char pad_5da[0x2];
   char field_5dc;                                    /* +0x5dc  accessed 1x, meaning unproven */
   char pad_5dd[0x13];
-  int16_t field_5f0;                                 /* +0x5f0  accessed 1x, meaning unproven */
+  union {
+    int16_t field_5f0;                                 /* +0x5f0  accessed 1x, meaning unproven */
+    int16_t control_vector_avoidance_sharp_turn_timer; /* +0x5f0  actor->control.vector_avoidance_sharp_turn_timer */
+  };
   int16_t control_fire_state;                         /* +0x5f2  MOVSX from word [EBX+0x5f2] @0x237d7, 5-case jump table */
   int16_t field_5f4;                                 /* +0x5f4  accessed 1x, meaning unproven */
   int16_t field_5f6;                                 /* +0x5f6  accessed 1x, meaning unproven */
@@ -1953,6 +2035,7 @@ cs(actor_t, 0x724);
 co(actor_t, salt,                                          0x000);
 co(actor_t, meta_swarm_cache_index,                        0x028);
 co(actor_t, state_action,                                  0x06c);
+co(actor_t, body_position,                                 0x12c);
 co(actor_t, input_facing_vector,                           0x174);
 co(actor_t, input_aiming_vector,                           0x180);
 co(actor_t, input_looking_vector,                          0x18c);
@@ -1965,6 +2048,7 @@ co(actor_t, stimuli_panic_prop_index,                      0x30c);
 co(actor_t, firing_positions_current_position_index,       0x3b8);
 co(actor_t, control_path_destination_orders_ignore_target_object_index, 0x480);
 co(actor_t, field_4a0,                                         0x4a0);
+co(actor_t, control_moving_forced_aim_direction,           0x524);
 co(actor_t, control_secondary_look_type,                   0x544);
 co(actor_t, secondary_look_priority,                     0x546);
 co(actor_t, secondary_look_timer,                        0x548);
@@ -1978,6 +2062,7 @@ co(actor_t, control_idle_major_direction_type,             0x56c);
 co(actor_t, control_idle_major_direction_prop_index,       0x570);
 co(actor_t, control_idle_minor_direction_type,             0x57c);
 co(actor_t, control_idle_minor_direction_prop_index,       0x580);
+co(actor_t, control_face_exactly_oversteer_angle,          0x594);
 co(actor_t, control_desired_facing_vector,                 0x5a4);
 co(actor_t, control_desired_aiming_vector,                 0x5b0);
 co(actor_t, control_desired_looking_vector,                0x5bc);
@@ -1987,8 +2072,158 @@ co(actor_t, control_current_fire_target_prop_index,        0x610);
 co(actor_t, control_burst_aim_vector,                      0x68c);
 co(actor_t, output_facing_vector,                          0x6fc);
 co(actor_t, output_aiming_vector,                          0x708);
+co(actor_t, meta_unit_index,                               0x018);
+co(actor_t, vehicle_index,                                 0x158);
+co(actor_t, control_vector_avoidance_clear_times,          0x5c8);
+co(actor_t, control_vector_avoidance_current_direction,    0x5d8);
+co(actor_t, control_vector_avoidance_sharp_turn_timer,     0x5f0);
 co(actor_t, output_looking_vector,                         0x714);
 #pragma pack()
+
+#define MAXIMUM_NUMBER_OF_AVOIDANCE_OBJECTS 1024
+
+typedef struct vehicle_avoidance_cylinder_t {
+  int32_t object_index;            ///< offset=0x00
+  real_point3d base;               ///< offset=0x04
+  float height;                    ///< offset=0x10
+  float width;                     ///< offset=0x14
+} vehicle_avoidance_cylinder_t;
+cs(vehicle_avoidance_cylinder_t, 0x18);
+co(vehicle_avoidance_cylinder_t, object_index, 0x00);
+co(vehicle_avoidance_cylinder_t, base, 0x04);
+co(vehicle_avoidance_cylinder_t, height, 0x10);
+co(vehicle_avoidance_cylinder_t, width, 0x14);
+
+typedef struct vector_avoidance_data_t {
+  const void *structure;                                                      ///< offset=0x00
+  const void *bsp;                                                            ///< offset=0x04
+  int32_t object_index;                                                       ///< offset=0x08
+  real_point3d origin;                                                        ///< offset=0x0c
+  real_vector3d forward;                                                      ///< offset=0x18
+  real_vector3d left;                                                         ///< offset=0x24
+  real_vector3d up;                                                           ///< offset=0x30
+  int16_t avoidance_object_count;                                             ///< offset=0x3c
+  char pad_3e[2];                                                             ///< offset=0x3e
+  vehicle_avoidance_cylinder_t avoidance_objects[MAXIMUM_NUMBER_OF_AVOIDANCE_OBJECTS]; ///< offset=0x40
+  float avoid_width;                                                          ///< offset=0x6040
+  float avoid_distance;                                                       ///< offset=0x6044
+} vector_avoidance_data_t;
+cs(vector_avoidance_data_t, 0x6048);
+co(vector_avoidance_data_t, structure, 0x00);
+co(vector_avoidance_data_t, bsp, 0x04);
+co(vector_avoidance_data_t, object_index, 0x08);
+co(vector_avoidance_data_t, origin, 0x0c);
+co(vector_avoidance_data_t, forward, 0x18);
+co(vector_avoidance_data_t, left, 0x24);
+co(vector_avoidance_data_t, up, 0x30);
+co(vector_avoidance_data_t, avoidance_object_count, 0x3c);
+co(vector_avoidance_data_t, avoidance_objects, 0x40);
+co(vector_avoidance_data_t, avoid_width, 0x6040);
+co(vector_avoidance_data_t, avoid_distance, 0x6044);
+
+typedef struct vector_avoidance_ray_t {
+  float length;                    ///< offset=0x00
+  real_vector3d offset;            ///< offset=0x04
+  real_vector3d divergence;        ///< offset=0x10
+} vector_avoidance_ray_t;
+cs(vector_avoidance_ray_t, 0x1c);
+co(vector_avoidance_ray_t, length, 0x00);
+co(vector_avoidance_ray_t, offset, 0x04);
+co(vector_avoidance_ray_t, divergence, 0x10);
+
+typedef struct actor_debug_info_t {
+  char pad_0000[0x19c];                                                         ///< offset=0x0000
+  uint32_t timestamp;                                                           ///< offset=0x019c
+  vector_avoidance_data_t avoidance_data;                                       ///< offset=0x01a0
+  int16_t avoidance_type[9];                                                    ///< offset=0x61e8
+  char pad_61fa[2];                                                             ///< offset=0x61fa
+  float collision_t[9];                                                         ///< offset=0x61fc
+  real_point3d ray_origin[9];                                                   ///< offset=0x6220
+  real_vector3d ray_direction[9];                                               ///< offset=0x628c
+  int16_t avoidance_types_2[8][2];                                              ///< offset=0x62f8
+  float avoid_t[8][2];                                                          ///< offset=0x6318
+  real_point3d probe_origin[8][2];                                              ///< offset=0x6358
+  real_vector3d probe_dir[8][2];                                                ///< offset=0x6418
+  float weights[8];                                                             ///< offset=0x64d8
+  uint32_t pad_64f8;                                                            ///< offset=0x64f8
+  float best_weight;                                                            ///< offset=0x64fc
+  int16_t best_avoidance_direction;                                             ///< offset=0x6500
+  char pad_6502[2];                                                             ///< offset=0x6502
+  float movement_direction_approximation;                                       ///< offset=0x6504
+  float movement_approximate_weight;                                            ///< offset=0x6508
+  float sign_no_danger;                                                         ///< offset=0x650c
+  float forward_dot;                                                            ///< offset=0x6510
+  float sign_too_far_cosangle;                                                  ///< offset=0x6514
+  float sign_rotated;                                                           ///< offset=0x6518
+  float maximum_sense_emergency;                                                ///< offset=0x651c
+  float rotation_angle;                                                         ///< offset=0x6520
+  real_vector3d forward;                                                        ///< offset=0x6524
+  real_vector3d requested_facing;                                               ///< offset=0x6530
+  int16_t debug_mode;                                                           ///< offset=0x653c
+  char pad_653e[2];                                                             ///< offset=0x653e
+  real_vector3d rotation;                                                       ///< offset=0x6540
+  float emergency;                                                              ///< offset=0x654c
+  uint8_t direction_chosen;                                                     ///< offset=0x6550
+  uint8_t has_emergency_velocity;                                               ///< offset=0x6551
+  char pad_6552[2];                                                             ///< offset=0x6552
+  float velocity_weight;                                                        ///< offset=0x6554
+  float angular_speed;                                                          ///< offset=0x6558
+  real_vector3d avoidance_vector;                                               ///< offset=0x655c
+  float velocity_approximate_weight;                                            ///< offset=0x6568
+  char pad_656c[0x10];                                                          ///< offset=0x656c
+} actor_debug_info_t;
+cs(actor_debug_info_t, 0x657c);
+co(actor_debug_info_t, timestamp, 0x19c);
+co(actor_debug_info_t, avoidance_data, 0x1a0);
+co(actor_debug_info_t, avoidance_type, 0x61e8);
+co(actor_debug_info_t, collision_t, 0x61fc);
+co(actor_debug_info_t, ray_origin, 0x6220);
+co(actor_debug_info_t, ray_direction, 0x628c);
+co(actor_debug_info_t, avoidance_types_2, 0x62f8);
+co(actor_debug_info_t, avoid_t, 0x6318);
+co(actor_debug_info_t, probe_origin, 0x6358);
+co(actor_debug_info_t, probe_dir, 0x6418);
+co(actor_debug_info_t, weights, 0x64d8);
+co(actor_debug_info_t, best_weight, 0x64fc);
+co(actor_debug_info_t, best_avoidance_direction, 0x6500);
+co(actor_debug_info_t, movement_direction_approximation, 0x6504);
+co(actor_debug_info_t, movement_approximate_weight, 0x6508);
+co(actor_debug_info_t, sign_no_danger, 0x650c);
+co(actor_debug_info_t, forward_dot, 0x6510);
+co(actor_debug_info_t, sign_too_far_cosangle, 0x6514);
+co(actor_debug_info_t, sign_rotated, 0x6518);
+co(actor_debug_info_t, maximum_sense_emergency, 0x651c);
+co(actor_debug_info_t, rotation_angle, 0x6520);
+co(actor_debug_info_t, forward, 0x6524);
+co(actor_debug_info_t, requested_facing, 0x6530);
+co(actor_debug_info_t, debug_mode, 0x653c);
+co(actor_debug_info_t, rotation, 0x6540);
+co(actor_debug_info_t, emergency, 0x654c);
+co(actor_debug_info_t, direction_chosen, 0x6550);
+co(actor_debug_info_t, has_emergency_velocity, 0x6551);
+co(actor_debug_info_t, velocity_weight, 0x6554);
+co(actor_debug_info_t, angular_speed, 0x6558);
+co(actor_debug_info_t, avoidance_vector, 0x655c);
+co(actor_debug_info_t, velocity_approximate_weight, 0x6568);
+
+typedef struct object_datum_t {
+  int32_t definition_index;                             ///< offset=0x00
+  uint32_t flags;                                       ///< offset=0x04
+  int32_t magic_number;                                 ///< offset=0x08
+  real_point3d position;                                ///< offset=0x0c
+  real_vector3d translational_velocity;                 ///< offset=0x18
+  real_vector3d forward;                                ///< offset=0x24
+  real_vector3d up;                                     ///< offset=0x30
+  real_vector3d angular_velocity;                       ///< offset=0x3c
+  char pad_48[0x1a4 - 0x48];                            ///< offset=0x48
+} object_datum_t;
+cs(object_datum_t, 0x1a4);
+co(object_datum_t, definition_index, 0x00);
+co(object_datum_t, position, 0x0c);
+co(object_datum_t, translational_velocity, 0x18);
+co(object_datum_t, forward, 0x24);
+co(object_datum_t, up, 0x30);
+co(object_datum_t, angular_velocity, 0x3c);
 
 /* ---------------------------------------------------------------------------
  * tag_block — the engine's ubiquitous tag-data block header: an element count
@@ -2100,6 +2335,28 @@ co(collision_bsp_t, planes, 0x0c);
 co(collision_bsp_t, surfaces, 0x3c);
 co(collision_bsp_t, edges, 0x48);
 co(collision_bsp_t, vertices, 0x54);
+
+typedef struct collision_bsp_test_vector_result_t {
+  float t;                          ///< offset=0x00
+  const real_plane3d *plane;        ///< offset=0x04
+  int32_t surface_index;            ///< offset=0x08
+  int32_t plane_designator;         ///< offset=0x0c
+  uint8_t flags;                    ///< offset=0x10
+  uint8_t breakable_surface_index;  ///< offset=0x11
+  int16_t material_index;           ///< offset=0x12
+  int32_t leaf_count;               ///< offset=0x14
+  int32_t leaf_indices[256];        ///< offset=0x18
+} collision_bsp_test_vector_result_t;
+cs(collision_bsp_test_vector_result_t, 0x418);
+co(collision_bsp_test_vector_result_t, t, 0x00);
+co(collision_bsp_test_vector_result_t, plane, 0x04);
+co(collision_bsp_test_vector_result_t, surface_index, 0x08);
+co(collision_bsp_test_vector_result_t, plane_designator, 0x0c);
+co(collision_bsp_test_vector_result_t, flags, 0x10);
+co(collision_bsp_test_vector_result_t, breakable_surface_index, 0x11);
+co(collision_bsp_test_vector_result_t, material_index, 0x12);
+co(collision_bsp_test_vector_result_t, leaf_count, 0x14);
+co(collision_bsp_test_vector_result_t, leaf_indices, 0x18);
 
 typedef struct collision_surface_t {
   int32_t plane;                    ///< offset=0x00
