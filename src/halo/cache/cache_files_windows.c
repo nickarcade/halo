@@ -1692,7 +1692,7 @@ void cache_files_precache(void)
     return;
   if (*(int *)(header + 0x128) != FUN_001b9920())
     return;
-  if (*(int16_t *)(header + 0x126) != main_get_difficulty())
+  if (main_get_difficulty() != *(int16_t *)(header + 0x126))
     return;
 
   ((void (*)(void))game_state_callback_32eaa4)();
