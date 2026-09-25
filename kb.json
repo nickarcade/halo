@@ -36328,7 +36328,8 @@
     {
      "addr": "0x43ce0",
      "decl": "void actor_reset_idle_vocalization_timer(int actor_handle@<eax>);",
-     "name": "actor_reset_idle_vocalization_timer"
+     "name": "actor_reset_idle_vocalization_timer",
+     "ported": true
     },
     {
      "addr": "0x43db0",

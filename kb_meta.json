@@ -2286,6 +2286,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x43ce0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x43db0": {
       "kind": "function",
       "status": "ported"

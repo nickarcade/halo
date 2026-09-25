@@ -43288,6 +43288,21 @@
       "score": 100.0,
       "source": "src/halo/ai/actor_looking.c"
     },
+    "actor_reset_idle_vocalization_timer": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 86.6,
+      "addr": "0x43ce0",
+      "end": "0x43da9",
+      "kind": "auto",
+      "n_r": 69,
+      "opnd_percent": 80.6,
+      "raw_mnemonic_pct": 86.6,
+      "ref": "synth",
+      "ref_sha": "fb9fb0b74d009b87",
+      "score": 86.6,
+      "source": "src/halo/ai/ai_communication.c"
+    },
     "actor_select_firing_position": {
       "abi_model": "raw",
       "abi_model_items": 0,
