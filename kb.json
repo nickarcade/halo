@@ -25007,7 +25007,7 @@
     },
     {
      "addr": "0x1c3250",
-     "decl": "void enumerate_saved_game_files_start(int16_t memory_unit@<ax>);",
+     "decl": "bool enumerate_saved_game_files_start(int16_t memory_unit@<ax>);",
      "comment": "[NAME: enumerate_saved_game_files_start \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "ported": true
     },

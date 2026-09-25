@@ -1189,8 +1189,19 @@ void saved_game_file_generate_checksum(const void *buffer, unsigned short size,
  * Globals: 0x4eabb0 is the saved_game_files_globals file reference cleared by
  * saved_game_files_initialize; 0x4eacc4 is a word set to 0 on success and to
  * 0xffff on failure; 0x4eacc8 is the enumeration_in_progress flag named by the
- * assert at line 0x66f. */
-void enumerate_saved_game_files_start(int16_t memory_unit)
+ * assert at line 0x66f.
+ *
+ * Return value (confirmed 2026-09-25 against the raw disassembly while
+ * verifying FUN_001c5010, the sole caller that inspects it): the success
+ * path explicitly sets AL=1 (MOV AL,0x1 at 0x1c32e4) and stores that same AL
+ * into the enumeration_in_progress flag, leaving AL=1 live at RET. The
+ * failure tail block reloads AL from *(uint8_t *)0x4eacc8 (MOV
+ * AL,[0x004eacc8] at 0x1c3303) immediately before RET; since the entry
+ * assert guarantees that flag is 0 at this point and this path never sets
+ * it, AL=0 on failure. This was previously declared void, which cannot
+ * represent the boolean FUN_001c5010 actually branches on (TEST AL,AL / JZ
+ * at 0x1c5052-0x1c5054). */
+bool enumerate_saved_game_files_start(int16_t memory_unit)
 {
   uint16_t unit;
 
@@ -1216,7 +1227,7 @@ void enumerate_saved_game_files_start(int16_t memory_unit)
       if (file_open((file_ref_t *)0x4eabb0, 2)) {
         *(uint16_t *)0x4eacc4 = 0;
         *(uint8_t *)0x4eacc8 = 1;
-        return;
+        return 1;
       }
     }
   }
@@ -1224,6 +1235,7 @@ void enumerate_saved_game_files_start(int16_t memory_unit)
   error(2, "failed to create/open memory unit mapfile for memory unit #%d",
         unit);
   *(uint16_t *)0x4eacc4 = 0xffff;
+  return *(uint8_t *)0x4eacc8;
 }
 
 /* End the memory-unit enumeration opened by enumerate_saved_game_files_start.
