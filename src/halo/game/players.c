@@ -4046,7 +4046,7 @@ void hs_object_create_anew_containing_evaluate(int16_t function_index, int threa
   record = (const char **)hs_macro_function_evaluate(function_index,
                                                      thread_datum, init);
   if (record != 0) {
-    FUN_000ca140(*record);
+    hs_object_create_anew_containing((const char *)*record);
     hs_return(thread_datum, 0);
   }
 }
@@ -4172,7 +4172,7 @@ void hs_object_set_facing_evaluate(int16_t function_index, int thread_datum, cha
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != 0) {
-    FUN_000ca410(record[0], *(unsigned short *)((char *)record + 4));
+    hs_object_set_facing(record[0], *(unsigned short *)((char *)record + 4));
     hs_return(thread_datum, 0);
   }
 }
@@ -4614,7 +4614,7 @@ void hs_sound_set_gain_evaluate(int16_t function_index, int thread_handle, char 
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_handle, init);
   if (record != NULL) {
-    FUN_000ca030(record[0], *(float *)(record + 1));
+    hs_sound_set_gain((const char *)record[0], *(float *)(record + 1));
     hs_return(thread_handle, 0);
   }
 }
@@ -4648,7 +4648,7 @@ void hs_sound_get_gain_evaluate(int16_t function_index, int thread_handle, char 
 
   record = hs_macro_function_evaluate(function_index, thread_handle, init);
   if (record != 0) {
-    cell.f = FUN_000ca010(*(int *)record);
+    cell.f = hs_sound_get_gain((const char *)*(int *)record);
     hs_return(thread_handle, cell.i);
   }
 }
