@@ -503,7 +503,7 @@ bool ui_main_menu_music_active(void)
 
 void ui_widgets_disable_pause_game(int duration_ticks)
 {
-  assert_halt(duration_ticks >= 0);
+  assert_halt_msg_at("duration_ticks>=0", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x9d7, duration_ticks >= 0);
   dword_46CC44 = duration_ticks;
 }
 
@@ -584,10 +584,10 @@ void ui_widget_delete_children_recursive(void *widget)
   do {
     next = *(int **)((char *)child + 0x2c);
 
-    assert_halt_msg(*(int *)((char *)child + 0x28) == 0,
-                    "child->previous == NULL");
-    assert_halt_msg(next == NULL || *(int *)((char *)next + 0x28) == (int)child,
-                    "next->previous == child");
+    assert_halt_msg_at("child->previous == NULL", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0xabe,
+        *(int *)((char *)child + 0x28) == 0);
+    assert_halt_msg_at("next->previous == child", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0xac2,
+        next == NULL || *(int *)((char *)next + 0x28) == (int)child);
 
     ui_widget_delete(child);
 
@@ -1316,8 +1316,8 @@ void ui_widget_delete(void *widget)
 
   /* manage the pause counter */
   if (*(uint8_t *)((char *)w + 0x13) == 1) {
-    assert_halt_msg(*(int16_t *)0x46cc4a >= 1,
-                    "widget pause counter out of whack");
+    assert_halt_msg_at("widget pause counter out of whack", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x220,
+        *(int16_t *)0x46cc4a >= 1);
 
     (*(int16_t *)0x46cc4a)--;
 
@@ -1930,7 +1930,7 @@ void render_ui_widgets(int16_t player_index, viewport_bounds_t *window_bounds)
   const char *tag_name;
   float fade;
 
-  assert_halt(window_bounds != NULL);
+  assert_halt_at("c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x38f, window_bounds != NULL);
 
   /* store clamped player index: -1 maps to 0, otherwise keep player_index */
   *(uint16_t *)0x5aa45c =

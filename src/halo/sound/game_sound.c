@@ -511,7 +511,7 @@ int sound_impulse_start(int sound_tag_index, float scale)
    * offset 0x08: float   gain */
   char source[0x40];
 
-  assert_halt(scale >= 0.f && scale <= 1.f);
+  assert_halt_msg_at("scale>=0.f && scale<=1.f", "c:\\halo\\SOURCE\\sound\\game_sound.c", 0x159, scale >= 0.f && scale <= 1.f);
 
   *(int16_t *)(source + 0x00) = 0;
   *(float *)(source + 0x04) = scale;
@@ -841,8 +841,8 @@ bool FUN_001c7a10(int object_handle, void *attachment_data, void *source)
 
   object = object_try_and_get_and_verify_type(object_handle, -1);
 
-  assert_halt(attachment_data);
-  assert_halt(source);
+  assert_halt_at("c:\\halo\\SOURCE\\sound\\game_sound.c", 0x318, attachment_data);
+  assert_halt_at("c:\\halo\\SOURCE\\sound\\game_sound.c", 0x319, source);
 
   if (object != 0) {
     object_get_location(object_handle, location);
@@ -1374,9 +1374,9 @@ void sound_compute_source_obstruction(int channel_index, void *source,
   *(float *)((char *)source + 0x38) = 0.6f * 1.0f;
   *(float *)((char *)source + 0x3c) = 1.0f;
 
-  assert_halt_msg(
-    *(int16_t *)source == 1,
-    "source->spatialization_mode==_sound_spatialization_mode_absolute");
+  assert_halt_msg_at("source->spatialization_mode==_sound_spatialization_mode_absolute", "c:\\halo\\SOURCE\\sound\\game_sound.c",
+      0x375,
+      *(int16_t *)source == 1);
 
   source_cluster = *(int16_t *)((char *)source + 0x34);
   if (source_cluster != -1 && *(int16_t *)((char *)camera + 0x10) != -1) {
@@ -1467,8 +1467,8 @@ void sound_looping_start(int sound_tag_index, int object_index, float scale)
   definition = tag_get(0x6c736e64, sound_tag_index);
   sound_looping_stop(sound_tag_index);
 
-  assert_halt_msg(*(int *)((char *)definition + 0x1c) == -1,
-                  "definition->runtime_scripting_sound_index==NONE");
+  assert_halt_msg_at("definition->runtime_scripting_sound_index==NONE", "c:\\halo\\SOURCE\\sound\\game_sound.c", 0x1ed,
+      *(int *)((char *)definition + 0x1c) == -1);
 
   if ((*(uint8_t *)definition & 4) != 0)
     game_sound_music_stop_for_vehicle();

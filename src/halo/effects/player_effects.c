@@ -2,16 +2,16 @@
 
 __declspec(noinline) char *player_effect_get(int16_t local_player_index)
 {
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\effects\\player_effects.c", 0x73, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
-  assert_halt(player_effect_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\player_effects.c", 0x74, player_effect_globals);
   return player_effect_globals + local_player_index * 0xec;
 }
 
 void player_effect_initialize(void)
 {
   player_effect_globals = (char *)game_state_malloc("player effects", 0, 0x3ec);
-  assert_halt(player_effect_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\player_effects.c", 0x7f, player_effect_globals);
 }
 
 void player_effect_dispose(void)

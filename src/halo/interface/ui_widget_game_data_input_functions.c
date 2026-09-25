@@ -1182,7 +1182,7 @@ bool new_campaign_if_no_custom_player_profiles_exist(void *widget,
 void ui_widget_game_data_function_invoke(
   void *widget, unsigned __int16 game_data_input_reference_function)
 {
-  assert_halt(widget);
+  assert_halt_at("c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c", 0x10a, widget);
 
   if (game_data_input_reference_function > 40u) {
     error(2, "invalid game_data_input_reference_function");

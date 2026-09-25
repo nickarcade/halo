@@ -3443,11 +3443,11 @@ void actors_initialize(void)
 {
   actor_types_initialize();
   actor_data = game_state_data_new("actor", 0x100, 0x724);
-  assert_halt(actor_data);
+  assert_halt_at("c:\\halo\\SOURCE\\ai\\actors.c", 0x79, actor_data);
   swarm_data = game_state_data_new("swarm", 0x20, 0x98);
-  assert_halt(swarm_data);
+  assert_halt_at("c:\\halo\\SOURCE\\ai\\actors.c", 0x7c, swarm_data);
   swarm_component_data = game_state_data_new("swarm component", 0x100, 0x40);
-  assert_halt(swarm_component_data);
+  assert_halt_at("c:\\halo\\SOURCE\\ai\\actors.c", 0x7f, swarm_component_data);
 }
 
 /* actors_dispose: empty stub in the original binary (single RET).

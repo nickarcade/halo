@@ -142,7 +142,7 @@ int16_t players_get_respawn_failure(void)
 #endif
 int local_player_get_player_index(int16_t local_player_index)
 {
-  assert_halt(local_player_index >= NONE &&
+  assert_halt_msg_at("local_player_index>=NONE && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\game\\players.c", 0x3ab, local_player_index >= NONE &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   if (local_player_index == NONE)
     return NONE;
@@ -159,7 +159,7 @@ int local_player_set_player_index(unsigned __int16 local_player_index,
   int old_player;
   char *player;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\game\\players.c", 0x3b4, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   old_player = *(int *)&players_globals->unk_0[4 + local_player_index * 4];
@@ -495,7 +495,7 @@ void player_control_fix_for_loaded_game_state(void)
       for (local_player_index = 0;
            local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS;
            local_player_index++) {
-        assert_halt(local_player_index >= NONE &&
+        assert_halt_msg_at("local_player_index>=NONE && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\game\\players.c", 0x3ab, local_player_index >= NONE &&
                     local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
         if (local_player_index != NONE) {
           player_index =

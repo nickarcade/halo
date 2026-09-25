@@ -101,9 +101,9 @@ unsigned short *FUN_00080470(int buffer, unsigned short buffer_size,
 {
   unsigned int packed_data[6];
 
-  assert_halt_msg(prime != (unsigned int *)0 && g != (unsigned int *)0 &&
-                    key != (unsigned int *)0,
-                  "prime && g && key");
+  assert_halt_msg_at("prime && g && key", "c:\\halo\\SOURCE\\bungie_net\\common\\key_agreement.c", 0xa2,
+      prime != (unsigned int *)0 && g != (unsigned int *)0 &&
+                    key != (unsigned int *)0);
 
   packed_data[0] = prime[0];
   packed_data[1] = prime[1];
@@ -131,7 +131,7 @@ unsigned short *FUN_000804e0(int buffer, unsigned short buffer_size,
 {
   unsigned int packed_data[2];
 
-  assert_halt_msg(key != (unsigned int *)0, "key");
+  assert_halt_msg_at("key", "c:\\halo\\SOURCE\\bungie_net\\common\\key_agreement.c", 0xb3, key != (unsigned int *)0);
 
   packed_data[0] = key[0];
   packed_data[1] = key[1];
@@ -158,9 +158,9 @@ int key_agreement_peek_packet_type(unsigned char *msgptr,
   unsigned char hdr_byte;
   unsigned char type_byte;
 
-  assert_halt_msg(msgptr != (unsigned char *)0 &&
-                    packet_type != (unsigned char *)0,
-                  "msgptr && packet_type");
+  assert_halt_msg_at("msgptr && packet_type", "c:\\halo\\SOURCE\\bungie_net\\common\\key_agreement.c", 0xc4,
+      msgptr != (unsigned char *)0 &&
+                    packet_type != (unsigned char *)0);
 
   type_byte = msgptr[msg_size - 1];
   hdr_byte = *msgptr;
@@ -430,8 +430,8 @@ void message_encrypt(unsigned short *msgptr, unsigned int *key)
   unsigned int i;
   unsigned int flags;
 
-  assert_halt_msg(msgptr != (unsigned short *)0 && key != (unsigned int *)0,
-                  "msgptr && key");
+  assert_halt_msg_at("msgptr && key", "c:\\halo\\SOURCE\\bungie_net\\common\\message_encryption.c", 0x1f,
+      msgptr != (unsigned short *)0 && key != (unsigned int *)0);
 
   hdr = *msgptr;
   flags = (unsigned int)(hdr & 3);
@@ -458,8 +458,8 @@ void message_encrypt(unsigned short *msgptr, unsigned int *key)
       key_message_xor_keystream((int)cursor, (int)(short)remain, (int)key, 8);
     }
     hdr = (unsigned short)flags | 1;
-    assert_halt_msg(!(3 < hdr),
-                    "(0<=flags) && ((flags)<=MESSAGE_FLAG_BITS_MASK)");
+    assert_halt_msg_at("(0<=flags) && ((flags)<=MESSAGE_FLAG_BITS_MASK)", "c:\\halo\\SOURCE\\bungie_net\\common\\message_encryption.c", 0x4c,
+        !(3 < hdr));
     *msgptr = (*msgptr & 0xfffc) | hdr;
   }
 }
@@ -478,8 +478,8 @@ void message_decrypt(unsigned short *msgptr, unsigned int *key)
   unsigned int key_copy[4];
   unsigned int i;
 
-  assert_halt_msg(msgptr != (unsigned short *)0 && key != (unsigned int *)0,
-                  "msgptr && key");
+  assert_halt_msg_at("msgptr && key", "c:\\halo\\SOURCE\\bungie_net\\common\\message_encryption.c", 0x58,
+      msgptr != (unsigned short *)0 && key != (unsigned int *)0);
 
   hdr = *msgptr;
   if ((hdr & 1) != 0) {
@@ -504,8 +504,8 @@ void message_decrypt(unsigned short *msgptr, unsigned int *key)
     if ((short)remain != 0) {
       key_message_xor_keystream((int)cursor, (int)(short)remain, (int)key, 8);
     }
-    assert_halt_msg(!(3 < (hdr & 2)),
-                    "(0<=flags) && ((flags)<=MESSAGE_FLAG_BITS_MASK)");
+    assert_halt_msg_at("(0<=flags) && ((flags)<=MESSAGE_FLAG_BITS_MASK)", "c:\\halo\\SOURCE\\bungie_net\\common\\message_encryption.c", 0x83,
+        !(3 < (hdr & 2)));
     *msgptr = (*msgptr & 0xfffc) | (hdr & 2);
   }
 }
@@ -518,8 +518,8 @@ void build_message_header(unsigned short *header, unsigned short length,
                           unsigned char type, unsigned char flags)
 {
   assert_halt_msg(header != (unsigned short *)0, "header != NULL");
-  assert_halt_msg((0 <= (int)length) && ((int)length <= 0xfff),
-                  "(0<=(length)) && ((length)<=MAXIMUM_MESSAGE_SIZE)");
+  assert_halt_msg_at("(0<=(length)) && ((length)<=MAXIMUM_MESSAGE_SIZE)", "c:\\halo\\SOURCE\\bungie_net\\common\\message_header.c", 0x45,
+      (0 <= (int)length) && ((int)length <= 0xfff));
 
   *header = (*header & 0xf) | (length << 4);
 
@@ -532,12 +532,12 @@ void build_message_header(unsigned short *header, unsigned short length,
 bad_type:
   /* assert_halt_msg(0,...) is noreturn (system_exit); control never falls
    * through into good_type. Layout matches the original's forward branches. */
-  assert_halt_msg(0, "(0<(type)) && ((type)<NUMBER_OF_MESSAGE_TYPES)");
+  assert_halt_msg_at("(0<(type)) && ((type)<NUMBER_OF_MESSAGE_TYPES)", "c:\\halo\\SOURCE\\bungie_net\\common\\message_header.c", 0x46, 0);
 
 good_type:
   *header = ((unsigned short)(type & 3) << 2) | (*header & 0xfff3);
-  assert_halt_msg((0 <= (int)flags) && ((int)flags <= 3),
-                  "(0<=flags) && ((flags)<=MESSAGE_FLAG_BITS_MASK)");
+  assert_halt_msg_at("(0<=flags) && ((flags)<=MESSAGE_FLAG_BITS_MASK)", "c:\\halo\\SOURCE\\bungie_net\\common\\message_header.c", 0x47,
+      (0 <= (int)flags) && ((int)flags <= 3));
   *header = (*header & 0xfffc) | (unsigned short)flags;
 }
 
@@ -552,7 +552,7 @@ __declspec(noinline) void byte_swap_message_header(unsigned short *header,
 {
   unsigned short v;
 
-  assert_halt_msg(header != (unsigned short *)0, "header");
+  assert_halt_msg_at("header", "c:\\halo\\SOURCE\\bungie_net\\common\\message_header.c", 0x50, header != (unsigned short *)0);
 
   if (byte_order == 1) {
     v = *header;
@@ -565,7 +565,7 @@ __declspec(noinline) void byte_swap_message_header(unsigned short *header,
     return;
   }
 
-  assert_halt_msg(0, "!\"bad value for byte order\"");
+  assert_halt_msg_at("!\"bad value for byte order\"", "c:\\halo\\SOURCE\\bungie_net\\common\\message_header.c", 0x5e, 0);
 }
 
 /* 0x80ca0 - Allocate (or use a provided buffer) and build a complete message.
@@ -588,7 +588,7 @@ int create_message(int type, int payload, unsigned int payload_len, int buffer,
   /* assert_halt_msg(0,...) is noreturn (system_exit); control never falls
    * through into do_malloc. The malloc block is hoisted after the size check
    * so buffer==0 forward-jumps to it, matching the original's layout. */
-  assert_halt_msg(0, "buffer_size >= message_size");
+  assert_halt_msg_at("buffer_size >= message_size", "c:\\halo\\SOURCE\\bungie_net\\common\\message_header.c", 0x29, 0);
 
 do_malloc:
   buffer = (int)debug_malloc(
@@ -645,7 +645,7 @@ unsigned int *sieve_of_eratosthenes(unsigned int limit,
   uVar5 = 0;
   local_8 = 0;
 
-  assert_halt_msg(num_primes != (unsigned int *)0, "num_primes");
+  assert_halt_msg_at("num_primes", "c:\\halo\\SOURCE\\bungie_net\\common\\prime_numbers.c", 0x3d, num_primes != (unsigned int *)0);
 
   if (limit < 2) {
     *num_primes = 0;
@@ -758,7 +758,7 @@ void FUN_00080f00(uint16_t *result)
   math64_qword_t prime;
   math64_qword_t two;
 
-  assert_halt_msg(result != (uint16_t *)0, "result");
+  assert_halt_msg_at("result", "c:\\halo\\SOURCE\\bungie_net\\common\\prime_numbers.c", 0x96, result != (uint16_t *)0);
 
   acc = (math64_qword_t *)result;
   acc->qword = 1;

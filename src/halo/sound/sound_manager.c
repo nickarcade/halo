@@ -1237,7 +1237,7 @@ void *sound_listener_get(short listener_index /* @<si> */)
 {
   short index = listener_index;
 
-  assert_halt(index >= 0 && index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("index>=0 && index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x430, index >= 0 && index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   return (void *)(0x4eaf58 + (int)index * 0x44);
 }

@@ -24,10 +24,10 @@ void network_server_allow_client_connections(int server_connection, bool open)
   network_server_connection *server;
 
   server = (network_server_connection *)server_connection;
-  assert_halt(server_connection);
-  assert_halt_msg(
-    *(uint8_t *)&server->connection.flags & FLAG(_connection_create_server_bit),
-    "server_connection->flags&FLAG(_connection_create_server_bit)");
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x151, server_connection);
+  assert_halt_msg_at("server_connection->flags&FLAG(_connection_create_server_bit)", "c:\\halo\\SOURCE\\networking\\network_connection.c",
+      0x152,
+      *(uint8_t *)&server->connection.flags & FLAG(_connection_create_server_bit));
   server->allow_client_connections = open;
 }
 
@@ -42,7 +42,7 @@ bool network_connection_connected(int connection)
   network_connection *conn;
 
   conn = (network_connection *)connection;
-  assert_halt(connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x15c, connection);
   if ((*(uint8_t *)&conn->flags &
        (FLAG(_connection_create_clientside_client_bit) |
         FLAG(_connection_create_serverside_client_bit))) != 0 &&
@@ -66,7 +66,7 @@ void network_connection_get_address(int connection, void *buf, int flag)
 {
   network_connection *conn;
 
-  assert_halt(connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x292, connection);
   conn = (network_connection *)connection;
   if (buf != (void *)0 &&
       (conn->reliable_endpoint == 0 ||
@@ -106,8 +106,8 @@ bool network_connection_connect(int connection, int remote_address,
   const char *err;
 
   conn = (network_connection *)connection;
-  assert_halt(connection);
-  assert_halt(remote_address);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x2c0, connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x2c1, remote_address);
 
   if (conn->reliable_endpoint == 0 && conn->unreliable_endpoint == 0) {
     return false;
@@ -154,7 +154,7 @@ void network_connection_set_connection_rejection_procedure(int connection,
   network_connection *conn;
 
   conn = (network_connection *)connection;
-  assert_halt(connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x318, connection);
   conn->rejection_procedure = (connection_rejection_procedure)callback;
 }
 
@@ -175,11 +175,11 @@ bool network_connection_server_accept_client_connection(int server_connection,
 
   server = (network_server_connection *)server_connection;
   client = (network_connection *)client_connection;
-  assert_halt(server_connection);
-  assert_halt_msg(
-    *(uint8_t *)&server->connection.flags & FLAG(_connection_create_server_bit),
-    "server_connection->flags&FLAG(_connection_create_server_bit)");
-  assert_halt(client_connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x324, server_connection);
+  assert_halt_msg_at("server_connection->flags&FLAG(_connection_create_server_bit)", "c:\\halo\\SOURCE\\networking\\network_connection.c",
+      0x325,
+      *(uint8_t *)&server->connection.flags & FLAG(_connection_create_server_bit));
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x326, client_connection);
   return (short)add_endpoint_to_set(client->reliable_endpoint,
                                     (void *)server->endpoint_set) == 0;
 }
@@ -194,7 +194,7 @@ bool network_connection_active(int connection)
   network_connection *conn;
 
   conn = (network_connection *)connection;
-  assert_halt(connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x330, connection);
   return ((conn->flags >> _connection_closed_bit) & 1) == 0;
 }
 
@@ -208,7 +208,7 @@ bool network_connection_going_stale(int connection)
   network_connection *conn;
 
   conn = (network_connection *)connection;
-  assert_halt(connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x338, connection);
   return (conn->flags >> _connection_going_stale_bit) & 1;
 }
 
@@ -246,7 +246,7 @@ bool network_client_unreliable_connection_read(int connection, void *buffer, int
     "!(connection->flags&FLAG(_connection_create_serverside_client_bit))");
   assert_halt(buffer);
   assert_halt(size);
-  assert_halt_msg(*buf_size > 2, "*buffer_size>sizeof(message_header)");
+  assert_halt_msg_at("*buffer_size>sizeof(message_header)", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x3bd, *buf_size > 2);
 
   if (!circular_queue_try_read(conn->unreliable_incoming_queue, &header, 2,
                                0)) {
@@ -280,7 +280,7 @@ bool network_client_unreliable_connection_read(int connection, void *buffer, int
       circular_queue_try_read(conn->unreliable_incoming_queue, &source_addr, 4,
                               1)) {
     *(unsigned short *)buffer = header;
-    assert_halt_msg((header & 1) == 0, "encryption should not be active");
+    assert_halt_msg_at("encryption should not be active", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x3df, (header & 1) == 0);
     if (addr != (void *)0) {
       *(int *)addr = source_addr;
       *(unsigned short *)((char *)addr + 0x12) = 0;
@@ -329,7 +329,7 @@ void network_connection_log_traffic_event(int event, int enable,
   const char *addr_str;
 
   conn = (network_connection *)connection;
-  assert_halt(connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x4cc, connection);
 
   if (enable <= 0) {
     return;
@@ -466,7 +466,7 @@ void network_connection_log_traffic_event(int event, int enable,
     return;
 
   default:
-    assert_halt_msg(0, "!\"unknown traffic event\"");
+    assert_halt_msg_at("!\"unknown traffic event\"", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x557, 0);
   }
 }
 
@@ -590,9 +590,9 @@ bool network_connection_write(void *connection, void *message,
   conn = (network_connection *)connection;
   result = 0;
 
-  assert_halt(message);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x170, message);
   assert_halt(size);
-  assert_halt(connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x172, connection);
   assert_halt_msg((*(unsigned short *)message >> 4) == size,
                   "(message->message_size >> 4) == buffer_size");
 
@@ -600,12 +600,12 @@ bool network_connection_write(void *connection, void *message,
 
   if ((*(uint8_t *)&conn->flags & FLAG(_connection_create_server_bit)) != 0) {
     /* loopback / datagram path */
-    assert_halt_msg(reliable == 0, "!reliable");
-    assert_halt_msg(dest_address != 0, "dest_address");
+    assert_halt_msg_at("!reliable", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x17b, reliable == 0);
+    assert_halt_msg_at("dest_address", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x17c, dest_address != 0);
     if (size > DATAGRAM_MAXIMUM_SIZE) {
       error(2, "buffer size was %d max is %d", size, DATAGRAM_MAXIMUM_SIZE);
-      assert_halt_msg(size <= DATAGRAM_MAXIMUM_SIZE,
-                      "buffer_size <= DATAGRAM_MAXIMUM_SIZE");
+      assert_halt_msg_at("buffer_size <= DATAGRAM_MAXIMUM_SIZE", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x182,
+          size <= DATAGRAM_MAXIMUM_SIZE);
     }
     result =
       FUN_00084740((transport_endpoint *)conn->unreliable_endpoint, message,
@@ -616,7 +616,7 @@ bool network_connection_write(void *connection, void *message,
 
   if (reliable != 0) {
     /* normal reliable path */
-    assert_halt_msg(size <= 0x800, "message size exceeds maximum allowed size");
+    assert_halt_msg_at("message size exceeds maximum allowed size", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x18e, size <= 0x800);
     assert_halt_msg((*(uint8_t *)&conn->flags &
                      (FLAG(_connection_create_clientside_client_bit) |
                       FLAG(_connection_create_serverside_client_bit))) != 0,
@@ -656,8 +656,8 @@ bool network_connection_write(void *connection, void *message,
   if (conn->unreliable_endpoint == 0) {
     return true;
   }
-  assert_halt_msg(size <= DATAGRAM_MAXIMUM_SIZE,
-                  "message size exceeds maximum allowed size");
+  assert_halt_msg_at("message size exceeds maximum allowed size", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1b0,
+      size <= DATAGRAM_MAXIMUM_SIZE);
   if (dest_address == 0) {
     if (FUN_000831a0(conn->unreliable_endpoint)) {
       send_endpoint((int *)conn->unreliable_endpoint, (const char *)message,
@@ -732,11 +732,11 @@ bool network_client_reliable_connection_read(int connection, void *buffer, int *
   conn = (network_connection *)connection;
   buf_size = (unsigned short *)size;
 
-  assert_halt_msg(connection != 0 && conn->reliable_incoming_queue != 0,
-                  "connection && connection->reliable_incoming_queue");
+  assert_halt_msg_at("connection && connection->reliable_incoming_queue", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x371,
+      connection != 0 && conn->reliable_incoming_queue != 0);
   assert_halt(buffer);
   assert_halt(size);
-  assert_halt_msg(*buf_size > 2, "*buffer_size>sizeof(message_header)");
+  assert_halt_msg_at("*buffer_size>sizeof(message_header)", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x374, *buf_size > 2);
 
   if (!circular_queue_try_read(conn->reliable_incoming_queue, &header, 2, 0)) {
     return false;
@@ -767,7 +767,7 @@ bool network_client_reliable_connection_read(int connection, void *buffer, int *
       circular_queue_try_read(conn->reliable_incoming_queue, buffer,
                               packet_size, 1)) {
     *(unsigned short *)buffer = header;
-    assert_halt_msg((header & 1) == 0, "encryption should not be active");
+    assert_halt_msg_at("encryption should not be active", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x394, (header & 1) == 0);
     if (addr != (void *)0) {
       if (FUN_00083a60((int *)conn->reliable_endpoint, addr) != 0) {
         csmemset(addr, 0, 0x18);
@@ -811,11 +811,11 @@ bool network_connection_idle_client_reliable_endpoint(int connection)
   start_time = (int)system_milliseconds();
   ok = true;
 
-  assert_halt(connection);
-  assert_halt_msg(conn->reliable_endpoint != 0,
-                  "connection->reliable_endpoint");
-  assert_halt_msg(conn->reliable_incoming_queue != 0,
-                  "connection->reliable_incoming_queue");
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x481, connection);
+  assert_halt_msg_at("connection->reliable_endpoint", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x482,
+      conn->reliable_endpoint != 0);
+  assert_halt_msg_at("connection->reliable_incoming_queue", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x483,
+      conn->reliable_incoming_queue != 0);
 
   avail = (int)circular_queue_free_space(conn->reliable_incoming_queue);
 
@@ -1038,9 +1038,9 @@ bool network_connection_idle_server_reliable_endpoint(int connection, int *outpu
   ok = true;
 
   assert_halt(connection);
-  assert_halt_msg(server->connection.reliable_endpoint != 0,
-                  "connection->connection.reliable_endpoint");
-  assert_halt_msg(server->endpoint_set != 0, "connection->endpoint_set");
+  assert_halt_msg_at("connection->connection.reliable_endpoint", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x406,
+      server->connection.reliable_endpoint != 0);
+  assert_halt_msg_at("connection->endpoint_set", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x407, server->endpoint_set != 0);
   assert_halt(output);
 
   *output = 0;
@@ -1122,7 +1122,7 @@ bool network_connection_idle_server_reliable_endpoint(int connection, int *outpu
             i = i + 1;
             slot = slot + 1;
           } while (i < 4);
-          assert_halt_msg(0, "rogue endpoint connected to the server");
+          assert_halt_msg_at("rogue endpoint connected to the server", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x469, 0);
         }
       }
     next_endpoint:;

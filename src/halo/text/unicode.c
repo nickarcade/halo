@@ -195,7 +195,7 @@ int ustrncmp(const wchar_t *s1, const wchar_t *s2, size_t count)
 
 wchar_t *ustrncpy(wchar_t *dest, wchar_t *src, size_t count)
 {
-  assert_halt(dest && src);
+  assert_halt_at("c:\\halo\\SOURCE\\text\\unicode.c", 0x136, dest && src);
   assert_halt(count < 0x8000);
   _wcsncpy(dest, src, count);
   return dest;
@@ -1402,7 +1402,7 @@ char *wide_to_ascii(const wchar_t *unicode, char *ascii, int size)
   unsigned int length;
   unsigned int i;
 
-  assert_halt(unicode && ascii);
+  assert_halt_at("c:\\halo\\SOURCE\\text\\unicode.c", 0x410, unicode && ascii);
   length = _wcslen(unicode);
   assert_halt(length < 0x8000);
 
@@ -1427,7 +1427,7 @@ wchar_t *ascii_to_wide(const char *ascii, wchar_t *unicode, size_t length)
   int len;
   int i;
 
-  assert_halt(ascii && unicode);
+  assert_halt_at("c:\\halo\\SOURCE\\text\\unicode.c", 0x43f, ascii && unicode);
   len = csstrlen(ascii);
   assert_halt(len < 0x8000);
 

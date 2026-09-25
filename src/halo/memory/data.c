@@ -6,10 +6,10 @@ int data_allocation_size(__int16 count, __int16 size)
 void data_initialize(data_t *data, char *name, __int16 maximum_count,
                      __int16 size)
 {
-  assert_halt(maximum_count > 0);
-  assert_halt(size > 0);
-  assert_halt(name);
-  assert_halt(data);
+  assert_halt_msg_at("maximum_count>0", "c:\\halo\\SOURCE\\memory\\data.c", 0x40, maximum_count > 0);
+  assert_halt_msg_at("size>0", "c:\\halo\\SOURCE\\memory\\data.c", 0x41, size > 0);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0x42, name);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0x43, data);
 
   csmemset(data, 0, sizeof(*data));
   csstrncpy(data->name, name, sizeof(data->name) - 1);
@@ -27,11 +27,11 @@ int datum_absolute_index_to_index(data_t *data, int absolute_index)
   int16_t *datum;
 
   if (absolute_index != NONE) {
-    assert_halt(data->valid);
+    assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0x173, data->valid);
 
     identifier = (int16_t)(absolute_index >> 16);
     if (identifier == 0 && data->identifier_zero_invalid) {
-      assert_halt_msg(0, "identifier || !data->identifier_zero_invalid");
+      assert_halt_msg_at("identifier || !data->identifier_zero_invalid", "c:\\halo\\SOURCE\\memory\\data.c", 0x174, 0);
     }
 
     index = (int16_t)absolute_index;
@@ -54,11 +54,11 @@ void *datum_get(data_t *data, int datum_handle)
   int16_t index; // index (lower 16 bits)
   int16_t *datum;
 
-  assert_halt(data->valid);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0x18c, data->valid);
 
   identifier = (int16_t)(datum_handle >> 16);
   if (identifier == 0 && data->identifier_zero_invalid) {
-    assert_halt_msg(0, "identifier || !data->identifier_zero_invalid");
+    assert_halt_msg_at("identifier || !data->identifier_zero_invalid", "c:\\halo\\SOURCE\\memory\\data.c", 0x18d, 0);
   }
 
   index = (int16_t)datum_handle;
@@ -156,7 +156,7 @@ int data_new_datum(data_t *data, int handle)
   int16_t *datum;
 
   data_verify(data);
-  assert_halt(data->valid);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0x7b, data->valid);
 
   index = (int16_t)handle;
   identifier = (int16_t)(handle >> 16);
@@ -181,7 +181,7 @@ int data_new_at_index(data_t *data)
   int16_t *datum;
 
   data_verify(data);
-  assert_halt(data->valid);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0xa3, data->valid);
 
   search = *(int16_t *)data->unk_44;
   size = (int)data->size;
@@ -233,7 +233,7 @@ void data_make_valid(data_t *data)
   int16_t i;
 
   data_verify(data);
-  assert_halt(data->valid);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0xe2, data->valid);
 
   data->current_count = 0;
   data->unk_48 = 0;
@@ -249,7 +249,7 @@ void data_make_valid(data_t *data)
 void data_iterator_new(data_iter_t *iter, data_t *data)
 {
   data_verify(data);
-  assert_halt(data->valid);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0xf9, data->valid);
 
   iter->data = data;
   iter->cookie = (unsigned int)data ^ 0x69746572;
@@ -265,11 +265,11 @@ void *data_iterator_next(data_iter_t *iterator)
   void *result;
   int handle;
 
-  assert_halt_msg(iterator->cookie ==
-                    ((unsigned int)iterator->data ^ 0x69746572),
-                  "uninitialized iterator passed to iterator_next()");
+  assert_halt_msg_at("uninitialized iterator passed to iterator_next()", "c:\\halo\\SOURCE\\memory\\data.c", 0x10c,
+      iterator->cookie ==
+                    ((unsigned int)iterator->data ^ 0x69746572));
   data_verify(iterator->data);
-  assert_halt(iterator->data->valid);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0x10f, iterator->data->valid);
 
   data = iterator->data;
   index = (int16_t)iterator->index;
@@ -301,7 +301,7 @@ int data_next_index(data_t *data, int prev_index)
   result = NONE;
   prev_index++;
   data_verify(data);
-  assert_halt(data->valid);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\data.c", 0x12f, data->valid);
 
   if ((short)prev_index >= 0 && (short)prev_index < data->current_count) {
     datum = (short *)((char *)data->data + (int)(short)prev_index * data->size);

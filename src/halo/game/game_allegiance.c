@@ -15,7 +15,7 @@ void game_allegiance_initialize_for_new_map(void)
   int bit;
   int i;
 
-  assert_halt(game_allegiance_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_allegiance.c", 0x57, game_allegiance_globals);
 
   *(int16_t *)game_allegiance_globals = 0;
   csmemset(game_allegiance_globals + 0x94, 0, 0x10);

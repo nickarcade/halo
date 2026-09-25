@@ -223,7 +223,7 @@ bool network_connection_idle(int connection, int timeout, int *output)
   now = system_milliseconds();
   ok = true;
 
-  assert_halt(connection);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x21d, connection);
   conn = (network_connection *)connection;
 
   raw_flags = conn->flags;
@@ -306,7 +306,7 @@ bool network_connection_idle(int connection, int timeout, int *output)
     }
 
     if (bytes_read > 400) {
-      assert_halt_msg(0, "endpoint read buffer overflowed");
+      assert_halt_msg_at("endpoint read buffer overflowed", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x26d, 0);
     }
 
     if (bytes_read <= 0)

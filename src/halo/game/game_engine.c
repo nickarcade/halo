@@ -517,7 +517,7 @@ bool game_engine_allow_weapon_pick_up(int unit_handle, int weapon_handle)
 void game_engine_player_damaged_player(int param_1, int dead_player_index,
                                        int param_3)
 {
-  assert_halt(dead_player_index != NONE);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_engine.c", 0x9a2, dead_player_index != NONE);
   if (current_game_engine) {
     void (*fn)(int, int, int) =
       ((void (**)(int, int, int))current_game_engine)[0x5c / 4];

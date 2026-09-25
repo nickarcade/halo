@@ -175,7 +175,7 @@ void game_precache_new_map(char *map_name, bool a2)
   if (cache_files_precache_map_loaded(map_name)) {
   LABEL_22:
     if (a2) {
-      assert_halt(cache_files_precache_map_loaded(map_name));
+      assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x11a, cache_files_precache_map_loaded(map_name));
       main_save_current_solo_map(map_name);
       main_queue_map_name(NULL);
 
@@ -213,7 +213,7 @@ void game_precache_new_map(char *map_name, bool a2)
   if (a2) {
     game_globals->map_loading = true;
     game_globals->map_load_progress = 0.0f;
-    assert_halt(cache_files_precache_in_progress() &&
+    assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x105, cache_files_precache_in_progress() &&
                 cache_files_precache_is_copying_map(map_name));
     ui_widget_load_progress_widget();
     progress_bar_begin(global_scenario_index != -1);
@@ -233,7 +233,7 @@ void game_precache_new_map(char *map_name, bool a2)
       display_error_damaged_media();
 
     cache_files_precache_map_end();
-    assert_halt(cache_files_precache_map_loaded(map_name));
+    assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x123, cache_files_precache_map_loaded(map_name));
 
     game_globals->map_loading = false;
     game_globals->map_load_progress = 1.0f;
@@ -323,7 +323,7 @@ void game_frame(float elapsed)
   if (game_globals->players_double_speed)
     elapsed *= 0.5f;
 
-  assert_halt(game_globals->active);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x249, game_globals->active);
 
   collision_log_begin_period(1);
   particles_update(elapsed);
@@ -376,7 +376,7 @@ void game_tick(void)
   if (profile_global_enable && byte_2EF808)
     profile_enter_private(&off_2EF800);
 
-  assert_halt(game_globals->active);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x28d, game_globals->active);
 
   remove_quitting_players_from_game();
   game_allegiance_update();
@@ -571,9 +571,9 @@ bool game_load(game_options_t *options)
   game_globals_t *globals;
   bool loaded;
 
-  assert_halt(!game_globals->active);
-  assert_halt(!game_globals->map_loaded);
-  assert_halt(game_options_verify(options));
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x192, !game_globals->active);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x193, !game_globals->map_loaded);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x194, game_options_verify(options));
 
   random_seed_debug_log(1);
   csmemcpy(&game_globals->game_options, options, sizeof(*options));
@@ -592,8 +592,8 @@ void game_initialize_for_new_map(void)
 {
   int random_seed;
 
-  assert_halt(game_globals->map_loaded);
-  assert_halt(!game_globals->active);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x1d1, game_globals->map_loaded);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x1d2, !game_globals->active);
 
   random_seed = game_globals->game_options.random_seed;
 #ifdef HALO_RNG_TRACE

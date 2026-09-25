@@ -14397,10 +14397,10 @@ char unit_update(int unit_handle)
         if ((*(uint32_t *)(wpn_tag + 0x308) & 0x4000) != 0 &&
             (*(unsigned char *)((char *)unit + 0x1b8) & 0x10) != 0) {
           game_glob = (int)game_globals_get();
-          assert_halt_msg(game_glob != 0, "game_globals");
+          assert_halt_msg_at("game_globals", "c:\\halo\\SOURCE\\units\\units.c", 0x516, game_glob != 0);
           fp_iface =
             (int)tag_block_get_element((void *)(game_glob + 0x17c), 0, 0xc0);
-          assert_halt_msg(fp_iface != 0, "game_globals_first_person_interface");
+          assert_halt_msg_at("game_globals_first_person_interface", "c:\\halo\\SOURCE\\units\\units.c", 0x518, fp_iface != 0);
           if ((unit[0x6d] & 0x4000000) == 0) {
             i10 = *(int *)(fp_iface + 0x54);
           } else {

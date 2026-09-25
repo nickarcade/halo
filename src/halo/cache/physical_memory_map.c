@@ -14,23 +14,23 @@ void physical_memory_allocate(void)
 {
   physical_memory_map_globals.game_state_base_address =
     XPhysicalAlloc(0x345000, GAME_STATE_BASE_ADDRESS - 0x80000000, 0, 4);
-  assert_halt(
-    (unsigned long)physical_memory_map_globals.game_state_base_address ==
+  assert_halt_msg_at("(unsigned long)physical_memory_map_globals.game_state_base_address==GAME_STATE_BASE_ADDRESS", "c:\\halo\\SOURCE\\cache\\physical_memory_map.c", 0x2e,
+      (unsigned long)physical_memory_map_globals.game_state_base_address ==
     GAME_STATE_BASE_ADDRESS);
 
   physical_memory_map_globals.tag_cache_base_address = XPhysicalAlloc(
     HALO_TAG_CACHE_SIZE, TAG_CACHE_BASE_ADDRESS - 0x80000000, 0, 4);
-  assert_halt(
-    (unsigned long)physical_memory_map_globals.tag_cache_base_address ==
+  assert_halt_msg_at("(unsigned long)physical_memory_map_globals.tag_cache_base_address==TAG_CACHE_BASE_ADDRESS", "c:\\halo\\SOURCE\\cache\\physical_memory_map.c", 0x32,
+      (unsigned long)physical_memory_map_globals.tag_cache_base_address ==
     TAG_CACHE_BASE_ADDRESS);
 
   physical_memory_map_globals.texture_cache_base_address =
     XPhysicalAlloc(HALO_TEXTURE_CACHE_SIZE, (uint32_t)-1, 0, 0x404);
-  assert_halt(physical_memory_map_globals.texture_cache_base_address);
+  assert_halt_at("c:\\halo\\SOURCE\\cache\\physical_memory_map.c", 0x37, physical_memory_map_globals.texture_cache_base_address);
 
   physical_memory_map_globals.sound_cache_base_address =
     XPhysicalAlloc(HALO_SOUND_CACHE_SIZE, (uint32_t)-1, 0, 4);
-  assert_halt(physical_memory_map_globals.sound_cache_base_address);
+  assert_halt_at("c:\\halo\\SOURCE\\cache\\physical_memory_map.c", 0x3a, physical_memory_map_globals.sound_cache_base_address);
 }
 
 /* Verify all physical memory map pages are read-write accessible. */
@@ -44,7 +44,7 @@ void physical_memory_map_verify(void)
        addr += 0x1000)
   {
     page_status = MmQueryAddressProtect((void *)addr);
-    assert_halt(page_status == PAGE_READWRITE);
+    assert_halt_at("c:\\halo\\SOURCE\\cache\\physical_memory_map.c", 0x4d, page_status == PAGE_READWRITE);
   }
 
   for (addr = (unsigned int)physical_memory_map_globals.game_state_base_address;
@@ -52,7 +52,7 @@ void physical_memory_map_verify(void)
        addr += 0x1000)
   {
     page_status = MmQueryAddressProtect((void *)addr);
-    assert_halt(page_status == PAGE_READWRITE);
+    assert_halt_at("c:\\halo\\SOURCE\\cache\\physical_memory_map.c", 0x56, page_status == PAGE_READWRITE);
   }
 }
 

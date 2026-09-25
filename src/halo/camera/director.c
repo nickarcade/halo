@@ -254,7 +254,7 @@ void director_dispose(void)
  * (base 0x3352b4 + local_player_index * 0xf8). */
 void director_inhibit_facing(int16_t local_player_index)
 {
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   ((char *)0x335301)[(int)local_player_index * 0xf8] = 1;
 }
@@ -274,7 +274,7 @@ void director_set_local_player_context(int16_t player_index)
  * Reference returns the raw byte in AL (no test), so the load is typed bool. */
 bool director_inhibited_facing(short local_player_index)
 {
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   return ((bool *)0x335301)[(int)local_player_index * 0xf8];
 }
@@ -285,7 +285,7 @@ bool director_inhibited_facing(short local_player_index)
  * Reference returns the raw byte in AL (no test), so the load is typed bool. */
 bool director_inhibited_input(short local_player_index)
 {
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   return ((bool *)0x335302)[(int)local_player_index * 0xf8];
 }
@@ -298,7 +298,7 @@ bool director_inhibited_input(short local_player_index)
  * flag byte at 0x3352ae so the next update re-dispatches the camera. */
 void director_set_mode(int16_t mode)
 {
-  assert_halt(mode >= 0 && mode < NUMBER_OF_DIRECTOR_GAME_MODES);
+  assert_halt_msg_at("mode>=0 && mode<NUMBER_OF_DIRECTOR_GAME_MODES", "c:\\halo\\SOURCE\\camera\\director.c", 0x180, mode >= 0 && mode < NUMBER_OF_DIRECTOR_GAME_MODES);
   if (*(int16_t *)0x3352ac != mode) {
     *(int16_t *)0x3352ac = mode;
     *(uint8_t *)0x3352ae = 1;
@@ -505,7 +505,7 @@ void director_init_player_cameras(int16_t local_player_index)
   char *dst;
   int i;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   src = (uint32_t *)0x2ee604;
@@ -679,7 +679,7 @@ void director_set_player_camera_normal(int16_t local_player_index,
   int16_t local_word;
   int16_t result;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   base = (char *)0x3352b4 + (int)local_player_index * 0xf8;
@@ -688,7 +688,7 @@ void director_set_player_camera_normal(int16_t local_player_index,
     /* 0x88c40: zero camera-data first dword. */
     ((void (*)(void *))0x88c40)((void *)(base + 8));
 
-    assert_halt(local_player_index >= 0 &&
+    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
                 local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     *(uint8_t *)(base + 0xbc) = 0;
@@ -733,7 +733,7 @@ void director_set_player_camera_normal(int16_t local_player_index,
   if (current_camera != (void *)0x85c80)
     return;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   /* 0xb6870: lookup player's unit handle. */
@@ -770,7 +770,7 @@ void director_set_player_camera_scripted(int16_t local_player_index,
 {
   char *base;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   base = (char *)0x3352b4 + (int)local_player_index * 0xf8;
@@ -780,7 +780,7 @@ void director_set_player_camera_scripted(int16_t local_player_index,
     ((void (*)(void *, int16_t))0x87800)((void *)(base + 8),
                                          local_player_index);
 
-    assert_halt(local_player_index >= 0 &&
+    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
                 local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     *(uint32_t *)(base + 4) = 0x87f20;
@@ -808,7 +808,7 @@ void director_apply_replay_mode_for_player(char reset_flag,
   char *base;
 
   if (reset_flag != 0) {
-    assert_halt(local_player_index >= 0 &&
+    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
                 local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     base = (char *)0x3352b4 + (int)local_player_index * 0xf8;
@@ -816,7 +816,7 @@ void director_apply_replay_mode_for_player(char reset_flag,
     /* 0x88c40: camera-data init helper (cdecl: camera_data_ptr). */
     ((void (*)(void *))0x88c40)((void *)(base + 8));
 
-    assert_halt(local_player_index >= 0 &&
+    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
                 local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     *(uint32_t *)(base + 4) = 0x89270;

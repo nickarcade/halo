@@ -1075,7 +1075,7 @@ void lruv_cache_set_callbacks(void *cache, void (*delete_cb)(int),
 bool lruv_cache_has_query_cb(void *cache)
 {
   lruv_cache_t *c;
-  assert_halt(cache);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x277, cache);
   c = (lruv_cache_t *)cache;
   return c->query_cb != 0;
 }
@@ -1087,7 +1087,7 @@ void lruv_cache_verify(void *cache, char do_full_check)
 {
   lruv_cache_t *c = (lruv_cache_t *)cache;
 
-  assert_halt(cache);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x2f2, cache);
   assert_halt(c->signature == LRUV_CACHE_SIGNATURE);
 
   data_verify(c->blocks);
@@ -1104,9 +1104,9 @@ void lruv_cache_verify(void *cache, char do_full_check)
       } else {
         lruv_cache_block_t *previous_block = (lruv_cache_block_t *)datum_get(
           c->blocks, block->previous_block_index);
-        assert_halt(previous_block->next_block_index == block_index);
-        assert_halt(previous_block->first_page_index < block->first_page_index);
-        assert_halt(previous_block->first_page_index +
+        assert_halt_msg_at("previous_block->next_block_index==block_index", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x308, previous_block->next_block_index == block_index);
+        assert_halt_msg_at("previous_block->first_page_index<block->first_page_index", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x309, previous_block->first_page_index < block->first_page_index);
+        assert_halt_msg_at("previous_block->first_page_index+previous_block->page_count<=block->first_page_index", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x30a, previous_block->first_page_index +
                       previous_block->page_count <=
                     block->first_page_index);
       }
@@ -1116,9 +1116,9 @@ void lruv_cache_verify(void *cache, char do_full_check)
       } else {
         lruv_cache_block_t *next_block =
           (lruv_cache_block_t *)datum_get(c->blocks, block->next_block_index);
-        assert_halt(next_block->previous_block_index == block_index);
-        assert_halt(next_block->first_page_index > block->first_page_index);
-        assert_halt(block->first_page_index + block->page_count <=
+        assert_halt_msg_at("next_block->previous_block_index==block_index", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x316, next_block->previous_block_index == block_index);
+        assert_halt_msg_at("next_block->first_page_index>block->first_page_index", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x317, next_block->first_page_index > block->first_page_index);
+        assert_halt_msg_at("block->first_page_index+block->page_count<=next_block->first_page_index", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x318, block->first_page_index + block->page_count <=
                     next_block->first_page_index);
       }
 
@@ -1137,10 +1137,10 @@ void lruv_cache_initialize(void *cache, int name, int page_count,
   lruv_cache_t *c = (lruv_cache_t *)cache;
   data_t *blocks = (data_t *)((char *)cache + 0x44);
 
-  assert_halt(name);
-  assert_halt(page_count > 0);
+  assert_halt_at("c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x6d, name);
+  assert_halt_msg_at("page_count>0", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x6e, page_count > 0);
   assert_halt(page_size_bits > 0 && page_size_bits < 16);
-  assert_halt(maximum_block_count > 0);
+  assert_halt_msg_at("maximum_block_count>0", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x70, maximum_block_count > 0);
 
   data_initialize(blocks, (char *)name, maximum_block_count, 0x1c);
   data_delete_all(blocks);
@@ -1329,7 +1329,7 @@ void lruv_resize(void *cache, int new_page_count)
   lruv_cache_block_t *block;
   data_iter_t iter;
 
-  assert_halt(new_page_count > 0);
+  assert_halt_msg_at("new_page_count>0", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x25b, new_page_count > 0);
   lruv_cache_verify(cache, 1);
   data_iterator_new(&iter, c->blocks);
 
@@ -1402,7 +1402,7 @@ void FUN_0011db90(const char *path, const char *tag_name, int alloc_size,
 
       if (page_index != block->first_page_index) {
         page_count = block->first_page_index - page_index;
-        assert_halt(page_count > 0);
+        assert_halt_msg_at("page_count>0", "c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x2cc, page_count > 0);
         page_index = block->first_page_index;
         block_name = (const char *)0x25386f;
       } else {

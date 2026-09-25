@@ -59,7 +59,7 @@
 #endif
 void *player_control_get(int16_t local_player_index)
 {
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\game\\player_control.c", 0xb1, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   return (char *)player_control_globals + local_player_index * 0x40 + 0x10;
 }
@@ -111,7 +111,7 @@ void player_control_inhibit_buttons(int16_t local_player_index, uint16_t flags,
 {
   player_control_t *pc;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\game\\player_control.c", 0xb1, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   pc = (player_control_t *)((char *)player_control_globals +
                             local_player_index * 0x40 + 0x10);
@@ -1250,7 +1250,7 @@ void player_control_set_facing(int16_t local_player_index, float *direction)
   player_control_t *pc;
   float *desired_yaw;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\game\\player_control.c", 0xb1, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   pc = (player_control_t *)((char *)player_control_globals +
@@ -1681,7 +1681,7 @@ __declspec(noinline) void player_control_new_unit(int16_t local_player_index,
   float *facing;
   int unit;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\game\\player_control.c", 0xb1, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   pc = (player_control_t *)((char *)player_control_globals +
                             local_player_index * 0x40 + 0x10);
@@ -1719,7 +1719,7 @@ void handle_one_player_input(int16_t local_player_index, float delta_time)
   player_input_t input; /* one frame of controller input */
   int player_index;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\game\\player_control.c", 0xb1, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   pc = (player_control_t *)((char *)player_control_globals +

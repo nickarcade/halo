@@ -2579,13 +2579,13 @@ void *FUN_0018e3b0(void)
 
 void *scenario_get(void)
 {
-  assert_halt(global_structure_bsp);
+  assert_halt_at("c:\\halo\\SOURCE\\scenario\\scenario.c", 0xc5, global_structure_bsp);
   return global_structure_bsp;
 }
 
 void *global_collision_bsp_get(void)
 {
-  assert_halt(global_collision_bsp);
+  assert_halt_at("c:\\halo\\SOURCE\\scenario\\scenario.c", 0xcd, global_collision_bsp);
   return global_collision_bsp;
 }
 
@@ -3560,8 +3560,8 @@ bool FUN_0018f3e0(void *location, void *position, int16_t *out_sky_index)
   sky_index = NONE;
   is_indoor = false;
 
-  assert_halt(location);
-  assert_halt(position);
+  assert_halt_at("c:\\halo\\SOURCE\\scenario\\scenario.c", 0x258, location);
+  assert_halt_at("c:\\halo\\SOURCE\\scenario\\scenario.c", 0x259, position);
 
   if (node_index == NONE) {
     /* no BSP3D node found -- fall through to cluster fallback */

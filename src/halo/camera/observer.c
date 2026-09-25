@@ -352,7 +352,7 @@ boolean observer_command_has_finished(int16_t local_player_index)
   char *observer;
   int16_t component_index;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
@@ -404,7 +404,7 @@ void observer_apply_acceleration(int16_t local_player_index)
   float *thresholds;
   int16_t comp;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
@@ -473,7 +473,7 @@ void observer_integrate(int16_t local_player_index)
   float ratio;
   int count;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   ratio = (float)(*(double *)0x2573d8 / *(float *)0x335718);
@@ -637,7 +637,7 @@ void observer_update_command(int16_t local_player_index)
   float *obs_timers;
   int i;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
@@ -743,7 +743,7 @@ void observer_compute_accelerations(int16_t local_player_index)
   float *timers;
   int16_t comp;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
@@ -899,7 +899,7 @@ void observer_compute_update(int16_t local_player_index)
   float *scratch_ptr;
   int16_t comp;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
@@ -1378,7 +1378,7 @@ void observer_update_result(int16_t local_player_index)
   float height_diff;
   int location[2]; /* {leaf_index, cluster_index(int16 at +4)} */
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
@@ -1642,7 +1642,7 @@ void observer_compute_velocities(int16_t local_player_index)
 {
   char *observer;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
@@ -1660,7 +1660,7 @@ void observer_update_positions(int16_t local_player_index)
   float *timers;
   float val;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)(int16_t)local_player_index * 0x29c;

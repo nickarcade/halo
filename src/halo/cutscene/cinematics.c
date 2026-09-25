@@ -2,7 +2,7 @@ void cinematic_initialize(void)
 {
   cinematic_globals = (cinematic_globals_t *)game_state_malloc(
     "cinematic globals", 0, sizeof(cinematic_globals_t));
-  assert_halt(cinematic_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\cutscene\\cinematics.c", 0x18, cinematic_globals);
 }
 
 void cinematic_dispose(void)

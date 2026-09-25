@@ -251,9 +251,9 @@ void *game_state_malloc(const char *name, const char *group_name, int size)
 {
   void *result;
 
-  assert_halt(!(size & 3));
-  assert_halt(!game_state_globals.locked);
-  assert_halt(game_state_globals.cpu_allocation_size + size <=
+  assert_halt_msg_at("!(size&3)", "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x99, !(size & 3));
+  assert_halt_at("c:\\halo\\SOURCE\\saved games\\game_state.c", 0x9c, !game_state_globals.locked);
+  assert_halt_msg_at("game_state_globals.cpu_allocation_size+size<=GAME_STATE_CPU_SIZE", "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x9f, game_state_globals.cpu_allocation_size + size <=
               GAME_STATE_CPU_SIZE);
 
   /* Open log file on first use; skip logging if open fails. */
@@ -285,8 +285,8 @@ void *game_state_gpu_alloc(const char *name, int a2, uint32_t size)
   uint32_t new_gpu_size;
   int offset;
 
-  assert_halt(!(size & 3));
-  assert_halt(!game_state_globals.locked);
+  assert_halt_msg_at("!(size&3)", "c:\\halo\\SOURCE\\saved games\\game_state.c", 0xb6, !(size & 3));
+  assert_halt_at("c:\\halo\\SOURCE\\saved games\\game_state.c", 0xb9, !game_state_globals.locked);
   assert_halt(game_state_globals.gpu_allocation_size + size <= 0x40000);
 
   new_gpu_size = game_state_globals.gpu_allocation_size + size;

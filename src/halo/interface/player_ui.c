@@ -72,10 +72,10 @@ void player_ui_reset_single_player_local_player_controllers(void)
 void player_ui_set_single_player_local_player_controller(
   __int16 local_player_index, __int16 controller_index)
 {
-  assert_halt_msg(local_player_index >= 0 && local_player_index < 4,
-                  "invalid local player index");
-  assert_halt_msg(controller_index >= 0 && controller_index < 4,
-                  "invalid controller index");
+  assert_halt_msg_at("invalid local player index", "c:\\halo\\SOURCE\\interface\\player_ui.c", 0x77,
+      local_player_index >= 0 && local_player_index < 4);
+  assert_halt_msg_at("invalid controller index", "c:\\halo\\SOURCE\\interface\\player_ui.c", 0x79,
+      controller_index >= 0 && controller_index < 4);
   word_46BFC4[local_player_index] = controller_index;
 }
 
