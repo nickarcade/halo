@@ -62,14 +62,19 @@ def find_asm_blocks(source_text):
         yield line_no, block
 
 
+WORD_RE = re.compile(r"\b[A-Za-z_]\w*\b")
+
+
 def check_file(path, thunked_symbols):
     """Return list of (path, line, symbol) violations."""
     text = path.read_text(errors="replace")
+    if "__asm__" not in text:
+        return []
     violations = []
     for line_no, block in find_asm_blocks(text):
-        for sym in thunked_symbols:
-            if re.search(r"\b" + re.escape(sym) + r"\b", block):
-                violations.append((path, line_no, sym))
+        words = set(WORD_RE.findall(block))
+        for sym in words & thunked_symbols:
+            violations.append((path, line_no, sym))
     return violations
 
 

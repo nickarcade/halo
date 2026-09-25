@@ -10374,7 +10374,7 @@
           "ported": true
         },
         {
-          "decl": "void actor_aim_projectile(void);",
+          "decl": "int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int *out_target);",
           "addr": "0x220c0"
         },
         {
@@ -14662,7 +14662,7 @@
           "ported": true
         },
         {
-          "decl": "void player_aim_projectile(void);",
+          "decl": "int player_aim_projectile(int16_t player_index, float *forward, float *target_dir);",
           "addr": "0xa6130"
         },
         {
@@ -18924,6 +18924,11 @@
           "ported": true
         },
         {
+          "decl": "void first_person_weapons_dispose(void);",
+          "addr": "0xdc790",
+          "ported": true
+        },
+        {
           "decl": "void first_person_weapons_initialize_for_new_map(void);",
           "addr": "0xdc7a0",
           "ported": true
@@ -18985,11 +18990,13 @@
         },
         {
           "decl": "int16_t first_person_weapon_get_marker_by_name(int object_handle, void *marker_name, void *out_markers, int max_count);",
-          "addr": "0xdd190"
+          "addr": "0xdd190",
+          "ported": true
         },
         {
           "decl": "void first_person_weapon_center_flashlight(int object_handle, float *out_position, float *out_forward, void *out_up);",
-          "addr": "0xdd260"
+          "addr": "0xdd260",
+          "ported": true
         },
         {
           "decl": "char first_person_weapon_adjust_light(int object_handle, int marker_result, void *out_position, void *out_forward, void *out_up);",
@@ -19007,12 +19014,14 @@
           "ported": true
         },
         {
-          "decl": "void first_person_weapon_build_node_matrices(void);",
-          "addr": "0xdd580"
+          "decl": "void first_person_weapon_build_node_matrices(int16_t local_player_index);",
+          "addr": "0xdd580",
+          "ported": true
         },
         {
           "decl": "void first_person_weapon_render_update(void);",
-          "addr": "0xddae0"
+          "addr": "0xddae0",
+          "ported": true
         },
         {
           "decl": "int16_t first_person_weapon_get_marker_by_name_render(int object_handle, void *marker_name, void *out_markers, int max_count);",
@@ -19051,7 +19060,8 @@
         },
         {
           "decl": "void first_person_weapon_next_state(int local_player_index@<ebx>);",
-          "addr": "0xde3f0"
+          "addr": "0xde3f0",
+          "ported": true
         },
         {
           "decl": "void first_person_weapon_update(int16_t local_player_index);",
@@ -44290,6 +44300,16 @@
       "source": "items/weapons.c",
       "functions": [
         {
+          "decl": "void weapons_dispose_from_old_map(void);",
+          "addr": "0xfad40",
+          "ported": true
+        },
+        {
+          "decl": "void weapons_dispose(void);",
+          "addr": "0xfad50",
+          "ported": true
+        },
+        {
           "decl": "int weapon_place(int weapon_handle, void *placement);",
           "addr": "0xfad60",
           "ported": true
@@ -44327,6 +44347,11 @@
         {
           "decl": "float weapon_compute_movement_penalty(int weapon_handle, char param_2, char param_3);",
           "addr": "0xfb010",
+          "ported": true
+        },
+        {
+          "decl": "void weapon_melee_attack(void);",
+          "addr": "0xfb080",
           "ported": true
         },
         {
@@ -44370,17 +44395,39 @@
           "ported": true
         },
         {
+          "decl": "boolean weapon_magazine_state_change_ok(int weapon_handle);",
+          "addr": "0xfb410",
+          "ported": true
+        },
+        {
+          "decl": "int weapon_get_effect_object_index(int weapon_handle);",
+          "addr": "0xfb450",
+          "ported": true
+        },
+        {
+          "decl": "int weapon_get_owner_object_index(int weapon_handle);",
+          "addr": "0xfb480",
+          "ported": true
+        },
+        {
+          "decl": "int weapon_get_projectile_owner_object_index(int weapon_handle);",
+          "addr": "0xfb4c0",
+          "ported": true
+        },
+        {
           "decl": "float weapon_trigger_get_charged_fraction(int weapon_handle@<eax>, int16_t trigger_index@<cx>);",
           "addr": "0xfb510",
           "ported": true
         },
         {
-          "decl": "void weapon_trigger_can_fire_again(void);",
-          "addr": "0xfb5a0"
+          "decl": "boolean weapon_trigger_can_fire_again(int weapon_handle, int16_t trigger_index);",
+          "addr": "0xfb5a0",
+          "ported": true
         },
         {
-          "decl": "void weapon_magazine_idle(void);",
-          "addr": "0xfb690"
+          "decl": "void weapon_magazine_idle(int weapon_handle, int16_t magazine_index);",
+          "addr": "0xfb690",
+          "ported": true
         },
         {
           "decl": "int weapon_effect_new(int trigger_effect, float scale, float param_3, int weapon_handle @<eax>);",
@@ -44390,6 +44437,11 @@
         {
           "decl": "int weapon_effect_looping_new(int param_1@<ebx>, int weapon_handle@<esi>);",
           "addr": "0xfb7d0",
+          "ported": true
+        },
+        {
+          "decl": "void weapon_detonate(int weapon_handle);",
+          "addr": "0xfb840",
           "ported": true
         },
         {
@@ -44403,8 +44455,14 @@
           "ported": true
         },
         {
-          "decl": "void weapon_state_key_frame(void);",
-          "addr": "0xfb990"
+          "decl": "void weapon_state_key_frame(int weapon_handle);",
+          "addr": "0xfb990",
+          "ported": true
+        },
+        {
+          "decl": "boolean weapon_magazine_state_interruptable(int16_t state);",
+          "addr": "0xfb9e0",
+          "ported": true
         },
         {
           "decl": "boolean weapon_state_interruptable(int16_t param_1, int16_t state @<dx>);",
@@ -44422,8 +44480,14 @@
           "ported": true
         },
         {
-          "decl": "void power(void);",
-          "addr": "0xfbcf0"
+          "decl": "float power(float a, float b);",
+          "addr": "0xfbcf0",
+          "ported": true
+        },
+        {
+          "decl": "uint16_t random(void);",
+          "addr": "0xfbd00",
+          "ported": true
         },
         {
           "decl": "bool weapon_new(int weapon_handle);",
@@ -44436,8 +44500,9 @@
           "ported": true
         },
         {
-          "decl": "void weapon_export_function_values(void);",
-          "addr": "0xfbf00"
+          "decl": "void weapon_export_function_values(int weapon_handle);",
+          "addr": "0xfbf00",
+          "ported": true
         },
         {
           "decl": "bool weapon_handle_potential_inventory_item(int seat_occupant, int object_handle, uint16_t local_player_index, int16_t *seat_index);",
@@ -44466,11 +44531,13 @@
         },
         {
           "decl": "float weapon_get_zoom_magnification(int weapon_handle, int zoom_level);",
-          "addr": "0xfc780"
+          "addr": "0xfc780",
+          "ported": true
         },
         {
           "decl": "real weapon_get_field_of_view(int weapon_handle, real base_field_of_view, uint16_t zoom_level);",
-          "addr": "0xfc8e0"
+          "addr": "0xfc8e0",
+          "ported": true
         },
         {
           "decl": "char weapon_prevents_melee_attack(int weapon_handle);",
@@ -44493,8 +44560,9 @@
           "ported": true
         },
         {
-          "decl": "void weapon_magazine_finish_chamber(void);",
-          "addr": "0xfcc90"
+          "decl": "void weapon_magazine_finish_chamber(int16_t magazine_index@<eax>, int weapon_handle);",
+          "addr": "0xfcc90",
+          "ported": true
         },
         {
           "decl": "void weapon_trigger_fully_charged(int16_t trigger_index@<ax>, int weapon_handle);",
@@ -44513,7 +44581,8 @@
         },
         {
           "decl": "void weapon_trigger_recover(int trigger_index@<eax>, int weapon_handle@<ebx>);",
-          "addr": "0xfcec0"
+          "addr": "0xfcec0",
+          "ported": true
         },
         {
           "decl": "void weapon_reset(int weapon_handle);",
@@ -44521,8 +44590,9 @@
           "ported": true
         },
         {
-          "decl": "void projectile_distribute(void);",
-          "addr": "0xfd0b0"
+          "decl": "void projectile_distribute(int index@<eax>, float *out_forward, float *out_up, int16_t count, float angle_spread, char distribution_type);",
+          "addr": "0xfd0b0",
+          "ported": true
         },
         {
           "decl": "void weapon_state_next(int weapon_handle@<esi>);",
@@ -44555,20 +44625,24 @@
           "ported": true
         },
         {
-          "decl": "void weapon_trigger_finish_tracking(void);",
-          "addr": "0xfd520"
+          "decl": "void weapon_trigger_finish_tracking(int weapon_handle, int trigger_index);",
+          "addr": "0xfd520",
+          "ported": true
         },
         {
-          "decl": "void trigger_create_projectiles(void);",
-          "addr": "0xfd570"
+          "decl": "void trigger_create_projectiles(int weapon_handle, int16_t trigger_index);",
+          "addr": "0xfd570",
+          "ported": true
         },
         {
           "decl": "void weapon_trigger_fire(int weapon_handle, int trigger_index);",
-          "addr": "0xfdc90"
+          "addr": "0xfdc90",
+          "ported": true
         },
         {
-          "decl": "void weapon_trigger_begin_firing(void);",
-          "addr": "0xfe450"
+          "decl": "void weapon_trigger_begin_firing(int weapon_handle, int16_t trigger_index, char param_3);",
+          "addr": "0xfe450",
+          "ported": true
         },
         {
           "decl": "void weapon_trigger_overload(int trigger_index@<eax>, int weapon_handle@<ecx>);",
@@ -44583,11 +44657,12 @@
         {
           "decl": "void weapon_trigger_overcharged(int trigger_index@<eax>, int weapon_handle@<ebx>);",
           "addr": "0xfe890",
-          "ported": false
+          "ported": true
         },
         {
-          "decl": "void weapon_update(void);",
-          "addr": "0xfe910"
+          "decl": "boolean weapon_update(int weapon_handle);",
+          "addr": "0xfe910",
+          "ported": true
         }
       ]
     },

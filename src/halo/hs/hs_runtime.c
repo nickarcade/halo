@@ -2476,7 +2476,7 @@ void hs_object_create_anew(int16_t index)
  */
 void hs_object_create_anew_containing(const char *substring)
 {
-  hs_object_iterate_names_containing(FUN_000ca110, substring);
+  hs_object_iterate_names_containing((void *)hs_object_create_anew, substring);
 }
 
 /* 0xca160 — Object script execution context dispatcher / cutscene flag teleporter.
@@ -2493,64 +2493,85 @@ void hs_object_orient(int object_handle, int flag_index, char dismount_unit, cha
   char *flag;
   vector3_t *flag_pos;
   vector3_t forward;
-  real angle;
-  real sin_val;
-  real cos_val;
-  scenario_t *scenario;
-  int16_t unit_handle;
+  vector3_t transformed_forward;
+  float local_matrix[16];
+  char *unit;
+  int player_index;
+  char *player;
+  vector3_t *forward_ptr;
+  vector3_t *pos_ptr;
 
-  if (object_handle == NONE) {
+  if (object_handle == -1) {
     return;
   }
 
-  object = (char *)object_get_and_verify_type(object_handle, 0);
-  scenario = global_scenario_get();
-  flag = (char *)tag_block_get_element((char *)scenario + 0x4e4, (int16_t)flag_index, 0x5c);
+  object = (char *)object_get_and_verify_type(object_handle, -1);
+  flag = (char *)tag_block_get_element((char *)global_scenario_get() + 0x4e4, (int16_t)flag_index, 0x5c);
+  flag_pos = (vector3_t *)(flag + 0x24);
+  player = NULL;
 
-  if (flag != NULL && object != NULL) {
-    flag_pos = (vector3_t *)(flag + 0x24);
-    angle = *(real *)(flag + 0x20);
+  if (!valid_real_point3d((float *)flag_pos)) {
+    display_assert("%s: assert_valid_real_point3d(%f, %f, %f)",
+                   "c:\\halo\\SOURCE\\hs\\hs_library_external.c", 0x1cc, true);
+    system_exit(-1);
+  }
 
-    /* Assert flag angle is valid. */
-    if (angle < 0.0f || angle > 6.2831855f) {
-      display_assert("valid_real_normal_angle(flag->yaw)",
-                     "c:\\halo\\SOURCE\\hs\\hs_library_external.c", 0x1cc, 1);
-      system_exit(-1);
-    }
-
-    /* Convert yaw to direction vector. */
-    sin_val = x87_fsin(angle);
-    cos_val = x87_fcos(angle);
-    forward.x = cos_val;
-    forward.y = sin_val;
-    forward.z = 0.0f;
-
-    /* Dismount object if in a unit seat. */
-    if (dismount_unit && *(int16_t *)(object + 0x10) == 1) {
-      unit_handle = *(int16_t *)(object + 0x11c);
-      if (unit_handle != NONE) {
-        unit_exit_seat(object_handle, 0);
-      }
-    }
-
-    /* If attached to another object / vehicle, detach. */
-    if (*(int *)(object + 0xc) != NONE) {
-      object_detach(object_handle);
-    }
-
-    /* Teleport object. */
-    object_wake(object_handle);
-    object_set_position(object_handle, flag_pos, &forward, NULL);
-
-    /* Reset object velocity. */
-    *(vector3_t *)(object + 0x68) = *(vector3_t *)0x2537a0; /* zero vector */
-    *(vector3_t *)(object + 0x74) = *(vector3_t *)0x2537a0;
-
-    /* Update camera if requested. */
-    if (set_camera && *(int16_t *)(object + 0x10) == 0) {
-      director_set_camera_position(flag_pos, &forward);
+  if (dismount_unit && *(int *)(object + 0xcc) != -1) {
+    if (object_try_and_get_and_verify_type(object_handle, 3) != NULL) {
+      unit_exit_seat_end(object_handle);
+    } else {
+      object_detach_from_parent(object_handle);
     }
   }
+
+  angles_to_vector((float *)&forward, (float *)(flag + 0x30));
+  if (!valid_real_normal3d((float *)&forward)) {
+    display_assert("%s: assert_valid_real_normal3d(%f, %f, %f)",
+                   "c:\\halo\\SOURCE\\hs\\hs_library_external.c", 0x1df, true);
+    system_exit(-1);
+  }
+
+  object_wake(object_handle);
+  unit = (char *)object_try_and_get_and_verify_type(object_handle, 3);
+  if (unit != NULL) {
+    player_index = player_index_from_unit_index(object_handle);
+    if (*(int *)(unit + 0xcc) != -1) {
+      void *node_mat;
+      node_mat = object_get_node_matrix(*(int *)(unit + 0xcc), (int16_t)*(int8_t *)(unit + 0xd0));
+      matrix_inverse((float *)node_mat, local_matrix);
+      matrix_transform_vector(local_matrix, (float *)&forward, (float *)&transformed_forward);
+    } else {
+      transformed_forward = forward;
+    }
+
+    if (set_camera) {
+      *(vector3_t *)(unit + 0x1d4) = forward;
+      *(vector3_t *)(unit + 0x1e0) = forward;
+      *(vector3_t *)(unit + 0x204) = forward;
+    }
+
+    if (player_index != -1) {
+      player = (char *)datum_get(*(data_t **)0x5aa6d4, player_index);
+      if (dismount_unit) {
+        player_teleport(player_index, -1, flag_pos);
+      }
+      if (set_camera && *(int16_t *)(player + 2) != -1) {
+        player_control_set_facing(*(int16_t *)(player + 2), (float *)&transformed_forward);
+      }
+    }
+  }
+
+  forward_ptr = NULL;
+  if (set_camera && player == NULL) {
+    forward_ptr = &forward;
+  }
+
+  pos_ptr = NULL;
+  if (dismount_unit && player == NULL) {
+    pos_ptr = flag_pos;
+  }
+
+  object_set_position(object_handle, (float *)pos_ptr, (float *)forward_ptr, NULL);
 }
 
 /* 0xca3f0 — Two-argument forwarder onto 0xca160 with both trailing byte
@@ -3341,7 +3362,7 @@ void hs_wake(int thread_handle)
     if (node_index != -1) {
       node = (char *)datum_get(*(data_t **)0x5aa6c8, node_index);
       if (*(int16_t *)(node + 2) == 0x14) {
-        *(char **)(thread + 0x10) = *(char ***)(thread + 0x10)[0];
+        *(char **)(thread + 0x10) = **(char ***)(thread + 0x10);
       }
     }
   }
@@ -4283,7 +4304,7 @@ void render_debug_scripting(void)
           time_remaining = 0;
         }
         crt_sprintf(buffer + csstrlen(buffer), "%d", time_remaining);
-        FUN_0008dc30(buffer, "\t");
+        csstrcat(buffer, "\t");
         if (*(char **)(thread + 0x10) != (thread + 0x18) && sleep_time != -2) {
           expr_name = FUN_000ca890(*(int *)(*(char **)(thread + 0x10) + 4), thread_handle);
           if (expr_name != NULL) {
@@ -4296,16 +4317,15 @@ void render_debug_scripting(void)
   }
 
   draw_string_set_tab_stops(tab_stops, 2);
-  FUN_00189c40(buffer, (void *)0x280924);
+  FUN_00189c40(1, buffer);
 }
 
 /* 0xcbb40 — Render debug wireframes for scenario trigger volumes.
  *
- * Binary evidence (0xcbb40..0xcbf77):
- *   Checks 0x5aa69c debug trigger volume flag
- *   Iterates trigger volumes from scenario + 0x360
- *   Computes orientation matrix and bounding box corners
- *   Draws wireframe lines using rasterizer debug line renderer
+ * Binary evidence (0xcbb40..0xcbf7f):
+ *   Checks debug_trigger_volumes flag at 0x5aa69c
+ *   Walks scenario trigger volumes block (scenario+0x360, stride 0x60)
+ *   Transforms and draws wireframe box/points for each volume
  */
 void render_debug_trigger_volumes(void)
 {
@@ -4347,43 +4367,79 @@ void render_debug_trigger_volumes(void)
       } else {
         extents = *(vector3_t *)(volume + 0x2a);
         matrix4x3_from_forward_up_position(transform, (float *)(volume + 0x24), (float *)(volume + 0x18), (float *)(volume + 0x1e));
-        min_bounds.x = -extents.x;
-        min_bounds.y = -extents.y;
-        min_bounds.z = -extents.z;
-
-        for (side = 0; side < 6; side++) {
-          bitvector_word = (uint32_t *)((char *)0x5aa6a0 + (index >> 5) * 4);
-          bit_mask = 1 << (index & 0x1f);
-          if (*bitvector_word & bit_mask) {
-            col_result[0] = 0;
-            col_result[1] = 0;
-          } else {
-            col_result[0] = 1;
-            col_result[1] = 1;
-          }
-
-          FUN_00084ba0(side, (float *)&min_bounds, (float *)&extents, (float *)face_pts);
-          /* hazard-ok: intentional in-place transform verified against binary */
-          matrix_scale_transform_vector(transform, (float *)&face_pts[0], (float *)&face_pts[0]);
-          matrix_scale_transform_vector(transform, (float *)&face_pts[1], (float *)&face_pts[1]);
-          matrix_scale_transform_vector(transform, (float *)&face_pts[2], (float *)&face_pts[2]);
-          matrix_scale_transform_vector(transform, (float *)&face_pts[3], (float *)&face_pts[3]);
-
-          center.x = (face_pts[0].x + face_pts[2].x) * 0.5f;
-          center.y = (face_pts[0].y + face_pts[2].y) * 0.5f;
-          center.z = (face_pts[0].z + face_pts[2].z) * 0.5f;
-
-          view_dir.x = center.x - *(real *)0x3269c0;
-          view_dir.y = center.y - *(real *)0x3269c4;
-          view_dir.z = center.z - *(real *)0x3269c8;
-
-          /* Draw debug lines if not culled */
-          render_debug_line(false, (float *)&face_pts[0], (float *)&face_pts[1], (float *)col_result);
-          render_debug_line(false, (float *)&face_pts[1], (float *)&face_pts[2], (float *)col_result);
-          render_debug_line(false, (float *)&face_pts[2], (float *)&face_pts[3], (float *)col_result);
-          render_debug_line(false, (float *)&face_pts[3], (float *)&face_pts[0], (float *)col_result);
-        }
+        matrix_scale_transform_vector(transform, (float *)&extents, (float *)&min_bounds);
       }
+    } else {
+      qmemcpy(transform, (void *)0x31fc60, sizeof(transform));
+      min_bounds.x = *(float *)(volume + 0x24);
+      min_bounds.y = *(float *)(volume + 0x28);
+      min_bounds.z = *(float *)(volume + 0x2c);
+      extents.x = *(float *)(volume + 0x26) - min_bounds.x;
+      extents.y = *(float *)(volume + 0x2a) - min_bounds.y;
+      extents.z = *(float *)(volume + 0x2e) - min_bounds.z;
+    }
+
+    bitvector_word = (uint32_t *)((index >> 5) * 4 + 0x5aa6a0);
+    bit_mask = 1u << (index & 0x1f);
+
+    for (side = 0; side < 6; side++) {
+      vector3_t v1;
+      vector3_t v2;
+      int axis;
+
+      axis = side / 2;
+      v1.x = v1.y = v1.z = 0.0f;
+      v2.x = v2.y = v2.z = 0.0f;
+
+      if (side & 1) {
+        face_pts[0].x = min_bounds.x + extents.x;
+        face_pts[0].y = min_bounds.y + extents.y;
+        face_pts[0].z = min_bounds.z + extents.z;
+        ((float *)&v1)[(axis + 1) % 3] = -((float *)&extents)[(axis + 1) % 3];
+        ((float *)&v2)[(axis + 2) % 3] = -((float *)&extents)[(axis + 2) % 3];
+      } else {
+        face_pts[0] = min_bounds;
+        ((float *)&v1)[(axis + 1) % 3] = ((float *)&extents)[(axis + 1) % 3];
+        ((float *)&v2)[(axis + 2) % 3] = ((float *)&extents)[(axis + 2) % 3];
+      }
+
+      matrix_scale_transform_vector(transform, (float *)&v1, (float *)&v1); /* dup-args-ok */
+      matrix_scale_transform_vector(transform, (float *)&v2, (float *)&v2); /* dup-args-ok */
+
+      face_pts[1].x = face_pts[0].x + v1.x;
+      face_pts[1].y = face_pts[0].y + v1.y;
+      face_pts[1].z = face_pts[0].z + v1.z;
+
+      face_pts[2].x = face_pts[1].x + v2.x;
+      face_pts[2].y = face_pts[1].y + v2.y;
+      face_pts[2].z = face_pts[1].z + v2.z;
+
+      face_pts[3].x = face_pts[0].x + v2.x;
+      face_pts[3].y = face_pts[0].y + v2.y;
+      face_pts[3].z = face_pts[0].z + v2.z;
+
+      if (*bitvector_word & bit_mask) {
+        FUN_00189ba0((float *)face_pts, 4, (void *)0x2ee6d8);
+      } else {
+        float alpha;
+        alpha = 0.15f;
+        FUN_00189ba0((float *)face_pts, 4, (void *)0x2ee6d0);
+        FUN_00188a90((float *)face_pts, 4, (void *)&alpha);
+      }
+    }
+
+    center.x = extents.x * *(float *)0x253398 + min_bounds.x;
+    center.y = extents.y * *(float *)0x253398 + min_bounds.y;
+    center.z = extents.z * *(float *)0x253398 + min_bounds.z;
+
+    view_dir.x = (center.x - *(float *)0x506550) * *(float *)0x255ed4;
+    view_dir.y = (center.y - *(float *)0x506554) * *(float *)0x255ed4;
+    view_dir.z = (center.z - *(float *)0x506558) * *(float *)0x255ed4;
+
+    if (!FUN_0014df70(0xc2ad, (float *)0x506550, (float *)&view_dir, -1, col_result)) {
+      int color_idx;
+      color_idx = (*bitvector_word & bit_mask) ? *(int *)0x2ee6e0 : *(int *)0x2ee6c4;
+      FUN_00189cb0(1, (void *)&center, (void *)(volume + 2), color_idx);
     }
   }
 }
