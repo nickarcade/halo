@@ -1263,9 +1263,9 @@ void uremove(wchar_t *path)
  * folded this into a tail call (JMP, not CALL+RET) since there is
  * nothing to do after the callee returns. Unlike uremove/ustrtol there
  * is no path/length validation of any kind; this is a pure passthrough. */
-void utmpnam(void)
+wchar_t *utmpnam(wchar_t *string)
 {
-  __wtmpnam();
+  return __wtmpnam(string);
 }
 
 /* ustrtol (0x19f160) — wide-string wrapper around the CRT wide
@@ -1424,21 +1424,24 @@ char *wide_to_ascii(const wchar_t *unicode, char *ascii, int size)
 
 wchar_t *ascii_to_wide(const char *ascii, wchar_t *unicode, size_t length)
 {
-  int len;
+  size_t len;
   int i;
 
   assert_halt_at("c:\\halo\\SOURCE\\text\\unicode.c", 0x43f, ascii && unicode);
   len = csstrlen(ascii);
-  assert_halt(len < 0x8000);
+  assert_halt_msg_at("length < MAXIMUM_STRING_SIZE",
+                     "c:\\halo\\SOURCE\\text\\unicode.c", 0x441,
+                     len < 0x8000);
 
-  if (length < (size_t)(len * 2 + 2))
-    return NULL;
+  if (length >= (size_t)(len * 2 + 2)) {
+    unicode[len] = 0;
+    for (i = (int)len - 1; i >= 0; i--)
+      unicode[i] = (int16_t)ascii[i];
 
-  unicode[len] = 0;
-  for (i = len - 1; i >= 0; i--)
-    unicode[i] = (int16_t)ascii[i];
+    return unicode;
+  }
 
-  return unicode;
+  return NULL;
 }
 
 /* FUN_0019f4f0 (0x19f4f0) -- format the CRT strerror(errnum) message into

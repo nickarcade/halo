@@ -49576,16 +49576,16 @@
     "ascii_to_wide": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 84.7,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x19f450",
       "end": "0x19f4ec",
       "kind": "auto",
       "n_r": 58,
-      "opnd_percent": 84.7,
-      "raw_mnemonic_pct": 84.7,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "82c0cc72f9ad58c5",
-      "score": 84.7,
+      "score": 100.0,
       "source": "src/halo/text/unicode.c"
     },
     "atof": {
@@ -107491,16 +107491,16 @@
     "utmpnam": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 40.0,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x19f150",
       "end": "0x19f159",
       "kind": "auto",
       "n_r": 4,
-      "opnd_percent": 40.0,
-      "raw_mnemonic_pct": 40.0,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "799add796cb78c68",
-      "score": 40.0,
+      "score": 100.0,
       "source": "src/halo/text/unicode.c"
     },
     "utolower": {

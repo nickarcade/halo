@@ -1159,7 +1159,7 @@
     },
     {
      "addr": "0x1dcf51",
-     "decl": "void __wtmpnam(void);"
+     "decl": "wchar_t *__wtmpnam(wchar_t *string);"
     },
     {
      "addr": "0x1dd003",
@@ -29842,7 +29842,8 @@
     },
     {
      "addr": "0x19f150",
-     "decl": "void utmpnam(void);"
+     "decl": "wchar_t *utmpnam(wchar_t *string);",
+     "ported": true
     },
     {
      "addr": "0x19f160",
