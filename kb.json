@@ -5653,7 +5653,8 @@
     },
     {
      "addr": "0x93be0",
-     "decl": "void FUN_00093be0(short *angles @<eax>, float *out_vector);"
+     "decl": "void FUN_00093be0(short *angles @<eax>, float *out_vector);",
+     "ported": true
     },
     {
      "addr": "0x93c20",
