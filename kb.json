@@ -26053,7 +26053,7 @@
     },
     {
      "addr": "0x1ca900",
-     "decl": "void FUN_001ca900(int channel_index@<eax>);"
+     "decl": "void FUN_001ca900(short channel_index@<eax>);"
     },
     {
      "addr": "0x1ca970",
@@ -26071,7 +26071,7 @@
     },
     {
      "addr": "0x1cb0c0",
-     "decl": "void FUN_001cb0c0(int channel_index, void *sound@<edi>);",
+     "decl": "void FUN_001cb0c0(short channel_index, void *sound@<edi>);",
      "ported": true
     }
    ],

@@ -958,7 +958,11 @@ short sound_select_permutation(void *sound_tag, short pitch_range_index,
  * (EBX = [EBP+8]) and, when it maps to a dsound channel (AX != 0xffff),
  * forwards that channel with the sound pointer (EDI = [EBP+0xc]) to
  * FUN_001cb0c0.  No xrefs recorded in the artifact (likely an indirect
- * dispatch entry).  Parameter meanings beyond the callee decls are UNKNOWN. */
+ * dispatch entry).  Parameter meanings beyond the callee decls are UNKNOWN.
+ * The resolved channel is pushed as-is (PUSH EAX, no MOVSX), so
+ * FUN_001cb0c0 takes a short, matching channel_queue_sound(short, ...) in
+ * the PAL 2342 source.  The incoming index stays int: the original loads
+ * it into EBX with a plain dword MOV. */
 void dsound_virtual_queue(int channel_index, void *sound)
 {
   short channel;
@@ -4316,7 +4320,11 @@ void sound_idle(void)
  *     either stops the sound (NONE) or binds it to that channel (0x4fc3a0,
  *     stride 0x18), stopping the channel's previous sound first.
  * The callback compare uses the SYMBOL (as in sound_update_music) because
- * the store site passes our ported track_loop_impulse_sound. */
+ * the store site passes our ported track_loop_impulse_sound.
+ * Control flow follows prioritize_sounds in the PAL 2342 source: the
+ * `playing != NONE || request` test and the NONE-channel else arm let the
+ * compiler share one sound_stop tail with the discard case.  flags (+0x04)
+ * is a word there; the original's ORB still comes from a 16-bit |=. */
 void FUN_001cf360(void)
 {
   int sound_index;
@@ -4331,47 +4339,19 @@ void FUN_001cf360(void)
   while (sound_index != -1) {
     sound_entry = (char *)datum_get(*(data_t **)0x4fdba4, sound_index);
     if (*(int *)(sound_entry + 0x84) <= *(int *)0x4eaf4c) {
-      if (*(short *)(sound_entry + 0x8c) == -1) {
-        if (sound_cache_request_sound(
-              tag_block_get_element(
-                (char *)tag_block_get_element(
-                  (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8)) +
-                    0x98,
-                  (int)*(short *)(sound_entry + 0x8e), 0x48) +
-                  0x3c,
-                (int)*(short *)(sound_entry + 0x90), 0x7c),
-              0, 1, 1))
-          goto start_on_channel;
-        if (*(short *)(sound_entry + 0x8c) == -1 &&
-            *(void **)(sound_entry + 0x10) !=
-              (void *)&track_loop_impulse_sound) {
-          sound_tag = (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8));
-          class_def = (char *)sound_class_get_definition(
-            *(unsigned short *)(sound_tag + 0x4));
-          switch (*(short *)(class_def + 0xc)) {
-          case 0:
-            element = (char *)tag_block_get_element(
-              sound_tag + 0x98, (int)*(short *)(sound_entry + 0x8e), 0x48);
-            if (*(short *)(element + 0x3a) == -1)
-              *(short *)(element + 0x3a) = *(short *)(sound_entry + 0x90);
-            sound_stop_channel(sound_index);
-            break;
-          case 1:
-            break;
-          default:
-            display_assert(0, "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x679,
-                           1);
-            system_exit(-1);
-            break;
-          }
-        }
-      } else {
-      start_on_channel:
-        *(uint8_t *)(sound_entry + 0x4) |= 2;
+      if (*(short *)(sound_entry + 0x8c) != -1 ||
+          sound_cache_request_sound(
+            tag_block_get_element(
+              (char *)tag_block_get_element(
+                (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8)) +
+                  0x98,
+                (int)*(short *)(sound_entry + 0x8e), 0x48) +
+                0x3c,
+              (int)*(short *)(sound_entry + 0x90), 0x7c),
+            0, 1, 1)) {
+        *(unsigned short *)(sound_entry + 0x4) |= 2;
         channel_index = sound_find_channel(sound_index);
-        if (channel_index == -1) {
-          sound_stop_channel(sound_index);
-        } else {
+        if (channel_index != -1) {
           if (channel_index < 0 || channel_index >= *(short *)0x4eb0b4) {
             display_assert(
               "index>=0 && index<sound_manager_globals.channel_count",
@@ -4406,10 +4386,34 @@ void FUN_001cf360(void)
               system_exit(-1);
             }
           }
+        } else {
+          sound_stop_channel(sound_index);
+        }
+      } else if (*(short *)(sound_entry + 0x8c) == -1 &&
+                 *(void **)(sound_entry + 0x10) !=
+                   (void *)&track_loop_impulse_sound) {
+        sound_tag = (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8));
+        class_def = (char *)sound_class_get_definition(
+          *(unsigned short *)(sound_tag + 0x4));
+        switch (*(short *)(class_def + 0xc)) {
+        case 0:
+          element = (char *)tag_block_get_element(
+            sound_tag + 0x98, (int)*(short *)(sound_entry + 0x8e), 0x48);
+          if (*(short *)(element + 0x3a) == -1)
+            *(short *)(element + 0x3a) = *(short *)(sound_entry + 0x90);
+          sound_stop_channel(sound_index);
+          break;
+        case 1:
+          break;
+        default:
+          display_assert(0, "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x679,
+                         1);
+          system_exit(-1);
+          break;
         }
       }
     } else {
-      if ((*(uint8_t *)(sound_entry + 0x4) & 1) == 0) {
+      if ((*(unsigned short *)(sound_entry + 0x4) & 1) == 0) {
         sound_tag = (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8));
         class_def = (char *)sound_class_get_definition(
           *(unsigned short *)(sound_tag + 0x4));
