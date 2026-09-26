@@ -1491,6 +1491,76 @@ void animation_get_keyframe_scale(void *animation, float frame,
   scalars_interpolate(this_kf_scale, next_kf_scale, blend, (float *)out_scale);
 }
 
+/* animation_update_internal (0x121c30) — Advance an animation state by one
+ * frame and classify the result.
+ *
+ * Confirmed: tag_get('antr', animation_graph_tag_index) at 0x121c3f; asserts
+ * "state" (line 0x93) when state is NULL (0x121c4a-0x121c68).
+ * Confirmed: animation element = tag_block_get_element(tag+0x74, state[0],
+ * 0xb4) at 0x121c7d. When out_sound is non-NULL, writes -1 unless
+ * element+0x3c != -1 and element+0x3e == state[1], in which case it writes
+ * dword +0xc of tag_block_get_element(tag+0x54, element+0x3c, 0x14)
+ * (0x121c8e-0x121cbe).
+ * Confirmed: INC word [state+2] at 0x121cc4, then compares against the frame
+ * count at element+0x22. Return codes: 4 = clamp to element+0x2e (bounded by
+ * count-1), 3 = pick next animation via model_animation_choose_random with
+ * element+0x42 and reset frame to 0, 2 = last frame with element+0x2e == 0,
+ * 1 = frame equals element+0x34 or element+0x36, else 0.
+ * Field meanings beyond these accesses are unknown. */
+int animation_update_internal(int update_kind, int animation_graph_tag_index,
+                              short *state, int *out_sound)
+{
+  char *antr_tag;
+  char *animation;
+  char *sound_element;
+  short frame;
+  short frame_count;
+  short loop_frame;
+  int clamped;
+
+  antr_tag = (char *)tag_get(0x616e7472, animation_graph_tag_index);
+  if (state == NULL) {
+    display_assert("state", "c:\\halo\\SOURCE\\models\\model_animations.c",
+                   0x93, 1);
+    system_exit(-1);
+  }
+  animation =
+    (char *)tag_block_get_element(antr_tag + 0x74, (int)state[0], 0xb4);
+  if (out_sound != NULL) {
+    if (*(short *)(animation + 0x3c) == -1 ||
+        *(short *)(animation + 0x3e) != state[1]) {
+      *out_sound = -1;
+    } else {
+      sound_element = (char *)tag_block_get_element(
+        antr_tag + 0x54, (int)*(short *)(animation + 0x3c), 0x14);
+      *out_sound = *(int *)(sound_element + 0xc);
+    }
+  }
+  state[1]++;
+  frame = state[1];
+  frame_count = *(short *)(animation + 0x22);
+  if (frame >= frame_count) {
+    loop_frame = *(short *)(animation + 0x2e);
+    if (loop_frame > 0) {
+      clamped = frame_count - 1;
+      if ((int)loop_frame <= frame_count - 1)
+        clamped = (int)loop_frame;
+      state[1] = (short)clamped;
+      return 4;
+    }
+    state[0] = model_animation_choose_random(
+      update_kind, animation_graph_tag_index, *(int16_t *)(animation + 0x42));
+    state[1] = 0;
+    return 3;
+  }
+  if (frame + 1 == (int)frame_count && *(short *)(animation + 0x2e) == 0)
+    return 2;
+  if (frame != *(short *)(animation + 0x34) &&
+      frame != *(short *)(animation + 0x36))
+    return 0;
+  return 1;
+}
+
 /* FUN_00121d60 (0x121d60) — Decode a single animation frame into per-node
  * rotation/translation/scale data.
  *

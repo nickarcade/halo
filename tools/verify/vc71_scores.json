@@ -49366,17 +49366,17 @@
     "animation_update_internal": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 6.5,
+      "abi_modeled_mnemonic_pct": 94.1,
       "addr": "0x121c30",
       "end": "0x121d5c",
       "kind": "auto",
       "n_r": 118,
-      "opnd_percent": 4.9,
-      "raw_mnemonic_pct": 6.5,
+      "opnd_percent": 94.1,
+      "raw_mnemonic_pct": 94.1,
       "ref": "synth",
       "ref_sha": "66880f503fd4103b",
-      "score": 6.5,
-      "source": "src/halo/unported_thunks.c"
+      "score": 94.1,
+      "source": "src/halo/models/model_animations.c"
     },
     "antenna_debug_data_add": {
       "abi_model": "raw",

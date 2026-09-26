@@ -40007,7 +40007,8 @@
     },
     {
      "addr": "0x121c30",
-     "decl": "int animation_update_internal(int update_kind, int animation_graph_tag_index, short *state, int *out_sound);"
+     "decl": "int animation_update_internal(int update_kind, int animation_graph_tag_index, short *state, int *out_sound);",
+     "ported": true
     },
     {
      "addr": "0x121d60",
