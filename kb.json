@@ -29088,27 +29088,31 @@
     },
     {
      "addr": "0xeba70",
-     "decl": "void playlist_profile_change_oddball_rules(void);",
+     "decl": "bool playlist_profile_change_oddball_rules(void *widget);",
      "comment": "[NAME: player_profiles_list_initialize \u2014 CEA PDB line-containment (probable), cea-deferred 2026-09-03]",
-     "name": "playlist_profile_change_oddball_rules"
+     "name": "playlist_profile_change_oddball_rules",
+     "ported": true
     },
     {
      "addr": "0xebff0",
-     "decl": "void playlist_profile_change_racing_rules(void);",
+     "decl": "bool playlist_profile_change_racing_rules(void *widget);",
      "comment": "[NAME: playlist_profile_change_racing_rules \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "playlist_profile_change_racing_rules"
+     "name": "playlist_profile_change_racing_rules",
+     "ported": true
     },
     {
      "addr": "0xec2c0",
-     "decl": "void playlist_profile_change_player_options(void);",
+     "decl": "bool playlist_profile_change_player_options(void *widget);",
      "comment": "[NAME: playlist_profile_begin_editing \u2014 CEA PDB line-containment (probable), cea-deferred 2026-09-03]",
-     "name": "playlist_profile_change_player_options"
+     "name": "playlist_profile_change_player_options",
+     "ported": true
     },
     {
      "addr": "0xec840",
-     "decl": "void playlist_profile_change_item_options(void);",
+     "decl": "bool playlist_profile_change_item_options(void *widget);",
      "comment": "[NAME: playlist_profile_change_name \u2014 CEA PDB line-containment (probable), cea-deferred 2026-09-03]",
-     "name": "playlist_profile_change_item_options"
+     "name": "playlist_profile_change_item_options",
+     "ported": true
     },
     {
      "addr": "0xecb60",
@@ -29129,9 +29133,10 @@
     },
     {
      "addr": "0xeceb0",
-     "decl": "void playlist_profile_initialize_ctf_rules(void);",
+     "decl": "bool playlist_profile_initialize_ctf_rules(void *widget);",
      "comment": "[NAME: playlist_profile_initialize_ctf_rules \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "playlist_profile_initialize_ctf_rules"
+     "name": "playlist_profile_initialize_ctf_rules",
+     "ported": true
     }
    ],
    "name": "ui_widget.obj",
@@ -29188,9 +29193,10 @@
     },
     {
      "addr": "0xee810",
-     "decl": "void playlist_profile_initialize_indicator_options(void);",
+     "decl": "bool playlist_profile_initialize_indicator_options(void *widget);",
      "comment": "[NAME: playlist_profile_change_indicator_options \u2014 CEA PDB line-containment (probable), cea-deferred 2026-09-03]",
-     "name": "playlist_profile_initialize_indicator_options"
+     "name": "playlist_profile_initialize_indicator_options",
+     "ported": true
     },
     {
      "addr": "0xeea10",
@@ -36137,7 +36143,8 @@
     {
      "addr": "0x30d10",
      "decl": "unsigned int actor_emotion_flee_with_friends(int actor_handle, float *chance_inout);",
-     "name": "actor_emotion_flee_with_friends"
+     "name": "actor_emotion_flee_with_friends",
+     "ported": true
     },
     {
      "addr": "0x30e60",
@@ -36275,7 +36282,9 @@
     },
     {
      "addr": "0x42cb0",
-     "decl": "void ai_communication_get_type_name(void);"
+     "decl": "const char *ai_communication_get_type_name(int16_t type);",
+     "name": "ai_communication_get_type_name",
+     "ported": true
     },
     {
      "addr": "0x42ce0",
@@ -36406,9 +36415,10 @@
     },
     {
      "addr": "0x43a20",
-     "decl": "void ai_conversation_line_perform(void);",
+     "decl": "bool ai_conversation_line_perform(int conversation_handle@<eax>);",
      "comment": "[NAME: ai_conversation_line_perform \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "ai_conversation_line_perform"
+     "name": "ai_conversation_line_perform",
+     "ported": true
     },
     {
      "addr": "0x43ce0",
@@ -36505,7 +36515,9 @@
     },
     {
      "addr": "0x46cb0",
-     "decl": "void ai_conversation_update(void);"
+     "decl": "void ai_conversation_update(void);",
+     "name": "ai_conversation_update",
+     "ported": true
     },
     {
      "addr": "0x46f10",
