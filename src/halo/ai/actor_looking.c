@@ -589,16 +589,16 @@ void action_fight_control(int actor_handle)
 {
   char *actor;
   actor = (char *)datum_get(actor_data, actor_handle);
-  ((actor_t *)actor)->field_426 = ((actor_t *)actor)->field_358;
   *(short *)(actor + 1000) = 5; /* actor+0x3e8 = look priority */
   ((actor_t *)actor)->field_3ec = 2; /* look spec type */
   ((actor_t *)actor)->field_3fc = 4; /* look frame type */
+  ((actor_t *)actor)->field_426 = ((actor_t *)actor)->field_358;
   ((actor_t *)actor)->field_427 = 0;
   ((actor_t *)actor)->field_428 = 0;
   ((actor_t *)actor)->field_424 = 0;
   ((actor_t *)actor)->field_425 = 0;
   if ((((actor_t *)actor)->field_15e != 4) &&
-      (((actor_t *)actor)->field_06e >= 4)) {
+      (((actor_t *)actor)->field_06e >= 5)) {
     ((actor_t *)actor)->field_454 = 1;
     *(short *)(actor + 1000) = 7; /* raise look priority */
   }
@@ -631,29 +631,11 @@ void action_fight_control(int actor_handle)
  * Confirmed: tail check at 0x14a26 with actor_has_ranged_weapon (0x14a51)
  *   and actor_perception_unreachable at 0x14b27.
  * Confirmed: XOR AL,AL return at 0x14b31 (always returns 0). */
+/* local names: PAL 2342 source/ai/action_fight.c:126-309 */
 unsigned int action_fight_perform(int actor_handle)
 {
   char *actor;
   char *tag;
-  char *variant;
-  char *prop;
-  char *encounter;
-  char *firing_pos;
-  short saved_fp;
-  int within_range;
-  float f_threshold;
-  float dist_sq;
-  float timer;
-  short result;
-  char large_buf[0x670];
-  char huge_buf[0x1474c];
-  int local_14;
-  int local_50[15]; /* actor_active_select_firing_position ->
-                       actor_select_firing_position memcpy's 0xf*4 = 60 bytes
-                       (0x3c) here; actor_change_firing_position reads it. Was
-                       [12] (48 bytes)
-                       -> 12-byte stack overflow. */
-  char local_c;
 
   actor = (char *)datum_get(actor_data, actor_handle);
 
@@ -663,133 +645,150 @@ unsigned int action_fight_perform(int actor_handle)
     system_exit(-1);
   }
 
-  if (((actor_t *)actor)->field_04c == '\0')
-    return 0;
+  if (((actor_t *)actor)->field_04c != '\0') {
+    char *variant;
 
-  tag = (char *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
-  variant = actor_combat_get_firing_variant_definition(actor_handle);
+    tag = (char *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
+    variant = actor_combat_get_firing_variant_definition(actor_handle);
 
-  if (((actor_t *)actor)->field_160 != '\0')
-    goto tail;
+    if (((actor_t *)actor)->field_160 == '\0') {
+      if (((actor_t *)actor)->field_358 != '\0' && (*tag & 0x20)) {
+        actor_find_pathfinding_location(actor_handle);
+        if (actor_nearby_firing_positions(actor_handle, (float *)(actor + 0x168),
+                                          ((actor_t *)actor)->field_164,
+                                          0) != '\0') {
+          char near_current_firing_position;
 
-  if (((actor_t *)actor)->field_358 != '\0' && (*tag & 0x20)) {
-    actor_find_pathfinding_location(actor_handle);
+          near_current_firing_position = 0;
+          if (*(int *)(actor + 0x34) != -1 &&
+              ((actor_t *)actor)->firing_positions_current_position_index != -1) {
+            char *encounter;
+            char *firing_pos;
+            float tolerance;
 
-    if (actor_nearby_firing_positions(actor_handle, (float *)(actor + 0x168),
-                                      ((actor_t *)actor)->field_164,
-                                      0) != '\0') {
-      within_range = 0;
+            encounter = (char *)tag_block_get_element(
+              (char *)global_scenario_get() + 0x42c,
+              ((actor_t *)actor)->field_034 & 0xffff, 0xb0);
+            firing_pos = (char *)tag_block_get_element(
+              encounter + 0x98,
+              (int)((actor_t *)actor)->firing_positions_current_position_index,
+              0x18);
+            tolerance = actor_destination_tolerance(actor_handle);
+            if (distance_squared3d((float *)(actor + 0x12c),
+                                   (float *)firing_pos) <
+                tolerance * tolerance) {
+              near_current_firing_position = 1;
+            }
+          }
 
-      if (*(int *)(actor + 0x34) != -1 &&
-          ((actor_t *)actor)->firing_positions_current_position_index != -1) {
-        encounter = (char *)tag_block_get_element(
-          (char *)global_scenario_get() + 0x42c,
-          ((actor_t *)actor)->field_034 & 0xffff, 0xb0);
-        firing_pos = (char *)tag_block_get_element(
-          encounter + 0x98,
-          (int)((actor_t *)actor)->firing_positions_current_position_index,
-          0x18);
+          if (((actor_t *)actor)->field_504 != '\0' &&
+              ((actor_t *)actor)->field_1fc == '\0') {
+            if (((actor_t *)actor)->target_target_prop_index == -1)
+              goto tail;
+            if (!(*(float *)((char *)datum_get(
+                    prop_data, ((actor_t *)actor)->target_target_prop_index) +
+                  0x11c) < *(float *)(variant + 0xa0)))
+              goto tail;
+          } else if (near_current_firing_position) {
+            goto tail;
+          }
 
-        f_threshold = actor_destination_tolerance(actor_handle);
-        dist_sq =
-          distance_squared3d((float *)(actor + 0x12c), (float *)firing_pos);
-
-        if (dist_sq <= f_threshold * f_threshold)
-          within_range = 1;
-      }
-
-      if (((actor_t *)actor)->field_504 != '\0' &&
-          ((actor_t *)actor)->field_1fc == '\0') {
-        if (((actor_t *)actor)->target_target_prop_index != -1) {
-          prop = (char *)datum_get(
-            prop_data, ((actor_t *)actor)->target_target_prop_index);
-          if (*(float *)(prop + 0x11c) < *(float *)(variant + 0xa0))
-            goto reset_fp;
+          ((actor_t *)actor)->firing_positions_current_position_index = -1;
+          actor_move_halt(actor_handle);
+          goto tail;
         }
-        goto tail;
       }
 
-      if (within_range == 0)
-        goto reset_fp;
+      {
+        short result;
+        char position_flags;
+        float combat_position_time_lower_bound;
+        int previous_owner_actor_index;
+        short old_firing_position_index;
+        int candidate[15]; /* actor_active_select_firing_position ->
+                             actor_select_firing_position memcpy's 0xf*4 = 60
+                             bytes (0x3c) here; actor_change_firing_position
+                             reads it. Was [12] (48 bytes) -> 12-byte stack
+                             overflow. */
+        char search[0x670];
+        char workspace[0x1474c];
 
-      goto tail;
+        old_firing_position_index = ((actor_t *)actor)->firing_positions_current_position_index;
+        csmemset(search, 0, 0x670);
+        *(short *)(search + 4) = 0;
+        result = actor_active_select_firing_position(
+          actor_handle, search, candidate, &previous_owner_actor_index, workspace, &position_flags);
+        result = actor_change_firing_position(actor_handle, result, candidate,
+                                              previous_owner_actor_index,
+                                              (unsigned int)(int)workspace,
+                                              position_flags);
+        if (result == -1) {
+          *(short *)(actor + 0x9c) = 0;
+        } else if (result != old_firing_position_index) {
+          float combat_position_time;
+          float combat_position_time_upper_bound;
+
+          combat_position_time_upper_bound = *(float *)(tag + 0x3c4);
+          combat_position_time_lower_bound = *(float *)(tag + 0x3c0);
+          combat_position_time = random_real_range(get_global_random_seed_address(), combat_position_time_lower_bound,
+                                    combat_position_time_upper_bound);
+          if (((actor_t *)actor)->field_15e > 0) {
+            char *weap_tag;
+
+            weap_tag = (char *)tag_get(
+              0x76656869, *(unsigned int *)(char *)object_get_and_verify_type(
+                            ((actor_t *)actor)->field_158, 2));
+            if (*(float *)(weap_tag + 0x3a8) > *(float *)0x2533c0 &&
+                combat_position_time > *(float *)(weap_tag + 0x3a8)) {
+              combat_position_time = *(float *)(weap_tag + 0x3a8);
+            }
+          }
+          *(short *)(actor + 0x9c) = (short)(int)(combat_position_time * *(float *)0x253394);
+        }
+      }
+    }
+
+  tail:
+    if (((actor_t *)actor)->target_target_type >= 7) {
+      char *prop;
+      char unreachable;
+
+      prop = (char *)datum_get(prop_data,
+                               ((actor_t *)actor)->target_target_prop_index);
+      unreachable = 1;
+      if (actor_has_ranged_weapon(actor_handle) != '\0') {
+        if (*(float *)(prop + 0x11c) < ((actor_t *)actor)->field_608) {
+          unreachable = 0;
+        } else if (*(int *)(actor + 0x34) != -1 &&
+                   ((actor_t *)actor)->firing_positions_current_position_index !=
+                     -1) {
+          char *encounter;
+          char *firing_pos;
+          float tolerance;
+
+          encounter = (char *)tag_block_get_element(
+            (char *)global_scenario_get() + 0x42c,
+            ((actor_t *)actor)->field_034 & 0xffff, 0xb0);
+          firing_pos = (char *)tag_block_get_element(
+            encounter + 0x98,
+            (int)((actor_t *)actor)->firing_positions_current_position_index,
+            0x18);
+          tolerance = actor_destination_tolerance(actor_handle);
+          if (distance_squared3d((float *)(actor + 0x12c),
+                                 (float *)firing_pos) >
+                tolerance * tolerance &&
+              distance_squared3d((float *)firing_pos, (float *)(prop + 0xbc)) <
+                ((actor_t *)actor)->field_608 * ((actor_t *)actor)->field_608) {
+            unreachable = 0;
+          }
+        }
+      }
+      actor_perception_unreachable(actor_handle,
+                                   ((actor_t *)actor)->target_target_prop_index,
+                                   unreachable);
     }
   }
 
-  saved_fp = ((actor_t *)actor)->firing_positions_current_position_index;
-  csmemset(large_buf, 0, 0x670);
-  *(short *)(large_buf + 4) = 0;
-
-  result = actor_active_select_firing_position(
-    actor_handle, large_buf, local_50, &local_14, huge_buf, &local_c);
-  result = actor_change_firing_position(actor_handle, (short)result, local_50,
-                                        local_14, (unsigned int)(int)huge_buf,
-                                        local_c);
-
-  if (result == -1) {
-    *(short *)(actor + 0x9c) = 0;
-    goto tail;
-  }
-
-  if (result != saved_fp) {
-    timer = random_real_range(get_global_random_seed_address(),
-                              *(float *)(tag + 0x3c0), *(float *)(tag + 0x3c4));
-
-    if (((actor_t *)actor)->field_15e > 0) {
-      char *weap_tag;
-      weap_tag = (char *)tag_get(
-        0x76656869, *(unsigned int *)(char *)object_get_and_verify_type(
-                      ((actor_t *)actor)->field_158, 3));
-      if (*(float *)(weap_tag + 0x3a8) > *(float *)0x2533c0 &&
-          timer > *(float *)(weap_tag + 0x3a8)) {
-        timer = *(float *)(weap_tag + 0x3a8);
-      }
-    }
-
-    *(short *)(actor + 0x9c) = (short)(int)(timer * *(float *)0x253394);
-  }
-  goto tail;
-
-reset_fp:
-  ((actor_t *)actor)->firing_positions_current_position_index = -1;
-  actor_move_halt(actor_handle);
-
-tail:
-  if (((actor_t *)actor)->target_target_type < 7)
-    return 0;
-
-  prop =
-    (char *)datum_get(prop_data, ((actor_t *)actor)->target_target_prop_index);
-  within_range = 1;
-
-  if (actor_has_ranged_weapon(actor_handle) != '\0') {
-    if (*(float *)(prop + 0x11c) < ((actor_t *)actor)->field_608) {
-      within_range = 0;
-    } else if (*(int *)(actor + 0x34) != -1 &&
-               ((actor_t *)actor)->firing_positions_current_position_index !=
-                 -1) {
-      encounter = (char *)tag_block_get_element(
-        (char *)global_scenario_get() + 0x42c,
-        ((actor_t *)actor)->field_034 & 0xffff, 0xb0);
-      firing_pos = (char *)tag_block_get_element(
-        encounter + 0x98,
-        (int)((actor_t *)actor)->firing_positions_current_position_index, 0x18);
-      f_threshold = actor_destination_tolerance(actor_handle);
-      dist_sq =
-        distance_squared3d((float *)(actor + 0x12c), (float *)firing_pos);
-      if (dist_sq < f_threshold * f_threshold) {
-        dist_sq =
-          distance_squared3d((float *)(prop + 0xbc), (float *)firing_pos);
-        if (dist_sq <=
-            ((actor_t *)actor)->field_608 * ((actor_t *)actor)->field_608)
-          within_range = 0;
-      }
-    }
-  }
-
-  actor_perception_unreachable(actor_handle,
-                               ((actor_t *)actor)->target_target_prop_index,
-                               (char)within_range);
   return 0;
 }
 
@@ -4823,7 +4822,9 @@ LAB_done:
 int action_search_setup_target(int actor_handle, char param_2, char *state_data)
 {
   char *actor;
+  char success;
   actor = (char *)datum_get(actor_data, actor_handle);
+  success = 0;
   if (state_data == NULL) {
     display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_search.c", 0x21,
                    1);
@@ -4834,9 +4835,9 @@ int action_search_setup_target(int actor_handle, char param_2, char *state_data)
     *(short *)(state_data + 8) = 0;
     *(char *)(state_data + 5) = param_2;
     ((actor_t *)actor)->field_098 = 1;
-    return 1;
+    success = 1;
   }
-  return 0;
+  return success;
 }
 
 /* action_search_setup_pursuit (0x197d0)
@@ -4903,7 +4904,9 @@ int action_search_setup_undirected(int actor_handle, int param_2,
                                    char *state_data)
 {
   char *actor;
+  char success;
   actor = (char *)datum_get(actor_data, actor_handle);
+  success = 0;
   if (state_data == NULL) {
     display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_search.c", 0x57,
                    1);
@@ -4913,9 +4916,9 @@ int action_search_setup_undirected(int actor_handle, int param_2,
   if (*(char *)(actor + 6) != '\0') {
     *(short *)(state_data + 8) = 2;
     ((actor_t *)actor)->field_098 = 1;
-    return 1;
+    success = 1;
   }
-  return 0;
+  return success;
 }
 
 /* action_search_update (0x19940)
@@ -4929,62 +4932,53 @@ void action_search_update(int actor_handle)
 {
   char *actor;
   char *tag_data;
-  char *prop;
-  short tag_type;
-  int remain;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   if (*(char *)(actor + 0x9c) != '\0') {
     return;
   }
   tag_data = (char *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
-  tag_type = *(short *)(tag_data + 0x2f8);
-  ((actor_t *)actor)->field_09f = 0;
-  if ((tag_type == 4) ||
-      ((*(tag_data) & 2) != 0 && *(short *)(actor + 0xa4) == 0 &&
-       ((actor_t *)actor)->target_target_type == 5)) {
-    if (*(short *)(tag_data + 0x2f8) != 4) {
-      prop = (char *)datum_get(prop_data,
-                               ((actor_t *)actor)->target_target_prop_index);
-      if (*(char *)(prop + 0x121) > 2) {
-        goto skip_flag;
-      }
-    }
+
+  if (*(short *)(tag_data + 0x2f8) == 4) {
     ((actor_t *)actor)->field_09f = 1;
-  }
-skip_flag:
-  if (((actor_t *)actor)->field_09e != '\0') {
-    if (0 < *(int *)(actor + 0xc0)) {
-      *(int *)(actor + 0xc0) = *(int *)(actor + 0xc0) - 1;
+  } else {
+    ((actor_t *)actor)->field_09f = 0;
+    if ((*(tag_data) & 2) != 0 && *(short *)(actor + 0xa4) == 0 &&
+        ((actor_t *)actor)->target_target_type == 5 &&
+        *(char *)((char *)datum_get(
+                    prop_data, ((actor_t *)actor)->target_target_prop_index) +
+                  0x121) <= 2) {
+      ((actor_t *)actor)->field_09f = 1;
     }
-    remain = *(int *)(actor + 0xc0);
-    if (remain == 0) {
+  }
+
+  if (((actor_t *)actor)->field_09e != '\0') {
+    if (*(int *)(actor + 0xc0) > 0) {
+      *(int *)(actor + 0xc0) -= 1;
+    }
+    if (*(int *)(actor + 0xc0) == 0) {
       *(char *)(actor + 0x9c) = 1;
     }
     if (((actor_t *)actor)->field_018 != -1) {
       if (*(short *)(actor + 0xa4) == 0) {
         if ((((actor_t *)actor)->field_3bd == '\0') &&
             (*(char *)(actor + 0x9c) != '\0' ||
-             (remain + 0x5a < *(int *)(actor + 0xbc)))) {
-          *(int *)(actor + 0x3bd) = 1;
+             *(int *)(actor + 0xc0) + 0x5a < *(int *)(actor + 0xbc))) {
           ai_communication_event(0xd, ((actor_t *)actor)->field_018,
                                  actor_target_unit_index(actor_handle), -1, -1,
                                  -1, 0);
           ((actor_t *)actor)->field_3bd = 1;
-          return;
         }
-      } else if (remain == 0) {
+      } else if (*(int *)(actor + 0xc0) == 0) {
         ai_communication_event(0x12, ((actor_t *)actor)->field_018,
                                actor_target_unit_index(actor_handle), -1, -1,
                                -1, 0);
-        return;
       }
     }
   } else {
     if ((((actor_t *)actor)->field_504 == '\0') &&
         (*(char *)(actor + 6) == '\0')) {
-      *(int *)(actor + 0xc4) = *(int *)(actor + 0xc4) + 1;
-      if (*(int *)(actor + 0xc4) > 0x77) {
+      if (++*(int *)(actor + 0xc4) > 0x78) {
         ((actor_t *)actor)->field_09d = 1;
         *(char *)(actor + 0x9c) = 1;
       }
