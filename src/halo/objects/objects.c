@@ -6383,15 +6383,15 @@ void object_type_handle_region_destroyed(int object_handle, int region_index,
   obj = (char *)object_get_and_verify_type(object_handle, -1);
   type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
 
-  i = 0;
-  entry = *(char **)(type_def + 0x5c);
-  while (entry != NULL) {
+  /* Loop form follows PAL 2342 object_types.c: index the NULL-terminated
+   * part-definition array, re-reading the slot for each part.
+   */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
     fn = *(type_callback_t *)(entry + 0x3c);
     if (fn != NULL) {
       fn(object_handle, region_index, flags);
     }
-    i = i + 1;
-    entry = *(char **)(type_def + 0x5c + (int)(int16_t)i * 4);
   }
 }
 
@@ -6504,15 +6504,15 @@ void object_type_postprocess_node_matrices(int object_handle, void *block_data)
   obj = (char *)object_get_and_verify_type(object_handle, -1);
   type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
 
-  i = 0;
-  entry = *(char **)(type_def + 0x5c);
-  while (entry != NULL) {
+  /* Loop form follows PAL 2342 object_types.c: index the NULL-terminated
+   * part-definition array, re-reading the slot for each part.
+   */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
     fn = *(type_anim_callback_t *)(entry + 0x48);
     if (fn != NULL) {
       fn(object_handle, block_data);
     }
-    i = i + 1;
-    entry = *(char **)(type_def + 0x5c + (int)(int16_t)i * 4);
   }
 }
 
@@ -7865,7 +7865,7 @@ void object_pvs_clear(void)
  */
 short objects_get_activating_cluster_index(void)
 {
-  int globals;
+  int index;
   int entry;
   char *obj;
   void *scenario;
@@ -7874,15 +7874,15 @@ short objects_get_activating_cluster_index(void)
   /* Single-exit form: result lives in EDI to the shared epilogue
    * (ref: or edi,-1 ... mov ax,di). */
   result = -1;
-  globals = *(int *)0x46f084;
+  /* object_globals is re-read at each use (PAL 2342 objects.c:530). */
 
-  switch (*(short *)(globals + 0x90)) {
+  switch (*(short *)(*(int *)0x46f084 + 0x90)) {
   case 2:
-    result = *(short *)(globals + 0x94);
+    result = *(short *)(*(int *)0x46f084 + 0x94);
     break;
   case 1:
-    entry = (int)datum_absolute_index_to_index(*(data_t **)0x5a8d50,
-                                               *(int *)(globals + 0x94));
+    index = *(int *)(*(int *)0x46f084 + 0x94);
+    entry = (int)datum_absolute_index_to_index(*(data_t **)0x5a8d50, index);
     if (entry != 0 && (1 << *(unsigned char *)(entry + 3)) != 0 &&
         *(int *)(entry + 8) != 0) {
       obj = (char *)object_get_and_verify_type(
@@ -8371,27 +8371,27 @@ int16_t object_determine_variant_number(int object_handle /* @<eax> */,
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
   result = 0;
-  region_idx = 0;
-  if (*(int *)(model + 0xc4) > 0) {
-    do {
-      char *region;
-      unsigned int perm_index;
+  /* Loop form follows PAL 2342 objects.c:4583: the region walk stops as
+   * soon as a variant number has been found.
+   */
+  for (region_idx = 0;
+       region_idx < *(int *)(model + 0xc4) && result == 0;
+       region_idx++) {
+    char *region;
+    unsigned int perm_index;
 
-      if ((int16_t)result != 0) {
-        return result;
-      }
-      region = (char *)tag_block_get_element((void *)(model + 0xc4),
-                                             (int)region_idx, 0x4c);
-      perm_index =
-        (unsigned int)*(unsigned char *)(obj + 0x130 + (int)region_idx);
-      if ((int)perm_index < *(int *)(region + 0x40)) {
-        char *perm = (char *)tag_block_get_element((void *)(region + 0x40),
-                                                   (int)perm_index, 0x58);
-        result = *(int16_t *)(perm + 0x24);
-      }
-      region_idx = region_idx + 1;
-    } while ((int)region_idx < *(int *)(model + 0xc4));
+    region = (char *)tag_block_get_element((void *)(model + 0xc4),
+                                           (int)region_idx, 0x4c);
+    perm_index =
+      (unsigned int)*(unsigned char *)(obj + 0x130 + (int)region_idx);
+    if ((int)perm_index < *(int *)(region + 0x40)) {
+      char *perm = (char *)tag_block_get_element((void *)(region + 0x40),
+                                                 (int)perm_index, 0x58);
+      result = *(int16_t *)(perm + 0x24);
+    }
   }
+
+
   return result;
 }
 
@@ -9305,17 +9305,17 @@ void object_add_to_dump(int object_handle /* @<ebx> */,
   char *obj;
   int parent_handle;
   char *parent_obj;
-  int16_t hdr_size;
+  /* header->data_size (hdr+0x6) is re-read per use, PAL 2342 objects.c:4441 */
   struct dump_datum *st = (struct dump_datum *)stats;
 
   hdr = (char *)datum_get(*(data_t **)0x5a8d50, object_handle);
   obj = (char *)object_get_and_verify_type(object_handle, -1);
 
-  hdr_size = *(int16_t *)(hdr + 0x6);
-  if (hdr_size > st->maximum_size) {
-    st->maximum_size = hdr_size;
+
+  if (*(int16_t *)(hdr + 0x6) > st->maximum_size) {
+    st->maximum_size = *(int16_t *)(hdr + 0x6);
   }
-  st->total_size += (int32_t)hdr_size;
+  st->total_size += *(int16_t *)(hdr + 0x6);
   st->count++;
 
   if ((*(unsigned char *)(hdr + 0x2) & 1) != 0) {
@@ -13482,9 +13482,9 @@ void object_translate(int object_handle, float *position, void *location)
     system_exit(-1);
   }
   object_disconnect_from_map(object_handle);
-  *(float *)(obj + 0x0c) = position[0];
-  *(float *)(obj + 0x10) = position[1];
-  *(float *)(obj + 0x14) = position[2];
+  /* object->object.position = *new_position (PAL 2342 objects.c:3231):
+   * one 12-byte aggregate copy through the obj+0x0c address. */
+  *(real_point3d *)(obj + 0x0c) = *(real_point3d *)position;
 #ifdef HALO_RNG_TRACE
   RNG_TRACE_EX(RNG_TRACE_KIND_OBJECT_TRANSLATE_PRE_CONNECT_XY,
                RNG_TRACE_BITS(*(float *)(obj + 0x0c)),
@@ -14082,12 +14082,12 @@ bool object_update(int object_handle)
 
   if ((header->unk_2 & 0x10) == 0) {
     if ((obj->flags & 0x10000) != 0) {
-      short *counter = (short *)(*(int *)0x46f084 + 4);
-      *counter = (short)(*counter + 1);
+      /* active_garbage_object_count: PAL 2342 objects.c:3585 */
+      ++*(short *)(*(int *)0x46f084 + 4);
     }
 
     if (obj->unk_134 != 0) {
-      if ((1 << (obj->type & 0x1f) & 0xfe0) != 0) {
+      if (((1 << obj->type) & 0xfe0) != 0) {
         display_assert(
           "!TEST_FLAG(_object_mask_cannot_interpolate, object->object.type)",
           "c:\\halo\\SOURCE\\objects\\objects.c", 0x9cc, 1);
