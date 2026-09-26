@@ -87943,6 +87943,21 @@
       "score": 88.9,
       "source": "src/halo/objects/objects.c"
     },
+    "power": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xfbcf0",
+      "end": "0xfbcff",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "654a35f4b948ed72",
+      "score": 100.0,
+      "source": "src/halo/items/weapons.c"
+    },
     "pre_evaluator_attack": {
       "abi_model": "regarg_call_stripped",
       "abi_model_items": 5,
@@ -88887,6 +88902,21 @@
       "ref_sha": "536f4efe08ee4769",
       "score": 94.0,
       "source": "src/halo/items/projectiles.c"
+    },
+    "projectile_distribute": {
+      "abi_model": "regparam_stripped",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 91.9,
+      "addr": "0xfd0b0",
+      "end": "0xfd145",
+      "kind": "auto",
+      "n_r": 58,
+      "opnd_percent": 79.3,
+      "raw_mnemonic_pct": 91.1,
+      "ref": "synth",
+      "ref_sha": "97630892e3c6cfa8",
+      "score": 91.9,
+      "source": "src/halo/items/weapons.c"
     },
     "projectile_effect_new": {
       "abi_model": "raw",
@@ -106813,6 +106843,36 @@
       "score": 93.2,
       "source": "src/halo/items/weapons.c"
     },
+    "weapon_export_function_values": {
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 9,
+      "abi_modeled_mnemonic_pct": 95.6,
+      "addr": "0xfbf00",
+      "end": "0xfc243",
+      "kind": "auto",
+      "n_r": 240,
+      "opnd_percent": 56.6,
+      "raw_mnemonic_pct": 93.8,
+      "ref": "synth",
+      "ref_sha": "9fe0a09fae6268fd",
+      "score": 95.6,
+      "source": "src/halo/items/weapons.c"
+    },
+    "weapon_get_field_of_view": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 90.0,
+      "addr": "0xfc8e0",
+      "end": "0xfc92d",
+      "kind": "auto",
+      "n_r": 29,
+      "opnd_percent": 90.0,
+      "raw_mnemonic_pct": 90.0,
+      "ref": "synth",
+      "ref_sha": "784fb1aeaac17fbb",
+      "score": 90.0,
+      "source": "src/halo/items/weapons.c"
+    },
     "weapon_get_first_person_animation_time": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -106841,6 +106901,21 @@
       "ref": "synth",
       "ref_sha": "5f6169a6626b5cba",
       "score": 100.0,
+      "source": "src/halo/items/weapons.c"
+    },
+    "weapon_get_zoom_magnification": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 97.9,
+      "addr": "0xfc780",
+      "end": "0xfc8d6",
+      "kind": "auto",
+      "n_r": 97,
+      "opnd_percent": 93.8,
+      "raw_mnemonic_pct": 97.9,
+      "ref": "synth",
+      "ref_sha": "17903590ca0208c0",
+      "score": 97.9,
       "source": "src/halo/items/weapons.c"
     },
     "weapon_handle_potential_inventory_item": {
@@ -107261,6 +107336,36 @@
       "ref": "synth",
       "ref_sha": "ea2f500bd2231725",
       "score": 100.0,
+      "source": "src/halo/items/weapons.c"
+    },
+    "weapon_trigger_begin_firing": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 90.6,
+      "addr": "0xfe450",
+      "end": "0xfe6bc",
+      "kind": "auto",
+      "n_r": 206,
+      "opnd_percent": 65.3,
+      "raw_mnemonic_pct": 90.6,
+      "ref": "synth",
+      "ref_sha": "388f29bd275af887",
+      "score": 90.6,
+      "source": "src/halo/items/weapons.c"
+    },
+    "weapon_trigger_can_fire_again": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 97.6,
+      "addr": "0xfb5a0",
+      "end": "0xfb68a",
+      "kind": "auto",
+      "n_r": 84,
+      "opnd_percent": 77.6,
+      "raw_mnemonic_pct": 97.6,
+      "ref": "synth",
+      "ref_sha": "57e825d15bd48a83",
+      "score": 97.6,
       "source": "src/halo/items/weapons.c"
     },
     "weapon_trigger_change_state": {

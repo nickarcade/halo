@@ -581,6 +581,72 @@ float weapon_trigger_get_charged_fraction(int weapon_handle,
   return *(float *)0x2533c0;
 }
 
+/* 0xfb5a0 — weapon_trigger_can_fire_again
+ *
+ * Name evidence: 2276 symbol dump (T1). Sole caller weapon_update (0xfe910).
+ *
+ * Confirmed: register args — weapon_handle in EAX (PUSH 0x4 / PUSH EAX /
+ *   CALL object_get_and_verify_type), trigger_index in CX (MOV ESI,ECX at
+ *   0xfb5aa; MOVSX EDX,SI for tag_block_get_element). Returns bool in AL.
+ * Confirmed: call order object_get_and_verify_type -> weapon_trigger_get
+ *   (EDI=object, SI=trigger_index) -> tag_get(0x77656170, *object) ->
+ *   tag_block_get_element(tag_data+0x4fc, trigger_index, 0x114).
+ * Confirmed x87: rate source is object+0x1e4 when definition flags bit 0x200
+ *   is set, else trigger+0x10; rate = defn[+4] + rate*(defn[+8]-defn[+4]).
+ *   period = [0x253394]/rate when rate > [0x253f44], else 0.0f.
+ *   If defn[+0x444] > 0.0f, period *= object[+0x1f0]*defn[+0x444] + 1.0f.
+ *   Result = ((float)(signed char)trigger[0] + 1.0f >= period) (FCOMP, TEST
+ *   AH,1 — unordered yields false).
+ * Confirmed: flags bit 0x8 && (object[+0x1a4] & 2) && !(trigger[4] & 1)
+ *   forces false; tested after the period comparison.
+ * Unknown: meanings of object+0x1e4/+0x1f0/+0x1a4, trigger+0/+4/+0x10 and
+ *   definition +4/+8/+0x444; the value at 0x253f44.
+ */
+bool weapon_trigger_can_fire_again(int weapon_handle, int16_t trigger_index)
+{
+  char *weapon_obj;
+  char *trigger;
+  char *weapon_defn;
+  char *trigger_defn;
+  unsigned int flags;
+  float rate;
+  float period;
+  bool can_fire;
+
+  weapon_obj = (char *)object_get_and_verify_type(weapon_handle, 4);
+  trigger = (char *)weapon_trigger_get(weapon_obj, trigger_index);
+  weapon_defn = (char *)tag_get(0x77656170, *(int *)weapon_obj);
+  trigger_defn = (char *)tag_block_get_element((void *)(weapon_defn + 0x4fc),
+                                               trigger_index, 0x114);
+  flags = *(unsigned int *)trigger_defn;
+  can_fire = false;
+
+  if (flags & 0x200)
+    rate = *(float *)(weapon_obj + 0x1e4);
+  else
+    rate = *(float *)(trigger + 0x10);
+  rate = rate * (*(float *)(trigger_defn + 8) - *(float *)(trigger_defn + 4)) +
+         *(float *)(trigger_defn + 4);
+
+  if (rate > *(float *)0x253f44)
+    period = *(float *)0x253394 / rate;
+  else
+    period = *(float *)0x2533c0;
+
+  if (*(float *)(weapon_defn + 0x444) > *(float *)0x2533c0)
+    period *= *(float *)(weapon_obj + 0x1f0) * *(float *)(weapon_defn + 0x444) +
+              *(float *)0x2533c8;
+
+  if ((float)*(signed char *)trigger + *(float *)0x2533c8 >= period)
+    can_fire = true;
+
+  if ((flags & 8) && (*(unsigned char *)(weapon_obj + 0x1a4) & 2) &&
+      !(*(unsigned char *)(trigger + 4) & 1))
+    return false;
+
+  return can_fire;
+}
+
 /* 0xfb6e0 — weapon_effect_new
  *
  * Starts an effect or sound associated with a weapon trigger. Resolves
@@ -1029,6 +1095,17 @@ void weapon_set_total_rounds(int weapon_handle, int16_t *rounds_array)
   }
 }
 
+/* 0xfbcf0 — power
+ *
+ * Confirmed: cdecl, 2 float stack args; FLD [EBP+8] then FLD [EBP+0xc]
+ * (base in ST1, exponent in ST0), then tail-JMP 0x1d9e70 (_CIpow), whose
+ * ST0 result is returned unchanged.  No xrefs to 0xfbcf0 in the artifact.
+ */
+float power(float base, float exponent)
+{
+  return (float)pow((double)base, (double)exponent);
+}
+
 /* 0xfbd10 — weapon_new
  *
  * Object-type "new" callback (only xref is DATA 0x323f4c). cdecl, 1 stack arg
@@ -1119,6 +1196,160 @@ void weapon_delete(int weapon_index)
                        "c:\\halo\\SOURCE\\items\\weapons.c", 0xea,
                        ((weap_tag[0x308 / 4] >> 3) & 1) == 0);
   }
+}
+
+/* 0xfbf00 — weapon_export_function_values
+ *
+ * Evaluates the weapon definition's four exported function sources
+ * (int16 array at weapon_definition+0x330) and writes one float per slot to
+ * the outermost parent object's function-value array (+0xd4).
+ *
+ * Confirmed: cdecl, 1 stack arg at [EBP+8] (weapon_handle); referenced only
+ *   from data (0x323f5c). Prior kb decl (void) omitted the stack arg.
+ * Confirmed: object_get_and_verify_type(weapon_handle, 4) -> tag_get(
+ *   0x77656170, *weapon) (one ADD ESP,0x10), then parent walk while
+ *   (obj[+4] & 1) && obj[+0xcc] != -1 via object_get_and_verify_type(.., -1).
+ * Confirmed: MOVSX/DEC/CMP 0xf jump table over sources 1..16; value is
+ *   zeroed before the switch and stored for every non-zero source.
+ * Confirmed: source 10/11 and 12 call tag_block_get_element(+0x4fc, i,
+ *   0x114) -> weapon_trigger_get(EDI=weapon, SI=i) ->
+ *   weapon_trigger_get_charged_fraction(EAX=weapon_handle, CX=i); the
+ *   source 10/11 weapon_trigger_get result is discarded in the binary.
+ * Confirmed: source 9 compares weapon_definition+0x34c to 0x3f800000 with an
+ *   integer CMP; 0x2533c8 is the 1.0f constant, 0x2533c0 the 0.0f constant.
+ * Unknown: meanings of the source enum values and of weapon object fields
+ *   +0x1dc/+0x1ec/+0x1f0/+0x1f4/+0x1f8/+0x278 and definition +0x360.
+ */
+void weapon_export_function_values(int weapon_handle)
+{
+  char *weapon_obj;
+  char *weapon_defn;
+  char *obj;
+  float *out;
+  int16_t *source;
+  int count;
+  float value;
+  float t;
+  int16_t i;
+  char *trigger_defn;
+  char *trigger;
+  char *magazine_defn;
+
+  weapon_obj = (char *)object_get_and_verify_type(weapon_handle, 4);
+  weapon_defn = (char *)tag_get(0x77656170, *(int *)weapon_obj);
+  obj = weapon_obj;
+  while ((*(uint8_t *)(obj + 4) & 1) != 0 && *(int *)(obj + 0xcc) != -1) {
+    obj = (char *)object_get_and_verify_type(*(int *)(obj + 0xcc), -1);
+  }
+  out = (float *)(obj + 0xd4);
+  source = (int16_t *)(weapon_defn + 0x330);
+  count = 4;
+  do {
+    if (*source != 0) {
+      value = 0.0f;
+      switch (*source) {
+      case 6:
+        value = 1.0f;
+        break;
+      case 1:
+        value = *(float *)(weapon_obj + 0x1ec);
+        break;
+      case 9:
+        if ((*(uint8_t *)(weapon_obj + 0x1dc) & 1) != 0 &&
+            *(int *)(weapon_defn + 0x34c) != 0x3f800000) {
+          value =
+            (*(float *)(weapon_obj + 0x1ec) - *(float *)(weapon_defn + 0x34c)) /
+            (*(float *)0x2533c8 - *(float *)(weapon_defn + 0x34c));
+        }
+        break;
+      case 12:
+        for (i = 0; (int)i < *(int *)(weapon_defn + 0x4fc); i++) {
+          trigger_defn =
+            (char *)tag_block_get_element(weapon_defn + 0x4fc, (int)i, 0x114);
+          trigger = (char *)weapon_trigger_get(weapon_obj, i);
+          if (*(float *)(trigger_defn + 0x48) > *(float *)0x2533c0) {
+            t = weapon_trigger_get_charged_fraction(weapon_handle, i) *
+                *(float *)(trigger_defn + 0x54);
+            if (value <= t) {
+              value = t;
+            }
+          }
+          if (trigger[1] == 3) {
+            t = (*(float *)0x2533c8 - *(float *)(trigger_defn + 0x54)) *
+                  *(float *)(weapon_obj + 0x1f4) +
+                *(float *)(trigger_defn + 0x54);
+            if (value <= t) {
+              value = t;
+            }
+          }
+          if (value <= *(float *)(trigger + 0x18)) {
+            value = *(float *)(trigger + 0x18);
+          }
+          *(float *)(trigger + 0x18) = value;
+        }
+        t = *(float *)(weapon_defn + 0x360) * *(float *)(weapon_obj + 0x1ec);
+        if (value <= t) {
+          value = t;
+        }
+        break;
+      case 2:
+      case 3:
+        i = *source - 2;
+        if ((int)i < *(int *)(weapon_defn + 0x4f0)) {
+          magazine_defn =
+            (char *)tag_block_get_element(weapon_defn + 0x4f0, (int)i, 0x70);
+          if (*(int16_t *)(magazine_defn + 10) != 0) {
+            value = (float)(int)*(int16_t *)(weapon_obj + 0x260 + i * 12) /
+                    (float)(int)*(int16_t *)(magazine_defn + 10);
+          }
+        }
+        break;
+      case 7:
+      case 8:
+        i = *source - 7;
+        if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
+          value = *(float *)(weapon_obj + 0x224 + i * 36);
+        }
+        break;
+      case 4:
+      case 5:
+        i = *source - 4;
+        if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
+          value = *(float *)(weapon_obj + 0x220 + i * 36);
+        }
+        break;
+      case 15:
+      case 16:
+        i = *source - 15;
+        if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
+          value = *(float *)(weapon_obj + 0x220 + i * 36);
+          if (game_time_get() - *(int *)(weapon_obj + 0x278) > 1) {
+            value = 0.0f;
+          }
+        }
+        break;
+      case 10:
+      case 11:
+        i = *source - 10;
+        if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
+          tag_block_get_element(weapon_defn + 0x4fc, (int)i, 0x114);
+          weapon_trigger_get(weapon_obj, i);
+          value = weapon_trigger_get_charged_fraction(weapon_handle, i);
+        }
+        break;
+      case 14:
+        value = *(float *)(weapon_obj + 0x1f8);
+        break;
+      case 13:
+        value = *(float *)(weapon_obj + 0x1f0);
+        break;
+      }
+      *out = value;
+    }
+    source++;
+    out++;
+    count--;
+  } while (count != 0);
 }
 
 /* Transfer ammunition from a source object into a weapon's magazines (0xfc290).
@@ -1430,6 +1661,116 @@ int16_t weapon_rotate_zoom_level(int weapon_datum, int16_t current_index)
   }
 
   return current_index;
+}
+
+/* weapon_get_zoom_magnification (0xfc780)
+ *
+ * Returns the magnification for a zoom level: 1.0 when the level is out of
+ * range, otherwise min * pow(max / min, level / (count - 1)).
+ *
+ * Confirmed: PUSH 4 / PUSH handle -> object_get_and_verify_type (0x13d680);
+ * PUSH [EAX] / PUSH 0x77656170 -> tag_get (0x1ba140), one ADD ESP,0x10.
+ * Confirmed: [EBP-4] = 1.0f before the calls; it is the out-of-range result.
+ * Confirmed: MOV DX,[EBP+0xc] / TEST DX,DX / JL and CMP DX,[tag+0x3da] / JGE
+ * are 16-bit signed range checks.
+ * Confirmed: count > 1 -> FILD level / FIDIV (count - 1) stored as float;
+ * otherwise the ratio is 0.0f.
+ * Confirmed: tag+0x3dc and tag+0x3e0 each fall back to 1.0f unless > 0.0f
+ * (FCOMP [0x2533c0]; TEST AH,0x41; JNZ).
+ * Confirmed: FLD max / FDIV min / FLD ratio / CALL 0x1d9e70 (_CIpow, ST1^ST0)
+ * then FMUL min.
+ * Confirmed: assert_valid_real at line 0x5a2 passes the int bits (%08X) and a
+ * double (%f); "magnification>0.0f" at line 0x5a3.
+ * Unknown: tag fields +0x3da/+0x3dc/+0x3e0 are not modelled; the names
+ * count/min/max are behaviour-only.
+ */
+float weapon_get_zoom_magnification(int weapon_handle, int zoom_level)
+{
+  float magnification;
+  float ratio;
+  float minimum;
+  float maximum;
+  char *weapon_definition;
+  int16_t level;
+  int16_t count;
+
+  magnification = 1.0f;
+  weapon_definition = (char *)tag_get(
+    0x77656170, *(int *)object_get_and_verify_type(weapon_handle, 4));
+  level = (int16_t)zoom_level;
+
+  if (level >= 0) {
+    count = *(int16_t *)(weapon_definition + 0x3da);
+    if (level < count) {
+      if (count > 1) {
+        ratio = (float)(int)level / (float)(int)(count - 1);
+      } else {
+        ratio = 0.0f;
+      }
+
+      if (*(float *)(weapon_definition + 0x3dc) > 0.0f) {
+        minimum = *(float *)(weapon_definition + 0x3dc);
+      } else {
+        minimum = 1.0f;
+      }
+
+      if (*(float *)(weapon_definition + 0x3e0) > 0.0f) {
+        maximum = *(float *)(weapon_definition + 0x3e0);
+      } else {
+        maximum = 1.0f;
+      }
+
+      magnification =
+        (float)(pow((double)(maximum / minimum), (double)ratio) * minimum);
+
+      if ((*(uint32_t *)&magnification & 0x7f800000) == 0x7f800000) {
+        display_assert(csprintf((char *)0x5ab100,
+                                "%s: assert_valid_real(0x%08X %f)",
+                                "magnification", *(uint32_t *)&magnification,
+                                (double)magnification),
+                       "c:\\halo\\SOURCE\\items\\weapons.c", 0x5a2, 1);
+        system_exit(-1);
+      }
+
+      assert_halt_msg_at("magnification>0.0f",
+                         "c:\\halo\\SOURCE\\items\\weapons.c", 0x5a3,
+                         magnification > 0.0f);
+    }
+  }
+
+  return magnification;
+}
+
+/* weapon_get_field_of_view (0xfc8e0)
+ *
+ * Divides the base field of view by the zoom magnification; the zoomed value
+ * is used only when it lies strictly between the two limits, otherwise the
+ * base value is returned unchanged.
+ *
+ * Confirmed: PUSH [EBP+0x10] / PUSH [EBP+0x8] / CALL 0xfc780 / ADD ESP,0x8 --
+ * cdecl (weapon_handle, zoom_level); [EBP+0xc] is copied to [EBP-4] first.
+ * Confirmed: FCOM [0x2533c8] (1.0f); TEST AH,0x44 / JNP -> magnification ==
+ * 1.0f returns the base value.
+ * Confirmed: FDIVR [EBP+0xc] -> base / magnification.
+ * Confirmed: FCOM [0x28af00] (0.031415928f); TEST AH,0x41 / JNZ, then
+ * FCOM [0x28aefc] (3.1101768f); TEST AH,0x5 / JNP -> strict range test.
+ */
+real weapon_get_field_of_view(int weapon_handle, real base_field_of_view,
+                              uint16_t zoom_level)
+{
+  real field_of_view;
+  real magnification;
+
+  field_of_view = base_field_of_view;
+  magnification = weapon_get_zoom_magnification(weapon_handle, zoom_level);
+  if (magnification != 1.0f) {
+    magnification = base_field_of_view / magnification;
+    if (magnification > 0.031415928f && magnification < 3.1101768f) {
+      field_of_view = magnification;
+    }
+  }
+
+  return field_of_view;
 }
 
 /* weapon_prevents_melee_attack (0xfc930)
@@ -1934,6 +2275,53 @@ void weapon_reset(int weapon_handle)
   }
 }
 
+#include "x87_math.h"
+
+/* 0xfd0b0 — projectile_distribute
+ *
+ * Confirmed from disassembly: the index arrives in AX (TEST AX,AX at 0xfd0bc,
+ *   MOV DX,AX at 0xfd0fa with no prior definition), five cdecl stack args at
+ *   [EBP+0x8..0x18]; single caller FUN_000fd570 at 0xfdb9f.
+ * Confirmed: bit 0 of the byte at [EBP+0x18] selects the offset scheme:
+ *   set   -> index 0 gives 0.0f (0x2533c0); else t = index-1, offset is
+ *            (short)(t>>1) when t is odd, (short)-(t>>1) when t is even.
+ *   clear -> offset = (float)(short)(index>>1) - 0.5f (0x253398), negated
+ *            (FCHS) when index is odd.
+ * Confirmed: offset is multiplied by the float at [EBP+0x14] before the
+ *   short at [EBP+0x10] is compared with 1 (MOVSX/DEC/JNZ at 0xfd115-0xfd11d).
+ * Confirmed: when it equals 1, FCOS then FSIN of the product; CALL
+ *   rotate_vector3d_by_sincos([EBP+0x8], [EBP+0xc], sin, cos) at 0xfd137.
+ * Unknown: meaning of param_4 values other than 1 and of other flag bits.
+ */
+void projectile_distribute(int16_t projectile_index, float *vector, float *axis,
+                           int16_t param_4, float angle, uint8_t flags)
+{
+  float offset;
+  int16_t prior_index;
+
+  if (flags & 1) {
+    if (projectile_index == 0) {
+      offset = 0.0f;
+    } else {
+      prior_index = (int16_t)(projectile_index - 1);
+      if (prior_index & 1) {
+        offset = (float)(int16_t)(prior_index >> 1);
+      } else {
+        offset = (float)(int16_t) - (prior_index >> 1);
+      }
+    }
+  } else {
+    offset = (float)(int16_t)(projectile_index >> 1) - 0.5f;
+    if (projectile_index & 1) {
+      offset = -offset;
+    }
+  }
+  offset = offset * angle;
+  if (param_4 == 1) {
+    rotate_vector3d_by_sincos(vector, axis, x87_fsin(offset), x87_fcos(offset));
+  }
+}
+
 /* weapon_state_next (0xfd150)
  *
  * Name evidence (T2, animation-event pairing): weapon_update (0xfe910)
@@ -2192,6 +2580,116 @@ bool weapon_aim(int weapon_handle, int16_t trigger_index, void *param_3,
 void weapon_stop_reload(int weapon_handle)
 {
   weapon_reset(weapon_handle);
+}
+
+/* 0xfe450 — weapon_trigger_begin_firing
+ *
+ * Name evidence: 2276 symbol dump (T1). Callers: weapon_update (0xfe910).
+ *
+ * Confirmed: cdecl, 3 stack args, plain RET — weapon_handle [EBP+8],
+ *   trigger_index [EBP+0xc] (MOVSX ECX,BX / TEST AX,AX / CMP AX,2, so int16),
+ *   param_3 [EBP+0x10] (MOV AL / TEST AL,AL, so a byte flag).
+ * Confirmed: call order object_get_and_verify_type(handle, 4) ->
+ *   weapon_trigger_get(EDI=object, SI=trigger_index) -> tag_get(0x77656170,
+ *   *object) -> tag_block_get_element(tag+0x4fc, trigger_index, 0x114).
+ * Confirmed: if trigger_defn int16 +0x20 != -1:
+ * tag_block_get_element(tag+0x4f0, that index, 0x70) then
+ * weapon_magazine_get(EDI=object, SI=re-read +0x20); a nonzero int16 at the
+ * magazine clears the ready flag. Object byte +0x1dc bit 0 also clears it.
+ * Confirmed: FUN_0018f3e0(object+0x48, object+0xc, NULL) true -> return; ready
+ *   false -> return; param_3 nonzero -> weapon_trigger_fire(handle, index).
+ * Confirmed x87: trigger_defn +0x48 > [0x2533c0] (TEST AH,0x41) selects the
+ *   state-2 path; else trigger_defn +0xc4 > [0x2533c0] selects the state-1
+ *   path; else weapon_trigger_fire. In the state-2 path, tag flags +0x308 bit
+ *   0x800 with object +0x1f0 >= [0x2533c8] (TEST AH,1) fires and returns.
+ * Confirmed: tag triggers count (+0x4fc) > 1 -> trigger +0x20 =
+ *   weapon_effect_new(trigger_defn +0x68, 0, 0, handle@<eax>); else trigger
+ *   float +0x10 > [0x2533c0] sets trigger +4 bit 0x20 then fires, otherwise
+ *   clears bit 0x20.
+ * Confirmed: ticks = _ftol2(duration * [0x253394]) BEFORE the second object
+ *   lookup; store word +0x212 then byte state +0x211 (0xfe60f/0xfe617).
+ * Unknown: meanings of param_3, object +0x1dc/+0x1f0, trigger +4/+0x10/+0x20,
+ *   trigger_defn +0x20/+0x48/+0x68/+0xc4, tag +0x308 bit 0x800. The kb decl
+ *   of weapon_trigger_fire takes int; the reference pushes the raw dword
+ *   [EBP+0xc], here it receives the sign-extended int16 (same low 16 bits).
+ */
+void weapon_trigger_begin_firing(int weapon_handle, int16_t trigger_index,
+                                 bool param_3)
+{
+  char *weapon_obj;
+  char *trigger;
+  char *weapon_defn;
+  char *trigger_defn;
+  char *weapon_data;
+  int16_t charge_ticks;
+  bool ready;
+
+  weapon_obj = (char *)object_get_and_verify_type(weapon_handle, 4);
+  trigger = (char *)weapon_trigger_get(weapon_obj, trigger_index);
+  weapon_defn = (char *)tag_get(0x77656170, *(int *)weapon_obj);
+  trigger_defn = (char *)tag_block_get_element((void *)(weapon_defn + 0x4fc),
+                                               trigger_index, 0x114);
+  ready = true;
+  if (*(int16_t *)(trigger_defn + 0x20) != -1) {
+    tag_block_get_element((void *)(weapon_defn + 0x4f0),
+                          *(int16_t *)(trigger_defn + 0x20), 0x70);
+    if (*(int16_t *)weapon_magazine_get(weapon_obj,
+                                        *(int16_t *)(trigger_defn + 0x20)) != 0)
+      ready = false;
+  }
+  if (*(unsigned char *)(weapon_obj + 0x1dc) & 1)
+    ready = false;
+
+  if (FUN_0018f3e0(weapon_obj + 0x48, weapon_obj + 0xc, (int16_t *)0))
+    return;
+  if (!ready)
+    return;
+
+  if (!param_3) {
+    if (*(float *)(trigger_defn + 0x48) > *(float *)0x2533c0) {
+      if ((*(unsigned int *)(weapon_defn + 0x308) & 0x800) &&
+          *(float *)(weapon_obj + 0x1f0) >= *(float *)0x2533c8) {
+        weapon_trigger_fire(weapon_handle, trigger_index);
+        return;
+      }
+      if (*(int *)(weapon_defn + 0x4fc) > 1) {
+        *(int *)(trigger + 0x20) = weapon_effect_new(
+          *(int *)(trigger_defn + 0x68), 0.0f, 0.0f, weapon_handle);
+      } else if (*(float *)(trigger + 0x10) > *(float *)0x2533c0) {
+        *(unsigned int *)(trigger + 4) |= 0x20;
+        weapon_trigger_fire(weapon_handle, trigger_index);
+      } else {
+        *(unsigned int *)(trigger + 4) &= ~0x20u;
+      }
+      charge_ticks =
+        (int16_t)(int)(*(float *)(trigger_defn + 0x48) * TICKS_PER_SECOND);
+      weapon_data = (char *)object_get_and_verify_type(weapon_handle, 4);
+      assert_halt_msg_at("trigger_index>=0 && "
+                         "trigger_index<MAXIMUM_NUMBER_OF_TRIGGERS_PER_WEAPON",
+                         "c:\\halo\\SOURCE\\items\\weapons.c", 0xa11,
+                         trigger_index >= 0 &&
+                           trigger_index <
+                             MAXIMUM_NUMBER_OF_TRIGGERS_PER_WEAPON);
+      *(int16_t *)(weapon_data + trigger_index * 36 + 0x212) = charge_ticks;
+      *(char *)(weapon_data + trigger_index * 36 + 0x211) = 2;
+      return;
+    }
+    if (*(float *)(trigger_defn + 0xc4) > *(float *)0x2533c0) {
+      charge_ticks =
+        (int16_t)(int)(*(float *)(trigger_defn + 0xc4) * TICKS_PER_SECOND);
+      weapon_data = (char *)object_get_and_verify_type(weapon_handle, 4);
+      assert_halt_msg_at("trigger_index>=0 && "
+                         "trigger_index<MAXIMUM_NUMBER_OF_TRIGGERS_PER_WEAPON",
+                         "c:\\halo\\SOURCE\\items\\weapons.c", 0xa11,
+                         trigger_index >= 0 &&
+                           trigger_index <
+                             MAXIMUM_NUMBER_OF_TRIGGERS_PER_WEAPON);
+      *(int16_t *)(weapon_data + trigger_index * 36 + 0x212) = charge_ticks;
+      *(char *)(weapon_data + trigger_index * 36 + 0x211) = 1;
+      return;
+    }
+  }
+  weapon_trigger_fire(weapon_handle, trigger_index);
 }
 
 /* 0xfe6c0 — weapon trigger charge start (raw offsets retained)

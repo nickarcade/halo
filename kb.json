@@ -35445,9 +35445,10 @@
     },
     {
      "addr": "0xfb5a0",
-     "decl": "void weapon_trigger_can_fire_again(void);",
+     "decl": "bool weapon_trigger_can_fire_again(int weapon_handle@<eax>, int16_t trigger_index@<cx>);",
      "comment": "[NAME: weapon_trigger_can_fire_again \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_trigger_can_fire_again"
+     "name": "weapon_trigger_can_fire_again",
+     "ported": true
     },
     {
      "addr": "0xfb690",
@@ -35511,9 +35512,11 @@
     },
     {
      "addr": "0xfbcf0",
-     "decl": "void power(void);",
+     "decl": "float power(float base, float exponent);",
      "comment": "[NAME: power \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "power"
+     "name": "power",
+     "ported": true,
+     "source_path": "src/halo/items/weapons.c"
     },
     {
      "addr": "0xfbd10",
@@ -35529,7 +35532,8 @@
     },
     {
      "addr": "0xfbf00",
-     "decl": "void weapon_export_function_values(void);"
+     "decl": "void weapon_export_function_values(int weapon_handle);",
+     "ported": true
     },
     {
      "addr": "0xfc290",
@@ -35559,11 +35563,13 @@
     },
     {
      "addr": "0xfc780",
-     "decl": "float weapon_get_zoom_magnification(int weapon_handle, int zoom_level);"
+     "decl": "float weapon_get_zoom_magnification(int weapon_handle, int zoom_level);",
+     "ported": true
     },
     {
      "addr": "0xfc8e0",
-     "decl": "real weapon_get_field_of_view(int weapon_handle, real base_field_of_view, uint16_t zoom_level);"
+     "decl": "real weapon_get_field_of_view(int weapon_handle, real base_field_of_view, uint16_t zoom_level);",
+     "ported": true
     },
     {
      "addr": "0xfc930",
@@ -35633,9 +35639,10 @@
     },
     {
      "addr": "0xfd0b0",
-     "decl": "void projectile_distribute(void);",
+     "decl": "void projectile_distribute(int16_t projectile_index@<ax>, float *vector, float *axis, int16_t param_4, float angle, uint8_t flags);",
      "comment": "[NAME: projectile_distribute \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "projectile_distribute"
+     "name": "projectile_distribute",
+     "ported": true
     },
     {
      "addr": "0xfd150",
@@ -35698,9 +35705,11 @@
     },
     {
      "addr": "0xfe450",
-     "decl": "void weapon_trigger_begin_firing(void);",
+     "decl": "void weapon_trigger_begin_firing(int weapon_handle, int16_t trigger_index, bool param_3);",
      "comment": "[NAME: weapon_trigger_begin_firing \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_trigger_begin_firing"
+     "name": "weapon_trigger_begin_firing",
+     "ported": true,
+     "source_path": "src/halo/items/weapons.c"
     },
     {
      "addr": "0xfe6c0",
