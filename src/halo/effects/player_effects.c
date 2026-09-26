@@ -2,16 +2,21 @@
 
 __declspec(noinline) char *player_effect_get(int16_t local_player_index)
 {
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\effects\\player_effects.c", 0x73, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
-  assert_halt_at("c:\\halo\\SOURCE\\effects\\player_effects.c", 0x74, player_effect_globals);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\effects\\player_effects.c", 0x73,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\player_effects.c", 0x74,
+                 player_effect_globals);
   return player_effect_globals + local_player_index * 0xec;
 }
 
 void player_effect_initialize(void)
 {
   player_effect_globals = (char *)game_state_malloc("player effects", 0, 0x3ec);
-  assert_halt_at("c:\\halo\\SOURCE\\effects\\player_effects.c", 0x7f, player_effect_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\player_effects.c", 0x7f,
+                 player_effect_globals);
 }
 
 void player_effect_dispose(void)
@@ -121,6 +126,61 @@ void player_telefrag_effect_stop(int player_handle)
     player_effect_get((int16_t)local_player_index);
     rumble_player_continuous((short)local_player_index, 0, 0);
   }
+}
+
+/* player_effect_screen_fade_in -- record a screen fade in the player effect
+ * globals and stamp its start time.
+ *
+ * Confirmed (0xa2970..0xa29b7, 72 bytes, no locals):
+ *   - EAX = [0x4557ec] (player_effect_globals), read once for the stores.
+ *   - [EBP+8] -> globals+0x3b0 via FLD/FSTP (4 bytes); [EBP+0xc] -> +0x3b4
+ *     and [EBP+0x10] -> +0x3b8 via dword MOVs; word [EBP+0x14] -> +0x3c0.
+ *     The first slot is x87-copied although the kb decl types it int; the
+ *     4-byte copy is bit-identical either way, so the decl is kept unchanged.
+ *   - byte +0x3c2 = 0.
+ *   - CALL 0xb5aa0 (game_time_get, cdecl, no args); the globals pointer is
+ *     re-read after the call and EAX is stored to +0x3bc.
+ *
+ * 0xa2970 / player_effects.obj */
+void player_effect_screen_fade_in(int effect_definition, float scale_a,
+                                  float scale_b, uint16_t flags_or_index)
+{
+  char *globals;
+
+  globals = player_effect_globals;
+  *(int *)(globals + 0x3b0) = effect_definition;
+  *(float *)(globals + 0x3b4) = scale_a;
+  *(float *)(globals + 0x3b8) = scale_b;
+  *(uint16_t *)(globals + 0x3c0) = flags_or_index;
+  *(char *)(globals + 0x3c2) = 0;
+  *(int *)(player_effect_globals + 0x3bc) = game_time_get();
+}
+
+/* player_effect_screen_fade_out -- same record as
+ * player_effect_screen_fade_in, but marks the fade direction byte as 1.
+ *
+ * Confirmed (0xa29c0..0xa2a07, 72 bytes, no locals):
+ *   - EAX = [0x4557ec] (player_effect_globals), read once for the stores.
+ *   - [EBP+8] -> globals+0x3b0 via FLD/FSTP (4 bytes); [EBP+0xc] -> +0x3b4
+ *     and [EBP+0x10] -> +0x3b8 via dword MOVs; word [EBP+0x14] -> +0x3c0.
+ *     The first slot is typed int per the kb decl (bit-identical 4-byte copy).
+ *   - byte +0x3c2 = 1 (fade_in stores 0).
+ *   - CALL 0xb5aa0 (game_time_get, cdecl, no args); the globals pointer is
+ *     re-read after the call and EAX is stored to +0x3bc.
+ *
+ * 0xa29c0 / player_effects.obj */
+void player_effect_screen_fade_out(int effect_definition, float scale_a,
+                                   float scale_b, uint16_t flags_or_index)
+{
+  char *globals;
+
+  globals = player_effect_globals;
+  *(int *)(globals + 0x3b0) = effect_definition;
+  *(float *)(globals + 0x3b4) = scale_a;
+  *(float *)(globals + 0x3b8) = scale_b;
+  *(uint16_t *)(globals + 0x3c0) = flags_or_index;
+  *(char *)(globals + 0x3c2) = 1;
+  *(int *)(player_effect_globals + 0x3bc) = game_time_get();
 }
 
 /* player_effect_get_damage_indicators -- copy the local player's four damage

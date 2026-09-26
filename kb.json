@@ -18952,11 +18952,13 @@
     },
     {
      "addr": "0xa2970",
-     "decl": "void player_effect_screen_fade_in(int effect_definition, float scale_a, float scale_b, uint16_t flags_or_index);"
+     "decl": "void player_effect_screen_fade_in(int effect_definition, float scale_a, float scale_b, uint16_t flags_or_index);",
+     "ported": true
     },
     {
      "addr": "0xa29c0",
-     "decl": "void player_effect_screen_fade_out(int effect_definition, float scale_a, float scale_b, uint16_t flags_or_index);"
+     "decl": "void player_effect_screen_fade_out(int effect_definition, float scale_a, float scale_b, uint16_t flags_or_index);",
+     "ported": true
     },
     {
      "addr": "0xa2a10",
@@ -26397,8 +26399,9 @@
     },
     {
      "addr": "0x1c8700",
-     "decl": "void decompress_ima_adpcm_audio_data(void);",
-     "comment": "[NAME: decompress_ima_adpcm_audio_data \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int decompress_ima_adpcm_audio_data(int *compressed, int compressed_size, short *output, int output_count, int *decode_state);",
+     "comment": "[NAME: decompress_ima_adpcm_audio_data \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1c88a0",
@@ -26423,13 +26426,14 @@
     },
     {
      "addr": "0x1cb210",
-     "decl": "void dsound_initialize_channel(void);",
+     "decl": "boolean dsound_initialize_channel(short type_flags@<ax>, short channel_index);",
      "comment": "[NAME: dsound_initialize_channel \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x1cb4c0",
-     "decl": "void dsound_initialize(void);",
-     "comment": "[NAME: dsound_initialize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "boolean dsound_initialize(short *preferences);",
+     "comment": "[NAME: dsound_initialize \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1cb820",
@@ -26476,8 +26480,9 @@
     },
     {
      "addr": "0x1cbc20",
-     "decl": "void sound_travel_milliseconds(void);",
-     "comment": "[NAME: sound_travel_milliseconds \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "int sound_travel_milliseconds(float distance);",
+     "comment": "[NAME: sound_travel_milliseconds \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1cbc40",
@@ -36480,7 +36485,7 @@
     },
     {
      "addr": "0x447d0",
-     "decl": "void ai_conversation_find_participant(void);"
+     "decl": "char ai_conversation_find_participant(int16_t participant_index, char *param_2, char *param_3, char *param_4, float *param_5, int conversation_handle @<eax>);"
     },
     {
      "addr": "0x44fd0",
@@ -36510,13 +36515,15 @@
     },
     {
      "addr": "0x45a10",
-     "decl": "char ai_conversation_begin(int conversation_handle, char *out_keep_trying);"
+     "decl": "char ai_conversation_begin(int conversation_handle, char *out_keep_trying);",
+     "ported": true
     },
     {
      "addr": "0x460e0",
-     "decl": "void ai_communication_find_actor_to_reply_to_player(void);",
+     "decl": "int ai_communication_find_actor_to_reply_to_player(int unit_handle, int param_2, int16_t param_3, int16_t param_4, float *out_scale);",
      "comment": "[NAME: ai_communication_find_actor_to_reply_to_player \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "ai_communication_find_actor_to_reply_to_player"
+     "name": "ai_communication_find_actor_to_reply_to_player",
+     "ported": true
     },
     {
      "addr": "0x46530",
@@ -43853,7 +43860,7 @@
     },
     {
      "addr": "0x00204c5d",
-     "decl": "void IDirectSound_GetCaps(void);"
+     "decl": "int __stdcall IDirectSound_GetCaps(void *dsound, void *caps);"
     },
     {
      "addr": "0x00204c79",
@@ -43861,7 +43868,7 @@
     },
     {
      "addr": "0x00204c95",
-     "decl": "void IDirectSound_DownloadEffectsImage(void);"
+     "decl": "int __stdcall IDirectSound_DownloadEffectsImage(void *dsound, const void *image_buffer, uint32_t image_size, void *image_loc, void **image_desc);"
     },
     {
      "addr": "0x00204cbc",
@@ -43881,7 +43888,7 @@
     },
     {
      "addr": "0x00204d41",
-     "decl": "void IDirectSound_SetMixBinHeadroom(void);"
+     "decl": "int __stdcall IDirectSound_SetMixBinHeadroom(void *dsound, uint32_t mix_bin_mask, uint32_t headroom);"
     },
     {
      "addr": "0x00204d61",
@@ -43889,7 +43896,7 @@
     },
     {
      "addr": "0x00204d81",
-     "decl": "void IDirectSound_SetDistanceFactor(void);"
+     "decl": "int __stdcall IDirectSound_SetDistanceFactor(void *dsound, float distance_factor, uint32_t apply);"
     },
     {
      "addr": "0x00204da5",
@@ -43905,7 +43912,7 @@
     },
     {
      "addr": "0x00204e48",
-     "decl": "void IDirectSound_SetRolloffFactor(void);"
+     "decl": "int __stdcall IDirectSound_SetRolloffFactor(void *dsound, float rolloff_factor, uint32_t apply);"
     },
     {
      "addr": "0x00204e6c",
@@ -44165,7 +44172,7 @@
     },
     {
      "addr": "0x00206232",
-     "decl": "void DirectSoundCreate(void);"
+     "decl": "int __stdcall DirectSoundCreate(void *device_guid, void **out_dsound, void *outer);"
     },
     {
      "addr": "0x0020630e",

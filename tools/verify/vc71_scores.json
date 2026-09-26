@@ -41938,6 +41938,21 @@
       "score": 100.0,
       "source": "src/halo/ai/ai_communication.c"
     },
+    "ai_communication_find_actor_to_reply_to_player": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 95.6,
+      "addr": "0x460e0",
+      "end": "0x46522",
+      "kind": "auto",
+      "n_r": 338,
+      "opnd_percent": 72.6,
+      "raw_mnemonic_pct": 95.6,
+      "ref": "synth",
+      "ref_sha": "52d2077ed2d74c6e",
+      "score": 95.6,
+      "source": "src/halo/ai/ai_communication.c"
+    },
     "ai_communication_find_global_actor_to_talk": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -42121,16 +42136,16 @@
     "ai_conversation": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 91.7,
+      "abi_modeled_mnemonic_pct": 92.8,
       "addr": "0x46b60",
       "end": "0x46ca2",
       "kind": "auto",
       "n_r": 122,
-      "opnd_percent": 86.8,
-      "raw_mnemonic_pct": 91.7,
+      "opnd_percent": 90.3,
+      "raw_mnemonic_pct": 92.8,
       "ref": "synth",
       "ref_sha": "663ef0e9ef9c069c",
-      "score": 91.7,
+      "score": 92.8,
       "source": "src/halo/ai/ai_communication.c"
     },
     "ai_conversation_actor_deleted": {
@@ -42161,6 +42176,21 @@
       "ref": "synth",
       "ref_sha": "648a7313d88f3d9e",
       "score": 100.0,
+      "source": "src/halo/ai/ai_communication.c"
+    },
+    "ai_conversation_begin": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 91.1,
+      "addr": "0x45a10",
+      "end": "0x460d7",
+      "kind": "auto",
+      "n_r": 589,
+      "opnd_percent": 82.3,
+      "raw_mnemonic_pct": 91.1,
+      "ref": "synth",
+      "ref_sha": "53a0314db7df2bca",
+      "score": 91.1,
       "source": "src/halo/ai/ai_communication.c"
     },
     "ai_conversation_finish": {
@@ -42286,16 +42316,16 @@
     "ai_conversation_update": {
       "abi_model": "regarg_call_stripped",
       "abi_model_items": 4,
-      "abi_modeled_mnemonic_pct": 98.3,
+      "abi_modeled_mnemonic_pct": 99.0,
       "addr": "0x46cb0",
       "end": "0x46f0e",
       "kind": "auto",
       "n_r": 204,
-      "opnd_percent": 92.3,
-      "raw_mnemonic_pct": 97.3,
+      "opnd_percent": 93.6,
+      "raw_mnemonic_pct": 98.0,
       "ref": "synth",
       "ref_sha": "0a904b2b7f4ac05c",
-      "score": 98.3,
+      "score": 99.0,
       "source": "src/halo/ai/ai_communication.c"
     },
     "ai_create_mounted_weapons_for_unit": {
@@ -54253,6 +54283,21 @@
       "score": 96.6,
       "source": "src/halo/networking/network_server_manager.c"
     },
+    "decompress_ima_adpcm_audio_data": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 87.9,
+      "addr": "0x1c8700",
+      "end": "0x1c8894",
+      "kind": "auto",
+      "n_r": 144,
+      "opnd_percent": 49.8,
+      "raw_mnemonic_pct": 87.9,
+      "ref": "synth",
+      "ref_sha": "8fdad2e3d6d124a9",
+      "score": 87.9,
+      "source": "src/halo/sound/sound_manager.c"
+    },
     "defaultHandler": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -55632,6 +55677,21 @@
       "ref_sha": "ef93e6e60ac25abb",
       "score": 71.2,
       "source": "src/halo/sound/sound_dsound_xbox.c"
+    },
+    "dsound_initialize": {
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 5,
+      "abi_modeled_mnemonic_pct": 93.8,
+      "addr": "0x1cb4c0",
+      "end": "0x1cb78c",
+      "kind": "auto",
+      "n_r": 229,
+      "opnd_percent": 66.7,
+      "raw_mnemonic_pct": 92.7,
+      "ref": "synth",
+      "ref_sha": "85932b3042f8e246",
+      "score": 93.8,
+      "source": "src/halo/sound/sound_manager.c"
     },
     "dsound_obstruction_from_obstruction": {
       "abi_model": "raw",
@@ -85531,32 +85591,32 @@
     "player_effect_screen_fade_in": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 36.4,
+      "abi_modeled_mnemonic_pct": 88.2,
       "addr": "0xa2970",
       "end": "0xa29b8",
       "kind": "auto",
       "n_r": 17,
-      "opnd_percent": 27.3,
-      "raw_mnemonic_pct": 36.4,
+      "opnd_percent": 88.2,
+      "raw_mnemonic_pct": 88.2,
       "ref": "synth",
       "ref_sha": "1934faabccdee47a",
-      "score": 36.4,
-      "source": "src/halo/unported_thunks.c"
+      "score": 88.2,
+      "source": "src/halo/effects/player_effects.c"
     },
     "player_effect_screen_fade_out": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 36.4,
+      "abi_modeled_mnemonic_pct": 88.2,
       "addr": "0xa29c0",
       "end": "0xa2a08",
       "kind": "auto",
       "n_r": 17,
-      "opnd_percent": 27.3,
-      "raw_mnemonic_pct": 36.4,
+      "opnd_percent": 88.2,
+      "raw_mnemonic_pct": 88.2,
       "ref": "synth",
       "ref_sha": "4c6be1eca86167e5",
-      "score": 36.4,
-      "source": "src/halo/unported_thunks.c"
+      "score": 88.2,
+      "source": "src/halo/effects/player_effects.c"
     },
     "player_effect_screen_flash": {
       "abi_model": "raw",
@@ -86234,18 +86294,18 @@
       "source": "src/halo/game/players.c"
     },
     "player_telefrag_effect_start": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 90.3,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 4,
+      "abi_modeled_mnemonic_pct": 91.4,
       "addr": "0xa2ed0",
       "end": "0xa2fbd",
       "kind": "auto",
       "n_r": 73,
-      "opnd_percent": 79.2,
+      "opnd_percent": 77.1,
       "raw_mnemonic_pct": 90.3,
       "ref": "synth",
       "ref_sha": "1599bce3665ef2a2",
-      "score": 90.3,
+      "score": 91.4,
       "source": "src/halo/effects/player_effects.c"
     },
     "player_telefrag_effect_stop": {
@@ -97225,6 +97285,21 @@
       "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "56a2d50e87091977",
+      "score": 100.0,
+      "source": "src/halo/sound/sound_manager.c"
+    },
+    "sound_travel_milliseconds": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x1cbc20",
+      "end": "0x1cbc32",
+      "kind": "auto",
+      "n_r": 6,
+      "opnd_percent": 66.7,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "9b4ca84dfd6f6691",
       "score": 100.0,
       "source": "src/halo/sound/sound_manager.c"
     },
