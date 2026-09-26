@@ -564,12 +564,13 @@ long TIFFReadEncodedTile(void *tif_, unsigned int tile, void *buf, long size)
 {
   tiff_t *tif = (tiff_t *)tif_;
   tiff_directory_t *td = &tif->tif_dir;
+  unsigned long tilesize = (unsigned long)tif->tif_tilesize;
 
   if (tif->tif_mode == O_WRONLY) {
     FUN_00068a30(tif->tif_name, "File not open for reading");
     return (-1);
   }
-  if (!isTiled(tif)) {
+  if (1 ^ isTiled(tif)) {
     FUN_00068a30(tif->tif_name, "Can not read tiles from a stripped image");
     return (-1);
   }
@@ -578,9 +579,10 @@ long TIFFReadEncodedTile(void *tif_, unsigned int tile, void *buf, long size)
                  td->td_nstrips);
     return (-1);
   }
-  if (size == (long)-1 ||
-      (unsigned long)size > (unsigned long)tif->tif_tilesize)
-    size = tif->tif_tilesize;
+  if (size == (long)-1)
+    size = (long)tilesize;
+  else if ((unsigned long)size > tilesize)
+    size = (long)tilesize;
   return ((TIFFFillTile(tif, tile) &&
            (*tif->tif_decodetile)(tif, (char *)buf, (int)size,
                                   (int)(tile / td->td_stripsperimage))) ?
@@ -643,12 +645,12 @@ unsigned long TIFFNumberOfStrips(void *tif_)
 {
   tiff_t *tif = (tiff_t *)tif_;
   tiff_directory_t *td = &tif->tif_dir;
+  unsigned long rowsperstrip = td->td_rowsperstrip;
 
-  if (td->td_rowsperstrip == (unsigned long)-1) {
+  if (rowsperstrip == (unsigned long)-1) {
     return (td->td_imagelength != 0);
   }
-  return ((td->td_imagelength + (td->td_rowsperstrip - 1)) /
-          td->td_rowsperstrip);
+  return ((td->td_imagelength + (rowsperstrip - 1)) / rowsperstrip);
 }
 
 /* 0x6f150 -- upstream libtiff tif_strip.c TIFFVStripSize (no YCbCr
@@ -666,7 +668,7 @@ unsigned long TIFFVStripSize(void *tif_, unsigned long nrows)
 /* 0x6f180 -- strip size in bytes: rowsperstrip (+0x48), or imagelength
  * (+0x20) when rowsperstrip == -1, times TIFFScanlineSize(tif). Binary
  * computes IMUL scanline_size, rows (call result first operand). */
-unsigned long TIFFStripSize(void *tif_)
+__declspec(noinline) unsigned long TIFFStripSize(void *tif_)
 {
   tiff_t *tif = (tiff_t *)tif_;
   unsigned long rps = tif->tif_dir.td_rowsperstrip;
@@ -2356,30 +2358,31 @@ void FUN_00073a80(short y)
  * unproven. */
 bool extract_plateless_cube_map(void *bitmap)
 {
-  bool success;
+  bool result;
   short width;
-  short size;
+  short face_size;
   short face_index;
-  short row;
-  short column;
-  short x;
-  short y;
+  short destination_y;
+  short destination_x;
+  short source_x;
+  short source_y;
   short *face;
   char *entry;
   void *source;
   void *temporary;
   short faces[48];
+  /* names: PAL 2342 bitmaps/bitmap_extract.c:759-862 */
 
-  success = 1;
+  result = 1;
   assert_halt_msg_at("bitmap_verify(bitmap, TRUE)",
                      "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x2c2,
                      bitmap_verify(bitmap, 1));
   width = *(short *)((char *)bitmap + 4);
   if (width % 4 == 0 &&
-      (size = (short)(width / 4),
+      (face_size = (short)(width / 4),
        *(short *)((char *)bitmap + 6) >= width / 4 * 3) &&
       (width & (width - 1)) == 0) {
-    if (*(short *)0x334138 + 6 <= 0x400) {
+    if (unknown_334138 + 6 <= 0x400) {
       faces[0] = 0;
       faces[1] = 1;
       faces[2] = 1;
@@ -2430,24 +2433,27 @@ bool extract_plateless_cube_map(void *bitmap)
       faces[47] = 0;
       face = faces;
       for (face_index = 6; face_index != 0; face_index--) {
-        entry = *(char **)0x334134 + *(short *)0x334138 * 0x10;
-        (*(short *)0x334138)++;
-        temporary = bitmap_2d_new(size, size, 0, 0xb);
+        entry = (char *)unknown_334134 + unknown_334138 * 0x10;
+        unknown_334138++;
+        temporary = bitmap_2d_new(face_size, face_size, 0, 0xb);
         *(void **)entry = temporary;
         if (temporary != NULL) {
-          for (row = 0; row < size; row++) {
-            x = (short)((unsigned short)(face[0] * size) +
-                        (unsigned short)(face[2] * (size - 1)) +
-                        (unsigned short)(face[6] * row));
-            y = (short)((unsigned short)(face[1] * size) +
-                        (unsigned short)(face[3] * (size - 1)) +
-                        (unsigned short)(face[7] * row));
-            for (column = 0; column < size; column++) {
-              source = bitmap_2d_address(bitmap, x, y, 0);
-              *(unsigned long *)bitmap_2d_address(*(void **)entry, column, row,
+          for (destination_y = 0; destination_y < face_size;
+               destination_y++) {
+            source_x = (short)((unsigned short)(face[0] * face_size) +
+                        (unsigned short)(face[2] * (face_size - 1)) +
+                        (unsigned short)(face[6] * destination_y));
+            source_y = (short)((unsigned short)(face[1] * face_size) +
+                        (unsigned short)(face[3] * (face_size - 1)) +
+                        (unsigned short)(face[7] * destination_y));
+            for (destination_x = 0; destination_x < face_size;
+                 destination_x++) {
+              source = bitmap_2d_address(bitmap, source_x, source_y, 0);
+              *(unsigned long *)bitmap_2d_address(*(void **)entry,
+                                                  destination_x, destination_y,
                                                   0) = *(unsigned long *)source;
-              x += face[4];
-              y += face[5];
+              source_x += face[4];
+              source_y += face[5];
             }
           }
           *(short *)(entry + 4) = *(short *)0x33415c;
@@ -2456,11 +2462,11 @@ bool extract_plateless_cube_map(void *bitmap)
           *(long *)(entry + 0xc) = -1;
         } else {
           error(2, "### ERROR extract: failed to allocate temporary bitmap");
-          success = 0;
+          result = 0;
         }
         face += 8;
       }
-      return success;
+      return result;
     } else {
       error(2,
             "### ERROR extract: can't handle more than (#%d) temporary bitmaps",
