@@ -3538,4 +3538,305 @@ cs(BINKREALTIME, 0x38);
 co(BINKREALTIME, FramesBlitTime, 0x28);
 co(BINKREALTIME, FramesDataRate, 0x34);
 
+/* physics_variables.c speed-update parameters (0x154540 reads +0x0/+0x4/+0x8/
+ * +0xc as floats: FMUL [EDX] / [EDX+0x4] / [EDX+0x8] / [EDX+0xc]).  Field
+ * names from the PAL 2342 reference source (physics_variables.h). */
+struct physics_variable_speed_parameters {
+  real positive_scale;             ///< offset=0x00
+  real negative_scale;             ///< offset=0x04
+  real acceleration;               ///< offset=0x08
+  real deceleration;               ///< offset=0x0c
+};
+cs(struct physics_variable_speed_parameters, 0x10);
+co(struct physics_variable_speed_parameters, deceleration, 0xc);
+
+/* 'phys' tag definition, size 0x80 (PAL 2342 physics_definitions.h).  Only
+ * binary-observed fields are named: center_of_mass negated component-wise by
+ * physics_instance_new (FLD [ESI+0xc/+0x10/+0x14] at 0x150a74-0x150a7e);
+ * mass_points walked by FUN_001508b0 (count at +0x74, element size 0x80);
+ * radius (+0x0, FLD [EBX] / FCOMP 0 at 0x1542a3) and powered_mass_points
+ * count (+0x68, CMP [EBX+0x68] at 0x1542eb) read by physics_update; mass
+ * (+0x8) multiplied across two instances and FSQRT'd at 0x151ef7 by
+ * physics_compute_vehicle_collision. */
+struct physics_definition {
+  real radius;                     ///< offset=0x00
+  real field_04;                   ///< offset=0x04 (moment scale, FMUL [EDI+4] @153cae)
+  real mass;                       ///< offset=0x08
+  real_point3d center_of_mass;     ///< offset=0x0c
+  byte pad_18[0x4];                ///< offset=0x18
+  real gravity_scale;              ///< offset=0x1c
+  real ground_friction;            ///< offset=0x20
+  real ground_depth;               ///< offset=0x24
+  real ground_damp_fraction;       ///< offset=0x28
+  real ground_normal_k1;           ///< offset=0x2c
+  real ground_normal_k0;           ///< offset=0x30
+  byte pad_34[0x4];                ///< offset=0x34
+  real water_friction;             ///< offset=0x38
+  real water_depth;                ///< offset=0x3c
+  real water_density;              ///< offset=0x40
+  byte pad_44[0x4];                ///< offset=0x44
+  real air_friction;               ///< offset=0x48
+  byte pad_4c[0x10];               ///< offset=0x4c
+  tag_block field_5c;              ///< offset=0x5c (0x24-byte 3x3 elements)
+  tag_block powered_mass_points;   ///< offset=0x68
+  tag_block mass_points;           ///< offset=0x74
+};
+cs(struct physics_definition, 0x80);
+co(struct physics_definition, gravity_scale, 0x1c);
+co(struct physics_definition, ground_friction, 0x20);
+co(struct physics_definition, ground_normal_k0, 0x30);
+co(struct physics_definition, water_friction, 0x38);
+co(struct physics_definition, water_density, 0x40);
+co(struct physics_definition, air_friction, 0x48);
+co(struct physics_definition, field_5c, 0x5c);
+co(struct physics_definition, field_04, 0x04);
+co(struct physics_definition, mass, 0x08);
+co(struct physics_definition, center_of_mass, 0x0c);
+co(struct physics_definition, powered_mass_points, 0x68);
+co(struct physics_definition, mass_points, 0x74);
+
+/* 'phys' mass-point block element, size 0x80 (tag_block_get_element(...,
+ * 0x80) in FUN_001508b0 / physics_test_vector).  position +0x38 and radius
+ * +0x68 are the sphere_test_vector3d operands at 0x150bcb/0x150bd3; forward
+ * +0x44 / up +0x50 are the matrix_transform_vector inputs in FUN_001508b0.
+ * Names from the PAL 2342 reference (physics_definitions.h). */
+struct mass_point_definition {
+  byte pad_00[0x20];               ///< offset=0x00
+  int16_t powered_mass_point_index; ///< offset=0x20
+  byte pad_22[0xa];                ///< offset=0x22
+  real mass;                       ///< offset=0x2c
+  byte pad_30[0x4];                ///< offset=0x30
+  real density;                    ///< offset=0x34
+  real_point3d position;           ///< offset=0x38
+  real_vector3d forward;           ///< offset=0x44
+  real_vector3d up;                ///< offset=0x50
+  int16_t friction_type;           ///< offset=0x5c
+  byte pad_5e[0x2];                ///< offset=0x5e
+  real friction_parallel_scale;    ///< offset=0x60
+  real friction_perpendicular_scale; ///< offset=0x64
+  real radius;                     ///< offset=0x68
+  byte pad_6c[0x14];               ///< offset=0x6c
+};
+cs(struct mass_point_definition, 0x80);
+co(struct mass_point_definition, powered_mass_point_index, 0x20);
+co(struct mass_point_definition, mass, 0x2c);
+co(struct mass_point_definition, density, 0x34);
+co(struct mass_point_definition, friction_type, 0x5c);
+co(struct mass_point_definition, friction_perpendicular_scale, 0x64);
+co(struct mass_point_definition, position, 0x38);
+co(struct mass_point_definition, radius, 0x68);
+
+/* physics_test_vector (0x150b60) result: t at +0x0 (MOV [ESI],0x7f7fffff),
+ * hit plane at +0x4 (normal +0x4..+0xc, d FSTP [ESI+0x10]). */
+struct physics_test_vector_result {
+  real t;                          ///< offset=0x00
+  real_plane3d plane;              ///< offset=0x04
+};
+cs(struct physics_test_vector_result, 0x14);
+co(struct physics_test_vector_result, plane, 0x04);
+
+/* 'pphy' point-physics tag definition, size 0x40 (PAL 2342
+ * point_physics.h).  Every named field is read and lerped by
+ * point_physics_definition_interpolate (0x1548c0): flags copied as a dword
+ * at 0x154988, then +0x20/+0x8/+0xc/+0x4/+0x24/+0x28/+0x2c/+0x30 as floats;
+ * +0x4 is also the point_physics_definition_get_mass (0x1548a0) operand. */
+struct point_physics_definition {
+  uint32_t flags;                        ///< offset=0x00
+  real runtime_mass_over_radius_cubed;   ///< offset=0x04
+  real runtime_water_buoyancy_scale;     ///< offset=0x08
+  real runtime_air_buoyancy_scale;       ///< offset=0x0c
+  byte pad_10[0x10];                     ///< offset=0x10
+  real density;                          ///< offset=0x20
+  real air_friction;                     ///< offset=0x24
+  real water_friction;                   ///< offset=0x28
+  real contact_friction;                 ///< offset=0x2c
+  real elasticity;                       ///< offset=0x30
+  byte pad_34[0xc];                      ///< offset=0x34
+};
+cs(struct point_physics_definition, 0x40);
+co(struct point_physics_definition, density, 0x20);
+co(struct point_physics_definition, elasticity, 0x30);
+
+/* Collision-test result filled by FUN_0014df70 (collision_test_vector),
+ * size 0x50 (PAL 2342 collisions.h; point_physics_update frame places it at
+ * [EBP-0x94] with the next local at [EBP-0x44]).  Offsets observed in
+ * point_physics_update (0x154a50): type word at +0x0 compared with 0/2,
+ * location copied as two dwords from +0xc/+0x10 when leaf_index != -1,
+ * t at +0x14, point at +0x18, plane normal at +0x24, material_type word at
+ * +0x34. */
+struct collision_location {
+  int32_t leaf_index;              ///< offset=0x00
+  int32_t cluster_index;           ///< offset=0x04 (short + pad in PAL; copied as a dword)
+};
+cs(struct collision_location, 0x8);
+
+struct collision_result {
+  int16_t type;                          ///< offset=0x00
+  byte pad_02[0xa];                      ///< offset=0x02
+  struct collision_location location;    ///< offset=0x0c
+  real t;                                ///< offset=0x14
+  real_point3d point;                    ///< offset=0x18
+  real_plane3d plane;                    ///< offset=0x24
+  int16_t material_type;                 ///< offset=0x34
+  byte pad_36[0x1a];                     ///< offset=0x36
+};
+cs(struct collision_result, 0x50);
+co(struct collision_result, location, 0x0c);
+co(struct collision_result, t, 0x14);
+co(struct collision_result, point, 0x18);
+co(struct collision_result, plane, 0x24);
+co(struct collision_result, material_type, 0x34);
+
+/* Per-mass-point friction split (PAL 2342 friction_datum.h), size 0x24:
+ * friction_evaluate (0x150dd0) copies +0x0 into +0xc, zeroes +0x18..+0x20,
+ * and rebuilds +0x0 = +0xc + +0x18 after scaling. */
+struct friction_datum {
+  real_vector3d friction;          ///< offset=0x00
+  real_vector3d parallel;          ///< offset=0x0c
+  real_vector3d perpendicular;     ///< offset=0x18
+};
+cs(struct friction_datum, 0x24);
+co(struct friction_datum, parallel, 0x0c);
+co(struct friction_datum, perpendicular, 0x18);
+
+/* Per-object powered mass point state (PAL 2342 powered_mass_point_datum.h),
+ * size 0x60: physics_update (0x154270) indexes it with LEA EAX,[EAX*3] /
+ * SHL EAX,5 and rebuilds rotation_matrix (+0x2c) from the rotation
+ * quaternion (+0x1c) via 0x1093b0, then transposes it (0x109120). */
+struct powered_mass_point_datum {
+  real ground_friction_velocity;   ///< offset=0x00
+  real water_friction_velocity;    ///< offset=0x04
+  real air_friction_velocity;      ///< offset=0x08
+  real water_lift_ratio;           ///< offset=0x0c
+  real air_lift_ratio;             ///< offset=0x10
+  real thrust_fraction;            ///< offset=0x14
+  real antigrav_fraction;          ///< offset=0x18
+  real rotation[4];                ///< offset=0x1c (quaternion)
+  real_matrix4x3 rotation_matrix;  ///< offset=0x2c
+};
+cs(struct powered_mass_point_datum, 0x60);
+co(struct powered_mass_point_datum, water_lift_ratio, 0x0c);
+co(struct powered_mass_point_datum, antigrav_fraction, 0x18);
+co(struct powered_mass_point_datum, rotation, 0x1c);
+co(struct powered_mass_point_datum, rotation_matrix, 0x2c);
+
+/* 'phys' powered-mass-point block element (PAL 2342 physics.c, static
+ * struct), size 0x80: tag_block_get_element(&physics->powered_mass_points,
+ * index, 0x80) at 0x150f82 in physics_compute_new.  flags +0x20 (TEST byte
+ * 0x1..0x40), antigrav_strength +0x24, antigrav_height +0x2c,
+ * antigrav_damp_fraction +0x30 and the pin_fraction k1/k0 pair +0x34/+0x38
+ * are the physics_compute_new operands at 0x151718-0x1517f5. */
+struct powered_mass_point_definition {
+  byte pad_00[0x20];               ///< offset=0x00
+  uint32_t flags;                  ///< offset=0x20
+  real antigrav_strength;          ///< offset=0x24
+  byte pad_28[0x4];                ///< offset=0x28
+  real antigrav_height;            ///< offset=0x2c
+  real antigrav_damp_fraction;     ///< offset=0x30
+  real antigrav_normal_k1;         ///< offset=0x34
+  real antigrav_normal_k0;         ///< offset=0x38
+  byte pad_3c[0x44];               ///< offset=0x3c
+};
+cs(struct powered_mass_point_definition, 0x80);
+co(struct powered_mass_point_definition, flags, 0x20);
+co(struct powered_mass_point_definition, antigrav_height, 0x2c);
+co(struct powered_mass_point_definition, antigrav_normal_k0, 0x38);
+
+/* Per-object mass point state (PAL 2342 mass_point_datum.h), size 0x130:
+ * physics_compute_new (0x150ed0) memsets count*0x130 and strides EDI by
+ * 0x130.  All named offsets are FLD/FSTP/LEA operands in that function;
+ * compute_ground_plane (0x150c80) writes ground_plane/material/depth and
+ * flag 0x4. */
+struct mass_point_datum {
+  uint32_t flags;                  ///< offset=0x00
+  real_point3d position;           ///< offset=0x04
+  real_vector3d forward;           ///< offset=0x10
+  byte pad_1c[0xc];                ///< offset=0x1c
+  real_vector3d up;                ///< offset=0x28
+  byte location[0x8];              ///< offset=0x34 (scenario location)
+  real_vector3d radius;            ///< offset=0x3c
+  real_vector3d velocity;          ///< offset=0x48
+  real_vector3d velocity_relative_to_ground; ///< offset=0x54
+  real_plane3d ground_plane;       ///< offset=0x60
+  int16_t ground_material_type;    ///< offset=0x70
+  byte pad_72[0x2];                ///< offset=0x72
+  real ground_depth;               ///< offset=0x74
+  byte pad_78[0x4];                ///< offset=0x78
+  real water_depth;                ///< offset=0x7c
+  real normal_force_magnitude;     ///< offset=0x80
+  real_vector3d normal_force;      ///< offset=0x84
+  struct friction_datum ground_friction; ///< offset=0x90
+  real water_pressure_magnitude;   ///< offset=0xb4
+  real_vector3d water_pressure;    ///< offset=0xb8
+  struct friction_datum water_friction; ///< offset=0xc4
+  struct friction_datum air_friction; ///< offset=0xe8
+  real_vector3d powered_force;     ///< offset=0x10c
+  real_vector3d force;             ///< offset=0x118
+  real_vector3d torque;            ///< offset=0x124
+};
+cs(struct mass_point_datum, 0x130);
+co(struct mass_point_datum, location, 0x34);
+co(struct mass_point_datum, ground_plane, 0x60);
+co(struct mass_point_datum, ground_depth, 0x74);
+co(struct mass_point_datum, water_depth, 0x7c);
+co(struct mass_point_datum, ground_friction, 0x90);
+co(struct mass_point_datum, water_friction, 0xc4);
+co(struct mass_point_datum, air_friction, 0xe8);
+co(struct mass_point_datum, powered_force, 0x10c);
+co(struct mass_point_datum, torque, 0x124);
+
+/* Game-globals material block element (PAL 2342
+ * material_effect_definitions.h), size 0x374 (element size in
+ * FUN_0018e500).  Only the five physics scales read by physics_compute_new
+ * at 0x151102-0x1511b6 are named. */
+struct material_definition {
+  byte pad_00[0x94];               ///< offset=0x00
+  real physics_ground_friction_scale;          ///< offset=0x94
+  real physics_ground_friction_normal_k1_scale; ///< offset=0x98
+  real physics_ground_friction_normal_k0_scale; ///< offset=0x9c
+  real physics_ground_depth_scale;             ///< offset=0xa0
+  real physics_ground_damp_fraction_scale;     ///< offset=0xa4
+  byte pad_a8[0x2cc];              ///< offset=0xa8
+};
+cs(struct material_definition, 0x374);
+co(struct material_definition, physics_ground_friction_scale, 0x94);
+co(struct material_definition, physics_ground_damp_fraction_scale, 0xa4);
+
+/* damage_data (PAL 2342 damage.h), size 0x54: the stack block filled by
+ * damage_data_new (0x136750) in physics_compute_biped_collision, which then
+ * writes flags +0x4 (OR 1), owner player/object/team +0x8/+0xc/+0x10,
+ * origin +0x1c, epicenter +0x28, direction +0x34 and scale +0x40
+ * (0x151d56-0x151dbc, 0x151e48-0x151ea0).  Names from PAL; the rest is
+ * unobserved here. */
+struct damage_data {
+  byte pad_00[0x4];                ///< offset=0x00
+  uint32_t flags;                  ///< offset=0x04
+  int32_t owner_player_index;      ///< offset=0x08
+  int32_t owner_object_index;      ///< offset=0x0c
+  int16_t owner_team_index;        ///< offset=0x10
+  byte pad_12[0xa];                ///< offset=0x12
+  real_point3d origin;             ///< offset=0x1c
+  real_point3d epicenter;          ///< offset=0x28
+  real_vector3d direction;         ///< offset=0x34
+  real scale;                      ///< offset=0x40
+  byte pad_44[0x10];               ///< offset=0x44
+};
+cs(struct damage_data, 0x54);
+co(struct damage_data, owner_team_index, 0x10);
+co(struct damage_data, origin, 0x1c);
+co(struct damage_data, direction, 0x34);
+co(struct damage_data, scale, 0x40);
+
+/* Transient physics instance built by physics_instance_new (0x1509c0):
+ * object index at +0x0 (MOV [ESI],EDI), 'phys' definition at +0x4, and the
+ * object's world matrix at +0x8 (scale store 0x3f800000 at 0x150a12). */
+struct physics_instance {
+  int32_t object_index;                      ///< offset=0x00
+  const struct physics_definition *physics;  ///< offset=0x04
+  real_matrix4x3 world_matrix;               ///< offset=0x08
+};
+cs(struct physics_instance, 0x3c);
+co(struct physics_instance, physics, 0x04);
+co(struct physics_instance, world_matrix, 0x08);
+
 #endif /* TYPES_H */

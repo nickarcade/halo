@@ -20961,8 +20961,9 @@
    "functions": [
     {
      "addr": "0x150710",
-     "decl": "void pin_fraction(void);",
-     "comment": "[NAME: pin_fraction \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "float pin_fraction(float value, float begin, float end);",
+     "comment": "[NAME: pin_fraction \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x150790",
@@ -20981,11 +20982,13 @@
     },
     {
      "addr": "0x1509c0",
-     "decl": "char FUN_001509c0(int *out, int obj_idx);"
+     "decl": "boolean FUN_001509c0(void *instance_data, int object_index);",
+     "ported": true
     },
     {
      "addr": "0x150b60",
-     "decl": "char FUN_00150b60(void *ctx, void *origin, void *direction, void *out);"
+     "decl": "boolean FUN_00150b60(void *instance_data, void *point, void *vector, void *result_data);",
+     "ported": true
     },
     {
      "addr": "0x150c80",
@@ -20994,20 +20997,24 @@
     },
     {
      "addr": "0x150dd0",
-     "decl": "void friction_evaluate(void);"
+     "decl": "void friction_evaluate(short friction_type@<ax>, float parallel_scale, float perpendicular_scale, float *forward@<ecx>, float *up@<edx>, void *friction_data@<esi>);",
+     "ported": true
     },
     {
      "addr": "0x150ed0",
-     "decl": "void physics_compute_new(void);",
-     "comment": "[NAME: physics_compute_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void physics_compute_new(const struct physics_instance *instance, const struct powered_mass_point_datum *powered_mass_points, struct mass_point_datum *mass_points, real_vector3d *total_force, real_vector3d *total_torque);",
+     "comment": "[NAME: physics_compute_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x151a50",
-     "decl": "void physics_compute_biped_collision(int *collision_context, int object_index);"
+     "decl": "boolean physics_compute_biped_collision(int *instance, int biped_index);",
+     "ported": true
     },
     {
      "addr": "0x151ec0",
-     "decl": "void FUN_00151ec0(int *state_self, int *state_other);"
+     "decl": "boolean physics_compute_vehicle_collision(const struct physics_instance *instance0, const struct physics_instance *instance1);",
+     "ported": true
     },
     {
      "addr": "0x152350",
@@ -21016,21 +21023,25 @@
     },
     {
      "addr": "0x1524d0",
-     "decl": "void physics_compute_vehicle_collision(void);"
+     "decl": "void rotate_vectors3d_by_angular_velocity(float *forward@<ebx>, float *up, float *angular_velocity@<eax>, float *rotated_forward@<edi>, float *rotated_up@<esi>);",
+     "ported": true
     },
     {
      "addr": "0x152680",
-     "decl": "void physics_update_new(void);",
-     "comment": "[NAME: physics_update_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void physics_update_new(const struct physics_instance *instance, const struct powered_mass_point_datum *powered_mass_points, struct mass_point_datum *mass_points, const real_vector3d *total_force, const real_vector3d *total_torque);",
+     "comment": "[NAME: physics_update_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x152e40",
-     "decl": "void physics_update_old(void);",
-     "comment": "[NAME: physics_update_old \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void physics_update_old(int object_index, struct powered_mass_point_datum *powered_mass_points, struct mass_point_datum *mass_points, const real_vector3d *magic_force, const real_vector3d *magic_torque);",
+     "comment": "[NAME: physics_update_old \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x154270",
-     "decl": "void FUN_00154270(void);"
+     "decl": "void physics_update(int object_index, void *powered_mass_points, void *mass_points, float *magic_force, float *magic_torque);",
+     "ported": true
     },
     {
      "addr": "0x1544d0",
@@ -21039,13 +21050,14 @@
     },
     {
      "addr": "0x154540",
-     "decl": "void FUN_00154540(float *out_vel, void *accel_data, float accel);",
-     "ported": false
+     "decl": "void FUN_00154540(float *speed, void *accel_data, float delta);",
+     "ported": true
     },
     {
      "addr": "0x154630",
-     "decl": "void physics_variable_speed_update_seek(void);",
-     "comment": "[NAME: physics_variable_speed_update_seek \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "boolean physics_variable_speed_update_seek(float *speed, void *parameters, float target, float delta);",
+     "comment": "[NAME: physics_variable_speed_update_seek \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1546b0",
@@ -21054,17 +21066,17 @@
     },
     {
      "addr": "0x1546f0",
-     "decl": "float FUN_001546f0(float pos, float dt, float target_pos, void *point_phys@<ecx>);",
-     "ported": false
+     "decl": "float FUN_001546f0(float position, boolean wrap, float target, float *limits@<ecx>);",
+     "ported": true
     },
     {
      "addr": "0x154750",
-     "decl": "char FUN_00154750(float *out_pos, void *point_phys, float dt, float target_pos, float scale);",
+     "decl": "char FUN_00154750(float *out_pos, void *point_phys, boolean wrap, float target_pos, float scale);",
      "ported": true
     },
     {
      "addr": "0x1547d0",
-     "decl": "char FUN_001547d0(float *out_pos, float *out_vel, void *point_phys, float dt, float target_pos, float accel);",
+     "decl": "char FUN_001547d0(float *out_pos, float *out_vel, void *point_phys, boolean wrap, float target_pos, float accel);",
      "ported": true
     },
     {
@@ -21084,7 +21096,8 @@
     },
     {
      "addr": "0x1548c0",
-     "decl": "void *point_physics_definition_interpolate(void *physics_a, void *physics_b, float interpolation, void *out);"
+     "decl": "void *point_physics_definition_interpolate(void *physics_a, void *physics_b, float interpolation, void *out);",
+     "ported": true
     },
     {
      "addr": "0x154a20",
@@ -21094,7 +21107,8 @@
     {
      "addr": "0x154a50",
      "decl": "int point_physics_update(int flags, int physics_tag_data, int *collision_location, int object_handle, float *position, float *velocity, float *force, float *collision_normal_out, int16_t *surface_index_out, float radius, float delta_time);",
-     "comment": "[NAME: point_physics_update \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+     "comment": "[NAME: point_physics_update \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]",
+     "ported": true
     }
    ],
    "name": "point_physics.obj",
@@ -23484,7 +23498,7 @@
     },
     {
      "addr": "0x1099f0",
-     "decl": "void FUN_001099f0(float *src, float *dst);",
+     "decl": "float *FUN_001099f0(float *src, float *dst);",
      "ported": true
     },
     {
