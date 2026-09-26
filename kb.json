@@ -26406,7 +26406,8 @@
     },
     {
      "addr": "0x1cb1a0",
-     "decl": "void dsound_virtual_queue(void);",
+     "decl": "void dsound_virtual_queue(int channel_index, void *sound);",
+     "ported": true,
      "comment": "[NAME: dsound_virtual_queue \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -26577,7 +26578,8 @@
     },
     {
      "addr": "0x1cf360",
-     "decl": "void FUN_001cf360(void);"
+     "decl": "void FUN_001cf360(void);",
+     "ported": true
     },
     {
      "addr": "0x1cf820",

@@ -35504,19 +35504,19 @@
       "source": "src/halo/sound/sound_manager.c"
     },
     "FUN_001cf360": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 0.9,
+      "abi_model": "regarg_call_stripped",
+      "abi_model_items": 4,
+      "abi_modeled_mnemonic_pct": 97.9,
       "addr": "0x1cf360",
       "end": "0x1cf635",
       "kind": "auto",
       "n_r": 214,
-      "opnd_percent": 0.0,
-      "raw_mnemonic_pct": 0.9,
+      "opnd_percent": 82.7,
+      "raw_mnemonic_pct": 97.0,
       "ref": "synth",
       "ref_sha": "b29ab85989ab45c1",
-      "score": 0.9,
-      "source": "src/halo/unported_thunks.c"
+      "score": 97.9,
+      "source": "src/halo/sound/sound_manager.c"
     },
     "FUN_001cf820": {
       "abi_model": "raw",
@@ -58437,6 +58437,21 @@
       "ref_sha": "61a5aa60b503066d",
       "score": 100.0,
       "source": "src/halo/sound/sound_dsound_xbox.c"
+    },
+    "dsound_virtual_queue": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 84.8,
+      "addr": "0x1cb1a0",
+      "end": "0x1cb1c3",
+      "kind": "auto",
+      "n_r": 16,
+      "opnd_percent": 66.7,
+      "raw_mnemonic_pct": 84.8,
+      "ref": "synth",
+      "ref_sha": "46db060e2030e566",
+      "score": 84.8,
+      "source": "src/halo/sound/sound_manager.c"
     },
     "dump_network_game_data": {
       "abi_model": "regparam_stripped_saves",
