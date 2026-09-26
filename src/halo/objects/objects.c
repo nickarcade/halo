@@ -6142,26 +6142,26 @@ void object_types_dispose_from_old_map(void)
 /* Dispatch object placement callback at vtable +0x20 for all type extensions.
  * 0x13c430 / objects.obj
  */
-void object_type_adjust_placement(int param_1, void *param_2)
+void object_type_adjust_placement(int object_index, void *data)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
 
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int, void *))(*piVar1 + 0x20) != 0) {
-      (*(void (**)(int, void *))(*piVar1 + 0x20))(param_1, param_2);
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names and loop form follow PAL 2342 object_types.c (object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int, void *))(entry + 0x20) != NULL) {
+      (*(void (**)(int, void *))(entry + 0x20))(object_index, data);
     }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *(int *)(iVar3 + 0x5c + (int)sVar4 * 4);
   }
+
+
+
+
 }
 
 /*
@@ -6184,84 +6184,84 @@ void object_type_adjust_placement(int param_1, void *param_2)
  */
 char object_type_new(int object_handle)
 {
+  typedef char (*type_new_callback_t)(int);
   char *obj;
   char *type_def;
-  int *handler_slot;
+  char *entry;
+  char result;
   short i;
-  int (*predicate)(int);
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
-  type_def = (char *)object_type_definition_get(*(short *)(obj + 0x64));
-  handler_slot = (int *)(type_def + 0x5c);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  result = 1;
 
-  i = 0;
-  if (*(int *)(type_def + 0x5c) == 0) {
-    return 1;
-  }
-
-  for (;;) {
-    predicate = *(int (**)(int))(*handler_slot + 0x24);
-    if (predicate != 0) {
-      if ((char)predicate(object_handle) == 0) {
-        return 0;
-      }
-    }
-    i = i + 1;
-    handler_slot = (int *)(type_def + 0x5c + (int)i * 4);
-    if (*handler_slot == 0) {
-      return 1;
+  /* Loop form follows PAL 2342 object_types.c (see object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(type_new_callback_t *)(entry + 0x24) != NULL &&
+        !(*(type_new_callback_t *)(entry + 0x24))(object_handle)) {
+      result = 0;
+      break;
     }
   }
+  return result;
+
+
+
+
+
+
+
 }
 
 /* Dispatch object type extension callback at vtable +0x28 for all extensions.
  * 0x13c500 / objects.obj
  */
-void object_type_place(int param_1, int param_2)
+void object_type_place(int object_index, int scenario_object)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
 
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int, int))(*piVar1 + 0x28) != 0) {
-      (*(void (**)(int, int))(*piVar1 + 0x28))(param_1, param_2);
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names and loop form follow PAL 2342 object_types.c (object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int, int))(entry + 0x28) != NULL) {
+      (*(void (**)(int, int))(entry + 0x28))(object_index, scenario_object);
     }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *(int *)(iVar3 + 0x5c + (int)sVar4 * 4);
   }
+
+
+
+
 }
 
 /* Dispatch object type extension callback at vtable +0x2c for all extensions.
  * 0x13c560 / objects.obj
  */
-void object_type_delete(int param_1)
+void object_type_delete(int object_index)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
 
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int))(*piVar1 + 0x2c) != 0) {
-      (*(void (**)(int))(*piVar1 + 0x2c))(param_1);
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names/loop form follow PAL 2342 object_types.c: index the NULL-terminated
+   * part-definition array, re-reading the slot for each part.
+   */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int))(entry + 0x2c) != NULL) {
+      (*(void (**)(int))(entry + 0x2c))(object_index);
     }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *(int *)(iVar3 + 0x5c + (int)sVar4 * 4);
   }
+
+
 }
 
 /* 0x13c5c0 / objects.obj — dispatch the type-extension vtable callback at
@@ -6275,78 +6275,78 @@ void object_type_delete(int param_1)
  * Confirmed: returns bool in AL (MOV AL,BL at exit).
  * Confirmed: 16-bit loop index (MOVSX EAX,SI), stride 4, base +0x5c.
  */
-int object_type_update(int param_1)
+int object_type_update(int object_index)
 {
-  int *slot;
-  int extensions;
-  int type_def;
+  typedef char (*type_update_callback_t)(int);
+  char *obj;
+  char *type_def;
+  char *entry;
   char result;
-  short index;
-  char (*callback)(int);
+  short i;
 
-  type_def = (int)object_get_and_verify_type(param_1, -1);
-  extensions = (int)object_type_definition_get(*(int16_t *)(type_def + 0x64));
-  slot = (int *)(extensions + 0x5c);
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
   result = 0;
-  index = 0;
-  while (*(int *)(extensions + 0x5c + index * 4) != 0) {
-    callback = *(char (**)(int))(*slot + 0x30);
-    if (callback != (char (*)(int))0 && (*callback)(param_1) != 0)
+  /* Names and loop form follow PAL 2342 object_types.c (object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(type_update_callback_t *)(entry + 0x30) != NULL &&
+        (*(type_update_callback_t *)(entry + 0x30))(object_index)) {
       result = 1;
-    index = index + 1;
-    slot = (int *)(extensions + 0x5c + index * 4);
+    }
   }
   return result;
+
 }
 
 /* Dispatch object type extension callback at vtable +0x34 for all extensions.
  * 0x13c620 / objects.obj
  */
-void object_type_export_function_values(int param_1)
+void object_type_export_function_values(int object_index)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
 
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int))(*piVar1 + 0x34) != 0) {
-      (*(void (**)(int))(*piVar1 + 0x34))(param_1);
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names/loop form follow PAL 2342 object_types.c: index the NULL-terminated
+   * part-definition array, re-reading the slot for each part.
+   */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int))(entry + 0x34) != NULL) {
+      (*(void (**)(int))(entry + 0x34))(object_index);
     }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *(int *)(iVar3 + 0x5c + (int)sVar4 * 4);
   }
+
+
 }
 
 /* Dispatch vtable slot +0x38 for each extension in the object type's table.
  * 0x13c680 / objects.obj
  */
-void object_type_handle_deleted_object(int param_1, int param_2)
+void object_type_handle_deleted_object(int object_index,
+                                       int deleted_object_index)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
-
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int, int))(*piVar1 + 0x38) != 0) {
-      (*(void (**)(int, int))(*piVar1 + 0x38))(param_1, param_2);
-    }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *(int *)(iVar3 + 0x5c + (int)sVar4 * 4);
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names and loop form follow PAL 2342 object_types.c (object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int, int))(entry + 0x38) != NULL)
+      (*(void (**)(int, int))(entry + 0x38))(object_index,
+                                             deleted_object_index);
   }
+
+
+
+
 }
 
 /*
@@ -6377,7 +6377,6 @@ void object_type_handle_region_destroyed(int object_handle, int region_index,
   char *obj;
   char *type_def;
   char *entry;
-  type_callback_t fn;
   int16_t i;
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
@@ -6388,11 +6387,12 @@ void object_type_handle_region_destroyed(int object_handle, int region_index,
    */
   for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
     entry = ((char **)(type_def + 0x5c))[i];
-    fn = *(type_callback_t *)(entry + 0x3c);
-    if (fn != NULL) {
-      fn(object_handle, region_index, flags);
+    if (*(type_callback_t *)(entry + 0x3c) != NULL) {
+      (*(type_callback_t *)(entry + 0x3c))(object_handle, region_index, flags);
     }
   }
+
+
 }
 
 /*
@@ -6422,52 +6422,52 @@ char object_type_handle_parent_destroyed(int object_handle)
   char *obj;
   char *type_def;
   char *entry;
-  type_check_callback_t fn;
   char result;
   int16_t i;
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
   type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
-
   result = 0;
-  i = 0;
-  entry = *(char **)(type_def + 0x5c);
-  while (entry != NULL) {
-    fn = *(type_check_callback_t *)(entry + 0x40);
-    if (fn != NULL) {
-      if (fn(object_handle) != 0) {
-        result = 1;
-      }
+
+  /* Loop form follows PAL 2342 object_types.c (see object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(type_check_callback_t *)(entry + 0x40) != NULL &&
+        (*(type_check_callback_t *)(entry + 0x40))(object_handle)) {
+      result = 1;
     }
-    i = i + 1;
-    entry = *(char **)(type_def + 0x5c + (int)(int16_t)i * 4);
   }
   return result;
+
+
+
+
+
 }
 
 /* Dispatch vtable slot +0x44 for each extension in the object type's table.
  * 0x13c7a0 / objects.obj
  */
-void object_type_preprocess_node_orientations(int param_1, int param_2)
+void object_type_preprocess_node_orientations(int object_index,
+                                              int node_orientations)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
-
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int, int))(*piVar1 + 0x44) != 0) {
-      (*(void (**)(int, int))(*piVar1 + 0x44))(param_1, param_2);
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names and loop form follow PAL 2342 object_types.c (object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int, int))(entry + 0x44) != NULL) {
+      (*(void (**)(int, int))(entry + 0x44))(object_index, node_orientations);
     }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *(int *)(iVar3 + 0x5c + (int)sVar4 * 4);
   }
+
+
+
+
 }
 
 /*
@@ -6498,7 +6498,6 @@ void object_type_postprocess_node_matrices(int object_handle, void *block_data)
   char *obj;
   char *type_def;
   char *entry;
-  type_anim_callback_t fn;
   int16_t i;
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
@@ -6509,11 +6508,12 @@ void object_type_postprocess_node_matrices(int object_handle, void *block_data)
    */
   for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
     entry = ((char **)(type_def + 0x5c))[i];
-    fn = *(type_anim_callback_t *)(entry + 0x48);
-    if (fn != NULL) {
-      fn(object_handle, block_data);
+    if (*(type_anim_callback_t *)(entry + 0x48) != NULL) {
+      (*(type_anim_callback_t *)(entry + 0x48))(object_handle, block_data);
     }
   }
+
+
 }
 
 /*
@@ -6530,98 +6530,98 @@ void object_type_reset(int object_handle)
 {
   char *obj;
   char *type_data;
-  int *ptr;
-  void (*reset_fn)(int);
-  short cnt;
+  char *entry;
+  short i;
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
-  type_data =
-    (char *)object_type_definition_get((int16_t) * (short *)(obj + 0x64));
-  ptr = (int *)(type_data + 0x5c);
-  cnt = 0;
-
-  while (*ptr != 0) {
-    reset_fn = *(void (**)(int))((char *)*ptr + 0x4c);
-    if (reset_fn != NULL)
-      reset_fn(object_handle);
-    cnt++;
-    ptr = (int *)(type_data + 0x5c + (int)cnt * 4);
+  type_data = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Loop form follows PAL 2342 object_types.c (see object_type_delete). */
+  for (i = 0; ((char **)(type_data + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_data + 0x5c))[i];
+    if (*(void (**)(int))(entry + 0x4c) != NULL)
+      (*(void (**)(int))(entry + 0x4c))(object_handle);
   }
+
+
+
+
+
+
 }
 
 /* Dispatch vtable slot +0x50 for each extension in the object type's table.
  * 0x13c8c0 / objects.obj
  */
-void object_type_disconnect_from_structure_bsp(int param_1)
+void object_type_disconnect_from_structure_bsp(int object_index)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
 
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int))(*piVar1 + 0x50) != 0) {
-      (*(void (**)(int))(*piVar1 + 0x50))(param_1);
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names/loop form follow PAL 2342 object_types.c: index the NULL-terminated
+   * part-definition array, re-reading the slot for each part.
+   */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int))(entry + 0x50) != NULL) {
+      (*(void (**)(int))(entry + 0x50))(object_index);
     }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *piVar1;
   }
+
+
 }
 
 /* Dispatch vtable slot +0x58 for each extension in the object type's table.
  * 0x13c920 / objects.obj
  */
-void object_type_render_debug(int param_1)
+void object_type_render_debug(int object_index)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
 
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int))(*piVar1 + 0x58) != 0) {
-      (*(void (**)(int))(*piVar1 + 0x58))(param_1);
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names and loop form follow PAL 2342 object_types.c (object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int))(entry + 0x58) != NULL) {
+      (*(void (**)(int))(entry + 0x58))(object_index);
     }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *piVar1;
   }
+
+
+
+
 }
 
 /* Dispatch vtable slot +0x54 for each extension in the object type's table.
  * 0x13c980 / objects.obj
  */
-void object_type_notify_impulse_sound(int param_1, int param_2, int param_3)
+void object_type_notify_impulse_sound(int object_index, int sound_index,
+                                      int source_object_index)
 {
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  short sVar4;
-
-  iVar2 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-  iVar3 = (int)object_type_definition_get((int16_t) * (short *)(iVar2 + 100));
-  piVar1 = (int *)(iVar3 + 0x5c);
-  sVar4 = 0;
-  iVar2 = *(int *)(iVar3 + 0x5c);
-  while (iVar2 != 0) {
-    if (*(void (**)(int, int, int))(*piVar1 + 0x54) != 0) {
-      (*(void (**)(int, int, int))(*piVar1 + 0x54))(param_1, param_2, param_3);
-    }
-    sVar4 = sVar4 + 1;
-    piVar1 = (int *)(iVar3 + 0x5c + (int)sVar4 * 4);
-    iVar2 = *(int *)(iVar3 + 0x5c + (int)sVar4 * 4);
+  char *obj;
+  char *type_def;
+  char *entry;
+  short i;
+  obj = (char *)object_get_and_verify_type(object_index, -1);
+  type_def = (char *)object_type_definition_get(*(int16_t *)(obj + 0x64));
+  /* Names and loop form follow PAL 2342 object_types.c (object_type_delete). */
+  for (i = 0; ((char **)(type_def + 0x5c))[i] != NULL; i++) {
+    entry = ((char **)(type_def + 0x5c))[i];
+    if (*(void (**)(int, int, int))(entry + 0x54) != NULL)
+      (*(void (**)(int, int, int))(entry + 0x54))(object_index, sound_index,
+                                                  source_object_index);
   }
+
+
+
+
 }
 
 /*
