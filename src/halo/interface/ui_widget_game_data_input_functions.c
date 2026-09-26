@@ -3021,6 +3021,27 @@ void variant_profile_update_cache_for_nwide_list(int *ids, int count)
   }
 }
 
+/* list_indices_sort_proc (0xf3960). qsort-style comparator over int
+ * entries: -1 placeholders sort after every other value; all other pairs
+ * compare equal. Returns 1 when only *a is -1, -1 when only *b is -1, else
+ * 0. Evidence: reference disassembly 0xf3960-0xf3989. */
+int __cdecl list_indices_sort_proc(const void *a, const void *b)
+{
+  int left;
+  int right;
+
+  left = *(const int *)a;
+  right = *(const int *)b;
+  if (left == -1) {
+    if (right != left) {
+      return 1;
+    }
+  } else if (right == -1) {
+    return right;
+  }
+  return 0;
+}
+
 /* multiplayer_settings_select_list_update_item (0xf4210)
  * "player settings select" 3-wide spinner list update. Evidence: reference
  * disassembly 0xf4210-0xf46d5 (TU proven by the __FILE__ assert strings; the

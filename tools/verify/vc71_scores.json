@@ -73933,6 +73933,21 @@
       "score": 100.0,
       "source": "src/halo/game/game_engine.c"
     },
+    "list_indices_sort_proc": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xf3960",
+      "end": "0xf398a",
+      "kind": "auto",
+      "n_r": 21,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "e1d8954e93d584bf",
+      "score": 100.0,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
+    },
     "load_symbol_table": {
       "abi_model": "raw",
       "abi_model_items": 0,

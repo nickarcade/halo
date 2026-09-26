@@ -29611,7 +29611,8 @@
     {
      "addr": "0xf3960",
      "decl": "int __cdecl list_indices_sort_proc(const void *a, const void *b);",
-     "name": "list_indices_sort_proc"
+     "name": "list_indices_sort_proc",
+     "ported": true
     },
     {
      "addr": "0xf39c0",
