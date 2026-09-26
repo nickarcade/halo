@@ -4723,7 +4723,7 @@ bool playlist_profile_begin_editing(void *widget, void *event_data,
   int *list_widget;
   short *list_tag;
   short list_index;
-  int profile_handle;
+  int profile_index; /* name: PAL 2342 ui_widget_event_handler_functions.c:3108 */
   int widget_tag_id;
   bool result;
 
@@ -4776,12 +4776,12 @@ bool playlist_profile_begin_editing(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  profile_handle = (*(int **)((char *)list_widget +
+  profile_index = (*(int **)((char *)list_widget +
                               0x40))[*(short *)((char *)list_widget + 0x3c)];
 
-  if (profile_handle != -1) {
-    if (profile_handle & 0x80000000) {
-      player_ui_begin_editing_profile(profile_handle);
+  if (profile_index != -1) {
+    if (profile_index & 0x80000000) {
+      player_ui_begin_editing_profile(profile_index);
       result = true;
     } else {
       display_error_deferred(0x1f, -1, true, false);
@@ -4829,7 +4829,7 @@ bool playlist_profile_set_game_engine(void *widget, void *event_data,
   void *profile;
   void *parent;
   bool result;
-  int new_value;
+  int game_engine; /* name: PAL 2342 ui_widget_event_handler_functions.c:2878 */
 
   (void)event_data;
   (void)widget_deleted;
@@ -4849,30 +4849,30 @@ bool playlist_profile_set_game_engine(void *widget, void *event_data,
   if (profile != NULL) {
     switch (*(int16_t *)((char *)parent + 0x3c)) {
     case 0:
-      new_value = 1;
+      game_engine = 1;
       break;
     case 1:
-      new_value = 4;
+      game_engine = 4;
       break;
     case 2:
-      new_value = 2;
+      game_engine = 2;
       break;
     case 3:
-      new_value = 3;
+      game_engine = 3;
       break;
     case 4:
-      new_value = 5;
+      game_engine = 5;
       break;
     default:
       error(2, "unknown game engine option selected");
-      new_value = *(int *)((char *)profile + 0x18);
+      game_engine = *(int *)((char *)profile + 0x18);
       break;
     }
 
-    if (new_value != *(int *)((char *)profile + 0x18)) {
+    if (game_engine != *(int *)((char *)profile + 0x18)) {
       csmemset((char *)profile + 0x4c, 0, 0x18);
     }
-    *(int *)((char *)profile + 0x18) = new_value;
+    *(int *)((char *)profile + 0x18) = game_engine;
   } else {
     error(2, "failed to retrieve editable game variant");
     result = false;
