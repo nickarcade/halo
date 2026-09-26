@@ -18,11 +18,8 @@ int inflate_blocks_free(int s, int z)
  * 0x114690 / circular_queue.obj (inflate.c) */
 void inflate_set_dictionary(int s, int d, int n)
 {
-  int sum;
   csmemcpy((void *)*(int *)(s + 0x28), (void *)d, n);
-  sum = n + *(int *)(s + 0x28);
-  *(int *)(s + 0x34) = sum;
-  *(int *)(s + 0x30) = sum;
+  *(int *)(s + 0x30) = *(int *)(s + 0x34) = *(int *)(s + 0x28) + n;
 }
 
 /* inflate_blocks_sync_point: return 1 if blocks state == 1.
@@ -228,10 +225,10 @@ int inflate_codes(unsigned int s, int *z, int r)
     if (e == 0) { /* literal */
       c[2] = *(unsigned int *)(t + 4);
       Tracevv((z_stderr,
-               c[2] >= 0x20 && c[2] < 0x7f ?
+               *(unsigned int *)(t + 4) >= 0x20 && *(unsigned int *)(t + 4) < 0x7f ?
                  "inflate:         literal '%c'\n" :
                  "inflate:         literal 0x%02x\n",
-               c[2]));
+               *(unsigned int *)(t + 4)));
       *c = 6;
       break;
     }
@@ -295,10 +292,11 @@ int inflate_codes(unsigned int s, int *z, int r)
     *c = 5;
     /* fall through */
   case 5: /* COPY: o: copying bytes in window, waiting for space */
-    f = q - c[3];
     /* modulo window size -- handles invalid distances */
-    if ((unsigned int)((int)q - *(int *)(s + 0x28)) < c[3])
-      f += *(int *)(s + 0x2c) - *(int *)(s + 0x28);
+    f = (unsigned int)(q - *(unsigned char **)(s + 0x28)) < c[3] ?
+          *(unsigned char **)(s + 0x2c) -
+            (c[3] - (unsigned int)(q - *(unsigned char **)(s + 0x28))) :
+          q - c[3];
     while (c[1] != 0) {
       NEEDOUT
       OUTBYTE(*f++)
@@ -694,7 +692,7 @@ int FUN_001154a0(int z, int w, char *version, int stream_size)
 
 /* inflateInit: initialize inflate stream with default window bits
  * (MAX_WBITS=15). 0x1155c0 / circular_queue.obj (inflate.c) */
-int inflateInit_(int z, char *version, int stream_size)
+__declspec(noinline) int inflateInit_(int z, char *version, int stream_size)
 {
   return FUN_001154a0(z, 0xf, version, stream_size);
 }
@@ -1163,30 +1161,26 @@ int FUN_00115ba0(int *b, unsigned int n, unsigned int s, int *d, int *e, int *t,
 #undef MANY
 
 /* inflate_trees_bits: build decode table for bit-length codes.
- * 0x116010 / circular_queue.obj (inflate.c) */
-int inflate_trees_bits(int *c, int *bb, int tl, int td, int z)
+ * 0x116010 / circular_queue.obj (inflate.c); names: PAL 2342 inftrees.c:294 */
+int inflate_trees_bits(int *c, int *bb, int tb, int hp, int z)
 {
-  int work;
-  int result;
-  unsigned int hn;
+  int r;
+  unsigned int hn = 0; /* hufts used in space */
+  unsigned int *v; /* work area for huft_build */
 
-  hn = 0;
-  work = (*(int (**)(int, int, int))(z + 0x20))(*(int *)(z + 0x28), 0x13, 4);
-  if (work == 0)
+  if ((v = (unsigned int *)(*(int (**)(int, int, int))(z + 0x20))(
+         *(int *)(z + 0x28), 0x13, 4)) == (unsigned int *)0)
     return -4;
-  result = FUN_00115ba0(c, 0x13, 0x13, 0, 0, (int *)tl, (unsigned int *)bb, td,
-                        &hn, (unsigned int *)work);
-  if (result == -3) {
+  r = FUN_00115ba0(c, 0x13, 0x13, 0, 0, (int *)tb, (unsigned int *)bb, hp, &hn,
+                   v);
+  if (r == -3)
     *(const char **)(z + 0x18) = "oversubscribed dynamic bit lengths tree";
-    (*(void (**)(int, int))(z + 0x24))(*(int *)(z + 0x28), work);
-    return -3;
-  }
-  if (result == -5 || *bb == 0) {
+  else if (r == -5 || *bb == 0) {
     *(const char **)(z + 0x18) = "incomplete dynamic bit lengths tree";
-    result = -3;
+    r = -3;
   }
-  (*(void (**)(int, int))(z + 0x24))(*(int *)(z + 0x28), work);
-  return result;
+  (*(void (**)(int, int))(z + 0x24))(*(int *)(z + 0x28), (int)v);
+  return r;
 }
 
 /* inflate_trees_dynamic: build decode tables for dynamic Huffman block.
@@ -2438,35 +2432,35 @@ void _tr_flush_block(int param_1, int param_2, int param_3, int param_4)
 }
 
 /* uncompress: inflate a zlib-deflated block into dest.
- * Returns 0 (Z_OK) on success with *p2 set to decompressed byte count,
+ * Returns 0 (Z_OK) on success with *destLen set to decompressed byte count,
  * -5 (Z_BUF_ERROR) if inflate returned Z_OK without Z_STREAM_END,
  * or the raw zlib error code on any other failure.
  * 0x1179e0 / circular_queue.obj (uncompress.c) */
-int uncompress(int p1, unsigned int *p2, unsigned int *p3, unsigned int p4)
+int uncompress(int dest, unsigned int *destLen, unsigned int *source,
+               unsigned int sourceLen) /* names: PAL 2342 uncompr.c:25 */
 {
   int err;
   int z[14]; /* z_stream, 0x38 bytes */
 
-  z[1] = (int)p4;
-  z[0] = (int)p3;
-  z[4] = (int)*p2;
-  z[3] = p1;
-  z[8] = 0;
-  z[9] = 0;
+  z[0] = (int)source; /* next_in */
+  z[1] = (int)sourceLen; /* avail_in */
+  z[3] = dest; /* next_out */
+  z[4] = (int)*destLen; /* avail_out */
+  z[8] = 0; /* zalloc */
+  z[9] = 0; /* zfree */
+
   err = inflateInit_((int)z, "1.1.3", 0x38);
-  if (err == 0) {
-    int inflate_ret;
-    inflate_ret = FUN_001155e0((int)z, 4);
-    if (inflate_ret != 1) {
-      FUN_00115430((int)z);
-      err = -5;
-      if (inflate_ret != 0)
-        return inflate_ret;
-    } else {
-      *p2 = (unsigned int)z[5];
-      err = FUN_00115430((int)z);
-    }
+  if (err != 0)
+    return err;
+
+  err = FUN_001155e0((int)z, 4);
+  if (err != 1) {
+    FUN_00115430((int)z);
+    return err == 0 ? -5 : err;
   }
+  *destLen = (unsigned int)z[5];
+
+  err = FUN_00115430((int)z);
   return err;
 }
 
