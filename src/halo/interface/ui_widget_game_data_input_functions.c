@@ -1,3 +1,138 @@
+/* playlist profile indicator options initializer (0x0ee810) — fetches the
+ * in-progress playlist profile, asserts the widget is a column list
+ * (+0xe == 3), then walks the list items (first child +0x34, next sibling
+ * +0x2c); each item's spinner is the first child with +0xe == 2.
+ *   'radar display'            dword +0x24: 1->1, 2->2, 0 and else -> 0
+ *   'other players on radar'   dword +0x20 bit 0 clear -> 1, else 0
+ *   'friends on screen'        dword +0x20 bit 1 clear -> 1, else 0
+ * Returns true on the profile path (MOV AL,1), false after
+ * error(2, ...) when no profile is being edited. */
+bool playlist_profile_initialize_indicator_options(void *widget)
+{
+  void *profile;
+  void *item;
+  void *spinner;
+
+  profile = player_ui_get_edit_playlist_profile();
+
+  if (*(int16_t *)((char *)widget + 0xe) != 3) {
+    display_assert(
+      "expected column list for multiplayer game settings widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd7a,
+      true);
+    system_exit(-1);
+  }
+
+  if (profile != NULL) {
+    item = *(void **)((char *)widget + 0x34);
+    if (item == NULL) {
+      display_assert(
+        "expected 'radar display' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd82, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'radar display' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd84, true);
+      system_exit(-1);
+    }
+
+    switch (*(int *)((char *)profile + 0x24)) {
+    case 0:
+      *(int16_t *)((char *)spinner + 0x3c) = 0;
+      break;
+    case 1:
+      *(int16_t *)((char *)spinner + 0x3c) = 1;
+      break;
+    case 2:
+      *(int16_t *)((char *)spinner + 0x3c) = 2;
+      break;
+    default:
+      *(int16_t *)((char *)spinner + 0x3c) = 0;
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'other players on radar' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd8e, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'other players on radar' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd90, true);
+      system_exit(-1);
+    }
+
+    switch (*(unsigned int *)((char *)profile + 0x20) & 1) {
+    case 0:
+      *(int16_t *)((char *)spinner + 0x3c) = 1;
+      break;
+    case 1:
+      *(int16_t *)((char *)spinner + 0x3c) = 0;
+      break;
+    }
+
+    item = *(void **)((char *)item + 0x2c);
+    if (item == NULL) {
+      display_assert(
+        "expected 'friends on screen' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd9a, true);
+      system_exit(-1);
+    }
+
+    for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+         spinner = *(void **)((char *)spinner + 0x2c)) {
+      if (*(int16_t *)((char *)spinner + 0xe) == 2) {
+        break;
+      }
+    }
+    if (spinner == NULL) {
+      display_assert(
+        "expected 'friends on screen' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd9c, true);
+      system_exit(-1);
+    }
+
+    switch ((*(unsigned int *)((char *)profile + 0x20) >> 1) & 1) {
+    case 0:
+      *(int16_t *)((char *)spinner + 0x3c) = 1;
+      break;
+    case 1:
+      *(int16_t *)((char *)spinner + 0x3c) = 0;
+      break;
+    }
+
+    return true;
+  }
+
+  error(2, "failed to retrieve editable game variant");
+  return false;
+}
+
 /* multiplayer playlist profile edit dispose (0x0eea10) — asserts event_data is
  * non-null (halts and exits otherwise), then commits pending edits to the
  * multiplayer playlist profile. If nothing changed it reports the no-op, ends
@@ -1182,7 +1317,9 @@ bool new_campaign_if_no_custom_player_profiles_exist(void *widget,
 void ui_widget_game_data_function_invoke(
   void *widget, unsigned __int16 game_data_input_reference_function)
 {
-  assert_halt_at("c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c", 0x10a, widget);
+  assert_halt_at(
+    "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c", 0x10a,
+    widget);
 
   if (game_data_input_reference_function > 40u) {
     error(2, "invalid game_data_input_reference_function");
