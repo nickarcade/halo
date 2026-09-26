@@ -1,0 +1,114 @@
+{
+ "object_compute_function_values": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 79.0,
+  "after": 88.1
+ },
+ "find_objects_from_point_vector": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 79.8,
+  "after": 90.7
+ },
+ "attachments_new": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 77.5,
+  "after": 93.0
+ },
+ "object_get_orientation": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 77.2,
+  "after": 100.0
+ },
+ "objects_get_activating_cluster_index": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 75.1,
+  "after": 89.6
+ },
+ "object_types_place_all": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "no_gain",
+  "before": 80.0,
+  "after": 80.0
+ },
+ "object_new_from_scenario": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 84.4,
+  "after": 94.8
+ },
+ "object_names_postprocess": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 80.3,
+  "after": 100.0
+ },
+ "network_game_client_leave_game": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 77.5,
+  "after": 88.0
+ },
+ "network_game_client_request_remove_player": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "no_gain",
+  "before": 76.9,
+  "after": 76.9
+ },
+ "network_game_client_add_player": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 78.9,
+  "after": 83.8
+ },
+ "network_game_client_handle_game_update": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 78.4,
+  "after": 100.0
+ },
+ "network_game_client_add_player_to_game": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 75.9,
+  "after": 100.0
+ },
+ "network_game_client_idle_ingame": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "regarg_ceiling",
+  "before": 83.7,
+  "after": 83.7
+ },
+ "network_game_client_idle_joining": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "regarg_ceiling",
+  "before": 84.7,
+  "after": 84.7
+ },
+ "network_game_client_handle_message_server_game_settings_update": {
+  "ts": "2026-09-26",
+  "run": "run-20260926-1928",
+  "result": "improved",
+  "before": 80.9,
+  "after": 85.8
+ }
+}

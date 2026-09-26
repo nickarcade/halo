@@ -13,6 +13,7 @@ nothing — describe the problem and the agent routes itself.
 
 The only skills meant for you to invoke directly.
 
+- **`/byte-campaign`** — Fast raw-XBE byte-accuracy campaign — rank ported functions by recoverable aligned bytes, use the PAL 2342 decomp (../halo-pal-2342, punpck…
 - **`/clear-cache`** — Clear Halo CE cache files from Xbox devkit cache partitions
 - **`/handover`** — Create a concise continuation handover for Halo CE Xbox RE/lift work when the user runs /handover or asks to transfer context to a new agen…
 - **`/input-fixture`** — Interactive wizard to capture (record) or replay a deterministic
