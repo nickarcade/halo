@@ -3114,3 +3114,36 @@ not gated; only HIGH is. The other live HIGH the first full run found is real
 and of the same class: `FUN_001c2120` (`saved_game_files.c:477`) calls
 `csstrcat(path, "\\blam.lst")` where 0x1c21a5 calls `csstrncat` (0x8dd30) —
 a 2-arg call written for a 3-arg bounded one.
+
+## 62. A Busy-Wait Over a Non-Volatile Read Becomes `jmp $` — Save-and-Quit Froze
+
+**Automation:** YES — `tools/audit/check_self_jumps.py`, run by
+`tools/build/build.py` after every link. It fails the build on any `jmp $`
+(`EB FE` / `E9 FB FF FF FF`) in the linked PE unless the original function in
+cachebeta.xbe also contains one (the intentional `for (;;);` after
+`XLaunchNewImageA` in `xbox_demos_launch` / `FUN_000e0570`).
+
+**What happens:** a lift spins until memory changes, but another agent writes
+that memory: the DirectSound runtime, an IO completion path, or hardware. With
+a plain lvalue, clang may assume nothing in the loop changes it. It hoists the
+load, and the wait collapses to a self-jump. VC71 does not hoist these loads,
+so the VC71 score stays high. Nothing asserts either: EIP stays pinned on
+`EB FE`.
+
+**Real case:** `dsound_stream_is_active` (0x20f069) reads a status dword at
+`[[stream+0x24]+0x8]`. The stop-wait loops in `FUN_001ca130` / `FUN_001caab0`
+(`sound_dsound_xbox.c`) poll it. When that helper was ported into the
+same TU, clang inlined it and hoisted the read, and save-and-quit hung forever.
+b0b676c1e "fixed" this by setting the helpers `ported: false`. The next
+auto-lift batch (45be4b6e1) re-ported them and the freeze returned. The same
+scan found a third instance that had never been reported: `FUN_001bc620`
+(`cache_file_close`) spinning on a request slot's active byte at `+0x1d`.
+
+**Fix:** read the polled field through a `volatile` lvalue. This is correct C
+for memory written asynchronously, not match shaping: one volatile load is
+the same single MOV/CMP the original executes on each pass (0x1bc685
+`cmp byte ptr [eax],0; jne 0x1bc685`). `FUN_001bc620` rose 93.3 → 97.3%.
+Separately, mark an XDK helper `__declspec(noinline)` when the original CALLs
+it out of line. VC71 otherwise inlines it and the callers lose score
+(`FUN_001ca130` 90.3 → 91.7%, `FUN_001caab0` 88.2 → 90.3% once restored).
+Do not unport the helper: the next lift batch will just port it again.

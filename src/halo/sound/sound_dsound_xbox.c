@@ -1373,10 +1373,18 @@ void FUN_001cb0c0(int channel_index, void *sound)
 /* 0x20f069 -- XDK DirectSound stream inline (stdcall, RET 4).
  * Loads the object pointer at stream+0x24 and tests its dword at +0x8
  * against mask 0x10000002; NEG/SBB/NEG materializes 0/1 in EAX.
- * The meaning of the individual status bits is unconfirmed. */
-bool __stdcall dsound_stream_is_active(void *stream)
+ * The meaning of the individual status bits is unconfirmed.
+ *
+ * The status dword is written asynchronously by the DirectSound runtime,
+ * and the stop-wait loops in FUN_001ca130/FUN_001caab0 poll it until it
+ * clears.  It must be read through a volatile lvalue: with a plain load
+ * clang inlines this body into those loops, hoists the read, and emits
+ * `jmp $` (save-and-quit freeze, see b0b676c1e).  One volatile load is
+ * the same single MOV the original performs. */
+__declspec(noinline) bool __stdcall dsound_stream_is_active(void *stream)
 {
-  return (*(unsigned int *)(*(char **)((char *)stream + 0x24) + 0x8) &
+  return (*(volatile unsigned int *)(*(char **)((char *)stream + 0x24) +
+                                     0x8) &
           0x10000002) != 0;
 }
 
@@ -1392,7 +1400,7 @@ typedef void(__fastcall *dsound_stream_object_method4_t)(void *object,
                                                          int unused_edx,
                                                          int arg0, int arg1);
 
-void __stdcall FUN_0020f081(void *stream)
+__declspec(noinline) void __stdcall FUN_0020f081(void *stream)
 {
   void *object;
 

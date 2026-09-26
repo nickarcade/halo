@@ -1500,6 +1500,11 @@ _PER_FUNCTION_OPT: dict[str, dict[str, str]] = {
     "cseries/xbox_crt.c": {"crt_tolower": "/O1 /Oy", "crt_toupper": "/O1 /Oy"},
     # FUN_000dc800: leaf switch table with register parameter; reference has NO EBP frame.
     "halo/interface/event_manager.c": {"FUN_000dc800": "/O2 /Oy"},
+    # dsound_stream_is_active (0x20f069): XDK DirectSound leaf; reference reads
+    # its arg ESP-relative (`mov eax,[esp+4]`) with no EBP setup -- /Oy.
+    # FUN_0020f081 (0x20f081): same XDK inline family, `mov eax,[esp+4]`, no EBP.
+    "halo/sound/sound_dsound_xbox.c": {"dsound_stream_is_active": "/O2 /Oy",
+                                       "FUN_0020f081": "/O2 /Oy"},
     # UnhandledExceptionFilter (0x1cf97c): XAPI library code; reference pushes
     # its argument as `push [esp+4]` with no EBP setup (/Oy) and shares one
     # `ret 4` via `or eax,-1; jmp` (size-favoring /O1). 66.7% -> 100%.

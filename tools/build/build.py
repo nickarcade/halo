@@ -142,6 +142,26 @@ def _check_frame_pointer(quiet: bool = False) -> int:
     return result.returncode
 
 
+def _check_self_jumps(quiet: bool = False) -> int:
+    """Fail the build on a `jmp $` self-loop the original binary lacks.
+
+    A busy-wait over a non-volatile lvalue lets clang hoist the load and emit
+    `jmp $` -- a silent freeze VC71 cannot see (see
+    tools/audit/check_self_jumps.py).
+    """
+    script = os.path.join(ROOT_DIR, "tools", "audit", "check_self_jumps.py")
+    exe = os.path.join(BUILD_DIR, "halo")
+    if not os.path.isfile(script) or not os.path.isfile(exe):
+        return 0
+    result = subprocess.run([sys.executable, script, exe], check=False,
+                            cwd=ROOT_DIR)
+    if result.returncode == 2:
+        if not quiet:
+            print("warning: self-jump check could not run", file=sys.stderr)
+        return 0
+    return result.returncode
+
+
 def _env_flag(name: str) -> bool:
     value = os.environ.get(name, "")
     return value.lower() in ("1", "true", "yes", "on")
@@ -240,6 +260,10 @@ def build(target: str = "", quiet: bool = False, test_harness: bool = False,
     fp_result = _check_frame_pointer(quiet=quiet)
     if fp_result != 0:
         return fp_result
+
+    sj_result = _check_self_jumps(quiet=quiet)
+    if sj_result != 0:
+        return sj_result
 
     _generate_debug_elf(quiet=quiet)
     return 0

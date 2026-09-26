@@ -776,7 +776,7 @@ void FUN_001bc620(void)
 {
   short request_index;
   int offset;
-  char *req;
+  volatile char *req; /* polled; the original re-reads it every pass */
 
   if (*(int16_t *)0x4e9244 == -1) {
     display_assert("cache_file_globals.open_map_file_index!=NONE",
@@ -793,7 +793,7 @@ void FUN_001bc620(void)
                      1);
       system_exit(-1);
     }
-    req = (char *)(*(int *)0x4e9250 + offset + 0x1d);
+    req = (volatile char *)(*(int *)0x4e9250 + offset + 0x1d);
     while (*req != 0) {
     }
     request_index = request_index + 1;
