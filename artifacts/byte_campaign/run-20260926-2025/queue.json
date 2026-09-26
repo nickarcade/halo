@@ -1,0 +1,690 @@
+[
+ {
+  "source": "src/halo/networking/network_server_manager.c",
+  "score": 900.0,
+  "targets": [
+   {
+    "function": "network_game_server_idle_pregame_tasks",
+    "address": "0x0012e750",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8129,
+    "missing_bytes": 110,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     3153,
+     3306
+    ],
+    "pal_status": "Matching",
+    "score": 110.0,
+    "causes": {
+     "candidate_only:instruction": 7,
+     "candidate_only:register_save": 6,
+     "candidate_only:stack_param_load": 3,
+     "immediate": 1,
+     "operand_order": 1,
+     "operands": 6,
+     "reference_only:instruction": 8,
+     "register": 1,
+     "stack_offset": 9
+    }
+   },
+   {
+    "function": "network_game_server_update_ticks",
+    "address": "0x0012cdb0",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.7608,
+    "missing_bytes": 89,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     1697,
+     1787
+    ],
+    "pal_status": "Matching",
+    "score": 89.0,
+    "causes": {
+     "candidate_only:instruction": 5,
+     "candidate_only:register_save": 1,
+     "candidate_only:stack_param_load": 1,
+     "immediate": 1,
+     "operands": 3,
+     "reference_only:instruction": 8,
+     "reference_only:stack_param_load": 1,
+     "register": 2
+    }
+   },
+   {
+    "function": "network_game_server_update_countdown",
+    "address": "0x0012e3a0",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8239,
+    "missing_bytes": 75,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     2581,
+     2674
+    ],
+    "pal_status": "Matching",
+    "score": 75.0,
+    "causes": {
+     "candidate_only:instruction": 11,
+     "candidate_only:register_save": 2,
+     "displacement": 1,
+     "immediate": 2,
+     "operands": 2,
+     "reference_only:instruction": 2,
+     "reference_only:register_save": 2,
+     "register": 2
+    }
+   },
+   {
+    "function": "network_game_server_handle_client_machines",
+    "address": "0x0012e580",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8022,
+    "missing_bytes": 72,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     2939,
+     3040
+    ],
+    "pal_status": "Matching",
+    "score": 72.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "candidate_only:register_save": 4,
+     "candidate_only:stack_param_load": 1,
+     "immediate": 1,
+     "operands": 7,
+     "reference_only:instruction": 2,
+     "reference_only:register_save": 2,
+     "register": 28,
+     "stack_offset": 2
+    }
+   },
+   {
+    "function": "network_game_server_add_new_client",
+    "address": "0x0012d880",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8195,
+    "missing_bytes": 50,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     2833,
+     2904
+    ],
+    "pal_status": "Matching",
+    "score": 50.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "candidate_only:stack_param_load": 1,
+     "operands": 6,
+     "reference_only:instruction": 2,
+     "reference_only:register_save": 1,
+     "register": 16,
+     "stack_offset": 2
+    }
+   },
+   {
+    "function": "network_game_server_remove_machine_from_game",
+    "address": "0x0012e090",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.7911,
+    "missing_bytes": 47,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     2335,
+     2406
+    ],
+    "pal_status": "Matching",
+    "score": 47.0,
+    "causes": {
+     "candidate_only:instruction": 5,
+     "operands": 3,
+     "reference_only:instruction": 4,
+     "reference_only:register_save": 2,
+     "register": 5
+    }
+   },
+   {
+    "function": "network_game_server_handle_client_update_packet",
+    "address": "0x0012cc10",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8583,
+    "missing_bytes": 36,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     1592,
+     1644
+    ],
+    "pal_status": "Matching",
+    "score": 36.0,
+    "causes": {
+     "candidate_only:instruction": 7,
+     "immediate": 1,
+     "reference_only:instruction": 4,
+     "register": 1,
+     "stack_offset": 1
+    }
+   },
+   {
+    "function": "network_game_server_get_client_machine_at_address",
+    "address": "0x0012d4a0",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8176,
+    "missing_bytes": 31,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     2122,
+     2159
+    ],
+    "pal_status": "Matching",
+    "score": 31.0,
+    "causes": {
+     "candidate_only:instruction": 4,
+     "immediate": 1,
+     "reference_only:instruction": 4
+    }
+   }
+  ]
+ },
+ {
+  "source": "src/halo/objects/objects.c",
+  "score": 784.0,
+  "targets": [
+   {
+    "function": "object_compute_function_values",
+    "address": "0x0013e7b0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8809,
+    "missing_bytes": 104,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     4758,
+     4885
+    ],
+    "pal_status": "Matching",
+    "score": 104.0,
+    "causes": {
+     "candidate_only:instruction": 4,
+     "candidate_only:stack_param_load": 1,
+     "immediate": 1,
+     "operands": 40,
+     "reference_only:instruction": 2,
+     "register": 1,
+     "stack_offset": 13
+    }
+   },
+   {
+    "function": "find_objects_from_point_vector",
+    "address": "0x0013f120",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.9074,
+    "missing_bytes": 46,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     783,
+     850
+    ],
+    "pal_status": "Matching",
+    "score": 46.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "immediate": 1,
+     "operands": 3,
+     "register": 15,
+     "stack_offset": 2
+    }
+   },
+   {
+    "function": "attachments_new",
+    "address": "0x0013ecb0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.93,
+    "missing_bytes": 28,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     3088,
+     3175
+    ],
+    "pal_status": "Matching",
+    "score": 28.0,
+    "causes": {
+     "candidate_only:instruction": 11,
+     "register": 1
+    }
+   },
+   {
+    "function": "object_get_function_value",
+    "address": "0x001403a0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.7652,
+    "missing_bytes": 27,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     1474,
+     1498
+    ],
+    "pal_status": "Matching",
+    "score": 27.0,
+    "causes": {
+     "candidate_only:instruction": 4,
+     "operand_order": 1,
+     "reference_only:instruction": 1,
+     "register": 14
+    }
+   },
+   {
+    "function": "object_delete_recursive",
+    "address": "0x001449b0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8836,
+    "missing_bytes": 27,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     4721,
+     4756
+    ],
+    "pal_status": "Matching",
+    "score": 27.0,
+    "causes": {
+     "operands": 1,
+     "reference_only:instruction": 1,
+     "register": 14
+    }
+   },
+   {
+    "function": "object_types_initialize",
+    "address": "0x0013c2e0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8471,
+    "missing_bytes": 26,
+    "pal_file": "source/objects/object_types.c",
+    "pal_lines": [
+     630,
+     678
+    ],
+    "pal_status": "Matching",
+    "score": 26.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "operands": 2,
+     "reference_only:instruction": 1,
+     "register": 10
+    }
+   },
+   {
+    "function": "object_pvs_set_camera_point",
+    "address": "0x0013dc10",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8214,
+    "missing_bytes": 25,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     483,
+     515
+    ],
+    "pal_status": "Matching",
+    "score": 25.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "candidate_only:register_save": 3,
+     "reference_only:instruction": 2,
+     "register": 4
+    }
+   },
+   {
+    "function": "attachments_delete",
+    "address": "0x00143a00",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8611,
+    "missing_bytes": 25,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     4657,
+     4694
+    ],
+    "pal_status": "Matching",
+    "score": 25.0,
+    "causes": {
+     "candidate_only:instruction": 11
+    }
+   }
+  ]
+ },
+ {
+  "source": "src/halo/interface/ui_widget.c",
+  "score": 702.0,
+  "targets": [
+   {
+    "function": "playlist_profile_change_player_options",
+    "address": "0x000ec2c0",
+    "source": "src/halo/interface/ui_widget.c",
+    "accuracy": 0.8769,
+    "missing_bytes": 135,
+    "pal_file": "source/interface/ui_widget_event_handler_functions.c",
+    "pal_lines": [
+     5484,
+     5622
+    ],
+    "pal_status": "Matching",
+    "score": 135.0,
+    "causes": {
+     "candidate_only:instruction": 46,
+     "reference_only:instruction": 2
+    }
+   },
+   {
+    "function": "playlist_profile_change_item_options",
+    "address": "0x000ec840",
+    "source": "src/halo/interface/ui_widget.c",
+    "accuracy": 0.8839,
+    "missing_bytes": 72,
+    "pal_file": "source/interface/ui_widget_event_handler_functions.c",
+    "pal_lines": [
+     3563,
+     3658
+    ],
+    "pal_status": "Matching",
+    "score": 72.0,
+    "causes": {
+     "candidate_only:instruction": 32
+    }
+   },
+   {
+    "function": "playlist_profile_change_oddball_rules",
+    "address": "0x000eba70",
+    "source": "src/halo/interface/ui_widget.c",
+    "accuracy": 0.9384,
+    "missing_bytes": 66,
+    "pal_file": "source/interface/ui_widget_event_handler_functions.c",
+    "pal_lines": [
+     5352,
+     5482
+    ],
+    "pal_status": "Matching",
+    "score": 66.0,
+    "causes": {
+     "candidate_only:instruction": 27
+    }
+   },
+   {
+    "function": "playlist_profile_begin_editing",
+    "address": "0x000eaec0",
+    "source": "src/halo/interface/ui_widget.c",
+    "accuracy": 0.7743,
+    "missing_bytes": 58,
+    "pal_file": "source/interface/ui_widget_event_handler_functions.c",
+    "pal_lines": [
+     3102,
+     3150
+    ],
+    "pal_status": "Matching",
+    "score": 58.0,
+    "causes": {
+     "candidate_only:instruction": 5,
+     "immediate": 2,
+     "operands": 5,
+     "reference_only:instruction": 5,
+     "register": 8,
+     "relocation_target": 2
+    }
+   },
+   {
+    "function": "multiplayer_profile_set_for_game",
+    "address": "0x000ea570",
+    "source": "src/halo/interface/ui_widget.c",
+    "accuracy": 0.8941,
+    "missing_bytes": 56,
+    "pal_file": "source/interface/ui_widget_event_handler_functions.c",
+    "pal_lines": [
+     5701,
+     5777
+    ],
+    "pal_status": "Matching",
+    "score": 56.0,
+    "causes": {
+     "candidate_only:instruction": 7,
+     "candidate_only:register_save": 4,
+     "operands": 1,
+     "reference_only:instruction": 7,
+     "reference_only:register_save": 4
+    }
+   },
+   {
+    "function": "playlist_profile_change_ctf_rules",
+    "address": "0x000eb150",
+    "source": "src/halo/interface/ui_widget.c",
+    "accuracy": 0.9237,
+    "missing_bytes": 54,
+    "pal_file": "source/interface/ui_widget_event_handler_functions.c",
+    "pal_lines": [
+     3731,
+     3820
+    ],
+    "pal_status": "Matching",
+    "score": 54.0,
+    "causes": {
+     "candidate_only:instruction": 23
+    }
+   },
+   {
+    "function": "multiplayer_level_list_initialize",
+    "address": "0x000ea100",
+    "source": "src/halo/interface/ui_widget.c",
+    "accuracy": 0.8141,
+    "missing_bytes": 37,
+    "pal_file": "source/interface/ui_widget_event_handler_functions.c",
+    "pal_lines": [
+     3070,
+     3100
+    ],
+    "pal_status": "Matching",
+    "score": 37.0,
+    "causes": {
+     "candidate_only:instruction": 3,
+     "operands": 5,
+     "reference_only:instruction": 1,
+     "register": 1
+    }
+   },
+   {
+    "function": "playlist_profile_set_game_engine",
+    "address": "0x000eb020",
+    "source": "src/halo/interface/ui_widget.c",
+    "accuracy": 0.7861,
+    "missing_bytes": 37,
+    "pal_file": "source/interface/ui_widget_event_handler_functions.c",
+    "pal_lines": [
+     2870,
+     2917
+    ],
+    "pal_status": "Matching",
+    "score": 37.0,
+    "causes": {
+     "candidate_only:instruction": 11,
+     "operands": 1,
+     "reference_only:instruction": 1,
+     "reference_only:register_save": 3,
+     "register": 2
+    }
+   }
+  ]
+ },
+ {
+  "source": "src/halo/networking/network_client_manager.c",
+  "score": 573.0,
+  "targets": [
+   {
+    "function": "network_game_client_add_player",
+    "address": "0x001258a0",
+    "source": "src/halo/networking/network_client_manager.c",
+    "accuracy": 0.8376,
+    "missing_bytes": 63,
+    "pal_file": "source/networking/network_client_manager.c",
+    "pal_lines": [
+     1530,
+     1629
+    ],
+    "pal_status": "Matching",
+    "score": 63.0,
+    "causes": {
+     "candidate_only:instruction": 13,
+     "operands": 2,
+     "reference_only:instruction": 2,
+     "register": 13
+    }
+   },
+   {
+    "function": "network_game_client_leave_game",
+    "address": "0x00126140",
+    "source": "src/halo/networking/network_client_manager.c",
+    "accuracy": 0.8798,
+    "missing_bytes": 56,
+    "pal_file": "source/networking/network_client_manager.c",
+    "pal_lines": [
+     1291,
+     1417
+    ],
+    "pal_status": "Matching",
+    "score": 56.0,
+    "causes": {
+     "candidate_only:instruction": 12,
+     "reference_only:instruction": 1,
+     "register": 19
+    }
+   },
+   {
+    "function": "network_game_client_handle_message_server_pregame_countdown",
+    "address": "0x00127610",
+    "source": "src/halo/networking/network_client_manager.c",
+    "accuracy": 0.7839,
+    "missing_bytes": 43,
+    "pal_file": "source/networking/network_client_message_handler.c",
+    "pal_lines": [
+     941,
+     985
+    ],
+    "pal_status": "Matching",
+    "score": 43.0,
+    "causes": {
+     "candidate_only:register_save": 5,
+     "candidate_only:stack_param_load": 2,
+     "immediate": 2,
+     "operands": 3,
+     "reference_only:instruction": 1,
+     "register": 4,
+     "stack_offset": 6
+    }
+   },
+   {
+    "function": "network_game_client_update_precache_status",
+    "address": "0x00126000",
+    "source": "src/halo/networking/network_client_manager.c",
+    "accuracy": 0.7866,
+    "missing_bytes": 35,
+    "pal_file": "source/networking/network_client_manager.c",
+    "pal_lines": [
+     2491,
+     2532
+    ],
+    "pal_status": "Matching",
+    "score": 35.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "candidate_only:register_save": 2,
+     "candidate_only:stack_param_load": 1,
+     "immediate": 1,
+     "operand_order": 1,
+     "operands": 1,
+     "reference_only:instruction": 4,
+     "register": 1,
+     "stack_offset": 1
+    }
+   },
+   {
+    "function": "network_game_client_handle_message_server_game_settings_update",
+    "address": "0x001274e0",
+    "source": "src/halo/networking/network_client_manager.c",
+    "accuracy": 0.8584,
+    "missing_bytes": 32,
+    "pal_file": "source/networking/network_client_message_handler.c",
+    "pal_lines": [
+     887,
+     939
+    ],
+    "pal_status": "Matching",
+    "score": 32.0,
+    "causes": {
+     "candidate_only:register_save": 5,
+     "candidate_only:stack_param_load": 2,
+     "immediate": 1,
+     "operands": 4,
+     "reference_only:instruction": 1,
+     "stack_offset": 6
+    }
+   },
+   {
+    "function": "network_game_client_idle_pregame",
+    "address": "0x00126ce0",
+    "source": "src/halo/networking/network_client_manager.c",
+    "accuracy": 0.8065,
+    "missing_bytes": 30,
+    "pal_file": "source/networking/network_client_manager.c",
+    "pal_lines": [
+     2745,
+     2783
+    ],
+    "pal_status": "Matching",
+    "score": 30.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "candidate_only:register_save": 4,
+     "candidate_only:stack_param_load": 1,
+     "immediate": 1,
+     "operands": 1,
+     "reference_only:instruction": 3
+    }
+   },
+   {
+    "function": "network_game_client_reset",
+    "address": "0x001267c0",
+    "source": "src/halo/networking/network_client_manager.c",
+    "accuracy": 0.8505,
+    "missing_bytes": 29,
+    "pal_file": "source/networking/network_client_manager.c",
+    "pal_lines": [
+     2187,
+     2232
+    ],
+    "pal_status": "Matching",
+    "score": 29.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "candidate_only:register_save": 1,
+     "immediate": 1,
+     "operands": 2
+    }
+   },
+   {
+    "function": "network_game_client_idle_postgame",
+    "address": "0x00126f40",
+    "source": "src/halo/networking/network_client_manager.c",
+    "accuracy": 0.7807,
+    "missing_bytes": 25,
+    "pal_file": "source/networking/network_client_manager.c",
+    "pal_lines": [
+     2858,
+     2886
+    ],
+    "pal_status": "Matching",
+    "score": 25.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "candidate_only:register_save": 4,
+     "candidate_only:stack_param_load": 1,
+     "reference_only:instruction": 3
+    }
+   }
+  ]
+ }
+]

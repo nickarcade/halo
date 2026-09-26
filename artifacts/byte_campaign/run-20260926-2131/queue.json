@@ -1,0 +1,604 @@
+[
+ {
+  "source": "src/halo/networking/network_server_manager.c",
+  "score": 528.0,
+  "targets": [
+   {
+    "function": "network_game_server_idle",
+    "address": "0x0012eb20",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8986,
+    "missing_bytes": 28,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     929,
+     1031
+    ],
+    "pal_status": "Matching",
+    "score": 28.0,
+    "causes": {
+     "candidate_only:instruction": 4,
+     "candidate_only:register_save": 3,
+     "immediate": 1,
+     "operands": 2,
+     "register": 1
+    }
+   },
+   {
+    "function": "network_game_server_client_machine_game_loading_complete",
+    "address": "0x0012cb20",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8344,
+    "missing_bytes": 26,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     1553,
+     1590
+    ],
+    "pal_status": "Matching",
+    "score": 26.0,
+    "causes": {
+     "operands": 5
+    }
+   },
+   {
+    "function": "server_has_a_player_on_each_machine",
+    "address": "0x0012d0c0",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8231,
+    "missing_bytes": 26,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     1934,
+     1970
+    ],
+    "pal_status": "Matching",
+    "score": 26.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "operands": 6,
+     "reference_only:instruction": 1
+    }
+   },
+   {
+    "function": "network_game_server_change_game_variant",
+    "address": "0x0012d7f0",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.7864,
+    "missing_bytes": 22,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     2252,
+     2269
+    ],
+    "pal_status": "Matching",
+    "score": 22.0,
+    "causes": {
+     "immediate": 4
+    }
+   },
+   {
+    "function": "network_game_server_get_machine_connection",
+    "address": "0x0012d3d0",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8198,
+    "missing_bytes": 20,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     2090,
+     2110
+    ],
+    "pal_status": "Matching",
+    "score": 20.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "operands": 1,
+     "reference_only:instruction": 2,
+     "reference_only:register_save": 1,
+     "register": 2
+    }
+   },
+   {
+    "function": "network_game_server_send_rejection_message",
+    "address": "0x0012da90",
+    "source": "src/halo/networking/network_server_manager.c",
+    "accuracy": 0.8113,
+    "missing_bytes": 20,
+    "pal_file": "source/networking/network_server_manager.c",
+    "pal_lines": [
+     3042,
+     3079
+    ],
+    "pal_status": "Matching",
+    "score": 20.0,
+    "causes": {
+     "candidate_only:register_save": 1,
+     "candidate_only:stack_param_load": 2,
+     "operands": 4,
+     "reference_only:register_save": 1,
+     "register": 1
+    }
+   }
+  ]
+ },
+ {
+  "source": "src/halo/objects/objects.c",
+  "score": 494.0,
+  "targets": [
+   {
+    "function": "object_update",
+    "address": "0x001444f0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.928,
+    "missing_bytes": 25,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     3575,
+     3645
+    ],
+    "pal_status": "Matching",
+    "score": 25.0,
+    "causes": {
+     "candidate_only:instruction": 4,
+     "immediate": 1,
+     "operands": 4
+    }
+   },
+   {
+    "function": "object_add_to_dump",
+    "address": "0x0013f3b0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8414,
+    "missing_bytes": 23,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     4432,
+     4477
+    ],
+    "pal_status": "Matching",
+    "score": 23.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "candidate_only:register_save": 7,
+     "candidate_only:stack_param_load": 2,
+     "reference_only:instruction": 1,
+     "reference_only:register_save": 1
+    }
+   },
+   {
+    "function": "object_determine_variant_number",
+    "address": "0x0013e460",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8321,
+    "missing_bytes": 22,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     4575,
+     4598
+    ],
+    "pal_status": "Matching",
+    "score": 22.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "candidate_only:register_save": 1,
+     "candidate_only:stack_param_load": 1,
+     "reference_only:instruction": 3,
+     "reference_only:register_save": 1,
+     "register": 2,
+     "stack_offset": 1
+    }
+   },
+   {
+    "function": "recursive_object_adder",
+    "address": "0x0013f080",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8636,
+    "missing_bytes": 21,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     4368,
+     4409
+    ],
+    "pal_status": "Matching",
+    "score": 21.0,
+    "causes": {
+     "candidate_only:instruction": 3,
+     "candidate_only:register_save": 4,
+     "candidate_only:stack_param_load": 1,
+     "reference_only:register_save": 2,
+     "reference_only:stack_param_load": 1,
+     "register": 3
+    }
+   },
+   {
+    "function": "objects_get_activating_cluster_index",
+    "address": "0x0013dcc0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8964,
+    "missing_bytes": 20,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     524,
+     568
+    ],
+    "pal_status": "Matching",
+    "score": 20.0,
+    "causes": {
+     "register": 9
+    }
+   },
+   {
+    "function": "object_type_handle_region_destroyed",
+    "address": "0x0013c6e0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.7816,
+    "missing_bytes": 19,
+    "pal_file": "source/objects/object_types.c",
+    "pal_lines": [
+     883,
+     901
+    ],
+    "pal_status": "Matching",
+    "score": 19.0,
+    "causes": {
+     "encoding_size": 1,
+     "reference_only:instruction": 3,
+     "register": 4
+    }
+   },
+   {
+    "function": "object_type_postprocess_node_matrices",
+    "address": "0x0013c800",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.7711,
+    "missing_bytes": 19,
+    "pal_file": "source/objects/object_types.c",
+    "pal_lines": [
+     943,
+     960
+    ],
+    "pal_status": "Matching",
+    "score": 19.0,
+    "causes": {
+     "encoding_size": 1,
+     "reference_only:instruction": 3,
+     "register": 4
+    }
+   },
+   {
+    "function": "object_translate",
+    "address": "0x00143be0",
+    "source": "src/halo/objects/objects.c",
+    "accuracy": 0.8348,
+    "missing_bytes": 19,
+    "pal_file": "source/objects/objects.c",
+    "pal_lines": [
+     3218,
+     3235
+    ],
+    "pal_status": "Matching",
+    "score": 19.0,
+    "causes": {
+     "candidate_only:stack_param_load": 1,
+     "operands": 3,
+     "reference_only:instruction": 1,
+     "reference_only:stack_param_load": 1,
+     "register": 4
+    }
+   }
+  ]
+ },
+ {
+  "source": "src/halo/memory/circular_queue.c",
+  "score": 417.0,
+  "targets": [
+   {
+    "function": "inflate_codes",
+    "address": "0x00114740",
+    "source": "src/halo/memory/circular_queue.c",
+    "accuracy": 0.8502,
+    "missing_bytes": 303,
+    "pal_file": "source/memory/zlib/infcodes.c",
+    "pal_lines": [
+     81,
+     248
+    ],
+    "pal_status": "Matching",
+    "score": 303.0,
+    "causes": {
+     "candidate_only:instruction": 69,
+     "candidate_only:register_save": 10,
+     "candidate_only:stack_param_load": 7,
+     "operand_order": 1,
+     "operands": 5,
+     "reference_only:instruction": 6,
+     "register": 39
+    }
+   },
+   {
+    "function": "inflate_trees_bits",
+    "address": "0x00116010",
+    "source": "src/halo/memory/circular_queue.c",
+    "accuracy": 0.7727,
+    "missing_bytes": 35,
+    "pal_file": "source/memory/zlib/inftrees.c",
+    "pal_lines": [
+     294,
+     318
+    ],
+    "pal_status": "Matching",
+    "score": 35.0,
+    "causes": {
+     "candidate_only:stack_param_load": 1,
+     "immediate": 1,
+     "operands": 3,
+     "register": 24,
+     "stack_offset": 2
+    }
+   },
+   {
+    "function": "uncompress",
+    "address": "0x001179e0",
+    "source": "src/halo/memory/circular_queue.c",
+    "accuracy": 0.7589,
+    "missing_bytes": 34,
+    "pal_file": "source/memory/zlib/uncompr.c",
+    "pal_lines": [
+     25,
+     58
+    ],
+    "pal_status": "Matching",
+    "score": 34.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "candidate_only:register_save": 1,
+     "immediate": 2,
+     "operands": 2,
+     "reference_only:register_save": 2,
+     "register": 2,
+     "relocation_target": 1,
+     "stack_offset": 6
+    }
+   },
+   {
+    "function": "inflateSync",
+    "address": "0x00115a90",
+    "source": "src/halo/memory/circular_queue.c",
+    "accuracy": 0.8768,
+    "missing_bytes": 26,
+    "pal_file": "source/memory/zlib/inflate.c",
+    "pal_lines": [
+     304,
+     351
+    ],
+    "pal_status": "Matching",
+    "score": 26.0,
+    "causes": {
+     "candidate_only:register_save": 2,
+     "operands": 4,
+     "reference_only:register_save": 6,
+     "register": 6
+    }
+   },
+   {
+    "function": "circular_queue_new",
+    "address": "0x00118de0",
+    "source": "src/halo/memory/circular_queue.c",
+    "accuracy": 0.8286,
+    "missing_bytes": 12,
+    "pal_file": "source/memory/circular_queue.c",
+    "pal_lines": [
+     67,
+     84
+    ],
+    "pal_status": "Matching",
+    "score": 12.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "operands": 2,
+     "reference_only:instruction": 1
+    }
+   },
+   {
+    "function": "inflate_set_dictionary",
+    "address": "0x00114690",
+    "source": "src/halo/memory/circular_queue.c",
+    "accuracy": 0.9,
+    "missing_bytes": 4,
+    "pal_file": "source/memory/zlib/infblock.c",
+    "pal_lines": [
+     380,
+     387
+    ],
+    "pal_status": "Matching",
+    "score": 4.0,
+    "causes": {
+     "operands": 1,
+     "register": 1
+    }
+   },
+   {
+    "function": "circular_queue_delete",
+    "address": "0x00118e40",
+    "source": "src/halo/memory/circular_queue.c",
+    "accuracy": 0.8571,
+    "missing_bytes": 3,
+    "pal_file": "source/memory/circular_queue.c",
+    "pal_lines": [
+     86,
+     92
+    ],
+    "pal_status": "Matching",
+    "score": 3.0,
+    "causes": {
+     "immediate": 1,
+     "operands": 1
+    }
+   }
+  ]
+ },
+ {
+  "source": "src/halo/ai/actors.c",
+  "score": 403.0,
+  "targets": [
+   {
+    "function": "grunt_decide_action",
+    "address": "0x00038880",
+    "source": "src/halo/ai/actors.c",
+    "accuracy": 0.7782,
+    "missing_bytes": 118,
+    "pal_file": "source/ai/actor_type_grunt.c",
+    "pal_lines": [
+     54,
+     155
+    ],
+    "pal_status": "Matching",
+    "score": 118.0,
+    "causes": {
+     "candidate_only:instruction": 25,
+     "immediate": 2,
+     "operands": 5,
+     "reference_only:instruction": 5,
+     "register": 5
+    }
+   },
+   {
+    "function": "elite_decide_action",
+    "address": "0x00037d50",
+    "source": "src/halo/ai/actors.c",
+    "accuracy": 0.7939,
+    "missing_bytes": 114,
+    "pal_file": "source/ai/actor_type_elite.c",
+    "pal_lines": [
+     55,
+     166
+    ],
+    "pal_status": "Matching",
+    "score": 114.0,
+    "causes": {
+     "candidate_only:instruction": 26,
+     "displacement": 2,
+     "immediate": 6,
+     "operands": 5,
+     "reference_only:instruction": 4,
+     "register": 4
+    }
+   },
+   {
+    "function": "marine_decide_action",
+    "address": "0x0003a190",
+    "source": "src/halo/ai/actors.c",
+    "accuracy": 0.7529,
+    "missing_bytes": 105,
+    "pal_file": "source/ai/actor_type_marine.c",
+    "pal_lines": [
+     54,
+     143
+    ],
+    "pal_status": "Matching",
+    "score": 105.0,
+    "causes": {
+     "candidate_only:instruction": 25,
+     "immediate": 2,
+     "operands": 5,
+     "reference_only:instruction": 4,
+     "register": 4
+    }
+   },
+   {
+    "function": "actor_type_swarm_aim_jump",
+    "address": "0x0003a920",
+    "source": "src/halo/ai/actors.c",
+    "accuracy": 0.8101,
+    "missing_bytes": 15,
+    "pal_file": "source/ai/actor_types.c",
+    "pal_lines": [
+     236,
+     255
+    ],
+    "pal_status": "Matching",
+    "score": 15.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "operands": 1,
+     "register": 7
+    }
+   },
+   {
+    "function": "actor_type_initialize",
+    "address": "0x0003a810",
+    "source": "src/halo/ai/actors.c",
+    "accuracy": 0.775,
+    "missing_bytes": 9,
+    "pal_file": "source/ai/actor_types.c",
+    "pal_lines": [
+     202,
+     211
+    ],
+    "pal_status": "Matching",
+    "score": 9.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "operands": 1,
+     "register": 1
+    }
+   },
+   {
+    "function": "actor_type_decide_action",
+    "address": "0x0003a840",
+    "source": "src/halo/ai/actors.c",
+    "accuracy": 0.8525,
+    "missing_bytes": 9,
+    "pal_file": "source/ai/actor_types.c",
+    "pal_lines": [
+     213,
+     222
+    ],
+    "pal_status": "Matching",
+    "score": 9.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "operands": 1,
+     "register": 1
+    }
+   },
+   {
+    "function": "actor_type_swarm_control",
+    "address": "0x0003a8a0",
+    "source": "src/halo/ai/actors.c",
+    "accuracy": 0.8929,
+    "missing_bytes": 9,
+    "pal_file": "source/ai/actor_types.c",
+    "pal_lines": [
+     224,
+     234
+    ],
+    "pal_status": "Matching",
+    "score": 9.0,
+    "causes": {
+     "candidate_only:instruction": 2,
+     "operands": 1,
+     "register": 1
+    }
+   },
+   {
+    "function": "actor_type_get_race",
+    "address": "0x0003a770",
+    "source": "src/halo/ai/actors.c",
+    "accuracy": 0.7647,
+    "missing_bytes": 4,
+    "pal_file": "source/ai/actor_types.c",
+    "pal_lines": [
+     166,
+     170
+    ],
+    "pal_status": "Matching",
+    "score": 4.0,
+    "causes": {
+     "candidate_only:instruction": 1,
+     "candidate_only:register_save": 1
+    }
+   }
+  ]
+ }
+]
