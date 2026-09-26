@@ -10,6 +10,7 @@ import tempfile
 import pathlib
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("raw_xbe_structural", HERE / "raw_xbe_structural.py")
@@ -332,6 +333,7 @@ class TestStructuralComparison(unittest.TestCase):
         }]
         old_extent = raw.xref.function_extent
         old_xbe = raw.xref.XBE
+        old_root = raw.ROOT
         raw.xref.function_extent = lambda address: (address + 4, "table", "table")
         try:
             with tempfile.TemporaryDirectory() as temp:
@@ -342,6 +344,7 @@ class TestStructuralComparison(unittest.TestCase):
         finally:
             raw.xref.function_extent = old_extent
             raw.xref.XBE = old_xbe
+            raw.ROOT = old_root
         self.assertEqual(summary["schema_version"], 2)
         self.assertEqual(summary["lane"], "raw_xbe_structural")
         self.assertEqual(summary["function_totals"]["structural_exact"], 1)
@@ -402,10 +405,10 @@ class TestStructuralComparison(unittest.TestCase):
                     }), encoding="utf-8")
                     if failure == "header":
                         raw.vc71.regen_decl_header = lambda quiet=True: False
-                        raw.vc71.compile_vc71 = lambda source, output: True
+                        raw.vc71.compile_vc71 = lambda source, output, opt="/O2": True
                     else:
                         raw.vc71.regen_decl_header = lambda quiet=True: True
-                        raw.vc71.compile_vc71 = lambda source, output: False
+                        raw.vc71.compile_vc71 = lambda source, output, opt="/O2": False
                     args = argparse.Namespace(
                         candidate=None, output=output, function="candidate",
                         address=0x1234, source=source)
@@ -498,6 +501,111 @@ class TestStructuralComparison(unittest.TestCase):
         self.assertEqual(summary["audited_function_count"], 1)
 
 
+def literal_relocation(offset, content, symbol="??_C@_03literal"):
+    item = relocation(offset, raw.IMAGE_REL_I386_DIR32, symbol)
+    item["literal"] = {"section": ".rdata", "content": content}
+    return item
+
+
+def _coff_with_literal(section_flags):
+    """One-function COFF whose DIR32 relocation targets a literal in section 2."""
+    code = b"\xa1\x00\x00\x00\x00\xc3"
+    literal = b"hi\0"
+    text_offset = 20 + 2 * 40
+    reloc_offset = text_offset + len(code)
+    rdata_offset = reloc_offset + 10
+    symbol_offset = rdata_offset + len(literal)
+    header = struct.pack("<HHIIIHH", 0x14C, 2, 0, symbol_offset, 5, 0, 0)
+    text = struct.pack("<8sIIIIIIHHI", b".text\0\0\0", 0, 0, len(code), text_offset,
+                       reloc_offset, 0, 1, 0, 0x60000020)
+    rdata = struct.pack("<8sIIIIIIHHI", b".rdata\0\0", 0, 0, len(literal), rdata_offset,
+                        0, 0, 0, 0, section_flags)
+    reloc = struct.pack("<IIH", 1, 4, raw.IMAGE_REL_I386_DIR32)
+    function = struct.pack("<8sIhHBB", b"function", 0, 1, raw.IMAGE_SYM_DTYPE_FUNCTION, 2, 1)
+    function_aux = struct.pack("<IIIIH", 0, len(code), 0, 0, 0)
+    section_symbol = struct.pack("<8sIhHBB", b".rdata\0\0", 0, 2, 0, 3, 1)
+    section_aux = struct.pack("<IIIIH", len(literal), 0, 0, 0, 0)
+    literal_symbol = struct.pack("<8sIhHBB", b"??_C@lit", 0, 2, 0, 2, 0)
+    return (header + text + rdata + code + reloc + literal + function + function_aux +
+            section_symbol + section_aux + literal_symbol + struct.pack("<I", 4))
+
+
+class RelocationIdentityResolverTest(unittest.TestCase):
+    """Data globals and read-only literals resolve instead of staying unknown."""
+
+    REFERENCE = b"\xa1\x20\x10\x00\x00\xc3"
+    CANDIDATE = b"\xa1\x00\x00\x00\x00\xc3"
+
+    def _compare(self, relocations, reference=None):
+        return raw.compare(self.CANDIDATE, relocations, reference or self.REFERENCE, 0x1000)
+
+    def test_kb_data_global_resolves_by_address(self):
+        with mock.patch.object(raw, "_kb_data_addresses", return_value={"actor_data": 0x1020}):
+            result = self._compare([relocation(1, raw.IMAGE_REL_I386_DIR32, "_actor_data")])
+        self.assertEqual(result["verdict"], "structural exact")
+        self.assertEqual(result["identity_evidence"]["records"][0]["method"], "kb_data_address")
+
+    def test_kb_data_global_at_other_address_is_mismatch(self):
+        with mock.patch.object(raw, "_kb_data_addresses", return_value={"actor_data": 0x1024}):
+            result = self._compare([relocation(1, raw.IMAGE_REL_I386_DIR32, "_actor_data")])
+        self.assertEqual(result["verdict"], "structural differ")
+        self.assertEqual(result["identity_evidence"]["status"], "mismatch")
+
+    def test_equal_read_only_literal_resolves(self):
+        with mock.patch.object(raw, "_xbe_rdata_bytes",
+                               side_effect=lambda va, n: b"hi\0" if va == 0x1020 else None):
+            result = self._compare([literal_relocation(1, b"hi\0")])
+        self.assertEqual(result["verdict"], "structural exact")
+        record = result["identity_evidence"]["records"][0]
+        self.assertEqual(record["method"], "read_only_literal_content")
+        self.assertEqual(record["symbol_address"], "0x00001020")
+
+    def test_literal_addend_maps_back_to_literal_start(self):
+        candidate = b"\xa1\x01\x00\x00\x00\xc3"
+        with mock.patch.object(raw, "_xbe_rdata_bytes",
+                               side_effect=lambda va, n: b"hi\0" if va == 0x101f else None):
+            result = raw.compare(candidate, [literal_relocation(1, b"hi\0")],
+                                 self.REFERENCE, 0x1000)
+        self.assertEqual(result["verdict"], "structural exact")
+
+    def test_different_literal_content_is_mismatch(self):
+        with mock.patch.object(raw, "_xbe_rdata_bytes", return_value=b"ho\0"):
+            result = self._compare([literal_relocation(1, b"hi\0")])
+        self.assertEqual(result["verdict"], "structural differ")
+        self.assertEqual(result["identity_evidence"]["status"], "mismatch")
+        self.assertEqual(result["aligned_byte_match"]["mismatched_relocation_bytes"], 4)
+
+    def test_literal_outside_rdata_stays_unresolved(self):
+        with mock.patch.object(raw, "_xbe_rdata_bytes", return_value=None):
+            result = self._compare([literal_relocation(1, b"hi\0")])
+        self.assertEqual(result["verdict"], "not comparable")
+        self.assertEqual(result["identity_evidence"]["status"], "unresolved")
+
+    def test_injected_identity_still_wins_over_literal_content(self):
+        with mock.patch.object(raw, "_xbe_rdata_bytes", return_value=b"hi\0"):
+            result = raw.compare(self.CANDIDATE, [literal_relocation(1, b"hi\0")],
+                                 self.REFERENCE, 0x1000, {0x1020: {"logical_target": 0x9999}})
+        self.assertNotEqual(result["verdict"], "structural exact")
+
+    def test_coff_parse_attaches_read_only_comdat_literal(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "candidate.obj"
+            path.write_bytes(_coff_with_literal(0x40301040))
+            _code, relocs, _ = raw._parse_coff(path, "function")
+        self.assertEqual(relocs[0]["literal"], {"section": ".rdata", "content": b"hi\0"})
+
+    def test_coff_parse_ignores_writable_data(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "candidate.obj"
+            path.write_bytes(_coff_with_literal(0xC0301040))
+            _code, relocs, _ = raw._parse_coff(path, "function")
+        self.assertNotIn("literal", relocs[0])
+
+    def test_data_decl_name_matches_knowledge_rule(self):
+        self.assertEqual(raw._data_decl_name("char player_ui_globals[0x230];"), "player_ui_globals")
+        self.assertEqual(raw._data_decl_name("data_t *actor_data;"), "actor_data")
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -560,3 +668,122 @@ class RegisterArgumentFlagTest(unittest.TestCase):
         for address in list(addresses)[:50]:
             if address in decls:
                 self.assertIn("@<", decls[address])
+
+
+def _insn(code, offset=0):
+    return raw._decode_instructions(bytes.fromhex(code))[0] | {"offset": offset}
+
+
+class DifferenceClassificationTest(unittest.TestCase):
+    def classify(self, candidate, reference):
+        return raw._classify_aligned_difference(_insn(candidate), _insn(reference))
+
+    def test_register_choice(self):
+        # mov eax, [ebp+8]  vs  mov ecx, [ebp+8]
+        self.assertEqual(self.classify("8b4508", "8b4d08"), "register")
+
+    def test_operand_order(self):
+        # cmp eax, ecx  vs  cmp ecx, eax
+        self.assertEqual(self.classify("39c8", "39c1"), "operand_order")
+
+    def test_stack_offset(self):
+        # mov eax, [ebp-4]  vs  mov eax, [ebp-8]
+        self.assertEqual(self.classify("8b45fc", "8b45f8"), "stack_offset")
+
+    def test_immediate(self):
+        # push 0x10  vs  push 0x20
+        self.assertEqual(self.classify("6a10", "6a20"), "immediate")
+
+    def test_branch_target(self):
+        # jmp +2  vs  jmp +4
+        self.assertEqual(self.classify("eb00", "eb02"), "branch_target")
+
+    def test_branch_with_same_printed_target_is_still_a_branch(self):
+        # Both print "jne 0x30" once each is decoded at its own offset.
+        candidate = _insn("752e", 0) | {"op_str": "0x30"}
+        reference = _insn("75e8", 0) | {"op_str": "0x30"}
+        self.assertEqual(raw._classify_aligned_difference(candidate, reference), "branch_target")
+
+    def test_unmatched_stack_param_load(self):
+        self.assertEqual(raw._classify_unmatched(_insn("8b4508")), "stack_param_load")
+        self.assertEqual(raw._classify_unmatched(_insn("8b45fc")), "instruction")
+        self.assertEqual(raw._classify_unmatched(_insn("56")), "register_save")
+
+    def test_aligned_compare_records_classes(self):
+        # candidate: mov eax,[ebp+8]; ret   reference: mov ecx,[ebp+8]; ret
+        result = raw.aligned_byte_compare(bytes.fromhex("8b4508c3"), [],
+                                          bytes.fromhex("8b4d08c3"), 0x1000)
+        self.assertEqual(result["difference_classes"], {"register": 1})
+        self.assertEqual(result["differences"][0]["candidate"], "mov eax, dword ptr [ebp + 8]")
+        self.assertFalse(result["differences_truncated"])
+        self.assertEqual(result["raw_operand_matching_instructions"], 1)
+        self.assertEqual(result["raw_operand_compared_instructions"], 2)
+        self.assertEqual(result["raw_operand_accuracy"], 0.5)
+
+    def test_raw_operand_score_detects_masked_values(self):
+        # push 0x10 vs push 0x20: same masked operand shape, different raw value.
+        result = raw.aligned_byte_compare(bytes.fromhex("6a10c3"), [],
+                                          bytes.fromhex("6a20c3"), 0x1000)
+        self.assertEqual(result["raw_operand_accuracy"], 0.5)
+        self.assertEqual(result["difference_classes"], {"immediate": 1})
+
+    def test_raw_operand_score_excludes_relocated_instructions(self):
+        # No comparison is meaningful until a candidate COFF relocation can be
+        # resolved against the XBE target, so this call's unresolved relocation
+        # leaves only RET in the raw-operand denominator.
+        reloc = {"offset": 1, "type": 0x14, "symbol_name": "unknown",
+                 "symbol_value": 0, "section_number": 0, "literal": None}
+        result = raw.aligned_byte_compare(bytes.fromhex("e800000000c3"), [reloc],
+                                          bytes.fromhex("e800000000c3"), 0x1000)
+        self.assertEqual(result["raw_operand_compared_instructions"], 1)
+        self.assertEqual(result["raw_operand_accuracy"], 1.0)
+
+
+class RegisterArgumentResidualTest(unittest.TestCase):
+    def test_only_param_loads_is_exact_except_abi(self):
+        residual = raw._register_argument_residual({
+            "status": "scored", "difference_classes": {"candidate_only:stack_param_load": 2}})
+        self.assertEqual(residual["status"], "exact_except_register_abi")
+
+    def test_other_differences_are_reported(self):
+        residual = raw._register_argument_residual({
+            "status": "scored", "difference_classes": {"candidate_only:stack_param_load": 1,
+                                                       "register": 3}})
+        self.assertEqual(residual["status"], "other_differences")
+        self.assertEqual(residual["other_classes"], {"register": 3})
+
+    def test_mismatched_relocation_blocks_exact(self):
+        residual = raw._register_argument_residual({
+            "status": "scored", "difference_classes": {}, "mismatched_relocations": 1})
+        self.assertEqual(residual["status"], "other_differences")
+
+
+class PerFunctionOptTest(unittest.TestCase):
+    def test_override_selects_its_flags_and_object(self):
+        source = Path("/repo/src/halo/bink/bink.c")
+        with mock.patch.object(raw.vc71, "_per_function_opt_for",
+                               return_value={"BinkOpen": "/O2 /Oy"}):
+            self.assertEqual(raw._function_opt(source, "BinkOpen"), "/O2 /Oy")
+            self.assertEqual(raw._function_opt(source, "other"), raw.DEFAULT_OPT)
+        default = raw._candidate_object(Path("/a"), source, raw.DEFAULT_OPT)
+        override = raw._candidate_object(Path("/a"), source, "/O2 /Oy")
+        self.assertNotEqual(default, override)
+        self.assertTrue(override.name.endswith(".optO2Oy.obj"))
+
+    def test_audit_tu_compiles_each_flag_group_once(self):
+        calls = []
+
+        def fake_compile(source, output, opt="/O2"):
+            calls.append(opt)
+            return False
+
+        items = [{"function": "a", "address": 1, "source": Path("/s.c")},
+                 {"function": "b", "address": 2, "source": Path("/s.c")},
+                 {"function": "c", "address": 3, "source": Path("/s.c")}]
+        with mock.patch.object(raw.vc71, "_per_function_opt_for", return_value={"b": "/O2 /Oy"}), \
+                mock.patch.object(raw.vc71, "compile_vc71", side_effect=fake_compile), \
+                mock.patch.object(raw, "_hash_path", return_value=None):
+            records = raw._audit_tu(Path("/s.c"), items, Path("/tmp"), None)
+        self.assertEqual(sorted(calls), ["/O2", "/O2 /Oy"])
+        self.assertEqual(len(records), 3)
+        self.assertTrue(all(r["reason"].startswith("VC71 compilation failed") for _i, r in records))

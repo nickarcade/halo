@@ -2674,11 +2674,11 @@ void cluster_partition_add_object(void *partition, int object_handle,
   } rad;
   int16_t cluster_count;
 
-  assert_halt(partition);
+  assert_halt_at("c:\\halo\\SOURCE\\structures\\cluster_partitions.c", 0x6f, partition);
   assert_halt(first_cluster_ref);
   assert_halt(*first_ref == -1);
-  assert_halt(position);
-  assert_halt(location);
+  assert_halt_at("c:\\halo\\SOURCE\\structures\\cluster_partitions.c", 0x72, position);
+  assert_halt_at("c:\\halo\\SOURCE\\structures\\cluster_partitions.c", 0x73, location);
 
   cluster_bsp_index = *(uint16_t *)(loc + 4);
   rad.u = radius_fp;

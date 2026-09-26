@@ -192,7 +192,7 @@ void weapon_play_first_person_weapon_sound(int param_2, int object_handle)
  * in EAX as fp_base + local_player_index * 0x1ea0. */
 void *first_person_weapon_get(int16_t local_player_index)
 {
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   return (void *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
@@ -209,7 +209,7 @@ void first_person_weapon_set_visibility(int16_t local_player_index,
 {
   char *fp;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   fp = (char *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
@@ -407,7 +407,7 @@ void first_person_weapon_predict(int16_t local_player_index)
   char *fp;
   int weapon_handle;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   weapon_handle =
@@ -460,7 +460,7 @@ void first_person_weapon_draw(void)
   if (local_player_index == -1)
     return;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   fp = (char *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
@@ -605,7 +605,7 @@ void *first_person_weapon_get_node_matrix(int16_t local_player_index,
   char *weapon_tag;
   char *antr_tag;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   fp = (char *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
@@ -630,7 +630,7 @@ void first_person_weapon_start_interpolation(int16_t local_player_index,
   char *weapon_tag;
   char *antr_tag;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   fp = (char *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
@@ -683,7 +683,7 @@ void first_person_weapon_set_state(int param_1, int param_2, int param_3)
   int16_t sVar1;
   int16_t blend_ticks;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   fp = (char *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
@@ -826,7 +826,7 @@ void first_person_weapon_switch_weapons(int param_1)
   uint8_t was_active;
   int weapon_handle;
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   fp = (char *)(*(int *)0x46bea8 + (int)local_player_index * 0x1ea0);
@@ -837,7 +837,7 @@ void first_person_weapon_switch_weapons(int param_1)
 
   /* If previously active, deactivate effects and sounds. */
   if (was_active != 0) {
-    assert_halt(local_player_index >= 0 &&
+    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
                 local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     {
@@ -1136,7 +1136,7 @@ void first_person_weapon_update(int16_t local_player_index)
   double __cdecl fmod(double, double);
 #endif
 
-  assert_halt(local_player_index >= 0 &&
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   fp = (char *)*(int *)0x46bea8 + (int)local_player_index * 0x1ea0;

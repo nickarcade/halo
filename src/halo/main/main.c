@@ -450,7 +450,7 @@ void create_local_players(void)
   default_controllers[2] = 2;
   default_controllers[3] = 3;
 
-  assert_halt(game_connection() == _game_connection_local);
+  assert_halt_at("c:\\halo\\SOURCE\\main\\main.c", 0x2e5, game_connection() == _game_connection_local);
 
   for (i = 0; i < player_spawn_count; i++) {
     gamepad_index = player_ui_get_single_player_local_player_controller(i);
@@ -459,7 +459,7 @@ void create_local_players(void)
       desired_controllers[i] = default_controllers[i];
     }
 
-    assert_halt((desired_controllers[i] >= 0) &&
+    assert_halt_msg_at("(desired_controllers[i]>=0) && (desired_controllers[i]<MAXIMUM_GAMEPADS)", "c:\\halo\\SOURCE\\main\\main.c", 0x2f3, (desired_controllers[i] >= 0) &&
                 (desired_controllers[i] < MAXIMUM_GAMEPADS));
 
     gamepad_index = desired_controllers[i];
@@ -471,7 +471,7 @@ void create_local_players(void)
           break;
         }
       }
-      assert_halt(j < MAXIMUM_GAMEPADS);
+      assert_halt_msg_at("j<MAXIMUM_GAMEPADS", "c:\\halo\\SOURCE\\main\\main.c", 0x300, j < MAXIMUM_GAMEPADS);
     } else {
       assigned_controllers[gamepad_index] = gamepad_index;
     }
@@ -481,7 +481,7 @@ void create_local_players(void)
 
   for (i = 0; i < player_spawn_count; i++) {
     gamepad_index = desired_controllers[i];
-    assert_halt((gamepad_index >= 0) && (gamepad_index < MAXIMUM_GAMEPADS));
+    assert_halt_msg_at("(gamepad_index>=0) && (gamepad_index<MAXIMUM_GAMEPADS)", "c:\\halo\\SOURCE\\main\\main.c", 0x310, (gamepad_index >= 0) && (gamepad_index < MAXIMUM_GAMEPADS));
     player = player_new(0, -1, gamepad_index, 0);
     local_player_set_player_index(gamepad_index, player);
   }
@@ -1412,7 +1412,7 @@ void main_menu_precache_resources(void)
 {
   scenario_t *scenario = global_scenario_get();
   if (scenario) {
-    assert_halt(scenario->type == _scenario_type_main_menu);
+    assert_halt_msg_at("scenario->type==_scenario_type_main_menu", "c:\\halo\\SOURCE\\main\\main.c", 0x46d, scenario->type == _scenario_type_main_menu);
     predicted_resources_precache(&scenario->unk_236);
   }
 }
@@ -1856,7 +1856,7 @@ void compute_window_bounds(int player_index, int num_players,
   uint16_t gap;
 
   /* --- assert: player_index < num_players --- */
-  assert_halt(player_index < num_players);
+  assert_halt_msg_at("player_index<num_players", "c:\\halo\\SOURCE\\main\\main.c", 0x54f, player_index < num_players);
 
   /* gap between sub-windows when more than 1 player */
   gap = (num_players < 2) ? 0 : 4;
@@ -1897,8 +1897,8 @@ void compute_window_bounds(int player_index, int num_players,
   vertical_index = player_index / horizontal_count;
   horizontal_index = player_index - vertical_index * horizontal_count;
 
-  assert_halt(vertical_index >= 0 && vertical_index < vertical_count);
-  assert_halt(horizontal_index >= 0 && horizontal_index < horizontal_count);
+  assert_halt_msg_at("vertical_index>=0 && vertical_index<vertical_count", "c:\\halo\\SOURCE\\main\\main.c", 0x56e, vertical_index >= 0 && vertical_index < vertical_count);
+  assert_halt_msg_at("horizontal_index>=0 && horizontal_index<horizontal_count", "c:\\halo\\SOURCE\\main\\main.c", 0x56f, horizontal_index >= 0 && horizontal_index < horizontal_count);
 
   /* screen area globals (not in kb.json) */
   {

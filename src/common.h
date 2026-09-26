@@ -36,8 +36,8 @@ double __cdecl fabs(double);
  * assert_halt_at takes the ORIGINAL Bungie source path and assert line recovered
  * from the XBE, reproducing the exact string and line immediate. The message is
  * #cond, so a condition written with real names also reproduces the original
- * expression string. Recover (file,line) via
- * tools/audit/check_assert_targets.py --emit-asserts. Readable-lift Phase 0. */
+ * expression string. Rewrite implicit sites from the XBE with
+ * tools/audit/recover_assert_sites.py --apply. Readable-lift Phase 0. */
 #define assert_halt_at(file, line, cond)                       \
     do {                                                     \
         if (!(cond)) {                                       \

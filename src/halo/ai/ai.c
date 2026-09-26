@@ -424,9 +424,10 @@ int sub_3FB00(unsigned char *param_1, unsigned char *param_2)
  *   0x3fbf4  PUSH 0 / PUSH ECX(LEA [EBP-0x18])
  *            -> encounter_iterator_new((int)encounter_iter, 0)         [match]
  *   0x3fbfd / 0x3fc59  PUSH LEA [EBP-0x18] ->
- * encounter_iterator_next((int)encounter_iter). ADD ESP,0xc at 0x3fc02 again folds the
- * preceding new(2)+next(1). 0x3fc7c  PUSH 0x3fb00 / PUSH 0xc / PUSH MOVSX
- * EDX,AX(count) / PUSH ESI+4 -> qsort(records, count, 12, sub_3FB00) [match]
+ * encounter_iterator_next((int)encounter_iter). ADD ESP,0xc at 0x3fc02 again
+ * folds the preceding new(2)+next(1). 0x3fc7c  PUSH 0x3fb00 / PUSH 0xc / PUSH
+ * MOVSX EDX,AX(count) / PUSH ESI+4 -> qsort(records, count, 12, sub_3FB00)
+ * [match]
  *
  * Uncertain: actor+8, actor+0xc, encounter+0xd, encounter+0x2a and
  * encounter+0x10 are left as raw offsets — only their widths and the sense of
@@ -784,8 +785,8 @@ char ai_handle_killing_spree(int unit_handle, short killing_spree_count)
  * Iterates over all active player-actors via
  * actor_iterator_new/actor_iterator_next; for each actor whose team
  * matches team_a or team_b, walks the actor's clump items via
- * prop_iterator_new/prop_iterator_next and applies the friendship and force flags.
- * Confirmed: 4 args via PUSH count
+ * prop_iterator_new/prop_iterator_next and applies the friendship and force
+ * flags. Confirmed: 4 args via PUSH count
  * + ADD ESP,0x18 cleanup at 0x40068. Operand sizes confirmed: team_a/team_b as
  * int16_t (MOVSX + CMP AX,DI); friendship/force as char (MOV byte ptr).
  *
@@ -999,14 +1000,14 @@ void ai_update_team_status(void)
  * -1.
  *   - word at (resolved_unit + 0x64) != 0.
  *
- * When all conditions pass, calls prop_get_base_by_unit_index to look up the slot index,
- * then actor_handle_unit_effect(encounter_handle, slot_index, 0) on both
- * directions (param_1's encounter vs param_2, and param_2's encounter vs
+ * When all conditions pass, calls prop_get_base_by_unit_index to look up the
+ * slot index, then actor_handle_unit_effect(encounter_handle, slot_index, 0) on
+ * both directions (param_1's encounter vs param_2, and param_2's encounter vs
  * param_1).
  *
  * Confirmed: [EBP+8]=param_1 (int), [EBP+C]=param_2 (int),
- * [EBP+10]=velocity_ptr (ignored). The third arg is pushed by biped_bumped_object but
- * never accessed by this function.
+ * [EBP+10]=velocity_ptr (ignored). The third arg is pushed by
+ * biped_bumped_object but never accessed by this function.
  */
 void ai_handle_bump(int param_1, int param_2, float *velocity_ptr)
 {
@@ -1131,14 +1132,14 @@ void ai_handle_damage(int unit_handle, int param_2, int param_3, float damage,
   }
 }
 
-/* ai_place_pending_mounted_weapons: spawn AI actors into vehicle seats from pending vehicle list.
- * Called each tick from ai_update. Iterates the vehicle spawn queue stored
- * in the AI globals block: a count at offset +0x8b8 (int16_t) and an array
- * of object handles starting at offset +0x8bc. For each queued vehicle,
- * looks up its unit tag definition and walks the tag_block at tag+0x2e4
- * (element size 0x11c). For each seat element with a valid actor variant
- * tag index at element+0x104, creates an actor via actor_place using the
- * vehicle's world position as the starting location, then boards the new
+/* ai_place_pending_mounted_weapons: spawn AI actors into vehicle seats from
+ * pending vehicle list. Called each tick from ai_update. Iterates the vehicle
+ * spawn queue stored in the AI globals block: a count at offset +0x8b8
+ * (int16_t) and an array of object handles starting at offset +0x8bc. For each
+ * queued vehicle, looks up its unit tag definition and walks the tag_block at
+ * tag+0x2e4 (element size 0x11c). For each seat element with a valid actor
+ * variant tag index at element+0x104, creates an actor via actor_place using
+ * the vehicle's world position as the starting location, then boards the new
  * actor's unit into the vehicle at the corresponding seat index.
  * Clears the queue count to zero after processing.
  *
@@ -1184,7 +1185,7 @@ void ai_place_pending_mounted_weapons(void)
         object_get_world_position(vehicle_handle,
                                   (vector3_t *)starting_location);
         actor_handle = actor_place(*(int *)(seat_element + 0x104), -1, -1,
-                                    starting_location, 0, 0);
+                                   starting_location, 0, 0);
         if (actor_handle != -1) {
           actor = datum_get(actor_data, actor_handle);
           unit_board_vehicle(((actor_t *)actor)->field_018, vehicle_handle, j);
@@ -1454,9 +1455,9 @@ void ai_handle_exit_vehicle(int param_1)
   }
 }
 
-/* ai_flush_spatial_effects: clear the AI encounter/firing-position cache fields in the
- * globals block. Zeroes the int16_t counts at globals+0x130 and globals+0x132,
- * then csmemsets 0x280 bytes starting at globals+0x134 to zero.
+/* ai_flush_spatial_effects: clear the AI encounter/firing-position cache fields
+ * in the globals block. Zeroes the int16_t counts at globals+0x130 and
+ * globals+0x132, then csmemsets 0x280 bytes starting at globals+0x134 to zero.
  *
  * Confirmed: void(void) — no args, no return value.
  * Confirmed: three stores then CALL csmemset(globals+0x134, 0, 0x280).
@@ -1469,6 +1470,190 @@ void ai_flush_spatial_effects(void)
   *(int16_t *)(g + 0x132) = 0;
   *(int16_t *)(g + 0x130) = 0;
   csmemset((void *)(g + 0x134), 0, 0x280);
+}
+
+/* ai_disconnect_from_structure_bsp: detach actors from encounters before a BSP
+ * switch, then flush structure/prop indices of all encounterless actors.
+ *
+ * Evidence (0x40a80 disasm):
+ *   encounters: count at scenario+0x42c; encounter pool [0x5ab270];
+ *     skip unless enc+0xd != 0 and short enc+0x2a > 0.
+ *   prop pool [0x5ab23c]; swarm pool [0x6325a0]; actor pool [0x6325a4].
+ *   debug-log byte [0x5aca63] gates every error(2, ...) call.
+ *   float thresholds [0x254644] (prop iterator path) and [0x253f34]
+ *     (target prop path); FCOMP + TEST AH,5 + JP => flag set when x < c.
+ *   actor_create_for_unit pushes 0,-1,0,2,0,actor,0,field_03a(zx),
+ *     field_034,field_05c,unit,1 (ADD ESP,0x38 folds the 2-arg detach). */
+void ai_disconnect_from_structure_bsp(void)
+{
+  char description[256];
+  int outside_units[16];
+  char *scenario;
+  char *encounter;
+  char *actor;
+  char *prop;
+  char *swarm;
+  char *object;
+  int *pvs;
+  int actor_iter[2];
+  int prop_iter[2];
+  int actor_handle;
+  int next_handle;
+  int unit;
+  short encounter_index;
+  short unit_index;
+  short outside_count;
+  short swarm_count;
+  short reattached;
+  short cluster;
+  char disconnect;
+
+  scenario = (char *)global_scenario_get();
+  for (encounter_index = 0; encounter_index < *(int *)(scenario + 0x42c);
+       encounter_index++) {
+    encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_index);
+    if (*(char *)(encounter + 0xd) != '\0' &&
+        *(short *)(encounter + 0x2a) > 0) {
+      encounter_actor_iterator_new(actor_iter, encounter_index);
+      actor = (char *)encounter_actor_iterator_next(actor_iter);
+      while (actor != NULL) {
+        disconnect = 0;
+        ai_debug_describe_actor(actor_iter[1], -1, 1, description, 0x100);
+        if (((actor_t *)actor)->target_target_prop_index == -1 ||
+            ((actor_t *)actor)->target_target_type < 5) {
+          if (!game_allegiance_get_team_is_friendly(
+                ((actor_t *)actor)->field_03e, 1)) {
+            prop_iterator_new(prop_iter, actor_iter[1]);
+            prop = (char *)prop_iterator_next(prop_iter);
+            while (prop != NULL) {
+              if (*(char *)(prop + 0x12e) != '\0' &&
+                  (*(short *)(prop + 0x32) >= 2 ||
+                   *(float *)(prop + 0x11c) < *(float *)0x254644)) {
+                disconnect = 1;
+              }
+              prop = (char *)prop_iterator_next(prop_iter);
+            }
+          }
+        } else {
+          prop = (char *)datum_get(
+            *(data_t **)0x5ab23c, ((actor_t *)actor)->target_target_prop_index);
+          if (*(short *)(prop + 0x24) >= 4 && *(short *)(prop + 0x24) <= 5) {
+            if (*(int *)(prop + 0xc) == -1) {
+              display_assert("target_prop->parent_prop_index != NONE",
+                             "c:\\halo\\SOURCE\\ai\\ai.c", 0x8b9, 1);
+              system_exit(-1);
+            }
+            prop =
+              (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(prop + 0xc));
+          }
+          if (*(char *)(prop + 0x12e) != '\0' &&
+              ((actor_t *)actor)->field_088 != -1 &&
+              ((actor_t *)actor)->field_088 < 0x5a &&
+              *(float *)(prop + 0x11c) < *(float *)0x253f34) {
+            disconnect = 1;
+          }
+        }
+        if (disconnect && ((actor_t *)actor)->field_006 != '\0') {
+          if (((actor_t *)actor)->meta_swarm_cache_index == -1) {
+            disconnect = 0;
+          } else {
+            swarm = (char *)datum_get(
+              *(data_t **)0x6325a0, ((actor_t *)actor)->meta_swarm_cache_index);
+            pvs = (int *)players_get_combined_pvs();
+            outside_count = 0;
+            for (unit_index = 0; unit_index < *(short *)(swarm + 2);
+                 unit_index++) {
+              object = (char *)object_get_and_verify_type(
+                object_get_root_parent(*(int *)(swarm + unit_index * 4 + 0x18)),
+                -1);
+              cluster = *(short *)(object + 0x4c);
+              if (cluster == -1 ||
+                  (pvs[cluster >> 5] & (1 << (cluster & 0x1f))) == 0) {
+                if (outside_count >= 16) {
+                  display_assert("components_outside_pvs_count < "
+                                 "MAXIMUM_NUMBER_OF_UNITS_PER_SWARM",
+                                 "c:\\halo\\SOURCE\\ai\\ai.c", 0x8eb, 1);
+                  system_exit(-1);
+                }
+                outside_units[outside_count] =
+                  *(int *)(swarm + unit_index * 4 + 0x18);
+                outside_count++;
+              }
+            }
+            if (outside_count == 0) {
+              if (*(char *)0x5aca63 != '\0') {
+                error(2, "%s: all swarm inside PVS, transition unchanged",
+                      description);
+              }
+            } else {
+              swarm_count = *(short *)(swarm + 2);
+              if (outside_count == swarm_count) {
+                if (*(char *)0x5aca63 != '\0') {
+                  error(2, "%s: no units inside PVS, do not transition",
+                        description);
+                }
+                disconnect = 0;
+              } else {
+                reattached = 0;
+                for (unit_index = 0; unit_index < outside_count; unit_index++) {
+                  unit = outside_units[unit_index];
+                  actor_swarm_detach_from_unit(actor_iter[1], unit);
+                  if (actor_create_for_unit(
+                        1, unit, ((actor_t *)actor)->field_05c,
+                        ((actor_t *)actor)->field_034,
+                        (unsigned short)((actor_t *)actor)->field_03a, 0,
+                        actor_iter[1], 0, 2, 0, 0xffff, 0) == -1) {
+                    object_delete(unit);
+                  } else {
+                    reattached++;
+                  }
+                }
+                if (*(char *)0x5aca63 != '\0') {
+                  error(2, "%s: %d of %d units outside PVS, reattached %d%s",
+                        description, (int)outside_count, (int)swarm_count,
+                        (int)reattached,
+                        reattached < outside_count ? " (deleted some)" : "");
+                }
+              }
+            }
+          }
+        }
+        if (disconnect) {
+          if (*(char *)0x5aca63 != '\0') {
+            error(2, "%s: disconnect and transition to new bsp", description);
+          }
+          ((actor_t *)actor)->field_030 = encounter_index;
+          ((actor_t *)actor)->field_038 = ((actor_t *)actor)->field_03a;
+          actor_flush_position_indices(actor_iter[1]);
+          encounter_detach_actor(actor_iter[1], 0);
+          encounterless_attach_actor(actor_iter[1]);
+        }
+        actor = (char *)encounter_actor_iterator_next(actor_iter);
+      }
+    }
+    encounter_force_deactivate(encounter_index);
+  }
+
+  actor_handle = *(int *)(*(int *)0x632574 + 8);
+  while (actor_handle != -1) {
+    actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+    next_handle = ((actor_t *)actor)->field_02c;
+    if (((actor_t *)actor)->field_009 == '\0') {
+      display_assert("actor->meta.encounterless", "c:\\halo\\SOURCE\\ai\\ai.c",
+                     0x94a, 1);
+      system_exit(-1);
+    }
+    actor_flush_structure_indices(actor_handle);
+    prop_iterator_new(prop_iter, actor_handle);
+    prop = (char *)prop_iterator_next(prop_iter);
+    while (prop != NULL) {
+      *(short *)(prop + 0x100) = -1;
+      *(int *)(prop + 0xfc) = -1;
+      *(int *)(prop + 0xec) = -1;
+      prop = (char *)prop_iterator_next(prop_iter);
+    }
+    actor_handle = next_handle;
+  }
 }
 
 /* ai_reconnect_to_structure_bsp: iterate all encounterless actors and re-attach
@@ -1674,7 +1859,8 @@ void ai_update(void)
   }
 }
 
-/* ai_generate_line_of_fire_pill: fill one ai_firing_pos_entry_t in the candidate buffer.
+/* ai_generate_line_of_fire_pill: fill one ai_firing_pos_entry_t in the
+ * candidate buffer.
  *
  * Register args (thunk loads before CALL):
  *   ESI = ai_firing_pos_entry_t *entry  — pointer to the slot to fill
@@ -1712,8 +1898,8 @@ void ai_update(void)
  *
  * Confirmed: cdecl, 1 stack arg, RET (no stack cleanup in callee).
  * Confirmed: ADD ESP,0x10 at 0x413e1 cleans all 4 pushes to 0x1a0890. */
-void ai_generate_line_of_fire_pill(ai_firing_pos_entry_t *entry, int unit_handle,
-                  int actor_handle)
+void ai_generate_line_of_fire_pill(ai_firing_pos_entry_t *entry,
+                                   int unit_handle, int actor_handle)
 {
   float height_offset;
   float camera_height;
@@ -1732,7 +1918,8 @@ void ai_generate_line_of_fire_pill(ai_firing_pos_entry_t *entry, int unit_handle
   entry->occupied = 0;
 }
 
-/* ai_find_line_of_fire_friend_pills: build the firing-position candidate list for an actor.
+/* ai_find_line_of_fire_friend_pills: build the firing-position candidate list
+ * for an actor.
  *
  * Iterates two linked lists:
  *   1. The actor's own encounter clump (via
@@ -1743,7 +1930,8 @@ void ai_generate_line_of_fire_pill(ai_firing_pos_entry_t *entry, int unit_handle
  *        - skip if member has no object (member+0x18 == -1)
  *        - skip if member is already targeting something (member+0x158 != -1)
  *        Calls prop_get_active_by_unit_index(actor_handle,
- * member_object_handle) to get a staging handle, then ai_generate_line_of_fire_pill(@esi=entry,
+ * member_object_handle) to get a staging handle, then
+ * ai_generate_line_of_fire_pill(@esi=entry,
  * @edi=object_handle, actor_handle_from_64ab0) to fill the slot.
  *
  *   2. A secondary prop/enemy list (via prop_iterator_new/prop_iterator_next).
@@ -1755,8 +1943,8 @@ void ai_generate_line_of_fire_pill(ai_firing_pos_entry_t *entry, int unit_handle
  *        - verify via object_get_and_verify_type that object type bit 0 is set
  *        - skip if both are in the same encounter (same encounter handle)
  *        - skip if count >= max_count
- *        Calls ai_generate_line_of_fire_pill(@esi=entry, @edi=entry_object_handle,
- *        local_10[0]) to fill the slot.
+ *        Calls ai_generate_line_of_fire_pill(@esi=entry,
+ * @edi=entry_object_handle, local_10[0]) to fill the slot.
  *
  * Returns count of candidates written (int16_t in BX, returned via AX).
  *
@@ -1771,19 +1959,19 @@ void ai_generate_line_of_fire_pill(ai_firing_pos_entry_t *entry, int unit_handle
  * Confirmed: first loop iterator at [EBP-0x10] (12 bytes: handle/current/next).
  *            second loop iterator at [EBP-0xc] (8 bytes: actor_handle/next).
  *
- * Call-site verification table — call to ai_generate_line_of_fire_pill at 0x4149a:
- *   arg      | binary source         | C expr             | match?
+ * Call-site verification table — call to ai_generate_line_of_fire_pill at
+ * 0x4149a: arg      | binary source         | C expr             | match?
  *   stack[0] | PUSH EAX (ret 64ab0) | actor_handle_64ab0 | YES
  *   @esi     | LEA ESI,[buf+cnt*40] | &buf[count]        | YES
  *   @edi     | MOV EDI,[EDI+0x18]   | member_object_hdl  | YES
  *
- * Call-site verification table — call to ai_generate_line_of_fire_pill at 0x41567:
- *   arg      | binary source         | C expr             | match?
+ * Call-site verification table — call to ai_generate_line_of_fire_pill at
+ * 0x41567: arg      | binary source         | C expr             | match?
  *   stack[0] | PUSH ECX ([EBP-0xc]) | local_10[0]        | YES
  *   @esi     | LEA ESI,[buf+cnt*40] | &buf[count]        | YES
  *   @edi     | MOV EDI,[EDI+0x18]   | prop_object_handle | YES */
 int16_t ai_find_line_of_fire_friend_pills(int actor_handle, int16_t max_count,
-                     ai_firing_pos_entry_t *buf)
+                                          ai_firing_pos_entry_t *buf)
 {
   char *actor;
   char *member;
@@ -1810,7 +1998,8 @@ int16_t ai_find_line_of_fire_friend_pills(int actor_handle, int16_t max_count,
         staging =
           prop_get_active_by_unit_index(actor_handle, member_object_handle);
         /* entry ptr = buf + count*0x28; EDI = member_object_handle */
-        ai_generate_line_of_fire_pill(&buf[count], member_object_handle, staging);
+        ai_generate_line_of_fire_pill(&buf[count], member_object_handle,
+                                      staging);
         count++;
       }
       member = (char *)encounter_actor_iterator_next(iter_a);
@@ -1834,7 +2023,8 @@ int16_t ai_find_line_of_fire_friend_pills(int actor_handle, int16_t max_count,
           if (count < max_count) {
             prop_obj_handle = *(int *)(prop + 0x18);
             /* entry ptr = buf + count*0x28; EDI = prop_obj_handle */
-            ai_generate_line_of_fire_pill(&buf[count], prop_obj_handle, local_10[0]);
+            ai_generate_line_of_fire_pill(&buf[count], prop_obj_handle,
+                                          local_10[0]);
             count++;
           }
         }
@@ -1851,9 +2041,9 @@ int16_t ai_find_line_of_fire_friend_pills(int actor_handle, int16_t max_count,
 /* ai_test_line_of_fire: test whether the actor can fire at a target through any
  * candidate firing position, and return the best candidate handle.
  *
- * Builds up to 0x20 candidate firing-position entries via ai_find_line_of_fire_friend_pills
- * (collecting nearby cover points / target-prop positions), then for each
- * entry:
+ * Builds up to 0x20 candidate firing-position entries via
+ * ai_find_line_of_fire_friend_pills (collecting nearby cover points /
+ * target-prop positions), then for each entry:
  *   - skips entries whose handle_b matches excluded_handle (param_2)
  *   - if entry.is_sphere: calls fast_vector_intersects_sphere (line-sphere
  * intersection test)
@@ -1872,8 +2062,9 @@ int16_t ai_find_line_of_fire_friend_pills(int actor_handle, int16_t max_count,
  * Confirmed: global INC at 0x5ac6e4 = entry-attempt counter (word).
  * Confirmed: guard 0x5aca69 = ai_debug lineoffire enable flag.
  * Confirmed: EBX = param_5 (int *result_out) loaded at 0x000415cc AFTER
- *   the ai_find_line_of_fire_friend_pills call+cleanup. EBX is callee-saved and used throughout.
- * Confirmed: buf size = 0x508 bytes (SUB ESP,0x508; buf at EBP-0x508). */
+ *   the ai_find_line_of_fire_friend_pills call+cleanup. EBX is callee-saved and
+ * used throughout. Confirmed: buf size = 0x508 bytes (SUB ESP,0x508; buf at
+ * EBP-0x508). */
 bool ai_test_line_of_fire(int actor_handle, int excluded_handle, float *origin,
                           float *offset, int *result_out)
 {
@@ -1888,7 +2079,8 @@ bool ai_test_line_of_fire(int actor_handle, int excluded_handle, float *origin,
   success = 1;
   result_datum = -1;
 
-  count = (int)(int16_t)ai_find_line_of_fire_friend_pills(actor_handle, 0x20, buf);
+  count =
+    (int)(int16_t)ai_find_line_of_fire_friend_pills(actor_handle, 0x20, buf);
 
   if (count > 0) {
     for (i = 0; i < count; i++) {
@@ -1936,6 +2128,200 @@ bool ai_test_line_of_fire(int actor_handle, int excluded_handle, float *origin,
     *result_out = result_datum;
   }
   return (bool)success;
+}
+
+/* 0x41e80 — ai_handle_editing: re-synchronise runtime AI encounter state
+ * after the scenario encounter at `encounter_handle` was edited.
+ *
+ * ABI: cdecl, one stack arg. The binary reads [EBP+8] (MOV EDI,[EBP+8]) and
+ * uses it as a datum handle: datum_get(encounter data 0x5ab270, handle),
+ * tag index = handle & 0xffff (AND EAX,0xffff), range check on (short)handle.
+ * The kb decl was void(void); the stack read proves one int parameter.
+ * The artifact lists no callers.
+ *
+ * Invalid index (short handle < 0 or >= scenario encounter count at
+ * scenario+0x42c): store -1 at 0x5ac9f4, kill every actor (actor iterator,
+ * handle at iter+0x14), run the eight *_dispose_from_old_map helpers, clear
+ * ai_globals+1, then ai_initialize_for_new_map.
+ *
+ * Valid index: compute squad/platoon count deltas between the edited tag
+ * encounter (element size 0xb0; squads block +0x80, platoons block +0x8c)
+ * and the runtime encounter (+4 squad_base, +6 squad_count, +8 platoon_base,
+ * +0xa platoon_count). Shift the global squad (0x5ab278, stride 0x20) and
+ * platoon (0x5ab274, stride 0x10) arrays with csmemmove; the size argument
+ * is an element count, not bytes (binary: no SHL on the pushed size).
+ * Zero newly added entries, rebase later encounters, then fix up actor
+ * squad (+0x3a), platoon (+0x3c) and +0x90 indices per actor.
+ * Asserts: ai.c lines 0x6b0, 0x6c4, 0x6dc, 0x6dd, 0x6e0, 0x6e1. */
+void ai_handle_editing(int encounter_handle)
+{
+  char *scenario;
+  char *encounter;
+  char *encounter_def;
+  char *adjust;
+  char *actor;
+  char *squad;
+  short squad_delta;
+  short platoon_delta;
+  short i;
+  int end;
+  int base;
+  int delta;
+  char actor_iter[0x1c];
+  int encounter_iter[3];
+
+  if (*(char *)(*(int *)0x632574 + 1) == 0) {
+    return;
+  }
+
+  scenario = (char *)global_scenario_get();
+  if ((short)encounter_handle < 0 ||
+      (short)encounter_handle >= *(int *)(scenario + 0x42c)) {
+    *(int *)0x5ac9f4 = -1;
+    actor_iterator_new(actor_iter, 0);
+    while (actor_iterator_next(actor_iter)) {
+      actor_kill(*(int *)(actor_iter + 0x14), 0, 0);
+    }
+    ai_communication_dispose_from_old_map();
+    ai_script_dispose_from_old_map();
+    encounters_dispose_from_old_map();
+    props_dispose_from_old_map();
+    actors_dispose_from_old_map();
+    paths_dispose_from_old_map();
+    ai_profile_dispose_from_old_map();
+    ai_debug_dispose_from_old_map();
+    *(char *)(*(int *)0x632574 + 1) = 0;
+    ai_initialize_for_new_map();
+    return;
+  }
+
+  encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_handle);
+  encounter_def = (char *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x42c, encounter_handle & 0xffff, 0xb0);
+  squad_delta = *(short *)(encounter_def + 0x80) - *(short *)(encounter + 6);
+  platoon_delta =
+    *(short *)(encounter_def + 0x8c) - *(short *)(encounter + 0xa);
+
+  if (squad_delta != 0) {
+    adjust =
+      (char *)datum_get(*(data_t **)0x5ab270, *(int *)(scenario + 0x42c) - 1);
+    end = (short)(*(short *)(adjust + 6) + *(short *)(adjust + 4));
+    delta = squad_delta;
+    if (delta + end > 0x400) {
+      display_assert(
+        csprintf((char *)0x5ab100,
+                 "editing caused an overflow of MAXIMUM_SQUADS_PER_MAP (%d)",
+                 0x400),
+        "c:\\halo\\SOURCE\\ai\\ai.c", 0x6b0, 1);
+      system_exit(-1);
+    }
+    base = *(short *)(encounter + 4);
+    csmemmove(
+      (char *)*(int *)0x5ab278 + (*(int *)(encounter_def + 0x80) + base) * 0x20,
+      (char *)*(int *)0x5ab278 + (base + *(short *)(encounter + 6)) * 0x20,
+      end - base - *(short *)(encounter + 6));
+    if (squad_delta > 0) {
+      csmemset((char *)*(int *)0x5ab278 +
+                 (*(short *)(encounter + 6) + *(short *)(encounter + 4)) * 0x20,
+               0, delta * 0x20);
+    }
+    *(short *)(encounter + 6) += squad_delta;
+  }
+
+  if (platoon_delta != 0) {
+    adjust =
+      (char *)datum_get(*(data_t **)0x5ab270, *(int *)(scenario + 0x42c) - 1);
+    end = (short)(*(short *)(adjust + 0xa) + *(short *)(adjust + 8));
+    delta = platoon_delta;
+    if (delta + end > 0x100) {
+      display_assert(
+        csprintf((char *)0x5ab100,
+                 "editing caused an overflow of MAXIMUM_PLATOONS_PER_MAP (%d)",
+                 0x100),
+        "c:\\halo\\SOURCE\\ai\\ai.c", 0x6c4, 1);
+      system_exit(-1);
+    }
+    base = *(short *)(encounter + 8);
+    csmemmove(
+      (char *)*(int *)0x5ab274 + (*(int *)(encounter_def + 0x8c) + base) * 0x10,
+      (char *)*(int *)0x5ab274 + (base + *(short *)(encounter + 0xa)) * 0x10,
+      end - base - *(short *)(encounter + 0xa));
+    if (platoon_delta > 0) {
+      csmemset((char *)*(int *)0x5ab274 +
+                 (*(short *)(encounter + 8) + *(short *)(encounter + 0xa)) *
+                   0x10,
+               0, delta * 0x10);
+    }
+    *(short *)(encounter + 0xa) += platoon_delta;
+  }
+
+  if (squad_delta != 0 || platoon_delta != 0) {
+    for (i = (short)(encounter_handle + 1); i < *(int *)(scenario + 0x42c);
+         i++) {
+      adjust = (char *)datum_get(*(data_t **)0x5ab270, i);
+      *(short *)(adjust + 4) += squad_delta;
+      if (!(*(short *)(adjust + 4) >=
+            *(short *)(encounter + 6) + *(short *)(encounter + 4))) {
+        display_assert("adjust_encounter->squad_base >= "
+                       "encounter->squad_base + encounter->squad_count",
+                       "c:\\halo\\SOURCE\\ai\\ai.c", 0x6dc, 1);
+        system_exit(-1);
+      }
+      if (!(*(short *)(adjust + 6) + *(short *)(adjust + 4) <= 0x400)) {
+        display_assert("adjust_encounter->squad_base + "
+                       "adjust_encounter->squad_count <= "
+                       "MAXIMUM_SQUADS_PER_MAP",
+                       "c:\\halo\\SOURCE\\ai\\ai.c", 0x6dd, 1);
+        system_exit(-1);
+      }
+      *(short *)(adjust + 8) += platoon_delta;
+      if (!(*(short *)(adjust + 8) >=
+            *(short *)(encounter + 8) + *(short *)(encounter + 0xa))) {
+        display_assert("adjust_encounter->platoon_base >= "
+                       "encounter->platoon_base + encounter->platoon_count",
+                       "c:\\halo\\SOURCE\\ai\\ai.c", 0x6e0, 1);
+        system_exit(-1);
+      }
+      if (!(*(short *)(adjust + 0xa) + *(short *)(adjust + 8) <= 0x100)) {
+        display_assert("adjust_encounter->platoon_base + "
+                       "adjust_encounter->platoon_count <= "
+                       "MAXIMUM_PLATOONS_PER_MAP",
+                       "c:\\halo\\SOURCE\\ai\\ai.c", 0x6e1, 1);
+        system_exit(-1);
+      }
+    }
+  }
+
+  encounter_actor_iterator_new(encounter_iter, encounter_handle);
+  while ((actor = (char *)encounter_actor_iterator_next(encounter_iter)) !=
+         NULL) {
+    if (*(short *)(actor + 0x3a) < 0 ||
+        *(short *)(actor + 0x3a) >= *(int *)(encounter_def + 0x80)) {
+      if (*(int *)(encounter_def + 0x80) == 0) {
+        actor_kill(encounter_iter[1], 0, 0);
+        continue;
+      }
+      squad = (char *)tag_block_get_element(encounter_def + 0x80, 0, 0xe8);
+      *(short *)(actor + 0x3a) = 0;
+      *(short *)(actor + 0x3c) = *(short *)(squad + 0x22);
+      if (*(short *)(squad + 0x22) < 0 ||
+          *(short *)(squad + 0x22) >= *(int *)(encounter_def + 0x8c)) {
+        *(short *)(actor + 0x3c) = -1;
+      }
+    }
+    if (*(short *)(actor + 0x3c) < 0 ||
+        *(short *)(actor + 0x3c) >= *(int *)(encounter_def + 0x8c)) {
+      *(short *)(actor + 0x3c) = -1;
+    }
+    if (*(short *)(actor + 0x90) < 0 ||
+        *(short *)(actor + 0x90) >= *(int *)(scenario + 0x438)) {
+      *(short *)(actor + 0x90) = -1;
+    }
+    if (*(short *)(actor + 0x6c) == 0xb) {
+      action_obey_flush_command_indices(encounter_iter[1]);
+    }
+    actor_flush_position_indices(encounter_iter[1]);
+  }
 }
 
 /* ai_clump (ai_clump): scan all active player-actor records to find

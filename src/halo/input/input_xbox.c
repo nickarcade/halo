@@ -672,7 +672,7 @@ int FUN_000cf690(void)
 
 bool input_has_gamepad(int16_t gamepad_index)
 {
-  assert_halt(gamepad_index >= 0 && gamepad_index < MAXIMUM_GAMEPADS);
+  assert_halt_msg_at("gamepad_index>=0 && gamepad_index<MAXIMUM_GAMEPADS", "c:\\halo\\SOURCE\\input\\input_xbox.c", 0x171, gamepad_index >= 0 && gamepad_index < MAXIMUM_GAMEPADS);
   return input_gamepad_handles()[gamepad_index] != 0;
 }
 
@@ -697,7 +697,7 @@ void input_set_rumble(int16_t gamepad_index, uint16_t left, uint16_t right)
 {
   int offset;
 
-  assert_halt(gamepad_index >= 0 && gamepad_index < MAXIMUM_GAMEPADS);
+  assert_halt_msg_at("gamepad_index>=0 && gamepad_index<MAXIMUM_GAMEPADS", "c:\\halo\\SOURCE\\input\\input_xbox.c", 0x198, gamepad_index >= 0 && gamepad_index < MAXIMUM_GAMEPADS);
   if (!player_ui_rumble_disabled(gamepad_index)) {
     offset = (int)gamepad_index << 2;
     *(uint16_t *)(0x46bb14 + offset) = left;

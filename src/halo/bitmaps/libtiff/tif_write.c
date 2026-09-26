@@ -2747,3 +2747,132 @@ void extract_pixels_from_mipmap(short source_mipmap_index,
       *(unsigned short *)((char *)source_bitmap + 0xc), source_address, i);
   }
 }
+
+/* 0x747d0 -- pack the 16-byte entries of the table at dword 0x334134 (count
+ * int16 0x334138) into texture pages, one sequence at a time for
+ * seq < int dword (0x33414c)+0x54. Entry layout read off the loop:
+ * +0x0 bitmap pointer (int16 width +4, height +6), +0x4 int16 sequence,
+ * +0x8 int16 page index written, +0xc dword FUN_00120250 result written
+ * (0x74930/0x74934). New pages are sized max(page_dimension, bitmap dim)
+ * rounded by ceiling_power2 and clamped to 0x200 (unsigned JNC compare),
+ * created with texture_page_new(0, w, h, spacing) and appended to
+ * out_pages while page_count < 0x20. texture_page_textures_begin gets the
+ * page as its one cdecl stack arg (PUSH ESI / ADD ESP,4 at 0x74821,
+ * 0x748f2). After packing, each page is shrunk by halves through
+ * FUN_001204a0 while both halved dims stay >= 0x20. Prints the number of
+ * texture pages spanned to the stream at 0x331050 and stores page_count to
+ * *out_page_count. Entry/table meanings beyond these operations are
+ * unproven. */
+void FUN_000747d0(int *out_pages, short *out_page_count, int page_dimension,
+                  int spacing)
+{
+  short page_count;
+  short sequence_count;
+  short sequence;
+  short start_index;
+  short page_index;
+  short entry_index;
+  char is_new_page;
+  char done;
+  void *page;
+  char *entry;
+  void *bitmap;
+  short width;
+  short height;
+  int result;
+  unsigned int remaining;
+
+  page_count = 0;
+  sequence_count = 1;
+  for (sequence = 0; sequence < *(int *)((char *)unknown_33414c + 0x54);
+       sequence++) {
+    start_index = 0;
+    page_index = 0;
+    do {
+      if (page_index < page_count) {
+        page = ((void **)out_pages)[page_index];
+        is_new_page = 0;
+        if (page != NULL) {
+          texture_page_textures_begin(page);
+        }
+      } else {
+        if (page_count >= 0x20) {
+          break;
+        }
+        page = NULL;
+        is_new_page = 1;
+      }
+      done = 1;
+      for (entry_index = start_index; entry_index < unknown_334138;
+           entry_index++) {
+        entry = (char *)unknown_334134 + entry_index * 0x10;
+        if (*(short *)(entry + 4) != sequence) {
+          continue;
+        }
+        if (page == NULL) {
+          bitmap = *(void **)entry;
+          width = (short)page_dimension;
+          if ((short)page_dimension <= *(short *)((char *)bitmap + 4)) {
+            width = *(short *)((char *)bitmap + 4);
+          }
+          height = (short)page_dimension;
+          if ((short)page_dimension <= *(short *)((char *)bitmap + 6)) {
+            height = *(short *)((char *)bitmap + 6);
+          }
+          width = (unsigned int)ceiling_power2(width) < 0x200 ?
+                    (short)ceiling_power2(width) :
+                    0x200;
+          height = (unsigned int)ceiling_power2(height) < 0x200 ?
+                     (short)ceiling_power2(height) :
+                     0x200;
+          page = texture_page_new(0, width, height, (int16_t)spacing);
+          if (page == NULL) {
+            goto next_page;
+          }
+          texture_page_textures_begin(page);
+          ((void **)out_pages)[page_count++] = page;
+        }
+        bitmap = *(void **)entry;
+        result = FUN_00120250(page, *(short *)((char *)bitmap + 4),
+                              *(short *)((char *)bitmap + 6), 1);
+        if (result == -1) {
+          if (is_new_page) {
+            sequence_count++;
+            start_index = entry_index;
+            FUN_00120400(page);
+          } else {
+            FUN_00120340(page);
+          }
+          done = 0;
+          break;
+        }
+        *(short *)(entry + 8) = page_index;
+        *(int *)(entry + 0xc) = result;
+      }
+      if (page != NULL && done) {
+        FUN_00120400(page);
+      }
+    next_page:
+      page_index++;
+    } while (!done);
+  }
+  if (page_count > 0) {
+    remaining = (unsigned short)page_count;
+    do {
+      page = *(void **)out_pages;
+      do {
+        width = *(short *)((char *)page + 8) >> 1;
+        height = *(short *)((char *)page + 0xa) >> 1;
+        if (width < 0x20 || height < 0x20) {
+          break;
+        }
+      } while (FUN_001204a0(page, width, height));
+      out_pages++;
+      remaining--;
+    } while (remaining != 0);
+  }
+  crt_fprintf((void *)0x331050, "sequence spanned %d texture pages\r\n",
+              (int)sequence_count);
+  crt_fflush((void *)0x331050);
+  *out_page_count = page_count;
+}

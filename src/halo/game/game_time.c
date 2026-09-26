@@ -12,7 +12,7 @@ void game_time_initialize(void)
 
 void game_time_initialize_for_new_map(void)
 {
-  assert_halt(game_time_globals && !game_time_globals->initialized);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x83, game_time_globals && !game_time_globals->initialized);
   csmemset(game_time_globals, 0, sizeof(game_time_globals_t));
   game_time_globals->initialized = true;
 }
@@ -34,43 +34,43 @@ void game_time_dispose(void)
 
 void game_time_end(void)
 {
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0xc4, game_time_globals);
   game_time_globals->active = false;
 }
 
 int game_time_get(void)
 {
-  assert_halt(game_time_globals && game_time_globals->initialized);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x1cf, game_time_globals && game_time_globals->initialized);
   return game_time_globals->time;
 }
 
 int16_t game_time_get_elapsed(void)
 {
-  assert_halt(game_time_globals && game_time_globals->initialized);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x1d7, game_time_globals && game_time_globals->initialized);
   return game_time_globals->elapsed;
 }
 
 int local_time_get(void)
 {
-  assert_halt(game_time_globals && game_time_globals->initialized);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x1df, game_time_globals && game_time_globals->initialized);
   return game_time_globals->time;
 }
 
 int16_t local_time_get_elapsed(void)
 {
-  assert_halt(game_time_globals && game_time_globals->initialized);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x1e7, game_time_globals && game_time_globals->initialized);
   return game_time_globals->elapsed;
 }
 
 bool game_predicting(void)
 {
-  assert_halt(game_time_globals && game_time_globals->initialized);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x1ef, game_time_globals && game_time_globals->initialized);
   return false;
 }
 
 bool game_in_progress(void)
 {
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x1f9, game_time_globals);
   if (game_time_globals->initialized) {
     if (game_time_globals->active) {
       return true;
@@ -87,13 +87,13 @@ bool game_in_progress(void)
 
 bool game_time_get_paused(void)
 {
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x215, game_time_globals);
   return game_time_globals->paused;
 }
 
 void game_time_set_paused(bool paused)
 {
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x21d, game_time_globals);
   if (game_time_globals->initialized) {
     game_time_globals->active = !paused;
   }
@@ -102,13 +102,13 @@ void game_time_set_paused(bool paused)
 
 float game_time_get_speed(void)
 {
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x22b, game_time_globals);
   return game_time_globals->speed;
 }
 
 void game_time_set_speed(float speed)
 {
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x232, game_time_globals);
   game_time_globals->speed = speed;
 }
 
@@ -221,9 +221,9 @@ void game_time_start(void)
 {
   game_time_globals_t *globals;
 
-  assert_halt(game_time_globals && game_time_globals->initialized);
-  assert_halt(!game_time_globals->active);
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0xa2, game_time_globals && game_time_globals->initialized);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0xa3, !game_time_globals->active);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x232, game_time_globals);
   globals = game_time_globals;
   globals->speed = 1.0;
   globals->leftover_dt = 0;
@@ -275,7 +275,7 @@ void game_time_update(float param_1)
   int cur_tick;
   game_time_globals_t *globals;
 
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0xcd, game_time_globals);
   if (!game_time_globals->active) {
     game_time_globals->elapsed = 0;
     return;
@@ -363,8 +363,8 @@ void game_time_update(float param_1)
     } else if (ticks_elapsed + 1 < maximum_ticks) {
       ticks_elapsed = ticks_elapsed + 1;
     }
-    assert_halt_msg(ticks_elapsed <= maximum_ticks,
-                    "ticks_elapsed <= maximum_actions");
+    assert_halt_msg_at("ticks_elapsed <= maximum_actions", "c:\\halo\\SOURCE\\game\\game_time.c", 0x153,
+        ticks_elapsed <= maximum_ticks);
     if (ticks_elapsed > maximum_ticks)
       ticks_elapsed = maximum_ticks;
   }
@@ -413,6 +413,6 @@ void game_time_update(float param_1)
     game_time_globals->elapsed = (uint16_t)ticks_elapsed;
   }
 LAB_end:
-  assert_halt(game_time_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game_time.c", 0x22b, game_time_globals);
   game_frame(game_time_globals->speed * param_1);
 }

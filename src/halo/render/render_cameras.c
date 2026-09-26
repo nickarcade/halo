@@ -93,7 +93,7 @@ static __inline real plane3d_distance_to_point_inline(const real_plane3d *plane,
 __declspec(noinline) void render_camera_check_warning_condition(int16_t id,
                                                                 float value)
 {
-  assert_halt(id >= 0 && id < MAXIMUM_RENDER_CAMERA_WARNING_CONDITIONS);
+  assert_halt_msg_at("id>=0 && id<MAXIMUM_RENDER_CAMERA_WARNING_CONDITIONS", "c:\\halo\\SOURCE\\render\\render_cameras.c", 0x87, id >= 0 && id < MAXIMUM_RENDER_CAMERA_WARNING_CONDITIONS);
 
   if (!render_camera_warnings_initialized) {
     csmemset(render_camera_warning_values, 0,

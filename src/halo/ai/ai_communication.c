@@ -1255,6 +1255,95 @@ bool ai_conversation_line_begin(int conversation_handle)
   return result;
 }
 
+/* actor_reset_idle_vocalization_timer (0x43ce0) — arm the idle/fighting
+ * vocalization countdown for an actor: pick a random delay from the 'actr'
+ * tag's idle-vocalization range (a separate min/max pair for in-combat vs
+ * not), scale seconds to ticks, add a per-unit speech-queue bonus when the
+ * actor's controlled unit is still speaking, and stash both the countdown
+ * and the actor's current "fighting" flag.
+ *
+ * Confirmed (disasm 0x43ce0-0x43da8):
+ *   - PUSH EBP; MOV EBP,ESP; SUB ESP,0x8 — two dword locals at EBP-0x4 and
+ *     EBP-0x8; PUSH EBX/ESI/EDI at entry.  MOV EDI,EAX at 0x43ce9 captures
+ *     the actor handle from the register-arg convention (@<eax>).
+ *   - datum_get(g_actors_data, actor_handle) -> ESI (actor); tag_get
+ *     (0x61637472 'actr', actor->field_058) -> [EBP-0x4] (actr_tag);
+ *     actor_in_combat(actor_handle) -> BL (fighting).  These three calls are
+ *     EDI's (the actor handle's) last use; ADD ESP,0x14 at 0x43d15 cleans
+ *     all three calls' pushes (2+2+1 dwords) at once.
+ *   - XOR EDI,EDI immediately re-purposes EDI as an int16 "bonus"
+ *     accumulator (default 0), unrelated to the actor handle it displaced.
+ *     If actor->field_018 (the actor's unit handle, matches the field
+ *     actor_communication_update below passes to unit_test_speech/
+ *     unit_speak) != -1, object_get_and_verify_type(actor->field_018, 3)
+ *     resolves the unit; if the unit's speech_count field (+0x338, int16 —
+ *     the same field unit_is_speaking in units.c tests `> 0`) is > 0,
+ *     `bonus` becomes the unit's raw field at +0x3aa (int16; the same
+ *     un-named offset ai_communication_update_speech_timers below reads as
+ *     `*(int16_t *)(unit + 0x3aa)`).
+ *     THE DECOMPILER DROPS THIS ENTIRE BLOCK: its pseudocode never mentions
+ *     EDI, +0x338, +0x3aa, or a "bonus" value at all — confirmed only by
+ *     reading the raw disassembly (0x43d18-0x43d38).
+ *   - `fighting` selects the actr tag's delay range: not-in-combat reads
+ *     actr_tag+0x3f8 (min) / +0x3fc (max); in-combat reads actr_tag+0x400
+ *     (min) / +0x404 (max) — both float pairs, pushed min-then-max (closer
+ *     to the CALL = earlier cdecl argument) after the branch, then
+ *     get_global_random_seed_address()'s result is pushed last (closest to
+ *     the CALL, so the first argument) onto random_real_range.
+ *   - random_real_range(seed, min, max) returns the delay in seconds in
+ *     ST(0); FMUL float ptr [0x253394] (TICKS_PER_SECOND, =30.0f, confirmed
+ *     by reading the bytes 00 00 F0 41 at that address) converts seconds to
+ *     ticks — the same scale constant ai_communication_update_speech_timers
+ *     uses for its own FMUL/FIADD/_ftol2 idiom two functions below.
+ *   - MOVSX EDX,DI; MOV [EBP-8],EDX stages `bonus` as a spilled dword, then
+ *     FIADD dword ptr [EBP-8] adds it (an FPU integer add, not a memory
+ *     float load) to the ticks value before _ftol2 truncates to an int16
+ *     tick count.  THE DECOMPILER ALSO DROPS THE FMUL AND FIADD — its
+ *     pseudocode shows a bare, argument-less `_ftol2()` call, as if
+ *     converting whatever ST(0) happened to already hold.
+ *   - Final stores: actor->field_6cc = fighting (matches
+ *     actor_communication_update's read of the same field below);
+ *     actor->field_6ce = the truncated tick count (matches the countdown
+ *     that actor_communication_update decrements).
+ */
+void actor_reset_idle_vocalization_timer(int actor_handle)
+{
+  actor_t *actor;
+  char *actr_tag;
+  char *unit;
+  char fighting;
+  float delay_min;
+  float delay_max;
+  int16_t bonus;
+  int *seed;
+  float delay_seconds;
+
+  actor = (actor_t *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  actr_tag = (char *)tag_get(0x61637472, actor->field_058);
+  fighting = actor_in_combat(actor_handle);
+
+  bonus = 0;
+  if (actor->field_018 != -1) {
+    unit = (char *)object_get_and_verify_type(actor->field_018, 3);
+    if (*(int16_t *)(unit + 0x338) > 0) {
+      bonus = *(int16_t *)(unit + 0x3aa);
+    }
+  }
+
+  if (fighting == 0) {
+    delay_min = *(float *)(actr_tag + 0x3f8);
+    delay_max = *(float *)(actr_tag + 0x3fc);
+  } else {
+    delay_min = *(float *)(actr_tag + 0x400);
+    delay_max = *(float *)(actr_tag + 0x404);
+  }
+
+  seed = get_global_random_seed_address();
+  delay_seconds = random_real_range(seed, delay_min, delay_max);
+  actor->field_6cc = fighting;
+  actor->field_6ce = (int16_t)(int)(delay_seconds * TICKS_PER_SECOND + bonus);
+}
+
 /* actor_communication_update (0x43db0) — per-tick idle/ambient speech tick for
  * one actor.  While the actor is at least state 2 and the AI globals' speech
  * enable byte is set, it (re)arms the countdown whenever the actor's cached

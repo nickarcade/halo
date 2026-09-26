@@ -123,8 +123,9 @@ lost:
 #define TELNET_CLIENT_BUFFER_SIZE 128
 
 typedef struct telnet_client {
-  int *endpoint;                          /* [+0x00] TCP endpoint, NULL when closed */
-  char buffer[TELNET_CLIENT_BUFFER_SIZE]; /* [+0x04] pending input line, NUL terminated */
+  int *endpoint; /* [+0x00] TCP endpoint, NULL when closed */
+  char buffer[TELNET_CLIENT_BUFFER_SIZE]; /* [+0x04] pending input line, NUL
+                                             terminated */
 } telnet_client;
 
 /*
@@ -217,10 +218,12 @@ char FUN_00130b70(void *client_record, const char *data, int count)
       if (length >= TELNET_CLIENT_BUFFER_SIZE) {
         client->buffer[0] = '\0';
         sent = send_endpoint(
-            client->endpoint, "\r\noverflowed client buffer; resetting buffer\r\n",
-            csstrlen("\r\noverflowed client buffer; resetting buffer\r\n"));
+          client->endpoint,
+          "\r\noverflowed client buffer; resetting buffer\r\n",
+          csstrlen("\r\noverflowed client buffer; resetting buffer\r\n"));
         if (sent <= 0) {
-          error(2, "failed to write to telnet client ('%s')", FUN_00081c80(sent));
+          error(2, "failed to write to telnet client ('%s')",
+                FUN_00081c80(sent));
           return 0;
         }
         return result;
@@ -707,23 +710,24 @@ void bitmap_draw_character(int unused_param_1, const char *font_definition,
   }
 
   for (row = 0; row < dy; row++) {
-    dst = (x0 << dcs_pixel_shift) +
-          y0 * ((bitmap_format_bits_per_pixel(dcs_bitmap_format) *
-                 dcs_bitmap_width) /
-                8) +
-          dcs_bitmap_pixels;
+    dst =
+      (x0 << dcs_pixel_shift) +
+      y0 *
+        ((bitmap_format_bits_per_pixel(dcs_bitmap_format) * dcs_bitmap_width) /
+         8) +
+      dcs_bitmap_pixels;
     src = *(const short *)(character + 0x4) * sy + sx + character_pixels;
 
     if (y0 < 0 || y0 > dcs_bitmap_height) {
       display_assert(
-          "y0>=0 && y0<=draw_character_software_globals.bitmap->height",
-          "c:\\halo\\SOURCE\\text\\draw_string.c", 0x1e6, 1);
+        "y0>=0 && y0<=draw_character_software_globals.bitmap->height",
+        "c:\\halo\\SOURCE\\text\\draw_string.c", 0x1e6, 1);
       system_exit(-1);
     }
     if (x0 < 0 || x0 + dx > dcs_bitmap_width) {
       display_assert(
-          "x0>=0 && x0+dx<=draw_character_software_globals.bitmap->width",
-          "c:\\halo\\SOURCE\\text\\draw_string.c", 0x1e7, 1);
+        "x0>=0 && x0+dx<=draw_character_software_globals.bitmap->width",
+        "c:\\halo\\SOURCE\\text\\draw_string.c", 0x1e7, 1);
       system_exit(-1);
     }
 
@@ -754,12 +758,18 @@ void bitmap_draw_character(int unused_param_1, const char *font_definition,
           dst_pixel16 = *(unsigned short *)dst;
           a = (short)((*src * alpha) >> 8);
           ia = (short)(0xff - a);
-          *(unsigned short *)dst = (unsigned short)(
-              ((((color_565 & 0x7ff) * a + (dst_pixel16 & 0x7ff) * ia) >> 8) &
-               0x7e0) |
-              ((((color_565 & 0x1f) * a + (dst_pixel16 & 0x1f) * ia) >> 8) &
-               0x1f) |
-              (((a * (color_565 & 0xffff) + ia * dst_pixel16) >> 8) & 0xf800));
+          *(unsigned short *)dst =
+            (unsigned short)(((((color_565 & 0x7ff) * a +
+                                (dst_pixel16 & 0x7ff) * ia) >>
+                               8) &
+                              0x7e0) |
+                             ((((color_565 & 0x1f) * a +
+                                (dst_pixel16 & 0x1f) * ia) >>
+                               8) &
+                              0x1f) |
+                             (((a * (color_565 & 0xffff) + ia * dst_pixel16) >>
+                               8) &
+                              0xf800));
         }
         src++;
         dst += 2;
@@ -779,14 +789,14 @@ void bitmap_draw_character(int unused_param_1, const char *font_definition,
             alpha_out = dst_pixel32 >> 24;
           }
           *(unsigned int *)dst =
-              ((((dst_pixel32 >> 16) & 0xff) * ia >> 8) +
-               (((color >> 16) & 0xff) * a >> 8))
-                  << 16 |
-              ((((dst_pixel32 >> 8) & 0xff) * ia >> 8) +
-               (((color >> 8) & 0xff) * a >> 8))
-                  << 8 |
-              (((dst_pixel32 & 0xff) * ia >> 8) + ((color & 0xff) * a >> 8)) |
-              (alpha_out << 24);
+            ((((dst_pixel32 >> 16) & 0xff) * ia >> 8) +
+             (((color >> 16) & 0xff) * a >> 8))
+              << 16 |
+            ((((dst_pixel32 >> 8) & 0xff) * ia >> 8) +
+             (((color >> 8) & 0xff) * a >> 8))
+              << 8 |
+            (((dst_pixel32 & 0xff) * ia >> 8) + ((color & 0xff) * a >> 8)) |
+            (alpha_out << 24);
         }
         src++;
         dst += 4;
@@ -908,6 +918,134 @@ void FUN_0019bd30(int16_t style, void *state, int *buffer, int font_index,
   packed = (packed << 8) | (int)(color[3] * 255.0f);
   *(int *)((char *)state + 0x18) = packed;
   *(void **)((char *)state + 4) = FUN_0019bcc0(style, font_index);
+}
+
+/*
+ * parse_string — advance the draw-string tokenizer by one token.
+ *
+ * Reads the next character via unicode_cursor_forward(state+0x08,
+ * &state+0x0c). A '|'-escaped character (high byte 0x7c) is dispatched on
+ * crt_tolower(low byte):
+ *   'b','i','k','u','p' set the style word (+0x0e) to 0,1,2,3,-1 and give
+ *                       token 7 (style change: re-resolve the font at +0x04
+ *                       through FUN_0019bcc0 and keep scanning);
+ *   'l','r','c'         set the justification word (+0x10) to 0,1,2 -> token 4;
+ *   'n' -> token 1, 't' -> token 3.
+ * Any other character is classified: 0 -> 0, '\t' -> 3, '\r' -> 1, otherwise
+ * the following character is peeked (cursor copy, state untouched) and the
+ * character is tested against string-table entries 4/5/6 (table handle at
+ * 0x4d9b08) to pick token 6 or 2. Token 5 also continues the loop, but no
+ * path in this function produces it.
+ * Writes the token to +0x14 and the character to +0x12; returns the token
+ * (MOV AX,BX @0019bf6e).
+ *
+ * Assert string "result!=NONE", draw_string.c line 0x4aa.
+ *
+ * VC71 match notes: the string pointer is read once per iteration into
+ * `str` and reused by the peek, where the original re-reads +0x08. The
+ * extra live value keeps `c` in its stack slot as in the original; with
+ * `c` in a register cl.exe clones the +0x14/+0x12 store and epilogue into
+ * five exits. The 0/'\t'/'\r' test is a switch (MOVZX + CMP chain, case
+ * blocks after the body) and `next` is 32-bit (MOVZX before its spill).
+ *
+ * 0x19be30 / draw_string.obj
+ */
+int16_t parse_string(void *state)
+{
+  char *s = (char *)state;
+  uint16_t c;
+  int next;
+  int16_t result;
+  int16_t cursor;
+  const char *str;
+  const char *set_a;
+  const char *set_b;
+  const char *set_c;
+
+  do {
+    str = *(const char **)(s + 0x8);
+    c = unicode_cursor_forward(str, (int16_t *)(s + 0xc));
+    result = -1;
+    if ((c & 0xff00) == 0x7c00) {
+      switch (crt_tolower(c & 0xff)) {
+      case 'p':
+        *(int16_t *)(s + 0xe) = -1;
+        result = 7;
+        break;
+      case 'i':
+        *(int16_t *)(s + 0xe) = 1;
+        result = 7;
+        break;
+      case 'b':
+        *(int16_t *)(s + 0xe) = 0;
+        result = 7;
+        break;
+      case 'k':
+        *(int16_t *)(s + 0xe) = 2;
+        result = 7;
+        break;
+      case 'u':
+        *(int16_t *)(s + 0xe) = 3;
+        result = 7;
+        break;
+      case 'l':
+        *(int16_t *)(s + 0x10) = 0;
+        result = 4;
+        break;
+      case 'r':
+        *(int16_t *)(s + 0x10) = 1;
+        result = 4;
+        break;
+      case 'c':
+        *(int16_t *)(s + 0x10) = 2;
+        result = 4;
+        break;
+      case 'n':
+        result = 1;
+        break;
+      case 't':
+        result = 3;
+        break;
+      }
+    }
+    switch (result) {
+    case -1:
+      switch (c) {
+      case 0:
+        result = 0;
+        break;
+      case 9:
+        result = 3;
+        break;
+      case 0xd:
+        result = 1;
+        break;
+      default:
+        cursor = *(int16_t *)(s + 0xc);
+        next = unicode_cursor_forward(str, &cursor);
+        set_a = FUN_0019d3c0(*(int *)0x4d9b08, 4);
+        set_b = FUN_0019d3c0(*(int *)0x4d9b08, 5);
+        set_c = FUN_0019d3c0(*(int *)0x4d9b08, 6);
+        result = (((c & 0xff00) == 0 && !unicode_string_contains_char(c, set_a)) ||
+                  ((c & 0xff00) != 0 && unicode_string_contains_char(c, set_b)) ||
+                  unicode_string_contains_char(next, set_c)) ? 6 : 2;
+        break;
+      }
+      break;
+    case 7:
+      *(void **)(s + 4) = FUN_0019bcc0(*(int16_t *)(s + 0xe), *(int *)s);
+      break;
+    }
+  } while (result == 7 || result == 5);
+
+  if (result == -1) {
+    display_assert("result!=NONE", "c:\\halo\\SOURCE\\text\\draw_string.c",
+                   0x4aa, 1);
+    system_exit(-1);
+  }
+  *(int16_t *)(s + 0x14) = result;
+  *(uint16_t *)(s + 0x12) = c;
+  return result;
 }
 
 /*

@@ -588,7 +588,7 @@ done_vision:
       }
     } else {
       if (prop_type < 4 || prop_type > 5) {
-        assert_halt_msg(0, "prop_orphaned(prop)");
+        assert_halt_msg_at("prop_orphaned(prop)", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x1086, 0);
       }
       if (*(char *)(prop + 0xb8) != 0) {
         awareness = 3;

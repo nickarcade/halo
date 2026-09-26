@@ -232,6 +232,31 @@ void FUN_00090170(void *dest /* @<eax> */, uint32_t value0, uint32_t value1)
   *(uint32_t *)((char *)dest + 4) = value1;
 }
 
+/* profile_timesection_end (0x90180) - timesection arrives in EAX; end_lo/
+ * end_hi are the cdecl stack halves of a 64-bit cycle timestamp. Stores the
+ * end stamp at +0x8, subtracts the start stamp at +0x0, converts to msec
+ * (FILD diff * [0x254cb8] / FILD [0x3361a0]) and adds the same unnarrowed
+ * result to the floats at +0x10 and +0x14 (FLD ST0 / FADD / FSTP twice).
+ * Field meanings beyond that are unconfirmed. */
+void profile_timesection_end(void *timesection /* @<eax> */, uint32_t end_lo,
+                             uint32_t end_hi)
+{
+  char *t = (char *)timesection;
+  int64_t diff;
+  uint32_t *diff_parts;
+  float elapsed;
+
+  *(uint32_t *)(t + 0x8) = end_lo;
+  *(uint32_t *)(t + 0xc) = end_hi;
+  diff_parts = (uint32_t *)&diff;
+  diff_parts[0] = end_lo;
+  diff_parts[1] = end_hi;
+  diff -= *(int64_t *)t;
+  elapsed = (float)diff * *(float *)0x254cb8 / (float)*(int64_t *)0x3361a0;
+  *(float *)(t + 0x10) += elapsed;
+  *(float *)(t + 0x14) += elapsed;
+}
+
 /* compare_profile_sections (0x901d0) - qsort-style comparator over an array
  * of profile_section pointers (each argument is a pointer TO the element,
  * i.e. section**; the disassembly dereferences [EBP+8]/[EBP+0xc] once
@@ -476,6 +501,86 @@ void profile_sections_deactivate(const char *substring)
   FUN_000907c0((char *)substring, 0);
 }
 
+/* profile_find_frame_value (0x908a0) -- map a frame-value name to its
+ * index via a case-insensitive crt_stricmp chain (0x1dd801); unknown names
+ * yield -1 (EDI preset by OR EDI,-1).  Note 'render' maps to 0x15, out of
+ * sequence with its neighbours (binary: MOV EDI,0x15 at 0x90b05).  Every
+ * exit writes -1 (MOV word ptr [EBX],0xffff) to *section_index_reference
+ * and returns the 16-bit value (MOV AX,DI).  Assert line 0x446. */
+int16_t profile_find_frame_value(const char *name,
+                                 int16_t *section_index_reference)
+{
+  int16_t value;
+
+  value = -1;
+  if (name == NULL || section_index_reference == NULL) {
+    display_assert("name && section_index_reference",
+                   "c:\\halo\\SOURCE\\cseries\\profile.c", 0x446, 1);
+    system_exit(-1);
+  }
+
+  if (crt_stricmp(name, "frame") == 0) {
+    value = 1;
+  } else if (crt_stricmp(name, "load") == 0) {
+    value = 2;
+  } else if (crt_stricmp(name, "game0") == 0) {
+    value = 3;
+  } else if (crt_stricmp(name, "game1") == 0) {
+    value = 4;
+  } else if (crt_stricmp(name, "game2") == 0) {
+    value = 5;
+  } else if (crt_stricmp(name, "game3") == 0) {
+    value = 6;
+  } else if (crt_stricmp(name, "game4") == 0) {
+    value = 7;
+  } else if (crt_stricmp(name, "game5") == 0) {
+    value = 8;
+  } else if (crt_stricmp(name, "game6") == 0) {
+    value = 9;
+  } else if (crt_stricmp(name, "game7") == 0) {
+    value = 10;
+  } else if (crt_stricmp(name, "player0") == 0) {
+    value = 11;
+  } else if (crt_stricmp(name, "player1") == 0) {
+    value = 12;
+  } else if (crt_stricmp(name, "player2") == 0) {
+    value = 13;
+  } else if (crt_stricmp(name, "player3") == 0) {
+    value = 14;
+  } else if (crt_stricmp(name, "nonplayer") == 0) {
+    value = 15;
+  } else if (crt_stricmp(name, "render") == 0) {
+    value = 21;
+  } else if (crt_stricmp(name, "render0") == 0) {
+    value = 16;
+  } else if (crt_stricmp(name, "render0_1") == 0) {
+    value = 17;
+  } else if (crt_stricmp(name, "render0_2") == 0) {
+    value = 18;
+  } else if (crt_stricmp(name, "render0_3") == 0) {
+    value = 19;
+  } else if (crt_stricmp(name, "render0_3np") == 0) {
+    value = 20;
+  } else if (crt_stricmp(name, "game_render") == 0) {
+    value = 22;
+  } else if (crt_stricmp(name, "stall") == 0) {
+    value = 23;
+  } else if (crt_stricmp(name, "texture") == 0) {
+    value = 24;
+  } else if (crt_stricmp(name, "idle") == 0) {
+    value = 25;
+  } else if (crt_stricmp(name, "dt") == 0) {
+    value = 26;
+  } else if (crt_stricmp(name, "gpu") == 0) {
+    value = 27;
+  } else if (crt_stricmp(name, "pushbuffer") == 0) {
+    value = 28;
+  }
+
+  *section_index_reference = -1;
+  return value;
+}
+
 /* Asserts name and section_index_reference are both non-null (per the
  * assert string), then unconditionally writes -1 (0xffff, the same
  * "not found"/"not started" sentinel used elsewhere in this file, e.g.
@@ -494,6 +599,152 @@ int16_t profile_find_game_value(const char *name,
 
   *section_index_reference = -1;
   return -1;
+}
+
+/* profile_frame_get_value (0x90d10) -- return one float statistic from the
+ * ring-buffer entry selected by iterator->current_buffer_index (int16 at
+ * iterator+0; ring base 0x3365c8, entry stride 0x1128). Asserts mirror
+ * profile_frame_get_messages (lines 0x4d7/0x4d8 here). value_index is a
+ * 1-based selector dispatched through the 28-entry jump table at 0x91040;
+ * indices 4..10, 12..14 and anything outside 1..28 return 0.0f.
+ * Entry field meanings are unconfirmed; offsets only:
+ *   +0x10 int16 count of 0x18-stride floats at +0x40
+ *   +0x12 int16 count of 0x18-stride floats at +0xe50, flags bytes at +0x14
+ *   +0x1114 uint32, converted unsigned (FILD + 2^32 fixup) then scaled.
+ * Index 20 adds every value but counts only flagged ones (binary FADD
+ * precedes the JZ); kept as-is. */
+float profile_frame_get_value(void *iterator, int16_t value_index)
+{
+  int16_t *it = (int16_t *)iterator;
+  char *entry = (char *)(0x3365c8 + (int)it[0] * 0x1128);
+  float result = 0.0f;
+  int16_t count;
+  int16_t found;
+  int16_t i;
+
+  if (it[0] < 0 || it[0] >= *(int16_t *)0x3365c2) {
+    display_assert("(iterator->current_buffer_index >= 0) && "
+                   "(iterator->current_buffer_index < "
+                   "profile_globals.current_frame_history_count)",
+                   "c:\\halo\\SOURCE\\cseries\\profile.c", 0x4d7, 1);
+    system_exit(-1);
+  }
+
+  if (it[0] == *(int16_t *)0x3365c4) {
+    display_assert("iterator->current_buffer_index != "
+                   "profile_globals.current_frame_history_index",
+                   "c:\\halo\\SOURCE\\cseries\\profile.c", 0x4d8, 1);
+    system_exit(-1);
+  }
+
+  switch (value_index) {
+  case 1:
+    return *(float *)(entry + 0x28);
+  case 2:
+    return *(float *)(entry + 0x28) - *(float *)(entry + 0xef8);
+  case 3:
+    if (*(int16_t *)(entry + 0x10) > 0)
+      return *(float *)(entry + 0x40);
+    break;
+  case 11:
+    if (*(int16_t *)(entry + 0x12) > 0)
+      return *(float *)(entry + 0xe50);
+    break;
+  case 15:
+    count = *(int16_t *)(entry + 0x12);
+    for (i = 0; i < count; i++) {
+      if (*(entry + 0x14 + i) == 0)
+        return *(float *)(entry + 0xe50 + i * 0x18);
+    }
+    break;
+  case 16:
+    count = *(int16_t *)(entry + 0x12);
+    result = 0.0f;
+    found = 0;
+    for (i = 0; i < count; i++) {
+      if (found >= 1)
+        break;
+      if (*(entry + 0x14 + i) != 0) {
+        result += *(float *)(entry + 0xe50 + i * 0x18);
+        found++;
+      }
+    }
+    break;
+  case 17:
+    count = *(int16_t *)(entry + 0x12);
+    result = 0.0f;
+    found = 0;
+    for (i = 0; i < count; i++) {
+      if (found >= 2)
+        break;
+      if (*(entry + 0x14 + i) != 0) {
+        result += *(float *)(entry + 0xe50 + i * 0x18);
+        found++;
+      }
+    }
+    break;
+  case 18:
+    count = *(int16_t *)(entry + 0x12);
+    result = 0.0f;
+    found = 0;
+    for (i = 0; i < count; i++) {
+      if (found >= 3)
+        break;
+      if (*(entry + 0x14 + i) != 0) {
+        result += *(float *)(entry + 0xe50 + i * 0x18);
+        found++;
+      }
+    }
+    break;
+  case 19:
+    count = *(int16_t *)(entry + 0x12);
+    result = 0.0f;
+    found = 0;
+    for (i = 0; i < count; i++) {
+      if (found >= 4)
+        break;
+      if (*(entry + 0x14 + i) != 0) {
+        result += *(float *)(entry + 0xe50 + i * 0x18);
+        found++;
+      }
+    }
+    break;
+  case 20:
+    count = *(int16_t *)(entry + 0x12);
+    result = 0.0f;
+    found = 0;
+    for (i = 0; i < count; i++) {
+      if (found >= 4)
+        break;
+      result += *(float *)(entry + 0xe50 + i * 0x18);
+      if (*(entry + 0x14 + i) != 0)
+        found++;
+    }
+    break;
+  case 21:
+    return *(float *)(entry + 0xeb0);
+  case 22:
+    count = *(int16_t *)(entry + 0x10);
+    result = *(float *)(entry + 0xeb0);
+    for (i = 0; i < count; i++)
+      result += *(float *)(entry + 0x40 + i * 0x18);
+    break;
+  case 23:
+    return *(float *)(entry + 0xec8);
+  case 24:
+    return *(float *)(entry + 0xee0);
+  case 25:
+    return *(float *)(entry + 0xef8);
+  case 26:
+    return *(float *)(entry + 0xf00) * 1000.0f;
+  case 27:
+    return *(float *)(entry + 0x1110);
+  case 28:
+    result = (float)*(uint32_t *)(entry + 0x1114) * 1.2715658e-06f * 33.333332f;
+    break;
+  }
+
+  return result;
 }
 
 /* Initialize a profile-frame ring iterator: mark it not-yet-started
@@ -635,6 +886,32 @@ void FUN_00091350(uint32_t *out /* @<ecx> */)
   RDTSC(lo, hi);
   out[0] = lo;
   out[1] = hi;
+}
+
+/* profile_timesection_end_now (0x91380) - timesection arrives in ECX (read
+ * before any write, no stack args, plain RET). Reads RDTSC, stores the end
+ * stamp at +0x8/+0xc, subtracts the start stamp at +0x0, converts to msec
+ * (FILD diff * [0x254cb8] / FILD [0x3361a0]) and adds the same unnarrowed
+ * result to the floats at +0x10 and +0x14. Same field layout as
+ * profile_timesection_end; field meanings beyond that are unconfirmed. */
+void profile_timesection_end_now(void *timesection /* @<ecx> */)
+{
+  char *t = (char *)timesection;
+  uint32_t lo, hi;
+  int64_t diff;
+  uint32_t *diff_parts;
+  float elapsed;
+
+  RDTSC(lo, hi);
+  *(uint32_t *)(t + 0x8) = lo;
+  *(uint32_t *)(t + 0xc) = hi;
+  diff_parts = (uint32_t *)&diff;
+  diff_parts[0] = lo;
+  diff_parts[1] = hi;
+  diff -= *(int64_t *)t;
+  elapsed = (float)diff * *(float *)0x254cb8 / (float)*(int64_t *)0x3361a0;
+  *(float *)(t + 0x10) += elapsed;
+  *(float *)(t + 0x14) += elapsed;
 }
 
 /* Start timing a game tick. Increments the tick counter and records
@@ -985,6 +1262,31 @@ void FUN_00091b70(void)
   RDTSC(lo, hi);
   *(uint32_t *)0x449cb0 = lo;
   *(uint32_t *)0x449cb4 = hi;
+}
+
+/* FUN_00091ba0 (0x91ba0) -- paired end marker for FUN_00091b70. Same body
+ * as profile_timesection_end_now, with the timesection at fixed global
+ * 0x449cb0: reads RDTSC, stores the end stamp at 0x449cb8/0x449cbc,
+ * subtracts the start stamp at 0x449cb0, converts to msec (FILD diff *
+ * [0x254cb8] / FILD [0x3361a0]) and adds the same unnarrowed result to the
+ * floats at 0x449cc0 and 0x449cc4. Field meanings are unconfirmed. */
+void FUN_00091ba0(void)
+{
+  uint32_t lo, hi;
+  int64_t diff;
+  uint32_t *diff_parts;
+  float elapsed;
+
+  RDTSC(lo, hi);
+  *(uint32_t *)0x449cb8 = lo;
+  *(uint32_t *)0x449cbc = hi;
+  diff_parts = (uint32_t *)&diff;
+  diff_parts[0] = lo;
+  diff_parts[1] = hi;
+  diff -= *(int64_t *)0x449cb0;
+  elapsed = (float)diff * *(float *)0x254cb8 / (float)*(int64_t *)0x3361a0;
+  *(float *)0x449cc0 += elapsed;
+  *(float *)0x449cc4 += elapsed;
 }
 
 /* FUN_00091c10 (0x91c10) -- zero a 0x110-byte destination record, then
@@ -1439,6 +1741,55 @@ void symbol_table_dispose(int32_t *symtab)
   symtab[0] = 0;
   symtab[1] = 0;
   symtab[2] = 0;
+}
+
+/* -----------------------------------------------------------------------
+ * FUN_00092110 (0x92110) -- format a code address as "<name> + <offset> :
+ * <name2>" into the static 0x4000-byte text buffer at 0x449f00 (size arg
+ * 0x3fff) and return that buffer; "<unknown>" (0x25b724) is copied first and
+ * returned unchanged when no entry matches.
+ *
+ * The address is biased by stack_walk_bias (LEA ESI,[EAX+ECX]). table uses
+ * the same 3-word shape read by FUN_000921c0: table[0]=count,
+ * table[1]=name-pool base, table[2]=entries base, 0x10-byte entries. Entry
+ * +4 is compared as an unsigned start address (JC/JNC/JA). An entry i-1 is
+ * selected when entry[i-1]+4 <= address < entry[i]+4, searching i=1..count-1,
+ * after a range guard address >= entry[0]+4 and
+ * address < entry[count-1]+4 + 0xffff. The snprintf args (first PUSH is the
+ * last arg) are: pool + entry[i-1]+8, address - entry[i-1]+4,
+ * pool + entry[i-1]+0xc. Field meanings of +8/+0xc beyond "pool offset"
+ * are unknown.
+ * ----------------------------------------------------------------------- */
+char *FUN_00092110(int32_t addr, int32_t *symtab)
+{
+  uint32_t address;
+  int32_t count;
+  int32_t entries;
+  int32_t index;
+  int32_t entry;
+
+  address = (uint32_t)(stack_walk_bias + addr);
+  csstrcpy((char *)0x449f00, "<unknown>");
+  count = symtab[0];
+  if (count > 0) {
+    entries = symtab[2];
+    if (*(uint32_t *)(entries + 4) <= address &&
+        address < *(uint32_t *)(count * 0x10 - 0xc + entries) + 0xffff) {
+      for (index = 1; index < count; index++) {
+        if (*(uint32_t *)(entries + index * 0x10 - 0xc) <= address &&
+            address < *(uint32_t *)(entries + index * 0x10 + 4)) {
+          entry = index * 0x10 + entries;
+          snprintf((char *)0x449f00, 0x3fff, "%s + %04lX : %s",
+                   (char *)(*(int32_t *)(entry - 8) + symtab[1]),
+                   address - *(uint32_t *)(entry - 0xc),
+                   (char *)(*(int32_t *)(entry - 4) + symtab[1]));
+          return (char *)0x449f00;
+        }
+      }
+    }
+  }
+
+  return (char *)0x449f00;
 }
 
 /* -----------------------------------------------------------------------

@@ -589,7 +589,7 @@ short bitmap_format_bits_per_pixel(short format)
   };
 
   assert_halt(format >= 0 && format < 18);
-  assert_halt(bitmap_format_bits_per_pixel_table[format] != 0);
+  assert_halt_msg_at("bitmap_format_bits_per_pixel_table[format]!=0", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0xa7, bitmap_format_bits_per_pixel_table[format] != 0);
   return (short)bitmap_format_bits_per_pixel_table[format];
 }
 

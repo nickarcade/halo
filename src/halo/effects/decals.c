@@ -148,10 +148,10 @@ void decal_sprite_get_bounds(float *sprite_bounds, void *definition,
 void decals_initialize(void)
 {
   global_decal_data = game_state_data_new("decals", 0x800, 0x38);
-  assert_halt(global_decal_data);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\decals.c", 0x251, global_decal_data);
   global_decal_data->identifier_zero_invalid = 1;
   decal_globals = game_state_malloc("decal globals", 0, 0x280c);
-  assert_halt(decal_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\decals.c", 0x254, decal_globals);
   rasterizer_decals_initialize();
   decal_counts_0 = 0;
   decal_counts_1 = 0;
@@ -159,8 +159,8 @@ void decals_initialize(void)
 
 void decals_initialize_for_new_map(void)
 {
-  assert_halt(global_decal_data);
-  assert_halt(decal_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\decals.c", 0x262, global_decal_data);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\decals.c", 0x263, decal_globals);
   csmemset(decal_globals, 0xFF, 0x2800);
   decal_globals->first_disconnected_decal_index = -1;
   decal_globals->locked_count = 0;
@@ -173,8 +173,8 @@ void decals_initialize_for_new_map(void)
 
 void decals_dispose_from_old_map(void)
 {
-  assert_halt(global_decal_data);
-  assert_halt(decal_globals);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\decals.c", 0x309, global_decal_data);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\decals.c", 0x30a, decal_globals);
   rasterizer_decals_dispose_from_old_map();
   data_make_invalid(global_decal_data);
 }
@@ -202,14 +202,14 @@ void decals_dispose(void)
  */
 void decals_unlock(bool full_reset)
 {
-  assert_halt(global_decal_data);
+  assert_halt_at("c:\\halo\\SOURCE\\effects\\decals.c", 0x321, global_decal_data);
 
   if (*(uint8_t *)((char *)global_decal_data + 0x24) != 0) {
     data_iter_t iter;
     int16_t *entry;
     decal_globals_t *dg;
 
-    assert_halt(decal_globals);
+    assert_halt_at("c:\\halo\\SOURCE\\effects\\decals.c", 0x328, decal_globals);
 
     data_iterator_new(&iter, global_decal_data);
     while ((entry = (int16_t *)data_iterator_next(&iter)) != NULL) {
@@ -509,7 +509,7 @@ uint32_t real_a_rgb_color_to_pixel32(float alpha, float *color)
  * negated, effectively flipping the plane to face the opposite direction.
  * Each plane element is 0x10 bytes (four floats: i, j, k, d).
  */
-void bsp3d_get_plane_from_designator(int structure_bsp,
+float * bsp3d_get_plane_from_designator(int structure_bsp,
                                      uint32_t plane_reference, float *out_plane)
 {
   float *plane_data;
@@ -525,7 +525,7 @@ void bsp3d_get_plane_from_designator(int structure_bsp,
   } else {
     *(real_plane3d *)out_plane = *(real_plane3d *)plane_data;
   }
-}
+return out_plane; }
 
 /*
  * decal_update — age one decal, fading or retiring it.

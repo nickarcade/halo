@@ -1505,6 +1505,10 @@ _PER_FUNCTION_OPT: dict[str, dict[str, str]] = {
     # FUN_0020f081 (0x20f081): same XDK inline family, `mov eax,[esp+4]`, no EBP.
     "halo/sound/sound_dsound_xbox.c": {"dsound_stream_is_active": "/O2 /Oy",
                                        "FUN_0020f081": "/O2 /Oy"},
+    # UnhandledExceptionFilter (0x1cf97c): XAPI library code; reference pushes
+    # its argument as `push [esp+4]` with no EBP setup (/Oy) and shares one
+    # `ret 4` via `or eax,-1; jmp` (size-favoring /O1). 66.7% -> 100%.
+    "halo/main/d3d_intimacy.c": {"UnhandledExceptionFilter": "/O1 /Oy"},
     # D3D resource/texture functions in XDK D3D; compiled with /Oy (no EBP frame).
     # D3DResource_BlockUntilNotBusy: bare JMP thunk (0x1ed620); D3DResource_IsBusy:
     # ESP-relative addressing throughout (0x1ed980) -- both prove /Oy.

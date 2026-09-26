@@ -477,8 +477,8 @@ void FUN_001bed90(int block_index)
 void xbox_texture_cache_setup_d3d_texture(void *bitmap /* @<esi> */,
                                           void *texture /* @<edi> */)
 {
-  assert_halt(bitmap);
-  assert_halt(texture);
+  assert_halt_at("c:\\halo\\SOURCE\\cache\\xbox_texture_cache.c", 0x214, bitmap);
+  assert_halt_at("c:\\halo\\SOURCE\\cache\\xbox_texture_cache.c", 0x215, texture);
 
   ((int *)texture)[1] = 0;
   ((int *)texture)[2] = 0;

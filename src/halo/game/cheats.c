@@ -108,6 +108,58 @@ float FUN_000a55e0(float arg1, float arg2, float arg3, float arg4)
   return FUN_000a5590(arg3, arg4) * saved;
 }
 
+/* unit_get_aim_assist_parameters (0xa5610)
+ *
+ * Register ABI proven by the body: ESI = EAX (unit handle, compared to -1
+ * before any call), EBX is used only as the output float-array base
+ * (FSTP [EBX+0x0..0x10]) and is never written, [EBP+8] is the one stack
+ * argument: pushed whole to 0xfc780 (PUSH EAX) but tested only as
+ * CMP AX,0xffff, so it is kept int and compared through int16_t. Returns AL.
+ *   0x13d680(unit, 3); movsx [unit+0x2a2] -> 0x1adeb0(unit, idx)
+ *   0x13d680(weapon, 4); tag_get('weap', *weapon_obj)
+ *   zoom_level == -1 && (tag[0x308] & 0x20) -> return 0
+ *   mag = 0xfc780(weapon, zoom_level); inv = 1.0f / mag  (FDIV ST0,ST1 keeps
+ *   mag live in ST1): out[0] = inv*tag[0x3e4], out[1] = mag*tag[0x3e8],
+ *   out[2] = inv*tag[0x3ec], out[3] = mag*tag[0x3f0],
+ *   out[4] = (tag[0x3f4] > tag[0x3e4] ? tag[0x3f4] : tag[0x3e4]) * inv
+ *   (FCOMP + TEST AH,0x41 + JNZ: unordered/<=/== take the 0x3e4 branch).
+ * Tag field meanings are unproven; offsets stay raw.
+ */
+bool unit_get_aim_assist_parameters(int unit_handle, float *out_params,
+                                    int zoom_level)
+{
+  int weapon_handle;
+  char *weapon_tag;
+  float magnification;
+  float inverse;
+
+  if (unit_handle != -1) {
+    weapon_handle = unit_inventory_get_weapon(
+      unit_handle,
+      *(int16_t *)((char *)object_get_and_verify_type(unit_handle, 3) + 0x2a2));
+    if (weapon_handle != -1) {
+      weapon_tag = (char *)tag_get(
+        0x77656170, *(int *)object_get_and_verify_type(weapon_handle, 4));
+      if ((int16_t)zoom_level != -1 ||
+          (*(uint8_t *)(weapon_tag + 0x308) & 0x20) == 0) {
+        magnification = weapon_get_zoom_magnification(weapon_handle, zoom_level);
+        inverse = *(float *)0x2533c8 / magnification;
+        out_params[0] = inverse * *(float *)(weapon_tag + 0x3e4);
+        out_params[1] = magnification * *(float *)(weapon_tag + 0x3e8);
+        out_params[2] = inverse * *(float *)(weapon_tag + 0x3ec);
+        out_params[3] = magnification * *(float *)(weapon_tag + 0x3f0);
+        if (*(float *)(weapon_tag + 0x3f4) > *(float *)(weapon_tag + 0x3e4)) {
+          out_params[4] = *(float *)(weapon_tag + 0x3f4) * inverse;
+        } else {
+          out_params[4] = *(float *)(weapon_tag + 0x3e4) * inverse;
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /* compare_targets (0xa5700)
  *
  * qsort comparator over the 0x38-byte candidate-target records built by

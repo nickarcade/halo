@@ -137,11 +137,60 @@ void rasterizer_transparent_geometry_stop(void)
   FUN_00158ae0(0);
 }
 
+/* rasterizer_sort_internal (0x1848d0): builds the presorted index list for
+ * the transparent geometry groups, sorts it, then writes each group's sorted
+ * position back into its record.
+ *   0x4d0cec  group table, 0xa0-byte records (LEA/SHL 5 on index*5)
+ *   0x4d0cf4  group count (the first loop's bound and the qsort count are the
+ *             single EAX load at 0x1848d0; the second loop reloads it)
+ *   0x4d0cfc  int16 index array (qsort element size 2)
+ * The null-group assert (line 0x192) is display_assert + system_exit(-1).
+ * The comparator 0x184750 is still unported; its kb decl is a void(void)
+ * placeholder, so it is cast to the qsort comparator type here.
+ * The second loop stores the loop counter (MOVSX EAX,DX before the store) as
+ * an int at record +0x90; the record's element index comes from the sorted
+ * int16 array (MOVSX ECX,word ptr [EBX+EAX*2]). */
+void rasterizer_sort_internal(void)
+{
+  int count;
+  int16_t index;
+  int16_t *sorted_indices;
+  char *groups;
+
+  count = *(int *)0x4d0cf4;
+  index = 0;
+  if (count > 0) {
+    do {
+      if ((char *)(index * 0xa0 + *(int *)0x4d0cec) == 0) {
+        display_assert(
+          "group",
+          "c:\\halo\\SOURCE\\rasterizer\\rasterizer_transparent_geometry.c",
+          0x192, 1);
+        system_exit(-1);
+      }
+      (*(int16_t **)0x4d0cfc)[index] = index;
+      index++;
+    } while (index < count);
+  }
+  qsort(*(void **)0x4d0cfc, (size_t)count, 2,
+        (qsort_compar_proc)group_sorted_indices_cmpfn);
+  count = *(int *)0x4d0cf4;
+  index = 0;
+  if (count > 0) {
+    groups = *(char **)0x4d0cec;
+    sorted_indices = *(int16_t **)0x4d0cfc;
+    do {
+      *(int *)(groups + sorted_indices[index] * 0xa0 + 0x90) = index;
+      index++;
+    } while (index < count);
+  }
+}
+
 /* render_effects (0x184b60)
  *
  * Broadcasts a single cdecl byte argument (the record's first byte, per the
- * caller render_effects_evaluate at 0xbee00) to four adjacent global enable bytes:
- * 0x32574a, 0x32574b, 0x32574c, 0x32574d. All four are set to the same
+ * caller render_effects_evaluate at 0xbee00) to four adjacent global enable
+ * bytes: 0x32574a, 0x32574b, 0x32574c, 0x32574d. All four are set to the same
  * incoming value (000184b63 MOV AL,[EBP+8]; four MOV [addr],AL stores, no
  * branch). 0x32574c is read elsewhere as the particle-system-update gate
  * (particle_systems_render, 0xa1170) and 0x32574b as the scenario particles
@@ -336,6 +385,41 @@ void render_frame_pregame(pregame_render_info_t *pregame_info,
 void render_frame_present(_WORD *a1, void *a2)
 {
   ((void (*)(_WORD *, void *))0x17c930)(a2, a1);
+}
+
+/* render_location_visible (0x184de0): test the location's cluster bit in the
+ * visible-cluster bit vector at 0x50678c. The cluster index is the int16 at
+ * location+0x4 (CMP word [ESI+4],0 / JL; MOVSX ECX,word [ESI+4]); it is
+ * bounds-checked against the dword count at +0x134 of the structure returned
+ * by 0x18e3c0 (kb: scenario_get; the assert text names it
+ * global_structure_bsp_get()). The bit test re-reads the word (MOVSX EDX),
+ * masks the shift with AND ECX,0x1f and indexes by SAR EDX,5 (signed), and
+ * NEG/SBB/NEG yields (bit != 0). Assert line 0x248. */
+/* File-local bit-vector test helper (no out-of-line copy in the binary).
+ * The reference materializes the test as an int (NEG/SBB/NEG) before the
+ * char return; an inline int-returning test reproduces that, whereas a direct
+ * char-typed `!= 0` compiles to TEST/SETNE. */
+static __inline int render_bit_vector_test(const unsigned int *vector,
+                                           int bit)
+{
+  return ((1 << (bit & 0x1f)) & vector[bit >> 5]) != 0;
+}
+
+char render_location_visible(void *location)
+{
+  int16_t *cluster_index;
+
+  cluster_index = (int16_t *)((char *)location + 0x4);
+  if (*cluster_index < 0 ||
+      *cluster_index >= *(int *)((char *)scenario_get() + 0x134)) {
+    display_assert("location->cluster_index>=0 && "
+                   "location->cluster_index<global_structure_bsp_get()->"
+                   "clusters.count",
+                   "c:\\halo\\SOURCE\\render\\render.c", 0x248, 1);
+    system_exit(-1);
+  }
+  return (char)render_bit_vector_test((unsigned int *)0x50678c,
+                                      *cluster_index);
 }
 
 /* rendered_cluster_get (0x184e50): bounds-checked accessor into the

@@ -15,8 +15,8 @@ char network_game_client_handle_message_server_postgame_keep_alive(void *client,
   int packet_version;
   int packet_type;
 
-  assert_halt_msg(client != (void *)0, "client != NULL");
-  assert_halt_msg(source_address != (void *)0, "source_address != NULL");
+  assert_halt_msg_at("client != NULL", "c:\\halo\\SOURCE\\networking\\network_client_message_handler.c", 0x1ee, client != (void *)0);
+  assert_halt_msg_at("source_address != NULL", "c:\\halo\\SOURCE\\networking\\network_client_message_handler.c", 0x1ef, source_address != (void *)0);
 
   if (network_game_client_address_matches_server(client, source_address)) {
     if (network_game_client_get_state(client, (void *)0) == 4) {

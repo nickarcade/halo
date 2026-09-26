@@ -2413,13 +2413,13 @@ void FUN_001749b0(void)
  * Each lane is read immediately before being stored, so out may alias a
  * or b; keep the statement order as written. No naming evidence in the
  * binary for a semantic name, so the mechanical name is retained. */
-void FUN_00174b60(float *a, float *b, float *out)
+float * FUN_00174b60(float *a, float *b, float *out)
 {
   out[0] = a[0] - b[0];
   out[1] = a[1] - b[1];
   out[2] = a[2] - b[2];
   out[3] = a[3] - b[3];
-}
+return out; }
 
 /* FUN_00174b90: componentwise 4-float scale-and-add, out = a + t * b
  * (0x174b90). The 4-component twin of the subtract helper at 0x174b60 above,
@@ -2444,13 +2444,13 @@ void FUN_00174b60(float *a, float *b, float *out)
  * operand-direction hazard. Pure leaf: no CALLs, no branches, no globals. No
  * naming evidence in the binary for a semantic name, so the mechanical name
  * is retained. */
-void FUN_00174b90(float *a, float *b, float t, float *out)
+float * FUN_00174b90(float *a, float *b, float t, float *out)
 {
   out[0] = t * b[0] + a[0];
   out[1] = t * b[1] + a[1];
   out[2] = t * b[2] + a[2];
   out[3] = t * b[3] + a[3];
-}
+return out; }
 
 /* 0x174bd0 — allocate and prime the transparent-geometry texcoord stream.
  *

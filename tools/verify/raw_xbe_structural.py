@@ -11,6 +11,12 @@ Only i386 COFF REL32 and DIR32 relocations are accepted. The raw XBE has no
 relocation table, so direct E8/E9 targets and a conservative set of absolute
 operand encodings are classified from bytes. Unknown encodings are reported as
 uncomparable instead of being guessed.
+
+Relocation targets resolve through, in order: a ``FUN_<addr>`` symbol name, a
+unique function name in the bounds table, a unique kb.json data-global name,
+or, for read-only COMDAT literals such as ``??_C@`` strings and ``__real@``
+constants, byte-equal contents at the original's ``.rdata`` address. Literal
+contents that differ are a proven mismatch, not an unknown.
 """
 
 import argparse
@@ -60,6 +66,40 @@ def _coff_name(raw, strings):
     return raw.split(b"\0", 1)[0].decode("ascii", "replace")
 
 
+IMAGE_SCN_CNT_CODE = 0x00000020
+IMAGE_SCN_CNT_INITIALIZED_DATA = 0x00000040
+IMAGE_SCN_LNK_COMDAT = 0x00001000
+IMAGE_SCN_MEM_WRITE = 0x80000000
+IMAGE_SYM_CLASS_STATIC = 3
+
+
+def _read_only_literal(data, sections, symbols, symbol):
+    """Return the full contents of a read-only COMDAT literal, or ``None``.
+
+    VC71 emits every ``??_C@`` string and ``__real@`` constant into its own
+    read-only COMDAT data section, so the section bytes are exactly the
+    literal. Anything else (writable data, code, a section shared by several
+    symbols, or a symbol that does not start its section) has no unambiguous
+    content extent and is left to the name-based resolvers.
+    """
+    if not symbol or symbol["section"] <= 0 or symbol["value"] != 0:
+        return None
+    if symbol["section"] - 1 >= len(sections):
+        return None
+    section = sections[symbol["section"] - 1]
+    flags = section.get("characteristics", 0)
+    if (not flags & IMAGE_SCN_CNT_INITIALIZED_DATA or flags & IMAGE_SCN_CNT_CODE or
+            flags & IMAGE_SCN_MEM_WRITE or not flags & IMAGE_SCN_LNK_COMDAT):
+        return None
+    owners = [s for s in symbols if s["section"] == symbol["section"] and
+              not (s["storage"] == IMAGE_SYM_CLASS_STATIC and s["aux_count"] and
+                   s["name"] == section["name"])]
+    if len(owners) != 1 or owners[0]["index"] != symbol["index"] or not section["raw_size"]:
+        return None
+    start = section["raw_offset"]
+    return {"section": section["name"], "content": bytes(data[start:start + section["raw_size"]])}
+
+
 def _parse_coff(path, function):
     """Return function bytes, relocations, and extraction provenance."""
     data = Path(path).read_bytes()
@@ -84,14 +124,14 @@ def _parse_coff(path, function):
     sections = []
     for i in range(section_count):
         raw = COFF_SECTION_HEADER.unpack_from(data, section_offset + i * COFF_SECTION_HEADER.size)
-        name, _vsize, _va, raw_size, raw_offset, reloc_offset, _lo, reloc_count, _lc, _flags = raw
+        name, _vsize, _va, raw_size, raw_offset, reloc_offset, _lo, reloc_count, _lc, flags = raw
         if raw_offset + raw_size > len(data):
             raise strict.NotComparable("candidate has truncated section data")
         if reloc_count and reloc_offset + reloc_count * COFF_RELOCATION.size > len(data):
             raise strict.NotComparable("candidate has truncated relocation table")
         sections.append({"name": _coff_name(name, strings), "raw_size": raw_size,
                          "raw_offset": raw_offset, "reloc_offset": reloc_offset,
-                         "reloc_count": reloc_count})
+                         "reloc_count": reloc_count, "characteristics": flags})
 
     symbols = []
     index = 0
@@ -142,10 +182,14 @@ def _parse_coff(path, function):
         offset, symbol_index, reloc_type = COFF_RELOCATION.unpack_from(data, at)
         if start <= offset < end:
             target = next((s for s in symbols if s["index"] == symbol_index), None)
-            relocs.append({"offset": offset - start, "absolute_offset": offset,
-                           "symbol_index": symbol_index, "type": reloc_type,
-                           "type_name": RELOCATION_NAMES.get(reloc_type, "UNKNOWN"),
-                           "symbol": target})
+            item = {"offset": offset - start, "absolute_offset": offset,
+                    "symbol_index": symbol_index, "type": reloc_type,
+                    "type_name": RELOCATION_NAMES.get(reloc_type, "UNKNOWN"),
+                    "symbol": target}
+            literal = _read_only_literal(data, sections, symbols, target)
+            if literal is not None:
+                item["literal"] = literal
+            relocs.append(item)
     code = data[section["raw_offset"] + start:section["raw_offset"] + end]
     return code, relocs, {"coff_symbol": symbol["name"], "coff_section": section["name"],
                           "coff_offset": start, "coff_end": end,
@@ -176,7 +220,66 @@ def _raw_addresses_for_name(name):
     return matches
 
 
-def _target_identity(candidate_symbol, target, logical_target, convention, injected=None):
+_KB_DATA_ADDRESSES = None
+_DATA_DECL_NAME_RE = re.compile(r"[A-Za-z_]\w*")
+
+
+def _data_decl_name(decl):
+    """Mirror knowledge.py's data-declaration name rule without importing libclang."""
+    cleaned = re.sub(r"@<(\w+)>", "", decl or "")
+    tokens = _DATA_DECL_NAME_RE.findall(cleaned.rstrip(";").split("[")[0].split("=")[0])
+    return tokens[-1] if tokens else None
+
+
+def _kb_data_addresses():
+    """Return {name: address} for kb.json data globals whose name is unique."""
+    global _KB_DATA_ADDRESSES
+    if _KB_DATA_ADDRESSES is None:
+        seen = {}
+        try:
+            kb = json.loads((ROOT / "kb.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            kb = {}
+        for obj in kb.get("objects", []) or []:
+            for entry in (obj or {}).get("data") or []:
+                name = _data_decl_name(entry.get("decl"))
+                try:
+                    address = int(str(entry.get("addr")), 16)
+                except ValueError:
+                    continue
+                if name:
+                    seen.setdefault(name, set()).add(address)
+        _KB_DATA_ADDRESSES = {name: next(iter(addresses))
+                              for name, addresses in seen.items() if len(addresses) == 1}
+    return _KB_DATA_ADDRESSES
+
+
+_XBE_SECTIONS = None
+
+
+def _xbe_rdata_bytes(address, size):
+    """Return raw-XBE bytes for a span wholly inside initialized ``.rdata``, else ``None``.
+
+    Content identity is accepted only for read-only data. A writable global
+    that happens to hold the same initial bytes is a different object.
+    """
+    global _XBE_SECTIONS
+    if _XBE_SECTIONS is None:
+        sys.path.insert(0, str(ROOT / "tools" / "equivalence"))
+        import xbe_image
+        _XBE_SECTIONS = (xbe_image, xbe_image.load_xbe(str(xref.XBE)))
+    xbe_image, (raw, sections) = _XBE_SECTIONS
+    section = xbe_image.section_at(sections, address)
+    if section is None or section.name != ".rdata" or size <= 0:
+        return None
+    if address + size > section.va + section.raw_size:
+        return None
+    start = section.raw_off + (address - section.va)
+    return raw[start:start + size]
+
+
+def _target_identity(candidate_symbol, target, logical_target, convention, injected=None,
+                     resolved_base=None):
     """Resolve a COFF symbol and compare its logical target to raw XBE.
 
     For i386 COFF REL32, the relocation field is the addend A and the linker
@@ -198,7 +301,9 @@ def _target_identity(candidate_symbol, target, logical_target, convention, injec
     candidate_name = candidate_symbol.get("name") if candidate_symbol else None
     candidate_norm = _normal_name(candidate_name)
     fun = re.fullmatch(r"FUN_([0-9a-fA-F]{8})", candidate_norm or "")
-    if fun:
+    if resolved_base is not None:
+        symbol_target, method = resolved_base
+    elif fun:
         symbol_target = int(fun.group(1), 16)
         method = "candidate_FUN_address"
     else:
@@ -320,6 +425,40 @@ def _reference_relocations(reference):
     return sites
 
 
+def _literal_identity(literal, form, target, addend):
+    """Resolve a read-only literal relocation by comparing contents with raw-XBE ``.rdata``.
+
+    The candidate's literal lives in its own COMDAT section, so its logical
+    target is the literal's start plus the addend. Mapping that back from the
+    raw operand gives the original literal's start, and the original bytes
+    there must equal the whole candidate literal. Equal contents in read-only
+    data are the same value to every reader, which is what the linker's
+    literal pooling relies on too.
+    """
+    content = literal["content"]
+    if form["kind"] != "DIR32":
+        return {"status": "unresolved", "reason": "literal relocation is not an absolute operand"}
+    base = (target - addend) & 0xFFFFFFFF
+    if not 0 <= addend < len(content):
+        return {"status": "unresolved", "reason": "literal addend lies outside the literal",
+                "raw": "0x%08x" % target}
+    original = _xbe_rdata_bytes(base, len(content))
+    if original is None:
+        return {"status": "unresolved", "reason": "literal target is not inside raw-XBE .rdata",
+                "raw": "0x%08x" % target}
+    evidence = {"literal_section": literal["section"], "literal_size": len(content),
+                "symbol_address": "0x%08x" % base, "logical_target": "0x%08x" % target,
+                "raw": "0x%08x" % target, "convention": "S+A (DIR32)"}
+    if original != content:
+        evidence.update({"status": "mismatch",
+                         "reason": "read-only literal content differs from raw XBE",
+                         "candidate_prefix": content[:32].hex(),
+                         "raw_prefix": original[:32].hex()})
+        return evidence
+    evidence.update({"status": "resolved", "method": "read_only_literal_content"})
+    return evidence
+
+
 def _identity_evidence(relocation, form, candidate, reference, address, target_identities,
                        candidate_form=None):
     """Distinguish matching, different, and unknown relocation targets."""
@@ -335,19 +474,27 @@ def _identity_evidence(relocation, form, candidate, reference, address, target_i
     else:
         normalized = _normal_name(symbol_name)
         match = re.fullmatch(r"FUN_([0-9a-fA-F]{8})", normalized or "")
+        resolved_base = None
         if match:
             symbol_base = int(match.group(1), 16)
         else:
             addresses = _raw_addresses_for_name(symbol_name)
             symbol_base = addresses[0] if len(addresses) == 1 else None
-        if symbol_base is None:
+            if symbol_base is None and normalized in _kb_data_addresses():
+                symbol_base = _kb_data_addresses()[normalized]
+                resolved_base = (symbol_base, "kb_data_address")
+        injected = (target_identities or {}).get(target)
+        literal = relocation.get("literal")
+        if symbol_base is None and literal is not None and injected is None:
+            identity = _literal_identity(literal, form, target, addend)
+        elif symbol_base is None:
             identity = {"status": "unresolved", "reason": "relocation symbol has no unique raw-XBE base address"}
         else:
             logical_target = symbol_base + addend
             convention = ("S+A (REL32 field is linked as S+A-P; logical target is S+A)"
                           if form["kind"] == "REL32" else "S+A (DIR32)")
             identity = _target_identity(symbol, target, logical_target, convention,
-                                        (target_identities or {}).get(target))
+                                        injected, resolved_base)
     return {"raw_target": "0x%08x" % target, "candidate_addend": addend,
             "evidence": identity}
 
@@ -371,7 +518,7 @@ def _decode_instructions(code):
         if instruction.address != cursor:
             return None
         records.append({"offset": instruction.address, "size": instruction.size,
-                        "mnemonic": instruction.mnemonic,
+                        "mnemonic": instruction.mnemonic, "op_str": instruction.op_str,
                         "bytes": bytes(instruction.bytes)})
         cursor += instruction.size
     if cursor != len(key):
@@ -480,6 +627,70 @@ def _instruction_alignment(candidate_insns, reference_insns):
     return pairs, "weighted_global_dp_v1", ambiguous_steps
 
 
+MAX_RECORDED_DIFFERENCES = 48
+_REGISTER_RE = re.compile(
+    r"\b(?:e?[abcd]x|[abcd][lh]|e?[sd]i|e?[sb]p|[sd]il|[sb]pl|st\(\d\)|xmm\d|mm\d)\b")
+_NUMBER_RE = re.compile(r"\b(?:0x[0-9a-f]+|\d+)\b")
+_MEMORY_RE = re.compile(r"\[[^\]]*\]")
+_STACK_PARAM_LOAD_RE = re.compile(
+    r"^(?:e?[abcd]x|[abcd][lh]|e?[sd]i), (?:byte|word|dword) ptr \[(?:ebp|esp) \+ (0x[0-9a-f]+|\d+)\]$")
+_BRANCH_MNEMONICS = ("call", "jmp", "loop", "jecxz", "jcxz")
+
+
+def _instruction_text(insn):
+    return ("%s %s" % (insn["mnemonic"], insn.get("op_str", ""))).strip()
+
+
+def _classify_aligned_difference(candidate_insn, reference_insn):
+    """Name the kind of byte difference between two aligned instructions.
+
+    Classes, checked in order: ``branch_target`` (a relative branch whose only
+    difference is its target, a knock-on of earlier size changes),
+    ``operand_order`` (the same operands in another order), ``register`` (equal
+    once registers are masked), ``stack_offset`` or ``displacement`` (a
+    different memory displacement), ``immediate``, ``encoding_size`` (same text
+    in a different length), and ``operands`` for everything else.
+    """
+    c_ops = candidate_insn.get("op_str", "")
+    r_ops = reference_insn.get("op_str", "")
+    mnemonic = candidate_insn["mnemonic"]
+    # Capstone prints a relative branch target as an offset from the start of
+    # each byte string, so two branches can print the same target while their
+    # displacements differ.  Test branches before comparing text.
+    if (mnemonic.startswith("j") or mnemonic in _BRANCH_MNEMONICS) and \
+            _NUMBER_RE.fullmatch(c_ops) and _NUMBER_RE.fullmatch(r_ops):
+        return "branch_target"
+    if c_ops == r_ops:
+        return "encoding_size" if candidate_insn["size"] != reference_insn["size"] else "encoding"
+    c_parts = [part.strip() for part in c_ops.split(",")]
+    r_parts = [part.strip() for part in r_ops.split(",")]
+    if len(c_parts) > 1 and sorted(c_parts) == sorted(r_parts):
+        return "operand_order"
+    if _REGISTER_RE.sub("R", c_ops) == _REGISTER_RE.sub("R", r_ops):
+        return "register"
+    c_memory = _MEMORY_RE.findall(c_ops)
+    r_memory = _MEMORY_RE.findall(r_ops)
+    if (_MEMORY_RE.sub("M", c_ops) == _MEMORY_RE.sub("M", r_ops) and
+            len(c_memory) == len(r_memory) and
+            [_NUMBER_RE.sub("N", item) for item in c_memory] ==
+            [_NUMBER_RE.sub("N", item) for item in r_memory]):
+        stack = any(("esp" in item or "ebp" in item) for item in c_memory + r_memory)
+        return "stack_offset" if stack else "displacement"
+    if _NUMBER_RE.sub("N", c_ops) == _NUMBER_RE.sub("N", r_ops):
+        return "immediate"
+    return "operands"
+
+
+def _classify_unmatched(insn):
+    text = insn.get("op_str", "")
+    match = _STACK_PARAM_LOAD_RE.match(text)
+    if insn["mnemonic"].startswith("mov") and match and int(match.group(1), 0) >= 4:
+        return "stack_param_load"
+    if insn["mnemonic"] in ("push", "pop") and _REGISTER_RE.fullmatch(text):
+        return "register_save"
+    return "instruction"
+
+
 def aligned_byte_compare(candidate, relocations, reference, address,
                          target_identities=None):
     """Compare bytes within mnemonic-aligned instructions.
@@ -511,6 +722,8 @@ def aligned_byte_compare(candidate, relocations, reference, address,
     compared = 0
     masked = 0
     normalized_exact_instructions = 0
+    raw_operand_matching = 0
+    raw_operand_compared = 0
     aligned_instructions = 0
     candidate_only = 0
     reference_only = 0
@@ -522,6 +735,18 @@ def aligned_byte_compare(candidate, relocations, reference, address,
     mismatched_relocation_bytes = 0
     unpaired_relocations = malformed_relocations
     first_difference = None
+    differences = []
+    difference_classes = {}
+
+    def note_difference(kind, candidate_insn, reference_insn):
+        difference_classes[kind] = difference_classes.get(kind, 0) + 1
+        if len(differences) < MAX_RECORDED_DIFFERENCES:
+            differences.append({
+                "class": kind,
+                "candidate_offset": (candidate_insn or {}).get("offset"),
+                "reference_offset": (reference_insn or {}).get("offset"),
+                "candidate": _instruction_text(candidate_insn) if candidate_insn else None,
+                "reference": _instruction_text(reference_insn) if reference_insn else None})
 
     alignment, alignment_method, ambiguous_steps = _instruction_alignment(
         candidate_insns, reference_insns)
@@ -529,6 +754,8 @@ def aligned_byte_compare(candidate, relocations, reference, address,
         if candidate_insn is None or reference_insn is None:
             item = candidate_insn or reference_insn
             compared += item["size"]
+            note_difference(("reference_only:" if candidate_insn is None else "candidate_only:") +
+                            _classify_unmatched(item), candidate_insn, reference_insn)
             if candidate_insn is None:
                 reference_only += 1
             else:
@@ -549,8 +776,10 @@ def aligned_byte_compare(candidate, relocations, reference, address,
         candidate_mask = set()
         reference_mask = set()
         instruction_targets_match = True
+        instruction_has_relocation = False
         for relocation, candidate_form in candidate_relocations.get(
                 candidate_insn["offset"], []):
+            instruction_has_relocation = True
             candidates = []
             for field_offset, field in reference_fields.items():
                 if (field["insn_offset"] == reference_insn["offset"] and
@@ -577,6 +806,7 @@ def aligned_byte_compare(candidate, relocations, reference, address,
                 # fixed mismatches, never uncertainty in the upper bound.
                 mismatched_relocations += 1
                 mismatched_relocation_bytes += 4
+                note_difference("relocation_target", candidate_insn, reference_insn)
                 candidate_local = candidate_form["operand_offset"] - candidate_insn["offset"]
                 reference_local = reference_form["operand_offset"] - reference_insn["offset"]
                 candidate_mask.update(range(candidate_local, candidate_local + 4))
@@ -603,6 +833,15 @@ def aligned_byte_compare(candidate, relocations, reference, address,
             masked += 4
             resolved_relocations += 1
 
+        # A raw-operand score complements mnemonic+masked-operand scoring.
+        # Relocated instructions are excluded: the COFF prints section-relative
+        # values while the XBE prints final virtual addresses.  Their identity
+        # is already checked separately by the relocation resolver above.
+        if not instruction_has_relocation:
+            raw_operand_compared += 1
+            raw_operand_matching += int(candidate_insn.get("op_str", "") ==
+                                        reference_insn.get("op_str", ""))
+
         candidate_bytes = [value for index, value in enumerate(candidate_insn["bytes"])
                            if index not in candidate_mask]
         reference_bytes = [value for index, value in enumerate(reference_insn["bytes"])
@@ -621,7 +860,10 @@ def aligned_byte_compare(candidate, relocations, reference, address,
                 len(candidate_bytes) == len(reference_bytes) and
                 instruction_matching == instruction_compared):
             normalized_exact_instructions += 1
-        elif instruction_matching != instruction_compared and first_difference is None:
+        elif instruction_matching != instruction_compared:
+            note_difference(_classify_aligned_difference(candidate_insn, reference_insn),
+                            candidate_insn, reference_insn)
+        if (instruction_matching != instruction_compared and first_difference is None):
             first_difference = {
                 "candidate_offset": candidate_insn["offset"],
                 "reference_offset": reference_insn["offset"],
@@ -645,6 +887,10 @@ def aligned_byte_compare(candidate, relocations, reference, address,
         "mismatched_relocations": mismatched_relocations,
         "aligned_instruction_pairs": aligned_instructions,
         "normalized_exact_instructions": normalized_exact_instructions,
+        "raw_operand_matching_instructions": raw_operand_matching,
+        "raw_operand_compared_instructions": raw_operand_compared,
+        "raw_operand_accuracy": (raw_operand_matching / raw_operand_compared
+                                 if raw_operand_compared else None),
         "candidate_only_instructions": candidate_only,
         "reference_only_instructions": reference_only,
         "resolved_relocations": resolved_relocations,
@@ -655,6 +901,9 @@ def aligned_byte_compare(candidate, relocations, reference, address,
         "accuracy_is_provisional": bool(unpaired_relocations or uncertain_relocations),
         "alignment_ambiguous_steps": ambiguous_steps,
         "first_difference": first_difference,
+        "difference_classes": dict(sorted(difference_classes.items())),
+        "differences": differences,
+        "differences_truncated": sum(difference_classes.values()) > len(differences),
         "confidence": "provisional"}
 
 
@@ -823,6 +1072,31 @@ def compare(candidate, relocations, reference, address, target_identities=None):
     return result
 
 
+_REGISTER_ABI_CLASSES = frozenset(("candidate_only:stack_param_load",
+                                   "candidate_only:register_save"))
+
+
+def _register_argument_residual(aligned):
+    """Say whether the register ABI explains every aligned difference.
+
+    This is advisory and never changes the verdict: the original genuinely
+    receives these arguments in registers, which our build does not reproduce.
+    It separates "the body is byte-exact, only the stack-loading prologue
+    differs" from functions with further differences worth working on.
+    """
+    if aligned.get("status") != "scored":
+        return {"status": "unavailable"}
+    classes = aligned.get("difference_classes") or {}
+    other = {kind: count for kind, count in classes.items()
+             if kind not in _REGISTER_ABI_CLASSES}
+    exact_except_abi = (not other and not aligned.get("mismatched_relocations") and
+                        not aligned.get("uncertain_relocations"))
+    return {"status": "exact_except_register_abi" if exact_except_abi else "other_differences",
+            "abi_classes": {kind: count for kind, count in classes.items()
+                            if kind in _REGISTER_ABI_CLASSES},
+            "other_classes": other}
+
+
 def audit(candidate_obj, function, address, source=None):
     """Run the relocation-shape-aware comparison against the pristine raw XBE."""
     candidate, relocs, provenance = _parse_coff(candidate_obj, function)
@@ -866,6 +1140,9 @@ def audit(candidate_obj, function, address, source=None):
         record["bounds"] = {"start": "0x%08x" % address, "end": "0x%08x" % end,
                              "sha256": _hash_path(ROOT / "tools" / "verify" / "function_bounds.json")}
     record.update(compare(candidate, relocs, reference, address))
+    if register_argument:
+        record["register_argument_residual"] = _register_argument_residual(
+            record.get("aligned_byte_match") or {})
     if extent is None or extent[1] == "no_terminator":
         record.update({"verdict": "not comparable", "confidence": "low",
                        "reason": "the original function boundary is unverified"})
@@ -1105,9 +1382,9 @@ def _decl_hash():
 
 
 def _compiler_token():
-    # This identifies the candidate comparison tool only.  The source-specific
-    # compile invocation (including any opt/regcall settings) is not retained by
-    # this lane, and the original XBE compiler/options remain unconfirmed.
+    # This identifies the candidate comparison tool only.  The per-function
+    # optimization flags are recorded separately as tool.opt; regcall settings
+    # are not, and the original XBE compiler/options remain unconfirmed.
     return "VC71 comparison compiler; invocation flags not recorded"
 
 
@@ -1131,21 +1408,49 @@ def _record_error(item, reason, source_sha256=None, compiler=None):
     return record
 
 
+DEFAULT_OPT = "/O2"
+
+
+def _function_opt(source, function):
+    """The optimization flags the mnemonic lane scores this function at.
+
+    vc71_verify keeps per-function overrides for mixed-optimization TUs, such
+    as functions whose original has no EBP frame (/Oy).  Compiling them at the
+    TU default would measure a frame-pointer difference the lift does not have.
+    """
+    return vc71._per_function_opt_for(source).get(function, DEFAULT_OPT)
+
+
+def _candidate_object(artifact_dir, source, opt):
+    stem = "tu-%s" % hashlib.sha256(str(source).encode()).hexdigest()[:16]
+    if opt != DEFAULT_OPT:
+        stem += ".opt" + re.sub(r"[^A-Za-z0-9]", "", opt)
+    return artifact_dir / (stem + ".obj")
+
+
 def _audit_tu(source, items, artifact_dir, decl_hash):
     source_sha256 = _hash_path(source)
-    candidate = artifact_dir / ("tu-%s.obj" % hashlib.sha256(str(source).encode()).hexdigest()[:16])
-    if not vc71.compile_vc71(source, candidate):
-        return [(item, _record_error(item, "VC71 compilation failed", source_sha256)) for item in items]
-    records = []
+    by_opt = {}
     for item in items:
-        try:
-            record = audit(candidate, item["function"], item["address"], source)
-        except (OSError, strict.NotComparable) as exc:
-            record = _record_error(item, str(exc), source_sha256)
-        record["generated_at"] = datetime.now(timezone.utc).isoformat()
-        record["tool"] = {"version": "2", "compiler": _compiler_token(), "decl_sha256": decl_hash,
-                          "bounds_sha256": _bounds_hash(), "reference_authority": "pristine raw XBE + bounds"}
-        records.append((item, record))
+        by_opt.setdefault(_function_opt(source, item["function"]), []).append(item)
+    records = []
+    for opt, opt_items in sorted(by_opt.items()):
+        candidate = _candidate_object(artifact_dir, source, opt)
+        if not vc71.compile_vc71(source, candidate, opt=opt):
+            records.extend((item, _record_error(item, "VC71 compilation failed at %s" % opt,
+                                                source_sha256))
+                           for item in opt_items)
+            continue
+        for item in opt_items:
+            try:
+                record = audit(candidate, item["function"], item["address"], source)
+            except (OSError, strict.NotComparable) as exc:
+                record = _record_error(item, str(exc), source_sha256)
+            record["generated_at"] = datetime.now(timezone.utc).isoformat()
+            record["tool"] = {"version": "2", "compiler": _compiler_token(), "opt": opt,
+                              "decl_sha256": decl_hash, "bounds_sha256": _bounds_hash(),
+                              "reference_authority": "pristine raw XBE + bounds"}
+            records.append((item, record))
     return records
 
 
@@ -1238,9 +1543,11 @@ def _run_single(args):
             candidate = artifact_dir / ("%08x-%s.obj" % (args.address, args.function))
             if not vc71.regen_decl_header(quiet=True):
                 raise strict.NotComparable("generated declaration header regeneration failed")
-            if not vc71.compile_vc71(args.source.resolve(), candidate):
-                raise strict.NotComparable("VC71 compilation failed")
+            opt = _function_opt(args.source.resolve(), args.function)
+            if not vc71.compile_vc71(args.source.resolve(), candidate, opt=opt):
+                raise strict.NotComparable("VC71 compilation failed at %s" % opt)
             record = audit(candidate, args.function, args.address, args.source)
+            record["tool"]["opt"] = opt
     except (OSError, strict.NotComparable) as exc:
         source = args.source if args.source is not None else args.candidate
         item = {"function": args.function, "address": args.address}
@@ -1327,7 +1634,8 @@ def _run_populate(args):
             completed += 1
             print("Completed TU %d/%d: %s (%d functions)" %
                   (completed, len(groups), source, len(results)))
-            if results and all(record.get("reason") == "VC71 compilation failed" for _, record in results):
+            if results and all((record.get("reason") or "").startswith("VC71 compilation failed")
+                               for _, record in results):
                 compile_failures += 1
             for item, record in results:
                 _write_record(record, artifact_dir / ("%08x-%s.json" % (item["address"], item["function"])))
