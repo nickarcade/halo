@@ -2761,13 +2761,15 @@ void FUN_00154a20(void *obj, float *point, float val)
  * at the tail is render_debug_point_physics inlined (its out-of-line copy is
  * FUN_00154a20). */
 int point_physics_update(int flags, int physics_tag_data,
-                         int *collision_location, int object_handle,
+                         int *collision_location,
+                         int force_weather_palette_index, /* name: PAL 2342 physics/point_physics.c:66 */
                          float *position, float *velocity, float *force,
                          float *collision_normal_out,
                          int16_t *surface_index_out, float radius,
                          float delta_time)
 {
-  const struct point_physics_definition *definition;
+  /* physics_tag_data is the point_physics_definition; no local copy (a
+   * copy frees the parameter home slot, and 2276 never reuses it). */
   int result;
 
   result = 0;
@@ -2796,7 +2798,6 @@ int point_physics_update(int flags, int physics_tag_data,
                      "c:\\halo\\SOURCE\\physics\\point_physics.c", 0xbc,
                      radius >= 0.0f);
 
-  definition = (const struct point_physics_definition *)physics_tag_data;
   if (delta_time != 0.0f) {
     struct collision_result collision;
     real_vector3d wind_vector;
@@ -2805,7 +2806,7 @@ int point_physics_update(int flags, int physics_tag_data,
     real_vector3d perpendicular;
     float radius_squared = radius * radius;
     float radius_cubed = radius_squared * radius;
-    float mass = definition->runtime_mass_over_radius_cubed;
+    float mass = ((const struct point_physics_definition *)physics_tag_data)->runtime_mass_over_radius_cubed;
     float buoyancy_scale;
     float friction;
     float dt_over_mass;
@@ -2818,15 +2819,15 @@ int point_physics_update(int flags, int physics_tag_data,
 
     wind_flags = 0;
     SET_FLAG(wind_flags, 0,
-             TEST_FLAG(definition->flags, _point_physics_simple_wind_bit));
+             TEST_FLAG(((const struct point_physics_definition *)physics_tag_data)->flags, _point_physics_simple_wind_bit));
     SET_FLAG(wind_flags, 1,
-             TEST_FLAG(definition->flags, _point_physics_damped_wind_bit));
+             TEST_FLAG(((const struct point_physics_definition *)physics_tag_data)->flags, _point_physics_damped_wind_bit));
 
     if (TEST_FLAG(flags, _point_physics_ignore_position_bit)) {
       underwater =
         TEST_FLAG(flags, _point_physics_ignore_position_under_water_bit);
       FUN_00190240(position, &wind_vector.i, wind_flags,
-                   (int16_t)object_handle);
+                   (int16_t)force_weather_palette_index);
     } else {
       underwater = FUN_00190550(collision_location, position,
                                 (int32_t)&wind_vector, wind_flags);
@@ -2834,20 +2835,20 @@ int point_physics_update(int flags, int physics_tag_data,
 
     if (underwater) {
       mass += *(float *)0x4761fc; /* global_water_mass_over_radius_cubed */
-      buoyancy_scale = definition->runtime_water_buoyancy_scale;
-      friction = definition->water_friction * radius_squared;
+      buoyancy_scale = ((const struct point_physics_definition *)physics_tag_data)->runtime_water_buoyancy_scale;
+      friction = ((const struct point_physics_definition *)physics_tag_data)->water_friction * radius_squared;
       SET_FLAG(result, _point_physics_in_water_bit, true);
     } else {
       mass += *(float *)0x476200; /* global_air_mass_over_radius_cubed */
-      buoyancy_scale = definition->runtime_air_buoyancy_scale;
-      friction = definition->air_friction * radius_squared;
+      buoyancy_scale = ((const struct point_physics_definition *)physics_tag_data)->runtime_air_buoyancy_scale;
+      friction = ((const struct point_physics_definition *)physics_tag_data)->air_friction * radius_squared;
       SET_FLAG(result, _point_physics_in_air_bit, true);
     }
 
     mass = mass * radius_cubed;
     dt_over_mass = delta_time / mass;
 
-    if (TEST_FLAG(definition->flags, _point_physics_no_gravity_bit))
+    if (TEST_FLAG(((const struct point_physics_definition *)physics_tag_data)->flags, _point_physics_no_gravity_bit))
       buoyancy_scale = 0.0f;
 
     if (force && mass != 0.0f) {
@@ -2875,19 +2876,19 @@ int point_physics_update(int flags, int physics_tag_data,
     collision_flags = FLAG_BIT(0); /* front-facing surfaces */
     SET_FLAG(
       collision_flags, 6, /* media */
-      TEST_FLAG(definition->flags, _point_physics_water_collisions_bit) &&
+      TEST_FLAG(((const struct point_physics_definition *)physics_tag_data)->flags, _point_physics_water_collisions_bit) &&
         !TEST_FLAG(flags, _point_physics_force_no_collisions_bit));
     SET_FLAG(
       collision_flags, 5, /* structure */
-      TEST_FLAG(definition->flags, _point_physics_structure_collisions_bit) &&
+      TEST_FLAG(((const struct point_physics_definition *)physics_tag_data)->flags, _point_physics_structure_collisions_bit) &&
         !TEST_FLAG(flags, _point_physics_force_no_collisions_bit));
 
     assert_halt_msg_at("global_current_collision_user_depth < "
                        "MAXIMUM_COLLISION_USER_STACK_DEPTH",
                        "c:\\halo\\SOURCE\\physics\\point_physics.c", 0x10d,
-                       *(int16_t *)0x4761d8 < 0x20);
+                       global_current_collision_user_depth < 0x20);
     /* global_current_collision_users[depth++] = 13 (point physics). */
-    ((int16_t *)0x5a8c80)[(*(int16_t *)0x4761d8)++] = 0xd;
+    collision_user_stack[global_current_collision_user_depth++] = 0xd;
 
     for (i = 0; delta_time != 0.0f && i < 3; i++) {
       delta.i = velocity[0] * delta_time;
@@ -2919,12 +2920,12 @@ int point_physics_update(int flags, int physics_tag_data,
 
       FUN_0010b8a0(velocity, collision.plane.normal, &parallel.i,
                    &perpendicular.i);
-      velocity[0] = (1.0f - definition->contact_friction) * perpendicular.i -
-                    parallel.i * definition->elasticity;
-      velocity[1] = (1.0f - definition->contact_friction) * perpendicular.j -
-                    parallel.j * definition->elasticity;
-      velocity[2] = (1.0f - definition->contact_friction) * perpendicular.k -
-                    parallel.k * definition->elasticity;
+      velocity[0] = (1.0f - ((const struct point_physics_definition *)physics_tag_data)->contact_friction) * perpendicular.i -
+                    parallel.i * ((const struct point_physics_definition *)physics_tag_data)->elasticity;
+      velocity[1] = (1.0f - ((const struct point_physics_definition *)physics_tag_data)->contact_friction) * perpendicular.j -
+                    parallel.j * ((const struct point_physics_definition *)physics_tag_data)->elasticity;
+      velocity[2] = (1.0f - ((const struct point_physics_definition *)physics_tag_data)->contact_friction) * perpendicular.k -
+                    parallel.k * ((const struct point_physics_definition *)physics_tag_data)->elasticity;
 
       if (collision.location.leaf_index != -1)
         *(struct collision_location *)collision_location = collision.location;
@@ -2938,12 +2939,12 @@ int point_physics_update(int flags, int physics_tag_data,
 
     assert_halt_msg_at("global_current_collision_user_depth > 1",
                        "c:\\halo\\SOURCE\\physics\\point_physics.c", 0x138,
-                       *(int16_t *)0x4761d8 > 1);
-    --*(int16_t *)0x4761d8;
+                       global_current_collision_user_depth > 1);
+    --global_current_collision_user_depth;
   }
 
   if (*(boolean *)0x5a5e20) /* debug_point_physics */
-    render_debug_point_physics_inline(definition, position, radius);
+    render_debug_point_physics_inline((const struct point_physics_definition *)physics_tag_data, position, radius);
 
   return result;
 }
