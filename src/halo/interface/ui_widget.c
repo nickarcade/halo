@@ -4522,6 +4522,7 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
   short *widget_definition;
   void *list_widget;
   short selected_index;
+  int *profile_indices;
 
   if (event_data == NULL || *(int16_t *)((char *)event_data + 2) == -1) {
     display_assert(
@@ -4542,8 +4543,10 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  list_widget = *(void **)((char *)widget + 0x34);
-  widget_definition = (short *)tag_get(0x44654c61, *(int *)list_widget);
+  {
+    void *child = *(void **)((char *)widget + 0x34);
+    widget_definition = (short *)tag_get(0x44654c61, *(int *)child);
+  }
   if (*widget_definition != 2) {
     display_assert(
       "expected a spinner list widget for 'player profile list' widget",
@@ -4559,6 +4562,7 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
+  list_widget = *(void **)((char *)widget + 0x34);
   selected_index = *(int16_t *)((char *)list_widget + 0x3c);
   if (selected_index < 0 ||
       (int)selected_index >= (int)*(uint16_t *)((char *)list_widget + 0x44)) {
@@ -4570,10 +4574,10 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  profile_index =
-    *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4);
+  profile_indices = *(int **)((char *)list_widget + 0x40);
+  profile_index = profile_indices[*(int16_t *)((char *)list_widget + 0x3c)];
   if (profile_index != -1) {
-    if (profile_index >= 0) {
+    if (!(profile_index & 0x80000000)) {
       display_error_deferred(0x1f, -1, true, false);
       ui_play_audio_feedback_sound(4);
       *widget_deleted = true;
@@ -4586,7 +4590,7 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
           *(int16_t *)((char *)event_data + 2));
       player_ui_set_active_player_profile(
         (short)local_player_index,
-        *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4),
+        profile_indices[*(int16_t *)((char *)list_widget + 0x3c)],
         profile);
       return true;
     }
@@ -4627,7 +4631,7 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
                                        bool *widget_deleted)
 {
   wchar_t profile[24];
-  int profile_index;
+  int *profile_indices;
   int16_t controller_index;
   short selected_index;
   short *widget_definition;
@@ -4679,19 +4683,19 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  profile_index =
-    *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4);
-
-  if (profile_index >= 0) {
+  profile_indices = *(int **)((char *)list_widget + 0x40);
+  if (!(profile_indices[*(int16_t *)((char *)list_widget + 0x3c)] &
+        0x80000000)) {
     display_error_deferred(0x1f, controller_index, true, false);
     ui_play_audio_feedback_sound(4);
     return false;
   }
 
-  if (player_profile_new(profile_index, profile)) {
+  if (player_profile_new(
+        profile_indices[*(int16_t *)((char *)list_widget + 0x3c)], profile)) {
     player_ui_set_active_player_profile(
       (short)controller_index,
-      *(int *)(*(int *)((char *)list_widget + 0x40) + selected_index * 4),
+      profile_indices[*(int16_t *)((char *)list_widget + 0x3c)],
       profile);
     return true;
   }
@@ -6687,8 +6691,8 @@ bool playlist_profile_initialize_game_engine(void *widget)
 
   if (profile != NULL) {
     switch (*(int *)((char *)profile + 0x18)) {
-    default:
-      *(int16_t *)((char *)widget + 0x3c) = 0;
+    case 4:
+      *(int16_t *)((char *)widget + 0x3c) = 1;
       break;
     case 2:
       *(int16_t *)((char *)widget + 0x3c) = 2;
@@ -6696,11 +6700,12 @@ bool playlist_profile_initialize_game_engine(void *widget)
     case 3:
       *(int16_t *)((char *)widget + 0x3c) = 3;
       break;
-    case 4:
-      *(int16_t *)((char *)widget + 0x3c) = 1;
-      break;
     case 5:
       *(int16_t *)((char *)widget + 0x3c) = 4;
+      break;
+    case 1:
+    default:
+      *(int16_t *)((char *)widget + 0x3c) = 0;
       break;
     }
 
@@ -6750,11 +6755,13 @@ bool playlist_profile_initialize_name(void *widget, void *event_data,
 {
   void *profile;
   void *name_buffer;
+  bool result;
 
   (void)event_data;
   (void)widget_deleted;
 
   profile = player_ui_get_edit_playlist_profile();
+  result = true;
 
   if (*(int16_t *)((char *)widget + 0xe) != 1) {
     display_assert(
@@ -6775,12 +6782,12 @@ bool playlist_profile_initialize_name(void *widget, void *event_data,
       ustrncpy((wchar_t *)name_buffer, (wchar_t *)profile, 0x7f);
       *(int16_t *)((char *)*(void **)((char *)widget + 0x3c) + 0xfe) = 0;
     }
-
-    return true;
+  } else {
+    error(2, "failed to retrieve editable game variant");
+    result = false;
   }
 
-  error(2, "failed to retrieve editable game variant");
-  return false;
+  return result;
 }
 
 /* multiplayer profile init CTF rules (event handler) — 0xeceb0. Inverse of
