@@ -48628,6 +48628,21 @@
       "score": 94.1,
       "source": "src/halo/bitmaps/libtiff/tif_write.c"
     },
+    "bitmap_tile_and_bevel_rectangle": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 92.4,
+      "addr": "0x72f70",
+      "end": "0x73389",
+      "kind": "auto",
+      "n_r": 355,
+      "opnd_percent": 80.4,
+      "raw_mnemonic_pct": 92.4,
+      "ref": "synth",
+      "ref_sha": "30a446049e27b660",
+      "score": 92.4,
+      "source": "src/halo/bitmaps/libtiff/tif_write.c"
+    },
     "bitmap_type_get_string": {
       "abi_model": "raw",
       "abi_model_items": 0,

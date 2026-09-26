@@ -2178,6 +2178,186 @@ void bitmap_fill_rectangle(void *destination, unsigned int color,
   }
 }
 
+/* 0x72f70 -- tile the frames of one sequence of a 'bitm' tag into a
+ * rectangle of the destination bitmap. cdecl, seven stack args:
+ * destination ([EBP+8]; int16 +4/+6 give the default rectangle {0,0,+6,+4}
+ * when rectangle [EBP+0x14] is NULL), bitmap tag index ([EBP+0xc], -1 does
+ * nothing), sequence index ([EBP+0x10], checked against the block count at
+ * tag+0x54, element size 0x40, frame count int16 at element+0x22), optional
+ * clip rectangle ([EBP+0x18], intersect_rectangles2d(clip, bounds, bounds)),
+ * param_6 ([EBP+0x1c], forwarded as FUN_00072490's sixth arg and ORs 2 into
+ * its seventh) and param_7 ([EBP+0x20], a mask tested with bit
+ * table_261564[i]*2 to select a frame and bit table_261564[i]*2+1 to set 1 in
+ * FUN_00072490's seventh arg). For each of 9 entries i, flags come from the
+ * dword table at 0x2edae8: bits 4/8/1/2 place the frame's height (+6) or
+ * width (+4) against one rectangle edge, 0x20 clamps with the running
+ * limits, 0x10 selects the clipped copy and updates the limits. Each flag
+ * slot is reused for a later value (0x732e1/0x732e6/0x732fe), kept as found.
+ * Meanings of the tables and param_6/param_7 are unproven. */
+void bitmap_tile_and_bevel_rectangle(void *destination, int bitmap_tag_index,
+                                     short sequence_index, short *rectangle,
+                                     short *clip_rectangle, int param_6,
+                                     unsigned int param_7)
+{
+  short default_rectangle[4];
+  short bounds[4];
+  short clipped[4];
+  short limit_max[4];
+  short limit_min[4];
+  short tile[4];
+  short point[2];
+  int edge4;
+  void *sequence;
+  int edge8;
+  int i;
+  int edge2;
+  int frame;
+  int edge1;
+  void *tag;
+  void *frame_bitmap;
+  unsigned int flags;
+  short *limits;
+  short width;
+  short height;
+  short columns;
+  short column;
+
+  if (rectangle == NULL) {
+    rectangle = default_rectangle;
+    default_rectangle[1] = 0;
+    default_rectangle[0] = 0;
+    default_rectangle[3] = *(short *)((char *)destination + 4);
+    default_rectangle[2] = *(short *)((char *)destination + 6);
+  }
+  *(unsigned long *)&bounds[0] = *(unsigned long *)&rectangle[0];
+  *(unsigned long *)&bounds[2] = *(unsigned long *)&rectangle[2];
+  limit_min[2] = rectangle[1];
+  limit_min[0] = rectangle[1];
+  limit_max[2] = rectangle[3];
+  limit_max[0] = rectangle[3];
+  limit_min[3] = rectangle[0];
+  limit_min[1] = rectangle[0];
+  limit_max[3] = rectangle[2];
+  limit_max[1] = rectangle[2];
+  if (bitmap_tag_index == -1) {
+    return;
+  }
+  if (clip_rectangle != NULL &&
+      !intersect_rectangles2d(clip_rectangle, bounds, bounds)) {
+    return;
+  }
+  tag = tag_get(0x6269746d, bitmap_tag_index);
+  if (sequence_index >= *(int *)((char *)tag + 0x54)) {
+    return;
+  }
+  sequence = tag_block_get_element((char *)tag + 0x54, sequence_index, 0x40);
+  i = 0;
+  frame = 0;
+  do {
+    if ((short)frame >= *(short *)((char *)sequence + 0x22)) {
+      return;
+    }
+    if ((param_7 & (1 << (((unsigned short *)0x261564)[(short)i] << 1))) != 0) {
+      frame_bitmap =
+        FUN_00077040(bitmap_tag_index, sequence_index, (short)frame);
+      frame++;
+      if (frame_bitmap != NULL) {
+        *(unsigned long *)&clipped[0] = *(unsigned long *)&bounds[0];
+        flags = ((unsigned int *)0x2edae8)[(short)i];
+        *(unsigned long *)&tile[2] = *(unsigned long *)&rectangle[2];
+        *(unsigned long *)&tile[0] = *(unsigned long *)&rectangle[0];
+        *(unsigned long *)&clipped[2] = *(unsigned long *)&bounds[2];
+        edge4 = flags & 4;
+        if (edge4 != 0) {
+          tile[2] = *(short *)((char *)frame_bitmap + 6) + rectangle[0];
+        }
+        edge8 = flags & 8;
+        if (edge8 != 0) {
+          tile[0] = rectangle[2] - *(short *)((char *)frame_bitmap + 6);
+        }
+        edge1 = flags & 1;
+        if (edge1 != 0) {
+          tile[3] = *(short *)((char *)frame_bitmap + 4) + rectangle[1];
+        }
+        edge2 = flags & 2;
+        if (edge2 != 0) {
+          tile[1] = rectangle[3] - *(short *)((char *)frame_bitmap + 4);
+        }
+        if ((flags & 0x20) != 0) {
+          limits = (flags & 0x10) != 0 ? clipped : tile;
+          if (edge4 != 0) {
+            limits[1] = limit_min[0] > limits[1] ? limit_min[0] : limits[1];
+            limits[3] = limit_max[0] > limits[3] ? limits[3] : limit_max[0];
+          }
+          if (edge8 != 0) {
+            limits[1] = limit_min[2] > limits[1] ? limit_min[2] : limits[1];
+            limits[3] = limit_max[2] > limits[3] ? limits[3] : limit_max[2];
+          }
+          if (edge1 != 0) {
+            limits[0] = limit_min[1] > limits[0] ? limit_min[1] : limits[0];
+            limits[2] = limit_max[1] > limits[2] ? limits[2] : limit_max[1];
+          }
+          if (edge2 != 0) {
+            limits[0] = limit_min[3] > limits[0] ? limit_min[3] : limits[0];
+            limits[2] = limit_max[3] > limits[2] ? limits[2] : limit_max[3];
+          }
+        }
+        if ((flags & 0x10) != 0) {
+          if (edge4 != 0 && edge1 != 0) {
+            limit_min[0] = tile[3];
+            limit_min[1] = tile[2];
+          }
+          if (edge8 != 0 && edge1 != 0) {
+            limit_min[2] = tile[3];
+            limit_max[1] = tile[0];
+          }
+          if (edge4 != 0 && edge2 != 0) {
+            limit_max[0] = tile[1];
+            limit_min[3] = tile[2];
+          }
+          if (edge8 != 0 && edge2 != 0) {
+            limit_max[2] = tile[1];
+            limit_max[3] = tile[0];
+          }
+        }
+        if (intersect_rectangles2d(tile, clipped, clipped)) {
+          width = (short)rect2d_width(tile);
+          height = (short)rect2d_height(tile);
+          columns = (short)((width + *(short *)((char *)frame_bitmap + 4) - 1) /
+                            *(short *)((char *)frame_bitmap + 4));
+          /* edge4 now holds the row count, edge1 the FUN_00072490 mode
+           * and edge2 the row counter (same stack slots in the binary). */
+          edge4 = (height + *(short *)((char *)frame_bitmap + 6) - 1) /
+                  *(short *)((char *)frame_bitmap + 6);
+          edge1 = 0;
+          if ((param_7 &
+               (1 << (((unsigned short *)0x261564)[(short)i] * 2 + 1))) != 0) {
+            edge1 = 1;
+          }
+          if (param_6 != 0) {
+            edge1 |= 2;
+          }
+          for (edge2 = 0; (short)edge2 < (short)edge4; edge2++) {
+            for (column = 0; column < columns; column++) {
+              set_point2d(
+                point,
+                (short)(tile[1] +
+                        (short)(*(unsigned short *)((char *)frame_bitmap + 4) *
+                                column)),
+                (short)(tile[0] +
+                        (short)(*(unsigned short *)((char *)frame_bitmap + 6) *
+                                (short)edge2)));
+              FUN_00072490(destination, point, (int)clipped, frame_bitmap, 0,
+                           param_6, edge1);
+            }
+          }
+        }
+      }
+    }
+    i++;
+  } while ((short)i < 9);
+}
+
 /* 0x73770 -- draw the four edges of a float rectangle with bitmap_draw_line
  * (0x73390). cdecl, four stack args: destination ([EBP+8]), color
  * ([EBP+0xc]), rectangle ([EBP+0x10], four floats; [1] and [3] are reduced

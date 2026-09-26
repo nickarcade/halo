@@ -39444,8 +39444,9 @@
     },
     {
      "addr": "0x72f70",
-     "decl": "void bitmap_tile_and_bevel_rectangle(void);",
-     "comment": "[NAME: bitmap_tile_and_bevel_rectangle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void bitmap_tile_and_bevel_rectangle(void *destination, int bitmap_tag_index, short sequence_index, short *rectangle, short *clip_rectangle, int param_6, unsigned int param_7);",
+     "comment": "[NAME: bitmap_tile_and_bevel_rectangle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x73390",
