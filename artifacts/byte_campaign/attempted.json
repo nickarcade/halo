@@ -489,13 +489,13 @@
  },
  "grunt_decide_action": {
   "ts": "2026-09-26T22:22:21+02:00",
-  "result": "parked_gate",
+  "result": "improved",
   "before": 77.8,
   "after": 79.7
  },
  "elite_decide_action": {
   "ts": "2026-09-26T22:22:21+02:00",
-  "result": "parked_gate",
+  "result": "improved",
   "before": 79.4,
   "after": 80.8
  },
@@ -537,19 +537,19 @@
  },
  "inflate_codes": {
   "ts": "2026-09-26T22:22:21+02:00",
-  "result": "parked_gate",
+  "result": "improved",
   "before": 85.0,
   "after": 89.7
  },
  "uncompress": {
   "ts": "2026-09-26T22:22:21+02:00",
-  "result": "parked_gate",
+  "result": "improved",
   "before": 75.9,
   "after": 100
  },
  "inflate_trees_bits": {
   "ts": "2026-09-26T22:22:21+02:00",
-  "result": "parked_gate",
+  "result": "improved",
   "before": 77.3,
   "after": 89.6
  },
@@ -567,7 +567,7 @@
  },
  "inflate_set_dictionary": {
   "ts": "2026-09-26T22:22:21+02:00",
-  "result": "parked_gate",
+  "result": "improved",
   "before": 90.0,
   "after": 100
  },
