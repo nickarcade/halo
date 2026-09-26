@@ -58231,16 +58231,16 @@
     "elite_decide_action": {
       "abi_model": "regarg_mixed_stripped",
       "abi_model_items": 2,
-      "abi_modeled_mnemonic_pct": 96.3,
+      "abi_modeled_mnemonic_pct": 97.2,
       "addr": "0x37d50",
       "end": "0x37fcb",
       "kind": "auto",
       "n_r": 232,
-      "opnd_percent": 93.7,
-      "raw_mnemonic_pct": 95.9,
+      "opnd_percent": 94.6,
+      "raw_mnemonic_pct": 96.8,
       "ref": "synth",
       "ref_sha": "8737a18a6f6ae9b4",
-      "score": 96.3,
+      "score": 97.2,
       "source": "src/halo/ai/actors.c"
     },
     "encode_network_game_message": {
@@ -65146,16 +65146,16 @@
     "grunt_decide_action": {
       "abi_model": "regarg_mixed_stripped",
       "abi_model_items": 2,
-      "abi_modeled_mnemonic_pct": 96.0,
+      "abi_modeled_mnemonic_pct": 97.1,
       "addr": "0x38880",
       "end": "0x38adf",
       "kind": "auto",
       "n_r": 229,
-      "opnd_percent": 93.8,
-      "raw_mnemonic_pct": 95.6,
+      "opnd_percent": 94.9,
+      "raw_mnemonic_pct": 96.7,
       "ref": "synth",
       "ref_sha": "4e9ec6e207b23e8a",
-      "score": 96.0,
+      "score": 97.1,
       "source": "src/halo/ai/actors.c"
     },
     "gtStripContig": {

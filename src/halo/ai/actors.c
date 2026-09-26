@@ -1245,7 +1245,7 @@ void elite_decide_action(int actor_handle)
   int tmp;
   unsigned char flag1;
   unsigned char flag2;
-  float tmp_f;
+  float shield_fraction; /* name: PAL 2342 actor_type_elite.c */
 
   actor = (char *)datum_get(actor_data, actor_handle);
   tag = (char *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
@@ -1288,17 +1288,17 @@ void elite_decide_action(int actor_handle)
     if (((actor_t *)actor)->field_0a4 != '\0' &&
         ((actor_t *)actor)->field_0a5 == '\0' &&
         ((actor_t *)actor)->field_0a6 == '\0') {
-      if (((actor_t *)actor)->field_06e < 4) {
-        tmp_f = *(float *)(tag + 0x2e4);
+      if (((actor_t *)actor)->field_06e >= 4) {
+        shield_fraction = *(float *)(tag + 0x2e0);
       } else {
-        tmp_f = *(float *)(tag + 0x2e0);
+        shield_fraction = *(float *)(tag + 0x2e4);
       }
-      if (tmp_f <= *(float *)(actor + 0x1bc)) {
-        ((actor_t *)actor)->field_0a4 = 0;
-        ((actor_t *)actor)->field_0a8 = 0;
-      } else {
+      if (*(float *)(actor + 0x1bc) < shield_fraction) {
         ((actor_t *)actor)->field_0a4 = 1;
         ((actor_t *)actor)->field_0a8 = 0x1e;
+      } else {
+        ((actor_t *)actor)->field_0a4 = 0;
+        ((actor_t *)actor)->field_0a8 = 0;
       }
     }
     actor_action_handle_combat_status(
@@ -1879,7 +1879,7 @@ void grunt_decide_action(int actor_handle)
   char bVar_247;
   unsigned char flag1;
   unsigned char flag2;
-
+  short panic_type; /* name: PAL 2342 actor_type_grunt.c */
   actor = (char *)datum_get(actor_data, actor_handle);
   cVar_203 = (signed char)actor[0x203] > 0 ? 1 : 0;
   bVar_247 = (signed char)actor[0x247] > 0 ? 1 : 0;
@@ -1919,9 +1919,9 @@ void grunt_decide_action(int actor_handle)
     return;
   case 4:
     if (bVar_247 != '\0') {
-      tmp = (int)(short)((actor_t *)actor)->field_0a8;
-      if (tmp > 0) {
-        cVar1 = action_flee_blind_panic(tmp);
+      panic_type = ((actor_t *)actor)->field_0a8;
+      if (panic_type > 0) {
+        cVar1 = action_flee_blind_panic(panic_type);
         if (cVar1 == '\0') {
           actor[0xab] = 1;
         }
