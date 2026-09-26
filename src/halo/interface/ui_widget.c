@@ -3942,12 +3942,13 @@ bool multiplayer_level_list_initialize(void *widget, void *event_data,
 {
   short *list_tag;
   char saved_map_name[256];
-  int16_t index;
+  short level_count;
 
   (void)event_data;
   (void)widget_deleted;
 
   list_tag = (short *)tag_get(0x44654c61 /* 'DeLa' */, *(int *)widget);
+  level_count = 13;
   if (*list_tag != 2) {
     display_assert(
       "expected a spinner list widget for 'multiplayer level list' widget",
@@ -3966,19 +3967,18 @@ bool multiplayer_level_list_initialize(void *widget, void *event_data,
 
   *(int *)((char *)widget + 0x40) =
     0x31e4c8; /* level_name_table (DAT_0031e4c8), 13 entries */
-  *(int16_t *)((char *)widget + 0x44) = 13;
+  *(int16_t *)((char *)widget + 0x44) = level_count;
 
   if (saved_game_file_retrieve_last_used_multiplayer_map(saved_map_name)) {
     *(int16_t *)((char *)widget + 0x3c) = 0;
-    do {
-      index = *(int16_t *)((char *)widget + 0x3c);
-      if (crt_stricmp(saved_map_name, ((char **)0x31e4c8)[index]) == 0) {
-        break;
-      }
-      *(int16_t *)((char *)widget + 0x3c) = (int16_t)(index + 1);
-    } while (*(int16_t *)((char *)widget + 0x3c) < 13);
+    while (*(int16_t *)((char *)widget + 0x3c) < level_count &&
+           crt_stricmp(saved_map_name,
+                       ((char **)0x31e4c8)[*(int16_t *)((char *)widget +
+                                                        0x3c)]) != 0) {
+      (*(int16_t *)((char *)widget + 0x3c))++;
+    }
 
-    if (*(int16_t *)((char *)widget + 0x3c) == 13) {
+    if (*(int16_t *)((char *)widget + 0x3c) == level_count) {
       *(int16_t *)((char *)widget + 0x3c) = 0;
     }
   }
@@ -4308,40 +4308,40 @@ bool multiplayer_profile_set_for_game(void *widget, void *event_data,
     ui_play_audio_feedback_sound(4);
     return false;
   }
-  if (profile >= 0) {
+  if (!(profile & 0x80000000)) {
     display_error_deferred(0x1f, -1, true, false);
     ui_play_audio_feedback_sound(4);
     return false;
   }
 
-  if (!playlist_profile_delete(profile, &variant)) {
-    error(2, "failed to retrieve user selected game variant");
-    return false;
-  }
-
-  server = global_network_game_server_get();
-  if (saved_game_file_get_path_to_enclosing_directory(profile, directory)) {
-    saved_game_file_remember_last_used_multiplayer_variant_directory(directory);
-  }
-
-  file = crt_fopen("d:\\variant_automation.txt", "r");
-  if (file != NULL) {
-    crt_fgets(line, 0x80, file);
-    line[0x7f] = 0;
-    csstrtok(line, "\n\r \t");
-    csmemset(&zero, 0, 0x68);
-    found = *game_engine_get_variant_by_name(&named, line);
-    if (csmemcmp(&found, &zero, 0x68) != 0) {
-      variant = found;
+  if (playlist_profile_delete(profile, &variant)) {
+    server = global_network_game_server_get();
+    if (saved_game_file_get_path_to_enclosing_directory(profile, directory)) {
+      saved_game_file_remember_last_used_multiplayer_variant_directory(
+        directory);
     }
-    crt_fclose(file);
-  }
 
-  player_ui_set_game_variant(&variant);
-  if (server != NULL) {
-    network_game_server_change_game_variant(server, &variant);
+    file = crt_fopen("d:\\variant_automation.txt", "r");
+    if (file != NULL) {
+      crt_fgets(line, 0x80, file);
+      line[0x7f] = 0;
+      csstrtok(line, "\n\r \t");
+      csmemset(&zero, 0, 0x68);
+      found = *game_engine_get_variant_by_name(&named, line);
+      if (csmemcmp(&found, &zero, 0x68) != 0) {
+        variant = found;
+      }
+      crt_fclose(file);
+    }
+
+    player_ui_set_game_variant(&variant);
+    if (server != NULL) {
+      network_game_server_change_game_variant(server, &variant);
+    }
+    return true;
   }
-  return true;
+  error(2, "failed to retrieve user selected game variant");
+  return false;
 }
 
 /* swap teams (event handler, 0x0ea810) — asserts event_data is non-NULL,
@@ -4745,8 +4745,8 @@ bool playlist_profile_begin_editing(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  list_widget = *(int **)((char *)widget + 0x34);
-  list_tag = (short *)tag_get(0x44654c61 /* 'DeLa' */, *(int *)list_widget);
+  list_tag = (short *)tag_get(0x44654c61 /* 'DeLa' */,
+                              **(int **)((char *)widget + 0x34));
   if (*list_tag != 2) {
     display_assert(
       "expected a spinner list widget for 'multiplayer profile list' widget",
@@ -4763,7 +4763,8 @@ bool playlist_profile_begin_editing(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  list_widget = *(int **)((char *)widget + 0x34);
+  widget = *(void **)((char *)widget + 0x34);
+  list_widget = (int *)widget;
   list_index = *(short *)((char *)list_widget + 0x3c);
   if (list_index < 0 ||
       (int)list_index >= (int)*(unsigned short *)((char *)list_widget + 0x44)) {
@@ -4778,21 +4779,17 @@ bool playlist_profile_begin_editing(void *widget, void *event_data,
   profile_handle = (*(int **)((char *)list_widget +
                               0x40))[*(short *)((char *)list_widget + 0x3c)];
 
-  if (profile_handle == -1) {
+  if (profile_handle != -1) {
+    if (profile_handle & 0x80000000) {
+      player_ui_begin_editing_profile(profile_handle);
+      result = true;
+    } else {
+      display_error_deferred(0x1f, -1, true, false);
+      ui_play_audio_feedback_sound(4);
+    }
+  } else {
     ui_play_audio_feedback_sound(4);
-    goto exit;
   }
-
-  if (profile_handle < 0) {
-    player_ui_begin_editing_profile(profile_handle);
-    result = true;
-    goto exit;
-  }
-
-  display_error_deferred(0x1f, -1, true, false);
-  ui_play_audio_feedback_sound(4);
-
-exit:
   return result;
 }
 
@@ -4831,7 +4828,7 @@ bool playlist_profile_set_game_engine(void *widget, void *event_data,
 {
   void *profile;
   void *parent;
-  int16_t selected;
+  bool result;
   int new_value;
 
   (void)event_data;
@@ -4839,6 +4836,7 @@ bool playlist_profile_set_game_engine(void *widget, void *event_data,
 
   profile = player_ui_get_edit_playlist_profile();
   parent = *(void **)((char *)widget + 0x30);
+  result = true;
 
   if (parent == NULL || *(int16_t *)((char *)parent + 0xe) != 3) {
     display_assert(
@@ -4849,8 +4847,7 @@ bool playlist_profile_set_game_engine(void *widget, void *event_data,
   }
 
   if (profile != NULL) {
-    selected = *(int16_t *)((char *)parent + 0x3c);
-    switch (selected) {
+    switch (*(int16_t *)((char *)parent + 0x3c)) {
     case 0:
       new_value = 1;
       break;
@@ -4876,12 +4873,11 @@ bool playlist_profile_set_game_engine(void *widget, void *event_data,
       csmemset((char *)profile + 0x4c, 0, 0x18);
     }
     *(int *)((char *)profile + 0x18) = new_value;
-
-    return true;
+  } else {
+    error(2, "failed to retrieve editable game variant");
+    result = false;
   }
-
-  error(2, "failed to retrieve editable game variant");
-  return false;
+  return result;
 }
 
 /* apply capture-the-flag rules (event handler) — 0xeb150. Fetches the
@@ -5923,7 +5919,9 @@ bool playlist_profile_change_player_options(void *widget)
   void *profile;
   void *item;
   void *spinner;
+  bool result;
 
+  result = true;
   profile = player_ui_get_edit_playlist_profile();
 
   if (profile != NULL) {
@@ -6244,12 +6242,11 @@ bool playlist_profile_change_player_options(void *widget)
         break;
       }
     }
-
-    return true;
+  } else {
+    error(2, "failed to retrieve editable game variant");
+    result = false;
   }
-
-  error(2, "failed to retrieve editable game variant");
-  return false;
+  return result;
 }
 
 /* apply item options (event handler) — 0xec840. Same shape as
