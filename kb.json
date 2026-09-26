@@ -31469,7 +31469,8 @@
     },
     {
      "addr": "0x1b5890",
-     "decl": "void vehicle_preprocess_node_orientations(void);"
+     "decl": "void vehicle_preprocess_node_orientations(int vehicle_handle, void *node_data);",
+     "ported": true
     },
     {
      "addr": "0x1b5c90",

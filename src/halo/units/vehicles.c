@@ -319,6 +319,147 @@ bool vehicle_new(int vehicle_handle)
 }
 
 /*
+ * vehicle_preprocess_node_orientations (0x1b5890)
+ *
+ * Binary reads two stack params ([EBP+8] handle, [EBP+0xc] node data); the
+ * kb decl was (void). Object resolved with type mask 2, then tag_get('vehi')
+ * and, when vehi+0x44 != -1, tag_get('antr'). Element 0 of the antr block at
+ * +0x24 (size 0x74) holds an int count at +0x5c and a short index array at
+ * +0x60; each index selects an antr+0x74 animation (size 0xb4, int16 frame
+ * count at +0x22). Index [4] is fetched and discarded. The trailing loop
+ * walks the block at elem+0x68 (size 0x14, short at +2) with a signed short
+ * counter and scales by the object byte array at +0x44c (0xff -> 1.0f).
+ * Constants: 0x2533c0 = 0.0f, 0x2533c8 = 1.0f, 0x253398 = 0.5f; 0x261518 is
+ * read from its address. Object/tag fields are unnamed (unproven meaning).
+ */
+void vehicle_preprocess_node_orientations(int vehicle_handle, void *node_data)
+{
+  char *object;
+  char *vehi;
+  char *antr;
+  char *elem;
+  char *anim;
+  char *entry;
+  short *indices;
+  short i;
+  unsigned char scale_byte;
+  float t;
+  float v;
+
+  object = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehi = (char *)tag_get(0x76656869 /* 'vehi' */, *(int *)object);
+  if (*(int *)(vehi + 0x44) == -1) {
+    return;
+  }
+  antr = (char *)tag_get(0x616e7472 /* 'antr' */, *(int *)(vehi + 0x44));
+  if (*(int *)(antr + 0x24) == 0) {
+    return;
+  }
+  elem = (char *)tag_block_get_element(antr + 0x24, 0, 0x74);
+  if (elem == (char *)0) {
+    return;
+  }
+
+  if (*(int *)(elem + 0x5c) > 0) {
+    indices = *(short **)(elem + 0x60);
+    if (indices[0] != -1) {
+      aiming_screen_apply(
+        (int)tag_block_get_element(antr + 0x74, indices[0], 0xb4),
+        (float *)elem, *(float *)(object + 0x434), 0.0f, (int)node_data);
+    }
+  }
+
+  if (*(int *)(elem + 0x5c) > 1) {
+    indices = *(short **)(elem + 0x60);
+    if (indices[1] != -1) {
+      anim = (char *)tag_block_get_element(antr + 0x74, indices[1], 0xb4);
+      t = (triple_product3d((float *)(object + 0x30), (float *)(object + 0x24),
+                            (float *)(object + 0x18)) /
+             *(float *)(vehi + 0x2f8) +
+           1.0f) *
+          0.5f;
+      if (t < 0.0f) {
+        t = 0.0f;
+      } else if (t > 1.0f) {
+        t = 1.0f;
+      }
+      FUN_00122690(anim, (float)(*(short *)(anim + 0x22) - 1) * t, node_data);
+    }
+  }
+
+  if (*(int *)(elem + 0x5c) > 2) {
+    indices = *(short **)(elem + 0x60);
+    if (indices[2] != -1) {
+      anim = (char *)tag_block_get_element(antr + 0x74, indices[2], 0xb4);
+      v = *(float *)(object + 0x42c);
+      if (v < 0.0f) {
+        t = 0.5f - v / *(float *)(vehi + 0x2fc) * 0.5f;
+      } else {
+        t = (v / *(float *)(vehi + 0x2f8) + 1.0f) * 0.5f;
+      }
+      FUN_00122690(anim, (float)(*(short *)(anim + 0x22) - 1) * t, node_data);
+    }
+  }
+
+  if (*(int *)(elem + 0x5c) > 3) {
+    indices = *(short **)(elem + 0x60);
+    if (indices[3] != -1) {
+      anim = (char *)tag_block_get_element(antr + 0x74, indices[3], 0xb4);
+      t = *(float *)(object + 0x20) * *(float *)(object + 0x2c) +
+          *(float *)(object + 0x1c) * *(float *)(object + 0x28) +
+          *(float *)(object + 0x18) * *(float *)(object + 0x24);
+      if (t < 0.0f) {
+        t = 0.0f;
+      } else if (t > 1.0f) {
+        t = 1.0f;
+      }
+      t = t / (float)fabs(*(float *)(vehi + 0x2f8));
+      if (t < 0.0f) {
+        t = 0.0f;
+      } else if (t > 1.0f) {
+        t = 1.0f;
+      }
+      FUN_00122690(anim, (float)(*(short *)(anim + 0x22) - 1) * t, node_data);
+    }
+  }
+
+  if (*(int *)(elem + 0x5c) > 4) {
+    indices = *(short **)(elem + 0x60);
+    if (indices[4] != -1) {
+      tag_block_get_element(antr + 0x74, indices[4], 0xb4);
+    }
+  }
+
+  if (*(int *)(elem + 0x5c) > 5) {
+    indices = *(short **)(elem + 0x60);
+    if (indices[5] != -1) {
+      anim = (char *)tag_block_get_element(antr + 0x74, indices[5], 0xb4);
+      if (*(float *)(vehi + 0x310) > 0.0f) {
+        t = *(float *)(object + 0x438) / *(float *)(vehi + 0x310);
+      } else {
+        t = 0.0f;
+      }
+      FUN_00122690(anim, (float)(int)*(short *)(anim + 0x22) * t, node_data);
+    }
+  }
+
+  for (i = 0; i < *(int *)(elem + 0x68); i++) {
+    entry = (char *)tag_block_get_element(elem + 0x68, i, 0x14);
+    if (*(short *)(entry + 2) != -1) {
+      anim =
+        (char *)tag_block_get_element(antr + 0x74, *(short *)(entry + 2), 0xb4);
+      scale_byte = *(unsigned char *)(object + 0x44c + i);
+      if (scale_byte != 0xff) {
+        t = (float)scale_byte * *(float *)0x261518;
+      } else {
+        t = 1.0f;
+      }
+      FUN_00122690(anim, (float)(*(short *)(anim + 0x22) - 1) * t, node_data);
+    }
+  }
+}
+
+/*
  * vehicle_render_debug (0x1b5d90) — debug walk over a vehicle's physics
  * powered-mass-point block.
  *
@@ -543,7 +684,8 @@ void create_pelican_effect(int vehicle_handle)
   do {
     marker = markers + (int)i * 0x6c;
     seed_random_vector_in_cone3d((int *)random_math_get_local_seed_address(),
-                       (float *)(marker + 0x3c), 0.0f, 0.2617994f, direction);
+                                 (float *)(marker + 0x3c), 0.0f, 0.2617994f,
+                                 direction);
 
     if (i < hover_count) {
       speed = *(float *)(vehicle + 0x444);
