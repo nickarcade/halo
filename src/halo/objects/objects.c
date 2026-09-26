@@ -6049,51 +6049,51 @@ void *object_type_get_name(int16_t param_1)
  * (object_types.c:0x2ea) when def+0x9c != 0; inner child scan def+0x5c+i*4 for
  * i in [0,0x10); outer type loop AX<0xc; tail walk via def+0x9c calling
  * (*def+0x10)() when non-zero.
+ *
+ * Shape: PAL 2342 source/objects/object_types.c:630-678 -- the list tail
+ * pointer is advanced to &definition->next immediately after each append
+ * (outer and child loops share one cursor), and the type index is a short
+ * loop counter, matching the reference register/stack assignment
+ * (type in [ebp-4], cursor in EBX).
+ *
  */
 void object_types_initialize(void)
 {
-  int type;
+  int16_t type; /* name: PAL 2342 source/objects/object_types.c:630 */
   int *next_slot; /* where the next definition pointer is written */
-  int *child_slot; /* inner cursor for appending children */
   int16_t i;
   int def;
   int child;
 
-  type = 0;
   next_slot = (int *)0x5a8d54;
-  do {
-    def = (int)object_type_definition_get((int16_t)type);
-    child_slot = (int *)(def + 0x9c);
+  for (type = 0; type < 0xc; type++) {
+    def = (int)object_type_definition_get(type);
     if (*(int *)(def + 0x9c) != 0) {
       display_assert("!definition->next",
                      "c:\\halo\\SOURCE\\objects\\object_types.c", 0x2ea, 1);
       system_exit(-1);
     }
     *next_slot = def;
+    next_slot = (int *)(def + 0x9c);
 
-    i = 0;
-    do {
+    for (i = 0; i < 0x10; i++) {
       child = *(int *)(def + 0x5c + i * 4);
-      if (child == 0)
+      if (child == 0) {
         break;
+      }
       if (*(int *)(child + 0x9c) == 0) {
-        *child_slot = child;
-        child_slot = (int *)(child + 0x9c);
+        *next_slot = child;
+        next_slot = (int *)(child + 0x9c);
       }
-      i++;
-    } while (i < 0x10);
-
-    type++;
-    next_slot = child_slot;
-    if ((int16_t)type >= 0xc) {
-      *child_slot = 0;
-      for (def = *(int *)0x5a8d54; def != 0; def = *(int *)(def + 0x9c)) {
-        if (*(void (**)(void))(def + 0x10) != (void (*)(void))0)
-          (**(void (**)(void))(def + 0x10))();
-      }
-      return;
     }
-  } while (1);
+  }
+
+  *next_slot = 0;
+  for (def = *(int *)0x5a8d54; def != 0; def = *(int *)(def + 0x9c)) {
+    if (*(void (**)(void))(def + 0x10) != (void (*)(void))0) {
+      (**(void (**)(void))(def + 0x10))();
+    }
+  }
 }
 
 /* Walk the object type definition list and call dispose at +0x14 on each.
@@ -7810,7 +7810,7 @@ void object_pvs_set_object(int param_1)
  */
 void object_pvs_set_camera_point(short camera_point_index)
 {
-  int iVar1;
+  char *globals; /* object_globals (*0x46f084) */
   int cam;
   char location[8]; /* scenario_location_from_point output; +4 = leaf index
                        (short) */
@@ -7822,15 +7822,15 @@ void object_pvs_set_camera_point(short camera_point_index)
   cam = (int)tag_block_get_element((char *)global_scenario_get() + 0x4f0,
                                    (int)camera_point_index, 0x68);
   scenario_location_from_point(location, (void *)(cam + 0x28));
-  iVar1 = *(int *)0x46f084;
   if (*(short *)(location + 4) == -1) {
     error(2, "object_pvs_set_camera_point: camera point %s is outside the map",
           (char *)(cam + 4));
-    *(short *)(iVar1 + 0x90) = 0;
+    *(short *)(*(int *)0x46f084 + 0x90) = 0;
     return;
   }
-  *(short *)(iVar1 + 0x90) = 2;
-  *(short *)(iVar1 + 0x94) = *(short *)(location + 4);
+  globals = *(char **)0x46f084;
+  *(short *)(globals + 0x90) = 2;
+  *(short *)(globals + 0x94) = *(short *)(location + 4);
 }
 
 void object_pvs_clear(void)
@@ -9167,8 +9167,8 @@ int find_objects_from_point_vector(int param_1, int param_2, int param_3,
   int obj_datum;
   int *obj_body;
   int type_val;
-  int type_mask;
-  int iter_state[2];
+  int type_mask, marker;
+  int iter_state;
 
   result = 0;
   bsp_check = FUN_0018e720(param_1);
@@ -9213,7 +9213,7 @@ int find_objects_from_point_vector(int param_1, int param_2, int param_3,
         if ((cluster_data[abs_cluster >> 5] & (1 << (abs_cluster & 0x1f))) !=
             0) {
           obj_handle = cluster_partition_iter_first((void *)0x5a8d40,
-                                                    (int *)iter_state, j);
+                                                    &iter_state, j);
           while (obj_handle != -1) {
             obj_datum = (int)datum_get(*(data_t **)0x5a8d50, obj_handle);
             obj_body = *(int **)(obj_datum + 8);
@@ -9234,16 +9234,16 @@ int find_objects_from_point_vector(int param_1, int param_2, int param_3,
                              "c:\\halo\\SOURCE\\objects\\objects.c", 0xdd7, 1);
               system_exit(-1);
             }
-
-            if (*(int *)((char *)obj_body + 8) != *(int *)0x5a8d28) {
-              *(int *)((char *)obj_body + 8) = *(int *)0x5a8d28;
+            marker = *(int *)0x5a8d28;
+            if (*(int *)((char *)obj_body + 8) != marker) {
+              *(int *)((char *)obj_body + 8) = marker;
               result = recursive_object_adder(
                 obj_handle, (char (*)(int, int))param_3, param_4, result,
                 param_5, (int *)param_6);
             }
 
             obj_handle = cluster_partition_iter_next((void *)0x5a8d40,
-                                                     (int *)iter_state);
+                                                     &iter_state);
           }
         }
       }
@@ -10502,26 +10502,26 @@ bool object_get_function_value(int object_handle, short function_index,
                                void *out_value)
 {
   char *obj;
-  char *obj_alias;
-  unsigned int result;
+  bool result; /* name: PAL 2342 source/objects/objects.c:1474 */
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
   if (function_index == -1) {
     *(int *)out_value = 0x3f800000;
-    return true;
+    result = true;
+  } else {
+    if (function_index < 0 || function_index >= 4) {
+      display_assert(
+        "function_index>=0 && function_index<NUMBER_OF_OUTGOING_OBJECT_FUNCTIONS",
+        "c:\\halo\\SOURCE\\objects\\objects.c", 0x676, 1);
+      system_exit(-1);
+    }
+    *(int *)out_value = *(int *)(obj + 0xe4 + function_index * 4);
+    result = (*(unsigned char *)(obj + 0xd3) & (1 << function_index)) != 0;
   }
-  if (function_index < 0 || function_index >= 4) {
-    display_assert(
-      "function_index>=0 && function_index<NUMBER_OF_OUTGOING_OBJECT_FUNCTIONS",
-      "c:\\halo\\SOURCE\\objects\\objects.c", 0x676, 1);
-    system_exit(-1);
-  }
-  *(int *)out_value =
-    *(int *)(((obj_alias = obj) + 0xe4) + (int)function_index * 4);
-  result = (*(unsigned char *)(obj_alias + 0xd3) &
-            (1 << ((unsigned char)function_index & 0x1f))) != 0;
+
   return result;
 }
+
 
 /*
  * object_find_in_cluster — find objects in clusters matching type criteria.
@@ -14418,8 +14418,9 @@ void object_delete_recursive(int object_handle, int delete_sibling)
 {
   object_data_t *obj;
   object_header_data_t *hdr;
+  object_data_t *obj_again;
   int16_t obj_type;
-  void *field_8_ptr;
+  object_header_data_t *header;
 
   obj = (object_data_t *)object_get_and_verify_type(object_handle, -1);
   tag_get(0x6f626a65, (int)obj->tag_index);
@@ -14450,11 +14451,11 @@ void object_delete_recursive(int object_handle, int delete_sibling)
   }
 
   /* Re-fetch object pointer after recursive calls. */
-  obj = (object_data_t *)object_get_and_verify_type(object_handle, -1);
-  tag_get(0x6f626a65, (int)obj->tag_index);
+  obj_again = (object_data_t *)object_get_and_verify_type(object_handle, -1);
+  tag_get(0x6f626a65, (int)obj_again->tag_index);
 
   /* Call type table cleanup. */
-  obj_type = obj->type;
+  obj_type = obj_again->type;
   object_type_definition_get(obj_type);
 
   /* Object cleanup and widget detach. */
@@ -14466,22 +14467,21 @@ void object_delete_recursive(int object_handle, int delete_sibling)
     object_disconnect_from_map(object_handle);
   }
 
-  /* Final cleanup. */
   object_type_delete(object_handle);
 
   /* Free memory pool block if allocated. */
-  hdr = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
-  field_8_ptr = (void *)&hdr->object;
-  if (hdr->object != 0) {
-    memory_pool_block_free(*(void **)0x46f080, (void **)field_8_ptr);
+  header = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+
+  if (header->object != 0) {
+    memory_pool_block_free(*(void **)0x46f080, (void **)&header->object);
   }
 
   /* Delete datum from pool. */
   datum_delete(*(data_t **)0x5a8d50, object_handle);
 
   /* Clear remaining fields. */
-  *(object_data_t **)field_8_ptr = 0;
-  hdr->unk_2 = 0;
+  header->object = 0;
+  header->unk_2 = 0;
 }
 
 /* Scripting hook: attaches child object param_3 to parent param_1 at a marker,

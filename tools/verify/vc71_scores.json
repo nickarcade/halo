@@ -61516,16 +61516,16 @@
     "find_objects_from_point_vector": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 99.5,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x13f120",
       "end": "0x13f378",
       "kind": "auto",
       "n_r": 185,
-      "opnd_percent": 92.5,
-      "raw_mnemonic_pct": 99.5,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "12d6d3b6346cf731",
-      "score": 99.5,
+      "score": 100.0,
       "source": "src/halo/objects/objects.c"
     },
     "find_point_lights_for_object_in_cluster": {
@@ -83521,16 +83521,16 @@
     "object_get_function_value": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 94.6,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x1403a0",
       "end": "0x14041e",
       "kind": "auto",
       "n_r": 45,
-      "opnd_percent": 71.0,
-      "raw_mnemonic_pct": 94.6,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "bf7d04ae5f3bd038",
-      "score": 94.6,
+      "score": 100.0,
       "source": "src/halo/objects/objects.c"
     },
     "object_get_location": {
@@ -84271,16 +84271,16 @@
     "object_pvs_set_camera_point": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 93.9,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x13dc10",
       "end": "0x13dca7",
       "kind": "auto",
       "n_r": 48,
-      "opnd_percent": 85.7,
-      "raw_mnemonic_pct": 93.9,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "6512119b62f869b2",
-      "score": 93.9,
+      "score": 100.0,
       "source": "src/halo/objects/objects.c"
     },
     "object_pvs_set_camera_point_evaluate": {
@@ -84961,16 +84961,16 @@
     "object_types_initialize": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 98.4,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x13c2e0",
       "end": "0x13c39a",
       "kind": "auto",
       "n_r": 64,
-      "opnd_percent": 81.2,
-      "raw_mnemonic_pct": 98.4,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "e72370192e9bc6cc",
-      "score": 98.4,
+      "score": 100.0,
       "source": "src/halo/objects/objects.c"
     },
     "object_types_initialize_for_new_map": {
