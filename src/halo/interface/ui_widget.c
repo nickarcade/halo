@@ -4520,7 +4520,7 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
   int profile_index;
   int local_player_index;
   short *widget_definition;
-  void *list_widget;
+  void *spinner; /* name: PAL 2342 ui_widget_event_handler_functions.c:4447 */
   short selected_index;
   int *profile_indices;
 
@@ -4562,10 +4562,10 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  list_widget = *(void **)((char *)widget + 0x34);
-  selected_index = *(int16_t *)((char *)list_widget + 0x3c);
+  spinner = *(void **)((char *)widget + 0x34);
+  selected_index = *(int16_t *)((char *)spinner + 0x3c);
   if (selected_index < 0 ||
-      (int)selected_index >= (int)*(uint16_t *)((char *)list_widget + 0x44)) {
+      (int)selected_index >= (int)*(uint16_t *)((char *)spinner + 0x44)) {
     display_assert(
       "invalid multiplayer profile specified from 'player profile list' list "
       "widget",
@@ -4574,8 +4574,8 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  profile_indices = *(int **)((char *)list_widget + 0x40);
-  profile_index = profile_indices[*(int16_t *)((char *)list_widget + 0x3c)];
+  profile_indices = *(int **)((char *)spinner + 0x40);
+  profile_index = profile_indices[*(int16_t *)((char *)spinner + 0x3c)];
   if (profile_index != -1) {
     if (!(profile_index & 0x80000000)) {
       display_error_deferred(0x1f, -1, true, false);
@@ -4590,7 +4590,7 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
           *(int16_t *)((char *)event_data + 2));
       player_ui_set_active_player_profile(
         (short)local_player_index,
-        profile_indices[*(int16_t *)((char *)list_widget + 0x3c)],
+        profile_indices[*(int16_t *)((char *)spinner + 0x3c)],
         profile);
       return true;
     }
@@ -4631,11 +4631,11 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
                                        bool *widget_deleted)
 {
   wchar_t profile[24];
-  int *profile_indices;
+  int *available_profiles; /* name: PAL 2342 ui_widget_event_handler_functions.c:4044 */
   int16_t controller_index;
   short selected_index;
   short *widget_definition;
-  void *list_widget;
+  void *spinner_list; /* name: PAL 2342 ui_widget_event_handler_functions.c:4041 */
 
   (void)widget_deleted;
 
@@ -4649,11 +4649,11 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
 
   controller_index = *(int16_t *)((char *)event_data + 2);
 
-  list_widget = *(void **)((char *)widget + 0x34);
-  while (list_widget != NULL && *(int16_t *)((char *)list_widget + 0xe) != 2) {
-    list_widget = *(void **)((char *)list_widget + 0x2c);
+  spinner_list = *(void **)((char *)widget + 0x34);
+  while (spinner_list != NULL && *(int16_t *)((char *)spinner_list + 0xe) != 2) {
+    spinner_list = *(void **)((char *)spinner_list + 0x2c);
   }
-  if (list_widget == NULL) {
+  if (spinner_list == NULL) {
     display_assert(
       "failed to find the 1-wide spinner list for player profiles (expected "
       "it to be a child of this widget)",
@@ -4662,7 +4662,7 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  widget_definition = (short *)tag_get(0x44654c61, *(int *)list_widget);
+  widget_definition = (short *)tag_get(0x44654c61, *(int *)spinner_list);
   if (*(int *)((char *)widget_definition + 0x3e0) != 0) {
     display_assert(
       "expected a code-generated 1-wide spinner list for 'mp player profile "
@@ -4672,9 +4672,9 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  selected_index = *(int16_t *)((char *)list_widget + 0x3c);
+  selected_index = *(int16_t *)((char *)spinner_list + 0x3c);
   if (selected_index < 0 ||
-      (int)selected_index >= (int)*(uint16_t *)((char *)list_widget + 0x44)) {
+      (int)selected_index >= (int)*(uint16_t *)((char *)spinner_list + 0x44)) {
     display_assert(
       "invalid multiplayer profile specified from 'mp player profile list' "
       "list widget",
@@ -4683,8 +4683,8 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  profile_indices = *(int **)((char *)list_widget + 0x40);
-  if (!(profile_indices[*(int16_t *)((char *)list_widget + 0x3c)] &
+  available_profiles = *(int **)((char *)spinner_list + 0x40);
+  if (!(available_profiles[*(int16_t *)((char *)spinner_list + 0x3c)] &
         0x80000000)) {
     display_error_deferred(0x1f, controller_index, true, false);
     ui_play_audio_feedback_sound(4);
@@ -4692,10 +4692,10 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
   }
 
   if (player_profile_new(
-        profile_indices[*(int16_t *)((char *)list_widget + 0x3c)], profile)) {
+        available_profiles[*(int16_t *)((char *)spinner_list + 0x3c)], profile)) {
     player_ui_set_active_player_profile(
       (short)controller_index,
-      profile_indices[*(int16_t *)((char *)list_widget + 0x3c)],
+      available_profiles[*(int16_t *)((char *)spinner_list + 0x3c)],
       profile);
     return true;
   }
