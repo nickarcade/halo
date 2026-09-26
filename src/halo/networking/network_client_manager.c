@@ -209,21 +209,21 @@ void network_game_client_keep_alive(void *client)
  * at some call sites (confirmed at network_game_client_handle_message_server_game_advertise, 0x127260), producing an
  * inlined NULL-check + assert_halt in the caller where the reference makes
  * a real CALL. */
-__declspec(noinline) int16_t network_game_client_get_state(void *server,
+__declspec(noinline) int16_t network_game_client_get_state(void *client,
                                                            void *out_param)
 {
   unsigned int diff;
 
-  assert_halt(server);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0xf9, client);
   if (out_param != NULL) {
     *(short *)out_param = 0;
-    if (*(short *)((char *)server + 0xca6) == 1) {
+    if (*(short *)((char *)client + 0xca6) == 1) {
       diff = system_milliseconds() * 100 -
-             *(unsigned int *)((char *)server + 0x834) * 100;
+             *(unsigned int *)((char *)client + 0x834) * 100;
       *(short *)out_param = (short)(diff / 120000);
     }
   }
-  return *(int16_t *)((char *)server + 0xca6);
+  return *(int16_t *)((char *)client + 0xca6);
 }
 
 /* network_game_client_initiate_join_game (0x124aa0)
@@ -2149,6 +2149,13 @@ __declspec(noinline) void network_game_client_reset(void *client,
   *(int16_t *)((char *)client + 0xca4) = -1;
 }
 
+static bool check_networking_and_generate_error(void) /* name: PAL 2342 network_client_manager.c:819 */
+{ bool connected = true;
+  if (!(bool)network_game_is_splitscreen_local()) {
+    connected = transport_network_available();
+    if (!connected) { error(2, "network connection went down!"); display_error_when_main_menu_loaded(6); }
+  }
+  return connected; }
 /* network_game_client_idle_searching (0x1268a0)
  *
  * Called from the client idle dispatch (network_game_client_idle) when state == 0
@@ -2196,14 +2203,7 @@ bool network_game_client_idle_searching(void *server)
   now_time = system_milliseconds();
   network_connection_keep_alive(*(int *)(s + 0x82c));
 
-  ok = true;
-  if (!(bool)network_game_is_splitscreen_local()) {
-    ok = transport_network_available();
-    if (!ok) {
-      error(2, "network connection went down!");
-      display_error_when_main_menu_loaded(6);
-    }
-  }
+  ok = check_networking_and_generate_error();
 
   if (ok == true) {
     if (global_network_game_server_get() != NULL) {
