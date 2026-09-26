@@ -38641,7 +38641,7 @@
     },
     {
      "addr": "0x69200",
-     "decl": "void FUN_00069200(int value @<eax>, int param_2);"
+     "decl": "void FUN_00069200(int value @<eax>, int param_2, void *tif @<edi>);"
     },
     {
      "addr": "0x69310",
@@ -38694,17 +38694,20 @@
     },
     {
      "addr": "0x69b90",
-     "decl": "void Fax3Encode1DRow(void);",
+     "decl": "int Fax3Encode1DRow(void *tif, unsigned char *bp, int bits @<edi>);",
      "comment": "[NAME: Fax3Encode1DRow \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x69c40",
-     "decl": "void Fax3Encode2DRow(void);",
+     "decl": "int Fax3Encode2DRow(void *tif, unsigned char *bp, unsigned char *rp, int bits);",
      "comment": "[NAME: Fax3Encode2DRow \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
      "addr": "0x69f30",
-     "decl": "void FUN_00069f30(void);"
+     "decl": "int FUN_00069f30(void *tif, unsigned char *bp, int cc, int s);",
+     "ported": true,
+     "source_path": "src/halo/bitmaps/libtiff/tif_flush.c",
+     "object": "tif_flush.obj"
     },
     {
      "addr": "0x6a070",
