@@ -6997,7 +6997,7 @@ void object_names_postprocess(int scenario, char editor_flag)
   int element_size; /* out from scenario_get_object_type_scenario_datums */
   int16_t element_index;
   int e;
-  int ref;
+  int16_t name_index; /* name: PAL 2342 object_types.c:1272 */
   int target;
 
   if (editor_flag != 0)
@@ -7015,10 +7015,10 @@ void object_names_postprocess(int scenario, char editor_flag)
         e = 0;
         do {
           e = (int)tag_block_get_element(block, e, element_size);
-          ref = *(int16_t *)(e + 2);
-          if (ref != -1) {
+          name_index = *(int16_t *)(e + 2);
+          if (name_index != -1) {
             target =
-              (int)tag_block_get_element((void *)(scenario + 0x204), ref, 0x24);
+              (int)tag_block_get_element((void *)(scenario + 0x204), name_index, 0x24);
             *(int16_t *)(target + 0x20) = (int16_t)type;
             *(int16_t *)(target + 0x22) = element_index;
           }
@@ -7871,48 +7871,48 @@ short objects_get_activating_cluster_index(void)
   void *scenario;
   short result;
 
-  /* switch compiles to the original's DEC/DEC dispatch; result held in a
-   * register to the shared epilogue (ref: movw %di,%ax). */
+  /* Single-exit form: result lives in EDI to the shared epilogue
+   * (ref: or edi,-1 ... mov ax,di). */
   result = -1;
   globals = *(int *)0x46f084;
 
   switch (*(short *)(globals + 0x90)) {
-  default:
-    return result;
   case 2:
-    return *(short *)(globals + 0x94);
-  case 1:
+    result = *(short *)(globals + 0x94);
     break;
-  }
+  case 1:
+    entry = (int)datum_absolute_index_to_index(*(data_t **)0x5a8d50,
+                                               *(int *)(globals + 0x94));
+    if (entry != 0 && (1 << *(unsigned char *)(entry + 3)) != 0 &&
+        *(int *)(entry + 8) != 0) {
+      obj = (char *)object_get_and_verify_type(
+        object_get_root_parent(*(int *)(*(int *)0x46f084 + 0x94)), -1);
 
-  entry = (int)datum_absolute_index_to_index(*(data_t **)0x5a8d50,
-                                             *(int *)(globals + 0x94));
-  if (entry == 0 || (1 << *(unsigned char *)(entry + 3)) == 0 ||
-      *(int *)(entry + 8) == 0) {
-    *(short *)(*(int *)0x46f084 + 0x90) = 0;
-    return result;
-  }
-
-  obj = (char *)object_get_and_verify_type(
-    object_get_root_parent(*(int *)(*(int *)0x46f084 + 0x94)), -1);
-
-  if ((*(unsigned int *)(obj + 4) & 0x800) != 0 &&
-      *(short *)(obj + 0x4c) != -1) {
-    /* Bounds-check the cluster index: must be >= 0 and < clusters.count.
-     * The original branches to the assert directly when cluster_index < 0
-     * (scenario_get() is only evaluated for the upper-bound comparison). */
-    if (*(short *)(obj + 0x4c) < 0 ||
-        (scenario = scenario_get(),
-         (int)*(short *)(obj + 0x4c) >= *(int *)((char *)scenario + 0x134))) {
-      display_assert(
-        "parent_object->object.location.cluster_index>=0 && "
-        "parent_object->object.location.cluster_index<global_structure_bsp_get"
-        "()->clusters.count",
-        "c:\\halo\\SOURCE\\objects\\objects.c", 0x8e7, 1);
-      system_exit(-1);
+      if ((*(unsigned int *)(obj + 4) & 0x800) != 0) {
+        if (*(short *)(obj + 0x4c) != -1) {
+          /* Bounds-check the cluster index: must be >= 0 and <
+           * clusters.count; scenario_get() is only evaluated for the
+           * upper-bound comparison. */
+          if (*(short *)(obj + 0x4c) < 0 ||
+              (scenario = scenario_get(),
+               (int)*(short *)(obj + 0x4c) >=
+                 *(int *)((char *)scenario + 0x134))) {
+            display_assert(
+              "parent_object->object.location.cluster_index>=0 && "
+              "parent_object->object.location.cluster_index<global_"
+              "structure_bsp_get()->clusters.count",
+              "c:\\halo\\SOURCE\\objects\\objects.c", 0x8e7, 1);
+            system_exit(-1);
+          }
+          result = *(short *)(obj + 0x4c);
+        }
+      }
+    } else {
+      *(short *)(*(int *)0x46f084 + 0x90) = 0;
     }
-
-    return *(short *)(obj + 0x4c);
+    break;
+  default:
+    break;
   }
 
   return result;
@@ -8559,7 +8559,7 @@ void object_compute_function_values(int object_handle /* @<eax> */)
   int obj_tag;
   float time_base;
   int func_count;
-  int16_t i;
+  int i;
   int16_t counter;
 
   obj = (char *)object_get_and_verify_type(object_handle, -1);
@@ -8577,7 +8577,7 @@ void object_compute_function_values(int object_handle /* @<eax> */)
   }
   do {
     char *elem =
-      (char *)tag_block_get_element((void *)(obj_tag + 0x158), (int)i, 0x168);
+      (char *)tag_block_get_element((void *)(obj_tag + 0x158), i, 0x168);
     unsigned char active;
     float value; /* ref: [ebp-4], narrowed at every assignment */
     x87_wide_t value_wide;
@@ -8617,7 +8617,7 @@ void object_compute_function_values(int object_handle /* @<eax> */)
     }
 
     /* --- secondary sinusoidal offset term (when elem+0x14 != 0) --- */
-    if (*(float *)(elem + 0x14) != *(float *)0x2533c0) {
+    if (*(float *)(elem + 0x14) != 0.0f) {
       float w = FUN_0010a5e0(*(int16_t *)(elem + 0xe),
                              time_base * *(float *)(elem + 0x10));
       w = (w - *(float *)0x253398) * *(float *)(elem + 0x14);
@@ -8627,12 +8627,8 @@ void object_compute_function_values(int object_handle /* @<eax> */)
 
     /* --- step threshold (when elem+0x18 != 0): 1.0 if value>thr else 0.0 ---
      */
-    if (*(float *)(elem + 0x18) != *(float *)0x2533c0) {
-      float prev = value;
-      value = 1.0f;
-      if (prev <= *(float *)(elem + 0x18)) {
-        value = 0.0f;
-      }
+    if (*(float *)(elem + 0x18) != 0.0f) {
+      value = value > *(float *)(elem + 0x18) ? 1.0f : 0.0f;
     }
 
     /* --- exponent/floor stage (when elem+0x1c > 1) --- */
@@ -8665,8 +8661,8 @@ void object_compute_function_values(int object_handle /* @<eax> */)
         value;
       value = HALO_NARROW(value_wide);
       HALO_FLT_ROUNDTRIP(value);
-      if (value_wide > *(float *)0x2533c8) {
-        value = *(float *)0x2533c8;
+      if (value_wide > 1.0f) {
+        value = 1.0f;
       }
     }
 
@@ -8715,7 +8711,7 @@ void object_compute_function_values(int object_handle /* @<eax> */)
     /* --- dependency on another function's active bit --- */
     if (*(int16_t *)(elem + 0x36) != -1 &&
         (*(unsigned char *)(obj + 0xd3) &
-         (unsigned char)(1 << (int)*(int16_t *)(elem + 0x36))) == 0) {
+         (1 << (int)*(int16_t *)(elem + 0x36))) == 0) {
       active = 0;
     }
 
@@ -8743,7 +8739,7 @@ void object_compute_function_values(int object_handle /* @<eax> */)
 
     counter = counter + 1;
     i = counter;
-  } while ((int)i < *(int *)(obj_tag + 0x158));
+  } while (i < *(int *)(obj_tag + 0x158));
 }
 
 void object_scripting_set_collideable(int param_1, char param_2)
@@ -8915,15 +8911,15 @@ void attachments_new(int object_handle)
   unsigned int *element;
   unsigned int def;
   unsigned int group;
-  short type;
-  int handle;
+  short attachment_type;
+  int attachment_index;
   int count;
-  short i; /* attachment slot index (int16_t in original) */
+  short attachment_num; /* name: PAL 2342 objects.c:3088 */
   int idx;
 
   obj = (int *)object_get_and_verify_type(object_handle, -1);
   obj_tag = (int)tag_get(0x6f626a65, *(int *)obj);
-  i = 0;
+  attachment_num = 0;
   idx = 0;
   count = *(int *)(obj_tag + 0x140);
   if (0 < count) {
@@ -8931,62 +8927,66 @@ void attachments_new(int object_handle)
       element = (unsigned int *)tag_block_get_element((void *)(obj_tag + 0x140),
                                                       idx, 0x48);
       def = element[3];
-      type = -1;
-      handle = -1;
+      attachment_type = -1;
+      attachment_index = -1;
       if (def != 0xffffffff) {
         group = element[0];
-        if (group == 0x6c696768) { /* 'ligh' */
-          type = 0;
-        } else if (group < 0x6c696768) {
-          if (group == 0x636f6e74) { /* 'cont' */
-            type = 3;
-          } else if (group == 0x65666665) { /* 'effe' */
-            type = 2;
-          }
-        } else if (group == 0x6c736e64) { /* 'lsnd' */
-          type = 1;
-        } else if (group == 0x7063746c) { /* 'pctl' */
-          type = 4;
+        switch (group) {
+        case 0x6c696768: /* 'ligh' */
+          attachment_type = 0;
+          break;
+        case 0x6c736e64: /* 'lsnd' */
+          attachment_type = 1;
+          break;
+        case 0x65666665: /* 'effe' */
+          attachment_type = 2;
+          break;
+        case 0x636f6e74: /* 'cont' */
+          attachment_type = 3;
+          break;
+        case 0x7063746c: /* 'pctl' */
+          attachment_type = 4;
+          break;
         }
       }
-      switch (type) {
+      switch (attachment_type) {
       case 0:
-        handle = light_new((int)def, object_handle, i,
+        attachment_index = light_new((int)def, object_handle, attachment_num,
                            (short)(*(short *)((char *)element + 0x30) - 1),
                            (short)(*(short *)((char *)element + 0x34) - 1));
-        if (handle != -1) {
+        if (attachment_index != -1) {
           obj[1] = obj[1] | 0x100;
         }
         break;
       case 1:
-        handle = game_looping_sound_new(
+        attachment_index = game_looping_sound_new(
           object_handle, (int)def, element + 4,
           (short)(*(short *)((char *)element + 0x30) - 1));
-        if (handle != -1) {
+        if (attachment_index != -1) {
           obj[1] = obj[1] | 0x400;
         }
         break;
       case 2:
-        handle =
+        attachment_index =
           effect_new_looping((int)def, object_handle,
                              (short)(*(short *)((char *)element + 0x30) - 1),
                              (short)(*(short *)((char *)element + 0x32) - 1),
                              (short)(*(short *)((char *)element + 0x34) - 1));
         break;
       case 3:
-        handle = contrail_new((int)def, object_handle, i);
+        attachment_index = contrail_new((int)def, object_handle, attachment_num);
         break;
       case 4:
-        handle = particle_system_new_attached((int)def, object_handle, i);
+        attachment_index = particle_system_new_attached((int)def, object_handle, attachment_num);
         break;
       default:
         break;
       }
-      *((char *)obj + 0xf4 + idx) = (char)type;
-      obj[idx + 0x3f] = handle;
-      i++;
-      idx = (int)i;
-    } while (idx < count);
+      *((char *)obj + 0xf4 + idx) = (char)attachment_type;
+      obj[idx + 0x3f] = attachment_index;
+      attachment_num++;
+      idx = (int)attachment_num;
+    } while (idx < *(int *)(obj_tag + 0x140));
   }
 }
 
@@ -9153,23 +9153,19 @@ int recursive_object_adder(int param_1, char (*param_2)(int, int), int param_3,
 int find_objects_from_point_vector(int param_1, int param_2, int param_3,
                                    int param_4, int param_5, int param_6)
 {
-  int *marker_gen_ptr;
   int result;
   int bsp_check;
-  int bsp_ref_index;
   void *bsp_ref_element;
   short bsp_index;
   int *cluster_data;
   int *cluster_ptr;
-  int num_words;
-  int outer_idx;
-  int base_cluster;
   int abs_cluster;
   int cluster_end;
+  int num_words;
+  int outer_idx;
   int obj_handle;
   int obj_datum;
   int *obj_body;
-  int new_var;
   int type_val;
   int type_mask;
   int iter_state[2];
@@ -9179,9 +9175,9 @@ int find_objects_from_point_vector(int param_1, int param_2, int param_3,
   if (bsp_check == -1)
     goto done;
 
-  bsp_ref_index = FUN_0018e720(param_1) & 0x7fffffff;
   bsp_ref_element = tag_block_get_element(
-    (void *)((char *)scenario_get() + 0xe0), bsp_ref_index, 0x10);
+    (void *)((char *)scenario_get() + 0xe0),
+    FUN_0018e720(param_1) & 0x7fffffff, 0x10);
   bsp_index = *(short *)((char *)bsp_ref_element + 8);
   if (bsp_index == -1)
     goto done;
@@ -9201,63 +9197,55 @@ int find_objects_from_point_vector(int param_1, int param_2, int param_3,
   cluster_ptr = cluster_data;
   while (1) {
     if (*cluster_ptr != 0) {
-      base_cluster = outer_idx << 5;
-      abs_cluster = (short)base_cluster;
-      cluster_end = abs_cluster + 0x20;
+      short offset = (short)(outer_idx << 5);
+      short size;
+      short j;
 
-      {
-        void *sc = scenario_get();
-        if (cluster_end > *(int *)((char *)sc + 0x134)) {
-          void *sc2 = scenario_get();
-          cluster_end = (int)*(short *)((char *)sc2 + 0x134);
-        }
+      cluster_end = offset + 0x20;
+      if (cluster_end > *(int *)((char *)scenario_get() + 0x134)) {
+        size = *(short *)((char *)scenario_get() + 0x134);
+      } else {
+        size = (short)cluster_end;
       }
 
-      if ((short)base_cluster < (short)cluster_end) {
-        do {
-          if ((cluster_data[abs_cluster >> 5] & (1 << (abs_cluster & 0x1f))) !=
-              0) {
-            obj_handle = cluster_partition_iter_first(
-              (void *)0x5a8d40, (int *)iter_state, (short)abs_cluster);
-            marker_gen_ptr = (int *)0x5a8d28;
-            while (obj_handle != -1) {
-              obj_datum = (int)datum_get(*(data_t **)0x5a8d50, obj_handle);
-              obj_body = *(int **)(obj_datum + 8);
+      for (j = offset; j < size; j++) {
+        abs_cluster = j;
+        if ((cluster_data[abs_cluster >> 5] & (1 << (abs_cluster & 0x1f))) !=
+            0) {
+          obj_handle = cluster_partition_iter_first((void *)0x5a8d40,
+                                                    (int *)iter_state, j);
+          while (obj_handle != -1) {
+            obj_datum = (int)datum_get(*(data_t **)0x5a8d50, obj_handle);
+            obj_body = *(int **)(obj_datum + 8);
 
-              type_val = (int)*(short *)((char *)obj_body + 0x64);
-              new_var = 1 << (type_val & 0x1f);
-              type_mask = new_var;
-              if (type_mask == 0) {
-                display_assert(csprintf((char *)0x5ab100,
-                                        "got an object type we didn't expect "
-                                        "(expected one of 0x%08x but got #%d).",
-                                        -1, type_val),
-                               "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a,
-                               1);
-                system_exit(-1);
-              }
-
-              if (*(char *)(*(int *)0x46f084 + 1) == '\0') {
-                display_assert("object_globals->object_marker_initialized",
-                               "c:\\halo\\SOURCE\\objects\\objects.c", 0xdd7,
-                               1);
-                cluster_end = abs_cluster + 0x20;
-                system_exit(-1);
-              }
-
-              if (*(int *)((char *)obj_body + 8) != *(int *)(0x5a8d28 ^ 0)) {
-                *(int *)((char *)obj_body + 8) = *marker_gen_ptr;
-                result = recursive_object_adder(
-                  obj_handle, (char (*)(int, int))param_3, param_4, result,
-                  param_5, (int *)param_6);
-              }
-
-              obj_handle = cluster_partition_iter_next((void *)0x5a8d40,
-                                                       (int *)iter_state);
+            type_val = (int)*(short *)((char *)obj_body + 0x64);
+            type_mask = 1 << type_val;
+            if (type_mask == 0) {
+              display_assert(csprintf((char *)0x5ab100,
+                                      "got an object type we didn't expect "
+                                      "(expected one of 0x%08x but got #%d).",
+                                      -1, type_val),
+                             "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+              system_exit(-1);
             }
+
+            if (*(char *)(*(int *)0x46f084 + 1) == '\0') {
+              display_assert("object_globals->object_marker_initialized",
+                             "c:\\halo\\SOURCE\\objects\\objects.c", 0xdd7, 1);
+              system_exit(-1);
+            }
+
+            if (*(int *)((char *)obj_body + 8) != *(int *)0x5a8d28) {
+              *(int *)((char *)obj_body + 8) = *(int *)0x5a8d28;
+              result = recursive_object_adder(
+                obj_handle, (char (*)(int, int))param_3, param_4, result,
+                param_5, (int *)param_6);
+            }
+
+            obj_handle = cluster_partition_iter_next((void *)0x5a8d40,
+                                                     (int *)iter_state);
           }
-          abs_cluster++;
-        } while ((short)abs_cluster < (short)cluster_end);
+        }
       }
     }
 
@@ -11624,14 +11612,10 @@ void object_get_orientation(int object_handle, float *out_forward,
   if (obj->parent_object_index.value == NONE) {
     /* No parent — copy local forward and up vectors directly */
     if (out_forward != NULL) {
-      out_forward[0] = ((float *)&obj->unk_36)[0];
-      out_forward[1] = ((float *)&obj->unk_36)[1];
-      out_forward[2] = ((float *)&obj->unk_36)[2];
+      *(real_vector3d *)out_forward = *(real_vector3d *)&obj->unk_36;
     }
     if (out_up != NULL) {
-      out_up[0] = ((float *)&obj->unk_48)[0];
-      out_up[1] = ((float *)&obj->unk_48)[1];
-      out_up[2] = ((float *)&obj->unk_48)[2];
+      *(real_vector3d *)out_up = *(real_vector3d *)&obj->unk_48;
     }
   } else {
     /* Parented — transform through parent's node matrix */
@@ -11651,13 +11635,14 @@ void object_get_orientation(int object_handle, float *out_forward,
   /* Validate perpendicularity if both vectors were requested */
   if (out_forward != NULL && out_up != NULL) {
     if (!valid_real_normal3d_perpendicular(out_forward, out_up)) {
-      char *msg = csprintf(
-        (char *)0x5ab100,
-        "%s, %s: assert_valid_real_vector3d_axes2(%f, %f, %f / %f, %f, %f)",
-        "forward", "up", (double)out_forward[0], (double)out_forward[1],
-        (double)out_forward[2], (double)out_up[0], (double)out_up[1],
-        (double)out_up[2]);
-      display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x5b6, 1);
+      display_assert(
+        csprintf(
+          (char *)0x5ab100,
+          "%s, %s: assert_valid_real_vector3d_axes2(%f, %f, %f / %f, %f, %f)",
+          "forward", "up", (double)out_forward[0], (double)out_forward[1],
+          (double)out_forward[2], (double)out_up[0], (double)out_up[1],
+          (double)out_up[2]),
+        "c:\\halo\\SOURCE\\objects\\objects.c", 0x5b6, 1);
       system_exit(-1);
     }
   }
@@ -14266,10 +14251,10 @@ do_create:
 
   /* Copy position (3 floats from param+8 to buf+0x18) */
   {
-    int *src = (int *)(param + 0x8);
-    *(int *)(placement_buf + 0x18) = src[0];
-    *(int *)(placement_buf + 0x1c) = src[1];
-    *(int *)(placement_buf + 0x20) = src[2];
+    /* aggregate copy: ref lea ecx,[esi+8] then three dword moves through
+     * ECX (0x144782), not three independent [esi+N] loads. */
+    *(real_point3d *)(placement_buf + 0x18) =
+      *(real_point3d *)(param + 0x8);
   }
 
   /* Compute forward/up vectors from euler angles */
